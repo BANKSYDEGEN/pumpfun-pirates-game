@@ -1,5 +1,5 @@
 // Game-over SHARE: draws a 1200x675 PUMPFUN PIRATES score card on a canvas, then shares it
-// (navigator.share with a PNG file on iOS / Android) or falls back to downloading the PNG + an X post intent.
+// (navigator.share with a PNG file on phones) or, on desktop, opens an in-game modal: preview, download, copy, post on X.
 // Nothing here touches a wallet or the leaderboard; the wallet is only printed shortened.
 import { shortWallet } from './wallet.js';
 
@@ -73,18 +73,100 @@ export const cardBlob = (c) => new Promise((res) => c.toBlob(res, 'image/png'));
 let pending = null;
 export function prepareShare(stats) { pending = drawCard(stats).then(async (c) => ({ c, blob: await cardBlob(c), stats })); return pending; }
 
+// Native file share only where it is genuinely useful: phones / tablets (coarse pointer) with file sharing.
+// Desktop Chrome / Edge / Safari also expose navigator.share, but that opens the OS share sheet (no X, often
+// nothing useful) or rejects, and a popup opened after it is blocked, so desktop gets the in-game share modal.
+function useNativeShare() {
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return coarse && !!(navigator.canShare && navigator.share);
+}
+export const xIntentUrl = (stats) => `https://x.com/intent/post?text=${encodeURIComponent(shareText(stats))}&url=${encodeURIComponent(GAME_URL)}`;
+
 export async function shareScore(stats, { onStatus = () => {} } = {}) {
+  if (!useNativeShare()) { openShareModal(stats, onStatus); return 'modal'; } // opened synchronously, inside the click
   const p = pending || prepareShare(stats);
   const { blob } = await p;
   const text = shareText(stats), file = new File([blob], 'pumpfun-pirates-score.png', { type: 'image/png' });
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], text: `${text} ${GAME_URL}` }); onStatus('shared'); return 'shared'; }
-    catch (e) { if (e && e.name === 'AbortError') { onStatus('cancelled'); return 'cancelled'; } /* fall through to download */ }
+    catch (e) { if (e && e.name === 'AbortError') { onStatus('cancelled'); return 'cancelled'; } /* fall through to the share modal */ }
   }
-  // fallback: download the card + open an X post (the PNG can be attached by hand)
-  const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = 'pumpfun-pirates-score.png'; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(GAME_URL)}`, '_blank', 'noopener');
-  onStatus('downloaded'); return 'downloaded';
+  openShareModal(stats, onStatus); return 'modal';
+}
+
+// ---------- desktop share modal (preview + DOWNLOAD PNG / COPY IMAGE / POST ON X) ----------
+const CSS = `
+#pfp-share{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,8,12,0.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);font-family:'Just Another Hand',cursive;letter-spacing:0.04em}
+#pfp-share .ps-panel{position:relative;width:min(640px,100%);max-height:calc(100% - 8px);overflow:auto;background:#161616;border:1px solid rgba(255,205,119,0.35);border-radius:22px;padding:18px 20px 20px;box-shadow:0 18px 60px rgba(0,0,0,0.6),0 0 40px rgba(250,13,13,0.12);color:#fff;text-align:center}
+#pfp-share h2{margin:0 0 10px;font-size:34px;font-weight:400;color:#ffcd77;line-height:1}
+#pfp-share .ps-prev{width:100%;aspect-ratio:16/9;border-radius:12px;border:1px solid rgba(255,205,119,0.25);background:#0d1118 center/contain no-repeat;display:grid;place-items:center;color:rgba(255,255,255,0.5);font-size:22px;overflow:hidden}
+#pfp-share .ps-prev img{width:100%;height:100%;object-fit:contain;display:block}
+#pfp-share .ps-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px}
+#pfp-share .ps-row button{font-family:inherit;letter-spacing:0.05em;font-size:22px;padding:8px 18px;border-radius:999px;cursor:pointer;border:1px solid #ffcd77;background:transparent;color:#ffcd77;min-width:150px}
+#pfp-share .ps-row button:hover:not(:disabled){background:rgba(255,205,119,0.12)}
+#pfp-share .ps-row button:disabled{opacity:0.45;cursor:default}
+#pfp-share .ps-row button.ps-x{background:#fa0d0d;border-color:#fa0d0d;color:#fff;box-shadow:0 4px 18px rgba(250,13,13,0.35)}
+#pfp-share .ps-row button.ps-x:hover{background:#ff2a2a}
+#pfp-share .ps-note{margin-top:10px;font-size:19px;color:rgba(255,255,255,0.65);min-height:1.2em}
+#pfp-share .ps-close{position:absolute;top:10px;right:12px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:#fff;font:20px/1 system-ui,sans-serif;cursor:pointer;display:grid;place-items:center}
+#pfp-share .ps-close:hover{border-color:#fa0d0d;color:#fa0d0d}
+`;
+let modal = null;
+const canCopyImage = () => !!(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) && window.isSecureContext !== false;
+
+export function closeShareModal() {
+  if (!modal) return;
+  removeEventListener('keydown', modal.onKey, true);
+  if (modal.url) URL.revokeObjectURL(modal.url);
+  modal.el.remove(); modal = null;
+}
+
+export function openShareModal(stats, onStatus = () => {}) {
+  closeShareModal();
+  if (!document.getElementById('pfp-share-css')) { const st = document.createElement('style'); st.id = 'pfp-share-css'; st.textContent = CSS; document.head.appendChild(st); }
+  const el = document.createElement('div'); el.id = 'pfp-share'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Share your score card');
+  el.innerHTML = `<div class="ps-panel">
+    <button class="ps-close" aria-label="Close">✕</button>
+    <h2>SHARE YOUR SCORE</h2>
+    <div class="ps-prev">Painting your card…</div>
+    <div class="ps-row">
+      <button class="ps-dl" disabled>⤓ DOWNLOAD PNG</button>
+      ${canCopyImage() ? '<button class="ps-copy" disabled>⧉ COPY IMAGE</button>' : ''}
+      <button class="ps-x">POST ON X</button>
+    </div>
+    <div class="ps-note">Download or copy the card, then attach it to your X post.</div>
+  </div>`;
+  document.body.appendChild(el);
+  const q = (c) => el.querySelector(c), note = q('.ps-note');
+  const m = modal = { el, blob: null, url: null };
+  m.onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeShareModal(); } };
+  addEventListener('keydown', m.onKey, true);
+  el.addEventListener('click', (e) => { if (e.target === el) closeShareModal(); });
+  q('.ps-close').onclick = closeShareModal;
+  // POST ON X: window.open straight from the click handler so the popup blocker lets it through
+  q('.ps-x').onclick = () => { window.open(xIntentUrl(stats), '_blank', 'noopener'); onStatus('posted'); };
+  q('.ps-dl').onclick = () => {
+    if (!m.url) return;
+    const a = document.createElement('a'); a.href = m.url; a.download = 'pumpfun-pirates-score.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    note.textContent = 'Downloaded! Attach it to your X post.'; onStatus('downloaded');
+  };
+  const copyBtn = q('.ps-copy');
+  if (copyBtn) copyBtn.onclick = async () => {
+    if (!m.blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': m.blob })]);
+      copyBtn.textContent = '✓ Copied!'; note.textContent = 'Copied! Paste it straight into your X post.'; onStatus('copied');
+      setTimeout(() => { if (modal === m) copyBtn.textContent = '⧉ COPY IMAGE'; }, 2000);
+    } catch { copyBtn.remove(); note.textContent = 'This browser blocked copying. Use DOWNLOAD PNG instead.'; }
+  };
+  (pending || prepareShare(stats)).then(({ blob }) => {
+    if (modal !== m || !blob) return;
+    m.blob = blob; m.url = URL.createObjectURL(blob);
+    const img = new Image(); img.alt = 'PUMPFUN PIRATES score card'; img.src = m.url;
+    const prev = q('.ps-prev'); prev.textContent = ''; prev.appendChild(img);
+    q('.ps-dl').disabled = false; if (copyBtn) copyBtn.disabled = false;
+  }).catch(() => { if (modal === m) q('.ps-prev').textContent = 'Could not paint the card.'; });
+  q('.ps-x').focus();
+  return el;
 }
