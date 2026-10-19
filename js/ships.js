@@ -69,6 +69,9 @@ export const SCHEMES = {
   boss: { seed: 51, wood: 0x4a3226, band: 0x15201a, stripe: 0x4ee37a, band2: 0x5b0f2a, tar: 0x140f0d, trim: 0x4ee37a, sail: 0x1f2b24, patch: [0x0f3a22, 0x3a1a26], hem: 0x4ee37a, lantern: 0x5cff8f, window: 0x7dffa8, stripes: 0x2d6b43 },
 };
 export const ENEMY_SCHEMES = ['slime', 'grape', 'reef'];
+// [enemy variety] extra enemy builds: rammer (black hull, blood-red sails, iron bands) and runner (cream-gold sails, gold trim)
+SCHEMES.rammer = { seed: 61, wood: 0x3b2a22, band: 0x121212, stripe: 0xfa0d0d, band2: 0x7a0a0a, tar: 0x120c0a, trim: 0x9aa6b8, sail: 0x9e1414, patch: [0x5e0e0e, 0x2a1414], hem: 0x161616, lantern: 0xff5a3a, window: 0xff7a4a };
+SCHEMES.runner = { seed: 71, wood: 0x8a6038, band: 0xffcd77, stripe: 0x161616, band2: 0xb8862f, tar: 0x2a1c10, trim: 0xffcd77, sail: 0xf3dc9e, patch: [0xffcd77, 0xe8cf95], hem: 0xb8862f, lantern: 0xffe08a, window: 0xffe08a, stripes: 0xffcd77 };
 
 const _kits = new Map();
 function kit(name, mainSailMap) {

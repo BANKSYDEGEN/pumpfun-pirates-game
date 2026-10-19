@@ -322,3 +322,8 @@ html.ios-pwa #status-plate::after {
   .title-panel .disclaimer { font-size: 13px; margin-top: 3px; }
 }
 .share-btn { border-color: var(--gold) !important; color: var(--gold) !important; touch-action: manipulation; }
+/* [enemy variety] telegraphs on the health bar: wind-up flash before a ram / boss barrage, solid red while charging */
+.ehp.windup .bar { animation: ev-warn 0.18s steps(2) infinite; }
+.ehp.charging .bar { box-shadow: 0 0 0 2px var(--red), 0 0 12px rgba(250,13,13,0.8); }
+.ehp.charging .fill, .ehp.windup .fill { background: linear-gradient(90deg, #a00, var(--red)); }
+@keyframes ev-warn { 0% { box-shadow: 0 0 0 2px var(--red), 0 0 14px rgba(250,13,13,0.9); } 100% { box-shadow: none; } }

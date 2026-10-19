@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, MAX_HULLS } from './ocean.js';
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
+import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
@@ -17,7 +18,7 @@ import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList } from './upgrades.js';
-import { waveRoster, applyEnemyType } from './enemyTypes.js';
+import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
@@ -140,11 +141,13 @@ const ballMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4
 // ---------- enemies ----------
 function spawnEnemy(x, z, tier = 1, type = null) {
   const big = tier >= 2;
-  const mesh = buildShip({
+  const build = ENEMY_BUILDS[type]; // [enemy variety] rammer / runner hulls, rigs and colours
+  const mesh = buildShip(build ? { ...build, flagMap: pillTex, flagScale: 1.2, shadows: HIGH } : {
     len: big ? 19 : rnd(13, 15.5), beam: big ? 6 : rnd(4.4, 5), depth: 2.8,
     scheme: big ? 'boss' : ENEMY_SCHEMES[Math.floor(Math.random() * ENEMY_SCHEMES.length)], boss: big,
     flagMap: pillTex, flagScale: 1.45, cannonsPerSide: big ? 4 : 2, masts: big ? 3 : 2, shadows: HIGH,
   });
+  if (build) decorateBuild(mesh, type);
   scene.add(mesh);
   const hp = Math.round((big ? 160 : 70) * (1 + game.wave * 0.12));
   const bar = document.createElement('div'); bar.className = 'ehp';
@@ -157,9 +160,30 @@ function spawnEnemy(x, z, tier = 1, type = null) {
     reload: Math.max(2.2, 5 - game.wave * 0.25), accuracy: clamp(0.55 + game.wave * 0.05, 0.5, 0.9), smokeT: 0,
   };
   if (type) applyEnemyType(e, type, game.wave); // [Raul] ship upgrades: enemy types
+  if (type === 'runner') { e.yaw = Math.atan2(x - player.x, z - player.z); e.speed = 6; } // [enemy variety] already running when it appears
   enemies.push(e);
   return e;
 }
+
+// [enemy variety] silhouette extras: an iron ram on the rammer's bow, treasure chests on the runner's deck
+const ramGeo = new THREE.ConeGeometry(0.75, 4.2, 8); ramGeo.rotateX(Math.PI / 2); ramGeo.userData = {};
+const ramMat = toon(0x3a3f47, null, { key: 'ev-ram' }), ramBand = toon(0xfa0d0d, null, { key: 'ev-ram-band' });
+const ramBandGeo = new THREE.TorusGeometry(0.78, 0.16, 6, 14);
+function decorateBuild(mesh, type) {
+  const ud = mesh.userData;
+  if (type === 'rammer') {
+    const ram = new THREE.Mesh(ramGeo, ramMat); ram.position.set(0, 0.9, ud.len / 2 + 1.4); ram.userData.sharedGeo = true; ud.body.add(ram);
+    const band = new THREE.Mesh(ramBandGeo, ramBand); band.position.set(0, 0.9, ud.len / 2 - 0.4); band.userData.sharedGeo = true; ud.body.add(band);
+  } else if (type === 'runner') {
+    for (const [x, z, r] of [[-0.7, -1.2, 0.3], [0.8, 0.4, -0.5], [0, 2.2, 0.1]]) { const c = makeChest(); c.scale.setScalar(1.05); c.position.set(x, ud.deckY + 0.05, z); c.rotation.y = r; c.traverse(o => { o.userData.sharedGeo = true; if (o.material && o.material.isShaderMaterial) o.visible = false; }); ud.body.add(c); } // no loot beam while it's still on deck
+  }
+}
+// [enemy variety] remove a ship that got away (no sink, no loot, no score)
+function despawnEnemy(e) {
+  e.alive = false; e.escaped = true; e.sinking = 99; e.mesh.visible = false; e.bar.style.display = 'none'; // the sunk-ship sweep in the loop removes + disposes it (no splice mid-iteration)
+  popup(new THREE.Vector3(player.x, 8, player.z), 'IT GOT AWAY!', 'hit'); updateHud();
+}
+const specialCtx = { get player() { return player; }, enemies, game, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), damage: (...a) => damage(...a), spawnEnemy: (...a) => spawnEnemy(...a), despawn: (e) => despawnEnemy(e), fx, popup: (...a) => popup(...a), sfx, V3: THREE.Vector3 };
 
 function startWave() {
   game.wave++;
@@ -248,6 +272,7 @@ function damage(s, amt, p, src = null) {
 // ---------- loot ----------
 const healthDrops = createHealthDrops({ scene, fx, sfx, popup, updateHud }); // [health drops]
 function dropLoot(s) {
+  if (s.type === 'runner') return dropChests(s, RUN.goldChests, Math.round(RUN.goldBase + game.wave * RUN.goldPerWave)); // [enemy variety] big gold
   const n = s.big ? 3 : 1;
   for (let i = 0; i < n; i++) {
     const g = makeChest();
@@ -257,6 +282,14 @@ function dropLoot(s) {
     loot.push(l);
     fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 7, 1.4);
   }
+}
+function dropChests(s, n, value) { // [enemy variety]
+  for (let i = 0; i < n; i++) {
+    const g = makeChest(); g.scale.setScalar(1.5); scene.add(g);
+    const l = { mesh: g, x: s.x + rnd(-5, 5), z: s.z + rnd(-5, 5), value, life: 45, ph: Math.random() * 6 };
+    loot.push(l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
+  }
+  popup(new THREE.Vector3(s.x, 9, s.z), `+${n * value} GOLD SPILLED`, 'hit');
 }
 
 // ---------- ship physics ----------
@@ -304,6 +337,10 @@ function moveShip(s, dt, targetSpeed, turnInput) {
 // ---------- enemy AI ----------
 function updateEnemy(e, dt) {
   if (!e.alive) { floatShip(e, dt); return; }
+  if (updateSpecialEnemy(e, dt, specialCtx)) { // [enemy variety] rammer / runner AI (boss attacks also run here, then fall through)
+    if (e.alive && e.hp < e.maxHp * 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.12; fx.smoke(new THREE.Vector3(e.x + rnd(-2, 2), e.y + 3, e.z + rnd(-3, 3)), e.hp < e.maxHp * 0.35); } }
+    return;
+  }
   const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz);
   const toP = Math.atan2(dx, dz);
   let desired = e.yaw, spd = e.maxSpeed * 0.55;
