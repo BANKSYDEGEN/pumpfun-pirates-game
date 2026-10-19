@@ -1,13 +1,13 @@
 // PUMPFUN PIRATES · health drops
 // Every 3rd enemy sunk in a run (and every boss) leaves a floating medic crate where it went down.
-// Sail into it to heal 25% of max HP (capped at max). Crates despawn after 25 s and blink in their last 5 s.
+// Sail into it to heal 25% of max HP (capped at max). Crates despawn after 15 s and blink in their last 4 s.
 // Shown on the radar in green. Self-contained: main.js only calls the hooks marked [health drops].
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { waveHeight } from './ocean.js';
 import { toon, glowMat, outlineFor, woodTexture } from './toon.js';
 
-export const HEALTH_DROP = { every: 3, healPct: 0.25, life: 25, blink: 5, radarColor: '#4ee37a' };
+export const HEALTH_DROP = { every: 3, healPct: 0.25, life: 15, blink: 4, radarColor: '#4ee37a' };
 
 // ---------- medic crate template (cloned per drop; geometry + materials shared) ----------
 let _tpl = null;
