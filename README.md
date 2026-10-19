@@ -1,5 +1,9 @@
 # PUMPFUN PIRATES · Storm Hunt
 
+### ▶ [Play now: banksydegen.github.io/pumpfun-pirates-game](https://banksydegen.github.io/pumpfun-pirates-game/)
+
+On your phone, open the link and use **Add to Home Screen** to install it as an app.
+
 A stormy, browser-based pirate game for **PUMPFUN PIRATES** ($AHOY).
 You sail a PUMPFUN PIRATES ship flying the skull flag and hunt down rug ships that fly the cracked-pill flag.
 
