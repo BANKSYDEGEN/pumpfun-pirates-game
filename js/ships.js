@@ -164,7 +164,7 @@ function hullGeometry(len, beam, depth) {
 function deckGeometry(len, shape, drop, inset = 0.9) {
   const N = 22, pos = [], uv = [], idx = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N, z = (t - 0.5) * len, w = shape.halfW(t) * inset * 0.93, y = shape.top(t) - drop;
+    const t = i / N, z = (t - 0.5) * len, w = shape.halfW(t) * (inset >= 1 ? 1.0 : inset * 0.93), y = shape.top(t) - drop;
     pos.push(w, y, z, -w, y, z); uv.push(z / 4, w / 1.4, z / 4, -w / 1.4);
   }
   for (let i = 0; i < N; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
@@ -188,6 +188,7 @@ function sailGeometry(w, h, billow) {
   g.computeVertexNormals();
   return g;
 }
+const WATER_MASK = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
 const cyl = (r1, r2, h, s = 10, open = false) => new THREE.CylinderGeometry(r1, r2, h, s, 1, open);
 function lathe(pts, segs = 12) { return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs); }
 const CANNON = [[0.001, -0.15], [0.2, -0.15], [0.27, -0.08], [0.29, 0.05], [0.25, 0.14], [0.23, 0.2], [0.21, 0.82], [0.25, 0.86], [0.25, 0.94], [0.21, 0.98], [0.23, 1.06], [0.3, 1.12], [0.3, 1.22], [0.17, 1.22], [0.15, 1.1]];
@@ -371,6 +372,13 @@ export function buildShip(opts) {
   rig.push(jTop.toArray(), jTip.toArray());
 
   parts.build(body, new Set([K.hull, K.cabin, K.mast, K.iron, K.gold]), boss ? 0.07 : 0.05, shadows);
+
+  // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
+  // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above
+  // the deck can never show inside the hull. Scales with the ship (frigates / galleons / boss).
+  const lid = new THREE.Mesh(deckGeometry(len, shape, -0.06, 1.0), WATER_MASK);
+  lid.renderOrder = 1; lid.userData.waterMask = true;
+  body.add(lid);
 
   // rigging lines
   const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rig.flat(), 3));

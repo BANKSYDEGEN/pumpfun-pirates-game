@@ -61,7 +61,7 @@ if (HIGH) {
   sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.04; sun.shadow.radius = 3;
 }
 
-const ocean = createOcean(quality); scene.add(ocean.mesh);
+const ocean = createOcean(quality); ocean.mesh.renderOrder = 2; scene.add(ocean.mesh); // after ships' water masks (see ships.js)
 const sky = createSky(); scene.add(sky.mesh);
 const rain = createRain(quality === 'low' ? 1800 : 5000); scene.add(rain.mesh);
 const fx = new FX(scene, quality);
