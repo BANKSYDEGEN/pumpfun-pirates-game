@@ -3,6 +3,7 @@
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
 import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat } from './upgrades.js';
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
+import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
 
 let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
@@ -97,7 +98,7 @@ function skinAction(id) {
   const label = bought ? `+${s.name}` : s.name;
   celebrateUpgrade(mesh, 'skin', { camera: ctx.camera, label });
   lastBuy = { id: 'skin', label, legendary: false };
-  if (bought) { if (ctx.sfx?.upgrade) ctx.sfx.upgrade(false); else ctx.sfx?.coin?.(); } else ctx.sfx?.coin?.();
+  if (bought) ctx.sfx?.upgrade?.(false); ctx.sfx?.equip?.(); // [Raul] sound upgrades: cloth swish + sparkle
   ctx.updateHud(); render();
   const c = $('skin-grid').querySelector(`[data-skin="${id}"]`); if (c) { c.classList.remove('tierup'); void c.offsetWidth; c.classList.add('tierup'); setTimeout(() => c.classList.remove('tierup'), 800); }
 }
@@ -133,7 +134,7 @@ function buy(id) {
   const u = UPGRADES.find(x => x.id === id), lv = run.levels[id], t = u && u.tiers[lv];
   if (!t || ctx.game.gold < t.cost) return;
   ctx.game.gold -= t.cost; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + t.cost; run.spent += t.cost;
-  run.levels[id]++;
+  run.levels[id]++; setLoadout(run.levels);
   applyStats(ctx.getPlayer(), shipStats(run));
   // [Raul] upgrade visuals: recompile the ship from the new trait levels, then the purchase moment
   const lvl = run.levels[id], legendary = lvl === u.tiers.length;
@@ -156,7 +157,7 @@ function repair() {
 export function open() {
   if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return;
   ctx.game.state = 'shop';
-  render(); $('shop').classList.remove('hidden');
+  render(); $('shop').classList.remove('hidden'); ctx.sfx?.shopOpen?.(); // [Raul] sound upgrades
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] pre-compile next purchases so buying is instant
 }
 export function close() {
@@ -175,7 +176,7 @@ export function toggle() { if (ctx?.game.state === 'shop') close(); else open();
 
 // New run: wipe upgrades and give the fresh player ship the base stats.
 export function resetShop() {
-  run = newRun();
+  run = newRun(); setLoadout(run.levels);
   if (ctx) { ctx.game.goldSpent = 0; const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; lastBuy = null; }
   $('shop')?.classList.add('hidden');
 }
@@ -190,5 +191,5 @@ export function initShop(c) {
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
   window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, get run() { return run; },
     // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
-    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); } };
+    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); } };
 }

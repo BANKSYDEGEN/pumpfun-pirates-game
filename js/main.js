@@ -5,7 +5,7 @@ import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, 
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { FX } from './fx.js';
-import { initAudio, sfx, setMuted, muted } from './audio.js';
+import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE } from './leaderboard.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
@@ -166,6 +166,7 @@ function startWave() {
     spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
   }
   banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE DEV WALLET APPROACHES' : `${n} rug ships on the horizon`);
+  if (roster.includes('boss')) sfx.boss(); else sfx.waveStart(); sfx.spawnBell(); // [Raul] sound upgrades (bell: SPYGLASS III)
   updateHud();
 }
 
@@ -215,7 +216,8 @@ function fire(shooter, side, target = null, accuracy = 1) {
     setTimeout(() => fx.muzzle(p, dir), i * 70);
   });
   const dist = Math.hypot(shooter.x - player.x, shooter.z - player.z);
-  sfx.cannon(clamp(1 - dist / 220, 0.1, 1));
+  if (shooter === player) sfx.broadside(muzzles.length); // [Raul] sound upgrades: one boom per gun that fires, CANNONS tier sets the sound
+  else sfx.enemyBroadside(muzzles.length, clamp(1 - dist / 220, 0, 1), !!shooter.big);
 }
 
 function playerFire(side) {
@@ -229,10 +231,10 @@ function playerFire(side) {
 function damage(s, amt, p) {
   if (!s.alive) return;
   s.hp -= amt;
-  fx.hit(p); sfx.hit(clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1));
+  fx.hit(p); if (s === player) sfx.playerHit(); else sfx.hit(clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1)); // [Raul] sound upgrades: hull / iron plating
   if (s === player) { game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); }
   else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
-  if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
+  if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
     else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s); } // [health drops] every 3rd sink + bosses
   }
@@ -405,9 +407,18 @@ function resetCamera() {
   const back = new THREE.Vector3(-Math.sin(player.yaw) * dist, up, -Math.cos(player.yaw) * dist);
   camera.position.copy(player.mesh.position).add(back);
 }
-function toggleSound() { setMuted(!muted); $('btn-sound').textContent = muted ? '🔇' : '🔊'; }
+function toggleSound() { initAudio(); setMuted(!muted); } // [Raul] sound upgrades: button state follows onAudioState below
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); else document.exitFullscreen?.(); }
-$('btn-sound').textContent = muted ? '🔇' : '🔊';
+// [Raul] sound upgrades: clear sound button state + volume sliders in the pause menu
+onAudioState((a) => {
+  const b = $('btn-sound'); b.textContent = a.muted ? '🔇' : '🔊';
+  b.classList.toggle('off', a.muted); b.classList.toggle('locked', !a.muted && !a.running);
+  b.title = a.muted ? 'Sound OFF (tap to turn on, M)' : a.running ? 'Sound ON (tap to mute, M)' : 'Tap anywhere to enable sound';
+  b.setAttribute('aria-pressed', a.muted ? 'true' : 'false');
+  for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el && document.activeElement !== el) el.value = Math.round(a[k] * 100); }
+});
+for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el) el.addEventListener('input', () => { const v = el.value / 100; initAudio(); if (muted && v > 0) setMuted(false); setLevel(k, v); }); } // read the value before initAudio(): its state notify re-syncs unfocused sliders (iOS doesn't focus range inputs on touch)
+window.PFP_AUDIO = { sfx, setLoadout };
 $('btn-sound').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
@@ -574,7 +585,7 @@ function startGame() {
   if (!validateWallet()) return;
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
-  initAudio();
+  initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
   Object.assign(game, { state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
@@ -641,7 +652,8 @@ function frame() {
     if (game.state === 'playing' && player.alive) {
       const turn = ((keys.KeyA || keys.ArrowLeft || held.left) ? 1 : 0) - ((keys.KeyD || keys.ArrowRight || held.right) ? 1 : 0);
       moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
-      player.cd.port = Math.max(0, player.cd.port - dt); player.cd.star = Math.max(0, player.cd.star - dt);
+      const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
+      for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
       if (player.hp < player.maxHp * 0.4 && Math.random() < 0.15) fx.smoke(new THREE.Vector3(player.x + rnd(-2, 2), player.y + 3, player.z + rnd(-3, 3)), player.hp < player.maxHp * 0.25);
       // waves
       if (!enemies.some(e => e.alive)) {
@@ -714,6 +726,7 @@ function frame() {
   rain.uniforms.uCam.value.copy(camera.position);
 
   if (game.state !== 'title') { updateBars(); drawRadar(); updateFireButtons(); }
+  updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

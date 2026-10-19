@@ -128,6 +128,11 @@
   <div class="panel small">
     <h1>PAUSED</h1>
     <div class="controls-help">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · M sound</div>
+    <div class="vol-box"><!-- [Raul] sound upgrades: volume sliders -->
+      <label><span class="label">MASTER</span><input type="range" id="vol-master" min="0" max="100" step="1" aria-label="Master volume"></label>
+      <label><span class="label">SFX</span><input type="range" id="vol-sfx" min="0" max="100" step="1" aria-label="Sound effects volume"></label>
+      <label><span class="label">MUSIC</span><input type="range" id="vol-music" min="0" max="100" step="1" aria-label="Music volume"></label>
+    </div>
     <button id="btn-resume" class="big">RESUME</button>
     <button id="btn-quit" class="ghost">MAIN MENU</button>
   </div>
