@@ -39,10 +39,13 @@ Broadsides auto-range on the nearest enemy on that side (within about 90 m and r
 
 ## Gameplay
 
-- **Waves:** each wave sends more rug ships, and every 4th wave adds a **DEV WALLET** boss. Clearing a wave repairs 25 hull and gives a bonus.
-- **Enemy AI:** enemies roam, close in once they spot you, circle to fire broadsides, and **flee** when their hull drops below 30%.
+- **Waves:** each wave sends more rug ships (and tougher hull types as you go), and every 4th wave adds a **DEV WALLET** boss. The first one (wave 4) is an easier intro fight; later ones hit harder. Your hull is fully repaired at the start of every wave, and clearing a wave gives a bonus.
+- **Enemy AI:** enemies roam, close in once they spot you, circle to fire broadsides, and **flee** when their hull drops below 30%. Some ships behave differently, so watch the health bars (a flashing bar means something is coming).
+- **Health crates:** every 3rd ship you sink, and every boss, leaves a floating medic crate (+25% hull, lasts 15 s, green on the radar).
+- **Shipwright shop** (chest icon, `U`/`B`; pauses the game): spend gold on upgrades (hull, iron plating, sails, rudder, cannons, gun crew, spyglass) or a hull repair, and buy permanent **ship skins** on the SKINS tab (with live previews). A short how-to-play card opens at the start (turn it off with "Don't show again"; reopen from the shop `?` or the pause menu).
 - **Scoring:** +5 per hit, +100 per sink (×3 for a boss) plus a wave bonus, plus gold from the floating treasure chests sunk ships drop (sail within about 10 m to grab one).
-- **Game over:** your ship sinks, then you can enter a name and save to the leaderboard.
+- **Game over:** your ship sinks, then you can enter a name and save to the leaderboard, or **SHARE** a 1200×675 score card (native share sheet on phones; on desktop a preview with download / copy image / post on X).
+- **Pause menu:** master / SFX / music volume sliders and HOW TO PLAY.
 
 ## Wallet and leaderboard
 
@@ -81,7 +84,7 @@ The whole game runs in the browser, so **any score can be faked**: someone can c
 - wallet ownership proof (Phantom signature),
 - and ideally replay or input-log verification, or moderation.
 
-## Crypto rewards (placeholder only)
+## Wallet connect (coming soon)
 
 The title screen has a disabled **"Wallet connect coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). With `WALLET_VERIFY_ENABLED = false` (as shipped) there is no wallet connection and no signing; the optional view-only `signMessage` check is described under *Wallet verification* below. **There is no fund handling anywhere in this code.**
 
@@ -121,11 +124,19 @@ js/ships.js            stylized ships built in code (plank hulls, railings, cann
 js/toon.js             toon ramp/materials, inverted-hull outlines, procedural painted textures (wood, cloth, metal, gold, rock)
 js/props.js            treasure chests with light beams, horizon sea stacks + lighthouse
 js/fx.js               pooled particles + chunky toon puffs/explosions + splash rings
-js/audio.js            synthesized SFX (no audio files)
+js/audio.js            synthesized SFX + shanty loop (no audio files); js/soundProfile.js: per-upgrade sound settings
+js/upgrades.js         Shipwright upgrade data; js/shop.js + css/shop.css: shop / skins UI
+js/skins.js            ship skins; js/skinPreview.js: skin preview renders
+js/upgradeVisuals.js   upgrades shown on the ship
+js/enemyTypes.js       enemy hull types, wave roster, extra enemy behaviours, boss attacks
+js/healthDrops.js      medic crates (every 3rd sink + bosses)
+js/tutorial.js         how-to-play card
+js/shareCard.js        game-over score card + share
+js/tokenChip.js        $AHOY contract chip (copy) + DexScreener / X / Telegram links
 js/leaderboard.js      Local + Supabase adapters
 js/wallet.js           Solana address validation / shortening
 js/rewards.js          non-functional rewards placeholder (TODO hooks)
-js/config.js           Supabase keys (placeholders) + quality setting
+js/config.js           Supabase URL + publishable key, quality, $AHOY CA + links, WALLET_VERIFY_ENABLED
 supabase/schema.sql    table, RLS policies, best-per-wallet view, rate limit
 supabase/migrations/   002_daily.sql (DAILY board), 003_verified.sql (verified flag)
 js/daily.js            DAILY seed (UTC day) + seeded RNG
