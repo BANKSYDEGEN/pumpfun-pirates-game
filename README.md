@@ -83,7 +83,7 @@ The whole game runs in the browser, so **any score can be faked**: someone can c
 
 ## Crypto rewards (placeholder only)
 
-The title screen has a disabled **"Wallet connect coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). **There is no wallet connection, no signing, and no fund handling anywhere in this code.**
+The title screen has a disabled **"Wallet connect coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). With `WALLET_VERIFY_ENABLED = false` (as shipped) there is no wallet connection and no signing; the optional view-only `signMessage` check is described under *Wallet verification* below. **There is no fund handling anywhere in this code.**
 
 ## PWA / phones
 
@@ -93,6 +93,22 @@ The title screen has a disabled **"Wallet connect coming soon"** button. `js/rew
 - **Graphics (stylized toon look):** cel-shaded materials with a 4-step ramp, dark outlines, hand-painted procedural textures (no texture downloads), stylized storm sea and sky.
 - **High quality** (desktops): bloom (lanterns, cannon fire, loot, lightning), vignette, FXAA, soft shadows. The post-processing modules are only downloaded on high.
 - Phones automatically get **low quality**: no post-processing or shadows, cheaper water foam, lower pixel ratio, smaller ocean mesh, less rain and fewer particles, no antialiasing. You can force it with `?quality=low` or `?quality=high`, or set `QUALITY` in `js/config.js`.
+
+## Wallet verification (built, OFF)
+
+Phantom connect + a Sign-In-With-Solana style **`signMessage` only**. The signed text is plain and human-readable (domain, wallet, a "view-only, cannot move funds" statement, URI, nonce, timestamp). The code never requests `signTransaction`, `signAllTransactions`, `signAndSendTransaction` or any transfer/approval, and never sees keys or seed phrases.
+
+- `js/config.js` → `WALLET_VERIFY_ENABLED = false` (shipped). Off means **nothing** wallet-connect related is shown or downloaded (`js/walletVerify.js` is only `import()`ed when the flag is on, and it's not in the service-worker precache). Typed wallets work exactly as before.
+- On: the title button becomes **👻 CONNECT PHANTOM** (desktop with the extension), **OPEN IN PHANTOM** (phone browser: deep link `https://phantom.app/ul/browse/<this page>` opens the game inside Phantom's in-app browser) or **GET PHANTOM**. Connecting fills the wallet field and asks for one signature; the proof lives in `sessionStorage` for up to 24 h. Score saves then go to the `verify-score` Edge Function, which checks the ed25519 signature and inserts the row with `verified = true`. If that call fails, the score is saved the normal (unverified) way.
+- Server pieces (committed, **not deployed / not run**): [`supabase/migrations/003_verified.sql`](supabase/migrations/003_verified.sql) (adds `verified boolean default false` + a restrictive policy so browsers can never insert `verified = true`) and [`supabase/functions/verify-score/index.ts`](supabase/functions/verify-score/index.ts) (tweetnacl + bs58; checks domain, wallet, the exact statement, URI, nonce format, issued-at within 24 h, then inserts with the service role; daily seeds limited to today/yesterday UTC like 002).
+
+**To turn it on later:**
+1. Supabase → SQL Editor → run `supabase/migrations/003_verified.sql` (run `002_daily.sql` first if you want verified DAILY runs).
+2. Deploy the function: `supabase functions deploy verify-score --no-verify-jwt` (from the repo root, logged in with `supabase login` and linked with `supabase link --project-ref <ref>`). `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically; optionally set `ALLOWED_ORIGINS` (comma-separated, default `https://banksydegen.github.io`) with `supabase secrets set ALLOWED_ORIGINS=...` if the game moves to another domain.
+3. In `js/config.js` set `WALLET_VERIFY_ENABLED = true` (`VERIFY_SCORE_URL` defaults to `<SUPABASE_URL>/functions/v1/verify-score`), bump `VERSION` in `sw.js`, push.
+4. Test with Phantom on desktop and inside the Phantom app on a phone. To switch it off again, set the flag back to `false`.
+
+A signature proves wallet ownership, not that the score is legit (see anti-cheat limits above).
 
 ## Files
 
@@ -111,8 +127,10 @@ js/wallet.js           Solana address validation / shortening
 js/rewards.js          non-functional rewards placeholder (TODO hooks)
 js/config.js           Supabase keys (placeholders) + quality setting
 supabase/schema.sql    table, RLS policies, best-per-wallet view, rate limit
-supabase/migrations/   002_daily.sql (DAILY board)
+supabase/migrations/   002_daily.sql (DAILY board), 003_verified.sql (verified flag)
 js/daily.js            DAILY seed (UTC day) + seeded RNG
+js/walletVerify.js     Phantom connect + signMessage (view-only), loaded only when WALLET_VERIFY_ENABLED
+supabase/functions/    verify-score Edge Function (not deployed)
 sw.js, manifest.webmanifest, assets/icons/   PWA
 assets/                font, skull logo, wordmark, NFT captain portraits
 ```

@@ -21,3 +21,10 @@ export const AHOY_CA = '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump';
 export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5pwej4kfsuqzcud5wrhmtv9zd4';
 export const X_URL = 'https://x.com/PUMPFUNPIRATES';
 export const TG_URL = 'https://t.me/PUMPFUNPIRATES';
+
+// Wallet verification (Phantom connect + signMessage, VIEW-ONLY: never a transaction). BUILT BUT OFF.
+// false = nothing wallet-connect related is shown or even downloaded; typed wallets work as before.
+// Turn on only after migration 003_verified.sql is run and the verify-score Edge Function is deployed
+// (README "Wallet verification").
+export const WALLET_VERIFY_ENABLED = false;
+export const VERIFY_SCORE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/verify-score` : '';

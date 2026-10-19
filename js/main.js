@@ -12,6 +12,7 @@ import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
+import { WALLET_VERIFY_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $AHOY CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
@@ -547,7 +548,7 @@ walletInput.value = game.wallet; nameInput.value = game.name;
 function validateWallet() {
   const v = walletInput.value.trim(), ok = isValidSolanaAddress(v);
   walletInput.classList.toggle('good', ok); walletInput.classList.toggle('bad', !!v && !ok);
-  $('wallet-msg').textContent = !v ? 'Required. Only used to key your leaderboard score. Never asks for keys or signatures.' : ok ? `Ahoy ${shortWallet(v)}! Ready to sail.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+  $('wallet-msg').textContent = !v ? (WALLET_VERIFY_ENABLED ? 'Required. Only used to key your leaderboard score. Never asks for keys; verifying is an optional view-only signature.' : 'Required. Only used to key your leaderboard score. Never asks for keys or signatures.') : ok ? `Ahoy ${shortWallet(v)}! Ready to sail.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
   $('btn-start').disabled = !ok;
   return ok;
 }
@@ -556,6 +557,17 @@ walletInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && valida
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && validateWallet()) startGame(); });
 validateWallet();
 $('btn-rewards').textContent = `🔒 ${rewardsStatus().label.toUpperCase()}`;
+// [wallet verify] built but disabled. With the flag on: CONNECT PHANTOM (connect + signMessage only, view-only),
+// fills the wallet field, and score saves carry the signature to the verify-score Edge Function.
+let walletVerify = null;
+if (WALLET_VERIFY_ENABLED) import('./walletVerify.js').then(m => {
+  walletVerify = m;
+  m.initWalletVerify({
+    button: $('btn-rewards'), walletInput,
+    onWallet: (addr) => { walletInput.value = addr; walletInput.dispatchEvent(new Event('input')); },
+    setMsg: (t) => { $('wallet-msg').textContent = t; },
+  });
+}).catch(e => console.warn('[wallet verify] unavailable', e));
 $('btn-start').onclick = () => startGame();
 // [daily] DAILY button: one run per wallet per UTC day (seeded), then it shows the countdown to the next one
 const DAILY_LS = 'pfp_daily_played';
@@ -709,10 +721,10 @@ async function saveScore() {
   if (game.saved) return;
   game.saved = true; $('btn-save').disabled = true;
   game.name = $('go-name').value.trim().slice(0, 20); saveName(game.name);
-  const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) });
+  const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) }, { proof: walletVerify?.getProof(game.wallet) || null }); // [wallet verify] proof only exists when the flag is on
   $('save-msg').textContent = game.mode === 'daily'
     ? (r.where === 'online' ? 'Saved to the online DAILY board!' : leaderboard.remote ? 'Saved on this device. Online daily board coming soon.' : 'Saved on this device.')
-    : (r.where === 'online' ? 'Saved to the online leaderboard!' : 'Saved on this device.');
+    : (r.where === 'online' ? (r.verified ? 'Saved to the online leaderboard ✅ verified!' : 'Saved to the online leaderboard!') : 'Saved on this device.');
   await renderBoard($('board-over'));
 }
 $('btn-save').onclick = saveScore;

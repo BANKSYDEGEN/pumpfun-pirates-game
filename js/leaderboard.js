@@ -2,7 +2,7 @@
 // LocalAdapter: always available, this device only.
 // SupabaseAdapter: activates automatically when config.js has URL + anon key.
 // Periods: 'day' | 'week' | 'month' | 'year' are ROLLING windows (last 24h / 7d / 30d / 365d); 'all' = all-time.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, LEADERBOARD_DAILY_VIEW } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, LEADERBOARD_DAILY_VIEW, WALLET_VERIFY_ENABLED, VERIFY_SCORE_URL } from './config.js';
 // DAILY challenge board: one board per UTC day (seed 'YYYY-MM-DD'), best run per wallet. Needs migration 002_daily.sql
 // online; until it's run, daily runs are kept on this device and the board says 'daily board coming soon'.
 
@@ -138,6 +138,16 @@ export class SupabaseAdapter {
     if (!r.ok) throw await httpErr(r, 'leaderboard write');
     return { ok: true };
   }
+  // [wallet verify] score + Phantom signMessage proof -> verify-score Edge Function (checks the ed25519 signature,
+  // inserts with verified = true). Only used when WALLET_VERIFY_ENABLED and a proof exists.
+  async submitVerified(entry, proof) {
+    const r = await fetch(VERIFY_SCORE_URL, {
+      method: 'POST', headers: this._h(),
+      body: JSON.stringify({ wallet: entry.wallet, name: entry.name || null, score: entry.score, wave: entry.wave, sunk: entry.sunk, duration_s: entry.duration_s, ...(entry.mode === 'daily' ? { mode: 'daily', seed: entry.seed } : {}), message: proof.message, signature: proof.signature }),
+    });
+    if (!r.ok) throw await httpErr(r, 'verified write');
+    return { ok: true, verified: true };
+  }
   async getDaily(seed, n = LB_SIZE) {
     const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_DAILY_VIEW}?select=wallet,name,score,wave,sunk&seed=eq.${encodeURIComponent(seed)}&order=score.desc,created_at.asc&limit=${n}`, { headers: this._h() });
     if (!r.ok) throw await httpErr(r, 'daily board read');
@@ -169,19 +179,28 @@ class Leaderboard {
     return this.local.getDaily(seed, n);
   }
   get dailyOnline() { return !!this.remote && !this.dailySoon; }
-  async submit(entry) {
+  // remote write: verified path when a wallet proof is attached (flag on), otherwise the normal anon insert.
+  // A failed verified write falls back to the normal (unverified) insert, so a score is never lost.
+  async _remoteSubmit(e, proof) {
+    if (WALLET_VERIFY_ENABLED && VERIFY_SCORE_URL && proof && proof.wallet === e.wallet) {
+      try { await this.remote.submitVerified(e, proof); return { verified: true }; }
+      catch (err) { console.info('[leaderboard] verified save failed, saving unverified:', err.message); }
+    }
+    await this.remote.submit(e); return { verified: false };
+  }
+  async submit(entry, { proof = null } = {}) {
     const e = { ...entry, name: clean(entry.name), score: Math.max(0, Math.floor(entry.score)), ts: Date.now() };
     if (e.mode === 'daily') {
       await this.local.submitDaily(e);
       if (this.remote && !this.dailySoon) {
-        try { await this.remote.submit(e); return { ok: true, where: 'online' }; }
+        try { const v = await this._remoteSubmit(e, proof); return { ok: true, where: 'online', ...v }; }
         catch (err) { if (isSchemaMissing(err)) this.dailySoon = true; console.info('[leaderboard] daily save not online, saved on this device:', err.message); return { ok: true, where: 'local', error: err.message }; }
       }
       return { ok: true, where: 'local' };
     }
     await this.local.submit(e); // always keep a local copy
     if (this.remote) {
-      try { await this.remote.submit(e); return { ok: true, where: 'online' }; }
+      try { const v = await this._remoteSubmit(e, proof); return { ok: true, where: 'online', ...v }; }
       catch (err) { console.info('[leaderboard] online save failed, saved on this device:', err.message); return { ok: true, where: 'local', error: err.message }; }
     }
     return { ok: true, where: 'local' };
