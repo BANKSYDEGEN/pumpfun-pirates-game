@@ -343,7 +343,8 @@ holdButton($('fire-star'), () => playerFire('star'));
 function setSail(n) { player.sail = clamp(n, 0, 3); if (player.sail > 0) player.anchor = false; updateHud(); }
 function toggleAnchor() { player.anchor = !player.anchor; if (player.anchor) player.sail = 0; else if (player.sail === 0) player.sail = 1; updateHud(); }
 function resetCamera() {
-  const back = new THREE.Vector3(-Math.sin(player.yaw) * 34, 16, -Math.cos(player.yaw) * 34);
+  const portrait = camera.aspect < 1, dist = portrait ? 46 : 34, up = portrait ? 24 : 16;
+  const back = new THREE.Vector3(-Math.sin(player.yaw) * dist, up, -Math.cos(player.yaw) * dist);
   camera.position.copy(player.mesh.position).add(back);
 }
 function toggleSound() { setMuted(!muted); $('btn-sound').textContent = muted ? '🔇' : '🔊'; }
@@ -477,6 +478,7 @@ function startGame() {
   $('hud').classList.remove('hidden'); $('hint').style.opacity = 1;
   resetCamera();
   updateHud();
+  rotateTimer = 0; updateRotateHint();
   banner('SET SAIL!', 'hunt the rug ships');
 }
 
@@ -591,13 +593,50 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-function onResize() {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  fx.setScale(innerHeight * renderer.getPixelRatio());
-  $('rotate').classList.toggle('show', innerHeight > innerWidth && game.state === 'playing');
+// ---------- viewport (Safari / in-app browsers: size to the *visible* area) ----------
+let rotateDismissed = localStorage.getItem('pfp_rotate_dismissed') === '1', rotateTimer = 0;
+function viewSize() {
+  const vv = window.visualViewport;
+  const w = Math.round(vv ? vv.width : innerWidth) || innerWidth;
+  const h = Math.round(vv ? vv.height : innerHeight) || innerHeight;
+  return [w, h];
 }
-addEventListener('resize', onResize); onResize();
+function fitCamera(w, h) {
+  const aspect = w / h;
+  camera.aspect = aspect;
+  // keep ~60° of horizontal view in portrait: widen vertical FOV, capped to avoid fisheye
+  const vfov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(30)) / aspect));
+  camera.fov = clamp(vfov, 55, 78);
+  controls.maxDistance = aspect < 1 ? 120 : 95;
+  camera.updateProjectionMatrix();
+}
+function isPortrait() { const [w, h] = viewSize(); return h > w; }
+function updateRotateHint() {
+  const show = isPortrait() && game.state === 'playing' && !rotateDismissed && isMobile;
+  $('rotate').classList.toggle('show', show);
+  if (show && !rotateTimer) rotateTimer = setTimeout(() => { $('rotate').classList.remove('show'); rotateDismissed = true; }, 9000);
+}
+$('rotate-x').addEventListener('pointerdown', (e) => { e.stopPropagation(); rotateDismissed = true; localStorage.setItem('pfp_rotate_dismissed', '1'); $('rotate').classList.remove('show'); });
+function onResize() {
+  const [w, h] = viewSize();
+  const root = document.documentElement.style;
+  root.setProperty('--app-w', `${w}px`); root.setProperty('--app-h', `${h}px`);
+  fitCamera(w, h);
+  renderer.setSize(w, h);
+  // point sprites scale with screen height AND field of view, so portrait (wide FOV) doesn't bloat particles
+  fx.setScale(h * renderer.getPixelRatio() * 0.286 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  // iOS sometimes scrolls the layout viewport (toolbars / keyboard); pin it back unless typing
+  if (document.activeElement?.tagName !== 'INPUT') window.scrollTo(0, 0);
+  updateRotateHint();
+}
+let resizeQueued = false;
+function queueResize() { if (resizeQueued) return; resizeQueued = true; requestAnimationFrame(() => { resizeQueued = false; onResize(); }); }
+addEventListener('resize', queueResize);
+addEventListener('orientationchange', () => { queueResize(); setTimeout(onResize, 250); setTimeout(onResize, 700); });
+window.visualViewport?.addEventListener('resize', queueResize);
+window.visualViewport?.addEventListener('scroll', queueResize);
+document.addEventListener('focusout', () => setTimeout(onResize, 120));
+onResize();
 lastTarget.set(player.x, player.y + 4, player.z);
 renderBoard($('board-title'));
 $('loading').classList.add('hidden');

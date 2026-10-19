@@ -19,7 +19,7 @@ class Pool {
       uniforms: this.uniforms, transparent: true, depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       vertexShader: `uniform float uScale; attribute vec3 aColor; attribute float aSize; attribute float aAlpha; varying vec3 vC; varying float vA;
-        void main(){ vC=aColor; vA=aAlpha; vec4 mv = modelViewMatrix*vec4(position,1.0); gl_PointSize = aSize * uScale / max(-mv.z, 0.1); gl_Position = projectionMatrix*mv; }`,
+        void main(){ vC=aColor; vA=aAlpha; vec4 mv = modelViewMatrix*vec4(position,1.0); gl_PointSize = min(aSize * uScale / max(-mv.z, 0.1), 160.0); gl_Position = projectionMatrix*mv; }`,
       fragmentShader: `varying vec3 vC; varying float vA; void main(){ vec2 d=gl_PointCoord-0.5; float r=length(d); if(r>0.5) discard; gl_FragColor=vec4(vC, vA*smoothstep(0.5,0.15,r)); }`,
     });
     this.points = new THREE.Points(g, m); this.points.frustumCulled = false;
@@ -67,7 +67,7 @@ export class FX {
     scene.add(this.soft.points, this.glow.points);
     this.q = quality === 'low' ? 0.5 : 1;
   }
-  setScale(h) { this.soft.uniforms.uScale.value = this.glow.uniforms.uScale.value = h * 0.55; }
+  setScale(s) { this.soft.uniforms.uScale.value = this.glow.uniforms.uScale.value = s; }
   n(c) { return Math.max(1, Math.round(c * this.q)); }
   muzzle(p, dir) {
     for (let i = 0; i < this.n(10); i++) this.glow.emit(p, V(dir.x * rnd(4, 12) + rnd(-1, 1), rnd(-0.5, 2), dir.z * rnd(4, 12) + rnd(-1, 1)), { color: [1, rnd(0.5, 0.8), 0.2], size: rnd(1, 2.2), life: rnd(0.12, 0.3), drag: 4 });
