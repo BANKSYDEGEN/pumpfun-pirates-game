@@ -10,6 +10,7 @@ import { leaderboard, PERIODS, LB_SIZE } from './leaderboard.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
+import './tokenChip.js'; // title screen $AHOY CA chip + socials
 
 // [Raul] ship upgrades
 import { gunList } from './upgrades.js';

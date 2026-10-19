@@ -14,3 +14,9 @@ export const LEADERBOARD_VIEW = 'leaderboard_best'; // best score per wallet
 // Graphics: 'auto' picks low on phones / weak GPUs. Also 'low' | 'high'.
 // Override per visit with ?quality=low or ?quality=high
 export const QUALITY = 'auto';
+
+// $AHOY token chip on the title screen (tap copies the full CA) + socials
+export const AHOY_CA = '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump';
+export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5pwej4kfsuqzcud5wrhmtv9zd4';
+export const X_URL = 'https://x.com/PUMPFUNPIRATES';
+export const TG_URL = 'https://t.me/PUMPFUNPIRATES';
