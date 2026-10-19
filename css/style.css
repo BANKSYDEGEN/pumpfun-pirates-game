@@ -330,3 +330,47 @@ html.ios-pwa #status-plate::after {
 .ehp.charging .bar { box-shadow: 0 0 0 2px var(--red), 0 0 12px rgba(250,13,13,0.8); }
 .ehp.charging .fill, .ehp.windup .fill { background: linear-gradient(90deg, #a00, var(--red)); }
 @keyframes ev-warn { 0% { box-shadow: 0 0 0 2px var(--red), 0 0 14px rgba(250,13,13,0.9); } 100% { box-shadow: none; } }
+
+/* [qa2] title fit: nothing overlaps or clips at 568x320 .. desktop */
+.start-row { align-items: center; flex-wrap: nowrap; gap: 4px; }
+.start-row button.big { flex: 0 1 auto; min-width: 0; }
+.start-row .daily-btn { flex: 0 0 auto; white-space: nowrap; }
+.token-row { flex-wrap: wrap; row-gap: 5px; }
+.ca-chip { min-width: auto; flex: 0 1 auto; max-width: 100%; } /* never narrower than $AHOY + COPY; only the address part shrinks (ellipsis) */
+.ca-chip .tk, .ca-chip .cp { flex: 0 0 auto; white-space: nowrap; }
+.ca-chip .ca { flex: 0 1 auto; }
+.lb-tabs button { padding: 4px 8px 3px; }
+@media (max-width: 420px), (max-height: 520px) and (orientation: landscape) { .lb-tabs { gap: 1px; } .lb-tabs button { font-size: 16px; padding: 4px 6px 3px; } }
+@media (max-height: 520px) and (orientation: landscape) {
+  .title-panel { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  .title-panel > .col-a, .title-panel > .col-b { min-width: 0; }
+}
+@media (max-width: 380px) { .start-row button.big { padding-left: 22px; padding-right: 22px; } }
+.token-row .socs { display: inline-flex; gap: 6px; flex: 0 0 auto; } /* the three links wrap together, never 1 + 2 */
+@media (max-width: 380px) { .token-row .socs { gap: 4px; } }
+@media (max-height: 520px) and (orientation: landscape) { .lb-tabs { flex-wrap: wrap; justify-content: center; width: auto; border-radius: 14px; overflow: visible; } } /* narrow board column: tabs wrap instead of scrolling out of view */
+@media (pointer: coarse) and (orientation: portrait), (pointer: coarse) and (max-height: 520px) { .title-panel .controls-help { display: none; } } /* keyboard/mouse tips: phones use the on-screen buttons */
+/* [qa2] very short landscape phones (SE 667x375, 568x320): compact left column so SET SAIL stays on screen */
+@media (max-height: 400px) and (orientation: landscape) {
+  #title { padding-top: calc(6px + var(--safe-t)); padding-bottom: calc(6px + var(--safe-b)); }
+  .title-panel { padding: 6px 12px 8px; gap: 12px; }
+  .title-panel .skull { display: none; }
+  .title-panel .wordmark { width: 118px; margin-top: 0; }
+  .title-panel .subtitle { font-size: 15px; margin: 0 0 3px; }
+  .title-panel .token-row { margin-bottom: 2px; row-gap: 3px; }
+  .title-panel .ca-chip { height: 30px; font-size: 17px; } .title-panel .ca-chip .tk { font-size: 18px; } .title-panel .ca-chip .cp { font-size: 15px; padding: 3px 8px 2px; }
+  .title-panel .soc { width: 30px; height: 30px; } .title-panel .soc svg { width: 14px; height: 14px; }
+  .title-panel .field { margin: 2px 0; font-size: 15px; gap: 1px; }
+  .title-panel .field em { display: none; }
+  .title-panel .field input { padding: 3px 9px; font-size: 16px; }
+  .title-panel .field small { font-size: 12px; }
+  .title-panel button.big { font-size: 26px; padding: 1px 24px; margin: 4px 4px 3px; }
+  .title-panel button.ghost { font-size: 15px; padding: 2px 10px; margin: 2px; }
+  .title-panel .board-title { font-size: 20px; }
+  .title-panel .disclaimer { font-size: 12px; }
+}
+@media (max-height: 340px) and (orientation: landscape) {
+  .title-panel .subtitle, .title-panel .field small { display: none; }
+  .title-panel .wordmark { width: 100px; }
+}
+@media (max-height: 400px) and (orientation: landscape) { .lb-tabs button { font-size: 15px; padding: 3px 5px 2px; } }

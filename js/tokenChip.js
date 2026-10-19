@@ -30,7 +30,8 @@ function init() {
   const row = chip.parentElement, fit = () => {
     chip.classList.add('full');
     const ca = chip.querySelector('.ca');
-    if (ca.scrollWidth > ca.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1) chip.classList.remove('full');
+    const socs = row.querySelector('.socs'), wrapped = socs && socs.offsetTop > chip.offsetTop + 4; // the row wraps; full CA only if links stay beside it
+    if (ca.scrollWidth > ca.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1 || wrapped) chip.classList.remove('full');
   };
   fit(); addEventListener('resize', fit); document.fonts?.ready.then(fit);
   const label = $('ca-copy'); let t = 0;
