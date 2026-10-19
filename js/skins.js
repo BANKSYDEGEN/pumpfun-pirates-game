@@ -43,7 +43,7 @@ export const SKINS = [
     parts: { oak: 0x4a6a5a, plank: 0x557a66, deck: 0x7a9a88, iron: 0x2a4a3c, gold: 0x9fffc8, glow: 0x5cff8f },
     fx: 'ghost',
     swatch: { hull: '#5d7a6a', band: '#1d3a2e', stripe: '#9fffc8', sail: '#5fb98a', trim: '#9fffc8', ghost: true } },
-  { id: 'golden', name: 'GOLDEN GALLEON', price: 1600, blurb: 'Solid gold everything. The richest ship on the pump.fun seas.',
+  { id: 'golden', name: 'GOLDEN GALLEON', price: 1600, blurb: 'Solid gold everything. The richest ship on the Solana seas.',
     palette: { seed: 121, wood: 0xb8862e, band: 0xffcd77, stripe: 0xfa0d0d, band2: 0xd9a441, tar: 0x5a3a12, trim: 0xffe2a8, sail: 0xf3dc9a, patch: [0xe8c97a, 0xfff0c8], hem: 0xfa0d0d, lantern: 0xffe2a8, window: 0xfff0c8 },
     sail: { bg: '#d9a441', badge: '#161616', lines: 'rgba(255,255,255,0.10)', border: '#fa0d0d' }, flag: { bg: '#c8902e', badge: '#161616', border: '#fa0d0d' },
     parts: { oak: 0xa8782a, plank: 0xc8902e, deck: 0xd9b066, iron: 0xb8862e, gold: 0xffe2a8, glow: 0xffe2a8 },
