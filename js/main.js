@@ -11,6 +11,8 @@ import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSaved
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $AHOY CA chip + socials
+import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
+import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList } from './upgrades.js';
@@ -621,8 +623,12 @@ async function gameOver() {
   $('go-name').value = game.name; $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   $('btn-save').disabled = false;
   $('gameover').classList.remove('hidden');
+  updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
   renderBoard($('board-over'));
+  prepareShare(shareStats()); // pre-render the card so SHARE opens the share sheet inside the tap
 }
+function shareStats() { let skin = ''; try { skin = equippedSkin().name; } catch { /* skins optional */ } return { score: game.score, wave: game.wave, sunk: game.sunk, gold: game.gold + (game.goldSpent || 0), name: $('go-name').value.trim().slice(0, 20) || game.name, wallet: game.wallet, captain: game.captain, skin }; }
+$('btn-share').onclick = () => { const s = shareStats(); if (s.name !== game.name) prepareShare(s); shareScore(s, { onStatus: (st) => { if (st === 'downloaded') $('save-msg').textContent = 'Score card downloaded. Attach it to your X post!'; } }); };
 async function saveScore() {
   if (game.saved) return;
   game.saved = true; $('btn-save').disabled = true;

@@ -321,3 +321,4 @@ html.ios-pwa #status-plate::after {
   .title-panel .controls-help { display: none; } /* keyboard/mouse tips; phones use the on-screen buttons */
   .title-panel .disclaimer { font-size: 13px; margin-top: 3px; }
 }
+.share-btn { border-color: var(--gold) !important; color: var(--gold) !important; touch-action: manipulation; }
