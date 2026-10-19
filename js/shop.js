@@ -3,6 +3,7 @@
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
 import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat } from './upgrades.js';
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
+import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
 
 let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
@@ -35,7 +36,9 @@ function buildDom() {
     <div class="shop-sub muted">Spend looted gold on your ship. Upgrades last this voyage only.</div>
     <div id="shop-hp" class="shop-hp"><span class="label">HULL</span><div class="bar"><div class="fill red"></div></div><span class="hp-txt"></span>
       <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g</button></div>
+    <div class="shop-tabs" role="tablist"><button id="tab-upg" class="shop-tab on" role="tab">UPGRADES</button><button id="tab-skins" class="shop-tab" role="tab">SKINS</button></div>
     <div id="shop-grid" class="shop-grid"></div>
+    <div id="skin-grid" class="shop-grid skin-grid hidden"></div>
     <button id="shop-close" class="big">BACK TO BATTLE</button>
     <div class="shop-keys muted">U / B / Esc to close</div>
   </div>`;
@@ -52,6 +55,51 @@ function buildDom() {
     c.querySelector('.buy').onclick = () => buy(u.id);
     grid.appendChild(c);
   }
+  // [Raul] ship skins: permanent cosmetic unlocks bought with in-game gold
+  $('tab-upg').onclick = () => setTab('upg'); $('tab-skins').onclick = () => setTab('skins');
+  const sg = $('skin-grid');
+  for (const s of SKINS) {
+    const c = document.createElement('div'); c.className = 'shop-card skin-card'; c.dataset.skin = s.id;
+    c.innerHTML = `<div class="sk-sw"></div><div class="sc-name">${s.name}</div><div class="sk-blurb muted">${s.blurb}</div><button class="buy"></button>`;
+    c.querySelector('.sk-sw').appendChild(skinSwatch(s));
+    c.querySelector('.buy').onclick = () => skinAction(s.id);
+    sg.appendChild(c);
+  }
+}
+let tab = 'upg';
+function setTab(t) {
+  tab = t;
+  $('tab-upg').classList.toggle('on', t === 'upg'); $('tab-skins').classList.toggle('on', t === 'skins');
+  $('shop-grid').classList.toggle('hidden', t !== 'upg'); $('skin-grid').classList.toggle('hidden', t !== 'skins');
+  $('shop-hp').classList.toggle('hidden', t !== 'upg');
+  document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? 'Spend looted gold on your ship. Upgrades last this voyage only.' : 'Paint jobs are cosmetic and yours to keep across every voyage.';
+  render();
+}
+function renderSkins() {
+  const g = ctx.game.gold, eq = equippedSkin().id;
+  for (const s of SKINS) {
+    const c = $('skin-grid').querySelector(`[data-skin="${s.id}"]`), b = c.querySelector('.buy'), own = ownsSkin(s.id);
+    c.classList.toggle('equipped', s.id === eq); c.classList.toggle('owned', own);
+    if (s.id === eq) { b.textContent = 'EQUIPPED'; b.disabled = true; }
+    else if (own) { b.textContent = 'EQUIP'; b.disabled = false; }
+    else { b.textContent = `${s.price}g`; b.disabled = g < s.price; }
+  }
+}
+function skinAction(id) {
+  const s = SKINS.find(x => x.id === id); if (!s) return;
+  let bought = false;
+  if (!ownsSkin(id)) {
+    if (ctx.game.gold < s.price) return;
+    ctx.game.gold -= s.price; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + s.price; unlockSkin(id); bought = true;
+  }
+  equipSkin(id);
+  const mesh = ctx.rebuildShip?.(run.levels);
+  const label = bought ? `+${s.name}` : s.name;
+  celebrateUpgrade(mesh, 'skin', { camera: ctx.camera, label });
+  lastBuy = { id: 'skin', label, legendary: false };
+  if (bought) { if (ctx.sfx?.upgrade) ctx.sfx.upgrade(false); else ctx.sfx?.coin?.(); } else ctx.sfx?.coin?.();
+  ctx.updateHud(); render();
+  const c = $('skin-grid').querySelector(`[data-skin="${id}"]`); if (c) { c.classList.remove('tierup'); void c.offsetWidth; c.classList.add('tierup'); setTimeout(() => c.classList.remove('tierup'), 800); }
 }
 
 function render() {
@@ -72,6 +120,7 @@ function render() {
     c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat])} <span class="arrow">→</span> <b>${fmtStat(u, next.value)}</b>`;
     b.textContent = `${next.cost}g`; b.disabled = game.gold < next.cost;
   }
+  renderSkins();
 }
 
 function canAfford() {
@@ -94,6 +143,7 @@ function buy(id) {
   lastBuy = { id, label, legendary };
   if (ctx.sfx?.upgrade) ctx.sfx.upgrade(legendary); else ctx.sfx?.coin?.();
   ctx.updateHud(); render(); tierUp(id, lvl, legendary);
+  ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] next likely purchases, built while the shop is open
 }
 function repair() {
   const p = ctx.getPlayer();
@@ -107,6 +157,7 @@ export function open() {
   if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return;
   ctx.game.state = 'shop';
   render(); $('shop').classList.remove('hidden');
+  ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] pre-compile next purchases so buying is instant
 }
 export function close() {
   if (!ctx || ctx.game.state !== 'shop') return;

@@ -87,3 +87,18 @@
   text-shadow: 1px 1px 0 #161616, -1px 1px 0 #161616, 1px -1px 0 #161616, -1px -1px 0 #161616; animation: sc-stamp 0.8s ease-out forwards; }
 .sc-stamp.legendary { color: #fa0d0d; font-size: 24px; }
 @keyframes sc-stamp { 0% { opacity: 0; transform: rotate(-8deg) scale(2.2); } 25% { opacity: 1; transform: rotate(-8deg) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: rotate(-8deg) translateY(-8px); } }
+
+/* [Raul] ship skins tab */
+.shop-tabs { display: flex; gap: 6px; margin: 4px 0 8px; }
+.shop-tab { flex: 1; font-size: 22px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,0.35); color: #cfc6b4; }
+.shop-tab.on { background: var(--gold); color: #161616; border-color: var(--gold); }
+.skin-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.skin-card { align-items: stretch; }
+.skin-card .sk-sw canvas { display: block; width: 100% !important; height: auto !important; aspect-ratio: 2 / 1; border-radius: 10px; }
+.skin-card .sk-blurb { font-size: 15px; line-height: 1.1; min-height: 2.2em; }
+.skin-card.equipped { border-color: var(--gold); background: rgba(255,205,119,0.1); }
+.skin-card.equipped button.buy:disabled { background: rgba(255,205,119,0.2); color: var(--gold); box-shadow: none; }
+.skin-card.owned:not(.equipped) button.buy { background: #2c4a3a; box-shadow: 0 3px 0 #16261d; }
+.hidden.shop-grid, .shop-hp.hidden { display: none !important; }
+@media (orientation: landscape) and (max-height: 520px) { .skin-grid { grid-template-columns: repeat(4, 1fr); } .skin-card .sk-blurb { display: none; } }
+@media (orientation: portrait) and (max-width: 420px) { .skin-grid { grid-template-columns: 1fr 1fr; } }

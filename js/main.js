@@ -17,7 +17,7 @@ import { waveRoster, applyEnemyType } from './enemyTypes.js';
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
-import { compileShip } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits
+import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -110,7 +110,7 @@ const game = {
 };
 
 // [Raul] upgrade visuals: level-0 traits compile to exactly the original player ship (len 17, beam 5.4, 4 guns, 3 masts)
-const PLAYER_SHIP = { mainSailMap: sailTex, flagMap: flagTex, light: true, shadows: HIGH };
+const PLAYER_SHIP = { mainSailMap: sailTex, flagMap: flagTex, light: true, shadows: HIGH, quality };
 function makePlayer() {
   const mesh = compileShip({}, PLAYER_SHIP);
   scene.add(mesh);
@@ -125,6 +125,10 @@ function rebuildPlayerShip(levels) {
   scene.remove(old); disposeShip(old); scene.add(mesh); player.mesh = mesh;
   return mesh;
 }
+// [Raul] pre-compile likely next purchases + warm shaders, only while not actively sailing (title / shop / pause)
+setRenderContext({ renderer, scene, camera, canWork: () => game.state !== 'playing' });
+const prebuildShips = (levels, gold) => prebuildNext(levels, { gold });
+prebuildShips({}, 0); // title screen idle time: first-tier ships ready before the first shop visit
 const enemies = [], balls = [], loot = [];
 const ballGeo = new THREE.SphereGeometry(0.45, 10, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 });
@@ -397,7 +401,7 @@ holdButton($('fire-star'), () => playerFire('star'));
 function setSail(n) { player.sail = clamp(n, 0, 3); if (player.sail > 0) player.anchor = false; updateHud(); }
 function toggleAnchor() { player.anchor = !player.anchor; if (player.anchor) player.sail = 0; else if (player.sail === 0) player.sail = 1; updateHud(); }
 function resetCamera() {
-  const portrait = camera.aspect < 1, k = Math.pow(player.mesh.userData.shipScale || 1, 0.85), dist = (portrait ? 46 : 34) * k, up = (portrait ? 24 : 16) * k; // [Raul] upgrade visuals: framing scales with hull
+  const portrait = camera.aspect < 1, k = camScale(player.mesh.userData), dist = (portrait ? 46 : 34) * k, up = (portrait ? 24 : 16) * k; // [Raul] upgrade visuals: framing scales with hull
   const back = new THREE.Vector3(-Math.sin(player.yaw) * dist, up, -Math.cos(player.yaw) * dist);
   camera.position.copy(player.mesh.position).add(back);
 }
@@ -624,6 +628,8 @@ $('btn-menu').onclick = async () => { await saveScore(); toTitle(); };
 const clock = new THREE.Clock();
 let lastTarget = new THREE.Vector3();
 let camShipK = 1; // [Raul] upgrade visuals
+// camera pull-back for a bigger ship: less than the hull growth (so upgrades read BIGGER on screen), but enough for the tallest mast
+function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8 * (ud.frameK || 1)); }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title';
@@ -692,10 +698,10 @@ function frame() {
   ocean.uniforms.uTime.value = sky.uniforms.uTime.value = rain.uniforms.uTime.value = t;
 
   // camera follows the ship, orbit offset preserved
-  const shipK = player.mesh.userData.shipScale || 1; // [Raul] upgrade visuals: bigger hulls pull the camera back to stay framed
-  const tgt = new THREE.Vector3(player.x, player.y + 4 * shipK + 3 * (shipK - 1), player.z);
+  const ud0 = player.mesh.userData, shipK = camScale(ud0); // [Raul] upgrade visuals: bigger hulls / taller rigs pull the camera back to stay framed
+  const tgt = new THREE.Vector3(player.x, player.y + 4 * shipK + 2.2 * ((ud0.frameK || 1) - 1), player.z);
   camera.position.add(tgt.clone().sub(lastTarget)); lastTarget.copy(tgt);
-  if (Math.abs(shipK - camShipK) > 1e-4) { const f = Math.pow(shipK / camShipK, 0.85); camera.position.sub(tgt).multiplyScalar(f).add(tgt); controls.maxDistance = (camera.aspect < 1 ? 120 : 95) * Math.max(1, shipK); camShipK = shipK; }
+  if (Math.abs(shipK - camShipK) > 1e-4) { const f = shipK / camShipK; camera.position.sub(tgt).multiplyScalar(f).add(tgt); controls.maxDistance = (camera.aspect < 1 ? 120 : 95) * Math.max(1, shipK); camShipK = shipK; }
   controls.target.copy(tgt);
   if (game.state === 'title') { const off = camera.position.clone().sub(tgt).applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.06); camera.position.copy(tgt).add(off); }
   controls.update();
@@ -772,9 +778,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
-initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip }); // [Raul] upgrade visuals: camera + ship rebuild
+initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip, prebuildShips }); // [Raul] upgrade visuals: camera + ship rebuild
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
 window.PFP_HEALTH = healthDrops; // [health drops] test hook
-window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera };
+window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera, renderer, scene }; // [Raul] + renderer/scene for perf tests
