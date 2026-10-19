@@ -2,8 +2,12 @@
 // (navigator.share with a PNG file on phones) or, on desktop, opens an in-game modal: preview, download, copy, post on X.
 // Nothing here touches a wallet or the leaderboard; the wallet is only printed shortened.
 import { shortWallet } from './wallet.js';
+import { AHOY_CA, X_URL, TG_URL } from './config.js';
+import { copyText } from './tokenChip.js';
 
-export const GAME_URL = 'https://banksydegen.github.io/pumpfun-pirates-game/';
+export const GAME_URL = 'https://banksydegen.github.io/pumpfun-pirates-game/'; // where the game is played (pumpfunpirates.com does not host it)
+export const SITE_URL = 'https://pumpfunpirates.com', SITE = 'pumpfunpirates.com';
+const X_HANDLE = '@PUMPFUNPIRATES', TG_SHORT = 't.me/PUMPFUNPIRATES', MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
 const RED = '#fa0d0d', GOLD = '#ffcd77', DARK = '#161616', FONT = '"Just Another Hand", cursive';
 
 const imgCache = {};
@@ -11,7 +15,7 @@ function loadImg(src) {
   return imgCache[src] || (imgCache[src] = new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }));
 }
 export function shareText(s) {
-  return `Sunk ${s.sunk} rug ship${s.sunk === 1 ? '' : 's'} and hit wave ${s.wave} in PUMPFUN PIRATES 🏴‍☠️ $AHOY @PUMPFUNPIRATES`;
+  return `Sunk ${s.sunk} rug ship${s.sunk === 1 ? '' : 's'} and hit wave ${s.wave} in PUMPFUN PIRATES 🏴‍☠️\n$AHOY CA: ${AHOY_CA}\nX ${X_HANDLE} · TG ${TG_URL}\n${SITE_URL}`;
 }
 // seeded rain so a given card always looks the same
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -60,9 +64,27 @@ export async function drawCard(s) {
   g.font = `28px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.7)';
   g.fillText([s.wallet ? shortWallet(s.wallet) : '', s.skin ? `${s.skin}` : ''].filter(Boolean).join('  ·  '), tx, cy + 90);
   g.textAlign = 'right'; g.font = `30px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.85)';
-  g.fillText('banksydegen.github.io/pumpfun-pirates-game', px + pw - 36, cy + 90);
+  g.fillText(SITE, px + pw - 36, cy + 90);
   g.fillStyle = RED; g.font = `34px ${FONT}`; g.fillText('PLAY FREE ▸', px + pw - 36, cy + 52);
+  // bottom strip: full $AHOY CA (never truncated: people copy it from screenshots) + X / TG
+  const sy = 596, sh = 46;
+  g.fillStyle = 'rgba(10,13,18,0.82)'; roundRect(g, 36, sy, W - 72, sh, 14); g.fill();
+  g.strokeStyle = 'rgba(255,205,119,0.3)'; g.lineWidth = 1.5; roundRect(g, 36, sy, W - 72, sh, 14); g.stroke();
+  const mid = sy + sh / 2 + 9; g.textAlign = 'left';
+  g.font = `30px ${FONT}`; g.fillStyle = GOLD; g.fillText('$AHOY CA', 54, mid);
+  let caX = 54 + g.measureText('$AHOY CA').width + 12;
+  g.font = `600 21px ${MONO}`; g.fillStyle = '#fff'; g.fillText(AHOY_CA, caX, mid - 2);
+  // socials, right-aligned
+  g.font = `28px ${FONT}`;
+  const tgW = g.measureText(TG_SHORT).width, xW = g.measureText(X_HANDLE).width;
+  let rx = W - 54 - tgW; g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillText(TG_SHORT, rx, mid); tgGlyph(g, rx - 30, sy + sh / 2 - 12, 24);
+  rx -= 30 + 22 + xW; g.fillText(X_HANDLE, rx, mid); xGlyph(g, rx - 28, sy + sh / 2 - 11, 22);
   return c;
+}
+function xGlyph(g, x, y, s) { g.save(); g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineWidth = s * 0.14; g.beginPath(); g.moveTo(x, y); g.lineTo(x + s, y + s); g.moveTo(x + s, y); g.lineTo(x, y + s); g.stroke(); g.restore(); }
+function tgGlyph(g, x, y, s) {
+  g.save(); g.fillStyle = '#29a9eb'; g.beginPath(); g.arc(x + s / 2, y + s / 2, s / 2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x + s * 0.2, y + s * 0.5); g.lineTo(x + s * 0.78, y + s * 0.27); g.lineTo(x + s * 0.68, y + s * 0.76); g.lineTo(x + s * 0.48, y + s * 0.62); g.lineTo(x + s * 0.4, y + s * 0.72); g.lineTo(x + s * 0.38, y + s * 0.58); g.closePath(); g.fill(); g.restore();
 }
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function fmt(n) { return (n || 0).toLocaleString('en-US'); }
@@ -107,6 +129,15 @@ const CSS = `
 #pfp-share .ps-row button:disabled{opacity:0.45;cursor:default}
 #pfp-share .ps-row button.ps-x{background:#fa0d0d;border-color:#fa0d0d;color:#fff;box-shadow:0 4px 18px rgba(250,13,13,0.35)}
 #pfp-share .ps-row button.ps-x:hover{background:#ff2a2a}
+#pfp-share .ps-links{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;margin-top:12px;font-size:20px}
+#pfp-share .ps-links a{color:#ffcd77;text-decoration:none;border-bottom:1px dashed rgba(255,205,119,0.45)}
+#pfp-share .ps-links a:hover{color:#fff}
+#pfp-share .ps-links .ps-break{flex-basis:100%;height:0}
+#pfp-share .ps-ca{font-family:inherit;font-size:19px;letter-spacing:0.04em;color:#fff;background:rgba(255,255,255,0.05);border:1px solid rgba(255,205,119,0.35);border-radius:999px;padding:4px 12px;cursor:pointer;max-width:100%;overflow-wrap:anywhere}
+#pfp-share .ps-ca b{font-weight:400;color:#ffcd77}
+#pfp-share .ps-ca code{font:600 13px/1.3 ${MONO};letter-spacing:0;color:#fff}
+#pfp-share .ps-ca.ok{border-color:#ffcd77;background:rgba(255,205,119,0.15)}
+#pfp-share .ps-ca .ps-ca-tip{color:#ffcd77;font-family:system-ui,sans-serif;font-size:14px}
 #pfp-share .ps-note{margin-top:10px;font-size:19px;color:rgba(255,255,255,0.65);min-height:1.2em}
 #pfp-share .ps-close{position:absolute;top:10px;right:12px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:#fff;font:20px/1 system-ui,sans-serif;cursor:pointer;display:grid;place-items:center}
 #pfp-share .ps-close:hover{border-color:#fa0d0d;color:#fa0d0d}
@@ -134,6 +165,13 @@ export function openShareModal(stats, onStatus = () => {}) {
       ${canCopyImage() ? '<button class="ps-copy" disabled>⧉ COPY IMAGE</button>' : ''}
       <button class="ps-x">POST ON X</button>
     </div>
+    <div class="ps-links">
+      <button class="ps-ca" title="Copy $AHOY CA"><b>$AHOY CA</b> <code>${AHOY_CA}</code> <span class="ps-ca-tip">⧉</span></button>
+      <span class="ps-break"></span>
+      <a href="${SITE_URL}" target="_blank" rel="noopener">${SITE}</a>
+      <a href="${X_URL}" target="_blank" rel="noopener">X ${X_HANDLE}</a>
+      <a href="${TG_URL}" target="_blank" rel="noopener">TG ${TG_SHORT}</a>
+    </div>
     <div class="ps-note">Download or copy the card, then attach it to your X post.</div>
   </div>`;
   document.body.appendChild(el);
@@ -151,6 +189,8 @@ export function openShareModal(stats, onStatus = () => {}) {
     document.body.appendChild(a); a.click(); a.remove();
     note.textContent = 'Downloaded! Attach it to your X post.'; onStatus('downloaded');
   };
+  const caBtn = q('.ps-ca');
+  caBtn.onclick = async () => { const ok = await copyText(AHOY_CA); note.textContent = ok ? 'Copied the $AHOY CA!' : `CA: ${AHOY_CA}`; caBtn.classList.toggle('ok', ok); setTimeout(() => { if (modal === m) caBtn.classList.remove('ok'); }, 1500); };
   const copyBtn = q('.ps-copy');
   if (copyBtn) copyBtn.onclick = async () => {
     if (!m.blob) return;
