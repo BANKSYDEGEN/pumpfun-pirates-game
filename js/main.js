@@ -11,6 +11,11 @@ import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSaved
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
 
+// [Raul] ship upgrades
+import { gunList } from './upgrades.js';
+import { waveRoster, applyEnemyType } from './enemyTypes.js';
+import { initShop, resetShop } from './shop.js';
+
 const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -112,7 +117,7 @@ const ballGeo = new THREE.SphereGeometry(0.45, 10, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 });
 
 // ---------- enemies ----------
-function spawnEnemy(x, z, tier = 1) {
+function spawnEnemy(x, z, tier = 1, type = null) {
   const big = tier >= 2;
   const mesh = buildShip({
     len: big ? 19 : rnd(13, 15.5), beam: big ? 6 : rnd(4.4, 5), depth: 2.8,
@@ -130,16 +135,17 @@ function spawnEnemy(x, z, tier = 1) {
     sinking: 0, alive: true, bar, fill: bar.querySelector('.fill'), big, maxSpeed: (big ? 6.5 : rnd(7, 9)) * (1 + Math.min(game.wave, 10) * 0.02),
     reload: Math.max(2.2, 5 - game.wave * 0.25), accuracy: clamp(0.55 + game.wave * 0.05, 0.5, 0.9), smokeT: 0,
   };
+  if (type) applyEnemyType(e, type, game.wave); // [Raul] ship upgrades: enemy types
   enemies.push(e);
   return e;
 }
 
 function startWave() {
   game.wave++;
-  const n = Math.min(2 + game.wave, 8);
+  const roster = waveRoster(game.wave), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
   for (let i = 0; i < n; i++) {
     const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
-    spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, (game.wave % 4 === 0 && i === 0) ? 2 : 1);
+    spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
   }
   banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE DEV WALLET APPROACHES' : `${n} rug ships on the horizon`);
   updateHud();
@@ -150,18 +156,18 @@ function sideDir(s, side) { const sx = side === 'port' ? 1 : -1; return new THRE
 function toLocal(s, x, z) { const dx = x - s.x, dz = z - s.z, c = Math.cos(s.yaw), n = Math.sin(s.yaw); return [dx * c - dz * n, dx * n + dz * c]; }
 
 function fire(shooter, side, target = null, accuracy = 1) {
-  const muzzles = shooter.mesh.userData.muzzles[side];
+  const muzzles = gunList(shooter, side); // [Raul] ship upgrades: cannon count
   const dir = sideDir(shooter, side);
   const vel0 = new THREE.Vector3(Math.sin(shooter.yaw) * shooter.speed, 0, Math.cos(shooter.yaw) * shooter.speed);
   const H = 42; // horizontal muzzle speed
   // assisted ranging: aim at a target on that side, else default ~45 m
-  let range = 45, aimPt = null;
+  let range = (shooter.range || 90) / 2, aimPt = null; // [Raul] ship upgrades: range
   if (!target && shooter === player) {
     let best = null, bd = 1e9;
     for (const e of enemies) {
       if (!e.alive) continue;
       const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
-      if (d > 90) continue;
+      if (d > (shooter.range || 90)) continue; // [Raul] ship upgrades: range
       const cosang = (dx * dir.x + dz * dir.z) / d;
       if (cosang > Math.cos(0.75) && d < bd) { bd = d; best = e; }
     }
@@ -253,7 +259,7 @@ function floatShip(s, dt) {
 function moveShip(s, dt, targetSpeed, turnInput) {
   const acc = targetSpeed > s.speed ? 2.2 : (s.anchor ? 7 : 3);
   s.speed += clamp(targetSpeed - s.speed, -acc * dt, acc * dt);
-  const turnRate = 0.62 * (0.35 + 0.65 * Math.min(s.speed / 6, 1));
+  const turnRate = 0.62 * (s.turnMul || 1) * (0.35 + 0.65 * Math.min(s.speed / 6, 1)); // [Raul] ship upgrades: rudder
   s.turn += (turnInput - s.turn) * Math.min(1, dt * 5);
   s.yaw += s.turn * turnRate * dt;
   s.x += Math.sin(s.yaw) * s.speed * dt; s.z += Math.cos(s.yaw) * s.speed * dt;
@@ -330,7 +336,7 @@ function updateBalls(dt) {
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
       if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9) {
-        damage(s, b.owner === player ? Math.round(rnd(14, 20)) : Math.round(rnd(6, 10) * (1 + game.wave * 0.04)), p.clone());
+        damage(s, b.owner === player ? Math.round(rnd(14, 20)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone()); // [Raul] ship upgrades: enemy type damage, armor
         done = true; break;
       }
     }
@@ -542,6 +548,7 @@ function startGame() {
   $('wallet-short').textContent = shortWallet(game.wallet);
   ['title', 'gameover', 'pause'].forEach(id => $(id).classList.add('hidden'));
   $('hud').classList.remove('hidden'); $('hint').style.opacity = 1;
+  resetShop(); // [Raul] ship upgrades: fresh run, base stats
   resetCamera();
   updateHud();
   rotateTimer = 0; updateRotateHint();
@@ -559,7 +566,7 @@ function toTitle() {
 async function gameOver() {
   if (game.state === 'over') return;
   game.state = 'over';
-  $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold;
+  $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
   $('go-wallet').textContent = `Wallet ${shortWallet(game.wallet)}`;
   $('go-name').value = game.name; $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   $('btn-save').disabled = false;
@@ -592,7 +599,7 @@ function frame() {
     // player
     if (game.state === 'playing' && player.alive) {
       const turn = ((keys.KeyA || keys.ArrowLeft || held.left) ? 1 : 0) - ((keys.KeyD || keys.ArrowRight || held.right) ? 1 : 0);
-      moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2, turn);
+      moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
       player.cd.port = Math.max(0, player.cd.port - dt); player.cd.star = Math.max(0, player.cd.star - dt);
       if (player.hp < player.maxHp * 0.4 && Math.random() < 0.15) fx.smoke(new THREE.Vector3(player.x + rnd(-2, 2), player.y + 3, player.z + rnd(-3, 3)), player.hp < player.maxHp * 0.25);
       // waves
@@ -725,6 +732,9 @@ requestAnimationFrame(frame);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./sw.js').then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
 }
+
+// [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
+initShop({ game, getPlayer: () => player, updateHud, sfx });
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera };

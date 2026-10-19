@@ -1,0 +1,71 @@
+/* [Raul] ship upgrades: SHOP button + shipwright overlay (brand font, red #fa0d0d / gold #ffcd77 / dark #161616) */
+/* SHOP sits in the top HUD row, just left of the sound/camera/pause/fullscreen icons, same size and height. */
+#btn-shop { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r) + 4 * 44px + 3 * 8px + 8px); border-color: var(--gold); pointer-events: auto; }
+#btn-shop svg { display: block; }
+#btn-shop .shop-dot { position: absolute; top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #161616; display: none; }
+#btn-shop.afford .shop-dot { display: block; }
+#btn-shop.afford { box-shadow: 0 0 12px rgba(255,205,119,0.55); }
+@media (orientation: landscape) and (max-height: 520px), (orientation: landscape) and (max-width: 760px) {
+  #btn-shop { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r) + 4 * 38px + 3 * 5px + 6px); }
+  #btn-shop svg { width: 19px; height: 19px; }
+}
+@media (orientation: portrait) {
+  #btn-shop { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r) + 4 * 36px + 3 * 5px + 5px); }
+  #btn-shop svg { width: 18px; height: 18px; }
+  /* keep the captain card clear of the SHOP button (icon row 159px + shop 36px + gaps); logo a touch smaller to make room */
+  #hud-tl { max-width: calc(var(--app-w) - 224px - var(--safe-r) - var(--safe-l)); }
+  #hud-logo { width: 58px; }
+}
+@media (orientation: portrait) and (max-width: 420px) { #hud-logo { width: 52px; } }
+
+#shop { z-index: 20; align-items: center; }
+.shop-panel { width: min(640px, 96vw); padding: 12px 18px 12px; }
+.shop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.shop-head h1 { margin: 0; font-size: 50px; }
+.shop-purse { display: flex; align-items: center; gap: 6px; font-size: 34px; color: var(--gold); background: rgba(0,0,0,0.4); border: 1px solid var(--line); border-radius: 999px; padding: 2px 14px 2px 10px; }
+.shop-purse b { font-weight: normal; }
+.shop-purse .label { font-size: 18px; }
+.shop-sub { font-size: 18px; margin: 2px 0 8px; text-align: left; }
+.shop-hp { display: flex; align-items: center; gap: 8px; font-size: 20px; margin-bottom: 8px; flex-wrap: wrap; }
+.shop-hp .bar { flex: 1; min-width: 80px; width: auto; }
+.shop-hp .hp-txt { min-width: 70px; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.shop-card { background: rgba(0,0,0,0.38); border: 1px solid var(--line); border-radius: 14px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 3px; text-align: left; }
+.shop-card.max { border-color: var(--gold); background: rgba(255,205,119,0.08); }
+.sc-top { display: flex; align-items: center; gap: 6px; }
+.sc-ico { font-size: 18px; }
+.sc-name { font-size: 22px; color: var(--gold); line-height: 1; }
+.sc-pips { display: flex; gap: 4px; }
+.sc-pips i { width: 22px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); }
+.sc-pips i.on { background: var(--gold); box-shadow: 0 0 6px rgba(255,205,119,0.6); }
+.sc-stat { font-size: 20px; color: rgba(255,255,255,0.75); }
+.sc-stat b { color: #fff; font-weight: normal; }
+.sc-stat .arrow { color: var(--red); font-family: system-ui, sans-serif; font-size: 14px; }
+.shop-panel button.buy { font-size: 22px; padding: 3px 10px; border-radius: 999px; border: none; background: var(--red); color: #fff; box-shadow: 0 3px 0 #8f0000; text-shadow: 0 1px 0 rgba(0,0,0,0.4); }
+.shop-panel button.buy:active { transform: translateY(2px); box-shadow: 0 1px 0 #8f0000; }
+.shop-panel button.buy:disabled { background: #3a3a3a; color: #9a9a9a; box-shadow: 0 3px 0 #222; cursor: not-allowed; }
+.shop-card.max button.buy:disabled { background: rgba(255,205,119,0.2); color: var(--gold); box-shadow: none; }
+#shop-close { margin-top: 10px; }
+.shop-keys { font-size: 15px; }
+@media (orientation: portrait) {
+  .shop-panel { padding: 10px 10px; }
+  .shop-head h1 { font-size: 38px; }
+  .shop-purse { font-size: 28px; }
+  .shop-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sc-name { font-size: 19px; }
+  .sc-stat { font-size: 17px; }
+  .shop-panel button.buy { font-size: 20px; }
+  .shop-keys { display: none; }
+}
+@media (pointer: coarse) { .shop-keys { display: none; } }
+@media (orientation: landscape) and (max-height: 520px) {
+  .shop-head h1 { font-size: 34px; }
+  .shop-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .shop-sub { display: none; }
+  #shop-close { font-size: 28px; padding: 2px 28px; margin-top: 6px; }
+}
+/* tougher enemy name tags */
+.ehp.t-frigate .name { color: var(--gold); }
+.ehp.t-galleon .name { color: #ffb347; }
+.ehp.t-boss .name { color: var(--red); font-size: 1.15em; }
+.ehp.t-galleon .bar, .ehp.t-boss .bar { width: 90px; }
