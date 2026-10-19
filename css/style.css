@@ -246,3 +246,27 @@ button.ghost:disabled { color: rgba(255,255,255,0.45); cursor: not-allowed; bord
   #gameover .panel { width: min(760px, 96vw); }
   #gameover .board { columns: 2; }
 }
+
+/* ---------- leaderboard: holds the top 100, shows exactly 5 rows, the rest scroll inside the list ---------- */
+.board, .title-panel .board, #gameover .board {
+  --lb-row: 1.3em; position: relative; columns: auto; list-style: none; padding: 0 4px 0 0; margin: 4px 0 0;
+  height: calc(var(--lb-row) * 5); overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: rgba(255,205,119,0.45) transparent;
+}
+.board::-webkit-scrollbar { width: 4px; }
+.board::-webkit-scrollbar-thumb { background: rgba(255,205,119,0.45); border-radius: 4px; }
+.board li { display: flex; align-items: baseline; gap: 6px; height: var(--lb-row); line-height: var(--lb-row); white-space: nowrap; }
+.board li i { font-style: normal; flex: 0 0 2.1em; text-align: right; color: rgba(255,255,255,0.55); }
+.board li span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.board li b { float: none; flex: 0 0 auto; }
+.board li.me { color: var(--gold); background: rgba(250,13,13,0.18); border-radius: 8px; box-shadow: inset 3px 0 0 var(--red); }
+.board li.me i { color: var(--gold); }
+.board .empty { display: block; height: auto; white-space: normal; line-height: 1.25; margin: 0; padding-top: 0.6em; }
+.board.more { -webkit-mask-image: linear-gradient(to bottom, #000 72%, rgba(0,0,0,0.25)); mask-image: linear-gradient(to bottom, #000 72%, rgba(0,0,0,0.25)); }
+.lb-more { height: 18px; line-height: 18px; font-size: 16px; text-align: center; color: var(--gold); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.lb-more.on { opacity: 0.8; }
+/* wide-but-short desktop/laptop windows: title in two columns so the 5-row board + SET SAIL fit without scrolling */
+@media (orientation: landscape) and (min-width: 900px) and (max-height: 860px) and (min-height: 521px) {
+  .title-panel { width: min(940px, 94vw); display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; text-align: center; }
+  .title-panel .board-wrap { margin-top: 0; }
+}

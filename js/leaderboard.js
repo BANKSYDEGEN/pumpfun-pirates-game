@@ -6,7 +6,10 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW } 
 
 const LS_KEY = 'pfp_leaderboard_v1';     // best per wallet (legacy, still maintained)
 const LS_RUNS = 'pfp_runs_v1';           // every saved run with a timestamp (for period boards)
-const MAX_RUNS = 500;
+const MAX_RUNS = 2000;                  // enough history for 100+ wallets per period board
+export const LB_SIZE = 100;             // rows a board holds (5 visible, the rest scroll)
+const PAGE = 1000;                      // Supabase rows per request (PostgREST default max)
+const MAX_PAGES = 5;
 const clean = (s) => (s || '').replace(/[<>&"`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
 
 const DAY = 86400000;
@@ -42,7 +45,7 @@ export class LocalAdapter {
     }
     return runs;
   }
-  async getTop(n = 10, period = 'all') {
+  async getTop(n = LB_SIZE, period = 'all') {
     const since = periodSince(period);
     if (!since) return bestPerWallet(Object.values(this._all()).map(r => ({ ...r, _t: r.ts || 0 })), n); // all-time keeps every wallet's best
     const rows = this._runs().filter(r => !since || (r.ts || 0) >= since).map(r => ({ ...r, _t: r.ts || 0 }));
@@ -55,8 +58,14 @@ export class LocalAdapter {
     else if (entry.name) prev.name = entry.name; // allow name update without losing best
     localStorage.setItem(LS_KEY, JSON.stringify(all));
     const runs = this._runs(); runs.push({ ...entry, ts: entry.ts || Date.now() });
-    // trim to the newest runs (all-time bests live in LS_KEY, so nothing is lost there)
-    if (runs.length > MAX_RUNS) { runs.sort((a, b) => b.ts - a.ts); runs.length = MAX_RUNS; }
+    // trim: always keep every wallet's best run, then the newest of the rest (all-time bests also live in LS_KEY)
+    if (runs.length > MAX_RUNS) {
+      runs.sort((a, b) => b.ts - a.ts);
+      const best = new Map(); for (const r of runs) { const b = best.get(r.wallet); if (!b || r.score > b.score) best.set(r.wallet, r); }
+      const keep = new Set(best.values()); let room = MAX_RUNS - keep.size;
+      for (const r of runs) { if (room <= 0) break; if (!keep.has(r)) { keep.add(r); room--; } }
+      runs.splice(0, runs.length, ...runs.filter(r => keep.has(r)));
+    }
     try { localStorage.setItem(LS_RUNS, JSON.stringify(runs)); } catch {}
     return { ok: true, best: all[entry.wallet].score };
   }
@@ -75,7 +84,7 @@ export class SupabaseAdapter {
     if (!this.key.startsWith('sb_')) h.Authorization = `Bearer ${this.key}`;
     return h;
   }
-  async getTop(n = 10, period = 'all') {
+  async getTop(n = LB_SIZE, period = 'all') {
     const since = periodSince(period);
     if (!since) {
       const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_VIEW}?select=wallet,name,score,wave,sunk&order=score.desc&limit=${n}`, { headers: this._h() });
@@ -84,10 +93,16 @@ export class SupabaseAdapter {
     }
     // period boards: recent runs, highest first, deduped to the best per wallet here
     const iso = new Date(since).toISOString();
-    const q = `select=wallet,name,score,wave,sunk,created_at&created_at=gte.${encodeURIComponent(iso)}&order=score.desc,created_at.asc&limit=300`;
-    const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_TABLE}?${q}`, { headers: this._h() });
-    if (!r.ok) throw new Error(`leaderboard read ${r.status}`);
-    const rows = (await r.json()).map(x => ({ ...x, _t: Date.parse(x.created_at) || 0 }));
+    // rows come highest score first, so page until we have n unique wallets or run out
+    const q = `select=wallet,name,score,wave,sunk,created_at&created_at=gte.${encodeURIComponent(iso)}&order=score.desc,created_at.asc&limit=${PAGE}`;
+    const rows = [], wallets = new Set();
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_TABLE}?${q}&offset=${page * PAGE}`, { headers: this._h() });
+      if (!r.ok) throw new Error(`leaderboard read ${r.status}`);
+      const got = await r.json();
+      for (const x of got) { rows.push({ ...x, _t: Date.parse(x.created_at) || 0 }); wallets.add(x.wallet); }
+      if (got.length < PAGE || wallets.size >= n) break;
+    }
     return bestPerWallet(rows, n);
   }
   async submit(entry) {
@@ -106,7 +121,7 @@ class Leaderboard {
     this.remote = (SUPABASE_URL && SUPABASE_ANON_KEY) ? new SupabaseAdapter(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
   }
   get mode() { return this.remote ? 'online' : 'this device only'; }
-  async getTop(n = 10, period = 'all') {
+  async getTop(n = LB_SIZE, period = 'all') {
     if (this.remote && !this.remoteDown) {
       try { const r = await this.remote.getTop(n, period); this.lastWhere = 'online'; return r; }
       catch (e) { console.info('[leaderboard] online board unavailable, using this device:', e.message); }

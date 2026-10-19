@@ -6,7 +6,7 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { FX } from './fx.js';
 import { initAudio, sfx, setMuted, muted } from './audio.js';
-import { leaderboard, PERIODS } from './leaderboard.js';
+import { leaderboard, PERIODS, LB_SIZE } from './leaderboard.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
@@ -525,20 +525,35 @@ async function renderBoard(el) {
   const token = {}; boardTokens.set(el, token);
   const period = lbPeriod, pd = PERIODS.find(p => p.id === period);
   let rows = [];
-  try { rows = await leaderboard.getTop(10, period); } catch (e) { console.warn(e); }
+  try { rows = await leaderboard.getTop(LB_SIZE, period); } catch (e) { console.warn(e); }
   if (boardTokens.get(el) !== token) return; // a newer tab click won
   const where = leaderboard.lastWhere === 'online' ? 'online' : (leaderboard.remote ? 'this device · online board offline' : 'this device only');
   const label = `(${where}${period === 'all' ? '' : ` · ${pd.desc}`})`;
   el.closest('.board-wrap')?.querySelectorAll('.lb-mode').forEach(m => m.textContent = label);
-  el.innerHTML = '';
-  if (!rows.length) { el.innerHTML = `<li class="empty">${period === 'all' ? 'No scores yet. Be the first legend of the storm.' : `No scores in the ${pd.desc} yet. Claim the top spot!`}</li>`; return; }
-  for (const r of rows) {
+  el.innerHTML = ''; el.scrollTop = 0;
+  if (!rows.length) { el.innerHTML = `<li class="empty">${period === 'all' ? 'No scores yet. Be the first legend of the storm.' : `No scores in the ${pd.desc} yet. Claim the top spot!`}</li>`; boardHint(el); return; }
+  let mine = null;
+  rows.forEach((r, i) => {
     const li = document.createElement('li');
-    if (r.wallet === game.wallet) li.className = 'me';
-    li.textContent = r.name ? `${r.name} · ${shortWallet(r.wallet)}` : shortWallet(r.wallet);
-    const b = document.createElement('b'); b.textContent = r.score; li.appendChild(b);
-    el.appendChild(li);
+    if (r.wallet === game.wallet) { li.className = 'me'; mine ??= li; }
+    const rk = document.createElement('i'); rk.textContent = `${i + 1}.`;
+    const nm = document.createElement('span'); nm.textContent = r.name ? `${r.name} · ${shortWallet(r.wallet)}` : shortWallet(r.wallet);
+    const b = document.createElement('b'); b.textContent = r.score;
+    li.append(rk, nm, b); el.appendChild(li);
+  });
+  // game over: if your row is below the first 5, scroll the list (only the list) so it's in view
+  if (mine && el.id === 'board-over' && mine.offsetTop + mine.offsetHeight > el.clientHeight) el.scrollTop = mine.offsetTop - (el.clientHeight - mine.offsetHeight) / 2;
+  boardHint(el);
+}
+// fade + "scroll for more" under a board that holds more than 5 rows; hidden once scrolled to the end
+function boardHint(el) {
+  let h = el.nextElementSibling;
+  if (!h || !h.classList.contains('lb-more')) {
+    h = document.createElement('div'); h.className = 'lb-more'; h.setAttribute('aria-hidden', 'true'); h.textContent = '▼ scroll for more';
+    el.after(h); el.addEventListener('scroll', () => boardHint(el), { passive: true });
   }
+  const more = el.scrollHeight - el.clientHeight - el.scrollTop > 2;
+  el.classList.toggle('more', more); h.classList.toggle('on', more);
 }
 buildTabs();
 
