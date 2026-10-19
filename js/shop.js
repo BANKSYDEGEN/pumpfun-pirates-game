@@ -34,7 +34,7 @@ function buildDom() {
     </div>
     <div class="shop-sub muted">Spend looted gold on your ship. Upgrades last this voyage only.</div>
     <div id="shop-hp" class="shop-hp"><span class="label">HULL</span><div class="bar"><div class="fill red"></div></div><span class="hp-txt"></span>
-      <button id="shop-repair" class="buy">REPAIR +${REPAIR.hp} · ${REPAIR.cost}g</button></div>
+      <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g</button></div>
     <div id="shop-grid" class="shop-grid"></div>
     <button id="shop-close" class="big">BACK TO BATTLE</button>
     <div class="shop-keys muted">U / B / Esc to close</div>
@@ -61,7 +61,7 @@ function render() {
   $('shop-hp').querySelector('.fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < REPAIR.cost;
-  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR +${REPAIR.hp} · ${REPAIR.cost}g`;
+  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g`;
   const stats = shipStats(run);
   for (const u of UPGRADES) {
     const c = $('shop-grid').querySelector(`[data-id="${u.id}"]`), lv = run.levels[u.id];

@@ -15,6 +15,8 @@ import { QUALITY } from './config.js';
 import { gunList } from './upgrades.js';
 import { waveRoster, applyEnemyType } from './enemyTypes.js';
 import { initShop, resetShop } from './shop.js';
+import { createHealthDrops } from './healthDrops.js'; // [health drops]
+import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits
 
 const $ = (id) => document.getElementById(id);
@@ -228,12 +230,13 @@ function damage(s, amt, p) {
   else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
-    else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); }
+    else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s); } // [health drops] every 3rd sink + bosses
   }
   updateHud();
 }
 
 // ---------- loot ----------
+const healthDrops = createHealthDrops({ scene, fx, sfx, popup, updateHud }); // [health drops]
 function dropLoot(s) {
   const n = s.big ? 3 : 1;
   for (let i = 0; i < n; i++) {
@@ -459,6 +462,7 @@ function drawRadar() {
     rctx.fillStyle = color; rctx.beginPath(); rctx.arc(R + px, R + py, r, 0, 7); rctx.fill();
   };
   loot.forEach(l => dot(l.x, l.z, '#ffcd77', 3));
+  healthDrops.radar(dot); // [health drops] green dots
   enemies.forEach(e => e.alive && dot(e.x, e.z, e.state === 'flee' ? '#ff9b9b' : '#fa0d0d', e.big ? 5 : 3.5));
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(R, R - 7); rctx.lineTo(R - 5, R + 5); rctx.lineTo(R + 5, R + 5); rctx.fill();
 }
@@ -543,6 +547,7 @@ function clearWorld() {
   enemies.length = 0;
   for (const b of balls) scene.remove(b.mesh); balls.length = 0;
   for (const l of loot) scene.remove(l.mesh); loot.length = 0;
+  healthDrops.clear(); // [health drops]
   fx.clear();
 }
 
@@ -565,9 +570,11 @@ function startGame() {
   updateHud();
   rotateTimer = 0; updateRotateHint();
   banner('SET SAIL!', 'hunt the rug ships');
+  maybeShowTutorial(); // [tutorial] how-to-play card, game paused until closed
 }
 
 function toTitle() {
+  closeTutorial(); // [tutorial]
   game.state = 'title';
   clearWorld();
   $('hud').classList.add('hidden'); $('gameover').classList.add('hidden'); $('title').classList.remove('hidden');
@@ -644,6 +651,7 @@ function frame() {
       }
       if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); }
     }
+    healthDrops.update(dt, t, player); // [health drops] bob, blink, pickup
     animateShip(player.mesh, t, player.anchor ? 0 : player.sail / 3);
     for (const e of enemies) animateShip(e.mesh, t + 1.3, e.alive ? 0.8 : 0.3);
     fx.update(dt, t);
@@ -752,4 +760,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip }); // [Raul] upgrade visuals: camera + ship rebuild
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
+initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
+window.PFP_HEALTH = healthDrops; // [health drops] test hook
 window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera };

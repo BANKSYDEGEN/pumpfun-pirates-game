@@ -46,6 +46,17 @@ export const sfx = {
       o.connect(g).connect(master); o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.3);
     });
   },
+  // [health drops] soft rising heal chime (sine arpeggio + shimmer)
+  heal: () => {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime;
+    [523, 659, 784, 1047].forEach((fr, i) => {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = fr;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.06); g.gain.exponentialRampToValueAtTime(0.16, t + i * 0.06 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.4);
+      o.connect(g).connect(master); o.start(t + i * 0.06); o.stop(t + i * 0.06 + 0.45);
+    });
+    burst({ dur: 0.35, freq: 6000, endFreq: 3000, vol: 0.08, type: 'highpass', delay: 0.1 });
+  },
   sink: () => burst({ dur: 2.5, freq: 500, endFreq: 40, vol: 0.6 }),
   // [Raul] upgrade visuals: short rising chime + shimmer when a ship upgrade is bought (≈0.5 s)
   upgrade: (legendary = false) => {
