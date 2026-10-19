@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>PUMPFUN PIRATES · Storm Hunt</title>
+<meta name="description" content="PUMPFUN PIRATES: a stormy browser pirate game. Hunt the rug ships, stack $AHOY-style booty, top the leaderboard. Experimental, for fun.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#161616">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PIRATES">
+<meta name="application-name" content="PUMPFUN PIRATES">
+<link rel="preload" href="assets/JustAnotherHand.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="hidden">
+  <div id="hud-tl">
+    <img id="hud-logo" src="assets/pumpfun_pirates_wordmark.png" alt="PUMPFUN PIRATES">
+    <div id="captain">
+      <img id="captain-img" src="" alt="captain">
+      <div class="cap-info">
+        <div id="captain-name">CAPT. #000</div>
+        <div class="bar"><div id="player-hp" class="fill red"></div></div>
+        <div id="wallet-short" class="muted"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud-top">
+    <div><span class="label">SCORE</span> <span id="score">0</span></div>
+    <div><span class="label">WAVE</span> <span id="wave">1</span></div>
+    <div><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
+    <div><span class="label">SUNK</span> <span id="sunk">0</span></div>
+  </div>
+
+  <div id="hud-tr">
+    <button class="icon" id="btn-sound" title="Sound (M)">🔊</button>
+    <button class="icon" id="btn-cam" title="Reset camera (C)">🎥</button>
+    <button class="icon" id="btn-pause" title="Pause (P / Esc)"><b style="font-family:system-ui;font-size:15px;letter-spacing:1px">II</b></button>
+    <button class="icon" id="btn-full" title="Fullscreen (F)">⛶</button>
+    <canvas id="radar" width="150" height="150"></canvas>
+    <div id="enemies-left" class="muted"></div>
+  </div>
+
+  <div id="controls">
+    <button class="fire" id="fire-port" title="Fire port broadside (Q)"><span class="cd"></span>◀ FIRE</button>
+    <div id="pill">
+      <button class="round" id="steer-left" title="Steer left (A / ←)">◀</button>
+      <div id="sail-box">
+        <button class="mini" id="sail-up" title="More sail (W)">▲</button>
+        <div id="sail-readout"><div class="label">SAIL <span id="sail-level">2</span>/3</div><div id="knots">0.0 kn</div></div>
+        <button class="mini" id="sail-down" title="Less sail (S)">▼</button>
+      </div>
+      <button class="round" id="steer-right" title="Steer right (D / →)">▶</button>
+      <button class="round" id="anchor" title="Drop anchor (Space)">⚓</button>
+    </div>
+    <button class="fire" id="fire-star" title="Fire starboard broadside (E)"><span class="cd"></span>FIRE ▶</button>
+  </div>
+
+  <div id="banner" class="hidden"></div>
+  <div id="hint">A/D steer · W/S sails · Q/E broadsides · SPACE anchor · drag to look</div>
+</div>
+<div id="bars"></div>
+<div id="popups"></div>
+<div id="rotate">↻ Turn your phone sideways for the best voyage</div>
+
+<!-- ============ TITLE ============ -->
+<div id="title" class="overlay">
+  <div class="panel title-panel">
+   <div class="col-a">
+    <img class="skull" src="assets/skull_transparent.png" alt="">
+    <img class="wordmark" src="assets/pumpfun_pirates_wordmark.png" alt="PUMPFUN PIRATES">
+    <div class="subtitle">STORM HUNT · sink the rug ships, grab the booty</div>
+
+    <label class="field">
+      <span>SOLANA WALLET ADDRESS <em>(required, for the leaderboard)</em></span>
+      <input id="wallet-input" type="text" spellcheck="false" autocomplete="off" placeholder="paste your Solana address">
+      <small id="wallet-msg" class="muted">Only used to key your score. Never asks for keys or signatures.</small>
+    </label>
+    <label class="field">
+      <span>PIRATE NAME <em>(optional)</em></span>
+      <input id="name-input" type="text" maxlength="20" spellcheck="false" autocomplete="off" placeholder="e.g. Cap'n Degen">
+    </label>
+
+    <button id="btn-start" class="big" disabled>SET SAIL</button>
+
+    <div class="row">
+      <button id="btn-rewards" class="ghost" disabled title="Coming soon">🔒 CONNECT WALLET · $AHOY REWARDS COMING SOON</button>
+    </div>
+
+   </div>
+   <div class="col-b">
+    <div class="board-wrap">
+      <div class="board-title">TOP 10 PIRATES <span class="muted lb-mode"></span></div>
+      <ol class="board" id="board-title"></ol>
+    </div>
+
+    <div class="controls-help">A/D or ←/→ steer · W/S raise/lower sails · Q/E fire port/starboard · SPACE anchor · drag mouse to orbit</div>
+    <div class="disclaimer">Experimental fan game, built for fun. Single player vs AI ships. Not financial advice, no real funds, no rewards are live, no liability. Typed wallet addresses are not verified.</div>
+   </div>
+  </div>
+</div>
+
+<!-- ============ PAUSE ============ -->
+<div id="pause" class="overlay hidden">
+  <div class="panel small">
+    <h1>PAUSED</h1>
+    <div class="controls-help">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · M sound</div>
+    <button id="btn-resume" class="big">RESUME</button>
+    <button id="btn-quit" class="ghost">MAIN MENU</button>
+  </div>
+</div>
+
+<!-- ============ GAME OVER ============ -->
+<div id="gameover" class="overlay hidden">
+  <div class="panel">
+    <h1 class="red">DAVY JONES' LOCKER</h1>
+    <div class="stats">
+      <div><span class="label">SCORE</span><b id="go-score">0</b></div>
+      <div><span class="label">WAVE</span><b id="go-wave">1</b></div>
+      <div><span class="label">SUNK</span><b id="go-sunk">0</b></div>
+      <div><span class="label">GOLD</span><b id="go-gold" class="gold">0</b></div>
+    </div>
+    <div id="go-wallet" class="muted"></div>
+    <label class="field inline">
+      <span>NAME (optional)</span>
+      <input id="go-name" type="text" maxlength="20" spellcheck="false" autocomplete="off">
+      <button id="btn-save">SAVE SCORE</button>
+    </label>
+    <div id="save-msg" class="muted"></div>
+    <div class="board-wrap">
+      <div class="board-title">TOP 10 PIRATES <span class="muted lb-mode"></span></div>
+      <ol class="board" id="board-over"></ol>
+    </div>
+    <div class="row">
+      <button id="btn-again" class="big">SAIL AGAIN</button>
+      <button id="btn-menu" class="ghost">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading" class="overlay"><div class="panel small"><h1>Hoisting the sails…</h1></div></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
