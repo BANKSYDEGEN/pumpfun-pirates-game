@@ -142,6 +142,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
 
 function startWave() {
   game.wave++;
+  if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
   const roster = waveRoster(game.wave), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
   for (let i = 0; i < n; i++) {
     const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
