@@ -5,6 +5,7 @@ import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, 
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { FX } from './fx.js';
+import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE } from './leaderboard.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
@@ -231,10 +232,10 @@ function playerFire(side) {
   $('hint').style.opacity = 0;
 }
 
-function damage(s, amt, p) {
+function damage(s, amt, p, src = null) {
   if (!s.alive) return;
   s.hp -= amt;
-  fx.hit(p); if (s === player) sfx.playerHit(); else sfx.hit(clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1)); // [Raul] sound upgrades: hull / iron plating
+  fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
   if (s === player) { game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); }
   else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
@@ -360,7 +361,7 @@ function updateBalls(dt) {
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
       if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9) {
-        damage(s, b.owner === player ? Math.round(rnd(14, 20)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone()); // [Raul] ship upgrades: enemy type damage, armor
+        damage(s, b.owner === player ? Math.round(rnd(14, 20)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone(), b.owner); // [Raul] ship upgrades: enemy type damage, armor
         done = true; break;
       }
     }

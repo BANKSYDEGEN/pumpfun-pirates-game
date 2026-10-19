@@ -12,7 +12,7 @@
 //    moves the page to the playback category so game audio is heard like a video would be.
 // Fix: unlock() runs on EVERY pointerup / touchend / click / keydown (capture phase) until the context is running,
 // re-arms after interruptions and when the tab becomes visible again, and the mute state is persisted + shown.
-import { soundProfile } from './soundProfile.js';
+import { soundProfile, hitTier, HIT_THROTTLE } from './soundProfile.js';
 
 let ctx = null, comp = null, master = null, sfxBus = null, musicBus = null, ambBus = null, noiseBuf = null;
 const SET_KEY = 'pfp_audio_v1';
@@ -40,15 +40,22 @@ function create() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return false;
   try { ctx = new AC({ latencyHint: 'interactive' }); } catch { ctx = new AC(); }
-  comp = ctx.createDynamicsCompressor(); // soft limiter on the master: broadsides never clip
-  comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.25;
+  comp = makeLimiter(ctx, ctx.destination); // glue compressor + brick-wall-ish limiter: 7 overlapping booms never clip
   master = ctx.createGain(); sfxBus = ctx.createGain(); musicBus = ctx.createGain(); ambBus = ctx.createGain();
-  sfxBus.connect(master); musicBus.connect(master); ambBus.connect(master); master.connect(comp).connect(ctx.destination);
+  sfxBus.connect(master); musicBus.connect(master); ambBus.connect(master); master.connect(comp);
   applyLevels();
   noiseBuf = makeNoise(ctx);
   ctx.onstatechange = () => { if (ctx.state !== 'running') arm(); notify(); };
   startAmbient();
   return true;
+}
+// two stages: gentle glue compression, then a fast high-ratio limiter just under 0 dBFS
+function makeLimiter(c, dest) {
+  const glue = c.createDynamicsCompressor(); glue.threshold.value = -12; glue.knee.value = 10; glue.ratio.value = 4; glue.attack.value = 0.01; glue.release.value = 0.3;
+  const lim = c.createDynamicsCompressor(); lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.12;
+  const trim = c.createGain(); trim.gain.value = 0.92;
+  glue.connect(lim).connect(trim).connect(dest);
+  return glue;
 }
 function makeNoise(c) {
   const b = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = b.getChannelData(0);
@@ -108,7 +115,9 @@ export function setLoadout(levels) { profile = soundProfile(levels); }
 // ---------- voices (cap simultaneous sounds) ----------
 const MAX_VOICES = 28;
 let voices = 0;
+let offline = false; // true while rendering preview clips (no live voice budget)
 function voice(prio = 1, dur = 1) {
+  if (offline) return true;
   if (!ctx || muted || ctx.state !== 'running') return false;
   if (voices >= MAX_VOICES && prio < 2) return false; // low-priority sounds (far splashes, distant guns) drop first
   if (voices >= MAX_VOICES + 8) return false;
@@ -118,10 +127,10 @@ function voice(prio = 1, dur = 1) {
 
 // ---------- synth primitives (work on any context, also OfflineAudioContext for clip renders) ----------
 let C = null; // { c, noise, out } current target
-const live = () => (ctx ? (C = { c: ctx, noise: noiseBuf, out: sfxBus }) : null);
+const live = () => (ctx ? (C = { c: ctx, noise: noiseBuf, out: sfxBus, verb: _liveVerb || (_liveVerb = makeVerb(ctx, sfxBus)) }) : null);
 function env(g, t, a, peak, d, end = 0.0008) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(end, t + a + d); }
 function noise({ t, dur, f0, f1, vol, type = 'lowpass', q = 0.7, a = 0.004, out = C.out, rate = 1 }) {
-  const { c } = C, s = c.createBufferSource(); s.buffer = C.noise; s.playbackRate.value = rate;
+  const { c } = C, s = c.createBufferSource(); s.buffer = C.noise; s.loop = true; s.playbackRate.value = rate;
   const f = c.createBiquadFilter(); f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
   const g = c.createGain(); env(g, t, a, vol, dur);
   s.connect(f).connect(g).connect(out); s.start(t, Math.random() * 1.5); s.stop(t + a + dur + 0.05);
@@ -140,24 +149,74 @@ function ring({ t, base, partials = [1, 2.76, 5.4, 8.93], dur = 1.2, vol = 0.1, 
 }
 
 // ---------- sounds ----------
-// one cannon boom; P = SOUND_TIERS.cannons[tier]
-function boom(P, t, v = 1) {
-  const pan = C.c.createStereoPanner ? C.c.createStereoPanner() : null, out = pan || C.out;
-  if (pan) { pan.pan.value = (Math.random() - 0.5) * 0.5; pan.connect(C.out); }
-  noise({ t, dur: P.dur, f0: P.body, f1: P.bodyEnd, vol: P.vol * v, out, a: 0.002 });
-  for (let i = 0; i < P.layers; i++) noise({ t: t + 0.006 * (i + 1), dur: P.dur * (1.1 + i * 0.25), f0: P.body * (0.7 - i * 0.12), f1: P.bodyEnd * 0.8, vol: P.vol * v * 0.45, out, rate: 0.6 - i * 0.12 });
-  noise({ t, dur: 0.07 + P.crack * 0.15, f0: 3800, f1: 900, vol: P.crack * v, type: 'bandpass', q: 0.9, out, a: 0.001 });
-  if (P.sub) tone({ t, dur: 0.25 + P.sub * 0.35, f0: P.subF * 2.2, f1: P.subF * 0.6, vol: P.sub * 0.85 * v, out, a: 0.003 });
-  if (P.tail) noise({ t: t + 0.05, dur: P.tail, f0: 320, f1: 35, vol: P.vol * 0.35 * v, out, a: 0.06 });
-  if (P.echo) noise({ t: t + 0.32, dur: P.dur * 0.9, f0: P.body * 0.4, f1: 40, vol: P.echo * v, out, a: 0.04 });
+// ---------- black-powder cannons ----------
+// shared "echo across the water / valley" reverb: convolution with a generated 4.5 s dark, slowly decaying impulse
+// (early slap from the hull + long low tail). One per context; every boom sends into it.
+function makeVerb(c, out) {
+  const sr = c.sampleRate, len = Math.floor(sr * 4.5), ir = c.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch); let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const tt = i / sr, k = 0.16 - 0.11 * Math.min(1, tt / 2.5); // ~1 kHz early, darker (~250 Hz) as it decays (one-pole low-pass)
+      lp += k * ((Math.random() * 2 - 1) - lp);
+      const early = tt > 0.09 && tt < 0.16 ? 2.2 : 1; // first reflection off the water
+      d[i] = lp * early * Math.exp(-tt * 1.35) * Math.min(1, tt / 0.03) * 3;
+    }
+  }
+  const cv = c.createConvolver(); cv.normalize = true; cv.buffer = ir;
+  const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 55; // keep sub mud out of the tail
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+  const g = c.createGain(); g.gain.value = 0.9;
+  cv.connect(hp).connect(lp).connect(g).connect(out);
+  return cv;
 }
-// a broadside: one boom per gun that actually fires, staggered like the shells (70 ms, matching main.js)
-function broadside(n, P, v, stagger = 0.07, prio = 2) {
-  const scale = v / Math.pow(Math.max(1, n), 0.38); // more guns = louder, but never clipping
-  for (let i = 0; i < n; i++) { if (!voice(prio, P.dur + P.tail + 0.4)) break; boom(P, C.c.currentTime + 0.01 + i * stagger + Math.random() * 0.012, scale * (0.9 + Math.random() * 0.2)); }
+let _sat = null;
+const satCurve = () => _sat || (_sat = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh((i / 511.5 - 1) * 3.2) / Math.tanh(3.2)));
+const verbOf = (X) => X.verb || (X.verb = makeVerb(X.c, X.out));
+let _liveVerb = null;
+// one muzzle-loader shot. P = SOUND_TIERS.cannons[tier]; dist 0 (close) .. 1 (far): far = darker, wetter, longer echo
+function boom(P, t, v = 1, dist = 0) {
+  const { c } = C, pitch = 0.92 + Math.random() * 0.16; // every gun a little different
+  const pan = c.createStereoPanner ? c.createStereoPanner() : null;
+  const dry = c.createGain(); dry.gain.value = 1 - dist * 0.55;
+  const dark = c.createBiquadFilter(); dark.type = 'lowpass'; dark.Q.value = 0.5; dark.frequency.value = 1400 * (1 - dist * 0.75); // no high-mid crack
+  const send = c.createGain(); send.gain.value = P.verb * (0.7 + dist * 0.6);
+  const bus = c.createGain(); // everything for this shot
+  bus.connect(dark); dark.connect(dry); if (pan) { pan.pan.value = (Math.random() - 0.5) * 0.6; dry.connect(pan).connect(C.out); } else dry.connect(C.out);
+  dark.connect(send).connect(verbOf(C));
+  // 1) concussive sub thump with a pitch drop (40-80 Hz), softly saturated so its harmonics (120-400 Hz) carry
+  //    the boom on phone speakers that can't play real sub-bass
+  const sat = c.createWaveShaper(); sat.curve = satCurve(); sat.oversample = '2x';
+  const satG = c.createGain(); satG.gain.value = 0.7; sat.connect(satG).connect(bus);
+  tone({ t, dur: P.subDur, f0: P.subF * 1.9 * pitch, f1: P.subF * 0.62 * pitch, vol: P.sub * 0.3 * v, out: bus, a: 0.006 });
+  tone({ t, dur: P.subDur * 0.8, f0: P.subF * 1.9 * pitch, f1: P.subF * 0.62 * pitch, vol: P.sub * 1.4 * v, out: sat, a: 0.006 });
+  tone({ t, dur: P.subDur * 0.6, f0: P.subF * 3.1 * pitch, f1: P.subF * 1.1 * pitch, vol: P.sub * 0.3 * v, out: bus, a: 0.008, type: 'triangle' });
+  // chest of the blast: warm band around 200-450 Hz (soft attack, no click)
+  noise({ t, dur: P.blastDur * 0.9, f0: 420 * pitch, f1: 160, vol: P.vol * 2.2 * v, type: 'bandpass', q: 0.6, out: bus, a: P.attack * 1.2, rate: 0.5 });
+  // 2) soft-attack low-passed powder blast (most energy under 1 kHz)
+  noise({ t, dur: P.blastDur, f0: P.blast * pitch, f1: P.blastEnd, vol: P.vol * 1.4 * v, out: bus, a: P.attack, q: 0.5, rate: 0.55 * pitch });
+  noise({ t: t + 0.004, dur: P.blastDur * 1.3, f0: P.blast * 0.5, f1: P.blastEnd * 0.8, vol: P.vol * 0.6 * v, out: bus, a: P.attack * 1.6, q: 0.4, rate: 0.5 });
+  // 3) rolling rumble tail (2-4 s) — dark noise that swells a little then rolls away
+  noise({ t: t + 0.06, dur: P.rumbleDur * (1 + dist * 0.4), f0: 400 * pitch, f1: 55, vol: P.rumble * v, out: bus, a: 0.22, q: 0.6, rate: 0.5 });
+  // 4) faint distant echo off the far shore
+  if (P.echo) noise({ t: t + 0.55 + Math.random() * 0.45 + dist * 0.3, dur: P.blastDur * 1.6, f0: 420, f1: 50, vol: P.echo * (1 + dist) * v, out: bus, a: 0.05, q: 0.5, rate: 0.4 });
+  // 5) subtle crackle of burning powder (quiet, darkened)
+  if (P.crackle && dist < 0.6) for (let i = 0, n = 5 + Math.floor(Math.random() * 5); i < n; i++) noise({ t: t + 0.12 + Math.random() * 0.7, dur: 0.025, f0: 1800, f1: 900, vol: P.crackle * 0.06 * v * (1 - dist), type: 'bandpass', q: 1.5, out: bus, a: 0.003 });
 }
-const ENEMY_GUN = { body: 1300, bodyEnd: 110, dur: 0.55, sub: 0.25, subF: 80, tail: 0.4, crack: 0.25, layers: 0, echo: 0, vol: 0.6 };
-const BOSS_GUN = { body: 900, bodyEnd: 60, dur: 0.9, sub: 0.6, subF: 55, tail: 1.0, crack: 0.22, layers: 1, echo: 0.15, vol: 0.75 };
+// broadside: one boom per gun that actually fires, ragged crew timing (P.gap, e.g. 180-450 ms + jitter) so the
+// booms overlap into one rolling thunder. Sound only: cannonball / muzzle-flash timing (main.js, 70 ms) is unchanged.
+function broadside(n, P, v, prio = 2, dist = 0, maxGuns = n) {
+  const guns = Math.min(n, maxGuns), scale = 0.75 * v / Math.pow(Math.max(1, guns), 0.55); // more guns = bigger, limiter catches the rest
+  const life = P.rumbleDur + 1;
+  let t = C.c.currentTime + 0.01;
+  for (let i = 0; i < guns; i++) {
+    if (!voice(prio, life)) break;
+    boom(P, t, scale * (0.85 + Math.random() * 0.3), dist);
+    t += P.gap[0] + Math.random() * (P.gap[1] - P.gap[0]);
+  }
+}
+const ENEMY_GUN = { subF: 66, sub: 0.7, subDur: 0.6, blast: 800, blastEnd: 110, blastDur: 0.5, attack: 0.014, rumble: 0.3, rumbleDur: 2.6, verb: 0.75, echo: 0.14, crackle: 0.2, vol: 0.6, gap: [0.22, 0.45] };
+const BOSS_GUN = { subF: 46, sub: 1.0, subDur: 0.95, blast: 620, blastEnd: 60, blastDur: 0.75, attack: 0.016, rumble: 0.45, rumbleDur: 3.6, verb: 0.85, echo: 0.2, crackle: 0.3, vol: 0.75, gap: [0.2, 0.45] };
 
 function splash(t, v) {
   noise({ t, dur: 0.45, f0: 2600, f1: 380, vol: 0.32 * v, type: 'bandpass', q: 0.6 });
@@ -169,6 +228,49 @@ function woodHit(t, v, k = 1) {
   noise({ t, dur: 0.18, f0: 4200 * k, f1: 1600 * k, vol: 0.32 * v, type: 'bandpass', q: 1.2 });
   tone({ t, dur: 0.22, f0: 190 * k, f1: 70 * k, vol: 0.4 * v, type: 'triangle' }); // plank thud
   for (let i = 0; i < 4; i++) noise({ t: t + 0.04 + i * 0.035 + Math.random() * 0.03, dur: 0.05, f0: 5000, f1: 2500, vol: 0.12 * v, type: 'bandpass', q: 3 }); // splinters
+}
+// damage-scaled impacts: H = tier from hitTier(), k = pitch (bigger hull = lower)
+function impactSound(H, t, v, k = 1) {
+  const id = H.id, V = H.vol * v;
+  const splinters = (n, spread, vol) => { for (let i = 0; i < n; i++) noise({ t: t + 0.03 + Math.random() * spread, dur: 0.04 + Math.random() * 0.04, f0: 4200 + Math.random() * 1500, f1: 2000, vol: vol * V, type: 'bandpass', q: 2.5, a: 0.002 }); };
+  if (id === 'light') { // small crack / thunk
+    noise({ t, dur: 0.22, f0: 1500 * k, f1: 160 * k, vol: 0.6 * V, a: 0.002 });
+    tone({ t, dur: 0.14, f0: 240 * k, f1: 120 * k, vol: 0.32 * V, type: 'triangle' });
+    splinters(2, 0.06, 0.08);
+    return;
+  }
+  if (id === 'medium') { // heavier crunch with splinters
+    noise({ t, dur: 0.45, f0: 1300 * k, f1: 90 * k, vol: 0.75 * V, a: 0.002 });
+    noise({ t, dur: 0.16, f0: 1900 * k, f1: 700 * k, vol: 0.3 * V, type: 'bandpass', q: 1.1 });
+    tone({ t, dur: 0.24, f0: 180 * k, f1: 65 * k, vol: 0.45 * V, type: 'triangle' });
+    splinters(5, 0.14, 0.11);
+    return;
+  }
+  // heavy / kill: deep splintering crash + timber groan (kill = bigger, longer, hull breaking apart)
+  const K = id === 'kill';
+  noise({ t, dur: K ? 1.3 : 0.8, f0: 1000 * k, f1: 55 * k, vol: 0.85 * V, a: 0.003 });
+  noise({ t: t + 0.01, dur: K ? 0.5 : 0.3, f0: 1700 * k, f1: 500 * k, vol: 0.35 * V, type: 'bandpass', q: 0.9 });
+  tone({ t, dur: K ? 0.9 : 0.55, f0: 110 * k, f1: 38 * k, vol: 0.7 * V });
+  tone({ t, dur: 0.3, f0: 200 * k, f1: 70 * k, vol: 0.35 * V, type: 'triangle' });
+  splinters(K ? 12 : 8, K ? 0.5 : 0.28, 0.12);
+  creak(t + 0.12, 0.75 * k, K ? 3.2 : 2.2); // timber groan
+  if (K) {
+    noise({ t: t + 0.18, dur: 0.9, f0: 700 * k, f1: 60, vol: 0.55 * V, a: 0.02 }); // second crash: beams giving way
+    tone({ t: t + 0.18, dur: 0.7, f0: 80 * k, f1: 30 * k, vol: 0.5 * V });
+    creak(t + 0.55, 0.6 * k, 2.6);
+    noise({ t: t + 0.35, dur: 1.4, f0: 500, f1: 900, vol: 0.18 * V, type: 'bandpass', q: 0.6, a: 0.3 }); // water rushing in
+  }
+}
+function punch(t, v) { tone({ t, dur: 0.35, f0: 75, f1: 30, vol: 0.6 * v, a: 0.004 }); noise({ t, dur: 0.18, f0: 600, f1: 80, vol: 0.4 * v, a: 0.003 }); }
+// throttle: at most HIT_THROTTLE.max hit sounds per window; hits within mergeGap merge into the loudest
+const _hits = []; let _lastHit = { t: -1, rank: -1 };
+const RANK = { light: 0, medium: 1, heavy: 2, kill: 3 };
+function hitAllowed(now, rank) {
+  while (_hits.length && now - _hits[0] > HIT_THROTTLE.window) _hits.shift();
+  if (now - _lastHit.t < HIT_THROTTLE.mergeGap && rank <= _lastHit.rank) return false;
+  if (_hits.length >= HIT_THROTTLE.max && rank < 3) return false;
+  _hits.push(now); _lastHit = { t: now, rank };
+  return true;
 }
 function ironHit(t, v, mix) {
   ring({ t, base: 420 + Math.random() * 60, partials: [1, 2.32, 3.93, 5.41, 6.8], dur: 0.9 + mix * 0.6, vol: 0.16 * v * mix });
@@ -195,14 +297,25 @@ function arp(t, notes, step, vol, type = 'triangle', dur = 0.35) { notes.forEach
 
 export const sfx = {
   // generic cannon (kept for compatibility); v = distance volume
-  cannon: (v = 1) => { if (!live() || !voice(1, 1)) return; boom(ENEMY_GUN, ctx.currentTime, v); },
+  cannon: (v = 1) => { if (!live() || !voice(1, 3)) return; boom(ENEMY_GUN, ctx.currentTime, v, 1 - v); },
   // the player's broadside: n = guns actually firing; sound follows the CANNONS tier
-  broadside: (n = 4, v = 1) => { if (!live()) return; broadside(n, profile.cannon, v, 0.07, 2); },
-  // enemy broadside: lighter, distance scaled, at most 3 audible booms; bosses boom deep
-  enemyBroadside: (n = 3, v = 1, boss = false) => { if (!live() || v < 0.04) return; broadside(Math.min(3, n), boss ? BOSS_GUN : ENEMY_GUN, v * 0.8, 0.09, 1); },
+  broadside: (n = 4, v = 1) => { if (!live()) return; broadside(n, profile.cannon, v, 2, 0); },
+  // enemy broadside: same black-powder style; far away = darker, wetter, longer echo; at most 4 booms; bosses deeper
+  enemyBroadside: (n = 3, v = 1, boss = false) => { if (!live() || v < 0.04) return; broadside(n, boss ? BOSS_GUN : ENEMY_GUN, v * 0.85, 1, Math.min(1, (1 - v) * 1.15), boss ? 4 : 3); },
   splash: (v = 1) => { if (!live() || v < 0.03 || !voice(v > 0.4 ? 2 : 0, 0.8)) return; splash(ctx.currentTime, v); },
   // hit on an enemy ship
   hit: (v = 1) => { if (!live() || !voice(2, 0.6)) return; woodHit(ctx.currentTime, v); },
+  // damage-scaled cannonball impact on any ship. o = { dmg, maxHp, kill, onPlayer, armor (0..1 metal ring), boss, v }
+  impact: (o = {}) => {
+    if (!live()) return;
+    const H = hitTier({ dmg: o.dmg, maxHp: o.maxHp, kill: o.kill, onPlayer: !!o.onPlayer, cannonTier: o.onPlayer ? -1 : profile.cannonTier }), now = ctx.currentTime;
+    if (!hitAllowed(now, RANK[H.id]) || !voice(o.kill || o.onPlayer ? 3 : 2, H.id === 'kill' ? 3 : 1.5)) return;
+    const v = o.v ?? 1, metal = o.onPlayer ? profile.armor.metal : (o.armor || 0);
+    impactSound(H, now, v * (1 - metal * 0.45), o.onPlayer ? profile.hull.impact : (o.boss ? 0.8 : 1));
+    if (metal) ironHit(now, v * (0.6 + 0.2 * RANK[H.id]), metal); // iron plating clang / armored galleon & boss ring
+    if (o.boss) punch(now, v);
+    return H.id;
+  },
   // hit on YOUR ship: deeper with bigger hulls, rings like iron with IRON PLATING
   playerHit: (v = 1) => {
     if (!live() || !voice(3, 1.5)) return;
@@ -339,15 +452,23 @@ export function setMusic(on) {
 }
 
 // ---------- offline render of a cannon tier (for preview clips / tests) ----------
-export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100, seconds = 3 } = {}) {
+export async function renderHitsClip({ sampleRate = 44100 } = {}) {
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  const oc = new OAC(2, sampleRate * seconds, sampleRate);
-  const out = oc.createGain(); out.gain.value = 0.8;
-  const cp = oc.createDynamicsCompressor(); cp.threshold.value = -10; cp.knee.value = 8; cp.ratio.value = 6; cp.attack.value = 0.003; cp.release.value = 0.25;
-  out.connect(cp).connect(oc.destination);
+  const oc = new OAC(2, sampleRate * 5.5, sampleRate);
+  const out = oc.createGain(); out.gain.value = settings.master * settings.sfx; out.connect(makeLimiter(oc, oc.destination));
   const prev = C; C = { c: oc, noise: makeNoise(oc), out };
-  const P = soundProfile({ cannons: tier }).cannon, scale = 1 / Math.pow(Math.max(1, guns), 0.38);
-  for (let i = 0; i < guns; i++) boom(P, 0.05 + i * 0.07 + Math.random() * 0.012, scale * (0.9 + Math.random() * 0.2));
-  C = prev;
+  offline = true;
+  try { ['light', 'medium', 'heavy', 'kill'].forEach((id, i) => impactSound({ id, vol: { light: 0.55, medium: 0.75, heavy: 0.9, kill: 1 }[id] }, 0.1 + i * 1.1, 1)); }
+  finally { offline = false; C = prev; }
+  return oc.startRendering();
+}
+export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100, seconds = 5 } = {}) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const oc = new OAC(2, Math.floor(sampleRate * seconds), sampleRate);
+  const out = oc.createGain(); out.gain.value = settings.master * settings.sfx; // same levels as the game
+  out.connect(makeLimiter(oc, oc.destination));
+  const prev = C; C = { c: oc, noise: makeNoise(oc), out };
+  const P = soundProfile({ cannons: tier }).cannon;
+  offline = true; try { broadside(guns, P, 1, 9, 0); } finally { offline = false; C = prev; }
   return oc.startRendering();
 }
