@@ -10,6 +10,7 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_yKPJooRyGC0oSIOjKcmLtw_nB7TAD81
 
 export const LEADERBOARD_TABLE = 'scores';          // insert target
 export const LEADERBOARD_VIEW = 'leaderboard_best'; // best score per wallet
+export const LEADERBOARD_DAILY_VIEW = 'leaderboard_daily'; // DAILY board (needs supabase/migrations/002_daily.sql)
 
 // Graphics: 'auto' picks low on phones / weak GPUs. Also 'low' | 'high'.
 // Override per visit with ?quality=low or ?quality=high

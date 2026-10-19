@@ -112,6 +112,9 @@ button.ghost, #btn-save { font-size: 22px; padding: 6px 16px; border-radius: 999
 button.ghost:disabled { color: rgba(255,255,255,0.45); cursor: not-allowed; border-style: dashed; }
 #btn-save { border-color: var(--gold); color: var(--gold); }
 .row { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; }
+/* [daily] DAILY challenge button: gold ghost pill next to the wallet-connect pill */
+button.daily-btn { border-color: var(--gold); color: var(--gold); }
+button.daily-btn:disabled { color: rgba(255,205,119,0.6); border-color: rgba(255,205,119,0.45); }
 .board-wrap { margin: 10px 0 6px; text-align: left; background: rgba(0,0,0,0.3); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px; }
 .board-title { font-size: 26px; color: var(--gold); text-align: center; }
 .board-title .muted { font-size: 16px; }

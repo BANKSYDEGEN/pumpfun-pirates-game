@@ -8,7 +8,8 @@ import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
-import { leaderboard, PERIODS, LB_SIZE } from './leaderboard.js';
+import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
+import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
@@ -25,7 +26,8 @@ import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutor
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
-const rnd = (a, b) => a + Math.random() * (b - a);
+let rand = Math.random; // [daily] swapped for a seeded stream while a DAILY wave spawns / drops chests
+const rnd = (a, b) => a + rand() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const angWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const CAPTAINS = [1, 10, 11, 12, 13, 15, 16, 33, 74, 100, 106, 172, 224, 250, 253, 307, 310, 321, 325, 333];
@@ -144,7 +146,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
   const build = ENEMY_BUILDS[type]; // [enemy variety] rammer / runner hulls, rigs and colours
   const mesh = buildShip(build ? { ...build, flagMap: pillTex, flagScale: 1.2, shadows: HIGH } : {
     len: big ? 19 : rnd(13, 15.5), beam: big ? 6 : rnd(4.4, 5), depth: 2.8,
-    scheme: big ? 'boss' : ENEMY_SCHEMES[Math.floor(Math.random() * ENEMY_SCHEMES.length)], boss: big,
+    scheme: big ? 'boss' : ENEMY_SCHEMES[Math.floor(rand() * ENEMY_SCHEMES.length)], boss: big,
     flagMap: pillTex, flagScale: 1.45, cannonsPerSide: big ? 4 : 2, masts: big ? 3 : 2, shadows: HIGH,
   });
   if (build) decorateBuild(mesh, type);
@@ -155,7 +157,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
   bar.innerHTML = `<div class="name">${name}</div><div class="bar"><div class="fill"></div></div>`;
   $('bars').appendChild(bar);
   const e = {
-    mesh, x, z, yaw: Math.random() * 6.28, speed: 3, turn: 0, hp, maxHp: hp, state: 'roam', wp: null, cd: rnd(2, 4), roll: 0, pitch: 0, y: 0,
+    mesh, x, z, yaw: rand() * 6.28, speed: 3, turn: 0, hp, maxHp: hp, state: 'roam', wp: null, cd: rnd(2, 4), roll: 0, pitch: 0, y: 0,
     sinking: 0, alive: true, bar, fill: bar.querySelector('.fill'), big, maxSpeed: (big ? 6.5 : rnd(7, 9)) * (1 + Math.min(game.wave, 10) * 0.02),
     reload: Math.max(2.2, 5 - game.wave * 0.25), accuracy: clamp(0.55 + game.wave * 0.05, 0.5, 0.9), smokeT: 0,
   };
@@ -188,11 +190,15 @@ const specialCtx = { get player() { return player; }, enemies, game, moveShip: (
 function startWave() {
   game.wave++;
   if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
-  const roster = waveRoster(game.wave), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
-  for (let i = 0; i < n; i++) {
-    const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
-    spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
-  }
+  const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
+  const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
+  if (daily) { rand = waveRng(game.seed, game.wave, 'spawn'); game.lootRng = waveRng(game.seed, game.wave, 'loot'); }
+  try {
+    for (let i = 0; i < n; i++) {
+      const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
+      spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
+    }
+  } finally { rand = Math.random; }
   banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE DEV WALLET APPROACHES' : `${n} rug ships on the horizon`);
   if (roster.includes('boss')) sfx.boss(); else sfx.waveStart(); sfx.spawnBell(); // [Raul] sound upgrades (bell: SPYGLASS III)
   updateHud();
@@ -271,7 +277,11 @@ function damage(s, amt, p, src = null) {
 
 // ---------- loot ----------
 const healthDrops = createHealthDrops({ scene, fx, sfx, popup, updateHud }); // [health drops]
-function dropLoot(s) {
+function dropLoot(s) { // [daily] chest scatter comes from the wave's loot stream on a DAILY run
+  if (game.mode === 'daily' && game.lootRng) rand = game.lootRng;
+  try { dropLootAt(s); } finally { rand = Math.random; }
+}
+function dropLootAt(s) {
   if (s.type === 'runner') return dropChests(s, RUN.goldChests, Math.round(RUN.goldBase + game.wave * RUN.goldPerWave)); // [enemy variety] big gold
   const n = s.big ? 3 : 1;
   for (let i = 0; i < n; i++) {
@@ -546,17 +556,37 @@ walletInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && valida
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && validateWallet()) startGame(); });
 validateWallet();
 $('btn-rewards').textContent = `🔒 ${rewardsStatus().label.toUpperCase()}`;
-$('btn-start').onclick = startGame;
+$('btn-start').onclick = () => startGame();
+// [daily] DAILY button: one run per wallet per UTC day (seeded), then it shows the countdown to the next one
+const DAILY_LS = 'pfp_daily_played';
+function dailyPlayed(wallet, seed = dailySeed()) { try { const d = JSON.parse(localStorage.getItem(DAILY_LS)); return !!d && d.seed === seed && d.wallets.includes(wallet); } catch { return false; } }
+function markDailyPlayed(wallet, seed) {
+  let d; try { d = JSON.parse(localStorage.getItem(DAILY_LS)); } catch { d = null; }
+  if (!d || d.seed !== seed) d = { seed, wallets: [] };
+  if (!d.wallets.includes(wallet)) d.wallets.push(wallet);
+  try { localStorage.setItem(DAILY_LS, JSON.stringify(d)); } catch {}
+}
+function syncDailyBtn() {
+  const btn = $('btn-daily'); if (!btn) return;
+  const w = walletInput.value.trim(), ok = isValidSolanaAddress(w), played = ok && dailyPlayed(w);
+  btn.disabled = !ok || played;
+  btn.textContent = played ? `DAILY ✓ ${untilNextDaily().toUpperCase()}` : '☀ DAILY';
+  btn.title = played ? 'You sailed today\'s daily. New seas at 00:00 UTC.' : 'Daily challenge: same seas for every pirate today, one run per wallet';
+}
+$('btn-daily').onclick = () => startGame('daily');
+walletInput.addEventListener('input', syncDailyBtn);
+syncDailyBtn(); setInterval(syncDailyBtn, 30000);
 document.querySelectorAll('.lb-mode').forEach(el => el.textContent = `(${leaderboard.mode})`);
 
 // leaderboard period tabs (DAY / WEEK / MONTH / YEAR / ALL-TIME), remembered per device
+const TABS = [...PERIODS, DAILY_TAB]; // [daily] DAILY board tab
 let lbPeriod = localStorage.getItem('pfp_lb_period');
-if (!PERIODS.some(p => p.id === lbPeriod)) lbPeriod = 'all';
+if (!TABS.some(p => p.id === lbPeriod)) lbPeriod = 'all';
 const boardTokens = new WeakMap();
 function buildTabs() {
   document.querySelectorAll('.lb-tabs').forEach(wrap => {
     wrap.innerHTML = '';
-    for (const p of PERIODS) {
+    for (const p of TABS) {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = p.label; b.dataset.period = p.id; b.title = p.desc;
       b.setAttribute('role', 'tab');
@@ -579,15 +609,16 @@ function refreshBoards() {
 }
 async function renderBoard(el) {
   const token = {}; boardTokens.set(el, token);
-  const period = lbPeriod, pd = PERIODS.find(p => p.id === period);
+  const period = lbPeriod, pd = TABS.find(p => p.id === period), isDaily = period === 'daily';
   let rows = [];
-  try { rows = await leaderboard.getTop(LB_SIZE, period); } catch (e) { console.warn(e); }
+  try { rows = isDaily ? await leaderboard.getDaily(dailySeed(), LB_SIZE) : await leaderboard.getTop(LB_SIZE, period); } catch (e) { console.warn(e); }
   if (boardTokens.get(el) !== token) return; // a newer tab click won
-  const where = leaderboard.lastWhere === 'online' ? 'online' : (leaderboard.remote ? 'this device · online board offline' : 'this device only');
-  const label = `(${where}${period === 'all' ? '' : ` · ${pd.desc}`})`;
+  let label;
+  if (isDaily) label = `(${leaderboard.lastWhere === 'online' ? 'online' : leaderboard.remote ? 'this device · daily board coming soon' : 'this device only'} · resets in ${untilNextDaily()})`;
+  else label = `(${leaderboard.lastWhere === 'online' ? 'online' : (leaderboard.remote ? 'this device · online board offline' : 'this device only')}${period === 'all' ? '' : ` · ${pd.desc}`})`;
   el.closest('.board-wrap')?.querySelectorAll('.lb-mode').forEach(m => m.textContent = label);
   el.innerHTML = ''; el.scrollTop = 0;
-  if (!rows.length) { el.innerHTML = `<li class="empty">${period === 'all' ? 'No scores yet. Be the first legend of the storm.' : `No scores in the ${pd.desc} yet. Claim the top spot!`}</li>`; boardHint(el); return; }
+  if (!rows.length) { el.innerHTML = `<li class="empty">${isDaily ? 'No daily runs yet today. Tap DAILY and set the mark.' : period === 'all' ? 'No scores yet. Be the first legend of the storm.' : `No scores in the ${pd.desc} yet. Claim the top spot!`}</li>`; boardHint(el); return; }
   let mine = null;
   rows.forEach((r, i) => {
     const li = document.createElement('li');
@@ -622,9 +653,14 @@ function clearWorld() {
   fx.clear();
 }
 
-function startGame() {
+function startGame(mode = null) {
   if (!validateWallet()) return;
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
+  // [daily] the seed is fixed when the run starts (a run that crosses 00:00 UTC keeps its day); the attempt counts as soon as you sail
+  game.mode = mode === 'daily' && !dailyPlayed(game.wallet) ? 'daily' : null;
+  game.seed = game.mode ? dailySeed() : null; game.lootRng = null;
+  if (game.mode) markDailyPlayed(game.wallet, game.seed);
+  syncDailyBtn();
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
@@ -640,7 +676,7 @@ function startGame() {
   resetCamera();
   updateHud();
   rotateTimer = 0; updateRotateHint();
-  banner('SET SAIL!', 'hunt the rug ships');
+  banner(game.mode === 'daily' ? 'DAILY CHALLENGE' : 'SET SAIL!', game.mode === 'daily' ? `same seas for every pirate · ${game.seed}` : 'hunt the rug ships');
   maybeShowTutorial(); // [tutorial] how-to-play card, game paused until closed
 }
 
@@ -650,6 +686,7 @@ function toTitle() {
   clearWorld();
   $('hud').classList.add('hidden'); $('gameover').classList.add('hidden'); $('title').classList.remove('hidden');
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer(); player.sail = 1;
+  syncDailyBtn();
   renderBoard($('board-title'));
 }
 
@@ -658,7 +695,8 @@ async function gameOver() {
   game.state = 'over';
   $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
   $('go-wallet').textContent = `Wallet ${shortWallet(game.wallet)}`;
-  $('go-name').value = game.name; $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
+  $('go-name').value = game.name; $('save-msg').textContent = game.mode === 'daily' ? `Daily challenge ${game.seed}: save it to today's DAILY board.` : 'Save your score to the leaderboard (best score per wallet counts).';
+  if (game.mode === 'daily' && lbPeriod !== 'daily') { lbPeriod = 'daily'; syncTabs(); } // [daily] show where this run lands
   $('btn-save').disabled = false;
   $('gameover').classList.remove('hidden');
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
@@ -671,13 +709,15 @@ async function saveScore() {
   if (game.saved) return;
   game.saved = true; $('btn-save').disabled = true;
   game.name = $('go-name').value.trim().slice(0, 20); saveName(game.name);
-  const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000) });
-  $('save-msg').textContent = r.where === 'online' ? 'Saved to the online leaderboard!' : 'Saved on this device.';
+  const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) });
+  $('save-msg').textContent = game.mode === 'daily'
+    ? (r.where === 'online' ? 'Saved to the online DAILY board!' : leaderboard.remote ? 'Saved on this device. Online daily board coming soon.' : 'Saved on this device.')
+    : (r.where === 'online' ? 'Saved to the online leaderboard!' : 'Saved on this device.');
   await renderBoard($('board-over'));
 }
 $('btn-save').onclick = saveScore;
 $('go-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveScore(); });
-$('btn-again').onclick = async () => { await saveScore(); startGame(); };
+$('btn-again').onclick = async () => { await saveScore(); startGame(); }; // [daily] after a DAILY run this is a normal run (one daily per day)
 $('btn-menu').onclick = async () => { await saveScore(); toTitle(); };
 
 // ---------- main loop ----------

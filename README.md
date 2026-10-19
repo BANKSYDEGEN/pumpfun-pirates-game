@@ -51,6 +51,13 @@ Broadsides auto-range on the nearest enemy on that side (within about 90 m and r
 - **Period tabs: DAY / WEEK / MONTH / YEAR / ALL-TIME** on the title and game-over boards. DAY/WEEK/MONTH/YEAR are *rolling* windows (last 24 h / 7 d / 30 d / 365 d). ALL-TIME reads the `leaderboard_best` view; the other tabs read recent rows from `scores` (`created_at >= since`, top 300 by score) and keep each wallet's best in the browser. No new SQL is required (an optional index is at the end of `schema.sql`). The local board stores timestamped runs (`pfp_runs_v1`) and filters them the same way. The last tab you picked is remembered.
 - ⚠️ **Typed wallets are NOT verified.** Anyone can type anyone's address. Before any payout or reward you'd need a **Phantom `signMessage` signature check verified on a server** (see `js/rewards.js`).
 
+### DAILY challenge (`js/daily.js`)
+
+- **☀ DAILY** on the title screen starts a run on a fixed seed for the current **UTC day** (`YYYY-MM-DD`). Every pirate gets the same waves that day: enemy mix, spawn bearings and ranges, hull variants and chest scatter come from seeded streams (one per wave, so wave 5 is the same no matter how wave 4 went). Aim and reload stay random.
+- **One run per wallet per day** (tracked on the device). After it, the button shows a countdown to 00:00 UTC; SAIL AGAIN after a daily is a normal run.
+- Daily runs go to the **DAILY** board tab (best per wallet for today), never to the normal boards.
+- Online it needs [`supabase/migrations/002_daily.sql`](supabase/migrations/002_daily.sql) (idempotent: adds nullable `mode` / `seed` columns, a policy that only accepts today's or yesterday's seed, and the `leaderboard_daily` view; normal inserts are unchanged and the rate limit trigger still applies). **Until it's run**, daily runs are saved on this device and the tab says "daily board coming soon"; normal boards keep working either way.
+
 ### Leaderboard modes (`js/leaderboard.js`)
 
 - **Local (default):** `localStorage`, this device only, works offline.
@@ -104,6 +111,8 @@ js/wallet.js           Solana address validation / shortening
 js/rewards.js          non-functional rewards placeholder (TODO hooks)
 js/config.js           Supabase keys (placeholders) + quality setting
 supabase/schema.sql    table, RLS policies, best-per-wallet view, rate limit
+supabase/migrations/   002_daily.sql (DAILY board)
+js/daily.js            DAILY seed (UTC day) + seeded RNG
 sw.js, manifest.webmanifest, assets/icons/   PWA
 assets/                font, skull logo, wordmark, NFT captain portraits
 ```
