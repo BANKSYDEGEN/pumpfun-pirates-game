@@ -62,3 +62,7 @@ end $$;
 drop trigger if exists scores_rate_limit on public.scores;
 create trigger scores_rate_limit before insert on public.scores
   for each row execute function public.scores_rate_limit();
+
+-- Optional (not required by the game): speeds up the DAY / WEEK / MONTH / YEAR boards,
+-- which query recent rows from public.scores (created_at >= since, highest score first).
+create index if not exists scores_created_score_idx on public.scores (created_at desc, score desc);

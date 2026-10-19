@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v2';
+const VERSION = 'pfp-v3';
 const SHELL = [
   "./",
   "./index.html",
@@ -16,6 +16,8 @@ const SHELL = [
   "./js/ships.js",
   "./js/ocean.js",
   "./js/fx.js",
+  "./js/toon.js",
+  "./js/props.js",
   "./assets/JustAnotherHand.ttf",
   "./assets/skull_transparent.png",
   "./assets/pumpfun_pirates_wordmark.png",
@@ -49,7 +51,10 @@ const CDN_FILES = [
   CDN + 'build/three.module.js',
   CDN + 'build/three.core.js',
   CDN + 'examples/jsm/controls/OrbitControls.js',
+  CDN + 'examples/jsm/utils/BufferGeometryUtils.js',
+  CDN + 'examples/jsm/geometries/RoundedBoxGeometry.js',
 ];
+// high-quality post-processing modules: cached when a desktop/high-tier device fetches them (see fetch handler)
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

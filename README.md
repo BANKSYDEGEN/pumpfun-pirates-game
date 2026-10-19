@@ -44,6 +44,7 @@ Broadsides auto-range on the nearest enemy on that side (within about 90 m and r
 
 - The title screen **requires a Solana wallet address** before you can sail. It must be base58, 32–44 characters, and decode to a 32-byte public key. The address is remembered in `localStorage`. A display name is optional.
 - The leaderboard is **keyed by wallet** and keeps the best score per wallet. Wallets are shown shortened, like `39eB...ppump`.
+- **Period tabs: DAY / WEEK / MONTH / YEAR / ALL-TIME** on the title and game-over boards. DAY/WEEK/MONTH/YEAR are *rolling* windows (last 24 h / 7 d / 30 d / 365 d). ALL-TIME reads the `leaderboard_best` view; the other tabs read recent rows from `scores` (`created_at >= since`, top 300 by score) and keep each wallet's best in the browser. No new SQL is required (an optional index is at the end of `schema.sql`). The local board stores timestamped runs (`pfp_runs_v1`) and filters them the same way. The last tab you picked is remembered.
 - ⚠️ **Typed wallets are NOT verified.** Anyone can type anyone's address. Before any payout or reward you'd need a **Phantom `signMessage` signature check verified on a server** (see `js/rewards.js`).
 
 ### Leaderboard modes (`js/leaderboard.js`)
@@ -78,7 +79,9 @@ The title screen has a disabled **"Connect Wallet · $AHOY rewards coming soon"*
 - Installable: `manifest.webmanifest` (fullscreen, landscape, `#161616` theme), icons in `assets/icons/` made from the real skull logo (192, 512, maskable 512, Apple touch 180, favicon).
 - iOS: Safari → Share → **Add to Home Screen**. Android Chrome: **Install app**.
 - `sw.js` caches the app shell and the pinned three.js CDN modules, so after one online visit it plays offline. Leaderboard API calls are never cached.
-- Phones automatically get **low quality**: lower pixel ratio, smaller ocean mesh, less rain and fewer particles, no antialiasing. You can force it with `?quality=low` or `?quality=high`, or set `QUALITY` in `js/config.js`.
+- **Graphics (stylized toon look):** cel-shaded materials with a 4-step ramp, dark outlines, hand-painted procedural textures (no texture downloads), stylized storm sea and sky.
+- **High quality** (desktops): bloom (lanterns, cannon fire, loot, lightning), vignette, FXAA, soft shadows. The post-processing modules are only downloaded on high.
+- Phones automatically get **low quality**: no post-processing or shadows, cheaper water foam, lower pixel ratio, smaller ocean mesh, less rain and fewer particles, no antialiasing. You can force it with `?quality=low` or `?quality=high`, or set `QUALITY` in `js/config.js`.
 
 ## Files
 
@@ -86,9 +89,11 @@ The title screen has a disabled **"Connect Wallet · $AHOY rewards coming soon"*
 index.html             UI overlays + import map
 css/style.css          HUD / menus (Just Another Hand font, brand colors)
 js/main.js             game loop, player, enemy AI, cannons, waves, HUD, menus
-js/ocean.js            wave field (shared CPU/GPU), ocean shader, stormy sky, GPU rain
-js/ships.js            procedural low-poly ships, skull flag/sail textures, parody pill flag
-js/fx.js               pooled particles (muzzle flash, splashes, hits, smoke, wake, sparkles)
+js/ocean.js            wave field (shared CPU/GPU), stylized toon sea (foam lines, hull foam), storm sky, lightning bolt, GPU rain
+js/ships.js            stylized ships built in code (plank hulls, railings, cannons, cabins, lanterns, rippling sails), flags
+js/toon.js             toon ramp/materials, inverted-hull outlines, procedural painted textures (wood, cloth, metal, gold, rock)
+js/props.js            treasure chests with light beams, horizon sea stacks + lighthouse
+js/fx.js               pooled particles + chunky toon puffs/explosions + splash rings
 js/audio.js            synthesized SFX (no audio files)
 js/leaderboard.js      Local + Supabase adapters
 js/wallet.js           Solana address validation / shortening

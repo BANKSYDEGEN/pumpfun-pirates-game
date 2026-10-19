@@ -1,11 +1,12 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createOcean, createSky, createRain, waveHeight, FOG_COLOR } from './ocean.js';
-import { buildShip, animateShip, makeSkullTexture, makePillTexture } from './ships.js';
+import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, MAX_HULLS } from './ocean.js';
+import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
+import { makeChest, chestTime, createIslands } from './props.js';
 import { FX } from './fx.js';
 import { initAudio, sfx, setMuted, muted } from './audio.js';
-import { leaderboard } from './leaderboard.js';
+import { leaderboard, PERIODS } from './leaderboard.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { rewardsStatus } from './rewards.js';
 import { QUALITY } from './config.js';
@@ -28,8 +29,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high'
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+const HIGH = quality === 'high';
+if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0042);
@@ -43,13 +46,47 @@ controls.enablePan = false; controls.minDistance = 16; controls.maxDistance = 95
 controls.maxPolarAngle = 1.48; controls.minPolarAngle = 0.25;
 controls.target.set(0, 4, 0);
 
-const hemi = new THREE.HemisphereLight(0x8fa3b5, 0x0d1419, 1.6); scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xc9d4dc, 1.4); sun.position.set(-40, 60, 80); scene.add(sun);
+// storm lighting: cool sky fill, a low warm-silver key from the sunset seam, soft shadows on high
+const hemi = new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe2c4, 2.1); sun.position.set(-40, 50, 80); scene.add(sun, sun.target);
+const SUN_OFF = new THREE.Vector3(-40, 50, 80);
+if (HIGH) {
+  sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  const sc = sun.shadow.camera; sc.left = sc.bottom = -38; sc.right = sc.top = 38; sc.near = 10; sc.far = 220;
+  sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.04; sun.shadow.radius = 3;
+}
 
 const ocean = createOcean(quality); scene.add(ocean.mesh);
 const sky = createSky(); scene.add(sky.mesh);
 const rain = createRain(quality === 'low' ? 1800 : 5000); scene.add(rain.mesh);
 const fx = new FX(scene, quality);
+const bolt = createBolt(); scene.add(bolt.mesh);
+const islands = createIslands(quality); scene.add(islands.group);
+
+// post-processing (high tier only; phones never download these modules)
+let composer = null;
+if (HIGH) {
+  try {
+    const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { ShaderPass }, { OutputPass }, { FXAAShader }] = await Promise.all([
+      import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/ShaderPass.js'),
+      import('three/addons/postprocessing/OutputPass.js'), import('three/addons/shaders/FXAAShader.js'),
+    ]);
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.92);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    const vignette = new ShaderPass({
+      uniforms: { tDiffuse: { value: null }, uStrength: { value: 0.42 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; uniform float uStrength; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = smoothstep(0.85, 0.25, length(d * vec2(1.0, 0.9))); c.rgb *= mix(1.0 - uStrength, 1.0, v); gl_FragColor = c; }',
+    });
+    composer.addPass(vignette);
+    const fxaa = new ShaderPass(FXAAShader); composer.addPass(fxaa);
+    composer.userData = { fxaa, bloom };
+  } catch (e) { console.warn('[gfx] post-processing unavailable, rendering directly', e); composer = null; }
+}
 
 // ---------- assets ----------
 function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
@@ -65,7 +102,7 @@ const game = {
 };
 
 function makePlayer() {
-  const mesh = buildShip({ len: 17, beam: 5.4, depth: 3.1, hullColor: 0x2a1a10, trimColor: 0xffcd77, sailColor: 0x1b1b1b, mainSailMap: sailTex, flagMap: flagTex, cannonsPerSide: 4, masts: 3, light: true });
+  const mesh = buildShip({ len: 17, beam: 5.4, depth: 3.1, scheme: 'player', mainSailMap: sailTex, flagMap: flagTex, cannonsPerSide: 4, masts: 3, light: true, shadows: HIGH });
   scene.add(mesh);
   return { mesh, x: 0, z: 0, yaw: 0, speed: 0, sail: 2, anchor: false, hp: 100, maxHp: 100, cd: { port: 0, star: 0 }, reload: 2.2, roll: 0, pitch: 0, y: 0, sinking: 0, alive: true, turn: 0 };
 }
@@ -79,8 +116,8 @@ function spawnEnemy(x, z, tier = 1) {
   const big = tier >= 2;
   const mesh = buildShip({
     len: big ? 19 : rnd(13, 15.5), beam: big ? 6 : rnd(4.4, 5), depth: 2.8,
-    hullColor: [0x4a3424, 0x3b3f36, 0x5a4030][Math.floor(Math.random() * 3)], trimColor: 0x4ee37a,
-    sailColor: 0xd9d6c8, flagMap: pillTex, flagScale: 1.45, cannonsPerSide: big ? 4 : 2, masts: big ? 3 : 2, windowColor: 0x9cffb5,
+    scheme: big ? 'boss' : ENEMY_SCHEMES[Math.floor(Math.random() * ENEMY_SCHEMES.length)], boss: big,
+    flagMap: pillTex, flagScale: 1.45, cannonsPerSide: big ? 4 : 2, masts: big ? 3 : 2, shadows: HIGH,
   });
   scene.add(mesh);
   const hp = Math.round((big ? 160 : 70) * (1 + game.wave * 0.12));
@@ -170,8 +207,8 @@ function damage(s, amt, p) {
   s.hp -= amt;
   fx.hit(p); sfx.hit(clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1));
   if (s === player) { game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); }
-  else { addScore(5); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
-  if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink();
+  else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
+  if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
     else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); }
   }
@@ -179,19 +216,15 @@ function damage(s, amt, p) {
 }
 
 // ---------- loot ----------
-const chestMatA = new THREE.MeshStandardMaterial({ color: 0x6b3e1e, roughness: 0.8, flatShading: true });
-const chestMatB = new THREE.MeshStandardMaterial({ color: 0xffcd77, emissive: 0x6a4a10, roughness: 0.4, metalness: 0.7, flatShading: true });
 function dropLoot(s) {
   const n = s.big ? 3 : 1;
   for (let i = 0; i < n; i++) {
-    const g = new THREE.Group();
-    const box = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1, 1.1), chestMatA); g.add(box);
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.6, 8, 1, false, 0, Math.PI), chestMatA); lid.rotation.z = Math.PI / 2; lid.position.y = 0.5; g.add(lid);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.2, 1.15), chestMatB); band.position.y = 0.2; g.add(band);
-    const coins = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 10), chestMatB); coins.position.y = 0.62; g.add(coins);
+    const g = makeChest();
     g.scale.setScalar(1.3);
     scene.add(g);
-    loot.push({ mesh: g, x: s.x + rnd(-4, 4), z: s.z + rnd(-4, 4), value: Math.round((s.big ? 60 : 25) + game.wave * 5), life: 45, ph: Math.random() * 6 });
+    const l = { mesh: g, x: s.x + rnd(-4, 4), z: s.z + rnd(-4, 4), value: Math.round((s.big ? 60 : 25) + game.wave * 5), life: 45, ph: Math.random() * 6 };
+    loot.push(l);
+    fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 7, 1.4);
   }
 }
 
@@ -438,13 +471,45 @@ $('btn-rewards').textContent = `🔒 ${rewardsStatus().label.toUpperCase()}`;
 $('btn-start').onclick = startGame;
 document.querySelectorAll('.lb-mode').forEach(el => el.textContent = `(${leaderboard.mode})`);
 
+// leaderboard period tabs (DAY / WEEK / MONTH / YEAR / ALL-TIME), remembered per device
+let lbPeriod = localStorage.getItem('pfp_lb_period');
+if (!PERIODS.some(p => p.id === lbPeriod)) lbPeriod = 'all';
+const boardTokens = new WeakMap();
+function buildTabs() {
+  document.querySelectorAll('.lb-tabs').forEach(wrap => {
+    wrap.innerHTML = '';
+    for (const p of PERIODS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = p.label; b.dataset.period = p.id; b.title = p.desc;
+      b.setAttribute('role', 'tab');
+      b.onclick = () => { lbPeriod = p.id; localStorage.setItem('pfp_lb_period', p.id); syncTabs(); refreshBoards(); };
+      wrap.appendChild(b);
+    }
+  });
+  syncTabs();
+}
+function syncTabs() {
+  document.querySelectorAll('.lb-tabs button').forEach(b => {
+    const on = b.dataset.period === lbPeriod;
+    b.classList.toggle('on', on); b.setAttribute('aria-selected', on);
+    if (on && b.parentElement.scrollWidth > b.parentElement.clientWidth) b.parentElement.scrollLeft = b.offsetLeft - (b.parentElement.clientWidth - b.offsetWidth) / 2;
+  });
+}
+function refreshBoards() {
+  if (!$('title').classList.contains('hidden')) renderBoard($('board-title'));
+  if (!$('gameover').classList.contains('hidden')) renderBoard($('board-over'));
+}
 async function renderBoard(el) {
+  const token = {}; boardTokens.set(el, token);
+  const period = lbPeriod, pd = PERIODS.find(p => p.id === period);
   let rows = [];
-  try { rows = await leaderboard.getTop(10); } catch (e) { console.warn(e); }
-  const label = leaderboard.lastWhere === 'online' ? '(online)' : (leaderboard.remote ? '(this device · online board offline)' : '(this device only)');
-  document.querySelectorAll('.lb-mode').forEach(m => m.textContent = label);
+  try { rows = await leaderboard.getTop(10, period); } catch (e) { console.warn(e); }
+  if (boardTokens.get(el) !== token) return; // a newer tab click won
+  const where = leaderboard.lastWhere === 'online' ? 'online' : (leaderboard.remote ? 'this device · online board offline' : 'this device only');
+  const label = `(${where}${period === 'all' ? '' : ` · ${pd.desc}`})`;
+  el.closest('.board-wrap')?.querySelectorAll('.lb-mode').forEach(m => m.textContent = label);
   el.innerHTML = '';
-  if (!rows.length) { el.innerHTML = '<li class="empty">No scores yet. Be the first legend of the storm.</li>'; return; }
+  if (!rows.length) { el.innerHTML = `<li class="empty">${period === 'all' ? 'No scores yet. Be the first legend of the storm.' : `No scores in the ${pd.desc} yet. Claim the top spot!`}</li>`; return; }
   for (const r of rows) {
     const li = document.createElement('li');
     if (r.wallet === game.wallet) li.className = 'me';
@@ -453,9 +518,10 @@ async function renderBoard(el) {
     el.appendChild(li);
   }
 }
+buildTabs();
 
 function clearWorld() {
-  for (const e of enemies) { scene.remove(e.mesh); e.bar.remove(); }
+  for (const e of enemies) { scene.remove(e.mesh); disposeShip(e.mesh); e.bar.remove(); }
   enemies.length = 0;
   for (const b of balls) scene.remove(b.mesh); balls.length = 0;
   for (const l of loot) scene.remove(l.mesh); loot.length = 0;
@@ -468,7 +534,7 @@ function startGame() {
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
   initAudio();
   clearWorld();
-  scene.remove(player.mesh); player = makePlayer();
+  scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
   Object.assign(game, { state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
   $('captain-img').src = `assets/captains/${game.captain}.jpg`;
@@ -486,7 +552,7 @@ function toTitle() {
   game.state = 'title';
   clearWorld();
   $('hud').classList.add('hidden'); $('gameover').classList.add('hidden'); $('title').classList.remove('hidden');
-  scene.remove(player.mesh); player = makePlayer(); player.sail = 1;
+  scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer(); player.sail = 1;
   renderBoard($('board-title'));
 }
 
@@ -546,7 +612,7 @@ function frame() {
     floatShip(player, dt);
     for (const e of enemies) updateEnemy(e, dt);
     // remove fully sunk ships
-    for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive && enemies[i].sinking > 7) { scene.remove(enemies[i].mesh); enemies[i].bar.remove(); enemies.splice(i, 1); updateHud(); }
+    for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive && enemies[i].sinking > 7) { scene.remove(enemies[i].mesh); disposeShip(enemies[i].mesh); enemies[i].bar.remove(); enemies.splice(i, 1); updateHud(); }
     updateBalls(dt);
     // loot
     for (let i = loot.length - 1; i >= 0; i--) {
@@ -564,12 +630,18 @@ function frame() {
 
     // lightning
     game.nextLightning -= dt;
-    if (game.nextLightning <= 0) { game.flash = 1; game.nextLightning = rnd(6, 16); sfx.thunder(rnd(0.3, 1.5)); }
+    if (game.nextLightning <= 0) { game.flash = 1; game.nextLightning = rnd(6, 16); sfx.thunder(rnd(0.3, 1.5)); sky.uniforms.uBolt.value.copy(bolt.strike(camera.position, Math.atan2(camera.position.x - player.x, camera.position.z - player.z) + Math.PI + rnd(-0.9, 0.9))); }
   }
   game.flash = Math.max(0, game.flash - dt * 2.8);
   const fl = game.flash > 0 ? game.flash * (0.6 + 0.4 * Math.sin(game.flash * 40)) : 0;
   ocean.uniforms.uFlash.value = sky.uniforms.uFlash.value = rain.uniforms.uFlash.value = fl;
-  hemi.intensity = 1.6 + fl * 3;
+  hemi.intensity = 1.9 + fl * 3;
+  bolt.mesh.visible = game.flash > 0.3; bolt.mesh.material.opacity = clamp(fl * 1.6, 0, 1);
+  wind.uTime.value = t; chestTime(t);
+  // hull foam collars for the water shader (nearest ships first)
+  { const H = ocean.uniforms.uHulls.value; let k = 0;
+    for (const s of [player, ...enemies]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
+    ocean.uniforms.uHullCount.value = k; }
 
   // ocean follows the player, snapped to the grid so waves don't swim
   const step = ocean.mesh.userData.step;
@@ -586,10 +658,12 @@ function frame() {
   if (camera.position.y < minY) camera.position.y = minY;
   if (game.shake > 0) { camera.position.x += rnd(-1, 1) * game.shake * 0.4; camera.position.y += rnd(-1, 1) * game.shake * 0.4; game.shake = Math.max(0, game.shake - dt * 2.5); }
   sky.mesh.position.copy(camera.position);
+  islands.update(t, camera.position);
+  if (HIGH) { sun.target.position.set(player.x, 0, player.z); sun.position.copy(sun.target.position).add(SUN_OFF); }
   rain.uniforms.uCam.value.copy(camera.position);
 
   if (game.state !== 'title') { updateBars(); drawRadar(); updateFireButtons(); }
-  renderer.render(scene, camera);
+  if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 
@@ -623,6 +697,11 @@ function onResize() {
   root.setProperty('--app-w', `${w}px`); root.setProperty('--app-h', `${h}px`);
   fitCamera(w, h);
   renderer.setSize(w, h);
+  if (composer) {
+    const pr = renderer.getPixelRatio();
+    composer.setPixelRatio(pr); composer.setSize(w, h);
+    composer.userData.fxaa.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+  }
   // point sprites scale with screen height AND field of view, so portrait (wide FOV) doesn't bloat particles
   fx.setScale(h * renderer.getPixelRatio() * 0.286 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
   // iOS sometimes scrolls the layout viewport (toolbars / keyboard); pin it back unless typing
