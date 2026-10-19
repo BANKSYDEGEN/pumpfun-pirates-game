@@ -391,7 +391,7 @@ addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; held.left = held.right = false; });
 
 function holdButton(el, onDown, onUp) {
-  el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); el.setPointerCapture?.(e.pointerId); el.classList.add('on'); onDown(); });
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); try { el.setPointerCapture?.(e.pointerId); } catch { /* pointer already gone (iOS can cancel it mid-tap): still register the press */ } el.classList.add('on'); onDown(); });
   const up = (e) => { el.classList.remove('on'); onUp && onUp(); };
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
 }
