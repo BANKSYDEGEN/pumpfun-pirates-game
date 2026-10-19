@@ -16,7 +16,7 @@
 export const REWARDS_ENABLED = false;
 
 export function rewardsStatus() {
-  return { enabled: false, label: 'Connect Wallet · $AHOY rewards coming soon' };
+  return { enabled: false, label: 'Wallet connect coming soon' };
 }
 
 export async function connectPhantom() {

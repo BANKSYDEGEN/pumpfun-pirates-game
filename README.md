@@ -76,7 +76,7 @@ The whole game runs in the browser, so **any score can be faked**: someone can c
 
 ## Crypto rewards (placeholder only)
 
-The title screen has a disabled **"Connect Wallet · $AHOY rewards coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). **There is no wallet connection, no signing, and no fund handling anywhere in this code.**
+The title screen has a disabled **"Wallet connect coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). **There is no wallet connection, no signing, and no fund handling anywhere in this code.**
 
 ## PWA / phones
 
