@@ -5,8 +5,10 @@ import { shortWallet } from './wallet.js';
 import { AHOY_CA, X_URL, TG_URL } from './config.js';
 import { copyText } from './tokenChip.js';
 
-export const GAME_URL = 'https://banksydegen.github.io/pumpfun-pirates-game/'; // where the game is played (pumpfunpirates.com does not host it)
-export const SITE_URL = 'https://pumpfunpirates.com', SITE = 'pumpfunpirates.com';
+// WEBSITE: the one place to change when the game moves to the main domain (card text, X post link and phone share all follow).
+export const WEBSITE = 'https://banksydegen.github.io/pumpfun-pirates-game/';
+export const GAME_URL = WEBSITE;
+const WEBSITE_LABEL = WEBSITE.replace(/^https?:\/\//, '').replace(/\/$/, '');
 const X_HANDLE = '@PUMPFUNPIRATES', TG_SHORT = 't.me/PUMPFUNPIRATES', MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
 const RED = '#fa0d0d', GOLD = '#ffcd77', DARK = '#161616', FONT = '"Just Another Hand", cursive';
 
@@ -15,7 +17,7 @@ function loadImg(src) {
   return imgCache[src] || (imgCache[src] = new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }));
 }
 export function shareText(s) {
-  return `Sunk ${s.sunk} rug ship${s.sunk === 1 ? '' : 's'} and hit wave ${s.wave} in PUMPFUN PIRATES 🏴‍☠️\n$AHOY CA: ${AHOY_CA}\nX ${X_HANDLE} · TG ${TG_URL}\n${SITE_URL}`;
+  return `Sunk ${s.sunk} rug ship${s.sunk === 1 ? '' : 's'} and hit wave ${s.wave} in PUMPFUN PIRATES 🏴‍☠️\n$AHOY CA: ${AHOY_CA}\nX ${X_HANDLE} · TG ${TG_URL}`;
 }
 // seeded rain so a given card always looks the same
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -64,7 +66,7 @@ export async function drawCard(s) {
   g.font = `28px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.7)';
   g.fillText([s.wallet ? shortWallet(s.wallet) : '', s.skin ? `${s.skin}` : ''].filter(Boolean).join('  ·  '), tx, cy + 90);
   g.textAlign = 'right'; g.font = `30px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.85)';
-  g.fillText(SITE, px + pw - 36, cy + 90);
+  g.fillText(WEBSITE_LABEL, px + pw - 36, cy + 90);
   g.fillStyle = RED; g.font = `34px ${FONT}`; g.fillText('PLAY FREE ▸', px + pw - 36, cy + 52);
   // bottom strip: full $AHOY CA (never truncated: people copy it from screenshots) + X / TG
   const sy = 596, sh = 46;
@@ -168,7 +170,6 @@ export function openShareModal(stats, onStatus = () => {}) {
     <div class="ps-links">
       <button class="ps-ca" title="Copy $AHOY CA"><b>$AHOY CA</b> <code>${AHOY_CA}</code> <span class="ps-ca-tip">⧉</span></button>
       <span class="ps-break"></span>
-      <a href="${SITE_URL}" target="_blank" rel="noopener">${SITE}</a>
       <a href="${X_URL}" target="_blank" rel="noopener">X ${X_HANDLE}</a>
       <a href="${TG_URL}" target="_blank" rel="noopener">TG ${TG_SHORT}</a>
     </div>
