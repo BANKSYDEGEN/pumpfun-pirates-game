@@ -47,4 +47,15 @@ export const sfx = {
     });
   },
   sink: () => burst({ dur: 2.5, freq: 500, endFreq: 40, vol: 0.6 }),
+  // [Raul] upgrade visuals: short rising chime + shimmer when a ship upgrade is bought (≈0.5 s)
+  upgrade: (legendary = false) => {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime, notes = legendary ? [784, 988, 1175, 1568] : [659, 880, 1319];
+    notes.forEach((fr, i) => {
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = fr;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.07); g.gain.exponentialRampToValueAtTime(0.14, t + i * 0.07 + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.07 + 0.35);
+      o.connect(g).connect(master); o.start(t + i * 0.07); o.stop(t + i * 0.07 + 0.4);
+    });
+    burst({ dur: 0.45, freq: 7000, endFreq: 2500, vol: 0.12, type: 'highpass', delay: 0.05 });
+  },
 };

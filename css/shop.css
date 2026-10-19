@@ -69,3 +69,21 @@
 .ehp.t-galleon .name { color: #ffb347; }
 .ehp.t-boss .name { color: var(--red); font-size: 1.15em; }
 .ehp.t-galleon .bar, .ehp.t-boss .bar { width: 90px; }
+
+/* [Raul] upgrade visuals: purchase moment — floating "+UPGRADE" label and tier-up flourish on the shop card */
+.upg-float { position: fixed; z-index: 40; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+  font-family: 'Just Another Hand', cursive; font-size: clamp(30px, 9vw, 50px); line-height: 0.9; text-align: center; letter-spacing: 0.04em; color: #ffcd77;
+  text-shadow: 0 0 2px #161616, 2px 2px 0 #161616, -2px 2px 0 #161616, 2px -2px 0 #161616, -2px -2px 0 #161616, 0 0 18px rgba(255,205,119,0.85);
+  animation: upg-float 0.95s ease-out forwards; }
+.upg-float small { display: block; font-size: 0.62em; color: #fa0d0d; letter-spacing: 0.12em; }
+.upg-float.legendary { color: #fff3d6; text-shadow: 0 0 2px #161616, 2px 2px 0 #161616, -2px 2px 0 #161616, 2px -2px 0 #161616, -2px -2px 0 #161616, 0 0 26px #ffcd77, 0 0 8px #fa0d0d; }
+@keyframes upg-float { 0% { opacity: 0; transform: translate(-50%, -20%) scale(0.6); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 35% { transform: translate(-50%, -60%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -190%) scale(1); } }
+.shop-card { position: relative; }
+.shop-card.tierup { animation: sc-tierup 0.6s ease-out; }
+@keyframes sc-tierup { 0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,205,119,0); } 25% { transform: scale(1.07); box-shadow: 0 0 22px rgba(255,205,119,0.9); border-color: #ffcd77; } 100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,205,119,0); } }
+.shop-card.tierup .sc-pips i.on:last-of-type, .shop-card.tierup .sc-pips i.on { animation: sc-pip 0.6s ease-out; }
+@keyframes sc-pip { 30% { background: #fff3d6; box-shadow: 0 0 12px #ffcd77; } }
+.sc-stamp { position: absolute; right: 6px; top: 4px; font-size: 26px; color: #ffcd77; transform: rotate(-8deg); pointer-events: none;
+  text-shadow: 1px 1px 0 #161616, -1px 1px 0 #161616, 1px -1px 0 #161616, -1px -1px 0 #161616; animation: sc-stamp 0.8s ease-out forwards; }
+.sc-stamp.legendary { color: #fa0d0d; font-size: 24px; }
+@keyframes sc-stamp { 0% { opacity: 0; transform: rotate(-8deg) scale(2.2); } 25% { opacity: 1; transform: rotate(-8deg) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: rotate(-8deg) translateY(-8px); } }

@@ -15,6 +15,7 @@ import { QUALITY } from './config.js';
 import { gunList } from './upgrades.js';
 import { waveRoster, applyEnemyType } from './enemyTypes.js';
 import { initShop, resetShop } from './shop.js';
+import { compileShip } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits
 
 const $ = (id) => document.getElementById(id);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -106,12 +107,22 @@ const game = {
   wallet: getSavedWallet(), name: getSavedName(), captain: CAPTAINS[0], saved: false, waveTimer: 0, shake: 0, flash: 0, nextLightning: 5,
 };
 
+// [Raul] upgrade visuals: level-0 traits compile to exactly the original player ship (len 17, beam 5.4, 4 guns, 3 masts)
+const PLAYER_SHIP = { mainSailMap: sailTex, flagMap: flagTex, light: true, shadows: HIGH };
 function makePlayer() {
-  const mesh = buildShip({ len: 17, beam: 5.4, depth: 3.1, scheme: 'player', mainSailMap: sailTex, flagMap: flagTex, cannonsPerSide: 4, masts: 3, light: true, shadows: HIGH });
+  const mesh = compileShip({}, PLAYER_SHIP);
   scene.add(mesh);
   return { mesh, x: 0, z: 0, yaw: 0, speed: 0, sail: 2, anchor: false, hp: 100, maxHp: 100, cd: { port: 0, star: 0 }, reload: 2.2, roll: 0, pitch: 0, y: 0, sinking: 0, alive: true, turn: 0 };
 }
 let player = makePlayer();
+// [Raul] upgrade visuals: swap in a freshly compiled ship for new upgrade levels (same pose, old one freed)
+function rebuildPlayerShip(levels) {
+  const old = player.mesh, mesh = compileShip(levels, PLAYER_SHIP);
+  mesh.position.copy(old.position); mesh.rotation.copy(old.rotation); mesh.userData.body.rotation.copy(old.userData.body.rotation);
+  mesh.userData.sails.forEach((sl, i) => { const o = old.userData.sails[i]; if (o) { sl.scale.y = o.scale.y; sl.scale.z = o.scale.z; } });
+  scene.remove(old); disposeShip(old); scene.add(mesh); player.mesh = mesh;
+  return mesh;
+}
 const enemies = [], balls = [], loot = [];
 const ballGeo = new THREE.SphereGeometry(0.45, 10, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 });
@@ -383,7 +394,7 @@ holdButton($('fire-star'), () => playerFire('star'));
 function setSail(n) { player.sail = clamp(n, 0, 3); if (player.sail > 0) player.anchor = false; updateHud(); }
 function toggleAnchor() { player.anchor = !player.anchor; if (player.anchor) player.sail = 0; else if (player.sail === 0) player.sail = 1; updateHud(); }
 function resetCamera() {
-  const portrait = camera.aspect < 1, dist = portrait ? 46 : 34, up = portrait ? 24 : 16;
+  const portrait = camera.aspect < 1, k = Math.pow(player.mesh.userData.shipScale || 1, 0.85), dist = (portrait ? 46 : 34) * k, up = (portrait ? 24 : 16) * k; // [Raul] upgrade visuals: framing scales with hull
   const back = new THREE.Vector3(-Math.sin(player.yaw) * dist, up, -Math.cos(player.yaw) * dist);
   camera.position.copy(player.mesh.position).add(back);
 }
@@ -590,6 +601,7 @@ $('btn-menu').onclick = async () => { await saveScore(); toTitle(); };
 // ---------- main loop ----------
 const clock = new THREE.Clock();
 let lastTarget = new THREE.Vector3();
+let camShipK = 1; // [Raul] upgrade visuals
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title';
@@ -657,8 +669,10 @@ function frame() {
   ocean.uniforms.uTime.value = sky.uniforms.uTime.value = rain.uniforms.uTime.value = t;
 
   // camera follows the ship, orbit offset preserved
-  const tgt = new THREE.Vector3(player.x, player.y + 4, player.z);
+  const shipK = player.mesh.userData.shipScale || 1; // [Raul] upgrade visuals: bigger hulls pull the camera back to stay framed
+  const tgt = new THREE.Vector3(player.x, player.y + 4 * shipK + 3 * (shipK - 1), player.z);
   camera.position.add(tgt.clone().sub(lastTarget)); lastTarget.copy(tgt);
+  if (Math.abs(shipK - camShipK) > 1e-4) { const f = Math.pow(shipK / camShipK, 0.85); camera.position.sub(tgt).multiplyScalar(f).add(tgt); controls.maxDistance = (camera.aspect < 1 ? 120 : 95) * Math.max(1, shipK); camShipK = shipK; }
   controls.target.copy(tgt);
   if (game.state === 'title') { const off = camera.position.clone().sub(tgt).applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.06); camera.position.copy(tgt).add(off); }
   controls.update();
@@ -689,7 +703,7 @@ function fitCamera(w, h) {
   // keep ~60° of horizontal view in portrait: widen vertical FOV, capped to avoid fisheye
   const vfov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(30)) / aspect));
   camera.fov = clamp(vfov, 55, 78);
-  controls.maxDistance = aspect < 1 ? 120 : 95;
+  controls.maxDistance = (aspect < 1 ? 120 : 95) * Math.max(1, player?.mesh?.userData?.shipScale || 1); // [Raul] upgrade visuals
   camera.updateProjectionMatrix();
 }
 function isPortrait() { const [w, h] = viewSize(); return h > w; }
@@ -735,7 +749,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
-initShop({ game, getPlayer: () => player, updateHud, sfx });
+initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip }); // [Raul] upgrade visuals: camera + ship rebuild
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera };

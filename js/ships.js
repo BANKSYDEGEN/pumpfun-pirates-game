@@ -399,6 +399,8 @@ export function buildShip(opts) {
   const base = fGeo.attributes.position.array.slice();
 
   ship.userData = { body, muzzles, sails, flag, flagBase: base, len, beam, depth, deckY, lanterns };
+  // [Raul] upgrade visuals: hull/mast/cabin layout so js/upgradeVisuals.js can attach upgrade layers (no visual change here)
+  ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole };
   return ship;
 }
 

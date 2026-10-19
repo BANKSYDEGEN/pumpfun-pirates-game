@@ -2,8 +2,9 @@
 // Tap SHOP (or press U / B) to pause and open the shop; close (or U / B / Esc) to resume.
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
 import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat } from './upgrades.js';
+import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 
-let ctx = null, run = newRun();
+let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
 
 const CHEST_SVG = `<svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
@@ -85,8 +86,14 @@ function buy(id) {
   ctx.game.gold -= t.cost; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + t.cost; run.spent += t.cost;
   run.levels[id]++;
   applyStats(ctx.getPlayer(), shipStats(run));
-  ctx.sfx?.coin?.();
-  ctx.updateHud(); render();
+  // [Raul] upgrade visuals: recompile the ship from the new trait levels, then the purchase moment
+  const lvl = run.levels[id], legendary = lvl === u.tiers.length;
+  const mesh = ctx.rebuildShip?.(run.levels);
+  const label = `+${u.name} ${['I', 'II', 'III'][lvl - 1]}${legendary ? ' · LEGENDARY' : ''}`;
+  celebrateUpgrade(mesh, id, { camera: ctx.camera, label, legendary });
+  lastBuy = { id, label, legendary };
+  if (ctx.sfx?.upgrade) ctx.sfx.upgrade(legendary); else ctx.sfx?.coin?.();
+  ctx.updateHud(); render(); tierUp(id, lvl, legendary);
 }
 function repair() {
   const p = ctx.getPlayer();
@@ -104,13 +111,21 @@ export function open() {
 export function close() {
   if (!ctx || ctx.game.state !== 'shop') return;
   ctx.game.state = 'playing'; $('shop').classList.add('hidden');
+  if (lastBuy) { celebrateUpgrade(ctx.getPlayer().mesh, lastBuy.id, { camera: ctx.camera, label: lastBuy.label, legendary: lastBuy.legendary }); lastBuy = null; }
+}
+// [Raul] upgrade visuals: tier-up flourish on the shop card (CSS bounce + stamp, ~0.7 s)
+function tierUp(id, lvl, legendary) {
+  const c = $('shop-grid').querySelector(`[data-id="${id}"]`); if (!c) return;
+  c.classList.remove('tierup'); void c.offsetWidth; c.classList.add('tierup');
+  const st = document.createElement('span'); st.className = 'sc-stamp' + (legendary ? ' legendary' : ''); st.textContent = legendary ? 'LEGENDARY!' : `TIER ${['I', 'II', 'III'][lvl - 1]}!`;
+  c.appendChild(st); setTimeout(() => { st.remove(); c.classList.remove('tierup'); }, 800);
 }
 export function toggle() { if (ctx?.game.state === 'shop') close(); else open(); }
 
 // New run: wipe upgrades and give the fresh player ship the base stats.
 export function resetShop() {
   run = newRun();
-  if (ctx) { ctx.game.goldSpent = 0; const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; }
+  if (ctx) { ctx.game.goldSpent = 0; const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; lastBuy = null; }
   $('shop')?.classList.add('hidden');
 }
 
@@ -122,5 +137,7 @@ export function initShop(c) {
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
-  window.PFP_SHOP = { open, close, buy, repair, get run() { return run; } };
+  window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, get run() { return run; },
+    // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
+    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); } };
 }
