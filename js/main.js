@@ -799,7 +799,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
-initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip, prebuildShips }); // [Raul] upgrade visuals: camera + ship rebuild
+initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip, prebuildShips, previewBase: { mainSailMap: sailTex, flagMap: flagTex, quality } }); // [Raul] skin previews: classic sail/flag + quality // [Raul] upgrade visuals: camera + ship rebuild
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added

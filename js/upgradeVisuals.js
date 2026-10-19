@@ -531,6 +531,9 @@ export function compileShip(levels = {}, opts = {}) {
   return ship;
 }
 
+// [Raul] skin previews: build a ship for an offscreen preview without touching the game's pre-build queue / options
+export function compilePreview(levels = {}, opts = {}) { return buildCompiled(normLevels(levels), opts, opts.skin || equippedSkin()); }
+
 // ---------- pre-build + shader warm-up (makes purchase swaps instant) ----------
 let R = null; // { renderer, scene, camera, canWork }
 const _ready = new Map(); let _queue = [], _pump = 0;

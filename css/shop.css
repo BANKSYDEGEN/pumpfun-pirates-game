@@ -110,3 +110,15 @@
 #btn-sound.off { border-color: var(--red); background: rgba(250,13,13,0.18); }
 #btn-sound.locked { animation: snd-nudge 1.6s ease-in-out infinite; }
 @keyframes snd-nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,205,119,0); } 50% { box-shadow: 0 0 0 4px rgba(255,205,119,0.45); } }
+
+/* [Raul] skin previews: real side-view render (transparent) over the card, swatch stays as fallback */
+.skin-card .sk-sw { position: relative; aspect-ratio: 9 / 5; border-radius: 10px; overflow: hidden; }
+.skin-card .sk-sw canvas.sk-swatch { width: 100% !important; height: 100% !important; aspect-ratio: auto; }
+.skin-card .sk-sw canvas.sk-prev { position: absolute; inset: 0; width: 100% !important; height: 100% !important; aspect-ratio: auto; opacity: 0; transition: opacity .25s; border-radius: 0; }
+.skin-card.has-prev .sk-sw canvas.sk-prev { opacity: 1; }
+.skin-card.has-prev .sk-sw canvas.sk-swatch { visibility: hidden; }
+.skin-card .sk-lock { position: absolute; top: 4px; right: 6px; font-size: 15px; font-family: system-ui, sans-serif; filter: drop-shadow(0 1px 1px #000); display: none; }
+.skin-card.locked .sk-lock { display: block; }
+.skin-card.equipped.has-prev canvas.sk-prev { animation: sk-bob 3.2s ease-in-out infinite; }
+@keyframes sk-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-2px) rotate(-0.6deg); } }
+@media (prefers-reduced-motion: reduce) { .skin-card.equipped.has-prev canvas.sk-prev { animation: none; } }

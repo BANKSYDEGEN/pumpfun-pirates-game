@@ -5,6 +5,7 @@ import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat } from './upgr
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
+import { initSkinPreview, requestPreviews, pausePreviews } from './skinPreview.js'; // [Raul] skin previews
 
 let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
@@ -61,18 +62,27 @@ function buildDom() {
   const sg = $('skin-grid');
   for (const s of SKINS) {
     const c = document.createElement('div'); c.className = 'shop-card skin-card'; c.dataset.skin = s.id;
-    c.innerHTML = `<div class="sk-sw"></div><div class="sc-name">${s.name}</div><div class="sk-blurb muted">${s.blurb}</div><button class="buy"></button>`;
-    c.querySelector('.sk-sw').appendChild(skinSwatch(s));
+    c.innerHTML = `<div class="sk-sw"><canvas class="sk-prev" aria-hidden="true"></canvas><span class="sk-lock" title="Locked">🔒</span></div><div class="sc-name">${s.name}</div><div class="sk-blurb muted">${s.blurb}</div><button class="buy"></button>`;
+    const sw = skinSwatch(s); sw.classList.add('sk-swatch'); c.querySelector('.sk-sw').prepend(sw); // fallback until / unless the 3D preview renders
     c.querySelector('.buy').onclick = () => skinAction(s.id);
     sg.appendChild(c);
   }
 }
 let tab = 'upg';
+// [Raul] skin previews: real side-view renders of the current build in each skin (cached, rendered in idle time)
+function showPreview(s, src) {
+  const c = $('skin-grid')?.querySelector(`[data-skin="${s.id}"]`); if (!c) return;
+  const cv = c.querySelector('.sk-prev'); cv.width = src.width; cv.height = src.height;
+  const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
+  c.classList.add('has-prev');
+}
+function refreshPreviews() { if (ctx && ctx.game.state === 'shop') requestPreviews(SKINS, { ...run.levels }, showPreview); }
 function setTab(t) {
   tab = t;
   $('tab-upg').classList.toggle('on', t === 'upg'); $('tab-skins').classList.toggle('on', t === 'skins');
   $('shop-grid').classList.toggle('hidden', t !== 'upg'); $('skin-grid').classList.toggle('hidden', t !== 'skins');
   $('shop-hp').classList.toggle('hidden', t !== 'upg');
+  if (t === 'skins') refreshPreviews();
   document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? 'Spend looted gold on your ship. Upgrades last this voyage only.' : 'Paint jobs are cosmetic and yours to keep across every voyage.';
   render();
 }
@@ -80,7 +90,7 @@ function renderSkins() {
   const g = ctx.game.gold, eq = equippedSkin().id;
   for (const s of SKINS) {
     const c = $('skin-grid').querySelector(`[data-skin="${s.id}"]`), b = c.querySelector('.buy'), own = ownsSkin(s.id);
-    c.classList.toggle('equipped', s.id === eq); c.classList.toggle('owned', own);
+    c.classList.toggle('equipped', s.id === eq); c.classList.toggle('owned', own); c.classList.toggle('locked', !own);
     if (s.id === eq) { b.textContent = 'EQUIPPED'; b.disabled = true; }
     else if (own) { b.textContent = 'EQUIP'; b.disabled = false; }
     else { b.textContent = `${s.price}g`; b.disabled = g < s.price; }
@@ -145,6 +155,7 @@ function buy(id) {
   if (ctx.sfx?.upgrade) ctx.sfx.upgrade(legendary); else ctx.sfx?.coin?.();
   ctx.updateHud(); render(); tierUp(id, lvl, legendary);
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] next likely purchases, built while the shop is open
+  refreshPreviews(); // [Raul] skin previews: the build changed
 }
 function repair() {
   const p = ctx.getPlayer();
@@ -158,11 +169,12 @@ export function open() {
   if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return;
   ctx.game.state = 'shop';
   render(); $('shop').classList.remove('hidden'); ctx.sfx?.shopOpen?.(); // [Raul] sound upgrades
+  refreshPreviews(); // [Raul] skin previews: idle-rendered, only builds missing ones
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] pre-compile next purchases so buying is instant
 }
 export function close() {
   if (!ctx || ctx.game.state !== 'shop') return;
-  ctx.game.state = 'playing'; $('shop').classList.add('hidden');
+  ctx.game.state = 'playing'; $('shop').classList.add('hidden'); pausePreviews(); // [Raul] skin previews
   if (lastBuy) { celebrateUpgrade(ctx.getPlayer().mesh, lastBuy.id, { camera: ctx.camera, label: lastBuy.label, legendary: lastBuy.legendary }); lastBuy = null; }
 }
 // [Raul] upgrade visuals: tier-up flourish on the shop card (CSS bounce + stamp, ~0.7 s)
@@ -182,7 +194,7 @@ export function resetShop() {
 }
 
 export function initShop(c) {
-  ctx = c; injectCss(); buildDom();
+  ctx = c; injectCss(); buildDom(); initSkinPreview(c.previewBase || {});
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (e.code === 'KeyU' || e.code === 'KeyB') toggle();
@@ -191,5 +203,5 @@ export function initShop(c) {
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
   window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, get run() { return run; },
     // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
-    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); } };
+    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); refreshPreviews(); } };
 }
