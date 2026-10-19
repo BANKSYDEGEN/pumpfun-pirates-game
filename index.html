@@ -17,6 +17,10 @@
 <meta name="application-name" content="PUMPFUN PIRATES">
 <link rel="preload" href="assets/JustAnotherHand.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="css/style.css">
+<script>
+  // iOS 27 home-screen web apps draw a system blur over the top of the page unless a solid fixed bar sits at the very top.
+  if (navigator.standalone === true || (/iPhone|iPad|iPod/.test(navigator.userAgent) && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches)) document.documentElement.classList.add('ios-pwa');
+</script>
 <script type="importmap">
 {
   "imports": {
@@ -159,6 +163,9 @@
 </div>
 
 <div id="loading" class="overlay"><div class="panel small"><h1>Hoisting the sails…</h1></div></div>
+
+<!-- solid status-bar plate (iOS PWA only): stops the OS top-edge blur -->
+<div id="status-plate" aria-hidden="true"></div>
 
 <script type="module" src="js/main.js"></script>
 </body>

@@ -270,3 +270,16 @@ button.ghost:disabled { color: rgba(255,255,255,0.45); cursor: not-allowed; bord
   .title-panel { width: min(940px, 94vw); display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; text-align: center; }
   .title-panel .board-wrap { margin-top: 0; }
 }
+
+/* iOS 27 installed web apps: the OS blurs whatever the page draws near the top (status bar and well below it).
+   A solid position:fixed bar at top:0 (>=6px tall, >=80% wide) makes iOS paint a solid status bar instead of the blur.
+   Covers only the status-bar strip, then fades softly into the scene. */
+#status-plate { display: none; }
+html.ios-pwa #status-plate {
+  display: block; position: fixed; top: 0; left: 0; width: 100%; height: max(6px, var(--safe-t));
+  background-color: #0d1118; z-index: 1000; pointer-events: none;
+}
+html.ios-pwa #status-plate::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px;
+  background: linear-gradient(#0d1118, rgba(13,17,24,0)); pointer-events: none;
+}
