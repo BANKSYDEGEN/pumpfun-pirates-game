@@ -96,6 +96,23 @@ function renderSkins() {
     else { b.textContent = `${s.price}g`; b.disabled = g < s.price; }
   }
 }
+// [wave skins] every 5th wave: free unlock of the cheapest unowned skin + a non-blocking toast with EQUIP
+export function waveSkinUnlock(wave) {
+  if (!ctx || wave < 5 || wave % 5) return null;
+  const s = SKINS.filter(x => !ownsSkin(x.id)).sort((a, b) => a.price - b.price)[0];
+  if (!s) return null; // owns everything: show nothing
+  unlockSkin(s.id);
+  document.getElementById('skin-toast')?.remove();
+  const t = document.createElement('div'); t.id = 'skin-toast';
+  t.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${s.name}</span></div><button class="buy">EQUIP</button>`;
+  const sw = skinSwatch(s, 88, 44); sw.className = 'st-sw'; t.prepend(sw);
+  const btn = t.querySelector('button');
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) t.addEventListener(ev, e => e.stopPropagation()); // don't steer / fire
+  btn.onclick = (e) => { e.stopPropagation(); equipSkin(s.id); ctx.rebuildShip?.(run.levels); ctx.sfx?.equip?.(); btn.textContent = 'EQUIPPED'; btn.disabled = true; if (ctx.game.state === 'shop') render(); setTimeout(() => t.remove(), 900); };
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+  return s.id;
+}
 function skinAction(id) {
   const s = SKINS.find(x => x.id === id); if (!s) return;
   let bought = false;

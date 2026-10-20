@@ -122,3 +122,14 @@
 .skin-card.equipped.has-prev canvas.sk-prev { animation: sk-bob 3.2s ease-in-out infinite; }
 @keyframes sk-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-2px) rotate(-0.6deg); } }
 @media (prefers-reduced-motion: reduce) { .skin-card.equipped.has-prev canvas.sk-prev { animation: none; } }
+/* [wave skins] non-blocking "NEW SKIN UNLOCKED" toast (waves 5, 10, 15...) */
+#skin-toast { position: fixed; z-index: 40; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 116px); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: max-content; max-width: min(92vw, 440px); box-sizing: border-box; padding: 8px 12px; border-radius: 16px; background: rgba(14, 12, 10, 0.88); border: 2px solid #ffcd77; box-shadow: 0 6px 18px rgba(0,0,0,0.45); color: #fff; font-family: 'Just Another Hand', cursive; letter-spacing: 0.04em; animation: stIn 0.35s ease-out, stOut 0.5s ease-in 5.5s forwards; }
+#skin-toast .st-sw { width: 88px; height: 44px; flex: none; }
+#skin-toast .st-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1; }
+#skin-toast .st-txt b { color: #ffcd77; font-size: 22px; font-weight: normal; white-space: nowrap; }
+#skin-toast .st-txt span { font-size: 22px; line-height: 0.95; }
+#skin-toast button.buy { flex: none; font-family: inherit; font-size: 22px; padding: 4px 14px; border-radius: 999px; border: none; background: var(--red, #e10600); color: #fff; box-shadow: 0 3px 0 #8f0000; cursor: pointer; }
+#skin-toast button.buy:disabled { background: #2c4a3a; box-shadow: 0 3px 0 #16261d; }
+@media (max-height: 520px) and (orientation: landscape) { #skin-toast { top: calc(env(safe-area-inset-top, 0px) + 44px); padding: 5px 10px; } #skin-toast .st-sw { width: 66px; height: 33px; } }
+@keyframes stIn { from { opacity: 0; transform: translate(-50%, -16px); } }
+@keyframes stOut { to { opacity: 0; transform: translate(-50%, -16px); } }

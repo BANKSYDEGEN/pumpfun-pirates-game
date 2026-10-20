@@ -21,7 +21,7 @@ import { equippedSkin } from './skins.js';
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
 import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave } from './enemyTypes.js'; // [enemy variety] builds + AI
-import { initShop, resetShop } from './shop.js';
+import { initShop, resetShop, waveSkinUnlock } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
@@ -191,6 +191,7 @@ const specialCtx = { get player() { return player; }, enemies, game, moveShip: (
 
 function startWave() {
   game.wave++;
+  waveSkinUnlock(game.wave); // [wave skins] waves 5, 10, 15...: free skin unlock toast (normal + DAILY)
   if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
   const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
   const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
