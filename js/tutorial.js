@@ -9,7 +9,7 @@ const STEPS = [
   ['💣', 'Sink <b>rug ships</b> to loot <b class="gold">gold</b>.'],
   ['🧰', 'Tap the <b class="gold">SHOP</b> chest to pause and buy upgrades. Your ship grows with every tier.'],
   ['🔧', 'Low on hull? Hit <b class="gold">REPAIR HULL</b> in the shop to buy health with gold.'],
-  ['<span class="tut-crate">✚</span>', 'Every <b>3rd sink</b> and every <b class="red">boss</b> drops a <b class="green">health crate</b>. Sail over it to heal. Your hull also refills at the start of each wave.'],
+  ['<span class="tut-crate">✚</span>', 'About <b>1 in 3 sinks</b> drops a <b class="green">health crate</b>, and every <b class="red">boss</b> always does. Sail over it to heal. Your hull also refills at the start of each wave.'],
 ];
 
 const CSS = `

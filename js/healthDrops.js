@@ -1,5 +1,6 @@
 // PUMPFUN PIRATES · health drops
-// Every 3rd enemy sunk in a run (and every boss) leaves a floating medic crate where it went down.
+// Each enemy sunk has a ~33% chance to leave a floating medic crate where it went down; after 5 sinks in a row
+// with no crate the next one always drops (pity rule), and every boss always drops one.
 // Sail into it to heal 25% of max HP (capped at max). Crates despawn after 15 s and blink in their last 4 s.
 // Shown on the radar in green. Self-contained: main.js only calls the hooks marked [health drops].
 import * as THREE from 'three';
@@ -7,7 +8,14 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { waveHeight } from './ocean.js';
 import { toon, glowMat, outlineFor, woodTexture } from './toon.js';
 
-export const HEALTH_DROP = { every: 3, healPct: 0.25, life: 15, blink: 4, radarColor: '#4ee37a' };
+export const HEALTH_DROP = { chance: 1 / 3, pity: 5, healPct: 0.25, life: 15, blink: 4, radarColor: '#4ee37a' };
+
+// pure drop roll (also used by the tests): state = { dry }, rand = Math.random or the DAILY seeded drop stream
+export function rollDrop(state, boss, rand = Math.random) {
+  const hit = boss || state.dry >= HEALTH_DROP.pity || rand() < HEALTH_DROP.chance;
+  state.dry = hit ? 0 : state.dry + 1;
+  return hit;
+}
 
 // ---------- medic crate template (cloned per drop; geometry + materials shared) ----------
 let _tpl = null;
@@ -64,6 +72,7 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
   ensureStyle();
   const drops = [];
   let sunkCount = 0;
+  const dropState = { dry: 0 }; // non-drop sinks in a row (pity counter, per run)
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
   function spawn(x, z) {
@@ -79,11 +88,11 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
   return {
     drops,
     get sunkCount() { return sunkCount; },
-    // call once for every enemy sunk by the player
-    onSink(s) {
+    // call once for every enemy sunk by the player; rand: seeded drop stream on a DAILY run (never the spawn/loot streams)
+    onSink(s, rand = Math.random) {
       sunkCount++;
       const boss = !!(s.boss || s.type === 'boss');
-      if (boss || sunkCount % HEALTH_DROP.every === 0) return spawn(s.x + (Math.random() - 0.5) * 3, s.z + (Math.random() - 0.5) * 3);
+      if (rollDrop(dropState, boss, rand)) return spawn(s.x + (Math.random() - 0.5) * 3, s.z + (Math.random() - 0.5) * 3);
       return null;
     },
     spawn,
@@ -116,6 +125,6 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
       }
     },
     radar(dot) { for (const d of drops) if (d.mesh.visible || d.life > HEALTH_DROP.blink) dot(d.x, d.z, HEALTH_DROP.radarColor, 3.5); },
-    clear() { while (drops.length) remove(drops.length - 1); sunkCount = 0; },
+    clear() { while (drops.length) remove(drops.length - 1); sunkCount = 0; dropState.dry = 0; },
   };
 }

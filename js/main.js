@@ -193,7 +193,7 @@ function startWave() {
   if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
   const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
   const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
-  if (daily) { rand = waveRng(game.seed, game.wave, 'spawn'); game.lootRng = waveRng(game.seed, game.wave, 'loot'); }
+  if (daily) { rand = waveRng(game.seed, game.wave, 'spawn'); game.lootRng = waveRng(game.seed, game.wave, 'loot'); game.dropRng = waveRng(game.seed, game.wave, 'drops'); }
   try {
     for (let i = 0; i < n; i++) {
       const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
@@ -271,7 +271,7 @@ function damage(s, amt, p, src = null) {
   else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
-    else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s); } // [health drops] every 3rd sink + bosses
+    else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s, game.mode === 'daily' && game.dropRng ? game.dropRng : Math.random); } // [health drops] ~33% per sink (pity after 5 dry) + bosses; DAILY uses its own seeded drop stream
   }
   updateHud();
 }
@@ -670,7 +670,7 @@ function startGame(mode = null) {
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
   // [daily] the seed is fixed when the run starts (a run that crosses 00:00 UTC keeps its day); the attempt counts as soon as you sail
   game.mode = mode === 'daily' && !dailyPlayed(game.wallet) ? 'daily' : null;
-  game.seed = game.mode ? dailySeed() : null; game.lootRng = null;
+  game.seed = game.mode ? dailySeed() : null; game.lootRng = null; game.dropRng = null;
   if (game.mode) markDailyPlayed(game.wallet, game.seed);
   syncDailyBtn();
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);

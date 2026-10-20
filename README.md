@@ -41,7 +41,7 @@ Broadsides auto-range on the nearest enemy on that side (within about 90 m and r
 
 - **Waves:** each wave sends more rug ships (and tougher hull types as you go), and every 4th wave adds a **DEV WALLET** boss. The first one (wave 4) is an easier intro fight; later ones hit harder. Your hull is fully repaired at the start of every wave, and clearing a wave gives a bonus.
 - **Enemy AI:** enemies roam, close in once they spot you, circle to fire broadsides, and **flee** when their hull drops below 30%. Some ships behave differently, so watch the health bars (a flashing bar means something is coming).
-- **Health crates:** every 3rd ship you sink, and every boss, leaves a floating medic crate (+25% hull, lasts 15 s, green on the radar).
+- **Health crates:** each ship you sink has about a 1 in 3 chance to leave a floating medic crate (never more than 5 sinks in a row without one), and every boss always drops one (+25% hull, lasts 15 s, green on the radar).
 - **Shipwright shop** (chest icon, `U`/`B`; pauses the game): spend gold on upgrades (hull, iron plating, sails, rudder, cannons, gun crew, spyglass) or a hull repair, and buy permanent **ship skins** on the SKINS tab (with live previews). A short how-to-play card opens at the start (turn it off with "Don't show again"; reopen from the shop `?` or the pause menu).
 - **Scoring:** +5 per hit, +100 per sink (×3 for a boss) plus a wave bonus, plus gold from the floating treasure chests sunk ships drop (sail within about 10 m to grab one).
 - **Game over:** your ship sinks, then you can enter a name and save to the leaderboard, or **SHARE** a 1200×675 score card (native share sheet on phones; on desktop a preview with download / copy image / post on X).
@@ -129,7 +129,7 @@ js/upgrades.js         Shipwright upgrade data; js/shop.js + css/shop.css: shop 
 js/skins.js            ship skins; js/skinPreview.js: skin preview renders
 js/upgradeVisuals.js   upgrades shown on the ship
 js/enemyTypes.js       enemy hull types, wave roster, extra enemy behaviours, boss attacks
-js/healthDrops.js      medic crates (every 3rd sink + bosses)
+js/healthDrops.js      medic crates (~33% per sink, pity after 5, bosses always)
 js/tutorial.js         how-to-play card
 js/shareCard.js        game-over score card + share
 js/tokenChip.js        $AHOY contract chip (copy) + DexScreener / X / Telegram links
