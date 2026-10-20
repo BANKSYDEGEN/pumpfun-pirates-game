@@ -374,3 +374,24 @@ html.ios-pwa #status-plate::after {
   .title-panel .wordmark { width: 100px; }
 }
 @media (max-height: 400px) and (orientation: landscape) { .lb-tabs button { font-size: 15px; padding: 3px 5px 2px; } }
+/* [qa2] game over on short landscape phones: two columns (stats + name | board), buttons along the bottom, no scrolling */
+@media (max-height: 520px) and (orientation: landscape) {
+  #gameover .panel { width: min(900px, 96vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 14px; align-items: start;
+    grid-template-areas: "h1 board" "stats board" "wallet board" "field board" "msg board" "row row"; padding: 8px 14px; }
+  #gameover .panel > h1 { grid-area: h1; font-size: 34px; margin: 0; }
+  #gameover .stats { grid-area: stats; font-size: 26px; gap: 10px; margin: 2px 0; }
+  #gameover #go-wallet { grid-area: wallet; font-size: 15px; }
+  #gameover .field { grid-area: field; margin: 3px 0; }
+  #gameover #save-msg { grid-area: msg; font-size: 14px; }
+  #gameover .board-wrap { grid-area: board; margin: 0; padding: 4px 10px; min-width: 0; }
+  #gameover .board-title { font-size: 21px; }
+  #gameover .board { columns: auto; font-size: 17px; }
+  #gameover .row { grid-area: row; margin-top: 4px; }
+  #gameover button.big { font-size: 28px; padding: 2px 26px; margin: 3px 4px; }
+  #gameover button.ghost { font-size: 17px; padding: 3px 12px; margin: 3px; }
+}
+@media (max-height: 360px) and (orientation: landscape) {
+  #gameover .panel > h1 { font-size: 28px; } #gameover .stats { font-size: 22px; } #gameover #save-msg { display: none; }
+  #gameover .board { font-size: 15px; } #gameover .lb-more { height: 14px; line-height: 14px; }
+}
+@media (max-height: 520px) and (orientation: landscape) { #gameover .field > span { white-space: nowrap; font-size: 16px; } #gameover #btn-save { white-space: nowrap; font-size: 17px; padding: 4px 12px; } #gameover .field input { min-width: 0; } }
