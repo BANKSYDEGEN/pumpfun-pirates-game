@@ -94,7 +94,7 @@ The title screen has a disabled **"Wallet connect coming soon"** button. `js/rew
 - Installable: `manifest.webmanifest` (fullscreen, landscape, `#161616` theme), icons in `assets/icons/` made from the real skull logo (192, 512, maskable 512, Apple touch 180, favicon).
 - iOS: Safari → Share → **Add to Home Screen**. Android Chrome: **Install app**.
 - `sw.js` caches the app shell and the pinned three.js CDN modules, so after one online visit it plays offline. Leaderboard API calls are never cached.
-- **Graphics (stylized toon look):** cel-shaded materials with a 4-step ramp, dark outlines, hand-painted procedural textures (no texture downloads), stylized storm sea and sky.
+- **Graphics (stylized toon look):** cel-shaded materials with a 4-step ramp, dark outlines, hand-painted procedural textures (no texture downloads), stylized storm sea and sky. The sea has see-through turquoise shallows near ships fading to deep navy, small ripples on the swell, sun glints, soft crest foam, Kelvin-style ship wakes that follow your path and grow with speed, bow spray, and cannonball splashes. From wave 6 the sky, fog and sea get darker and stormier, strongest by wave 12 (DAILY too).
 - **High quality** (desktops): bloom (lanterns, cannon fire, loot, lightning), vignette, FXAA, soft shadows. The post-processing modules are only downloaded on high.
 - Phones automatically get **low quality**: no post-processing or shadows, cheaper water foam, lower pixel ratio, smaller ocean mesh, less rain and fewer particles, no antialiasing. You can force it with `?quality=low` or `?quality=high`, or set `QUALITY` in `js/config.js`.
 
@@ -120,7 +120,8 @@ A signature proves wallet ownership, not that the score is legit (see anti-cheat
 index.html             UI overlays + import map
 css/style.css          HUD / menus (Just Another Hand font, brand colors)
 js/main.js             game loop, player, enemy AI, cannons, waves, HUD, menus
-js/ocean.js            wave field (shared CPU/GPU), stylized toon sea (foam lines, hull foam), storm sky, lightning bolt, GPU rain
+js/ocean.js            wave field (shared CPU/GPU), stylized sea (depth colour, ripples, glints, crest/hull/splash foam, storm mood), storm sky, lightning bolt, GPU rain
+js/wake.js             Kelvin wake trail ribbons (per-ship path buffer, speed-scaled)
 js/ships.js            stylized ships built in code (plank hulls, railings, cannons, cabins, lanterns, rippling sails), flags
 js/toon.js             toon ramp/materials, inverted-hull outlines, procedural painted textures (wood, cloth, metal, gold, rock)
 js/props.js            treasure chests with light beams, horizon sea stacks + lighthouse

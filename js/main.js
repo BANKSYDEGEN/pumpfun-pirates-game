@@ -1,7 +1,8 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, MAX_HULLS } from './ocean.js';
+import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
+import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -73,6 +74,7 @@ if (HIGH) {
 }
 
 const ocean = createOcean(quality); ocean.mesh.renderOrder = 2; scene.add(ocean.mesh); // after ships' water masks (see ships.js)
+const wakes = createWakes(quality, ocean.uniforms.uWaves); scene.add(wakes.mesh); // [aaa water] after the ocean
 const sky = createSky(); scene.add(sky.mesh);
 const rain = createRain(quality === 'low' ? 1800 : 5000); scene.add(rain.mesh);
 const fx = new FX(scene, quality);
@@ -334,16 +336,13 @@ function moveShip(s, dt, targetSpeed, turnInput) {
   s.turn += (turnInput - s.turn) * Math.min(1, dt * 5);
   s.yaw += s.turn * turnRate * dt;
   s.x += Math.sin(s.yaw) * s.speed * dt; s.z += Math.cos(s.yaw) * s.speed * dt;
-  // wake + bow spray
-  if (s.speed > 1.5) {
-    const p = s.mesh.userData, back = -p.len * 0.45;
-    const c = Math.cos(s.yaw), n = Math.sin(s.yaw);
-    const sternX = s.x + n * back, sternZ = s.z + c * back;
-    if (Math.random() < 0.9) fx.wake(new THREE.Vector3(sternX, 0, sternZ), new THREE.Vector3(c * (Math.random() < 0.5 ? 1 : -1), 0, -n * (Math.random() < 0.5 ? 1 : -1)));
-    if (Math.random() < s.speed / 14) {
-      const bx = s.x + n * p.len * 0.5, bz = s.z + c * p.len * 0.5, side = Math.random() < 0.5 ? 1 : -1;
-      fx.spray(new THREE.Vector3(bx, s.y + 0.8, bz), new THREE.Vector3(c * side * rnd(2, 5) + n * 2, rnd(2, 5), -n * side * rnd(2, 5) + c * 2));
-    }
+  // [aaa water] bow spray (the wake itself is the trail ribbon in wake.js): grows with speed, bursts when the bow plunges
+  const sN = s.speed / 13;
+  if (sN > 0.08 && s.alive !== false) {
+    const len = s.mesh.userData.len, n = Math.sin(s.yaw), c = Math.cos(s.yaw), bx = s.x + n * len * 0.5, bz = s.z + c * len * 0.5;
+    const sub = waveHeight(bx, bz, game.t) - (s.y + 0.3);
+    s.sprayAcc = (s.sprayAcc || 0) + (sN * sN * 22 + Math.max(0, sub) * sN * 30) * fx.q * (s === player ? 1 : 0.5) * dt;
+    while (s.sprayAcc >= 1) { s.sprayAcc -= 1; fx.bowSpray(bx, s.y + 0.7, bz, n, c, sN, sub > 0.2); }
   }
 }
 
@@ -416,7 +415,8 @@ function updateBalls(dt) {
         done = true; break;
       }
     }
-    if (!done && p.y < waveHeight(p.x, p.z, game.t)) { fx.splash(p.clone()); sfx.splash(clamp(1 - p.distanceTo(player.mesh.position) / 150, 0.05, 0.8)); done = true; }
+    if (!done && p.y < waveHeight(p.x, p.z, game.t)) { fx.splash(p); ocean.addSplash(p.x, p.z, 2.8, game.t); // [aaa water] lingering foam
+      sfx.splash(clamp(1 - p.distanceTo(player.mesh.position) / 150, 0.05, 0.8)); done = true; }
     if (done || b.life <= 0) { scene.remove(b.mesh); balls.splice(i, 1); }
   }
 }
@@ -680,7 +680,7 @@ function clearWorld() {
   for (const b of balls) scene.remove(b.mesh); balls.length = 0;
   for (const l of loot) scene.remove(l.mesh); loot.length = 0;
   healthDrops.clear(); // [health drops]
-  fx.clear();
+  fx.clear(); wakes.clear(); ocean.clearSplashes(); // [aaa water]
 }
 
 function startGame(mode = null) {
@@ -696,7 +696,7 @@ function startGame(mode = null) {
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
-  Object.assign(game, { state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
+  Object.assign(game, { storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
   $('captain-img').src = `assets/captains/${game.captain}.jpg`;
   $('captain-name').textContent = game.name ? `${game.name.toUpperCase()} · #${game.captain}` : `CAPT. #${game.captain}`;
@@ -753,6 +753,7 @@ $('btn-menu').onclick = async () => { await saveScore(); toTitle(); };
 
 // ---------- main loop ----------
 const clock = new THREE.Clock();
+const moodColor = new THREE.Color(); // [aaa water]
 let lastTarget = new THREE.Vector3();
 let camShipK = 1; // [Raul] upgrade visuals
 // camera pull-back for a bigger ship: less than the hull growth (so upgrades read BIGGER on screen), but enough for the tallest mast
@@ -812,15 +813,26 @@ function frame() {
   }
   game.flash = Math.max(0, game.flash - dt * 2.8);
   const fl = game.flash > 0 ? game.flash * (0.6 + 0.4 * Math.sin(game.flash * 40)) : 0;
-  ocean.uniforms.uFlash.value = sky.uniforms.uFlash.value = rain.uniforms.uFlash.value = fl;
-  hemi.intensity = 1.9 + fl * 3;
+  ocean.uniforms.uFlash.value = sky.uniforms.uFlash.value = rain.uniforms.uFlash.value = wakes.uniforms.uFlash.value = fl;
+  // [aaa water] mood by wave: sky, fog, light and water darken from wave 6, strongest by wave 12+ (DAILY too); a new run resets it
+  { const w = game.state === 'title' ? 0 : clamp((game.wave - 5) / 7, 0, 1), target = w * w * (3 - 2 * w);
+    game.storm = game.stormOverride ?? (game.storm || 0) + (target - (game.storm || 0)) * (1 - Math.exp(-dt * 0.6));
+    const sm = game.storm, dens = 0.0042 + 0.0007 * sm;
+    moodColor.copy(FOG_COLOR).lerp(STORM_FOG, sm);
+    scene.fog.color.copy(moodColor); scene.background.copy(moodColor); scene.fog.density = dens;
+    ocean.uniforms.uFogColor.value.copy(moodColor); sky.uniforms.uFogColor.value.copy(moodColor); wakes.uniforms.uFogColor.value.copy(moodColor);
+    ocean.uniforms.uFogDensity.value = wakes.uniforms.uFogDensity.value = dens;
+    ocean.uniforms.uStorm.value = sky.uniforms.uStorm.value = wakes.uniforms.uStorm.value = sm;
+    rain.uniforms.uAlpha.value = 0.28 + 0.17 * sm; sun.intensity = 2.1 * (1 - 0.4 * sm);
+    hemi.intensity = 1.9 * (1 - 0.28 * sm) + fl * 3; }
   bolt.mesh.visible = game.flash > 0.3; bolt.mesh.material.opacity = clamp(fl * 1.6, 0, 1);
   wind.uTime.value = t; chestTime(t);
   // hull foam collars for the water shader (nearest ships first)
   { const H = ocean.uniforms.uHulls.value; let k = 0;
     const list = enemies.length < MAX_HULLS ? enemies : enemies.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
     for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
-    ocean.uniforms.uHullCount.value = k; }
+    ocean.uniforms.uHullCount.value = k;
+    wakes.update(player, list, t); } // [aaa water] wake trails: player first, then the nearest ships
 
   // ocean follows the player, snapped to the grid so waves don't swim
   const step = ocean.mesh.userData.step;
@@ -914,4 +926,4 @@ initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: r
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
 window.PFP_HEALTH = healthDrops; // [health drops] test hook
-window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera, renderer, scene }; // [Raul] + renderer/scene for perf tests
+window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests

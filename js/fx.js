@@ -31,6 +31,14 @@ class Pool {
     this.size[i] = size; this.life[i] = life; this.max[i] = life; this.grav[i] = grav; this.grow[i] = grow;
     this.a0[i] = alpha; this.alpha[i] = alpha; this.float[i] = float ? 1 : 0; this.drag[i] = drag;
   }
+  // [aaa water] allocation-free emit for hot paths (bow spray, splashes)
+  emitRaw(px, py, pz, vx, vy, vz, r, g, b, size, life, grav, grow, alpha, float, drag) {
+    const i = this.n < this.cap ? this.n++ : Math.floor(Math.random() * this.cap), k = i * 3;
+    this.pos[k] = px; this.pos[k + 1] = py; this.pos[k + 2] = pz; this.vel[k] = vx; this.vel[k + 1] = vy; this.vel[k + 2] = vz;
+    this.col[k] = r; this.col[k + 1] = g; this.col[k + 2] = b;
+    this.size[i] = size; this.life[i] = life; this.max[i] = life; this.grav[i] = grav; this.grow[i] = grow;
+    this.a0[i] = alpha; this.alpha[i] = alpha; this.float[i] = float ? 1 : 0; this.drag[i] = drag;
+  }
   update(dt, t) {
     let i = 0;
     while (i < this.n) {
@@ -148,6 +156,7 @@ export class FX {
     this.fire = new Puffs(low ? 60 : 160, fireMat);
     this.rings = new Rings(low ? 10 : 22);
     scene.add(this.puff.mesh, this.fire.mesh, ...this.rings.items.map(i => i.m));
+    this._pv = new THREE.Vector3(); this._vv = new THREE.Vector3();
   }
   setScale(s) { this.soft.uniforms.uScale.value = this.glow.uniforms.uScale.value = s; }
   n(c) { return Math.max(1, Math.round(c * this.q)); }
@@ -157,11 +166,24 @@ export class FX {
     for (let i = 0; i < this.n(10); i++) this.glow.emit(p, V(dir.x * rnd(4, 12) + rnd(-1, 1), rnd(-0.5, 2), dir.z * rnd(4, 12) + rnd(-1, 1)), { color: [1, rnd(0.5, 0.8), 0.2], size: rnd(1, 2.2), life: rnd(0.12, 0.3), drag: 4 });
     for (let i = 0; i < this.n(10); i++) this.soft.emit(p, V(dir.x * rnd(2, 8), rnd(0.5, 2.5), dir.z * rnd(2, 8)), { color: [0.72, 0.72, 0.7], size: rnd(1.5, 2.5), grow: 3, life: rnd(1.2, 2.2), alpha: 0.55, drag: 1.5 });
   }
+  // [aaa water] cannonball splash: central column, crown sheet, drifting mist, foam rings + floating foam (allocation-free)
   splash(p) {
+    const x = p.x, y = p.y, z = p.z, R = Math.random;
     this.rings.emit(p, 0.6, 5.5, 1.3); this.rings.emit(p, 0.3, 3, 0.9);
-    for (let i = 0; i < this.n(4); i++) this.puff.emit(V(p.x + rnd(-0.6, 0.6), p.y + 0.2, p.z + rnd(-0.6, 0.6)), V(rnd(-1.5, 1.5), rnd(5, 9), rnd(-1.5, 1.5)), { size: rnd(0.45, 0.8), life: rnd(0.6, 0.9), color: [0.8, 0.95, 0.98], drag: 0.6, lift: -14 });
-    for (let i = 0; i < this.n(26); i++) { const a = Math.random() * 6.28, s = rnd(0.5, 3.5); this.soft.emit(p, V(Math.cos(a) * s, rnd(5, 13), Math.sin(a) * s), { color: [0.85, 0.92, 0.95], size: rnd(0.4, 1.0), life: rnd(0.8, 1.4), grav: 18, alpha: 0.9 }); }
-    for (let i = 0; i < this.n(10); i++) { const a = Math.random() * 6.28; this.soft.emit(p, V(Math.cos(a) * 2.5, 0, Math.sin(a) * 2.5), { color: [0.85, 0.9, 0.92], size: rnd(1, 2), life: rnd(1.5, 2.5), float: true, alpha: 0.6, drag: 1.2 }); }
+    for (let i = 0; i < this.n(6); i++) { this._pv.set(x + (R() - 0.5) * 1.2, y + 0.2, z + (R() - 0.5) * 1.2); this._vv.set((R() - 0.5) * 3, 6 + R() * 6, (R() - 0.5) * 3); this.puff.emit(this._pv, this._vv, { size: 0.55 + R() * 0.5, life: 0.6 + R() * 0.3, color: [0.82, 0.95, 0.98], drag: 0.6, lift: -14 }); }
+    for (let i = 0; i < this.n(18); i++) { const a = R() * 6.28, s = R() * 1.2; this.soft.emitRaw(x, y + 0.2, z, Math.cos(a) * s, 9 + R() * 8, Math.sin(a) * s, 0.88, 0.95, 0.98, 0.8 + R() * 0.9, 0.9 + R() * 0.6, 20, 0.4, 0.9, false, 0.2); } // column
+    for (let i = 0; i < this.n(24); i++) { const a = R() * 6.28, s = 2.5 + R() * 3.5; this.soft.emitRaw(x, y + 0.1, z, Math.cos(a) * s, 4 + R() * 5, Math.sin(a) * s, 0.85, 0.93, 0.96, 0.35 + R() * 0.45, 0.6 + R() * 0.5, 18, 0, 0.85, false, 0.4); } // crown
+    for (let i = 0; i < this.n(6); i++) { const a = R() * 6.28; this.soft.emitRaw(x, y + 0.8 + R(), z, Math.cos(a) * 1.5, 1 + R() * 1.5, Math.sin(a) * 1.5, 0.8, 0.87, 0.9, 2 + R() * 1.5, 1.2 + R() * 0.8, 0, 2.2, 0.28, false, 1.5); } // mist
+    for (let i = 0; i < this.n(10); i++) { const a = R() * 6.28; this.soft.emitRaw(x, y, z, Math.cos(a) * 2.5, 0, Math.sin(a) * 2.5, 0.85, 0.9, 0.92, 1 + R(), 1.5 + R(), 0, 0, 0.6, true, 1.2); } // floating foam
+  }
+  // [aaa water] bow spray: droplets thrown off both sides of the bow + a little mist; stronger with speed and when the bow plunges
+  bowSpray(x, y, z, fx, fz, sN, plunge) {
+    const R = Math.random, side = R() < 0.5 ? 1 : -1, px = fz * side, pz = -fx * side, k = 0.6 + sN;
+    for (let i = 0; i < 3; i++) {
+      const out = (2 + R() * 3) * k, fw = (1.5 + R() * 2) * k, up = (2.5 + R() * 3) * k + (plunge ? 2.5 + R() * 2 : 0);
+      this.soft.emitRaw(x + px * 0.6, y, z + pz * 0.6, px * out + fx * fw, up, pz * out + fz * fw, 0.86, 0.93, 0.96, (0.35 + R() * 0.45) * (0.8 + 0.6 * sN), 0.5 + R() * 0.45, 16, 0.3, 0.8, false, 0.3);
+    }
+    if (R() < 0.35 + 0.4 * sN) this.soft.emitRaw(x + px, y + 0.3, z + pz, px * 2 + fx * 2, 1.2, pz * 2 + fz * 2, 0.82, 0.88, 0.9, 1.4 + R() * 1.2, 0.6 + R() * 0.5, 0, 2, 0.22, false, 2);
   }
   hit(p) {
     // chunky toon explosion: hot core, orange balls, then dark smoke balls rolling up

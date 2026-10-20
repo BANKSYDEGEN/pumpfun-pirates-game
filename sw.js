@@ -24,6 +24,7 @@ const SHELL = [
   "./js/ships.js",
   "./js/ocean.js",
   "./js/fx.js",
+  "./js/wake.js",
   "./js/toon.js",
   "./js/props.js",
   "./js/upgradeVisuals.js",
