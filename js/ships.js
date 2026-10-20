@@ -158,6 +158,7 @@ function hullGeometry(len, beam, depth) {
   pos.push(0, cy, s0[0][2]); uv.push(0.5, 0.5);
   s0.forEach(p => { pos.push(...p); uv.push(p[0] / beam + 0.5, p[1] / depth); });
   for (let j = 0; j < M; j++) idx.push(base, base + 1 + j + 1, base + 1 + j);
+  idx.push(base, base + 1, base + 1 + M); // close the fan across the top (gunwale to gunwale): without it a V-shaped gap in the transom showed water through the stern
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
