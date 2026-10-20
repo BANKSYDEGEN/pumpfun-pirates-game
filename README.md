@@ -41,7 +41,7 @@ Broadsides auto-range on the nearest enemy on that side (within about 90 m and r
 
 - **Waves:** each wave sends more rug ships (and tougher hull types as you go), and every 4th wave adds a **DEV WALLET** boss. The first one (wave 4) is an easier intro fight; later ones hit harder. Your hull is fully repaired at the start of every wave, and clearing a wave gives a bonus.
 - **Enemy AI:** enemies roam, close in once they spot you, circle to fire broadsides, and **flee** when their hull drops below 30%. A fleeing ship that goes 20 s without being hit slowly patches its hull (+10% every 4 s, up to half, then it comes back to fight; the treasure runner keeps running); bosses never repair. Some ships behave differently, so watch the health bars (a flashing bar means something is coming).
-- **Hull self-repair:** go 20 s without taking damage and your hull repairs +5% every 4 s up to full (the HP bar pulses green). Any hit resets the 20 s; pause, shop and tutorial time don't count. **Hull Planks** speed it up: 16 s / +6%, 13 s / +7%, 10 s / +8% per tier (player only; enemy repair is unchanged).
+- **Hull self-repair:** go 20 s without taking damage and your hull repairs +5% every 4 s up to full (the HP bar pulses green). Any hit resets the 20 s; pause, shop and tutorial time don't count. **Hull Planks** speed it up: 17 s / +5.5% at level I up to 12 s / +7.5% at level VI (player only; enemy repair is unchanged).
 - **Health crates:** each ship you sink has about a 1 in 3 chance to leave a floating medic crate (never more than 5 sinks in a row without one), and every boss always drops one (+25% hull, lasts 15 s, green on the radar).
 - **Shipwright shop** (chest icon, `U`/`B`; pauses the game): spend gold on upgrades (hull, iron plating, sails, rudder, cannons, gun crew, spyglass) or a hull repair, and buy permanent **ship skins** on the SKINS tab (with live previews). A short how-to-play card opens at the start (turn it off with "Don't show again"; reopen from the shop `?` or the pause menu).
 - **Scoring:** +5 per hit, +100 per sink (×3 for a boss) plus a wave bonus, plus gold from the floating treasure chests sunk ships drop (sail within about 10 m to grab one).
@@ -152,3 +152,5 @@ assets/                font, skull logo, wordmark, NFT captain portraits
 - The name is always **PUMPFUN PIRATES** (PUMPFUN is one word).
 - Font: Just Another Hand. Colors: red `#fa0d0d`, gold `#ffcd77`, dark `#161616`.
 - The player flag and sails use the real skull logo image. The enemy flag is an original cracked green/white pill parody, **not** the pump.fun logo.
+- **Upgrade levels:** every shop upgrade has 6 levels (CANNONS 8) with smaller steps; maxing everything costs 5,275g. Each level adds visible parts to your ship.
+- **Late waves:** past wave 8 each wave adds one ship (up to 15) and enemies get +7% HP and +4.5% damage per wave past 8 (DAILY too).

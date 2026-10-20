@@ -21,22 +21,30 @@ export const BASE_SHIP = {
 // An upgrade can also raise more stats: `extra` lists them and each tier carries those values under the same keys.
 // [Raul] upgrade buffs: hull / armor / cannons / gun crew / repair are stronger and the early tiers cheaper,
 // so a run that spends its wave 1-3 gold survives wave 4. Enemies are unchanged; armor stays capped well below 60%.
+// [more levels] 6 levels each (CANNONS 8), smaller steps: level II ≈ the old tier I (and I + II cost about what tier I did),
+// the top level ends ~10-15% weaker than the old tier III, and maxing everything costs ~1.7× as much (5,275g vs 3,130g).
 export const UPGRADES = [
   { id: 'hull',    name: 'HULL PLANKS',   icon: '🪵', stat: 'maxHp',   unit: ' HP', desc: 'More hull HP + faster self-repair', extra: ['regenWait', 'regenPct'],
-    tiers: [{ cost: 40, value: 200, regenWait: 16, regenPct: 0.06 }, { cost: 110, value: 260, regenWait: 13, regenPct: 0.07 }, { cost: 260, value: 300, regenWait: 10, regenPct: 0.08 }] },
+    tiers: [{ cost: 20, value: 180, regenWait: 17, regenPct: 0.055 }, { cost: 25, value: 200, regenWait: 16, regenPct: 0.06 }, { cost: 70, value: 215, regenWait: 15, regenPct: 0.065 },
+            { cost: 120, value: 235, regenWait: 14, regenPct: 0.07 }, { cost: 180, value: 255, regenWait: 13, regenPct: 0.072 }, { cost: 250, value: 275, regenWait: 12, regenPct: 0.075 }] },
   { id: 'armor',   name: 'IRON PLATING',  icon: '🛡️', stat: 'armor',   unit: '%',   desc: 'Blocks cannon & ram damage', pct: true,
-    tiers: [{ cost: 50, value: 0.30 }, { cost: 130, value: 0.36 }, { cost: 300, value: 0.42 }] },
+    tiers: [{ cost: 25, value: 0.25 }, { cost: 30, value: 0.30 }, { cost: 80, value: 0.32 }, { cost: 130, value: 0.34 }, { cost: 190, value: 0.355 }, { cost: 260, value: 0.37 }] },
   { id: 'sails',   name: 'SAILS',         icon: '⛵', stat: 'speed',   unit: '%',   desc: 'Faster top speed', pct: true,
-    tiers: [{ cost: 50, value: 1.12 }, { cost: 120, value: 1.24 }, { cost: 240, value: 1.38 }] },
+    tiers: [{ cost: 25, value: 1.06 }, { cost: 30, value: 1.12 }, { cost: 80, value: 1.17 }, { cost: 120, value: 1.22 }, { cost: 170, value: 1.28 }, { cost: 230, value: 1.33 }] },
   { id: 'rudder',  name: 'RUDDER',        icon: '☸️', stat: 'turn',    unit: '%',   desc: 'Sharper turns', pct: true,
-    tiers: [{ cost: 40, value: 1.18 }, { cost: 100, value: 1.36 }, { cost: 200, value: 1.55 }] },
+    tiers: [{ cost: 20, value: 1.1 }, { cost: 25, value: 1.18 }, { cost: 65, value: 1.25 }, { cost: 100, value: 1.32 }, { cost: 145, value: 1.4 }, { cost: 200, value: 1.48 }] },
   { id: 'cannons', name: 'CANNONS',       icon: '💣', stat: 'cannons', unit: ' / side', desc: 'More, heavier guns: broadside damage', extra: ['gunDmg'],
-    tiers: [{ cost: 70, value: 5, gunDmg: 1.35 }, { cost: 170, value: 6, gunDmg: 1.45 }, { cost: 360, value: 7, gunDmg: 1.6 }] },
+    tiers: [{ cost: 30, value: 5, gunDmg: 1.2 }, { cost: 45, value: 5, gunDmg: 1.35 }, { cost: 80, value: 6, gunDmg: 1.2 }, { cost: 120, value: 6, gunDmg: 1.3 },
+            { cost: 165, value: 7, gunDmg: 1.2 }, { cost: 220, value: 7, gunDmg: 1.28 }, { cost: 280, value: 8, gunDmg: 1.2 }, { cost: 350, value: 8, gunDmg: 1.27 }] },
   { id: 'reload',  name: 'GUN CREW',      icon: '⏱️', stat: 'reload',  unit: 's',   desc: 'Faster reload', dec: 2,
-    tiers: [{ cost: 50, value: 1.6 }, { cost: 130, value: 1.3 }, { cost: 300, value: 1.15 }] },
+    tiers: [{ cost: 25, value: 1.8 }, { cost: 30, value: 1.6 }, { cost: 85, value: 1.5 }, { cost: 135, value: 1.4 }, { cost: 195, value: 1.3 }, { cost: 270, value: 1.22 }] },
   { id: 'range',   name: 'SPYGLASS',      icon: '🔭', stat: 'range',   unit: ' m',  desc: 'Longer cannon range',
-    tiers: [{ cost: 50, value: 110 }, { cost: 120, value: 130 }, { cost: 240, value: 150 }] },
+    tiers: [{ cost: 25, value: 100 }, { cost: 30, value: 110 }, { cost: 80, value: 117 }, { cost: 120, value: 124 }, { cost: 170, value: 133 }, { cost: 230, value: 142 }] },
 ];
+// Roman numerals for shop labels / stamps (up to 8 levels).
+export const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+// Map a 0..n level to the old 0..3 scale (sound tiers etc. were authored for 3 tiers).
+export const tier3 = (id, lv) => { const u = UPGRADES.find(x => x.id === id); return u ? Math.round((Math.max(0, Math.min(u.tiers.length, lv || 0)) / u.tiers.length) * 3) : Math.min(3, lv || 0); };
 
 // Damage of one of YOUR cannonballs before CANNONS gunDmg (main.js rolls rnd(min, max) × gunDmg).
 export const BALL_DMG = [14, 20];

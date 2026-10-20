@@ -468,7 +468,7 @@ export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100,
   const out = oc.createGain(); out.gain.value = settings.master * settings.sfx; // same levels as the game
   out.connect(makeLimiter(oc, oc.destination));
   const prev = C; C = { c: oc, noise: makeNoise(oc), out };
-  const P = soundProfile({ cannons: tier }).cannon;
+  const P = soundProfile({ cannons: Math.round(tier * 8 / 3) }).cannon;
   offline = true; try { broadside(guns, P, 1, 9, 0); } finally { offline = false; C = prev; }
   return oc.startRendering();
 }

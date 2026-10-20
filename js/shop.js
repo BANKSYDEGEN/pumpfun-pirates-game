@@ -1,7 +1,7 @@
 // [Raul] ship upgrades — SHOP button (top HUD row) + shipwright overlay.
 // Tap SHOP (or press U / B) to pause and open the shop; close (or U / B / Esc) to resume.
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
-import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat } from './upgrades.js';
+import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat, ROMAN } from './upgrades.js';
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
@@ -149,7 +149,7 @@ function buy(id) {
   // [Raul] upgrade visuals: recompile the ship from the new trait levels, then the purchase moment
   const lvl = run.levels[id], legendary = lvl === u.tiers.length;
   const mesh = ctx.rebuildShip?.(run.levels);
-  const label = `+${u.name} ${['I', 'II', 'III'][lvl - 1]}${legendary ? ' · LEGENDARY' : ''}`;
+  const label = `+${u.name} ${ROMAN[lvl - 1]}${legendary ? ' · LEGENDARY' : ''}`;
   celebrateUpgrade(mesh, id, { camera: ctx.camera, label, legendary });
   lastBuy = { id, label, legendary };
   if (ctx.sfx?.upgrade) ctx.sfx.upgrade(legendary); else ctx.sfx?.coin?.();
@@ -181,7 +181,7 @@ export function close() {
 function tierUp(id, lvl, legendary) {
   const c = $('shop-grid').querySelector(`[data-id="${id}"]`); if (!c) return;
   c.classList.remove('tierup'); void c.offsetWidth; c.classList.add('tierup');
-  const st = document.createElement('span'); st.className = 'sc-stamp' + (legendary ? ' legendary' : ''); st.textContent = legendary ? 'LEGENDARY!' : `TIER ${['I', 'II', 'III'][lvl - 1]}!`;
+  const st = document.createElement('span'); st.className = 'sc-stamp' + (legendary ? ' legendary' : ''); st.textContent = legendary ? 'LEGENDARY!' : `TIER ${ROMAN[lvl - 1]}!`;
   c.appendChild(st); setTimeout(() => { st.remove(); c.classList.remove('tierup'); }, 800);
 }
 export function toggle() { if (ctx?.game.state === 'shop') close(); else open(); }

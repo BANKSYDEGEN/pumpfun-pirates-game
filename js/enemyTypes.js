@@ -9,9 +9,18 @@ export const ENEMY_TYPES = {
   boss:    { label: 'BOSS',    len: 22,  hp: 240, cannons: 5, dmg: 1.5,  reloadMul: 0.8,  speed: [6, 6.6], accuracy: 0.05 },
 };
 
-// Which ships show up in a wave. Same ship count as before: min(2 + wave, 8).
+// [late waves] past wave 8 every wave brings one more ship (hard cap 15 for phones) and each ship is a bit tougher:
+// +7% HP and +4.5% cannon / ram damage per wave past 8 (linear, on top of the normal per-wave growth).
+// Waves 1-8 are unchanged (k = 0). Pure function of the wave number, so DAILY runs scale the same way.
+export const LATE = { from: 8, maxShips: 15, hpPerWave: 0.07, dmgPerWave: 0.045 };
+export function lateWave(wave) {
+  const k = Math.max(0, wave - LATE.from);
+  return { n: Math.min(LATE.from + k, LATE.maxShips), hp: 1 + LATE.hpPerWave * k, dmg: 1 + LATE.dmgPerWave * k };
+}
+
+// Which ships show up in a wave. min(2 + wave, 8) up to wave 8, then +1 per wave up to 15 (lateWave).
 export function waveRoster(wave, rand = Math.random) { // [enemy variety] rand: seeded for the DAILY run
-  const n = Math.min(2 + wave, 8);
+  const n = wave <= LATE.from ? Math.min(2 + wave, 8) : lateWave(wave).n;
   const boss = wave % 4 === 0;
   let galleons = wave >= 5 ? Math.min(Math.floor((wave - 3) / 2), 3) : 0;
   let frigates = wave >= 2 ? Math.min(Math.floor(wave / 2), 4) : 0;
@@ -131,7 +140,7 @@ function updateRammer(e, dt, k) {
     const reach = (e.mesh.userData.len + p.mesh.userData.len) * 0.36;
     if (!R.hit && d < reach) {
       R.hit = true;
-      const amt = Math.max(1, Math.round(RAM.dmg * (1 + k.game.wave * 0.05) * (1 - (p.armor || 0))));
+      const amt = Math.max(1, Math.round(RAM.dmg * (1 + k.game.wave * 0.05) * (e.lateDmg || 1) * (1 - (p.armor || 0)))); // [late waves] lateDmg = 1 up to wave 8
       k.damage(p, amt, new k.V3(p.x, p.y + 2, p.z), e); // src = the rammer (Raul's damage sounds)
       k.game.shake = Math.max(k.game.shake, 1.2);
       p.speed *= 0.4; p.x += Math.sin(R.yaw) * 2.5; p.z += Math.cos(R.yaw) * 2.5; // shove

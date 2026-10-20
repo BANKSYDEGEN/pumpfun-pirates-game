@@ -20,7 +20,7 @@ import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
-import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair } from './enemyTypes.js'; // [enemy variety] builds + AI
+import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
@@ -163,6 +163,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
     reload: Math.max(2.2, 5 - game.wave * 0.25), accuracy: clamp(0.55 + game.wave * 0.05, 0.5, 0.9), smokeT: 0,
   };
   if (type) applyEnemyType(e, type, game.wave); // [Raul] ship upgrades: enemy types
+  { const L = lateWave(game.wave); if (L.hp !== 1) { e.hp = e.maxHp = Math.round(e.maxHp * L.hp); e.dmgMul = (e.dmgMul || 1) * L.dmg; e.lateDmg = L.dmg; } } // [late waves] tougher past wave 8
   if (type === 'runner') { e.yaw = Math.atan2(x - player.x, z - player.z); e.speed = 6; } // [enemy variety] already running when it appears
   enemies.push(e);
   return e;
@@ -816,7 +817,8 @@ function frame() {
   wind.uTime.value = t; chestTime(t);
   // hull foam collars for the water shader (nearest ships first)
   { const H = ocean.uniforms.uHulls.value; let k = 0;
-    for (const s of [player, ...enemies]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
+    const list = enemies.length < MAX_HULLS ? enemies : enemies.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
+    for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
     ocean.uniforms.uHullCount.value = k; }
 
   // ocean follows the player, snapped to the grid so waves don't swim

@@ -1,6 +1,7 @@
 // [Raul] sound upgrades — PUMPFUN PIRATES · Storm Hunt
 // Data-driven sound settings per Shipwright upgrade tier (0 = base ship, 1..3 = tiers in js/upgrades.js).
 // js/audio.js reads soundProfile(levels) whenever upgrades change; nothing here touches stats.
+import { tier3 } from './upgrades.js'; // [more levels] 6-8 shop levels map onto these 4 sound tiers
 export const SOUND_TIERS = {
   // CANNONS: black-powder muzzle-loaders. Tier 0 = light field gun (still a boom), tier 3 = ship-of-the-line /
   // siege guns. Per shot: sub = sine thump (subF Hz, pitch drops ~40 %), blast = soft-attack low-passed noise
@@ -30,8 +31,8 @@ export const SOUND_TIERS = {
   range: [{ bell: false }, { bell: false }, { bell: false }, { bell: true }],
 };
 export function soundProfile(levels = {}) {
-  const pick = (id) => SOUND_TIERS[id][Math.max(0, Math.min(3, levels[id] || 0))];
-  return { cannon: pick('cannons'), reload: pick('reload'), hull: pick('hull'), armor: pick('armor'), sails: pick('sails'), range: pick('range'), cannonTier: levels.cannons || 0 };
+  const pick = (id) => SOUND_TIERS[id][tier3(id, levels[id])];
+  return { cannon: pick('cannons'), reload: pick('reload'), hull: pick('hull'), armor: pick('armor'), sails: pick('sails'), range: pick('range'), cannonTier: tier3('cannons', levels.cannons) };
 }
 
 // [Raul] damage sounds: every cannonball hit picks a tier from the damage it actually dealt.

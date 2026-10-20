@@ -17,37 +17,54 @@ import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } fro
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
 import { equippedSkin, skinBuildOpts, skinMaterialFx } from './skins.js';
 
-// ---------- trait definitions (level 0..3) ----------
+// ---------- trait definitions (level 0..6, CANNONS 0..8) ----------
+// [more levels] every shop level adds or grows something visible, and parts stack level over level.
 const tierVal = (id, lv, base) => (lv > 0 ? UPGRADES.find(u => u.id === id).tiers[lv - 1].value : base);
 export const TRAITS = {
   hull: [ // level 0 is the original player ship, so base gameplay is unchanged. Beam grows faster than length so
           // a bigger hull reads as WIDER from the stern chase camera, not just a taller rig.
     { name: 'SLOOP',      len: 17,   beam: 5.4, depth: 3.1 },
+    { name: 'CUTTER',     len: 18,   beam: 6.0, depth: 3.25, belt: true },
     { name: 'BRIG',       len: 19,   beam: 6.6, depth: 3.4,  belt: true, forecastle: true, quarter: 1 },
-    { name: 'FRIGATE',    len: 21.5, beam: 7.9, depth: 3.8,  belt: true, forecastle: true, poop: true, fenders: true, quarter: 1 },
-    { name: "MAN-O'-WAR", len: 24.5, beam: 9.4, depth: 4.3,  belt: true, forecastle: true, poop: true, fenders: true, quarter: 2, gold: true },
+    { name: 'BRIGANTINE', len: 20.2, beam: 7.2, depth: 3.6,  belt: true, forecastle: true, poop: true, quarter: 1, patches: true },
+    { name: 'FRIGATE',    len: 21.5, beam: 7.9, depth: 3.8,  belt: true, forecastle: true, poop: true, fenders: true, quarter: 1, patches: true },
+    { name: 'SHIP OF THE LINE', len: 23, beam: 8.6, depth: 4.05, belt: true, forecastle: true, poop: true, fenders: true, quarter: 2, patches: true },
+    { name: "MAN-O'-WAR", len: 24.5, beam: 9.4, depth: 4.3,  belt: true, forecastle: true, poop: true, fenders: true, quarter: 2, patches: true, gold: true },
   ],
   sails: [ // w/h = scale of every base sail; top = topmast height (fraction of the mast)
     { w: 1,    h: 1 },
+    { w: 1.08, h: 1.01, top: 0.06 },
     { w: 1.18, h: 1.03, top: 0.12 },
+    { w: 1.25, h: 1.04, top: 0.15, royal: true },
     { w: 1.32, h: 1.05, top: 0.18, royal: true, spanker: true },
+    { w: 1.38, h: 1.05, top: 0.2,  royal: true, spanker: true, fourthMast: true },
     { w: 1.45, h: 1.06, top: 0.22, royal: true, spanker: true, fourthMast: true, gold: true },
   ],
   cannons: [ // perSide = real deck guns (matches the cannon stat); the rest are extra weapon mounts
     { perSide: tierVal('cannons', 0, BASE_SHIP.cannons) },
-    { perSide: tierVal('cannons', 1), big: 1.3, swivels: true, bowChaser: true, sternGuns: true },
-    { perSide: tierVal('cannons', 2), big: 1.45, swivels: true, bowChaser: true, sternGuns: true, lowerDeck: true },
-    { perSide: tierVal('cannons', 3), big: 1.6, swivels: true, bowChaser: true, sternGuns: true, lowerDeck: true, mortar: true, gold: true },
+    { perSide: tierVal('cannons', 1), big: 1.15 },
+    { perSide: tierVal('cannons', 2), big: 1.25, swivels: true },
+    { perSide: tierVal('cannons', 3), big: 1.3, swivels: true, bowChaser: true },
+    { perSide: tierVal('cannons', 4), big: 1.38, swivels: true, bowChaser: true, sternGuns: true },
+    { perSide: tierVal('cannons', 5), big: 1.42, swivels: true, bowChaser: true, sternGuns: true },
+    { perSide: tierVal('cannons', 6), big: 1.48, swivels: true, bowChaser: true, sternGuns: true, lowerDeck: true },
+    { perSide: tierVal('cannons', 7), big: 1.54, swivels: true, bowChaser: true, sternGuns: true, lowerDeck: true, mortar: true },
+    { perSide: tierVal('cannons', 8), big: 1.6, swivels: true, bowChaser: true, sternGuns: true, lowerDeck: true, mortar: true, gold: true },
   ],
-  reload: [{}, { racks: true }, { racks: true, litPorts: true, linstocks: true }, { racks: true, litPorts: true, linstocks: true, magazine: true, gold: true }],
-  armor: [{}, { plates: true }, { plates: true, rail: true, belt: true }, { plates: true, rail: true, belt: true, ram: true, gold: true }],
-  range: [{}, { lookout: true }, { lookout: true, crowsNest: true, jibGlass: true }, { lookout: true, crowsNest: true, jibGlass: true, watchtower: true, gold: true }],
-  rudder: [{}, { rudder: 1, sternLamps: true }, { rudder: 1.2, sternLamps: true, wheel: true, gallery: true }, { rudder: 1.35, sternLamps: true, wheel: true, gallery: true, gold: true }],
+  reload: [{}, { racks: true }, { racks: true, litPorts: true }, { racks: true, litPorts: true, linstocks: true }, { racks: true, litPorts: true, linstocks: true, magazine: true },
+    { racks: true, litPorts: true, linstocks: true, magazine: true, lockers: true }, { racks: true, litPorts: true, linstocks: true, magazine: true, lockers: true, gold: true }],
+  armor: [{}, { plates: true }, { plates: true, rail: true }, { plates: true, rail: true, bands: 1 }, { plates: true, rail: true, bands: 1, ram: true },
+    { plates: true, rail: true, bands: 2, ram: true }, { plates: true, rail: true, bands: 2, ram: true, gold: true }],
+  range: [{}, { lookout: true }, { lookout: true, crowsNest: true, jibGlass: true }, { lookout: true, crowsNest: true, jibGlass: true, railScopes: true },
+    { lookout: true, crowsNest: true, jibGlass: true, railScopes: true, watchtower: true }, { lookout: true, crowsNest: true, jibGlass: true, railScopes: true, watchtower: true, lamps: true },
+    { lookout: true, crowsNest: true, jibGlass: true, railScopes: true, watchtower: true, lamps: true, gold: true }],
+  rudder: [{}, { rudder: 1 }, { rudder: 1.05, sternLamps: true }, { rudder: 1.12, sternLamps: true, wheel: true }, { rudder: 1.2, sternLamps: true, wheel: true, gallery: true },
+    { rudder: 1.3, sternLamps: true, wheel: true, gallery: true, straps: true }, { rudder: 1.35, sternLamps: true, wheel: true, gallery: true, straps: true, gold: true }],
 };
 export const TRAIT_IDS = ['hull', 'armor', 'sails', 'rudder', 'cannons', 'reload', 'range'];
 const WATCH_H = 1.9;
 // overall scale: hull size does most of it, every other tier adds a little (max ≈ 1.6× length, 1.9× beam)
-const extraScale = (lv) => 1 + 0.006 * TRAIT_IDS.reduce((a, id) => a + (id === 'hull' ? 0 : (lv[id] || 0)), 0);
+const extraScale = (lv) => 1 + 0.0028 * TRAIT_IDS.reduce((a, id) => a + (id === 'hull' ? 0 : (lv[id] || 0)), 0);
 
 // ---------- quality ----------
 let LO = false; // set per compile (compile is synchronous)
@@ -214,6 +231,10 @@ const PARTS = {
     }
     if (T.fenders && !LO) for (const sx of [1, -1]) for (const t of [0.12, 0.24, ...A.midT.filter((_, i) => i % 2 === 0), 0.76, 0.86]) Ly.add(M.oak, tube(sideCurve(A, t, sx, 0.05, 1.6 * k, 0.1), 10, 0.13 * k, 6));
     if (T.gold) for (const sx of [1, -1]) Ly.add(M.gold, tube(lineCurve(A, sx, 0.45 * k, 0.12, 0.08, 0.9), 40, 0.08, 5));
+    if (T.patches) for (const sx of [1, -1]) for (const [t, d] of [[0.16, 0.9], [0.34, 1.35], [0.58, 1.0], [0.8, 1.3]]) { // [more levels] fresh repair planks + nails on the sides
+      Ly.add(M.deck, box(0.1, 0.42 * k, 1.5, 0.03), [sx * (A.sideX(t, d * k) + 0.07), A.shape.top(t) - d * k, A.zAt(t)], [0, A.sideYaw(t, sx), sx * 0.08]);
+      if (!LO) for (const dz of [-0.6, 0.6]) Ly.add(M.rivet, RIVET, [sx * (A.sideX(t, d * k) + 0.13), A.shape.top(t) - d * k, A.zAt(t) + dz]);
+    }
     if (T.quarter) { // quarter galleries: glowing window boxes on the stern corners, widen the stern seen from behind
       const c = A.L.cab, n = T.quarter;
       for (const sx of [1, -1]) for (let q = 0; q < n; q++) {
@@ -265,6 +286,7 @@ const PARTS = {
       if (T.gold) Ly.add(M.gold, cyl(0.09, 0.09, A.sideX(0.01, 0.1) * 2, 6), [0, top0 - 0.08, z - 0.06], [0, 0, Math.PI / 2]);
     }
     if (T.rail) { const c = A.L.cab; Ly.add(M.iron, box(c.w * 0.98, c.h * 0.22, 0.1, 0.03), [0, c.y0 + c.h * 0.12, c.z - c.l / 2 - 0.06]); }
+    if (T.bands) for (const sx of [1, -1]) for (const t of (T.bands > 1 ? [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] : [0.1, 0.3, 0.5, 0.7, 0.9])) Ly.add(M.dark, tube(sideCurve(A, t, sx, 0.02, 1.25 * A.k, 0.14), 8, 0.1, 5)); // [more levels] iron hoops over the plates
     if (T.ram) { // iron bow ram + armoured prow
       const zb = A.zAt(1), yb = A.shape.top(1) - 1.25 * k;
       Ly.add(M.iron, new THREE.ConeGeometry(0.65 * k, 2.6 * k, 8), [0, yb, zb + 1.1 * k], [Math.PI / 2, 0, 0]);
@@ -318,6 +340,7 @@ const PARTS = {
     Ly.add(M.oak, cyl(0.15, 0.15, bh + 1.3, 8), [0, yc + 0.65, zs + 0.12]);
     for (const f of [0.2, 0.45, 0.7, 0.92]) Ly.add(M.iron, box(0.32, 0.14, bw * 0.8, 0.03), [0, keel + bh * f - 0.3, zs - bw * 0.35]);
     Ly.add(T.gold ? M.gold : M.iron, sph(0.2), [0, yc + bh / 2 + 1.3, zs + 0.12]);
+    if (T.straps) for (const f of [0.3, 0.6, 0.85]) Ly.add(T.gold ? M.gold : M.dark, box(0.4, 0.18, bw * 1.02, 0.04), [0, keel + bh * f - 0.3, zs - bw / 2 + 0.2]); // [more levels] heavy pintle straps
     if (T.sternLamps) { // big brass stern lanterns on iron brackets at the transom corners
       const c = A.L.cab, z = c.z - c.l / 2 - 0.55, y = c.y0 + 0.25, s = T.gold ? 1.3 : 1.1;
       for (const sx of [1, -1]) {
@@ -415,6 +438,12 @@ const PARTS = {
       }
       Ly.add(M.fuse, sph(0.16), [0.8, y + 0.95, z - 0.8]);
     }
+    if (T.lockers) for (const sx of [1, -1]) { // [more levels] shot lockers by the stern castle, lids open, stacked balls
+      const t = 0.24, z = A.zAt(t), y = A.deckAt(t), x = sx * (A.shape.halfW(t) - 1.3);
+      Ly.add(T.gold ? M.gold : M.oak, box(0.9, 0.5, 1.2, 0.05), [x, y + 0.25, z]);
+      Ly.add(M.iron, box(0.95, 0.08, 1.25, 0.02), [x, y + 0.52, z]);
+      for (const dz of [-0.3, 0, 0.3]) Ly.add(M.ball, ball, [x, y + 0.72, z + dz]);
+    }
   },
   // SPY TOWER: lookout spyglass → fore crow's nest + jib-boom glass → tall watchtower at the main masthead with a beacon
   range(A, T, Ly) {
@@ -445,6 +474,12 @@ const PARTS = {
       Ly.span(M.oak, tip.clone().addScaledVector(dir, -0.4).toArray(), end.toArray(), 0.1, 0.06);
       scope([0, end.y + 0.15, end.z - 0.6], Math.PI / 2 - a, 0.7);
     }
+    if (T.railScopes) for (const sx of [1, -1]) { // [more levels] brass glasses on swivel posts at the bow rail
+      const t = 0.8, y = A.shape.top(t), x = sx * A.shape.halfW(t) * 0.8, z = A.zAt(t);
+      Ly.add(M.oak, cyl(0.07, 0.09, 0.9, 5), [x, y + 0.45, z]);
+      scope([x, y + 0.9, z - 0.4], Math.PI / 2 - 0.08, 0.8);
+    }
+    if (T.lamps) { const f = A.masts[1]; for (const sx of [1, -1]) { Ly.add(M.gold, cyl(0.16, 0.22, 0.14, 8), [sx * 0.75, m0.y + m0.h * 0.84 + 0.9, m0.z]); Ly.add(M.glow, sph(0.22), [sx * 0.75, m0.y + m0.h * 0.84 + 0.65, m0.z]); Ly.add(M.glow, sph(0.2), [sx * 0.7, f.y + f.h * 0.8 + 1.2, f.z]); } } // [more levels] signal lamps on both tops
     if (T.watchtower) { // tall lattice tower on top of the main mast (above any topmasts) with a glowing beacon
       const y0 = A.mainTop + 0.4, z = m0.z, r = 0.75, hgt = WATCH_H;
       for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4; Ly.span(M.oak, [Math.cos(a) * 0.25, y0, z + Math.sin(a) * 0.25], [Math.cos(a) * r, y0 + hgt, z + Math.sin(a) * r], 0.06); }
@@ -466,7 +501,7 @@ function partSet(id, A, lv, ship, skin) {
   if (!tpl) { const Ly = new Layer(id); PARTS[id](A, TRAITS[id][lv[id] || 0], Ly, ship, lv); tpl = Ly.build(); _parts.set(key, tpl); }
   return tpl;
 }
-const normLevels = (levels = {}) => Object.fromEntries(TRAIT_IDS.map(id => [id, Math.max(0, Math.min(3, levels[id] || 0))]));
+const normLevels = (levels = {}) => Object.fromEntries(TRAIT_IDS.map(id => [id, Math.max(0, Math.min(TRAITS[id].length - 1, levels[id] || 0))]));
 const shipKey = (lv, skin, q, shadows) => `${TRAIT_IDS.map(id => lv[id]).join('')}|${skin.id}|${q}|${shadows ? 1 : 0}`;
 let BASE_RIG = 0, lastOpts = {};
 
@@ -479,7 +514,7 @@ function buildCompiled(lv, opts, skin) {
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
-  if (lv.range >= 3) ud.layout.flagPole.position.y = A.mainTop + 0.4 + WATCH_H + 2.3;
+  if (TRAITS.range[lv.range].watchtower) ud.layout.flagPole.position.y = A.mainTop + 0.4 + WATCH_H + 2.3;
   // merge every trait's parts into one mesh per material (+ outlines), add the animated / functional extras
   const buckets = new Map(), extraMuzzles = [];
   ud.traitBoxes = {};
