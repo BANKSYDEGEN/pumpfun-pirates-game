@@ -19,7 +19,7 @@ import { prepareShare, shareScore } from './shareCard.js'; // game-over score ca
 import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
-import { gunList } from './upgrades.js';
+import { gunList, BALL_DMG } from './upgrades.js';
 import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
@@ -410,7 +410,7 @@ function updateBalls(dt) {
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
       if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9) {
-        damage(s, b.owner === player ? Math.round(rnd(14, 20)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone(), b.owner); // [Raul] ship upgrades: enemy type damage, armor
+        damage(s, b.owner === player ? Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * (player.gunDmg || 1)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone(), b.owner); // [Raul] ship upgrades: enemy type damage, armor; upgrade buffs: CANNONS gunDmg
         done = true; break;
       }
     }
@@ -486,13 +486,14 @@ function togglePause() {
 const PLAYER_REPAIR = { wait: 20, every: 4, pct: 0.05 };
 function updatePlayerRepair(dt) {
   player.calm = (player.calm || 0) + dt;
-  const on = player.calm >= PLAYER_REPAIR.wait && player.hp < player.maxHp;
+  const on = player.calm >= (player.regenWait ?? PLAYER_REPAIR.wait) && // [Raul] upgrade buffs: HULL PLANKS shorten the wait
+    player.hp < player.maxHp;
   $('player-hp').parentElement.classList.toggle('repairing', on);
   if (!on) { player.repT = 0; return; }
   player.repT = (player.repT || 0) + dt;
   if (player.repT < PLAYER_REPAIR.every) return;
   player.repT -= PLAYER_REPAIR.every;
-  player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * PLAYER_REPAIR.pct)); updateHud();
+  player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * (player.regenPct ?? PLAYER_REPAIR.pct))); updateHud();
 }
 function updateHud() {
   $('score').textContent = game.score; $('wave').textContent = game.wave; $('gold').textContent = game.gold; $('sunk').textContent = game.sunk;

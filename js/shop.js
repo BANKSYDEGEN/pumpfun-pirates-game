@@ -50,7 +50,7 @@ function buildDom() {
   $('shop-repair').onclick = repair;
   const grid = $('shop-grid');
   for (const u of UPGRADES) {
-    const c = document.createElement('div'); c.className = 'shop-card'; c.dataset.id = u.id;
+    const c = document.createElement('div'); c.className = 'shop-card'; c.dataset.id = u.id; c.title = u.desc; // [Raul] upgrade buffs: desc as a hover hint
     c.innerHTML = `<div class="sc-top"><span class="sc-ico txt">${u.icon}</span><span class="sc-name">${u.name}</span></div>
       <div class="sc-pips">${u.tiers.map(() => '<i></i>').join('')}</div>
       <div class="sc-stat"></div><button class="buy"></button>`;
@@ -126,9 +126,9 @@ function render() {
     const c = $('shop-grid').querySelector(`[data-id="${u.id}"]`), lv = run.levels[u.id];
     c.querySelectorAll('.sc-pips i').forEach((el, i) => el.classList.toggle('on', i < lv));
     const b = c.querySelector('.buy'), next = u.tiers[lv];
-    if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat])}</b>`; b.textContent = 'MAXED'; b.disabled = true; c.classList.add('max'); continue; }
+    if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat], stats.gunDmg)}</b>`; b.textContent = 'MAXED'; b.disabled = true; c.classList.add('max'); continue; }
     c.classList.remove('max');
-    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat])} <span class="arrow">→</span> <b>${fmtStat(u, next.value)}</b>`;
+    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, next.value, next.gunDmg)}</b>`;
     b.textContent = `${next.cost}g`; b.disabled = game.gold < next.cost;
   }
   renderSkins();
