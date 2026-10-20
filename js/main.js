@@ -191,6 +191,8 @@ function despawnEnemy(e) {
 }
 const specialCtx = { get player() { return player; }, enemies, game, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), damage: (...a) => damage(...a), spawnEnemy: (...a) => spawnEnemy(...a), despawn: (e) => despawnEnemy(e), fx, popup: (...a) => popup(...a), sfx, V3: THREE.Vector3 };
 
+// [spawn ring] waves appear 195-300 m out (was 130-210): deep in the fog, inside the ocean mesh (350 m half-size on low)
+const SPAWN_MIN = 195, SPAWN_MAX = 300, SPOT_RANGE = SPAWN_MAX + 20;
 function startWave() {
   game.wave++;
   waveSkinUnlock(game.wave); // [wave skins] waves 5, 10, 15...: free skin unlock toast (normal + DAILY)
@@ -200,7 +202,7 @@ function startWave() {
   if (daily) { rand = waveRng(game.seed, game.wave, 'spawn'); game.lootRng = waveRng(game.seed, game.wave, 'loot'); game.dropRng = waveRng(game.seed, game.wave, 'drops'); }
   try {
     for (let i = 0; i < n; i++) {
-      const a = rnd(0, Math.PI * 2), d = rnd(130, 210);
+      const a = rnd(0, Math.PI * 2), d = rnd(SPAWN_MIN, SPAWN_MAX); // [spawn ring] farther out (was 130-210 m); same rng draws so DAILY stays seeded
       spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
     }
   } finally { rand = Math.random; }
@@ -372,7 +374,7 @@ function updateEnemy(e, dt) {
     e.state = 'roam';
     if (!e.wp || Math.hypot(e.wp[0] - e.x, e.wp[1] - e.z) < 15) e.wp = [player.x + rnd(-120, 120), player.z + rnd(-120, 120)];
     desired = Math.atan2(e.wp[0] - e.x, e.wp[1] - e.z);
-    if (d < 230) desired = toP; // spotted you, close in
+    if (d < SPOT_RANGE) desired = toP; // spotted you, close in ([spawn ring] was 230 m: covers the whole spawn ring so fresh waves still head straight in)
   }
   // keep apart from other ships
   for (const o of [player, ...enemies]) {
