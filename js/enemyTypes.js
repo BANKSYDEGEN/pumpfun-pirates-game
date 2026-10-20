@@ -70,12 +70,30 @@ export const RAM = { windupAt: 42, windup: 1.1, chargeSpeed: 21, chargeTime: 2.6
 export const RUN = { escapeDist: 300, maxTime: 55, goldChests: 3, goldBase: 70, goldPerWave: 12 };
 export const BOSS_ATTACKS = { barrageEvery: [9, 12], barrageVolleys: 3, barrageGap: 0.45, barrageRange: 85, summonAt: 0.5, escorts: 2 };
 
+// First DEV WALLET (wave 4) is an intro fight a no-upgrade player can win; later bosses keep the full stats
+// (Raul's numbers above) and keep ramping. Applied after applyEnemyType() by main.js.
+export const BOSS_TUNE = { firstWave: 4, hp: 0.7, dmg: 0.78, reload: 1.25, escorts: 1, trim: ['frigate', 'sloop'] }; // first boss wave: boss + 1 frigate + 2 sloops (was boss + 2 + 3)
+export const isFirstBossWave = (wave) => wave === BOSS_TUNE.firstWave;
+// early-wave grace for a no-upgrade ship: enemy cannon damage x0.8 on waves 1-4, full damage from wave 5 on
+export const EARLY_DMG = { untilWave: 4, mul: 0.8 };
+export function tuneEnemy(e, wave) {
+  if (wave <= EARLY_DMG.untilWave && e.dmgMul) e.dmgMul *= EARLY_DMG.mul;
+  return tuneBoss(e, wave);
+}
+export function tuneBoss(e, wave) {
+  if (e.type !== 'boss' || !isFirstBossWave(wave)) return e;
+  e.hp = e.maxHp = Math.round(e.maxHp * BOSS_TUNE.hp);
+  e.dmgMul *= BOSS_TUNE.dmg; e.reload *= BOSS_TUNE.reload; e.escorts = BOSS_TUNE.escorts;
+  return e;
+}
+
 function addSpecialShip(list, wave, rand) {
+  if (isFirstBossWave(wave)) for (const t of BOSS_TUNE.trim) { const i = list.lastIndexOf(t); if (i >= 0 && list.filter(x => x === t).length > 1) list.splice(i, 1); }
   const sloopAt = list.lastIndexOf('sloop');
   if (sloopAt < 0) return;
   const r = rand(), bossWave = list.includes('boss');
   let pick = null;
-  if (bossWave) pick = r < 0.4 ? 'rammer' : null; // boss waves are busy already
+  if (bossWave) pick = !isFirstBossWave(wave) && r < 0.4 ? 'rammer' : null; // boss waves are busy already (none on the first)
   else if (wave >= 3) pick = r < 0.6 ? 'rammer' : r < 0.85 ? 'runner' : null;
   else if (wave === 2) pick = r < 0.35 ? 'runner' : null;
   if (pick) list[sloopAt] = pick;
@@ -150,7 +168,7 @@ function updateBossAttacks(e, dt, k) {
   // summon 2 escorts once, at 50% hull
   if (!e.summoned && e.hp > 0 && e.hp <= e.maxHp * B.summonAt) {
     e.summoned = true;
-    for (let i = 0; i < B.escorts; i++) {
+    for (let i = 0, n = e.escorts ?? B.escorts; i < n; i++) {
       const side = i ? 1 : -1, px = Math.cos(e.yaw) * side, pz = -Math.sin(e.yaw) * side;
       const s = k.spawnEnemy(e.x + px * 14 - Math.sin(e.yaw) * 6, e.z + pz * 14 - Math.cos(e.yaw) * 6, 1, 'sloop');
       s.escort = true; s.yaw = e.yaw; s.speed = 5;

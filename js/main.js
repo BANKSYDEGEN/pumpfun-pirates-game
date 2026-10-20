@@ -20,7 +20,7 @@ import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList } from './upgrades.js';
-import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN } from './enemyTypes.js'; // [enemy variety] builds + AI
+import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, tuneEnemy } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
@@ -163,6 +163,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
     reload: Math.max(2.2, 5 - game.wave * 0.25), accuracy: clamp(0.55 + game.wave * 0.05, 0.5, 0.9), smokeT: 0,
   };
   if (type) applyEnemyType(e, type, game.wave); // [Raul] ship upgrades: enemy types
+  if (type) tuneEnemy(e, game.wave); // [balance] early-wave grace + softer first DEV WALLET (wave 4 only)
   if (type === 'runner') { e.yaw = Math.atan2(x - player.x, z - player.z); e.speed = 6; } // [enemy variety] already running when it appears
   enemies.push(e);
   return e;
