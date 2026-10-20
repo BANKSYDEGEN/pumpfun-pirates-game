@@ -37,6 +37,9 @@ const CSS = `
 @keyframes tut-pulse { 50% { transform: scale(1.12); } }
 button.icon.tut-help { width: 38px; height: 38px; font-size: 20px; color: var(--gold); flex: none; }
 @media (max-height: 700px) { .tut-steps li { font-size: 20px; padding: 5px 8px; } #tutorial h1 { font-size: 38px; } #tutorial button.big { font-size: 30px; } }
+/* landscape phones: the 4 steps in two columns so the card + checkbox fit without scrolling */
+@media (max-height: 520px) and (orientation: landscape) { #tutorial .panel { width: min(760px, 94vw); padding: 8px 14px 8px; } #tutorial h1 { font-size: 32px; margin: 0 0 4px; } .tut-steps { grid-template-columns: 1fr 1fr; gap: 6px; } .tut-steps li { font-size: 18px; padding: 4px 8px; } #tutorial button.big { font-size: 26px; padding: 2px 26px; margin: 6px 4px 2px; } }
+@media (max-height: 360px) and (orientation: landscape) { .tut-steps li { font-size: 16px; grid-template-columns: 34px 1fr; } .tut-steps .ic { width: 34px; height: 34px; font-size: 18px; } }
 `;
 
 function build() {
