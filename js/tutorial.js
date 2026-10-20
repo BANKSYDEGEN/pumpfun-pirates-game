@@ -8,7 +8,7 @@ let ctx = null, prev = null;
 const STEPS = [
   ['💣', 'Sink <b>rug ships</b> to loot <b class="gold">gold</b>.'],
   ['🧰', 'Tap the <b class="gold">SHOP</b> chest to pause and buy upgrades. Your ship grows with every tier.'],
-  ['🔧', 'Low on hull? Hit <b class="gold">REPAIR HULL</b> in the shop to buy health with gold.'],
+  ['🔧', 'Low on hull? Hit <b class="gold">REPAIR HULL</b> in the shop to buy health with gold. Stay out of fire for 20 s and your hull slowly repairs.'],
   ['<span class="tut-crate">✚</span>', 'About <b>1 in 3 sinks</b> drops a <b class="green">health crate</b>, and every <b class="red">boss</b> always does. Sail over it to heal. Your hull also refills at the start of each wave.'],
 ];
 

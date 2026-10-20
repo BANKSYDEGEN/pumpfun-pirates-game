@@ -328,6 +328,11 @@ html.ios-pwa #status-plate::after {
 /* [enemy variety] telegraphs on the health bar: wind-up flash before a ram / boss barrage, solid red while charging */
 .ehp.windup .bar { animation: ev-warn 0.18s steps(2) infinite; }
 .ehp.charging .bar { box-shadow: 0 0 0 2px var(--red), 0 0 12px rgba(250,13,13,0.8); }
+.ehp.repairing .bar { animation: ev-repair 1.2s ease-in-out infinite; } /* [repair] fleeing ship patching its hull */
+.bar.repairing { animation: ev-repair 1.2s ease-in-out infinite; } /* [repair] captain-card hull bar while self-repairing */
+.ehp.repair-tick .bar { box-shadow: 0 0 0 2px #4ee37a, 0 0 14px rgba(78,227,122,0.9); }
+.ehp.repairing .fill { background: linear-gradient(90deg, #4ee37a, #c9ffd6); }
+@keyframes ev-repair { 0%, 100% { box-shadow: 0 0 0 1px rgba(78,227,122,0.4); } 50% { box-shadow: 0 0 0 2px #4ee37a, 0 0 10px rgba(78,227,122,0.8); } }
 .ehp.charging .fill, .ehp.windup .fill { background: linear-gradient(90deg, #a00, var(--red)); }
 @keyframes ev-warn { 0% { box-shadow: 0 0 0 2px var(--red), 0 0 14px rgba(250,13,13,0.9); } 100% { box-shadow: none; } }
 

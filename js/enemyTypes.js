@@ -84,6 +84,23 @@ function addSpecialShip(list, wave, rand) {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const angWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
+// [repair] a fleeing ship (below 30% hull, or the treasure runner) that goes 20 s without being hit patches its hull:
+// +10% max HP every 4 s. Warships stop at 50% and turn back to fight; the runner can patch up to full but keeps running.
+// Any hit resets the 20 s wait (damage() sets e.calm = 0). The boss never repairs. No RNG, so DAILY runs stay identical.
+export const REPAIR = { wait: 20, every: 4, pct: 0.10, rejoinAt: 0.5 };
+export function updateRepair(e, dt) {
+  if (!e.alive || e.type === 'boss' || e.big || e.state !== 'flee') { e.calm = 0; e.repT = 0; e.repairing = false; return; }
+  const cap = e.maxHp * (e.type === 'runner' ? 1 : REPAIR.rejoinAt);
+  e.calm = (e.calm || 0) + dt;
+  e.repairing = e.calm >= REPAIR.wait && e.hp < cap;
+  if (!e.repairing) { e.repT = 0; return; }
+  e.repT = (e.repT || 0) + dt;
+  if (e.repT < REPAIR.every) return;
+  e.repT -= REPAIR.every; e.repTick = 0.6; // brief bar flash
+  e.hp = Math.min(cap, e.hp + e.maxHp * REPAIR.pct);
+  if (e.hp >= cap && e.type !== 'runner') { e.state = 'roam'; e.repairing = false; e.calm = 0; } // patched up: back into the fight
+}
+
 // Per-frame AI for the new builds and the boss extras. Returns true when it fully handled movement for e.
 // k = { player, enemies, game, moveShip, floatShip, fire, damage, spawnEnemy, despawn, fx, popup, sfx, V3 }
 export function updateSpecialEnemy(e, dt, k) {

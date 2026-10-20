@@ -20,7 +20,7 @@ import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList } from './upgrades.js';
-import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN } from './enemyTypes.js'; // [enemy variety] builds + AI
+import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
@@ -267,8 +267,8 @@ function damage(s, amt, p, src = null) {
   if (!s.alive) return;
   s.hp -= amt;
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
-  if (s === player) { game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); }
-  else { addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
+  if (s === player) { s.calm = 0; s.repT = 0; game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); } // [repair] a hit resets the 20 s wait
+  else { s.calm = 0; s.repT = 0; addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
     else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s, game.mode === 'daily' && game.dropRng ? game.dropRng : Math.random); } // [health drops] ~33% per sink (pity after 5 dry) + bosses; DAILY uses its own seeded drop stream
@@ -348,6 +348,7 @@ function moveShip(s, dt, targetSpeed, turnInput) {
 // ---------- enemy AI ----------
 function updateEnemy(e, dt) {
   if (!e.alive) { floatShip(e, dt); return; }
+  updateRepair(e, dt); // [repair] fleeing ships patch up after 20 s untouched
   if (updateSpecialEnemy(e, dt, specialCtx)) { // [enemy variety] rammer / runner AI (boss attacks also run here, then fall through)
     if (e.alive && e.hp < e.maxHp * 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.12; fx.smoke(new THREE.Vector3(e.x + rnd(-2, 2), e.y + 3, e.z + rnd(-3, 3)), e.hp < e.maxHp * 0.35); } }
     return;
@@ -481,6 +482,18 @@ function togglePause() {
 }
 
 // ---------- HUD ----------
+// [repair] player: 20 s without taking damage -> +5% max HP every 4 s, up to full (green pulse on the captain-card bar)
+const PLAYER_REPAIR = { wait: 20, every: 4, pct: 0.05 };
+function updatePlayerRepair(dt) {
+  player.calm = (player.calm || 0) + dt;
+  const on = player.calm >= PLAYER_REPAIR.wait && player.hp < player.maxHp;
+  $('player-hp').parentElement.classList.toggle('repairing', on);
+  if (!on) { player.repT = 0; return; }
+  player.repT = (player.repT || 0) + dt;
+  if (player.repT < PLAYER_REPAIR.every) return;
+  player.repT -= PLAYER_REPAIR.every;
+  player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * PLAYER_REPAIR.pct)); updateHud();
+}
 function updateHud() {
   $('score').textContent = game.score; $('wave').textContent = game.wave; $('gold').textContent = game.gold; $('sunk').textContent = game.sunk;
   $('player-hp').style.width = `${(player.hp / player.maxHp) * 100}%`;
@@ -514,6 +527,8 @@ function updateBars() {
     e.bar.style.opacity = clamp(1.4 - d / 220, 0.35, 1);
     e.fill.style.width = `${(e.hp / e.maxHp) * 100}%`;
     e.bar.classList.toggle('flee', e.state === 'flee');
+    if (e.repTick > 0) e.repTick -= 1 / 60;
+    e.bar.classList.toggle('repairing', !!e.repairing); e.bar.classList.toggle('repair-tick', e.repTick > 0); // [repair] green pulse on the bar only
   }
 }
 const radar = $('radar'), rctx = radar.getContext('2d');
@@ -666,6 +681,7 @@ function clearWorld() {
 }
 
 function startGame(mode = null) {
+  player.calm = 0; player.repT = 0; // [repair]
   if (!validateWallet()) return;
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
   // [daily] the seed is fixed when the run starts (a run that crosses 00:00 UTC keeps its day); the attempt counts as soon as you sail
@@ -751,6 +767,7 @@ function frame() {
       moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
+      updatePlayerRepair(dt); // [repair] game time only: pause / shop / tutorial don't count
       if (player.hp < player.maxHp * 0.4 && Math.random() < 0.15) fx.smoke(new THREE.Vector3(player.x + rnd(-2, 2), player.y + 3, player.z + rnd(-3, 3)), player.hp < player.maxHp * 0.25);
       // waves
       if (!enemies.some(e => e.alive)) {
