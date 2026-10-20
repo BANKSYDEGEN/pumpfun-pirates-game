@@ -72,18 +72,20 @@ export const BOSS_ATTACKS = { barrageEvery: [9, 12], barrageVolleys: 3, barrageG
 
 // First DEV WALLET (wave 4) is an intro fight a no-upgrade player can win; later bosses keep the full stats
 // (Raul's numbers above) and keep ramping. Applied after applyEnemyType() by main.js.
-export const BOSS_TUNE = { firstWave: 4, hp: 0.7, dmg: 0.78, reload: 1.25, escorts: 1, trim: ['frigate', 'sloop'] }; // first boss wave: boss + 1 frigate + 2 sloops (was boss + 2 + 3)
+export const BOSS_TUNE = { firstWave: 4, hp: 0.55, dmg: 0.6, reload: 1.6, escorts: 1, cannons: 3, barrageBelow: 0.75, trim: ['frigate', 'sloop'] }; // first boss wave: boss + 1 frigate + 2 sloops (was boss + 2 + 3)
 export const isFirstBossWave = (wave) => wave === BOSS_TUNE.firstWave;
 // early-wave grace for a no-upgrade ship: enemy cannon damage x0.8 on waves 1-4, full damage from wave 5 on
-export const EARLY_DMG = { untilWave: 4, mul: 0.8 };
+// and aim a bit looser (at wave 4 base aim is 0.75 = about +-3.5 m, so nearly every ball of every volley lands)
+export const EARLY_DMG = { untilWave: 4, mul: 0.8, aim: 0.15 };
 export function tuneEnemy(e, wave) {
-  if (wave <= EARLY_DMG.untilWave && e.dmgMul) e.dmgMul *= EARLY_DMG.mul;
+  if (wave <= EARLY_DMG.untilWave) { if (e.dmgMul) e.dmgMul *= EARLY_DMG.mul; e.accuracy = Math.max(0.4, e.accuracy - EARLY_DMG.aim); }
   return tuneBoss(e, wave);
 }
 export function tuneBoss(e, wave) {
   if (e.type !== 'boss' || !isFirstBossWave(wave)) return e;
   e.hp = e.maxHp = Math.round(e.maxHp * BOSS_TUNE.hp);
   e.dmgMul *= BOSS_TUNE.dmg; e.reload *= BOSS_TUNE.reload; e.escorts = BOSS_TUNE.escorts;
+  e.cannons = Math.min(e.cannons, BOSS_TUNE.cannons); e.barrageBelow = BOSS_TUNE.barrageBelow; // a 5-gun broadside was ~43 dmg = almost half a fresh hull
   return e;
 }
 
@@ -182,7 +184,7 @@ function updateBossAttacks(e, dt, k) {
     e.barrage.t -= dt;
     if (e.barrage.t <= 0 && e.barrage.n > 0) { k.fire(e, e.barrage.side, p, Math.max(0.35, e.accuracy - 0.15)); e.barrage.n--; e.barrage.t = B.barrageGap; }
     if (e.barrage.n <= 0) e.barrage = null;
-  } else if (e.barrageCd <= 0 && d < B.barrageRange && p.alive) {
+  } else if (e.barrageCd <= 0 && d < B.barrageRange && p.alive && e.hp <= e.maxHp * (e.barrageBelow ?? 1)) { // first boss: only once it's been hurt
     const c = Math.cos(e.yaw), n = Math.sin(e.yaw), lx = (p.x - e.x) * c - (p.z - e.z) * n;
     e.barrage = { side: lx > 0 ? 'port' : 'star', n: k.game.wave < 8 ? B.barrageVolleys - 1 : B.barrageVolleys, t: 0.6 }; // first DEV WALLET fight: 2 volleys, later 3
     e.bar.classList.add('windup'); setTimeout(() => e.bar.classList.remove('windup'), 900);
