@@ -28,3 +28,8 @@ export const TG_URL = 'https://t.me/PUMPFUNPIRATES';
 // (README "Wallet verification").
 export const WALLET_VERIFY_ENABLED = false;
 export const VERIFY_SCORE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/verify-score` : '';
+
+// Read-only wallet sign-in + server-saved progress (Edge Function `pirate`, migration 004_players.sql).
+// The wallet only signs a plain-text message: never a transaction. Guests (SET SAIL) keep saving on this device.
+export const WALLET_SAVE_ENABLED = true;
+export const PIRATE_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pirate` : '';

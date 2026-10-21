@@ -56,7 +56,15 @@ export const getSkin = (id) => SKINS.find(s => s.id === id) || SKINS[0];
 const KEY = 'pfp_skins_v1';
 function load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { owned: Array.isArray(v.owned) ? v.owned : [], equipped: v.equipped || 'classic' }; } catch { return { owned: [], equipped: 'classic' }; } }
 let state = load();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode: unlocks last this session */ } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode: unlocks last this session */ } for (const f of _listeners) { try { f(skinState()); } catch { /* listener */ } } }
+// [wallet save] a connected wallet mirrors skins to the server (js/pirateAccount.js)
+const _listeners = [];
+export const onSkinsChange = (fn) => { _listeners.push(fn); };
+export const skinState = () => ({ owned: [...state.owned], equipped: state.equipped });
+export function replaceSkins(s) { // server copy wins for a connected wallet; does not fire onSkinsChange
+  state = { owned: Array.isArray(s?.owned) ? s.owned.filter(id => SKINS.some(k => k.id === id)) : [], equipped: s?.equipped || 'classic' };
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode */ }
+}
 export const ownsSkin = (id) => id === 'classic' || state.owned.includes(id);
 export const equippedSkin = () => getSkin(ownsSkin(state.equipped) ? state.equipped : 'classic');
 export function unlockSkin(id) { if (!ownsSkin(id)) { state.owned.push(id); save(); } }

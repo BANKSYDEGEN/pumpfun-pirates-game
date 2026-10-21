@@ -115,9 +115,11 @@
       <button id="btn-start" class="big">SET SAIL</button>
     </div>
 
-    <div class="row">
-      <button id="btn-rewards" class="ghost" disabled title="Coming soon">🔒 WALLET CONNECT COMING SOON</button>
+    <div class="row wallet-row"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
+      <button id="btn-wallet" class="ghost wallet-btn" type="button" title="Read-only: signs a free message, never a transaction">CONNECT WALLET <span class="ro">READ-ONLY</span></button>
+      <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
     </div>
+    <div id="wallet-note" class="wallet-note muted">Optional: connect to save your skins across devices.</div>
 
    </div>
    <div class="col-b">

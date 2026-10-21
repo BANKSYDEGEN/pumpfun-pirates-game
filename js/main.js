@@ -12,8 +12,7 @@ import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onA
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
-import { rewardsStatus } from './rewards.js';
-import { WALLET_VERIFY_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
+import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $AHOY CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
@@ -628,7 +627,6 @@ for (const inp of [nameInput, walletInput]) inp.addEventListener('focus', () => 
 nameInput.addEventListener('change', () => saveName(nameInput.value)); // keep what they typed even if they skip saving
 walletInput.addEventListener('change', () => { if (isValidSolanaAddress(walletInput.value.trim())) saveWallet(walletInput.value); });
 validateWallet();
-$('btn-rewards').textContent = `🔒 ${rewardsStatus().label.toUpperCase()}`;
 // [wallet verify] built but disabled. With the flag on: CONNECT PHANTOM (connect + signMessage only, view-only),
 // fills the wallet field, and score saves carry the signature to the verify-score Edge Function.
 let walletVerify = null;
@@ -640,6 +638,19 @@ if (WALLET_VERIFY_ENABLED) import('./walletVerify.js').then(m => {
     setMsg: (t) => { $('wallet-msg').textContent = t; },
   });
 }).catch(e => console.warn('[wallet verify] unavailable', e));
+// [wallet save] read-only wallet sign-in: skins + best run saved on the server for that wallet (js/pirateAccount.js)
+let pirate = null;
+const runStats = () => (game.runId && game.state !== 'title') ? { id: game.runId, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), gold_base: game.gold + (game.goldSpent || 0), gold_total: game.gold + (game.goldSpent || 0), over: game.state === 'over' } : null;
+if (WALLET_SAVE_ENABLED) import('./pirateAccount.js').then(m => {
+  pirate = m;
+  return m.initAccount({ button: $('btn-wallet'), chip: $('wallet-chip'), addr: $('wc-addr'), out: $('wc-out'), note: $('wallet-note') }, {
+    getRun: runStats,
+    getName: () => (game.state === 'over' ? nameInput.value.trim().slice(0, 20) : '') || game.name || getSavedName(),
+    onChange: () => { if (m.account.wallet && m.account.connected) { game.wallet = m.account.wallet; if (game.state !== 'over') walletInput.value = m.account.wallet; } },
+    onSkins: () => { if (game.state === 'title') { scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer(); player.sail = 1; } },
+  });
+}).catch(e => { console.warn('[wallet save] unavailable', e); $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; });
+else { $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; }
 $('btn-start').onclick = () => startGame();
 // [daily] DAILY mode is hidden from the UI (no button, no board tab). The seeded-run code below stays dormant.
 const DAILY_LS = 'pfp_daily_played';
@@ -743,7 +754,8 @@ function clearWorld() {
 function startGame(mode = null) {
   player.calm = 0; player.repT = 0; // [repair]
   // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
-  game.wallet = getSavedWallet(); game.name = getSavedName();
+  game.wallet = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); game.name = getSavedName();
+  game.runId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); // [wallet save]
   // [daily] hidden from the UI: every run is a normal run
   game.mode = null; game.seed = null; game.lootRng = null; game.dropRng = null;
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
@@ -780,9 +792,10 @@ async function gameOver() {
   game.state = 'over';
   $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
   // [set sail first] ask for name + wallet here; a returning pirate sees them prefilled and can still edit
-  nameInput.value = getSavedName(); walletInput.value = getSavedWallet();
+  nameInput.value = getSavedName(); walletInput.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); // [wallet save] connected wallet fills itself in
+  pirate?.save({ now: true }); // [wallet save] end of run
   const known = isValidSolanaAddress(walletInput.value.trim());
-  $('go-wallet').textContent = known ? 'Your name and wallet from last time are filled in. Edit them if you like.' : 'Add your wallet to put this run on the leaderboard.';
+  $('go-wallet').textContent = pirate?.account.connected ? 'Connected wallet filled in. Your progress is saved to it.' : known ? 'Your name and wallet from last time are filled in. Edit them if you like.' : 'Add your wallet to put this run on the leaderboard.';
   $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   validateWallet();
   $('gameover').classList.remove('hidden');
@@ -798,6 +811,7 @@ async function saveScore() {
   game.saved = true; $('btn-save').disabled = true;
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
+  if (pirate?.account.connected) pirate.save({ now: true }); // [wallet save] keep the name in sync
   const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) }, { proof: walletVerify?.getProof(game.wallet) || null }); // [wallet verify] proof only exists when the flag is on
   $('save-msg').textContent = game.mode === 'daily'
     ? (r.where === 'online' ? 'Saved to the online DAILY board!' : leaderboard.remote ? 'Saved on this device. Online daily board coming soon.' : 'Saved on this device.')

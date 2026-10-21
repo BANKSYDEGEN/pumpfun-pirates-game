@@ -86,9 +86,14 @@ The whole game runs in the browser, so **any score can be faked**: someone can c
 - wallet ownership proof (Phantom signature),
 - and ideally replay or input-log verification, or moderation.
 
-## Wallet connect (coming soon)
+## Wallet save (read-only sign-in)
 
-The title screen has a disabled **"Wallet connect coming soon"** button. `js/rewards.js` contains only TODO stubs (Phantom connect, ownership proof, eligibility, claim). With `WALLET_VERIFY_ENABLED = false` (as shipped) there is no wallet connection and no signing; the optional view-only `signMessage` check is described under *Wallet verification* below. **There is no fund handling anywhere in this code.**
+SET SAIL still plays as a guest, saving on this device. **CONNECT WALLET** (read-only) asks Phantom, Solflare, Backpack or any injected Solana wallet to sign a plain-text message with a server nonce (5 min expiry, single use, domain `game.pumpfunpirates.com`). It is never a transaction and cannot move funds. On a phone without a wallet it opens the game in Phantom's browser.
+
+- Edge Function `supabase/functions/pirate` (`nonce`, `verify`, `load`, `save`, `logout`) checks the ed25519 signature and issues a 30-day session (only its SHA-256 is stored).
+- Migration `004_players.sql`: `players`, `wallet_nonces`, `player_sessions`, RLS on with no policies, so the anon key cannot read or write them.
+- Saved per wallet: owned and equipped skins, best run, name. The first sign-in on a device merges that device's skins in. Saves happen on skin buys, unlocks and equips, and at the end of each run. The server rejects new skins a run could not have paid for (one free skin per 5 waves, the rest out of the run's gold) and gold above what the run could loot.
+- Deploy: `supabase functions deploy pirate --no-verify-jwt`.
 
 ## PWA / phones
 

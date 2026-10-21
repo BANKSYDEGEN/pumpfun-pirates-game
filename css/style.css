@@ -422,3 +422,16 @@ html.ios-pwa #status-plate::after {
   #gameover .go-entry #btn-save { min-height: 42px; font-size: 18px; padding: 4px 12px; margin-top: 4px; }
   #gameover #go-wallet { font-size: 13px; }
 }
+
+/* [wallet save] CONNECT WALLET (read-only) + connected chip */
+.wallet-row { align-items: center; }
+.wallet-btn .ro { font-size: 0.62em; letter-spacing: 1px; color: var(--gold); border: 1px solid rgba(255,205,119,0.5); border-radius: 999px; padding: 1px 6px 0; margin-left: 4px; vertical-align: 2px; }
+.wallet-btn:disabled { opacity: 0.6; }
+.wallet-chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 12px; margin: 4px; border-radius: 999px; border: 1px solid #4ee37a; background: rgba(0,0,0,0.5); color: #fff; font-size: 20px; line-height: 1; }
+.wallet-chip .wc-dot { width: 9px; height: 9px; border-radius: 50%; background: #4ee37a; box-shadow: 0 0 6px #4ee37a; }
+.wallet-chip #wc-out { font: inherit; font-size: 14px; letter-spacing: 1px; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); border: 0; border-radius: 999px; padding: 6px 10px 5px; cursor: pointer; }
+.wallet-chip #wc-out:hover { color: #fff; background: rgba(250,13,13,0.35); }
+.wallet-chip.hidden, .wallet-btn.hidden { display: none; }
+.wallet-note { font-size: 15px; min-height: 16px; margin-top: 2px; text-align: center; }
+.wallet-note.warn { color: var(--gold); }
+@media (max-height: 500px) { .wallet-chip { height: 28px; font-size: 16px; } .wallet-chip #wc-out { font-size: 12px; padding: 4px 8px 3px; } .wallet-note { font-size: 12px; min-height: 0; } }
