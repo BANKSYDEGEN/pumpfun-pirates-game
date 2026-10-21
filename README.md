@@ -1,6 +1,7 @@
 # PUMPFUN PIRATES · Storm Hunt
 
-### ▶ [Play now: [game.pumpfunpirates.com)]((http://game.pumpfunpirates.com/))
+### ▶ [Play now: game.pumpfunpirates.com](https://game.pumpfunpirates.com/)
+
 
 On your phone, open the link and use **Add to Home Screen** to install it as an app.
 
