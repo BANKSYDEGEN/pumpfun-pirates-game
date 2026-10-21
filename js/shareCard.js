@@ -6,7 +6,7 @@ import { AHOY_CA, X_URL, TG_URL } from './config.js';
 import { copyText } from './tokenChip.js';
 
 // WEBSITE: the one place to change when the game moves to the main domain (card text, X post link and phone share all follow).
-export const WEBSITE = 'https://banksydegen.github.io/pumpfun-pirates-game/';
+export const WEBSITE = 'https://game.pumpfunpirates.com/';
 export const GAME_URL = WEBSITE;
 const WEBSITE_LABEL = WEBSITE.replace(/^https?:\/\//, '').replace(/\/$/, '');
 const X_HANDLE = '@PUMPFUNPIRATES', TG_SHORT = 't.me/PUMPFUNPIRATES', MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
