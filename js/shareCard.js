@@ -50,7 +50,7 @@ export async function drawCard(s) {
   const px = 440, py = 58, pw = 712, ph = 520;
   g.fillStyle = 'rgba(22,22,22,0.78)'; roundRect(g, px, py, pw, ph, 28); g.fill();
   g.strokeStyle = 'rgba(255,205,119,0.35)'; g.lineWidth = 2; roundRect(g, px, py, pw, ph, 28); g.stroke();
-  g.textAlign = 'left'; g.font = `44px ${FONT}`; g.fillStyle = RED; g.fillText("DAVY JONES' LOCKER", px + 40, py + 66);
+  g.textAlign = 'left'; g.font = `44px ${FONT}`; g.fillStyle = RED; g.fillText("RUGGED", px + 40, py + 66);
   g.font = `34px ${FONT}`; g.fillStyle = GOLD; g.fillText('SCORE', px + 40, py + 122);
   g.font = `150px ${FONT}`; g.fillStyle = '#fff'; g.save(); g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowOffsetY = 5; g.fillText(fmt(s.score), px + 36, py + 250); g.restore();
   const cols = [['WAVE', s.wave], ['SHIPS SUNK', s.sunk], ['GOLD', s.gold]];
