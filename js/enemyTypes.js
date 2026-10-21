@@ -77,7 +77,7 @@ export const ENEMY_BUILDS = {
 };
 export const RAM = { windupAt: 42, windup: 1.1, chargeSpeed: 21, chargeTime: 2.6, recover: 3.4, dmg: 18, selfDmg: 0.35 };
 export const RUN = { escapeDist: 300, maxTime: 55, goldChests: 3, goldBase: 70, goldPerWave: 12 };
-export const BOSS_ATTACKS = { barrageEvery: [9, 12], barrageVolleys: 3, barrageGap: 0.45, barrageRange: 85, summonAt: 0.5, escorts: 2 };
+export const BOSS_ATTACKS = { barrageEvery: [9, 12], barrageVolleys: 3, barrageGap: 0.45, barrageRange: 85, escorts: 2 };
 
 function addSpecialShip(list, wave, rand) {
   const sloopAt = list.lastIndexOf('sloop');
@@ -171,19 +171,21 @@ function updateRunner(e, dt, k) {
   return true;
 }
 
+// [boss escorts] the DEV WALLET's 2 escort sloops spawn with him at the start of the wave, flanking him in formation
+// (was: summoned mid-fight at 50% hull, right on top of the player). Called inside startWave's spawn block, after
+// the roster, so DAILY draws its seeded numbers in a fixed order.
+export function spawnBossEscorts(boss, spawnEnemy) {
+  const out = [];
+  for (let i = 0; i < BOSS_ATTACKS.escorts; i++) {
+    const side = i ? 1 : -1, px = Math.cos(boss.yaw) * side, pz = -Math.sin(boss.yaw) * side;
+    const s = spawnEnemy(boss.x + px * 16 - Math.sin(boss.yaw) * 8, boss.z + pz * 16 - Math.cos(boss.yaw) * 8, 1, 'sloop');
+    s.escort = true; s.yaw = boss.yaw; out.push(s);
+  }
+  return out;
+}
 function updateBossAttacks(e, dt, k) {
   const p = k.player, d = Math.hypot(p.x - e.x, p.z - e.z), B = BOSS_ATTACKS;
-  // summon 2 escorts once, at 50% hull
-  if (!e.summoned && e.hp > 0 && e.hp <= e.maxHp * B.summonAt) {
-    e.summoned = true;
-    for (let i = 0; i < B.escorts; i++) {
-      const side = i ? 1 : -1, px = Math.cos(e.yaw) * side, pz = -Math.sin(e.yaw) * side;
-      const s = k.spawnEnemy(e.x + px * 14 - Math.sin(e.yaw) * 6, e.z + pz * 14 - Math.cos(e.yaw) * 6, 1, 'sloop');
-      s.escort = true; s.yaw = e.yaw; s.speed = 5;
-      k.fx.ring(new k.V3(s.x, 0.3, s.z), 2, 14, 1.4);
-    }
-    k.popup(new k.V3(e.x, e.y + 12, e.z), 'ESCORTS!', 'dmg');
-  }
+  // (escorts now sail in with the boss at the start of the wave: see spawnBossEscorts)
   // broadside barrage: 3 quick volleys from the side facing you, every 9-12 s when in range
   e.barrageCd = (e.barrageCd ?? B.barrageEvery[0]) - dt;
   if (e.barrage) {

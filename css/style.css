@@ -400,3 +400,7 @@ html.ios-pwa #status-plate::after {
   #gameover .board { font-size: 15px; } #gameover .lb-more { height: 14px; line-height: 14px; }
 }
 @media (max-height: 520px) and (orientation: landscape) { #gameover .field > span { white-space: nowrap; font-size: 16px; } #gameover #btn-save { white-space: nowrap; font-size: 17px; padding: 4px 12px; } #gameover .field input { min-width: 0; } }
+
+/* [wave break] NEXT WAVE IN countdown */
+#next-wave { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none; font-size: 34px; color: #fff; text-shadow: 0 3px 0 #000, 0 0 14px rgba(0,0,0,0.6); white-space: nowrap; }
+@media (max-height: 520px) and (orientation: landscape) { #next-wave { top: 44%; font-size: 26px; } }

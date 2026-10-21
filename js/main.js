@@ -21,12 +21,12 @@ import { equippedSkin } from './skins.js';
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
-import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave } from './enemyTypes.js'; // [enemy variety] builds + AI
+import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop, waveSkinUnlock } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
-import { createEscorts, ESCORT } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
+import { createEscorts, ESCORT, escortStep } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
 let rand = Math.random; // [daily] swapped for a seeded stream while a DAILY wave spawns / drops chests
@@ -215,11 +215,15 @@ function startWave() {
   const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
   const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
   if (daily) { rand = waveRng(game.seed, game.wave, 'spawn'); game.lootRng = waveRng(game.seed, game.wave, 'loot'); game.dropRng = waveRng(game.seed, game.wave, 'drops'); }
+  let bossNow = null;
   try {
     for (let i = 0; i < n; i++) {
       const a = rnd(0, Math.PI * 2), d = rnd(SPAWN_MIN, SPAWN_MAX); // [spawn ring] farther out (was 130-210 m); same rng draws so DAILY stays seeded
-      spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
+      const e = spawnEnemy(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, roster[i] === 'boss' ? 2 : 1, roster[i]);
+      if (roster[i] === 'boss') bossNow = e;
     }
+    // [boss escorts] the DEV WALLET sails in with his 2 escorts flanking him (after the roster: fixed DAILY draw order)
+    if (bossNow) { bossNow.yaw = Math.atan2(player.x - bossNow.x, player.z - bossNow.z); bossNow.escortList = spawnBossEscorts(bossNow, spawnEnemy); bossNow.escortList.forEach((s, i) => { s.leader = bossNow; s.slotN = i; s.state = 'follow'; s.tgt = null; s.tgtT = 0; }); }
   } finally { rand = Math.random; }
   banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE DEV WALLET APPROACHES' : `${n} rug ships on the horizon`);
   if (roster.includes('boss')) sfx.boss(); else sfx.waveStart(); sfx.spawnBell(); // [Raul] sound upgrades (bell: SPYGLASS III)
@@ -368,8 +372,19 @@ function moveShip(s, dt, targetSpeed, turnInput) {
 }
 
 // ---------- enemy AI ----------
+// [boss escorts] mirrored escort AI: formation beside the boss, engage the nearest of you / your escorts at broadside range
+// (spread over targets), fall back to the boss below 30% hull. Enemy stats (speed, reload, accuracy, damage) unchanged.
+const BOSS_SLOTS = [[-20, 4], [20, 4]];
+function updateBossEscort(e, dt) {
+  const foes = escorts.list.length ? [player, ...escorts.list] : [player];
+  escortStep(e, dt, { k: { moveShip, floatShip, fire, game }, leader: e.leader, player, active: player.alive, foes,
+    mates: e.leader.escortList, avoid: escorts.list.length ? [player, ...escorts.list, ...enemies] : [player, ...enemies], slot: BOSS_SLOTS[e.slotN % 2],
+    P: { speed: e.maxSpeed * 0.8, catchUp: e.maxSpeed * 1.15, engageDist: 120, leash: 170, retreatAt: 0.3, rejoinAt: 0.55, range: 70 } });
+  if (e.hp < e.maxHp * 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.12; fx.smoke(new THREE.Vector3(e.x + rnd(-2, 2), e.y + 3, e.z + rnd(-3, 3)), e.hp < e.maxHp * 0.35); } }
+}
 function updateEnemy(e, dt) {
   if (!e.alive) { floatShip(e, dt); return; }
+  if (e.escort) { updateBossEscort(e, dt); return; } // [boss escorts] same AI as your hired escorts, mirrored
   updateRepair(e, dt); // [repair] fleeing ships patch up after 20 s untouched
   const T = enemyTarget(e, dt); specialTarget = e.type === 'runner' ? player : T; // [escorts] the runner only ever flees from you
   if (updateSpecialEnemy(e, dt, specialCtx)) { // [enemy variety] rammer / runner AI (boss attacks also run here, then fall through)
@@ -708,7 +723,18 @@ function boardHint(el) {
 }
 buildTabs();
 
+// [wave break] 13 s between waves to collect gold, with a NEXT WAVE IN countdown (game time, so pause/shop don't count; DAILY same)
+const WAVE_BREAK = 13;
+let nextWaveEl = null, nextWaveN = -1;
+function showNextWave(t) {
+  const n = t > 0 ? Math.ceil(t) : -1;
+  if (n === nextWaveN) return; nextWaveN = n;
+  if (!nextWaveEl) { nextWaveEl = document.createElement('div'); nextWaveEl.id = 'next-wave'; document.body.appendChild(nextWaveEl); }
+  nextWaveEl.style.display = n > 0 ? '' : 'none';
+  if (n > 0) nextWaveEl.textContent = `NEXT WAVE IN ${n}...`;
+}
 function clearWorld() {
+  showNextWave(-1);
   for (const e of enemies) { scene.remove(e.mesh); disposeShip(e.mesh); e.bar.remove(); }
   enemies.length = 0;
   for (const b of balls) freeBall(b.mesh); balls.length = 0;
@@ -758,6 +784,7 @@ function toTitle() {
 
 async function gameOver() {
   if (game.state === 'over') return;
+  showNextWave(-1); // [wave break]
   game.state = 'over';
   $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
   $('go-wallet').textContent = `Wallet ${shortWallet(game.wallet)}`;
@@ -811,11 +838,14 @@ function frame() {
       // waves
       if (!enemies.some(e => e.alive)) {
         if (!game.clearAck) {
-          game.clearAck = true; game.waveTimer = game.wave === 0 ? 1.2 : 4;
+          game.clearAck = true; game.waveTimer = game.wave === 0 ? 1.2 : WAVE_BREAK; // [wave break] was 4 s
+          if (game.wave > 0) for (const l of loot) l.life = Math.max(l.life, WAVE_BREAK + 3); // gold never expires mid-break
           if (game.wave > 0) { banner('WAVE CLEARED!', `+${50 * game.wave} · hull repaired`); player.hp = Math.min(player.maxHp, player.hp + 25); addScore(50 * game.wave); updateHud(); }
         }
         game.waveTimer -= dt;
-        if (game.waveTimer <= 0) { game.clearAck = false; startWave(); }
+        if (game.wave > 0 && !loot.length && game.waveTimer > 3) game.waveTimer = 3; // all gold collected: skip ahead
+        if (game.wave > 0) showNextWave(game.waveTimer);
+        if (game.waveTimer <= 0) { game.clearAck = false; showNextWave(-1); startWave(); }
       }
     } else if (game.state === 'title') {
       moveShip(player, dt, 4, Math.sin(t * 0.1) * 0.25);

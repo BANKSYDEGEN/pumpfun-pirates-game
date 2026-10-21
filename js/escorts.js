@@ -103,71 +103,16 @@ export function createEscorts(k) {
     m.position.copy(old.position); m.rotation.copy(old.rotation);
     k.scene.remove(old); k.scene.add(m); e.mesh = m; e.skinId = sk.id;
   }
-  function pickTarget(e) {
-    const p = k.getPlayer();
-    let best = null, bd = 1e9;
-    for (const en of k.enemies) {
-      if (!en.alive || en.escaped) continue;
-      const d = Math.hypot(en.x - e.x, en.z - e.z);
-      if (d > ESCORT.engageDist || Math.hypot(en.x - p.x, en.z - p.z) > ESCORT.leash) continue;
-      let crowd = 0; for (const o of list) if (o !== e && o.alive && o.tgt === en) crowd++;
-      const score = d + crowd * 35 + (en.type === 'runner' ? 25 : 0);
-      if (score < bd) { bd = score; best = en; }
-    }
-    return best;
-  }
+  // player team: leader = you, foes = rug ships (shared AI: escortStep below)
+  const P = ESCORT;
   function updateOne(e, dt) {
     if (!e.alive) { k.floatShip(e, dt); return; }
     const p = k.getPlayer();
     // patch-up: 20 s unhit -> +5% every 4 s
     e.calm += dt;
     if (e.calm >= ESCORT.repair.wait && e.hp < e.maxHp) { e.repT += dt; if (e.repT >= ESCORT.repair.every) { e.repT -= ESCORT.repair.every; e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * ESCORT.repair.pct)); } } else e.repT = 0;
+    escortStep(e, dt, { k, leader: p, player: p, active: p.alive, foes: k.enemies, mates: list, avoid: [p, ...list, ...k.enemies], slot: SLOTS[e.slot], P });
     const frac = e.hp / e.maxHp;
-    if (e.state !== 'retreat' && frac < ESCORT.retreatAt) { e.state = 'retreat'; e.tgt = null; }
-    else if (e.state === 'retreat' && frac >= ESCORT.rejoinAt) e.state = 'follow';
-    const dP = Math.hypot(p.x - e.x, p.z - e.z);
-    e.tgtT -= dt;
-    if (e.state !== 'retreat' && p.alive) {
-      if (e.tgt && (!e.tgt.alive || e.tgt.escaped || Math.hypot(e.tgt.x - p.x, e.tgt.z - p.z) > ESCORT.leash + 20)) e.tgt = null;
-      if (e.tgtT <= 0) { e.tgtT = 1.2; e.tgt = pickTarget(e) || (e.tgt && e.tgt.alive ? e.tgt : null); }
-      e.state = e.tgt ? 'engage' : 'follow';
-    } else if (!p.alive) { e.tgt = null; e.state = 'follow'; }
-    let desired = e.yaw, spd = ESCORT.speed;
-    if (e.state === 'engage') {
-      const t = e.tgt, dx = t.x - e.x, dz = t.z - e.z, d = Math.hypot(dx, dz), toT = Math.atan2(dx, dz);
-      const ideal = 32 + (e.slot % 3) * 4;
-      const tangent = toT + (Math.sin(e.yaw - toT) > 0 ? 1 : -1) * Math.PI / 2;
-      const corr = clamp((d - ideal) / 28, -1, 1) * 0.9;
-      desired = d > 85 ? toT : tangent - Math.sign(Math.sin(tangent - toT)) * corr;
-      spd = d > 85 ? ESCORT.catchUp * 0.8 : ESCORT.speed * 0.85;
-    } else {
-      // follow (or retreat): sail to the formation slot, match your speed once there
-      const [sx, sz] = slotPos(e.slot), dx = sx - e.x, dz = sz - e.z, d = Math.hypot(dx, dz);
-      if (d > 6) { desired = Math.atan2(dx, dz); spd = clamp(p.speed + d * 0.25, 3, ESCORT.catchUp); }
-      else { desired = p.yaw; spd = p.speed; }
-      if (e.state === 'retreat') spd = Math.max(spd, ESCORT.speed);
-    }
-    // spread out: keep clear of you, the other escorts and enemy hulls
-    const others = [p, ...list, ...k.enemies];
-    for (const o of others) {
-      if (o === e || !o.alive) continue;
-      const ox = e.x - o.x, oz = e.z - o.z, od = Math.hypot(ox, oz), R = 13 + (o === p ? 4 : 0);
-      if (od < R && od > 0.01) { const push = (R - od) * 0.9 * dt; e.x += ox / od * push; e.z += oz / od * push; if (od < R + 6) desired = angWrap(desired + angWrap(Math.atan2(ox, oz) - desired) * 0.5); }
-    }
-    k.moveShip(e, dt, spd, clamp(angWrap(desired - e.yaw) * 2, -1, 1));
-    k.floatShip(e, dt);
-    // broadsides: the target if it sits on a side, else any rug ship that does
-    e.cd -= dt;
-    if (e.cd <= 0 && p.alive && k.game.state === 'playing') {
-      const c = Math.cos(e.yaw), n = Math.sin(e.yaw);
-      const cand = e.tgt ? [e.tgt, ...k.enemies] : k.enemies;
-      for (const t of cand) {
-        if (!t.alive || t.escaped) continue;
-        const dx = t.x - e.x, dz = t.z - e.z, d = Math.hypot(dx, dz); if (d > ESCORT.range) continue;
-        const lx = dx * c - dz * n, lz = dx * n + dz * c;
-        if (Math.abs(Math.atan2(lz, Math.abs(lx))) < 0.5) { k.fire(e, lx > 0 ? 'port' : 'star', t, e.accuracy); e.cd = e.reload * rnd(0.9, 1.15); break; }
-      }
-    }
     if (frac < 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.15; k.fx.smoke(new THREE.Vector3(e.x + rnd(-1.5, 1.5), e.y + 2.5, e.z + rnd(-2, 2)), frac < 0.35); } }
   }
   function update(dt) {
@@ -179,4 +124,74 @@ export function createEscorts(k) {
   function clear() { for (const e of list) { k.scene.remove(e.mesh); e.bar.remove(); } list.length = 0; k.onChange?.(); }
   const ballDmg = (e) => Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * e.dmgK);
   return { list, hire, count, max: ESCORT.max, cost: ESCORT.cost, onWave, update, animate, onSunk, clear, ballDmg, alive };
+}
+
+// ---------- shared escort AI (your hired escorts and the DEV WALLET's escorts) ----------
+// o = { k: { moveShip, floatShip, fire, game }, leader (ship or null if it sank), player, active (fights allowed),
+//       foes (ships to fight), mates (same-team escorts, so they spread over targets), avoid (hulls to keep clear of),
+//       slot: [lateral (port +), forward] formation offset in the leader's frame, P: { speed, catchUp, engageDist, leash,
+//       retreatAt, rejoinAt, range } }
+function pickTarget(e, o) {
+  const L = o.leader, P = o.P;
+  let best = null, bd = 1e9;
+  for (const en of o.foes) {
+    if (!en.alive || en.escaped) continue;
+    const d = Math.hypot(en.x - e.x, en.z - e.z);
+    if (L && (d > P.engageDist || Math.hypot(en.x - L.x, en.z - L.z) > P.leash)) continue;
+    let crowd = 0; for (const m of o.mates) if (m !== e && m.alive && m.tgt === en) crowd++;
+    const score = d + crowd * 35 + (en.type === 'runner' ? 25 : 0);
+    if (score < bd) { bd = score; best = en; }
+  }
+  return best;
+}
+export function escortStep(e, dt, o) {
+  const { k, P } = o, L = o.leader && o.leader.alive ? o.leader : null;
+  const frac = e.hp / e.maxHp;
+  if (e.state !== 'retreat' && frac < P.retreatAt) { e.state = 'retreat'; e.tgt = null; }
+  else if (e.state === 'retreat' && frac >= P.rejoinAt) e.state = 'follow';
+  e.tgtT = (e.tgtT || 0) - dt;
+  if (e.state !== 'retreat' && o.active) {
+    if (e.tgt && (!e.tgt.alive || e.tgt.escaped || (L && Math.hypot(e.tgt.x - L.x, e.tgt.z - L.z) > P.leash + 20))) e.tgt = null;
+    if (e.tgtT <= 0) { e.tgtT = 1.2; e.tgt = pickTarget(e, o) || (e.tgt && e.tgt.alive ? e.tgt : null); }
+    e.state = e.tgt ? 'engage' : 'follow';
+  } else if (!o.active) { e.tgt = null; e.state = 'follow'; }
+  let desired = e.yaw, spd = P.speed;
+  if (e.state === 'engage') {
+    const t = e.tgt, dx = t.x - e.x, dz = t.z - e.z, d = Math.hypot(dx, dz), toT = Math.atan2(dx, dz);
+    const ideal = 32 + ((e.slotN ?? e.slot ?? 0) % 3) * 4;
+    const tangent = toT + (Math.sin(e.yaw - toT) > 0 ? 1 : -1) * Math.PI / 2;
+    const corr = clamp((d - ideal) / 28, -1, 1) * 0.9;
+    desired = d > 85 ? toT : tangent - Math.sign(Math.sin(tangent - toT)) * corr;
+    spd = d > 85 ? P.catchUp * 0.8 : P.speed * 0.85;
+  } else if (L) {
+    // follow (or retreat): sail to the formation slot beside the leader, match its speed once there
+    const [lx, fz] = o.slot, c = Math.cos(L.yaw), n = Math.sin(L.yaw), sx = L.x + lx * c + fz * n, sz = L.z - lx * n + fz * c;
+    const dx = sx - e.x, dz = sz - e.z, d = Math.hypot(dx, dz);
+    if (d > 6) { desired = Math.atan2(dx, dz); spd = clamp(L.speed + d * 0.25, 3, P.catchUp); }
+    else { desired = L.yaw; spd = L.speed; }
+    if (e.state === 'retreat') spd = Math.max(spd, P.speed);
+  } else if (o.player) {
+    // leader gone: retreat away from the player, otherwise close in on them
+    const dx = o.player.x - e.x, dz = o.player.z - e.z; desired = Math.atan2(dx, dz) + (e.state === 'retreat' ? Math.PI : 0);
+  }
+  // spread out: keep clear of the leader, the player, team-mates and other hulls
+  for (const s of o.avoid) {
+    if (s === e || !s.alive) continue;
+    const ox = e.x - s.x, oz = e.z - s.z, od = Math.hypot(ox, oz), R = 13 + (s === o.leader || s === o.player ? 4 : 0);
+    if (od < R && od > 0.01) { const push = (R - od) * 0.9 * dt; e.x += ox / od * push; e.z += oz / od * push; if (od < R + 6) desired = angWrap(desired + angWrap(Math.atan2(ox, oz) - desired) * 0.5); }
+  }
+  k.moveShip(e, dt, spd, clamp(angWrap(desired - e.yaw) * 2, -1, 1));
+  k.floatShip(e, dt);
+  // broadsides: the target if it sits on a side, else any foe that does
+  e.cd -= dt;
+  if (e.cd <= 0 && o.active && k.game.state === 'playing') {
+    const c = Math.cos(e.yaw), n = Math.sin(e.yaw);
+    const cand = e.tgt ? [e.tgt, ...o.foes] : o.foes;
+    for (const t of cand) {
+      if (!t.alive || t.escaped) continue;
+      const dx = t.x - e.x, dz = t.z - e.z, d = Math.hypot(dx, dz); if (d > P.range) continue;
+      const lx = dx * c - dz * n, lz = dx * n + dz * c;
+      if (Math.abs(Math.atan2(lz, Math.abs(lx))) < 0.5) { k.fire(e, lx > 0 ? 'port' : 'star', t, e.accuracy); e.cd = e.reload * rnd(0.9, 1.15); break; }
+    }
+  }
 }
