@@ -20,7 +20,9 @@ export const ESCORT = {
   engageDist: 120, leash: 170,     // pick fights within this of the escort, never further than leash from you
   retreatAt: 0.3, rejoinAt: 0.55,  // fall back below 30% hull, fight again above 55%
   repair: { wait: 20, every: 4, pct: 0.05 }, // same patch-up rule as your hull
-  waveHeal: 0.5,                   // each new wave patches +50% of max hull (not a full refill), so hulls wear down over a long run
+  waveHeal: 1,                     // wave cleared: every surviving escort is patched back to full hull
+  crateAt: 0.5, crateYield: 0.4,   // go for a health crate below 50% hull, unless you're under 40% (yours first)
+  lootSafe: 120,                   // only fish for gold when no rug ship is within this of you or the escort
   killScore: 0.5,                  // escort sinks score half; their loot drops as normal (sail over it)
   aggro: 1.35,                     // enemies weigh an escort's distance ×1.35 vs yours, so you stay the main target
 };
@@ -90,7 +92,7 @@ export function createEscorts(k) {
     k.onChange?.();
     return e;
   }
-  // new wave: +50% hull (ESCORT.waveHeal), stats follow the wave, skin follows the equipped one
+  // new wave: full hull (ESCORT.waveHeal), stats follow the wave, skin follows the equipped one
   function onWave() {
     const sk = equippedSkin();
     for (const e of alive()) {
@@ -111,9 +113,26 @@ export function createEscorts(k) {
     // patch-up: 20 s unhit -> +5% every 4 s
     e.calm += dt;
     if (e.calm >= ESCORT.repair.wait && e.hp < e.maxHp) { e.repT += dt; if (e.repT >= ESCORT.repair.every) { e.repT -= ESCORT.repair.every; e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * ESCORT.repair.pct)); } } else e.repT = 0;
-    escortStep(e, dt, { k, leader: p, player: p, active: p.alive, foes: k.enemies, mates: list, avoid: [p, ...list, ...k.enemies], slot: SLOTS[e.slot], P });
+    escortStep(e, dt, { k, leader: p, player: p, active: p.alive, foes: k.enemies, mates: list, avoid: [p, ...list, ...k.enemies], slot: SLOTS[e.slot], P, protect: p, seek });
     const frac = e.hp / e.maxHp;
     if (frac < 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.15; k.fx.smoke(new THREE.Vector3(e.x + rnd(-1.5, 1.5), e.y + 2.5, e.z + rnd(-2, 2)), frac < 0.35); } }
+  }
+  // [escort pickups] priority: (1) survive -> health crate when low (yields to you under 40%), (2)/(3) fight, (4) gold only when nothing threatens
+  function seek(e) {
+    const p = k.getPlayer(), near = (a, b, r) => Math.hypot(a.x - b.x, a.z - b.z) < r;
+    e.lootTgt = null;
+    if (e.hp / e.maxHp < ESCORT.crateAt && !(p.alive && p.hp / p.maxHp < ESCORT.crateYield)) {
+      let best = null, bd = 1e9; for (const c of k.getCrates?.() || []) { const d = Math.hypot(c.x - e.x, c.z - e.z); if (d < bd) { bd = d; best = c; } }
+      if (best) return best;
+    }
+    if (e.state === 'retreat' || !k.loot) return null;
+    for (const en of k.enemies) if (en.alive && !en.escaped && (near(en, p, ESCORT.lootSafe) || near(en, e, ESCORT.lootSafe))) return null;
+    let best = null, bd = 1e9;
+    for (const l of k.loot) {
+      if (list.some(m => m !== e && m.alive && m.lootTgt === l)) continue; // spread: one escort per chest
+      const d = Math.hypot(l.x - e.x, l.z - e.z); if (d < bd) { bd = d; best = l; }
+    }
+    return (e.lootTgt = best);
   }
   function update(dt) {
     for (const e of list) updateOne(e, dt);
@@ -139,7 +158,8 @@ function pickTarget(e, o) {
     const d = Math.hypot(en.x - e.x, en.z - e.z);
     if (L && (d > P.engageDist || Math.hypot(en.x - L.x, en.z - L.z) > P.leash)) continue;
     let crowd = 0; for (const m of o.mates) if (m !== e && m.alive && m.tgt === en) crowd++;
-    const score = d + crowd * 35 + (en.type === 'runner' ? 25 : 0);
+    let score = d + crowd * 35 + (en.type === 'runner' ? 25 : 0);
+    if (o.protect) score -= (en.tgt === o.protect ? 40 : 0) + (Math.hypot(en.x - o.protect.x, en.z - o.protect.z) < 60 ? 30 : 0); // guard you first
     if (score < bd) { bd = score; best = en; }
   }
   return best;
@@ -174,6 +194,9 @@ export function escortStep(e, dt, o) {
     // leader gone: retreat away from the player, otherwise close in on them
     const dx = o.player.x - e.x, dz = o.player.z - e.z; desired = Math.atan2(dx, dz) + (e.state === 'retreat' ? Math.PI : 0);
   }
+  // [escort pickups] player team only: crate when low, gold when safe
+  const g = o.seek && o.active ? o.seek(e) : null;
+  if (g) { desired = Math.atan2(g.x - e.x, g.z - e.z); spd = P.catchUp; if (e.state !== 'retreat') e.state = 'collect'; }
   // spread out: keep clear of the leader, the player, team-mates and other hulls
   for (const s of o.avoid) {
     if (s === e || !s.alive) continue;

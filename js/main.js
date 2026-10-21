@@ -210,7 +210,7 @@ const SPAWN_MIN = 195, SPAWN_MAX = 300, SPOT_RANGE = SPAWN_MAX + 20;
 function startWave() {
   game.wave++;
   waveSkinUnlock(game.wave); // [wave skins] waves 5, 10, 15...: free skin unlock toast (normal + DAILY)
-  escorts.onWave(); // [escorts] +50% hull, stats follow the wave
+  escorts.onWave(); // [escorts] full hull, stats follow the wave
   if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
   const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
   const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
@@ -306,7 +306,7 @@ function damage(s, amt, p, src = null) {
 // ---------- loot ----------
 const healthDrops = createHealthDrops({ scene, fx, sfx, popup, updateHud }); // [health drops]
 const escorts = createEscorts({ scene, fx, sfx, game, enemies, getPlayer: () => player, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), popup: (...a) => popup(...a),
-  buildOpts: { mainSailMap: sailTex, flagMap: flagTex, shadows: HIGH, quality }, onChange: () => updateHud() }); // [escorts]
+  loot, getCrates: () => healthDrops.drops, buildOpts: { mainSailMap: sailTex, flagMap: flagTex, shadows: HIGH, quality }, onChange: () => updateHud() }); // [escorts]
 function dropLoot(s) { // [daily] chest scatter comes from the wave's loot stream on a DAILY run
   if (game.mode === 'daily' && game.lootRng) rand = game.lootRng;
   try { dropLootAt(s); } finally { rand = Math.random; }
@@ -840,7 +840,7 @@ function frame() {
         if (!game.clearAck) {
           game.clearAck = true; game.waveTimer = game.wave === 0 ? 1.2 : WAVE_BREAK; // [wave break] was 4 s
           if (game.wave > 0) for (const l of loot) l.life = Math.max(l.life, WAVE_BREAK + 3); // gold never expires mid-break
-          if (game.wave > 0) { banner('WAVE CLEARED!', `+${50 * game.wave} · hull repaired`); player.hp = Math.min(player.maxHp, player.hp + 25); addScore(50 * game.wave); updateHud(); }
+          if (game.wave > 0) { banner('WAVE CLEARED!', `+${50 * game.wave} · hull repaired`); player.hp = Math.min(player.maxHp, player.hp + 25); addScore(50 * game.wave); for (const e of escorts.alive()) e.hp = e.maxHp; /* [escort pickups] escorts patched to full */ updateHud(); }
         }
         game.waveTimer -= dt;
         if (game.wave > 0 && !loot.length && game.waveTimer > 3) game.waveTimer = 3; // all gold collected: skip ahead
@@ -863,12 +863,12 @@ function frame() {
       const l = loot[i]; l.life -= dt;
       l.mesh.position.set(l.x, waveHeight(l.x, l.z, t) + 0.1 + Math.sin(t * 2 + l.ph) * 0.1, l.z); l.mesh.rotation.y += dt * 0.8;
       if (Math.random() < 0.3) fx.sparkle(l.mesh.position);
-      if (player.alive && Math.hypot(l.x - player.x, l.z - player.z) < 10) {
+      if ((player.alive && Math.hypot(l.x - player.x, l.z - player.z) < 10) || escorts.list.some(e => e.alive && Math.hypot(l.x - e.x, l.z - e.z) < 10)) { // [escort pickups] escorts fish gold for you
         game.gold += l.value; addScore(l.value); sfx.coin(); popup(l.mesh.position.clone().setY(4), `+${l.value} GOLD`); scene.remove(l.mesh); loot.splice(i, 1); updateHud(); continue;
       }
       if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); }
     }
-    healthDrops.update(dt, t, player); // [health drops] bob, blink, pickup
+    healthDrops.update(dt, t, player, escorts.list); // [health drops] bob, blink, pickup
     animateShip(player.mesh, t, player.anchor ? 0 : player.sail / 3);
     for (const e of enemies) animateShip(e.mesh, t + 1.3, e.alive ? 0.8 : 0.3);
     escorts.animate(t, animateShip); // [escorts]

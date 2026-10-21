@@ -96,7 +96,7 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
       return null;
     },
     spawn,
-    update(dt, t, player) {
+    update(dt, t, player, others = []) {
       if (_tpl) _tpl.userData.beamMat.uniforms.uTime.value = t;
       for (let i = drops.length - 1; i >= 0; i--) {
         const d = drops[i]; d.life -= dt;
@@ -108,9 +108,9 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
         d.blinkPh = d.life > HEALTH_DROP.blink ? 0 : (d.blinkPh || 0) + dt * Math.PI * 2 * (2.5 + (HEALTH_DROP.blink - d.life) * 1.1); // 2.5 Hz → ~8 Hz
         d.mesh.visible = d.life > HEALTH_DROP.blink || Math.sin(d.blinkPh) > -0.35;
         if (Math.random() < 0.25) fx.glow.emit(V(d.x + (Math.random() - 0.5) * 2, y + 1 + Math.random() * 2, d.z + (Math.random() - 0.5) * 2), V(0, 1 + Math.random(), 0), { color: [0.45, 1, 0.55], size: 0.4 + Math.random() * 0.4, life: 0.5 + Math.random() * 0.4 });
-        if (!player.alive || player.hp >= player.maxHp) continue; // full hull: leave it floating for later
-        const reach = Math.max(10, (player.mesh.userData.len || 17) * 0.45);
-        if (Math.hypot(d.x - player.x, d.z - player.z) < reach) {
+        // heals whichever ship touches it: you first, then your escorts; full hulls leave it floating
+        const ship = [player, ...others].find(s => s.alive && s.hp < s.maxHp && Math.hypot(d.x - s.x, d.z - s.z) < Math.max(10, (s.mesh.userData.len || 17) * 0.45));
+        if (ship) { const player = ship;
           const before = player.hp;
           player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * HEALTH_DROP.healPct));
           const healed = Math.round(player.hp - before);
@@ -120,7 +120,7 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
           popup(p.clone().setY(p.y + 5), `+${healed} HP`, 'heal');
           healSound(sfx);
           remove(i); updateHud?.();
-          this.lastPickup = { healed, hp: player.hp, maxHp: player.maxHp };
+          this.lastPickup = { healed, hp: player.hp, maxHp: player.maxHp, ally: !!player.ally };
         }
       }
     },
