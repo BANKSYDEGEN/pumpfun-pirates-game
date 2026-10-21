@@ -159,7 +159,7 @@ function spawnEnemy(x, z, tier = 1, type = null) {
   scene.add(mesh);
   const hp = Math.round((big ? 160 : 70) * (1 + game.wave * 0.12));
   const bar = document.createElement('div'); bar.className = 'ehp';
-  const name = big ? 'DEV WALLET (BOSS)' : ENEMY_NAMES[Math.floor(Math.random() * ENEMY_NAMES.length)];
+  const name = big ? 'THE BOSS' : ENEMY_NAMES[Math.floor(Math.random() * ENEMY_NAMES.length)];
   bar.innerHTML = `<div class="name">${name}</div><div class="bar"><div class="fill"></div></div>`;
   $('bars').appendChild(bar);
   const e = {
@@ -224,7 +224,7 @@ function startWave() {
     // [boss escorts] the DEV WALLET sails in with his 2 escorts flanking him (after the roster: fixed DAILY draw order)
     if (bossNow) { bossNow.yaw = Math.atan2(player.x - bossNow.x, player.z - bossNow.z); bossNow.escortList = spawnBossEscorts(bossNow, spawnEnemy); bossNow.escortList.forEach((s, i) => { s.leader = bossNow; s.slotN = i; s.state = 'follow'; s.tgt = null; s.tgtT = 0; }); }
   } finally { rand = Math.random; }
-  banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE DEV WALLET APPROACHES' : `${n} rug ships on the horizon`);
+  banner(`WAVE ${game.wave}`, game.wave % 4 === 0 ? 'THE BOSS APPROACHES' : `${n} rug ships on the horizon`);
   if (roster.includes('boss')) sfx.boss(); else sfx.waveStart(); sfx.spawnBell(); // [Raul] sound upgrades (bell: SPYGLASS III)
   updateHud();
 }
