@@ -5,12 +5,12 @@
 //
 // Deploy (when you're ready):  supabase functions deploy verify-score --no-verify-jwt
 // Needs the default secrets SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (set automatically by Supabase),
-// and optionally ALLOWED_ORIGINS (comma-separated, default https://banksydegen.github.io; add your own domain here later).
+// and optionally ALLOWED_ORIGINS (comma-separated, default https://game.pumpfunpirates.com,https://banksydegen.github.io).
 import nacl from "npm:tweetnacl@1.0.3";
 import bs58 from "npm:bs58@6.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://banksydegen.github.io")
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
 const MAX_AGE_MS = 24 * 3600 * 1000;
 const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;

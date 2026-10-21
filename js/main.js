@@ -610,18 +610,23 @@ function updateFireButtons() {
 }
 
 // ---------- title / wallet ----------
-const walletInput = $('wallet-input'), nameInput = $('name-input');
+// [set sail first] SET SAIL needs nothing. Name + wallet are asked on the game over screen (prefilled from last time).
+const walletInput = $('wallet-input'), nameInput = $('go-name');
 walletInput.value = game.wallet; nameInput.value = game.name;
 function validateWallet() {
   const v = walletInput.value.trim(), ok = isValidSolanaAddress(v);
   walletInput.classList.toggle('good', ok); walletInput.classList.toggle('bad', !!v && !ok);
-  $('wallet-msg').textContent = !v ? (WALLET_VERIFY_ENABLED ? 'Required. Only used to key your leaderboard score. Never asks for keys; verifying is an optional view-only signature.' : 'Required. Only used to key your leaderboard score. Never asks for keys or signatures.') : ok ? `Ahoy ${shortWallet(v)}! Ready to sail.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
-  $('btn-start').disabled = !ok;
+  $('wallet-msg').textContent = !v ? (WALLET_VERIFY_ENABLED ? 'Add it to save this run to the leaderboard. Never asks for keys; verifying is an optional view-only signature.' : 'Add it to save this run to the leaderboard. Never asks for keys or signatures.') : ok ? `Ahoy ${shortWallet(v)}! Ready to save.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+  if (!game.saved) $('btn-save').disabled = !ok;
   return ok;
 }
 walletInput.addEventListener('input', validateWallet);
-walletInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && validateWallet()) startGame(); });
-nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && validateWallet()) startGame(); });
+walletInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (validateWallet()) { walletInput.blur(); saveScore(); } } });
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); walletInput.focus(); } });
+// phones: keep the focused field above the on-screen keyboard (the overlay follows visualViewport, so it can scroll)
+for (const inp of [nameInput, walletInput]) inp.addEventListener('focus', () => { for (const ms of [120, 350, 700]) setTimeout(() => { if (document.activeElement === inp) inp.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, ms); });
+nameInput.addEventListener('change', () => saveName(nameInput.value)); // keep what they typed even if they skip saving
+walletInput.addEventListener('change', () => { if (isValidSolanaAddress(walletInput.value.trim())) saveWallet(walletInput.value); });
 validateWallet();
 $('btn-rewards').textContent = `🔒 ${rewardsStatus().label.toUpperCase()}`;
 // [wallet verify] built but disabled. With the flag on: CONNECT PHANTOM (connect + signMessage only, view-only),
@@ -636,7 +641,7 @@ if (WALLET_VERIFY_ENABLED) import('./walletVerify.js').then(m => {
   });
 }).catch(e => console.warn('[wallet verify] unavailable', e));
 $('btn-start').onclick = () => startGame();
-// [daily] DAILY button: one run per wallet per UTC day (seeded), then it shows the countdown to the next one
+// [daily] DAILY mode is hidden from the UI (no button, no board tab). The seeded-run code below stays dormant.
 const DAILY_LS = 'pfp_daily_played';
 function dailyPlayed(wallet, seed = dailySeed()) { try { const d = JSON.parse(localStorage.getItem(DAILY_LS)); return !!d && d.seed === seed && d.wallets.includes(wallet); } catch { return false; } }
 function markDailyPlayed(wallet, seed) {
@@ -645,20 +650,11 @@ function markDailyPlayed(wallet, seed) {
   if (!d.wallets.includes(wallet)) d.wallets.push(wallet);
   try { localStorage.setItem(DAILY_LS, JSON.stringify(d)); } catch {}
 }
-function syncDailyBtn() {
-  const btn = $('btn-daily'); if (!btn) return;
-  const w = walletInput.value.trim(), ok = isValidSolanaAddress(w), played = ok && dailyPlayed(w);
-  btn.disabled = !ok || played;
-  btn.textContent = played ? `DAILY ✓ ${untilNextDaily().toUpperCase()}` : '☀ DAILY';
-  btn.title = played ? 'You sailed today\'s daily. New seas at 00:00 UTC.' : 'Daily challenge: same seas for every pirate today, one run per wallet';
-}
-$('btn-daily').onclick = () => startGame('daily');
-walletInput.addEventListener('input', syncDailyBtn);
-syncDailyBtn(); setInterval(syncDailyBtn, 30000);
+function syncDailyBtn() {}
 document.querySelectorAll('.lb-mode').forEach(el => el.textContent = `(${leaderboard.mode})`);
 
 // leaderboard period tabs (DAY / WEEK / MONTH / YEAR / ALL-TIME), remembered per device
-const TABS = [...PERIODS, DAILY_TAB]; // [daily] DAILY board tab
+const TABS = [...PERIODS]; // [daily] DAILY board tab hidden
 let lbPeriod = localStorage.getItem('pfp_lb_period');
 if (!TABS.some(p => p.id === lbPeriod)) lbPeriod = 'all';
 const boardTokens = new WeakMap();
@@ -746,14 +742,10 @@ function clearWorld() {
 
 function startGame(mode = null) {
   player.calm = 0; player.repT = 0; // [repair]
-  if (!validateWallet()) return;
-  game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
-  // [daily] the seed is fixed when the run starts (a run that crosses 00:00 UTC keeps its day); the attempt counts as soon as you sail
-  game.mode = mode === 'daily' && !dailyPlayed(game.wallet) ? 'daily' : null;
-  game.seed = game.mode ? dailySeed() : null; game.lootRng = null; game.dropRng = null;
-  if (game.mode) markDailyPlayed(game.wallet, game.seed);
-  syncDailyBtn();
-  game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
+  // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
+  game.wallet = getSavedWallet(); game.name = getSavedName();
+  // [daily] hidden from the UI: every run is a normal run
+  game.mode = null; game.seed = null; game.lootRng = null; game.dropRng = null;
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
@@ -787,21 +779,25 @@ async function gameOver() {
   showNextWave(-1); // [wave break]
   game.state = 'over';
   $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
-  $('go-wallet').textContent = `Wallet ${shortWallet(game.wallet)}`;
-  $('go-name').value = game.name; $('save-msg').textContent = game.mode === 'daily' ? `Daily challenge ${game.seed}: save it to today's DAILY board.` : 'Save your score to the leaderboard (best score per wallet counts).';
-  if (game.mode === 'daily' && lbPeriod !== 'daily') { lbPeriod = 'daily'; syncTabs(); } // [daily] show where this run lands
-  $('btn-save').disabled = false;
+  // [set sail first] ask for name + wallet here; a returning pirate sees them prefilled and can still edit
+  nameInput.value = getSavedName(); walletInput.value = getSavedWallet();
+  const known = isValidSolanaAddress(walletInput.value.trim());
+  $('go-wallet').textContent = known ? 'Your name and wallet from last time are filled in. Edit them if you like.' : 'Add your wallet to put this run on the leaderboard.';
+  $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
+  validateWallet();
   $('gameover').classList.remove('hidden');
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
   renderBoard($('board-over'));
   prepareShare(shareStats()); // pre-render the card so SHARE opens the share sheet inside the tap
 }
-function shareStats() { let skin = ''; try { skin = equippedSkin().name; } catch { /* skins optional */ } return { score: game.score, wave: game.wave, sunk: game.sunk, gold: game.gold + (game.goldSpent || 0), name: $('go-name').value.trim().slice(0, 20) || game.name, wallet: game.wallet, captain: game.captain, skin }; }
-$('btn-share').onclick = () => { const s = shareStats(); if (s.name !== game.name) prepareShare(s); shareScore(s, { onStatus: (st) => { if (st === 'downloaded') $('save-msg').textContent = 'Score card downloaded. Attach it to your X post!'; } }); };
+function shareStats() { let skin = ''; try { skin = equippedSkin().name; } catch { /* skins optional */ } return { score: game.score, wave: game.wave, sunk: game.sunk, gold: game.gold + (game.goldSpent || 0), name: $('go-name').value.trim().slice(0, 20) || game.name, wallet: isValidSolanaAddress(walletInput.value.trim()) ? walletInput.value.trim() : game.wallet, captain: game.captain, skin }; }
+$('btn-share').onclick = () => { const s = shareStats(); if (s.name !== game.name || s.wallet !== game.wallet) prepareShare(s); shareScore(s, { onStatus: (st) => { if (st === 'downloaded') $('save-msg').textContent = 'Score card downloaded. Attach it to your X post!'; } }); };
 async function saveScore() {
   if (game.saved) return;
+  if (!validateWallet()) { $('save-msg').textContent = 'Add a Solana wallet to save this run to the leaderboard.'; return; } // no wallet = no leaderboard entry
   game.saved = true; $('btn-save').disabled = true;
-  game.name = $('go-name').value.trim().slice(0, 20); saveName(game.name);
+  game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
+  game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
   const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) }, { proof: walletVerify?.getProof(game.wallet) || null }); // [wallet verify] proof only exists when the flag is on
   $('save-msg').textContent = game.mode === 'daily'
     ? (r.where === 'online' ? 'Saved to the online DAILY board!' : leaderboard.remote ? 'Saved on this device. Online daily board coming soon.' : 'Saved on this device.')
@@ -809,9 +805,10 @@ async function saveScore() {
   await renderBoard($('board-over'));
 }
 $('btn-save').onclick = saveScore;
-$('go-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveScore(); });
-$('btn-again').onclick = async () => { await saveScore(); startGame(); }; // [daily] after a DAILY run this is a normal run (one daily per day)
-$('btn-menu').onclick = async () => { await saveScore(); toTitle(); };
+// leaving the game over screen saves automatically when a valid wallet is filled in (returning pirates aren't nagged); otherwise the run is skipped
+const saveIfReady = async () => { if (!game.saved && isValidSolanaAddress(walletInput.value.trim())) await saveScore(); };
+$('btn-again').onclick = async () => { await saveIfReady(); startGame(); };
+$('btn-menu').onclick = async () => { await saveIfReady(); toTitle(); };
 
 // ---------- main loop ----------
 const clock = new THREE.Clock();

@@ -404,3 +404,21 @@ html.ios-pwa #status-plate::after {
 /* [wave break] NEXT WAVE IN countdown */
 #next-wave { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none; font-size: 34px; color: #fff; text-shadow: 0 3px 0 #000, 0 0 14px rgba(0,0,0,0.6); white-space: nowrap; }
 @media (max-height: 520px) and (orientation: landscape) { #next-wave { top: 44%; font-size: 26px; } }
+
+/* [set sail first] name + wallet entry on the game over screen; big tap targets, inputs 16px+ so iOS doesn't zoom */
+#gameover .go-entry { width: min(440px, 100%); margin: 6px auto 2px; text-align: left; }
+#gameover .go-entry .field { margin: 4px 0; }
+#gameover .go-entry .field input { width: 100%; box-sizing: border-box; min-height: 46px; font-size: max(16px, 1em); }
+#gameover .go-entry .field small { font-size: 15px; }
+#gameover .go-entry #btn-save { display: block; width: 100%; min-height: 48px; margin: 6px 0 0; font-size: 22px; }
+#gameover .go-entry #btn-save:disabled { opacity: 0.45; cursor: not-allowed; border-style: dashed; }
+#gameover #go-wallet { font-size: 16px; }
+@media (max-height: 520px) and (orientation: landscape) {
+  #gameover .go-entry { grid-area: field; width: 100%; margin: 2px 0; }
+  #gameover .go-entry .field { margin: 2px 0; font-size: 15px; gap: 1px; }
+  #gameover .go-entry .field > span { white-space: nowrap; font-size: 15px; }
+  #gameover .go-entry .field input { min-height: 40px; padding: 4px 10px; font-size: 16px; }
+  #gameover .go-entry .field small { display: none; }
+  #gameover .go-entry #btn-save { min-height: 42px; font-size: 18px; padding: 4px 12px; margin-top: 4px; }
+  #gameover #go-wallet { font-size: 13px; }
+}
