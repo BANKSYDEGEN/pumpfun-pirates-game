@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         const { count } = await db.from("wallet_nonces").select("nonce", { count: "exact", head: true }).eq("wallet", wallet).gt("expires_at", new Date().toISOString());
         if ((count ?? 0) >= 10) return json(429, { error: "too many sign-in attempts, try again in a few minutes" });
         const nonce = hex(rand(16)), now = new Date(), exp = new Date(now.getTime() + NONCE_TTL_MS);
-        const message = buildMessage(domain, wallet, nonce, now.toISOString(), exp.toISOString());
+        const message = buildMessage(domain, wallet, nonce, now.toISOString(), exp.toISOString(), b.plain === true);
         const { error } = await db.from("wallet_nonces").insert({ nonce, wallet, message, expires_at: exp.toISOString() });
         if (error) throw error;
         return json(200, { nonce, message, expires_at: exp.toISOString() });

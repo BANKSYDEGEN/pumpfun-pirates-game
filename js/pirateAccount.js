@@ -46,6 +46,43 @@ async function api(action, body = {}) {
 }
 const b64 = (u8) => { let s = ''; for (const b of u8) s += String.fromCharCode(b); return btoa(s); };
 
+// errors carry the stage they failed at, so the status line can say why
+const tagged = (stage, e) => { const x = e instanceof Error ? e : new Error(e?.message || String(e)); if (e && typeof e === 'object' && 'code' in e) x.code = e.code; x.stage = x.stage || stage; return x; };
+const step = async (stage, fn) => { try { return await fn(); } catch (e) { throw tagged(stage, e); } };
+const isRejection = (e) => e?.code === 4001 || /reject|cancel|denied|declin|closed/i.test(e?.message || '');
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function fromB58(str) {
+  const out = [0]; for (const ch of str) { let c = B58.indexOf(ch); if (c < 0) return null;
+    for (let i = 0; i < out.length; i++) { c += out[i] * 58; out[i] = c & 255; c >>= 8; } while (c) { out.push(c & 255); c >>= 8; } }
+  for (const ch of str) { if (ch === '1') out.push(0); else break; }
+  return new Uint8Array(out.reverse());
+}
+// every signMessage return shape seen in the wild -> 64 raw bytes
+export function sigBytes(res) {
+  let s = res?.signature ?? res?.data?.signature ?? res;
+  if (s?.type === 'Buffer' && Array.isArray(s.data)) s = s.data;      // JSON-ified Buffer
+  if (s instanceof ArrayBuffer) s = new Uint8Array(s);
+  else if (ArrayBuffer.isView(s)) s = new Uint8Array(s.buffer, s.byteOffset, s.byteLength);
+  else if (Array.isArray(s)) s = Uint8Array.from(s);
+  else if (typeof s === 'string') {
+    let b = /^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(s) ? fromB58(s) : null;
+    if (!b || b.length !== 64) { try { b = Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)); } catch { b = null; } }
+    if (!b && /^(0x)?[0-9a-f]{128}$/i.test(s)) b = Uint8Array.from(s.replace(/^0x/, '').match(/../g), (h) => parseInt(h, 16));
+    s = b;
+  } else if (s && typeof s === 'object' && typeof s.length !== 'number') { const v = Object.values(s); if (v.length === 64 && v.every(Number.isInteger)) s = Uint8Array.from(v); }
+  if (!(s instanceof Uint8Array) || s.length !== 64) throw new Error(`unexpected signature format (${Object.prototype.toString.call(res)})`);
+  return s;
+}
+async function signBytes(p, message) { return sigBytes(await p.signMessage(new TextEncoder().encode(message), 'utf8')); }
+export function connectError(e) {
+  const m = String(e?.message || e || '').slice(0, 80);
+  if (isRejection(e)) return e.stage === 'connect' ? 'Wallet connection cancelled.' : 'Signature cancelled.';
+  if (e?.stage === 'server') return e.status ? `Server error: ${m}` : 'Could not reach the save server. Check your connection.';
+  if (e?.stage === 'connect') return `Wallet would not connect${e.code != null ? ` (${e.code})` : ''}: ${m}`;
+  if (e?.stage === 'sign') return `Wallet would not sign${e.code != null ? ` (${e.code})` : ''}: ${m}`;
+  return `Could not connect: ${m}`;
+}
+
 function adopt(p) {
   player = p;
   if (p?.skins) { replaceSkins(p.skins); hooks.onSkins(); }
@@ -61,14 +98,21 @@ export async function connect() {
     return false;
   }
   const { p } = found;
-  const r = await p.connect();
-  const pk = (r?.publicKey || p.publicKey)?.toString();
-  if (!pk) throw new Error('no public key');
+  const r = await step('connect', () => p.connect());
+  const pk = (r?.publicKey || p.publicKey)?.toString?.();
+  if (!pk || pk === '[object Object]') throw tagged('connect', new Error('wallet gave no public key'));
   hooks.msg(`Sign the message in ${found.name}. It's free and read-only, not a transaction.`);
-  const n = await api('nonce', { wallet: pk });
-  const res = await p.signMessage(new TextEncoder().encode(n.message), 'utf8');
-  const sig = res?.signature ?? res;
-  const v = await api('verify', { wallet: pk, nonce: n.nonce, signature: b64(sig instanceof Uint8Array ? sig : new Uint8Array(sig)), local_skins: skinState(), name: hooks.getName() || null });
+  let n = await step('server', () => api('nonce', { wallet: pk }));
+  let sig;
+  try { sig = await signBytes(p, n.message); }
+  catch (e) {
+    if (isRejection(e)) throw tagged('sign', e);
+    // wallet refused the Sign-In-With-Solana form without prompting (Phantom -32000 etc): retry once with plain text
+    console.warn('[wallet save] SIWS sign failed, retrying with a plain message:', e);
+    n = await step('server', () => api('nonce', { wallet: pk, plain: true }));
+    sig = await step('sign', () => signBytes(p, n.message));
+  }
+  const v = await step('server', () => api('verify', { wallet: pk, nonce: n.nonce, signature: b64(sig), local_skins: skinState(), name: hooks.getName() || null }));
   writeSession({ token: v.token, wallet: pk, expires_at: v.expires_at });
   saveWallet(pk);
   adopt(v.player);
@@ -126,7 +170,7 @@ export function initAccount(ui, h) {
   ui.button.onclick = async () => {
     ui.button.disabled = true;
     try { await connect(); }
-    catch (e) { hooks.msg(e?.code === 4001 || /reject|cancel|denied/i.test(e?.message || '') ? 'Signature cancelled. You can still set sail as a guest.' : 'Could not connect the wallet. You can still set sail as a guest.', true); console.info('[wallet save]', e); }
+    catch (e) { console.error('[wallet save] connect failed', e?.stage, e?.code, e); hooks.msg(`${connectError(e)} You can still set sail as a guest.`, true); }
     finally { ui.button.disabled = false; render(); }
   };
   ui.out.onclick = () => disconnect();

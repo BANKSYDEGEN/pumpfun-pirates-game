@@ -13,13 +13,20 @@ export const isWallet = (w: unknown): w is string => {
   try { return bs58.decode(w).length === 32; } catch { return false; }
 };
 
-export function buildMessage(domain: string, wallet: string, nonce: string, issuedAt: string, expiresAt: string) {
+// SIWS-format message. Phantom validates SIWS messages before prompting and rejects a malformed one with -32000
+// (no prompt shown). The statement MUST be one line (no "\n"), domain must equal the page host, URI its origin.
+// plain = a non-SIWS fallback with the same facts, for wallets that refuse the SIWS form.
+export function buildMessage(domain: string, wallet: string, nonce: string, issuedAt: string, expiresAt: string, plain = false) {
+  const statement = "Sign in to PUMPFUN PIRATES to save your progress. Read-only: this is not a transaction and cannot move funds.";
+  if (plain) return [
+    "PUMPFUN PIRATES sign-in", "", statement, "",
+    `Site: https://${domain}`, `Wallet: ${wallet}`, `Nonce: ${nonce}`, `Issued: ${issuedAt}`, `Expires: ${expiresAt}`,
+  ].join("\n");
   return [
     `${domain} wants you to sign in with your Solana account:`,
     wallet,
     "",
-    "Sign in to PUMPFUN PIRATES to save your progress.",
-    "Read-only: this only proves you own this wallet. It is not a transaction and cannot move funds or approve anything.",
+    statement,
     "",
     `URI: https://${domain}`,
     "Version: 1",
