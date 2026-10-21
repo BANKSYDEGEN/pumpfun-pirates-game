@@ -38,6 +38,8 @@ function buildDom() {
     <div class="shop-sub muted">Spend looted gold on your ship. Upgrades last this voyage only.</div>
     <div id="shop-hp" class="shop-hp"><span class="label">HULL</span><div class="bar"><div class="fill red"></div></div><span class="hp-txt"></span>
       <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g</button></div>
+    <div id="shop-escort" class="shop-hp shop-escort" title="An allied ship that sails with you and fights until it sinks. Up to 5 at once."><span class="esc-ico" aria-hidden="true">⚓</span><span class="label">ESCORTS</span><span id="esc-count" class="esc-count">0/5</span>
+      <button id="shop-hire" class="buy">HIRE ESCORT · 1500g</button></div>
     <div class="shop-tabs" role="tablist"><button id="tab-upg" class="shop-tab on" role="tab">UPGRADES</button><button id="tab-skins" class="shop-tab" role="tab">SKINS</button></div>
     <div id="shop-grid" class="shop-grid"></div>
     <div id="skin-grid" class="shop-grid skin-grid hidden"></div>
@@ -48,6 +50,7 @@ function buildDom() {
   ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
   $('shop-close').onclick = close;
   $('shop-repair').onclick = repair;
+  $('shop-hire').onclick = hire; // [escorts]
   const grid = $('shop-grid');
   for (const u of UPGRADES) {
     const c = document.createElement('div'); c.className = 'shop-card'; c.dataset.id = u.id; c.title = u.desc; // [Raul] upgrade buffs: desc as a hover hint
@@ -81,7 +84,7 @@ function setTab(t) {
   tab = t;
   $('tab-upg').classList.toggle('on', t === 'upg'); $('tab-skins').classList.toggle('on', t === 'skins');
   $('shop-grid').classList.toggle('hidden', t !== 'upg'); $('skin-grid').classList.toggle('hidden', t !== 'skins');
-  $('shop-hp').classList.toggle('hidden', t !== 'upg');
+  $('shop-hp').classList.toggle('hidden', t !== 'upg'); $('shop-escort').classList.toggle('hidden', t !== 'upg');
   if (t === 'skins') refreshPreviews();
   document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? 'Spend looted gold on your ship. Upgrades last this voyage only.' : 'Paint jobs are cosmetic and yours to keep across every voyage.';
   render();
@@ -148,12 +151,28 @@ function render() {
     c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, next.value, next.gunDmg)}</b>`;
     b.textContent = `${next.cost}g`; b.disabled = game.gold < next.cost;
   }
+  renderEscorts();
   renderSkins();
+}
+// [escorts] HIRE ESCORT: 1500g, up to 5 afloat; they stay until sunk (rest of the run)
+function renderEscorts() {
+  const E = ctx.escorts; if (!E) return;
+  const n = E.count(), max = E.max, cost = E.cost, b = $('shop-hire');
+  $('esc-count').textContent = `${n}/${max}`;
+  b.textContent = n >= max ? 'FLEET FULL' : `HIRE ESCORT · ${cost}g`;
+  b.disabled = n >= max || ctx.game.gold < cost;
+}
+function hire() {
+  const E = ctx.escorts; if (!E) return;
+  if (!E.hire()) return;
+  ctx.sfx?.upgrade?.(false); ctx.updateHud(); render();
+  const r = $('shop-escort'); r.classList.remove('tierup'); void r.offsetWidth; r.classList.add('tierup'); setTimeout(() => r.classList.remove('tierup'), 800);
 }
 
 function canAfford() {
   if (!ctx) return false;
   const g = ctx.game.gold;
+  if (ctx.escorts && ctx.escorts.count() < ctx.escorts.max && g >= ctx.escorts.cost) return true; // [escorts]
   return UPGRADES.some(u => { const t = u.tiers[run.levels[u.id]]; return t && g >= t.cost; });
 }
 
@@ -218,7 +237,7 @@ export function initShop(c) {
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
-  window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, get run() { return run; },
+  window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, hire, get run() { return run; },
     // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
     setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); refreshPreviews(); } };
 }

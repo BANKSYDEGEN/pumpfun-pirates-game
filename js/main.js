@@ -25,7 +25,8 @@ import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, upda
 import { initShop, resetShop, waveSkinUnlock } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
-import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js'; // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
+import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
+import { createEscorts, ESCORT } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
 let rand = Math.random; // [daily] swapped for a seeded stream while a DAILY wave spawns / drops chests
@@ -142,6 +143,9 @@ prebuildShips({}, 0); // title screen idle time: first-tier ships ready before t
 const enemies = [], balls = [], loot = [];
 const ballGeo = new THREE.SphereGeometry(0.45, 10, 8);
 const ballMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4, metalness: 0.6 });
+const ballPool = []; // [escorts] pooled cannonballs: meshes stay in the scene, hidden when idle
+function getBall() { const m = ballPool.pop() || (() => { const b = new THREE.Mesh(ballGeo, ballMat); scene.add(b); return b; })(); m.visible = false; return m; }
+function freeBall(m) { m.visible = false; ballPool.push(m); }
 
 // ---------- enemies ----------
 function spawnEnemy(x, z, tier = 1, type = null) {
@@ -189,13 +193,24 @@ function despawnEnemy(e) {
   e.alive = false; e.escaped = true; e.sinking = 99; e.mesh.visible = false; e.bar.style.display = 'none'; // the sunk-ship sweep in the loop removes + disposes it (no splice mid-iteration)
   popup(new THREE.Vector3(player.x, 8, player.z), 'IT GOT AWAY!', 'hit'); updateHud();
 }
-const specialCtx = { get player() { return player; }, enemies, game, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), damage: (...a) => damage(...a), spawnEnemy: (...a) => spawnEnemy(...a), despawn: (e) => despawnEnemy(e), fx, popup: (...a) => popup(...a), sfx, V3: THREE.Vector3 };
+let specialTarget = null; // [escorts] who the special AI (rammer / boss barrage) is after this frame
+// [escorts] enemies go for the nearest of you / your escorts, but an escort only wins if it's clearly closer (ESCORT.aggro); re-picked every ~1.5 s
+function enemyTarget(e, dt) {
+  e.tgtT = (e.tgtT || 0) - dt;
+  if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt;
+  e.tgtT = 1.5;
+  let best = player, bd = player.alive ? Math.hypot(player.x - e.x, player.z - e.z) : 1e9;
+  for (const a of escorts.list) { if (!a.alive) continue; const d = Math.hypot(a.x - e.x, a.z - e.z) * ESCORT.aggro; if (d < bd) { bd = d; best = a; } }
+  return (e.tgt = best);
+}
+const specialCtx = { get player() { return specialTarget || player; }, enemies, game, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), damage: (...a) => damage(...a), spawnEnemy: (...a) => spawnEnemy(...a), despawn: (e) => despawnEnemy(e), fx, popup: (...a) => popup(...a), sfx, V3: THREE.Vector3 };
 
 // [spawn ring] waves appear 195-300 m out (was 130-210): deep in the fog, inside the ocean mesh (350 m half-size on low)
 const SPAWN_MIN = 195, SPAWN_MAX = 300, SPOT_RANGE = SPAWN_MAX + 20;
 function startWave() {
   game.wave++;
   waveSkinUnlock(game.wave); // [wave skins] waves 5, 10, 15...: free skin unlock toast (normal + DAILY)
+  escorts.onWave(); // [escorts] +50% hull, stats follow the wave
   if (player.alive) player.hp = player.maxHp; // full hull at the start of every wave (maxHp includes hull upgrades)
   const daily = game.mode === 'daily'; // [daily] same mix, bearings, ranges, hulls and chest scatter for everyone today
   const roster = waveRoster(game.wave, daily ? waveRng(game.seed, game.wave, 'mix') : Math.random), n = roster.length; // [Raul] ship upgrades: sloops / frigates / galleons / boss
@@ -252,7 +267,7 @@ function fire(shooter, side, target = null, accuracy = 1) {
       if (along < H * 0.4) v = null;
     }
     if (!v) { const t = range / H; v = dir.clone().multiplyScalar(H).add(vel0); v.y = 0.5 * 20 * t + rnd(-0.6, 0.6); v.x += rnd(-1, 1); v.z += rnd(-1, 1); }
-    const mesh = new THREE.Mesh(ballGeo, ballMat); mesh.position.copy(p); scene.add(mesh);
+    const mesh = getBall(); mesh.position.copy(p);
     balls.push({ mesh, v, owner: shooter, life: 6, delay: i * 0.07 });
     setTimeout(() => fx.muzzle(p, dir), i * 70);
   });
@@ -274,16 +289,20 @@ function damage(s, amt, p, src = null) {
   s.hp -= amt;
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
   if (s === player) { s.calm = 0; s.repT = 0; game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); } // [repair] a hit resets the 20 s wait
-  else { s.calm = 0; s.repT = 0; addScore(5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
+  else if (s.ally) { s.calm = 0; s.repT = 0; } // [escorts] no score for hits on your own escorts
+  else { s.calm = 0; s.repT = 0; addScore(src?.ally ? 3 : 5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { setTimeout(gameOver, 3200); }
-    else { game.sunk++; addScore(100 * (s.big ? 3 : 1) + 10 * game.wave); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${100 * (s.big ? 3 : 1) + 10 * game.wave}`); dropLoot(s); healthDrops.onSink(s, game.mode === 'daily' && game.dropRng ? game.dropRng : Math.random); } // [health drops] ~33% per sink (pity after 5 dry) + bosses; DAILY uses its own seeded drop stream
+    else if (s.ally) escorts.onSunk(s); // [escorts] no loot, no crate roll
+    else { if (src?.ally) game.escortSunk = (game.escortSunk || 0) + 1; const pts = Math.round((100 * (s.big ? 3 : 1) + 10 * game.wave) * (src?.ally ? ESCORT.killScore : 1)); game.sunk++; addScore(pts); popup(new THREE.Vector3(s.x, 10, s.z), `SUNK! +${pts}`); dropLoot(s); healthDrops.onSink(s, game.mode === 'daily' && game.dropRng ? game.dropRng : Math.random); } // [health drops] ~33% per sink (pity after 5 dry) + bosses; DAILY uses its own seeded drop stream
   }
   updateHud();
 }
 
 // ---------- loot ----------
 const healthDrops = createHealthDrops({ scene, fx, sfx, popup, updateHud }); // [health drops]
+const escorts = createEscorts({ scene, fx, sfx, game, enemies, getPlayer: () => player, moveShip: (...a) => moveShip(...a), floatShip: (...a) => floatShip(...a), fire: (...a) => fire(...a), popup: (...a) => popup(...a),
+  buildOpts: { mainSailMap: sailTex, flagMap: flagTex, shadows: HIGH, quality }, onChange: () => updateHud() }); // [escorts]
 function dropLoot(s) { // [daily] chest scatter comes from the wave's loot stream on a DAILY run
   if (game.mode === 'daily' && game.lootRng) rand = game.lootRng;
   try { dropLootAt(s); } finally { rand = Math.random; }
@@ -352,17 +371,19 @@ function moveShip(s, dt, targetSpeed, turnInput) {
 function updateEnemy(e, dt) {
   if (!e.alive) { floatShip(e, dt); return; }
   updateRepair(e, dt); // [repair] fleeing ships patch up after 20 s untouched
+  const T = enemyTarget(e, dt); specialTarget = e.type === 'runner' ? player : T; // [escorts] the runner only ever flees from you
   if (updateSpecialEnemy(e, dt, specialCtx)) { // [enemy variety] rammer / runner AI (boss attacks also run here, then fall through)
     if (e.alive && e.hp < e.maxHp * 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.12; fx.smoke(new THREE.Vector3(e.x + rnd(-2, 2), e.y + 3, e.z + rnd(-3, 3)), e.hp < e.maxHp * 0.35); } }
     return;
   }
-  const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz);
+  const dx = T.x - e.x, dz = T.z - e.z, d = Math.hypot(dx, dz); // [escorts] T = you, or an escort that's clearly closer
   const toP = Math.atan2(dx, dz);
+  const dYou = T === player ? d : Math.hypot(player.x - e.x, player.z - e.z);
   let desired = e.yaw, spd = e.maxSpeed * 0.55;
   if (e.state === 'flee') {
-    desired = toP + Math.PI; spd = e.maxSpeed;
-    if (d > 260) { e.state = 'roam'; e.hp = Math.min(e.maxHp * 0.45, e.hp + 5); }
-  } else if (d < 150 && player.alive) {
+    desired = Math.atan2(player.x - e.x, player.z - e.z) + Math.PI; spd = e.maxSpeed;
+    if (dYou > 260) { e.state = 'roam'; e.hp = Math.min(e.maxHp * 0.45, e.hp + 5); }
+  } else if (d < 150 && T.alive) {
     e.state = 'engage';
     // circle at ~38 m presenting a broadside
     const ideal = 38;
@@ -374,10 +395,10 @@ function updateEnemy(e, dt) {
     e.state = 'roam';
     if (!e.wp || Math.hypot(e.wp[0] - e.x, e.wp[1] - e.z) < 15) e.wp = [player.x + rnd(-120, 120), player.z + rnd(-120, 120)];
     desired = Math.atan2(e.wp[0] - e.x, e.wp[1] - e.z);
-    if (d < SPOT_RANGE) desired = toP; // spotted you, close in ([spawn ring] was 230 m: covers the whole spawn ring so fresh waves still head straight in)
+    if (dYou < SPOT_RANGE) desired = Math.atan2(player.x - e.x, player.z - e.z); // spotted you, close in ([spawn ring] was 230 m: covers the whole spawn ring so fresh waves still head straight in)
   }
   // keep apart from other ships
-  for (const o of [player, ...enemies]) {
+  for (const o of [player, ...escorts.list, ...enemies]) {
     if (o === e || !o.alive) continue;
     const ox = e.x - o.x, oz = e.z - o.z, od = Math.hypot(ox, oz);
     if (od < 14 && od > 0.01) { const push = (14 - od) * 0.9 * dt; e.x += ox / od * push; e.z += oz / od * push; if (od < 22) desired = Math.atan2(ox, oz) * 0.5 + desired * 0.5; }
@@ -387,10 +408,10 @@ function updateEnemy(e, dt) {
   floatShip(e, dt);
   // fire when player sits on a broadside
   e.cd -= dt;
-  if (e.cd <= 0 && player.alive && d < 70 && e.state !== 'flee' || (e.cd <= 0 && e.state === 'flee' && d < 40)) {
-    const [lx, lz] = toLocal(e, player.x, player.z);
+  if (e.cd <= 0 && T.alive && d < 70 && e.state !== 'flee' || (e.cd <= 0 && e.state === 'flee' && d < 40)) {
+    const [lx, lz] = toLocal(e, T.x, T.z);
     const ang = Math.abs(Math.atan2(lz, Math.abs(lx)));
-    if (ang < 0.5) { fire(e, lx > 0 ? 'port' : 'star', player, e.accuracy); e.cd = e.reload * rnd(0.85, 1.25); }
+    if (ang < 0.5) { fire(e, lx > 0 ? 'port' : 'star', T, e.accuracy); e.cd = e.reload * rnd(0.85, 1.25); }
   }
   // damage smoke
   if (e.hp < e.maxHp * 0.6) { e.smokeT -= dt; if (e.smokeT <= 0) { e.smokeT = 0.12; fx.smoke(new THREE.Vector3(e.x + rnd(-2, 2), e.y + 3, e.z + rnd(-3, 3)), e.hp < e.maxHp * 0.35); } }
@@ -407,19 +428,20 @@ function updateBalls(dt) {
     const p = b.mesh.position;
     fx.trail(p);
     let done = false;
-    for (const s of [player, ...enemies]) {
+    const ownAlly = b.owner === player || b.owner.ally;
+    for (const s of [player, ...escorts.list, ...enemies]) {
       if (s === b.owner || !s.alive) continue;
-      if (b.owner !== player && s !== player) continue; // enemies don't hurt each other
+      if (ownAlly === (s === player || !!s.ally)) continue; // [escorts] no friendly fire: enemies don't hurt each other, you + escorts don't either
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
       if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9) {
-        damage(s, b.owner === player ? Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * (player.gunDmg || 1)) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (player.armor || 0)))), p.clone(), b.owner); // [Raul] ship upgrades: enemy type damage, armor; upgrade buffs: CANNONS gunDmg
+        damage(s, b.owner === player ? Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * (player.gunDmg || 1)) : b.owner.ally ? escorts.ballDmg(b.owner) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (s.armor || 0)))), p.clone(), b.owner); // [escorts] escort balls; armor of whoever got hit // [Raul] ship upgrades: enemy type damage, armor; upgrade buffs: CANNONS gunDmg
         done = true; break;
       }
     }
     if (!done && p.y < waveHeight(p.x, p.z, game.t)) { fx.splash(p); ocean.addSplash(p.x, p.z, 2.8, game.t); // [aaa water] lingering foam
       sfx.splash(clamp(1 - p.distanceTo(player.mesh.position) / 150, 0.05, 0.8)); done = true; }
-    if (done || b.life <= 0) { scene.remove(b.mesh); balls.splice(i, 1); }
+    if (done || b.life <= 0) { freeBall(b.mesh); balls.splice(i, 1); }
   }
 }
 
@@ -536,6 +558,15 @@ function updateBars() {
     e.bar.classList.toggle('repairing', !!e.repairing); e.bar.classList.toggle('repair-tick', e.repTick > 0); // [repair] green pulse on the bar only
   }
 }
+function updateEscortBars() { // [escorts] green bars over your escorts
+  for (const e of escorts.list) {
+    const s = e.alive && game.state !== 'title' ? screenPos(new THREE.Vector3(e.x, e.y + e.mesh.userData.len * 1.05, e.z)) : null;
+    if (!s || !s.vis) { e.bar.style.display = 'none'; continue; }
+    e.bar.style.display = 'block'; e.bar.style.left = `${s.x}px`; e.bar.style.top = `${s.y}px`;
+    e.fill.style.width = `${(e.hp / e.maxHp) * 100}%`;
+    e.bar.classList.toggle('low', e.state === 'retreat');
+  }
+}
 const radar = $('radar'), rctx = radar.getContext('2d');
 function drawRadar() {
   const W = radar.width, R = W / 2, range = 260;
@@ -551,6 +582,7 @@ function drawRadar() {
   loot.forEach(l => dot(l.x, l.z, '#ffcd77', 3));
   healthDrops.radar(dot); // [health drops] green dots
   enemies.forEach(e => e.alive && dot(e.x, e.z, e.state === 'flee' ? '#ff9b9b' : '#fa0d0d', e.big ? 5 : 3.5));
+  escorts.list.forEach(e => e.alive && (dot(e.x, e.z, '#ffffff', 4), dot(e.x, e.z, '#4ee37a', 2.8))); // [escorts] green dot, white ring
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(R, R - 7); rctx.lineTo(R - 5, R + 5); rctx.lineTo(R + 5, R + 5); rctx.fill();
 }
 function updateFireButtons() {
@@ -679,7 +711,8 @@ buildTabs();
 function clearWorld() {
   for (const e of enemies) { scene.remove(e.mesh); disposeShip(e.mesh); e.bar.remove(); }
   enemies.length = 0;
-  for (const b of balls) scene.remove(b.mesh); balls.length = 0;
+  for (const b of balls) freeBall(b.mesh); balls.length = 0;
+  escorts.clear(); // [escorts] a new run starts with none
   for (const l of loot) scene.remove(l.mesh); loot.length = 0;
   healthDrops.clear(); // [health drops]
   fx.clear(); wakes.clear(); ocean.clearSplashes(); // [aaa water]
@@ -698,7 +731,7 @@ function startGame(mode = null) {
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
-  Object.assign(game, { storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
+  Object.assign(game, { escortSunk: 0, storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
   $('captain-img').src = `assets/captains/${game.captain}.jpg`;
   $('captain-name').textContent = game.name ? `${game.name.toUpperCase()} · #${game.captain}` : `CAPT. #${game.captain}`;
@@ -791,6 +824,7 @@ function frame() {
     }
     floatShip(player, dt);
     for (const e of enemies) updateEnemy(e, dt);
+    escorts.update(dt); // [escorts]
     // remove fully sunk ships
     for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive && enemies[i].sinking > 7) { scene.remove(enemies[i].mesh); disposeShip(enemies[i].mesh); enemies[i].bar.remove(); enemies.splice(i, 1); updateHud(); }
     updateBalls(dt);
@@ -807,6 +841,7 @@ function frame() {
     healthDrops.update(dt, t, player); // [health drops] bob, blink, pickup
     animateShip(player.mesh, t, player.anchor ? 0 : player.sail / 3);
     for (const e of enemies) animateShip(e.mesh, t + 1.3, e.alive ? 0.8 : 0.3);
+    escorts.animate(t, animateShip); // [escorts]
     fx.update(dt, t);
 
     // lightning
@@ -831,7 +866,8 @@ function frame() {
   wind.uTime.value = t; chestTime(t);
   // hull foam collars for the water shader (nearest ships first)
   { const H = ocean.uniforms.uHulls.value; let k = 0;
-    const list = enemies.length < MAX_HULLS ? enemies : enemies.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
+    const ships = escorts.list.length ? [...escorts.list, ...enemies] : enemies; // [escorts] foam collars + wakes too
+    const list = ships.length < MAX_HULLS ? ships : ships.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
     for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
     ocean.uniforms.uHullCount.value = k;
     wakes.update(player, list, t); } // [aaa water] wake trails: player first, then the nearest ships
@@ -857,7 +893,7 @@ function frame() {
   if (HIGH) { sun.target.position.set(player.x, 0, player.z); sun.position.copy(sun.target.position).add(SUN_OFF); }
   rain.uniforms.uCam.value.copy(camera.position);
 
-  if (game.state !== 'title') { updateBars(); drawRadar(); updateFireButtons(); }
+  if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -923,9 +959,9 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
-initShop({ game, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip, prebuildShips, previewBase: { mainSailMap: sailTex, flagMap: flagTex, quality } }); // [Raul] skin previews: classic sail/flag + quality // [Raul] upgrade visuals: camera + ship rebuild
+initShop({ game, escorts, getPlayer: () => player, updateHud, sfx, camera, rebuildShip: rebuildPlayerShip, prebuildShips, previewBase: { mainSailMap: sailTex, flagMap: flagTex, quality } }); // [Raul] skin previews: classic sail/flag + quality // [Raul] upgrade visuals: camera + ship rebuild
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
 window.PFP_HEALTH = healthDrops; // [health drops] test hook
-window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, fire: playerFire, damage, startGame, gameOver, quality, camera, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
+window.PFP = { game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, quality, camera, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests

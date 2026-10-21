@@ -133,3 +133,15 @@
 @media (max-height: 520px) and (orientation: landscape) { #skin-toast { top: calc(env(safe-area-inset-top, 0px) + 44px); padding: 5px 10px; } #skin-toast .st-sw { width: 66px; height: 33px; } }
 @keyframes stIn { from { opacity: 0; transform: translate(-50%, -16px); } }
 @keyframes stOut { to { opacity: 0; transform: translate(-50%, -16px); } }
+
+/* [escorts] HIRE ESCORT row + allied health bars (green fill, gold frame, little anchor so they never read as enemies) */
+.shop-escort { border-top: 1px solid rgba(255,205,119,0.18); padding-top: 6px; }
+.shop-escort .esc-ico { font-family: system-ui, sans-serif; font-size: 18px; color: #4ee37a; }
+.shop-escort .esc-count { color: #4ee37a; min-width: 38px; }
+.shop-escort #shop-hire { margin-left: auto; }
+.shop-escort.tierup { animation: sc-tierup 0.6s ease-out; }
+.ehp.ally .bar { border: 1px solid #ffcd77; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); width: 58px; }
+.ehp.ally .fill { background: linear-gradient(90deg, #1fbf55, #7dffa8); }
+.ehp.ally::before { content: '⚓'; display: block; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1; color: #4ee37a; text-shadow: 0 1px 2px #000; }
+.ehp.ally.low .bar { animation: ev-warn 0.5s steps(2) infinite; }
+@media (max-height: 500px) { .shop-escort { margin-bottom: 4px; } .ehp.ally .bar { width: 46px; } }
