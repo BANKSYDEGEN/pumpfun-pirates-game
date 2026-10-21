@@ -1,6 +1,6 @@
 # PUMPFUN PIRATES · Storm Hunt
 
-### ▶ [Play now: banksydegen.github.io/pumpfun-pirates-game](https://banksydegen.github.io/pumpfun-pirates-game/)
+### ▶ [Play now: [game.pumpfunpirates.com)]((http://game.pumpfunpirates.com/))
 
 On your phone, open the link and use **Add to Home Screen** to install it as an app.
 
