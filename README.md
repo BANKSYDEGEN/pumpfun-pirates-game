@@ -162,3 +162,7 @@ assets/                font, skull logo, wordmark, NFT captain portraits
 - The player flag and sails use the real skull logo image. The enemy flag is an original cracked green/white pill parody, **not** the pump.fun logo.
 - **Upgrade levels:** every shop upgrade has 6 levels (CANNONS 8) with smaller steps; maxing everything costs 5,275g. Each level adds visible parts to your ship.
 - **Late waves:** past wave 8 each wave adds one ship (up to 15) and enemies get +7% HP and +4.5% damage per wave past 8 (DAILY too).
+
+## License
+
+Copyright (c) 2026 BANKSYDEGEN / PUMPFUN PIRATES. All rights reserved. See [LICENSE](LICENSE).
