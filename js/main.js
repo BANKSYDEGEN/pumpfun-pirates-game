@@ -718,11 +718,45 @@ async function renderBoard(el) {
     const rk = document.createElement('i'); rk.textContent = `${i + 1}.`;
     const nm = document.createElement('span'); nm.textContent = r.name ? `${r.name} · ${shortWallet(r.wallet)}` : shortWallet(r.wallet);
     const b = document.createElement('b'); b.textContent = r.score;
-    li.append(rk, nm, b); el.appendChild(li);
+    li.append(rk, nm, b);
+    if (!ON_PORTAL && r.wallet) { // [copy wallet] tap a row to copy that pirate's full wallet address
+      li.dataset.wallet = r.wallet; li.classList.add('copyable'); li.tabIndex = 0; li.setAttribute('role', 'button');
+      li.title = `Copy wallet ${r.wallet}`; li.setAttribute('aria-label', `${r.name ? r.name + ', ' : ''}score ${r.score}. Copy wallet address`);
+      const c = document.createElement('em'); c.className = 'lb-copy'; c.setAttribute('aria-hidden', 'true'); c.innerHTML = COPY_ICON; nm.after(c);
+    }
+    el.appendChild(li);
   });
   // game over: if your row is below the first 5, scroll the list (only the list) so it's in view
   if (mine && el.id === 'board-over' && mine.offsetTop + mine.offsetHeight > el.clientHeight) el.scrollTop = mine.offsetTop - (el.clientHeight - mine.offsetHeight) / 2;
   boardHint(el);
+}
+const COPY_ICON = '<svg viewBox="0 0 16 16" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';
+// [copy wallet] one delegated listener per board (rows are rebuilt on every render)
+async function copyText(text) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch {}
+  try { // fallback: old WebViews / iOS without clipboard permission
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;';
+    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch { return false; }
+}
+let copyToastT = 0;
+function copyToast(msg) {
+  let t = $('copy-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'copy-toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(copyToastT); copyToastT = setTimeout(() => t.classList.remove('on'), 1600);
+}
+async function copyRowWallet(li) {
+  const w = li?.dataset.wallet; if (!w) return;
+  const ok = await copyText(w);
+  copyToast(ok ? `Copied! ${shortWallet(w)}` : `Copy failed: ${w}`);
+  if (ok) { li.classList.add('copied'); setTimeout(() => li.classList.remove('copied'), 900); }
+}
+for (const id of ['board-title', 'board-over']) {
+  const el = $(id); if (!el) continue;
+  el.addEventListener('click', (e) => copyRowWallet(e.target.closest('li.copyable')));
+  el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('li.copyable')) { e.preventDefault(); copyRowWallet(e.target); } });
 }
 // fade + "scroll for more" under a board that holds more than 5 rows; hidden once scrolled to the end
 function boardHint(el) {

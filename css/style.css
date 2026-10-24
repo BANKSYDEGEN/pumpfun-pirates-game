@@ -469,3 +469,14 @@ html.ios-pwa #status-plate::after {
 .portal .portal-best { display: block; margin: 10px 0; text-align: center; color: var(--gold); font-size: 30px; letter-spacing: 0.04em; }
 .portal .portal-best b { color: #fff; font-weight: 400; }
 .portal .portal-best .nb { display: block; color: #fa0d0d; font-size: 26px; }
+
+/* [copy wallet] tap a leaderboard row to copy the full wallet address */
+.board li.copyable { cursor: pointer; border-radius: 8px; -webkit-tap-highlight-color: transparent; transition: background .15s; }
+.board li.copyable:hover, .board li.copyable:focus-visible { background: rgba(255,205,119,0.12); outline: none; }
+.board li.copyable.copied { background: rgba(80,200,120,0.25); }
+.board li .lb-copy { flex: 0 0 auto; font-style: normal; font-size: 0.7em; opacity: 0.45; color: var(--gold); align-self: center; display: inline-flex; }
+.board li.copyable:hover .lb-copy, .board li.copied .lb-copy { opacity: 0.9; }
+#copy-toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -12px); z-index: 9999;
+  background: rgba(10,14,24,0.92); color: var(--gold, #ffcd77); border: 1px solid rgba(255,205,119,0.5); border-radius: 12px;
+  padding: 8px 16px; font-size: 18px; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; }
+#copy-toast.on { opacity: 1; transform: translate(-50%, 0); }
