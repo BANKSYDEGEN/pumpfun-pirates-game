@@ -460,3 +460,11 @@ html.ios-pwa #status-plate::after {
   button.icon::after, button.mini::after, .soc::after, #btn-shop::after, .faq-btn::after { content: ''; position: absolute; inset: -5px; }
   .lb-tabs button::after { content: ''; position: absolute; inset: -10px -2px; }
 }
+
+/* game portals (html.portal, set in index.html): offline + crypto-free; js/portal.js swaps the boards for a this-device best */
+.portal .token-row, .portal .wallet-row, .portal #wallet-note, .portal .disclaimer,
+.portal .board-wrap, .portal #go-entry, .portal #go-wallet, .portal #save-msg { display: none !important; }
+.portal-best { display: none; }
+.portal .portal-best { display: block; margin: 10px 0; text-align: center; color: var(--gold); font-size: 30px; letter-spacing: 0.04em; }
+.portal .portal-best b { color: #fff; font-weight: 400; }
+.portal .portal-best .nb { display: block; color: #fa0d0d; font-size: 26px; }

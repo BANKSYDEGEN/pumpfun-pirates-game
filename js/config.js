@@ -5,7 +5,10 @@
 // The anon key is public by design; security comes from the RLS
 // policies in supabase/schema.sql. NEVER put the service_role key here.
 // ===================================================================
-export const SUPABASE_URL = 'https://qhandcjwlkmovjzwzqfk.supabase.co';        // e.g. 'https://abcd1234.supabase.co'
+// Game portals (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net): the game runs fully offline and crypto-free there:
+// no Supabase requests at all (this-device scores only), no wallet sign-in, no token/social links (see js/portal.js).
+export const ON_PORTAL = typeof location !== 'undefined' && /(^|\.)(itch\.zone|ungrounded\.net)$/.test(location.hostname);
+export const SUPABASE_URL = ON_PORTAL ? '' : 'https://qhandcjwlkmovjzwzqfk.supabase.co';        // e.g. 'https://abcd1234.supabase.co'
 export const SUPABASE_ANON_KEY = 'sb_publishable_yKPJooRyGC0oSIOjKcmLtw_nB7TAD81';   // the project's "anon public" key
 
 export const LEADERBOARD_TABLE = 'scores';          // insert target
@@ -31,5 +34,5 @@ export const VERIFY_SCORE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/ver
 
 // Read-only wallet sign-in + server-saved progress (Edge Function `pirate`, migration 004_players.sql).
 // The wallet only signs a plain-text message: never a transaction. Guests (SET SAIL) keep saving on this device.
-export const WALLET_SAVE_ENABLED = true;
+export const WALLET_SAVE_ENABLED = !ON_PORTAL; // off on game portals
 export const PIRATE_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pirate` : '';

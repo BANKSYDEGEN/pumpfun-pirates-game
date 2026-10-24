@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v50';
+const VERSION = 'pfp-v51';
 const SHELL = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const SHELL = [
   "./js/config.js",
   "./js/tokenChip.js",
   "./js/shareCard.js",
+  "./js/portal.js",
   "./js/daily.js",
   "./js/leaderboard.js",
   "./js/rewards.js",
