@@ -24,7 +24,7 @@ function initPortal() {
   document.querySelectorAll('.sk-blurb').forEach(el => { el.textContent = neutral(el.textContent); }); // shop cards built before this ran
   // page meta (not shown, but keep the portal build clean)
   document.querySelectorAll('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]').forEach(m => m.setAttribute('content', 'PUMPFUN PIRATES: Storm Hunt, a stormy 3D pirate battle game in your browser. Sink enemy ships, grab the treasure, survive THE COMMODORE.'));
-  // '?' panel: neutral how-to-play
+  // '?' button + panel are hidden on portals (CSS); the panel text is still made neutral so nothing crypto sits in the DOM
   const card = document.querySelector('#faq .faq-card');
   if (card) {
     const close = $('faq-close');
