@@ -837,8 +837,22 @@ let lastTarget = new THREE.Vector3();
 let camShipK = 1; // [Raul] upgrade visuals
 // camera pull-back for a bigger ship: less than the hull growth (so upgrades read BIGGER on screen), but enough for the tallest mast
 function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8 * (ud.frameK || 1)); }
+// [mobile] adaptive resolution: on phones / low quality, if a busy scene averages under ~40 fps for 2 s of
+// play, step the render pixel ratio down (1.25 -> 1.0 -> 0.85). Down only, so it never oscillates.
+const ADAPT = { on: isMobile || quality === 'low', steps: [1, 0.85], t0: 0, n: 0 };
+function adaptResolution() {
+  if (!ADAPT.on || game.state !== 'playing' || document.hidden) { ADAPT.t0 = 0; return; }
+  const now = performance.now();
+  if (!ADAPT.t0) { ADAPT.t0 = now; ADAPT.n = 0; return; }
+  ADAPT.n++;
+  if (now - ADAPT.t0 < 2000) return;
+  const fps = ADAPT.n * 1000 / (now - ADAPT.t0); ADAPT.t0 = 0;
+  const next = ADAPT.steps.find(r => r < renderer.getPixelRatio() - 0.01);
+  if (fps < 40 && next) { renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); }
+}
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title';
   if (running) game.t += dt;
   const t = game.t;

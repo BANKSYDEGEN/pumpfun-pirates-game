@@ -453,3 +453,10 @@ html.ios-pwa #status-plate::after {
 .faq-card p { margin: 0 0 6px; font-size: 22px; line-height: 1.05; }
 .faq-x { position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--red, #e10600); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
 @media (max-height: 520px) and (orientation: landscape) { .faq-card h3 { font-size: 22px; margin-top: 6px; } .faq-card p { font-size: 18px; } .faq-btn { width: 28px; height: 28px; font-size: 20px; } }
+
+/* [mobile] touch: invisible hit-slop so small round/icon controls reach ~44px tap targets without changing the look */
+@media (pointer: coarse) {
+  button.icon, button.mini, .soc, .lb-tabs button { position: relative; }
+  button.icon::after, button.mini::after, .soc::after, #btn-shop::after, .faq-btn::after { content: ''; position: absolute; inset: -5px; }
+  .lb-tabs button::after { content: ''; position: absolute; inset: -10px -2px; }
+}
