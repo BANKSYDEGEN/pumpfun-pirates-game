@@ -97,8 +97,20 @@
 <div id="rotate">↻ Turn sideways for the best voyage <button id="rotate-x" aria-label="Dismiss">✕</button></div>
 
 <!-- ============ TITLE ============ -->
+<div id="faq" class="faq hidden" role="dialog" aria-modal="true" aria-labelledby="faq-q1"><!-- [start help] the "?" on the start page -->
+  <div class="faq-card">
+    <button id="faq-close" class="faq-x" type="button" aria-label="Close">✕</button>
+    <h3 id="faq-q1">What is PUMPFUN PIRATES?</h3>
+    <p>A free pirate battle game made by and for the PUMPFUN PIRATES community on Solana. Sink enemy ships, grab gold, hire escorts and survive long enough to take on THE COMMODORE.</p>
+    <h3>Do I need crypto to play?</h3>
+    <p>No. Just hit SET SAIL. Connecting a Solana wallet is optional and read-only: it only saves your skins and best run, and it can never move your funds.</p>
+    <h3>What's $AHOY?</h3>
+    <p>The community's token. The game is a free side quest for holders and their friends, so you don't need to buy anything to play.</p>
+  </div>
+</div>
 <div id="title" class="overlay">
   <div class="panel title-panel">
+   <button id="btn-faq" class="faq-btn" type="button" aria-label="What is PUMPFUN PIRATES?" aria-haspopup="dialog">?</button>
    <div class="col-a">
     <img class="skull" src="assets/skull_transparent.png" alt="">
     <img class="wordmark" src="assets/pumpfun_pirates_wordmark.png" alt="PUMPFUN PIRATES">
@@ -116,10 +128,10 @@
     </div>
 
     <div class="row wallet-row"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
-      <button id="btn-wallet" class="ghost wallet-btn" type="button" title="Read-only: signs a free message, never a transaction">CONNECT WALLET <span class="ro">READ-ONLY</span></button>
+      <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
       <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
     </div>
-    <div id="wallet-note" class="wallet-note muted">Optional: connect to save your skins across devices.</div>
+    <div id="wallet-note" class="wallet-note muted"></div>
 
    </div>
    <div class="col-b">

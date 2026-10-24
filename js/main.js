@@ -652,6 +652,12 @@ if (WALLET_SAVE_ENABLED) import('./pirateAccount.js').then(m => {
 }).catch(e => { console.warn('[wallet save] unavailable', e); $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; });
 else { $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; }
 $('btn-start').onclick = () => startGame();
+{ // [start help] "?" panel: close button, tap outside, Escape
+  const faq = $('faq'), show = (on) => { faq.classList.toggle('hidden', !on); if (on) $('faq-close').focus(); else $('btn-faq').focus(); };
+  $('btn-faq').onclick = () => show(true); $('faq-close').onclick = () => show(false);
+  faq.addEventListener('click', e => { if (e.target === faq) show(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !faq.classList.contains('hidden')) { e.stopImmediatePropagation(); show(false); } }, true);
+}
 // [daily] DAILY mode is hidden from the UI (no button, no board tab). The seeded-run code below stays dormant.
 const DAILY_LS = 'pfp_daily_played';
 function dailyPlayed(wallet, seed = dailySeed()) { try { const d = JSON.parse(localStorage.getItem(DAILY_LS)); return !!d && d.seed === seed && d.wallets.includes(wallet); } catch { return false; } }
