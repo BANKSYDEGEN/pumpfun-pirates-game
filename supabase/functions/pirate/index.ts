@@ -6,7 +6,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildMessage, verifySignature, isWallet, cleanProgress, cleanSkins, cleanRun, runProblem, skinsProblem, type Progress } from "./lib.ts";
 
-const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,https://html-classic.itch.zone,https://html.itch.zone")
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,https://html-classic.itch.zone,https://html.itch.zone,https://uploads.ungrounded.net")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
 const NONCE_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
