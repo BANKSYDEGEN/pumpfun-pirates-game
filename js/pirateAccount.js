@@ -36,7 +36,9 @@ export function findProvider() {
   for (const [name, p] of list) if (p && typeof p.signMessage === 'function') return { name, p };
   return null;
 }
-export const phantomDeepLink = (url = location.href) => `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(location.origin)}`;
+// inside the itch.io iframe (html*.itch.zone) send phones to the real site instead of the bare CDN frame
+const ON_ITCH = /(^|\.)itch\.zone$/.test(location.hostname);
+export const phantomDeepLink = (url = ON_ITCH ? 'https://game.pumpfunpirates.com/' : location.href) => `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(location.origin)}`;
 
 async function api(action, body = {}) {
   const r = await fetch(PIRATE_FN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) });
@@ -93,7 +95,7 @@ function dropSession(why) { writeSession(null); player = null; hooks.onChange();
 export async function connect() {
   const found = findProvider();
   if (!found) {
-    if (isMobile()) { location.href = phantomDeepLink(); return false; }
+    if (isMobile()) { if (ON_ITCH) window.open(phantomDeepLink(), '_blank', 'noopener'); else location.href = phantomDeepLink(); return false; }
     hooks.msg('No Solana wallet found. Install Phantom or Solflare, then reload.', true);
     return false;
   }

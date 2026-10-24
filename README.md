@@ -114,7 +114,7 @@ Phantom connect + a Sign-In-With-Solana style **`signMessage` only**. The signed
 
 **To turn it on later:**
 1. Supabase → SQL Editor → run `supabase/migrations/003_verified.sql` (run `002_daily.sql` first if you want verified DAILY runs).
-2. Deploy the function: `supabase functions deploy verify-score --no-verify-jwt` (from the repo root, logged in with `supabase login` and linked with `supabase link --project-ref <ref>`). `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically; optionally set `ALLOWED_ORIGINS` (comma-separated, default `https://banksydegen.github.io`) with `supabase secrets set ALLOWED_ORIGINS=...` if the game moves to another domain.
+2. Deploy the function: `supabase functions deploy verify-score --no-verify-jwt` (from the repo root, logged in with `supabase login` and linked with `supabase link --project-ref <ref>`). `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions automatically; optionally set `ALLOWED_ORIGINS` (comma-separated, default `https://game.pumpfunpirates.com,https://banksydegen.github.io,https://html-classic.itch.zone,https://html.itch.zone`) with `supabase secrets set ALLOWED_ORIGINS=...` if the game moves to another domain.
 3. In `js/config.js` set `WALLET_VERIFY_ENABLED = true` (`VERIFY_SCORE_URL` defaults to `<SUPABASE_URL>/functions/v1/verify-score`), bump `VERSION` in `sw.js`, push.
 4. Test with Phantom on desktop and inside the Phantom app on a phone. To switch it off again, set the flag back to `false`.
 

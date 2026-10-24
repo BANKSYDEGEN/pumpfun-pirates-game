@@ -1001,7 +1001,8 @@ $('loading').classList.add('hidden');
 requestAnimationFrame(frame);
 
 // PWA: offline cache
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+// (skipped on itch.io's HTML CDN: folder URLs 403 there and itch serves its own copy, so no offline cache in the itch iframe)
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/(^|\.)itch\.zone$/.test(location.hostname)) {
   navigator.serviceWorker.register('./sw.js').then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
 }
 
