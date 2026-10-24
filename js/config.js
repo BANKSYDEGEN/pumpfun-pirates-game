@@ -5,9 +5,9 @@
 // The anon key is public by design; security comes from the RLS
 // policies in supabase/schema.sql. NEVER put the service_role key here.
 // ===================================================================
-// Game portals (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net): the game runs fully offline and crypto-free there:
+// Game portals (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net, CrazyGames *.game-files.crazygames.com / *.crazygames.com): the game runs fully offline and crypto-free there:
 // no Supabase requests at all (this-device scores only), no wallet sign-in, no token/social links (see js/portal.js).
-export const ON_PORTAL = typeof location !== 'undefined' && /(^|\.)(itch\.zone|ungrounded\.net)$/.test(location.hostname);
+export const ON_PORTAL = typeof location !== 'undefined' && /(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname);
 export const SUPABASE_URL = ON_PORTAL ? '' : 'https://qhandcjwlkmovjzwzqfk.supabase.co';        // e.g. 'https://abcd1234.supabase.co'
 export const SUPABASE_ANON_KEY = 'sb_publishable_yKPJooRyGC0oSIOjKcmLtw_nB7TAD81';   // the project's "anon public" key
 

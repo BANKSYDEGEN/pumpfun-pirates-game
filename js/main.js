@@ -12,7 +12,7 @@ import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onA
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
-import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
+import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $AHOY CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
@@ -475,7 +475,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') toggleSound();
-  if (e.code === 'KeyF') toggleFull();
+  if (e.code === 'KeyF' && !ON_PORTAL) toggleFull(); // portals bring their own fullscreen (CrazyGames forbids custom fullscreen)
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; held.left = held.right = false; });
@@ -1017,7 +1017,7 @@ requestAnimationFrame(frame);
 // PWA: offline cache
 // (skipped on portal CDNs: itch.io's html*.itch.zone (folder URLs 403, itch serves its own copy) and Newgrounds'
 // uploads.ungrounded.net (one origin shared by every NG game), so no offline cache inside those iframes)
-if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/(^|\.)(itch\.zone|ungrounded\.net)$/.test(location.hostname)) {
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname)) {
   navigator.serviceWorker.register('./sw.js').then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
 }
 

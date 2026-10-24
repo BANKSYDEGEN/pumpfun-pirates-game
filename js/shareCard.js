@@ -70,8 +70,10 @@ export async function drawCard(s) {
   g.font = `28px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.7)';
   g.fillText([s.wallet && !ON_PORTAL ? shortWallet(s.wallet) : '', s.skin ? `${s.skin}` : ''].filter(Boolean).join('  ·  '), tx, cy + 90);
   g.textAlign = 'right'; g.font = `30px ${FONT}`; g.fillStyle = 'rgba(255,255,255,0.85)';
+  if (!ON_PORTAL) { // portals: no outbound link on the card
   g.fillText(WEBSITE_LABEL, px + pw - 36, cy + 90);
   g.fillStyle = RED; g.font = `34px ${FONT}`; g.fillText('PLAY FREE ▸', px + pw - 36, cy + 52);
+  }
   if (ON_PORTAL) return c; // portals: no $AHOY / socials strip
   // bottom strip: full $AHOY CA (never truncated: people copy it from screenshots) + X / TG
   const sy = 596, sh = 46;
@@ -117,7 +119,7 @@ export async function shareScore(stats, { onStatus = () => {} } = {}) {
   const { blob } = await p;
   const text = shareText(stats), file = new File([blob], 'pumpfun-pirates-score.png', { type: 'image/png' });
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], text: `${text} ${GAME_URL}` }); onStatus('shared'); return 'shared'; }
+    try { await navigator.share({ files: [file], text: ON_PORTAL ? text : `${text} ${GAME_URL}` }); onStatus('shared'); return 'shared'; }
     catch (e) { if (e && e.name === 'AbortError') { onStatus('cancelled'); return 'cancelled'; } /* fall through to the share modal */ }
   }
   openShareModal(stats, onStatus); return 'modal';
@@ -170,7 +172,7 @@ export function openShareModal(stats, onStatus = () => {}) {
     <div class="ps-row">
       <button class="ps-dl" disabled>⤓ DOWNLOAD PNG</button>
       ${canCopyImage() ? '<button class="ps-copy" disabled>⧉ COPY IMAGE</button>' : ''}
-      <button class="ps-x">POST ON X</button>
+      ${ON_PORTAL ? '' : '<button class="ps-x">POST ON X</button>'}
     </div>
     ${ON_PORTAL ? '' : `<div class="ps-links">
       <button class="ps-ca" title="Copy $AHOY CA"><b>$AHOY CA</b> <code>${AHOY_CA}</code> <span class="ps-ca-tip">⧉</span></button>
@@ -178,7 +180,7 @@ export function openShareModal(stats, onStatus = () => {}) {
       <a href="${X_URL}" target="_blank" rel="noopener">X ${X_HANDLE}</a>
       <a href="${TG_URL}" target="_blank" rel="noopener">TG ${TG_SHORT}</a>
     </div>`}
-    <div class="ps-note">Download or copy the card, then attach it to your X post.</div>
+    <div class="ps-note">${ON_PORTAL ? 'Download or copy your score card.' : 'Download or copy the card, then attach it to your X post.'}</div>
   </div>`;
   document.body.appendChild(el);
   const q = (c) => el.querySelector(c), note = q('.ps-note');
@@ -188,12 +190,12 @@ export function openShareModal(stats, onStatus = () => {}) {
   el.addEventListener('click', (e) => { if (e.target === el) closeShareModal(); });
   q('.ps-close').onclick = closeShareModal;
   // POST ON X: window.open straight from the click handler so the popup blocker lets it through
-  q('.ps-x').onclick = () => { window.open(xIntentUrl(stats), '_blank', 'noopener'); onStatus('posted'); };
+  if (q('.ps-x')) q('.ps-x').onclick = () => { window.open(xIntentUrl(stats), '_blank', 'noopener'); onStatus('posted'); };
   q('.ps-dl').onclick = () => {
     if (!m.url) return;
     const a = document.createElement('a'); a.href = m.url; a.download = 'pumpfun-pirates-score.png';
     document.body.appendChild(a); a.click(); a.remove();
-    note.textContent = 'Downloaded! Attach it to your X post.'; onStatus('downloaded');
+    note.textContent = ON_PORTAL ? 'Downloaded!' : 'Downloaded! Attach it to your X post.'; onStatus('downloaded');
   };
   const caBtn = q('.ps-ca');
   if (caBtn) caBtn.onclick = async () => { const ok = await copyText(AHOY_CA); note.textContent = ok ? 'Copied the $AHOY CA!' : `CA: ${AHOY_CA}`; caBtn.classList.toggle('ok', ok); setTimeout(() => { if (modal === m) caBtn.classList.remove('ok'); }, 1500); };
@@ -202,7 +204,7 @@ export function openShareModal(stats, onStatus = () => {}) {
     if (!m.blob) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': m.blob })]);
-      copyBtn.textContent = '✓ Copied!'; note.textContent = 'Copied! Paste it straight into your X post.'; onStatus('copied');
+      copyBtn.textContent = '✓ Copied!'; note.textContent = ON_PORTAL ? 'Copied!' : 'Copied! Paste it straight into your X post.'; onStatus('copied');
       setTimeout(() => { if (modal === m) copyBtn.textContent = '⧉ COPY IMAGE'; }, 2000);
     } catch { copyBtn.remove(); note.textContent = 'This browser blocked copying. Use DOWNLOAD PNG instead.'; }
   };
@@ -213,6 +215,6 @@ export function openShareModal(stats, onStatus = () => {}) {
     const prev = q('.ps-prev'); prev.textContent = ''; prev.appendChild(img);
     q('.ps-dl').disabled = false; if (copyBtn) copyBtn.disabled = false;
   }).catch(() => { if (modal === m) q('.ps-prev').textContent = 'Could not paint the card.'; });
-  q('.ps-x').focus();
+  (q('.ps-x') || q('.ps-close')).focus();
   return el;
 }

@@ -37,7 +37,7 @@ export function findProvider() {
   return null;
 }
 // inside a portal iframe (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net) send phones to the real site instead of the bare CDN frame
-const ON_PORTAL = /(^|\.)(itch\.zone|ungrounded\.net)$/.test(location.hostname);
+const ON_PORTAL = /(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname);
 export const phantomDeepLink = (url = ON_PORTAL ? 'https://game.pumpfunpirates.com/' : location.href) => `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(location.origin)}`;
 
 async function api(action, body = {}) {

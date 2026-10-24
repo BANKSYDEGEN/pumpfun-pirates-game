@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="css/style.css">
 <script>
   // game portals (itch.io / Newgrounds iframes): offline, crypto-free build, see js/portal.js
-  if (/(^|\.)(itch\.zone|ungrounded\.net)$/.test(location.hostname)) document.documentElement.classList.add('portal');
+  if (/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname)) document.documentElement.classList.add('portal');
   // iOS 27 home-screen web apps draw a system blur over the top of the page unless a solid fixed bar sits at the very top.
   if (navigator.standalone === true || (/iPhone|iPad|iPod/.test(navigator.userAgent) && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches)) document.documentElement.classList.add('ios-pwa');
 </script>
