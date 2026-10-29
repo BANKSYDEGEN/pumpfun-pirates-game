@@ -19,9 +19,12 @@ export const LEADERBOARD_DAILY_VIEW = 'leaderboard_daily'; // DAILY board (needs
 // Override per visit with ?quality=low or ?quality=high
 export const QUALITY = 'auto';
 
-// $AHOY token chip on the title screen (tap copies the full CA) + socials
-export const AHOY_CA = '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump';
-export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5pwej4kfsuqzcud5wrhmtv9zd4';
+// $SUNK token chip on the title screen (tap copies the full CA) + socials
+// $SUNK is not deployed yet: leave SUNK_CA / SUNK_DEX_URL empty and the game shows "CA: TBA" and hides the chart link.
+// Drop the real CA + DexScreener pair URL in here at launch: this is the ONLY place they live (used by js/tokenChip.js + js/shareCard.js).
+export const SUNK_CA = ''; // e.g. '...pump' once live
+export const SUNK_DEX_URL = ''; // e.g. 'https://dexscreener.com/solana/<pair>'
+export const SUNK_CA_TEXT = SUNK_CA || 'TBA'; // what players see where the CA goes
 export const X_URL = 'https://x.com/PUMPFUNPIRATES';
 export const TG_URL = 'https://t.me/PUMPFUNPIRATES';
 

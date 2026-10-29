@@ -14,7 +14,7 @@ import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seed
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
-import './tokenChip.js'; // title screen $AHOY CA chip + socials
+import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
 import { equippedSkin } from './skins.js';
 

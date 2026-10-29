@@ -5,7 +5,7 @@
 
 On your phone, open the link and use **Add to Home Screen** to install it as an app.
 
-A stormy, browser-based pirate game for **PUMPFUN PIRATES** ($AHOY).
+A stormy, browser-based pirate game for **PUMPFUN PIRATES** ($SUNK).
 You sail a PUMPFUN PIRATES ship flying the skull flag and hunt down rug ships that fly the cracked-pill flag.
 
 > **Experimental fan game, for fun only.** Single player against AI ships (every player runs their own game).
@@ -141,11 +141,11 @@ js/enemyTypes.js       enemy hull types, wave roster, extra enemy behaviours, bo
 js/healthDrops.js      medic crates (~33% per sink, pity after 5, bosses always)
 js/tutorial.js         how-to-play card
 js/shareCard.js        game-over score card + share
-js/tokenChip.js        $AHOY contract chip (copy) + DexScreener / X / Telegram links
+js/tokenChip.js        $SUNK contract chip (copy) + DexScreener / X / Telegram links
 js/leaderboard.js      Local + Supabase adapters
 js/wallet.js           Solana address validation / shortening
 js/rewards.js          non-functional rewards placeholder (TODO hooks)
-js/config.js           Supabase URL + publishable key, quality, $AHOY CA + links, WALLET_VERIFY_ENABLED
+js/config.js           Supabase URL + publishable key, quality, $SUNK CA + links, WALLET_VERIFY_ENABLED
 supabase/schema.sql    table, RLS policies, best-per-wallet view, rate limit
 supabase/migrations/   002_daily.sql (DAILY board), 003_verified.sql (verified flag)
 js/daily.js            DAILY seed (UTC day) + seeded RNG

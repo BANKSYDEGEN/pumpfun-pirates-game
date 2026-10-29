@@ -1,5 +1,5 @@
 // ===================================================================
-// $AHOY REWARDS · PLACEHOLDER ONLY. NOTHING HERE IS FUNCTIONAL.
+// $SUNK REWARDS · PLACEHOLDER ONLY. NOTHING HERE IS FUNCTIONAL.
 // No wallet connection, no signing, no funds handling.
 // ===================================================================
 //
@@ -9,7 +9,7 @@
 //     verify the ed25519 signature SERVER-SIDE, then link the wallet to scores.
 //     Typed wallet addresses on the title screen are NOT verified today.
 //  3. eligibility(): server checks verified wallet + leaderboard rank / NFT or
-//     $AHOY holdings. Never trust anything computed in the browser.
+//     $SUNK holdings. Never trust anything computed in the browser.
 //  4. claim(): server-side payout with its own limits and audit trail.
 //     Client code must never hold keys or move funds.
 

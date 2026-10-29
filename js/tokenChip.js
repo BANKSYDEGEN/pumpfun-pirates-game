@@ -1,6 +1,6 @@
-// Title screen: $AHOY contract-address chip (tap = copy the FULL CA) + DexScreener / X / Telegram links.
+// Title screen: $SUNK contract-address chip (tap = copy the FULL CA) + DexScreener / X / Telegram links.
 // Values live in config.js. No wallet, no signing: this only copies text and opens links.
-import { AHOY_CA, AHOY_DEX_URL, X_URL, TG_URL } from './config.js';
+import { SUNK_CA, SUNK_CA_TEXT, SUNK_DEX_URL, X_URL, TG_URL } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const short = (a) => a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-6)}` : a;
@@ -23,10 +23,11 @@ export async function copyText(text) {
 
 function init() {
   const chip = $('ca-chip'); if (!chip) return;
-  $('ca-full').textContent = AHOY_CA; $('ca-short').textContent = short(AHOY_CA);
-  chip.title = `Copy $AHOY CA: ${AHOY_CA}`;
-  for (const [id, url] of [['lnk-dex', AHOY_DEX_URL], ['lnk-x', X_URL], ['lnk-tg', TG_URL]]) { const a = $(id); if (a) a.href = url; }
-  // full CA when the row has room (wide desktop), else 39eBix…5ppump; the copy is always the full address
+  $('ca-full').textContent = SUNK_CA_TEXT; $('ca-short').textContent = short(SUNK_CA_TEXT);
+  chip.title = SUNK_CA ? `Copy $SUNK CA: ${SUNK_CA}` : '$SUNK CA: TBA';
+  if (!SUNK_CA) { const cp = $('ca-copy'); if (cp) cp.style.display = 'none'; chip.setAttribute('aria-label', '$SUNK contract address: TBA'); }
+  for (const [id, url] of [['lnk-dex', SUNK_DEX_URL], ['lnk-x', X_URL], ['lnk-tg', TG_URL]]) { const a = $(id); if (!a) continue; if (url) a.href = url; else a.style.display = 'none'; }
+  // full CA when the row has room (wide desktop), else abc123…xyzpump; the copy is always the full address
   const row = chip.parentElement, fit = () => {
     chip.classList.add('full');
     const ca = chip.querySelector('.ca');
@@ -37,7 +38,8 @@ function init() {
   const label = $('ca-copy'); let t = 0;
   chip.addEventListener('click', async (e) => {
     e.preventDefault(); e.stopPropagation();
-    const ok = await copyText(AHOY_CA);
+    if (!SUNK_CA) return; // CA: TBA, nothing to copy yet
+    const ok = await copyText(SUNK_CA);
     label.textContent = ok ? 'COPIED!' : 'COPY FAILED'; chip.classList.toggle('copied', ok); chip.classList.toggle('failed', !ok);
     clearTimeout(t); t = setTimeout(() => { label.textContent = 'COPY'; chip.classList.remove('copied', 'failed'); }, 1600);
   });

@@ -287,7 +287,7 @@ html.ios-pwa #status-plate::after {
   background: linear-gradient(#0d1118, rgba(13,17,24,0)); pointer-events: none;
 }
 
-/* ---------- title: $AHOY CA chip + socials ---------- */
+/* ---------- title: $SUNK CA chip + socials ---------- */
 .token-row { display: flex; justify-content: center; align-items: center; gap: 6px; margin: 0 0 6px; flex-wrap: nowrap; }
 .ca-chip { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: 36px; padding: 0 5px 0 12px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(0,0,0,0.5); color: #fff; font-size: 20px; line-height: 1; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .ca-chip:hover { box-shadow: 0 0 0 2px rgba(255,205,119,0.25); }
@@ -341,7 +341,7 @@ html.ios-pwa #status-plate::after {
 .start-row button.big { flex: 0 1 auto; min-width: 0; }
 .start-row .daily-btn { flex: 0 0 auto; white-space: nowrap; }
 .token-row { flex-wrap: wrap; row-gap: 5px; }
-.ca-chip { min-width: auto; flex: 0 1 auto; max-width: 100%; } /* never narrower than $AHOY + COPY; only the address part shrinks (ellipsis) */
+.ca-chip { min-width: auto; flex: 0 1 auto; max-width: 100%; } /* never narrower than $SUNK + COPY; only the address part shrinks (ellipsis) */
 .ca-chip .tk, .ca-chip .cp { flex: 0 0 auto; white-space: nowrap; }
 .ca-chip .ca { flex: 0 1 auto; }
 .lb-tabs button { padding: 4px 8px 3px; }
