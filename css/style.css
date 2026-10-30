@@ -477,3 +477,9 @@ html.ios-pwa #status-plate::after {
   background: rgba(10,14,24,0.92); color: var(--gold, #ffcd77); border: 1px solid rgba(255,205,119,0.5); border-radius: 12px;
   padding: 8px 16px; font-size: 18px; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; }
 #copy-toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* [start mute] 🔊/🔇 next to the "?" on the start page; shares the in-game mute (localStorage pfp_muted) */
+.snd-btn { left: 54px; font-family: system-ui, sans-serif; font-size: 17px; padding: 0; display: grid; place-items: center; }
+.snd-btn::after { content: ''; position: absolute; inset: -6px; } /* 46px tap target */
+.snd-btn.off { border-color: var(--red); background: rgba(250,13,13,0.18); }
+@media (max-height: 520px) and (orientation: landscape) { .snd-btn { left: 50px; font-size: 14px; } .snd-btn::after { inset: -8px; } }

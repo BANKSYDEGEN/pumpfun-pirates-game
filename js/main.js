@@ -504,15 +504,19 @@ function toggleSound() { initAudio(); setMuted(!muted); } // [Raul] sound upgrad
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); else document.exitFullscreen?.(); }
 // [Raul] sound upgrades: clear sound button state + volume sliders in the pause menu
 onAudioState((a) => {
-  const b = $('btn-sound'); b.textContent = a.muted ? '🔇' : '🔊';
+  const b = $('btn-sound'); { const ic = a.muted ? '🔇' : '🔊'; if (b.textContent !== ic) b.textContent = ic; }
   b.classList.toggle('off', a.muted); b.classList.toggle('locked', !a.muted && !a.running);
   b.title = a.muted ? 'Sound OFF (tap to turn on, M)' : a.running ? 'Sound ON (tap to mute, M)' : 'Tap anywhere to enable sound';
   b.setAttribute('aria-pressed', a.muted ? 'true' : 'false');
+  const t = $('btn-sound-title'); // [start mute] start-page button mirrors the same state
+  if (t) { const ic = a.muted ? '🔇' : '🔊'; if (t.textContent !== ic) t.textContent = ic; // only on change: swapping the text node mid-press cancels the click in Chrome
+    t.classList.toggle('off', a.muted); t.setAttribute('aria-pressed', a.muted ? 'true' : 'false');
+    t.setAttribute('aria-label', a.muted ? 'Unmute sound' : 'Mute sound'); t.title = a.muted ? 'Sound OFF (tap to turn on, M)' : 'Sound ON (tap to mute, M)'; }
   for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el && document.activeElement !== el) el.value = Math.round(a[k] * 100); }
 });
 for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el) el.addEventListener('input', () => { const v = el.value / 100; initAudio(); if (muted && v > 0) setMuted(false); setLevel(k, v); }); } // read the value before initAudio(): its state notify re-syncs unfocused sliders (iOS doesn't focus range inputs on touch)
 window.PFP_AUDIO = { sfx, setLoadout };
-$('btn-sound').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
+$('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
 
