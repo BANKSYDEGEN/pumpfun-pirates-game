@@ -58,9 +58,15 @@ export function installMouseBinds({ inGame, canvas }) {
     if (e.button >= 3 || e.button === 1) e.preventDefault(); // no back / forward / autoscroll
     dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true }));
   };
-  addEventListener('mousedown', (e) => send('keydown', e), true);
-  addEventListener('mouseup', (e) => { if (e.button >= 3 && (inGame() || rebinding())) e.preventDefault(); send('keyup', e); }, true);
-  addEventListener('auxclick', (e) => { if (e.button >= 1 && (inGame() || rebinding())) e.preventDefault(); }, true);
+  // [v71] mouse back / forward (buttons 3 / 4) never navigate, on ANY screen (home, shop, settings, pop-ups, spectate)
+  const side = (e) => { if (e.button === 3 || e.button === 4) { e.preventDefault(); return true; } return false; };
+  addEventListener('mousedown', (e) => { side(e); send('keydown', e); }, true);
+  addEventListener('mouseup', (e) => { side(e); send('keyup', e); }, true);
+  addEventListener('auxclick', (e) => { if (!side(e) && e.button === 1 && inGame()) e.preventDefault(); }, true);
   addEventListener('contextmenu', (e) => { if (e.target === canvas || rebinding() || (inGame() && e.target.closest?.('#hud'))) e.preventDefault(); }, true);
-  addEventListener('popstate', () => {}); // (no history entries are pushed; nothing to restore)
+  // fallback for browsers that ignore preventDefault on the side buttons: one same-URL history entry, re-pushed on back
+  const trap = () => { try { history.pushState({ pfpTrap: 1 }, '', location.href); } catch {} };
+  let armed = false; const arm = () => { if (armed) return; armed = true; trap(); }; // after the first interaction (browsers skip entries without one)
+  addEventListener('pointerdown', arm, { capture: true, once: true }); addEventListener('keydown', arm, { capture: true, once: true });
+  addEventListener('popstate', () => { if (armed) trap(); });
 }

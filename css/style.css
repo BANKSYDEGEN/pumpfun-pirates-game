@@ -555,13 +555,6 @@ html.pvp-spec .spec-only { display: block; }
 html.pvp-spec #controls, html.pvp-spec #captain, html.pvp-spec #hud-top, html.pvp-spec #btn-pvp-menu, html.pvp-spec #btn-shop,
 html.pvp-spec #hint, html.pvp-spec #pvp-dead, html.pvp-spec #btn-pause { display: none !important; }
 /* [hud] PvP 🏴 + ⚓ HARBOR docked under the minimap (js/pvp.js dockButtons): nothing overlaps the map, portrait or landscape */
-#pvp-tr { grid-column: 1 / -1; justify-self: end; display: none; gap: 6px; align-items: center; margin-top: 2px; }
-html.pvp #pvp-tr { display: flex; }
-#pvp-tr #btn-pvp-menu, #pvp-tr #pvp-return { position: static; top: auto; right: auto; margin: 0; }
-#pvp-skins-btn { display: none; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--gold); background: rgba(10,10,10,0.75); color: var(--gold); font: inherit; font-size: 20px; cursor: pointer; pointer-events: auto; white-space: nowrap; }
-html.pvp:not(.pvp-spec) #pvp-skins-btn { display: block; } /* harbor + arena (BANKSY) */
-@media (orientation: portrait) and (max-width: 600px) { html.pvp:not(.pvp-harbor) #pvp-skins-btn .sk-t { display: none; } html.pvp:not(.pvp-harbor) #pvp-skins-btn { padding: 0; width: 36px; } }
-@media (max-width: 600px), (max-height: 520px) { #pvp-skins-btn { height: 36px; font-size: 17px; padding: 0 10px; } }
 #captain-name.cn-split { display: flex; min-width: 0; } #captain-name.cn-split .cn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; } #captain-name.cn-split .cn-rank { flex: none; white-space: pre; }
 html.hud-off #hud, html.hud-off #bars, html.hud-off #popups { display: none !important; }
 /* [spectate] HUD hidden: one small button stays so the HUD can always come back (also H / double-tap) */
@@ -693,7 +686,6 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 @media (max-height: 420px) and (orientation: landscape) { .title-panel .board { height: calc(var(--lb-row) * 7); } }
 /* [controls] ⌨ buttons + overlay */
 .ctl-btn { left: 98px; font-family: system-ui, sans-serif; font-size: 17px; padding: 0; display: grid; place-items: center; }
-#btn-ctl { font-family: system-ui, sans-serif; }
 .ctl-card { width: min(560px, 100%); }
 .ctl-table { width: 100%; border-collapse: collapse; font-size: 21px; }
 .ctl-table td { padding: 2px 4px; } .ctl-table td:first-child { color: #fff; }
@@ -711,9 +703,40 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 }
 @media (orientation: portrait) {
   #captain-name.cn-split { max-width: 124px; } #captain-name.cn-split .cn-rank { white-space: nowrap; }
-  /* portrait: 4 icons in the top row (room for the captain card); ⌨ sits left of the minimap; in-game logo off so the name + rank fit */
+  /* portrait: in-game logo off so the name + rank fit next to the icon row */
   #hud #hud-logo { display: none; }
-  #hud-tr { grid-template-columns: repeat(4, 36px); }
-  #hud-tr #btn-ctl { grid-row: 2; grid-column: 1; align-self: start; margin-top: 4px; }
-  #hud-tr #radar { grid-row: 2; grid-column: 1 / -1; }
 }
+
+/* [hud v71] ONE top icon row (BANKSY): shop · sound · camera · ⚙ settings (key bindings inside) · fullscreen · 🏴 PvP menu.
+   No ⌨ / 🎨 buttons; nothing sits under or beside the minimap. */
+#hud-tr { display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+#hud-icons { display: flex; gap: 8px; align-items: center; }
+#hud-icons > button { position: static !important; top: auto; right: auto; margin: 0; flex: none; }
+#hud-icons #btn-pause { font-size: 22px; line-height: 1; }
+#hud-tr #radar, #hud-tr #enemies-left { align-self: flex-end; }
+html.pvp-spec #btn-pause { display: block !important; } /* settings stay reachable while spectating */
+#pause-sub { margin: -6px 0 6px; font-size: 18px; }
+#pvp-return { right: calc(14px + var(--safe-r) + 5 * 44px + 4 * 8px + 10px); }
+@media (orientation: landscape) and (max-height: 520px), (orientation: landscape) and (max-width: 760px) {
+  #hud-icons { gap: 5px; }
+  #pvp-return { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r) + 5 * 38px + 4 * 5px + 8px); }
+}
+@media (orientation: portrait) {
+  #hud-icons { gap: 4px; }
+  #hud-icons > button.icon { width: 34px; height: 34px; font-size: 15px; }
+  #hud-icons #btn-pause { font-size: 20px; }
+  #hud-icons #btn-shop svg { width: 17px; height: 17px; }
+  #hud-tl { max-width: calc(var(--app-w) - 5 * 34px - 4 * 4px - 26px - var(--safe-r) - var(--safe-l)) !important; }
+  #captain-name.cn-split { max-width: 100%; }
+  #pvp-return { top: calc(104px + var(--safe-t)); left: calc(8px + var(--safe-l)); right: auto; }
+}
+#btn-pvp-menu { display: none !important; } /* [v71] 🏴 left the HUD: it is an entry in ⚙ settings (Tab still opens it) */
+#pause .pvp-set { display: none; margin: 4px auto; }
+html.pvp:not(.pvp-spec) #pause .pvp-set { display: block; }
+#pause .pvp-set:disabled { opacity: 0.4; cursor: default; }
+#pause .pvp-set small { font-size: 0.7em; }
+/* [v71] harbor: live arena head-count above the harbor line (BANKSY) */
+#pvp-arena-count { background: rgba(0,0,0,0.55); border: 1px solid rgba(255,205,119,0.45); border-radius: 999px; padding: 3px 14px; font-size: 20px; text-shadow: 0 2px 3px #000; white-space: nowrap; }
+#pvp-arena-count b { color: var(--gold); font-weight: normal; }
+@media (max-width: 600px), (max-height: 480px) { #pvp-arena-count { font-size: 15px; padding: 2px 12px; } }
+@media (max-height: 480px) { #pvp-harbor { gap: 5px; } }

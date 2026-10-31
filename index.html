@@ -68,11 +68,12 @@
   </div>
 
   <div id="hud-tr">
+    <div id="hud-icons"><!-- [hud v71] one icon row: (shop) · sound · camera · ⚙ settings · fullscreen · (🏴 PvP) -->
     <button class="icon" id="btn-sound" title="Sound (M)">🔊</button>
     <button class="icon" id="btn-cam" title="Reset camera (C)">🎥</button>
-    <button class="icon" id="btn-pause" title="Pause (P / Esc)"><b style="font-family:system-ui;font-size:15px;letter-spacing:1px">II</b></button>
+    <button class="icon" id="btn-pause" title="Settings: key bindings, sound, graphics (P / Esc)" aria-label="Settings">⚙</button>
     <button class="icon" id="btn-full" title="Fullscreen (F)">⛶</button>
-    <button class="icon" id="btn-ctl" title="Controls" aria-label="Controls">⌨</button>
+    </div>
     <canvas id="radar" width="150" height="150"></canvas>
     <div id="enemies-left" class="muted"></div>
   </div>
@@ -86,8 +87,8 @@
         <div id="sail-readout"><div class="label">SAIL <span id="sail-level">2</span>/3</div><div id="knots">0.0 kn</div></div>
         <button class="mini" id="sail-down" title="Less sail (S)">▼︎</button>
       </div>
-      <button class="round" id="steer-right" title="Steer right (D / →)">▶︎</button>
       <button class="round" id="anchor" title="Drop anchor (Space)">⚓︎</button>
+      <button class="round" id="steer-right" title="Steer right (D / →)">▶︎</button>
     </div>
     <button class="fire" id="fire-star" title="Fire starboard broadside (E)"><span class="cd"></span>FIRE <span class="txt">▶︎</span></button>
   </div>
@@ -96,14 +97,13 @@
   <!-- [pvp] PvP ARENA HUD: kill feed, menu button (scoreboard / skins / name / wallet), death screen -->
   <div id="pvp-feed" class="pvp-only" aria-live="polite"></div>
   <button class="icon pvp-only" id="btn-pvp-menu" title="PvP scoreboard, skins and save (Tab)" aria-label="PvP menu">🏴</button>
-  <button id="pvp-skins-btn" class="pvp-only" type="button" title="Change your ship skin" aria-label="Skins">🎨<span class="sk-t"> SKINS</span></button>
   <button id="pvp-return" class="hidden pvp-only" type="button" title="Return to the harbor with your gold (needs 10 s without combat)">⚓ HARBOR</button>
   <div id="pvp-dead" class="hidden pvp-only">
     <div class="pd-card"><h2>SUNK!</h2><div class="pd-by"></div><div class="pd-drop muted"></div><div class="pd-kd"></div><div class="pd-queue" hidden></div>
       <div class="pd-re">Back at sea in <b id="pvp-dead-t">4</b>…</div><button id="pvp-dead-menu" class="ghost" type="button">MAIN MENU</button></div>
   </div>
   <!-- [pvp] HARBOR (local queue room): JOIN BATTLE / queue place / spectate; the arena offer; AFK warning; entry card -->
-  <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
+  <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-arena-count">ARENA: <b>0/4</b> pirates</div><div id="pvp-harbor-t"></div>
     <div class="ph-btns"><button id="pvp-join" type="button" class="pvp-btn">JOIN BATTLE</button><button id="pvp-harbor-spec" type="button" class="ghost"><span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button></div></div>
   <div id="pvp-offer" class="hidden pvp-only" role="alertdialog" aria-label="Battle ready"><div class="po-card"><h2>BATTLE READY!</h2><p>Your arena slot is open. Set sail?</p>
     <div class="po-t"><b id="pvp-offer-t">15</b> s</div><div class="po-btns"><button id="pvp-offer-yes" type="button" class="pvp-btn big">SET SAIL</button><button id="pvp-offer-no" type="button" class="ghost">NOT NOW</button></div>
@@ -228,9 +228,12 @@
 <!-- ============ PAUSE ============ -->
 <div id="pause" class="overlay hidden">
   <div class="panel small">
-    <h1>PAUSED</h1>
+    <h1 id="pause-h">SETTINGS</h1>
+    <div id="pause-sub" class="muted">game paused</div>
     <div class="controls-help" data-ctl="long">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · M sound</div>
-    <button id="btn-ctl-pause" class="ghost" type="button">⌨ CONTROLS</button>
+    <button id="btn-ctl-pause" class="ghost" type="button">⌨ KEY BINDINGS / CONTROLS</button>
+    <button id="btn-set-pvpmenu" class="ghost pvp-set" type="button">🏴 SKINS · SCOREBOARD · NAME</button>
+    <button id="btn-set-harbor" class="ghost pvp-set" type="button">⚓ RETURN TO HARBOR <small class="muted">(keep gold · 10 s no combat)</small></button>
     <div class="vol-box"><!-- [Raul] sound upgrades: volume sliders -->
       <label><span class="label">MASTER</span><input type="range" id="vol-master" min="0" max="100" step="1" aria-label="Master volume"></label>
       <label><span class="label">SFX</span><input type="range" id="vol-sfx" min="0" max="100" step="1" aria-label="Sound effects volume"></label>

@@ -115,7 +115,7 @@ export function createPvp(K) {
   async function lobbyCall(op, extra) {
     const r = await net.lobby(op, lobbyOpts(extra)); if (!active) return r;
     if (r && r.state && r.state !== 'error') {
-      Object.assign(lob, { state: r.state, pos: r.pos || 0, queue: r.queue || 0, players: r.players || 0, cap: r.cap || lob.cap });
+      Object.assign(lob, { state: r.state, pos: r.pos || 0, queue: r.queue || 0, players: r.players || 0, specs: r.spectators || 0, cap: r.cap || lob.cap, known: true });
       if (r.state === 'offer') { if (!lob.offerUntil) { lob.offerUntil = performance.now() + (+r.offer_in || PVP_OFFER) * 1000; showOffer(true); sfx.coin?.(); } }
       else { lob.offerUntil = 0; showOffer(false); }
     }
@@ -167,7 +167,7 @@ export function createPvp(K) {
   function lobbyTick(dt) {
     const now = performance.now();
     if (lob.offerUntil) { const left = Math.max(0, (lob.offerUntil - now) / 1000); const el = $('pvp-offer-t'); if (el) el.textContent = Math.ceil(left); if (left <= 0) { lob.offerUntil = 0; showOffer(false); lobbyCall('poll').then(harborUi); } }
-    const every = lob.state === 'queue' || lob.state === 'offer' ? 3000 : where === 'harbor' ? 0 : 10000; // queued seats expire after 15 s without a poll, arena seats after 25 s
+    const every = lob.state === 'queue' || lob.state === 'offer' ? 3000 : where === 'harbor' ? (spec.on || document.hidden ? 0 : 6000) : 10000; // [v71] harbor: live arena head-count every 6 s (read only, holds no seat) // queued seats expire after 15 s without a poll, arena seats after 25 s
     if (!every || lob.busy || now - (lob.lastPoll || 0) < every) return;
     lob.lastPoll = now;
     lobbyCall(where === 'spec' ? 'spec' : 'poll').then((r) => {
@@ -219,7 +219,7 @@ export function createPvp(K) {
   }
   function retUi() {
     const show = active && where === 'arena' && !me.dead && !spec.on;
-    const b = $('pvp-return'); if (b) { b.classList.toggle('hidden', !show); const t = me.ret ? `RETURNING · ${Math.max(0, Math.ceil((me.ret.until - performance.now()) / 1000))}` : '⚓ HARBOR'; if (b.textContent !== t) b.textContent = t; b.classList.toggle('on', !!me.ret); }
+    const b = $('pvp-return'); if (b) { b.classList.toggle('hidden', !show || !me.ret); /* [v71] status only while returning; the button lives in ⚙ settings */ const t = me.ret ? `RETURNING · ${Math.max(0, Math.ceil((me.ret.until - performance.now()) / 1000))}` : '⚓ HARBOR'; if (b.textContent !== t) b.textContent = t; b.classList.toggle('on', !!me.ret); }
     const mb = $('pvp-menu-return'); if (mb) mb.hidden = !show;
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
@@ -692,18 +692,9 @@ export function createPvp(K) {
     saveWallet(v); saveAirdrop(v, name).catch(() => {});
   }
   let uiWired = false;
-  function dockButtons() { // [hud] 🏴 + ⚓ HARBOR sit in their own row under the minimap (never over it, any screen)
-    const tr = $('hud-tr'); if (!tr || $('pvp-tr')) return;
-    const row = document.createElement('div'); row.id = 'pvp-tr'; row.className = 'pvp-only';
-    for (const id of ['pvp-skins-btn', 'pvp-return', 'btn-pvp-menu']) { const el = $(id); if (el) row.appendChild(el); }
-    tr.appendChild(row);
-  }
   function wireUi() {
-    dockButtons();
     if (uiWired) return; uiWired = true;
     $('btn-pvp-menu').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleMenu(); });
-    $('pvp-skins-btn')?.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleMenu(true); // [harbor] straight to the skins picker
-      requestAnimationFrame(() => $('pvp-skins')?.previousElementSibling?.scrollIntoView({ block: 'start', behavior: 'smooth' })); });
     $('pvp-menu-close').onclick = () => toggleMenu(false);
     $('pvp-wallet').onclick = walletButton;
     $('pvp-holder-claim')?.addEventListener('click', (e) => { e.stopPropagation(); claimHolderGold(); });
@@ -740,7 +731,8 @@ export function createPvp(K) {
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
-    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR · AI ships pay <b>${harborGold(totalLevel())}</b> gold each${lob.players ? ` · arena ${lob.players}/${lob.cap}` : ''}${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER +5%</span>' : ''}`; }
+    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR · AI ships pay <b>${harborGold(totalLevel())}</b> gold each${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER +5%</span>' : ''}`; }
+    const c = $('pvp-arena-count'); if (c) c.innerHTML = `ARENA: <b>${lob.players | 0}/${lob.cap || 4}</b> pirates${lob.specs ? ` · ${lob.specs} watching` : ''}${lob.queue && lob.state !== 'queue' ? ` · ${lob.queue} in queue` : ''}`;
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
   }
   function showOffer(on) { $('pvp-offer')?.classList.toggle('hidden', !on); if (on) $('pvp-offer-t').textContent = Math.ceil(Math.max(0, (lob.offerUntil - performance.now()) / 1000)); }

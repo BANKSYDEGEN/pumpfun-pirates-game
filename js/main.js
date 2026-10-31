@@ -569,17 +569,20 @@ window.PFP_AUDIO = { sfx, setLoadout };
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 initControlsUi();
+// [v71] ⚙ settings holds the Battle Royale entries (BANKSY): 🏴 menu (skins / scoreboard / name / save) + ⚓ return to harbor
+$('btn-set-pvpmenu').onclick = () => { togglePause(); if (!$('pause').classList.contains('hidden')) $('pause').classList.add('hidden'); pvp?.toggleMenu(true); };
+$('btn-set-harbor').onclick = () => { if ($('btn-set-harbor').disabled) return; togglePause(); $('pause').classList.add('hidden'); $('pvp-menu-return')?.click(); };
 installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spectating });
 $('btn-ctl-title').onclick = () => openControls();
 $('btn-ctl-pause').onclick = () => openControls();
-$('btn-ctl').onclick = () => { // in-game: Waves pauses underneath, Battle Royale keeps sailing (shared sea)
-  const paused = game.mode !== 'pvp' && game.state === 'playing'; if (paused) { game.state = 'paused'; }
-  openControls(() => { if (paused && game.state === 'paused') game.state = 'playing'; });
-};
 $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
 
-function togglePause() {
+function togglePause() { // [v71] ⚙ settings: Waves pauses underneath; Battle Royale + spectate keep the shared sea running (just a menu)
   if (game.mode === 'pvp' && game.state === 'playing' && $('pvp-menu') && !$('pvp-menu').classList.contains('hidden')) { pvp.toggleMenu(false); return; } // [pvp] Esc closes the PvP menu first
+  const pv = game.mode === 'pvp' || !!pvp?.spectating;
+  $('pause-sub').textContent = pv ? 'the battle keeps going' : 'game paused';
+  { const hb = $('btn-set-harbor'); if (hb) { const ok = pvp?.where === 'arena' && !pvp?.me?.dead; hb.disabled = !ok; hb.title = ok ? '' : 'You are already in the harbor'; } }
+  if (pvp?.spectating && game.state !== 'playing' && game.state !== 'paused') { $('pause').classList.toggle('hidden'); return; }
   if (game.state === 'playing') { game.state = 'paused'; $('pause').classList.remove('hidden'); }
   else if (game.state === 'paused') { game.state = 'playing'; $('pause').classList.add('hidden'); }
 }

@@ -35,7 +35,7 @@ function buildDom() {
   btn.id = 'btn-shop'; btn.className = 'icon'; btn.title = 'Shipwright shop (U / B)'; btn.setAttribute('aria-label', 'Open shop');
   btn.innerHTML = `${CHEST_SVG}<span class="shop-dot"></span>`;
   btn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggle(); });
-  $('hud').appendChild(btn);
+  const row = $('hud-icons'); if (row) row.prepend(btn); else $('hud').appendChild(btn); // [v71] first in the top icon row
 
   const ov = document.createElement('div');
   ov.id = 'shop'; ov.className = 'overlay hidden';
