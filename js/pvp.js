@@ -813,7 +813,8 @@ export function createPvp(K) {
     const pl = P(); pl.mesh.visible = true; if (spec.maxDist) K.controls.maxDistance = spec.maxDist; me.dead = false;
   }
   const specPlayers = () => livePeers().filter(p => p.ship && p.st).sort((a, b) => (b.k - a.k) || (a.d - b.d) || (b.K - a.K));
-  function specFollow(id, mode = 'manual') { spec.target = id; spec.mode = mode; spec.camLock = 1.6; specHud(); renderSpecBoard(); }
+  function specFollow(id, mode = 'manual') { if ((spec.mode === 'overview') !== (mode === 'overview')) spec.camLock = 1.6; spec.target = id; spec.mode = mode; // [v79] a new target keeps the zoom; only OVERVIEW in/out eases the distance
+    specHud(); renderSpecBoard(); }
   function specCycle(dir) {
     const list = specPlayers(); if (!list.length) return;
     const i = list.findIndex(p => p.id === spec.target), n = list[((i < 0 ? 0 : i + dir) % list.length + list.length) % list.length];
@@ -824,7 +825,7 @@ export function createPvp(K) {
     for (const [id, p] of peers) if (now - p.heard > PEER_TIMEOUT) { if (p.ship) dropShip(p.ship); peers.delete(id); }
     const list = specPlayers();
     // pick who to watch: the kill leader by default, else the chosen captain while they're in the room
-    if (spec.mode === 'leader') { const lead = list[0]?.id || null; if (lead !== spec.target) { spec.target = lead; spec.camLock = Math.max(spec.camLock, 1.2); } }
+    if (spec.mode === 'leader') { const lead = list[0]?.id || null; if (lead !== spec.target) spec.target = lead; } // [v79] a new kill leader keeps the viewer's zoom
     else if (spec.mode === 'manual' && !peers.has(spec.target)) { spec.mode = 'leader'; spec.target = list[0]?.id || null; }
     if (spec.mode === 'free') specPanStep(dt);
     const tgt = spec.mode === 'overview' || spec.mode === 'free' ? null : peers.get(spec.target)?.ship;
