@@ -487,7 +487,8 @@ export function createPvp(K) {
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
   function boardClaim(side, k, v, life, keepalive = false) {
     if (!room || typeof k !== 'string' || typeof v !== 'string') return;
-    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r; if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); } });
+    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r; if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }
+      else if (r === 'pending' && !keepalive) for (const ms of [3000, 9000]) setTimeout(() => { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }, ms); }); // [v77] the other side's claim lands after mine: re-read my rank / the board (a first death now ranks me)
   }
   function resetBounty() { me.streak = 0; me.bounty = 0; }
   function creditKill(by, victim) {
