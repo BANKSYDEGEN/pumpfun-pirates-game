@@ -629,8 +629,10 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 @media (max-width: 600px) { #pvp-return { top: calc(60px + var(--safe-t)); right: calc(14px + var(--safe-r) + 44px + 8px); height: 36px; font-size: 15px; padding: 0 10px; } }
 /* [title] BATTLE ROYALE (left) + WAVES (right): equal size, side by side; only WAVES (centred) on portal builds */
 .start-row { justify-content: center; align-items: stretch !important; }
-.start-row button.big.mode-btn { box-sizing: border-box; flex: 1 1 0; max-width: 300px; min-width: 0; padding-left: 12px !important; padding-right: 12px !important; white-space: nowrap; text-align: center; line-height: 1.05; border: 2px solid transparent; font-size: 32px; overflow: hidden; text-overflow: clip; }
-.start-row .mode-btn.pvp-btn { border-color: var(--gold) !important; }
+.start-row button.big.mode-btn { box-sizing: border-box; flex: 1 1 0; max-width: 300px; min-width: 0; padding-left: 12px !important; padding-right: 12px !important; white-space: nowrap; text-align: center; line-height: 1.05; font-size: 32px; overflow: hidden; text-overflow: clip; }
+/* identical SET SAIL style for both (BANKSY) */
+.start-row button.big.mode-btn, .start-row button.big.mode-btn.pvp-btn { background: var(--red) !important; color: #fff !important; border: none !important; box-shadow: 0 6px 0 #8f0000, 0 10px 24px rgba(250,13,13,0.35) !important; text-shadow: 0 2px 0 rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.start-row button.big.mode-btn:active { box-shadow: 0 3px 0 #8f0000 !important; }
 .start-row button.big.mode-btn:only-child { flex: 0 1 260px; }
 @media (max-width: 600px), (max-height: 520px) and (orientation: landscape) { .start-row button.big.mode-btn { white-space: normal; font-size: 24px !important; padding-top: 4px !important; padding-bottom: 4px !important; } }
 .w-sm { display: none; }
