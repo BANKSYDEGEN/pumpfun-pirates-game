@@ -237,7 +237,8 @@ export function createPvp(K) {
   const totalLevel = () => Object.values(getRunLevels()).reduce((a, b) => a + (b | 0), 0);
   function scaleAi(e) {
     const L = totalLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
-    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * sc * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with 300 HP ships e.gold = harborGold(L); e.aiLevel = L;
+    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * sc * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with 300 HP ships
+    e.gold = harborGold(L); e.aiLevel = L;
     if (sz !== 1) { e.mesh.scale.setScalar(sz); ud.len *= sz; ud.beam *= sz; }
   }
   function clearLocalAi(instant) { // a 2nd pirate arrived (or we sailed into the arena): AI ships sink away, their loot despawns
