@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v72';
+const VERSION = 'pfp-v73';
 const SHELL = [
   "./",
   "./index.html",
@@ -128,7 +128,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // same-origin: network-first (fresh when online), cache fallback offline
-  e.respondWith(fetch(req).then(res => {
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => { // revalidate (cheap 304s): never mix an old cached file with new ones after an update
     if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
     return res;
   }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match('./index.html'))));
