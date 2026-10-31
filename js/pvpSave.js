@@ -7,7 +7,7 @@
 // A save holds gold (whatever you're carrying), upgrade levels, skins (selected + unlocked by kills) and lifetime K/D.
 // Storage is keyed by a PROFILE KEY ('device' / 'wallet:<pubkey>' today) so a later version can key upgrades by a
 // ship NFT mint ('mint:<mint>'); the server table already has a nullable `mint` column for that.
-import { PVP_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS } from './config.js';
+import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS } from './config.js';
 import { UPGRADES } from './upgrades.js';
 import { findProvider, sigBytes } from './pirateAccount.js';
 
@@ -38,7 +38,7 @@ export const kd = (k, d) => d ? (k / d).toFixed(2) : String(k);
 
 function session() { try { const s = JSON.parse(ls.get(SESSION_KEY) || 'null'); return s && s.token && Date.parse(s.expires_at) > Date.now() ? s : null; } catch { return null; } }
 export const walletSession = () => session();
-export function signOut() { const s = session(); ls.set(SESSION_KEY, null); if (s) api('logout', { token: s.token }).catch(() => {}); }
+export function signOut() { const s = session(); ls.set(SESSION_KEY, null); claimAuth = null; if (s) api('logout', { token: s.token }).catch(() => {}); }
 
 async function api(action, body = {}, opts = {}) {
   const r = await fetch(PVP_FN_URL, { method: 'POST', keepalive: !!opts.keepalive, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) });
@@ -59,9 +59,9 @@ export async function walletSignIn(msg = () => {}) {
   msg(`Sign the message in ${name}. Free and read-only: not a transaction.`);
   const n = await api('nonce', { wallet });
   const sig = sigBytes(await p.signMessage(new TextEncoder().encode(n.message), 'utf8'));   // signMessage ONLY
-  const v = await api('verify', { wallet, nonce: n.nonce, signature: b64(sig) });
-  ls.set(SESSION_KEY, JSON.stringify({ token: v.token, wallet, expires_at: v.expires_at }));
-  return { wallet, profile: cleanProfile(v.profile) };
+  const v = await api('verify', { wallet, nonce: n.nonce, signature: b64(sig), dk: deviceKey() }); // [v72] dk: this device's BR kills follow the wallet
+  ls.set(SESSION_KEY, JSON.stringify({ token: v.token, wallet, expires_at: v.expires_at })); claimAuth = null; // kills now count for the wallet
+  return { wallet, profile: cleanProfile(v.profile), link: v.link || null };
 }
 
 export const isBlank = (p) => !p.gold && !p.stats.kills && !p.stats.deaths && !p.stats.botKills && !Object.values(p.levels).some(Boolean);
@@ -80,8 +80,11 @@ export async function loadProfile() {
 // After walletSignIn(): wallet save wins when it has progress, else seed it from this device. Returns the profile to use.
 export async function linkWallet(serverProfile, deviceProfile) {
   const s = session(); if (!s) return deviceProfile;
-  if (!isBlank(serverProfile) || isBlank(deviceProfile)) { writeDevice(serverProfile); return serverProfile; }
-  try { const j = await api('save', { token: s.token, profile: deviceProfile, seed: true }); return cleanProfile(j.profile); } catch { return deviceProfile; }
+  if (isBlank(deviceProfile)) { writeDevice(serverProfile); return serverProfile; }
+  if (!isBlank(serverProfile)) { // [v72] both have progress: merge this device in once (max upgrades / gold / K/D), never lose either side
+    try { const j = await api('save', { token: s.token, profile: deviceProfile, merge: true, dk: deviceKey() }); const m = cleanProfile(j.profile); writeDevice(m); return m; }
+    catch (e) { const w = e.body?.profile ? cleanProfile(e.body.profile) : serverProfile; writeDevice(w); return w; } }
+  try { const j = await api('save', { token: s.token, profile: deviceProfile, seed: true, dk: deviceKey() }); return cleanProfile(j.profile); } catch { return deviceProfile; }
 }
 
 // Save: device immediately; wallet (if linked) throttled ~3 s, or right away with now / keepalive (page closing).
@@ -127,4 +130,24 @@ export async function fetchKillsTop(period = 'all') {
   topCache.set(period, { at: Date.now(), rows }); return rows;
 }
 export const clearKillsTopCache = () => topCache.clear();
-window.PFP_PVP_SAVE = { loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };
+// [v72] rename: push a new name to MY OWN leaderboard rows. BATTLE ROYALE board: wallet session, else this device's key.
+// Waves board: only when a wallet is signed in (Waves rows are keyed by wallet). Name taken on the BR board -> toast, no merge.
+let renameT = 0;
+function nameToast(msg) {
+  let t = document.getElementById('copy-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'copy-toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600);
+}
+export async function renameEverywhere(name) {
+  const out = {};
+  if (PVP_FN_URL) { const s = session();
+    out.br = await api('rename', { ...(s ? { token: s.token } : { dk: deviceKey() }), name }).then(j => (clearKillsTopCache(), j), e => ({ ok: false, status: e.status, error: e.message }));
+    if (out.br?.status === 409) nameToast(`"${name}" is taken on the Battle Royale board`); }
+  try { const ws = JSON.parse(ls.get('pfp_session_v1') || 'null');
+    if (ws?.token && Date.parse(ws.expires_at) > Date.now() && PIRATE_FN_URL) {
+      const r = await fetch(PIRATE_FN_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action: 'rename', token: ws.token, name }) });
+      out.waves = await r.json().catch(() => null); } } catch {}
+  return out;
+}
+addEventListener('pfp-name', (e) => { const n = e.detail?.name; if (!n) return; clearTimeout(renameT); renameT = setTimeout(() => renameEverywhere(n), 1200); });
+window.PFP_PVP_SAVE = { renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

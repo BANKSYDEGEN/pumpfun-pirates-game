@@ -119,6 +119,15 @@ Deno.serve(async (req) => {
         if (error) throw error;
         return json(200, { player: publicPlayer(data as Player) });
       }
+      // [v72] rename: the signed-in wallet's OWN Waves rows (players + scores where wallet = session wallet); scores untouched
+      case "rename": {
+        const p = await sessionPlayer(b.token);
+        if (!p) return json(401, { error: "signed out" });
+        const name = cleanName(b.name); if (!name) return json(400, { error: "bad name" });
+        const { error: e1 } = await db.from("players").update({ name, updated_at: new Date().toISOString() }).eq("wallet", p.wallet); if (e1) throw e1;
+        const { error: e2, count } = await db.from("scores").update({ name }, { count: "exact" }).eq("wallet", p.wallet); if (e2) throw e2;
+        return json(200, { ok: true, name, rows: count ?? 0 });
+      }
       case "logout": {
         if (typeof b.token === "string") await db.from("player_sessions").delete().eq("token_hash", await sha256(b.token));
         return json(200, { ok: true });

@@ -669,7 +669,7 @@ export function createPvp(K) {
       const use = await linkWallet(r.profile, snapshot());
       const cur = getRunLevels(); profile = use; game.gold = use.gold;
       if (JSON.stringify(cur) !== JSON.stringify(use.levels)) setRunLevels(use.levels); else K.rebuildShip(use.levels);
-      K.updateHud(); renderMenu(); refreshHolder(); msg(`Linked! Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}`);
+      K.updateHud(); renderMenu(); refreshHolder(); refreshRank(true); clearKillsTopCache(); msg(`Linked! Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}`);
     } catch (e) { msg(String(e?.message || e).slice(0, 120)); }
     finally { $('pvp-wallet').disabled = false; }
   }

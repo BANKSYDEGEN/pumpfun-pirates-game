@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop", ... }. The wallet only ever SIGNS A MESSAGE.
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
 
@@ -13,6 +13,7 @@ const rand = (k: number) => { const a = new Uint8Array(k); crypto.getRandomValue
 const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 const b64url = (a: Uint8Array) => btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+const devId = async (b: Record<string, unknown>) => typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? `dev:${(await sha256("pfp-dev:" + b.dk)).slice(0, 24)}` : null;
 type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; updated_at: string };
 const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills } });
 const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: p.skins, kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills });
@@ -75,11 +76,14 @@ Deno.serve(async (req) => {
         if (Date.parse(nn.expires_at) < Date.now()) return json(401, { error: "nonce expired" });
         if (!verifySignature(nn.message, signature, wallet)) return json(401, { error: "bad signature" });
         const row = await getRow(wallet);
+        // [v72] this device's BATTLE ROYALE kills / deaths follow the wallet (first wallet only; rows kept)
+        const dev = await devId(b); let link: unknown = null;
+        if (dev) { const { data: l, error: le } = await db.rpc("pvp_link_device", { p_dev: dev, p_wallet: `wallet:${wallet}` }); if (le) console.warn("link", le.message); else link = l; }
         const token = b64url(rand(32)), exp = new Date(Date.now() + SESSION_TTL_MS).toISOString();
         await db.from("pvp_sessions").delete().eq("wallet", wallet).lt("expires_at", new Date().toISOString());
         const { error } = await db.from("pvp_sessions").insert({ token_hash: await sha256(token), wallet, expires_at: exp });
         if (error) throw error;
-        return json(200, { token, expires_at: exp, profile: toProfile(row) });
+        return json(200, { token, expires_at: exp, profile: toProfile(row), link });
       }
       case "load": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
@@ -90,8 +94,22 @@ Deno.serve(async (req) => {
         const row = await getRow(wallet), cur = toProfile(row), next = cleanProfile(b.profile);
         // seed: a brand-new (blank) wallet save may be filled once from the device save when the wallet is first linked
         const blank = !cur.gold && !cur.stats.kills && !cur.stats.deaths && !cur.stats.botKills && !Object.values(cur.levels).some(Boolean);
+        // [v72] merge: a device that played without a wallet, linking to a wallet that already has progress, is merged in ONCE
+        // (max of each upgrade, gold and K/D; skins follow the kills), so nothing from either side is lost
+        if (b.merge === true && !blank) {
+          const dev = await devId(b); if (!dev) return json(400, { error: "no device" });
+          const { data: l } = await db.from("pvp_links").update({ merged: true }).eq("dev", dev).eq("wallet", `wallet:${wallet}`).eq("merged", false).select().maybeSingle();
+          if (!l) return json(409, { error: "already merged", profile: cur });
+          const lv: Record<string, number> = {}; for (const k of Object.keys(cur.levels)) lv[k] = Math.max(cur.levels[k] || 0, next.levels[k] || 0);
+          const m = cleanProfile({ gold: Math.max(cur.gold, next.gold), levels: lv, skins: { equipped: next.skins.equipped !== "classic" ? next.skins.equipped : cur.skins.equipped },
+            stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills) } });
+          const { data, error } = await db.from("pvp_profiles").update({ ...toRow(m), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
+          if (error) throw error;
+          return json(200, { profile: toProfile(data as Row), merged: true });
+        }
         const why = b.seed === true && blank ? null : saveProblem(cur, next, (Date.now() - Date.parse(row.updated_at)) / 60000);
         if (why) return json(422, { error: why, profile: cur });
+        if (b.seed === true && blank) { const dev = await devId(b); if (dev) await db.from("pvp_links").update({ merged: true }).eq("dev", dev).eq("wallet", `wallet:${wallet}`); }
         const { data, error } = await db.from("pvp_profiles").update({ ...toRow(next), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
         if (error) throw error;
         return json(200, { profile: toProfile(data as Row) });
@@ -162,6 +180,16 @@ Deno.serve(async (req) => {
         const { error } = await db.from("pvp_airdrop").upsert({ player_id: player, wallet, name, writes: (cur?.writes ?? 0) + 1, updated_at: new Date().toISOString() });
         if (error) throw error;
         return json(200, { ok: true });
+      }
+      // [v72] rename: the caller's OWN board name (wallet session, else device key; the id is never taken from the client)
+      case "rename": {
+        const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
+        const player = sw ? `wallet:${sw}` : await devId(b);
+        if (!player) return json(401, { error: "no identity" });
+        const { data, error } = await db.rpc("pvp_rename", { p_player: player, p_name: String(b.name ?? "") });
+        if (error) throw error;
+        if (!data?.ok) return json(data?.why === "name taken" ? 409 : 400, { error: data?.why || "bad name" });
+        return json(200, { ok: true, name: data.name });
       }
       default: return json(400, { error: "unknown action" });
     }

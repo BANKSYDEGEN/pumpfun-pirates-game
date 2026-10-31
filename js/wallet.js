@@ -33,4 +33,8 @@ export function shortWallet(a) {
 export const getSavedWallet = () => localStorage.getItem(KEY) || '';
 export const saveWallet = (a) => localStorage.setItem(KEY, a.trim());
 export const getSavedName = () => localStorage.getItem('pfp_name') || '';
-export const saveName = (n) => localStorage.setItem('pfp_name', (n || '').trim().slice(0, 20));
+export const saveName = (n) => { // [v72] a changed name is also pushed to the caller's own leaderboard rows (pvpSave.js listens)
+  const v = (n || '').trim().slice(0, 20), old = localStorage.getItem('pfp_name') || '';
+  localStorage.setItem('pfp_name', v);
+  if (v && v !== old) { try { dispatchEvent(new CustomEvent('pfp-name', { detail: { name: v, old } })); } catch {} }
+};
