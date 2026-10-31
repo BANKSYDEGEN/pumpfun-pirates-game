@@ -111,3 +111,19 @@ Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill
 - t12.py: RETURN TO HARBOR (quiet 10 s, HP ≥ 30 %, damage cancels, firing restarts, death wins, seat freed, unload = death, phone).
 - t9.py: bounty, idle-victim rule, AFK warning + kick, harbor AI L0 stats, holder badge + 5 %. 12/12.
 - server: `node server/loadtest.js 16 2 15 ws://localhost:18794 20`.
+
+## Waves entry pop-up + Waves skins picker (pfp-v67)
+- WAVES opens `#waves-entry` (same card style as the BATTLE ROYALE entry): pirate name, optional SOLANA WALLET (airdrops), save progress / connect wallet,
+  and the Waves SKINS picker (same `.pvp-skin` cards as the PvP picker). The title page no longer has a save-progress section. Portal builds skip the pop-up.
+- The shop's SKINS tab is gone in both modes; the shop is upgrades only.
+- Waves unlock schedule (fixed, price order; skins you already own stay owned; Waves-only `pfp_skins_v1`, never PvP):
+  CLASSIC free · 5 SAND GOLD PARCHMENT · 10 BLOOD SAILS · 15 MIDNIGHT BLACK · 20 ROYAL NAVY · 25 DEGEN GREEN CANDLE · 30 GHOST SHIP · 35 GOLDEN GALLEON ·
+  40 SEA GREEN · 45 KRAKEN INK · 50 CORAL REEF · 55 STORM RIDER · 60 ADMIRAL WHITE · 65 FLAMING SHIP · 70 DIAMOND.
+  Reaching wave N in a run unlocks every skin scheduled at or below N.
+- Home screen (pfp-v67): no tagline / descriptive text on desktop or phones (desktop keeps the controls line). All legal text lives in the '?' pop-up only:
+  token disclaimer "$SUNK and $AHOY are memecoins with no intrinsic value or expectation of financial return. Not financial advice. DYOR." +
+  "© 2026 BANKSYDEGEN / PUMPFUN PIRATES. All rights reserved." (from LICENSE). Crypto-free portals: '?' = how to play + the copyright line, no token text.
+  Phones: leaderboard shows 10 rows (8 on short phones, 7-8 in landscape); the title camera frames the ship lower.
+- Controls (pfp-v67): ⌨ button on the title, in the in-game HUD (both modes) and on the pause screen opens CONTROLS. Desktop: every action
+  has two rebindable slots (click, press a key; a key in use swaps over; Esc reserved; RESET TO DEFAULTS), saved in localStorage 'pfp_keys_v1'
+  (js/keybinds.js, js/controlsUi.js). Phones: touch controls list. Every controls line on the page follows the current binds.

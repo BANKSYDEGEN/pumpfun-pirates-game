@@ -3,6 +3,7 @@
 // removes the token/social/wallet/disclaimer bits, swaps the '?' panel for a how-to-play, and shows a this-device best
 // score in place of the leaderboards. Does nothing on game.pumpfunpirates.com.
 import { ON_PORTAL } from './config.js';
+import { controlsLine } from './keybinds.js';
 import { SKINS } from './skins.js';
 
 const BEST_KEY = 'pfp_portal_best';
@@ -17,7 +18,7 @@ const neutral = (t) => t.replace(/the Solana seas/g, 'the seven seas');
 if (ON_PORTAL) { for (const sk of SKINS) sk.blurb = neutral(sk.blurb); mainReady().then(initPortal); }
 function initPortal() {
   // gone for good (nothing references them after start-up)
-  document.querySelectorAll('#title .token-row, #title .wallet-row, #wallet-note, #title .disclaimer').forEach(el => el.remove());
+  document.querySelectorAll('#title .token-row, #title .wallet-row, #wallet-note, #waves-entry .we-crypto, #title .disclaimer').forEach(el => el.remove());
   // hidden inputs that main.js still reads: keep them, but neutral and empty
   // (the game-over name/wallet form stays in the DOM, hidden by CSS: main.js looks its nodes up by id)
   const wi = $('wallet-input'); if (wi) { wi.value = ''; wi.placeholder = ''; wi.previousElementSibling?.remove(); }
@@ -29,11 +30,12 @@ function initPortal() {
   if (card) {
     const close = $('faq-close');
     card.innerHTML = `<h3 id="faq-q1">How to play</h3>
-      <p>Hit SET SAIL. Steer with A/D or ←/→, raise and lower sails with W/S or ↑/↓, and fire your port and starboard broadsides with Q and E. Space drops anchor; drag the mouse to look around.</p>
+      <p>Hit SET SAIL. ${controlsLine()}. Change keys with the ⌨ button.</p>
       <h3>Waves and THE COMMODORE</h3>
       <p>Every wave brings more enemy ships and tougher hulls. Every fourth wave, THE COMMODORE arrives with escorts.</p>
       <h3>Gold and the shipwright</h3>
-      <p>Sink ships and grab their floating treasure, then spend your gold on upgrades, escort ships and new ship skins. Your best score and unlocks are saved in this browser.</p>`;
+      <p>Sink ships and grab their floating treasure, then spend your gold on upgrades and escort ships. A new ship skin unlocks every 5 waves. Your best score and unlocks are saved in this browser.</p>
+      <p class="faq-disc">© 2026 BANKSYDEGEN / PUMPFUN PIRATES. All rights reserved.</p>`;
     if (close) card.prepend(close);
   }
   $('btn-faq')?.setAttribute('aria-label', 'How to play');

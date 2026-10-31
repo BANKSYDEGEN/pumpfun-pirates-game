@@ -62,6 +62,8 @@ export function shipStats(run, base = BASE_SHIP) {
   return s;
 }
 
+// [pvp hp] Battle Royale hull: base + hullMul × (the Waves hull bonus). Waves passes nothing and is unchanged.
+export function modeStats(run, pvp = null) { const s = shipStats(run); if (pvp) s.maxHp = Math.round(pvp.base + (s.maxHp - BASE_SHIP.maxHp) * pvp.mul); return s; }
 // Copy stats onto the live player object (the fields main.js reads).
 export function applyStats(player, stats) {
   const grow = stats.maxHp - (player.maxHp || stats.maxHp);

@@ -1,12 +1,12 @@
 /* [Raul] ship upgrades: SHOP button + shipwright overlay (brand font, red #fa0d0d / gold #ffcd77 / dark #161616) */
 /* SHOP sits in the top HUD row, just left of the sound/camera/pause/fullscreen icons, same size and height. */
-#btn-shop { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r) + 4 * 44px + 3 * 8px + 8px); border-color: var(--gold); pointer-events: auto; }
+#btn-shop { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r) + 5 * 44px + 4 * 8px + 8px); /* 5 icons: + ⌨ controls */ border-color: var(--gold); pointer-events: auto; }
 #btn-shop svg { display: block; }
 #btn-shop .shop-dot { position: absolute; top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 2px #161616; display: none; }
 #btn-shop.afford .shop-dot { display: block; }
 #btn-shop.afford { box-shadow: 0 0 12px rgba(255,205,119,0.55); }
 @media (orientation: landscape) and (max-height: 520px), (orientation: landscape) and (max-width: 760px) {
-  #btn-shop { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r) + 4 * 38px + 3 * 5px + 6px); }
+  #btn-shop { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r) + 5 * 38px + 4 * 5px + 6px); }
   #btn-shop svg { width: 19px; height: 19px; }
 }
 @media (orientation: portrait) {

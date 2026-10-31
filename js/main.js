@@ -16,13 +16,15 @@ import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } fr
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
-import { equippedSkin } from './skins.js';
+import { isKey, held as heldKey } from './keybinds.js'; // [keybinds] desktop rebindable keys
+import { initControlsUi, openControls } from './controlsUi.js';
+import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
 import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
-import { initShop, resetShop, waveSkinUnlock, close as closeShop } from './shop.js';
+import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
@@ -155,6 +157,9 @@ function makePlayer() {
 }
 let player = makePlayer();
 // [Raul] upgrade visuals: swap in a freshly compiled ship for new upgrade levels (same pose, old one freed)
+const PHONE_MQ = matchMedia('(max-width: 600px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape)');
+const PHONE_MQ_LAND = matchMedia('(orientation: landscape)');
+let camLow = false;
 function rebuildPlayerShip(levels) {
   const old = player.mesh, mesh = compileShip(levels, shipOpts());
   mesh.position.copy(old.position); mesh.rotation.copy(old.rotation); mesh.userData.body.rotation.copy(old.userData.body.rotation);
@@ -507,16 +512,17 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
   if (game.state === 'playing') {
-    if (e.code === 'KeyW' || e.code === 'ArrowUp') setSail(player.sail + 1);
-    if (e.code === 'KeyS' || e.code === 'ArrowDown') setSail(player.sail - 1);
-    if (e.code === 'KeyQ') playerFire('port');
-    if (e.code === 'KeyE') playerFire('star');
-    if (e.code === 'Space') { toggleAnchor(); e.preventDefault(); }
-    if (e.code === 'KeyC') resetCamera();
+    if (isKey('sailUp', e.code)) setSail(player.sail + 1);
+    if (isKey('sailDown', e.code)) setSail(player.sail - 1);
+    if (isKey('firePort', e.code)) playerFire('port');
+    if (isKey('fireStar', e.code)) playerFire('star');
+    if (isKey('anchor', e.code)) { toggleAnchor(); e.preventDefault(); }
+    if (isKey('camera', e.code)) resetCamera();
   }
-  if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
-  if (e.code === 'KeyM') toggleSound();
-  if (e.code === 'KeyF' && !ON_PORTAL) toggleFull(); // portals bring their own fullscreen (CrazyGames forbids custom fullscreen)
+  if (e.code === 'Space' && game.state === 'playing') e.preventDefault(); // never scroll / press a focused button
+  if (isKey('pause', e.code) || e.code === 'Escape') togglePause();
+  if (isKey('sound', e.code)) toggleSound();
+  if (isKey('full', e.code) && !ON_PORTAL) toggleFull(); // portals bring their own fullscreen (CrazyGames forbids custom fullscreen)
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; held.left = held.right = false; });
@@ -559,6 +565,13 @@ for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el) 
 window.PFP_AUDIO = { sfx, setLoadout };
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
+initControlsUi();
+$('btn-ctl-title').onclick = () => openControls();
+$('btn-ctl-pause').onclick = () => openControls();
+$('btn-ctl').onclick = () => { // in-game: Waves pauses underneath, Battle Royale keeps sailing (shared sea)
+  const paused = game.mode !== 'pvp' && game.state === 'playing'; if (paused) { game.state = 'paused'; }
+  openControls(() => { if (paused && game.state === 'paused') game.state = 'playing'; });
+};
 $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
 
 function togglePause() {
@@ -698,7 +711,48 @@ if (WALLET_SAVE_ENABLED) import('./pirateAccount.js').then(m => {
   });
 }).catch(e => { console.warn('[wallet save] unavailable', e); $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; });
 else { $('btn-wallet').classList.add('hidden'); $('wallet-note').textContent = ''; }
-$('btn-start').onclick = () => startGame();
+// [waves entry] WAVES opens the same entry pop-up as BATTLE ROYALE (name, optional airdrop wallet, save progress). Same saved name +
+// wallet as before; the run, score submission, gold and skins are unchanged. Portal builds: straight to sea (crypto-free).
+if (ON_PORTAL) document.querySelectorAll('#waves-entry .we-crypto').forEach(el => el.remove()); // crypto-free builds: name + skins only, no wallet UI
+const we = $('waves-entry'), weName = $('we-name'), weAddr = $('we-addr');
+function weCheck() {
+  if (!weAddr) return false;
+  const v = weAddr.value.trim(), ok = isValidSolanaAddress(v);
+  weAddr.classList.toggle('good', ok); weAddr.classList.toggle('bad', !!v && !ok);
+  $('we-addr-msg').textContent = !v ? 'Used for airdrops. Never asks for keys or signatures.' : ok ? `Ahoy ${shortWallet(v)}! Used for airdrops. Never asks for keys or signatures.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+  return ok;
+}
+function renderWavesSkins() { // same cards as the BATTLE ROYALE picker; locked ones show their unlock wave
+  const grid = $('we-skins'); if (!grid) return; grid.innerHTML = '';
+  const cur = equippedSkin().id;
+  for (const { skin, wave } of [{ skin: getSkin('classic'), wave: 0 }, ...wavesUnlocks()]) {
+    const ok = ownsSkin(skin.id), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${skin.id === cur ? ' on' : ''}`; c.dataset.skin = skin.id;
+    c.appendChild(skinSwatch(skin, 96, 48));
+    const lab = document.createElement('span'); lab.innerHTML = `<b>${skin.name}</b>${ok ? (skin.id === cur ? 'SELECTED' : 'TAP TO USE') : `reach wave ${wave}`}`; c.appendChild(lab);
+    c.disabled = !ok; c.onclick = () => { equipSkin(skin.id); try { rebuildPlayerShip({}); } catch (e) { console.warn(e); } sfx.equip?.(); renderWavesSkins(); };
+    grid.appendChild(c);
+  }
+}
+function openWavesEntry() {
+  if (!we) return startGame();
+  weName.value = getSavedName(); if (weAddr) { weAddr.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); weCheck(); }
+  renderWavesSkins(); we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
+}
+function wavesGo() {
+  const n = weName.value.trim().slice(0, 20); if (n) saveName(n);
+  const a = weAddr ? weAddr.value.trim() : ''; if (isValidSolanaAddress(a)) saveWallet(a); // optional: anything else is ignored, never blocks
+  we.classList.add('hidden'); startGame();
+}
+if (we) {
+  weName.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); weAddr ? weAddr.focus() : wavesGo(); } });
+  if (weAddr) {
+    weAddr.addEventListener('input', weCheck);
+    weAddr.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!weAddr.value.trim() || weCheck()) wavesGo(); } });
+  }
+  $('we-go').onclick = wavesGo; $('we-close').onclick = () => we.classList.add('hidden');
+  we.addEventListener('click', (e) => { if (e.target === we) we.classList.add('hidden'); });
+}
+$('btn-start').onclick = () => openWavesEntry();
 if (PVP_ENABLED) { $('btn-pvp').onclick = () => startPvp(); $('btn-spectate').onclick = () => startPvp(true); } else { $('btn-pvp')?.remove(); $('btn-spectate')?.remove(); } // [pvp] not on game portals
 { // [start help] "?" panel: close button, tap outside, Escape
   const faq = $('faq'), show = (on) => { faq.classList.toggle('hidden', !on); if (on) $('faq-close').focus(); else $('btn-faq').focus(); };
@@ -956,7 +1010,7 @@ function frame() {
   if (running) {
     // player
     if (game.state === 'playing' && player.alive) {
-      const turn = ((keys.KeyA || keys.ArrowLeft || held.left) ? 1 : 0) - ((keys.KeyD || keys.ArrowRight || held.right) ? 1 : 0);
+      const turn = ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
       moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
@@ -1045,6 +1099,8 @@ function frame() {
   controls.target.copy(tgt);
   if (game.state === 'title') { const off = camera.position.clone().sub(tgt).applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.06); camera.position.copy(tgt).add(off); }
   controls.update();
+  { const low = game.state === 'title' && PHONE_MQ.matches; // [mobile title] phones: frame the ship lower on screen, under the logo
+    if (low !== camLow) { camLow = low; if (low) camera.setViewOffset(1, 1, 0, PHONE_MQ_LAND.matches ? -0.18 : -0.26, 1, 1); else camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
   const minY = waveHeight(camera.position.x, camera.position.z, t) + 2.5;
   if (camera.position.y < minY) camera.position.y = minY;
   if (game.shake > 0) { camera.position.x += rnd(-1, 1) * game.shake * 0.4; camera.position.y += rnd(-1, 1) * game.shake * 0.4; game.shake = Math.max(0, game.shake - dt * 2.5); }

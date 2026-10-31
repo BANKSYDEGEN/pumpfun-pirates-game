@@ -50,10 +50,10 @@ button, input { font-family: 'Just Another Hand', cursive; letter-spacing: 0.05e
 
 #hud-top { position: absolute; top: calc(14px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; gap: 22px; font-size: 30px; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 4px 26px; text-shadow: 0 2px 4px #000; white-space: nowrap; }
 
-#hud-tr { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r)); display: grid; grid-template-columns: repeat(4, 44px); gap: 8px; justify-items: center; }
+#hud-tr { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r)); display: grid; grid-template-columns: repeat(5, 44px); gap: 8px; justify-items: center; }
 button.icon { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--glass); color: #fff; font-size: 19px; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); font-family: system-ui, sans-serif; }
 button.icon:hover { border-color: var(--gold); }
-#radar { grid-column: 1 / span 4; width: 150px; height: 150px; border-radius: 50%; border: 1px solid var(--line); background: rgba(10, 20, 26, 0.6); margin-top: 4px; justify-self: end; pointer-events: none !important; }
+#radar { grid-column: 1 / span 5; width: 150px; height: 150px; border-radius: 50%; border: 1px solid var(--line); background: rgba(10, 20, 26, 0.6); margin-top: 4px; justify-self: end; pointer-events: none !important; }
 #enemies-left { grid-column: 1 / span 4; justify-self: end; font-size: 20px; text-shadow: 0 2px 3px #000; }
 
 #controls { position: absolute; bottom: calc(18px + var(--safe-b)); left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; }
@@ -158,7 +158,7 @@ button.daily-btn:disabled { color: rgba(255,205,119,0.6); border-color: rgba(255
   #captain-name { font-size: 18px; }
   #wallet-short { font-size: 14px; }
   #hud-top { font-size: 22px; gap: 12px; padding: 2px 14px; top: calc(8px + var(--safe-t)); }
-  #hud-tr { grid-template-columns: repeat(4, 38px); gap: 5px; top: calc(8px + var(--safe-t)); }
+  #hud-tr { grid-template-columns: repeat(5, 38px); gap: 5px; top: calc(8px + var(--safe-t)); }
   button.icon { width: 38px; height: 38px; font-size: 16px; }
   #radar { width: 96px; height: 96px; }
   #enemies-left { font-size: 16px; }
@@ -192,7 +192,7 @@ button.daily-btn:disabled { color: rgba(255,205,119,0.6); border-color: rgba(255
   #captain-name { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 108px; }
   #wallet-short { font-size: 13px; }
   .bar { width: 84px; height: 8px; }
-  #hud-tr { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); grid-template-columns: repeat(4, 36px); gap: 5px; }
+  #hud-tr { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); grid-template-columns: repeat(5, 36px); gap: 5px; }
   button.icon { width: 36px; height: 36px; font-size: 15px; }
   #radar { width: 84px; height: 84px; }
   #enemies-left { font-size: 15px; }
@@ -648,3 +648,38 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 .token-row.ca-desk .ca-chip.stack { display: grid; grid-template-columns: auto auto; grid-template-areas: "tk cp" "ca ca"; justify-content: center; align-items: center; height: auto; padding: 5px 10px 6px; border-radius: 16px; row-gap: 3px; column-gap: 10px; }
 .ca-chip.stack .tk { grid-area: tk; } .ca-chip.stack .cp { grid-area: cp; } .ca-chip.stack .ca { grid-area: ca; text-align: center; }
 .ca-chip.wrap .ca { white-space: normal; word-break: break-all; }
+/* [waves entry] same look as the BATTLE ROYALE entry card, over the title screen */
+#waves-entry { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); z-index: 40; pointer-events: auto; overflow-y: auto; padding: 10px; box-sizing: border-box; }
+#waves-entry.hidden { display: none; }
+#waves-entry .pe-card { position: relative; background: rgba(10,10,10,0.92); border: 1px solid var(--line); border-radius: 18px; padding: 16px 26px; text-align: center; width: min(92vw, 460px); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; margin: auto; }
+#waves-entry h2 { color: var(--gold); font-size: 40px; margin: 0; }
+#waves-entry .field input { width: 100%; box-sizing: border-box; } #we-addr { font-size: 14px; }
+#we-addr-msg { display: block; max-width: 380px; margin: -4px auto 0; }
+#waves-entry .wallet-row { justify-content: center; margin: 0; } #waves-entry .wallet-note:empty { display: none; }
+#waves-entry .faq-x { position: absolute; top: 8px; right: 10px; }
+@media (max-height: 520px) and (orientation: landscape) { #waves-entry .pe-card { padding: 8px 18px; gap: 4px; } #waves-entry h2 { font-size: 30px; } #waves-entry .field { margin: 2px 0; } }
+
+/* [mobile title] phones only (portrait + landscape): no descriptive text (tagline, controls, gfx hint, disclaimer: it lives in the '?' pop-up),
+   taller leaderboard so more rows show. Desktop unchanged. */
+.faq-disc { color: rgba(255,255,255,0.7); }
+@media (max-width: 600px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape) {
+  .title-panel .subtitle, .title-panel .controls-help, .title-panel .disclaimer, .title-panel .gfx-note { display: none !important; }
+  .title-panel .token-row { margin-top: 6px; }
+  .title-panel .board { height: calc(var(--lb-row) * 10); }
+}
+@media (max-width: 600px) and (orientation: portrait) and (max-height: 700px) { .title-panel .board { height: calc(var(--lb-row) * 8); } }
+@media (max-height: 520px) and (orientation: landscape) { .title-panel .board { height: calc(var(--lb-row) * 8); } }
+@media (max-height: 420px) and (orientation: landscape) { .title-panel .board { height: calc(var(--lb-row) * 7); } }
+/* [controls] ⌨ buttons + overlay */
+.ctl-btn { left: 98px; font-family: system-ui, sans-serif; font-size: 17px; padding: 0; display: grid; place-items: center; }
+#btn-ctl { font-family: system-ui, sans-serif; }
+.ctl-card { width: min(560px, 100%); }
+.ctl-table { width: 100%; border-collapse: collapse; font-size: 21px; }
+.ctl-table td { padding: 2px 4px; } .ctl-table td:first-child { color: #fff; }
+.ctl-key { min-width: 92px; padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(255,205,119,0.55); background: #161616; color: var(--gold); font: inherit; font-size: 20px; cursor: pointer; transition: background-color 150ms, color 150ms; }
+.ctl-key:hover, .ctl-key:focus-visible { background: #fa0d0d; color: #fff; outline: none; }
+.ctl-key.wait { background: #fa0d0d; color: #fff; animation: ctl-blink 0.8s steps(2) infinite; }
+@keyframes ctl-blink { 50% { opacity: 0.6; } }
+.ctl-note { font-size: 17px !important; margin-top: 8px !important; } #ctl-reset { display: block; margin: 6px auto 0; }
+.ctl-touch { font-size: 22px; line-height: 1.3; } .ctl-touch b { color: var(--gold); font-weight: normal; }
+#btn-ctl-pause { margin: 4px auto; }

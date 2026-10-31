@@ -97,6 +97,11 @@ export const HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 }; // harbor kills
 export const harborKills = (t) => HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t);
 export const harborScale = (L) => 1 + HARBOR_SCALE_PER_LV * Math.max(0, L);
 export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * harborScale(L));
+// BANKSY: a fresh Battle Royale ship has 300 HP, so one broadside never sinks it. PvP only (Waves unchanged):
+//   hull = 300 + 1.5 × (the Waves hull bonus): HULL PLANKS I-VI 420 / 450 / 472 / 502 / 532 / 562 HP;
+//   your cannonballs ×PVP_DMG_MUL (the best possible broadside, CANNONS VIII: 8 × 20 × 1.27 × 1.4 = 284, stays under 300);
+//   harbor AI hulls ×PVP_DMG_MUL (same time to sink them), AI cannons ×PVP_AI_DMG_MUL; shipwright repair +REPAIR.hp × 3.
+export const PVP_BASE_HP = 300, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 2.5, PVP_REPAIR_MUL = 3;
 export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (15 harbor kills at L0); higher tiers follow the curve
 export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
 // HARD CAP: each track stops at its last tier (6 levels, CANNONS 8; js/upgrades.js). Maxed = MAX in the shop; more gold buys no power.

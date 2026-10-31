@@ -1,3 +1,4 @@
+import { isKey } from './keybinds.js';
 // PUMPFUN PIRATES · PvP ARENA (BETA): drop-in, real-time, free-for-all on a shared sea.
 // Netcode: js/transport.js (Supabase Realtime broadcast fallback, or the relay server in server/), no presence.
 //  - FLOW: everyone starts in the local HARBOR (AI ships for small gold, invisible to the arena). JOIN BATTLE asks the lobby
@@ -13,7 +14,7 @@
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
 import * as THREE from 'three';
 import { createNet } from './transport.js';
-import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold } from './config.js';
+import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
@@ -37,9 +38,9 @@ const ROOM_PREFIX = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvpr
 const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
 // most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × 4.2 × best SAILS
 const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map(t => t.gunDmg || 1));
-export const MAX_HIT = Math.ceil(BALL_DMG[1] * MAX_GUNDMG) + 1;
+export const MAX_HIT = Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1; // [pvp hp] ×1.4 PvP cannonballs
 const MAX_SPEED = 3 * 4.2 * Math.max(...UPGRADES.find(u => u.id === 'sails').tiers.map(t => t.value)) * 1.15;
-const MAX_HP = Math.max(...UPGRADES.find(u => u.id === 'hull').tiers.map(t => t.value));
+const MAX_HP = Math.round(PVP_BASE_HP + (Math.max(...UPGRADES.find(u => u.id === 'hull').tiers.map(t => t.value)) - 100) * PVP_HULL_MUL);
 const QS = new URLSearchParams(location.search);
 const TEST_CAP = +QS.get('pvpcap') || null, TEST_OFFER = +QS.get('pvpoffer') || null, TEST_AFK = +QS.get('pvpafk') || 0; // test prefixes only (the lobby ignores them for the live arena)
 const PIRATE_A = ['SALTY', 'RUM', 'IRON', 'BLACK', 'MAD', 'LUCKY', 'STORMY', 'ONE-EYED', 'GOLDEN', 'DEGEN', 'SALTY', 'CRIMSON'];
@@ -236,7 +237,7 @@ export function createPvp(K) {
   const totalLevel = () => Object.values(getRunLevels()).reduce((a, b) => a + (b | 0), 0);
   function scaleAi(e) {
     const L = totalLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
-    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * sc); e.dmgMul = 1 + HARBOR_DMG_PER_LV * L; e.gold = harborGold(L); e.aiLevel = L;
+    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * sc * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with 300 HP ships e.gold = harborGold(L); e.aiLevel = L;
     if (sz !== 1) { e.mesh.scale.setScalar(sz); ud.len *= sz; ud.beam *= sz; }
   }
   function clearLocalAi(instant) { // a 2nd pirate arrived (or we sailed into the arena): AI ships sink away, their loot despawns
@@ -410,7 +411,7 @@ export function createPvp(K) {
       if (!inside(s, p)) continue;
       if (b.visual) { fx.hit(p.clone()); return true; }
       if (s === pl ? me.protect > 0 : s.prot) { fx.splash(p); return true; } // bubble soaks it
-      const raw = b.owner === pl ? (BALL_DMG[0] + Math.random() * (BALL_DMG[1] - BALL_DMG[0])) * (pl.gunDmg || 1) : (6 + Math.random() * 4) * 1.12 * (b.owner.dmgMul || 1);
+      const raw = b.owner === pl ? (BALL_DMG[0] + Math.random() * (BALL_DMG[1] - BALL_DMG[0])) * (pl.gunDmg || 1) * PVP_DMG_MUL : (6 + Math.random() * 4) * 1.12 * (b.owner.dmgMul || 1);
       applyHit(s, raw, p.clone(), b.owner); return true;
     }
     return false;
@@ -700,7 +701,7 @@ export function createPvp(K) {
     for (const id of ['pvp-harbor', 'pvp-offer', 'pvp-entry', 'pvp-afk']) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $(id)?.addEventListener(ev, e => e.stopPropagation());
     for (const ev of ['keydown', 'pointerdown', 'touchstart', 'wheel']) addEventListener(ev, () => { if (active) markInput(); }, { passive: true, capture: true });
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) { $('pvp-menu').addEventListener(ev, e => e.stopPropagation()); $('pvp-dead').addEventListener(ev, e => e.stopPropagation()); }
-    addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (e.code === 'Tab') { e.preventDefault(); toggleMenu(); } });
+    addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (isKey('menu', e.code)) { e.preventDefault(); toggleMenu(); } });
     addEventListener('pagehide', () => leave(true));
   }
   function toggleMenu(on) { const m = $('pvp-menu'); const show = on ?? m.classList.contains('hidden'); m.classList.toggle('hidden', !show); if (show) { renderMenu(); const kb = $('pvp-kills'); if (kb) { mountKillsBoard(kb); renderKills(kb); } } }

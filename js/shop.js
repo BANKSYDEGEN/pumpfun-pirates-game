@@ -1,15 +1,18 @@
+import { isKey } from './keybinds.js';
 // [Raul] ship upgrades — SHOP button (top HUD row) + shipwright overlay.
 // Tap SHOP (or press U / B) to pause and open the shop; close (or U / B / Esc) to resume.
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
-import { UPGRADES, REPAIR, newRun, shipStats, applyStats, fmtStat, ROMAN } from './upgrades.js';
+import { UPGRADES, REPAIR, newRun, modeStats, applyStats, fmtStat, ROMAN, BASE_SHIP } from './upgrades.js';
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
 import { initSkinPreview, requestPreviews, pausePreviews } from './skinPreview.js'; // [Raul] skin previews
-import { pvpTierCost, PVP_REPAIR_COST } from './config.js'; // [pvp] same items/stats, PvP cost curve (by tier index)
+import { pvpTierCost, PVP_REPAIR_COST, PVP_BASE_HP, PVP_HULL_MUL, PVP_REPAIR_MUL } from './config.js'; // [pvp] same items/stats, PvP cost curve (by tier index)
 const PVP = () => ctx?.game.mode === 'pvp';
 const TIER_IDX = new Map(); for (const u of UPGRADES) u.tiers.forEach((t, i) => TIER_IDX.set(t, i));
 const costOf = (t) => PVP() ? pvpTierCost(TIER_IDX.get(t) ?? 0) : t.cost; // [pvp] same price in the harbor and the arena
+const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL }, shipStats = (r) => modeStats(r, PVP() ? PVP_HULL : null), repairHp = () => REPAIR.hp * (PVP() ? PVP_REPAIR_MUL : 1); // [pvp hp] 300 HP base in Battle Royale
+const hullVal = (v) => PVP() ? Math.round(PVP_BASE_HP + (v - BASE_SHIP.maxHp) * PVP_HULL_MUL) : v;
 const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
 const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
 
@@ -106,11 +109,15 @@ function renderSkins() {
   }
 }
 // [wave skins] every 5th wave: free unlock of the cheapest unowned skin + a non-blocking toast with EQUIP
+// [waves skins] fixed schedule: the n-th skin (price order, CLASSIC free) unlocks when a run reaches wave 5·n. Skins you already own
+// stay owned. Waves only ('pfp_skins_v1'); Battle Royale skins unlock by PvP kills. Picked in the WAVES entry pop-up (no shop tab).
+export const wavesUnlocks = () => SKINS.filter(x => x.id !== 'classic').sort((a, b) => a.price - b.price).map((s, i) => ({ skin: s, wave: 5 * (i + 1) }));
 export function waveSkinUnlock(wave) {
   if (!ctx || wave < 5 || wave % 5) return null;
-  const s = SKINS.filter(x => !ownsSkin(x.id)).sort((a, b) => a.price - b.price)[0];
-  if (!s) return null; // owns everything: show nothing
-  unlockSkin(s.id);
+  const got = wavesUnlocks().filter(u => u.wave <= wave && !ownsSkin(u.skin.id)).map(u => u.skin);
+  if (!got.length) return null; // nothing new at this wave
+  for (const x of got) unlockSkin(x.id);
+  const s = got[got.length - 1];
   document.getElementById('skin-toast')?.remove();
   const t = document.createElement('div'); t.id = 'skin-toast';
   t.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${s.name}</span></div><button class="buy">EQUIP</button>`;
@@ -146,8 +153,8 @@ function render() {
   $('shop-hp').querySelector('.fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < repairCost();
-  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${REPAIR.hp} HP · ${repairCost()}g`;
-  $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins').classList.toggle('pvp-hide', PVP()); // [pvp] no escorts; PvP skins unlock by kills (PvP menu)
+  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${repairHp()} HP · ${repairCost()}g`;
+  $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins').classList.add('pvp-hide'); // skins live in the WAVES / BATTLE ROYALE pickers now (BANKSY) // [pvp] no escorts; PvP skins unlock by kills (PvP menu)
   const stats = shipStats(run);
   for (const u of UPGRADES) {
     const c = $('shop-grid').querySelector(`[data-id="${u.id}"]`), lv = run.levels[u.id];
@@ -155,7 +162,7 @@ function render() {
     const b = c.querySelector('.buy'), next = u.tiers[lv];
     if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat], stats.gunDmg)}</b>`; b.textContent = PVP() ? `MAX ${ROMAN[u.tiers.length - 1]}` : 'MAXED'; b.disabled = true; c.classList.add('max'); continue; } // [pvp] hard cap: MAX, more gold buys no power
     c.classList.remove('max');
-    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, next.value, next.gunDmg)}</b>`;
+    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, u.stat === 'maxHp' ? hullVal(next.value) : next.value, next.gunDmg)}</b>`;
     b.textContent = `${costOf(next)}g`; b.disabled = game.gold < costOf(next);
   }
   renderEscorts();
@@ -204,7 +211,7 @@ function repair() {
   const p = ctx.getPlayer();
   if (p.hp >= p.maxHp || ctx.game.gold < repairCost()) return;
   const rc = repairCost(); ctx.game.gold -= rc; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + rc;
-  p.hp = Math.min(p.maxHp, p.hp + REPAIR.hp);
+  p.hp = Math.min(p.maxHp, p.hp + repairHp());
   ctx.sfx?.coin?.(); ctx.updateHud(); render(); ctx.onRunChange?.(run);
 }
 
@@ -248,7 +255,7 @@ export function initShop(c) {
   ctx = c; injectCss(); buildDom(); initSkinPreview(c.previewBase || {});
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
-    if (e.code === 'KeyU' || e.code === 'KeyB') toggle();
+    if (isKey('shop', e.code)) toggle();
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
