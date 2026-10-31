@@ -630,8 +630,9 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 /* [title] BATTLE ROYALE (left) + WAVES (right): equal size, side by side; only WAVES (centred) on portal builds */
 .start-row { justify-content: center; align-items: stretch !important; }
 .start-row button.big.mode-btn { box-sizing: border-box; flex: 1 1 0; max-width: 300px; min-width: 0; padding-left: 12px !important; padding-right: 12px !important; white-space: nowrap; text-align: center; line-height: 1.05; font-size: 32px; overflow: hidden; text-overflow: clip; }
-/* identical SET SAIL style for both (BANKSY) */
-.start-row button.big.mode-btn, .start-row button.big.mode-btn.pvp-btn { background: var(--red) !important; color: #fff !important; border: none !important; box-shadow: 0 6px 0 #8f0000, 0 10px 24px rgba(250,13,13,0.35) !important; text-shadow: 0 2px 0 rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+/* both mode buttons identical (BANKSY): black, brand-gold text + border; hover / focus / press = red fill, ~150 ms */
+.start-row button.big.mode-btn, .start-row button.big.mode-btn.pvp-btn { background: #161616 !important; color: #ffcd77 !important; border: 2px solid #ffcd77 !important; box-shadow: 0 6px 0 #000, 0 10px 24px rgba(255,205,119,0.18) !important; text-shadow: 0 2px 0 rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+.start-row button.big.mode-btn:is(:hover, :focus-visible, :active) { background: #fa0d0d !important; color: #fff !important; box-shadow: 0 6px 0 #8f0000, 0 10px 24px rgba(250,13,13,0.35) !important; outline: none; }
 .start-row button.big.mode-btn:active { box-shadow: 0 3px 0 #8f0000 !important; }
 .start-row button.big.mode-btn:only-child { flex: 0 1 260px; }
 @media (max-width: 600px), (max-height: 520px) and (orientation: landscape) { .start-row button.big.mode-btn { white-space: normal; font-size: 24px !important; padding-top: 4px !important; padding-bottom: 4px !important; } }
