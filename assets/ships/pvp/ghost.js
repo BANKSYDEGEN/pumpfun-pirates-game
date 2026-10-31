@@ -4,7 +4,7 @@
 // waterline and streams aft with the ship's own speed. Hitbox untouched (partsOverride API).
 // Cost: +3 draw calls net (spectral hull + ribs replace hull + outline; +rib outline... none; +mist Points; torn sails reuse
 // the sail meshes). Low quality: fewer sections / ribs, 12 mist puffs instead of 36.
-import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, wind } from './pvpKit.js';
+import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake } from './pvpKit.js';
 
 export const GHOST_KILLS = 300; // change the tier here only
 
@@ -82,13 +82,15 @@ let _hullMat = null, _ribMat = null;
 export function ghostPartsOverride(ship, ctx) {
   const low = ctx.quality === 'low', G = geos(ctx.ud, low), F = fxOf(ship);
   ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline);
-  _hullMat = _hullMat || (() => { const m = toon(0x6a9a84, null, { side: THREE.DoubleSide, transparent: true, opacity: 0.42, depthWrite: false });
-    m.emissive = new THREE.Color(0x1f9a5a); m.emissiveIntensity = 0.45; return injectShine(m, SPECTRAL, { uGK: { value: 1 } }, 'pvp-ghost'); })();
+  _hullMat = _hullMat || (() => { const m = toon(0x3f6e5c, null, { side: THREE.DoubleSide }); // opaque: the sea never shows through the hull
+    m.emissive = new THREE.Color(0x26c070); m.emissiveIntensity = 0.55; return injectShine(m, SPECTRAL, { uGK: { value: 1 } }, 'pvp-ghost'); })();
   _ribMat = _ribMat || (() => { const m = toon(0x2a3a32, null); m.emissive = new THREE.Color(0x0f4a2a); m.emissiveIntensity = 0.5; return m; })();
   meshOf(G.ribs, _ribMat, ctx, { outline: low ? 0 : 0.04 });
-  const h = meshOf(G.hull, _hullMat, ctx); h.renderOrder = 2;
+  meshOf(G.hull, _hullMat, ctx, { outline: low ? 0 : 0.05 });
   ship.traverse(o => { if (o.isMesh && o.material?.customProgramCacheKey?.() === 'sail') o.material = tornSail(o.material); });
   ctx.add(mist(ctx.ud, low, F), ship); // on the ship (level with the water), not the bobbing body
+  signatureWake(ship, ctx, { c0: 0xb0ffd8, c1: 0x20ff80, n: 40, size: 360, rise: 2.4 }); // rising will-o'-wisp wake
+  liftRig(ctx, { lift: 0.5, sx: 1.08, sy: 1.18, sz: 1.08 });
 }
 // per-frame (local + remote): mist streams aft with this ship's speed, fades out when it sinks. No-op on other skins.
 export function ghostTick(mesh, { speed = 0, alive = true, dt = 1 / 60 } = {}) {

@@ -29,6 +29,11 @@ export function cleanProfile(p) {
 // HOLDER PERK: server-checked (the client can't fake the balance or claim twice). Fails closed: any error = no perk.
 export async function holderStatus() { const s = session(); if (!s) return { holder: false }; try { return await api('holder', { token: s.token }); } catch { return { holder: false }; } }
 export async function holderClaim() { const s = session(); if (!s) throw new Error('connect a wallet first'); return api('holder_claim', { token: s.token }); }
+// optional airdrop wallet (PvP entry pop-up): sent once per change, private server-side (never broadcast)
+export async function saveAirdrop(wallet, name) {
+  const key = 'pfp_pvp_airdrop_sent', tag = `${wallet}|${name}`; if (ls.get(key) === tag) return { ok: true, cached: true };
+  const s = session(); const r = await api('airdrop', { ...(s ? { token: s.token } : { dk: deviceKey() }), wallet, name }); ls.set(key, tag); return r;
+}
 export const kd = (k, d) => d ? (k / d).toFixed(2) : String(k);
 
 function session() { try { const s = JSON.parse(ls.get(SESSION_KEY) || 'null'); return s && s.token && Date.parse(s.expires_at) > Date.now() ? s : null; } catch { return null; } }

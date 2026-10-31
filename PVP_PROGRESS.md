@@ -11,9 +11,9 @@
 - **AFK:** no input for PVP_AFK.kick = 180 s in the arena (warning "MOVE OR BE SENT TO THE HARBOR" for the last 30 s) = back to the
   harbor, ALWAYS (queue or not). Not a death unless you took PvP damage in the last 10 s (combat-log rule). Carried gold stays.
   Anti-farm: a pirate sunk after ≥ 60 s idle (PVP_AFK.farm) drops no +100 bonus and gives no kill credit / no death / no bounty.
-- **AI ships:** local only, never networked. In the harbor, and in the arena only while you are the ONLY player (they sink away and
-  their loot despawns when a 2nd pirate arrives, and come back if you're alone again). AI kills never count for K/D or boards. The old
-  host-run arena AI and the 15 g arena AI payout are gone; the host only handles loot piles / pickups.
+- **AI ships:** HARBOR ONLY, local, never networked. The arena is players only, always (also when you're alone in it; BANKSY
+  2026-10-31). Harbor AI only ever target / aim at / fire on YOU: their balls never hurt other AI ships, AI never credits AI kills
+  (t11: 60 s harbor run, AI HP only drops from your shots). AI kills never count for K/D or boards. The host only handles loot.
 - Authority: the lobby is ONE place (Supabase: `pvp_lobby()` RPC with an advisory lock, migration 007 APPLIED; relay: server/relay.js).
 
 ## Netcode capacity (Supabase Realtime FREE: 100 msgs/s project-wide sent+delivered, 200 connections, presence 20/s)
@@ -62,6 +62,20 @@ Maxing everything = 79,950 g. A player kill = victim's carried gold + 100 bonus 
 - Verified: Token-2022 balances for both mints read correctly; e2e with a throwaway keypair (non-holder 403; simulated holder: claim
   200, second claim 409); test rows deleted.
 
+## Bug-hunt pass (live, 2026-10-31)
+- **RETURN TO HARBOR** (⚓ HARBOR HUD button, desktop + phones, and in the 🏴 menu): keeps carried gold (saved to the PvP profile), not a
+  death, frees the arena seat (next in queue gets the offer), lands in the harbor NOT queued, bounty resets. Anti-dodge: needs 10 s
+  with no PvP damage dealt or taken (countdown otherwise), can't start below 30 % hull ("Too damaged to retreat"), any damage taken
+  cancels it, firing restarts it, a killing hit on the finishing frame wins. Closing/reloading within 10 s of combat = a death.
+- **Entry pop-up SOLANA WALLET** (optional, web only): same stored wallet + checks as the Waves game-over field, "Used for airdrops.
+  Never asks for keys or signatures.", Enter moves name → wallet → SET SAIL. Stored privately via the pvp function in
+  `pvp_airdrop` (migration 008: RLS on, no anon/auth grants, one change per 30 s per player, updated_at); never broadcast or shown.
+  Export (read-only, no secrets printed): `python3 tools/export_airdrop.py [/workspace/airdrop_wallets.csv]` (needs
+  SUPABASE_ACCESS_TOKEN in the env; merges Waves scores/players + PvP entry + PvP signed-in wallets, QA_ rows dropped).
+- HUD name: the chosen PvP name now shows top-left (and in tags / feed / boards); no name typed = your saved name, else CAPT. #N.
+  A random pirate name is no longer written into the Waves name slot.
+- Raul's premium pass + Flaming redesign (pvpKit liftRig / signatureWake, Golden, Ghost, Kraken, Diamond, flamingRedesign.js).
+
 ## Waves (solo) skin looks + separation
 - Raul's GOLDEN / GHOST parts and Timothy's tier looks for BLOOD (PvP "CRIMSON SAILS") and MIDNIGHT (PvP "BLACK PEARL") now dress
   the same skins in Waves (js/skinLooks.js; their tick hooks run on the Waves player ship). Diamond, Kraken, Flaming, Sea Green, Coral,
@@ -85,8 +99,10 @@ Maxing everything = 79,950 g. A player kill = victim's carried gold + 100 bonus 
 - Final: sw pfp-v60, squash to main as BANKSYDEGEN, push, verify live. Relay hosting = owner's decision.
 
 ## Tests (/workspace/pfp-br-test)
-- t8.py: full arena (cap 2) + queue + death rotation + offer accept + missed offer + AI on/off + msg rate. 16/16 on Supabase.
+- t8.py: full arena (cap 2) + queue + death rotation + offer accept + missed offer + no arena AI + msg rate. 16/16 on Supabase.
   `python3 t8.py ws://localhost:18794` runs it on the relay (15/16; the rate check is Supabase-specific).
 - t10.py: Waves skin looks (screenshots waves_skin_*.png, hitbox parity with main, phone low cost), unlock + gold separation. 16/16.
+- t11.py: harbor AI only fights you (60 s) + entry wallet (prefill, styling, Enter, private storage, anon can't read). 13/13.
+- t12.py: RETURN TO HARBOR (quiet 10 s, HP ≥ 30 %, damage cancels, firing restarts, death wins, seat freed, unload = death, phone).
 - t9.py: bounty, idle-victim rule, AFK warning + kick, harbor AI L0 stats, holder badge + 5 %. 12/12.
 - server: `node server/loadtest.js 16 2 15 ws://localhost:18794 20`.

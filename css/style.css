@@ -615,3 +615,15 @@ html.hud-off #hud, html.hud-off #bars, html.hud-off #popups { display: none !imp
 #spec-table td.sb-bounty { color: var(--gold); }
 .pvp-holder { display: inline-block; background: linear-gradient(90deg,#f7c948,#ffdf7e); color: #1b1300; border-radius: 999px; padding: 1px 10px; font-size: 16px; margin: 4px 6px; }
 .pvp-holder[hidden], #pvp-holder-claim[hidden] { display: none !important; }
+
+/* [airdrop] PvP entry wallet field: web build only (portal builds are crypto-free) */
+#pvp-entry .field input { width: 100%; box-sizing: border-box; }
+#pvp-entry #pvp-entry-addr { font-size: 14px; }
+#pvp-entry-addr-msg { display: block; max-width: 380px; margin: -4px auto 0; }
+/* [pvp] RETURN TO HARBOR: arena-only HUD button (desktop + phones), turns gold while counting down */
+html.pvp #pvp-return:not(.hidden) { display: block; }
+#pvp-return { position: absolute; top: calc(12px + var(--safe-t)); right: calc(14px + var(--safe-r) + 6 * 44px + 5 * 8px + 16px); height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--glass); color: #fff; font: inherit; font-size: 18px; cursor: pointer; pointer-events: auto; backdrop-filter: blur(6px); z-index: 6; }
+#pvp-return.on { border-color: var(--gold); color: var(--gold); }
+html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !important; }
+#pvp-menu-return { margin: 6px auto; }
+@media (max-width: 600px) { #pvp-return { top: calc(60px + var(--safe-t)); right: calc(14px + var(--safe-r) + 44px + 8px); height: 36px; font-size: 15px; padding: 0 10px; } }

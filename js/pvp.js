@@ -7,7 +7,7 @@
 //  - every client is authoritative for its OWN ship; state + events go out as ONE batched message per tick (PVP_NET hz);
 //  - cannon volleys are broadcast as events so everyone sees the balls; the SHOOTER decides a hit and the VICTIM'S
 //    client applies it (after caps: damage per ball, hits per second, shooter distance);
-//  - AI ships are LOCAL only (harbor, or a lone player in the arena), never networked, never count for K/D.
+//  - AI ships are LOCAL only (harbor only; the arena is players only), never networked, never count for K/D.
 //  - the lowest-id client in the room is HOST: it owns gold piles (who picked up which pile) and
 //    turns a sunk player's report into a pile (carried gold + PVP_DEATH_BONUS). When the host leaves, the next one takes over.
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
@@ -16,14 +16,15 @@ import { createNet } from './transport.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
-import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim } from './pvpSave.js';
+import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { makeChest } from './props.js';
 import { setRunLevels, getRunLevels } from './shop.js';
-import { getSavedName, saveName } from './wallet.js';
+import { getSavedName, saveName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
+import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills } from './pvpBoard.js';
 
 const $ = (id) => document.getElementById(id);
@@ -73,7 +74,7 @@ export function createPvp(K) {
   let hitQueue = [], hitT = 0;
   const me = { life: 0, protect: 0, dead: false, respawn: 0, lastDamageAt: 0, lastBy: null, kills: 0, deaths: 0, gold: 0, killedBy: '', dropped: 0, streak: 0, bounty: 0, pairs: new Map() };
   let profile = blankProfile(), wallet = walletSession()?.wallet || '', name = getSavedName() || '';
-  if (!name) { name = pirateName(); saveName(name); }
+  if (!name) name = pirateName(); // not saved: Waves keeps its own (empty) name until you type one
 
   // ---------------- profile / save ----------------
   async function prepare() {
@@ -148,8 +149,8 @@ export function createPvp(K) {
     P().mesh.visible = true; me.lastInput = performance.now(); electHost(); respawn(); hud();
     return true;
   }
-  function toHarbor(title, sub) { // leave the arena (rotation, AFK, lost seat); upgrades, gold, K/D stay; bounty resets
-    resetBounty();
+  function toHarbor(title, sub) { // leave the arena (rotation, AFK, lost seat, RETURN TO HARBOR); upgrades, gold, K/D stay; bounty resets
+    resetBounty(); me.ret = null;
     if (room) { room.send('bye', { i: myId }, { now: true }); room.close(); }
     room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
     isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor');
@@ -183,12 +184,43 @@ export function createPvp(K) {
   }
   function afkKick() {
     const pl = P();
-    if (pl.alive && !me.dead && performance.now() - me.lastDamageAt < 10000) combatLog(false); // in a fight: counts as a death (same as quitting)
+    if (pl.alive && !me.dead && inCombat()) combatLog(false); // in a fight: counts as a death (same as quitting)
     $('pvp-afk')?.classList.add('hidden'); me.afkWarned = false;
     lobbyCall('leave'); toHarbor('SENT TO THE HARBOR', 'no input for a while · press JOIN BATTLE to go again');
   }
-  // ---------------- local AI ships (harbor, or a lone pirate in the arena): never networked, never K/D ----------------
-  const aiWanted = () => !spec.on && (where === 'harbor' || (where === 'arena' && livePeers().length === 0));
+  // ---------------- RETURN TO HARBOR (anti-dodge): no PvP damage dealt/taken for 10 s, HP ≥ 30%, any hit cancels ----------------
+  const RET_QUIET = 10000, RET_MIN_HP = 0.3;
+  const lastCombat = () => Math.max(me.lastDamageAt || 0, me.lastDealtAt || 0);
+  const inCombat = () => performance.now() - lastCombat() < RET_QUIET;
+  function requestReturn() {
+    const pl = P(); if (where !== 'arena' || me.dead || !pl.alive) return;
+    if (me.ret) return cancelReturn('RETURN CANCELLED', 'staying in the fight');
+    if (pl.hp < pl.maxHp * RET_MIN_HP) { K.banner('TOO DAMAGED TO RETREAT', `repair above ${Math.round(RET_MIN_HP * 100)}% hull first`); return; }
+    const now = performance.now();
+    me.ret = { start: now, until: Math.max(now, lastCombat() + RET_QUIET) };
+    toggleMenu(false); retUi();
+    if (me.ret.until > now) K.banner('RETURNING TO HARBOR', 'no fighting for 10 s · taking damage cancels it');
+  }
+  function cancelReturn(title, sub) { if (!me.ret) return; me.ret = null; retUi(); if (title) K.banner(title, sub); }
+  function retTick() {
+    if (!me.ret) { retUi(); return; }
+    const pl = P(), now = performance.now();
+    if (where !== 'arena' || me.dead || !pl.alive || pl.hp <= 0) { cancelReturn(); return; }
+    if (me.lastDamageAt > me.ret.start) { cancelReturn('RETURN CANCELLED', 'you took damage'); return; }
+    if (now < me.ret.until) { retUi(); return; }
+    if (!me.ret.ready) { me.ret.ready = true; return; } // one more frame: a killing hit landing now wins over the return
+    me.ret = null; retUi();
+    save({ now: true, force: true }); // carried gold is banked in your PvP profile; not a death
+    lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${game.gold | 0} gold · JOIN BATTLE to go again`);
+    lobbyCall('poll').then(harborUi);
+  }
+  function retUi() {
+    const show = active && where === 'arena' && !me.dead && !spec.on;
+    const b = $('pvp-return'); if (b) { b.classList.toggle('hidden', !show); const t = me.ret ? `RETURNING · ${Math.max(0, Math.ceil((me.ret.until - performance.now()) / 1000))}` : '⚓ HARBOR'; if (b.textContent !== t) b.textContent = t; b.classList.toggle('on', !!me.ret); }
+    const mb = $('pvp-menu-return'); if (mb) mb.hidden = !show;
+  }
+  // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
+  const aiWanted = () => !spec.on && where === 'harbor'; // the arena is players only, always (BANKSY)
   function aiTick(dt) {
     botT -= dt; if (botT > 0) return; botT = 2;
     const now = performance.now();
@@ -317,10 +349,11 @@ export function createPvp(K) {
     for (const [pid, l] of piles) if (!l.local && now > l.expires) { room?.send('gone', { pid }); removePile(pid); }
   }
   function allShips() { const out = []; const pl = P(); if (pl.alive && !me.dead) out.push(pl); for (const p of livePeers()) if (p.ship?.alive) out.push(p.ship); for (const b of bots.values()) if (b.alive) out.push(b); return out; }
+  const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
   function botTarget(e) {
-    let best = null, bd = 220;
-    for (const s of allShips()) { if (s === e) continue; if (s === P() ? me.protect > 0 : s.prot) continue; const d = Math.hypot(s.x - e.x, s.z - e.z); if (d < bd) { bd = d; best = s; } }
-    return best || { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
+    // local AI (harbor only) only ever hunts YOU: never other AI ships, never other pirates
+    const pl = P(), d = Math.hypot(pl.x - e.x, pl.z - e.z);
+    return pl.alive && !me.dead && me.protect <= 0 && d < 220 ? pl : NO_TARGET;
   }
   function botSteer(e, desired) { const r = Math.hypot(e.x, e.z); return r > PVP_ARENA_R - 50 ? Math.atan2(-e.x, -e.z) : desired; }
   function pickSpawn(selfShip = null) {
@@ -336,7 +369,7 @@ export function createPvp(K) {
     const id = myId;
     room.send('shot', { o: id, b: shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay)]) });
   }
-  function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } }
+  function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
   function ownerObj(id) { return peers.get(id)?.ship || null; }
   function onShot(m) {
     const owner = ownerObj(m.o); if (!owner || !Array.isArray(m.b)) return;
@@ -354,6 +387,7 @@ export function createPvp(K) {
     const ships = [pl, ...enemies];
     for (const s of ships) {
       if (s === b.owner || !s.alive || (s === pl && me.dead)) continue;
+      if (b.owner?.net?.kind === 'bot' && s !== pl) continue; // AI balls only hurt you, never other AI ships / pirates
       if (!inside(s, p)) continue;
       if (b.visual) { fx.hit(p.clone()); return true; }
       if (s === pl ? me.protect > 0 : s.prot) { fx.splash(p); return true; } // bubble soaks it
@@ -367,6 +401,7 @@ export function createPvp(K) {
     if (target === pl) return localDamage(raw, sid, p, shooter);
     if (target.net?.kind === 'bot') { target.lastBy = sid; K.damage(target, Math.max(1, Math.round(raw)), p, shooter); return; } // local AI
     if (!target.net || shooter !== pl) return; // only our own hits on other pirates are reported
+    me.lastDealtAt = performance.now(); if (me.ret) me.ret.until = me.lastDealtAt + RET_QUIET;
     hitQueue.sid = sid; hitQueue.push([target.net.id, Math.round(raw)]); fx.hit(p); sfx.impact?.({ dmg: raw, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.8 });
     if (shooter === pl) K.popup(p, `-${Math.round(raw)}`, 'hit');
   }
@@ -421,7 +456,7 @@ export function createPvp(K) {
     });
   }
   function onBotSunk(e, src) { // one of our LOCAL AI ships went down: a small local pile, AI tally only
-    const by = e.lastBy || (src === P() ? myId : null);
+    const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true);
     if (by === myId && !e.fade) { profile.stats.botKills++; save(); }
   }
@@ -514,7 +549,7 @@ export function createPvp(K) {
     if (spec.on) { specTick(dt, now); return; }
     if (me.protect > 0) me.protect = Math.max(0, me.protect - dt);
     shield(pl, pl.alive && !me.dead && me.protect > 0); skinFx(pl, dt);
-    lobbyTick(dt); aiTick(dt); afkTick();
+    lobbyTick(dt); aiTick(dt); afkTick(); retTick();
     if (me.dead) { me.respawn -= dt; const el = $('pvp-dead-t'); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); if (me.respawn <= 0) respawn(); }
     // arena edge
     const r = Math.hypot(pl.x, pl.z); if (r > PVP_ARENA_R) { pl.x *= PVP_ARENA_R / r; pl.z *= PVP_ARENA_R / r; if (!me.edgeT || now - me.edgeT > 5000) { me.edgeT = now; K.banner('EDGE OF THE ARENA', 'turn back, captain'); } }
@@ -599,6 +634,24 @@ export function createPvp(K) {
     } catch (e) { msg(String(e?.message || e).slice(0, 120)); }
     finally { $('pvp-wallet').disabled = false; }
   }
+  const capNo = () => ($('captain-name')?.textContent.match(/#(\S+)$/) || [])[1];
+  function setName(v, keep = true) { // the chosen PvP name everywhere: HUD (top-left), menu field, name tag / feed / boards (via state 'n')
+    name = v; if (keep) saveName(v);
+    const hn = $('captain-name'); if (hn) { const m = hn.textContent.match(/ · #\S+$/); hn.textContent = `${name.toUpperCase()}${m ? m[0] : ''}`; }
+    const mn = $('pvp-name'); if (mn) mn.value = name;
+  }
+  function addrCheck() {
+    const inp = $('pvp-entry-addr'), msg = $('pvp-entry-addr-msg'); if (!inp) return false;
+    const v = inp.value.trim(), ok = isValidSolanaAddress(v);
+    inp.classList.toggle('good', ok); inp.classList.toggle('bad', !!v && !ok);
+    if (msg) msg.textContent = !v ? 'Used for airdrops. Never asks for keys or signatures.' : ok ? `Ahoy ${shortWallet(v)}! Used for airdrops. Never asks for keys or signatures.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+    return ok;
+  }
+  function entryAirdrop() { // optional: a valid address is saved (same slot as Waves) and stored privately server-side; anything else is ignored
+    const inp = $('pvp-entry-addr'); if (!inp || ON_PORTAL) return;
+    const v = inp.value.trim(); if (!isValidSolanaAddress(v)) return;
+    saveWallet(v); saveAirdrop(v, name).catch(() => {});
+  }
   let uiWired = false;
   function wireUi() {
     if (uiWired) return; uiWired = true;
@@ -606,13 +659,23 @@ export function createPvp(K) {
     $('pvp-menu-close').onclick = () => toggleMenu(false);
     $('pvp-wallet').onclick = walletButton;
     $('pvp-holder-claim')?.addEventListener('click', (e) => { e.stopPropagation(); claimHolderGold(); });
-    $('pvp-name').addEventListener('change', () => { name = esc($('pvp-name').value).trim().slice(0, 20) || pirateName(); saveName(name); $('pvp-name').value = name; });
+    $('pvp-name').addEventListener('change', () => setName(esc($('pvp-name').value).trim().slice(0, 20) || pirateName()));
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
     $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
     $('pvp-offer-yes').onclick = (e) => { e.stopPropagation(); acceptOffer(); };
     $('pvp-offer-no').onclick = (e) => { e.stopPropagation(); declineOffer(); };
-    $('pvp-entry-go').onclick = (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20); if (v) { name = v; saveName(v); } $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
+    $('pvp-entry-go').onclick = (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20); if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
+    // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL
+    if (ON_PORTAL) document.querySelectorAll('.pvp-airdrop').forEach(n => n.remove()); // crypto-free portal builds
+    const addr = $('pvp-entry-addr');
+    if (addr) {
+      addr.addEventListener('input', addrCheck);
+      addr.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!addr.value.trim() || addrCheck()) $('pvp-entry-go').click(); } });
+      $('pvp-entry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addr.focus(); } });
+    }
+    for (const id of ['pvp-return', 'pvp-menu-return']) $(id)?.addEventListener('click', (e) => { e.stopPropagation(); requestReturn(); });
+    for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $('pvp-return')?.addEventListener(ev, e => e.stopPropagation());
     $('pvp-entry-wallet').onclick = (e) => { e.stopPropagation(); $('pvp-entry').classList.add('hidden'); toggleMenu(true); };
     for (const id of ['pvp-harbor', 'pvp-offer', 'pvp-entry', 'pvp-afk']) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $(id)?.addEventListener(ev, e => e.stopPropagation());
     for (const ev of ['keydown', 'pointerdown', 'touchstart', 'wheel']) addEventListener(ev, () => { if (active) markInput(); }, { passive: true, capture: true });
@@ -765,7 +828,7 @@ export function createPvp(K) {
     if (spec.want) return specBegin();
     document.documentElement.classList.add('pvp-harbor');
     respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi);
-    const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = name; en.classList.remove('hidden'); }
+    const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = getSavedName(); $('pvp-entry-name').placeholder = capNo() ? `CAPT. #${capNo()}` : name; const a = $('pvp-entry-addr'); if (a) { a.value = getSavedWallet(); addrCheck(); } en.classList.remove('hidden'); }
   }
   // quit-to-dodge / AFK in a fight: leaving the arena within 10 s of taking PvP damage counts as a death (gold drops for the others)
   function combatLog(unloading) {
@@ -780,7 +843,7 @@ export function createPvp(K) {
     if (!active) return;
     if (spec.on) { net.lobby('leave', lobbyOpts({ keepalive: true })); specOff(); if (unloading) return; active = false; harborUi(); document.documentElement.classList.remove('pvp'); room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid); isHost = false; hostId = null; return; }
     const pl = P();
-    if (where === 'arena' && !me.dead && pl.alive && performance.now() - me.lastDamageAt < 10000) combatLog(unloading);
+    if (where === 'arena' && !me.dead && pl.alive && inCombat()) combatLog(unloading); // closing / reloading within 10 s of combat = a death
     save({ now: true, keepalive: unloading, force: true });
     room?.send('bye', { i: myId }, { now: true });
     net.lobby('leave', lobbyOpts({ keepalive: true })); // free the arena seat / queue place for the next pirate
@@ -796,8 +859,9 @@ export function createPvp(K) {
 
   const api = { myId, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
-    get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { name = v; saveName(v); }, pickSkin, renderMenu, toggleMenu,
+    get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
+    requestReturn, get returning() { return me.ret; },
     _test: { spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
   window.PFP_PVP = api;
   return api;

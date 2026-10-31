@@ -95,6 +95,7 @@
   <!-- [pvp] PvP ARENA HUD: kill feed, menu button (scoreboard / skins / name / wallet), death screen -->
   <div id="pvp-feed" class="pvp-only" aria-live="polite"></div>
   <button class="icon pvp-only" id="btn-pvp-menu" title="PvP scoreboard, skins and save (Tab)" aria-label="PvP menu">🏴</button>
+  <button id="pvp-return" class="hidden pvp-only" type="button" title="Return to the harbor with your gold (needs 10 s without combat)">⚓ HARBOR</button>
   <div id="pvp-dead" class="hidden pvp-only">
     <div class="pd-card"><h2>SUNK!</h2><div class="pd-by"></div><div class="pd-drop muted"></div><div class="pd-kd"></div><div class="pd-queue" hidden></div>
       <div class="pd-re">Back at sea in <b id="pvp-dead-t">4</b>…</div><button id="pvp-dead-menu" class="ghost" type="button">MAIN MENU</button></div>
@@ -107,7 +108,9 @@
     <p class="muted">Miss it once and you keep your place; miss it twice and you go to the back of the line.</p></div></div>
   <div id="pvp-afk" class="hidden pvp-only">MOVE OR BE SENT TO THE HARBOR · <b>30</b></div>
   <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>PVP ARENA</h2>
-    <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>
+    <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+    <label class="field pvp-airdrop"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="pvp-entry-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
+    <small id="pvp-entry-addr-msg" class="muted pvp-airdrop">Used for airdrops. Never asks for keys or signatures.</small>
     <button id="pvp-entry-wallet" type="button" class="wallet-link">Connect wallet to save (optional, read-only)</button>
     <button id="pvp-entry-go" type="button" class="pvp-btn big">SET SAIL</button>
     <p class="muted">You start in the harbor: farm AI ships for small gold, then JOIN BATTLE.</p></div></div>
@@ -261,6 +264,7 @@
     <button id="pvp-menu-close" class="faq-x" type="button" aria-label="Close">✕</button>
     <h3>PVP ARENA <small>(BETA)</small></h3>
     <table id="pvp-board" class="pvp-board"></table>
+    <button id="pvp-menu-return" class="ghost" type="button" hidden>⚓ RETURN TO HARBOR <small class="muted">(keep your gold · 10 s without combat)</small></button>
     <label class="field"><span>PIRATE NAME</span><input id="pvp-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>
     <div id="pvp-kd" class="pvp-kd"></div>
     <div class="pvp-kills-wrap lb-br" id="pvp-kills"><div class="pvp-sub">PVP KILLS <span class="muted pk-mode"></span></div>

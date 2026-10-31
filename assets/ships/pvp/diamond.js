@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { wind } from '../../../js/ships.js';
 import { toon, outlineFor, outlineMat } from '../../../js/toon.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { liftRig, signatureWake } from './pvpKit.js';
 
 // change the unlock tier here only
 export const DIAMOND_KILLS = 5000;
@@ -380,6 +381,8 @@ export function diamondPartsOverride(ship, ctx) {
   ctx.add(trail(ctx.ud, ctx.quality), ship);
   flagGem(ctx);
   ctx.add(flares(ctx.ud, ctx.quality));                              // distance glints + aura, on the bobbing body
+  signatureWake(ship, ctx, { c0: 0xffffff, c1: 0xb060ff, n: 56, size: 380, rise: 1.2 }); // prismatic star wake (top tier)
+  liftRig(ctx, { lift: 0.6, sx: 1.12, sy: 1.25, sz: 1.12 });
 }
 DIAMOND.materialFx = diamondMaterialFx;
 DIAMOND.partsOverride = diamondPartsOverride;

@@ -36,6 +36,9 @@ export function loftHull(len, ring, N = 16, t0 = 0.02, t1 = 0.99) {
   const S = ring(t0), zs = (t0 - 0.5) * len, cy = (S[0][1] + S[S.length - 1][1]) / 2; // flat transom
   for (let j = 0; j < S.length - 1; j++) for (const sx of [1, -1]) { const p = [sx * S[j][0], S[j][1], zs], q = [sx * S[j + 1][0], S[j + 1][1], zs]; if (sx > 0) P.push(0, cy, zs, ...q, ...p); else P.push(0, cy, zs, ...p, ...q); U.push(0.5, 0.5, 0, 0, 0, 0); }
   P.push(-S[0][0], S[0][1], zs, S[0][0], S[0][1], zs, 0, cy, zs); U.push(0, 0, 0, 0, 0, 0);
+  const E = ring(t1), ze = (t1 - 0.5) * len, ey = (E[0][1] + E[E.length - 1][1]) / 2; // closed stem (watertight bow, no gap at the tip)
+  for (let j = 0; j < E.length - 1; j++) for (const sx of [1, -1]) { const p = [sx * E[j][0], E[j][1], ze], q = [sx * E[j + 1][0], E[j + 1][1], ze]; if (sx > 0) P.push(0, ey, ze, ...p, ...q); else P.push(0, ey, ze, ...q, ...p); U.push(0.5, 0.5, 0, 0, 0, 0); }
+  P.push(E[0][0], E[0][1], ze, -E[0][0], E[0][1], ze, 0, ey, ze); U.push(0, 0, 0, 0, 0, 0);
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.computeVertexNormals();
   return g;
 }
@@ -66,3 +69,49 @@ export function injectShine(mat, frag, uniforms = {}, key = 'shine') {
 // per-ship effect state: ticks find it here (and do nothing on other skins)
 export const fxOf = (ship) => ship.userData.pvpFx || (ship.userData.pvpFx = {});
 export const hash = (i) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
+
+// ---------- premium-tier helpers (all PvP skins) ----------
+// Imposing silhouette: everything on the bobbing body (hull, deck, water-mask lid, masts, sails, props) moves into one
+// lifted + enlarged group, so the deck, masts and props stay seated and the water lid stays on the new gunwale.
+// Visual only (runPartsOverride restores len/beam/depth = hitbox). A child group, not body.scale, because the upgrade
+// 'pop' animation writes body.scale. Call LAST in a partsOverride.
+export function liftRig(ctx, { lift = 0.5, sx = 1.08, sy = 1.18, sz = 1.08 } = {}) {
+  const body = ctx.body, g = new THREE.Group(); g.name = 'pvpLift';
+  for (const c of [...body.children]) g.add(c);
+  g.scale.set(sx, sy, sz); g.position.y = lift * ctx.depth / 3.1; body.add(g);
+  return g;
+}
+// signature wake: additive GPU sparks streaming aft with THIS ship's own measured speed (local or remote),
+// stars + soft cores, fade with distance travelled. One draw call; low quality uses fewer, larger points.
+const _wakeMat = new THREE.ShaderMaterial({
+  uniforms: { uT: wind.uTime, uSpeed: { value: 0 }, uBox: { value: new THREE.Vector3() }, uC0: { value: new THREE.Color() }, uC1: { value: new THREE.Color() }, uSize: { value: 300 }, uRise: { value: 0 } },
+  vertexShader: `attribute vec3 seed; uniform float uT; uniform float uSpeed; uniform vec3 uBox; uniform float uSize; uniform float uRise; varying float vA; varying float vL;
+    void main(){ float life = fract(uT * (0.25 + seed.z * 0.15) + seed.x);
+      float side = seed.y < 0.5 ? -1.0 : 1.0;
+      vec3 p = vec3(side * uBox.x * (0.3 + life * (0.5 + seed.z)), 0.25 + life * uRise + sin(seed.x * 50.0 + uT * 4.0) * 0.15, uBox.z - life * uBox.y * (0.3 + 0.7 * uSpeed));
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      float tw = 0.5 + 0.5 * pow(0.5 + 0.5 * sin(uT * 8.0 + seed.y * 90.0), 2.0);
+      vA = (1.0 - life) * tw * (0.25 + 0.75 * uSpeed); vL = life;
+      gl_PointSize = (0.55 + 0.6 * seed.z) * (1.0 - life * 0.5) * uSize / max(1.0, -mv.z);
+      gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform vec3 uC0; uniform vec3 uC1; varying float vA; varying float vL; void main(){ vec2 q = gl_PointCoord - 0.5;
+      float d = length(q), star = max(0.0, 1.0 - abs(q.x) * 12.0) * max(0.0, 1.0 - abs(q.y) * 2.2) + max(0.0, 1.0 - abs(q.y) * 12.0) * max(0.0, 1.0 - abs(q.x) * 2.2);
+      float a = (smoothstep(0.3, 0.0, d) + star * 0.7) * vA; if (a < 0.02) discard;
+      gl_FragColor = vec4(mix(uC0, uC1, vL) * a, a); }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const _wakeGeo = new Map(), _wp = new THREE.Vector3();
+export function signatureWake(ship, ctx, { c0 = 0xffffff, c1 = 0xffffff, n = 48, size = 300, rise = 0 } = {}) {
+  if (ctx.quality === 'low') { n = Math.round(n * 0.4); size *= 1.3; }
+  if (!_wakeGeo.has(n)) { const g = new THREE.BufferGeometry(), s = new Float32Array(n * 3); for (let i = 0; i < s.length; i++) s[i] = hash(i * 1.37 + 3);
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); g.setAttribute('seed', new THREE.BufferAttribute(s, 3)); _wakeGeo.set(n, g); }
+  const m = _wakeMat.clone(); m.uniforms.uT = wind.uTime; m.uniforms.uC0.value.set(c0); m.uniforms.uC1.value.set(c1); m.uniforms.uSize.value = size; m.uniforms.uRise.value = rise;
+  m.uniforms.uBox.value.set(ctx.beam, ctx.len * 1.1, -ctx.len * 0.45);
+  const p = new THREE.Points(_wakeGeo.get(n), m); p.frustumCulled = false; p.renderOrder = 4; p.userData.sharedGeo = true; p.userData.pvpWake = true;
+  const S = { t: 0, x: 0, z: 0 }, u = m.uniforms.uSpeed;
+  p.onBeforeRender = () => { const now = performance.now(); if (now - S.t < 12) return; const dt = Math.min(0.25, (now - S.t) / 1000);
+    ship.getWorldPosition(_wp); const fed = ship.userData.pvpFx?.speed, v = typeof fed === 'number' ? fed : (typeof ship.userData.speed === 'number' ? ship.userData.speed : Math.hypot(_wp.x - S.x, _wp.z - S.z) / dt);
+    S.x = _wp.x; S.z = _wp.z; S.t = now; u.value += (Math.min(1, Math.abs(v) / 10) - u.value) * Math.min(1, dt * 4); };
+  ctx.add(p, ship); // on the ship (level with the water), not the bobbing body
+  return p;
+}

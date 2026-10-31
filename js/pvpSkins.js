@@ -14,6 +14,8 @@ import { GOLDEN_PVP, goldenTick } from '../assets/ships/pvp/golden.js';       //
 import { GHOST_PVP, ghostTick } from '../assets/ships/pvp/ghost.js';          // [Raul] 300
 import { KRAKEN_PVP, krakenTick } from '../assets/ships/pvp/kraken.js';       // [Raul] 600
 import { FLAMING, flamingTick } from '../assets/ships/pvp/flaming.js';        // [Timothy] 2500
+import { FLAMING_REDESIGN, flamingRedesignTick } from '../assets/ships/pvp/flamingRedesign.js'; // [Raul] Flaming redesign (BANKSY OK)
+Object.assign(FLAMING, FLAMING_REDESIGN);
 import { applyTierLooks, tierTick } from '../assets/ships/pvp/tierLooks.js';  // [Timothy] crimson, sea green, black pearl, coral, storm, admiral
 
 getSkin('golden').partsOverride = GOLDEN_PVP.partsOverride;
@@ -24,7 +26,7 @@ applyTierLooks([...SKINS, ...MOBILE_SKINS]);
 
 // Per-ship tick contract: tick(mesh, { speed (world units/s), alive, dt, t }) runs every frame for every PvP ship
 // (yours and other players'); each is a no-op unless mesh.userData.skinId matches its skin. A new skin file adds its tick here.
-export const SHIP_TICKS = [diamondTick, goldenTick, ghostTick, krakenTick, flamingTick, tierTick];
+export const SHIP_TICKS = [diamondTick, goldenTick, ghostTick, krakenTick, flamingRedesignTick, tierTick];
 export function shipTick(mesh, o) { for (const f of SHIP_TICKS) { try { f(mesh, o); } catch (e) { SHIP_TICKS.splice(SHIP_TICKS.indexOf(f), 1); console.warn('[pvp skins] tick failed', e); } } }
 
 export const TIERS = PVP_SKIN_TIERS;

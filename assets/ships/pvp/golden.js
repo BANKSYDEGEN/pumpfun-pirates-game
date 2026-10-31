@@ -4,7 +4,7 @@
 // metallic gold with a travelling glint sweep. Hitbox untouched (partsOverride API restores len/beam/depth).
 // Cost: +4 draw calls net (galleon hull + outline replace the base hull + outline; +gold, +gold outline, +lacquer, +windows).
 // Low quality: fewer hull sections / rail posts, no outlines on the small gold parts.
-import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash } from './pvpKit.js';
+import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, liftRig, signatureWake } from './pvpKit.js';
 
 export const GOLDEN_KILLS = 150; // change the tier here only
 
@@ -111,6 +111,9 @@ export function goldenPartsOverride(ship, ctx) {
   _win = _win || (() => { const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }); m.color.set(0xffc46a).multiplyScalar(1.4); return m; })();
   ship.traverse(o => { if (o.isPointLight) o.intensity *= 0.4; }); // stern lantern light washed the gold out under bloom
   meshOf(G.win, _win, ctx);
+  // premium: gold-dust wake, then a taller, bigger galleon (more freeboard; the whole rig rides up with the deck)
+  signatureWake(ship, ctx, { c0: 0xfff0b0, c1: 0xffa818, n: 44, size: 320, rise: 0.6 });
+  liftRig(ctx, { lift: 0.55, sx: 1.08, sy: 1.2, sz: 1.1 });
 }
 // per-frame (local + remote): the glint sweep runs faster with the ship's speed. No-op on other skins.
 export function goldenTick(mesh, { speed = 0, dt = 1 / 60 } = {}) { // (sweeps also run without it, on the shared clock)

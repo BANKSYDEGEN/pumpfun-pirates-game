@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "holder" | "holder_claim", ... }. The wallet only ever SIGNS A MESSAGE.
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "holder" | "holder_claim" | "airdrop", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
 
@@ -134,6 +134,23 @@ Deno.serve(async (req) => {
         if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "already claimed today", day: data?.day });
         return json(200, { ok: true, gold: HOLDER_DAILY_GOLD, day: data.day, profile: toProfile(await getRow(wallet)) });
+      }
+      // optional airdrop wallet from the PvP entry pop-up (no signature: it's just a paste-in address, like Waves).
+      // Private table (migration 008), one change per 30 s per player, never returned to anyone.
+      case "airdrop": {
+        const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
+        const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
+        const player = sw ? `wallet:${sw}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        if (!player) return json(401, { error: "no identity" });
+        const wallet = typeof b.wallet === "string" ? b.wallet.trim() : "";
+        if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
+        const name = String(b.name ?? "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 20) || "PIRATE";
+        const { data: cur } = await db.from("pvp_airdrop").select("wallet, name, writes, updated_at").eq("player_id", player).maybeSingle();
+        if (cur && cur.wallet === wallet && cur.name === name) return json(200, { ok: true });
+        if (cur && Date.now() - Date.parse(cur.updated_at) < 30_000) return json(429, { error: "slow down" });
+        const { error } = await db.from("pvp_airdrop").upsert({ player_id: player, wallet, name, writes: (cur?.writes ?? 0) + 1, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return json(200, { ok: true });
       }
       default: return json(400, { error: "unknown action" });
     }

@@ -3,7 +3,7 @@
 // rails, rows of pale suction cups, a bulbous kraken figurehead with glowing eyes and curled arms on the bow, and a
 // slow tentacle sway in the vertex shader (stronger as the ship moves). Hitbox untouched (partsOverride API).
 // Cost: +2 draw calls (one vertex-coloured tentacle/sucker/head mesh, one eye glow mesh). Low quality: 4 tentacles, fewer segments.
-import { THREE, toon, place, taperTube, injectShine, fxOf, hash, wind } from './pvpKit.js';
+import { THREE, toon, place, taperTube, injectShine, fxOf, hash, wind, liftRig, signatureWake } from './pvpKit.js';
 
 export const KRAKEN_KILLS = 600; // change the tier here only
 
@@ -67,6 +67,8 @@ export function krakenPartsOverride(ship, ctx) {
   const flesh = new THREE.Mesh(G.flesh, m); flesh.userData.sharedGeo = true; ctx.add(flesh);
   const eye = new THREE.MeshBasicMaterial(); eye.color.set(0xd8ff4a).multiplyScalar(2.4);
   const e = new THREE.Mesh(G.eyes, eye); e.userData.sharedGeo = true; ctx.add(e);
+  signatureWake(ship, ctx, { c0: 0xe0a0ff, c1: 0x7a20ff, n: 44, size: 330, rise: 0.3 }); // bioluminescent wake
+  liftRig(ctx, { lift: 0.5, sx: 1.1, sy: 1.2, sz: 1.1 });
 }
 // per-frame (local + remote): tentacles sway harder as this ship moves. No-op on other skins.
 export function krakenTick(mesh, { speed = 0, dt = 1 / 60 } = {}) {
