@@ -115,3 +115,27 @@ export function signatureWake(ship, ctx, { c0 = 0xffffff, c1 = 0xffffff, n = 48,
   ctx.add(p, ship); // on the ship (level with the water), not the bobbing body
   return p;
 }
+// [Raul] closed interior for reshaped hulls (they hide the base hull, and with it the base deck sole + bulwarks):
+// a sole plate just under the deck planks that reaches this hull's own walls, plus a solid bulwark panel behind the
+// rail posts wherever this hull's gunwale sits below the rail. ring(t) = the loft profile (gunwale first), or null to
+// use k * halfW. Non-indexed position/normal/uv, so it merges straight into the hull geometry (no extra draw call).
+export function sealGeometry(ud, ring = null, { k = 0.95, N = 22, bulwark = true } = {}) {
+  const { len, layout } = ud, { shape, deckDrop } = layout, zAt = (t) => (t - 0.5) * len, P = [], U = [];
+  const xAt = (t, y) => { if (!ring) return shape.halfW(t) * k; const R = ring(t);
+    for (let j = 0; j < R.length - 1; j++) { const a = R[j], b = R[j + 1]; if ((a[1] - y) * (b[1] - y) <= 0) { const f = (y - a[1]) / ((b[1] - a[1]) || 1); return (a[0] + (b[0] - a[0]) * f) * 0.98; } }
+    return R[0][0] * 0.98; };
+  const quad = (a, b, c, d) => { P.push(...a, ...b, ...c, ...c, ...b, ...d); U.push(0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1); };
+  for (let i = 0; i < N; i++) {
+    const ta = 0.01 + i / N * 0.98, tb = 0.01 + (i + 1) / N * 0.98, ya = shape.top(ta) - deckDrop - 0.16, yb = shape.top(tb) - deckDrop - 0.16;
+    const xa = xAt(ta, ya), xb = xAt(tb, yb), za = zAt(ta), zb = zAt(tb);
+    quad([-xa, ya, za], [xa, ya, za], [-xb, yb, zb], [xb, yb, zb]);
+    if (!bulwark || ta < 0.19 || tb > 0.97 || !ring) continue;
+    for (const sx of [1, -1]) {
+      const ra = ring(ta)[0], rb = ring(tb)[0], ha = shape.top(ta) + 0.58, hb = shape.top(tb) + 0.58;
+      if (ra[1] >= ha - 0.1 || rb[1] >= hb - 0.1) continue; // this hull's own gunwale already covers the rail here
+      quad([sx * ra[0] * 0.97, ra[1] - 0.04, za], [sx * shape.halfW(ta) * 0.92, ha, za], [sx * rb[0] * 0.97, rb[1] - 0.04, zb], [sx * shape.halfW(tb) * 0.92, hb, zb]);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.computeVertexNormals();
+  return g;
+}

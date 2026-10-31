@@ -1,6 +1,7 @@
 // Stylized toon ships built in code: rounded plank hulls with painted strakes, railings,
 // chunky cannons, cabins with glowing windows, crow's nest, lanterns, rippling sails, waving flags.
 import * as THREE from 'three';
+import { addCrew } from './crew.js'; // [Raul] deck crew
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
@@ -165,10 +166,19 @@ function hullGeometry(len, beam, depth) {
   geo.setIndex(idx); geo.computeVertexNormals();
   return { geo, sections, shape: { halfW, top, keel } };
 }
-function deckGeometry(len, shape, drop, inset = 0.9) {
+// [Raul] solid bulwark: a closed panel between the gunwale cap and the top rail (both sides of it render)
+function bulwarkGeometry(low, high, sx) {
+  const pos = [], idx = [];
+  for (let i = 0; i < low.length; i++) { const a = low[i], b = high[i]; pos.push(a.x * 0.985, a.y - 0.04, a.z, b.x + sx * 0.02, b.y - 0.02, b.z); }
+  for (let i = 0; i < low.length - 1; i++) { const a = i * 2; if (sx > 0) idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); else idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(low.flatMap((a) => [a.z / 5, 0.06, a.z / 5, 0.01]), 2)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+function deckGeometry(len, shape, drop, inset = 0.9, wk = null) {
   const N = 22, pos = [], uv = [], idx = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N, z = (t - 0.5) * len, w = shape.halfW(t) * (inset >= 1 ? 1.0 : inset * 0.93), y = shape.top(t) - drop;
+    const t = i / N, z = (t - 0.5) * len, w = shape.halfW(t) * (wk ?? (inset >= 1 ? 1.0 : inset * 0.93)), y = shape.top(t) - drop;
     pos.push(w, y, z, -w, y, z); uv.push(z / 4, w / 1.4, z / 4, -w / 1.4);
   }
   for (let i = 0; i < N; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
@@ -239,6 +249,9 @@ export function buildShip(opts) {
   parts.add(K.deck, deckGeometry(len, shape, deckDrop));
   const deckAt = (t) => shape.top(t) - deckDrop;
   const zAt = (t) => (t - 0.5) * len;
+  // [Raul] solid deck: a hull-coloured sole 0.16 under the planks (below its own toon outline) reaches the hull walls (closes the waterway gap
+  // between the deck edge and the side), so the interior is closed at any angle
+  parts.add(K.hull, deckGeometry(len, shape, deckDrop + 0.16, 1.0, 0.975));
 
   // gunwale cap rail + wale (gold) + railing posts and top rail
   for (const sx of [1, -1]) {
@@ -254,6 +267,7 @@ export function buildShip(opts) {
     parts.add(K.mast, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rail.slice(4)), 30, 0.07, 5));
     const post = cyl(0.06, 0.07, 0.62, 5);
     for (let i = 4; i < rail.length; i += 1) { const p = rail[i]; parts.add(K.mast, post, [p.x, p.y - 0.31, p.z]); }
+    parts.add(K.hull, bulwarkGeometry(cap.slice(4), rail.slice(4), sx)); // [Raul] solid bulwark behind the rail posts: no sea through the balusters
   }
   // bow knee + figure: a gold-capped stem post
   const bowT = 0.995, bowY = shape.top(bowT);
@@ -300,7 +314,7 @@ export function buildShip(opts) {
   if (light) { const pl = new THREE.PointLight(K.S.lantern, 14, 32, 1.6); pl.position.set(0, cabY0 + cabH + 1.4, cabZ - cabL / 2 - 0.6); body.add(pl); }
 
   // cannons (port +X, starboard -X): lathe barrel on a rounded carriage, painted gun port behind
-  const muzzles = { port: [], star: [] };
+  const muzzles = { port: [], star: [] }, guns = []; // guns: deck slots for the crew
   const barrel = lathe(CANNON, 12);
   const carriage = new RoundedBoxGeometry(0.8, 0.38, 0.9, 2, 0.08), wheel = cyl(0.17, 0.17, 0.1, 10);
   const port = new RoundedBoxGeometry(0.12, 0.72, 0.9, 1, 0.04);
@@ -319,6 +333,7 @@ export function buildShip(opts) {
       parts.add(K.gold, new RoundedBoxGeometry(0.08, 0.86, 1.04, 1, 0.03), [sx * (w * 1.0 + 0.0), shape.top(t) - 0.5, z]);
       const m = new THREE.Object3D(); m.position.set(sx * (w + 1.0), y + 0.55, z); body.add(m);
       muzzles[side].push(m);
+      guns.push({ x: cx, y, z, sx });
     }
   }
   // a few barrels + crates on deck for detail
@@ -335,7 +350,11 @@ export function buildShip(opts) {
   let flagPole = null;
   mastDefs.forEach(([tf, hf], mi) => {
     const mz = zAt(tf), my = deckAt(tf), mh = len * 0.98 * hf;
-    parts.add(K.mast, cyl(0.17, 0.3, mh, 10), [0, my + mh / 2, mz]);
+    parts.add(K.mast, cyl(0.17, 0.3, mh + 0.6, 10), [0, my + mh / 2 - 0.3, mz]); // [Raul] stepped 0.6 through the deck
+    // [Raul] mast footing: partner block, collar and four chocks, so every mast is seated on the deck
+    parts.add(K.mast, new THREE.BoxGeometry(1.05, 0.16, 1.05), [0, my + 0.08, mz]);
+    parts.add(K.mast, cyl(0.38, 0.46, 0.34, 10), [0, my + 0.17, mz]);
+    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + Math.PI / 4; parts.add(K.mast, new THREE.BoxGeometry(0.16, 0.26, 0.3), [Math.cos(a) * 0.5, my + 0.21, mz + Math.sin(a) * 0.5], [0, -a, 0]); }
     for (const f of [0.08, 0.4, 0.66]) parts.add(K.gold, new THREE.TorusGeometry(0.29 - f * 0.12, 0.06, 6, 12), [0, my + mh * f, mz], [Math.PI / 2, 0, 0]);
     const tiers = [[0.74, 1.5, 0.4], [0.98, 1.08, 0.24]];
     tiers.forEach(([yf, wf, hfS], k) => {
@@ -376,6 +395,9 @@ export function buildShip(opts) {
   rig.push(jTop.toArray(), jTip.toArray());
 
   parts.build(body, new Set([K.hull, K.cabin, K.mast, K.iron, K.gold]), boss ? 0.07 : 0.05, shadows);
+
+  // [Raul] PUMPFUN PIRATES crew: gunners at every gun + a few walkers in the waist (one draw call, LOD-culled)
+  { const cr = addCrew(ship, { guns, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52) }, boss }); if (cr) body.add(cr); }
 
   // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
   // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above

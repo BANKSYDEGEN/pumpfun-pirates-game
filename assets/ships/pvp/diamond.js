@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { wind } from '../../../js/ships.js';
 import { toon, outlineFor, outlineMat } from '../../../js/toon.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { liftRig, signatureWake } from './pvpKit.js';
+import { liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
 // change the unlock tier here only
 export const DIAMOND_KILLS = 5000;
@@ -183,7 +183,7 @@ function diamondGeos(ud) {
   const gem = new THREE.OctahedronGeometry(1, 0); gem.scale(1.0, 1.15, 2.6);
   place(gem, [0, bowY + 0.35, zAt(1) + 1.0], [-0.25, 0, 0]);
   const gem2 = new THREE.OctahedronGeometry(1, 0); gem2.scale(0.6, 1.7, 0.6); place(gem2, [0, shape.top(0.98) + 1.2, zAt(0.97)]);
-  const out = { shell, gem: mergeGeometries([strip(gem), strip(gem2)], false) };
+  const out = { shell: mergeGeometries([shell, strip(sealGeometry(ud, null, { k: 0.93 }))], false), gem: mergeGeometries([strip(gem), strip(gem2)], false) };
   // prism facet rims: every hard edge of the gem hull + gems, coloured cyan / magenta / yellow (one LineSegments)
   const eg = mergeGeometries([new THREE.EdgesGeometry(shell, 20), new THREE.EdgesGeometry(out.gem, 20)], false), ep = eg.attributes.position, col = new Float32Array(ep.count * 3);
   const CMY = [[0.1, 1, 1], [1, 0.2, 0.95], [1, 0.95, 0.15]];

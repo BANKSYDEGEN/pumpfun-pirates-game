@@ -13,6 +13,7 @@ import { isKey } from './keybinds.js';
 //    turns a sunk player's report into a pile (carried gold + PVP_DEATH_BONUS). When the host leaves, the next one takes over.
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
 import * as THREE from 'three';
+import { crewFire } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
@@ -399,6 +400,7 @@ export function createPvp(K) {
       balls.push({ mesh, v: new THREE.Vector3(clamp(b[3], -80, 80), clamp(b[4], -40, 60), clamp(b[5], -80, 80)), owner, life: 6, delay: clamp(b[6], 0, 1), visual: true });
     }
     const pl = P(), dist = Math.hypot(owner.x - pl.x, owner.z - pl.z);
+    if (m.b[0]) crewFire(owner.mesh, (m.b[0][3] * Math.cos(owner.yaw) - m.b[0][5] * Math.sin(owner.yaw)) > 0 ? 'port' : 'star');
     if (m.b[0]) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize());
     sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), false);
   }

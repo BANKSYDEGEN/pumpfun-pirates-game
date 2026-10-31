@@ -12,7 +12,7 @@
 //   import { FLAMING_REDESIGN, flamingRedesignTick } from '../assets/ships/pvp/flamingRedesign.js';
 //   Object.assign(FLAMING, FLAMING_REDESIGN);              // materialFx + partsOverride (+ tick)
 //   SHIP_TICKS: replace flamingTick with flamingRedesignTick
-import { THREE, toon, outlineFor, place, merge, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake } from './pvpKit.js';
+import { THREE, toon, outlineFor, place, merge, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
 export const FLAMING_KILLS = 2500; // tier lives in config.js 'flaming'; mirrored here for the harness skin only
 
@@ -69,7 +69,7 @@ function geos(ud, low) {
   const top = (t) => shape.top(t) + sheer(t);
   const ring = (t) => { const w = shape.halfW(t) * 1.04, yt = top(t), yk = shape.keel(t) - 0.15, h = yt - yk;
     return [[w * 1.06, yt], [w * 1.12, yt - h * 0.18], [w * 1.0, yt - h * 0.5], [w * 0.62, yt - h * 0.85], [0, yk]]; };
-  const hull = loftHull(len, ring, low ? 12 : 20, 0.02, 0.995);
+  const hull = merge([loftHull(len, ring, low ? 12 : 20, 0.02, 0.995), sealGeometry(ud, ring)]); // [Raul] closed interior
   const sp = [];
   // ram: a long iron-black blade off the stem, plus two side tusks
   const bt = 0.985, by = shape.top(bt) + 0.6;

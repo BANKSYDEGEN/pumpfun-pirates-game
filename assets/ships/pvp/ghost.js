@@ -4,7 +4,7 @@
 // waterline and streams aft with the ship's own speed. Hitbox untouched (partsOverride API).
 // Cost: +3 draw calls net (spectral hull + ribs replace hull + outline; +rib outline... none; +mist Points; torn sails reuse
 // the sail meshes). Low quality: fewer sections / ribs, 12 mist puffs instead of 36.
-import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake } from './pvpKit.js';
+import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
 export const GHOST_KILLS = 300; // change the tier here only
 
@@ -39,7 +39,7 @@ function geos(ud, low) {
   const jag = (t) => { const i = Math.round(t * N * 1.7); return (hash(i) * 0.9 + (hash(i + 50) > 0.7 ? 0.7 : 0)) * (0.4 + Math.sin(t * Math.PI) * 0.8); };
   const ring = (t) => { const w = shape.halfW(t) * 1.02, yt = shape.top(t) - jag(t), yk = shape.keel(t), h = yt - yk;
     return [[w * 0.98, yt], [w * 1.04, yt - h * 0.35], [w * 0.8, yt - h * 0.78], [0, yk]]; };
-  const hull = loftHull(len, ring, N);
+  const hull = merge([loftHull(len, ring, N), sealGeometry(ud, ring)]); // [Raul] closed interior
   // rib cage: bony arcs every section, visible through the spectral planks
   const ribs = [], nr = low ? 6 : 10;
   for (let i = 0; i < nr; i++) {

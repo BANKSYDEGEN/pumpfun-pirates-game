@@ -4,7 +4,7 @@
 // metallic gold with a travelling glint sweep. Hitbox untouched (partsOverride API restores len/beam/depth).
 // Cost: +4 draw calls net (galleon hull + outline replace the base hull + outline; +gold, +gold outline, +lacquer, +windows).
 // Low quality: fewer hull sections / rail posts, no outlines on the small gold parts.
-import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, liftRig, signatureWake } from './pvpKit.js';
+import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
 export const GOLDEN_KILLS = 150; // change the tier here only
 
@@ -50,7 +50,7 @@ function geos(ud, low) {
   const sheer = (t) => t < 0.26 ? 3.4 * Math.pow(1 - t / 0.26, 0.7) : (t > 0.84 ? 1.2 * (t - 0.84) / 0.16 : 0);
   const ring = (t) => { const w = shape.halfW(t) * 1.02, yt = shape.top(t) + sheer(t), yk = shape.keel(t), h = yt - yk;
     return [[w * 0.84, yt], [w * 1.03, yt - h * 0.3], [w * 1.0, yt - h * 0.55], [w * 0.72, yt - h * 0.84], [0, yk]]; };
-  const hull = loftHull(len, ring, low ? 12 : 20);
+  const hull = merge([loftHull(len, ring, low ? 12 : 20), sealGeometry(ud, ring)]); // [Raul] closed interior
   const gold = [], lac = [], win = [];
   // gold strakes following the sheer line + two lower wales
   for (const sx of [1, -1]) for (const [k, r] of [[0, 0.1], [1, 0.07], [2, 0.06]]) {

@@ -323,7 +323,8 @@ const PARTS = {
     }
     if (T.fourthMast) { // extra mast amidships with its own skull course and topsail
       const t = 0.445, z = A.zAt(t), y = A.deckAt(t), mh = A.len * 0.98 * 0.86;
-      Ly.add(M.oak, cyl(0.16, 0.28, mh, 10), [0, y + mh / 2, z]);
+      Ly.add(M.oak, cyl(0.16, 0.28, mh + 0.6, 10), [0, y + mh / 2 - 0.3, z]); // [Raul] stepped through the deck
+      Ly.add(M.oak, new THREE.BoxGeometry(1.0, 0.16, 1.0), [0, y + 0.08, z]); Ly.add(M.oak, cyl(0.36, 0.44, 0.34, 10), [0, y + 0.17, z]); // footing
       for (const f of [0.08, 0.4, 0.66, 1.0]) Ly.add(M.gold, torus(0.27 - f * 0.1, 0.06), [0, y + mh * f, z], [Math.PI / 2, 0, 0]);
       [[0.72, 1.3, 0.36, mf, mb], [0.96, 0.95, 0.22, sf, sb]].forEach(([yf, wf, hf, f, b]) => {
         const yw = A.beam * wf * 0.86, yy = y + mh * yf; yard(yw, [0, yy, z + 0.22]);

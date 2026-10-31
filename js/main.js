@@ -7,6 +7,7 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
+import { setCrewQuality, crewFire } from './crew.js'; // [Raul] deck crew
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
@@ -52,6 +53,7 @@ const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareCon
 const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
+setCrewQuality(quality, isMobile); // [Raul] crew budget: high / phone (medium) / low = off
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -269,6 +271,7 @@ function toLocal(s, x, z) { const dx = x - s.x, dz = z - s.z, c = Math.cos(s.yaw
 
 function fire(shooter, side, target = null, accuracy = 1) {
   const muzzles = gunList(shooter, side); // [Raul] ship upgrades: cannon count
+  crewFire(shooter.mesh, side); // [Raul] that side's gun crews recoil + reload
   const shot = game.mode === 'pvp' ? [] : null; // [pvp] volley broadcast
   const dir = sideDir(shooter, side);
   const vel0 = new THREE.Vector3(Math.sin(shooter.yaw) * shooter.speed, 0, Math.cos(shooter.yaw) * shooter.speed);
