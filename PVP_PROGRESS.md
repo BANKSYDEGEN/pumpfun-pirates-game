@@ -37,7 +37,7 @@
 
 | tier | typical L | harbor AI gold | AI HP | cost | harbor kills needed |
 |---|---|---|---|---|---|
-| I | 0 | 5 | 70 | 250 | 50 |
+| I | 0 | 5 | 70 | **75** (was 250; BANKSY) | **15** |
 | II | 7 | 10 | 137 | 540 | 54 |
 | III | 14 | 15 | 204 | 930 | 62 |
 | IV | 21 | 19 | 271 | 1,500 | 79 |
@@ -45,7 +45,7 @@
 | VI (cap, 6 tracks) | 35 | 29 | 406 | 3,750 | 130 |
 | VII (CANNONS) | 42 | 34 | 473 | 6,030 | 178 |
 | VIII (CANNONS cap) | 42 | 34 | 473 | 8,610 | 254 |
-Maxing everything = 79,950 g. A player kill = victim's carried gold + 100 bonus (+ bounty) ≈ 20 early harbor kills, ≈ 3 late ones.
+Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill = victim's carried gold + 100 bonus (+ bounty) ≈ 20 early harbor kills, ≈ 3 late ones.
 
 ## Streak bounty (PVP_BOUNTY)
 - +25 g per counted kill in a row, cap 500. Counted = a real player, not idle ≥ 60 s, not the same victim again within 120 s; never AI.
@@ -74,6 +74,11 @@ Maxing everything = 79,950 g. A player kill = victim's carried gold + 100 bonus 
   SUPABASE_ACCESS_TOKEN in the env; merges Waves scores/players + PvP entry + PvP signed-in wallets, QA_ rows dropped).
 - HUD name: the chosen PvP name now shows top-left (and in tags / feed / boards); no name typed = your saved name, else CAPT. #N.
   A random pirate name is no longer written into the Waves name slot.
+- **Gold piles never despawn** (arena + harbor): live piles capped at PVP_PILE_CAP 30; past it the oldest pile's gold merges into its
+  nearest pile ('gone' + 'pv'), so no gold is lost. Host resyncs the pile list every 10 s and on 'hello' (late joiners, spectators). t13.
+- **Level 1 of every upgrade track = 75 g** (PVP_TIER1_COST, mirrored in the pvp function): 15 harbor kills at L0. Higher tiers unchanged.
+- Title: BATTLE ROYALE (left) + WAVES (right), equal size, no (BETA); SPECTATE/WATCH BATTLE ROYALE; full $SUNK CA on its own line
+  (monospace, shrinks to fit, never truncated) with the links under it, every layout. Portal builds: WAVES only, no token row.
 - Raul's premium pass + Flaming redesign (pvpKit liftRig / signatureWake, Golden, Ghost, Kraken, Diamond, flamingRedesign.js).
 
 ## Waves (solo) skin looks + separation

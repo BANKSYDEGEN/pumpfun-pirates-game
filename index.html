@@ -102,12 +102,12 @@
   </div>
   <!-- [pvp] HARBOR (local queue room): JOIN BATTLE / queue place / spectate; the arena offer; AFK warning; entry card -->
   <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
-    <div class="ph-btns"><button id="pvp-join" type="button" class="pvp-btn">JOIN BATTLE</button><button id="pvp-harbor-spec" type="button" class="ghost">SPECTATE</button></div></div>
+    <div class="ph-btns"><button id="pvp-join" type="button" class="pvp-btn">JOIN BATTLE</button><button id="pvp-harbor-spec" type="button" class="ghost"><span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button></div></div>
   <div id="pvp-offer" class="hidden pvp-only" role="alertdialog" aria-label="Battle ready"><div class="po-card"><h2>BATTLE READY!</h2><p>Your arena slot is open. Set sail?</p>
     <div class="po-t"><b id="pvp-offer-t">15</b> s</div><div class="po-btns"><button id="pvp-offer-yes" type="button" class="pvp-btn big">SET SAIL</button><button id="pvp-offer-no" type="button" class="ghost">NOT NOW</button></div>
     <p class="muted">Miss it once and you keep your place; miss it twice and you go to the back of the line.</p></div></div>
   <div id="pvp-afk" class="hidden pvp-only">MOVE OR BE SENT TO THE HARBOR · <b>30</b></div>
-  <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>PVP ARENA</h2>
+  <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>BATTLE ROYALE</h2>
     <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
     <label class="field pvp-airdrop"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="pvp-entry-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
     <small id="pvp-entry-addr-msg" class="muted pvp-airdrop">Used for airdrops. Never asks for keys or signatures.</small>
@@ -171,10 +171,10 @@
     </div>
 
     <div class="row start-row">
-      <button id="btn-start" class="big">SET SAIL</button>
-      <button id="btn-pvp" class="big pvp-btn" type="button" title="Real-time PvP arena (beta): drop in and fight other pirates">PVP <small>(BETA)</small></button>
+      <button id="btn-pvp" class="big pvp-btn mode-btn" type="button" title="BATTLE ROYALE: real-time PvP, drop in and fight other pirates">BATTLE ROYALE</button>
+      <button id="btn-start" class="big mode-btn" type="button" title="WAVES: solo, survive the waves and top the leaderboard">WAVES</button>
     </div>
-    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the PvP arena without playing (no ship, invisible to pirates)">👁 SPECTATE PVP</button></div>
+    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the Battle Royale without playing (no ship, invisible to pirates)">👁 <span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button></div>
 
     <div class="row wallet-row"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
       <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
@@ -262,7 +262,7 @@
 <div id="pvp-menu" class="hidden" role="dialog" aria-label="PvP menu">
   <div class="pvp-card">
     <button id="pvp-menu-close" class="faq-x" type="button" aria-label="Close">✕</button>
-    <h3>PVP ARENA <small>(BETA)</small></h3>
+    <h3>BATTLE ROYALE</h3>
     <table id="pvp-board" class="pvp-board"></table>
     <button id="pvp-menu-return" class="ghost" type="button" hidden>⚓ RETURN TO HARBOR <small class="muted">(keep your gold · 10 s without combat)</small></button>
     <label class="field"><span>PIRATE NAME</span><input id="pvp-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>

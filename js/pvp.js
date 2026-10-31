@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { createNet } from './transport.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
+import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
@@ -229,7 +230,7 @@ export function createPvp(K) {
       const alive = [...bots.values()].filter(b => b.alive).length;
       if (alive < PVP_AI_SHIPS) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); scaleAi(e); bots.set(id, e); }
     } else clearLocalAi(false);
-    for (const [pid, l] of piles) if (l.local && now > l.expires) removePile(pid);
+    capPiles(true);
   }
   // harbor economy: AI boats grow with YOUR total upgrade level L (HP, size + hitbox, damage) and pay proportionally more
   const totalLevel = () => Object.values(getRunLevels()).reduce((a, b) => a + (b | 0), 0);
@@ -248,12 +249,17 @@ export function createPvp(K) {
   function wire(r) {
     r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, PVP_DEATH_BONUS)))
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
-      .on('hello', () => { if (isHost) sendWorld(); }).on('world', (m) => { for (const p of (m.piles || []).slice(0, 60)) addPile(...p); })
+      .on('hello', () => { if (isHost) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; });
     r.onStatus = (s) => { if (s === 'reconnecting') K.banner('RECONNECTING…', 'the sea went quiet for a moment'); else if (s === 'limit') K.banner('SERVERS BUSY', 'the arena is over capacity, hang on…'); };
   }
   const livePeers = () => [...peers.values()].filter(p => performance.now() - p.heard < PEER_TIMEOUT);
-  function sendWorld() { const now = performance.now(); room?.send('world', { piles: [...piles.values()].map(l => [l.pid, r1(l.x), r1(l.z), l.value, Math.max(1, Math.round((l.expires - now) / 1000))]) }); }
+  function sendWorld(sync = false) { const list = [...piles.values()].filter(l => !l.local && !l.taken).slice(0, PVP_PILE_CAP + 10).map(l => [l.pid, r1(l.x), r1(l.z), l.value, 0]); room?.send('world', { h: myId, s: sync ? 1 : 0, piles: list, e: list.map(p => piles.get(p[0])?.earned || 0) }); }
+  function onWorld(m) { // the host's pile list: add what we're missing; on a resync also drop piles the host no longer has
+    const list = (Array.isArray(m?.piles) ? m.piles : []).slice(0, PVP_PILE_CAP + 10);
+    for (const p of list) { if (!Array.isArray(p)) continue; const [pid, x, z, v] = p, e = Array.isArray(m.e) ? m.e[list.indexOf(p)] : 0; const l = piles.get(pid); if (l) { if (+v > 0 && +v !== l.value) { l.value = clamp(Math.floor(+v), 0, PVP_PILE_MAX); pileLook(l); } } else addPile(pid, x, z, v, 0, false, Math.min(+e || 0, PVP_PILE_MAX)); }
+    if (m.s && m.h === hostId && !isHost) { const keep = new Set(list.map(p => p?.[0])); for (const [pid, l] of piles) if (!l.local && !keep.has(pid) && performance.now() - l.born > 5000) removePile(pid); }
+  }
 
   // ---------------- remote ships ----------------
   const shipOptsFor = (sk) => ({ ...K.shipOpts, light: false, skin: pvpSkin(sk), pvp: true });
@@ -340,14 +346,27 @@ export function createPvp(K) {
     if (h === hostId) return;
     const was = isHost; hostId = h; isHost = h === myId;
     if (isHost && !was) { // adopt the old host's piles
-      const now = performance.now(); for (const l of piles.values()) l.expires = Math.min(l.expires, now + PVP_PILE_LIFE * 1000);
       console.info('[pvp] I am the room host now');
     }
   }
   function hostTick() {
     const now = performance.now();
-    for (const [pid, l] of piles) if (!l.local && now > l.expires) { room?.send('gone', { pid }); removePile(pid); }
+    capPiles(false);
+    if (now - (hostTick.worldT || 0) > 10000) { hostTick.worldT = now; sendWorld(true); } // resync: late joiners / missed 'gone's
   }
+  // piles never expire; past PVP_PILE_CAP the oldest pile's gold merges into its nearest pile (no gold is ever lost)
+  function capPiles(local) {
+    const list = [...piles.values()].filter(l => !!l.local === local && !l.taken);
+    for (let n = list.length; n > PVP_PILE_CAP; n--) {
+      list.sort((a, b) => a.born - b.born); const old = list.shift();
+      let to = null, bd = Infinity; for (const l of list) { const d = Math.hypot(l.x - old.x, l.z - old.z); if (d < bd) { bd = d; to = l; } }
+      if (!to) break;
+      to.value = Math.min(PVP_PILE_MAX, to.value + old.value); to.earned = Math.min(to.value, (to.earned || 0) + (old.earned || 0)); pileLook(to);
+      removePile(old.pid);
+      if (!local) { room?.send('gone', { pid: old.pid }); room?.send('pv', { pid: to.pid, v: to.value, e: to.earned }); }
+    }
+  }
+  const pileLook = (l) => l.mesh.scale.setScalar(l.value >= 2000 ? 3.2 : l.value >= 500 ? 2.6 : 2);
   function allShips() { const out = []; const pl = P(); if (pl.alive && !me.dead) out.push(pl); for (const p of livePeers()) if (p.ship?.alive) out.push(p.ship); for (const b of bots.values()) if (b.alive) out.push(b); return out; }
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
   function botTarget(e) {
@@ -499,14 +518,15 @@ export function createPvp(K) {
   }
   function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0) { // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
     const pid = `${String(v).slice(-6)}${(++pileSeq).toString(36)}${myId.slice(-3)}`;
-    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart, ttl: PVP_PILE_LIFE });
+    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart });
     addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart);
   }
   function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0) {
     if (typeof pid !== 'string' || piles.has(pid)) return;
-    value = clamp(Math.floor(+value || 0), 0, PVP_MAX_CARRY + PVP_DEATH_BONUS); ttl = clamp(+ttl || PVP_PILE_LIFE, 1, PVP_PILE_LIFE);
-    const g = makeChest(); g.scale.setScalar(value >= 500 ? 2.6 : 2); scene.add(g);
-    const l = { mesh: g, x: +x || 0, z: +z || 0, value, life: ttl + (isHost ? 0 : 5), ph: Math.random() * 6, pid, expires: performance.now() + ttl * 1000 };
+    value = clamp(Math.floor(+value || 0), 0, PVP_PILE_MAX); // merged piles can be big; never expire (life Infinity)
+    const g = makeChest(); scene.add(g);
+    const l = { mesh: g, x: +x || 0, z: +z || 0, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
+    pileLook(l);
     l.local = local; l.earned = clamp(Math.floor(+earnedPart || 0), 0, value); loot.push(l); piles.set(pid, l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
     if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), `${value} GOLD`, 'hit');
   }

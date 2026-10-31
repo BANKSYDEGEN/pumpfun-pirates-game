@@ -45,7 +45,9 @@ export const PIRATE_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pirate
 export const PVP_ENABLED = !ON_PORTAL && !!SUPABASE_URL;
 export const PVP_DEATH_BONUS = 100;   // a sunk pirate drops ALL carried gold + this flat bonus (carrying 0 drops 100; 1000 drops 1100)
 export const PVP_AI_GOLD = 5;         // fallback gold pile of a LOCAL AI ship (harbor, or a lone player in the arena); real value = harborGold(L) below. AI kills never count for K/D / boards
-export const PVP_PILE_LIFE = 60;      // seconds a gold pile floats before it despawns
+export const PVP_PILE_LIFE = Infinity; // PvP gold piles never despawn (BANKSY): they float until someone collects them
+export const PVP_PILE_CAP = 30;       // live piles per arena (and in your harbor); past it the OLDEST pile's gold merges into its nearest pile
+export const PVP_PILE_MAX = 100000;   // value clamp for a (merged) pile
 export const PVP_RESPAWN = 4;         // seconds before you sail again after sinking (upgrades kept, gold back to 0)
 export const PVP_PROTECT = 3;         // spawn protection seconds (ends early the moment you fire)
 // ---- PvP NETWORK CAPACITY: the ONE place to change it (the server side must match: supabase/migrations/007_pvp_lobby.sql, server/relay.js env) ----
@@ -95,7 +97,8 @@ export const HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 }; // harbor kills
 export const harborKills = (t) => HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t);
 export const harborScale = (L) => 1 + HARBOR_SCALE_PER_LV * Math.max(0, L);
 export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * harborScale(L));
-export const pvpTierCost = (t) => Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
+export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (15 harbor kills at L0); higher tiers follow the curve
+export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
 // HARD CAP: each track stops at its last tier (6 levels, CANNONS 8; js/upgrades.js). Maxed = MAX in the shop; more gold buys no power.
 // STREAK BOUNTY: every counted player kill in a row (no idle victim, not the same victim again within the anti-farm window,
 // never AI) adds PVP_BOUNTY.perKill to your bounty, capped at PVP_BOUNTY.cap. Whoever sinks you collects it in your death

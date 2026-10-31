@@ -5,7 +5,8 @@ import bs58 from "npm:bs58@6.0.0";
 
 // PvP upgrade cost by tier index (must match js/config.js pvpTierCost / HARBOR_*); TIER_COSTS = solo costs, used for tier counts
 const HARBOR_GOLD_BASE = 5, HARBOR_SCALE_PER_LV = 0.137, HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 };
-export const pvpTierCost = (t: number) => Math.round((HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t)) * HARBOR_GOLD_BASE * (1 + HARBOR_SCALE_PER_LV * Math.min(7 * t, 42)) / 10) * 10;
+export const PVP_TIER1_COST = 75; // level 1 of every track (js/config.js PVP_TIER1_COST)
+export const pvpTierCost = (t: number) => t === 0 ? PVP_TIER1_COST : Math.round((HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t)) * HARBOR_GOLD_BASE * (1 + HARBOR_SCALE_PER_LV * Math.min(7 * t, 42)) / 10) * 10;
 export const TIER_COSTS: Record<string, number[]> = {
   hull: [20, 25, 70, 120, 180, 250], armor: [25, 30, 80, 130, 190, 260], sails: [25, 30, 80, 120, 170, 230],
   rudder: [20, 25, 65, 100, 145, 200], cannons: [30, 45, 80, 120, 165, 220, 280, 350], reload: [25, 30, 85, 135, 195, 270],

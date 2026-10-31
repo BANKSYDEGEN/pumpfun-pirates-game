@@ -627,3 +627,20 @@ html.pvp #pvp-return:not(.hidden) { display: block; }
 html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !important; }
 #pvp-menu-return { margin: 6px auto; }
 @media (max-width: 600px) { #pvp-return { top: calc(60px + var(--safe-t)); right: calc(14px + var(--safe-r) + 44px + 8px); height: 36px; font-size: 15px; padding: 0 10px; } }
+/* [title] BATTLE ROYALE (left) + WAVES (right): equal size, side by side; only WAVES (centred) on portal builds */
+.start-row { justify-content: center; align-items: stretch !important; }
+.start-row button.big.mode-btn { box-sizing: border-box; flex: 1 1 0; max-width: 300px; min-width: 0; padding-left: 12px !important; padding-right: 12px !important; white-space: nowrap; text-align: center; line-height: 1.05; border: 2px solid transparent; font-size: 32px; overflow: hidden; text-overflow: clip; }
+.start-row .mode-btn.pvp-btn { border-color: var(--gold) !important; }
+.start-row button.big.mode-btn:only-child { flex: 0 1 260px; }
+@media (max-width: 600px), (max-height: 520px) and (orientation: landscape) { .start-row button.big.mode-btn { white-space: normal; font-size: 24px !important; padding-top: 4px !important; padding-bottom: 4px !important; } }
+.w-sm { display: none; }
+@media (max-width: 420px) { .w-lg { display: none; } .w-sm { display: inline; } }
+@media (max-width: 600px) { #pvp-harbor .ph-btns { justify-content: center; gap: 8px; } #pvp-harbor button { white-space: nowrap; font-size: 18px; padding: 8px 12px; } }
+/* [title] full $SUNK CA on its own line (monospace, no ellipsis), link buttons on a row under it; every layout (tokenChip.js fits it) */
+.token-row.ca-desk { flex-wrap: wrap; row-gap: 6px; }
+.token-row.ca-desk .ca-chip { flex: 0 1 auto; max-width: 100%; box-sizing: border-box; }
+.token-row.ca-desk .ca-chip .ca { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 15px; letter-spacing: 0; text-overflow: clip; overflow: hidden; }
+.token-row.ca-desk .socs { flex: 0 0 100%; justify-content: center; }
+.token-row.ca-desk .ca-chip.stack { display: grid; grid-template-columns: auto auto; grid-template-areas: "tk cp" "ca ca"; justify-content: center; align-items: center; height: auto; padding: 5px 10px 6px; border-radius: 16px; row-gap: 3px; column-gap: 10px; }
+.ca-chip.stack .tk { grid-area: tk; } .ca-chip.stack .cp { grid-area: cp; } .ca-chip.stack .ca { grid-area: ca; text-align: center; }
+.ca-chip.wrap .ca { white-space: normal; word-break: break-all; }
