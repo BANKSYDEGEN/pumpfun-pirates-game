@@ -51,12 +51,18 @@ export function chestTime(t) { if (_chest) _chest.userData.beamMat.uniforms.uTim
 
 // ---------- horizon islands ----------
 // A ring of craggy sea stacks that follows the camera (pure backdrop, no collisions), one with a lighthouse.
+// [solid rocks] Islands / sea stacks / the lighthouse are SOLID and fixed in the world (they used to ride along with the
+// camera as a backdrop). Layout is a deterministic grid (same on every PvP client): each CELL may hold one island design,
+// jittered and rotated by a hash of the cell. Only the 3x3 cells around the camera are drawn (shared-geometry clones from a
+// small pool). Every rock has a waterline circle used for ship push-out (slide + speed damping, no damage), AI avoidance,
+// cannonball stops and spawn checks. Cheap: a cell lookup + a handful of circle tests per ship per frame.
+export const ISLAND_CELL = 560;
+const DESIGNS = 8, CLEAR_R = 190; // no rocks this close to the world origin (solo start, PvP arena centre)
+const hash2 = (i, j, k = 0) => { const h = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453; return h - Math.floor(h); };
 export function createIslands(quality) {
   const group = new THREE.Group();
-  const r = rng(99);
   const rockMat = toon(0xffffff, rockTexture({ base: 0x56606a }));
   const mossMat = toon(0x3b5a44, null);
-  const n = quality === 'low' ? 5 : 8;
   function rock(size, seed) {
     const g = new THREE.IcosahedronGeometry(1, 1);
     const p = g.attributes.position, rr = rng(seed);
@@ -70,18 +76,31 @@ export function createIslands(quality) {
     g.scale(size[0], size[1], size[2]); g.computeVertexNormals();
     return g;
   }
-  let lighthouse = null;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + r() * 0.4, d = 300 + r() * 70;
-    const isl = new THREE.Group();
+  // waterline circle of a rock mesh (island-local): widest vertex ring within ±3 m of the sea surface
+  function footprint(mesh, baseY) {
+    const p = mesh.geometry.attributes.position; let r = 0, top = 0, any = 0, rAll = 0;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i) + mesh.position.y + baseY, d = Math.hypot(p.getX(i), p.getZ(i));
+      top = Math.max(top, y); rAll = Math.max(rAll, d);
+      if (Math.abs(y) < 3) { r = Math.max(r, d); any++; }
+    }
+    return { x: mesh.position.x, z: mesh.position.z, r: (any ? r : rAll * 0.6) * 0.96, h: top };
+  }
+  const designs = [];
+  for (let i = 0; i < DESIGNS; i++) {
+    const r = rng(99 + i * 17);
+    const isl = new THREE.Group(), circles = [];
     const H = 25 + r() * 45, Wd = 18 + r() * 22;
     const main = new THREE.Mesh(rock([Wd, H, Wd * 0.8], 100 + i), rockMat); main.position.y = H * 0.25; isl.add(main);
     const cap = new THREE.Mesh(rock([Wd * 0.75, H * 0.18, Wd * 0.6], 200 + i), mossMat); cap.position.y = H * 1.0; isl.add(cap);
+    circles.push(footprint(main, -2));
     for (let k = 0; k < 3; k++) {
       const s = 0.25 + r() * 0.3, m = new THREE.Mesh(rock([Wd * s, H * s * 0.9, Wd * s], 300 + i * 3 + k), rockMat);
       m.position.set((r() - 0.5) * Wd * 2.2, H * s * 0.2, (r() - 0.5) * Wd * 1.6); isl.add(m);
+      const c = footprint(m, -2); if (c.r > 1.5 && c.h > 0) circles.push(c);
     }
-    if (i === 1) {
+    let beamIdx = -1;
+    if (i === 1 || i === 5) {
       // lighthouse with a sweeping glow
       const lh = new THREE.Group();
       const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 16, 10), toon(0xe9e2d0)); tower.position.y = 8; lh.add(tower);
@@ -90,13 +109,93 @@ export function createIslands(quality) {
       const roof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 3, 10), toon(0x161616)); roof.position.y = 21; lh.add(roof);
       const beamGeo = new THREE.ConeGeometry(9, 140, 16, 1, true); beamGeo.translate(0, -70, 0); beamGeo.rotateZ(Math.PI / 2);
       const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.42, 0.2), transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-      beam.position.y = 18; lh.add(beam);
+      beam.position.y = 18; beam.name = 'beam'; lh.add(beam);
       lh.position.y = H * 1.05; lh.scale.setScalar(1.3); isl.add(lh);
-      lighthouse = beam;
+      circles[0].h = Math.max(circles[0].h, H * 1.05 + 28); // the tower stops cannonballs too
+      beamIdx = 1;
     }
-    isl.position.set(Math.cos(a) * d, -2, Math.sin(a) * d);
-    isl.rotation.y = r() * 6.28;
-    group.add(isl);
+    isl.traverse(o => { if (o.isMesh) o.userData.sharedGeo = true; });
+    designs.push({ isl, circles, lighthouse: beamIdx >= 0 });
   }
-  return { group, update(t, cam) { group.position.set(cam.x, 0, cam.z); if (lighthouse) lighthouse.rotation.y = t * 0.8; } };
+  // ---- world layout (pure function of the cell: identical for every client) ----
+  const cellInfo = new Map();
+  function cell(ci, cj) {
+    const key = `${ci},${cj}`; let c = cellInfo.get(key); if (c !== undefined) return c;
+    c = null;
+    if (hash2(ci, cj, 1) < 0.62) {
+      const x = (ci + 0.5 + (hash2(ci, cj, 2) - 0.5) * 0.5) * ISLAND_CELL, z = (cj + 0.5 + (hash2(ci, cj, 3) - 0.5) * 0.5) * ISLAND_CELL;
+      if (Math.hypot(x, z) > CLEAR_R + 60) {
+        const d = Math.floor(hash2(ci, cj, 4) * DESIGNS) % DESIGNS, rot = hash2(ci, cj, 5) * Math.PI * 2, cs = Math.cos(rot), sn = Math.sin(rot);
+        // world circles (Object3D.rotation.y maps local (x,z) -> (x cos + z sin, -x sin + z cos))
+        const circles = designs[d].circles.map(k => ({ x: x + k.x * cs + k.z * sn, z: z - k.x * sn + k.z * cs, r: k.r, h: k.h - 0 }));
+        c = { key, d, x, z, rot, circles };
+      }
+    }
+    if (cellInfo.size > 4000) cellInfo.clear(); // bounded cache (pure function, cheap to recompute)
+    cellInfo.set(key, c); return c;
+  }
+  const near = [];
+  function circlesNear(x, z) { // circles in the cell under (x,z) and its neighbours (a cell's island stays inside its 3x3)
+    near.length = 0; const ci = Math.floor(x / ISLAND_CELL), cj = Math.floor(z / ISLAND_CELL);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = cell(ci + a, cj + b); if (c) for (const k of c.circles) near.push(k); }
+    return near;
+  }
+  // ---- rendering: 3x3 cells around the camera, clones of the designs from a pool ----
+  const pool = designs.map(() => []), live = new Map();
+  let lastCell = '';
+  function refresh(cx, cz) {
+    const ci = Math.floor(cx / ISLAND_CELL), cj = Math.floor(cz / ISLAND_CELL), k = `${ci},${cj}`; if (k === lastCell) return; lastCell = k;
+    const want = new Set();
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = cell(ci + a, cj + b); if (c) want.add(c.key); }
+    for (const [key, o] of live) if (!want.has(key)) { group.remove(o.obj); pool[o.d].push(o.obj); live.delete(key); }
+    for (const key of want) if (!live.has(key)) {
+      const c = cellInfo.get(key), obj = pool[c.d].pop() || designs[c.d].isl.clone();
+      obj.position.set(c.x, -2, c.z); obj.rotation.y = c.rot; group.add(obj);
+      live.set(key, { obj, d: c.d, beam: designs[c.d].lighthouse ? obj.getObjectByName('beam') : null });
+    }
+  }
+  const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.len || 14) * 0.42) : 6; };
+  return {
+    group,
+    update(t, cam) { refresh(cam.x, cam.z); for (const o of live.values()) if (o.beam) o.beam.rotation.y = t * 0.8; },
+    circlesNear,
+    // push a ship out of any rock it overlaps: slide along the rock, bleed speed by how head-on the hit is. No damage.
+    collide(s, dt) {
+      const R = shipR(s); let hit = false;
+      for (const c of circlesNear(s.x, s.z)) {
+        const dx = s.x - c.x, dz = s.z - c.z, d = Math.hypot(dx, dz), min = c.r + R;
+        if (d >= min) continue;
+        const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+        s.x = c.x + nx * min; s.z = c.z + nz * min; hit = true;
+        const into = -(Math.sin(s.yaw) * nx + Math.cos(s.yaw) * nz); // 1 = straight at the rock
+        if (into > 0) s.speed *= Math.max(0.2, 1 - into * Math.min(1, dt * 6));
+      }
+      if (hit) s.rockT = 0.4; else if (s.rockT) s.rockT = Math.max(0, s.rockT - dt);
+      return hit;
+    },
+    // AI look-ahead: a turn input that swings the bow away from a rock in its path (null = path is clear)
+    avoid(s) {
+      const R = shipR(s) + 6, hx = Math.sin(s.yaw), hz = Math.cos(s.yaw), look = R + 16 + Math.max(0, s.speed) * 2.2;
+      let best = null, bt = Infinity;
+      for (const c of circlesNear(s.x, s.z)) {
+        const dx = c.x - s.x, dz = c.z - s.z, along = dx * hx + dz * hz; if (along < -c.r || along > look + c.r) continue;
+        const side = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw); // >0: rock on the starboard (+turn) side
+        if (Math.abs(side) > c.r + R) continue;
+        if (along < bt) { bt = along; best = side; }
+      }
+      return best === null ? null : (best > 0 ? -1 : 1);
+    },
+    // a free spot near (x, z) for a ship of radius r (spawns, respawns)
+    freeSpot(x, z, r = 12) {
+      for (let tries = 0; tries < 12; tries++) {
+        let ok = true;
+        for (const c of circlesNear(x, z)) { const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), min = c.r + r + 4; if (d < min) { ok = false; const k = (min - d) + 2; x += (d > 1e-4 ? dx / d : 1) * k; z += (d > 1e-4 ? dz / d : 0) * k; } }
+        if (ok) break;
+      }
+      return [x, z];
+    },
+    isFree(x, z, r = 12) { for (const c of circlesNear(x, z)) if (Math.hypot(x - c.x, z - c.z) < c.r + r + 4) return false; return true; },
+    hitBall(p) { if (p.y > 80) return false; for (const c of circlesNear(p.x, p.z)) if (p.y < c.h && Math.hypot(p.x - c.x, p.z - c.z) < c.r * (p.y > 0 ? Math.max(0.35, 1 - p.y / Math.max(1, c.h)) : 1)) return true; return false; },
+  };
 }
+

@@ -92,6 +92,45 @@
   </div>
 
   <div id="banner" class="hidden"></div>
+  <!-- [pvp] PvP ARENA HUD: kill feed, menu button (scoreboard / skins / name / wallet), death screen -->
+  <div id="pvp-feed" class="pvp-only" aria-live="polite"></div>
+  <button class="icon pvp-only" id="btn-pvp-menu" title="PvP scoreboard, skins and save (Tab)" aria-label="PvP menu">🏴</button>
+  <div id="pvp-dead" class="hidden pvp-only">
+    <div class="pd-card"><h2>SUNK!</h2><div class="pd-by"></div><div class="pd-drop muted"></div><div class="pd-kd"></div><div class="pd-queue" hidden></div>
+      <div class="pd-re">Back at sea in <b id="pvp-dead-t">4</b>…</div><button id="pvp-dead-menu" class="ghost" type="button">MAIN MENU</button></div>
+  </div>
+  <!-- [pvp] HARBOR (local queue room): JOIN BATTLE / queue place / spectate; the arena offer; AFK warning; entry card -->
+  <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
+    <div class="ph-btns"><button id="pvp-join" type="button" class="pvp-btn">JOIN BATTLE</button><button id="pvp-harbor-spec" type="button" class="ghost">SPECTATE</button></div></div>
+  <div id="pvp-offer" class="hidden pvp-only" role="alertdialog" aria-label="Battle ready"><div class="po-card"><h2>BATTLE READY!</h2><p>Your arena slot is open. Set sail?</p>
+    <div class="po-t"><b id="pvp-offer-t">15</b> s</div><div class="po-btns"><button id="pvp-offer-yes" type="button" class="pvp-btn big">SET SAIL</button><button id="pvp-offer-no" type="button" class="ghost">NOT NOW</button></div>
+    <p class="muted">Miss it once and you keep your place; miss it twice and you go to the back of the line.</p></div></div>
+  <div id="pvp-afk" class="hidden pvp-only">MOVE OR BE SENT TO THE HARBOR · <b>30</b></div>
+  <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>PVP ARENA</h2>
+    <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>
+    <button id="pvp-entry-wallet" type="button" class="wallet-link">Connect wallet to save (optional, read-only)</button>
+    <button id="pvp-entry-go" type="button" class="pvp-btn big">SET SAIL</button>
+    <p class="muted">You start in the harbor: farm AI ships for small gold, then JOIN BATTLE.</p></div></div>
+  <!-- [pvp] SPECTATE HUD (receive-only viewer): who you follow, camera modes, in-room leaderboard. H hides it all. -->
+  <div id="spec-hud" class="spec-only">
+    <div id="spec-room" class="spec-room"></div>
+    <div id="spec-bar">
+      <button id="spec-prev" type="button" aria-label="Previous captain">◀</button>
+      <div id="spec-who"><i id="spec-skin" hidden></i><div><small id="spec-mode"></small><b id="spec-name">…</b><small id="spec-stats"></small></div></div>
+      <button id="spec-next" type="button" aria-label="Next captain">▶</button>
+    </div>
+    <div id="spec-btns">
+      <button id="spec-leader" type="button" title="Follow the kill leader (L)">KILL LEADER</button>
+      <button id="spec-overview" type="button" title="Battlefield overview (O)">OVERVIEW</button>
+      <button id="spec-hide" type="button" title="Hide the HUD (H)">HIDE HUD</button>
+      <button id="spec-join" type="button" class="pvp-btn">JOIN BATTLE</button>
+      <button id="spec-exit" type="button" class="ghost">EXIT</button>
+    </div>
+  </div>
+  <div id="spec-board" class="spec-only">
+    <div class="sb-panel"><div class="sb-title">IN THIS ROOM</div><table id="spec-table"></table></div>
+    <button id="spec-board-tab" type="button" aria-label="Show or hide the room leaderboard (Tab)" title="Room leaderboard (Tab)">🏆</button>
+  </div>
   <div id="hint">A/D steer · W/S sails · Q/E broadsides · SPACE anchor · drag to look</div>
 </div>
 <div id="bars"></div>
@@ -130,7 +169,9 @@
 
     <div class="row start-row">
       <button id="btn-start" class="big">SET SAIL</button>
+      <button id="btn-pvp" class="big pvp-btn" type="button" title="Real-time PvP arena (beta): drop in and fight other pirates">PVP <small>(BETA)</small></button>
     </div>
+    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the PvP arena without playing (no ship, invisible to pirates)">👁 SPECTATE PVP</button></div>
 
     <div class="row wallet-row"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
       <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
@@ -140,12 +181,21 @@
 
    </div>
    <div class="col-b">
-    <div class="board-wrap">
-      <div class="board-title">TOP PIRATES <span class="muted lb-mode"></span></div>
-      <div class="lb-tabs" role="tablist" aria-label="Leaderboard period"></div>
-      <ol class="board" id="board-title"></ol>
+    <div class="board-wrap" id="home-board">
+      <div class="lb-modes" role="tablist" aria-label="Leaderboard"><button type="button" role="tab" data-mode="waves">WAVES</button><button type="button" role="tab" data-mode="br">BATTLE ROYALE</button></div>
+      <div class="lb-pane lb-waves">
+        <div class="board-title">TOP PIRATES <span class="muted lb-mode"></span></div>
+        <div class="lb-tabs" role="tablist" aria-label="Leaderboard period"></div>
+        <ol class="board" id="board-title"></ol>
+      </div>
+      <div class="lb-pane lb-br hidden"><!-- [pvp] PvP KILLS board: confirmed real-player kills, with K/D -->
+        <div class="board-title">PVP KILLS <span class="muted pk-mode"></span></div>
+        <div class="pk-tabs" role="tablist" aria-label="PvP kills period"></div>
+        <ol class="board pk-board" id="board-pvp-home"></ol>
+      </div>
     </div>
 
+    <div class="gfx-box gfx-title" id="gfx-title"></div>
     <div class="controls-help">A/D or ←/→ steer · W/S raise/lower sails · Q/E fire port/starboard · SPACE anchor · drag mouse to orbit</div>
     <div class="disclaimer">Experimental fan game, built for fun. Single player vs AI ships. Not financial advice, no real funds, no rewards are live, no liability. Typed wallet addresses are not verified. Add yours after you sink to save your score.</div>
    </div>
@@ -162,6 +212,7 @@
       <label><span class="label">SFX</span><input type="range" id="vol-sfx" min="0" max="100" step="1" aria-label="Sound effects volume"></label>
       <label><span class="label">MUSIC</span><input type="range" id="vol-music" min="0" max="100" step="1" aria-label="Music volume"></label>
     </div>
+    <div class="gfx-box" id="gfx-pause"></div>
     <button id="btn-resume" class="big">RESUME</button>
     <button id="btn-quit" class="ghost">MAIN MENU</button>
   </div>
@@ -201,6 +252,24 @@
       <button id="btn-share" class="ghost share-btn" aria-label="Share your score card">⇪ SHARE</button>
       <button id="btn-menu" class="ghost">MAIN MENU</button>
     </div>
+  </div>
+</div>
+
+<!-- [pvp] PvP menu: non-blocking (the sea keeps moving) -->
+<div id="pvp-menu" class="hidden" role="dialog" aria-label="PvP menu">
+  <div class="pvp-card">
+    <button id="pvp-menu-close" class="faq-x" type="button" aria-label="Close">✕</button>
+    <h3>PVP ARENA <small>(BETA)</small></h3>
+    <table id="pvp-board" class="pvp-board"></table>
+    <label class="field"><span>PIRATE NAME</span><input id="pvp-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>
+    <div id="pvp-kd" class="pvp-kd"></div>
+    <div class="pvp-kills-wrap lb-br" id="pvp-kills"><div class="pvp-sub">PVP KILLS <span class="muted pk-mode"></span></div>
+      <div class="pk-tabs" role="tablist" aria-label="PvP kills period"></div><ol class="board pk-board" id="board-pvp-menu"></ol></div>
+    <div class="pvp-sub">SKINS <span class="muted">unlock with player kills · cosmetic only</span></div>
+    <div id="pvp-skins" class="pvp-skins"></div>
+    <div class="pvp-save"><span id="pvp-wallet-state" class="muted"></span>
+      <button id="pvp-wallet" class="wallet-link" type="button" title="Optional, read-only: your wallet signs a free message, never a transaction">Connect wallet to save</button>
+      <span id="pvp-holder" class="pvp-holder" hidden title="Holding $SUNK or $AHOY: +5% on gold you earn">HOLDER +5%</span><button id="pvp-holder-claim" class="buy" type="button" hidden>Claim daily gold</button></div>
   </div>
 </div>
 

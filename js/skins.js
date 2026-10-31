@@ -50,7 +50,11 @@ export const SKINS = [
     fx: 'golden',
     swatch: { hull: '#b8862e', band: '#ffcd77', stripe: '#fa0d0d', sail: '#d9a441', trim: '#ffe2a8' } },
 ];
-export const getSkin = (id) => SKINS.find(s => s.id === id) || SKINS[0];
+// [pvp skins] extra skins that are NOT sold in the solo shop (PvP kill-tier unlocks, js/pvpSkins.js) register here,
+// so the ship compiler can paint them. SKINS (the solo shop list) is unchanged.
+export const EXTRA_SKINS = [];
+export function registerSkin(def) { if (!EXTRA_SKINS.some(s => s.id === def.id) && !SKINS.some(s => s.id === def.id)) EXTRA_SKINS.push(def); return def; }
+export const getSkin = (id) => SKINS.find(s => s.id === id) || EXTRA_SKINS.find(s => s.id === id) || SKINS[0];
 
 // ---------- persistence ----------
 const KEY = 'pfp_skins_v1';
@@ -103,13 +107,14 @@ export function skinBuildOpts(skin) {
 // ---------- material effects (ghost glow / golden gleam), applied to the finished ship ----------
 const _fx = new Map();
 export function skinMaterialFx(skin) {
-  if (!skin.fx) return null;
+  if (!skin.fx && !skin.matFx) return null;
   if (!_fx.has(skin.id)) _fx.set(skin.id, new Map());
   const cache = _fx.get(skin.id);
   return (m) => {
     if (!m || m.colorWrite === false) return m; // never touch the depth-only water lid
     if (cache.has(m)) return cache.get(m);
     const n = m.clone(); n.onBeforeCompile = m.onBeforeCompile; n.customProgramCacheKey = m.customProgramCacheKey;
+    if (skin.matFx) { skin.matFx(n, m, THREE); cache.set(m, n); return n; } // [pvp skins] data-defined material look (js/pvpSkins.js)
     if (skin.fx === 'ghost') {
       if (m.side === THREE.BackSide && m.isMeshBasicMaterial) n.color.set(0x1aff7a); // toon outlines glow green
       else if (m.isMeshToonMaterial) {

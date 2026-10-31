@@ -6,6 +6,12 @@ import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visual
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
 import { initSkinPreview, requestPreviews, pausePreviews } from './skinPreview.js'; // [Raul] skin previews
+import { pvpTierCost, PVP_REPAIR_COST } from './config.js'; // [pvp] same items/stats, PvP cost curve (by tier index)
+const PVP = () => ctx?.game.mode === 'pvp';
+const TIER_IDX = new Map(); for (const u of UPGRADES) u.tiers.forEach((t, i) => TIER_IDX.set(t, i));
+const costOf = (t) => PVP() ? pvpTierCost(TIER_IDX.get(t) ?? 0) : t.cost; // [pvp] same price in the harbor and the arena
+const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
+const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
 
 let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
@@ -86,7 +92,7 @@ function setTab(t) {
   $('shop-grid').classList.toggle('hidden', t !== 'upg'); $('skin-grid').classList.toggle('hidden', t !== 'skins');
   $('shop-hp').classList.toggle('hidden', t !== 'upg'); $('shop-escort').classList.toggle('hidden', t !== 'upg');
   if (t === 'skins') refreshPreviews();
-  document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? 'Spend looted gold on your ship. Upgrades last this voyage only.' : 'Paint jobs are cosmetic and yours to keep across every voyage.';
+  document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? SUB_UPG() : 'Paint jobs are cosmetic and yours to keep across every voyage.';
   render();
 }
 function renderSkins() {
@@ -139,17 +145,18 @@ function render() {
   $('shop-gold').textContent = game.gold;
   $('shop-hp').querySelector('.fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-  const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < REPAIR.cost;
-  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g`;
+  const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < repairCost();
+  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${REPAIR.hp} HP · ${repairCost()}g`;
+  $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins').classList.toggle('pvp-hide', PVP()); // [pvp] no escorts; PvP skins unlock by kills (PvP menu)
   const stats = shipStats(run);
   for (const u of UPGRADES) {
     const c = $('shop-grid').querySelector(`[data-id="${u.id}"]`), lv = run.levels[u.id];
     c.querySelectorAll('.sc-pips i').forEach((el, i) => el.classList.toggle('on', i < lv));
     const b = c.querySelector('.buy'), next = u.tiers[lv];
-    if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat], stats.gunDmg)}</b>`; b.textContent = 'MAXED'; b.disabled = true; c.classList.add('max'); continue; }
+    if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat], stats.gunDmg)}</b>`; b.textContent = PVP() ? `MAX ${ROMAN[u.tiers.length - 1]}` : 'MAXED'; b.disabled = true; c.classList.add('max'); continue; } // [pvp] hard cap: MAX, more gold buys no power
     c.classList.remove('max');
     c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, next.value, next.gunDmg)}</b>`;
-    b.textContent = `${next.cost}g`; b.disabled = game.gold < next.cost;
+    b.textContent = `${costOf(next)}g`; b.disabled = game.gold < costOf(next);
   }
   renderEscorts();
   renderSkins();
@@ -172,14 +179,14 @@ function hire() {
 function canAfford() {
   if (!ctx) return false;
   const g = ctx.game.gold;
-  if (ctx.escorts && ctx.escorts.count() < ctx.escorts.max && g >= ctx.escorts.cost) return true; // [escorts]
-  return UPGRADES.some(u => { const t = u.tiers[run.levels[u.id]]; return t && g >= t.cost; });
+  if (!PVP() && ctx.escorts && ctx.escorts.count() < ctx.escorts.max && g >= ctx.escorts.cost) return true; // [escorts]
+  return UPGRADES.some(u => { const t = u.tiers[run.levels[u.id]]; return t && g >= costOf(t); });
 }
 
 function buy(id) {
   const u = UPGRADES.find(x => x.id === id), lv = run.levels[id], t = u && u.tiers[lv];
-  if (!t || ctx.game.gold < t.cost) return;
-  ctx.game.gold -= t.cost; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + t.cost; run.spent += t.cost;
+  if (!t || ctx.game.gold < costOf(t)) return;
+  const cost = costOf(t); ctx.game.gold -= cost; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + cost; run.spent += cost;
   run.levels[id]++; setLoadout(run.levels);
   applyStats(ctx.getPlayer(), shipStats(run));
   // [Raul] upgrade visuals: recompile the ship from the new trait levels, then the purchase moment
@@ -189,21 +196,22 @@ function buy(id) {
   celebrateUpgrade(mesh, id, { camera: ctx.camera, label, legendary });
   lastBuy = { id, label, legendary };
   if (ctx.sfx?.upgrade) ctx.sfx.upgrade(legendary); else ctx.sfx?.coin?.();
-  ctx.updateHud(); render(); tierUp(id, lvl, legendary);
+  ctx.updateHud(); render(); tierUp(id, lvl, legendary); ctx.onRunChange?.(run); // [pvp] save upgrades
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] next likely purchases, built while the shop is open
   refreshPreviews(); // [Raul] skin previews: the build changed
 }
 function repair() {
   const p = ctx.getPlayer();
-  if (p.hp >= p.maxHp || ctx.game.gold < REPAIR.cost) return;
-  ctx.game.gold -= REPAIR.cost; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + REPAIR.cost;
+  if (p.hp >= p.maxHp || ctx.game.gold < repairCost()) return;
+  const rc = repairCost(); ctx.game.gold -= rc; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + rc;
   p.hp = Math.min(p.maxHp, p.hp + REPAIR.hp);
-  ctx.sfx?.coin?.(); ctx.updateHud(); render();
+  ctx.sfx?.coin?.(); ctx.updateHud(); render(); ctx.onRunChange?.(run);
 }
 
 export function open() {
   if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return;
   ctx.game.state = 'shop';
+  if (PVP()) setTab('upg'); else if (tab === 'upg') document.querySelector('#shop .shop-sub').textContent = SUB_UPG(); // [pvp]
   render(); $('shop').classList.remove('hidden'); ctx.sfx?.shopOpen?.(); // [Raul] sound upgrades
   refreshPreviews(); // [Raul] skin previews: idle-rendered, only builds missing ones
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] pre-compile next purchases so buying is instant
@@ -228,6 +236,13 @@ export function resetShop() {
   if (ctx) { ctx.game.goldSpent = 0; const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; lastBuy = null; }
   $('shop')?.classList.add('hidden');
 }
+
+// [pvp] load / read the upgrade levels (PvP keeps them across lives and saves them)
+export function setRunLevels(lv = {}) {
+  for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, Math.floor(lv[u.id] || 0)));
+  setLoadout(run.levels); if (ctx) { const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; ctx.rebuildShip?.(run.levels); }
+}
+export const getRunLevels = () => ({ ...run.levels });
 
 export function initShop(c) {
   ctx = c; injectCss(); buildDom(); initSkinPreview(c.previewBase || {});

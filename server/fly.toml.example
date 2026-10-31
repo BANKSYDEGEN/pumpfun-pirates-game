@@ -1,0 +1,15 @@
+# Example only (nothing has been deployed). `fly launch --copy-config` from server/ after renaming to fly.toml.
+app = "pfp-pvp-relay"
+primary_region = "ord"
+[build]
+[env]
+  HZ = "10"
+  MAX_ARENA = "16"
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

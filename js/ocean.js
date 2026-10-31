@@ -29,9 +29,9 @@ export const MAX_HULLS = 12;
 // foam collars + bow waves around hulls, lingering foam where cannonballs land, and a 0..1 storm mood (uStorm).
 // The ship wakes are separate trail ribbons (wake.js). Same wave field as the CPU buoyancy above.
 export function createOcean(quality) {
-  const low = quality === 'low';
-  const size = low ? 700 : 900;
-  const seg = low ? 140 : 260;
+  const low = quality === 'low', ultra = quality === 'ultra'; // [ultra] bigger, denser sea + sharper sun glints
+  const size = low ? 700 : ultra ? 1200 : 900;
+  const seg = low ? 140 : ultra ? 440 : 260;
   const NS = low ? 6 : 10; // lingering splash foam spots
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI / 2);
@@ -50,7 +50,7 @@ export function createOcean(quality) {
   };
   const mat = new THREE.ShaderMaterial({
     uniforms,
-    defines: low ? { LOW_Q: 1 } : {},
+    defines: low ? { LOW_Q: 1 } : ultra ? { ULTRA_Q: 1 } : {},
     vertexShader: /* glsl */`
       uniform float uTime; uniform vec4 uWaves[4];
       varying vec3 vWorld; varying vec3 vNormal; varying float vH; varying float vFogDepth;
@@ -139,6 +139,9 @@ export function createOcean(quality) {
         float sunward = smoothstep(-0.3, 0.8, dot(-V, sunH));
         float sparkle = smoothstep(0.55, 0.95, pow(ndh, 900.0)) * rf * rf * rf;
         col += vec3(1.0, 0.86, 0.66) * (sparkle * 1.0 + pow(ndh, 60.0) * 0.12) * sunward * (1.0 - 0.75 * st);
+        #ifdef ULTRA_Q
+        col += vec3(1.0, 0.9, 0.74) * (pow(ndh, 2400.0) * 1.6 + pow(ndh, 220.0) * 0.07) * sunward * (1.0 - 0.75 * st); // [ultra] tighter specular core
+        #endif
 
         // --- crest foam: builds just before a big crest, then dissolves slowly behind it
         float ph0 = uWaves[0].w * dot(uWaves[0].xy, p) - sqrt(9.8 * uWaves[0].w) * uTime;

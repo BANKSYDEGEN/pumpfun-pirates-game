@@ -16,6 +16,7 @@ import { buildShip, disposeShip } from './ships.js';
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
 import { equippedSkin, skinBuildOpts, skinMaterialFx } from './skins.js';
+import { runPartsOverride } from '../assets/ships/pvp/partsOverride.js'; // [Raul] PvP skin parts-override API
 
 // ---------- trait definitions (level 0..6, CANNONS 0..8) ----------
 // [more levels] every shop level adds or grows something visible, and parts stack level over level.
@@ -502,14 +503,14 @@ function partSet(id, A, lv, ship, skin) {
   return tpl;
 }
 const normLevels = (levels = {}) => Object.fromEntries(TRAIT_IDS.map(id => [id, Math.max(0, Math.min(TRAITS[id].length - 1, levels[id] || 0))]));
-const shipKey = (lv, skin, q, shadows) => `${TRAIT_IDS.map(id => lv[id]).join('')}|${skin.id}|${q}|${shadows ? 1 : 0}`;
+const shipKey = (lv, skin, q, shadows, pvp) => `${TRAIT_IDS.map(id => lv[id]).join('')}|${skin.id}|${q}|${shadows ? 1 : 0}${pvp ? '|pvp' : ''}`; // [pvp skins] PvP builds add skin parts
 let BASE_RIG = 0, lastOpts = {};
 
 function buildCompiled(lv, opts, skin) {
   LO = opts.quality === 'low';
   mats(skin);
   const H = TRAITS.hull[lv.hull], W = TRAITS.cannons[lv.cannons], S = TRAITS.sails[lv.sails];
-  const { quality, skin: _s, ...bopts } = opts;
+  const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
   const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: W.perSide, masts: 3, ...bopts, ...(skinBuildOpts(skin) || {}) });
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
@@ -542,6 +543,8 @@ function buildCompiled(lv, opts, skin) {
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
   if (fx) ship.traverse(o => { if ((o.isMesh || o.isLineSegments) && !o.userData.waterMask) o.material = fx(o.material); });
+  ship.userData.skinId = skin?.id || 'classic'; // per-ship skin hooks (e.g. diamondTick) key off this
+  if (opts.pvp || skin?.wavesLooks) runPartsOverride(ship, skin, { quality: opts.quality, levels: lv }); // [pvp skins] PvP builds + the Waves skins that share an upgraded look (js/skinLooks.js); CLASSIC never changes
   // whole-ship scale from the overall upgrade count; hitbox / wake / camera read these
   const s = extraScale(lv);
   ship.scale.setScalar(s);
@@ -549,7 +552,7 @@ function buildCompiled(lv, opts, skin) {
   const rig = (ud.layout.flagPole.position.y + 2.5 + (ud.flag?.geometry?.parameters?.height || 4)) * s; // flag top
   if (!BASE_RIG && TRAIT_IDS.every(id => !lv[id])) BASE_RIG = rig;
   ud.rigTop = rig; ud.frameK = Math.max(1, rig / (BASE_RIG || rig)); // camera framing factor (fits the tallest mast)
-  ud.levels = lv; ud.hullName = H.name; ud.skinId = skin.id; ud.key = shipKey(lv, skin, opts.quality, opts.shadows);
+  ud.levels = lv; ud.hullName = H.name; ud.skinId = skin.id; ud.key = shipKey(lv, skin, opts.quality, opts.shadows, opts.pvp);
   return ship;
 }
 
@@ -558,7 +561,7 @@ function buildCompiled(lv, opts, skin) {
 export function compileShip(levels = {}, opts = {}) {
   lastOpts = opts;
   const lv = normLevels(levels), skin = opts.skin || equippedSkin();
-  const key = shipKey(lv, skin, opts.quality, opts.shadows);
+  const key = shipKey(lv, skin, opts.quality, opts.shadows, opts.pvp);
   if (_ready.has(key)) { const ship = _ready.get(key); _ready.delete(key); return ship; }
   _queue = _queue.filter(q => q.key !== key);
   const t0 = performance.now(), ship = buildCompiled(lv, opts, skin);
@@ -599,7 +602,7 @@ export function prebuildNext(levels = {}, { gold = Infinity } = {}) {
   _queue = []; // older candidates are one purchase stale now
   const want = new Set();
   for (const c of cands) {
-    const nl = { ...lv, [c.id]: lv[c.id] + 1 }, key = shipKey(nl, skin, lastOpts.quality, lastOpts.shadows);
+    const nl = { ...lv, [c.id]: lv[c.id] + 1 }, key = shipKey(nl, skin, lastOpts.quality, lastOpts.shadows, lastOpts.pvp);
     want.add(key);
     if (!_ready.has(key)) _queue.push({ key, lv: nl, skin, opts: lastOpts });
   }

@@ -146,10 +146,10 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 
 export class FX {
   constructor(scene, quality) {
-    const cap = quality === 'low' ? 1400 : 3500;
+    const cap = quality === 'low' ? 1400 : quality === 'ultra' ? 6000 : 3500; // [ultra] more spray / embers
     this.soft = new Pool(cap, false); this.glow = new Pool(Math.floor(cap / 2), true);
     scene.add(this.soft.points, this.glow.points);
-    this.q = quality === 'low' ? 0.5 : 1;
+    this.q = quality === 'low' ? 0.5 : quality === 'ultra' ? 1.6 : 1;
     const low = quality === 'low';
     this.puff = new Puffs(low ? 120 : 320, new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: toonRamp() }));
     const fireMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); fireMat.color.setScalar(1);
