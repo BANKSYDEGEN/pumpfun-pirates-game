@@ -1136,7 +1136,7 @@ function frame() {
   controls.update();
 
   { const low = game.state === 'title' && PHONE_MQ.matches; // [mobile title] phones: frame the ship lower on screen, under the logo
-    if (low !== camLow) { camLow = low; if (low) camera.setViewOffset(1, 1, 0, PHONE_MQ_LAND.matches ? -0.18 : -0.26, 1, 1); else camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
+    if (low !== camLow) { camLow = low; applyCamLow(); } }
   const minY = waveHeight(camera.position.x, camera.position.z, t) + 2.5;
   if (camera.position.y < minY) camera.position.y = minY;
   if (game.shake > 0) { camera.position.x += rnd(-1, 1) * game.shake * 0.4; camera.position.y += rnd(-1, 1) * game.shake * 0.4; game.shake = Math.max(0, game.shake - dt * 2.5); }
@@ -1175,11 +1175,21 @@ function updateRotateHint() {
   if (show && !rotateTimer) rotateTimer = setTimeout(() => { $('rotate').classList.remove('show'); rotateDismissed = true; }, 9000);
 }
 $('rotate-x').addEventListener('pointerdown', (e) => { e.stopPropagation(); rotateDismissed = true; localStorage.setItem('pfp_rotate_dismissed', '1'); $('rotate').classList.remove('show'); });
+// [v79] phones on the title: frame the ship lower via a view offset. setViewOffset(fullW, fullH, ...) also sets
+// camera.aspect = fullW / fullH, so it MUST use the real viewport size (the old (1, 1, ...) forced aspect 1 = everything
+// stretched tall and narrow in portrait, on every quality). Re-applied on every resize; aspect always = CSS aspect.
+let camLowOff = 0;
+function applyCamLow() {
+  const [w, h] = viewSize();
+  camLowOff = camLow ? (PHONE_MQ_LAND.matches ? -0.18 : -0.26) : 0;
+  if (camLow) camera.setViewOffset(w, h, 0, camLowOff * h, w, h); else camera.clearViewOffset();
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
 function onResize() {
   const [w, h] = viewSize();
   const root = document.documentElement.style;
   root.setProperty('--app-w', `${w}px`); root.setProperty('--app-h', `${h}px`);
-  fitCamera(w, h);
+  fitCamera(w, h); if (camLow) applyCamLow();
   renderer.setSize(w, h);
   if (composer) {
     const pr = renderer.getPixelRatio();

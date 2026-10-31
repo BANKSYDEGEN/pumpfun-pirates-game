@@ -25,7 +25,7 @@ import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from '
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
-import { previewCards } from './skinPreview.js';
+import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
 import { setRunLevels, getRunLevels } from './shop.js';
 import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
@@ -755,13 +755,31 @@ export function createPvp(K) {
 
   // ---------------- SPECTATE ----------------
   const LS_BOARD = 'pfp_spec_board';
+  // [v79] spectate follow zoom: starts wide and is kept across target switches (new kill leader, ◀ ▶, a tapped captain);
+  // only OVERVIEW uses its own height. Wheel / pinch changes are remembered.
+  const SPEC_WIDE_P = 150, SPEC_WIDE_L = 115;
   const skinIcons = new Map();
-  const skinIcon = (id) => { if (!skinIcons.has(id)) { try { skinIcons.set(id, skinSwatch(pvpSkin(id), 30, 16).toDataURL()); } catch { skinIcons.set(id, ''); } } return skinIcons.get(id); };
+  const skinIcon = (id) => { if (!skinIcons.has(id)) { try { skinIcons.set(id, skinSwatch(pvpSkin(id), 30, 16).toDataURL()); } catch { skinIcons.set(id, ''); } realIcon(id); } return skinIcons.get(id); };
+  // [v79] spectate list / follow card: the skin pickers' real ship render (base build), swapped in once ready; swatch until then
+  let iconKill = 0, iconQ = Promise.resolve();
+  function realIcon(id) { // one render at a time, spaced out, so the spectate view never hitches
+    iconQ = iconQ.then(() => new Promise(res => setTimeout(() => { res(); doIcon(id); }, 250)));
+  }
+  function doIcon(id) {
+    {
+      try {
+        const src = renderPreview(pvpSkin(id), {}, { pvp: true }); if (!src) return;
+        const c = document.createElement('canvas'); c.width = 72; c.height = 40; c.getContext('2d').drawImage(src, 0, 0, 72, 40);
+        skinIcons.set(id, c.toDataURL()); clearTimeout(iconKill); iconKill = setTimeout(releaseRenderer, 20000);
+        if (spec.on) { specHud(); renderSpecBoard(); }
+      } catch { /* keep the swatch */ }
+    }
+  }
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   function spectate(on = true) { spec.want = !!on; }
   async function specBegin() {
-    spec.on = true; spec.mode = 'leader'; spec.target = null; spec.emptyT = 0; spec.camLock = 2;
+    spec.on = true; spec.mode = 'leader'; spec.target = null; spec.emptyT = 0; spec.camLock = 2; spec.dist = K.camera.aspect < 1 ? SPEC_WIDE_P : SPEC_WIDE_L; // [v79] start wide
     const pl = P(); me.dead = true; me.protect = 0; pl.alive = false; pl.hp = 0; pl.speed = 0; pl.mesh.visible = false; if (pl.shield) pl.shield.visible = false;
     spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520; spec.touchOne = K.controls.touches.ONE; K.controls.touches.ONE = -1; // one finger pans (specPan), two pinch-zoom
     document.documentElement.classList.add('pvp-spec'); wireSpec();
@@ -817,14 +835,16 @@ export function createPvp(K) {
     if (tgt) { pl.yaw += angWrap(tgt.yaw - pl.yaw) * Math.min(1, dt * 3); pl.speed = tgt.speed; } else pl.speed = 0;
     pl.alive = false; pl.mesh.visible = false;
     // after a camera change, ease the distance / height (then the viewer is free to orbit and zoom)
+    K.controls.maxDistance = 520; // [v79] the ship-size / resize paths reset it to the sailing limit (120 / 95)
     if (spec.camLock > 0) {
       spec.camLock -= dt;
       const cam = K.camera, c = K.controls.target, off = cam.position.clone().sub(c), portrait = cam.aspect < 1;
-      const want = spec.mode === 'overview' ? (portrait ? 430 : 330) : (portrait ? 62 : 44), pitch = spec.mode === 'overview' ? 0.95 : 0.42;
+      const want = spec.mode === 'overview' ? (portrait ? 430 : 330) : (spec.dist || (portrait ? SPEC_WIDE_P : SPEC_WIDE_L)), pitch = spec.mode === 'overview' ? 0.95 : 0.42;
       const len = off.length() || 1, flat = Math.hypot(off.x, off.z) || 1, kk = 1 - Math.exp(-dt * 3.5);
       const nl = len + (want - len) * kk, curP = Math.atan2(off.y, flat), np = curP + (pitch - curP) * kk;
       const hx = off.x / flat, hz = off.z / flat; cam.position.set(c.x + hx * Math.cos(np) * nl, c.y + Math.sin(np) * nl, c.z + hz * Math.cos(np) * nl);
     }
+    else if (spec.mode !== 'overview') spec.dist = Math.max(20, Math.min(K.controls.maxDistance, K.camera.position.distanceTo(K.controls.target))); // [v79] remember the viewer's zoom
     // an empty room: look for an active one now and then (rooms fill from 1 up); the socket itself auto-reconnects
     if (!room) { spec.emptyT += dt; if (spec.emptyT > 30) { spec.emptyT = 0; specJoin(1); } } // reconnect / retry a full spectator budget
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; specHud(); renderFeed(); renderSpecBoard(); }
@@ -849,7 +869,9 @@ export function createPvp(K) {
     const list = specPlayers(), p = spec.mode === 'overview' ? null : peers.get(spec.target);
     const who = $('spec-name'), st = $('spec-stats'), ic = $('spec-skin');
     if (p) { who.textContent = p.name; st.textContent = `${tierOf(p.sk)?.name || 'CLASSIC'} · ${p.k} kills · ${p.d} deaths · K/D ${kd(p.K, p.D)}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
-    else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now'; ic.hidden = true; }
+    else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now';
+      // [v79] nobody to follow: the ship box cycles through the skins (same real renders as the skins pickers) instead of sitting empty
+      const t = TIERS[Math.floor(performance.now() / 2200) % TIERS.length]; ic.style.backgroundImage = `url(${skinIcon(t.id)})`; ic.title = t.name; ic.hidden = false; }
     $('spec-mode').textContent = spec.mode === 'leader' ? 'FOLLOWING THE KILL LEADER' : spec.mode === 'overview' ? 'OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'FOLLOWING';
     $('spec-room').textContent = `ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
     $('spec-leader').classList.toggle('on', spec.mode === 'leader'); $('spec-overview').classList.toggle('on', spec.mode === 'overview');
