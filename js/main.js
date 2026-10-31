@@ -20,6 +20,7 @@ import { prepareShare, shareScore } from './shareCard.js'; // game-over score ca
 import { isKey, held as heldKey, installMouseBinds } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
+import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
 
 // [Raul] ship upgrades
@@ -739,6 +740,7 @@ function renderWavesSkins() { // same cards as the BATTLE ROYALE picker; locked 
     c.disabled = !ok; c.onclick = () => { equipSkin(skin.id); try { rebuildPlayerShip({}); } catch (e) { console.warn(e); } sfx.equip?.(); renderWavesSkins(); };
     grid.appendChild(c);
   }
+  previewCards(grid, [getSkin('classic'), ...wavesUnlocks().map(u => u.skin)].map(sk => ({ id: sk.id, skin: sk })), {}); // [v75] real renders
 }
 function openWavesEntry() {
   if (!we) return startGame();

@@ -14,6 +14,8 @@ const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", ne
 const b64url = (a: Uint8Array) => btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 const devId = async (b: Record<string, unknown>) => typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? `dev:${(await sha256("pfp-dev:" + b.dk)).slice(0, 24)}` : null;
+// [v75] one pirate on several devices: an aliased device id records under its main id (pvp_alias, server-side only)
+const mainId = async (id: string | null) => { if (!id || !id.startsWith("dev:")) return id; const { data } = await db.from("pvp_alias").select("main").eq("dev", id).maybeSingle(); return (data?.main as string) || id; };
 type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; updated_at: string };
 const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills } });
 const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: p.skins, kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills });
@@ -122,7 +124,7 @@ Deno.serve(async (req) => {
       case "kill": {
         const wallet = typeof b.token === "string" ? await sessionWallet(b.token) : null;
         const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
-        const player = wallet ? `wallet:${wallet}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        const player = await mainId(wallet ? `wallet:${wallet}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null);
         if (!player) return json(401, { error: "no identity" });
         const net = /^[0-9a-z]{6,20}$/, room = String(b.room ?? ""), k = String(b.k ?? ""), v = String(b.v ?? ""), life = Number(b.l);
         if (!/^[0-9a-z_:-]{1,40}$/i.test(room) || !net.test(k) || !net.test(v) || !Number.isInteger(life) || life < 0 || life > 1e6 || (b.side !== "k" && b.side !== "v")) return json(400, { error: "bad claim" });
@@ -142,7 +144,7 @@ Deno.serve(async (req) => {
       case "me": {
         const wallet = typeof b.token === "string" ? await sessionWallet(b.token) : null;
         const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
-        const player = wallet ? `wallet:${wallet}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        const player = await mainId(wallet ? `wallet:${wallet}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null);
         if (!player) return json(401, { error: "no identity" });
         const { data, error } = await db.rpc("pvp_kills_me", { p_player: player });
         if (error) throw error;
@@ -184,7 +186,7 @@ Deno.serve(async (req) => {
       // [v72] rename: the caller's OWN board name (wallet session, else device key; the id is never taken from the client)
       case "rename": {
         const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
-        const player = sw ? `wallet:${sw}` : await devId(b);
+        const player = await mainId(sw ? `wallet:${sw}` : await devId(b));
         if (!player) return json(401, { error: "no identity" });
         const { data, error } = await db.rpc("pvp_rename", { p_player: player, p_name: String(b.name ?? "") });
         if (error) throw error;

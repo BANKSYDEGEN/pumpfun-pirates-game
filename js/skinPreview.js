@@ -18,8 +18,8 @@ let base = {};                     // buildShip extras from main.js (classic sai
 export const previewOptions = { glow: 'rim' }; // 'none' | 'rim' (soft skin-tinted halo hugging the silhouette) | 'radial'
 
 export function initSkinPreview(opts) { base = { ...opts }; }
-const keyOf = (skin, levels) => `${skin.id}|${Object.keys(levels).sort().map(k => k + levels[k]).join('')}|${base.quality || 'high'}|${previewOptions.glow}`;
-export const cachedPreview = (skin, levels) => cache.get(keyOf(skin, levels)) || null;
+const keyOf = (skin, levels, extra = null) => `${skin.id}|${Object.keys(levels).sort().map(k => k + levels[k]).join('')}|${base.quality || 'high'}|${previewOptions.glow}${extra?.pvp ? '|pvp' : ''}`;
+export const cachedPreview = (skin, levels, extra = null) => cache.get(keyOf(skin, levels, extra)) || null;
 
 function renderer() {
   if (R) return R;
@@ -46,13 +46,13 @@ export function releaseRenderer() {
   R = null;
 }
 // render one preview synchronously; returns a transparent 2D canvas or null
-export function renderPreview(skin, levels) {
-  const k = keyOf(skin, levels);
+export function renderPreview(skin, levels, extra = null) {
+  const k = keyOf(skin, levels, extra);
   if (cache.has(k)) return cache.get(k);
   const X = renderer(); if (!X) return null;
   let ship = null;
   try {
-    ship = compilePreview(levels, { ...base, skin, light: false, shadows: false });
+    ship = compilePreview(levels, { ...base, ...(extra || {}), skin, light: false, shadows: false });
     ship.traverse(o => { if (o.userData?.waterMask || o.isLight || o.isPoints || o.isSprite) o.visible = false; });
     // broadside profile, bow to the right. Square sails sit across the keel, so a dead-on 90° view shows them
     // edge-on (bare sticks); a 20° quarter turn keeps the side profile but lets the sail faces + skull read.
@@ -107,11 +107,11 @@ function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >
 // ---------- lazy queue: one preview per idle slot while the shop is open ----------
 let queue = [], pumping = 0, onReady = null;
 const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 120 }) : (f) => setTimeout(() => f({ timeRemaining: () => 10 }), 16);
-export function requestPreviews(skins, levels, cb) {
+export function requestPreviews(skins, levels, cb, extra = null) {
   clearTimeout(idleKill);
   onReady = cb;
-  queue = skins.filter(s => !cache.has(keyOf(s, levels))).map(s => ({ s, levels: { ...levels } }));
-  for (const s of skins) { const c = cache.get(keyOf(s, levels)); if (c) cb(s, c); }
+  queue = skins.filter(s => !cache.has(keyOf(s, levels, extra))).map(s => ({ s, levels: { ...levels }, extra }));
+  for (const s of skins) { const c = cache.get(keyOf(s, levels, extra)); if (c) cb(s, c); }
   pump();
 }
 function pump() {
@@ -120,11 +120,23 @@ function pump() {
   idle(() => {
     pumping = 0;
     const job = queue.shift(); if (!job) return;
-    const c = renderPreview(job.s, job.levels);
+    const c = renderPreview(job.s, job.levels, job.extra);
     if (c) onReady?.(job.s, c); else if (failed) { queue = []; return; }
     pump();
   });
 }
 // shop closed: stop work, free the GL context after a while (cached bitmaps stay)
 export function pausePreviews() { queue = []; clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, 20000); }
+// [v75] the WAVES + BATTLE ROYALE skin pickers: swap each card's painted swatch for the same real render the shop uses
+// (cards carry data-skin; skins: [{ id, skin }]). GL context released ~20 s after the last render.
+export function previewCards(grid, skins, levels = {}, extra = null) {
+  if (!grid) return;
+  const byId = new Map(skins.map(x => [x.skin.id, x.id]));
+  requestPreviews(skins.map(x => x.skin), levels, (s, src) => {
+    const card = grid.querySelector(`[data-skin="${byId.get(s.id) || s.id}"]`); if (!card || card.querySelector('canvas.sk-real')) return;
+    const old = card.querySelector('canvas'); const cv = document.createElement('canvas'); cv.className = 'sk-real'; cv.width = src.width; cv.height = src.height;
+    cv.getContext('2d').drawImage(src, 0, 0); if (old) old.replaceWith(cv); else card.prepend(cv);
+    if (!queue.length) { clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, 20000); }
+  }, extra);
+}
 window.PFP_PREVIEW = { previewOptions, renderPreview, cache, releaseRenderer, clear: () => cache.clear() };

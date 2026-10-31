@@ -24,6 +24,7 @@ import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from '
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
+import { previewCards } from './skinPreview.js';
 import { makeChest } from './props.js';
 import { setRunLevels, getRunLevels } from './shop.js';
 import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
@@ -642,6 +643,7 @@ export function createPvp(K) {
       const lab = document.createElement('span'); lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${t.kills - st.kills} kills to unlock`}`; c.appendChild(lab);
       c.disabled = !ok; c.onclick = () => pickSkin(t.id); grid.appendChild(c);
     }
+    previewCards(grid, TIERS.map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
     $('pvp-wallet-state').textContent = wallet ? `Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}` : 'Saving on this device automatically.';
     $('pvp-wallet').textContent = wallet ? 'Disconnect wallet' : 'Connect wallet to save';
     holderUi();

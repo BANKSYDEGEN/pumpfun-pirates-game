@@ -47,7 +47,8 @@ export async function renderKills(wrap) {
     const li = document.createElement('li');
     const rk = document.createElement('i'); rk.textContent = `${i + 1}.`;
     const nm = document.createElement('span'); nm.textContent = r.name || 'PIRATE';
-    const tag = document.createElement('small'); tag.className = 'pk-id'; tag.textContent = ` ${r.player || ''}`; nm.appendChild(tag);
+    if (r.wallet) { const w = document.createElement('span'); w.className = 'pk-wallet'; w.textContent = ` · ${r.wallet}`; nm.appendChild(w); } // [v75] short saved wallet, Waves style (never the full address)
+    else { const tag = document.createElement('small'); tag.className = 'pk-id'; tag.textContent = ` ${r.player || ''}`; nm.appendChild(tag); }
     const b = document.createElement('b'); b.textContent = r.kills;
     const k = document.createElement('small'); k.className = 'pk-kd'; k.textContent = ` K/D ${kd(+r.kills || 0, +r.deaths || 0)}`; k.title = `${r.kills} kills · ${r.deaths} deaths (confirmed PvP kills only)`;
     li.append(rk, nm, b, k); ol.appendChild(li);
