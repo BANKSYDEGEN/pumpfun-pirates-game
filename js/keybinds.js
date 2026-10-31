@@ -3,14 +3,22 @@
 export const ACTIONS = [
   ['left', 'Steer left', ['KeyA', 'ArrowLeft']], ['right', 'Steer right', ['KeyD', 'ArrowRight']],
   ['sailUp', 'Raise sails', ['KeyW', 'ArrowUp']], ['sailDown', 'Lower sails', ['KeyS', 'ArrowDown']],
-  ['firePort', 'Fire port (left)', ['KeyQ', '']], ['fireStar', 'Fire starboard (right)', ['KeyE', '']],
-  ['anchor', 'Anchor', ['Space', '']], ['camera', 'Reset camera', ['KeyC', '']], ['shop', 'Shop (Waves)', ['KeyU', 'KeyB']],
+  ['firePort', 'Fire port (left)', ['KeyQ', 'Mouse4']], ['fireStar', 'Fire starboard (right)', ['KeyE', 'MouseR']],
+  ['anchor', 'Anchor', ['Space', '']], ['camera', 'Reset camera', ['KeyC', '']], ['shop', 'Shop', ['KeyU', 'KeyB']],
   ['menu', 'Battle Royale menu', ['Tab', '']], ['pause', 'Pause', ['KeyP', '']], ['sound', 'Sound on/off', ['KeyM', '']], ['full', 'Fullscreen', ['KeyF', '']],
 ];
-const KEY = 'pfp_keys_v1', RESERVED = new Set(['Escape']);
+const KEY = 'pfp_keys_v1', RESERVED = new Set(['Escape', 'MouseL']); // left click = camera drag / orbit
+// [mouse binds] mouse buttons bind like keys: 'MouseM' (wheel click), 'MouseR' (right), 'Mouse4' (side / back), 'Mouse5' (side / forward)
+export const MOUSE_CODES = ['MouseL', 'MouseM', 'MouseR', 'Mouse4', 'Mouse5'];
+export const mouseCode = (button) => MOUSE_CODES[button] || '';
 const defaults = () => Object.fromEntries(ACTIONS.map(([id, , d]) => [id, [...d]]));
 let map = defaults();
-try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) for (const id in map) if (Array.isArray(s[id])) map[id] = [0, 1].map(i => typeof s[id][i] === 'string' && !RESERVED.has(s[id][i]) ? s[id][i] : ''); } catch {}
+try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) {
+  for (const id in map) if (Array.isArray(s[id])) map[id] = [0, 1].map(i => typeof s[id][i] === 'string' && !RESERVED.has(s[id][i]) ? s[id][i] : '');
+  // saved binds stay; the new mouse defaults only fill an EMPTY slot, and only if no other action already uses that button
+  const used = new Set(Object.values(map).flat());
+  for (const [id, , d] of ACTIONS) d.forEach((c, i) => { if (c.startsWith('Mouse') && !map[id][i] && !used.has(c)) { map[id][i] = c; used.add(c); } });
+} } catch {}
 const subs = new Set();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(map)); } catch {} subs.forEach(f => f()); };
 export const onBindsChange = (f) => { subs.add(f); };
@@ -26,7 +34,7 @@ export function setBind(id, slot, code) {
 export function resetBinds() { map = defaults(); save(); }
 export function keyName(code) {
   if (!code) return '—';
-  const n = { Space: 'SPACE', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Tab: 'TAB', Enter: 'ENTER', ShiftLeft: 'L-SHIFT', ShiftRight: 'R-SHIFT', ControlLeft: 'L-CTRL', ControlRight: 'R-CTRL', AltLeft: 'L-ALT', AltRight: 'R-ALT', Backspace: 'BKSP', CapsLock: 'CAPS' }[code];
+  const n = { MouseL: 'MOUSE L', MouseM: 'MOUSE M', MouseR: 'MOUSE R', Mouse4: 'MOUSE 4', Mouse5: 'MOUSE 5', Space: 'SPACE', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Tab: 'TAB', Enter: 'ENTER', ShiftLeft: 'L-SHIFT', ShiftRight: 'R-SHIFT', ControlLeft: 'L-CTRL', ControlRight: 'R-CTRL', AltLeft: 'L-ALT', AltRight: 'R-ALT', Backspace: 'BKSP', CapsLock: 'CAPS' }[code];
   return n || code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'NUM ').toUpperCase();
 }
 const both = (id) => binds(id).filter(Boolean).map(keyName).join('/');
@@ -34,6 +42,25 @@ const both = (id) => binds(id).filter(Boolean).map(keyName).join('/');
 export function controlsLine(short = false) {
   const steer = `${keyName(binds('left')[0])}/${keyName(binds('right')[0])}${binds('left')[1] && binds('right')[1] ? ` or ${keyName(binds('left')[1])}/${keyName(binds('right')[1])}` : ''}`;
   const sail = `${keyName(binds('sailUp')[0])}/${keyName(binds('sailDown')[0])}`, fire = `${both('firePort')}/${both('fireStar')}`;
-  return short ? `${steer} steer · ${sail} sails · ${fire} broadsides · ${both('anchor')} anchor · drag to look`
-    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · drag mouse to orbit`;
+  return short ? `${steer} steer · ${sail} sails · ${fire} broadsides · ${both('anchor')} anchor · drag to look · wheel zoom`
+    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · drag mouse to orbit · wheel to zoom`;
+}
+
+// [mouse binds] mouse buttons (not left) act as keys: a synthetic keydown / keyup with code 'MouseR' etc., so every key handler
+// (game, shop, Battle Royale menu, the rebind overlay) works unchanged. Only while playing / spectating or while rebinding.
+// Right click: no context menu over the game. Side buttons: no browser back / forward while in game.
+export function installMouseBinds({ inGame, canvas }) {
+  const rebinding = () => { const ov = document.getElementById('ctl-ov'); return ov && !ov.classList.contains('hidden'); };
+  const send = (type, e) => {
+    const code = mouseCode(e.button); if (!code || code === 'MouseL') return;
+    const reb = rebinding(); if (!reb && !inGame()) return;
+    if (!reb && e.target !== canvas && e.target.closest?.('button, input, a, select, textarea, .overlay:not(.hidden), #shop, #pvp-menu, .faq')) return; // clicks on menus stay clicks
+    if (e.button >= 3 || e.button === 1) e.preventDefault(); // no back / forward / autoscroll
+    dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true }));
+  };
+  addEventListener('mousedown', (e) => send('keydown', e), true);
+  addEventListener('mouseup', (e) => { if (e.button >= 3 && (inGame() || rebinding())) e.preventDefault(); send('keyup', e); }, true);
+  addEventListener('auxclick', (e) => { if (e.button >= 1 && (inGame() || rebinding())) e.preventDefault(); }, true);
+  addEventListener('contextmenu', (e) => { if (e.target === canvas || rebinding() || (inGame() && e.target.closest?.('#hud'))) e.preventDefault(); }, true);
+  addEventListener('popstate', () => {}); // (no history entries are pushed; nothing to restore)
 }

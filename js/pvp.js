@@ -18,7 +18,7 @@ import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, har
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
-import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop } from './pvpSave.js';
+import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
@@ -27,7 +27,7 @@ import { makeChest } from './props.js';
 import { setRunLevels, getRunLevels } from './shop.js';
 import { getSavedName, saveName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
 import { ON_PORTAL } from './config.js';
-import { mountKillsBoard, renderKills } from './pvpBoard.js';
+import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -484,7 +484,7 @@ export function createPvp(K) {
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
   function boardClaim(side, k, v, life, keepalive = false) {
     if (!room || typeof k !== 'string' || typeof v !== 'string') return;
-    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r; });
+    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r; if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); } });
   }
   function resetBounty() { me.streak = 0; me.bounty = 0; }
   function creditKill(by, victim) {
@@ -587,16 +587,31 @@ export function createPvp(K) {
     if (where !== 'arena' || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
-      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), k: me.kills, d: me.deaths, g: me.gold, K: profile.stats.kills, D: profile.stats.deaths };
+      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD() };
     return m;
   }
 
   // ---------------- HUD / menus ----------------
+  // [rank] '#' next to your name = your BATTLE ROYALE all-time kills rank ('—' unranked), from the pvp function ('me', same
+  // identity as the kills board). Kills / deaths on the HUD = lifetime: the saved profile, or the server's confirmed count if higher.
+  const rk = { rank: null, kills: 0, deaths: 0, at: 0, busy: false };
+  const lifeK = () => Math.max(profile.stats.kills, rk.kills), lifeD = () => Math.max(profile.stats.deaths, rk.deaths);
+  const rankTxt = () => rk.rank ? String(rk.rank) : '—';
+  function showRank() { // name ellipsizes on narrow phones, the rank never does
+    const hn = $('captain-name'); if (!hn || spec.on) return;
+    const a = document.createElement('span'), b = document.createElement('span'); a.className = 'cn-name'; b.className = 'cn-rank';
+    a.textContent = String(name).toUpperCase(); b.textContent = `\u00a0· #${rankTxt()}`; b.title = 'Your BATTLE ROYALE rank (all-time kills)'; hn.replaceChildren(a, b); hn.classList.add('cn-split');
+  }
+  function refreshRank(force = false) {
+    if (rk.busy || (!force && performance.now() - rk.at < 30000)) return; rk.busy = true; rk.at = performance.now();
+    fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; showRank(); K.updateHud(); } }).finally(() => { rk.busy = false; });
+  }
   function hud() {
     if (!active) return;
+    if (!spec.on) refreshRank(); // every 30 s at most
     const lab = document.querySelectorAll('#hud-top .label');
     if (lab.length === 4) { lab[0].textContent = 'KILLS'; lab[1].textContent = 'DEATHS'; lab[3].textContent = 'K/D'; }
-    $('score').textContent = me.kills; $('wave').textContent = me.deaths; $('gold').textContent = game.gold; $('sunk').textContent = kd(profile.stats.kills, profile.stats.deaths);
+    $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     $('enemies-left').textContent = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''}`
       : room ? `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}` : 'joining…';
@@ -656,10 +671,10 @@ export function createPvp(K) {
     } catch (e) { msg(String(e?.message || e).slice(0, 120)); }
     finally { $('pvp-wallet').disabled = false; }
   }
-  const capNo = () => ($('captain-name')?.textContent.match(/#(\S+)$/) || [])[1];
+  const capNo = () => game.captain; // the captain portrait number (default CAPT. #N name); the HUD '#' is the rank
   function setName(v, keep = true) { // the chosen PvP name everywhere: HUD (top-left), menu field, name tag / feed / boards (via state 'n')
     name = v; if (keep) saveName(v);
-    const hn = $('captain-name'); if (hn) { const m = hn.textContent.match(/ · #\S+$/); hn.textContent = `${name.toUpperCase()}${m ? m[0] : ''}`; }
+    showRank();
     const mn = $('pvp-name'); if (mn) mn.value = name;
   }
   function addrCheck() {
@@ -675,9 +690,18 @@ export function createPvp(K) {
     saveWallet(v); saveAirdrop(v, name).catch(() => {});
   }
   let uiWired = false;
+  function dockButtons() { // [hud] 🏴 + ⚓ HARBOR sit in their own row under the minimap (never over it, any screen)
+    const tr = $('hud-tr'); if (!tr || $('pvp-tr')) return;
+    const row = document.createElement('div'); row.id = 'pvp-tr'; row.className = 'pvp-only';
+    for (const id of ['pvp-skins-btn', 'pvp-return', 'btn-pvp-menu']) { const el = $(id); if (el) row.appendChild(el); }
+    tr.appendChild(row);
+  }
   function wireUi() {
+    dockButtons();
     if (uiWired) return; uiWired = true;
     $('btn-pvp-menu').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleMenu(); });
+    $('pvp-skins-btn')?.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); toggleMenu(true); // [harbor] straight to the skins picker
+      requestAnimationFrame(() => $('pvp-skins')?.previousElementSibling?.scrollIntoView({ block: 'start', behavior: 'smooth' })); });
     $('pvp-menu-close').onclick = () => toggleMenu(false);
     $('pvp-wallet').onclick = walletButton;
     $('pvp-holder-claim')?.addEventListener('click', (e) => { e.stopPropagation(); claimHolderGold(); });
@@ -730,7 +754,7 @@ export function createPvp(K) {
   async function specBegin() {
     spec.on = true; spec.mode = 'leader'; spec.target = null; spec.emptyT = 0; spec.camLock = 2;
     const pl = P(); me.dead = true; me.protect = 0; pl.alive = false; pl.hp = 0; pl.speed = 0; pl.mesh.visible = false; if (pl.shield) pl.shield.visible = false;
-    spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520;
+    spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520; spec.touchOne = K.controls.touches.ONE; K.controls.touches.ONE = -1; // one finger pans (specPan), two pinch-zoom
     document.documentElement.classList.add('pvp-spec'); wireSpec();
     const open = lsGet(LS_BOARD); setBoard(open === null ? matchMedia('(min-width: 700px) and (min-height: 480px)').matches : open === '1', false);
     K.banner('SPECTATING', 'watching the arena · you are invisible to the pirates');
@@ -758,6 +782,7 @@ export function createPvp(K) {
     if (!spec.on) return;
     spec.on = false; spec.want = false; spec.target = null; setHudOff(false);
     document.documentElement.classList.remove('pvp-spec');
+    if (spec.touchOne != null) { K.controls.touches.ONE = spec.touchOne; spec.touchOne = null; } panHeld.clear();
     const pl = P(); pl.mesh.visible = true; if (spec.maxDist) K.controls.maxDistance = spec.maxDist; me.dead = false;
   }
   const specPlayers = () => livePeers().filter(p => p.ship && p.st).sort((a, b) => (b.k - a.k) || (a.d - b.d) || (b.K - a.K));
@@ -774,10 +799,11 @@ export function createPvp(K) {
     // pick who to watch: the kill leader by default, else the chosen captain while they're in the room
     if (spec.mode === 'leader') { const lead = list[0]?.id || null; if (lead !== spec.target) { spec.target = lead; spec.camLock = Math.max(spec.camLock, 1.2); } }
     else if (spec.mode === 'manual' && !peers.has(spec.target)) { spec.mode = 'leader'; spec.target = list[0]?.id || null; }
-    const tgt = spec.mode === 'overview' ? null : peers.get(spec.target)?.ship;
-    const pl = P(), tx = tgt ? tgt.x : 0, tz = tgt ? tgt.z : 0;
+    if (spec.mode === 'free') specPanStep(dt);
+    const tgt = spec.mode === 'overview' || spec.mode === 'free' ? null : peers.get(spec.target)?.ship;
+    const pl = P(), tx = spec.mode === 'free' ? spec.free.x : tgt ? tgt.x : 0, tz = spec.mode === 'free' ? spec.free.z : tgt ? tgt.z : 0;
     // smooth camera: the hidden rig glides to the target (long moves glide fast), the camera keeps its orbit offset
-    const d = Math.hypot(tx - pl.x, tz - pl.z), k = 1 - Math.exp(-dt * (d > 120 ? 2.2 : 5));
+    const d = Math.hypot(tx - pl.x, tz - pl.z), k = spec.mode === 'free' ? 1 - Math.exp(-dt * 12) : 1 - Math.exp(-dt * (d > 120 ? 2.2 : 5));
     pl.x += (tx - pl.x) * k; pl.z += (tz - pl.z) * k;
     if (tgt) { pl.yaw += angWrap(tgt.yaw - pl.yaw) * Math.min(1, dt * 3); pl.speed = tgt.speed; } else pl.speed = 0;
     pl.alive = false; pl.mesh.visible = false;
@@ -794,35 +820,53 @@ export function createPvp(K) {
     if (!room) { spec.emptyT += dt; if (spec.emptyT > 30) { spec.emptyT = 0; specJoin(1); } } // reconnect / retry a full spectator budget
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; specHud(); renderFeed(); renderSpecBoard(); }
   }
+  // [spectate pan] free camera: WASD / arrows (desktop) or a one-finger drag (phones) move the focus point over the arena,
+  // relative to where the camera faces, clamped to the arena. Panning detaches from following; ◀ ▶ / a captain / KILL LEADER /
+  // F re-attach. Pinch (two fingers) still zooms, the wheel zooms on desktop.
+  const PAN_KEYS = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
+  const panHeld = new Set();
+  function specDetach() { if (spec.mode === 'free') return; const pl = P(); spec.free = { x: pl.x, z: pl.z }; spec.mode = 'free'; spec.target = null; specHud(); renderSpecBoard(); }
+  function specPanBy(f, r) { // f / r in metres along the camera's flat forward / right
+    const cam = K.camera, c = K.controls.target; let fx = c.x - cam.position.x, fz = c.z - cam.position.z; const l = Math.hypot(fx, fz) || 1; fx /= l; fz /= l;
+    const nx = spec.free.x + fx * f - fz * r, nz = spec.free.z + fz * f + fx * r, R = PVP_ARENA_R * 1.05, m = Math.hypot(nx, nz);
+    spec.free.x = m > R ? nx / m * R : nx; spec.free.z = m > R ? nz / m * R : nz;
+  }
+  function specPanStep(dt) {
+    if (!panHeld.size) return; let f = 0, r = 0; for (const c of panHeld) { const v = PAN_KEYS[c]; r += v[0]; f += v[1]; }
+    const sp = Math.max(40, K.camera.position.distanceTo(K.controls.target) * 1.1) * dt; if (f || r) specPanBy(f * sp, r * sp);
+  }
   function specHud() {
     if (!spec.on) return;
     const list = specPlayers(), p = spec.mode === 'overview' ? null : peers.get(spec.target);
     const who = $('spec-name'), st = $('spec-stats'), ic = $('spec-skin');
     if (p) { who.textContent = p.name; st.textContent = `${tierOf(p.sk)?.name || 'CLASSIC'} · ${p.k} kills · ${p.d} deaths · K/D ${kd(p.K, p.D)}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
-    else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now'; ic.hidden = true; }
-    $('spec-mode').textContent = spec.mode === 'leader' ? 'FOLLOWING THE KILL LEADER' : spec.mode === 'overview' ? 'OVERVIEW' : 'FOLLOWING';
+    else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now'; ic.hidden = true; }
+    $('spec-mode').textContent = spec.mode === 'leader' ? 'FOLLOWING THE KILL LEADER' : spec.mode === 'overview' ? 'OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'FOLLOWING';
     $('spec-room').textContent = `ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
     $('spec-leader').classList.toggle('on', spec.mode === 'leader'); $('spec-overview').classList.toggle('on', spec.mode === 'overview');
   }
   function renderSpecBoard() {
     if (!spec.on) return; const t = $('spec-table'); if (!t) return;
     const list = specPlayers();
-    const html = `<tr><th></th><th>CAPTAIN</th><th>K</th><th>D</th><th>K/D</th><th title="lifetime K/D">LIFE</th><th title="streak bounty">☠</th></tr>` + (list.length ? list.map((p, i) =>
-      `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i>${esc(p.name)}</td><td>${p.k}</td><td>${p.d}</td><td>${kd(p.k, p.d)}</td><td>${kd(p.K, p.D)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`).join('')
-      : `<tr><td colspan="7" class="muted">No captains in this room yet</td></tr>`);
+    // ALL-TIME kills / deaths / K/D (each captain's saved stats) + a live hull bar (BANKSY)
+    const hpPct = (p) => { const s = p.ship, h = s ? s.hp : p.st?.h, m = s ? s.maxHp : p.st?.m; return m ? Math.max(0, Math.min(100, Math.round(h / m * 20) * 5)) : 0; };
+    const html = `<tr><th></th><th>CAPTAIN</th><th title="all-time kills">K</th><th title="all-time deaths">D</th><th title="all-time K/D">K/D</th><th title="streak bounty">☠</th></tr>` + (list.length ? list.map((p, i) => { const hp = hpPct(p);
+      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${p.K | 0}</td><td>${p.D | 0}</td><td>${kd(p.K | 0, p.D | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
+      : `<tr><td colspan="6" class="muted">No captains in this room yet</td></tr>`);
     if (t._html !== html) { t._html = html; t.innerHTML = html; } // only touch the DOM when something changed
   }
   function setBoard(open, remember = true) { $('spec-board')?.classList.toggle('open', open); $('spec-board-tab')?.setAttribute('aria-expanded', open); if (remember) lsSet(LS_BOARD, open ? '1' : '0'); }
   function setHudOff(off) {
     spec.hudOff = off; document.documentElement.classList.toggle('hud-off', off);
-    if (off) K.banner('HUD HIDDEN', 'press H or double-tap to bring it back');
+    if (off) K.banner('HUD HIDDEN', 'tap 👁 SHOW HUD (top right), press H or double-tap to bring it back');
   }
   function wireSpec() {
     if (spec.wired) return; spec.wired = true;
     const tap = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fn(); }); };
     tap('spec-prev', () => specCycle(-1)); tap('spec-next', () => specCycle(1));
     tap('spec-leader', () => specFollow(null, 'leader')); tap('spec-overview', () => specFollow(spec.target, spec.mode === 'overview' ? 'leader' : 'overview'));
-    tap('spec-hide', () => setHudOff(true)); tap('spec-exit', () => specToHarbor()); tap('spec-join', async () => { await specToHarbor(); joinBattle(); });
+    tap('spec-hide', () => setHudOff(true)); tap('spec-showhud', () => setHudOff(false));
+    for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $('spec-showhud')?.addEventListener(ev, e => e.stopPropagation()); tap('spec-exit', () => specToHarbor()); tap('spec-join', async () => { await specToHarbor(); joinBattle(); });
     tap('spec-board-tab', () => setBoard(!$('spec-board').classList.contains('open')));
     $('spec-table').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) { e.stopPropagation(); specFollow(tr.dataset.id, 'manual'); } });
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) for (const id of ['spec-hud', 'spec-board']) $(id).addEventListener(ev, e => e.stopPropagation());
@@ -830,11 +874,26 @@ export function createPvp(K) {
       if (!spec.on || e.target.tagName === 'INPUT') return;
       if (e.code === 'KeyH') setHudOff(!spec.hudOff);
       else if (e.code === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); setBoard(!$('spec-board').classList.contains('open')); }
-      else if (e.code === 'ArrowLeft' || e.code === 'KeyA') specCycle(-1);
-      else if (e.code === 'ArrowRight' || e.code === 'KeyD') specCycle(1);
+      else if (PAN_KEYS[e.code]) { e.preventDefault(); e.stopImmediatePropagation(); specDetach(); panHeld.add(e.code); }
+      else if (e.code === 'KeyQ' || e.code === 'Comma') specCycle(-1);
+      else if (e.code === 'KeyE' || e.code === 'Period') specCycle(1);
+      else if (e.code === 'KeyF') { const l = specPlayers(); specFollow(spec.target && peers.has(spec.target) ? spec.target : l[0]?.id || null, spec.target ? 'manual' : 'leader'); }
       else if (e.code === 'KeyO') specFollow(spec.target, spec.mode === 'overview' ? 'leader' : 'overview');
       else if (e.code === 'KeyL') specFollow(null, 'leader');
     }, true);
+    addEventListener('keyup', (e) => { panHeld.delete(e.code); }, true);
+    addEventListener('blur', () => panHeld.clear());
+    { // phones: one finger on the sea pans (OrbitControls' one-finger orbit is off while spectating; pinch still zooms)
+      const cv = K.controls.domElement; let last = null;
+      cv.addEventListener('touchstart', (e) => { if (!spec.on) return; last = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
+      cv.addEventListener('touchmove', (e) => {
+        if (!spec.on || !last || e.touches.length !== 1) { last = null; return; }
+        const t = e.touches[0], dx = t.clientX - last.x, dy = t.clientY - last.y; last = { x: t.clientX, y: t.clientY };
+        if (Math.abs(dx) + Math.abs(dy) < 0.5) return; specDetach();
+        const k = K.camera.position.distanceTo(K.controls.target) * 1.6 / Math.max(320, innerHeight); specPanBy(dy * k, -dx * k);
+      }, { passive: true });
+      cv.addEventListener('touchend', () => { last = null; }, { passive: true });
+    }
     // phones: double-tap anywhere brings a hidden HUD back
     let lastTap = 0;
     addEventListener('touchend', () => { if (!spec.on || !spec.hudOff) return; const t = performance.now(); if (t - lastTap < 320) setHudOff(false); lastTap = t; });
@@ -849,7 +908,7 @@ export function createPvp(K) {
     where = 'harbor'; Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
     if (spec.want) return specBegin();
     document.documentElement.classList.add('pvp-harbor');
-    respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi);
+    respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi); refreshRank(true);
     const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = getSavedName(); $('pvp-entry-name').placeholder = capNo() ? `CAPT. #${capNo()}` : name; const a = $('pvp-entry-addr'); if (a) { a.value = getSavedWallet(); addrCheck(); } en.classList.remove('hidden'); }
   }
   // quit-to-dodge / AFK in a fight: leaving the arena within 10 s of taking PvP damage counts as a death (gold drops for the others)
@@ -879,7 +938,7 @@ export function createPvp(K) {
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length === 4) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[3].textContent = 'SUNK'; }
   }
 
-  const api = { myId, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
+  const api = { myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,

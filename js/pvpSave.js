@@ -114,6 +114,11 @@ export function claimKill({ side, room, k, v, life, name, keepalive = false }) {
   if (!claimAuth) { const s = session(); claimAuth = s ? { token: s.token } : { dk: deviceKey() }; }
   return api('kill', { ...claimAuth, side, room, k, v, l: life | 0, name }, { keepalive }).then(j => j.result).catch(e => { console.warn('[pvp] kill claim', e.message); return null; });
 }
+// HUD: my all-time PvP kills rank (same order as the ALL TIME board) + confirmed kills / deaths, same identity as claimKill.
+export function fetchMe() {
+  if (!PVP_FN_URL) return Promise.resolve(null);
+  const s = session(); return api('me', s ? { token: s.token } : { dk: deviceKey() }).catch(e => { console.warn('[pvp] me', e.message); return null; });
+}
 const topCache = new Map();
 export async function fetchKillsTop(period = 'all') {
   const c = topCache.get(period); if (c && Date.now() - c.at < 20000) return c.rows;
@@ -122,4 +127,4 @@ export async function fetchKillsTop(period = 'all') {
   topCache.set(period, { at: Date.now(), rows }); return rows;
 }
 export const clearKillsTopCache = () => topCache.clear();
-window.PFP_PVP_SAVE = { loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache };
+window.PFP_PVP_SAVE = { loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

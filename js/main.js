@@ -16,7 +16,7 @@ import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } fr
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
-import { isKey, held as heldKey } from './keybinds.js'; // [keybinds] desktop rebindable keys
+import { isKey, held as heldKey, installMouseBinds } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
@@ -566,6 +566,7 @@ window.PFP_AUDIO = { sfx, setLoadout };
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 initControlsUi();
+installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spectating });
 $('btn-ctl-title').onclick = () => openControls();
 $('btn-ctl-pause').onclick = () => openControls();
 $('btn-ctl').onclick = () => { // in-game: Waves pauses underneath, Battle Royale keeps sailing (shared sea)
@@ -906,12 +907,13 @@ function startGame(mode = null) {
   Object.assign(game, { escortSunk: 0, storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
   $('captain-img').src = `assets/captains/${game.captain}.jpg`;
+  $('captain-name').classList.remove('cn-split');
   $('captain-name').textContent = game.name ? `${game.name.toUpperCase()} · #${game.captain}` : `CAPT. #${game.captain}`;
   $('wallet-short').textContent = shortWallet(game.wallet);
   ['title', 'gameover', 'pause'].forEach(id => $(id).classList.add('hidden'));
   $('hud').classList.remove('hidden'); $('hint').style.opacity = 1;
   resetShop(); // [Raul] ship upgrades: fresh run, base stats
-  if (game.mode === 'pvp') { game.wave = 3; pvp.applyProfile(); $('captain-name').textContent = `${pvp.name.toUpperCase()} · #${game.captain}`; } // [pvp] saved upgrades + gold; AI ships at wave-3 strength
+  if (game.mode === 'pvp') { game.wave = 3; pvp.applyProfile(); pvp.showRank(); } // '#' = Battle Royale kills rank // [pvp] saved upgrades + gold; AI ships at wave-3 strength
   resetCamera();
   updateHud();
   rotateTimer = 0; updateRotateHint();
@@ -1099,6 +1101,7 @@ function frame() {
   controls.target.copy(tgt);
   if (game.state === 'title') { const off = camera.position.clone().sub(tgt).applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.06); camera.position.copy(tgt).add(off); }
   controls.update();
+
   { const low = game.state === 'title' && PHONE_MQ.matches; // [mobile title] phones: frame the ship lower on screen, under the logo
     if (low !== camLow) { camLow = low; if (low) camera.setViewOffset(1, 1, 0, PHONE_MQ_LAND.matches ? -0.18 : -0.26, 1, 1); else camera.clearViewOffset(); camera.updateProjectionMatrix(); } }
   const minY = waveHeight(camera.position.x, camera.position.z, t) + 2.5;
@@ -1219,4 +1222,4 @@ const pvpCtx = { scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => pl
     requestAnimationFrame(probe);
   }, 6000);
 }
-window.PFP = { islands, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
+window.PFP = { islands, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests

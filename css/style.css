@@ -54,7 +54,7 @@ button, input { font-family: 'Just Another Hand', cursive; letter-spacing: 0.05e
 button.icon { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--glass); color: #fff; font-size: 19px; cursor: pointer; display: grid; place-items: center; backdrop-filter: blur(6px); font-family: system-ui, sans-serif; }
 button.icon:hover { border-color: var(--gold); }
 #radar { grid-column: 1 / span 5; width: 150px; height: 150px; border-radius: 50%; border: 1px solid var(--line); background: rgba(10, 20, 26, 0.6); margin-top: 4px; justify-self: end; pointer-events: none !important; }
-#enemies-left { grid-column: 1 / span 4; justify-self: end; font-size: 20px; text-shadow: 0 2px 3px #000; }
+#enemies-left { grid-column: 1 / -1; justify-self: end; font-size: 20px; text-shadow: 0 2px 3px #000; }
 
 #controls { position: absolute; bottom: calc(18px + var(--safe-b)); left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; }
 #pill { display: flex; align-items: center; gap: 10px; background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
@@ -464,7 +464,7 @@ html.ios-pwa #status-plate::after {
 /* game portals (html.portal, set in index.html): offline + crypto-free; js/portal.js swaps the boards for a this-device best */
 .portal .token-row, .portal .wallet-row, .portal #wallet-note, .portal .disclaimer,
 .portal .board-wrap, .portal #go-entry, .portal #go-wallet, .portal #save-msg,
-.portal #btn-faq, .portal #faq, .portal #btn-full { display: none !important; } /* no '?' help, no custom fullscreen on portals */
+.portal #btn-full { display: none !important; } /* no custom fullscreen on portals; the '?' is a how-to-play + copyright there */
 .portal-best { display: none; }
 .portal .portal-best { display: block; margin: 10px 0; text-align: center; color: var(--gold); font-size: 30px; letter-spacing: 0.04em; }
 .portal .portal-best b { color: #fff; font-weight: 400; }
@@ -554,9 +554,26 @@ html.pvp .wave-next, html.pvp #next-wave { display: none !important; }
 html.pvp-spec .spec-only { display: block; }
 html.pvp-spec #controls, html.pvp-spec #captain, html.pvp-spec #hud-top, html.pvp-spec #btn-pvp-menu, html.pvp-spec #btn-shop,
 html.pvp-spec #hint, html.pvp-spec #pvp-dead, html.pvp-spec #btn-pause { display: none !important; }
+/* [hud] PvP 🏴 + ⚓ HARBOR docked under the minimap (js/pvp.js dockButtons): nothing overlaps the map, portrait or landscape */
+#pvp-tr { grid-column: 1 / -1; justify-self: end; display: none; gap: 6px; align-items: center; margin-top: 2px; }
+html.pvp #pvp-tr { display: flex; }
+#pvp-tr #btn-pvp-menu, #pvp-tr #pvp-return { position: static; top: auto; right: auto; margin: 0; }
+#pvp-skins-btn { display: none; height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--gold); background: rgba(10,10,10,0.75); color: var(--gold); font: inherit; font-size: 20px; cursor: pointer; pointer-events: auto; white-space: nowrap; }
+html.pvp:not(.pvp-spec) #pvp-skins-btn { display: block; } /* harbor + arena (BANKSY) */
+@media (orientation: portrait) and (max-width: 600px) { html.pvp:not(.pvp-harbor) #pvp-skins-btn .sk-t { display: none; } html.pvp:not(.pvp-harbor) #pvp-skins-btn { padding: 0; width: 36px; } }
+@media (max-width: 600px), (max-height: 520px) { #pvp-skins-btn { height: 36px; font-size: 17px; padding: 0 10px; } }
+#captain-name.cn-split { display: flex; min-width: 0; } #captain-name.cn-split .cn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; } #captain-name.cn-split .cn-rank { flex: none; white-space: pre; }
 html.hud-off #hud, html.hud-off #bars, html.hud-off #popups { display: none !important; }
+/* [spectate] HUD hidden: one small button stays so the HUD can always come back (also H / double-tap) */
+#spec-showhud { display: none; position: absolute; top: calc(10px + var(--safe-t, 0px)); right: calc(10px + var(--safe-r, 0px)); z-index: 30; pointer-events: auto;
+  font-family: system-ui, sans-serif; font-size: 13px; letter-spacing: 0.5px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(0,0,0,0.55); color: var(--gold); cursor: pointer; opacity: 0.85; }
+#spec-showhud:hover { opacity: 1; background: rgba(0,0,0,0.75); }
+html.pvp-spec.hud-off #spec-showhud { display: block; }
 #spec-hud { position: absolute; left: 0; right: 0; bottom: calc(10px + var(--safe-b, 0px)); pointer-events: none; text-align: center; }
 #spec-hud > * { pointer-events: auto; }
+#spec-tip { pointer-events: none !important; font-size: 15px; margin-top: 4px; text-shadow: 0 1px 2px #000; }
+#spec-tip .w-sm { display: none; }
+@media (hover: none), (pointer: coarse) { #spec-tip .w-lg { display: none; } #spec-tip .w-sm { display: inline; } }
 .spec-room { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 4px); white-space: nowrap; font-size: 15px; letter-spacing: 0.5px; color: rgba(255,255,255,0.75); text-shadow: 0 1px 2px #000; pointer-events: none !important; }
 #spec-bar { display: inline-flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 16px; background: rgba(10,10,10,0.72); border: 1px solid var(--line); backdrop-filter: blur(4px); max-width: min(96vw, 620px); }
 #spec-bar > button { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: #fff; font-size: 18px; flex: 0 0 auto; }
@@ -613,6 +630,10 @@ html.hud-off #hud, html.hud-off #bars, html.hud-off #popups { display: none !imp
 /* [pvp] streak bounty: gold skull + amount on the name tag / spectate board */
 .pvp-bounty { color: var(--gold); margin-left: 4px; text-shadow: 0 0 6px rgba(255,190,40,0.6); }
 #spec-table td.sb-bounty { color: var(--gold); }
+#spec-table .sb-name { display: inline-block; max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+#spec-table .sb-hp { display: inline-block; width: 38px; height: 6px; margin-left: 6px; border-radius: 3px; background: rgba(255,255,255,0.18); vertical-align: middle; overflow: hidden; }
+#spec-table .sb-hp b { display: block; height: 100%; background: #3fd06b; transition: width 0.4s; } #spec-table .sb-hp.low b { background: var(--red); }
+@media (max-width: 600px), (max-height: 520px) { #spec-table .sb-hp { width: 26px; height: 5px; margin-left: 4px; } #spec-table .sb-name { max-width: 5.5em; } }
 .pvp-holder { display: inline-block; background: linear-gradient(90deg,#f7c948,#ffdf7e); color: #1b1300; border-radius: 999px; padding: 1px 10px; font-size: 16px; margin: 4px 6px; }
 .pvp-holder[hidden], #pvp-holder-claim[hidden] { display: none !important; }
 
@@ -663,7 +684,7 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
    taller leaderboard so more rows show. Desktop unchanged. */
 .faq-disc { color: rgba(255,255,255,0.7); }
 @media (max-width: 600px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape) {
-  .title-panel .subtitle, .title-panel .controls-help, .title-panel .disclaimer, .title-panel .gfx-note { display: none !important; }
+  .title-panel .controls-help { display: none !important; }
   .title-panel .token-row { margin-top: 6px; }
   .title-panel .board { height: calc(var(--lb-row) * 10); }
 }
@@ -683,3 +704,16 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 .ctl-note { font-size: 17px !important; margin-top: 8px !important; } #ctl-reset { display: block; margin: 6px auto 0; }
 .ctl-touch { font-size: 22px; line-height: 1.3; } .ctl-touch b { color: var(--gold); font-weight: normal; }
 #btn-ctl-pause { margin: 4px auto; }
+#title .gfx-note { display: none !important; } /* [title] no descriptive text on the home screen */
+/* [hud] small landscape phones (≤ 720 px wide): the score bar goes 2×2 so it fits between the logo and the icon row */
+@media (orientation: landscape) and (max-width: 720px) {
+  #hud-top { display: grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 0; border-radius: 14px; padding: 2px 12px; font-size: 19px; line-height: 1.05; }
+}
+@media (orientation: portrait) {
+  #captain-name.cn-split { max-width: 124px; } #captain-name.cn-split .cn-rank { white-space: nowrap; }
+  /* portrait: 4 icons in the top row (room for the captain card); ⌨ sits left of the minimap; in-game logo off so the name + rank fit */
+  #hud #hud-logo { display: none; }
+  #hud-tr { grid-template-columns: repeat(4, 36px); }
+  #hud-tr #btn-ctl { grid-row: 2; grid-column: 1; align-self: start; margin-top: 4px; }
+  #hud-tr #radar { grid-row: 2; grid-column: 1 / -1; }
+}

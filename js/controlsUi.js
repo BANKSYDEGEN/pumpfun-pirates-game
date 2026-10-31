@@ -16,7 +16,7 @@ addEventListener('keydown', (e) => {
 }, true);
 function render() {
   const body = $('ctl-body'); if (!body) return;
-  const touch = `<p class="ctl-touch"><b>◀ FIRE / FIRE ▶</b> broadsides · <b>◀ ▶</b> steer · <b>▲ ▼</b> sails · <b>⚓</b> anchor · drag the sea to look around · <b>🧰</b> shop (Waves) · <b>🏴</b> Battle Royale menu · <b>II</b> pause</p>`;
+  const touch = `<p class="ctl-touch"><b>◀ FIRE / FIRE ▶</b> broadsides · <b>◀ ▶</b> steer · <b>▲ ▼</b> sails · <b>⚓</b> anchor · drag the sea to look around · <b>🧰</b> shop · <b>🏴</b> Battle Royale menu · <b>II</b> pause</p>`;
   if (!KEYBOARD.matches) { body.innerHTML = touch; return; }
   let h = '<table class="ctl-table"><tbody>';
   for (const [id, label] of ACTIONS) {

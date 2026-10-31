@@ -1,7 +1,7 @@
 // PUMPFUN PIRATES · PvP KILLS leaderboard UI (ALL TIME / MONTHLY / DAILY, ranked by confirmed real-player kills, with K/D).
 // Periods use America/Indianapolis calendar days / months (server side, migration 006). Read-only; never touches the
 // solo Top Pirates board. Home screen: a WAVES / BATTLE ROYALE switch, remembered on this device.
-import { fetchKillsTop, kd } from './pvpSave.js';
+import { fetchKillsTop, kd, clearKillsTopCache } from './pvpSave.js';
 import { PVP_ENABLED } from './config.js';
 
 export const KILL_PERIODS = [
@@ -29,6 +29,8 @@ export function mountKillsBoard(wrap) {
   }
   syncPeriodTabs();
 }
+// [board refresh] visible boards re-read the server every 30 s (home BATTLE ROYALE tab, PvP menu); a recorded kill refreshes at once
+setInterval(() => { if (document.visibilityState === 'visible' && [...boards].some(w => w.offsetParent !== null)) { clearKillsTopCache(); refreshKillsBoards(); } }, 30000);
 export function refreshKillsBoards() { for (const w of boards) if (w.offsetParent !== null || w.closest('.lb-br:not(.hidden)')) renderKills(w); }
 export async function renderKills(wrap) {
   const ol = wrap.querySelector('.pk-board'), mode = wrap.querySelector('.pk-mode'), token = {}; tokens.set(wrap, token);

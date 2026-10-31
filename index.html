@@ -96,6 +96,7 @@
   <!-- [pvp] PvP ARENA HUD: kill feed, menu button (scoreboard / skins / name / wallet), death screen -->
   <div id="pvp-feed" class="pvp-only" aria-live="polite"></div>
   <button class="icon pvp-only" id="btn-pvp-menu" title="PvP scoreboard, skins and save (Tab)" aria-label="PvP menu">🏴</button>
+  <button id="pvp-skins-btn" class="pvp-only" type="button" title="Change your ship skin" aria-label="Skins">🎨<span class="sk-t"> SKINS</span></button>
   <button id="pvp-return" class="hidden pvp-only" type="button" title="Return to the harbor with your gold (needs 10 s without combat)">⚓ HARBOR</button>
   <div id="pvp-dead" class="hidden pvp-only">
     <div class="pd-card"><h2>SUNK!</h2><div class="pd-by"></div><div class="pd-drop muted"></div><div class="pd-kd"></div><div class="pd-queue" hidden></div>
@@ -130,6 +131,7 @@
       <button id="spec-join" type="button" class="pvp-btn">JOIN BATTLE</button>
       <button id="spec-exit" type="button" class="ghost">EXIT</button>
     </div>
+    <div id="spec-tip" class="muted"><span class="w-lg">WASD / arrows pan · drag to orbit · wheel zoom · Q/E captains · F follow · L leader · O overview · H hide HUD</span><span class="w-sm">drag to pan · pinch to zoom · ◀ ▶ follow a captain</span></div>
   </div>
   <div id="spec-board" class="spec-only">
     <div class="sb-panel"><div class="sb-title">IN THIS ROOM</div><table id="spec-table"></table></div>
@@ -139,6 +141,7 @@
 </div>
 <div id="bars"></div>
 <div id="popups"></div>
+<button id="spec-showhud" type="button" aria-label="Show the HUD (H)" title="Show the HUD (H)">👁 SHOW HUD</button><!-- [spectate] always visible while the HUD is hidden -->
 <div id="rotate">↻ Turn sideways for the best voyage <button id="rotate-x" aria-label="Dismiss">✕</button></div>
 
 <!-- ============ TITLE ============ -->

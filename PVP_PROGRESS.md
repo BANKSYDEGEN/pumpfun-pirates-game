@@ -127,3 +127,23 @@ Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill
 - Controls (pfp-v67): ⌨ button on the title, in the in-game HUD (both modes) and on the pause screen opens CONTROLS. Desktop: every action
   has two rebindable slots (click, press a key; a key in use swaps over; Esc reserved; RESET TO DEFAULTS), saved in localStorage 'pfp_keys_v1'
   (js/keybinds.js, js/controlsUi.js). Phones: touch controls list. Every controls line on the page follows the current binds.
+
+## pfp-v69 (BANKSY batch 2)
+- **Rank on the player card**: Battle Royale shows `NAME · #N` = all-time PvP kills rank (same order as the ALL TIME board), `#—`
+  unranked. `pvp` function action `me` + `pvp_kills_me()` (migration 009, read-only). Refreshes on entry, every 30 s and after each
+  recorded kill. Waves keeps the captain/NFT number.
+- **Lifetime K/D on the HUD**: KILLS / DEATHS / K/D = saved lifetime stats (device / wallet save, same as upgrades + skins), or the
+  server's confirmed count if higher. Other captains see the same numbers (state 'K' / 'D'); the spectate board shows all-time
+  K / D / K/D + a live hull bar per captain.
+- **Kills board fix (migration 010)**: root cause: `pvp_claim_kill` dropped a both-sides-confirmed kill when the same killer had sunk
+  the same victim within 2 minutes, so 1v1 arenas lost about half their kills (BANKSY2 board 6 K / 3 D vs ~4 K/D in game).
+  Now 20 s (spawn-camp guard); 6/min + 600/day caps kept. One-off reconcile inserted the 6 confirmed-but-dropped kills from the used
+  claim pairs (BANKSY2 → 12 K / 3 D). Nothing deleted. Boards refresh every 30 s while visible and right after a recorded kill.
+- **HUD (phones)**: 🎨 SKINS + ⚓ HARBOR + 🏴 docked in a row under the minimap (js/pvp.js dockButtons), portrait ⌨ left of the map,
+  4 icons in the top row, in-game logo hidden in portrait so name + rank fit, small landscape score bar 2×2. Root cause of the
+  missing 🏴 in v67/v68: the ⌨ button moved 🧰 SHOP one slot left, exactly onto 🏴 (desktop / landscape); in portrait 🏴 sat on the map.
+- **Spectate**: 👁 SHOW HUD button while the HUD is hidden (also H / double-tap). Free camera: WASD / arrows (desktop) or one-finger
+  drag (phones) pan the focus, clamped to the arena; Q/E or ◀ ▶ captains, F follow, L leader, O overview; pinch / wheel zoom.
+- **Mouse binds**: fire left alt = Mouse 4 (side), fire right alt = Mouse R; Mouse 5 / M bindable, left click reserved (orbit).
+  Saved binds kept (defaults only fill empty slots). No context menu over the game, no back/forward from side buttons in game.
+  'Shop (Waves)' → 'Shop' (U/B opens it in both modes). Wheel zoom = existing OrbitControls zoom (unchanged), now in the controls list.

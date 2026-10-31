@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "holder" | "holder_claim" | "airdrop", ... }. The wallet only ever SIGNS A MESSAGE.
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
 
@@ -119,6 +119,17 @@ Deno.serve(async (req) => {
         const { data, error } = await db.rpc("pvp_kills_top", { p_period: period, p_limit: 50 });
         if (error) throw error;
         return json(200, { period, tz: "America/Indiana/Indianapolis", rows: data ?? [] });
+      }
+      // HUD: my all-time PvP kills rank + confirmed kills / deaths (same identity as "kill": wallet session, else device key)
+      case "me": {
+        const wallet = typeof b.token === "string" ? await sessionWallet(b.token) : null;
+        const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
+        const player = wallet ? `wallet:${wallet}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        if (!player) return json(401, { error: "no identity" });
+        const { data, error } = await db.rpc("pvp_kills_me", { p_player: player });
+        if (error) throw error;
+        const r = Array.isArray(data) ? data[0] : data;
+        return json(200, { rank: r?.rank == null ? null : Number(r.rank), kills: Number(r?.kills ?? 0), deaths: Number(r?.deaths ?? 0) });
       }
       case "holder": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
