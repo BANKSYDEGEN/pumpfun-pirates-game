@@ -4,7 +4,7 @@
 // shader on the shared wind clock (no per-frame JS, no skinning). Gunners recoil + ram/load when THEIR side fires
 // (crewFire), walkers pace the waist with a leg/arm swing. A THREE.LOD hides the crew beyond a distance.
 // Budget by quality: high = all gun crews + 3 walkers, culled past 95 m; phones / Medium = one gunner per gun pair + 2
-// walkers past 55 m; low = off. Purely cosmetic: no collision, never in userData.len/beam/depth.
+// walkers past 55 m; [v82] low / phones = a gunner at every cannon (low: no walkers), culled past 80 m. Purely cosmetic: no collision, never in userData.len/beam/depth.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wind } from './ships.js';
@@ -117,12 +117,13 @@ function crewMaterial() {
 
 // ship: buildShip group. gunSlots: [{x, y, z, sx}] gun positions on the deck (body space). deck: {z0, z1, y, x}
 export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
-  if (Q === 'low') return null;
-  const med = PHONE || Q === 'medium';
+  // [v82] phones + LOW keep a gunner at EVERY cannon (BANKSY). Cheap tier: gunners only (no walkers), the same single
+  // merged draw call per ship, no shadows; desktop Medium keeps one gunner per gun pair.
+  const lite = Q === 'low', med = PHONE || Q === 'medium';
   const crew = []; let k = 0;
-  const gun = med ? guns.filter((g, i) => i % 2 === 0) : guns;
+  const gun = med && !PHONE && !lite ? guns.filter((g, i) => i % 2 === 0) : guns;
   for (const g of gun) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.55], info: [0, g.sx, hash(k * 3.3), 0] });
-  if (walk) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
+  if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
   if (!crew.length) return null;
   const parts = crew.map(c => { const g = pirate(c.v % 12).clone(), n = g.attributes.position.count;
     const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
@@ -132,7 +133,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
   const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s; mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), med ? 55 : 95); lod.userData.crew = true;
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
   return lod;
 }

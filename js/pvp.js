@@ -790,7 +790,7 @@ export function createPvp(K) {
   async function specBegin() {
     spec.on = true; spec.mode = 'leader'; spec.target = null; spec.emptyT = 0; spec.camLock = 2; spec.dist = K.camera.aspect < 1 ? SPEC_WIDE_P : SPEC_WIDE_L; // [v79] start wide
     const pl = P(); me.dead = true; me.protect = 0; pl.alive = false; pl.hp = 0; pl.speed = 0; pl.mesh.visible = false; if (pl.shield) pl.shield.visible = false;
-    spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520; spec.touchOne = K.controls.touches.ONE; K.controls.touches.ONE = -1; // one finger pans (specPan), two pinch-zoom
+    spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520; // [v82] one finger spins the view again (as before v69); two fingers pinch-zoom and drag to pan
     document.documentElement.classList.add('pvp-spec'); wireSpec();
     const open = lsGet(LS_BOARD); setBoard(open === null ? matchMedia('(min-width: 700px) and (min-height: 480px)').matches : open === '1', false);
     K.banner('SPECTATING', 'watching the arena · you are invisible to the pirates');
@@ -859,7 +859,7 @@ export function createPvp(K) {
     if (!room) { spec.emptyT += dt; if (spec.emptyT > 30) { spec.emptyT = 0; specJoin(1); } } // reconnect / retry a full spectator budget
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; specHud(); renderFeed(); renderSpecBoard(); }
   }
-  // [spectate pan] free camera: WASD / arrows (desktop) or a one-finger drag (phones) move the focus point over the arena,
+  // [spectate pan] free camera: WASD / arrows (desktop) or a two-finger drag (phones, v82) move the focus point over the arena,
   // relative to where the camera faces, clamped to the arena. Panning detaches from following; ◀ ▶ / a captain / KILL LEADER /
   // F re-attach. Pinch (two fingers) still zooms, the wheel zooms on desktop.
   const PAN_KEYS = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
@@ -924,16 +924,17 @@ export function createPvp(K) {
     }, true);
     addEventListener('keyup', (e) => { panHeld.delete(e.code); }, true);
     addEventListener('blur', () => panHeld.clear());
-    { // phones: one finger on the sea pans (OrbitControls' one-finger orbit is off while spectating; pinch still zooms)
+    { // phones: [v82] one finger spins (OrbitControls, as before v69); a two-finger drag pans, pinch zooms
       const cv = K.controls.domElement; let last = null;
-      cv.addEventListener('touchstart', (e) => { if (!spec.on) return; last = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
+      const mid = (e) => ({ x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 });
+      cv.addEventListener('touchstart', (e) => { if (!spec.on) return; last = e.touches.length === 2 ? mid(e) : null; }, { passive: true });
       cv.addEventListener('touchmove', (e) => {
-        if (!spec.on || !last || e.touches.length !== 1) { last = null; return; }
-        const t = e.touches[0], dx = t.clientX - last.x, dy = t.clientY - last.y; last = { x: t.clientX, y: t.clientY };
+        if (!spec.on || e.touches.length !== 2) { last = null; return; }
+        const t = mid(e); if (!last) { last = t; return; } const dx = t.x - last.x, dy = t.y - last.y; last = t;
         if (Math.abs(dx) + Math.abs(dy) < 0.5) return; specDetach();
         const k = K.camera.position.distanceTo(K.controls.target) * 1.6 / Math.max(320, innerHeight); specPanBy(dy * k, -dx * k);
       }, { passive: true });
-      cv.addEventListener('touchend', () => { last = null; }, { passive: true });
+      cv.addEventListener('touchend', (e) => { last = e.touches.length === 2 ? mid(e) : null; }, { passive: true });
     }
     // phones: double-tap anywhere brings a hidden HUD back
     let lastTap = 0;
