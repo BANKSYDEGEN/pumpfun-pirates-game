@@ -26,7 +26,7 @@ import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { makeChest } from './props.js';
 import { setRunLevels, getRunLevels } from './shop.js';
-import { getSavedName, saveName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
+import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
 import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
 
@@ -615,7 +615,7 @@ export function createPvp(K) {
     if (lab.length === 4) { lab[0].textContent = 'KILLS'; lab[1].textContent = 'DEATHS'; lab[3].textContent = 'K/D'; }
     $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
-    $('enemies-left').textContent = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''}`
+    $('enemies-left').textContent = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g\nARENA ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
       : room ? `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}` : 'joining…';
   }
   function showDead(on) {
@@ -704,7 +704,7 @@ export function createPvp(K) {
     $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
     $('pvp-offer-yes').onclick = (e) => { e.stopPropagation(); acceptOffer(); };
     $('pvp-offer-no').onclick = (e) => { e.stopPropagation(); declineOffer(); };
-    $('pvp-entry-go').onclick = (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20); if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
+    $('pvp-entry-go').onclick = (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20); if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
     // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL
     if (ON_PORTAL) document.querySelectorAll('.pvp-airdrop').forEach(n => n.remove()); // crypto-free portal builds
     const addr = $('pvp-entry-addr');
@@ -731,8 +731,8 @@ export function createPvp(K) {
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
-    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR · AI ships pay <b>${harborGold(totalLevel())}</b> gold each${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER +5%</span>' : ''}`; }
-    const c = $('pvp-arena-count'); if (c) c.innerHTML = `ARENA: <b>${lob.players | 0}/${lob.cap || 4}</b> pirates${lob.specs ? ` · ${lob.specs} watching` : ''}${lob.queue && lob.state !== 'queue' ? ` · ${lob.queue} in queue` : ''}`;
+    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER +5%</span>' : ''}`; }
+    if (where === 'harbor') hud(); // [v74] arena head-count + AI pay live under the minimap
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
   }
   function showOffer(on) { $('pvp-offer')?.classList.toggle('hidden', !on); if (on) $('pvp-offer-t').textContent = Math.ceil(Math.max(0, (lob.offerUntil - performance.now()) / 1000)); }

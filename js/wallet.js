@@ -38,3 +38,5 @@ export const saveName = (n) => { // [v72] a changed name is also pushed to the c
   localStorage.setItem('pfp_name', v);
   if (v && v !== old) { try { dispatchEvent(new CustomEvent('pfp-name', { detail: { name: v, old } })); } catch {} }
 };
+// [v74] pop-up SAVE / SET SAIL: always sync the name to my own board rows (also when it didn't change on this device)
+export const syncName = (n) => { const v = (n || '').trim().slice(0, 20); if (v) { try { dispatchEvent(new CustomEvent('pfp-name', { detail: { name: v, force: true } })); } catch {} } };

@@ -740,3 +740,4 @@ html.pvp:not(.pvp-spec) #pause .pvp-set { display: block; }
 #pvp-arena-count b { color: var(--gold); font-weight: normal; }
 @media (max-width: 600px), (max-height: 480px) { #pvp-arena-count { font-size: 15px; padding: 2px 12px; } }
 @media (max-height: 480px) { #pvp-harbor { gap: 5px; } }
+html.pvp #enemies-left { white-space: pre-line; text-align: right; line-height: 1.1; } /* [v74] harbor: 2 short lines under the minimap */

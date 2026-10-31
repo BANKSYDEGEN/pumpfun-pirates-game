@@ -12,7 +12,7 @@ import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
-import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName } from './wallet.js';
+import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName, syncName } from './wallet.js';
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
@@ -746,7 +746,7 @@ function openWavesEntry() {
   renderWavesSkins(); we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
 }
 function wavesGo() {
-  const n = weName.value.trim().slice(0, 20); if (n) saveName(n);
+  const n = weName.value.trim().slice(0, 20); if (n) { saveName(n); syncName(n); }
   const a = weAddr ? weAddr.value.trim() : ''; if (isValidSolanaAddress(a)) saveWallet(a); // optional: anything else is ignored, never blocks
   we.classList.add('hidden'); startGame();
 }
@@ -1176,6 +1176,7 @@ onResize();
 lastTarget.set(player.x, player.y + 4, player.z);
 renderBoard($('board-title'));
 initHomeBoard(); // [pvp]
+addEventListener('pfp-renamed', () => { if (!$('title').classList.contains('hidden')) renderBoard($('board-title')); }); // [v74] Waves board too
 $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_retry'); } catch {}
 requestAnimationFrame(frame);
 

@@ -149,5 +149,7 @@ export async function renameEverywhere(name) {
       out.waves = await r.json().catch(() => null); } } catch {}
   return out;
 }
-addEventListener('pfp-name', (e) => { const n = e.detail?.name; if (!n) return; clearTimeout(renameT); renameT = setTimeout(() => renameEverywhere(n), 1200); });
+let renamedTo = '';
+addEventListener('pfp-name', (e) => { const n = e.detail?.name; if (!n || (e.detail?.force && n === renamedTo)) return; clearTimeout(renameT);
+  renameT = setTimeout(async () => { const r = await renameEverywhere(n); if (r.br?.ok || r.waves?.ok) { renamedTo = n; try { dispatchEvent(new CustomEvent('pfp-renamed', { detail: { name: n } })); } catch {} } }, 800); });
 window.PFP_PVP_SAVE = { renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

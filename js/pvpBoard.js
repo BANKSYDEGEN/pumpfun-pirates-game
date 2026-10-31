@@ -31,6 +31,7 @@ export function mountKillsBoard(wrap) {
 }
 // [board refresh] visible boards re-read the server every 30 s (home BATTLE ROYALE tab, PvP menu); a recorded kill refreshes at once
 setInterval(() => { if (document.visibilityState === 'visible' && [...boards].some(w => w.offsetParent !== null)) { clearKillsTopCache(); refreshKillsBoards(); } }, 30000);
+addEventListener('pfp-renamed', () => { clearKillsTopCache(); refreshKillsBoards(); }); // [v74] board shows the new name right away
 export function refreshKillsBoards() { for (const w of boards) if (w.offsetParent !== null || w.closest('.lb-br:not(.hidden)')) renderKills(w); }
 export async function renderKills(wrap) {
   const ol = wrap.querySelector('.pk-board'), mode = wrap.querySelector('.pk-mode'), token = {}; tokens.set(wrap, token);
