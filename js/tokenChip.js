@@ -28,12 +28,15 @@ function init() {
   if (!SUNK_CA) { const cp = $('ca-copy'); if (cp) cp.style.display = 'none'; chip.setAttribute('aria-label', '$SUNK contract address: TBA'); }
   for (const [id, url] of [['lnk-dex', SUNK_DEX_URL], ['lnk-x', X_URL], ['lnk-tg', TG_URL]]) { const a = $(id); if (!a) continue; if (url) a.href = url; else a.style.display = 'none'; }
   // full CA when the row has room (wide desktop), else abc123…xyzpump; the copy is always the full address
-  // Every layout (BANKSY): the FULL CA on its own line (monospace, never an ellipsis), link buttons on a row under it.
-  // Too narrow: shrink to 11 px; still too narrow: the CA drops to its own line inside the chip and shrinks; last resort: wraps.
+  // PC / desktop (BANKSY): the FULL CA on its own line (monospace, never an ellipsis), link buttons on a row under it; too narrow:
+  // shrink, then stack inside the chip, last resort wrap. Phones (portrait + landscape) keep the pfp-v59 chip (short CA beside the links).
+  const DESK = matchMedia('(min-width: 900px) and (min-height: 560px)');
   const row = chip.parentElement, fit = () => {
     const ca = chip.querySelector('.ca');
-    row.classList.toggle('ca-desk', !!SUNK_CA);
-    if (SUNK_CA) {
+    const desk = DESK.matches && !!SUNK_CA;
+    row.classList.toggle('ca-desk', desk);
+    if (!desk) { chip.classList.remove('stack', 'wrap'); }
+    if (desk) {
       chip.classList.add('full'); chip.classList.remove('stack', 'wrap'); ca.style.fontSize = '';
       const over = () => ca.scrollWidth > ca.clientWidth + 1 || chip.scrollWidth > row.clientWidth + 1 || chip.getBoundingClientRect().right > row.getBoundingClientRect().right + 1;
       for (let px = 15; px >= 11 && over(); px -= 0.5) ca.style.fontSize = px + 'px';
@@ -46,7 +49,7 @@ function init() {
     const socs = row.querySelector('.socs'), wrapped = socs && socs.offsetTop > chip.offsetTop + 4; // the row wraps; full CA only if links stay beside it
     if (ca.scrollWidth > ca.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1 || wrapped) chip.classList.remove('full');
   };
-  fit(); addEventListener('resize', fit); document.fonts?.ready.then(fit);
+  fit(); addEventListener('resize', fit); DESK.addEventListener?.('change', fit); document.fonts?.ready.then(fit);
   const label = $('ca-copy'); let t = 0;
   chip.addEventListener('click', async (e) => {
     e.preventDefault(); e.stopPropagation();
