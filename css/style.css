@@ -755,3 +755,4 @@ html.pvp #enemies-left { white-space: pre-line; text-align: right; line-height: 
 .spec-row:has(#home-live) { flex-direction: column; align-items: center; gap: 0; }
 .name-taken { display: block; color: #ff6b6b; font-size: 15px; margin: -4px 0 4px; } .name-taken.hidden { display: none; } /* [v76] */
 html.pvp:not(.pvp-spec) #pause .pvp-set.pvp-set-inline { display: inline-block; margin: 4px 4px; } #pause #btn-quit { display: inline-block; } #pause #btn-quit, #pause #btn-set-harbor { vertical-align: middle; line-height: 1.25; height: 2.0em; box-sizing: border-box; } /* [v76] ⚓ HARBOR next to MAIN MENU */
+#captain-img.av-logo { background: #0d0d0d; object-fit: contain; padding: 4px; box-sizing: border-box; } /* [v78] skull fallback */

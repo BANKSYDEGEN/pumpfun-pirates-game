@@ -1,4 +1,5 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
+import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
@@ -938,7 +939,7 @@ function startGame(mode = null) {
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
   Object.assign(game, { escortSunk: 0, storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
-  $('captain-img').src = `assets/captains/${game.captain}.jpg`;
+  setAvatar($('captain-img'), `assets/captains/${game.captain}.jpg`); // [v78] falls back to the skull if it fails to load
   $('captain-name').classList.remove('cn-split');
   $('captain-name').textContent = game.name ? `${game.name.toUpperCase()} · #${game.captain}` : `CAPT. #${game.captain}`;
   $('wallet-short').textContent = shortWallet(game.wallet);

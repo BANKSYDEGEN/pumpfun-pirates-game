@@ -12,6 +12,7 @@ import { isKey } from './keybinds.js';
 //  - the lowest-id client in the room is HOST: it owns gold piles (who picked up which pile) and
 //    turns a sunk player's report into a pile (carried gold + PVP_DEATH_BONUS). When the host leaves, the next one takes over.
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
+import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
 import { crewFire } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
@@ -604,6 +605,7 @@ export function createPvp(K) {
   function showRank() { // name ellipsizes on narrow phones, the rank never does
     const hn = $('captain-name'); if (!hn || spec.on) return;
     const a = document.createElement('span'), b = document.createElement('span'); a.className = 'cn-name'; b.className = 'cn-rank';
+    setAvatar($('captain-img'), nftSrc(rk.rank)); // [v78] rank #N = NFT #N (1–333), else the skull
     a.textContent = String(name).toUpperCase(); b.textContent = `\u00a0· #${rankTxt()}`; b.title = 'Your BATTLE ROYALE rank (all-time kills)'; hn.replaceChildren(a, b); hn.classList.add('cn-split');
   }
   function refreshRank(force = false) {
