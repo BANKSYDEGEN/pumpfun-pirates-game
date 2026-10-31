@@ -152,4 +152,12 @@ export async function renameEverywhere(name) {
 let renamedTo = '';
 addEventListener('pfp-name', (e) => { const n = e.detail?.name; if (!n || (e.detail?.force && n === renamedTo)) return; clearTimeout(renameT);
   renameT = setTimeout(async () => { const r = await renameEverywhere(n); if (r.br?.ok || r.waves?.ok) { renamedTo = n; try { dispatchEvent(new CustomEvent('pfp-renamed', { detail: { name: n } })); } catch {} } }, 800); });
-window.PFP_PVP_SAVE = { renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };
+// [v76] one name = one pirate (BR + Waves). true = free / mine, false = taken by someone else, null = couldn't check
+// (offline: the server still blocks a taken name when it lands).
+export async function checkName(name, { mode = 'br', wallet = '' } = {}) {
+  const n = String(name || '').trim().slice(0, 20); if (!n || !PVP_FN_URL) return null;
+  const s = session();
+  try { const j = await api('name_check', { ...(s ? { token: s.token } : { dk: deviceKey() }), name: n, mode, ...(mode === 'waves' && wallet ? { wallet } : {}) }); return j.free === true; }
+  catch { return null; }
+}
+window.PFP_PVP_SAVE = { checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

@@ -127,6 +127,7 @@
   <div id="pvp-afk" class="hidden pvp-only">MOVE OR BE SENT TO THE HARBOR · <b>30</b></div>
   <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>BATTLE ROYALE</h2>
     <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+    <small id="pvp-entry-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
     <label class="field pvp-airdrop"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="pvp-entry-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
     <small id="pvp-entry-addr-msg" class="muted pvp-airdrop">Used for airdrops. Never asks for keys or signatures.</small>
     <button id="pvp-entry-wallet" type="button" class="wallet-link">Connect wallet to save (optional, read-only)</button>
@@ -186,6 +187,7 @@
     <button id="we-close" class="faq-x" type="button" aria-label="Close">✕</button>
     <h2>WAVES</h2>
     <label class="field"><span>PIRATE NAME</span><input id="we-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+    <small id="we-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
     <label class="field we-crypto"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="we-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
     <small id="we-addr-msg" class="muted we-crypto">Used for airdrops. Never asks for keys or signatures.</small>
     <div class="row wallet-row we-crypto"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
@@ -216,7 +218,7 @@
       <button id="btn-pvp" class="big pvp-btn mode-btn" type="button" title="BATTLE ROYALE: real-time PvP, drop in and fight other pirates">BATTLE ROYALE</button>
       <button id="btn-start" class="big mode-btn" type="button" title="WAVES: solo, survive the waves and top the leaderboard">WAVES</button>
     </div>
-    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the Battle Royale without playing (no ship, invisible to pirates)">👁 <span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button></div>
+    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the Battle Royale without playing (no ship, invisible to pirates)">👁 <span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button><div id="home-live" class="hidden"></div></div>
 
 
    </div>
@@ -249,7 +251,7 @@
     <div class="controls-help" data-ctl="long">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · M sound</div>
     <button id="btn-ctl-pause" class="ghost" type="button">⌨ KEY BINDINGS / CONTROLS</button>
     <button id="btn-set-pvpmenu" class="ghost pvp-set" type="button">🏴 SKINS · SCOREBOARD · NAME</button>
-    <button id="btn-set-harbor" class="ghost pvp-set" type="button">⚓ RETURN TO HARBOR <small class="muted">(keep gold · 10 s no combat)</small></button>
+    <div id="set-save"><span id="set-save-t">Progress saved on this device</span> <button id="set-save-btn" class="ghost" type="button">CONNECT WALLET</button><div id="set-save-msg"></div></div>
     <div class="vol-box"><!-- [Raul] sound upgrades: volume sliders -->
       <label><span class="label">MASTER</span><input type="range" id="vol-master" min="0" max="100" step="1" aria-label="Master volume"></label>
       <label><span class="label">SFX</span><input type="range" id="vol-sfx" min="0" max="100" step="1" aria-label="Sound effects volume"></label>
@@ -257,7 +259,7 @@
     </div>
     <div class="gfx-box" id="gfx-pause"></div>
     <button id="btn-resume" class="big">RESUME</button>
-    <button id="btn-quit" class="ghost">MAIN MENU</button>
+    <button id="btn-quit" class="ghost">MAIN MENU</button><button id="btn-set-harbor" class="ghost pvp-set pvp-set-inline" type="button" title="Keep your gold · needs 10 s without combat">⚓ HARBOR</button>
   </div>
 </div>
 

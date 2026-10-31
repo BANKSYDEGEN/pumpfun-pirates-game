@@ -19,7 +19,7 @@ import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, har
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
-import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache } from './pvpSave.js';
+import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
@@ -607,7 +607,10 @@ export function createPvp(K) {
   }
   function refreshRank(force = false) {
     if (rk.busy || (!force && performance.now() - rk.at < 30000)) return; rk.busy = true; rk.at = performance.now();
-    fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; showRank(); K.updateHud(); } }).finally(() => { rk.busy = false; });
+    fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; showRank(); K.updateHud();
+      // [v76] this identity's server-confirmed kills / deaths (this device, or the SIGNED wallet) are the floor of the saved stats,
+      // so skins unlock from real kills. A typed wallet never changes the identity.
+      const st = profile.stats; if (rk.kills > st.kills || rk.deaths > st.deaths) { st.kills = Math.max(st.kills, rk.kills); st.deaths = Math.max(st.deaths, rk.deaths); save({ now: true }); if (!$('pvp-menu').classList.contains('hidden')) renderMenu(); } } }).finally(() => { rk.busy = false; });
   }
   function hud() {
     if (!active) return;
@@ -634,13 +637,13 @@ export function createPvp(K) {
   function renderMenu() {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
-    const st = profile.stats, nx = nextTier(st.kills);
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(st.kills, st.deaths)}</b> · ${st.kills} player kills · ${st.deaths} deaths · ${st.botKills} AI sunk${nx ? `<br><span class="muted">${nx.kills - st.kills} more kills unlock ${nx.name}</span>` : ''}`;
+    const st = profile.stats, sk = lifeK(), nx = nextTier(sk); // [v76] skins unlock from THIS device's confirmed kills (or the signed wallet's), never a typed wallet
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(st.kills, st.deaths)}</b> · ${st.kills} player kills · ${st.deaths} deaths · ${st.botKills} AI sunk${nx ? `<br><span class="muted">${nx.kills - sk} more kills unlock ${nx.name}</span>` : ''}`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of TIERS) {
-      const ok = canUse(t.id, st.kills), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
+      const ok = canUse(t.id, sk), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
       const sw = skinSwatch(pvpSkin(t.id), 96, 48); c.appendChild(sw);
-      const lab = document.createElement('span'); lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${t.kills - st.kills} kills to unlock`}`; c.appendChild(lab);
+      const lab = document.createElement('span'); lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${t.kills - sk} kills to unlock`}`; c.appendChild(lab);
       c.disabled = !ok; c.onclick = () => pickSkin(t.id); grid.appendChild(c);
     }
     previewCards(grid, TIERS.map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
@@ -700,13 +703,20 @@ export function createPvp(K) {
     $('pvp-menu-close').onclick = () => toggleMenu(false);
     $('pvp-wallet').onclick = walletButton;
     $('pvp-holder-claim')?.addEventListener('click', (e) => { e.stopPropagation(); claimHolderGold(); });
-    $('pvp-name').addEventListener('change', () => setName(esc($('pvp-name').value).trim().slice(0, 20) || pirateName()));
+    $('pvp-name').addEventListener('change', async () => { const v = esc($('pvp-name').value).trim().slice(0, 20) || pirateName();
+      if (v.toLowerCase() !== String(name).toLowerCase() && await checkName(v) === false) { $('pvp-name').value = name; K.banner('NAME TAKEN', `"${v}" belongs to another pirate`); return; } // [v76]
+      setName(v); });
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
     $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
     $('pvp-offer-yes').onclick = (e) => { e.stopPropagation(); acceptOffer(); };
     $('pvp-offer-no').onclick = (e) => { e.stopPropagation(); declineOffer(); };
-    $('pvp-entry-go').onclick = (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20); if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
+    $('pvp-entry-go').onclick = async (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20);
+      const go = $('pvp-entry-go'), msg = $('pvp-entry-name-msg'); if (go.disabled) return;
+      if (v && v.toLowerCase() !== String(name).toLowerCase()) { go.disabled = true; const free = await checkName(v); go.disabled = false; // [v76] unique names
+        if (free === false) { msg?.classList.remove('hidden'); $('pvp-entry-name').focus(); return; } }
+      msg?.classList.add('hidden');
+      if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
     // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL
     if (ON_PORTAL) document.querySelectorAll('.pvp-airdrop').forEach(n => n.remove()); // crypto-free portal builds
     const addr = $('pvp-entry-addr');

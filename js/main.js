@@ -570,6 +570,23 @@ window.PFP_AUDIO = { sfx, setLoadout };
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 initControlsUi();
+// [v76] ⚙ settings: low-key save status + CONNECT WALLET (the same signed flows as the save-progress pop-ups:
+// Battle Royale = the 🏴 menu's wallet button (merges device progress), Waves / home = the Waves save-progress button)
+function setSaveUi() {
+  const row = $('set-save'); if (!row) return; if (ON_PORTAL) { row.remove(); return; }
+  const br = game.mode === 'pvp' && !!pvp;
+  let w = '';
+  if (br) w = window.PFP_PVP_SAVE?.walletSession?.()?.wallet || '';
+  else { try { const s = JSON.parse(localStorage.getItem('pfp_session_v1') || 'null'); if (s?.token && Date.parse(s.expires_at) > Date.now()) w = s.wallet || ''; } catch {} }
+  $('set-save-t').textContent = w ? `Progress saved to wallet ${shortWallet(w)}` : 'Progress saved on this device';
+  $('set-save-btn').textContent = w ? 'DISCONNECT' : 'CONNECT WALLET';
+  const src = br ? $('pvp-wallet-state') : $('wallet-note'); $('set-save-msg').textContent = src && setSaveUi.watch ? src.textContent : '';
+}
+{ const b = $('set-save-btn'); if (b) b.onclick = () => {
+  const br = game.mode === 'pvp' && !!pvp, connected = b.textContent === 'DISCONNECT';
+  if (br) { pvp.renderMenu?.(); $('pvp-wallet')?.click(); } else (connected ? $('wc-out') : $('btn-wallet'))?.click();
+  setSaveUi.watch = true; clearInterval(setSaveUi.t); let n = 0; setSaveUi.t = setInterval(() => { setSaveUi(); if (++n > 240) { clearInterval(setSaveUi.t); setSaveUi.watch = false; } }, 500);
+}; }
 // [v71] ⚙ settings holds the Battle Royale entries (BANKSY): 🏴 menu (skins / scoreboard / name / save) + ⚓ return to harbor
 const _bsp = $('btn-set-pvpmenu'); if (_bsp) _bsp.onclick = () => { togglePause(); if (!$('pause').classList.contains('hidden')) $('pause').classList.add('hidden'); pvp?.toggleMenu(true); };
 const _bsh = $('btn-set-harbor'); if (_bsh) _bsh.onclick = () => { if (_bsh.disabled) return; togglePause(); $('pause').classList.add('hidden'); $('pvp-menu-return')?.click(); };
@@ -582,6 +599,7 @@ function togglePause() { // [v71] ⚙ settings: Waves pauses underneath; Battle 
   if (game.mode === 'pvp' && game.state === 'playing' && $('pvp-menu') && !$('pvp-menu').classList.contains('hidden')) { pvp.toggleMenu(false); return; } // [pvp] Esc closes the PvP menu first
   const pv = game.mode === 'pvp' || !!pvp?.spectating;
   if ($('pause-sub')) $('pause-sub').textContent = pv ? 'the battle keeps going' : 'game paused';
+  setSaveUi();
   { const hb = $('btn-set-harbor'); if (hb) { const ok = pvp?.where === 'arena' && !pvp?.me?.dead; hb.disabled = !ok; hb.title = ok ? '' : 'You are already in the harbor'; } }
   if (pvp?.spectating && game.state !== 'playing' && game.state !== 'paused') { $('pause').classList.toggle('hidden'); return; }
   if (game.state === 'playing') { game.state = 'paused'; $('pause').classList.remove('hidden'); }
@@ -747,8 +765,14 @@ function openWavesEntry() {
   weName.value = getSavedName(); if (weAddr) { weAddr.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); weCheck(); }
   renderWavesSkins(); we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
 }
-function wavesGo() {
-  const n = weName.value.trim().slice(0, 20); if (n) { saveName(n); syncName(n); }
+async function wavesGo() {
+  const n = weName.value.trim().slice(0, 20), go = $('we-go'), msg = $('we-name-msg'); if (go?.disabled) return;
+  if (n && n.toLowerCase() !== getSavedName().toLowerCase() && window.PFP_PVP_SAVE?.checkName) { // [v76] one name = one pirate
+    if (go) go.disabled = true; const a0 = weAddr ? weAddr.value.trim() : '';
+    const free = await window.PFP_PVP_SAVE.checkName(n, { mode: 'waves', wallet: isValidSolanaAddress(a0) ? a0 : '' }); if (go) go.disabled = false;
+    if (free === false) { msg?.classList.remove('hidden'); weName.focus(); return; } }
+  msg?.classList.add('hidden');
+  if (n) { saveName(n); syncName(n); }
   const a = weAddr ? weAddr.value.trim() : ''; if (isValidSolanaAddress(a)) saveWallet(a); // optional: anything else is ignored, never blocks
   we.classList.add('hidden'); startGame();
 }

@@ -743,3 +743,15 @@ html.pvp:not(.pvp-spec) #pause .pvp-set { display: block; }
 html.pvp #enemies-left { white-space: pre-line; text-align: right; line-height: 1.1; } /* [v74] harbor: 2 short lines under the minimap */
 .pvp-skin canvas.sk-real { width: 104px; height: 58px; display: block; } /* [v75] real ship renders in the skins pickers */
 @media (max-width: 600px) { .pvp-skin canvas.sk-real { width: 92px !important; height: 51px !important; } }
+/* [v76] settings: low-key save status + wallet connect (outline button like HOW TO PLAY / MAIN MENU) */
+#set-save { margin: 6px auto 4px; text-align: center; font-size: 16px; color: rgba(255,255,255,0.7); line-height: 1.2; }
+#set-save #set-save-btn { font-size: 15px; padding: 3px 12px; margin-left: 6px; vertical-align: middle; }
+#set-save-msg { font-size: 13px; color: rgba(255,255,255,0.55); min-height: 0; }
+#set-save-msg:empty { display: none; }
+@media (max-width: 600px), (max-height: 520px) { #set-save { font-size: 14px; } #set-save #set-save-btn { font-size: 13px; padding: 2px 10px; } }
+#home-live { font-size: 15px; color: rgba(255,255,255,0.72); margin-top: 2px; line-height: 1.1; white-space: nowrap; } /* [v76] live arena / queue count under SPECTATE */
+#home-live.hidden { display: none; }
+@media (max-width: 600px), (max-height: 520px) { #home-live { font-size: 13px; margin-top: 1px; } }
+.spec-row:has(#home-live) { flex-direction: column; align-items: center; gap: 0; }
+.name-taken { display: block; color: #ff6b6b; font-size: 15px; margin: -4px 0 4px; } .name-taken.hidden { display: none; } /* [v76] */
+html.pvp:not(.pvp-spec) #pause .pvp-set.pvp-set-inline { display: inline-block; margin: 4px 4px; } #pause #btn-quit { display: inline-block; } #pause #btn-quit, #pause #btn-set-harbor { vertical-align: middle; line-height: 1.25; height: 2.0em; box-sizing: border-box; } /* [v76] ⚓ HARBOR next to MAIN MENU */
