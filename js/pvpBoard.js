@@ -37,7 +37,7 @@ export async function renderKills(wrap) {
   let rows = [], ok = true;
   try { rows = await fetchKillsTop(period); } catch (e) { ok = false; console.warn('[pvp board]', e); }
   if (tokens.get(wrap) !== token) return;
-  if (mode) mode.textContent = ok ? `(${pd.desc}${period === 'all' ? '' : ' · Indianapolis time'})` : '(offline)';
+  if (mode) mode.textContent = ok ? `(${pd.desc})` : '(offline)';
   ol.innerHTML = ''; ol.scrollTop = 0;
   if (!rows.length) { ol.innerHTML = `<li class="empty">${ok ? `No PvP kills ${period === 'all' ? 'yet' : pd.desc}. Sail into the arena and take the top spot!` : 'Board offline, try again soon.'}</li>`; return; }
   rows.forEach((r, i) => {
