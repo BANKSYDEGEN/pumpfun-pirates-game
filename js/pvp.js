@@ -285,7 +285,7 @@ export function createPvp(K) {
     const now = performance.now();
     if (!p) { p = { id: m.i, heard: now, st: null, ship: null, key: '' }; peers.set(m.i, p); }
     const lv = lvFrom(m.lv), sk = tierOf(m.sk) ? m.sk : 'classic', key = JSON.stringify(lv) + sk;
-    p.name = esc(m.n).slice(0, 20) || 'PIRATE'; p.k = m.k | 0; p.d = m.d | 0; p.g = m.g | 0; p.K = m.K | 0; p.D = m.D | 0; p.lv = lv; p.sk = sk;
+    p.name = esc(m.n).slice(0, 20) || 'PIRATE'; p.k = m.k | 0; p.d = m.d | 0; p.g = m.g | 0; p.K = m.K | 0; p.D = m.D | 0; p.bK = m.bK == null ? null : Math.max(0, m.bK | 0); p.bD = m.bD == null ? null : Math.max(0, m.bD | 0); /* [v81] board totals */ p.lv = lv; p.sk = sk;
     const prevHeard = p.heard; p.heard = now;
     // speed sanity: a jump faster than the best possible ship (same life) is clamped
     let x = +m.x || 0, z = +m.z || 0;
@@ -488,7 +488,9 @@ export function createPvp(K) {
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
   function boardClaim(side, k, v, life, keepalive = false) {
     if (!room || typeof k !== 'string' || typeof v !== 'string') return;
-    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r; if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }
+    const ent = { side, t1: 0 }; if (!keepalive) unsynced.push(ent);
+    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r;
+      ent.t1 = performance.now(); if (!(r === 'recorded' || r === 'pending')) { const i = unsynced.indexOf(ent); if (i >= 0) unsynced.splice(i, 1); } // not counted by the server if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }
       else if (r === 'pending' && !keepalive) for (const ms of [3000, 9000]) setTimeout(() => { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }, ms); }); // [v77] the other side's claim lands after mine: re-read my rank / the board (a first death now ranks me)
   }
   function resetBounty() { me.streak = 0; me.bounty = 0; }
@@ -592,14 +594,20 @@ export function createPvp(K) {
     if (where !== 'arena' || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
-      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD() };
+      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
     return m;
   }
 
   // ---------------- HUD / menus ----------------
   // [rank] '#' next to your name = your BATTLE ROYALE all-time kills rank ('—' unranked), from the pvp function ('me', same
   // identity as the kills board). Kills / deaths on the HUD = lifetime: the saved profile, or the server's confirmed count if higher.
-  const rk = { rank: null, kills: 0, deaths: 0, at: 0, busy: false };
+  const rk = { rank: null, kills: 0, deaths: 0, at: 0, busy: false, got: false };
+  // [v81] all-time totals exactly as the BATTLE ROYALE board counts them: the server's confirmed kills / deaths for this identity
+  // (device key or SIGNED wallet, never a typed one) + this match's claims the server hasn't been re-read for yet (no double count:
+  // a claim is dropped from the extra once a board read that started after it resolved comes back). Shown in spectate + scoreboard.
+  const unsynced = [];
+  const boardK = () => rk.got ? rk.kills + unsynced.filter(e => e.side === 'k').length : lifeK();
+  const boardD = () => rk.got ? rk.deaths + unsynced.filter(e => e.side === 'v').length : lifeD();
   const lifeK = () => Math.max(profile.stats.kills, rk.kills), lifeD = () => Math.max(profile.stats.deaths, rk.deaths);
   const rankTxt = () => rk.rank ? String(rk.rank) : '—';
   function showRank() { // name ellipsizes on narrow phones, the rank never does
@@ -609,8 +617,9 @@ export function createPvp(K) {
     a.textContent = String(name).toUpperCase(); b.textContent = `\u00a0· #${rankTxt()}`; b.title = 'Your BATTLE ROYALE rank (all-time kills)'; hn.replaceChildren(a, b); hn.classList.add('cn-split');
   }
   function refreshRank(force = false) {
-    if (rk.busy || (!force && performance.now() - rk.at < 30000)) return; rk.busy = true; rk.at = performance.now();
-    fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; showRank(); K.updateHud();
+    if (rk.busy || (!force && performance.now() - rk.at < 30000)) return; rk.busy = true; rk.at = performance.now(); const t0 = rk.at;
+    fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; rk.got = true;
+      for (let i = unsynced.length - 1; i >= 0; i--) if (unsynced[i].t1 && unsynced[i].t1 < t0 - 1500) unsynced.splice(i, 1); // already in r showRank(); K.updateHud();
       // [v76] this identity's server-confirmed kills / deaths (this device, or the SIGNED wallet) are the floor of the saved stats,
       // so skins unlock from real kills. A typed wallet never changes the identity.
       const st = profile.stats; if (rk.kills > st.kills || rk.deaths > st.deaths) { st.kills = Math.max(st.kills, rk.kills); st.deaths = Math.max(st.deaths, rk.deaths); save({ now: true }); if (!$('pvp-menu').classList.contains('hidden')) renderMenu(); } } }).finally(() => { rk.busy = false; });
@@ -634,7 +643,7 @@ export function createPvp(K) {
     el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
   }
   function renderBoard() {
-    const rows = [{ id: myId, name, k: me.kills, d: me.deaths, g: me.gold, K: profile.stats.kills, D: profile.stats.deaths }, ...livePeers().map(p => ({ id: p.id, name: p.name, k: p.k, d: p.d, g: p.g, K: p.K, D: p.D }))].sort((a, b) => b.k - a.k || a.d - b.d);
+    const rows = [{ id: myId, name, k: me.kills, d: me.deaths, g: me.gold, K: boardK(), D: boardD() }, ...livePeers().map(p => ({ id: p.id, name: p.name, k: p.k, d: p.d, g: p.g, K: p.bK ?? p.K, D: p.bD ?? p.D }))].sort((a, b) => b.k - a.k || a.d - b.d);
     $('pvp-board').innerHTML = `<tr><th>PIRATE</th><th>K</th><th>D</th><th>GOLD</th><th>K/D</th></tr>` + rows.map(r => `<tr class="${r.id === myId ? 'me' : ''}"><td>${esc(r.name)}${r.id === hostId ? ' <i class="muted">host</i>' : ''}</td><td>${r.k}</td><td>${r.d}</td><td>${r.g}</td><td title="lifetime ${r.K} kills / ${r.D} deaths">${kd(r.K, r.D)}</td></tr>`).join('');
   }
   function renderMenu() {
@@ -869,7 +878,7 @@ export function createPvp(K) {
     if (!spec.on) return;
     const list = specPlayers(), p = spec.mode === 'overview' ? null : peers.get(spec.target);
     const who = $('spec-name'), st = $('spec-stats'), ic = $('spec-skin');
-    if (p) { who.textContent = p.name; st.textContent = `${tierOf(p.sk)?.name || 'CLASSIC'} · ${p.k} kills · ${p.d} deaths · K/D ${kd(p.K, p.D)}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
+    if (p) { who.textContent = p.name; const TK = p.bK ?? p.K ?? 0, TD = p.bD ?? p.D ?? 0; st.textContent = `${tierOf(p.sk)?.name || 'CLASSIC'} · ${TK} kills · ${TD} deaths · K/D ${kd(TK, TD)} (all-time) · this battle ${p.k | 0}/${p.d | 0}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
     else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now';
       // [v79] nobody to follow: the ship box cycles through the skins (same real renders as the skins pickers) instead of sitting empty
       const t = TIERS[Math.floor(performance.now() / 2200) % TIERS.length]; ic.style.backgroundImage = `url(${skinIcon(t.id)})`; ic.title = t.name; ic.hidden = false; }
@@ -883,7 +892,7 @@ export function createPvp(K) {
     // ALL-TIME kills / deaths / K/D (each captain's saved stats) + a live hull bar (BANKSY)
     const hpPct = (p) => { const s = p.ship, h = s ? s.hp : p.st?.h, m = s ? s.maxHp : p.st?.m; return m ? Math.max(0, Math.min(100, Math.round(h / m * 20) * 5)) : 0; };
     const html = `<tr><th></th><th>CAPTAIN</th><th title="all-time kills">K</th><th title="all-time deaths">D</th><th title="all-time K/D">K/D</th><th title="streak bounty">☠</th></tr>` + (list.length ? list.map((p, i) => { const hp = hpPct(p);
-      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${p.K | 0}</td><td>${p.D | 0}</td><td>${kd(p.K | 0, p.D | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
+      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${(p.bK ?? p.K) | 0}</td><td>${(p.bD ?? p.D) | 0}</td><td>${kd((p.bK ?? p.K) | 0, (p.bD ?? p.D) | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
       : `<tr><td colspan="6" class="muted">No captains in this room yet</td></tr>`);
     if (t._html !== html) { t._html = html; t.innerHTML = html; } // only touch the DOM when something changed
   }
