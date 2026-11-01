@@ -15,6 +15,8 @@ export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
 const C = (h) => new THREE.Color(h);
 const SKIN = [C(0xf2c9a0), C(0xe0ac7e), C(0x8a5a3c), C(0xf5f0ea)], BEARD = [C(0x1a1410), C(0xd9b25a), C(0x39ff6a), C(0x7a4a22)];
 const COAT = [C(0xc4161c), C(0x2a2f3a), C(0xf2f2f2), null], HAT = [C(0x131313), C(0x5a3a22)];
+// [v87] separate keys for the hat parts; on classic they look the same as before (1-step hex offsets, invisible)
+const HAT_BRIM = [C(0x131314), C(0x5a3a23)], HAT_BAND = [C(0x141313), C(0x5b3a22)], SKULL = C(0xfefefe);
 const PANTS = C(0x2b2018), WHITE = C(0xffffff), IRON = C(0xc9ccd2), WOOD = C(0x6a4026);
 const hash = (i) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
 
@@ -33,7 +35,7 @@ function pirate(v) {
     for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
     g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(pa, 1)); out.push(g);
   };
-  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), sph = (rad, a = 8, b = 6) => new THREE.SphereGeometry(rad, a, b), cyl = (a, b, h, s = 8) => new THREE.CylinderGeometry(a, b, h, s);
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), sph = (rad, a = 8, b = 6) => new THREE.SphereGeometry(rad, a, b), cyl = (a, b, h, s = 8, hs = 1, open = false) => new THREE.CylinderGeometry(a, b, h, s, hs, open);
   for (const sx of [1, -1]) add(box(0.13, 0.36, 0.15), PANTS, sx > 0 ? 1 : 2, [sx * 0.085, 0.18, 0]);
   add(box(0.36, 0.4, 0.24), coat, 0, [0, 0.55, 0]);
   if (ci === 1) add(box(0.37, 0.06, 0.25), C(0xeeeeee), 0, [0, 0.62, 0]); // striped tee band
@@ -55,10 +57,13 @@ function pirate(v) {
   else if (eye === 5) add(box(0.3, 0.12, 0.1), C(0x1d1f26), 0, [0, ey, ez - 0.02]);
   else for (const sx of [1, -1]) add(sph(0.03, 5, 4), C(r(8) < 0.5 ? 0x2a6acc : 0x5a3a1a), 0, [sx * 0.07, ey, ez - 0.01]);
   // the hat: wide brim, tall crown with the white skull up front
-  add(cyl(0.33, 0.33, 0.04, 10), hat, 0, [0, 1.1, 0], [0, 0, 0], [1, 1, 0.8]);
+  // [v87] brim / crown / band / skull each carry their own (classic-identical) colour key so dressCrew can recolour them per skin
+  const hv = r(3) < 0.7 ? 0 : 1;
+  add(cyl(0.33, 0.33, 0.04, 10), HAT_BRIM[hv], 0, [0, 1.1, 0], [0, 0, 0], [1, 1, 0.8]);
   add(cyl(0.17, 0.22, 0.2, 10), hat, 0, [0, 1.21, 0]);
-  add(sph(0.055, 6, 4), WHITE, 0, [0, 1.22, 0.2], [0, 0, 0], [1, 1, 0.4]);
-  add(box(0.15, 0.025, 0.02), WHITE, 0, [0, 1.17, 0.205], [0, 0, 0.5]); add(box(0.15, 0.025, 0.02), WHITE, 0, [0, 1.17, 0.205], [0, 0, -0.5]);
+  add(cyl(0.214, 0.226, 0.06, 10, 1, true), HAT_BAND[hv], 0, [0, 1.145, 0]); // hat band round the crown base
+  add(sph(0.055, 6, 4), SKULL, 0, [0, 1.22, 0.2], [0, 0, 0], [1, 1, 0.4]);
+  add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, 0.5]); add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, -0.5]);
   const g = mergeGeometries(out, false); out.forEach(o => o.dispose()); _pc.set(v, g); return g;
 }
 
@@ -115,6 +120,7 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
   float rim = 1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0);
   vec3 col = vC * band * (rim > 0.78 ? 0.25 : 1.0); // inked silhouette edge (bold-outline NFT look) without an outline mesh
   gl_FragColor = vec4(col, 1.0);
+  #include <colorspace_fragment>
   #include <fog_fragment>
 }`;
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
@@ -209,13 +215,35 @@ const OUTFIT = {
   flaming:   { coat: [0xff5a14, 0x2a0a04, 0xffb03a], hat: [0xd8360a, 0x1a0804], pants: 0x3a1206, accent: 0xffd23a },
   diamond:   { coat: [0xbfe8ff, 0x6ab8e0, 0xeefaff], hat: [0x8fd0f2, 0x4a7a9a], pants: 0x3a5a7a, accent: 0xffffff },
 };
+// [v87] HATS per skin: [crown, brim, band] for the black-hat and brown-hat variants + the skull badge colour.
+// (The crew shader now ends with <colorspace_fragment>: without it, phones / Low / Medium (no post-processing OutputPass)
+// showed the linear vertex colours raw, so every palette colour came out far darker: coral hats read red, gold brown,
+// navy black. Desktop High was already right; now every quality shows the same colours.)
+const HATS = {
+  parchment: { a: [0xd8b47a, 0xb8925a, 0x5a3a22], b: [0x8a5e36, 0x6e4a2a, 0xe8d3a2], skull: 0xfff4dc },
+  blood:     { a: [0xa81414, 0x7a0c0c, 0x111111], b: [0x1e1e1e, 0x141414, 0xe01e1e], skull: 0xffffff },
+  midnight:  { a: [0x3a4258, 0x2a3044, 0xc8d2dc], b: [0x23283a, 0x181c2a, 0x8a9ab0], skull: 0xdfe6ee },
+  navy:      { a: [0x2c4ca8, 0x1f3a86, 0xffcd77], b: [0x1d3270, 0x15265a, 0xefe6cf], skull: 0xffffff },
+  degen:     { a: [0x36d468, 0x22a04c, 0x0b120d], b: [0x186a32, 0x104a22, 0x4ee37a], skull: 0xffffff },
+  ghost:     { a: [0xe6f8ee, 0xc8eadb, 0x5ad88a], b: [0xbfe0d2, 0xa2cbba, 0xeef8f2], skull: 0x2a4a3e },
+  golden:    { a: [0xffc414, 0xe09a00, 0x6a3c08], b: [0xf0b000, 0xc88a00, 0xfff1b8], skull: 0x3a2408 },
+  seagreen:  { a: [0x44e6bf, 0x26b892, 0x0f3a2c], b: [0x1d7a60, 0x145a46, 0x9ff0d8], skull: 0xffffff },
+  kraken:    { a: [0x3fc4a2, 0x2a967a, 0x7a3ab8], b: [0x22806a, 0x175a4a, 0xa66ae0], skull: 0xffffff },
+  storm:     { a: [0x9aa8b8, 0x7a8898, 0x8fd4ff], b: [0x56667a, 0x404c5c, 0xe8eef5], skull: 0xffffff },
+  coral:     { a: [0xffa98a, 0xff9070, 0x1f7a68], b: [0xffc8b0, 0xffb294, 0x2a9a84], skull: 0x1f4a40 },
+  admiral:   { a: [0x22387e, 0x182a62, 0xffcc33], b: [0x1a2c66, 0x122050, 0xffd700], skull: 0xffffff },
+  flaming:   { a: [0xff6a1a, 0xffb020, 0x8a1a04], b: [0xff4410, 0xff8c14, 0xffd23a], skull: 0xfff2c0 },
+  diamond:   { a: [0xdaf6ff, 0xaee4ff, 0x4aa8e0], b: [0xa2dcfa, 0x82c8f0, 0xffffff], skull: 0x2a5a7a },
+};
 const _key = (r, g, b) => `${Math.round(r * 4095)},${Math.round(g * 4095)},${Math.round(b * 4095)}`;
 const _maps = new Map();
 function outfitMap(id) {
   if (_maps.has(id)) return _maps.get(id);
   const o = OUTFIT[id]; let m = null;
   if (o) { m = new Map(); const put = (from, hex) => { if (from) m.set(_key(from.r, from.g, from.b), C(hex)); };
-    COAT.forEach((c, i) => put(c, o.coat[i])); HAT.forEach((c, i) => put(c, o.hat[i])); put(PANTS, o.pants); put(BELT, o.accent); put(BAND, o.accent); }
+    COAT.forEach((c, i) => put(c, o.coat[i])); HAT.forEach((c, i) => put(c, o.hat[i])); put(PANTS, o.pants); put(BELT, o.accent); put(BAND, o.accent);
+    const h = HATS[id]; if (h) { const hp = (from, hex) => m.set(_key(from.r, from.g, from.b), C(hex));
+      [h.a, h.b].forEach((v, i) => { hp(HAT[i], v[0]); hp(HAT_BRIM[i], v[1]); hp(HAT_BAND[i], v[2]); }); hp(SKULL, h.skull); } }
   _maps.set(id, m); return m;
 }
 export const outfitIds = () => Object.keys(OUTFIT);
