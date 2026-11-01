@@ -195,8 +195,6 @@
       <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
     </div>
     <div id="wallet-note" class="wallet-note muted we-crypto"></div>
-    <div class="pvp-sub">SKINS <span class="muted">a new one every 5 waves · cosmetic only</span></div>
-    <div id="we-skins" class="pvp-skins"></div>
     <button id="we-go" type="button" class="big">SET SAIL</button>
     <p class="muted">Survive the waves, sink the rug ships, top the leaderboard.</p></div></div>
   <div class="panel title-panel">
@@ -244,13 +242,19 @@
 </div>
 
 <!-- ============ PAUSE ============ -->
+  <div id="waves-skins" class="hidden" role="dialog" aria-label="Skins"><div class="pe-card"><!-- [v83] Waves skins: ⚙ settings → 🏴 SKINS (like BATTLE ROYALE) -->
+    <button id="ws-close" class="faq-x" type="button" aria-label="Close">✕</button>
+    <h2>SKINS</h2>
+    <div class="pvp-sub"><span class="muted">a new one every 5 waves · cosmetic only</span></div>
+    <div id="we-skins" class="pvp-skins"></div>
+    <button id="ws-done" type="button" class="big">DONE</button></div></div>
 <div id="pause" class="overlay hidden">
   <div class="panel small">
     <h1 id="pause-h">SETTINGS</h1>
     <div id="pause-sub" class="muted">game paused</div>
     <div class="controls-help" data-ctl="long">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · M sound</div>
     <button id="btn-ctl-pause" class="ghost" type="button">⌨ KEY BINDINGS / CONTROLS</button>
-    <button id="btn-set-pvpmenu" class="ghost pvp-set" type="button">🏴 SKINS · SCOREBOARD · NAME</button>
+    <button id="btn-set-pvpmenu" class="ghost pvp-set" type="button">🏴 SKINS · SCOREBOARD · NAME</button><button id="btn-set-wskins" class="ghost waves-set" type="button">🏴 SKINS</button>
     <div id="set-save"><span id="set-save-t">Progress saved on this device</span> <button id="set-save-btn" class="ghost" type="button">CONNECT WALLET</button><div id="set-save-msg"></div></div>
     <div class="vol-box"><!-- [Raul] sound upgrades: volume sliders -->
       <label><span class="label">MASTER</span><input type="range" id="vol-master" min="0" max="100" step="1" aria-label="Master volume"></label>

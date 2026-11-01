@@ -27,7 +27,7 @@ import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WA
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
 import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
-import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop } from './shop.js';
+import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, getRunLevels } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
@@ -756,15 +756,21 @@ function renderWavesSkins() { // same cards as the BATTLE ROYALE picker; locked 
     const ok = ownsSkin(skin.id), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${skin.id === cur ? ' on' : ''}`; c.dataset.skin = skin.id;
     c.appendChild(skinSwatch(skin, 96, 48));
     const lab = document.createElement('span'); lab.innerHTML = `<b>${skin.name}</b>${ok ? (skin.id === cur ? 'SELECTED' : 'TAP TO USE') : `reach wave ${wave}`}`; c.appendChild(lab);
-    c.disabled = !ok; c.onclick = () => { equipSkin(skin.id); try { rebuildPlayerShip({}); } catch (e) { console.warn(e); } sfx.equip?.(); renderWavesSkins(); };
+    c.disabled = !ok; c.onclick = () => { equipSkin(skin.id); try { rebuildPlayerShip(game.state === 'paused' || game.state === 'playing' ? getRunLevels() : {}); /* [v83] keep this run's upgrades */ } catch (e) { console.warn(e); } sfx.equip?.(); renderWavesSkins(); };
     grid.appendChild(c);
   }
   previewCards(grid, [getSkin('classic'), ...wavesUnlocks().map(u => u.skin)].map(sk => ({ id: sk.id, skin: sk })), {}); // [v75] real renders
 }
+// [v83] Waves skins live in ⚙ settings (BATTLE ROYALE style): pick one mid-run, the ship is rebuilt on the spot
+function openWavesSkins() { $('pause')?.classList.add('hidden'); renderWavesSkins(); $('waves-skins')?.classList.remove('hidden'); }
+function closeWavesSkins() { $('waves-skins')?.classList.add('hidden'); if (game.state === 'paused') $('pause')?.classList.remove('hidden'); }
+{ const b = $('btn-set-wskins'); if (b) b.onclick = (e) => { e.stopPropagation(); openWavesSkins(); };
+  for (const id of ['ws-close', 'ws-done']) { const x = $(id); if (x) x.onclick = (e) => { e.stopPropagation(); closeWavesSkins(); }; }
+  addEventListener('keydown', (e) => { if (e.code === 'Escape' && !$('waves-skins')?.classList.contains('hidden')) { e.stopImmediatePropagation(); e.preventDefault(); closeWavesSkins(); } }, true); }
 function openWavesEntry() {
   if (!we) return startGame();
   weName.value = getSavedName(); if (weAddr) { weAddr.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); weCheck(); }
-  renderWavesSkins(); we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
+  we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
 }
 async function wavesGo() {
   const n = weName.value.trim().slice(0, 20), go = $('we-go'), msg = $('we-name-msg'); if (go?.disabled) return;
