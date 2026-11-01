@@ -16,6 +16,7 @@ import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
 import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
+import { HARBOR_AI, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { PVP_HARBOR_DEATH_LOSS } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
@@ -23,7 +24,7 @@ import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
-import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
+import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
@@ -41,10 +42,12 @@ const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '');
 const ROOM_PREFIX = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
 const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
 // most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × 4.2 × best SAILS
-const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map(t => t.gunDmg || 1));
+// [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
+const PVP_MODE = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, MAXED = modeStats(maxRun(), PVP_MODE);
+const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map((_, i) => modeStats({ levels: { cannons: i + 1 } }, PVP_MODE).gunDmg));
 export const MAX_HIT = Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1; // [pvp hp] ×1.4 PvP cannonballs
-const MAX_SPEED = 3 * 4.2 * Math.max(...UPGRADES.find(u => u.id === 'sails').tiers.map(t => t.value)) * 1.15;
-const MAX_HP = Math.round(PVP_BASE_HP + (Math.max(...UPGRADES.find(u => u.id === 'hull').tiers.map(t => t.value)) - 100) * PVP_HULL_MUL);
+const MAX_SPEED = 3 * 4.2 * MAXED.speed * 1.15;
+const MAX_HP = MAXED.maxHp;
 const QS = new URLSearchParams(location.search);
 const TEST_CAP = +QS.get('pvpcap') || null, TEST_OFFER = +QS.get('pvpoffer') || null, TEST_AFK = +QS.get('pvpafk') || 0; // test prefixes only (the lobby ignores them for the live arena)
 const PIRATE_A = ['SALTY', 'RUM', 'IRON', 'BLACK', 'MAD', 'LUCKY', 'STORMY', 'ONE-EYED', 'GOLDEN', 'DEGEN', 'SALTY', 'CRIMSON'];
@@ -238,7 +241,7 @@ export function createPvp(K) {
     for (const [id, b] of bots) if (!b.mesh.parent) bots.delete(id);
     if (aiWanted()) {
       const alive = [...bots.values()].filter(b => b.alive).length;
-      if (alive < PVP_AI_SHIPS) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); scaleAi(e); bots.set(id, e); }
+      if (alive < (where === 'harbor' ? harborAiCount(totalLevel()) : PVP_AI_SHIPS)) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); scaleAi(e); bots.set(id, e); }
     } else clearLocalAi(false);
     capPiles(true);
   }
@@ -246,7 +249,9 @@ export function createPvp(K) {
   const totalLevel = () => Object.values(getRunLevels()).reduce((a, b) => a + (b | 0), 0);
   function scaleAi(e) {
     const L = totalLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
-    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * sc * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with 300 HP ships
+    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * harborHpScale(L) * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with the bigger BR hulls
+    { const f = Math.min(1, Math.max(0, L) / 44), lerp = (a) => a[0] + (a[1] - a[0]) * f; // [v93] sharper AI as you grow (HARBOR_AI)
+      e.reload = lerp(HARBOR_AI.reload); e.accuracy = lerp(HARBOR_AI.accuracy); e.fireR = lerp(HARBOR_AI.fireR); e.maxSpeed *= 1 + HARBOR_AI.speed * f; e.cd = Math.min(e.cd, e.reload); }
     e.gold = harborGold(L); e.aiLevel = L;
     if (sz !== 1) { e.mesh.scale.setScalar(sz); ud.len *= sz; ud.beam *= sz; }
   }

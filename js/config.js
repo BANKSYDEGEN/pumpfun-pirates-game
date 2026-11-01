@@ -92,18 +92,25 @@ export const PVP_SKIN_TIERS = [
 export const HARBOR_GOLD_BASE = 5;        // gold per harbor AI kill at L = 0
 export const HARBOR_SCALE_PER_LV = 0.137; // +13.7% AI HP / gold per total upgrade level (L 42 ≈ ×6.75)
 export const HARBOR_SIZE_PER_LV = 0.01;   // +1% AI hull size per level (L 42 ≈ ×1.42; the hitbox scales with it)
-export const HARBOR_DMG_PER_LV = 0.02;    // +2% AI cannon damage per level (L 42 ≈ ×1.84)
+export const HARBOR_DMG_PER_LV = 0.03;    // [v93] +3% AI cannon damage per level (L 42 ≈ ×2.26; was +2%, ×1.84)
+export const HARBOR_HP_PER_LV = 0.2;      // [v93] AI hull HP grows +20% per level (L 42 ≈ ×9.4; was the gold rate 13.7%, ×6.75): keeps pace with the stronger upgrades
+// [v93] harbor AI get sharper as you grow (f = L / 44): reload 4.75 s -> 3.2 s, accuracy 0.6 -> 0.8, speed +0 -> +25%,
+// fire range 70 -> 90 m, and more of them: 3 ships (L 0-14), 4 (L 15-29), 5 (L 30+). Early harbor stays as easy as before.
+export const HARBOR_AI = { reload: [4.75, 3.2], accuracy: [0.6, 0.8], speed: 0.25, fireR: [70, 90], countBase: 3, countPerLv: 1 / 15, countMax: 5 };
+export const harborAiCount = (L) => Math.min(HARBOR_AI.countMax, HARBOR_AI.countBase + Math.floor(Math.max(0, L) * HARBOR_AI.countPerLv));
+export const harborHpScale = (L) => 1 + HARBOR_HP_PER_LV * Math.max(0, L);
 export const HARBOR_HP_BASE = 70;         // AI hull HP at L = 0
 export const HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 }; // harbor kills to afford tier index t: base + amp·growth^t (exponential-ish top)
 export const harborKills = (t) => HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t);
 export const harborScale = (L) => 1 + HARBOR_SCALE_PER_LV * Math.max(0, L);
 export const HARBOR_PAY_MUL = 2;           // [v92] BANKSY: harbor AI payouts doubled (upgrade prices still use HARBOR_GOLD_BASE, unchanged)
 export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * HARBOR_PAY_MUL * harborScale(L));
-// BANKSY: a fresh Battle Royale ship has 300 HP, so one broadside never sinks it. PvP only (Waves unchanged):
+// BANKSY: a fresh Battle Royale ship has 380 HP (was 300 until v93's stronger upgrades), so one broadside never sinks it
+//   (best v93 broadside, CANNONS VIII boosted: 8 × 20 × 1.655 × 1.4 = 371). PvP only (Waves unchanged):
 //   hull = 300 + 1.5 × (the Waves hull bonus): HULL PLANKS I-VI 420 / 450 / 472 / 502 / 532 / 562 HP;
 //   your cannonballs ×PVP_DMG_MUL (the best possible broadside, CANNONS VIII: 8 × 20 × 1.27 × 1.4 = 284, stays under 300);
 //   harbor AI hulls ×PVP_DMG_MUL (same time to sink them), AI cannons ×PVP_AI_DMG_MUL; shipwright repair +REPAIR.hp × 3.
-export const PVP_BASE_HP = 300, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 2.5, PVP_REPAIR_MUL = 3;
+export const PVP_BASE_HP = 380, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 2.5, PVP_REPAIR_MUL = 3;
 export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (8 harbor kills at L0 since the v92 double pay); higher tiers follow the curve
 export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
 // HARD CAP: each track stops at its last tier (6 levels, CANNONS 8; js/upgrades.js). Maxed = MAX in the shop; more gold buys no power.

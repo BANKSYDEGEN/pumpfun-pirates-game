@@ -494,7 +494,7 @@ function updateEnemy(e, dt) {
   floatShip(e, dt);
   // fire when player sits on a broadside
   e.cd -= dt;
-  if (e.cd <= 0 && T.alive && d < 70 && e.state !== 'flee' || (e.cd <= 0 && e.state === 'flee' && d < 40)) {
+  if (e.cd <= 0 && T.alive && d < (e.fireR || 70) && e.state !== 'flee' || (e.cd <= 0 && e.state === 'flee' && d < 40)) {
     const [lx, lz] = toLocal(e, T.x, T.z);
     const ang = Math.abs(Math.atan2(lz, Math.abs(lx)));
     if (ang < 0.5) { fire(e, lx > 0 ? 'port' : 'star', T, e.accuracy); e.cd = e.reload * rnd(0.85, 1.25); }

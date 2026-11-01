@@ -33,6 +33,10 @@
 
 ## Economy (js/config.js HARBOR_* / pvpTierCost; same price in harbor and arena; mirrored in supabase/functions/pvp/lib.ts)
 - Harbor AI scale with your total upgrade level L (0-44): HP 70·s, gold 10·s (v92: ×2, HARBOR_PAY_MUL; upgrade prices still priced off 5·s) with s = 1 + 0.137·L; size +1 %/L (hitbox too), damage +2 %/L.
+- [v93] Harbor AI HP now 70·(1 + 0.2·L) ×1.4 (was ×(1 + 0.137·L)), damage +3 %/L (was +2 %), reload 4.75 → 3.2 s, accuracy 0.6 → 0.8,
+  speed +0 → +25 %, fire range 70 → 90 m (all linear in L/44), count 3 (L 0-14) / 4 (L 15-29) / 5 (L 30+). Gold unchanged from v92.
+- [v93] Battle Royale upgrades ×1.5 stronger (gain over the base ship; armor ×1.25 capped 50 %, reload ×1.25 floored 0.8 s; js/upgrades.js
+  PVP_BOOST). Fresh BR hull 380 HP (was 300) so the best broadside (371) still can't one-shot a fresh ship. Waves unchanged.
 - PvP upgrade cost of tier index t = harborKills(t) × harborGold(L ≈ 7t), harborKills(t) = 40 + 10·1.55^t (cheap early, steep top).
 - Hard cap per track: 6 levels (CANNONS 8). Maxed tracks show **MAX VI / MAX VIII** in the shop; more gold buys no power.
 

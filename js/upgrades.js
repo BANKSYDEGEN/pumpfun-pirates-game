@@ -63,7 +63,21 @@ export function shipStats(run, base = BASE_SHIP) {
 }
 
 // [pvp hp] Battle Royale hull: base + hullMul × (the Waves hull bonus). Waves passes nothing and is unchanged.
-export function modeStats(run, pvp = null) { const s = shipStats(run); if (pvp) s.maxHp = Math.round(pvp.base + (s.maxHp - BASE_SHIP.maxHp) * pvp.mul); return s; }
+// [v93] BANKSY: Battle Royale upgrades are stronger: each stat's gain over the base ship ×PVP_BOOST (Waves unchanged).
+// CANNONS boosts the whole broadside (guns × gunDmg) gain; the gun count stays, gunDmg carries it. Armor / reload are
+// boosted less and clamped (armor ≤ 50%, reload ≥ 0.8 s) so a maxed ship is strong but still sinkable.
+export const PVP_BOOST = { maxHp: 1.5, regen: 1.5, armor: 1.25, speed: 1.5, turn: 1.5, broadside: 1.5, reload: 1.25, range: 1.5 };
+export function pvpBoost(s, B = PVP_BOOST, base = BASE_SHIP) {
+  const g = (k, m) => base[k] + (s[k] - base[k]) * m, r3 = (v) => Math.round(v * 1000) / 1000;
+  s.regenWait = Math.max(6, r3(g('regenWait', B.regen))); s.regenPct = r3(g('regenPct', B.regen));
+  s.armor = Math.min(0.5, r3(g('armor', B.armor))); s.speed = r3(g('speed', B.speed)); s.turn = r3(g('turn', B.turn));
+  const bs = base.cannons * base.gunDmg, f = bs + (s.cannons * s.gunDmg - bs) * B.broadside; s.gunDmg = r3(f / s.cannons);
+  s.reload = Math.max(0.8, r3(g('reload', B.reload))); s.range = Math.round(g('range', B.range));
+  return s;
+}
+export function modeStats(run, pvp = null) { const s = shipStats(run); if (pvp) { s.maxHp = Math.round(pvp.base + (s.maxHp - BASE_SHIP.maxHp) * pvp.mul * (pvp.boost ? PVP_BOOST.maxHp : 1)); if (pvp.boost) pvpBoost(s); } return s; }
+// every track at its top level (Battle Royale sanity caps for remote ships)
+export const maxRun = () => ({ levels: Object.fromEntries(UPGRADES.map(u => [u.id, u.tiers.length])) });
 // Copy stats onto the live player object (the fields main.js reads).
 export function applyStats(player, stats) {
   const grow = stats.maxHp - (player.maxHp || stats.maxHp);

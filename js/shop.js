@@ -11,8 +11,8 @@ import { pvpTierCost, PVP_REPAIR_COST, PVP_BASE_HP, PVP_HULL_MUL, PVP_REPAIR_MUL
 const PVP = () => ctx?.game.mode === 'pvp';
 const TIER_IDX = new Map(); for (const u of UPGRADES) u.tiers.forEach((t, i) => TIER_IDX.set(t, i));
 const costOf = (t) => PVP() ? pvpTierCost(TIER_IDX.get(t) ?? 0) : t.cost; // [pvp] same price in the harbor and the arena
-const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL }, shipStats = (r) => modeStats(r, PVP() ? PVP_HULL : null), repairHp = () => REPAIR.hp * (PVP() ? PVP_REPAIR_MUL : 1); // [pvp hp] 300 HP base in Battle Royale
-const hullVal = (v) => PVP() ? Math.round(PVP_BASE_HP + (v - BASE_SHIP.maxHp) * PVP_HULL_MUL) : v;
+const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, shipStats = (r) => modeStats(r, PVP() ? PVP_HULL : null), repairHp = () => REPAIR.hp * (PVP() ? PVP_REPAIR_MUL : 1); // [pvp hp] 300 HP base in Battle Royale
+
 const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
 const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
 
@@ -162,7 +162,8 @@ function render() {
     const b = c.querySelector('.buy'), next = u.tiers[lv];
     if (!next) { c.querySelector('.sc-stat').innerHTML = `<b>${fmtStat(u, stats[u.stat], stats.gunDmg)}</b>`; b.textContent = PVP() ? `MAX ${ROMAN[u.tiers.length - 1]}` : 'MAXED'; b.disabled = true; c.classList.add('max'); continue; } // [pvp] hard cap: MAX, more gold buys no power
     c.classList.remove('max');
-    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, u.stat === 'maxHp' ? hullVal(next.value) : next.value, next.gunDmg)}</b>`;
+    const ns = shipStats({ ...run, levels: { ...run.levels, [u.id]: lv + 1 } }); // [v93] next level with the same mode boosts
+    c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, ns[u.stat], ns.gunDmg)}</b>`;
     b.textContent = `${costOf(next)}g`; b.disabled = game.gold < costOf(next);
   }
   renderEscorts();
