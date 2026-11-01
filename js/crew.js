@@ -15,56 +15,87 @@ export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
 const C = (h) => new THREE.Color(h);
 const SKIN = [C(0xf2c9a0), C(0xe0ac7e), C(0x8a5a3c), C(0xf5f0ea)], BEARD = [C(0x1a1410), C(0xd9b25a), C(0x39ff6a), C(0x7a4a22)];
 const COAT = [C(0xc4161c), C(0x2a2f3a), C(0xf2f2f2), null], HAT = [C(0x131313), C(0x5a3a22)];
-// [v87] separate keys for the hat parts; on classic they look the same as before (1-step hex offsets, invisible)
-const HAT_BRIM = [C(0x131314), C(0x5a3a23)], HAT_BAND = [C(0x141313), C(0x5b3a22)], SKULL = C(0xfefefe);
+// [v87] separate keys for the hat parts (brim 1-step hex offset, invisible) · [v90] classic band is the reference's tan
+const HAT_BRIM = [C(0x131314), C(0x5a3a23)], HAT_BAND = [C(0xc8a060), C(0xc8a062)], SKULL = C(0xfefefe);
 const PANTS = C(0x2b2018), WHITE = C(0xffffff), IRON = C(0xc9ccd2), WOOD = C(0x6a4026);
 const hash = (i) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
 
-// one pirate (faces +Z, feet at y=0, ~1.25 tall), parts: 0 body/head, 1/2 legs (hip pivot), 3/4 arms (shoulder pivot)
+// [v90] PUMPFUN PIRATES crew, smooth chibi rebuild after the official crew art (crew_reference_pirate): big round head, black
+// tricorn with the white skull badge and a tan band, eye patch + strap and one big blue eye, angry brows, shaggy blond hair and
+// full beard, open shouting mouth, open red coat over a black-and-white striped shirt, a fist and a wooden-cuffed hook, dark
+// pants + boots. Rounded geometry (spheres / lathes / tapered tubes, smooth normals) so the toon bands + ink rim read soft.
+// Same skeleton as before (faces +Z, feet y=0, ~1.3 tall; parts 0 body/head, 1/2 legs at the hip, 3/4 arms at the shoulder),
+// so every animation (gunner idle / recoil, walkers, lookout telescope, cheers, hit stagger) is unchanged. lo = Low / phones.
 const _pc = new Map();
-function pirate(v) {
-  if (_pc.has(v)) return _pc.get(v);
-  const r = (k) => hash(v * 7.31 + k), skin = SKIN[Math.floor(r(1) * 4)], beard = BEARD[Math.floor(r(2) * 4)], hat = HAT[r(3) < 0.7 ? 0 : 1];
-  const ci = Math.floor(r(4) * 4), coat = COAT[ci] || skin, eye = Math.floor(r(5) * 6), hook = r(6) < 0.3;
+const BOOT = C(0x2a1a10), STRIPE_K = C(0x161616), MOUTH = C(0x3a0a0a), TONGUE = C(0xe0707a), EYE_W = C(0xffffff), IRIS = C(0x3a8ae0), PUPIL = C(0x0b0b0b), BROW = C(0x6a4a1a), PATCH = C(0x0b0b0b);
+function pirate(v, lo = false) {
+  const key = v + (lo ? 'L' : 'H'); if (_pc.has(key)) return _pc.get(key);
+  const r = (k) => hash(v * 7.31 + k), skin = SKIN[Math.floor(r(1) * 4)];
+  const beard = r(2) < 0.55 ? BEARD[1] : BEARD[[0, 3, 1, 2][Math.floor(r(9) * 4)]]; // mostly the reference's blond
+  const hv = r(3) < 0.75 ? 0 : 1, hat = HAT[hv], ci = Math.floor(r(4) * 3), coat = COAT[ci];
+  const patch = r(5) < 0.6, laser = !patch && r(8) < 0.25, hook = r(6) < 0.55;
+  const S = lo ? 7 : 12, s2 = lo ? 5 : 8, ring = lo ? 4 : 8; // radial segments
   const out = [];
-  const add = (g, col, part, p = [0, 0, 0], rot = [0, 0, 0], s = [1, 1, 1]) => {
+  const add = (g, col, part, p = [0, 0, 0], rot = [0, 0, 0], sc = [1, 1, 1]) => {
     g = g.index ? g.toNonIndexed() : g;
-    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...s)));
+    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...sc)));
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     const n = g.attributes.position.count, c = new Float32Array(n * 3), pa = new Float32Array(n).fill(part);
     for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
     g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(pa, 1)); out.push(g);
   };
-  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), sph = (rad, a = 8, b = 6) => new THREE.SphereGeometry(rad, a, b), cyl = (a, b, h, s = 8, hs = 1, open = false) => new THREE.CylinderGeometry(a, b, h, s, hs, open);
-  for (const sx of [1, -1]) add(box(0.13, 0.36, 0.15), PANTS, sx > 0 ? 1 : 2, [sx * 0.085, 0.18, 0]);
-  add(box(0.36, 0.4, 0.24), coat, 0, [0, 0.55, 0]);
-  if (ci === 1) add(box(0.37, 0.06, 0.25), C(0xeeeeee), 0, [0, 0.62, 0]); // striped tee band
-  add(box(0.37, 0.06, 0.25), C(0x1a1208), 0, [0, 0.38, 0]); // belt
-  for (const sx of [1, -1]) {
-    const part = sx > 0 ? 3 : 4, isHook = hook && sx < 0;
-    add(box(0.11, 0.3, 0.11), ci === 3 || ci === 1 && r(7) < 0.5 ? skin : coat, part, [sx * 0.24, 0.58, 0]);
-    if (isHook) { add(cyl(0.05, 0.06, 0.12, 6), WOOD, part, [sx * 0.24, 0.38, 0]); add(new THREE.TorusGeometry(0.06, 0.018, 4, 8, Math.PI * 1.3), IRON, part, [sx * 0.24, 0.27, 0.02], [0, Math.PI / 2, 0]); }
-    else add(sph(0.065, 6, 4), skin, part, [sx * 0.24, 0.4, 0]);
-  }
-  add(sph(0.21, 10, 8), skin, 0, [0, 0.93, 0]); // big chibi head
-  add(new THREE.SphereGeometry(0.17, 8, 6, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55), beard, 0, [0, 0.92, 0.06], [0, 0, 0], [1.05, 1.1, 0.95]); // beard (lower face)
-  // eyewear: 0 none, 1 3d glasses, 2 eyepatch, 3 laser, 4 sunglasses, 5 vr
-  const ey = 0.97, ez = 0.19;
-  if (eye === 1) { add(box(0.1, 0.07, 0.03), C(0xe8261e), 0, [-0.07, ey, ez]); add(box(0.1, 0.07, 0.03), C(0x2a6aff), 0, [0.07, ey, ez]); add(box(0.3, 0.025, 0.03), WHITE, 0, [0, ey + 0.045, ez]); }
-  else if (eye === 2) { add(box(0.09, 0.08, 0.03), C(0x0b0b0b), 0, [0.07, ey, ez]); add(box(0.42, 0.02, 0.02), C(0x0b0b0b), 0, [0, ey + 0.03, 0.12], [0.4, 0, 0]); }
-  else if (eye === 3) { for (const sx of [1, -1]) add(box(0.06, 0.03, 0.03), C(0xff1010), 0, [sx * 0.07, ey, ez]); add(box(0.02, 0.02, 0.5), C(0xff2a2a), 0, [0.07, ey, ez + 0.26]); }
-  else if (eye === 4) add(box(0.3, 0.07, 0.03), C(0x0b0b0b), 0, [0, ey, ez]);
-  else if (eye === 5) add(box(0.3, 0.12, 0.1), C(0x1d1f26), 0, [0, ey, ez - 0.02]);
-  else for (const sx of [1, -1]) add(sph(0.03, 5, 4), C(r(8) < 0.5 ? 0x2a6acc : 0x5a3a1a), 0, [sx * 0.07, ey, ez - 0.01]);
-  // the hat: wide brim, tall crown with the white skull up front
-  // [v87] brim / crown / band / skull each carry their own (classic-identical) colour key so dressCrew can recolour them per skin
-  const hv = r(3) < 0.7 ? 0 : 1;
-  add(cyl(0.33, 0.33, 0.04, 10), HAT_BRIM[hv], 0, [0, 1.1, 0], [0, 0, 0], [1, 1, 0.8]);
-  add(cyl(0.17, 0.22, 0.2, 10), hat, 0, [0, 1.21, 0]);
-  add(cyl(0.214, 0.226, 0.06, 10, 1, true), HAT_BAND[hv], 0, [0, 1.145, 0]); // hat band round the crown base
-  add(sph(0.055, 6, 4), SKULL, 0, [0, 1.22, 0.2], [0, 0, 0], [1, 1, 0.4]);
-  add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, 0.5]); add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, -0.5]);
-  const g = mergeGeometries(out, false); out.forEach(o => o.dispose()); _pc.set(v, g); return g;
+  const sph = (rad, a = s2, b = Math.max(4, s2 - 3), ...ang) => new THREE.SphereGeometry(rad, a, b, ...ang);
+  const cyl = (a, b, h, s = ring, open = false, t0 = 0, tl = Math.PI * 2) => new THREE.CylinderGeometry(a, b, h, s, 1, open, t0, tl);
+  const lath = (pts, s = S) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), s);
+  // legs: tapered trousers + rounded boots (hip pivot y 0.36)
+  for (const sx of [1, -1]) { const part = sx > 0 ? 1 : 2;
+    add(cyl(0.075, 0.062, 0.3, ring), PANTS, part, [sx * 0.085, 0.22, 0]);
+    add(sph(0.075, ring, 5), BOOT, part, [sx * 0.085, 0.055, 0.03], [0, 0, 0], [1, 0.75, 1.45]); }
+  // torso: striped shirt (stacked bands; light stripes take the skin accent), belt, open coat with flared skirt
+  const nb = lo ? 4 : 6, y0 = 0.36, y1 = 0.76;
+  for (let i = 0; i < nb; i++) { const a = y0 + (y1 - y0) * i / nb, b = y0 + (y1 - y0) * (i + 1) / nb, ra = 0.16 + 0.02 * Math.sin(Math.PI * i / nb), rb = 0.16 + 0.02 * Math.sin(Math.PI * (i + 1) / nb);
+    add(cyl(rb, ra, b - a, lo ? 4 : 6, true, -0.8, 1.6), i % 2 ? STRIPE_K : BAND, 0, [0, (a + b) / 2, 0]); } // only the front shows between the coat lapels
+  add(sph(0.165, S, 3, 0, Math.PI * 2, 0, Math.PI / 2), coat, 0, [0, y1, 0], [0, 0, 0], [1, 0.45, 1]); // shoulders
+  add(cyl(0.172, 0.176, 0.05, S, true), BELT, 0, [0, 0.4, 0]);
+  const gap = 1.1; // open front of the coat
+  add(cyl(0.185, 0.235, 0.46, S, true, gap / 2, Math.PI * 2 - gap), coat, 0, [0, 0.54, 0]);
+  add(cyl(0.15, 0.185, 0.07, S, true, gap / 2, Math.PI * 2 - gap), coat, 0, [0, 0.8, 0]); // collar
+  // arms (shoulder pivot y 0.72): coat sleeves, a fist, or the wooden cuff + iron hook
+  for (const sx of [1, -1]) { const part = sx > 0 ? 3 : 4, isHook = hook && sx > 0;
+    add(sph(0.075, ring, 5), coat, part, [sx * 0.215, 0.72, 0]);
+    add(cyl(0.07, 0.058, 0.27, ring), coat, part, [sx * 0.235, 0.58, 0], [0, 0, sx * 0.08]);
+    if (isHook) { add(cyl(0.06, 0.068, 0.1, ring), WOOD, part, [sx * 0.25, 0.41, 0]);
+      add(cyl(0.012, 0.016, 0.07, 5), IRON, part, [sx * 0.25, 0.33, 0]);
+      add(new THREE.TorusGeometry(0.05, 0.014, 4, lo ? 6 : 10, Math.PI * 1.3), IRON, part, [sx * 0.25, 0.27, 0.035], [0, Math.PI / 2, Math.PI * 0.85]); }
+    else add(sph(0.062, ring, 6), skin, part, [sx * 0.25, 0.41, 0.01], [0, 0, 0], [1, 1.1, 1]); }
+  // head + ears, shaggy hair behind, full beard with an open shouting mouth
+  add(sph(0.215, lo ? 9 : 12, lo ? 6 : 12), skin, 0, [0, 0.95, 0], [0, 0, 0], [1.02, 0.98, 0.96]);
+  for (const sx of [1, -1]) add(sph(0.045, 6, 4), skin, 0, [sx * 0.21, 0.94, -0.01], [0, 0, 0], [0.6, 1, 0.9]);
+  add(sph(0.232, S, lo ? 4 : 8, Math.PI * 0.8, Math.PI * 1.4, Math.PI * 0.3, Math.PI * 0.45), beard, 0, [0, 0.96, -0.015], [0, 0, 0], [1.03, 1.05, 1.02]); // hair: back + sides
+  if (!lo) for (let i = 0; i < 5; i++) { const a = Math.PI * (0.62 + i * 0.19); add(new THREE.ConeGeometry(0.055, 0.16, 5), beard, 0, [Math.sin(a) * 0.2, 0.8, Math.cos(a) * 0.2], [0, 0, Math.PI]); } // shaggy tips hanging at the back + sides
+  add(sph(0.2, S, lo ? 4 : 8, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), beard, 0, [0, 0.92, 0.05], [0, 0, 0], [1.08, 1.25, 1.0]); // beard volume
+  add(new THREE.ConeGeometry(0.11, 0.14, lo ? 5 : 8), beard, 0, [0, 0.74, 0.12], [Math.PI + 0.35, 0, 0], [1.25, 1, 0.8]); // beard point
+  add(sph(0.075, ring, 6), MOUTH, 0, [0, 0.86, 0.235], [0, 0, 0], [1.0, 0.85, 0.4]); // open mouth
+  if (!lo) add(sph(0.045, 6, 4), TONGUE, 0, [0, 0.835, 0.255], [0, 0, 0], [1.1, 0.5, 0.4]);
+  // face: angry brows, one big blue eye (+ eye patch and strap), or two eyes / laser eyes
+  const ey = 0.99, ez = 0.19;
+  for (const sx of [1, -1]) add(cyl(0.012, 0.012, 0.09, 4), BROW, 0, [sx * 0.075, ey + 0.075, ez + 0.005], [0, 0, Math.PI / 2 + sx * 0.4]);
+  const eye = (sx) => { add(sph(0.05, ring, 6), EYE_W, 0, [sx * 0.075, ey, ez - 0.015], [0, 0, 0], [1, 1.15, 0.6]);
+    add(sph(0.03, ring, 5), laser ? C(0xff1010) : IRIS, 0, [sx * 0.075, ey, ez + 0.012], [0, 0, 0], [1, 1.1, 0.5]);
+    if (!laser) add(sph(0.015, 6, 4), PUPIL, 0, [sx * 0.075, ey, ez + 0.024], [0, 0, 0], [1, 1, 0.5]); };
+  if (patch) { eye(-1); add(sph(0.06, ring, 6), PATCH, 0, [0.075, ey, ez - 0.005], [0, 0, 0], [1.05, 0.95, 0.45]);
+    add(new THREE.TorusGeometry(0.215, 0.008, 3, lo ? 8 : 18), PATCH, 0, [0, ey + 0.02, -0.01], [0, 0, -0.45]); }
+  else { eye(1); eye(-1); if (laser) add(cyl(0.012, 0.012, 0.6, 4), C(0xff2a2a), 0, [0.075, ey, ez + 0.32], [Math.PI / 2, 0, 0]); }
+  // tricorn: domed crown, three-cornered brim turned up (front corner forward), tan band, skull + crossbones badge
+  add(lath([[0.001, 0.2], [0.11, 0.195], [0.165, 0.15], [0.19, 0.06], [0.2, 0.0]], S), hat, 0, [0, 1.12, -0.005]);
+  const brim = lath([[0.18, 0.0], [0.24, 0.006], [0.3, 0.025], [0.33, 0.05], [0.335, 0.07]], lo ? 12 : 24), bp = brim.attributes.position;
+  for (let i = 0; i < bp.count; i++) { const x = bp.getX(i), z = bp.getZ(i), rr = Math.hypot(x, z), a = Math.atan2(x, z), up = Math.pow(Math.max(0, Math.cos(3 * a)), 1.5); // corners at front + back sides
+    const k = Math.max(0, (rr - 0.18) / 0.155); bp.setY(i, bp.getY(i) + k * k * (0.02 + 0.16 * (1 - up))); bp.setX(i, x * (1 - 0.25 * k * (1 - up))); bp.setZ(i, z * (1 - 0.25 * k * (1 - up))); }
+  brim.computeVertexNormals(); add(brim, HAT_BRIM[hv], 0, [0, 1.11, 0]);
+  add(cyl(0.203, 0.207, 0.05, S, true), HAT_BAND[hv], 0, [0, 1.145, -0.005]);
+  add(sph(0.05, ring, 6), SKULL, 0, [0, 1.24, 0.19], [-0.25, 0, 0], [1, 0.95, 0.45]);
+  for (const sx of [1, -1]) add(cyl(0.011, 0.011, 0.15, 4), SKULL, 0, [0, 1.235, 0.185], [-0.25, 0, Math.PI / 2 + sx * 0.6]);
+  const g = mergeGeometries(out, false); out.forEach(o => o.dispose()); _pc.set(key, g); return g;
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
@@ -158,7 +189,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
   for (const g of gun) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.55], info: [0, g.sx, hash(k * 3.3), 0] });
   if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
   if (!crew.length) return null;
-  const parts = crew.map(c => { const g = pirate(c.v % 12).clone(), n = g.attributes.position.count;
+  const parts = crew.map(c => { const g = pirate(c.v % 12, lite || PHONE).clone(), n = g.attributes.position.count;
     const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
     g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4)); return g; });
   const geo = mergeGeometries(parts, false); parts.forEach(p => p.dispose());
@@ -192,7 +223,7 @@ function scopeGeo() {
 }
 export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   let lod = body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh) || null;
-  const g = mergeGeometries([pirate(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
+  const g = mergeGeometries([pirate(v, Q === 'low' || PHONE).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
   g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));
