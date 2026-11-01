@@ -35,7 +35,7 @@ export function cleanProfile(p) {
   return b;
 }
 // HOLDER PERK: server-checked (the client can't fake the balance or claim twice). Fails closed: any error = no perk.
-// [v85] OWNER-ONLY (BANKSYDEGEN's two devices, no wallet): the holder perk (+5% earned gold, daily gold) without a wallet. Gold is
+// [v85] OWNER-ONLY (BANKSYDEGEN's two devices, no wallet): the holder perk (2× earned gold, daily gold) without a wallet. Gold is
 // kept on the device when no wallet is signed, so the daily claim is tracked on the device too (once per Indianapolis day).
 const OWNER_DAY_KEY = 'pfp_owner_daily_v1', indyDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Indiana/Indianapolis' }).format(new Date());
 export async function holderStatus() { const s = session(); await ownerReady;
@@ -86,7 +86,11 @@ function writeDevice(p) { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || 
 // Load: the device save, or (when a wallet is linked) the wallet's save if it has progress. Never throws.
 export async function loadProfile() {
   await ownerReady;
-  const dev = readDevice(), s = session();
+  const dev = readDevice(), s = session(); group = null;
+  if (!s && ownerAll) { // [v92] owner-only shared save: first sync adds this device's gold once (max of each upgrade)
+    try { const j = await api('group_sync', { dk: deviceKey(), profile: dev, delta: 0 }); const g = cleanProfile({ ...dev, gold: j.gold, levels: j.levels });
+      group = { base: g.gold }; writeDevice(g); return { profile: g, source: 'group', seeded: !!j.seeded }; }
+    catch (e) { return { profile: dev, source: 'device', error: e.message }; } }
   if (!s) return { profile: dev, source: 'device' };
   try { const j = await api('load', { token: s.token }); const w = cleanProfile(j.profile);
     if (isBlank(w) && !isBlank(dev)) { await api('save', { token: s.token, profile: dev, seed: true }).catch(() => {}); return { profile: dev, source: 'device', wallet: s.wallet }; }
@@ -103,11 +107,31 @@ export async function linkWallet(serverProfile, deviceProfile) {
   try { const j = await api('save', { token: s.token, profile: deviceProfile, seed: true, dk: deviceKey() }); return cleanProfile(j.profile); } catch { return deviceProfile; }
 }
 
+// [v92] OWNER-ONLY shared save (BANKSYDEGEN's two devices, no wallet): each sync sends this device's gold CHANGE since the last
+// one (delta) + its upgrade levels; the server adds the delta to the shared pot and keeps the max of each upgrade. Gold or
+// upgrades from the other device come back as 'pfp-group-sync' { drift, levels } (pvp.js applies them live). Serialized.
+let group = null, gPending = null, gTimer = 0, gChain = Promise.resolve();
+function groupFlush(keepalive = false) {
+  gTimer = 0;
+  return (gChain = gChain.then(async () => {
+    const body = gPending; gPending = null; if (!body || !group) return { ok: true };
+    const delta = body.gold - group.base; group.base += delta;
+    try { const j = await api('group_sync', { dk: deviceKey(), profile: body, delta }, { keepalive }); if (!group) return { ok: true };
+      const drift = (j.gold | 0) - group.base; group.base = j.gold | 0; if (gPending) gPending.gold = Math.max(0, gPending.gold + drift);
+      const up = Object.keys(body.levels).some(k => (j.levels?.[k] | 0) > (body.levels[k] | 0));
+      if (drift || up) { const d = readDevice(); writeDevice(cleanProfile({ ...d, gold: Math.max(0, d.gold + drift), levels: up ? { ...d.levels, ...Object.fromEntries(Object.keys(d.levels).map(k => [k, Math.max(d.levels[k] | 0, j.levels?.[k] | 0)])) } : d.levels }));
+        try { dispatchEvent(new CustomEvent('pfp-group-sync', { detail: { drift, levels: up ? j.levels : null } })); } catch {} }
+      return { ok: true, group: true, gold: j.gold };
+    } catch (e) { group.base -= delta; if (!gPending) gPending = body; /* retried with the next save */ return { ok: false, error: e.message, status: e.status === 401 ? 0 : e.status }; }
+  }));
+}
 // Save: device immediately; wallet (if linked) throttled ~3 s, or right away with now / keepalive (page closing).
 let pending = null, timer = 0, inflight = null;
 export function saveProfile(profile, { now = false, keepalive = false } = {}) {
   const p = cleanProfile(profile); writeDevice(p);
-  const s = session(); if (!s) return Promise.resolve({ ok: true, device: true });
+  const s = session();
+  if (!s && group) { gPending = p; if (now || keepalive) { clearTimeout(gTimer); return groupFlush(keepalive); } if (!gTimer) gTimer = setTimeout(groupFlush, 3000); return Promise.resolve({ ok: true, queued: true }); }
+  if (!s) return Promise.resolve({ ok: true, device: true });
   pending = p;
   const flush = () => { timer = 0; const body = pending; pending = null; if (!body) return inflight || Promise.resolve({ ok: true });
     inflight = api('save', { token: s.token, profile: body }, { keepalive }).then(j => ({ ok: true, profile: cleanProfile(j.profile) })).catch(e => { if (e.status === 401) ls.set(SESSION_KEY, null); return { ok: false, error: e.message, status: e.status }; });

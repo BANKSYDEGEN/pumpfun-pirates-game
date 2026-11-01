@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
+import { PVP_HARBOR_DEATH_LOSS } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
@@ -103,6 +104,11 @@ export function createPvp(K) {
     finally { c.disabled = false; holderUi(); }
   }
   const holderMul = (earned) => HOLDER_ENABLED && holder.on && earned > 0 ? Math.round(earned * (HOLDER_GOLD_MUL - 1)) : 0;
+  addEventListener('pfp-group-sync', (e) => { if (!active) return; const { drift, levels } = e.detail || {}; // [v92] owner shared save: the other device's gold / upgrades
+    if (drift) { game.gold = Math.max(0, (game.gold | 0) + drift); profile.gold = game.gold; }
+    if (levels) { const cur = getRunLevels(), m = Object.fromEntries(Object.keys(cur).map(k => [k, Math.max(cur[k] | 0, levels[k] | 0)]));
+      if (JSON.stringify(m) !== JSON.stringify(cur)) { const hp = P().hp; setRunLevels(m); P().hp = Math.min(hp, P().maxHp); profile.levels = m; } }
+    K.updateHud(); });
   function applyProfile() { // called by main after the fresh player ship exists
     setRunLevels(profile.levels); game.gold = profile.gold;
   }
@@ -465,8 +471,10 @@ export function createPvp(K) {
     const pl = P(), recent = performance.now() - me.lastDamageAt < 15000;
     let by = recent ? me.lastBy : null;
     const byAi = !!by && (bots.has(by) || String(by).startsWith('b'));
-    if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: costs nothing but time, never K/D
-      me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = 'an AI ship'; me.dropped = 0; me.aiDeath = true;
+    if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
+      const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
+      me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
+      if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); }
       showDead(true); return;
     }
     me.aiDeath = false;
@@ -563,7 +571,7 @@ export function createPvp(K) {
   function applyGot(m) {
     const l = piles.get(m.pid); const v = clamp(Math.floor(+m.v || 0), 0, l ? l.value : 0);
     if (l) { if (m.to !== myId) K.popup(l.mesh.position.clone().setY(5), `${nameOf(m.to)} +${v}`, 'hit'); removePile(m.pid); }
-    const hb = m.to === myId && l ? holderMul(l.earned) : 0; // HOLDER +5% on earned gold only
+    const hb = m.to === myId && l ? holderMul(l.earned) : 0; // HOLDER ×2 on earned gold only
     if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); K.updateHud(); save(); }
   }
   function respawn() {
@@ -644,7 +652,7 @@ export function createPvp(K) {
     const el = $('pvp-dead'); el.classList.toggle('hidden', !on); if (!on) return;
     el.querySelector('.pd-by').textContent = `Sunk by ${me.killedBy}`;
     const q = el.querySelector('.pd-queue'); if (q) q.hidden = true; const re = el.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'Back at sea in ';
-    el.querySelector('.pd-drop').textContent = me.aiDeath ? 'AI ships cost you nothing but time: gold and K/D unchanged.'
+    el.querySelector('.pd-drop').textContent = me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
       : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D.` : `You dropped ${me.dropped} gold (${me.dropped - PVP_DEATH_BONUS - (me.lostBounty || 0)} carried + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). Upgrades kept.`;
     el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
   }
@@ -761,7 +769,7 @@ export function createPvp(K) {
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
-    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER +5%</span>' : ''}`; }
+    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER 2× GOLD</span>' : ''}`; }
     if (where === 'harbor') hud(); // [v74] arena head-count + AI pay live under the minimap
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
   }

@@ -1,8 +1,8 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename", ... }. The wallet only ever SIGNS A MESSAGE.
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
+import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
@@ -113,6 +113,17 @@ Deno.serve(async (req) => {
         const { data, error } = await db.from("pvp_profiles").update({ ...toRow(next), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
         if (error) throw error;
         return json(200, { profile: toProfile(data as Row) });
+      }
+      // [v92] OWNER-ONLY one-off: the merged no-wallet account (pvp_alias group, migrations 017/018) shares gold + upgrades across
+      // its devices. First sync per device adds its local gold once (max of each upgrade); later syncs send the gold delta.
+      // Any other device gets 404 and keeps its normal device save.
+      case "group_sync": {
+        const dev = await devId(b); if (!dev) return json(401, { error: "no device" });
+        const p = cleanProfile(b.profile), delta = Math.max(-1e7, Math.min(1e7, Math.floor(Number(b.delta) || 0)));
+        const { data, error } = await db.rpc("pvp_group_sync", { p_dev: dev, p_gold: p.gold, p_delta: delta, p_levels: p.levels, p_gain_base: CAPS.valueBase, p_gain_per_min: CAPS.valuePerMin });
+        if (error) throw error;
+        if (!data?.ok) return json(404, { error: "not a group" });
+        return json(200, { gold: data.gold, levels: data.levels, seeded: !!data.seeded, devices: data.devices });
       }
       case "logout": {
         if (typeof b.token === "string") await db.from("pvp_sessions").delete().eq("token_hash", await sha256(b.token));

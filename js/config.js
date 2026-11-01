@@ -43,8 +43,9 @@ export const PIRATE_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pirate
 // ---------------- PvP ARENA (BETA): drop-in, real-time, Supabase Realtime broadcast (no extra hosting) ----------------
 // Off on game portals (no Supabase there). Upgrades/prices/stats come from js/upgrades.js, same as solo.
 export const PVP_ENABLED = !ON_PORTAL && !!SUPABASE_URL;
+export const PVP_HARBOR_DEATH_LOSS = 100; // [v92] BANKSY: sinking in the HARBOR costs min(100, your gold); you keep the rest (was free)
 export const PVP_DEATH_BONUS = 100;   // a sunk pirate drops ALL carried gold + this flat bonus (carrying 0 drops 100; 1000 drops 1100)
-export const PVP_AI_GOLD = 5;         // fallback gold pile of a LOCAL AI ship (harbor, or a lone player in the arena); real value = harborGold(L) below. AI kills never count for K/D / boards
+export const PVP_AI_GOLD = 10;        // fallback gold pile of a LOCAL AI ship (harbor, or a lone player in the arena); real value = harborGold(L) below. AI kills never count for K/D / boards
 export const PVP_PILE_LIFE = Infinity; // PvP gold piles never despawn (BANKSY): they float until someone collects them
 export const PVP_PILE_CAP = 30;       // live piles per arena (and in your harbor); past it the OLDEST pile's gold merges into its nearest pile
 export const PVP_PILE_MAX = 100000;   // value clamp for a (merged) pile
@@ -96,13 +97,14 @@ export const HARBOR_HP_BASE = 70;         // AI hull HP at L = 0
 export const HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 }; // harbor kills to afford tier index t: base + amp·growth^t (exponential-ish top)
 export const harborKills = (t) => HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t);
 export const harborScale = (L) => 1 + HARBOR_SCALE_PER_LV * Math.max(0, L);
-export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * harborScale(L));
+export const HARBOR_PAY_MUL = 2;           // [v92] BANKSY: harbor AI payouts doubled (upgrade prices still use HARBOR_GOLD_BASE, unchanged)
+export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * HARBOR_PAY_MUL * harborScale(L));
 // BANKSY: a fresh Battle Royale ship has 300 HP, so one broadside never sinks it. PvP only (Waves unchanged):
 //   hull = 300 + 1.5 × (the Waves hull bonus): HULL PLANKS I-VI 420 / 450 / 472 / 502 / 532 / 562 HP;
 //   your cannonballs ×PVP_DMG_MUL (the best possible broadside, CANNONS VIII: 8 × 20 × 1.27 × 1.4 = 284, stays under 300);
 //   harbor AI hulls ×PVP_DMG_MUL (same time to sink them), AI cannons ×PVP_AI_DMG_MUL; shipwright repair +REPAIR.hp × 3.
 export const PVP_BASE_HP = 300, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 2.5, PVP_REPAIR_MUL = 3;
-export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (15 harbor kills at L0); higher tiers follow the curve
+export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (8 harbor kills at L0 since the v92 double pay); higher tiers follow the curve
 export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
 // HARD CAP: each track stops at its last tier (6 levels, CANNONS 8; js/upgrades.js). Maxed = MAX in the shop; more gold buys no power.
 // STREAK BOUNTY: every counted player kill in a row (no idle victim, not the same victim again within the anti-farm window,
@@ -113,7 +115,7 @@ export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKi
 // EARNS (harbor AI gold, the +100 kill bonus); not on carried gold / bounties it picks up. The balance is checked server-side
 // in the `pvp` Edge Function (cached ~10 min) and the daily claim is enforced there. Mirror: supabase/functions/pvp/lib.ts.
 export const HOLDER_ENABLED = !ON_PORTAL;
-export const HOLDER_MIN_TOKENS = 1, HOLDER_GOLD_MUL = 1.05, HOLDER_DAILY_GOLD = 100;
+export const HOLDER_MIN_TOKENS = 1, HOLDER_GOLD_MUL = 2, HOLDER_DAILY_GOLD = 100; // [v92] BANKSY: holder boost ×2 (was 1.05)
 export const HOLDER_MINTS = { SUNK: 'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump', AHOY: '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump' };
 export const PVP_BOUNTY = { perKill: 25, cap: 500, announce: 200, pairWindow: 120 };
 export const PVP_REPAIR_COST = 40;    // repairs stay cheap in PvP (+50 HP, same as solo)

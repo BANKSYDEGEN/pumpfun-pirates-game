@@ -14,6 +14,7 @@
 - **AI ships:** HARBOR ONLY, local, never networked. The arena is players only, always (also when you're alone in it; BANKSY
   2026-10-31). Harbor AI only ever target / aim at / fire on YOU: their balls never hurt other AI ships, AI never credits AI kills
   (t11: 60 s harbor run, AI HP only drops from your shots). AI kills never count for K/D or boards. The host only handles loot.
+  [v92] Sunk IN THE HARBOR = lose min(100, your gold) (PVP_HARBOR_DEATH_LOSS), keep the rest (was free). Never K/D.
 - Authority: the lobby is ONE place (Supabase: `pvp_lobby()` RPC with an advisory lock, migration 007 APPLIED; relay: server/relay.js).
 
 ## Netcode capacity (Supabase Realtime FREE: 100 msgs/s project-wide sent+delivered, 200 connections, presence 20/s)
@@ -31,21 +32,21 @@
 - Switch: `PVP_RELAY_URL` in js/config.js (or `?relay=ws://localhost:8080` for testing). All capacity numbers live in `PVP_NET`.
 
 ## Economy (js/config.js HARBOR_* / pvpTierCost; same price in harbor and arena; mirrored in supabase/functions/pvp/lib.ts)
-- Harbor AI scale with your total upgrade level L (0-44): HP 70·s, gold 5·s with s = 1 + 0.137·L; size +1 %/L (hitbox too), damage +2 %/L.
+- Harbor AI scale with your total upgrade level L (0-44): HP 70·s, gold 10·s (v92: ×2, HARBOR_PAY_MUL; upgrade prices still priced off 5·s) with s = 1 + 0.137·L; size +1 %/L (hitbox too), damage +2 %/L.
 - PvP upgrade cost of tier index t = harborKills(t) × harborGold(L ≈ 7t), harborKills(t) = 40 + 10·1.55^t (cheap early, steep top).
 - Hard cap per track: 6 levels (CANNONS 8). Maxed tracks show **MAX VI / MAX VIII** in the shop; more gold buys no power.
 
 | tier | typical L | harbor AI gold | AI HP | cost | harbor kills needed |
 |---|---|---|---|---|---|
-| I | 0 | 5 | 70 | **75** (was 250; BANKSY) | **15** |
-| II | 7 | 10 | 137 | 540 | 54 |
-| III | 14 | 15 | 204 | 930 | 62 |
-| IV | 21 | 19 | 271 | 1,500 | 79 |
-| V | 28 | 24 | 339 | 2,360 | 99 |
-| VI (cap, 6 tracks) | 35 | 29 | 406 | 3,750 | 130 |
-| VII (CANNONS) | 42 | 34 | 473 | 6,030 | 178 |
-| VIII (CANNONS cap) | 42 | 34 | 473 | 8,610 | 254 |
-Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill = victim's carried gold + 100 bonus (+ bounty) ≈ 20 early harbor kills, ≈ 3 late ones.
+| I | 0 | 10 (was 5) | 70 | **75** (was 250; BANKSY) | **8** (was 15) |
+| II | 7 | 20 (was 10) | 137 | 540 | 27 (was 54) |
+| III | 14 | 30 (was 15) | 204 | 930 | 31 (was 62) |
+| IV | 21 | 38 (was 19) | 271 | 1,500 | 40 (was 79) |
+| V | 28 | 48 (was 24) | 339 | 2,360 | 50 (was 99) |
+| VI (cap, 6 tracks) | 35 | 58 (was 29) | 406 | 3,750 | 65 (was 130) |
+| VII (CANNONS) | 42 | 68 (was 34) | 473 | 6,030 | 89 (was 178) |
+| VIII (CANNONS cap) | 42 | 68 (was 34) | 473 | 8,610 | 127 (was 254) |
+Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill = victim's carried gold + 100 bonus (+ bounty) ≈ 10 early harbor kills, ≈ 1.5 late ones (v92 double harbor pay).
 
 ## Streak bounty (PVP_BOUNTY)
 - +25 g per counted kill in a row, cap 500. Counted = a real player, not idle ≥ 60 s, not the same victim again within 120 s; never AI.
@@ -54,7 +55,7 @@ Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill
 - Network: rides in the normal state ('bt') and 'sunk' ('b') messages; the host caps a claimed bounty at what the victim showed.
 
 ## Holder perk (web build only, HOLDER_ENABLED = !ON_PORTAL)
-- Linked wallet (read-only signMessage) holding ≥ HOLDER_MIN_TOKENS = 1 $SUNK or $AHOY: **HOLDER +5%** badge (HOLDER_GOLD_MUL 1.05 on
+- Linked wallet (read-only signMessage) holding ≥ HOLDER_MIN_TOKENS = 1 $SUNK or $AHOY: **HOLDER 2× GOLD** badge (HOLDER_GOLD_MUL 2, was 1.05, on
   earned gold: harbor AI gold and the +100 kill bonus; not carried gold / bounties) + **Claim daily gold** (HOLDER_DAILY_GOLD 100,
   once per wallet per America/Indianapolis day). Balance checked SERVER-SIDE in the `pvp` Edge Function (getTokenAccountsByOwner on a
   public Solana RPC, cached 10 min in `pvp_holders`; RPC error = no perk, re-checked after 1 min). Claim enforced by `pvp_holder_claim()`
@@ -76,7 +77,7 @@ Maxing everything = 78,725 g (was 79,950 before the 75 g level 1). A player kill
   A random pirate name is no longer written into the Waves name slot.
 - **Gold piles never despawn** (arena + harbor): live piles capped at PVP_PILE_CAP 30; past it the oldest pile's gold merges into its
   nearest pile ('gone' + 'pv'), so no gold is lost. Host resyncs the pile list every 10 s and on 'hello' (late joiners, spectators). t13.
-- **Level 1 of every upgrade track = 75 g** (PVP_TIER1_COST, mirrored in the pvp function): 15 harbor kills at L0. Higher tiers unchanged.
+- **Level 1 of every upgrade track = 75 g** (PVP_TIER1_COST, mirrored in the pvp function): 8 harbor kills at L0 (15 before the v92 double pay). Higher tiers unchanged.
 - Title: BATTLE ROYALE (left) + WAVES (right), equal size, no (BETA); SPECTATE/WATCH BATTLE ROYALE; full $SUNK CA on its own line
   (monospace, shrinks to fit, never truncated) with the links under it, every layout. Portal builds: WAVES only, no token row.
 - Raul's premium pass + Flaming redesign (pvpKit liftRig / signatureWake, Golden, Ghost, Kraken, Diamond, flamingRedesign.js).
