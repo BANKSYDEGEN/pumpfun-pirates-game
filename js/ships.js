@@ -271,7 +271,9 @@ export function buildShip(opts) {
   }
   // bow knee + figure: a gold-capped stem post
   const bowT = 0.995, bowY = shape.top(bowT);
-  parts.add(K.gold, new THREE.SphereGeometry(0.32, 10, 8), [0, bowY + 0.25, zAt(1) + 0.05]);
+  // [v87] seated ON the stem head (it used to overhang the bow and read as floating off the front), on a short knee post
+  parts.add(K.gold, new THREE.SphereGeometry(0.32, 10, 8), [0, bowY + 0.32, zAt(1) - 0.24]);
+  parts.add(K.mast, cyl(0.12, 0.17, 0.75, 6), [0, bowY - 0.05, zAt(1) - 0.22]);
 
   // stern castle: chunky rounded cabin, gold roof trim, quarterdeck rail, glowing windows
   const cabT = 0.13, cabZ = zAt(cabT), cabL = len * 0.24, cabW = beam * 0.74, cabH = 1.9 + (boss ? 0.4 : 0);
@@ -386,8 +388,12 @@ export function buildShip(opts) {
   const bsL = len * 0.34;
   parts.add(K.mast, cyl(0.1, 0.2, bsL, 8), [0, bowY + 0.5 + Math.sin(0.35) * bsL * 0.4, zAt(1) + bsL * 0.32], [Math.PI / 2 - 0.35, 0, 0]);
   const jg = new THREE.BufferGeometry();
-  const mh0 = len * 0.98 * mastDefs[0][1], jTop = new THREE.Vector3(0, deckAt(mastDefs[0][0]) + mh0 * 0.78, zAt(mastDefs[0][0]) + 0.4);
-  const jTip = new THREE.Vector3(0, bowY + 0.6 + Math.sin(0.35) * bsL * 0.8, zAt(1) + bsL * 0.62), jFoot = new THREE.Vector3(0, bowY + 0.5, zAt(0.88));
+  // [v87] the jib's head hangs on the FOREMAST's forestay, ahead of the fore course's belly (it used to run from the MAIN
+  // masthead straight through the middle of the foremast's square sails)
+  const foreM = mastDefs.reduce((a, b) => (b[0] > a[0] ? b : a)), fz = zAt(foreM[0]), fy = deckAt(foreM[0]) + len * 0.98 * foreM[1];
+  const stZ = zAt(1) + len * 0.12, stY = bowY + 0.6, ju = Math.min(0.6, (len * 0.14 + 0.2) / Math.max(1, stZ - fz));
+  const jTop = new THREE.Vector3(0, fy + (stY - fy) * ju, fz + (stZ - fz) * ju);
+  const jTip = new THREE.Vector3(0, bowY + 0.6 + Math.sin(0.35) * bsL * 0.8, zAt(1) + bsL * 0.62), jFoot = new THREE.Vector3(0, bowY + 0.5, zAt(0.9));
   jg.setAttribute('position', new THREE.Float32BufferAttribute([...jTop.toArray(), ...jTip.toArray(), ...jFoot.toArray()], 3));
   jg.setAttribute('uv', new THREE.Float32BufferAttribute([0.5, 1, 1, 0, 0, 0], 2));
   jg.computeVertexNormals();

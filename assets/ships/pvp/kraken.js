@@ -34,25 +34,33 @@ function geos(ud, low) {
       [sx * w * 0.55, top + 1.9 * c, z0 + lean * 0.5], [sx * w * 0.15, top + 3.0 * c, z0 + lean * 0.8], [sx * w * 0.45, top + 3.9 * c, z0 + lean * 1.1], [sx * w * 0.95, top + 3.6 * c, z0 + lean * 0.95], [sx * w * 0.85, top + 2.8 * c, z0 + lean * 0.75]]
       .map(p => new THREE.Vector3(...p));
     const { geo, curve } = taperTube(P, 0.7, 0.07, low ? 16 : 28, low ? 5 : 7);
+    { const a = geo.attributes.sway.array; for (let q = 0; q < a.length; q++) a[q] += (i + 1) * 2; } // [v87] tentacle id in the integer part (phase), u in [0,1]
     parts.push(paint(geo, FLESH));
     // suction cups along the underside, facing the hull
     const nc = low ? 5 : 9;
     for (let k = 1; k <= nc; k++) { const u = 0.12 + k / (nc + 1) * 0.7, c = curve.getPointAt(u), r = 0.62 + (0.07 - 0.62) * u;
       const cup = place(new THREE.SphereGeometry(Math.max(0.07, r * 0.42), 6, 4), [c.x - sx * r * 0.75, c.y, c.z], [0, 0, sx * Math.PI / 2], [1, 0.45, 1]);
-      parts.push(paint(cup, CUP, u)); }
+      parts.push(paint(cup, CUP, u + (i + 1) * 2)); } // cups ride their tentacle
   });
   // kraken figurehead: bulbous mantle, brow ridge, 5 curled arms under it
   const hz = zAt(1) + 0.9, hy = bowY + 0.6;
   parts.push(paint(place(new THREE.SphereGeometry(1.0, 12, 10), [0, hy + 0.5, hz], [-0.5, 0, 0], [1.0, 1.45, 1.1]), HEAD));
   parts.push(paint(place(new THREE.TorusGeometry(0.62, 0.14, 5, 12, Math.PI), [0, hy + 0.35, hz + 0.55], [0.2, 0, 0]), HEAD));
   for (let i = 0; i < 5; i++) { const a = (i - 2) * 0.5, pts = []; for (let k = 0; k <= 6; k++) { const u = k / 6; pts.push(new THREE.Vector3(Math.sin(a) * (0.5 + u * 0.4) + Math.sin(u * 5) * 0.15 * Math.sign(a || 1), hy - 0.3 - u * 1.4 + Math.sin(u * 4) * 0.25, hz + 0.4 + Math.cos(a) * u * 0.9)); }
-    parts.push(paint(taperTube(pts, 0.26, 0.05, low ? 8 : 12, 5).geo, FLESH)); }
+    const tg = taperTube(pts, 0.26, 0.05, low ? 8 : 12, 5).geo; { const a = tg.attributes.sway.array; for (let q = 0; q < a.length; q++) a[q] = a[q] * 0.7 + (10 + i) * 2; } // figurehead arms: gentler
+    parts.push(paint(tg, FLESH)); }
   for (const sx of [1, -1]) eyes.push(place(new THREE.SphereGeometry(0.2, 8, 6), [sx * 0.45, hy + 0.3, hz + 0.88]));
   const out = { flesh: mergeAll(parts), eyes: (() => { const g = eyes.length > 1 ? mergeAll(eyes.map(e => paint(e, CUP))) : eyes[0]; return g; })() };
   _geo.set(key, out); return out;
 }
 const SWAY_V = `#include <begin_vertex>
-  { float w = sway * sway; transformed += vec3(sin(uKT * 1.5 + position.y * 0.8 + uKPhase), 0.0, cos(uKT * 1.2 + position.z * 0.6 + uKPhase)) * 0.28 * w * uSway; }`;
+  { // [v87] organic curl: a wave travels from base to tip, bending more toward the tip, each tentacle on its own phase.
+    // sway = tentacle id * 2 + u (u: 0 root .. 1 tip; id 0 = rigid). Sideways motion only pushes AWAY from the hull centreline.
+    float id = floor(sway * 0.5), u = sway - id * 2.0;
+    if (id > 0.5) { float ph = id * 1.93 + uKPhase, w = u * u * (3.0 - 2.0 * u), t = uKT * 1.1;
+      float a = sin(t - u * 4.5 + ph), b = cos(t * 0.8 - u * 3.5 + ph * 1.7);
+      float amp = (id > 9.5 ? 0.25 : 0.75) * min(uSway, 1.6);
+      transformed += vec3(sign(position.x) * abs(b) * 0.35, a * 0.55 + 0.2 * b, b * 0.8 + a * 0.3) * w * amp; } }`;
 const SLIME = `totalEmissiveRadiance += vec3(0.55, 0.25, 0.9) * fres * 0.7 + vec3(0.9, 0.7, 1.0) * pow(max(dot(Rw, normalize(vec3(0.45, 0.75, 0.48))), 0.0), 40.0) * 0.8;`;
 export function krakenPartsOverride(ship, ctx) {
   const low = ctx.quality === 'low', G = geos(ctx.ud, low), F = fxOf(ship);

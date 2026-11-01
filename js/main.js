@@ -8,7 +8,7 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
-import { setCrewQuality, crewFire } from './crew.js'; // [Raul] deck crew
+import { setCrewQuality, crewFire, crewHit } from './crew.js'; // [Raul] deck crew · [v87] crew react to hits
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
@@ -333,6 +333,7 @@ function playerFire(side) {
 function damage(s, amt, p, src = null) {
   if (!s.alive) return;
   s.hp -= amt;
+  crewHit(s.mesh, amt / Math.max(1, s.maxHp || 100) * 6); // [v87] the crew stagger (visual only)
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
   if (s === player) { s.calm = 0; s.repT = 0; game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); } // [repair] a hit resets the 20 s wait
   else if (s.ally) { s.calm = 0; s.repT = 0; } // [escorts] no score for hits on your own escorts

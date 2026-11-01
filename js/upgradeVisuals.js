@@ -68,6 +68,7 @@ const WATCH_H = 1.9, WATCH_R = 1.3;
 // [v85] the lookout rail (SPYGLASS II-IV) sits ABOVE the main mast's highest sail (on a short pole off the masthead / topmast),
 // so the chase camera sees the patrolling pirate instead of the topsail. Centre y of the rail drum (floor = +0.25).
 const railCY = (A) => A.mainTop + 0.45;
+const foreNestY = (A) => { const f = A.masts[1]; return f.y + f.h + (A.sails.top ? f.h * A.sails.top : 0) + 0.5; };
 // overall scale: hull size does most of it, every other tier adds a little (max ≈ 1.6× length, 1.9× beam)
 const extraScale = (lv) => 1 + 0.0028 * TRAIT_IDS.reduce((a, id) => a + (id === 'hull' ? 0 : (lv[id] || 0)), 0);
 
@@ -473,7 +474,8 @@ const PARTS = {
       Ly.add(M.oak, cyl(0.06, 0.08, 1.75, 6), [0, ry + 0.25 + 0.85, m0.z]); } // flag staff: the flag flies above the lookout's head
     if (T.watchtower) scope([0.1, ny + 0.75, m0.z + 0.6], Math.PI / 2 - 0.12, 1.1); // [v84] below the tower: the lookout pirate holds this glass
     if (T.crowsNest) {
-      const f = A.masts[1], fy = f.y + f.h * 0.8;
+      // [v87] the fore crow's nest sits ON the foremast head (above its topsail / topgallant), not inside the topsail
+      const f = A.masts[1], fy = foreNestY(A);
       nest(0, fy, f.z, 0.95, 1.1, T.gold);
       scope([0, fy + 0.95, f.z + 0.5], Math.PI / 2 - 0.12, 0.9);
       Ly.add(M.glow, sph(0.2), [0.7, fy + 1.2, f.z]);
@@ -489,7 +491,7 @@ const PARTS = {
       Ly.add(M.oak, cyl(0.07, 0.09, 0.9, 5), [x, y + 0.45, z]);
       scope([x, y + 0.9, z - 0.4], Math.PI / 2 - 0.08, 0.8);
     }
-    if (T.lamps) { const f = A.masts[1]; for (const sx of [1, -1]) { Ly.add(M.gold, cyl(0.16, 0.22, 0.14, 8), [sx * 0.75, m0.y + m0.h * 0.84 + 0.9, m0.z]); Ly.add(M.glow, sph(0.22), [sx * 0.75, m0.y + m0.h * 0.84 + 0.65, m0.z]); Ly.add(M.glow, sph(0.2), [sx * 0.7, f.y + f.h * 0.8 + 1.2, f.z]); } } // [more levels] signal lamps on both tops
+    if (T.lamps) { const f = A.masts[1]; for (const sx of [1, -1]) { Ly.add(M.gold, cyl(0.16, 0.22, 0.14, 8), [sx * 0.75, m0.y + m0.h * 0.84 + 0.9, m0.z]); Ly.add(M.glow, sph(0.22), [sx * 0.75, m0.y + m0.h * 0.84 + 0.65, m0.z]); Ly.add(M.glow, sph(0.2), [sx * 0.7, foreNestY(A) + 1.2, f.z]); } } // [more levels] signal lamps on both tops
     if (T.watchtower) { // tall lattice tower on top of the main mast (above any topmasts) with a glowing beacon
       const y0 = A.mainTop + 0.4, z = m0.z, r = 0.75, hgt = WATCH_H;
       Ly.add(M.oak, cyl(0.12, 0.16, 0.9, 8), [0, y0 - 0.15, z]); // [v85] mast head runs up into the tower's foot (no floating tower)

@@ -68,10 +68,11 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS;
+uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK;
 varying vec3 vC; varying vec3 vN; varying vec3 vV;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
+vec3 rotZ(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z); }
 void main(){
   vec3 p = position, n = normal; float role = aInfo.x, sx = aInfo.y, ph = aInfo.z, span = aInfo.w;
   vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0, look = 0.0;
@@ -98,6 +99,20 @@ void main(){
     float w = sin(uT * 7.5 + ph * 6.28);
     leg = w * 0.55; arm = -w * 0.5; bob = abs(w) * 0.035;
   }
+  // [v87] REACTIONS. Hit: every pirate staggers (crouch, wobble, arms over the head; the lookout grabs the rail), staggered per
+  // pirate, scaled by the hit size (uHitK). Fire: walkers + the lookout sometimes cheer / fist-pump after a broadside.
+  float roll = 0.0, hop = 0.0;
+  if (role < 0.5) { float tf0 = uT - (sx > 0.0 ? uFireP : uFireS); hop = (tf0 >= 0.0 && tf0 < 0.7) ? sin(tf0 / 0.7 * 3.14159) * 0.16 : 0.0; } // gunner hops back from the recoil
+  else { float tc = uT - max(uFireP, uFireS) - 0.35 - ph * 0.3, cheer = step(0.45, fract(sin(ph * 91.7 + floor(max(uFireP, uFireS)) * 3.1) * 437.5));
+    float ch = cheer * smoothstep(0.0, 0.2, tc) * (1.0 - smoothstep(1.2, 1.6, tc));
+    arm = mix(arm, -2.7 + 0.35 * sin(uT * 14.0 + ph * 5.0), ch); leg *= 1.0 - ch; look *= 1.0 - ch; bob += ch * abs(sin(uT * 9.0 + ph)) * 0.08; }
+  float th = uT - uHit - ph * 0.25;
+  float hr = (th >= 0.0 && th < 1.4) ? uHitK * smoothstep(0.0, 0.12, th) * (1.0 - smoothstep(0.4, 1.4, th)) : 0.0;
+  if (hr > 0.001) {
+    roll = hr * 0.32 * sin(th * 13.0 + ph * 6.28); lean += hr * 0.3 * sin(th * 9.0 + ph * 3.0) - hr * 0.15; bob -= hr * 0.16;
+    if (role > 1.5) { look *= 1.0 - min(1.0, hr * 2.0); arm = mix(arm, -1.45, min(1.0, hr * 2.0)); leg *= 1.0 - hr; } // lookout grabs the rail
+    else { arm = mix(arm, -2.9, min(1.0, hr * 1.6)); leg = mix(leg, 0.35 * sin(th * 12.0 + ph * 4.0), min(1.0, hr * 1.6)); } // arms over the head, stumbling feet
+  }
   if (aPart > 0.5 && aPart < 1.5) p = rotX(p, vec3(0.0, 0.36, 0.0), leg);
   else if (aPart > 1.5 && aPart < 2.5) p = rotX(p, vec3(0.0, 0.36, 0.0), -leg);
   else if (aPart > 2.5 && aPart < 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(arm, -2.25, look));
@@ -105,7 +120,7 @@ void main(){
   else if (aPart > 4.5) { // telescope: modelled at the eye; held in the right hand (tilted down-forward) until raised
     float ra = mix(arm, -2.25, look) + 2.25, ta = -1.47 * (1.0 - look);
     p = rotX(rotX(p, vec3(0.0, 0.92, 0.25), ta), vec3(0.0, 0.72, 0.0), ra); n = rotX(rotX(n, vec3(0.0), ta), vec3(0.0), ra); }
-  p = rotX(p, vec3(0.0), lean) * uS * (role > 1.5 ? span : 1.0); n = rotX(n, vec3(0.0), lean);
+  p.z -= hop; p = rotZ(rotX(p, vec3(0.0), lean), roll) * uS * (role > 1.5 ? span : 1.0); n = rotZ(rotX(n, vec3(0.0), lean), roll);
   float c = cos(yaw), si = sin(yaw);
   p = vec3(p.x * c + p.z * si, p.y + bob, -p.x * si + p.z * c) + o; n = vec3(n.x * c + n.z * si, n.y, -n.x * si + n.z * c);
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
@@ -126,7 +141,7 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: VERT, fragmentShader: FRAG, fog: true,
   });
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
@@ -257,4 +272,11 @@ export function dressCrew(body, skinId) {
   col.needsUpdate = true; lod.userData.outfit = skinId; return true;
 }
 // a broadside from `side` ('port' | 'star'): that side's gun crews recoil, then ram and reload
-export function crewFire(mesh, side) { const U = mesh?.userData?.crew; if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }
+// [v87] the ship took a hit: the crew stagger (k 0..1, bigger hit = bigger reaction; a fresh hit never shrinks a running one)
+// the crew uniforms of a ship (buildShip replaces ship.userData after addCrew, so look the crew mesh up on the body)
+function crewU(mesh) { const ud = mesh?.userData; if (!ud) return null; if (ud.crew?.uHit) return ud.crew;
+  let cm = null; (ud.body || mesh).traverse?.(o => { if (!cm && o.userData?.crewMesh) cm = o; }); const U = cm?.material?.uniforms || null;
+  if (U) ud.crew = U; return U; }
+export function crewHit(mesh, k = 0.5) { const U = crewU(mesh); if (!U?.uHit) return; const t = wind.uTime.value, run = t - U.uHit.value < 0.5 ? U.uHitK.value : 0;
+  U.uHit.value = t; U.uHitK.value = Math.min(1, Math.max(0.35, k, run)); }
+export function crewFire(mesh, side) { const U = crewU(mesh); if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }

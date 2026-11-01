@@ -83,7 +83,7 @@ function geos(ud, low) {
   gold.push(place(new THREE.BoxGeometry(beam * 0.56, 0.18, len * 0.11), [0, fy + 1.35, fz]));
   // gilded lion figurehead + beak: head, mane ring, body, swept wings
   const bz = zAt(1) + 0.6, by = bowY + 0.2;
-  gold.push(place(new THREE.ConeGeometry(0.5, 2.2, 7), [0, by - 0.3, bz + 0.3], [-1.15, 0, 0]));
+  gold.push(place(new THREE.ConeGeometry(0.5, 2.2, 7), [0, by - 0.3, bz + 0.3], [1.15, 0, 0])); // [v87] beak's wide end on the stem, tip under the lion head (it was flipped: head + wings floated off the bow)
   gold.push(place(new THREE.SphereGeometry(0.48, 10, 8), [0, by + 0.45, bz + 1.35]), place(new THREE.TorusGeometry(0.5, 0.17, 6, 12), [0, by + 0.42, bz + 1.22], [0, 0, 0]));
   for (const sx of [1, -1]) gold.push(place(new THREE.BoxGeometry(0.1, 1.0, 1.9), [sx * 0.5, by + 0.2, bz + 0.5], [-0.5, 0, sx * 0.55]));
   const out = { hull, gold: merge(gold), lac: merge(lac), win: merge(win) };

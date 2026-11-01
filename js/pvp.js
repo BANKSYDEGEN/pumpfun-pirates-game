@@ -14,7 +14,7 @@ import { isKey } from './keybinds.js';
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
 import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
-import { crewFire } from './crew.js'; // [Raul] remote broadsides animate their gun crews
+import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
@@ -292,7 +292,10 @@ export function createPvp(K) {
     if (p.st && p.st.l === m.l && p.ship) { const dt = Math.max(0.05, (now - prevHeard) / 1000), dx = x - p.st.x, dz = z - p.st.z, d = Math.hypot(dx, dz), lim = MAX_SPEED * dt + 6;
       if (d > lim) { x = p.st.x + dx / d * lim; z = p.st.z + dz / d * lim; } }
     const stats = shipStats({ levels: lv });
-    p.st = { x, z, y: +m.y || 0, v: clamp(+m.v || 0, 0, MAX_SPEED), t: clamp(+m.t || 0, -1, 1), h: clamp(+m.h || 0, 0, MAX_HP), m: clamp(+m.m || 100, 1, MAX_HP), a: m.a !== 0, p: !!m.p, l: m.l | 0, at: now };
+    // [v87] turn rate from the last two headings (shortest angle), so remote ships keep turning smoothly between updates
+    let yr = 0; const ny = +m.y || 0;
+    if (p.st && p.st.l === m.l) { const sdt = (now - p.st.at) / 1000; if (sdt > 0.04 && sdt < 1.5) yr = clamp(angWrap(ny - p.st.y) / sdt, -2.5, 2.5); yr = p.st.yr != null ? p.st.yr * 0.35 + yr * 0.65 : yr; }
+    p.st = { yr, x, z, y: ny, v: clamp(+m.v || 0, 0, MAX_SPEED), t: clamp(+m.t || 0, -1, 1), h: clamp(+m.h || 0, 0, MAX_HP), m: clamp(+m.m || 100, 1, MAX_HP), a: m.a !== 0, p: !!m.p, l: m.l | 0, at: now };
     if (!p.ship) {
       const obj = { mesh: null, x, z, yaw: p.st.y, speed: 0, turn: 0, hp: p.st.h, maxHp: p.st.m, alive: p.st.a, roll: 0, pitch: 0, y: 0, sinking: p.st.a ? 0 : 99, state: 'roam', net: { id: p.id, kind: 'player' }, remote: true, cannons: stats.cannons };
       obj.mesh = buildRemoteMesh(p, lv, sk); obj.mesh.position.set(x, 0, z); p.ship = obj; p.key = key; makeBar(obj, p.name); enemies.push(obj);
@@ -308,13 +311,15 @@ export function createPvp(K) {
     const st = e.netState;
     if (st) {
       const age = Math.min((performance.now() - st.at) / 1000, 1);
-      const tx = st.x + Math.sin(st.y) * st.v * age, tz = st.z + Math.cos(st.y) * st.v * age;
+      // [v87] dead-reckon heading with the measured turn rate (capped at 0.6 s), and move along the turning arc (mid heading)
+      const ta = Math.min(age, 0.6), ty = st.y + (st.yr || 0) * ta, my = st.y + (st.yr || 0) * ta * 0.5;
+      const tx = st.x + Math.sin(my) * st.v * age, tz = st.z + Math.cos(my) * st.v * age;
       if (st.a && !e.alive) { e.alive = true; e.sinking = 0; e.x = tx; e.z = tz; e.yaw = st.y; } // respawned
       if (!st.a && e.alive) { e.alive = false; e.sinking = 0.001; }
       if (e.alive) {
         const d = Math.hypot(tx - e.x, tz - e.z);
-        if (d > 40) { e.x = tx; e.z = tz; } else { const k = Math.min(1, dt * 6); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; }
-        e.yaw += angWrap(st.y - e.yaw) * Math.min(1, dt * 6); e.speed = st.v; e.turn = st.t;
+        if (d > 40) { e.x = tx; e.z = tz; } else { const k = 1 - Math.exp(-dt * 8); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; } // frame-rate independent
+        e.yaw += angWrap(ty - e.yaw) * (1 - Math.exp(-dt * 9)); e.speed = st.v; e.turn = st.t;
       } else e.speed *= 0.98;
       e.hp = st.h; e.maxHp = st.m; e.prot = st.p;
     }
@@ -427,7 +432,7 @@ export function createPvp(K) {
     if (target.net?.kind === 'bot') { target.lastBy = sid; K.damage(target, Math.max(1, Math.round(raw)), p, shooter); return; } // local AI
     if (!target.net || shooter !== pl) return; // only our own hits on other pirates are reported
     me.lastDealtAt = performance.now(); if (me.ret) me.ret.until = me.lastDealtAt + RET_QUIET;
-    hitQueue.sid = sid; hitQueue.push([target.net.id, Math.round(raw)]); fx.hit(p); sfx.impact?.({ dmg: raw, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.8 });
+    hitQueue.sid = sid; hitQueue.push([target.net.id, Math.round(raw)]); crewHit(target.mesh, raw / Math.max(1, target.maxHp || 100) * 6); /* [v87] their crew stagger (visual) */ fx.hit(p); sfx.impact?.({ dmg: raw, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.8 });
     if (shooter === pl) K.popup(p, `-${Math.round(raw)}`, 'hit');
   }
   function flushHits() { if (hitQueue.length && room) room.send('hit', { s: hitQueue.sid, h: hitQueue.slice(0, 12) }); hitQueue = []; hitQueue.sid = null; }
@@ -446,6 +451,7 @@ export function createPvp(K) {
     for (const [t, d] of m.h.slice(0, 12)) {
       if (bk.tokens < 1) break; bk.tokens--;
       const dmg = clamp(Math.round(+d || 0), 0, cap); if (!dmg) continue;
+      if (t !== myId) { const o = ownerObj(t); if (o?.mesh) crewHit(o.mesh, dmg / Math.max(1, o.maxHp || 100) * 6); continue; } // [v87] another pirate got hit: their crew stagger (visual)
       if (t === myId) { const pl = P(); if (Math.hypot(shooter.x - pl.x, shooter.z - pl.z) > 230) continue; localDamage(dmg, m.s, null, shooter); }
     }
   }

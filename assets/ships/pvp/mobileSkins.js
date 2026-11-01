@@ -8,7 +8,7 @@ export const MOBILE_SKINS = [
   { id: 'seagreen', name: 'SEA GREEN', price: 0, premium: 'pvp', blurb: 'Dark green timbers with bright sea-green trim.',
     palette: { seed: 101, wood: 0x3a2a1c, band: 0x0f2a18, stripe: 0x4ee37a, band2: 0x14361f, tar: 0x0b120d, trim: 0x4ee37a, sail: 0x0f1a12, patch: [0x16301e, 0x0a120c], hem: 0x4ee37a, lantern: 0x7dffa8, window: 0x9cffb5, stripes: 0x1f6b37 },
     sail: { bg: '#0d1610', lines: 'rgba(78,227,122,0.06)', border: '#4ee37a' }, flag: { bg: '#0d1610', border: '#4ee37a' },
-    parts: { oak: 0x2a1e14, plank: 0x14361f, iron: 0x16201a, gold: 0x4ee37a, glow: 0x5cff8f },
+    parts: { oak: 0x2a1e14, plank: 0x14361f, iron: 0x4a7a62, gold: 0x4ee37a, glow: 0x5cff8f }, // [v87] verdigris guns: the near-black iron vanished on the dark hull, so shots seemed to come from nowhere
     swatch: { hull: '#3a2a1c', band: '#0f2a18', stripe: '#4ee37a', sail: '#0d1610', trim: '#4ee37a' } },
   { id: 'kraken', name: 'KRAKEN INK', price: 0, premium: 'pvp', blurb: 'Deep-sea purple with ink-black sails.',
     palette: { seed: 131, wood: 0x3a2440, band: 0x1a0f22, stripe: 0xb07cff, band2: 0x2a1836, tar: 0x120a18, trim: 0xb07cff, sail: 0x1c1028, patch: [0x2a1a3a, 0x120a1a], hem: 0xb07cff, lantern: 0xc9a2ff, window: 0xd8b8ff },

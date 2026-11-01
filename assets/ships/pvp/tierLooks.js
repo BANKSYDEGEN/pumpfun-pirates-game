@@ -187,7 +187,7 @@ const PARTS = {
       for (const sx of [1, -1]) {
         strake(s, ud, sx, 0.3, 0.16); strake(s, ud, sx, 1.55, 0.2, 0.12, 0.88, 9, 0.93);
         for (const t of [0.24, 0.36, 0.48, 0.6, 0.72]) {
-          const x = sx * shape.halfW(t) * 0.99 + sx * 0.04, y = shape.top(t) - 0.9, z = zAt(t);
+          const x = sx * shape.halfW(t) * 0.99 + sx * 0.04, y = shape.top(t) - 1.5, z = zAt(t); // [v87] below the gun line (at -0.9 the glowing ports read as the cannons)
           ring.push(clean(place(new THREE.TorusGeometry(0.24, 0.06, 5, 10), [x, y, z], [0, Math.PI / 2, 0])));
           lens.push(clean(place(new THREE.CircleGeometry(0.2, 10), [x + sx * 0.01, y, z], [0, sx * Math.PI / 2, 0])));
         }
@@ -201,7 +201,7 @@ const PARTS = {
     const G = cached('midnight', ud, '', () => {
       const s = [], p = [];
       for (const sx of [1, -1]) { strake(s, ud, sx, 0.28, 0.12); strake(s, ud, sx, 0.62, 0.08); }
-      const cz = zAt(1) + 0.55;
+      const cz = zAt(1) + 0.25; // [v87] cradle + pearl pulled back onto the stem
       s.push(clean(place(new THREE.ConeGeometry(0.5, 1.3, 6), [0, bowY - 0.1, cz], [-1.9, 0, 0])));      // silver cradle under the pearl
       p.push(clean(place(new THREE.SphereGeometry(0.62, 14, 10), [0, bowY + 0.45, cz + 0.35])));
       return { s: merge(s), p: merge(p) };
@@ -253,7 +253,7 @@ const PARTS = {
       for (const sx of [1, -1]) { strake(g, ud, sx, 0.26, 0.14); strake(g, ud, sx, 0.62, 0.1); strake(g, ud, sx, 1.7, 0.16, 0.12, 0.88, 9, 0.93); }
       // gilded figurehead: body, head, swept wings
       const fz = zAt(1) + 0.7;
-      g.push(clean(place(new THREE.ConeGeometry(0.5, 2.0, 7), [0, bowY - 0.5, fz], [-1.05, 0, 0])));
+      g.push(clean(place(new THREE.ConeGeometry(0.5, 2.0, 7), [0, bowY - 0.5, fz], [1.05, 0, 0]))); // [v87] body rooted on the stem, tip under the head (was flipped: the head floated)
       g.push(clean(place(new THREE.SphereGeometry(0.38, 10, 8), [0, bowY + 0.3, fz + 0.75])));
       for (const sx of [1, -1]) g.push(clean(place(new THREE.BoxGeometry(0.08, 0.8, 1.5), [sx * 0.5, bowY - 0.1, fz + 0.1], [-0.4, 0, sx * 0.55])));
       // masthead crowns (not on the flag mast top), stern gallery rail + windows
