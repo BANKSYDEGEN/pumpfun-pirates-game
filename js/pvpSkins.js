@@ -11,8 +11,8 @@ import { ownerAllSkins } from './pvpSave.js'; // [v85] owner-only: BANKSYDEGEN's
 // SALTY PIRATES mobile-app skins (palette entries from BANKSYDEGEN/pumpfun-pirates-ios/-android, staged by Raul)
 import { MOBILE_SKINS } from '../assets/ships/pvp/mobileSkins.js';
 import { DIAMOND, diamondTick } from '../assets/ships/pvp/diamond.js';        // [Raul] 5000 kills
-import { GOLDEN_PVP, goldenTick } from '../assets/ships/pvp/golden.js';       // [Raul] 150
-import { GHOST_PVP, ghostTick } from '../assets/ships/pvp/ghost.js';          // [Raul] 300
+import { GOLDEN_PVP, goldenTick } from '../assets/ships/pvp/golden.js';       // [Raul] 1000 (v87)
+import { GHOST_PVP, ghostTick } from '../assets/ships/pvp/ghost.js';          // [Raul] 1500 (v87)
 import { KRAKEN_PVP, krakenTick } from '../assets/ships/pvp/kraken.js';       // [Raul] 600
 import { FLAMING, flamingTick } from '../assets/ships/pvp/flaming.js';        // [Timothy] 2500
 import { FLAMING_REDESIGN, flamingRedesignTick } from '../assets/ships/pvp/flamingRedesign.js'; // [Raul] Flaming redesign (BANKSY OK)

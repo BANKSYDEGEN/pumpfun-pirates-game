@@ -4,8 +4,8 @@
 //   blood     CRIMSON SAILS   (10)   red lacquer sheen, glowing crimson hem, gold rubbing strakes
 //   seagreen  SEA GREEN       (25)   sea-glint lacquer, stitched glowing hems + pinstripes, verdigris strake, glowing brass portholes
 //   midnight  BLACK PEARL     (50)   black lacquer with a cold silver rim, pearl-sheen sails, twin silver strakes, iridescent pearl figurehead
-//   coral     CORAL REEF      (1000) coral growth + shells on the hull, pulsing bioluminescent spots, rippling caustic sails, glowing wake
-//   storm     STORM RIDER     (1500) storm-plate strakes, lightning veins on the sails, ship-wide lightning flashes, lightning rods + crackling arcs, spray wake
+//   coral     CORAL REEF      (150) coral growth + shells on the hull, pulsing bioluminescent spots, rippling caustic sails, glowing wake
+//   storm     STORM RIDER     (300) storm-plate strakes, lightning veins on the sails, ship-wide lightning flashes, lightning rods + crackling arcs, spray wake
 //   admiral   ADMIRAL WHITE   (2000) gold gleam sweeping the hull, gold-embroidered sails, three gold strakes, gilded figurehead,
 //                                    masthead crowns, lit stern gallery, streaming pennants, gold sparkle wake
 // Tiers (kills) are NOT set here: they stay in config.js PVP_SKIN_TIERS. Golden / Ghost / Kraken are not touched.

@@ -24,7 +24,7 @@ export async function tokenBalance(rpc: string, owner: string, mint: string): Pr
   return j.result.value.reduce((a: number, v: any) => a + (Number(v?.account?.data?.parsed?.info?.tokenAmount?.uiAmount) || 0), 0);
 }
 // PvP skins unlock by lifetime player kills (must match PVP_SKIN_TIERS in js/config.js)
-export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagreen: 25, midnight: 50, golden: 150, ghost: 300, kraken: 600, coral: 1000, storm: 1500, admiral: 2000, flaming: 2500, diamond: 5000 };
+export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagreen: 25, midnight: 50, coral: 150, storm: 300, kraken: 600, golden: 1000, ghost: 1500, admiral: 2000, flaming: 2500, diamond: 5000 };
 // plausibility caps per save (anti-cheat is modest: the client is trusted for its own ship in v1)
 // a rejected save does NOT move updated_at, so a big legit pickup goes through a few seconds later as the allowance grows
 export const CAPS = { valueBase: 300, valuePerMin: 2500, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15 };

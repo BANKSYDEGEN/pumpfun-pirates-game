@@ -72,11 +72,11 @@ export const PVP_SKIN_TIERS = [
   { id: 'blood', name: 'CRIMSON SAILS', kills: 10 },
   { id: 'seagreen', name: 'SEA GREEN', kills: 25 },      // from the SALTY PIRATES mobile app skins
   { id: 'midnight', name: 'BLACK PEARL', kills: 50 },
-  { id: 'golden', name: 'GOLDEN GALLEON', kills: 150 },
-  { id: 'ghost', name: 'GHOST SHIP', kills: 300 },
+  { id: 'coral', name: 'CORAL REEF', kills: 150 },       // mobile app · [v87] swapped with GOLDEN GALLEON (BANKSY)
+  { id: 'storm', name: 'STORM RIDER', kills: 300 },      // mobile app · [v87] swapped with GHOST SHIP (BANKSY)
   { id: 'kraken', name: 'KRAKEN INK', kills: 600 },      // mobile app
-  { id: 'coral', name: 'CORAL REEF', kills: 1000 },      // mobile app
-  { id: 'storm', name: 'STORM RIDER', kills: 1500 },     // mobile app
+  { id: 'golden', name: 'GOLDEN GALLEON', kills: 1000 },
+  { id: 'ghost', name: 'GHOST SHIP', kills: 1500 },
   { id: 'admiral', name: 'ADMIRAL WHITE', kills: 2000 }, // mobile app
   { id: 'flaming', name: 'FLAMING SHIP', kills: 2500 },
   { id: 'diamond', name: 'DIAMOND SHIP', kills: 5000 },  // Raul's diamond.js
