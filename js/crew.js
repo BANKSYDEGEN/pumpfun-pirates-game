@@ -69,7 +69,7 @@ varying vec3 vC; varying vec3 vN; varying vec3 vV;
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
 void main(){
   vec3 p = position, n = normal; float role = aInfo.x, sx = aInfo.y, ph = aInfo.z, span = aInfo.w;
-  vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0;
+  vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0, look = 0.0;
   if (role < 0.5) { // gunner beside its cannon, facing outboard
     yaw = sx * 1.5708;
     float tf = uT - (sx > 0.0 ? uFireP : uFireS);
@@ -78,6 +78,15 @@ void main(){
     lean = -0.38 * rec + 0.03 * sin(uT * 1.7 + ph);
     arm = -1.3 * rec - 0.9 * abs(load) - 0.15;
     bob = 0.015 * sin(uT * 2.1 + ph);
+  } else if (role > 1.5) { // [v84] spy tower lookout: walks the platform rim, stops, faces the sea, raises the telescope and sweeps it
+    float T = 10.0, tt = uT + ph * T, u = mod(tt, T), cyc = floor(tt / T);
+    float th = ph * 6.2832 + (cyc + smoothstep(0.0, 4.0, u)) * 1.75; // around the rim, a different stretch every stop
+    o.x += cos(th) * sx; o.z += sin(th) * sx;
+    float face = smoothstep(3.9, 4.6, u) * (1.0 - smoothstep(9.2, 9.9, u));
+    look = smoothstep(4.5, 5.3, u) * (1.0 - smoothstep(8.5, 9.3, u));
+    yaw = mix(-th, 1.5708 - th, face) + look * 0.7 * sin((u - 5.3) * 0.95);
+    float walking = smoothstep(0.0, 0.35, u) * (1.0 - smoothstep(3.6, 4.0, u)), w = sin(uT * 6.0 + ph * 6.28);
+    leg = w * 0.5 * walking; arm = -w * 0.4 * walking; bob = abs(w) * 0.03 * walking;
   } else { // walker pacing fore and aft
     float s = fract(uT * 0.9 / max(1.0, span * 2.0) + ph), tri = abs(s * 2.0 - 1.0);
     o.z += span * (0.5 - tri); yaw = s < 0.5 ? 3.14159 : 0.0;
@@ -86,9 +95,12 @@ void main(){
   }
   if (aPart > 0.5 && aPart < 1.5) p = rotX(p, vec3(0.0, 0.36, 0.0), leg);
   else if (aPart > 1.5 && aPart < 2.5) p = rotX(p, vec3(0.0, 0.36, 0.0), -leg);
-  else if (aPart > 2.5 && aPart < 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), role < 0.5 ? arm : arm);
-  else if (aPart > 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), role < 0.5 ? arm : -arm);
-  p = rotX(p, vec3(0.0), lean) * uS; n = rotX(n, vec3(0.0), lean);
+  else if (aPart > 2.5 && aPart < 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(arm, -2.25, look));
+  else if (aPart > 3.5 && aPart < 4.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(role < 0.5 ? arm : -arm, -1.35, look));
+  else if (aPart > 4.5) { // telescope: modelled at the eye; held in the right hand (tilted down-forward) until raised
+    float ra = mix(arm, -2.25, look) + 2.25, ta = -1.47 * (1.0 - look);
+    p = rotX(rotX(p, vec3(0.0, 0.92, 0.25), ta), vec3(0.0, 0.72, 0.0), ra); n = rotX(rotX(n, vec3(0.0), ta), vec3(0.0), ra); }
+  p = rotX(p, vec3(0.0), lean) * uS * (role > 1.5 ? span : 1.0); n = rotX(n, vec3(0.0), lean);
   float c = cos(yaw), si = sin(yaw);
   p = vec3(p.x * c + p.z * si, p.y + bob, -p.x * si + p.z * c) + o; n = vec3(n.x * c + n.z * si, n.y, -n.x * si + n.z * c);
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
@@ -136,6 +148,45 @@ export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
   const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
   return lod;
+}
+// [v84] the SPY TOWER lookout: one more pirate with a brass telescope, merged into the ship's existing crew mesh (no extra
+// draw call; same LOD cull distance as the deck crew, on every quality incl. Low). `at` = { x, y, z } platform centre on the
+// floor (body space), r = patrol radius, size = pirate height scale (crew are 1.35).
+const BRASS = C(0xd9b25a), DARK = C(0x2a1a0e);
+let _scope = null;
+function scopeGeo() {
+  if (_scope) return _scope;
+  const out = [], seg = 6, add = (g, col, pos) => {
+    g = g.toNonIndexed(); g.rotateX(Math.PI / 2); g.translate(...pos);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(5), 1)); out.push(g);
+  };
+  const x = 0.13, y = 0.97; // at the right eye, pointing out along +Z
+  add(new THREE.CylinderGeometry(0.035, 0.035, 0.08, seg), DARK, [x, y, 0.22]);   // eyepiece
+  add(new THREE.CylinderGeometry(0.045, 0.045, 0.2, seg), BRASS, [x, y, 0.36]);   // draw tube
+  add(new THREE.CylinderGeometry(0.06, 0.055, 0.24, seg), BRASS, [x, y, 0.57]);  // barrel
+  add(new THREE.CylinderGeometry(0.07, 0.07, 0.05, seg), DARK, [x, y, 0.7]);     // objective ring
+  _scope = mergeGeometries(out, false); out.forEach(o => o.dispose()); return _scope;
+}
+export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
+  let lod = body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh) || null;
+  const g = mergeGeometries([pirate(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
+  const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
+  for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
+  g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));
+  const reach = Math.hypot(at.y, at.z) + 3;
+  if (lod) {
+    const mesh = lod.children[0], old = mesh.geometry, geo = mergeGeometries([old, g], false); g.dispose();
+    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(old.boundingSphere?.radius || 30, reach));
+    mesh.geometry = geo; old.dispose(); return lod;
+  }
+  const mat = crewMaterial(), mesh = new THREE.Mesh(g, mat); mat.uniforms.uS.value = 1.35; info[3] = size / 1.35;
+  g.attributes.aInfo.array.forEach((_, i, a) => { if (i % 4 === 3) a[i] = info[3]; });
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
+  mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
+  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95);
+  ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // a broadside from `side` ('port' | 'star'): that side's gun crews recoil, then ram and reload
 export function crewFire(mesh, side) { const U = mesh?.userData?.crew; if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }

@@ -46,6 +46,9 @@ export function createOcean(quality) {
     uHulls: { value: Array.from({ length: MAX_HULLS }, () => new THREE.Vector4(0, 0, 0, 0)) },
     uHullCount: { value: 0 },
     uHullV: { value: new Array(MAX_HULLS).fill(0) },
+    // [v84] hull water cap: per hull (lid plane height at the hull centre, slope along the keel, slope across, half-beam; 0 = off)
+    uHullY: { value: Array.from({ length: MAX_HULLS }, () => new THREE.Vector4(0, 0, 0, 0)) },
+    uHullPad: { value: (size / seg) * 1.45 },
     uSplash: { value: Array.from({ length: NS }, () => new THREE.Vector4(0, 0, -1e4, 1)) },
   };
   const mat = new THREE.ShaderMaterial({
@@ -53,6 +56,7 @@ export function createOcean(quality) {
     defines: low ? { LOW_Q: 1 } : ultra ? { ULTRA_Q: 1 } : {},
     vertexShader: /* glsl */`
       uniform float uTime; uniform vec4 uWaves[4];
+      uniform vec4 uHulls[${MAX_HULLS}]; uniform int uHullCount; uniform vec4 uHullY[${MAX_HULLS}]; uniform float uHullPad;
       varying vec3 vWorld; varying vec3 vNormal; varying float vH; varying float vFogDepth;
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
@@ -61,6 +65,24 @@ export function createOcean(quality) {
           vec2 d = uWaves[i].xy; float a = uWaves[i].z; float k = uWaves[i].w;
           float ph = k * dot(d, wp.xz) - sqrt(9.8 * k) * uTime;
           h += a * sin(ph); g += a * k * cos(ph) * d;
+        }
+        // [v84] water never rises into a hull: under (and one grid cell around) every afloat ship the surface is capped
+        // just under that ship's gunwale plane (its water-mask lid, pitch + roll included). The cap is a plane, so the
+        // flat-interpolated triangles between capped vertices stay under the deck too, on every grid density (Low / High / Ultra).
+        // Only bites when a crest actually reaches the deck; normal seas around the ship are untouched.
+        for (int i = 0; i < ${MAX_HULLS}; i++) {
+          if (i >= uHullCount) break;
+          vec4 hy = uHullY[i]; if (hy.w <= 0.0) continue;
+          vec4 s = uHulls[i]; vec2 dp = wp.xz - s.xy;
+          float c = cos(s.z), sn = sin(s.z);
+          float lx = dp.x * c - dp.y * sn, lz = dp.x * sn + dp.y * c;
+          float hb = hy.w + uHullPad, hl = s.w * 0.5 + uHullPad;
+          float qx = abs(lx) / hb, qz = abs(lz) / hl;
+          if (qx > 1.6 || qz > 1.6) continue;
+          float e = sqrt(sqrt(qx * qx * qx * qx + qz * qz * qz * qz)); // rounded-rectangle footprint
+          float w = 1.0 - smoothstep(0.0, 3.0, (e - 1.0) * hb);
+          float cap = hy.x + lz * hy.y + lx * hy.z - 0.3;
+          h = mix(h, min(h, cap), w);
         }
         wp.y = h; vH = h;
         vNormal = normalize(vec3(-g.x, 1.0, -g.y));

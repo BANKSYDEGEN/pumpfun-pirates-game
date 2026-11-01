@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { buildShip, disposeShip } from './ships.js';
+import { addLookout } from './crew.js'; // [v84] spy tower lookout
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
 import { equippedSkin, skinBuildOpts, skinMaterialFx } from './skins.js';
@@ -63,7 +64,7 @@ export const TRAITS = {
     { rudder: 1.3, sternLamps: true, wheel: true, gallery: true, straps: true }, { rudder: 1.35, sternLamps: true, wheel: true, gallery: true, straps: true, gold: true }],
 };
 export const TRAIT_IDS = ['hull', 'armor', 'sails', 'rudder', 'cannons', 'reload', 'range'];
-const WATCH_H = 1.9;
+const WATCH_H = 1.9, WATCH_R = 1.3;
 // overall scale: hull size does most of it, every other tier adds a little (max ≈ 1.6× length, 1.9× beam)
 const extraScale = (lv) => 1 + 0.0028 * TRAIT_IDS.reduce((a, id) => a + (id === 'hull' ? 0 : (lv[id] || 0)), 0);
 
@@ -463,7 +464,7 @@ const PARTS = {
     };
     const m0 = A.masts[0], ny = m0.y + m0.h * 0.84;
     nest(0, ny + 0.1, m0.z, 1.05, 0.5, T.gold); // lookout rail around the main top
-    scope([0.1, ny + 0.75, m0.z + 0.6], Math.PI / 2 - 0.12, 1.1);
+    if (T.watchtower) scope([0.1, ny + 0.75, m0.z + 0.6], Math.PI / 2 - 0.12, 1.1); // [v84] below the tower: the lookout pirate holds this glass
     if (T.crowsNest) {
       const f = A.masts[1], fy = f.y + f.h * 0.8;
       nest(0, fy, f.z, 0.95, 1.1, T.gold);
@@ -485,11 +486,10 @@ const PARTS = {
     if (T.watchtower) { // tall lattice tower on top of the main mast (above any topmasts) with a glowing beacon
       const y0 = A.mainTop + 0.4, z = m0.z, r = 0.75, hgt = WATCH_H;
       for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4; Ly.span(M.oak, [Math.cos(a) * 0.25, y0, z + Math.sin(a) * 0.25], [Math.cos(a) * r, y0 + hgt, z + Math.sin(a) * r], 0.06); }
-      nest(0, y0 + hgt, z, r + 0.15, 0.55, true);
+      nest(0, y0 + hgt, z, WATCH_R, 0.55, true); // [v84] wide enough for the lookout pirate who patrols it (js/crew.js addLookout)
       Ly.add(M.gold, cyl(0.25, 0.35, 0.25, 10), [0, y0 + hgt + 0.95, z]);
       Ly.add(M.gleam, sph(0.42), [0, y0 + hgt + 1.35, z]);
       Ly.add(M.gold, new THREE.ConeGeometry(0.4, 0.5, 10), [0, y0 + hgt + 1.95, z]);
-      scope([0, y0 + hgt + 0.7, z + 0.6], Math.PI / 2 - 0.1, 1.2);
     }
   },
 };
@@ -541,6 +541,12 @@ function buildCompiled(lv, opts, skin) {
   }
   ud.body.add(traits); ud.traitsMesh = traits;
   extraMuzzles.sort((a, b) => a.userData.order - b.userData.order).forEach(m => ud.muzzles[m.userData.upgMuzzle].push(m));
+  // [v84] SPY TOWER lookout: a pirate with a telescope patrols the highest lookout platform (the main-top rail from SPYGLASS II,
+  // the watchtower from SPYGLASS V). Merged into the crew mesh: no extra draw call, culled with the crew, Low quality too.
+  { const R = TRAITS.range[lv.range];
+    if (R.lookout) { const m0 = A.masts[0];
+      const at = R.watchtower ? { x: 0, y: A.mainTop + 0.4 + WATCH_H + 0.275, z: m0.z } : { x: 0, y: m0.y + m0.h * 0.84 + 0.35, z: m0.z };
+      addLookout(ship, ud.body, { at, r: R.watchtower ? 0.9 : 0.72, size: R.watchtower ? 1.1 : 0.95 }); } }
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
   if (fx) ship.traverse(o => { if ((o.isMesh || o.isLineSegments) && !o.userData.waterMask) o.material = fx(o.material); });

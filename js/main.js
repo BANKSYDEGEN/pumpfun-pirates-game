@@ -375,6 +375,28 @@ function dropChests(s, n, value) { // [enemy variety]
   popup(new THREE.Vector3(s.x, 9, s.z), `+${n * value} GOLD SPILLED`, 'hit');
 }
 
+// [v84] water never inside a hull: the ocean shader caps the sea under each afloat ship just below the plane of that
+// ship's water-mask lid (its gunwale), read off the real lid every frame, so pitch, roll, PvP lifted rigs, hull levels
+// and ship scale all count. Sinking ships (and ships without a lid) get no cap, so they still go under.
+const _hc = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+function hullCap(s, out) {
+  const ud = s.mesh.userData;
+  if (ud.capLid === undefined) { ud.capLid = null; s.mesh.traverse(o => { if (!ud.capLid && o.userData.waterMask && o.geometry) ud.capLid = o; });
+    if (ud.capLid) { const P = ud.capLid.geometry.attributes.position; let mn = Infinity; for (let i = 0; i < P.count; i++) mn = Math.min(mn, P.getY(i)); ud.capLid.userData.capY = mn; } }
+  const lid = ud.capLid;
+  if (!lid || s.sinking > 0 || s.alive === false || !s.mesh.parent || !s.mesh.visible) { out.set(0, 0, 0, 0); return; }
+  lid.updateWorldMatrix(true, false);
+  const y = lid.userData.capY, [p0, pf, px] = _hc;
+  p0.set(0, y, 0).applyMatrix4(lid.matrixWorld); pf.set(0, y, 1).applyMatrix4(lid.matrixWorld); px.set(1, y, 0).applyMatrix4(lid.matrixWorld);
+  const fx_ = Math.sin(s.yaw), fz = Math.cos(s.yaw), xx = Math.cos(s.yaw), xz = -Math.sin(s.yaw);
+  const dF = (pf.x - p0.x) * fx_ + (pf.z - p0.z) * fz, dX = (px.x - p0.x) * xx + (px.z - p0.z) * xz;
+  const sF = Math.abs(dF) > 1e-4 ? (pf.y - p0.y) / dF : 0, sX = Math.abs(dX) > 1e-4 ? (px.y - p0.y) / dX : 0;
+  const oF = (p0.x - s.x) * fx_ + (p0.z - s.z) * fz, oX = (p0.x - s.x) * xx + (p0.z - s.z) * xz;
+  if (!lid.geometry.boundingBox) lid.geometry.computeBoundingBox();
+  const hb = Math.max(ud.beam * 0.5, Math.hypot(px.x - p0.x, px.z - p0.z) * lid.geometry.boundingBox.max.x); // PvP lifted / enlarged rigs too
+  out.set(p0.y - sF * oF - sX * oX, sF, sX, hb);
+}
+
 // ---------- ship physics ----------
 function floatShip(s, dt) {
   const t = game.t, L = s.mesh.userData.len * 0.4, B = s.mesh.userData.beam * 0.5;
@@ -1123,7 +1145,7 @@ function frame() {
   { const H = ocean.uniforms.uHulls.value; let k = 0;
     const ships = escorts.list.length ? [...escorts.list, ...enemies] : enemies; // [escorts] foam collars + wakes too
     const list = ships.length < MAX_HULLS ? ships : ships.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
-    for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
+    for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; hullCap(s, ocean.uniforms.uHullY.value[k]); H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
     ocean.uniforms.uHullCount.value = k;
     wakes.update(player, list, t); } // [aaa water] wake trails: player first, then the nearest ships
 
