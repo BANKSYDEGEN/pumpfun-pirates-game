@@ -20,7 +20,7 @@ import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, har
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
-import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName } from './pvpSave.js';
+import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
 import { UPGRADES, BALL_DMG, shipStats } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
@@ -88,7 +88,7 @@ export function createPvp(K) {
     return profile;
   }
   async function refreshHolder() {
-    if (!HOLDER_ENABLED || !wallet) { Object.assign(holder, { on: false, claimed: true, checked: true }); holderUi(); return; }
+    if (!HOLDER_ENABLED || (!wallet && !ownerAllSkins())) { /* [v85] owner-only: BANKSYDEGEN devices */ Object.assign(holder, { on: false, claimed: true, checked: true }); holderUi(); return; }
     const h = await holderStatus(); Object.assign(holder, { on: !!h.holder, claimed: h.claimed !== false, checked: true }); holderUi();
   }
   function holderUi() {

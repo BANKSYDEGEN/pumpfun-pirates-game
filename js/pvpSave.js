@@ -7,13 +7,21 @@
 // A save holds gold (whatever you're carrying), upgrade levels, skins (selected + unlocked by kills) and lifetime K/D.
 // Storage is keyed by a PROFILE KEY ('device' / 'wallet:<pubkey>' today) so a later version can key upgrades by a
 // ship NFT mint ('mint:<mint>'); the server table already has a nullable `mint` column for that.
-import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS } from './config.js';
+import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, HOLDER_DAILY_GOLD } from './config.js';
 import { UPGRADES } from './upgrades.js';
 import { findProvider, sigBytes } from './pirateAccount.js';
 
 const DEVICE_KEY = 'pfp_pvp_save_v1', SESSION_KEY = 'pfp_pvp_session_v1';
 const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
 
+// [v85] OWNER-ONLY one-off (BANKSY, game owner): his two no-wallet devices (one merged BATTLE ROYALE account, BANKSYDEGEN)
+// get every PvP skin. Matched on the SHA-256 device id of this device's private key, so no one else can claim it; not a feature.
+const OWNER_DEVS = ['dev:e191a32e15abea4f14355121', 'dev:c53da939472a7ae23f6dd873'];
+let ownerAll = false;
+export const ownerAllSkins = () => ownerAll;
+export const ownerReady = (async () => { try { const k = ls.get('pfp_pvp_dk_v1'); if (!k || !crypto?.subtle) return false;
+  const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pfp-dev:' + k)))].map(x => x.toString(16).padStart(2, '0')).join('');
+  return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24))); } catch { return false; } })();
 export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, stats: { kills: 0, deaths: 0, botKills: 0 } });
 export function cleanProfile(p) {
   const b = blankProfile(); if (!p || typeof p !== 'object') return b;
@@ -22,13 +30,20 @@ export function cleanProfile(p) {
   for (const u of UPGRADES) b.levels[u.id] = n(p.levels?.[u.id], u.tiers.length);
   const st = p.stats || {}; b.stats = { kills: n(st.kills, 1e7), deaths: n(st.deaths, 1e7), botKills: n(st.botKills, 1e7) };
   // skins: unlocked ONLY by lifetime player kills (PVP_SKIN_TIERS); the selected one must be unlocked
-  b.skins.owned = PVP_SKIN_TIERS.filter(t => t.id !== 'classic' && b.stats.kills >= t.kills).map(t => t.id);
+  b.skins.owned = PVP_SKIN_TIERS.filter(t => t.id !== 'classic' && (ownerAll || b.stats.kills >= t.kills)).map(t => t.id);
   const eq = p.skins?.equipped; b.skins.equipped = eq === 'classic' || b.skins.owned.includes(eq) ? eq : 'classic';
   return b;
 }
 // HOLDER PERK: server-checked (the client can't fake the balance or claim twice). Fails closed: any error = no perk.
-export async function holderStatus() { const s = session(); if (!s) return { holder: false }; try { return await api('holder', { token: s.token }); } catch { return { holder: false }; } }
-export async function holderClaim() { const s = session(); if (!s) throw new Error('connect a wallet first'); return api('holder_claim', { token: s.token }); }
+// [v85] OWNER-ONLY (BANKSYDEGEN's two devices, no wallet): the holder perk (+5% earned gold, daily gold) without a wallet. Gold is
+// kept on the device when no wallet is signed, so the daily claim is tracked on the device too (once per Indianapolis day).
+const OWNER_DAY_KEY = 'pfp_owner_daily_v1', indyDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Indiana/Indianapolis' }).format(new Date());
+export async function holderStatus() { const s = session(); await ownerReady;
+  if (!s && ownerAll) return { holder: true, claimed: ls.get(OWNER_DAY_KEY) === indyDay(), daily: HOLDER_DAILY_GOLD, owner: true };
+  if (!s) return { holder: false }; try { return await api('holder', { token: s.token }); } catch { return { holder: false }; } }
+export async function holderClaim() { const s = session();
+  if (!s && ownerAll) { const d = indyDay(); if (ls.get(OWNER_DAY_KEY) === d) { const e = new Error('already claimed today'); e.status = 409; throw e; }
+    ls.set(OWNER_DAY_KEY, d); return { ok: true, gold: HOLDER_DAILY_GOLD, day: d, owner: true }; } if (!s) throw new Error('connect a wallet first'); return api('holder_claim', { token: s.token }); }
 // optional airdrop wallet (PvP entry pop-up): sent once per change, private server-side (never broadcast)
 export async function saveAirdrop(wallet, name) {
   const key = 'pfp_pvp_airdrop_sent', tag = `${wallet}|${name}`; if (ls.get(key) === tag) return { ok: true, cached: true };
@@ -70,6 +85,7 @@ function writeDevice(p) { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || 
 
 // Load: the device save, or (when a wallet is linked) the wallet's save if it has progress. Never throws.
 export async function loadProfile() {
+  await ownerReady;
   const dev = readDevice(), s = session();
   if (!s) return { profile: dev, source: 'device' };
   try { const j = await api('load', { token: s.token }); const w = cleanProfile(j.profile);

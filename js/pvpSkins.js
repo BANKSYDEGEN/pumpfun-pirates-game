@@ -7,6 +7,7 @@
 import { registerSkin, getSkin, SKINS } from './skins.js';
 import './skinLooks.js'; // golden / ghost / blood / midnight looks (shared with Waves)
 import { PVP_SKIN_TIERS } from './config.js';
+import { ownerAllSkins } from './pvpSave.js'; // [v85] owner-only: BANKSYDEGEN's two devices have every skin
 // SALTY PIRATES mobile-app skins (palette entries from BANKSYDEGEN/pumpfun-pirates-ios/-android, staged by Raul)
 import { MOBILE_SKINS } from '../assets/ships/pvp/mobileSkins.js';
 import { DIAMOND, diamondTick } from '../assets/ships/pvp/diamond.js';        // [Raul] 5000 kills
@@ -31,7 +32,7 @@ export function shipTick(mesh, o) { for (const f of SHIP_TICKS) { try { f(mesh, 
 
 export const TIERS = PVP_SKIN_TIERS;
 export const tierOf = (id) => TIERS.find(t => t.id === id) || null;
-export const unlockedSkins = (kills) => TIERS.filter(t => kills >= t.kills).map(t => t.id);
-export const canUse = (id, kills) => { const t = tierOf(id); return !!t && kills >= t.kills; };
+export const unlockedSkins = (kills) => TIERS.filter(t => ownerAllSkins() || kills >= t.kills).map(t => t.id);
+export const canUse = (id, kills) => { const t = tierOf(id); return !!t && (ownerAllSkins() || kills >= t.kills); };
 export const pvpSkin = (id) => getSkin(tierOf(id) ? id : 'classic');
-export const nextTier = (kills) => TIERS.find(t => t.kills > kills) || null;
+export const nextTier = (kills) => ownerAllSkins() ? null : TIERS.find(t => t.kills > kills) || null;
