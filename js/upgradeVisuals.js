@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { buildShip, disposeShip } from './ships.js';
-import { addLookout } from './crew.js'; // [v84] spy tower lookout
+import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
 import { equippedSkin, skinBuildOpts, skinMaterialFx } from './skins.js';
@@ -65,6 +65,9 @@ export const TRAITS = {
 };
 export const TRAIT_IDS = ['hull', 'armor', 'sails', 'rudder', 'cannons', 'reload', 'range'];
 const WATCH_H = 1.9, WATCH_R = 1.3;
+// [v85] the lookout rail (SPYGLASS II-IV) sits ABOVE the main mast's highest sail (on a short pole off the masthead / topmast),
+// so the chase camera sees the patrolling pirate instead of the topsail. Centre y of the rail drum (floor = +0.25).
+const railCY = (A) => A.mainTop + 0.45;
 // overall scale: hull size does most of it, every other tier adds a little (max ≈ 1.6× length, 1.9× beam)
 const extraScale = (lv) => 1 + 0.0028 * TRAIT_IDS.reduce((a, id) => a + (id === 'hull' ? 0 : (lv[id] || 0)), 0);
 
@@ -463,7 +466,11 @@ const PARTS = {
       Ly.add(gold ? M.gold : M.oak, torus(r, 0.06), [x, y + h / 2 + 0.6, z], [Math.PI / 2, 0, 0]);
     };
     const m0 = A.masts[0], ny = m0.y + m0.h * 0.84;
-    nest(0, ny + 0.1, m0.z, 1.05, 0.5, T.gold); // lookout rail around the main top
+    if (T.watchtower) nest(0, ny + 0.1, m0.z, 1.05, 0.5, T.gold); // lookout rail around the main top (the pirate is up the tower)
+    else { const ry = railCY(A); // [v85] above the sails, on a pole stepped into the masthead
+      Ly.add(M.oak, cyl(0.1, 0.15, ry - A.mainTop + 0.5, 8), [0, (ry + A.mainTop - 0.5) / 2, m0.z]);
+      nest(0, ry, m0.z, 1.05, 0.5, T.gold);
+      Ly.add(M.oak, cyl(0.06, 0.08, 1.75, 6), [0, ry + 0.25 + 0.85, m0.z]); } // flag staff: the flag flies above the lookout's head
     if (T.watchtower) scope([0.1, ny + 0.75, m0.z + 0.6], Math.PI / 2 - 0.12, 1.1); // [v84] below the tower: the lookout pirate holds this glass
     if (T.crowsNest) {
       const f = A.masts[1], fy = f.y + f.h * 0.8;
@@ -485,6 +492,7 @@ const PARTS = {
     if (T.lamps) { const f = A.masts[1]; for (const sx of [1, -1]) { Ly.add(M.gold, cyl(0.16, 0.22, 0.14, 8), [sx * 0.75, m0.y + m0.h * 0.84 + 0.9, m0.z]); Ly.add(M.glow, sph(0.22), [sx * 0.75, m0.y + m0.h * 0.84 + 0.65, m0.z]); Ly.add(M.glow, sph(0.2), [sx * 0.7, f.y + f.h * 0.8 + 1.2, f.z]); } } // [more levels] signal lamps on both tops
     if (T.watchtower) { // tall lattice tower on top of the main mast (above any topmasts) with a glowing beacon
       const y0 = A.mainTop + 0.4, z = m0.z, r = 0.75, hgt = WATCH_H;
+      Ly.add(M.oak, cyl(0.12, 0.16, 0.9, 8), [0, y0 - 0.15, z]); // [v85] mast head runs up into the tower's foot (no floating tower)
       for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + Math.PI / 4; Ly.span(M.oak, [Math.cos(a) * 0.25, y0, z + Math.sin(a) * 0.25], [Math.cos(a) * r, y0 + hgt, z + Math.sin(a) * r], 0.06); }
       nest(0, y0 + hgt, z, WATCH_R, 0.55, true); // [v84] wide enough for the lookout pirate who patrols it (js/crew.js addLookout)
       Ly.add(M.gold, cyl(0.25, 0.35, 0.25, 10), [0, y0 + hgt + 0.95, z]);
@@ -517,6 +525,7 @@ function buildCompiled(lv, opts, skin) {
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
   if (TRAITS.range[lv.range].watchtower) ud.layout.flagPole.position.y = A.mainTop + 0.4 + WATCH_H + 2.3;
+  else if (TRAITS.range[lv.range].lookout) ud.layout.flagPole.position.y = railCY(A) + 0.25 + 1.55; // [v85] the flag flies from a staff on the raised rail, over the lookout
   // merge every trait's parts into one mesh per material (+ outlines), add the animated / functional extras
   const buckets = new Map(), extraMuzzles = [];
   ud.traitBoxes = {};
@@ -545,8 +554,9 @@ function buildCompiled(lv, opts, skin) {
   // the watchtower from SPYGLASS V). Merged into the crew mesh: no extra draw call, culled with the crew, Low quality too.
   { const R = TRAITS.range[lv.range];
     if (R.lookout) { const m0 = A.masts[0];
-      const at = R.watchtower ? { x: 0, y: A.mainTop + 0.4 + WATCH_H + 0.275, z: m0.z } : { x: 0, y: m0.y + m0.h * 0.84 + 0.35, z: m0.z };
+      const at = R.watchtower ? { x: 0, y: A.mainTop + 0.4 + WATCH_H + 0.275, z: m0.z } : { x: 0, y: railCY(A) + 0.25, z: m0.z }; // [v85] above the sails
       addLookout(ship, ud.body, { at, r: R.watchtower ? 0.9 : 0.72, size: R.watchtower ? 1.1 : 0.95 }); } }
+  dressCrew(ud.body, skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
   if (fx) ship.traverse(o => { if ((o.isMesh || o.isLineSegments) && !o.userData.waterMask) o.material = fx(o.material); });

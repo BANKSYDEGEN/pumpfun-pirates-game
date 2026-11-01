@@ -188,5 +188,45 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95);
   ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
+// [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps
+// vertex colours, so this only rewrites that ship's colour buffer (same material, same single draw call, Low + phones too).
+// Per skin: coat = [red-coat, striped-tee, white-shirt] variants, hat = [black, brown] variants, pants, accent (belt + tee band).
+// 'classic' (and any skin not listed) keeps the original red coats.
+const BELT = C(0x1a1208), BAND = C(0xeeeeee);
+const OUTFIT = {
+  parchment: { coat: [0xc9a25a, 0x7a4a22, 0xe8d3a2], hat: [0x8a5a32, 0x5a3a22], pants: 0x6a4424, accent: 0xffcd77 },
+  blood:     { coat: [0x9e0c0c, 0x161616, 0xd21a1a], hat: [0x9e0c0c, 0x161616], pants: 0x2a0606, accent: 0xfa0d0d },
+  midnight:  { coat: [0x1a1d22, 0x0d0d12, 0x8a96a4], hat: [0x0b0b0b, 0x2a2f3a], pants: 0x0b0806, accent: 0xb8c2cc },
+  navy:      { coat: [0x1b2f6b, 0x101c44, 0xefe6cf], hat: [0x1b2f6b, 0x101c44], pants: 0xdcd2b8, accent: 0xffcd77 },
+  degen:     { coat: [0x1f6b37, 0x0f2a18, 0x4ee37a], hat: [0x1f8a44, 0x0f2a18], pants: 0x0b120d, accent: 0x4ee37a },
+  ghost:     { coat: [0xbfe3d2, 0x8fbfaa, 0xeef8f2], hat: [0xa8d8c4, 0x6f9488], pants: 0x6f9488, accent: 0x7dffa8 },
+  golden:    { coat: [0xffc94a, 0xc9a25a, 0xffe6a8], hat: [0xe0a81e, 0xb8860b], pants: 0x7a5a1a, accent: 0xfff1b8 },
+  seagreen:  { coat: [0x2ec4a0, 0x0f3a2c, 0x9ff0d8], hat: [0x22a888, 0x0f3a2c], pants: 0x123326, accent: 0x5cf2c4 },
+  kraken:    { coat: [0x5a2a8a, 0x1a0f2a, 0x3fb59a], hat: [0x6a2fa0, 0x1a0f2a], pants: 0x14302a, accent: 0x3fb59a },
+  storm:     { coat: [0x5a6470, 0x2a3038, 0xe8eef5], hat: [0x4a5868, 0x2a3038], pants: 0x2a3a52, accent: 0x8fd4ff },
+  coral:     { coat: [0xff7a5c, 0x1f6b5a, 0xffc2a8], hat: [0xe8604a, 0x1f4a40], pants: 0x1f4a40, accent: 0xffd2a0 },
+  admiral:   { coat: [0x14234f, 0xf4f4f4, 0xffffff], hat: [0x14234f, 0xf4f4f4], pants: 0xf2f2f2, accent: 0xffcd77 },
+  flaming:   { coat: [0xff5a14, 0x2a0a04, 0xffb03a], hat: [0xd8360a, 0x1a0804], pants: 0x3a1206, accent: 0xffd23a },
+  diamond:   { coat: [0xbfe8ff, 0x6ab8e0, 0xeefaff], hat: [0x8fd0f2, 0x4a7a9a], pants: 0x3a5a7a, accent: 0xffffff },
+};
+const _key = (r, g, b) => `${Math.round(r * 4095)},${Math.round(g * 4095)},${Math.round(b * 4095)}`;
+const _maps = new Map();
+function outfitMap(id) {
+  if (_maps.has(id)) return _maps.get(id);
+  const o = OUTFIT[id]; let m = null;
+  if (o) { m = new Map(); const put = (from, hex) => { if (from) m.set(_key(from.r, from.g, from.b), C(hex)); };
+    COAT.forEach((c, i) => put(c, o.coat[i])); HAT.forEach((c, i) => put(c, o.hat[i])); put(PANTS, o.pants); put(BELT, o.accent); put(BAND, o.accent); }
+  _maps.set(id, m); return m;
+}
+export const outfitIds = () => Object.keys(OUTFIT);
+// recolour the crew of one built ship (body = ship.userData.body or the ship). Always maps from the ORIGINAL colours, so it is safe to re-run.
+export function dressCrew(body, skinId) {
+  const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); if (!lod) return false;
+  const geo = lod.children[0].geometry, col = geo.attributes.color; if (!col) return false;
+  const a = col.array, base = geo.userData.baseColor || (geo.userData.baseColor = a.slice()), m = outfitMap(skinId);
+  for (let i = 0; i < a.length; i += 3) { const t = m && m.get(_key(base[i], base[i + 1], base[i + 2]));
+    if (t) { a[i] = t.r; a[i + 1] = t.g; a[i + 2] = t.b; } else { a[i] = base[i]; a[i + 1] = base[i + 1]; a[i + 2] = base[i + 2]; } }
+  col.needsUpdate = true; lod.userData.outfit = skinId; return true;
+}
 // a broadside from `side` ('port' | 'star'): that side's gun crews recoil, then ram and reload
 export function crewFire(mesh, side) { const U = mesh?.userData?.crew; if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }
