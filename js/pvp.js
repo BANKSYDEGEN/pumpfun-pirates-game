@@ -16,7 +16,7 @@ import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
 import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet } from './transport.js';
-import { HARBOR_AI, harborAiCount, harborHpScale } from './config.js';
+import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { PVP_HARBOR_DEATH_LOSS } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
@@ -235,12 +235,32 @@ export function createPvp(K) {
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
   const aiWanted = () => !spec.on && where === 'harbor'; // the arena is players only, always (BANKSY)
+  // [v94] HARBOR BOSS: countdown runs only while you sail the harbor (alive, not spectating); one boss at a time
+  const boss = { t: HARBOR_BOSS.every[0] + Math.random() * (HARBOR_BOSS.every[1] - HARBOR_BOSS.every[0]), e: null, bar: null };
+  const bossAlive = () => !!(boss.e && boss.e.alive && bots.has(boss.e.net.id));
+  function spawnBoss() {
+    if (bossAlive() || where !== 'harbor') return null;
+    const [x, z] = pickSpawn().pt, e = K.spawnEnemy(x, z, 2, 'boss'), id = `b${++botSeq}${myId.slice(-4)}`;
+    e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true; e.noFlee = true;
+    e.bar.querySelector('.name').textContent = '☠ HARBOR BOSS'; e.bar.classList.add('t-boss', 'harbor-boss');
+    scaleAi(e); bots.set(id, e); boss.e = e;
+    K.banner('☠ HARBOR BOSS!', `a boss ship sails in · sink it for ${e.gold}g`); K.sfx?.boss?.();
+    return e;
+  }
+  function bossTick(dt) {
+    const on = where === 'harbor' && !spec.on && P().alive && !me.dead;
+    if (on && !bossAlive()) { boss.t -= dt; if (boss.t <= 0) { boss.t = HARBOR_BOSS.every[0] + Math.random() * (HARBOR_BOSS.every[1] - HARBOR_BOSS.every[0]); spawnBoss(); } }
+    let b = boss.bar; const show = bossAlive() && where === 'harbor';
+    if (show && !b) { b = boss.bar = document.createElement('div'); b.id = 'pvp-boss-bar'; b.innerHTML = '<span>☠ HARBOR BOSS</span><i><b></b></i>'; document.body.appendChild(b); }
+    if (b) { b.hidden = !show; if (show) b.querySelector('b').style.width = `${Math.max(0, boss.e.hp / boss.e.maxHp) * 100}%`; }
+  }
   function aiTick(dt) {
+    bossTick(dt);
     botT -= dt; if (botT > 0) return; botT = 2;
     const now = performance.now();
     for (const [id, b] of bots) if (!b.mesh.parent) bots.delete(id);
     if (aiWanted()) {
-      const alive = [...bots.values()].filter(b => b.alive).length;
+      const alive = [...bots.values()].filter(b => b.alive && !b.harborBoss).length; // the boss is extra
       if (alive < (where === 'harbor' ? harborAiCount(totalLevel()) : PVP_AI_SHIPS)) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); scaleAi(e); bots.set(id, e); }
     } else clearLocalAi(false);
     capPiles(true);
@@ -253,7 +273,10 @@ export function createPvp(K) {
     { const f = Math.min(1, Math.max(0, L) / 44), lerp = (a) => a[0] + (a[1] - a[0]) * f; // [v93] sharper AI as you grow (HARBOR_AI)
       e.reload = lerp(HARBOR_AI.reload); e.accuracy = lerp(HARBOR_AI.accuracy); e.fireR = lerp(HARBOR_AI.fireR); e.maxSpeed *= 1 + HARBOR_AI.speed * f; e.cd = Math.min(e.cd, e.reload); }
     e.gold = harborGold(L); e.aiLevel = L;
-    if (sz !== 1) { e.mesh.scale.setScalar(sz); ud.len *= sz; ud.beam *= sz; }
+    if (e.harborBoss) { const B = HARBOR_BOSS; e.hp = e.maxHp = e.maxHp * B.hp; e.dmgMul *= B.dmg; e.reload *= B.reloadMul; e.accuracy = Math.min(0.92, e.accuracy + B.accuracy);
+      e.cannons = Math.min(B.guns[1], B.guns[0] + Math.floor(L / 15)); e.gold = harborGold(L) * B.pay; e.maxSpeed = Math.min(e.maxSpeed, 7.5 * (1 + HARBOR_AI.speed * Math.min(1, L / 44))); }
+    const k = sz * (e.harborBoss ? HARBOR_BOSS.scale : 1);
+    if (k !== 1) { e.mesh.scale.multiplyScalar(k); ud.len *= k; ud.beam *= k; }
   }
   function clearLocalAi(instant) { // a 2nd pirate arrived (or we sailed into the arena): AI ships sink away, their loot despawns
     for (const [id, b] of bots) {
@@ -478,7 +501,7 @@ export function createPvp(K) {
     const byAi = !!by && (bots.has(by) || String(by).startsWith('b'));
     if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
       const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
-      me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
+      me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = bots.get(by)?.harborBoss ? 'the HARBOR BOSS' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
       if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); }
       showDead(true); return;
     }
@@ -502,6 +525,7 @@ export function createPvp(K) {
   function onBotSunk(e, src) { // one of our LOCAL AI ships went down: a small local pile, AI tally only
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true);
+    if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
     if (by === myId && !e.fade) { profile.stats.botKills++; save(); }
   }
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
@@ -1004,7 +1028,7 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; },
-    _test: { spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
+    _test: { spawnBoss, boss, P, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
   window.PFP_PVP = api;
   return api;
 }

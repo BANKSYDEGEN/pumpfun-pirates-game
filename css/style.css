@@ -765,3 +765,10 @@ html.pvp:not(.pvp-spec) #pause .pvp-set.pvp-set-inline { display: inline-block; 
 #waves-skins h2 { color: var(--gold); font-size: 36px; margin: 0; }
 #pause .waves-set { display: block; margin: 4px auto; } html.pvp #pause .waves-set { display: none; }
 #waves-skins .pe-card > * { flex-shrink: 0; }
+/* [v94] harbor boss: top-of-screen HP bar (Battle Royale harbor only) */
+#pvp-boss-bar { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 56px); left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: none; text-align: center; width: min(420px, 70vw); font: 800 13px/1.2 inherit; color: #ffcd00; letter-spacing: .08em; text-shadow: 0 2px 0 #000; }
+#pvp-boss-bar i { display: block; height: 10px; margin-top: 4px; background: rgba(0,0,0,.55); border: 2px solid #ffcd00; border-radius: 6px; overflow: hidden; }
+#pvp-boss-bar b { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #fa0d0d, #ff6a3d); transition: width .2s; }
+#pvp-boss-bar[hidden] { display: none; }
+.ehp.harbor-boss .name { color: #ffcd00; }
+@media (max-width: 640px) { #pvp-boss-bar { top: calc(env(safe-area-inset-top, 0px) + 100px); left: 12px; transform: none; width: calc(100vw - 132px); font-size: 11px; } }

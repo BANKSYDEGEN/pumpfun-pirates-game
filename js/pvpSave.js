@@ -122,7 +122,8 @@ function groupFlush(keepalive = false) {
       if (drift || up) { const d = readDevice(); writeDevice(cleanProfile({ ...d, gold: Math.max(0, d.gold + drift), levels: up ? { ...d.levels, ...Object.fromEntries(Object.keys(d.levels).map(k => [k, Math.max(d.levels[k] | 0, j.levels?.[k] | 0)])) } : d.levels }));
         try { dispatchEvent(new CustomEvent('pfp-group-sync', { detail: { drift, levels: up ? j.levels : null } })); } catch {} }
       return { ok: true, group: true, gold: j.gold };
-    } catch (e) { group.base -= delta; if (!gPending) gPending = body; /* retried with the next save */ return { ok: false, error: e.message, status: e.status === 401 ? 0 : e.status }; }
+    } catch (e) { if (e.status === 404) { group = null; return { ok: false, error: e.message }; }
+      group.base -= delta; if (!gPending) gPending = body; if (!gTimer) gTimer = setTimeout(groupFlush, 5000); /* retried (422: the allowance grows) */ return { ok: false, error: e.message, status: e.status === 401 ? 0 : e.status }; }
   }));
 }
 // Save: device immediately; wallet (if linked) throttled ~3 s, or right away with now / keepalive (page closing).

@@ -337,7 +337,7 @@ function damage(s, amt, p, src = null) {
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
   if (s === player) { s.calm = 0; s.repT = 0; game.shake = Math.max(game.shake, 0.8); popup(p, `-${amt}`, 'dmg'); } // [repair] a hit resets the 20 s wait
   else if (s.ally) { s.calm = 0; s.repT = 0; } // [escorts] no score for hits on your own escorts
-  else { s.calm = 0; s.repT = 0; addScore(src?.ally ? 3 : 5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee') s.state = 'flee'; }
+  else { s.calm = 0; s.repT = 0; addScore(src?.ally ? 3 : 5); popup(p, `-${amt}`, 'hit'); if (s.hp < s.maxHp * 0.3 && s.state !== 'flee' && !s.noFlee) s.state = 'flee'; }
   if (s.hp <= 0) { s.hp = 0; s.alive = false; s.sinking = 0.001; sfx.sink(!!s.big); fx.ring(new THREE.Vector3(s.x, 0, s.z), 3, 16, 2.2); fx.hit(new THREE.Vector3(s.x, s.y + 3, s.z));
     if (s === player) { if (game.mode === 'pvp') pvp.onLocalSunk(src); else setTimeout(gameOver, 3200); } // [pvp] respawn instead of game over
     else if (game.mode === 'pvp') pvp.onBotSunk(s, src); // [pvp] AI ship: gold pile + kill feed
@@ -705,7 +705,7 @@ function drawRadar() {
   };
   loot.forEach(l => dot(l.x, l.z, '#ffcd77', 3));
   healthDrops.radar(dot); // [health drops] green dots
-  enemies.forEach(e => e.alive && dot(e.x, e.z, e.state === 'flee' ? '#ff9b9b' : '#fa0d0d', e.big ? 5 : 3.5));
+  enemies.forEach(e => e.alive && (e.harborBoss ? (dot(e.x, e.z, '#ffcd00', 7.5), dot(e.x, e.z, '#fa0d0d', 5)) : dot(e.x, e.z, e.state === 'flee' ? '#ff9b9b' : '#fa0d0d', e.big ? 5 : 3.5))); // [v94] harbor boss: big gold-ringed dot
   escorts.list.forEach(e => e.alive && (dot(e.x, e.z, '#ffffff', 4), dot(e.x, e.z, '#4ee37a', 2.8))); // [escorts] green dot, white ring
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(R, R - 7); rctx.lineTo(R - 5, R + 5); rctx.lineTo(R + 5, R + 5); rctx.fill();
 }

@@ -37,6 +37,9 @@
   speed +0 → +25 %, fire range 70 → 90 m (all linear in L/44), count 3 (L 0-14) / 4 (L 15-29) / 5 (L 30+). Gold unchanged from v92.
 - [v93] Battle Royale upgrades ×1.5 stronger (gain over the base ship; armor ×1.25 capped 50 %, reload ×1.25 floored 0.8 s; js/upgrades.js
   PVP_BOOST). Fresh BR hull 380 HP (was 300) so the best broadside (371) still can't one-shot a fresh ship. Waves unchanged.
+- [v94] HARBOR BOSS: one at a time, every 3-5 min of harbor sailing (random; paused while dead / spectating / in the arena). Waves boss
+  hull ×1.25 (+ the AI size growth), "☠ HARBOR BOSS" tag, top HP bar, gold-ringed radar dot, banner + horn. Stats = harbor AI at your L
+  ×4 HP, ×1.1 damage, 5 / 6 / 7 guns a side (L 0-14 / 15-29 / 30+), +0.05 accuracy, barrages, never flees. Pays ×12 harbor gold (holder ×2).
 - PvP upgrade cost of tier index t = harborKills(t) × harborGold(L ≈ 7t), harborKills(t) = 40 + 10·1.55^t (cheap early, steep top).
 - Hard cap per track: 6 levels (CANNONS 8). Maxed tracks show **MAX VI / MAX VIII** in the shop; more gold buys no power.
 

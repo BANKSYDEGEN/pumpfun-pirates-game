@@ -28,7 +28,8 @@ export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagr
 // plausibility caps per save (anti-cheat is modest: the client is trusted for its own ship in v1)
 // a rejected save does NOT move updated_at, so a big legit pickup goes through a few seconds later as the allowance grows
 // [v92] valuePerMin 2500 -> 10000: harbor pay ×2 and holder gold ×2 (up to ×4 for a holder), same headroom as before
-export const CAPS = { valueBase: 300, valuePerMin: 10000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15 };
+// [v94] valueBase 300 -> 2500: a harbor boss pile (up to 840 g, ×2 for holders = 1,680) lands in one save
+export const CAPS = { valueBase: 2500, valuePerMin: 10000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15 };
 
 export const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const isWallet = (w: unknown): w is string => {
