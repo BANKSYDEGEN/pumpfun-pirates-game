@@ -521,6 +521,7 @@ function updateEnemy(e, dt) {
 
 // ---------- cannonballs ----------
 const G = 20;
+const BALL_EXIT_T = 0.35; // [v97.1] s for a drawn ball to ease from its barrel's line onto its true (aimed) path
 // [v95] place a ball at its muzzle's CURRENT world position (ship already moved / floated this frame). Aimed shots keep their aim
 // point (velocity corrected for the gun's move since the trigger); unaimed ones keep their launch velocity. Muzzle flash here too.
 const _mp = new THREE.Vector3();
@@ -529,7 +530,15 @@ function launchBall(b) {
   const live = (o) => { while (o.parent) o = o.parent; return o === scene; };
   if (!live(m) && b.owner?.mesh) { const L = gunList(b.owner, b.side || 'port'); if (L.length) m = L[(b.gi | 0) % L.length]; } // ship rebuilt (skin / upgrade) mid-ripple: use the new barrel
   if (m.parent && b.owner?.mesh?.parent) { m.getWorldPosition(_mp); if (b.aimT > 0) { const t = b.aimT; b.v.x += (b.p0.x - _mp.x) / t; b.v.y += (b.p0.y - _mp.y) / t; b.v.z += (b.p0.z - _mp.z) / t; } b.mesh.position.copy(_mp); }
-  b.mesh.visible = true; b.spawnAt = b.mesh.position.clone(); window.PFP_BALL_TAP?.(b);
+  b.mesh.visible = true; b.spawnAt = b.mesh.position.clone();
+  // [v97.1] an AIMED ball's true path can leave up to ~45° off the barrel (auto-ranging at a ship ahead / astern, and the long v97 rows
+  // fan in on one point). Visual only: the drawn ball leaves straight down its barrel (ship's own speed added) and eases onto its true
+  // path within BALL_EXIT_T s. Hits, splashes and rocks keep using the true path (b.tp), so damage / range / timing are unchanged.
+  const o = b.owner; b.tp = b.mesh.position.clone(); b.ft = 0; b.ex = null;
+  if (o && o.mesh) { const a = sideDir(o, b.side || 'port'), sp = o.speed || 0, svx = Math.sin(o.yaw) * sp, svz = Math.cos(o.yaw) * sp;
+    const rvx = b.v.x - svx, rvz = b.v.z - svz, rv = Math.hypot(rvx, rvz), ex = svx + a.x * rv - b.v.x, ez = svz + a.z * rv - b.v.z;
+    if (Math.hypot(ex, ez) > 1.5) b.ex = { x: ex, z: ez }; }
+  window.PFP_BALL_TAP?.(b);
   if (b.owner?.mesh) fx.muzzle(b.mesh.position, sideDir(b.owner, b.side || 'port'));
 }
 function updateBalls(dt) {
@@ -538,9 +547,11 @@ function updateBalls(dt) {
     if (b.delay > 0) { b.delay -= dt; if (b.delay > 0) { b.mesh.visible = false; continue; } }
     if (b.muzzle) { launchBall(b); continue; } // [v95] appears exactly at the barrel tip this frame, flies from the next
     b.mesh.visible = true;
-    b.v.y -= G * dt; b.mesh.position.addScaledVector(b.v, dt); b.life -= dt;
-    const p = b.mesh.position;
-    fx.trail(p);
+    const p = b.tp || b.mesh.position; // [v97.1] the true path (hits); the drawn ball may still be easing out of its barrel
+    b.v.y -= G * dt; p.addScaledVector(b.v, dt); b.life -= dt;
+    if (b.tp) { b.ft += dt; const t = b.ft, u = t / BALL_EXIT_T, k = b.ex && u < 1 ? t * (1 - u * u * u * (u * (u * 6 - 15) + 10)) : 0; // straight down the barrel, then a smooth blend
+      if (k) b.mesh.position.set(p.x + b.ex.x * k, p.y, p.z + b.ex.z * k); else { b.mesh.position.copy(p); b.tp = null; } }
+    fx.trail(b.mesh.position);
     let done = false;
     const ownAlly = b.owner === player || b.owner.ally;
     if (game.mode === 'pvp') done = pvp.ballStep(b, p); // [pvp] free-for-all hits, shooter decides / victim applies

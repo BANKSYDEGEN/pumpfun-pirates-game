@@ -698,8 +698,11 @@ export function createPvp(K) {
     if (lab.length === 4) { lab[0].textContent = 'KILLS'; lab[1].textContent = 'DEATHS'; lab[3].textContent = 'K/D'; }
     $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
-    $('enemies-left').textContent = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g\nARENA ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
+    const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
+    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}\nARENA ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
       : room ? `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}` : 'joining…';
+    if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
+    else { el._h = null; if (el.textContent !== txt) el.textContent = txt; }
   }
   function showDead(on) {
     const el = $('pvp-dead'); el.classList.toggle('hidden', !on); if (!on) return;

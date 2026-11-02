@@ -811,3 +811,5 @@ html.pvp-spec #btn-emote { display: none !important; }
 .emote-bubble.pop { animation: ebPop 3s ease forwards; }
 @keyframes ebPop { 0% { transform: translate(-50%, -100%) scale(0.4); opacity: 0; } 8% { transform: translate(-50%, -100%) scale(1.08); opacity: 1; } 14% { transform: translate(-50%, -100%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 @media (max-width: 600px) { .emote-bubble { font-size: 16px; padding: 5px 10px; } }
+/* [v97.1] holder perk badge on the harbor pay line (top right, under the minimap) */
+#enemies-left .hud-2x { display: inline-block; background: linear-gradient(90deg,#f7c948,#ffdf7e); color: #1b1300; border-radius: 999px; padding: 0 7px; margin-left: 2px; font-size: 0.78em; line-height: 1.35; text-shadow: none; vertical-align: 1px; white-space: nowrap; }
