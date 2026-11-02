@@ -178,7 +178,7 @@ function artFlames(ud, low) {
   const A = [], C = [], S = []; let i = 0;
   const push = (x, y, z, sz) => { for (const c of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { A.push(x, y, z); C.push(...c); S.push(hash(i * 3.1), sz, hash(i * 7.7)); } i++; };
   const nR = low ? 18 : 44, nD = low ? 4 : 12, nS = low ? 3 : 5, nB = low ? 3 : 8; // [Timothy v2 fix] a little less overlap on HIGH (bloom washed the hull)
-  for (let k = 0; k < nR; k++) { const sx = k % 2 ? 1 : -1, t = 0.04 + (k + hash(k) * 0.8) / nR * 0.9, y = art.railY(t); // rails, waist to castles
+  for (let k = 0; k < nR; k++) { const sx = k % 2 ? 1 : -1, t = 0.12 + (k + hash(k) * 0.8) / nR * 0.82, y = art.railY(t); // rails, waist to castles
     push(sx * (wall(t, y) + 0.12), y - 0.05, zAt(t), 2.2 + hash(k + 2) * 2.4); }
   for (let k = 0; k < nD; k++) { const t = 0.3 + hash(k + 40) * 0.5, sx = k % 2 ? 1 : -1; // waist deck fires, against the bulwarks (clear of the gangway + helm)
     push(sx * (wall(t, shape.top(t)) - 0.7), shape.top(t) - layout.deckDrop + 0.1, zAt(t), 2.6 + hash(k + 41) * 2.2); }
@@ -230,7 +230,7 @@ function flamingArt(ship, ctx) {
   _lavaA = _lavaA || objSpace(toon(0x0f0a09, null, { side: THREE.DoubleSide }), 'fz-hullA', LAVA('1.6', '0.05', '0.07')); _lavaA.userData.fzDone = true; // [Timothy v2 fix] black / charred, glowing cracks
   if (ctx.base.hull) ctx.base.hull.material = _lavaA;
   const wake = signatureWake(ship, ctx, { c0: 0xffd060, c1: 0xff1a00, n: low ? 40 : 64, size: 380, rise: 1.8 });
-  const fm = _fireMat.clone(); fm.uniforms.uT = wind.uTime; fm.uniforms.uSpeed = wake.material.uniforms.uSpeed; fm.uniforms.uK = { value: 0.6 }; // [Timothy v2 fix] dimmer tongues: less bloom halo washing the black hull orange
+  const fm = _fireMat.clone(); fm.uniforms.uT = wind.uTime; fm.uniforms.uSpeed = wake.material.uniforms.uSpeed; fm.uniforms.uK = { value: 0.48 }; // [Timothy v2 fix] dimmer tongues: less bloom halo washing the black hull orange
   const fl = new THREE.Mesh(G.flames, fm); fl.userData.sharedGeo = true; fl.renderOrder = 5; fl.frustumCulled = false; fl.userData.fzFlames = true; ctx.add(fl);
   const n = low ? 40 : 150;
   if (!_emGeo.has(n)) { const g = new THREE.BufferGeometry(), sd = new Float32Array(n * 3); for (let i = 0; i < sd.length; i++) sd[i] = hash(i * 2.3 + 11);
