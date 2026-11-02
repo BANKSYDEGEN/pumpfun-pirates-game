@@ -99,7 +99,7 @@ function kit(name, mainSailMap, art = false) {
     cabin: toon(0xffffff, cabinTex),
     deck: toon(0xffffff, deckTex),
     mast: toon(0xffffff, woodTexture({ base: 0x7a5232, rows: 4, seed: 61, w: 256, h: 128, nails: false })),
-    iron: toon(0xffffff, ironTex),
+    iron: Object.assign(toon(0xffffff, ironTex), { name: 'ship-iron' }), // [Raul] named: tools/ship_tests/crew_walk.py finds the guns by it
     gold: toon(0xffffff, goldTex),
     dark: toon(0x1a1410),
     rope: new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.85 }),
@@ -202,17 +202,49 @@ export function walkLanes({ z0, z1, half, obs, n = 3, r = 0.34, minLen = 1.6 }) 
   cand.sort((p, q) => (q.b - q.a) - (p.b - p.a) || Math.abs(p.x) - Math.abs(q.x));
   const out = [];
   for (const c of cand) { if (out.length >= n) break; if (out.some(o => Math.abs(o.x - c.x) < 0.8 && c.a < o.b + r && o.a < c.b + r)) continue; out.push(c); }
-  if (out.length < n && minLen > 0.05) out.push(...walkLanes({ z0, z1, half, obs: [...obs, ...out.map(o => [o.x - 0.5, o.x + 0.5, o.a, o.b])], n: n - out.length, r, minLen: 0 }).map(o => ({ ...o, b: o.a }))); // no room left: stand still on a free spot
+  if (out.length < n && minLen > 0.05) out.push(...walkLanes({ z0, z1, half, obs: [...obs, ...out.map(o => [o.x - 0.5, o.x + 0.5, o.a - 0.3, o.b + 0.3])], n: n - out.length, r, minLen: 0 }).map(o => ({ ...o, b: o.a }))); // no room left: stand still on a free spot
   return out;
 }
-// [Raul] re-run the walk lanes with the upgrade parts on deck (js/upgradeVisuals.js: magazine, mortar, 4th mast, racks, lockers ...)
-export function relaneCrew(ship, extra = []) {
-  const W = ship.userData.walkInfo; if (!W) return null;
-  const lanes = walkLanes({ ...W, obs: [...W.obs, ...extra] });
-  setWalkLanes(ship.userData.body, lanes);
-  ship.userData.walkLanes = lanes; ship.userData.deckObs = [...W.obs, ...extra];
+// [Raul] BANKSY: no crew inside a cannon, barrel, wall or deck part on any hull. Places every gunner by HIS gun (behind the breech
+// on the gun's line, else beside the breech fore / aft), clear of every gun footprint (carriage + barrel), mast, deck part (extra =
+// js/upgradeVisuals.js upgrade parts: magazine, mortar, 4th mast, racks, lockers) and the other gunners; then fresh walker lanes and
+// idle deck spots round all of it. Patches the crew mesh in place (same geometry, same draw call) + the crew anchors.
+export function placeCrew(ship, extra = []) {
+  const u = ship.userData, W = u.walkInfo, S = u.gunSlots || []; if (!W) return null;
+  const CR = 0.3, hit = (x, z, B, r = CR) => B.some(o => x > o[0] - r && x < o[1] + r && z > o[2] - r && z < o[3] + r);
+  const G = S.map(g => { const a = g.inner, b = g.x + g.sx * 1.2; return [Math.min(a, b), Math.max(a, b), g.z - g.r, g.z + g.r]; });
+  const stat = [...W.base, ...extra], bad = [];
+  const cand = S.map(g => { const C = [], nb = S.filter(o => o.sx === g.sx && Math.abs(o.i - g.i) === 1).map(o => (o.z + g.z) / 2);
+    for (const d of [0.38, 0.6, 0.85, 1.1]) C.push([g.inner - g.sx * d, g.z]);                                   // behind the breech
+    for (const dz of [1, -1]) for (const d of [-0.25, 0.1, 0.4]) C.push([g.inner - g.sx * d, g.z + dz * (g.r + 0.34)]); // beside it
+    for (const z of nb) for (const d of [-0.2, 0.15, 0.5, 0.85]) C.push([g.inner - g.sx * d, z]);                // between it and the next
+    return C.filter(([x, z]) => !hit(x, z, G) && !hit(x, z, stat) && Math.abs(x) + CR <= W.half(z) + 0.05 && z >= W.z0 - 0.1 && z <= W.z1 + 0.1); });
+  // pick one spot per gun (in preference order), gunners >= 0.62 apart: small backtracking search, tightest guns first
+  const ord = S.map((_, k) => k).sort((a, b) => cand[a].length - cand[b].length), pick = new Array(S.length).fill(null); let steps = 0;
+  const far = (x, z, upto) => { for (let q = 0; q < upto; q++) { const p = pick[ord[q]]; if (p && Math.hypot(p[0] - x, p[1] - z) < 0.62) return false; } return true; };
+  const dfs = (q) => { if (q === ord.length) return true; if (++steps > 40000) return false;
+    for (const c of cand[ord[q]]) if (far(c[0], c[1], q)) { pick[ord[q]] = c; if (dfs(q + 1)) return true; }
+    pick[ord[q]] = null; return cand[ord[q]].length === 0 && dfs(q + 1); };
+  if (!dfs(0)) for (let q = 0; q < ord.length; q++) { pick[ord[q]] = cand[ord[q]].find(c => far(c[0], c[1], q)) || null; } // greedy fallback
+  S.forEach((g, k) => { const c = pick[k]; if (!c) bad.push(g.i * g.sx); const [x, z] = c || [g.inner - g.sx * 0.38, g.z]; g.gx = x; g.gz = z; });
+  const A = u.anchors || [];
+  for (const g of S) { const a = A.find(a => a.role === 'gunner' && a.index === g.i && (a.side === 'port') === (g.sx > 0)); if (a) { a.pos.x = g.gx; a.pos.z = g.gz; if (a.node) a.node.position.copy(a.pos); } }
+  const lod = u.body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh);
+  if (lod?.userData.seats) { const seats = lod.userData.seats, geo = lod.children[0].geometry, O = geo.attributes.aOrigin, I = geo.attributes.aInfo;
+    const key = (sx, i) => `${sx > 0 ? 1 : -1}:${i}`, M = new Map(S.map(g => [key(g.sx, g.i), g]));
+    for (const c of seats) if (c.info[0] === 0) { const g = M.get(key(c.info[1], c.info[3])); if (g) c.o = [g.gx, c.o[1], g.gz]; }
+    for (let v = 0; v < I.count; v++) if (I.getX(v) === 0) { const g = M.get(key(I.getY(v), Math.round(I.getW(v)))); if (g) { O.setX(v, g.gx); O.setZ(v, g.gz); } }
+    O.needsUpdate = true; }
+  const obs = [...stat, ...G, ...S.map(g => [g.gx - 0.32, g.gx + 0.32, g.gz - 0.32, g.gz + 0.32])];
+  const lanes = walkLanes({ ...W, obs }); setWalkLanes(u.body, lanes);
+  A.filter(a => a.role === 'deck' && a.index < 4).forEach(a => { const l = lanes[a.index]; if (l) { a.pos.set(l.x, W.deckY((l.a + l.b) / 2), (l.a + l.b) / 2); if (a.node) a.node.position.copy(a.pos); } });
+  A.filter(a => a.role === 'deck' && a.index >= 4).forEach(a => { if (!hit(a.pos.x, a.pos.z, extra)) return; const sx = Math.sign(a.pos.x) || 1; // castle idle spots off the deck parts (bow chasers)
+    for (const dz of [0, -0.4, 0.4, -0.8]) for (const dx of [0, 0.4, -0.4, 0.8, -0.8]) { const x = a.pos.x + sx * dx, z = a.pos.z + dz;
+      if (!hit(x, z, extra) && Math.abs(x) + CR <= W.half(z) + 0.2) { a.pos.x = x; a.pos.z = z; if (a.node) a.node.position.copy(a.pos); return; } } bad.push('deck' + a.index); });
+  u.walkLanes = lanes; u.deckObs = obs; u.crewBad = bad;
   return lanes;
 }
+export const relaneCrew = placeCrew; // (old name)
 // sample stations: denser in the stretched waist so long hulls stay smooth
 const stations = (N, f) => { if (f <= 1.001) return [...Array(N + 1)].map((_, i) => i / N);
   const extra = Math.round((f - 1) * 10), out = []; const n = N + extra;
@@ -480,7 +512,7 @@ export function buildShip(opts) {
     if (ART) pl.position.set(cabW * 0.3, cabY0 + cabH + 1.6, cabZ - cabL * 0.1); else pl.position.set(0, cabY0 + cabH + 1.4, cabZ - cabL / 2 - 0.6); body.add(pl); }
 
   // cannons (port +X, starboard -X): lathe barrel on a rounded carriage, painted gun port behind
-  const muzzles = { port: [], star: [] }, guns = []; // guns: deck slots for the crew
+  const muzzles = { port: [], star: [], bow: [] }, guns = []; // [Raul] bow: forward chase-gun tips (js/upgradeVisuals.js) // guns: deck slots for the crew
   const barrel = lathe(CANNON, LITE ? 8 : 12); // [v97] phones / LOW: lighter cannon geometry (same shape)
   // [v97] sea-service truck carriage: stepped cheeks, bed, axles, four wooden trucks with iron tyres (all merged per material)
   const cheekLo = new RoundedBoxGeometry(0.86, 0.26, 0.1, 1, 0.03), cheekHi = new RoundedBoxGeometry(0.46, 0.2, 0.1, 1, 0.03), bed = new RoundedBoxGeometry(0.8, 0.08, 0.5, 1, 0.02);
@@ -492,8 +524,17 @@ export function buildShip(opts) {
   // [Raul] BANKSY: no guns in the stern room. On the v2 hull (ART) the quarterdeck runs to tB, so the whole gun row starts 1 m ahead of
   // its break bulkhead, same spacing as before (0.34 of the stretched waist), and ends clear of the forecastle break. Muzzles, gunners,
   // ports, lids and upgrade guns all follow GT. Procedural / enemy hulls (cabin ends at t 0.25) keep their slots.
-  if (ART) { const zg = zAt(cabT + cabL / len) + 1.0, span = 0.34 * len * stretch, n = cannonsPerSide;
-    GT = [...Array(n)].map((_, i) => ZM.t(zg + (n > 1 ? i / (n - 1) : 0) * span)); }
+  // gun footprint (base gun, or the upgrade's big gun when opts.bigGun = its TRAITS.cannons 'big' scale): gIn = breech inboard of cx
+  const bigS = (opts.bigGun || 0) * depth / 3.1;
+  const gIn = Math.max(0.1 + 0.43 * cs, 0.35 + 0.31 * 1.25 * cs, bigS ? 0.3 - 1.525 * cs + 1.281 * bigS + 0.326 * bigS : 0); // breech, inboard of cx
+  const gR = Math.max(0.4 * cs, 0.305 * 1.1 * cs, 0.305 * bigS); // half-width of gun + barrel along z
+  // [Raul] the row runs from just ahead of the quarterdeck ladders to where the hull is still wide enough for a gunner behind each
+  // breech (port + starboard gunners clear of each other and of the centreline), so no big gun's breech meets its twin at the bow.
+  if (ART) { const zB0 = zAt(cabT + cabL / len), runB = (cabY0 + cabH + 0.15 - deckAt(cabT + cabL / len)) * 0.55 + 0.1, n = cannonsPerSide;
+    const zs = zB0 + runB + 0.42, zOld = zB0 + 1.0 + 0.34 * len * stretch, room = (z) => shape.halfW(ZM.t(z)) - 0.45 - gIn - 0.38;
+    let ze = Math.min(zOld, zAt(0.84) - 0.9); while (ze > zs && room(ze) < 0.72) ze -= 0.05;
+    ze = Math.min(zOld, Math.max(ze, zs + (n - 1) * (2 * gR + 0.12))); // never closer than two gun widths
+    GT = [...Array(n)].map((_, i) => ZM.t(zs + (n > 1 ? i / (n - 1) : 0) * (ze - zs))); }
   for (let i = 0; i < cannonsPerSide; i++) {
     const t = GT[i];
     const w = shape.halfW(t), y = deckAt(t), z = zAt(t);
@@ -737,22 +778,24 @@ export function buildShip(opts) {
   // per anchor later). { role: 'gunner'|'captain'|'deck'|'lookout', index, side, pos: Vector3 (body space, feet), facing: yaw (0 = +Z bow) }
   const helm = art ? art.helm : { x: 0, y: cabY0 + cabH + 0.15, z: cabZ + cabL / 2 - 0.75 }, capS = boss ? 1.6 : 1.35;
   const anchors = [];
-  guns.forEach((g) => anchors.push({ role: 'gunner', index: g.i, side: g.sx > 0 ? 'port' : 'star', pos: new THREE.Vector3(g.x - g.sx * 0.95, g.y, g.z + 0.42), facing: g.sx * Math.PI / 2, gun: new THREE.Vector3(g.x, g.y, g.z) }));
+  // [Raul] BANKSY: no pirate inside a cannon. Each gunner stands BEHIND his gun (inboard of the breech: base carriage + cascabel, or the
+  // upgrade's big gun when opts.bigGun = its TRAITS.cannons 'big' scale), on the gun's own line, facing outboard. gunSlots = the footprint.
+  const gunSlots = guns.map(g => ({ ...g, inner: g.x - g.sx * gIn, r: gR, gx: g.x - g.sx * (gIn + 0.38), gz: g.z }));
+  gunSlots.forEach((g) => anchors.push({ role: 'gunner', index: g.i, side: g.sx > 0 ? 'port' : 'star', pos: new THREE.Vector3(g.gx, g.y, g.gz), facing: g.sx * Math.PI / 2, gun: new THREE.Vector3(g.x, g.y, g.z) }));
   anchors.push({ role: 'captain', index: 0, pos: new THREE.Vector3(helm.x, helm.y, helm.z - 0.36 * capS), facing: 0, wheel: new THREE.Vector3(helm.x, helm.y + 0.95 * capS, helm.z) });
   // [Raul] main-deck obstacles (body space boxes [x0, x1, z0, z1]): masts, every gun + its gunner, kegs / crate, castle ladders.
   // The deck walkers' lanes avoid them, the walls and each other; js/upgradeVisuals.js adds its deck parts and re-lanes (relaneCrew).
-  const zB = art ? zAt(art.tB) : cabZ + cabL / 2, zF = art ? zAt(art.tF) : zAt(0.85), obs = [];
-  mastDefs.forEach(([tf]) => { if (!(art && tf < art.tB)) obs.push([-0.72, 0.72, zAt(tf) - 0.72, zAt(tf) + 0.72]); });
-  for (const g of guns) { const a = g.x + g.sx * 0.65, b = g.x - g.sx * 1.32; obs.push([Math.min(a, b), Math.max(a, b), g.z - 0.5 * cs, g.z + 0.42 + 0.3]); }
-  [[0.25, 0.55, 0.36], [-0.3, 0.7, 0.35], [0.3, 0.78, 0.58]].forEach(([xf, t, r]) => obs.push([xf * beam - r, xf * beam + r, zAt(t) - r, zAt(t) + r]));
+  const zB = art ? zAt(art.tB) : cabZ + cabL / 2, zF = art ? zAt(art.tF) : zAt(0.85), obs = [], dob = [];
+  mastDefs.forEach(([tf]) => { if (!(art && tf < art.tB)) dob.push([-0.72, 0.72, zAt(tf) - 0.72, zAt(tf) + 0.72]); });
+  [[0.25, 0.55, 0.36], [-0.3, 0.7, 0.35], [0.3, 0.78, 0.58]].forEach(([xf, t, r]) => dob.push([xf * beam - r, xf * beam + r, zAt(t) - r, zAt(t) + r]));
   if (art) for (const sx of [1, -1]) { const runB = (art.Q - deckAt(art.tB)) * 0.55 + 0.1, runF = (art.Fc(art.tF) - deckAt(art.tF)) * 0.55 + 0.1;
-    obs.push([sx * 0.9 - 0.36, sx * 0.9 + 0.36, zB, zB + runB], [sx * 0.9 - 0.36, sx * 0.9 + 0.36, zF - runF, zF]); }
-  const walkInfo = { z0: zB + 0.4, z1: zF - 0.4, half: (z) => shape.halfW(ZM.t(z)) * 0.9 - 0.12, obs, n: 3 };
+    dob.push([sx * 0.9 - 0.36, sx * 0.9 + 0.36, zB, zB + runB], [sx * 0.9 - 0.36, sx * 0.9 + 0.36, zF - runF, zF]); }
+  const walkInfo = { z0: zB + 0.4, z1: zF - 0.4, half: (z) => shape.halfW(ZM.t(z)) * 0.9 - 0.12, base: dob, obs: [...dob, ...gunSlots.map(g => { const a = g.x + g.sx * 1.2, b = g.gx - g.sx * 0.32, h = Math.max(g.r, 0.32); return [Math.min(a, b), Math.max(a, b), g.z - h, g.z + h]; })], n: 3, deckY: (z) => deckAt(ZM.t(z)) };
   const lanes = walkLanes(walkInfo);
   const deckPts = [[0.75, deckAt(0.52), zAt(0.42)], [-0.75, deckAt(0.52), zAt(0.58)], [0.8, deckAt(0.7), zAt(0.7)], [-0.8, deckAt(0.36), zAt(0.36)]];
   lanes.forEach((l, i) => { if (i < 4) deckPts[i] = [l.x, deckAt(ZM.t((l.a + l.b) / 2)), (l.a + l.b) / 2]; }); // [Raul] idle deck spots on clear deck (one sat inside the stern room)
   // [Raul] quarterdeck spots: just behind the break rail, clear of the mizzen and the helm / poop cabin
-  if (art) deckPts.push([1.6, art.Q, zB - 0.7], [-1.6, art.Q, zB - 0.7], [0.9, art.Fc(0.9), zAt(0.9)], [-0.9, art.Fc(0.9), zAt(0.9)]);
+  if (art) deckPts.push([1.6, art.Q, zB - 0.7], [-1.6, art.Q, zB - 0.7], [1.0, art.Fc(0.852), zAt(0.852)], [-1.0, art.Fc(0.852), zAt(0.852)]); // forecastle spots aft of the bow chasers
   deckPts.forEach((p, i) => anchors.push({ role: 'deck', index: i, pos: new THREE.Vector3(...p), facing: 0 }));
   const deck = { zA: zAt(STRETCH_T0), zB: zAt(STRETCH_T1), lf: len * stretch, l: len, depth, drop: deckDrop }; // walkers follow the deck sheer (crew.js)
   { const cr = addCrew(ship, { anchors, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52), lanes, deck }, boss }); if (cr) body.add(cr); } // [v95] + captain at the wheel (anchor)
@@ -794,7 +837,8 @@ export function buildShip(opts) {
   { const root = new THREE.Group(); root.name = 'crew-anchors'; const n = {}; // empties, one per anchor (named role_side_index), for tools / later GLB crews
     for (const a of anchors) { const o = new THREE.Object3D(); o.name = [a.role, a.side, a.index].filter(v => v !== undefined).join('_'); o.position.copy(a.pos); o.rotation.y = a.facing; o.userData.anchor = a; root.add(o); a.node = o; }
     body.add(root); }
-  ship.userData.walkInfo = walkInfo; ship.userData.walkLanes = lanes; ship.userData.deckObs = obs; ship.userData.gunT = GT; ship.userData.room = art ? { z0: zAt(0), z1: zB, y0: deckAt(art.tB) - 0.1, y1: art.Q } : { z0: zAt(0), z1: cabZ + cabL / 2, y0: cabY0, y1: cabY0 + cabH, w: cabW / 2 }; // [Raul] tests + upgrade layers
+  ship.userData.walkInfo = walkInfo; ship.userData.walkLanes = lanes; ship.userData.deckObs = obs; ship.userData.gunT = GT; ship.userData.gunSlots = gunSlots; ship.userData.room = art ? { z0: zAt(0), z1: zB, y0: deckAt(art.tB) - 0.1, y1: art.Q } : { z0: zAt(0), z1: cabZ + cabL / 2, y0: cabY0, y1: cabY0 + cabH, w: cabW / 2 }; // [Raul] tests + upgrade layers
+  placeCrew(ship); // [Raul] gunners by their guns + walker lanes round everything (upgrade builds re-run it with their deck parts)
   ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole, zAt, stretch };
   return ship;
 }

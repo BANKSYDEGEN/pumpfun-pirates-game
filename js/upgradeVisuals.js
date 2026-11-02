@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail, relaneCrew } from './ships.js';
+import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail, placeCrew } from './ships.js';
 import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
@@ -106,6 +106,7 @@ function mats(skin) {
     lens: glowMat(0x9fe8ff, 2.4),
     gleam: glowMat(P.gold ?? 0xffcd77, 1.8),
   };
+  m.iron.name = 'upg-iron'; // [Raul] tests find the gun barrels by it
   if (kitOn()) { // [Timothy] baked plank detail + normals on the upgrade timber; kit barrels get the AO twin of the iron
     dressMaterial(m.oak, 'deck', { strength: 0.45 }); dressMaterial(m.plank, 'deck', { strength: 0.45 }); dressMaterial(m.deck, 'deck', { strength: 0.5 });
     m.ironK = aoTwin(m.iron, 'iron');
@@ -221,18 +222,32 @@ function muzzle(Ly, side, p, order) { const m = new THREE.Object3D(); m.position
 
 // [Raul] v2 hull deck layout helpers (kept next to the parts they place, so the crew walk-lane obstacles match them)
 function lockerAt(A, sx) { const z = A.zB + 0.36; return { x: sx * 1.75, z, y: A.deckAt(0.38) }; }
+// shot rack / linstock spot for gun i: on its gunner's line, half way to the next gun (the last gun: half way back); null = no room
+function rackAt(A, ship, i, sx) { const G = ship?.userData?.gunSlots?.filter(g => g.sx === sx); if (!G?.length) return null;
+  const g = G[i], n = G[i + 1] || null, p = G[i - 1] || null; if (!g) return null;
+  const z = n ? (g.z + n.z) / 2 : p ? (g.z + p.z) / 2 : g.z + 0.9, x = g.gx;
+  if (Math.abs((n || p || { z: z + 2 }).z - g.z) < 1.45 || rackBlocked(A, x, z)) return null; return { x, z }; }
+// [Raul] mortar spot: the clearest main-deck t (off the masts + the magazine), sized so its bed stays clear of the gunners behind the
+// breeches either side (it sat at t 0.68 between big-gun breeches, inside the gun crews)
+function mortarAt(A, ship) { const S = ship?.userData?.gunSlots || [], s0 = 1.15 * A.k; let best = null;
+  for (let t = 0.54; t <= 0.8; t += 0.01) { const z = A.zAt(t); let s = s0;
+    for (const g of S) if (Math.abs(g.z - z) < g.r + 0.95 * s0 + 0.45) s = Math.min(s, (Math.abs(g.inner) - 0.38 - 0.3 - 0.12) / 0.95);
+    const h = 0.95 * s + 0.1, clear = A.masts.every((m, i) => i === 2 || Math.abs(m.z - z) > 0.72 + h + 0.15) && Math.abs(z - A.zAt(0.445)) > 1.05 + h + 0.2;
+    const sc = (clear ? 0 : -9) + s - Math.abs(t - 0.68) * 0.2; if (!best || sc > best.sc) best = { t, z, y: A.deckAt(t), s: Math.max(s, 0.4 * A.k), sc }; }
+  return best; }
 function rackBlocked(A, cx, z) { if (A.zB == null) return false; // the castle ladders (x 0.6..1.2 off centre) + the shot lockers next to them
   return Math.abs(cx) - 0.3 < 2.25 && z - 0.3 < A.zB + A.runB; }
 // main-deck boxes [x0, x1, z0, z1] of this build's upgrade parts (body space): the deck walkers keep clear of them
-function deckObstacles(A, lv) {
+function deckObstacles(A, lv, ship) {
   const out = [], C = TRAITS.cannons[lv.cannons || 0], R = TRAITS.reload[lv.reload || 0], S = TRAITS.sails[lv.sails || 0];
   const sq = (x, z, h) => out.push([x - h, x + h, z - h, z + h]);
-  if (R.magazine) sq(0, A.zAt(0.445), 1.28);
+  if (R.magazine) sq(0, A.zAt(0.445), 1.05);
   if (S.fourthMast) sq(0, A.zAt(0.445), 0.72);
-  if (C.mortar) sq(0, A.zAt(0.68), 0.95 * 1.15 * A.k + 0.1);
-  if (C.bowChaser && !A.hull.forecastle) sq(0, A.zAt(0.93), 0.55);
-  if (R.racks) A.gunT.forEach((t, i) => { const z = A.zAt(t); for (const sx of [1, -1]) { const cx = sx * (A.shape.halfW(t) - 1.55);
-    if (i % 2 === 0 && !rackBlocked(A, cx, z - 0.62)) sq(cx, z - 0.62, 0.36); if (R.linstocks && i % 2 === 1) sq(cx, z + 0.6, 0.2); } });
+  if (C.mortar) { const M0 = mortarAt(A, ship), h = 0.95 * M0.s + 0.1; out.push([-h, h, M0.z - h, M0.z + h + 0.45 * M0.s]); }
+  if (C.bowChaser) { const z = A.zAt(0.93), s = 1.15 * A.k; out.push([-0.55, 0.55, z - 0.5 - 0.4 * s, z + 1.5 * s]); } // bow chaser (also on a forecastle: its idle spots)
+  if (C.sternGuns) for (const sx of [1, -1]) { const x = sx * Math.min(0.95, A.shape.halfW(0.895) * 0.52), z = A.zAt(0.895); const s = A.k; out.push([x - 0.31 * s - 0.15, x + 0.31 * s + 0.15, z - 0.25 - 0.34 * 1.1 * s - 0.1, z + 1.4 * s]); } // bow chase guns
+  if (R.racks) A.gunT.forEach((t, i) => { for (const sx of [1, -1]) { const P = rackAt(A, ship, i, sx); if (!P) continue;
+    if (i % 2 === 0) sq(P.x, P.z, 0.36); if (R.linstocks && !LO && i % 2 === 1) sq(P.x, P.z, 0.2); } });
   if (R.lockers && A.zB != null) for (const sx of [1, -1]) { const { x, z } = lockerAt(A, sx); out.push([x - 0.5, x + 0.5, z - 0.3, z + 0.3]); }
   return out;
 }
@@ -452,21 +467,25 @@ const PARTS = {
       muzzle(Ly, sx > 0 ? 'port' : 'star', [sx * (w + 1.2), y + 0.26, z], 200 + order++);
     }
     }
+    const art = ship?.userData?.art, bowY = (t) => art ? art.Fc(t) : A.hull.forecastle ? A.foreY(t) : A.deckAt(t) + 0.3; // [Raul] v2 hull: ON its forecastle deck (foreY sat under it)
     if (T.bowChaser) { // forward-firing gun at the bow (on the forecastle when the hull has one)
-      const t = 0.93, y = (A.hull.forecastle ? A.foreY(t) : A.deckAt(t) + 0.3) + 0.35, z = A.zAt(t), s = 1.15 * k;
+      const t = 0.93, y = bowY(t) + 0.35, z = A.zAt(t), s = 1.15 * k;
       Ly.add(M.oak, box(0.9, 0.4, 1.0, 0.08), [0, y - 0.2, z]);
       Ly.add(M.iron, barrel, [0, y + 0.25, z - 0.2], [Math.PI / 2, 0, 0], [s, s * 1.2, s]);
       Ly.add(M.gold, torus(0.33 * s, 0.06), [0, y + 0.25, z + 1.15 * s]);
+      muzzle(Ly, 'bow', [0, y + 0.25, z - 0.2 + 1.22 * s * 1.2 + 0.04], 300); // [Raul] forward muzzle marker (tip)
     }
-    if (T.sternGuns) { // two stern chasers out of the transom under the cabin
-      const c = A.L.cab, y = c.y0 - 0.15, z = A.zAt(0);
-      for (const sx of [1, -1]) {
-        Ly.add(M.dark, box(0.8 * k, 0.7 * k, 0.12, 0.04), [sx * c.w * 0.25, y, z - 0.06]);
-        Ly.add(M.iron, barrel, [sx * c.w * 0.25, y, z + 0.25], [-Math.PI / 2, 0, 0], [1.1 * k, 1.1 * k, 1.1 * k]);
+    if (T.sternGuns) { // [Raul] BANKSY: the two chase guns that stuck out of the transom now sit on the bow, either side of the bow chaser,
+      // pointing forward over the stem (their muzzle markers point forward too: userData.muzzles.bow, [x, y, z] at each tip)
+      const t = 0.895, z = A.zAt(t), s = 1.0 * k, y = bowY(t) + 0.6, xs = Math.min(0.95, A.shape.halfW(t) * 0.52);
+      for (const sx of [1, -1]) { const x = sx * xs;
+        Ly.add(M.oak, box(0.62, 0.34, 0.95, 0.06), [x, y - 0.42, z]); // slide carriage
+        Ly.add(M.iron, barrel, [x, y, z - 0.25], [Math.PI / 2, 0, 0], [s, s * 1.1, s]);
+        muzzle(Ly, 'bow', [x, y, z - 0.25 + 1.22 * s * 1.1 + 0.04], 301 + (sx > 0 ? 0 : 1));
       }
     }
     if (T.mortar) { // big squat mortar amidships, aimed high
-      const t = 0.68, z = A.zAt(t), y = A.deckAt(t), s = 1.15 * k;
+      const { z, y, s } = mortarAt(A, ship);
       Ly.add(M.oak, box(1.9 * s, 0.35, 1.9 * s, 0.08), [0, y + 0.18, z]);
       Ly.add(M.iron, lathe(MORTAR, seg(12, 8)), [0, y + 0.32, z], [0.35, 0, 0], s);
       Ly.add(M.gold, torus(0.72 * s, 0.08), [0, y + 0.32 + 1.05 * s * Math.cos(0.35), z + 1.05 * s * Math.sin(0.35)], [Math.PI / 2 - 0.35, 0, 0]);
@@ -480,17 +499,17 @@ const PARTS = {
     A.gunT.forEach((t, i) => {
       const z = A.zAt(t), y = A.deckAt(t);
       for (const sx of [1, -1]) {
-        const w = A.shape.halfW(t), cx = sx * (w - 1.55);
-        if (i % 2 === 0 && !rackBlocked(A, cx, z - 0.62)) {
-          Ly.add(T.gold ? M.gold : M.oak, box(0.6, 0.12, 0.6, 0.03), [cx, y + 0.06, z - 0.62]);
-          if (!LO) [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]].forEach(([dx, dz]) => Ly.add(M.ball, ball, [cx + dx, y + 0.32, z - 0.62 + dz]));
-          Ly.add(M.ball, ball, [cx, y + 0.6, z - 0.62]);
+        const R = rackAt(A, ship, i, sx), cx = R ? R.x : sx * (A.shape.halfW(t) - 1.55);
+        if (R && i % 2 === 0) { const rz = R.z; // [Raul] on the gunner's line, half way to the next gun (it sat under the big barrels)
+          Ly.add(T.gold ? M.gold : M.oak, box(0.6, 0.12, 0.6, 0.03), [cx, y + 0.06, rz]);
+          if (!LO) [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]].forEach(([dx, dz]) => Ly.add(M.ball, ball, [cx + dx, y + 0.32, rz + dz]));
+          Ly.add(M.ball, ball, [cx, y + 0.6, rz]);
         }
         if (T.litPorts && !ship?.userData?.art) {
           const d = 0.5 * k;
           Ly.add(M.glow, box(0.06, 0.52 * k, 0.66, 0.03), [sx * (A.sideX(t, d) + 0.21), A.shape.top(t) - d, z], [0, A.sideYaw(t, sx), 0]);
         }
-        if (T.linstocks && !LO && i % 2 === 1) { Ly.add(M.dark, cyl(0.035, 0.035, 1.2, 4), [cx, y + 0.6, z + 0.6], [0.2, 0, 0]); Ly.add(M.fuse, sph(0.11), [cx, y + 1.2, z + 0.72]); }
+        if (T.linstocks && !LO && i % 2 === 1 && R) { Ly.add(M.dark, cyl(0.035, 0.035, 1.2, 4), [cx, y + 0.6, R.z], [0.2, 0, 0]); Ly.add(M.fuse, sph(0.11), [cx, y + 1.2, R.z + 0.12]); }
       }
     });
     const ud = ship?.userData;
@@ -506,11 +525,11 @@ const PARTS = {
     }
     if (T.magazine) { // ring of red-banded powder kegs amidships (around the 4th mast if it's there)
       const z = A.zAt(0.445), y = A.deckAt(0.445);
-      for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
+      for (const [dx, dz] of [[-0.62, -0.62], [0.62, -0.62], [-0.62, 0.62], [0.62, 0.62]]) { // [Raul] tighter ring: clear of the gunners
         Ly.add(M.keg, keg, [dx, y, z + dz], [0, 0, 0], 1.1);
         for (const b of [0.18, 0.56]) Ly.add(T.gold ? M.gold : M.red, torus(0.39, 0.04), [dx, y + b * 1.1, z + dz], [Math.PI / 2, 0, 0]);
       }
-      Ly.add(M.fuse, sph(0.16), [0.8, y + 0.95, z - 0.8]);
+      Ly.add(M.fuse, sph(0.16), [0.62, y + 0.95, z - 0.62]);
     }
     if (T.lockers && A.zB != null) for (const sx of [1, -1]) { // [Raul] v2 hull: against the stern room's break bulkhead, beside the ladders (t 0.24 is inside the roofed room now)
       const { x, z, y } = lockerAt(A, sx);
@@ -598,7 +617,7 @@ function buildCompiled(lv, opts, skin) {
   const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
   const nG = gunCount(lv), f = stretchFor(nG, H.len, 1.55, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12)
   const kitArt = skin?.shipOpts ? null : { ram: !!TRAITS.armor[lv.armor].ram, poopH: H.poop ? 1.3 * H.depth / 3.1 : 0 }; // [Timothy v2] poopH: the helm climbs onto the poop deck // [Timothy] player ships wear the Blender kit (figurehead clears the armour ram); COMMODORE stays the exact boss build until the boss is remodelled too
-  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, bigGun: W.big || 0, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
@@ -648,7 +667,7 @@ function buildCompiled(lv, opts, skin) {
     const back = new THREE.Mesh(mk(0.18), gold), front = new THREE.Mesh(mk(0), red); front.position.x = 0.03; back.position.z = 0.06; back.scale.set(1, 1, 1.04);
     if (LO) st.add(front); else st.add(back, front); fp.add(st); ud.maxStreamer = st;
   }
-  relaneCrew(ship, deckObstacles(A, lv)); // [Raul] deck walkers: fresh lanes round this build's deck parts (magazine, mortar, 4th mast, racks, lockers)
+  placeCrew(ship, deckObstacles(A, lv, ship)); // [Raul] gunners + deck walkers round this build's guns and deck parts (magazine, mortar, 4th mast, racks, lockers)
   dressCrew(ud.body, skin?.crewOutfit || skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
