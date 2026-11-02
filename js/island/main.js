@@ -1,6 +1,8 @@
 // [Raul] PUMPFUN PIRATES island: standalone art / layout test scene (island.html). Not part of the game build or the service worker.
 // URL: island.html?quality=high|low  &harbor=1 (place it in the BATTLE ROYALE harbor: storm sea, real rock islands, spawn
-// overlay, AI duel, a ship sailing the approach lane)  &view=<name>  &shot=1 (hide UI, freeze the clock)  &overlay=1
+// overlay, AI duel, a ship sailing in to a jetty berth)  &view=<name>  &shot=1 (hide UI, freeze the clock)  &overlay=1 (layout +
+// walkable area)  &full=1 (every berth filled)  &players=16 (players-to-scale markers on the plaza)  &lod (LOD in the lobby too)
+// &walk=1 (get off at a pier as a pirate: WASD / arrows or tap-to-walk, drag to look; 4.2 m/s, Shift to run)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toon } from '../toon.js';
@@ -11,14 +13,16 @@ import { compileShip } from '../upgradeVisuals.js';
 import { getSkin } from '../skins.js';
 import { createIslands } from '../props.js';
 import { PVP_ARENA_R } from '../config.js';
-import { SPOTS, TOWER_H, HARBOR_ISLAND, groundY, buildIsland, buildFarIsland, buildChest, makeAtlas, shoreFoam, islandColliders, BERTHS } from './art.js';
+import { SPOTS, TOWER_H, TAVERN_S, HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, pierDecks, groundY, footY, canWalk, buildIsland, buildFarIsland, buildChest, buildPlants, makeAtlas, shoreFoam, islandColliders, BERTHS, harborWalls, walkable, scaleMarkers } from './art.js';
+import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
 import { bakeShip } from './bake.js';
 
 const P = new URLSearchParams(location.search);
 const phone = matchMedia('(max-width: 600px), (max-height: 520px)').matches;
 const quality = P.get('quality') || (phone ? 'low' : 'high'), LOW = quality === 'low', SHOT = P.has('shot');
-const HARBOR = !!P.get('harbor') && P.get('harbor') !== '0';
+const WALK = P.has('walk');
+const HARBOR = !!P.get('harbor') && P.get('harbor') !== '0', FULL = P.has('full'), NPLAYERS = +(P.get('players') || 0);
 if (SHOT) document.body.classList.add('shot');
 document.getElementById('title').textContent = HARBOR ? 'PUMPFUN PIRATES · Island in the harbor' : 'PUMPFUN PIRATES · Island';
 
@@ -33,7 +37,7 @@ if (!LOW) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.P
 const scene = new THREE.Scene();
 const FOGC = HARBOR ? FOG_COLOR.clone() : new THREE.Color(0x9ddcf2), FOGD = HARBOR ? 0.0042 : 0.0021;
 scene.fog = new THREE.FogExp2(FOGC, FOGD); scene.background = FOGC.clone();
-const camera = new THREE.PerspectiveCamera(HARBOR ? 55 : 46, innerWidth / innerHeight, 0.5, 3000);
+const camera = new THREE.PerspectiveCamera(P.has('walk') ? 62 : HARBOR ? 55 : 46, innerWidth / innerHeight, 0.5, 3000);
 
 // the island root: identity in the lobby scene, the harbor transform with ?harbor=1
 const isle = new THREE.Group(); scene.add(isle);
@@ -45,8 +49,8 @@ const L2W = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(isle.matrixWorl
 scene.add(HARBOR ? new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9) : new THREE.HemisphereLight(0xcdeeff, 0x6f9a5a, 1.75));
 const sun = HARBOR ? new THREE.DirectionalLight(0xffe2c4, 2.1) : new THREE.DirectionalLight(0xfff0d6, 2.5);
 const SUN_DIR = HARBOR ? new THREE.Vector3(-40, 50, 80) : new THREE.Vector3(55, 95, 62);
-sun.position.copy(isle.position).add(SUN_DIR); sun.target.position.copy(isle.position); scene.add(sun, sun.target);
-if (!LOW) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = sc.bottom = -85; sc.right = sc.top = 85; sc.near = 10; sc.far = 320; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.4; sc.updateProjectionMatrix(); }
+sun.position.copy(L2W(0, 0, 0)).add(SUN_DIR.clone().multiplyScalar(2)); sun.target.position.copy(L2W(0, 0, 0)); scene.add(sun, sun.target);
+if (!LOW) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = sc.bottom = -112; sc.right = sc.top = 112; sc.near = 10; sc.far = 420; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.4; sc.updateProjectionMatrix(); }
 
 // sky: the game's storm sky in the harbor, a sunny gradient dome in the lobby
 let gameSky = null;
@@ -89,11 +93,18 @@ const MATS = {
   atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }),
 };
 const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
-const near = buildIsland({ low: LOW, atlas }).build(MATS, OUT); near.name = 'island_near';
+// moored fleet: real baked game ships on a few berths (Low 1, High 2, full 3), toy galleons merged into the island mesh on
+// others (0 extra draw calls; Low 3, High 8, full = every berth). The approach ship's berth P1L stays free in the harbor.
+const BERTH = Object.fromEntries(BERTHS().map(b => [b.id, b]));
+const REAL = FULL ? ['P6C', 'P2C', 'P4C'] : ['P6C']; // High keeps ~1 baked ship (lobby < 60 calls); its extra fleet is decor
+const DECOR = FULL ? BERTHS().map(b => b.id).filter(id => !REAL.includes(id) && !(HARBOR && id === 'P1L')) : LOW ? ['P1R', 'P3C', 'P5L'] : ['P1R', 'P2L', 'P3C', 'P4R', 'P5L', 'P5R', 'P6L', 'P2R'];
+const decor = DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]);
+const near = buildIsland({ low: LOW, atlas, decor }).build(MATS, OUT); near.name = 'island_near';
 near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !LOW; o.receiveShadow = !LOW; } });
 const far = buildFarIsland().build({ toon: MATS.toon }, OUT); far.name = 'island_far'; far.visible = false;
+const plants = buildPlants(LOW, MATS.toon); plants.receiveShadow = !LOW;
 const foam = shoreFoam(uTime, LOW, ocean.uniforms.uWaves);
-isle.add(near, far, foam);
+isle.add(near, far, foam, plants);
 
 // daily-reward chest: bobbing chest + light beam (a beacon you can spot from sea) + sparkles
 const chest = new THREE.Group(); const cs = SPOTS.chest, cy = groundY(cs.x, cs.z) + 1.15;
@@ -122,14 +133,14 @@ if (!LOW) {
   sparks.position.set(cs.x, cy, cs.z); sparks.frustumCulled = false; isle.add(sparks);
 }
 // LOD by camera distance to the island centre (hysteresis so it never flickers on the boundary)
-const LOD_NEAR = 150, LOD_FAR = 280, HYST = 10; let lod = 'near';
+const LOD_NEAR = 200, LOD_FAR = 310, HYST = 12; let lod = 'near';
 const outlines = []; near.traverse(o => { if (o.userData.outline) outlines.push(o); }); chest.traverse(o => { if (o.userData.outline) outlines.push(o); });
 function setLod(d) {
   const want = d > LOD_FAR + (lod === 'far' ? -HYST : HYST) ? 'far' : d > LOD_NEAR + (lod === 'near' ? HYST : -HYST) ? 'mid' : 'near';
   if (want === lod && setLod.done) return; lod = want; setLod.done = true;
   near.visible = chest.visible = lod !== 'far'; far.visible = lod === 'far';
   for (const o of outlines) o.visible = lod === 'near';
-  if (sparks) sparks.visible = lod === 'near'; foam.visible = lod !== 'far';
+  if (sparks) sparks.visible = lod === 'near'; foam.visible = lod !== 'far'; plants.visible = lod === 'near';
   near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') o.castShadow = !LOW && lod === 'near'; });
 }
 
@@ -143,20 +154,21 @@ const mkShip = (levels, skin, bake) => {
   mesh.traverse(o => { o.castShadow = false; }); scene.add(mesh); return mesh;
 };
 const ships = [];
-{ // berth A: one moored ship on every quality (keeps High under 60 calls); maxed hull 3 = len 20.4, the longest the berth takes
-  const b = BERTHS()[0], w = L2W(b.x, 0, b.z);
-  ships.push({ mesh: mkShip({ hull: 3, sails: 1, cannons: 1, armor: 1 }, 'golden', true), x: w.x, z: w.z, yaw: b.yaw + isle.rotation.y, sail: 0.5, ph: 0, moored: true });
-}
+// real moored ships: Q1E is a maxed hull 3 (len 20.4, the longest a berth takes)
+const REAL_KIT = [[{ hull: 3, sails: 1, cannons: 1, armor: 1 }, 'golden'], [{ hull: 2, sails: 1, cannons: 1 }, 'midnight'], [{ hull: 1, sails: 1 }, 'blood']];
+REAL.forEach((id, i) => { const b = BERTH[id], w = L2W(b.x, 0, b.z);
+  ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true), x: w.x, z: w.z, yaw: b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
 let approach = null; const duel = [];
 if (HARBOR) {
-  // a ship sailing the buoyed approach lane and pulling alongside berth B (40 s loop)
+  // a ship sailing in from open water and pulling alongside berth P1L (the harbor-facing end of pier 1; 40 s loop)
   approach = { mesh: mkShip({ hull: 1, sails: 1 }, 'classic', false), x: 0, z: 0, yaw: 0, sail: 1, ph: 1.3 }; ships.push(approach);
   // two AI-style ships duelling out in the harbor, in view of the beach / dock / terrace / lookout
   if (!LOW) for (let i = 0; i < 2; i++) { const s = { mesh: mkShip({ hull: i, cannons: 1 }, i ? 'blood' : 'midnight', false), x: 0, z: 0, yaw: 0, sail: 1, ph: i * 2.1 }; duel.push(s); ships.push(s); }
 }
-function approachPose(t) { // local frame: from the lane mouth (z 170) to berth B (z 80), easing out, then a 12 s stop
-  const b = BERTHS()[1], T = 40, p = (t % T) / T, k = Math.min(1, p / 0.7), e = 1 - Math.pow(1 - k, 2.2);
-  const z = 170 + (b.z - 170) * e, x = b.x + Math.sin(k * Math.PI) * 3.5 * (1 - k); return { x, z, yaw: b.yaw, speed: (1 - k) * 9 };
+function approachPose(t) { // local frame: runs in along the head face of pier 1 (from 70 back, 14 further out), then a 12 s stop
+  const b = BERTH.P1L, { u, v } = pierUV(PIER_ANGLES[0]), T = 40, p = (t % T) / T, k = Math.min(1, p / 0.7), e = 1 - Math.pow(1 - k, 2.2);
+  const back = 70 * (1 - e), out = 14 * (1 - e) * (1 - e) + Math.sin(k * Math.PI) * 2 * (1 - k);
+  return { x: b.x - v[0] * back + u[0] * out, z: b.z - v[1] * back + u[1] * out, yaw: b.yaw - 0.25 * (1 - e) * (1 - e), speed: (1 - k) * 9 };
 }
 const DUEL_C = new THREE.Vector3(HARBOR_ISLAND.x * 0.42, 0, HARBOR_ISLAND.z * 0.42); // harbor water ~150 off the beach
 // [v84] keep water out of the hulls: same plane cap the game uses (ocean uHullY), read off each ship's water-mask lid
@@ -190,48 +202,73 @@ function floatShips(t) {
   ocean.uniforms.uHullCount.value = Math.min(12, ships.length);
 }
 
-// ---------- harbor context: real rock islands + a layout overlay (spawns, rings, colliders, berths, lane) ----------
+// ---------- layout overlay: world (arena rings, spawns, respawns) + island-local (walkable, berths, walls, colliders, lanes) ----------
 let rocks = null, overlay = null;
+const WALKAREA = walkable(LOW ? 4 : 3);
+const lines = (seg, col) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const o = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, fog: false, depthTest: false, transparent: true, opacity: 0.95 })); o.renderOrder = 9; return o; };
+const mkRing = (seg, col) => (cx, cz, r, c, n = 64, y = 1) => { for (let i = 0; i < n; i++) { const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2; seg.push(cx + Math.cos(a0) * r, y, cz + Math.sin(a0) * r, cx + Math.cos(a1) * r, y, cz + Math.sin(a1) * r); col.push(...c.toArray(), ...c.toArray()); } };
+const C = (h) => new THREE.Color(h);
+const localOverlay = (() => {
+  const seg = [], col = [], ring = mkRing(seg, col), line = (x0, z0, x1, z1, c, y = 1.3) => { seg.push(x0, y, z0, x1, y, z1); col.push(...c.toArray(), ...c.toArray()); };
+  const walkC = C(0xff2bd6); for (const [x0, z0, x1, z1] of WALKAREA.seg) line(x0, z0, x1, z1, walkC, 4.5);                        // walkable outline (land + decks)
+  ring(SPOTS.plaza.x, SPOTS.plaza.z, SPOTS.plaza.r, C(0xfde047), 48, 5);                                                         // plaza (on-foot lobby)
+  for (const d of SPOTS.digs) ring(d.x, d.z, 5, C(0xfb923c), 16, 5);
+  for (const c of islandColliders()) ring(c.x, c.z, c.r, C(0xffffff), 24);
+  for (const w of harborWalls()) { line(w.x0, w.z0, w.x1, w.z1, C(0xff8a00), 1.5); }
+  for (const b of BERTHS()) { const fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), c = C(0x67e8f9), Q = [[-3.65, -11], [3.65, -11], [3.65, 11], [-3.65, 11]].map(([sx, sf]) => [b.x + fz * sx + fx * sf, b.z - fx * sx + fz * sf]);
+    for (let i = 0; i < 4; i++) line(...Q[i], ...Q[(i + 1) % 4], c);
+    ring(b.x, b.z, 8.6, C(0x38bdf8), 20, 1.1); }
+  const lane = C(0x93c5fd); for (const th of PIER_ANGLES) { const { u, v } = pierUV(th); for (const sx of [-1, 1]) { const x0 = u[0] * (PIER.berthD + 13) + v[0] * sx * 40, z0 = u[1] * (PIER.berthD + 13) + v[1] * sx * 40; line(x0, z0, x0 + u[0] * 30, z0 + u[1] * 30, lane); } } // approach lanes past each head
+  for (const d of pierDecks()) { const { u, v } = pierUV(d.th); for (const [x0, z0, x1, z1] of d.rects) { const P4 = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([a, b]) => [v[0] * a + u[0] * b, v[1] * a + u[1] * b]); for (let i = 0; i < 4; i++) line(...P4[i], ...P4[(i + 1) % 4], C(0xff2bd6), 4.5); } }
+  const o = lines(seg, col); o.visible = false; isle.add(o); return o;
+})();
 if (HARBOR) {
   rocks = createIslands(LOW ? 'low' : 'high'); scene.add(rocks.group);
-  const seg = [], col = [], C = (h) => new THREE.Color(h);
-  const ring = (cx, cz, r, c, n = 64) => { for (let i = 0; i < n; i++) { const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2; seg.push(cx + Math.cos(a0) * r, 1, cz + Math.sin(a0) * r, cx + Math.cos(a1) * r, 1, cz + Math.sin(a1) * r); col.push(...c.toArray(), ...c.toArray()); } };
-  ring(0, 0, PVP_ARENA_R, C(0xff3030), 128); ring(0, 0, 370, C(0xff9a3a), 128);
+  const seg = [], col = [], ring = mkRing(seg, col);
+  ring(0, 0, PVP_ARENA_R, C(0xff3030), 128); ring(0, 0, 370, C(0xff9a3a), 128); ring(0, 0, PVP_ARENA_R * 0.82, C(0xfbbf24), 128);
   for (const r of [40, 85, 130]) for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; ring(Math.cos(a) * r, Math.sin(a) * r, 3, C(0x4ade80), 8); } // harbor death respawns
   for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; ring(Math.cos(a) * PVP_ARENA_R * 0.82, Math.sin(a) * PVP_ARENA_R * 0.82, 6, C(0xfbbf24), 10); } // AI / boss spawns
   for (let i = 0; i < 6; i++) { const a = (i + 0.5) / 6 * 6.283; ring(Math.cos(a) * PVP_ARENA_R * 0.42, Math.sin(a) * PVP_ARENA_R * 0.42, 6, C(0xfbbf24), 10); }
   ring(0, 0, 8, C(0x60a5fa), 16); // player harbor spawn
-  for (const c of islandColliders()) { const w = L2W(c.x, 0, c.z); ring(w.x, w.z, c.r, C(0xffffff), 24); }
-  for (const b of BERTHS()) { const cs4 = [[-3.65, -11], [3.65, -11], [3.65, 11], [-3.65, 11]].map(([x, z]) => L2W(b.x + x, 0, b.z + z)); for (let i = 0; i < 4; i++) { const a = cs4[i], bb = cs4[(i + 1) % 4]; seg.push(a.x, 1.2, a.z, bb.x, 1.2, bb.z); col.push(0.4, 0.9, 1, 0.4, 0.9, 1); } }
-  { const L = SPOTS.lane; for (const sx of [-1, 1]) { const a = L2W(sx * L.w / 2, 0, L.z0), b = L2W(sx * L.w / 2, 0, L.z1 + 15); seg.push(a.x, 1.2, a.z, b.x, 1.2, b.z); col.push(0.4, 0.9, 1, 0.4, 0.9, 1); } }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  overlay = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, fog: false, depthTest: false, transparent: true, opacity: 0.9 })); overlay.renderOrder = 9; overlay.visible = P.has('overlay'); scene.add(overlay);
+  overlay = lines(seg, col); overlay.visible = false; scene.add(overlay);
 }
+// players-to-scale markers on the plaza (one merged mesh, 2-3 calls)
+let markers = null;
+if (NPLAYERS) { markers = scaleMarkers(NPLAYERS).build(MATS, OUT); isle.add(markers); }
 
 // ---------- camera views (island-local; transformed into the harbor with ?harbor=1) ----------
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 4; controls.maxDistance = 1200; controls.maxPolarAngle = 1.5; controls.enablePan = true;
 controls.autoRotateSpeed = 0.45;
 const gy = (s) => groundY(s.x, s.z);
-const T = SPOTS.tavern, TW = SPOTS.tower, deckY = gy(T) - 0.3 + 1.65, towerTop = gy(TW) - 0.4 + TOWER_H + 0.5;
+const T = SPOTS.tavern, TW = SPOTS.tower, deckY = gy(T) - 0.3 + 1.65 * TAVERN_S, towerTop = gy(TW) - 0.4 + TOWER_H + 0.5;
+const D0 = SPOTS.digs[0], BD = SPOTS.board;
+const EYE = PIER.y + 0.2 + 1.55; // a pirate's eye on a pier deck
 const VIEWS = {
-  hero: { p: [-70, 52, 150], t: [0, 2, 26] },
-  seaNear: { p: [34, 9, 118], t: [0, 6, 0] },
-  seaMid: { p: [60, 11, 205], t: [0, 6, 0] },
-  seaFar: { p: [40, 12, 300], t: [0, 6, 0] },
-  docked: { p: [6, 8, 104], t: [-7, 3.5, 78] },
-  beach: { p: [-20, gy({ x: -20, z: 45 }) + 2.4, 45], t: [-8, 3, 200] },
-  dock: { p: [1.5, SPOTS.dock.y + 2.4, 103.5], t: [0, 2, 260] },
-  terrace: { p: [3, deckY + 2.2, T.z + 12.6], t: [0, 2, 190] },
-  lookout: { p: [TW.x + 0.5, towerTop + 2.4, TW.z + 2.3], t: [-2, 0, 200] },
-  tower: { p: [-12, 14, 18], t: [TW.x, gy(TW) + 11, TW.z] },
-  tavern: { p: [10, deckY + 8, T.z + 34], t: [0, deckY + 5, T.z] },
-  dig: { p: [SPOTS.dig.x + 12, 14, SPOTS.dig.z + 16], t: [SPOTS.dig.x, gy(SPOTS.dig) + 1, SPOTS.dig.z] },
-  chest: { p: [cs.x - 12, 12, cs.z + 16], t: [cs.x, gy(cs) + 3, cs.z] },
-  board: { p: [12, 11, 12], t: [SPOTS.board.x, gy(SPOTS.board) + 3.5, SPOTS.board.z] },
-  top: { p: [0.01, 195, 22], t: [0, 0, 22] },
+  hero: { p: [-150, 100, 175], t: [0, 0, 0] },
+  seaNear: { p: [40, 10, 178], t: [0, 8, 0] },
+  seaMid: { p: [70, 16, 262], t: [0, 6, 0] },
+  seaFar: { p: [40, 20, 330], t: [0, 6, 0] },
+  fullHarbor: { p: [-40, 70, 175], t: [0, 0, 30] },
+  docked: { p: [-91, 12, 98], t: [-47, 4, 81] },
+  dockDeck: { p: [-61, EYE + 2, 66], t: [-47, 4, 81] },
+  disembark: { p: [40, EYE, 69.3], t: [0, 3.2, -8] },
+  plaza: { p: [16, 13, 52], t: [0, 3, 18] },
+  market: { p: [-4, 6, 42], t: [27, 4, 26] },
+  hillPath: { p: [-10, 10, 26], t: [-40, 13, -12] },
+  terrace: { p: [T.x, deckY + 2.2, T.z + 12.6 * TAVERN_S], t: [0, 2, 240] },
+  lookout: { p: [TW.x + 0.5, towerTop + 2.4, TW.z + 2.3], t: [0, 0, 240] },
+  tower: { p: [TW.x + 26, 18, TW.z + 30], t: [TW.x, gy(TW) + 11, TW.z] },
+  tavern: { p: [T.x + 10, deckY + 8, T.z + 34], t: [T.x, deckY + 5, T.z] },
+  jungle: { p: [66, 9, 18], t: [44, 5, -8] },
+  beach: { p: [2, 9, -68], t: [18, 2, -46] },
+  dig: { p: [D0.x + 12, gy(D0) + 9, D0.z + 14], t: [D0.x, gy(D0) + 1, D0.z] },
+  chest: { p: [cs.x - 12, gy(cs) + 8, cs.z + 16], t: [cs.x, gy(cs) + 3, cs.z] },
+  board: { p: [BD.x - 16, gy(BD) + 6, BD.z + 4], t: [BD.x, gy(BD) + 3.5, BD.z] },
+  top: { p: [0.01, 260, 0], t: [0, 0, 0] },
 };
-if (!HARBOR && (innerWidth / innerHeight > 1.9 || phone)) VIEWS.hero = { p: [-56, 40, 120], t: [0, 0, 30] };
+if (!HARBOR && (innerWidth / innerHeight > 1.9 || phone)) VIEWS.hero = { p: [-135, 90, 160], t: [0, 0, 5] };
 const WORLD_VIEWS = HARBOR ? { harborTop: { p: [0.01, 1050, 0], t: [0, 0, 0] }, spawn: { p: [0, 12, -30], t: [HARBOR_ISLAND.x, 8, HARBOR_ISLAND.z] } } : {};
 let tween = null, curView = 'hero';
 function resolve(name) {
@@ -241,7 +278,7 @@ function resolve(name) {
 function goView(name, instant = false) {
   curView = name; controls.autoRotate = name === 'hero' && !SHOT;
   const to = resolve(name), top = name === 'harborTop';
-  if (overlay) overlay.visible = top || P.has('overlay');
+  if (overlay) overlay.visible = top || P.has('overlay'); localOverlay.visible = top || P.has('overlay');
   if (gameSky) gameSky.mesh.visible = !top; scene.background = top ? new THREE.Color(0x0e2a36) : FOGC.clone();
   scene.fog.density = top ? 0 : FOGD; ocean.uniforms.uFogDensity.value = top ? 0 : FOGD; // top-down layout map: no fog
   if (instant) { camera.position.copy(to.p); controls.target.copy(to.t); controls.update(); tween = null; }
@@ -260,6 +297,52 @@ controls.addEventListener('start', () => { tween = null; controls.autoRotate = f
 goView(P.get('view') || 'hero', true);
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
+// ---------- on foot (&walk=1): get off at pier 1 as a pirate and walk the island ----------
+// 4.2 m/s walking (Shift 6.5 running): the island is ~146 m across (~35 s to cross), the docks-ring path ~370 m (~90 s).
+let walker = null;
+if (WALK) {
+  const k = new Kit(), skin = 0xf2c9a0;
+  k.add(new THREE.CylinderGeometry(0.17, 0.2, 0.75, 8), 0x2b2f36, { m: M(-0.17, 0.37, 0) }); k.add(new THREE.CylinderGeometry(0.17, 0.2, 0.75, 8), 0x2b2f36, { m: M(0.17, 0.37, 0) });
+  k.add(new THREE.CylinderGeometry(0.36, 0.42, 0.75, 10), 0xfa0d0d, { m: M(0, 1.05, 0) });                       // coat
+  k.add(new THREE.CylinderGeometry(0.43, 0.43, 0.12, 10), 0x161616, { m: M(0, 0.8, 0), outline: false });           // belt
+  k.add(new THREE.BoxGeometry(0.14, 0.12, 0.05), 0xffc93c, { m: M(0, 0.8, 0.43), outline: false });
+  k.add(new THREE.SphereGeometry(0.36, 12, 10), skin, { m: M(0, 1.6, 0) });                                         // head
+  k.add(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 12), 0x161616, { m: M(0, 1.83, 0) }); k.add(new THREE.CylinderGeometry(0.26, 0.36, 0.28, 10), 0x161616, { m: M(0, 1.96, 0) }); // tricorne-ish hat
+  k.add(new THREE.BoxGeometry(0.2, 0.08, 0.04), 0x161616, { m: M(0.13, 1.66, 0.33), outline: false });               // eyepatch strap
+  for (const sx of [-1, 1]) k.add(new THREE.CylinderGeometry(0.1, 0.11, 0.6, 6), 0xfa0d0d, { m: M(sx * 0.45, 1.1, 0, 0, 0, sx * 0.25) });
+  const mesh = k.build(MATS, OUT); mesh.name = 'pirate'; isle.add(mesh);
+  const { u } = pierUV(PIER_ANGLES[0]), yaw = Math.atan2(-u[0], -u[1]);
+  walker = { mesh, x: u[0] * 80, z: u[1] * 80, yaw, camYaw: yaw, pitch: 0.12, target: null, keys: {}, ph: 0, drag: null };
+  controls.enabled = false; controls.autoRotate = false;
+  addEventListener('keydown', e => { walker.keys[e.code] = true; }); addEventListener('keyup', e => { walker.keys[e.code] = false; });
+  const BLOCK = [{ ...SPOTS.tavern, r: 9.5 }, { ...SPOTS.tower, r: 4 }, { ...SPOTS.chest, r: 5 }, { ...SPOTS.flag, r: 1.6 }, ...SPOTS.stalls.map(q => ({ ...q, r: 3 }))];
+  walker.blocked = (x, z) => !canWalk(x, z) || BLOCK.some(b => Math.hypot(b.x - x, b.z - z) < b.r);
+  canvas.addEventListener('pointerdown', e => { walker.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() }; });
+  canvas.addEventListener('pointermove', e => { const d = walker.drag; if (!d) return; walker.camYaw -= (e.clientX - d.x) * 0.006; walker.pitch = Math.min(0.9, Math.max(-0.25, walker.pitch + (e.clientY - d.y) * 0.004)); d.x = e.clientX; d.y = e.clientY; walker.look = performance.now(); });
+  canvas.addEventListener('pointerup', e => { const d = walker.drag; walker.drag = null; if (!d || Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) return;
+    const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+    const inv = isle.matrixWorld.clone().invert(), o = rc.ray.origin.clone().applyMatrix4(inv), dir = rc.ray.direction.clone().transformDirection(inv);
+    for (let t = 0; t < 400; t += 0.4) { const q = o.clone().addScaledVector(dir, t); if (q.y <= footY(q.x, q.z)) { if (!walker.blocked(q.x, q.z)) walker.target = { x: q.x, z: q.z }; break; } } });
+}
+function updateWalker(dt, t) {
+  const w = walker, K = w.keys, fwd = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), side = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
+  let dx = 0, dz = 0;
+  if (fwd || side) { w.target = null; const fx = Math.sin(w.camYaw), fz = Math.cos(w.camYaw); dx = fx * fwd - fz * side; dz = fz * fwd + fx * side; }
+  else if (w.target) { dx = w.target.x - w.x; dz = w.target.z - w.z; if (Math.hypot(dx, dz) < 0.4) { w.target = null; dx = dz = 0; } }
+  const n = Math.hypot(dx, dz), speed = K.ShiftLeft || K.ShiftRight ? 6.5 : 4.2;
+  if (n > 0) {
+    dx /= n; dz /= n; const st = speed * dt;
+    if (!w.blocked(w.x + dx * st, w.z + dz * st)) { w.x += dx * st; w.z += dz * st; } else if (!w.blocked(w.x + dx * st, w.z)) w.x += dx * st; else if (!w.blocked(w.x, w.z + dz * st)) w.z += dz * st; else w.target = null;
+    const want = Math.atan2(dx, dz); let d = want - w.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); w.yaw += d * Math.min(1, dt * 10); w.ph += dt * speed * 2.2;
+    if (!w.drag && performance.now() - (w.look || 0) > 1500) { let c = w.yaw - w.camYaw; c = Math.atan2(Math.sin(c), Math.cos(c)); w.camYaw += c * Math.min(1, dt * 1.6); }
+  }
+  const y = footY(w.x, w.z);
+  w.mesh.position.set(w.x, y + Math.abs(Math.sin(w.ph)) * 0.08 * (n > 0 ? 1 : 0), w.z); w.mesh.rotation.y = w.yaw;
+  const D = 6.5, cy = 2.6 + w.pitch * 6, cx = w.x - Math.sin(w.camYaw) * D * Math.cos(w.pitch * 0.6), cz = w.z - Math.cos(w.camYaw) * D * Math.cos(w.pitch * 0.6);
+  const camY = Math.max(y + cy, footY(cx, cz) + 1.2, 0.8);
+  camera.position.lerp(L2W(cx, camY, cz), SHOT ? 1 : Math.min(1, dt * 8)); controls.target.copy(L2W(w.x + Math.sin(w.camYaw) * 3, y + 1.6, w.z + Math.cos(w.camYaw) * 3)); camera.lookAt(controls.target);
+}
+
 // ---------- loop + stats ----------
 const statsEl = document.getElementById('stats'); const clock = new THREE.Clock(); let frames = 0, acc = 0, fps = 0;
 const T0 = SHOT ? +(P.get('t') || 4) : 0; // shots use a fixed sea clock so they are reproducible
@@ -268,8 +351,11 @@ function frame() {
   uTime.value = t; wind.uTime.value = t; ocean.uniforms.uTime.value = t; if (gameSky) gameSky.uniforms.uTime.value = t;
   floatShips(t);
   chest.position.y = cy + Math.sin(t * 1.6) * 0.18; chest.rotation.y = -0.9 + Math.sin(t * 0.7) * 0.12;
-  if (tween) { tween.k = Math.min(1, tween.k + dt * 1.1); const e = tween.k * tween.k * (3 - 2 * tween.k); camera.position.lerpVectors(tween.from.p, tween.to.p, e); controls.target.lerpVectors(tween.from.t, tween.to.t, e); if (tween.k >= 1) tween = null; }
-  controls.update();
+  if (walker) updateWalker(SHOT ? 1 / 30 : dt, t);
+  else {
+    if (tween) { tween.k = Math.min(1, tween.k + dt * 1.1); const e = tween.k * tween.k * (3 - 2 * tween.k); camera.position.lerpVectors(tween.from.p, tween.to.p, e); controls.target.lerpVectors(tween.from.t, tween.to.t, e); if (tween.k >= 1) tween = null; }
+    controls.update();
+  }
   setLod(HARBOR || P.has('lod') ? camera.position.distanceTo(isle.position) : 0); // the lobby scene is walked around: always full detail
   // the ocean follows the camera like it follows the player in the game (centred on the harbor for the top-down map)
   const step = ocean.mesh.userData.step, oc = curView === 'harborTop' ? new THREE.Vector3() : camera.position;
@@ -283,5 +369,5 @@ function frame() {
   if (!SHOT) statsEl.textContent = `${quality.toUpperCase()}  ${Math.round(fps)} fps  LOD ${lod}\ncalls ${I.calls}  tris ${(I.triangles / 1000).toFixed(1)}k`;
   requestAnimationFrame(frame);
 }
-window.ISLAND = { renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS() };
+window.ISLAND = { renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);
