@@ -1,9 +1,14 @@
 # PUMPFUN PIRATES · security fixes (branch `post/security-fixes`)
 
 Base: rebased onto origin/main `b131b7a` (2026-11-02 18:45 EST; includes the v112–v113 hotfixes: crew clothes, ships, settings move, title token pick). The SW VERSION is `pfp-v114`. Main bumps it often, so **at merge time set it to main + 1**.
-**Nothing here is pushed, merged, deployed or applied.** Migrations 028–030 are files only. No leaderboard row, score or player
-record is changed by any of them. They are additive: new columns with defaults, new tables, new or wrapped functions, and changed
-privileges. Nothing is dropped, wiped or reset.
+**Deploy status (2026-11-02, ~7 PM EST):** steps 1–3 done. Migrations 028 + 029 applied (029: RLS on `realtime.messages` was already on;
+the file now only enables it when off). Functions `pvp` (v23) and `pirate` (v8) deployed. Client merged to main (SW `pfp-v114`).
+`PFP_RT_JWT_SECRET` is **not set**: the project signs with ES256 (the legacy HS256 key is "previously used"), and a random secret
+would only make Realtime refuse every private join, so clients join public channels as before (M1 stays open until it is set to a
+secret Realtime accepts). `TRUSTED_IP_HEADER` not set. `ALLOWED_ORIGINS` not set = the code default, which includes
+https://game.pumpfunpirates.com. Not done yet: migration 030 (step 5), the Realtime public-access toggle (step 6), the relay.
+`verify-score` is not deployed. Backups: `/workspace/backups/secfix/` on the dev box. No leaderboard row, score or player record
+was changed; 028–030 are additive (new columns with defaults, new tables, new or wrapped functions, changed privileges).
 
 Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remains (stated) · **not done** = needs a human.
 
@@ -180,6 +185,6 @@ See "Human actions".
     in the PvP arena seeing each other, emote, spectator joins, injected XSS states dropped, no console errors.
 
 ## Not security, found while testing
-- Portal builds (itch / Newgrounds / CrazyGames) crashed at load on origin/main (`$('btn-wallet')` is removed by the crypto-free
-  build before main.js touches it). This branch null-guards it (commit "fix portal builds"). It could also be cherry-picked to main
-  on its own.
+- Portal builds (itch / Newgrounds / CrazyGames) crash at load on main (`$('btn-wallet')` is removed by the crypto-free build
+  before main.js touches it). The null-guard is NOT in this merge (the owner said to ignore the portal builds; the web build still
+  has the button). It is on branch backup commit f36f59c if ever wanted.

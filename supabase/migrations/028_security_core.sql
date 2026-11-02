@@ -1,4 +1,4 @@
--- PUMPFUN PIRATES · migration 028 (security fixes, SECURITY_FIXES.md H2 / H4 / H1-prep / M2). NOT APPLIED: written for review.
+-- PUMPFUN PIRATES · migration 028 (security fixes, SECURITY_FIXES.md H2 / H4 / H1-prep / M2). APPLIED to production 2026-11-02.
 -- Apply FIRST (before the `pvp` function and the client). ADDITIVE except two things, both reversible (see ROLLBACK at the end):
 --   * pvp_claim_kill is replaced (same signature): a kill only counts when both pirates were seated in that match by the lobby
 --     (pvp_match_seats, filled by the new `ticket` action) + anti-farming rules. Kills from clients older than this release stop
