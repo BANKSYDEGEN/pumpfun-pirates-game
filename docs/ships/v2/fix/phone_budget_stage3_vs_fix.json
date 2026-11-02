@@ -1,0 +1,578 @@
+{
+ "game low classic lvl0": {
+  "calls": 40,
+  "shipDraws": 51,
+  "shipTris": 49108,
+  "particles": 0
+ },
+ "game low classic cannons8": {
+  "calls": 45,
+  "shipDraws": 56,
+  "shipTris": 110122,
+  "particles": 0
+ },
+ "game low classic max": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 158147,
+  "particles": 0
+ },
+ "game low blood lvl0": {
+  "calls": 41,
+  "shipDraws": 52,
+  "shipTris": 49348,
+  "particles": 0
+ },
+ "game low blood cannons8": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 110362,
+  "particles": 0
+ },
+ "game low blood max": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 158387,
+  "particles": 0
+ },
+ "game low storm lvl0": {
+  "calls": 42,
+  "shipDraws": 53,
+  "shipTris": 49740,
+  "particles": 0
+ },
+ "game low storm cannons8": {
+  "calls": 47,
+  "shipDraws": 58,
+  "shipTris": 110754,
+  "particles": 0
+ },
+ "game low storm max": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 158779,
+  "particles": 0
+ },
+ "game low kraken lvl0": {
+  "calls": 43,
+  "shipDraws": 54,
+  "shipTris": 51364,
+  "particles": 18
+ },
+ "game low kraken cannons8": {
+  "calls": 48,
+  "shipDraws": 59,
+  "shipTris": 112378,
+  "particles": 18
+ },
+ "game low kraken max": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 160403,
+  "particles": 18
+ },
+ "game low golden lvl0": {
+  "calls": 41,
+  "shipDraws": 52,
+  "shipTris": 49108,
+  "particles": 18
+ },
+ "game low golden cannons8": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 110122,
+  "particles": 18
+ },
+ "game low golden max": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 158147,
+  "particles": 18
+ },
+ "game low ghost lvl0": {
+  "calls": 42,
+  "shipDraws": 53,
+  "shipTris": 49108,
+  "particles": 28
+ },
+ "game low ghost cannons8": {
+  "calls": 47,
+  "shipDraws": 58,
+  "shipTris": 110122,
+  "particles": 28
+ },
+ "game low ghost max": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 158147,
+  "particles": 28
+ },
+ "game low flaming lvl0": {
+  "calls": 43,
+  "shipDraws": 54,
+  "shipTris": 49164,
+  "particles": 56
+ },
+ "game low flaming cannons8": {
+  "calls": 48,
+  "shipDraws": 59,
+  "shipTris": 110178,
+  "particles": 56
+ },
+ "game low flaming max": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 158203,
+  "particles": 56
+ },
+ "game low diamond lvl0": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 49206,
+  "particles": 41
+ },
+ "game low diamond cannons8": {
+  "calls": 51,
+  "shipDraws": 62,
+  "shipTris": 110220,
+  "particles": 41
+ },
+ "game low diamond max": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 158245,
+  "particles": 41
+ },
+ "game high classic lvl0": {
+  "calls": 61,
+  "shipDraws": 72,
+  "shipTris": 82156,
+  "particles": 0
+ },
+ "game high classic cannons8": {
+  "calls": 67,
+  "shipDraws": 78,
+  "shipTris": 202896,
+  "particles": 0
+ },
+ "game high classic max": {
+  "calls": 109,
+  "shipDraws": 120,
+  "shipTris": 289214,
+  "particles": 0
+ },
+ "game high blood lvl0": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 82396,
+  "particles": 0
+ },
+ "game high blood cannons8": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 203136,
+  "particles": 0
+ },
+ "game high blood max": {
+  "calls": 110,
+  "shipDraws": 121,
+  "shipTris": 289454,
+  "particles": 0
+ },
+ "game high storm lvl0": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 82788,
+  "particles": 36
+ },
+ "game high storm cannons8": {
+  "calls": 71,
+  "shipDraws": 82,
+  "shipTris": 203528,
+  "particles": 36
+ },
+ "game high storm max": {
+  "calls": 113,
+  "shipDraws": 124,
+  "shipTris": 289846,
+  "particles": 36
+ },
+ "game high kraken lvl0": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 87548,
+  "particles": 44
+ },
+ "game high kraken cannons8": {
+  "calls": 70,
+  "shipDraws": 81,
+  "shipTris": 208288,
+  "particles": 44
+ },
+ "game high kraken max": {
+  "calls": 112,
+  "shipDraws": 123,
+  "shipTris": 294606,
+  "particles": 44
+ },
+ "game high golden lvl0": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 82156,
+  "particles": 44
+ },
+ "game high golden cannons8": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 202896,
+  "particles": 44
+ },
+ "game high golden max": {
+  "calls": 110,
+  "shipDraws": 121,
+  "shipTris": 289214,
+  "particles": 44
+ },
+ "game high ghost lvl0": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 82156,
+  "particles": 76
+ },
+ "game high ghost cannons8": {
+  "calls": 69,
+  "shipDraws": 80,
+  "shipTris": 202896,
+  "particles": 76
+ },
+ "game high ghost max": {
+  "calls": 111,
+  "shipDraws": 122,
+  "shipTris": 289214,
+  "particles": 76
+ },
+ "game high flaming lvl0": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 82294,
+  "particles": 214
+ },
+ "game high flaming cannons8": {
+  "calls": 70,
+  "shipDraws": 81,
+  "shipTris": 203034,
+  "particles": 214
+ },
+ "game high flaming max": {
+  "calls": 112,
+  "shipDraws": 123,
+  "shipTris": 289352,
+  "particles": 214
+ },
+ "game high diamond lvl0": {
+  "calls": 67,
+  "shipDraws": 78,
+  "shipTris": 82310,
+  "particles": 104
+ },
+ "game high diamond cannons8": {
+  "calls": 73,
+  "shipDraws": 84,
+  "shipTris": 203050,
+  "particles": 104
+ },
+ "game high diamond max": {
+  "calls": 115,
+  "shipDraws": 126,
+  "shipTris": 289368,
+  "particles": 104
+ },
+ "s3tree low classic lvl0": {
+  "calls": 40,
+  "shipDraws": 51,
+  "shipTris": 49108,
+  "particles": 0
+ },
+ "s3tree low classic cannons8": {
+  "calls": 45,
+  "shipDraws": 56,
+  "shipTris": 110122,
+  "particles": 0
+ },
+ "s3tree low classic max": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 158147,
+  "particles": 0
+ },
+ "s3tree low blood lvl0": {
+  "calls": 41,
+  "shipDraws": 52,
+  "shipTris": 49348,
+  "particles": 0
+ },
+ "s3tree low blood cannons8": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 110362,
+  "particles": 0
+ },
+ "s3tree low blood max": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 158387,
+  "particles": 0
+ },
+ "s3tree low storm lvl0": {
+  "calls": 42,
+  "shipDraws": 53,
+  "shipTris": 49740,
+  "particles": 0
+ },
+ "s3tree low storm cannons8": {
+  "calls": 47,
+  "shipDraws": 58,
+  "shipTris": 110754,
+  "particles": 0
+ },
+ "s3tree low storm max": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 158779,
+  "particles": 0
+ },
+ "s3tree low kraken lvl0": {
+  "calls": 43,
+  "shipDraws": 54,
+  "shipTris": 51364,
+  "particles": 18
+ },
+ "s3tree low kraken cannons8": {
+  "calls": 48,
+  "shipDraws": 59,
+  "shipTris": 112378,
+  "particles": 18
+ },
+ "s3tree low kraken max": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 160403,
+  "particles": 18
+ },
+ "s3tree low golden lvl0": {
+  "calls": 41,
+  "shipDraws": 52,
+  "shipTris": 49108,
+  "particles": 18
+ },
+ "s3tree low golden cannons8": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 110122,
+  "particles": 18
+ },
+ "s3tree low golden max": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 158147,
+  "particles": 18
+ },
+ "s3tree low ghost lvl0": {
+  "calls": 42,
+  "shipDraws": 53,
+  "shipTris": 49108,
+  "particles": 28
+ },
+ "s3tree low ghost cannons8": {
+  "calls": 47,
+  "shipDraws": 58,
+  "shipTris": 110122,
+  "particles": 28
+ },
+ "s3tree low ghost max": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 158147,
+  "particles": 28
+ },
+ "s3tree low flaming lvl0": {
+  "calls": 43,
+  "shipDraws": 54,
+  "shipTris": 49168,
+  "particles": 56
+ },
+ "s3tree low flaming cannons8": {
+  "calls": 48,
+  "shipDraws": 59,
+  "shipTris": 110182,
+  "particles": 56
+ },
+ "s3tree low flaming max": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 158207,
+  "particles": 56
+ },
+ "s3tree low diamond lvl0": {
+  "calls": 46,
+  "shipDraws": 57,
+  "shipTris": 49206,
+  "particles": 41
+ },
+ "s3tree low diamond cannons8": {
+  "calls": 51,
+  "shipDraws": 62,
+  "shipTris": 110220,
+  "particles": 41
+ },
+ "s3tree low diamond max": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 158245,
+  "particles": 41
+ },
+ "s3tree high classic lvl0": {
+  "calls": 61,
+  "shipDraws": 72,
+  "shipTris": 82156,
+  "particles": 0
+ },
+ "s3tree high classic cannons8": {
+  "calls": 67,
+  "shipDraws": 78,
+  "shipTris": 202896,
+  "particles": 0
+ },
+ "s3tree high classic max": {
+  "calls": 109,
+  "shipDraws": 120,
+  "shipTris": 289214,
+  "particles": 0
+ },
+ "s3tree high blood lvl0": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 82396,
+  "particles": 0
+ },
+ "s3tree high blood cannons8": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 203136,
+  "particles": 0
+ },
+ "s3tree high blood max": {
+  "calls": 110,
+  "shipDraws": 121,
+  "shipTris": 289454,
+  "particles": 0
+ },
+ "s3tree high storm lvl0": {
+  "calls": 65,
+  "shipDraws": 76,
+  "shipTris": 82788,
+  "particles": 36
+ },
+ "s3tree high storm cannons8": {
+  "calls": 71,
+  "shipDraws": 82,
+  "shipTris": 203528,
+  "particles": 36
+ },
+ "s3tree high storm max": {
+  "calls": 113,
+  "shipDraws": 124,
+  "shipTris": 289846,
+  "particles": 36
+ },
+ "s3tree high kraken lvl0": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 87548,
+  "particles": 44
+ },
+ "s3tree high kraken cannons8": {
+  "calls": 70,
+  "shipDraws": 81,
+  "shipTris": 208288,
+  "particles": 44
+ },
+ "s3tree high kraken max": {
+  "calls": 112,
+  "shipDraws": 123,
+  "shipTris": 294606,
+  "particles": 44
+ },
+ "s3tree high golden lvl0": {
+  "calls": 62,
+  "shipDraws": 73,
+  "shipTris": 82156,
+  "particles": 44
+ },
+ "s3tree high golden cannons8": {
+  "calls": 68,
+  "shipDraws": 79,
+  "shipTris": 202896,
+  "particles": 44
+ },
+ "s3tree high golden max": {
+  "calls": 110,
+  "shipDraws": 121,
+  "shipTris": 289214,
+  "particles": 44
+ },
+ "s3tree high ghost lvl0": {
+  "calls": 63,
+  "shipDraws": 74,
+  "shipTris": 82156,
+  "particles": 76
+ },
+ "s3tree high ghost cannons8": {
+  "calls": 69,
+  "shipDraws": 80,
+  "shipTris": 202896,
+  "particles": 76
+ },
+ "s3tree high ghost max": {
+  "calls": 111,
+  "shipDraws": 122,
+  "shipTris": 289214,
+  "particles": 76
+ },
+ "s3tree high flaming lvl0": {
+  "calls": 64,
+  "shipDraws": 75,
+  "shipTris": 82336,
+  "particles": 214
+ },
+ "s3tree high flaming cannons8": {
+  "calls": 70,
+  "shipDraws": 81,
+  "shipTris": 203076,
+  "particles": 214
+ },
+ "s3tree high flaming max": {
+  "calls": 112,
+  "shipDraws": 123,
+  "shipTris": 289394,
+  "particles": 214
+ },
+ "s3tree high diamond lvl0": {
+  "calls": 67,
+  "shipDraws": 78,
+  "shipTris": 82310,
+  "particles": 104
+ },
+ "s3tree high diamond cannons8": {
+  "calls": 73,
+  "shipDraws": 84,
+  "shipTris": 203050,
+  "particles": 104
+ },
+ "s3tree high diamond max": {
+  "calls": 115,
+  "shipDraws": 126,
+  "shipTris": 289368,
+  "particles": 104
+ }
+}
