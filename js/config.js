@@ -7,6 +7,7 @@
 // ===================================================================
 // Game portals (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net, CrazyGames *.game-files.crazygames.com / *.crazygames.com): the game runs fully offline and crypto-free there:
 // no Supabase requests at all (this-device scores only), no wallet sign-in, no token/social links (see js/portal.js).
+import { IS_PROD_HOST } from './env.js';
 export const ON_PORTAL = typeof location !== 'undefined' && /(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname);
 export const SUPABASE_URL = ON_PORTAL ? '' : 'https://qhandcjwlkmovjzwzqfk.supabase.co';        // e.g. 'https://abcd1234.supabase.co'
 export const SUPABASE_ANON_KEY = 'sb_publishable_yKPJooRyGC0oSIOjKcmLtw_nB7TAD81';   // the project's "anon public" key
@@ -57,7 +58,16 @@ export const PVP_PROTECT = 3;         // spawn protection seconds (ends early th
 // Supabase Realtime FREE: 100 msgs/s project-wide (sent + delivered), 200 connections, 20 presence msgs/s (we use none).
 // Clients batch everything into one message per tick, so an arena of N players at r Hz with S spectators costs N·r·(N+S)/s.
 // 4 players @ 4 Hz = 64/s (+1 spectator = 80/s, our 80% budget). Everyone else waits in the local harbor queue (0 msgs).
-export const PVP_RELAY_URL = ((u) => /^(wss:\/\/[a-z0-9.-]+|ws:\/\/localhost)(:\d+)?(\/[\w/-]*)?$/i.test(u) ? u : '')(new URLSearchParams(location.search).get('relay') || ''); // 'wss://…' once a relay server is hosted ('' = Supabase fallback); ?relay= for testing
+// [security M5] the relay URL. On the live domains ONLY a host in RELAY_HOSTS is accepted (a ?relay= link can't point players at
+// someone else's server); a local dev / test server still takes any wss:// (or ws://localhost) for testing.
+export const RELAY_HOSTS = [];        // e.g. ['relay.pumpfunpirates.com'] once the relay is hosted (server/README.md)
+const RELAY_DEFAULT = '';             // e.g. 'wss://relay.pumpfunpirates.com' to switch everyone to the relay
+export const relayAllowed = (u, prod = IS_PROD_HOST) => {
+  if (typeof u !== 'string' || !/^(wss:\/\/[a-z0-9.-]+|ws:\/\/localhost)(:\d+)?(\/[\w/-]*)?$/i.test(u)) return false;
+  if (!prod) return true;
+  try { const h = new URL(u); return h.protocol === 'wss:' && RELAY_HOSTS.includes(h.hostname.toLowerCase()); } catch { return false; }
+};
+export const PVP_RELAY_URL = ((u) => relayAllowed(u) ? u : '')((typeof location !== 'undefined' && new URLSearchParams(location.search).get('relay')) || RELAY_DEFAULT); // 'wss://…' once a relay server is hosted ('' = Supabase fallback) // 'wss://…' once a relay server is hosted ('' = Supabase fallback); ?relay= for testing
 export const PVP_NET = {
   supabase: { hz: 4, soloHz: 1, maxArena: 4, budget: 80, keepalive: 1.5 },
   relay: { hz: 10, soloHz: 2, maxArena: 16, keepalive: 1.5 },

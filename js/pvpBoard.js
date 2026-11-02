@@ -1,4 +1,5 @@
 // PUMPFUN PIRATES · PvP KILLS leaderboard UI (ALL TIME / MONTHLY / DAILY, ranked by confirmed real-player kills, with K/D).
+import { IS_PROD_HOST, devHook } from './env.js'; // [security] ?pvproom only off the live domains; console hooks only on dev servers
 // Periods use America/Indianapolis calendar days / months (server side, migration 006). Read-only; never touches the
 // solo Top Pirates board. Home screen: a WAVES / BATTLE ROYALE switch, remembered on this device.
 import { fetchKillsTop, kd, clearKillsTopCache } from './pvpSave.js';
@@ -72,12 +73,12 @@ export function initHomeBoard() {
   sw.querySelectorAll('button').forEach(b => b.onclick = () => { mode = b.dataset.mode; set(MODE_KEY, mode); apply(); });
   homeApply = apply; apply();
 }
-window.PFP_PVP_BOARD = { renderKills, refreshKillsBoards, initHomeBoard, get period() { return period; } };
+devHook('PFP_PVP_BOARD', { renderKills, refreshKillsBoards, initHomeBoard, get period() { return period; } });
 
 // [v76] home: live '⚔ n/4 in arena · ⚓ q in queue' under SPECTATE BATTLE ROYALE (read-only lobby poll, holds no seat).
 // Every 10 s while the home screen is visible; any error hides the line.
 {
-  const solo = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
+  const solo = 'pfp-pvp-' + ((IS_PROD_HOST ? null : new URLSearchParams(location.search).get('pvproom')) || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
   const prefixNow = () => { let m = 'solo'; try { m = localStorage.getItem('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'; } catch {} return m === 'squads' ? 'pfp-pvp-' + solo.slice(8, 22) + 'sq' : solo; }; // [v98] follows the SOLO / SQUADS spectate switch
   const seat = 'home-' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
   let busy = false;
@@ -88,7 +89,7 @@ window.PFP_PVP_BOARD = { renderKills, refreshKillsBoards, initHomeBoard, get per
     try {
       let hbm = false; try { hbm = localStorage.getItem('pfp_spec_mode') === 'harbor'; } catch {}
       if (hbm) { // [v99] HARBOR: pirates sailing the shared harbor copies (read-only peek, holds no seat)
-        const hp = 'pfp-harbor' + (new URLSearchParams(location.search).get('pvproom') ? '-' + solo.slice(8) : '');
+        const hp = 'pfp-harbor' + ((IS_PROD_HOST ? null : new URLSearchParams(location.search).get('pvproom')) ? '-' + solo.slice(8) : '');
         const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
           body: JSON.stringify({ p_seat: seat, p_prefix: hp, p_op: 'peek' }) });
         const j = r.ok ? await r.json() : null; if (!j || j.state === 'error') throw new Error('harbor');

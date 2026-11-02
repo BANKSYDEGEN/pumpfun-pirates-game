@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toon } from '../toon.js';
+import { DEV } from '../env.js'; // [security L] viewer/test hooks on local dev servers only
 import { createOcean, createSky, WAVES, FOG_COLOR } from '../ocean.js';
 import { wind, makeSkullTexture, animateShip } from '../ships.js';
 import { setCrewQuality } from '../crew.js';
@@ -503,13 +504,13 @@ function frame() {
   renderer.render(scene, camera);
   frames++; acc += dt; if (acc >= 0.5) { fps = frames / acc; frames = 0; acc = 0; }
   const I = renderer.info.render;
-  window.ISLAND_STATS = { calls: I.calls, triangles: I.triangles, fps: Math.round(fps), quality, harbor: HARBOR, lod, dist: Math.round(camera.position.distanceTo(isle.position)) };
+  if (DEV) window.ISLAND_STATS = { calls: I.calls, triangles: I.triangles, fps: Math.round(fps), quality, harbor: HARBOR, lod, dist: Math.round(camera.position.distanceTo(isle.position)) };
   if (!SHOT) statsEl.textContent = `${quality.toUpperCase()}  ${Math.round(fps)} fps  LOD ${lod}\ncalls ${I.calls}  tris ${(I.triangles / 1000).toFixed(1)}k`;
   requestAnimationFrame(frame);
 }
 if (foot && P.get('dig')) foot.digs.forEach(d => { d.t = (SHOT ? T0 : 0) - +P.get('dig'); }); // &dig=SECONDS: shots of a dig mid-reveal
-window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois, shop: FM.SHOP_SPOTS, coast: COASTM ? { HC: FM.CO.HC, berths: FM.CO.COAST_BERTHS, spawns: FM.CO.spawnCheck() } : null } : null;
-window.ISLAND = { foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
+if (DEV) window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois, shop: FM.SHOP_SPOTS, coast: COASTM ? { HC: FM.CO.HC, berths: FM.CO.COAST_BERTHS, spawns: FM.CO.spawnCheck() } : null } : null;
+if (DEV) window.ISLAND = { foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);
 // 2D layout review map (&foot=1&map=1): heightmap shading, both trail loops, street, river + lake, every POI labelled
 if (COASTM && P.has('map')) { const cv = document.createElement('canvas'); cv.width = innerWidth; cv.height = innerHeight; cv.style.cssText = 'position:fixed;inset:0;z-index:50'; FM.drawCoastMap(cv); document.body.appendChild(cv); }

@@ -6,6 +6,7 @@
 // so opening the shop never hitches; the renderer (and its GL context) is released ~20 s after the shop closes.
 // No sky / sea / fog / wake / particles / water lid: the scene only holds the ship + simple preview lighting.
 // If WebGL is unavailable or a render fails, the card keeps its painted swatch (fallback).
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
 import { compilePreview } from './upgradeVisuals.js';
 import { disposeShip } from './ships.js';
@@ -139,4 +140,4 @@ export function previewCards(grid, skins, levels = {}, extra = null) {
     if (!queue.length) { clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, 20000); }
   }, extra);
 }
-window.PFP_PREVIEW = { previewOptions, renderPreview, cache, releaseRenderer, clear: () => cache.clear() };
+devHook('PFP_PREVIEW', { previewOptions, renderPreview, cache, releaseRenderer, clear: () => cache.clear() });

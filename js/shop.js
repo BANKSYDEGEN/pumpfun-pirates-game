@@ -1,3 +1,4 @@
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { isKey } from './keybinds.js';
 // [Raul] ship upgrades — SHOP button (top HUD row) + shipwright overlay.
 // Tap SHOP (or press U / B) to pause and open the shop; close (or U / B / Esc) to resume.
@@ -277,8 +278,8 @@ export function initShop(c) {
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
-  window.PFP_UPGRADES = { openFromIsland: () => open({ island: true }), close, isOpen: () => ctx?.game.state === 'shop', islandPointer }; // [Timothy] island ship shop UPGRADES tab
-  window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, hire, get run() { return run; },
+  devHook('PFP_UPGRADES', { openFromIsland: () => open({ island: true }), close, isOpen: () => ctx?.game.state === 'shop', islandPointer }); // [Timothy] island ship shop UPGRADES tab
+  devHook('PFP_SHOP', { celebrateUpgrade, open, close, buy, repair, hire, get run() { return run; },
     // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
-    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); refreshPreviews(); } };
+    setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); refreshPreviews(); } });
 }

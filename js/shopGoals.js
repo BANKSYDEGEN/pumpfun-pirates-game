@@ -11,6 +11,7 @@
 //              (offline, first launch); it may run a little ahead of the server copy, which catches up at the normal pace.
 //   3) none    no stats at all (brand-new pirate, storage blocked): every goal reads 0 and says "no stats yet".
 // Battle Royale only (Waves has its own skins + stats and is untouched). Off on the crypto-free portal builds with the shop.
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { SKIN_ITEMS, GEAR_ITEMS, liveGoal, goalProgress, fmtGoalRow, fmtGold, gearKey } from './shopCatalog.js';
 import { readModeKills } from './modeKills.js';
 import { ON_PORTAL } from './config.js';
@@ -103,4 +104,4 @@ try { if (!ON_PORTAL) addEventListener('pfp-profile', (e) => {
   if (!sec) { sec = document.createElement('section'); sec.id = 'pf-goals'; sec.className = 'pf-sec pf-br'; (document.getElementById('pf-acct') || card.lastElementChild)?.before(sec); }
   pfOff?.(); pfOff = mountProfileGoals(sec);
 }); } catch {}
-window.PFP_SHOP_GOALS = { goalStats, refreshGoalStats, takeServerStats, goalItems, profileGoalsHtml, mountProfileGoals, _resetGoalStats };
+devHook('PFP_SHOP_GOALS', { goalStats, refreshGoalStats, takeServerStats, goalItems, profileGoalsHtml, mountProfileGoals, _resetGoalStats });

@@ -11,6 +11,7 @@
 //
 // Cost: renders are queued, ONE per animation frame (~3-15 ms on a phone), so opening the shop never hitches a frame; the renderer
 // (one WebGL context, <= 320 px) is released 15 s after the last use. Nothing here touches the game scene, stats or the network.
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
 import { pirateFigure } from './pirates.js';
 import { applyGear, normalizeGear, raulItemOf } from './pirateGear.js';
@@ -146,4 +147,4 @@ export function gearLive(el, slot, id, opts = {}) {
   function stop() { on = false; LIVE.delete(me); }
   return stop;
 }
-window.PFP_GEAR_THUMBS = { gearThumb, gearThumbEl, gearLive, thumbStats, cacheSize: () => cache.size, _fig: () => fig };
+devHook('PFP_GEAR_THUMBS', { gearThumb, gearThumbEl, gearLive, thumbStats, cacheSize: () => cache.size, _fig: () => fig });

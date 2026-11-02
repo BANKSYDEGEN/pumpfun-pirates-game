@@ -2,6 +2,7 @@
 // bubble over your ship for ~3 s and plays a pirate voice line (js/audio.js sfx.emote: real recorded takes for all 8 lines, synth only if the files fail to load).
 // Battle Royale arena: js/pvp.js broadcasts { i, e } over the existing Supabase realtime room (rate-limited both ends).
 // Waves + the harbor: local only. Cosmetic: no gameplay, stats or gold effect.
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
 import { sfx } from './audio.js';
 import { isKey } from './keybinds.js';
@@ -83,4 +84,4 @@ export function initEmotes(k) {
 }
 const isBound = (code) => { try { return ['left', 'right', 'sailUp', 'sailDown', 'firePort', 'fireStar', 'anchor', 'camera', 'shop', 'menu', 'pause', 'sound', 'full', 'map', 'jump'].some(a => isKey(a, code)); } catch { return false; } };
 
-window.PFP_EMOTE = { EMOTES, sendEmote, showEmote, setWheel, wheelOpen, get last() { return last; }, set last(v) { last = v; } }; // test hook
+devHook('PFP_EMOTE', { EMOTES, sendEmote, showEmote, setWheel, wheelOpen, get last() { return last; }, set last(v) { last = v; } }); // test hook

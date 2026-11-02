@@ -1,3 +1,4 @@
+import { DEV } from './env.js';
 import { isKey } from './keybinds.js';
 // PUMPFUN PIRATES · PvP ARENA (BETA): drop-in, real-time, free-for-all on a shared sea.
 // Netcode: js/transport.js (Supabase Realtime broadcast fallback, or the relay server in server/), no presence.
@@ -38,7 +39,8 @@ import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
 import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
-import { isNetId, escHtml, num } from './safe.js'; // [security H5] peer ids whitelisted, attribute values escaped
+import { isNetId, escHtml, num } from './safe.js';
+import { IS_PROD_HOST } from './env.js'; // [security H5] peer ids whitelisted, attribute values escaped
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
@@ -59,7 +61,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const angWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
 const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '');
-const ROOM_PREFIX = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
+const QS = new URLSearchParams(IS_PROD_HOST ? '' : location.search); // [security L] test switches (?pvproom ?sqmin ?pvpcap ?pvpoffer ?pvpafk ?hbcap ?shareddrops) only work off the live domains
+const ROOM_PREFIX = 'pfp-pvp-' + (QS.get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
 const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
 // most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × 4.2 × best SAILS
 // [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
@@ -68,7 +71,6 @@ const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.m
 export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1); // 48: v94 clients (up to 8 heavier balls) while they update; // [pvp hp] ×1.4 PvP cannonballs
 const MAX_SPEED = 3 * 4.2 * MAXED.speed * 1.15;
 const MAX_HP = MAXED.maxHp;
-const QS = new URLSearchParams(location.search);
 const SQ_PREFIX = 'pfp-pvp-' + ROOM_PREFIX.slice(8, 22) + 'sq'; // [v98] the SQUADS arena: its own lobby prefix + room (live: pfp-pvp-v1sq)
 const SQ_MIN = Math.max(2, Math.min(SQUADS.players, +QS.get('sqmin') || SQUADS.players)); // pirates needed to start a round (tests: ?sqmin=2)
 const ls0 = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -328,7 +330,7 @@ export function createPvp(K) {
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
   // [v99] in a shared copy only the HOST sails AI ships (during the first HARBOR_NET.listen s after joining we keep our own)
-  const SHARED_DROPS = !/[?&]shareddrops=0\b/.test(location.search); // [v107] ON (2-client test passed: host / non-host kills, claim race, host leaves mid-drop): one shared pile per AI kill, anyone claims; ?shareddrops=0 = old per-pirate shares
+  const SHARED_DROPS = QS.get('shareddrops') !== '0'; // [v107] ON (2-client test passed: host / non-host kills, claim race, host leaves mid-drop): one shared pile per AI kill, anyone claims; ?shareddrops=0 = old per-pirate shares
   const aiWanted = () => !spec.on && where === 'harbor' && (!room || isHost || performance.now() < hb.listenUntil); // the arena is players only, always (BANKSY)
   // [v99] COMMODORE 'hunter' (boss-side) mode: NOT built. Clean hook only: before the host hands a new harbor boss to the AI it
   // asks hunterPilot(boss) for a pirate id to sail it instead. Always null for now (hunter.enabled stays false).
@@ -1554,6 +1556,7 @@ export function createPvp(K) {
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
-  window.PFP_PVP = api;
+  api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+  window.PFP_PVP = DEV ? api : api.publicApi;
   return api;
 }

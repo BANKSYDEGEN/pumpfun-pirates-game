@@ -9,6 +9,7 @@
 //   ACCOUNT       [v106] SET PASSWORD for your name / LOG IN on another device / CHANGE PASSWORD / LOG OUT (js/accountUi.js)
 // The nodes are MOVED, not copied: main.js / pvp.js keep their element references, listeners and flows. Crypto-free portal builds
 // (itch.io / Newgrounds): main.js has already removed the wallet nodes there, and the crypto sections stay hidden.
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { ON_PORTAL } from './config.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet } from './wallet.js';
 
@@ -104,4 +105,4 @@ addEventListener('pointercancel', () => { down = null; }, { capture: true, passi
 // build once the page (main.js, portal.js) has set itself up, so the moved nodes and the portal removals are final
 const boot = () => setTimeout(() => { if (!root) build(); }, 0);
 if (document.readyState === 'complete') boot(); else addEventListener('load', boot, { once: true });
-window.PFP_PROFILE = { openProfile, closeProfile, isProfileOpen };
+devHook('PFP_PROFILE', { openProfile, closeProfile, isProfileOpen });

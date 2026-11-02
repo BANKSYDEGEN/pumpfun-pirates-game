@@ -1,6 +1,7 @@
 // PUMPFUN PIRATES · how-to-play card
 // Shown after SET SAIL, before wave 1 (game paused). Skippable, "Don't show again" is kept in localStorage.
 // Reopen any time with the "?" in the shop header or HOW TO PLAY in the pause menu.
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 const KEY = 'pfp_tutorial_off';
 const $ = (id) => document.getElementById(id);
 let ctx = null, prev = null;
@@ -103,4 +104,4 @@ export function close() {
 }
 // call right after a new run starts
 export function maybeShowTutorial() { if (!isOff()) show(); }
-export function initTutorial(c) { ctx = c; build(); window.PFP_TUT = { show, close, isOpen, isOff, KEY }; }
+export function initTutorial(c) { ctx = c; build(); devHook('PFP_TUT', { show, close, isOpen, isOff, KEY }); }

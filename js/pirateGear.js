@@ -15,6 +15,7 @@
 //    meshopt), each skinned rigidly to its bone. The hook folds the right hand away (a per-pirate copy of the body geometry).
 //  - the baked ship crew (js/crewV4.js) is NOT dressed: it stays ONE draw call per ship in the default outfit.
 // Visual only: no stats, hitboxes, gold or server code. Unknown / unowned ids just draw nothing (the shop validates ownership).
+import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -475,4 +476,4 @@ export function applyGear(target, gear, colors = null) {
 // pirateFigure hook: called once the v4 GLB is in
 export function gearOnReady(root, p) { const g = root.userData.gear; return g ? dress(p, g, clothColors(g, root.userData.gearColors)) : null; }
 
-window.PFP_GEAR = { applyGear, setBodyLook, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, setLocalGear, setLocalSkin, getLocalGear, getLocalColors, outfitColors, HAT_SWATCHES, PARROTS, gearRenders, normalizeGear, gearToWire, gearFromWire, GEAR_RENDERS, GEAR_DEFAULTS };
+devHook('PFP_GEAR', { applyGear, setBodyLook, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, setLocalGear, setLocalSkin, getLocalGear, getLocalColors, outfitColors, HAT_SWATCHES, PARROTS, gearRenders, normalizeGear, gearToWire, gearFromWire, GEAR_RENDERS, GEAR_DEFAULTS });

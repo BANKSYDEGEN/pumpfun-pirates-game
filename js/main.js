@@ -1,4 +1,5 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
+import { DEV, devHook } from './env.js'; // [security L] console/test hooks exist on local dev servers only
 import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -695,7 +696,7 @@ onAudioState((a) => {
   for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el && document.activeElement !== el) el.value = Math.round(a[k] * 100); }
 });
 for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el) el.addEventListener('input', () => { const v = el.value / 100; initAudio(); if (muted && v > 0) setMuted(false); setLevel(k, v); }); } // read the value before initAudio(): its state notify re-syncs unfocused sliders (iOS doesn't focus range inputs on touch)
-window.PFP_AUDIO = { sfx, setLoadout };
+devHook('PFP_AUDIO', { sfx, setLoadout });
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 initControlsUi();
@@ -1398,7 +1399,7 @@ initShop({ game, escorts, getPlayer: () => player, updateHud, sfx, camera, rebui
 
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
-window.PFP_HEALTH = healthDrops; // [health drops] test hook
+devHook('PFP_HEALTH', healthDrops); // [health drops] test hook
 // [v96] quick-chat wheel: T / the 💬 button; arena callouts go over the realtime room (js/pvp.js), Waves + harbor stay local
 initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'playing' && !document.documentElement.classList.contains('pvp-spec'),
   send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); } });
@@ -1439,4 +1440,7 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
   }, 6000);
 }
 try { initHarborCard(); } catch (e) { console.warn('[harbor card]', e); }
-window.PFP = { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, rebuildShip: (lv) => rebuildPlayerShip(lv) }; // [v112] + rebuildShip (ship tests: hull x CANNONS tiers in game) // [Raul] + renderer/scene for perf tests
+// [security L] the full debug object only on a local dev server; the live game exposes a tiny facade (what uiProfile.js / portal.js / pvp.js read)
+const pfpFacade = () => Object.freeze({ get dock() { return dock; }, get pvp() { return pvp ? pvp.publicApi || null : null; },
+  game: Object.freeze({ get mode() { return game.mode; }, get state() { return game.state; }, set state(v) { if (v === 'playing' && game.state === 'paused') game.state = v; }, get wallet() { return game.wallet; }, set wallet(v) { if (typeof v === 'string' && v.length <= 44) game.wallet = v; } }) });
+window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, rebuildShip: (lv) => rebuildPlayerShip(lv) } : pfpFacade(); // [v112] + rebuildShip (ship tests: hull x CANNONS tiers in game) // [Raul] + renderer/scene for perf tests
