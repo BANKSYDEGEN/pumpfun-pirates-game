@@ -583,7 +583,7 @@ export function buildShip(opts) {
       D.add(K.lid, lidG, [hx + sx * 0.33 * 0.77, hy + 0.33 * 0.64, zAt(t)], [0, 0, -sx * 0.87]); }
     // RAISED HELM: a dais on the quarterdeck (or on the poop deck when the hull upgrade adds one), clear of rails and lamps
     const poopH = opts.kitArt?.poopH || 0;
-    // the helm sits to STARBOARD of the centreline so the captain's eye line runs past the masts (the mizzen spanker swings to port)
+    // the helm sits to STARBOARD of the centreline so the captain's eye line runs past the masts 
     const hx = -Math.min(1.35, wallX(0.18, Q + 1) - 0.85);
     const helm = poopH ? { x: hx, y: Q - 0.15 + poopH + 0.2, z: cabZ - cabL * 0.21 + 0.45 } : { x: hx, y: Q + 0.26, z: cabZ + cabL / 2 - 1.05 };
     if (!poopH) { D.add(K.mast, new RoundedBoxGeometry(1.5, 0.26, 1.9, 1, 0.06), [hx, Q + 0.13, helm.z - 0.25]);

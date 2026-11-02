@@ -51,18 +51,17 @@ export function verifySignature(message: string, signatureB64: string, wallet: s
   } catch { return false; }
 }
 
-export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number } };
+export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; gear?: Record<string, string>; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number } };
 const n = (x: unknown, hi: number) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
 export function cleanProfile(p: any): Profile {
   const o = p && typeof p === "object" ? p : {};
   const levels: Record<string, number> = {};
   for (const [id, c] of Object.entries(TIER_COSTS)) levels[id] = n(o.levels?.[id], c.length);
   const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7), harborKills: n(o.stats?.harborKills, 1e7), bossKills: n(o.stats?.bossKills, 1e7) }; // [v98] unlock tracks
-  // unlocked skins come ONLY from the kill count; the selected one must be unlocked
-  const owned = Object.keys(SKIN_KILLS).filter((id) => id !== "classic" && stats.kills >= SKIN_KILLS[id])
-    .concat(Object.keys(UNLOCK_SKINS).filter((id) => stats[UNLOCK_SKINS[id].stat] >= UNLOCK_SKINS[id].need));
-  const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || owned.includes(o.skins.equipped)) ? o.skins.equipped : "classic";
-  return { gold: n(o.gold, 10_000_000), levels, skins: { owned, equipped: eq }, stats };
+  // [v102] the island shop: owned skins come ONLY from pvp_owned (the handlers fill + check them: fitEquipped); here the
+  // equipped id just has to be a known skin
+  const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || o.skins.equipped in SKIN_KILLS || o.skins.equipped in UNLOCK_SKINS) ? o.skins.equipped : "classic";
+  return { gold: n(o.gold, 10_000_000), levels, skins: { owned: [], equipped: eq }, stats, gear: cleanGear(o.gear) } as Profile;
 }
 // total gold value held in a save: carried gold + what its upgrades cost (skins are cosmetic and also unlock in solo, so not counted)
 export function value(p: Profile) {
@@ -89,5 +88,52 @@ export function saveProblem(cur: Profile, next: Profile, mins: number): string |
 export function keepCounters(cur: Profile, next: Profile): Profile {
   next.stats.harborKills = Math.max(cur.stats.harborKills, next.stats.harborKills);
   next.stats.bossKills = Math.max(cur.stats.bossKills, next.stats.bossKills);
-  return cleanProfile(next); // owned / equipped re-derived from the kept counters (COMMODORE)
+  return cleanProfile(next);
+}
+
+// ---------------- [v102] THE ISLAND SHOP (server copy; js/shopCatalog.js only draws the shop, THIS decides) ----------------
+// Skins + pirate gear are bought with Battle Royale gold. Goals make an item BUYABLE, never free (BANKSY): COMMODORE 100 harbor
+// boss kills, FLAMING ("FIRE") K/D >= 10 with at least 50 kills, DIAMOND keeps its 5,000 kills (Solo + Squads). Items not listed
+// here (all pirate gear until its model shows on the v4 pirate: COMING SOON) can't be bought at all.
+export const OWNER_MAIN = "dev:e191a32e15abea4f14355121";
+export type Goal = { stat: "kills" | "deaths" | "bossKills" | "harborKills" | "kd"; need: number }[];
+export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
+  "skin:blood": { price: 5000 }, "skin:seagreen": { price: 8000 }, "skin:midnight": { price: 12000 }, "skin:coral": { price: 18000 },
+  "skin:storm": { price: 25000 }, "skin:kraken": { price: 40000 }, "skin:commodore": { price: 50000, goal: [{ stat: "bossKills", need: 100 }] },
+  "skin:golden": { price: 75000 }, "skin:ghost": { price: 100000 }, "skin:admiral": { price: 125000 },
+  "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
+  "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
+  // pirate gear (js/shopCatalog.js ids, Timothy's prices) goes on sale here once its model shows on the v4 pirate, e.g.
+  // "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:outfit:tank": { price: 150 }, ...
+};
+export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
+export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne"], outfit: ["shirtless", "tank", "tshirt", "coat"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
+  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold"], hook: ["none", "hook_iron", "hook_gold"] }; // equip validation (owned or free)
+export const SEED_GOLD_CAP = 25000; // first server copy of a device save: gold above this is released at the normal earning pace
+const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
+export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);
+export function cleanGear(g: any): Record<string, string> { const o: Record<string, string> = {};
+  for (const [s, ids] of Object.entries(GEAR_SLOTS)) o[s] = typeof g?.[s] === "string" && ids.includes(g[s]) ? g[s] : ids[0]; return o; }
+// owned list -> the equipped skin / gear a save may keep (free defaults always ok)
+export function fitEquipped(p: Profile, owned: Set<string>, owner: boolean) {
+  const eq = p.skins.equipped; p.skins.equipped = eq === "classic" || owner || owned.has("skin:" + eq) ? eq : "classic";
+  const g = cleanGear((p as any).gear); for (const [s, ids] of Object.entries(GEAR_SLOTS)) if (g[s] !== ids[0] && !owner && !owned.has(`gear:${s}:${g[s]}`)) g[s] = ids[0];
+  (p as any).gear = g; return p;
+}
+
+// ---------------- [v103] WAVES PAYS GOLD FROM SCORE (BANKSY) ----------------
+// banked gold = round(16 * sqrt(score)), at most 6,000 a run (x2 holder / owner, like every earned gold); 30,000 base gold a day max.
+// Tuned on the real Waves board (scores vs run length) to land near the BR pace (~9.3k gold / hour for a mid player = ~155 / min):
+// 3 min run ~1,000 pts -> 500 (~150/min) · 7 min ~2,800 -> 840 (~127/min) · 11 min ~13,000 -> 1,825 (~166/min)
+// 27 min ~27,000 -> 2,620 (~98/min) · 33 min ~55,000 -> 3,766 (~114/min) · 38 min ~88,000 -> 4,736 (~126/min). sqrt = diminishing returns.
+export const WAVES_GOLD = { k: 16, cap: 6000, dayCap: 30000, minRunS: 20, maxRunH: 6 };
+export const wavesGold = (score: number) => Math.min(WAVES_GOLD.cap, Math.round(WAVES_GOLD.k * Math.sqrt(Math.max(0, score))));
+// the leaderboard's own limits (schema.sql: score <= 1,000,000, wave <= 500, sunk <= duration / 5) + a score pace no real run
+// reaches (best runs: ~50 points / s), against the SERVER-measured run length
+export function wavesProblem(score: number, wave: number, sunk: number, elapsed: number): string | null {
+  if (!(score >= 0 && score <= 1_000_000 && wave >= 0 && wave <= 500 && sunk >= 0 && sunk <= 5000)) return "bad run";
+  if (sunk > Math.max(1, elapsed / 5)) return "too many sinks for the time";
+  if (score > 500 + 75 * elapsed) return "score too fast";
+  if (wave > 2 + elapsed / 15) return "waves too fast";
+  return null;
 }

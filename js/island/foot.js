@@ -526,6 +526,12 @@ function stall(k, x, y, z, yaw, c) { k.at(M(x, y, z, yaw), () => { W(k, box(3.2,
 
 // town-side: main street (world coords via the town frame), Squad Hall, gate, square with a well, fort battery
 const tw = (lx, lz) => townToWorld(lx, lz), twy = (lyaw) => lyaw + TOWN.yaw;
+// [v103] plaza (town-local): live leaderboard frame size, the two shops, the token billboards. js/dock/layout.js puts the interact
+// points on them, js/dock/plaza.js lays the live leaderboard screens on PLAZA_BOARD.
+export const PLAZA_BOARD = { w: 6.0, h: 4.4, y: 3.5, face: 0.2 };
+export const PLAZA_SHOPS = [{ id: 'shop_clothes', vendor: 'clothes', lx: -50, lz: -32, sign: 'clothesShop', wall: 0xc9a27a, roof: 0xd8322f, label: 'CLOTHES SHOP · PIRATE GEAR' },
+  { id: 'shop_ships', vendor: 'ships', lx: -22, lz: -32, sign: 'shipShop', wall: 0x9db7c9, roof: 0x2a6df4, label: 'SHIP SKINS + UPGRADES' }];
+export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 }];
 export const INTERACT = []; // { id, x, z, r, label }
 export function buildStreet(A, low, F) {
   const k = new Kit(), S = STREET; k.ao = (x, y, z) => 0.58 + 0.42 * sm(0, 2.6, y - H(x, z)); KPG = 'street';
@@ -625,11 +631,44 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
   // plaza: WAVES + ARENA boards facing the harbor, token exchange, harbor market, the tall stone harbor tower framing it
   const P = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
-  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, 0, () => { for (const s of [-1.9, 1.9]) W(k, box(0.3, 4.4, 0.3), WOOD_D, 2, M(s, 2.2, 0));
-    W(k, box(4.6, 2.8, 0.3), c, 2, M(0, 3.2, 0)); if (A[sg]) atlasQuad(k, 4.2, 2.4, A[sg], M(0, 3.2, 0.17)); }, Y0);
+  // [v103] WAVES + ARENA boards are LIVE LEADERBOARDS (BANKSY): a bigger frame; js/dock/plaza.js lays one live canvas screen
+  // (both boards in one texture, 1 draw call) on the front at PLAZA_BOARD.face; the painted title sign rides on top + on the back
+  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, 0, () => { const B = PLAZA_BOARD;
+    for (const s of [-1, 1]) W(k, box(0.34, B.y + B.h / 2 + 1.3, 0.34), WOOD_D, 2, M(s * (B.w / 2 + 0.25), (B.y + B.h / 2 + 1.3) / 2, 0));
+    W(k, box(B.w + 0.4, B.h + 0.4, 0.3), c, 2, M(0, B.y, 0)); W(k, box(B.w + 0.1, B.h + 0.1, 0.05), 0x161616, 0, M(0, B.y, 0.16), false);
+    W(k, box(B.w * 0.84, 1.1, 0.2), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.85, 0), false);
+    if (A[sg]) { atlasQuad(k, B.w * 0.8, 0.95, A[sg], M(0, B.y + B.h / 2 + 0.85, 0.11)); atlasQuad(k, B.w * 0.8, 0.95, A[sg], M(0, B.y + B.h / 2 + 0.85, -0.11, Math.PI));
+      atlasQuad(k, B.w * 0.9, 1.1, A[sg], M(0, B.y, -0.17, Math.PI)); }
+    W(k, box(B.w + 0.6, 0.3, 0.5), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.2, 0), false); }, Y0);
+  for (const id of ['waves', 'arena']) { const [x, z] = T(P[id].lx, P[id].lz); addBox(x, z, PLAZA_BOARD.w + 1, 0.6, yaw0); }
   at(P.exchange.lx, P.exchange.lz, 0, () => { W(k, box(6, 3.4, 4.5), CREAM, 7, M(0, 1.7, 0)); W(k, new THREE.ConeGeometry(5.0, 2.2, 4), GOLD, 4, M(0, 4.5, 0, Math.PI / 4)); W(k, box(4.5, 1.1, 0.8), WOOD, 2, M(0, 0.55, 2.6));
     if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }
-  for (const [dx, dz, c] of [[-8, 0, 0xd8322f], [0, 2, 0xffc93c], [8, 0, 0x1f8a5a], [-4, -9, 0x2a6df4], [5, -9, 0xb36bff]]) { const [x, z] = T(P.market.lx + dx, P.market.lz + dz); stall(k, x, Y0, z, CO.t2wYaw(Math.PI), c); addCirc(x, z, 1.8); }
+  // [v103] the HARBOR MARKET stalls are now two proper shops (BANKSY): CLOTHES SHOP + SHIP SKINS / UPGRADES, and between them
+  // three token billboards ($SUNK / $AHOY / $PUMP). All static + atlas signage, merged into the street mesh (0 extra draw calls).
+  for (const sp of PLAZA_SHOPS) at(sp.lx, sp.lz, 0, () => { const w = 7.2, d = 4.4;
+    W(k, box(w, 3.4, 0.3), sp.wall, 7, M(0, 1.7, -d / 2));                                                   // back wall
+    for (const sx of [-1, 1]) W(k, box(0.3, 3.4, d), sp.wall, 7, M(sx * w / 2, 1.7, 0));                      // side walls
+    W(k, box(w - 0.6, 1.1, 1.0), WOOD, 2, M(0, 0.55, d / 2 - 0.6));                                            // counter
+    W(k, box(w - 0.4, 0.12, 1.2), WOOD_L, 2, M(0, 1.16, d / 2 - 0.6), false);
+    for (const sx of [-1, 1]) W(k, box(0.26, 3.6, 0.26), WOOD_D, 2, M(sx * (w / 2 - 0.1), 1.8, d / 2), false);  // front posts
+    W(k, box(w + 1.0, 0.16, d + 1.6), sp.roof, 4, M(0, 3.75, 0.3, 0.16));                                     // sloped roof
+    for (let i = 0; i < 6; i++) W(k, box((w + 1.0) / 6 - 0.04, 0.5, 0.06), i % 2 ? 0xf2efe6 : sp.roof, 12, M(-((w + 1.0) / 2) + (i + 0.5) * (w + 1.0) / 6, 3.4, d / 2 + 1.12), false); // striped valance
+    W(k, box(5.8, 1.5, 0.16), WOOD_D, 2, M(0, 4.65, d / 2 + 0.75), false);                                    // sign board
+    if (A[sp.sign]) atlasQuad(k, 5.5, 1.3, A[sp.sign], M(0, 4.65, d / 2 + 0.84));
+    if (sp.id === 'shop_clothes') { for (const sx of [-2.2, 0, 2.2]) { W(k, cyl(0.05, 0.05, 1.6, 5), WOOD_D, 2, M(sx, 1.95, -d / 2 + 0.5), false);  // mannequins: hat + coat
+        W(k, box(0.8, 1.0, 0.4), [0xd8322f, 0x161616, 0x2a6df4][(sx / 2.2 + 1) | 0], 12, M(sx, 2.0, -d / 2 + 0.5)); W(k, cyl(0.55, 0.55, 0.12, 10), 0x161616, 0, M(sx, 2.9, -d / 2 + 0.5)); W(k, cyl(0.28, 0.32, 0.36, 10), 0x161616, 0, M(sx, 3.1, -d / 2 + 0.5), false); } }
+    else { for (const [sx, c] of [[-2.2, 0xffc93c], [0, 0xfa0d0d], [2.2, 0x2a6df4]]) { W(k, box(1.4, 0.5, 0.7), WOOD_D, 2, M(sx, 1.45, -d / 2 + 0.5), false);   // ship models on stands
+        W(k, box(1.1, 0.35, 0.36), c, 12, M(sx, 1.85, -d / 2 + 0.5)); W(k, cyl(0.04, 0.04, 1.0, 4), WOOD_D, 2, M(sx, 2.4, -d / 2 + 0.5), false); W(k, box(0.7, 0.55, 0.04), 0xf2efe6, 12, M(sx, 2.45, -d / 2 + 0.56), false); } }
+  }, Y0);
+  for (const sp of PLAZA_SHOPS) { const [x, z] = T(sp.lx, sp.lz); addBox(x, z, 7.6, 4.8, yaw0); }
+  for (const tb of PLAZA_TOKENS) at(tb.lx, tb.lz, 0, () => {
+    for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), WOOD_D, 2, M(sx * 2.05, 2.9, 0));
+    W(k, box(4.5, 4.0, 0.24), WOOD_D, 2, M(0, 3.75, 0)); if (A['bb' + tb.sym]) atlasQuad(k, 4.2, 3.8, A['bb' + tb.sym], M(0, 3.95, 0.13));
+    if (A['tokLive' + tb.sym]) atlasQuad(k, 3.8, 1.0, A['tokLive' + tb.sym], M(0, 1.55, 0.13));                // live price strip (atlas.drawTokenBoard)
+    W(k, box(4.2, 1.2, 0.2), 0x161616, 0, M(0, 1.55, 0.02), false);
+    if (A.ppflag) atlasQuad(k, 4.2, 3.0, A.ppflag, M(0, 3.75, -0.13, Math.PI));                                  // back: the PUMPFUN PIRATES flag
+  }, Y0);
+  for (const tb of PLAZA_TOKENS) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
   for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
   at(P.tower.lx, P.tower.lz, 0, () => { W(k, box(9, 24, 9), STONE, 11, M(0, 12, 0)); W(k, box(10, 1, 10), STONE_D, 11, M(0, 24.3, 0), false); W(k, new THREE.ConeGeometry(7.4, 7, 4), ROOFS[1], 4, M(0, 28.3, 0, Math.PI / 4));
     for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); }

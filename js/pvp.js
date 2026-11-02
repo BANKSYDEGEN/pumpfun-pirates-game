@@ -26,13 +26,17 @@ import { COAST_ON } from './island/coast.js'; // [Emerly] Raul's coast harbor fl
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
+import { setOwnedSkins } from './pvpSkins.js';
+import { shopState, shopBuy, cleanGear } from './pvpSave.js';
+import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
+import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
 import { SQUADS } from './config.js';
 import { Room } from './net.js';
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
-import { attachCaptain } from './captainSlot.js';
+import { attachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -106,7 +110,7 @@ export function createPvp(K) {
 
   // ---------------- profile / save ----------------
   async function prepare() {
-    const r = await loadProfile(); profile = r.profile; wallet = r.wallet || '';
+    const r = await loadProfile(); profile = r.profile; wallet = r.wallet || ''; setOwnedSkins(profile.skins.owned); gearChanged();
     refreshHolder();
     return profile;
   }
@@ -136,7 +140,38 @@ export function createPvp(K) {
   }
   const skinId = () => profile.skins.equipped || 'classic';
   const skinObj = () => pvpSkin(skinId());
-  function snapshot() { return cleanProfile({ gold: game.gold, levels: getRunLevels(), skins: { equipped: skinId() }, stats: profile.stats }); }
+  function snapshot() { return cleanProfile({ gold: game.gold, levels: getRunLevels(), skins: { equipped: skinId(), owned: profile.skins.owned }, gear: profile.gear, gearOwned: profile.gearOwned, rev: profile.rev, stats: profile.stats }); }
+  // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
+  // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
+  // plug in there; until then every gear item is COMING SOON and nothing is drawn).
+  function gearChanged() { try { const c = localCaptain(); if (c) setLocalCaptain({ ...c, look: { ...(c.look || {}), gear: { ...profile.gear } } }); } catch {} try { dispatchEvent(new CustomEvent('pfp-gear', { detail: { gear: { ...profile.gear } } })); } catch {} }
+  addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
+    profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
+    if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
+    if (active && !$('pvp-menu')?.classList.contains('hidden')) renderMenu(); });
+  let shopBehind = 0;
+  const shopStateNow = async () => { const st = await shopState(snapshot()); if (!st) return null;
+    return { source: 'live', owner: !!st.owner, gold: st.owner ? (game.gold | 0) : (st.gold ?? 0) | 0, behind: Math.max(0, (game.gold | 0) - ((st.gold ?? 0) | 0)) > 0 && !st.owner,
+      stats: { ...profile.stats, ...(st.stats || {}) }, owned: st.owned, equipped: { skin: skinId(), gear: { ...profile.gear } } }; };
+  setShopProvider({
+    load: shopStateNow,
+    async buy(kind, key) {
+      const r = await shopBuy(kind === 'skin' ? `skin:${key}` : `gear:${key}`, snapshot());
+      if (r.ok) { if (!r.owner) { game.gold = Math.max(0, (game.gold | 0) - (r.price | 0)); profile.rev = r.rev | 0; } // SAME tick as the rev bump
+        if (kind === 'skin') profile.skins.owned = [...new Set([...profile.skins.owned, key])]; else profile.gearOwned = [...new Set([...(profile.gearOwned || []), key])];
+        setOwnedSkins(profile.skins.owned); save({ now: true, force: true }); K.updateHud(); sfx.coin?.(); }
+      const st = (await shopStateNow()) || { source: 'live', owner: false, gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } };
+      return { ok: !!r.ok, error: r.ok ? null : ({ 'goal not reached': 'reach the goal first', 'not enough gold': 'not enough gold', 'already owned': 'already yours' }[r.error] || r.error || 'shop offline'), state: st };
+    },
+    async equip(kind, key) {
+      if (kind === 'skin') { if (canUse(key)) { profile.skins.equipped = key; if (active) K.rebuildShip(getRunLevels()); sfx.equip?.(); } }
+      else { const [slot, id] = key.split(':'); const g = cleanGear({ ...profile.gear, [slot]: id }); if (g[slot] === id) { profile.gear = g; gearChanged(); } }
+      save({ now: true, force: true }); return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } });
+    },
+  });
+  function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
+    for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
+      if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }
   function save(opts = {}) { if (!active && !opts.force) return; profile = snapshot(); saveProfile(profile, opts).then(r => { if (r && r.ok === false && r.status === 401) { wallet = ''; renderMenu(); } }); }
 
   // ---------------- rooms ----------------
@@ -578,7 +613,7 @@ export function createPvp(K) {
     if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
     if (by === myId && !e.fade) { profile.stats.botKills++; // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills)
       const st = profile.stats; if (e.harborBoss) st.bossKills = (st.bossKills | 0) + 1; else st.harborKills = (st.harborKills | 0) + 1;
-      for (const u of UNLOCKS) { const pr = unlockProgress(u.id, st); if (pr && pr.have === pr.need && (e.harborBoss ? pr.stat === 'bossKills' : pr.stat === 'harborKills')) skinToast({ id: u.id, name: u.name, why: `${pr.need} harbor boss kills` }); }
+      if (e.harborBoss) goalToast({ ...st, bossKills: st.bossKills - 1 }, st);
       save(e.harborBoss ? { now: true } : {}); }
   }
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
@@ -596,8 +631,8 @@ export function createPvp(K) {
     // anti-farm window gives no bounty (the PvP KILLS board drops it too)
     const tn = performance.now(), last = me.pairs.get(victim) || -1e9; me.pairs.set(victim, tn);
     if (tn - last > PVP_BOUNTY.pairWindow * 1000) { me.streak++; const before = me.bounty; me.bounty = Math.min(PVP_BOUNTY.cap, me.streak * PVP_BOUNTY.perKill); if (me.bounty > before && me.bounty >= PVP_BOUNTY.announce && before < PVP_BOUNTY.announce) addFeed(`☠ <b class="me">${esc(name)}</b> has a <b>${me.bounty}g</b> bounty!`); }
-    me.kills++; const before = profile.stats.kills; profile.stats.kills++;
-    const t = TIERS.find(x => x.kills > before && x.kills <= profile.stats.kills); if (t) skinToast(t);
+    me.kills++; const before = { ...profile.stats }; profile.stats.kills++;
+    goalToast(before, profile.stats);
     sfx.coin(); save({ now: true });
   }
   const seenSunk = new Map(); // dedupe: one sinking per ship life, even if the message arrives twice
@@ -906,20 +941,17 @@ export function createPvp(K) {
   function renderMenu() {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
-    const st = profile.stats, sk = lifeK(), nx = nextTier(sk); // [v76] skins unlock from THIS device's confirmed kills (or the signed wallet's), never a typed wallet
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(st.kills, st.deaths)}</b> · ${st.kills} player kills · ${st.deaths} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses${nx ? `<br><span class="muted">${nx.kills - sk} more kills unlock ${nx.name}</span>` : ''}`;
+    const st = profile.stats; // [v102] skins are bought with gold at the island shop (or from here: tap a locked skin)
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted">Buy ship skins with gold at the island SHOP</span>`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
-    for (const t of TIERS) {
-      const ok = canUse(t.id, sk), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
-      const sw = skinSwatch(pvpSkin(t.id), 96, 48); c.appendChild(sw);
-      const lab = document.createElement('span'); lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${t.kills - sk} kills to unlock`}`; c.appendChild(lab);
-      c.disabled = !ok; c.onclick = () => pickSkin(t.id); grid.appendChild(c);
+    for (const t of [...TIERS, ...UNLOCKS]) {
+      const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD() }) : null;
+      const c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
+      c.appendChild(skinSwatch(pvpSkin(t.id), 96, 48));
+      const lab = document.createElement('span');
+      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : g && !g.done ? '🔒 goal · see shop' : `BUY · ${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
+      c.onclick = () => ok ? pickSkin(t.id) : openShop({ vendor: 'shop', tab: 'skins', item: t.id }); grid.appendChild(c);
     }
-    for (const u of UNLOCKS) { // [v98] harbor-unlock skins (Timothy): COMMODORE = 100 harbor boss kills, with a progress bar
-      const pr = unlockProgress(u.id, st), ok = canUse(u.id, sk, st), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin unlock${ok ? '' : ' locked'}${u.id === skinId() ? ' on' : ''}`; c.dataset.skin = u.id;
-      c.appendChild(skinSwatch(pvpSkin(u.id), 96, 48));
-      const lab = document.createElement('span'); lab.innerHTML = `<b>${u.name}</b>${ok ? (u.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${Math.min(pr.have, pr.need)}/${pr.need} harbor boss kills`}${ok ? '' : `<span class="unl-bar"><i style="width:${Math.min(100, pr.have / pr.need * 100).toFixed(1)}%"></i></span>`}`; c.appendChild(lab);
-      c.disabled = !ok; c.onclick = () => pickSkin(u.id); grid.appendChild(c); }
     previewCards(grid, [...TIERS, ...UNLOCKS].map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
     $('pvp-wallet-state').textContent = wallet ? `Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}` : 'Saving on this device automatically.';
     $('pvp-wallet').textContent = wallet ? 'Disconnect wallet' : 'Connect wallet to save';
@@ -927,16 +959,17 @@ export function createPvp(K) {
     renderBoard();
   }
   function pickSkin(id) {
-    if (!canUse(id, lifeK(), profile.stats)) return;
+    if (!canUse(id)) return;
     profile.skins.equipped = id; K.rebuildShip(getRunLevels()); sfx.equip?.(); save({ now: true }); renderMenu();
   }
   function skinToast(t) {
     document.getElementById('skin-toast')?.remove();
     const el = document.createElement('div'); el.id = 'skin-toast';
-    el.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · ${t.why || `${t.kills} kills`}</span></div><button class="buy">EQUIP</button>`;
+    el.innerHTML = t.goal ? `<div class="st-txt"><b>GOAL REACHED</b><span>${t.name} · you can buy it at the shop</span></div><button class="buy">SHOP</button>`
+      : `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · ${t.why || `${t.kills} kills`}</span></div><button class="buy">EQUIP</button>`;
     const sw = skinSwatch(pvpSkin(t.id), 88, 44); sw.className = 'st-sw'; el.prepend(sw);
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
-    el.querySelector('button').onclick = (e) => { e.stopPropagation(); pickSkin(t.id); el.remove(); };
+    el.querySelector('button').onclick = (e) => { e.stopPropagation(); if (t.goal) openShop({ vendor: 'shop', tab: 'skins', item: t.id }); else pickSkin(t.id); el.remove(); };
     document.body.appendChild(el); setTimeout(() => el.remove(), 6000);
   }
   async function walletButton() {
@@ -983,6 +1016,8 @@ export function createPvp(K) {
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
     $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
+    $('pvp-tab')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (!b) return; e.stopPropagation(); if (lob.state !== 'harbor') return; harborTab = b.dataset.t; harborUi(); });
+    $('pvp-waves-go')?.addEventListener('click', (e) => { e.stopPropagation(); window.PFP_OPEN_WAVES?.(); }); // = the old home-screen WAVES button
     $('pvp-mode')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (b) { e.stopPropagation(); setMode(b.dataset.m); } }); // [v98]
     $('pvp-party-new')?.addEventListener('click', (e) => { e.stopPropagation(); partyJoin(newPartyCode(), true); });
     $('pvp-party-join')?.addEventListener('click', (e) => { e.stopPropagation(); partyJoin($('pvp-party-code').value); });
@@ -1013,9 +1048,11 @@ export function createPvp(K) {
     addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (isKey('menu', e.code)) { e.preventDefault(); toggleMenu(); } });
     addEventListener('pagehide', () => leave(true));
   }
+  window.PFP_OPEN_UPGRADES = () => { if (!active) return false; toggleMenu(true); return true; }; // [v103] the plaza SHIP SKINS + UPGRADES shop links here
   function toggleMenu(on) { const m = $('pvp-menu'); const show = on ?? m.classList.contains('hidden'); m.classList.toggle('hidden', !show); if (show) { renderMenu(); const kb = $('pvp-kills'); if (kb) { mountKillsBoard(kb); renderKills(kb); } } }
 
   // ---------------- harbor UI ----------------
+  let harborTab = 'battle';
   function harborUi() {
     const h = $('pvp-harbor'); if (!h) return;
     const show = active && where === 'harbor' && !spec.on; h.classList.toggle('hidden', !show); if (!show) return;
@@ -1024,6 +1061,12 @@ export function createPvp(K) {
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
     else { b.textContent = 'JOIN BATTLE'; t.innerHTML = HOLDER_ENABLED && holder.on ? '<span class="pvp-holder">HOLDER 2× GOLD</span>' : ''; } // [v98.1] no "THE HARBOR" pill (it blocked the view); the SOLO / SQUADS switch shows the mode
     t.hidden = !t.innerHTML;
+    // [v103] BATTLE | WAVES tab: WAVES hides the battle controls and shows START WAVES (never while queued / offered a seat)
+    if (lob.state !== 'harbor') harborTab = 'battle';
+    const tb = $('pvp-tab'), wv = harborTab === 'waves';
+    if (tb) { tb.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.t === harborTab); x.setAttribute('aria-selected', x.dataset.t === harborTab); }); tb.classList.toggle('locked', lob.state !== 'harbor'); }
+    h.classList.toggle('ph-waves', wv); const wb = $('pvp-waves'); if (wb) wb.hidden = !wv;
+    if (wv) t.hidden = true;
     const ms = $('pvp-mode'); if (ms) { ms.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.m === mode); x.setAttribute('aria-pressed', x.dataset.m === mode); }); ms.classList.toggle('locked', lob.state !== 'harbor'); } // [v98]
     const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate(); pp.classList.toggle('pp-idle', !party.code && !party.msg); // [v98.3] portrait hides the default 'No party' line
       $('pvp-party-t').innerHTML = party.code ? `PARTY <b>${party.code}</b> · ${mate ? `with ${esc(mate.n)} ✔` : esc(party.msg || 'waiting for your mate…')}` : esc(party.msg || 'No party: you get a random teammate');

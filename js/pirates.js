@@ -6,6 +6,11 @@ import * as THREE from 'three';
 import { PirateGLB } from './pirateGLB.js';
 
 const LIVE = new Set();
+// [v102] GEAR HOOK for Timothy's gear meshes: window.applyPirateGear(pirateObj, gear) puts the equipped gear on one pirate.
+//   pirateObj = the Group from pirateFigure() / loadPirate().object (its v4 PirateGLB is pirateObj.userData.v4 or a child's, once loaded)
+//   gear      = { hat, outfit, eyes, parrot, hook } ids from js/shopCatalog.js ('none' / 'shirtless' / 'plain' = nothing)
+// Called for your on-foot pirate (js/dock/index.js, on every change) and your captain (look.gear, when the figure loads). Default: no-op.
+if (typeof window !== 'undefined' && !window.applyPirateGear) window.applyPirateGear = () => false;
 const SKIN = ['#d99b6c', '#f2c9a0', '#e0a97c', '#c68a5e', '#9a6440', '#6e4528'];
 const HAIR = ['#2b1b12', '#4a2c17', '#161616', '#8a5a2b', '#c9a25a'];
 export const lookColors = (look = {}) => ({ skin: SKIN[(look.skin || 0) % SKIN.length], hair: HAIR[(look.hair || 0) % HAIR.length] });
@@ -19,6 +24,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
     p.root.scale.setScalar(height / h); p.root.position.y = -box.min.y * height / h;
     p.root.traverse((o) => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
     p.play(clip, { fade: 0 }); root.add(p.root); root.userData.v4 = p; LIVE.add(p);
+    try { if (look.gear) window.applyPirateGear?.(root, look.gear); } catch (e) { console.warn('[gear]', e); }
     onReady?.(p);
   }).catch((e) => console.warn('[pirates] v4 GLB failed, keeping the fallback', e));
   root.userData.dispose = () => { root.userData.disposed = true; if (root.userData.v4) LIVE.delete(root.userData.v4); };

@@ -459,7 +459,7 @@ export function buildChest(low, A) {
 
 // ---------- atlas: signs, posters, flags (one canvas texture) ----------
 export function makeAtlas(skull) {
-  const S = 1024, SH = 2048, c = document.createElement('canvas'); c.width = S; c.height = SH; const g = c.getContext('2d');
+  const S = 1024, SH = 2560, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */ c.width = S; c.height = SH; const g = c.getContext('2d');
   const R = {}, reg = (k, x, y, w, h) => { R[k] = { u0: x / S, u1: (x + w) / S, v0: 1 - (y + h) / SH, v1: 1 - y / SH }; };
   const font = (px) => `${px}px "Just Another Hand", cursive`;
   const board = (x, y, w, h, bg) => { g.fillStyle = bg; g.fillRect(x, y, w, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(x, y + h * i / 4 + (i % 2) * 3); g.lineTo(x + w, y + h * i / 4); g.stroke(); } g.lineWidth = 10; g.strokeStyle = '#161616'; g.strokeRect(x + 5, y + 5, w - 10, h - 10); };
@@ -509,6 +509,21 @@ export function makeAtlas(skull) {
   board(512, 1274, 512, 104, '#5a3219'); text('ARENA:  SOLO | SQUADS', 768, 1328, 76, '#fa0d0d'); reg('arena', 512, 1274, 512, 104);
   board(0, 1962, 512, 84, '#5a3219'); text('SPECTATE', 256, 2006, 76, '#ffcd77'); reg('spectate', 0, 1962, 512, 84);
   board(512, 1962, 512, 84, '#5a3219'); text('SQUAD HALL', 768, 2006, 76, '#ffcd77'); reg('squad', 512, 1962, 512, 84);
+  // [v103] plaza (BANKSY): CLOTHES SHOP + SHIP SHOP signs, one token billboard per token (brand: Just Another Hand, red / gold / dark)
+  board(0, 2048, 512, 132, '#5a3219'); text('CLOTHES SHOP', 256, 2116, 104, '#ffcd77'); reg('clothesShop', 0, 2048, 512, 132);
+  board(512, 2048, 512, 132, '#5a3219'); text('SHIP SKINS + UPGRADES', 768, 2116, 70, '#ffcd77'); reg('shipShop', 512, 2048, 512, 132);
+  ISLAND_TOKEN_SIGNS.forEach((t, i) => {
+    const x = i * 340 + 4, y = 2188, w = 332, h = 300;
+    g.fillStyle = '#161616'; g.fillRect(x, y, w, h); g.strokeStyle = '#ffcd77'; g.lineWidth = 10; g.strokeRect(x + 5, y + 5, w - 10, h - 10);
+    g.strokeStyle = t.color; g.lineWidth = 4; g.strokeRect(x + 16, y + 16, w - 32, h - 32);
+    g.fillStyle = t.color; g.beginPath(); g.arc(x + 70, y + 84, 46, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.stroke();
+    if (skull) { const k = Math.min(64 / skull.width, 64 / skull.height); g.drawImage(skull, x + 70 - skull.width * k / 2, y + 84 - skull.height * k / 2, skull.width * k, skull.height * k); }
+    text('$' + t.sym, x + 196, y + 88, 104, t.color);
+    text('PUMPFUN PIRATES', x + w / 2, y + 170, 46, '#ffffff');
+    text(t.sym === 'PUMP' ? 'the pump.fun token' : t.sym === 'AHOY' ? 'the pirate token' : 'sink + earn', x + w / 2, y + 212, 40, '#ffcd77');
+    text('press E · CA + chart', x + w / 2, y + 258, 38, '#ffffff');
+    reg('bb' + t.sym, x, y, w, h);
+  });
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // live board: redraw a token's price strip in place (0 extra draw calls; the atlas texture just re-uploads)
   const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const x = i * 340 + 4, y = 1690;

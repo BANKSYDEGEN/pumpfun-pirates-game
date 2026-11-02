@@ -325,7 +325,7 @@ const PARTS = {
       for (const sx of [1, -1]) Ly.add(I, hullPanel(A, 0.9, 0.995, 0.15, 1.5 * k, sx, 0.16, 4, 3));
     }
   },
-  // SAILS: bigger sails, topgallants, royals, a big skull spanker sheeted out so it shows, a 4th mast at max
+  // SAILS: bigger sails, topgallants, royals, studding sails, a 4th mast at max (no stern spanker since v103)
   sails(A, T, Ly, ship) {
     const ud = ship.userData, ref = ud.sails[1] || ud.sails[0], mainRef = ud.sails[0];
     const sf = ref.children[0].material, sb = ref.children[1].material, mf = mainRef.children[0].material, mb = mainRef.children[1].material;
@@ -344,15 +344,8 @@ const PARTS = {
       addSail(sailGeo(yw * 0.92, ext * 0.45, 0.6), [0, yy - 0.1, m.z + 0.3], true);
       if (T.royal) { const rw = yw * 0.7, ry = top + ext * 0.92; yard(rw, [0, ry, m.z + 0.2]); addSail(sailGeo(rw * 0.92, ext * 0.36, 0.45), [0, ry - 0.1, m.z + 0.3], true); }
     });
-    if (T.spanker) { // fore-and-aft skull sail on the mizzen, swung out to port so the chase camera sees it
-      const m = A.masts[2], th = 0.6, h = m.h * 0.5, w = A.rigLen * 0.3, y0 = m.y + m.h * 0.86;
-      const dir = new THREE.Vector3(-Math.sin(-th), 0, -Math.cos(-th)); // aft, swung to +X (port)
-      const at = (d, y) => [dir.x * d, y, m.z + dir.z * d];
-      Ly.span(M.oak, at(0, y0), at(w, y0 + 0.9), 0.09, 0.07);
-      Ly.span(M.oak, at(0, y0 - h), at(w * 1.05, y0 - h), 0.09, 0.08);
-      const geo = sailGeo(w, h, 0.5); geo.translate(w / 2, 0, 0);
-      const g = sailPair(geo, mf, mb, false); g.children.forEach(c => c.rotation.y = Math.PI / 2 - th); g.position.set(0, y0 - 0.05, m.z); Ly.group.add(g);
-    }
+    // [v103] BANKSY: NO stern spanker. The angled fore-and-aft sail on the mizzen (sail tiers 5-7, every hull / skin / AI ship)
+    // blocked the captain's view from the chase camera, so it is no longer built (visual only: hit box, muzzles, stats unchanged).
     if (T.fourthMast) { // extra mast amidships with its own skull course and topsail
       const t = 0.445, z = A.zAt(t), y = A.deckAt(t), mh = A.rigLen * 0.98 * 0.86;
       Ly.add(M.oak, cyl(0.16, 0.28, mh + 0.6, 10), [0, y + mh / 2 - 0.3, z]); // [Raul] stepped through the deck

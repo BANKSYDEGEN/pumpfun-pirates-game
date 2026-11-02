@@ -33,9 +33,13 @@ export function shipTick(mesh, o) { for (const f of SHIP_TICKS) { try { f(mesh, 
 
 export const TIERS = PVP_SKIN_TIERS;
 export const tierOf = (id) => TIERS.find(t => t.id === id) || null;
-export const unlockedSkins = (kills) => TIERS.filter(t => ownerAllSkins() || kills >= t.kills).map(t => t.id);
+export const unlockedSkins = () => TIERS.filter(t => canUse(t.id)).map(t => t.id);
 // [v98] stats (profile.stats) unlock the harbor skins: COMMODORE = stats.bossKills >= 100. Kill tiers still read `kills`.
-export const canUse = (id, kills, stats = null) => { const t = tierOf(id); if (t) return ownerAllSkins() || kills >= t.kills; const pr = unlockProgress(id, stats); return !!pr && (ownerAllSkins() || pr.have >= pr.need); };
+// [v102] THE ISLAND SHOP: every skin is BOUGHT with gold (goals only make COMMODORE / FLAMING / DIAMOND buyable). Owned = the
+// server's list (pvp_owned via js/pvpSave.js), set here by pvp.js; the owner (BANKSYDEGEN) has every skin.
+let OWNED = new Set(['classic']);
+export const setOwnedSkins = (list) => { OWNED = new Set(['classic', ...(Array.isArray(list) ? list : [])]); };
+export const canUse = (id) => ownerAllSkins() || id === 'classic' || OWNED.has(id);
 // [Timothy] harbor-kill unlock skins: data only here (locked: true + unlock { type, count }); renderable by id, but canUse() /
 // unlockedSkins() stay kill-tier only until the harbor counters are wired (Emerly)
 export const UNLOCKS = PVP_UNLOCK_SKINS;
@@ -47,4 +51,4 @@ export const skinName = (id) => (tierOf(id) || unlockOf(id))?.name || 'CLASSIC';
 export function unlockProgress(id, stats) { const u = unlockOf(id), k = u && UNLOCK_STAT[u.unlock?.type]; if (!k) return null; return { have: Math.max(0, Math.floor(stats?.[k] || 0)), need: u.unlock.count, stat: k }; }
 // [v98] for the later shared PvE harbor: COMMODORE captains can sail with the AI / boss side
 export const isBossSkin = (id) => id === 'commodore';
-export const nextTier = (kills) => ownerAllSkins() ? null : TIERS.find(t => t.kills > kills) || null;
+export const nextTier = () => null; // [v102] no kill-tier unlocks any more (the island shop sells them)

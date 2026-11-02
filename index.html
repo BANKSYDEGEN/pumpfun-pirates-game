@@ -121,6 +121,9 @@
   <!-- [pvp] HARBOR (local queue room): JOIN BATTLE / queue place / spectate; the arena offer; AFK warning; entry card -->
   <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
     <!-- [v98] SOLO / SQUADS (2v2) pick before queuing; Squads: party code for 2 friends (else a random teammate) -->
+    <!-- [v103] BATTLE | WAVES tab (BANKSY): WAVES swaps the card to START WAVES (the old home-screen WAVES button) -->
+    <div class="mode-sw ph-tab" id="pvp-tab" role="tablist" aria-label="Game"><button type="button" role="tab" data-t="battle">BATTLE</button><button type="button" role="tab" data-t="waves">WAVES</button></div>
+    <div id="pvp-waves" hidden><button id="pvp-waves-go" type="button" class="pvp-btn">START WAVES</button><span class="ph-wsub">solo · survive the waves · top the board</span></div>
     <div class="mode-sw" id="pvp-mode" role="group" aria-label="Battle Royale mode"><button type="button" data-m="solo">SOLO</button><button type="button" data-m="squads">SQUADS 2v2</button></div>
     <div id="pvp-party" hidden><span id="pvp-party-t">No party: you get a random teammate</span>
       <span class="pp-row"><button id="pvp-party-new" type="button" class="ghost">CREATE PARTY</button><input id="pvp-party-code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code"><button id="pvp-party-join" type="button" class="ghost">JOIN</button><button id="pvp-party-leave" type="button" class="ghost" hidden>LEAVE PARTY</button></span></div>
@@ -281,6 +284,7 @@
       <div><span class="label">SUNK</span><b id="go-sunk">0</b></div>
       <div><span class="label">GOLD</span><b id="go-gold" class="gold">0</b></div>
     </div>
+    <div id="go-pay" class="go-pay" hidden aria-live="polite"></div>
     <div id="go-wallet" class="muted"></div>
     <div id="go-entry" class="go-entry"><!-- [set sail first] name + wallet are asked here, after the run -->
       <label class="field">

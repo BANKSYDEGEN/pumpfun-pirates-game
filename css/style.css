@@ -872,3 +872,71 @@ html.pvp-spec #btn-emote { display: none !important; }
 #pvp-arena-n:empty { display: none; }
 @media (orientation: portrait) { #pvp-arena-n { font-size: 11px; padding: 0 6px; } }
 @media (orientation: portrait) { #pvp-harbor { gap: 3px 5px; padding: 4px 6px; } #pvp-harbor #pvp-party.pp-idle #pvp-party-t { display: none; } #pvp-harbor #pvp-party { padding: 2px 6px; } #pvp-harbor .ph-spec { gap: 1px; } }
+
+/* [v103] harbor card BATTLE | WAVES tab (same pill switch as SOLO / SQUADS); WAVES hides the battle rows */
+#pvp-harbor.ph-waves #pvp-mode, #pvp-harbor.ph-waves #pvp-party, #pvp-harbor.ph-waves .ph-btns { display: none !important; }
+#pvp-harbor #pvp-waves { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; } #pvp-harbor #pvp-waves[hidden] { display: none; }
+#pvp-harbor .ph-wsub { font-size: 13px; color: #e8e2d4; text-shadow: 0 1px 2px #000; }
+#pvp-harbor .ph-tab button { font-size: 14px !important; padding: 2px 10px !important; }
+@media (orientation: portrait) { #pvp-harbor .ph-tab { order: 0; } #pvp-harbor #pvp-waves { order: 2; align-items: center; } #pvp-harbor .ph-wsub { font-size: 12px; } }
+@media (max-height: 480px) and (orientation: landscape) { #pvp-harbor .ph-tab button { font-size: 13px !important; padding: 2px 8px !important; } #pvp-harbor .ph-wsub { font-size: 11px; } }
+#go-pay { margin: 6px auto 2px; font-size: 22px; color: #fff; text-align: center; text-shadow: 0 2px 3px #000; } #go-pay b { color: var(--gold); font-weight: normal; } #go-pay small { font-size: 14px; } /* [v103] Waves score payout */
+/* [v103] harbor plaza panel: full leaderboard / token CA (brand: Just Another Hand, red / gold / dark) */
+.plaza-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(520px, 94vw); max-height: min(640px, 88vh); display: flex; flex-direction: column; gap: 8px;
+  background: rgba(22,22,22,0.96); border: 3px solid #ffcd77; border-radius: 14px; padding: 10px 12px 12px; color: #fff; font-family: "Just Another Hand", cursive; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.plaza-panel.hidden { display: none; }
+.pz-head { display: flex; align-items: center; gap: 8px; background: var(--pz, #fa0d0d); border-radius: 8px; padding: 2px 6px 2px 12px; }
+.pz-head b { flex: 1; font-size: 30px; font-weight: normal; letter-spacing: .5px; }
+.pz-x { background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; padding: 4px 8px; }
+.pz-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 120px; font-size: 24px; }
+.pz-list li { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 8px; align-items: baseline; padding: 2px 6px; border-radius: 6px; }
+.pz-list li:nth-child(even) { background: rgba(255,205,119,.07); } .pz-list li.empty { display: block; text-align: center; opacity: .8; padding: 20px; }
+.pz-list i { font-style: normal; color: #ffcd77; } .pz-list b { color: #ffcd77; font-weight: normal; } .pz-list small { opacity: .55; font-size: 18px; } .pz-list .pz-kd { opacity: .75; }
+.pz-list li:nth-child(1) i { color: #ffd700; } .pz-list li:nth-child(2) i { color: #e0e0e0; } .pz-list li:nth-child(3) i { color: #cd7f32; }
+.pz-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.pz-go, .pz-alt, .pz-copy { display: inline-block; padding: 8px 16px; border-radius: 10px; border: 2px solid #ffcd77; background: #fa0d0d; color: #fff; font: inherit; font-size: 24px; text-decoration: none; cursor: pointer; }
+.pz-alt { background: #161616; color: #7cff6b; border-color: #7cff6b; } .pz-copy { background: #ffcd77; color: #161616; padding: 6px 12px; white-space: nowrap; }
+.pz-tabs { display: flex; gap: 6px; } .pz-tabs button { flex: 1; font: inherit; font-size: 24px; padding: 4px; border-radius: 8px; border: 2px solid var(--pz); background: #161616; color: var(--pz); cursor: pointer; }
+.pz-tabs button.on { background: var(--pz); color: #fff; }
+.pz-price { font-size: 26px; text-align: center; color: #ffcd77; }
+.pz-ca { display: flex; gap: 8px; align-items: center; } .pz-ca code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: #000; padding: 6px 8px; border-radius: 6px; font: 13px ui-monospace, Menlo, monospace; color: #fff; }
+.pz-foot { text-align: center; opacity: .6; font-size: 18px; }
+@media (max-height: 460px) { .plaza-panel { max-height: 94vh; padding: 6px 10px 8px; gap: 5px; } .pz-list { font-size: 20px; } .pz-head b { font-size: 24px; } .pz-go, .pz-alt { font-size: 20px; padding: 5px 12px; } }
+/* [v103] PROFILE panel (Timothy c3c09f1) + the ui vars it uses, scoped */
+#captain, #profile { --ui-font: 'Just Another Hand', cursive; --ui-gold: #ffcd77; --ui-panel: rgba(22,16,10,0.96); --ui-trim: #8a5a2b; --ui-trim-soft: rgba(255,205,119,0.25); --ui-inset: rgba(0,0,0,0.35); --ui-r: 12px; --ui-r-in: 8px; --ui-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+
+/* ---------- [ui overhaul] PROFILE: tap / click the captain card (top left) ---------- */
+/* affordance: a small caret on the card, gold trim + "PROFILE ▸" tag on hover (mouse) and a press flash on tap; the card keeps
+   pointer-events: none so a drag that starts on it still orbits the camera (js/uiProfile.js watches the pointer, never blocks it) */
+#captain { position: relative; transition: box-shadow 0.15s, border-color 0.15s; }
+#captain::after { content: '▸'; position: absolute; right: 5px; bottom: 3px; font: 14px/1 var(--ui-font); color: var(--ui-gold); opacity: 0.7; }
+html.ui-cap-hover #captain, html.ui-cap-press #captain { border-color: var(--ui-gold) !important; box-shadow: var(--ui-shadow), 0 0 0 2px rgba(255, 205, 119, 0.55), 0 0 14px rgba(255, 205, 119, 0.35) !important; opacity: 1 !important; }
+html.ui-cap-hover #captain::before { content: 'PROFILE ▸'; position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  font: 18px/1 var(--ui-font); color: #1a1009; background: var(--ui-gold); border-radius: var(--ui-r-in); padding: 4px 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.45); }
+html.ui-cap-press #captain { transform: scale(0.97); }
+#profile { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.28); font-family: var(--ui-font); }
+#profile.hidden { display: none; }
+#profile .pf-card { position: absolute; top: calc(12px + var(--safe-t, 0px)); left: calc(14px + var(--safe-l, 0px)); width: min(410px, calc(100vw - 28px)); max-height: calc(100% - 24px); overflow: auto;
+  background: var(--ui-panel); border: 2px solid var(--ui-trim); border-radius: var(--ui-r); box-shadow: var(--ui-shadow); padding: 12px 14px 14px; color: #fff3d8; box-sizing: border-box; }
+#profile .faq-x { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border-radius: var(--ui-r-in); color: #fff; font-size: 18px; cursor: pointer; }
+#profile .pf-head { display: flex; gap: 10px; align-items: center; padding-right: 40px; margin-bottom: 6px; }
+#profile #pf-img { width: 58px; height: 58px; border-radius: var(--ui-r-in); border: 2px solid var(--ui-gold); object-fit: cover; background: var(--ui-inset); }
+#profile .pf-who b { display: block; font-size: 28px; color: var(--ui-gold); line-height: 1; }
+#profile .pf-who small { font-size: 16px; opacity: 0.8; }
+#profile .pf-sec { background: var(--ui-inset); border: 1px solid var(--ui-trim-soft); border-radius: var(--ui-r); padding: 8px 10px; margin-top: 8px; }
+#profile .pf-sec h4 { margin: 0 0 2px; font-size: 20px; letter-spacing: 1px; color: var(--ui-gold); font-weight: normal; }
+#profile .pf-sec h4 em { font-style: normal; font-size: 15px; color: #fff3d8; opacity: 0.65; letter-spacing: 0; margin-left: 4px; }
+#profile .pf-note { display: block; margin: 0 0 6px; font-size: 16px; line-height: 1.1; opacity: 0.8; }
+#profile .field { display: block; margin: 0; } #profile .field > span { display: none; }
+#profile .field input { width: 100%; box-sizing: border-box; font: 18px var(--ui-font); padding: 6px 8px; color: #fff; }
+#profile #we-addr-msg { min-height: 0; font-size: 15px; margin: 2px 0 0; }
+#profile .wallet-row { margin: 0; justify-content: flex-start; } #profile .wallet-note { font-size: 15px; margin: 4px 0 0; }
+#profile .pf-row { display: flex; gap: 8px; flex-wrap: wrap; } #profile .pf-row button { flex: 1; margin: 0; font-size: 18px; padding: 6px 8px; opacity: 0.55; cursor: not-allowed; }
+#profile #pf-link { margin: 0; font-size: 20px; padding: 4px 16px; } #profile #pf-link-state { margin: 4px 0 0; }
+#profile.waves .pf-br, #profile.br .pf-waves { display: none; }
+#we-prof-hint { font-size: 16px; margin: 4px 0 6px; text-align: center; }
+@media (orientation: portrait) and (max-width: 760px) { /* phone portrait: a bottom sheet, thumb reach */
+  #profile .pf-card { top: auto; bottom: 0; left: 0; width: 100%; max-height: 82%; border-radius: var(--ui-r) var(--ui-r) 0 0; padding-bottom: calc(14px + var(--safe-b, 0px)); }
+  #captain::after { right: 3px; bottom: 1px; font-size: 12px; } }
+@media (max-height: 500px) { #profile .pf-card { top: 8px; left: calc(8px + var(--safe-l, 0px)); max-height: calc(100% - 16px); width: min(440px, 60vw); } #profile .pf-sec { padding: 6px 8px; margin-top: 6px; } }
+#captain { min-height: 44px; box-sizing: border-box; } /* >= 44 px touch target */

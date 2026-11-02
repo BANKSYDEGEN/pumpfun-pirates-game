@@ -22,13 +22,15 @@ import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSaved
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
+import './uiProfile.js'; // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
 import { isKey, held as heldKey, installMouseBinds } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
-import { COAST_ON } from './island/coast.js'; // [Emerly] Raul's harbor coast flag (pure data module): gates docking + on foot + the coast harbor tweaks
+import { COAST_ON } from './island/coast.js';
+import { wavesStart, wavesClaim } from './pvpSave.js'; // [v103] Waves banks gold from SCORE (server-checked) // [Emerly] Raul's harbor coast flag (pure data module): gates docking + on foot + the coast harbor tweaks
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
@@ -773,6 +775,7 @@ function updateEscortBars() { // [escorts] green bars over your escorts
 const radar = $('radar'), rctx = radar.getContext('2d');
 function drawRadar() {
   const W = radar.width, R = W / 2, range = 260;
+  if (dock?.drawMinimap?.(rctx, W)) return; // [v103] on foot: the island map (js/islandMap.js)
   rctx.clearRect(0, 0, W, W);
   rctx.strokeStyle = 'rgba(255,205,119,0.25)'; rctx.lineWidth = 1;
   [0.33, 0.66].forEach(f => { rctx.beginPath(); rctx.arc(R, R, R * f, 0, 7); rctx.stroke(); });
@@ -895,6 +898,7 @@ if (we) {
   we.addEventListener('click', (e) => { if (e.target === we) we.classList.add('hidden'); });
 }
 $('btn-start').onclick = () => openWavesEntry();
+window.PFP_OPEN_WAVES = () => openWavesEntry(); // [v103] the harbor card's WAVES tab + the island WAVES board open the same Waves entry
 { // [v98] home SPECTATE: SOLO / SQUADS switch (which arena to watch), remembered on this device
   const sw = $('spec-mode-sw');
   if (sw && !PVP_ENABLED) sw.remove();
@@ -902,6 +906,9 @@ $('btn-start').onclick = () => openWavesEntry();
     const paint = () => sw.querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.m === get()); b.setAttribute('aria-pressed', b.dataset.m === get()); });
     sw.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; e.stopPropagation(); try { localStorage.setItem('pfp_spec_mode', b.dataset.m); } catch {} paint(); window.PFP_HOME_LIVE?.(); });
     paint(); } }
+if (PVP_ENABLED) { // [v103] BANKSY: the home screen just ENTERS THE GAME (the harbor + island). Waves = the WAVES board on the island,
+  // Battle Royale = the harbor card (JOIN BATTLE / SPECTATE, SOLO / SQUADS) + the ARENA board. The portal builds keep WAVES (no PvP there).
+  const bp = $('btn-pvp'); bp.textContent = 'ENTER GAME'; bp.title = 'Enter the harbor + island: Waves and Battle Royale are both in there'; $('btn-start')?.remove(); }
 if (PVP_ENABLED) { $('btn-pvp').onclick = () => startPvp(); $('btn-spectate').onclick = () => startPvp(true); } else { $('btn-pvp')?.remove(); $('btn-spectate')?.remove(); } // [pvp] not on game portals
 { // [start help] "?" panel: close button, tap outside, Escape
   const faq = $('faq'), show = (on) => { faq.classList.toggle('hidden', !on); if (on) $('faq-close').focus(); else $('btn-faq').focus(); };
@@ -1048,6 +1055,7 @@ function startGame(mode = null) {
   // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
   game.wallet = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); game.name = getSavedName();
   game.runId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); // [wallet save]
+  if (mode !== 'pvp') wavesStart(game.runId); // [v103] server notes the run start (for the score payout)
   // [daily] hidden from the UI: every run is a normal run
   game.mode = mode === 'pvp' ? 'pvp' : null; game.seed = null; game.lootRng = null; game.dropRng = null; // [pvp] PvP is its own mode
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
@@ -1107,6 +1115,10 @@ async function gameOver() {
   $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   validateWallet();
   $('gameover').classList.remove('hidden');
+  if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = 'Banking gold from your score…'; } // [v103]
+    wavesClaim({ run: game.runId, score: game.score, wave: game.wave, sunk: game.sunk }).then(r => { const el = $('go-pay'); if (!el) return;
+      if (r?.ok && r.gold > 0) el.innerHTML = `Score ${game.score.toLocaleString('en-US')} → <b>+${r.gold.toLocaleString('en-US')} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${r.base} × 2)</span>` : ''}<br><small class="muted">for the island SHOP · Battle Royale gold</small>`;
+      else if (r && r.ok === false && r.error) el.textContent = `No gold banked: ${r.error}`; else el.hidden = true; }); }
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
   renderBoard($('board-over'));
   prepareShare(shareStats()); // pre-render the card so SHARE opens the share sheet inside the tap

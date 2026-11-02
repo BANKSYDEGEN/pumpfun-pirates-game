@@ -110,7 +110,7 @@ void main(){
     leg = w * 0.5 * walking; arm = -w * 0.4 * walking; bob = abs(w) * 0.03 * walking;
   } else { // walker pacing fore and aft
     float s = fract(uT * 0.9 / max(1.0, span * 2.0) + ph), tri = abs(s * 2.0 - 1.0);
-    o.z += span * (0.5 - tri); yaw = s < 0.5 ? 3.14159 : 0.0;
+    o.z += span * (0.5 - tri); yaw = s < 0.5 ? 0.0 : 3.14159; // [v103] face the way you walk (the pirates face +Z; first half walks +Z)
     float w = sin(uT * 7.5 + ph * 6.28);
     leg = w * 0.55; arm = -w * 0.5; bob = abs(w) * 0.035;
   }

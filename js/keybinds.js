@@ -5,6 +5,7 @@ export const ACTIONS = [
   ['sailUp', 'Raise sails', ['KeyW', 'ArrowUp']], ['sailDown', 'Lower sails', ['KeyS', 'ArrowDown']],
   ['firePort', 'Fire port (left)', ['KeyQ', 'Mouse4']], ['fireStar', 'Fire starboard (right)', ['KeyE', 'MouseR']],
   ['anchor', 'Anchor', ['Space', '']], ['camera', 'Reset camera', ['KeyC', '']], ['shop', 'Shop', ['KeyU', 'KeyB']],
+  ['sprint', 'Sprint (on foot, hold)', ['ShiftLeft', 'ShiftRight']],
   ['menu', 'Battle Royale menu', ['Tab', '']], ['pause', 'Pause', ['KeyP', '']], ['sound', 'Sound on/off', ['KeyM', '']], ['full', 'Fullscreen', ['KeyF', '']],
 ];
 const KEY = 'pfp_keys_v1', RESERVED = new Set(['Escape', 'MouseL']); // left click = camera drag / orbit
@@ -43,7 +44,7 @@ export function controlsLine(short = false) {
   const steer = `${keyName(binds('left')[0])}/${keyName(binds('right')[0])}${binds('left')[1] && binds('right')[1] ? ` or ${keyName(binds('left')[1])}/${keyName(binds('right')[1])}` : ''}`;
   const sail = `${keyName(binds('sailUp')[0])}/${keyName(binds('sailDown')[0])}`, fire = `${both('firePort')}/${both('fireStar')}`;
   return short ? `${steer} steer · ${sail} sails · ${fire} broadsides · ${both('anchor')} anchor · drag to look · wheel zoom`
-    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · drag mouse to orbit · wheel to zoom`;
+    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · hold ${both('sprint')} sprint (on foot) · drag mouse to orbit · wheel to zoom`;
 }
 
 // [mouse binds] mouse buttons (not left) act as keys: a synthetic keydown / keyup with code 'MouseR' etc., so every key handler

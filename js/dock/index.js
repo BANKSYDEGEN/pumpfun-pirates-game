@@ -10,6 +10,9 @@ import { createDocking } from './docking.js';
 import { createWalker } from '../onfoot/walker.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
+import { binds, keyName } from '../keybinds.js';
+import { createIslandMap } from '../islandMap.js';
+import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 
 const CSS = `
 #dk-safe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#7cff6b;background:rgba(22,22,22,.72);border:2px solid #7cff6b;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
@@ -48,7 +51,11 @@ export async function createDock(ctx) {
   const docking = createDocking({ berths: layout.berths, myId: myId() });
   const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW }); pirate.object.visible = false; scene.add(pirate.object);
   const walker = createWalker({ camera, canvas, world, pirate, touch });
+  // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
+  addEventListener('pfp-gear', (e) => { try { window.applyPirateGear?.(pirate.object, e.detail?.gear || {}); } catch (err) { console.warn('[gear]', err); } });
   const fnet = createFootNet({ scene, low: LOW, world, docking });
+  const imap = createIslandMap({ world, layout, low: LOW || touch }); // [v103] the radar turns into an island map while you walk
+  const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
 
@@ -81,7 +88,7 @@ export async function createDock(ctx) {
   function closeBoard() { document.documentElement.classList.remove('dk-board'); }
 
   // ---------- state ----------
-  let on = false, onFoot = false, lastShot = 0, leftAt = -99;
+  let on = false, onFoot = false, lastShot = 0, leftAt = -99, sprintHinted = false;
   const P = () => ctx.getPlayer();
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
   function setOn(v) {
@@ -94,7 +101,8 @@ export async function createDock(ctx) {
   function goAshore() {
     if (docking.mode !== 'docked') return; const b = docking.berth;
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
-      walker.enter(b.ashore.x, b.ashore.z, b.out ? Math.atan2(-b.out.x, -b.out.z) : b.yaw + Math.PI); }); // face inland
+      walker.enter(b.ashore.x, b.ashore.z, b.out ? Math.atan2(-b.out.x, -b.out.z) : b.yaw + Math.PI); // face inland
+      if (!sprintHinted) { sprintHinted = true; toast(touch ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
     const fin = () => { onFoot = false; walker.exit(); closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
@@ -104,15 +112,16 @@ export async function createDock(ctx) {
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
     switch (q.kind) {
-      case 'waves': goAboard(true); ctx.openWaves(); break;
-      case 'arena': openBoard(); break;
+      case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
+      case 'token': plaza.openToken(q.sym); break;
+      case 'exchange': plaza.openToken('SUNK'); break;
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); openBoard(); break;
       case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;
-      case 'shop': if (window.openShop) window.openShop({ from: 'island' }); else toast('THE SHOP OPENS SOON<br><small>skins + pirate gear for gold</small>', 2200); break;
+      case 'shop': Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.vendor === 'clothes' ? 'gear' : 'skins', from: 'island' }) : false)
+        .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
       case 'tavern': toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break;
       case 'bounties': toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break;
-      case 'stall': case 'market': toast(q.label + '<br><small>opens soon</small>', 2000); break;
-      case 'exchange': toast('TOKEN EXCHANGE<br><small>opens soon</small>', 2000); break;
+      case 'stall': toast(`${q.id === 'stall_red' ? 'THE TAILOR' : 'CURIOS'} · COMING SOON<br><small>${q.id === 'stall_red' ? 'hats, clothes + eye patches' : 'parrots, hooks + treasure maps'} for gold</small>`, 2400); break; // [v102] gear: no model on the pirate yet
       case 'dig': case 'cave': world.activate(q, t); break;
       default: toast(q.label);
     }
@@ -169,7 +178,7 @@ export async function createDock(ctx) {
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)
-  function cameraHook() { if (!on) return false; world.update(camera.position, game.t); return onFoot; }
+  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t); return onFoot; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;
@@ -181,7 +190,7 @@ export async function createDock(ctx) {
   function handlePeer(m) { const r = fnet.onPeerState(m); if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
   const api = {
-    layout, world, zone, docking, walker, fnet, NO_TARGET,
+    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza,
     get on() { return on; }, get onFoot() { return onFoot; },
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : null),
@@ -194,6 +203,8 @@ export async function createDock(ctx) {
     netState: () => (on ? fnet.netState(walker) : {}),
     onPeerState: (m) => { if (on) handlePeer(m); },
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard,
+    // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
+    drawMinimap: (ctx, W) => on && onFoot ? imap.draw(ctx, W, walker.w, docking.mode === 'docked' ? docking.berth : null) : false, islandMap: imap,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
   return api;

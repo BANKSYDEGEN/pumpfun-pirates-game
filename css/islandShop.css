@@ -1,0 +1,111 @@
+/* [Timothy] PUMPFUN PIRATES · ISLAND SHOP panel (milestone 1 mock). Matches the UI overhaul look (timothy/ui-overhaul css/ui.css):
+   it reads the same tokens (--ui-*) when ui.css is loaded and falls back to the same values here, so this branch does not
+   depend on the overhaul being merged first. One font, one radius, dark wood + gold trim. Docks to the right edge (desktop,
+   tablet, phone landscape) or comes up as a bottom sheet (portrait): the centre of the screen stays clear. */
+#island-shop {
+  --s-font: var(--ui-font, 'Just Another Hand', cursive); --s-r: var(--ui-r, 12px); --s-r-in: var(--ui-r-in, 8px);
+  --s-gold: var(--ui-gold, #ffcd77); --s-trim: var(--ui-trim, #c9984a); --s-trim-soft: var(--ui-trim-soft, rgba(201, 152, 74, 0.55));
+  --s-panel: var(--ui-panel, repeating-linear-gradient(90deg, rgba(255, 220, 160, 0.028) 0 2px, rgba(0, 0, 0, 0.05) 2px 5px, rgba(255, 220, 160, 0.016) 5px 11px), linear-gradient(180deg, rgba(58, 38, 22, 0.96), rgba(26, 16, 9, 0.97)));
+  --s-inset: var(--ui-inset, rgba(0, 0, 0, 0.38)); --s-red: var(--ui-red, #fa0d0d); --s-red-d: var(--ui-red-d, #8f0000);
+  --s-shadow: var(--ui-shadow, inset 0 1px 0 rgba(255, 226, 168, 0.16), inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.42));
+  position: fixed; inset: 0; z-index: 80; display: flex; justify-content: flex-end; align-items: stretch; padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) 16px;
+  background: linear-gradient(90deg, transparent 35%, rgba(0, 0, 0, 0.45)); font-family: var(--s-font); color: #fff; pointer-events: auto;
+}
+#island-shop.hidden { display: none; }
+#island-shop .hidden { display: none !important; }
+.ishop-panel { position: relative; width: min(880px, 56vw); display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 8px; background: var(--s-panel); border: 2px solid var(--s-trim);
+  border-radius: var(--s-r); box-shadow: var(--s-shadow); overflow: hidden; animation: ishop-in 0.25s ease-out; }
+@keyframes ishop-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* stall vendors: a striped awning over the counter */
+.ishop-awning { display: none; }
+#island-shop.stall .ishop-awning { display: block; height: 22px; margin: -10px -12px 0; background: repeating-linear-gradient(90deg, var(--ishop-awning) 0 34px, #f3ead6 34px 68px); border-bottom: 2px solid rgba(0, 0, 0, 0.35); box-shadow: inset 0 -6px 6px -4px rgba(0, 0, 0, 0.35); }
+.ishop-head { display: flex; align-items: center; gap: 12px; }
+.ishop-title { flex: 1; display: flex; flex-direction: column; line-height: 0.95; min-width: 0; }
+.ishop-title b { font-size: 40px; color: var(--s-gold); letter-spacing: 0.04em; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); font-weight: normal; }
+.ishop-title small { font-size: 17px; color: rgba(255, 255, 255, 0.7); }
+.ishop-purse { display: flex; align-items: center; gap: 6px; font-size: 28px; color: var(--s-gold); padding: 2px 12px; background: var(--s-inset); border: 1px solid var(--s-trim-soft); border-radius: var(--s-r); white-space: nowrap; }
+.ishop-purse .coin { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3c4, #ffcd77 45%, #b07a1c); box-shadow: 0 0 0 1px #6b4a10; }
+.ishop-x { position: static !important; flex: none; width: 36px; height: 36px; border-radius: var(--s-r) !important; font-size: 20px; }
+.ishop-tabs, .ishop-chips { display: flex; gap: 6px; padding: 4px; background: var(--s-inset); border: 1px solid var(--s-trim-soft); border-radius: var(--s-r); flex-wrap: wrap; }
+.ishop-tabs[hidden], .ishop-chips[hidden] { display: none; }
+.ishop-tabs button, .ishop-chips button { flex: 1; font-family: var(--s-font); font-size: 22px; color: #fff; background: transparent; border: 0; border-radius: var(--s-r-in); padding: 3px 10px 1px; cursor: pointer; white-space: nowrap; }
+.ishop-chips button { flex: 0 1 auto; font-size: 19px; }
+.ishop-tabs button.on, .ishop-chips button.on { background: var(--s-gold); color: #1b1300; }
+.ishop-tabs button:not(.on):hover, .ishop-chips button:not(.on):hover { color: var(--s-gold); }
+.ishop-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 270px; grid-template-areas: 'grid detail'; gap: 10px; }
+.ishop-grid { grid-area: grid; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-content: start; padding: 2px 4px 2px 0; overscroll-behavior: contain; }
+.ishop-card { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 6px 6px 7px; text-align: center; font-family: var(--s-font); color: #fff; cursor: pointer;
+  background: var(--s-inset); border: 1px solid var(--s-trim-soft); border-radius: var(--s-r); transition: border-color 0.15s, transform 0.15s; }
+.ishop-card:hover { border-color: var(--s-gold); }
+.ishop-card.sel { border: 2px solid var(--s-gold); padding: 5px 5px 6px; box-shadow: 0 0 14px rgba(255, 205, 119, 0.35); }
+.ishop-sw { display: block; width: 100%; aspect-ratio: 150 / 76; border-radius: var(--s-r-in); overflow: hidden; background: #0e1a20; }
+.ishop-sw svg, .ishop-card canvas, .ishop-detail canvas, .ishop-cbox canvas { display: block; width: 100% !important; height: auto !important; border-radius: var(--s-r-in); }
+.ishop-sw.gear { background: radial-gradient(circle at 50% 40%, #2a3a40, #0e1a20); }
+.ishop-name { font-size: 20px; font-weight: normal; line-height: 1; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ishop-badge { font-size: 18px; line-height: 1; color: var(--s-gold); }
+.ishop-card.equipped .ishop-badge { color: #4ee37a; } .ishop-card.equipped { border-color: #4ee37a; }
+.ishop-card.owned .ishop-badge { color: rgba(255, 255, 255, 0.75); }
+.ishop-card.poor .ishop-badge { color: rgba(255, 205, 119, 0.5); }
+.ishop-card.locked .ishop-sw { filter: grayscale(0.85) brightness(0.6); } .ishop-card.locked .ishop-badge { color: rgba(255, 255, 255, 0.6); }
+.ishop-mini { display: block; height: 4px; margin: 2px 8px 0; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.ishop-mini i, .ishop-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb13b, var(--s-gold)); border-radius: 4px; }
+.ishop-prop { position: absolute; top: 4px; right: 6px; font-style: normal; font-size: 13px; padding: 0 5px; border-radius: 6px; background: rgba(42, 109, 244, 0.85); color: #fff; }
+.ishop-detail .ishop-prop, .ishop-gl .ishop-prop { position: static; }
+.ishop-detail { grid-area: detail; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--s-inset); border: 1px solid var(--s-trim-soft); border-radius: var(--s-r); overflow-y: auto; }
+.ishop-info { display: flex; flex-direction: column; gap: 5px; }
+.ishop-info h4 { margin: 0; font-size: 32px; font-weight: normal; color: var(--s-gold); line-height: 1; }
+.ishop-pr { font-size: 22px; } .ishop-pr b { color: #4ee37a; font-weight: normal; }
+.ishop-gl { font-size: 18px; line-height: 1.1; color: rgba(255, 255, 255, 0.85); } .ishop-gl b { color: #fff; font-weight: normal; }
+.ishop-goal { display: grid; gap: 3px; font-size: 19px; } .ishop-goal.done { color: #4ee37a; }
+.ishop-bar { display: block; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.ishop-goal.done .ishop-bar i { background: #4ee37a; }
+.ishop-act { margin-top: 4px; font-family: var(--s-font); font-size: 24px; padding: 6px 10px 4px; border-radius: var(--s-r) !important; color: #fff; cursor: pointer; }
+.ishop-act:disabled { background: rgba(0, 0, 0, 0.35); border: 1px dashed rgba(255, 255, 255, 0.3); color: rgba(255, 255, 255, 0.65); box-shadow: none; cursor: default; }
+.ishop-act.ghost:disabled { border: 1px solid #4ee37a; color: #4ee37a; }
+.ishop-foot { font-size: 15px; text-align: center; color: rgba(255, 255, 255, 0.55); }
+/* purchase confirm: sits over the panel only (the game behind stays visible) */
+.ishop-confirm { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 6, 3, 0.72); }
+.ishop-cbox { width: min(360px, 88%); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; text-align: center; background: var(--s-panel); border: 2px solid var(--s-gold); border-radius: var(--s-r); box-shadow: var(--s-shadow), 0 0 30px rgba(255, 205, 119, 0.25); animation: ishop-pop 0.18s ease-out; }
+@keyframes ishop-pop { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.ishop-cbox .ishop-sw { width: 70%; margin: 0 auto; }
+.ishop-cbox h4 { margin: 0; font-size: 30px; font-weight: normal; color: var(--s-gold); }
+.ishop-math { margin: 0; font-size: 24px; } .ishop-math b { color: var(--s-red); font-weight: normal; }
+.ishop-cbox .muted { margin: 0; font-size: 16px; color: rgba(255, 255, 255, 0.65); }
+.ishop-cbtns { display: flex; gap: 8px; justify-content: center; } .ishop-cbtns button { font-family: var(--s-font); font-size: 24px; padding: 4px 18px 2px; margin: 0; border-radius: var(--s-r) !important; }
+.ishop-err { margin: 0; min-height: 1em; color: var(--s-red); font-size: 17px; }
+.ishop-toast { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 4px 16px 2px; font-size: 24px; color: #1b1300; background: var(--s-gold); border-radius: var(--s-r); animation: ishop-pop 0.2s ease-out; }
+#pvp-shop-open { width: 100%; margin: 6px 0 2px; }
+
+/* tablet (narrower desktop) */
+@media (max-width: 1280px) and (min-height: 521px) { .ishop-panel { width: min(760px, 66vw); } .ishop-body { grid-template-columns: 1fr 240px; } }
+/* phone landscape: right-docked, full height, compact */
+@media (orientation: landscape) and (max-height: 520px) {
+  #island-shop { padding: calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) 8px; }
+  .ishop-panel { width: min(640px, 72vw); gap: 5px; padding: 6px 8px 5px; }
+  #island-shop.stall .ishop-awning { height: 14px; margin: -6px -8px 0; }
+  .ishop-title b { font-size: 28px; } .ishop-title small { font-size: 14px; } .ishop-purse { font-size: 22px; padding: 0 8px; } .ishop-x { width: 30px; height: 30px; }
+  .ishop-tabs, .ishop-chips { padding: 2px; gap: 3px; } .ishop-tabs button { font-size: 18px; padding: 1px 8px 0; } .ishop-chips button { font-size: 16px; padding: 1px 8px 0; }
+  .ishop-body { grid-template-columns: 1fr 200px; gap: 6px; }
+  .ishop-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 5px; }
+  .ishop-card { padding: 4px 4px 5px; } .ishop-name { font-size: 16px; } .ishop-badge { font-size: 15px; }
+  .ishop-detail { padding: 6px; gap: 5px; } .ishop-detail .ishop-sw { width: 80%; margin: 0 auto; } .ishop-info h4 { font-size: 24px; } .ishop-pr { font-size: 18px; } .ishop-gl, .ishop-goal { font-size: 15px; }
+  .ishop-act { font-size: 19px; padding: 3px 8px 2px; } .ishop-foot { display: none; }
+  .ishop-cbox { padding: 8px 10px; gap: 4px; } .ishop-cbox .ishop-sw { width: 46%; } .ishop-cbox h4 { font-size: 24px; } .ishop-math { font-size: 20px; }
+}
+/* portrait: a bottom sheet; the selected item sits on a strip above the grid */
+@media (orientation: portrait) {
+  #island-shop { align-items: flex-end; justify-content: stretch; padding: 0 0 env(safe-area-inset-bottom); background: linear-gradient(180deg, transparent 20%, rgba(0, 0, 0, 0.5)); }
+  .ishop-panel { width: 100%; height: min(80vh, 760px); border-radius: var(--s-r) var(--s-r) 0 0; border-bottom: 0; gap: 6px; padding: 8px 10px 6px; animation-name: ishop-up; }
+  @keyframes ishop-up { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #island-shop.stall .ishop-awning { margin: -8px -10px 0; }
+  .ishop-title b { font-size: 32px; } .ishop-purse { font-size: 24px; }
+  .ishop-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; grid-template-areas: 'detail' 'grid'; gap: 6px; }
+  .ishop-detail { flex-direction: row; align-items: flex-start; gap: 8px; padding: 6px; max-height: 40vh; }
+  .ishop-detail > .ishop-sw { flex: 0 0 38%; } .ishop-info { flex: 1; min-width: 0; } .ishop-info h4 { font-size: 26px; } .ishop-gl, .ishop-goal { font-size: 16px; } .ishop-act { font-size: 21px; }
+  .ishop-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+  .ishop-name { font-size: 17px; } .ishop-badge { font-size: 16px; }
+  .ishop-chips { flex-wrap: nowrap; overflow-x: auto; } .ishop-foot { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .ishop-panel, .ishop-cbox, .ishop-toast { animation: none; } }
+
+.ishop-upg { display: block; margin: 6px auto 0; padding: 8px 14px; border: 2px solid #ffcd77; border-radius: 10px; background: #161616; color: #ffcd77; font: inherit; font-size: 18px; cursor: pointer; } .ishop-upg[hidden] { display: none; } /* [v103] ships shop -> the BR upgrades menu */
