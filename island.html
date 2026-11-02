@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>PUMPFUN PIRATES · Island lobby (art test scene)</title>
+<meta name="robots" content="noindex">
+<style>
+  @font-face { font-family: 'Just Another Hand'; src: url('assets/JustAnotherHand.ttf'); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #7fd0f2; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #ui { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 0 8px; font-family: 'Just Another Hand', cursive; pointer-events: none; }
+  #ui button { pointer-events: auto; font: inherit; font-size: 22px; letter-spacing: 0.04em; line-height: 1; padding: 6px 12px 4px; border-radius: 14px; border: 2px solid #ffcd77; background: rgba(22, 22, 22, 0.82); color: #ffcd77; cursor: pointer; }
+  #ui button.on { background: #fa0d0d; color: #fff; }
+  #title { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 12px; font-family: 'Just Another Hand', cursive; font-size: 30px; color: #fff; text-shadow: 0 2px 0 #161616, 0 0 8px rgba(0,0,0,0.4); letter-spacing: 0.04em; pointer-events: none; }
+  #stats { position: fixed; top: 8px; right: 10px; font: 12px/1.35 monospace; color: #fff; background: rgba(0,0,0,0.45); padding: 4px 8px; border-radius: 8px; white-space: pre; pointer-events: none; }
+  body.shot #ui, body.shot #stats, body.shot #title { display: none; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="title">PUMPFUN PIRATES · Island</div>
+<div id="stats"></div>
+<div id="ui"></div>
+<!-- Standalone art test scene for the future dockable island / social lobby. Not wired into the game or the service worker. -->
+<script type="module" src="js/island/main.js"></script>
+</body>
+</html>
