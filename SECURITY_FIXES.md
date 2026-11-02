@@ -71,7 +71,7 @@ Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remain
 - **Back-compat:** existing unsigned airdrop rows stay (verified = false). The owner decides whether to ask those players to sign
   before a payout.
 
-### H5 · XSS via peer ids / names — fixed (commit 481d0f7)
+### H5 · XSS via peer ids / names — fixed (commit 0f5d531)
 - Ids are whitelisted `^[a-z0-9]{6,20}$` on receive. Every innerHTML sink escapes. Null-prototype peer merge.
 - Unit tests include an XSS payload.
 
