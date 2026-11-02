@@ -51,6 +51,18 @@
   the helm (ship.turn, remote ships too), fist up after a broadside, holds on when hit. Outfit follows the skin. Waves too (visual only).
 - [v95] HARBOR DEATH: lose min(100, gold), big 5-4-3-2-1 countdown, respawn IN THE HARBOR at the spot farthest from AI / the boss
   with a 4 s bubble (PVP_HARBOR_RESPAWN / PVP_HARBOR_PROTECT). Never the lobby. Arena deaths unchanged.
+- [v98] SQUADS 2v2 (under BATTLE ROYALE): the queue harbor has a SOLO / SQUADS 2v2 switch (only while not queued) and a party
+  panel (CREATE PARTY gives a 5-character code, JOIN with a friend's code; JOIN BATTLE queues you both; no party = a random
+  teammate). Own arena room 'pfp-pvp-v1sq' (lobby cap 4, same project budget, migration 020). The host (lowest id) runs the round:
+  wait (no damage) -> live (teams fixed, party pairs together, friendly fire off: balls pass through mates) -> end when a team is
+  fully sunk / not afloat 4 s / gone (or 6 min: more ships afloat, then HP) -> 8 s -> next round. Sunk = out until the round ends,
+  the camera follows your mate. Win gold 150 (+holder perk) only if someone on the losing team was really sunk; losers rotate out
+  when someone is queued. Your team: blue sails + flag (hulls keep their skin), blue name tags, a ring under your mate, blue radar
+  dot, the mate's HP bar at the top; the enemy is red. Same profile / boards as Solo; harbor death rule, holder perk, owner sync
+  and emotes unchanged. Home SPECTATE has a SOLO / SQUADS switch (no Harbor option). ?sqmin=N for test rooms.
+- [v98] COMMODORE unlock skin (Timothy, merged 464777a): 100 harbor BOSS kills, counted from this release (profile stats
+  harborKills / bossKills, server-checked: lib.ts caps bossBase 2 + 1/min, counters only go up). Skin menu card with a boss-kill
+  progress bar. Boss rig guns are 1.25x: the upgrade deck guns now sit on them (ships.js gunCs), spawn checked L0/L3/L8.
 - [v97] LONG SHIPS: guns a side = 4 + CANNONS level (Battle Royale) in ONE deck row; the hull waist stretches to fit
   (ships.js zMap / stretchFor / gunT; masts + sails keep the design length). New long gun (cascabel, bands, muzzle swell, bore)
   on a truck carriage (cheeks, bed, axles, 4 wheels with iron tyres; lighter geometry on LOW / phones). One gunner per gun,

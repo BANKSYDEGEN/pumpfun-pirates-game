@@ -813,3 +813,31 @@ html.pvp-spec #btn-emote { display: none !important; }
 @media (max-width: 600px) { .emote-bubble { font-size: 16px; padding: 5px 10px; } }
 /* [v97.1] holder perk badge on the harbor pay line (top right, under the minimap) */
 #enemies-left .hud-2x { display: inline-block; background: linear-gradient(90deg,#f7c948,#ffdf7e); color: #1b1300; border-radius: 999px; padding: 0 7px; margin-left: 2px; font-size: 0.78em; line-height: 1.35; text-shadow: none; vertical-align: 1px; white-space: nowrap; }
+
+/* [v98] SQUADS: SOLO / SQUADS switches (queue harbor + home SPECTATE), party code, teammate HP bar, team HUD */
+.mode-sw { display: inline-flex; background: rgba(0,0,0,0.55); border: 1px solid var(--line, rgba(255,255,255,0.25)); border-radius: 999px; padding: 3px; gap: 2px; pointer-events: auto; }
+.mode-sw button { background: transparent !important; color: rgba(255,255,255,0.75) !important; border: 0 !important; box-shadow: none !important; border-radius: 999px !important; font-size: 17px !important; padding: 3px 14px !important; min-height: 0; line-height: 1.2; }
+.mode-sw button.on { background: var(--gold, #ffcd00) !important; color: #1b1300 !important; }
+.mode-sw.locked { opacity: 0.55; } .mode-sw.locked button:not(.on) { pointer-events: none; }
+.spec-row .spec-sw { margin-top: 4px; } .spec-row .spec-sw button { font-size: 14px !important; padding: 2px 12px !important; }
+.spec-row:has(.spec-sw) { flex-direction: column; align-items: center; gap: 0; }
+#pvp-party { display: flex; flex-direction: column; align-items: center; gap: 4px; background: rgba(0,0,0,0.55); border-radius: 14px; padding: 5px 12px; font-size: 16px; text-shadow: 0 2px 3px #000; }
+#pvp-party[hidden] { display: none; }
+#pvp-party #pvp-party-t b { color: var(--gold, #ffcd00); font-weight: normal; letter-spacing: 0.12em; }
+#pvp-party .pp-row { display: flex; gap: 6px; align-items: center; }
+#pvp-party .pp-row button { font-size: 15px !important; padding: 3px 10px !important; }
+#pvp-party input { width: 5.4em; font-size: 16px; text-transform: uppercase; letter-spacing: 0.12em; text-align: center; padding: 3px 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(0,0,0,0.5); color: #fff; }
+#pvp-party input[hidden], #pvp-party button[hidden] { display: none; }
+#sq-mate { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 56px); left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: none; text-align: center; width: min(340px, 60vw); font: 800 13px/1.2 inherit; color: #8fb8ff; letter-spacing: .06em; text-shadow: 0 2px 0 #000; }
+#sq-mate i { display: block; height: 9px; margin-top: 3px; background: rgba(0,0,0,.55); border: 2px solid #3d8bff; border-radius: 6px; overflow: hidden; }
+#sq-mate b { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #2f6fe8, #6fb0ff); transition: width .2s; }
+#sq-mate.sunk { color: #9aa3b5; } #sq-mate.sunk b { width: 0 !important; }
+#sq-mate[hidden] { display: none; }
+#spec-table tr.tA .sb-name { color: #8fb8ff; } #spec-table tr.tB .sb-name { color: #ff8f8f; }
+.pvp-skin .unl-bar { display: block; height: 6px; margin: 3px 6px 0; background: rgba(0,0,0,0.55); border-radius: 4px; overflow: hidden; }
+.pvp-skin .unl-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffcd00, #ff6a3d); }
+@media (max-width: 600px) {
+  .mode-sw button { font-size: 15px !important; padding: 3px 11px !important; }
+  #pvp-party { font-size: 13px; padding: 4px 8px; } #pvp-party .pp-row button { font-size: 13px !important; padding: 3px 8px !important; } #pvp-party input { font-size: 14px; }
+  #sq-mate { top: calc(env(safe-area-inset-top, 0px) + 100px); left: 12px; transform: none; width: calc(100vw - 132px); font-size: 11px; }
+}

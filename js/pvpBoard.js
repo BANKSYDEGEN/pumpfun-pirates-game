@@ -77,7 +77,8 @@ window.PFP_PVP_BOARD = { renderKills, refreshKillsBoards, initHomeBoard, get per
 // [v76] home: live '⚔ n/4 in arena · ⚓ q in queue' under SPECTATE BATTLE ROYALE (read-only lobby poll, holds no seat).
 // Every 10 s while the home screen is visible; any error hides the line.
 {
-  const prefix = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
+  const solo = 'pfp-pvp-' + (new URLSearchParams(location.search).get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
+  const prefixNow = () => { let m = 'solo'; try { m = localStorage.getItem('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'; } catch {} return m === 'squads' ? 'pfp-pvp-' + solo.slice(8, 22) + 'sq' : solo; }; // [v98] follows the SOLO / SQUADS spectate switch
   const seat = 'home-' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 8);
   let busy = false;
   const tick = async () => {
@@ -86,12 +87,13 @@ window.PFP_PVP_BOARD = { renderKills, refreshKillsBoards, initHomeBoard, get per
     busy = true;
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_lobby`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ p_seat: seat, p_prefix: prefix, p_op: 'poll' }) });
+        body: JSON.stringify({ p_seat: seat, p_prefix: prefixNow(), p_op: 'poll' }) });
       const j = r.ok ? await r.json() : null;
       if (!j || j.state === 'error' || j.players == null) throw new Error('lobby');
       el.textContent = `⚔ ${j.players | 0}/${j.cap || 4} in arena · ⚓ ${j.queue | 0} in queue${j.spectators ? ` · 👁 ${j.spectators}` : ''}`; el.classList.remove('hidden');
     } catch { el.classList.add('hidden'); }
     finally { busy = false; }
   };
+  window.PFP_HOME_LIVE = () => tick(); // [v98] the spectate switch re-reads the count at once
   setTimeout(tick, 1500); setInterval(tick, 10000); document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 }

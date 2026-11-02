@@ -2,7 +2,7 @@
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
 // POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
+import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile } from "./lib.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
@@ -14,9 +14,9 @@ const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", ne
 const b64url = (a: Uint8Array) => btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 const devId = async (b: Record<string, unknown>) => typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? `dev:${(await sha256("pfp-dev:" + b.dk)).slice(0, 24)}` : null;
-type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; updated_at: string };
-const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills } });
-const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: p.skins, kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills });
+type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; harbor_kills?: number; boss_kills?: number; updated_at: string };
+const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills, harborKills: r.harbor_kills ?? 0, bossKills: r.boss_kills ?? 0 } });
+const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: p.skins, kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills, harbor_kills: p.stats.harborKills, boss_kills: p.stats.bossKills }); // [v98] migration 020 columns
 
 async function getRow(wallet: string): Promise<Row> {
   const id = `wallet:${wallet}`;
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       }
       case "save": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
-        const row = await getRow(wallet), cur = toProfile(row), next = cleanProfile(b.profile);
+        const row = await getRow(wallet), cur = toProfile(row), next = keepCounters(toProfile(row), cleanProfile(b.profile));
         // seed: a brand-new (blank) wallet save may be filled once from the device save when the wallet is first linked
         const blank = !cur.gold && !cur.stats.kills && !cur.stats.deaths && !cur.stats.botKills && !Object.values(cur.levels).some(Boolean);
         // [v72] merge: a device that played without a wallet, linking to a wallet that already has progress, is merged in ONCE
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
           if (!l) return json(409, { error: "already merged", profile: cur });
           const lv: Record<string, number> = {}; for (const k of Object.keys(cur.levels)) lv[k] = Math.max(cur.levels[k] || 0, next.levels[k] || 0);
           const m = cleanProfile({ gold: Math.max(cur.gold, next.gold), levels: lv, skins: { equipped: next.skins.equipped !== "classic" ? next.skins.equipped : cur.skins.equipped },
-            stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills) } });
+            stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills), harborKills: Math.max(cur.stats.harborKills, next.stats.harborKills), bossKills: Math.max(cur.stats.bossKills, next.stats.bossKills) } });
           const { data, error } = await db.from("pvp_profiles").update({ ...toRow(m), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
           if (error) throw error;
           return json(200, { profile: toProfile(data as Row), merged: true });

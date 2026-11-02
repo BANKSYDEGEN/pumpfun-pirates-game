@@ -6,7 +6,7 @@
 //   tick(mesh, { speed, alive, dt, t })     -> per-frame effects for local AND remote ships (see SHIP_TICKS)
 import { registerSkin, getSkin, SKINS } from './skins.js';
 import './skinLooks.js'; // golden / ghost / blood / midnight looks (shared with Waves)
-import { PVP_SKIN_TIERS, PVP_UNLOCK_SKINS } from './config.js';
+import { PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT } from './config.js';
 import { ownerAllSkins } from './pvpSave.js'; // [v85] owner-only: BANKSYDEGEN's two devices have every skin
 // SALTY PIRATES mobile-app skins (palette entries from BANKSYDEGEN/pumpfun-pirates-ios/-android, staged by Raul)
 import { MOBILE_SKINS } from '../assets/ships/pvp/mobileSkins.js';
@@ -34,10 +34,17 @@ export function shipTick(mesh, o) { for (const f of SHIP_TICKS) { try { f(mesh, 
 export const TIERS = PVP_SKIN_TIERS;
 export const tierOf = (id) => TIERS.find(t => t.id === id) || null;
 export const unlockedSkins = (kills) => TIERS.filter(t => ownerAllSkins() || kills >= t.kills).map(t => t.id);
-export const canUse = (id, kills) => { const t = tierOf(id); return !!t && (ownerAllSkins() || kills >= t.kills); };
+// [v98] stats (profile.stats) unlock the harbor skins: COMMODORE = stats.bossKills >= 100. Kill tiers still read `kills`.
+export const canUse = (id, kills, stats = null) => { const t = tierOf(id); if (t) return ownerAllSkins() || kills >= t.kills; const pr = unlockProgress(id, stats); return !!pr && (ownerAllSkins() || pr.have >= pr.need); };
 // [Timothy] harbor-kill unlock skins: data only here (locked: true + unlock { type, count }); renderable by id, but canUse() /
 // unlockedSkins() stay kill-tier only until the harbor counters are wired (Emerly)
 export const UNLOCKS = PVP_UNLOCK_SKINS;
 export const unlockOf = (id) => UNLOCKS.find(u => u.id === id) || null;
 export const pvpSkin = (id) => getSkin(tierOf(id) || unlockOf(id) ? id : 'classic');
+export const knownSkin = (id) => !!(tierOf(id) || unlockOf(id)); // remote ships: any kill-tier OR unlock skin id renders as itself
+export const skinName = (id) => (tierOf(id) || unlockOf(id))?.name || 'CLASSIC';
+// [v98] progress toward an unlock skin: { have, need, stat } (null for kill-tier skins)
+export function unlockProgress(id, stats) { const u = unlockOf(id), k = u && UNLOCK_STAT[u.unlock?.type]; if (!k) return null; return { have: Math.max(0, Math.floor(stats?.[k] || 0)), need: u.unlock.count, stat: k }; }
+// [v98] for the later shared PvE harbor: COMMODORE captains can sail with the AI / boss side
+export const isBossSkin = (id) => id === 'commodore';
 export const nextTier = (kills) => ownerAllSkins() ? null : TIERS.find(t => t.kills > kills) || null;

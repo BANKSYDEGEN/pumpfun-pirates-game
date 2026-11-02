@@ -107,8 +107,8 @@ function kit(name, mainSailMap) {
   _kits.set(k, kitObj);
   return kitObj;
 }
-function mirror(t) { const m = t.clone(); m.wrapS = THREE.RepeatWrapping; m.repeat.x = -1; m.offset.x = 1; m.needsUpdate = true; return m; }
-function sailMaterial(map, side = THREE.FrontSide) {
+export function mirror(t) { const m = t.clone(); m.wrapS = THREE.RepeatWrapping; m.repeat.x = -1; m.offset.x = 1; m.needsUpdate = true; return m; }
+export function sailMaterial(map, side = THREE.FrontSide) {
   const m = toon(0xffffff, map, { side });
   m.onBeforeCompile = (s) => {
     s.uniforms.uWindT = wind.uTime;
@@ -464,7 +464,7 @@ export function buildShip(opts) {
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), K.gold); knob.position.y = fh + 1.0; flagPole.add(knob);
   const base = fGeo.attributes.position.array.slice();
 
-  ship.userData = { body, muzzles, sails, flag, flagBase: base, len: fullLen, baseLen: len, hitLen: opts.hitLen ?? fullLen, beam, depth, deckY, lanterns }; // [v97] hitLen: the hit box (stretch ≤ +10%, Waves none)
+  ship.userData = { gunCs: cs, body, muzzles, sails, flag, flagBase: base, len: fullLen, baseLen: len, hitLen: opts.hitLen ?? fullLen, beam, depth, deckY, lanterns }; // [v97] hitLen: the hit box (stretch ≤ +10%, Waves none)
   // [Raul] upgrade visuals: hull/mast/cabin layout so js/upgradeVisuals.js can attach upgrade layers (no visual change here)
   // [v97] enemy ships get the spyglass lookout like yours: a pirate with a telescope patrolling the main crow's nest
   // (merged into the same crew mesh, visual only; player ships add theirs from js/upgradeVisuals.js with SPYGLASS)
@@ -492,7 +492,7 @@ export function animateShip(ship, t, sailLevel = 1) {
 }
 
 const _flagMats = new Map();
-function flagMats(map) {
+export function flagMats(map) {
   if (!_flagMats.has(map)) _flagMats.set(map, [toon(0xffffff, map, { side: THREE.FrontSide }), toon(0xffffff, mirror(map), { side: THREE.BackSide })]);
   return _flagMats.get(map);
 }

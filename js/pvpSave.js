@@ -7,7 +7,7 @@
 // A save holds gold (whatever you're carrying), upgrade levels, skins (selected + unlocked by kills) and lifetime K/D.
 // Storage is keyed by a PROFILE KEY ('device' / 'wallet:<pubkey>' today) so a later version can key upgrades by a
 // ship NFT mint ('mint:<mint>'); the server table already has a nullable `mint` column for that.
-import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, HOLDER_DAILY_GOLD } from './config.js';
+import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT, HOLDER_DAILY_GOLD } from './config.js';
 import { UPGRADES } from './upgrades.js';
 import { findProvider, sigBytes } from './pirateAccount.js';
 
@@ -22,15 +22,16 @@ export const ownerAllSkins = () => ownerAll;
 export const ownerReady = (async () => { try { const k = ls.get('pfp_pvp_dk_v1'); if (!k || !crypto?.subtle) return false;
   const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pfp-dev:' + k)))].map(x => x.toString(16).padStart(2, '0')).join('');
   return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24))); } catch { return false; } })();
-export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, stats: { kills: 0, deaths: 0, botKills: 0 } });
+export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, stats: { kills: 0, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 } }); // [v98] + harbor AI / boss kills (unlock tracks)
 export function cleanProfile(p) {
   const b = blankProfile(); if (!p || typeof p !== 'object') return b;
   const n = (x, hi) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
   b.gold = n(p.gold, 1e7);
   for (const u of UPGRADES) b.levels[u.id] = n(p.levels?.[u.id], u.tiers.length);
-  const st = p.stats || {}; b.stats = { kills: n(st.kills, 1e7), deaths: n(st.deaths, 1e7), botKills: n(st.botKills, 1e7) };
+  const st = p.stats || {}; b.stats = { kills: n(st.kills, 1e7), deaths: n(st.deaths, 1e7), botKills: n(st.botKills, 1e7), harborKills: n(st.harborKills, 1e7), bossKills: n(st.bossKills, 1e7) };
   // skins: unlocked ONLY by lifetime player kills (PVP_SKIN_TIERS); the selected one must be unlocked
   b.skins.owned = PVP_SKIN_TIERS.filter(t => t.id !== 'classic' && (ownerAll || b.stats.kills >= t.kills)).map(t => t.id);
+  for (const u of PVP_UNLOCK_SKINS) if (ownerAll || b.stats[UNLOCK_STAT[u.unlock?.type]] >= u.unlock?.count) b.skins.owned.push(u.id); // [v98] COMMODORE: 100 harbor boss kills
   const eq = p.skins?.equipped; b.skins.equipped = eq === 'classic' || b.skins.owned.includes(eq) ? eq : 'classic';
   return b;
 }

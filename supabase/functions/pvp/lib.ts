@@ -24,12 +24,15 @@ export async function tokenBalance(rpc: string, owner: string, mint: string): Pr
   return j.result.value.reduce((a: number, v: any) => a + (Number(v?.account?.data?.parsed?.info?.tokenAmount?.uiAmount) || 0), 0);
 }
 // PvP skins unlock by lifetime player kills (must match PVP_SKIN_TIERS in js/config.js)
+// [v98] harbor-unlock skins (must match PVP_UNLOCK_SKINS in js/config.js): COMMODORE = 100 harbor boss kills
+export const UNLOCK_SKINS: Record<string, { stat: "harborKills" | "bossKills"; need: number }> = { commodore: { stat: "bossKills", need: 100 } };
 export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagreen: 25, midnight: 50, coral: 150, storm: 300, kraken: 600, golden: 1000, ghost: 1500, admiral: 2000, flaming: 2500, diamond: 5000 };
 // plausibility caps per save (anti-cheat is modest: the client is trusted for its own ship in v1)
 // a rejected save does NOT move updated_at, so a big legit pickup goes through a few seconds later as the allowance grows
 // [v92] valuePerMin 2500 -> 10000: harbor pay ×2 and holder gold ×2 (up to ×4 for a holder), same headroom as before
 // [v94] valueBase 300 -> 2500: a harbor boss pile (up to 840 g, ×2 for holders = 1,680) lands in one save
-export const CAPS = { valueBase: 2500, valuePerMin: 10000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15 };
+// [v98] harbor AI kills share the AI-kill pace; harbor bosses come every 3-5 min (one at a time)
+export const CAPS = { valueBase: 2500, valuePerMin: 10000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15, bossBase: 2, bossPerMin: 1 };
 
 export const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const isWallet = (w: unknown): w is string => {
@@ -48,15 +51,16 @@ export function verifySignature(message: string, signatureB64: string, wallet: s
   } catch { return false; }
 }
 
-export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; stats: { kills: number; deaths: number; botKills: number } };
+export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number } };
 const n = (x: unknown, hi: number) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
 export function cleanProfile(p: any): Profile {
   const o = p && typeof p === "object" ? p : {};
   const levels: Record<string, number> = {};
   for (const [id, c] of Object.entries(TIER_COSTS)) levels[id] = n(o.levels?.[id], c.length);
-  const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7) };
+  const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7), harborKills: n(o.stats?.harborKills, 1e7), bossKills: n(o.stats?.bossKills, 1e7) }; // [v98] unlock tracks
   // unlocked skins come ONLY from the kill count; the selected one must be unlocked
-  const owned = Object.keys(SKIN_KILLS).filter((id) => id !== "classic" && stats.kills >= SKIN_KILLS[id]);
+  const owned = Object.keys(SKIN_KILLS).filter((id) => id !== "classic" && stats.kills >= SKIN_KILLS[id])
+    .concat(Object.keys(UNLOCK_SKINS).filter((id) => stats[UNLOCK_SKINS[id].stat] >= UNLOCK_SKINS[id].need));
   const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || owned.includes(o.skins.equipped)) ? o.skins.equipped : "classic";
   return { gold: n(o.gold, 10_000_000), levels, skins: { owned, equipped: eq }, stats };
 }
@@ -74,5 +78,16 @@ export function saveProblem(cur: Profile, next: Profile, mins: number): string |
   if (dk < 0 || dd < 0 || db < 0) return "K/D can't go down";
   if (dk > CAPS.killsBase + CAPS.killsPerMin * m || db > CAPS.killsBase + CAPS.killsPerMin * m) return "too many kills for the time";
   if (dd > CAPS.deathsBase + CAPS.deathsPerMin * m) return "too many deaths for the time";
+  // [v98] unlock tracks (harbor AI / boss kills): never down (an older client that doesn't send them keeps the stored count, see
+  // keepCounters), and no faster than the harbor can pay out
+  const dh = next.stats.harborKills - cur.stats.harborKills, dbo = next.stats.bossKills - cur.stats.bossKills;
+  if (dh > CAPS.killsBase + CAPS.killsPerMin * m) return "too many harbor kills for the time";
+  if (dbo > CAPS.bossBase + CAPS.bossPerMin * m) return "too many boss kills for the time";
   return null;
+}
+// [v98] the unlock counters only ever go up: a save without them (pre-v98 client) or with a lower number keeps the stored one
+export function keepCounters(cur: Profile, next: Profile): Profile {
+  next.stats.harborKills = Math.max(cur.stats.harborKills, next.stats.harborKills);
+  next.stats.bossKills = Math.max(cur.stats.bossKills, next.stats.bossKills);
+  return cleanProfile(next); // owned / equipped re-derived from the kept counters (COMMODORE)
 }

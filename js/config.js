@@ -138,3 +138,17 @@ export const HOLDER_MIN_TOKENS = 1, HOLDER_GOLD_MUL = 2, HOLDER_DAILY_GOLD = 100
 export const HOLDER_MINTS = { SUNK: 'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump', AHOY: '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump' };
 export const PVP_BOUNTY = { perKill: 25, cap: 500, announce: 200, pairWindow: 120 };
 export const PVP_REPAIR_COST = 40;    // repairs stay cheap in PvP (+50 HP, same as solo)
+
+// [v98] SQUADS (2v2) under BATTLE ROYALE: its own lobby prefix (the same free-plan budget: the lobby counts every room), host-run
+// rounds (teams fixed per round, friendly fire off, a round ends when one team is fully sunk). Shared profile with Solo.
+export const SQUADS = {
+  size: 2, players: 4,          // 2v2; a round starts with 4 pirates in the arena (cap 4)
+  roundSecs: 360,               // a round that runs this long ends by pirates afloat, then hull left
+  endSecs: 8,                   // VICTORY / DEFEAT screen, then the next round
+  protect: 3,                   // spawn bubble at a round start
+  winGold: 150,                 // each pirate on the winning team (earned gold: the holder perk doubles it, like the +100 kill bonus)
+  blue: 0x2f6fe8, red: 0xd8322f, // your team / the enemy (spectators: team A blue, team B red)
+};
+// [v98] unlock tracking: harbor AI kills + harbor boss kills, counted per profile from v98 (server-checked like gold). The skins
+// unlocked by them are PVP_UNLOCK_SKINS (Timothy): COMMODORE = 100 harbor boss kills. unlock.type -> the profile stat it reads:
+export const UNLOCK_STAT = { harborBossKills: 'bossKills', harborKills: 'harborKills' };

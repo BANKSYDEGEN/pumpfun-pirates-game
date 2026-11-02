@@ -24,7 +24,10 @@ import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from '
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
-import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
+import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
+import { SQUADS } from './config.js';
+import { Room } from './net.js';
+import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
@@ -50,6 +53,9 @@ export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG
 const MAX_SPEED = 3 * 4.2 * MAXED.speed * 1.15;
 const MAX_HP = MAXED.maxHp;
 const QS = new URLSearchParams(location.search);
+const SQ_PREFIX = 'pfp-pvp-' + ROOM_PREFIX.slice(8, 22) + 'sq'; // [v98] the SQUADS arena: its own lobby prefix + room (live: pfp-pvp-v1sq)
+const SQ_MIN = Math.max(2, Math.min(SQUADS.players, +QS.get('sqmin') || SQUADS.players)); // pirates needed to start a round (tests: ?sqmin=2)
+const ls0 = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const TEST_CAP = +QS.get('pvpcap') || null, TEST_OFFER = +QS.get('pvpoffer') || null, TEST_AFK = +QS.get('pvpafk') || 0; // test prefixes only (the lobby ignores them for the live arena)
 const PIRATE_A = ['SALTY', 'RUM', 'IRON', 'BLACK', 'MAD', 'LUCKY', 'STORMY', 'ONE-EYED', 'GOLDEN', 'DEGEN', 'SALTY', 'CRIMSON'];
 const PIRATE_B = ['JACK', 'BONES', 'MARY', 'HOOK', 'FINN', 'ANNE', 'PETE', 'MORGAN', 'KIDD', 'NED', 'BEARD', 'SALLY'];
@@ -69,7 +75,11 @@ export function createPvp(K) {
   // never host, never saves. The hidden local player is used as a camera rig that follows a captain or the overview.
   const spec = { want: false, on: false, mode: 'leader', target: null, rig: null, camLock: 0, emptyT: 0, hudOff: false, maxDist: 0, wired: false };
   let room = null, roomIdx = 0, active = false, isHost = false, hostId = null, hudT = 0, saveT = 0, botT = 0, botSeq = 0, pileSeq = 0;
-  const net = createNet({ prefix: ROOM_PREFIX, myId });
+  // [v98] one lobby / room per mode. SOLO = the free-for-all arena, SQUADS = 2v2 teams. Same profile (skins, upgrades, gold, board).
+  const nets = { solo: createNet({ prefix: ROOM_PREFIX, myId }), squads: createNet({ prefix: SQ_PREFIX, myId }) };
+  let mode = ls0('pfp_br_mode') === 'squads' ? 'squads' : 'solo', net = nets[mode];
+  const curPrefix = () => mode === 'squads' ? SQ_PREFIX : ROOM_PREFIX;
+  const isSq = () => mode === 'squads' && (where === 'arena' || where === 'spec'); // in the squads arena (playing or watching)
   const seatId = myId + Math.random().toString(36).slice(2, 10);
   // where we are: 'harbor' (local, AI only) | 'arena' (in the shared room) | 'spec'. lob = the lobby's last answer.
   let where = 'harbor';
@@ -133,8 +143,9 @@ export function createPvp(K) {
     }
     return r || { state: 'error' };
   }
-  async function joinBattle() { // harbor JOIN BATTLE button
+  async function joinBattle(fromParty = false) { // harbor JOIN BATTLE button
     if (where !== 'harbor' || lob.busy) return; lob.busy = true;
+    if (mode === 'squads' && !fromParty && partyMate()) party.room?.send('go', { i: myId }); // [v98] your party mate queues with you
     try {
       const r = await lobbyCall('play');
       if (r.state === 'play') await enterArena();
@@ -155,20 +166,20 @@ export function createPvp(K) {
     let link;
     try { link = await net.openRoom(1); } catch (e) { console.warn('[pvp] arena connect failed', e?.message); await lobbyCall('leave'); K.banner('ARENA OFFLINE', 'could not connect, back in the harbor'); return false; }
     if (!active) { link.close(); return false; }
-    room = link; roomIdx = 1; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true });
+    room = link; roomIdx = 1; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true }); sqReset();
     where = 'arena'; lob.queuedByDeath = false; document.documentElement.classList.remove('pvp-harbor'); harborUi();
     me.dead = true; P().alive = false; P().mesh.visible = false; // listen a moment so the spawn is the farthest from everyone
     K.banner('ENTERING THE ARENA', 'finding the quietest spawn…');
     await new Promise(res => setTimeout(res, 1200));
     if (!active || where !== 'arena') return false;
-    P().mesh.visible = true; me.lastInput = performance.now(); electHost(); respawn(); hud();
+    P().mesh.visible = true; me.lastInput = performance.now(); electHost(); if (!(isSq() && sq.ph === 'live' && sq.myR === sq.r)) respawn(); hud(); // [v98] squads: a round spawn already placed us
     return true;
   }
   function toHarbor(title, sub) { // leave the arena (rotation, AFK, lost seat, RETURN TO HARBOR); upgrades, gold, K/D stay; bounty resets
     resetBounty(); me.ret = null;
     if (room) { room.send('bye', { i: myId }, { now: true }); room.close(); }
     room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
-    isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor');
+    isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); sqReset(); sqVis();
     respawnHarbor(); harborUi(); K.banner(title, sub);
   }
   function respawnHarbor(afterDeath = false) {
@@ -300,7 +311,8 @@ export function createPvp(K) {
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; })
-      .on('emo', onEmote); // [v96] quick-chat callouts (preset ids only)
+      .on('emo', onEmote) // [v96] quick-chat callouts (preset ids only)
+      .on('sq', onSq); // [v98] squads round state (host)
     r.onStatus = (s) => { if (s === 'reconnecting') K.banner('RECONNECTING…', 'the sea went quiet for a moment'); else if (s === 'limit') K.banner('SERVERS BUSY', 'the arena is over capacity, hang on…'); };
   }
   const livePeers = () => [...peers.values()].filter(p => performance.now() - p.heard < PEER_TIMEOUT);
@@ -329,7 +341,8 @@ export function createPvp(K) {
     let p = peers.get(m.i);
     const now = performance.now();
     if (!p) { p = { id: m.i, heard: now, st: null, ship: null, key: '' }; peers.set(m.i, p); }
-    const lv = lvFrom(m.lv), sk = tierOf(m.sk) ? m.sk : 'classic', key = JSON.stringify(lv) + sk;
+    const lv = lvFrom(m.lv), sk = knownSkin(m.sk) ? m.sk : 'classic', key = JSON.stringify(lv) + sk; // [v98] + unlock skins (COMMODORE)
+    p.pc = typeof m.pc === 'string' ? m.pc.slice(0, 8) : '';
     p.name = esc(m.n).slice(0, 20) || 'PIRATE'; p.k = m.k | 0; p.d = m.d | 0; p.g = m.g | 0; p.K = m.K | 0; p.D = m.D | 0; p.bK = m.bK == null ? null : Math.max(0, m.bK | 0); p.bD = m.bD == null ? null : Math.max(0, m.bD | 0); /* [v81] board totals */ p.lv = lv; p.sk = sk;
     const prevHeard = p.heard; p.heard = now;
     // speed sanity: a jump faster than the best possible ship (same life) is clamped
@@ -391,7 +404,7 @@ export function createPvp(K) {
   function dropShip(obj) {
     const i = enemies.indexOf(obj); if (i >= 0) enemies.splice(i, 1);
     if (obj.mesh) { scene.remove(obj.mesh); K.disposeShip(obj.mesh); }
-    obj.bar?.remove(); if (obj.shield) scene.remove(obj.shield);
+    obj.bar?.remove(); if (obj.shield) scene.remove(obj.shield); if (obj.ring) scene.remove(obj.ring);
   }
   function clearPeers() { for (const p of peers.values()) if (p.ship) dropShip(p.ship); peers.clear(); }
 
@@ -474,6 +487,7 @@ export function createPvp(K) {
     for (const s of ships) {
       if (s === b.owner || !s.alive || (s === pl && me.dead)) continue;
       if (b.owner?.net?.kind === 'bot' && s !== pl) continue; // AI balls only hurt you, never other AI ships / pirates
+      if (isSq() && !sqCanHit(shipIdOf(b.owner), shipIdOf(s))) continue; // [v98] squads: balls pass through teammates; no damage between rounds
       if (!inside(s, p)) continue;
       if (b.visual) { fx.hit(p.clone()); return true; }
       if (s === pl ? me.protect > 0 : s.prot) { fx.splash(p); return true; } // bubble soaks it
@@ -501,6 +515,7 @@ export function createPvp(K) {
   function onHit(m) {
     if (!m || typeof m.s !== 'string' || !Array.isArray(m.h)) return;
     const shooter = ownerObj(m.s); if (!shooter) return; // unknown shooter
+    if (isSq() && !sqCanHit(m.s, myId)) return; // [v98] never from a teammate / outside a live round
     const now = performance.now(), bk = buckets.get(m.s) || { tokens: 12, t: now };
     bk.tokens = Math.min(12, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
     const cap = MAX_HIT;
@@ -538,6 +553,7 @@ export function createPvp(K) {
     if (isHost) spawnPile(myId, pl.x, pl.z, Math.min(carried, earned.get(myId) ?? PVP_MAX_CARRY) + (afk ? 0 : PVP_DEATH_BONUS) + bounty, false, afk ? 0 : PVP_DEATH_BONUS);
     earned.delete(myId);
     addFeed(`<b>${esc(me.killedBy)}</b> sank <b class="me">${esc(name)}</b>`);
+    if (isSq()) { sq.sunk.add(myId); me.respawn = Infinity; me.deadAt = performance.now(); showDead(true); K.updateHud(); return; } // [v98] squads: out until the round ends (rotation at the round end)
     showDead(true); K.updateHud();
     // rotation: the lobby decides. Queue non-empty = back of the queue (into the harbor after the death screen)
     lobbyCall('died').then((r) => {
@@ -548,13 +564,16 @@ export function createPvp(K) {
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true);
     if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
-    if (by === myId && !e.fade) { profile.stats.botKills++; save(); }
+    if (by === myId && !e.fade) { profile.stats.botKills++; // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills)
+      const st = profile.stats; if (e.harborBoss) st.bossKills = (st.bossKills | 0) + 1; else st.harborKills = (st.harborKills | 0) + 1;
+      for (const u of UNLOCKS) { const pr = unlockProgress(u.id, st); if (pr && pr.have === pr.need && (e.harborBoss ? pr.stat === 'bossKills' : pr.stat === 'harborKills')) skinToast({ id: u.id, name: u.name, why: `${pr.need} harbor boss kills` }); }
+      save(e.harborBoss ? { now: true } : {}); }
   }
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
   function boardClaim(side, k, v, life, keepalive = false) {
     if (!room || typeof k !== 'string' || typeof v !== 'string') return;
     const ent = { side, t1: 0 }; if (!keepalive) unsynced.push(ent);
-    claimKill({ side, room: `${ROOM_PREFIX}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r;
+    claimKill({ side, room: `${curPrefix()}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r;
       ent.t1 = performance.now(); if (!(r === 'recorded' || r === 'pending')) { const i = unsynced.indexOf(ent); if (i >= 0) unsynced.splice(i, 1); } // not counted by the server if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }
       else if (r === 'pending' && !keepalive) for (const ms of [3000, 9000]) setTimeout(() => { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }, ms); }); // [v77] the other side's claim lands after mine: re-read my rank / the board (a first death now ranks me)
   }
@@ -576,6 +595,7 @@ export function createPvp(K) {
     if (seenSunk.size > 200) for (const [k2, t2] of seenSunk) if (now - t2 > 20000) seenSunk.delete(k2);
     if (m.bot) return; // (old clients) AI ships are local now
     const victim = peers.get(m.v)?.ship;
+    if (isSq() && sq.ph === 'live') sq.sunk.add(m.v); // [v98] round gold needs a real sinking
     if (victim && victim.alive && victim.remote) { victim.alive = false; victim.sinking = 0.001; sfx.sink(false); fx.ring(new THREE.Vector3(victim.x, 0, victim.z), 3, 16, 2.2); if (victim.netState) victim.netState.a = false; }
     const by = typeof m.by === 'string' ? m.by : null;
     const afk = !!m.af; // the victim had been idle: no kill credit, no +100
@@ -636,16 +656,164 @@ export function createPvp(K) {
     K.banner(crowded ? 'BACK AT SEA · extra protection' : 'BACK AT SEA', `spawn protection ${Math.round(me.protect)} s (ends when you fire)`);
   }
 
+  // ---------------- [v98] SQUADS (2v2): mode, party code, host-run rounds, team colours ----------------
+  // The host (lowest id, as for gold piles) runs the round: wait (no damage) -> live (teams fixed, friendly fire off, a sunk pirate
+  // is out until the round ends) -> end (VICTORY / DEFEAT, win gold, the losers rotate out when someone queues) -> wait.
+  const sq = { r: 0, ph: 'wait', A: [], B: [], A0: [], B0: [], until: 0, w: '', sent: 0, readyAt: 0, sunk: new Set(), joinAt: new Map(), downAt: new Map(), seen: '', myR: -1, bar: null, waitN: 0, joinedAt: 0 };
+  function sqReset() { Object.assign(sq, { r: 0, ph: 'wait', A: [], B: [], A0: [], B0: [], until: 0, w: '', sent: 0, readyAt: 0, seen: '', myR: -1, waitN: 0, joinedAt: performance.now() }); sq.sunk.clear(); sq.joinAt.clear(); sq.downAt.clear(); if (sq.bar) sq.bar.hidden = true; }
+  const sqTeam = (id) => sq.A.includes(id) ? 'A' : sq.B.includes(id) ? 'B' : null;
+  const shipIdOf = (o) => o === P() ? myId : o?.net?.id;
+  const sqCanHit = (a, b) => sq.ph === 'live' && !!sqTeam(a) && !!sqTeam(b) && sqTeam(a) !== sqTeam(b);
+  const myPc = () => mode === 'squads' && party.code ? partyTag(party.code) : '';
+  function setNet(m) { mode = m === 'squads' ? 'squads' : 'solo'; net = nets[mode]; Object.assign(lob, { cap: net.cfg.maxArena, known: false, lastPoll: 0, players: 0, queue: 0, specs: 0 }); }
+  function setMode(m) { // the queue harbor's SOLO / SQUADS switch: only while not queued
+    m = m === 'squads' ? 'squads' : 'solo'; if (m === mode) return;
+    if (where !== 'harbor' || spec.on || lob.busy || lob.state !== 'harbor') { K.banner('LEAVE THE QUEUE FIRST', 'switch SOLO / SQUADS while you are not queued'); harborUi(); return; }
+    setNet(m); try { localStorage.setItem('pfp_br_mode', mode); } catch {}
+    if (mode === 'solo') partyLeave(true);
+    lobbyCall('poll').then(harborUi); harborUi();
+    K.banner(mode === 'squads' ? 'SQUADS 2v2' : 'SOLO', mode === 'squads' ? 'share a party code with a friend, or get a random teammate' : 'free-for-all: every pirate for themselves');
+  }
+  // party: 2 friends share a 5-character code (a tiny realtime channel, a heartbeat every 4 s); JOIN BATTLE queues you both
+  const party = { code: '', room: null, mates: new Map(), t: 0, hbT: 0, msg: '' };
+  const partyMate = () => { const now = performance.now(); for (const [id, m] of party.mates) if (now - m.at < 10000) return { id, ...m }; return null; };
+  function partyMsg(t) { party.msg = t; harborUi(); }
+  async function partyJoin(code, made = false) {
+    code = cleanCode(code); if (code.length !== 5) { partyMsg('A party code is 5 letters / numbers'); return; }
+    partyLeave(true); party.code = code; party.t = Date.now(); party.mates.clear(); party.msg = made ? 'share this code with your friend' : 'joining…';
+    const r = new Room('pfp-party-' + code.toLowerCase()); party.room = r;
+    r.on('p', onPartyBeat).on('bye', (m) => { if (party.mates.delete(m?.i)) harborUi(); })
+      .on('go', (m) => { if (m?.i && party.mates.has(m.i) && mode === 'squads' && where === 'harbor' && lob.state === 'harbor' && !spec.on) { K.banner('YOUR MATE SET SAIL', 'queuing you together…'); joinBattle(true); } });
+    harborUi();
+    try { await r.connect(); } catch { if (party.room === r) { partyLeave(true); partyMsg('could not open the party channel, try again'); } return; }
+    if (party.room !== r) { r.close(); return; }
+    if (!made) party.msg = 'waiting for your mate…'; partyBeat(); harborUi();
+  }
+  function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; if (!silent) harborUi(); }
+  function partyBeat() { party.room?.send('p', { i: myId, n: name, t: party.t, st: where === 'harbor' ? lob.state : where }); }
+  function onPartyBeat(m) {
+    if (!m || typeof m.i !== 'string' || m.i === myId || m.i.length > 20) return;
+    const had = party.mates.has(m.i); party.mates.set(m.i, { n: esc(m.n).slice(0, 20) || 'PIRATE', t: +m.t || 0, st: String(m.st || '').slice(0, 10), at: performance.now() });
+    const now = performance.now(), live = [...party.mates.values()].filter(x => now - x.at < 10000);
+    if (live.length >= SQUADS.size && live.every(x => x.t < party.t)) { partyLeave(true); partyMsg('PARTY FULL: that code already has 2 pirates'); return; } // the latest joiner leaves
+    if (!had) { party.msg = ''; partyBeat(); K.banner('PARTY READY', `${party.mates.get(m.i).n} joined · JOIN BATTLE queues you both`); }
+    harborUi();
+  }
+  function partyTick(now) { if (party.room && now - party.hbT > 4000) { party.hbT = now; partyBeat(); } }
+  const aliveId = (id) => { if (id === myId) return where === 'arena' && !spec.on && P().alive && !me.dead; const p = peers.get(id); return !!p && performance.now() - p.heard < PEER_TIMEOUT && !!p.st?.a; };
+  const hpFrac = (id) => { if (!aliveId(id)) return 0; if (id === myId) return P().hp / Math.max(1, P().maxHp); const st = peers.get(id)?.st; return st ? st.h / Math.max(1, st.m) : 0; };
+  function sqHost(now) {
+    const present = [...(spec.on ? [] : [myId]), ...livePeers().map(p => p.id)];
+    const pcOf = (id) => id === myId ? myPc() : (peers.get(id)?.pc || '');
+    let ch = false;
+    if (sq.ph === 'wait') {
+      sq.waitN = present.length;
+      const ok = present.length >= SQ_MIN && present.every(aliveId);
+      if (!ok) sq.readyAt = 0; else if (!sq.readyAt) sq.readyAt = now;
+      else if (now - sq.readyAt > 2500) { const t = makeTeams(present.slice(0, SQUADS.players).map(id => ({ id, pc: pcOf(id) })));
+        Object.assign(sq, { r: sq.r + 1, ph: 'live', A: t.A, B: t.B, until: now + SQUADS.roundSecs * 1000, w: '', readyAt: 0 }); sq.joinAt.clear(); ch = true; }
+    } else if (sq.ph === 'live') {
+      const here = new Set(present), A = sq.A.filter(id => here.has(id)), B = sq.B.filter(id => here.has(id));
+      if (A.length !== sq.A.length || B.length !== sq.B.length) { sq.A = A; sq.B = B; ch = true; } // leavers drop out of their team
+      for (const id of present) if (!sqTeam(id)) { const T = sq.A.length <= sq.B.length ? sq.A : sq.B; if (T.length < SQUADS.size) { T.push(id); sq.joinAt.set(id, now); ch = true; } } // a new pirate fills a short team
+      for (const id of [...sq.A, ...sq.B]) { if (aliveId(id)) sq.downAt.delete(id); else if (!sq.downAt.has(id)) sq.downAt.set(id, now); }
+      const down = (id) => sq.sunk.has(id) || now - (sq.downAt.get(id) ?? now) > 4000; // sunk (heard), or not afloat for 4 s (a missed 'sunk' / a lagging tab)
+      const up = (T) => T.filter(id => !down(id) || now - (sq.joinAt.get(id) || -1e9) < 6000).length, a = up(sq.A), b = up(sq.B);
+      let w = '';
+      if (!a || !b) w = !a && !b ? 'D' : a ? 'A' : 'B'; // a team fully sunk (or gone)
+      else if (now > sq.until) { if (a !== b) w = a > b ? 'A' : 'B'; else { const ha = sq.A.reduce((x, id) => x + hpFrac(id), 0), hb = sq.B.reduce((x, id) => x + hpFrac(id), 0); w = Math.abs(ha - hb) < 0.02 ? 'D' : ha > hb ? 'A' : 'B'; } }
+      if (w) { Object.assign(sq, { ph: 'end', w, until: now + SQUADS.endSecs * 1000 }); ch = true; }
+    } else if (now > sq.until) { Object.assign(sq, { ph: 'wait', A: [], B: [], w: '', readyAt: 0 }); ch = true; }
+    if (ch || now - sq.sent > 2000) { sq.sent = now; room?.send('sq', { h: myId, r: sq.r, ph: sq.ph, A: sq.A, B: sq.B, left: Math.max(0, Math.round(sq.until - now)), w: sq.w, n: present.length }); }
+    if (ch) sqChanged();
+  }
+  function onSq(m) { // the host's round state (anyone else's is ignored)
+    if (!isSq() || !m || typeof m.h !== 'string' || m.h !== hostId || m.h === myId) return;
+    const ids = (a) => Array.isArray(a) ? a.filter(x => typeof x === 'string' && x.length <= 20).slice(0, SQUADS.size) : [];
+    Object.assign(sq, { r: Math.max(0, m.r | 0), ph: ['wait', 'live', 'end'].includes(m.ph) ? m.ph : 'wait', A: ids(m.A), B: ids(m.B), until: performance.now() + clamp(+m.left || 0, 0, SQUADS.roundSecs * 1000), w: ['A', 'B', 'D'].includes(m.w) ? m.w : '', waitN: clamp(m.n | 0, 0, 8) });
+    sqChanged();
+  }
+  const tName = (t) => t === 'A' ? 'BLUE' : 'RED';
+  function sqChanged() {
+    const key = `${sq.r}:${sq.ph}`; if (key === sq.seen) return; const prevPh = sq.seen.split(':')[1]; sq.seen = key;
+    if (sq.ph === 'live') { sq.sunk.clear(); sq.downAt.clear(); sq.A0 = [...sq.A]; sq.B0 = [...sq.B];
+      if (spec.on) K.banner(`ROUND ${sq.r} · 2v2`, `${sq.A.map(nameOf).join(' + ')} (BLUE) vs ${sq.B.map(nameOf).join(' + ')} (RED)`);
+      return; } // players: the spawn + banner come from sqTick once we're on a team
+    if (sq.ph === 'end') {
+      if (spec.on) { K.banner(sq.w === 'D' ? 'DRAW' : `${tName(sq.w)} TEAM WINS`, `round ${sq.r}`); return; }
+      if (where !== 'arena') return;
+      const myT = sq.A0.includes(myId) ? 'A' : sq.B0.includes(myId) ? 'B' : null, won = !!myT && sq.w === myT, draw = sq.w === 'D', losers = sq.w === 'A' ? sq.B0 : sq.A0;
+      let gold = 0;
+      if (won && [...sq.sunk].some(id => losers.includes(id))) { // win gold only for a real fight (someone on the other team was sunk), earned gold: the holder perk doubles it
+        gold = SQUADS.winGold + holderMul(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${gold} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
+      K.banner(draw ? 'DRAW' : won ? 'VICTORY!' : myT ? 'DEFEAT' : 'ROUND OVER', won ? (gold ? `+${gold} gold · next round in ${SQUADS.endSecs} s` : 'no gold: nobody on their team was sunk') : draw ? 'nobody wins this round' : `next round in ${SQUADS.endSecs} s`);
+      if (myT && !won && lob.queue > 0) lobbyCall('died').then((r) => { if (r.state === 'queue') lob.queuedByDeath = true; }); // rotation: the losing team makes room for the queue
+      return;
+    }
+    if (spec.on || where !== 'arena') return; // wait
+    if (lob.queuedByDeath) { lob.queuedByDeath = false; toHarbor('IN THE QUEUE', `position #${lob.pos || '?'} · farm the harbor AI while you wait`); return; }
+    if (me.dead) respawn();
+    if (prevPh) K.banner('SQUADS', 'waiting for the next round · no damage until it starts');
+  }
+  function sqSpawn(t) { // round start: your team's side of the arena
+    const pl = P(), side = t === 'A' ? -1 : 1, list = t === 'A' ? sq.A : sq.B, k = Math.max(0, list.indexOf(myId));
+    let x = side * PVP_ARENA_R * 0.55, z = (k ? 1 : -1) * 22;
+    if (K.islands) [x, z] = K.islands.freeSpot(x, z, 16);
+    me.dead = false; me.respawn = 0; me.respawnAt = 0; me.life++; me.protect = SQUADS.protect; me.lastBy = null; me.lastDamageAt = 0;
+    Object.assign(pl, { alive: true, sinking: 0, hp: pl.maxHp, x, z, yaw: Math.atan2(-x, -z), speed: 0, sail: 1, anchor: false, calm: 0, repT: 0 });
+    pl.cd.port = pl.cd.star = 0; pl.mesh.visible = true; K.resetCamera(); showDead(false); K.updateHud();
+    const mates = list.filter(id => id !== myId).map(nameOf), foes = (t === 'A' ? sq.B : sq.A).map(nameOf);
+    K.banner(`ROUND ${sq.r} · 2v2`, `${mates.length ? `you + ${mates.join(', ')}` : 'you'} vs ${foes.join(' + ') || '…'} · sink the RED ships`);
+  }
+  function sqTick(now) {
+    if (room && isHost && !spec.on && now - sq.joinedAt > 3000) sqHost(now);
+    if (!spec.on && where === 'arena' && sq.ph === 'live' && sqTeam(myId) && sq.myR !== sq.r) { sq.myR = sq.r; sqSpawn(sqTeam(myId)); }
+    if (!spec.on && me.dead && me.respawn === Infinity && sq.ph === 'live' && now - (me.deadAt || 0) > 3000) { // out for the round: the camera follows your teammate
+      const mate = (sqTeam(myId) === 'A' ? sq.A : sq.B).map(id => peers.get(id)?.ship).find(s => s && s.alive);
+      if (mate) { const pl = P(); pl.mesh.visible = false; pl.x += (mate.x - pl.x) * 0.08; pl.z += (mate.z - pl.z) * 0.08; } }
+    sqVis();
+  }
+  const SQ_CSS = { [SQUADS.blue]: '#8fb8ff', [SQUADS.red]: '#ff8f8f' };
+  function sqVis() { // your team = blue sails + flag, the enemy = red (hulls keep their skin); name tags, a ring under teammates, radar dots
+    const on = isSq() && sq.ph !== 'wait', mine = spec.on ? null : sqTeam(myId);
+    const col = (id) => { const t = on ? sqTeam(id) : null; if (!t) return null; if (spec.on) return t === 'A' ? SQUADS.blue : SQUADS.red; return mine ? (t === mine ? SQUADS.blue : SQUADS.red) : null; };
+    const opts = { skullImg: K.skullImg, mainImg: K.shipOpts?.mainSailMap?.image };
+    if (!spec.on && P()?.mesh) teamPaint(P().mesh, on && mine ? SQUADS.blue : null, opts);
+    for (const p of peers.values()) { const s = p.ship; if (!s?.mesh) continue; const c = col(p.id); teamPaint(s.mesh, c, opts);
+      const css = c == null ? '' : SQ_CSS[c]; if (s.nameEl && s.nameEl.style.color !== css) s.nameEl.style.color = css;
+      s.radarColor = c === SQUADS.blue ? '#3d8bff' : null;
+      if (c === SQUADS.blue && !spec.on && s.alive) { if (!s.ring) s.ring = mateRing(scene); const L = s.mesh.userData.hitLen || s.mesh.userData.len || 16; s.ring.visible = true; s.ring.position.set(s.x, 0.4, s.z); s.ring.scale.setScalar(L * 0.62); }
+      else if (s.ring) s.ring.visible = false; }
+    mateBar(on && !!mine && where === 'arena');
+  }
+  function mateBar(show) { // your teammate's hull at the top of the screen
+    let b = sq.bar; const mates = show ? (sqTeam(myId) === 'A' ? sq.A : sq.B).filter(id => id !== myId) : [];
+    if (!mates.length) { if (b) b.hidden = true; return; }
+    if (!b) { b = sq.bar = document.createElement('div'); b.id = 'sq-mate'; b.innerHTML = '<span></span><i><b></b></i>'; document.body.appendChild(b); }
+    const id = mates[0], p = peers.get(id), alive = aliveId(id), f = alive ? hpFrac(id) : 0;
+    b.hidden = false; b.classList.toggle('sunk', !alive);
+    const t = `⚓ ${p?.name || 'TEAMMATE'}${alive ? ` · ${Math.round(f * 100)}%` : ' · SUNK'}`; if (b.firstChild.textContent !== t) b.firstChild.textContent = t;
+    b.querySelector('b').style.width = `${Math.round(f * 100)}%`;
+  }
+  function sqHudLine(n) {
+    const left = Math.max(0, Math.ceil((sq.until - performance.now()) / 1000)), mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    if (sq.ph === 'live') { const mine = sqTeam(myId), foe = mine === 'A' ? 'B' : 'A'; return `SQUADS · ROUND ${sq.r} · ${mm}\n${mine ? `BLUE ${sq[mine].filter(aliveId).length} vs RED ${sq[foe].filter(aliveId).length} afloat` : 'you join the next round'}`; }
+    if (sq.ph === 'end') return `SQUADS · ROUND ${sq.r} OVER\nnext round in ${left} s`;
+    return `SQUADS · WAITING ${Math.max(n, sq.waitN)}/${SQ_MIN} pirates\nno damage until the round starts`;
+  }
+
   // ---------------- per-frame ----------------
   function update(dt) {
     if (!active) return;
     const now = performance.now(), pl = P();
     if (room) electHost();
+    partyTick(now);
     if (spec.on) { specTick(dt, now); return; }
     if (me.protect > 0) me.protect = Math.max(0, me.protect - dt);
     shield(pl, pl.alive && !me.dead && me.protect > 0); skinFx(pl, dt);
     lobbyTick(dt); aiTick(dt); afkTick(); retTick();
-    if (me.dead) { me.respawn = me.respawnAt ? (me.respawnAt - now) / 1000 : me.respawn - dt; // [v95] harbor: wall clock, a true 5-4-3-2-1 even on a slow phone
+    if (isSq()) sqTick(now);
+    if (me.dead && !(isSq() && me.respawn === Infinity)) { me.respawn = me.respawnAt ? (me.respawnAt - now) / 1000 : me.respawn - dt; // [v95] harbor: wall clock, a true 5-4-3-2-1 even on a slow phone
       const el = $('pvp-dead-t'), n = Math.max(1, Math.ceil(me.respawn)); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); const big = $('pvp-dead-big'); if (big && big.textContent !== String(n)) { big.textContent = n; big.classList.remove('pop'); void big.offsetWidth; big.classList.add('pop'); } if (me.respawn <= 0) respawn(); }
     // arena edge
     const r = Math.hypot(pl.x, pl.z); if (r > PVP_ARENA_R) { pl.x *= PVP_ARENA_R / r; pl.z *= PVP_ARENA_R / r; if (!me.edgeT || now - me.edgeT > 5000) { me.edgeT = now; K.banner('EDGE OF THE ARENA', 'turn back, captain'); } }
@@ -661,7 +829,7 @@ export function createPvp(K) {
     if (where !== 'arena' || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
-      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
+      bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
     return m;
   }
 
@@ -699,8 +867,8 @@ export function createPvp(K) {
     $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
-    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}\nARENA ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
-      : room ? `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}` : 'joining…';
+    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}\n${mode === 'squads' ? 'SQUADS' : 'ARENA'} ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
+      : room ? (isSq() ? sqHudLine(n) : `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}`) : 'joining…';
     if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
     else { el._h = null; if (el.textContent !== txt) el.textContent = txt; }
   }
@@ -708,6 +876,8 @@ export function createPvp(K) {
     const el = $('pvp-dead'); el.classList.toggle('hidden', !on); if (!on) return;
     el.querySelector('.pd-by').textContent = `Sunk by ${me.killedBy}`;
     const q = el.querySelector('.pd-queue'); if (q) q.hidden = true; const re = el.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'Back at sea in ';
+    const tt = el.querySelector('#pvp-dead-t'); if (tt) tt.hidden = false;
+    if (isSq() && where === 'arena' && !me.aiDeath) { if (re) re.firstChild.textContent = 'Out for this round · your teammate fights on'; if (tt) tt.hidden = true; }
     el.classList.toggle('pd-harbor', where === 'harbor'); // [v95] harbor: big centred 5-4-3-2-1, respawn right here
     if (where === 'harbor' && re) re.firstChild.textContent = 'Back at sea in the harbor in ';
     el.querySelector('.pd-drop').textContent = me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
@@ -722,7 +892,7 @@ export function createPvp(K) {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
     const st = profile.stats, sk = lifeK(), nx = nextTier(sk); // [v76] skins unlock from THIS device's confirmed kills (or the signed wallet's), never a typed wallet
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(st.kills, st.deaths)}</b> · ${st.kills} player kills · ${st.deaths} deaths · ${st.botKills} AI sunk${nx ? `<br><span class="muted">${nx.kills - sk} more kills unlock ${nx.name}</span>` : ''}`;
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(st.kills, st.deaths)}</b> · ${st.kills} player kills · ${st.deaths} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses${nx ? `<br><span class="muted">${nx.kills - sk} more kills unlock ${nx.name}</span>` : ''}`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of TIERS) {
       const ok = canUse(t.id, sk), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
@@ -730,20 +900,25 @@ export function createPvp(K) {
       const lab = document.createElement('span'); lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${t.kills - sk} kills to unlock`}`; c.appendChild(lab);
       c.disabled = !ok; c.onclick = () => pickSkin(t.id); grid.appendChild(c);
     }
-    previewCards(grid, TIERS.map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
+    for (const u of UNLOCKS) { // [v98] harbor-unlock skins (Timothy): COMMODORE = 100 harbor boss kills, with a progress bar
+      const pr = unlockProgress(u.id, st), ok = canUse(u.id, sk, st), c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin unlock${ok ? '' : ' locked'}${u.id === skinId() ? ' on' : ''}`; c.dataset.skin = u.id;
+      c.appendChild(skinSwatch(pvpSkin(u.id), 96, 48));
+      const lab = document.createElement('span'); lab.innerHTML = `<b>${u.name}</b>${ok ? (u.id === skinId() ? 'SELECTED' : 'TAP TO USE') : `${Math.min(pr.have, pr.need)}/${pr.need} harbor boss kills`}${ok ? '' : `<span class="unl-bar"><i style="width:${Math.min(100, pr.have / pr.need * 100).toFixed(1)}%"></i></span>`}`; c.appendChild(lab);
+      c.disabled = !ok; c.onclick = () => pickSkin(u.id); grid.appendChild(c); }
+    previewCards(grid, [...TIERS, ...UNLOCKS].map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
     $('pvp-wallet-state').textContent = wallet ? `Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}` : 'Saving on this device automatically.';
     $('pvp-wallet').textContent = wallet ? 'Disconnect wallet' : 'Connect wallet to save';
     holderUi();
     renderBoard();
   }
   function pickSkin(id) {
-    if (!canUse(id, profile.stats.kills)) return;
+    if (!canUse(id, lifeK(), profile.stats)) return;
     profile.skins.equipped = id; K.rebuildShip(getRunLevels()); sfx.equip?.(); save({ now: true }); renderMenu();
   }
   function skinToast(t) {
     document.getElementById('skin-toast')?.remove();
     const el = document.createElement('div'); el.id = 'skin-toast';
-    el.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · ${t.kills} kills</span></div><button class="buy">EQUIP</button>`;
+    el.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · ${t.why || `${t.kills} kills`}</span></div><button class="buy">EQUIP</button>`;
     const sw = skinSwatch(pvpSkin(t.id), 88, 44); sw.className = 'st-sw'; el.prepend(sw);
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
     el.querySelector('button').onclick = (e) => { e.stopPropagation(); pickSkin(t.id); el.remove(); };
@@ -793,6 +968,11 @@ export function createPvp(K) {
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
     $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
+    $('pvp-mode')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (b) { e.stopPropagation(); setMode(b.dataset.m); } }); // [v98]
+    $('pvp-party-new')?.addEventListener('click', (e) => { e.stopPropagation(); partyJoin(newPartyCode(), true); });
+    $('pvp-party-join')?.addEventListener('click', (e) => { e.stopPropagation(); partyJoin($('pvp-party-code').value); });
+    $('pvp-party-code')?.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); partyJoin(e.target.value); } });
+    $('pvp-party-leave')?.addEventListener('click', (e) => { e.stopPropagation(); partyLeave(); });
     $('pvp-offer-yes').onclick = (e) => { e.stopPropagation(); acceptOffer(); };
     $('pvp-offer-no').onclick = (e) => { e.stopPropagation(); declineOffer(); };
     $('pvp-entry-go').onclick = async (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20);
@@ -825,9 +1005,13 @@ export function createPvp(K) {
     const h = $('pvp-harbor'); if (!h) return;
     const show = active && where === 'harbor' && !spec.on; h.classList.toggle('hidden', !show); if (!show) return;
     const b = $('pvp-join'), t = $('pvp-harbor-t');
-    if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
+    if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
-    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER 2× GOLD</span>' : ''}`; }
+    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${mode === 'squads' ? ' · <b>SQUADS 2v2</b>' : ''}${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER 2× GOLD</span>' : ''}`; }
+    const ms = $('pvp-mode'); if (ms) { ms.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.m === mode); x.setAttribute('aria-pressed', x.dataset.m === mode); }); ms.classList.toggle('locked', lob.state !== 'harbor'); } // [v98]
+    const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate();
+      $('pvp-party-t').innerHTML = party.code ? `PARTY <b>${party.code}</b> · ${mate ? `with ${esc(mate.n)} ✔` : esc(party.msg || 'waiting for your mate…')}` : esc(party.msg || 'No party: you get a random teammate');
+      for (const id of ['pvp-party-new', 'pvp-party-join', 'pvp-party-code']) $(id).hidden = !!party.code; $('pvp-party-leave').hidden = !party.code; }
     if (where === 'harbor') hud(); // [v74] arena head-count + AI pay live under the minimap
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
   }
@@ -878,7 +1062,7 @@ export function createPvp(K) {
     roomIdx = idx; let r;
     try { r = await net.openRoom(idx); } catch (e) { console.warn('[pvp spectate] join failed', e?.message); K.banner('ARENA OFFLINE', 'retrying…'); spec.emptyT = 15; return; }
     if (!active || !spec.on) { r.close(); return; }
-    room = r; wire(r); where = 'spec'; r.send('hello', { i: myId }, { now: true }); // the host answers with the gold piles; we never send a state
+    room = r; wire(r); where = 'spec'; sqReset(); r.send('hello', { i: myId }, { now: true }); // the host answers with the gold piles; we never send a state
   }
   function specToHarbor() { // EXIT / JOIN BATTLE from spectate: back to our harbor (the queue place, if any, is kept)
     if (!spec.on) return; room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
@@ -902,7 +1086,7 @@ export function createPvp(K) {
     specFollow(n.id, 'manual');
   }
   function specTick(dt, now) {
-    lobbyTick(dt);
+    lobbyTick(dt); if (isSq()) sqTick(now);
     for (const [id, p] of peers) if (now - p.heard > PEER_TIMEOUT) { if (p.ship) dropShip(p.ship); peers.delete(id); }
     const list = specPlayers();
     // pick who to watch: the kill leader by default, else the chosen captain while they're in the room
@@ -950,12 +1134,12 @@ export function createPvp(K) {
     if (!spec.on) return;
     const list = specPlayers(), p = spec.mode === 'overview' ? null : peers.get(spec.target);
     const who = $('spec-name'), st = $('spec-stats'), ic = $('spec-skin');
-    if (p) { who.textContent = p.name; const TK = p.bK ?? p.K ?? 0, TD = p.bD ?? p.D ?? 0; st.textContent = `${tierOf(p.sk)?.name || 'CLASSIC'} · ${TK} kills · ${TD} deaths · K/D ${kd(TK, TD)} (all-time) · this battle ${p.k | 0}/${p.d | 0}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
+    if (p) { who.textContent = p.name; const TK = p.bK ?? p.K ?? 0, TD = p.bD ?? p.D ?? 0; st.textContent = `${skinName(p.sk)}${isSq() && sqTeam(p.id) ? ` · ${sqTeam(p.id) === 'A' ? 'BLUE' : 'RED'} TEAM` : ''} · ${TK} kills · ${TD} deaths · K/D ${kd(TK, TD)} (all-time) · this battle ${p.k | 0}/${p.d | 0}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
     else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now';
       // [v79] nobody to follow: the ship box cycles through the skins (same real renders as the skins pickers) instead of sitting empty
       const t = TIERS[Math.floor(performance.now() / 2200) % TIERS.length]; ic.style.backgroundImage = `url(${skinIcon(t.id)})`; ic.title = t.name; ic.hidden = false; }
     $('spec-mode').textContent = spec.mode === 'leader' ? 'FOLLOWING THE KILL LEADER' : spec.mode === 'overview' ? 'OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'FOLLOWING';
-    $('spec-room').textContent = `ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
+    $('spec-room').textContent = `${isSq() ? `SQUADS · ${sq.ph === 'live' ? `ROUND ${sq.r}` : sq.ph === 'end' ? 'ROUND OVER' : 'WAITING'} · ` : ''}ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
     $('spec-leader').classList.toggle('on', spec.mode === 'leader'); $('spec-overview').classList.toggle('on', spec.mode === 'overview');
   }
   function renderSpecBoard() {
@@ -964,7 +1148,7 @@ export function createPvp(K) {
     // ALL-TIME kills / deaths / K/D (each captain's saved stats) + a live hull bar (BANKSY)
     const hpPct = (p) => { const s = p.ship, h = s ? s.hp : p.st?.h, m = s ? s.maxHp : p.st?.m; return m ? Math.max(0, Math.min(100, Math.round(h / m * 20) * 5)) : 0; };
     const html = `<tr><th></th><th>CAPTAIN</th><th title="all-time kills">K</th><th title="all-time deaths">D</th><th title="all-time K/D">K/D</th><th title="streak bounty">☠</th></tr>` + (list.length ? list.map((p, i) => { const hp = hpPct(p);
-      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${(p.bK ?? p.K) | 0}</td><td>${(p.bD ?? p.D) | 0}</td><td>${kd((p.bK ?? p.K) | 0, (p.bD ?? p.D) | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
+      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}${isSq() && sqTeam(p.id) ? ` t${sqTeam(p.id)}` : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${(p.bK ?? p.K) | 0}</td><td>${(p.bD ?? p.D) | 0}</td><td>${kd((p.bK ?? p.K) | 0, (p.bD ?? p.D) | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
       : `<tr><td colspan="6" class="muted">No captains in this room yet</td></tr>`);
     if (t._html !== html) { t._html = html; t.innerHTML = html; } // only touch the DOM when something changed
   }
@@ -1020,7 +1204,7 @@ export function createPvp(K) {
     me.life = 0; me.kills = me.deaths = me.gold = 0; me.dead = false; me.protect = 99; feed.length = 0;
     const pl = P(); pl.x = 0; pl.z = 0;
     where = 'harbor'; Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
-    if (spec.want) return specBegin();
+    if (spec.want) { setNet(ls0('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'); return specBegin(); } // [v98] the home switch picks the arena to watch
     document.documentElement.classList.add('pvp-harbor');
     respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi); refreshRank(true);
     const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = getSavedName(); $('pvp-entry-name').placeholder = capNo() ? `CAPT. #${capNo()}` : name; const a = $('pvp-entry-addr'); if (a) { a.value = getSavedWallet(); addrCheck(); } en.classList.remove('hidden'); }
@@ -1036,6 +1220,7 @@ export function createPvp(K) {
   }
   function leave(unloading = false) {
     if (!active) return;
+    if (!unloading) partyLeave(); sqReset(); sqVis();
     if (spec.on) { net.lobby('leave', lobbyOpts({ keepalive: true })); specOff(); if (unloading) return; active = false; harborUi(); document.documentElement.classList.remove('pvp'); room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid); isHost = false; hostId = null; return; }
     const pl = P();
     if (where === 'arena' && !me.dead && pl.alive && inCombat()) combatLog(unloading); // closing / reloading within 10 s of combat = a death
@@ -1055,9 +1240,9 @@ export function createPvp(K) {
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; },
-    _test: { spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
+    _test: { spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   window.PFP_PVP = api;
   return api;
 }

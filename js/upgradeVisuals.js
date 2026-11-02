@@ -374,11 +374,11 @@ const PARTS = {
   },
   // WEAPONS: big guns over every deck slot, lower-deck guns in every port, rail swivels, bow chaser, stern guns, mortar
   cannons(A, T, Ly, ship, lv) {
-    const { k } = A, barrel = lathe(CANNON, seg(8, 6));
+    const { k } = A, barrel = lathe(CANNON, seg(8, 6)), bcs = ship?.userData?.gunCs || 1;
     let order = 0;
     if (T.big) A.gunT.forEach((t, gi) => { for (const sx of [1, -1]) { // chunkier guns over the deck slots
       const w = A.shape.halfW(t), y = A.deckAt(t), z = A.zAt(t), cx = sx * (w - 0.45), s = T.big * k;
-      const x0 = cx + sx * (-0.35 + 1.22 * 1.25 + 0.05 - 1.22 * s * 1.05); // [v97] its muzzle sits just past the base gun's, so no barrel pokes through
+      const x0 = cx + sx * (-0.35 + 1.22 * bcs * 1.25 + 0.05 - 1.22 * s * 1.05); // [v97] its muzzle sits just past the base gun's, so no barrel pokes through ([v98] bcs: the boss rig's 1.25× base guns, COMMODORE)
       Ly.add(M.iron, barrel, [x0, y + 0.6, z], [0, 0, -sx * Math.PI / 2], [s, s * 1.05, s]);
       muzzle(Ly, sx > 0 ? 'port' : 'star', [x0 + sx * (1.22 * s * 1.05 + 0.04), y + 0.6, z], gi * 2 + (sx > 0 ? 0 : 1)); // [v95] deck muzzle at THIS barrel's tip
       if (!LO || T.gold) Ly.add(T.gold ? M.gold : M.iron, torus(0.3 * s, 0.06 * s), [x0 + sx * 0.95 * s, y + 0.6, z], [0, Math.PI / 2, 0]);

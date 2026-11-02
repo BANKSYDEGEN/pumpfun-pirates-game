@@ -120,6 +120,10 @@
   </div>
   <!-- [pvp] HARBOR (local queue room): JOIN BATTLE / queue place / spectate; the arena offer; AFK warning; entry card -->
   <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
+    <!-- [v98] SOLO / SQUADS (2v2) pick before queuing; Squads: party code for 2 friends (else a random teammate) -->
+    <div class="mode-sw" id="pvp-mode" role="group" aria-label="Battle Royale mode"><button type="button" data-m="solo">SOLO</button><button type="button" data-m="squads">SQUADS 2v2</button></div>
+    <div id="pvp-party" hidden><span id="pvp-party-t">No party: you get a random teammate</span>
+      <span class="pp-row"><button id="pvp-party-new" type="button" class="ghost">CREATE PARTY</button><input id="pvp-party-code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code"><button id="pvp-party-join" type="button" class="ghost">JOIN</button><button id="pvp-party-leave" type="button" class="ghost" hidden>LEAVE PARTY</button></span></div>
     <div class="ph-btns"><button id="pvp-join" type="button" class="pvp-btn">JOIN BATTLE</button><button id="pvp-harbor-spec" type="button" class="ghost"><span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button></div></div>
   <div id="pvp-offer" class="hidden pvp-only" role="alertdialog" aria-label="Battle ready"><div class="po-card"><h2>BATTLE READY!</h2><p>Your arena slot is open. Set sail?</p>
     <div class="po-t"><b id="pvp-offer-t">15</b> s</div><div class="po-btns"><button id="pvp-offer-yes" type="button" class="pvp-btn big">SET SAIL</button><button id="pvp-offer-no" type="button" class="ghost">NOT NOW</button></div>
@@ -216,7 +220,7 @@
       <button id="btn-pvp" class="big pvp-btn mode-btn" type="button" title="BATTLE ROYALE: real-time PvP, drop in and fight other pirates">BATTLE ROYALE</button>
       <button id="btn-start" class="big mode-btn" type="button" title="WAVES: solo, survive the waves and top the leaderboard">WAVES</button>
     </div>
-    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the Battle Royale without playing (no ship, invisible to pirates)">👁 <span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button><div id="home-live" class="hidden"></div></div>
+    <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch the Battle Royale without playing (no ship, invisible to pirates)">👁 <span class="w-lg">SPECTATE</span><span class="w-sm">WATCH</span> BATTLE ROYALE</button><div class="mode-sw spec-sw" id="spec-mode-sw" role="group" aria-label="Arena to watch"><button type="button" data-m="solo">SOLO</button><button type="button" data-m="squads">SQUADS</button></div><div id="home-live" class="hidden"></div></div>
 
 
    </div>
@@ -315,7 +319,7 @@
     <div id="pvp-kd" class="pvp-kd"></div>
     <div class="pvp-kills-wrap lb-br" id="pvp-kills"><div class="pvp-sub">PVP KILLS <span class="muted pk-mode"></span></div>
       <div class="pk-tabs" role="tablist" aria-label="PvP kills period"></div><ol class="board pk-board" id="board-pvp-menu"></ol></div>
-    <div class="pvp-sub">SKINS <span class="muted">unlock with player kills · cosmetic only</span></div>
+    <div class="pvp-sub">SKINS <span class="muted">unlock with player kills (COMMODORE: harbor boss kills) · cosmetic only</span></div>
     <div id="pvp-skins" class="pvp-skins"></div>
     <div class="pvp-save"><span id="pvp-wallet-state" class="muted"></span>
       <button id="pvp-wallet" class="wallet-link" type="button" title="Optional, read-only: your wallet signs a free message, never a transaction">Connect wallet to save</button>

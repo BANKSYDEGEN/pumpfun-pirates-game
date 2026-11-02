@@ -745,7 +745,7 @@ function drawRadar() {
   };
   loot.forEach(l => dot(l.x, l.z, '#ffcd77', 3));
   healthDrops.radar(dot); // [health drops] green dots
-  enemies.forEach(e => e.alive && (e.harborBoss ? (dot(e.x, e.z, '#ffcd00', 7.5), dot(e.x, e.z, '#fa0d0d', 5)) : dot(e.x, e.z, e.state === 'flee' ? '#ff9b9b' : '#fa0d0d', e.big ? 5 : 3.5))); // [v94] harbor boss: big gold-ringed dot
+  enemies.forEach(e => e.alive && (e.harborBoss ? (dot(e.x, e.z, '#ffcd00', 7.5), dot(e.x, e.z, '#fa0d0d', 5)) : dot(e.x, e.z, e.radarColor || (e.state === 'flee' ? '#ff9b9b' : '#fa0d0d'), e.big ? 5 : 3.5))); // [v98] squads: teammates blue // [v94] harbor boss: big gold-ringed dot
   escorts.list.forEach(e => e.alive && (dot(e.x, e.z, '#ffffff', 4), dot(e.x, e.z, '#4ee37a', 2.8))); // [escorts] green dot, white ring
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(R, R - 7); rctx.lineTo(R - 5, R + 5); rctx.lineTo(R + 5, R + 5); rctx.fill();
 }
@@ -856,6 +856,13 @@ if (we) {
   we.addEventListener('click', (e) => { if (e.target === we) we.classList.add('hidden'); });
 }
 $('btn-start').onclick = () => openWavesEntry();
+{ // [v98] home SPECTATE: SOLO / SQUADS switch (which arena to watch), remembered on this device
+  const sw = $('spec-mode-sw');
+  if (sw && !PVP_ENABLED) sw.remove();
+  else if (sw) { const get = () => { try { return localStorage.getItem('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'; } catch { return 'solo'; } };
+    const paint = () => sw.querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.m === get()); b.setAttribute('aria-pressed', b.dataset.m === get()); });
+    sw.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; e.stopPropagation(); try { localStorage.setItem('pfp_spec_mode', b.dataset.m); } catch {} paint(); window.PFP_HOME_LIVE?.(); });
+    paint(); } }
 if (PVP_ENABLED) { $('btn-pvp').onclick = () => startPvp(); $('btn-spectate').onclick = () => startPvp(true); } else { $('btn-pvp')?.remove(); $('btn-spectate')?.remove(); } // [pvp] not on game portals
 { // [start help] "?" panel: close button, tap outside, Escape
   const faq = $('faq'), show = (on) => { faq.classList.toggle('hidden', !on); if (on) $('faq-close').focus(); else $('btn-faq').focus(); };
@@ -1306,7 +1313,7 @@ window.PFP_HEALTH = healthDrops; // [health drops] test hook
 initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'playing' && !document.documentElement.classList.contains('pvp-spec'),
   send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); } });
 // [pvp] what js/pvp.js may touch in the game
-const pvpCtx = { scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
+const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
   resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), get shipOpts() { return PLAYER_SHIP; } };
 // [ultra] graphics menu (start page + pause): AUTO / LOW / HIGH / ULTRA (desktop only), saved on this device; a reload applies it
 {
