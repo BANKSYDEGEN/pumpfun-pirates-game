@@ -126,8 +126,9 @@ See "Human actions".
    - old clients keep working (public channels, direct score insert);
    - only new kill rules apply, and old clients' kills stop counting until step 3.
 2. **Functions** `pvp` and `pirate` (`supabase functions deploy pvp pirate`). Set the secrets:
-   - `PFP_RT_JWT_SECRET` = the project's JWT secret (Settings → API), so Realtime accepts the tickets. Without it tickets
-     have no jwt and the client joins publicly;
+   - `PFP_RT_JWT_SECRET` = the project's (legacy HS256) JWT secret (Settings → API / JWT Keys), so Realtime accepts the tickets.
+     If the project has moved to asymmetric signing keys only, Realtime won't accept HS256 tickets. In that case keep the legacy
+     secret active, or leave this unset (public joins, M1 stays open). Without it tickets have no jwt and the client joins publicly;
    - optional: `TRUSTED_IP_HEADER`, `RELAY_TICKET_SECRET`;
    - check `ALLOWED_ORIGINS` includes every live origin.
    Note: the new SIWS sign-in needs the new client and server together. An old cached client asking for a nonce still works,
