@@ -152,3 +152,15 @@ export const SQUADS = {
 // [v98] unlock tracking: harbor AI kills + harbor boss kills, counted per profile from v98 (server-checked like gold). The skins
 // unlocked by them are PVP_UNLOCK_SKINS (Timothy): COMMODORE = 100 harbor boss kills. unlock.type -> the profile stat it reads:
 export const UNLOCK_STAT = { harborBossKills: 'bossKills', harborKills: 'harborKills' };
+// [Raul] island Token Exchange (island.html test scene only): the three tokens featured on the island. $SUNK and $AHOY reuse
+// the CAs above (SUNK_CA / HOLDER_MINTS). Each token's main pair is resolved at runtime from the DexScreener tokens API
+// (highest-liquidity pair); the dex URLs below are the known chart links used until / unless that lookup answers.
+export const AHOY_CA = HOLDER_MINTS.AHOY;
+export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5pwej4kfsuqzcud5wrhmtv9zd4';
+export const PUMP_CA = 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'; // the pump.fun token
+export const PUMP_SITE_URL = 'https://pump.fun';
+export const ISLAND_TOKENS = [
+  { sym: 'SUNK', ca: SUNK_CA, dex: SUNK_DEX_URL, color: '#fa0d0d' },
+  { sym: 'AHOY', ca: AHOY_CA, dex: AHOY_DEX_URL, color: '#2a6df4' },
+  { sym: 'PUMP', ca: PUMP_CA, dex: null, site: PUMP_SITE_URL, color: '#22c55e' }, // dex pair resolved at runtime
+];

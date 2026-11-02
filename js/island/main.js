@@ -12,8 +12,9 @@ import { setCrewQuality } from '../crew.js';
 import { compileShip } from '../upgradeVisuals.js';
 import { getSkin } from '../skins.js';
 import { createIslands } from '../props.js';
-import { PVP_ARENA_R } from '../config.js';
-import { SPOTS, TOWER_H, TAVERN_S, HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, pierDecks, groundY, footY, canWalk, buildIsland, buildFarIsland, buildChest, buildPlants, makeAtlas, shoreFoam, islandColliders, BERTHS, harborWalls, walkable, scaleMarkers } from './art.js';
+import { PVP_ARENA_R, ISLAND_TOKENS } from '../config.js';
+import { copyText } from '../tokenChip.js';
+import { SPOTS, TOWER_H, TAVERN_S, HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, pierDecks, groundY, footY, canWalk, buildIsland, buildFarIsland, buildChest, buildPlants, buildPalmGrove, buildFx, lagoon, tokenSlots, ISLAND_POIS, makeAtlas, shoreFoam, islandColliders, BERTHS, harborWalls, walkable, scaleMarkers } from './art.js';
 import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
 import { bakeShip } from './bake.js';
@@ -31,11 +32,17 @@ const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOW, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, LOW ? 1.25 : 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = HARBOR ? 1.2 : 1.15;
+// lobby lighting presets (&light=golden | dusk): warm golden-hour haze, or dusk with the skull peak's eye caves lit
+const LIGHTS = {
+  golden: { fog: 0xf0c48e, fogD: 0.0026, hemi: [0xffdcae, 0x6f5a3a, 1.3], sun: [0xffb066, 2.7], dir: [90, 34, 70], top: 0x6d8fc4, exp: 1.08, glow: 1.6, smoke: 0xf3e2c8 },
+  dusk: { fog: 0x8d6f8f, fogD: 0.0032, hemi: [0x9a8cc4, 0x2a2232, 1.05], sun: [0xff7a3a, 1.6], dir: [-95, 16, -30], top: 0x203566, exp: 1.0, glow: 3.0, smoke: 0x9c94a0 },
+};
+const LP = HARBOR ? null : LIGHTS[P.get('light')] || null;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = (HARBOR ? 1.2 : 1.15) * (LP ? LP.exp : 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 if (!LOW) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
 const scene = new THREE.Scene();
-const FOGC = HARBOR ? FOG_COLOR.clone() : new THREE.Color(0x9ddcf2), FOGD = HARBOR ? 0.0042 : 0.0021;
+const FOGC = HARBOR ? FOG_COLOR.clone() : new THREE.Color(LP ? LP.fog : 0x9ddcf2), FOGD = HARBOR ? 0.0042 : LP ? LP.fogD : 0.0021;
 scene.fog = new THREE.FogExp2(FOGC, FOGD); scene.background = FOGC.clone();
 const camera = new THREE.PerspectiveCamera(P.has('walk') ? 62 : HARBOR ? 55 : 46, innerWidth / innerHeight, 0.5, 3000);
 
@@ -46,9 +53,9 @@ isle.updateMatrixWorld(true);
 const L2W = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(isle.matrixWorld);
 
 // lighting: harbor = the game's storm lighting; lobby = bright toy sunshine
-scene.add(HARBOR ? new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9) : new THREE.HemisphereLight(0xcdeeff, 0x6f9a5a, 1.75));
-const sun = HARBOR ? new THREE.DirectionalLight(0xffe2c4, 2.1) : new THREE.DirectionalLight(0xfff0d6, 2.5);
-const SUN_DIR = HARBOR ? new THREE.Vector3(-40, 50, 80) : new THREE.Vector3(55, 95, 62);
+scene.add(HARBOR ? new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9) : LP ? new THREE.HemisphereLight(...LP.hemi) : new THREE.HemisphereLight(0xcdeeff, 0x6f9a5a, 1.75));
+const sun = HARBOR ? new THREE.DirectionalLight(0xffe2c4, 2.1) : LP ? new THREE.DirectionalLight(...LP.sun) : new THREE.DirectionalLight(0xfff0d6, 2.5);
+const SUN_DIR = HARBOR ? new THREE.Vector3(-40, 50, 80) : LP ? new THREE.Vector3(...LP.dir) : new THREE.Vector3(55, 95, 62);
 sun.position.copy(L2W(0, 0, 0)).add(SUN_DIR.clone().multiplyScalar(2)); sun.target.position.copy(L2W(0, 0, 0)); scene.add(sun, sun.target);
 if (!LOW) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = sc.bottom = -112; sc.right = sc.top = 112; sc.near = 10; sc.far = 420; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.4; sc.updateProjectionMatrix(); }
 
@@ -58,7 +65,7 @@ if (HARBOR) { gameSky = createSky(); scene.add(gameSky.mesh); }
 else {
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1200, 24, 12), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uTop: { value: new THREE.Color(0x1f86e0) }, uHor: { value: FOGC.clone() }, uSun: { value: SUN_DIR.clone().normalize() } },
+    uniforms: { uTop: { value: new THREE.Color(LP ? LP.top : 0x1f86e0) }, uHor: { value: FOGC.clone() }, uSun: { value: SUN_DIR.clone().normalize() } },
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `varying vec3 vD; uniform vec3 uTop, uHor, uSun;
       void main(){ float h = clamp(vD.y, 0.0, 1.0); vec3 c = mix(uHor, uTop, pow(h, 0.55)); float s = max(dot(vD, uSun), 0.0);
@@ -89,7 +96,7 @@ swayMat.customProgramCacheKey = () => 'isl_sway';
 const MATS = {
   toon: toon(0xffffff, null, { vertexColors: true }),
   sway: swayMat,
-  glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+  glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: new THREE.Color().setScalar(LP ? LP.glow : 1) }), // lanterns, windows, the peak's eye caves
   atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }),
 };
 const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
@@ -104,7 +111,11 @@ near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !=
 const far = buildFarIsland().build({ toon: MATS.toon }, OUT); far.name = 'island_far'; far.visible = false;
 const plants = buildPlants(LOW, MATS.toon); plants.receiveShadow = !LOW;
 const foam = shoreFoam(uTime, LOW, ocean.uniforms.uWaves);
-isle.add(near, far, foam, plants);
+const lagoonMesh = lagoon(uTime, ocean.uniforms.uWaves, LOW);                   // turquoise shallows + pier foam (1 call)
+const grove = buildPalmGrove(LOW, MATS.toon); grove.castShadow = !LOW;          // instanced palms (1 call)
+const fx = buildFx(uTime, LOW); if (LP) fx.material.uniforms.uSmoke.value.set(LP.smoke); // gulls + smoke (1 call)
+const setFxPx = () => { fx.material.uniforms.uPx.value = renderer.getDrawingBufferSize(new THREE.Vector2()).y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)); }; setFxPx();
+isle.add(near, far, foam, plants, lagoonMesh, grove, fx);
 
 // daily-reward chest: bobbing chest + light beam (a beacon you can spot from sea) + sparkles
 const chest = new THREE.Group(); const cs = SPOTS.chest, cy = groundY(cs.x, cs.z) + 1.15;
@@ -140,7 +151,7 @@ function setLod(d) {
   if (want === lod && setLod.done) return; lod = want; setLod.done = true;
   near.visible = chest.visible = lod !== 'far'; far.visible = lod === 'far';
   for (const o of outlines) o.visible = lod === 'near';
-  if (sparks) sparks.visible = lod === 'near'; foam.visible = lod !== 'far'; plants.visible = lod === 'near';
+  if (sparks) sparks.visible = lod === 'near'; foam.visible = lod !== 'far'; plants.visible = lod === 'near'; lagoonMesh.visible = grove.visible = lod !== 'far';
   near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') o.castShadow = !LOW && lod === 'near'; });
 }
 
@@ -216,6 +227,8 @@ const localOverlay = (() => {
   for (const d of SPOTS.digs) ring(d.x, d.z, 5, C(0xfb923c), 16, 5);
   for (const c of islandColliders()) ring(c.x, c.z, c.r, C(0xffffff), 24);
   for (const w of harborWalls()) { line(w.x0, w.z0, w.x1, w.z1, C(0xff8a00), 1.5); }
+  const POIC = { spawn: 0x60a5fa, sail: 0x22d3ee, waves: 0xf59e0b, arena: 0xef4444, spectate: 0xa855f7 }; // future interact points (empty)
+  for (const q of ISLAND_POIS) { const c = C(POIC[q.id]); for (const rr of [q.r, q.r + 1.2]) ring(q.x, q.z, rr, c, 20, 5); line(q.x - 4, q.z, q.x + 4, q.z, c, 5); line(q.x, q.z - 4, q.x, q.z + 4, c, 5); }
   for (const b of BERTHS()) { const fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), c = C(0x67e8f9), Q = [[-3.65, -11], [3.65, -11], [3.65, 11], [-3.65, 11]].map(([sx, sf]) => [b.x + fz * sx + fx * sf, b.z - fx * sx + fz * sf]);
     for (let i = 0; i < 4; i++) line(...Q[i], ...Q[(i + 1) % 4], c);
     ring(b.x, b.z, 8.6, C(0x38bdf8), 20, 1.1); }
@@ -247,6 +260,9 @@ const D0 = SPOTS.digs[0], BD = SPOTS.board;
 const EYE = PIER.y + 0.2 + 1.55; // a pirate's eye on a pier deck
 const VIEWS = {
   hero: { p: [-150, 100, 175], t: [0, 0, 0] },
+  concept: { p: [78, 24, 128], t: [-18, 9, -16] },                                // the angle of concept 1 (low over the shallows, town + fort up the hill)
+  duskBeach: { p: [-12, 5.2, 56], t: [-36, 26, -44] },                            // from the harbor-side beach towards the skull peak
+  exchange: { p: [0, 6.5, 30], t: [0, 3.5, 47] },
   seaNear: { p: [40, 10, 178], t: [0, 8, 0] },
   seaMid: { p: [70, 16, 262], t: [0, 6, 0] },
   seaFar: { p: [40, 20, 330], t: [0, 6, 0] },
@@ -295,7 +311,7 @@ if (innerHeight < 520 || innerWidth < 600) { // phones: one cycling VIEW button 
 { const b = document.createElement('button'); b.textContent = HARBOR ? 'LOBBY VIEW' : 'IN THE HARBOR'; b.onclick = () => { if (HARBOR) P.delete('harbor'); else P.set('harbor', '1'); location.search = P.toString(); }; ui.appendChild(b); }
 controls.addEventListener('start', () => { tween = null; controls.autoRotate = false; });
 goView(P.get('view') || 'hero', true);
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); setFxPx(); });
 
 // ---------- on foot (&walk=1): get off at pier 1 as a pirate and walk the island ----------
 // 4.2 m/s walking (Shift 6.5 running): the island is ~146 m across (~35 s to cross), the docks-ring path ~370 m (~90 s).
@@ -312,10 +328,11 @@ if (WALK) {
   for (const sx of [-1, 1]) k.add(new THREE.CylinderGeometry(0.1, 0.11, 0.6, 6), 0xfa0d0d, { m: M(sx * 0.45, 1.1, 0, 0, 0, sx * 0.25) });
   const mesh = k.build(MATS, OUT); mesh.name = 'pirate'; isle.add(mesh);
   const { u } = pierUV(PIER_ANGLES[0]), yaw = Math.atan2(-u[0], -u[1]);
-  walker = { mesh, x: u[0] * 80, z: u[1] * 80, yaw, camYaw: yaw, pitch: 0.12, target: null, keys: {}, ph: 0, drag: null };
+  const atEx = P.get('at') === 'exchange', S0 = tokenSlots()[0];
+  walker = { mesh, x: atEx ? S0.x : u[0] * 80, z: atEx ? S0.z - 3 : u[1] * 80, yaw: atEx ? 0 : yaw, camYaw: atEx ? 0 : yaw, pitch: 0.12, target: null, keys: {}, ph: 0, drag: null };
   controls.enabled = false; controls.autoRotate = false;
   addEventListener('keydown', e => { walker.keys[e.code] = true; }); addEventListener('keyup', e => { walker.keys[e.code] = false; });
-  const BLOCK = [{ ...SPOTS.tavern, r: 9.5 }, { ...SPOTS.tower, r: 4 }, { ...SPOTS.chest, r: 5 }, { ...SPOTS.flag, r: 1.6 }, ...SPOTS.stalls.map(q => ({ ...q, r: 3 }))];
+  const BLOCK = [{ ...SPOTS.tavern, r: 9.5 }, { ...SPOTS.tower, r: 5 }, { ...SPOTS.peak, r: 15 }, { x: SPOTS.exchange.x, z: SPOTS.exchange.z - 1, r: 3.6 }, ...SPOTS.houses.map(([x, z]) => ({ x, z, r: 3.4 })), ...ISLAND_POIS.filter(q => q.id === 'waves' || q.id === 'arena').map(q => ({ x: q.x, z: q.z, r: 1.4 })), { ...SPOTS.chest, r: 5 }, { ...SPOTS.flag, r: 1.6 }, ...SPOTS.stalls.map(q => ({ ...q, r: 3 }))];
   walker.blocked = (x, z) => !canWalk(x, z) || BLOCK.some(b => Math.hypot(b.x - x, b.z - z) < b.r);
   canvas.addEventListener('pointerdown', e => { walker.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointermove', e => { const d = walker.drag; if (!d) return; walker.camYaw -= (e.clientX - d.x) * 0.006; walker.pitch = Math.min(0.9, Math.max(-0.25, walker.pitch + (e.clientY - d.y) * 0.004)); d.x = e.clientX; d.y = e.clientY; walker.look = performance.now(); });
@@ -324,6 +341,51 @@ if (WALK) {
     const inv = isle.matrixWorld.clone().invert(), o = rc.ray.origin.clone().applyMatrix4(inv), dir = rc.ray.direction.clone().transformDirection(inv);
     for (let t = 0; t < 400; t += 0.4) { const q = o.clone().addScaledVector(dir, t); if (q.y <= footY(q.x, q.z)) { if (!walker.blocked(q.x, q.z)) walker.target = { x: q.x, z: q.z }; break; } } });
 }
+// ---------- TOKEN EXCHANGE: live boards ($SUNK / $AHOY / $PUMP; main pair = the highest-liquidity Solana pair from the
+// DexScreener tokens API, refreshed every 60 s) + a chart panel opened from the walk-mode interact prompt (or &token=SYM)
+const TOK = ISLAND_TOKENS.map(t => ({ ...t, chart: t.dex || t.site, pair: null }));
+const fmtP = (v) => { v = +v; if (!isFinite(v) || v <= 0) return '—'; if (v >= 1) return '$' + v.toFixed(3); return '$' + v.toFixed(Math.min(10, 3 - Math.floor(Math.log10(v)))); };
+const fmtUsd = (v) => v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v || 0);
+const statLine = (t) => { const p = t.pair; if (!p) return 'live price loading…'; const ch = +(p.priceChange?.h24 ?? 0); return `${fmtP(p.priceUsd)} · 24h ${ch >= 0 ? '+' : ''}${ch.toFixed(1)}% · liq ${fmtUsd(p.liquidity?.usd)} · vol ${fmtUsd(p.volume?.h24)}`; };
+const panel = document.createElement('div'); panel.id = 'tokpanel';
+panel.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(94vw,760px);height:min(86vh,560px);display:none;flex-direction:column;gap:8px;padding:12px;background:#161616f2;border:3px solid #ffcd77;border-radius:14px;color:#fff;font:15px system-ui,sans-serif;z-index:20;box-sizing:border-box';
+document.body.appendChild(panel);
+const prompt = document.createElement('button'); prompt.style.cssText = 'position:fixed;left:50%;bottom:76px;transform:translateX(-50%);display:none;padding:10px 18px;font:26px "Just Another Hand",cursive;color:#ffcd77;background:#161616e6;border:3px solid #ffcd77;border-radius:12px;z-index:15';
+document.body.appendChild(prompt);
+function showPanel(sym) {
+  const t = TOK.find(q => q.sym === sym); if (!t) return; panel.sym = sym;
+  const id = t.pair?.pairAddress || (t.dex ? t.dex.split('/').pop() : null);
+  panel.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><b style="font:40px 'Just Another Hand',cursive;color:${t.color}">$${sym}</b><span data-stat style="flex:1;opacity:.9">${statLine(t)}</span><button data-x style="font-size:20px;background:none;color:#fff;border:0;cursor:pointer">✕</button></div>
+    <div style="display:flex;gap:8px;align-items:center"><code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#000;padding:6px 8px;border-radius:6px">${t.ca}</code><button data-copy style="padding:6px 10px;background:#ffcd77;border:0;border-radius:6px;font-weight:700;cursor:pointer">COPY CA</button></div>
+    ${id ? `<iframe title="$${sym} chart" src="https://dexscreener.com/solana/${id}?embed=1&theme=dark&trades=0&info=0" style="flex:1;width:100%;border:0;border-radius:8px;background:#000"></iframe>` : '<div style="flex:1;display:grid;place-items:center;opacity:.7">resolving the main pair…</div>'}
+    <div style="display:flex;gap:16px"><a href="${t.chart}" target="_blank" rel="noopener" style="color:#ffcd77">OPEN CHART ON DEXSCREENER ▸</a>${t.site ? `<a href="${t.site}" target="_blank" rel="noopener" style="color:#7cff6b">PUMP.FUN ▸</a>` : ''}</div>`;
+  panel.querySelector('[data-x]').onclick = () => { panel.style.display = 'none'; panel.sym = null; };
+  panel.querySelector('[data-copy]').onclick = async (e) => { const ok = await copyText(t.ca); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; };
+  panel.style.display = 'flex';
+}
+addEventListener('keydown', e => { if (e.code === 'Escape' && panel.sym) { panel.style.display = 'none'; panel.sym = null; } });
+async function refreshTokens() {
+  await Promise.all(TOK.map(async (t) => {
+    try {
+      const j = await (await fetch('https://api.dexscreener.com/latest/dex/tokens/' + t.ca)).json();
+      const p = (j.pairs || []).filter(q => q.chainId === 'solana').sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+      if (!p) throw new Error('no pair');
+      const hadPair = !!t.pair; t.pair = p; if (!t.dex) t.chart = p.url;
+      const ch = +(p.priceChange?.h24 ?? 0); atlas.drawTokenBoard(t.sym, [fmtP(p.priceUsd), `${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h`, ch >= 0 ? '#7cff6b' : '#ff6b6b']);
+      if (panel.sym === t.sym) { if (!hadPair && !t.dex) showPanel(t.sym); else { const st = panel.querySelector('[data-stat]'); if (st) st.textContent = statLine(t); } }
+    } catch { if (!t.pair) atlas.drawTokenBoard(t.sym, ['CHART ▸', 'walk up + press E']); }
+  }));
+}
+refreshTokens(); if (!SHOT) setInterval(refreshTokens, 60000);
+if (P.get('token')) showPanel(P.get('token').toUpperCase().replace('$', ''));
+const SLOTS = tokenSlots();
+function tokenPrompt() {
+  let best = null, bd = 3.4; for (const q of SLOTS) { const d = Math.hypot(q.x - walker.x, q.z - walker.z); if (d < bd) { bd = d; best = q; } }
+  if (best && !panel.sym) { const label = `E · $${best.sym} CHART`; if (prompt.textContent !== label) prompt.textContent = label; prompt.style.display = 'block'; prompt.onclick = () => showPanel(best.sym); walker.near = best.sym; }
+  else { prompt.style.display = 'none'; walker.near = null; }
+}
+addEventListener('keydown', e => { if (e.code === 'KeyE' && walker && walker.near) showPanel(walker.near); });
+
 function updateWalker(dt, t) {
   const w = walker, K = w.keys, fwd = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), side = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
   let dx = 0, dz = 0;
@@ -351,7 +413,7 @@ function frame() {
   uTime.value = t; wind.uTime.value = t; ocean.uniforms.uTime.value = t; if (gameSky) gameSky.uniforms.uTime.value = t;
   floatShips(t);
   chest.position.y = cy + Math.sin(t * 1.6) * 0.18; chest.rotation.y = -0.9 + Math.sin(t * 0.7) * 0.12;
-  if (walker) updateWalker(SHOT ? 1 / 30 : dt, t);
+  if (walker) { updateWalker(SHOT ? 1 / 30 : dt, t); tokenPrompt(); }
   else {
     if (tween) { tween.k = Math.min(1, tween.k + dt * 1.1); const e = tween.k * tween.k * (3 - 2 * tween.k); camera.position.lerpVectors(tween.from.p, tween.to.p, e); controls.target.lerpVectors(tween.from.t, tween.to.t, e); if (tween.k >= 1) tween = null; }
     controls.update();
@@ -369,5 +431,5 @@ function frame() {
   if (!SHOT) statsEl.textContent = `${quality.toUpperCase()}  ${Math.round(fps)} fps  LOD ${lod}\ncalls ${I.calls}  tris ${(I.triangles / 1000).toFixed(1)}k`;
   requestAnimationFrame(frame);
 }
-window.ISLAND = { renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
+window.ISLAND = { renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);
