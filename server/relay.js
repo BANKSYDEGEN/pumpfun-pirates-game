@@ -4,6 +4,7 @@
 // Same lobby semantics as supabase/migrations/007_pvp_lobby.sql; same batched message format as js/transport.js.
 import { WebSocketServer } from 'ws';
 import http from 'node:http';
+import crypto from 'node:crypto';
 
 const env = (k, d) => (process.env[k] !== undefined ? Number(process.env[k]) : d);
 const PORT = env('PORT', 8080);
@@ -20,7 +21,26 @@ const SHOT_R = env('SHOT_R', 360);        // cannon volleys only go to clients w
 const MSG_RATE = env('MSG_RATE', 40), MSG_MAX = env('MSG_MAX', 16384);
 const LIVE_PREFIX = 'pfp-pvp-v1';
 const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'gr']; // [Timothy] gr = shop gear (js/pirateGear.js), static like the name + skin
-const ID_RE = /^[a-z0-9]{6,20}$/i, PREFIX_RE = /^pfp-pvp-[a-z0-9]{1,16}$/i;
+const ID_RE = /^[a-z0-9]{6,20}$/, PREFIX_RE = /^pfp-pvp-[a-z0-9]{1,16}$/i;
+// [security M1 / M2] (SECURITY_FIXES.md) all optional so `node relay.js` still works locally:
+//   RELAY_TICKET_SECRET  sockets must carry ?ticket= from the pvp function's `ticket` action (HMAC of id + prefix + expiry):
+//                        a ticket binds the network id to a signed-in device / wallet, so ids can't be squatted or spoofed
+//   ORIGINS              comma-separated allowed page origins (e.g. https://game.pumpfunpirates.com); others are refused
+//   MAX_PER_IP           sockets per client IP (default 8: a household / a few tabs); TRUST_PROXY=1 reads the LAST x-forwarded-for hop
+const TICKET_SECRET = process.env.RELAY_TICKET_SECRET || '';
+const ORIGINS = (process.env.ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+const MAX_PER_IP = env('MAX_PER_IP', 8), TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const perIp = new Map();
+export function ticketOk(t, id, prefix, secret = TICKET_SECRET, nowS = Math.floor(Date.now() / 1000)) {
+  if (!secret) return true;
+  if (typeof t !== 'string' || t.length > 300) return false;
+  const i = t.lastIndexOf('.'); if (i < 0) return false;
+  const data = t.slice(0, i), mac = t.slice(i + 1), [net, pfx, exp] = [data.slice(0, data.indexOf('.')), data.slice(data.indexOf('.') + 1, data.lastIndexOf('.')), +data.slice(data.lastIndexOf('.') + 1)];
+  const want = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  const a = Buffer.from(mac), b = Buffer.from(want);
+  return a.length === b.length && crypto.timingSafeEqual(a, b) && net === id && pfx === prefix && Number.isFinite(exp) && exp > nowS;
+}
+const clientIp = (req) => { const x = TRUST_PROXY ? String(req.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean).pop() : ''; return x || req.socket.remoteAddress || 'unknown'; };
 
 const arenas = new Map(); // prefix -> { prefix, seats: Map<id, seat>, rooms: Map<idx, { players: Set<client>, specs: Set<client> }>, cap, offerS }
 let clients = 0, tickNo = 0, framesOut = 0, bytesOut = 0, msgsIn = 0;
@@ -103,9 +123,10 @@ function enterRoom(c) {
 function leaveRoom(c) { c.room?.players.delete(c); c.room?.specs.delete(c); c.room = null; c.inRoom = null; c.full = null; }
 function onBatch(c, m) {
   if (!c.inRoom) return;
-  if (m.s && typeof m.s === 'object' && c.inRoom === 'player') {
-    const f = c.full || (c.full = {}); let stat = false;
-    for (const [k, v] of Object.entries(m.s)) { if (STATIC.includes(k) && JSON.stringify(f[k]) !== JSON.stringify(v)) stat = true; f[k] = v; }
+  if (m.s && typeof m.s === 'object' && !Array.isArray(m.s) && c.inRoom === 'player') {
+    const f = c.full || (c.full = Object.create(null)); let stat = false;
+    // [security] no prototype keys, no id override (the server stamps i = c.id)
+    for (const [k, v] of Object.entries(m.s)) { if (k === '__proto__' || k === 'constructor' || k === 'prototype' || k === 'i') continue; if (STATIC.includes(k) && JSON.stringify(f[k]) !== JSON.stringify(v)) stat = true; f[k] = v; }
     f.i = c.id; if (stat) c.staticVer++; c.ver = (c.ver || 0) + 1;
   }
   if (Array.isArray(m.e)) for (const ev of m.e.slice(0, 40)) if (Array.isArray(ev) && typeof ev[0] === 'string') c.events.push(ev);
@@ -143,8 +164,9 @@ function send(c, o) { if (c.readyState !== 1) return; const s = JSON.stringify(o
 
 // ---------------- server ----------------
 const server = http.createServer((req, res) => {
+  // [security] /health is for the operator: only counts, and only to allowed origins when ORIGINS is set
   if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': ORIGINS.length ? (ORIGINS.includes(String(req.headers.origin || '')) ? String(req.headers.origin) : 'null') : '*', Vary: 'Origin' });
     res.end(JSON.stringify({ ok: true, clients, arenas: [...arenas.values()].map(a => ({ prefix: a.prefix, rooms: [...a.rooms.entries()].filter(([, r]) => r.players.size || r.specs.size).map(([i, r]) => [i, r.players.size, r.specs.size]), queue: seatsIn(a, 'queue').length })), framesOut, bytesOut, msgsIn }));
   } else { res.writeHead(404); res.end(); }
 });
@@ -152,6 +174,11 @@ const wss = new WebSocketServer({ server, maxPayload: MSG_MAX });
 wss.on('connection', (c, req) => {
   const u = new URL(req.url, 'http://x'), id = u.searchParams.get('id') || '', prefix = u.searchParams.get('prefix') || '';
   if (!ID_RE.test(id) || !PREFIX_RE.test(prefix)) { c.close(1008, 'bad id'); return; }
+  if (ORIGINS.length && !ORIGINS.includes(String(req.headers.origin || ''))) { c.close(1008, 'origin'); return; } // [security]
+  if (!ticketOk(u.searchParams.get('ticket'), id, prefix)) { c.close(1008, 'ticket'); return; } // [security]
+  const ip = clientIp(req), nIp = perIp.get(ip) || 0;
+  if (nIp >= MAX_PER_IP) { c.close(1013, 'too many connections'); return; } // [security M2]
+  perIp.set(ip, nIp + 1); c.on('close', () => { const n = (perIp.get(ip) || 1) - 1; if (n > 0) perIp.set(ip, n); else perIp.delete(ip); });
   if (clients >= MAX_CLIENTS) { c.send(JSON.stringify({ t: 'full', why: 'server' })); c.close(1013, 'full'); return; }
   const a = arenaOf(prefix);
   const old = a.seats.get(id); if (old?.client && old.client !== c) { try { old.client.close(4000, 'replaced'); } catch {} }
@@ -172,6 +199,8 @@ wss.on('connection', (c, req) => {
     const s = a.seats.get(id); if (s && s.client === c) { a.seats.delete(id); promote(a); } // a dropped socket frees the seat
   });
 });
+if (process.env.RELAY_NO_LISTEN === '1') { /* imported by tests */ } else {
 setInterval(tick, 1000 / HZ);
 setInterval(() => { for (const c of wss.clients) { if (!c.alive) { c.terminate(); continue; } c.alive = false; c.ping(); } }, 20000);
-server.listen(PORT, () => console.log(`[relay] :${PORT} hz=${HZ} maxArena=${MAX_ARENA} maxClients=${MAX_CLIENTS}`));
+server.listen(PORT, () => console.log(`[relay] :${PORT} hz=${HZ} maxArena=${MAX_ARENA} maxClients=${MAX_CLIENTS} tickets=${TICKET_SECRET ? 'on' : 'OFF'} origins=${ORIGINS.length || 'any'}`));
+}
