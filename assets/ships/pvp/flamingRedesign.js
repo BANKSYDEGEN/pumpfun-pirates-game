@@ -177,13 +177,13 @@ function artFlames(ud, low) {
   const wall = (t, y) => Math.max(0.2, shape.halfW(t) - 0.06 * Math.max(0, y - shape.top(t)));
   const A = [], C = [], S = []; let i = 0;
   const push = (x, y, z, sz) => { for (const c of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { A.push(x, y, z); C.push(...c); S.push(hash(i * 3.1), sz, hash(i * 7.7)); } i++; };
-  const nR = low ? 18 : 44, nD = low ? 4 : 12, nS = low ? 5 : 10, nB = low ? 3 : 8; // [Timothy v2 fix] a little less overlap on HIGH (bloom washed the hull)
+  const nR = low ? 18 : 44, nD = low ? 4 : 12, nS = low ? 3 : 5, nB = low ? 3 : 8; // [Timothy v2 fix] a little less overlap on HIGH (bloom washed the hull)
   for (let k = 0; k < nR; k++) { const sx = k % 2 ? 1 : -1, t = 0.04 + (k + hash(k) * 0.8) / nR * 0.9, y = art.railY(t); // rails, waist to castles
     push(sx * (wall(t, y) + 0.12), y - 0.05, zAt(t), 2.2 + hash(k + 2) * 2.4); }
   for (let k = 0; k < nD; k++) { const t = 0.3 + hash(k + 40) * 0.5, sx = k % 2 ? 1 : -1; // waist deck fires, against the bulwarks (clear of the gangway + helm)
     push(sx * (wall(t, shape.top(t)) - 0.7), shape.top(t) - layout.deckDrop + 0.1, zAt(t), 2.6 + hash(k + 41) * 2.2); }
   for (let k = 0; k < nS; k++) { const t = 0.006 + hash(k + 60) * 0.03, w = wall(t, art.Q); // stern: tall sheets off the taffrail
-    push((hash(k + 61) * 2 - 1) * w * 0.9, art.railY(t), zAt(t) - 0.15, 3.2 + hash(k + 62) * 2.8); }
+    push((hash(k + 61) * 2 - 1) * w * 0.8, art.railY(t), zAt(t) + 0.9, 2.4 + hash(k + 62) * 1.8); } // [Timothy v2 fix] fewer, set in from the taffrail: no glowing block over the transom
   for (let k = 0; k < nB; k++) { const t = 0.9 + hash(k + 80) * 0.08; push((hash(k + 81) * 2 - 1) * wall(t, art.railY(t)) * 0.8, art.railY(t), zAt(t), 2.0 + hash(k + 82) * 1.6); }
   const n = i, fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(A, 3)); fg.setAttribute('corner', new THREE.Float32BufferAttribute(C, 2)); fg.setAttribute('seed', new THREE.Float32BufferAttribute(S, 3));
   const idx = []; for (let q = 0; q < n; q++) { const a = q * 4; idx.push(a, a + 1, a + 2, a, a + 2, a + 3); } fg.setIndex(idx); fg.computeBoundingSphere(); fg.boundingSphere.radius += 8;

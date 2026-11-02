@@ -36,7 +36,7 @@ export const FLAMING_KILLS = 2500;
 export const FLAMING = {
   id: 'flaming', name: 'FLAMING SHIP', killsRequired: FLAMING_KILLS, price: 0, premium: 'pvp',
   blurb: `${FLAMING_KILLS} kills. Charred timbers, ember cracks and sails that never stop burning.`,
-  palette: { seed: 191, wood: 0x241713, band: 0x0d0907, stripe: 0xff5a14, band2: 0x3a120a, tar: 0x0a0605, trim: 0xff8a2a, sail: 0x5a1606, patch: [0x3a0e04, 0x7a2408], hem: 0x1a0603, lantern: 0xff9a3a, window: 0xffb04a, stripes: 0x2a0a04 },
+  palette: { seed: 191, artBody: 0x0c0807, artTrim: 0x3a1a12, artWindow: 0xd8300c, artLantern: 0xe0400e, artGlowK: 0.55, wood: 0x241713, band: 0x0d0907, stripe: 0xff5a14, band2: 0x3a120a, tar: 0x0a0605, trim: 0xff8a2a, sail: 0x5a1606, patch: [0x3a0e04, 0x7a2408], hem: 0x1a0603, lantern: 0xff9a3a, window: 0xffb04a, stripes: 0x2a0a04 },
   sail: { bg: '#4a1406', badge: '#0b0604', lines: 'rgba(255,140,40,0.10)', border: '#1a0603' },
   flag: { bg: '#1a0d08', badge: '#0b0604', border: '#ff5a14' },
   parts: { oak: 0x1c120e, plank: 0x2a1610, deck: 0x3a2418, iron: 0x14100e, gold: 0xff8a2a, glow: 0xff6a1a },
