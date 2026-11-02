@@ -16,17 +16,25 @@ What it does (`relay.js`, Node 18+, one dependency: `ws`):
 
 ## Run locally
     npm install && PORT=8080 node relay.js
-    # game: http://localhost:8787/?relay=ws://localhost:8080   (the ?relay= switch accepts wss://… or ws://localhost only)
+    # game: http://localhost:8787/?relay=ws://localhost:8080   (dev hosts only; on the live hosts ?relay= is ignored unless the host is in RELAY_HOSTS)
     node loadtest.js 16 2 20 ws://localhost:8080 20   # 20 arenas × (16 players + 2 spectators) for 20 s
 
 ## Deploy (owner's decision; nothing has been deployed or signed up for)
 - Docker: `docker build -t pfp-relay . && docker run -p 8080:8080 -e MAX_ARENA=16 pfp-relay` (any $5 VPS, Railway, Render…)
 - Fly.io: copy `fly.toml.example` to `fly.toml`, `fly launch --copy-config`, `fly deploy`. Put it behind TLS (wss://).
-- Then set `PVP_RELAY_URL` in `js/config.js` to the wss:// URL (and keep `PVP_NET.relay.maxArena` = MAX_ARENA).
+- Then set `RELAY_DEFAULT` (and add the host to `RELAY_HOSTS`) in `js/config.js`, add the wss:// origin to the CSP `connect-src` in
+  index.html / island.html, and keep `PVP_NET.relay.maxArena` = MAX_ARENA. See SECURITY_FIXES.md (deploy step 7).
 
 ## Env
 PORT 8080 · HZ 10 · MAX_ARENA 16 · ROOMS 12 · MAX_SPEC 64 (per room) · MAX_QUEUE 500 · MAX_CLIENTS 3000 · OFFER_S 15 ·
 INTEREST_R 320 · FAR_EVERY 5 · SHOT_R 360 · MSG_RATE 40 · MSG_MAX 16384
+
+Security (see SECURITY_FIXES.md):
+- `RELAY_TICKET_SECRET` — same value as the pvp function secret; when set, sockets need `&ticket=` from the pvp `ticket` action
+  (bound to the network id and prefix, 30 min). Unset = open relay (local testing only).
+- `ORIGINS` — comma list of allowed page origins (e.g. `https://game.pumpfunpirates.com`); unset = any (local testing only).
+- `MAX_PER_IP` 8 — sockets per client IP. `TRUST_PROXY=1` behind a proxy (uses the LAST X-Forwarded-For hop).
+- `RELAY_NO_LISTEN=1` — load the module without opening a port (tests).
 
 ## Measured on the dev box (load generator on the same machine)
 | load | relay CPU (1 core) | out | per client | latency p50 / p99 |
