@@ -10,9 +10,9 @@
 // Static fields (name, levels, skin, K/D…) are only re-sent when they change or every 3 s (delta); an unchanged, quiet
 // ship is suppressed down to a keepalive. Receivers merge deltas back into a full state before pvp.js sees it.
 import { Room } from './net.js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL, HARBOR_NET } from './config.js';
 
-const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc']; // [v98] pc = squads party tag
+const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj']; // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order)
 const DYN_EPS = { x: 0.25, z: 0.25, y: 0.015, v: 0.15, t: 0.05 };
 
 class Batcher {
@@ -72,18 +72,40 @@ function supabaseNet({ prefix, myId }) {
       return await r.json();
     } catch { return { state: 'error' }; }
   }
-  async function openRoom(idx) {
-    const room = new Room(`${prefix}-${idx}`);
-    const link = new Batcher(myId, cfg, (msg) => room.send('b', msg));
-    room.on('b', (m) => link.receive(m));
-    link.open = false; link.onStatus = () => {};
-    room.onStatus = (s) => { link.open = room.open; link.onStatus(s); };
-    link.close = () => { link.stop(); room.close(); link.open = false; };
-    await room.connect(); link.open = true; link.room = room;
-    Object.defineProperty(link, 'open', { get: () => room.open, set() {} });
-    return link;
-  }
+  const openRoom = (idx) => openBatched(`${prefix}-${idx}`, myId, cfg);
   return { kind: 'supabase', cfg, lobby, openRoom };
+}
+async function openBatched(name, myId, cfg) { // one Realtime channel + the one-message-per-tick batcher
+  const room = new Room(name);
+  const link = new Batcher(myId, cfg, (msg) => room.send('b', msg));
+  room.on('b', (m) => link.receive(m));
+  link.open = false; link.onStatus = () => {};
+  room.onStatus = (s) => { link.open = room.open; link.onStatus(s); };
+  link.close = () => { link.stop(); room.close(); link.open = false; };
+  try { await room.connect(); } catch (e) { link.stop(); room.close(); throw e; }
+  link.open = true; link.room = room;
+  Object.defineProperty(link, 'open', { get: () => room.open, set() {} });
+  return link;
+}
+
+// ---------------- [v99] SHARED HARBOR copies (Supabase Realtime only; the relay build keeps private harbors) ----------------
+//   createHarborNet({ prefix, myId }) -> null | { cfg, call(op, { seat, name, cap, keepalive }), openRoom(copy) }
+//   call ops (pvp_harbor RPC, migration 021): beat (get / keep a copy seat) | spec (watch the busiest copy) | peek | leave
+//   A copy of n pirates + s spectators costs n·1.5·(n+s) msgs/s (1 Hz state + volleys); the RPC keeps the harbor total
+//   inside the free plan without ever touching the Solo / Squads arena budget.
+export function createHarborNet({ prefix, myId }) {
+  if (PVP_RELAY_URL || !SUPABASE_URL || !HARBOR_NET.on) return null;
+  const cfg = HARBOR_NET;
+  async function call(op, o = {}) {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', keepalive: !!o.keepalive,
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ p_seat: o.seat, p_prefix: prefix, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null }) });
+      if (!r.ok) return { state: 'error', status: r.status };
+      return await r.json();
+    } catch { return { state: 'error' }; }
+  }
+  return { kind: 'harbor', cfg, prefix, call, openRoom: (copy) => openBatched(`${prefix}-${copy}`, myId, cfg) };
 }
 
 // ---------------- relay server (server/relay.js): one socket, lobby + room, server batches one frame per tick ----------------

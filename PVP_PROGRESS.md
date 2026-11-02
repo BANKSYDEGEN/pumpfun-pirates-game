@@ -59,7 +59,30 @@
   the camera follows your mate. Win gold 150 (+holder perk) only if someone on the losing team was really sunk; losers rotate out
   when someone is queued. Your team: blue sails + flag (hulls keep their skin), blue name tags, a ring under your mate, blue radar
   dot, the mate's HP bar at the top; the enemy is red. Same profile / boards as Solo; harbor death rule, holder perk, owner sync
-  and emotes unchanged. Home SPECTATE has a SOLO / SQUADS switch (no Harbor option). ?sqmin=N for test rooms.
+  and emotes unchanged. Home SPECTATE has a SOLO / SQUADS switch ([v99] + HARBOR). ?sqmin=N for test rooms.
+- [v99] SHARED PvE HARBOR: the queue harbor is shared. `pvp_harbor` RPC (migration 021, own table pvp_harbor_seats) gives each
+  pirate a harbor COPY (Realtime room pfp-harbor-1, -2, ...; 4 per copy, a full copy overflows into the next; heartbeat every 6 s,
+  seats expire after 20 s). Alone in a copy = no socket at all (the v98 local harbor). 2+ in a copy: the oldest pirate (joined the
+  copy first) is HOST and sails the AI ships + the periodic boss (scaled to the copy's average total level, +1 AI per extra
+  pirate, max +3); its state (1 Hz, js/transport.js batcher, HARBOR_NET) carries the AI rows; the others dead-reckon them, send
+  their hits on them to the host ('bh': per-ball cap MAX_HIT, ~10/s bucket, 260 m range) and apply the AI balls that hit THEM.
+  PvE only: pirates' balls pass through pirates. The host reports each sinking ('bs'): last hit = the kill (harborKills /
+  bossKills -> COMMODORE, same lib.ts caps), gold split by damage dealt (remainder to the killer) as a pile only you see (holder 2x
+  on pickup as before). Host leaves -> the next oldest adopts the AI ships where they are (no respawn). Green name tags + green
+  radar dots for harbor mates; radar line 'HARBOR · N pirates' (copy 2+: 'HARBOR 2 · N pirates'). Hidden tab / 90 s no input
+  (HARBOR_NET.afk) = back to a private harbor. Spectate: home switch SOLO / SQUADS / HARBOR, harbor card 👁 folds out
+  SOLO|SQUADS / HARBOR in place; harbor spectate watches the busiest copy (re-picks after 20 s empty). COMMODORE 'hunter' mode:
+  hook only (hunterPilot() in spawnBoss, always null). HARBOR_NET.on = false turns sharing off (every harbor private again).
+  BUDGET: arenas unchanged (Σ n·4·(n+s) ≤ 80, pvp_lobby never counts the harbor); a copy costs n·1.5·(n+s) msgs/s (n+s ≥ 2);
+  harbor total ≤ min(60, 95 − arena load); if the arenas grow past that, each heartbeat moves the newest pirate of a shared
+  copy into an empty copy until the project is ≤ 95 again (the arena always wins). ?hbcap=N for small test copies.
+- [v104] SHARED HARBOR on the coast: AI + boss spawns are the coast ring points that pass coastSeaOk (js/pvp.js: not on the
+  town apron / sandbar / headland, ≥ 40 m clear of the SAFE HARBOR box, west of COAST_TURN_X - 10): 13 of 17 (the 4 at ±60 deg /
+  ±30 deg inner are gone). First harbor spawn is a random spot 12-38 m from the centre (pirates of one copy don't stack); a harbor
+  respawn also keeps away from the other pirates' ships and skips ring spots next to the berths. Host election waits (max 6 s
+  after the listen window) until every copy-mate's join time has arrived, so there's no brief wrong host / AI hand-over churn.
+  Docked + on-foot pirates ride the same room state (dk / ft, js/onfoot/net.js, max 3 peers = copy cap 4); ships in the no-fire
+  zone are never AI targets. Realtime / pvp_harbor down = the private v98 harbor.
 - [v98] COMMODORE unlock skin (Timothy, merged 464777a): 100 harbor BOSS kills, counted from this release (profile stats
   harborKills / bossKills, server-checked: lib.ts caps bossBase 2 + 1/min, counters only go up). Skin menu card with a boss-kill
   progress bar. Boss rig guns are 1.25x: the upgrade deck guns now sit on them (ships.js gunCs), spawn checked L0/L3/L8.

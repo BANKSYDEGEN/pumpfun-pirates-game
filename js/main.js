@@ -899,10 +899,10 @@ if (we) {
 }
 $('btn-start').onclick = () => openWavesEntry();
 window.PFP_OPEN_WAVES = () => openWavesEntry(); // [v103] the harbor card's WAVES tab + the island WAVES board open the same Waves entry
-{ // [v98] home SPECTATE: SOLO / SQUADS switch (which arena to watch), remembered on this device
+{ // [v98] home SPECTATE: SOLO / SQUADS / [v99] HARBOR switch (what to watch), remembered on this device
   const sw = $('spec-mode-sw');
   if (sw && !PVP_ENABLED) sw.remove();
-  else if (sw) { const get = () => { try { return localStorage.getItem('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'; } catch { return 'solo'; } };
+  else if (sw) { const get = () => { try { const m = localStorage.getItem('pfp_spec_mode'); return m === 'squads' || m === 'harbor' ? m : 'solo'; } catch { return 'solo'; } }; // [v99] + HARBOR (the busiest shared harbor copy)
     const paint = () => sw.querySelectorAll('button').forEach(b => { b.classList.toggle('on', b.dataset.m === get()); b.setAttribute('aria-pressed', b.dataset.m === get()); });
     sw.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; e.stopPropagation(); try { localStorage.setItem('pfp_spec_mode', b.dataset.m); } catch {} paint(); window.PFP_HOME_LIVE?.(); });
     paint(); } }

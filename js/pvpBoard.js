@@ -86,6 +86,15 @@ window.PFP_PVP_BOARD = { renderKills, refreshKillsBoards, initHomeBoard, get per
     if (!el || !PVP_ENABLED || !SUPABASE_URL || busy || document.hidden || !title || title.classList.contains('hidden')) return;
     busy = true;
     try {
+      let hbm = false; try { hbm = localStorage.getItem('pfp_spec_mode') === 'harbor'; } catch {}
+      if (hbm) { // [v99] HARBOR: pirates sailing the shared harbor copies (read-only peek, holds no seat)
+        const hp = 'pfp-harbor' + (new URLSearchParams(location.search).get('pvproom') ? '-' + solo.slice(8) : '');
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ p_seat: seat, p_prefix: hp, p_op: 'peek' }) });
+        const j = r.ok ? await r.json() : null; if (!j || j.state === 'error') throw new Error('harbor');
+        const shared = (j.copies || []).filter(c => c[1] >= 2).length;
+        el.textContent = `⚓ ${j.pirates | 0} in the harbor${shared ? ` · ${shared} shared ${shared === 1 ? 'copy' : 'copies'}` : ''}`; el.classList.remove('hidden'); return;
+      }
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_lobby`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ p_seat: seat, p_prefix: prefixNow(), p_op: 'poll' }) });
       const j = r.ok ? await r.json() : null;

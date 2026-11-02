@@ -8,21 +8,26 @@ import { isKey } from './keybinds.js';
 //  - every client is authoritative for its OWN ship; state + events go out as ONE batched message per tick (PVP_NET hz);
 //  - cannon volleys are broadcast as events so everyone sees the balls; the SHOOTER decides a hit and the VICTIM'S
 //    client applies it (after caps: damage per ball, hits per second, shooter distance);
-//  - AI ships are LOCAL only (harbor only; the arena is players only), never networked, never count for K/D.
+//  - AI ships live in the harbor only (the arena is players only) and never count for K/D. [v99] SHARED PvE HARBOR: the
+//    pvp_harbor RPC (migration 021) puts up to 4 pirates in one harbor copy (pfp-harbor-1, -2, ...; a full copy overflows into
+//    the next). In a copy the oldest pirate is the HOST: it sails the AI ships + boss and sends them in its state (1 Hz);
+//    the others draw them, report their hits to the host, and each victim applies the AI balls that hit it. Pirates can't
+//    hurt each other there. The last hit gets the kill, the gold is split by damage dealt. Alone in a copy = no Realtime
+//    socket at all (the v98 local harbor).
 //  - the lowest-id client in the room is HOST: it owns gold piles (who picked up which pile) and
 //    turns a sunk player's report into a pile (carried gold + PVP_DEATH_BONUS). When the host leaves, the next one takes over.
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
 import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
 import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
-import { createNet } from './transport.js';
+import { createNet, createHarborNet } from './transport.js';
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-chat
 import { PVP_HARBOR_DEATH_LOSS, PVP_HARBOR_RESPAWN, PVP_HARBOR_PROTECT } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
-import { COAST_ON } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
+import { COAST_ON, fromHarbor as coastFromHarbor, w2t as coastW2t, inPoly as coastInPoly, APRON as COAST_APRON, ISLET as COAST_ISLET, HEADLAND as COAST_HEADLAND, SAFE as COAST_SAFE } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
@@ -31,7 +36,7 @@ import { shopState, shopBuy, cleanGear } from './pvpSave.js';
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
-import { SQUADS } from './config.js';
+import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
@@ -72,8 +77,15 @@ export const pirateName = () => `${PIRATE_A[Math.random() * PIRATE_A.length | 0]
 // [Emerly] coast harbor (Raul's js/island/coast.js, ?coast=1 until it goes live): the town + berths are the EAST side of the harbor, so
 // the 5 outer spawns at 0 / 22.5 / 45 / 315 / 337.5 deg (on land / in the no-fire zone) go and the other 11 spread over 60..300 deg
 // (harbor only; the arena keeps the full ring). SPAWNS below is unchanged.
+// [v104 shared harbor] every coast spawn is checked against Raul's coast data: never on land (town apron, sandbar islet, cliff
+// headland), never within 40 m of the no-fire SAFE HARBOR polygon, never east of COAST_TURN_X - 10 (the AI would turn straight back)
+export const coastSeaOk = (hx, hz, pad = 40) => { const [x, z] = coastFromHarbor(hx, hz), [lx, lz] = coastW2t(x, z);
+  if (hx > COAST_TURN_X - 10 || coastInPoly(lx, lz, COAST_APRON)) return false;
+  if (Math.hypot(lx - COAST_ISLET.lx, lz - COAST_ISLET.lz) < COAST_ISLET.r + 30 || Math.hypot(lx - COAST_HEADLAND.lx, lz - COAST_HEADLAND.lz) < COAST_HEADLAND.r + 40) return false;
+  const [sx0, sx1] = [Math.min(...COAST_SAFE.map(p => p[0])), Math.max(...COAST_SAFE.map(p => p[0]))], [sz0, sz1] = [Math.min(...COAST_SAFE.map(p => p[1])), Math.max(...COAST_SAFE.map(p => p[1]))];
+  return !(lx > sx0 - pad && lx < sx1 + pad && lz > sz0 - pad && lz < sz1 + pad); };
 const SPAWNS_COAST = [...Array.from({ length: 11 }, (_, i) => (60 + i * 24) / 360 * 6.283).map(a => [Math.cos(a) * PVP_ARENA_R * 0.82, Math.sin(a) * PVP_ARENA_R * 0.82]),
-  ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])];
+  ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])].filter(([x, z]) => coastSeaOk(x, z));
 const SPAWNS = [...Array.from({ length: 16 }, (_, i) => [Math.cos(i / 16 * 6.283) * PVP_ARENA_R * 0.82, Math.sin(i / 16 * 6.283) * PVP_ARENA_R * 0.82]),
   ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])];
 
@@ -90,6 +102,10 @@ export function createPvp(K) {
   // [v98] one lobby / room per mode. SOLO = the free-for-all arena, SQUADS = 2v2 teams. Same profile (skins, upgrades, gold, board).
   const nets = { solo: createNet({ prefix: ROOM_PREFIX, myId }), squads: createNet({ prefix: SQ_PREFIX, myId }) };
   let mode = ls0('pfp_br_mode') === 'squads' ? 'squads' : 'solo', net = nets[mode];
+  // [v99] SHARED HARBOR copies: live 'pfp-harbor' (rooms pfp-harbor-1, -2, ...); ?pvproom=X tests use 'pfp-harbor-X'. ?hbcap=N: smaller test copies
+  const HB_PREFIX = 'pfp-harbor' + (QS.get('pvproom') ? '-' + ROOM_PREFIX.slice(8) : '');
+  const hbNet = createHarborNet({ prefix: HB_PREFIX, myId }), HB_CAP = +QS.get('hbcap') || null;
+  const hb = { copy: 0, n: 0, s: 0, pirates: 0, copies: [], cap: HARBOR_NET.cap, beatAt: 0, busy: false, hj: 0, listenUntil: 0, gen: 0, specCopy: 0, specEmptyT: 0, specBeatAt: 0 };
   const curPrefix = () => mode === 'squads' ? SQ_PREFIX : ROOM_PREFIX;
   const isSq = () => mode === 'squads' && (where === 'arena' || where === 'spec'); // in the squads arena (playing or watching)
   const seatId = myId + Math.random().toString(36).slice(2, 10);
@@ -206,7 +222,7 @@ export function createPvp(K) {
   async function declineOffer() { showOffer(false); lob.offerUntil = 0; await lobbyCall('decline'); harborUi(); }
   async function leaveQueue() { await lobbyCall('leave'); lob.state = 'harbor'; harborUi(); }
   async function enterArena() {
-    clearLocalAi(true);
+    hbLeave(); clearLocalAi(true); // [v99] out of the shared harbor copy (its seat, socket, pirates and the host's AI ships)
     let link;
     try { link = await net.openRoom(1); } catch (e) { console.warn('[pvp] arena connect failed', e?.message); await lobbyCall('leave'); K.banner('ARENA OFFLINE', 'could not connect, back in the harbor'); return false; }
     if (!active) { link.close(); return false; }
@@ -224,14 +240,17 @@ export function createPvp(K) {
     if (room) { room.send('bye', { i: myId }, { now: true }); room.close(); }
     room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
     isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); sqReset(); sqVis();
-    respawnHarbor(); harborUi(); K.banner(title, sub);
+    respawnHarbor(); hb.beatAt = 0; harborUi(); K.banner(title, sub); // [v99] back into a shared harbor copy at the next heartbeat
   }
   function respawnHarbor(afterDeath = false) {
     const pl = P(); me.dead = false; me.protect = afterDeath ? PVP_HARBOR_PROTECT : 0; me.lastBy = null; me.lastDamageAt = 0; showDead(false); pl.mesh.visible = true;
     let x = 0, z = 0, yaw = 0;
+    if (!afterDeath && hbNet) { const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 26; x = Math.cos(a) * r; z = Math.sin(a) * r; } // [v104 shared harbor] pirates sharing a copy don't all appear on the same spot
     if (afterDeath) { // [v95] sunk in the harbor: respawn at the harbor spot farthest from every live AI ship / the boss (upgrades + skin kept)
       const foes = [...bots.values()].filter(b => b.alive); let best = -1;
+      for (const p of livePeers()) if (p.ship?.alive) foes.push({ x: p.ship.x, z: p.ship.z, harborBoss: false }); // [v104] + the other pirates' ships (no spawning on top of them)
       for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2 + Math.random() * 0.2, r = 40 + (i % 3) * 45, cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+        if (COAST_ON && !coastSeaOk(cx, cz, 0)) continue; // [v104] not right up against the berths / headland
         const d = foes.length ? Math.min(...foes.map(b => Math.hypot(b.x - cx, b.z - cz) - (b.harborBoss ? 60 : 0))) : 1e9;
         if (d > best) { best = d; x = cx; z = cz; } }
       yaw = Math.atan2(-x, -z); me.life++;
@@ -246,7 +265,7 @@ export function createPvp(K) {
     const every = lob.state === 'queue' || lob.state === 'offer' ? 3000 : where === 'harbor' ? (spec.on || document.hidden ? 0 : 6000) : 10000; // [v71] harbor: live arena head-count every 6 s (read only, holds no seat) // queued seats expire after 15 s without a poll, arena seats after 25 s
     if (!every || lob.busy || now - (lob.lastPoll || 0) < every) return;
     lob.lastPoll = now;
-    lobbyCall(where === 'spec' ? 'spec' : 'poll').then((r) => {
+    lobbyCall(where === 'spec' && !spec.harbor ? 'spec' : 'poll').then((r) => { // [v99] harbor spectators only read the arena count
       if (!active) return;
       if (where === 'arena' && !lob.queuedByDeath && r.state === 'harbor') lobbyCall('play').then((r2) => { if (r2.state !== 'play' && where === 'arena') toHarbor('BACK IN THE HARBOR', r2.state === 'queue' ? `your arena seat expired · queue #${r2.pos}` : 'your arena seat expired'); });
       harborUi();
@@ -299,23 +318,32 @@ export function createPvp(K) {
     const mb = $('pvp-menu-return'); if (mb) mb.hidden = !show;
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
-  const aiWanted = () => !spec.on && where === 'harbor'; // the arena is players only, always (BANKSY)
+  // [v99] in a shared copy only the HOST sails AI ships (during the first HARBOR_NET.listen s after joining we keep our own)
+  const aiWanted = () => !spec.on && where === 'harbor' && (!room || isHost || performance.now() < hb.listenUntil); // the arena is players only, always (BANKSY)
+  // [v99] COMMODORE 'hunter' (boss-side) mode: NOT built. Clean hook only: before the host hands a new harbor boss to the AI it
+  // asks hunterPilot(boss) for a pirate id to sail it instead. Always null for now (hunter.enabled stays false).
+  const hunter = { enabled: false };
+  const hunterPilot = (bossShip) => (hunter.enabled && bossShip ? null : null);
   // [v94] HARBOR BOSS: countdown runs only while you sail the harbor (alive, not spectating); one boss at a time
   const boss = { t: HARBOR_BOSS.every[0] + Math.random() * (HARBOR_BOSS.every[1] - HARBOR_BOSS.every[0]), e: null, bar: null };
   const bossAlive = () => !!(boss.e && boss.e.alive && bots.has(boss.e.net.id));
   function spawnBoss() {
     if (bossAlive() || where !== 'harbor') return null;
     const [x, z] = pickSpawn().pt, e = K.spawnEnemy(x, z, 2, 'boss'), id = `b${++botSeq}${myId.slice(-4)}`;
-    e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true; e.noFlee = true;
+    e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true; e.noFlee = true; e.dmgBy = new Map();
+    e.pilot = hunterPilot(e); // [v99] hunter hook (always null: the AI sails it)
     e.bar.querySelector('.name').textContent = '☠ HARBOR BOSS'; e.bar.classList.add('t-boss', 'harbor-boss');
     scaleAi(e); bots.set(id, e); boss.e = e;
-    K.banner('☠ HARBOR BOSS!', `a boss ship sails in · sink it for ${e.gold}g`); K.sfx?.boss?.();
+    K.banner('☠ HARBOR BOSS!', room ? `a boss ship sails in · ${e.gold}g, shared by damage` : `a boss ship sails in · sink it for ${e.gold}g`); K.sfx?.boss?.();
     return e;
   }
   function bossTick(dt) {
-    const on = where === 'harbor' && !spec.on && P().alive && !me.dead;
+    const on = where === 'harbor' && !spec.on && (room ? isHost && performance.now() >= hb.listenUntil : P().alive && !me.dead); // [v99] a shared copy: the host's clock
     if (on && !bossAlive()) { boss.t -= dt; if (boss.t <= 0) { boss.t = HARBOR_BOSS.every[0] + Math.random() * (HARBOR_BOSS.every[1] - HARBOR_BOSS.every[0]); spawnBoss(); } }
-    let b = boss.bar; const show = bossAlive() && where === 'harbor';
+    bossBar();
+  }
+  function bossBar() {
+    let b = boss.bar; const show = bossAlive() && (where === 'harbor' || (spec.on && spec.harbor));
     if (show && !b) { b = boss.bar = document.createElement('div'); b.id = 'pvp-boss-bar'; b.innerHTML = '<span>☠ HARBOR BOSS</span><i><b></b></i>'; document.body.appendChild(b); }
     if (b) { b.hidden = !show; if (show) b.querySelector('b').style.width = `${Math.max(0, boss.e.hp / boss.e.maxHp) * 100}%`; }
   }
@@ -324,16 +352,21 @@ export function createPvp(K) {
     botT -= dt; if (botT > 0) return; botT = 2;
     const now = performance.now();
     for (const [id, b] of bots) if (!b.mesh.parent) bots.delete(id);
+    for (const b of bots.values()) if (b.remote && b.alive && now - (b.seenAt || 0) > 7000) { b.alive = false; b.sinking = 0.001; b.fade = true; if (b.netState) b.netState.a = false; } // [v99] the host stopped sending it
     if (aiWanted()) {
-      const alive = [...bots.values()].filter(b => b.alive && !b.harborBoss).length; // the boss is extra
-      if (alive < (where === 'harbor' ? harborAiCount(totalLevel()) : PVP_AI_SHIPS)) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); scaleAi(e); bots.set(id, e); }
-    } else clearLocalAi(false);
+      const alive = [...bots.values()].filter(b => b.alive && !b.harborBoss && !b.remote).length; // the boss is extra
+      const want = harborAiCount(copyLevel()) + (room ? Math.min(HARBOR_NET.extraAiMax, livePeers().length * HARBOR_NET.extraAi) : 0); // [v99] +1 AI ship per extra pirate in the copy
+      if (alive < want) { const [x, z] = pickSpawn().pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); e.dmgBy = new Map(); scaleAi(e); bots.set(id, e); }
+    } else clearLocalAi(false, true);
     capPiles(true);
   }
   // harbor economy: AI boats grow with YOUR total upgrade level L (HP, size + hitbox, damage) and pay proportionally more
   const totalLevel = () => Object.values(getRunLevels()).reduce((a, b) => a + (b | 0), 0);
+  const lvSum = (lv) => Object.values(lv || {}).reduce((a, b) => a + (b | 0), 0);
+  // [v99] a shared copy scales its AI to the pirates' AVERAGE total upgrade level (alone: yours, exactly as before)
+  const copyLevel = () => { if (!(room && where === 'harbor')) return totalLevel(); const L = [totalLevel(), ...livePeers().filter(p => p.lv).map(p => lvSum(p.lv))]; return Math.round(L.reduce((a, b) => a + b, 0) / L.length); };
   function scaleAi(e) {
-    const L = totalLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
+    const L = copyLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
     e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * harborHpScale(L) * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with the bigger BR hulls
     { const f = Math.min(1, Math.max(0, L) / 44), lerp = (a) => a[0] + (a[1] - a[0]) * f; // [v93] sharper AI as you grow (HARBOR_AI)
       e.reload = lerp(HARBOR_AI.reload); e.accuracy = lerp(HARBOR_AI.accuracy); e.fireR = lerp(HARBOR_AI.fireR); e.maxSpeed *= 1 + HARBOR_AI.speed * f; e.cd = Math.min(e.cd, e.reload); }
@@ -341,22 +374,150 @@ export function createPvp(K) {
     if (e.harborBoss) { const B = HARBOR_BOSS; e.hp = e.maxHp = e.maxHp * B.hp; e.dmgMul *= B.dmg; e.reload *= B.reloadMul; e.accuracy = Math.min(0.92, e.accuracy + B.accuracy);
       e.cannons = Math.min(B.guns[1], B.guns[0] + Math.floor(L / 15)); K.refitGuns?.(e); e.gold = harborGold(L) * B.pay; e.maxSpeed = Math.min(e.maxSpeed, 7.5 * (1 + HARBOR_AI.speed * Math.min(1, L / 44))); }
     const k = sz * (e.harborBoss ? HARBOR_BOSS.scale : 1);
-    if (k !== 1) { const u = e.mesh.userData; e.mesh.scale.multiplyScalar(k); u.len *= k; u.hitLen = (u.hitLen || u.len / k) * k; if (u.baseLen) u.baseLen *= k; u.beam *= k; u.depth *= k; } // (u: the refitted hull)
+    e.aiK = k; scaleMesh(e, k);
   }
-  function clearLocalAi(instant) { // a 2nd pirate arrived (or we sailed into the arena): AI ships sink away, their loot despawns
+  function scaleMesh(e, k) { if (k !== 1) { const u = e.mesh.userData; e.mesh.scale.multiplyScalar(k); u.len *= k; u.hitLen = (u.hitLen || u.len / k) * k; if (u.baseLen) u.baseLen *= k; u.beam *= k; u.depth *= k; } } // (u: the refitted hull)
+  function clearLocalAi(instant, keepProxies = false) { // we sailed into the arena / spectate / left (or a shared copy's host took over): AI ships sink away, their loot despawns
     for (const [id, b] of bots) {
+      if (keepProxies && b.remote) continue; // [v99] the host's ships stay
       if (instant) { dropShip(b); bots.delete(id); continue; }
       if (b.alive) { b.alive = false; b.sinking = 0.001; b.fade = true; }
     }
     for (const [pid, l] of piles) if (l.local) removePile(pid);
   }
+  // ---------------- [v99] SHARED HARBOR: copies, host AI, hits, damage-share gold ----------------
+  // heartbeat every HARBOR_NET.beat s while sailing the harbor: the RPC keeps our copy seat and says who else is in it.
+  // n + s ≥ 2 -> open the copy's Realtime room; alone -> close it (no traffic). Hidden tab / no input for HARBOR_NET.afk s -> leave.
+  function hbTick(now) {
+    if (!hbNet || where !== 'harbor' || spec.on || !active) return;
+    if (document.hidden || now - Math.max(me.lastInput || 0, hb.moveAt || 0) > HARBOR_NET.afk * 1000) { if (room || hb.copy) hbLeave(); return; } // (a held joystick / mouse steering counts as here)
+    if (hb.busy || now - hb.beatAt < HARBOR_NET.beat * 1000) return;
+    hb.beatAt = now; hb.busy = true; const g = hb.gen;
+    hbNet.call('beat', { seat: seatId, name, cap: HB_CAP }).then(async (r) => {
+      try {
+        if (!active || g !== hb.gen || where !== 'harbor' || spec.on) return;
+        if (r?.state !== 'play') { hb.copy = 0; hb.n = 0; if (room) hbDisconnect(); return; }
+        Object.assign(hb, { copy: r.copy | 0, n: r.n | 0, s: r.s | 0, pirates: r.pirates | 0, copies: Array.isArray(r.copies) ? r.copies : [], cap: r.cap || hb.cap });
+        const want = hb.n + hb.s >= 2;
+        if (room && (!want || room.hbCopy !== hb.copy)) hbDisconnect(); // alone again, or moved to another copy (budget)
+        if (want && !room) await hbConnect(hb.copy, g);
+      } finally { hb.busy = false; if (active && where === 'harbor') hud(); }
+    });
+  }
+  async function hbConnect(copy, g) {
+    let link; try { link = await hbNet.openRoom(copy); } catch (e) { console.warn('[harbor] connect failed', e?.message); return; }
+    if (!active || g !== hb.gen || where !== 'harbor' || spec.on || room) { link.close(); return; }
+    room = link; link.hbCopy = copy; roomIdx = copy; hb.hj = Date.now(); hb.listenUntil = performance.now() + HARBOR_NET.listen * 1000;
+    isHost = false; hostId = null; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true });
+  }
+  function hbDisconnect() { // close the copy's room: its pirates and the host's AI ships leave with it (our own AI ships stay)
+    if (!room || where === 'arena') return;
+    room.send('bye', { i: myId }, { now: true }); room.close(); room = null; clearPeers();
+    for (const [id, b] of bots) if (b.remote) { dropShip(b); bots.delete(id); }
+    if (boss.e && !bots.has(boss.e.net.id)) boss.e = null;
+    isHost = false; hostId = null; hb.listenUntil = 0;
+  }
+  function hbLeave(keepalive = false) { hb.gen++; if (where !== 'spec') hbDisconnect(); if (hbNet && (hb.copy || keepalive)) hbNet.call('leave', { seat: seatId, keepalive }); hb.copy = 0; hb.n = 0; hb.beatAt = 0; hb.busy = false; }
+  // host order in a copy: who joined it first (hj, their own clock: everyone compares the same numbers), then the lowest id
+  function electHarborHost() {
+    if (!spec.on && performance.now() < hb.listenUntil) return;
+    if (!spec.on && performance.now() < hb.listenUntil + 6000 && livePeers().some(p => !p.hj)) return; // [v104] wait until every copy-mate's join time (hj) has arrived: no brief wrong host + AI hand-over churn
+    const c = [...(spec.on ? [] : [{ id: myId, hj: hb.hj }]), ...livePeers().filter(p => p.hj).map(p => ({ id: p.id, hj: p.hj }))];
+    c.sort((a, b) => a.hj - b.hj || (a.id < b.id ? -1 : 1)); const h = c[0]?.id ?? null;
+    if (h === hostId) return;
+    const was = isHost; hostId = h; isHost = h === myId;
+    if (isHost && !was) adoptBots(); else if (!isHost && was) yieldBots();
+  }
+  function adoptBots() { // the host left: its AI ships (our copies of them) become ours, same place, hull and stats
+    for (const e of bots.values()) {
+      if (!e.remote || !e.alive) continue;
+      const st = e.netState, a = e.aiS || {};
+      if (st) { e.x = st.x; e.z = st.z; e.yaw = st.y; e.speed = st.v; e.hp = st.h; e.maxHp = st.m; }
+      Object.assign(e, { remote: false, netState: null, dmgMul: a.dmgMul ?? e.dmgMul, reload: a.reload ?? e.reload, accuracy: a.accuracy ?? e.accuracy, fireR: a.fireR ?? e.fireR, maxSpeed: a.maxSpeed ?? e.maxSpeed,
+        gold: a.gold ?? e.gold, aiLevel: a.aiLevel ?? 0, state: 'roam', wp: null, tgt: null, tgtT: 0, cd: 1 + Math.random() * 2, dmgBy: new Map() });
+    }
+    console.info('[harbor] I am the harbor host now');
+  }
+  function yieldBots() { // an older pirate is host after all: our AI ships wait for its updates (and fade if it doesn't have them)
+    const now = performance.now();
+    for (const e of bots.values()) { if (e.remote || !e.alive) continue;
+      e.aiS = { dmgMul: e.dmgMul, reload: e.reload, accuracy: e.accuracy, fireR: e.fireR, maxSpeed: e.maxSpeed, gold: e.gold, aiLevel: e.aiLevel };
+      Object.assign(e, { remote: true, seenAt: now, netState: { yr: 0, x: e.x, z: e.z, y: e.yaw, v: e.speed, t: 0, h: e.hp, m: e.maxHp, a: true, p: false, at: now } }); }
+  }
+  // the host's AI ships ride in its state message: [id, boss, x, z, yaw, speed, hp, maxHp, size, dmg×, reload, accuracy, range, top speed, gold, level, guns]
+  const aiRows = () => [...bots.values()].filter(b => !b.remote && b.alive && !b.fade).slice(0, 12).map(b => [b.net.id, b.harborBoss ? 1 : 0, r1(b.x), r1(b.z), r2(b.yaw), r1(b.speed), Math.round(b.hp), Math.round(b.maxHp),
+    r2(b.aiK || 1), r2(b.dmgMul || 1), r2(b.reload || 3), r2(b.accuracy || 0.6), Math.round(b.fireR || 70), r1(b.maxSpeed || 7), Math.round(b.gold || 0), b.aiLevel | 0, b.cannons | 0]);
+  function makeProxy(id, isBoss, x, z, k, guns) {
+    const e = K.spawnEnemy(x, z, isBoss ? 2 : 1, isBoss ? 'boss' : null);
+    e.x = x; e.z = z; e.net = { id, kind: 'bot' }; e.remote = true; e.aiK = k;
+    if (isBoss) { e.harborBoss = true; e.noFlee = true; e.bar.querySelector('.name').textContent = '☠ HARBOR BOSS'; e.bar.classList.add('t-boss', 'harbor-boss'); if (guns) { e.cannons = guns; K.refitGuns?.(e); } boss.e = e;
+      if (!spec.on || spec.harbor) { K.banner('☠ HARBOR BOSS!', 'a boss ship sails in · sink it together, the gold is shared by damage'); K.sfx?.boss?.(); } }
+    else e.bar.querySelector('.name').textContent = '';
+    scaleMesh(e, k); bots.set(id, e); return e;
+  }
+  function syncBots(rows) { // a non-host / spectator: draw the host's AI ships (dead-reckoned by updateRemote)
+    if (isHost || !Array.isArray(rows)) return;
+    const now = performance.now();
+    for (const w of rows.slice(0, 12)) {
+      if (!Array.isArray(w) || typeof w[0] !== 'string' || w[0].length > 24 || w[0][0] !== 'b') continue;
+      const [id, bossF, x, z, y, v, h, m, k, dm, rl, acc, fr, ms, gold, L, guns] = w;
+      let e = bots.get(id);
+      if (e && !e.remote) continue; // still ours (a host change in flight)
+      if (!e) { if (!(+h > 0) || seenBs.has(id)) continue; e = makeProxy(id, !!bossF, +x || 0, +z || 0, clamp(+k || 1, 0.5, 4), clamp(guns | 0, 0, 12)); }
+      if (!e.alive) continue;
+      const st = e.netState, ny = +y || 0; let yr = 0;
+      if (st) { const sdt = (now - st.at) / 1000; if (sdt > 0.04 && sdt < 3) yr = clamp(angWrap(ny - st.y) / sdt, -2.5, 2.5); yr = st.yr != null ? st.yr * 0.35 + yr * 0.65 : yr; }
+      e.netState = { yr, x: +x || 0, z: +z || 0, y: ny, v: clamp(+v || 0, 0, 30), t: 0, h: clamp(+h || 0, 0, 1e5), m: clamp(+m || 1, 1, 1e5), a: true, p: false, at: now };
+      e.aiS = { dmgMul: clamp(+dm || 1, 0.1, 20), reload: clamp(+rl || 3, 0.5, 10), accuracy: clamp(+acc || 0.6, 0, 1), fireR: clamp(+fr || 70, 20, 200), maxSpeed: clamp(+ms || 7, 1, 30), gold: clamp(gold | 0, 0, 1e5), aiLevel: L | 0 };
+      e.dmgMul = e.aiS.dmgMul; e.gold = e.aiS.gold; e.seenAt = now;
+    }
+  }
+  let botHits = [];
+  function flushBotHits() { if (botHits.length && room && where === 'harbor') room.send('bh', { s: myId, h: botHits.slice(0, 16) }); botHits = []; }
+  function onBotHit(m) { // host: another pirate's balls hit one of our AI ships (same caps as PvP hits: per-ball max, ~10 hits/s, range)
+    if (!isHost || where !== 'harbor' || !m || typeof m.s !== 'string' || !Array.isArray(m.h)) return;
+    const sh = peers.get(m.s)?.ship; if (!sh) return;
+    const now = performance.now(), bk = buckets.get(m.s) || { tokens: 16, t: now };
+    bk.tokens = Math.min(16, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
+    for (const it of m.h.slice(0, 16)) {
+      if (!Array.isArray(it) || bk.tokens < 1) break; bk.tokens--;
+      const e = bots.get(it[0]); if (!e || e.remote || !e.alive || Math.hypot(sh.x - e.x, sh.z - e.z) > 260) continue;
+      const dmg = clamp(Math.round(+it[1] || 0), 0, MAX_HIT); if (!dmg) continue;
+      e.lastBy = m.s; (e.dmgBy ||= new Map()).set(m.s, (e.dmgBy.get(m.s) || 0) + Math.min(dmg, Math.max(0, e.hp)));
+      K.damage(e, dmg, new THREE.Vector3(e.x, e.y + 2, e.z), sh);
+    }
+  }
+  function hostBotSunk(e, src) { // host: the last hit gets the kill, the gold is split by damage dealt (the rest to the killer)
+    const gold = e.gold || PVP_AI_GOLD, by = e.dmgBy || new Map(); if (!by.size && src === P()) by.set(myId, 1);
+    const killer = e.lastBy || ([...by.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null);
+    const tot = [...by.values()].reduce((a, b) => a + b, 0), pay = [];
+    if (tot > 0) { let left = gold; for (const [id, d] of by) { const g = Math.floor(gold * d / tot); if (g > 0) { pay.push([id, g]); left -= g; } }
+      if (left > 0) { const kk = pay.find(q => q[0] === killer) || pay[0]; if (kk) kk[1] += left; else if (killer) pay.push([killer, left]); } }
+    else if (killer) pay.push([killer, gold]);
+    const m = { h: myId, b: e.net.id, k: killer, x: r1(e.x), z: r1(e.z), boss: e.harborBoss ? 1 : 0, g: gold, p: pay.slice(0, 8) };
+    room.send('bs', m, { now: true }); onBotSunkNet(m, true);
+  }
+  const seenBs = new Set();
+  function onBotSunkNet(m, local = false) { // everyone in the copy (host included): sink it, take your share as a pile only you see
+    if (!m || typeof m.b !== 'string' || seenBs.has(m.b)) return;
+    if (!local && (where === 'arena' || typeof m.h !== 'string' || (m.h !== hostId && !peers.has(m.h)))) return;
+    seenBs.add(m.b); if (seenBs.size > 400) seenBs.delete(seenBs.values().next().value);
+    const e = bots.get(m.b), isBoss = !!m.boss, x = clamp(+m.x || 0, -PVP_ARENA_R, PVP_ARENA_R), z = clamp(+m.z || 0, -PVP_ARENA_R, PVP_ARENA_R);
+    if (!local && e && e.remote && e.alive) { e.alive = false; e.hp = 0; e.sinking = 0.001; if (e.netState) e.netState.a = false; sfx.sink(!!e.big); fx.ring(new THREE.Vector3(e.x, 0, e.z), 3, 16, 2.2); }
+    const capG = Math.max(1, e?.gold || harborGold(80) * HARBOR_BOSS.pay), mine = Array.isArray(m.p) ? m.p.find(q => Array.isArray(q) && q[0] === myId) : null;
+    const g = mine ? clamp(Math.floor(+mine[1] || 0), 0, capG) : 0;
+    if (g > 0 && !spec.on) spawnPile(m.b, x, z, g, true); // earned gold: the holder perk doubles it on pickup, as before
+    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
+    if (m.k === myId && !spec.on) countBotKill(isBoss);
+  }
   function wire(r) {
     r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, PVP_DEATH_BONUS)))
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
-      .on('hello', () => { if (isHost) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
+      .on('hello', () => { if (isHost && where === 'arena') sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; })
       .on('emo', onEmote) // [v96] quick-chat callouts (preset ids only)
-      .on('sq', onSq); // [v98] squads round state (host)
+      .on('sq', onSq) // [v98] squads round state (host)
+      .on('bh', onBotHit).on('bs', (m) => onBotSunkNet(m)); // [v99] shared harbor: hits on the host's AI ships, an AI ship sunk (kill + gold shares)
     r.onStatus = (s) => { if (s === 'reconnecting') K.banner('RECONNECTING…', 'the sea went quiet for a moment'); else if (s === 'limit') K.banner('SERVERS BUSY', 'the arena is over capacity, hang on…'); };
   }
   const livePeers = () => [...peers.values()].filter(p => performance.now() - p.heard < PEER_TIMEOUT);
@@ -388,7 +549,7 @@ export function createPvp(K) {
     const now = performance.now();
     if (!p) { p = { id: m.i, heard: now, st: null, ship: null, key: '' }; peers.set(m.i, p); }
     const lv = lvFrom(m.lv), sk = knownSkin(m.sk) ? m.sk : 'classic', key = JSON.stringify(lv) + sk; // [v98] + unlock skins (COMMODORE)
-    p.pc = typeof m.pc === 'string' ? m.pc.slice(0, 8) : '';
+    p.pc = typeof m.pc === 'string' ? m.pc.slice(0, 8) : ''; p.hj = +m.hj || 0; // [v99] harbor host order
     p.name = esc(m.n).slice(0, 20) || 'PIRATE'; p.k = m.k | 0; p.d = m.d | 0; p.g = m.g | 0; p.K = m.K | 0; p.D = m.D | 0; p.bK = m.bK == null ? null : Math.max(0, m.bK | 0); p.bD = m.bD == null ? null : Math.max(0, m.bD | 0); /* [v81] board totals */ p.lv = lv; p.sk = sk;
     const prevHeard = p.heard; p.heard = now;
     // speed sanity: a jump faster than the best possible ship (same life) is clamped
@@ -410,6 +571,9 @@ export function createPvp(K) {
     p.bt = bt;
     p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${bt}</span>` : ''}`;
     p.ship.netState = p.st;
+    const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
+    p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
+    if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
   }
   function updateRemote(e, dt) {
     const st = e.netState;
@@ -456,6 +620,7 @@ export function createPvp(K) {
 
   // ---------------- host (loot only) ----------------
   function electHost() {
+    if (where === 'harbor' || (spec.on && spec.harbor)) return electHarborHost(); // [v99]
     const ids = [...(spec.on ? [] : [myId]), ...livePeers().map(p => p.id)].sort(); const h = ids[0] ?? null; // spectators are never host
     if (h === hostId) return;
     const was = isHost; hostId = h; isHost = h === myId;
@@ -484,9 +649,11 @@ export function createPvp(K) {
   function allShips() { const out = []; const pl = P(); if (pl.alive && !me.dead) out.push(pl); for (const p of livePeers()) if (p.ship?.alive) out.push(p.ship); for (const b of bots.values()) if (b.alive) out.push(b); return out; }
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
   function botTarget(e) {
-    // local AI (harbor only) only ever hunts YOU: never other AI ships, never other pirates
-    const pl = P(), d = Math.hypot(pl.x - e.x, pl.z - e.z);
-    return pl.alive && !me.dead && me.protect <= 0 && d < 220 ? pl : NO_TARGET;
+    // harbor AI hunts the nearest pirate within 220 m (alone: only ever YOU), never other AI ships, never a protected ship
+    const pl = P(); let best = NO_TARGET, bd = 220;
+    if (pl.alive && !me.dead && me.protect <= 0) { const d = Math.hypot(pl.x - e.x, pl.z - e.z); if (d < bd) { bd = d; best = pl; } }
+    if (room && where === 'harbor') for (const p of livePeers()) { const s = p.ship; if (!s?.alive || s.prot || !p.st?.a) continue; const d = Math.hypot(s.x - e.x, s.z - e.z); if (d < bd) { bd = d; best = s; } } // [v99]
+    return best;
   }
   function botSteer(e, desired) { const r = Math.hypot(e.x, e.z); return r > PVP_ARENA_R - 50 || (COAST_ON && where === 'harbor' && e.x > COAST_TURN_X) ? Math.atan2(-e.x, -e.z) : desired; } // [Emerly] coast: bots turn back before the berths / town (harbor x > 140)
   function pickSpawn(selfShip = null) {
@@ -499,13 +666,15 @@ export function createPvp(K) {
 
   // ---------------- cannon fire / hits ----------------
   function onFire(shooter, shot) {
-    if (!room || !shot.length || shooter !== P()) return; // only OUR volleys go on the wire (AI ships are local)
-    const id = myId;
-    room.send('shot', { o: id, b: shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay), b.side === 'star' ? 1 : 0, b.i | 0]) }); // [v95] + side, gun index
+    if (!room || !shot.length) return;
+    const w = shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay), b.side === 'star' ? 1 : 0, b.i | 0]); // [v95] + side, gun index
+    if (shooter === P()) room.send('shot', { o: myId, b: w }, { now: where === 'harbor' }); // our volleys (harbor: at once, the state is only 1 Hz)
+    else if (where === 'harbor' && isHost && shooter.net?.kind === 'bot' && !shooter.remote) // [v99] the host's AI volleys: at once when aimed at another pirate (their client applies the hits)
+      room.send('shot', { o: shooter.net.id, b: w }, { now: shooter.tgt?.net?.kind === 'player' });
   }
   function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
   // [v96] quick-chat: send a preset id (the wheel already limits you to 1 / 2 s); receive: preset ids only, ≤1 per 1.5 s per pirate
-  function emote(e) { if (!validEmote(e) || !room || where !== 'arena') return; room.send('emo', { i: myId, e }); }
+  function emote(e) { if (!validEmote(e) || !room || (where !== 'arena' && where !== 'harbor')) return; room.send('emo', { i: myId, e }); } // [v99] + the shared harbor
   function onEmote(m) {
     if (!m || typeof m.i !== 'string' || m.i === myId || !validEmote(m.e)) return;
     const p = peers.get(m.i), now = performance.now(); if (!p?.ship || !p.ship.alive) return;
@@ -515,25 +684,27 @@ export function createPvp(K) {
     showEmote(p.ship, m.e, { vol, pitch: 0.85 + (Math.abs(h) % 30) / 100 });
   }
   function ownerObj(id) { return peers.get(id)?.ship || null; }
+  const shotOwner = (id) => peers.get(id)?.ship || (where !== 'arena' && bots.get(id)?.remote ? bots.get(id) : null); // [v99] + the host's AI ships
   function onShot(m) {
-    const owner = ownerObj(m.o); if (!owner || !Array.isArray(m.b)) return;
+    const owner = shotOwner(m.o); if (!owner || !Array.isArray(m.b)) return; const aiBall = owner.net?.kind === 'bot'; // [v99] an AI ball is real on the pirate it hits
     for (const b of m.b.slice(0, 14)) { // [v95] up to 12 guns a side; launched from the RENDERED ship's own muzzle (v95 senders)
       const mesh = K.getBall(); mesh.position.set(b[0], b[1], b[2]); mesh.visible = false;
       const side = b[7] === 1 ? 'star' : 'port', ms = b[7] != null && owner.mesh ? gunList(owner, side) : null, muzzle = ms && ms.length ? ms[(b[8] | 0) % ms.length] : null;
-      balls.push({ mesh, v: new THREE.Vector3(clamp(b[3], -80, 80), clamp(b[4], -40, 60), clamp(b[5], -80, 80)), owner, life: 6, delay: clamp(b[6], 0, 1), visual: true, muzzle, gi: b[8] | 0, side, aimT: 0 });
+      balls.push({ mesh, v: new THREE.Vector3(clamp(b[3], -80, 80), clamp(b[4], -40, 60), clamp(b[5], -80, 80)), owner, life: 6, delay: clamp(b[6], 0, 1), visual: !aiBall, muzzle, gi: b[8] | 0, side, aimT: 0 });
     }
     const pl = P(), dist = Math.hypot(owner.x - pl.x, owner.z - pl.z);
     if (m.b[0]) crewFire(owner.mesh, (m.b[0][3] * Math.cos(owner.yaw) - m.b[0][5] * Math.sin(owner.yaw)) > 0 ? 'port' : 'star');
     if (m.b[0] && m.b[0][7] == null) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize()); // old senders (v95 flashes at launch)
-    sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), false);
+    sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), aiBall && !!owner.big);
   }
   const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
   function ballStep(b, p) { // returns true when the ball is spent
-    const pl = P();
+    const pl = P(), hbm = where === 'harbor' || (spec.on && spec.harbor), ownerBot = b.owner?.net?.kind === 'bot';
     const ships = [pl, ...enemies];
     for (const s of ships) {
       if (s === b.owner || !s.alive || (s === pl && me.dead)) continue;
-      if (b.owner?.net?.kind === 'bot' && s !== pl) continue; // AI balls only hurt you, never other AI ships / pirates
+      if (ownerBot && s !== pl) { if (hbm && s.net?.kind === 'player' && inside(s, p)) { fx.hit(p.clone()); return true; } continue; } // AI balls only hurt you (another pirate's client applies its own hits), never AI ships
+      if (hbm && !ownerBot && (s === pl || s.net?.kind === 'player')) continue; // [v99] shared harbor is PvE: balls pass through pirates
       if (isSq() && !sqCanHit(shipIdOf(b.owner), shipIdOf(s))) continue; // [v98] squads: balls pass through teammates; no damage between rounds
       if (!inside(s, p)) continue;
       if (b.visual) { fx.hit(p.clone()); return true; }
@@ -546,7 +717,12 @@ export function createPvp(K) {
   function applyHit(target, raw, p, shooter) {
     const pl = P(), sid = shooter === pl ? myId : shooter.net?.id; if (!sid) return;
     if (target === pl) return localDamage(raw, sid, p, shooter);
-    if (target.net?.kind === 'bot') { target.lastBy = sid; K.damage(target, Math.max(1, Math.round(raw)), p, shooter); return; } // local AI
+    if (target.net?.kind === 'bot') { const dmg = Math.max(1, Math.round(raw));
+      if (target.remote) { if (shooter !== pl) return; // [v99] the host's AI ship: report the hit, show it now (the host's next state confirms the hull)
+        botHits.push([target.net.id, dmg]); if (target.netState) target.netState.h = Math.max(1, target.netState.h - dmg); target.hp = target.netState?.h ?? target.hp;
+        crewHit(target.mesh, dmg / Math.max(1, target.maxHp || 100) * 6); fx.hit(p); sfx.impact?.({ dmg, maxHp: target.maxHp || 100, kill: false, onPlayer: false, armor: 0, v: 0.8 }); K.popup(p, `-${dmg}`, 'hit'); return; }
+      target.lastBy = sid; if (sid) (target.dmgBy ||= new Map()).set(sid, (target.dmgBy.get(sid) || 0) + Math.min(dmg, Math.max(0, target.hp)));
+      K.damage(target, dmg, p, shooter); return; } // our AI (local harbor, or we host the copy)
     if (!target.net || shooter !== pl) return; // only our own hits on other pirates are reported
     me.lastDealtAt = performance.now(); if (me.ret) me.ret.until = me.lastDealtAt + RET_QUIET;
     hitQueue.sid = sid; hitQueue.push([target.net.id, Math.round(raw)]); crewHit(target.mesh, raw / Math.max(1, target.maxHp || 100) * 6); /* [v87] their crew stagger (visual) */ fx.hit(p); sfx.impact?.({ dmg: raw, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.8 });
@@ -607,14 +783,19 @@ export function createPvp(K) {
       if (r.state === 'queue') { lob.queuedByDeath = true; const q = $('pvp-dead')?.querySelector('.pd-queue'); if (q) { q.textContent = `Sent to the queue, position #${r.pos}`; q.hidden = false; } const re = $('pvp-dead')?.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'To the harbor in '; }
     });
   }
-  function onBotSunk(e, src) { // one of our LOCAL AI ships went down: a small local pile, AI tally only
+  function onBotSunk(e, src) { // one of our AI ships went down (local harbor, or we host the shared copy)
+    if (e.remote) return;
+    if (room && where === 'harbor' && isHost && !e.fade) { hostBotSunk(e, src); return; } // [v99] shared copy: kill + gold shares for everyone
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true);
     if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
-    if (by === myId && !e.fade) { profile.stats.botKills++; // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills)
-      const st = profile.stats; if (e.harborBoss) st.bossKills = (st.bossKills | 0) + 1; else st.harborKills = (st.harborKills | 0) + 1;
-      if (e.harborBoss) goalToast({ ...st, bossKills: st.bossKills - 1 }, st);
-      save(e.harborBoss ? { now: true } : {}); }
+    if (by === myId && !e.fade) countBotKill(!!e.harborBoss);
+  }
+  function countBotKill(isBoss) { // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills); the server caps their pace ([v99] shared harbor: the last hit)
+    profile.stats.botKills++;
+    const st = profile.stats; if (isBoss) st.bossKills = (st.bossKills | 0) + 1; else st.harborKills = (st.harborKills | 0) + 1;
+    if (isBoss) goalToast({ ...st, bossKills: st.bossKills - 1 }, st);
+    save(isBoss ? { now: true } : {});
   }
   // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
   function boardClaim(side, k, v, life, keepalive = false) {
@@ -859,26 +1040,28 @@ export function createPvp(K) {
     if (spec.on) { specTick(dt, now); return; }
     if (me.protect > 0) me.protect = Math.max(0, me.protect - dt);
     shield(pl, pl.alive && !me.dead && me.protect > 0); skinFx(pl, dt);
-    lobbyTick(dt); aiTick(dt); afkTick(); retTick();
+    lobbyTick(dt); hbTick(now); aiTick(dt); afkTick(); retTick();
     if (isSq()) sqTick(now);
     if (me.dead && !(isSq() && me.respawn === Infinity)) { me.respawn = me.respawnAt ? (me.respawnAt - now) / 1000 : me.respawn - dt; // [v95] harbor: wall clock, a true 5-4-3-2-1 even on a slow phone
       const el = $('pvp-dead-t'), n = Math.max(1, Math.ceil(me.respawn)); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); const big = $('pvp-dead-big'); if (big && big.textContent !== String(n)) { big.textContent = n; big.classList.remove('pop'); void big.offsetWidth; big.classList.add('pop'); } if (me.respawn <= 0) respawn(); }
     // arena edge
     const r = Math.hypot(pl.x, pl.z); if (r > PVP_ARENA_R) { pl.x *= PVP_ARENA_R / r; pl.z *= PVP_ARENA_R / r; if (!me.edgeT || now - me.edgeT > 5000) { me.edgeT = now; K.banner('EDGE OF THE ARENA', 'turn back, captain'); } }
-    if (room && isHost) hostTick();
+    if (room && isHost && where === 'arena') hostTick(); // (gold piles: arena only; harbor gold is per-pirate)
     // peers that went silent: sink their ship from view
     for (const [id, p] of peers) if (now - p.heard > PEER_TIMEOUT) { if (p.ship) dropShip(p.ship); peers.delete(id); }
     // (our state is sent by the transport at PVP_NET hz via stateMsg; one batched message per tick)
-    hitT -= dt; if (hitT <= 0) { hitT = 0.15; flushHits(); }
+    hitT -= dt; if (hitT <= 0) { hitT = 0.15; flushHits(); flushBotHits(); }
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; hud(); renderFeed(); if (!$('pvp-menu').classList.contains('hidden')) renderBoard(); }
     saveT -= dt; if (saveT <= 0) { saveT = 10; save(); }
   }
   function stateMsg() { // the transport asks for this once per tick
-    if (where !== 'arena' || spec.on) return null;
+    const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
+    if ((where !== 'arena' && !shared) || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
+    if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;
   }
 
@@ -916,7 +1099,8 @@ export function createPvp(K) {
     $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
-    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
+    const hbN = room && where === 'harbor' ? livePeers().length + 1 : 0; // [v99] 'HARBOR · N pirates' in a shared copy (copy 2+ shows its number)
+    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${hbN > 1 ? `${hb.copy > 1 ? ` ${hb.copy}` : ''} · ${hbN} pirates` : ''}${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
       : room ? (isSq() ? sqHudLine(n) : `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}`) : 'joining…';
     if (where === 'harbor') { const an = $('pvp-arena-n'); if (an) { const t = lob.known ? `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · ${lob.players | 0}/${lob.cap || 4} in arena${lob.specs ? ` · ${lob.specs} 👁` : ''}` : `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · …`; if (an.textContent !== t) an.textContent = t; } } // [v98.3] follows the SOLO / SQUADS switch
     if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
@@ -1015,7 +1199,8 @@ export function createPvp(K) {
       setName(v); });
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
-    $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); harborSpectate(); };
+    $('pvp-harbor-spec').onclick = (e) => { e.stopPropagation(); specPick(true); };
+    $('pvp-spec-pick')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-w]'); if (!b) return; e.stopPropagation(); specPick(false); harborSpectate(b.dataset.w === 'harbor'); }); // [v99]
     $('pvp-tab')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (!b) return; e.stopPropagation(); if (lob.state !== 'harbor') return; harborTab = b.dataset.t; harborUi(); });
     $('pvp-waves-go')?.addEventListener('click', (e) => { e.stopPropagation(); window.PFP_OPEN_WAVES?.(); }); // = the old home-screen WAVES button
     $('pvp-mode')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (b) { e.stopPropagation(); setMode(b.dataset.m); } }); // [v98]
@@ -1044,6 +1229,7 @@ export function createPvp(K) {
     $('pvp-entry-wallet').onclick = (e) => { e.stopPropagation(); $('pvp-entry').classList.add('hidden'); toggleMenu(true); };
     for (const id of ['pvp-harbor', 'pvp-offer', 'pvp-entry', 'pvp-afk']) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $(id)?.addEventListener(ev, e => e.stopPropagation());
     for (const ev of ['keydown', 'pointerdown', 'touchstart', 'wheel']) addEventListener(ev, () => { if (active) markInput(); }, { passive: true, capture: true });
+    for (const ev of ['pointermove', 'touchmove']) addEventListener(ev, () => { hb.moveAt = performance.now(); }, { passive: true, capture: true }); // [v99] harbor presence only (the arena AFK rule is unchanged)
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) { $('pvp-menu').addEventListener(ev, e => e.stopPropagation()); $('pvp-dead').addEventListener(ev, e => e.stopPropagation()); }
     addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (isKey('menu', e.code)) { e.preventDefault(); toggleMenu(); } });
     addEventListener('pagehide', () => leave(true));
@@ -1075,7 +1261,14 @@ export function createPvp(K) {
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
   }
   function showOffer(on) { $('pvp-offer')?.classList.toggle('hidden', !on); if (on) $('pvp-offer-t').textContent = Math.ceil(Math.max(0, (lob.offerUntil - performance.now()) / 1000)); }
-  async function harborSpectate() { if (where !== 'harbor') return; if (lob.state === 'queue') K.banner('SPECTATING', 'you keep your queue place while you watch'); clearLocalAi(true); await specBegin(); }
+  async function harborSpectate(harbor = false) { if (where !== 'harbor') return; if (lob.state === 'queue') K.banner('SPECTATING', 'you keep your queue place while you watch');
+    spec.harbor = !!harbor && !!hbNet; hbLeave(); clearLocalAi(true); await specBegin(); } // [v99] harbor = watch the busiest shared harbor copy
+  function specPick(show) { // [v99] the card's 👁: pick the arena (the mode on the switch) or the HARBOR; folds back after 5 s
+    const pk = $('pvp-spec-pick'), b = $('pvp-harbor-spec'); if (!pk || !b) { harborSpectate(false); return; }
+    if (!hbNet) { harborSpectate(false); return; }
+    clearTimeout(specPick.t); pk.hidden = !show; b.hidden = !!show;
+    if (show) { const a = pk.querySelector('[data-w="arena"]'); if (a) a.textContent = mode === 'squads' ? 'SQUADS' : 'SOLO'; specPick.t = setTimeout(() => specPick(false), 5000); }
+  }
 
   // ---------------- SPECTATE ----------------
   const LS_BOARD = 'pfp_spec_board';
@@ -1108,12 +1301,13 @@ export function createPvp(K) {
     spec.maxDist = K.controls.maxDistance; K.controls.maxDistance = 520; // [v82] one finger spins the view again (as before v69); two fingers pinch-zoom and drag to pan
     document.documentElement.classList.add('pvp-spec'); wireSpec();
     const open = lsGet(LS_BOARD); setBoard(open === null ? matchMedia('(min-width: 700px) and (min-height: 480px)').matches : open === '1', false);
-    K.banner('SPECTATING', 'watching the arena · you are invisible to the pirates');
+    K.banner('SPECTATING', spec.harbor ? 'watching the busiest harbor · you are invisible to the pirates' : 'watching the arena · you are invisible to the pirates');
     await specJoin(1);
     if (!active || !spec.on) return;
     specHud(); renderSpecBoard();
   }
   async function specJoin(idx) { // receive-only join: listen, never announce a ship (the lobby checks the spectator budget)
+    if (spec.harbor) return specJoinHarbor();
     room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid); isHost = false; hostId = null;
     const seat = await net.lobby('spec', lobbyOpts());
     if (!active || !spec.on) return;
@@ -1123,15 +1317,35 @@ export function createPvp(K) {
     if (!active || !spec.on) { r.close(); return; }
     room = r; wire(r); where = 'spec'; sqReset(); r.send('hello', { i: myId }, { now: true }); // the host answers with the gold piles; we never send a state
   }
+  async function specJoinHarbor() { // [v99] watch the busiest shared harbor copy (pirates + the host's AI ships); re-picked when it empties
+    room?.close(); room = null; clearPeers(); clearLocalAi(true); isHost = false; hostId = null; hb.specEmptyT = 0;
+    if (!hbNet) { K.banner('HARBOR OFFLINE', 'shared harbors are off right now'); spec.emptyT = -30; return; }
+    await hbNet.call('leave', { seat: seatId });
+    const r = await hbNet.call('spec', { seat: seatId, name, cap: HB_CAP });
+    if (!active || !spec.on || !spec.harbor) return;
+    hb.pirates = r?.pirates | 0;
+    if (r?.state === 'full') { K.banner('SPECTATOR SEATS FULL', 'the free servers are at capacity, try again soon'); spec.emptyT = -30; return; }
+    if (r?.state !== 'spec') { hb.specCopy = 0; spec.emptyT = 15; return; } // nobody in a shared harbor right now: look again in 15 s
+    let link; try { link = await hbNet.openRoom(r.copy); } catch (e) { console.warn('[harbor spectate] join failed', e?.message); spec.emptyT = 15; return; }
+    if (!active || !spec.on || !spec.harbor) { link.close(); return; }
+    room = link; link.hbCopy = r.copy; roomIdx = r.copy; hb.specCopy = r.copy; hb.n = r.n | 0; hb.specBeatAt = performance.now(); wire(link); where = 'spec'; link.send('hello', { i: myId }, { now: true });
+  }
+  function hbSpecTick(dt, now) { // keep the spectator seat; an empty copy for 20 s -> watch the busiest one again
+    if (!spec.harbor) return;
+    bossBar();
+    if (room && now - hb.specBeatAt > HARBOR_NET.beat * 1000) { hb.specBeatAt = now; hbNet?.call('spec', { seat: seatId, name, cap: HB_CAP }).then(r => { if (r?.state === 'spec') { hb.pirates = r.pirates | 0; hb.n = r.n | 0; } }); }
+    if (room && !livePeers().length) { hb.specEmptyT += dt; if (hb.specEmptyT > 20) { hb.specEmptyT = 0; specJoinHarbor(); } } else hb.specEmptyT = 0;
+  }
   function specToHarbor() { // EXIT / JOIN BATTLE from spectate: back to our harbor (the queue place, if any, is kept)
     if (!spec.on) return; room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
     const left = net.lobby('leave', lobbyOpts()).then(() => { if (lob.state === 'queue') return lobbyCall('play'); }).catch(() => {}); // (spec seat freed; a queued seat id re-queues at its place only if still alive)
-    specOff(); where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); harborUi();
+    if (spec.harbor) { hbNet?.call('leave', { seat: seatId }); clearLocalAi(true); } // [v99] free the harbor spectator seat
+    specOff(); where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); hb.beatAt = 0; harborUi();
     return left;
   }
   function specOff() {
     if (!spec.on) return;
-    spec.on = false; spec.want = false; spec.target = null; setHudOff(false);
+    spec.on = false; spec.want = false; spec.target = null; spec.harbor = false; setHudOff(false);
     document.documentElement.classList.remove('pvp-spec');
     if (spec.touchOne != null) { K.controls.touches.ONE = spec.touchOne; spec.touchOne = null; } panHeld.clear();
     const pl = P(); pl.mesh.visible = true; if (spec.maxDist) K.controls.maxDistance = spec.maxDist; me.dead = false;
@@ -1145,7 +1359,7 @@ export function createPvp(K) {
     specFollow(n.id, 'manual');
   }
   function specTick(dt, now) {
-    lobbyTick(dt); if (isSq()) sqTick(now);
+    lobbyTick(dt); if (isSq()) sqTick(now); hbSpecTick(dt, now);
     for (const [id, p] of peers) if (now - p.heard > PEER_TIMEOUT) { if (p.ship) dropShip(p.ship); peers.delete(id); }
     const list = specPlayers();
     // pick who to watch: the kill leader by default, else the chosen captain while they're in the room
@@ -1198,7 +1412,7 @@ export function createPvp(K) {
       // [v79] nobody to follow: the ship box cycles through the skins (same real renders as the skins pickers) instead of sitting empty
       const t = TIERS[Math.floor(performance.now() / 2200) % TIERS.length]; ic.style.backgroundImage = `url(${skinIcon(t.id)})`; ic.title = t.name; ic.hidden = false; }
     $('spec-mode').textContent = spec.mode === 'leader' ? 'FOLLOWING THE KILL LEADER' : spec.mode === 'overview' ? 'OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'FOLLOWING';
-    $('spec-room').textContent = `${isSq() ? `SQUADS · ${sq.ph === 'live' ? `ROUND ${sq.r}` : sq.ph === 'end' ? 'ROUND OVER' : 'WAITING'} · ` : ''}ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
+    $('spec-room').textContent = spec.harbor ? `HARBOR${hb.specCopy > 1 ? ` ${hb.specCopy}` : ''} · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'} · PvE${room?.open ? '' : room ? ' · reconnecting…' : ' · looking for pirates…'}` : `${isSq() ? `SQUADS · ${sq.ph === 'live' ? `ROUND ${sq.r}` : sq.ph === 'end' ? 'ROUND OVER' : 'WAITING'} · ` : ''}ARENA · ${list.length} ${list.length === 1 ? 'PIRATE' : 'PIRATES'}${lob.queue ? ` · ${lob.queue} QUEUED` : ''}${room?.open ? '' : ' · reconnecting…'}`;
     $('spec-leader').classList.toggle('on', spec.mode === 'leader'); $('spec-overview').classList.toggle('on', spec.mode === 'overview');
   }
   function renderSpecBoard() {
@@ -1263,7 +1477,7 @@ export function createPvp(K) {
     me.life = 0; me.kills = me.deaths = me.gold = 0; me.dead = false; me.protect = 99; feed.length = 0;
     const pl = P(); pl.x = 0; pl.z = 0;
     where = 'harbor'; Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
-    if (spec.want) { setNet(ls0('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'); return specBegin(); } // [v98] the home switch picks the arena to watch
+    if (spec.want) { const sm = ls0('pfp_spec_mode'); spec.harbor = sm === 'harbor' && !!hbNet; setNet(sm === 'squads' ? 'squads' : 'solo'); return specBegin(); } // [v98] the home switch picks the arena to watch; [v99] or the HARBOR
     document.documentElement.classList.add('pvp-harbor');
     respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi); refreshRank(true);
     const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = getSavedName(); $('pvp-entry-name').placeholder = capNo() ? `CAPT. #${capNo()}` : name; const a = $('pvp-entry-addr'); if (a) { a.value = getSavedWallet(); addrCheck(); } en.classList.remove('hidden'); }
@@ -1280,9 +1494,10 @@ export function createPvp(K) {
   function leave(unloading = false) {
     if (!active) return;
     if (!unloading) partyLeave(); sqReset(); sqVis();
-    if (spec.on) { net.lobby('leave', lobbyOpts({ keepalive: true })); specOff(); if (unloading) return; active = false; harborUi(); document.documentElement.classList.remove('pvp'); room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid); isHost = false; hostId = null; return; }
+    if (spec.on) { net.lobby('leave', lobbyOpts({ keepalive: true })); if (spec.harbor) hbNet?.call('leave', { seat: seatId, keepalive: true }); specOff(); if (unloading) return; active = false; harborUi(); document.documentElement.classList.remove('pvp'); room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid); isHost = false; hostId = null; return; }
     const pl = P();
     if (where === 'arena' && !me.dead && pl.alive && inCombat()) combatLog(unloading); // closing / reloading within 10 s of combat = a death
+    if (where === 'harbor') hbLeave(true); // [v99] free the harbor copy seat; the socket says bye
     save({ now: true, keepalive: unloading, force: true });
     room?.send('bye', { i: myId }, { now: true });
     net.lobby('leave', lobbyOpts({ keepalive: true })); // free the arena seat / queue place for the next pirate
@@ -1300,8 +1515,8 @@ export function createPvp(K) {
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
-    requestReturn, get returning() { return me.ret; },
-    _test: { spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
+    requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
+    _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   window.PFP_PVP = api;
   return api;
 }

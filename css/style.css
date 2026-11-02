@@ -940,3 +940,8 @@ html.ui-cap-press #captain { transform: scale(0.97); }
   #captain::after { right: 3px; bottom: 1px; font-size: 12px; } }
 @media (max-height: 500px) { #profile .pf-card { top: 8px; left: calc(8px + var(--safe-l, 0px)); max-height: calc(100% - 16px); width: min(440px, 60vw); } #profile .pf-sec { padding: 6px 8px; margin-top: 6px; } }
 #captain { min-height: 44px; box-sizing: border-box; } /* >= 44 px touch target */
+/* [v99] SHARED HARBOR: friendly green name tags on other pirates in a harbor copy; the card's 👁 folds out SOLO|SQUADS / HARBOR in place */
+.pvp-ehp .name.pvp-name.hb-mate { color: #7dffa0; }
+#pvp-spec-pick[hidden], #pvp-harbor-spec[hidden] { display: none !important; }
+#pvp-harbor #pvp-spec-pick button { font-size: 14px !important; padding: 4px 10px !important; }
+@media (orientation: portrait) { #pvp-harbor #pvp-spec-pick button { font-size: 13px !important; padding: 3px 8px !important; } }
