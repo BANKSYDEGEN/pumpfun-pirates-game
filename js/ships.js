@@ -81,7 +81,7 @@ function kit(name, mainSailMap, art = false) {
   const k = name + (mainSailMap ? '+main' : '') + (art ? '+art' : '');
   if (_kits.has(k)) return _kits.get(k);
   const S = SCHEMES[name];
-  const body = S.body ?? (art ? new THREE.Color(S.wood).lerp(new THREE.Color(0x17110d), 0.6).getHex() : S.wood); // [Timothy v2] every skin on the new hull: dark body, its own bright bands / trim on top // [Timothy v2] the Blender-kit player hull: dark tarred body (classic) under a bright painted gun-port band
+  const body = S.body ?? (art && S.artBody != null ? S.artBody : art ? new THREE.Color(S.wood).lerp(new THREE.Color(0x17110d), 0.6).getHex() : S.wood); // [Timothy v2] every skin on the new hull: dark body, its own bright bands / trim on top // [Timothy v2] the Blender-kit player hull: dark tarred body (classic) under a bright painted gun-port band
   const hullTex = art ? woodTexture({ base: body, rows: 20, seed: S.seed, w: 512, h: 512, bands: [
     { from: 0, to: 0.05, color: S.band, flat: true }, { from: 0.05, to: 0.25, color: S.band2, stripe: S.stripe, flat: true }, { from: 0.25, to: 0.3, color: S.band, flat: true },
     { from: 0.3, to: 0.35, color: S.stripe, flat: true }, { from: 0.8, to: 0.85, color: S.band, stripe: S.stripe, flat: true }, { from: 0.85, to: 1.01, color: S.tar },
@@ -115,7 +115,7 @@ function kit(name, mainSailMap, art = false) {
       { from: 0, to: 0.0625, color: S.stripe, flat: true }, { from: 0.0625, to: 0.1875, color: S.band2, stripe: S.stripe, flat: true },
       { from: 0.5, to: 0.5625, color: S.stripe, flat: true }, { from: 0.875, to: 0.9375, color: S.band, flat: true }] }), { side: THREE.DoubleSide });
     kitObj.lid = toon(S.band2); // gun-port lids, painted inside
-    kitObj.winArt = glowMat(S.window, 1.2); kitObj.lanArt = glowMat(S.lantern, 1.6); // softer glow: the bloom no longer washes the dark transom out
+    kitObj.winArt = glowMat(S.artWindow ?? S.window, S.artGlowK ?? 1.2); kitObj.lanArt = glowMat(S.artLantern ?? S.lantern, 1.6 * (S.artGlowK ? S.artGlowK / 1.2 : 1)); // softer glow: the bloom no longer washes the dark transom out
   }
   if (art) { // [Timothy] baked plank / cloth detail multiplied into the scheme's own paint + baked normal maps; kit meshes get AO twins
     const K = kitObj;

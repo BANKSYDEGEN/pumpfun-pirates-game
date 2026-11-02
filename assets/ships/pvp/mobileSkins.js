@@ -16,7 +16,7 @@ export const MOBILE_SKINS = [
     parts: { oak: 0x2e1c34, plank: 0x3a2440, iron: 0x1a1220, gold: 0xb07cff, glow: 0xc9a2ff },
     swatch: { hull: '#3a2440', band: '#1a0f22', stripe: '#b07cff', sail: '#1c1028', trim: '#b07cff' } },
   { id: 'storm', name: 'STORM RIDER', price: 0, premium: 'pvp', blurb: 'Slate grey hull, lightning-white sails.',
-    palette: { seed: 141, wood: 0x4a5058, band: 0x23272c, stripe: 0x9fdcff, band2: 0x30363d, tar: 0x15181b, trim: 0x9fdcff, sail: 0xe8eef4, patch: [0xd0d8e0, 0xf6f9fc], hem: 0x23272c, lantern: 0xbfe8ff, window: 0xd8f0ff },
+    palette: { seed: 141, artBody: 0x3a434e, artTrim: 0x8fd4ff, artWindow: 0x4fb4f5, artLantern: 0x7fd0ff, artGlowK: 0.75, wood: 0x4a5058, band: 0x23272c, stripe: 0x9fdcff, band2: 0x30363d, tar: 0x15181b, trim: 0x9fdcff, sail: 0xe8eef4, patch: [0xd0d8e0, 0xf6f9fc], hem: 0x23272c, lantern: 0xbfe8ff, window: 0xd8f0ff },
     sail: { bg: '#dfe6ee', lines: 'rgba(35,39,44,0.10)', border: '#23272c' }, flag: { bg: '#30363d', border: '#9fdcff' },
     parts: { oak: 0x3a4048, plank: 0x4a5058, iron: 0x23272c, gold: 0x9fdcff, glow: 0xbfe8ff },
     swatch: { hull: '#4a5058', band: '#23272c', stripe: '#9fdcff', sail: '#dfe6ee', trim: '#9fdcff' } },

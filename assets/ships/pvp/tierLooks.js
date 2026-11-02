@@ -98,7 +98,7 @@ const LOOK = {
       totalEmissiveRadiance += vec3(0.2, 1.0, 0.85) * spot * pl * 1.3 + vec3(1.0, 0.5, 0.4) * fres * 0.35;`,
     sail: `float ca = sin(U.x * 14.0 + T * 1.2 + sin(U.y * 9.0 - T) * 1.6) * sin(U.y * 12.0 - T * 0.9 + sin(U.x * 7.0 + T * 0.7) * 1.6);
       totalEmissiveRadiance += vec3(1.0, 0.62, 0.52) * smoothstep(0.55, 1.0, ca) * 0.32 + vec3(0.3, 1.0, 0.85) * smoothstep(0.04, 0.0, U.y) * 0.6;` },
-  storm: { outline: 0x0c1622, hullK: 0.95, emissive: 0x04080c, glow: 0xbfe8ff,
+  storm: { outline: 0x0c1622, hullK: 0.95, emissive: 0x04080c, glow: 0xbfe8ff, artK: 0.12, artSail: 0xa9b9cb,
     hull: `float fl = tlFlash(T, uTlSeed);
       totalEmissiveRadiance += vec3(0.62, 0.85, 1.0) * (fres * 0.45 + fl * 0.3);`,
     sail: `float fl = tlFlash(T, uTlSeed), n = tlNoise(vec3(U * vec2(6.0, 4.0), floor(T * 3.0 + uTlSeed * 7.0) * 0.37 + uTlSeed * 19.0));
@@ -127,7 +127,9 @@ function makeFx(id) {
       n.emissive = new THREE.Color(L.emissive); n.emissiveIntensity = 1;
       const art = !isSail && (m.userData.art || m.userData.kitRole); // [Timothy v2] new hull: softer rim / sweep glow (the flat castle walls caught too much) and a darker body
       if (art) n.color.multiplyScalar(0.8);
-      addLook(n, m, isSail ? L.sail : art ? L.hull.replace(/totalEmissiveRadiance \+=([^;]*);/g, 'totalEmissiveRadiance += 0.4 * ($1);') : L.hull, id + (isSail ? 's' : art ? 'ha' : 'h'));
+      const ak = L.artK ?? 0.4; // [Timothy v2 fix] STORM: rim / flash over the v2 body much softer so the slate reads (was silver-white)
+      if (isSail && L.artSail && m.userData.uEdge?.value > 0) n.color.multiply(new THREE.Color(L.artSail));
+      addLook(n, m, isSail ? L.sail : art ? L.hull.replace(/totalEmissiveRadiance \+=([^;]*);/g, `totalEmissiveRadiance += ${ak.toFixed(2)} * ($1);`) : L.hull, id + (isSail ? 's' : art ? 'ha' : 'h'));
       if (id === 'storm') n.userData.tlStorm = true;
     } else if (m.isMeshBasicMaterial) { n = m.clone(); n.color.set(L.glow).multiplyScalar(1.8); }
     cache.set(m, n); return n;
@@ -168,6 +170,7 @@ const coralM = () => mat('coral', () => addLook(toon(0xff6a50, null, { emissive:
   `totalEmissiveRadiance += vec3(1.0, 0.55, 0.45) * smoothstep(0.6, 1.0, fract(P.y * 1.3)) * 0.25 * (0.6 + 0.4 * sin(T * 1.7 + P.z));`, 'coral'));
 const shellM = () => mat('shell', () => toon(0xffe0cc, null, { emissive: new THREE.Color(0x2a1a14), emissiveIntensity: 1 }));
 const slate = () => mat('slate', () => { const m = addLook(toon(0x5a6470, null, { emissive: new THREE.Color(0x06090c), emissiveIntensity: 1 }), toon(0x5a6470), LOOK.storm.hull, 'slate'); m.userData.tlStorm = true; return m; });
+const slateArt = () => mat('slateA', () => { const m = addLook(toon(0x5fb2e4, null, { emissive: new THREE.Color(0x061420), emissiveIntensity: 1 }), toon(0x5fb2e4), LOOK.storm.hull.replace(/totalEmissiveRadiance \+=([^;]*);/g, 'totalEmissiveRadiance += 0.25 * ($1);'), 'slateA'); m.userData.tlStorm = true; return m; }); // [Timothy v2 fix] lightning-blue wales on the slate hull
 const line = (c) => mat('line' + c, () => outlineMat(0.04, c));
 function meshOf(ctx, geo, m, outlineCol) {
   const o = new THREE.Mesh(geo, m); o.userData.sharedGeo = true; ctx.add(o);
@@ -244,7 +247,7 @@ const PARTS = {
       mastDefs.forEach(([tf, hf]) => { const mh = ud.len * 0.98 * hf, yw = ud.beam * 1.5 * hf; for (const sx of [1, -1]) arcs.push([sx * yw / 2, deckAt(tf) + mh * 0.74, zAt(tf) + 0.22]); });
       return { s: merge(s), tip: merge(tip), arcs };
     });
-    meshOf(ctx, G.s, slate(), null); meshOf(ctx, G.tip, glow(0xbfe8ff, 2.4), null);
+    meshOf(ctx, G.s, ud.art ? slateArt() : slate(), null); meshOf(ctx, G.tip, glow(0xbfe8ff, 2.4), null);
     if (!low) { ctx.add(arcPoints(ship, ud, G.arcs)); ctx.add(wake(ud, 'storm'), ship); }
     ship.traverse(o => { if (o.isMesh && o.material?.userData?.tlStorm) seedOnDraw(ship, o); });
   },

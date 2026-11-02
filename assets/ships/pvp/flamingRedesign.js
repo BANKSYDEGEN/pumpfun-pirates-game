@@ -32,14 +32,14 @@ function objSpace(m, key, frag, head = '') {
   return m;
 }
 // obsidian + lava: dark glassy planks, ridged-noise seams that pulse along the hull, heat glow at the waterline
-const LAVA = (k) => `{ float n = fzN(vFzP * 0.7), r = 1.0 - abs(n * 2.0 - 1.0);
+const LAVA = (k, hk = '0.22', fk = '0.35') => `{ float n = fzN(vFzP * 0.7), r = 1.0 - abs(n * 2.0 - 1.0);
   float seam = smoothstep(0.93, 0.99, r) * smoothstep(0.35, 0.65, fzN(vFzP * 1.9 + 5.0));
   float pulse = 0.6 + 0.4 * sin(uKT * 2.2 + vFzP.z * 0.5 + vFzP.y * 1.3);
   vec3 lava = mix(vec3(1.0, 0.16, 0.02), vec3(1.0, 0.72, 0.2), seam * pulse);
   float heat = smoothstep(1.6, -0.6, vFzP.y) * (0.55 + 0.45 * sin(uKT * 3.1 + vFzP.z * 0.8));
   diffuseColor.rgb *= 1.0 - seam * 0.6;
-  totalEmissiveRadiance = lava * seam * pulse * ${k} + vec3(1.0, 0.3, 0.04) * heat * ${k} * 0.22
-    + vec3(0.9, 0.45, 0.25) * pow(max(dot(Rw, normalize(vec3(0.4, 0.8, 0.45))), 0.0), 30.0) * 0.12 + vec3(1.0, 0.35, 0.05) * fres * 0.35; }`;
+  totalEmissiveRadiance = lava * seam * pulse * ${k} + vec3(1.0, 0.3, 0.04) * heat * ${k} * ${hk}
+    + vec3(0.9, 0.45, 0.25) * pow(max(dot(Rw, normalize(vec3(0.4, 0.8, 0.45))), 0.0), 30.0) * 0.12 + vec3(1.0, 0.35, 0.05) * fres * ${fk}; }`;
 // burning sails: fire climbing from the foot in rising noise tongues, charred cloth, glowing burnt-through holes
 const SAIL = `#ifdef USE_MAP
 { vec2 u = vMapUv; float n = fzN(vec3(u.x * 5.0, u.y * 4.0 - uKT * 1.4, uKT * 0.35)) * 0.65 + fzN(vec3(u.x * 11.0, u.y * 9.0 - uKT * 2.6, 3.0)) * 0.35;
@@ -58,6 +58,8 @@ export function flamingRedesignMaterialFx(m) {
   const sail = m.customProgramCacheKey?.().startsWith('sail');
   const n = m.clone(); n.onBeforeCompile = m.onBeforeCompile; n.customProgramCacheKey = m.customProgramCacheKey;
   if (sail) { n.color.set(0xffffff); n.alphaTest = 0; objSpace(n, 'fz-sail', SAIL); }
+  else if (m.userData.art || m.userData.kitRole) { // [Timothy v2 fix] new hull: charred black, only the cracks glow (no orange heat wash / rim that read as bronze)
+    n.color.multiplyScalar(0.05).lerp(new THREE.Color(0x070504), 0.7); if (n.emissive) n.emissive.set(0); objSpace(n, 'fz-charA', LAVA('0.9', '0.04', '0.06')); }
   else { n.color.multiplyScalar(0.22).lerp(new THREE.Color(0x1a0d0a), 0.5); if (n.emissive) n.emissive.set(0); objSpace(n, 'fz-char', LAVA('0.9')); }
   n.userData.fzDone = true; _fx.set(m, n); return n;
 }
@@ -175,7 +177,7 @@ function artFlames(ud, low) {
   const wall = (t, y) => Math.max(0.2, shape.halfW(t) - 0.06 * Math.max(0, y - shape.top(t)));
   const A = [], C = [], S = []; let i = 0;
   const push = (x, y, z, sz) => { for (const c of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { A.push(x, y, z); C.push(...c); S.push(hash(i * 3.1), sz, hash(i * 7.7)); } i++; };
-  const nR = low ? 18 : 56, nD = low ? 4 : 12, nS = low ? 5 : 14, nB = low ? 3 : 8;
+  const nR = low ? 18 : 44, nD = low ? 4 : 12, nS = low ? 5 : 10, nB = low ? 3 : 8; // [Timothy v2 fix] a little less overlap on HIGH (bloom washed the hull)
   for (let k = 0; k < nR; k++) { const sx = k % 2 ? 1 : -1, t = 0.04 + (k + hash(k) * 0.8) / nR * 0.9, y = art.railY(t); // rails, waist to castles
     push(sx * (wall(t, y) + 0.12), y - 0.05, zAt(t), 2.2 + hash(k + 2) * 2.4); }
   for (let k = 0; k < nD; k++) { const t = 0.3 + hash(k + 40) * 0.5, sx = k % 2 ? 1 : -1; // waist deck fires, against the bulwarks (clear of the gangway + helm)
@@ -188,7 +190,7 @@ function artFlames(ud, low) {
   const out = { flames: fg, n, deckY: shape.top(0.5) - layout.deckDrop }; _artGeo.set(key, out); return out;
 }
 const _emGeo = new Map();
-let _lava = null, _spike = null;
+let _lava = null, _spike = null, _lavaA = null;
 export function flamingRedesignPartsOverride(ship, ctx) {
   if (ctx.ud.art) return flamingArt(ship, ctx);
   const low = ctx.quality === 'low', G = geos(ctx.ud, low), F = fxOf(ship);
@@ -225,10 +227,10 @@ export const FLAMING_REDESIGN = { materialFx: flamingRedesignMaterialFx, partsOv
 let _flagFx = new Map();
 function flamingArt(ship, ctx) {
   const low = ctx.quality === 'low', G = artFlames(ctx.ud, low); uFzTall.value = 1;
-  _lava = _lava || objSpace(toon(0x2a1612, null, { side: THREE.DoubleSide }), 'fz-hull', LAVA('1.6')); _lava.userData.fzDone = true;
-  if (ctx.base.hull) ctx.base.hull.material = _lava;
+  _lavaA = _lavaA || objSpace(toon(0x0f0a09, null, { side: THREE.DoubleSide }), 'fz-hullA', LAVA('1.6', '0.05', '0.07')); _lavaA.userData.fzDone = true; // [Timothy v2 fix] black / charred, glowing cracks
+  if (ctx.base.hull) ctx.base.hull.material = _lavaA;
   const wake = signatureWake(ship, ctx, { c0: 0xffd060, c1: 0xff1a00, n: low ? 40 : 64, size: 380, rise: 1.8 });
-  const fm = _fireMat.clone(); fm.uniforms.uT = wind.uTime; fm.uniforms.uSpeed = wake.material.uniforms.uSpeed;
+  const fm = _fireMat.clone(); fm.uniforms.uT = wind.uTime; fm.uniforms.uSpeed = wake.material.uniforms.uSpeed; fm.uniforms.uK = { value: 0.6 }; // [Timothy v2 fix] dimmer tongues: less bloom halo washing the black hull orange
   const fl = new THREE.Mesh(G.flames, fm); fl.userData.sharedGeo = true; fl.renderOrder = 5; fl.frustumCulled = false; fl.userData.fzFlames = true; ctx.add(fl);
   const n = low ? 40 : 150;
   if (!_emGeo.has(n)) { const g = new THREE.BufferGeometry(), sd = new Float32Array(n * 3); for (let i = 0; i < sd.length; i++) sd[i] = hash(i * 2.3 + 11);
@@ -239,7 +241,7 @@ function flamingArt(ship, ctx) {
   const fl0 = []; ship.traverse(o => { if (o.isMesh && fimg.has(o.material?.map?.image)) fl0.push(o); }); // every flag copy (upgrades move / re-fly it)
   for (const o of fl0) if (o.isMesh && o.material?.map) { const m0 = o.material;
     let f = _flagFx.get(m0); if (!f) { f = m0.clone(); f.color.set(0xffffff); f.onBeforeCompile = () => {}; objSpace(f, 'fz-flag', FLAG); f.userData.fzDone = true; _flagFx.set(m0, f); } o.material = f; }
-  const L = []; ship.traverse(o => { if (o.isPointLight) { o.color.set(0xff7a2a); o.userData.fzBase = o.intensity *= 0.7; L.push(o); } });
+  const L = []; ship.traverse(o => { if (o.isPointLight) { o.color.set(0xff7a2a); o.userData.fzBase = o.intensity *= 0.35; L.push(o); } }); // [Timothy v2 fix] less fire light on the hull (it tinted it bronze)
   if (L.length) fl.onBeforeRender = () => { const t = wind.uTime.value; for (const o of L) o.intensity = o.userData.fzBase * (0.75 + 0.25 * Math.sin(t * 17.0) * Math.sin(t * 7.3)); };
   liftRig(ctx, { lift: 0.55, sx: 1.1, sy: 1.22, sz: 1.1 });
 }
