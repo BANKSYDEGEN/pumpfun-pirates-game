@@ -20,6 +20,7 @@ import { SPOTS, TOWER_H, TAVERN_S, HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, pie
 import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
 import { bakeShip } from './bake.js';
+import { islandSurface } from './look.js';
 
 const P = new URLSearchParams(location.search);
 const phone = matchMedia('(max-width: 600px), (max-height: 520px)').matches;
@@ -95,12 +96,10 @@ const uTime = { value: 0 };
 const skull = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'assets/skull_transparent.png'; });
 await document.fonts.load('40px "Just Another Hand"').catch(() => {});
 const atlas = makeAtlas(skull);
-const swayMat = toon(0xffffff, null, { vertexColors: true });
-swayMat.onBeforeCompile = (s) => { s.uniforms.uTime = uTime; s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>' + SWAY_DECL).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + SWAY_BODY); };
-swayMat.customProgramCacheKey = () => 'isl_sway';
+// [look] textured surface + soft ramp (js/island/look.js)
 const MATS = {
-  toon: toon(0xffffff, null, { vertexColors: true }),
-  sway: swayMat,
+  toon: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW }),
+  sway: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW, uTime, sway: true }),
   glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: new THREE.Color().setScalar(LP ? LP.glow : 1) }), // lanterns, windows, the peak's eye caves
   atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }),
 };

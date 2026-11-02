@@ -8,6 +8,18 @@ import { outlineFor } from '../toon.js';
 const _c = new THREE.Color(), _v = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3();
 
+// [look] palette colour -> surface layer: 2 wood, 3 rock / stone, 4 roof tiles, 5 palm bark, 6 leaf, 7 plaster
+const PAL = new Map([[0xb06a36, 2], [0x7b4524, 2], [0xd99a5b, 2], [0xc98a4c, 2], [0xe7c08d, 2], [0xa36a3c, 2], [0xb07a30, 2], [0xa9b4c2, 3], [0x7f8a99, 3], [0x8d97a5, 3], [0x95a3b5, 3], [0xc3ccd8, 3], [0xc6cdd6, 3],
+  [0xf0362c, 4], [0xb51f18, 4], [0xa96a38, 5], [0xc98b4e, 5], [0x2fbf4a, 6], [0x8cf05a, 6], [0x3fca45, 6], [0x2fa83c, 6], [0xfff1d2, 7], [0xe9e2d0, 7]]);
+const _hsl = {};
+function matFor(hex) {
+  if (PAL.has(hex)) return PAL.get(hex);
+  _c.set(hex).getHSL(_hsl); const { h, s, l } = _hsl;
+  if (s < 0.2 && l > 0.35 && l < 0.92) return 3;                 // greys -> rock
+  if (h > 0.2 && h < 0.45 && s > 0.35 && l < 0.75) return 6;     // greens -> leaf
+  if (h > 0.03 && h < 0.11 && s > 0.3 && l < 0.6) return 2;      // browns -> wood
+  return 0;
+}
 // matrix from position / rotation (radians, YXZ so yaw reads naturally) / scale (number or [x,y,z])
 export function M(x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, s = 1) {
   _e.set(rx, ry, rz, 'YXZ'); _q.setFromEuler(_e);
@@ -20,10 +32,12 @@ export class Kit {
   // run fn with every add() placed inside parent matrix m
   at(m, fn) { this.stack.push(this.stack[this.stack.length - 1].clone().multiply(m)); fn(); this.stack.pop(); }
   // geo: any BufferGeometry (consumed). color: hex | (localPos, i) => hex. opts: bucket, m (Matrix4), outline, sway (fn localPos -> 0..1)
-  add(geo, color, { bucket = 'toon', m = null, outline = true, sway = null } = {}) {
+  add(geo, color, { bucket = 'toon', m = null, outline = true, sway = null, mat = null } = {}) {
     let g = geo.index ? geo.toNonIndexed() : geo;
     if (g !== geo) geo.dispose();
     const P = g.attributes.position, n = P.count;
+    // [look] surface material id for js/island/look.js (0 = flat colour): explicit, else from the palette colour
+    const mid = mat !== null ? mat : bucket === 'toon' || bucket === 'sway' ? matFor(typeof color === 'function' ? color(_v.fromBufferAttribute(P, 0), 0) : color) : 0;
     if (bucket !== 'atlas') {
       const col = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
@@ -41,6 +55,9 @@ export class Kit {
     g.deleteAttribute('uv1'); g.deleteAttribute('uv2');
     const mm = this.stack[this.stack.length - 1].clone(); if (m) mm.multiply(m);
     g.applyMatrix4(mm);
+    g.setAttribute('aMat', new THREE.BufferAttribute(new Float32Array(n).fill(mid), 1));
+    if (this.ao && mid !== 1 && g.attributes.color) { const C = g.attributes.color; // [look] baked contact AO in the vertex colours
+      for (let i = 0; i < n; i++) { const k = this.ao(P.getX(i), P.getY(i), P.getZ(i)); C.setXYZ(i, C.getX(i) * k, C.getY(i) * k, C.getZ(i) * k); } }
     if (!this.b.has(bucket)) this.b.set(bucket, []);
     this.b.get(bucket).push(g);
     if (outline) {

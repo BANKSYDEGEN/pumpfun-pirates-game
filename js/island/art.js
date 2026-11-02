@@ -107,29 +107,41 @@ function radialGeo(rings, segs, R) {
 export const TERRAIN_R = 104;
 function terrain(kit, low) {
   const { g, colors } = radialGeo(low ? 52 : 84, low ? 110 : 180, TERRAIN_R);
-  kit.add(g, 0xffffff, { outline: false }); const L = kit.b.get('toon'); L[L.length - 1].setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  kit.add(g, 0xffffff, { outline: false, mat: 1 }); const L = kit.b.get('toon'); L[L.length - 1].setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }
 
 // ---------- shoreline foam ring (own mesh: transparent, animated) ----------
 export function shoreFoam(uTime, low, uWaves) {
+  // [look] rows: foam band (v 0..1) then the shallows (v 1..2): turquoise over the shelf fading into the deep, lap lines + shimmer
+  const SH = low ? 26 : 40, ROWS = [[-3.5, 0], [4.0, 1]]; for (let k = 1, n = low ? 5 : 10; k <= n; k++) ROWS.push([4 + SH * k / n, 1 + k / n]);
   const segs = low ? 160 : 300, pos = [], uv = [], idx = [];
   for (let j = 0; j <= segs; j++) {
     const a = (j / segs) * Math.PI * 2; let lo = 20, hi = 110;
     for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (groundY(Math.cos(a) * m, Math.sin(a) * m) > 0) lo = m; else hi = m; }
-    for (const [dr, v] of [[-3.5, 0], [4.0, 1]]) { const r = lo + dr; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); uv.push(j / segs * 40, v); }
+    for (const [dr, v] of ROWS) { const r = lo + dr; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); uv.push(j / segs * 40, v); }
   }
-  for (let j = 0; j < segs; j++) { const a = j * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
+  const NR = ROWS.length;
+  for (let j = 0; j < segs; j++) for (let k = 0; k < NR - 1; k++) { const a = j * NR + k, b = a + 1, c = a + NR, d = c + 1; idx.push(a, c, b, b, c, d); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, uniforms: { uTime, uWaves },
     vertexShader: `varying vec2 vUv; uniform float uTime; uniform vec4 uWaves[4];
       void main(){ vUv = uv; vec3 p = position; vec4 wp = modelMatrix * vec4(p, 1.0); float h = 0.0;
         for (int i = 0; i < 4; i++) { float k = uWaves[i].w; h += uWaves[i].z * sin(k * dot(uWaves[i].xy, wp.xz) - sqrt(9.8 * k) * uTime); }
-        wp.y = h + 0.1 + sin(uTime * 1.3 + uv.x * 0.9) * 0.08; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+        wp.y = h + (uv.y > 1.0 ? 0.45 : 0.1) + sin(uTime * 1.3 + uv.x * 0.9) * 0.08; gl_Position = projectionMatrix * viewMatrix * wp; }`,
     fragmentShader: `varying vec2 vUv; uniform float uTime;
-      void main(){ float t = uTime*0.55; float lap = fract(vUv.y*1.0 - t + sin(vUv.x*1.7)*0.08);
+      void main(){
+        if (vUv.y > 1.0) { float k = vUv.y - 1.0;
+          vec3 c = mix(vec3(0.24, 0.80, 0.74), vec3(0.08, 0.46, 0.60), smoothstep(0.0, 1.0, k));
+          float a = (1.0 - smoothstep(0.1, 1.0, k)) * 0.42;
+          float cs = sin(vUv.x * 2.3 + uTime * 0.9 + sin(k * 11.0 + uTime * 0.7) * 1.6) * sin(k * 27.0 - uTime * 0.8 + vUv.x * 0.7);
+          float wl = fract(k * 3.0 + uTime * 0.16 + sin(vUv.x * 0.9) * 0.12);
+          float ln = smoothstep(0.0, 0.04, wl) * smoothstep(0.11, 0.04, wl) * (1.0 - k);
+          c += vec3(0.9, 1.0, 1.0) * (max(cs, 0.0) * 0.10 * (1.0 - k) + ln * 0.25);
+          gl_FragColor = vec4(c, clamp(a + ln * 0.25, 0.0, 0.8)); return; }
+        float t = uTime*0.55; float lap = fract(vUv.y*1.0 - t + sin(vUv.x*1.7)*0.08);
         float band = smoothstep(0.0,0.08,lap)*smoothstep(0.32,0.18,lap);
-        float edge = smoothstep(0.0,0.25,vUv.y)*smoothstep(1.0,0.45,vUv.y);
+        float edge = smoothstep(0.0,0.25,vUv.y)*smoothstep(1.0,0.6,vUv.y);
         float a = max(band*0.85, smoothstep(0.42,0.0,vUv.y)*0.55) * edge;
         if (a < 0.02) discard; gl_FragColor = vec4(vec3(1.0), a); }`,
   });
@@ -581,7 +593,7 @@ export function walkable(step = 3) {
 // ---------- far LOD: one merged silhouette mesh (no outlines, no textures) ----------
 export function buildFarIsland() {
   const kit = new Kit();
-  { const { g, colors } = radialGeo(14, 40, 92); kit.add(g, 0xffffff, { outline: false }); const L = kit.b.get('toon'); L[L.length - 1].setAttribute('color', new THREE.BufferAttribute(colors, 3)); }
+  { const { g, colors } = radialGeo(14, 40, 92); kit.add(g, 0xffffff, { outline: false, mat: 1 }); const L = kit.b.get('toon'); L[L.length - 1].setAttribute('color', new THREE.BufferAttribute(colors, 3)); }
   const box = (w, h, d, c, m) => kit.add(new THREE.BoxGeometry(w, h, d), c, { m, outline: false });
   const t = SPOTS.tavern, ty = groundY(t.x, t.z);
   box(15, 12, 12, CREAM, M(t.x, ty + 5.4, t.z)); kit.add(new THREE.CylinderGeometry(0.6, 1, 6.2, 4, 1), ROOF, { m: M(t.x, ty + 16.3, t.z, Math.PI / 4, 0, 0, [13.7, 1.2, 10.8]), outline: false });
@@ -631,6 +643,7 @@ export function buildPlants(low, mat) {
 // decor: [[x, z, yaw, variant]...] moored toy galleons merged in (0 extra draw calls)
 export function buildIsland({ low, atlas, decor = [] }) {
   const kit = new Kit(), A = atlas.R; RBS = low ? 1 : 2;
+  kit.ao = (x, y, z) => { const g = Math.max(groundY(x, z), -0.3), dy = y - g; return 0.56 + 0.44 * sm(0.0, 2.4, dy); }; // [look] baked contact AO
   terrain(kit, low);
   plaza(kit, A, low); tavern(kit, A, low); PIER_ANGLES.forEach((th, k) => tPier(kit, A, th, k, low));
   SPOTS.digs.forEach((d, k) => digSpot(kit, A, d, k, low)); shopAndBoard(kit, A, low); SPOTS.stalls.forEach(st => stall(kit, st, low)); chestPedestal(kit, low);
@@ -646,6 +659,8 @@ export function buildIsland({ low, atlas, decor = [] }) {
   for (let i = 0; i < (low ? 8 : 16); i++) { const a = i * 2.1, rr2 = 3 + (i % 5) * 3, x = J.x + Math.cos(a) * rr2, z = J.z + Math.sin(a) * rr2; if (Math.hypot(x - 36, z + 16) > 4) bushes.push([x, z, 1.2 + (i % 3) * 0.5]); }
   bushes.forEach(([x, z, sc], i) => bush(kit, x, z, sc, 91 + i));
   for (const [x, z, yaw, v] of decor) decorShip(kit, A, x, z, yaw, v, low);
+  dressing(kit, low);
+  kit.ao = null;
   return kit;
 }
 
@@ -782,7 +797,8 @@ export function lagoon(uTime, uWaves, low) {
   for (let j = 0; j < segs; j++) idx.push(0, 1 + ((j + 1) % segs), 1 + j);
   for (let i = 1; i < rings; i++) for (let j = 0; j < segs; j++) { const a = 1 + (i - 1) * segs + j, b = 1 + (i - 1) * segs + (j + 1) % segs; idx.push(a, b, b + segs, a, b + segs, a + segs); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aShore', new THREE.Float32BufferAttribute(sd, 1)); g.setIndex(idx);
-  const segU = harborWalls().filter(w => w.kind !== 'quay').map(w => new THREE.Vector4(w.x0, w.z0, w.x1, w.z1));
+  const segU = harborWalls().filter(w => w.kind !== 'quay').map(w => new THREE.Vector4(w.x0, w.z0, w.x1, w.z1)).slice(0, 12);
+  while (segU.length < 12) segU.push(new THREE.Vector4(9999, 9999, 9999.1, 9999)); // fixed-size uniform array (8-berth harbor has fewer walls)
   const mat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, uniforms: { uTime, uWaves, uSeg: { value: segU }, uDeep: { value: new THREE.Color(0x1f9fb8) }, uTint: { value: 1 } },
     vertexShader: `attribute float aShore; varying float vS; varying vec2 vL; uniform float uTime; uniform vec4 uWaves[4];
@@ -904,3 +920,48 @@ function poiProps(kit, A, low) {
       kit.add(RB(2.6, 0.7, 0.15, 0.06), WOOD_D, { m: M(0, 0.7, -2.4) }); quad(kit, 2.5, 0.42, A.spectate, M(0, 0.7, -2.31));
     }); }
 }
+// ---------- [look] set dressing: torches, crate / barrel stacks, (Low) a few merged flowers ----------
+export const TORCHES = [[13, 37], [-13, 37], [9.3, 8], [-9.3, 8], [6.5, -12.5], [-6.5, -12.5]].map(([x, z]) => ({ x, z, y: groundY(x, z) + 3.1 }));
+function torch(kit, t, low) {
+  const y = groundY(t.x, t.z);
+  kit.add(cyl(0.11, 0.15, 3.0, 6), WOOD_D, { m: M(t.x, y + 1.5, t.z) });
+  kit.add(cyl(0.34, 0.2, 0.42, 8), IRON, { m: M(t.x, y + 3.0, t.z), outline: false });
+  for (let k = 0; k < 4; k++) kit.add(RB(0.08, 0.5, 0.08, 0.02), IRON, { m: M(t.x + Math.cos(k * 1.57) * 0.3, y + 3.2, t.z + Math.sin(k * 1.57) * 0.3), outline: false });
+  if (low) kit.add(new THREE.ConeGeometry(0.28, 0.8, 6), 0xffb347, { bucket: 'glow', m: M(t.x, y + 3.55, t.z), outline: false });
+}
+function dressing(kit, low) {
+  TORCHES.forEach(t => torch(kit, t, low));
+  const r = rng(404), stacks = [[19, 41, 0.4], [-19, 42, -0.3], [30, 22, 1.1], [-30, 28, 2.0], [12, -8, 0.6]];
+  for (const [x, z, yaw] of stacks.slice(0, low ? 3 : 5)) { const y = groundY(x, z);
+    crate(kit, M(x, y + 0.7, z, yaw)); if (!low) crate(kit, M(x + 0.2, y + 2.1, z + 0.1, yaw + 0.4, 0, 0, 0.8));
+    barrel(kit, M(x + 1.7 * Math.cos(yaw), y, z - 1.7 * Math.sin(yaw)), low); }
+  PIER_ANGLES.forEach((th, k) => { const { u, v } = pierUV(th), hz = (PIER.head0 + PIER.head1) / 2; // cargo at each pier head
+    kit.at(M(0, 0, 0, th), () => { crate(kit, M(PIER.headHalf - 3, PIER.y + 0.85, hz - 0.6, 0.2 + k)); if (!low) { barrel(kit, M(PIER.headHalf - 5.2, PIER.y + 0.15, hz - 0.4), low); barrel(kit, M(-PIER.headHalf + 3, PIER.y + 0.15, hz - 0.5), low); crate(kit, M(-PIER.headHalf + 5, PIER.y + 0.85, hz - 0.6, 0.7 + k, 0, 0, 0.8)); } }); });
+  if (low) for (let i = 0; i < 40; i++) { const f = FLOWERS[i * 7 % FLOWERS.length]; kit.add(sph(0.22, 5, 4), f.c, { m: M(f.x, f.y + 0.25, f.z), outline: false }); }
+}
+// flower placements (grass, near paths / plaza edge / building fronts)
+const FLOWERS = (() => { const r = rng(77), out = [], cols = [0xff4f6d, 0xffd43b, 0xffffff, 0xb36bff, 0xff8fd0, 0xff7a1a];
+  for (let t = 0; out.length < 520 && t < 9000; t++) { const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * 60, x = Math.cos(a) * rr, z = Math.sin(a) * rr, y = groundY(x, z);
+    if (y < 2.8 || Math.hypot(x, z) > edgeR(Math.atan2(z, x)) - 7) continue; const pd = pathDist(x, z), pl = Math.hypot(x - SPOTS.plaza.x, z - SPOTS.plaza.z);
+    if (pd < 2.6 || pl < SPOTS.plaza.r + 1) continue; if (pd > 7 && Math.abs(pl - SPOTS.plaza.r - 3) > 3 && r() > 0.25) continue;
+    out.push({ x, z, y, c: cols[(r() * cols.length) | 0], s: 0.7 + r() * 0.6 }); }
+  return out; })();
+// High: instanced flowers (1 draw call), petals sway with the grass
+export function buildFlowers(low, mat) {
+  const parts = []; for (let k = 0; k < 5; k++) { const g = new THREE.CircleGeometry(0.16, 5); g.translate(0.17, 0, 0); g.rotateX(-Math.PI / 2 + 0.35); g.rotateY(k * 1.2566); g.translate(0, 0.62, 0); parts.push(g.toNonIndexed()); }
+  const stem = new THREE.CylinderGeometry(0.025, 0.03, 0.62, 3); stem.translate(0, 0.31, 0); parts.push(stem.toNonIndexed());
+  const ctr = new THREE.SphereGeometry(0.08, 5, 3); ctr.translate(0, 0.66, 0); parts.push(ctr.toNonIndexed());
+  const pos = [], col = [], nrm = [];
+  parts.forEach((g, gi) => { const P = g.attributes.position, N = g.attributes.normal, c = gi === 5 ? C(0x2f9e3a) : gi === 6 ? C(0xffe066) : C(0xffffff);
+    for (let i = 0; i < P.count; i++) { pos.push(P.getX(i), P.getY(i), P.getZ(i)); nrm.push(N.getX(i), N.getY(i), N.getZ(i)); col.push(c.r, c.g, c.b); } g.dispose(); });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const list = FLOWERS.slice(0, low ? 0 : 520), im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)), mm = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  list.forEach((f, i) => { im.setMatrixAt(i, mm.compose(new THREE.Vector3(f.x, f.y - 0.05, f.z), q.setFromEuler(e.set(0, i * 2.4, 0)), new THREE.Vector3(f.s, f.s, f.s))); im.setColorAt(i, C(f.c)); });
+  im.count = list.length; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.computeBoundingSphere(); im.name = 'island_flowers';
+  return im;
+}
+// beach spots for crabs (sand just above the surf, away from piers)
+export const CRAB_SPOTS = (() => { const r = rng(55), out = [];
+  for (let t = 0; out.length < 14 && t < 4000; t++) { const a = r() * Math.PI * 2; let rr = edgeR(a) - 2 + r() * 10; const x = Math.cos(a) * rr, z = Math.sin(a) * rr, y = groundY(x, z);
+    if (y < 0.7 || y > 1.9 || nearPier(x, z, 8)) continue; out.push({ x, z, y, a: Math.atan2(x, z) }); }
+  return out; })();

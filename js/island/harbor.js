@@ -4,8 +4,9 @@
 // the lighthouse). The harbor lighthouse (formerly on a props.js sea stack) now stands on the island's back headland.
 import * as THREE from 'three';
 import { toon } from '../toon.js';
-import { HARBOR_ISLAND, PIER, BERTHS, groundY, buildIsland, buildFarIsland, buildChest, buildPlants, makeAtlas, shoreFoam, islandColliders, harborWalls, SPOTS } from './art.js';
-import { Kit, M, outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
+import { HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, BERTHS, groundY, buildIsland, buildFarIsland, buildChest, buildPlants, buildFlowers, makeAtlas, shoreFoam, islandColliders, harborWalls, SPOTS, TORCHES, CRAB_SPOTS } from './art.js';
+import { islandSurface, grassMaterial, detailTexture, buildBirds, buildCrabs, buildFlames, buildNets } from './look.js';
+import { M, outlineMaterial } from './kit.js';
 
 const LOD_NEAR = 200, LOD_FAR = 310, HYST = 12;
 
@@ -19,35 +20,47 @@ export async function createHarborIsland({ quality, ocean }) {
   const skull = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'assets/skull_transparent.png'; });
   await document.fonts?.load('40px "Just Another Hand"').catch(() => {});
   const atlas = makeAtlas(skull);
-  const swayMat = toon(0xffffff, null, { vertexColors: true });
-  swayMat.onBeforeCompile = (s) => { s.uniforms.uTime = uTime; s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>' + SWAY_DECL).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + SWAY_BODY); };
-  swayMat.customProgramCacheKey = () => 'isl_sway';
-  const MATS = { toon: toon(0xffffff, null, { vertexColors: true }), sway: swayMat, glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }) };
+  // [look] textured island surface (detail layers, splat terrain, bump + rim on High), soft ramp, wind-swayed grass
+  const MATS = { toon: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW }), sway: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW, uTime, sway: true }),
+    glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }) };
+  const texMB = (detailTexture(LOW).userData.bytes) / 1048576;
   const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
 
   // moored toy galleons merged into the island mesh (0 extra draw calls); no real ships (no docking in this preview)
   const BERTH = Object.fromEntries(BERTHS().map(b => [b.id, b]));
   const DECOR = LOW ? ['P1R', 'P3L'] : ['P1R', 'P2L', 'P3R', 'P4L', 'P4R'];
-  const near = buildIsland({ low: LOW, atlas, decor: DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]) }).build(MATS, OUT);
-  near.traverse(o => { if (o.isMesh && !o.userData.outline) o.receiveShadow = !LOW; });
+  const nearKit = buildIsland({ low: LOW, atlas, decor: DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]) });
   const far = buildFarIsland().build({ toon: MATS.toon }, OUT); far.visible = false;
-  const plants = buildPlants(LOW, MATS.toon);
+  const plants = buildPlants(LOW, grassMaterial(toon(0xffffff, null, { vertexColors: true }), uTime)); plants.receiveShadow = !LOW;
   const foam = shoreFoam(uTime, LOW, ocean.uniforms.uWaves);
   const chest = new THREE.Group(), c0 = SPOTS.chest; chest.position.set(c0.x, groundY(c0.x, c0.z) + 1.15, c0.z); chest.rotation.y = -0.9;
   chest.add(buildChest(LOW, atlas).build(MATS, OUT));
-  isle.add(near, far, plants, foam, chest);
+  isle.add(far, plants, foam, chest);
 
   // ---- the harbor lighthouse, moved here from its sea stack: back headland (local -z, faces the open sea) ----
   let lz = -40; for (let z = -40; z >= -75; z -= 1) { if (groundY(0, z) >= 1.6) lz = z; else break; }
   const LH = { x: 0, z: lz, y: groundY(0, lz) - 0.3 }, S = 1.3;
-  const lk = new Kit();
+  const lk = nearKit;
   lk.add(new THREE.CylinderGeometry(4.2, 5.2, 2.4, 12), 0x8d97a5, { m: M(LH.x, LH.y + 1.0, LH.z) });                 // stone plinth
   lk.add(new THREE.CylinderGeometry(2.2 * S, 3.2 * S, 16 * S, 12), 0xe9e2d0, { m: M(LH.x, LH.y + 8 * S, LH.z) });
   lk.add(new THREE.CylinderGeometry(2.55 * S, 2.75 * S, 3 * S, 12), 0xfa0d0d, { m: M(LH.x, LH.y + 9 * S, LH.z), outline: false });
   lk.add(new THREE.CylinderGeometry(2.7 * S, 2.7 * S, 0.5 * S, 12), 0x161616, { m: M(LH.x, LH.y + 16.2 * S, LH.z) });  // gallery
   lk.add(new THREE.ConeGeometry(2.8 * S, 3 * S, 12), 0x161616, { m: M(LH.x, LH.y + 21 * S, LH.z) });
   lk.add(new THREE.SphereGeometry(2.2 * S, 12, 8), 0xffd27a, { bucket: 'glow', m: M(LH.x, LH.y + 18 * S, LH.z), outline: false });
-  const lighthouse = lk.build(MATS, OUT); lighthouse.name = 'island_lighthouse'; isle.add(lighthouse);
+  const near = nearKit.build(MATS, OUT); near.name = 'island_near';
+  near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.receiveShadow = !LOW; o.castShadow = !LOW; } });
+  isle.add(near);
+  // [look] life + fire: High = flowers, birds, crabs, flickering flames + 2 warm torch lights, nets; Low = birds only
+  const extras = [], birds = buildBirds(LOW, uTime); isle.add(birds); extras.push(birds);
+  const lights = [];
+  if (!LOW) {
+    const fl = buildFlowers(false, grassMaterial(toon(0xffffff, null, { vertexColors: true }), uTime)); isle.add(fl); extras.push(fl);
+    const cr = buildCrabs(CRAB_SPOTS.slice(0, 10), uTime); isle.add(cr); extras.push(cr);
+    const fm = buildFlames(TORCHES, uTime); isle.add(fm); extras.push(fm);
+    const hz = (PIER.head0 + PIER.head1) / 2, netSpots = PIER_ANGLES.map((th) => ({ m: new THREE.Matrix4().makeRotationY(th).multiply(new THREE.Matrix4().makeTranslation(-PIER.headHalf + 8, PIER.y - 0.2, PIER.head1 + 0.1)) }));
+    const nets = buildNets(netSpots); isle.add(nets); extras.push(nets);
+    for (const [a, b] of [[0, 1], [2, 3]]) { const L = new THREE.PointLight(0xff9a3c, 0, 26, 1.7); L.position.set((TORCHES[a].x + TORCHES[b].x) / 2, TORCHES[a].y + 0.8, (TORCHES[a].z + TORCHES[b].z) / 2); isle.add(L); lights.push(L); }
+  }
   const beamGeo = new THREE.ConeGeometry(9, 140, 16, 1, true); beamGeo.translate(0, -70, 0); beamGeo.rotateZ(Math.PI / 2);
   const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.42, 0.2), transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
   beam.position.set(LH.x, LH.y + 18 * S, LH.z); beam.renderOrder = 4; isle.add(beam);
@@ -68,17 +81,18 @@ export async function createHarborIsland({ quality, ocean }) {
     near.visible = chest.visible = lod !== 'far'; far.visible = lod === 'far';
     near.traverse(o => { if (o.userData.outline) o.visible = lod === 'near'; });
     chest.traverse(o => { if (o.userData.outline) o.visible = lod === 'near'; });
-    lighthouse.traverse(o => { if (o.userData.outline) o.visible = lod === 'near'; });
-    plants.visible = lod === 'near'; foam.visible = lod !== 'far';
+    plants.visible = lod === 'near'; foam.visible = lod !== 'far'; for (const e of extras) e.visible = lod === 'near' || (e === birds && lod === 'mid');
+    near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') o.castShadow = !LOW && lod === 'near'; });
   }
   return {
-    group: isle, circles, bound, lighthouseWorld: W(LH.x, LH.z),
+    group: isle, circles, bound, lighthouseWorld: W(LH.x, LH.z), texMB,
     get lod() { return lod; },
     setVisible(v) { on = v; isle.visible = v; },
     update(t, cam) {
       if (!on) return;
       setLod(Math.hypot(cam.x - HARBOR_ISLAND.x, cam.y, cam.z - HARBOR_ISLAND.z));
-      beam.rotation.y = t * 0.8; chest.position.y = groundY(c0.x, c0.z) + 1.15 + Math.sin(t * 2) * 0.12; chest.rotation.y = -0.9 + t * 0.4;
+      beam.rotation.y = t * 0.8;
+      for (let i = 0; i < lights.length; i++) lights[i].intensity = lod === 'near' ? 12 * (0.82 + 0.12 * Math.sin(t * 11 + i * 2) + 0.06 * Math.sin(t * 23 + i)) : 0; chest.position.y = groundY(c0.x, c0.z) + 1.15 + Math.sin(t * 2) * 0.12; chest.rotation.y = -0.9 + t * 0.4;
     },
   };
 }
