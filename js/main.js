@@ -1163,7 +1163,7 @@ async function saveScore() {
   game.name = nameInput.value.trim().slice(0, 20); saveName(game.name);
   game.wallet = walletInput.value.trim(); saveWallet(game.wallet);
   if (pirate?.account.connected) pirate.save({ now: true }); // [wallet save] keep the name in sync
-  const r = await leaderboard.submit({ wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) }, { proof: walletVerify?.getProof(game.wallet) || null }); // [wallet verify] proof only exists when the flag is on
+  const r = await leaderboard.submit({ run: game.runId, wallet: game.wallet, name: game.name, score: game.score, wave: game.wave, sunk: game.sunk, duration_s: Math.round((performance.now() - game.startTime) / 1000), ...(game.mode === 'daily' ? { mode: 'daily', seed: game.seed } : {}) }, { proof: walletVerify?.getProof(game.wallet) || null }); // [wallet verify] proof only exists when the flag is on
   $('save-msg').textContent = game.mode === 'daily'
     ? (r.where === 'online' ? 'Saved to the online DAILY board!' : leaderboard.remote ? 'Saved on this device. Online daily board coming soon.' : 'Saved on this device.')
     : (r.where === 'online' ? (r.verified ? 'Saved to the online leaderboard ✅ verified!' : 'Saved to the online leaderboard!') : 'Saved on this device.');

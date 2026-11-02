@@ -2,6 +2,7 @@
 // LocalAdapter: always available, this device only.
 // SupabaseAdapter: activates automatically when config.js has URL + anon key.
 // Periods: 'day' | 'week' | 'month' | 'year' are ROLLING windows (last 24h / 7d / 30d / 365d); 'all' = all-time.
+import { wavesScore } from './pvpSave.js'; // [security H1]
 import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, LEADERBOARD_DAILY_VIEW, WALLET_VERIFY_ENABLED, VERIFY_SCORE_URL } from './config.js';
 // DAILY challenge board: one board per UTC day (seed 'YYYY-MM-DD'), best run per wallet. Needs migration 002_daily.sql
 // online; until it's run, daily runs are kept on this device and the board says 'daily board coming soon'.
@@ -131,6 +132,13 @@ export class SupabaseAdapter {
     return bestPerWallet(rows, n);
   }
   async submit(entry) {
+    // [security H1] through the server first (the anon key loses INSERT on scores with migration 030). Falls back to the old direct
+    // insert only when the server doesn't know the action / the run (old function, or waves_start never reached it); once 030 is
+    // applied that fallback is refused and the run stays saved on this device.
+    if (entry.run) {
+      try { const j = await wavesScore(entry); return { ok: true, verified: !!j?.verified }; }
+      catch (e) { if (e.status === 409) return { ok: true }; if (e.status !== 400 && e.status !== 404) throw e; }
+    }
     const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_TABLE}`, {
       method: 'POST', headers: this._h({ Prefer: 'return=minimal' }),
       body: JSON.stringify({ wallet: entry.wallet, name: entry.name || null, score: entry.score, wave: entry.wave, sunk: entry.sunk, duration_s: entry.duration_s, ...(entry.mode === 'daily' ? { mode: 'daily', seed: entry.seed } : {}) }), // normal runs send no mode/seed, so they work before and after 002
@@ -186,7 +194,7 @@ class Leaderboard {
       try { await this.remote.submitVerified(e, proof); return { verified: true }; }
       catch (err) { console.info('[leaderboard] verified save failed, saving unverified:', err.message); }
     }
-    await this.remote.submit(e); return { verified: false };
+    const r = await this.remote.submit(e); return { verified: !!r?.verified };
   }
   async submit(entry, { proof = null } = {}) {
     const e = { ...entry, name: clean(entry.name), score: Math.max(0, Math.floor(entry.score)), ts: Date.now() };
