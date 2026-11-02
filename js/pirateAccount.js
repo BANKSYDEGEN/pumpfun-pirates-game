@@ -104,15 +104,15 @@ export async function connect() {
   const pk = (r?.publicKey || p.publicKey)?.toString?.();
   if (!pk || pk === '[object Object]') throw tagged('connect', new Error('wallet gave no public key'));
   hooks.msg(`Sign the message in ${found.name}. It's free and read-only, not a transaction.`);
-  let n = await step('server', () => api('nonce', { wallet: pk }));
+  const n = await step('server', () => api('nonce', { wallet: pk }));
   let sig;
   try { sig = await signBytes(p, n.message); }
   catch (e) {
     if (isRejection(e)) throw tagged('sign', e);
-    // wallet refused the Sign-In-With-Solana form without prompting (Phantom -32000 etc): retry once with plain text
-    console.warn('[wallet save] SIWS sign failed, retrying with a plain message:', e);
-    n = await step('server', () => api('nonce', { wallet: pk, plain: true }));
-    sig = await step('sign', () => signBytes(p, n.message));
+    // [security H4] no plain-text retry any more: that message had no domain for the wallet to check, which let a phishing copy
+    // of the game relay a sign-in. A wallet that refuses the Sign-In-With-Solana form gets a clear message instead.
+    console.warn('[wallet save] SIWS sign failed:', e);
+    throw tagged('sign', new Error('Your wallet could not sign the sign-in message. Update it, or open the game at game.pumpfunpirates.com in Phantom or Solflare.'));
   }
   const v = await step('server', () => api('verify', { wallet: pk, nonce: n.nonce, signature: b64(sig), local_skins: skinState(), name: hooks.getName() || null }));
   writeSession({ token: v.token, wallet: pk, expires_at: v.expires_at });

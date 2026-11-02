@@ -3,8 +3,8 @@
 // Secrets: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (automatic). Optional: ALLOWED_ORIGINS (comma-separated).
 // (players.is_holder is reserved for a later NFT holder perk; nothing sets it yet.)
 // POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout", ... }
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildMessage, verifySignature, isWallet, cleanProgress, cleanSkins, cleanRun, runProblem, skinsProblem, type Progress } from "./lib.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2)
+import { buildMessage, messageFor, verifySignature, isWallet, cleanProgress, cleanSkins, cleanRun, runProblem, skinsProblem, type Progress } from "./lib.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,https://html-classic.itch.zone,https://html.itch.zone,https://uploads.ungrounded.net")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
@@ -52,12 +52,15 @@ Deno.serve(async (req) => {
       case "nonce": {
         const wallet = b.wallet;
         if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
-        const domain = new URL(allowed ?? ALLOWED_ORIGINS[0]).host;
+        // [security H4] only the game's own pages get a nonce, and the SIWS message names that page (no plain-text fallback:
+        // wallets check the SIWS domain against the page asking, which is what stops a relayed sign-in on a phishing copy)
+        if (!allowed) return json(403, { error: "Open the game at https://game.pumpfunpirates.com to sign in." });
+        const domain = new URL(allowed).host;
         await db.from("wallet_nonces").delete().lt("expires_at", new Date(Date.now() - 3600_000).toISOString()); // tidy
         const { count } = await db.from("wallet_nonces").select("nonce", { count: "exact", head: true }).eq("wallet", wallet).gt("expires_at", new Date().toISOString());
         if ((count ?? 0) >= 10) return json(429, { error: "too many sign-in attempts, try again in a few minutes" });
         const nonce = hex(rand(16)), now = new Date(), exp = new Date(now.getTime() + NONCE_TTL_MS);
-        const message = buildMessage(domain, wallet, nonce, now.toISOString(), exp.toISOString(), b.plain === true);
+        const message = buildMessage(domain, wallet, nonce, now.toISOString(), exp.toISOString());
         const { error } = await db.from("wallet_nonces").insert({ nonce, wallet, message, expires_at: exp.toISOString() });
         if (error) throw error;
         return json(200, { nonce, message, expires_at: exp.toISOString() });
@@ -69,6 +72,7 @@ Deno.serve(async (req) => {
         const { data: n } = await db.from("wallet_nonces").update({ used: true }).eq("nonce", nonce).eq("wallet", wallet).eq("used", false).select().maybeSingle();
         if (!n) return json(401, { error: "unknown or used nonce" });
         if (Date.parse(n.expires_at) < Date.now()) return json(401, { error: "nonce expired" });
+        if (!messageFor(n.message, allowed)) return json(401, { error: "this sign-in was made for another site, try again" }); // [security H4]
         if (!verifySignature(n.message, signature, wallet)) return json(401, { error: "bad signature" });
 
         // upsert the player; merge this device's local progress in (union of skins, best of bests)

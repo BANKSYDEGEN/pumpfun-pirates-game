@@ -15,13 +15,10 @@ export const isWallet = (w: unknown): w is string => {
 
 // SIWS-format message. Phantom validates SIWS messages before prompting and rejects a malformed one with -32000
 // (no prompt shown). The statement MUST be one line (no "\n"), domain must equal the page host, URI its origin.
-// plain = a non-SIWS fallback with the same facts, for wallets that refuse the SIWS form.
-export function buildMessage(domain: string, wallet: string, nonce: string, issuedAt: string, expiresAt: string, plain = false) {
+// [security H4] the plain-text fallback is gone: it carried no domain a wallet could check, so a phishing copy of the game could
+// relay our nonce and get a valid signature. A wallet that refuses SIWS now gets a clear error instead (js/pirateAccount.js).
+export function buildMessage(domain: string, wallet: string, nonce: string, issuedAt: string, expiresAt: string) {
   const statement = "Sign in to PUMPFUN PIRATES to save your progress. Read-only: this is not a transaction and cannot move funds.";
-  if (plain) return [
-    "PUMPFUN PIRATES sign-in", "", statement, "",
-    `Site: https://${domain}`, `Wallet: ${wallet}`, `Nonce: ${nonce}`, `Issued: ${issuedAt}`, `Expires: ${expiresAt}`,
-  ].join("\n");
   return [
     `${domain} wants you to sign in with your Solana account:`,
     wallet,
@@ -35,6 +32,13 @@ export function buildMessage(domain: string, wallet: string, nonce: string, issu
     `Issued At: ${issuedAt}`,
     `Expiration Time: ${expiresAt}`,
   ].join("\n");
+}
+// [security H4] was this stored message issued for the page that is now verifying it (and not expired)?
+export function messageFor(message: string, origin: string | null): boolean {
+  if (!origin) return false;
+  let host: string; try { host = new URL(origin).host; } catch { return false; }
+  const exp = /\nExpiration Time: ([^\n]+)/.exec(message)?.[1];
+  return message.startsWith(`${host} wants you to sign in with your Solana account:\n`) && message.includes(`\nURI: https://${host}\n`) && !!exp && Date.parse(exp) > Date.now();
 }
 
 export function verifySignature(message: string, signatureB64: string, wallet: string): boolean {
