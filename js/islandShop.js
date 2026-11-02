@@ -192,7 +192,7 @@ function detail(x) {
     ${x.it.use === 'once' && s.k !== 'soon' ? `<div class="ishop-gl">One use: marks ${esc(x.it.dig)} on your island map</div>` : ''}
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
-  if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && s.owned && provider.hatColor) { // [v105] free hat colour (equipped hat)
+  if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && x.it.tint?.hatColor && s.owned && provider.hatColor) { // [v109b] not the crown (its velvet = your hair colour) // [v105] free hat colour (equipped hat)
     const cur = state.equipped?.gear?.hatColor | 0, eq = state.equipped?.gear?.hat === x.it.id;
     d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>
       `<button type="button" data-hc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);

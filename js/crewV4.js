@@ -115,7 +115,8 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       const items = Object.values(p.items || {}).map((it) => it.obj).filter((o) => o?.isSkinnedMesh && o.parent), meshes = [...(p.gearMesh ? [p.gearMesh] : []), ...items];
       if (!meshes.length) return null;
       out[sex] = {};
-      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks(meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh)));
+      const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks(meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown)));
     }
     return out;
   })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
@@ -123,16 +124,17 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
 }
 function joinChunks(cs) { // [Timothy] several baked chunks -> one (same layout)
   if (cs.length === 1) return cs[0]; const o = {};
-  for (const k of ['pos', 'nrm', 'col', 'uv', 'part']) { const n = cs.reduce((a, c) => a + c[k].length, 0), a = new Float32Array(n); let off = 0; for (const c of cs) { a.set(c[k], off); off += c[k].length; } o[k] = a; }
+  for (const k of ['pos', 'nrm', 'col', 'uv', 'part', 'vel']) { const n = cs.reduce((a, c) => a + c[k].length, 0), a = new Float32Array(n); let off = 0; for (const c of cs) { a.set(c[k], off); off += c[k].length; } o[k] = a; }
   return o;
 }
-function bakeGear(p, mesh, pose, T, plain = false) { // plain: no stripe uv (Raul's items: vertex colour only)
+function bakeGear(p, mesh, pose, T, plain = false, velvet = false) { // plain: no stripe uv (Raul's items: vertex colour only)
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
   p.scene.updateMatrixWorld(true); mesh.skeleton.update();
   const g = mesh.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, U = g.attributes.uv, J = g.attributes.skinIndex, W = g.attributes.skinWeight;
   const idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count, bm = mesh.skeleton.boneMatrices, bones = mesh.skeleton.bones;
-  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), part = new Float32Array(n);
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), part = new Float32Array(n), vel = new Float32Array(n);
+  const TT = velvet ? g.attributes._tint : null, iA = TINTS.indexOf('accent');
   const full = new THREE.Matrix4();
   for (let q = 0; q < n; q++) {
     const i = idx ? idx[q] : q;
@@ -145,9 +147,9 @@ function bakeGear(p, mesh, pose, T, plain = false) { // plain: no stripe uv (Rau
     _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z;
     col[q * 3] = C.getX(i); col[q * 3 + 1] = C.getY(i); col[q * 3 + 2] = C.getZ(i);
     uv[q * 2] = 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
-    part[q] = PARTN[bn(bones[best]?.name)] || 0;
+    part[q] = PARTN[bn(bones[best]?.name)] || 0; if (TT && Math.round(TT.getX(i)) === iA) vel[q] = 1;
   }
-  return { pos, nrm, col, uv, part };
+  return { pos, nrm, col, uv, part, vel };
 }
 // one seat's body + the baked gear chunk -> one geometry (same attributes as crewPirateV4)
 const _dc = new Map();
@@ -159,5 +161,7 @@ export function crewPirateV4Dressed(v, pose, chunks, tag) {
   const A = base.attributes, g = new THREE.BufferGeometry();
   g.setAttribute('position', cat(A.position.array, ch.pos, 3)); g.setAttribute('normal', cat(A.normal.array, ch.nrm, 3)); g.setAttribute('color', cat(A.color.array, ch.col, 3));
   g.setAttribute('aPart', cat(A.aPart.array, ch.part, 1)); g.setAttribute('uv', cat(A.uv.array, ch.uv, 2));
+  if (ch.vel?.some?.((x) => x)) { const hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]), C = g.attributes.color.array, o = A.position.count; // [v109b] crown velvet = this seat's hair
+    for (let q = 0; q < ch.vel.length; q++) if (ch.vel[q]) { C[(o + q) * 3] = hair.r; C[(o + q) * 3 + 1] = hair.g; C[(o + q) * 3 + 2] = hair.b; } }
   if (_dc.size > 400) _dc.clear(); _dc.set(key, g); return g;
 }

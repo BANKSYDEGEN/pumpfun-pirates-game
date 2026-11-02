@@ -103,7 +103,7 @@ for (const [id, pal] of Object.entries(PARROTS)) PIECES['parrot:' + id] = [pal.c
 // Timothy's single gear mesh. [Raul slot, item id, colours(gear, colors)]
 const RAUL = {
   'hat:tricorn':   ['head', 'hat_tricorn', (g) => ({ hat: hatColorHex('tricorn', g.hatColor) })],
-  'hat:crown':     ['head', 'crown', (g) => ({ accent: hatColorHex('crown', g.hatColor) })],
+  'hat:crown':     ['head', 'crown', (g, c, p) => ({ accent: hairHexOf(p, g) })],   // [v109b] BANKSY: the crown's velvet = the wearer's hair colour (gold rim + gems untouched)
   // hooks + peg: the side the player picked (gear.hookSide / legSide 'L' | 'R') = Raul's left or right model on that arm / leg
   'hook:hook_iron': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null], 'hook:hook_gold': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null, { gold: true }],
   'leg:peg':       [(g) => 'leg' + g.legSide, (g) => 'peg_' + g.legSide.toLowerCase(), null],
@@ -390,13 +390,22 @@ function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
   for (const slot of Object.keys(GEAR_DEFAULTS)) { const r = RAUL[`${slot}:${gear[slot]}`]; if (r) want[rv(r[0], gear)] = r; }
   for (const rs of RAUL_SLOTS) {
-    const r = want[rs], id = r && rv(r[1], gear), k = r ? id + JSON.stringify(r[2] ? r[2](gear, colors) : null) + (r[3]?.gold ? 'g' : '') : '';
+    const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
     if ((p.raulKeys[rs] || '') === k) continue; p.raulKeys[rs] = k;
     if (!r) { try { raulUnequip(p, rs); } catch (e) { console.warn('[gear]', e); } continue; }
-    jobs.push(raulEquip(p, id, { colors: r[2] ? r[2](gear, colors) : undefined }).then((obj) => { if (obj && r[3]?.gold) goldHook(obj); })
+    jobs.push(raulEquip(p, id, { colors: cols || undefined }).then((obj) => { if (obj && r[3]?.gold) goldHook(obj); })
       .catch((e) => { console.warn('[gear] item failed', id, e); p.raulKeys[rs] = ''; }));
   }
   return Promise.all(jobs);
+}
+// [v109b] the wearer's hair colour (hex): the picked swatch, else their own hair as painted on the body (crew / remote looks vary)
+const _hc = new THREE.Color();
+export function hairHexOf(p, g) {
+  const hr = g?.hairColor > 0 ? HAIR_SWATCHES[g.hairColor - 1]?.[1] : null; if (hr) return hr;
+  for (const m of p?.tinted || []) if (m.userData?.tint === 'hair' && m.color) return '#' + m.color.getHexString();
+  for (const o of p?.atlasMeshes || []) { const G = o.geometry, T = G?.attributes?._tint, C = G?.attributes?.color; if (!T || !C) continue;
+    for (let i = 0; i < T.count; i++) if (Math.round(T.getX(i)) === iHair) { _hc.setRGB(C.getX(i), C.getY(i), C.getZ(i), THREE.LinearSRGBColorSpace); return '#' + _hc.getHexString(); } }
+  return HAIR_SWATCHES[0]?.[1] || '#2a1a10';
 }
 export const raulItemOf = (slot, id, gear) => { const r = RAUL[`${slot}:${id}`]; return r ? rv(r[1], normalizeGear(gear)) : null; };
 

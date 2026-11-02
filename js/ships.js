@@ -1,7 +1,7 @@
 // Stylized toon ships built in code: rounded plank hulls with painted strakes, railings,
 // chunky cannons, cabins with glowing windows, crow's nest, lanterns, rippling sails, waving flags.
 import * as THREE from 'three';
-import { addCrew, dressCrew, addLookout } from './crew.js'; // [Raul] deck crew
+import { addCrew, dressCrew, addLookout, crewLodOf } from './crew.js'; // [Raul] deck crew
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
@@ -739,7 +739,7 @@ export function buildShip(opts) {
   // [Raul] upgrade visuals: hull/mast/cabin layout so js/upgradeVisuals.js can attach upgrade layers (no visual change here)
   // [v97] enemy ships get the spyglass lookout like yours: a pirate with a telescope patrolling the main crow's nest
   // (merged into the same crew mesh, visual only; player ships add theirs from js/upgradeVisuals.js with SPYGLASS)
-  if (opts.lookout && nestAt && body.children.some(o => o.isLOD && o.children[0]?.userData?.crewMesh)) addLookout(ship, body, { at: { x: 0, y: nestAt.y + 0.3, z: nestAt.z }, r: 0.5, size: boss ? 1.0 : 0.9 });
+  if (opts.lookout && nestAt && crewLodOf(body)) addLookout(ship, body, { at: { x: 0, y: nestAt.y + 0.3, z: nestAt.z }, r: 0.5, size: boss ? 1.0 : 0.9 });
   if (SCHEME_OUTFIT[scheme]) dressCrew(body, opts.outfit || SCHEME_OUTFIT[scheme]); // [v97] enemy crews in enemy colours
   ship.userData.buildOpts = opts; ship.userData.gunGap = Math.min(0.07, 0.5 / Math.max(1, cannonsPerSide));
   if (ship.userData.crew?.uGap) ship.userData.crew.uGap.value = ship.userData.gunGap;

@@ -44,7 +44,7 @@ export const GEAR_ITEMS = [
   { slot: 'hat', id: 'bandana', label: 'BANDANA', price: 150, glb: 'gear', tint: { hatColor: true } },
   { slot: 'hat', id: 'tricorn', label: 'TRICORN', price: 400, glb: 'raul:hat_tricorn', tint: { hatColor: true } },   // [Raul] model (better in game), hat colour = the felt
   { slot: 'hat', id: 'bicorne', label: "CAPTAIN'S HAT", price: 1200, glb: 'gear', tint: { hatColor: true } },
-  { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, glb: 'raul:crown', tint: { hatColor: true } },   // [Raul] model (de13179); velvet = hat colour. soon: server SHOP_ITEMS first (the owner wears it now)
+  { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, glb: 'raul:crown', tint: { hair: true } },   // [Raul] model (de13179); [v109b] velvet = the wearer's HAIR colour (BANKSY), gold rim + gems fixed. soon: server SHOP_ITEMS first (the owner wears it now)
   { slot: 'outfit', id: 'shirtless', label: 'SHIRTLESS', price: 0, glb: null, tint: null, free: true },
   { slot: 'outfit', id: 'tank', label: 'TANK', price: 150, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'tshirt', label: 'T-SHIRT', price: 300, glb: 'gear', tint: { skin: true } },

@@ -9,7 +9,7 @@
 //  - cheap: one v4 Low pirate each (2 draw calls + their gear), hidden beyond 70 m, no per-frame allocation
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
-import { applyGear, getLocalGear } from '../pirateGear.js';
+import { applyGear, getLocalGear, getLocalColors } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
@@ -17,13 +17,18 @@ const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
 export function createFollowers({ scene, world, walker, low }) {
   const n = low ? 2 : 3, crew = [];
   const trail = []; let trailLen = 0; // [x, z] newest first, ~STEP m apart
-  let gear = crewGearOf(getLocalGear()) || { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
+  // [v109b] the crew wears YOUR resolved clothes colours: your picked clothes colour (outfitColor) or your ship skin's when it's 0 / SHIP,
+  // + your hat colour. Always read from pirateGear (getLocalGear + getLocalColors), never from the event detail (the BR profile's copy
+  // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
+  const NAKED = { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
+  const want = () => { const g = crewGearOf(getLocalGear()) || NAKED, c = getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
+  let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
-    const p = loadPirate({ look: LOOKS[i], low: true, outline: false, gear }); p.object.visible = false; scene.add(p.object);
+    const p = loadPirate({ look: LOOKS[i], low: true, outline: false }); applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
     crew.push({ p, x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
   }
-  addEventListener('pfp-gear', (e) => { const d = e.detail || {}; const g = d.gear || d; gear = crewGearOf(g) || { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
-    for (const c of crew) applyGear(c.p.object, gear); });
+  function redress() { const w = want(); if (w.k === cur.k) return; cur = w; gear = w.g; for (const c of crew) applyGear(c.p.object, w.g, w.c); }
+  addEventListener('pfp-gear', () => setTimeout(redress, 0)); // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
     const W = walker.w; trail.length = 0; trailLen = 0; lastJumps = W.jumps;
@@ -50,6 +55,7 @@ export function createFollowers({ scene, world, walker, low }) {
     return got / k; }
   function update(dt, camera) {
     if (!active) return;
+    if ((chkT -= dt) <= 0) { chkT = 0.5; redress(); } // ship skin / colour changes (cheap string compare, re-dress only on a change)
     const W = walker.w, now = performance.now();
     // breadcrumbs
     const h = trail[0]; if (!h || Math.hypot(W.x - h[0], W.z - h[1]) >= STEP) { trail.unshift([W.x, W.z]); if (trail.length > TRAIL_N) trail.pop(); }

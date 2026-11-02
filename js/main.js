@@ -11,7 +11,7 @@ import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 
 import { initCrewV4 } from './crewV4.js';
 import { syncCrewGear } from './crewGear.js';
 import { initHarborCard } from './harborCard.js'; // [v106] compact phone harbor card // [v106] your crew wears your hat + clothes
-import { getLocalGear } from './pirateGear.js'; // [v101] v4 pirates as the ship crew
+import { getLocalGear, getLocalColors } from './pirateGear.js'; // [v101] v4 pirates as the ship crew
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -75,8 +75,8 @@ registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalC
 // [v106] your equipped gear for the crew (setLocalGear fires 'pfp-gear'); colours follow your pirate's rules (Timothy's getLocalColors when present)
 let localGear = getLocalGear(), crewGearT = 1, PGmod = null;
 import('./pirateGear.js').then(m => { PGmod = m; });
-const localGearColors = () => PGmod?.getLocalColors ? PGmod.getLocalColors() : null;
-addEventListener('pfp-gear', (e) => { const d = e.detail || {}; localGear = d.gear || (d.hat !== undefined ? d : getLocalGear()); crewGearT = 0; });
+const localGearColors = () => getLocalColors();
+addEventListener('pfp-gear', () => { crewGearT = 0; }); // [v109b] the crew reads getLocalGear() (your resolved gear + free colours), not the event's (the BR profile copy has no clothes colour)
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -1299,7 +1299,7 @@ function frame() {
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
-  { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, localGear, localGearColors()); } } // [v106] crew in your clothes (re-bakes only on a change)
+  { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, getLocalGear(), localGearColors()); } } // [v106] crew in your clothes (re-bakes only on a change)
   tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);

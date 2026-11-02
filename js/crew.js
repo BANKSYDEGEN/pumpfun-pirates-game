@@ -233,6 +233,15 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   ship.userData.crew = mat.uniforms;
   return lod;
 }
+// [v109b] the ship's crew LOD: a child of the body, or one level down when a premium PvP skin moved everything into its
+// 'pvpLift' group (assets/ships/pvp/pvpKit.js liftRig). Missing it there made those skins drop your crew's clothes.
+const isCrewLod = (o) => o.isLOD && o.children[0]?.userData?.crewMesh;
+export function crewLodOf(body) {
+  const ch = body?.children; if (!ch) return null;
+  for (const o of ch) if (isCrewLod(o)) return o;
+  for (const g of ch) if (!g.isLOD && g.children?.length) for (const o of g.children) if (isCrewLod(o)) return o;
+  return null;
+}
 // [v106] every seat (+ lookouts) -> ONE merged geometry; chunks = the captain's baked gear (js/crewV4.js crewGearV4) or null
 function seatGeo(c, chunks, tag) {
   if (c.cap) return captainGeo(); // the captain seat (AI captains; on player ships it is hidden behind the animated captain)
@@ -248,7 +257,7 @@ function crewGeo(seats, chunks, tag) {
 // [v106] dress one ship's crew in its captain's gear (chunks from crewGearV4; null = back to the default outfit). Rebuilds that
 // ship's merged crew geometry: same material, same single draw call. Skin colours (dressCrew) are re-applied on top.
 export function setCrewGear(body, chunks, tag = '') {
-  const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); if (!lod?.userData.seats) return false;
+  const lod = crewLodOf(body); if (!lod?.userData.seats) return false;
   if ((lod.userData.gearTag || '') === (chunks ? tag : '')) return true;
   const mesh = lod.children[0], old = mesh.geometry, geo = crewGeo(lod.userData.seats, chunks, tag);
   geo.boundingSphere = old.boundingSphere ? old.boundingSphere.clone() : new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
@@ -256,7 +265,7 @@ export function setCrewGear(body, chunks, tag = '') {
   if (lod.userData.outfit) dressCrew(body, lod.userData.outfit);
   return true;
 }
-export const crewGearTag = (body) => { const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); return lod?.userData.seats ? (lod.userData.gearTag || '') : null; };
+export const crewGearTag = (body) => { const lod = crewLodOf(body); return lod?.userData.seats ? (lod.userData.gearTag || '') : null; };
 // [v84] the SPY TOWER lookout: one more pirate with a brass telescope, merged into the ship's existing crew mesh (no extra
 // draw call; same LOD cull distance as the deck crew, on every quality incl. Low). `at` = { x, y, z } platform centre on the
 // floor (body space), r = patrol radius, size = pirate height scale (crew are 1.35).
@@ -278,7 +287,7 @@ function scopeGeo() {
   _scope = mergeGeometries(out, false); out.forEach(o => o.dispose()); return _scope;
 }
 export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
-  let lod = body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh) || null;
+  let lod = crewLodOf(body);
   const g = mergeGeometries([seat(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
@@ -351,7 +360,7 @@ function outfitMap(id) {
 export const outfitIds = () => Object.keys(OUTFIT);
 // recolour the crew of one built ship (body = ship.userData.body or the ship). Always maps from the ORIGINAL colours, so it is safe to re-run.
 export function dressCrew(body, skinId) {
-  const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); if (!lod) return false;
+  const lod = crewLodOf(body); if (!lod) return false;
   const geo = lod.children[0].geometry, col = geo.attributes.color; if (!col) return false;
   const a = col.array, base = geo.userData.baseColor || (geo.userData.baseColor = a.slice()), m = outfitMap(skinId);
   for (let i = 0; i < a.length; i += 3) { const t = m && m.get(_key(base[i], base[i + 1], base[i + 2]));
