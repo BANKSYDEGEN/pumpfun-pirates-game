@@ -192,9 +192,13 @@ function splatAt(i, j, w) {
 }
 // ---------- chunked terrain (5 x 5 chunks, LOD steps 4 / 8 / 16 m, skirts hide LOD cracks) ----------
 const CH = 80; // cells per chunk side (320 m)
+// every normal unit length and finite: degenerate / zero / NaN normals fall back to straight up (0,1,0)
+export function safeNormals(g) { const a = g.attributes.normal; if (!a) return g; const N = a.array;
+  for (let i = 0; i < N.length; i += 3) { const l = Math.hypot(N[i], N[i + 1], N[i + 2]); if (!(l > 1e-6)) { N[i] = 0; N[i + 1] = 1; N[i + 2] = 0; } else if (Math.abs(l - 1) > 1e-4) { N[i] /= l; N[i + 1] /= l; N[i + 2] /= l; } }
+  a.needsUpdate = true; return g; }
 const _w8 = new Float32Array(8);
 const SPLAT_C = [0xf2d9a0, 0xb8975f, 0x7cc94e, 0xb98b55, 0x939089, 0x9a8c7b, 0xb3a690, 0x4a8a34].map(h => new THREE.Color(h)), GRASS_V = [0x7cc94e, 0x9bd65a, 0x5fae42].map(h => new THREE.Color(h));
-function chunkGeo(ci, cj, step) {
+export function chunkGeo(ci, cj, step) {
   const i0 = ci * CH, j0 = cj * CH, i1 = Math.min(NX, i0 + CH), j1 = Math.min(NZ, j0 + CH), nx = Math.ceil((i1 - i0) / step) + 1, nz = Math.ceil((j1 - j0) / step) + 1;
   const pos = [], col = [], w0 = [], w1 = [], idx = [], at = (a, b) => [Math.min(i1, i0 + a * step), Math.min(j1, j0 + b * step)];
   for (let b = 0; b < nz; b++) for (let a = 0; a < nx; a++) { const [i, j] = at(a, b), x = X0 + i * G, z = Z0 + j * G; pos.push(x, Hg[IDX(i, j)], z);
@@ -204,15 +208,18 @@ function chunkGeo(ci, cj, step) {
     const deep = sm(-0.5, -6, Hg[IDX(i, j)]); col.push(r * mm * (1 - deep * 0.35), g * mm * (1 - deep * 0.15), bl * mm * (1 - deep * 0.05)); }
   for (let b = 0; b < nz - 1; b++) for (let a = 0; a < nx - 1; a++) { const p = b * nx + a; idx.push(p, p + nx, p + 1, p + 1, p + nx, p + nx + 1); }
   const cp = (arr, p, n) => arr.push(...arr.slice(p * n, p * n + n));
-  const edge = (list) => { for (let k = 0; k < list.length - 1; k++) { const p = list[k], r = list[k + 1], n = pos.length / 3;
+  const surf = idx.length, skirt = []; // skirt verts copy their top vertex normal (double-sided skirt tris cancel to a zero normal -> NaN -> black bloom)
+  const edge = (list) => { for (let k = 0; k < list.length - 1; k++) { const p = list[k], r = list[k + 1], n = pos.length / 3; skirt.push(n, p, n + 1, r);
     pos.push(pos[p * 3], pos[p * 3 + 1] - 6, pos[p * 3 + 2], pos[r * 3], pos[r * 3 + 1] - 6, pos[r * 3 + 2]); cp(col, p, 3); cp(col, r, 3); cp(w0, p, 4); cp(w0, r, 4); cp(w1, p, 4); cp(w1, r, 4);
     idx.push(p, r, n, r, n + 1, n, p, n, r, r, n, n + 1); } };
   const row = (b) => Array.from({ length: nx }, (_, a) => b * nx + a), colm = (a) => Array.from({ length: nz }, (_, b) => b * nx + a);
   edge(row(0)); edge(row(nz - 1)); edge(colm(0)); edge(colm(nx - 1));
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setAttribute('aMat', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3).fill(13), 1)); // look.js on-foot splat
-  g.setAttribute('aW0', new THREE.Float32BufferAttribute(w0, 4)); g.setAttribute('aW1', new THREE.Float32BufferAttribute(w1, 4)); g.setIndex(idx);
-  g.computeVertexNormals(); g.computeBoundingSphere(); return g;
+  g.setAttribute('aW0', new THREE.Float32BufferAttribute(w0, 4)); g.setAttribute('aW1', new THREE.Float32BufferAttribute(w1, 4));
+  g.setIndex(idx.slice(0, surf)); g.computeVertexNormals(); const N = g.attributes.normal.array;
+  for (let k = 0; k < skirt.length; k += 2) { const d = skirt[k] * 3, sr = skirt[k + 1] * 3; N[d] = N[sr]; N[d + 1] = N[sr + 1]; N[d + 2] = N[sr + 2]; }
+  g.setIndex(idx); safeNormals(g); g.computeBoundingSphere(); return g;
 }
 
 // ---------- shoreline: turquoise shallows + breaking foam over the whole coast (1 call, rides the ocean swell) ----------
@@ -363,6 +370,7 @@ function treeGeos(low) {
     g.rotateY(k / (low ? 5 : 8) * Math.PI * 2); fp.push([g, k % 2 ? 0x3a9a3a : 0x2c7d30, 6, (x, y, z) => Math.hypot(x, z) / 1.9]); }
   const fern = partsGeo(fp);
   const rock = partsGeo([[jitter(new THREE.IcosahedronGeometry(1, low ? 0 : 1), 0.22, 4), (x, y) => (y > 0.3 ? 0xa59d92 : 0x7d766e), 3, null]]);
+  for (const g of [tree, palm, fern, rock]) safeNormals(g);
   return { tree, palm, fern, rock };
 }
 // instanced foliage material: look.js surface (textured, bump on High) + per-instance-phase sway (aSway weight)
@@ -626,8 +634,8 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   at(P.tower.lx, P.tower.lz, 0, () => { W(k, box(9, 24, 9), STONE, 11, M(0, 12, 0)); W(k, box(10, 1, 10), STONE_D, 11, M(0, 24.3, 0), false); W(k, new THREE.ConeGeometry(7.4, 7, 4), ROOFS[1], 4, M(0, 28.3, 0, Math.PI / 4));
     for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); }
   for (const lx of [-50, -20, 10, 40, 70]) { const [x, z] = T(lx, -3); torchPost(k, F, x, Y0, z); }
-  // spectate spyglass on the mole tip
-  at(P.spectate.lx, P.spectate.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.MOLE.y);
+  // spectate spyglass on the mole deck (CO.SPYGLASS, walkable; the interact point is the same spot)
+  at(CO.SPYGLASS.lx, CO.SPYGLASS.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.SPYGLASS.y);
   // fort at the top of Main Street: keep, curtain wall, 4 round towers, pirate flag
   at(CO.FORT.lx, CO.FORT.lz, 0, () => { W(k, box(26, 7, 26), STONE, 11, M(0, 2.5, 0)); W(k, box(14, 18, 14), STONE_D, 11, M(0, 10.5, 0));
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { W(k, cyl(3.2, 3.6, 18, 12), STONE, 11, M(sx * 13, 7, sz * 13)); W(k, new THREE.ConeGeometry(4, 5, 12), ROOFS[0], 4, M(sx * 13, 18.5, sz * 13)); }
@@ -885,10 +893,16 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
+  // High: the coast kit group (the waterfront runs ~700 m) is cut into KIT_TILE m tiles so each tile frustum-culls (main + shadow pass)
+  // and swaps to its LOD1 twin on its own distance; one 700 m mesh never left LOD0 and drew all of its 170k tris twice. Low: whole groups.
+  const KIT_TILE = 250; if (KP && !low) KP = Object.fromEntries(Object.entries(KP).flatMap(([gname, list]) => { const T = {}, X = list.map(e => e[1].elements[12]), Z = list.map(e => e[1].elements[14]);
+    if (gname !== 'coast' || Math.max(Math.max(...X) - Math.min(...X), Math.max(...Z) - Math.min(...Z)) < 1.6 * KIT_TILE) return [[gname, list]]; // the trail's small markers stay one mesh
+    for (const e of list) { const key = gname + '_' + Math.floor(e[1].elements[12] / KIT_TILE) + '_' + Math.floor(e[1].elements[14] / KIT_TILE); (T[key] = T[key] || []).push(e); }
+    return Object.entries(T); }));
   if (KP) for (const [gname, list] of Object.entries(KP)) { const m = kitMesh(kit, list, 'foot_townkit_' + gname); if (!m) continue; root.add(m); groups.push(m); kitN += list.length; kitTris += m.userData.tris;
     if (!low) { const f = kitMesh(kit, list, 'foot_townkit_' + gname + '_lod1', true); if (f) { f.castShadow = false; f.visible = false; root.add(f); m.userData.far = f; } } } // High: LOD1 twin beyond ~170 m
   if (NP) for (const [gname, list] of Object.entries(NP)) { const parts = list.map(([nm, lod, m]) => { const g = nat.get(nm, low ? 1 : lod); return g ? g.clone().applyMatrix4(m) : null; }).filter(Boolean);
-    if (!parts.length) continue; const g = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); g.computeBoundingSphere();
+    if (!parts.length) continue; const g = safeNormals(mergeGeometries(parts, false)); parts.forEach(p => p.dispose()); g.computeBoundingSphere();
     const m = new THREE.Mesh(g, fm); m.name = 'foot_nature_' + gname; m.castShadow = m.receiveShadow = !low; m.customDepthMaterial = fm.userData.depth; root.add(m); groups.push(m);
     natN += list.length; natTris += (g.index ? g.index.count : g.attributes.position.count) / 3; }
   const kitM = groups[0] || null; KP = null; NP = null;
@@ -904,14 +918,15 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   // one LOD1 mesh beyond; Low: one LOD1 mesh per kind (4 calls, as before). Procedural fallback (&nature=0): the old blockout shapes.
   let BK;
   if (nat) BK = low ? [[['trees'], 'tree0', -1, 0, 210, 520, 0], [['palms'], 'palm1', -1, 0, 210, 200, 0], [['ferns'], 'fern', -1, 0, 70, 300, 0], [['rocks', 'cliffs'], 'cliff0', -1, 0, 300, 360, 0]]
-    : [[['trees'], 'tree0', 0, 0, 75, 160, 1], [['trees'], 'tree1', 1, 0, 75, 160, 1], [['trees'], 'tree2', 2, 0, 75, 160, 1], [['trees'], 'tree2_far', -1, 75, 400, 2200, 0],
-       [['palms'], 'palm0', 0, 0, 70, 90, 1], [['palms'], 'palm1', 1, 0, 70, 90, 1], [['palms'], 'palm2', 2, 0, 70, 90, 1], [['palms'], 'palm1_far', -1, 70, 420, 700, 0],
+    : [[['trees'], 'tree0', 0, 0, 75, 160, 1], [['trees'], 'tree1', 1, 0, 75, 160, 1], [['trees'], 'tree2', 2, 0, 75, 160, 1], [['trees'], 'tree2_far', -1, 75, 330, 1700, 0],
+       [['palms'], 'palm0', 0, 0, 70, 90, 1], [['palms'], 'palm1', 1, 0, 70, 90, 1], [['palms'], 'palm2', 2, 0, 70, 90, 1], [['palms'], 'palm1_far', -1, 70, 360, 600, 0],
        [['ferns'], 'fern', -1, 0, 120, 1600, 0], [['rocks'], 'rock0', -1, 0, 110, 400, 1], [['rocks'], 'rock1_far', -1, 110, 320, 500, 0],
        [['cliffs'], 'cliff0', -1, 0, 220, 300, 1], [['cliffs'], 'cliff1_far', -1, 220, 620, 600, 0]];
   else { const geo = treeGeos(low); BK = [[['trees'], geo.tree, -1, 0, low ? 210 : 380, low ? 520 : 2400, !low], [['palms'], geo.palm, -1, 0, low ? 210 : 380, low ? 200 : 600, !low],
     [['ferns'], geo.fern, -1, 0, low ? 70 : 140, low ? 300 : 2000, 0], [['rocks', 'cliffs'], geo.rock, -1, 0, low ? 160 : 300, low ? 160 : 700, !low]]; }
   const IM = {}, BUCKETS = BK.map(([kinds, g, v, r0, r1, cap, sh], i) => {
     const geom = typeof g === 'string' ? nat.get(g.replace('_far', ''), g.endsWith('_far') || low ? 1 : 0) : g;
+    if (geom) safeNormals(geom);
     const m = new THREE.InstancedMesh(geom, fm, cap); m.count = 0; m.frustumCulled = false; m.castShadow = !low && !!sh; m.receiveShadow = !low; m.name = 'foot_' + kinds[0] + '_' + (typeof g === 'string' ? g : i);
     if (fm.userData.depth) m.customDepthMaterial = fm.userData.depth; root.add(m); IM[m.name] = m; return { kinds, v, r0, r1, cap, m, n: 0 }; });
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -962,6 +977,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     else { allDone = false;
       if (cam.distanceTo(lastP) > 6) { fill(cam.x, cam.z); lastP.copy(cam); }
       if (cam.distanceTo(lastG) > 4) { fillGrass(cam.x, cam.z); lastG.copy(cam); } }
+    for (const b of BUCKETS) b.m.visible = b.m.count > 0; imGrass.visible = imGrass.count > 0; imFlow.visible = imFlow.count > 0; // an empty InstancedMesh still costs a call (+1 per shadow pass)
     for (const g of groups) { const bs = g.geometry.boundingSphere, d = Math.hypot(bs.center.x - cam.x, bs.center.z - cam.z) - bs.radius, on = all || d < GROUP_R, far = g.userData.far;
       if (far) { const useFar = all || d > 170; g.visible = on && !useFar; far.visible = on && useFar; } else g.visible = on; }
     if (lights.length) { const near = F.map(f => [(f.x - cam.x) ** 2 + (f.z - cam.z) ** 2, f]).sort((a, b) => a[0] - b[0]);

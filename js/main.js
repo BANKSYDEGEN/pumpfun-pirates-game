@@ -7,6 +7,7 @@ import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
+import { initCrewV4 } from './crewV4.js'; // [v101] v4 pirates as the ship crew
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -63,6 +64,7 @@ const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultr
 setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 await initKit(quality === 'low' || isMobile);
+await Promise.race([initCrewV4(), new Promise(r => setTimeout(r, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 } }); // [v100] your pirate (v4 GLB) steers your ship
 
 // ---------- renderer / scene ----------

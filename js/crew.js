@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wind } from './ships.js';
+import { V4, crewPirateV4 } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
 
 let Q = 'high', PHONE = false;
 export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
@@ -20,6 +21,10 @@ const HAT_BRIM = [C(0x131314), C(0x5a3a23)], HAT_BAND = [C(0x141313), C(0x5b3a22
 const PANTS = C(0x2b2018), WHITE = C(0xffffff), IRON = C(0xc9ccd2), WOOD = C(0x6a4026);
 const hash = (i) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
 
+// [v101] uv.x < 0 = vertex colour only (procedural parts); >= 0 = a v4 texture slot (js/crewV4.js)
+const noUv = (g) => g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2).fill(-1), 2));
+// [v101] a crew seat: Raul's v4 pirate (stable look per seat) once loaded, else the procedural NFT deckhand
+const seat = (v, pose = 'idle') => V4 ? crewPirateV4(v, pose) : pirate(v % 12);
 // one pirate (faces +Z, feet at y=0, ~1.25 tall), parts: 0 body/head, 1/2 legs (hip pivot), 3/4 arms (shoulder pivot)
 const _pc = new Map();
 function pirate(v) {
@@ -33,7 +38,7 @@ function pirate(v) {
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     const n = g.attributes.position.count, c = new Float32Array(n * 3), pa = new Float32Array(n).fill(part);
     for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(pa, 1)); out.push(g);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(pa, 1)); noUv(g); out.push(g);
   };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), sph = (rad, a = 8, b = 6) => new THREE.SphereGeometry(rad, a, b), cyl = (a, b, h, s = 8, hs = 1, open = false) => new THREE.CylinderGeometry(a, b, h, s, hs, open);
   for (const sx of [1, -1]) add(box(0.13, 0.36, 0.15), PANTS, sx > 0 ? 1 : 2, [sx * 0.085, 0.18, 0]);
@@ -69,11 +74,12 @@ function pirate(v) {
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
 uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff;
-varying vec3 vC; varying vec3 vN; varying vec3 vV;
+varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
 vec3 rotZ(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z); }
 void main(){
+  vK = uv.x < -0.5 ? -1.0 : floor(uv.x * 0.5); vUv = vec2(uv.x - max(vK, 0.0) * 2.0, uv.y);
   vec3 p = position, n = normal; float role = aInfo.x, sx = aInfo.y, ph = aInfo.z, span = aInfo.w;
   vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0, look = 0.0, armB = 0.0;
   if (aPart > 5.5) { // [v95] the ship's wheel (6) + its pedestal (7), in the captain's frame: no lean / bob; the wheel turns with the helm
@@ -142,12 +148,18 @@ void main(){
   gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
 }`;
-const FRAG = `uniform vec3 uSunV; varying vec3 vC; varying vec3 vN; varying vec3 vV;
+const FRAG = `uniform vec3 uSunV; varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
+uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1;
 #include <fog_pars_fragment>
 void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
   float band = d > 0.35 ? 1.0 : (d > -0.1 ? 0.78 : 0.58);
   float rim = 1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0);
-  vec3 col = vC * band * (rim > 0.78 ? 0.25 : 1.0); // inked silhouette edge (bold-outline NFT look) without an outline mesh
+  vec3 base = vC;
+  if (vK > -0.5) { // [v101] v4 pirate: body atlas (baked light) x tint colour, or the face decal (alpha-tested)
+    vec4 tx = vK < 0.5 ? texture2D(tA0, vUv) : vK < 1.5 ? texture2D(tA1, vUv) : vK < 2.5 ? texture2D(tF0, vUv) : texture2D(tF1, vUv);
+    if (vK > 1.5) { if (tx.a < 0.5) discard; base = tx.rgb; rim = 0.0; } else base = vC * tx.rgb;
+    band = mix(1.0, band, 0.55); }
+  vec3 col = base * band * (rim > 0.78 ? 0.25 : 1.0); // inked silhouette edge (bold-outline NFT look) without an outline mesh
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -156,8 +168,10 @@ const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vec
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
-    vertexShader: VERT, fragmentShader: FRAG, fog: true,
+    vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
+      .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true,
   });
+  if (V4) { const [a0, a1, f0, f1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 } }); }
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
   return m;
 }
@@ -167,18 +181,19 @@ function crewMaterial() {
 let _cap = null;
 function captainGeo() {
   if (_cap) return _cap;
-  const out = [pirate(17).clone()];
+  const out = [V4 ? crewPirateV4(17, 'idle', { female: false }).clone() : pirate(17).clone()];
   const add = (g, col, part, p = [0, 0, 0], rot = [0, 0, 0], s = [1, 1, 1]) => {
     g = g.index ? g.toNonIndexed() : g;
     g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...s)));
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(part), 1)); out.push(g);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(part), 1)); noUv(g); out.push(g);
   };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), cyl = (a, b, h, s = 8) => new THREE.CylinderGeometry(a, b, h, s);
+  if (!V4) { // procedural captain's coat + tricorn (the v4 captain wears Raul's outfit, like the player's)
   add(box(0.38, 0.34, 0.05), COAT[0], 0, [0, 0.26, -0.13], [0.12, 0, 0]);                       // long coat tails
   for (const sx of [1, -1]) { add(box(0.12, 0.05, 0.14), BELT, 0, [sx * 0.2, 0.76, 0]); add(box(0.04, 0.4, 0.02), BELT, 0, [sx * 0.1, 0.56, 0.125]); } // epaulettes + lapels
-  for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + Math.PI / 3; add(box(0.3, 0.05, 0.16), HAT_BRIM[0], 0, [Math.sin(a) * 0.24, 1.13, Math.cos(a) * 0.24], [0.35, a, 0]); } // tricorn corners, turned up
+  for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + Math.PI / 3; add(box(0.3, 0.05, 0.16), HAT_BRIM[0], 0, [Math.sin(a) * 0.24, 1.13, Math.cos(a) * 0.24], [0.35, a, 0]); } } // tricorn corners, turned up
   // the wheel: rim + 8 spokes with handles + hub, in the XY plane at z 0.36 (just past the hands)
   const wy = 0.95, wz = 0.36, R = 0.42;
   add(new THREE.TorusGeometry(R, 0.035, 5, 18), WOOD, 6, [0, wy, wz]);
@@ -204,7 +219,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
   if (helm) crew.push({ v: 17, cap: true, o: [helm.x, helm.y, helm.z - 0.36 * (boss ? 1.6 : 1.35)], info: [3, 0, hash(helm.z * 3.7), 0] }); // [v95] captain at the wheel
   if (!crew.length) return null;
-  const parts = crew.map(c => { const g = (c.cap ? captainGeo() : pirate(c.v % 12)).clone(), n = g.attributes.position.count;
+  const parts = crew.map(c => { const g = (c.cap ? captainGeo() : seat(c.v, c.info[0] === 0 ? 'cannon' : 'idle')).clone(), n = g.attributes.position.count;
     const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
     g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4)); return g; });
   const geo = mergeGeometries(parts, false); parts.forEach(p => p.dispose());
@@ -227,9 +242,9 @@ function scopeGeo() {
     g = g.toNonIndexed(); g.rotateX(Math.PI / 2); g.translate(...pos);
     for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(5), 1)); out.push(g);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(5), 1)); noUv(g); out.push(g);
   };
-  const x = 0.13, y = 0.97; // at the right eye, pointing out along +Z
+  const x = 0.13, y = V4 ? V4.eyeY : 0.97; // at the right eye, pointing out along +Z
   add(new THREE.CylinderGeometry(0.035, 0.035, 0.08, seg), DARK, [x, y, 0.22]);   // eyepiece
   add(new THREE.CylinderGeometry(0.045, 0.045, 0.2, seg), BRASS, [x, y, 0.36]);   // draw tube
   add(new THREE.CylinderGeometry(0.06, 0.055, 0.24, seg), BRASS, [x, y, 0.57]);  // barrel
@@ -238,7 +253,7 @@ function scopeGeo() {
 }
 export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   let lod = body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh) || null;
-  const g = mergeGeometries([pirate(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
+  const g = mergeGeometries([seat(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
   g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));

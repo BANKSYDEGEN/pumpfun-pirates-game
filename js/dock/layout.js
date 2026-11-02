@@ -62,9 +62,7 @@ export async function coastLayout() {
   const P = (id, kind, lx, lz, label, r = 3.2) => { const [x, z] = L(lx, lz); interact.push({ id, kind, x, z, r, label }); };
   P('waves', 'waves', PP.waves.lx, PP.waves.lz + 2.2, 'WAVES BOARD');
   P('arena', 'arena', PP.arena.lx, PP.arena.lz + 2.2, 'ARENA · SOLO / SQUADS');
-  // RAUL: PLAZA_POIS.spectate (lx 114, lz 116) sits inside the lighthouse base (r 7.2 at the mole tip), so a pirate can't reach it;
-  // the interact point stands on the mole just before the tip until the spyglass art moves
-  P('spyglass', 'spyglass', CO.MOLE.lx, CO.MOLE.lz1 - CO.MOLE.tipR - 5, 'SPYGLASS · SPECTATE', 3.4);
+  P('spyglass', 'spyglass', CO.SPYGLASS.lx, CO.SPYGLASS.lz, 'SPYGLASS · SPECTATE', CO.SPYGLASS.r); // Raul's spyglass prop (coast.js SPYGLASS, single source of truth)
   P('exchange', 'exchange', PP.exchange.lx, PP.exchange.lz + 4.2, 'TOKEN EXCHANGE');
   P('market', 'market', PP.market.lx, PP.market.lz + 3.2, 'HARBOR MARKET', 4);
   // Timothy's SHOP door + the red / blue stalls: foot.js fills SHOP_SPOTS while it builds the street (createFoot), so world.js

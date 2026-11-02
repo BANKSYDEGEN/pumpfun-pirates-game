@@ -24,6 +24,9 @@ export const BERTH_LZ = 48.5;                                                   
 export const COAST_BERTHS = PIERS.flatMap(p => [-12, 12].map((t, j) => { const lx = p.lx + t, [x, z] = t2w(lx, BERTH_LZ), [hx, hz] = toHarbor(x, z);
   return { id: 'P' + (p.k + 1) + 'LR'[j], pier: p.k + 1, lx, lz: BERTH_LZ, x: +x.toFixed(2), z: +z.toFixed(2), hx: +hx.toFixed(2), hz: +hz.toFixed(2), yaw: +t2wYaw(Math.PI / 2).toFixed(4), len: 22, maxBeam: 7.3 }; }));
 export const MOLE = { lx: 108, lz0: 0, lz1: 118, w: 8, tipR: 9, y: 2.4 };
+// spectate spyglass: ON the mole deck 14 m short of the tip (the lighthouse base + its r 7.4 collider fill the tip), so a pirate can
+// walk up to it. Single source of truth for the spyglass art (js/island/foot.js) and the interact point (js/dock/layout.js).
+export const SPYGLASS = { lx: MOLE.lx, lz: MOLE.lz1 - MOLE.tipR - 5, y: MOLE.y, r: 3.4 };
 export const HEADLAND = { lx: 160, lz: 36, r: 36, top: 21 };                       // rocky cliff + fort battery
 export const FORT = { lx: 46, lz: -232, r: 15, top: 36 };                          // keep + towers at the top of Main Street
 export const ISLET = { lx: -345, lz: 105, r: 22 };                                 // sandbar with palms
@@ -31,7 +34,7 @@ export const PLAZA = { lx0: -55, lx1: 100, lz0: -56, lz1: 0 };
 export const PLAZA_POIS = [                                                        // town-local
   { id: 'waves', label: 'WAVES board', lx: -10, lz: -12 }, { id: 'arena', label: 'ARENA board', lx: 22, lz: -12 },
   { id: 'exchange', label: 'Token exchange', lx: 62, lz: -30 }, { id: 'market', label: 'Harbor market', lx: -36, lz: -32 },
-  { id: 'spectate', label: 'Spectate spyglass', lx: MOLE.lx + 6, lz: MOLE.lz1 - 2 }, { id: 'tower', label: 'Harbor tower', lx: 86, lz: -44 },
+  { id: 'spectate', label: 'Spectate spyglass', lx: SPYGLASS.lx, lz: SPYGLASS.lz }, { id: 'tower', label: 'Harbor tower', lx: 86, lz: -44 },
   { id: 'arrive', label: 'Step ashore (P1 head)', lx: -90, lz: 42 },
 ];
 // no-fire safe harbor (town-local polygon): berths + 22 m, the quay front and the mole
