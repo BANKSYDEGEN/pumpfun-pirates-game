@@ -113,6 +113,10 @@ function fmtMain(u, v) {
 export function gunList(ship, side) {
   const m = ship.mesh.userData.muzzles[side];
   const n = ship.cannons || m.length;
+  // [Raul] player rows carry more barrels than guns (BANKSY: the old bow / stern chasers are side barrels now, visual only): the
+  // volley keeps its n shots, launched from real barrel tips spread evenly along the deck row (first and last barrel included)
+  const D = Math.min(m.length, ship.mesh.userData.deckGuns || 0);
+  if (n > 0 && n < D) return Array.from({ length: n }, (_, i) => m[n > 1 ? Math.round(i * (D - 1) / (n - 1)) : D >> 1]);
   if (n <= m.length || !m.length) return m.slice(0, Math.max(1, n));
   const out = [];
   for (let i = 0; i < n; i++) out.push(m[i % m.length]);

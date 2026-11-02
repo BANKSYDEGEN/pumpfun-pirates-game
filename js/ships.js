@@ -229,7 +229,7 @@ export function placeCrew(ship, extra = []) {
   S.forEach((g, k) => { const c = pick[k]; if (!c) bad.push(g.i * g.sx); const [x, z] = c || [g.inner - g.sx * 0.38, g.z]; g.gx = x; g.gz = z; });
   const A = u.anchors || [];
   for (const g of S) { const a = A.find(a => a.role === 'gunner' && a.index === g.i && (a.side === 'port') === (g.sx > 0)); if (a) { a.pos.x = g.gx; a.pos.z = g.gz; if (a.node) a.node.position.copy(a.pos); } }
-  const lod = u.body.children.find(o => o.isLOD && o.children[0]?.userData?.crewMesh);
+  const lod = crewLodOf(u.body); // (also inside a premium skin's pvpLift group)
   if (lod?.userData.seats) { const seats = lod.userData.seats, geo = lod.children[0].geometry, O = geo.attributes.aOrigin, I = geo.attributes.aInfo;
     const key = (sx, i) => `${sx > 0 ? 1 : -1}:${i}`, M = new Map(S.map(g => [key(g.sx, g.i), g]));
     for (const c of seats) if (c.info[0] === 0) { const g = M.get(key(c.info[1], c.info[3])); if (g) c.o = [g.gx, c.o[1], g.gz]; }
@@ -512,7 +512,7 @@ export function buildShip(opts) {
     if (ART) pl.position.set(cabW * 0.3, cabY0 + cabH + 1.6, cabZ - cabL * 0.1); else pl.position.set(0, cabY0 + cabH + 1.4, cabZ - cabL / 2 - 0.6); body.add(pl); }
 
   // cannons (port +X, starboard -X): lathe barrel on a rounded carriage, painted gun port behind
-  const muzzles = { port: [], star: [], bow: [] }, guns = []; // [Raul] bow: forward chase-gun tips (js/upgradeVisuals.js) // guns: deck slots for the crew
+  const muzzles = { port: [], star: [] }, guns = []; // guns: deck slots for the crew
   const barrel = lathe(CANNON, LITE ? 8 : 12); // [v97] phones / LOW: lighter cannon geometry (same shape)
   // [v97] sea-service truck carriage: stepped cheeks, bed, axles, four wooden trucks with iron tyres (all merged per material)
   const cheekLo = new RoundedBoxGeometry(0.86, 0.26, 0.1, 1, 0.03), cheekHi = new RoundedBoxGeometry(0.46, 0.2, 0.1, 1, 0.03), bed = new RoundedBoxGeometry(0.8, 0.08, 0.5, 1, 0.02);

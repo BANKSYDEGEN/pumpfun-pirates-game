@@ -67,7 +67,12 @@ export const TRAITS = {
 // [v95] gun rows: DECK_GUNS on the main deck, then +1 a side per CANNONS level in the lower hull ports (up to 4), then on the rail (up to 4)
 export const DECK_GUNS = 4;
 // [v97] guns a side: Battle Royale = 4 + CANNONS level, all in ONE deck row along a longer hull; Waves = its tier count (visual = stat)
-const gunCount = (lv) => PV ? DECK_GUNS + (lv.cannons | 0) : TRAITS.cannons[lv.cannons || 0].perSide;
+const gunCount = (lv) => PV ? DECK_GUNS + (lv.cannons | 0) : TRAITS.cannons[lv.cannons || 0].perSide; // GAMEPLAY guns a side (shots per volley)
+// [Raul] BANKSY "only have them as side cannons, just make ship longer": the bow chaser (III+) and the two stern chasers (IV+) are
+// now extra barrels in each broadside row. Visual only: shots per volley stay gunCount (js/upgrades.js gunList spreads them along
+// the row), hit box / colliders keep the gameplay length.
+const GUN_GAP = 1.55; // stretch per gun gap (m); each added barrel also gets 0.3 of a gap more (the row starts past the castle ladders and stops where the bow narrows)
+const sideExtra = (lv) => { const C = TRAITS.cannons[lv.cannons || 0]; return C.sternGuns ? 2 : C.bowChaser ? 1 : 0; };
 export const TRAIT_IDS = ['hull', 'armor', 'sails', 'rudder', 'cannons', 'reload', 'range'];
 const WATCH_H = 1.9, WATCH_R = 1.3;
 // [v85] the lookout rail (SPYGLASS II-IV) sits ABOVE the main mast's highest sail (on a short pole off the masthead / topmast),
@@ -244,8 +249,6 @@ function deckObstacles(A, lv, ship) {
   if (R.magazine) sq(0, A.zAt(0.445), 1.05);
   if (S.fourthMast) sq(0, A.zAt(0.445), 0.72);
   if (C.mortar) { const M0 = mortarAt(A, ship), h = 0.95 * M0.s + 0.1; out.push([-h, h, M0.z - h, M0.z + h + 0.45 * M0.s]); }
-  if (C.bowChaser) { const z = A.zAt(0.93), s = 1.15 * A.k; out.push([-0.55, 0.55, z - 0.5 - 0.4 * s, z + 1.5 * s]); } // bow chaser (also on a forecastle: its idle spots)
-  if (C.sternGuns) for (const sx of [1, -1]) { const x = sx * Math.min(0.95, A.shape.halfW(0.895) * 0.52), z = A.zAt(0.895); const s = A.k; out.push([x - 0.31 * s - 0.15, x + 0.31 * s + 0.15, z - 0.25 - 0.34 * 1.1 * s - 0.1, z + 1.4 * s]); } // bow chase guns
   if (R.racks) A.gunT.forEach((t, i) => { for (const sx of [1, -1]) { const P = rackAt(A, ship, i, sx); if (!P) continue;
     if (i % 2 === 0) sq(P.x, P.z, 0.36); if (R.linstocks && !LO && i % 2 === 1) sq(P.x, P.z, 0.2); } });
   if (R.lockers && A.zB != null) for (const sx of [1, -1]) { const { x, z } = lockerAt(A, sx); out.push([x - 0.5, x + 0.5, z - 0.3, z + 0.3]); }
@@ -467,23 +470,8 @@ const PARTS = {
       muzzle(Ly, sx > 0 ? 'port' : 'star', [sx * (w + 1.2), y + 0.26, z], 200 + order++);
     }
     }
-    const art = ship?.userData?.art, bowY = (t) => art ? art.Fc(t) : A.hull.forecastle ? A.foreY(t) : A.deckAt(t) + 0.3; // [Raul] v2 hull: ON its forecastle deck (foreY sat under it)
-    if (T.bowChaser) { // forward-firing gun at the bow (on the forecastle when the hull has one)
-      const t = 0.93, y = bowY(t) + 0.35, z = A.zAt(t), s = 1.15 * k;
-      Ly.add(M.oak, box(0.9, 0.4, 1.0, 0.08), [0, y - 0.2, z]);
-      Ly.add(M.iron, barrel, [0, y + 0.25, z - 0.2], [Math.PI / 2, 0, 0], [s, s * 1.2, s]);
-      Ly.add(M.gold, torus(0.33 * s, 0.06), [0, y + 0.25, z + 1.15 * s]);
-      muzzle(Ly, 'bow', [0, y + 0.25, z - 0.2 + 1.22 * s * 1.2 + 0.04], 300); // [Raul] forward muzzle marker (tip)
-    }
-    if (T.sternGuns) { // [Raul] BANKSY: the two chase guns that stuck out of the transom now sit on the bow, either side of the bow chaser,
-      // pointing forward over the stem (their muzzle markers point forward too: userData.muzzles.bow, [x, y, z] at each tip)
-      const t = 0.895, z = A.zAt(t), s = 1.0 * k, y = bowY(t) + 0.6, xs = Math.min(0.95, A.shape.halfW(t) * 0.52);
-      for (const sx of [1, -1]) { const x = sx * xs;
-        Ly.add(M.oak, box(0.62, 0.34, 0.95, 0.06), [x, y - 0.42, z]); // slide carriage
-        Ly.add(M.iron, barrel, [x, y, z - 0.25], [Math.PI / 2, 0, 0], [s, s * 1.1, s]);
-        muzzle(Ly, 'bow', [x, y, z - 0.25 + 1.22 * s * 1.1 + 0.04], 301 + (sx > 0 ? 0 : 1));
-      }
-    }
+    // [Raul] BANKSY: no bow or stern chase guns. The tiers that had them (bow chaser from CANNONS III, the stern pair from IV) carry
+    // those guns in the broadside rows instead (sideExtra: +1 / +2 a side) on a longer hull; the gameplay gun count is unchanged.
     if (T.mortar) { // big squat mortar amidships, aimed high
       const { z, y, s } = mortarAt(A, ship);
       Ly.add(M.oak, box(1.9 * s, 0.35, 1.9 * s, 0.08), [0, y + 0.18, z]);
@@ -615,9 +603,9 @@ function buildCompiled(lv, opts, skin) {
   mats(skin);
   const H = TRAITS.hull[lv.hull], W = TRAITS.cannons[lv.cannons], S = TRAITS.sails[lv.sails];
   const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
-  const nG = gunCount(lv), f = stretchFor(nG, H.len, 1.55, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12)
+  const nG = gunCount(lv), nV = nG + sideExtra(lv), fG = stretchFor(nG, H.len, 1.55, 1.06), f = stretchFor(nV + 0.3 * (nV - nG), H.len, GUN_GAP, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12); [Raul] nV visual barrels a side, fG = the gameplay stretch (hit box)
   const kitArt = skin?.shipOpts ? null : { ram: !!TRAITS.armor[lv.armor].ram, poopH: H.poop ? 1.3 * H.depth / 3.1 : 0 }; // [Timothy v2] poopH: the helm climbs onto the poop deck // [Timothy] player ships wear the Blender kit (figurehead clears the armour ram); COMMODORE stays the exact boss build until the boss is remodelled too
-  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, bigGun: W.big || 0, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nV, bigGun: W.big || 0, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, fG) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
@@ -648,6 +636,7 @@ function buildCompiled(lv, opts, skin) {
   ud.body.add(traits); ud.traitsMesh = traits;
   if (extraMuzzles.some(m => m.userData.order < 100)) { ud.muzzles.port = []; ud.muzzles.star = []; } // [v95] big deck guns: their own tip markers replace buildShip's
   extraMuzzles.sort((a, b) => a.userData.order - b.userData.order).forEach(m => ud.muzzles[m.userData.upgMuzzle].push(m));
+  ud.deckGuns = nV; ud.fireGuns = nG; // [Raul] the first nV muzzles a side are the deck row (stern -> bow); a volley fires nG of them spread along it
   // [v84] SPY TOWER lookout: a pirate with a telescope patrols the highest lookout platform (the main-top rail from SPYGLASS II,
   // the watchtower from SPYGLASS V). Merged into the crew mesh: no extra draw call, culled with the crew, Low quality too.
   { const R = TRAITS.range[lv.range];
