@@ -42,8 +42,8 @@ import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexC
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
-import { attachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
-import { setLocalGear } from './pirateGear.js';
+import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
+import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire } from './pirateGear.js'; // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
@@ -580,6 +580,16 @@ export function createPvp(K) {
     let yr = 0; const ny = +m.y || 0;
     if (p.st && p.st.l === m.l) { const sdt = (now - p.st.at) / 1000; if (sdt > 0.04 && sdt < 1.5) yr = clamp(angWrap(ny - p.st.y) / sdt, -2.5, 2.5); yr = p.st.yr != null ? p.st.yr * 0.35 + yr * 0.65 : yr; }
     p.st = { yr, x, z, y: ny, v: clamp(+m.v || 0, 0, MAX_SPEED), t: clamp(+m.t || 0, -1, 1), h: clamp(+m.h || 0, 0, MAX_HP), m: clamp(+m.m || 100, 1, MAX_HP), a: m.a !== 0, p: !!m.p, l: m.l | 0, at: now };
+    // [Timothy] their shop gear ('gr', static field: sent on join / change + the transport's 3 s static refresh). Validated against
+    // GEAR_RENDERS; missing / default = the deck crew's captain (no extra figure). Dressed = Raul's v4 captain at their wheel.
+    // Their clothes take the colours of the ship skin they already send ('sk', validated above): no extra field.
+    const gw = cleanWire(m.gr), gk = gw + '|' + sk;
+    if (gk !== (p.gk ?? '|classic')) { const gNew = gw !== (p.gw ?? ''); p.gw = gw; p.gk = gk;
+      // their chosen skin + hair colour ride in the wire (gear.skinColor / hairColor, validated) and applyGear paints them (setBodyLook);
+      // the id hash is only the fallback look for a pirate who kept the DEFAULT skin / hair
+      const gg = gw ? gearFromWire(gw) : null, hashLook = { skin: [...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: p.id.charCodeAt(p.id.length - 1) % 5 };
+      p.captain = gg ? { v: 1, remote: true, gear: gg, skin: sk, look: { skin: gg.skinColor ? 0 : hashLook.skin, hair: gg.hairColor ? 0 : hashLook.hair } } : null;
+      if (p.ship?.mesh && (gNew || p.key === key)) { if (p.captain) attachCaptain(p.ship.mesh, p.captain); else detachCaptain(p.ship.mesh); } }   // a new skin rebuilds the ship below (it re-attaches)
     if (!p.ship) {
       const obj = { mesh: null, x, z, yaw: p.st.y, speed: 0, turn: 0, hp: p.st.h, maxHp: p.st.m, alive: p.st.a, roll: 0, pitch: 0, y: 0, sinking: p.st.a ? 0 : 99, state: 'roam', net: { id: p.id, kind: 'player' }, remote: true, cannons: stats.cannons };
       obj.mesh = buildRemoteMesh(p, lv, sk); obj.mesh.position.set(x, 0, z); p.ship = obj; p.key = key; makeBar(obj, p.name); enemies.push(obj);
@@ -1078,12 +1088,14 @@ export function createPvp(K) {
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; hud(); renderFeed(); if (!$('pvp-menu').classList.contains('hidden')) renderBoard(); }
     saveT -= dt; if (saveT <= 0) { saveT = 10; save(); }
   }
+  let sentGear = false;
   function stateMsg() { // the transport asks for this once per tick
     const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
     if ((where !== 'arena' && !shared) || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
+    const gw = gearToWire(getLocalGear()); if (gw || sentGear) { m.gr = gw; if (gw) sentGear = true; } // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;

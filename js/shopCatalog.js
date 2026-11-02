@@ -31,19 +31,26 @@ export const SKIN_ITEMS = [
 // the pirate bases, so glb is null (placeholder / tinted parts) and an id may still change before the shop ships. ----------
 // Free and never sold: skin tone, hair (short / long / beard / bald), face 'plain'. New pirates start outfit 'shirtless',
 // hat 'none', face 'plain', parrot 'none', hook 'none'.
-export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none' };
-export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS']];
+// [Timothy] COLOURS: clothes (tank / t-shirt / coat) follow your equipped SHIP SKIN (tint 'skin'). Hats take a FREE player-picked
+// hatColor (0 = the hat's own default, 1..12 = js/pirateGear.js HAT_SWATCHES; picker: js/gearColorPicker.js openGearColorPicker;
+// kept on this device in pfp_captain_v1, sent to other players in 'gr'). Card art: js/gearThumbs.js gearThumb(slot, id).
+// ONE gear system (js/pirateGear.js applyGear): glb 'raul:<id>' = drawn with Raul's model (js/pirateItems.js), the rest with Timothy's.
+export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none', leg: 'none' };
+export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS'], ['leg', 'PEG LEGS']];
 export const GEAR_ITEMS = [
   // [v105] Timothy's gear renders (js/pirateGear.js GEAR_RENDERS): sold for gold. Clothes take your ship skin's colours; hats get a
   // free colour pick (gear.hatColor, a HAT_SWATCHES index). soon: true = in the catalog, not buyable yet (renders in a later build).
   { slot: 'hat', id: 'none', label: 'NO HAT', price: 0, glb: null, tint: null, free: true },
   { slot: 'hat', id: 'bandana', label: 'BANDANA', price: 150, glb: 'gear', tint: { hatColor: true } },
-  { slot: 'hat', id: 'tricorn', label: 'TRICORN', price: 400, glb: 'gear', tint: { hatColor: true } },
+  { slot: 'hat', id: 'tricorn', label: 'TRICORN', price: 400, glb: 'raul:hat_tricorn', tint: { hatColor: true } },   // [Raul] model (better in game), hat colour = the felt
   { slot: 'hat', id: 'bicorne', label: "CAPTAIN'S HAT", price: 1200, glb: 'gear', tint: { hatColor: true } },
+  { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, soon: true, glb: 'raul:crown', tint: { hatColor: true } },   // [Raul] model (de13179); velvet = hat colour. soon: server SHOP_ITEMS first (the owner wears it now)
   { slot: 'outfit', id: 'shirtless', label: 'SHIRTLESS', price: 0, glb: null, tint: null, free: true },
   { slot: 'outfit', id: 'tank', label: 'TANK', price: 150, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'tshirt', label: 'T-SHIRT', price: 300, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'coat', label: 'COAT', price: 1000, glb: 'gear', tint: { skin: true } },
+  { slot: 'outfit', id: 'shirt', label: 'PIRATE SHIRT', price: 300, soon: true, glb: 'raul:shirt', tint: { skin: true } },          // [Raul] model; body = the ship skin's light colour
+  { slot: 'outfit', id: 'suit', label: "CAPTAIN'S COAT", price: 3000, soon: true, glb: 'raul:suit', tint: { skin: true } },        // [Raul] model; coat + trim = the ship skin's colours
   { slot: 'eyes', id: 'plain', label: 'NONE', price: 0, glb: null, tint: null, free: true }, // = face 'plain' (free)
   { slot: 'eyes', id: 'eyepatch', label: 'EYE PATCH', price: 200, glb: 'gear', tint: null },
   { slot: 'eyes', id: 'sunglasses', label: 'SHADES', price: 500, glb: 'gear', tint: null },
@@ -57,8 +64,11 @@ export const GEAR_ITEMS = [
   { slot: 'parrot', id: 'parrot_gold', label: 'GOLDEN PARROT', price: 50000, glb: 'gear', tint: { body: '#ffcd77' }, goal: { all: [{ stat: 'bossKills', need: 50, label: 'harbor boss kills' }] } },
   { slot: 'parrot', id: 'parrot_diamond', label: 'DIAMOND PARROT', price: 100000, soon: true, glb: 'gear', tint: { body: '#bfe8ff' }, goal: { all: [{ stat: 'kills', need: 5000, label: 'BR kills (Solo + Squads)' }] } },
   { slot: 'hook', id: 'none', label: 'NO HOOK', price: 0, glb: null, tint: null, free: true },
-  { slot: 'hook', id: 'hook_iron', label: 'IRON HOOK', price: 500, glb: 'gear', tint: { metal: '#9aa3ad' } },
-  { slot: 'hook', id: 'hook_gold', label: 'GOLD HOOK', price: 2500, glb: 'gear', tint: { metal: '#ffcd77' } },
+  { slot: 'hook', id: 'hook_iron', label: 'IRON HOOK', price: 500, glb: 'raul:hook_l|hook_r', tint: { metal: '#9aa3ad' }, side: 'hookSide' },   // [Raul] model, LEFT / RIGHT = free pick (hookSide)
+  { slot: 'hook', id: 'hook_gold', label: 'GOLD HOOK', price: 2500, glb: 'raul:hook_l|hook_r', tint: { metal: '#ffcd77' }, side: 'hookSide' },   // [Raul] model, LEFT / RIGHT = free pick (hookSide)
+  // [Timothy x Raul] PEG LEG: new 'leg' slot (synced in 'gr', validated like the others). ON SALE (BANKSY). LEFT / RIGHT = free pick (legSide)
+  { slot: 'leg', id: 'none', label: 'BOTH LEGS', price: 0, glb: null, tint: null, free: true },
+  { slot: 'leg', id: 'peg', label: 'PEG LEG', price: 1000, glb: 'raul:peg_l|peg_r', tint: null, side: 'legSide' },
   // treasure maps are not sold: they DROP (harbor bosses, BR kills / wins) and are used on the island (js/treasure.js, v105)
 ];
 // [v105] free hat colour pick (BANKSY): gear.hatColor = 0 (the hat's own colour) or 1..12 = this list. Mirrors Timothy's
@@ -69,11 +79,11 @@ export const gearKey = (it) => `${it.slot}:${it.id}`; // owned gear is stored as
 
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {
-  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook'], awning: null },
+  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'], awning: null },
   stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes'], awning: '#d8322f' },
-  stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook'], awning: '#2a6df4' },
+  stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
-  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook'], awning: '#d8322f' },
+  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'], awning: '#d8322f' },
   ships:      { name: 'SHIP SKINS + UPGRADES', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: true },
 };
 

@@ -100,7 +100,7 @@ async function gearPirate(sex) {
 }
 export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
 export function crewGearOf(gear) {
-  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0 };
+  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
   return (g.hat === 'none' && g.outfit === 'shirtless') ? null : g;
 }
 const _gc = new Map();
@@ -110,15 +110,23 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
   const pr = (async () => {
     const PG = await gearMod(), out = {};
     for (const sex of ['m', 'f']) {
-      const p = await gearPirate(sex); const mesh = await PG.applyGear(p, g, colors); if (!mesh) return null;
+      const p = await gearPirate(sex); await PG.applyGear(p, g, colors);
+      // [Timothy] ONE gear system: Timothy's merged gear mesh + Raul's skinned items (tricorn, crown, pirate shirt, captain's coat; js/pirateItems.js)
+      const items = Object.values(p.items || {}).map((it) => it.obj).filter((o) => o?.isSkinnedMesh && o.parent), meshes = [...(p.gearMesh ? [p.gearMesh] : []), ...items];
+      if (!meshes.length) return null;
       out[sex] = {};
-      for (const pose of ['idle', 'cannon']) out[sex][pose] = bakeGear(p, mesh, pose, V4.tpl[sex]);
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks(meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh)));
     }
     return out;
   })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
   _gc.set(key, pr); return pr;
 }
-function bakeGear(p, mesh, pose, T) {
+function joinChunks(cs) { // [Timothy] several baked chunks -> one (same layout)
+  if (cs.length === 1) return cs[0]; const o = {};
+  for (const k of ['pos', 'nrm', 'col', 'uv', 'part']) { const n = cs.reduce((a, c) => a + c[k].length, 0), a = new Float32Array(n); let off = 0; for (const c of cs) { a.set(c[k], off); off += c[k].length; } o[k] = a; }
+  return o;
+}
+function bakeGear(p, mesh, pose, T, plain = false) { // plain: no stripe uv (Raul's items: vertex colour only)
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
   p.scene.updateMatrixWorld(true); mesh.skeleton.update();
@@ -136,7 +144,7 @@ function bakeGear(p, mesh, pose, T) {
     full.copy(mesh.matrixWorld).multiply(mesh.bindMatrixInverse).multiply(_m).multiply(mesh.bindMatrix); _n3.setFromMatrix4(full);
     _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z;
     col[q * 3] = C.getX(i); col[q * 3 + 1] = C.getY(i); col[q * 3 + 2] = C.getZ(i);
-    uv[q * 2] = 8 + (U ? U.getX(i) : 0.75); uv[q * 2 + 1] = U ? U.getY(i) : 0;
+    uv[q * 2] = 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
     part[q] = PARTN[bn(bones[best]?.name)] || 0;
   }
   return { pos, nrm, col, uv, part };

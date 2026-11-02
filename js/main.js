@@ -6,6 +6,7 @@ import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, 
 import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
+import { setLocalSkin } from './pirateGear.js'; // [Timothy] shop clothes follow your ship skin
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
 import { initCrewV4 } from './crewV4.js';
 import { syncCrewGear } from './crewGear.js';
@@ -1214,6 +1215,7 @@ function frame() {
     if (game.mode === 'pvp') pvp.update(dt); // [pvp] netcode, host duties, respawn
     dock?.ship(dt); // [Emerly] docking ease / moored pose, SAFE HARBOR, on-foot pirate + prompts
     floatShip(player, dt);
+    setLocalSkin(player.mesh?.userData?.skinId); // [Timothy] your shop clothes follow your ship skin (no-op unless it changed)
     if (game.mode !== 'pvp') wavesShipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t, id: 'waves' }); // [skin looks] (PvP runs its own skinFx)
     for (const e of enemies) updateEnemy(e, dt);
     escorts.update(dt); // [escorts]

@@ -19,7 +19,7 @@ const FAR_EVERY = env('FAR_EVERY', 5);    // farther ships: every Nth tick (2 Hz
 const SHOT_R = env('SHOT_R', 360);        // cannon volleys only go to clients within this range (spectators get all)
 const MSG_RATE = env('MSG_RATE', 40), MSG_MAX = env('MSG_MAX', 16384);
 const LIVE_PREFIX = 'pfp-pvp-v1';
-const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g'];
+const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'gr']; // [Timothy] gr = shop gear (js/pirateGear.js), static like the name + skin
 const ID_RE = /^[a-z0-9]{6,20}$/i, PREFIX_RE = /^pfp-pvp-[a-z0-9]{1,16}$/i;
 
 const arenas = new Map(); // prefix -> { prefix, seats: Map<id, seat>, rooms: Map<idx, { players: Set<client>, specs: Set<client> }>, cap, offerS }

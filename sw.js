@@ -17,6 +17,9 @@ const SHELL = [
   "./js/pirateGLB.js",
   "./js/pirates.js",
   "./js/pirateGear.js", // [Timothy] island-shop gear on the v4 pirate
+  "./js/gearColorPicker.js", // [Timothy] SKIN & HAIR + CLOTHES COLOUR pickers (island shop)
+  "./js/gearThumbs.js", // [Timothy] real 3D gear card art (island shop)
+  "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card

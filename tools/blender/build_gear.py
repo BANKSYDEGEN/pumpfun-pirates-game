@@ -4,7 +4,7 @@
 # eyes ~z 1.10, wrist x -0.555), so js/pirateGear.js can skin each one rigidly to its bone with the body's own bind matrix.
 # Clothes are NOT here: js/pirateGear.js grows them from the body's own skinned torso / arm skin, so they bend with every clip.
 # One mesh per item, named '<slot>_<id>', vertex colour COLOR_0; tinted parts carry a marker colour (MARK: magenta = primary,
-# cyan = secondary, yellow = tertiary) that js/pirateGear.js swaps for the item's palette
+# cyan = secondary, yellow = tertiary, blue = parrot cheeks) that js/pirateGear.js swaps for the item's palette
 # so one parrot / hook model serves every colour. Same mesh for male + female (their heads match within 2 cm).
 import bpy, bmesh, math, sys, os
 from mathutils import Vector, Matrix, Euler
@@ -21,7 +21,7 @@ C = dict(felt=0x1b1b1f, felt_hi=0x2a2a30, band=0xc0302c, bone=0xf4f1e8, sock=0x1
          body=0xffffff, wing=0xffffff, tip=0xffffff, beak=0xe8c27a, beak_d=0x3a3a3a, eye_w=0xffffff, eye_b=0x101010, feet=0x9a8a7a,
          cuff=0x5a3a22, cuff_b=0x3a2414, metal=0xffffff)
 
-MARK = {1: 0xff00ff, 2: 0x00ffff, 3: 0xffff00}
+MARK = {1: 0xff00ff, 2: 0x00ffff, 3: 0xffff00, 4: 0x0000ff}   # 4 = parrot cheeks
 
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -118,7 +118,7 @@ def tricorn():
     crown = uvsphere('tri_crown', 1, 24, 14); xform(crown, scale=(0.265, 0.25, 0.20), loc=(0, 0.01, HEAD_Z + 0.02))
     bm = bmesh.new(); bm.from_mesh(crown.data); bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < HEAD_Z - 0.005], context='VERTS'); bm.to_mesh(crown.data); bm.free()
     paint(crown, 'felt_hi')
-    band = cyl('tri_band', 0.268, 0.262, 0.055, 32, cap=False); xform(band, loc=(0, 0.01, HEAD_Z + 0.045), scale=(1, 0.95, 1)); solidify(band, 0.01); paint(band, 'band')
+    band = cyl('tri_band', 0.268, 0.262, 0.055, 32, cap=False); xform(band, loc=(0, 0.01, HEAD_Z + 0.045), scale=(1, 0.95, 1)); solidify(band, 0.01); paint(band, 'band', gt=1)   # player colour (default NFT red)
     th = -math.pi / 2; fr = R(th); zf = HEAD_Z + 0.015 + H(th) * 0.55   # front wall: tilt back
     badge = place(skull_badge('ts_', 1.7), (0, -0.92 * (r0 + (fr - r0) * 0.6) - 0.05, HEAD_Z + 0.015 + H(th) * 0.6 ** 1.8 + 0.03), (-0.45, 0, 0))
     return [brim, crown, band] + badge
@@ -135,11 +135,11 @@ def bicorne():
     for i in range(41):
         x = -0.44 + 0.88 * i / 40; xx = x / 0.44; z = 0.30 * math.sqrt(max(0.0, 1 - xx * xx)) * (0.75 + 0.45 * xx * xx) + 0.04 * xx * xx
         pts.append((x * 0.995, 0.02, HEAD_Z - 0.01 + z))
-    trim = paint(tube('bi_trim', pts, [0.016] * len(pts), 8), 'gold')
+    trim = paint(tube('bi_trim', pts, [0.016] * len(pts), 8), 'gold', gt=1)   # player colour (default gold)
     crown = uvsphere('bi_crown', 1, 20, 12); xform(crown, scale=(0.26, 0.24, 0.12), loc=(0, 0.01, HEAD_Z + 0.01)); paint(crown, 'felt')
     badge = place(skull_badge('bs_', 1.2), (0, -0.155, HEAD_Z + 0.17), (-0.1, 0, 0))
     for o in badge: paint(o, 'gold' if o.name.startswith('bs_b') or o.name.startswith('bs_k') else ('bone' if not o.name.startswith('bs_e') else 'sock'))
-    rose = paint(xform(uvsphere('bi_rose', 1, 16, 8), scale=(0.045, 0.015, 0.045), loc=(0.24, -0.13, HEAD_Z + 0.12)), 'gold')
+    rose = paint(xform(uvsphere('bi_rose', 1, 16, 8), scale=(0.045, 0.015, 0.045), loc=(0.24, -0.13, HEAD_Z + 0.12)), 'gold', gt=1)
     return [shell, trim, crown, rose] + badge
 
 def bandana():
@@ -207,6 +207,8 @@ def parrot():
         tipw = paint(xform(uvsphere('pa_wt%d' % sx, 1, 10, 6), scale=(0.014 * S, 0.035 * S, 0.05 * S), rot=(0.6, 0, sx * 0.1), loc=at((sx * 0.052, 0.045, 0.02))), 'tip', 3)
         foot = paint(tube('pa_f%d' % sx, [at((sx * 0.022, -0.01, 0.02)), at((sx * 0.024, -0.02, -0.005)), at((sx * 0.024, -0.04, -0.012))], [0.008 * S] * 3, 6), 'feet')
         p += [ew, eb, wing, tipw, foot]
+    for sx in (-1, 1):
+        p.append(paint(xform(uvsphere('pa_ck%d' % sx, 1, 8, 6), scale=(0.008 * S, 0.022 * S, 0.02 * S), loc=at((sx * 0.044, -0.03, 0.18))), 'body', 4))
     tail = paint(tube('pa_tail', [at((0, 0.05, 0.03)), at((0, 0.10, -0.06)), at((0, 0.13, -0.15))], [0.03 * S, 0.022 * S, 0.006 * S], 8), 'tip', 3)
     crest = paint(tube('pa_crest', [at((0, 0.0, 0.235)), at((0, 0.03, 0.27)), at((0, 0.07, 0.27))], [0.014 * S, 0.01 * S, 0.003 * S], 6), 'body', 1)
     return [body, head, beak, tail, crest] + p
@@ -223,8 +225,15 @@ def hook():
     shaft = paint(tube('hk_shaft', pts, rad, 10), 'metal', 1)
     return [cuff, rim, shaft]
 
+def cockatoo_crest():   # the cockatoo's tall fanned crest (drawn instead of the small crest)
+    P = Vector((0.262, 0.04, 0.925)); S = 1.25; out = []
+    def at(v): return tuple(P + Vector(v) * S)
+    for k, (dy, dz, r) in enumerate([(0.02, 0.10, 0.016), (0.05, 0.09, 0.014), (0.075, 0.07, 0.012), (0.09, 0.045, 0.01)]):
+        out.append(paint(tube('cc_%d' % k, [at((0, -0.01 + dy * 0.2, 0.225)), at((0, dy * 0.6, 0.225 + dz * 0.7)), at((0, dy * 1.1, 0.225 + dz * 1.15))], [r * S, r * 0.8 * S, 0.003 * S], 6), 'body', 3))
+    return out
+
 ITEMS = {'hat_tricorn': tricorn, 'hat_bicorne': bicorne, 'hat_bandana': bandana, 'eyes_eyepatch': eyepatch, 'eyes_sunglasses': sunglasses,
-         'eyes_laser': laser, 'parrot_parrot': parrot, 'hook_hook': hook}
+         'eyes_laser': laser, 'parrot_parrot': parrot, 'parrot_crest': cockatoo_crest, 'hook_hook': hook}
 
 def build(lod):
     reset(); out = []

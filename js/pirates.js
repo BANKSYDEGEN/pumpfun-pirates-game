@@ -4,7 +4,7 @@
 // (or if it fails) the caller's fallback stays visible. Every live pirate's mixer is ticked from tickPirates(dt).
 import * as THREE from 'three';
 import { PirateGLB } from './pirateGLB.js';
-import { gearOnReady, getLocalGear, markLocal, normalizeGear } from './pirateGear.js'; // [Timothy] island-shop gear
+import { gearOnReady, getLocalGear, getLocalColors, markLocal, normalizeGear } from './pirateGear.js'; // [Timothy] island-shop gear
 
 const LIVE = new Set();
 // [v102] GEAR HOOK for Timothy's gear meshes: window.applyPirateGear(pirateObj, gear) puts the equipped gear on one pirate.
@@ -12,15 +12,15 @@ const LIVE = new Set();
 //   gear      = { hat, outfit, eyes, parrot, hook } ids from js/shopCatalog.js ('none' / 'shirtless' / 'plain' = nothing)
 // Called for your on-foot pirate (js/dock/index.js, on every change) and your captain (look.gear, when the figure loads). Default: no-op.
 // [v105] Timothy's gear is in: the hook is now his applyGear (js/pirateGear.js)
-if (typeof window !== 'undefined') import('./pirateGear.js').then(m => { window.applyPirateGear = (o, g) => m.applyGear(o, g); }).catch(() => {});
+// [Timothy] window.applyPirateGear is set by js/pirateGear.js itself (adds your hat colour / sides / skin + hair and your ship-skin clothes colours)
 const SKIN = ['#d99b6c', '#f2c9a0', '#e0a97c', '#c68a5e', '#9a6440', '#6e4528'];
 const HAIR = ['#2b1b12', '#4a2c17', '#161616', '#8a5a2b', '#c9a25a'];
 export const lookColors = (look = {}) => ({ skin: SKIN[(look.skin || 0) % SKIN.length], hair: HAIR[(look.hair || 0) % HAIR.length] });
 
-// opts: { look, low, height (m), clip, female, onReady(p), gear ({ hat, outfit, eyes, parrot, hook }, see js/pirateGear.js), local }
-export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'idle', female = !!look.female, onReady = null, gear = null, local = false } = {}) {
+// opts: { look, low, height (m), clip, female, onReady(p), gear ({ hat, outfit, eyes, parrot, hook, hatColor }, see js/pirateGear.js), gearColors ({ skin }), local }
+export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'idle', female = !!look.female, onReady = null, gear = null, local = false, gearColors = null } = {}) {
   const root = new THREE.Group(); root.name = 'pirate-v4'; root.userData.v4 = null;
-  if (gear) root.userData.gear = normalizeGear(gear); if (local) markLocal(root);
+  if (gear) { root.userData.gear = normalizeGear(gear); root.userData.gearColors = local ? getLocalColors() : gearColors; } if (local) markLocal(root);
   PirateGLB.create({ female, lod: low ? 'lo' : 'hi', colors: lookColors(look) }).then((p) => {
     if (root.userData.disposed) return;
     const box = new THREE.Box3().setFromObject(p.root), h = Math.max(0.01, box.max.y - box.min.y);
@@ -36,6 +36,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
 const inScene = (o) => { while (o.parent) o = o.parent; return !!o.isScene; };
 export function tickPirates(dt) { for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); } }
 // captainSlot builder: captain JSON -> a ~2.1-unit figure (captainSlot scales it to the deck crew height) on the 'steer' clip
-// gear: captain.gear ({ hat, outfit, eyes, parrot, hook }); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
-export const buildCaptainV4 = (low) => (captain) => pirateFigure({ look: captain?.look || captain || {}, low, height: 2.1, clip: 'steer',
-  gear: captain?.local ? getLocalGear() : (captain?.gear || null), local: !!captain?.local });
+// gear: captain.gear ({ hat, outfit, eyes, parrot, hook, hatColor }), captain.skin = their ship skin (clothes colours); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
+// captain.remote = another player's captain (Low LOD everywhere: 2 draw calls + 1 for the gear)
+export const buildCaptainV4 = (low) => (captain) => pirateFigure({ look: captain?.look || captain || {}, low: low || !!captain?.remote, height: 2.1, clip: 'steer',
+  gear: captain?.local ? getLocalGear() : (captain?.gear || null), gearColors: captain?.skin ? { skin: captain.skin } : null, local: !!captain?.local });

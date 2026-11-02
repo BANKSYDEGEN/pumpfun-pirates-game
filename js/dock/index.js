@@ -8,7 +8,7 @@ import { buildWorld, colliderSets } from './world.js';
 import { createSafeZone } from './safe.js';
 import { createDocking } from './docking.js';
 import { createWalker } from '../onfoot/walker.js';
-import { getLocalGear } from '../pirateGear.js';
+import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
@@ -208,7 +208,7 @@ export async function createDock(ctx) {
   if (new URLSearchParams(location.search).has('harborbc')) {
     const ch = new BroadcastChannel('pfp-harbor-test'); let last = 0;
     ch.onmessage = (ev) => { if (on) handlePeer(ev.data); };
-    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker) }); } };
+    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
   }
   function handlePeer(m) { const r = fnet.onPeerState(m); if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 

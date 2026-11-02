@@ -12,7 +12,7 @@
 import { Room } from './net.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL, HARBOR_NET } from './config.js';
 
-const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj']; // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order)
+const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj', 'gr']; // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order) // [Timothy] gr = equipped shop gear (js/pirateGear.js gearToWire)
 const DYN_EPS = { x: 0.25, z: 0.25, y: 0.015, v: 0.15, t: 0.05 };
 
 class Batcher {

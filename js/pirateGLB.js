@@ -4,7 +4,7 @@
 // steer, draco geometry + webp textures. Colour lives in COLOR_0 ('_tint' = TINTS index per vertex, -1 = fixed colour), so retint =
 // rewrite COLOR_0 (setColors). High ('pirate_hi_body'): toon x greyscale detail + AO atlas + normal atlas, ink hull as a second
 // material (3 draw calls with the face). Low ('pirate_lo_body'): unlit baked-light atlas (2 draw calls with the face).
-// Milestone 1 (starter bases only): shirtless male / wrap-top female, plain pants, basic boots, hair + face; items held.
+// Milestone 1 (starter bases only): shirtless male / wrap-top female, plain pants, basic boots, hair + face. Shop items: js/pirateItems.js.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -30,7 +30,7 @@ export function loadPirateGLB(url) {
   return _cache.get(url);
 }
 let _grad = null;
-function gradient() {
+export function gradient() {
   if (_grad) return _grad;
   _grad = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 170, 170, 170, 255, 235, 235, 235, 255, 255, 255, 255, 255]), 4, 1);
   _grad.minFilter = _grad.magFilter = THREE.NearestFilter; _grad.needsUpdate = true; return _grad;
@@ -113,6 +113,6 @@ export class PirateGLB {
     const uv = EXPR_UV[name] || EXPR_UV.neutral;
     for (const m of this.decals) if (m.userData.decal !== 'skull' && m.map) { m.map.offset.set(uv[0], uv[1]); m.map.updateMatrix(); }
   }
-  update(dt) { this.mixer?.update(dt); }
+  update(dt) { this.mixer?.update(dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
   stats() { let tris = 0, calls = 0; this.root.traverse((o) => { if (!o.isMesh) return; const g = o.geometry; const t = (g.index ? g.index.count : g.attributes.position.count) / 3; tris += t; calls += Array.isArray(o.material) ? g.groups.length || o.material.length : 1; }); return { tris: Math.round(tris), calls }; }
 }

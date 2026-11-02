@@ -140,3 +140,12 @@
 .ishop-hatc { margin-top: 6px; } .ishop-hatc small { opacity: .8; } .ishop-hatc > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
 .ishop-hatc button { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: #333; color: #fff; padding: 0; cursor: pointer; font-size: 12px; }
 .ishop-hatc button.on { border-color: #ffcd77; box-shadow: 0 0 0 2px #ffcd77; } .ishop-hatc button:disabled { opacity: .35; cursor: not-allowed; } /* [v105] hat colour */
+/* [Timothy] real 3D gear card art (js/gearThumbs.js): the render fills the swatch; the painted SVG only until it is in */
+.ishop-sw.real3d { position: relative; }
+.ishop-sw.real3d img.gear-thumb, .ishop-sw.real3d canvas.gear-live { display: block; width: 100% !important; height: 100% !important; object-fit: cover; border-radius: var(--s-r-in); }
+.ishop-hatcol { margin-top: 4px; }
+/* [Timothy] hook / peg leg side toggle + the SKIN & HAIR chip */
+.ishop-side { display: flex; gap: 6px; margin-top: 6px; }
+.ishop-side button { flex: 1; min-height: 36px; border-radius: 8px; border: 2px solid rgba(233,185,73,.45); background: #1a0f08; color: #fff2c4; font: inherit; font-weight: 800; letter-spacing: .04em; cursor: pointer; }
+.ishop-side button.on { border-color: #e9b949; background: #e9b949; color: #2a1a0e; }
+.ishop-chips .ishop-look { margin-left: auto; white-space: nowrap; box-shadow: inset 0 0 0 2px var(--s-gold, #e9b949); }

@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES · shop items (dev)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#8f99a6}.lbl{position:absolute;transform:translate(-50%,0);font:800 15px system-ui;letter-spacing:.06em;text-transform:uppercase;color:#fff;text-shadow:0 2px 0 #161616;white-space:nowrap}
+h1{position:absolute;left:16px;top:8px;margin:0;font:800 20px system-ui;color:#fa0d0d;text-shadow:0 2px 0 #161616;letter-spacing:.05em}</style></head><body><h1 id="title"></h1>
+<script type="module">
+// [Raul] dev only. views: turn (&items=a,b &female=1 &lo=1 &yaws= &clip=idle &t=) · clip (&clip=walk &times=0,0.2,..) · icon (&item=id, transparent)
+import * as THREE from 'three';
+import { PirateGLB } from './js/pirateGLB.js';
+import { ITEMS, ITEM_BY_ID, equip, equipped } from './js/pirateItems.js';
+import { loadPirateGLB } from './js/pirateGLB.js';
+const q = new URLSearchParams(location.search), view = q.get('view') || 'turn', female = q.get('female') === '1', lod = q.get('lo') === '1' ? 'lo' : 'hi';
+document.getElementById('title').textContent = q.get('title') || '';
+if (view === 'icon') document.documentElement.style.background = document.body.style.background = 'transparent';
+const R = new THREE.WebGLRenderer({ antialias: true, alpha: view === 'icon', preserveDrawingBuffer: true }); R.setPixelRatio(1); R.setSize(innerWidth, innerHeight); document.body.appendChild(R.domElement);
+const S = new THREE.Scene(); if (view !== 'icon') S.background = new THREE.Color(+(q.get('bg') || 0x8f99a6));
+S.add(new THREE.HemisphereLight(0xfff4e6, 0x55606e, 1.5)); const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(2, 4, 4); S.add(key);
+const fill = new THREE.DirectionalLight(0xcfe0ff, 0.7); fill.position.set(-3, 1.5, 2); S.add(fill); const rim = new THREE.DirectionalLight(0xffffff, 0.9); rim.position.set(0, 3, -4); S.add(rim);
+if (view !== 'icon') { const gr = new THREE.Mesh(new THREE.CircleGeometry(30, 48), new THREE.MeshBasicMaterial({ color: 0x6f7986 })); gr.rotation.x = -Math.PI / 2; S.add(gr); }
+const cam = new THREE.PerspectiveCamera(+(q.get('fov') || 24), innerWidth / innerHeight, 0.1, 100);
+const items = (q.get('items') || '').split(',').filter(Boolean), pirates = [];
+const lbl = (t, p) => { const d = document.createElement('div'); d.className = 'lbl'; d.textContent = t; document.body.appendChild(d); const v = new THREE.Vector3(...p).project(cam); d.style.left = (v.x + 1) / 2 * innerWidth + 'px'; d.style.top = (1 - v.y) / 2 * innerHeight + 'px'; };
+async function mk(x, yaw, clip, t, fem = female) {
+  const p = await PirateGLB.create({ female: fem, lod }); for (const id of items) await equip(p, id);
+  p.root.position.x = x; p.root.rotation.y = yaw; S.add(p.root); p.play(clip, { fade: 0 }); p.mixer.setTime(t); for (const k in p.items) p.items[k].mixer?.setTime(t); pirates.push(p); return p;
+}
+window.__stats = () => { R.info.autoReset = true; R.render(S, cam); return { calls: R.info.render.calls, tris: R.info.render.triangles, per: pirates[0]?.stats(), equipped: pirates[0] && equipped(pirates[0]) }; };
+if (view === 'turn') {
+  const yaws = (q.get('yaws') || '0,-0.8,-1.5708,3.1416,2.4').split(',').map(Number), n = yaws.length, sp = +(q.get('sp') || 0.95);
+  for (let i = 0; i < n; i++) await mk((i - (n - 1) / 2) * sp, yaws[i], q.get('clip') || 'idle', +(q.get('t') || 0.5));
+  const d = +(q.get('d') || 9); cam.position.set(0, +(q.get('camy') || 1.0), d); cam.lookAt(0, +(q.get('cy') || 0.75), 0);
+} else if (view === 'clip') {
+  const times = (q.get('times') || '0,0.15,0.3,0.45,0.6,0.75').split(',').map(Number), n = times.length, yaw = +(q.get('yaw') || -0.9), sp = +(q.get('sp') || 0.9);
+  for (let i = 0; i < n; i++) await mk((i - (n - 1) / 2) * sp, yaw, q.get('clip') || 'walk', times[i]);
+  const d = +(q.get('d') || 9); cam.position.set(0, +(q.get('camy') || 0.9), d); cam.lookAt(0, +(q.get('cy') || 0.7), 0);
+} else if (view === 'mix') {  // &set=male:items|female:items;...  one pirate per set
+  const sets = (q.get('set') || '').split(';'), n = sets.length, sp = +(q.get('sp') || 1.0), yaw = +(q.get('yaw') || -0.45);
+  for (let i = 0; i < n; i++) { const [b, ids] = sets[i].split(':'); const p = await PirateGLB.create({ female: b === 'female', lod }); for (const id of (ids || '').split('~').filter(Boolean)) await equip(p, id);
+    p.root.position.x = (i - (n - 1) / 2) * sp; p.root.rotation.y = yaw; S.add(p.root); p.play(q.get('clip') || 'idle', { fade: 0 }); p.mixer.setTime(+(q.get('t') || 0.5)); for (const k in p.items) p.items[k].mixer?.setTime(1.2); pirates.push(p); }
+  const d = +(q.get('d') || 9); cam.position.set(0, +(q.get('camy') || 1.0), d); cam.lookAt(0, +(q.get('cy') || 0.75), 0);
+} else if (view === 'icon') {  // shop icon: the item alone in its rest (T-pose bind) shape, auto-framed, 3/4 view
+  const def = ITEM_BY_ID[q.get('item')], g = await loadPirateGLB(def.files[female ? 'female' : 'male'].hi), sc = g.scene;
+  sc.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshToonMaterial({ map: o.material.map, normalMap: o.material.normalMap, vertexColors: true }); o.frustumCulled = false; } });
+  const worn = def.slot !== 'head' && def.slot !== 'shoulder';   // worn items: shown on the (hidden) pirate in its idle pose, framed on the item alone
+  let target = sc, framed = sc;
+  if (worn) { const p = await PirateGLB.create({ female, lod: 'hi' }); const it = await equip(p, def.id); p.scene.traverse((o) => { if (o.isMesh && !o.name.startsWith('item_')) o.visible = false; });
+    p.play('idle', { fade: 0 }); p.mixer.setTime(+(q.get('t') || 0.5)); S.add(p.root); pirates.push(p); target = p.root; framed = it; } else S.add(sc);
+  target.rotation.y = +(q.get('yaw') || -0.55); S.updateMatrixWorld(true); if (worn) { pirates[0].update(0); S.updateMatrixWorld(true); }
+  const box = new THREE.Box3().setFromObject(framed, true);
+  const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), r = Math.max(sz.x, sz.y, sz.z) * +(q.get('fit') || 0.62);
+  cam.fov = 20; cam.updateProjectionMatrix(); const dist = r / Math.tan(cam.fov * Math.PI / 360); cam.position.set(c.x, c.y + dist * 0.25, c.z + dist); cam.lookAt(c);
+}
+const clock = new THREE.Clock();
+function loop() { if (q.get('anim') === '1') { const dt = clock.getDelta(); for (const p of pirates) p.update(dt); } R.render(S, cam); requestAnimationFrame(loop); }
+R.render(S, cam); window.__ready = true; loop();
+</script></body></html>

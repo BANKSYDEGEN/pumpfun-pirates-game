@@ -10,6 +10,9 @@
 import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal } from './shopCatalog.js';
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
+import { gearThumbEl, gearLive } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
+import { getLocalGear, setLocalGear } from './pirateGear.js';
+import { openGearColorPicker } from './gearColorPicker.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -65,7 +68,7 @@ function skinThumb(id) {
   return d;
 }
 const COLS = { coat: '#c4161c', accent: '#ffcd77' };
-function gearThumb(it) {
+function svgThumb(it) { // the painted fallback (only shown until the real render / pre-baked PNG is in)
   const t = it.tint || {}, c1 = t.body || t.metal || (t.cloth ? COLS.coat : '#161616'), a = '#ffcd77';
   const art = {
     hat: { none: `<circle cx="50" cy="44" r="18" fill="#d9a074"/><text x="50" y="82" text-anchor="middle" font-size="12" fill="#fff8">bare head</text>`,
@@ -89,6 +92,17 @@ function gearThumb(it) {
   const d = document.createElement('div'); d.className = 'ishop-sw gear';
   d.innerHTML = `<svg viewBox="0 0 100 90">${art[it.id] || art._ || ''}</svg>`; return d;
 }
+// [Timothy] BANKSY: "Make sure in clothes shop all items render as real items": every gear card is the REAL item on Raul's v4
+// pirate (js/gearThumbs.js: offscreen render, cached, one per frame), hats in your hat colour, clothes in your ship skin's colours.
+// The pre-baked PNG shows while it renders; the painted SVG only if both fail. The detail pane turns it slowly (live preview).
+const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0 }; };
+function gearThumb(it, live = false) {
+  const d = svgThumb(it); d.classList.add('real3d'); const svg = d.firstElementChild;
+  if (live) { const cv = document.createElement('canvas'); cv.className = 'gear-live'; d.append(cv); gearLive(cv, it.slot, it.id, thumbOpts()); if (svg) svg.style.display = 'none'; return d; }
+  const img = gearThumbEl(it.slot, it.id, thumbOpts()); img.addEventListener('load', () => { if (svg) svg.style.display = 'none'; img.style.display = ''; });
+  img.style.display = 'none'; d.append(img); return d;
+}
+addEventListener('pfp-gear-local', () => { if (open && view?.tab === 'gear' && !document.querySelector('.pfp-hatcolor')) render(); }); // a new hat colour / side / skin / hair: redraw the cards (cached)
 
 // the card's real render (skinPreview) once it exists, else the painted swatch
 function realOr(id) {
@@ -106,7 +120,7 @@ function statusOf(x) {
   const owned = state.owner || x.it.price === 0 || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
   const eq = x.kind === 'skin' ? state.equipped.skin === x.key : state.equipped.gear[x.it.slot] === x.it.id;
   const g = goalProgress(liveGoal(x.it), state.stats);
-  if (x.it.soon) return { k: 'soon', owned: false, g: null }; // [v102] no model on the pirate yet: never sold, never equipped
+  if (x.it.soon && !state.owner) return { k: 'soon', owned: false, g: null }; // [v102] not on sale yet: never sold, never equipped ([Timothy] the owner owns + equips everything)
   if (eq) return { k: 'equipped', owned, g }; if (owned) return { k: 'owned', owned, g };
   if (g && !g.done) return { k: 'locked', g }; if (state.gold < x.it.price) return { k: 'poor', g }; return { k: 'buy', g };
 }
@@ -127,7 +141,8 @@ function build() {
   root.addEventListener('pointerdown', (e) => { if (e.target === root) closeShop(); });
   for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) root.addEventListener(ev, (e) => e.stopPropagation(), { passive: true }); // like #pvp-menu: taps on the shop never steer / fire
   $('.ishop-x', root).onclick = closeShop;
-  addEventListener('keydown', (e) => { if (open && e.key === 'Escape') { e.stopPropagation(); if (!$('.ishop-confirm', root).classList.contains('hidden')) hideConfirm(); else closeShop(); } }, true);
+  addEventListener('keydown', (e) => { if (open && e.key === 'Escape' && !document.querySelector('.pfp-hatcolor')) { // [Timothy] a colour picker on top closes itself first
+    e.stopPropagation(); if (!$('.ishop-confirm', root).classList.contains('hidden')) hideConfirm(); else closeShop(); } }, true);
 }
 function render() {
   const V = VENDORS[view.vendor] || VENDORS.shop;
@@ -140,7 +155,9 @@ function render() {
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { view.tab = b.dataset.tab; view.sel = null; render(); });
   const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear';
   chips.innerHTML = GEAR_SLOTS.filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
-  chips.querySelectorAll('button').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
+  if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Skin tone + hair colour (free)">👤 SKIN &amp; HAIR</button>'); // [Timothy] captain look
+  chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
+  { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
   const items = itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
   const grid = $('.ishop-grid', root); grid.innerHTML = '';
   for (const x of items) {
@@ -163,7 +180,7 @@ function render() {
 function detail(x) {
   const d = $('.ishop-detail', root); d.innerHTML = ''; if (!x) return;
   const s = statusOf(x);
-  d.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it));
+  d.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it, true));
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
   const btn = { equipped: '<button type="button" class="ishop-act ghost" disabled>EQUIPPED ✓</button>', owned: '<button type="button" class="ishop-act big" data-a="equip">EQUIP</button>',
     locked: '<button type="button" class="ishop-act" disabled>REACH THE GOAL FIRST</button>', poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
@@ -181,7 +198,16 @@ function detail(x) {
       `<button type="button" data-hc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);
     d.querySelectorAll('[data-hc]').forEach(b => b.onclick = async () => { state = await provider.hatColor(+b.dataset.hc); render(); });
   }
-  if (x.kind === 'gear' && x.it.slot === 'outfit' && x.it.id !== 'shirtless') d.insertAdjacentHTML('beforeend', '<div class="ishop-gl">Takes your ship skin\'s colours</div>');
+  if (x.kind === 'gear' && x.it.slot === 'outfit' && x.it.id !== 'shirtless') { // [Timothy] clothes: your ship skin's colours, or a free clothes colour
+    const oc = getLocalGear().outfitColor | 0;
+    d.insertAdjacentHTML('beforeend', `<div class="ishop-gl">${oc ? 'Your clothes colour (free) · trim from your ship skin' : 'Takes your ship skin\'s colours'}</div>`);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ishop-act ghost ishop-clothcol'; b.textContent = '🎨 CLOTHES COLOUR';
+    b.onclick = () => openGearColorPicker({ kind: 'cloth', parent: root, onClose: () => { if (open) render(); } }); d.append(b); }
+  if (x.kind === 'gear' && x.it.side) { // [Timothy] hook / peg leg: LEFT or RIGHT arm / leg (free, any time; saved + sent to other players)
+    const cur = getLocalGear()[x.it.side] === 'L' ? 'L' : 'R', w = document.createElement('div'); w.className = 'ishop-side'; w.setAttribute('role', 'radiogroup'); w.setAttribute('aria-label', 'Side');
+    w.innerHTML = ['L', 'R'].map(k => `<button type="button" role="radio" data-side="${k}" aria-checked="${k === cur}" class="${k === cur ? 'on' : ''}">${k === 'L' ? '◀ LEFT' : 'RIGHT ▶'}</button>`).join('');
+    w.querySelectorAll('button').forEach(b => b.onclick = () => setLocalGear({ [x.it.side]: b.dataset.side }));
+    $('.ishop-info', d)?.append(w); }
 }
 function confirmBuy(x) {
   const box = $('.ishop-confirm', root), cb = $('.ishop-cbox', box);
