@@ -56,9 +56,23 @@ export async function holderClaim() { const s = session();
   if (!s && ownerAll) { const d = indyDay(); if (ls.get(OWNER_DAY_KEY) === d) { const e = new Error('already claimed today'); e.status = 409; throw e; }
     ls.set(OWNER_DAY_KEY, d); return { ok: true, gold: HOLDER_DAILY_GOLD, day: d, owner: true }; } if (!s) throw new Error('connect a wallet first'); return api('holder_claim', { token: s.token }); }
 // optional airdrop wallet (PvP entry pop-up): sent once per change, private server-side (never broadcast)
+// [security H4] the first wallet is saved as typed; CHANGING it needs a free signature from the NEW wallet (server answers 428):
+// confirmAirdrop() asks the wallet app to sign a Sign-In-With-Solana message (signMessage only, never a transaction).
 export async function saveAirdrop(wallet, name) {
   const key = 'pfp_pvp_airdrop_sent', tag = `${wallet}|${name}`; if (ls.get(key) === tag) return { ok: true, cached: true };
-  const s = session(); const r = await api('airdrop', { ...(s ? { token: s.token } : { dk: deviceKey() }), wallet, name }); ls.set(key, tag); return r;
+  const s = session(), id = s ? { token: s.token } : { dk: deviceKey() };
+  try { const r = await api('airdrop', { ...id, wallet, name }); ls.set(key, tag); return r; }
+  catch (e) { if (e.status === 428) return { ok: false, need: 'signature' }; throw e; }
+}
+export async function confirmAirdrop(wallet, name) {
+  const found = findProvider(); if (!found) return { ok: false, error: 'no wallet app' };
+  const { p } = found; const r = await p.connect(); const pk = (r?.publicKey || p.publicKey)?.toString?.();
+  if (pk !== wallet) return { ok: false, error: 'switch your wallet app to the new address first' };
+  const s = session(), id = s ? { token: s.token } : { dk: deviceKey() };
+  const n = await api('airdrop_nonce', { ...id, wallet });
+  const sig = sigBytes(await p.signMessage(new TextEncoder().encode(n.message), 'utf8'));
+  const j = await api('airdrop', { ...id, wallet, name, nonce: n.nonce, signature: b64(sig) });
+  ls.set('pfp_pvp_airdrop_sent', `${wallet}|${name}`); return j;
 }
 export const kd = (k, d) => d ? (k / d).toFixed(2) : String(k);
 
@@ -155,6 +169,13 @@ export async function wavesClaim({ run, score, wave, sunk }) {
   } catch (e) { return { ok: false, error: e.message, status: e.status }; }
   finally { if (ac) { acctUnhold(); acctFlush(); } }
 }
+// [security H1] the Waves leaderboard row goes through the pvp function (checked against the server-timed run, one row per run).
+// Throws like api(); e.status 400 / 404 = old function or a run the server never noted (the caller may fall back).
+export async function wavesScore(e) {
+  if (!PVP_FN_URL || typeof e?.run !== 'string') { const x = new Error('no run'); x.status = 404; throw x; }
+  const s = session();
+  return api('waves_score', { ...(s ? { token: s.token } : { dk: deviceKey() }), run: e.run, wallet: e.wallet, name: e.name || null, score: e.score | 0, wave: e.wave | 0, sunk: e.sunk | 0, duration_s: e.duration_s | 0, ...(e.mode === 'daily' ? { mode: 'daily', seed: e.seed } : {}) });
+}
 function readDevice() { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } return cleanProfile(all.profiles?.device); }
 function writeDevice(p) { if (acctFrozen) return; let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = all.profiles || {}; all.profiles.device = { ...p, updated: Date.now() }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
 
@@ -236,6 +257,12 @@ export function claimKill({ side, room, k, v, life, name, keepalive = false }) {
   if (!claimAuth) { const s = session(); claimAuth = s ? { token: s.token } : { dk: deviceKey() }; }
   return api('kill', { ...claimAuth, side, room, k, v, l: life | 0, name }, { keepalive }).then(j => j.result).catch(e => { console.warn('[pvp] kill claim', e.message); return null; });
 }
+// [security M1 + H2] Realtime ticket for one channel (arena / harbor copy / party): proves the lobby seat; the server notes it for the
+// kill board and returns { jwt } for a private channel when that is switched on. Any failure = null (the caller joins publicly).
+export async function pvpTicket({ topic, net, seat, name, relay = false }) {
+  if (!PVP_FN_URL) return null; const s = session();
+  try { return await api('ticket', { ...(s ? { token: s.token } : { dk: deviceKey() }), topic, net, seat, name, ...(relay ? { relay: true } : {}) }); } catch { return null; }
+}
 // HUD: my all-time PvP kills rank (same order as the ALL TIME board) + confirmed kills / deaths, same identity as claimKill.
 export function fetchMe() {
   if (!PVP_FN_URL) return Promise.resolve(null);
@@ -252,7 +279,7 @@ export const clearKillsTopCache = () => topCache.clear();
 // [v72] rename: push a new name to MY OWN leaderboard rows. BATTLE ROYALE board: wallet session, else this device's key.
 // Waves board: only when a wallet is signed in (Waves rows are keyed by wallet). Name taken on the BR board -> toast, no merge.
 let renameT = 0;
-function nameToast(msg) {
+export function nameToast(msg) {
   let t = document.getElementById('copy-toast');
   if (!t) { t = document.createElement('div'); t.id = 'copy-toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600);

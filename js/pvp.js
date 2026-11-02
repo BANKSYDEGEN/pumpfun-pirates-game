@@ -31,7 +31,7 @@ import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { COAST_ON, fromHarbor as coastFromHarbor, w2t as coastW2t, inPoly as coastInPoly, APRON as COAST_APRON, ISLET as COAST_ISLET, HEADLAND as COAST_HEADLAND, SAFE as COAST_SAFE } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
-import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
+import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
 import { shopState, shopBuy, cleanGear } from './pvpSave.js';
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
@@ -106,11 +106,14 @@ export function createPvp(K) {
   const spec = { want: false, on: false, mode: 'leader', target: null, rig: null, camLock: 0, emptyT: 0, hudOff: false, maxDist: 0, wired: false };
   let room = null, roomIdx = 0, active = false, isHost = false, hostId = null, hudT = 0, saveT = 0, botT = 0, botSeq = 0, pileSeq = 0;
   // [v98] one lobby / room per mode. SOLO = the free-for-all arena, SQUADS = 2v2 teams. Same profile (skins, upgrades, gold, board).
-  const nets = { solo: createNet({ prefix: ROOM_PREFIX, myId }), squads: createNet({ prefix: SQ_PREFIX, myId }) };
+  // [security M1 + H2] a Realtime ticket per channel: proves this tab's lobby seat (seatId) to the server, which notes it for the kill
+  // board and (once enabled) hands back a private-channel token. null = keep the public channel (see net.js).
+  const rtTicket = (topic, extra = {}) => pvpTicket({ topic, net: myId, seat: seatId, name, ...extra });
+  const nets = { solo: createNet({ prefix: ROOM_PREFIX, myId, ticket: rtTicket }), squads: createNet({ prefix: SQ_PREFIX, myId, ticket: rtTicket }) };
   let mode = ls0('pfp_br_mode') === 'squads' ? 'squads' : 'solo', net = nets[mode];
   // [v99] SHARED HARBOR copies: live 'pfp-harbor' (rooms pfp-harbor-1, -2, ...); ?pvproom=X tests use 'pfp-harbor-X'. ?hbcap=N: smaller test copies
   const HB_PREFIX = 'pfp-harbor' + (QS.get('pvproom') ? '-' + ROOM_PREFIX.slice(8) : '');
-  const hbNet = createHarborNet({ prefix: HB_PREFIX, myId }), HB_CAP = +QS.get('hbcap') || null;
+  const hbNet = createHarborNet({ prefix: HB_PREFIX, myId, ticket: rtTicket }), HB_CAP = +QS.get('hbcap') || null;
   const hb = { copy: 0, n: 0, s: 0, pirates: 0, copies: [], cap: HARBOR_NET.cap, beatAt: 0, busy: false, hj: 0, listenUntil: 0, gen: 0, specCopy: 0, specEmptyT: 0, specBeatAt: 0 };
   const curPrefix = () => mode === 'squads' ? SQ_PREFIX : ROOM_PREFIX;
   const isSq = () => mode === 'squads' && (where === 'arena' || where === 'spec'); // in the squads arena (playing or watching)
@@ -947,7 +950,7 @@ export function createPvp(K) {
   async function partyJoin(code, made = false) {
     code = cleanCode(code); if (code.length !== 5) { partyMsg('A party code is 5 letters / numbers'); return; }
     partyLeave(true); party.code = code; party.t = Date.now(); party.mates.clear(); party.msg = made ? 'share this code with your friend' : 'joining…';
-    const r = new Room('pfp-party-' + code.toLowerCase()); party.room = r;
+    const r = new Room('pfp-party-' + code.toLowerCase(), { ticket: rtTicket }); party.room = r;
     r.on('p', onPartyBeat).on('bye', (m) => { if (party.mates.delete(m?.i)) harborUi(); })
       .on('go', (m) => { if (m?.i && party.mates.has(m.i) && mode === 'squads' && where === 'harbor' && lob.state === 'harbor' && !spec.on) { K.banner('YOUR MATE SET SAIL', 'queuing you together…'); joinBattle(true); } });
     harborUi();
@@ -1218,13 +1221,18 @@ export function createPvp(K) {
     const inp = $('pvp-entry-addr'), msg = $('pvp-entry-addr-msg'); if (!inp) return false;
     const v = inp.value.trim(), ok = isValidSolanaAddress(v);
     inp.classList.toggle('good', ok); inp.classList.toggle('bad', !!v && !ok);
-    if (msg) msg.textContent = !v ? 'Used for airdrops. Never asks for keys or signatures.' : ok ? `Ahoy ${shortWallet(v)}! Used for airdrops. Never asks for keys or signatures.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+    if (msg) msg.textContent = !v ? 'Used for airdrops. Never asks for keys. Changing it later: a free signature.' : ok ? `Ahoy ${shortWallet(v)}! Used for airdrops. Never asks for keys. Changing it later: a free signature.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
     return ok;
   }
+  let airdropAsked = '';
   function entryAirdrop() { // optional: a valid address is saved (same slot as Waves) and stored privately server-side; anything else is ignored
     const inp = $('pvp-entry-addr'); if (!inp || ON_PORTAL) return;
     const v = inp.value.trim(); if (!isValidSolanaAddress(v)) return;
-    saveWallet(v); saveAirdrop(v, name).catch(() => {});
+    saveWallet(v); saveAirdrop(v, name).then(async (r) => { // [security H4] changing the airdrop wallet: the new wallet confirms it
+      if (r?.need !== 'signature' || airdropAsked === v) return; airdropAsked = v;
+      const c = await confirmAirdrop(v, name).catch((e) => ({ ok: false, error: e?.message || 'not confirmed' }));
+      nameToast(c?.ok ? `Airdrop wallet changed to ${shortWallet(v)}` : `Airdrop wallet NOT changed: confirm ${shortWallet(v)} in your wallet app (${c?.error || 'not confirmed'})`);
+    }).catch(() => {});
   }
   let uiWired = false;
   function wireUi() {
