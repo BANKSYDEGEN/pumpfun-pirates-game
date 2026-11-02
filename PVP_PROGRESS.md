@@ -51,6 +51,15 @@
   the helm (ship.turn, remote ships too), fist up after a broadside, holds on when hit. Outfit follows the skin. Waves too (visual only).
 - [v95] HARBOR DEATH: lose min(100, gold), big 5-4-3-2-1 countdown, respawn IN THE HARBOR at the spot farthest from AI / the boss
   with a 4 s bubble (PVP_HARBOR_RESPAWN / PVP_HARBOR_PROTECT). Never the lobby. Arena deaths unchanged.
+- [v97] LONG SHIPS: guns a side = 4 + CANNONS level (Battle Royale) in ONE deck row; the hull waist stretches to fit
+  (ships.js zMap / stretchFor / gunT; masts + sails keep the design length). New long gun (cascabel, bands, muzzle swell, bore)
+  on a truck carriage (cheeks, bed, axles, 4 wheels with iron tyres; lighter geometry on LOW / phones). One gunner per gun,
+  skin-coloured, reacting in the ripple order (crew uGap). Every hull rides ~0.17 x depth higher (mesh only; gameplay y unchanged).
+  Enemies (harbor AI, harbor boss, Waves AI) use the same build, crew colours per scheme (SCHEME_OUTFIT), one barrel per gun
+  they really fire (frigate 3, galleon 4, boss 4-7 via refitGuns). Stats / HP / gold / damage unchanged; hit box = design
+  length (BR player up to +10%). Waves player is visual only (0 stat diffs vs v96).
+  Enemies also carry the spyglass lookout (telescope pirate in the main crow's nest, crew mesh, skin colours). Gameplay
+  radii (float sampling, rock / prop collision, ram reach, health pickups) use the design length (hitLen), not the long hull.
 - [v96] QUICK CHAT (js/emotes.js): T / the 💬 button opens a wheel of 8 preset callouts (1-8 keys on desktop). Bubble over the
   ship ~3 s + a procedural pirate voice (audio.js sfx.emote). Arena: room event 'emo' { i, e } with preset ids only, sender 1 / 2 s,
   receiver drops >1 / 1.5 s per pirate and any non-preset id. Harbor + Waves: local only. Cosmetic, no gameplay / gold effect.

@@ -42,8 +42,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 export function applyEnemyType(e, typeId, wave) {
   const T = ENEMY_TYPES[typeId] || ENEMY_TYPES.sloop;
   const u = e.mesh.userData;
-  const k = T.len / u.len;
-  if (Math.abs(k - 1) > 0.02) { e.mesh.scale.setScalar(k); u.len *= k; u.beam *= k; u.depth *= k; }
+  const k = T.len / (u.baseLen || u.len); // [v97] the design length (long hulls are stretched past it)
+  if (Math.abs(k - 1) > 0.02) { e.mesh.scale.setScalar(k); u.len *= k; if (u.hitLen) u.hitLen *= k; if (u.baseLen) u.baseLen *= k; u.beam *= k; u.depth *= k; }
   e.type = typeId;
   e.hp = e.maxHp = Math.round(T.hp * (1 + wave * 0.12) * (typeId === 'boss' ? 1 + Math.floor(wave / 4 - 1) * 0.1 : 1));
   e.cannons = T.cannons;
@@ -137,7 +137,7 @@ function updateRammer(e, dt, k) {
     desired = R.yaw + clamp(angWrap(toP - R.yaw), -0.25, 0.25); // a little homing, mostly committed
     e.speed = Math.max(e.speed, RAM.chargeSpeed * Math.min(1, R.t * 2.5)); spd = RAM.chargeSpeed;
     if (Math.random() < 0.7) k.fx.spray(new k.V3(e.x + Math.sin(e.yaw) * 5, e.y + 0.8, e.z + Math.cos(e.yaw) * 5), new k.V3((Math.random() - 0.5) * 6, 4, (Math.random() - 0.5) * 6));
-    const reach = (e.mesh.userData.len + p.mesh.userData.len) * 0.36;
+    const reach = ((e.mesh.userData.hitLen || e.mesh.userData.len) + (p.mesh.userData.hitLen || p.mesh.userData.len)) * 0.36; // [v97] design length (long hulls don't change the ram reach)
     if (!R.hit && d < reach) {
       R.hit = true;
       const amt = Math.max(1, Math.round(RAM.dmg * (1 + k.game.wave * 0.05) * (e.lateDmg || 1) * (1 - (p.armor || 0)))); // [late waves] lateDmg = 1 up to wave 8

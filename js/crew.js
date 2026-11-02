@@ -68,7 +68,7 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer;
+uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap;
 varying vec3 vC; varying vec3 vN; varying vec3 vV;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
@@ -87,7 +87,7 @@ void main(){
     bob = 0.012 * sin(uT * 1.9 + ph);
   } else if (role < 0.5) { // gunner beside its cannon, facing outboard
     yaw = sx * 1.5708;
-    float tf = uT - (sx > 0.0 ? uFireP : uFireS);
+    float tf = uT - (sx > 0.0 ? uFireP : uFireS) - aInfo.w * uGap; // [v97] each gunner reacts when HIS gun goes off in the ripple
     float rec = (tf >= 0.0 && tf < 0.55) ? sin(tf / 0.55 * 3.14159) : 0.0;
     float load = (tf >= 0.45 && tf < 2.6) ? sin((tf - 0.45) * 7.0) * smoothstep(2.6, 1.9, tf) : 0.0;
     lean = -0.38 * rec + 0.03 * sin(uT * 1.7 + ph);
@@ -111,7 +111,7 @@ void main(){
   // [v87] REACTIONS. Hit: every pirate staggers (crouch, wobble, arms over the head; the lookout grabs the rail), staggered per
   // pirate, scaled by the hit size (uHitK). Fire: walkers + the lookout sometimes cheer / fist-pump after a broadside.
   float roll = 0.0, hop = 0.0;
-  if (role < 0.5) { float tf0 = uT - (sx > 0.0 ? uFireP : uFireS); hop = (tf0 >= 0.0 && tf0 < 0.7) ? sin(tf0 / 0.7 * 3.14159) * 0.16 : 0.0; } // gunner hops back from the recoil
+  if (role < 0.5) { float tf0 = uT - (sx > 0.0 ? uFireP : uFireS) - aInfo.w * uGap; hop = (tf0 >= 0.0 && tf0 < 0.7) ? sin(tf0 / 0.7 * 3.14159) * 0.16 : 0.0; } // gunner hops back from the recoil
   else if (role > 2.5) { float tc = uT - max(uFireP, uFireS) - 0.25; // [v95] captain: one fist up after a broadside, the other hand stays on the wheel
     float ch = smoothstep(0.0, 0.2, tc) * (1.0 - smoothstep(1.0, 1.4, tc)); armB = mix(armB, -2.7 + 0.3 * sin(uT * 14.0), ch); bob += ch * 0.04 * abs(sin(uT * 9.0)); }
   else { float tc = uT - max(uFireP, uFireS) - 0.35 - ph * 0.3, cheer = step(0.45, fract(sin(ph * 91.7 + floor(max(uFireP, uFireS)) * 3.1) * 437.5));
@@ -154,7 +154,7 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: VERT, fragmentShader: FRAG, fog: true,
   });
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
@@ -193,8 +193,8 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   // merged draw call per ship, no shadows; desktop Medium keeps one gunner per gun pair.
   const lite = Q === 'low', med = PHONE || Q === 'medium';
   const crew = []; let k = 0;
-  const gun = med && !PHONE && !lite ? guns.filter((g, i) => i % 2 === 0) : guns;
-  for (const g of gun) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.55], info: [0, g.sx, hash(k * 3.3), 0] });
+  // [v97] one gunner at EVERY gun on every quality: each CANNONS upgrade adds a gun + its gunner on both sides (still one draw call)
+  for (const g of guns) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.42], info: [0, g.sx, hash(k * 3.3), g.i | 0] });
   if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
   if (helm) crew.push({ v: 17, cap: true, o: [helm.x, helm.y, helm.z - 0.36 * (boss ? 1.6 : 1.35)], info: [3, 0, hash(helm.z * 3.7), 0] }); // [v95] captain at the wheel
   if (!crew.length) return null;

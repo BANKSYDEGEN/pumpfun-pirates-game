@@ -284,9 +284,9 @@ export function createPvp(K) {
       e.reload = lerp(HARBOR_AI.reload); e.accuracy = lerp(HARBOR_AI.accuracy); e.fireR = lerp(HARBOR_AI.fireR); e.maxSpeed *= 1 + HARBOR_AI.speed * f; e.cd = Math.min(e.cd, e.reload); }
     e.gold = harborGold(L); e.aiLevel = L;
     if (e.harborBoss) { const B = HARBOR_BOSS; e.hp = e.maxHp = e.maxHp * B.hp; e.dmgMul *= B.dmg; e.reload *= B.reloadMul; e.accuracy = Math.min(0.92, e.accuracy + B.accuracy);
-      e.cannons = Math.min(B.guns[1], B.guns[0] + Math.floor(L / 15)); e.gold = harborGold(L) * B.pay; e.maxSpeed = Math.min(e.maxSpeed, 7.5 * (1 + HARBOR_AI.speed * Math.min(1, L / 44))); }
+      e.cannons = Math.min(B.guns[1], B.guns[0] + Math.floor(L / 15)); K.refitGuns?.(e); e.gold = harborGold(L) * B.pay; e.maxSpeed = Math.min(e.maxSpeed, 7.5 * (1 + HARBOR_AI.speed * Math.min(1, L / 44))); }
     const k = sz * (e.harborBoss ? HARBOR_BOSS.scale : 1);
-    if (k !== 1) { e.mesh.scale.multiplyScalar(k); ud.len *= k; ud.beam *= k; }
+    if (k !== 1) { const u = e.mesh.userData; e.mesh.scale.multiplyScalar(k); u.len *= k; u.hitLen = (u.hitLen || u.len / k) * k; if (u.baseLen) u.baseLen *= k; u.beam *= k; u.depth *= k; } // (u: the refitted hull)
   }
   function clearLocalAi(instant) { // a 2nd pirate arrived (or we sailed into the arena): AI ships sink away, their loot despawns
     for (const [id, b] of bots) {
@@ -386,7 +386,7 @@ export function createPvp(K) {
   function shield(s, on) {
     if (!on) { if (s.shield) s.shield.visible = false; return; }
     if (!s.shield) { s.shield = new THREE.Mesh(shieldGeo, shieldMat); s.shield.renderOrder = 6; scene.add(s.shield); }
-    const L = s.mesh.userData.len; s.shield.visible = true; s.shield.position.set(s.x, s.y + 3, s.z); s.shield.scale.set(L * 0.42, L * 0.32, L * 0.62); s.shield.rotation.y = s.yaw;
+    const L = s.mesh.userData.hitLen || s.mesh.userData.len, LZ = Math.max(L, s.mesh.userData.len * 0.92); s.shield.visible = true; s.shield.position.set(s.x, s.y + 3, s.z); s.shield.scale.set(L * 0.42, L * 0.32, LZ * 0.62); s.shield.rotation.y = s.yaw;
   }
   function dropShip(obj) {
     const i = enemies.indexOf(obj); if (i >= 0) enemies.splice(i, 1);
@@ -467,7 +467,7 @@ export function createPvp(K) {
     if (m.b[0] && m.b[0][7] == null) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize()); // old senders (v95 flashes at launch)
     sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), false);
   }
-  const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
+  const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
   function ballStep(b, p) { // returns true when the ball is spent
     const pl = P();
     const ships = [pl, ...enemies];

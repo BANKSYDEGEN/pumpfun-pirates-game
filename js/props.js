@@ -154,7 +154,7 @@ export function createIslands(quality) {
       live.set(key, { obj, d: c.d, beam: designs[c.d].lighthouse ? obj.getObjectByName('beam') : null });
     }
   }
-  const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.len || 14) * 0.42) : 6; };
+  const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.hitLen || u.len || 14) * 0.42) : 6; };
   return {
     group,
     update(t, cam) { refresh(cam.x, cam.z); for (const o of live.values()) if (o.beam) o.beam.rotation.y = t * 0.8; },

@@ -1,7 +1,7 @@
 // Stylized toon ships built in code: rounded plank hulls with painted strakes, railings,
 // chunky cannons, cabins with glowing windows, crow's nest, lanterns, rippling sails, waving flags.
 import * as THREE from 'three';
-import { addCrew } from './crew.js'; // [Raul] deck crew
+import { addCrew, dressCrew, addLookout } from './crew.js'; // [Raul] deck crew
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
@@ -130,12 +130,23 @@ function hullShape(len, beam, depth) {
   const keel = (t) => -depth * 0.58 * (1 - 0.72 * Math.pow(Math.max(0, (t - 0.68) / 0.32), 1.6)) * (t < 0.05 ? 0.85 : 1);
   return { halfW, top, keel };
 }
-function hullGeometry(len, beam, depth) {
+// [v97] LONG HULLS: the waist (design t 0.25..0.72, where the guns sit) is stretched by f; bow + stern keep their exact shape.
+// Everything is still placed by design t (0 stern .. 1 bow): zMap turns t into the stretched z.
+export const STRETCH_T0 = 0.25, STRETCH_T1 = 0.72;
+export function zMap(len0, f = 1) {
+  const A = STRETCH_T0, B = STRETCH_T1, E = (B - A) * len0 * (f - 1), L = len0 + E;
+  return { L, z: (t) => (t < A ? t * len0 : t < B ? A * len0 + (t - A) * len0 * f : t * len0 + E) - L / 2 };
+}
+// sample stations: denser in the stretched waist so long hulls stay smooth
+const stations = (N, f) => { if (f <= 1.001) return [...Array(N + 1)].map((_, i) => i / N);
+  const extra = Math.round((f - 1) * 10), out = []; const n = N + extra;
+  for (let i = 0; i <= n; i++) out.push(i / n); return out; };
+function hullGeometry(len, beam, depth, zf = (t) => (t - 0.5) * len, f = 1) {
   const { halfW, top, keel } = hullShape(len, beam, depth);
-  const N = 22, M = 16;
+  const TS = stations(22, f), N = TS.length - 1, M = 16;
   const pos = [], uv = [], idx = [], sections = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N, z = (t - 0.5) * len, w = halfW(t), yd = top(t), yk = keel(t);
+    const t = TS[i], z = zf(t), w = halfW(t), yd = top(t), yk = keel(t);
     const ring = [];
     for (let j = 0; j <= M; j++) {
       const phi = (j / M) * Math.PI, c = Math.cos(phi), u = Math.sin(phi);
@@ -175,10 +186,10 @@ function bulwarkGeometry(low, high, sx) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(low.flatMap((a) => [a.z / 5, 0.06, a.z / 5, 0.01]), 2)); g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
-function deckGeometry(len, shape, drop, inset = 0.9, wk = null) {
-  const N = 22, pos = [], uv = [], idx = [];
+function deckGeometry(len, shape, drop, inset = 0.9, wk = null, zf = (t) => (t - 0.5) * len, f = 1) {
+  const TS = stations(22, f), N = TS.length - 1, pos = [], uv = [], idx = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N, z = (t - 0.5) * len, w = shape.halfW(t) * (wk ?? (inset >= 1 ? 1.0 : inset * 0.93)), y = shape.top(t) - drop;
+    const t = TS[i], z = zf(t), w = shape.halfW(t) * (wk ?? (inset >= 1 ? 1.0 : inset * 0.93)), y = shape.top(t) - drop;
     pos.push(w, y, z, -w, y, z); uv.push(z / 4, w / 1.4, z / 4, -w / 1.4);
   }
   for (let i = 0; i < N; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
@@ -205,7 +216,18 @@ function sailGeometry(w, h, billow) {
 const WATER_MASK = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
 const cyl = (r1, r2, h, s = 10, open = false) => new THREE.CylinderGeometry(r1, r2, h, s, 1, open);
 function lathe(pts, segs = 12) { return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs); }
-const CANNON = [[0.001, -0.15], [0.2, -0.15], [0.27, -0.08], [0.29, 0.05], [0.25, 0.14], [0.23, 0.2], [0.21, 0.82], [0.25, 0.86], [0.25, 0.94], [0.21, 0.98], [0.23, 1.06], [0.3, 1.12], [0.3, 1.22], [0.17, 1.22], [0.15, 1.1]];
+// [v97] long gun: cascabel knob, base ring, two reinforcing bands, tapered chase, swelled muzzle ring + bore. Tip stays at y 1.22.
+// [v97] ship geometry detail tier (set once at boot from the graphics quality): LOW / phones get lighter cannons + carriages
+let LITE = false; export function setShipDetail(lite) { LITE = !!lite; }
+export const CANNON = [[0.001, -0.31], [0.07, -0.31], [0.095, -0.25], [0.055, -0.2], [0.09, -0.17], [0.24, -0.15], [0.29, -0.08], [0.305, 0.03], [0.27, 0.07],
+  [0.27, 0.13], [0.295, 0.16], [0.295, 0.24], [0.255, 0.27], [0.24, 0.5], [0.268, 0.52], [0.268, 0.59], [0.235, 0.61], [0.212, 0.92], [0.242, 0.96],
+  [0.242, 1.01], [0.215, 1.04], [0.25, 1.1], [0.305, 1.15], [0.305, 1.22], [0.165, 1.22], [0.15, 1.14], [0.001, 1.13]];
+// [v97] gun stations along a side (design t): the same slots in ships.js, upgradeVisuals.js and the crew
+export const gunT = (n) => [...Array(n)].map((_, i) => 0.3 + (i / Math.max(1, n - 1)) * 0.34);
+// [v97] how much the waist must stretch so n guns a side get >= `gap` m between them (min = a modest stretch for player ships)
+export const stretchFor = (n, len, gap = 1.55, min = 1) => Math.max(min, n > 1 ? gap * (n - 1) / (0.34 * len) : 1);
+// [v97] the crew outfit each enemy colour scheme wears (reads as "not you")
+const SCHEME_OUTFIT = { slime: 'degen', grape: 'kraken', reef: 'navy', boss: 'midnight', rammer: 'storm', runner: 'coral' };
 
 // collects static parts per material, then merges them into one mesh per material (few draw calls)
 class Parts {
@@ -236,28 +258,30 @@ class Parts {
 export function buildShip(opts) {
   const {
     len = 16, beam = 5.2, depth = 3, scheme = 'player', mainSailMap = null, flagMap, flagScale = 1,
-    cannonsPerSide = 3, masts = 2, light = false, shadows = false, boss = false,
+    cannonsPerSide = 3, masts = 2, light = false, shadows = false, boss = false, stretch = 1,
   } = opts;
+  const ZM = zMap(len, stretch), fullLen = ZM.L; // [v97] len = the design length (rig, cabin, flag); fullLen = the stretched hull
   const K = kit(scheme, mainSailMap);
   const ship = new THREE.Group();
   const body = new THREE.Group(); ship.add(body); // body gets bob/tilt
   const parts = new Parts();
 
-  const { geo: hullGeo, sections, shape } = hullGeometry(len, beam, depth);
+  const { geo: hullGeo, sections, shape } = hullGeometry(len, beam, depth, ZM.z, stretch);
   parts.add(K.hull, hullGeo);
   const deckDrop = 0.5;
-  parts.add(K.deck, deckGeometry(len, shape, deckDrop));
+  parts.add(K.deck, deckGeometry(len, shape, deckDrop, 0.9, null, ZM.z, stretch));
   const deckAt = (t) => shape.top(t) - deckDrop;
-  const zAt = (t) => (t - 0.5) * len;
+  const zAt = ZM.z;
   // [Raul] solid deck: a hull-coloured sole 0.16 under the planks (below its own toon outline) reaches the hull walls (closes the waterway gap
   // between the deck edge and the side), so the interior is closed at any angle
-  parts.add(K.hull, deckGeometry(len, shape, deckDrop + 0.16, 1.0, 0.975));
+  parts.add(K.hull, deckGeometry(len, shape, deckDrop + 0.16, 1.0, 0.975, ZM.z, stretch));
 
   // gunwale cap rail + wale (gold) + railing posts and top rail
   for (const sx of [1, -1]) {
     const cap = [], wale = [], rail = [];
-    for (let i = 0; i <= 22; i++) {
-      const t = 0.02 + i / 22 * 0.95, w = shape.halfW(t), y = shape.top(t), z = zAt(t);
+    const NR = 22 + Math.round((stretch - 1) * 10);
+    for (let i = 0; i <= NR; i++) {
+      const t = 0.02 + i / NR * 0.95, w = shape.halfW(t), y = shape.top(t), z = zAt(t);
       cap.push(new THREE.Vector3(sx * w * 0.97, y + 0.02, z));
       wale.push(new THREE.Vector3(sx * (w * 1.0 + 0.04), y - depth * 0.28, z));
       rail.push(new THREE.Vector3(sx * w * 0.9, y + 0.62, z));
@@ -317,25 +341,34 @@ export function buildShip(opts) {
 
   // cannons (port +X, starboard -X): lathe barrel on a rounded carriage, painted gun port behind
   const muzzles = { port: [], star: [] }, guns = []; // guns: deck slots for the crew
-  const barrel = lathe(CANNON, 12);
-  const carriage = new RoundedBoxGeometry(0.8, 0.38, 0.9, 2, 0.08), wheel = cyl(0.17, 0.17, 0.1, 10);
+  const barrel = lathe(CANNON, LITE ? 8 : 12); // [v97] phones / LOW: lighter cannon geometry (same shape)
+  // [v97] sea-service truck carriage: stepped cheeks, bed, axles, four wooden trucks with iron tyres (all merged per material)
+  const cheekLo = new RoundedBoxGeometry(0.86, 0.26, 0.1, 1, 0.03), cheekHi = new RoundedBoxGeometry(0.46, 0.2, 0.1, 1, 0.03), bed = new RoundedBoxGeometry(0.8, 0.08, 0.5, 1, 0.02);
+  const axle = cyl(0.045, 0.045, 0.78, LITE ? 4 : 6), truck = cyl(0.15, 0.15, 0.08, LITE ? 7 : 10), tyre = LITE ? null : new THREE.TorusGeometry(0.15, 0.025, 4, 12), bore = new THREE.CircleGeometry(0.15, LITE ? 7 : 10);
+  const wheel = truck;
   const port = new RoundedBoxGeometry(0.12, 0.72, 0.9, 1, 0.04);
   const cs = boss ? 1.25 : 1;
+  const GT = gunT(cannonsPerSide);
   for (let i = 0; i < cannonsPerSide; i++) {
-    const t = 0.3 + (i / Math.max(1, cannonsPerSide - 1)) * 0.34;
+    const t = GT[i];
     const w = shape.halfW(t), y = deckAt(t), z = zAt(t);
     for (const side of ['port', 'star']) {
       const sx = side === 'port' ? 1 : -1;
-      const cx = sx * (w - 0.45);
-      parts.add(K.cabin, carriage, [cx - sx * 0.1, y + 0.2, z], [0, 0, 0], cs);
-      for (const dz of [-0.36, 0.36]) parts.add(K.dark, wheel, [cx - sx * 0.1, y + 0.08, z + dz], [0, 0, Math.PI / 2], cs);
+      const cx = sx * (w - 0.45), c0 = cx - sx * 0.1;
+      parts.add(K.cabin, bed, [c0, y + 0.18, z], [0, 0, 0], cs);
+      for (const dz of [-0.24, 0.24]) { parts.add(K.cabin, cheekLo, [c0, y + 0.3, z + dz * cs], [0, 0, 0], cs); parts.add(K.cabin, cheekHi, [c0 - sx * 0.2 * cs, y + 0.52 * cs, z + dz * cs], [0, 0, 0], cs); }
+      for (const dx of [-0.27, 0.27]) {
+        parts.add(K.iron, axle, [c0 + dx * cs, y + 0.15, z], [Math.PI / 2, 0, 0], cs);
+        for (const dz of [-0.36, 0.36]) { parts.add(K.cabin, truck, [c0 + dx * cs, y + 0.15, z + dz * cs], [Math.PI / 2, 0, 0], cs); if (tyre) parts.add(K.iron, tyre, [c0 + dx * cs, y + 0.15, z + dz * cs], [0, 0, 0], cs); }
+      }
       // barrel axis = local +Y, rotate so it points outward along ±X, poking over the gunwale
       parts.add(K.iron, barrel, [cx - sx * 0.35, y + 0.55, z], [0, 0, -sx * Math.PI / 2], [cs * 1.1, cs * 1.25, cs * 1.1]);
+      parts.add(K.dark, bore, [cx - sx * 0.35 + sx * (1.2 * cs * 1.25), y + 0.55, z], [0, sx * Math.PI / 2, 0], cs * 1.1);
       parts.add(K.dark, port, [sx * (w * 1.0 + 0.02), shape.top(t) - 0.5, z]);
       parts.add(K.gold, new RoundedBoxGeometry(0.08, 0.86, 1.04, 1, 0.03), [sx * (w * 1.0 + 0.0), shape.top(t) - 0.5, z]);
       const m = new THREE.Object3D(); m.position.set(cx - sx * 0.35 + sx * (1.22 * cs * 1.25 + 0.04), y + 0.55, z); body.add(m); // [v95] AT the barrel tip (was 0.3 m past it)
       muzzles[side].push(m);
-      guns.push({ x: cx, y, z, sx });
+      guns.push({ x: cx, y, z, sx, i });
     }
   }
   // a few barrels + crates on deck for detail
@@ -349,7 +382,7 @@ export function buildShip(opts) {
   // masts, gold bands, yards, crow's nest, sails, rigging
   const mastDefs = masts >= 3 ? [[0.57, 1.0], [0.79, 0.78], [0.32, 0.72]] : [[0.55, 1.0], [0.8, 0.78]];
   const sails = [], rig = [];
-  let flagPole = null;
+  let flagPole = null, nestAt = null;
   mastDefs.forEach(([tf, hf], mi) => {
     const mz = zAt(tf), my = deckAt(tf), mh = len * 0.98 * hf;
     parts.add(K.mast, cyl(0.17, 0.3, mh + 0.6, 10), [0, my + mh / 2 - 0.3, mz]); // [Raul] stepped 0.6 through the deck
@@ -378,6 +411,7 @@ export function buildShip(opts) {
     rig.push([0, my + mh, mz], [0, bowY + 0.6, zAt(1) + len * 0.12]);
     if (mi === 0) {
       const ny = my + mh * 0.84;
+      nestAt = { y: ny, z: mz }; // [v97] the enemy lookout stands in this crow's nest
       parts.add(K.cabin, cyl(0.85, 0.62, 0.55, 12), [0, ny, mz]);
       parts.add(K.gold, new THREE.TorusGeometry(0.86, 0.08, 6, 16), [0, ny + 0.3, mz], [Math.PI / 2, 0, 0]);
       lantern([0.75, ny + 0.75, mz], 0.75);
@@ -408,7 +442,7 @@ export function buildShip(opts) {
   // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
   // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above
   // the deck can never show inside the hull. Scales with the ship (frigates / galleons / boss).
-  const lid = new THREE.Mesh(deckGeometry(len, shape, -0.06, 1.0), WATER_MASK);
+  const lid = new THREE.Mesh(deckGeometry(len, shape, -0.06, 1.0, null, ZM.z, stretch), WATER_MASK);
   lid.renderOrder = 1; lid.userData.waterMask = true;
   body.add(lid);
 
@@ -430,9 +464,15 @@ export function buildShip(opts) {
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), K.gold); knob.position.y = fh + 1.0; flagPole.add(knob);
   const base = fGeo.attributes.position.array.slice();
 
-  ship.userData = { body, muzzles, sails, flag, flagBase: base, len, beam, depth, deckY, lanterns };
+  ship.userData = { body, muzzles, sails, flag, flagBase: base, len: fullLen, baseLen: len, hitLen: opts.hitLen ?? fullLen, beam, depth, deckY, lanterns }; // [v97] hitLen: the hit box (stretch ≤ +10%, Waves none)
   // [Raul] upgrade visuals: hull/mast/cabin layout so js/upgradeVisuals.js can attach upgrade layers (no visual change here)
-  ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole };
+  // [v97] enemy ships get the spyglass lookout like yours: a pirate with a telescope patrolling the main crow's nest
+  // (merged into the same crew mesh, visual only; player ships add theirs from js/upgradeVisuals.js with SPYGLASS)
+  if (opts.lookout && nestAt && body.children.some(o => o.isLOD && o.children[0]?.userData?.crewMesh)) addLookout(ship, body, { at: { x: 0, y: nestAt.y + 0.3, z: nestAt.z }, r: 0.5, size: boss ? 1.0 : 0.9 });
+  if (SCHEME_OUTFIT[scheme]) dressCrew(body, opts.outfit || SCHEME_OUTFIT[scheme]); // [v97] enemy crews in enemy colours
+  ship.userData.buildOpts = opts; ship.userData.gunGap = Math.min(0.07, 0.5 / Math.max(1, cannonsPerSide));
+  if (ship.userData.crew?.uGap) ship.userData.crew.uGap.value = ship.userData.gunGap;
+  ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole, zAt, stretch };
   return ship;
 }
 

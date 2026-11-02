@@ -61,7 +61,7 @@ export function createEscorts(k) {
   };
   function makeMesh() {
     const m = cloneShip(template(equippedSkin())), ud = m.userData, S = ESCORT.scale;
-    m.scale.multiplyScalar(S); ud.len *= S; ud.beam *= S; ud.depth *= S;
+    m.scale.multiplyScalar(S); ud.len *= S; if (ud.hitLen) ud.hitLen *= S; ud.beam *= S; ud.depth *= S;
     return m;
   }
   const alive = () => list.filter(e => e.alive);

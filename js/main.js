@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
 import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
-import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES } from './ships.js';
+import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
@@ -27,7 +27,7 @@ import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WA
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
-import { waveRoster, applyEnemyType, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
+import { waveRoster, applyEnemyType, ENEMY_TYPES, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, getRunLevels } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
@@ -57,6 +57,7 @@ const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
 setCrewQuality(quality, isMobile); // [Raul] crew budget: high / phone (medium) / low = off
+setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -184,15 +185,26 @@ function getBall() { const m = ballPool.pop() || (() => { const b = new THREE.Me
 function freeBall(m) { m.visible = false; ballPool.push(m); }
 
 // ---------- enemies ----------
+// [v97] enemy hulls are built like yours: the waist stretches to fit their guns (same long-gun carriages, gunners, captain);
+// the hit box stays the design length so Waves / harbor gameplay is unchanged
+const enemyOpts = (o) => ({ ...o, stretch: stretchFor(o.cannonsPerSide || 0, o.len, 1.5), hitLen: o.len, lookout: true }); // + the spyglass lookout (visual)
+function refitGuns(e) { // re-build an enemy hull for a new gun count (harbor boss: 5-7 guns), keeping its size / place
+  const ud = e.mesh.userData, o = ud.buildOpts; if (!o || !(e.cannons > 0) || o.cannonsPerSide === e.cannons) return;
+  const sc = e.mesh.scale.x, mesh = buildShip(enemyOpts({ ...o, cannonsPerSide: e.cannons })), u = mesh.userData;
+  mesh.scale.setScalar(sc); u.len *= sc; u.hitLen *= sc; u.baseLen *= sc; u.beam *= sc; u.depth *= sc;
+  mesh.position.copy(e.mesh.position); mesh.rotation.copy(e.mesh.rotation);
+  scene.remove(e.mesh); disposeShip(e.mesh); scene.add(mesh); e.mesh = mesh;
+}
 function spawnEnemy(x, z, tier = 1, type = null) {
   [x, z] = islands.freeSpot(x, z, tier >= 2 ? 18 : 13); // [solid rocks] never spawn inside a rock
   const big = tier >= 2;
   const build = ENEMY_BUILDS[type]; // [enemy variety] rammer / runner hulls, rigs and colours
-  const mesh = buildShip(build ? { ...build, flagMap: pillTex, flagScale: 1.2, shadows: HIGH } : {
+  const guns = ENEMY_TYPES[type]?.cannons || (big ? 4 : 2); // [v97] one barrel per gun the ship really fires (visual only; same RNG calls as before)
+  const mesh = buildShip(enemyOpts(build ? { ...build, flagMap: pillTex, flagScale: 1.2, shadows: HIGH } : {
     len: big ? 19 : rnd(13, 15.5), beam: big ? 6 : rnd(4.4, 5), depth: 2.8,
     scheme: big ? 'boss' : ENEMY_SCHEMES[Math.floor(rand() * ENEMY_SCHEMES.length)], boss: big,
-    flagMap: pillTex, flagScale: 1.45, cannonsPerSide: big ? 4 : 2, masts: big ? 3 : 2, shadows: HIGH,
-  });
+    flagMap: pillTex, flagScale: 1.45, cannonsPerSide: guns, masts: big ? 3 : 2, shadows: HIGH,
+  }));
   if (build) decorateBuild(mesh, type);
   scene.add(mesh);
   const hp = Math.round((big ? 160 : 70) * (1 + game.wave * 0.12));
@@ -402,8 +414,9 @@ function hullCap(s, out) {
 }
 
 // ---------- ship physics ----------
+const HULL_LIFT = 0.17; // [v97] × hull depth: lifts every ship's mesh ~0.5 m so it no longer looks half sunk
 function floatShip(s, dt) {
-  const t = game.t, L = s.mesh.userData.len * 0.4, B = s.mesh.userData.beam * 0.5;
+  const t = game.t, L = (s.mesh.userData.hitLen || s.mesh.userData.len) * 0.4, B = s.mesh.userData.beam * 0.5; // [v97] sample the waves over the design length (gameplay y unchanged by the longer hulls)
   const fx_ = Math.sin(s.yaw), fz = Math.cos(s.yaw), px = Math.cos(s.yaw), pz = -Math.sin(s.yaw);
   const hC = waveHeight(s.x, s.z, t);
   const hF = waveHeight(s.x + fx_ * L, s.z + fz * L, t), hA = waveHeight(s.x - fx_ * L, s.z - fz * L, t);
@@ -418,7 +431,7 @@ function floatShip(s, dt) {
     sinkY = -s.sinking * s.sinking * 0.5; sinkRoll = Math.min(0.9, s.sinking * 0.25); sinkPitch = Math.min(0.4, s.sinking * 0.08);
     if (Math.random() < 0.6) fx.bubbles(new THREE.Vector3(s.x, s.y, s.z));
   }
-  s.mesh.position.set(s.x, s.y + sinkY, s.z);
+  s.mesh.position.set(s.x, s.y + sinkY + HULL_LIFT * (s.mesh.userData.depth || 3), s.z); // [v97] hulls ride higher (more freeboard); visual only, s.y (gameplay) unchanged
   s.mesh.rotation.set(0, s.yaw, 0);
   s.mesh.userData.body.rotation.set(s.pitch + sinkPitch, 0, s.roll + sinkRoll);
 }
@@ -536,7 +549,8 @@ function updateBalls(dt) {
       if (ownAlly === (s === player || !!s.ally)) continue; // [escorts] no friendly fire: enemies don't hurt each other, you + escorts don't either
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
-      if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9) {
+      const hl = u.hitLen || u.len; // [v97] long hulls: the hit box stays the design length (Waves) / +10% max (Battle Royale)
+      if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < hl / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + hl * 0.9) {
         damage(s, b.owner === player ? Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * (player.gunDmg || 1)) : b.owner.ally ? escorts.ballDmg(b.owner) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (s.armor || 0)))), p.clone(), b.owner); // [escorts] escort balls; armor of whoever got hit // [Raul] ship upgrades: enemy type damage, armor; upgrade buffs: CANNONS gunDmg
         done = true; break;
       }
@@ -686,7 +700,7 @@ function updateBars() {
   for (const e of enemies) {
     const show = e.alive && game.state !== 'title';
     if (!show) { e.bar.style.display = 'none'; continue; }
-    const s = screenPos(new THREE.Vector3(e.x, e.y + e.mesh.userData.len * 1.05, e.z));
+    const s = screenPos(new THREE.Vector3(e.x, e.y + (e.mesh.userData.hitLen || e.mesh.userData.len) * 1.05, e.z));
     const d = Math.hypot(e.x - player.x, e.z - player.z);
     if (!s.vis || d > 260) { e.bar.style.display = 'none'; continue; }
     e.bar.style.display = 'block'; e.bar.style.left = `${s.x}px`; e.bar.style.top = `${s.y}px`;
@@ -699,7 +713,7 @@ function updateBars() {
 }
 function updateEscortBars() { // [escorts] green bars over your escorts
   for (const e of escorts.list) {
-    const s = e.alive && game.state !== 'title' ? screenPos(new THREE.Vector3(e.x, e.y + e.mesh.userData.len * 1.05, e.z)) : null;
+    const s = e.alive && game.state !== 'title' ? screenPos(new THREE.Vector3(e.x, e.y + (e.mesh.userData.hitLen || e.mesh.userData.len) * 1.05, e.z)) : null;
     if (!s || !s.vis) { e.bar.style.display = 'none'; continue; }
     e.bar.style.display = 'block'; e.bar.style.left = `${s.x}px`; e.bar.style.top = `${s.y}px`;
     e.fill.style.width = `${(e.hp / e.maxHp) * 100}%`;
@@ -1281,7 +1295,7 @@ window.PFP_HEALTH = healthDrops; // [health drops] test hook
 initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'playing' && !document.documentElement.classList.contains('pvp-spec'),
   send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); } });
 // [pvp] what js/pvp.js may touch in the game
-const pvpCtx = { scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
+const pvpCtx = { scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
   resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), get shipOpts() { return PLAYER_SHIP; } };
 // [ultra] graphics menu (start page + pause): AUTO / LOW / HIGH / ULTRA (desktop only), saved on this device; a reload applies it
 {

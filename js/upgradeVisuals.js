@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildShip, disposeShip } from './ships.js';
+import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor } from './ships.js';
 import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
@@ -64,7 +64,9 @@ export const TRAITS = {
     { rudder: 1.3, sternLamps: true, wheel: true, gallery: true, straps: true }, { rudder: 1.35, sternLamps: true, wheel: true, gallery: true, straps: true, gold: true }],
 };
 // [v95] gun rows: DECK_GUNS on the main deck, then +1 a side per CANNONS level in the lower hull ports (up to 4), then on the rail (up to 4)
-export const DECK_GUNS = 4, ROW_FILL = [1, 2, 0, 3]; // centre slots first so a part-filled row looks balanced
+export const DECK_GUNS = 4;
+// [v97] guns a side: Battle Royale = 4 + CANNONS level, all in ONE deck row along a longer hull; Waves = its tier count (visual = stat)
+const gunCount = (lv) => PV ? DECK_GUNS + (lv.cannons | 0) : TRAITS.cannons[lv.cannons || 0].perSide;
 export const TRAIT_IDS = ['hull', 'armor', 'sails', 'rudder', 'cannons', 'reload', 'range'];
 const WATCH_H = 1.9, WATCH_R = 1.3;
 // [v85] the lookout rail (SPYGLASS II-IV) sits ABOVE the main mast's highest sail (on a short pole off the masthead / topmast),
@@ -114,7 +116,7 @@ const tube = (curve, n, r, rs = 5) => new THREE.TubeGeometry(curve, Math.max(6, 
 const RIVET = new THREE.OctahedronGeometry(0.08);
 const box = (x, y, z, r = 0.05) => new RoundedBoxGeometry(x, y, z, 1, Math.max(0.005, Math.min(r, x / 2.2, y / 2.2, z / 2.2)));
 const lathe = (pts, segs = 8) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs);
-const CANNON = [[0.001, -0.15], [0.24, -0.15], [0.29, 0.05], [0.23, 0.2], [0.21, 0.86], [0.25, 0.9], [0.3, 1.12], [0.3, 1.22], [0.15, 1.12]];
+// (barrel profile: ships.js CANNON, the same long gun everywhere)
 const KEG = [[0.001, 0], [0.3, 0], [0.36, 0.25], [0.36, 0.45], [0.3, 0.7], [0.001, 0.7]];
 const SPYGLASS = [[0.001, 0], [0.11, 0], [0.11, 0.45], [0.09, 0.47], [0.09, 0.9], [0.075, 0.92], [0.075, 1.3], [0.06, 1.32], [0.06, 1.55], [0.001, 1.55]];
 const MORTAR = [[0.001, 0], [0.75, 0], [0.75, 0.25], [0.6, 0.35], [0.62, 0.9], [0.72, 1.0], [0.72, 1.12], [0.5, 1.12], [0.48, 0.5], [0.001, 0.5]];
@@ -155,25 +157,26 @@ class Layer {
 
 // ---------- hull anchor points (same parametric hull as ships.js) ----------
 function anchors(ud, lv) {
-  const L = ud.layout, { shape } = L, len = ud.len, beam = ud.beam, depth = ud.depth;
-  const zAt = (t) => (t - 0.5) * len;
+  const L = ud.layout, { shape } = L, len = ud.len, beam = ud.beam, depth = ud.depth, rigLen = ud.baseLen || len;
+  const zAt = L.zAt || ((t) => (t - 0.5) * len); // [v97] long hulls: design t -> stretched z (ships.js zMap)
+  const dz = (t, dt) => zAt(Math.min(1, t + dt / 2)) - zAt(Math.max(0, t - dt / 2)); // length of a t-span at t
   const deckAt = (t) => shape.top(t) - L.deckDrop;
   const sideX = (t, drop) => { // hull half-width `drop` metres below the gunwale at station t
     const yd = shape.top(t), yk = shape.keel(t), w = shape.halfW(t);
     const u = Math.min(1, Math.pow(Math.max(0, drop) / Math.max(0.01, yd - yk), 1 / 1.1));
     return w * Math.pow(Math.sqrt(Math.max(0, 1 - u * u)), 0.42) * (1 - 0.08 * Math.pow(1 - u, 3));
   };
-  const sideYaw = (t, sx) => { const dw = (shape.halfW(Math.min(1, t + 0.01)) - shape.halfW(Math.max(0, t - 0.01))) / (0.02 * len); return Math.atan2(sx * dw, 1); };
-  const n = PV ? DECK_GUNS : TRAITS.cannons[lv.cannons || 0].perSide; // [v95] Battle Royale: the deck row holds 4; more guns go in rows below / above
-  const gunT = [...Array(n)].map((_, i) => 0.3 + (i / Math.max(1, n - 1)) * 0.34); // same slots buildShip uses
+  const sideYaw = (t, sx) => { const dw = (shape.halfW(Math.min(1, t + 0.01)) - shape.halfW(Math.max(0, t - 0.01))) / Math.max(0.01, dz(t, 0.02)); return Math.atan2(sx * dw, 1); };
+  const n = gunCount(lv); // [v97] one deck row: Battle Royale 4 + CANNONS level, Waves its tier count
+  const gunT = shipGunT(n); // same slots buildShip uses
   const midT = gunT.slice(1).map((t, i) => (t + gunT[i]) / 2);
-  const masts = L.mastDefs.map(([tf, hf]) => ({ t: tf, z: zAt(tf), y: deckAt(tf), h: len * 0.98 * hf }));
+  const masts = L.mastDefs.map(([tf, hf]) => ({ t: tf, z: zAt(tf), y: deckAt(tf), h: rigLen * 0.98 * hf }));
   const H = TRAITS.hull[lv.hull || 0], S = TRAITS.sails[lv.sails || 0];
   const roofY = L.cab.y0 + L.cab.h + 0.15;
   const poop = H.poop ? { w: L.cab.w * 0.74, l: L.cab.l * 0.52, h: 1.3 * depth / 3.1, z: L.cab.z - L.cab.l * 0.21 } : null;
   const foreT0 = 0.85, foreY = (t) => shape.top(t) + 0.32;
   const mainTop = masts[0].y + masts[0].h + (S.top ? masts[0].h * S.top : 0);
-  return { L, shape, len, beam, depth, k: depth / 3.1, zAt, deckAt, sideX, sideYaw, gunT, midT, masts, roofY, poop, foreT0, foreY, hull: H, sails: S, mainTop };
+  return { L, shape, len, rigLen, dz, beam, depth, k: depth / 3.1, zAt, deckAt, sideX, sideYaw, gunT, midT, masts, roofY, poop, foreT0, foreY, hull: H, sails: S, mainTop };
 }
 // curved strip that hugs the hull side between drops d0..d1 over stations t0..t1 (outward normals)
 function hullPanel(A, t0, t1, d0, d1, sx, out = 0.06, nt = 6, nd = 3) {
@@ -215,12 +218,12 @@ const PARTS = {
     const { k } = A;
     if (T.belt) for (const sx of [1, -1]) {
       Ly.add(M.oak, tube(lineCurve(A, sx, 1.0 * k, 0.05), 40, 0.17 * k, 6));
-      for (let i = 0; i < 16; i++) { const t = 0.2 + (i + 0.5) / 16 * 0.68; Ly.add(M.plank, box(0.14, 0.5, 0.68 / 16 * A.len + 0.02, 0.03), [sx * A.shape.halfW(t) * 0.9, A.shape.top(t) + 0.3, A.zAt(t)], [0, A.sideYaw(t, sx), 0]); }
+      for (let i = 0; i < 16; i++) { const t = 0.2 + (i + 0.5) / 16 * 0.68; Ly.add(M.plank, box(0.14, 0.5, A.dz(t, 0.68 / 16) + 0.02, 0.03), [sx * A.shape.halfW(t) * 0.9, A.shape.top(t) + 0.3, A.zAt(t)], [0, A.sideYaw(t, sx), 0]); }
     }
     if (T.forecastle) { // raised bow deck with a railing
       for (let i = 0; i < 6; i++) {
         const t = A.foreT0 + (i + 0.5) / 6 * 0.12, w = A.shape.halfW(t) * 1.9, y = A.foreY(t);
-        Ly.add(M.deck, box(w, 0.32, 0.12 * A.len / 6 + 0.04, 0.04), [0, y - 0.16, A.zAt(t)]);
+        Ly.add(M.deck, box(w, 0.32, A.dz(t, 0.12 / 6) + 0.04, 0.04), [0, y - 0.16, A.zAt(t)]);
         for (const sx of [1, -1]) Ly.add(M.oak, cyl(0.07, 0.08, 0.6, 5), [sx * w / 2 * 0.92, y + 0.3, A.zAt(t)]);
       }
       Ly.add(M.oak, box(A.shape.halfW(A.foreT0) * 1.9, A.foreY(A.foreT0) - A.deckAt(A.foreT0) + 0.1, 0.3, 0.06), [0, (A.foreY(A.foreT0) + A.deckAt(A.foreT0)) / 2 - 0.1, A.zAt(A.foreT0)]);
@@ -272,7 +275,7 @@ const PARTS = {
       if (T.rail) { // plated bulwarks + iron-clad stern castle
         for (let i = 0; i < segs; i++) {
           const t = 0.2 + (i + 0.5) / segs * 0.68, w = A.shape.halfW(t) * 0.93, y = A.shape.top(t), yaw = A.sideYaw(t, sx);
-          Ly.add(M.iron, box(0.14, 0.56, 0.68 / segs * A.len - 0.1, 0.04), [sx * w, y + 0.32, A.zAt(t)], [0, yaw, 0]);
+          Ly.add(M.iron, box(0.14, 0.56, A.dz(t, 0.68 / segs) - 0.1, 0.04), [sx * w, y + 0.32, A.zAt(t)], [0, yaw, 0]);
           if (!LO) for (const dz of [-0.3, 0.3]) Ly.add(M.rivet, RIVET, [sx * (w + 0.08), y + 0.48, A.zAt(t) + dz]);
         }
         const c = A.L.cab;
@@ -320,7 +323,7 @@ const PARTS = {
       if (T.royal) { const rw = yw * 0.7, ry = top + ext * 0.92; yard(rw, [0, ry, m.z + 0.2]); const r = sailPair(sailGeo(rw * 0.92, ext * 0.36, 0.45), sf, sb); r.position.set(0, ry - 0.1, m.z + 0.3); Ly.group.add(r); }
     });
     if (T.spanker) { // fore-and-aft skull sail on the mizzen, swung out to port so the chase camera sees it
-      const m = A.masts[2], th = 0.6, h = m.h * 0.5, w = A.len * 0.3, y0 = m.y + m.h * 0.86;
+      const m = A.masts[2], th = 0.6, h = m.h * 0.5, w = A.rigLen * 0.3, y0 = m.y + m.h * 0.86;
       const dir = new THREE.Vector3(-Math.sin(-th), 0, -Math.cos(-th)); // aft, swung to +X (port)
       const at = (d, y) => [dir.x * d, y, m.z + dir.z * d];
       Ly.span(M.oak, at(0, y0), at(w, y0 + 0.9), 0.09, 0.07);
@@ -329,7 +332,7 @@ const PARTS = {
       const g = sailPair(geo, mf, mb, false); g.children.forEach(c => c.rotation.y = Math.PI / 2 - th); g.position.set(0, y0 - 0.05, m.z); Ly.group.add(g);
     }
     if (T.fourthMast) { // extra mast amidships with its own skull course and topsail
-      const t = 0.445, z = A.zAt(t), y = A.deckAt(t), mh = A.len * 0.98 * 0.86;
+      const t = 0.445, z = A.zAt(t), y = A.deckAt(t), mh = A.rigLen * 0.98 * 0.86;
       Ly.add(M.oak, cyl(0.16, 0.28, mh + 0.6, 10), [0, y + mh / 2 - 0.3, z]); // [Raul] stepped through the deck
       Ly.add(M.oak, new THREE.BoxGeometry(1.0, 0.16, 1.0), [0, y + 0.08, z]); Ly.add(M.oak, cyl(0.36, 0.44, 0.34, 10), [0, y + 0.17, z]); // footing
       for (const f of [0.08, 0.4, 0.66, 1.0]) Ly.add(M.gold, torus(0.27 - f * 0.1, 0.06), [0, y + mh * f, z], [Math.PI / 2, 0, 0]);
@@ -375,32 +378,12 @@ const PARTS = {
     let order = 0;
     if (T.big) A.gunT.forEach((t, gi) => { for (const sx of [1, -1]) { // chunkier guns over the deck slots
       const w = A.shape.halfW(t), y = A.deckAt(t), z = A.zAt(t), cx = sx * (w - 0.45), s = T.big * k;
-      Ly.add(M.iron, barrel, [cx - sx * 0.5, y + 0.6, z], [0, 0, -sx * Math.PI / 2], [s, s * 1.05, s]);
-      muzzle(Ly, sx > 0 ? 'port' : 'star', [cx - sx * 0.5 + sx * (1.22 * s * 1.05 + 0.04), y + 0.6, z], gi * 2 + (sx > 0 ? 0 : 1)); // [v95] deck muzzle at THIS barrel's tip
-      if (!LO || T.gold) Ly.add(T.gold ? M.gold : M.iron, torus(0.3 * s, 0.06 * s), [cx + sx * 0.45 * s, y + 0.6, z], [0, Math.PI / 2, 0]);
+      const x0 = cx + sx * (-0.35 + 1.22 * 1.25 + 0.05 - 1.22 * s * 1.05); // [v97] its muzzle sits just past the base gun's, so no barrel pokes through
+      Ly.add(M.iron, barrel, [x0, y + 0.6, z], [0, 0, -sx * Math.PI / 2], [s, s * 1.05, s]);
+      muzzle(Ly, sx > 0 ? 'port' : 'star', [x0 + sx * (1.22 * s * 1.05 + 0.04), y + 0.6, z], gi * 2 + (sx > 0 ? 0 : 1)); // [v95] deck muzzle at THIS barrel's tip
+      if (!LO || T.gold) Ly.add(T.gold ? M.gold : M.iron, torus(0.3 * s, 0.06 * s), [x0 + sx * 0.95 * s, y + 0.6, z], [0, Math.PI / 2, 0]);
     } });
-    // [v95] extra gun rows (+1 a side per level): row 1 = barrels out of the lower hull ports under the deck guns, row 2 = rail guns
-    // on low carriages between / beside the deck guns. Every barrel has a muzzle marker AT ITS TIP (all of them fire).
-    if (PV) { // Battle Royale only (Waves keeps its gun counts + the old lower deck / swivels below)
-    const extra = Math.max(0, lv.cannons | 0), r1 = Math.min(DECK_GUNS, extra), r2 = Math.max(0, extra - DECK_GUNS);
-    const tip = (x0, sx, sy) => x0 + sx * (1.22 * sy + 0.04); // barrel axis local +Y -> world ±X after the -sx·90° Z turn
-    const slots1 = ROW_FILL.slice(0, r1).sort((a, b) => a - b);
-    for (const i of slots1) for (const sx of [1, -1]) {
-      const t = A.gunT[i], d = 0.5 * k, x = A.sideX(t, d), y = A.shape.top(t) - d, z = A.zAt(t), sy = 1.15 * k, x0 = sx * (x - 0.15);
-      Ly.add(M.iron, barrel, [x0, y, z], [0, 0, -sx * Math.PI / 2], [0.95 * k, sy, 0.95 * k]); // pokes ~1 m out of the hull port
-      if (T.gold) Ly.add(M.gold, torus(0.29 * k, 0.05), [sx * (x + 0.45 * k), y, z], [0, Math.PI / 2, 0]);
-      muzzle(Ly, sx > 0 ? 'port' : 'star', [tip(x0, sx, sy), y, z], 100 + i * 2 + (sx > 0 ? 0 : 1));
-    }
-    const railT = [0, 1, 2, 3].map(i => 0.3 + ((i + 0.5) / 4) * 0.34 + (i === 3 ? 0.02 : 0) - (i === 0 ? 0.02 : 0)); // between / beside the deck guns
-    const slots2 = ROW_FILL.slice(0, r2).sort((a, b) => a - b);
-    for (const i of slots2) for (const sx of [1, -1]) {
-      const t = railT[i], w = A.shape.halfW(t) * 0.93, y = A.shape.top(t) + 0.62 * k, z = A.zAt(t), sy = 1.0 * k, x0 = sx * (w - 0.1);
-      Ly.add(M.oak, box(0.62 * k, 0.3 * k, 0.7 * k, 0.05), [sx * (w - 0.35), y - 0.32 * k, z]);           // low carriage on the rail
-      Ly.add(M.iron, barrel, [x0, y, z], [0, 0, -sx * Math.PI / 2], [0.9 * k, sy, 0.9 * k]);
-      if (T.gold) Ly.add(M.gold, torus(0.28 * k, 0.05), [sx * (w + 0.5 * k), y, z], [0, Math.PI / 2, 0]);
-      muzzle(Ly, sx > 0 ? 'port' : 'star', [tip(x0, sx, sy), y, z], 200 + i * 2 + (sx > 0 ? 0 : 1));
-    }
-    } else {
+    if (!PV) { // Waves keeps its old lower deck / swivels (never fired); Battle Royale has one long deck row instead
     if (T.lowerDeck) for (const t of A.gunT) for (const sx of [1, -1]) { // second gun deck: a barrel in every hull port
       const d = 0.5 * k, x = A.sideX(t, d), y = A.shape.top(t) - d, z = A.zAt(t);
       Ly.add(M.iron, barrel, [sx * (x - 0.15), y, z], [0, 0, -sx * Math.PI / 2], [0.95 * k, 1.15 * k, 0.95 * k]); // pokes ~1 m out of the hull
@@ -541,7 +524,8 @@ function buildCompiled(lv, opts, skin) {
   mats(skin);
   const H = TRAITS.hull[lv.hull], W = TRAITS.cannons[lv.cannons], S = TRAITS.sails[lv.sails];
   const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
-  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: PV ? DECK_GUNS : W.perSide, masts: 3, ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const nG = gunCount(lv), f = stretchFor(nG, H.len, 1.55, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12)
+  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), ...bopts, ...(skinBuildOpts(skin) || {}) });
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
@@ -587,7 +571,7 @@ function buildCompiled(lv, opts, skin) {
   // whole-ship scale from the overall upgrade count; hitbox / wake / camera read these
   const s = extraScale(lv);
   ship.scale.setScalar(s);
-  ud.len *= s; ud.beam *= s; ud.depth *= s; ud.shipScale = (H.len * s) / TRAITS.hull[0].len;
+  ud.len *= s; ud.hitLen *= s; ud.baseLen *= s; ud.beam *= s; ud.depth *= s; ud.shipScale = (H.len * s) / TRAITS.hull[0].len;
   const rig = (ud.layout.flagPole.position.y + 2.5 + (ud.flag?.geometry?.parameters?.height || 4)) * s; // flag top
   if (!BASE_RIG && TRAIT_IDS.every(id => !lv[id])) BASE_RIG = rig;
   ud.rigTop = rig; ud.frameK = Math.max(1, rig / (BASE_RIG || rig)); // camera framing factor (fits the tallest mast)

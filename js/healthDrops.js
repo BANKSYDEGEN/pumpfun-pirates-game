@@ -109,7 +109,7 @@ export function createHealthDrops({ scene, fx, sfx, popup, updateHud }) {
         d.mesh.visible = d.life > HEALTH_DROP.blink || Math.sin(d.blinkPh) > -0.35;
         if (Math.random() < 0.25) fx.glow.emit(V(d.x + (Math.random() - 0.5) * 2, y + 1 + Math.random() * 2, d.z + (Math.random() - 0.5) * 2), V(0, 1 + Math.random(), 0), { color: [0.45, 1, 0.55], size: 0.4 + Math.random() * 0.4, life: 0.5 + Math.random() * 0.4 });
         // heals whichever ship touches it: you first, then your escorts; full hulls leave it floating
-        const ship = [player, ...others].find(s => s.alive && s.hp < s.maxHp && Math.hypot(d.x - s.x, d.z - s.z) < Math.max(10, (s.mesh.userData.len || 17) * 0.45));
+        const ship = [player, ...others].find(s => s.alive && s.hp < s.maxHp && Math.hypot(d.x - s.x, d.z - s.z) < Math.max(10, (s.mesh.userData.hitLen || s.mesh.userData.len || 17) * 0.45));
         if (ship) { const player = ship;
           const before = player.hp;
           player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * HEALTH_DROP.healPct));
