@@ -772,3 +772,10 @@ html.pvp:not(.pvp-spec) #pause .pvp-set.pvp-set-inline { display: inline-block; 
 #pvp-boss-bar[hidden] { display: none; }
 .ehp.harbor-boss .name { color: #ffcd00; }
 @media (max-width: 640px) { #pvp-boss-bar { top: calc(env(safe-area-inset-top, 0px) + 100px); left: 12px; transform: none; width: calc(100vw - 132px); font-size: 11px; } }
+
+/* [v95] harbor death: big centred 5-4-3-2-1 countdown, then you respawn in the harbor (never the lobby) */
+#pvp-dead .pd-big { display: none; }
+#pvp-dead.pd-harbor .pd-big { display: block; font-size: 120px; line-height: 1; font-weight: 900; color: var(--gold); text-shadow: 0 4px 0 #000, 0 0 24px rgba(0,0,0,0.6); margin: 6px 0 2px; }
+#pvp-dead.pd-harbor .pd-big.pop { animation: pdPop 0.9s ease-out; }
+@keyframes pdPop { 0% { transform: scale(1.6); opacity: 0.2; } 25% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.92); opacity: 0.85; } }
+@media (max-width: 600px) { #pvp-dead.pd-harbor .pd-big { font-size: 96px; } }

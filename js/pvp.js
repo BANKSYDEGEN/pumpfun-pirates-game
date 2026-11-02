@@ -18,13 +18,13 @@ import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides anima
 import { createNet } from './transport.js';
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
-import { PVP_HARBOR_DEATH_LOSS } from './config.js';
+import { PVP_HARBOR_DEATH_LOSS, PVP_HARBOR_RESPAWN, PVP_HARBOR_PROTECT } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS } from './pvpSkins.js';
-import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun } from './upgrades.js';
+import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
@@ -45,7 +45,7 @@ const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
 // [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
 const PVP_MODE = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, MAXED = modeStats(maxRun(), PVP_MODE);
 const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map((_, i) => modeStats({ levels: { cannons: i + 1 } }, PVP_MODE).gunDmg));
-export const MAX_HIT = Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1; // [pvp hp] ×1.4 PvP cannonballs
+export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1); // 48: v94 clients (up to 8 heavier balls) while they update; // [pvp hp] ×1.4 PvP cannonballs
 const MAX_SPEED = 3 * 4.2 * MAXED.speed * 1.15;
 const MAX_HP = MAXED.maxHp;
 const QS = new URLSearchParams(location.search);
@@ -170,10 +170,19 @@ export function createPvp(K) {
     isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor');
     respawnHarbor(); harborUi(); K.banner(title, sub);
   }
-  function respawnHarbor() {
-    const pl = P(); me.dead = false; me.protect = 0; me.lastBy = null; me.lastDamageAt = 0; showDead(false); pl.mesh.visible = true;
-    Object.assign(pl, { alive: true, sinking: 0, hp: pl.maxHp, x: 0, z: 0, yaw: 0, speed: 0, sail: 1, anchor: false, calm: 0, repT: 0 });
+  function respawnHarbor(afterDeath = false) {
+    const pl = P(); me.dead = false; me.protect = afterDeath ? PVP_HARBOR_PROTECT : 0; me.lastBy = null; me.lastDamageAt = 0; showDead(false); pl.mesh.visible = true;
+    let x = 0, z = 0, yaw = 0;
+    if (afterDeath) { // [v95] sunk in the harbor: respawn at the harbor spot farthest from every live AI ship / the boss (upgrades + skin kept)
+      const foes = [...bots.values()].filter(b => b.alive); let best = -1;
+      for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2 + Math.random() * 0.2, r = 40 + (i % 3) * 45, cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+        const d = foes.length ? Math.min(...foes.map(b => Math.hypot(b.x - cx, b.z - cz) - (b.harborBoss ? 60 : 0))) : 1e9;
+        if (d > best) { best = d; x = cx; z = cz; } }
+      yaw = Math.atan2(-x, -z); me.life++;
+    }
+    Object.assign(pl, { alive: true, sinking: 0, hp: pl.maxHp, x, z, yaw, speed: 0, sail: 1, anchor: false, calm: 0, repT: 0 });
     pl.cd.port = pl.cd.star = 0; K.resetCamera(); K.updateHud();
+    if (afterDeath) K.banner('BACK AT SEA', `harbor spawn protection ${PVP_HARBOR_PROTECT} s (ends when you fire)`);
   }
   function lobbyTick(dt) {
     const now = performance.now();
@@ -325,7 +334,7 @@ export function createPvp(K) {
     let x = +m.x || 0, z = +m.z || 0;
     if (p.st && p.st.l === m.l && p.ship) { const dt = Math.max(0.05, (now - prevHeard) / 1000), dx = x - p.st.x, dz = z - p.st.z, d = Math.hypot(dx, dz), lim = MAX_SPEED * dt + 6;
       if (d > lim) { x = p.st.x + dx / d * lim; z = p.st.z + dz / d * lim; } }
-    const stats = shipStats({ levels: lv });
+    const stats = modeStats({ levels: lv }, PVP_MODE); // [v95] BR gun count (4 + CANNONS level)
     // [v87] turn rate from the last two headings (shortest angle), so remote ships keep turning smoothly between updates
     let yr = 0; const ny = +m.y || 0;
     if (p.st && p.st.l === m.l) { const sdt = (now - p.st.at) / 1000; if (sdt > 0.04 && sdt < 1.5) yr = clamp(angWrap(ny - p.st.y) / sdt, -2.5, 2.5); yr = p.st.yr != null ? p.st.yr * 0.35 + yr * 0.65 : yr; }
@@ -430,19 +439,20 @@ export function createPvp(K) {
   function onFire(shooter, shot) {
     if (!room || !shot.length || shooter !== P()) return; // only OUR volleys go on the wire (AI ships are local)
     const id = myId;
-    room.send('shot', { o: id, b: shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay)]) });
+    room.send('shot', { o: id, b: shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay), b.side === 'star' ? 1 : 0, b.i | 0]) }); // [v95] + side, gun index
   }
   function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
   function ownerObj(id) { return peers.get(id)?.ship || null; }
   function onShot(m) {
     const owner = ownerObj(m.o); if (!owner || !Array.isArray(m.b)) return;
-    for (const b of m.b.slice(0, 10)) {
-      const mesh = K.getBall(); mesh.position.set(b[0], b[1], b[2]);
-      balls.push({ mesh, v: new THREE.Vector3(clamp(b[3], -80, 80), clamp(b[4], -40, 60), clamp(b[5], -80, 80)), owner, life: 6, delay: clamp(b[6], 0, 1), visual: true });
+    for (const b of m.b.slice(0, 14)) { // [v95] up to 12 guns a side; launched from the RENDERED ship's own muzzle (v95 senders)
+      const mesh = K.getBall(); mesh.position.set(b[0], b[1], b[2]); mesh.visible = false;
+      const side = b[7] === 1 ? 'star' : 'port', ms = b[7] != null && owner.mesh ? gunList(owner, side) : null, muzzle = ms && ms.length ? ms[(b[8] | 0) % ms.length] : null;
+      balls.push({ mesh, v: new THREE.Vector3(clamp(b[3], -80, 80), clamp(b[4], -40, 60), clamp(b[5], -80, 80)), owner, life: 6, delay: clamp(b[6], 0, 1), visual: true, muzzle, gi: b[8] | 0, side, aimT: 0 });
     }
     const pl = P(), dist = Math.hypot(owner.x - pl.x, owner.z - pl.z);
     if (m.b[0]) crewFire(owner.mesh, (m.b[0][3] * Math.cos(owner.yaw) - m.b[0][5] * Math.sin(owner.yaw)) > 0 ? 'port' : 'star');
-    if (m.b[0]) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize());
+    if (m.b[0] && m.b[0][7] == null) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize()); // old senders (v95 flashes at launch)
     sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), false);
   }
   const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < u.len / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
@@ -501,7 +511,7 @@ export function createPvp(K) {
     const byAi = !!by && (bots.has(by) || String(by).startsWith('b'));
     if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
       const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
-      me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = bots.get(by)?.harborBoss ? 'the HARBOR BOSS' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
+      me.dead = true; me.respawn = where === 'harbor' ? PVP_HARBOR_RESPAWN : PVP_RESPAWN; me.respawnAt = where === 'harbor' ? performance.now() + PVP_HARBOR_RESPAWN * 1000 : 0; me.killedBy = bots.get(by)?.harborBoss ? 'the HARBOR BOSS' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
       if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); }
       showDead(true); return;
     }
@@ -604,7 +614,8 @@ export function createPvp(K) {
     if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); K.updateHud(); save(); }
   }
   function respawn() {
-    if (where === 'harbor' || (where === 'arena' && me.aiDeath && !room)) { respawnHarbor(); return; }
+    me.respawnAt = 0;
+    if (where === 'harbor' || (where === 'arena' && me.aiDeath && !room)) { respawnHarbor(true); return; } // [v95] stay in the harbor, never the lobby
     if (lob.queuedByDeath) { lob.queuedByDeath = false; toHarbor('IN THE QUEUE', `position #${lob.pos || '?'} · farm the harbor AI while you wait`); return; }
     const pl = P(), { pt, crowded } = pickSpawn(pl);
     me.dead = false; me.life++; me.protect = PVP_PROTECT * (crowded ? 2 : 1); me.lastBy = null; me.lastDamageAt = 0;
@@ -622,7 +633,8 @@ export function createPvp(K) {
     if (me.protect > 0) me.protect = Math.max(0, me.protect - dt);
     shield(pl, pl.alive && !me.dead && me.protect > 0); skinFx(pl, dt);
     lobbyTick(dt); aiTick(dt); afkTick(); retTick();
-    if (me.dead) { me.respawn -= dt; const el = $('pvp-dead-t'); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); if (me.respawn <= 0) respawn(); }
+    if (me.dead) { me.respawn = me.respawnAt ? (me.respawnAt - now) / 1000 : me.respawn - dt; // [v95] harbor: wall clock, a true 5-4-3-2-1 even on a slow phone
+      const el = $('pvp-dead-t'), n = Math.max(1, Math.ceil(me.respawn)); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); const big = $('pvp-dead-big'); if (big && big.textContent !== String(n)) { big.textContent = n; big.classList.remove('pop'); void big.offsetWidth; big.classList.add('pop'); } if (me.respawn <= 0) respawn(); }
     // arena edge
     const r = Math.hypot(pl.x, pl.z); if (r > PVP_ARENA_R) { pl.x *= PVP_ARENA_R / r; pl.z *= PVP_ARENA_R / r; if (!me.edgeT || now - me.edgeT > 5000) { me.edgeT = now; K.banner('EDGE OF THE ARENA', 'turn back, captain'); } }
     if (room && isHost) hostTick();
@@ -681,6 +693,8 @@ export function createPvp(K) {
     const el = $('pvp-dead'); el.classList.toggle('hidden', !on); if (!on) return;
     el.querySelector('.pd-by').textContent = `Sunk by ${me.killedBy}`;
     const q = el.querySelector('.pd-queue'); if (q) q.hidden = true; const re = el.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'Back at sea in ';
+    el.classList.toggle('pd-harbor', where === 'harbor'); // [v95] harbor: big centred 5-4-3-2-1, respawn right here
+    if (where === 'harbor' && re) re.firstChild.textContent = 'Back at sea in the harbor in ';
     el.querySelector('.pd-drop').textContent = me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
       : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D.` : `You dropped ${me.dropped} gold (${me.dropped - PVP_DEATH_BONUS - (me.lostBounty || 0)} carried + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). Upgrades kept.`;
     el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
@@ -1028,7 +1042,7 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; },
-    _test: { spawnBoss, boss, P, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
+    _test: { spawnBoss, boss, P, onShot, onState, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
   window.PFP_PVP = api;
   return api;
 }

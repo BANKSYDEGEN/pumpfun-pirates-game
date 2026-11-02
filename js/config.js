@@ -44,6 +44,8 @@ export const PIRATE_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pirate
 // Off on game portals (no Supabase there). Upgrades/prices/stats come from js/upgrades.js, same as solo.
 export const PVP_ENABLED = !ON_PORTAL && !!SUPABASE_URL;
 export const PVP_HARBOR_DEATH_LOSS = 100; // [v92] BANKSY: sinking in the HARBOR costs min(100, your gold); you keep the rest (was free)
+export const PVP_HARBOR_RESPAWN = 5;  // [v95] sunk in the HARBOR: big 5-4-3-2-1 countdown, then back at sea in the harbor (never the lobby)
+export const PVP_HARBOR_PROTECT = 4;  // [v95] harbor respawn bubble (AI + boss ignore you; ends early when you fire)
 export const PVP_DEATH_BONUS = 100;   // a sunk pirate drops ALL carried gold + this flat bonus (carrying 0 drops 100; 1000 drops 1100)
 export const PVP_AI_GOLD = 10;        // fallback gold pile of a LOCAL AI ship (harbor, or a lone player in the arena); real value = harborGold(L) below. AI kills never count for K/D / boards
 export const PVP_PILE_LIFE = Infinity; // PvP gold piles never despawn (BANKSY): they float until someone collects them

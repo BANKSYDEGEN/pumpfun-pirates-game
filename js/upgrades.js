@@ -59,6 +59,7 @@ export function newRun() {
 export function shipStats(run, base = BASE_SHIP) {
   const s = { ...base };
   for (const u of UPGRADES) { const lv = run.levels[u.id] || 0; if (lv > 0) { const t = u.tiers[lv - 1]; s[u.stat] = t.value; for (const k of u.extra || []) s[k] = t[k]; } }
+  s.cannonLv = run.levels.cannons || 0; // [v95] (Battle Royale gun rows)
   return s;
 }
 
@@ -71,7 +72,9 @@ export function pvpBoost(s, B = PVP_BOOST, base = BASE_SHIP) {
   const g = (k, m) => base[k] + (s[k] - base[k]) * m, r3 = (v) => Math.round(v * 1000) / 1000;
   s.regenWait = Math.max(6, r3(g('regenWait', B.regen))); s.regenPct = r3(g('regenPct', B.regen));
   s.armor = Math.min(0.5, r3(g('armor', B.armor))); s.speed = r3(g('speed', B.speed)); s.turn = r3(g('turn', B.turn));
-  const bs = base.cannons * base.gunDmg, f = bs + (s.cannons * s.gunDmg - bs) * B.broadside; s.gunDmg = r3(f / s.cannons);
+  // [v95] BANKSY: Battle Royale ships carry 4 + CANNONS level guns a side (12 at VIII: deck, lower ports, rail rows) and every
+  // barrel fires; the broadside damage is unchanged (the boosted guns × gunDmg is just split over more, lighter balls). Waves keeps its own counts.
+  const bs = base.cannons * base.gunDmg, f = bs + (s.cannons * s.gunDmg - bs) * B.broadside; s.cannons = base.cannons + (s.cannonLv | 0); s.gunDmg = r3(f / s.cannons);
   s.reload = Math.max(0.8, r3(g('reload', B.reload))); s.range = Math.round(g('range', B.range));
   return s;
 }

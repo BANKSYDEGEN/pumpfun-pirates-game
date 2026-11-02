@@ -8,7 +8,7 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
-import { setCrewQuality, crewFire, crewHit } from './crew.js'; // [Raul] deck crew · [v87] crew react to hits
+import { setCrewQuality, crewFire, crewHit, crewSteer } from './crew.js'; // [Raul] deck crew · [v87] crew react to hits
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
@@ -297,27 +297,29 @@ function fire(shooter, side, target = null, accuracy = 1) {
     const err = (1 - accuracy) * 14;
     aimPt.x += rnd(-err, err); aimPt.z += rnd(-err, err);
   }
+  const gap = Math.min(0.07, 0.5 / Math.max(1, muzzles.length)); // [v95] ripple fire: up to 12 guns a side still fire within ~0.5 s
   muzzles.forEach((m, i) => {
     const p = new THREE.Vector3(); m.getWorldPosition(p);
-    let v;
+    let v, aimT = 0;
     if (aimPt) {
-      const tx = aimPt.x + (i - (muzzles.length - 1) / 2) * 1.2 - p.x, tz = aimPt.z - p.z;
+      const tx = aimPt.x + (i - (muzzles.length - 1) / 2) * Math.min(1.2, 8.4 / Math.max(1, muzzles.length - 1)) - p.x, tz = aimPt.z - p.z;
       const d = Math.hypot(tx, tz); range = d;
-      const t = Math.max(0.3, d / H);
+      const t = Math.max(0.3, d / H); aimT = t;
       v = new THREE.Vector3(tx / t, (2 - p.y) / t + 0.5 * 20 * t, tz / t);
       // keep the shot roughly on its broadside
       const along = v.x * dir.x + v.z * dir.z;
-      if (along < H * 0.4) v = null;
+      if (along < H * 0.4) { v = null; aimT = 0; }
     }
     if (!v) { const t = range / H; v = dir.clone().multiplyScalar(H).add(vel0); v.y = 0.5 * 20 * t + rnd(-0.6, 0.6); v.x += rnd(-1, 1); v.z += rnd(-1, 1); }
-    const mesh = getBall(); mesh.position.copy(p);
-    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * 0.07 });
-    if (shot) shot.push({ p: p.clone(), v: v.clone(), delay: i * 0.07 }); // [pvp]
-    setTimeout(() => fx.muzzle(p, dir), i * 70);
+    // [v95] the ball is LAUNCHED from its muzzle when its turn in the ripple comes (updateBalls, after this frame's ship moves):
+    // spawning it here left delayed balls hanging where the gun WAS (up to ~8 m behind a ship at full speed) and a frame stale
+    const mesh = getBall(); mesh.position.copy(p); mesh.visible = false;
+    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * gap, muzzle: m, gi: i, side, p0: p.clone(), aimT });
+    if (shot) shot.push({ p: p.clone(), v: v.clone(), delay: i * gap, side, i }); // [pvp]
   });
   const dist = Math.hypot(shooter.x - player.x, shooter.z - player.z);
   if (shot) pvp.onFire(shooter, shot); // [pvp]
-  if (shooter === player) sfx.broadside(muzzles.length); // [Raul] sound upgrades: one boom per gun that fires, CANNONS tier sets the sound
+  if (shooter === player) sfx.broadside(Math.min(8, muzzles.length)); // [Raul] sound upgrades: one boom per gun that fires, CANNONS tier sets the sound
   else sfx.enemyBroadside(muzzles.length, clamp(1 - dist / 220, 0, 1), !!shooter.big);
 }
 
@@ -505,10 +507,22 @@ function updateEnemy(e, dt) {
 
 // ---------- cannonballs ----------
 const G = 20;
+// [v95] place a ball at its muzzle's CURRENT world position (ship already moved / floated this frame). Aimed shots keep their aim
+// point (velocity corrected for the gun's move since the trigger); unaimed ones keep their launch velocity. Muzzle flash here too.
+const _mp = new THREE.Vector3();
+function launchBall(b) {
+  let m = b.muzzle; b.muzzle = null;
+  const live = (o) => { while (o.parent) o = o.parent; return o === scene; };
+  if (!live(m) && b.owner?.mesh) { const L = gunList(b.owner, b.side || 'port'); if (L.length) m = L[(b.gi | 0) % L.length]; } // ship rebuilt (skin / upgrade) mid-ripple: use the new barrel
+  if (m.parent && b.owner?.mesh?.parent) { m.getWorldPosition(_mp); if (b.aimT > 0) { const t = b.aimT; b.v.x += (b.p0.x - _mp.x) / t; b.v.y += (b.p0.y - _mp.y) / t; b.v.z += (b.p0.z - _mp.z) / t; } b.mesh.position.copy(_mp); }
+  b.mesh.visible = true; b.spawnAt = b.mesh.position.clone(); window.PFP_BALL_TAP?.(b);
+  if (b.owner?.mesh) fx.muzzle(b.mesh.position, sideDir(b.owner, b.side || 'port'));
+}
 function updateBalls(dt) {
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
-    if (b.delay > 0) { b.delay -= dt; b.mesh.visible = false; continue; }
+    if (b.delay > 0) { b.delay -= dt; if (b.delay > 0) { b.mesh.visible = false; continue; } }
+    if (b.muzzle) { launchBall(b); continue; } // [v95] appears exactly at the barrel tip this frame, flies from the next
     b.mesh.visible = true;
     b.v.y -= G * dt; b.mesh.position.addScaledVector(b.v, dt); b.life -= dt;
     const p = b.mesh.position;
@@ -1119,6 +1133,7 @@ function frame() {
     healthDrops.update(dt, t, player, escorts.list); // [health drops] bob, blink, pickup
     animateShip(player.mesh, t, player.anchor ? 0 : player.sail / 3);
     for (const e of enemies) animateShip(e.mesh, t + 1.3, e.alive ? 0.8 : 0.3);
+    crewSteer(player.mesh, player.alive ? player.turn : 0, dt); for (const e of enemies) if (e.alive) crewSteer(e.mesh, e.turn, dt); for (const e of escorts.list) if (e.alive) crewSteer(e.mesh, e.turn, dt); // [v95] wheel + captain
     escorts.animate(t, animateShip); // [escorts]
     fx.update(dt, t);
 

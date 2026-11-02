@@ -333,7 +333,7 @@ export function buildShip(opts) {
       parts.add(K.iron, barrel, [cx - sx * 0.35, y + 0.55, z], [0, 0, -sx * Math.PI / 2], [cs * 1.1, cs * 1.25, cs * 1.1]);
       parts.add(K.dark, port, [sx * (w * 1.0 + 0.02), shape.top(t) - 0.5, z]);
       parts.add(K.gold, new RoundedBoxGeometry(0.08, 0.86, 1.04, 1, 0.03), [sx * (w * 1.0 + 0.0), shape.top(t) - 0.5, z]);
-      const m = new THREE.Object3D(); m.position.set(sx * (w + 1.0), y + 0.55, z); body.add(m);
+      const m = new THREE.Object3D(); m.position.set(cx - sx * 0.35 + sx * (1.22 * cs * 1.25 + 0.04), y + 0.55, z); body.add(m); // [v95] AT the barrel tip (was 0.3 m past it)
       muzzles[side].push(m);
       guns.push({ x: cx, y, z, sx });
     }
@@ -403,7 +403,7 @@ export function buildShip(opts) {
   parts.build(body, new Set([K.hull, K.cabin, K.mast, K.iron, K.gold]), boss ? 0.07 : 0.05, shadows);
 
   // [Raul] PUMPFUN PIRATES crew: gunners at every gun + a few walkers in the waist (one draw call, LOD-culled)
-  { const cr = addCrew(ship, { guns, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52) }, boss }); if (cr) body.add(cr); }
+  { const cr = addCrew(ship, { guns, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52) }, boss, helm: { x: 0, y: cabY0 + cabH + 0.15, z: cabZ + cabL / 2 - 0.75 } }); if (cr) body.add(cr); } // [v95] + captain at the wheel
 
   // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
   // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above

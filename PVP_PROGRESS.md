@@ -40,6 +40,17 @@
 - [v94] HARBOR BOSS: one at a time, every 3-5 min of harbor sailing (random; paused while dead / spectating / in the arena). Waves boss
   hull ×1.25 (+ the AI size growth), "☠ HARBOR BOSS" tag, top HP bar, gold-ringed radar dot, banner + horn. Stats = harbor AI at your L
   ×4 HP, ×1.1 damage, 5 / 6 / 7 guns a side (L 0-14 / 15-29 / 30+), +0.05 accuracy, barrages, never flees. Pays ×12 harbor gold (holder ×2).
+- [v95] CANNONS: every ball leaves its own barrel tip. Ripple shots are launched from the muzzle's CURRENT world position on
+  their launch frame (js/main.js launchBall), so moving / turning ships no longer leave balls behind (was up to ~4 m off); aimed
+  shots re-aim from the real tip. Remote balls launch from the rendered remote ship's barrel (shot msg carries side + gun index).
+  Deck + upgraded big-barrel muzzle markers sit at the tips. Damage / range unchanged.
+- [v95] BR/PvP CANNON ROWS: player ships carry 4 + CANNONS level guns a side (12 at Cannons VIII): 4 main-deck, up to 4 lower
+  gun-port barrels, up to 4 rail guns. Every barrel fires; broadside total = v93 boosted total split across the barrels
+  (pvpBoost). Waves keeps its own cannon tiers / ball counts. AI / boss gun counts unchanged.
+- [v95] CAPTAIN at a turning ship's wheel on every ship (merged into the crew mesh, no extra draw call): wheel + arms follow
+  the helm (ship.turn, remote ships too), fist up after a broadside, holds on when hit. Outfit follows the skin. Waves too (visual only).
+- [v95] HARBOR DEATH: lose min(100, gold), big 5-4-3-2-1 countdown, respawn IN THE HARBOR at the spot farthest from AI / the boss
+  with a 4 s bubble (PVP_HARBOR_RESPAWN / PVP_HARBOR_PROTECT). Never the lobby. Arena deaths unchanged.
 - PvP upgrade cost of tier index t = harborKills(t) × harborGold(L ≈ 7t), harborKills(t) = 40 + 10·1.55^t (cheap early, steep top).
 - Hard cap per track: 6 levels (CANNONS 8). Maxed tracks show **MAX VI / MAX VIII** in the shop; more gold buys no power.
 

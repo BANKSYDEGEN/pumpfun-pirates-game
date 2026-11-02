@@ -68,15 +68,24 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK;
+uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer;
 varying vec3 vC; varying vec3 vN; varying vec3 vV;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
 vec3 rotZ(vec3 p, float a){ float c = cos(a), s = sin(a); return vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z); }
 void main(){
   vec3 p = position, n = normal; float role = aInfo.x, sx = aInfo.y, ph = aInfo.z, span = aInfo.w;
-  vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0, look = 0.0;
-  if (role < 0.5) { // gunner beside its cannon, facing outboard
+  vec3 o = aOrigin; float yaw, leg = 0.0, arm = 0.0, lean = 0.0, bob = 0.0, look = 0.0, armB = 0.0;
+  if (aPart > 5.5) { // [v95] the ship's wheel (6) + its pedestal (7), in the captain's frame: no lean / bob; the wheel turns with the helm
+    if (aPart < 6.5) { float wa = -uSteer * 2.4; vec3 pv = vec3(0.0, 0.95, 0.36); p = pv + rotZ(p - pv, wa); n = rotZ(n, wa); }
+    p *= uS; vec4 mvPosition = modelViewMatrix * vec4(p + o, 1.0); vC = color; vN = normalize(normalMatrix * n); vV = -mvPosition.xyz; gl_Position = projectionMatrix * mvPosition;
+    #include <fog_vertex>
+    return;
+  }
+  if (role > 2.5) { // [v95] CAPTAIN at the wheel, facing the bow: hands on the rim, one up / one down with the helm, body leans into the turn
+    yaw = 0.0; arm = -1.28 + 0.38 * uSteer; armB = -1.28 - 0.38 * uSteer; lean = 0.06 + 0.02 * sin(uT * 1.3 + ph);
+    bob = 0.012 * sin(uT * 1.9 + ph);
+  } else if (role < 0.5) { // gunner beside its cannon, facing outboard
     yaw = sx * 1.5708;
     float tf = uT - (sx > 0.0 ? uFireP : uFireS);
     float rec = (tf >= 0.0 && tf < 0.55) ? sin(tf / 0.55 * 3.14159) : 0.0;
@@ -84,7 +93,7 @@ void main(){
     lean = -0.38 * rec + 0.03 * sin(uT * 1.7 + ph);
     arm = -1.3 * rec - 0.9 * abs(load) - 0.15;
     bob = 0.015 * sin(uT * 2.1 + ph);
-  } else if (role > 1.5) { // [v84] spy tower lookout: walks the platform rim, stops, faces the sea, raises the telescope and sweeps it
+  } else if (role > 1.5 && role < 2.5) { // [v84] spy tower lookout: walks the platform rim, stops, faces the sea, raises the telescope and sweeps it
     float T = 10.0, tt = uT + ph * T, u = mod(tt, T), cyc = floor(tt / T);
     float th = ph * 6.2832 + (cyc + smoothstep(0.0, 4.0, u)) * 1.75; // around the rim, a different stretch every stop
     o.x += cos(th) * sx; o.z += sin(th) * sx;
@@ -103,6 +112,8 @@ void main(){
   // pirate, scaled by the hit size (uHitK). Fire: walkers + the lookout sometimes cheer / fist-pump after a broadside.
   float roll = 0.0, hop = 0.0;
   if (role < 0.5) { float tf0 = uT - (sx > 0.0 ? uFireP : uFireS); hop = (tf0 >= 0.0 && tf0 < 0.7) ? sin(tf0 / 0.7 * 3.14159) * 0.16 : 0.0; } // gunner hops back from the recoil
+  else if (role > 2.5) { float tc = uT - max(uFireP, uFireS) - 0.25; // [v95] captain: one fist up after a broadside, the other hand stays on the wheel
+    float ch = smoothstep(0.0, 0.2, tc) * (1.0 - smoothstep(1.0, 1.4, tc)); armB = mix(armB, -2.7 + 0.3 * sin(uT * 14.0), ch); bob += ch * 0.04 * abs(sin(uT * 9.0)); }
   else { float tc = uT - max(uFireP, uFireS) - 0.35 - ph * 0.3, cheer = step(0.45, fract(sin(ph * 91.7 + floor(max(uFireP, uFireS)) * 3.1) * 437.5));
     float ch = cheer * smoothstep(0.0, 0.2, tc) * (1.0 - smoothstep(1.2, 1.6, tc));
     arm = mix(arm, -2.7 + 0.35 * sin(uT * 14.0 + ph * 5.0), ch); leg *= 1.0 - ch; look *= 1.0 - ch; bob += ch * abs(sin(uT * 9.0 + ph)) * 0.08; }
@@ -110,17 +121,19 @@ void main(){
   float hr = (th >= 0.0 && th < 1.4) ? uHitK * smoothstep(0.0, 0.12, th) * (1.0 - smoothstep(0.4, 1.4, th)) : 0.0;
   if (hr > 0.001) {
     roll = hr * 0.32 * sin(th * 13.0 + ph * 6.28); lean += hr * 0.3 * sin(th * 9.0 + ph * 3.0) - hr * 0.15; bob -= hr * 0.16;
-    if (role > 1.5) { look *= 1.0 - min(1.0, hr * 2.0); arm = mix(arm, -1.45, min(1.0, hr * 2.0)); leg *= 1.0 - hr; } // lookout grabs the rail
+    if (role > 2.5) { arm = mix(arm, -1.35, min(1.0, hr * 2.0)); armB = mix(armB, -1.35, min(1.0, hr * 2.0)); leg *= 1.0 - hr; } // [v95] captain hangs on to the wheel
+    else if (role > 1.5) { look *= 1.0 - min(1.0, hr * 2.0); arm = mix(arm, -1.45, min(1.0, hr * 2.0)); leg *= 1.0 - hr; } // lookout grabs the rail
     else { arm = mix(arm, -2.9, min(1.0, hr * 1.6)); leg = mix(leg, 0.35 * sin(th * 12.0 + ph * 4.0), min(1.0, hr * 1.6)); } // arms over the head, stumbling feet
   }
   if (aPart > 0.5 && aPart < 1.5) p = rotX(p, vec3(0.0, 0.36, 0.0), leg);
   else if (aPart > 1.5 && aPart < 2.5) p = rotX(p, vec3(0.0, 0.36, 0.0), -leg);
   else if (aPart > 2.5 && aPart < 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(arm, -2.25, look));
-  else if (aPart > 3.5 && aPart < 4.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(role < 0.5 ? arm : -arm, -1.35, look));
+  else if (aPart > 3.5 && aPart < 4.5) p = rotX(p, vec3(0.0, 0.72, 0.0), role > 2.5 ? armB : mix(role < 0.5 ? arm : -arm, -1.35, look));
   else if (aPart > 4.5) { // telescope: modelled at the eye; held in the right hand (tilted down-forward) until raised
     float ra = mix(arm, -2.25, look) + 2.25, ta = -1.47 * (1.0 - look);
     p = rotX(rotX(p, vec3(0.0, 0.92, 0.25), ta), vec3(0.0, 0.72, 0.0), ra); n = rotX(rotX(n, vec3(0.0), ta), vec3(0.0), ra); }
-  p.z -= hop; p = rotZ(rotX(p, vec3(0.0), lean), roll) * uS * (role > 1.5 ? span : 1.0); n = rotZ(rotX(n, vec3(0.0), lean), roll);
+  if (role > 2.5) roll += -0.12 * uSteer; // [v95] the captain leans into the turn
+  p.z -= hop; p = rotZ(rotX(p, vec3(0.0), lean), roll) * uS * (role > 1.5 && role < 2.5 ? span : 1.0); n = rotZ(rotX(n, vec3(0.0), lean), roll);
   float c = cos(yaw), si = sin(yaw);
   p = vec3(p.x * c + p.z * si, p.y + bob, -p.x * si + p.z * c) + o; n = vec3(n.x * c + n.z * si, n.y, -n.x * si + n.z * c);
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
@@ -141,15 +154,41 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: VERT, fragmentShader: FRAG, fog: true,
   });
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
   return m;
 }
 
+// [v95] the CAPTAIN (red-coat variant 17: eyepatch, black tricorn -> recoloured per skin by dressCrew like the crew) with a
+// long coat, epaulettes and a wider three-cornered brim, plus the ship's wheel (part 6, turns in the shader) on its pedestal (7).
+let _cap = null;
+function captainGeo() {
+  if (_cap) return _cap;
+  const out = [pirate(17).clone()];
+  const add = (g, col, part, p = [0, 0, 0], rot = [0, 0, 0], s = [1, 1, 1]) => {
+    g = g.index ? g.toNonIndexed() : g;
+    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(...s)));
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(new Float32Array(n).fill(part), 1)); out.push(g);
+  };
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), cyl = (a, b, h, s = 8) => new THREE.CylinderGeometry(a, b, h, s);
+  add(box(0.38, 0.34, 0.05), COAT[0], 0, [0, 0.26, -0.13], [0.12, 0, 0]);                       // long coat tails
+  for (const sx of [1, -1]) { add(box(0.12, 0.05, 0.14), BELT, 0, [sx * 0.2, 0.76, 0]); add(box(0.04, 0.4, 0.02), BELT, 0, [sx * 0.1, 0.56, 0.125]); } // epaulettes + lapels
+  for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + Math.PI / 3; add(box(0.3, 0.05, 0.16), HAT_BRIM[0], 0, [Math.sin(a) * 0.24, 1.13, Math.cos(a) * 0.24], [0.35, a, 0]); } // tricorn corners, turned up
+  // the wheel: rim + 8 spokes with handles + hub, in the XY plane at z 0.36 (just past the hands)
+  const wy = 0.95, wz = 0.36, R = 0.42;
+  add(new THREE.TorusGeometry(R, 0.035, 5, 18), WOOD, 6, [0, wy, wz]);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; add(cyl(0.018, 0.018, R * 2 + 0.24, 4), WOOD, 6, [0, wy, wz], [0, 0, a]); }
+  add(cyl(0.07, 0.07, 0.1, 8), BRASS, 6, [0, wy, wz], [Math.PI / 2, 0, 0]);
+  add(box(0.16, wy - 0.05, 0.16), WOOD, 7, [0, (wy - 0.05) / 2, wz + 0.12]);                   // pedestal + axle housing
+  add(box(0.12, 0.12, 0.14), DARK, 7, [0, wy, wz + 0.1]);
+  _cap = mergeGeometries(out, false); out.slice(1).forEach(o => o.dispose()); return _cap;
+}
 // ship: buildShip group. gunSlots: [{x, y, z, sx}] gun positions on the deck (body space). deck: {z0, z1, y, x}
-export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
+export function addCrew(ship, { guns = [], walk = null, boss = false, helm = null } = {}) {
   // [v82] phones + LOW keep a gunner at EVERY cannon (BANKSY). Cheap tier: gunners only (no walkers), the same single
   // merged draw call per ship, no shadows; desktop Medium keeps one gunner per gun pair.
   const lite = Q === 'low', med = PHONE || Q === 'medium';
@@ -157,8 +196,9 @@ export function addCrew(ship, { guns = [], walk = null, boss = false } = {}) {
   const gun = med && !PHONE && !lite ? guns.filter((g, i) => i % 2 === 0) : guns;
   for (const g of gun) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.55], info: [0, g.sx, hash(k * 3.3), 0] });
   if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
+  if (helm) crew.push({ v: 17, cap: true, o: [helm.x, helm.y, helm.z - 0.36 * (boss ? 1.6 : 1.35)], info: [3, 0, hash(helm.z * 3.7), 0] }); // [v95] captain at the wheel
   if (!crew.length) return null;
-  const parts = crew.map(c => { const g = pirate(c.v % 12).clone(), n = g.attributes.position.count;
+  const parts = crew.map(c => { const g = (c.cap ? captainGeo() : pirate(c.v % 12)).clone(), n = g.attributes.position.count;
     const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
     g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4)); return g; });
   const geo = mergeGeometries(parts, false); parts.forEach(p => p.dispose());
@@ -279,4 +319,7 @@ function crewU(mesh) { const ud = mesh?.userData; if (!ud) return null; if (ud.c
   if (U) ud.crew = U; return U; }
 export function crewHit(mesh, k = 0.5) { const U = crewU(mesh); if (!U?.uHit) return; const t = wind.uTime.value, run = t - U.uHit.value < 0.5 ? U.uHitK.value : 0;
   U.uHit.value = t; U.uHitK.value = Math.min(1, Math.max(0.35, k, run)); }
+// [v95] helm input (-1..1, ship.turn) -> the wheel + captain, smoothed (every ship: yours, AI, remote pirates)
+export function crewSteer(mesh, turn, dt) { const U = crewU(mesh); if (!U?.uSteer) return; const t = Math.max(-1, Math.min(1, -(turn || 0)));
+  U.uSteer.value += (t - U.uSteer.value) * Math.min(1, dt * 6); }
 export function crewFire(mesh, side) { const U = crewU(mesh); if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }
