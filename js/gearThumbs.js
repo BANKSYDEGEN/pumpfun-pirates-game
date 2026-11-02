@@ -32,7 +32,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
 function frameOf(slot, o) { const F = FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
   return side === 'L' ? { c: [-F.c[0], F.c[1], F.c[2]], d: [-F.d[0], F.d[1], F.d[2]], r: F.r } : F; }
 const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin || 'classic') : '', slot === 'hat' ? (o.hatColor | 0) : '', slot === 'hook' ? (o.hookSide === 'L' ? 'L' : 'R') : '',
-  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0].join('|');
+  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0].join('|');
 const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}`;
 const TW = 200, TH = 102;   // the shop card swatch is 150 x 76 (css .ishop-sw), drawn at ~1.33x
 const cache = new Map();   // key -> dataURL
@@ -51,7 +51,7 @@ function setup(lod) {
   const rim = new THREE.DirectionalLight(0xbfd8ff, 0.9); rim.position.set(-2, 2, -3); scene.add(rim);
   cam = new THREE.PerspectiveCamera(28, 1, 0.05, 20);
   const t0 = performance.now();
-  figP = new Promise((res) => { fig = pirateFigure({ look: { skin: 0, hair: 0 }, low: (lod || (LOW ? 'lo' : 'hi')) === 'lo', height: 1.75, clip: 'idle', onReady: (p) => { thumbStats.firstReadyMs = Math.round(performance.now() - t0); res(p); } }); scene.add(fig); });
+  figP = new Promise((res) => { fig = pirateFigure({ bodyFromGear: true, look: { skin: 0, hair: 0 }, low: (lod || (LOW ? 'lo' : 'hi')) === 'lo', height: 1.75, clip: 'idle', onReady: (p) => { thumbStats.firstReadyMs = Math.round(performance.now() - t0); res(p); } }); scene.add(fig); });
   return figP;
 }
 function release() { if (!R || performance.now() - idleT < 15000 || queue.length || LIVE.size) return;
@@ -78,7 +78,7 @@ function mapScroll() {
 
 const dressKey = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}`;
 async function dressFor(slot, id, o) {
-  await applyGear(fig, normalizeGear({ [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0 }), slot === 'outfit' ? { skin: o.skin || 'classic' } : null);
+  await applyGear(fig, normalizeGear({ [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0 }), slot === 'outfit' ? { skin: o.skin || 'classic' } : null);
   fig.userData.thumbKey = dressKey(slot, id, o);
 }
 async function renderOne(slot, id, o) {
@@ -89,7 +89,7 @@ async function renderOne(slot, id, o) {
     if (scroll) scroll.visible = false; fig.visible = true;
     const td = performance.now(); await dressFor(slot, id, o); thumbStats.dressMs.push(Math.round((performance.now() - td) * 10) / 10);
     await new Promise((r) => requestAnimationFrame(r));   // dress and draw in separate frames (each stays short)
-    p.mixer?.setTime(0.35); fig.updateMatrixWorld(true);
+    (fig.userData.v4 || p).mixer?.setTime(0.35); fig.updateMatrixWorld(true); // [v112] the body may have been swapped (BODY pick)
     const F = frameOf(slot, o), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
   }

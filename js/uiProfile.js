@@ -29,6 +29,7 @@ function build() {
     <section class="pf-sec pf-crypto pf-br" id="pf-boost"><h4>LINK WALLET <em>Battle Royale · holder 2× gold</em></h4>
       <p class="pf-note">The signed link saves your Battle Royale progress to the wallet; holders of $SUNK / $AHOY get 2× gold. Only this signed link counts for the boost.</p>
       <button id="pf-link" type="button" class="pvp-btn">LINK WALLET</button><small id="pf-link-state" class="pf-note"></small></section>
+    <section class="pf-sec pf-br" id="pf-brmenu"><button id="pf-brmenu-btn" type="button" class="pvp-btn">NAME · SCOREBOARD · SKINS</button></section><!-- [v112] was in ⚙ settings -->
     <section class="pf-sec" id="pf-acct"></section><!-- [v106] ACCOUNT: set password / log in / change / log out (js/accountUi.js) -->
   </div>`;
   document.body.appendChild(root);
@@ -49,6 +50,7 @@ function build() {
   for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) root.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
   root.addEventListener('keydown', (e) => e.stopPropagation()); // typing an address never steers / fires
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && isProfileOpen()) { e.stopPropagation(); e.preventDefault(); closeProfile(); } }, true);
+  if ($('pf-brmenu-btn')) $('pf-brmenu-btn').onclick = () => { if (!isBR()) return; $('pf-x')?.click(); setTimeout(() => window.PFP.pvp.toggleMenu?.(true), 0); }; // [v112] the BR menu (name, scoreboard, skins) left ⚙ settings
   if ($('pf-link')) $('pf-link').onclick = () => { if (!isBR()) return; window.PFP.pvp.renderMenu?.(); $('pvp-wallet')?.click();
     clearInterval(renderBR.t); let n = 0; renderBR.t = setInterval(() => { renderBR(); if (++n > 240 || !isProfileOpen()) clearInterval(renderBR.t); }, 500); };
 }

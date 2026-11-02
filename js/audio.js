@@ -229,13 +229,25 @@ function boomSample(t, v, dist, P) {
 const VOICE_CAP = 8; let liveVoices = 0;
 let crewLevel = 0, audioQ = { phone: false, lite: false };
 export function setAudioQuality(q = {}) { audioQ = { ...audioQ, ...q }; }
-const myVoice = (() => { try { let g = localStorage.getItem('pfp_voice'); if (g !== 'm' && g !== 'f') { g = Math.random() < 0.5 ? 'm' : 'f'; localStorage.setItem('pfp_voice', g); } return g; } catch { return 'm'; } })();
+// [v112] your own callouts use the voice of your BODY pick (pirateGear look 'body': 0 male = default, 1 female), live on change
+let myVoice = (() => { try { return JSON.parse(localStorage.getItem('pfp_captain_v1') || 'null')?.body === 1 ? 'f' : 'm'; } catch { return 'm'; } })();
+if (typeof window !== 'undefined') addEventListener('pfp-gear-local', (e) => { const b = e.detail?.body; if (b === 0 || b === 1) myVoice = b ? 'f' : 'm'; });
 // quick-chat line -> recorded key(s), first one with loaded takes wins (Attack! falls back to the Fire! takes)
 const LINE_KEY = { 0: ['arr'], 1: ['follow'], 2: ['boss'], 3: ['help'], 4: ['attack', 'fire'], 5: ['retreat'], 6: ['gg'], 7: ['laugh'] };
 const STACK = { arr: 1, fire: 1, attack: 1, laugh: 1 }; // the whole crew joins these; the others are the captain's call (1 voice)
 const crewSize = () => { const n = [1, 2, 2, 3, 4, 5, 6][Math.max(0, Math.min(6, crewLevel | 0))]; return Math.min(n, audioQ.lite ? 2 : audioQ.phone ? 3 : 6); };
 const SPREAD = [0, -0.45, 0.4, -0.7, 0.7, -0.2];
 // play one stacked callout. key = 'arr' | 'fire' | 'laugh'; n voices; lead = 'm' | 'f'; v = volume
+// [v112] round 6 re-trimmed takes came in 3-8 dB quieter than v110's (fire_male_2 -24.5 dB mean vs -16.8): emotes drowned under sea + music.
+// Level every voice take to one speech loudness at decode time (gated RMS over the speech frames), peak-safe, so a quiet take can't vanish again.
+const _vNorm = new WeakMap(), V_TARGET = 0.16;
+function voiceNorm(buf) {
+  let g = _vNorm.get(buf); if (g) return g;
+  const d = buf.getChannelData(0), F = 1024; let e = 0, nf = 0, pk = 0;
+  for (let i = 0; i + F <= d.length; i += F) { let s = 0; for (let j = i; j < i + F; j++) { const x = d[j]; s += x * x; const a = x < 0 ? -x : x; if (a > pk) pk = a; } s /= F; if (s > 1e-4) { e += s; nf++; } } // frames above -40 dBFS only
+  const rms = nf ? Math.sqrt(e / nf) : V_TARGET;
+  g = Math.max(1, Math.min(3, V_TARGET / rms, pk > 0 ? 1 / pk : 3)); _vNorm.set(buf, g); return g;
+}
 function crewCall(key, n, lead, v, rate0 = 1) {
   const kM = key + 'M', kF = key + 'F'; if (!has(kM) && !has(kF)) return false;
   const comp = Math.sqrt(Math.pow(n, Math.log(2) / Math.log(6)) / n); // 1 -> 6 voices grows ~+3 LU, not +8
@@ -247,7 +259,7 @@ function crewCall(key, n, lead, v, rate0 = 1) {
     if (i === 1 || i === 2) tt = t0 + 0.02 + Math.random() * 0.06; else if (i > 2) tt = t0 + 0.08 + Math.random() * 0.05;
     const rate = (i === 0 ? rate0 : 1 + (Math.random() * 2 - 1) * 0.03);
     liveVoices++; played++;
-    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0 /* v105: the v101 laugh takes kept (3.5 dB louder on phones than the round-4 trims), so their 2.1 s fade too */, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
+    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * voiceNorm(buf) * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0 /* v105: the v101 laugh takes kept (3.5 dB louder on phones than the round-4 trims), so their 2.1 s fade too */, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
   }
   return played > 0;
 }
@@ -665,4 +677,4 @@ export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100,
 }
 
 // test hook (headless checks): sample load state + a tap point; no effect on play
-export const audioDebug = () => ({ ctx, master, musicBus, loaded: Object.keys(bufs), want: Object.values(SAMPLES).flat().length, liveVoices, noSamples: NO_SAMPLES, lvl: LVL });
+export const audioDebug = () => ({ ctx, master, musicBus, myVoice, loaded: Object.keys(bufs), want: Object.values(SAMPLES).flat().length, liveVoices, noSamples: NO_SAMPLES, lvl: LVL });

@@ -37,7 +37,16 @@ export function openGearColorPicker({ kind = 'hat', onPick = null, onClose = nul
     r.style.cssText = 'display:block;margin:0 auto 8px;padding:6px 14px;border-radius:8px;border:2px solid #e9b949;background:transparent;color:#fff2c4;font:inherit;cursor:pointer;min-height:36px';
     r.onclick = (e) => { e.stopPropagation(); setLocalGear({ outfitColor: 0 }); box.querySelectorAll('[data-outfit-color]').forEach((b, k) => { b.style.borderColor = k === 0 ? '#e9b949' : 'transparent'; b.setAttribute('aria-pressed', String(k === 0)); }); try { onPick?.('outfitColor', 0); } catch {} };
     box.append(r);
-  } else if (kind === 'look') { section(title || 'SKIN TONE', 'skinColor', [['DEFAULT', BASE_SKIN], ...SKIN_SWATCHES]); section('HAIR + BEARD', 'hairColor', [['DEFAULT', BASE_HAIR], ...HAIR_SWATCHES]); }
+  } else if (kind === 'look') {
+    // [v112] BANKSY: BODY pick, Male / Female (free, any time; your pirate + captain re-bake live, gear stays on; your own voice follows it)
+    const h = document.createElement('div'); h.style.cssText = 'letter-spacing:.08em;margin:2px 0 8px;text-align:center'; h.textContent = 'BODY';
+    const row = document.createElement('div'); row.className = 'pfp-body-pick'; row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px';
+    const bb = [['♂ MALE', 0], ['♀ FEMALE', 1]].map(([name, v]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.body = String(v); b.textContent = name;
+      b.style.cssText = 'padding:10px 4px;border-radius:8px;cursor:pointer;background:#1a0f08;color:inherit;font:inherit;font-size:12px;border:2px solid transparent;min-height:44px';
+      b.onclick = (e) => { e.stopPropagation(); setLocalGear({ body: v }); markB(v); try { onPick?.('body', v); } catch (err) { console.warn(err); } }; row.appendChild(b); return b; });
+    const markB = (v) => bb.forEach((b, k) => { b.style.borderColor = k === v ? '#e9b949' : 'transparent'; b.setAttribute('aria-pressed', String(k === v)); });
+    markB(g.body | 0); box.append(h, row);
+    section(title || 'SKIN TONE', 'skinColor', [['DEFAULT', BASE_SKIN], ...SKIN_SWATCHES]); section('HAIR + BEARD', 'hairColor', [['DEFAULT', BASE_HAIR], ...HAIR_SWATCHES]); }
   else section(title || 'HAT COLOUR', 'hatColor', [['DEFAULT', hatColorHex(hat, 0)], ...HAT_SWATCHES]);
   const done = document.createElement('button'); done.type = 'button'; done.textContent = 'DONE';
   done.style.cssText = 'display:block;margin:4px auto 0;padding:8px 26px;border-radius:8px;border:0;background:#e9b949;color:#2a1a0e;font:inherit;cursor:pointer;min-height:40px';

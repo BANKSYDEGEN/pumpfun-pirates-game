@@ -9,7 +9,7 @@
 //  - cheap: one v4 Low pirate each (2 draw calls + their gear), hidden beyond 70 m, no per-frame allocation
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
-import { applyGear, getLocalGear, getLocalColors } from '../pirateGear.js';
+import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
@@ -27,10 +27,18 @@ export function createFollowers({ scene, world, walker, low }) {
     const p = loadPirate({ look: LOOKS[i], low: true, outline: false }); applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
     crew.push({ p, x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
   }
-  function redress() { const w = want(); if (w.k === cur.k) return; cur = w; gear = w.g; for (const c of crew) applyGear(c.p.object, w.g, w.c); }
+  // [v112] BANKSY "why are my crew members shirtless": a dress that failed once (gear library / item load error, or a dress started
+  // before the pirate GLB arrived and lost) was never retried, because the wanted gear key hadn't changed. Now every check also looks
+  // at what each follower ACTUALLY wears and re-dresses the ones that are off (failed = gearKey null, or holding other gear).
+  const gk = (g) => JSON.stringify(g && [g.hat, g.outfit, g.hatColor | 0, g.outfitColor | 0]);
+  function redress(force = false) { const w = want(), changed = w.k !== cur.k; cur = w; gear = w.g;
+    for (const c of crew) { const r = c.p.object, v = r.userData?.v4 || null; let fig = v; if (!fig) r.traverse((o) => { if (!fig && o.userData?.v4) fig = o.userData.v4; });
+      const off = gk(r.userData?.gear) !== gk(normalizeGear(w.g)) || (fig && !fig.gearKey && w.g !== NAKED);
+      if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); } } }
   addEventListener('pfp-gear', () => setTimeout(redress, 0)); // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
+    redress(true); // [v112] going ashore always re-dresses the crew in your current gear
     const W = walker.w; trail.length = 0; trailLen = 0; lastJumps = W.jumps;
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground

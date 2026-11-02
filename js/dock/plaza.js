@@ -59,13 +59,15 @@ export function createPlaza({ world, ctx = {} }) {
   // ---- token prices on the billboards' live strip (shared atlas), DexScreener tokens API, every 2 min ----
   const TOK = ISLAND_TOKENS.map(t => ({ ...t, chart: t.dex, pair: null }));
   const fmtP = (v) => { const n = +v; if (!n) return '—'; return n >= 1 ? '$' + n.toFixed(2) : n >= 0.01 ? '$' + n.toFixed(4) : '$' + n.toPrecision(3); };
+  // [v112] BANKSY: "on token boards show mc not price": DexScreener marketCap (fdv when missing), short: MC $123.4K / MC $1.2M
+  const fmtMC = (p) => { const n = +(p?.marketCap || p?.fdv || 0); if (!(n > 0)) return 'MC —'; const [d, u] = n >= 1e9 ? [1e9, 'B'] : n >= 1e6 ? [1e6, 'M'] : n >= 1e3 ? [1e3, 'K'] : [1, '']; const v = n / d; return 'MC $' + (u ? (v >= 100 ? v.toFixed(0) : v.toFixed(1)) : v.toFixed(0)) + u; };
   let lastTok = 0;
   async function refreshTokens() { lastTok = performance.now();
     await Promise.all(TOK.map(async (t) => { try {
       const j = await (await fetch('https://api.dexscreener.com/latest/dex/tokens/' + t.ca)).json();
       const p = (j.pairs || []).filter(q => q.chainId === 'solana').sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0]; if (!p) throw new Error('no pair');
       t.pair = p; if (!t.chart) t.chart = p.url; const ch = +(p.priceChange?.h24 ?? 0);
-      world.atlas?.drawTokenBoard(t.sym, [fmtP(p.priceUsd), `${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h`, ch >= 0 ? '#7cff6b' : '#ff6b6b']);
+      world.atlas?.drawTokenBoard(t.sym, [fmtMC(p), `${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h`, ch >= 0 ? '#7cff6b' : '#ff6b6b']);
     } catch { if (!t.pair) world.atlas?.drawTokenBoard(t.sym, ['$' + t.sym, 'press E · CA + chart']); } }));
     if (panel.dataset.sym) showToken(panel.dataset.sym); }
   // ---- the panel (full leaderboard / token CA) ----
@@ -93,7 +95,7 @@ export function createPlaza({ world, ctx = {} }) {
     panel.innerHTML = `${head(esc(t.title || '$' + t.sym), t.color)}
       <div class="pz-tabs">${TOK.map(q => `<button type="button" data-sym="${q.sym}" class="${q.sym === t.sym ? 'on' : ''}" style="--pz:${q.color}">${esc(q.title || '$' + q.sym)}</button>`).join('')}</div>
       <div class="pz-logo-row">${logo}</div>
-      <div class="pz-price">${p ? `${fmtP(p.priceUsd)} <span style="color:${ch >= 0 ? '#7cff6b' : '#ff6b6b'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h</span>` : 'price loading…'}</div>
+      <div class="pz-price">${p ? `${fmtMC(p)} <span style="color:${ch >= 0 ? '#7cff6b' : '#ff6b6b'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h</span>` : 'market cap loading…'}</div>
       <div class="pz-ca"><code title="${esc(t.ca)}"><span class="pz-ca-full">${esc(t.ca)}</span><span class="pz-ca-short">${esc(t.ca.slice(0, 4) + '…' + t.ca.slice(-4))}</span></code><button type="button" class="pz-copy">COPY CA</button></div>
       <div class="pz-row"><a class="pz-go" href="${esc(chart)}" target="_blank" rel="noopener">OPEN CHART ON DEXSCREENER ▸</a></div>`;
     panel.querySelector('.pz-x').onclick = close;

@@ -57,7 +57,7 @@ export const CLOTH_SWATCHES = Object.freeze([
   ['PURPLE', '#7a3fb0'], ['PINK', '#ff5fa2'], ['ORANGE', '#ff7a1a'], ['GOLD', '#e9b949'], ['WHITE', '#f4f1e8'], ['BLACK', '#1c1c20'],
 ]);
 // the free, per-player look that rides with the gear (not sold, not in the server profile): hat colour, hook / peg side, skin, hair
-export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor'];
+export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor', 'body']; // [v112] body: 0 = male (default, every old save), 1 = female
 // the clothes colours for this gear: the ship skin's (colors.skin) unless the player picked a clothes colour (trim stays the skin's)
 export const clothColors = (gear, colors) => (gear?.outfitColor > 0 && CLOTH_SWATCHES[gear.outfitColor - 1] ? { ...(colors || {}), cloth: CLOTH_SWATCHES[gear.outfitColor - 1][1] } : colors);
 const pickLook = (g) => Object.fromEntries(LOOK_KEYS.map((k) => [k, g[k]]));
@@ -121,7 +121,7 @@ const OUTFITS = {
 
 const clampIx = (v, n) => { const i = Math.floor(+v); return Number.isFinite(i) && i >= 0 && i <= n ? i : 0; };
 export function normalizeGear(g) {
-  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0 };
+  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0 };
   for (const k of Object.keys(GEAR_DEFAULTS)) if (typeof s[k] === 'string' && s[k]) o[k] = s[k];
   if (s.eyes == null && typeof s.face === 'string' && s.face !== 'plain') o.eyes = s.face;     // creator 'face' = shop 'eyes'
   if (s.eyepatch === true) o.eyes = 'eyepatch';
@@ -130,10 +130,11 @@ export function normalizeGear(g) {
   o.hatColor = clampIx(s.hatColor, HAT_SWATCHES.length);
   if (s.hookSide === 'L' || s.hookSide === 'R') o.hookSide = s.hookSide; if (s.legSide === 'L' || s.legSide === 'R') o.legSide = s.legSide;   // old saves: R
   o.skinColor = clampIx(s.skinColor, SKIN_SWATCHES.length); o.hairColor = clampIx(s.hairColor, HAIR_SWATCHES.length); o.outfitColor = clampIx(s.outfitColor, CLOTH_SWATCHES.length);
+  o.body = s.body === 1 || s.body === '1' || s.body === 'f' || s.body === true ? 1 : 0;
   return o;
 }
 const gearKey = (g) => Object.keys(GEAR_DEFAULTS).map((k) => g[k]).join('|') + '|' + LOOK_KEYS.map((k) => g[k] ?? '').join('|');
-export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gearRenders(k, g?.[k])) && !(g?.skinColor > 0) && !(g?.hairColor > 0);
+export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gearRenders(k, g?.[k])) && !(g?.skinColor > 0) && !(g?.hairColor > 0) && !(g?.body > 0);
 
 // ---------- network: the equipped gear as ONE short string ('gr' in the PvP / harbor state, js/transport.js STATIC) ----------
 // Base-36 digits: one per slot in WIRE_SLOTS order = 1 + the index in GEAR_RENDERS[slot] (0 = default), then the hat colour
@@ -146,7 +147,7 @@ export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gea
 export const WIRE_SLOTS = ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'];
 const WIRE_LEN = WIRE_SLOTS.length + 5;
 export function gearToWire(gear) {
-  const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0);
+  const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0) + (g.body ? 4 : 0); // [v112] bit 4 = female body (same digit: no longer string, old clients just see a male)
   return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
 }
 export function gearFromWire(w) {
@@ -154,7 +155,7 @@ export function gearFromWire(w) {
   if (typeof w !== 'string' || w.length > WIRE_LEN || !/^[0-9a-z]*$/.test(w)) return g;
   const d = (i) => (i < w.length ? parseInt(w[i], 36) : 0), n = WIRE_SLOTS.length;
   WIRE_SLOTS.forEach((k, i) => { const v = d(i); if (v > 0 && v <= GEAR_RENDERS[k].length) g[k] = GEAR_RENDERS[k][v - 1]; });
-  g.hatColor = clampIx(d(n), HAT_SWATCHES.length); const sd = d(n + 1) <= 3 ? d(n + 1) : 0; g.hookSide = sd & 1 ? 'L' : 'R'; g.legSide = sd & 2 ? 'L' : 'R';
+  g.hatColor = clampIx(d(n), HAT_SWATCHES.length); const sd = d(n + 1) <= 7 ? d(n + 1) : 0; g.hookSide = sd & 1 ? 'L' : 'R'; g.legSide = sd & 2 ? 'L' : 'R'; g.body = sd & 4 ? 1 : 0;
   g.skinColor = clampIx(d(n + 2), SKIN_SWATCHES.length); g.hairColor = clampIx(d(n + 3), HAIR_SWATCHES.length); g.outfitColor = clampIx(d(n + 4), CLOTH_SWATCHES.length);
   return g;
 }
@@ -226,7 +227,7 @@ function loadLib(lod) {
       out[nm.replace(/\.\d+$/, '')] = { pos, nrm, col, key, n };
     });
     return out;
-  }));
+  }).catch((e) => { delete _libs[lod]; throw e; })); // [v112] a failed load (network hiccup) is retried next time, not cached forever
 }
 
 // ---------- shared bits ----------
@@ -465,10 +466,13 @@ function dress(p, gear, colors) {
 export function applyGear(target, gear, colors = null) {
   const g = normalizeGear(gear), r = rootOf(target), p = pirateOf(target);
   if (r) { r.userData.gear = g; r.userData.gearColors = colors; }
+  // [v112] a PLAYER figure (pirateFigure bodyFromGear) wearing the other body: re-build it as male / female, dressed on ready (gear + colours kept)
+  let fig = null; if (r) r.traverse((o) => { if (!fig && o.userData?.setBody && o.userData.bodyFromGear) fig = o; });
+  if (fig) { fig.userData.gear = g; fig.userData.gearColors = colors; const sw = fig.userData.setBody(g.body === 1); if (sw) return sw.then(() => fig.userData.v4?.gearMesh || null); }
   if (p) return dress(p, g, clothColors(g, colors));
   return Promise.resolve(null);   // pirateFigure() applies r.userData.gear when its GLB is ready
 }
 // pirateFigure hook: called once the v4 GLB is in
-export function gearOnReady(root, p) { const g = root.userData.gear; if (g) dress(p, g, clothColors(g, root.userData.gearColors)); }
+export function gearOnReady(root, p) { const g = root.userData.gear; return g ? dress(p, g, clothColors(g, root.userData.gearColors)) : null; }
 
 window.PFP_GEAR = { applyGear, setBodyLook, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, setLocalGear, setLocalSkin, getLocalGear, getLocalColors, outfitColors, HAT_SWATCHES, PARROTS, gearRenders, normalizeGear, gearToWire, gearFromWire, GEAR_RENDERS, GEAR_DEFAULTS };

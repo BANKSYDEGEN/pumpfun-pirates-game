@@ -18,18 +18,27 @@ const HAIR = ['#2b1b12', '#4a2c17', '#161616', '#8a5a2b', '#c9a25a'];
 export const lookColors = (look = {}) => ({ skin: SKIN[(look.skin || 0) % SKIN.length], hair: HAIR[(look.hair || 0) % HAIR.length] });
 
 // opts: { look, low, height (m), clip, female, onReady(p), gear ({ hat, outfit, eyes, parrot, hook, hatColor }, see js/pirateGear.js), gearColors ({ skin }), local }
-export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'idle', female = !!look.female, onReady = null, gear = null, local = false, gearColors = null } = {}) {
+// [v112] bodyFromGear: this figure is a PLAYER (yours, a remote player's captain / on-foot pirate, the shop thumbs): its body
+// (male / female) = gear.body, the free BODY pick, and applyGear swaps it live (js/pirateGear.js). Crew + followers keep their seat look.
+export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'idle', female = !!look.female, onReady = null, gear = null, local = false, gearColors = null, bodyFromGear = local } = {}) {
   const root = new THREE.Group(); root.name = 'pirate-v4'; root.userData.v4 = null;
   if (gear) { root.userData.gear = normalizeGear(gear); root.userData.gearColors = local ? getLocalColors() : gearColors; } if (local) markLocal(root);
-  PirateGLB.create({ female, lod: low ? 'lo' : 'hi', colors: lookColors(look) }).then((p) => {
-    if (root.userData.disposed) return;
-    const box = new THREE.Box3().setFromObject(p.root), h = Math.max(0.01, box.max.y - box.min.y);
-    p.root.scale.setScalar(height / h); p.root.position.y = -box.min.y * height / h;
-    p.root.traverse((o) => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
-    p.play(clip, { fade: 0 }); root.add(p.root); root.userData.v4 = p; LIVE.add(p);
-    gearOnReady(root, p);
-    onReady?.(p);
-  }).catch((e) => console.warn('[pirates] v4 GLB failed, keeping the fallback', e));
+  root.userData.bodyFromGear = bodyFromGear;
+  let ticket = 0;
+  const build = (fem) => { const tk = ++ticket; root.userData.bodyF = fem;
+    return PirateGLB.create({ female: fem, lod: low ? 'lo' : 'hi', colors: lookColors(look) }).then((p) => {
+      if (root.userData.disposed || tk !== ticket) { try { p.dispose?.(); } catch {} return null; }   // a newer pick won
+      const box = new THREE.Box3().setFromObject(p.root), h = Math.max(0.01, box.max.y - box.min.y);
+      p.root.scale.setScalar(height / h); p.root.position.y = -box.min.y * height / h;
+      p.root.traverse((o) => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
+      const old = root.userData.v4; p.play(old?.clip || clip, { fade: 0 }); root.add(p.root); root.userData.v4 = p; LIVE.add(p);
+      if (old) { LIVE.delete(old); old.root.removeFromParent(); try { old.dispose?.(); } catch {} }   // the old body goes once the new one is in (no blank frame)
+      const dressed = gearOnReady(root, p);
+      onReady?.(p);
+      return Promise.resolve(dressed).then(() => p);
+    }).catch((e) => { console.warn('[pirates] v4 GLB failed, keeping the fallback', e); return null; }); };
+  root.userData.setBody = (fem) => (root.userData.bodyF === !!fem ? null : build(!!fem));
+  build(bodyFromGear && root.userData.gear ? root.userData.gear.body === 1 : female);
   root.userData.dispose = () => { root.userData.disposed = true; if (root.userData.v4) LIVE.delete(root.userData.v4); };
   return root;
 }
@@ -39,4 +48,4 @@ export function tickPirates(dt) { for (const p of LIVE) { if (!inScene(p.root)) 
 // gear: captain.gear ({ hat, outfit, eyes, parrot, hook, hatColor }), captain.skin = their ship skin (clothes colours); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
 // captain.remote = another player's captain (Low LOD everywhere: 2 draw calls + 1 for the gear)
 export const buildCaptainV4 = (low) => (captain) => pirateFigure({ look: captain?.look || captain || {}, low: low || !!captain?.remote, height: 2.1, clip: 'steer',
-  gear: captain?.local ? getLocalGear() : (captain?.gear || null), gearColors: captain?.skin ? { skin: captain.skin } : null, local: !!captain?.local });
+  gear: captain?.local ? getLocalGear() : (captain?.gear || null), gearColors: captain?.skin ? { skin: captain.skin } : null, local: !!captain?.local, bodyFromGear: !!(captain?.local || captain?.gear) });

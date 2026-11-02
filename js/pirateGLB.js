@@ -26,7 +26,7 @@ function loader() {
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {
-  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href));
+  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).catch((e) => { _cache.delete(url); throw e; })); // [v112] retry a failed load next time
   return _cache.get(url);
 }
 let _grad = null;

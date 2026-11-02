@@ -34,7 +34,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
     const ft = Array.isArray(m.ft) && m.ft.length === 4 && m.ft.every(Number.isFinite) ? m.ft : null;
     if (ft) {
       if (!p) { if (peers.size >= maxPeers) return moved; const look = { skin: [...m.i].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: m.i.charCodeAt(m.i.length - 1) % 5 };
-        const pirate = loadPirate({ look, low }); scene.add(pirate.object); p = { id: m.i, pirate, gw: null, tag: null, x: ft[0], z: ft[1], yaw: ft[2] / 100, tx: ft[0], tz: ft[1], tyaw: ft[2] / 100, speed: 0, heard: 0, name: '' }; peers.set(m.i, p); }
+        const pirate = loadPirate({ look, low, bodyFromGear: true }); /* [v112] their BODY pick rides in 'gr' */ scene.add(pirate.object); p = { id: m.i, pirate, gw: null, tag: null, x: ft[0], z: ft[1], yaw: ft[2] / 100, tx: ft[0], tz: ft[1], tyaw: ft[2] / 100, speed: 0, heard: 0, name: '' }; peers.set(m.i, p); }
       if (Number.isFinite(m.fj) && m.fj !== p.fj) { if (p.fj !== undefined) p.jt = performance.now(); p.fj = m.fj; } // [v106] they jumped: play the arc here
       const gw = cleanWire(m.gr), sk = knownGearSkin(m.sk) ? m.sk : 'classic', gk = gw + '|' + sk; if (gk !== p.gw) { p.gw = gk; applyGear(p.pirate, gearFromWire(gw), { skin: sk }); } // validated; missing = shirtless; clothes = their ship skin ('sk')
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();

@@ -176,3 +176,7 @@
   font-size: 22px; line-height: 1.15; color: #ffcd77; background: rgba(22, 22, 22, 0.94); border: 2px solid #ffcd77; border-radius: 12px; pointer-events: none; opacity: 0; transition: opacity 0.2s, transform 0.2s; }
 #shop-pointer.show { opacity: 1; transform: translate(-50%, 0); }
 .pvp-skin.view-only { cursor: default; } /* [Timothy] BR menu skins list: display only (buy / equip at the island ship shop) */
+
+/* [v112] BANKSY: "remove the shop button on hud" -> no chest button in the harbor, Battle Royale or on foot (the island SHIP SKINS + UPGRADES
+   shop is the way in). WAVES keeps it: it is the in-run shipwright (also U / B). */
+html.pvp #btn-shop { display: none !important; }
