@@ -18,6 +18,7 @@ import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides anima
 import { createNet } from './transport.js';
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
+import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-chat
 import { PVP_HARBOR_DEATH_LOSS, PVP_HARBOR_RESPAWN, PVP_HARBOR_PROTECT } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
@@ -298,7 +299,8 @@ export function createPvp(K) {
     r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, PVP_DEATH_BONUS)))
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
-      .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; });
+      .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; })
+      .on('emo', onEmote); // [v96] quick-chat callouts (preset ids only)
     r.onStatus = (s) => { if (s === 'reconnecting') K.banner('RECONNECTING…', 'the sea went quiet for a moment'); else if (s === 'limit') K.banner('SERVERS BUSY', 'the arena is over capacity, hang on…'); };
   }
   const livePeers = () => [...peers.values()].filter(p => performance.now() - p.heard < PEER_TIMEOUT);
@@ -442,6 +444,16 @@ export function createPvp(K) {
     room.send('shot', { o: id, b: shot.map(b => [r2(b.p.x), r2(b.p.y), r2(b.p.z), r2(b.v.x), r2(b.v.y), r2(b.v.z), r2(b.delay), b.side === 'star' ? 1 : 0, b.i | 0]) }); // [v95] + side, gun index
   }
   function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
+  // [v96] quick-chat: send a preset id (the wheel already limits you to 1 / 2 s); receive: preset ids only, ≤1 per 1.5 s per pirate
+  function emote(e) { if (!validEmote(e) || !room || where !== 'arena') return; room.send('emo', { i: myId, e }); }
+  function onEmote(m) {
+    if (!m || typeof m.i !== 'string' || m.i === myId || !validEmote(m.e)) return;
+    const p = peers.get(m.i), now = performance.now(); if (!p?.ship || !p.ship.alive) return;
+    if (now - (p.emoAt || 0) < EMOTE_GAP * 0.75) return; p.emoAt = now;
+    const pl = P(), d = Math.hypot(p.ship.x - pl.x, p.ship.z - pl.z), vol = Math.max(0, 1 - d / 240);
+    let h = 0; for (const ch of m.i) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    showEmote(p.ship, m.e, { vol, pitch: 0.85 + (Math.abs(h) % 30) / 100 });
+  }
   function ownerObj(id) { return peers.get(id)?.ship || null; }
   function onShot(m) {
     const owner = ownerObj(m.o); if (!owner || !Array.isArray(m.b)) return;
@@ -1037,12 +1049,12 @@ export function createPvp(K) {
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length === 4) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[3].textContent = 'SUNK'; }
   }
 
-  const api = { myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
+  const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, net, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; },
-    _test: { spawnBoss, boss, P, onShot, onState, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
+    _test: { spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId } };
   window.PFP_PVP = api;
   return api;
 }

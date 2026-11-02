@@ -8,7 +8,8 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
-import { setCrewQuality, crewFire, crewHit, crewSteer } from './crew.js'; // [Raul] deck crew · [v87] crew react to hits
+import { setCrewQuality, crewFire, crewHit, crewSteer } from './crew.js';
+import { initEmotes, emoteTick, clearEmotes } from './emotes.js'; // [v96] quick-chat wheel // [Raul] deck crew · [v87] crew react to hits
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
@@ -970,6 +971,7 @@ function clearWorld() {
 }
 
 function startGame(mode = null) {
+  clearEmotes(); // [v96]
   if (game.mode === 'pvp' && mode !== 'pvp') pvp?.leave(); // [pvp]
   player.calm = 0; player.repT = 0; // [repair]
   // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
@@ -1009,6 +1011,7 @@ async function startPvp(watch = false) { // [pvp] watch = SPECTATE (receive-only
 }
 
 function toTitle() {
+  clearEmotes(); // [v96]
   closeTutorial(); // [tutorial]
   if (game.mode === 'pvp') { pvp?.leave(); closeShop(); $('shop')?.classList.add('hidden'); game.mode = null; } // [pvp]
   game.state = 'title';
@@ -1189,7 +1192,7 @@ function frame() {
   if (HIGH) { sun.target.position.set(player.x, 0, player.z); sun.position.copy(sun.target.position).add(SUN_OFF); }
   rain.uniforms.uCam.value.copy(camera.position);
 
-  if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); }
+  if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -1274,6 +1277,9 @@ initShop({ game, escorts, getPlayer: () => player, updateHud, sfx, camera, rebui
 // Debug / test hooks (harmless; the leaderboard can't trust the client anyway, see README)
 initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can be added
 window.PFP_HEALTH = healthDrops; // [health drops] test hook
+// [v96] quick-chat wheel: T / the 💬 button; arena callouts go over the realtime room (js/pvp.js), Waves + harbor stay local
+initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'playing' && !document.documentElement.classList.contains('pvp-spec'),
+  send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); } });
 // [pvp] what js/pvp.js may touch in the game
 const pvpCtx = { scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
   resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), get shipOpts() { return PLAYER_SHIP; } };

@@ -51,6 +51,9 @@
   the helm (ship.turn, remote ships too), fist up after a broadside, holds on when hit. Outfit follows the skin. Waves too (visual only).
 - [v95] HARBOR DEATH: lose min(100, gold), big 5-4-3-2-1 countdown, respawn IN THE HARBOR at the spot farthest from AI / the boss
   with a 4 s bubble (PVP_HARBOR_RESPAWN / PVP_HARBOR_PROTECT). Never the lobby. Arena deaths unchanged.
+- [v96] QUICK CHAT (js/emotes.js): T / the 💬 button opens a wheel of 8 preset callouts (1-8 keys on desktop). Bubble over the
+  ship ~3 s + a procedural pirate voice (audio.js sfx.emote). Arena: room event 'emo' { i, e } with preset ids only, sender 1 / 2 s,
+  receiver drops >1 / 1.5 s per pirate and any non-preset id. Harbor + Waves: local only. Cosmetic, no gameplay / gold effect.
 - PvP upgrade cost of tier index t = harborKills(t) × harborGold(L ≈ 7t), harborKills(t) = 40 + 10·1.55^t (cheap early, steep top).
 - Hard cap per track: 6 levels (CANNONS 8). Maxed tracks show **MAX VI / MAX VIII** in the shop; more gold buys no power.
 

@@ -295,7 +295,35 @@ function horn(t, notes, dur, vol, lp = 900) {
 function drum(t, v = 1, f = 110) { tone({ t, dur: 0.35, f0: f * 1.6, f1: f * 0.5, vol: 0.55 * v }); noise({ t, dur: 0.12, f0: 2000, f1: 300, vol: 0.18 * v }); }
 function arp(t, notes, step, vol, type = 'triangle', dur = 0.35) { notes.forEach((fr, i) => tone({ t: t + i * step, dur, f0: fr, vol, type, a: 0.008 })); }
 
+// [v96] quick-chat: a gruff procedural pirate "voice": sawtooth syllables through two vowel formants (no hosted audio).
+// syllable = [start, dur, f0, f1, vowel]
+const VOW = { a: [760, 1250], o: [520, 900], e: [480, 1850], i: [330, 2200], u: [380, 820] };
+const LINES = [
+  [[0, 0.62, 128, 82, 'a']],                                                                   // Arr!
+  [[0, 0.17, 140, 150, 'o'], [0.2, 0.17, 150, 132, 'o'], [0.42, 0.32, 165, 195, 'e']],         // Follow me!
+  [[0, 0.2, 180, 190, 'o'], [0.24, 0.16, 190, 200, 'i'], [0.43, 0.14, 200, 205, 'o'], [0.6, 0.3, 215, 240, 'i']], // Boss incoming!
+  [[0, 0.2, 150, 165, 'i'], [0.25, 0.38, 195, 150, 'e']],                                     // Need help!
+  [[0, 0.16, 160, 172, 'a'], [0.19, 0.34, 200, 138, 'a']],                                    // Attack!
+  [[0, 0.15, 150, 150, 'i'], [0.18, 0.42, 172, 118, 'i']],                                    // Retreat!
+  [[0, 0.17, 135, 138, 'i'], [0.22, 0.28, 140, 115, 'i']],                                    // GG
+  [[0, 0.22, 128, 150, 'o'], [0.28, 0.22, 150, 172, 'o'], [0.56, 0.4, 175, 118, 'o']],         // Yo ho ho!
+];
+function pirateVoice(e, v = 1, pitch = 1) {
+  const { c } = C, t = c.currentTime + 0.02, line = LINES[e] || LINES[0], vol = 0.9 * v;
+  const g = c.createGain(); g.gain.value = 1; g.connect(C.out);
+  for (const [dt, dur, f0, f1, w] of line) {
+    const s = t + dt, o = c.createOscillator(), vib = c.createOscillator(), vg = c.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(f0 * pitch, s); o.frequency.linearRampToValueAtTime(f1 * pitch, s + dur);
+    vib.frequency.value = 6.5; vg.gain.value = 4 * pitch; vib.connect(vg).connect(o.frequency);           // a little gravel in the throat
+    const env = c.createGain(); env.gain.setValueAtTime(0.0001, s); env.gain.linearRampToValueAtTime(vol, s + 0.03); env.gain.setValueAtTime(vol, s + dur * 0.72); env.gain.linearRampToValueAtTime(0.0001, s + dur);
+    for (const [k, F] of VOW[w].entries()) { const b = c.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = F * (0.94 + 0.12 * (pitch - 0.9)); b.Q.value = k ? 9 : 6; o.connect(b).connect(env); }
+    env.connect(g); o.start(s); vib.start(s); o.stop(s + dur + 0.05); vib.stop(s + dur + 0.05);
+  }
+  noise({ t, dur: 0.18, f0: 1400, f1: 500, vol: 0.05 * v, type: 'bandpass', q: 1.2 });                // breath
+  if (e === 7) [0, 0.28, 0.56].forEach(d => tone({ t: t + d, dur: 0.12, f0: 180, f1: 90, vol: 0.18 * v }));  // stomp
+}
 export const sfx = {
+  emote: (e = 0, v = 1, pitch = 1) => { if (!live() || !voice(2, 1.2)) return; pirateVoice(e | 0, Math.min(1, v), Math.max(0.75, Math.min(1.3, pitch))); },
   // generic cannon (kept for compatibility); v = distance volume
   cannon: (v = 1) => { if (!live() || !voice(1, 3)) return; boom(ENEMY_GUN, ctx.currentTime, v, 1 - v); },
   // the player's broadside: n = guns actually firing; sound follows the CANNONS tier
