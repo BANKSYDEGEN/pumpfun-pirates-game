@@ -558,7 +558,7 @@ export function buildStreet(A, low, F) {
 // Reuses the Blender town kit (pier stem / T-head modules, crates, barrels, lamps, torches, bollards) + the street builders;
 // the round Dock Town island (art.js buildIsland) is not built at all in this mode.
 export const SHOP_SPOTS = {};                                     // Timothy's interact spots, world coords (filled by buildStreet)
-export function buildCoast(A, low, F) {
+export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHulls = false: the game's live berths stay empty for docking
   const k = new Kit(); k.ao = (x, y, z) => 0.6 + 0.4 * sm(0, 2.6, y - H(x, z));
   const T = (lx, lz) => CO.t2w(lx, lz), Y0 = CO.QUAY.y, PY = CO.BOARDWALK.y, yaw0 = CO.t2wYaw(0);
   const at = (lx, lz, ly, fn, y = null) => { const [x, z] = T(lx, lz); k.at(M(x, y === null ? H(x, z) : y, z, CO.t2wYaw(ly)), fn); };
@@ -597,7 +597,7 @@ export function buildCoast(A, low, F) {
     // small side jetty with a rowboat between piers
     stem(p.lx - 30, 4, 22); at(p.lx - 26, 16, 0, () => { W(k, box(2.2, 0.8, 5.5), WOOD, 2, M(0, 0.2, 0)); W(k, box(1.8, 0.15, 5.0), WOOD_L, 2, M(0, 0.62, 0), false); }, 0); }
   // decor ships on 7 berths (the 8th, P4R, gets a real baked game ship in main.js)
-  CO.COAST_BERTHS.forEach((b, i) => { if (b.id !== 'P4R') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
+  CO.COAST_BERTHS.forEach((b, i) => { if (decorHulls && b.id !== 'P4R') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
   // shacks on stilts at the waterline + on the beach behind the boardwalk, barrels / crates / nets between them
   for (let i = 0; i < 9; i++) { const lx = -70 - i * 26 - hash(i, 2) * 6, onW = i % 3 === 1; shack(lx, onW ? 12 : -8 - hash(i, 5) * 8, onW ? Math.PI / 2 : 0, 5 + hash(i, 1) * 2, 4.5 + hash(i, 3) * 1.5, onW ? PY : H(...T(lx, -8)) + 1.6, [0xa86a3a, 0x8a5a2b, 0xb98a5a, 0x7a5232][i % 4]);
     const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
@@ -823,7 +823,7 @@ function digChest(MATS, OUT, low) {
 }
 
 // ---------- assemble ----------
-export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, renderer, kit = null }) {
+export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, renderer, kit = null, decorHulls = true }) { // [Emerly] decorHulls
   const root = new THREE.Group(); root.name = 'foot'; scene.add(root);
   const F = [];                                                  // torch / lamp / fire flame spots
   const NCX = Math.ceil(NX / CH), NCZ = Math.ceil(NZ / CH), chunks = [];
@@ -839,7 +839,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   KP = kit ? [] : null;
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
-  const coast = COASTM ? buildCoast(atlas.R, low, F).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
+  const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const kitM = kit ? kitMesh(kit, KP, 'foot_townkit') : null; if (kitM) root.add(kitM); const kitN = KP ? KP.length : 0; KP = null;
   for (const g of [street, inland, coast].filter(Boolean)) g.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !low; o.receiveShadow = !low; } });
   // water: shoreline shallows + foam, river + lake flow, waterfall + mist

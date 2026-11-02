@@ -24,6 +24,7 @@ import { initControlsUi, openControls } from './controlsUi.js';
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
+import { COAST_ON } from './island/coast.js'; // [Emerly] Raul's harbor coast flag (pure data module): gates docking + on foot + the coast harbor tweaks
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
@@ -107,7 +108,15 @@ const islands = createIslands(quality); scene.add(islands.group);
 const HARBOR_ISLAND_ON = new URLSearchParams(location.search).get('harborIsland') !== '0';
 const HARBOR_ISLETS = [[3, 492, -96, 0.6, 0.9], [6, -118, 488, 2.1, 0.85], [0, -470, 150, 4.0, 1.0], [7, -360, -340, 1.2, 0.9], [4, 70, -490, 5.1, 0.95]];
 const harborIsle = { obj: null, loading: false, on: false };
+// [Emerly] docking + on foot (js/dock/*, js/onfoot/*): the layout-driven waterfront on Raul's coast (js/island/coast.js), replaces Dock Town. ?dock=0 = off
+const DOCK_ON = HARBOR_ISLAND_ON && COAST_ON && new URLSearchParams(location.search).get('dock') !== '0'; // gated on Raul's coast flag (?coast=1 until it goes live)
+let dock = null, dockLoading = false;
+function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
+  import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx,
+    openWaves: () => openWavesEntry(), camReset: () => { resetCamera(); lastTarget.set(player.x, player.y + 4 * camScale(player.mesh.userData) + 2.2 * ((player.mesh.userData.frameK || 1) - 1), player.z); } }))
+    .then(d => { dock = d; }).catch(e => console.warn('[dock] failed', e)).finally(() => { dockLoading = false; }); }
 function harborIslandTick(t) {
+  if (DOCK_ON) { if (game.mode === 'pvp' && !!pvp && pvp.where === 'harbor') dockLoad(); return; } // [Emerly] the dock world replaces Dock Town
   const want = HARBOR_ISLAND_ON && game.mode === 'pvp' && !!pvp && pvp.where === 'harbor';
   if (want && !harborIsle.obj && !harborIsle.loading) {
     harborIsle.loading = true;
@@ -262,7 +271,7 @@ function despawnEnemy(e) {
 let specialTarget = null; // [escorts] who the special AI (rammer / boss barrage) is after this frame
 // [escorts] enemies go for the nearest of you / your escorts, but an escort only wins if it's clearly closer (ESCORT.aggro); re-picked every ~1.5 s
 function enemyTarget(e, dt) {
-  if (game.mode === 'pvp') { e.tgtT = (e.tgtT || 0) - dt; if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt; e.tgtT = 1.5; return (e.tgt = pvp.botTarget(e)); } // [pvp] nearest ship of anyone's
+  if (game.mode === 'pvp') { e.tgtT = (e.tgtT || 0) - dt; if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt; e.tgtT = 1.5; let T = pvp.botTarget(e); if (T.alive && dock?.isSafe(T)) T = dock.NO_TARGET; return (e.tgt = T); } // [pvp] nearest ship of anyone's // [Emerly] SAFE HARBOR ships are never targeted
   e.tgtT = (e.tgtT || 0) - dt;
   if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt;
   e.tgtT = 1.5;
@@ -302,6 +311,7 @@ function sideDir(s, side) { const sx = side === 'port' ? 1 : -1; return new THRE
 function toLocal(s, x, z) { const dx = x - s.x, dz = z - s.z, c = Math.cos(s.yaw), n = Math.sin(s.yaw); return [dx * c - dz * n, dx * n + dz * c]; }
 
 function fire(shooter, side, target = null, accuracy = 1) {
+  if (dock && !dock.canFire(shooter)) return; // [Emerly] SAFE HARBOR: nobody fires inside it (or for a few s after leaving)
   const muzzles = gunList(shooter, side); // [Raul] ship upgrades: cannon count
   crewFire(shooter.mesh, side); // [Raul] that side's gun crews recoil + reload
   const shot = game.mode === 'pvp' ? [] : null; // [pvp] volley broadcast
@@ -355,6 +365,7 @@ function fire(shooter, side, target = null, accuracy = 1) {
 
 function playerFire(side) {
   if (game.state !== 'playing' || !player.alive || player.cd[side] > 0) return;
+  if (dock && !dock.canFire(player)) return; // [Emerly] SAFE HARBOR (no reload spent)
   player.cd[side] = player.reload;
   if (game.mode === 'pvp') pvp.onLocalFire(); // [pvp] firing ends spawn protection
   fire(player, side);
@@ -364,6 +375,7 @@ function playerFire(side) {
 
 function damage(s, amt, p, src = null) {
   if (!s.alive) return;
+  if (dock?.invuln(s)) return; // [Emerly] SAFE HARBOR: moored / parked ships can't be hurt
   s.hp -= amt;
   crewHit(s.mesh, amt / Math.max(1, s.maxHp || 100) * 6); // [v87] the crew stagger (visual only)
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
@@ -522,6 +534,7 @@ function updateEnemy(e, dt) {
     if (od < 14 && od > 0.01) { const push = (14 - od) * 0.9 * dt; e.x += ox / od * push; e.z += oz / od * push; if (od < 22) desired = Math.atan2(ox, oz) * 0.5 + desired * 0.5; }
   }
   if (game.mode === 'pvp') desired = pvp.botSteer(e, desired); // [pvp] stay inside the arena
+  if (dock) desired = dock.aiSteer(e, desired); // [Emerly] AI keeps out of SAFE HARBOR
   const diff = angWrap(desired - e.yaw);
   moveShip(e, dt, spd, clamp(diff * 2, -1, 1));
   floatShip(e, dt);
@@ -1164,6 +1177,7 @@ function frame() {
       player.speed *= 0.98;
     }
     if (game.mode === 'pvp') pvp.update(dt); // [pvp] netcode, host duties, respawn
+    dock?.ship(dt); // [Emerly] docking ease / moored pose, SAFE HARBOR, on-foot pirate + prompts
     floatShip(player, dt);
     if (game.mode !== 'pvp') wavesShipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t, id: 'waves' }); // [skin looks] (PvP runs its own skinFx)
     for (const e of enemies) updateEnemy(e, dt);
@@ -1219,10 +1233,12 @@ function frame() {
 
   // ocean follows the player, snapped to the grid so waves don't swim
   const step = ocean.mesh.userData.step;
-  ocean.mesh.position.set(Math.round(player.x / step) * step, 0, Math.round(player.z / step) * step);
+  const oc = dock?.focus() || player; // [Emerly] on foot the sea follows the camera (you can walk a long way inland)
+  ocean.mesh.position.set(Math.round(oc.x / step) * step, 0, Math.round(oc.z / step) * step);
   ocean.uniforms.uTime.value = sky.uniforms.uTime.value = rain.uniforms.uTime.value = t;
 
   // camera follows the ship, orbit offset preserved
+  if (!dock?.camera(dt)) { // [Emerly] on foot: the third-person pirate camera (js/onfoot/walker.js) instead
   const ud0 = player.mesh.userData, shipK = camScale(ud0); // [Raul] upgrade visuals: bigger hulls / taller rigs pull the camera back to stay framed
   const tgt = new THREE.Vector3(player.x, player.y + 4 * shipK + 2.2 * ((ud0.frameK || 1) - 1), player.z);
   camera.position.add(tgt.clone().sub(lastTarget)); lastTarget.copy(tgt);
@@ -1236,10 +1252,11 @@ function frame() {
   const minY = waveHeight(camera.position.x, camera.position.z, t) + 2.5;
   if (camera.position.y < minY) camera.position.y = minY;
   if (game.shake > 0) { camera.position.x += rnd(-1, 1) * game.shake * 0.4; camera.position.y += rnd(-1, 1) * game.shake * 0.4; game.shake = Math.max(0, game.shake - dt * 2.5); }
+  } // [Emerly]
   sky.mesh.position.copy(camera.position);
   harborIslandTick(t);
   islands.update(t, camera.position);
-  if (HIGH) { sun.target.position.set(player.x, 0, player.z); sun.position.copy(sun.target.position).add(SUN_OFF); }
+  if (HIGH) { sun.target.position.set(oc.x, 0, oc.z); sun.position.copy(sun.target.position).add(SUN_OFF); } // [Emerly] oc = ship, or the walker on foot
   rain.uniforms.uCam.value.copy(camera.position);
 
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
@@ -1366,4 +1383,4 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
     requestAnimationFrame(probe);
   }, 6000);
 }
-window.PFP = { islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
+window.PFP = { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests

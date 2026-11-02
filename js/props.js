@@ -172,7 +172,7 @@ export function createIslands(quality) {
     cellInfo.clear(); lastCell = '';
     if (!zn) { zone = null; return; }
     const sets = (zn.islets || []).map(([d, x, z, rot, sc]) => { const i = islet(d, x, z, rot, sc || 1); isletObjs.push(i.obj); group.add(i.obj); return i; });
-    if (zn.island) sets.push(zn.island);
+    if (zn.island) sets.push(...[].concat(zn.island)); // [Emerly] one set or a list of clustered sets (dock layout colliders)
     zone = { clearR: zn.clearR || 0, sets };
   }
   const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.hitLen || u.len || 14) * 0.42) : 6; };
