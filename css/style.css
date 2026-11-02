@@ -864,3 +864,11 @@ html.pvp-spec #btn-emote { display: none !important; }
   #pvp-harbor #pvp-party { flex-basis: 100%; align-items: center; } }
 @media (orientation: portrait) { #pvp-harbor #pvp-harbor-t { order: 0; } #pvp-harbor .mode-sw { order: 1; } #pvp-harbor .ph-btns { order: 2; } #pvp-harbor #pvp-party { order: 3; }
   #pvp-harbor #pvp-party { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 3px 6px; padding: 3px 6px; } }
+
+/* [v98.3] the arena count (for the mode on the switch) sits right above SPECTATE */
+#pvp-harbor .ph-btns { align-items: flex-end; }
+#pvp-harbor .ph-spec { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#pvp-arena-n { font-size: 12px; line-height: 1.2; padding: 1px 8px; border-radius: 999px; background: rgba(0,0,0,0.32); color: rgba(255,255,255,0.85); text-shadow: 0 1px 2px #000; white-space: nowrap; pointer-events: none; }
+#pvp-arena-n:empty { display: none; }
+@media (orientation: portrait) { #pvp-arena-n { font-size: 11px; padding: 0 6px; } }
+@media (orientation: portrait) { #pvp-harbor { gap: 3px 5px; padding: 4px 6px; } #pvp-harbor #pvp-party.pp-idle #pvp-party-t { display: none; } #pvp-harbor #pvp-party { padding: 2px 6px; } #pvp-harbor .ph-spec { gap: 1px; } }

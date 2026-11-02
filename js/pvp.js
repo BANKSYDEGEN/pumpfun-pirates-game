@@ -135,7 +135,8 @@ export function createPvp(K) {
   // ---------------- lobby (arena seat / queue), harbor <-> arena ----------------
   const lobbyOpts = (extra = {}) => ({ seat: seatId, name, cap: TEST_CAP, offer: TEST_OFFER, ...extra });
   async function lobbyCall(op, extra) {
-    const r = await net.lobby(op, lobbyOpts(extra)); if (!active) return r;
+    const n0 = net, r = await net.lobby(op, lobbyOpts(extra)); if (!active) return r;
+    if (n0 !== net && op === 'poll') return r; // [v98.3] a poll for the other mode's room (the switch flipped meanwhile): ignore
     if (r && r.state && r.state !== 'error') {
       Object.assign(lob, { state: r.state, pos: r.pos || 0, queue: r.queue || 0, players: r.players || 0, specs: r.spectators || 0, cap: r.cap || lob.cap, known: true });
       if (r.state === 'offer') { if (!lob.offerUntil) { lob.offerUntil = performance.now() + (+r.offer_in || PVP_OFFER) * 1000; showOffer(true); sfx.coin?.(); } }
@@ -669,9 +670,9 @@ export function createPvp(K) {
   function setMode(m) { // the queue harbor's SOLO / SQUADS switch: only while not queued
     m = m === 'squads' ? 'squads' : 'solo'; if (m === mode) return;
     if (where !== 'harbor' || spec.on || lob.busy || lob.state !== 'harbor') { K.banner('LEAVE THE QUEUE FIRST', 'switch SOLO / SQUADS while you are not queued'); harborUi(); return; }
-    setNet(m); try { localStorage.setItem('pfp_br_mode', mode); } catch {}
+    setNet(m); try { localStorage.setItem('pfp_br_mode', mode); } catch {} hud();
     if (mode === 'solo') partyLeave(true);
-    lobbyCall('poll').then(harborUi); harborUi();
+    lobbyCall('poll').then(() => { harborUi(); hud(); }); harborUi();
     K.banner(mode === 'squads' ? 'SQUADS 2v2' : 'SOLO', mode === 'squads' ? 'share a party code with a friend, or get a random teammate' : 'free-for-all: every pirate for themselves');
   }
   // party: 2 friends share a 5-character code (a tiny realtime channel, a heartbeat every 4 s); JOIN BATTLE queues you both
@@ -867,8 +868,9 @@ export function createPvp(K) {
     $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
-    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}\n${mode === 'squads' ? 'SQUADS' : 'ARENA'} ${lob.players | 0}/${lob.cap || 4} pirates${lob.specs ? ` · ${lob.specs} watching` : ''}` // [v74] under the minimap (BANKSY)
+    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''}${ai ? ` · ${ai} AI` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
       : room ? (isSq() ? sqHudLine(n) : `ARENA · ${n}/${lob.cap} pirates${ai ? ` · ${ai} AI` : ''}${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}`) : 'joining…';
+    if (where === 'harbor') { const an = $('pvp-arena-n'); if (an) { const t = lob.known ? `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · ${lob.players | 0}/${lob.cap || 4} in arena${lob.specs ? ` · ${lob.specs} 👁` : ''}` : `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · …`; if (an.textContent !== t) an.textContent = t; } } // [v98.3] follows the SOLO / SQUADS switch
     if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
     else { el._h = null; if (el.textContent !== txt) el.textContent = txt; }
   }
@@ -1010,7 +1012,7 @@ export function createPvp(K) {
     else { b.textContent = 'JOIN BATTLE'; t.innerHTML = HOLDER_ENABLED && holder.on ? '<span class="pvp-holder">HOLDER 2× GOLD</span>' : ''; } // [v98.1] no "THE HARBOR" pill (it blocked the view); the SOLO / SQUADS switch shows the mode
     t.hidden = !t.innerHTML;
     const ms = $('pvp-mode'); if (ms) { ms.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.m === mode); x.setAttribute('aria-pressed', x.dataset.m === mode); }); ms.classList.toggle('locked', lob.state !== 'harbor'); } // [v98]
-    const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate();
+    const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate(); pp.classList.toggle('pp-idle', !party.code && !party.msg); // [v98.3] portrait hides the default 'No party' line
       $('pvp-party-t').innerHTML = party.code ? `PARTY <b>${party.code}</b> · ${mate ? `with ${esc(mate.n)} ✔` : esc(party.msg || 'waiting for your mate…')}` : esc(party.msg || 'No party: you get a random teammate');
       for (const id of ['pvp-party-new', 'pvp-party-join', 'pvp-party-code']) $(id).hidden = !!party.code; $('pvp-party-leave').hidden = !party.code; }
     if (where === 'harbor') hud(); // [v74] arena head-count + AI pay live under the minimap
