@@ -9,6 +9,9 @@ import { groundY } from './art.js';
 import { buildBirds, buildCrabs, buildFlames, buildNets, grassMaterial, islandSurface } from './look.js';
 import { toon } from '../toon.js';
 import { kitMesh, pickHouse, HOUSE_VARIANTS } from './townkit.js';
+import * as CO from './coast.js';
+const COASTM = CO.COAST_ON;
+export { CO }; // ?coast=1: town + berths built into the main island's west coast (js/island/coast.js); no round dock island
 
 // ---------- layout ----------
 // the dock town (round island) sits off the west coast, harbor face (+z local) to the open sea (west)
@@ -68,6 +71,9 @@ export function coastSD(x, z) {
   let d = polySD(x, z, COAST) + 9 * Math.sin(x * 0.021 + z * 0.013) + 5 * Math.sin(x * 0.047 - z * 0.039 + 1.3); // ragged coast
   for (const [cx, cz, r] of [...ISLETS, ...HEADLANDS]) d = Math.min(d, Math.hypot(x - cx, z - cz) - r * (0.85 + 0.25 * vnoise(x * 0.03, z * 0.03)));
   for (const [cx, cz, r] of COVES) d = Math.max(d, r - Math.hypot(x - cx, z - cz));
+  if (COASTM) { const [lx, lz] = CO.w2t(x, z), rag = 1 - sm(-330, -300, lx) * (1 - sm(110, 140, lx)) * sm(-60, -20, lz);   // straight quay, ragged elsewhere
+    d = Math.min(d, polySD(lx, lz, CO.APRON) + rag * (7 * Math.sin(x * 0.03 + z * 0.017) + 4 * Math.sin(x * 0.07 - z * 0.05)));
+    d = Math.min(d, Math.hypot(lx - CO.ISLET.lx, lz - CO.ISLET.lz) - CO.ISLET.r * (0.8 + 0.4 * vnoise(x * 0.05, z * 0.05))); }
   return d;
 }
 function rangeH(x, z) { let h = 0;
@@ -88,7 +94,7 @@ function rawH(x, z, sd) {
 }
 
 // grid (4 m), filled once: H, plus stamped distance fields for trails / river / street
-const G = 4, X0 = -820, Z0 = -820, NX = 380, NZ = 400;                               // x -820..700, z -820..780
+const G = 4, X0 = COASTM ? -940 : -820, Z0 = -820, NX = COASTM ? 410 : 380, NZ = 400;                               // x -820..700, z -820..780
 const IDX = (i, j) => j * (NX + 1) + i;
 const Hg = new Float32Array((NX + 1) * (NZ + 1)), SDg = new Float32Array(Hg.length);
 const TRg = new Float32Array(Hg.length).fill(99), RVg = new Float32Array(Hg.length).fill(99), RVl = new Float32Array(Hg.length), STg = new Float32Array(Hg.length).fill(99);
@@ -119,12 +125,20 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
   // land bridge + main street from the town gate inland (flat cobbles, cut into any hill it meets)
   const [lx, lz] = worldToTown(x, z), sx = Math.abs(lx - STREET.x);
   if (lz < -40 && lz > STREET.z1 - 30) {
-    const ys = 3.6 + Math.max(0, -lz + STREET.z0) * 0.035, w = 1 - sm(STREET.half + 12, STREET.half + 26, sx), along = sm(STREET.z1 - 30, STREET.z1, lz);
+    const ys = COASTM ? CO.QUAY.y + 0.4 + Math.max(0, -lz - 50) * 0.11 : 3.6 + Math.max(0, -lz + STREET.z0) * 0.035, w = 1 - sm(STREET.half + 12, STREET.half + 26, sx), along = sm(STREET.z1 - 30, STREET.z1, lz);
     const flat = STREET.half + 14 + Math.min(45, Math.max(0, -lz - 105) * 0.6), bridge = sx < flat ? ys : ys - (sx - flat) * 0.9;     // the land bridge's own shoulders
     h = lz > STREET.z1 ? Math.max(h, bridge) * (1 - w) + ys * w : h * (1 - along * w) + Math.max(h, ys) * along * w;
   }
   // the dock town keeps its own terrain disc: the big terrain sits just under it (no seams, no z-fight)
-  const rT = Math.hypot(lx, lz); if (rT < 104) { const gy = groundY(lx, lz) - 0.6; h = rT < 90 ? Math.max(Math.min(h, gy), lz < -50 && sx < STREET.half + 14 ? h : gy) : Math.max(h, gy); }
+  if (COASTM) coastH(); else { const rT = Math.hypot(lx, lz); if (rT < 104) { const gy = groundY(lx, lz) - 0.6; h = rT < 90 ? Math.max(Math.min(h, gy), lz < -50 && sx < STREET.half + 14 ? h : gy) : Math.max(h, gy); } }
+  function coastH() { // [coast] stone quay + plaza flat, mole, cliff headland, fort knoll
+    const e = sm(-64, -52, lz) * sm(CO.PLAZA.lx0 - 12, CO.PLAZA.lx0, lx) * (1 - sm(CO.PLAZA.lx1, CO.PLAZA.lx1 + 12, lx));
+    if (lz <= 0.5) h = h * (1 - e) + CO.QUAY.y * e;
+    if (lz > 0.5 && lx > -320 && lx < 132 && sd > 0) h = Math.min(h, -3.5 - Math.min(lz, 60) * 0.12);   // dredged harbor: berths + quay stay deep
+    if ((Math.abs(lx - CO.MOLE.lx) < CO.MOLE.w / 2 + 1 && lz > -2 && lz < CO.MOLE.lz1) || Math.hypot(lx - CO.MOLE.lx, lz - CO.MOLE.lz1) < CO.MOLE.tipR) h = CO.MOLE.y;
+    const hd = Math.hypot(lx - CO.HEADLAND.lx, lz - CO.HEADLAND.lz); if (sd < 0) h = Math.max(h, CO.HEADLAND.top * (1 - sm(CO.HEADLAND.r * 0.6, CO.HEADLAND.r * 1.5, hd)) * sm(-2, 6, -sd));
+    const fd = Math.hypot(lx - CO.FORT.lx, lz - CO.FORT.lz); if (fd < CO.FORT.r * 2.8) h = Math.max(h, CO.FORT.top * (1 - sm(CO.FORT.r, CO.FORT.r * 2.8, fd)));
+  }
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
 }
@@ -208,7 +222,7 @@ const WAVE_GLSL = `uniform vec4 uWaves[4]; float waveY(vec2 p, float t) { float 
 function shallows(uTime, uWaves, low, hTex) {
   const W = NX * G, D = NZ * G, g = new THREE.PlaneGeometry(W, D, low ? 90 : 180, low ? 95 : 190); g.rotateX(-Math.PI / 2); g.translate(X0 + W / 2, 0, Z0 + D / 2);
   const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uH: { value: hTex }, uWaves: { value: [] }, uTime: { value: 0 }, uTown: { value: new THREE.Vector2(TOWN.x, TOWN.z) }, uGrid: { value: new THREE.Vector4(X0, Z0, W, D) } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uH: { value: hTex }, uWaves: { value: [] }, uTime: { value: 0 }, uTown: { value: COASTM ? new THREE.Vector2(1e5, 1e5) : new THREE.Vector2(TOWN.x, TOWN.z) }, uGrid: { value: new THREE.Vector4(X0, Z0, W, D) } }]),
     vertexShader: `${WAVE_GLSL} uniform float uTime; uniform vec4 uGrid; varying vec2 vUv; varying vec3 vP;
       #include <fog_pars_vertex>
       void main(){ vec3 p = position; p.y = waveY(p.xz, uTime) + 0.45; vP = p; vP.y -= 0.37; vUv = (p.xz - uGrid.xy) / uGrid.zw; vec4 mvPosition = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mvPosition;
@@ -502,6 +516,8 @@ export function buildStreet(A, low, F) {
     if (n === 4 && side === 1) continue;                      // the square (well)
     const fl = 2 + (hash(n, side) > 0.55 ? 1 : 0), d = 8 + hash(side, n) * 2, lx = S.x + side * (S.half + 1 + d / 2), [x, wz] = tw(lx, z), yaw = twy(side === -1 ? Math.PI / 2 : -Math.PI / 2);
     colonial(k, F, x, H(x, wz), wz, yaw, w, d, fl, n * 2 + (side > 0 ? 1 : 0), low, SIGNS[side + ':' + n] || null, A);
+    { const nm = { '1:3': 'SHOP (R3)', '-1:1': 'Tavern (L1)', '-1:4': 'Bounties (L4)' }[side + ':' + n]; LOTS_MAP.push({ lx, z, w, d, side, label: nm || null, col: nm ? '#fbbf24' : 'rgba(240,220,190,0.9)', tc: nm ? '#fde68a' : '#fff', ...({ '1:3': { ldx: 20, ldy: 75 }, '-1:1': { ldx: -10, ldy: -70 }, '-1:4': { ldx: 10, ldy: -70 } }[side + ':' + n] || {}) });
+      if (side === 1 && n === 3) { const [sx, sz] = tw(S.x + S.half + 1 - 1.6, z); SHOP_SPOTS.shop = { id: 'shop', x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.4, label: 'E · SHOP' }; } }
     addBox(x, wz, w + 0.6, d + 0.6, yaw);
   }
   { // SQUAD HALL: wide 3 storeys, stone ground floor, banners, interact at the door
@@ -509,6 +525,7 @@ export function buildStreet(A, low, F) {
     colonial(k, F, x, y, wz, yaw, 16, 14, 3, 3, low, 'squad', A); addBox(x, wz, 16.6, 14.6, yaw);
     k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
       W(k, box(4.2, 0.9, 0.3), WOOD_D, 2, M(0, 4.4, 7.4), false); atlasQuad(k, 4.0, 0.8, A.squad, M(0, 4.4, 7.56)); });
+    LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
     const [dx, dz] = tw(lx - 7 - 1.6, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' });
   }
   { // the square: a stone well + market stalls + crates
@@ -517,6 +534,8 @@ export function buildStreet(A, low, F) {
     for (const s of [-1, 1]) W(k, box(0.2, 2.6, 0.2), WOOD_D, 2, M(x + s * 1.3, y + 1.8, wz), false); W(k, box(3.0, 0.2, 0.25), WOOD_D, 2, M(x, y + 3.1, wz), false);
     W(k, new THREE.ConeGeometry(2.1, 1.0, 4), ROOFS[0], 4, M(x, y + 3.7, wz, Math.PI / 4));
     addCirc(x, wz, 1.8);
+    LOTS_MAP.push({ lx, z, w, d: 12, side: 1, label: 'SQUARE + well, red/blue stalls (R4)', col: 'rgba(201,191,174,0.95)', tc: '#fff', ldx: 50, ldy: 40 });
+    for (const [id, dz] of [['stall_red', 3.5], ['stall_blue', -3.5]]) { const [sx, sz] = tw(lx + 3.2, z + dz); SHOP_SPOTS[id] = { id, x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.6, label: 'E · ' + (id === 'stall_red' ? 'RED' : 'BLUE') + ' STALL' }; }
     stall(k, ...tw(lx + 3.2, z + 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z + 3.5))]), twy(-Math.PI / 2), 0xd8322f); addCirc(...tw(lx + 3.2, z + 3.5), 1.8);
     stall(k, ...tw(lx + 3.2, z - 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z - 3.5))]), twy(-Math.PI / 2), 0x2a6df4); addCirc(...tw(lx + 3.2, z - 3.5), 1.8);
   }
@@ -530,10 +549,151 @@ export function buildStreet(A, low, F) {
     const [gx, gz] = tw(S.x, z); W(k, box(S.half * 2 + 6, 2.2, 3.0), STONE_D, 11, M(gx, y + 9.0, gz, twy(0)));
     k.at(M(gx, y + 9.8, gz, twy(0)), () => { if (A.ppflag) { W(k, cyl(0.08, 0.08, 4, 5), WOOD_D, 2, M(0, 2, 0), false); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, 0.03)); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, -0.03, Math.PI)); } }); }
   // fort battery (cannons round the keep) + crates on the land bridge shoulders
-  for (let i = 0; i < 6; i++) { const a = -0.9 + i * 0.5, r = 12.5, lx = -41 + Math.sin(a + Math.PI * 1.5) * r, lz = -15 + Math.cos(a + Math.PI * 1.5) * r, [x, wz] = tw(lx, lz);
+  if (!COASTM) for (let i = 0; i < 6; i++) { const a = -0.9 + i * 0.5, r = 12.5, lx = -41 + Math.sin(a + Math.PI * 1.5) * r, lz = -15 + Math.cos(a + Math.PI * 1.5) * r, [x, wz] = tw(lx, lz);
     cannon(k, M(x, groundY(lx, lz) - 0.1, wz, twy(Math.atan2(lx + 41, lz + 15)))); }
   return k;
 }
+
+// ---------- [coast] the harbor town built into the west coast (?coast=1, BLOCKOUT) ----------
+// Reuses the Blender town kit (pier stem / T-head modules, crates, barrels, lamps, torches, bollards) + the street builders;
+// the round Dock Town island (art.js buildIsland) is not built at all in this mode.
+export const SHOP_SPOTS = {};                                     // Timothy's interact spots, world coords (filled by buildStreet)
+export function buildCoast(A, low, F) {
+  const k = new Kit(); k.ao = (x, y, z) => 0.6 + 0.4 * sm(0, 2.6, y - H(x, z));
+  const T = (lx, lz) => CO.t2w(lx, lz), Y0 = CO.QUAY.y, PY = CO.BOARDWALK.y, yaw0 = CO.t2wYaw(0);
+  const at = (lx, lz, ly, fn, y = null) => { const [x, z] = T(lx, lz); k.at(M(x, y === null ? H(x, z) : y, z, CO.t2wYaw(ly)), fn); };
+  const deck = (lx, lz, w, d) => { const [x, z] = T(lx, lz); k.at(M(x, 0, z, yaw0), () => { // planks (kit modules) + stilts, local x = lx, z = lz
+    if (KP) { const nx = Math.max(1, Math.round(w / 6)), nz = Math.max(1, Math.round(d / 4)); for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) kp(k, 'pierHead', M(-w / 2 + (i + 0.5) * w / nx, PY, -d / 2 + (j + 0.5) * d / nz, 0, 0, 0, [w / nx / 6, 1, d / nz / 4])); }
+    else W(k, box(w, 0.3, d), WOOD_L, 2, M(0, PY, 0));
+    for (let i = 0; i <= Math.floor(w / 5); i++) for (const sz of [-d / 2 + 0.3, d / 2 - 0.3]) W(k, cyl(0.25, 0.3, 7, 6), WOOD_D, 2, M(-w / 2 + 0.3 + i * (w - 0.6) / Math.max(1, Math.floor(w / 5)), PY - 3.5, sz), false); }); };
+  const stem = (lx, lz0, lz1) => { const [x, z] = T(lx, lz0); k.at(M(x, 0, z, yaw0), () => { const L = lz1 - lz0, n = Math.ceil(L / 6);
+    if (KP) for (let i = 0; i < n; i++) kp(k, 'pierStem', M(0, PY, (i + 0.5) * L / n, 0, 0, 0, [1, 1, L / n / 6])); else W(k, box(5, 0.3, L), WOOD_L, 2, M(0, PY, L / 2));
+    for (let zz = 3; zz < L; zz += 6) for (const sx of [-2.6, 2.6]) W(k, cyl(0.28, 0.32, 8, 6), WOOD_D, 2, M(sx, PY - 4, zz), false);
+    for (const sx of [-2.4, 2.4]) { W(k, box(0.12, 0.12, L - 1), 0xe7c08d, 12, M(sx, PY + 1.0, L / 2), false); for (let zz = 1; zz < L; zz += 4) W(k, cyl(0.08, 0.1, 1.1, 5), WOOD_D, 2, M(sx, PY + 0.55, zz), false); } }); };
+  const hull = (lx, lz, len, c, sails = true) => at(lx, lz, Math.PI / 2, () => { // toy ship blockout (decor at the berths)
+    W(k, box(len * 0.22, 2.2, len * 0.78), c, 2, M(0, 0.6, -len * 0.05)); W(k, new THREE.ConeGeometry(len * 0.12, len * 0.24, 4), c, 2, M(0, 0.6, len * 0.43, Math.PI / 4, Math.PI / 2), false);
+    W(k, box(len * 0.2, 0.2, len * 0.75), WOOD_L, 2, M(0, 1.75, -len * 0.05), false);
+    if (sails) for (const [mz, mh] of [[len * 0.15, len * 0.75], [-len * 0.2, len * 0.6]]) { W(k, cyl(0.2, 0.25, mh, 6), WOOD_D, 2, M(0, mh / 2, mz), false); W(k, box(len * 0.34, mh * 0.42, 0.15), CREAM, 12, M(0, mh * 0.6, mz + 0.4), false); } }, 0);
+  const shack = (lx, lz, ly, w, d, stilt, c) => at(lx, lz, ly, () => { // wooden shack (on stilts at the waterline)
+    const b = stilt; for (const sx of [-w / 2 + 0.3, w / 2 - 0.3]) for (const sz of [-d / 2 + 0.3, d / 2 - 0.3]) W(k, cyl(0.2, 0.24, b + 3, 5), WOOD_D, 2, M(sx, b / 2 - 1.5, sz), false);
+    W(k, box(w + 1.6, 0.25, d + 1.6), WOOD_L, 2, M(0, b, 0)); W(k, box(w, 3.0, d), c, 2, M(0, b + 1.6, 0));
+    W(k, box(1.0, 1.9, 0.1), WOOD_D, 2, M(0, b + 1.05, d / 2 + 0.05), false);
+    for (const s of [-1, 1]) W(k, box(w + 1.2, 0.2, d / 2 / Math.cos(0.55) + 0.6), ROOFS[(lx | 0) & 3] === undefined ? WOOD : 0x8a6a45, 4, M(0, b + 3.1 + Math.tan(0.55) * d / 4, s * d / 4, 0, s * 0.55)); }, 0);
+  // stone quay: seawall face + coping + a cobbled plaza slab, bollards along the edge
+  { const L = CO.QUAY.lx1 - CO.QUAY.lx0, cx = (CO.QUAY.lx0 + CO.QUAY.lx1) / 2;
+    at(cx, 0.6, 0, () => { W(k, box(L, 7.6, 1.6), STONE_D, 11, M(0, Y0 - 3.7, 0)); W(k, box(L + 0.4, 0.4, 2.0), STONE, 11, M(0, Y0 + 0.1, 0), false); }, 0);
+    at(cx, -27, 0, () => W(k, box(L - 2, 0.3, 54), 0xc9bfae, 10, M(0, Y0 - 0.02, 0), false), 0);
+    for (let lx = CO.QUAY.lx0 + 6; lx < CO.QUAY.lx1 - 4; lx += 12) { const [x, z] = T(lx, -0.6); if (KP) kp(k, 'bollard', M(x, Y0 + 0.2, z)); } }
+  // stone mole out to the lighthouse (the lighthouse itself = the inland lighthouse POI, moved onto the mole tip)
+  { const m = CO.MOLE; at(m.lx, (m.lz0 + m.lz1) / 2, 0, () => { W(k, box(m.w, 7.6, m.lz1 - m.lz0), STONE_D, 11, M(0, m.y - 3.7, 0)); W(k, box(m.w + 0.4, 0.4, m.lz1 - m.lz0), STONE, 11, M(0, m.y + 0.1, 0), false); }, 0);
+    at(m.lx, m.lz1, 0, () => W(k, cyl(m.tipR, m.tipR + 0.6, 7.6, 18), STONE_D, 11, M(0, m.y - 3.7, 0)), 0);
+    for (let lz = 10; lz < m.lz1 - 8; lz += 14) { const [x, z] = T(m.lx, lz); if (KP) kp(k, 'lamp', M(x, m.y + 0.2, z)); F.push({ x, y: m.y + 4.2, z, lamp: true }); } }
+  // boardwalk on stilts along the beach + the four T-head piers (8 berths)
+  { const B = CO.BOARDWALK; deck((B.lx0 + B.lx1) / 2, (B.lz0 + B.lz1) / 2, B.lx1 - B.lx0, B.lz1 - B.lz0); }
+  for (const p of CO.PIERS) { stem(p.lx, p.lz0, p.head0); deck(p.lx, (p.head0 + p.head1) / 2, p.half * 2, p.head1 - p.head0);
+    for (const t of [-12, 12]) for (const e of [-8.5, 8.5]) { const [x, z] = T(p.lx + t + e, p.head1 - 0.7); if (KP) kp(k, 'bollard', M(x, PY + 0.16, z)); }
+    for (const sx of [-1, 1]) torchPost(k, F, ...(([x, z]) => [x, PY + 0.15, z])(T(p.lx + sx * (p.half - 1), (p.head0 + p.head1) / 2)));
+    { const [x, z] = T(p.lx - 2.2, p.head0 + 1.6); crate(k, M(x, PY + 0.16, z, 0.3 + p.k)); } { const [x, z] = T(p.lx + 2.4, p.head0 + 1.5); barrel(k, M(x, PY + 0.16, z)); }
+    // small side jetty with a rowboat between piers
+    stem(p.lx - 30, 4, 22); at(p.lx - 26, 16, 0, () => { W(k, box(2.2, 0.8, 5.5), WOOD, 2, M(0, 0.2, 0)); W(k, box(1.8, 0.15, 5.0), WOOD_L, 2, M(0, 0.62, 0), false); }, 0); }
+  // decor ships on 7 berths (the 8th, P4R, gets a real baked game ship in main.js)
+  CO.COAST_BERTHS.forEach((b, i) => { if (b.id !== 'P4R') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
+  // shacks on stilts at the waterline + on the beach behind the boardwalk, barrels / crates / nets between them
+  for (let i = 0; i < 9; i++) { const lx = -70 - i * 26 - hash(i, 2) * 6, onW = i % 3 === 1; shack(lx, onW ? 12 : -8 - hash(i, 5) * 8, onW ? Math.PI / 2 : 0, 5 + hash(i, 1) * 2, 4.5 + hash(i, 3) * 1.5, onW ? PY : H(...T(lx, -8)) + 1.6, [0xa86a3a, 0x8a5a2b, 0xb98a5a, 0x7a5232][i % 4]);
+    const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
+  // plaza: WAVES + ARENA boards facing the harbor, token exchange, harbor market, the tall stone harbor tower framing it
+  const P = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
+  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, 0, () => { for (const s of [-1.9, 1.9]) W(k, box(0.3, 4.4, 0.3), WOOD_D, 2, M(s, 2.2, 0));
+    W(k, box(4.6, 2.8, 0.3), c, 2, M(0, 3.2, 0)); if (A[sg]) atlasQuad(k, 4.2, 2.4, A[sg], M(0, 3.2, 0.17)); }, Y0);
+  at(P.exchange.lx, P.exchange.lz, 0, () => { W(k, box(6, 3.4, 4.5), CREAM, 7, M(0, 1.7, 0)); W(k, new THREE.ConeGeometry(5.0, 2.2, 4), GOLD, 4, M(0, 4.5, 0, Math.PI / 4)); W(k, box(4.5, 1.1, 0.8), WOOD, 2, M(0, 0.55, 2.6));
+    if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }
+  for (const [dx, dz, c] of [[-8, 0, 0xd8322f], [0, 2, 0xffc93c], [8, 0, 0x1f8a5a], [-4, -9, 0x2a6df4], [5, -9, 0xb36bff]]) { const [x, z] = T(P.market.lx + dx, P.market.lz + dz); stall(k, x, Y0, z, CO.t2wYaw(Math.PI), c); addCirc(x, z, 1.8); }
+  for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
+  at(P.tower.lx, P.tower.lz, 0, () => { W(k, box(9, 24, 9), STONE, 11, M(0, 12, 0)); W(k, box(10, 1, 10), STONE_D, 11, M(0, 24.3, 0), false); W(k, new THREE.ConeGeometry(7.4, 7, 4), ROOFS[1], 4, M(0, 28.3, 0, Math.PI / 4));
+    for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); }
+  for (const lx of [-50, -20, 10, 40, 70]) { const [x, z] = T(lx, -3); torchPost(k, F, x, Y0, z); }
+  // spectate spyglass on the mole tip
+  at(P.spectate.lx, P.spectate.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.MOLE.y);
+  // fort at the top of Main Street: keep, curtain wall, 4 round towers, pirate flag
+  at(CO.FORT.lx, CO.FORT.lz, 0, () => { W(k, box(26, 7, 26), STONE, 11, M(0, 2.5, 0)); W(k, box(14, 18, 14), STONE_D, 11, M(0, 10.5, 0));
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { W(k, cyl(3.2, 3.6, 18, 12), STONE, 11, M(sx * 13, 7, sz * 13)); W(k, new THREE.ConeGeometry(4, 5, 12), ROOFS[0], 4, M(sx * 13, 18.5, sz * 13)); }
+    W(k, cyl(0.2, 0.2, 12, 5), WOOD_D, 2, M(0, 25.5, 0), false); if (A.ppflag) { atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, 0.03)); atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, -0.03, Math.PI)); }
+    for (let i = 0; i < 4; i++) cannon(k, M(-6 + i * 4, 6.1, 13.4, 0)); }, null); { const [x, z] = T(CO.FORT.lx, CO.FORT.lz); addBox(x, z, 27, 27, yaw0); }
+  // battery on the cliff headland: parapet + 6 cannons facing the harbor
+  { const hd = CO.HEADLAND; for (let i = 0; i < 6; i++) { const a = -0.75 + i * 0.3, lx = hd.lx + Math.sin(a) * 15, lz = hd.lz + 6 + Math.cos(a) * 15, [x, z] = T(lx, lz);
+      cannon(k, M(x, H(x, z) - 0.1, z, CO.t2wYaw(a))); W(k, box(4, 1.3, 1.2), STONE, 11, M(...(([xx, zz]) => [xx, H(xx, zz) + 0.4, zz])(T(hd.lx + Math.sin(a) * 18, hd.lz + 6 + Math.cos(a) * 18)), CO.t2wYaw(a)), false); }
+    const [x, z] = T(hd.lx, hd.lz - 8); torchPost(k, F, x, H(x, z), z); }
+  return k;
+}
+// 2D review map of the coast harbor (?coast=1&map=1): battle area, rings, spawns, berths, no-fire zone, town, Main Street lots
+export function drawCoastMap(cv) {
+  const Wd = cv.width, Hh = cv.height, g = cv.getContext('2d'), [hx0, hz0] = CO.HC, R = 420;
+  const x0 = hx0 - 440, x1 = hx0 + 820, z0 = hz0 - 450, z1 = hz0 + 450;
+  const proj = (bx0, bx1, bz0, bz1, px, py, pw, ph) => { const sc = Math.min(pw / (bx1 - bx0), ph / (bz1 - bz0)); return { sc, P: (x, z) => [px + (x - bx0) * sc, py + (z - bz0) * sc], inv: (a, b) => [bx0 + (a - px) / sc, bz0 + (b - py) / sc] }; };
+  const terrain = (pr, px, py, pw, ph) => { const img = g.createImageData(pw, ph), c = new THREE.Color();
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) { const [wx, wz] = pr.inv(px + x, py + y), i = Math.round((wx - X0) / G), j = Math.round((wz - Z0) / G), o = (y * pw + x) * 4;
+      if (i < 0 || j < 0 || i > NX || j > NZ) c.set(0x174f70); else { const h = Hg[IDX(i, j)]; if (h < -4) c.set(0x1f6e94).lerp(new THREE.Color(0x174f70), Math.min(1, (-h - 4) / 12)); else if (h < 0.3) c.set(0x3fc6c9); else colorAt(i, j, c);
+        if (h >= 0.3) { const s = 1 + (Hg[IDX(Math.min(NX, i + 1), j)] - h) * -0.04; c.multiplyScalar(s); } }
+      img.data[o] = Math.min(255, c.r * 255); img.data[o + 1] = Math.min(255, c.g * 255); img.data[o + 2] = Math.min(255, c.b * 255); img.data[o + 3] = 255; }
+    g.putImageData(img, px, py); };
+  const draw = (pr, zoom) => {
+    const { P, sc } = pr, L = (lx, lz) => P(...CO.t2w(lx, lz));
+    const poly = (pts, fill, stroke, w = 2, dash = []) => { g.beginPath(); pts.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.setLineDash(dash); g.strokeStyle = stroke; g.lineWidth = w; g.stroke(); g.setLineDash([]); } };
+    const circ = (r, col, w, dash = []) => { const [a, b] = P(hx0, hz0); g.setLineDash(dash); g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.arc(a, b, r * sc, 0, 7); g.stroke(); g.setLineDash([]); };
+    const rectL = (lx0, lz0, lx1, lz1, fill, stroke) => poly([[lx0, lz0], [lx1, lz0], [lx1, lz1], [lx0, lz1]].map(p => L(...p)), fill, stroke, 1.5);
+    const T = (s, a, b, size = 15, col = '#fff', al = 'left') => { g.font = `bold ${size}px sans-serif`; g.textAlign = al; g.textBaseline = 'middle'; g.lineWidth = Math.max(3, size / 4); g.strokeStyle = '#111'; g.strokeText(s, a, b); g.fillStyle = col; g.fillText(s, a, b); };
+    const TL = (s, lx, lz, dx, dy, size, col) => { const [a, b] = L(lx, lz); g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.moveTo(a, b); g.lineTo(a + dx, b + dy); g.stroke(); g.strokeStyle = col || '#fff'; g.lineWidth = 1.5; g.stroke(); T(s, a + dx + (dx >= 0 ? 4 : -4), b + dy, size, col, dx >= 0 ? 'left' : 'right'); };
+    poly(CO.SAFE.map(p => L(...p)), 'rgba(255,255,255,0.16)', '#ffffff', 2.5, [9, 6]);
+    if (!zoom) { circ(R, '#ff2b2b', 4); circ(370, '#ff9a3a', 2, [10, 8]); for (const r of [176, 344]) circ(r, '#fbbf24', 1.8, [5, 7]); for (const r of [40, 85, 130]) circ(r, '#4ade80', 2, [7, 6]);
+      for (const s of CO.spawnCheck()) { const [a, b] = P(hx0 + s.hx, hz0 + s.hz); if (s.ok) { g.fillStyle = '#111'; g.beginPath(); g.arc(a, b, 6, 0, 7); g.fill(); g.fillStyle = '#fbbf24'; g.beginPath(); g.arc(a, b, 4.5, 0, 7); g.fill(); }
+        else { g.strokeStyle = '#111'; g.lineWidth = 6; g.beginPath(); g.moveTo(a - 7, b - 7); g.lineTo(a + 7, b + 7); g.moveTo(a + 7, b - 7); g.lineTo(a - 7, b + 7); g.stroke(); g.strokeStyle = '#ff3b3b'; g.lineWidth = 3; g.stroke(); } }
+      const [sa, sb] = P(hx0, hz0); g.fillStyle = '#60a5fa'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.moveTo(sa + 12, sb); g.lineTo(sa - 8, sb - 9); g.lineTo(sa - 8, sb + 9); g.closePath(); g.fill(); g.stroke(); }
+    // quay, mole, boardwalk, piers, plaza, fort
+    rectL(CO.QUAY.lx0, -56, CO.QUAY.lx1, 0, 'rgba(201,191,174,0.85)', '#555'); rectL(CO.QUAY.lx0, -0.5, CO.QUAY.lx1, 1.5, '#6f6a62', null);
+    rectL(CO.MOLE.lx - 4, 0, CO.MOLE.lx + 4, CO.MOLE.lz1, '#8a837a', '#333'); { const [a, b] = L(CO.MOLE.lx, CO.MOLE.lz1); g.fillStyle = '#8a837a'; g.beginPath(); g.arc(a, b, 9 * sc, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(a, b, Math.max(3, 3 * sc), 0, 7); g.fill(); }
+    rectL(CO.BOARDWALK.lx0, CO.BOARDWALK.lz0, CO.BOARDWALK.lx1, CO.BOARDWALK.lz1, '#c48a50', '#5a3a1e');
+    for (const p of CO.PIERS) { rectL(p.lx - 2.5, p.lz0, p.lx + 2.5, p.head0, '#c48a50', '#5a3a1e'); rectL(p.lx - p.half, p.head0, p.lx + p.half, p.head1, '#c48a50', '#5a3a1e'); }
+    for (const b of CO.COAST_BERTHS) { rectL(b.lx - 10, b.lz - 3.6, b.lx + 10, b.lz + 3.6, 'rgba(103,232,249,0.85)', '#0e7490'); if (zoom) { const [a, c] = L(b.lx, b.lz + 9); T(b.id, a, c, 12, '#67e8f9', 'center'); } }
+    { const f = CO.FORT; const [a, b] = L(f.lx, f.lz); g.fillStyle = '#b9b2a6'; g.strokeStyle = '#333'; g.lineWidth = 2; g.fillRect(a - 13 * sc, b - 13 * sc, 26 * sc, 26 * sc); g.strokeRect(a - 13 * sc, b - 13 * sc, 26 * sc, 26 * sc); }
+    // main street
+    { const [a, b] = L(STREET.x, STREET.z0), [c, d] = L(STREET.x, STREET.z1); g.strokeStyle = '#111'; g.lineWidth = Math.max(5, 15 * sc); g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); g.strokeStyle = '#e7d7b8'; g.lineWidth = Math.max(3, 12 * sc); g.stroke(); }
+    if (zoom) { for (const q of LOTS_MAP) rectL(q.lx - q.d / 2, q.z - q.w / 2, q.lx + q.d / 2, q.z + q.w / 2, q.col, '#222');
+      for (const q of LOTS_MAP.filter(q => q.label)) TL(q.label, q.lx, q.z, q.ldx, q.ldy, 13, q.tc);
+      for (const [id, lab] of [['shop', 'SHOP door (Timothy)'], ['stall_red', 'red stall'], ['stall_blue', 'blue stall']]) { const s = SHOP_SPOTS[id]; if (!s) continue; const [lx, lz] = CO.w2t(s.x, s.z), [a, b] = L(lx, lz);
+        g.fillStyle = id === 'shop' ? '#ffc93c' : id === 'stall_red' ? '#ff3b3b' : '#3b82f6'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 6, 0, 7); g.fill(); g.stroke(); }
+      for (const q of CO.PLAZA_POIS) { const [a, b] = L(q.lx, q.lz); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 5, 0, 7); g.fill(); g.stroke(); }
+      TL('WAVES + ARENA boards', -10, -12, -40, 70, 13); TL('Token exchange', CO.PLAZA_POIS[2].lx, CO.PLAZA_POIS[2].lz, 30, 90, 13); TL('Harbor market', -36, -32, -60, 30, 13);
+      TL('Spectate spyglass + lighthouse', CO.MOLE.lx, CO.MOLE.lz1, 40, -10, 13); TL('Stone harbor tower', 86, -44, 50, 40, 13); TL('Step ashore (P1)', -90, 42, -20, -40, 13, '#67e8f9');
+      TL('Cliff headland: FORT BATTERY (6 guns)', CO.HEADLAND.lx, CO.HEADLAND.lz, 30, 30, 13); TL('FORT (top of Main Street)', CO.FORT.lx, CO.FORT.lz, -20, 70, 13);
+      TL('STONE QUAY + PLAZA', 20, -40, -80, 150, 14, '#fde68a'); TL('Wooden piers on stilts, shacks, rowboats', -180, 0, -10, 110, 13); TL('Sandbar islet', CO.ISLET.lx, CO.ISLET.lz, -10, -40, 13);
+      TL('Main Street climbs to the gate (Trails A + B start here)', STREET.x, STREET.z1, -10, -115, 13, '#e7d7b8');
+    } else {
+      T('HARBOR BATTLE AREA', ...P(hx0 - 230, hz0 - 230), 20, '#fff', 'center'); T('sail + fight here', ...P(hx0 - 230, hz0 - 205), 14, '#fff', 'center');
+      T('Battle edge 420 m (ships stopped)', ...P(hx0 - 300, hz0 + 330), 14, '#ff6b6b', 'center'); T('AI turn back 370 m', ...P(hx0 - 230, hz0 + 280), 13, '#ff9a3a', 'center');
+      T('PLAYER SPAWN', ...(([a, b]) => [a, b - 18])(P(hx0, hz0)), 14, '#93c5fd', 'center'); T('respawn rings 40 / 85 / 130 m', ...P(hx0 - 60, hz0 + 150), 13, '#4ade80', 'center');
+      T('AI / boss spawn rings 176 + 344 m', ...P(hx0 - 160, hz0 - 360), 13, '#fbbf24', 'center'); T('✕ = AI spawn that must move (on land / no-fire)', ...P(hx0 - 250, hz0 + 395), 13, '#ff6b6b', 'center');
+      T('NO-FIRE SAFE HARBOR', ...L(-100, 100), 15, '#fff', 'center'); T('8 BERTHS (P1-P4, L/R)', ...L(-180, 62), 13, '#67e8f9', 'center');
+      { const [a, b] = L(150, -140); T('DOCK TOWN', a, b, 20, '#fde68a', 'center'); T('(built into the coast)', a, b + 22, 13, '#fde68a', 'center'); } T('MAIN STREET', ...(([a, b]) => [a, b - 14])(L(STREET.x, -150)), 13, '#e7d7b8', 'center');
+      T('FORT', ...(([a, b]) => [a + 18, b])(L(CO.FORT.lx, CO.FORT.lz)), 14); T('FORT BATTERY', ...(([a, b]) => [a + 14, b])(L(CO.HEADLAND.lx + 25, CO.HEADLAND.lz + 20)), 14);
+      T('LIGHTHOUSE MOLE', ...(([a, b]) => [a + 12, b])(L(CO.MOLE.lx, CO.MOLE.lz1 + 10)), 13); T('SANDBAR', ...L(CO.ISLET.lx, CO.ISLET.lz + 32), 12, '#fff', 'center');
+      T('MAIN ISLAND INTERIOR (on foot only)', ...P(-330, -420), 20, '#fff', 'center'); T('jungle, trails A + B, dig sites, Skull Peak →', ...P(-330, -395), 14, '#fff', 'center');
+      line(pr, TRAILS.A, '#fa0d0d'); line(pr, TRAILS.B, '#ffc93c'); T('TRAIL A', ...P(-370, -175), 13, '#fa0d0d'); T('TRAIL B', ...P(-290, 140), 13, '#ffc93c');
+      const [sa, sb] = P(hx0 - 400, hz0 + 420); g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.moveTo(sa, sb); g.lineTo(sa + 200 * sc, sb); g.stroke(); T('200 m', sa + 100 * sc, sb - 12, 13, '#fff', 'center');
+    }
+  };
+  const line = (pr, p, col) => { g.setLineDash([10, 6]); g.strokeStyle = '#161616'; g.lineWidth = 5; g.beginPath(); p.forEach(([x, z], i) => { const [a, b] = pr.P(x, z); i ? g.lineTo(a, b) : g.moveTo(a, b); }); g.stroke(); g.strokeStyle = col; g.lineWidth = 2.5; g.stroke(); g.setLineDash([]); };
+  // main panel: whole harbor + the town coast; inset: the town at ~4x
+  const mainW = Math.round(Wd * 0.56), pr = proj(x0, x1, z0, z1, 0, 0, mainW, Hh); g.fillStyle = '#1f6e94'; g.fillRect(0, 0, Wd, Hh);
+  g.save(); g.beginPath(); g.rect(0, 0, mainW, Hh); g.clip(); terrain(pr, 0, 0, mainW, Hh); draw(pr, false); g.restore();
+  const ix = mainW + 8, iw = Wd - ix - 8, [ax, az] = CO.t2w(-300, 92), [bx, bz] = CO.t2w(205, -255);
+  const ipr = proj(Math.min(ax, bx), Math.max(ax, bx), Math.min(az, bz), Math.max(az, bz), ix, 40, iw, Hh - 48);
+  g.save(); g.beginPath(); g.rect(ix, 40, iw, Hh - 48); g.clip(); terrain(ipr, ix, 40, iw, Hh - 48); draw(ipr, true); g.restore();
+  g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(ix, 40, iw, Hh - 48);
+  g.font = 'bold 26px sans-serif'; g.textAlign = 'left'; g.lineWidth = 6; g.strokeStyle = '#111'; g.fillStyle = '#fde68a';
+  g.strokeText('PUMPFUN PIRATES · harbor coast (blockout)', 14, 26); g.fillText('PUMPFUN PIRATES · harbor coast (blockout)', 14, 26);
+  g.font = 'bold 18px sans-serif'; g.strokeText('TOWN CLOSE-UP: quay, piers, plaza, Main Street lots', ix + 6, 22); g.fillStyle = '#fff'; g.fillText('TOWN CLOSE-UP: quay, piers, plaza, Main Street lots', ix + 6, 22);
+}
+export const LOTS_MAP = [];
 
 // ---------- inland POIs ----------
 export const FOOT_POIS = [];
@@ -547,7 +707,7 @@ function boulder(k, x, z, s, seed, sink = 0.3) { W(k, jitter(new THREE.Icosahedr
 export function buildInland(A, low, F) {
   const k = new Kit(); k.ao = (x, y, z) => 0.6 + 0.4 * sm(0, 2.6, y - H(x, z));
   // lighthouse: dressed-stone base, banded tower with stone trim rings, gallery + rail, lantern room, keeper's hut
-  { const p = poi('lighthouse', 'Lighthouse', -556, -236), y = p.y - 0.3;
+  { const p = poi('lighthouse', 'Lighthouse', ...(COASTM ? CO.t2w(CO.MOLE.lx, CO.MOLE.lz1) : [-556, -236])), y = p.y - 0.3;
     W(k, cyl(6.2, 7.2, 3.2, 16), STONE, 11, M(p.x, y + 1.3, p.z)); addCirc(p.x, p.z, 7.2);
     for (let b = 0; b < 6; b++) { const r0 = 3.3 - b * 0.17; W(k, cyl(r0 - 0.17, r0, 4, 16), b % 2 ? CREAM : RED, 7, M(p.x, y + 4.9 + b * 4, p.z)); W(k, cyl(r0 + 0.12, r0 + 0.12, 0.35, 16), STONE_D, 11, M(p.x, y + 2.9 + b * 4, p.z), false); }
     W(k, cyl(3.2, 2.6, 0.5, 16), STONE_D, 11, M(p.x, y + 27.1, p.z)); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; W(k, cyl(0.05, 0.05, 1.1, 4), IRON, 0, M(p.x + Math.cos(a) * 3.0, y + 27.9, p.z + Math.sin(a) * 3.0), false); }
@@ -679,8 +839,9 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   KP = kit ? [] : null;
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
+  const coast = COASTM ? buildCoast(atlas.R, low, F).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const kitM = kit ? kitMesh(kit, KP, 'foot_townkit') : null; if (kitM) root.add(kitM); const kitN = KP ? KP.length : 0; KP = null;
-  for (const g of [street, inland]) g.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !low; o.receiveShadow = !low; } });
+  for (const g of [street, inland, coast].filter(Boolean)) g.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !low; o.receiveShadow = !low; } });
   // water: shoreline shallows + foam, river + lake flow, waterfall + mist
   const hTex = heightTexture();
   const sea = shallows(uTime, uWaves, low, hTex); root.add(sea);

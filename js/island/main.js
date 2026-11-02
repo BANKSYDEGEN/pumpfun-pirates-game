@@ -28,7 +28,8 @@ const phone = matchMedia('(max-width: 600px), (max-height: 520px)').matches;
 const quality = P.get('quality') || (phone ? 'low' : 'high'), LOW = quality === 'low', SHOT = P.has('shot');
 const WALK = P.has('walk');
 const HARBOR = !!P.get('harbor') && P.get('harbor') !== '0', FULL = P.has('full'), NPLAYERS = +(P.get('players') || 0);
-const FOOT = P.has('foot') && !HARBOR;
+const COASTM = P.get('coast') === '1' && !HARBOR; // [coast] town built into the main island's west coast, no round dock island (js/island/coast.js)
+const FOOT = (P.has('foot') || COASTM) && !HARBOR;
 const FM = FOOT ? await import('./foot.js') : null; // the on-foot island module never loads in the harbor / ship view
 if (SHOT) document.body.classList.add('shot');
 document.getElementById('title').textContent = HARBOR ? 'PUMPFUN PIRATES · Island in the harbor' : FOOT ? 'PUMPFUN PIRATES · On-foot island' : 'PUMPFUN PIRATES · Island';
@@ -125,10 +126,11 @@ const grove = buildPalmGrove(LOW, MATS.toon); grove.castShadow = !LOW;          
 const fx = buildFx(uTime, LOW); if (LP) fx.material.uniforms.uSmoke.value.set(LP.smoke); // gulls + smoke (1 call)
 const setFxPx = () => { fx.material.uniforms.uPx.value = renderer.getDrawingBufferSize(new THREE.Vector2()).y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)); }; setFxPx();
 isle.add(near, far, foam, plants, lagoonMesh, grove, fx);
+if (COASTM) isle.visible = false; // the round Dock Town island is not part of the coast layout (kept only as the town frame)
 // on-foot island (blockout): chunked heightmap terrain, streamed jungle, main street + inland POIs
 const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT }) : null;
 const _fw = new THREE.Vector3();
-const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;
+const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return COASTM ? foot.groundAt(_fw.x, _fw.z) : Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;
 const cW = FOOT ? (x, z) => fY(x, z) >= 0.8 : canWalk;
 const _fw2 = new THREE.Vector3();
 // [foot] world-space solids, water, slope limit and the bounded rope bridge (js/island/foot.js); x,z are town-local
@@ -185,8 +187,9 @@ const mkShip = (levels, skin, bake) => {
 const ships = [];
 // real moored ships: Q1E is a maxed hull 3 (len 20.4, the longest a berth takes)
 const REAL_KIT = [[{ hull: 3, sails: 1, cannons: 1, armor: 1 }, 'golden'], [{ hull: 2, sails: 1, cannons: 1 }, 'midnight'], [{ hull: 1, sails: 1 }, 'blood']];
-REAL.forEach((id, i) => { const b = BERTH[id], w = L2W(b.x, 0, b.z);
-  ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true), x: w.x, z: w.z, yaw: b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
+const CB = COASTM ? Object.fromEntries(FM.CO.COAST_BERTHS.map(b => [b.id, b])) : null;
+(COASTM ? ['P4R'] : REAL).forEach((id, i) => { const b = BERTH[id], w = COASTM ? new THREE.Vector3(CB[id].x, 0, CB[id].z) : L2W(b.x, 0, b.z);
+  ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true), x: w.x, z: w.z, yaw: COASTM ? CB[id].yaw : b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
 let approach = null; const duel = [];
 if (HARBOR) {
   // a ship sailing in from open water and pulling alongside berth P1L (the harbor-facing end of pier 1; 40 s loop)
@@ -310,6 +313,8 @@ if (FOOT) { // world-frame views on the big island: eye level = ground + 1.7 m
   const [s0x, s0z] = T(6, -62), [s1x, s1z] = T(6, -200), br = Q.bridge, sk = Q.skullpeak, cv = Q.cove, gl = Q.gallows, fl = Q.falls;
   Object.assign(WORLD_VIEWS, {
     footMap: { p: [-90, 2350, -19.99], t: [-90, 0, -20] },
+    ...(COASTM ? (() => { const C = FM.CO, [cx, cz] = C.t2w(-95, 100), [tx, tz] = C.t2w(25, -125), [hx, hz] = C.HC;
+      return { coast34: { p: [cx, 34, cz], t: [tx, 17, tz] }, coastTop: { p: [hx + 190, 1500, hz + 0.01], t: [hx + 190, 0, hz] } }; })() : {}),
     street: { p: [s0x, Math.max(foot.H(s0x, s0z), groundY(6, -62)) + 1.8, s0z], t: [s1x, foot.H(s1x, s1z) + 7, s1z] },       // arrival: up the main street
     harborFromStreet: { p: E(...T(6, -120), 22), t: [FM.TOWN.x, 4, FM.TOWN.z] },
     bridge: { p: [br.x + 75, br.deck + 3, br.z + 12], t: [br.x, br.deck - 6, br.z] },
@@ -329,7 +334,7 @@ function resolve(name) {
 }
 function goView(name, instant = false) {
   curView = name; controls.autoRotate = name === 'hero' && !SHOT;
-  const to = resolve(name), top = name === 'harborTop' || name === 'footMap';
+  const to = resolve(name), top = name === 'harborTop' || name === 'footMap' || name === 'coastTop';
   if (overlay) overlay.visible = top || P.has('overlay'); localOverlay.visible = top || P.has('overlay');
   if (gameSky) gameSky.mesh.visible = !top; if (lobbySky) lobbySky.visible = !top; scene.background = top ? new THREE.Color(FOOT ? 0x1f6e94 : 0x0e2a36) : FOGC.clone(); if (FOOT) ocean.mesh.scale.setScalar(top ? 2.4 : 1);
   scene.fog.density = top ? 0 : FOGD; ocean.uniforms.uFogDensity.value = top ? 0 : FOGD; // top-down layout map: no fog
@@ -489,11 +494,12 @@ function frame() {
   requestAnimationFrame(frame);
 }
 if (foot && P.get('dig')) foot.digs.forEach(d => { d.t = (SHOT ? T0 : 0) - +P.get('dig'); }); // &dig=SECONDS: shots of a dig mid-reveal
-window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois } : null;
+window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois, shop: FM.SHOP_SPOTS, coast: COASTM ? { HC: FM.CO.HC, berths: FM.CO.COAST_BERTHS, spawns: FM.CO.spawnCheck() } : null } : null;
 window.ISLAND = { foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);
 // 2D layout review map (&foot=1&map=1): heightmap shading, both trail loops, street, river + lake, every POI labelled
-if (FOOT && P.has('map')) {
+if (COASTM && P.has('map')) { const cv = document.createElement('canvas'); cv.width = innerWidth; cv.height = innerHeight; cv.style.cssText = 'position:fixed;inset:0;z-index:50'; FM.drawCoastMap(cv); document.body.appendChild(cv); }
+else if (FOOT && P.has('map')) {
   const cv = document.createElement('canvas'); cv.width = innerWidth; cv.height = innerHeight; cv.style.cssText = 'position:fixed;inset:0;z-index:50';
   const tp = ISLAND_POIS.map(q => { const v = L2W(q.x, 0, q.z); return { x: v.x, z: v.z, label: '', col: '#60a5fa' }; });
   FM.drawMap(cv, [...tp, { ...(() => { const [x, z] = FM.townToWorld(14, -66); return { x, z }; })(), label: 'Squad Hall', col: '#a855f7' }]); document.body.appendChild(cv);
