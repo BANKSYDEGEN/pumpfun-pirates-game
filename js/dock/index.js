@@ -144,7 +144,8 @@ export async function createDock(ctx) {
     zone.tick(s, now);
     // HUD tag
     const g = zone.graceLeft(s, now);
-    if (onFoot || s._safe) { safeTag.style.display = 'block'; safeTag.className = ''; safeTag.textContent = '⚓ SAFE HARBOR'; }
+    if (onFoot) safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
+    else if (s._safe) { safeTag.style.display = 'block'; safeTag.className = ''; safeTag.textContent = '⚓ SAFE HARBOR'; }
     else if (g > 0) { safeTag.style.display = 'block'; safeTag.className = 'grace'; safeTag.textContent = `NO FIRING · ${Math.ceil(g)}`; }
     else safeTag.style.display = 'none';
     // prompts
