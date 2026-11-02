@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v114';
+const VERSION = 'pfp-v115'; // [security fixes] also drops the old forever-cached jsDelivr copies (activate deletes old caches)
 const SHELL = [
   "./",
   "./index.html",
@@ -180,18 +180,23 @@ const ASSETS = [
   "./assets/island/nature_kit_low.glb",
   "./assets/island/nature_kit_low.webp.glb",
 ];
-const CDN = 'https://cdn.jsdelivr.net/npm/three@0.165.0/';
-const CDN_FILES = [
-  CDN + 'build/three.module.js',
-  CDN + 'build/three.core.js',
-  CDN + 'examples/jsm/controls/OrbitControls.js',
-  CDN + 'examples/jsm/utils/BufferGeometryUtils.js',
-  CDN + 'examples/jsm/geometries/RoundedBoxGeometry.js',
-  CDN + 'examples/jsm/loaders/GLTFLoader.js', // [v100] ship kit, island kits, v4 pirates
-  CDN + 'examples/jsm/loaders/DRACOLoader.js',
-  CDN + 'examples/jsm/loaders/KTX2Loader.js',
-  CDN + 'examples/jsm/libs/meshopt_decoder.module.js',
-  CDN + 'examples/jsm/utils/SkeletonUtils.js',
+// [security M4] three.js is self-hosted in vendor/ (was jsDelivr, cached forever). Same-origin files are network-first
+// below, so a bad copy can never stick; these are only precached for offline play (best effort).
+const VENDOR = './vendor/three-0.165.0/';
+const VENDOR_FILES = [
+  VENDOR + 'build/three.module.js',
+  VENDOR + 'examples/jsm/controls/OrbitControls.js',
+  VENDOR + 'examples/jsm/utils/BufferGeometryUtils.js',
+  VENDOR + 'examples/jsm/geometries/RoundedBoxGeometry.js',
+  VENDOR + 'examples/jsm/loaders/GLTFLoader.js',
+  VENDOR + 'examples/jsm/loaders/DRACOLoader.js',
+  VENDOR + 'examples/jsm/loaders/KTX2Loader.js',
+  VENDOR + 'examples/jsm/libs/meshopt_decoder.module.js',
+  VENDOR + 'examples/jsm/libs/ktx-parse.module.js',
+  VENDOR + 'examples/jsm/libs/zstddec.module.js',
+  VENDOR + 'examples/jsm/utils/WorkerPool.js',
+  VENDOR + 'examples/jsm/utils/SkeletonUtils.js',
+  './js/boot.js', './js/framebust.js', './js/env.js', './js/safe.js',
 ];
 // [v101] the combat sound core (~290 KB) is precached above; voices, the victory stinger and the shanty (~800 KB)
 // are cached on first use by the same-origin fetch handler below.
@@ -201,8 +206,7 @@ self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
     await c.addAll(SHELL);
-    // CDN files are best effort (three.core.js only exists in newer builds)
-    await Promise.all(CDN_FILES.map(u => c.add(new Request(u, { mode: 'cors' })).catch(() => {})));
+    await Promise.all(VENDOR_FILES.map(u => c.add(u).catch(() => {}))); // best effort
     self.skipWaiting();
   })());
 });
@@ -221,17 +225,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   // never cache leaderboard / API traffic
   if (url.hostname.endsWith('supabase.co') || url.pathname.includes('/rest/v1/')) return;
-  const isCDN = url.href.startsWith(CDN);
-  const isSame = url.origin === self.location.origin;
-  if (!isCDN && !isSame) return;
-  if (isCDN) {
-    // pinned version => cache-first forever
-    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
-      return res;
-    })));
-    return;
-  }
+  // [security M4] only same-origin files are cached (no third-party script is ever served from the cache)
+  if (url.origin !== self.location.origin) return;
   // same-origin: network-first (fresh when online), cache fallback offline
   e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => { // revalidate (cheap 304s): never mix an old cached file with new ones after an update
     if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }

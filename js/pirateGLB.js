@@ -22,7 +22,7 @@ export const EXPR_UV = { neutral: [0, 0], shout: [0.5, 0], hurt: [0, 0.5], blink
 let _loader = null; const _cache = new Map();
 function loader() {
   if (_loader) return _loader;
-  const draco = new DRACOLoader(); draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/draco/gltf/');
+  const draco = new DRACOLoader(); draco.setDecoderPath(new URL('../vendor/three-0.165.0/examples/jsm/libs/draco/gltf/', import.meta.url).href); // [security M4] self-hosted (was jsDelivr)
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {

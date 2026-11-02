@@ -1,0 +1,34 @@
+three.js r165 (npm three@0.165.0, MIT, see LICENSE), self-hosted for the CSP / supply-chain fix (SECURITY_FIXES.md M4).
+Unmodified files from the npm tarball (registry integrity checked by npm; byte-identical to cdn.jsdelivr.net/npm/three@0.165.0).
+Only the modules the game imports (and their imports) plus the DRACO / Basis decoders. sha256:
+4c40a1ef62450b857c3b2aaf294936304cd552d965fbcd9d32d4c5bcf4ba4454  ./LICENSE
+5916c8dfb5f4e3eede312de305345868d4a0a8105383b080c6985565d6e79b46  ./build/three.module.js
+f260591ef315aa04888152e7f121865214e33fb54727145cf4e4445058db1297  ./examples/jsm/controls/OrbitControls.js
+d20aeaf7077c459a8d952d215738d7b44fba028440bb862d84b622a34f0c80bb  ./examples/jsm/geometries/RoundedBoxGeometry.js
+48a0ef319a28bf0224ee88ded34f74eaf97c175bba9eb18b47fb9720510ad6c4  ./examples/jsm/libs/basis/basis_transcoder.js
+79ae97d781e10a566659c689b7bb1de91726453f55f9f5e3bcc07a4e3904070f  ./examples/jsm/libs/basis/basis_transcoder.wasm
+8625489da79a805f4f2a7d511c3e52d8b4085608a9d2a4d5f4f9de5db0aea04f  ./examples/jsm/libs/draco/gltf/draco_decoder.js
+a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac  ./examples/jsm/libs/draco/gltf/draco_decoder.wasm
+8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6  ./examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js
+f73948e7bbf8db386076fda0458160bdb50ce2e11e88fa7da0f339e1ec547493  ./examples/jsm/libs/ktx-parse.module.js
+01f48524f4bac6141eaba07e94cc36e7ee56f311796fa6117c159842941b0468  ./examples/jsm/libs/meshopt_decoder.module.js
+5cbf818e842628a4464e748594a6deae18ceddda3c2f541e7b3a0ff5fc7611e2  ./examples/jsm/libs/zstddec.module.js
+cc54e930544deb21180d2b3425138556b7e4d27a01c8f58caf132eb8d8b731a5  ./examples/jsm/loaders/DRACOLoader.js
+32e8ea1535e3016302dec82371beccd60e9cd371ee09fd8daee2ac45e8148a56  ./examples/jsm/loaders/GLTFLoader.js
+0ed556b20aee3477ddae6f6c3d4cf4a80102400775c52cf403e728880c950a7a  ./examples/jsm/loaders/KTX2Loader.js
+d234e578618fa816955ebdc059c049c577e203e650e33cf22bde3f232c29e669  ./examples/jsm/postprocessing/EffectComposer.js
+328cf7db0da5d9be83ffe39d54b01d5ac1fddf108cc98182ddbb056f5c8b537f  ./examples/jsm/postprocessing/MaskPass.js
+32f879d2179087676631c799857a885586b3cdd13b9731bd3b13f06428bd58b7  ./examples/jsm/postprocessing/OutputPass.js
+b3c6128340eaa37e40a6a2f1b738e894c855239417d50959759b34a2b5e89f92  ./examples/jsm/postprocessing/Pass.js
+6c9b8a539ea16e898f65e4760f14937ef9ea94043bd9842c141e0301f41903e8  ./examples/jsm/postprocessing/RenderPass.js
+f3508e3e17f40c1358921b5c7eb3ab60460d97b06fdadf6b0d40b52d3842c44a  ./examples/jsm/postprocessing/SMAAPass.js
+3b28a1ee27e0eb96c0eab137a1f442ccf127a926904eced2d51e125ec44af781  ./examples/jsm/postprocessing/ShaderPass.js
+8f09315c0cec117a0ca2494d3e3586035b3c4323d6dcb037537cc51b04c3cdba  ./examples/jsm/postprocessing/UnrealBloomPass.js
+4e3346db194db56a596cd074e9bdb39fb5eb52040c333e0d29dc4eb1324d3b1d  ./examples/jsm/shaders/CopyShader.js
+e25c46db03ac2420d9291ff202112464cc9cf5114efc8477cc0a59c65653d4aa  ./examples/jsm/shaders/FXAAShader.js
+3d841cc594a0c1767d1b0185720b32761a0133c5f1b70b56658e28f2fb9b7900  ./examples/jsm/shaders/LuminosityHighPassShader.js
+749b0c6db135541d1be183c8845a901af3a8bd45a013e84da0b1583c24b1ce4c  ./examples/jsm/shaders/OutputShader.js
+3c7e942a25cb09dd431e395e6e91904715a834b2a6e62ec0b9b77c2f8655c369  ./examples/jsm/shaders/SMAAShader.js
+c25b7930e570e9ec56173cd3b866ec8d2e10016630db3937efb439daf1cedbf6  ./examples/jsm/utils/BufferGeometryUtils.js
+e0dcb498b3383a032e6e934fcc5bfe07b5e99d4d4d1c77a7956fe935304abf5c  ./examples/jsm/utils/SkeletonUtils.js
+94ff7b608caf3b827ffa95bd6092b9d174732b856915b38ed006b4f049f95675  ./examples/jsm/utils/WorkerPool.js

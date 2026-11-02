@@ -21,7 +21,7 @@ function toFloat(src, m) { // quantized glTF attributes -> plain float geometry 
 // KTX2 (Basis) textures: transcoded to the GPU's compressed format (BC / ETC / ASTC); falls back to the webp twin files
 let _ktx = null;
 function gltfLoader(renderer) { const l = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  if (renderer) { _ktx = _ktx || new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/basis/').detectSupport(renderer); l.setKTX2Loader(_ktx); }
+  if (renderer) { _ktx = _ktx || new KTX2Loader().setTranscoderPath(new URL('../../vendor/three-0.165.0/examples/jsm/libs/basis/', import.meta.url).href) /* [security M4] self-hosted */.detectSupport(renderer); l.setKTX2Loader(_ktx); }
   return l; }
 async function loadKit(name, low, renderer) {
   const base = `assets/island/${name}${low ? '_low' : ''}`;
