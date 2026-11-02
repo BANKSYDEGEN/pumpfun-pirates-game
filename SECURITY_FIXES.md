@@ -1,6 +1,6 @@
 # PUMPFUN PIRATES · security fixes (branch `post/security-fixes`)
 
-Base: rebased onto origin/main `da863d2` (2026-11-02 18:25 EST; it includes the v112 hotfixes: crew clothes, ships, settings move). The SW VERSION is bumped to `pfp-v113` because main already shipped v112.
+Base: rebased onto origin/main `b131b7a` (2026-11-02 18:45 EST; includes the v112–v113 hotfixes: crew clothes, ships, settings move, title token pick). The SW VERSION is `pfp-v114`. Main bumps it often, so **at merge time set it to main + 1**.
 **Nothing here is pushed, merged, deployed or applied.** Migrations 028–030 are files only. No leaderboard row, score or player
 record is changed by any of them. They are additive: new columns with defaults, new tables, new or wrapped functions, and changed
 privileges. Nothing is dropped, wiped or reset.
@@ -22,7 +22,7 @@ Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remain
 - **Back-compat / could reject legit scores:**
   - a run whose `waves_start` never reached the server (offline at start, 429 from a restart < 3 s) is not on the board after 030.
     It is still saved on the device, with the same "saved locally" path as before when Supabase is down.
-  - Old cached clients (before SW v113) insert directly. After 030 their insert fails (saved locally) until they reload.
+  - Old cached clients (before SW v114) insert directly. After 030 their insert fails (saved locally) until they reload.
     Wait for adoption before 030.
   - Rollback: the commented block at the end of 030 re-creates the 003 policy and grants. Scores are never touched.
 
@@ -103,7 +103,7 @@ Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remain
 - CSP meta on index.html / island.html. The inline failsafe moved to `js/boot.js`. `tools/csp_hash.py --write` re-pins the one
   inline hash.
 - `'unsafe-eval'` is needed by three's Basis/KTX2 transcoder (embind) in a blob worker. Inline script stays blocked.
-- The service worker (v113) caches same-origin only and no longer caches the CDN forever.
+- The service worker (v114) caches same-origin only and no longer caches the CDN forever.
 - Header CSP / HSTS can't be set on GitHub Pages; that needs a proxy (e.g. Cloudflare) if wanted.
 
 ### M5 · `?relay=` on prod — fixed
@@ -133,8 +133,8 @@ See "Human actions".
    - check `ALLOWED_ORIGINS` includes every live origin.
    Note: the new SIWS sign-in needs the new client and server together. An old cached client asking for a nonce still works,
    because the server builds the message and the client just signs it.
-3. **Client** (merge to main → Pages). SW v113 replaces old caches.
-4. Wait ~1–2 weeks (or until the old-client share is negligible) for SW v113 adoption.
+3. **Client** (merge to main → Pages). SW v114 replaces old caches.
+4. Wait ~1–2 weeks (or until the old-client share is negligible) for SW v114 adoption.
 5. **Migration 030** (anon INSERT on scores revoked).
 6. Test on staging: private channels with a ticket, then Realtime → "Allow public access" **OFF**.
 7. Relay (optional, later):
@@ -178,3 +178,8 @@ See "Human actions".
   - CSP check: no violations;
   - smoke: title screen, a Waves game saved through `waves_score` with the server run id (no direct insert), two pirates
     in the PvP arena seeing each other, emote, spectator joins, injected XSS states dropped, no console errors.
+
+## Not security, found while testing
+- Portal builds (itch / Newgrounds / CrazyGames) crashed at load on origin/main (`$('btn-wallet')` is removed by the crypto-free
+  build before main.js touches it). This branch null-guards it (commit "fix portal builds"). It could also be cherry-picked to main
+  on its own.
