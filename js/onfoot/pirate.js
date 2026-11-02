@@ -50,7 +50,7 @@ function geos(look, low) {
 }
 
 // returns { object, update(dt, speed, state), dispose, height }
-export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline = !low } = {}) {
+export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline = !low, gear = null, local = false } = {}) {
   // Raul's GLB path goes here (load once, clone per pirate, drive its idle / walk / run clips); placeholder below meanwhile
   const g = geos(look, low), m = mat(), root = new THREE.Group(); root.name = 'pirate';
   const hips = new THREE.Group(); hips.position.y = 0.78; root.add(hips);
@@ -61,7 +61,7 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
   const legL = add(g.leg, hips, new THREE.Vector3(-0.12, -0.16, 0)), legR = add(g.leg, hips, new THREE.Vector3(0.12, -0.16, 0));
   armL.rotation.z = 0.12; armR.rotation.z = -0.12;
   // [v100] Raul's v4 GLB body: swaps in when loaded (hides the placeholder), clips idle / walk / run by speed
-  let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
+  let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, gear, local, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
   let ph = 0, blend = 0, t = 0;
   function update(dt, speed = 0, state = 'idle') {
     if (v4) { const c = speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);

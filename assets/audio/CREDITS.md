@@ -1,15 +1,20 @@
-# PUMPFUN PIRATES: audio credits (sw pfp-v101)
+# PUMPFUN PIRATES: audio credits (sw pfp-v102)
 
 Every recorded sound in `assets/audio/` is CC0, CC-BY (credited below) or original to PUMPFUN PIRATES. Nothing is CC-BY-NC, Sampling+, or ripped from games, films or video. All other game sounds are synthesized live in `js/audio.js`.
 
 ## CC-BY (attribution required)
 - **jc-sounds**, *Pirate Pack Vol 1* (CC BY 4.0), https://opengameart.org/content/jc-sounds-pirate-pack-vol-1. Sub layer inside the cannon shots (`cannon_1.mp3`, `cannon_2.mp3`).
-- **riddlesyouthis**, *Female RPG Character voice pack* (CC BY 3.0), https://opengameart.org/content/female-rpg-character-voice-pack. Voice takes `vo_fire_female_1.mp3` and `vo_laugh_female_2.mp3`.
+- **riddlesyouthis**, *Female RPG Character voice pack* (CC BY 3.0), https://opengameart.org/content/female-rpg-character-voice-pack. Voice takes `vo_fire_female_1.mp3`, `vo_laugh_female_2.mp3` and `vo_help_female_1.mp3` ("Help me, please!", from helpme.ogg).
+- **theuncertainman** (CC BY 4.0), Freesound: "Advance!" https://freesound.org/people/theuncertainman/sounds/421874/ (`vo_follow_male_1`), "Move!" https://freesound.org/people/theuncertainman/sounds/458073/ (`vo_follow_male_3`), "I need reinforcements!" https://freesound.org/people/theuncertainman/sounds/397297/ (`vo_help_male_1`), "Charge!" v1/v2 https://freesound.org/people/theuncertainman/sounds/458067/ and https://freesound.org/people/theuncertainman/sounds/458068/ (`vo_attack_male_1/2`), "I need to fall back at once!" https://freesound.org/people/theuncertainman/sounds/397302/ (`vo_retreat_male_1`, cut to "Fall back at once!"). All trimmed, cleaned and level-matched.
+- **AmeAngelofSin**, *battle shouts: Come over, this way, hey, over here* (CC BY 4.0), https://freesound.org/people/AmeAngelofSin/sounds/362665/. Cut into `vo_follow_female_1/2/3` ("This way!", "Come over!", "Over here!").
+- **hykenfreak**, *Dark Horn Blast* (CC BY 4.0), https://freesound.org/people/hykenfreak/sounds/218072/. Low horn layer (pitched to D2) in the boss-arrival horn `horn_boss.mp3`.
 
-Credit line: *Sounds by jc-sounds and riddlesyouthis (CC-BY), plus many CC0 contributors via Freesound.org and OpenGameArt.org.*
+Credit line: *Sounds by jc-sounds, riddlesyouthis, theuncertainman, AmeAngelofSin and hykenfreak (CC-BY), plus many CC0 contributors via Freesound.org and OpenGameArt.org.*
 
 ## Music
 - "Salt on the Rail" harbor shanty (`music_shanty.mp3`) and the victory stinger (`victory.mp3`) are original compositions for PUMPFUN PIRATES. They are rendered with the GeneralUser GS v2.0.3 SoundFont by S. Christian Collins, which is free for commercial music.
+- v102: the shanty ships as a 15 s seamless 8-bar edit of the same recording (bars 1-4 + 13-16) at 96 kbps, so it decodes to ~5.8 MB instead of 11.5 MB. The defeat stinger (`defeat.mp3`) is an original composition rendered the same way, with the CC0 ship's bell 468847 (ChristianAnd) layered in.
+- Round 5: the legendary-upgrade fanfare (`upgrade_legendary.mp3`) is an original D-major brass figure rendered with the same GeneralUser GS SoundFont, with a CC0 frame drum (518943) and the ship's bell (468847).
 
 ## CC0 sources (no attribution required; listed for provenance)
 | Source | Title | Author | URL | Licence | Layer / file |
@@ -72,4 +77,28 @@ Credit line: *Sounds by jc-sounds and riddlesyouthis (CC-BY), plus many CC0 cont
 | 481882 | R22-34-Light Wood Creaks.wav by craigsmith | craigsmith | https://freesound.org/people/craigsmith/sounds/481882/ | CC0 1.0 | cannon r3 wood CREAK |
 | 456816 | Creaky Steel and Wood Doors (open + closing) by Breviceps | Breviceps | https://freesound.org/people/Breviceps/sounds/456816/ | CC0 1.0 | cannon r3 wood CREAK |
 | 593458 | Chain rattling by georgesavic | georgesavic | https://freesound.org/people/georgesavic/sounds/593458/ | CC0 1.0 | cannon r3 CHAIN |
+| 188488 | Scream: let's go! by unfa | unfa | https://freesound.org/people/unfa/sounds/188488/ | CC0 1.0 | v102 voice follow_male_2 ("Let's go!") |
+| 627292 | incommingEnemyFighters.wav by dhartshorn | dhartshorn | https://freesound.org/people/dhartshorn/sounds/627292/ | CC0 1.0 | v102 voice boss_male_1 ("Incoming enemy...", cut) |
+| 800876 | Soldier-Yelling Incoming by TyrantTim | TyrantTim | https://freesound.org/people/TyrantTim/sounds/800876/ | CC0 1.0 | v102 voice boss_male_2 ("Incoming!") |
+| 422689 | help me!.wav by niamhd00145229 | niamhd00145229 | https://freesound.org/people/niamhd00145229/sounds/422689/ | CC0 1.0 | v102 voice help_female_2 |
+| 340360 | Male voice "Well Done" by deleted_user_5205523 | deleted_user_5205523 | https://freesound.org/people/deleted_user_5205523/sounds/340360/ | CC0 1.0 | v102 voice gg_male_1/2 ("Well done!") |
+| 400643 | Wood panel board debris clatter falling constant by LampEight | LampEight | https://freesound.org/people/LampEight/sounds/400643/ | CC0 1.0 | v102 debris_1/2 (kill debris clatter) |
+| 675967 | S10-19 Falling wooden beam; big interior crash by craigsmith | craigsmith | https://freesound.org/people/craigsmith/sounds/675967/ | CC0 1.0 | v102 sink CRASH |
+| 675785 | S29-24 Creak and roll of old sailing boat; wood stressing by craigsmith | craigsmith | https://freesound.org/people/craigsmith/sounds/675785/ | CC0 1.0 | v102 sink hull GROAN |
+| 481882 | R22-34-Light Wood Creaks.wav by craigsmith | craigsmith | https://freesound.org/people/craigsmith/sounds/481882/ | CC0 1.0 | v102 sink_big second groan |
+| 442773 | Big Water Splash by qubodup | qubodup | https://freesound.org/people/qubodup/sounds/442773/ | CC0 1.0 | v102 sink SPLASH |
+| 852478 | Underwater Bubble Flow Loop by KolbyRFX | KolbyRFX | https://freesound.org/people/KolbyRFX/sounds/852478/ | CC0 1.0 | v102 sink BUBBLES |
+| 693541 | Splooshes 1 by dannyraye | dannyraye | https://freesound.org/people/dannyraye/sounds/693541/ | CC0 1.0 | v102 debris PLOPS |
+| 518943 | detuned frame drum bass.WAV by HarpDave | HarpDave | https://freesound.org/people/HarpDave/sounds/518943/ | CC0 1.0 | v102 lowhp_beat (heartbeat drum) |
+| 468847 | 43_campanas_de_barco.wav by ChristianAnd | ChristianAnd | https://freesound.org/people/ChristianAnd/sounds/468847/ | CC0 1.0 | v102 lowhp_bell, defeat stinger bell |
+| 637206 | boat knocks fiberglass water laps on hull.flac by kyles | kyles | https://freesound.org/people/kyles/sounds/637206/ | CC0 1.0 | v102 amb_sea (water lapping on the hull) |
+| 824106 | NorthSeaWaves.wav by derjuli | derjuli | https://freesound.org/people/derjuli/sounds/824106/ | CC0 1.0 | v102 amb_sea (open-sea wash) |
 
+v102 light / medium / heavy hits (`impact_light|medium|heavy_1/2.mp3`) reuse the impact sources above (536777, 109359, 518791, 669457, 873248, 438331, 562187, 568413, 774268, 693541, 406093).
+| 717909 | 230724 Thunder, close crack light rain by TRP | TRP | https://freesound.org/people/TRP/sounds/717909/ | CC0 1.0 | round 5 thunder_1 / thunder_2 (close crack + rumble) |
+| 580540 | Rain on Interior windows with rumbling thunder by exuberate | exuberate | https://freesound.org/people/exuberate/sounds/580540/ | CC0 1.0 | round 5 thunder_3 (rolling rumble), boss horn rumble |
+| 528598 | scary conch shell.wav by DreStortion | DreStortion | https://freesound.org/people/DreStortion/sounds/528598/ | CC0 1.0 | round 5 horn_wave (A3), horn_boss (F3): real conch |
+| 507468 | Alpenhorn.aiff by Danjocross | Danjocross | https://freesound.org/people/Danjocross/sounds/507468/ | CC0 1.0 | round 5 horn_wave (D4), horn_boss (A3): alpenhorn |
+| 518943 | detuned frame drum bass.WAV by HarpDave | HarpDave | https://freesound.org/people/HarpDave/sounds/518943/ | CC0 1.0 | round 5 horn_wave / horn_boss drums, legendary fanfare drum |
+| 345635 | Frame drum_oneshot_RAW_15.wav by cabled_mess | cabled_mess | https://freesound.org/people/cabled_mess/sounds/345635/ | CC0 1.0 | round 5 horn_boss war drums |
+| 468847 | 43_campanas_de_barco.wav by ChristianAnd | ChristianAnd | https://freesound.org/people/ChristianAnd/sounds/468847/ | CC0 1.0 | round 5 upgrade_legendary bell |

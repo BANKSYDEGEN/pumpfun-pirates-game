@@ -103,21 +103,31 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:golden": { price: 75000 }, "skin:ghost": { price: 100000 }, "skin:admiral": { price: 125000 },
   "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
   "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
-  // pirate gear (js/shopCatalog.js ids, Timothy's prices) goes on sale here once its model shows on the v4 pirate, e.g.
-  // "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:outfit:tank": { price: 150 }, ...
+  // [v105] pirate gear (Timothy's renders, js/pirateGear.js); the 4 new parrots (blue / cockatoo / black / diamond) are NOT sold
+  // until they render (Timothy's next build): add them here then. Goals checked server-side like COMMODORE.
+  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 },
+  "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
+  "gear:eyes:eyepatch": { price: 200 }, "gear:eyes:sunglasses": { price: 500 }, "gear:eyes:laser": { price: 3000 },
+  "gear:parrot:parrot_green": { price: 2000 }, "gear:parrot:parrot_red": { price: 5000 },
+  "gear:parrot:parrot_gold": { price: 50000, goal: [{ stat: "bossKills", need: 50 }] },
+  // later: "gear:parrot:parrot_blue": { price: 8000 }, "gear:parrot:parrot_cockatoo": { price: 12000 },
+  //        "gear:parrot:parrot_black": { price: 20000, goal: [{ stat: "kills", need: 1000 }] }, "gear:parrot:parrot_diamond": { price: 100000, goal: [{ stat: "kills", need: 5000 }] },
+  "gear:hook:hook_iron": { price: 500 }, "gear:hook:hook_gold": { price: 2500 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
 export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne"], outfit: ["shirtless", "tank", "tshirt", "coat"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
-  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold"], hook: ["none", "hook_iron", "hook_gold"] }; // equip validation (owned or free)
+  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"] }; // equip validation (owned or free)
 export const SEED_GOLD_CAP = 25000; // first server copy of a device save: gold above this is released at the normal earning pace
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
 export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);
-export function cleanGear(g: any): Record<string, string> { const o: Record<string, string> = {};
-  for (const [s, ids] of Object.entries(GEAR_SLOTS)) o[s] = typeof g?.[s] === "string" && ids.includes(g[s]) ? g[s] : ids[0]; return o; }
+export const HAT_COLORS = 12; // [v105] free hat colour pick: 0 = the hat's default, 1..12 = Timothy's HAT_SWATCHES
+export function cleanGear(g: any): Record<string, any> { const o: Record<string, any> = {};
+  for (const [s, ids] of Object.entries(GEAR_SLOTS)) o[s] = typeof g?.[s] === "string" && ids.includes(g[s]) ? g[s] : ids[0];
+  const h = Math.floor(Number(g?.hatColor)); o.hatColor = Number.isFinite(h) && h >= 0 && h <= HAT_COLORS ? h : 0; return o; }
 // owned list -> the equipped skin / gear a save may keep (free defaults always ok)
 export function fitEquipped(p: Profile, owned: Set<string>, owner: boolean) {
   const eq = p.skins.equipped; p.skins.equipped = eq === "classic" || owner || owned.has("skin:" + eq) ? eq : "classic";
-  const g = cleanGear((p as any).gear); for (const [s, ids] of Object.entries(GEAR_SLOTS)) if (g[s] !== ids[0] && !owner && !owned.has(`gear:${s}:${g[s]}`)) g[s] = ids[0];
+  const g = cleanGear((p as any).gear); for (const [s, ids] of Object.entries(GEAR_SLOTS)) if (g[s] !== ids[0] && !owner && !owned.has(`gear:${s}:${g[s]}`)) g[s] = ids[0]; // hatColor is free
   (p as any).gear = g; return p;
 }
 
@@ -137,3 +147,8 @@ export function wavesProblem(score: number, wave: number, sunk: number, elapsed:
   if (wave > 2 + elapsed / 15) return "waves too fast";
   return null;
 }
+
+// ---------------- [v105] TREASURE MAPS (BANKSY) ----------------
+// dig spots (js/island/foot.js DIGS ids; 'cave' = the Skull Peak treasure cave, legendary maps only). APPEND-ONLY.
+export const MAP_SPOTS = ["dig1", "dig2", "dig3", "dig4", "dig5", "dig6"];
+export const MAP_SPOTS_ALL = [...MAP_SPOTS, "cave"];

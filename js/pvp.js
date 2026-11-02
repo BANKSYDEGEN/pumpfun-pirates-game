@@ -39,9 +39,11 @@ import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS
 import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
+import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { attachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
+import { setLocalGear } from './pirateGear.js'; // [v105] shop gear on your pirate
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -160,7 +162,7 @@ export function createPvp(K) {
   // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
   // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
   // plug in there; until then every gear item is COMING SOON and nothing is drawn).
-  function gearChanged() { try { const c = localCaptain(); if (c) setLocalCaptain({ ...c, look: { ...(c.look || {}), gear: { ...profile.gear } } }); } catch {} try { dispatchEvent(new CustomEvent('pfp-gear', { detail: { gear: { ...profile.gear } } })); } catch {} }
+  function gearChanged() { try { setLocalGear({ ...profile.gear }); } catch (e) { console.warn('[gear]', e); } } // [v105] Timothy's js/pirateGear.js: saves + re-dresses your on-foot pirate + your captain (fires 'pfp-gear')
   addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
     profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
     if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
@@ -179,6 +181,8 @@ export function createPvp(K) {
       const st = (await shopStateNow()) || { source: 'live', owner: false, gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } };
       return { ok: !!r.ok, error: r.ok ? null : ({ 'goal not reached': 'reach the goal first', 'not enough gold': 'not enough gold', 'already owned': 'already yours' }[r.error] || r.error || 'shop offline'), state: st };
     },
+    async hatColor(i) { const g = cleanGear({ ...profile.gear, hatColor: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); // [v105] free
+      return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
     async equip(kind, key) {
       if (kind === 'skin') { if (canUse(key)) { profile.skins.equipped = key; if (active) K.rebuildShip(getRunLevels()); sfx.equip?.(); } }
       else { const [slot, id] = key.split(':'); const g = cleanGear({ ...profile.gear, [slot]: id }); if (g[slot] === id) { profile.gear = g; gearChanged(); } }
@@ -319,6 +323,7 @@ export function createPvp(K) {
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
   // [v99] in a shared copy only the HOST sails AI ships (during the first HARBOR_NET.listen s after joining we keep our own)
+  const SHARED_DROPS = /[?&]shareddrops=1\b/.test(location.search); // [v105] held for v106 (2-client test pending): one shared pile per AI kill, anyone claims
   const aiWanted = () => !spec.on && where === 'harbor' && (!room || isHost || performance.now() < hb.listenUntil); // the arena is players only, always (BANKSY)
   // [v99] COMMODORE 'hunter' (boss-side) mode: NOT built. Clean hook only: before the host hands a new harbor boss to the AI it
   // asks hunterPilot(boss) for a pirate id to sail it instead. Always null for now (hunter.enabled stays false).
@@ -383,7 +388,10 @@ export function createPvp(K) {
       if (instant) { dropShip(b); bots.delete(id); continue; }
       if (b.alive) { b.alive = false; b.sinking = 0.001; b.fade = true; }
     }
-    for (const [pid, l] of piles) if (l.local) removePile(pid);
+    // [v105] ROOT CAUSE of "harbor gold disappears before it's claimed": a non-host's aiTick calls clearLocalAi(false, true) every 2 s
+    // (aiWanted() is false for a non-host in a shared copy), and this line removed every local pile, i.e. your share of a shared
+    // kill and any AI gold you dropped before a copy-mate joined. Piles now only go when you actually leave the harbor (instant).
+    if (instant) for (const [pid, l] of piles) if (l.local) removePile(pid);
   }
   // ---------------- [v99] SHARED HARBOR: copies, host AI, hits, damage-share gold ----------------
   // heartbeat every HARBOR_NET.beat s while sailing the harbor: the RPC keeps our copy seat and says who else is in it.
@@ -413,6 +421,7 @@ export function createPvp(K) {
   function hbDisconnect() { // close the copy's room: its pirates and the host's AI ships leave with it (our own AI ships stay)
     if (!room || where === 'arena') return;
     room.send('bye', { i: myId }, { now: true }); room.close(); room = null; clearPeers();
+    for (const l of piles.values()) if (!l.local && !l.taken) l.local = true; // [v105] alone again: the copy's shared drops stay and are yours to grab
     for (const [id, b] of bots) if (b.remote) { dropShip(b); bots.delete(id); }
     if (boss.e && !bots.has(boss.e.net.id)) boss.e = null;
     isHost = false; hostId = null; hb.listenUntil = 0;
@@ -426,7 +435,7 @@ export function createPvp(K) {
     c.sort((a, b) => a.hj - b.hj || (a.id < b.id ? -1 : 1)); const h = c[0]?.id ?? null;
     if (h === hostId) return;
     const was = isHost; hostId = h; isHost = h === myId;
-    if (isHost && !was) adoptBots(); else if (!isHost && was) yieldBots();
+    if (isHost && !was) { hb.hostSince = performance.now(); adoptBots(); setTimeout(() => { if (isHost && room) sendWorld(); }, 2500); } else if (!isHost && was) yieldBots(); // [v105] the new host already holds every shared drop (all clients keep the list) and re-announces it
   }
   function adoptBots() { // the host left: its AI ships (our copies of them) become ours, same place, hull and stats
     for (const e of bots.values()) {
@@ -494,6 +503,12 @@ export function createPvp(K) {
     if (tot > 0) { let left = gold; for (const [id, d] of by) { const g = Math.floor(gold * d / tot); if (g > 0) { pay.push([id, g]); left -= g; } }
       if (left > 0) { const kk = pay.find(q => q[0] === killer) || pay[0]; if (kk) kk[1] += left; else if (killer) pay.push([killer, left]); } }
     else if (killer) pay.push([killer, gold]);
+    // [v105] SHARED DROPS (BANKSY: "make it so any player can claim"): no per-pirate shares any more. The host drops ONE pile with the
+    // whole gold where the ship went down (nudged clear of rocks / the shore); first pirate to reach it gets it (host grant, 'got'
+    // broadcast). p stays empty so a v104 client in the copy doesn't also make its own share pile; sp = shared pile.
+    if (SHARED_DROPS) { const [px, pz] = dropSpot(e.x, e.z);
+      const m = { h: myId, b: e.net.id, k: killer, x: r1(e.x), z: r1(e.z), boss: e.harborBoss ? 1 : 0, g: gold, p: [], sp: 1 };
+      room.send('bs', m, { now: true }); onBotSunkNet(m, true); spawnPile(e.net.id, px, pz, gold, false, gold); return; }
     const m = { h: myId, b: e.net.id, k: killer, x: r1(e.x), z: r1(e.z), boss: e.harborBoss ? 1 : 0, g: gold, p: pay.slice(0, 8) };
     room.send('bs', m, { now: true }); onBotSunkNet(m, true);
   }
@@ -506,14 +521,14 @@ export function createPvp(K) {
     if (!local && e && e.remote && e.alive) { e.alive = false; e.hp = 0; e.sinking = 0.001; if (e.netState) e.netState.a = false; sfx.sink(!!e.big); fx.ring(new THREE.Vector3(e.x, 0, e.z), 3, 16, 2.2); }
     const capG = Math.max(1, e?.gold || harborGold(80) * HARBOR_BOSS.pay), mine = Array.isArray(m.p) ? m.p.find(q => Array.isArray(q) && q[0] === myId) : null;
     const g = mine ? clamp(Math.floor(+mine[1] || 0), 0, capG) : 0;
-    if (g > 0 && !spec.on) spawnPile(m.b, x, z, g, true); // earned gold: the holder perk doubles it on pickup, as before
-    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
+    if (g > 0 && !spec.on && !m.sp) spawnPile(m.b, x, z, g, true); // (a v104 host: your damage share, only you see it)
+    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', m.sp ? `${clamp(m.g | 0, 0, capG * 2)}g of treasure in the water · first to grab it gets it` : g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
     if (m.k === myId && !spec.on) countBotKill(isBoss);
   }
   function wire(r) {
-    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, PVP_DEATH_BONUS)))
+    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
-      .on('hello', () => { if (isHost && where === 'arena') sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
+      .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; })
       .on('emo', onEmote) // [v96] quick-chat callouts (preset ids only)
       .on('sq', onSq) // [v98] squads round state (host)
@@ -812,7 +827,7 @@ export function createPvp(K) {
     // anti-farm window gives no bounty (the PvP KILLS board drops it too)
     const tn = performance.now(), last = me.pairs.get(victim) || -1e9; me.pairs.set(victim, tn);
     if (tn - last > PVP_BOUNTY.pairWindow * 1000) { me.streak++; const before = me.bounty; me.bounty = Math.min(PVP_BOUNTY.cap, me.streak * PVP_BOUNTY.perKill); if (me.bounty > before && me.bounty >= PVP_BOUNTY.announce && before < PVP_BOUNTY.announce) addFeed(`☠ <b class="me">${esc(name)}</b> has a <b>${me.bounty}g</b> bounty!`); }
-    me.kills++; const before = { ...profile.stats }; profile.stats.kills++;
+    me.kills++; const before = { ...profile.stats }; profile.stats.kills++; bumpModeKill(mode); // [Timothy] Solo / Squads split (display only)
     goalToast(before, profile.stats);
     sfx.coin(); save({ now: true });
   }
@@ -838,9 +853,11 @@ export function createPvp(K) {
       spawnPile(m.v, x, z, g + (afk ? 0 : PVP_DEATH_BONUS) + vb, false, afk ? 0 : PVP_DEATH_BONUS); earned.delete(m.v);
     }
   }
+  function dropSpot(x, z) { // [v105] a drop always floats in open water you can sail to (never on the shore or inside a rock)
+    try { const q = K.islands?.freeSpot?.(x, z, 9); if (q && isFinite(q[0]) && isFinite(q[1])) return [q[0], q[1]]; } catch {} return [x, z]; }
   function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0) { // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
     const pid = `${String(v).slice(-6)}${(++pileSeq).toString(36)}${myId.slice(-3)}`;
-    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart });
+    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart, h: myId });
     addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart);
   }
   function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0) {
@@ -855,6 +872,7 @@ export function createPvp(K) {
   function removePile(pid) { const l = piles.get(pid); if (!l) return; piles.delete(pid); const i = loot.indexOf(l); if (i >= 0) loot.splice(i, 1); scene.remove(l.mesh); }
   function lootStep(l) { // main loop, per pile: claim it when we sail over it
     if (!piles.has(l.pid)) return;
+    { const t = performance.now(); if (t - (l.pulseT || 0) > 3500) { l.pulseT = t + Math.random() * 800; if (Math.hypot(l.x - P().x, l.z - P().z) < 260) fx.ring(new THREE.Vector3(l.x, 0, l.z), 1.5, 7, 1.2); } } // [v105] a soft gold ring every few s: easy to find
     const pl = P(); if (me.dead || !pl.alive) return;
     if (Math.hypot(l.x - pl.x, l.z - pl.z) > PICK_R) return;
     const now = performance.now(); if (l.claimT && now - l.claimT < 1500) return; l.claimT = now;
@@ -863,6 +881,7 @@ export function createPvp(K) {
   }
   function grant(pid, to) { // host only: first claimant within reach gets the pile
     const l = piles.get(pid); if (!l || l.taken || typeof to !== 'string') return;
+    if (where === 'harbor' && performance.now() - (hb.hostSince || 0) < 1500) return; // [v105] a brand-new host waits out the hand-over (no double grant); the claimer retries every 1.5 s
     const ship = to === myId ? P() : peers.get(to)?.ship; if (!ship || !ship.alive || Math.hypot(ship.x - l.x, ship.z - l.z) > PICK_R + 18) return;
     l.taken = true; earned.set(to, (earned.get(to) || 0) + l.value);
     room?.send('got', { pid, to, v: l.value }); applyGot({ pid, to, v: l.value });
@@ -1046,7 +1065,7 @@ export function createPvp(K) {
       const el = $('pvp-dead-t'), n = Math.max(1, Math.ceil(me.respawn)); if (el) el.textContent = Math.max(0, Math.ceil(me.respawn)); const big = $('pvp-dead-big'); if (big && big.textContent !== String(n)) { big.textContent = n; big.classList.remove('pop'); void big.offsetWidth; big.classList.add('pop'); } if (me.respawn <= 0) respawn(); }
     // arena edge
     const r = Math.hypot(pl.x, pl.z); if (r > PVP_ARENA_R) { pl.x *= PVP_ARENA_R / r; pl.z *= PVP_ARENA_R / r; if (!me.edgeT || now - me.edgeT > 5000) { me.edgeT = now; K.banner('EDGE OF THE ARENA', 'turn back, captain'); } }
-    if (room && isHost && where === 'arena') hostTick(); // (gold piles: arena only; harbor gold is per-pirate)
+    if (room && isHost && (where === 'arena' || where === 'harbor')) hostTick(); // [v105] + the shared harbor's drops (pile cap + 10 s resync)
     // peers that went silent: sink their ship from view
     for (const [id, p] of peers) if (now - p.heard > PEER_TIMEOUT) { if (p.ship) dropShip(p.ship); peers.delete(id); }
     // (our state is sent by the transport at PVP_NET hz via stateMsg; one batched message per tick)
@@ -1512,7 +1531,7 @@ export function createPvp(K) {
   }
 
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
-    get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
+    get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,

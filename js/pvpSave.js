@@ -23,8 +23,9 @@ export const ownerReady = (async () => { try { const k = ls.get('pfp_pvp_dk_v1')
   const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pfp-dev:' + k)))].map(x => x.toString(16).padStart(2, '0')).join('');
   return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24))); } catch { return false; } })();
 // [v102] pirate gear slots (js/shopCatalog.js ids): the first id of each slot is the free default (shirtless start)
-export const GEAR_SLOTS = { hat: ['none', 'bandana', 'tricorn', 'bicorne'], outfit: ['shirtless', 'tank', 'tshirt', 'coat'], eyes: ['plain', 'eyepatch', 'sunglasses', 'laser'], parrot: ['none', 'parrot_green', 'parrot_red', 'parrot_gold'], hook: ['none', 'hook_iron', 'hook_gold'] };
-export function cleanGear(g) { const o = {}; for (const [sl, ids] of Object.entries(GEAR_SLOTS)) o[sl] = ids.includes(g?.[sl]) ? g[sl] : ids[0]; return o; }
+export const GEAR_SLOTS = { hat: ['none', 'bandana', 'tricorn', 'bicorne'], outfit: ['shirtless', 'tank', 'tshirt', 'coat'], eyes: ['plain', 'eyepatch', 'sunglasses', 'laser'], parrot: ['none', 'parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond'], hook: ['none', 'hook_iron', 'hook_gold'] };
+export function cleanGear(g) { const o = {}; for (const [sl, ids] of Object.entries(GEAR_SLOTS)) o[sl] = ids.includes(g?.[sl]) ? g[sl] : ids[0];
+  const h = Math.floor(+g?.hatColor); o.hatColor = Number.isFinite(h) && h >= 0 && h <= 12 ? h : 0; return o; } // [v105] free hat colour (HAT_SWATCHES index)
 // shop state from the server: { rev, skins: [...], gear: [...] } (null until it answers); the ONE copy of shop_rev on this device
 const shop = { rev: null, skins: null, gear: null };
 export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, gear: cleanGear(null), gearOwned: [], rev: 0, stats: { kills: 0, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 } }); // [v98] + harbor AI / boss kills (unlock tracks)
@@ -98,7 +99,7 @@ function takeShop(j) { if (!j) return;
   const sk = j.owned?.skins || j.profile?.skins?.owned, gr = j.owned?.gear || j.profile?.gearOwned;
   if (Array.isArray(sk)) shop.skins = sk.filter(x => x !== 'classic'); if (Array.isArray(gr)) shop.gear = gr;
   if (j.stats) shopStats = j.stats; if (Number.isFinite(j.gold)) shopGold = j.gold | 0; shopOwner = !!j.owner;
-  try { dispatchEvent(new CustomEvent('pfp-shop-sync', { detail: { owned: { skins: ['classic', ...(shop.skins || [])], gear: shop.gear || [] }, rev: shop.rev, gold: shopGold, stats: shopStats, owner: shopOwner } })); } catch {} }
+  try { dispatchEvent(new CustomEvent('pfp-shop-sync', { detail: { owned: { skins: ['classic', ...(shop.skins || [])], gear: shop.gear || [] }, rev: shop.rev, gold: shopGold, stats: shopStats, owner: shopOwner, goals: j.goals || null, modes: j.modes || null } })); } catch {} } // [v105] + Timothy's goals.ts progress
 let shopStats = null, shopGold = null, shopOwner = false;
 function devFlush(keepalive = false) {
   clearTimeout(devTimer); devTimer = 0;

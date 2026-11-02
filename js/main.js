@@ -67,7 +67,7 @@ setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxP
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 await initKit(quality === 'low' || isMobile);
 await Promise.race([initCrewV4(), new Promise(r => setTimeout(r, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
-registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 } }); // [v100] your pirate (v4 GLB) steers your ship
+registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 }, local: true }); // [Timothy] local: true = wears your shop gear (js/pirateGear.js) // [v100] your pirate (v4 GLB) steers your ship
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -125,7 +125,7 @@ function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
     openWaves: () => openWavesEntry(), camReset: () => { resetCamera(); lastTarget.set(player.x, player.y + 4 * camScale(player.mesh.userData) + 2.2 * ((player.mesh.userData.frameK || 1) - 1), player.z); } }))
     .then(d => { dock = d; }).catch(e => console.warn('[dock] failed', e)).finally(() => { dockLoading = false; }); }
 function harborIslandTick(t) {
-  if (DOCK_ON) { if (game.mode === 'pvp' && !!pvp && pvp.where === 'harbor') dockLoad(); return; } // [Emerly] the dock world replaces Dock Town
+  if (DOCK_ON) { if (game.mode === 'pvp' && !!pvp && (pvp.where === 'harbor' || pvp.specHarbor)) dockLoad(); return; } // [v105] + harbor spectate (the whole coast island, no holes) // [Emerly] the dock world replaces Dock Town
   const want = HARBOR_ISLAND_ON && game.mode === 'pvp' && !!pvp && pvp.where === 'harbor';
   if (want && !harborIsle.obj && !harborIsle.loading) {
     harborIsle.loading = true;
@@ -1094,6 +1094,7 @@ function toTitle() {
   closeTutorial(); // [tutorial]
   if (game.mode === 'pvp') { pvp?.leave(); closeShop(); $('shop')?.classList.add('hidden'); game.mode = null; } // [pvp]
   game.state = 'title';
+  setMusic(false); // [v102] audio: no shanty left running on the title screen (startGame turns it back on)
   clearWorld();
   $('hud').classList.add('hidden'); $('gameover').classList.add('hidden'); $('title').classList.remove('hidden');
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer(); player.sail = 1;
@@ -1106,6 +1107,7 @@ async function gameOver() {
   if (game.state === 'over') return;
   showNextWave(-1); // [wave break]
   game.state = 'over';
+  setMusic(false); sfx.defeat?.(); // [v102] audio: the shanty stops when the run ends + Waves defeat stinger
   $('go-score').textContent = game.score; $('go-wave').textContent = game.wave; $('go-sunk').textContent = game.sunk; $('go-gold').textContent = game.gold + (game.goldSpent || 0); // [Raul] gold looted, incl. spent
   // [set sail first] ask for name + wallet here; a returning pirate sees them prefilled and can still edit
   nameInput.value = getSavedName(); walletInput.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); // [wallet save] connected wallet fills itself in

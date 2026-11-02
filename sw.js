@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v104';
+const VERSION = 'pfp-v105';
 const SHELL = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const SHELL = [
   "./js/shipKit.js",
   "./js/pirateGLB.js",
   "./js/pirates.js",
+  "./js/pirateGear.js", // [Timothy] island-shop gear on the v4 pirate
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/dock/index.js",
   "./js/dock/docking.js",
@@ -53,6 +54,18 @@ const SHELL = [
   "./assets/audio/cannon_2.mp3",
   "./assets/audio/impact_1.mp3",
   "./assets/audio/impact_2.mp3",
+  "./assets/audio/impact_light_1.mp3",
+  "./assets/audio/impact_light_2.mp3",
+  "./assets/audio/impact_medium_1.mp3",
+  "./assets/audio/impact_medium_2.mp3",
+  "./assets/audio/impact_heavy_1.mp3",
+  "./assets/audio/impact_heavy_2.mp3",
+  "./assets/audio/thunder_1.mp3",
+  "./assets/audio/thunder_2.mp3",
+  "./assets/audio/thunder_3.mp3",
+  "./assets/audio/horn_wave.mp3",
+  "./assets/audio/horn_boss.mp3",
+  "./assets/audio/upgrade_legendary.mp3",
   "./assets/audio/splash_near_1.mp3",
   "./assets/audio/splash_near_2.mp3",
   "./assets/audio/splash_near_3.mp3",
@@ -82,6 +95,8 @@ const SHELL = [
   "./js/pvpSkins.js",
   "./js/islandShop.js",
   "./js/shopCatalog.js",
+  "./js/shopGoals.js", // [Timothy] shop goal progress (islandShop.js imports it)
+  "./js/modeKills.js", // [Timothy] pvp.js imports it (BR kills by mode, display only)
   "./js/islandMap.js",
   "./js/pvpBoard.js",
   "./js/squads.js",
@@ -144,6 +159,8 @@ const ASSETS = [
   "./assets/pirates/pirate_male_lo.glb",
   "./assets/pirates/pirate_female_hi.glb",
   "./assets/pirates/pirate_female_lo.glb",
+  "./assets/pirates/gear_hi.glb", // [Timothy] shop gear (hats, eyewear, parrots, hooks)
+  "./assets/pirates/gear_lo.glb",
   "./assets/island/town_kit.glb",
   "./assets/island/town_kit.webp.glb",
   "./assets/island/town_kit_low.glb",

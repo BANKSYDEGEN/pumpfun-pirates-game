@@ -3,7 +3,8 @@
 // POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, WAVES_GOLD, wavesGold, wavesProblem } from "./lib.ts";
+  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL } from "./lib.ts";
+import { goalsView, killsByMode } from "./goals.ts"; // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
@@ -82,7 +83,8 @@ function stepToward(cur: Profile, rep: Profile, mins: number): Profile {
 async function shopView(who: { pid: string; owner: boolean }, gold: number, stats: Profile["stats"], rev: number, extra: Record<string, unknown> = {}) {
   const own = who.owner ? new Set<string>() : await ownedSet(who.pid), bd = await boardKD(who.pid);
   const st = { ...stats, kills: Math.max(stats.kills, bd.kills), deaths: Math.max(stats.deaths, bd.deaths) };
-  return { ok: true, owner: who.owner, gold, rev, stats: st, owned: ownedLists(own, who.owner), ...extra };
+  // [Timothy] goals = progress on the SAME stats shop_buy checks; modes = Solo / Squads split of the board (null until 025 runs)
+  return { ok: true, owner: who.owner, gold, rev, stats: st, owned: ownedLists(own, who.owner), goals: goalsView(st), modes: await killsByMode(db, who.pid), ...extra };
 }
 async function devSync(who: { pid: string; owner: boolean }, b: Record<string, unknown>) {
   const rep0 = cleanProfile(b.profile), crev = Math.max(0, Math.floor(Number(b.rev) || 0));
@@ -312,7 +314,7 @@ Deno.serve(async (req) => {
         if (who.wallet) stats = toProfile(await getRow(who.wallet)).stats;
         else { const { data: r } = await db.from("pvp_dev_profiles").select("*").eq("id", who.pid).maybeSingle(); if (!r) return json(409, { error: "no save yet" }); stats = devProfile(r as DevRow).stats; }
         const bd = await boardKD(who.pid); stats = { ...stats, kills: Math.max(stats.kills, bd.kills), deaths: Math.max(stats.deaths, bd.deaths) };
-        if (!goalMet(it.goal, stats)) return json(403, { error: "goal not reached" });
+        if (!goalMet(it.goal, stats)) return json(403, { error: "goal not reached", goal: goalsView(stats)[item] ?? null, stats }); // [Timothy] + where they stand
         const { data, error } = await db.rpc("pvp_shop_buy", { p_player: who.pid, p_item: item, p_price: it.price, p_req: req });
         if (error) throw error;
         if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not buy", gold: data?.gold });
@@ -347,6 +349,28 @@ Deno.serve(async (req) => {
         if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no payout" });
         return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score });
+      }
+      // [v105] TREASURE MAPS: maps_state = scan for new drops (boss kills from the STORED save, confirmed BR kills) + your undug maps;
+      // map_dig = one claim per map at its spot (migration 026 pvp_map_dig: spot, 30 s, 20 s between digs, 25 a day, reward by tier)
+      case "maps_state": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        let boss = 0;
+        if (who.owner) boss = cleanProfile(b.profile).stats.bossKills | 0;
+        else if (who.wallet) boss = (await getRow(who.wallet))?.boss_kills ?? 0;
+        else { const { data: r } = await db.from("pvp_dev_profiles").select("boss_kills").eq("id", who.pid).maybeSingle(); boss = r?.boss_kills | 0; }
+        const { data: sync, error: se } = await db.rpc("pvp_maps_sync", { p_player: who.pid, p_boss: boss, p_spots: MAP_SPOTS }); if (se) throw se;
+        const { data: rows } = await db.from("pvp_maps").select("id, tier, spot, source, created_at").eq("player_id", who.pid).is("dug_at", null).order("created_at", { ascending: true }).limit(50);
+        const { data: dug } = await db.from("pvp_maps").select("tier, gold, dug_at").eq("player_id", who.pid).not("dug_at", "is", null).order("dug_at", { ascending: false }).limit(5);
+        return json(200, { ok: true, new: sync?.new | 0, maps: rows || [], recent: dug || [] });
+      }
+      case "map_dig": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        const id = String(b.map ?? ""), spot = String(b.spot ?? "");
+        if (!/^[0-9a-f-]{36}$/.test(id) || !MAP_SPOTS_ALL.includes(spot)) return json(400, { error: "bad dig" });
+        const holder = who.owner || (!!who.wallet && !!(await holderStatus(who.wallet)).holder);
+        const { data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder }); if (error) throw error;
+        if (!data?.ok) return json(409, { error: data?.why || "no treasure" });
+        return json(200, { ok: true, gold: data.gold, base: data.base, tier: data.tier, holder, owner: who.owner });
       }
       default: return json(400, { error: "unknown action" });
     }

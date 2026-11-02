@@ -48,7 +48,7 @@
 .ishop-card.poor .ishop-badge { color: rgba(255, 205, 119, 0.5); }
 .ishop-card.locked .ishop-sw { filter: grayscale(0.85) brightness(0.6); } .ishop-card.locked .ishop-badge { color: rgba(255, 255, 255, 0.6); }
 .ishop-mini { display: block; height: 4px; margin: 2px 8px 0; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
-.ishop-mini i, .ishop-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb13b, var(--s-gold)); border-radius: 4px; }
+.ishop-mini i, .ishop-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb13b, var(--s-gold, #ffcd77)); border-radius: 4px; }
 .ishop-prop { position: absolute; top: 4px; right: 6px; font-style: normal; font-size: 13px; padding: 0 5px; border-radius: 6px; background: rgba(42, 109, 244, 0.85); color: #fff; }
 .ishop-detail .ishop-prop, .ishop-gl .ishop-prop { position: static; }
 .ishop-detail { grid-area: detail; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--s-inset); border: 1px solid var(--s-trim-soft); border-radius: var(--s-r); overflow-y: auto; }
@@ -76,6 +76,31 @@
 .ishop-toast { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 4px 16px 2px; font-size: 24px; color: #1b1300; background: var(--s-gold); border-radius: var(--s-r); animation: ishop-pop 0.2s ease-out; }
 #pvp-shop-open { width: 100%; margin: 6px 0 2px; }
 
+/* [Timothy] goal progress on locked cards: each goal row = text + thin bar; goal met = the card turns to BUY · price */
+.ishop-card.has-goal canvas { filter: grayscale(0.55) brightness(0.78); }
+.ishop-card.has-goal::before { content: '🔒'; position: absolute; top: 5px; left: 7px; font-size: 15px; line-height: 1; opacity: 0.9; }
+.ishop-goals { display: flex; flex-direction: column; gap: 2px; margin-top: 1px; }
+.ishop-gr { display: flex; flex-direction: column; gap: 1px; }
+.ishop-gt { font-size: 15px; line-height: 1; color: rgba(255, 255, 255, 0.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ishop-gr .ishop-mini { margin: 0 6px; }
+.ishop-gr.done .ishop-gt { color: #4ee37a; } .ishop-gr.done .ishop-mini i { background: #4ee37a; }
+.ishop-none { color: rgba(255, 255, 255, 0.5) !important; font-style: italic; }
+.ishop-goals.nostats .ishop-mini i { width: 0 !important; }
+.ishop-card.goal-met { border-color: var(--s-gold); box-shadow: inset 0 0 0 1px rgba(255, 205, 119, 0.35), 0 0 10px rgba(255, 205, 119, 0.22); }
+.ishop-card.goal-met.buy .ishop-badge { align-self: center; padding: 2px 10px 0; border-radius: var(--s-r-in); background: var(--s-gold); color: #1b1300; }
+.ishop-metl { font-size: 14px; line-height: 1; color: #4ee37a; }
+.ishop-card.goal-met.poor .ishop-metl { color: rgba(78, 227, 122, 0.75); }
+.ishop-modes { display: block; font-size: 0.8em; color: rgba(255, 255, 255, 0.62); } .ishop-modes i { font-style: normal; color: rgba(255, 255, 255, 0.45); }
+/* profile block (mountProfileGoals): same look as the shop's detail rows */
+.pfp-goals { display: flex; flex-direction: column; gap: 6px; font-family: var(--ui-font, 'Just Another Hand', cursive); color: #fff; }
+.pfp-goals .pg-title { font-size: 22px; color: var(--ui-gold, #ffcd77); letter-spacing: 0.04em; } .pfp-goals .pg-title small { font-size: 14px; color: rgba(255, 255, 255, 0.55); letter-spacing: 0; }
+.pfp-goals .pg-item { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; background: var(--ui-inset, rgba(0, 0, 0, 0.38)); border: 1px solid var(--ui-trim-soft, rgba(201, 152, 74, 0.55)); border-radius: var(--ui-r-in, 8px); }
+.pfp-goals .pg-item.met { border-color: var(--ui-gold, #ffcd77); }
+.pfp-goals .pg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 20px; }
+.pfp-goals .pg-name small { font-size: 14px; color: #ff8a2a; } .pfp-goals .pg-buy { font-weight: normal; color: #1b1300; background: var(--ui-gold, #ffcd77); padding: 0 8px; border-radius: 6px; font-size: 16px; white-space: nowrap; }
+.pfp-goals .pg-own { font-weight: normal; color: #4ee37a; font-size: 16px; } .pfp-goals .pg-lock { color: rgba(255, 255, 255, 0.6); font-size: 16px; white-space: nowrap; }
+.pfp-goals .ishop-goal { font-size: 17px; } .pfp-goals .ishop-gl { font-size: 15px; }
+
 /* tablet (narrower desktop) */
 @media (max-width: 1280px) and (min-height: 521px) { .ishop-panel { width: min(760px, 66vw); } .ishop-body { grid-template-columns: 1fr 240px; } }
 /* phone landscape: right-docked, full height, compact */
@@ -88,6 +113,7 @@
   .ishop-body { grid-template-columns: 1fr 200px; gap: 6px; }
   .ishop-grid { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 5px; }
   .ishop-card { padding: 4px 4px 5px; } .ishop-name { font-size: 16px; } .ishop-badge { font-size: 15px; }
+  .ishop-gt { font-size: 13px; } .ishop-metl { font-size: 12px; } .ishop-gr .ishop-mini { margin: 0 3px; }
   .ishop-detail { padding: 6px; gap: 5px; } .ishop-detail .ishop-sw { width: 80%; margin: 0 auto; } .ishop-info h4 { font-size: 24px; } .ishop-pr { font-size: 18px; } .ishop-gl, .ishop-goal { font-size: 15px; }
   .ishop-act { font-size: 19px; padding: 3px 8px 2px; } .ishop-foot { display: none; }
   .ishop-cbox { padding: 8px 10px; gap: 4px; } .ishop-cbox .ishop-sw { width: 46%; } .ishop-cbox h4 { font-size: 24px; } .ishop-math { font-size: 20px; }
@@ -104,8 +130,13 @@
   .ishop-detail > .ishop-sw { flex: 0 0 38%; } .ishop-info { flex: 1; min-width: 0; } .ishop-info h4 { font-size: 26px; } .ishop-gl, .ishop-goal { font-size: 16px; } .ishop-act { font-size: 21px; }
   .ishop-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
   .ishop-name { font-size: 17px; } .ishop-badge { font-size: 16px; }
+  .ishop-gt { font-size: 14px; } .ishop-metl { font-size: 13px; }
   .ishop-chips { flex-wrap: nowrap; overflow-x: auto; } .ishop-foot { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .ishop-panel, .ishop-cbox, .ishop-toast { animation: none; } }
 
 .ishop-upg { display: block; margin: 6px auto 0; padding: 8px 14px; border: 2px solid #ffcd77; border-radius: 10px; background: #161616; color: #ffcd77; font: inherit; font-size: 18px; cursor: pointer; } .ishop-upg[hidden] { display: none; } /* [v103] ships shop -> the BR upgrades menu */
+
+.ishop-hatc { margin-top: 6px; } .ishop-hatc small { opacity: .8; } .ishop-hatc > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.ishop-hatc button { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: #333; color: #fff; padding: 0; cursor: pointer; font-size: 12px; }
+.ishop-hatc button.on { border-color: #ffcd77; box-shadow: 0 0 0 2px #ffcd77; } .ishop-hatc button:disabled { opacity: .35; cursor: not-allowed; } /* [v105] hat colour */

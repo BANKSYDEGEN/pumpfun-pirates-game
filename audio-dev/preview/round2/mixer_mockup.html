@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Audio mixer mockup (static, not wired)</title>
+<link rel="stylesheet" href="mock/style.css"><link rel="stylesheet" href="mock/shop.css">
+<style>
+ html,body{height:auto;overflow:auto;background:#0d1b24 url() ;}
+ body{display:flex;gap:28px;justify-content:center;align-items:flex-start;padding:24px;flex-wrap:wrap;position:static}
+ .col{display:flex;flex-direction:column;align-items:center;gap:8px}
+ .cap{font:14px system-ui;color:#9fb0b8;max-width:420px;text-align:center}
+ .panel{position:static}
+ .vol-box.mixer label{grid-template-columns:96px 1fr 38px}
+ .vol-box .v{font-size:18px;color:rgba(255,255,255,.7);text-align:right}
+ .mix-sep{height:1px;background:var(--line);margin:4px 0}
+ .seg-mini{font-size:16px;color:rgba(255,255,255,.55);margin-top:2px}
+</style></head><body>
+<div class="col"><div class="cap"><b>TODAY</b> (unchanged settings panel)</div>
+<div class="panel small"><h1>SETTINGS</h1><div class="muted">game paused</div>
+ <button class="ghost">⌨ KEY BINDINGS / CONTROLS</button><button class="ghost">🏴 SKINS</button>
+ <div class="vol-box">
+  <label><span class="label">MASTER</span><input type="range" value="80"></label>
+  <label><span class="label">SFX</span><input type="range" value="90"></label>
+  <label><span class="label">MUSIC</span><input type="range" value="35"></label>
+ </div>
+ <div class="gfx-box"><span class="label">GRAPHICS</span> <span class="muted">LOW · MED · HIGH</span></div>
+ <button class="big">RESUME</button><br><button class="ghost">MAIN MENU</button></div></div>
+
+<div class="col"><div class="cap"><b>OPTION A: inline mixer.</b> Same slider style, 6 rows (adds about 100 px of height). MASTER on top, then a thin divider.</div>
+<div class="panel small"><h1>SETTINGS</h1><div class="muted">game paused</div>
+ <button class="ghost">⌨ KEY BINDINGS / CONTROLS</button><button class="ghost">🏴 SKINS</button>
+ <div class="vol-box mixer">
+  <label><span class="label">MASTER</span><input type="range" value="80"><span class="v">80</span></label>
+  <div class="mix-sep"></div>
+  <label><span class="label">MUSIC</span><input type="range" value="35"><span class="v">35</span></label>
+  <label><span class="label">SFX</span><input type="range" value="90"><span class="v">90</span></label>
+  <label><span class="label">VOICE</span><input type="range" value="85"><span class="v">85</span></label>
+  <label><span class="label">UI</span><input type="range" value="70"><span class="v">70</span></label>
+  <label><span class="label">AMBIENCE</span><input type="range" value="75"><span class="v">75</span></label>
+ </div>
+ <div class="gfx-box"><span class="label">GRAPHICS</span> <span class="muted">LOW · MED · HIGH</span></div>
+ <button class="big">RESUME</button><br><button class="ghost">MAIN MENU</button></div></div>
+
+<div class="col"><div class="cap"><b>OPTION B: panel stays as today</b> plus one "🎚 AUDIO MIXER" button (like KEY BINDINGS) that opens a small mixer panel with all 6 sliders.</div>
+<div class="panel small"><h1>SETTINGS</h1><div class="muted">game paused</div>
+ <button class="ghost">⌨ KEY BINDINGS / CONTROLS</button><button class="ghost">🏴 SKINS</button>
+ <div class="vol-box">
+  <label><span class="label">MASTER</span><input type="range" value="80"></label>
+  <label><span class="label">SFX</span><input type="range" value="90"></label>
+  <label><span class="label">MUSIC</span><input type="range" value="35"></label>
+ </div><button class="ghost">🎚 AUDIO MIXER</button>
+ <div class="gfx-box"><span class="label">GRAPHICS</span> <span class="muted">LOW · MED · HIGH</span></div>
+ <button class="big">RESUME</button><br><button class="ghost">MAIN MENU</button></div>
+<div class="panel small"><h1 style="font-size:46px">AUDIO MIXER</h1>
+ <div class="vol-box mixer">
+  <label><span class="label">MASTER</span><input type="range" value="80"><span class="v">80</span></label><div class="mix-sep"></div>
+  <label><span class="label">MUSIC</span><input type="range" value="35"><span class="v">35</span></label>
+  <label><span class="label">SFX</span><input type="range" value="90"><span class="v">90</span></label>
+  <label><span class="label">VOICE</span><input type="range" value="85"><span class="v">85</span></label>
+  <label><span class="label">UI</span><input type="range" value="70"><span class="v">70</span></label>
+  <label><span class="label">AMBIENCE</span><input type="range" value="75"><span class="v">75</span></label>
+ </div><div class="seg-mini">🔊 mute button and M key still mute everything</div>
+ <button class="ghost">RESET</button><button class="ghost">BACK</button></div></div>
+</body></html>

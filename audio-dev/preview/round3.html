@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PUMPFUN PIRATES · sound preview · ROUND 3</title>
+<style>
+ body{font:15px/1.45 system-ui,sans-serif;background:#0d1b24;color:#e9e2cf;max-width:980px;margin:0 auto;padding:24px}
+ h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:26px 0 8px;color:#f2c14e}
+ .muted{color:#9fb0b8;font-size:13px} table{width:100%;border-collapse:collapse}
+ td{padding:6px 8px;border-top:1px solid #20343f;vertical-align:middle} td:first-child{width:34%}
+ audio{width:100%;height:34px} .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:8px;background:#20343f;margin-left:6px}
+ .new{background:#2f5d3a}.old{background:#5d2f2f}
+</style></head><body>
+<h1>PUMPFUN PIRATES · sound preview ROUND 3</h1>
+<div class="muted">This round has a phone-first cannon (built to sound huge on small speakers) and crew voices that stack as the crew grows. <a href="round2.html" style="color:#f2c14e">← round 2</a> · <a href="index.html" style="color:#f2c14e">round 1</a><br><b>On a phone?</b> Play the normal files: your phone is the speaker test. The <i>PHONESIM</i> files run the audio through a simulated phone speaker so you can judge it on headphones or a laptop (on a phone they get filtered twice).</div>
+<h2>1 · Cannon A/B: old game vs NEW phone-first (loudness-matched)</h2><table>
+<tr><td>OLD → NEW → OLD → NEW · single gun</td><td><audio controls preload="none" src="round3/01_cannon_AB_phone_old_vs_new.mp3"></audio></td></tr>
+<tr><td>Same, through the phone-speaker simulation</td><td><audio controls preload="none" src="round3/01_cannon_AB_phone_old_vs_new_PHONESIM.mp3"></audio></td></tr>
+<tr><td>Broadside: OLD 4-gun → NEW 4-gun, twice</td><td><audio controls preload="none" src="round3/01_cannon_AB_broadside.mp3"></audio></td></tr>
+<tr><td>Broadside, through the phone simulation</td><td><audio controls preload="none" src="round3/01_cannon_AB_broadside_PHONESIM.mp3"></audio></td></tr>
+</table>
+<h2>Phone-first cannon variants</h2><table>
+<tr><td>Variant 1 / 2 / 3</td><td><audio controls preload="none" src="round3/01_cannon_phone_v1.mp3"></audio><audio controls preload="none" src="round3/01_cannon_phone_v2.mp3"></audio><audio controls preload="none" src="round3/01_cannon_phone_v3.mp3"></audio></td></tr>
+</table>
+<h2>2 · Crew voice stacking</h2><table>
+<tr><td>"Fire!" at crew size 1 → 3 → 6</td><td><audio controls preload="none" src="round3/02_crew_stack_demo.mp3"></audio></td></tr>
+<tr><td>In context: each crew size calls "Fire!" and fires its broadside (1, 3, 6 guns)</td><td><audio controls preload="none" src="round3/02_crew_stack_in_context.mp3"></audio></td></tr>
+</table>
+<div class="muted">The voice count follows the GUN CREW upgrade (level 0 = 1 voice … max = 6), capped at 3 voices on phones and 2 in lite mode. See PLAN.md.</div>
+<h2>Phone-sim measurements</h2><pre style="font-size:12px;white-space:pre-wrap;background:#10232e;padding:10px;border-radius:8px">Phone-sim measurements (each clip loudness-matched to -16 LUFS full-range BEFORE the phone sim)
+
+Phone sim = mono, HPF 300 Hz 24 dB/oct + 180 Hz, +3 dB at 900 Hz, +4 dB at 3 kHz, -6 dB at 6.5 kHz, LPF 10 kHz, fast 4:1 limiter.
+
+A) Loudness that survives on the phone (LUFS after sim; higher = sounds bigger on the phone)
+   OLD game synth          -29.2 LUFS
+   R2 heavy (sub-first)    -26.9 LUFS
+   R3 phone-first v1       -18.2 LUFS
+   R3 phone-first v2       -20.9 LUFS
+
+B) Full-range share of energy per band, dB re total (pre-sim)
+                               20-80     80-150    150-300   300-1000  1000-4000 4000-12000   200-4000
+   OLD game synth              -17.2       -0.7      -12.2      -11.7      -22.7      -56.9       -9.8
+   R2 heavy (sub-first)         -0.7      -10.6      -14.1      -17.9      -20.8      -31.1      -14.3
+   R3 phone-first v1           -11.4      -13.4       -6.8       -2.9       -8.4      -22.0       -1.0
+   R3 phone-first v2            -9.1       -6.6       -3.8       -7.5      -12.3      -21.4       -2.8
+
+C) After phone sim: crest factor (peak/RMS of first 0.5 s), spectral centroid, 1-3 kHz echo tail vs attack, audible tail length (200-4k, -30 dB)
+   OLD game synth         crest full  10.7 dB / phone  15.3 dB   centroid    637 Hz   echo  -18.7 dB   tail 2.10 s
+   R2 heavy (sub-first)   crest full  11.4 dB / phone  20.5 dB   centroid   1383 Hz   echo  -16.6 dB   tail 2.62 s
+   R3 phone-first v1      crest full  12.6 dB / phone  15.3 dB   centroid    991 Hz   echo   -2.8 dB   tail 3.88 s
+   R3 phone-first v2      crest full  10.9 dB / phone  14.1 dB   centroid   1011 Hz   echo   -4.1 dB   tail 3.76 s
+
+D) Spectral difference in 200 Hz-4 kHz, after phone sim (mean |dB| over the band, absolute levels)
+   NEW R3 vs OLD : mean diff 21.5 dB, NEW louder by +21.5 dB on average
+   R2 vs OLD     : mean diff 15.3 dB, R2 louder by +14.8 dB on average
+   200-500 Hz: NEW R3 - OLD =  +7.3 dB    R2 - OLD =  +2.0 dB
+   500-1000 Hz: NEW R3 - OLD = +10.5 dB    R2 - OLD =  +1.4 dB
+   1000-2000 Hz: NEW R3 - OLD = +16.5 dB    R2 - OLD =  +8.6 dB
+   2000-4000 Hz: NEW R3 - OLD = +28.8 dB    R2 - OLD = +23.1 dB
+
+E) Attack after phone sim: rise time (10->90 %) and transient-over-body (peak first 15 ms / RMS 100-400 ms)
+   OLD game synth         rise  33.3 ms   transient/body  15.0 dB
+   R2 heavy (sub-first)   rise   3.8 ms   transient/body  24.2 dB
+   R3 phone-first v1      rise   1.4 ms   transient/body  15.1 dB
+   R3 phone-first v2      rise   5.5 ms   transient/body  14.4 dB
+</pre>
+<div class="muted">Mixer Option A vs B is still open: see <a style="color:#f2c14e" href="round2.html">round 2</a>.</div></body></html>

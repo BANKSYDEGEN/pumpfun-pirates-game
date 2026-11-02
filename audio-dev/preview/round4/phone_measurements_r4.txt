@@ -1,0 +1,20 @@
+PUMPFUN PIRATES audio round 4 (v102): phone-sim measurements
+Method: in-game render (headless Chrome, real js/audio.js, offline context) of the same sfx call with samples OFF (old synth) and ON (new),
+both matched to the same full-range LUFS (= the in-game LVL trims), then tools/phonesim.py (HPF 300 Hz, small-speaker EQ, LPF 10k, 4:1 comp).
+Higher phone LUFS at equal full-range loudness = carries better on a phone speaker. 200-4k band = energy change in the band a phone reproduces.
+'rise' for the new hits is unreliable (a later layer peaks as high as the onset); the new hits all peak within 5-20 ms of onset.
+
+light              full-range matched  -28.3 LUFS | phone: old  -30.2 -> new  -26.4 LUFS ( +3.8 LU) | 200-4k band  +8.4 dB | crest old 22.5 / new 23.0 dB | rise old   4.4 / new 254.1 ms
+medium             full-range matched  -21.7 LUFS | phone: old  -27.0 -> new  -19.4 LUFS ( +7.6 LU) | 200-4k band  +7.8 dB | crest old 21.8 / new 12.4 dB | rise old   2.9 / new 185.4 ms
+heavy              full-range matched  -21.2 LUFS | phone: old  -26.6 -> new  -20.8 LUFS ( +5.8 LU) | 200-4k band  +5.5 dB | crest old 16.0 / new 20.5 dB | rise old   2.3 / new  57.3 ms
+sink               full-range matched  -27.0 LUFS | phone: old  -27.4 -> new  -24.8 LUFS ( +2.6 LU) | 200-4k band  +2.1 dB | crest old 12.7 / new 15.9 dB | rise old  19.2 / new   2.7 ms
+sinkbig            full-range matched  -23.2 LUFS | phone: old  -30.5 -> new  -21.7 LUFS ( +8.8 LU) | 200-4k band  +9.6 dB | crest old 12.4 / new 12.4 dB | rise old 131.0 / new   3.1 ms
+lowhp              full-range matched  -26.6 LUFS | phone: old  -39.8 -> new  -29.0 LUFS (+10.8 LU) | 200-4k band  +8.2 dB | crest old 15.3 / new 16.7 dB | rise old   1.8 / new   5.7 ms
+amb                full-range matched  -24.3 LUFS | phone: old  -27.5 -> new  -23.2 LUFS ( +4.3 LU) | 200-4k band  +7.2 dB | crest old 13.3 / new 17.5 dB | rise old 181.3 / new 130.0 ms
+
+Kept synth (recorded candidates lost on the phone sim at equal loudness):
+  coin       -26.2 -> -38..-41 LUFS (JC clinks too bright; best alt 510735 only +0.9 LU, not worth the swap)
+  shop_open  -1.7 LU (tuned -0.2) ; upgrade -3.8 LU (tuned -1.8) ; equip -2.0 LU
+  heal, reload, legendary upgrade, thunder, wave/boss horns: not attempted, synth kept.
+Defeat stinger: new slot (no old sound). -12.6 LUFS file, LVL 0.495 sits ~1 dB under the victory stinger.
+Shanty: 30 s -> 15 s seamless 8-bar edit, 96 kbps stereo: file 181 KB, decoded 11.5 MB -> 5.8 MB (float32 stereo 48k).

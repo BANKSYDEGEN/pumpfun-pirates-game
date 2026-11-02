@@ -8,6 +8,7 @@ import { buildWorld, colliderSets } from './world.js';
 import { createSafeZone } from './safe.js';
 import { createDocking } from './docking.js';
 import { createWalker } from '../onfoot/walker.js';
+import { getLocalGear } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
 import { binds, keyName } from '../keybinds.js';
@@ -49,10 +50,10 @@ export async function createDock(ctx) {
   const zone = createSafeZone(layout.safe, layout.graceS);
   const myId = () => ctx.pvp()?.myId || 'me';
   const docking = createDocking({ berths: layout.berths, myId: myId() });
-  const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW }); pirate.object.visible = false; scene.add(pirate.object);
+  const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate.object.visible = false; scene.add(pirate.object); // [Timothy] + your shop gear
   const walker = createWalker({ camera, canvas, world, pirate, touch });
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
-  addEventListener('pfp-gear', (e) => { try { window.applyPirateGear?.(pirate.object, e.detail?.gear || {}); } catch (err) { console.warn('[gear]', err); } });
+  // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });
   const imap = createIslandMap({ world, layout, low: LOW || touch }); // [v103] the radar turns into an island map while you walk
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
@@ -88,6 +89,7 @@ export async function createDock(ctx) {
   function closeBoard() { document.documentElement.classList.remove('dk-board'); }
 
   // ---------- state ----------
+  let viewing = false; // [v105] harbor spectate view
   let on = false, onFoot = false, lastShot = 0, leftAt = -99, sprintHinted = false;
   const P = () => ctx.getPlayer();
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
@@ -144,6 +146,8 @@ export async function createDock(ctx) {
   // ---------- per frame (main.js: after pvp.update, before floatShip) ----------
   function ship(dt) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); setOn(want);
+    // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
+    const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; } if (view) world.update(camera.position, game.t);
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PUMPFUN PIRATES · sound preview v1 (A/B)</title>
+<style>
+ body{font:15px/1.45 system-ui,sans-serif;background:#0d1b24;color:#e9e2cf;max-width:980px;margin:0 auto;padding:24px}
+ h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:26px 0 8px;color:#f2c14e}
+ .muted{color:#9fb0b8;font-size:13px} table{width:100%;border-collapse:collapse}
+ td{padding:6px 8px;border-top:1px solid #20343f;vertical-align:middle} td:first-child{width:34%}
+ audio{width:100%;height:34px} .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:8px;background:#20343f;margin-left:6px}
+ .new{background:#2f5d3a}.old{background:#5d2f2f}
+</style></head><body>
+<h1>PUMPFUN PIRATES · sound preview v1</h1>
+<div style="background:#5d4a2f;padding:8px 12px;border-radius:8px;margin:8px 0">▶ <b><a href="round3.html" style="color:#fff">ROUND 3: phone-first cannons + crew voice stacking</a></b></div>
+<div style="background:#2f5d3a;padding:8px 12px;border-radius:8px;margin:8px 0">▶ <b><a href="round2.html" style="color:#fff">ROUND 2: heavy cannons A/B, real voices, mixer mockup</a></b></div>
+<div class="muted">A = current game (WebAudio synthesis, rendered offline from <code>js/audio.js</code> at commit f57d55b). B = new layered sounds built on real recordings.
+"Level-matched" OLD copies are normalized so you compare sound quality, not volume. Use headphones or good speakers, then check on a phone speaker.
+Sources are CC0 Freesound previews (128 kbps), so final versions get re-rendered from the original WAVs.</div>
+
+<h2>Cannon fire</h2><table>
+<tr><td>OLD · 1 gun <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_cannon_broadside_lm.mp3"></audio></td></tr>
+<tr><td>OLD · 4-gun broadside <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_cannon_broadside4_lm.mp3"></audio></td></tr>
+<tr><td>NEW · reel: 4 variants → 5-gun broadside → mid + far shots <span class="tag new">B</span></td><td><audio controls preload="none" src="01_cannon_fire_reel.mp3"></audio></td></tr>
+<tr><td>NEW · variant 1 <span class="tag new">B</span></td><td><audio controls preload="none" src="01_cannon_fire_v1.mp3"></audio></td></tr>
+<tr><td>NEW · variant 2 <span class="tag new">B</span></td><td><audio controls preload="none" src="01_cannon_fire_v2.mp3"></audio></td></tr>
+<tr><td>NEW · variant 3 <span class="tag new">B</span></td><td><audio controls preload="none" src="01_cannon_fire_v3.mp3"></audio></td></tr>
+<tr><td>NEW · variant 4 (short, small gun) <span class="tag new">B</span></td><td><audio controls preload="none" src="01_cannon_fire_v4.mp3"></audio></td></tr>
+</table>
+<h2>Cannonball impact on wood</h2><table>
+<tr><td>OLD · heavy hit <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_impact_heavy_lm.mp3"></audio></td></tr>
+<tr><td>OLD · killing hit <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_impact_kill_lm.mp3"></audio></td></tr>
+<tr><td>NEW · reel (3 variants) <span class="tag new">B</span></td><td><audio controls preload="none" src="02_cannon_impact_reel.mp3"></audio></td></tr>
+<tr><td>NEW · variant 1 / 2 / 3</td><td><audio controls preload="none" src="02_cannon_impact_v1.mp3"></audio><audio controls preload="none" src="02_cannon_impact_v2.mp3"></audio><audio controls preload="none" src="02_cannon_impact_v3.mp3"></audio></td></tr>
+</table>
+<h2>Splash (miss)</h2><table>
+<tr><td>OLD <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_splash_lm.mp3"></audio></td></tr>
+<tr><td>NEW · near <span class="tag new">B</span></td><td><audio controls preload="none" src="03_splash_near.mp3"></audio></td></tr>
+<tr><td>NEW · reel: 3 near, 1 mid, 1 far <span class="tag new">B</span></td><td><audio controls preload="none" src="03_splash_reel_near_mid_far.mp3"></audio></td></tr>
+</table>
+<h2>Emote voices</h2><table>
+<tr><td>OLD · "Arr!" / "Attack!" <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_emote_arr_lm.mp3"></audio><audio controls preload="none" src="old/old_emote_attack_lm.mp3"></audio></td></tr>
+<tr><td>NEW · "Arrr!" male <span class="tag new">B</span></td><td><audio controls preload="none" src="04_emote_arr_male.mp3"></audio></td></tr>
+<tr><td>NEW · "Arrr!" female <span class="tag new">B</span></td><td><audio controls preload="none" src="04_emote_arr_female.mp3"></audio></td></tr>
+<tr><td>NEW · "Fire!" male <span class="tag new">B</span></td><td><audio controls preload="none" src="04_emote_fire_male.mp3"></audio></td></tr>
+<tr><td>NEW · "Fire!" female <span class="tag new">B</span></td><td><audio controls preload="none" src="04_emote_fire_female.mp3"></audio></td></tr>
+</table>
+<h2>Music</h2><table>
+<tr><td>OLD · shanty loop ("Drunken Sailor", synth) <span class="tag old">A</span></td><td><audio controls preload="none" src="old/old_music_shanty_lm.mp3"></audio></td></tr>
+<tr><td>NEW · "Salt on the Rail" harbor shanty, 30 s loop (original) <span class="tag new">B</span></td><td><audio controls preload="none" loop src="05_harbor_shanty_loop_30s.mp3"></audio></td></tr>
+<tr><td>NEW · same, played twice (listen for the seam at 0:30) </td><td><audio controls preload="none" src="05_harbor_shanty_loop_x2_seam_check.mp3"></audio></td></tr>
+<tr><td>NEW · victory stinger <span class="tag new">B</span></td><td><audio controls preload="none" src="06_victory_stinger.mp3"></audio></td></tr>
+<tr><td>OLD · coin / upgrade (for reference; new UI set is milestone 2)</td><td><audio controls preload="none" src="old/old_coin_lm.mp3"></audio><audio controls preload="none" src="old/old_upgrade_lm.mp3"></audio></td></tr>
+</table>
+<p class="muted">MP3 adds a few ms of padding, so the in-game loop will use Opus/OGG with WebAudio loopStart/loopEnd for a gapless seam.</p>
+</body></html>

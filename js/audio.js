@@ -152,23 +152,36 @@ function ring({ t, base, partials = [1, 2.76, 5.4, 8.93], dur = 1.2, vol = 0.1, 
 }
 
 // ---------- recorded samples (v101) ----------
-// Post's picks, compared slot by slot against the synth: only the slots where the recording won are listed here.
-// Light / medium / heavy hits, sinking, UI, ambience and the other 5 emote lines stay synthesized (originals kept).
+// Post's picks, compared slot by slot against the synth through a phone-speaker simulation: only the slots where the
+// recording won are listed here. v102 (round 4): phone-first light / medium / heavy hits, sinking, debris, sea ambience,
+// low-HP heartbeat + bell, Waves defeat stinger and all 8 emote lines are recorded. v104 audio (round 5): thunder, the
+// wave / boss horns and the legendary upgrade fanfare are recorded too. Coins, shop, upgrade, equip, heal and the
+// reload-ready ratchet keep the synth (it measured as loud or louder on phones; see audio-dev round 4 / round 5).
 const AUD = './assets/audio/';
 const NO_SAMPLES = typeof location !== 'undefined' && /[?&]oldaudio=1\b/.test(location.search); // A/B + kill switch
 const SAMPLES = {
   cannon: ['cannon_1', 'cannon_2'],                                      // round 3 "phone-first" cannon (v1 + v2)
   impact: ['impact_1', 'impact_2'],                                      // layered wood smash (kill tier only)
+  impactLight: ['impact_light_1', 'impact_light_2'], impactMedium: ['impact_medium_1', 'impact_medium_2'], impactHeavy: ['impact_heavy_1', 'impact_heavy_2'], // v102 phone-first hits
+  debris: ['debris_1', 'debris_2'], sink: ['sink_1'], sinkBig: ['sink_big'], lowBeat: ['lowhp_beat'], lowBell: ['lowhp_bell'], ambSea: ['amb_sea'], defeat: ['defeat'],
   splashNear: ['splash_near_1', 'splash_near_2', 'splash_near_3'], splashMid: ['splash_mid'], splashFar: ['splash_far'],
   arrM: ['vo_arrr_male_1', 'vo_arrr_male_2', 'vo_arrr_male_3', 'vo_arrr_male_4'], arrF: ['vo_arrr_female_1', 'vo_arrr_female_2', 'vo_arrr_female_3', 'vo_arrr_female_4'],
   fireM: ['vo_fire_male_1', 'vo_fire_male_2', 'vo_fire_male_3'], fireF: ['vo_fire_female_1', 'vo_fire_female_2', 'vo_fire_female_3'],
   laughM: ['vo_laugh_male_1', 'vo_laugh_male_2'], laughF: ['vo_laugh_female_1', 'vo_laugh_female_2', 'vo_laugh_female_3'],
+  // v102: the other quick-chat lines, real recordings (CC0 / CC-BY, see CREDITS.md)
+  followM: ['vo_follow_male_1', 'vo_follow_male_2', 'vo_follow_male_3'], followF: ['vo_follow_female_1', 'vo_follow_female_2', 'vo_follow_female_3'], bossM: ['vo_boss_male_1', 'vo_boss_male_2'], bossF: [], helpM: ['vo_help_male_1'], helpF: ['vo_help_female_1', 'vo_help_female_2'],
+  attackM: ['vo_attack_male_1', 'vo_attack_male_2'], attackF: [], retreatM: ['vo_retreat_male_1'], retreatF: [], ggM: ['vo_gg_male_1', 'vo_gg_male_2'], ggF: [],
   victory: ['victory'], shanty: ['music_shanty'],
+  // round 5: phone-first thunder (3 strikes), wave + boss horns (real conch / alpenhorn / horn + frame drums), legendary fanfare
+  thunder: ['thunder_1', 'thunder_2', 'thunder_3'], hornWave: ['horn_wave'], hornBoss: ['horn_boss'], legendary: ['upgrade_legendary'],
 };
 // load order: combat core first, then voices, then the stinger + music (largest file last)
-const LOAD_ORDER = [['cannon', 'impact', 'splashNear', 'splashMid', 'splashFar'], ['arrM', 'arrF', 'fireM', 'fireF', 'laughM', 'laughF', 'victory'], ['shanty']];
+const LOAD_ORDER = [['cannon', 'impact', 'impactLight', 'impactMedium', 'impactHeavy', 'splashNear', 'splashMid', 'splashFar'],
+  ['arrM', 'arrF', 'fireM', 'fireF', 'laughM', 'laughF', 'attackM', 'attackF', 'followM', 'followF', 'bossM', 'bossF', 'helpM', 'helpF', 'retreatM', 'retreatF', 'ggM', 'ggF', 'debris', 'sink', 'sinkBig', 'lowBeat', 'lowBell', 'victory', 'defeat', 'hornWave', 'hornBoss', 'legendary'], ['ambSea', 'thunder', 'shanty']];
 // per-slot trims (linear), loudness-matched against the synth they replace (see the v101 notes in the commit)
-const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 0.45, victory: 0.55, shanty: 0.30 };
+const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 0.45, victory: 0.55, shanty: 0.30,
+  light: 1.894, medium: 1.831, heavy: 2.606, debris: 0.937, sink: 0.579, sinkBig: 0.983, beat: 0.642, bell: 0.688, amb: 10.995, defeat: 0.495,
+  thunder: 0.719, hornWave: 0.556, hornBoss: 1.122, legendary: 0.589 };
 const bufs = {}; let _loading = false;
 function decode(ab) { return new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); } catch (e) { rej(e); } }); }
 async function loadOne(n) {
@@ -213,7 +226,9 @@ const VOICE_CAP = 8; let liveVoices = 0;
 let crewLevel = 0, audioQ = { phone: false, lite: false };
 export function setAudioQuality(q = {}) { audioQ = { ...audioQ, ...q }; }
 const myVoice = (() => { try { let g = localStorage.getItem('pfp_voice'); if (g !== 'm' && g !== 'f') { g = Math.random() < 0.5 ? 'm' : 'f'; localStorage.setItem('pfp_voice', g); } return g; } catch { return 'm'; } })();
-const LINE_KEY = { 0: 'arr', 4: 'fire', 7: 'laugh' }; // Arr! / Attack! ("Fire!") / Yo ho ho! (pirate laugh); other lines keep the synth voice
+// quick-chat line -> recorded key(s), first one with loaded takes wins (Attack! falls back to the Fire! takes)
+const LINE_KEY = { 0: ['arr'], 1: ['follow'], 2: ['boss'], 3: ['help'], 4: ['attack', 'fire'], 5: ['retreat'], 6: ['gg'], 7: ['laugh'] };
+const STACK = { arr: 1, fire: 1, attack: 1, laugh: 1 }; // the whole crew joins these; the others are the captain's call (1 voice)
 const crewSize = () => { const n = [1, 2, 2, 3, 4, 5, 6][Math.max(0, Math.min(6, crewLevel | 0))]; return Math.min(n, audioQ.lite ? 2 : audioQ.phone ? 3 : 6); };
 const SPREAD = [0, -0.45, 0.4, -0.7, 0.7, -0.2];
 // play one stacked callout. key = 'arr' | 'fire' | 'laugh'; n voices; lead = 'm' | 'f'; v = volume
@@ -228,7 +243,7 @@ function crewCall(key, n, lead, v, rate0 = 1) {
     if (i === 1 || i === 2) tt = t0 + 0.02 + Math.random() * 0.06; else if (i > 2) tt = t0 + 0.08 + Math.random() * 0.05;
     const rate = (i === 0 ? rate0 : 1 + (Math.random() * 2 - 1) * 0.03);
     liveVoices++; played++;
-    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
+    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0 /* v105: the v101 laugh takes kept (3.5 dB louder on phones than the round-4 trims), so their 2.1 s fade too */, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
   }
   return played > 0;
 }
@@ -352,6 +367,7 @@ function punch(t, v) { tone({ t, dur: 0.35, f0: 75, f1: 30, vol: 0.6 * v, a: 0.0
 // throttle: at most HIT_THROTTLE.max hit sounds per window; hits within mergeGap merge into the loudest
 const _hits = []; let _lastHit = { t: -1, rank: -1 };
 const RANK = { light: 0, medium: 1, heavy: 2, kill: 3 };
+const IMPACT_KEY = { light: 'impactLight', medium: 'impactMedium', heavy: 'impactHeavy' };
 function hitAllowed(now, rank) {
   while (_hits.length && now - _hits[0] > HIT_THROTTLE.window) _hits.shift();
   if (now - _lastHit.t < HIT_THROTTLE.mergeGap && rank <= _lastHit.rank) return false;
@@ -413,8 +429,8 @@ export const sfx = {
   // own = your callout (your crew joins in, crew size = GUN CREW); remote pirates: 1 voice, male/female by their id-hash pitch
   emote: (e = 0, v = 1, pitch = 1, own = false) => {
     if (!live() || !voice(2, 1.2)) return;
-    const key = LINE_KEY[e | 0], vv = Math.min(1, v);
-    if (key && crewCall(key, own ? crewSize() : 1, own ? myVoice : (pitch >= 1 ? 'f' : 'm'), vv, own ? 1 : 1 + (pitch - 1) * 0.25)) return;
+    const vv = Math.min(1, v), lead = own ? myVoice : (pitch >= 1 ? 'f' : 'm');
+    for (const key of LINE_KEY[e | 0] || []) if (crewCall(key, own && STACK[key] ? crewSize() : 1, lead, vv, own ? 1 : 1 + (pitch - 1) * 0.25)) return;
     pirateVoice(e | 0, vv, Math.max(0.75, Math.min(1.3, pitch)));
   },
   // generic cannon (kept for compatibility); v = distance volume
@@ -440,9 +456,12 @@ export const sfx = {
     const H = hitTier({ dmg: o.dmg, maxHp: o.maxHp, kill: o.kill, onPlayer: !!o.onPlayer, cannonTier: o.onPlayer ? -1 : profile.cannonTier }), now = ctx.currentTime;
     if (!hitAllowed(now, RANK[H.id]) || !voice(o.kill || o.onPlayer ? 3 : 2, H.id === 'kill' ? 3 : 1.5)) return;
     const v = o.v ?? 1, metal = o.onPlayer ? profile.armor.metal : (o.armor || 0);
-    const k = o.onPlayer ? profile.hull.impact : (o.boss ? 0.8 : 1), ib = H.id === 'kill' ? pick('impact') : null;
-    if (ib) playBuf(ib, { t: now, vol: LVL.impact * H.vol * v * (1 - metal * 0.45) * jit(1), rate: Math.max(0.7, Math.min(1.15, k)) * (0.96 + Math.random() * 0.08) }); // kill: recorded hull smash
-    else impactSound(H, now, v * (1 - metal * 0.45), k);
+    const k = o.onPlayer ? profile.hull.impact : (o.boss ? 0.8 : 1), kill = H.id === 'kill';
+    const ib = pick(kill ? 'impact' : IMPACT_KEY[H.id]), rate = Math.max(0.7, Math.min(1.15, k)) * (0.96 + Math.random() * 0.08);
+    if (ib) { // recorded: kill = hull smash (+ debris raining into the water), light / medium / heavy = v102 phone-first hits
+      playBuf(ib, { t: now, vol: (kill ? LVL.impact : LVL[H.id]) * H.vol * v * (1 - metal * 0.45) * jit(1), rate, pan: (Math.random() - 0.5) * 0.3 });
+      const db = kill ? pick('debris') : null; if (db) playBuf(db, { t: now + 0.18, vol: LVL.debris * v * jit(1.5), rate: 0.95 + Math.random() * 0.1, pan: (Math.random() - 0.5) * 0.5 });
+    } else impactSound(H, now, v * (1 - metal * 0.45), k);
     if (metal) ironHit(now, v * (0.6 + 0.2 * RANK[H.id]), metal); // iron plating clang / armored galleon & boss ring
     if (o.boss) punch(now, v);
     return H.id;
@@ -454,10 +473,13 @@ export const sfx = {
     woodHit(t, v * (1 - m * 0.55), profile.hull.impact);
     if (m) ironHit(t, v, m);
   },
-  thunder: (delay = 0) => { if (!live() || !voice(2, 4)) return; const t = ctx.currentTime + delay; noise({ t, dur: 0.25, f0: 3000, f1: 600, vol: 0.25 }); noise({ t: t + 0.05, dur: 3.2, f0: 260, f1: 30, vol: 0.85, a: 0.08 }); noise({ t: t + 0.5, dur: 2.4, f0: 180, f1: 25, vol: 0.5, a: 0.3, rate: 0.5 }); },
+  thunder: (delay = 0) => { if (!live() || !voice(2, 4)) return; const t = ctx.currentTime + delay, tb = pick('thunder');
+    if (tb) { playBuf(tb, { t, vol: LVL.thunder * jit(2), rate: 0.92 + Math.random() * 0.14, pan: (Math.random() - 0.5) * 0.5 }); return; } // round 5 recorded
+    noise({ t, dur: 0.25, f0: 3000, f1: 600, vol: 0.25 }); noise({ t: t + 0.05, dur: 3.2, f0: 260, f1: 30, vol: 0.85, a: 0.08 }); noise({ t: t + 0.5, dur: 2.4, f0: 180, f1: 25, vol: 0.5, a: 0.3, rate: 0.5 }); },
   sink: (big = false) => {
     if (!live() || !voice(3, 3.5)) return;
-    const t = ctx.currentTime, k = big ? 0.7 : 1;
+    const t = ctx.currentTime, k = big ? 0.7 : 1, sb = pick(big ? 'sinkBig' : 'sink');
+    if (sb) { playBuf(sb, { t, vol: big ? LVL.sinkBig : LVL.sink, rate: 0.96 + Math.random() * 0.08, pan: (Math.random() - 0.5) * 0.4 }); return; } // v102 recorded
     noise({ t, dur: 2.6, f0: 500 * k, f1: 40, vol: 0.55, a: 0.05 });
     creak(t + 0.1, 0.8 * k, 2.4); creak(t + 0.9, 0.7 * k, 2.2); creak(t + 1.6, 0.6 * k, 1.8);
     for (let i = 0; i < 9; i++) tone({ t: t + 0.6 + i * 0.22 + Math.random() * 0.15, dur: 0.07, f0: 260 + Math.random() * 300, f1: 900 + Math.random() * 500, vol: 0.05 }); // bubbles
@@ -469,10 +491,17 @@ export const sfx = {
     const t = ctx.currentTime; playBuf(b, { t, vol: LVL.victory });
     musicDuck.gain.cancelScheduledValues(t); musicDuck.gain.setTargetAtTime(0.25, t, 0.05); musicDuck.gain.setTargetAtTime(1, t + b.duration - 0.6, 0.5);
   },
+  // [v102] Waves run lost (game over): recorded defeat stinger (falling fiddle + ship's bell), the music ducks out
+  defeat: () => {
+    if (!live() || !voice(4, 5)) return; const t = ctx.currentTime, b = pick('defeat');
+    if (b) playBuf(b, { t, vol: LVL.defeat });
+    else { horn(t, [146.8, 220], 0.9, 0.06, 900); horn(t + 0.9, [116.5, 174.6], 0.7, 0.06, 800); horn(t + 1.6, [110, 164.8], 1.8, 0.065, 700); drum(t + 1.6, 0.6, 80); }
+    musicDuck.gain.cancelScheduledValues(t); musicDuck.gain.setTargetAtTime(0.0001, t, 0.15); musicDuck.gain.setTargetAtTime(1, t + 6, 0.5);
+  },
   // WAVE n: ship's horn + two drum hits
-  waveStart: () => { if (!live() || !voice(3, 2)) return; const t = ctx.currentTime; horn(t, [146.8, 220], 1.1, 0.07, 1100); drum(t, 0.7); drum(t + 0.28, 0.6); },
+  waveStart: () => { if (!live() || !voice(3, 2)) return; const t = ctx.currentTime, hb = pick('hornWave'); if (hb) { playBuf(hb, { t, vol: LVL.hornWave }); return; } horn(t, [146.8, 220], 1.1, 0.07, 1100); drum(t, 0.7); drum(t + 0.28, 0.6); },
   // boss arrival: low minor horn chord + war drums + thunder rumble
-  boss: () => { if (!live() || !voice(4, 4)) return; const t = ctx.currentTime + 0.4; horn(t, [73.4, 87.3, 110], 2.6, 0.085, 700); [0, 0.45, 0.9, 1.15, 1.4].forEach((d, i) => drum(t + d, 0.9 - i * 0.05, 80)); noise({ t, dur: 3, f0: 200, f1: 30, vol: 0.35, a: 0.6 }); },
+  boss: () => { if (!live() || !voice(4, 4)) return; const t = ctx.currentTime + 0.4, hb = pick('hornBoss'); if (hb) { playBuf(hb, { t, vol: LVL.hornBoss }); return; } horn(t, [73.4, 87.3, 110], 2.6, 0.085, 700); [0, 0.45, 0.9, 1.15, 1.4].forEach((d, i) => drum(t + d, 0.9 - i * 0.05, 80)); noise({ t, dur: 3, f0: 200, f1: 30, vol: 0.35, a: 0.6 }); },
   // spyglass tier 3: lookout's bell when a wave spawns
   spawnBell: () => { if (!profile.range.bell || !live() || !voice(2, 2)) return; const t = ctx.currentTime + 0.15; ring({ t, base: 880, dur: 1.6, vol: 0.06 }); ring({ t: t + 0.42, base: 880, dur: 1.6, vol: 0.05 }); },
   coin: () => { if (!live() || !voice(2, 0.6)) return; const t = ctx.currentTime; arp(t, [1319, 1760], 0.07, 0.07, 'square', 0.18); arp(t, [2637, 3520], 0.07, 0.03, 'sine', 0.3); noise({ t: t + 0.02, dur: 0.15, f0: 9000, f1: 5000, vol: 0.05, type: 'highpass' }); },
@@ -490,6 +519,7 @@ export const sfx = {
   upgrade: (legendary = false) => {
     if (!live() || !voice(4, legendary ? 2 : 0.8)) return;
     const t = ctx.currentTime;
+    const lb = legendary ? pick('legendary') : null; if (lb) { playBuf(lb, { t, vol: LVL.legendary }); return; } // round 5 recorded fanfare
     if (!legendary) { arp(t, [659, 880, 1319], 0.07, 0.13); noise({ t: t + 0.05, dur: 0.45, f0: 7000, f1: 2500, vol: 0.1, type: 'highpass' }); return; }
     horn(t, [293.7, 370, 440], 0.28, 0.05, 2400); horn(t + 0.3, [293.7, 370, 440], 0.22, 0.05, 2400); horn(t + 0.55, [392, 493.9, 587.3], 1.1, 0.06, 2600);
     drum(t, 0.6); drum(t + 0.3, 0.5); drum(t + 0.55, 0.8);
@@ -531,7 +561,12 @@ export function updateAmbient({ speed = 0, sail = 1, playing = false, hpFrac = 1
   const sp = Math.min(1, Math.abs(speed) / 18);
   amb.windG.gain.setTargetAtTime((0.018 + sp * 0.05 * S.wind) * (0.6 + sail * 0.2), t, 0.4);
   amb.windBp.frequency.setTargetAtTime(420 + sp * 380 * S.wind, t, 0.5);
-  amb.seaG.gain.setTargetAtTime(0.07 + sp * 0.05, t, 0.6);
+  if (!amb.rec && bufs.amb_sea) { // v102: recorded sea (water lapping on the hull + open-sea wash), gapless loop; synth sea stays under it
+    const s = ctx.createBufferSource(); s.buffer = bufs.amb_sea; s.loop = true; const ab = bufs.amb_sea, AL = 12, al = Math.max(0, Math.min(0.06, ab.duration - AL)); if (ab.duration >= AL) { s.loopStart = al; s.loopEnd = al + AL; } /* 12 s master: skip mp3 padding */ const g = ctx.createGain(); g.gain.value = 0.0001;
+    s.connect(g).connect(ambBus); s.start(t, Math.random() * bufs.amb_sea.duration); amb.rec = s; amb.recG = g;
+  }
+  amb.seaG.gain.setTargetAtTime((0.07 + sp * 0.05) * (amb.rec ? 0.4 : 1), t, 0.6);
+  if (amb.rec) amb.recG.gain.setTargetAtTime((0.07 + sp * 0.05) * LVL.amb, t, 0.6);
   if (!playing) { amb.low = false; return; }
   // hull creaks: more when rolling, deeper with HULL tiers
   if (t > amb.nextCreak) { amb.nextCreak = t + 2.5 + Math.random() * 4 - Math.min(2, Math.abs(roll) * 8); if (voice(0, 1)) creak(t, H.creak, 0.8 + Math.abs(roll) * 4); }
@@ -541,9 +576,11 @@ export function updateAmbient({ speed = 0, sail = 1, playing = false, hpFrac = 1
   const low = playing && hpFrac > 0 && hpFrac < 0.3;
   if (low && t > amb.nextBeat) {
     const rate = 0.55 + hpFrac * 1.2; amb.nextBeat = t + rate;
-    tone({ t, dur: 0.12, f0: 70, f1: 45, vol: 0.35, out: sfxBus }); tone({ t: t + 0.16, dur: 0.1, f0: 60, f1: 40, vol: 0.25, out: sfxBus });
+    const hb = pick('lowBeat'); // v102: recorded lub-dub (frame drum, harmonics that read on phone speakers)
+    if (hb) playBuf(hb, { t, vol: LVL.beat * (0.8 + (0.3 - hpFrac)), rate: 1 + (0.3 - hpFrac) * 0.15 });
+    else { tone({ t, dur: 0.12, f0: 70, f1: 45, vol: 0.35, out: sfxBus }); tone({ t: t + 0.16, dur: 0.1, f0: 60, f1: 40, vol: 0.25, out: sfxBus }); }
   }
-  if (low && !amb.low) tone({ t, dur: 0.5, f0: 880, f1: 660, vol: 0.05, type: 'square', out: sfxBus });
+  if (low && !amb.low) { const bb = pick('lowBell'); if (bb) playBuf(bb, { t, vol: LVL.bell }); else tone({ t, dur: 0.5, f0: 880, f1: 660, vol: 0.05, type: 'square', out: sfxBus }); } // ship's bell warning
   amb.low = low;
 }
 
@@ -565,7 +602,7 @@ function squeeze(t, fr, dur, vol) { // accordion-ish: two detuned pulses through
   [['square', -8], ['sawtooth', 9]].forEach(([ty, dt]) => { const o = c.createOscillator(); o.type = ty; o.frequency.value = fr; o.detune.value = dt; o.connect(f); o.start(t); o.stop(t + dur + 0.02); });
 }
 // recorded "Salt on the Rail" shanty (BANKSY approved), gapless buffer loop; the synth loop is only the fallback
-const SHANTY_LEN = 30; // seconds, exact loop length of the master
+const SHANTY_LEN = 15; // seconds, exact loop length of the master (v102: 8-bar edit, half the decoded memory)
 function startShanty() {
   const b = bufs.music_shanty; if (!b || music.src) return !!music.src;
   const s = ctx.createBufferSource(); s.buffer = b; s.loop = true;

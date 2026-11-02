@@ -1,0 +1,36 @@
+Phone-sim measurements (each clip loudness-matched to -16 LUFS full-range BEFORE the phone sim)
+
+Phone sim = mono, HPF 300 Hz 24 dB/oct + 180 Hz, +3 dB at 900 Hz, +4 dB at 3 kHz, -6 dB at 6.5 kHz, LPF 10 kHz, fast 4:1 limiter.
+
+A) Loudness that survives on the phone (LUFS after sim; higher = sounds bigger on the phone)
+   OLD game synth          -29.2 LUFS
+   R2 heavy (sub-first)    -26.9 LUFS
+   R3 phone-first v1       -18.2 LUFS
+   R3 phone-first v2       -20.9 LUFS
+
+B) Full-range share of energy per band, dB re total (pre-sim)
+                               20-80     80-150    150-300   300-1000  1000-4000 4000-12000   200-4000
+   OLD game synth              -17.2       -0.7      -12.2      -11.7      -22.7      -56.9       -9.8
+   R2 heavy (sub-first)         -0.7      -10.6      -14.1      -17.9      -20.8      -31.1      -14.3
+   R3 phone-first v1           -11.4      -13.4       -6.8       -2.9       -8.4      -22.0       -1.0
+   R3 phone-first v2            -9.1       -6.6       -3.8       -7.5      -12.3      -21.4       -2.8
+
+C) After phone sim: crest factor (peak/RMS of first 0.5 s), spectral centroid, 1-3 kHz echo tail vs attack, audible tail length (200-4k, -30 dB)
+   OLD game synth         crest full  10.7 dB / phone  15.3 dB   centroid    637 Hz   echo  -18.7 dB   tail 2.10 s
+   R2 heavy (sub-first)   crest full  11.4 dB / phone  20.5 dB   centroid   1383 Hz   echo  -16.6 dB   tail 2.62 s
+   R3 phone-first v1      crest full  12.6 dB / phone  15.3 dB   centroid    991 Hz   echo   -2.8 dB   tail 3.88 s
+   R3 phone-first v2      crest full  10.9 dB / phone  14.1 dB   centroid   1011 Hz   echo   -4.1 dB   tail 3.76 s
+
+D) Spectral difference in 200 Hz-4 kHz, after phone sim (mean |dB| over the band, absolute levels)
+   NEW R3 vs OLD : mean diff 21.5 dB, NEW louder by +21.5 dB on average
+   R2 vs OLD     : mean diff 15.3 dB, R2 louder by +14.8 dB on average
+   200-500 Hz: NEW R3 - OLD =  +7.3 dB    R2 - OLD =  +2.0 dB
+   500-1000 Hz: NEW R3 - OLD = +10.5 dB    R2 - OLD =  +1.4 dB
+   1000-2000 Hz: NEW R3 - OLD = +16.5 dB    R2 - OLD =  +8.6 dB
+   2000-4000 Hz: NEW R3 - OLD = +28.8 dB    R2 - OLD = +23.1 dB
+
+E) Attack after phone sim: rise time (10->90 %) and transient-over-body (peak first 15 ms / RMS 100-400 ms)
+   OLD game synth         rise  33.3 ms   transient/body  15.0 dB
+   R2 heavy (sub-first)   rise   3.8 ms   transient/body  24.2 dB
+   R3 phone-first v1      rise   1.4 ms   transient/body  15.1 dB
+   R3 phone-first v2      rise   5.5 ms   transient/body  14.4 dB

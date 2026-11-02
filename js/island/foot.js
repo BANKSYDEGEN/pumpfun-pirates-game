@@ -42,7 +42,8 @@ const GALLOWS_HILL = { x: 110, z: -320, h: 34, s: 2600 };
 // pirate trails: two closed loops (catmull-rom) + the main street feeds them at the town gate
 const GATE = townToWorld(STREET.x, STREET.z1);
 const TRAIL_A = [GATE, [-380, -170], [-292, -262], [-170, -330], [-20, -400], [110, -330], [230, -262], [300, -150], [190, -100], [20, -150], [10, -40], [-120, -40], [-300, -64]];
-const TRAIL_B = [[-120, -40], [-210, 60], [-282, 150], [-200, 290], [-60, 420], [40, 540], [150, 420], [232, 252], [196, 150], [130, 150], [40, 60], [-30, -10]];
+// [v105] coast mode: the west leg used to run ~500 m through the sea inlet (-280..0, 100..510); it now follows the inlet's east shore
+const TRAIL_B = [[-120, -40], ...(COASTM ? [[-150, 60], [-140, 170], [-100, 290], [-30, 400], [20, 500]] : [[-210, 60], [-282, 150], [-200, 290], [-60, 420]]), [40, 540], [150, 420], [232, 252], [196, 150], [130, 150], [40, 60], [-30, -10]];
 const ROPE_BRIDGE = { c: [16, -82] };                                                              // trail A over the river gorge
 
 // ---------- helpers ----------
@@ -143,6 +144,29 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
 }
+// [v105] rope bridge approaches: the gorge walls ran up past the deck ends (a 4:1 wall = no way on or off). Carve a 5 m ramp cut
+// (grade 0.5) into each wall along the bridge axis, so trail A walks straight onto the deck and off the far side.
+const BRIDGE_ENDS = [];
+{ const c = ROPE_BRIDGE.c, deckY = H(c[0], c[1]) + 24, out = (dz) => { let z = c[1]; while (H(c[0], z) < deckY && Math.abs(z - c[1]) < 90) z += dz; return z; };
+  const za = out(-1), zb = out(1);
+  for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) { const x = X0 + i * G, z = Z0 + j * G, ax = Math.abs(x - c[0]); if (ax > 6) continue;
+    const along = z < za ? za - z : z > zb ? z - zb : -1; if (along < 0 || along > 60) continue;
+    const q = IDX(i, j), tgt = deckY - 0.1 + along * 0.5, w = 1 - sm(3, 6, ax); if (Hg[q] > tgt) Hg[q] += (tgt - Hg[q]) * w; }
+  BRIDGE_ENDS.push([c[0], za], [c[0], zb]); }
+// [v105] carved ramps: the reachability check (js/dev/reach.js) found one walkable shelf cut off by steep faces on every side (the
+// river bank inside the gorge, ~540 m², 16 m up); this ramp (grade 0.67) leads down onto it from trail A's side. Each is cut / filled to a straight
+// grade (≤ 0.7) 5 m wide, 3 m past each end, and painted + kept clear like a trail. [fromX, fromZ, toX, toZ] foot frame.
+export const RAMPS = [[-116, -108, -104, -100]]
+  .map(([ax, az, bx, bz]) => { const L0 = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L0, uz = (bz - az) / L0, e = 3;
+    const a = [ax - ux * e, az - uz * e], b = [bx + ux * e, bz + uz * e]; return { ax: a[0], az: a[1], bx: b[0], bz: b[1], ay: H(...a), by: H(...b), L: L0 + 2 * e, ux, uz }; });
+for (const r of (typeof location !== 'undefined' && /[?&]ramps=0/.test(location.search)) ? [] : RAMPS) { const pts = [[r.ax, r.az], [r.bx, r.bz]];
+  const i0 = Math.max(0, Math.floor((Math.min(r.ax, r.bx) - 6 - X0) / G)), i1 = Math.min(NX, Math.ceil((Math.max(r.ax, r.bx) + 6 - X0) / G));
+  const j0 = Math.max(0, Math.floor((Math.min(r.az, r.bz) - 6 - Z0) / G)), j1 = Math.min(NZ, Math.ceil((Math.max(r.az, r.bz) + 6 - Z0) / G));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const [d, t] = segD(X0 + i * G, Z0 + j * G, r.ax, r.az, r.bx, r.bz), q = IDX(i, j); if (d > 5) continue;
+    const w = 1 - sm(2.5, 5, d); Hg[q] += (r.ay + (r.by - r.ay) * t - Hg[q]) * w; TRg[q] = Math.min(TRg[q], d); } }
+// [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
+const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+export const WALK_RULES = { slope: +(QS.get('slope') || 1.25), trees: QS.get('trees') !== '0' };
 export const BUILD_MS = Math.round(performance.now() - t0);
 // bilinear sample (world metres)
 export function H(x, z) {
@@ -756,6 +780,18 @@ export function drawCoastMap(cv) {
 }
 export const LOTS_MAP = [];
 
+// [v105] island map bake (js/islandMap.js): one map pixel's colour (foot frame), returns 0 land, 1 steep face (walk limit), 2 water
+const _mc = new THREE.Color(), _deep = new THREE.Color(0x174f70);
+export function mapPixel(x, z, out) {
+  const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G);
+  if (i < 0 || j < 0 || i > NX || j > NZ) { out.copy(_deep); return 2; }
+  const q = IDX(i, j), h = Hg[q];
+  if (h < -4) { out.set(0x1f6e94).lerp(_deep, Math.min(1, (-h - 4) / 12)); return 2; }
+  if (h < 0.3) { out.set(0x3fc6c9).lerp(_mc.set(0x1f8fb0), sm(0.3, -4, h)); return 2; }
+  if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r || (RVg[q] < 5 && h < RVl[q] + 0.5)) { out.set(0x2fb8c9); return 2; }
+  colorAt(i, j, out); return slopeAt(i, j) > WALK_RULES.slope ? 1 : 0;
+}
+export const MAP_PATHS = () => ({ A: TRAILS.A, B: TRAILS.B, street: STREETP, ramps: RAMPS.map(r => [[r.ax, r.az], [r.bx, r.bz]]), lake: LAKE, river: RIVERP });
 // ---------- inland POIs ----------
 export const FOOT_POIS = [];
 function poi(id, label, x, z, extra = {}) { const p = { id, label, x, z, y: H(x, z), action: null, ...extra }; FOOT_POIS.push(p); return p; }
@@ -953,6 +989,14 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   let top = H(FALLS_CLIFF.x + 6, LAKE.z - LAKE.r - 10); if (!isFinite(top)) top = LAKE.y + 30; const [fall, mist] = waterfall(uTime, Math.max(top, LAKE.y + 20), low); root.add(fall); if (!low) root.add(mist);
   // foliage (instanced, streamed nearest-N around the camera)
   const spots = foliageSpots();
+  // [v105] solid trees + rocks: trunk-sized circles (never bigger than the mesh, so no invisible walls), none on a trail, the
+  // main street, the bridge approaches or a POI clearing (foliageSpots already keeps those clear; this re-checks the jittered spot)
+  if (WALK_RULES.trees) { const B0 = (x, z) => BRIDGE_ENDS.some(([bx, bz]) => Math.hypot(x - bx, z - bz) < 14);
+    const okAt = (x, z) => trailDist(x, z) > 5 && gridAt(STg, x, z) > 26 && !B0(x, z);
+    for (const t of spots.trees) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.45);
+    for (const t of spots.palms) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.32);
+    for (const t of spots.rocks) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.35 * (0.7 + t[3] * 2.4));
+    for (const t of spots.cliffs) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.35 * (3.2 + t[3] * 4.2)); }
   // foliage buckets: [kind(s), geometry, variant (-1 any), r0, r1 (m from the camera), cap, casts shadow]. High: per-variant LOD0 up close,
   // one LOD1 mesh beyond; Low: one LOD1 mesh per kind (4 calls, as before). Procedural fallback (&nature=0): the old blockout shapes.
   let BK;
@@ -1032,12 +1076,18 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r - 3) return true;
     const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return true; const q = IDX(i, j);
     if (RVg[q] < 4.5 && h < RVl[q] + 0.8) return true;                                              // river
-    if (fx !== undefined && h - H(fx, fz) > 0.9) return true;                                        // slope limit (step up > ~45°)
+    if (fx !== undefined) { const d = Math.hypot(x - fx, z - fz); if (d > 1e-4) {           // [v105] slope limit: only real cliffs / steep faces
+      const ux = (x - fx) / d, uz = (z - fz) / d, e = Math.max(d, 0.1), g = (H(x, z) - H(x - ux * e, z - uz * e)) / e;     // the grade of the step you just took (no look-ahead: a cliff edge doesn't fence off the ground in front of it)
+      if (Math.abs(g) > WALK_RULES.slope) return true; } }                                            // same limit up AND down: you never drop into a pit you can't climb out of
     return false; }
+  function whyBlocked(x, z, fx, fz) { const b = bridgeAt(x, z); if (b) return b.inside ? '' : 'rail';  // [v105] dev: reachability report
+    if (hitCollider(x, z)) return 'prop'; const h = H(x, z); if (h < 0.4) return 'sea'; if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r - 3) return 'lake';
+    const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge'; const q = IDX(i, j);
+    if (RVg[q] < 4.5 && h < RVl[q] + 0.8) return 'river'; return blocked(x, z, fx, fz) ? 'slope' : ''; }
   function nearInteract(x, z) { let best = null, bd = 1e9; for (const q of INTERACT) { const d = Math.hypot(q.x - x, q.z - z); if (d < q.r && d < bd && !(q.used)) { bd = d; best = q; } } return best; }
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, H, groundAt, blocked, nearInteract, activate, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { root, update, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {
