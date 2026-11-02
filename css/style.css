@@ -911,7 +911,8 @@ html.pvp-spec #btn-emote { display: none !important; }
 .pz-alt { background: #161616; color: #7cff6b; border-color: #7cff6b; } .pz-copy { background: #ffcd77; color: #161616; padding: 6px 12px; white-space: nowrap; }
 .pz-tabs { display: flex; gap: 6px; } .pz-tabs button { flex: 1; font: inherit; font-size: 24px; padding: 4px; border-radius: 8px; border: 2px solid var(--pz); background: #161616; color: var(--pz); cursor: pointer; }
 .pz-tabs button.on { background: var(--pz); color: #fff; }
-.pz-price { font-size: 26px; text-align: center; color: #ffcd77; }
+.pz-price { font-size: 26px; text-align: center; color: #ffcd77; margin: 0 0 8px; }
+.pz-ca-short { display: none; } @media (max-width: 560px) { .pz-ca-full { display: none; } .pz-ca-short { display: inline; } .pz-ca code { font-size: 16px; text-align: center; } .pz-price { font-size: 22px; } } /* [v111] */
 .pz-ca { display: flex; gap: 8px; align-items: center; } .pz-ca code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: #000; padding: 6px 8px; border-radius: 6px; font: 13px ui-monospace, Menlo, monospace; color: #fff; }
 .pz-logo-row { display: flex; justify-content: center; margin: 4px 0 10px; } .pz-logo { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #ffcd77; object-fit: cover; image-rendering: auto; background: #000; } .pz-skull { display: flex; align-items: center; justify-content: center; background: var(--pz); box-sizing: border-box; } /* [v108] token logo */
 .pz-foot { text-align: center; opacity: .6; font-size: 18px; }

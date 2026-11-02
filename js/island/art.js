@@ -519,20 +519,26 @@ export function makeAtlas(skull) {
     g.fillStyle = '#161616'; g.fillRect(x, y, w, h); g.strokeStyle = '#ffcd77'; g.lineWidth = 10; g.strokeRect(x + 5, y + 5, w - 10, h - 10);
     g.strokeStyle = t.color; g.lineWidth = 4; g.strokeRect(x + 16, y + 16, w - 32, h - 32);
     // [v108] title, logo, CA, copy + DexScreener (press E) only: no description lines
-    text(t.title, x + w / 2, y + 52, t.title.length > 6 ? 76 : 96, t.color);
-    const lx = x + w / 2, ly = y + 150, lr = 64;
+    // [v111] fitted inside the inner frame (BANKSY "make it fit on board better"): even 30 px margins, every line auto-sized to the
+    // frame width, logo centred between the title and the CA, CA shortened first4…last4
+    const IN = 30, cw = w - 2 * IN, fit = (str, cy, maxPx, col) => { let px = maxPx; g.font = font(px); while (px > 18 && g.measureText(str).width > cw) { px -= 2; g.font = font(px); } text(str, x + w / 2, cy, px, col); };
+    fit(t.title, y + 62, 78, t.color);
+    const lx = x + w / 2, ly = y + 146, lr = 50;
     g.fillStyle = t.color; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.stroke();
-    if (t.logo) { const im = new Image(); im.onload = () => { g.save(); g.beginPath(); g.arc(lx, ly, lr - 3, 0, 7); g.clip(); g.drawImage(im, lx - lr + 3, ly - lr + 3, 2 * (lr - 3), 2 * (lr - 3)); g.restore();
+    if (t.logo) { const im = new Image(); im.onload = () => { const k = Math.min(im.width, im.height), sx = (im.width - k) / 2, sy = (im.height - k) / 2; // centred square crop, proportional
+        g.save(); g.beginPath(); g.arc(lx, ly, lr - 3, 0, 7); g.clip(); g.drawImage(im, sx, sy, k, k, lx - lr + 3, ly - lr + 3, 2 * (lr - 3), 2 * (lr - 3)); g.restore();
         g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.stroke(); if (atlasTex) atlasTex.needsUpdate = true; }; im.src = t.logo; }
-    else if (skull) { const k = Math.min(92 / skull.width, 92 / skull.height); g.drawImage(skull, lx - skull.width * k / 2, ly - skull.height * k / 2, skull.width * k, skull.height * k); }
-    text(t.ca.slice(0, 5) + '…' + t.ca.slice(-5), x + w / 2, y + 236, 42, '#ffffff');
-    text('E · COPY CA · DEXSCREENER', x + w / 2, y + 274, 32, '#ffcd77');
+    else if (skull) { const k = Math.min(72 / skull.width, 72 / skull.height); g.drawImage(skull, lx - skull.width * k / 2, ly - skull.height * k / 2, skull.width * k, skull.height * k); }
+    fit(t.ca.slice(0, 4) + '…' + t.ca.slice(-4), y + 224, 40, '#ffffff');
+    fit('E · COPY CA · DEXSCREENER', y + 258, 28, '#ffcd77');
     reg('bb' + t.sym, x, y, w, h);
   });
   const tex = atlasTex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // live board: redraw a token's price strip in place (0 extra draw calls; the atlas texture just re-uploads)
   const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const x = i * 340 + 4, y = 1690;
-    g.fillStyle = '#161616'; g.fillRect(x, y, 332, 110); text(lines[0], x + 166, y + 36, 54, '#ffcd77'); text(lines[1] || '', x + 166, y + 82, 44, lines[2] || '#ffffff'); tex.needsUpdate = true; };
+    g.fillStyle = '#161616'; g.fillRect(x, y, 332, 110);
+    const fitS = (str, cy, maxPx, col) => { let px = maxPx; g.font = font(px); while (px > 18 && g.measureText(str).width > 292) { px -= 2; g.font = font(px); } text(str, x + 166, cy, px, col); }; // [v111] 20 px margins
+    fitS(lines[0], y + 36, 54, '#ffcd77'); fitS(lines[1] || '', y + 80, 42, lines[2] || '#ffffff'); tex.needsUpdate = true; };
   ISLAND_TOKEN_SIGNS.forEach(t => drawTokenBoard(t.sym, ['loading…', '']));
   return { tex, R, drawTokenBoard };
 }
