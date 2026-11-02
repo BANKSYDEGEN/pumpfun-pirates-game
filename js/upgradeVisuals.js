@@ -261,7 +261,7 @@ const PARTS = {
       Ly.add(M.oak, tube(lineCurve(A, sx, 1.0 * k, 0.05), 40, 0.17 * k, 6));
       for (let i = 0; i < 16; i++) { const t = 0.2 + (i + 0.5) / 16 * 0.68; Ly.add(M.plank, box(0.14, 0.5, A.dz(t, 0.68 / 16) + 0.02, 0.03), [sx * A.shape.halfW(t) * 0.9, A.shape.top(t) + 0.3, A.zAt(t)], [0, A.sideYaw(t, sx), 0]); }
     }
-    if (T.forecastle) { // raised bow deck with a railing
+    if (T.forecastle && !ship?.userData?.art) { // raised bow deck with a railing ([Raul] the v2 hull has its own forecastle: this one sat buried 0.3 m under it)
       for (let i = 0; i < 6; i++) {
         const t = A.foreT0 + (i + 0.5) / 6 * 0.12, w = A.shape.halfW(t) * 1.9, y = A.foreY(t);
         Ly.add(M.deck, box(w, 0.32, A.dz(t, 0.12 / 6) + 0.04, 0.04), [0, y - 0.16, A.zAt(t)]);

@@ -34,7 +34,9 @@ JS = r'''async () => {
     for (let i = 0; i < gunners.length; i++) for (let j = i + 1; j < gunners.length; j++) if (Math.hypot(gunners[i].o[0] - gunners[j].o[0], gunners[i].o[2] - gunners[j].o[2]) < 0.55) fails.push('gunners overlap');
     for (const c of walkers) { const sp = Math.max(0, c.info[3]), h = hitsGun(c.o[0], c.o[2] - sp / 2, c.o[2] + sp / 2, c.o[1] - 0.6); if (h) fails.push(`walker lane x ${c.o[0]} in ${h}`); }
     for (const a of (u.anchors || []).filter(a => a.role === 'deck')) { const h = hitsGun(a.pos.x, a.pos.z, a.pos.z, a.pos.y); if (h) fails.push(`deck spot ${a.index} in ${h}`); }
-    const zS = L.zAt(0); for (const m of [...u.muzzles.port, ...u.muzzles.star, ...(u.muzzles.bow || [])]) if (m.position.z < zS + 0.5) fails.push('a muzzle at the stern'); // (stern lamp brackets / rudder iron are fine)
+    const zS = L.zAt(0); let aft = 0; for (const p of IV) if (p[1] > 0.6 && Math.abs(p[0]) > 0.22) aft = Math.max(aft, zS - p[2]); // [Raul] BANKSY: no cannon sticks out of the stern (rudder pintles |x| < 0.2; lamp brackets / transom plates stick out < 0.6 m)
+    u._aft = +aft.toFixed(2); if (aft > 0.9) fails.push(`iron sticks out ${aft.toFixed(2)} m behind the transom (a stern gun?)`);
+    for (const m of [...u.muzzles.port, ...u.muzzles.star, ...(u.muzzles.bow || [])]) if (m.position.z < zS + 0.5) fails.push('a muzzle at the stern'); // (stern lamp brackets / rudder iron are fine)
     if (u.crewBad?.length) fails.push('placeCrew found no clear spot: ' + u.crewBad.join(','));
     const bow = u.muzzles.bow || [], maxSide = Math.max(-99, ...[...u.muzzles.port, ...u.muzzles.star].map(m => m.position.z));
     const bowInfo = bow.map(m => m.position.z.toFixed(2)); if (bow.some(m => m.position.z <= maxSide)) fails.push('bow muzzle not forward');
@@ -50,7 +52,7 @@ JS = r'''async () => {
         const D = lod.children[0].material.uniforms, A = D.uDk.value, B = D.uDk2.value, t = z < A.y ? 0.25 + (z - A.x) / A.z : 0.72 + (z - A.y) / A.w, q = (t - 0.47) * 2, yS = B.z > 0.5 ? B.x * (0.5 + 0.5 * q * q) - B.y : c.o[1]; maxDy = Math.max(maxDy, Math.abs(yS - deckY(z))); }
       for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) { const d = Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]); minSep = Math.min(minSep, d); if (d < 0.5) fails.push('walkers collide'); }
       frames++; }
-    out.push({ name, walkers: walkers.length, lanes: walkers.map(c => [c.o[0], +(c.o[2] - c.info[3] / 2).toFixed(2), +(c.o[2] + c.info[3] / 2).toFixed(2)]), gunners: gunners.length, ironVerts: IV.length, bow: bowInfo, frames, minSep: +minSep.toFixed(2), maxFootErr: +maxDy.toFixed(3), fails: [...new Set(fails)].slice(0, 6), nFail: fails.length });
+    out.push({ name, walkers: walkers.length, lanes: walkers.map(c => [c.o[0], +(c.o[2] - c.info[3] / 2).toFixed(2), +(c.o[2] + c.info[3] / 2).toFixed(2)]), gunners: gunners.length, ironVerts: IV.length, aft: u._aft, bow: bowInfo, frames, minSep: +minSep.toFixed(2), maxFootErr: +maxDy.toFixed(3), fails: [...new Set(fails)].slice(0, 6), nFail: fails.length });
   }
   const PL = [{}, {hull:1,cannons:1}, {hull:2,cannons:3,reload:2}, {hull:3,cannons:4,reload:5,sails:5}, {hull:4,cannons:6,reload:6,sails:6}, {hull:5,cannons:7,reload:4}, {hull:6,cannons:6,sails:4,reload:3,armor:2,rudder:3,range:2}, {hull:6,cannons:8,reload:6,sails:6,armor:6,rudder:6,range:6}];
   for (const pvp of [true, false]) for (const skin of ['classic', 'coral', 'ghost', 'golden', 'diamond', 'flaming', 'commodore']) for (const lv of PL) {
@@ -70,7 +72,7 @@ async def main():
         bad = 0
         for r in res:
             bad += r['nFail'] > 0
-            print(('FAIL ' if r['nFail'] else 'ok   ') + r['name'], {k: r.get(k) for k in ('walkers', 'gunners', 'ironVerts', 'bow', 'minSep', 'maxFootErr', 'lanes')}, r['fails'] if r['nFail'] else '')
+            print(('FAIL ' if r['nFail'] else 'ok   ') + r['name'], {k: r.get(k) for k in ('walkers', 'gunners', 'ironVerts', 'aft', 'bow', 'minSep', 'maxFootErr', 'lanes')}, r['fails'] if r['nFail'] else '')
         print(f'{len(res)} builds, {bad} failing'); json.dump(res, open(f'/tmp/crew_walk_{tree.replace("/", "_")}.json', 'w'), indent=1)
         sys.exit(1 if bad else 0)
 asyncio.run(main())
