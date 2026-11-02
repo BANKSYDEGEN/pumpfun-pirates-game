@@ -747,7 +747,7 @@ export function buildShip(opts) {
   [[0.25, 0.55, 0.36], [-0.3, 0.7, 0.35], [0.3, 0.78, 0.58]].forEach(([xf, t, r]) => obs.push([xf * beam - r, xf * beam + r, zAt(t) - r, zAt(t) + r]));
   if (art) for (const sx of [1, -1]) { const runB = (art.Q - deckAt(art.tB)) * 0.55 + 0.1, runF = (art.Fc(art.tF) - deckAt(art.tF)) * 0.55 + 0.1;
     obs.push([sx * 0.9 - 0.36, sx * 0.9 + 0.36, zB, zB + runB], [sx * 0.9 - 0.36, sx * 0.9 + 0.36, zF - runF, zF]); }
-  const walkInfo = { z0: zB + 0.2, z1: zF - 0.2, half: (z) => shape.halfW(ZM.t(z)) * 0.9 - 0.12, obs, n: 3 };
+  const walkInfo = { z0: zB + 0.4, z1: zF - 0.4, half: (z) => shape.halfW(ZM.t(z)) * 0.9 - 0.12, obs, n: 3 };
   const lanes = walkLanes(walkInfo);
   const deckPts = [[0.75, deckAt(0.52), zAt(0.42)], [-0.75, deckAt(0.52), zAt(0.58)], [0.8, deckAt(0.7), zAt(0.7)], [-0.8, deckAt(0.36), zAt(0.36)]];
   lanes.forEach((l, i) => { if (i < 4) deckPts[i] = [l.x, deckAt(ZM.t((l.a + l.b) / 2)), (l.a + l.b) / 2]; }); // [Raul] idle deck spots on clear deck (one sat inside the stern room)
