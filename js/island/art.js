@@ -492,6 +492,7 @@ export function makeAtlas(skull) {
   board(512, 1174, 512, 100, '#5a3219'); text('WAVES', 768, 1226, 96, '#ffcd77'); reg('waves', 512, 1174, 512, 100);
   board(512, 1274, 512, 104, '#5a3219'); text('ARENA:  SOLO | SQUADS', 768, 1328, 76, '#fa0d0d'); reg('arena', 512, 1274, 512, 104);
   board(0, 1962, 512, 84, '#5a3219'); text('SPECTATE', 256, 2006, 76, '#ffcd77'); reg('spectate', 0, 1962, 512, 84);
+  board(512, 1962, 512, 84, '#5a3219'); text('SQUAD HALL', 768, 2006, 76, '#ffcd77'); reg('squad', 512, 1962, 512, 84);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // live board: redraw a token's price strip in place (0 extra draw calls; the atlas texture just re-uploads)
   const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const x = i * 340 + 4, y = 1690;
@@ -532,7 +533,7 @@ function tower(kit, A, low) {
 }
 // beach spectator seating: driftwood logs facing the harbor + a little firepit (all knee-high)
 // quay-side spectator seating: driftwood logs on the promenade facing the harbor + two firepits on the grass behind (all knee-high)
-const FIREPITS = [[8, -58], [30, -44]];
+const FIREPITS = [[-20, -60], [30, -44]];
 // spectator / hangout seating: driftwood logs round the plaza rim + firepits on the back beach (all knee-high)
 function seating(kit, low) {
   const P = SPOTS.plaza;
