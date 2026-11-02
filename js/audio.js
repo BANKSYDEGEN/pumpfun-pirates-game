@@ -167,10 +167,14 @@ const SAMPLES = {
   splashNear: ['splash_near_1', 'splash_near_2', 'splash_near_3'], splashMid: ['splash_mid'], splashFar: ['splash_far'],
   arrM: ['vo_arrr_male_1', 'vo_arrr_male_2', 'vo_arrr_male_3', 'vo_arrr_male_4'], arrF: ['vo_arrr_female_1', 'vo_arrr_female_2', 'vo_arrr_female_3', 'vo_arrr_female_4'],
   fireM: ['vo_fire_male_1', 'vo_fire_male_2', 'vo_fire_male_3'], fireF: ['vo_fire_female_1', 'vo_fire_female_2', 'vo_fire_female_3'],
-  laughM: ['vo_laugh_male_1', 'vo_laugh_male_2'], laughF: ['vo_laugh_female_1', 'vo_laugh_female_2', 'vo_laugh_female_3'],
-  // v102: the other quick-chat lines, real recordings (CC0 / CC-BY, see CREDITS.md)
-  followM: ['vo_follow_male_1', 'vo_follow_male_2', 'vo_follow_male_3'], followF: ['vo_follow_female_1', 'vo_follow_female_2', 'vo_follow_female_3'], bossM: ['vo_boss_male_1', 'vo_boss_male_2'], bossF: [], helpM: ['vo_help_male_1'], helpF: ['vo_help_female_1', 'vo_help_female_2'],
-  attackM: ['vo_attack_male_1', 'vo_attack_male_2'], attackF: [], retreatM: ['vo_retreat_male_1'], retreatF: [], ggM: ['vo_gg_male_1', 'vo_gg_male_2'], ggF: [],
+  laughM: ['vo_laugh_male_1', 'vo_laugh_male_2'], laughF: ['vo_laugh_female_1', 'vo_laugh_female_2'], // round 6: vo_laugh_female_3 dropped (ASR hears words in it)
+  // v102 + round 6: the other quick-chat lines, real recordings (CC0 / CC-BY, see CREDITS.md), every take under 1.5 s
+  followM: ['vo_follow_male_1', 'vo_follow_male_2', 'vo_follow_male_3'], followF: ['vo_follow_female_1', 'vo_follow_female_2', 'vo_follow_female_3'],
+  bossM: ['vo_boss_male_1', 'vo_boss_male_2'], bossF: ['vo_boss_female_1'],
+  helpM: ['vo_help_male_1', 'vo_help_male_2'], helpF: ['vo_help_female_1', 'vo_help_female_2', 'vo_help_female_3', 'vo_help_female_4'],
+  attackM: ['vo_attack_male_1', 'vo_attack_male_2', 'vo_attack_male_3', 'vo_attack_male_4'], attackF: ['vo_attack_female_1', 'vo_attack_female_2'],
+  retreatM: ['vo_retreat_male_1', 'vo_retreat_male_2'], retreatF: [],
+  ggM: ['vo_gg_male_1', 'vo_gg_male_2', 'vo_gg_male_3', 'vo_gg_male_4'], ggF: ['vo_gg_female_1'],
   victory: ['victory'], shanty: ['music_shanty'],
   // round 5: phone-first thunder (3 strikes), wave + boss horns (real conch / alpenhorn / horn + frame drums), legendary fanfare
   thunder: ['thunder_1', 'thunder_2', 'thunder_3'], hornWave: ['horn_wave'], hornBoss: ['horn_boss'], legendary: ['upgrade_legendary'],

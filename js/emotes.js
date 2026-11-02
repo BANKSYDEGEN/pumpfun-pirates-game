@@ -1,5 +1,5 @@
 // [v96] PUMPFUN PIRATES quick-chat wheel: 8 preset pirate callouts (ids only, never free text). Picking one shows a speech
-// bubble over your ship for ~3 s and plays a pirate voice line (js/audio.js sfx.emote: real recorded takes for Arr! / Attack! / Yo ho ho!, synth for the rest).
+// bubble over your ship for ~3 s and plays a pirate voice line (js/audio.js sfx.emote: real recorded takes for all 8 lines, synth only if the files fail to load).
 // Battle Royale arena: js/pvp.js broadcasts { i, e } over the existing Supabase realtime room (rate-limited both ends).
 // Waves + the harbor: local only. Cosmetic: no gameplay, stats or gold effect.
 import * as THREE from 'three';
