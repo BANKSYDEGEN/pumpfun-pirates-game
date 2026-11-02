@@ -21,7 +21,7 @@ import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
 import { bakeShip } from './bake.js';
 import { islandSurface } from './look.js';
-import { loadTownKit, kitMesh } from './townkit.js';
+import { loadTownKit, loadNatureKit, kitMesh } from './townkit.js';
 
 const P = new URLSearchParams(location.search);
 const phone = matchMedia('(max-width: 600px), (max-height: 520px)').matches;
@@ -65,7 +65,11 @@ scene.add(HARBOR ? new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9) : LP ? new
 const sun = HARBOR ? new THREE.DirectionalLight(0xffe2c4, 2.1) : LP ? new THREE.DirectionalLight(...LP.sun) : new THREE.DirectionalLight(0xfff0d6, 2.5);
 const SUN_DIR = HARBOR ? new THREE.Vector3(-40, 50, 80) : LP ? new THREE.Vector3(...LP.dir) : new THREE.Vector3(55, 95, 62);
 sun.position.copy(L2W(0, 0, 0)).add(SUN_DIR.clone().multiplyScalar(2)); sun.target.position.copy(L2W(0, 0, 0)); scene.add(sun, sun.target);
-if (!LOW) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera; sc.left = sc.bottom = -112; sc.right = sc.top = 112; sc.near = 10; sc.far = 420; sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.4; sc.updateProjectionMatrix(); }
+if (!LOW) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); const sc = sun.shadow.camera, E = FOOT ? 80 : 112; sc.left = sc.bottom = -E; sc.right = sc.top = E; sc.near = 10; sc.far = FOOT ? 560 : 420; sun.shadow.bias = -0.0006; sun.shadow.normalBias = FOOT ? 0.25 : 0.4; sun.shadow.radius = 3; sc.updateProjectionMatrix(); }
+const SUN_N = SUN_DIR.clone().normalize(), _sd = new THREE.Vector3();
+// [light] on-foot High polish: warmer key, sky / bounce fill tuned to the jungle greens, a touch more exposure contrast
+if (FOOT && !LP) { sun.color.set(0xffe9c8); sun.intensity = LOW ? 2.5 : 2.75; scene.children.filter(o => o.isHemisphereLight).forEach(h => { h.color.set(0xd6efff); h.groundColor.set(0x7a8f4e); h.intensity = LOW ? 1.75 : 1.6; });
+  if (!LOW) renderer.toneMappingExposure = 1.12; }
 
 // sky: the game's storm sky in the harbor, a sunny gradient dome in the lobby
 let gameSky = null, lobbySky = null;
@@ -113,7 +117,9 @@ const REAL = FULL ? ['P4R', 'P2R', 'P3L'] : ['P4R']; // High keeps ~1 baked ship
 const DECOR = FULL || FOOT ? BERTHS().map(b => b.id).filter(id => !REAL.includes(id) && !(HARBOR && id === 'P1L')) : LOW ? ['P1R', 'P3L'] : ['P1R', 'P2L', 'P3R', 'P4L'];
 const decor = DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]);
 // [kit] Blender town kit (assets/island/town_kit*.glb): pier modules + pier props here, houses / street props on foot (&kit=0 = procedural)
-const KIT = P.get('kit') === '0' ? null : await loadTownKit(LOW).catch(e => { console.warn('town kit failed', e); return null; });
+const KIT = P.get('kit') === '0' ? null : await loadTownKit(LOW, renderer).catch(e => { console.warn('town kit failed', e); return null; });
+// [nature] Blender nature kit (palms, jungle trees, ferns, rocks / cliffs, Skull Peak): on foot only (&nature=0 = procedural)
+const NAT = FOOT && P.get('nature') !== '0' && KIT ? await loadNatureKit(LOW, renderer).catch(e => { console.warn('nature kit failed', e); return null; }) : null;
 const kitP = KIT ? [] : null;
 const near = buildIsland({ low: LOW, atlas, decor, kitP, foot: FOOT }).build(MATS, OUT); near.name = 'island_near';
 if (KIT) { const km = kitMesh(KIT, kitP, 'island_townkit'); if (km) near.add(km); }
@@ -128,7 +134,7 @@ const setFxPx = () => { fx.material.uniforms.uPx.value = renderer.getDrawingBuff
 isle.add(near, far, foam, plants, lagoonMesh, grove, fx);
 if (COASTM) isle.visible = false; // the round Dock Town island is not part of the coast layout (kept only as the town frame)
 // on-foot island (blockout): chunked heightmap terrain, streamed jungle, main street + inland POIs
-const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT }) : null;
+const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT }) : null;
 const _fw = new THREE.Vector3();
 const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return COASTM ? foot.groundAt(_fw.x, _fw.z) : Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;
 const cW = FOOT ? (x, z) => fY(x, z) >= 0.8 : canWalk;
@@ -322,6 +328,10 @@ if (FOOT) { // world-frame views on the big island: eye level = ground + 1.7 m
     cove: { p: E(cv.x + 60, cv.z - 40, 2), t: [cv.x, 0, cv.z] },
     gallows: { p: gl.view, t: [gl.x, gl.ty, gl.z] },
     falls: { p: fl.view, t: [fl.x, fl.ty, fl.z - 4] },
+    squadSign: (() => { const q = FM.INTERACT.find(i => i.id === 'squadhall'), [lx, lz] = FM.worldToTown(q.x, q.z), [cx, cz] = T(lx - 10, lz + 2), [sx, sz] = T(lx + 1.6, lz);
+      return { p: [cx, foot.H(cx, cz) + 2.4, cz], t: [sx, foot.H(sx, sz) + 8.6, sz] }; })(),                                                   // close-up: the SQUAD HALL facade sign
+    lighthouse: (() => { const q = Q.lighthouse; return { p: E(q.x + 46, q.z + 30, 5), t: [q.x, q.y + 15, q.z] }; })(),
+    fort: (() => { const t = SPOTS.tower, a = L2W(t.x - 34, groundY(t.x, t.z) + 14, t.z + 30), b = L2W(t.x, groundY(t.x, t.z) + 9, t.z); return { p: [a.x, a.y, a.z], t: [b.x, b.y, b.z] }; })(),
     footDig: (() => { const d = foot.digs[0]; return { p: E(d.x + 5.5, d.z + 4.5, 3.2), t: [d.x, d.y + 0.6, d.z] }; })(),
     footBeach: (() => { const d = foot.digs[1]; let best = null; for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, h = foot.H(d.x + Math.cos(a) * 30, d.z + Math.sin(a) * 30); if (!best || h < best.h) best = { a, h }; }
       const c = Math.cos(best.a), s = Math.sin(best.a); return { p: E(d.x - c * 6 + s * 8, d.z - s * 6 - c * 8, 1.6), t: [d.x + c * 30, 0.4, d.z + s * 30] }; })(),
@@ -479,7 +489,10 @@ function frame() {
     if (tween) { tween.k = Math.min(1, tween.k + dt * 1.1); const e = tween.k * tween.k * (3 - 2 * tween.k); camera.position.lerpVectors(tween.from.p, tween.to.p, e); controls.target.lerpVectors(tween.from.t, tween.to.t, e); if (tween.k >= 1) tween = null; }
     controls.update();
   }
-  if (foot) { foot.update(camera.position, t, { all: curView === 'footMap' }); if (lobbySky) lobbySky.position.copy(camera.position); }
+  if (foot) { foot.update(camera.position, t, { all: curView === 'footMap' }); if (lobbySky) lobbySky.position.copy(camera.position);
+    if (sun.castShadow && curView !== 'footMap') { // [light] High: the sun's shadow box follows the camera (centred ~35 m ahead, snapped to 1 m)
+      camera.getWorldDirection(_sd); const cx = Math.round(camera.position.x + _sd.x * 35), cz = Math.round(camera.position.z + _sd.z * 35);
+      sun.target.position.set(cx, foot.H(cx, cz), cz); sun.position.copy(sun.target.position).addScaledVector(SUN_N, 260); sun.target.updateMatrixWorld(); } }
   setLod(HARBOR || FOOT || P.has('lod') ? camera.position.distanceTo(isle.position) : 0); // the lobby scene is walked around: always full detail
   // the ocean follows the camera like it follows the player in the game (centred on the harbor for the top-down map)
   const step = ocean.mesh.userData.step, oc = curView === 'harborTop' ? new THREE.Vector3() : curView === 'footMap' ? new THREE.Vector3(-90, 0, -20) : camera.position;

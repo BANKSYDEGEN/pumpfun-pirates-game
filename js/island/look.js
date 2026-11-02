@@ -44,8 +44,11 @@ const LAYERS = [
   // [foot] on-foot island layers
   (u, v) => { const f = fbm(u * 4, v * 4, 4, 21); const c = vor(u, v, 10, 22), peb = smooth(0.32, 0.18, c.f1) * (c.id > 0.55 ? 1 : 0);
     return [0.45 + 0.35 * f + 0.3 * peb, 0.3 + 0.3 * f + 0.45 * peb]; },                                                                          // 8 dirt trail + pebbles
-  (u, v) => { const w = fbm(u * 3, v * 3, 3, 23); const b = 0.5 + 0.5 * Math.sin((v * 7 + w * 1.6) * Math.PI * 2); const ledge = smooth(0.8, 0.95, b);
-    return [0.4 + 0.45 * b - 0.25 * ledge + 0.12 * (fbm(u * 12, v * 12, 12, 24) - 0.5), 0.25 + 0.6 * b - 0.3 * ledge]; },                       // 9 sandstone cliff strata
+  (u, v) => { const y = v * 5 + 0.45 * (fbm(u * 3, v * 3, 3, 23) - 0.5), row = Math.floor(y), fy = y - row, nb = 2 + (((row % 5) + 5) % 5 === 2 ? 1 : 2) % 3,
+      x = u * nb + hash(((row % 5) + 5) % 5, 0, 30) * 7 + 0.25 * (fbm(u * 2, v * 6, 2, 31) - 0.5), bi = ((Math.floor(x) % nb) + nb) % nb, fx = x - Math.floor(x), tone = hash(bi, ((row % 5) + 5) % 5, 32);
+    const e = Math.min(fx * 2.2 / nb * 5, (1 - fx) * 2.2 / nb * 5, fy, 1 - fy), crack = smooth(0.06, 0.0, e), bev = smooth(0.0, 0.22, e), grain = fbm(u * 16, v * 16, 16, 24);
+    const vfr = smooth(0.02, 0.0, Math.abs(fbm(u * 4, v * 1, 4, 33) - 0.5)) * 0.8, top = smooth(0.78, 0.97, fy), under = smooth(0.2, 0.0, fy);
+    return [0.48 + 0.22 * tone + 0.16 * (grain - 0.5) - 0.38 * Math.max(crack, vfr) + 0.14 * top - 0.2 * under, 0.25 + 0.55 * bev + 0.15 * grain - 0.4 * Math.max(crack, vfr) + 0.1 * top]; }, // 9 fractured cliff rock: broken strata blocks, cracks, lit ledges
   (u, v) => { const c = vor(u, v, 6, 25), e = smooth(0.02, 0.12, c.f2 - c.f1), dome = sat(1 - c.f1 * 1.3);
     return [0.25 + 0.6 * e * (0.7 + 0.3 * c.id) , e * (0.4 + 0.6 * dome)]; },                                                                     // 10 cobbles
   (u, v) => { const rows = 6, y = v * rows, row = Math.floor(y), x = u * 3 + (row % 2) * 0.5, fx = x - Math.floor(x), fy = y - row, e = Math.min(fx, 1 - fx, fy * 0.5, (1 - fy) * 0.5), m = smooth(0.015, 0.05, e);
@@ -87,7 +90,9 @@ vec2 isTri(int L, vec3 p, vec3 w) { float s = 1.0 / uScale[L]; float l = float(L
   return texture(uDetail, vec3(p.zy * s, l)).rg * w.x + texture(uDetail, vec3(p.xz * s, l)).rg * w.y + texture(uDetail, vec3(p.xy * s, l)).rg * w.z; }
 `;
 }
-function fragColor(low) {
+// [nature kit] cut-out cards (aMat 14): the Blender card sheet (palm fronds, leaf clusters, fern, vine) through aCardUv
+const CARD_VDECL = '\nattribute vec2 aCardUv; varying vec2 vCUv;\n', CARD_FDECL = '\nuniform sampler2D uCards; varying vec2 vCUv;\n';
+function fragColor(low, cards = false) {
   return `
 float isH = 0.0; int isM = int(vMat + 0.5);
 if (isM > 0) {
@@ -108,7 +113,8 @@ if (isM > 0) {
     float mx = 0.0; for (int i = 0; i < 8; i++) { w[i] = w[i] > 0.02 ? w[i] + L[i].y * 0.5 : 0.0; mx = max(mx, w[i]); }
     vec2 acc = vec2(0.0); float ws = 0.0; for (int i = 0; i < 8; i++) { float k = max(w[i] - (mx - 0.25), 0.0); acc += L[i] * k; ws += k; }
     d = acc / max(ws, 1e-4);
-  } else d = isTri(min(isM, 12), vOP, tw);
+  }${cards ? ` else if (isM == 14) { vec4 cc = texture2D(uCards, vCUv); if (cc.a < 0.5) discard; diffuseColor.rgb *= cc.rgb * 1.35; d = vec2(0.5, dot(cc.rgb, vec3(0.3, 0.6, 0.1)) * 1.4); }` : ''}
+  else d = isTri(min(isM, 12), vOP, tw);
   diffuseColor.rgb *= 0.7 + 0.6 * d.x; isH = d.y;
 }
 `;
@@ -117,7 +123,7 @@ const FRAG_BUMP = `
 if (isM > 0) { // bump from the height layer (screen-space derivatives), no tangents needed
   vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
   float hx = dFdx(isH), hy = dFdy(isH); vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx); float det = dot(dpx, r1);
-  vec3 grad = sign(det) * (hx * r1 + hy * r2) * uBump[isM == 1 || isM == 13 ? 0 : min(isM, 12)];
+  vec3 grad = sign(det) * (hx * r1 + hy * r2) * uBump[isM == 1 || isM == 13 ? 0 : min(isM, 12)] * (isM == 14 ? 0.5 : 1.0);
   normal = normalize(abs(det) * normal - grad);
 }
 `;
@@ -125,20 +131,20 @@ const FRAG_RIM = `
 { float rim = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0); outgoingLight += vec3(1.0, 0.86, 0.66) * rim * 0.22 * diffuseColor.rgb; }
 `;
 // patch a MeshToonMaterial with the island surface (and optional palm sway)
-export function islandSurface(mat, { low, uTime = null, sway = false }) {
+export function islandSurface(mat, { low, uTime = null, sway = false, cards = null }) {
   const tex = detailTexture(low);
   mat.gradientMap = softRamp();
   mat.onBeforeCompile = (s) => {
-    s.uniforms.uDetail = { value: tex }; s.uniforms.uScale = { value: SCALE }; s.uniforms.uBump = { value: BUMP };
+    s.uniforms.uDetail = { value: tex }; s.uniforms.uScale = { value: SCALE }; s.uniforms.uBump = { value: BUMP }; if (cards) s.uniforms.uCards = { value: cards };
     if (sway) s.uniforms.uTime = uTime;
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>' + VERT_DECL + (sway ? SWAY_DECL : ''))
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_BODY + (sway ? SWAY_BODY : ''));
-    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>' + fragDecl(low))
-      .replace('#include <color_fragment>', '#include <color_fragment>\n' + fragColor(low))
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>' + VERT_DECL + (cards ? CARD_VDECL : '') + (sway ? SWAY_DECL : ''))
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_BODY + (cards ? 'vCUv = aCardUv;\n' : '') + (sway ? SWAY_BODY : ''));
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>' + fragDecl(low) + (cards ? CARD_FDECL : ''))
+      .replace('#include <color_fragment>', '#include <color_fragment>\n' + fragColor(low, !!cards))
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + (low ? '' : FRAG_BUMP))
       .replace('#include <opaque_fragment>', (low ? '' : FRAG_RIM) + '#include <opaque_fragment>');
   };
-  mat.customProgramCacheKey = () => `isl_surf_${low ? 'l' : 'h'}${sway ? '_s' : ''}`;
+  mat.customProgramCacheKey = () => `isl_surf_${low ? 'l' : 'h'}${sway ? '_s' : ''}${cards ? '_c' : ''}`;
   return mat;
 }
 // instanced grass with wind sway (tip-weighted, per-instance phase)
