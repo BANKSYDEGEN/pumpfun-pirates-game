@@ -21,6 +21,7 @@ import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
 import { bakeShip } from './bake.js';
 import { islandSurface } from './look.js';
+import { loadTownKit, kitMesh } from './townkit.js';
 
 const P = new URLSearchParams(location.search);
 const phone = matchMedia('(max-width: 600px), (max-height: 520px)').matches;
@@ -30,7 +31,7 @@ const HARBOR = !!P.get('harbor') && P.get('harbor') !== '0', FULL = P.has('full'
 const FOOT = P.has('foot') && !HARBOR;
 const FM = FOOT ? await import('./foot.js') : null; // the on-foot island module never loads in the harbor / ship view
 if (SHOT) document.body.classList.add('shot');
-document.getElementById('title').textContent = HARBOR ? 'PUMPFUN PIRATES · Island in the harbor' : FOOT ? 'PUMPFUN PIRATES · On-foot island (blockout)' : 'PUMPFUN PIRATES · Island';
+document.getElementById('title').textContent = HARBOR ? 'PUMPFUN PIRATES · Island in the harbor' : FOOT ? 'PUMPFUN PIRATES · On-foot island' : 'PUMPFUN PIRATES · Island';
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('c');
@@ -101,7 +102,7 @@ const MATS = {
   toon: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW }),
   sway: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW, uTime, sway: true }),
   glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, color: new THREE.Color().setScalar(LP ? LP.glow : 1) }), // lanterns, windows, the peak's eye caves
-  atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }),
+  atlas: toon(0xffffff, atlas.tex), // FrontSide: text never shows mirrored; two-sided signs / flags carry a back face
 };
 const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
 // moored fleet: real baked game ships on a few berths (Low 1, High 2, full 3), toy galleons merged into the island mesh on
@@ -110,7 +111,11 @@ const BERTH = Object.fromEntries(BERTHS().map(b => [b.id, b]));
 const REAL = FULL ? ['P4R', 'P2R', 'P3L'] : ['P4R']; // High keeps ~1 baked ship (lobby < 60 calls); its extra fleet is decor
 const DECOR = FULL || FOOT ? BERTHS().map(b => b.id).filter(id => !REAL.includes(id) && !(HARBOR && id === 'P1L')) : LOW ? ['P1R', 'P3L'] : ['P1R', 'P2L', 'P3R', 'P4L'];
 const decor = DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]);
-const near = buildIsland({ low: LOW, atlas, decor }).build(MATS, OUT); near.name = 'island_near';
+// [kit] Blender town kit (assets/island/town_kit*.glb): pier modules + pier props here, houses / street props on foot (&kit=0 = procedural)
+const KIT = P.get('kit') === '0' ? null : await loadTownKit(LOW).catch(e => { console.warn('town kit failed', e); return null; });
+const kitP = KIT ? [] : null;
+const near = buildIsland({ low: LOW, atlas, decor, kitP, foot: FOOT }).build(MATS, OUT); near.name = 'island_near';
+if (KIT) { const km = kitMesh(KIT, kitP, 'island_townkit'); if (km) near.add(km); }
 near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !LOW; o.receiveShadow = !LOW; } });
 const far = buildFarIsland().build({ toon: MATS.toon }, OUT); far.name = 'island_far'; far.visible = false;
 const plants = buildPlants(LOW, MATS.toon); plants.receiveShadow = !LOW;
@@ -121,10 +126,14 @@ const fx = buildFx(uTime, LOW); if (LP) fx.material.uniforms.uSmoke.value.set(LP
 const setFxPx = () => { fx.material.uniforms.uPx.value = renderer.getDrawingBufferSize(new THREE.Vector2()).y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)); }; setFxPx();
 isle.add(near, far, foam, plants, lagoonMesh, grove, fx);
 // on-foot island (blockout): chunked heightmap terrain, streamed jungle, main street + inland POIs
-const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, toonMat: MATS.toon }) : null;
+const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT }) : null;
 const _fw = new THREE.Vector3();
-const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return Math.max(footY(x, z), foot.H(_fw.x, _fw.z)); } : footY;
+const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;
 const cW = FOOT ? (x, z) => fY(x, z) >= 0.8 : canWalk;
+const _fw2 = new THREE.Vector3();
+// [foot] world-space solids, water, slope limit and the bounded rope bridge (js/island/foot.js); x,z are town-local
+const footBlocked = FOOT ? (x, z, fx, fz) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); if (footY(x, z) > foot.H(_fw.x, _fw.z) + 0.3) return false; // the dock town deck
+  _fw2.set(fx ?? x, 0, fz ?? z).applyMatrix4(isle.matrixWorld); return foot.blocked(_fw.x, _fw.z, fx === undefined ? undefined : _fw2.x, fx === undefined ? undefined : _fw2.z); } : null;
 
 // daily-reward chest: bobbing chest + light beam (a beacon you can spot from sea) + sparkles
 const chest = new THREE.Group(); const cs = SPOTS.chest, cy = groundY(cs.x, cs.z) + 1.15;
@@ -308,6 +317,9 @@ if (FOOT) { // world-frame views on the big island: eye level = ground + 1.7 m
     cove: { p: E(cv.x + 60, cv.z - 40, 2), t: [cv.x, 0, cv.z] },
     gallows: { p: gl.view, t: [gl.x, gl.ty, gl.z] },
     falls: { p: fl.view, t: [fl.x, fl.ty, fl.z - 4] },
+    footDig: (() => { const d = foot.digs[0]; return { p: E(d.x + 5.5, d.z + 4.5, 3.2), t: [d.x, d.y + 0.6, d.z] }; })(),
+    footBeach: (() => { const d = foot.digs[1]; let best = null; for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, h = foot.H(d.x + Math.cos(a) * 30, d.z + Math.sin(a) * 30); if (!best || h < best.h) best = { a, h }; }
+      const c = Math.cos(best.a), s = Math.sin(best.a); return { p: E(d.x - c * 6 + s * 8, d.z - s * 6 - c * 8, 1.6), t: [d.x + c * 30, 0.4, d.z + s * 30] }; })(),
   });
 }
 let tween = null, curView = 'hero';
@@ -357,13 +369,13 @@ if (WALK) {
   controls.enabled = false; controls.autoRotate = false;
   addEventListener('keydown', e => { walker.keys[e.code] = true; }); addEventListener('keyup', e => { walker.keys[e.code] = false; });
   const BLOCK = [{ ...SPOTS.tavern, r: 9.5 }, { ...SPOTS.tower, r: 5 }, { ...SPOTS.peak, r: 15 }, { x: SPOTS.exchange.x, z: SPOTS.exchange.z - 1, r: 3.6 }, ...SPOTS.houses.map(([x, z]) => ({ x, z, r: 3.4 })), ...ISLAND_POIS.filter(q => q.id === 'waves' || q.id === 'arena').map(q => ({ x: q.x, z: q.z, r: 1.4 })), { ...SPOTS.chest, r: 5 }, { ...SPOTS.flag, r: 1.6 }, ...SPOTS.stalls.map(q => ({ ...q, r: 3 }))];
-  walker.blocked = (x, z) => !cW(x, z) || BLOCK.some(b => Math.hypot(b.x - x, b.z - z) < b.r);
+  walker.blocked = FOOT ? (x, z) => footBlocked(x, z, walker.x, walker.z) : (x, z) => !cW(x, z) || BLOCK.some(b => Math.hypot(b.x - x, b.z - z) < b.r);
   canvas.addEventListener('pointerdown', e => { walker.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() }; });
   canvas.addEventListener('pointermove', e => { const d = walker.drag; if (!d) return; walker.camYaw -= (e.clientX - d.x) * 0.006; walker.pitch = Math.min(0.9, Math.max(-0.25, walker.pitch + (e.clientY - d.y) * 0.004)); d.x = e.clientX; d.y = e.clientY; walker.look = performance.now(); });
   canvas.addEventListener('pointerup', e => { const d = walker.drag; walker.drag = null; if (!d || Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 8) return;
     const rc = new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
     const inv = isle.matrixWorld.clone().invert(), o = rc.ray.origin.clone().applyMatrix4(inv), dir = rc.ray.direction.clone().transformDirection(inv);
-    for (let t = 0; t < 400; t += 0.4) { const q = o.clone().addScaledVector(dir, t); if (q.y <= fY(q.x, q.z)) { if (!walker.blocked(q.x, q.z)) walker.target = { x: q.x, z: q.z }; break; } } });
+    for (let t = 0; t < 400; t += 0.4) { const q = o.clone().addScaledVector(dir, t); if (q.y <= fY(q.x, q.z)) { if (!(FOOT ? footBlocked(q.x, q.z) : walker.blocked(q.x, q.z))) walker.target = { x: q.x, z: q.z }; break; } } });
 }
 // ---------- TOKEN EXCHANGE: live boards ($SUNK / $AHOY / $PUMP; main pair = the highest-liquidity Solana pair from the
 // DexScreener tokens API, refreshed every 60 s) + a chart panel opened from the walk-mode interact prompt (or &token=SYM)
@@ -403,7 +415,27 @@ async function refreshTokens() {
 refreshTokens(); if (!SHOT) setInterval(refreshTokens, 60000);
 if (P.get('token')) showPanel(P.get('token').toUpperCase().replace('$', ''));
 const SLOTS = tokenSlots();
+// [foot] interact points: dig sites (dig + reveal a chest, local only), the Squad Hall (squad panel), the treasure cave
+function footPanel(q) {
+  const code = (sessionStorage.ppParty ||= Math.random().toString(36).slice(2, 8).toUpperCase()), inv = `${location.origin}/?party=${code}`;
+  panel.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><b style="font:40px 'Just Another Hand',cursive;color:#ffcd77">SQUAD HALL</b><span style="flex:1;opacity:.85">form a crew for Squads (2v2) · party code <b>${code}</b></span><button data-x style="font-size:20px;background:none;border:0;color:#fff;cursor:pointer">✕</button></div>
+    <div style="display:flex;gap:8px;align-items:center"><code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#000;padding:6px 8px;border-radius:6px">${inv}</code><button data-copy style="padding:6px 10px;background:#ffcd77;border:0;border-radius:6px;cursor:pointer">COPY INVITE</button></div>
+    <div style="flex:1;display:grid;place-items:center;opacity:.8;text-align:center">Share the invite with your crewmate, then pick SQUADS from the game menu.<br>(party matchmaking from this link is not wired yet)</div>
+    <div><a href="./" style="color:#ffcd77">OPEN THE GAME ▸ SQUADS</a></div>`;
+  panel.querySelector('[data-x]').onclick = () => { panel.style.display = 'none'; panel.sym = null; };
+  panel.querySelector('[data-copy]').onclick = async (e) => { const ok = await copyText(inv); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; };
+  panel.sym = 'squad'; panel.style.display = 'flex';
+}
+function footPrompt(t) {
+  const v = L2W(walker.x, 0, walker.z), q = foot.nearInteract(v.x, v.z);
+  if (!q || panel.sym) return false;
+  if (prompt.textContent !== q.label) prompt.textContent = q.label; prompt.style.display = 'block';
+  const go = () => { const r = foot.activate(q, uTime.value); if (r === 'squadhall') footPanel(q); };
+  prompt.onclick = go; walker.near = null; walker.footGo = q.info ? null : go; return true;
+}
+addEventListener('keydown', e => { if (e.code === 'KeyE' && walker && walker.footGo) { walker.footGo(); walker.footGo = null; } });
 function tokenPrompt() {
+  if (foot) { walker.footGo = null; if (footPrompt()) return; }
   let best = null, bd = 3.4; for (const q of SLOTS) { const d = Math.hypot(q.x - walker.x, q.z - walker.z); if (d < bd) { bd = d; best = q; } }
   if (best && !panel.sym) { const label = `E · $${best.sym} CHART`; if (prompt.textContent !== label) prompt.textContent = label; prompt.style.display = 'block'; prompt.onclick = () => showPanel(best.sym); walker.near = best.sym; }
   else { prompt.style.display = 'none'; walker.near = null; }
@@ -456,6 +488,7 @@ function frame() {
   if (!SHOT) statsEl.textContent = `${quality.toUpperCase()}  ${Math.round(fps)} fps  LOD ${lod}\ncalls ${I.calls}  tris ${(I.triangles / 1000).toFixed(1)}k`;
   requestAnimationFrame(frame);
 }
+if (foot && P.get('dig')) foot.digs.forEach(d => { d.t = (SHOT ? T0 : 0) - +P.get('dig'); }); // &dig=SECONDS: shots of a dig mid-reveal
 window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois } : null;
 window.ISLAND = { foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);

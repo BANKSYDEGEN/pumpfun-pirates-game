@@ -1,5 +1,5 @@
 // [Raul] PUMPFUN PIRATES island "look" pass (BANKSY: legit-game quality, cohesive with the toon ships + pirates).
-// - Surface detail: 8 tiling hand-painted-style layers generated once at load into ONE RG8 DataArrayTexture (R = albedo
+// - Surface detail: 8 tiling hand-painted-style layers generated once at load into ONE RG8 DataArrayTexture (13 layers) (R = albedo
 //   detail, G = height), mipmapped. No downloads, no asset files. High 512 px (~5.6 MB GPU), Low 256 px (~1.4 MB).
 //   Layers: 0 sand ripples, 1 grass, 2 wood grain, 3 rock, 4 roof tiles, 5 palm bark, 6 leaf veins, 7 plaster.
 // - Per-vertex material id (aMat, set by kit.js from the palette) picks the layer; triplanar in island space.
@@ -18,6 +18,10 @@ function vnoise(x, y, P, s) { // periodic value noise, period P cells
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 function fbm(x, y, P, s, o = 4) { let t = 0, a = 0.5, f = 1; for (let i = 0; i < o; i++) { t += a * vnoise(x * f, y * f, P * f, s + i * 17); a *= 0.5; f *= 2; } return t / 0.9375; }
+function vor(u, v, P, s) { const x = u * P, y = v * P, ci = Math.floor(x), cj = Math.floor(y); let f1 = 9, f2 = 9, id = 0; // periodic voronoi
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const i = ci + di, j = cj + dj, mi = ((i % P) + P) % P, mj = ((j % P) + P) % P, px = i + 0.15 + 0.7 * hash(mi, mj, s), py = j + 0.15 + 0.7 * hash(mj, mi, s + 1), d = Math.hypot(x - px, y - py);
+    if (d < f1) { f2 = f1; f1 = d; id = hash(mi, mj, s + 2); } else if (d < f2) f2 = d; }
+  return { f1, f2, id }; }
 const sat = (v) => Math.max(0, Math.min(1, v)), smooth = (a, b, x) => { const t = sat((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const LAYERS = [
   (u, v) => { const w = fbm(u * 4, v * 4, 4, 1); const r = 0.5 + 0.5 * Math.sin((v * 9 + w * 2.2) * Math.PI * 2); const g = hash((u * 997) | 0, (v * 991) | 0, 3);
@@ -37,6 +41,17 @@ const LAYERS = [
     return [0.55 + 0.3 * c + 0.25 * vein, 0.4 + 0.3 * vein + 0.2 * c]; },                                                                          // leaf veins
   (u, v) => { const f = fbm(u * 3, v * 3, 3, 15, 5); const cr = smooth(0.025, 0.0, Math.abs(fbm(u * 2, v * 2, 2, 16) - 0.5));
     return [0.62 + 0.3 * f - 0.3 * cr, 0.5 + 0.3 * f - 0.4 * cr]; },                                                                              // plaster
+  // [foot] on-foot island layers
+  (u, v) => { const f = fbm(u * 4, v * 4, 4, 21); const c = vor(u, v, 10, 22), peb = smooth(0.32, 0.18, c.f1) * (c.id > 0.55 ? 1 : 0);
+    return [0.45 + 0.35 * f + 0.3 * peb, 0.3 + 0.3 * f + 0.45 * peb]; },                                                                          // 8 dirt trail + pebbles
+  (u, v) => { const w = fbm(u * 3, v * 3, 3, 23); const b = 0.5 + 0.5 * Math.sin((v * 7 + w * 1.6) * Math.PI * 2); const ledge = smooth(0.8, 0.95, b);
+    return [0.4 + 0.45 * b - 0.25 * ledge + 0.12 * (fbm(u * 12, v * 12, 12, 24) - 0.5), 0.25 + 0.6 * b - 0.3 * ledge]; },                       // 9 sandstone cliff strata
+  (u, v) => { const c = vor(u, v, 6, 25), e = smooth(0.02, 0.12, c.f2 - c.f1), dome = sat(1 - c.f1 * 1.3);
+    return [0.25 + 0.6 * e * (0.7 + 0.3 * c.id) , e * (0.4 + 0.6 * dome)]; },                                                                     // 10 cobbles
+  (u, v) => { const rows = 6, y = v * rows, row = Math.floor(y), x = u * 3 + (row % 2) * 0.5, fx = x - Math.floor(x), fy = y - row, e = Math.min(fx, 1 - fx, fy * 0.5, (1 - fy) * 0.5), m = smooth(0.015, 0.05, e);
+    const t = hash(Math.floor(x) % 3, row % rows, 26); return [(0.5 + 0.3 * t + 0.15 * fbm(u * 6, v * 6, 6, 27)) * (0.45 + 0.55 * m), m * (0.6 + 0.3 * fbm(u * 8, v * 8, 8, 28))]; }, // 11 dressed stone blocks
+  (u, v) => { const wv = ((Math.floor(u * 64) + Math.floor(v * 64)) % 2) * 0.12, tw = 0.5 + 0.5 * Math.sin((u + v * 0.6) * 24 * Math.PI * 2);
+    return [0.6 + wv + 0.15 * tw + 0.1 * fbm(u * 4, v * 4, 4, 29), 0.4 + 0.4 * tw]; },                                                           // 12 rope / cloth weave
 ];
 const _tex = {};
 export function detailTexture(low) {
@@ -60,13 +75,14 @@ export function softRamp() {
 }
 
 // metres per texture tile, bump strength, per layer
-const SCALE = [7, 5, 2.4, 4, 3.2, 1.6, 2.2, 3.5], BUMP = [0.9, 0.7, 0.8, 1.4, 1.2, 1.0, 0.5, 0.6];
-const VERT_DECL = '\nattribute float aMat; varying float vMat; varying vec3 vOP; varying vec3 vON;\n';
-const VERT_BODY = 'vMat = aMat; vOP = position; vON = normal;\n';
+const SCALE = [7, 5, 2.4, 4, 3.2, 1.6, 2.2, 3.5, 4, 9, 2.6, 3.2, 1.2], BUMP = [0.9, 0.7, 0.8, 1.4, 1.2, 1.0, 0.5, 0.6, 1.2, 1.6, 1.6, 1.4, 0.6];
+export const NL = SCALE.length; // layer count (13); aMat 13 = on-foot terrain splat (aW0 / aW1 weights)
+const VERT_DECL = '\nattribute float aMat; varying float vMat; varying vec3 vOP; varying vec3 vON; attribute vec4 aW0; attribute vec4 aW1; varying vec4 vW0; varying vec4 vW1;\n';
+const VERT_BODY = 'vMat = aMat; vOP = position; vON = normal; vW0 = aW0; vW1 = aW1;\n';
 function fragDecl(low) {
   return `
-uniform sampler2DArray uDetail; uniform float uScale[8]; uniform float uBump[8];
-varying float vMat; varying vec3 vOP; varying vec3 vON;
+uniform sampler2DArray uDetail; uniform float uScale[13]; uniform float uBump[13];
+varying float vMat; varying vec3 vOP; varying vec3 vON; varying vec4 vW0; varying vec4 vW1;
 vec2 isTri(int L, vec3 p, vec3 w) { float s = 1.0 / uScale[L]; float l = float(L);
   return texture(uDetail, vec3(p.zy * s, l)).rg * w.x + texture(uDetail, vec3(p.xz * s, l)).rg * w.y + texture(uDetail, vec3(p.xy * s, l)).rg * w.z; }
 `;
@@ -85,7 +101,14 @@ if (isM > 0) {
     float wet = (1.0 - w) * smoothstep(1.25, 0.15, vOP.y);
     diffuseColor.rgb *= mix(1.0, 0.68, wet); d.x = mix(d.x, 0.55, wet * 0.6);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.92, 1.0, 0.86), w * (1.0 - d.x) * 0.6);
-  } else d = isTri(min(isM, 7), vOP, tw);
+  } else if (isM == 13) { // [foot] 8-way splat: sand, wet, grass, dirt | rock, cliff, cobble, jungle floor (colour comes from the vertex)
+    float w[8]; w[0] = vW0.x; w[1] = vW0.y; w[2] = vW0.z; w[3] = vW0.w; w[4] = vW1.x; w[5] = vW1.y; w[6] = vW1.z; w[7] = vW1.w;
+    vec2 L[8]; L[0] = isTri(0, vOP, tw); L[1] = L[0] * vec2(0.85, 0.6); L[2] = isTri(1, vOP, tw); L[3] = isTri(8, vOP, tw);
+    L[4] = isTri(3, vOP, tw); L[5] = isTri(9, vOP, tw); L[6] = isTri(10, vOP, tw); L[7] = isTri(6, vOP * 0.7, tw);
+    float mx = 0.0; for (int i = 0; i < 8; i++) { w[i] = w[i] > 0.02 ? w[i] + L[i].y * 0.5 : 0.0; mx = max(mx, w[i]); }
+    vec2 acc = vec2(0.0); float ws = 0.0; for (int i = 0; i < 8; i++) { float k = max(w[i] - (mx - 0.25), 0.0); acc += L[i] * k; ws += k; }
+    d = acc / max(ws, 1e-4);
+  } else d = isTri(min(isM, 12), vOP, tw);
   diffuseColor.rgb *= 0.7 + 0.6 * d.x; isH = d.y;
 }
 `;
@@ -94,7 +117,7 @@ const FRAG_BUMP = `
 if (isM > 0) { // bump from the height layer (screen-space derivatives), no tangents needed
   vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
   float hx = dFdx(isH), hy = dFdy(isH); vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx); float det = dot(dpx, r1);
-  vec3 grad = sign(det) * (hx * r1 + hy * r2) * uBump[isM == 1 ? 0 : min(isM, 7)];
+  vec3 grad = sign(det) * (hx * r1 + hy * r2) * uBump[isM == 1 || isM == 13 ? 0 : min(isM, 12)];
   normal = normalize(abs(det) * normal - grad);
 }
 `;

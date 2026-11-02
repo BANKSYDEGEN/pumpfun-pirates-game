@@ -192,7 +192,7 @@ function tavern(kit, A, low) {
     // flag pole + skull flag
     kit.add(cyl(0.12, 0.12, 6, 6), WOOD_D, { m: M(0, 20.2, 0) });
     kit.add(sph(0.3, 8, 6), GOLD, { m: M(0, 23.3, 0), outline: false });
-    quad(kit, 4.2, 2.8, A.flag, M(2.1, 21.6, 0)); quad(kit, 4.2, 2.8, A.flagBack, M(2.1, 21.6, 0, Math.PI));
+    quad(kit, 4.2, 2.8, A.flag, M(2.1, 21.6, 0.03)); quad(kit, 4.2, 2.8, A.flagBack, M(2.1, 21.6, -0.03, Math.PI));
     // door + porch
     kit.add(RB(3, 4.4, 0.6, 0.6), WOOD_D, { m: M(0, 3.4, 4.8) });
     kit.add(sph(0.2, 8, 6), GOLD, { m: M(0.9, 3.3, 5.15), outline: false });
@@ -288,38 +288,42 @@ export function deckAt(x, z) {
     for (const [x0, z0, x1, z1] of d.rects) if (a >= x0 && a <= x1 && b >= z0 && b <= z1) return PIER.y + 0.2; }
   return null;
 }
-function tPier(kit, A, th, k, low) {
+function tPier(kit, A, th, k, low, kp = null) { // kp: Blender town-kit placements (js/island/townkit.js) replace planks / beams / pilings / props
+  const P_ = (name, m) => kp.push([name, kit.stack[kit.stack.length - 1].clone().multiply(m)]);
   const r0 = pierRoot(th), h0 = PIER.head0, h1 = PIER.head1, hz = (h0 + h1) / 2, H = PIER.headHalf, W = PIER.w, Y = PIER.y, STEP = low ? 9 : 6;
   kit.at(M(0, 0, 0, th), () => { // pier frame: +z outward along the stem, +x along the head (= v)
     // stem: planks + stringers + pilings + low rope rail
-    const n = Math.round((h0 - r0) / 2.1);
+    if (kp) { const L = h0 - r0, nm = Math.ceil(L / 6); for (let i = 0; i < nm; i++) P_('pierStem', M(0, Y, r0 + (i + 0.5) * L / nm, 0, 0, 0, [1, 1, L / nm / 6]));
+      for (let i = 0; i < 8; i++) P_('pierHead', M(-H + (i + 0.5) * 2 * H / 8, Y, hz, 0, 0, 0, [2 * H / 8 / 6, 1, (h1 - h0) / 4])); }
+    const n = kp ? 0 : Math.round((h0 - r0) / 2.1);
     for (let i = 0; i < n; i++) kit.add(new THREE.BoxGeometry(W + ((i * 7) % 3) * 0.1, 0.32, 2.0), i % 3 ? WOOD_L : 0xc98a4c, { m: M(0, Y, r0 + (i + 0.5) * (h0 - r0) / n), outline: false });
-    kit.add(RB(W + 0.6, 0.4, h0 - r0, 0.1), WOOD_D, { m: M(0, Y - 0.36, (r0 + h0) / 2), outline: 1 });
-    for (let z = r0 + 6; z < h0; z += STEP) for (const sx of [-1, 1]) kit.add(cyl(0.4, 0.44, 11, low ? 6 : 8), WOOD, { m: M(sx * (W / 2 + 0.1), Y - 5, z), outline: false });
-    for (const sx of [-1, 1]) { kit.add(RB(0.16, 0.16, h0 - r0 - 2, 0.05), 0xe7c08d, { m: M(sx * (W / 2 - 0.1), Y + 0.95, (r0 + h0) / 2), outline: false });
+    if (!kp) kit.add(RB(W + 0.6, 0.4, h0 - r0, 0.1), WOOD_D, { m: M(0, Y - 0.36, (r0 + h0) / 2), outline: 1 });
+    if (!kp) for (let z = r0 + 6; z < h0; z += STEP) for (const sx of [-1, 1]) kit.add(cyl(0.4, 0.44, 11, low ? 6 : 8), WOOD, { m: M(sx * (W / 2 + 0.1), Y - 5, z), outline: false });
+    if (!kp) for (const sx of [-1, 1]) { kit.add(RB(0.16, 0.16, h0 - r0 - 2, 0.05), 0xe7c08d, { m: M(sx * (W / 2 - 0.1), Y + 0.95, (r0 + h0) / 2), outline: false });
       for (let z = r0 + 2; z < h0; z += 5) kit.add(cyl(0.1, 0.1, 1.0, 5), WOOD_D, { m: M(sx * (W / 2 - 0.1), Y + 0.5, z), outline: false }); }
     // T-head: planks across, a heavier beam, pilings along both faces
-    const m = Math.round(2 * H / 2.1);
+    const m = kp ? 0 : Math.round(2 * H / 2.1);
     for (let i = 0; i < m; i++) kit.add(new THREE.BoxGeometry(2.0, 0.32, h1 - h0), i % 3 ? WOOD_L : 0xc98a4c, { m: M(-H + (i + 0.5) * 2 * H / m, Y, hz), outline: false });
-    kit.add(RB(2 * H + 0.6, 0.45, h1 - h0 + 0.6, 0.12), WOOD_D, { m: M(0, Y - 0.38, hz), outline: 1 });
-    for (let x = -H + 1; x <= H; x += STEP) for (const z of [h0 + 0.2, h1 - 0.2]) kit.add(cyl(0.42, 0.46, 11, low ? 6 : 8), WOOD, { m: M(x, Y - 5, z), outline: false });
+    if (!kp) kit.add(RB(2 * H + 0.6, 0.45, h1 - h0 + 0.6, 0.12), WOOD_D, { m: M(0, Y - 0.38, hz), outline: 1 });
+    if (!kp) for (let x = -H + 1; x <= H; x += STEP) for (const z of [h0 + 0.2, h1 - 0.2]) kit.add(cyl(0.42, 0.46, 11, low ? 6 : 8), WOOD, { m: M(x, Y - 5, z), outline: false });
     // per berth: two bollards, fenders on the face, a little numbered post
     for (const t of PIER.lat) {
-      for (const e of [-8.5, 8.5]) { kit.add(cyl(0.34, 0.42, 0.85, 7), IRON, { m: M(t + e, Y + 0.6, h1 - 0.7), outline: e < 0 ? 1 : false }); kit.add(cyl(0.48, 0.48, 0.18, 7), IRON, { m: M(t + e, Y + 1.05, h1 - 0.7), outline: false }); }
-      if (!low) for (const e of [-6, 0, 6]) kit.add(new THREE.TorusGeometry(0.42, 0.2, 5, 8), 0x26282c, { m: M(t + e, Y - 1.0, h1 + 0.35), outline: false });
+      if (kp) for (const e of [-8.5, 8.5]) P_('bollard', M(t + e, Y + 0.16, h1 - 0.7)); else for (const e of [-8.5, 8.5]) { kit.add(cyl(0.34, 0.42, 0.85, 7), IRON, { m: M(t + e, Y + 0.6, h1 - 0.7), outline: e < 0 ? 1 : false }); kit.add(cyl(0.48, 0.48, 0.18, 7), IRON, { m: M(t + e, Y + 1.05, h1 - 0.7), outline: false }); }
+      if (!low && !kp) for (const e of [-6, 0, 6]) kit.add(new THREE.TorusGeometry(0.42, 0.2, 5, 8), 0x26282c, { m: M(t + e, Y - 1.0, h1 + 0.35), outline: false });
     }
     // head-end lanterns (knee-to-head high only) + a few crates / barrels; a buoy pair marks the approach
     for (const sx of [-1, 1]) lantern(kit, M(sx * (H - 1), Y + 0.15, hz, 0, 0, 0, 0.8), low);
-    crate(kit, M(-2.2, Y + 0.85, h0 + 1.6, 0.3 + k)); barrel(kit, M(2.4, Y + 0.15, h0 + 1.5), low);
+    if (kp) { P_('crate', M(-2.2, Y + 0.16, h0 + 1.6, 0.3 + k, 0, 0, 1.17)); P_('barrel', M(2.4, Y + 0.16, h0 + 1.5)); } else { crate(kit, M(-2.2, Y + 0.85, h0 + 1.6, 0.3 + k)); barrel(kit, M(2.4, Y + 0.15, h0 + 1.5), low); }
     // rope rail along the head's landward face (posts + sagging rope), stem lanterns, more cargo, token pennants
     for (let x = -H + 1; x <= H - 1; x += 4.5) { if (Math.abs(x) < 3.6) continue; kit.add(cyl(0.12, 0.14, 1.3, 5), WOOD_D, { m: M(x, Y + 0.65, h0 + 0.35), outline: false });
       const x2 = x + 4.5; if (x2 <= H - 1 && !(x < 3.6 && x2 > -3.6)) for (const [a, b] of [[x, x + 2.25], [x + 2.25, x2]]) { const ya = a === x ? Y + 1.2 : Y + 0.85, yb = b === x2 ? Y + 1.2 : Y + 0.85, L = Math.hypot(b - a, yb - ya);
         kit.add(cyl(0.05, 0.05, L, 4), 0xe7c08d, { m: M((a + b) / 2, (ya + yb) / 2, h0 + 0.35, 0, 0, Math.PI / 2 - Math.atan2(yb - ya, b - a)), outline: false }); } }
     for (const sx of [-1, 1]) lantern(kit, M(sx * (W / 2 - 0.1), Y + 0.15, (r0 + h0) / 2, 0, 0, 0, 0.7), low);
-    crate(kit, M(-H + 3, Y + 0.85, h0 + 1.4, 0.2)); crate(kit, M(-H + 3.3, Y + 2.25, h0 + 1.4, 0.7)); barrel(kit, M(H - 3, Y + 0.15, h0 + 1.3), low); barrel(kit, M(H - 4.4, Y + 0.15, h0 + 1.6, 0.4), low);
+    if (kp) { P_('crate', M(-H + 3, Y + 0.16, h0 + 1.4, 0.2, 0, 0, 1.17)); P_('crate', M(-H + 3.3, Y + 1.56, h0 + 1.4, 0.7, 0, 0, 1.17)); P_('barrel', M(H - 3, Y + 0.16, h0 + 1.3)); P_('barrel', M(H - 4.4, Y + 0.16, h0 + 1.6, 0.4)); P_('sacks', M(H - 6, Y + 0.16, h0 + 1.2, 0.3)); }
+    else { crate(kit, M(-H + 3, Y + 0.85, h0 + 1.4, 0.2)); crate(kit, M(-H + 3.3, Y + 2.25, h0 + 1.4, 0.7)); barrel(kit, M(H - 3, Y + 0.15, h0 + 1.3), low); barrel(kit, M(H - 4.4, Y + 0.15, h0 + 1.6, 0.4), low); }
     const sym = ['SUNK', 'AHOY', 'PUMP'][k % 3];
     for (const sx of [-1, 1]) { kit.add(cyl(0.1, 0.12, 6.2, 5), WOOD_D, { m: M(sx * (H - 0.4), Y + 3.1, h0 + 0.4), outline: false });
-      quad(kit, 2.6, 1.2, A['pen' + sym], M(sx * (H - 0.4) + 1.35, Y + 5.4, h0 + 0.4)); quad(kit, 2.6, 1.2, A['pen' + sym], M(sx * (H - 0.4) + 1.35, Y + 5.4, h0 + 0.4, Math.PI)); }
+      quad(kit, 2.6, 1.2, A['pen' + sym], M(sx * (H - 0.4) + 1.35, Y + 5.4, h0 + 0.43)); quad(kit, 2.6, 1.2, A['pen' + sym], M(sx * (H - 0.4) + 1.35, Y + 5.4, h0 + 0.37, Math.PI)); } // two one-sided faces: reads right from both sides
     // moored rowboat (and a small sailboat on every other pier) along the stem
     const side = k % 2 ? 1 : -1;
     rowboat(kit, side * (W / 2 + 1.6), h0 - 6, k, low);
@@ -430,7 +434,7 @@ function plaza(kit, A, low) {
   kit.add(cyl(1.4, 1.8, 1.0, 10), STONE_D, { m: M(f.x, fy + 0.4, f.z) });
   kit.add(cyl(0.22, 0.26, 13, 8), WOOD_D, { m: M(f.x, fy + 7, f.z) });
   kit.add(sph(0.45, 10, 8), GOLD, { m: M(f.x, fy + 13.6, f.z), outline: false });
-  quad(kit, 6, 4, A.flag, M(f.x - 3, fy + 11, f.z, Math.PI)); quad(kit, 6, 4, A.flagBack, M(f.x - 3, fy + 11, f.z));
+  quad(kit, 6, 4, A.flag, M(f.x - 3, fy + 11, f.z - 0.03, Math.PI)); quad(kit, 6, 4, A.flagBack, M(f.x - 3, fy + 11, f.z + 0.03));
 }
 
 function chestPedestal(kit, low) {
@@ -539,7 +543,7 @@ function tower(kit, A, low) {
     kit.add(new THREE.ConeGeometry(2.9, 4.4, seg), ROOF, { m: M(tx, H + 8.9, tz) });
     kit.add(RB(0.5, 1.2, 0.3, 0.08), 0xffb347, { bucket: 'glow', m: M(tx, H + 4.5, tz + 1.95), outline: false });
     kit.add(cyl(0.09, 0.09, 5.2, 5), WOOD_D, { m: M(tx, H + 12.6, tz), outline: false });
-    quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz)); quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz, Math.PI));
+    quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz + 0.03)); quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz - 0.03, Math.PI));
   });
   return { x: t.x, z: t.z, top: y0 + H };
 }
@@ -641,11 +645,11 @@ export function buildPlants(low, mat) {
 
 // ---------- build the whole island ----------
 // decor: [[x, z, yaw, variant]...] moored toy galleons merged in (0 extra draw calls)
-export function buildIsland({ low, atlas, decor = [] }) {
+export function buildIsland({ low, atlas, decor = [], kitP = null, foot = false }) {
   const kit = new Kit(), A = atlas.R; RBS = low ? 1 : 2;
   kit.ao = (x, y, z) => { const g = Math.max(groundY(x, z), -0.3), dy = y - g; return 0.56 + 0.44 * sm(0.0, 2.4, dy); }; // [look] baked contact AO
   terrain(kit, low);
-  plaza(kit, A, low); tavern(kit, A, low); PIER_ANGLES.forEach((th, k) => tPier(kit, A, th, k, low));
+  plaza(kit, A, low); tavern(kit, A, low); PIER_ANGLES.forEach((th, k) => tPier(kit, A, th, k, low, kitP));
   SPOTS.digs.forEach((d, k) => digSpot(kit, A, d, k, low)); shopAndBoard(kit, A, low); SPOTS.stalls.forEach(st => stall(kit, st, low)); chestPedestal(kit, low);
   { const c = SPOTS.chest, y = groundY(c.x - 6.5, c.z + 4.5); kit.add(cyl(0.14, 0.16, 3.2, 6), WOOD_D, { m: M(c.x - 6.8, y + 1.6, c.z + 4.8) }); kit.add(RB(4.0, 1.1, 0.25, 0.1), WOOD_L, { m: M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5) }); quad(kit, 3.8, 0.95, A.daily, M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5).multiply(M(0, 0, 0.14))); }
   tower(kit, A, low); seating(kit, low); skullPeak(kit, low); cliffs(kit, low); tokenExchange(kit, A, low);
@@ -654,7 +658,7 @@ export function buildIsland({ low, atlas, decor = [] }) {
   const rr = rng(5), rocks = [];
   for (let deg = 40; deg <= 320; deg += 17) { const a = deg * Math.PI / 180, e = edgeR(Math.atan2(Math.cos(a), Math.sin(a))) + 3 + rr() * 6, x = Math.sin(a) * e, z = Math.cos(a) * e; if (!nearPier(x, z, 12)) rocks.push([x, z, (Math.abs(deg - 180) < 100 ? 1.6 : 1.0) + rr() * 1.6]); }
   rocks.push([-46, -20, 2.2], [-34, -24, 1.4], [52, -14, 1.6], [38, 4, 1.2]);
-  rocks.forEach(([x, z, sc], i) => rock(kit, x, z, sc, 71 + i, low));
+  rocks.forEach(([x, z, sc], i) => { if (foot && Math.abs(x - 6) < 14 && z < -50) return; rock(kit, x, z, sc, 71 + i, low); }); // on foot the main street runs out over that shore
   const J = SPOTS.jungle, bushes = [[-14, 6, 1.3], [16, 6, 1.2], [-36, 24, 1.3], [-50, 10, 1.4], [-8, -42, 1.2], [26, -30, 1.3], [-56, -26, 1.4], [8, 52, 0.9], [-8, 52, 0.9]];
   for (let i = 0; i < (low ? 8 : 16); i++) { const a = i * 2.1, rr2 = 3 + (i % 5) * 3, x = J.x + Math.cos(a) * rr2, z = J.z + Math.sin(a) * rr2; if (Math.hypot(x - 36, z + 16) > 4) bushes.push([x, z, 1.2 + (i % 3) * 0.5]); }
   bushes.forEach(([x, z, sc], i) => bush(kit, x, z, sc, 91 + i));
