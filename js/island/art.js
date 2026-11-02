@@ -7,16 +7,31 @@ import { rng } from '../toon.js';
 import { Kit, M } from './kit.js';
 
 // ---------- layout (world units; a ship is 17 long) ----------
+// Island-local frame: +z is the HARBOR side (open water, the dock and the approach lane). Tall things (tavern,
+// palms, lookout tower) sit at the back / flanks so the beach, the dock and the tavern terrace all look out over the water.
 export const SPOTS = {
-  plaza: { x: 0, z: 4 },
-  tavern: { x: -21, z: -10, yaw: 0.75 },
-  chest: { x: 25, z: -12 },
-  dig: { x: -6, z: -33 },
-  board: { x: 13, z: 40, yaw: -1.25 },
-  dock: { x: 0, z0: 44, z1: 98, w: 4.6, y: 1.7 },
-  moor: [{ x: -7.4, z: 83, yaw: 0 }, { x: 7.6, z: 80, yaw: Math.PI }],
+  plaza: { x: 0, z: 8 },
+  flag: { x: -10.5, z: 3 },                   // big skull flag on the plaza rim, off the terrace -> harbor sightline
+  tavern: { x: 0, z: -27, yaw: 0 },           // faces the harbor; terrace deck out front
+  chest: { x: 25, z: -18 },
+  dig: { x: -20, z: -32 },
+  board: { x: 33, z: 6, yaw: -Math.PI / 2 },   // right flank, facing the plaza
+  tower: { x: -35, z: -6 },                    // left flank lookout, spyglass aimed at the harbor
+  dock: { x: 0, z0: 42, z1: 100, w: 4.6, y: 2.7 },
+  // berths alongside the dock: a ship pulls in bow-first from the harbor (yaw PI = bow toward the island).
+  // Berth length fits the whole hull range (len 17 base .. 20.4 maxed), beam up to 7.3.
+  moor: [{ x: -7.0, z: 80, yaw: Math.PI }, { x: 7.0, z: 80, yaw: Math.PI }],
+  berthLen: 22,
+  lane: { x: 0, z0: 104, z1: 122, w: 32 },     // approach lane (kept clear, buoyed); buoys end at harbor r ~145, outside the r 130 respawn ring
 };
-const PATHS = [[[0, 46], [0, 22], [0, 4]], [[0, 4], [-15, -5], [-19, -8]], [[0, 4], [12, -6], [22, -11]], [[0, 4], [-3, -18], [-6, -28]], [[0, 30], [9, 38]]];
+// Where the island sits in the BATTLE ROYALE harbor (js/pvp.js world frame, metres, ships 17-20.4 long, scale 1:1).
+// Harbor layout it has to respect: player harbor spawn (0, 0) heading +z; death respawns on rings r = 40 / 85 / 130;
+// AI / boss spawn points on r = 176 (6, at 30 + 60k deg) and r = 344 (16, every 22.5 deg); AI turn back past r = 370; edge r = 420;
+// rock islands from props.js sit beyond r = 250 (nearest at about 20 deg / r 405 and 230 deg / r 425).
+// The island centre goes at 60 deg / r 265: midway between the mid spawns at 30 and 90 deg, its waterline (about r 62)
+// stays inside the r 344 spawn ring, and its dock + buoyed approach lane point straight at the harbor centre.
+export const HARBOR_ISLAND = (() => { const a = Math.PI / 3, r = 265, x = +(Math.cos(a) * r).toFixed(2), z = +(Math.sin(a) * r).toFixed(2); return { x, z, yaw: Math.atan2(-x, -z), angleDeg: 60, r }; })();
+const PATHS = [[[0, 44], [0, 24], [0, 8]], [[0, 8], [0, -16]], [[0, 8], [14, -6], [22, -15]], [[0, 8], [-12, -12], [-18, -27]], [[0, 8], [18, 6], [28, 6]], [[0, 8], [-22, -2], [-31, -5]], [[0, 26], [12, 40]], [[0, 26], [-12, 40]]];
 
 // ---------- terrain ----------
 function edgeR(a) { return 50 + 5.5 * Math.sin(3 * a + 1) + 3 * Math.sin(5 * a + 2) + 1.5 * Math.sin(9 * a); }
@@ -28,11 +43,12 @@ function segDist(px, pz, a, b) {
 function pathDist(x, z) { let d = 1e9; for (const p of PATHS) for (let i = 0; i < p.length - 1; i++) d = Math.min(d, segDist(x, z, p[i], p[i + 1])); return d; }
 export function groundY(x, z) {
   const r = Math.hypot(x, z), e = edgeR(Math.atan2(z, x));
-  const top = 3.4 + 0.7 * Math.sin(x * 0.09 + 1) * Math.cos(z * 0.08) + 1.6 * Math.exp(-((x + 21) ** 2 + (z + 10) ** 2) / 260) // tavern knoll
+  const top = 4.2 + 0.6 * Math.sin(x * 0.09 + 1) * Math.cos(z * 0.08) + 2.2 * Math.exp(-((x - SPOTS.tavern.x) ** 2 + (z - SPOTS.tavern.z - 3) ** 2) / 320) // tavern knoll (terrace looks over the plaza)
     - 0.35 * Math.exp(-((x - SPOTS.dig.x) ** 2 + (z - SPOTS.dig.z) ** 2) / 30); // dig patch dips a touch
-  let h = top * (1 - sm(e - 5, e + 1, r)) + 1.0 * sm(e - 5, e + 1, r); // grass plateau -> ledge
-  h -= 1.15 * sm(e + 1, e + 13, r); // beach slope to the waterline
-  h -= 5.5 * sm(e + 12, e + 30, r); // shelf under the water
+  // heights clear the game's full storm swell (about +-2.2): the ledge sits at 2.4, the beach runs down through the surf
+  let h = top * (1 - sm(e - 5, e + 1, r)) + 2.4 * sm(e - 5, e + 1, r); // grass plateau -> ledge
+  h -= 2.9 * sm(e + 1, e + 14, r); // beach slope through the waterline
+  h -= 5.5 * sm(e + 13, e + 30, r); // shelf under the water
   return h;
 }
 const C = (h) => new THREE.Color(h);
@@ -40,7 +56,7 @@ const GRASS = C(0x5fd44a), GRASS2 = C(0x8ae95a), SAND = C(0xffe3a1), WET = C(0xe
 function groundColor(x, z, h) {
   const r = Math.hypot(x, z), e = edgeR(Math.atan2(z, x)), c = new THREE.Color();
   const grass = 1 - sm(e - 4.5, e - 3.5, r); // crisp toy edge between grass and sand
-  c.copy(SAND).lerp(WET, sm(0.35, -0.2, h)).lerp(DEEP, sm(-0.6, -3.5, h));
+  c.copy(SAND).lerp(WET, sm(0.6, -0.3, h)).lerp(DEEP, sm(-0.8, -3.5, h));
   const g = GRASS.clone().lerp(GRASS2, 0.5 + 0.5 * Math.sin(x * 0.21) * Math.sin(z * 0.17));
   c.lerp(g, grass);
   const pd = pathDist(x, z); c.lerp(PATH, (1 - sm(2.2, 3.0, pd)) * grass);
@@ -75,18 +91,21 @@ function terrain(kit, low) {
 }
 
 // ---------- shoreline foam ring (own mesh: transparent, animated) ----------
-export function shoreFoam(uTime, low) {
+export function shoreFoam(uTime, low, uWaves) {
   const segs = low ? 120 : 220, pos = [], uv = [], idx = [];
   for (let j = 0; j <= segs; j++) {
     const a = (j / segs) * Math.PI * 2; let lo = 30, hi = 90;
     for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (groundY(Math.cos(a) * m, Math.sin(a) * m) > 0) lo = m; else hi = m; }
-    for (const [dr, v] of [[-2.2, 0], [3.4, 1]]) { const r = lo + dr; pos.push(Math.cos(a) * r, 0.12, Math.sin(a) * r); uv.push(j / segs * 40, v); }
+    for (const [dr, v] of [[-3.5, 0], [4.0, 1]]) { const r = lo + dr; pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); uv.push(j / segs * 40, v); }
   }
   for (let j = 0; j < segs; j++) { const a = j * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
   const mat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, uniforms: { uTime },
-    vertexShader: 'varying vec2 vUv; uniform float uTime; void main(){ vUv=uv; vec3 p=position; p.y += sin(uTime*1.3+uv.x*0.9)*0.12; gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }',
+    transparent: true, depthWrite: false, uniforms: { uTime, uWaves },
+    vertexShader: `varying vec2 vUv; uniform float uTime; uniform vec4 uWaves[4];
+      void main(){ vUv = uv; vec3 p = position; vec4 wp = modelMatrix * vec4(p, 1.0); float h = 0.0;
+        for (int i = 0; i < 4; i++) { float k = uWaves[i].w; h += uWaves[i].z * sin(k * dot(uWaves[i].xy, wp.xz) - sqrt(9.8 * k) * uTime); }
+        wp.y = h + 0.1 + sin(uTime * 1.3 + uv.x * 0.9) * 0.08; gl_Position = projectionMatrix * viewMatrix * wp; }`,
     fragmentShader: `varying vec2 vUv; uniform float uTime;
       void main(){ float t = uTime*0.55; float lap = fract(vUv.y*1.0 - t + sin(vUv.x*1.7)*0.08);
         float band = smoothstep(0.0,0.08,lap)*smoothstep(0.32,0.18,lap);
@@ -144,7 +163,14 @@ function tavern(kit, A, low) {
     // door + porch
     kit.add(RB(3, 4.4, 0.6, 0.6), WOOD_D, { m: M(0, 3.4, 4.8) });
     kit.add(sph(0.2, 8, 6), GOLD, { m: M(0.9, 3.3, 5.15), outline: false });
-    kit.add(RB(6, 0.5, 3.2, 0.2), WOOD_L, { m: M(0, 1.4, 6.3) });
+    // TERRACE: raised plank deck out front (16 x 8.5) with a low rail, open toward the harbor; stairs at the front centre
+    const DY = 1.65; // deck top (tavern-local)
+    for (let i = 0; i < 9; i++) kit.add(RB(16, 0.4, 0.92, 0.1), i % 2 ? WOOD_L : 0xc98a4c, { m: M(0, DY - 0.2, 5.4 + i * 0.95), outline: i === 8 ? 1 : false });
+    for (const x of [-7.6, 0, 7.6]) for (const z of [6, 13]) kit.add(cyl(0.3, 0.32, 5, 7), WOOD_D, { m: M(x, DY - 2.7, z), outline: false });
+    const railPost = (x, z) => kit.add(cyl(0.13, 0.13, 1.25, 6), WOOD_D, { m: M(x, DY + 0.6, z), outline: false });
+    for (const x of [-7.8, 7.8]) { for (let z = 5.6; z <= 13.2; z += 1.9) railPost(x, z); kit.add(RB(0.25, 0.22, 7.9, 0.06), WOOD_L, { m: M(x, DY + 1.25, 9.4) }); }
+    for (const sx of [-1, 1]) { for (let x = 2.2; x <= 7.8; x += 1.4) railPost(sx * x, 13.3); kit.add(RB(5.8, 0.22, 0.25, 0.06), WOOD_L, { m: M(sx * 4.95, DY + 1.25, 13.3) }); }
+    for (let i = 0; i < 3; i++) kit.add(RB(3.6, 0.3, 0.9, 0.08), WOOD_L, { m: M(0, DY - 0.55 - i * 0.55, 14.0 + i * 0.8), outline: false }); // stairs down to the plaza path
     kit.add(RB(5.8, 0.5, 2.6, 0.2), ROOF, { m: M(0, 6.2, 6.0, 0, -0.35) }); // little door awning
     // round glowing windows (ground + upper floor, front + sides)
     // (x, y, z) sits ON the wall face; ry turns the window to face outward; the glass sits 0.1 proud of the wall (no z-fight)
@@ -158,11 +184,14 @@ function tavern(kit, A, low) {
     quad(kit, 4.2, 1.5, A.tavern, M(5.4, 5.6, 7.96)); quad(kit, 4.2, 1.5, A.tavern, M(5.4, 5.6, 7.64, Math.PI));
     for (const x of [4, 6.8]) kit.add(cyl(0.05, 0.05, 0.6, 4), IRON, { m: M(x, 6.65, 7.8), outline: false });
     // barrels, table, mugs
-    barrel(kit, M(-4.8, 1.3, 6.4), low); barrel(kit, M(-6.3, 1.3, 5.6, 0.4), low); barrel(kit, M(-5.4, 2.8, 6.0, 0.2, 0, 0, 0.9), low);
-    kit.add(cyl(1.4, 1.4, 0.3, 12), WOOD_L, { m: M(4.6, 2.6, 10.3) }); kit.add(cyl(0.25, 0.4, 1.4, 8), WOOD_D, { m: M(4.6, 1.8, 10.3) });
-    for (const [x, z] of [[4.1, 10.0], [5.1, 10.6]]) { kit.add(cyl(0.28, 0.25, 0.55, 8), GOLD, { m: M(x, 3.0, z), outline: false }); kit.add(cyl(0.3, 0.3, 0.15, 8), 0xffffff, { m: M(x, 3.33, z), outline: false }); }
-    for (const [x, z] of [[2.8, 10.6], [6.4, 9.6]]) kit.add(cyl(0.55, 0.55, 1.5, 8), WOOD, { m: M(x, 1.7, z) });
-    lantern(kit, M(-3.3, 1.0, 8.2), low); lantern(kit, M(3.3, 1.0, 8.2), low);
+    barrel(kit, M(-6.6, DY, 6.0), low); barrel(kit, M(-5.2, DY, 5.8, 0.4), low); barrel(kit, M(-5.9, DY + 1.5, 5.9, 0.2, 0, 0, 0.9), low);
+    // two round tables with mugs + stools, set at the rail so the drinkers look out at the harbor fights
+    for (const tx of [-4.2, 4.2]) {
+      kit.add(cyl(1.3, 1.3, 0.25, 12), WOOD_L, { m: M(tx, DY + 1.05, 11.3) }); kit.add(cyl(0.22, 0.35, 1.0, 8), WOOD_D, { m: M(tx, DY + 0.5, 11.3), outline: false });
+      for (const [dx, dz] of [[-0.45, -0.2], [0.5, 0.25]]) { kit.add(cyl(0.26, 0.23, 0.5, 8), GOLD, { m: M(tx + dx, DY + 1.42, 11.3 + dz), outline: false }); kit.add(cyl(0.28, 0.28, 0.14, 8), 0xffffff, { m: M(tx + dx, DY + 1.72, 11.3 + dz), outline: false }); }
+      for (const dx of [-1.9, 1.9]) kit.add(cyl(0.5, 0.5, 0.75, 8), WOOD, { m: M(tx + dx, DY + 0.38, 10.6) });
+    }
+    lantern(kit, M(-7.8, DY, 13.3, 0, 0, 0, 0.8), low); lantern(kit, M(7.8, DY, 13.3, 0, 0, 0, 0.8), low);
   });
 }
 
@@ -203,20 +232,34 @@ function dock(kit, low) {
   // T-head at the end
   kit.add(RB(14, 0.4, 4.4, 0.12), WOOD_L, { m: M(0, d.y, d.z1 + 1.8) });
   for (let z = d.z0 + 6; z <= d.z1 + 3; z += 5.5) for (const x of [-d.w / 2 - 0.2, d.w / 2 + 0.2]) {
-    kit.add(cyl(0.38, 0.42, 8, low ? 7 : 9), WOOD, { m: M(x, d.y - 3, z) });
-    kit.add(cyl(0.44, 0.44, 0.14, low ? 7 : 9), 0xe8e0c8, { m: M(x, d.y - 1.3, z), outline: false });
+    kit.add(cyl(0.38, 0.42, 11, low ? 7 : 9), WOOD, { m: M(x, d.y - 4.6, z) });
+    kit.add(cyl(0.44, 0.44, 0.14, low ? 7 : 9), 0xe8e0c8, { m: M(x, d.y - 1.0, z), outline: false });
   }
-  for (const x of [-6.5, 6.5]) kit.add(cyl(0.4, 0.45, 8, 8), WOOD, { m: M(x, d.y - 3, d.z1 + 3.3) });
+  for (const x of [-6.5, 6.5]) kit.add(cyl(0.4, 0.45, 11, 8), WOOD, { m: M(x, d.y - 4.6, d.z1 + 3.3) });
   // bollards + mooring lines to the ships
-  for (const [i, s] of SPOTS.moor.entries()) for (const dz of [-6, 6]) {
-    const bx = Math.sign(s.x) * (d.w / 2 - 0.4), bz = s.z + dz, by = d.y + 0.2;
-    kit.add(cyl(0.35, 0.42, 0.9, 8), IRON, { m: M(bx, by + 0.45, bz) }); kit.add(cyl(0.5, 0.5, 0.2, 8), IRON, { m: M(bx, by + 0.95, bz), outline: false });
-    const tx = s.x - Math.sign(s.x) * 2.2, tz = s.z + dz * 0.85, ty = 2.4, a = new THREE.Vector3(bx, by + 0.7, bz), b = new THREE.Vector3(tx, ty, tz), mid = a.clone().add(b).multiplyScalar(0.5), dv = b.clone().sub(a);
+  const hb = SPOTS.berthLen / 2;
+  for (const [i, s] of SPOTS.moor.entries()) {
+    const sx = Math.sign(s.x);
+    // fenders (old tyres) along the berth + painted berth ends
+    for (let z = s.z - hb + 1.5; z <= s.z + hb - 1.5; z += 3.5) kit.add(new THREE.TorusGeometry(0.42, 0.2, 6, 10), 0x26282c, { m: M(sx * (d.w / 2 + 0.38), d.y - 0.75, z, Math.PI / 2), outline: false });
+    for (const dz of [-hb, hb]) kit.add(RB(0.9, 0.06, 0.3, 0.02), 0xffffff, { m: M(sx * (d.w / 2 - 0.5), d.y + 0.17, s.z + dz), outline: false });
+    for (const dz of [-hb + 2, hb - 2]) { const bx = sx * (d.w / 2 - 0.4), bz = s.z + dz, by = d.y + 0.2;
+      kit.add(cyl(0.35, 0.42, 0.9, 8), IRON, { m: M(bx, by + 0.45, bz) }); kit.add(cyl(0.5, 0.5, 0.2, 8), IRON, { m: M(bx, by + 0.95, bz), outline: false }); }
+  }
+  for (const [i, s] of SPOTS.moor.entries()) for (const dz of (i === 0 ? [-6, 6] : [])) { // mooring lines on berth A (the moored ship)
+    const bx = Math.sign(s.x) * (d.w / 2 - 0.4), bz = s.z + Math.sign(dz) * (hb - 2), by = d.y + 0.2;
+    const tx = s.x - Math.sign(s.x) * 2.4, tz = s.z + dz * 1.2, ty = 3.2, a = new THREE.Vector3(bx, by + 0.7, bz), b = new THREE.Vector3(tx, ty, tz), mid = a.clone().add(b).multiplyScalar(0.5), dv = b.clone().sub(a);
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dv.clone().normalize());
     kit.add(cyl(0.07, 0.07, dv.length(), 5), 0xe8d3a0, { m: new THREE.Matrix4().compose(mid, q, new THREE.Vector3(1, 1, 1)), outline: false });
   }
-  for (const z of [d.z0 + 4, d.z0 + 22, d.z1 + 2]) for (const x of [-d.w / 2 - 0.1, d.w / 2 + 0.1]) if (z !== d.z0 + 22 || x > 0) lantern(kit, M(x, d.y, z), low);
-  barrel(kit, M(-1.2, d.y + 0.15, d.z0 + 9), low); crate(kit, M(1.3, d.y + 0.85, d.z0 + 11, 0.3)); crate(kit, M(-1.4, d.y + 0.85, d.z1 + 1.5, 0.6));
+  for (const z of [d.z0 + 4, d.z1 + 2]) for (const x of [-d.w / 2 - 0.1, d.w / 2 + 0.1]) lantern(kit, M(x, d.y, z), low);
+  // approach lane: red / green channel buoys either side of the lane, kept low so nothing blocks the view
+  const L = SPOTS.lane;
+  for (const z of [L.z0 + 4, L.z1 - 2]) for (const sx of [-1, 1]) kit.at(M(sx * L.w / 2, 0, z), () => {
+    kit.add(cyl(0.9, 1.2, 1.6, 10), sx < 0 ? RED : 0x22c55e, { m: M(0, 0.2, 0) }); kit.add(new THREE.ConeGeometry(0.7, 1.4, 10), sx < 0 ? RED : 0x22c55e, { m: M(0, 1.7, 0) });
+    kit.add(RB(1.9, 0.3, 1.9, 0.1), 0xffffff, { m: M(0, -0.45, 0), outline: false }); kit.add(sph(0.22, 8, 6), 0xfff1a0, { bucket: 'glow', m: M(0, 2.5, 0), outline: false });
+  });
+  barrel(kit, M(-1.2, d.y + 0.15, d.z0 + 6), low); crate(kit, M(1.3, d.y + 0.85, d.z0 + 8, 0.3)); crate(kit, M(-1.4, d.y + 0.85, d.z1 + 1.5, 0.6));
   // life ring on the T-head
   kit.add(new THREE.TorusGeometry(0.7, 0.24, 8, 16), 0xffffff, { m: M(4.5, d.y + 1.1, d.z1 + 3.95, 0, 0, 0) }); kit.add(new THREE.TorusGeometry(0.7, 0.25, 8, 4), RED, { m: M(4.5, d.y + 1.1, d.z1 + 3.96, 0, 0, Math.PI / 4), outline: false });
   kit.add(cyl(0.1, 0.1, 1.8, 6), WOOD_D, { m: M(4.5, d.y + 0.9, d.z1 + 3.75), outline: false });
@@ -273,10 +316,11 @@ function shopAndBoard(kit, A, low) {
 function plaza(kit, A, low) {
   const p = SPOTS.plaza, y = groundY(p.x, p.z);
   for (let i = 0; i < (low ? 14 : 22); i++) { const a = (i / (low ? 14 : 22)) * Math.PI * 2; kit.add(RB(1.4, 0.4, 0.9, 0.15), i % 2 ? STONE : 0xc3ccd8, { m: M(p.x + Math.cos(a) * 8.9, y + 0.05, p.z + Math.sin(a) * 8.9, -a), outline: false }); }
-  kit.add(cyl(1.4, 1.8, 1.0, 10), STONE_D, { m: M(p.x, y + 0.4, p.z) });
-  kit.add(cyl(0.22, 0.26, 13, 8), WOOD_D, { m: M(p.x, y + 7, p.z) });
-  kit.add(sph(0.45, 10, 8), GOLD, { m: M(p.x, y + 13.6, p.z), outline: false });
-  quad(kit, 6, 4, A.flag, M(p.x + 3, y + 11, p.z)); quad(kit, 6, 4, A.flagBack, M(p.x + 3, y + 11, p.z, Math.PI));
+  const f = SPOTS.flag, fy = groundY(f.x, f.z);
+  kit.add(cyl(1.4, 1.8, 1.0, 10), STONE_D, { m: M(f.x, fy + 0.4, f.z) });
+  kit.add(cyl(0.22, 0.26, 13, 8), WOOD_D, { m: M(f.x, fy + 7, f.z) });
+  kit.add(sph(0.45, 10, 8), GOLD, { m: M(f.x, fy + 13.6, f.z), outline: false });
+  quad(kit, 6, 4, A.flag, M(f.x - 3, fy + 11, f.z, Math.PI)); quad(kit, 6, 4, A.flagBack, M(f.x - 3, fy + 11, f.z));
 }
 
 function chestPedestal(kit, low) {
@@ -336,6 +380,93 @@ export function makeAtlas(skull) {
   return { tex: t, R };
 }
 
+// ---------- lookout tower (left flank): tapered timber legs, platform with a rail, spyglass on a tripod aimed at the harbor ----------
+export const TOWER_H = 19;
+function tower(kit, low) {
+  const t = SPOTS.tower, y0 = groundY(t.x, t.z) - 0.4, H = TOWER_H, B = 3.0, T = 1.9;
+  kit.at(M(t.x, y0, t.z, 0.25), () => {
+    kit.add(RB(7.2, 1.2, 7.2, 0.4), STONE, { m: M(0, 0.4, 0) });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const a = new THREE.Vector3(sx * B, 0.8, sz * B), b = new THREE.Vector3(sx * T, H, sz * T), d = b.clone().sub(a), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+      kit.add(cyl(0.3, 0.4, d.length(), low ? 6 : 8), WOOD_D, { m: new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)) });
+    }
+    for (const y of [5.5, 11, 16]) { const w = B - (B - T) * (y / H); for (const r of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) kit.add(RB(2 * w + 0.6, 0.3, 0.3, 0.08), WOOD, { m: M(0, y, 0, r).multiply(M(0, 0, w)), outline: false }); }
+    for (const [sx, y0b, y1b] of [[-1, 1.5, 9], [1, 9, 16.5]]) { // X braces on the harbor face
+      const a = new THREE.Vector3(-B * 0.8, y0b, B * 0.85 - 0.2 * (y0b / H)), b = new THREE.Vector3(B * 0.7, y1b, (B - (B - T) * (y1b / H))), d = b.clone().sub(a);
+      if (sx > 0) { a.x *= -1; b.x *= -1; d.x *= -1; }
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+      kit.add(RB(0.25, d.length(), 0.25, 0.06), WOOD, { m: new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)), outline: false });
+    }
+    // ladder up the back
+    for (const x of [-0.6, 0.6]) kit.add(cyl(0.09, 0.09, H, 5), WOOD_L, { m: M(x, H / 2 + 0.6, -T - 0.9, 0, -0.06), outline: false });
+    for (let y = 1.6; y < H; y += 1.3) kit.add(cyl(0.07, 0.07, 1.2, 4), WOOD_L, { m: M(0, y, -T - 0.9 + (y - H / 2) * 0.06, 0, 0, Math.PI / 2), outline: false });
+    // platform + rail + roof
+    kit.add(RB(6.4, 0.5, 6.4, 0.18), WOOD_L, { m: M(0, H + 0.2, 0) });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) kit.add(cyl(0.16, 0.16, 4.8, 6), WOOD_D, { m: M(sx * 2.95, H + 2.6, sz * 2.95), outline: false });
+    for (const r of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) kit.add(RB(6.1, 0.22, 0.22, 0.06), WOOD_L, { m: M(0, H + 1.45, 0, r).multiply(M(0, 0, 2.95)), outline: false });
+    kit.add(new THREE.ConeGeometry(5.0, 2.6, 4), ROOF, { m: M(0, H + 6.2, 0, Math.PI / 4) });
+    kit.add(cyl(0.08, 0.08, 3, 5), WOOD_D, { m: M(0, H + 8.6, 0), outline: false });
+    // spyglass on a brass tripod at the harbor-side rail
+    kit.at(M(0, H + 0.45, 2.0), () => {
+      for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2; kit.add(cyl(0.05, 0.05, 1.5, 4), WOOD_D, { m: M(Math.cos(a) * 0.35, 0.7, Math.sin(a) * 0.35, 0, Math.sin(a) * 0.25, -Math.cos(a) * 0.25), outline: false }); }
+      kit.at(M(0, 1.5, 0, 0.0, -0.12), () => { kit.add(cyl(0.12, 0.16, 1.6, 10), GOLD, { m: M(0, 0, 0.2, 0, Math.PI / 2) }); kit.add(cyl(0.2, 0.2, 0.3, 10), 0x7a5a2a, { m: M(0, 0, 1.0, 0, Math.PI / 2), outline: false }); kit.add(cyl(0.09, 0.09, 0.4, 8), GOLD, { m: M(0, 0, -0.75, 0, Math.PI / 2), outline: false }); });
+    });
+  });
+  // flag on the roof spire
+  return { x: t.x, z: t.z, top: y0 + H };
+}
+// beach spectator seating: driftwood logs facing the harbor + a little firepit (all knee-high)
+function seating(kit, low) {
+  for (const [x, z, ry] of [[-14, 44, 0.25], [14, 44, -0.25], [-24, 38, 0.6], [24, 38, -0.6]]) {
+    const y = groundY(x, z);
+    kit.add(cyl(0.65, 0.7, 6.5, low ? 8 : 10), 0xa36a3c, { m: M(x, y + 0.45, z, ry, 0, Math.PI / 2) });
+    for (const e of [-3.25, 3.25]) kit.add(cyl(0.6, 0.6, 0.08, low ? 8 : 10), 0xe7c08d, { m: M(x + Math.cos(ry) * e, y + 0.45, z - Math.sin(ry) * e, ry, 0, Math.PI / 2), outline: false });
+  }
+  const y = groundY(0, 34);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; kit.add(sph(0.55, 8, 6), STONE, { m: M(Math.cos(a) * 1.7, y + 0.15, 34 + Math.sin(a) * 1.7, 0, 0, 0, [1, 0.7, 1]), outline: false }); }
+  kit.add(new THREE.ConeGeometry(0.9, 1.6, 7), 0xff8a1f, { bucket: 'glow', m: M(0, y + 0.8, 34), outline: false });
+  kit.add(new THREE.ConeGeometry(0.5, 1.1, 6), 0xffe066, { bucket: 'glow', m: M(0.1, y + 0.7, 34.2), outline: false });
+}
+
+// ---------- gameplay data for the harbor integration (island-local) ----------
+// waterline radius along a direction (the same solve the shore foam uses)
+export function waterlineR(a) { let lo = 30, hi = 95; for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (groundY(Math.cos(a) * m, Math.sin(a) * m) > -0.6) lo = m; else hi = m; } return lo; }
+// solid circles like props.js rock islands ({x, z, r, h}): a core + a ring hugging the waterline. The DOCK IS NOT SOLID:
+// a ship's rock circle is max(beam, 0.42 len) = up to 8.6, wider than the 7.0 berth offset, so berthing has to be a
+// snap / slow zone (BERTHS) instead of a collider. Every circle stays >= 9 from each berth so a maxed hull fits.
+export function islandColliders() {
+  const out = [{ x: 0, z: -4, r: 30, h: 30 }], N = 18;
+  for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, w = waterlineR(a), r = 14; out.push({ x: +(Math.cos(a) * (w - r)).toFixed(2), z: +(Math.sin(a) * (w - r)).toFixed(2), r, h: 8 }); }
+  out.push({ x: SPOTS.tower.x, z: SPOTS.tower.z, r: 4, h: TOWER_H + 8 });
+  return out;
+}
+export const BERTHS = () => SPOTS.moor.map((m, i) => ({ id: i ? 'B' : 'A', x: m.x, z: m.z, yaw: m.yaw, len: SPOTS.berthLen, fits: [17, 20.4], maxBeam: 7.3 }));
+
+// ---------- far LOD: one merged silhouette mesh (no outlines, no textures) ----------
+export function buildFarIsland() {
+  const kit = new Kit();
+  { const rings = 14, segs = 40, R = 90, pos = [], col = [], idx = [];
+    pos.push(0, groundY(0, 0), 0); let c = groundColor(0, 0, groundY(0, 0)); col.push(c.r, c.g, c.b);
+    for (let i = 1; i <= rings; i++) { const r = R * Math.pow(i / rings, 1.1); for (let j = 0; j < segs; j++) { const a = j / segs * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r, y = groundY(x, z); c = groundColor(x, z, y); pos.push(x, y, z); col.push(c.r, c.g, c.b); } }
+    for (let j = 0; j < segs; j++) idx.push(0, 1 + (j + 1) % segs, 1 + j);
+    for (let i = 1; i < rings; i++) for (let j = 0; j < segs; j++) { const a = 1 + (i - 1) * segs + j, b = 1 + (i - 1) * segs + (j + 1) % segs; idx.push(a, b, b + segs, a, b + segs, a + segs); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const ng = g.toNonIndexed(); kit.add(ng, 0xffffff, { outline: false }); const L = kit.b.get('toon'); const cc = new Float32Array(idx.length * 3); idx.forEach((v, i) => { cc[i * 3] = col[v * 3]; cc[i * 3 + 1] = col[v * 3 + 1]; cc[i * 3 + 2] = col[v * 3 + 2]; }); L[L.length - 1].setAttribute('color', new THREE.BufferAttribute(cc, 3)); }
+  const box = (w, h, d, c, m) => kit.add(new THREE.BoxGeometry(w, h, d), c, { m, outline: false });
+  const t = SPOTS.tavern, ty = groundY(t.x, t.z);
+  box(12.5, 10, 10, CREAM, M(t.x, ty + 4.5, t.z)); kit.add(new THREE.CylinderGeometry(0.6, 1, 6.2, 4, 1), ROOF, { m: M(t.x, ty + 13.6, t.z, Math.PI / 4, 0, 0, [11.4, 1, 9]), outline: false });
+  box(16, 0.6, 8.5, WOOD_L, M(t.x, ty + 1.2, t.z + 9.4));
+  const w = SPOTS.tower, wy = groundY(w.x, w.z); kit.add(new THREE.CylinderGeometry(1.6, 2.6, TOWER_H, 4), WOOD_D, { m: M(w.x, wy + TOWER_H / 2, w.z, Math.PI / 4), outline: false }); kit.add(new THREE.ConeGeometry(5, 3, 4), ROOF, { m: M(w.x, wy + TOWER_H + 5, w.z, Math.PI / 4), outline: false }); box(6.4, 4.5, 6.4, WOOD_L, M(w.x, wy + TOWER_H + 2, w.z));
+  const d = SPOTS.dock; box(d.w, 0.6, d.z1 - d.z0 + 4, WOOD_L, M(0, d.y, (d.z0 + d.z1) / 2 + 2)); box(14, 0.6, 4.4, WOOD_L, M(0, d.y, d.z1 + 1.8));
+  const b = SPOTS.board; box(16, 5, 3, RED, M(b.x, groundY(b.x, b.z) + 2.5, b.z, b.yaw));
+  for (const [x, z, h] of PALMS) { const y = groundY(x, z); kit.add(new THREE.CylinderGeometry(0.4, 0.6, h, 4), 0xa96a38, { m: M(x, y + h / 2, z), outline: false }); kit.add(new THREE.ConeGeometry(4.5, 2.2, 6), LEAF, { m: M(x, y + h, z), outline: false }); }
+  const p = SPOTS.flag; kit.add(new THREE.CylinderGeometry(0.3, 0.3, 13, 4), WOOD_D, { m: M(p.x, groundY(p.x, p.z) + 6.5, p.z), outline: false }); box(6, 4, 0.2, 0x121212, M(p.x - 3, groundY(p.x, p.z) + 11, p.z));
+  return kit;
+}
+
+// palms: back arc + the far flanks only (nothing tall between the beach / dock / terrace and the harbor)
+const PALMS = [[-30, -24, 12, 0.9, -2.3], [-12, -44, 12, 1.0, -2.8], [10, -46, 13, 1.0, 3.0], [30, -32, 12, 1.1, 2.4], [42, -12, 11, 1.1, 1.9], [-44, -22, 11, 1.0, -2.0], [-18, -16, 10, 0.7, -2.6], [16, -30, 11, 0.8, 2.8], [-46, 6, 10, 1.2, -1.6], [46, 14, 10, 1.2, 1.5], [36, -44, 10, 1.0, 2.6], [-36, -40, 11, 1.0, -2.6], [2, -55, 10, 1.1, 3.1], [24, -50, 9, 1.1, 2.9]];
+
 // ---------- build the whole island ----------
 export function buildIsland({ low, atlas }) {
   const kit = new Kit(), A = atlas.R; RBS = low ? 1 : 2;
@@ -343,11 +474,11 @@ export function buildIsland({ low, atlas }) {
   plaza(kit, A, low); tavern(kit, A, low); dock(kit, low); digSpot(kit, A, low); shopAndBoard(kit, A, low); chestPedestal(kit, low);
   // daily sign by the chest
   { const c = SPOTS.chest, y = groundY(c.x - 6.5, c.z + 4.5); kit.add(cyl(0.14, 0.16, 3.2, 6), WOOD_D, { m: M(c.x - 6.8, y + 1.6, c.z + 4.8) }); kit.add(RB(4.0, 1.1, 0.25, 0.1), WOOD_L, { m: M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5) }); quad(kit, 3.8, 0.95, A.daily, M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5).multiply(M(0, 0, 0.14))); }
-  // palms (ring near the ledge + a few on the beach), rocks on the shore and in the water, bushes
-  const palms = [[-34, 18, 12, 0.9, 2.4], [-40, 2, 11, 1.1, 1.8], [-30, 34, 13, 1.0, 2.6], [30, 24, 12, 0.9, 0.9], [38, 8, 11, 1.2, 1.3], [12, -40, 12, 1.0, -0.6], [-28, -32, 11, 1.1, -2.4], [-42, -16, 12, 1.0, -1.9], [36, -30, 12, 0.9, -0.9], [18, 52, 10, 1.2, 0.4], [-13, 54, 11, 1.0, -0.3], [44, -10, 10, 1.1, 1.6], [2, -48, 11, 1.0, 0], [-8, 22, 10, 0.6, 2.2]];
-  palms.slice(0, low ? 10 : palms.length).forEach(([x, z, h, l, yaw], i) => palm(kit, x, z, h, l, yaw, 31 + i, low));
-  const rocks = [[-52, 30, 3.2], [-48, 36, 1.8], [56, 14, 3.6], [52, 22, 2], [24, -58, 3.0], [-34, -50, 2.6], [-60, -12, 2.2], [64, -24, 4.5], [-70, 40, 4.0], [40, -42, 1.8], [-18, 62, 2.2], [22, 64, 2.6], [6, -30, 1.4], [33, 2, 1.3], [-14, -22, 1.2]];
+  tower(kit, low); seating(kit, low);
+  PALMS.slice(0, low ? 10 : PALMS.length).forEach(([x, z, h, l, yaw], i) => palm(kit, x, z, h, l, yaw, 31 + i, low));
+  // rocks: big ones at the back / flanks, only knee-high ones on the harbor side
+  const rocks = [[-52, -30, 3.4], [-46, -40, 2.0], [54, -20, 3.6], [50, -32, 2.0], [22, -60, 3.0], [-30, -56, 2.6], [-62, 2, 2.4], [62, 4, 2.6], [-40, 44, 1.3], [40, 46, 1.4], [-28, 56, 1.1], [30, 58, 1.2], [8, -24, 1.2], [36, -2, 1.1], [-26, -14, 1.0]];
   rocks.forEach(([x, z, s], i) => rock(kit, x, z, s, 71 + i, low));
-  [[-26, 12, 1.4], [14, 20, 1.2], [-30, -22, 1.5], [30, -24, 1.3], [-10, -42, 1.2], [20, 8, 1.0], [-12, 30, 1.1]].forEach(([x, z, s], i) => bush(kit, x, z, s, 91 + i));
+  [[-22, 14, 1.3], [22, 18, 1.2], [-30, -10, 1.5], [36, -22, 1.3], [-6, -40, 1.2], [14, 2, 1.0], [-10, 22, 1.0], [10, 24, 1.0]].forEach(([x, z, s], i) => bush(kit, x, z, s, 91 + i));
   return kit;
 }
