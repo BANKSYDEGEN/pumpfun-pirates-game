@@ -18,6 +18,8 @@ import { SQUADS } from './js/config.js';
 const q = new URLSearchParams(location.search), quality = q.get('quality') || 'high';
 setShipDetail(quality === 'low');
 if (q.get('kit') !== '0') { const { initKit } = await import('./js/shipKit.js'); await initKit(quality === 'low'); }
+// [Raul] the game's crew: Raul's v4 pirates baked before the first ship (main.js:73). Without this the viewer showed the old procedural crew (crew.js seat() falls back when V4 is null). ?crew=old = the fallback
+let crewKind = 'procedural'; if (q.get('crew') !== 'old') { const { initCrewV4 } = await import('./js/crewV4.js'); if (await initCrewV4()) crewKind = 'v4'; }
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(+q.get('dpr') || 1); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -65,7 +67,7 @@ let t = 0;
 function step(dt = 1 / 30) { t += dt; wind.uTime.value = t; if (ship) { animateShip(ship, t, 1); try { shipTick(ship, { speed: 6, alive: true, dt, t }); } catch {} } renderer.render(scene, camera); }
 function resize(w, h) { renderer.setSize(w, h, false); renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px'; camera.aspect = w / h; camera.updateProjectionMatrix(); }
 const errors = []; addEventListener('error', e => errors.push(String(e.message)));
-window.V = { cam, show, dims, muzzles, barrelGap, frame, step, resize, errors, THREE, get ship() { return ship; }, renderer };
+window.V = { cam, show, dims, muzzles, barrelGap, frame, step, resize, errors, THREE, get ship() { return ship; }, renderer, crew: crewKind };
 show({}); frame(); step();
 window.V_READY = true;
 </script></body></html>

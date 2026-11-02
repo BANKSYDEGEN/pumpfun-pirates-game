@@ -35,6 +35,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/usr/bin/google-chrome', headless=True, args=ARGS)
         pg = await b.new_page(viewport={'width': 1024, 'height': 680})
         await pg.goto(f'http://127.0.0.1:{port}/{tree}/tools/ship_viewer.html?quality=high', timeout=120000); await pg.wait_for_function('window.V_READY', timeout=120000)
+        assert await pg.evaluate('V.crew') == 'v4', 'viewer fell back to the procedural crew (v4 pirate GLBs not baked)'
         await pg.evaluate("async () => { window.__gunList = (await import(new URL('../js/upgrades.js', location.href).href)).gunList; }")
         fails = 0
         for name, cfg in CFGS:
