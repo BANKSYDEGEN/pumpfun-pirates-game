@@ -96,6 +96,7 @@ function skullCloth(o, w, h, pad) {
 const _built = new Map();
 // buildShip() options for a skin (null for CLASSIC = the game's own textures)
 export function skinBuildOpts(skin) {
+  if (skin.shipOpts) { if (!_built.has(skin.id)) _built.set(skin.id, skin.shipOpts()); return _built.get(skin.id); } // [pvp skins] a skin that IS another ship's look (COMMODORE = the boss build, assets/ships/pvp/unlockSkins.js)
   if (!skin.palette) return null;
   if (_built.has(skin.id)) return _built.get(skin.id);
   const scheme = 'skin_' + skin.id;

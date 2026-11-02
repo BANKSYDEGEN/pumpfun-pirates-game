@@ -84,6 +84,12 @@ export const PVP_SKIN_TIERS = [
   { id: 'flaming', name: 'FLAMING SHIP', kills: 2500 },
   { id: 'diamond', name: 'DIAMOND SHIP', kills: 5000 },  // Raul's diamond.js
 ];
+// [Timothy] PvP skin(s) unlocked by HARBOR kills, not player kills (looks: assets/ships/pvp/unlockSkins.js). Locked by default;
+// the counters / progress bars that clear `locked` are Emerly's. Kept out of PVP_SKIN_TIERS so the kill-tier unlock,
+// nextTier() and the save's owned list never hand them out by player kills.
+export const PVP_UNLOCK_SKINS = [
+  { id: 'commodore', name: 'COMMODORE', locked: true, unlock: { type: 'harborBossKills', count: 100 } },
+];
 // ---- PvP ECONOMY (harbor grind -> arena). SAME items / tiers / stats as solo (js/upgrades.js); solo prices unchanged. ----
 // Harbor AI ships scale with your TOTAL upgrade level L (sum of all levels, 0..44): HP, size, damage and gold all grow
 // with s(L) = 1 + HARBOR_SCALE_PER_LV·L, so bigger boats pay proportionally more. A PvP upgrade at tier index t costs
