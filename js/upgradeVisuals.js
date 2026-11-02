@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail } from './ships.js';
+import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail, relaneCrew } from './ships.js';
 import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
@@ -175,7 +175,7 @@ function anchors(ud, lv) {
   };
   const sideYaw = (t, sx) => { const dw = (shape.halfW(Math.min(1, t + 0.01)) - shape.halfW(Math.max(0, t - 0.01))) / Math.max(0.01, dz(t, 0.02)); return Math.atan2(sx * dw, 1); };
   const n = gunCount(lv); // [v97] one deck row: Battle Royale 4 + CANNONS level, Waves its tier count
-  const gunT = shipGunT(n); // same slots buildShip uses
+  const gunT = ud.gunT || shipGunT(n); // same slots buildShip uses ([Raul] v2 hull: the row starts ahead of the stern room)
   const midT = gunT.slice(1).map((t, i) => (t + gunT[i]) / 2);
   const masts = L.mastDefs.map(([tf, hf]) => ({ t: tf, z: zAt(tf), y: deckAt(tf), h: rigLen * 0.98 * hf }));
   const H = TRAITS.hull[lv.hull || 0], S = TRAITS.sails[lv.sails || 0];
@@ -183,7 +183,8 @@ function anchors(ud, lv) {
   const poop = H.poop ? { w: L.cab.w * 0.74, l: L.cab.l * 0.52, h: 1.3 * depth / 3.1, z: L.cab.z - L.cab.l * 0.21 } : null;
   const foreT0 = 0.85, foreY = (t) => shape.top(t) + 0.32;
   const mainTop = masts[0].y + masts[0].h + (S.top ? masts[0].h * S.top : 0);
-  return { L, shape, len, rigLen, dz, beam, depth, k: depth / 3.1, zAt, deckAt, sideX, sideYaw, gunT, midT, masts, roofY, poop, foreT0, foreY, hull: H, sails: S, mainTop };
+  const zB = ud.art ? zAt(ud.art.tB) : null, runB = ud.art ? (ud.art.Q - deckAt(ud.art.tB)) * 0.55 + 0.1 : 0; // [Raul] stern room break + its ladders
+  return { L, shape, len, rigLen, dz, beam, depth, k: depth / 3.1, zAt, deckAt, sideX, sideYaw, gunT, midT, masts, roofY, poop, foreT0, foreY, hull: H, sails: S, mainTop, zB, runB };
 }
 // curved strip that hugs the hull side between drops d0..d1 over stations t0..t1 (outward normals)
 function hullPanel(A, t0, t1, d0, d1, sx, out = 0.06, nt = 6, nd = 3) {
@@ -217,6 +218,24 @@ function sailGeo(w, h, billow) {
 }
 function sailPair(geo, front, back, furl = true) { const g = new THREE.Group(); g.add(new THREE.Mesh(geo, front), new THREE.Mesh(geo, back)); g.userData.upgSail = furl; return g; }
 function muzzle(Ly, side, p, order) { const m = new THREE.Object3D(); m.position.set(...p); m.userData.upgMuzzle = side; m.userData.order = order; Ly.group.add(m); }
+
+// [Raul] v2 hull deck layout helpers (kept next to the parts they place, so the crew walk-lane obstacles match them)
+function lockerAt(A, sx) { const z = A.zB + 0.36; return { x: sx * 1.75, z, y: A.deckAt(0.38) }; }
+function rackBlocked(A, cx, z) { if (A.zB == null) return false; // the castle ladders (x 0.6..1.2 off centre) + the shot lockers next to them
+  return Math.abs(cx) - 0.3 < 2.25 && z - 0.3 < A.zB + A.runB; }
+// main-deck boxes [x0, x1, z0, z1] of this build's upgrade parts (body space): the deck walkers keep clear of them
+function deckObstacles(A, lv) {
+  const out = [], C = TRAITS.cannons[lv.cannons || 0], R = TRAITS.reload[lv.reload || 0], S = TRAITS.sails[lv.sails || 0];
+  const sq = (x, z, h) => out.push([x - h, x + h, z - h, z + h]);
+  if (R.magazine) sq(0, A.zAt(0.445), 1.28);
+  if (S.fourthMast) sq(0, A.zAt(0.445), 0.72);
+  if (C.mortar) sq(0, A.zAt(0.68), 0.95 * 1.15 * A.k + 0.1);
+  if (C.bowChaser && !A.hull.forecastle) sq(0, A.zAt(0.93), 0.55);
+  if (R.racks) A.gunT.forEach((t, i) => { const z = A.zAt(t); for (const sx of [1, -1]) { const cx = sx * (A.shape.halfW(t) - 1.55);
+    if (i % 2 === 0 && !rackBlocked(A, cx, z - 0.62)) sq(cx, z - 0.62, 0.36); if (R.linstocks && i % 2 === 1) sq(cx, z + 0.6, 0.2); } });
+  if (R.lockers && A.zB != null) for (const sx of [1, -1]) { const { x, z } = lockerAt(A, sx); out.push([x - 0.5, x + 0.5, z - 0.3, z + 0.3]); }
+  return out;
+}
 
 // ---------- part sets per trait ----------
 const PARTS = {
@@ -462,7 +481,7 @@ const PARTS = {
       const z = A.zAt(t), y = A.deckAt(t);
       for (const sx of [1, -1]) {
         const w = A.shape.halfW(t), cx = sx * (w - 1.55);
-        if (i % 2 === 0) {
+        if (i % 2 === 0 && !rackBlocked(A, cx, z - 0.62)) {
           Ly.add(T.gold ? M.gold : M.oak, box(0.6, 0.12, 0.6, 0.03), [cx, y + 0.06, z - 0.62]);
           if (!LO) [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]].forEach(([dx, dz]) => Ly.add(M.ball, ball, [cx + dx, y + 0.32, z - 0.62 + dz]));
           Ly.add(M.ball, ball, [cx, y + 0.6, z - 0.62]);
@@ -493,7 +512,12 @@ const PARTS = {
       }
       Ly.add(M.fuse, sph(0.16), [0.8, y + 0.95, z - 0.8]);
     }
-    if (T.lockers) for (const sx of [1, -1]) { // [more levels] shot lockers by the stern castle, lids open, stacked balls
+    if (T.lockers && A.zB != null) for (const sx of [1, -1]) { // [Raul] v2 hull: against the stern room's break bulkhead, beside the ladders (t 0.24 is inside the roofed room now)
+      const { x, z, y } = lockerAt(A, sx);
+      Ly.add(T.gold ? M.gold : M.oak, box(0.9, 0.5, 0.55, 0.05), [x, y + 0.25, z]);
+      Ly.add(M.iron, box(0.95, 0.08, 0.6, 0.02), [x, y + 0.52, z]);
+      for (const dx of [-0.3, 0, 0.3]) Ly.add(M.ball, ball, [x + dx, y + 0.72, z]);
+    } else if (T.lockers) for (const sx of [1, -1]) { // [more levels] shot lockers by the stern castle, lids open, stacked balls
       const t = 0.24, z = A.zAt(t), y = A.deckAt(t), x = sx * (A.shape.halfW(t) - 1.3);
       Ly.add(T.gold ? M.gold : M.oak, box(0.9, 0.5, 1.2, 0.05), [x, y + 0.25, z]);
       Ly.add(M.iron, box(0.95, 0.08, 1.25, 0.02), [x, y + 0.52, z]);
@@ -624,6 +648,7 @@ function buildCompiled(lv, opts, skin) {
     const back = new THREE.Mesh(mk(0.18), gold), front = new THREE.Mesh(mk(0), red); front.position.x = 0.03; back.position.z = 0.06; back.scale.set(1, 1, 1.04);
     if (LO) st.add(front); else st.add(back, front); fp.add(st); ud.maxStreamer = st;
   }
+  relaneCrew(ship, deckObstacles(A, lv)); // [Raul] deck walkers: fresh lanes round this build's deck parts (magazine, mortar, 4th mast, racks, lockers)
   dressCrew(ud.body, skin?.crewOutfit || skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);

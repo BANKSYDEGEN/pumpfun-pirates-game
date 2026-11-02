@@ -73,7 +73,7 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff;
+uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff; uniform vec4 uDk; uniform vec4 uDk2;
 varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
@@ -111,6 +111,7 @@ void main(){
   } else { // walker pacing fore and aft
     float s = fract(uT * 0.9 / max(1.0, span * 2.0) + ph), tri = abs(s * 2.0 - 1.0);
     o.z += span * (0.5 - tri); yaw = s < 0.5 ? 0.0 : 3.14159; // [v103] face the way you walk (the pirates face +Z; first half walks +Z)
+    if (uDk2.z > 0.5 && span >= 0.0) { float t = o.z < uDk.y ? 0.25 + (o.z - uDk.x) / uDk.z : 0.72 + (o.z - uDk.y) / uDk.w, q = (t - 0.47) * 2.0; o.y = uDk2.x * (0.5 + 0.5 * q * q) - uDk2.y; } // [Raul] feet on the deck sheer (ships.js hullShape top - deckDrop)
     float w = sin(uT * 7.5 + ph * 6.28);
     leg = w * 0.55; arm = -w * 0.5; bob = abs(w) * 0.035;
   }
@@ -171,7 +172,7 @@ function stripeTex() { if (_stripe) return _stripe;
   _stripe.magFilter = _stripe.minFilter = THREE.NearestFilter; _stripe.wrapT = THREE.RepeatWrapping; _stripe.colorSpace = THREE.SRGBColorSpace; _stripe.needsUpdate = true; return _stripe; }
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uDk: { value: new THREE.Vector4(0, 0, 1, 1) }, uDk2: { value: new THREE.Vector4(0, 0, 0, 0) }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
       .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true,
   });
@@ -220,14 +221,18 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   const crew = []; let k = 0;
   // [v97] one gunner at EVERY gun on every quality: each CANNONS upgrade adds a gun + its gunner on both sides (still one draw call)
   for (const g of guns) crew.push({ v: k++, o: [g.x - g.sx * 0.95, g.y, g.z + 0.42], info: [0, g.sx, hash(k * 3.3), g.i | 0] });
-  if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
+  if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) {
+    const L = walk.lanes ? walk.lanes[i] : null; if (walk.lanes && !L) continue; // [Raul] a clear lane per walker (ships.js walkLanes): no walking through walls, masts, guns or gunners
+    crew.push(L ? { v: k++, o: [L.x, walk.y, (L.a + L.b) / 2], info: [1, 0, hash(i * 5.1 + 2), L.b - L.a] }
+      : { v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); } }
   if (helm) crew.push({ v: 17, cap: true, o: [helm.x, helm.y, helm.z - 0.36 * (boss ? 1.6 : 1.35)], info: [3, 0, hash(helm.z * 3.7), 0] }); // [v95] captain at the wheel
   if (!crew.length) return null;
   for (const c of crew) c.pose = c.info[0] === 0 ? 'cannon' : 'idle';
   const geo = crewGeo(crew, null, '');
   const s = boss ? 1.6 : 1.35; // chibi pirates read above the bulwark (deck to rail top is ~1.1)
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
-  const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s; mesh.frustumCulled = true; mesh.userData.crewMesh = true;
+  const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s;
+  if (walk?.deck) { const d = walk.deck; mat.uniforms.uDk.value.set(d.zA, d.zB, d.lf, d.l); mat.uniforms.uDk2.value.set(d.depth, d.drop, 1, 0); } mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
   const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
@@ -264,6 +269,16 @@ export function setCrewGear(body, chunks, tag = '') {
   mesh.geometry = geo; old.dispose(); lod.userData.gearTag = chunks ? tag : '';
   if (lod.userData.outfit) dressCrew(body, lod.userData.outfit);
   return true;
+}
+// [Raul] move this ship's deck walkers onto new lanes ({ x, a, b } from ships.js walkLanes) in place: same geometry, same draw call.
+// Seats are updated too, so later rebuilds (setCrewGear) keep the lanes. A walker without a lane is parked out of sight in the hull.
+export function setWalkLanes(body, lanes) {
+  const lod = crewLodOf(body); if (!lod?.userData.seats) return 0; // (also inside a premium skin's pvpLift group)
+  const W = lod.userData.seats.filter(c => c.info[0] === 1); if (!W.length) return 0;
+  W.forEach((c, i) => { const L = lanes[i]; c.o = L ? [L.x, c.o[1], (L.a + L.b) / 2] : [0, c.o[1] - 4, c.o[2]]; c.info[3] = L ? L.b - L.a : -1; }); // span -1: parked (no deck follow)
+  const geo = lod.children[0].geometry, O = geo.attributes.aOrigin, I = geo.attributes.aInfo;
+  for (let v = 0; v < I.count; v++) { if (I.getX(v) !== 1) continue; const ph = I.getZ(v), c = W.find(w => Math.abs(w.info[2] - ph) < 1e-5); if (c) { O.setXYZ(v, c.o[0], c.o[1], c.o[2]); I.setW(v, c.info[3]); } }
+  O.needsUpdate = I.needsUpdate = true; return W.length;
 }
 export const crewGearTag = (body) => { const lod = crewLodOf(body); return lod?.userData.seats ? (lod.userData.gearTag || '') : null; };
 // [v84] the SPY TOWER lookout: one more pirate with a brass telescope, merged into the ship's existing crew mesh (no extra
