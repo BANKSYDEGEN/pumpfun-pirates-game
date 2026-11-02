@@ -106,8 +106,13 @@ def house(name, w, d, fl, v, lod, stone_ground=False, roof_tint=(1, 1, 1), squad
             if hi:
                 for sx in (-1, 1): box(m, 0.2, fh * 1.08, 0.12, 'timber', T_(sx * (ww / 2 - 0.9), yy + fh / 2, dd / 2 + 0.07, rz=sx * 0.55), mode='long')
         nw = max(1, int(w // 3.0))
+        if squad and f == 2:                                                                                        # SQUAD HALL sign board on the facade
+            box(m, 7.4, 1.9, 0.22, 'timber', T_(0, yy + 1.9, dd / 2 + 0.11), mode='long')
+            box(m, 7.0, 1.5, 0.06, 'dark', T_(0, yy + 1.9, dd / 2 + 0.25), faces=['+z'])
+            for sx in (-1, 1): box(m, 0.12, 0.6, 0.12, 'iron', T_(sx * 3.4, yy + 3.0, dd / 2 + 0.2))
         for i in range(nw):
             wx = (i - (nw - 1) / 2) * (w / nw); fz = dd / 2
+            if squad and f == 2 and abs(wx) < 3.5: continue
             if f == 0 and i == nw // 2:                                                                             # door in a stone surround
                 box(m, 2.0, 3.0, 0.3, 'stone', T_(wx, yy + 1.5, fz + 0.06), faces=['+z', '+x', '-x', '+y'], tint=(0.8, 0.8, 0.8))
                 box(m, 1.4, 2.5, 0.14, 'door', T_(wx, yy + 1.25, fz + 0.2), faces=['+z'])
@@ -202,6 +207,63 @@ def pier_head(m, L, D, hi):  # a head module L wide (x) and D deep (z), centred
 def bollard(m, T):
     with at(T): cyl(m, 0.34, 0.42, 0.85, 10, 'iron', T_(0, 0.42, 0)); cyl(m, 0.5, 0.5, 0.16, 10, 'iron', T_(0, 0.9, 0))
 
+def lighthouse(m, hi):  # origin = ground; dressed-stone base, red / cream banded tower, gallery, lantern room, cap
+    sg = 20 if hi else 10
+    cyl(m, 6.6, 7.4, 3.4, sg, 'stone', T_(0, 1.4, 0)); cyl(m, 6.2, 6.6, 0.4, sg, 'stone', T_(0, 3.3, 0), tint=(0.8, 0.8, 0.8))
+    for b in range(6):
+        r0 = 3.4 - b * 0.17; red = b % 2 == 0
+        cyl(m, r0, r0 - 0.17, 4.0, sg, 'plaster0', T_(0, 5.2 + b * 4, 0), tint=(1.05, 0.34, 0.3) if red else (1, 1, 1), caps=False)
+        cyl(m, r0 + 0.12, r0 + 0.12, 0.35, sg, 'stone', T_(0, 3.2 + b * 4, 0), tint=(0.75, 0.75, 0.75))
+    cyl(m, 3.4, 2.6, 0.6, sg, 'stone', T_(0, 27.4, 0), tint=(0.8, 0.8, 0.8))
+    for i in range(16 if hi else 8):
+        a = i / (16 if hi else 8) * 2 * math.pi; box(m, 0.08, 1.1, 0.08, 'iron', T_(math.cos(a) * 3.2, 28.25, math.sin(a) * 3.2))
+    cyl(m, 3.25, 3.25, 0.1, sg, 'iron', T_(0, 28.8, 0), caps=False)
+    cyl(m, 1.85, 1.85, 2.6, 12 if hi else 8, 'lamp', T_(0, 29.0, 0))
+    for i in range(8):
+        a = i / 8 * 2 * math.pi; box(m, 0.16, 2.7, 0.16, 'iron', T_(math.cos(a) * 1.9, 29.0, math.sin(a) * 1.9))
+    cyl(m, 2.7, 0.15, 2.6, sg, 'roof', T_(0, 31.6, 0), tint=(0.75, 0.32, 0.28)); cyl(m, 2.75, 2.75, 0.25, sg, 'iron', T_(0, 30.35, 0))
+    cyl(m, 0.3, 0.05, 1.4, 8, 'gold', T_(0, 33.4, 0))
+    box(m, 1.6, 2.6, 0.3, 'stone', T_(0, 4.6, 3.35), tint=(0.8, 0.8, 0.8), faces=['+z', '+x', '-x', '+y']); box(m, 1.2, 2.2, 0.1, 'door', T_(0, 4.5, 3.48), faces=['+z'])
+    for (a, y) in [(0.6, 10.5), (2.4, 14.5), (4.0, 18.5), (5.6, 22.5)]:
+        r = 3.25 - (y - 3.2) / 4 * 0.17; box(m, 0.7, 1.1, 0.12, 'windowLit' if a > 3 else 'window', T_(math.sin(a) * r, y, math.cos(a) * r, ry=a), faces=['+z'])
+def fort(m, hi, H=16):  # the dock-town lookout fort (art.js tower(): origin = groundY - 0.6, gate gap at +z)
+    N, WR = (22 if hi else 14), 9.5; sg = 16 if hi else 10
+    for i in range(N):
+        a = (i + 0.5) / N * 2 * math.pi
+        if abs(math.atan2(math.sin(a - math.pi / 2), math.cos(a - math.pi / 2))) < 0.3: continue
+        x, z, L = math.cos(a) * WR, math.sin(a) * WR, 2 * math.pi * WR / N + 0.25
+        box(m, L, 6.4, 1.2, 'stone', T_(x, 0.0, z, ry=-(a + math.pi / 2)), tint=(1, 1, 1) if i % 3 else (0.85, 0.88, 0.95))
+        box(m, L + 0.1, 0.3, 1.4, 'stone', T_(x, 3.2, z, ry=-(a + math.pi / 2)), tint=(0.75, 0.75, 0.75))
+        if i % 2 == 0: box(m, 1.1, 0.9, 1.3, 'stone', T_(x, 3.8, z, ry=-(a + math.pi / 2)))
+    for da in (-0.3, 0.3):
+        a = math.pi / 2 + da; cyl(m, 1.25, 1.1, 6.6, 10 if hi else 6, 'stone', T_(math.cos(a) * WR, 0.6, math.sin(a) * WR), tint=(0.85, 0.85, 0.85))
+        cyl(m, 1.4, 1.4, 0.4, 10 if hi else 6, 'stone', T_(math.cos(a) * WR, 4.0, math.sin(a) * WR), tint=(0.7, 0.7, 0.7))
+    box(m, 3.4, 0.9, 1.4, 'timber', T_(0, 2.7, WR), mode='long')
+    cyl(m, 4.9, 4.4, H + 3, sg, 'stone', T_(0, (H + 3) / 2 - 3, 0), caps=False)
+    for y in (5, 10.5): cyl(m, 4.68, 4.68, 0.45, sg, 'stone', T_(0, y, 0), tint=(0.72, 0.72, 0.72), caps=False)
+    cyl(m, 4.6, 5.3, 1.0, sg, 'stone', T_(0, H + 0.2, 0), tint=(0.8, 0.8, 0.8))
+    for k in range(10):
+        a = k / 10 * 2 * math.pi; box(m, 1.3, 1.1, 0.8, 'stone', T_(math.cos(a) * 4.9, H + 1.2, math.sin(a) * 4.9, ry=-a + math.pi / 2))
+    for (a, y, lit) in [(1.2, 8, 1), (2.6, 12.5, 0), (-0.4, 12.5, 1), (3.8, 8, 0)]:
+        box(m, 0.7, 1.7, 0.14, 'windowLit' if lit else 'window', T_(math.cos(a) * 4.62, y, math.sin(a) * 4.62, ry=-a + math.pi / 2), faces=['+z'])
+    box(m, 2.6, 3.6, 0.5, 'stone', T_(0, 1.5, 4.5), tint=(0.75, 0.75, 0.75), faces=['+z', '+x', '-x', '+y']); box(m, 2.0, 3.0, 0.1, 'door', T_(0, 1.3, 4.78), faces=['+z'])
+    tx, tz = 2.2, -2.0
+    cyl(m, 2.1, 1.9, 6.2, 12 if hi else 8, 'stone', T_(tx, H + 3.6, tz)); cyl(m, 2.9, 0.12, 4.4, 12 if hi else 8, 'roof', T_(tx, H + 8.9, tz))
+    box(m, 0.5, 1.2, 0.12, 'windowLit', T_(tx, H + 4.5, tz + 1.95), faces=['+z'])
+def bridge_tower(m, hi):  # rope-bridge anchor frame: two leaning posts, cross beam, braces, rope wraps, stone footings, lantern
+    for sx in (-1, 1):
+        box(m, 1.2, 0.6, 1.2, 'stone', T_(sx * 1.9, 0.1, 0), tint=(0.8, 0.8, 0.8))
+        box(m, 0.42, 5.4, 0.42, 'timber', T_(sx * 1.85, 2.9, 0, rz=sx * 0.04), mode='long')
+        for k in range(3): cyl(m, 0.3, 0.3, 0.16, 8, 'rope', T_(sx * 1.83, 1.5 + k * 0.22, 0), caps=False)
+        box(m, 0.22, 2.6, 0.22, 'timber', T_(sx * 1.2, 4.3, 0, rz=sx * -0.7), mode='long')
+    box(m, 4.6, 0.42, 0.46, 'timber', T_(0, 5.45, 0), mode='long'); box(m, 4.8, 0.2, 0.6, 'planks', T_(0, 5.75, 0), mode='long')
+    box(m, 0.08, 0.7, 0.08, 'iron', T_(0, 5.0, 0)); box(m, 0.4, 0.5, 0.4, 'lamp', T_(0, 4.5, 0)); box(m, 0.48, 0.07, 0.48, 'iron', T_(0, 4.78, 0))
+def bridge_plank(m, hi):
+    box(m, 3.0, 0.13, 0.5, 'planks', T_(0, 0, 0), mode='long')
+    for sx in (-1, 1): box(m, 0.16, 0.2, 0.56, 'rope', T_(sx * 1.32, 0, 0))
+def rope_seg(m, hi):  # unit rope along +z (0..1), radius 1: scaled per segment in game
+    cyl(m, 1.0, 1.0, 1.0, 6 if hi else 4, 'rope', T_(0, 0, 0.5, rx=math.pi / 2), caps=False, vert=True)
+
 ASSETS = {}
 def asset(name, fn):
     for lod in (0, 1):
@@ -212,7 +274,8 @@ for i, (w, fl, v, sg, rt) in enumerate(HV):
 ASSETS['squadhall_LOD0'] = house('squadhall', 16, 14, 3, 3, 0, True, (0.85, 0.9, 1.0), True); ASSETS['squadhall_LOD1'] = house('squadhall', 16, 14, 3, 3, 1, True, (0.85, 0.9, 1.0), True)
 for nm, fn in [('barrel', lambda m, l: barrel(m, T_())), ('crate', lambda m, l: crate(m, T_())), ('lamp', lambda m, l: lamp_post(m, T_())), ('torch', lambda m, l: torch_post(m, T_())),
                ('chest', lambda m, l: chest(m, T_())), ('sacks', lambda m, l: sacks(m, T_())), ('bollard', lambda m, l: bollard(m, T_())),
-               ('pierStem', lambda m, l: pier_stem(m, 6.0, 5.0, l == 0)), ('pierHead', lambda m, l: pier_head(m, 6.0, 4.0, l == 0))]:
+               ('pierStem', lambda m, l: pier_stem(m, 6.0, 5.0, l == 0)), ('lighthouse', lambda m, l: lighthouse(m, l == 0)), ('fort', lambda m, l: fort(m, l == 0)),
+               ('bridgeTower', lambda m, l: bridge_tower(m, l == 0)), ('bridgePlank', lambda m, l: bridge_plank(m, l == 0)), ('ropeSeg', lambda m, l: rope_seg(m, l == 0)), ('pierHead', lambda m, l: pier_head(m, 6.0, 4.0, l == 0))]:
     asset(nm, fn)
 
 # ---------------- build, bake AO into vertex colours (x tint), export ----------------
@@ -227,11 +290,11 @@ nt.links.new(tn.outputs['Color'], nm.inputs['Color']); nt.links.new(nm.outputs['
 ground = bpy.data.meshes.new('ground'); ground.from_pydata([(-60, -60, 0), (60, -60, 0), (60, 60, 0), (-60, 60, 0)], [], [[0, 1, 2, 3]]); gob = bpy.data.objects.new('ground', ground); sc.collection.objects.link(gob)
 stats = {}
 for name, m in ASSETS.items():
-    lod0 = name.endswith('LOD0'); big = name.startswith(('house', 'squad'))
-    ob = to_object(name, m, bevel=(0.035 if lod0 and big else 0.02 if lod0 else 0))
+    lod0 = name.endswith('LOD0'); big = name.startswith(('house', 'squad', 'lighthouse', 'fort'))
+    ob = to_object(name, m, bevel=(0.035 if lod0 and big else 0.0 if name.startswith('rope') else 0.02 if lod0 else 0))
     ob.data.materials.append(mat)
     # AO bake -> a temp colour attribute, then Col = tint x AO (ground plane under it so feet / plinths darken)
-    gob.location = (0, 0, 0 if not name.startswith('pier') else -9.5)
+    gob.location = (0, 0, -9.5 if name.startswith('pier') else 0.55 if name.startswith('fort') else -60 if name.startswith(('rope', 'bridgePlank')) else 0)
     me = ob.data; tint = [tuple(me.color_attributes['Col'].data[i].color) for i in range(len(me.loops))]
     ao = me.color_attributes.new('AO', 'BYTE_COLOR', 'CORNER'); me.color_attributes.active_color = ao
     for o in sc.objects: o.select_set(False)

@@ -523,8 +523,12 @@ export const TOWER_H = 16; // fort keep platform height
 export const TAVERN_S = 1.2;
 // the lookout: a stone fort on the hill (curtain wall + gate, round keep with a crenellated platform, a red-roofed turret
 // flying the PUMPFUN PIRATES flag)
-function tower(kit, A, low) {
+function tower(kit, A, low, kp = null) {
   const t = SPOTS.tower, y0 = groundY(t.x, t.z) - 0.6, H = TOWER_H, seg = low ? 10 : 16;
+  if (kp) { kp.push(['fort', M(t.x, y0, t.z, 0.25)]); // Blender fort (town kit): walls, gate towers, keep, crenellations, turret; the flag stays here
+    kit.at(M(t.x, y0, t.z, 0.25), () => { const tx = 2.2, tz = -2.0; kit.add(cyl(0.09, 0.09, 5.2, 5), WOOD_D, { m: M(tx, H + 12.6, tz), outline: false });
+      quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz + 0.03)); quad(kit, 4.4, 3.0, A.ppflag, M(tx + 2.25, H + 13.6, tz - 0.03, Math.PI)); });
+    return { x: t.x, z: t.z, top: y0 + H }; }
   kit.at(M(t.x, y0, t.z, 0.25), () => {
     const N = low ? 14 : 22, WR = 9.5;
     for (let i = 0; i < N; i++) { const a = (i + 0.5) / N * Math.PI * 2; if (Math.abs(Math.atan2(Math.sin(a - Math.PI / 2), Math.cos(a - Math.PI / 2))) < 0.3) continue; // gate gap (+z)
@@ -652,7 +656,7 @@ export function buildIsland({ low, atlas, decor = [], kitP = null, foot = false 
   plaza(kit, A, low); tavern(kit, A, low); PIER_ANGLES.forEach((th, k) => tPier(kit, A, th, k, low, kitP));
   SPOTS.digs.forEach((d, k) => digSpot(kit, A, d, k, low)); shopAndBoard(kit, A, low); SPOTS.stalls.forEach(st => stall(kit, st, low)); chestPedestal(kit, low);
   { const c = SPOTS.chest, y = groundY(c.x - 6.5, c.z + 4.5); kit.add(cyl(0.14, 0.16, 3.2, 6), WOOD_D, { m: M(c.x - 6.8, y + 1.6, c.z + 4.8) }); kit.add(RB(4.0, 1.1, 0.25, 0.1), WOOD_L, { m: M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5) }); quad(kit, 3.8, 0.95, A.daily, M(c.x - 6.8, y + 2.9, c.z + 4.8, -0.5).multiply(M(0, 0, 0.14))); }
-  tower(kit, A, low); seating(kit, low); skullPeak(kit, low); cliffs(kit, low); tokenExchange(kit, A, low);
+  tower(kit, A, low, kitP); seating(kit, low); skullPeak(kit, low); cliffs(kit, low); tokenExchange(kit, A, low);
   SPOTS.houses.forEach(([x, z, yaw, v]) => house(kit, x, z, yaw, v, low)); poiProps(kit, A, low); shackSpots().forEach((q, i) => shack(kit, q, i, low));
   PALMS.filter((_, i) => !low || i % 3 !== 2).forEach(([x, z, h, l, yaw], i) => palm(kit, x, z, h, l, yaw, 31 + i, low));
   const rr = rng(5), rocks = [];
