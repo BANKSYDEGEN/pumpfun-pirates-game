@@ -81,12 +81,14 @@ function mist(ud, low, F) {
 let _hullMat = null, _ribMat = null;
 export function ghostPartsOverride(ship, ctx) {
   const low = ctx.quality === 'low', G = geos(ctx.ud, low), F = fxOf(ship);
-  ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline);
+  const art = !!ctx.ud.art; // [Timothy v2] new hull: keep its shape, make it spectral (no rib cage over the castles)
+  if (!art) { ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline); }
   _hullMat = _hullMat || (() => { const m = toon(0x3f6e5c, null, { side: THREE.DoubleSide }); // opaque: the sea never shows through the hull
     m.emissive = new THREE.Color(0x26c070); m.emissiveIntensity = 0.55; return injectShine(m, SPECTRAL, { uGK: { value: 1 } }, 'pvp-ghost'); })();
   _ribMat = _ribMat || (() => { const m = toon(0x2a3a32, null); m.emissive = new THREE.Color(0x0f4a2a); m.emissiveIntensity = 0.5; return m; })();
-  meshOf(G.ribs, _ribMat, ctx, { outline: low ? 0 : 0.04 });
-  meshOf(G.hull, _hullMat, ctx, { outline: low ? 0 : 0.05 });
+  if (art) { if (ctx.base.hull) ctx.base.hull.material = _hullMat; }
+  else { meshOf(G.ribs, _ribMat, ctx, { outline: low ? 0 : 0.04 });
+  meshOf(G.hull, _hullMat, ctx, { outline: low ? 0 : 0.05 }); }
   ship.traverse(o => { if (o.isMesh && o.material?.customProgramCacheKey?.() === 'sail') o.material = tornSail(o.material); });
   ctx.add(mist(ctx.ud, low, F), ship); // on the ship (level with the water), not the bobbing body
   signatureWake(ship, ctx, { c0: 0xb0ffd8, c1: 0x20ff80, n: 40, size: 360, rise: 2.4 }); // rising will-o'-wisp wake

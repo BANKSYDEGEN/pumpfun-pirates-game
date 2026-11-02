@@ -93,7 +93,8 @@ let _lac = null, _win = null;
 export function goldenPartsOverride(ship, ctx) {
   const low = ctx.quality === 'low', G = geos(ctx.ud, low), F = fxOf(ship);
   F.uPhase = { value: hash(ship.id) };
-  ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline);
+  const art = !!ctx.ud.art; // [Timothy v2] new hull: keep it (and its castles / stern gallery), gild it, lacquer the accents
+  if (!art) { ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline); }
   // PvP build only: every toon material on this ship becomes polished gold (planks, deck, masts, fittings, upgrades);
   // sails become cream-gold cloth with a softer sheen; outlines go dark amber. Red lacquer + windows are added after.
   const done = new Map(), sw = (m) => {
@@ -104,13 +105,18 @@ export function goldenPartsOverride(ship, ctx) {
     else if (m.isLineBasicMaterial) { n = m.clone(); n.color.set(0x8a6a20); }
     done.set(m, n); return n; };
   ship.traverse(o => { if ((o.isMesh || o.isLineSegments) && !o.userData.waterMask && o.material) o.material = sw(o.material); });
+  _lac = _lac || (() => { const m = toon(0xe8141c, null); m.emissive = new THREE.Color(0x3a0002); m.emissiveIntensity = 0.3; return injectShine(m, LACQUER, {}, 'pvp-lacquer'); })();
+  if (art) { // glossy red lacquer on the gun-port lids, the gun-port band and the stern frieze (by their kit colour), gold everywhere else
+    const K = ctx.ud.kitMats || {}, red = new Set([K.lid, K.band2].filter(Boolean).map(m => done.get(m) || m));
+    ship.traverse(o => { if (o.isMesh && red.has(o.material)) o.material = _lac; });
+  } else {
   meshOf(G.hull, sw(ctx.base.hull?.material || toon(0xb8862e)), ctx, { outline: 0.05 });
   const gold = goldify(toon(0xffffff, null), F, { k: 1.1, lumK: 1 });
   meshOf(G.gold, gold, ctx, { outline: low ? 0 : 0.04 });
-  _lac = _lac || (() => { const m = toon(0xe8141c, null); m.emissive = new THREE.Color(0x3a0002); m.emissiveIntensity = 0.3; return injectShine(m, LACQUER, {}, 'pvp-lacquer'); })(); meshOf(G.lac, _lac, ctx, { outline: 0.05 });
+  meshOf(G.lac, _lac, ctx, { outline: 0.05 });
   _win = _win || (() => { const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }); m.color.set(0xffc46a).multiplyScalar(1.4); return m; })();
+  meshOf(G.win, _win, ctx); }
   ship.traverse(o => { if (o.isPointLight) o.intensity *= 0.4; }); // stern lantern light washed the gold out under bloom
-  meshOf(G.win, _win, ctx);
   // premium: gold-dust wake, then a taller, bigger galleon (more freeboard; the whole rig rides up with the deck)
   signatureWake(ship, ctx, { c0: 0xfff0b0, c1: 0xffa818, n: 44, size: 320, rise: 0.6 });
   liftRig(ctx, { lift: 0.55, sx: 1.08, sy: 1.2, sz: 1.1 });

@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- PUMPFUN PIRATES ship viewer (dev tool): turntables, contact sheets and muzzle / hitbox dumps of the REAL game ship
+     compiler (js/upgradeVisuals.js compileShip). Serve the repo root and open /tools/ship_viewer.html.
+     window.V.show({ levels, skin, quality, pvp, team, yaw }) · V.muzzles(cfg) · V.dims(cfg) · V.frame(yaw, pitch, dist) -->
+<html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES ship viewer</title>
+<style>html,body{margin:0;height:100%;background:#0d1a22;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+</head><body><canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { makeSkullTexture, animateShip, wind, setShipDetail } from './js/ships.js';
+import { compileShip, compilePreview } from './js/upgradeVisuals.js';
+import { getSkin } from './js/skins.js';
+import './js/pvpSkins.js';
+import { shipTick } from './js/pvpSkins.js';
+import { teamPaint } from './js/squads.js';
+import { SQUADS } from './js/config.js';
+const q = new URLSearchParams(location.search), quality = q.get('quality') || 'high';
+setShipDetail(quality === 'low');
+if (q.get('kit') !== '0') { const { initKit } = await import('./js/shipKit.js'); await initKit(quality === 'low'); }
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(+q.get('dpr') || 1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+{ const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#2b4a5e'); gr.addColorStop(0.55, '#7fa3b4'); gr.addColorStop(1, '#c9b48e'); g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t; }
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.5, 2000);
+scene.add(new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9));
+const sun = new THREE.DirectionalLight(0xffe2c4, 2.1); sun.position.set(-40, 50, 80); scene.add(sun);
+const sea = new THREE.Mesh(new THREE.CircleGeometry(400, 64), new THREE.MeshToonMaterial({ color: 0x1d5f73, transparent: true, opacity: 0.92 }));
+sea.rotation.x = -Math.PI / 2; sea.position.y = 0; sea.renderOrder = 2; scene.add(sea);
+const skull = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = './assets/skull_transparent.png'; });
+const flagTex = makeSkullTexture(skull, { w: 512, h: 340, pad: 0.1 }), sailTex = makeSkullTexture(skull, { w: 512, h: 400, bg: '#121212', pad: 0.14 });
+const HULL_LIFT = 0.17;
+let ship = null, cfg = {};
+function build(c = {}) {
+  const skin = getSkin(c.skin || 'classic');
+  return compilePreview(c.levels || {}, { mainSailMap: sailTex, flagMap: flagTex, light: false, shadows: false, quality: c.quality || quality, skin, pvp: c.pvp ?? true });
+}
+function show(c = {}) {
+  if (ship) scene.remove(ship);
+  cfg = c; ship = build(c); scene.add(ship);
+  ship.position.y = HULL_LIFT * (ship.userData.depth || 3); ship.rotation.y = c.yaw || 0;
+  if (c.team) teamPaint(ship, c.team === 'blue' ? SQUADS.blue : SQUADS.red, { skullImg: skull, mainImg: sailTex.image });
+  return dims();
+}
+function dims() { const u = ship.userData; return { len: u.len, hitLen: u.hitLen, baseLen: u.baseLen, beam: u.beam, depth: u.depth, rigTop: u.rigTop, guns: u.muzzles.port.length + u.muzzles.star.length, scale: ship.scale.x }; }
+// muzzle markers in the ship's own frame (ship at the origin, yaw 0, no bob): identical builds must give identical numbers
+function muzzles(c) { const s = build(c); s.updateMatrixWorld(true); const r = (m) => { const v = m.getWorldPosition(new THREE.Vector3()); return [+v.x.toFixed(4), +v.y.toFixed(4), +v.z.toFixed(4)]; };
+  const u = s.userData; return { port: u.muzzles.port.map(r), star: u.muzzles.star.map(r), len: +u.len.toFixed(4), hitLen: +u.hitLen.toFixed(4), beam: +u.beam.toFixed(4), depth: +u.depth.toFixed(4), baseLen: +u.baseLen.toFixed(4) }; }
+// the barrel each muzzle belongs to: nearest iron vertex to the marker (proves the ball leaves THIS barrel's mouth)
+function barrelGap(c) { const s = build(c); s.updateMatrixWorld(true); const pts = [];
+  s.traverse(o => { if (o.isMesh && o.material?.userData?.kitRole === 'iron' || (o.isMesh && o.material?.name === 'kit-iron')) { const p = o.geometry.attributes.position, m = o.matrixWorld; for (let i = 0; i < p.count; i += 1) pts.push(new THREE.Vector3().fromBufferAttribute(p, i).applyMatrix4(m)); } });
+  const u = s.userData, out = []; for (const m of [...u.muzzles.port, ...u.muzzles.star]) { const w = m.getWorldPosition(new THREE.Vector3()); let d = 1e9; for (const p of pts) d = Math.min(d, p.distanceTo(w)); out.push(+d.toFixed(3)); } return { n: pts.length, gaps: out }; }
+function frame(yaw = 0.6, pitch = 0.18, dist = 1, lookY = 0.3) {
+  const box = new THREE.Box3().setFromObject(ship), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const R = Math.max(sz.x, sz.y, sz.z) * 1.55 * dist;
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  camera.position.set(c.x + Math.sin(yaw) * Math.cos(pitch) * R, c.y + Math.sin(pitch) * R, c.z + Math.cos(yaw) * Math.cos(pitch) * R);
+  camera.lookAt(c.x, c.y - sz.y * (0.5 - lookY) * 0.4, c.z);
+}
+function cam(p, t, fov = 32) { camera.fov = fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); const o = ship.position; camera.position.set(o.x + p[0], o.y + p[1], o.z + p[2]); camera.lookAt(o.x + t[0], o.y + t[1], o.z + t[2]); }
+let t = 0;
+function step(dt = 1 / 30) { t += dt; wind.uTime.value = t; if (ship) { animateShip(ship, t, 1); try { shipTick(ship, { speed: 6, alive: true, dt, t }); } catch {} } renderer.render(scene, camera); }
+function resize(w, h) { renderer.setSize(w, h, false); renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px'; camera.aspect = w / h; camera.updateProjectionMatrix(); }
+const errors = []; addEventListener('error', e => errors.push(String(e.message)));
+window.V = { cam, show, dims, muzzles, barrelGap, frame, step, resize, errors, THREE, get ship() { return ship; }, renderer };
+show({}); frame(); step();
+window.V_READY = true;
+</script></body></html>

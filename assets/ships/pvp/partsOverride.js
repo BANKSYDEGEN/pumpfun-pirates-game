@@ -35,7 +35,8 @@ function makeCtx(ship, skin, opts) {
     quality: opts.quality === 'low' ? 'low' : 'high', levels: opts.levels || {},
     ud, body, layout, len: ud.len, beam: ud.beam, depth: ud.depth,
     base: { hull, hullOutline, mast, mastMat, sails: ud.sails, flagPole: layout?.flagPole },
-    hide(o) { if (o) o.visible = false; },                       // hidden parts cost no draw call
+    hide(o) { if (o) o.visible = false;                           // hidden parts cost no draw call
+      if (o && o === hull && ud.hullDress) { ud.hullDress.visible = false; if (ud.hullLegacy) ud.hullLegacy.visible = true; } }, // [Timothy v2] the new upper works go with the base hull; the skin keeps its old rails / cabin
     add(o, parent = body) { o.traverse(c => { c.userData.skinPart = skin.id; }); parent.add(o); return o; },
   };
 }

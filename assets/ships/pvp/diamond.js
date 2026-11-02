@@ -370,12 +370,16 @@ function flagGem(ctx) {
 // ---------- the override (see ./partsOverride.js for ctx) ----------
 export function diamondPartsOverride(ship, ctx) {
   const M = mats(), G = diamondGeos(ctx.ud);
+  if (ctx.ud.art) { // [Timothy v2] new hull: it keeps its galleon shape in crystal; the trim (gold on other skins) is ice crystal via materialFx
+    if (ctx.base.hull) ctx.base.hull.material = M.shell;
+    ctx.add(glints(ctx.ud, G, ctx.quality));
+  } else {
   ctx.hide(ctx.base.hull); ctx.hide(ctx.base.hullOutline);           // base round hull out, gem hull in
   const shell = new THREE.Mesh(G.shell, M.shell); shell.userData.sharedGeo = true;
   const line = outlineFor(shell, 0.08); line.material = M.line; line.userData.sharedGeo = false; // own smoothed copy
   const gem = new THREE.Mesh(G.gem, M.gem); gem.userData.sharedGeo = true;
   ctx.add(shell); ctx.add(line); ctx.add(gem); ctx.add(glints(ctx.ud, G, ctx.quality));
-  const ed = new THREE.LineSegments(G.edges, M.edges); ed.userData.sharedGeo = true; ctx.add(ed); // prism facet rims
+  const ed = new THREE.LineSegments(G.edges, M.edges); ed.userData.sharedGeo = true; ctx.add(ed); } // prism facet rims
   for (const o of ctx.base.mast) o.material = M.mast;                 // crystal masts, yards, bowsprit, flag pole
   ship.traverse(o => { if (o.isPointLight) o.intensity *= 0.35; }); // the stern lantern light blew the white crystal out under bloom
   ctx.add(trail(ctx.ud, ctx.quality), ship);

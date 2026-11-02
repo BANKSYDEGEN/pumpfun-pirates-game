@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { clothTexture } from './toon.js';
 import { sailMaterial, mirror, flagMats, makeSkullTexture } from './ships.js';
 import { SQUADS } from './config.js';
+import { dressMaterial } from './shipKit.js'; // [Timothy] kit cloth detail on team sails
 
 // Team making for one round (the host runs it): party pairs stay together, everyone else is paired at random.
 // players: [{ id, pc }] (pc = party tag, '' for none). Returns { A: [ids], B: [ids] } with SQUADS.size each when possible.
@@ -34,7 +35,8 @@ function teamKit(hex, skullImg) {
   const cloth = clothTexture({ base: hex, seed: 97, patchColors: [shade(hex, 0.82), shade(hex, 1.12)], border: shade(hex, 0.55) });
   const main = skullImg ? makeSkullTexture(skullImg, { w: 512, h: 400, bg: '#' + shade(hex, 0.62).toString(16).padStart(6, '0'), pad: 0.14 }) : cloth;
   const flag = skullImg ? makeSkullTexture(skullImg, { w: 512, h: 340, bg: '#' + hex.toString(16).padStart(6, '0'), pad: 0.1 }) : cloth;
-  const k = { sail: sailMaterial(cloth), sailBack: sailMaterial(mirror(cloth), THREE.BackSide), main: sailMaterial(main), mainBack: sailMaterial(mirror(main), THREE.BackSide), flag: flagMats(flag) };
+  const k = { sail: sailMaterial(cloth, THREE.FrontSide, 1), sailBack: sailMaterial(mirror(cloth), THREE.BackSide, 1), main: sailMaterial(main, THREE.FrontSide, 1), mainBack: sailMaterial(mirror(main), THREE.BackSide, 1), flag: flagMats(flag) };
+  for (const m of [k.sail, k.sailBack, k.main, k.mainBack]) dressMaterial(m, 'sail', { strength: 0.8 }); // [Timothy] team sails keep the Blender-kit cloth (seams, reef band); colour unchanged
   kits.set(hex, k); return k;
 }
 // hex = team colour, or null to put the skin's own sails / flag back. mainImg: the image of the skull main-sail map (so the

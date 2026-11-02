@@ -68,7 +68,7 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap;
+uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff;
 varying vec3 vC; varying vec3 vN; varying vec3 vV;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
@@ -134,6 +134,7 @@ void main(){
     p = rotX(rotX(p, vec3(0.0, 0.92, 0.25), ta), vec3(0.0, 0.72, 0.0), ra); n = rotX(rotX(n, vec3(0.0), ta), vec3(0.0), ra); }
   if (role > 2.5) roll += -0.12 * uSteer; // [v95] the captain leans into the turn
   p.z -= hop; p = rotZ(rotX(p, vec3(0.0), lean), roll) * uS * (role > 1.5 && role < 2.5 ? span : 1.0); n = rotZ(rotX(n, vec3(0.0), lean), roll);
+  if (role > 2.5 && aPart < 5.5 && uCapOff > 0.5) p = vec3(0.0); // [Timothy v2] a captain-creator figure stands here: hide the placeholder body, keep the wheel
   float c = cos(yaw), si = sin(yaw);
   p = vec3(p.x * c + p.z * si, p.y + bob, -p.x * si + p.z * c) + o; n = vec3(n.x * c + n.z * si, n.y, -n.x * si + n.z * c);
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
@@ -154,7 +155,7 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: VERT, fragmentShader: FRAG, fog: true,
   });
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
@@ -188,7 +189,12 @@ function captainGeo() {
   _cap = mergeGeometries(out, false); out.slice(1).forEach(o => o.dispose()); return _cap;
 }
 // ship: buildShip group. gunSlots: [{x, y, z, sx}] gun positions on the deck (body space). deck: {z0, z1, y, x}
-export function addCrew(ship, { guns = [], walk = null, boss = false, helm = null } = {}) {
+export function addCrew(ship, { guns = [], walk = null, boss = false, helm = null, anchors = null } = {}) {
+  if (anchors) { // [Timothy v2] placed from the ship's crew anchors (same spots as before: gunner 0.95 inboard + 0.42 aft of its gun, captain behind the wheel)
+    const s0 = boss ? 1.6 : 1.35, cap = anchors.find(a => a.role === 'captain');
+    guns = anchors.filter(a => a.role === 'gunner').map(a => { const sx = a.side === 'port' ? 1 : -1; return { x: a.pos.x + sx * 0.95, y: a.pos.y, z: a.pos.z - 0.42, sx, i: a.index }; });
+    helm = cap ? { x: cap.pos.x, y: cap.pos.y, z: cap.pos.z + 0.36 * s0 } : null;
+  }
   // [v82] phones + LOW keep a gunner at EVERY cannon (BANKSY). Cheap tier: gunners only (no walkers), the same single
   // merged draw call per ship, no shadows; desktop Medium keeps one gunner per gun pair.
   const lite = Q === 'low', med = PHONE || Q === 'medium';
@@ -320,6 +326,7 @@ function crewU(mesh) { const ud = mesh?.userData; if (!ud) return null; if (ud.c
 export function crewHit(mesh, k = 0.5) { const U = crewU(mesh); if (!U?.uHit) return; const t = wind.uTime.value, run = t - U.uHit.value < 0.5 ? U.uHitK.value : 0;
   U.uHit.value = t; U.uHitK.value = Math.min(1, Math.max(0.35, k, run)); }
 // [v95] helm input (-1..1, ship.turn) -> the wheel + captain, smoothed (every ship: yours, AI, remote pirates)
+export { crewU };
 export function crewSteer(mesh, turn, dt) { const U = crewU(mesh); if (!U?.uSteer) return; const t = Math.max(-1, Math.min(1, -(turn || 0)));
   U.uSteer.value += (t - U.uSteer.value) * Math.min(1, dt * 6); }
 export function crewFire(mesh, side) { const U = crewU(mesh); if (U) U[side === 'port' ? 'uFireP' : 'uFireS'].value = wind.uTime.value; }

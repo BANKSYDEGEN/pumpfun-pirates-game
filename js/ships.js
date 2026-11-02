@@ -5,6 +5,7 @@ import { addCrew, dressCrew, addLookout } from './crew.js'; // [Raul] deck crew
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
+import { kitOn, geo as kitGeo, dressMaterial, aoTwin } from './shipKit.js'; // [Timothy] Blender ship art kit (visual only)
 
 // shared wind clock for the sail vertex ripple (main loop sets value)
 export const wind = { uTime: { value: 0 } };
@@ -63,7 +64,7 @@ export function makePillTexture() {
 
 // ---------- color schemes ----------
 export const SCHEMES = {
-  player: { seed: 11, wood: 0x6a4026, band: 0x161616, stripe: 0xffcd77, band2: 0xc4161c, tar: 0x231812, trim: 0xffcd77, sail: 0x1c1c1c, patch: [0x5e0e0e, 0x2a2a2a], hem: 0xb8964f, lantern: 0xffb04a, window: 0xffc46a },
+  player: { seed: 11, wood: 0x6a4026, body: 0x33231a, band: 0x161616, stripe: 0xffcd77, band2: 0xc4161c, tar: 0x231812, trim: 0xffcd77, sail: 0x1c1c1c, patch: [0x5e0e0e, 0x2a2a2a], hem: 0xb8964f, lantern: 0xffb04a, window: 0xffc46a },
   slime: { seed: 21, wood: 0x76502f, band: 0x2f9e4f, stripe: 0xf2f2f2, band2: 0x1f6b37, tar: 0x2a2018, trim: 0xd9c38a, sail: 0xe6e0cc, patch: [0xb9e8c4, 0xcfc7ae], hem: 0x5d7a4a, lantern: 0x9cffb5, window: 0x9cffb5 },
   grape: { seed: 31, wood: 0x6e4a33, band: 0x5b3591, stripe: 0x4ee37a, band2: 0x3b2266, tar: 0x221a22, trim: 0xc9b07a, sail: 0xd9e6cf, patch: [0xb79ad8, 0xbfd2b1], hem: 0x4b3a66, lantern: 0xc9a2ff, window: 0xc9a2ff },
   reef: { seed: 41, wood: 0x7a5636, band: 0x1d8686, stripe: 0xffe2a8, band2: 0x125a5a, tar: 0x1b2022, trim: 0xe0c27a, sail: 0xefe9da, patch: [0x9fd8cf, 0xd8cdb2], hem: 0x2d5a5a, lantern: 0x8ff7ff, window: 0x9cffb5, stripes: 0x4ee37a },
@@ -75,18 +76,23 @@ SCHEMES.rammer = { seed: 61, wood: 0x3b2a22, band: 0x121212, stripe: 0xfa0d0d, b
 SCHEMES.runner = { seed: 71, wood: 0x8a6038, band: 0xffcd77, stripe: 0x161616, band2: 0xb8862f, tar: 0x2a1c10, trim: 0xffcd77, sail: 0xf3dc9e, patch: [0xffcd77, 0xe8cf95], hem: 0xb8862f, lantern: 0xffe08a, window: 0xffe08a, stripes: 0xffcd77 };
 
 const _kits = new Map();
-function kit(name, mainSailMap) {
-  const k = name + (mainSailMap ? '+main' : '');
+function kit(name, mainSailMap, art = false) {
+  art = art && kitOn(); // [Timothy] art: the Blender kit look (player ships); false = the original procedural look
+  const k = name + (mainSailMap ? '+main' : '') + (art ? '+art' : '');
   if (_kits.has(k)) return _kits.get(k);
   const S = SCHEMES[name];
-  const hullTex = woodTexture({ base: S.wood, rows: 10, seed: S.seed, bands: [
+  const body = S.body ?? (art ? new THREE.Color(S.wood).lerp(new THREE.Color(0x17110d), 0.6).getHex() : S.wood); // [Timothy v2] every skin on the new hull: dark body, its own bright bands / trim on top // [Timothy v2] the Blender-kit player hull: dark tarred body (classic) under a bright painted gun-port band
+  const hullTex = art ? woodTexture({ base: body, rows: 20, seed: S.seed, w: 512, h: 512, bands: [
+    { from: 0, to: 0.05, color: S.band, flat: true }, { from: 0.05, to: 0.25, color: S.band2, stripe: S.stripe, flat: true }, { from: 0.25, to: 0.3, color: S.band, flat: true },
+    { from: 0.3, to: 0.35, color: S.stripe, flat: true }, { from: 0.8, to: 0.85, color: S.band, stripe: S.stripe, flat: true }, { from: 0.85, to: 1.01, color: S.tar },
+  ] }) : woodTexture({ base: S.wood, rows: 10, seed: S.seed, bands: [
     { from: 0, to: 0.2, color: S.band, stripe: S.stripe, flat: true }, { from: 0.2, to: 0.3, color: S.band2, flat: true }, { from: 0.82, to: 1.01, color: S.tar },
   ] });
   const cabinTex = woodTexture({ base: S.wood, rows: 6, seed: S.seed + 1, bands: [{ from: 0, to: 0.17, color: S.band, flat: true }] });
-  const deckTex = woodTexture({ base: 0x9a6b43, rows: 6, seed: 7, w: 512, h: 256 });
+  const deckTex = woodTexture({ base: art ? 0xc08a50 : 0x9a6b43, rows: 6, seed: 7, w: 512, h: 256 }); // [Timothy v2] warmer, lighter deck: reads against the dark hull from the chase camera
   const sailTex = clothTexture({ base: S.sail, seed: S.seed + 2, patchColors: S.patch, border: S.hem, stripes: S.stripes ? { color: S.stripes, n: 6 } : null });
   const ironTex = metalTexture({ base: name === 'boss' ? 0x1e2a24 : 0x2b2f36, highlight: name === 'boss' ? 0x6fe39a : 0x9aa6b8 });
-  const goldTex = goldTexture({ base: S.trim });
+  const goldTex = goldTexture({ base: art ? (S.artTrim ?? 0xffcd77) : S.trim }); // [Timothy v2] new hull: gold trim on every skin (its own colour stays in the wales / bands)
   const kitObj = {
     S,
     hull: toon(0xffffff, hullTex, { side: THREE.DoubleSide }),
@@ -97,21 +103,65 @@ function kit(name, mainSailMap) {
     gold: toon(0xffffff, goldTex),
     dark: toon(0x1a1410),
     rope: new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.85 }),
-    sail: sailMaterial(sailTex),
-    sailBack: sailMaterial(mirror(sailTex), THREE.BackSide),
-    main: mainSailMap ? sailMaterial(mainSailMap) : null,
-    mainBack: mainSailMap ? sailMaterial(mirror(mainSailMap), THREE.BackSide) : null,
+    sail: sailMaterial(sailTex, THREE.FrontSide, art ? 1 : 0),
+    sailBack: sailMaterial(mirror(sailTex), THREE.BackSide, art ? 1 : 0),
+    main: mainSailMap ? sailMaterial(mainSailMap, THREE.FrontSide, art ? 1 : 0) : null,
+    mainBack: mainSailMap ? sailMaterial(mirror(mainSailMap), THREE.BackSide, art ? 1 : 0) : null,
     lantern: glowMat(S.lantern, 2.6),
     window: glowMat(S.window, 1.9),
   };
+  if (art) { // [Timothy v2] upper works (castles, bulwarks): gold cap moulding, red frieze, dark planking, gold mid moulding (v = metres below the rail / 3.2)
+    kitObj.upper = toon(0xffffff, woodTexture({ base: body, rows: 16, seed: S.seed + 5, w: 512, h: 512, bands: [
+      { from: 0, to: 0.0625, color: S.stripe, flat: true }, { from: 0.0625, to: 0.1875, color: S.band2, stripe: S.stripe, flat: true },
+      { from: 0.5, to: 0.5625, color: S.stripe, flat: true }, { from: 0.875, to: 0.9375, color: S.band, flat: true }] }), { side: THREE.DoubleSide });
+    kitObj.lid = toon(S.band2); // gun-port lids, painted inside
+    kitObj.winArt = glowMat(S.window, 1.2); kitObj.lanArt = glowMat(S.lantern, 1.6); // softer glow: the bloom no longer washes the dark transom out
+  }
+  if (art) { // [Timothy] baked plank / cloth detail multiplied into the scheme's own paint + baked normal maps; kit meshes get AO twins
+    const K = kitObj;
+    dressMaterial(K.hull, 'hull', { strength: 1.1 }); dressMaterial(K.deck, 'deck', { strength: 0.9 }); dressMaterial(K.cabin, 'deck', { strength: 0.8 });
+    for (const m of [K.sail, K.sailBack, K.main, K.mainBack]) if (m) dressMaterial(m, 'sail', { strength: 0.8 });
+    dressMaterial(K.upper, 'hull', { strength: 0.9 });
+    K.ironK = aoTwin(K.iron, 'iron'); K.woodK = aoTwin(K.cabin, 'wood'); K.goldK = aoTwin(K.gold, 'gold'); K.darkK = aoTwin(K.dark, 'dark');
+    K.ropeK = aoTwin(toon(0x8a6a44), 'rope');
+    K.ratline = ratlineMat();
+    K.art = true;
+  }
+  if (art) for (const m of Object.values(kitObj)) if (m?.isMaterial && m.customProgramCacheKey?.() !== 'sail') m.userData.art = true; // [Timothy v2] skins tone their glow down on the big flat castle walls
   _kits.set(k, kitObj);
   return kitObj;
 }
+// [Timothy] shrouds + ratlines: one alpha-tested quad per mast side (3 shrouds converging on the masthead, tarred ratlines across)
+let _ratMat = null;
+function ratlineMat() {
+  if (_ratMat) return _ratMat;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 512; const g = c.getContext('2d');
+  g.clearRect(0, 0, 128, 512); g.fillStyle = '#fff';
+  for (const u of [0.03, 0.5, 0.97]) g.fillRect(u * 128 - 2.5, 0, 5, 512);
+  for (let i = 1; i < 26; i++) { const y = i * 512 / 26; g.fillRect(0, y - 1, 128, 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  _ratMat = toon(0x4a3826, t, { side: THREE.DoubleSide, alphaTest: 0.45, transparent: false });
+  _ratMat.name = 'kit-ratlines';
+  return _ratMat;
+}
 export function mirror(t) { const m = t.clone(); m.wrapS = THREE.RepeatWrapping; m.repeat.x = -1; m.offset.x = 1; m.needsUpdate = true; return m; }
-export function sailMaterial(map, side = THREE.FrontSide) {
+// [Timothy v2] edge > 0: a contrasting bolt-rope border + reef band painted in the shader (light rope on dark cloth, dark rope on
+// light cloth), so it follows every skin / Squads tint for free. Same program for all sails (edge is a uniform, key stays 'sail').
+export function sailMaterial(map, side = THREE.FrontSide, edge = 0) {
   const m = toon(0xffffff, map, { side });
+  const uEdge = { value: edge }; m.userData.uEdge = uEdge;
   m.onBeforeCompile = (s) => {
-    s.uniforms.uWindT = wind.uTime;
+    s.uniforms.uWindT = wind.uTime; s.uniforms.uEdge = uEdge;
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uEdge;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        #ifdef USE_MAP
+        if (uEdge > 0.0) { vec2 q = vMapUv; float e = min(min(q.x, 1.0 - q.x), min(q.y, 1.0 - q.y));
+          float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          vec3 rope = lum < 0.42 ? vec3(0.86, 0.70, 0.42) : vec3(0.16, 0.10, 0.06);
+          float b = 1.0 - smoothstep(0.022, 0.034, e);                                  // bolt rope
+          float r = (1.0 - smoothstep(0.004, 0.009, abs(q.y - 0.8))) * step(0.04, e);     // reef band near the head
+          diffuseColor.rgb = mix(diffuseColor.rgb, rope, clamp(b + r * 0.8, 0.0, 1.0) * uEdge); }
+        #endif`);
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uWindT;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         { float cx = 1.0 - pow(uv.x * 2.0 - 1.0, 2.0); float hang = 1.0 - uv.y * 0.75;
@@ -141,7 +191,7 @@ export function zMap(len0, f = 1) {
 const stations = (N, f) => { if (f <= 1.001) return [...Array(N + 1)].map((_, i) => i / N);
   const extra = Math.round((f - 1) * 10), out = []; const n = N + extra;
   for (let i = 0; i <= n; i++) out.push(i / n); return out; };
-function hullGeometry(len, beam, depth, zf = (t) => (t - 0.5) * len, f = 1) {
+function hullGeometry(len, beam, depth, zf = (t) => (t - 0.5) * len, f = 1, art = false) {
   const { halfW, top, keel } = hullShape(len, beam, depth);
   const TS = stations(22, f), N = TS.length - 1, M = 16;
   const pos = [], uv = [], idx = [], sections = [];
@@ -168,7 +218,8 @@ function hullGeometry(len, beam, depth, zf = (t) => (t - 0.5) * len, f = 1) {
   const base = pos.length / 3, s0 = sections[0];
   const cy = s0.reduce((a, p) => a + p[1], 0) / s0.length;
   pos.push(0, cy, s0[0][2]); uv.push(0.5, 0.5);
-  s0.forEach(p => { pos.push(...p); uv.push(p[0] / beam + 0.5, p[1] / depth); });
+  const yTop = s0[0][1], yBot = Math.min(...s0.map(p => p[1])); // [Timothy v2] ART: the transom is painted in the dark body planking (v 0.36..0.76), not the wrapped bands
+  s0.forEach(p => { pos.push(...p); uv.push(p[0] / beam + 0.5, art ? 0.36 + 0.4 * (yTop - p[1]) / Math.max(0.1, yTop - yBot) : p[1] / depth); });
   for (let j = 0; j < M; j++) idx.push(base, base + 1 + j + 1, base + 1 + j);
   idx.push(base, base + 1, base + 1 + M); // close the fan across the top (gunwale to gunwale): without it a V-shaped gap in the transom showed water through the stern
   const geo = new THREE.BufferGeometry();
@@ -200,8 +251,8 @@ function deckGeometry(len, shape, drop, inset = 0.9, wk = null, zf = (t) => (t -
   return geo;
 }
 // billowed sail hanging from y=0 (yard) down to -h, curved foot
-function sailGeometry(w, h, billow) {
-  const g = new THREE.PlaneGeometry(w, h, 10, 8);
+function sailGeometry(w, h, billow, seg = [10, 8]) {
+  const g = new THREE.PlaneGeometry(w, h, seg[0], seg[1]);
   g.translate(0, -h / 2, 0);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -213,6 +264,21 @@ function sailGeometry(w, h, billow) {
   g.computeVertexNormals();
   return g;
 }
+// [Timothy v2] bellied triangular head sail (luff a-b on the stay, foot b-c), cloth pushed to port by `belly` metres at the centre
+export function triSail(a, b, c, belly, n = 8) {
+  const pos = [], uv = [], idx = [], P = (i, j) => i * (i + 1) / 2 + j;
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= i; j++) {
+    const u = i / n, v = i ? j / i : 0; // u: head -> foot edge, v: along the foot edge (b..c)
+    const p = new THREE.Vector3().copy(a).lerp(new THREE.Vector3().copy(b).lerp(c, v), u);
+    const w = Math.sin(Math.PI * u) * Math.sin(Math.PI * Math.min(1, Math.max(0, v))) * 4 * u * (1 - u) + Math.sin(Math.PI * u) * 0.25 * (1 - Math.abs(v - 0.5) * 2);
+    p.x += belly * w; pos.push(p.x, p.y, p.z); uv.push(0.5 + (v - 0.5) * u, 1 - u);
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) { idx.push(P(i, j), P(i + 1, j), P(i + 1, j + 1)); if (j < i) idx.push(P(i, j), P(i + 1, j + 1), P(i, j + 1)); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+// [Timothy] white vertex colours for a primitive that joins a kit (vertex-coloured AO) material
+const vc = (g) => { g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3)); return g; };
 const WATER_MASK = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
 const cyl = (r1, r2, h, s = 10, open = false) => new THREE.CylinderGeometry(r1, r2, h, s, 1, open);
 function lathe(pts, segs = 12) { return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs); }
@@ -236,11 +302,43 @@ class Parts {
     const g = geo.index ? geo : geo; // all builders here are indexed
     const m = this._m.compose(new THREE.Vector3(...p), this._q.setFromEuler(this._e.set(...r)), new THREE.Vector3(...(Array.isArray(s) ? s : [s, s, s])));
     const c = g.clone().applyMatrix4(m);
-    for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv'].includes(k)) c.deleteAttribute(k);
+    for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) c.deleteAttribute(k); // [Timothy] colour = kit AO (kit materials only)
     if (!c.index) { const n = c.attributes.position.count, ix = new (n > 65535 ? Uint32Array : Uint16Array)(n); for (let i = 0; i < n; i++) ix[i] = i; c.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (!c.attributes.uv) c.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(c.attributes.position.count * 2), 2));
     if (!this.by.has(mat)) this.by.set(mat, []);
     this.by.get(mat).push(c);
+  }
+  // [Timothy v2] flatten (phone Low): plain toon / glow materials are merged into a few vertex-coloured meshes (outlined toon,
+  // plain toon, glow), textures baked to their mean colour (the grain is sub-pixel on a phone). `keep` (base hull, mast: skins
+  // look those up), sails, double-sided, transparent and emissive materials stay as they are. Adds the merged outlined
+  // material to `outlined`. Same colours, far fewer draw calls.
+  flatten(outlined = new Set(), keep = new Set()) {
+    const ok = (m) => !keep.has(m) && !m.transparent && m.side === THREE.FrontSide && !m.customProgramCacheKey?.().startsWith?.('sail') &&
+      (m.isMeshToonMaterial ? !(m.emissive && m.emissive.getHex()) : m.isMeshBasicMaterial && !m.map);
+    const G = { ol: [], toon: [], basic: [] }; let gm = null;
+    for (const [mat, list] of [...this.by]) {
+      if (!ok(mat)) continue;
+      const c = mat.color.clone();
+      if (mat.map?.image) try {
+        const cv = document.createElement('canvas'); cv.width = cv.height = 1; const x = cv.getContext('2d');
+        x.drawImage(mat.map.image, 0, 0, 1, 1); const d = x.getImageData(0, 0, 1, 1).data;
+        c.multiply(new THREE.Color().setRGB(d[0] / 255, d[1] / 255, d[2] / 255, THREE.SRGBColorSpace));
+      } catch (e) { continue; }
+      for (const g of list) {
+        const n = g.attributes.position.count, old = mat.vertexColors && g.attributes.color, a = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { const k = old ? [old.getX(i), old.getY(i), old.getZ(i)] : [1, 1, 1]; a[i * 3] = c.r * k[0]; a[i * 3 + 1] = c.g * k[1]; a[i * 3 + 2] = c.b * k[2]; }
+        g.setAttribute('color', new THREE.BufferAttribute(a, 3));
+      }
+      if (mat.isMeshToonMaterial) { (outlined.has(mat) ? G.ol : G.toon).push(...list); gm = gm || mat.gradientMap; } else G.basic.push(...list);
+      this.by.delete(mat);
+    }
+    // every merged list needs the same attributes: drop any stray ones, add missing uv
+    const norm = (L) => L.forEach(g => { for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.normal) g.computeVertexNormals(); });
+    if (G.ol.length) { norm(G.ol); const m = new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: gm }); m.name = 'flat-ol'; this.by.set(m, G.ol); outlined.add(m); }
+    if (G.toon.length) { norm(G.toon); const m = new THREE.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: gm }); m.name = 'flat'; this.by.set(m, G.toon); }
+    if (G.basic.length) { norm(G.basic); const m = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }); m.name = 'flat-glow'; this.by.set(m, G.basic); }
+    return this;
   }
   build(parent, outlined = new Set(), thickness = 0.05, shadows = false) {
     for (const [mat, list] of this.by) {
@@ -261,12 +359,16 @@ export function buildShip(opts) {
     cannonsPerSide = 3, masts = 2, light = false, shadows = false, boss = false, stretch = 1,
   } = opts;
   const ZM = zMap(len, stretch), fullLen = ZM.L; // [v97] len = the design length (rig, cabin, flag); fullLen = the stretched hull
-  const K = kit(scheme, mainSailMap);
+  const K = kit(scheme, mainSailMap, !!opts.kitArt);
+  const ART = !!K.art, kg = (n) => (ART ? kitGeo(n) : null); // [Timothy] kit mesh or null (procedural part)
   const ship = new THREE.Group();
   const body = new THREE.Group(); ship.add(body); // body gets bob/tilt
   const parts = new Parts();
+  // [Timothy v2] ART (player ships): the old rails / cabin / stern dressing go to `legacy` (hidden; shown again if a shape-changing
+  // skin hides the base hull), the new upper works (castles, sheer rail, transom, lids) go to `dress` (hidden with the base hull)
+  const legacy = ART ? new Parts() : parts, dress = ART ? new Parts() : null;
 
-  const { geo: hullGeo, sections, shape } = hullGeometry(len, beam, depth, ZM.z, stretch);
+  const { geo: hullGeo, sections, shape } = hullGeometry(len, beam, depth, ZM.z, stretch, ART);
   parts.add(K.hull, hullGeo);
   const deckDrop = 0.5;
   parts.add(K.deck, deckGeometry(len, shape, deckDrop, 0.9, null, ZM.z, stretch));
@@ -286,58 +388,70 @@ export function buildShip(opts) {
       wale.push(new THREE.Vector3(sx * (w * 1.0 + 0.04), y - depth * 0.28, z));
       rail.push(new THREE.Vector3(sx * w * 0.9, y + 0.62, z));
     }
-    parts.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cap), 40, 0.13, 6));
-    parts.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wale), 40, 0.09, 5));
-    parts.add(K.mast, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rail.slice(4)), 30, 0.07, 5));
+    legacy.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cap), 40, 0.13, 6));
+    legacy.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wale), 40, 0.09, 5));
+    legacy.add(K.mast, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rail.slice(4)), 30, 0.07, 5));
     const post = cyl(0.06, 0.07, 0.62, 5);
-    for (let i = 4; i < rail.length; i += 1) { const p = rail[i]; parts.add(K.mast, post, [p.x, p.y - 0.31, p.z]); }
-    parts.add(K.hull, bulwarkGeometry(cap.slice(4), rail.slice(4), sx)); // [Raul] solid bulwark behind the rail posts: no sea through the balusters
+    for (let i = 4; i < rail.length; i += 1) { const p = rail[i]; legacy.add(K.mast, post, [p.x, p.y - 0.31, p.z]); }
+    legacy.add(K.hull, bulwarkGeometry(cap.slice(4), rail.slice(4), sx)); // [Raul] solid bulwark behind the rail posts: no sea through the balusters
   }
+  let figInfo = null;
   // bow knee + figure: a gold-capped stem post
   const bowT = 0.995, bowY = shape.top(bowT);
   // [v87] seated ON the stem head (it used to overhang the bow and read as floating off the front), on a short knee post
-  parts.add(K.gold, new THREE.SphereGeometry(0.32, 10, 8), [0, bowY + 0.32, zAt(1) - 0.24]);
+  if (ART && kg('figurehead_gold')) { // [Timothy] gilded skull-in-a-tricorn figurehead on the cutwater, under the bowsprit
+    const fs = depth / 3.1 * (opts.kitArt?.ram ? 0.85 : 1.05), fp = [0, bowY - (opts.kitArt?.ram ? 0.55 : 0.95) * fs, zAt(1) - 0.32 * fs];
+    for (const [n, m] of [['figurehead_gold', K.goldK], ['figurehead_dark', K.darkK], ['figurehead_wood', K.woodK]]) parts.add(m, kg(n), fp, [0, 0, 0], fs);
+    figInfo = { p: fp, s: fs, bowY, zb: zAt(1) }; // [Timothy v2] HULL max crowns + winged figurehead (upgradeVisuals)
+    parts.add(K.goldK, vc(new THREE.SphereGeometry(0.24, 14, 10)), [0, bowY + 0.3, zAt(1) - 0.24]); // stem-head knob
+  } else parts.add(K.gold, new THREE.SphereGeometry(0.32, 10, 8), [0, bowY + 0.32, zAt(1) - 0.24]);
   parts.add(K.mast, cyl(0.12, 0.17, 0.75, 6), [0, bowY - 0.05, zAt(1) - 0.22]);
 
   // stern castle: chunky rounded cabin, gold roof trim, quarterdeck rail, glowing windows
   const cabT = 0.13, cabZ = zAt(cabT), cabL = len * 0.24, cabW = beam * 0.74, cabH = 1.9 + (boss ? 0.4 : 0);
   const deckY = deckAt(0.5);
   const cabY0 = deckAt(cabT) - 0.05;
-  parts.add(K.cabin, new RoundedBoxGeometry(cabW, cabH, cabL, 3, 0.22), [0, cabY0 + cabH / 2, cabZ]);
-  parts.add(K.gold, new RoundedBoxGeometry(cabW + 0.4, 0.22, cabL + 0.35, 2, 0.08), [0, cabY0 + cabH + 0.08, cabZ]);
+  legacy.add(K.cabin, new RoundedBoxGeometry(cabW, cabH, cabL, 3, 0.22), [0, cabY0 + cabH / 2, cabZ]);
+  legacy.add(K.gold, new RoundedBoxGeometry(cabW + 0.4, 0.22, cabL + 0.35, 2, 0.08), [0, cabY0 + cabH + 0.08, cabZ]);
   const qRail = [];
   for (let i = 0; i < 4; i++) { const a = i / 4; qRail.push([[cabW / 2, -cabL / 2 + a * cabL], [-cabW / 2, -cabL / 2 + a * cabL]]); }
   const qp = cyl(0.06, 0.06, 0.55, 5);
   for (const sx of [1, -1]) {
-    parts.add(K.mast, cyl(0.06, 0.06, cabL, 5), [sx * cabW / 2, cabY0 + cabH + 0.62, cabZ], [Math.PI / 2, 0, 0]);
-    for (let i = 0; i <= 4; i++) parts.add(K.mast, qp, [sx * cabW / 2, cabY0 + cabH + 0.36, cabZ - cabL / 2 + i * cabL / 4]);
+    legacy.add(K.mast, cyl(0.06, 0.06, cabL, 5), [sx * cabW / 2, cabY0 + cabH + 0.62, cabZ], [Math.PI / 2, 0, 0]);
+    for (let i = 0; i <= 4; i++) legacy.add(K.mast, qp, [sx * cabW / 2, cabY0 + cabH + 0.36, cabZ - cabL / 2 + i * cabL / 4]);
   }
-  parts.add(K.mast, cyl(0.06, 0.06, cabW, 5), [0, cabY0 + cabH + 0.62, cabZ - cabL / 2], [0, 0, Math.PI / 2]);
+  legacy.add(K.mast, cyl(0.06, 0.06, cabW, 5), [0, cabY0 + cabH + 0.62, cabZ - cabL / 2], [0, 0, Math.PI / 2]);
   // stern windows (back face) + side windows, each with a dark frame
   const winG = new THREE.PlaneGeometry(0.5, 0.62), frameG = new RoundedBoxGeometry(0.7, 0.82, 0.08, 1, 0.04);
   const nW = boss ? 4 : 3;
   for (let i = 0; i < nW; i++) {
     const x = (i - (nW - 1) / 2) * cabW * 0.26, y = cabY0 + cabH * 0.55, z = cabZ - cabL / 2 - 0.04;
-    parts.add(K.gold, frameG, [x, y, z + 0.02]);
-    parts.add(K.window, winG, [x, y, z - 0.03], [0, Math.PI, 0]);
+    legacy.add(K.gold, frameG, [x, y, z + 0.02]);
+    legacy.add(K.window, winG, [x, y, z - 0.03], [0, Math.PI, 0]);
   }
   for (const sx of [1, -1]) for (let i = 0; i < 2; i++) {
     const z = cabZ + (i - 0.5) * cabL * 0.45, y = cabY0 + cabH * 0.55, x = sx * (cabW / 2 + 0.04);
-    parts.add(K.dark, frameG, [x - sx * 0.02, y, z], [0, Math.PI / 2, 0]);
-    parts.add(K.window, winG, [x + sx * 0.03, y, z], [0, sx * Math.PI / 2, 0]);
+    legacy.add(K.dark, frameG, [x - sx * 0.02, y, z], [0, Math.PI / 2, 0]);
+    legacy.add(K.window, winG, [x + sx * 0.03, y, z], [0, sx * Math.PI / 2, 0]);
+  }
+  if (ART && kg('stern_gold')) { // [Timothy] gilded scroll board across the transom, above the stern windows
+    const top = cabY0 + cabH * 0.55 + 0.43, hh = Math.max(0.3, cabY0 + cabH - 0.05 - top), sc = [cabW * 0.9, hh / 0.42, 1];
+    legacy.add(K.goldK, kg('stern_gold'), [0, top, cabZ - cabL / 2 - 0.01], [0, 0, 0], sc); legacy.add(K.woodK, kg('stern_wood'), [0, top, cabZ - cabL / 2 - 0.01], [0, 0, 0], sc);
   }
   // lanterns: stern pair, bow, crow's nest; brass cage + glowing core
   const lanterns = [];
-  const lantern = (p, s = 1) => {
-    parts.add(K.gold, cyl(0.16 * s, 0.24 * s, 0.14 * s, 8), [p[0], p[1] + 0.32 * s, p[2]]);
-    parts.add(K.gold, cyl(0.2 * s, 0.14 * s, 0.1 * s, 8), [p[0], p[1] - 0.28 * s, p[2]]);
-    parts.add(K.lantern, new THREE.SphereGeometry(0.22 * s, 10, 8), p, [0, 0, 0], [1, 1.25, 1]);
-    parts.add(K.dark, cyl(0.03, 0.03, 0.5 * s, 4), [p[0], p[1] + 0.6 * s, p[2]]);
-    lanterns.push(new THREE.Vector3(...p));
+  const lantern = (p, s = 1, P = parts) => {
+    if (ART && kg('lantern_gold')) P.add(K.goldK, kg('lantern_gold'), p, [0, 0, 0], s); // [Timothy] hex brass cage (kit)
+    else { P.add(K.gold, cyl(0.16 * s, 0.24 * s, 0.14 * s, 8), [p[0], p[1] + 0.32 * s, p[2]]);
+    P.add(K.gold, cyl(0.2 * s, 0.14 * s, 0.1 * s, 8), [p[0], p[1] - 0.28 * s, p[2]]); }
+    P.add(ART && P === dress ? K.lanArt : K.lantern, new THREE.SphereGeometry(0.22 * s, 10, 8), p, [0, 0, 0], [1, 1.25, 1]);
+    P.add(K.dark, cyl(0.03, 0.03, 0.5 * s, 4), [p[0], p[1] + 0.6 * s, p[2]]);
+    if (P !== legacy || !ART) lanterns.push(new THREE.Vector3(...p));
   };
-  for (const sx of [1, -1]) lantern([sx * cabW * 0.46, cabY0 + cabH + 0.95, cabZ - cabL / 2 - 0.15], boss ? 1.4 : 1.15);
-  lantern([0, bowY + 0.95, zAt(0.93)], 0.9);
-  if (light) { const pl = new THREE.PointLight(K.S.lantern, 14, 32, 1.6); pl.position.set(0, cabY0 + cabH + 1.4, cabZ - cabL / 2 - 0.6); body.add(pl); }
+  for (const sx of [1, -1]) lantern([sx * cabW * 0.46, cabY0 + cabH + 0.95, cabZ - cabL / 2 - 0.15], boss ? 1.4 : 1.15, legacy);
+  lantern([0, bowY + 0.95, zAt(0.93)], 0.9, legacy);
+  if (light) { const pl = new THREE.PointLight(K.S.lantern, ART ? 6 : 14, 32, 1.6); // [Timothy v2] ART: over the quarterdeck, to port (away from the helm): lights the deck + captain, not the transom face (it keeps its dark paint)
+    if (ART) pl.position.set(cabW * 0.3, cabY0 + cabH + 1.6, cabZ - cabL * 0.1); else pl.position.set(0, cabY0 + cabH + 1.4, cabZ - cabL / 2 - 0.6); body.add(pl); }
 
   // cannons (port +X, starboard -X): lathe barrel on a rounded carriage, painted gun port behind
   const muzzles = { port: [], star: [] }, guns = []; // guns: deck slots for the crew
@@ -355,14 +469,19 @@ export function buildShip(opts) {
     for (const side of ['port', 'star']) {
       const sx = side === 'port' ? 1 : -1;
       const cx = sx * (w - 0.45), c0 = cx - sx * 0.1;
+      if (ART && kg('carriage_wood')) { // [Timothy] kit sea-service carriage (same footprint), starboard = the port one turned 180°
+        const r = [0, sx > 0 ? 0 : Math.PI, 0];
+        for (const [n, m] of [['carriage_wood', K.woodK], ['carriage_iron', K.ironK], ['carriage_rope', K.ropeK]]) if (kg(n)) parts.add(m, kg(n), [c0, y, z], r, cs);
+      } else {
       parts.add(K.cabin, bed, [c0, y + 0.18, z], [0, 0, 0], cs);
       for (const dz of [-0.24, 0.24]) { parts.add(K.cabin, cheekLo, [c0, y + 0.3, z + dz * cs], [0, 0, 0], cs); parts.add(K.cabin, cheekHi, [c0 - sx * 0.2 * cs, y + 0.52 * cs, z + dz * cs], [0, 0, 0], cs); }
       for (const dx of [-0.27, 0.27]) {
         parts.add(K.iron, axle, [c0 + dx * cs, y + 0.15, z], [Math.PI / 2, 0, 0], cs);
         for (const dz of [-0.36, 0.36]) { parts.add(K.cabin, truck, [c0 + dx * cs, y + 0.15, z + dz * cs], [Math.PI / 2, 0, 0], cs); if (tyre) parts.add(K.iron, tyre, [c0 + dx * cs, y + 0.15, z + dz * cs], [0, 0, 0], cs); }
       }
+      }
       // barrel axis = local +Y, rotate so it points outward along ±X, poking over the gunwale
-      parts.add(K.iron, barrel, [cx - sx * 0.35, y + 0.55, z], [0, 0, -sx * Math.PI / 2], [cs * 1.1, cs * 1.25, cs * 1.1]);
+      parts.add(ART && kg('barrel') ? K.ironK : K.iron, (ART && kg('barrel')) || barrel, [cx - sx * 0.35, y + 0.55, z], [0, 0, -sx * Math.PI / 2], [cs * 1.1, cs * 1.25, cs * 1.1]); // [Timothy] kit barrel: same profile, tip at the same y 1.22
       parts.add(K.dark, bore, [cx - sx * 0.35 + sx * (1.2 * cs * 1.25), y + 0.55, z], [0, sx * Math.PI / 2, 0], cs * 1.1);
       parts.add(K.dark, port, [sx * (w * 1.0 + 0.02), shape.top(t) - 0.5, z]);
       parts.add(K.gold, new RoundedBoxGeometry(0.08, 0.86, 1.04, 1, 0.03), [sx * (w * 1.0 + 0.0), shape.top(t) - 0.5, z]);
@@ -370,6 +489,109 @@ export function buildShip(opts) {
       muzzles[side].push(m);
       guns.push({ x: cx, y, z, sx, i });
     }
+  }
+  // [Timothy v2] NEW PLAYER HULL SILHOUETTE (ART only, visual only: every position the game reads still comes from `shape` / zAt above).
+  // Raised quarterdeck + forecastle on real castle walls, a sweeping sheer rail, tumblehome topsides, open gun ports in the bulwark,
+  // a lit stern gallery transom with gold mouldings and big stern lanterns, red gun-port lids, a raised helm dais.
+  let art = null;
+  if (ART) {
+    const top = shape.top, D = dress, tB = cabT + cabL / len, tF = 0.84, Q = cabY0 + cabH + 0.15;
+    const ss = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+    const lerp = (a, b, u) => a + (b - a) * u;
+    const hullX = (t, d) => { const yd = top(t), yk = shape.keel(t), w = shape.halfW(t); const u = Math.min(1, Math.pow(Math.max(0, d) / Math.max(0.01, yd - yk), 1 / 1.1));
+      return w * Math.pow(Math.sqrt(Math.max(0, 1 - u * u)), 0.42) * (1 - 0.08 * Math.pow(1 - u, 3)); };
+    const waist = (t) => top(t) + 0.66, Fc = (t) => top(t) + 0.62;
+    const railY = (t) => { let y = waist(t); if (t < tB + 0.04) y = Math.max(y, lerp(Q + 0.95, waist(t), ss(tB - 0.005, tB + 0.035, t)));
+      return Math.max(y, lerp(waist(t), Fc(t) + 0.9, ss(tF - 0.035, tF + 0.005, t))); };
+    const wallX = (t, y) => Math.max(0.08, hullX(t, 0.0) - 0.06 * Math.max(0, y - top(t))); // topsides lean in (tumblehome)
+    const NS = (LITE ? 44 : 72) + Math.round((stretch - 1) * (LITE ? 8 : 14));
+    const ts = new Set(); for (let i = 0; i <= NS; i++) ts.add(0.003 + i / NS * 0.99);
+    const dzdt = len * stretch, gw = 0.5 / dzdt, gaps = GT.map(t => [t - gw, t + gw]);
+    for (const [a, b] of gaps) { ts.add(a); ts.add(b); }
+    for (const t of [tB - 0.005, tB + 0.035, tF - 0.035, tF + 0.005]) ts.add(t);
+    const T = [...ts].sort((a, b) => a - b), inGap = (t) => gaps.some(([a, b]) => t > a && t < b);
+    // castle walls + waist bulwark (open gun ports), both sides, double-sided upper-works paint
+    for (const sx of [1, -1]) {
+      const pos = [], uv = [], idx = [];
+      for (let i = 0; i < T.length - 1; i++) {
+        const ta = T[i], tb = T[i + 1]; if (inGap((ta + tb) / 2)) continue;
+        const n = pos.length / 3;
+        for (const t of [ta, tb]) { const y0 = top(t) - 0.03, y1 = railY(t), z = zAt(t);
+          pos.push(sx * (hullX(t, 0.03) + 0.005), y0, z, sx * wallX(t, y1), y1, z); uv.push(z / 5, (y1 - y0) / 3.2, z / 5, 0); }
+        if (sx > 0) idx.push(n, n + 2, n + 1, n + 1, n + 2, n + 3); else idx.push(n, n + 1, n + 2, n + 1, n + 3, n + 2);
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx); g.computeVertexNormals(); D.add(K.upper, g);
+      // gold sheer rail on the wall top, gold gunwale + main wale mouldings
+      const cap = [], gun = [], wale = [];
+      for (let i = 0; i <= NS; i++) { const t = 0.004 + i / NS * 0.99, z = zAt(t), y = railY(t);
+        cap.push(new THREE.Vector3(sx * wallX(t, y), y + 0.03, z));
+        if (t > 0.015 && t < 0.975) { gun.push(new THREE.Vector3(sx * (hullX(t, 0.03) + 0.05), top(t) - 0.03, z)); wale.push(new THREE.Vector3(sx * (hullX(t, 0.98) + 0.06), top(t) - 0.98, z)); } }
+      D.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cap), NS * 2, LITE ? 0.12 : 0.14, LITE ? 5 : 6));
+      D.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(gun), NS, 0.09, 5));
+      D.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wale), NS, LITE ? 0.11 : 0.13, 5));
+    }
+    // a flat deck strip between the walls at y(t) over t0..t1
+    const floor = (t0, t1, yf, n) => { const pos = [], uv = [], idx = [];
+      for (let i = 0; i <= n; i++) { const t = t0 + (t1 - t0) * i / n, y = yf(t), z = zAt(t), w = wallX(t, y) - 0.02; pos.push(w, y, z, -w, y, z); uv.push(z / 4, w / 1.4, z / 4, -w / 1.4); }
+      for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+    D.add(K.deck, floor(0.004, tB, () => Q, 10));
+    D.add(K.deck, floor(tF, 0.99, Fc, 10));
+    // vertical bulkhead across the ship at t from y0 to y1 (break of the quarterdeck / forecastle, upper transom)
+    const bulk = (t, y0, y1, dz = 0) => { const pos = [], uv = [], idx = [], z = zAt(t) + dz, n = 6;
+      for (let j = 0; j <= n; j++) { const y = y0 + (y1 - y0) * j / n, w = Math.max(0.08, Math.min(wallX(t, y), y < top(t) ? hullX(t, top(t) - y) : 99)); pos.push(w, y, z, -w, y, z); uv.push(w / 5, (Q + 0.95 - y) / 3.2, -w / 5, (Q + 0.95 - y) / 3.2); }
+      for (let j = 0; j < n; j++) { const a = j * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+    const z0 = zAt(0.004), zB = zAt(tB), zF = zAt(tF);
+    D.add(K.upper, bulk(tB, deckAt(tB) - 0.05, Q, 0.0));
+    D.add(K.upper, bulk(tF, deckAt(tF) - 0.05, Fc(tF), 0.0));
+    D.add(K.upper, bulk(0.004, Math.min(top(0.004), Q) - 0.05, railY(0.004), -0.01));
+    // break rails: gold handrail + balusters across the front of the quarterdeck and the back of the forecastle; companion ladders
+    const breakRail = (z, y, w, n, dir) => { D.add(K.gold, cyl(0.07, 0.07, w * 2, 6), [0, y + 0.88, z], [0, 0, Math.PI / 2]);
+      const bal = cyl(0.045, 0.06, 0.86, 5); for (let i = 0; i <= n; i++) { const x = -w + i * 2 * w / n; if (Math.abs(x) > 0.55 && Math.abs(x) < 1.25) continue; D.add(K.mast, bal, [x, y + 0.43, z + dir * 0.04]); } };
+    breakRail(zB, Q, wallX(tB, Q) - 0.05, LITE ? 6 : 10, -1); breakRail(zF, Fc(tF), wallX(tF, Fc(tF)) - 0.05, LITE ? 4 : 8, 1);
+    for (const [zz, y0, y1, dir] of [[zB, deckAt(tB), Q, 1], [zF, deckAt(tF), Fc(tF), -1]]) for (const sx of [1, -1]) { // ladders (0.55..1.25 off centre: the gap in the rail)
+      const run = (y1 - y0) * 0.55, ang = Math.atan2(run, y1 - y0), L = Math.hypot(run, y1 - y0), x = sx * 0.9;
+      for (const dx of [-0.3, 0.3]) D.add(K.mast, new THREE.BoxGeometry(0.08, L, 0.1), [x + dx, (y0 + y1) / 2, zz + dir * run / 2], [dir * ang, 0, 0]);
+      for (let k = 1; k < 6; k++) { const f = k / 6; D.add(K.mast, new THREE.BoxGeometry(0.6, 0.06, 0.2), [x, y0 + (y1 - y0) * f, zz + dir * run * (1 - f)]); }
+    }
+    // break bulkhead: door + lit windows (seen from the deck / above)
+    D.add(K.dark, new RoundedBoxGeometry(0.9, 1.5, 0.1, 1, 0.04), [0, deckAt(tB) + 0.75, zB + 0.04]);
+    for (const sx of [1, -1]) { D.add(K.gold, new RoundedBoxGeometry(0.72, 0.62, 0.08, 1, 0.03), [sx * 1.75, deckAt(tB) + 1.55, zB + 0.04]); D.add(K.window, new THREE.PlaneGeometry(0.54, 0.44), [sx * 1.75, deckAt(tB) + 1.55, zB + 0.09]); }
+    // STERN GALLERY TRANSOM (what the chase camera looks at): two rows of lit windows in gold frames, gold mouldings, corner pilasters
+    const tw = (y) => hullX(0.004, Math.max(0, top(0.004) - y)), frame = new RoundedBoxGeometry(1, 1, 0.1, 1, 0.04), pane = new THREE.PlaneGeometry(1, 1);
+    for (const [yc, h, n, wf] of [[Q - 0.85, 0.7, 5, 0.46], [Q - 1.95, 0.5, 4, 0.38]]) { // warm panes in dark frames: the transom stays dark, the windows pop
+      const W = tw(yc) * 0.8, sp = 2 * W / n;
+      for (let i = 0; i < n; i++) { const x = -W + sp * (i + 0.5), ww = Math.min(sp * 0.6, wf);
+        D.add(K.dark, frame, [x, yc, z0 - 0.04], [0, 0, 0], [ww + 0.16, h + 0.16, 1]);
+        D.add(K.winArt, pane, [x, yc, z0 - 0.1], [0, Math.PI, 0], [ww, h, 1]);
+        D.add(K.dark, new THREE.BoxGeometry(0.05, h, 0.04), [x, yc, z0 - 0.12]); } // mullion
+    }
+    for (const y of [Q - 0.3, Q - 1.45, Q - 2.4]) D.add(K.gold, cyl(0.09, 0.09, tw(y) * 2 * 0.98, 6), [0, y, z0 - 0.06], [0, 0, Math.PI / 2]);
+    for (const sx of [1, -1]) { const pts = []; for (let k = 0; k <= 6; k++) { const y = Q - 2.6 + (railY(0.004) - Q + 2.6) * k / 6; pts.push(new THREE.Vector3(sx * (y > top(0.004) ? wallX(0.004, y) : tw(y)) * 0.99, y, z0 - 0.05)); }
+      D.add(K.gold, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.13, 6)); }
+    if (kg('stern_gold')) { const hh = railY(0.004) - Q - 0.12, sc = [wallX(0.004, Q + 0.5) * 1.7, hh / 0.42, 1.4];
+      D.add(K.goldK, kg('stern_gold'), [0, Q + 0.02, z0 - 0.05], [0, 0, 0], sc); D.add(K.woodK, kg('stern_wood'), [0, Q + 0.02, z0 - 0.05], [0, 0, 0], sc); }
+    // big stern lanterns on the taffrail corners (no centre lamp: it would hide the captain at the helm from the chase camera)
+    for (const sx of [1, -1]) { const x = sx * wallX(0.004, Q + 0.95) * 0.8, y = railY(0.004);
+      D.add(K.iron, cyl(0.06, 0.06, 0.9, 5), [x, y + 0.4, z0 - 0.15]); lantern([x, y + 0.95, z0 - 0.2], 1.05, D); }
+    lantern([wallX(0.95, Fc(0.95)) * 0.7, Fc(0.95) + 1.3, zAt(0.95)], 1.2, D); // bow lantern on the forecastle head, to PORT: clear of the captain's eye line (helm to starboard)
+    // red gun-port lids, hinged open above every port
+    const lidG = new RoundedBoxGeometry(0.08, 0.66, 0.84, 1, 0.03);
+    for (const t of GT) for (const sx of [1, -1]) { const hy = top(t) - 0.14, hx = sx * (hullX(t, 0.14) + 0.12);
+      D.add(K.lid, lidG, [hx + sx * 0.33 * 0.77, hy + 0.33 * 0.64, zAt(t)], [0, 0, -sx * 0.87]); }
+    // RAISED HELM: a dais on the quarterdeck (or on the poop deck when the hull upgrade adds one), clear of rails and lamps
+    const poopH = opts.kitArt?.poopH || 0;
+    // the helm sits to STARBOARD of the centreline so the captain's eye line runs past the masts (the mizzen spanker swings to port)
+    const hx = -Math.min(1.35, wallX(0.18, Q + 1) - 0.85);
+    const helm = poopH ? { x: hx, y: Q - 0.15 + poopH + 0.2, z: cabZ - cabL * 0.21 + 0.45 } : { x: hx, y: Q + 0.26, z: cabZ + cabL / 2 - 1.05 };
+    if (!poopH) { D.add(K.mast, new RoundedBoxGeometry(1.5, 0.26, 1.9, 1, 0.06), [hx, Q + 0.13, helm.z - 0.25]);
+      D.add(K.gold, new RoundedBoxGeometry(1.6, 0.08, 2.0, 1, 0.03), [hx, Q + 0.19, helm.z - 0.25]);
+      D.add(K.mast, new RoundedBoxGeometry(0.5, 0.13, 0.5, 1, 0.03), [hx, Q + 0.065, helm.z + 0.95]); } // step up onto the dais
+    D.add(K.cabin, new RoundedBoxGeometry(0.36, 0.7, 0.36, 1, 0.05), [helm.x + 0.55, helm.y + 0.35, helm.z + 0.6]); // binnacle with a lit compass (beside the wheel, under the eye line)
+    D.add(K.lantern, new THREE.SphereGeometry(0.12, 8, 6), [helm.x + 0.55, helm.y + 0.78, helm.z + 0.6]);
+    art = { Q, tB, tF, Fc, railY, helm };
   }
   // a few barrels + crates on deck for detail
   const keg = lathe([[0.001, 0], [0.3, 0], [0.36, 0.25], [0.36, 0.45], [0.3, 0.7], [0.001, 0.7]], 10);
@@ -390,13 +612,34 @@ export function buildShip(opts) {
     parts.add(K.mast, new THREE.BoxGeometry(1.05, 0.16, 1.05), [0, my + 0.08, mz]);
     parts.add(K.mast, cyl(0.38, 0.46, 0.34, 10), [0, my + 0.17, mz]);
     for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + Math.PI / 4; parts.add(K.mast, new THREE.BoxGeometry(0.16, 0.26, 0.3), [Math.cos(a) * 0.5, my + 0.21, mz + Math.sin(a) * 0.5], [0, -a, 0]); }
-    for (const f of [0.08, 0.4, 0.66]) parts.add(K.gold, new THREE.TorusGeometry(0.29 - f * 0.12, 0.06, 6, 12), [0, my + mh * f, mz], [Math.PI / 2, 0, 0]);
-    const tiers = [[0.74, 1.5, 0.4], [0.98, 1.08, 0.24]];
+    for (const f of [0.08, 0.4, 0.66]) parts.add(K.gold, new THREE.TorusGeometry(0.29 - f * 0.12 + (ART ? 0.04 : 0), ART ? 0.09 : 0.06, 6, 12), [0, my + mh * f, mz], [Math.PI / 2, 0, 0]);
+    if (ART) { // [Timothy v2] a real TOP at every lower masthead (just over the course yard): platform, gold rim, crosstrees, trestle cheeks
+      const ty = my + mh * 0.74 + 0.34, tw = Math.min(2.4, beam * 0.36 * hf + 0.5), td = tw * 0.66, tz = mz - 0.12;
+      parts.add(K.cabin, new RoundedBoxGeometry(tw, 0.18, td, 2, 0.06), [0, ty, tz]);
+      parts.add(K.gold, new RoundedBoxGeometry(tw + 0.14, 0.1, td + 0.14, 1, 0.04), [0, ty + 0.12, tz]);
+      for (const sx of [1, -1]) parts.add(K.mast, new THREE.BoxGeometry(0.14, 0.32, td * 0.9), [sx * 0.3, ty - 0.22, tz]);
+      parts.add(K.mast, new THREE.BoxGeometry(tw * 1.1, 0.12, 0.14), [0, ty - 0.12, tz + td * 0.25]);
+      parts.add(K.mast, new THREE.BoxGeometry(tw * 1.1, 0.12, 0.14), [0, ty - 0.12, tz - td * 0.3]);
+      parts.add(K.gold, new THREE.TorusGeometry(0.22, 0.08, 6, 12), [0, ty + 0.5, mz], [Math.PI / 2, 0, 0]); // mast cap band
+      if (mi === 0) lantern([tw * 0.42, ty + 0.55, tz - td * 0.35], 0.85);
+    }
+    if (ART && kg('channel_wood')) for (const sx of [1, -1]) { // [Timothy] channel + deadeyes on the hull side, shrouds + ratlines up to the top
+      const tc = tf - 0.012, wc = shape.halfW(tc), yc = shape.top(tc), zc = zAt(tc), r = [0, sx > 0 ? 0 : Math.PI, 0];
+      for (const [n, m] of [['channel_wood', K.woodK], ['channel_iron', K.ironK], ['channel_dark', K.darkK]]) parts.add(m, kg(n), [sx * wc * 0.99, yc, zc], r, [1, 1, 1.1]);
+      const yTop = my + mh * 0.72 - 0.25, base = [[sx * (wc + 0.24), yc + 0.1, zc - 0.48], [sx * (wc + 0.24), yc + 0.1, zc + 0.48]], top = [[sx * 0.24, yTop, mz - 0.18], [sx * 0.24, yTop, mz + 0.12]];
+      const rg = new THREE.BufferGeometry();
+      rg.setAttribute('position', new THREE.Float32BufferAttribute([...base[0], ...base[1], ...top[1], ...top[0]], 3));
+      rg.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2)); rg.setIndex([0, 1, 2, 0, 2, 3]); rg.computeVertexNormals();
+      parts.add(K.ratline, rg);
+    }
+    const tiers = ART ? [[0.74, 1.5, mi === 2 ? 0.27 : 0.35], [0.98, 1.08, 0.24]] : [[0.74, 1.5, 0.4], [0.98, 1.08, 0.24]]; // [Timothy v2] courses set higher: the captain sees under them to the bow
     tiers.forEach(([yf, wf, hfS], k) => {
       const yw = beam * wf * hf * (boss ? 1.08 : 1), sh = mh * hfS, yy = my + mh * yf;
-      const yard = lathe([[0.04, -yw / 2], [0.12, -yw * 0.3], [0.14, 0], [0.12, yw * 0.3], [0.04, yw / 2]], 6);
+      const yk = ART ? 1.6 : 1; // [Timothy v2] chunkier yards that read from the chase camera, gold yardarms
+      const yard = lathe([[0.04 * yk, -yw / 2], [0.12 * yk, -yw * 0.3], [0.14 * yk, 0], [0.12 * yk, yw * 0.3], [0.04 * yk, yw / 2]], 6);
       parts.add(K.mast, yard, [0, yy, mz + 0.22], [0, 0, Math.PI / 2]);
-      const sg = sailGeometry(yw * 0.92, sh, 1.0 + sh * 0.07);
+      if (ART) for (const sx of [1, -1]) parts.add(K.gold, cyl(0.1, 0.1, 0.34, 6), [sx * yw * 0.47, yy, mz + 0.22], [0, 0, Math.PI / 2]);
+      const sg = ART ? sailGeometry(yw * 0.97, sh * 1.04, 2.7 + sh * 0.22, LITE ? [8, 6] : [14, 10]) : sailGeometry(yw * 0.92, sh, 1.0 + sh * 0.07); // [Timothy v2] fuller, deeper-bellied cloth
       const useMain = k === 0 && K.main;
       const sail = new THREE.Group();
       const front = new THREE.Mesh(sg, useMain ? K.main : K.sail), back = new THREE.Mesh(sg, useMain ? K.mainBack : K.sailBack);
@@ -412,15 +655,15 @@ export function buildShip(opts) {
     if (mi === 0) {
       const ny = my + mh * 0.84;
       nestAt = { y: ny, z: mz }; // [v97] the enemy lookout stands in this crow's nest
-      parts.add(K.cabin, cyl(0.85, 0.62, 0.55, 12), [0, ny, mz]);
+      if (!ART) { parts.add(K.cabin, cyl(0.85, 0.62, 0.55, 12), [0, ny, mz]);
       parts.add(K.gold, new THREE.TorusGeometry(0.86, 0.08, 6, 16), [0, ny + 0.3, mz], [Math.PI / 2, 0, 0]);
-      lantern([0.75, ny + 0.75, mz], 0.75);
+      lantern([0.75, ny + 0.75, mz], 0.75); } // [Timothy v2] ART: the top above replaces this drum (it sat inside the topsail)
       flagPole = new THREE.Object3D(); flagPole.position.set(0, my + mh, mz); body.add(flagPole);
     }
   });
   // bowsprit + jib
   const bsL = len * 0.34;
-  parts.add(K.mast, cyl(0.1, 0.2, bsL, 8), [0, bowY + 0.5 + Math.sin(0.35) * bsL * 0.4, zAt(1) + bsL * 0.32], [Math.PI / 2 - 0.35, 0, 0]);
+  parts.add(K.mast, ART ? cyl(0.16, 0.3, bsL, 10) : cyl(0.1, 0.2, bsL, 8), [0, bowY + 0.5 + Math.sin(0.35) * bsL * 0.4, zAt(1) + bsL * 0.32], [Math.PI / 2 - 0.35, 0, 0]);
   const jg = new THREE.BufferGeometry();
   // [v87] the jib's head hangs on the FOREMAST's forestay, ahead of the fore course's belly (it used to run from the MAIN
   // masthead straight through the middle of the foremast's square sails)
@@ -431,13 +674,41 @@ export function buildShip(opts) {
   jg.setAttribute('position', new THREE.Float32BufferAttribute([...jTop.toArray(), ...jTip.toArray(), ...jFoot.toArray()], 3));
   jg.setAttribute('uv', new THREE.Float32BufferAttribute([0.5, 1, 1, 0, 0, 0], 2));
   jg.computeVertexNormals();
-  const jib = new THREE.Group(); jib.add(new THREE.Mesh(jg, K.sail), new THREE.Mesh(jg, K.sailBack)); body.add(jib);
+  let jibPts = null;
+  const jib = new THREE.Group(); body.add(jib);
+  if (ART) { // [Timothy v2] two bellied head sails (jib + flying jib) on a jib-boom, gold bands on the bowsprit
+    const g1 = triSail(jTop, jTip, jFoot, 0.55, LITE ? 5 : 8); jib.add(new THREE.Mesh(g1, K.sail), new THREE.Mesh(g1, K.sailBack));
+    const dir = new THREE.Vector3(0, Math.sin(0.35), Math.cos(0.35)), c0 = new THREE.Vector3(0, bowY + 0.5 + Math.sin(0.35) * bsL * 0.4, zAt(1) + bsL * 0.32);
+    const jbA = c0.clone().addScaledVector(dir, bsL * 0.3), jbB = c0.clone().addScaledVector(dir, bsL * 0.95);
+    parts.add(K.mast, cyl(0.09, 0.15, jbA.distanceTo(jbB), 8), jbA.clone().lerp(jbB, 0.5).toArray(), [Math.PI / 2 - 0.35, 0, 0]);
+    for (const f of [0.1, 0.35]) parts.add(K.gold, new THREE.TorusGeometry(0.27 - f * 0.25, 0.07, 5, 10), c0.clone().addScaledVector(dir, bsL * (f - 0.18)).toArray(), [-0.35, 0, 0]);
+    const j2Top = new THREE.Vector3(0, fy + (stY - fy) * ju * 0.55 + 0.3, fz + (stZ - fz) * ju * 0.55), j2Foot = jTip.clone().lerp(jTop, 0.08);
+    const g2 = triSail(j2Top, jbB, j2Foot, 0.5, LITE ? 5 : 8); jib.add(new THREE.Mesh(g2, K.sail), new THREE.Mesh(g2, K.sailBack));
+    rig.push(j2Top.toArray(), jbB.toArray(), jbB.toArray(), [0, bowY - 0.6, zAt(1) + 0.2]);
+    jibPts = { j2Top: j2Top.toArray(), jbB: jbB.toArray(), dir: dir.toArray(), bsL, fz, fy }; // [Timothy v2] SAILS upgrade hangs an extra jib off these
+  } else jib.add(new THREE.Mesh(jg, K.sail), new THREE.Mesh(jg, K.sailBack));
   rig.push(jTop.toArray(), jTip.toArray());
 
-  parts.build(body, new Set([K.hull, K.cabin, K.mast, K.iron, K.gold]), boss ? 0.07 : 0.05, shadows);
+  { const ol = new Set([K.hull, K.cabin, K.mast, K.iron, K.gold, ...(ART ? [K.ironK] : [])]);
+    (ART && LITE ? parts.flatten(ol, new Set([K.hull, K.mast])) : parts).build(body, ol, boss ? 0.07 : 0.05, shadows); } // [Timothy v2] phone Low: merged // [Timothy] + kit barrels (kit wood / gold pieces skip the outline: tri budget)
 
   // [Raul] PUMPFUN PIRATES crew: gunners at every gun + a few walkers in the waist (one draw call, LOD-culled)
-  { const cr = addCrew(ship, { guns, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52) }, boss, helm: { x: 0, y: cabY0 + cabH + 0.15, z: cabZ + cabL / 2 - 0.75 } }); if (cr) body.add(cr); } // [v95] + captain at the wheel
+  let hullDress = null, hullLegacy = null;
+  if (ART) { // [Timothy v2] new upper works (hidden together with the base hull by shape-changing skins) + the old dressing for those skins
+    const ol = new Set([K.upper, ...(LITE ? [] : [K.gold])]);
+    hullDress = new THREE.Group(); hullDress.name = 'hull-dress'; (LITE ? dress.flatten(ol, new Set([K.upper])) : dress).build(hullDress, ol, 0.05, shadows); body.add(hullDress);
+    hullLegacy = new THREE.Group(); hullLegacy.name = 'hull-legacy'; legacy.build(hullLegacy, new Set([K.hull, K.cabin, K.mast, K.gold]), 0.05, shadows); hullLegacy.visible = false; body.add(hullLegacy);
+  }
+  // [Timothy v2] CREW ANCHORS: named stand points the crew is placed from (today's chibi crew = placeholders; new pirate models drop in
+  // per anchor later). { role: 'gunner'|'captain'|'deck'|'lookout', index, side, pos: Vector3 (body space, feet), facing: yaw (0 = +Z bow) }
+  const helm = art ? art.helm : { x: 0, y: cabY0 + cabH + 0.15, z: cabZ + cabL / 2 - 0.75 }, capS = boss ? 1.6 : 1.35;
+  const anchors = [];
+  guns.forEach((g) => anchors.push({ role: 'gunner', index: g.i, side: g.sx > 0 ? 'port' : 'star', pos: new THREE.Vector3(g.x - g.sx * 0.95, g.y, g.z + 0.42), facing: g.sx * Math.PI / 2, gun: new THREE.Vector3(g.x, g.y, g.z) }));
+  anchors.push({ role: 'captain', index: 0, pos: new THREE.Vector3(helm.x, helm.y, helm.z - 0.36 * capS), facing: 0, wheel: new THREE.Vector3(helm.x, helm.y + 0.95 * capS, helm.z) });
+  const deckPts = [[0.75, deckAt(0.52), zAt(0.42)], [-0.75, deckAt(0.52), zAt(0.58)], [0.8, deckAt(0.7), zAt(0.7)], [-0.8, deckAt(0.36), zAt(0.36)]];
+  if (art) deckPts.push([1.3, art.Q, cabZ - cabL * 0.1], [-1.3, art.Q, cabZ - cabL * 0.1], [0.9, art.Fc(0.9), zAt(0.9)], [-0.9, art.Fc(0.9), zAt(0.9)]);
+  deckPts.forEach((p, i) => anchors.push({ role: 'deck', index: i, pos: new THREE.Vector3(...p), facing: 0 }));
+  { const cr = addCrew(ship, { anchors, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52) }, boss }); if (cr) body.add(cr); } // [v95] + captain at the wheel (anchor)
 
   // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
   // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above
@@ -459,7 +730,7 @@ export function buildShip(opts) {
   const fm = flagMats(flagMap);
   flag.add(new THREE.Mesh(fGeo, fm[0]), new THREE.Mesh(fGeo, fm[1]));
   flag.geometry = fGeo;
-  flag.position.y = -fh * 0.05 + 0.4; flagPole.add(flag);
+  flag.position.y = -fh * 0.05 + 0.4; flagPole.add(flag); flagPole.userData.fw = fw; flagPole.userData.fh = fh;
   const pole = new THREE.Mesh(cyl(0.06, 0.06, fh + 1.2, 5), K.mast); pole.position.y = fh / 2 + 0.4; flagPole.add(pole);
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), K.gold); knob.position.y = fh + 1.0; flagPole.add(knob);
   const base = fGeo.attributes.position.array.slice();
@@ -472,6 +743,10 @@ export function buildShip(opts) {
   if (SCHEME_OUTFIT[scheme]) dressCrew(body, opts.outfit || SCHEME_OUTFIT[scheme]); // [v97] enemy crews in enemy colours
   ship.userData.buildOpts = opts; ship.userData.gunGap = Math.min(0.07, 0.5 / Math.max(1, cannonsPerSide));
   if (ship.userData.crew?.uGap) ship.userData.crew.uGap.value = ship.userData.gunGap;
+  ship.userData.jibPts = jibPts; ship.userData.figure = figInfo; ship.userData.kitMats = ART ? { lid: K.lid, band2: K.band2, upper: K.upper, gold: K.gold, winArt: K.winArt } : null; ship.userData.anchors = anchors; ship.userData.hullDress = hullDress; ship.userData.hullLegacy = hullLegacy; ship.userData.art = art;
+  { const root = new THREE.Group(); root.name = 'crew-anchors'; const n = {}; // empties, one per anchor (named role_side_index), for tools / later GLB crews
+    for (const a of anchors) { const o = new THREE.Object3D(); o.name = [a.role, a.side, a.index].filter(v => v !== undefined).join('_'); o.position.copy(a.pos); o.rotation.y = a.facing; o.userData.anchor = a; root.add(o); a.node = o; }
+    body.add(root); }
   ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole, zAt, stretch };
   return ship;
 }

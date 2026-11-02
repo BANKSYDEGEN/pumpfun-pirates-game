@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
 import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
+import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
+import { attachCaptain, localCaptain } from './captainSlot.js'; // [Timothy v2] your captain-creator pirate at the wheel (no-op until a builder is registered)
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -59,6 +61,7 @@ const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfx
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
 setCrewQuality(quality, isMobile); // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
+await initKit(quality === 'low' || isMobile); // [Timothy] Blender ship kit: Low LOD + half-res maps on LOW / phones (procedural fallback if it can't load)
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -184,6 +187,7 @@ let pvp = null; // [pvp] PvP ARENA controller (js/pvp.js), loaded on first PVP t
 const shipOpts = () => game.mode === 'pvp' && pvp ? { ...PLAYER_SHIP, skin: pvp.skinObj(), pvp: true } : PLAYER_SHIP; // [pvp] kill-tier skin + skin parts
 function makePlayer() {
   const mesh = compileShip({}, shipOpts());
+  attachCaptain(mesh, localCaptain());
   scene.add(mesh);
   return { mesh, x: 0, z: 0, yaw: 0, speed: 0, sail: 2, anchor: false, hp: 100, maxHp: 100, cd: { port: 0, star: 0 }, reload: 2.2, roll: 0, pitch: 0, y: 0, sinking: 0, alive: true, turn: 0 };
 }
@@ -196,6 +200,7 @@ function rebuildPlayerShip(levels) {
   const old = player.mesh, mesh = compileShip(levels, shipOpts());
   mesh.position.copy(old.position); mesh.rotation.copy(old.rotation); mesh.userData.body.rotation.copy(old.userData.body.rotation);
   mesh.userData.sails.forEach((sl, i) => { const o = old.userData.sails[i]; if (o) { sl.scale.y = o.scale.y; sl.scale.z = o.scale.z; } });
+  attachCaptain(mesh, localCaptain());
   scene.remove(old); disposeShip(old); scene.add(mesh); player.mesh = mesh;
   return mesh;
 }

@@ -125,7 +125,9 @@ function makeFx(id) {
       n = m.clone();
       if (!isSail) n.color.multiplyScalar(L.hullK);
       n.emissive = new THREE.Color(L.emissive); n.emissiveIntensity = 1;
-      addLook(n, m, isSail ? L.sail : L.hull, id + (isSail ? 's' : 'h'));
+      const art = !isSail && (m.userData.art || m.userData.kitRole); // [Timothy v2] new hull: softer rim / sweep glow (the flat castle walls caught too much) and a darker body
+      if (art) n.color.multiplyScalar(0.8);
+      addLook(n, m, isSail ? L.sail : art ? L.hull.replace(/totalEmissiveRadiance \+=([^;]*);/g, 'totalEmissiveRadiance += 0.4 * ($1);') : L.hull, id + (isSail ? 's' : art ? 'ha' : 'h'));
       if (id === 'storm') n.userData.tlStorm = true;
     } else if (m.isMeshBasicMaterial) { n = m.clone(); n.color.set(L.glow).multiplyScalar(1.8); }
     cache.set(m, n); return n;
@@ -139,7 +141,7 @@ function clean(g) { g = ni(g); for (const k of Object.keys(g.attributes)) if (k 
 const merge = (list) => { const g = mergeGeometries(list, false); list.forEach(x => x.dispose()); return g; };
 // a strake: short boxes following the hull curve on one side, `dy` below the gunwale
 function strake(out, ud, sx, dy, h = 0.18, t0 = 0.08, t1 = 0.92, n = 10, push = 1.0) {
-  const { shape } = ud.layout, len = ud.len, zAt = (t) => (t - 0.5) * len;
+  const { shape } = ud.layout, len = ud.len, zAt = ud.layout.zAt || ((t) => (t - 0.5) * len); // [Timothy v2] stretched hulls
   for (let i = 0; i < n; i++) {
     const ta = t0 + (t1 - t0) * i / n, tb = t0 + (t1 - t0) * (i + 1) / n, tm = (ta + tb) / 2;
     const xa = shape.halfW(ta) * push, xb = shape.halfW(tb) * push, za = zAt(ta), zb = zAt(tb);

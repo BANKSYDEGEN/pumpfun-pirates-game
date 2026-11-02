@@ -32,6 +32,7 @@ import { Room } from './net.js';
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
+import { attachCaptain } from './captainSlot.js';
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -340,6 +341,7 @@ export function createPvp(K) {
   }
   function buildRemoteMesh(p, lv, sk) {
     const mesh = compilePreview(lv, shipOptsFor(sk)); scene.add(mesh);
+    if (p.captain) attachCaptain(mesh, p.captain); // [Timothy v2] remote player's captain JSON (pfp_captain_v1) when the netcode sends it
     if (p.ship?.mesh) { mesh.position.copy(p.ship.mesh.position); scene.remove(p.ship.mesh); K.disposeShip(p.ship.mesh); p.ship.mesh = mesh; }
     return mesh;
   }

@@ -12,11 +12,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor } from './ships.js';
+import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail } from './ships.js';
 import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
 import { equippedSkin, skinBuildOpts, skinMaterialFx } from './skins.js';
+import { kitOn, geo as kitGeo, dressMaterial, aoTwin } from './shipKit.js'; // [Timothy] Blender ship art kit (visual only)
 import { runPartsOverride } from '../assets/ships/pvp/partsOverride.js'; // [Raul] PvP skin parts-override API
 
 // ---------- trait definitions (level 0..6, CANNONS 0..8) ----------
@@ -92,6 +93,7 @@ function mats(skin) {
     plank: toon(0xffffff, woodTexture({ base: P.plank ?? 0x5a3820, rows: 3, seed: 93, w: 256, h: 128, vertical: true })),
     deck: toon(0xffffff, woodTexture({ base: P.deck ?? 0x9a6b43, rows: 6, seed: 7, w: 256, h: 128 })),
     iron: toon(0xffffff, metalTexture({ base: P.iron ?? 0x23272e, highlight: 0x8d97a6, seed: 17 }), { side: THREE.DoubleSide }),
+    steel: toon(0xffffff, metalTexture({ base: P.iron != null ? new THREE.Color(P.iron).lerp(new THREE.Color(0xffffff), 0.35).getHex() : 0x6f7a88, highlight: 0xdfe6ee, seed: 23 }), { side: THREE.DoubleSide }), // [Timothy v2] armour that reads on the dark v2 hulls
     gold: toon(0xffffff, goldT),
     rivet: toon(0xffffff, goldT), // same look as gold, but never outlined (hundreds of tiny parts)
     red: toon(0xfa0d0d, null, { side: THREE.DoubleSide }),
@@ -100,11 +102,16 @@ function mats(skin) {
     keg: toon(0xffffff, woodTexture({ base: 0x7a4a2a, rows: 5, seed: 95, w: 256, h: 128, nails: false })),
     glow: glowMat(P.glow ?? 0xffb04a, 2.6),
     fuse: glowMat(0xff7a2a, 3.2),
+    hot: glowMat(0xff4a0a, 1.15), // [Timothy v2] RELOAD port frames: orange, not blown out
     lens: glowMat(0x9fe8ff, 2.4),
     gleam: glowMat(P.gold ?? 0xffcd77, 1.8),
   };
-  m.outlinedHi = new Set([m.oak, m.plank, m.deck, m.iron, m.gold, m.dark, m.keg]);
-  m.outlinedLo = new Set([m.oak, m.plank, m.deck, m.iron]);
+  if (kitOn()) { // [Timothy] baked plank detail + normals on the upgrade timber; kit barrels get the AO twin of the iron
+    dressMaterial(m.oak, 'deck', { strength: 0.45 }); dressMaterial(m.plank, 'deck', { strength: 0.45 }); dressMaterial(m.deck, 'deck', { strength: 0.5 });
+    m.ironK = aoTwin(m.iron, 'iron');
+  }
+  m.outlinedHi = new Set([m.oak, m.plank, m.deck, m.iron, m.steel, m.gold, m.dark, m.keg, ...(m.ironK ? [m.ironK] : [])]);
+  m.outlinedLo = new Set([m.oak, m.plank, m.deck, m.iron, ...(m.ironK ? [m.ironK] : [])]);
   _mats.set(skin.id, m);
   return (M = m);
 }
@@ -129,7 +136,7 @@ class Layer {
     const sv = Array.isArray(s) ? s : [s, s, s];
     const q = r.isQuaternion ? r : this._q.setFromEuler(this._e.set(r[0], r[1], r[2], r[3] || 'XYZ'));
     const c = (geo.index ? geo.clone() : geo.clone()).applyMatrix4(this._m.compose(new THREE.Vector3(...p), q, new THREE.Vector3(...sv)));
-    for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv'].includes(k)) c.deleteAttribute(k);
+    for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) c.deleteAttribute(k); // [Timothy] colour = kit AO
     if (!c.index) { const n = c.attributes.position.count, ix = new Uint32Array(n); for (let i = 0; i < n; i++) ix[i] = i; c.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (!c.attributes.uv) c.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(c.attributes.position.count * 2), 2));
     if (!c.attributes.normal) c.computeVertexNormals();
@@ -214,7 +221,7 @@ function muzzle(Ly, side, p, order) { const m = new THREE.Object3D(); m.position
 // ---------- part sets per trait ----------
 const PARTS = {
   // HULL: size comes from buildShip; this adds the build's superstructure (belt, forecastle, poop deck, fenders, gold)
-  hull(A, T, Ly) {
+  hull(A, T, Ly, ship) {
     const { k } = A;
     if (T.belt) for (const sx of [1, -1]) {
       Ly.add(M.oak, tube(lineCurve(A, sx, 1.0 * k, 0.05), 40, 0.17 * k, 6));
@@ -242,6 +249,17 @@ const PARTS = {
     }
     if (T.fenders && !LO) for (const sx of [1, -1]) for (const t of [0.12, 0.24, ...A.midT.filter((_, i) => i % 2 === 0), 0.76, 0.86]) Ly.add(M.oak, tube(sideCurve(A, t, sx, 0.05, 1.6 * k, 0.1), 10, 0.13 * k, 6));
     if (T.gold) for (const sx of [1, -1]) Ly.add(M.gold, tube(lineCurve(A, sx, 0.45 * k, 0.12, 0.08, 0.9), 40, 0.08, 5));
+    const F = ship?.userData?.art && ship.userData.figure;
+    if (F && T.gold) { // [Timothy v2] max HULL: the figurehead is crowned, winged and gem-eyed
+      const [fx, fy, fz] = F.p, fs = F.s;
+      Ly.add(M.gold, cyl(0.38 * fs, 0.32 * fs, 0.2 * fs, 10, true), [fx, fy + 1.12 * fs, fz + 0.05 * fs]);
+      for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; Ly.add(M.gold, new THREE.ConeGeometry(0.09 * fs, 0.32 * fs, 5), [fx + Math.cos(a) * 0.35 * fs, fy + 1.36 * fs, fz + 0.05 * fs + Math.sin(a) * 0.35 * fs]); }
+      Ly.add(M.gleam, sph(0.1 * fs), [fx, fy + 1.15 * fs, fz + 0.42 * fs]);
+      for (const sx of [1, -1]) { // swept gold wings either side of the figure (thin fans, both faces)
+        const w = new THREE.CylinderGeometry(0.95 * fs, 0.95 * fs, 0.06, 12, 1, false, 0.25 * Math.PI, 0.6 * Math.PI); w.rotateZ(Math.PI / 2);
+        Ly.add(M.gold, w, [fx + sx * 0.34 * fs, fy + 0.35 * fs, fz - 0.05 * fs], [0, 0, sx * 0.25]);
+      }
+    }
     if (T.patches) for (const sx of [1, -1]) for (const [t, d] of [[0.16, 0.9], [0.34, 1.35], [0.58, 1.0], [0.8, 1.3]]) { // [more levels] fresh repair planks + nails on the sides
       Ly.add(M.deck, box(0.1, 0.42 * k, 1.5, 0.03), [sx * (A.sideX(t, d * k) + 0.07), A.shape.top(t) - d * k, A.zAt(t)], [0, A.sideYaw(t, sx), sx * 0.08]);
       if (!LO) for (const dz of [-0.6, 0.6]) Ly.add(M.rivet, RIVET, [sx * (A.sideX(t, d * k) + 0.13), A.shape.top(t) - d * k, A.zAt(t) + dz]);
@@ -259,28 +277,30 @@ const PARTS = {
     }
   },
   // ARMOR: dark iron plates over the hull sides with gold rivets, plated railings, iron belt, bow ram, gold trim
-  armor(A, T, Ly) {
+  armor(A, T, Ly, ship, lv) {
     if (!T.plates) return;
+    const art = !!ship?.userData?.art, I = art ? M.steel : M.iron, D = art ? M.steel : M.dark, al = lv?.armor || 1; // [Timothy v2] brighter steel, thicker with level
+    const RV = art ? 1.3 + al * 0.12 : 1, BR = art ? 0.08 + al * 0.015 : 0.1;
     const { k } = A, segs = Math.max(7, Math.round(A.len / 2.1));
     const toWater = (t) => Math.max(1.0, A.shape.top(t) - 0.35); // plate from the gunwale down past the waterline
     const t0s = 0.015, t1s = 0.965;
     for (const sx of [1, -1]) {
       for (let i = 0; i < segs; i++) { // full-height iron armour plates, gold rivets top and middle
         const a = t0s + i / segs * (t1s - t0s) + 0.003, b = t0s + (i + 1) / segs * (t1s - t0s) - 0.003;
-        Ly.add(M.iron, hullPanel(A, a, b, 0.03, toWater, sx, 0.08, 5, 5));
-        for (const d of (LO ? [0.14] : [0.14, 0.75 * k])) for (const f of (LO ? [0.5] : [0.18, 0.5, 0.82])) { const t = a + (b - a) * f; Ly.add(M.rivet, RIVET, [sx * (A.sideX(t, d) + 0.13), A.shape.top(t) - d, A.zAt(t)]); }
+        Ly.add(I, hullPanel(A, a, b, 0.03, toWater, sx, 0.08, 5, 5));
+        for (const d of (LO ? [0.14] : [0.14, 0.75 * k])) for (const f of (LO ? [0.5] : [0.18, 0.5, 0.82])) { const t = a + (b - a) * f; Ly.add(M.rivet, RIVET, [sx * (A.sideX(t, d) + 0.13), A.shape.top(t) - d, A.zAt(t)], [0, 0, 0], RV); }
       }
       // iron gun-port frames over the plates at every deck gun slot
-      for (const t of A.gunT) Ly.add(M.dark, box(0.16, 0.7 * k, 0.86, 0.04), [sx * (A.sideX(t, 0.5 * k) + 0.13), A.shape.top(t) - 0.5 * k, A.zAt(t)], [0, A.sideYaw(t, sx), 0]);
+      for (const t of A.gunT) Ly.add(D, box(0.16, 0.7 * k, 0.86, 0.04), [sx * (A.sideX(t, 0.5 * k) + 0.13), A.shape.top(t) - 0.5 * k, A.zAt(t)], [0, A.sideYaw(t, sx), 0]);
       if (T.rail) { // plated bulwarks + iron-clad stern castle
         for (let i = 0; i < segs; i++) {
           const t = 0.2 + (i + 0.5) / segs * 0.68, w = A.shape.halfW(t) * 0.93, y = A.shape.top(t), yaw = A.sideYaw(t, sx);
-          Ly.add(M.iron, box(0.14, 0.56, A.dz(t, 0.68 / segs) - 0.1, 0.04), [sx * w, y + 0.32, A.zAt(t)], [0, yaw, 0]);
+          Ly.add(I, box(0.14, 0.56, A.dz(t, 0.68 / segs) - 0.1, 0.04), [sx * w, y + 0.32, A.zAt(t)], [0, yaw, 0]);
           if (!LO) for (const dz of [-0.3, 0.3]) Ly.add(M.rivet, RIVET, [sx * (w + 0.08), y + 0.48, A.zAt(t) + dz]);
         }
         const c = A.L.cab;
-        Ly.add(M.iron, box(0.1, c.h * 0.42, c.l * 0.96, 0.03), [sx * (c.w / 2 + 0.06), c.y0 + c.h * 0.2, c.z]);
-        Ly.add(M.iron, box(0.1, c.h * 0.2, c.l * 0.96, 0.03), [sx * (c.w / 2 + 0.06), c.y0 + c.h * 0.88, c.z]);
+        if (!art) Ly.add(I, box(0.1, c.h * 0.42, c.l * 0.96, 0.03), [sx * (c.w / 2 + 0.06), c.y0 + c.h * 0.2, c.z]);
+        if (!art) Ly.add(I, box(0.1, c.h * 0.2, c.l * 0.96, 0.03), [sx * (c.w / 2 + 0.06), c.y0 + c.h * 0.88, c.z]);
       }
       if (T.gold) { // legendary trim: gold edging along the top of the armour and a gold band at the waterline
         Ly.add(M.gold, tube(lineCurve(A, sx, 0.05, 0.14, t0s, t1s), 48, 0.1, 6));
@@ -291,24 +311,26 @@ const PARTS = {
       const z = A.zAt(0) - 0.08, top0 = A.shape.top(0.01), bottom = Math.max(0.15, top0 - 0.45);
       for (let d = 0.12; d < top0 - 0.35; d += 0.5) {
         const w = A.sideX(0.01, d + 0.2) * 2 * 0.98;
-        Ly.add(M.iron, box(w, 0.42, 0.1, 0.03), [0, top0 - d - 0.2, z]);
+        Ly.add(I, box(w, 0.42, 0.1, 0.03), [0, top0 - d - 0.2, z]);
         if (!LO) for (const f of [-0.42, -0.14, 0.14, 0.42]) Ly.add(M.rivet, RIVET, [w * f, top0 - d - 0.06, z - 0.07]);
       }
       if (T.gold) Ly.add(M.gold, cyl(0.09, 0.09, A.sideX(0.01, 0.1) * 2, 6), [0, top0 - 0.08, z - 0.06], [0, 0, Math.PI / 2]);
     }
-    if (T.rail) { const c = A.L.cab; Ly.add(M.iron, box(c.w * 0.98, c.h * 0.22, 0.1, 0.03), [0, c.y0 + c.h * 0.12, c.z - c.l / 2 - 0.06]); }
-    if (T.bands) for (const sx of [1, -1]) for (const t of (T.bands > 1 ? [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] : [0.1, 0.3, 0.5, 0.7, 0.9])) Ly.add(M.dark, tube(sideCurve(A, t, sx, 0.02, 1.25 * A.k, 0.14), 8, 0.1, 5)); // [more levels] iron hoops over the plates
+    if (T.rail && !art) { const c = A.L.cab; Ly.add(I, box(c.w * 0.98, c.h * 0.22, 0.1, 0.03), [0, c.y0 + c.h * 0.12, c.z - c.l / 2 - 0.06]); }
+    if (T.bands) for (const sx of [1, -1]) for (const t of (T.bands > 1 ? [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] : [0.1, 0.3, 0.5, 0.7, 0.9])) Ly.add(D, tube(sideCurve(A, t, sx, 0.02, 1.25 * A.k, 0.14 + (art ? al * 0.01 : 0)), 8, BR, 5)); // [more levels] iron hoops over the plates
     if (T.ram) { // iron bow ram + armoured prow
       const zb = A.zAt(1), yb = A.shape.top(1) - 1.25 * k;
-      Ly.add(M.iron, new THREE.ConeGeometry(0.65 * k, 2.6 * k, 8), [0, yb, zb + 1.1 * k], [Math.PI / 2, 0, 0]);
+      Ly.add(I, new THREE.ConeGeometry(0.65 * k, 2.6 * k, 8), [0, yb, zb + 1.1 * k], [Math.PI / 2, 0, 0]);
       Ly.add(M.gold, torus(0.62 * k, 0.11), [0, yb, zb - 0.1]);
-      for (const sx of [1, -1]) Ly.add(M.iron, hullPanel(A, 0.9, 0.995, 0.15, 1.5 * k, sx, 0.16, 4, 3));
+      for (const sx of [1, -1]) Ly.add(I, hullPanel(A, 0.9, 0.995, 0.15, 1.5 * k, sx, 0.16, 4, 3));
     }
   },
   // SAILS: bigger sails, topgallants, royals, a big skull spanker sheeted out so it shows, a 4th mast at max
   sails(A, T, Ly, ship) {
     const ud = ship.userData, ref = ud.sails[1] || ud.sails[0], mainRef = ud.sails[0];
     const sf = ref.children[0].material, sb = ref.children[1].material, mf = mainRef.children[0].material, mb = mainRef.children[1].material;
+    const extra = []; // [Timothy v2] LOW: the stage-3 head + studding sails merge into one front/back pair (2 draws, no furl)
+    const addSail = (g, pos, furl) => { if (LO && ud.art) { const c = g.clone(); if (pos) c.translate(...pos); extra.push(c); } else { const q = sailPair(g, sf, sb, furl); if (pos) q.position.set(...pos); Ly.group.add(q); } };
     const yard = (yw, p) => Ly.add(T.gold ? M.gold : M.oak, lathe([[0.03, -yw / 2], [0.1, 0], [0.03, yw / 2]], 6), p, [0, 0, Math.PI / 2]);
     if (T.w > 1) A.masts.forEach((m, mi) => { // broader yards so the wider sails hang from wood, not air
       for (const [yf, wf] of [[0.74, 1.5], [0.98, 1.08]]) { const yw = A.beam * wf * A.L.mastDefs[mi][1] * T.w; yard(yw, [0, m.y + m.h * yf, m.z + 0.22]); }
@@ -319,8 +341,8 @@ const PARTS = {
       Ly.add(M.gold, torus(0.17, 0.05), [0, top, m.z], [Math.PI / 2, 0, 0]);
       const yw = A.beam * 1.05 * T.w * (mi ? 0.8 : 1), yy = top + ext * 0.5;
       yard(yw, [0, yy, m.z + 0.2]);
-      const g = sailPair(sailGeo(yw * 0.92, ext * 0.45, 0.6), sf, sb); g.position.set(0, yy - 0.1, m.z + 0.3); Ly.group.add(g);
-      if (T.royal) { const rw = yw * 0.7, ry = top + ext * 0.92; yard(rw, [0, ry, m.z + 0.2]); const r = sailPair(sailGeo(rw * 0.92, ext * 0.36, 0.45), sf, sb); r.position.set(0, ry - 0.1, m.z + 0.3); Ly.group.add(r); }
+      addSail(sailGeo(yw * 0.92, ext * 0.45, 0.6), [0, yy - 0.1, m.z + 0.3], true);
+      if (T.royal) { const rw = yw * 0.7, ry = top + ext * 0.92; yard(rw, [0, ry, m.z + 0.2]); addSail(sailGeo(rw * 0.92, ext * 0.36, 0.45), [0, ry - 0.1, m.z + 0.3], true); }
     });
     if (T.spanker) { // fore-and-aft skull sail on the mizzen, swung out to port so the chase camera sees it
       const m = A.masts[2], th = 0.6, h = m.h * 0.5, w = A.rigLen * 0.3, y0 = m.y + m.h * 0.86;
@@ -341,6 +363,26 @@ const PARTS = {
         const g = sailPair(sailGeo(yw * 0.92, mh * hf, 1.0), f, b); g.position.set(0, yy - 0.12, z + 0.34); Ly.group.add(g);
       });
     }
+    const J = ud.art && ud.jibPts;
+    if (J && T.top) { // [Timothy v2] extra (outer) jib on a flying jib-boom, its head on the fore topmast stay
+      const V = (a) => new THREE.Vector3(...a), dir = V(J.dir), jbB = V(J.jbB), tip = jbB.clone().addScaledVector(dir, J.bsL * 0.3);
+      Ly.span(M.oak, jbB.clone().addScaledVector(dir, -J.bsL * 0.12).toArray(), tip.toArray(), 0.07, 0.05);
+      const fm = A.masts[1], head = V([0, fm.y + fm.h * (1 + T.top * 0.9), fm.z]), top = head.clone().lerp(tip, 0.42);
+      const foot = jbB.clone().lerp(V(J.j2Top), 0.06);
+      addSail(triSail(top, tip, foot, 0.45, LO ? 5 : 8), null, false);
+      Ly.span(M.dark, head.toArray(), tip.toArray(), 0.025);
+    }
+    if (ud.art && T.royal) A.masts.slice(0, 2).forEach((m, mi) => { // [Timothy v2] studding sails out past the course (and topsail) yard ends
+      for (const [yf, wf, hf] of (T.spanker ? [[0.74, 1.5, 0.27], [0.98, 1.08, 0.2]] : [[0.74, 1.5, 0.27]])) {
+        const yw = A.beam * wf * A.L.mastDefs[mi][1] * T.w, sw = yw * 0.2, yy = m.y + m.h * yf, sh = m.h * hf;
+        for (const sx of [1, -1]) {
+          const x = sx * (yw / 2 + sw / 2 - 0.1);
+          Ly.add(M.oak, cyl(0.05, 0.05, sw + 0.5, 6), [sx * (yw / 2 + sw / 2 - 0.2), yy, m.z + 0.24], [0, 0, Math.PI / 2]);
+          addSail(sailGeo(sw, sh, 0.35), [x, yy - 0.06, m.z + 0.32], true);
+        }
+      }
+    });
+    if (extra.length) { const g = extra.map(e => { const n = e.index ? e.toNonIndexed() : e; for (const k of Object.keys(n.attributes)) if (!['position', 'uv', 'normal'].includes(k)) n.deleteAttribute(k); return n; }); Ly.group.add(sailPair(mergeGeometries(g, false), sf, sb, false)); }
     if (T.gold) A.masts.forEach(m => { const top = m.y + m.h * (1 + (T.top || 0)); Ly.add(M.gleam, sph(0.22), [0, top + 0.3, m.z]); });
   },
   // RUDDER / STERN: oak rudder with iron pintles → bigger + ship's wheel → stern gallery, gold wheel, big stern lanterns
@@ -379,7 +421,7 @@ const PARTS = {
     if (T.big) A.gunT.forEach((t, gi) => { for (const sx of [1, -1]) { // chunkier guns over the deck slots
       const w = A.shape.halfW(t), y = A.deckAt(t), z = A.zAt(t), cx = sx * (w - 0.45), s = T.big * k;
       const x0 = cx + sx * (-0.35 + 1.22 * bcs * 1.25 + 0.05 - 1.22 * s * 1.05); // [v97] its muzzle sits just past the base gun's, so no barrel pokes through ([v98] bcs: the boss rig's 1.25× base guns, COMMODORE)
-      Ly.add(M.iron, barrel, [x0, y + 0.6, z], [0, 0, -sx * Math.PI / 2], [s, s * 1.05, s]);
+      const kb = M.ironK && kitGeo('barrel'); Ly.add(kb ? M.ironK : M.iron, kb || barrel, [x0, y + 0.6, z], [0, 0, -sx * Math.PI / 2], [s, s * 1.05, s]); // [Timothy] kit barrel, same tip
       muzzle(Ly, sx > 0 ? 'port' : 'star', [x0 + sx * (1.22 * s * 1.05 + 0.04), y + 0.6, z], gi * 2 + (sx > 0 ? 0 : 1)); // [v95] deck muzzle at THIS barrel's tip
       if (!LO || T.gold) Ly.add(T.gold ? M.gold : M.iron, torus(0.3 * s, 0.06 * s), [x0 + sx * 0.95 * s, y + 0.6, z], [0, Math.PI / 2, 0]);
     } });
@@ -432,13 +474,24 @@ const PARTS = {
           if (!LO) [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]].forEach(([dx, dz]) => Ly.add(M.ball, ball, [cx + dx, y + 0.32, z - 0.62 + dz]));
           Ly.add(M.ball, ball, [cx, y + 0.6, z - 0.62]);
         }
-        if (T.litPorts) {
+        if (T.litPorts && !ship?.userData?.art) {
           const d = 0.5 * k;
           Ly.add(M.glow, box(0.06, 0.52 * k, 0.66, 0.03), [sx * (A.sideX(t, d) + 0.21), A.shape.top(t) - d, z], [0, A.sideYaw(t, sx), 0]);
         }
         if (T.linstocks && !LO && i % 2 === 1) { Ly.add(M.dark, cyl(0.035, 0.035, 1.2, 4), [cx, y + 0.6, z + 0.6], [0.2, 0, 0]); Ly.add(M.fuse, sph(0.11), [cx, y + 1.2, z + 0.72]); }
       }
     });
+    const ud = ship?.userData;
+    if (ud?.art && T.litPorts && ud.muzzles) { // [Timothy v2] glowing (later gilded) port rings round every real gun port on the v2 bulwark
+      ud.body.updateMatrixWorld(true); const v = new THREE.Vector3(), ring = torus(0.4, 0.06);
+      for (const side of ['port', 'star']) for (const m of ud.muzzles[side]) {
+        m.getWorldPosition(v); ud.body.worldToLocal(v); const sx = Math.sign(v.x) || 1;
+        const x = v.x - sx * 0.42; // round the barrel just inboard of the muzzle: hot, fast-served guns
+        const px = v.x - sx * 0.66, S0 = 0.5, th = 0.07; // glowing frame round the port opening, behind the muzzle swell
+        for (const [dy, dz, hy, hz] of [[S0, 0, th, 2 * S0 + th], [-S0, 0, th, 2 * S0 + th], [0, S0, 2 * S0, th], [0, -S0, 2 * S0, th]]) Ly.add(M.hot, box(0.06, hy, hz, 0.01), [px, v.y - 0.1 + dy, v.z + dz]);
+        if (T.gold) Ly.add(M.gold, ring, [v.x - sx * 0.15, v.y, v.z], [0, Math.PI / 2, 0]);
+      }
+    }
     if (T.magazine) { // ring of red-banded powder kegs amidships (around the 4th mast if it's there)
       const z = A.zAt(0.445), y = A.deckAt(0.445);
       for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
@@ -455,8 +508,8 @@ const PARTS = {
     }
   },
   // SPY TOWER: lookout spyglass → fore crow's nest + jib-boom glass → tall watchtower at the main masthead with a beacon
-  range(A, T, Ly) {
-    if (!T.lookout) return;
+  range(A, T, Ly, ship) {
+    if (!T.lookout && !ship?.userData?.art) return; // [Timothy v2] new hull: lookout platform at every level
     const glass = lathe(SPYGLASS, seg(8, 5));
     const scope = (p, rx, s = 1) => {
       Ly.add(M.gold, glass, p, [rx, 0, 0], s);
@@ -472,7 +525,9 @@ const PARTS = {
     if (T.watchtower) nest(0, ny + 0.1, m0.z, 1.05, 0.5, T.gold); // lookout rail around the main top (the pirate is up the tower)
     else { const ry = railCY(A); // [v85] above the sails, on a pole stepped into the masthead
       Ly.add(M.oak, cyl(0.1, 0.15, ry - A.mainTop + 0.5, 8), [0, (ry + A.mainTop - 0.5) / 2, m0.z]);
-      nest(0, ry, m0.z, 1.05, 0.5, T.gold);
+      const art = !!ship?.userData?.art, big = art && T.lookout; // [Timothy v2] lvl 0 (new hull): a plain nest; SPYGLASS I+: a wider gilded nest + a brass glass with a glint
+      nest(0, ry, m0.z, art && !T.lookout ? 0.9 : big ? 1.25 : 1.05, 0.5, T.gold || big);
+      if (big && !T.watchtower) { scope([0.85, ry + 0.6, m0.z + 0.35], Math.PI / 2 - 0.1, 0.85); Ly.add(M.glow, sph(0.13), [0.85, ry + 0.74, m0.z + 1.7]); }
       Ly.add(M.oak, cyl(0.06, 0.08, 1.75, 6), [0, ry + 0.25 + 0.85, m0.z]); } // flag staff: the flag flies above the lookout's head
     if (T.watchtower) scope([0.1, ny + 0.75, m0.z + 0.6], Math.PI / 2 - 0.12, 1.1); // [v84] below the tower: the lookout pirate holds this glass
     if (T.crowsNest) {
@@ -508,16 +563,16 @@ const PARTS = {
 
 // ---------- compiler ----------
 const _parts = new Map(); // trait part templates, keyed by everything that shapes them
-function partKey(id, lv, skin) { return `${id}:${lv[id] || 0}|h${lv.hull}s${lv.sails}c${lv.cannons}|${skin.id}|${LO ? 'L' : 'H'}${PV ? '|pv' : ''}`; }
+function partKey(id, lv, skin, art) { return `${id}:${lv[id] || 0}|h${lv.hull}s${lv.sails}c${lv.cannons}|${skin.id}|${LO ? 'L' : 'H'}${PV ? '|pv' : ''}${art ? '|a' : ''}`; }
 function partSet(id, A, lv, ship, skin) {
-  const key = partKey(id, lv, skin);
+  const key = partKey(id, lv, skin, ship?.userData?.art);
   let tpl = _parts.get(key);
   if (!tpl) { const Ly = new Layer(id); PARTS[id](A, TRAITS[id][lv[id] || 0], Ly, ship, lv); tpl = Ly.build(); _parts.set(key, tpl); }
   return tpl;
 }
 const normLevels = (levels = {}) => Object.fromEntries(TRAIT_IDS.map(id => [id, Math.max(0, Math.min(TRAITS[id].length - 1, levels[id] || 0))]));
 const shipKey = (lv, skin, q, shadows, pvp) => `${TRAIT_IDS.map(id => lv[id]).join('')}|${skin.id}|${q}|${shadows ? 1 : 0}${pvp ? '|pvp' : ''}`; // [pvp skins] PvP builds add skin parts
-let BASE_RIG = 0, lastOpts = {};
+let BASE_RIG = 0, lastOpts = {}; const _streamMats = [];
 
 function buildCompiled(lv, opts, skin) {
   LO = opts.quality === 'low'; PV = !!opts.pvp; // [v95] PV: Battle Royale gun rows
@@ -525,12 +580,13 @@ function buildCompiled(lv, opts, skin) {
   const H = TRAITS.hull[lv.hull], W = TRAITS.cannons[lv.cannons], S = TRAITS.sails[lv.sails];
   const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
   const nG = gunCount(lv), f = stretchFor(nG, H.len, 1.55, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12)
-  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const kitArt = skin?.shipOpts ? null : { ram: !!TRAITS.armor[lv.armor].ram, poopH: H.poop ? 1.3 * H.depth / 3.1 : 0 }; // [Timothy v2] poopH: the helm climbs onto the poop deck // [Timothy] player ships wear the Blender kit (figurehead clears the armour ram); COMMODORE stays the exact boss build until the boss is remodelled too
+  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nG, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, f) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;
   if (TRAITS.range[lv.range].watchtower) ud.layout.flagPole.position.y = A.mainTop + 0.4 + WATCH_H + 2.3;
-  else if (TRAITS.range[lv.range].lookout) ud.layout.flagPole.position.y = railCY(A) + 0.25 + 1.55; // [v85] the flag flies from a staff on the raised rail, over the lookout
+  else if (TRAITS.range[lv.range].lookout || ud.art) ud.layout.flagPole.position.y = railCY(A) + 0.25 + 1.55; // [v85] the flag flies from a staff on the raised rail, over the lookout
   // merge every trait's parts into one mesh per material (+ outlines), add the animated / functional extras
   const buckets = new Map(), extraMuzzles = [];
   ud.traitBoxes = {};
@@ -559,9 +615,22 @@ function buildCompiled(lv, opts, skin) {
   // [v84] SPY TOWER lookout: a pirate with a telescope patrols the highest lookout platform (the main-top rail from SPYGLASS II,
   // the watchtower from SPYGLASS V). Merged into the crew mesh: no extra draw call, culled with the crew, Low quality too.
   { const R = TRAITS.range[lv.range];
-    if (R.lookout) { const m0 = A.masts[0];
+    if (R.lookout || ud.art) { const m0 = A.masts[0]; // [Timothy v2] new hull: the lookout platform above the sails at every level (SHIP_RULES)
       const at = R.watchtower ? { x: 0, y: A.mainTop + 0.4 + WATCH_H + 0.275, z: m0.z } : { x: 0, y: railCY(A) + 0.25, z: m0.z }; // [v85] above the sails
-      addLookout(ship, ud.body, { at, r: R.watchtower ? 0.9 : 0.72, size: R.watchtower ? 1.1 : 0.95 }); } }
+      addLookout(ship, ud.body, { at, r: R.watchtower ? 0.9 : 0.72, size: R.watchtower ? 1.1 : 0.95 });
+      ud.anchors?.push({ role: 'lookout', index: 0, pos: new THREE.Vector3(at.x, at.y, at.z), facing: 0, radius: R.watchtower ? 0.9 : 0.72, platformR: R.watchtower ? WATCH_R : 1.05 }); } }
+  if (ud.art && TRAIT_IDS.some(id => lv[id] && lv[id] >= TRAITS[id].length - 1)) { // [Timothy v2] any upgrade at MAX: gold-edged crimson swallowtail streamer over the flag
+    const fp = ud.layout.flagPole, fw = fp.userData.fw || 6, fh = fp.userData.fh || 4, L0 = fw * 1.5, H0 = Math.max(0.45, fh * 0.16), n = 16;
+    const mk = (grow) => { const pos = [], idx = [];
+      for (let i = 0; i <= n; i++) { const u = i / n, z = -u * L0, h = (H0 + grow) * (1 - u * 0.5), dy = Math.sin(u * 5.5) * 0.18 * u, x = Math.sin(u * 4 + 1) * 0.12 * u;
+        pos.push(x, dy + h / 2, z, x, dy, -Math.min(u, 0.8) * L0, x, dy - h / 2, z); } // middle row stops short: swallowtail notch
+      for (let i = 0; i < n; i++) { const a = i * 3; idx.push(a, a + 3, a + 1, a + 1, a + 3, a + 4, a + 1, a + 4, a + 2, a + 2, a + 4, a + 5); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g; };
+    const red = _streamMats[0] || (_streamMats[0] = toon(0xb3121b, null, { side: THREE.DoubleSide })), gold = _streamMats[1] || (_streamMats[1] = toon(0xffcd77, null, { side: THREE.DoubleSide }));
+    const st = new THREE.Group(); st.name = 'max-streamer'; st.position.set(0, fh + 0.72, 0);
+    const back = new THREE.Mesh(mk(0.18), gold), front = new THREE.Mesh(mk(0), red); front.position.x = 0.03; back.position.z = 0.06; back.scale.set(1, 1, 1.04);
+    if (LO) st.add(front); else st.add(back, front); fp.add(st); ud.maxStreamer = st;
+  }
   dressCrew(ud.body, skin?.crewOutfit || skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
