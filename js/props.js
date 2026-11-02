@@ -119,12 +119,16 @@ export function createIslands(quality) {
   }
   // ---- world layout (pure function of the cell: identical for every client) ----
   const cellInfo = new Map();
+  // [Raul] harbor zone (PvP queue harbor only, see setHarbor): no grid rocks within clearR of the origin (open water, the old
+  // lighthouse stack goes; the lighthouse now stands on the PUMPFUN PIRATES island), a few curated islets just past the arena
+  // edge, plus the island's own world circles. Deterministic, so every client agrees.
+  let zone = null;
   function cell(ci, cj) {
     const key = `${ci},${cj}`; let c = cellInfo.get(key); if (c !== undefined) return c;
     c = null;
     if (hash2(ci, cj, 1) < 0.62) {
       const x = (ci + 0.5 + (hash2(ci, cj, 2) - 0.5) * 0.5) * ISLAND_CELL, z = (cj + 0.5 + (hash2(ci, cj, 3) - 0.5) * 0.5) * ISLAND_CELL;
-      if (Math.hypot(x, z) > CLEAR_R + 60) {
+      if (Math.hypot(x, z) > CLEAR_R + 60 && !(zone && Math.hypot(x, z) < zone.clearR)) {
         const d = Math.floor(hash2(ci, cj, 4) * DESIGNS) % DESIGNS, rot = hash2(ci, cj, 5) * Math.PI * 2, cs = Math.cos(rot), sn = Math.sin(rot);
         // world circles (Object3D.rotation.y maps local (x,z) -> (x cos + z sin, -x sin + z cos))
         const circles = designs[d].circles.map(k => ({ x: x + k.x * cs + k.z * sn, z: z - k.x * sn + k.z * cs, r: k.r, h: k.h - 0 }));
@@ -138,6 +142,7 @@ export function createIslands(quality) {
   function circlesNear(x, z) { // circles in the cell under (x,z) and its neighbours (a cell's island stays inside its 3x3)
     near.length = 0; const ci = Math.floor(x / ISLAND_CELL), cj = Math.floor(z / ISLAND_CELL);
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const c = cell(ci + a, cj + b); if (c) for (const k of c.circles) near.push(k); }
+    if (zone) for (const S of zone.sets) if (Math.hypot(x - S.bound.x, z - S.bound.z) < S.bound.r + 80) for (const k of S.circles) near.push(k);
     return near;
   }
   // ---- rendering: 3x3 cells around the camera, clones of the designs from a pool ----
@@ -154,9 +159,25 @@ export function createIslands(quality) {
       live.set(key, { obj, d: c.d, beam: designs[c.d].lighthouse ? obj.getObjectByName('beam') : null });
     }
   }
+  const isletObjs = [];
+  function islet(d, x, z, rot, sc) { // a curated rock islet (non-lighthouse design), world circles from the design
+    const obj = designs[d].isl.clone(); obj.position.set(x, -2, z); obj.rotation.y = rot; obj.scale.setScalar(sc);
+    const c = Math.cos(rot), s = Math.sin(rot), circles = designs[d].circles.map(k => ({ x: x + (k.x * c + k.z * s) * sc, z: z + (-k.x * s + k.z * c) * sc, r: k.r * sc, h: k.h * sc }));
+    return { obj, circles, bound: { x, z, r: Math.max(...circles.map(k => Math.hypot(k.x - x, k.z - z) + k.r)) } };
+  }
+  // zone: null (solo / arena: the original world) or { clearR, islets: [[design, x, z, rot, scale]...], island: { circles, bound } }
+  function setHarbor(zn) {
+    for (const o of isletObjs) group.remove(o); isletObjs.length = 0;
+    for (const [key, o] of live) { group.remove(o.obj); pool[o.d].push(o.obj); live.delete(key); }
+    cellInfo.clear(); lastCell = '';
+    if (!zn) { zone = null; return; }
+    const sets = (zn.islets || []).map(([d, x, z, rot, sc]) => { const i = islet(d, x, z, rot, sc || 1); isletObjs.push(i.obj); group.add(i.obj); return i; });
+    if (zn.island) sets.push(zn.island);
+    zone = { clearR: zn.clearR || 0, sets };
+  }
   const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.hitLen || u.len || 14) * 0.42) : 6; };
   return {
-    group,
+    group, setHarbor, get harborZone() { return zone; },
     update(t, cam) { refresh(cam.x, cam.z); for (const o of live.values()) if (o.beam) o.beam.rotation.y = t * 0.8; },
     circlesNear,
     // push a ship out of any rock it overlaps: slide along the rock, bleed speed by how head-on the hit is. No damage.
@@ -176,6 +197,15 @@ export function createIslands(quality) {
     // AI look-ahead: a turn input that swings the bow away from a rock in its path (null = path is clear)
     avoid(s) {
       const R = shipR(s) + 6, hx = Math.sin(s.yaw), hz = Math.cos(s.yaw), look = R + 16 + Math.max(0, s.speed) * 2.2;
+      // [Raul] big obstacles (the harbor island + its piers): steer round the whole disc on one sticky side, so a ship never
+      // dithers between the island's many small circles. Inside the disc (between piers) the small-circle logic below runs.
+      if (zone) for (const S of zone.sets) { const B = S.avoidDisc; if (!B) continue;
+        const dx = B.x - s.x, dz = B.z - s.z, d = Math.hypot(dx, dz); if (d < B.r) continue;
+        const along = dx * hx + dz * hz, side = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw);
+        if (along > 0 && d - B.r < look + 45 && Math.abs(side) < B.r + R) {
+          if (!s.avSide || s.avT < 0) s.avSide = side > 0 ? -1 : 1; s.avT = 1.5; return s.avSide; }
+      }
+      if (s.avSide) { s.avT = (s.avT || 0) - 1 / 60; if (s.avT < 0) s.avSide = 0; }
       let best = null, bt = Infinity;
       for (const c of circlesNear(s.x, s.z)) {
         const dx = c.x - s.x, dz = c.z - s.z, along = dx * hx + dz * hz; if (along < -c.r || along > look + c.r) continue;

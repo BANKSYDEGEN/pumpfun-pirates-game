@@ -101,6 +101,23 @@ const rain = createRain(quality === 'low' ? 1800 : ULTRA ? 9000 : 5000); scene.a
 const fx = new FX(scene, FXQ);
 const bolt = createBolt(); scene.add(bolt.mesh);
 const islands = createIslands(quality); scene.add(islands.group);
+// [Raul] PUMPFUN PIRATES island in the PvP queue harbor (preview): loaded on first harbor visit, shown + solid only while you
+// sail the harbor (never solo / Waves / the arena). The harbor zone also clears the old rocks (and the old lighthouse stack)
+// inside r 470 for open water and frames the edge with a few curated islets. ?harborIsland=0 = the original harbor.
+const HARBOR_ISLAND_ON = new URLSearchParams(location.search).get('harborIsland') !== '0';
+const HARBOR_ISLETS = [[3, 492, -96, 0.6, 0.9], [6, -118, 488, 2.1, 0.85], [0, -470, 150, 4.0, 1.0], [7, -360, -340, 1.2, 0.9], [4, 70, -490, 5.1, 0.95]];
+const harborIsle = { obj: null, loading: false, on: false };
+function harborIslandTick(t) {
+  const want = HARBOR_ISLAND_ON && game.mode === 'pvp' && !!pvp && pvp.where === 'harbor';
+  if (want && !harborIsle.obj && !harborIsle.loading) {
+    harborIsle.loading = true;
+    import('./island/harbor.js').then(m => m.createHarborIsland({ quality, ocean })).then(o => { harborIsle.obj = o; o.setVisible(false); scene.add(o.group); })
+      .catch(e => console.warn('[island] harbor island failed', e)).finally(() => { harborIsle.loading = false; });
+  }
+  const o = harborIsle.obj, on = want && !!o;
+  if (on !== harborIsle.on) { harborIsle.on = on; if (o) o.setVisible(on); islands.setHarbor(on ? { clearR: 470, islets: HARBOR_ISLETS, island: { circles: o.circles, bound: o.bound, avoidDisc: o.bound } } : null); }
+  if (on) o.update(t, camera.position);
+}
 
 // post-processing (high tier only; phones never download these modules)
 let composer = null;
@@ -1220,6 +1237,7 @@ function frame() {
   if (camera.position.y < minY) camera.position.y = minY;
   if (game.shake > 0) { camera.position.x += rnd(-1, 1) * game.shake * 0.4; camera.position.y += rnd(-1, 1) * game.shake * 0.4; game.shake = Math.max(0, game.shake - dt * 2.5); }
   sky.mesh.position.copy(camera.position);
+  harborIslandTick(t);
   islands.update(t, camera.position);
   if (HIGH) { sun.target.position.set(player.x, 0, player.z); sun.position.copy(sun.target.position).add(SUN_OFF); }
   rain.uniforms.uCam.value.copy(camera.position);
@@ -1348,4 +1366,4 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
     requestAnimationFrame(probe);
   }, 6000);
 }
-window.PFP = { islands, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
+window.PFP = { islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
