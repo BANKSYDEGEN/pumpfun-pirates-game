@@ -8,6 +8,7 @@ const SHELL = [
   "./favicon.ico",
   "./css/style.css",
   "./js/main.js",
+  "./js/island/coast.js", // [Emerly] main.js + pvp.js import the coast flag (pure data)
   "./js/config.js",
   "./js/tokenChip.js",
   "./js/shareCard.js",

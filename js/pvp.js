@@ -22,6 +22,8 @@ import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-c
 import { PVP_HARBOR_DEATH_LOSS, PVP_HARBOR_RESPAWN, PVP_HARBOR_PROTECT } from './config.js';
 import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
+import { COAST_ON } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
+const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
@@ -62,6 +64,11 @@ const PIRATE_B = ['JACK', 'BONES', 'MARY', 'HOOK', 'FINN', 'ANNE', 'PETE', 'MORG
 export const pirateName = () => `${PIRATE_A[Math.random() * PIRATE_A.length | 0]} ${PIRATE_B[Math.random() * PIRATE_B.length | 0]}`;
 
 // spawn points: 16 around the edge + 6 on a mid ring
+// [Emerly] coast harbor (Raul's js/island/coast.js, ?coast=1 until it goes live): the town + berths are the EAST side of the harbor, so
+// the 5 outer spawns at 0 / 22.5 / 45 / 315 / 337.5 deg (on land / in the no-fire zone) go and the other 11 spread over 60..300 deg
+// (harbor only; the arena keeps the full ring). SPAWNS below is unchanged.
+const SPAWNS_COAST = [...Array.from({ length: 11 }, (_, i) => (60 + i * 24) / 360 * 6.283).map(a => [Math.cos(a) * PVP_ARENA_R * 0.82, Math.sin(a) * PVP_ARENA_R * 0.82]),
+  ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])];
 const SPAWNS = [...Array.from({ length: 16 }, (_, i) => [Math.cos(i / 16 * 6.283) * PVP_ARENA_R * 0.82, Math.sin(i / 16 * 6.283) * PVP_ARENA_R * 0.82]),
   ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])];
 
@@ -339,6 +346,7 @@ export function createPvp(K) {
   function lvFrom(arr) { const lv = {}; UPGRADES.forEach((u, i) => lv[u.id] = clamp(Math.floor(arr?.[i] || 0), 0, u.tiers.length)); return lv; }
   function onState(m) {
     if (!m || typeof m.i !== 'string' || m.i === myId || m.i.length > 20) return;
+    if (where === 'harbor') window.PFP?.dock?.onPeerState?.(m); // [Emerly] other pirates' berth + on-foot pose (harbor room only)
     let p = peers.get(m.i);
     const now = performance.now();
     if (!p) { p = { id: m.i, heard: now, st: null, ship: null, key: '' }; peers.set(m.i, p); }
@@ -443,11 +451,12 @@ export function createPvp(K) {
     const pl = P(), d = Math.hypot(pl.x - e.x, pl.z - e.z);
     return pl.alive && !me.dead && me.protect <= 0 && d < 220 ? pl : NO_TARGET;
   }
-  function botSteer(e, desired) { const r = Math.hypot(e.x, e.z); return r > PVP_ARENA_R - 50 ? Math.atan2(-e.x, -e.z) : desired; }
+  function botSteer(e, desired) { const r = Math.hypot(e.x, e.z); return r > PVP_ARENA_R - 50 || (COAST_ON && where === 'harbor' && e.x > COAST_TURN_X) ? Math.atan2(-e.x, -e.z) : desired; } // [Emerly] coast: bots turn back before the berths / town (harbor x > 140)
   function pickSpawn(selfShip = null) {
     const ships = allShips().filter(s => s !== selfShip);
-    let best = SPAWNS[0], bd = -1;
-    for (const pt of SPAWNS.map(q => K.islands ? K.islands.freeSpot(q[0], q[1], 16) : q)) { let d = 1e9; for (const s of ships) d = Math.min(d, Math.hypot(s.x - pt[0], s.z - pt[1])); if (d > bd) { bd = d; best = pt; } }
+    const SP = COAST_ON && where === 'harbor' ? SPAWNS_COAST : SPAWNS; // [Emerly] coast harbor spawns
+    let best = SP[0], bd = -1;
+    for (const pt of SP.map(q => K.islands ? K.islands.freeSpot(q[0], q[1], 16) : q)) { let d = 1e9; for (const s of ships) d = Math.min(d, Math.hypot(s.x - pt[0], s.z - pt[1])); if (d > bd) { bd = d; best = pt; } }
     return { pt: best, crowded: bd < SAFE_R }; // [solid rocks] spawn points are nudged clear of rocks
   }
 
@@ -831,6 +840,7 @@ export function createPvp(K) {
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
+    const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     return m;
   }
 
