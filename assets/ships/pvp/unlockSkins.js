@@ -1,7 +1,7 @@
 // [Timothy] PvP UNLOCK skins (not kill tiers): PUMPFUN PIRATES Battle Royale. Cosmetic only, never a stat change.
-//   bondingcurve  BONDING CURVE  unlock: 100 harbor AI kills    the plain default ship (the game's own player textures and
-//                                                               standard black skull sails) flying the green pump.fun-style pill
-//                                                               flag from js/ships.js makePillTexture() instead of the skull flag
+//   bondingcurve  BONDING CURVE  unlock: 100 harbor AI kills    the plain default ship: standard black skull sails and the
+//                                                               standard PUMPFUN PIRATES skull flag (no palette = the game's own
+//                                                               player textures, exactly like CLASSIC)
 //   commodore     COMMODORE      unlock: 100 harbor boss kills  THE COMMODORE's own look (Waves boss / v97 harbor boss): the boss
 //                                                               build options straight from js/ships.js (SCHEMES.boss kit,
 //                                                               boss: true rig, rug-pill flag from makePillTexture, flagScale 1.45,
@@ -20,15 +20,13 @@ import { SCHEMES, makePillTexture } from '../../../js/ships.js';
 
 export const UNLOCK_IDS = ['bondingcurve', 'commodore'];
 
-let _bossFlag = null; // the ONE green pump.fun-style pill flag texture (js/ships.js makePillTexture: green + white capsule), shared
 export const BONDING_CURVE = {
-  id: 'bondingcurve', name: 'BONDING CURVE', price: 0, premium: 'pvp', blurb: 'The plain PUMPFUN PIRATES ship under the green pump.fun pill flag.',
+  id: 'bondingcurve', name: 'BONDING CURVE', price: 0, premium: 'pvp', blurb: 'The plain PUMPFUN PIRATES ship under the PUMPFUN flag.',
   locked: true, unlock: { type: 'harborAiKills', count: 100 },
-  // plain default ship (scheme 'player', standard skull sails from the player build opts); only the flag changes
-  shipOpts: () => ({ flagMap: _bossFlag || (_bossFlag = makePillTexture()) }),
   swatch: { hull: '#6a4026', band: '#161616', stripe: '#ffcd77', sail: '#1c1c1c', trim: '#ffcd77' }, // = CLASSIC
 };
 
+let _bossFlag = null;
 const B = SCHEMES.boss, hex = (c) => '#' + c.toString(16).padStart(6, '0');
 export const COMMODORE = {
   id: 'commodore', name: 'COMMODORE', price: 0, premium: 'pvp', blurb: 'Sail THE COMMODORE\'s own ship.',
