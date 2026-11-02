@@ -98,7 +98,7 @@ const LOOK = {
       totalEmissiveRadiance += vec3(0.2, 1.0, 0.85) * spot * pl * 1.3 + vec3(1.0, 0.5, 0.4) * fres * 0.35;`,
     sail: `float ca = sin(U.x * 14.0 + T * 1.2 + sin(U.y * 9.0 - T) * 1.6) * sin(U.y * 12.0 - T * 0.9 + sin(U.x * 7.0 + T * 0.7) * 1.6);
       totalEmissiveRadiance += vec3(1.0, 0.62, 0.52) * smoothstep(0.55, 1.0, ca) * 0.32 + vec3(0.3, 1.0, 0.85) * smoothstep(0.04, 0.0, U.y) * 0.6;` },
-  storm: { outline: 0x0c1622, hullK: 0.95, emissive: 0x04080c, glow: 0xbfe8ff, artK: 0.12, artSail: 0xa9b9cb,
+  storm: { outline: 0x0c1622, hullK: 0.95, emissive: 0x04080c, glow: 0xbfe8ff, artK: 0.12, artSail: 0x5b82b4, artGlow: 0x2f8fe0,
     hull: `float fl = tlFlash(T, uTlSeed);
       totalEmissiveRadiance += vec3(0.62, 0.85, 1.0) * (fres * 0.45 + fl * 0.3);`,
     sail: `float fl = tlFlash(T, uTlSeed), n = tlNoise(vec3(U * vec2(6.0, 4.0), floor(T * 3.0 + uTlSeed * 7.0) * 0.37 + uTlSeed * 19.0));
@@ -131,7 +131,7 @@ function makeFx(id) {
       if (isSail && L.artSail && m.userData.uEdge?.value > 0) n.color.multiply(new THREE.Color(L.artSail));
       addLook(n, m, isSail ? L.sail : art ? L.hull.replace(/totalEmissiveRadiance \+=([^;]*);/g, `totalEmissiveRadiance += ${ak.toFixed(2)} * ($1);`) : L.hull, id + (isSail ? 's' : art ? 'ha' : 'h'));
       if (id === 'storm') n.userData.tlStorm = true;
-    } else if (m.isMeshBasicMaterial) { n = m.clone(); n.color.set(L.glow).multiplyScalar(1.8); }
+    } else if (m.isMeshBasicMaterial) { n = m.clone(); if (m.userData.art && L.artGlow != null) n.color.set(L.artGlow); else n.color.set(L.glow).multiplyScalar(1.8); } // [Timothy v2 fix] STORM v2 windows/lanterns: electric blue, not white
     cache.set(m, n); return n;
   };
 }
