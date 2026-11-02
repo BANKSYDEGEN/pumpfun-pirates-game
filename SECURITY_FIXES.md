@@ -1,8 +1,8 @@
 # PUMPFUN PIRATES · security fixes (branch `post/security-fixes`)
 
-Base: rebased onto origin/main `b131b7a` (2026-11-02 18:45 EST; includes the v112–v113 hotfixes: crew clothes, ships, settings move, title token pick). The SW VERSION is `pfp-v114`. Main bumps it often, so **at merge time set it to main + 1**.
+Base: rebased onto origin/main `776e9fa` (v114: High/Ultra black screen + hull water fix). SW VERSION `pfp-v115`. Main bumps it often, so **at merge time set it to main + 1**.
 **Deploy status (2026-11-02, ~7 PM EST):** steps 1–3 done. Migrations 028 + 029 applied (029: RLS on `realtime.messages` was already on;
-the file now only enables it when off). Functions `pvp` (v23) and `pirate` (v8) deployed. Client merged to main (SW `pfp-v114`).
+the file now only enables it when off). Functions `pvp` (v23) and `pirate` (v8) deployed. Client merged to main (SW `pfp-v115`).
 `PFP_RT_JWT_SECRET` is **not set**: the project signs with ES256 (the legacy HS256 key is "previously used"), and a random secret
 would only make Realtime refuse every private join, so clients join public channels as before (M1 stays open until it is set to a
 secret Realtime accepts). `TRUSTED_IP_HEADER` not set. `ALLOWED_ORIGINS` not set = the code default, which includes
@@ -27,7 +27,7 @@ Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remain
 - **Back-compat / could reject legit scores:**
   - a run whose `waves_start` never reached the server (offline at start, 429 from a restart < 3 s) is not on the board after 030.
     It is still saved on the device, with the same "saved locally" path as before when Supabase is down.
-  - Old cached clients (before SW v114) insert directly. After 030 their insert fails (saved locally) until they reload.
+  - Old cached clients (before SW v115) insert directly. After 030 their insert fails (saved locally) until they reload.
     Wait for adoption before 030.
   - Rollback: the commented block at the end of 030 re-creates the 003 policy and grants. Scores are never touched.
 
@@ -108,7 +108,7 @@ Status: **fixed** = closed once deployed · **partial** = narrowed, a gap remain
 - CSP meta on index.html / island.html. The inline failsafe moved to `js/boot.js`. `tools/csp_hash.py --write` re-pins the one
   inline hash.
 - `'unsafe-eval'` is needed by three's Basis/KTX2 transcoder (embind) in a blob worker. Inline script stays blocked.
-- The service worker (v114) caches same-origin only and no longer caches the CDN forever.
+- The service worker (v115) caches same-origin only and no longer caches the CDN forever.
 - Header CSP / HSTS can't be set on GitHub Pages; that needs a proxy (e.g. Cloudflare) if wanted.
 
 ### M5 · `?relay=` on prod — fixed
@@ -138,8 +138,8 @@ See "Human actions".
    - check `ALLOWED_ORIGINS` includes every live origin.
    Note: the new SIWS sign-in needs the new client and server together. An old cached client asking for a nonce still works,
    because the server builds the message and the client just signs it.
-3. **Client** (merge to main → Pages). SW v114 replaces old caches.
-4. Wait ~1–2 weeks (or until the old-client share is negligible) for SW v114 adoption.
+3. **Client** (merge to main → Pages). SW v115 replaces old caches.
+4. Wait ~1–2 weeks (or until the old-client share is negligible) for SW v115 adoption.
 5. **Migration 030** (anon INSERT on scores revoked).
 6. Test on staging: private channels with a ticket, then Realtime → "Allow public access" **OFF**.
 7. Relay (optional, later):
