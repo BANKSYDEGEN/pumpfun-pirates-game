@@ -61,7 +61,7 @@ Base-36 digits: one per slot (hat, outfit, eyes, parrot, hook, leg) = 1 + its in
 - hookSide / legSide / skinColor / hairColor need nothing on the server (free, device + 'gr').
 - No migration is needed (profile gear is JSON; `leg` is just one more key cleanGear keeps).
 - `server/relay.js` STATIC now includes `'gr'` (the relay build's static fields): the relay server must be redeployed for relay rooms to carry gear. Supabase Realtime rooms need nothing.
-- Clothes colours: tank / t-shirt / coat / pirate shirt / captain's coat follow the equipped SHIP SKIN (change skin = change clothes colours). 
+- Clothes colours: tank / t-shirt / coat / pirate shirt / captain's coat follow the equipped SHIP SKIN (change skin = change clothes colours).
 - FREE CLOTHES COLOUR (`outfitColor`, BANKSY): 0 = match the ship skin (the default, every old save), 1..12 = `CLOTH_SWATCHES` (RED CRIMSON NAVY BLUE GREEN TEAL PURPLE PINK ORANGE GOLD WHITE BLACK, append-only). It replaces the clothes' main colour (`colors.cloth`); trim / accent still come from the ship skin. Picked in the shop: any outfit except shirtless shows a 🎨 CLOTHES COLOUR button next to the hat-colour row; the picker has SHIP (= match) first and a ↺ RESET TO SHIP COLOURS button. Saved in `setLocalGear` / `getLocalGear` (additive), sent in `gr`, validated on decode, and the crew re-bake (`crewGearOf`) includes it. Shop thumbnails stay ship-skin coloured.
 - The free look (`hookSide`, `legSide`, `skinColor`, `hairColor`, `outfitColor`) lives in this device's gear save + the wire; the server's `cleanGear` doesn't store it (no migration, nothing to validate server-side).
 

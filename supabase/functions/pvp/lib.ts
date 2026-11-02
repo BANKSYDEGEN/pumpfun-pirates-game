@@ -103,20 +103,23 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:golden": { price: 75000 }, "skin:ghost": { price: 100000 }, "skin:admiral": { price: 125000 },
   "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
   "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
-  // [v105] pirate gear (Timothy's renders, js/pirateGear.js); the 4 new parrots (blue / cockatoo / black / diamond) are NOT sold
-  // until they render (Timothy's next build): add them here then. Goals checked server-side like COMMODORE.
-  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 },
+  // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.
+  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 },
   "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
+  "gear:outfit:shirt": { price: 300 }, "gear:outfit:suit": { price: 3000 },
   "gear:eyes:eyepatch": { price: 200 }, "gear:eyes:sunglasses": { price: 500 }, "gear:eyes:laser": { price: 3000 },
   "gear:parrot:parrot_green": { price: 2000 }, "gear:parrot:parrot_red": { price: 5000 },
+  "gear:parrot:parrot_blue": { price: 8000 }, "gear:parrot:parrot_cockatoo": { price: 12000 },
+  "gear:parrot:parrot_black": { price: 20000, goal: [{ stat: "kills", need: 1000 }] },
   "gear:parrot:parrot_gold": { price: 50000, goal: [{ stat: "bossKills", need: 50 }] },
-  // later: "gear:parrot:parrot_blue": { price: 8000 }, "gear:parrot:parrot_cockatoo": { price: 12000 },
-  //        "gear:parrot:parrot_black": { price: 20000, goal: [{ stat: "kills", need: 1000 }] }, "gear:parrot:parrot_diamond": { price: 100000, goal: [{ stat: "kills", need: 5000 }] },
+  "gear:parrot:parrot_diamond": { price: 100000, goal: [{ stat: "kills", need: 5000 }] },
   "gear:hook:hook_iron": { price: 500 }, "gear:hook:hook_gold": { price: 2500 },
+  "gear:leg:peg": { price: 1000 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
-export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne"], outfit: ["shirtless", "tank", "tshirt", "coat"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
-  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"] }; // equip validation (owned or free)
+export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
+  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
+  leg: ["none", "peg"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
 export const SEED_GOLD_CAP = 25000; // first server copy of a device save: gold above this is released at the normal earning pace
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
 export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);

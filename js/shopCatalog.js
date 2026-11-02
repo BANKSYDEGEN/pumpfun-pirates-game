@@ -44,13 +44,13 @@ export const GEAR_ITEMS = [
   { slot: 'hat', id: 'bandana', label: 'BANDANA', price: 150, glb: 'gear', tint: { hatColor: true } },
   { slot: 'hat', id: 'tricorn', label: 'TRICORN', price: 400, glb: 'raul:hat_tricorn', tint: { hatColor: true } },   // [Raul] model (better in game), hat colour = the felt
   { slot: 'hat', id: 'bicorne', label: "CAPTAIN'S HAT", price: 1200, glb: 'gear', tint: { hatColor: true } },
-  { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, soon: true, glb: 'raul:crown', tint: { hatColor: true } },   // [Raul] model (de13179); velvet = hat colour. soon: server SHOP_ITEMS first (the owner wears it now)
+  { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, glb: 'raul:crown', tint: { hatColor: true } },   // [Raul] model (de13179); velvet = hat colour. soon: server SHOP_ITEMS first (the owner wears it now)
   { slot: 'outfit', id: 'shirtless', label: 'SHIRTLESS', price: 0, glb: null, tint: null, free: true },
   { slot: 'outfit', id: 'tank', label: 'TANK', price: 150, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'tshirt', label: 'T-SHIRT', price: 300, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'coat', label: 'COAT', price: 1000, glb: 'gear', tint: { skin: true } },
-  { slot: 'outfit', id: 'shirt', label: 'PIRATE SHIRT', price: 300, soon: true, glb: 'raul:shirt', tint: { skin: true } },          // [Raul] model; body = the ship skin's light colour
-  { slot: 'outfit', id: 'suit', label: "CAPTAIN'S COAT", price: 3000, soon: true, glb: 'raul:suit', tint: { skin: true } },        // [Raul] model; coat + trim = the ship skin's colours
+  { slot: 'outfit', id: 'shirt', label: 'PIRATE SHIRT', price: 300, glb: 'raul:shirt', tint: { skin: true } },          // [Raul] model; body = the ship skin's light colour
+  { slot: 'outfit', id: 'suit', label: "CAPTAIN'S COAT", price: 3000, glb: 'raul:suit', tint: { skin: true } },        // [Raul] model; coat + trim = the ship skin's colours
   { slot: 'eyes', id: 'plain', label: 'NONE', price: 0, glb: null, tint: null, free: true }, // = face 'plain' (free)
   { slot: 'eyes', id: 'eyepatch', label: 'EYE PATCH', price: 200, glb: 'gear', tint: null },
   { slot: 'eyes', id: 'sunglasses', label: 'SHADES', price: 500, glb: 'gear', tint: null },
@@ -58,11 +58,11 @@ export const GEAR_ITEMS = [
   { slot: 'parrot', id: 'none', label: 'NO PARROT', price: 0, glb: null, tint: null, free: true },
   { slot: 'parrot', id: 'parrot_green', label: 'GREEN PARROT', price: 2000, glb: 'gear', tint: { body: '#3fd16a' } },
   { slot: 'parrot', id: 'parrot_red', label: 'RED MACAW', price: 5000, glb: 'gear', tint: { body: '#e8231d' } },
-  { slot: 'parrot', id: 'parrot_blue', label: 'BLUE MACAW', price: 8000, soon: true, glb: 'gear', tint: { body: '#1e74e8' } },
-  { slot: 'parrot', id: 'parrot_cockatoo', label: 'COCKATOO', price: 12000, soon: true, glb: 'gear', tint: { body: '#f6f4ee' } },
-  { slot: 'parrot', id: 'parrot_black', label: 'BLACK PARROT', price: 20000, soon: true, glb: 'gear', tint: { body: '#1a1a1e' }, goal: { all: [{ stat: 'kills', need: 1000, label: 'BR kills (Solo + Squads)' }] } },
+  { slot: 'parrot', id: 'parrot_blue', label: 'BLUE MACAW', price: 8000, glb: 'gear', tint: { body: '#1e74e8' } },
+  { slot: 'parrot', id: 'parrot_cockatoo', label: 'COCKATOO', price: 12000, glb: 'gear', tint: { body: '#f6f4ee' } },
+  { slot: 'parrot', id: 'parrot_black', label: 'BLACK PARROT', price: 20000, glb: 'gear', tint: { body: '#1a1a1e' }, goal: { all: [{ stat: 'kills', need: 1000, label: 'BR kills (Solo + Squads)' }] } },
   { slot: 'parrot', id: 'parrot_gold', label: 'GOLDEN PARROT', price: 50000, glb: 'gear', tint: { body: '#ffcd77' }, goal: { all: [{ stat: 'bossKills', need: 50, label: 'harbor boss kills' }] } },
-  { slot: 'parrot', id: 'parrot_diamond', label: 'DIAMOND PARROT', price: 100000, soon: true, glb: 'gear', tint: { body: '#bfe8ff' }, goal: { all: [{ stat: 'kills', need: 5000, label: 'BR kills (Solo + Squads)' }] } },
+  { slot: 'parrot', id: 'parrot_diamond', label: 'DIAMOND PARROT', price: 100000, glb: 'gear', tint: { body: '#bfe8ff' }, goal: { all: [{ stat: 'kills', need: 5000, label: 'BR kills (Solo + Squads)' }] } },
   { slot: 'hook', id: 'none', label: 'NO HOOK', price: 0, glb: null, tint: null, free: true },
   { slot: 'hook', id: 'hook_iron', label: 'IRON HOOK', price: 500, glb: 'raul:hook_l|hook_r', tint: { metal: '#9aa3ad' }, side: 'hookSide' },   // [Raul] model, LEFT / RIGHT = free pick (hookSide)
   { slot: 'hook', id: 'hook_gold', label: 'GOLD HOOK', price: 2500, glb: 'raul:hook_l|hook_r', tint: { metal: '#ffcd77' }, side: 'hookSide' },   // [Raul] model, LEFT / RIGHT = free pick (hookSide)
