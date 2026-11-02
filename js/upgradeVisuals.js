@@ -562,7 +562,7 @@ function buildCompiled(lv, opts, skin) {
     if (R.lookout) { const m0 = A.masts[0];
       const at = R.watchtower ? { x: 0, y: A.mainTop + 0.4 + WATCH_H + 0.275, z: m0.z } : { x: 0, y: railCY(A) + 0.25, z: m0.z }; // [v85] above the sails
       addLookout(ship, ud.body, { at, r: R.watchtower ? 0.9 : 0.72, size: R.watchtower ? 1.1 : 0.95 }); } }
-  dressCrew(ud.body, skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
+  dressCrew(ud.body, skin?.crewOutfit || skin?.id || 'classic'); // [v85] crew + lookout wear the skin's colours (recolours this ship's crew buffer only)
   // skin material effects (ghost glow / golden gleam) on everything, never on the water lid
   const fx = skinMaterialFx(skin);
   if (fx) ship.traverse(o => { if ((o.isMesh || o.isLineSegments) && !o.userData.waterMask) o.material = fx(o.material); });
