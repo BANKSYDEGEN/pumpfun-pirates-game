@@ -231,24 +231,28 @@ function lockerAt(A, sx) { const z = A.zB + 0.36; return { x: sx * 1.75, z, y: A
 function rackAt(A, ship, i, sx) { const G = ship?.userData?.gunSlots?.filter(g => g.sx === sx); if (!G?.length) return null;
   const g = G[i], n = G[i + 1] || null, p = G[i - 1] || null; if (!g) return null;
   const z = n ? (g.z + n.z) / 2 : p ? (g.z + p.z) / 2 : g.z + 0.9, x = g.gx;
-  if (Math.abs((n || p || { z: z + 2 }).z - g.z) < 1.45 || rackBlocked(A, x, z)) return null; return { x, z }; }
+  const atMast = (q) => q && A.masts.some((m, mi) => !(mi === 2 && A.zB != null) && Math.abs(q.inner) - 0.38 < 0.88 && Math.abs(q.z - m.z) < 0.88); // that gunner has to stand beside his gun (where the rack would go)
+  if (Math.abs((n || p || { z: z + 2 }).z - g.z) < 1.45 || rackBlocked(A, x, z) || atMast(g) || atMast(n || p)) return null; return { x, z }; }
+// [Raul] the centreline keg line only where the gunners abreast of it still have room behind their breeches (narrow hull 0 with a full row: no magazine)
+const magFits = (A, ship) => { const z = A.zAt(0.445); return (ship?.userData?.gunSlots || []).every(g => Math.abs(g.z - z) > 2.15 || Math.abs(g.inner) - 0.38 >= 0.6); };
 // [Raul] mortar spot: the clearest main-deck t (off the masts + the magazine), sized so its bed stays clear of the gunners behind the
 // breeches either side (it sat at t 0.68 between big-gun breeches, inside the gun crews)
 function mortarAt(A, ship) { const S = ship?.userData?.gunSlots || [], s0 = 1.15 * A.k; let best = null;
   for (let t = 0.54; t <= 0.8; t += 0.01) { const z = A.zAt(t); let s = s0;
     for (const g of S) if (Math.abs(g.z - z) < g.r + 0.95 * s0 + 0.45) s = Math.min(s, (Math.abs(g.inner) - 0.38 - 0.3 - 0.12) / 0.95);
-    const h = 0.95 * s + 0.1, clear = A.masts.every((m, i) => i === 2 || Math.abs(m.z - z) > 0.72 + h + 0.15) && Math.abs(z - A.zAt(0.445)) > 1.05 + h + 0.2;
-    const sc = (clear ? 0 : -9) + s - Math.abs(t - 0.68) * 0.2; if (!best || sc > best.sc) best = { t, z, y: A.deckAt(t), s: Math.max(s, 0.4 * A.k), sc }; }
-  return best; }
+    const h = 0.95 * s + 0.1, clear = A.masts.every((m, i) => i === 2 || Math.abs(m.z - z) > 0.72 + h + 0.15) && Math.abs(z - A.zAt(0.445)) > 2.0 + h + 0.1;
+    const sc = (clear ? 0 : -9) + s - Math.abs(t - 0.68) * 0.2; if (!best || sc > best.sc) best = { t, z, y: A.deckAt(t), s, sc }; }
+  return best && best.sc > -1 && best.s >= 0.3 * A.k ? best : null; } // null: no room on this deck (small hull + big guns): no mortar
 function rackBlocked(A, cx, z) { if (A.zB == null) return false; // the castle ladders (x 0.6..1.2 off centre) + the shot lockers next to them
   return Math.abs(cx) - 0.3 < 2.25 && z - 0.3 < A.zB + A.runB; }
 // main-deck boxes [x0, x1, z0, z1] of this build's upgrade parts (body space): the deck walkers keep clear of them
 function deckObstacles(A, lv, ship) {
   const out = [], C = TRAITS.cannons[lv.cannons || 0], R = TRAITS.reload[lv.reload || 0], S = TRAITS.sails[lv.sails || 0];
   const sq = (x, z, h) => out.push([x - h, x + h, z - h, z + h]);
-  if (R.magazine) sq(0, A.zAt(0.445), 1.05);
-  if (S.fourthMast) sq(0, A.zAt(0.445), 0.72);
-  if (C.mortar) { const M0 = mortarAt(A, ship), h = 0.95 * M0.s + 0.1; out.push([-h, h, M0.z - h, M0.z + h + 0.45 * M0.s]); }
+  if (R.magazine && magFits(A, ship)) { const z = A.zAt(0.445); out.push([-0.28, 0.28, z - 1.85, z + 1.85]); } // keg line (keg r 0.25, hoops 0.28)
+  if (S.fourthMast) sq(0, A.zAt(0.445), 0.58);
+  if (C.mortar && mortarAt(A, ship)) { const M0 = mortarAt(A, ship), h = 0.95 * M0.s + 0.1; out.push([-h, h, M0.z - h, M0.z + h + 0.45 * M0.s]); }
+  if (C.swivels) A.midT.forEach(t => { const w = A.shape.halfW(t) * 0.92, z = A.zAt(t); for (const sx of [1, -1]) out.push([sx * w - 0.4, sx * w + 0.4, z - 0.4, z + 0.4]); }); // rail swivels
   if (R.racks) A.gunT.forEach((t, i) => { for (const sx of [1, -1]) { const P = rackAt(A, ship, i, sx); if (!P) continue;
     if (i % 2 === 0) sq(P.x, P.z, 0.36); if (R.linstocks && !LO && i % 2 === 1) sq(P.x, P.z, 0.2); } });
   if (R.lockers && A.zB != null) for (const sx of [1, -1]) { const { x, z } = lockerAt(A, sx); out.push([x - 0.5, x + 0.5, z - 0.3, z + 0.3]); }
@@ -473,7 +477,7 @@ const PARTS = {
     // [Raul] BANKSY: no bow or stern chase guns. The tiers that had them (bow chaser from CANNONS III, the stern pair from IV) carry
     // those guns in the broadside rows instead (sideExtra: +1 / +2 a side) on a longer hull; the gameplay gun count is unchanged.
     if (T.mortar) { // big squat mortar amidships, aimed high
-      const { z, y, s } = mortarAt(A, ship);
+      const M0 = mortarAt(A, ship); if (!M0) return; const { z, y, s } = M0;
       Ly.add(M.oak, box(1.9 * s, 0.35, 1.9 * s, 0.08), [0, y + 0.18, z]);
       Ly.add(M.iron, lathe(MORTAR, seg(12, 8)), [0, y + 0.32, z], [0.35, 0, 0], s);
       Ly.add(M.gold, torus(0.72 * s, 0.08), [0, y + 0.32 + 1.05 * s * Math.cos(0.35), z + 1.05 * s * Math.sin(0.35)], [Math.PI / 2 - 0.35, 0, 0]);
@@ -511,13 +515,13 @@ const PARTS = {
         if (T.gold) Ly.add(M.gold, ring, [v.x - sx * 0.15, v.y, v.z], [0, Math.PI / 2, 0]);
       }
     }
-    if (T.magazine) { // ring of red-banded powder kegs amidships (around the 4th mast if it's there)
+    if (T.magazine && magFits(A, ship)) { // ring of red-banded powder kegs amidships (around the 4th mast if it's there)
       const z = A.zAt(0.445), y = A.deckAt(0.445);
-      for (const [dx, dz] of [[-0.62, -0.62], [0.62, -0.62], [-0.62, 0.62], [0.62, 0.62]]) { // [Raul] tighter ring: clear of the gunners
-        Ly.add(M.keg, keg, [dx, y, z + dz], [0, 0, 0], 1.1);
-        for (const b of [0.18, 0.56]) Ly.add(T.gold ? M.gold : M.red, torus(0.39, 0.04), [dx, y + b * 1.1, z + dz], [Math.PI / 2, 0, 0]);
+      for (const [dx, dz] of [[0, -1.6], [0, -0.95], [0, 0.95], [0, 1.6]]) { // [Raul] a fore-and-aft line on the centreline (fore and aft of the 4th mast's footing): clear of the gun crews either side
+        Ly.add(M.keg, keg, [dx, y, z + dz], [0, 0, 0], 0.7);
+        for (const b of [0.18, 0.56]) Ly.add(T.gold ? M.gold : M.red, torus(0.39 * 0.7 / 1.1, 0.035), [dx, y + b * 0.7, z + dz], [Math.PI / 2, 0, 0]);
       }
-      Ly.add(M.fuse, sph(0.16), [0.62, y + 0.95, z - 0.62]);
+      Ly.add(M.fuse, sph(0.14), [0, y + 0.62, z + 1.6]);
     }
     if (T.lockers && A.zB != null) for (const sx of [1, -1]) { // [Raul] v2 hull: against the stern room's break bulkhead, beside the ladders (t 0.24 is inside the roofed room now)
       const { x, z, y } = lockerAt(A, sx);
@@ -603,9 +607,17 @@ function buildCompiled(lv, opts, skin) {
   mats(skin);
   const H = TRAITS.hull[lv.hull], W = TRAITS.cannons[lv.cannons], S = TRAITS.sails[lv.sails];
   const { quality, skin: _s, pvp: _pvp, ...bopts } = opts;
-  const nG = gunCount(lv), nV = nG + sideExtra(lv), fG = stretchFor(nG, H.len, 1.55, 1.06), f = stretchFor(nV + 0.3 * (nV - nG), H.len, GUN_GAP, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12); [Raul] nV visual barrels a side, fG = the gameplay stretch (hit box)
+  const nG = gunCount(lv); let nV = nG + sideExtra(lv); const fG = stretchFor(nG, H.len, 1.55, 1.06);
+  const fOf = (n) => stretchFor(n + 0.3 * (n - nG), H.len, GUN_GAP, 1.06); // [v97] the waist grows with the gun row (modest at 4, ~2x at 12); [Raul] nV visual barrels a side, fG = the gameplay stretch (hit box)
   const kitArt = skin?.shipOpts ? null : { ram: !!TRAITS.armor[lv.armor].ram, poopH: H.poop ? 1.3 * H.depth / 3.1 : 0 }; // [Timothy v2] poopH: the helm climbs onto the poop deck // [Timothy] player ships wear the Blender kit (figurehead clears the armour ram); COMMODORE stays the exact boss build until the boss is remodelled too
-  const ship = buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nV, bigGun: W.big || 0, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, fG) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const mk = (f) => buildShip({ len: H.len, beam: H.beam, depth: H.depth, scheme: 'player', cannonsPerSide: nV, bigGun: W.big || 0, masts: 3, stretch: f, hitLen: H.len * (PV ? Math.min(1.1, fG) : 1), kitArt, ...bopts, ...(skinBuildOpts(skin) || {}) });
+  const grow = (f) => { let ship = mk(f); // [Raul] rows with the added barrels that run into the narrow bow: a little more waist (visual; the hit box keeps fG)
+  for (let k = 0, ff = f; k < 3 && ship.userData.rowFit < 0.4; k++) { ff *= 1.05; const t = mk(ff); // only while it actually frees the bow guns
+    if (t.userData.rowFit > ship.userData.rowFit + 0.1) { disposeShip(ship); ship = t; } else { disposeShip(t); break; } }
+    return ship; };
+  const f0 = fOf(nV); let ship = grow(f0); // a small hull that still can't fit the extra barrels (gunners back to back at the bow): one barrel less a side on the same hull
+  while (nV > nG && ship.userData.rowFit < 0.3) { disposeShip(ship); nV--; ship = grow(f0); } // never below the gameplay guns (one ball per barrel)
+  for (let k = 0, ff = f0; k < 4 && ship.userData.rowFit < 0.3; k++) { ff *= 1.06; disposeShip(ship); ship = mk(ff); } // still no room at the bow: a bit more waist
   const ud = ship.userData, A = anchors(ud, lv);
   ud.sails.forEach(s => s.children.forEach(c => c.scale.set(S.w, S.h, 1)));
   if (S.top) ud.layout.flagPole.position.y += A.masts[0].h * S.top;

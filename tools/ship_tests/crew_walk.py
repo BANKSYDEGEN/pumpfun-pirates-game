@@ -30,7 +30,7 @@ JS = r'''async () => {
       for (const p of IV) if (Math.abs(p[0] - x) < CR && p[2] > z0 - CR && p[2] < z1 + CR && p[1] > y + 0.1 && p[1] < y + 1.5) return `barrel/iron vertex (${p.map(v => v.toFixed(2))})`; return null; };
     const mastZ = L.mastDefs.filter(([tf]) => !(u.art && tf < u.art.tB)).map(([tf]) => L.zAt(tf));
     for (const g of gunners) { const h = hitsGun(g.o[0], g.o[2], g.o[2], g.o[1]); if (h) fails.push(`gunner ${g.info[3]}/${g.info[1]} in ${h}`);
-      for (const mz of mastZ) if (Math.abs(g.o[0]) < 0.72 + CR && Math.abs(g.o[2] - mz) < 0.72 + CR) fails.push('gunner in mast footing'); }
+      for (const mz of mastZ) if (Math.abs(g.o[0]) < 0.53 + CR && Math.abs(g.o[2] - mz) < 0.53 + CR) fails.push('gunner in mast footing'); }
     for (let i = 0; i < gunners.length; i++) for (let j = i + 1; j < gunners.length; j++) if (Math.hypot(gunners[i].o[0] - gunners[j].o[0], gunners[i].o[2] - gunners[j].o[2]) < 0.55) fails.push('gunners overlap');
     for (const c of walkers) { const sp = Math.max(0, c.info[3]), h = hitsGun(c.o[0], c.o[2] - sp / 2, c.o[2] + sp / 2, c.o[1] - 0.6); if (h) fails.push(`walker lane x ${c.o[0]} in ${h}`); }
     for (const a of (u.anchors || []).filter(a => a.role === 'deck')) { const h = hitsGun(a.pos.x, a.pos.z, a.pos.z, a.pos.y); if (h) fails.push(`deck spot ${a.index} in ${h}`); }
@@ -58,6 +58,9 @@ JS = r'''async () => {
   for (const pvp of [true, false]) for (const skin of ['classic', 'coral', 'ghost', 'golden', 'diamond', 'flaming', 'commodore']) for (const lv of PL) {
     if (skin !== 'classic' && skin !== 'coral' && Object.keys(lv).length && lv.hull !== 6) continue;
     try { V.show({ levels: lv, skin, pvp }); check(`${pvp ? 'BR' : 'Waves'} ${skin} ${JSON.stringify(lv)}`, V.ship); } catch (e) { out.push({ name: `${skin} ${JSON.stringify(lv)}`, fails: ['build error ' + e], nFail: 1 }); } }
+  // every hull x every CANNONS tier (classic), both modes: the added side barrels + longer rows on every combination
+  for (const pvp of [true, false]) for (let h = 0; h <= 6; h++) for (let c = 0; c <= 8; c++) { const lv = { hull: h, cannons: c, reload: Math.min(c, 6) };
+    try { V.show({ levels: lv, skin: 'classic', pvp }); check(`${pvp ? 'BR' : 'Waves'} sweep ${JSON.stringify(lv)}`, V.ship); } catch (e) { out.push({ name: `sweep ${JSON.stringify(lv)}`, fails: ['build error ' + e], nFail: 1 }); } }
   const en = [['enemy small', { len: 14, beam: 4.7, depth: 2.8, scheme: 'slime', cannonsPerSide: 2, masts: 2 }], ['enemy boss', { len: 19, beam: 6, depth: 2.8, scheme: 'boss', boss: true, cannonsPerSide: 4, masts: 3 }], ['enemy 6 guns', { len: 15.5, beam: 5, depth: 2.8, scheme: 'reef', cannonsPerSide: 6, masts: 2 }]];
   for (const [n, o] of en) { const fm = new T.CanvasTexture(document.createElement('canvas')); const s = S.buildShip({ ...o, flagMap: fm, stretch: S.stretchFor(o.cannonsPerSide, o.len, 1.5), hitLen: o.len, lookout: true }); check(n, s); }
   return out;
