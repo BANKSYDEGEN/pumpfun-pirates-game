@@ -27,7 +27,7 @@ export async function createHarborIsland({ quality, ocean }) {
 
   // moored toy galleons merged into the island mesh (0 extra draw calls); no real ships (no docking in this preview)
   const BERTH = Object.fromEntries(BERTHS().map(b => [b.id, b]));
-  const DECOR = LOW ? ['P1R', 'P3C', 'P5L'] : ['P1R', 'P2L', 'P3C', 'P4R', 'P5L', 'P5R', 'P6L', 'P2R'];
+  const DECOR = LOW ? ['P1R', 'P3L'] : ['P1R', 'P2L', 'P3R', 'P4L', 'P4R'];
   const near = buildIsland({ low: LOW, atlas, decor: DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]) }).build(MATS, OUT);
   near.traverse(o => { if (o.isMesh && !o.userData.outline) o.receiveShadow = !LOW; });
   const far = buildFarIsland().build({ toon: MATS.toon }, OUT); far.visible = false;

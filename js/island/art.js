@@ -13,8 +13,8 @@ import { Kit, M } from './kit.js';
 // a winding path up the hill to the lookout tower (left flank), a little jungle (right flank), beach + dig sites (back).
 // Tall things (tavern, hill + tower, jungle palms) sit at the back / flanks; the harbor side stays low.
 export const ISLAND_R = 65;                                 // mean grass-edge radius
-export const PIER = { w: 5, y: 2.8, head0: 85.5, head1: 89.5, headHalf: 36, berthD: 94, lat: [-24, 0, 24] };
-export const PIER_ANGLES = [30, 90, 150, -150, -90, -30].map(d => d * Math.PI / 180); // P1..P6, clockwise from front-right
+export const PIER = { w: 5, y: 2.8, head0: 85.5, head1: 89.5, headHalf: 24, berthD: 94, lat: [-12, 12] };
+export const PIER_ANGLES = [45, 135, -135, -45].map(d => d * Math.PI / 180); // P1..P4 (BANKSY: 8 berths), clockwise from front-right; the harbor side (0 deg) stays open
 export const SPOTS = {
   plaza: { x: 0, z: 24, r: 16 },               // open on-foot lobby square: 16 pirates with room to run
   flag: { x: -13, z: 14 },
@@ -29,7 +29,7 @@ export const SPOTS = {
   peak: { x: -36, z: -44 },                    // the skull-rock peak behind the hill town (landmark from sea)
   exchange: { x: 0, z: 47, yaw: Math.PI },      // TOKEN EXCHANGE trading post, between the plaza and the harbor-side piers
   houses: [[-21, 6, 0.3, 0], [-40, 8, 0.6, 1], [-27, -9, 0.2, 2], [-47, 0, 1.0, 3], [-22, -18, -0.3, 1], [-50, -30, 0.8, 0]], // hill town [x, z, yaw, variant]
-  shacks: [56, 66, -56, -66, -114, -124, 168],  // waterfront stilt shacks (local angle from +z, deg)
+  shacks: [70, 100, -70, -100, 165, -165],  // waterfront stilt shacks (local angle from +z, deg)
   berthLen: 22,
 };
 // Where the island sits in the BATTLE ROYALE harbor (js/pvp.js world frame, metres, 1:1). Harbor rules it respects:
@@ -246,14 +246,14 @@ function rock(kit, x, z, s, seed, low, sink = 0.35) {
 }
 function bush(kit, x, z, s, seed) { const r = rng(seed), y = groundY(x, z); for (let k = 0; k < 3; k++) kit.add(sph(s * (0.7 + r() * 0.4), 10, 7), k ? 0x3fca45 : 0x2fa83c, { m: M(x + (r() - 0.5) * s * 1.6, y + s * 0.4, z + (r() - 0.5) * s * 1.6, 0, 0, 0, [1, 0.8, 1]) }); }
 
-// ---------- the docks: six T-head piers radiating round the island ----------
-// BERTHS (island-local): three per T-head on its seaward face, 24 apart (two maxed ships, collision r 8.6, never overlap:
-// 24 > 17.2), centre 4.5 off the face (beam 7.3 / 2 + fenders). 6 x 3 = 18 berths >= the 16-player arena max.
+// ---------- the docks: four T-head piers (2 berths each) round the island ----------
+// BERTHS (island-local): two per T-head on its seaward face, 24 apart (two maxed ships, collision r 8.6, never overlap:
+// 24 > 17.2), centre 4.5 off the face (beam 7.3 / 2 + fenders). 4 x 2 = 8 berths (a shared harbor copy holds ~4 players, room to grow). World: >= 29 from every spawn, >= 44 outside the r 130 respawn ring.
 // A ship lies along the head (yaw = pier angle + 90 deg). Every island collider stays >= 9 clear of every berth.
 export function BERTHS() {
   const out = [];
   PIER_ANGLES.forEach((th, k) => { const { u, v } = pierUV(th), D = PIER.berthD;
-    PIER.lat.forEach((t, j) => out.push({ id: 'P' + (k + 1) + 'LCR'[j], pier: k + 1, kind: 't-head', x: +(u[0] * D + v[0] * t).toFixed(2), z: +(u[1] * D + v[1] * t).toFixed(2), yaw: +(th + Math.PI / 2).toFixed(4),
+    PIER.lat.forEach((t, j) => out.push({ id: 'P' + (k + 1) + 'LR'[j], pier: k + 1, kind: 't-head', x: +(u[0] * D + v[0] * t).toFixed(2), z: +(u[1] * D + v[1] * t).toFixed(2), yaw: +(th + Math.PI / 2).toFixed(4),
       len: SPOTS.berthLen, fits: [17, 20.4], maxBeam: 7.3, shipR: 8.6 })); });
   return out;
 }
@@ -873,7 +873,7 @@ export const ISLAND_POIS = [
   { id: 'sail', label: 'Board your ship / sail to the harbor', ...pierPt(0, 0, 88), r: 3, action: null },
   { id: 'waves', label: 'Waves board + captain', x: -17, z: 51, r: 3.5, yaw: Math.atan2(17, -27), action: null },
   { id: 'arena', label: 'Arena queue: Solo | Squads', x: 17, z: 51, r: 3.5, yaw: Math.atan2(-17, -27), action: null },
-  { id: 'spectate', label: 'Spectate spyglass (pier 6 end platform)', ...pierPt(5, 39.5, (PIER.head0 + PIER.head1) / 2), r: 3, action: null },
+  { id: 'spectate', label: 'Spectate spyglass (pier 4 end platform)', ...pierPt(PIER_ANGLES.length - 1, PIER.headHalf + 3.5, (PIER.head0 + PIER.head1) / 2), r: 3, action: null },
 ];
 const poi = (id) => ISLAND_POIS.find(q => q.id === id);
 function poiBoard(kit, A, q, region, low) {
@@ -895,7 +895,7 @@ function poiProps(kit, A, low) {
     kit.add(cyl(0.62, 0.62, 0.1, 12), 0x161616, { m: M(0, 1.95, 0) }); kit.add(cyl(0.3, 0.4, 0.38, 10), 0x161616, { m: M(0, 2.15, 0) }); kit.add(cyl(0.41, 0.41, 0.06, 10), GOLD, { m: M(0, 2.0, 0), outline: false });
   }); }
   // spectate: a round pier-end platform with a brass spyglass on a tripod, aimed out over the harbor
-  { const q = poi('spectate'), th = PIER_ANGLES[5], Y = PIER.y;
+  { const q = poi('spectate'), th = PIER_ANGLES[PIER_ANGLES.length - 1], Y = PIER.y;
     kit.add(cyl(3.0, 3.0, 0.4, low ? 12 : 18), WOOD_L, { m: M(q.x, Y, q.z) });
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; kit.add(cyl(0.38, 0.42, 10, 6), WOOD, { m: M(q.x + Math.cos(a) * 2.6, Y - 5, q.z + Math.sin(a) * 2.6), outline: false }); }
     kit.at(M(q.x, Y + 0.2, q.z, th), () => {

@@ -108,8 +108,8 @@ const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) }
 // moored fleet: real baked game ships on a few berths (Low 1, High 2, full 3), toy galleons merged into the island mesh on
 // others (0 extra draw calls; Low 3, High 8, full = every berth). The approach ship's berth P1L stays free in the harbor.
 const BERTH = Object.fromEntries(BERTHS().map(b => [b.id, b]));
-const REAL = FULL ? ['P6C', 'P2C', 'P4C'] : ['P6C']; // High keeps ~1 baked ship (lobby < 60 calls); its extra fleet is decor
-const DECOR = FULL || FOOT ? BERTHS().map(b => b.id).filter(id => !REAL.includes(id) && !(HARBOR && id === 'P1L')) : LOW ? ['P1R', 'P3C', 'P5L'] : ['P1R', 'P2L', 'P3C', 'P4R', 'P5L', 'P5R', 'P6L', 'P2R'];
+const REAL = FULL ? ['P4R', 'P2R', 'P3L'] : ['P4R']; // High keeps ~1 baked ship (lobby < 60 calls); its extra fleet is decor
+const DECOR = FULL || FOOT ? BERTHS().map(b => b.id).filter(id => !REAL.includes(id) && !(HARBOR && id === 'P1L')) : LOW ? ['P1R', 'P3L'] : ['P1R', 'P2L', 'P3R', 'P4L'];
 const decor = DECOR.map((id, i) => [BERTH[id].x, BERTH[id].z, BERTH[id].yaw, i]);
 const near = buildIsland({ low: LOW, atlas, decor }).build(MATS, OUT); near.name = 'island_near';
 near.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !LOW; o.receiveShadow = !LOW; } });
