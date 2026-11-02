@@ -1007,7 +1007,8 @@ export function createPvp(K) {
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
-    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = `THE HARBOR${mode === 'squads' ? ' · <b>SQUADS 2v2</b>' : ''}${HOLDER_ENABLED && holder.on ? ' <span class="pvp-holder">HOLDER 2× GOLD</span>' : ''}`; }
+    else { b.textContent = 'JOIN BATTLE'; t.innerHTML = HOLDER_ENABLED && holder.on ? '<span class="pvp-holder">HOLDER 2× GOLD</span>' : ''; } // [v98.1] no "THE HARBOR" pill (it blocked the view); the SOLO / SQUADS switch shows the mode
+    t.hidden = !t.innerHTML;
     const ms = $('pvp-mode'); if (ms) { ms.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.m === mode); x.setAttribute('aria-pressed', x.dataset.m === mode); }); ms.classList.toggle('locked', lob.state !== 'harbor'); } // [v98]
     const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate();
       $('pvp-party-t').innerHTML = party.code ? `PARTY <b>${party.code}</b> · ${mate ? `with ${esc(mate.n)} ✔` : esc(party.msg || 'waiting for your mate…')}` : esc(party.msg || 'No party: you get a random teammate');

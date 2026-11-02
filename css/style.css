@@ -841,3 +841,4 @@ html.pvp-spec #btn-emote { display: none !important; }
   #pvp-party { font-size: 13px; padding: 4px 8px; } #pvp-party .pp-row button { font-size: 13px !important; padding: 3px 8px !important; } #pvp-party input { font-size: 14px; }
   #sq-mate { top: calc(env(safe-area-inset-top, 0px) + 100px); left: 12px; transform: none; width: calc(100vw - 132px); font-size: 11px; }
 }
+#pvp-harbor-t[hidden] { display: none !important; } /* [v98.1] the idle harbor has no title pill */
