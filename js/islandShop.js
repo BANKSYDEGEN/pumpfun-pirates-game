@@ -150,9 +150,12 @@ function render() {
   root.style.setProperty('--ishop-awning', V.awning || 'transparent'); root.classList.toggle('stall', !!V.awning);
   $('.ishop-title b', root).textContent = V.name; $('.ishop-title small', root).textContent = V.sub;
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
-  const tabs = $('.ishop-tabs', root); tabs.hidden = V.tabs.length < 2;
-  tabs.innerHTML = V.tabs.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${t === 'skins' ? 'SHIP SKINS' : 'PIRATE GEAR'}</button>`).join('');
-  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { view.tab = b.dataset.tab; view.sel = null; render(); });
+  // [Timothy] BANKSY: the ship shop is SKINS | UPGRADES (UPGRADES opens the ship upgrades panel, which has the same toggle back)
+  const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
+  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : 'PIRATE GEAR';
+  const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
+  tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; view.sel = null; render(); });
   const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear';
   chips.innerHTML = GEAR_SLOTS.filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Skin tone + hair colour (free)">👤 SKIN &amp; HAIR</button>'); // [Timothy] captain look
@@ -172,10 +175,12 @@ function render() {
     grid.appendChild(c);
   }
   detail(items.find(x => x.key === view.sel));
-  { const f = $('.ishop-foot', root); let u = $('.ishop-upg', root); if (V.upgrades && window.PFP_OPEN_UPGRADES) { if (!u) { u = document.createElement('button'); u.type = 'button'; u.className = 'ishop-upg';
-      u.textContent = '⚓ SHIP UPGRADES (hull, sails, cannons…) ▸'; u.onclick = () => { closeShop(); window.PFP_OPEN_UPGRADES(); }; f.before(u); } u.hidden = false; } else if (u) u.hidden = true; } // [v103]
   $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent · cosmetic only, never a stat change' : `Paid from your Battle Royale gold · cosmetic only, never a stat change${state.behind ? ' · some gold is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, SKIN_ITEMS.map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
+}
+function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgrades panel (js/shop.js, opened in island mode)
+  let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES(); } catch (e) { console.warn('[shop] upgrades', e); }
+  if (ok) closeShop(); else toast('Upgrades open in the harbor, out of battle');
 }
 function detail(x) {
   const d = $('.ishop-detail', root); d.innerHTML = ''; if (!x) return;
@@ -252,7 +257,7 @@ function entry() {
     b.onclick = () => openShop({ vendor: 'shop', tab: 'skins' }); sub.before(b); return true; };
   if (!put()) { const t = setInterval(() => put() && clearInterval(t), 500); setTimeout(() => clearInterval(t), 20000); }
 }
-entry();
+// [Timothy] BANKSY: skins are bought / equipped only at the island ship shop, so the menu button is gone (entry() kept for reference, not called)
 window.PFP_SHOP = { openShop, closeShop, isShopOpen, setShopProvider, mockProvider };
 window.PFP_ISLAND_SHOP = { openShop, closeShop, isShopOpen, setShopProvider, mockProvider }; // [Timothy] js/shop.js also sets window.PFP_SHOP (upgrade shop); whichever loads last wins, so tests use this one
 if (!ON_PORTAL) { window.openShop = openShop; window.closeShop = closeShop; window.isShopOpen = isShopOpen; }

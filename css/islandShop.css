@@ -135,7 +135,8 @@
 }
 @media (prefers-reduced-motion: reduce) { .ishop-panel, .ishop-cbox, .ishop-toast { animation: none; } }
 
-.ishop-upg { display: block; margin: 6px auto 0; padding: 8px 14px; border: 2px solid #ffcd77; border-radius: 10px; background: #161616; color: #ffcd77; font: inherit; font-size: 18px; cursor: pointer; } .ishop-upg[hidden] { display: none; } /* [v103] ships shop -> the BR upgrades menu */
+/* [Timothy] ship shop: SKINS | UPGRADES tabs (replace the old footer link), 44px tap targets */
+#island-shop[data-vendor="ships"] .ishop-tabs button { min-height: 44px; display: flex; align-items: center; justify-content: center; letter-spacing: 0.04em; }
 
 .ishop-hatc { margin-top: 6px; } .ishop-hatc small { opacity: .8; } .ishop-hatc > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
 .ishop-hatc button { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: #333; color: #fff; padding: 0; cursor: pointer; font-size: 12px; }

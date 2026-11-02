@@ -48,7 +48,7 @@ import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
-import { setRunLevels, getRunLevels } from './shop.js';
+import { setRunLevels, getRunLevels, open as openUpgradesPanel } from './shop.js';
 import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
 import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
@@ -1162,15 +1162,15 @@ export function createPvp(K) {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
     const st = profile.stats; // [v102] skins are bought with gold at the island shop (or from here: tap a locked skin)
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted">Buy ship skins with gold at the island SHOP</span>`;
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted pvp-isle-ptr">⛵ Buy, equip and upgrade at the SHIP SKINS + UPGRADES shop on the island</span>`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of [...TIERS, ...UNLOCKS]) {
       const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD() }) : null;
-      const c = document.createElement('button'); c.type = 'button'; c.className = `pvp-skin${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id;
+      const c = document.createElement('div'); c.className = `pvp-skin view-only${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id; // [Timothy] display only: buy / equip at the island ship shop
       c.appendChild(skinSwatch(pvpSkin(t.id), 96, 48));
       const lab = document.createElement('span');
-      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'SELECTED' : 'TAP TO USE') : g && !g.done ? '🔒 goal · see shop' : `BUY · ${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
-      c.onclick = () => ok ? pickSkin(t.id) : openShop({ vendor: 'shop', tab: 'skins', item: t.id }); grid.appendChild(c);
+      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'EQUIPPED' : 'OWNED') : g && !g.done ? '🔒 goal' : `${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
+      grid.appendChild(c);
     }
     previewCards(grid, [...TIERS, ...UNLOCKS].map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
     $('pvp-wallet-state').textContent = wallet ? `Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}` : 'Saving on this device automatically.';
@@ -1185,11 +1185,10 @@ export function createPvp(K) {
   function skinToast(t) {
     document.getElementById('skin-toast')?.remove();
     const el = document.createElement('div'); el.id = 'skin-toast';
-    el.innerHTML = t.goal ? `<div class="st-txt"><b>GOAL REACHED</b><span>${t.name} · you can buy it at the shop</span></div><button class="buy">SHOP</button>`
-      : `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · ${t.why || `${t.kills} kills`}</span></div><button class="buy">EQUIP</button>`;
+    el.innerHTML = t.goal ? `<div class="st-txt"><b>GOAL REACHED</b><span>${t.name} · buy it at the SHIP SKINS + UPGRADES shop on the island</span></div>` // [Timothy] no remote SHOP / EQUIP button
+      : `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · equip it at the SHIP SKINS + UPGRADES shop on the island</span></div>`;
     const sw = skinSwatch(pvpSkin(t.id), 88, 44); sw.className = 'st-sw'; el.prepend(sw);
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
-    el.querySelector('button').onclick = (e) => { e.stopPropagation(); if (t.goal) openShop({ vendor: 'shop', tab: 'skins', item: t.id }); else pickSkin(t.id); el.remove(); };
     document.body.appendChild(el); setTimeout(() => el.remove(), 6000);
   }
   async function walletButton() {
@@ -1270,7 +1269,7 @@ export function createPvp(K) {
     addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (isKey('menu', e.code)) { e.preventDefault(); toggleMenu(); } });
     addEventListener('pagehide', () => leave(true));
   }
-  window.PFP_OPEN_UPGRADES = () => { if (!active) return false; toggleMenu(true); return true; }; // [v103] the plaza SHIP SKINS + UPGRADES shop links here
+  window.PFP_OPEN_UPGRADES = () => { if (!active || where !== 'harbor') return false; $('pvp-menu')?.classList.add('hidden'); return !!openUpgradesPanel({ island: true }); }; // [Timothy] the island SHIP SKINS + UPGRADES shop's UPGRADES tab (was: the BR menu)
   function toggleMenu(on) { const m = $('pvp-menu'); const show = on ?? m.classList.contains('hidden'); m.classList.toggle('hidden', !show); if (show) { renderMenu(); const kb = $('pvp-kills'); if (kb) { mountKillsBoard(kb); renderKills(kb); } } }
 
   // ---------------- harbor UI ----------------

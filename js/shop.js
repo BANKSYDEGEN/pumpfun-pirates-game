@@ -16,7 +16,7 @@ const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, shipStat
 const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
 const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
 
-let ctx = null, run = newRun(), lastBuy = null; // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
+let ctx = null, run = newRun(), lastBuy = null, fromIsland = false; // [Timothy] fromIsland: opened from the island SHIP SKINS + UPGRADES shop (BR) // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
 
 const CHEST_SVG = `<svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
@@ -44,6 +44,7 @@ function buildDom() {
       <h1>SHIPWRIGHT</h1>
       <div class="shop-purse">${CHEST_SVG}<b id="shop-gold">0</b><span class="label">GOLD</span></div>
     </div>
+    <nav class="shop-isle-tabs" role="tablist" aria-label="Ship shop"><button type="button" role="tab" data-isle="skins" aria-selected="false">SKINS</button><button type="button" role="tab" data-isle="upg" class="on" aria-selected="true">UPGRADES</button></nav>
     <div class="shop-sub muted">Spend looted gold on your ship. Upgrades last this voyage only.</div>
     <div id="shop-hp" class="shop-hp"><span class="label">HULL</span><div class="bar"><div class="fill red"></div></div><span class="hp-txt"></span>
       <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g</button></div>
@@ -58,6 +59,8 @@ function buildDom() {
   document.body.appendChild(ov);
   ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
   $('shop-close').onclick = close;
+  // [Timothy] BANKSY: the island ship shop is SKINS | UPGRADES. From the island, SKINS goes back to the island ship-skins grid.
+  ov.querySelector('[data-isle="skins"]').onclick = () => { close(); try { (window.PFP_ISLAND_SHOP || window).openShop?.({ vendor: 'ships', tab: 'skins', from: 'island' }); } catch (e) { console.warn(e); } };
   $('shop-repair').onclick = repair;
   $('shop-hire').onclick = hire; // [escorts]
   const grid = $('shop-grid');
@@ -185,7 +188,7 @@ function hire() {
 }
 
 function canAfford() {
-  if (!ctx) return false;
+  if (!ctx || PVP()) return false; // [Timothy] BR: upgrades are bought at the island ship shop, so the chest never glows there
   const g = ctx.game.gold;
   if (!PVP() && ctx.escorts && ctx.escorts.count() < ctx.escorts.max && g >= ctx.escorts.cost) return true; // [escorts]
   return UPGRADES.some(u => { const t = u.tiers[run.levels[u.id]]; return t && g >= costOf(t); });
@@ -216,16 +219,30 @@ function repair() {
   ctx.sfx?.coin?.(); ctx.updateHud(); render(); ctx.onRunChange?.(run);
 }
 
-export function open() {
-  if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return;
+// [Timothy] BANKSY: "Remove other ways to upgrade ship or change skins, make them go to the shop on island". In BATTLE ROYALE
+// (permanent, saved upgrades) the panel only opens from the island SHIP SKINS + UPGRADES shop (UPGRADES tab -> open({ island: true }));
+// the chest button / U / B show a pointer there instead. Waves (per-run upgrades, gone when the run ends) is unchanged.
+const ISLE_MSG = '⛵ Ship upgrades + skins: visit the SHIP SKINS + UPGRADES shop on the island';
+export function islandPointer(msg = ISLE_MSG) {
+  let t = $('shop-pointer'); if (!t) { t = document.createElement('div'); t.id = 'shop-pointer'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
+  t.textContent = msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);
+}
+export function open(opts = {}) {
+  if (!ctx || ctx.game.state !== 'playing' || !ctx.getPlayer().alive) return false;
+  if (PVP() && !opts.island) { islandPointer(); return false; }
+  fromIsland = PVP() && !!opts.island;
+  $('shop').classList.toggle('from-island', fromIsland);
+  $('shop-close').textContent = fromIsland ? 'BACK TO THE ISLAND' : 'BACK TO BATTLE';
   ctx.game.state = 'shop';
   if (PVP()) setTab('upg'); else if (tab === 'upg') document.querySelector('#shop .shop-sub').textContent = SUB_UPG(); // [pvp]
   render(); $('shop').classList.remove('hidden'); ctx.sfx?.shopOpen?.(); // [Raul] sound upgrades
   refreshPreviews(); // [Raul] skin previews: idle-rendered, only builds missing ones
   ctx.prebuildShips?.(run.levels, ctx.game.gold); // [Raul] pre-compile next purchases so buying is instant
+  return true;
 }
 export function close() {
   if (!ctx || ctx.game.state !== 'shop') return;
+  fromIsland = false; $('shop').classList.remove('from-island');
   ctx.game.state = 'playing'; $('shop').classList.add('hidden'); pausePreviews(); // [Raul] skin previews
   if (lastBuy) { celebrateUpgrade(ctx.getPlayer().mesh, lastBuy.id, { camera: ctx.camera, label: lastBuy.label, legendary: lastBuy.legendary }); lastBuy = null; }
 }
@@ -260,6 +277,7 @@ export function initShop(c) {
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);
+  window.PFP_UPGRADES = { openFromIsland: () => open({ island: true }), close, isOpen: () => ctx?.game.state === 'shop', islandPointer }; // [Timothy] island ship shop UPGRADES tab
   window.PFP_SHOP = { celebrateUpgrade, open, close, buy, repair, hire, get run() { return run; },
     // test/preview hook: set tiers directly (stats + model), e.g. PFP_SHOP.setLevels({ hull: 1, cannons: 2, armor: 2 })
     setLevels(lv) { for (const u of UPGRADES) run.levels[u.id] = Math.max(0, Math.min(u.tiers.length, lv[u.id] || 0)); setLoadout(run.levels); const p = ctx.getPlayer(); applyStats(p, shipStats(run)); ctx.rebuildShip?.(run.levels); refreshPreviews(); } };
