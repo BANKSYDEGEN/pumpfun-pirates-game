@@ -161,6 +161,12 @@ if (HIGH) {
     // [ultra] 4x MSAA half-float target, stronger bloom so Diamond / Golden / Flaming glow, SMAA, subtle grade
     composer = ULTRA ? new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 })) : new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
+    // [v112] NaN / Inf guard (BANKSY: Ultra went black when a ship sank): one bad pixel in the half-float scene target (a NaN normal, a
+    // huge additive burst) gets smeared over the whole frame by the bloom blur mips -> black screen. Clamp every channel to a finite
+    // HDR range before bloom; non-finite -> 0. Ternaries, not mix(): NaN * 0 is still NaN.
+    composer.addPass(new ShaderPass({ uniforms: { tDiffuse: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; float f(float x){ return (x > -1.0 && x < 60000.0) ? clamp(x, 0.0, 64.0) : 0.0; } void main(){ vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(f(c.r), f(c.g), f(c.b), (c.a >= 0.0 && c.a <= 1.0) ? c.a : 1.0); }' }));
     const bloom = ULTRA ? new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.85, 0.55, 0.86) : new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.92);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -450,7 +456,12 @@ const _hc = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 function hullCap(s, out) {
   const ud = s.mesh.userData;
   if (ud.capLid === undefined) { ud.capLid = null; s.mesh.traverse(o => { if (!ud.capLid && o.userData.waterMask && o.geometry) ud.capLid = o; });
-    if (ud.capLid) { const P = ud.capLid.geometry.attributes.position; let mn = Infinity; for (let i = 0; i < P.count; i++) mn = Math.min(mn, P.getY(i)); ud.capLid.userData.capY = mn; } }
+    if (ud.capLid) { const P = ud.capLid.geometry.attributes.position; let mn = Infinity; for (let i = 0; i < P.count; i++) mn = Math.min(mn, P.getY(i));
+      // [v114] the cap plane sat 0.3 m under the GUNWALE lid, but enemy / escort / boss decks are ~0.7 m under it: crests reached 0.4 m
+      // over their deck ("water inside the hull" in Waves). Cap from the lower of the lid and the waist deck (same body frame), so the
+      // shader's -0.3 lands under every deck. Visual only: physics / buoyancy never read this.
+      if (Number.isFinite(ud.deckY) && ud.capLid.parent === ud.body) mn = Math.min(mn, ud.deckY - 0.25); // 0.25: low waist spots (hatches) too
+      ud.capLid.userData.capY = mn; } }
   const lid = ud.capLid;
   if (!lid || s.sinking > 0 || s.alive === false || !s.mesh.parent || !s.mesh.visible) { out.set(0, 0, 0, 0); return; }
   lid.updateWorldMatrix(true, false);

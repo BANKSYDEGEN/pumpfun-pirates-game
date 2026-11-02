@@ -164,7 +164,7 @@ export function sailMaterial(map, side = THREE.FrontSide, edge = 0) {
         #endif`);
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nuniform float uWindT;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        { float cx = 1.0 - pow(uv.x * 2.0 - 1.0, 2.0); float hang = 1.0 - uv.y * 0.75;
+        { float ux = uv.x * 2.0 - 1.0, cx = 1.0 - ux * ux; /* [v112] was pow(negative, 2.0): undefined in GLSL (NaN on many GPUs) */ float hang = 1.0 - uv.y * 0.75;
           float ph = uWindT * 2.3 + modelMatrix[3].x * 0.05 + modelMatrix[3].z * 0.05;
           transformed.z += cx * hang * (sin(uv.y * 4.0 + ph + uv.x * 2.5) * 0.16 + sin(ph * 1.7 + uv.x * 7.0) * 0.05); }`);
   };
