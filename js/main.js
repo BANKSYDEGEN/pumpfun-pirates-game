@@ -5,7 +5,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
 import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
-import { attachCaptain, localCaptain } from './captainSlot.js'; // [Timothy v2] your captain-creator pirate at the wheel (no-op until a builder is registered)
+import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
+import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -61,7 +62,8 @@ const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfx
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
 setCrewQuality(quality, isMobile); // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
-await initKit(quality === 'low' || isMobile); // [Timothy] Blender ship kit: Low LOD + half-res maps on LOW / phones (procedural fallback if it can't load)
+await initKit(quality === 'low' || isMobile);
+registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 } }); // [v100] your pirate (v4 GLB) steers your ship
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -1266,6 +1268,8 @@ function frame() {
 
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
+  { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
+  tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

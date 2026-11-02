@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v98-3';
+const VERSION = 'pfp-v100';
 const SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,26 @@ const SHELL = [
   "./css/style.css",
   "./js/main.js",
   "./js/island/coast.js", // [Emerly] main.js + pvp.js import the coast flag (pure data)
+  // [v100] ships v2 kit, v4 pirates, the coast harbor town, docking + on foot
+  "./js/captainSlot.js",
+  "./js/shipKit.js",
+  "./js/pirateGLB.js",
+  "./js/pirates.js",
+  "./js/dock/index.js",
+  "./js/dock/docking.js",
+  "./js/dock/layout.js",
+  "./js/dock/safe.js",
+  "./js/dock/world.js",
+  "./js/onfoot/net.js",
+  "./js/onfoot/pirate.js",
+  "./js/onfoot/walker.js",
+  "./js/island/art.js",
+  "./js/island/bake.js",
+  "./js/island/foot.js",
+  "./js/island/harbor.js",
+  "./js/island/kit.js",
+  "./js/island/look.js",
+  "./js/island/townkit.js",
   "./js/config.js",
   "./js/tokenChip.js",
   "./js/shareCard.js",
@@ -88,6 +108,35 @@ const SHELL = [
   "./assets/captains/333.jpg",
   "./assets/captains/74.jpg"
 ];
+// [v100] art (GLBs + kit textures, ~12 MB): fetched in the background after install (never blocks the update); the fetch handler caches whatever a device actually loads
+const ASSETS = [
+  "./assets/ships/kit/player_kit.glb",
+  "./assets/ships/kit/player_kit_lo.glb",
+  "./assets/ships/kit/deck_d.jpg",
+  "./assets/ships/kit/deck_d_lo.jpg",
+  "./assets/ships/kit/deck_n.jpg",
+  "./assets/ships/kit/deck_n_lo.jpg",
+  "./assets/ships/kit/hull_d.jpg",
+  "./assets/ships/kit/hull_d_lo.jpg",
+  "./assets/ships/kit/hull_n.jpg",
+  "./assets/ships/kit/hull_n_lo.jpg",
+  "./assets/ships/kit/sail_d.jpg",
+  "./assets/ships/kit/sail_d_lo.jpg",
+  "./assets/ships/kit/sail_n.jpg",
+  "./assets/ships/kit/sail_n_lo.jpg",
+  "./assets/pirates/pirate_male_hi.glb",
+  "./assets/pirates/pirate_male_lo.glb",
+  "./assets/pirates/pirate_female_hi.glb",
+  "./assets/pirates/pirate_female_lo.glb",
+  "./assets/island/town_kit.glb",
+  "./assets/island/town_kit.webp.glb",
+  "./assets/island/town_kit_low.glb",
+  "./assets/island/town_kit_low.webp.glb",
+  "./assets/island/nature_kit.glb",
+  "./assets/island/nature_kit.webp.glb",
+  "./assets/island/nature_kit_low.glb",
+  "./assets/island/nature_kit_low.webp.glb",
+];
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.165.0/';
 const CDN_FILES = [
   CDN + 'build/three.module.js',
@@ -95,6 +144,11 @@ const CDN_FILES = [
   CDN + 'examples/jsm/controls/OrbitControls.js',
   CDN + 'examples/jsm/utils/BufferGeometryUtils.js',
   CDN + 'examples/jsm/geometries/RoundedBoxGeometry.js',
+  CDN + 'examples/jsm/loaders/GLTFLoader.js', // [v100] ship kit, island kits, v4 pirates
+  CDN + 'examples/jsm/loaders/DRACOLoader.js',
+  CDN + 'examples/jsm/loaders/KTX2Loader.js',
+  CDN + 'examples/jsm/libs/meshopt_decoder.module.js',
+  CDN + 'examples/jsm/utils/SkeletonUtils.js',
 ];
 // high-quality post-processing modules: cached when a desktop/high-tier device fetches them (see fetch handler)
 
@@ -112,6 +166,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
     await self.clients.claim();
+    caches.open(VERSION).then(c => { for (const u of ASSETS) c.match(u).then(hit => hit || c.add(u).catch(() => {})); }); // [v100] background, best effort
   })());
 });
 

@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { toon } from '../toon.js';
 
-export const PIRATE_GLB = null; // e.g. { male: 'assets/pirates/pirate_male_lo.glb', female: 'assets/pirates/pirate_female_lo.glb' }
+export { PIRATE_GLB } from '../pirateGLB.js'; // [v100] Raul's Blender pirates v4 (js/pirates.js); the procedural deckhand below is the fallback while it loads
+import { pirateFigure } from '../pirates.js';
 
 const SKINS = [0xd99b6c, 0xf2c9a0, 0xe0a97c, 0xc68a5e, 0x9a6440, 0x6e4528];
 const HAIR = [0x2b1b12, 0x4a2c17, 0x161616, 0x8a5a2b, 0xc9a25a];
@@ -59,8 +60,12 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
   const armL = add(g.arm, body, new THREE.Vector3(-0.32, 0.52, 0)), armR = add(g.arm, body, new THREE.Vector3(0.32, 0.52, 0));
   const legL = add(g.leg, hips, new THREE.Vector3(-0.12, -0.16, 0)), legR = add(g.leg, hips, new THREE.Vector3(0.12, -0.16, 0));
   armL.rotation.z = 0.12; armR.rotation.z = -0.12;
+  // [v100] Raul's v4 GLB body: swaps in when loaded (hides the placeholder), clips idle / walk / run by speed
+  let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
   let ph = 0, blend = 0, t = 0;
   function update(dt, speed = 0, state = 'idle') {
+    if (v4) { const c = speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
+      if (v4.action) v4.action.setEffectiveTimeScale(c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
     t += dt; const run = Math.min(1, Math.max(0, (speed - 4.4) / 2)), walk = Math.min(1, speed / 1.2);
     blend += (walk - blend) * Math.min(1, dt * 10);
     ph += dt * (speed > 0.1 ? 2.2 + speed * 1.15 : 0);
@@ -73,5 +78,5 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
     body.rotation.x = 0.08 * blend + 0.14 * run; body.rotation.y = -sw * 0.08 * blend;
     body.scale.set(1, 1 + breathe * 1.5, 1);
   }
-  return { object: root, update, height: 1.75, dispose() { root.removeFromParent(); } };
+  return { object: root, update, height: 1.75, dispose() { fig.userData.dispose?.(); root.removeFromParent(); } };
 }
