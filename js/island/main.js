@@ -16,6 +16,7 @@ import { getSkin } from '../skins.js';
 import { createIslands } from '../props.js';
 import { PVP_ARENA_R, ISLAND_TOKENS } from '../config.js';
 import { copyText } from '../tokenChip.js';
+import { isBase58 } from '../safe.js'; // [security] the DexScreener pair id goes into an iframe URL: base58 only
 import { SPOTS, TOWER_H, TAVERN_S, HARBOR_ISLAND, PIER, PIER_ANGLES, pierUV, pierDecks, groundY, footY, canWalk, buildIsland, buildFarIsland, buildChest, buildPlants, buildPalmGrove, buildFx, lagoon, tokenSlots, ISLAND_POIS, makeAtlas, shoreFoam, islandColliders, BERTHS, harborWalls, walkable, scaleMarkers } from './art.js';
 import { Kit, M } from './kit.js';
 import { outlineMaterial, SWAY_DECL, SWAY_BODY } from './kit.js';
@@ -405,7 +406,7 @@ const prompt = document.createElement('button'); prompt.style.cssText = 'positio
 document.body.appendChild(prompt);
 function showPanel(sym) {
   const t = TOK.find(q => q.sym === sym); if (!t) return; panel.sym = sym;
-  const id = t.pair?.pairAddress || (t.dex ? t.dex.split('/').pop() : null);
+  const id0 = t.pair?.pairAddress || (t.dex ? t.dex.split('/').pop() : null), id = isBase58(id0) ? id0 : null;
   panel.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><b style="font:40px 'Just Another Hand',cursive;color:${t.color}">$${sym}</b><span data-stat style="flex:1;opacity:.9">${statLine(t)}</span><button data-x style="font-size:20px;background:none;color:#fff;border:0;cursor:pointer">✕</button></div>
     <div style="display:flex;gap:8px;align-items:center"><code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#000;padding:6px 8px;border-radius:6px">${t.ca}</code><button data-copy style="padding:6px 10px;background:#ffcd77;border:0;border-radius:6px;font-weight:700;cursor:pointer">COPY CA</button></div>
     ${id ? `<iframe title="$${sym} chart" src="https://dexscreener.com/solana/${id}?embed=1&theme=dark&trades=0&info=0" style="flex:1;width:100%;border:0;border-radius:8px;background:#000"></iframe>` : '<div style="flex:1;display:grid;place-items:center;opacity:.7">resolving the main pair…</div>'}

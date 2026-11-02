@@ -10,12 +10,13 @@
 // Static fields (name, levels, skin, K/D…) are only re-sent when they change or every 3 s (delta); an unchanged, quiet
 // ship is suppressed down to a keepalive. Receivers merge deltas back into a full state before pvp.js sees it.
 import { Room } from './net.js';
+import { isNetId, safeMerge } from './safe.js'; // [security] peer ids are whitelisted, peer JSON is merged without __proto__ keys
 import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL, HARBOR_NET } from './config.js';
 
 const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj', 'gr']; // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order) // [Timothy] gr = equipped shop gear (js/pirateGear.js gearToWire)
 const DYN_EPS = { x: 0.25, z: 0.25, y: 0.015, v: 0.15, t: 0.05 };
 
-class Batcher {
+export class Batcher { // exported for tests
   constructor(myId, cfg, rawSend) {
     this.myId = myId; this.cfg = cfg; this.rawSend = rawSend; this.handlers = new Map(); this.q = []; this.provider = null;
     this.last = 0; this.lastDyn = null; this.lastStatic = ''; this.lastStaticT = 0; this.full = new Map(); this.heardAt = new Map();
@@ -46,15 +47,16 @@ class Batcher {
     if (this.rawSend(msg)) { this.sent++; for (const [ev] of msg.e || []) this.byEv['s:' + ev] = (this.byEv['s:' + ev] || 0) + 1; if (s) this.byEv['s:s'] = (this.byEv['s:s'] || 0) + 1; }
   }
   receive(m) { // one batched message from another client
-    if (!m || typeof m.i !== 'string' || m.i === this.myId || m.i.length > 20) return;
+    if (!m || !isNetId(m.i) || m.i === this.myId) return; // [security H5] only base36 ids (6-20): an id is never markup
     this.recv++; this.heardAt.set(m.i, performance.now());
-    if (m.s && typeof m.s === 'object') {
-      const f = Object.assign(this.full.get(m.i) || {}, m.s); f.i = m.i; this.full.set(m.i, f);
-      if ('n' in f) this.dispatch('s', { ...f }); // wait for the first full state (≤ 3 s) before showing a ship
+    if (m.s && typeof m.s === 'object' && !Array.isArray(m.s)) {
+      const f = safeMerge(this.full.get(m.i) || Object.create(null), m.s); f.i = m.i; this.full.set(m.i, f); // [security] null prototype, no __proto__ keys
+      if ('n' in f) this.dispatch('s', { ...f }, m.i); // wait for the first full state (≤ 3 s) before showing a ship
     }
-    if (Array.isArray(m.e)) for (const ev of m.e.slice(0, 40)) if (Array.isArray(ev) && typeof ev[0] === 'string') this.dispatch(ev[0], ev[1] || {});
+    if (Array.isArray(m.e)) for (const ev of m.e.slice(0, 40)) if (Array.isArray(ev) && typeof ev[0] === 'string' && (ev[1] == null || (typeof ev[1] === 'object' && !Array.isArray(ev[1])))) this.dispatch(ev[0], ev[1] || {}, m.i);
   }
-  dispatch(ev, p) { this.byEv['r:' + ev] = (this.byEv['r:' + ev] || 0) + 1; const fn = this.handlers.get(ev); if (fn) { try { fn(p); } catch (e) { console.warn('[pvp] handler', ev, e); } } }
+  // fn(payload, from): `from` = the (whitelisted) id of the batch the event arrived in, so handlers can check a payload's own id against it
+  dispatch(ev, p, from) { this.byEv['r:' + ev] = (this.byEv['r:' + ev] || 0) + 1; const fn = this.handlers.get(ev); if (fn) { try { fn(p, from); } catch (e) { console.warn('[pvp] handler', ev, e); } } }
   stats() { const secs = (performance.now() - this.t0) / 1000; return { secs, sent: this.sent, recv: this.recv, sentPerSec: this.sent / secs, recvPerSec: this.recv / secs, byEv: { ...this.byEv }, hz: this.hz() }; }
   resetStats() { this.sent = this.recv = 0; this.byEv = {}; this.t0 = performance.now(); }
   stop() { clearInterval(this.timer); }

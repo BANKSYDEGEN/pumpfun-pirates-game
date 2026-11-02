@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
-import { applyGear, cleanWire, gearFromWire, knownGearSkin } from '../pirateGear.js'; // [Timothy] their shop gear ('gr')
+import { applyGear, cleanWire, gearFromWire, knownGearSkin } from '../pirateGear.js';
+import { isNetId } from '../safe.js'; // [security H5] // [Timothy] their shop gear ('gr')
 
 const FT_MS = 330; // on-foot pose send interval (ms)
 function nameTag(text) {
@@ -28,7 +29,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
     return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ft: ftLast, ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };
   }
   function onPeerState(m) { // a peer's state (any transport); m.i = id, m.n = name
-    if (!m || typeof m.i !== 'string') return null;
+    if (!m || !isNetId(m.i)) return null;
     const moved = docking.onPeer(m.i, typeof m.dk === 'string' ? m.dk : '');
     let p = peers.get(m.i);
     const ft = Array.isArray(m.ft) && m.ft.length === 4 && m.ft.every(Number.isFinite) ? m.ft : null;

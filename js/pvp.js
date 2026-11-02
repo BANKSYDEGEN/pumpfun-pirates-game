@@ -38,6 +38,7 @@ import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
 import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
+import { isNetId, escHtml, num } from './safe.js'; // [security H5] peer ids whitelisted, attribute values escaped
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
@@ -488,7 +489,7 @@ export function createPvp(K) {
   let botHits = [];
   function flushBotHits() { if (botHits.length && room && where === 'harbor') room.send('bh', { s: myId, h: botHits.slice(0, 16) }); botHits = []; }
   function onBotHit(m) { // host: another pirate's balls hit one of our AI ships (same caps as PvP hits: per-ball max, ~10 hits/s, range)
-    if (!isHost || where !== 'harbor' || !m || typeof m.s !== 'string' || !Array.isArray(m.h)) return;
+    if (!isHost || where !== 'harbor' || !m || !isNetId(m.s) || !Array.isArray(m.h)) return;
     const sh = peers.get(m.s)?.ship; if (!sh) return;
     const now = performance.now(), bk = buckets.get(m.s) || { tokens: 16, t: now };
     bk.tokens = Math.min(16, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
@@ -562,7 +563,7 @@ export function createPvp(K) {
   }
   function lvFrom(arr) { const lv = {}; UPGRADES.forEach((u, i) => lv[u.id] = clamp(Math.floor(arr?.[i] || 0), 0, u.tiers.length)); return lv; }
   function onState(m) {
-    if (!m || typeof m.i !== 'string' || m.i === myId || m.i.length > 20) return;
+    if (!m || !isNetId(m.i) || m.i === myId) return; // [security H5]
     if (where === 'harbor') window.PFP?.dock?.onPeerState?.(m); // [Emerly] other pirates' berth + on-foot pose (harbor room only)
     let p = peers.get(m.i);
     const now = performance.now();
@@ -706,7 +707,7 @@ export function createPvp(K) {
   // [v96] quick-chat: send a preset id (the wheel already limits you to 1 / 2 s); receive: preset ids only, ≤1 per 1.5 s per pirate
   function emote(e) { if (!validEmote(e) || !room || (where !== 'arena' && where !== 'harbor')) return; room.send('emo', { i: myId, e }); } // [v99] + the shared harbor
   function onEmote(m) {
-    if (!m || typeof m.i !== 'string' || m.i === myId || !validEmote(m.e)) return;
+    if (!m || !isNetId(m.i) || m.i === myId || !validEmote(m.e)) return;
     const p = peers.get(m.i), now = performance.now(); if (!p?.ship || !p.ship.alive) return;
     if (now - (p.emoAt || 0) < EMOTE_GAP * 0.75) return; p.emoAt = now;
     const pl = P(), d = Math.hypot(p.ship.x - pl.x, p.ship.z - pl.z), vol = Math.max(0, 1 - d / 240);
@@ -765,8 +766,9 @@ export function createPvp(K) {
     me.lastDamageAt = performance.now(); me.lastBy = by;
     K.damage(pl, amt, p || new THREE.Vector3(pl.x, pl.y + 3, pl.z), shooterObj);
   }
-  function onHit(m) {
-    if (!m || typeof m.s !== 'string' || !Array.isArray(m.h)) return;
+  function onHit(m, from) {
+    if (!m || !isNetId(m.s) || !Array.isArray(m.h)) return;
+    if (from && m.s !== from && !(bots.has(m.s) && from === hostId)) return; // [security M1] a hit names its own sender (or the host's AI ship)
     const shooter = ownerObj(m.s); if (!shooter) return; // unknown shooter
     if (isSq() && !sqCanHit(m.s, myId)) return; // [v98] never from a teammate / outside a live round
     const now = performance.now(), bk = buckets.get(m.s) || { tokens: 12, t: now };
@@ -954,7 +956,7 @@ export function createPvp(K) {
   function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; if (!silent) harborUi(); }
   function partyBeat() { party.room?.send('p', { i: myId, n: name, t: party.t, st: where === 'harbor' ? lob.state : where }); }
   function onPartyBeat(m) {
-    if (!m || typeof m.i !== 'string' || m.i === myId || m.i.length > 20) return;
+    if (!m || !isNetId(m.i) || m.i === myId) return; // [security H5]
     const had = party.mates.has(m.i); party.mates.set(m.i, { n: esc(m.n).slice(0, 20) || 'PIRATE', t: +m.t || 0, st: String(m.st || '').slice(0, 10), at: performance.now() });
     const now = performance.now(), live = [...party.mates.values()].filter(x => now - x.at < 10000);
     if (live.length >= SQUADS.size && live.every(x => x.t < party.t)) { partyLeave(true); partyMsg('PARTY FULL: that code already has 2 pirates'); return; } // the latest joiner leaves
@@ -1278,7 +1280,7 @@ export function createPvp(K) {
     const h = $('pvp-harbor'); if (!h) return;
     const show = active && where === 'harbor' && !spec.on; h.classList.toggle('hidden', !show); if (!show) return;
     const b = $('pvp-join'), t = $('pvp-harbor-t');
-    if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${lob.pos}</b> of ${lob.queue} · arena ${lob.players}/${lob.cap}`; }
+    if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${num(lob.pos)}</b> of ${num(lob.queue)} · arena ${num(lob.players)}/${num(lob.cap)}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
     else { b.textContent = 'JOIN BATTLE'; t.innerHTML = HOLDER_ENABLED && holder.on ? '<span class="pvp-holder">HOLDER 2× GOLD</span>' : ''; } // [v98.1] no "THE HARBOR" pill (it blocked the view); the SOLO / SQUADS switch shows the mode
     t.hidden = !t.innerHTML;
@@ -1456,7 +1458,7 @@ export function createPvp(K) {
     // ALL-TIME kills / deaths / K/D (each captain's saved stats) + a live hull bar (BANKSY)
     const hpPct = (p) => { const s = p.ship, h = s ? s.hp : p.st?.h, m = s ? s.maxHp : p.st?.m; return m ? Math.max(0, Math.min(100, Math.round(h / m * 20) * 5)) : 0; };
     const html = `<tr><th></th><th>CAPTAIN</th><th title="all-time kills">K</th><th title="all-time deaths">D</th><th title="all-time K/D">K/D</th><th title="streak bounty">☠</th></tr>` + (list.length ? list.map((p, i) => { const hp = hpPct(p);
-      return `<tr data-id="${p.id}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}${isSq() && sqTeam(p.id) ? ` t${sqTeam(p.id)}` : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${(p.bK ?? p.K) | 0}</td><td>${(p.bD ?? p.D) | 0}</td><td>${kd((p.bK ?? p.K) | 0, (p.bD ?? p.D) | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
+      return `<tr data-id="${escHtml(p.id)}" class="${p.id === spec.target && spec.mode !== 'overview' ? 'on' : ''}${isSq() && sqTeam(p.id) ? ` t${sqTeam(p.id)}` : ''}"><td>${i + 1}</td><td><i class="sb-skin" style="background-image:url(${skinIcon(p.sk)})"></i><span class="sb-name">${esc(p.name)}</span><i class="sb-hp${hp <= 30 ? ' low' : ''}" title="hull ${hp}%"><b style="width:${hp}%"></b></i></td><td>${(p.bK ?? p.K) | 0}</td><td>${(p.bD ?? p.D) | 0}</td><td>${kd((p.bK ?? p.K) | 0, (p.bD ?? p.D) | 0)}</td><td class="sb-bounty">${p.bt ? p.bt : ''}</td></tr>`; }).join('')
       : `<tr><td colspan="6" class="muted">No captains in this room yet</td></tr>`);
     if (t._html !== html) { t._html = html; t.innerHTML = html; } // only touch the DOM when something changed
   }

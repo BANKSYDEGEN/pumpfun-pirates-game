@@ -57,7 +57,7 @@ export const _resetGoalStats = () => { src.server = null; src.board = null; src.
 // ---------- rendering (shared by the shop cards, the shop detail pane and the profile) ----------
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (f) => `${Math.round(Math.max(0, Math.min(1, f)) * 100)}%`;
-const modeLine = (m) => m ? `Solo ${m.solo.toLocaleString('en-US')} · Squads ${m.squads.toLocaleString('en-US')}${m.src === 'device' ? ' <i>(this device)</i>' : ''}` : '';
+const modeLine = (m) => m ? `Solo ${(+m.solo | 0).toLocaleString('en-US')} · Squads ${(+m.squads | 0).toLocaleString('en-US')}${m.src === 'device' ? ' <i>(this device)</i>' : ''}` : '';
 // the per-row lines on a locked card: text + a thin bar each
 export function goalCardHtml(g, modes) {
   if (!g) return '';

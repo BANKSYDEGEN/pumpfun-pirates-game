@@ -44,6 +44,7 @@ import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
 import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
+import { escHtml } from './safe.js'; // [security H5]
 import { createEscorts, ESCORT, escortStep } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
@@ -760,7 +761,7 @@ function updateHud() {
 function addScore(n) { game.score += n; }
 let bannerTimer = 0;
 function banner(text, sub = '') {
-  const b = $('banner'); b.innerHTML = `${text}${sub ? `<div style="font-size:0.38em;color:#fff;text-align:center">${sub}</div>` : ''}`;
+  const b = $('banner'); b.innerHTML = `${escHtml(text)}${sub ? `<div style="font-size:0.38em;color:#fff;text-align:center">${escHtml(sub)}</div>` : ''}`; // [security H5] banners can carry pirate names: always plain text
   b.classList.remove('hidden'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.classList.add('hidden'), 2600);
 }
@@ -1146,7 +1147,7 @@ async function gameOver() {
   $('gameover').classList.remove('hidden');
   if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = 'Banking gold from your score…'; } // [v103]
     wavesClaim({ run: game.runId, score: game.score, wave: game.wave, sunk: game.sunk }).then(r => { const el = $('go-pay'); if (!el) return;
-      if (r?.ok && r.gold > 0) el.innerHTML = `Score ${game.score.toLocaleString('en-US')} → <b>+${r.gold.toLocaleString('en-US')} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${r.base} × 2)</span>` : ''}<br><small class="muted">for the island SHOP · Battle Royale gold</small>`;
+      if (r?.ok && r.gold > 0) el.innerHTML = `Score ${game.score.toLocaleString('en-US')} → <b>+${(+r.gold | 0).toLocaleString('en-US')} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${+r.base | 0} × 2)</span>` : ''}<br><small class="muted">for the island SHOP · Battle Royale gold</small>`;
       else if (r && r.ok === false && r.error) el.textContent = `No gold banked: ${r.error}`; else el.hidden = true; }); }
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
   renderBoard($('board-over'));

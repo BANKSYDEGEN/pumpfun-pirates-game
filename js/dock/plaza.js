@@ -10,6 +10,7 @@ import { ISLAND_TOKENS } from '../config.js';
 import { leaderboard } from '../leaderboard.js';
 import { fetchKillsTop } from '../pvpSave.js';
 import { copyText } from '../tokenChip.js';
+import { isBase58 } from '../safe.js'; // [security] third-party (DexScreener) values are validated before they reach a link
 
 const CW = 768, CH = 564, FONT = (px) => `${px}px "Just Another Hand", cursive`;
 const BOARDS = [{ id: 'waves', title: 'WAVES · TOP PIRATES', col: '#fa0d0d', unit: 'score' }, { id: 'arena', title: 'BATTLE ROYALE · TOP KILLS', col: '#2a6df4', unit: 'kills' }];
@@ -89,7 +90,7 @@ export function createPlaza({ world, ctx = {} }) {
   }
   function showToken(sym) {
     const t = TOK.find(q => q.sym === sym) || TOK[0]; panel.dataset.sym = t.sym; panel.dataset.board = '';
-    const p = t.pair, ch = +(p?.priceChange?.h24 ?? 0), chart = t.chart || (p && p.url) || `https://dexscreener.com/solana/${t.ca}`;
+    const p = t.pair, ch = +(p?.priceChange?.h24 ?? 0), chart = t.chart || (p && typeof p.url === 'string' && /^https:\/\/dexscreener\.com\/[A-Za-z0-9/_-]+$/.test(p.url) ? p.url : '') || `https://dexscreener.com/solana/${isBase58(t.ca) ? t.ca : ''}`;
     // [v108] title, logo, CA + copy, DexScreener link only (BANKSY); [v111] + the live price strip, CA first4…last4 on narrow screens (copy = full CA)
     const logo = t.logo ? `<img class="pz-logo" src="${esc(t.logo)}" alt="${esc(t.title)} logo" width="96" height="96">` : `<span class="pz-logo pz-skull" style="--pz:${t.color}"><img src="assets/skull_transparent.png" alt="" width="64" height="64"></span>`;
     panel.innerHTML = `${head(esc(t.title || '$' + t.sym), t.color)}
