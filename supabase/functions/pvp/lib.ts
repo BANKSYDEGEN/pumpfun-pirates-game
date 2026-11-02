@@ -32,15 +32,19 @@ export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagr
 // [v92] valuePerMin 2500 -> 10000: harbor pay ×2 and holder gold ×2 (up to ×4 for a holder), same headroom as before
 // [v94] valueBase 300 -> 2500: a harbor boss pile (up to 840 g, ×2 for holders = 1,680) lands in one save
 // [v98] harbor AI kills share the AI-kill pace; harbor bosses come every 3-5 min (one at a time)
-export const CAPS = { valueBase: 2500, valuePerMin: 10000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15, bossBase: 2, bossPerMin: 1 };
+// [security H3] valuePerMin 10000 -> 3000, bossPerMin 1 -> 0.5. Real pace (lib.ts WAVES_GOLD notes + the BR payouts): a mid
+// player banks ~155 gold / min, x2 harbor pay x2 holder = ~620 / min; the best sustained pace seen is ~1,900 / min. 3,000 / min
+// stays above every real player; a bigger one-off (a 1,680 g holder boss pile) is DELAYED a few syncs, never lost (stepToward
+// clamps, saveProblem's 422 is retried as the allowance grows). Harbor bosses come one at a time every 3-5 min = at most 0.33 / min.
+// valueBase stays 2500 (one boss pile in a single wallet save).
+export const CAPS = { valueBase: 2500, valuePerMin: 3000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15, bossBase: 2, bossPerMin: 0.5 };
 
 export const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const isWallet = (w: unknown): w is string => {
   if (typeof w !== "string" || !WALLET_RE.test(w)) return false;
   try { return bs58.decode(w).length === 32; } catch { return false; }
 };
-export const buildMessage = (wallet: string, nonce: string, issued: string) =>
-  `PUMPFUN PIRATES PvP save\nwallet: ${wallet}\nnonce: ${nonce}\nissued: ${issued}\nRead-only: this is not a transaction and cannot move funds.`;
+// [security H4] the sign-in text is now a Sign-In-With-Solana message bound to the page's domain: security.ts siwsMessage()
 
 export function verifySignature(message: string, signatureB64: string, wallet: string): boolean {
   try {
@@ -120,7 +124,7 @@ export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("sk
 export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
   parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
   leg: ["none", "peg"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
-export const SEED_GOLD_CAP = 25000; // first server copy of a device save: gold above this is released at the normal earning pace
+export const SEED_GOLD_CAP = 5000; // [security H3] was 25000. First server copy of a device save: gold above this is released at the normal earning pace (stepToward)
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
 export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);
 export const HAT_COLORS = 12; // [v105] free hat colour pick: 0 = the hat's default, 1..12 = Timothy's HAT_SWATCHES

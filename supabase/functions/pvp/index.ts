@@ -1,15 +1,20 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim" | "acct_set" | "acct_login" | "acct_sync" | "acct_change" | "acct_logout", ... }. The wallet only ever SIGNS A MESSAGE.
-import { createClient } from "npm:@supabase/supabase-js@2";
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim" | "acct_set" | "acct_login" | "acct_sync" | "acct_change" | "acct_logout" | "airdrop_nonce" | "waves_score" | "ticket", ... }. The wallet only ever SIGNS A MESSAGE.
+import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
-import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
+import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL } from "./lib.ts";
-import { goalsView, killsByMode } from "./goals.ts"; // [Timothy] shop goal progress (read-only)
+import { goalsView, killsByMode } from "./goals.ts";
+import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
 const NONCE_TTL_MS = 5 * 60 * 1000, SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
+// [security M1] Realtime tickets: HS256 JWT signed with the project's JWT secret (unset = no private channels yet: the client keeps
+// using public ones). RELAY_TICKET_SECRET: the same idea for server/relay.js once it is hosted.
+const RT_JWT_SECRET = Deno.env.get("PFP_RT_JWT_SECRET") ?? "", RELAY_SECRET = Deno.env.get("RELAY_TICKET_SECRET") ?? "", TICKET_TTL_S = 30 * 60;
+const TRUSTED_IP_HEADER = Deno.env.get("TRUSTED_IP_HEADER") || null;
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const rand = (k: number) => { const a = new Uint8Array(k); crypto.getRandomValues(a); return a; };
@@ -83,7 +88,7 @@ function stepToward(cur: Profile, rep: Profile, mins: number): Profile {
 }
 async function shopView(who: { pid: string; owner: boolean }, gold: number, stats: Profile["stats"], rev: number, extra: Record<string, unknown> = {}) {
   const own = who.owner ? new Set<string>() : await ownedSet(who.pid), bd = await boardKD(who.pid);
-  const st = { ...stats, kills: Math.max(stats.kills, bd.kills), deaths: Math.max(stats.deaths, bd.deaths) };
+  const st = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths) }; // [security H3] kill goals = the both-sides-confirmed board only (a save's own count is client-reported)
   // [Timothy] goals = progress on the SAME stats shop_buy checks; modes = Solo / Squads split of the board (null until 025 runs)
   return { ok: true, owner: who.owner, gold, rev, stats: st, owned: ownedLists(own, who.owner), goals: goalsView(st), modes: await killsByMode(db, who.pid), ...extra };
 }
@@ -117,31 +122,55 @@ async function devSync(who: { pid: string; owner: boolean }, b: Record<string, u
   return { ok: false, why: "busy" };
 }
 
+// [security H4] a stored nonce may only be used for what it was issued for, from the domain it names, before it expires
+function siwsProblem(nn: { message: string; purpose?: string | null }, purpose: string, origin: string | null): string | null {
+  if ((nn.purpose ?? "signin") !== purpose) return "wrong confirmation, try again";
+  const f = siwsFacts(nn.message); if (!f) return "old sign-in message, try again";
+  if (!origin || new URL(origin).origin !== f.uri) return "this sign-in was made for another site";
+  if (!(f.expires > Date.now())) return "sign-in expired, try again";
+  return null;
+}
+// the airdrop row's owner: the signed wallet session, else this device (a logged-in device: the account's row)
+async function airdropPlayer(b: Record<string, unknown>) {
+  const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
+  if (sw) return `wallet:${sw}`;
+  const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
+  const dp = dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+  return dp && await isAcctDevice(db, dp) ? (await whoAmI({ dk }))?.pid ?? dp : dp; // [v106]
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : null;
+  const allowed = allowedOrigin(origin, ALLOWED_ORIGINS);
   const cors = { "Access-Control-Allow-Origin": allowed ?? ALLOWED_ORIGINS[0], "Access-Control-Allow-Headers": "content-type, apikey, authorization, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS", "Vary": "Origin" };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json(405, { error: "POST only" });
   let b: Record<string, unknown>;
   try { b = await req.json(); } catch { return json(400, { error: "bad json" }); }
+  // [security M3] the caller's IP from a header the platform sets (the first x-forwarded-for entry is client-typed)
+  const ipHash = (await sha256("pfp-ip:" + trustedIp(req.headers, TRUSTED_IP_HEADER))).slice(0, 32);
   try {
     // [v106] PLAYER ACCOUNTS: acct_set / acct_login / acct_sync / acct_change / acct_logout (accounts.ts)
     if (typeof b.action === "string" && b.action.startsWith("acct_")) {
-      const ip = (req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "").split(",")[0].trim() || "unknown";
-      const r = await acctAction({ db, ip: (await sha256("pfp-ip:" + ip)).slice(0, 32), devId, sha256, newToken: () => b64url(rand(32)), whoAmI, sessionWallet, devSync, devProfile, devCols, shopView, ownedSet, upgValue }, b.action, b);
+      const r = await acctAction({ db, ip: ipHash, devId, sha256, newToken: () => b64url(rand(32)), whoAmI, sessionWallet, devSync, devProfile, devCols, shopView, ownedSet, upgValue }, b.action, b);
       if (r) return json(r.status, r.body);
     }
     switch (b.action) {
-      case "nonce": {
+      // [security H4] nonce: a Sign-In-With-Solana message bound to the page's own domain (only allowed origins get one: a phishing
+      // copy that relays it makes the wallet show a domain mismatch). purpose "airdrop": the NEW airdrop wallet proves it is yours.
+      case "nonce": case "airdrop_nonce": {
         const wallet = b.wallet; if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
+        if (!allowed) return json(403, { error: "Open the game at https://game.pumpfunpirates.com to sign in." });
+        const purpose = b.action === "airdrop_nonce" ? "airdrop" : "signin";
+        let forPlayer: string | null = null;
+        if (purpose === "airdrop") { forPlayer = await airdropPlayer(b); if (!forPlayer) return json(401, { error: "no identity" }); }
         await db.from("pvp_nonces").delete().lt("expires_at", new Date(Date.now() - 3600_000).toISOString());
         const { count } = await db.from("pvp_nonces").select("nonce", { count: "exact", head: true }).eq("wallet", wallet).gt("expires_at", new Date().toISOString());
         if ((count ?? 0) >= 10) return json(429, { error: "too many sign-in attempts, try again in a few minutes" });
         const nonce = hex(rand(16)), now = new Date(), exp = new Date(now.getTime() + NONCE_TTL_MS);
-        const message = buildMessage(wallet, nonce, now.toISOString());
-        const { error } = await db.from("pvp_nonces").insert({ nonce, wallet, message, expires_at: exp.toISOString() });
+        const message = siwsMessage({ origin: allowed, wallet, nonce, issuedAt: now.toISOString(), expiresAt: exp.toISOString(), statement: SIWS_STATEMENTS[purpose === "airdrop" ? "airdrop" : "pvp"] });
+        const { error } = await db.from("pvp_nonces").insert({ nonce, wallet, message, expires_at: exp.toISOString(), purpose, player_id: forPlayer });
         if (error) throw error;
         return json(200, { nonce, message, expires_at: exp.toISOString() });
       }
@@ -151,6 +180,7 @@ Deno.serve(async (req) => {
         const { data: nn } = await db.from("pvp_nonces").update({ used: true }).eq("nonce", nonce).eq("wallet", wallet).eq("used", false).select().maybeSingle();
         if (!nn) return json(401, { error: "unknown or used nonce" });
         if (Date.parse(nn.expires_at) < Date.now()) return json(401, { error: "nonce expired" });
+        const why = siwsProblem(nn, "signin", allowed); if (why) return json(401, { error: why }); // [security H4]
         if (!verifySignature(nn.message, signature, wallet)) return json(401, { error: "bad signature" });
         const row = await getRow(wallet);
         // [v72] this device's BATTLE ROYALE kills / deaths follow the wallet (first wallet only; rows kept)
@@ -259,21 +289,35 @@ Deno.serve(async (req) => {
       }
       // optional airdrop wallet from the PvP entry pop-up (no signature: it's just a paste-in address, like Waves).
       // Private table (migration 008), one change per 30 s per player, never returned to anyone.
+      // optional airdrop wallet from the PvP entry pop-up. Private table (migration 008), never returned to anyone.
+      // [security H4] the FIRST wallet a pirate pastes is kept as before (unverified, like Waves); CHANGING it needs a signature
+      // from the NEW wallet (airdrop_nonce -> sign -> airdrop { nonce, signature }), so a stolen session / device key or a relayed
+      // sign-in can't quietly redirect someone's airdrop. A wallet that signed (or is the signed-in wallet itself) is `verified`;
+      // tools/export_airdrop.py exports verified wallets only by default.
       case "airdrop": {
+        const player = await airdropPlayer(b); if (!player) return json(401, { error: "no identity" });
         const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
-        const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
-        const dp = sw ? null : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
-        const player = sw ? `wallet:${sw}` : dp && await isAcctDevice(db, dp) ? (await whoAmI({ dk }))?.pid ?? dp : dp; // [v106] a logged-in device: the account's row
-        if (!player) return json(401, { error: "no identity" });
         const wallet = typeof b.wallet === "string" ? b.wallet.trim() : "";
         if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
-        const name = String(b.name ?? "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 20) || "PIRATE";
-        const { data: cur } = await db.from("pvp_airdrop").select("wallet, name, writes, updated_at").eq("player_id", player).maybeSingle();
-        if (cur && cur.wallet === wallet && cur.name === name) return json(200, { ok: true });
-        if (cur && Date.now() - Date.parse(cur.updated_at) < 30_000) return json(429, { error: "slow down" });
-        const { error } = await db.from("pvp_airdrop").upsert({ player_id: player, wallet, name, writes: (cur?.writes ?? 0) + 1, updated_at: new Date().toISOString() });
+        const name = String(b.name ?? "").replace(/[\u0000-\u001f<>&"`\\]/g, "").trim().slice(0, 20) || "PIRATE";
+        const { data: cur } = await db.from("pvp_airdrop").select("wallet, name, writes, updated_at, verified").eq("player_id", player).maybeSingle();
+        let signed = false;
+        if (typeof b.nonce === "string" || typeof b.signature === "string") {
+          const nonce = String(b.nonce ?? ""); if (!/^[0-9a-f]{32}$/.test(nonce)) return json(400, { error: "bad request" });
+          const { data: nn } = await db.from("pvp_nonces").update({ used: true }).eq("nonce", nonce).eq("wallet", wallet).eq("used", false).select().maybeSingle();
+          if (!nn || nn.player_id !== player || Date.parse(nn.expires_at) < Date.now()) return json(401, { error: "unknown or expired confirmation, try again" });
+          const why = siwsProblem(nn, "airdrop", allowed); if (why) return json(401, { error: why });
+          if (!verifySignature(nn.message, String(b.signature ?? ""), wallet)) return json(401, { error: "bad signature" });
+          signed = true;
+        }
+        const verified = signed || (!!sw && sw === wallet) || (!!cur && cur.wallet === wallet && !!cur.verified);
+        if (cur && cur.wallet === wallet && cur.name === name && (!verified || cur.verified)) return json(200, { ok: true, verified: !!cur.verified });
+        if (cur && cur.wallet !== wallet && !verified) return json(428, { error: "confirm the new wallet", need: "signature" }); // client: airdrop_nonce + sign
+        if (cur && Date.now() - Date.parse(cur.updated_at) < 30_000 && !signed) return json(429, { error: "slow down" });
+        const now = new Date().toISOString();
+        const { error } = await db.from("pvp_airdrop").upsert({ player_id: player, wallet, name, writes: (cur?.writes ?? 0) + 1, updated_at: now, verified, verified_at: verified ? now : null });
         if (error) throw error;
-        return json(200, { ok: true });
+        return json(200, { ok: true, verified });
       }
       // [v72] rename: the caller's OWN board name (wallet session, else device key; the id is never taken from the client)
       case "rename": {
@@ -324,7 +368,7 @@ Deno.serve(async (req) => {
         let stats: Profile["stats"];
         if (who.wallet) stats = toProfile(await getRow(who.wallet)).stats;
         else { const { data: r } = await db.from("pvp_dev_profiles").select("*").eq("id", who.pid).maybeSingle(); if (!r) return json(409, { error: "no save yet" }); stats = devProfile(r as DevRow).stats; }
-        const bd = await boardKD(who.pid); stats = { ...stats, kills: Math.max(stats.kills, bd.kills), deaths: Math.max(stats.deaths, bd.deaths) };
+        const bd = await boardKD(who.pid); stats = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths) }; // [security H3] confirmed kills only
         if (!goalMet(it.goal, stats)) return json(403, { error: "goal not reached", goal: goalsView(stats)[item] ?? null, stats }); // [Timothy] + where they stand
         const { data, error } = await db.rpc("pvp_shop_buy", { p_player: who.pid, p_item: item, p_price: it.price, p_req: req });
         if (error) throw error;
@@ -338,7 +382,7 @@ Deno.serve(async (req) => {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         const run = String(b.run ?? ""); if (!/^[a-z0-9]{12,40}$/.test(run)) return json(400, { error: "bad run" });
         const { data: last } = await db.from("pvp_waves_runs").select("started_at").eq("player_id", who.pid).order("started_at", { ascending: false }).limit(1).maybeSingle();
-        if (last && Date.now() - Date.parse(last.started_at) < 10_000) return json(429, { error: "slow down" });
+        if (last && Date.now() - Date.parse(last.started_at) < 3_000) return json(429, { error: "slow down" }); // [security H1] 10 s -> 3 s: the board now needs a server-noted run, and a quick restart must still get one (gold still needs a 20 s run)
         const { error } = await db.from("pvp_waves_runs").insert({ run_id: run, player_id: who.pid });
         if (error) return json(409, { error: "run exists" });
         return json(200, { ok: true });
@@ -362,6 +406,66 @@ Deno.serve(async (req) => {
         if (!data?.ok) return json(409, { error: data?.why || "no payout" });
         if (!who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0); // [v106] the device adds it to its own save too
         return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score });
+      }
+      // [security H1] WAVES LEADERBOARD ROW through the server (the anon key can no longer insert into `scores`, migration 030).
+      // The run must be one waves_start noted for this pirate; the score is checked against the SERVER-timed run length (the same
+      // wavesProblem as the gold payout; a run that was already paid is held to the time it was paid at) and each run gets one row.
+      case "waves_score": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        const run = String(b.run ?? ""), wallet = typeof b.wallet === "string" ? b.wallet.trim() : "";
+        const score = Math.floor(Number(b.score)), wave = Math.floor(Number(b.wave)), sunk = Math.floor(Number(b.sunk)), dur = Math.floor(Number(b.duration_s));
+        if (!/^[a-z0-9]{12,40}$/.test(run)) return json(400, { error: "bad run" });
+        if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
+        const daily = b.mode === "daily", seed = daily ? String(b.seed ?? "") : null;
+        if (daily) { const d0 = new Date().toISOString().slice(0, 10), d1 = new Date(Date.now() - 86400_000).toISOString().slice(0, 10); if (seed !== d0 && seed !== d1) return json(400, { error: "bad seed" }); }
+        const { data: r } = await db.from("pvp_waves_runs").select("*").eq("run_id", run).maybeSingle();
+        if (!r || r.player_id !== who.pid) return json(404, { error: "unknown run" });
+        if (r.scored_at) return json(409, { error: "already saved" });
+        const { data: paid } = await db.from("pvp_waves_payouts").select("score, elapsed_s").eq("run_id", run).maybeSingle();
+        let elapsed = Math.floor((Date.now() - Date.parse(r.started_at)) / 1000);
+        if (elapsed > WAVES_GOLD.maxRunH * 3600) return json(422, { error: "run expired" });
+        if (paid) { if (score > paid.score) return json(422, { error: "score changed since the payout" }); elapsed = Math.min(elapsed, paid.elapsed_s + 5); }
+        const why = wavesProblem(score, wave, sunk, elapsed); if (why || wave < 1) return json(422, { error: why || "bad run" });
+        const { data: mark } = await db.from("pvp_waves_runs").update({ scored_at: new Date().toISOString() }).eq("run_id", run).is("scored_at", null).select("run_id");
+        if (!mark?.length) return json(409, { error: "already saved" });
+        const name = String(b.name ?? "").replace(/[\u0000-\u001f<>&"`\\]/g, "").trim().slice(0, 20) || null;
+        const row: Record<string, unknown> = { wallet, name, score, wave, sunk, duration_s: Math.max(0, Math.min(Number.isFinite(dur) ? dur : elapsed, elapsed, 86400)), verified: !!who.wallet && who.wallet === wallet };
+        if (daily) { row.mode = "daily"; row.seed = seed; }
+        if ((row.sunk as number) > Math.max(1, Math.floor((row.duration_s as number) / 5))) row.duration_s = Math.min(elapsed, Math.max(row.duration_s as number, sunk * 5)); // schema.sql plausible_sinks
+        const { error } = await db.from("scores").insert(row);
+        if (error) { await db.from("pvp_waves_runs").update({ scored_at: null }).eq("run_id", run); return json(error.message?.includes("rate limit") ? 429 : 400, { error: error.message?.includes("rate limit") ? "too many scores for this wallet this hour" : "could not save" }); }
+        return json(200, { ok: true, verified: row.verified });
+      }
+      // [security M1 + H2] REALTIME TICKET: before joining a PvP / harbor channel the client proves its LOBBY SEAT (secret seat id, which
+      // starts with its network id). The server binds that network id to the caller (pvp_net), notes the seat in that match
+      // (pvp_match_seats: the kill board only counts kills between pirates seated together) and, when PFP_RT_JWT_SECRET is set, returns a
+      // short-lived JWT for that ONE private channel (migration 029). Party channels: identity only.
+      case "ticket": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        const t = parseTopic(b.topic), net = String(b.net ?? ""), seat = String(b.seat ?? "");
+        if (!t || !NET_RE.test(net)) return json(400, { error: "bad ticket" });
+        const { data: okRate } = await db.rpc("pvp_rl_hit", { p_key: "tk:" + who.pid, p_window_s: 60, p_max: 30 });
+        if (okRate === false) return json(429, { error: "slow down" });
+        let state: string | null = "party";
+        if (b.relay === true) { // [security M1] server/relay.js runs its own lobby: the ticket only binds this network id to the caller
+          if (t.kind !== "arena" || !RELAY_SECRET) return json(404, { error: "no relay" });
+          const { data: j, error: je } = await db.rpc("pvp_match_join", { p_rooms: [], p_net: net, p_player: who.pid, p_name: String(b.name ?? "").slice(0, 20), p_ip: ipHash }); if (je) throw je;
+          if (j !== "ok") return json(409, { error: String(j) });
+          return json(200, { ok: true, state: "relay", jwt: null, relay: await relayTicket(RELAY_SECRET, net, t.prefix, TICKET_TTL_S), exp: Math.floor(Date.now() / 1000) + TICKET_TTL_S });
+        }
+        if (t.kind !== "party") {
+          if (!seatNetOk(seat, net)) return json(403, { error: "not seated" });
+          const { data: st, error } = await db.rpc("pvp_seat_state", { p_seat: seat, p_kind: t.kind, p_prefix: t.prefix, p_n: t.n }); if (error) throw error;
+          state = typeof st === "string" ? st : null;
+          if (!state) return json(403, { error: "not seated" });
+          const rooms = state === "spec" ? [] : t.claimRooms; // spectators can't sink anyone
+          const name = String(b.name ?? "").slice(0, 20);
+          const { data: j, error: je } = await db.rpc("pvp_match_join", { p_rooms: rooms, p_net: net, p_player: who.pid, p_name: name, p_ip: ipHash }); if (je) throw je;
+          if (j !== "ok") return json(409, { error: String(j) });
+        }
+        const now = Math.floor(Date.now() / 1000), exp = now + TICKET_TTL_S;
+        const jwt = RT_JWT_SECRET ? await mintJwt(RT_JWT_SECRET, { iss: "pfp-pvp", aud: "authenticated", role: "authenticated", sub: (await sha256("pfp-sub:" + who.pid)).slice(0, 32), iat: now, exp, pfp_topic: t.topic, pfp_net: net }) : null;
+        return json(200, { ok: true, state, jwt, exp, private: !!jwt });
       }
       // [v105] TREASURE MAPS: maps_state = scan for new drops (boss kills from the STORED save, confirmed BR kills) + your undug maps;
       // map_dig = one claim per map at its spot (migration 026 pvp_map_dig: spot, 30 s, 20 s between digs, 25 a day, reward by tier)

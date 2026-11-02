@@ -8,7 +8,7 @@
 // and optionally ALLOWED_ORIGINS (comma-separated, default https://game.pumpfunpirates.com,https://banksydegen.github.io + itch.io HTML hosts html-classic.itch.zone, html.itch.zone + Newgrounds uploads.ungrounded.net).
 import nacl from "npm:tweetnacl@1.0.3";
 import bs58 from "npm:bs58@6.0.0";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,https://html-classic.itch.zone,https://html.itch.zone,https://uploads.ungrounded.net")
   .split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
