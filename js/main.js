@@ -109,7 +109,7 @@ const HARBOR_ISLAND_ON = new URLSearchParams(location.search).get('harborIsland'
 const HARBOR_ISLETS = [[3, 492, -96, 0.6, 0.9], [6, -118, 488, 2.1, 0.85], [0, -470, 150, 4.0, 1.0], [7, -360, -340, 1.2, 0.9], [4, 70, -490, 5.1, 0.95]];
 const harborIsle = { obj: null, loading: false, on: false };
 // [Emerly] docking + on foot (js/dock/*, js/onfoot/*): the layout-driven waterfront on Raul's coast (js/island/coast.js), replaces Dock Town. ?dock=0 = off
-const DOCK_ON = HARBOR_ISLAND_ON && COAST_ON && new URLSearchParams(location.search).get('dock') !== '0'; // gated on Raul's coast flag (?coast=1 until it goes live)
+const DOCK_ON = HARBOR_ISLAND_ON && COAST_ON && new URLSearchParams(location.search).get('dock') !== '0'; // gated on Raul's coast flag (on by default; ?coast=0 = old harbor)
 let dock = null, dockLoading = false;
 function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
   import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx,

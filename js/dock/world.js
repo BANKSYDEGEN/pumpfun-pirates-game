@@ -5,7 +5,7 @@ import { toon } from '../toon.js';
 import { makeAtlas } from '../island/art.js';
 import { islandSurface, grassMaterial } from '../island/look.js';
 import { Kit, M, outlineMaterial } from '../island/kit.js';
-import { loadTownKit } from '../island/townkit.js';
+import { loadTownKit, loadNatureKit } from '../island/townkit.js';
 
 const GOLD = 0xffc93c;
 
@@ -36,8 +36,10 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
     glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }) };
   for (const m of [MATS.toon, MATS.sway]) nanSafe(m);
   const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
-  const KIT = await loadTownKit(LOW).catch(e => { console.warn('[onfoot] town kit failed', e); return null; });
-  const foot = FM.createFoot({ scene: footGroup, isle: null, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, decorHulls: false }); // live berths: no toy hulls parked in them
+  const KIT = await loadTownKit(LOW, renderer).catch(e => { console.warn('[onfoot] town kit failed', e); return null; });
+  // [release] Raul's island art M2: the Blender nature kit (palms, jungle trees, ferns, rocks, cliffs, Skull Peak); ?nature=0 = procedural
+  const NAT = KIT && new URLSearchParams(location.search).get('nature') !== '0' ? await loadNatureKit(LOW, renderer).catch(e => { console.warn('[onfoot] nature kit failed', e); return null; }) : null;
+  const foot = FM.createFoot({ scene: footGroup, isle: null, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT, decorHulls: false }); // live berths: no toy hulls parked in them
   if (layout.shopInteract) for (const q of layout.shopInteract()) if (!layout.interact.some(o => o.id === q.id)) layout.interact.push(q);
   // same NaN guard for foot.js's own foliage materials (trees / ferns carry a few zero normals): fix those geometries once
   foot.root.traverse(o => { const n = o.isMesh && o.material !== MATS.toon && o.material !== MATS.sway && o.geometry?.attributes?.normal; if (!n) return; let fixed = 0;

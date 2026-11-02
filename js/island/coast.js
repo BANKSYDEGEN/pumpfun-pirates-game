@@ -5,7 +5,7 @@
 // Frames: town-local (lx along the waterfront, +lz out to sea) = js/island/foot.js TOWN frame, unchanged, so Main Street,
 // the Squad Hall and Timothy's SHOP / stall spots keep their world coords. Harbor frame = foot world - HC (no rotation,
 // metres, harbor +x points at the town), i.e. the frame js/pvp.js uses: spawn 0,0, rings 40/85/130, AI 176/344, edge 420.
-export const COAST_ON = typeof location !== 'undefined' && new URLSearchParams(location.search).get('coast') === '1';
+export const COAST_ON = typeof location !== 'undefined' && new URLSearchParams(location.search).get('coast') !== '0'; // [release v100] ON by default (?coast=0 = the old round harbor)
 const T = { x: -640, z: -90, yaw: -Math.PI / 2 }, C = Math.cos(T.yaw), S = Math.sin(T.yaw);
 export const t2w = (lx, lz) => [T.x + lx * C + lz * S, T.z - lx * S + lz * C];
 export const w2t = (x, z) => { const dx = x - T.x, dz = z - T.z; return [dx * C - dz * S, dx * S + dz * C]; };
