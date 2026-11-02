@@ -132,7 +132,7 @@ js/ships.js            stylized ships built in code (plank hulls, railings, cann
 js/toon.js             toon ramp/materials, inverted-hull outlines, procedural painted textures (wood, cloth, metal, gold, rock)
 js/props.js            treasure chests with light beams, horizon sea stacks + lighthouse
 js/fx.js               pooled particles + chunky toon puffs/explosions + splash rings
-js/audio.js            synthesized SFX + shanty loop (no audio files); js/soundProfile.js: per-upgrade sound settings
+js/audio.js            synthesized SFX + recorded samples in assets/audio/ (v101: cannon, kill impact, splashes, Arr!/Fire!/laugh crew voices, harbor shanty, victory stinger; synth fallback, ?oldaudio=1 = synth only; credits in assets/audio/CREDITS.md); js/soundProfile.js: per-upgrade sound settings
 js/upgrades.js         Shipwright upgrade data; js/shop.js + css/shop.css: shop / skins UI
 js/escorts.js          hired escort ships (AI, stats in ESCORT)
 js/skins.js            ship skins; js/skinPreview.js: skin preview renders

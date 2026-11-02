@@ -14,7 +14,7 @@ import { FX } from './fx.js';
 import { setCrewQuality, crewFire, crewHit, crewSteer } from './crew.js';
 import { initEmotes, emoteTick, clearEmotes } from './emotes.js'; // [v96] quick-chat wheel // [Raul] deck crew · [v87] crew react to hits
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
-import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout } from './audio.js'; // [Raul] sound upgrades
+import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout, setAudioQuality } from './audio.js'; // [Raul] sound upgrades
 import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName, syncName } from './wallet.js';
@@ -60,7 +60,7 @@ const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareCon
 const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
-setCrewQuality(quality, isMobile); // [Raul] crew budget: high / phone (medium) / low = off
+setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 await initKit(quality === 'low' || isMobile);
 registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 } }); // [v100] your pirate (v4 GLB) steers your ship

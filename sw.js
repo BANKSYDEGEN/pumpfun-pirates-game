@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v100';
+const VERSION = 'pfp-v101';
 const SHELL = [
   "./",
   "./index.html",
@@ -45,6 +45,15 @@ const SHELL = [
   "./css/shop.css",
   "./js/audio.js",
   "./js/soundProfile.js",
+  "./assets/audio/cannon_1.mp3",
+  "./assets/audio/cannon_2.mp3",
+  "./assets/audio/impact_1.mp3",
+  "./assets/audio/impact_2.mp3",
+  "./assets/audio/splash_near_1.mp3",
+  "./assets/audio/splash_near_2.mp3",
+  "./assets/audio/splash_near_3.mp3",
+  "./assets/audio/splash_mid.mp3",
+  "./assets/audio/splash_far.mp3",
   "./js/ships.js",
   "./js/crew.js",
   "./js/emotes.js",
@@ -150,6 +159,8 @@ const CDN_FILES = [
   CDN + 'examples/jsm/libs/meshopt_decoder.module.js',
   CDN + 'examples/jsm/utils/SkeletonUtils.js',
 ];
+// [v101] the combat sound core (~290 KB) is precached above; voices, the victory stinger and the shanty (~800 KB)
+// are cached on first use by the same-origin fetch handler below.
 // high-quality post-processing modules: cached when a desktop/high-tier device fetches them (see fetch handler)
 
 self.addEventListener('install', (e) => {

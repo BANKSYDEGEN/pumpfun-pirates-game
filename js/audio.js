@@ -1,4 +1,6 @@
-// Synthesized sound kit (no audio files, nothing to download or license).
+// Sound kit: WebAudio synthesis + (v101) recorded samples from Post's sound overhaul (assets/audio/, CC0 / CC-BY, see
+// assets/audio/CREDITS.md). Samples load lazily after the first tap; until a sample has decoded (or if it fails, or with
+// ?oldaudio=1) every event falls back to the original synth sound, so nothing is ever silent.
 // [Raul] sound upgrades: rebuilt for mobile + richer sounds that change with the Shipwright upgrades.
 //
 // Mobile / iOS Safari notes (why sound could be silent on phones before):
@@ -14,7 +16,7 @@
 // re-arms after interruptions and when the tab becomes visible again, and the mute state is persisted + shown.
 import { soundProfile, hitTier, HIT_THROTTLE } from './soundProfile.js';
 
-let ctx = null, comp = null, master = null, sfxBus = null, musicBus = null, ambBus = null, noiseBuf = null;
+let ctx = null, comp = null, master = null, sfxBus = null, musicBus = null, musicDuck = null, ambBus = null, noiseBuf = null;
 const SET_KEY = 'pfp_audio_v1';
 const settings = (() => {
   const d = { master: 0.8, sfx: 0.9, music: 0.35 };
@@ -41,12 +43,13 @@ function create() {
   if (!AC) return false;
   try { ctx = new AC({ latencyHint: 'interactive' }); } catch { ctx = new AC(); }
   comp = makeLimiter(ctx, ctx.destination); // glue compressor + brick-wall-ish limiter: 7 overlapping booms never clip
-  master = ctx.createGain(); sfxBus = ctx.createGain(); musicBus = ctx.createGain(); ambBus = ctx.createGain();
-  sfxBus.connect(master); musicBus.connect(master); ambBus.connect(master); master.connect(comp);
+  master = ctx.createGain(); sfxBus = ctx.createGain(); musicBus = ctx.createGain(); ambBus = ctx.createGain(); musicDuck = ctx.createGain();
+  sfxBus.connect(master); musicBus.connect(musicDuck).connect(master); ambBus.connect(master); master.connect(comp);
   applyLevels();
   noiseBuf = makeNoise(ctx);
   ctx.onstatechange = () => { if (ctx.state !== 'running') arm(); notify(); };
   startAmbient();
+  loadSamples();
   return true;
 }
 // two stages: gentle glue compression, then a fast high-ratio limiter just under 0 dBFS
@@ -110,7 +113,7 @@ export function setLevel(which, v) {
   applyLevels(); notify();
 }
 // shop.js calls this whenever upgrade levels change
-export function setLoadout(levels) { profile = soundProfile(levels); }
+export function setLoadout(levels) { profile = soundProfile(levels); crewLevel = (levels && levels.reload) | 0; }
 
 // ---------- voices (cap simultaneous sounds) ----------
 const MAX_VOICES = 28;
@@ -147,6 +150,89 @@ function tone({ t, dur, f0, f1 = f0, vol, type = 'sine', a = 0.004, out = C.out,
 function ring({ t, base, partials = [1, 2.76, 5.4, 8.93], dur = 1.2, vol = 0.1, out = C.out }) {
   partials.forEach((p, i) => tone({ t, dur: dur / (1 + i * 0.6), f0: base * p, vol: vol / (1 + i * 0.8), out, a: 0.002 }));
 }
+
+// ---------- recorded samples (v101) ----------
+// Post's picks, compared slot by slot against the synth: only the slots where the recording won are listed here.
+// Light / medium / heavy hits, sinking, UI, ambience and the other 5 emote lines stay synthesized (originals kept).
+const AUD = './assets/audio/';
+const NO_SAMPLES = typeof location !== 'undefined' && /[?&]oldaudio=1\b/.test(location.search); // A/B + kill switch
+const SAMPLES = {
+  cannon: ['cannon_1', 'cannon_2'],                                      // round 3 "phone-first" cannon (v1 + v2)
+  impact: ['impact_1', 'impact_2'],                                      // layered wood smash (kill tier only)
+  splashNear: ['splash_near_1', 'splash_near_2', 'splash_near_3'], splashMid: ['splash_mid'], splashFar: ['splash_far'],
+  arrM: ['vo_arrr_male_1', 'vo_arrr_male_2', 'vo_arrr_male_3', 'vo_arrr_male_4'], arrF: ['vo_arrr_female_1', 'vo_arrr_female_2', 'vo_arrr_female_3', 'vo_arrr_female_4'],
+  fireM: ['vo_fire_male_1', 'vo_fire_male_2', 'vo_fire_male_3'], fireF: ['vo_fire_female_1', 'vo_fire_female_2', 'vo_fire_female_3'],
+  laughM: ['vo_laugh_male_1', 'vo_laugh_male_2'], laughF: ['vo_laugh_female_1', 'vo_laugh_female_2', 'vo_laugh_female_3'],
+  victory: ['victory'], shanty: ['music_shanty'],
+};
+// load order: combat core first, then voices, then the stinger + music (largest file last)
+const LOAD_ORDER = [['cannon', 'impact', 'splashNear', 'splashMid', 'splashFar'], ['arrM', 'arrF', 'fireM', 'fireF', 'laughM', 'laughF', 'victory'], ['shanty']];
+// per-slot trims (linear), loudness-matched against the synth they replace (see the v101 notes in the commit)
+const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 0.45, victory: 0.55, shanty: 0.30 };
+const bufs = {}; let _loading = false;
+function decode(ab) { return new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); } catch (e) { rej(e); } }); }
+async function loadOne(n) {
+  try { const r = await fetch(AUD + n + '.mp3'); if (!r.ok) throw new Error(r.status); bufs[n] = await decode(await r.arrayBuffer()); }
+  catch (e) { console.debug?.('[audio] sample unavailable, synth fallback:', n, e?.message || e); }
+}
+function loadSamples() {
+  if (_loading || NO_SAMPLES || !ctx) return; _loading = true;
+  (async () => { for (const g of LOAD_ORDER) await Promise.all(g.flatMap(k => SAMPLES[k]).map(loadOne)); })();
+}
+const _last = {};
+function pick(k) { // round-robin-ish: random, never the same file twice in a row
+  const L = SAMPLES[k].filter(n => bufs[n]); if (!L.length) return null;
+  let i = Math.floor(Math.random() * L.length); if (L.length > 1 && L[i] === _last[k]) i = (i + 1) % L.length;
+  _last[k] = L[i]; return bufs[L[i]];
+}
+const has = (k) => SAMPLES[k].some(n => bufs[n]);
+// one buffer voice: source -> (lowpass) -> gain -> (pan) -> out. Real voice count via onended.
+function playBuf(buf, { t = ctx.currentTime, vol = 1, rate = 1, pan = 0, out = sfxBus, lp = 0, fadeAt = 0, onend } = {}) {
+  const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+  const g = ctx.createGain(); g.gain.value = vol; let node = s;
+  if (lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.Q.value = 0.5; node.connect(f); node = f; }
+  node.connect(g); node = g;
+  if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); node.connect(p); node = p; }
+  node.connect(out);
+  if (onend) s.onended = onend;
+  s.start(t);
+  if (fadeAt && buf.duration / rate > fadeAt + 0.4) { g.gain.setValueAtTime(vol, t + fadeAt); g.gain.linearRampToValueAtTime(0.0001, t + fadeAt + 0.35); s.stop(t + fadeAt + 0.4); }
+  return s;
+}
+const jit = (db) => Math.pow(10, ((Math.random() * 2 - 1) * db) / 20);
+// recorded cannon (own or enemy). dist 0 close .. 1 far: darker + quieter, crack gone far away
+function boomSample(t, v, dist, P) {
+  const buf = pick('cannon'); if (!buf) return false;
+  const deep = P === BOSS_GUN ? 0.86 : P && P.subF < 60 ? 0.93 : 1; // boss guns / big CANNONS tiers a little lower
+  playBuf(buf, { t, vol: LVL.cannon * (P === profile.cannon ? 1 : LVL.enemy) * v * (1 - dist * 0.45) * jit(1.5), rate: deep * (0.95 + Math.random() * 0.1), pan: (Math.random() - 0.5) * 0.6, lp: dist > 0.05 ? 9000 * Math.pow(1 - dist * 0.88, 1.6) + 600 : 0 });
+  return true;
+}
+
+// ---------- crew voices: emote lines + stacked crew (GUN CREW upgrade = crew size; audio only) ----------
+const VOICE_CAP = 8; let liveVoices = 0;
+let crewLevel = 0, audioQ = { phone: false, lite: false };
+export function setAudioQuality(q = {}) { audioQ = { ...audioQ, ...q }; }
+const myVoice = (() => { try { let g = localStorage.getItem('pfp_voice'); if (g !== 'm' && g !== 'f') { g = Math.random() < 0.5 ? 'm' : 'f'; localStorage.setItem('pfp_voice', g); } return g; } catch { return 'm'; } })();
+const LINE_KEY = { 0: 'arr', 4: 'fire', 7: 'laugh' }; // Arr! / Attack! ("Fire!") / Yo ho ho! (pirate laugh); other lines keep the synth voice
+const crewSize = () => { const n = [1, 2, 2, 3, 4, 5, 6][Math.max(0, Math.min(6, crewLevel | 0))]; return Math.min(n, audioQ.lite ? 2 : audioQ.phone ? 3 : 6); };
+const SPREAD = [0, -0.45, 0.4, -0.7, 0.7, -0.2];
+// play one stacked callout. key = 'arr' | 'fire' | 'laugh'; n voices; lead = 'm' | 'f'; v = volume
+function crewCall(key, n, lead, v, rate0 = 1) {
+  const kM = key + 'M', kF = key + 'F'; if (!has(kM) && !has(kF)) return false;
+  const comp = Math.sqrt(Math.pow(n, Math.log(2) / Math.log(6)) / n); // 1 -> 6 voices grows ~+3 LU, not +8
+  const t0 = ctx.currentTime + 0.02; let tt = t0, played = 0;
+  for (let i = 0; i < n; i++) {
+    if (liveVoices >= VOICE_CAP) break;
+    const g = i === 0 ? lead : (Math.random() < 0.5 ? 'm' : 'f');
+    const buf = pick(g === 'f' && has(kF) ? kF : has(kM) ? kM : kF); if (!buf) break;
+    if (i === 1 || i === 2) tt = t0 + 0.02 + Math.random() * 0.06; else if (i > 2) tt = t0 + 0.08 + Math.random() * 0.05;
+    const rate = (i === 0 ? rate0 : 1 + (Math.random() * 2 - 1) * 0.03);
+    liveVoices++; played++;
+    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
+  }
+  return played > 0;
+}
+let _nextFireCall = 0;
 
 // ---------- sounds ----------
 // ---------- black-powder cannons ----------
@@ -211,7 +297,8 @@ function broadside(n, P, v, prio = 2, dist = 0, maxGuns = n) {
   let t = C.c.currentTime + 0.01;
   for (let i = 0; i < guns; i++) {
     if (!voice(prio, life)) break;
-    boom(P, t, scale * (0.85 + Math.random() * 0.3), dist);
+    const gv = scale * (0.85 + Math.random() * 0.3);
+    if (offline || C.c !== ctx || !boomSample(t, gv, dist, P)) boom(P, t, gv, dist);
     t += P.gap[0] + Math.random() * (P.gap[1] - P.gap[0]);
   }
 }
@@ -323,14 +410,28 @@ function pirateVoice(e, v = 1, pitch = 1) {
   if (e === 7) [0, 0.28, 0.56].forEach(d => tone({ t: t + d, dur: 0.12, f0: 180, f1: 90, vol: 0.18 * v }));  // stomp
 }
 export const sfx = {
-  emote: (e = 0, v = 1, pitch = 1) => { if (!live() || !voice(2, 1.2)) return; pirateVoice(e | 0, Math.min(1, v), Math.max(0.75, Math.min(1.3, pitch))); },
+  // own = your callout (your crew joins in, crew size = GUN CREW); remote pirates: 1 voice, male/female by their id-hash pitch
+  emote: (e = 0, v = 1, pitch = 1, own = false) => {
+    if (!live() || !voice(2, 1.2)) return;
+    const key = LINE_KEY[e | 0], vv = Math.min(1, v);
+    if (key && crewCall(key, own ? crewSize() : 1, own ? myVoice : (pitch >= 1 ? 'f' : 'm'), vv, own ? 1 : 1 + (pitch - 1) * 0.25)) return;
+    pirateVoice(e | 0, vv, Math.max(0.75, Math.min(1.3, pitch)));
+  },
   // generic cannon (kept for compatibility); v = distance volume
   cannon: (v = 1) => { if (!live() || !voice(1, 3)) return; boom(ENEMY_GUN, ctx.currentTime, v, 1 - v); },
   // the player's broadside: n = guns actually firing; sound follows the CANNONS tier
-  broadside: (n = 4, v = 1) => { if (!live()) return; broadside(n, profile.cannon, v, 2, 0); },
+  broadside: (n = 4, v = 1) => {
+    if (!live()) return; broadside(n, profile.cannon, v, 2, 0);
+    // crew "Fire!" callout now and then (not every shot): at most once per 8 s, 40 % of broadsides
+    const t = ctx.currentTime; if (t > _nextFireCall && Math.random() < 0.4) { _nextFireCall = t + 8; crewCall('fire', crewSize(), myVoice, 0.55 * v); }
+  },
   // enemy broadside: same black-powder style; far away = darker, wetter, longer echo; at most 4 booms; bosses deeper
   enemyBroadside: (n = 3, v = 1, boss = false) => { if (!live() || v < 0.04) return; broadside(n, boss ? BOSS_GUN : ENEMY_GUN, v * 0.85, 1, Math.min(1, (1 - v) * 1.15), boss ? 4 : 3); },
-  splash: (v = 1) => { if (!live() || v < 0.03 || !voice(v > 0.4 ? 2 : 0, 0.8)) return; splash(ctx.currentTime, v); },
+  splash: (v = 1) => {
+    if (!live() || v < 0.03 || !voice(v > 0.4 ? 2 : 0, 0.8)) return;
+    const near = v > 0.45, buf = pick(near ? 'splashNear' : v > 0.2 ? 'splashMid' : 'splashFar');
+    if (buf) playBuf(buf, { vol: (near ? LVL.splashNear : LVL.splash) * Math.min(1, v * 1.25) * jit(1.5), rate: 0.94 + Math.random() * 0.12, pan: (Math.random() - 0.5) * 0.5 }); else splash(ctx.currentTime, v);
+  },
   // hit on an enemy ship
   hit: (v = 1) => { if (!live() || !voice(2, 0.6)) return; woodHit(ctx.currentTime, v); },
   // damage-scaled cannonball impact on any ship. o = { dmg, maxHp, kill, onPlayer, armor (0..1 metal ring), boss, v }
@@ -339,7 +440,9 @@ export const sfx = {
     const H = hitTier({ dmg: o.dmg, maxHp: o.maxHp, kill: o.kill, onPlayer: !!o.onPlayer, cannonTier: o.onPlayer ? -1 : profile.cannonTier }), now = ctx.currentTime;
     if (!hitAllowed(now, RANK[H.id]) || !voice(o.kill || o.onPlayer ? 3 : 2, H.id === 'kill' ? 3 : 1.5)) return;
     const v = o.v ?? 1, metal = o.onPlayer ? profile.armor.metal : (o.armor || 0);
-    impactSound(H, now, v * (1 - metal * 0.45), o.onPlayer ? profile.hull.impact : (o.boss ? 0.8 : 1));
+    const k = o.onPlayer ? profile.hull.impact : (o.boss ? 0.8 : 1), ib = H.id === 'kill' ? pick('impact') : null;
+    if (ib) playBuf(ib, { t: now, vol: LVL.impact * H.vol * v * (1 - metal * 0.45) * jit(1), rate: Math.max(0.7, Math.min(1.15, k)) * (0.96 + Math.random() * 0.08) }); // kill: recorded hull smash
+    else impactSound(H, now, v * (1 - metal * 0.45), k);
     if (metal) ironHit(now, v * (0.6 + 0.2 * RANK[H.id]), metal); // iron plating clang / armored galleon & boss ring
     if (o.boss) punch(now, v);
     return H.id;
@@ -359,6 +462,12 @@ export const sfx = {
     creak(t + 0.1, 0.8 * k, 2.4); creak(t + 0.9, 0.7 * k, 2.2); creak(t + 1.6, 0.6 * k, 1.8);
     for (let i = 0; i < 9; i++) tone({ t: t + 0.6 + i * 0.22 + Math.random() * 0.15, dur: 0.07, f0: 260 + Math.random() * 300, f1: 900 + Math.random() * 500, vol: 0.05 }); // bubbles
     if (big) { noise({ t: t + 0.3, dur: 3, f0: 160, f1: 25, vol: 0.5, a: 0.4 }); tone({ t, dur: 1.6, f0: 70, f1: 30, vol: 0.4 }); }
+  },
+  // SQUADS round won: recorded victory stinger, the music ducks under it
+  victory: () => {
+    if (!live() || !voice(4, 5)) return; const b = pick('victory'); if (!b) { sfx.upgrade(true); return; }
+    const t = ctx.currentTime; playBuf(b, { t, vol: LVL.victory });
+    musicDuck.gain.cancelScheduledValues(t); musicDuck.gain.setTargetAtTime(0.25, t, 0.05); musicDuck.gain.setTargetAtTime(1, t + b.duration - 0.6, 0.5);
   },
   // WAVE n: ship's horn + two drum hits
   waveStart: () => { if (!live() || !voice(3, 2)) return; const t = ctx.currentTime; horn(t, [146.8, 220], 1.1, 0.07, 1100); drum(t, 0.7); drum(t + 0.28, 0.6); },
@@ -455,8 +564,20 @@ function squeeze(t, fr, dur, vol) { // accordion-ish: two detuned pulses through
   f.connect(g).connect(musicBus);
   [['square', -8], ['sawtooth', 9]].forEach(([ty, dt]) => { const o = c.createOscillator(); o.type = ty; o.frequency.value = fr; o.detune.value = dt; o.connect(f); o.start(t); o.stop(t + dur + 0.02); });
 }
+// recorded "Salt on the Rail" shanty (BANKSY approved), gapless buffer loop; the synth loop is only the fallback
+const SHANTY_LEN = 30; // seconds, exact loop length of the master
+function startShanty() {
+  const b = bufs.music_shanty; if (!b || music.src) return !!music.src;
+  const s = ctx.createBufferSource(); s.buffer = b; s.loop = true;
+  const lead = Math.max(0, Math.min(0.06, b.duration - SHANTY_LEN)); // encoder padding (if the decoder kept any)
+  if (b.duration >= SHANTY_LEN) { s.loopStart = lead; s.loopEnd = lead + SHANTY_LEN; }
+  const g = ctx.createGain(), t = ctx.currentTime; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(LVL.shanty, t + 1.5);
+  s.connect(g).connect(musicBus); s.start(t, lead); music.src = s; music.srcG = g; return true;
+}
+function stopShanty() { if (!music.src) return; const t = ctx.currentTime; music.srcG.gain.setTargetAtTime(0.0001, t, 0.3); music.src.stop(t + 1.5); music.src = null; music.srcG = null; }
 function schedMusic() {
   if (!music.on || !ctx || ctx.state !== 'running' || muted || settings.music <= 0.001) return;
+  if (startShanty()) return;
   const ahead = ctx.currentTime + 0.25;
   while (music.next < ahead) {
     const [semi, beats] = MEL[music.i], t = music.next, d = beats * BEAT;
@@ -475,6 +596,7 @@ function schedMusic() {
 export function setMusic(on) {
   if (on === music.on) return;
   music.on = on;
+  if (!on && ctx) stopShanty();
   if (on && ctx) { music.next = music.beatT = ctx.currentTime + 0.1; music.i = 0; music.bar = 0; }
   clearInterval(music.timer); if (on) music.timer = setInterval(() => { if (ctx && music.next < ctx.currentTime) { music.next = music.beatT = ctx.currentTime + 0.05; } schedMusic(); }, 100);
 }
@@ -500,3 +622,6 @@ export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100,
   offline = true; try { broadside(guns, P, 1, 9, 0); } finally { offline = false; C = prev; }
   return oc.startRendering();
 }
+
+// test hook (headless checks): sample load state + a tap point; no effect on play
+export const audioDebug = () => ({ ctx, master, musicBus, loaded: Object.keys(bufs), want: Object.values(SAMPLES).flat().length, liveVoices, noSamples: NO_SAMPLES, lvl: LVL });

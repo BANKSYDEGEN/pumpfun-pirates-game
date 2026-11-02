@@ -1,5 +1,5 @@
 // [v96] PUMPFUN PIRATES quick-chat wheel: 8 preset pirate callouts (ids only, never free text). Picking one shows a speech
-// bubble over your ship for ~3 s and plays a short procedural pirate voice line (js/audio.js sfx.emote, no hosted files).
+// bubble over your ship for ~3 s and plays a pirate voice line (js/audio.js sfx.emote: real recorded takes for Arr! / Attack! / Yo ho ho!, synth for the rest).
 // Battle Royale arena: js/pvp.js broadcasts { i, e } over the existing Supabase realtime room (rate-limited both ends).
 // Waves + the harbor: local only. Cosmetic: no gameplay, stats or gold effect.
 import * as THREE from 'three';
@@ -18,13 +18,13 @@ const bubbles = new Map(); // ship -> { el, until }
 const _v = new THREE.Vector3();
 let K = null, last = -1e9, open = false;
 
-export function showEmote(ship, e, { vol = 1, pitch = 1 } = {}) {
+export function showEmote(ship, e, { vol = 1, pitch = 1, own = false } = {}) {
   if (!ship || !validEmote(e)) return false;
   let b = bubbles.get(ship);
   if (!b) { const el = document.createElement('div'); el.className = 'emote-bubble'; $('emote-bubbles')?.appendChild(el); b = { el }; bubbles.set(ship, b); }
   b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000;
   b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
-  if (vol > 0.03) sfx.emote?.(e, vol, pitch);
+  if (vol > 0.03) sfx.emote?.(e, vol, pitch, own); // [v101] own = your crew joins in (real recorded voices)
   return true;
 }
 // your own pick: rate limit, bubble over your ship, voice, then K.send (pvp broadcast when in a room)
@@ -33,7 +33,7 @@ export function sendEmote(e) {
   const pl = K.getPlayer(), now = performance.now();
   if (!K.canEmote() || !pl?.alive) return false;
   if (now - last < EMOTE_GAP) { flashWait(); return false; }
-  last = now; showEmote(pl, e); K.send?.(e); setWheel(false); return true;
+  last = now; showEmote(pl, e, { own: true }); K.send?.(e); setWheel(false); return true;
 }
 function flashWait() { const b = $('btn-emote'); if (!b) return; b.classList.remove('wait'); void b.offsetWidth; b.classList.add('wait'); }
 
