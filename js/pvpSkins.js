@@ -18,7 +18,7 @@ import { FLAMING, flamingTick } from '../assets/ships/pvp/flaming.js';        //
 import { FLAMING_REDESIGN, flamingRedesignTick } from '../assets/ships/pvp/flamingRedesign.js'; // [Raul] Flaming redesign (BANKSY OK)
 Object.assign(FLAMING, FLAMING_REDESIGN);
 import { applyTierLooks, tierTick } from '../assets/ships/pvp/tierLooks.js';  // [Timothy] crimson, sea green, black pearl, coral, storm, admiral
-import { UNLOCK_SKINS } from '../assets/ships/pvp/unlockSkins.js'; // [Timothy] BONDING CURVE (100 harbor AI kills), COMMODORE (100 harbor boss kills)
+import { UNLOCK_SKINS } from '../assets/ships/pvp/unlockSkins.js'; // [Timothy] COMMODORE (100 harbor boss kills)
 
 getSkin('golden').partsOverride = GOLDEN_PVP.partsOverride;
 getSkin('ghost').partsOverride = GHOST_PVP.partsOverride;

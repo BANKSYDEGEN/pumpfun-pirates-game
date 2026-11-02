@@ -1,7 +1,4 @@
 // [Timothy] PvP UNLOCK skins (not kill tiers): PUMPFUN PIRATES Battle Royale. Cosmetic only, never a stat change.
-//   bondingcurve  BONDING CURVE  unlock: 100 harbor AI kills    the plain default ship: standard black skull sails and the
-//                                                               standard PUMPFUN PIRATES skull flag (no palette = the game's own
-//                                                               player textures, exactly like CLASSIC)
 //   commodore     COMMODORE      unlock: 100 harbor boss kills  THE COMMODORE's own look (Waves boss / v97 harbor boss): the boss
 //                                                               build options straight from js/ships.js (SCHEMES.boss kit,
 //                                                               boss: true rig, rug-pill flag from makePillTexture, flagScale 1.45,
@@ -18,13 +15,7 @@
 // Hitbox: nothing here touches len / beam / depth / traitBoxes (no materialFx / partsOverride at all).
 import { SCHEMES, makePillTexture } from '../../../js/ships.js';
 
-export const UNLOCK_IDS = ['bondingcurve', 'commodore'];
-
-export const BONDING_CURVE = {
-  id: 'bondingcurve', name: 'BONDING CURVE', price: 0, premium: 'pvp', blurb: 'The plain PUMPFUN PIRATES ship under the PUMPFUN flag.',
-  locked: true, unlock: { type: 'harborAiKills', count: 100 },
-  swatch: { hull: '#6a4026', band: '#161616', stripe: '#ffcd77', sail: '#1c1c1c', trim: '#ffcd77' }, // = CLASSIC
-};
+export const UNLOCK_IDS = ['commodore'];
 
 let _bossFlag = null;
 const B = SCHEMES.boss, hex = (c) => '#' + c.toString(16).padStart(6, '0');
@@ -37,5 +28,5 @@ export const COMMODORE = {
   parts: { oak: B.wood, plank: B.wood, iron: 0x1e2a24, gold: B.trim, glow: B.lantern }, // upgrade add-ons in the boss's colours
   swatch: { hull: hex(B.wood), band: hex(B.band), stripe: hex(B.stripe), sail: hex(B.sail), trim: hex(B.trim) },
 };
-export const UNLOCK_SKINS = [BONDING_CURVE, COMMODORE];
+export const UNLOCK_SKINS = [COMMODORE];
 export default UNLOCK_SKINS;
