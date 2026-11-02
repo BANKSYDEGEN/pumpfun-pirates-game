@@ -63,7 +63,7 @@ export class Batcher { // exported for tests
 }
 
 // ---------------- Supabase Realtime (free-plan fallback) ----------------
-function supabaseNet({ prefix, myId }) {
+function supabaseNet({ prefix, myId, ticket }) {
   const cfg = PVP_NET.supabase;
   async function lobby(op, o = {}) {
     try {
@@ -74,11 +74,11 @@ function supabaseNet({ prefix, myId }) {
       return await r.json();
     } catch { return { state: 'error' }; }
   }
-  const openRoom = (idx) => openBatched(`${prefix}-${idx}`, myId, cfg);
+  const openRoom = (idx) => openBatched(`${prefix}-${idx}`, myId, cfg, ticket);
   return { kind: 'supabase', cfg, lobby, openRoom };
 }
-async function openBatched(name, myId, cfg) { // one Realtime channel + the one-message-per-tick batcher
-  const room = new Room(name);
+async function openBatched(name, myId, cfg, ticket) { // one Realtime channel + the one-message-per-tick batcher
+  const room = new Room(name, { ticket }); // [security M1] ticket(name) -> { jwt } (private channel), else the public join
   const link = new Batcher(myId, cfg, (msg) => room.send('b', msg));
   room.on('b', (m) => link.receive(m));
   link.open = false; link.onStatus = () => {};
@@ -95,7 +95,7 @@ async function openBatched(name, myId, cfg) { // one Realtime channel + the one-
 //   call ops (pvp_harbor RPC, migration 021): beat (get / keep a copy seat) | spec (watch the busiest copy) | peek | leave
 //   A copy of n pirates + s spectators costs n·1.5·(n+s) msgs/s (1 Hz state + volleys); the RPC keeps the harbor total
 //   inside the free plan without ever touching the Solo / Squads arena budget.
-export function createHarborNet({ prefix, myId }) {
+export function createHarborNet({ prefix, myId, ticket }) {
   if (PVP_RELAY_URL || !SUPABASE_URL || !HARBOR_NET.on) return null;
   const cfg = HARBOR_NET;
   async function call(op, o = {}) {
@@ -107,17 +107,18 @@ export function createHarborNet({ prefix, myId }) {
       return await r.json();
     } catch { return { state: 'error' }; }
   }
-  return { kind: 'harbor', cfg, prefix, call, openRoom: (copy) => openBatched(`${prefix}-${copy}`, myId, cfg) };
+  return { kind: 'harbor', cfg, prefix, call, openRoom: (copy) => openBatched(`${prefix}-${copy}`, myId, cfg, ticket) };
 }
 
 // ---------------- relay server (server/relay.js): one socket, lobby + room, server batches one frame per tick ----------------
-function relayNet({ prefix, myId }) {
+function relayNet({ prefix, myId, ticket }) {
   const cfg = PVP_NET.relay;
   let ws = null, ready = null, ref = 0, link = null; const wait = new Map(); let pushSeat = null;
   function conn() {
     if (ready) return ready;
-    ready = new Promise((res, rej) => {
-      ws = new WebSocket(`${PVP_RELAY_URL}?prefix=${encodeURIComponent(prefix)}&id=${encodeURIComponent(myId)}`);
+    ready = (async () => (ticket ? (await ticket(`${prefix}-1`, { relay: true }).catch(() => null))?.relay : null))().then((tk) => new Promise((res, rej) => {
+      // [security M1] a hosted relay with RELAY_TICKET_SECRET only accepts sockets that carry a ticket from the pvp function
+      ws = new WebSocket(`${PVP_RELAY_URL}?prefix=${encodeURIComponent(prefix)}&id=${encodeURIComponent(myId)}${tk ? `&ticket=${encodeURIComponent(tk)}` : ''}`);
       const to = setTimeout(() => rej(new Error('relay timeout')), 8000);
       ws.onopen = () => { clearTimeout(to); res(ws); };
       ws.onerror = () => rej(new Error('relay error'));
@@ -128,7 +129,7 @@ function relayNet({ prefix, myId }) {
         else if (d.t === 'f' && link) for (const m of d.m || []) link.receive(m);
         else if (d.t === 'full') { if (link) link.onStatus('limit'); }
       };
-    });
+    }));
     ready.catch(() => { ready = null; });
     return ready;
   }
