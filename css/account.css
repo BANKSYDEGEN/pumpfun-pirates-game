@@ -1,0 +1,30 @@
+/* PUMPFUN PIRATES · [v106] PLAYER ACCOUNTS: LOG IN pop-up, PROFILE > ACCOUNT, home LOG IN link (js/accountUi.js) */
+#acct-login { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); font-family: 'Just Another Hand', cursive; }
+#acct-login.hidden { display: none; }
+#acct-login .acct-card { position: relative; background: rgba(22,16,10,0.97); border: 2px solid #8a5a2b; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); color: #fff3d8;
+  width: min(92vw, 400px); box-sizing: border-box; padding: 14px 20px 16px; display: flex; flex-direction: column; gap: 6px; text-align: center; max-height: calc(var(--app-h, 100vh) - 20px); overflow-y: auto; }
+#acct-login h2 { margin: 0; color: #ffcd77; font-size: 40px; line-height: 1; }
+#acct-login .faq-x { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; }
+#acct-login .pvp-btn.big { margin: 4px 0 0; font-size: 30px; min-height: 48px; }
+.acct-note { margin: 0; font-size: 17px; line-height: 1.1; opacity: 0.8; } .acct-note.small { font-size: 15px; opacity: 0.65; }
+.acct-field { display: flex; flex-direction: column; gap: 2px; text-align: left; margin: 2px 0; }
+.acct-field > span:first-child { font-size: 16px; letter-spacing: 1px; color: #ffcd77; }
+.acct-field input { width: 100%; box-sizing: border-box; font: 20px 'Just Another Hand', cursive; padding: 8px 10px; min-height: 44px; color: #fff; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,205,119,0.35); border-radius: 8px; }
+.acct-field input { font-size: max(16px, 20px); } /* >= 16 px: no zoom on iPhone */
+.acct-pw { position: relative; display: block; } .acct-pw input { padding-right: 64px; }
+.acct-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); min-width: 54px; min-height: 36px; padding: 2px 8px; margin: 0; font: 16px 'Just Another Hand', cursive; letter-spacing: 1px;
+  color: #ffcd77; background: rgba(255,205,119,0.1); border: 1px solid rgba(255,205,119,0.35); border-radius: 6px; box-shadow: none; cursor: pointer; }
+.acct-msg { display: block; min-height: 18px; font-size: 16px; color: #ff8a8a; line-height: 1.1; }
+#profile .acct-sec .acct-msg { color: #ffd9a0; }
+#profile .acct-sec .pf-row button { opacity: 1; cursor: pointer; min-height: 40px; }
+#profile .acct-sec .pvp-btn { margin: 4px 0 0; font-size: 20px; padding: 6px 16px; min-height: 40px; width: 100%; }
+#profile .acct-sec .acct-sub { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; } #profile .acct-sec .acct-sub[hidden] { display: none; }
+#profile .acct-sec .acct-warn { color: #ffcd77; opacity: 1; }
+#profile .acct-sec .acct-ok b, #profile .acct-sec .acct-name { color: #ffcd77; }
+#profile .acct-sec .acct-alt { margin: 6px 0 0; } #profile .acct-sec .wallet-link { font-size: 18px; padding: 0 4px; margin: 0; min-height: 32px; }
+#profile .acct-sec .acct-field input { font-size: 18px; }
+.acct-home { justify-content: center; align-items: center; gap: 4px; margin-top: 4px; font-size: 18px; color: rgba(255,255,255,0.7); flex-wrap: wrap; }
+.acct-home .wallet-link { font-size: 19px; margin: 0; padding: 4px 8px; min-height: 36px; color: #ffcd77; text-decoration-color: rgba(255,205,119,0.6); }
+.acct-home .acct-who b { color: #ffcd77; font-weight: normal; }
+.name-taken .acct-taken-login { font-size: 16px; padding: 0 4px; margin: 0; color: #ffcd77; }
+@media (max-height: 520px) and (orientation: landscape) { #acct-login .acct-card { padding: 8px 16px; gap: 3px; } #acct-login h2 { font-size: 30px; } .acct-home { margin-top: 0; } }

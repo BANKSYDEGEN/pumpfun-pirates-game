@@ -148,7 +148,9 @@ export function createPvp(K) {
     finally { c.disabled = false; holderUi(); }
   }
   const holderMul = (earned) => HOLDER_ENABLED && holder.on && earned > 0 ? Math.round(earned * (HOLDER_GOLD_MUL - 1)) : 0;
-  addEventListener('pfp-group-sync', (e) => { if (!active) return; const { drift, levels } = e.detail || {}; // [v92] owner shared save: the other device's gold / upgrades
+  addEventListener('pfp-group-sync', (e) => { const { drift, levels, stats } = e.detail || {}; // [v92] owner shared save / [v106] account: the other device's gold / upgrades / stats
+    if (stats) for (const k of Object.keys(profile.stats)) profile.stats[k] = Math.max(0, (profile.stats[k] | 0) + (stats[k] | 0));
+    if (!active) { if (drift) profile.gold = Math.max(0, (profile.gold | 0) + drift); return; }
     if (drift) { game.gold = Math.max(0, (game.gold | 0) + drift); profile.gold = game.gold; }
     if (levels) { const cur = getRunLevels(), m = Object.fromEntries(Object.keys(cur).map(k => [k, Math.max(cur[k] | 0, levels[k] | 0)]));
       if (JSON.stringify(m) !== JSON.stringify(cur)) { const hp = P().hp; setRunLevels(m); P().hp = Math.min(hp, P().maxHp); profile.levels = m; } }
@@ -192,6 +194,7 @@ export function createPvp(K) {
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }
+  addEventListener('pfp-save-now', () => { if (active) save({ now: true, force: true }); }); // [v106] right before LOG OUT: the latest gold lands on the account
   function save(opts = {}) { if (!active && !opts.force) return; profile = snapshot(); saveProfile(profile, opts).then(r => { if (r && r.ok === false && r.status === 401) { wallet = ''; renderMenu(); } }); }
 
   // ---------------- rooms ----------------
@@ -1214,7 +1217,7 @@ export function createPvp(K) {
     $('pvp-wallet').onclick = walletButton;
     $('pvp-holder-claim')?.addEventListener('click', (e) => { e.stopPropagation(); claimHolderGold(); });
     $('pvp-name').addEventListener('change', async () => { const v = esc($('pvp-name').value).trim().slice(0, 20) || pirateName();
-      if (v.toLowerCase() !== String(name).toLowerCase() && await checkName(v) === false) { $('pvp-name').value = name; K.banner('NAME TAKEN', `"${v}" belongs to another pirate`); return; } // [v76]
+      if (v.toLowerCase() !== String(name).toLowerCase() && await checkName(v) === false) { $('pvp-name').value = name; K.banner('NAME TAKEN', window.PFP_ACCT?.takenByAccount(v) ? `"${v}" has a password: LOG IN in PROFILE` : `"${v}" belongs to another pirate`); return; } // [v76]
       setName(v); });
     $('pvp-dead-menu').onclick = () => K.toTitle();
     $('pvp-join').onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : joinBattle(); };
@@ -1232,7 +1235,7 @@ export function createPvp(K) {
     $('pvp-entry-go').onclick = async (e) => { e.stopPropagation(); const v = esc($('pvp-entry-name').value).trim().slice(0, 20);
       const go = $('pvp-entry-go'), msg = $('pvp-entry-name-msg'); if (go.disabled) return;
       if (v && v.toLowerCase() !== String(name).toLowerCase()) { go.disabled = true; const free = await checkName(v); go.disabled = false; // [v76] unique names
-        if (free === false) { msg?.classList.remove('hidden'); $('pvp-entry-name').focus(); return; } }
+        if (free === false) { window.PFP_ACCT_UI?.nameTaken(msg, v); msg?.classList.remove('hidden'); $('pvp-entry-name').focus(); return; } } // [v106] a name with a password: LOG IN
       msg?.classList.add('hidden');
       if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden');  };
     // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL

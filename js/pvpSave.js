@@ -21,7 +21,7 @@ let ownerAll = false;
 export const ownerAllSkins = () => ownerAll;
 export const ownerReady = (async () => { try { const k = ls.get('pfp_pvp_dk_v1'); if (!k || !crypto?.subtle) return false;
   const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pfp-dev:' + k)))].map(x => x.toString(16).padStart(2, '0')).join('');
-  return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24))); } catch { return false; } })();
+  return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24)) || !!acct()?.owner); } catch { return false; } })(); // [v106] + the owner's account logged in on another device (the server decides; this only shows it)
 // [v102] pirate gear slots (js/shopCatalog.js ids): the first id of each slot is the free default (shirtless start)
 export const GEAR_SLOTS = { hat: ['none', 'bandana', 'tricorn', 'bicorne'], outfit: ['shirtless', 'tank', 'tshirt', 'coat'], eyes: ['plain', 'eyepatch', 'sunglasses', 'laser'], parrot: ['none', 'parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond'], hook: ['none', 'hook_iron', 'hook_gold'] };
 export function cleanGear(g) { const o = {}; for (const [sl, ids] of Object.entries(GEAR_SLOTS)) o[sl] = ids.includes(g?.[sl]) ? g[sl] : ids[0];
@@ -103,7 +103,7 @@ function takeShop(j) { if (!j) return;
 let shopStats = null, shopGold = null, shopOwner = false;
 function devFlush(keepalive = false) {
   clearTimeout(devTimer); devTimer = 0;
-  return (devChain = devChain.then(async () => { const body = devPending; devPending = null; if (!body || !PVP_FN_URL || session() || group) return { ok: true, device: true };
+  return (devChain = devChain.then(async () => { const body = devPending; devPending = null; if (!body || !PVP_FN_URL || session() || group || acct()) return { ok: true, device: true };
     try { const j = await api('dev_sync', { dk: deviceKey(), profile: body, rev: body.rev ?? 0 } /* the rev the snapshot was taken at */, { keepalive }); takeShop(j); const d = readDevice(); writeDevice(d); return { ok: true, device: true, shop: j }; }
     catch (e) { return { ok: true, device: true, error: e.message }; } }));
 }
@@ -112,24 +112,27 @@ export const shopCache = () => ({ owned: { skins: ['classic', ...(shop.skins || 
 // fresh shop state from the server (device: syncs this save first so the gold is current). null = offline.
 export async function shopState(profile) {
   await ownerReady; const s = session();
-  try { if (!s && !group && !ownerAll) { const r = await devSyncNow(profile); if (r) return shopCache(); }
+  try { if (!s && !group && !ownerAll && acct()) { const r = await acctSyncNow(profile); if (r) return shopCache(); } // [v106] logged in: the account's save
+    else if (!s && !group && !ownerAll) { const r = await devSyncNow(profile); if (r) return shopCache(); }
     const j = await api('shop_state', s ? { token: s.token } : { dk: deviceKey() }); takeShop(j); return shopCache(); }
   catch (e) { console.warn('[shop] state', e.message); return null; }
 }
 const reqId = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); return b64(a).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 // buy one catalog item ('skin:blood'). The SERVER checks the price, the goal, the gold and ownership. Returns { ok, price, gold, rev } or { ok:false, error }.
 export async function shopBuy(item, profile) {
-  await ownerReady; const s = session(); const req = reqId();
-  if (!s && !group && !ownerAll) await devSyncNow(profile);
+  await ownerReady; const s = session(); const req = reqId(), ac = !s && !group && !ownerAll && acct();
+  if (ac) await acctSyncNow(profile); else if (!s && !group && !ownerAll) await devSyncNow(profile);
+  if (ac) acctHold(); // [v106] no sync until the caller has taken the price off this save (the server took it off this device's last sync)
   for (let i = 0; i < 2; i++) try {
     const j = await api('shop_buy', { ...(s ? { token: s.token } : { dk: deviceKey() }), item, req });
-    if (j.owner) return { ok: true, owner: true, price: 0 };
+    if (j.owner) { acctUnhold(); return { ok: true, owner: true, price: 0 }; }
+    if (ac && !j.retry) acctBoughtFor(j.price); else if (ac) acctUnhold();
     if (Number.isFinite(j.rev)) shop.rev = j.rev | 0; // the gold change is applied by the caller in the SAME tick (pvp.js), then saved
     const [kind, ...rest] = item.split(':'), id = rest.join(':');
     if (kind === 'skin') shop.skins = [...new Set([...(shop.skins || []), id])]; else shop.gear = [...new Set([...(shop.gear || []), id])];
     shopGold = j.gold | 0; return { ok: true, price: j.price | 0, gold: j.gold | 0, rev: j.rev };
-  } catch (e) { if (!e.status && i === 0) continue; return { ok: false, error: e.message || 'shop offline', status: e.status }; } // network blip: same req id = never charged twice
-  return { ok: false, error: 'shop offline' };
+  } catch (e) { if (!e.status && i === 0) continue; acctUnhold(); return { ok: false, error: e.message || 'shop offline', status: e.status }; } // network blip: same req id = never charged twice
+  acctUnhold(); return { ok: false, error: 'shop offline' };
 }
 // ---------- [v103] WAVES PAYS GOLD FROM SCORE ----------
 // The server notes when a Waves run starts and, at the end, banks gold from the run's SCORE into your Battle Royale save
@@ -141,17 +144,19 @@ export function wavesStart(run) {
 }
 export async function wavesClaim({ run, score, wave, sunk }) {
   if (!PVP_FN_URL || !wavesRuns.has(run)) return null; wavesRuns.delete(run); await ownerReady; const s = session();
+  const ac = !s && !ownerAll && acct(); if (ac) { await acctSyncNow(null, 4000); acctHold(); } // [v106] logged in: nothing in flight while the payout lands
   try {
     const j = await api('waves_claim', { ...(s ? { token: s.token } : { dk: deviceKey() }), run, score: score | 0, wave: wave | 0, sunk: sunk | 0 });
     const g = j.gold | 0; if (g <= 0) return j;
     const d = readDevice();
     if (!s && ownerAll) { await api('group_sync', { dk: deviceKey(), profile: d, delta: g }).then(r => writeDevice(cleanProfile({ ...d, gold: r.gold | 0 }))).catch(() => {}); } // owner: the shared pot
-    else { d.gold = Math.min(1e7, d.gold + g); writeDevice(d); } // device / wallet save (the server copy was credited by the claim)
+    else { d.gold = Math.min(1e7, d.gold + g); writeDevice(d); if (ac) acctPending = d; } // device / wallet save (the server copy was credited by the claim)
     return j;
   } catch (e) { return { ok: false, error: e.message, status: e.status }; }
+  finally { if (ac) { acctUnhold(); acctFlush(); } }
 }
 function readDevice() { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } return cleanProfile(all.profiles?.device); }
-function writeDevice(p) { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = all.profiles || {}; all.profiles.device = { ...p, updated: Date.now() }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
+function writeDevice(p) { if (acctFrozen) return; let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = all.profiles || {}; all.profiles.device = { ...p, updated: Date.now() }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
 
 // Load: the device save, or (when a wallet is linked) the wallet's save if it has progress. Never throws.
 export async function loadProfile() {
@@ -161,6 +166,7 @@ export async function loadProfile() {
     try { const j = await api('group_sync', { dk: deviceKey(), profile: dev, delta: 0 }); const g = cleanProfile({ ...dev, gold: j.gold, levels: j.levels });
       group = { base: g.gold }; writeDevice(g); return { profile: g, source: 'group', seeded: !!j.seeded }; }
     catch (e) { return { profile: dev, source: 'device', error: e.message }; } }
+  if (!s && acct()) { const r = await acctSyncNow(dev, 4000); return { profile: readDevice(), source: 'account', name: acct()?.name || '', shop: r }; } // [v106] logged in
   if (!s) { const r = await devSyncNow(dev, 4000); return { profile: r ? readDevice() : dev, source: 'device', shop: r }; } // [v102] server copy (shop gold, owned)
   try { const j = await api('load', { token: s.token }); takeShop(j); const w = cleanProfile({ ...j.profile, rev: j.rev | 0 });
     if (isBlank(w) && !isBlank(dev)) { await api('save', { token: s.token, profile: dev, seed: true }).catch(() => {}); return { profile: dev, source: 'device', wallet: s.wallet }; }
@@ -199,9 +205,11 @@ function groupFlush(keepalive = false) {
 // Save: device immediately; wallet (if linked) throttled ~3 s, or right away with now / keepalive (page closing).
 let pending = null, timer = 0, inflight = null;
 export function saveProfile(profile, { now = false, keepalive = false } = {}) {
+  if (acctFrozen) return Promise.resolve({ ok: true, frozen: true }); // [v106] this device just switched pirates: nothing more is saved until the reload
   const p = cleanProfile(profile); writeDevice(p);
   const s = session();
   if (!s && group) { gPending = p; if (now || keepalive) { clearTimeout(gTimer); return groupFlush(keepalive); } if (!gTimer) gTimer = setTimeout(groupFlush, 3000); return Promise.resolve({ ok: true, queued: true }); }
+  if (!s && acct()) { acctPending = p; if (acctBought) { acctBought = false; acctUnhold(); } if (now || keepalive) return acctFlush(keepalive); if (!acctTimer) acctTimer = setTimeout(acctFlush, ACCT_SYNC_MS); return Promise.resolve({ ok: true, account: true }); } // [v106]
   if (!s) { devPending = p; if (now || keepalive) return devFlush(keepalive); if (!devTimer) devTimer = setTimeout(devFlush, DEV_SYNC_MS); return Promise.resolve({ ok: true, device: true }); }
   pending = p;
   const flush = () => { timer = 0; const body = pending; pending = null; if (!body) return inflight || Promise.resolve({ ok: true });
@@ -268,7 +276,110 @@ addEventListener('pfp-name', (e) => { const n = e.detail?.name; if (!n || (e.det
 export async function checkName(name, { mode = 'br', wallet = '' } = {}) {
   const n = String(name || '').trim().slice(0, 20); if (!n || !PVP_FN_URL) return null;
   const s = session();
-  try { const j = await api('name_check', { ...(s ? { token: s.token } : { dk: deviceKey() }), name: n, mode, ...(mode === 'waves' && wallet ? { wallet } : {}) }); return j.free === true; }
+  try { const j = await api('name_check', { ...(s ? { token: s.token } : { dk: deviceKey() }), name: n, mode, ...(mode === 'waves' && wallet ? { wallet } : {}) }); nameAccount = j.free !== true && !!j.account ? n : ''; return j.free === true; }
   catch { return null; }
 }
+// [v106] the last name checkName found taken BY A PIRATE WITH A PASSWORD ('' = none): the name pop-ups offer LOG IN for it
+let nameAccount = '';
+export const takenByAccount = (n) => !!n && nameAccount.toLowerCase() === String(n).trim().slice(0, 20).toLowerCase();
+
+// ---------- [v106] PLAYER ACCOUNTS (name + password, no email) ----------
+// Progress stays on this device by default. SET PASSWORD (profile) makes this pirate's name an account; LOG IN (home / profile)
+// on another device makes that device play as the same pirate: the server maps its device key to the account (pvp_main), so the
+// board, shop, goals and treasure maps are the same pirate. Saves: acct_sync sends this device's save; the server adds only what
+// changed since this device's last sync (another device's gold / kills come back as 'pfp-group-sync' { drift, levels, stats }).
+// Only the session token is kept here (pfp_acct_v1); the password goes to the pvp Edge Function over HTTPS and nowhere else.
+// Logging in keeps this device's own save aside (pfp_acct_guest_v1); LOG OUT brings it back (or starts fresh on the device that
+// set the password, whose old key was retired).
+const ACCT_KEY = 'pfp_acct_v1', GUEST_KEY = 'pfp_acct_guest_v1', ACCT_NOTE_KEY = 'pfp_acct_note', ACCT_SYNC_MS = 10000;
+function acct() { try { const a = JSON.parse(ls.get(ACCT_KEY) || 'null'); return a && a.token && Date.parse(a.expires_at) > Date.now() ? a : null; } catch { return null; } }
+export const accountInfo = () => { const a = acct(); return a ? { name: a.name, owner: !!a.owner, expires_at: a.expires_at } : null; };
+let acctPending = null, acctTimer = 0, acctHeld = 0, acctBought = false;
+// [v106] set when this device switches pirates (log in / log out / logged out elsewhere): the old pirate's in-memory save
+// (e.g. the page-close save) must never land on the new one, so every save / device write stops until the page reloads
+let acctFrozen = false;
+function acctFreeze() { acctFrozen = true; clearTimeout(acctTimer); clearTimeout(devTimer); clearTimeout(gTimer); acctPending = null; devPending = null; gPending = null; group = null; }
+function acctHold() { acctHeld = Date.now(); acctBought = false; }
+function acctUnhold() { acctHeld = 0; acctBought = false; }
+// a buy went through: a save snapshot taken meanwhile gets the price off too; the hold ends with the caller's next save
+function acctBoughtFor(price) { if (acctPending) acctPending.gold = Math.max(0, acctPending.gold - (price | 0)); acctBought = true; }
+const newDk = () => { const a = new Uint8Array(24); crypto.getRandomValues(a); return b64(a).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+function acctFlush(keepalive = false) {
+  clearTimeout(acctTimer); acctTimer = 0;
+  return (devChain = devChain.then(async () => {
+    const a = acct(); if (!a || a.owner || !PVP_FN_URL || acctFrozen) { acctPending = null; return { ok: true }; }
+    if (acctHeld && Date.now() - acctHeld < 4000) { if (!acctTimer) acctTimer = setTimeout(acctFlush, 1000); return { ok: true, held: true }; }
+    const body = acctPending || readDevice(); acctPending = null;
+    try { const j = await api('acct_sync', { dk: deviceKey(), acct: a.token, profile: body }, { keepalive }); takeShop(j);
+      if (j.expires_at) ls.set(ACCT_KEY, JSON.stringify({ ...a, expires_at: j.expires_at, name: j.name || a.name }));
+      const x = j.acct; if (!x) return { ok: true, account: true, shop: j };
+      const drift = (x.gold | 0) + (x.pend | 0) - body.gold, sd = {}; let sAny = false;
+      for (const k of Object.keys(body.stats)) { sd[k] = (x.stats?.[k] | 0) - (body.stats[k] | 0); if (sd[k]) sAny = true; }
+      const up = Object.keys(body.levels).some(k => (x.levels?.[k] | 0) > (body.levels[k] | 0));
+      if (acctPending) { acctPending.gold = Math.max(0, acctPending.gold + drift); for (const k of Object.keys(sd)) acctPending.stats[k] = Math.max(0, acctPending.stats[k] + sd[k]); }
+      if (drift || up || sAny) { const d = readDevice();
+        writeDevice(cleanProfile({ ...d, gold: Math.max(0, d.gold + drift), stats: Object.fromEntries(Object.keys(d.stats).map(k => [k, Math.max(0, (d.stats[k] | 0) + (sd[k] | 0))])),
+          levels: up ? Object.fromEntries(Object.keys(d.levels).map(k => [k, Math.max(d.levels[k] | 0, x.levels?.[k] | 0)])) : d.levels }));
+        try { dispatchEvent(new CustomEvent('pfp-group-sync', { detail: { drift, levels: up ? x.levels : null, stats: sAny ? sd : null } })); } catch {} }
+      return { ok: true, account: true, shop: j };
+    } catch (e) {
+      if (e.status === 401) { acctDrop('You were logged out (the password was changed or the session ended). This device is back to its own save.'); return { ok: false, status: 401 }; }
+      if (!acctPending) acctPending = body; if (!acctTimer) acctTimer = setTimeout(acctFlush, 5000); return { ok: false, error: e.message, status: e.status };
+    } }));
+}
+async function acctSyncNow(p, ms = 0) { if (p) acctPending = p; const r = acctFlush(); const o = ms ? await Promise.race([r, new Promise(res => setTimeout(() => res(null), ms))]) : await r; return o?.shop || null; }
+// this device leaves the account: its own save (kept aside at login) comes back, or a fresh start on a retired key
+function acctRestore() {
+  acctFreeze(); let g = null; try { g = JSON.parse(ls.get(GUEST_KEY) || 'null'); } catch {}
+  ls.set(ACCT_KEY, null); ls.set(GUEST_KEY, null); ls.set('pfp_pvp_airdrop_sent', null); claimAuth = null;
+  if (g && typeof g.dk === 'string') { ls.set(DK_KEY, g.dk); ls.set(DEVICE_KEY, g.save ?? null); ls.set('pfp_name', g.name ?? null); if (g.session) ls.set(SESSION_KEY, g.session); }
+  else { ls.set(DK_KEY, newDk()); ls.set(DEVICE_KEY, null); ls.set('pfp_name', null); }
+}
+function acctDrop(why) { acctRestore(); if (why) ls.set(ACCT_NOTE_KEY, why); try { dispatchEvent(new CustomEvent('pfp-acct', { detail: { out: true, why } })); } catch {} }
+export const acctNote = () => { const n = ls.get(ACCT_NOTE_KEY); if (n) ls.set(ACCT_NOTE_KEY, null); return n || ''; };
+// SET PASSWORD for this pirate's name (the device that owns the name). Returns { ok, name } or { ok: false, error, taken }.
+export async function acctSetPassword(pw, name = ls.get('pfp_name') || '') {
+  if (!PVP_FN_URL) return { ok: false, error: 'offline' }; if (acct()) return { ok: false, error: 'already logged in' };
+  await ownerReady; const s = session(), nd = ownerAll ? null : newDk();
+  if (!s && !ownerAll) await devSyncNow(readDevice(), 4000).catch(() => {}); // the server copy is current first
+  try { const j = await api('acct_set', { dk: deviceKey(), ...(nd ? { newdk: nd } : {}), name: String(name).trim().slice(0, 20), pw, profile: readDevice(), ...(s ? { token: s.token } : {}) });
+    if (j.rotated && nd) ls.set(DK_KEY, nd); claimAuth = null; // this device now uses its new key (the old one is retired)
+    ls.set(GUEST_KEY, null); ls.set(ACCT_KEY, JSON.stringify({ token: j.token, name: j.name, owner: !!j.owner, expires_at: j.expires_at }));
+    if (j.name && j.name !== ls.get('pfp_name')) ls.set('pfp_name', j.name); takeShop(j);
+    try { dispatchEvent(new CustomEvent('pfp-acct', { detail: { set: true, name: j.name } })); } catch {}
+    return { ok: true, name: j.name };
+  } catch (e) { return { ok: false, error: e.message, taken: !!e.body?.taken, status: e.status }; }
+}
+// LOG IN on this device: keeps this device's own save aside, takes the account's save. The caller reloads the page.
+export async function acctLogin(name, pw) {
+  if (!PVP_FN_URL) return { ok: false, error: 'offline' };
+  if (acct()) return { ok: false, error: 'Log out first.' };
+  try { const j = await api('acct_login', { dk: deviceKey(), name: String(name || '').trim().slice(0, 20), pw });
+    acctFreeze(); // the guest's in-memory save never lands on the account (page-close save etc.): frozen until the reload
+    if (!ls.get(GUEST_KEY)) ls.set(GUEST_KEY, JSON.stringify({ dk: deviceKey(), save: ls.get(DEVICE_KEY), name: ls.get('pfp_name'), session: ls.get(SESSION_KEY) }));
+    ls.set(SESSION_KEY, null); // the account's save is used here (LINK WALLET again any time for the wallet's save + boost)
+    takeShop(j); const p = cleanProfile({ ...j.profile, gold: j.owner ? 0 : j.profile?.gold });
+    { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = { ...(all.profiles || {}), device: { ...p, updated: Date.now() } }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
+    ls.set('pfp_name', j.name); ls.set(ACCT_KEY, JSON.stringify({ token: j.token, name: j.name, owner: !!j.owner, expires_at: j.expires_at }));
+    return { ok: true, name: j.name, owner: !!j.owner };
+  } catch (e) { return { ok: false, error: e.message, status: e.status }; }
+}
+export async function acctLogout() {
+  const a = acct(); if (!a) return { ok: true };
+  try { dispatchEvent(new CustomEvent('pfp-save-now')); } catch {} // pvp.js saves its live state first
+  if (!a.owner) await acctSyncNow(null, 4000).catch(() => {});
+  await api('acct_logout', { dk: deviceKey(), acct: a.token }).catch(() => {});
+  acctRestore(); return { ok: true };
+}
+export async function acctChangePassword(old, pw) {
+  const a = acct(); if (!a) return { ok: false, error: 'Logged out. Log in again.' };
+  try { const j = await api('acct_change', { dk: deviceKey(), acct: a.token, old, pw }); return { ok: true, loggedOut: j.logged_out | 0 }; }
+  catch (e) { if (e.status === 401 && /log in/i.test(e.message)) acctDrop(''); return { ok: false, error: e.message, status: e.status }; }
+}
+// the session is still alive (owner devices and page start): 401 = logged out elsewhere (password changed)
+export async function acctCheck() { const a = acct(); if (!a || !PVP_FN_URL) return null;
+  if (!a.owner) return acctSyncNow(null, 5000);
+  try { const j = await api('acct_sync', { dk: deviceKey(), acct: a.token }); if (j.expires_at) ls.set(ACCT_KEY, JSON.stringify({ ...a, expires_at: j.expires_at })); return j; }
+  catch (e) { if (e.status === 401) acctDrop('You were logged out (the password was changed or the session ended). This device is back to its own save.'); return null; } }
+window.PFP_ACCT = { info: accountInfo, setPassword: acctSetPassword, login: acctLogin, logout: acctLogout, changePassword: acctChangePassword, check: acctCheck, note: acctNote, takenByAccount };
 window.PFP_PVP_SAVE = { checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

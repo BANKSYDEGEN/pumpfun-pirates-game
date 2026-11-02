@@ -6,7 +6,7 @@
 //   WALLET LABEL  the typed Solana address (read-only: a label for airdrops + your Waves scores; never signs, never boosts)
 //   SAVE PROGRESS the read-only wallet sign-in (signs a free message) that saves Waves progress to the wallet
 //   LINK WALLET   Battle Royale: the signed link (BR save + the holder 2× boost), the same button as the 🏴 menu's
-//   ACCOUNT       SET PASSWORD / LOG IN WITH NAME (coming with the island shop accounts; shown disabled)
+//   ACCOUNT       [v106] SET PASSWORD for your name / LOG IN on another device / CHANGE PASSWORD / LOG OUT (js/accountUi.js)
 // The nodes are MOVED, not copied: main.js / pvp.js keep their element references, listeners and flows. Crypto-free portal builds
 // (itch.io / Newgrounds): main.js has already removed the wallet nodes there, and the crypto sections stay hidden.
 import { ON_PORTAL } from './config.js';
@@ -29,9 +29,7 @@ function build() {
     <section class="pf-sec pf-crypto pf-br" id="pf-boost"><h4>LINK WALLET <em>Battle Royale · holder 2× gold</em></h4>
       <p class="pf-note">The signed link saves your Battle Royale progress to the wallet; holders of $SUNK / $AHOY get 2× gold. Only this signed link counts for the boost.</p>
       <button id="pf-link" type="button" class="pvp-btn">LINK WALLET</button><small id="pf-link-state" class="pf-note"></small></section>
-    <section class="pf-sec" id="pf-acct"><h4>ACCOUNT <em>coming soon</em></h4>
-      <div class="pf-row"><button type="button" class="ghost" disabled>SET PASSWORD</button><button type="button" class="ghost" disabled>LOG IN WITH NAME</button></div>
-      <p class="pf-note">Save to a pirate name + password (no email) and play on any device.</p></section>
+    <section class="pf-sec" id="pf-acct"></section><!-- [v106] ACCOUNT: set password / log in / change / log out (js/accountUi.js) -->
   </div>`;
   document.body.appendChild(root);
   // the moved nodes (home WAVES pop-up -> profile)
@@ -57,7 +55,7 @@ function build() {
 function renderBR() {
   const s = window.PFP_PVP_SAVE?.walletSession?.(), w = s?.wallet;
   $('pf-link').textContent = w ? 'DISCONNECT' : 'LINK WALLET';
-  $('pf-link-state').textContent = w ? `Linked: ${shortWallet(w)}` : (document.getElementById('pvp-wallet-state')?.textContent || 'Not linked · progress saved on this device');
+  $('pf-link-state').textContent = w ? `Linked: ${shortWallet(w)}` : window.PFP_ACCT?.info() ? 'Not linked · progress saved to your account' : (document.getElementById('pvp-wallet-state')?.textContent || 'Not linked · progress saved on this device'); // [v106]
 }
 export const isProfileOpen = () => !!root && !root.classList.contains('hidden');
 export function openProfile() {
@@ -68,6 +66,7 @@ export function openProfile() {
   $('pf-stats').textContent = st.map(([l, v]) => `${l} ${v}`.trim()).join(' · ');
   const a = $('we-addr'); if (a) { a.value = getSavedWallet() || g?.wallet || ''; a.dispatchEvent(new Event('input')); }
   if (isBR() && $('pf-link')) renderBR();
+  try { window.PFP_ACCT_UI?.renderProfile($('pf-acct')); } catch (e) { console.warn('[account] profile', e); }
   if (g && g.mode !== 'pvp' && g.state === 'playing') { g.state = 'paused'; pausedByUs = true; } // Waves pauses underneath (like ⚙); Battle Royale keeps going
   root.classList.remove('hidden'); html.classList.add('ui-profile');
   try { dispatchEvent(new CustomEvent('pfp-profile', { detail: { open: true } })); } catch {}

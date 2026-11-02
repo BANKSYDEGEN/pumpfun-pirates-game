@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v105';
+const VERSION = 'pfp-v106';
 const SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const SHELL = [
   "./favicon.ico",
   "./css/style.css",
   "./css/islandShop.css",
+  "./css/account.css",
   "./js/main.js",
   "./js/island/coast.js", // [Emerly] main.js + pvp.js import the coast flag (pure data)
   // [v100] ships v2 kit, v4 pirates, the coast harbor town, docking + on foot
@@ -24,6 +25,7 @@ const SHELL = [
   "./js/dock/world.js",
   "./js/dock/plaza.js",
   "./js/uiProfile.js",
+  "./js/accountUi.js", // [v106] player accounts
   "./js/onfoot/net.js",
   "./js/onfoot/pirate.js",
   "./js/onfoot/walker.js",

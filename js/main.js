@@ -22,7 +22,7 @@ import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSaved
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
-import './uiProfile.js'; // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
+import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
 import { isKey, held as heldKey, installMouseBinds } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
@@ -882,7 +882,7 @@ async function wavesGo() {
   if (n && n.toLowerCase() !== getSavedName().toLowerCase() && window.PFP_PVP_SAVE?.checkName) { // [v76] one name = one pirate
     if (go) go.disabled = true; const a0 = weAddr ? weAddr.value.trim() : '';
     const free = await window.PFP_PVP_SAVE.checkName(n, { mode: 'waves', wallet: isValidSolanaAddress(a0) ? a0 : '' }); if (go) go.disabled = false;
-    if (free === false) { msg?.classList.remove('hidden'); weName.focus(); return; } }
+    if (free === false) { window.PFP_ACCT_UI?.nameTaken(msg, n); msg?.classList.remove('hidden'); weName.focus(); return; } } // [v106] + LOG IN
   msg?.classList.add('hidden');
   if (n) { saveName(n); syncName(n); }
   const a = weAddr ? weAddr.value.trim() : ''; if (isValidSolanaAddress(a)) saveWallet(a); // optional: anything else is ignored, never blocks

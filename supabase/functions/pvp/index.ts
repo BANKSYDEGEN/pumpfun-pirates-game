@@ -1,7 +1,8 @@
 // PUMPFUN PIRATES · Supabase Edge Function `pvp`: wallet-signed PvP saves (gold, upgrades, skins, K/D).
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
-// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim", ... }. The wallet only ever SIGNS A MESSAGE.
+// POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim" | "acct_set" | "acct_login" | "acct_sync" | "acct_change" | "acct_logout", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { buildMessage, verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts"; // [Timothy] shop goal progress (read-only)
@@ -126,6 +127,12 @@ Deno.serve(async (req) => {
   let b: Record<string, unknown>;
   try { b = await req.json(); } catch { return json(400, { error: "bad json" }); }
   try {
+    // [v106] PLAYER ACCOUNTS: acct_set / acct_login / acct_sync / acct_change / acct_logout (accounts.ts)
+    if (typeof b.action === "string" && b.action.startsWith("acct_")) {
+      const ip = (req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "").split(",")[0].trim() || "unknown";
+      const r = await acctAction({ db, ip: (await sha256("pfp-ip:" + ip)).slice(0, 32), devId, sha256, newToken: () => b64url(rand(32)), whoAmI, sessionWallet, devSync, devProfile, devCols, shopView, ownedSet, upgValue }, b.action, b);
+      if (r) return json(r.status, r.body);
+    }
     switch (b.action) {
       case "nonce": {
         const wallet = b.wallet; if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
@@ -255,7 +262,8 @@ Deno.serve(async (req) => {
       case "airdrop": {
         const sw = typeof b.token === "string" ? await sessionWallet(b.token) : null;
         const dk = typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? b.dk : null;
-        const player = sw ? `wallet:${sw}` : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        const dp = sw ? null : dk ? `dev:${(await sha256("pfp-dev:" + dk)).slice(0, 24)}` : null;
+        const player = sw ? `wallet:${sw}` : dp && await isAcctDevice(db, dp) ? (await whoAmI({ dk }))?.pid ?? dp : dp; // [v106] a logged-in device: the account's row
         if (!player) return json(401, { error: "no identity" });
         const wallet = typeof b.wallet === "string" ? b.wallet.trim() : "";
         if (!isWallet(wallet)) return json(400, { error: "bad wallet" });
@@ -287,13 +295,16 @@ Deno.serve(async (req) => {
         if (!name) return json(400, { error: "empty name" });
         const { data, error } = await db.rpc("pvp_name_free", { p_name: name, p_player: player, p_wallet: sw || typed });
         if (error) throw error;
-        return json(200, { ok: true, free: data === true, name });
+        // [v106] taken by a pirate with a password: the client offers LOG IN instead
+        let account = false; if (data !== true) { const { data: me } = player ? await db.rpc("pvp_main", { p_id: player }) : { data: null }; account = await nameHasAccount(db, name, typeof me === "string" ? me : player); }
+        return json(200, { ok: true, free: data === true, name, account });
       }
       // [v102] THE ISLAND SHOP. dev_sync: the server copy of a device save (gold the shop spends, stats for goals), sent by the client
       // every ~15 s while in the Battle Royale and right before a purchase. The owner group keeps its own shared save (group_sync).
       case "dev_sync": {
         const who = await whoAmI({ dk: b.dk }); if (!who) return json(401, { error: "no device" });
         if (who.owner) return json(200, await shopView(who, 0, cleanProfile(b.profile).stats, 0));
+        if (await isAcctDevice(db, who.raw)) return json(409, { ok: false, why: "account" }); // [v106] logged-in devices use acct_sync
         const r = await devSync(who, b); return json(r.ok ? 200 : 409, r);
       }
       case "shop_state": {
@@ -318,6 +329,7 @@ Deno.serve(async (req) => {
         const { data, error } = await db.rpc("pvp_shop_buy", { p_player: who.pid, p_item: item, p_price: it.price, p_req: req });
         if (error) throw error;
         if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not buy", gold: data?.gold });
+        if (!who.wallet && !data.retry) await acctBump(db, who.raw, -it.price); // [v106] a logged-in device takes the price off its own save too
         return json(200, { ok: true, item, price: it.price, gold: data.gold, rev: data.rev, retry: !!data.retry });
       }
       // [v103] WAVES PAYS GOLD FROM SCORE. waves_start: the server notes the run + its start time (one run at a time, max 1 / 10 s).
@@ -348,6 +360,7 @@ Deno.serve(async (req) => {
         const { data, error } = await db.rpc("pvp_waves_claim", { p_player: who.pid, p_run: run, p_score: score, p_wave: wave, p_sunk: sunk, p_elapsed: elapsed, p_base: base, p_gold: gold, p_holder: holder, p_day_cap: WAVES_GOLD.dayCap });
         if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no payout" });
+        if (!who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0); // [v106] the device adds it to its own save too
         return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score });
       }
       // [v105] TREASURE MAPS: maps_state = scan for new drops (boss kills from the STORED save, confirmed BR kills) + your undug maps;
@@ -370,6 +383,8 @@ Deno.serve(async (req) => {
         const holder = who.owner || (!!who.wallet && !!(await holderStatus(who.wallet)).holder);
         const { data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder }); if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no treasure" });
+        // [v106] a logged-in device that adds the dig gold to its own save too sends mirror: true (like the Waves payout)
+        if (b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0);
         return json(200, { ok: true, gold: data.gold, base: data.base, tier: data.tier, holder, owner: who.owner });
       }
       default: return json(400, { error: "unknown action" });
