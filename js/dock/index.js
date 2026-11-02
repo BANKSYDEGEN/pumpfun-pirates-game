@@ -227,7 +227,7 @@ export async function createDock(ctx) {
     onPeerState: (m) => { if (on) handlePeer(m); },
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
-    drawMinimap: (ctx, W, st = {}) => { const ok = on && imap.draw(ctx, W, minimapState(mapSt = st)); radarEl?.classList.toggle('isle-tap', !!ok); return ok; },
+    drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };

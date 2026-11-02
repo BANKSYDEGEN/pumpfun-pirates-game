@@ -94,6 +94,28 @@ export function createIslandMap({ world, layout, low }) {
     ctx.fillStyle = '#ffcd77'; ctx.font = `bold ${Math.round(W / 11)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('N', R, 3);
     return true;
   }
+  // [v108] ON FOOT: GTA-style local radar built from the island map: centred on you, zoomed in, turning with the camera
+  // heading (up = where the camera looks), your arrow fixed in the middle, N marker on the rim. At sea the harbor keeps
+  // the original radar (main.js); M / tap = the full-screen island map.
+  function drawLocal(ctx, W, st, heading, range = 95) {
+    if (!done) { bakeRows(low ? 14 : 18); return false; }
+    if (!st.me) return false;
+    const R = W / 2, k = (R - 2) / range, [mx, mz] = toF(st.me.x, st.me.z), rot = heading - Math.PI, c = Math.cos(rot), s = Math.sin(rot);
+    const T = (xh, zh) => { const [fx, fz] = toF(xh, zh), dx = fx - mx, dz = fz - mz; return [R + k * (dx * c - dz * s), R + k * (dx * s + dz * c)]; };
+    ctx.clearRect(0, 0, W, W); ctx.save(); ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.clip();
+    ctx.fillStyle = '#174f70'; ctx.fillRect(0, 0, W, W);
+    ctx.save(); ctx.translate(R, R); ctx.rotate(rot); ctx.scale(k, k); ctx.translate(-mx, -mz); ctx.imageSmoothingEnabled = true; ctx.drawImage(cv, B.x0, B.z0, N * mpp, NZ * mpp); ctx.restore();
+    const sz = Math.max(6, W / 13);
+    for (const p of P || []) { const [a, b] = T(...toH(p.x, p.z)); if (Math.hypot(a - R, b - R) > R - 4) continue; ctx.fillStyle = p.s[1]; ctx.strokeStyle = '#161616'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(a, b, sz * 0.42, 0, 7); ctx.fill(); ctx.stroke(); }
+    const fix = (o) => o && { ...o, yaw: Math.PI - (Math.PI - o.yaw + rot) }; // markers() turns arrows by (PI - yaw) in screen space: add the map rotation
+    markers(ctx, T, k, { ...st, me: fix(st.me), ship: fix(st.ship) }, sz, [R, R, R - 3]);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,205,119,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.stroke();
+    { const r = R - W / 14, ax = R + r * s, ay = R - r * c; // north (-z) after the rotation
+      ctx.fillStyle = 'rgba(22,22,22,.75)'; ctx.beginPath(); ctx.arc(ax, ay, W / 15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffcd77'; ctx.font = `bold ${Math.round(W / 11)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('N', ax, ay + 1); }
+    return true;
+  }
   // ---------- full-screen map ----------
   let el = null, fc = null, open = false, getSt = null, raf = 0;
   function build() {
@@ -146,5 +168,5 @@ export function createIslandMap({ world, layout, low }) {
   }
   function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
   function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); }
-  return { draw, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), get isOpen() { return open; }, get ready() { return done; } };
+  return { draw, drawLocal, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), get isOpen() { return open; }, get ready() { return done; } };
 }
