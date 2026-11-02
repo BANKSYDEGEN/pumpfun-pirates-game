@@ -1,0 +1,32 @@
+# [security L] GitHub Pages (Jekyll) build settings for game.pumpfunpirates.com.
+# The site is still built from the main branch root exactly as before; this only stops back-end code, SQL,
+# internal notes and build scripts from being PUBLISHED on the live site (they stay in the repo).
+# Review pages the team uses (tools/*.html viewers, dev/pirate-items.html, audio-dev/preview/) are kept on purpose.
+# NOTE: setting `exclude` replaces Jekyll's default list, so its defaults are repeated at the end.
+exclude:
+  - server
+  - supabase
+  - tests
+  - docs
+  - tools/export_airdrop.py
+  - tools/csp_hash.py
+  - tools/blender
+  - tools/island
+  - tools/ship_tests
+  - audio-dev/tools
+  - audio-dev/AUDIT.md
+  - audio-dev/CREDITS.md
+  - audio-dev/PLAN.md
+  - audio-dev/README.md
+  - audio-dev/SOUND_BIBLE.md
+  - audio-dev/SOURCES.md
+  - README.md
+  - PVP_PROGRESS.md
+  - SECURITY_FIXES.md
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
