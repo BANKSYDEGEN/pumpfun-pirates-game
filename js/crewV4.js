@@ -64,7 +64,7 @@ export function initCrewV4() {
       let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < idle.out.pos.length; i += 3) { y0 = Math.min(y0, idle.out.pos[i]); y1 = Math.max(y1, idle.out.pos[i]); }
       const k = CREW_H / (y1 - y0);
       if (sex === 'm') { if (idle.hip) hipY = (idle.hip.y - y0) * k; if (idle.sh) shY = (idle.sh.y - y0) * k; if (idle.head) eyeY = (idle.head.y - y0) * k + 0.12; }
-      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0) }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1];
+      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1];
     }
     for (const t of tex) if (t) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; }
     V4 = { tpl, tex, hipY, shY, eyeY }; return V4;
@@ -73,9 +73,10 @@ export function initCrewV4() {
 }
 // one seat's pirate: stable look from the seat id v; pose 'idle' | 'cannon'. Same attributes as crew.js pirate(): position, normal, color, aPart (+ uv)
 const _cache = new Map(), _c = new THREE.Color();
+export const crewFemale = (v) => hash(v * 3.17 + 1) < 0.42;
 export function crewPirateV4(v, pose = 'idle', { female: fem = null } = {}) {
   const key = v + '|' + pose + '|' + fem; if (_cache.has(key)) return _cache.get(key);
-  const female = fem ?? hash(v * 3.17 + 1) < 0.42, T = V4.tpl[female ? 'f' : 'm'][pose] || V4.tpl[female ? 'f' : 'm'].idle;
+  const female = fem ?? crewFemale(v), T = V4.tpl[female ? 'f' : 'm'][pose] || V4.tpl[female ? 'f' : 'm'].idle;
   const skin = _c.set(SKIN[Math.floor(hash(v * 5.3 + 2) * SKIN.length)]).clone(), hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]).clone();
   const col = T.col.slice(), iS = TINTS.indexOf('skin'), iH = TINTS.indexOf('hair');
   for (let i = 0; i < T.tint.length; i++) { const t = T.tint[i], c = t === iS ? skin : t === iH ? hair : null; if (c) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } }
@@ -83,4 +84,72 @@ export function crewPirateV4(v, pose = 'idle', { female: fem = null } = {}) {
   g.setAttribute('position', new THREE.BufferAttribute(T.pos.slice(), 3)); g.setAttribute('normal', new THREE.BufferAttribute(T.nrm.slice(), 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(T.part.slice(), 1)); g.setAttribute('uv', new THREE.BufferAttribute(T.uv.slice(), 2));
   _cache.set(key, g); return g;
+}
+
+// [v106] CREW GEAR (BANKSY: "Make sure all the pirates on my ship wear same clothes I choose"). The player's hat + clothes are put
+// on a hidden Low v4 pirate (male + female) with Timothy's applyGear (same colours / hat colour rules as your own pirate), posed with
+// the same clips the crew bodies were baked from (idle, cannon), and baked to static crew-space chunks: position, normal, colour,
+// shader part (dominant bone), uv (slot 4 = the gear stripe texture). js/crew.js merges a chunk onto every seat's body, so the
+// dressed crew is STILL one mesh / one draw call per ship. Hooks, pegs, parrots and eyewear stay on the captain only.
+const _gp = {}; let _gearMod = null;
+const gearMod = () => (_gearMod ||= import('./pirateGear.js'));
+async function gearPirate(sex) {
+  if (_gp[sex]) return _gp[sex];
+  const { PirateGLB } = await import('./pirateGLB.js');
+  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo' }));
+}
+export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
+export function crewGearOf(gear) {
+  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0 };
+  return (g.hat === 'none' && g.outfit === 'shirtless') ? null : g;
+}
+const _gc = new Map();
+export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, cannon }, f: {...} } | null>
+  const g = crewGearOf(gear); if (!g || !V4) return Promise.resolve(null);
+  const key = JSON.stringify([g, colors]); if (_gc.has(key)) return _gc.get(key);
+  const pr = (async () => {
+    const PG = await gearMod(), out = {};
+    for (const sex of ['m', 'f']) {
+      const p = await gearPirate(sex); const mesh = await PG.applyGear(p, g, colors); if (!mesh) return null;
+      out[sex] = {};
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = bakeGear(p, mesh, pose, V4.tpl[sex]);
+    }
+    return out;
+  })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
+  _gc.set(key, pr); return pr;
+}
+function bakeGear(p, mesh, pose, T) {
+  const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
+  if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
+  p.scene.updateMatrixWorld(true); mesh.skeleton.update();
+  const g = mesh.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, U = g.attributes.uv, J = g.attributes.skinIndex, W = g.attributes.skinWeight;
+  const idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count, bm = mesh.skeleton.boneMatrices, bones = mesh.skeleton.bones;
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), part = new Float32Array(n);
+  const full = new THREE.Matrix4();
+  for (let q = 0; q < n; q++) {
+    const i = idx ? idx[q] : q;
+    _v.fromBufferAttribute(P, i); mesh.applyBoneTransform(i, _v); _v.applyMatrix4(mesh.matrixWorld);
+    pos[q * 3] = _v.x * T.k; pos[q * 3 + 1] = (_v.y - T.y0) * T.k; pos[q * 3 + 2] = _v.z * T.k;
+    _m.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); let best = 0, bw = -1;
+    for (let k = 0; k < 4; k++) { const w = W.getComponent(i, k); if (w <= 0) continue; const j = J.getComponent(i, k); _t.fromArray(bm, j * 16);
+      for (let e = 0; e < 16; e++) _m.elements[e] += _t.elements[e] * w; if (w > bw) { bw = w; best = j; } }
+    full.copy(mesh.matrixWorld).multiply(mesh.bindMatrixInverse).multiply(_m).multiply(mesh.bindMatrix); _n3.setFromMatrix4(full);
+    _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z;
+    col[q * 3] = C.getX(i); col[q * 3 + 1] = C.getY(i); col[q * 3 + 2] = C.getZ(i);
+    uv[q * 2] = 8 + (U ? U.getX(i) : 0.75); uv[q * 2 + 1] = U ? U.getY(i) : 0;
+    part[q] = PARTN[bn(bones[best]?.name)] || 0;
+  }
+  return { pos, nrm, col, uv, part };
+}
+// one seat's body + the baked gear chunk -> one geometry (same attributes as crewPirateV4)
+const _dc = new Map();
+export function crewPirateV4Dressed(v, pose, chunks, tag) {
+  const female = crewFemale(v), ch = chunks?.[female ? 'f' : 'm']?.[pose] || chunks?.[female ? 'f' : 'm']?.idle;
+  const base = crewPirateV4(v, pose); if (!ch) return base;
+  const key = v + '|' + pose + '|' + tag; if (_dc.has(key)) return _dc.get(key);
+  const cat = (a, b, k) => { const o = new Float32Array(a.length + b.length); o.set(a); o.set(b, a.length); return new THREE.BufferAttribute(o, k); };
+  const A = base.attributes, g = new THREE.BufferGeometry();
+  g.setAttribute('position', cat(A.position.array, ch.pos, 3)); g.setAttribute('normal', cat(A.normal.array, ch.nrm, 3)); g.setAttribute('color', cat(A.color.array, ch.col, 3));
+  g.setAttribute('aPart', cat(A.aPart.array, ch.part, 1)); g.setAttribute('uv', cat(A.uv.array, ch.uv, 2));
+  if (_dc.size > 400) _dc.clear(); _dc.set(key, g); return g;
 }

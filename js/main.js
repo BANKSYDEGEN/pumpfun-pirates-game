@@ -7,7 +7,10 @@ import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
-import { initCrewV4 } from './crewV4.js'; // [v101] v4 pirates as the ship crew
+import { initCrewV4 } from './crewV4.js';
+import { syncCrewGear } from './crewGear.js';
+import { initHarborCard } from './harborCard.js'; // [v106] compact phone harbor card // [v106] your crew wears your hat + clothes
+import { getLocalGear } from './pirateGear.js'; // [v101] v4 pirates as the ship crew
 import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, disposeShip, ENEMY_SCHEMES, stretchFor, setShipDetail } from './ships.js';
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
@@ -24,7 +27,7 @@ import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
-import { isKey, held as heldKey, installMouseBinds } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
+import { isKey, held as heldKey, installMouseBinds, binds, keyName } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
@@ -68,6 +71,11 @@ setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carria
 await initKit(quality === 'low' || isMobile);
 await Promise.race([initCrewV4(), new Promise(r => setTimeout(r, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 }, local: true }); // [Timothy] local: true = wears your shop gear (js/pirateGear.js) // [v100] your pirate (v4 GLB) steers your ship
+// [v106] your equipped gear for the crew (setLocalGear fires 'pfp-gear'); colours follow your pirate's rules (Timothy's getLocalColors when present)
+let localGear = getLocalGear(), crewGearT = 1, PGmod = null;
+import('./pirateGear.js').then(m => { PGmod = m; });
+const localGearColors = () => PGmod?.getLocalColors ? PGmod.getLocalColors() : null;
+addEventListener('pfp-gear', (e) => { const d = e.detail || {}; localGear = d.gear || (d.hat !== undefined ? d : getLocalGear()); crewGearT = 0; });
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -662,7 +670,7 @@ function toggleFull() { if (!document.fullscreenElement) document.documentElemen
 onAudioState((a) => {
   const b = $('btn-sound'); { const ic = a.muted ? '🔇' : '🔊'; if (b.textContent !== ic) b.textContent = ic; }
   b.classList.toggle('off', a.muted); b.classList.toggle('locked', !a.muted && !a.running);
-  b.title = a.muted ? 'Sound OFF (tap to turn on, M)' : a.running ? 'Sound ON (tap to mute, M)' : 'Tap anywhere to enable sound';
+  b.title = a.muted ? `Sound OFF (tap to turn on, ${keyName(binds('sound')[0])})` : a.running ? `Sound ON (tap to mute, ${keyName(binds('sound')[0])})` : 'Tap anywhere to enable sound';
   b.setAttribute('aria-pressed', a.muted ? 'true' : 'false');
   const t = $('btn-sound-title'); // [start mute] start-page button mirrors the same state
   if (t) { const ic = a.muted ? '🔇' : '🔊'; if (t.textContent !== ic) t.textContent = ic; // only on change: swapping the text node mid-press cancels the click in Chrome
@@ -775,7 +783,11 @@ function updateEscortBars() { // [escorts] green bars over your escorts
 const radar = $('radar'), rctx = radar.getContext('2d');
 function drawRadar() {
   const W = radar.width, R = W / 2, range = 260;
-  if (dock?.drawMinimap?.(rctx, W)) return; // [v103] on foot: the island map (js/islandMap.js)
+  if (dock?.on) { // [v106] in the harbor (at sea + on foot): the whole-island map (js/islandMap.js), north up
+    const peers = [], ai = [];
+    for (const e of enemies) if (e.alive) (e.radarColor === '#5ee08a' ? peers : ai).push({ x: e.x, z: e.z, boss: !!e.harborBoss });
+    if (dock.drawMinimap(rctx, W, { ship: { x: player.x, z: player.z, yaw: player.yaw }, peers, ai, loot })) return;
+  }
   rctx.clearRect(0, 0, W, W);
   rctx.strokeStyle = 'rgba(255,205,119,0.25)'; rctx.lineWidth = 1;
   [0.33, 0.66].forEach(f => { rctx.beginPath(); rctx.arc(R, R, R * f, 0, 7); rctx.stroke(); });
@@ -1285,6 +1297,7 @@ function frame() {
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
+  { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, localGear, localGearColors()); } } // [v106] crew in your clothes (re-bakes only on a change)
   tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -1408,4 +1421,5 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
     requestAnimationFrame(probe);
   }, 6000);
 }
+try { initHarborCard(); } catch (e) { console.warn('[harbor card]', e); }
 window.PFP = { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests

@@ -6,8 +6,12 @@ export const ACTIONS = [
   ['firePort', 'Fire port (left)', ['KeyQ', 'Mouse4']], ['fireStar', 'Fire starboard (right)', ['KeyE', 'MouseR']],
   ['anchor', 'Anchor', ['Space', '']], ['camera', 'Reset camera', ['KeyC', '']], ['shop', 'Shop', ['KeyU', 'KeyB']],
   ['sprint', 'Sprint (on foot, hold)', ['ShiftLeft', 'ShiftRight']],
-  ['menu', 'Battle Royale menu', ['Tab', '']], ['pause', 'Pause', ['KeyP', '']], ['sound', 'Sound on/off', ['KeyM', '']], ['full', 'Fullscreen', ['KeyF', '']],
+  ['menu', 'Battle Royale menu', ['Tab', '']], ['pause', 'Pause', ['KeyP', '']], ['sound', 'Sound on/off', ['KeyN', '']], ['full', 'Fullscreen', ['KeyF', '']],
+  ['map', 'Island map (harbor)', ['KeyM', '']], ['jump', 'Jump (on foot)', ['Space', '']], // [v106] M = map (sound moved to N), Space = jump on foot
 ];
+// [v106] actions that only ever fire in one mode can share a key with the other mode (Space: anchor at sea, jump on foot)
+const CTX = { anchor: 'sea', jump: 'foot' };
+const clash = (a, b) => !(CTX[a] && CTX[b] && CTX[a] !== CTX[b]);
 const KEY = 'pfp_keys_v1', RESERVED = new Set(['Escape', 'MouseL']); // left click = camera drag / orbit
 // [mouse binds] mouse buttons bind like keys: 'MouseM' (wheel click), 'MouseR' (right), 'Mouse4' (side / back), 'Mouse5' (side / forward)
 export const MOUSE_CODES = ['MouseL', 'MouseM', 'MouseR', 'Mouse4', 'Mouse5'];
@@ -19,6 +23,10 @@ try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) {
   // saved binds stay; the new mouse defaults only fill an EMPTY slot, and only if no other action already uses that button
   const used = new Set(Object.values(map).flat());
   for (const [id, , d] of ACTIONS) d.forEach((c, i) => { if (c.startsWith('Mouse') && !map[id][i] && !used.has(c)) { map[id][i] = c; used.add(c); } });
+  // [v106] saves from before the map key: sound on M moves to N (if N is free), and a new action's default never steals a key you use
+  if (!Array.isArray(s.map) && Array.isArray(s.sound)) { const taken = Object.entries(map).some(([k, v]) => k !== 'sound' && k !== 'map' && v.includes('KeyN'));
+    map.sound = map.sound.map(c => c === 'KeyM' ? (taken ? '' : 'KeyN') : c); }
+  for (const [id] of ACTIONS) if (!Array.isArray(s[id])) map[id] = map[id].map(c => c && Object.entries(map).some(([k, v]) => k !== id && clash(k, id) && v.includes(c)) ? '' : c);
 } } catch {}
 const subs = new Set();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(map)); } catch {} subs.forEach(f => f()); };
@@ -29,7 +37,7 @@ export const held = (id, keys) => (map[id] || []).some(c => c && keys[c]);
 export function setBind(id, slot, code) {
   if (!map[id] || RESERVED.has(code)) return false;
   const old = map[id][slot];
-  for (const k in map) for (let i = 0; i < 2; i++) if (map[k][i] === code && !(k === id && i === slot)) map[k][i] = old || ''; // swap with the action that had it
+  for (const k in map) for (let i = 0; i < 2; i++) if (map[k][i] === code && !(k === id && i === slot) && clash(k, id)) map[k][i] = old || ''; // swap with the action that had it
   map[id][slot] = code; save(); return true;
 }
 export function resetBinds() { map = defaults(); save(); }
@@ -44,7 +52,7 @@ export function controlsLine(short = false) {
   const steer = `${keyName(binds('left')[0])}/${keyName(binds('right')[0])}${binds('left')[1] && binds('right')[1] ? ` or ${keyName(binds('left')[1])}/${keyName(binds('right')[1])}` : ''}`;
   const sail = `${keyName(binds('sailUp')[0])}/${keyName(binds('sailDown')[0])}`, fire = `${both('firePort')}/${both('fireStar')}`;
   return short ? `${steer} steer · ${sail} sails · ${fire} broadsides · ${both('anchor')} anchor · drag to look · wheel zoom`
-    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · hold ${both('sprint')} sprint (on foot) · drag mouse to orbit · wheel to zoom`;
+    : `${steer} steer · ${sail} raise/lower sails · ${fire} fire port/starboard · ${both('anchor')} anchor · ${both('camera')} camera · ${both('sound')} sound · ${both('map')} island map · ${both('jump')} jump (on foot) · hold ${both('sprint')} sprint (on foot) · drag mouse to orbit · wheel to zoom`;
 }
 
 // [mouse binds] mouse buttons (not left) act as keys: a synthetic keydown / keyup with code 'MouseR' etc., so every key handler

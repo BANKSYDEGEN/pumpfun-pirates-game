@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wind } from './ships.js';
-import { V4, crewPirateV4 } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
+import { V4, crewPirateV4, crewPirateV4Dressed } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
 
 let Q = 'high', PHONE = false;
 export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
@@ -149,15 +149,15 @@ void main(){
   #include <fog_vertex>
 }`;
 const FRAG = `uniform vec3 uSunV; varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
-uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1;
+uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1; uniform sampler2D tS;
 #include <fog_pars_fragment>
 void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
   float band = d > 0.35 ? 1.0 : (d > -0.1 ? 0.78 : 0.58);
   float rim = 1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0);
   vec3 base = vC;
   if (vK > -0.5) { // [v101] v4 pirate: body atlas (baked light) x tint colour, or the face decal (alpha-tested)
-    vec4 tx = vK < 0.5 ? texture2D(tA0, vUv) : vK < 1.5 ? texture2D(tA1, vUv) : vK < 2.5 ? texture2D(tF0, vUv) : texture2D(tF1, vUv);
-    if (vK > 1.5) { if (tx.a < 0.5) discard; base = tx.rgb; rim = 0.0; } else base = vC * tx.rgb;
+    vec4 tx = vK < 0.5 ? texture2D(tA0, vUv) : vK < 1.5 ? texture2D(tA1, vUv) : vK < 2.5 ? texture2D(tF0, vUv) : vK < 3.5 ? texture2D(tF1, vUv) : texture2D(tS, vUv);
+    if (vK > 1.5 && vK < 3.5) { if (tx.a < 0.5) discard; base = tx.rgb; rim = 0.0; } else base = vC * tx.rgb; // [v106] slot 4 = captain's gear (stripe tex x colour)
     band = mix(1.0, band, 0.55); }
   vec3 col = base * band * (rim > 0.78 ? 0.25 : 1.0); // inked silhouette edge (bold-outline NFT look) without an outline mesh
   gl_FragColor = vec4(col, 1.0);
@@ -165,13 +165,17 @@ void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
   #include <fog_fragment>
 }`;
 const _sun = new THREE.Vector3(0.45, 0.8, 0.35).normalize(), _sv = new THREE.Vector3();
+let _stripe = null; // [v106] same 2 x 2 as js/pirateGear.js: u < .5 = sailor stripes along v, u > .5 = plain (vertex colour)
+function stripeTex() { if (_stripe) return _stripe;
+  _stripe = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255, 34, 44, 78, 255, 255, 255, 255, 255]), 2, 2);
+  _stripe.magFilter = _stripe.minFilter = THREE.NearestFilter; _stripe.wrapT = THREE.RepeatWrapping; _stripe.colorSpace = THREE.SRGBColorSpace; _stripe.needsUpdate = true; return _stripe; }
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
       .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true,
   });
-  if (V4) { const [a0, a1, f0, f1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 } }); }
+  if (V4) { const [a0, a1, f0, f1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 }, tS: { value: stripeTex() } }); }
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
   return m;
 }
@@ -219,18 +223,40 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   if (walk && !lite) { const n = med ? 2 : 3; for (let i = 0; i < n; i++) crew.push({ v: k++, o: [(i % 2 ? -0.75 : 0.75), walk.y, walk.z0 + (walk.z1 - walk.z0) * 0.5], info: [1, 0, hash(i * 5.1 + 2), Math.max(1, walk.z1 - walk.z0) * (0.85 - i * 0.12)] }); }
   if (helm) crew.push({ v: 17, cap: true, o: [helm.x, helm.y, helm.z - 0.36 * (boss ? 1.6 : 1.35)], info: [3, 0, hash(helm.z * 3.7), 0] }); // [v95] captain at the wheel
   if (!crew.length) return null;
-  const parts = crew.map(c => { const g = (c.cap ? captainGeo() : seat(c.v, c.info[0] === 0 ? 'cannon' : 'idle')).clone(), n = g.attributes.position.count;
-    const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
-    g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4)); return g; });
-  const geo = mergeGeometries(parts, false); parts.forEach(p => p.dispose());
+  for (const c of crew) c.pose = c.info[0] === 0 ? 'cannon' : 'idle';
+  const geo = crewGeo(crew, null, '');
   const s = boss ? 1.6 : 1.35; // chibi pirates read above the bulwark (deck to rail top is ~1.1)
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
   const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s; mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
   return lod;
 }
+// [v106] every seat (+ lookouts) -> ONE merged geometry; chunks = the captain's baked gear (js/crewV4.js crewGearV4) or null
+function seatGeo(c, chunks, tag) {
+  if (c.cap) return captainGeo(); // the captain seat (AI captains; on player ships it is hidden behind the animated captain)
+  const body = chunks && V4 ? crewPirateV4Dressed(c.v, c.pose, chunks, tag) : seat(c.v, c.pose);
+  return c.scope ? mergeGeometries([body.clone(), scopeGeo().clone()], false) : body.clone();
+}
+function crewGeo(seats, chunks, tag) {
+  const parts = seats.map(c => { const g = seatGeo(c, chunks, tag), n = g.attributes.position.count;
+    const O = new Float32Array(n * 3), I = new Float32Array(n * 4); for (let i = 0; i < n; i++) { O.set(c.o, i * 3); I.set(c.info, i * 4); }
+    g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4)); return g; });
+  const geo = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); return geo;
+}
+// [v106] dress one ship's crew in its captain's gear (chunks from crewGearV4; null = back to the default outfit). Rebuilds that
+// ship's merged crew geometry: same material, same single draw call. Skin colours (dressCrew) are re-applied on top.
+export function setCrewGear(body, chunks, tag = '') {
+  const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); if (!lod?.userData.seats) return false;
+  if ((lod.userData.gearTag || '') === (chunks ? tag : '')) return true;
+  const mesh = lod.children[0], old = mesh.geometry, geo = crewGeo(lod.userData.seats, chunks, tag);
+  geo.boundingSphere = old.boundingSphere ? old.boundingSphere.clone() : new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
+  mesh.geometry = geo; old.dispose(); lod.userData.gearTag = chunks ? tag : '';
+  if (lod.userData.outfit) dressCrew(body, lod.userData.outfit);
+  return true;
+}
+export const crewGearTag = (body) => { const lod = body?.children?.find(o => o.isLOD && o.children[0]?.userData?.crewMesh); return lod?.userData.seats ? (lod.userData.gearTag || '') : null; };
 // [v84] the SPY TOWER lookout: one more pirate with a brass telescope, merged into the ship's existing crew mesh (no extra
 // draw call; same LOD cull distance as the deck crew, on every quality incl. Low). `at` = { x, y, z } platform centre on the
 // floor (body space), r = patrol radius, size = pirate height scale (crew are 1.35).
@@ -257,8 +283,8 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
   g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));
-  const reach = Math.hypot(at.y, at.z) + 3;
-  if (lod) {
+  const reach = Math.hypot(at.y, at.z) + 3, seatRec = { v, pose: 'idle', scope: true, o: [at.x, at.y, at.z], info };
+  if (lod) { lod.userData.seats?.push(seatRec);
     const mesh = lod.children[0], old = mesh.geometry, geo = mergeGeometries([old, g], false); g.dispose();
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(old.boundingSphere?.radius || 30, reach));
     mesh.geometry = geo; old.dispose(); return lod;
@@ -267,7 +293,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   g.attributes.aInfo.array.forEach((_, i, a) => { if (i % 4 === 3) a[i] = info[3]; });
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95);
+  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec];
   ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps

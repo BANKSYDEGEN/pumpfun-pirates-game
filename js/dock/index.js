@@ -11,7 +11,8 @@ import { createWalker } from '../onfoot/walker.js';
 import { getLocalGear } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
-import { binds, keyName } from '../keybinds.js';
+import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
+import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 
@@ -32,6 +33,9 @@ html.dk-board #dk-board-x{display:block}
 #dk-joy{position:fixed;left:calc(var(--safe-l,0px) + 22px);bottom:calc(var(--safe-b,0px) + 22px);width:132px;height:132px;border-radius:50%;background:rgba(22,22,22,.35);border:3px solid rgba(255,205,119,.65);z-index:8;display:none;touch-action:none}
 #dk-joy i{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,205,119,.9);box-shadow:0 2px 6px #000}
 html.pfp-onfoot.dk-touch #dk-joy{display:block}
+#dk-jump{position:fixed;left:calc(var(--safe-l,0px) + 168px);bottom:calc(var(--safe-b,0px) + 26px);width:70px;height:70px;border-radius:50%;display:none;z-index:8;font:24px 'Just Another Hand',cursive;color:#161616;background:rgba(255,205,119,.92);border:3px solid #161616;box-shadow:0 3px 8px rgba(0,0,0,.5);touch-action:none;padding:4px 0 0}
+#dk-jump:active{transform:scale(.92)}
+html.pfp-onfoot.dk-touch #dk-jump{display:block}
 html.dk-touch.pfp-onfoot #dk-acts{left:auto;right:calc(var(--safe-r,0px) + 22px);bottom:calc(var(--safe-b,0px) + 40px);transform:none;flex-direction:column;align-items:flex-end}
 html.dk-touch.pfp-onfoot #dk-acts button{font-size:24px;padding:14px 18px 10px}
 #dk-fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .28s}
@@ -55,7 +59,18 @@ export async function createDock(ctx) {
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });
-  const imap = createIslandMap({ world, layout, low: LOW || touch }); // [v103] the radar turns into an island map while you walk
+  const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW });
+  const imap = createIslandMap({ world, layout, low: LOW || touch }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
+  // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
+  let mapSt = {};
+  function minimapState(st) {
+    const W = walker.w, peers = [...(st.peers || [])];
+    for (const p of fnet.peers.values()) peers.push({ x: p.x, z: p.z, foot: true });
+    return { ...st, peers, me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
+  }
+  const openIsleMap = () => { if (on && game.state === 'playing') imap.open(() => minimapState(mapSt)); };
+  const radarEl = document.getElementById('radar');
+  radarEl?.addEventListener('pointerdown', (e) => { if (!on || !radarEl.classList.contains('isle-tap')) return; e.preventDefault(); e.stopPropagation(); openIsleMap(); });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
@@ -65,7 +80,7 @@ export async function createDock(ctx) {
   if (touch) document.documentElement.classList.add('dk-touch');
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const safeTag = el('div', 'dk-safe', '⚓ SAFE HARBOR'), acts = el('div', 'dk-acts'), fade = el('div', 'dk-fade'), toastEl = el('div', 'dk-toast');
-  const joy = el('div', 'dk-joy', '<i></i>'), boardX = el('button', 'dk-board-x', '✕ BACK');
+  const joy = el('div', 'dk-joy', '<i></i>'), jumpB = el('button', 'dk-jump', 'JUMP'), boardX = el('button', 'dk-board-x', '✕ BACK');
   const bA = document.createElement('button'), bB = document.createElement('button'); acts.append(bA, bB);
   let actA = null, actB = null, uiSig = '';
   function setActs(a, b) { // a / b: { label, key, fn, primary, disabled } | null
@@ -84,6 +99,7 @@ export async function createDock(ctx) {
     joy.addEventListener('pointermove', mv);
     const end = (e) => { if (e.pointerId !== id) return; id = null; knob.style.transform = ''; walker.w.joy.on = false; walker.w.joy.x = walker.w.joy.y = 0; };
     joy.addEventListener('pointerup', end); joy.addEventListener('pointercancel', end); joy.addEventListener('lostpointercapture', end); }
+  jumpB.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (on && onFoot) walker.jump(); }); // [v106] phone JUMP (next to the stick)
   boardX.onclick = (e) => { e.stopPropagation(); closeBoard(); };
   function openBoard() { document.documentElement.classList.add('dk-board'); ctx.pvp()?.harborUi?.(); }
   function closeBoard() { document.documentElement.classList.remove('dk-board'); }
@@ -96,7 +112,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     islands.setHarbor(v ? { clearR: 470, islets: ctx.islets, island: sets } : null);
-    if (!v) { if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); }
+    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); }
   }
   // ---------- actions ----------
   function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
@@ -104,10 +120,11 @@ export async function createDock(ctx) {
     if (docking.mode !== 'docked') return; const b = docking.berth;
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
       walker.enter(b.ashore.x, b.ashore.z, b.out ? Math.atan2(-b.out.x, -b.out.z) : b.yaw + Math.PI); // face inland
+      crewF?.enter();
       if (!sprintHinted) { sprintHinted = true; toast(touch ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
-    const fin = () => { onFoot = false; walker.exit(); closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
+    const fin = () => { onFoot = false; walker.exit(); crewF?.exit(); closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
     if (instant) fin(); else fadeTo(fin);
   }
   function setSail() { if (docking.setSail(P())) { const s = P(); s.anchor = false; s.sail = 1; toast('SET SAIL!'); } }
@@ -131,6 +148,8 @@ export async function createDock(ctx) {
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
     if (!on || e.target?.tagName === 'INPUT') return;
+    if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && document.documentElement.classList.contains('dk-board')) { closeBoard(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (game.state !== 'playing') return;
     let used = false;
@@ -163,7 +182,7 @@ export async function createDock(ctx) {
     else safeTag.style.display = 'none';
     // prompts
     if (onFoot) {
-      walker.update(dt);
+      walker.update(dt); crewF?.update(dt, camera);
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
       if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) best = { label: 'BOARD SHIP', fn: () => goAboard() };
@@ -197,7 +216,7 @@ export async function createDock(ctx) {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza,
     get on() { return on; }, get onFoot() { return onFoot; },
     ship, camera: cameraHook,
-    focus: () => (on && onFoot ? walker.w : null),
+    focus: () => (on && onFoot ? walker.w : null), followers: crewF,
     canFire(s) { if (!on) return true; const ok = zone.canFire(s, game.t);
       if (!ok && s === P() && !onFoot && performance.now() - lastShot > 1200) { lastShot = performance.now(); toast(zone.inside(s.x, s.z) ? 'SAFE HARBOR · NO FIRING' : 'NO FIRING · JUST LEFT SAFE HARBOR', 1200); }
       return ok; },
@@ -208,7 +227,8 @@ export async function createDock(ctx) {
     onPeerState: (m) => { if (on) handlePeer(m); },
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
-    drawMinimap: (ctx, W) => on && onFoot ? imap.draw(ctx, W, walker.w, docking.mode === 'docked' ? docking.berth : null) : false, islandMap: imap,
+    drawMinimap: (ctx, W, st = {}) => { const ok = on && imap.draw(ctx, W, minimapState(mapSt = st)); radarEl?.classList.toggle('isle-tap', !!ok); return ok; },
+    islandMap: imap, openIsleMap,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
   return api;

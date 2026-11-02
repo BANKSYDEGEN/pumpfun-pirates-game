@@ -81,6 +81,6 @@ export function initEmotes(k) {
     if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); setWheel(false); }
   }, true);
 }
-const isBound = (code) => { try { return ['left', 'right', 'sailUp', 'sailDown', 'firePort', 'fireStar', 'anchor', 'camera', 'shop', 'menu', 'pause', 'sound', 'full'].some(a => isKey(a, code)); } catch { return false; } };
+const isBound = (code) => { try { return ['left', 'right', 'sailUp', 'sailDown', 'firePort', 'fireStar', 'anchor', 'camera', 'shop', 'menu', 'pause', 'sound', 'full', 'map', 'jump'].some(a => isKey(a, code)); } catch { return false; } };
 
 window.PFP_EMOTE = { EMOTES, sendEmote, showEmote, setWheel, wheelOpen, get last() { return last; }, set last(v) { last = v; } }; // test hook

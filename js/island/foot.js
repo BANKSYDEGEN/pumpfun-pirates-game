@@ -470,6 +470,7 @@ const CIRC = [], BOXES = [], CELL = 16, HASH = new Map();
 function hashAdd(o, x, z, r) { for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) { const k = i * 4096 + j; if (!HASH.has(k)) HASH.set(k, []); HASH.get(k).push(o); } }
 function addCirc(x, z, r) { const o = { t: 0, x, z, r }; CIRC.push(o); hashAdd(o, x, z, r); }
 function addBox(x, z, w, d, yaw) { const o = { t: 1, x, z, hx: w / 2, hz: d / 2, c: Math.cos(yaw), s: Math.sin(yaw) }; BOXES.push(o); hashAdd(o, x, z, Math.hypot(w, d) / 2); }
+export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
 export function hitCollider(x, z, rad = 0.45) {
   const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)); if (!list) return false;
   for (const o of list) { if (o.t === 0) { if (Math.hypot(x - o.x, z - o.z) < o.r + rad) return true; }

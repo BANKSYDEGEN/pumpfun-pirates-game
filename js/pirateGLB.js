@@ -53,6 +53,15 @@ function toonize(src, colors, low) {
   return m;
 }
 
+// [v106] SkeletonUtils.clone shares geometry between clones, so COLOR_0 writes leaked into every pirate. Give the mesh its own
+// geometry wrapper that shares every buffer (positions, skin, uv, index) except a cloned colour attribute: no extra mesh memory.
+function ownColorAttr(o) {
+  const g = o.geometry, c = g.attributes.color; o.userData.ownColor = true; if (!c) return;
+  const n = new THREE.BufferGeometry(); n.setIndex(g.index); for (const k in g.attributes) n.setAttribute(k, k === 'color' ? c.clone() : g.attributes[k]);
+  for (const k in g.morphAttributes) n.morphAttributes[k] = g.morphAttributes[k]; n.morphTargetsRelative = g.morphTargetsRelative;
+  for (const gr of g.groups) n.addGroup(gr.start, gr.count, gr.materialIndex); n.boundingBox = g.boundingBox; n.boundingSphere = g.boundingSphere; n.drawRange = { ...g.drawRange }; n.userData = g.userData; n.name = g.name;
+  o.geometry = n;
+}
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
@@ -88,6 +97,7 @@ export class PirateGLB {
     for (const m of this.tinted) if (colors[m.userData.tint] != null) m.color.set(colors[m.userData.tint]);
     const col = new THREE.Color();
     for (const o of this.atlasMeshes || []) {   // merged meshes (High + Low): retint = rewrite COLOR_0 per tint key
+      if (!o.userData.ownColor) ownColorAttr(o); // [v106] per-instance COLOR_0: recolouring one pirate never recolours its clones (crew followers, mixed crews)
       const g = o.geometry, t = g.attributes._tint, c = g.attributes.color; if (!t || !c) continue;
       for (let i = 0; i < t.count; i++) { const k = TINTS[Math.round(t.getX(i))]; if (k && colors[k] != null) { col.set(colors[k]); c.setXYZ(i, col.r, col.g, col.b); } }
       c.needsUpdate = true;

@@ -5,6 +5,7 @@
 // Free-plan cap: a harbor room copy holds ~4 pirates, so at most 3 remote pirates are ever drawn (each ~5-10 draw calls).
 import * as THREE from 'three';
 import { loadPirate } from './pirate.js';
+import { jumpArc } from './walker.js';
 
 const FT_MS = 330; // on-foot pose send interval (ms)
 function nameTag(text) {
@@ -22,7 +23,8 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
     // transport (which only sends changed fields) adds ~3 small messages / s while you walk and nothing while you stand still
     const now = performance.now();
     if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= FT_MS) { ftAt = now; ftLast = [Math.round(me.w.x * 2) / 2, Math.round(me.w.z * 2) / 2, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
-    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ft: ftLast };
+    // [v106] fj: your jump counter (changes once per jump; the transport only sends changed fields, older clients ignore it)
+    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ft: ftLast, ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };
   }
   function onPeerState(m) { // a peer's state (any transport); m.i = id, m.n = name
     if (!m || typeof m.i !== 'string') return null;
@@ -32,6 +34,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
     if (ft) {
       if (!p) { if (peers.size >= maxPeers) return moved; const look = { skin: [...m.i].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: m.i.charCodeAt(m.i.length - 1) % 5 };
         const pirate = loadPirate({ look, low }); scene.add(pirate.object); p = { id: m.i, pirate, tag: null, x: ft[0], z: ft[1], yaw: ft[2] / 100, tx: ft[0], tz: ft[1], tyaw: ft[2] / 100, speed: 0, heard: 0, name: '' }; peers.set(m.i, p); }
+      if (Number.isFinite(m.fj) && m.fj !== p.fj) { if (p.fj !== undefined) p.jt = performance.now(); p.fj = m.fj; } // [v106] they jumped: play the arc here
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
       const name = String(m.n ?? p.name ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
       if (name !== p.name) { p.name = name; if (p.tag) { p.tag.material.map.dispose(); p.tag.removeFromParent(); } p.tag = nameTag(name); p.pirate.object.add(p.tag); p.tag.position.y = 2.75; }
@@ -46,7 +49,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
       if (now - p.heard > 6000) { drop(id); docking.dropPeer(id); continue; }
       const k = Math.min(1, dt * 8); p.x += (p.tx - p.x) * k; p.z += (p.tz - p.z) * k; let d = p.tyaw - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * k;
       p.speed += ((p.tspeed || 0) - p.speed) * k;
-      p.pirate.object.position.set(p.x, world.ground(p.x, p.z), p.z); p.pirate.object.rotation.y = p.yaw; p.pirate.update(dt, p.speed);
+      p.pirate.object.position.set(p.x, world.ground(p.x, p.z) + (p.jt ? jumpArc((now - p.jt) / 1000) : 0), p.z); p.pirate.object.rotation.y = p.yaw; p.pirate.update(dt, p.speed);
     }
   }
   function clear() { for (const id of [...peers.keys()]) drop(id); }

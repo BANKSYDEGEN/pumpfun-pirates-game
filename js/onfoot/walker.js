@@ -6,10 +6,14 @@ import * as THREE from 'three';
 import { held, isKey } from '../keybinds.js'; // [v102] sprint = the rebindable 'sprint' key (default hold Shift)
 
 export const WALK = { walk: 4.2, run: 9.6, fovPush: 6, radius: 0.45, camD: [3.2, 7, 14], pitch: [-0.35, 1.1] };
+// [v106] JUMP (BANKSY): Space (rebindable 'jump') / the phone JUMP button. Snappy ~1.1 m arc (high gravity, ~0.55 s in the air),
+// keeps your run speed, squash on take-off + landing, no jump while swimming (ground under water) or mid-air.
+export const JUMP = { h: 1.1, g: 32, swimY: -0.7 };
+export const jumpArc = (t) => { const v = Math.sqrt(2 * JUMP.g * JUMP.h), y = v * t - JUMP.g * t * t / 2; return y > 0 ? y : 0; }; // height t s after take-off (peers)
 const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
 
 export function createWalker({ camera, canvas, world, pirate, touch }) {
-  const w = { x: 0, z: 0, y: 0, yaw: 0, speed: 0, camYaw: 0, pitch: 0.28, dist: WALK.camD[1], keys: {}, joy: { x: 0, y: 0, on: false }, active: false, drags: new Map(), look: 0 };
+  const w = { x: 0, z: 0, y: 0, yaw: 0, speed: 0, camYaw: 0, pitch: 0.28, dist: WALK.camD[1], keys: {}, joy: { x: 0, y: 0, on: false }, active: false, drags: new Map(), look: 0, jh: 0, vy: 0, air: false, jumps: 0, landT: -9, jumpQ: false };
   const cam = new THREE.Vector3(), tgt = new THREE.Vector3();
   // [v102] sprint camera push: a few degrees of extra FOV while running, eased in / out. main.js owns camera.fov (resize), so we only
   // ever add / remove our own offset (fovSet = the value we last wrote; a different value means main.js just resized).
@@ -21,6 +25,7 @@ export function createWalker({ camera, canvas, world, pirate, touch }) {
   // ---- keyboard (capture phase: runs before the ship's handler; we swallow movement / fire / sail keys) ----
   const onKey = (e, down) => {
     if (!w.active || e.target?.tagName === 'INPUT') return false;
+    if (isKey('jump', e.code)) { if (down && !e.repeat) w.jumpQ = true; w.keys[e.code] = down; e.preventDefault?.(); return true; }
     if (MOVE_KEYS.has(e.code) || isKey('sprint', e.code) || ['KeyQ', 'Space', 'KeyC'].includes(e.code)) { w.keys[e.code] = down; e.preventDefault?.(); return true; }
     return false;
   };
@@ -35,9 +40,14 @@ export function createWalker({ camera, canvas, world, pirate, touch }) {
   canvas.addEventListener('wheel', (e) => { if (!w.active) return; w.dist = Math.min(WALK.camD[2], Math.max(WALK.camD[0], w.dist * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: true });
   addEventListener('blur', () => { for (const k in w.keys) w.keys[k] = false; });
 
-  function enter(x, z, yaw) { Object.assign(w, { x, z, yaw, camYaw: yaw, speed: 0, active: true, pitch: 0.28 }); w.y = world.ground(x, z); for (const k in w.keys) w.keys[k] = false; w.drags.clear(); pirate.object.visible = true; place(); snapCam(); }
+  function enter(x, z, yaw) { Object.assign(w, { x, z, yaw, camYaw: yaw, speed: 0, active: true, pitch: 0.28, jh: 0, vy: 0, air: false, jumpQ: false }); w.y = world.ground(x, z); for (const k in w.keys) w.keys[k] = false; w.drags.clear(); pirate.object.visible = true; place(); snapCam(); }
   function exit() { fovReset(); w.active = false; pirate.object.visible = false; w.drags.clear(); w.joy.on = false; w.joy.x = w.joy.y = 0; }
-  function place() { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.y = w.yaw; }
+  function place() { pirate.object.position.set(w.x, w.y + w.jh, w.z); pirate.object.rotation.y = w.yaw;
+    // squash + stretch: crouch into the take-off, stretch in the air, squash on landing (scale only: the v4 clips keep running)
+    const tl = performance.now() / 1000 - w.landT, sq = tl < 0.18 ? 1 - 0.14 * Math.sin(tl / 0.18 * Math.PI) : 1, st = w.air ? 1 + 0.06 * Math.min(1, w.vy / 6) : 1;
+    pirate.object.scale.set(2 - sq * st, sq * st, 2 - sq * st); }
+  const swimming = () => world.ground(w.x, w.z) < JUMP.swimY;
+  function jump() { if (w.air || swimming()) return false; w.air = true; w.jt = 0; w.vy = Math.sqrt(2 * JUMP.g * JUMP.h); w.jumps++; w.landT = -9; return true; }
   function camPos(out) { const cp = Math.cos(w.pitch); out.set(w.x - Math.sin(w.camYaw) * w.dist * cp, w.y + 1.7 + Math.sin(w.pitch) * w.dist, w.z - Math.cos(w.camYaw) * w.dist * cp);
     const gy = world.ground(out.x, out.z); if (out.y < gy + 0.8) out.y = gy + 0.8; return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
@@ -65,9 +75,11 @@ export function createWalker({ camera, canvas, world, pirate, touch }) {
       if (!w.drags.size && performance.now() - w.look > 1200) { let c = w.yaw - w.camYaw; c = Math.atan2(Math.sin(c), Math.cos(c)); w.camYaw += c * Math.min(1, dt * 1.4 * mag); }
     } else w.speed += (0 - w.speed) * Math.min(1, dt * 12);
     const gy = world.ground(w.x, w.z); w.y += (gy - w.y) * Math.min(1, dt * 18);
+    if (w.jumpQ) { w.jumpQ = false; jump(); }
+    if (w.air) { w.jt += dt; w.jh = jumpArc(w.jt); w.vy = Math.sqrt(2 * JUMP.g * JUMP.h) - JUMP.g * w.jt; if (w.jt > 0.05 && w.jh <= 0) { /* exact arc: never overshoots at a low frame rate */ w.jh = 0; w.vy = 0; w.air = false; w.landT = performance.now() / 1000; } }
     place(); pirate.update(dt, w.speed);
     fovPush(dt, Math.min(1, Math.max(0, (w.speed - WALK.walk) / (WALK.run - WALK.walk)))); w.running = w.speed > WALK.walk + 0.5;
     camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 10)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt);
   }
-  return { w, world, enter, exit, update, onKey, snapCam, get active() { return w.active; } };
+  return { w, world, enter, exit, update, onKey, snapCam, jump: () => { w.jumpQ = true; }, get active() { return w.active; } };
 }

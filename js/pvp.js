@@ -43,7 +43,8 @@ import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { attachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
-import { setLocalGear } from './pirateGear.js'; // [v105] shop gear on your pirate
+import { setLocalGear } from './pirateGear.js';
+import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -326,7 +327,7 @@ export function createPvp(K) {
   }
   // ---------------- local AI ships (harbor only): never networked, never K/D, only ever hunt you ----------------
   // [v99] in a shared copy only the HOST sails AI ships (during the first HARBOR_NET.listen s after joining we keep our own)
-  const SHARED_DROPS = /[?&]shareddrops=1\b/.test(location.search); // [v105] held for v106 (2-client test pending): one shared pile per AI kill, anyone claims
+  const SHARED_DROPS = !/[?&]shareddrops=0\b/.test(location.search); // [v107] ON (2-client test passed: host / non-host kills, claim race, host leaves mid-drop): one shared pile per AI kill, anyone claims; ?shareddrops=0 = old per-pirate shares
   const aiWanted = () => !spec.on && where === 'harbor' && (!room || isHost || performance.now() < hb.listenUntil); // the arena is players only, always (BANKSY)
   // [v99] COMMODORE 'hunter' (boss-side) mode: NOT built. Clean hook only: before the host hands a new harbor boss to the AI it
   // asks hunterPilot(boss) for a pirate id to sail it instead. Always null for now (hunter.enabled stays false).
@@ -592,6 +593,7 @@ export function createPvp(K) {
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
+    syncCrewGear(p.ship.mesh, p.captain?.gear || null, p.captain?.skin ? { skin: p.captain.skin } : null); // [v106] their crew in their clothes (gear netcode: p.captain)
   }
   function updateRemote(e, dt) {
     const st = e.netState;
