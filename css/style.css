@@ -968,3 +968,22 @@ html.ui-cap-press #captain { transform: scale(0.97); }
 #pvp-harbor.ph-compact { gap: 0 !important; padding-top: 4px !important; padding-bottom: 4px !important; min-height: 42px; justify-content: center; }
 #pvp-harbor.ph-compact .ph-fold { top: 50%; transform: translateY(-50%); }
 #pvp-harbor.ph-compact #pvp-waves .ph-wsub { display: none; }
+
+/* [v113] title token row (BANKSY): the 4 link buttons centred on top, then ONE pill: token pick ($SUNK / $AHOY, a native select
+   with a caret) + the FULL CA (monospace, shrinks to fit) + COPY; .stack = the pick on top, CA + COPY on their own line; .wrap = CA breaks */
+.token-row.tk2 { display: flex; flex-direction: column; align-items: center; flex-wrap: nowrap; gap: 6px; width: 100%; max-width: 100%; box-sizing: border-box; padding: 0 6px; }
+.token-row.tk2 .socs { display: flex; justify-content: center; gap: 8px; flex: 0 0 auto; }
+.token-row.tk2 .ca-line { display: flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; min-height: 36px; padding: 3px 4px 3px 4px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(0,0,0,0.5); }
+.token-row.tk2 .tk-pick { position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; height: 30px; border-radius: 999px; background: rgba(255,205,119,0.14); border: 1px solid rgba(255,205,119,0.45); color: var(--gold); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.token-row.tk2 .tk-pick select { -webkit-appearance: none; appearance: none; background: transparent; border: 0; outline: none; margin: 0; color: var(--gold); font: inherit; font-size: 20px; line-height: 1; height: 30px; padding: 0 24px 0 11px; cursor: pointer; touch-action: manipulation; border-radius: 999px; }
+.token-row.tk2 .tk-pick select:focus-visible { box-shadow: 0 0 0 2px rgba(255,205,119,0.6); }
+.token-row.tk2 .tk-pick select option { color: #111; background: #fff; font-family: system-ui, sans-serif; }
+.token-row.tk2 .tk-pick .caret { position: absolute; right: 9px; top: 50%; width: 9px; height: 6px; margin-top: -3px; pointer-events: none; }
+.token-row.tk2 .ca-chip { display: flex; align-items: center; gap: 7px; min-width: 0; max-width: none; flex: 0 1 auto; height: 30px; padding: 0 0 0 2px; border: 0; background: transparent; box-shadow: none; font-size: 20px; }
+.token-row.tk2 .ca-chip .ca { display: block; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 15px; letter-spacing: 0; color: rgba(255,255,255,0.9); }
+.token-row.tk2 .ca-chip .ca-full { display: inline; }
+.token-row.tk2 .ca-line.stack { flex-wrap: wrap; justify-content: center; row-gap: 4px; border-radius: 18px; padding: 5px 8px 6px; }
+.token-row.tk2 .ca-line.stack .ca-chip { flex: 1 1 100%; justify-content: center; min-width: 0; }
+.token-row.tk2 .ca-line.wrap .ca-chip { height: auto; } .token-row.tk2 .ca-line.wrap .ca-chip .ca { white-space: normal; word-break: break-all; text-align: center; }
+@media (max-width: 380px) { .token-row.tk2 .socs { gap: 6px; } }
+.token-row.tk2 .ca-chip .cp { min-width: 76px; text-align: center; box-sizing: border-box; } /* COPY -> COPIED! never widens the pill (the fit is measured once) */
