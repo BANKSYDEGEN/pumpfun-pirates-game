@@ -1427,4 +1427,4 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
   }, 6000);
 }
 try { initHarborCard(); } catch (e) { console.warn('[harbor card]', e); }
-window.PFP = { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean }; // [Raul] + renderer/scene for perf tests
+window.PFP = { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, rebuildShip: (lv) => rebuildPlayerShip(lv) }; // [v112] + rebuildShip (ship tests: hull x CANNONS tiers in game) // [Raul] + renderer/scene for perf tests
