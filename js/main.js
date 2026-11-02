@@ -16,7 +16,7 @@ import { buildShip, animateShip, makeSkullTexture, makePillTexture, wind, dispos
 import { makeChest, chestTime, createIslands } from './props.js';
 import { toon } from './toon.js'; // [enemy variety] ram spike
 import { FX } from './fx.js';
-import { setCrewQuality, crewFire, crewHit, crewSteer } from './crew.js';
+import { setCrewQuality, crewFire, crewHit, crewSteer, rebakeCrewV4 } from './crew.js';
 import { initEmotes, emoteTick, clearEmotes } from './emotes.js'; // [v96] quick-chat wheel // [Raul] deck crew · [v87] crew react to hits
 import { ARMORED_ENEMIES as ARMORED } from './soundProfile.js'; // [Raul] damage sounds
 import { initAudio, sfx, setMuted, muted, setLevel, setMusic, updateAmbient, onAudioState, setLoadout, setAudioQuality } from './audio.js'; // [Raul] sound upgrades
@@ -70,7 +70,10 @@ const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultr
 setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 await initKit(quality === 'low' || isMobile);
-await Promise.race([initCrewV4(), new Promise(r => setTimeout(r, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
+const crewV4P = initCrewV4(); let crewV4Late = false;
+await Promise.race([crewV4P, new Promise(r => setTimeout(() => { crewV4Late = true; r(); }, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
+// [v112] Raul: a late bake (slow phone) re-bakes every crew built meanwhile (rebakeCrewV4) and re-dresses yours, instead of keeping the placeholder crew forever
+Promise.resolve(crewV4P).then(() => { if (!crewV4Late) return; const go = () => { try { const n = rebakeCrewV4(scene); crewGearT = 0; console.info('[crew] v4 bake landed late: re-baked', n, 'crews'); } catch (e) { setTimeout(go, 500); } }; go(); }, () => {});
 registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalCaptain({ v: 1, look: { skin: 0, hair: 0 }, local: true }); // [Timothy] local: true = wears your shop gear (js/pirateGear.js) // [v100] your pirate (v4 GLB) steers your ship
 // [v106] your equipped gear for the crew (setLocalGear fires 'pfp-gear'); colours follow your pirate's rules (Timothy's getLocalColors when present)
 let localGear = getLocalGear(), crewGearT = 1, PGmod = null;

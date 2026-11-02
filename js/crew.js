@@ -234,7 +234,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s;
   if (walk?.deck) { const d = walk.deck; mat.uniforms.uDk.value.set(d.zA, d.zB, d.lf, d.l); mat.uniforms.uDk2.value.set(d.depth, d.drop, 1, 0); } mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; lod.userData.v4 = !!V4; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
   return lod;
 }
@@ -280,6 +280,21 @@ export function setWalkLanes(body, lanes) {
   for (let v = 0; v < I.count; v++) { if (I.getX(v) !== 1) continue; const ph = I.getZ(v), c = W.find(w => Math.abs(w.info[2] - ph) < 1e-5); if (c) { O.setXYZ(v, c.o[0], c.o[1], c.o[2]); I.setW(v, c.info[3]); } }
   O.needsUpdate = I.needsUpdate = true; return W.length;
 }
+// [v112] Raul: main.js gives the v4 crew bake 8 s; on a slow phone the first ships are built before it lands and kept the procedural
+// crew forever. When initCrewV4 resolves late, every crew mesh built without it is rebuilt here: new v4 geometry + a v4-pivot shader
+// (same uniforms object, so ship.userData.crew / fire / hit anims keep working), still one draw call. Gear re-dress follows (crewGear.js).
+export function rebakeCrewV4(root) {
+  if (!V4 || !root) return 0; const lods = []; _scope = null;
+  root.traverse((o) => { if (o.isLOD && o.userData.seats && !o.userData.v4) lods.push(o); });
+  for (const lod of lods) {
+    const mesh = lod.children[0]; if (!mesh?.isMesh) continue; const om = mesh.material, nm = crewMaterial();
+    nm.uniforms = om.uniforms; mesh.material = nm; om.dispose();
+    const old = mesh.geometry, geo = crewGeo(lod.userData.seats, null, ''); geo.boundingSphere = old.boundingSphere ? old.boundingSphere.clone() : new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
+    mesh.geometry = geo; old.dispose(); lod.userData.gearTag = ''; lod.userData.v4 = true;
+    if (lod.userData.outfit) dressCrew(lod.parent, lod.userData.outfit);
+  }
+  return lods.length;
+}
 export const crewGearTag = (body) => { const lod = crewLodOf(body); return lod?.userData.seats ? (lod.userData.gearTag || '') : null; };
 // [v84] the SPY TOWER lookout: one more pirate with a brass telescope, merged into the ship's existing crew mesh (no extra
 // draw call; same LOD cull distance as the deck crew, on every quality incl. Low). `at` = { x, y, z } platform centre on the
@@ -317,7 +332,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   g.attributes.aInfo.array.forEach((_, i, a) => { if (i % 4 === 3) a[i] = info[3]; });
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec];
+  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec]; lod.userData.v4 = !!V4;
   ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps
