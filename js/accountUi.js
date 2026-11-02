@@ -8,13 +8,13 @@ import { getSavedName } from './wallet.js';
 
 const $ = (id) => document.getElementById(id), A = () => window.PFP_ACCT;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const PW_MIN = 8;
+const PW_MIN = 10; // [security M3] new passwords (the server enforces it too; existing 8-9 character passwords still log in)
 function toast(msg) {
   let t = $('copy-toast'); if (!t) { t = document.createElement('div'); t.id = 'copy-toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 4200);
 }
 const eye = (id) => `<button type="button" class="acct-eye" data-for="${id}" aria-label="Show password" aria-pressed="false">SHOW</button>`;
-const pwField = (id, label, auto) => `<label class="acct-field"><span>${label}</span><span class="acct-pw"><input id="${id}" type="password" minlength="${PW_MIN}" maxlength="72" autocomplete="${auto}" spellcheck="false" autocapitalize="off" autocorrect="off">${eye(id)}</span></label>`;
+const pwField = (id, label, auto) => `<label class="acct-field"><span>${label}</span><span class="acct-pw"><input id="${id}" type="password"${auto === 'new-password' ? ` minlength="${PW_MIN}"` : ''} maxlength="72" autocomplete="${auto}" spellcheck="false" autocapitalize="off" autocorrect="off">${eye(id)}</span></label>`;
 function wireEyes(root) {
   root.querySelectorAll('.acct-eye').forEach((b) => b.onclick = (e) => { e.preventDefault(); const i = $(b.dataset.for); if (!i) return;
     const show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? 'HIDE' : 'SHOW'; b.setAttribute('aria-pressed', String(show)); b.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); });
@@ -68,7 +68,7 @@ export function renderProfile(sec) {
     sec.innerHTML = `<h4>ACCOUNT <em>logged in</em></h4>
       <p class="pf-note acct-ok">✔ Logged in as <b>${esc(info.name)}</b>. Your progress is the same on every device you log in on.</p>
       <div class="pf-row acct-row"><button id="pa-chg" type="button" class="ghost">CHANGE PASSWORD</button><button id="pa-out" type="button" class="ghost">LOG OUT</button></div>
-      <div id="pa-chg-f" class="acct-sub" hidden>${pwField('pa-old', 'CURRENT PASSWORD', 'current-password')}${pwField('pa-new', 'NEW PASSWORD (8+ characters)', 'new-password')}
+      <div id="pa-chg-f" class="acct-sub" hidden>${pwField('pa-old', 'CURRENT PASSWORD', 'current-password')}${pwField('pa-new', 'NEW PASSWORD (10+ characters)', 'new-password')}
         <small class="pf-note">Every other device gets logged out.</small><button id="pa-chg-go" type="button" class="pvp-btn">SAVE NEW PASSWORD</button></div>
       <div id="pa-out-f" class="acct-sub" hidden><small class="pf-note">Log out? This device goes back to its own save. Your pirate stays safe on the account: log in again any time.</small>
         <div class="pf-row acct-row"><button id="pa-out-go" type="button" class="pvp-btn">LOG OUT</button><button id="pa-out-no" type="button" class="ghost">CANCEL</button></div></div>
@@ -86,7 +86,7 @@ export function renderProfile(sec) {
   } else {
     sec.innerHTML = `<h4>ACCOUNT <em>optional · no email</em></h4>
       <p class="pf-note">Progress is saved on this device. Set a password for your pirate name to log in and play on any device.</p>
-      ${name ? `<p class="pf-note">Pirate name: <b class="acct-name">${esc(name)}</b></p>${pwField('pa-pw', 'PASSWORD (8+ characters)', 'new-password')}
+      ${name ? `<p class="pf-note">Pirate name: <b class="acct-name">${esc(name)}</b></p>${pwField('pa-pw', 'PASSWORD (10+ characters)', 'new-password')}
       <p class="pf-note acct-warn">No email, no recovery: if you forget it, it can't be reset. Write it down.</p>
       <button id="pa-set" type="button" class="pvp-btn">SET PASSWORD</button>` : `<p class="pf-note acct-warn">Pick a pirate name first (SET SAIL pop-up), then come back here.</p>`}
       <p class="pf-note acct-alt">Already set one on another device? <button id="pa-login" type="button" class="wallet-link">LOG IN</button></p>

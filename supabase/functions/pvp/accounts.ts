@@ -12,7 +12,12 @@ import bcrypt from "npm:bcryptjs@2.4.3";
 import { cleanProfile, fitEquipped, CAPS, OWNER_MAIN, type Profile } from "./lib.ts";
 
 export const ACCT_TTL_MS = 60 * 24 * 3600 * 1000; // 60 days, renewed by every sync
-const PW_MIN = 8, PW_MAX = 72, BCRYPT_COST = 10;
+// [security M3] new passwords need 10+ characters (login still accepts an existing 8-9 character password)
+const PW_MIN = 10, PW_MAX = 72, BCRYPT_COST = 10;
+// [security M3] the OWNER pirate (BANKSYDEGEN, every skin / 2x gold) never logs in with a password: it plays on its own pinned
+// devices (pvp_alias). A guessable or phished password would otherwise hand the owner perks to anyone. Escape hatch for a
+// planned owner login: set the function secret OWNER_PASSWORD_LOGIN=1 (then unset it again).
+const OWNER_PW_LOGIN = Deno.env.get("OWNER_PASSWORD_LOGIN") === "1";
 const WIN_MS = 15 * 60 * 1000, NAME_FAILS = 8, IP_FAILS = 25, IP_SETS = 12;
 // a real bcrypt hash (of a random string) so an unknown name costs the same time as a wrong password
 const DUMMY_HASH = "$2a$10$5qhnQhRuI4DpBINyxzsxnuxrWrAhxoQYfCuDTxwKA04hKkhh.m4c2";
@@ -102,6 +107,7 @@ export async function acctAction(ctx: Ctx, action: string, b: Record<string, unk
       if (await attempts(ctx, "ip_hash", ctx.ip, ["set"], true) >= IP_SETS) return tooMany();
       if (!goodPw(b.pw)) return out(400, { error: PW_RULE });
       const who = await ctx.whoAmI({ dk: b.dk }); if (!who) return out(401, { error: "no device" });
+      if (who.owner && !OWNER_PW_LOGIN) return out(403, { error: "The owner pirate plays on its own devices only (no password)." }); // [security M3]
       const name = cleanName(b.name); if (!name) return out(400, { error: "Pick a pirate name first." });
       await note(ctx, "set", lc(name), true);
       const { data: mine } = await ctx.db.from("pvp_accounts").select("main").eq("main", who.pid).maybeSingle();
@@ -136,6 +142,7 @@ export async function acctAction(ctx: Ctx, action: string, b: Record<string, unk
       if (await attempts(ctx, "name_lc", n, ["login", "change"]) >= NAME_FAILS || await attempts(ctx, "ip_hash", ctx.ip, ["login", "change"]) >= IP_FAILS) { await note(ctx, "login", n, false); return tooMany(); }
       const dev = await ctx.devId(b); if (!dev) return out(400, { error: "no device" });
       const a = await accountByName(ctx.db, name);
+      if (a && a.main === OWNER_MAIN && !OWNER_PW_LOGIN) { await note(ctx, "login", n, false); return out(401, { error: "Wrong name or password." }); } // [security M3] never even compared
       const ok = await bcrypt.compare(pw, a?.pw_hash ?? DUMMY_HASH) && !!a;
       await note(ctx, "login", n, ok);
       if (!ok) return out(401, { error: "Wrong name or password." });
