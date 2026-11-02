@@ -842,3 +842,25 @@ html.pvp-spec #btn-emote { display: none !important; }
   #sq-mate { top: calc(env(safe-area-inset-top, 0px) + 100px); left: 12px; transform: none; width: calc(100vw - 132px); font-size: 11px; }
 }
 #pvp-harbor-t[hidden] { display: none !important; } /* [v98.1] the idle harbor has no title pill */
+
+/* [v98.2] the queue harbor UI docks to an edge so the middle of the screen stays clear: a small see-through card on the left
+   (desktop / phone landscape), a slim bar just above the FIRE buttons (portrait). Mode switch, JOIN / SPECTATE, party (Squads only). */
+#pvp-harbor { left: calc(14px + var(--safe-l, 0px)); right: auto; top: calc(190px + var(--safe-t, 0px)); bottom: auto; transform: none;
+  align-items: flex-start; gap: 6px; max-width: 290px; padding: 7px 8px; border-radius: 14px; background: rgba(0,0,0,0.28); backdrop-filter: blur(3px); }
+#pvp-harbor-t { font-size: 15px; padding: 2px 10px; white-space: normal; text-align: left; max-width: 100%; }
+#pvp-harbor .ph-btns { gap: 6px; justify-content: flex-start; }
+#pvp-harbor .ph-btns button { font-size: 17px !important; padding: 5px 12px !important; white-space: nowrap; }
+#pvp-harbor .mode-sw button { font-size: 14px !important; padding: 2px 10px !important; }
+#pvp-harbor #pvp-party { align-items: flex-start; gap: 3px; font-size: 13px; padding: 4px 8px; background: rgba(0,0,0,0.3); border-radius: 10px; }
+#pvp-harbor #pvp-party .pp-row { gap: 4px; }
+#pvp-harbor #pvp-party .pp-row button { font-size: 12px !important; padding: 2px 7px !important; }
+#pvp-harbor #pvp-party input { width: 4.8em; font-size: 13px; padding: 2px 3px; }
+@media (max-height: 480px) and (orientation: landscape) { #pvp-harbor { top: calc(130px + var(--safe-t, 0px)); max-width: 250px; gap: 4px; padding: 5px 6px; }
+  #pvp-harbor .ph-btns button { font-size: 15px !important; padding: 4px 10px !important; } #pvp-harbor .mode-sw button { font-size: 13px !important; padding: 2px 8px !important; } }
+@media (orientation: portrait) { #pvp-harbor { left: 50%; transform: translateX(-50%); top: auto; bottom: calc(158px + var(--safe-b, 0px)); max-width: calc(100vw - 16px);
+    flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; padding: 5px 6px; gap: 5px; width: max-content; }
+  #pvp-harbor-t { flex-basis: 100%; text-align: center; font-size: 14px; }
+  #pvp-harbor .ph-btns button { font-size: 15px !important; padding: 4px 10px !important; } #pvp-harbor .mode-sw button { font-size: 13px !important; padding: 2px 8px !important; }
+  #pvp-harbor #pvp-party { flex-basis: 100%; align-items: center; } }
+@media (orientation: portrait) { #pvp-harbor #pvp-harbor-t { order: 0; } #pvp-harbor .mode-sw { order: 1; } #pvp-harbor .ph-btns { order: 2; } #pvp-harbor #pvp-party { order: 3; }
+  #pvp-harbor #pvp-party { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 3px 6px; padding: 3px 6px; } }

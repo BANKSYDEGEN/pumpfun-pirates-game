@@ -980,7 +980,7 @@ export function createPvp(K) {
       if (v && v.toLowerCase() !== String(name).toLowerCase()) { go.disabled = true; const free = await checkName(v); go.disabled = false; // [v76] unique names
         if (free === false) { msg?.classList.remove('hidden'); $('pvp-entry-name').focus(); return; } }
       msg?.classList.add('hidden');
-      if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden'); K.banner('THE HARBOR', 'AI ships for small gold · JOIN BATTLE when you are ready'); };
+      if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden');  };
     // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL
     if (ON_PORTAL) document.querySelectorAll('.pvp-airdrop').forEach(n => n.remove()); // crypto-free portal builds
     const addr = $('pvp-entry-addr');
@@ -1068,7 +1068,7 @@ export function createPvp(K) {
   function specToHarbor() { // EXIT / JOIN BATTLE from spectate: back to our harbor (the queue place, if any, is kept)
     if (!spec.on) return; room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
     const left = net.lobby('leave', lobbyOpts()).then(() => { if (lob.state === 'queue') return lobbyCall('play'); }).catch(() => {}); // (spec seat freed; a queued seat id re-queues at its place only if still alive)
-    specOff(); where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); harborUi(); K.banner('THE HARBOR', 'JOIN BATTLE when you are ready');
+    specOff(); where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); harborUi();
     return left;
   }
   function specOff() {
