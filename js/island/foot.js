@@ -13,6 +13,7 @@ import * as CO from './coast.js';
 const COASTM = CO.COAST_ON;
 export { CO }; // ?coast=1: town + berths built into the main island's west coast (js/island/coast.js); no round dock island
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildLighthouse, tickLighthouse } from '../lighthouseKit.js';
 
 // ---------- layout ----------
 // the dock town (round island) sits off the west coast, harbor face (+z local) to the open sea (west)
@@ -556,6 +557,7 @@ const tw = (lx, lz) => townToWorld(lx, lz), twy = (lyaw) => lyaw + TOWN.yaw;
 export const PLAZA_BOARD = { w: 6.0, h: 4.4, y: 3.5, face: 0.2 };
 export const PLAZA_SHOPS = [{ id: 'shop_clothes', vendor: 'clothes', lx: -50, lz: -32, sign: 'clothesShop', wall: 0xc9a27a, roof: 0xd8322f, label: 'CLOTHES SHOP · PIRATE GEAR' },
   { id: 'shop_ships', vendor: 'ships', lx: -22, lz: -32, sign: 'shipShop', wall: 0x9db7c9, roof: 0x2a6df4, label: 'SHIP SKINS + UPGRADES' }];
+export const PLAZA_TOKENS_TITLE = { SUNK: 'STORM HUNT', AHOY: '$AHOY', PUMP: 'PUMP' }; // [v108] billboard titles (config ISLAND_TOKENS)
 export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 }];
 export const INTERACT = []; // { id, x, z, r, label }
 export function buildStreet(A, low, F) {
@@ -795,6 +797,7 @@ export function mapPixel(x, z, out) {
 export const MAP_PATHS = () => ({ A: TRAILS.A, B: TRAILS.B, street: STREETP, ramps: RAMPS.map(r => [[r.ax, r.az], [r.bx, r.bz]]), lake: LAKE, river: RIVERP });
 // ---------- inland POIs ----------
 export const FOOT_POIS = [];
+export const LIGHTHOUSES = []; // [v108] { id, x, y, z, opts } built with the shared lighthouse kit (createFoot adds them to the root)
 function poi(id, label, x, z, extra = {}) { const p = { id, label, x, z, y: H(x, z), action: null, ...extra }; FOOT_POIS.push(p); return p; }
 export const BRIDGE = {};
 export const DIGS = [];
@@ -807,14 +810,13 @@ export function buildInland(A, low, F) {
   // lighthouse: dressed-stone base, banded tower with stone trim rings, gallery + rail, lantern room, keeper's hut
   KPG = 'lighthouse';
   { const p = poi('lighthouse', 'Lighthouse', ...(COASTM ? CO.t2w(CO.MOLE.lx, CO.MOLE.lz1) : [-556, -236])), y = p.y - 0.3;
-    if (KP) { kp(k, 'lighthouse', M(p.x, y, p.z)); addCirc(p.x, p.z, 7.4); F.push({ x: p.x, y: y + 29.6, z: p.z, beacon: true }); } else {
-    W(k, cyl(6.2, 7.2, 3.2, 16), STONE, 11, M(p.x, y + 1.3, p.z)); addCirc(p.x, p.z, 7.2);
-    for (let b = 0; b < 6; b++) { const r0 = 3.3 - b * 0.17; W(k, cyl(r0 - 0.17, r0, 4, 16), b % 2 ? CREAM : RED, 7, M(p.x, y + 4.9 + b * 4, p.z)); W(k, cyl(r0 + 0.12, r0 + 0.12, 0.35, 16), STONE_D, 11, M(p.x, y + 2.9 + b * 4, p.z), false); }
-    W(k, cyl(3.2, 2.6, 0.5, 16), STONE_D, 11, M(p.x, y + 27.1, p.z)); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; W(k, cyl(0.05, 0.05, 1.1, 4), IRON, 0, M(p.x + Math.cos(a) * 3.0, y + 27.9, p.z + Math.sin(a) * 3.0), false); }
-    W(k, cyl(3.05, 3.05, 0.08, 16), IRON, 0, M(p.x, y + 28.4, p.z), false);
-    k.add(cyl(1.8, 1.8, 2.6, 12), 0xfff3b0, { bucket: 'glow', m: M(p.x, y + 28.8, p.z), outline: false }); for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; W(k, box(0.14, 2.6, 0.14), IRON, 0, M(p.x + Math.cos(a) * 1.85, y + 28.8, p.z + Math.sin(a) * 1.85), false); }
-    W(k, new THREE.ConeGeometry(2.6, 2.6, 16), 0x9b2a22, 0, M(p.x, y + 31.4, p.z)); W(k, new THREE.SphereGeometry(0.35, 8, 6), GOLD, 0, M(p.x, y + 32.9, p.z), false);
-    W(k, box(1.5, 2.4, 0.3), 0x6e4325, 2, M(p.x + 3.3, y + 4.1, p.z, Math.PI / 2), false); }
+    // [v108] the shared lighthouse kit (island / rock / sandbar): tower + working light, door facing back along the mole
+    const [bx, bz] = COASTM ? CO.t2w(CO.MOLE.lx, CO.MOLE.lz0) : [p.x + 10, p.z], doorYaw = Math.atan2(-(bz - p.z), bx - p.x);
+    LIGHTHOUSES.length = 0; LIGHTHOUSES.push({ id: 'lighthouse', x: p.x, y: y + 0.3, z: p.z, opts: { height: 20, style: 'bands', base: 'none', hut: false, yaw: doorYaw, seed: 3, light: true } });
+    if (COASTM) { const [sx, sz] = CO.t2w(CO.ISLET.lx, CO.ISLET.lz), sy = H(sx, sz), [qx, qz] = CO.t2w(CO.ISLET.lx, CO.ISLET.lz - 40); // sandbar: a short tower on a stone apron, door facing the docks
+      poi('sandbar_lh', 'Sandbar lighthouse', sx, sz); addCirc(sx, sz, 5.2);
+      LIGHTHOUSES.push({ id: 'sandbar_lh', x: sx, y: sy - 0.15, z: sz, opts: { height: 14, style: 'stone', base: 'apron', baseR: 4.6, hut: false, yaw: Math.atan2(-(qz - sz), qx - sx), seed: 5 } }); }
+    addCirc(p.x, p.z, 7.4);
     colonial(k, F, p.x + 11, H(p.x + 11, p.z + 6), p.z + 6, -1.2, 6, 5, 1, 5, low); addBox(p.x + 11, p.z + 6, 6.6, 5.6, -1.2);
     for (let i = 0; i < 7; i++) boulder(k, p.x - 10 + hash(i, 3) * 6, p.z - 6 + i * 3, 1.4 + hash(i, 4) * 1.6, i); }
   // rope bridge over the gorge: jittered planks, rope rails + hangers, side netting, anchor posts with rope wraps
@@ -1040,6 +1042,8 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     imGrass.count = n; imFlow.count = nf; imGrass.instanceMatrix.needsUpdate = true; imFlow.instanceMatrix.needsUpdate = true; if (imFlow.instanceColor) imFlow.instanceColor.needsUpdate = true; }
   // flames + flickering point lights (High: the nearest few torches get a real light)
   const flames = buildFlames(F, uTime); root.add(flames);
+  // [v108] lighthouses (shared kit): one merged body + lens / glass / beam / flare each; High: the island one adds ONE point light
+  const lhs = LIGHTHOUSES.map((L, i) => { const g = buildLighthouse({ ...L.opts, low, light: L.opts.light && !low }); g.position.set(L.x, L.y, L.z); g.userData.phase = i * 2.1; g.name = 'lighthouse_' + L.id; root.add(g); return g; });
   const lights = []; if (!low) for (let i = 0; i < 6; i++) { const l = new THREE.PointLight(0xffa64a, 0, 16, 1.6); root.add(l); lights.push(l); }
   // small life: gulls (town + falls), crabs on beaches (High)
   const birds = buildBirds(low, uTime); { const g = new THREE.Group(); g.position.set(TOWN.x + 40, 4, TOWN.z - 30); g.add(birds); root.add(g); }
@@ -1066,6 +1070,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
       if (far) { const useFar = all || d > 170; g.visible = on && !useFar; far.visible = on && useFar; } else g.visible = on; }
     if (lights.length) { const near = F.map(f => [(f.x - cam.x) ** 2 + (f.z - cam.z) ** 2, f]).sort((a, b) => a[0] - b[0]);
       lights.forEach((l, i) => { const f = near[i] && near[i][1]; if (!f || near[i][0] > 90 * 90) { l.intensity = 0; return; } l.position.set(f.x, f.y + 0.6, f.z); l.intensity = (f.fire ? 30 : 18) * (0.85 + 0.15 * Math.sin(t * 13 + i * 1.7) + 0.08 * Math.sin(t * 23 + i)); }); }
+    for (const g of lhs) tickLighthouse(g, t, opts.camW || cam, opts.storm || 0);
     for (const d of digs) if (d.t >= 0) { const k = Math.min(1, (t - d.t) / 2.2); d.mound.scale.setScalar(Math.max(0.01, 1 - k)); d.cg.position.y = -1.6 + 1.7 * sm(0, 0.7, k); d.lid.rotation.x = -1.6 * sm(0.6, 1, k); d.mound.visible = k < 1; }
   }
   // gameplay hooks (world coords): solid props, water / slope / bridge rules, interact points
@@ -1088,7 +1093,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   function nearInteract(x, z) { let best = null, bd = 1e9; for (const q of INTERACT) { const d = Math.hypot(q.x - x, q.z - z); if (d < q.r && d < bd && !(q.used)) { bd = d; best = q; } } return best; }
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { root, update, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

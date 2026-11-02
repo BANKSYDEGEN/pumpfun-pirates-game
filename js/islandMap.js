@@ -15,15 +15,20 @@ const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5c
   spyglass: ['◎', '#e8e2d4', '#161616', 'SPYGLASS'], tavern: ['⚑', '#8a5a2b', '#fff', 'TAVERN'], bounties: ['!', '#e8e2d4', '#161616', 'BOUNTIES'],
   shop_clothes: ['👕', '#d8322f', '#fff', 'CLOTHES SHOP'], shop_ships: ['⛵', '#2a6df4', '#fff', 'SHIP SKINS'], token_AHOY: ['$', '#22c55e', '#161616', 'TOKENS'],
   cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'] };
-const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
+const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
+const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
 
-export function createIslandMap({ world, layout, low }) {
+export function createIslandMap({ world, layout, low, islands = null }) {
   const FM = layout.FM, toF = layout.harborToFoot, toH = layout.footToHarbor;
   const N = low ? 512 : 1024, mpp = (B.x1 - B.x0) / N, NZ = Math.round((B.z1 - B.z0) / mpp);
   let cv = null, g = null, img = null, row = 0, done = false, P = null, LB = null; // LB: land bounds (foot frame) + fit circle
   let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
   const pois = () => [...layout.interact, ...(world.footInteract || [])].filter(q => POI[q.id] || POI[q.kind]).map(q => { const [fx, fz] = toF(q.x, q.z); return { x: fx, z: fz, s: POI[q.id] || POI[q.kind] }; })
-    .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ x: p.x, z: p.z, s: ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true })));
+    .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id) })))
+    .concat(rockLights());
+  // [v108] the offshore rock lighthouse(s) (props.js grid rocks) inside the mapped box
+  const rockLights = () => { if (!islands?.lighthousesIn) return []; const [hx0, hz0] = toH(B.x0, B.z0), [hx1, hz1] = toH(B.x1, B.z1);
+    return islands.lighthousesIn(Math.min(hx0, hx1), Math.max(hx0, hx1), Math.min(hz0, hz1), Math.max(hz0, hz1)).map(c => { const [x, z] = toF(c.x, c.z); return { x, z, s: LH_S('ROCK LIGHT'), far: true, lh: true }; }); };
   function bakeRows(n) {
     if (done) return true;
     if (!cv) { cv = document.createElement('canvas'); cv.width = N; cv.height = NZ; g = cv.getContext('2d'); img = g.createImageData(N, NZ); }
@@ -87,7 +92,7 @@ export function createIslandMap({ world, layout, low }) {
     ctx.clearRect(0, 0, W, W); ctx.save(); ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.clip();
     ctx.fillStyle = '#174f70'; ctx.fillRect(0, 0, W, W); ctx.imageSmoothingEnabled = true; ctx.drawImage(cv, ox, oz, N * mpp * k, NZ * mpp * k);
     const sz = Math.max(4.5, W / 22);
-    for (const p of P || []) { if (p.far) continue; const [a, b] = T(...toH(p.x, p.z)); ctx.fillStyle = p.s[1]; ctx.beginPath(); ctx.arc(a, b, sz * 0.42, 0, 7); ctx.fill(); }
+    for (const p of P || []) { if (p.far && !p.lh) continue; const [a, b] = T(...toH(p.x, p.z)); if (p.lh) { const ph = 0.6 + 0.4 * Math.sin(performance.now() / 420); ctx.fillStyle = `rgba(255,224,138,${ph})`; ctx.strokeStyle = '#3a1d00'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(a, b, sz * 0.4, 0, 7); ctx.fill(); ctx.stroke(); continue; } ctx.fillStyle = p.s[1]; ctx.beginPath(); ctx.arc(a, b, sz * 0.42, 0, 7); ctx.fill(); }
     markers(ctx, T, k, st, sz, [R, R, R - 3]);
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,205,119,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.stroke();

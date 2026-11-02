@@ -51,6 +51,7 @@ export async function coastLayout() {
     for (let lx = p.lx - p.half + 2; lx <= p.lx + p.half - 2; lx += 4) ring(lx, (p.head0 + p.head1) / 2, 2.6);
     for (let lz = 4; lz <= 22; lz += 4) ring(p.lx - 30, lz, 3); }
   { const m = CO.MOLE; for (let lz = m.lz0; lz <= m.lz1; lz += 5) ring(m.lx, lz, m.w / 2 + 0.5, m.y + 3); ring(m.lx, m.lz1, m.tipR, m.y + 3); }
+  if (CO.ISLET) ring(CO.ISLET.lx, CO.ISLET.lz, 5.8, 20); // [v108] the sandbar lighthouse (tower + stone apron): ships bump it, cannonballs stop on it
   const SAMPLE = 8, land = (x, z) => FM.H(...harborToFoot(x, z)) > -0.8;
   for (let x = -480; x <= 560; x += SAMPLE) for (let z = -480; z <= 480; z += SAMPLE) {
     if (Math.hypot(x, z) > 560 || !land(x, z)) continue;
@@ -66,7 +67,7 @@ export async function coastLayout() {
   P('exchange', 'exchange', PP.exchange.lx, PP.exchange.lz + 4.2, 'TOKEN EXCHANGE');
   // [v103] the old HARBOR MARKET: CLOTHES SHOP + SHIP SKINS / UPGRADES shops and the three token billboards (foot.js PLAZA_*)
   for (const sp of FM.PLAZA_SHOPS) { const [x, z] = L(sp.lx, sp.lz + 3.8); interact.push({ id: sp.id, kind: 'shop', vendor: sp.vendor, x, z, r: 3.4, label: sp.label }); }
-  for (const tb of FM.PLAZA_TOKENS) { const [x, z] = L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: '$' + tb.sym + ' · CA + CHART' }); }
+  for (const tb of FM.PLAZA_TOKENS) { const [x, z] = L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: (FM.PLAZA_TOKENS_TITLE?.[tb.sym] || '$' + tb.sym) + ' · CA + CHART' }); }
   // Timothy's SHOP door + the red / blue stalls: foot.js fills SHOP_SPOTS while it builds the street (createFoot), so world.js
   // calls this right after
   const shopInteract = () => Object.values(FM.SHOP_SPOTS).map(s => { const [x, z] = footToHarbor(s.x, s.z);

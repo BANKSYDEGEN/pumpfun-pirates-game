@@ -1292,7 +1292,7 @@ function frame() {
   } // [Emerly]
   sky.mesh.position.copy(camera.position);
   harborIslandTick(t);
-  islands.update(t, camera.position);
+  islands.update(t, camera.position, game.storm || 0);
   if (HIGH) { sun.target.position.set(oc.x, 0, oc.z); sun.position.copy(sun.target.position).add(SUN_OFF); } // [Emerly] oc = ship, or the walker on foot
   rain.uniforms.uCam.value.copy(camera.position);
 

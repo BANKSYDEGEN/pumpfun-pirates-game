@@ -23,6 +23,8 @@ const SHELL = [
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card
+  "./js/lighthouseKit.js", // [v108] shared lighthouse kit
+  "./assets/tokens/sunk.png", "./assets/tokens/pump.png", // [v108] token billboard logos
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
   "./js/dock/docking.js",

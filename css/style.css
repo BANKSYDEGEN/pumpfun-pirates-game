@@ -913,6 +913,7 @@ html.pvp-spec #btn-emote { display: none !important; }
 .pz-tabs button.on { background: var(--pz); color: #fff; }
 .pz-price { font-size: 26px; text-align: center; color: #ffcd77; }
 .pz-ca { display: flex; gap: 8px; align-items: center; } .pz-ca code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: #000; padding: 6px 8px; border-radius: 6px; font: 13px ui-monospace, Menlo, monospace; color: #fff; }
+.pz-logo-row { display: flex; justify-content: center; margin: 4px 0 10px; } .pz-logo { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #ffcd77; object-fit: cover; image-rendering: auto; background: #000; } .pz-skull { display: flex; align-items: center; justify-content: center; background: var(--pz); box-sizing: border-box; } /* [v108] token logo */
 .pz-foot { text-align: center; opacity: .6; font-size: 18px; }
 @media (max-height: 460px) { .plaza-panel { max-height: 94vh; padding: 6px 10px 8px; gap: 5px; } .pz-list { font-size: 20px; } .pz-head b { font-size: 24px; } .pz-go, .pz-alt { font-size: 20px; padding: 5px 12px; } }
 /* [v103] PROFILE panel (Timothy c3c09f1) + the ui vars it uses, scoped */

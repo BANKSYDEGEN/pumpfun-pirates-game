@@ -88,12 +88,13 @@ export function createPlaza({ world, ctx = {} }) {
   function showToken(sym) {
     const t = TOK.find(q => q.sym === sym) || TOK[0]; panel.dataset.sym = t.sym; panel.dataset.board = '';
     const p = t.pair, ch = +(p?.priceChange?.h24 ?? 0), chart = t.chart || (p && p.url) || `https://dexscreener.com/solana/${t.ca}`;
-    panel.innerHTML = `${head('$' + t.sym, t.color)}
-      <div class="pz-tabs">${TOK.map(q => `<button type="button" data-sym="${q.sym}" class="${q.sym === t.sym ? 'on' : ''}" style="--pz:${q.color}">$${q.sym}</button>`).join('')}</div>
-      <div class="pz-price">${p ? `${fmtP(p.priceUsd)} <span style="color:${ch >= 0 ? '#7cff6b' : '#ff6b6b'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h</span>${p.marketCap || p.fdv ? ` · MC $${fmt(Math.round(p.marketCap || p.fdv))}` : ''}` : 'price loading…'}</div>
+    // [v108] title, logo, CA + copy, DexScreener link only (BANKSY)
+    const logo = t.logo ? `<img class="pz-logo" src="${esc(t.logo)}" alt="${esc(t.title)} logo" width="96" height="96">` : `<span class="pz-logo pz-skull" style="--pz:${t.color}"><img src="assets/skull_transparent.png" alt="" width="64" height="64"></span>`;
+    panel.innerHTML = `${head(esc(t.title || '$' + t.sym), t.color)}
+      <div class="pz-tabs">${TOK.map(q => `<button type="button" data-sym="${q.sym}" class="${q.sym === t.sym ? 'on' : ''}" style="--pz:${q.color}">${esc(q.title || '$' + q.sym)}</button>`).join('')}</div>
+      <div class="pz-logo-row">${logo}</div>
       <div class="pz-ca"><code>${esc(t.ca)}</code><button type="button" class="pz-copy">COPY CA</button></div>
-      <div class="pz-row"><a class="pz-go" href="${esc(chart)}" target="_blank" rel="noopener">OPEN CHART ON DEXSCREENER ▸</a>${t.site ? `<a class="pz-alt" href="${esc(t.site)}" target="_blank" rel="noopener">PUMP.FUN ▸</a>` : ''}</div>
-      <small class="pz-foot">Not financial advice · always check the CA</small>`;
+      <div class="pz-row"><a class="pz-go" href="${esc(chart)}" target="_blank" rel="noopener">OPEN CHART ON DEXSCREENER ▸</a></div>`;
     panel.querySelector('.pz-x').onclick = close;
     panel.querySelector('.pz-copy').onclick = async (e) => { const ok = await copyText(t.ca); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; setTimeout(() => { if (e.target.isConnected) e.target.textContent = 'COPY CA'; }, 1800); };
     panel.querySelectorAll('.pz-tabs button').forEach(b => b.onclick = () => showToken(b.dataset.sym));

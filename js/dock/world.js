@@ -65,7 +65,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
     const [pfx, pfz] = toF(px, pz); return foot.blocked(fx, fz, pfx, pfz);
   }
   const _cf = new THREE.Vector3();
-  function update(cam, t) { const [fx, fz] = toF(cam.x, cam.z); _cf.set(fx, cam.y, fz); foot.update(_cf, t); }
+  function update(cam, t, storm = 0) { const [fx, fz] = toF(cam.x, cam.z); _cf.set(fx, cam.y, fz); foot.update(_cf, t, { storm, camW: cam }); }
   // foot.js interact points (Squad Hall, digs, treasure cave) in harbor coords
   const footInteract = FM.INTERACT.map(q => { const [x, z] = layout.footToHarbor(q.x, q.z); return { ...q, x, z, src: q, kind: q.id.startsWith('dig') ? 'dig' : q.id, label: q.label.replace(/^E · /, '') }; });
   const stats = { ms: Math.round(performance.now() - t0), footBuildMs: FM.BUILD_MS, foot: foot.stats };

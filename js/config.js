@@ -165,7 +165,12 @@ export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5p
 export const PUMP_CA = 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'; // the pump.fun token
 export const PUMP_SITE_URL = 'https://pump.fun';
 export const ISLAND_TOKENS = [
-  { sym: 'SUNK', ca: SUNK_CA, dex: SUNK_DEX_URL, color: '#fa0d0d' },
-  { sym: 'AHOY', ca: AHOY_CA, dex: AHOY_DEX_URL, color: '#2a6df4' },
-  { sym: 'PUMP', ca: PUMP_CA, dex: null, site: PUMP_SITE_URL, color: '#22c55e' }, // dex pair resolved at runtime
+  { sym: 'SUNK', title: 'STORM HUNT', logo: 'assets/tokens/sunk.png', ca: SUNK_CA, dex: SUNK_DEX_URL, color: '#fa0d0d' },
+  { sym: 'AHOY', title: '$AHOY', logo: null, ca: AHOY_CA, dex: AHOY_DEX_URL, color: '#2a6df4' }, // logo: the skull in the token colour (unchanged)
+  { sym: 'PUMP', title: 'PUMP', logo: 'assets/tokens/pump.png', ca: PUMP_CA, dex: null, site: PUMP_SITE_URL, color: '#22c55e' }, // dex pair resolved at runtime
 ];
+// [v108] token billboard logos = the tokens' own images (not redrawn), 256 px PNG copies in assets/tokens/:
+//   sunk.png  <- DexScreener tokens API info.imageUrl for By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump:
+//                https://cdn.dexscreener.com/cms/images/3uFmlFun2_4M55Ng?width=800&height=800&quality=95&format=auto
+//   pump.png  <- DexScreener tokens API info.imageUrl for pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn (the pump.fun pill):
+//                https://cdn.dexscreener.com/cms/images/a0d07b12d0c34be414b8ac98a827ff862cfd684554c8da4c63fa647eef0af501?width=800&height=800&quality=95&format=auto

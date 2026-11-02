@@ -60,7 +60,7 @@ export async function createDock(ctx) {
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW });
-  const imap = createIslandMap({ world, layout, low: LOW || touch }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
+  const imap = createIslandMap({ world, layout, low: LOW || touch, islands }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
   function minimapState(st) {
@@ -109,9 +109,11 @@ export async function createDock(ctx) {
   let on = false, onFoot = false, lastShot = 0, leftAt = -99, sprintHinted = false;
   const P = () => ctx.getPlayer();
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
+  // the harbor zone (clear water round the coast, curated islets, the coast colliders, no grid rocks on the land): sailing it OR spectating it
+  let zoneOn = null; const setZone = (v) => { v = !!v; if (v === zoneOn) return; zoneOn = v; islands.setHarbor(v ? { clearR: 470, islets: ctx.islets, island: sets, land: (x, z) => layout.FM.H(...layout.harborToFoot(x, z)) > -6 } : null); };
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
-    islands.setHarbor(v ? { clearR: 470, islets: ctx.islets, island: sets } : null);
+    setZone(v || viewing);
     if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); }
   }
   // ---------- actions ----------
@@ -166,7 +168,7 @@ export async function createDock(ctx) {
   function ship(dt) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
-    const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; } if (view) world.update(camera.position, game.t);
+    const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); } if (view) world.update(camera.position, game.t, game.storm || 0);
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
@@ -201,7 +203,7 @@ export async function createDock(ctx) {
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)
-  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t); return onFoot; }
+  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t, game.storm || 0); return onFoot; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;

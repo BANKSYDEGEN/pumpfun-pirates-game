@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, goldTexture, rockTexture, rng } from './toon.js';
+import { buildLighthouse, tickLighthouse } from './lighthouseKit.js';
 
 // ---------- treasure chest (template, cloned per drop: geometry + materials are shared) ----------
 let _chest = null;
@@ -63,8 +64,9 @@ export function createIslands(quality) {
   const group = new THREE.Group();
   const rockMat = toon(0xffffff, rockTexture({ base: 0x56606a }));
   const mossMat = toon(0x3b5a44, null);
-  function rock(size, seed) {
-    const g = new THREE.IcosahedronGeometry(1, 1);
+  const LOWQ = quality === 'low', rockWet = toon(0xffffff, rockTexture({ base: 0x56606a }), { vertexColors: true });
+  function rock(size, seed, det = 1) {
+    const g = new THREE.IcosahedronGeometry(1, det);
     const p = g.attributes.position, rr = rng(seed);
     const cache = new Map();
     for (let i = 0; i < p.count; i++) {
@@ -101,17 +103,19 @@ export function createIslands(quality) {
     }
     let beamIdx = -1;
     if (i === 1 || i === 5) {
-      // lighthouse with a sweeping glow
-      const lh = new THREE.Group();
-      const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 16, 10), toon(0xe9e2d0)); tower.position.y = 8; lh.add(tower);
-      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(2.55, 2.75, 3, 10), toon(0xfa0d0d)); stripe.position.y = 9; lh.add(stripe);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(2.2, 12, 8), glowMat(0xffd27a, 3.5, { fog: false })); lamp.position.y = 18; lh.add(lamp);
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 3, 10), toon(0x161616)); roof.position.y = 21; lh.add(roof);
-      const beamGeo = new THREE.ConeGeometry(9, 140, 16, 1, true); beamGeo.translate(0, -70, 0); beamGeo.rotateZ(Math.PI / 2);
-      const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.42, 0.2), transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-      beam.position.y = 18; beam.name = 'beam'; lh.add(beam);
-      lh.position.y = H * 1.05; lh.scale.setScalar(1.3); isl.add(lh);
-      circles[0].h = Math.max(circles[0].h, H * 1.05 + 28); // the tower stops cannonballs too
+      // [v108] the offshore rock lighthouse: smoother faceted rock (wet-dark at the waterline), a tidy grass cap that stays inside
+      // the rock's top, and the shared lighthouse kit (tower, gallery, lantern room, keeper's lean-to, working light) on a ledge
+      main.geometry.dispose(); main.geometry = rock([Wd, H, Wd * 0.8], 100 + i, LOWQ ? 1 : 2); main.material = rockWet;
+      { const P = main.geometry.attributes.position, col = new Float32Array(P.count * 3);
+        for (let v = 0; v < P.count; v++) { const y = P.getY(v) + main.position.y - 2, k = y < 0.6 ? 0.5 : y < 3 ? 0.5 + 0.5 * (y - 0.6) / 2.4 : 1; col[v * 3] = col[v * 3 + 1] = col[v * 3 + 2] = k; }
+        main.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+      circles[0] = footprint(main, -2);
+      const P = main.geometry.attributes.position; let top = -1e9; for (let v = 0; v < P.count; v++) if (Math.hypot(P.getX(v), P.getZ(v)) < Wd * 0.3) top = Math.max(top, P.getY(v));
+      top += main.position.y; let ringR = 0; for (let v = 0; v < P.count; v++) if (P.getY(v) + main.position.y > top - H * 0.12) ringR = Math.max(ringR, Math.hypot(P.getX(v), P.getZ(v)));
+      cap.geometry.dispose(); cap.geometry = rock([ringR * 0.7, H * 0.05, ringR * 0.6], 200 + i, 1); cap.position.y = top - H * 0.04;
+      const lh = buildLighthouse({ height: 19, style: 'bands', base: 'rock', baseR: 8, baseH: 5, hut: true, low: LOWQ, seed: 11 + i, wet: -99, yaw: 0.6 });
+      lh.position.y = top + 0.6; lh.userData.phase = i; isl.add(lh);
+      circles[0].h = Math.max(circles[0].h, top + lh.userData.top + 2); // the tower stops cannonballs too
       beamIdx = 1;
     }
     isl.traverse(o => { if (o.isMesh) o.userData.sharedGeo = true; });
@@ -132,7 +136,8 @@ export function createIslands(quality) {
         const d = Math.floor(hash2(ci, cj, 4) * DESIGNS) % DESIGNS, rot = hash2(ci, cj, 5) * Math.PI * 2, cs = Math.cos(rot), sn = Math.sin(rot);
         // world circles (Object3D.rotation.y maps local (x,z) -> (x cos + z sin, -x sin + z cos))
         const circles = designs[d].circles.map(k => ({ x: x + k.x * cs + k.z * sn, z: z - k.x * sn + k.z * cs, r: k.r, h: k.h - 0 }));
-        c = { key, d, x, z, rot, circles };
+        // [v108] harbor: no grid rock (or rock lighthouse) inside the island's land (one stood in the forest east of town)
+        if (!(zone && zone.land && (zone.land(x, z) || circles.some(k => zone.land(k.x, k.z))))) c = { key, d, x, z, rot, circles };
       }
     }
     if (cellInfo.size > 4000) cellInfo.clear(); // bounded cache (pure function, cheap to recompute)
@@ -156,7 +161,7 @@ export function createIslands(quality) {
     for (const key of want) if (!live.has(key)) {
       const c = cellInfo.get(key), obj = pool[c.d].pop() || designs[c.d].isl.clone();
       obj.position.set(c.x, -2, c.z); obj.rotation.y = c.rot; group.add(obj);
-      live.set(key, { obj, d: c.d, beam: designs[c.d].lighthouse ? obj.getObjectByName('beam') : null });
+      live.set(key, { obj, d: c.d, beam: designs[c.d].lighthouse ? obj.getObjectByName('lighthouse') : null });
     }
   }
   const isletObjs = [];
@@ -173,12 +178,14 @@ export function createIslands(quality) {
     if (!zn) { zone = null; return; }
     const sets = (zn.islets || []).map(([d, x, z, rot, sc]) => { const i = islet(d, x, z, rot, sc || 1); isletObjs.push(i.obj); group.add(i.obj); return i; });
     if (zn.island) sets.push(...[].concat(zn.island)); // [Emerly] one set or a list of clustered sets (dock layout colliders)
-    zone = { clearR: zn.clearR || 0, sets };
+    zone = { clearR: zn.clearR || 0, sets, land: zn.land || null };
   }
   const shipR = (s) => { const u = s.mesh?.userData; return u ? Math.max(u.beam || 4, (u.hitLen || u.len || 14) * 0.42) : 6; };
   return {
     group, setHarbor, get harborZone() { return zone; },
-    update(t, cam) { refresh(cam.x, cam.z); for (const o of live.values()) if (o.beam) o.beam.rotation.y = t * 0.8; },
+    update(t, cam, storm = 0) { refresh(cam.x, cam.z); for (const o of live.values()) if (o.beam) tickLighthouse(o.beam, t, cam, storm); },
+    // [v108] the rock lighthouses inside a box (world frame): for the island map + radar
+    lighthousesIn(x0, x1, z0, z1) { const out = []; for (let ci = Math.floor(x0 / ISLAND_CELL); ci <= Math.floor(x1 / ISLAND_CELL); ci++) for (let cj = Math.floor(z0 / ISLAND_CELL); cj <= Math.floor(z1 / ISLAND_CELL); cj++) { const c = cell(ci, cj); if (c && designs[c.d].lighthouse && c.x >= x0 && c.x <= x1 && c.z >= z0 && c.z <= z1) out.push({ x: c.x, z: c.z }); } return out; },
     circlesNear,
     // push a ship out of any rock it overlaps: slide along the rock, bleed speed by how head-on the hit is. No damage.
     collide(s, dt) {

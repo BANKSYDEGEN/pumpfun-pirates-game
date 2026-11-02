@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { rng } from '../toon.js';
 import { Kit, M } from './kit.js';
+import { ISLAND_TOKENS } from '../config.js';
 
 // ---------- layout (world units, 1:1 with the game: a ship is 17-20.4 long, a pirate 1.8 tall) ----------
 // Island-local frame: +z faces the HARBOR centre. The v2 toy island, round, scaled up (grass radius ~65, waterline ~73,
@@ -459,6 +460,7 @@ export function buildChest(low, A) {
 
 // ---------- atlas: signs, posters, flags (one canvas texture) ----------
 export function makeAtlas(skull) {
+  let atlasTex = null; // [v108] token logos load async and re-upload the atlas
   const S = 1024, SH = 2560, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */ c.width = S; c.height = SH; const g = c.getContext('2d');
   const R = {}, reg = (k, x, y, w, h) => { R[k] = { u0: x / S, u1: (x + w) / S, v0: 1 - (y + h) / SH, v1: 1 - y / SH }; };
   const font = (px) => `${px}px "Just Another Hand", cursive`;
@@ -516,22 +518,25 @@ export function makeAtlas(skull) {
     const x = i * 340 + 4, y = 2188, w = 332, h = 300;
     g.fillStyle = '#161616'; g.fillRect(x, y, w, h); g.strokeStyle = '#ffcd77'; g.lineWidth = 10; g.strokeRect(x + 5, y + 5, w - 10, h - 10);
     g.strokeStyle = t.color; g.lineWidth = 4; g.strokeRect(x + 16, y + 16, w - 32, h - 32);
-    g.fillStyle = t.color; g.beginPath(); g.arc(x + 70, y + 84, 46, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.stroke();
-    if (skull) { const k = Math.min(64 / skull.width, 64 / skull.height); g.drawImage(skull, x + 70 - skull.width * k / 2, y + 84 - skull.height * k / 2, skull.width * k, skull.height * k); }
-    text('$' + t.sym, x + 196, y + 88, 104, t.color);
-    text('PUMPFUN PIRATES', x + w / 2, y + 170, 46, '#ffffff');
-    text(t.sym === 'PUMP' ? 'the pump.fun token' : t.sym === 'AHOY' ? 'the pirate token' : 'sink + earn', x + w / 2, y + 212, 40, '#ffcd77');
-    text('press E · CA + chart', x + w / 2, y + 258, 38, '#ffffff');
+    // [v108] title, logo, CA, copy + DexScreener (press E) only: no description lines
+    text(t.title, x + w / 2, y + 52, t.title.length > 6 ? 76 : 96, t.color);
+    const lx = x + w / 2, ly = y + 150, lr = 64;
+    g.fillStyle = t.color; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.stroke();
+    if (t.logo) { const im = new Image(); im.onload = () => { g.save(); g.beginPath(); g.arc(lx, ly, lr - 3, 0, 7); g.clip(); g.drawImage(im, lx - lr + 3, ly - lr + 3, 2 * (lr - 3), 2 * (lr - 3)); g.restore();
+        g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.stroke(); if (atlasTex) atlasTex.needsUpdate = true; }; im.src = t.logo; }
+    else if (skull) { const k = Math.min(92 / skull.width, 92 / skull.height); g.drawImage(skull, lx - skull.width * k / 2, ly - skull.height * k / 2, skull.width * k, skull.height * k); }
+    text(t.ca.slice(0, 5) + '…' + t.ca.slice(-5), x + w / 2, y + 236, 42, '#ffffff');
+    text('E · COPY CA · DEXSCREENER', x + w / 2, y + 274, 32, '#ffcd77');
     reg('bb' + t.sym, x, y, w, h);
   });
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const tex = atlasTex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // live board: redraw a token's price strip in place (0 extra draw calls; the atlas texture just re-uploads)
   const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const x = i * 340 + 4, y = 1690;
     g.fillStyle = '#161616'; g.fillRect(x, y, 332, 110); text(lines[0], x + 166, y + 36, 54, '#ffcd77'); text(lines[1] || '', x + 166, y + 82, 44, lines[2] || '#ffffff'); tex.needsUpdate = true; };
   ISLAND_TOKEN_SIGNS.forEach(t => drawTokenBoard(t.sym, ['loading…', '']));
   return { tex, R, drawTokenBoard };
 }
-export const ISLAND_TOKEN_SIGNS = [{ sym: 'SUNK', color: '#fa0d0d' }, { sym: 'AHOY', color: '#2a6df4' }, { sym: 'PUMP', color: '#22c55e' }];
+export const ISLAND_TOKEN_SIGNS = ISLAND_TOKENS.map(t => ({ sym: t.sym, color: t.color, title: t.title, logo: t.logo, ca: t.ca })); // [v108] from config (titles, logos, CAs)
 
 // ---------- lookout tower (left flank): tapered timber legs, platform with a rail, spyglass on a tripod aimed at the harbor ----------
 export const TOWER_H = 16; // fort keep platform height
