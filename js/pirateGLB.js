@@ -106,6 +106,24 @@ function irisPatch(m, uIris, uOn) {
         diffuseColor.rgb = mix(c0, tint, k); }`); })(m.onBeforeCompile);
   const key = m.customProgramCacheKey?.bind(m); m.customProgramCacheKey = () => (key ? key() : '') + '|iris'; m.needsUpdate = true;
 }
+// [v138] BANKSY "beard edge": the v5 sculpt's beard / hair is ringed by fixed-colour verts whose baked texture is orange-brown, so every
+// beard and hairline read as a shredded orange fringe (worse on Low's big triangles). The fixed verts touching the hair (2 rings) join
+// the hair tint, once per shared geometry; the hair colour then runs cleanly to the skin edge.
+const _rim = new WeakSet();
+function hairRim(g, rings = 2) {
+  const T = g.attributes._tint, C = g.attributes.color, P = g.attributes.position, N = g.attributes.normal, I = g.index?.array; if (!T || !C || !P || !I || _rim.has(T)) return; _rim.add(T);
+  const iH = TINTS.indexOf('hair'), n = P.count, wid = new Int32Array(n), wm = new Map(); let nw = 0;
+  for (let i = 0; i < n; i++) { const k = Math.round(P.getX(i) * 1e4) + ',' + Math.round(P.getY(i) * 1e4) + ',' + Math.round(P.getZ(i) * 1e4); let w = wm.get(k); if (w === undefined) { w = nw++; wm.set(k, w); } wid[i] = w; }
+  const tw = new Int8Array(nw).fill(-2); for (let i = 0; i < n; i++) { const t = Math.round(T.getX(i)); if (t === iH || tw[wid[i]] === -2) tw[wid[i]] = t; }
+  const hc = [0, 0, 0]; for (let i = 0; i < n; i++) if (Math.round(T.getX(i)) === iH) { hc[0] = C.getX(i); hc[1] = C.getY(i); hc[2] = C.getZ(i); break; }
+  const lip = new Uint8Array(nw); if (N) for (let i = 0; i < n; i++) if (Math.abs(P.getX(i)) < 0.08 && N.getZ(i) > 0.6 && P.getY(i) > 0.96) lip[wid[i]] = 1;   // the mouth (front-facing, centre) stays as painted
+  const hy = new Uint8Array(nw); for (let i = 0; i < n; i++) if (P.getY(i) > 0.86) hy[wid[i]] = 1;   // Low's wider rim: head / neck only
+  for (let ring = 0; ring < rings; ring++) { const add = [];
+    for (let f = 0; f < I.length; f += 3) { const a = wid[I[f]], b = wid[I[f + 1]], c = wid[I[f + 2]]; if (tw[a] !== iH && tw[b] !== iH && tw[c] !== iH) continue; for (const v of [a, b, c]) if (tw[v] === -1 && !lip[v] && (ring < 2 || hy[v])) add.push(v); }
+    for (const v of add) tw[v] = iH; }
+  for (let i = 0; i < n; i++) if (tw[wid[i]] === iH && Math.round(T.getX(i)) === -1) { T.setX(i, iH); C.setXYZ(i, hc[0], hc[1], hc[2]); }
+  T.needsUpdate = true; C.needsUpdate = true;
+}
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
@@ -126,9 +144,11 @@ export class PirateGLB {
     this.v5 = false; this.warp = null; scene.traverse((o) => { if (/^v5_/.test(o.name)) this.v5 = true; });
     if (this.v5) for (const o of this.atlasMeshes) { o.userData.v5 = true; try { this.warp ||= JSON.parse(o.userData.v5warp || 'null'); } catch {} } // [v121]
     if (this.v5 && this.warp) for (const o of this.atlasMeshes) o.userData.warp = this.warp;
+    // [v138] the eye decal stays front-only: drawn both sides it showed through the hair as blue specks on the back of Low heads
+    if (this.v5) for (const o of this.atlasMeshes) hairRim(o.geometry, this.lod === 'lo' ? 5 : 2);   // [v138]
     if (low) this._mergeLow(scene);
     // [v123] v5 bodies are an AI sculpt with some faces wound inward: draw both sides (front-only showed HOLLOW pirates / crew followers)
-    if (this.v5) scene.traverse((o) => { if (o.isMesh && !/ink/i.test(o.name)) for (const m of [o.material].flat()) if (m && m.name !== 'ink') { m.side = THREE.DoubleSide; m.needsUpdate = true; } });
+    if (this.v5) scene.traverse((o) => { if (o.isMesh && !/ink/i.test(o.name) && !/face_eyes/i.test(o.name)) for (const m of [o.material].flat()) if (m && m.name !== 'ink') { m.side = THREE.DoubleSide; m.needsUpdate = true; } });
     // [v115] iris tint: the face decal's light-blue iris (both tones) is re-coloured in the shader, sclera / pupil / lids / glints untouched
     this._iris = { value: new THREE.Color(1, 1, 1) }; this._irisOn = { value: 0 };
     scene.traverse((o) => { if (!o.isMesh || !/face/i.test(o.name)) return; for (const m of [o.material].flat()) if (m?.map) irisPatch(m, this._iris, this._irisOn); });
