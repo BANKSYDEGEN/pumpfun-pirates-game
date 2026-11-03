@@ -750,7 +750,7 @@ export function drawCoastMap(cv) {
       for (const [id, lab] of [['shop', 'SHOP door (Timothy)'], ['stall_red', 'red stall'], ['stall_blue', 'blue stall']]) { const s = SHOP_SPOTS[id]; if (!s) continue; const [lx, lz] = CO.w2t(s.x, s.z), [a, b] = L(lx, lz);
         g.fillStyle = id === 'shop' ? '#ffc93c' : id === 'stall_red' ? '#ff3b3b' : '#3b82f6'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 6, 0, 7); g.fill(); g.stroke(); }
       for (const q of CO.PLAZA_POIS) { const [a, b] = L(q.lx, q.lz); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 5, 0, 7); g.fill(); g.stroke(); }
-      TL('WAVES + ARENA boards', -10, -12, -40, 70, 13); TL('Token exchange', CO.PLAZA_POIS[2].lx, CO.PLAZA_POIS[2].lz, 30, 90, 13); TL('Harbor market', -36, -32, -60, 30, 13);
+      TL('STORM HUNT + ARENA boards', -10, -12, -40, 70, 13); TL('Token exchange', CO.PLAZA_POIS[2].lx, CO.PLAZA_POIS[2].lz, 30, 90, 13); TL('Harbor market', -36, -32, -60, 30, 13);
       TL('Spectate spyglass + lighthouse', CO.MOLE.lx, CO.MOLE.lz1, 40, -10, 13); TL('Stone harbor tower', 86, -44, 50, 40, 13); TL('Step ashore (P1)', -90, 42, -20, -40, 13, '#67e8f9');
       TL('Cliff headland: FORT BATTERY (6 guns)', CO.HEADLAND.lx, CO.HEADLAND.lz, 30, 30, 13); TL('FORT (top of Main Street)', CO.FORT.lx, CO.FORT.lz, -20, 70, 13);
       TL('STONE QUAY + PLAZA', 20, -40, -80, 150, 14, '#fde68a'); TL('Wooden piers on stilts, shacks, rowboats', -180, 0, -10, 110, 13); TL('Sandbar islet', CO.ISLET.lx, CO.ISLET.lz, -10, -40, 13);

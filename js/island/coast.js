@@ -41,7 +41,7 @@ export const FORT = { lx: 46, lz: -232, r: 15, top: 36 };                       
 export const ISLET = { lx: -345, lz: 105, r: 22 };                                 // sandbar with palms
 export const PLAZA = { lx0: -55, lx1: 100, lz0: -56, lz1: 0 };
 export const PLAZA_POIS = [                                                        // town-local
-  { id: 'waves', label: 'WAVES board', lx: -10, lz: -12 }, { id: 'arena', label: 'ARENA board', lx: 22, lz: -12 },
+  { id: 'waves', label: 'STORM HUNT board', lx: -10, lz: -12 }, { id: 'arena', label: 'ARENA board', lx: 22, lz: -12 },
   { id: 'exchange', label: 'Token exchange', lx: 62, lz: -30 }, { id: 'market', label: 'Harbor market', lx: -36, lz: -32 },
   { id: 'spectate', label: 'Spectate spyglass', lx: SPYGLASS.lx, lz: SPYGLASS.lz }, { id: 'tower', label: 'Harbor tower', lx: 86, lz: -44 },
   { id: 'arrive', label: 'Step ashore (P1 head)', lx: -90, lz: 42 },

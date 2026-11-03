@@ -143,7 +143,7 @@ export class PirateGLB {
   _mergeLow(scene) {
     scene.traverse((o) => {
       if (!o.isSkinnedMesh) return;
-      const at = o.material.alphaTest || 0; o.material = new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', alphaTest: at }); o.frustumCulled = false; if (o.geometry.attributes._tint) this.lowMesh = o; // [v121] v5: + eyes / tattoo meshes (tattoo keeps its alpha cut-out)
+      const at = o.material.alphaTest || 0; o.material = this.v5 && o.geometry.attributes._tint ? Object.assign(new THREE.MeshLambertMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', side: THREE.DoubleSide }), { color: new THREE.Color(1.22, 1.22, 1.22) }) /* [v128] v5 Low has no baked light in its atlas: lit (Lambert, cheap) so arms / skin aren't flat pale patches */ : new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', alphaTest: at }); o.frustumCulled = false; if (o.geometry.attributes._tint) this.lowMesh = o; // [v121] v5: + eyes / tattoo meshes (tattoo keeps its alpha cut-out)
     });
   }
   // retint by ship skin / creator colours: { coat, accent, skin, hair, ... }

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v127'; // [v127] female braid tips / ties take the hair colour (no gold flecks)
+const VERSION = 'pfp-v128'; // [v128] holes: crew coats solid, followers hi on desktop, lit smoother Low body, old Pirate Hat back on v5, Waves -> Storm Hunt labels
 const SHELL = [
   "./",
   "./index.html",

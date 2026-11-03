@@ -937,7 +937,7 @@ window.PFP_OPEN_WAVES = () => openWavesEntry(); // [v103] the harbor card's WAVE
     paint(); } }
 if (PVP_ENABLED) { // [v103] BANKSY: the home screen just ENTERS THE GAME (the harbor + island). Waves = the WAVES board on the island,
   // Battle Royale = the harbor card (JOIN BATTLE / SPECTATE, SOLO / SQUADS) + the ARENA board. The portal builds keep WAVES (no PvP there).
-  const bp = $('btn-pvp'); bp.textContent = 'ENTER GAME'; bp.title = 'Enter the harbor + island: Waves and Battle Royale are both in there'; $('btn-start')?.remove(); }
+  const bp = $('btn-pvp'); bp.textContent = 'ENTER GAME'; bp.title = 'Enter the harbor + island: Storm Hunt and Battle Royale are both in there'; $('btn-start')?.remove(); }
 if (PVP_ENABLED) { $('btn-pvp').onclick = () => startPvp(); $('btn-spectate').onclick = () => startPvp(true); } else { $('btn-pvp')?.remove(); $('btn-spectate')?.remove(); } // [pvp] not on game portals
 { // [start help] "?" panel: close button, tap outside, Escape
   const faq = $('faq'), show = (on) => { faq.classList.toggle('hidden', !on); if (on) $('faq-close').focus(); else $('btn-faq').focus(); };

@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 const BAKE_C = new THREE.Color(); // colour scratch for the bake
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // foot frame: the whole on-foot grid (main island + islets)
-const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5cff', '#fff', 'SQUAD HALL'], waves: ['W', '#3fc6c9', '#161616', 'WAVES BOARD'], arena: ['A', '#fa0d0d', '#fff', 'ARENA BOARD'],
+const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5cff', '#fff', 'SQUAD HALL'], waves: ['W', '#3fc6c9', '#161616', 'STORM HUNT BOARD'], arena: ['A', '#fa0d0d', '#fff', 'ARENA BOARD'],
   spyglass: ['◎', '#e8e2d4', '#161616', 'SPYGLASS'], tavern: ['⚑', '#8a5a2b', '#fff', 'TAVERN'], bounties: ['!', '#e8e2d4', '#161616', 'BOUNTIES'],
   shop_clothes: ['👕', '#d8322f', '#fff', 'CLOTHES SHOP'], shop_ships: ['⛵', '#2a6df4', '#fff', 'SHIP SKINS'], token_AHOY: ['$', '#22c55e', '#161616', 'TOKENS'],
   cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'] };

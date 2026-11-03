@@ -24,9 +24,9 @@ function build() {
     <button id="pf-x" class="faq-x" type="button" aria-label="Close profile">✕</button>
     <div class="pf-head"><img id="pf-img" alt=""><div class="pf-who"><b id="pf-name"></b><small id="pf-stats"></small></div></div>
     <section class="pf-sec pf-crypto" id="pf-label"><h4>SOLANA WALLET <em>(optional)</em></h4>
-      <p class="pf-note">Shown with your name on the boards and keys your WAVES scores. Read-only: it never signs anything and gives <b>no boost</b>.</p></section>
+      <p class="pf-note">Shown with your name on the boards and keys your STORM HUNT scores. Read-only: it never signs anything and gives <b>no boost</b>.</p></section>
     <section class="pf-sec pf-crypto pf-waves" id="pf-save"><h4>SAVE PROGRESS <em>read-only wallet sign-in</em></h4>
-      <p class="pf-note">Signs a free message (never a transaction) so your WAVES progress follows the wallet.</p></section>
+      <p class="pf-note">Signs a free message (never a transaction) so your STORM HUNT progress follows the wallet.</p></section>
     <section class="pf-sec pf-crypto pf-br" id="pf-boost"><h4>LINK WALLET <em>Battle Royale · holder 2× gold</em></h4>
       <p class="pf-note">The signed link saves your Battle Royale progress to the wallet; holders of $SUNK / $AHOY get 2× gold. Only this signed link counts for the boost.</p>
       <button id="pf-link" type="button" class="pvp-btn">LINK WALLET</button><small id="pf-link-state" class="pf-note"></small></section>

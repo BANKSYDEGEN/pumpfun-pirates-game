@@ -24,7 +24,7 @@ export function createFollowers({ scene, world, walker, low }) {
   const want = () => { const g = crewGearOf(getLocalGear()) || NAKED, c = getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
   let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
-    const p = loadPirate({ look: LOOKS[i], low: true, outline: false }); applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
+    const p = loadPirate({ look: LOOKS[i], low, outline: false });   // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
     crew.push({ p, x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
   }
   // [v112] BANKSY "why are my crew members shirtless": a dress that failed once (gear library / item load error, or a dress started

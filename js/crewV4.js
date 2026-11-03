@@ -135,7 +135,7 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       // [Timothy] ONE gear system: Timothy's merged gear mesh + Raul's skinned items (tricorn, crown, pirate shirt, captain's coat; js/pirateItems.js)
       const items = Object.values(p.items || {}).map((it) => it.obj).filter((o) => o?.isSkinnedMesh && o.parent), meshes = [...(p.gearMesh ? [p.gearMesh] : []), ...items];
       if (!meshes.length) return null;
-      out[sex] = {};
+      out[sex] = {}; out[sex].top = g.outfit !== 'shirtless';   // [v128] the seat body is pulled in under tops (as the player since v124)
       const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
       const decals = Object.values(p.items || {}).map((it) => it.decal).filter((o) => o?.isSkinnedMesh && o.parent); // [v123] the PUMPFUN skull on the hat (crew slot tF0)
       for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown)), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
@@ -182,7 +182,14 @@ export function crewPirateV4Dressed(v, pose, chunks, tag) {
   const key = v + '|' + pose + '|' + tag; if (_dc.has(key)) return _dc.get(key);
   const cat = (a, b, k) => { const o = new Float32Array(a.length + b.length); o.set(a); o.set(b, a.length); return new THREE.BufferAttribute(o, k); };
   const A = base.attributes, g = new THREE.BufferGeometry();
-  g.setAttribute('position', cat(A.position.array, ch.pos, 3)); g.setAttribute('normal', cat(A.normal.array, ch.nrm, 3)); g.setAttribute('color', cat(A.color.array, ch.col, 3));
+  let BP = A.position.array;
+  if (chunks?.[female ? 'f' : 'm']?.top) {   // [v128] BANKSY "fix the holes in crew members": the seat body's belt / waist poked out through the coat
+    BP = BP.slice(); let H = 0; for (let i = 1; i < BP.length; i += 3) H = Math.max(H, BP[i]);   // and showed as holes in its back; pull the torso in under the top
+    let cx = 0, cz = 0, c = 0; for (let i = 0; i < BP.length; i += 3) { const y = BP[i + 1] / H; if (y > 0.36 && y < 0.72) { cx += BP[i]; cz += BP[i + 2]; c++; } } cx /= c || 1; cz /= c || 1;
+    for (let i = 0; i < BP.length; i += 3) { const y = BP[i + 1] / H; if (y <= 0.34 || y >= 0.74) continue; const w = Math.min(1, (y - 0.34) / 0.04, (0.74 - y) / 0.04), s = 1 - 0.12 * w;
+      BP[i] = cx + (BP[i] - cx) * s; BP[i + 2] = cz + (BP[i + 2] - cz) * s; }
+  }
+  g.setAttribute('position', cat(BP, ch.pos, 3)); g.setAttribute('normal', cat(A.normal.array, ch.nrm, 3)); g.setAttribute('color', cat(A.color.array, ch.col, 3));
   g.setAttribute('aPart', cat(A.aPart.array, ch.part, 1)); g.setAttribute('uv', cat(A.uv.array, ch.uv, 2));
   if (ch.vel?.some?.((x) => x)) { const hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]), C = g.attributes.color.array, o = A.position.count; // [v109b] crown velvet = this seat's hair
     for (let q = 0; q < ch.vel.length; q++) if (ch.vel[q]) { C[(o + q) * 3] = hair.r; C[(o + q) * 3 + 1] = hair.g; C[(o + q) * 3 + 2] = hair.b; } }

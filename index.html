@@ -105,8 +105,8 @@
   <div id="pvp-harbor" class="hidden pvp-only"><div id="pvp-harbor-t"></div>
     <!-- [v98] SOLO / SQUADS (2v2) pick before queuing; Squads: party code for 2 friends (else a random teammate) -->
     <!-- [v103] BATTLE | WAVES tab (BANKSY): WAVES swaps the card to START WAVES (the old home-screen WAVES button) -->
-    <div class="mode-sw ph-tab" id="pvp-tab" role="tablist" aria-label="Game"><button type="button" role="tab" data-t="battle">BATTLE</button><button type="button" role="tab" data-t="waves">WAVES</button></div>
-    <div id="pvp-waves" hidden><button id="pvp-waves-go" type="button" class="pvp-btn">START WAVES</button><span class="ph-wsub">solo · survive the waves · top the board</span></div>
+    <div class="mode-sw ph-tab" id="pvp-tab" role="tablist" aria-label="Game"><button type="button" role="tab" data-t="battle">BATTLE</button><button type="button" role="tab" data-t="waves">STORM HUNT</button></div>
+    <div id="pvp-waves" hidden><button id="pvp-waves-go" type="button" class="pvp-btn">START STORM HUNT</button><span class="ph-wsub">solo · survive the waves · top the board</span></div>
     <div class="mode-sw" id="pvp-mode" role="group" aria-label="Battle Royale mode"><button type="button" data-m="solo">SOLO</button><button type="button" data-m="squads">SQUADS 2v2</button></div>
     <div id="pvp-party" hidden><span id="pvp-party-t">No party: you get a random teammate</span>
       <span class="pp-row"><button id="pvp-party-new" type="button" class="ghost">CREATE PARTY</button><input id="pvp-party-code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Party code"><button id="pvp-party-join" type="button" class="ghost">JOIN</button><button id="pvp-party-leave" type="button" class="ghost" hidden>LEAVE PARTY</button></span></div>
@@ -170,9 +170,9 @@
 </div>
 <div id="title" class="overlay">
   <!-- [waves entry] same pop-up as BATTLE ROYALE: name, optional airdrop wallet, save progress (read-only wallet sign-in) -->
-  <div id="waves-entry" class="hidden" role="dialog" aria-label="Waves"><div class="pe-card">
+  <div id="waves-entry" class="hidden" role="dialog" aria-label="Storm Hunt"><div class="pe-card">
     <button id="we-close" class="faq-x" type="button" aria-label="Close">✕</button>
-    <h2>WAVES</h2>
+    <h2>STORM HUNT</h2>
     <label class="field"><span>PIRATE NAME</span><input id="we-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
     <small id="we-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
     <label class="field we-crypto"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="we-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
@@ -201,7 +201,7 @@
 
     <div class="row start-row">
       <button id="btn-pvp" class="big pvp-btn mode-btn" type="button" title="BATTLE ROYALE: real-time PvP, drop in and fight other pirates">BATTLE ROYALE</button>
-      <button id="btn-start" class="big mode-btn" type="button" title="WAVES: solo, survive the waves and top the leaderboard">WAVES</button>
+      <button id="btn-start" class="big mode-btn" type="button" title="STORM HUNT: solo, survive the waves and top the leaderboard">STORM HUNT</button>
     </div>
     <div class="row spec-row"><button id="btn-spectate" class="ghost spec-btn" type="button" title="Watch without playing: the Battle Royale arena (Solo / Squads) or the Harbor (no ship, invisible to pirates)">👁 SPECTATE</button><div class="mode-sw spec-sw" id="spec-mode-sw" role="group" aria-label="Arena to watch"><button type="button" data-m="solo">SOLO</button><button type="button" data-m="squads">SQUADS</button><button type="button" data-m="harbor">HARBOR</button></div><div id="home-live" class="hidden"></div></div>
 
@@ -209,7 +209,7 @@
    </div>
    <div class="col-b">
     <div class="board-wrap" id="home-board">
-      <div class="lb-modes" role="tablist" aria-label="Leaderboard"><button type="button" role="tab" data-mode="br">BATTLE ROYALE</button><button type="button" role="tab" data-mode="waves">WAVES</button></div>
+      <div class="lb-modes" role="tablist" aria-label="Leaderboard"><button type="button" role="tab" data-mode="br">BATTLE ROYALE</button><button type="button" role="tab" data-mode="waves">STORM HUNT</button></div>
       <div class="lb-pane lb-waves">
         <div class="board-title">TOP PIRATES <span class="muted lb-mode"></span></div>
         <div class="lb-tabs" role="tablist" aria-label="Leaderboard period"></div>

@@ -507,7 +507,7 @@ export function makeAtlas(skull) {
     const py = 1690; reg('tokLive' + t.sym, x, py, w, 110); // live price strip
     const qx = i * 340 + 4, qy = 1810; g.fillStyle = t.color; g.fillRect(qx, qy, 332, 150); text('$' + t.sym, qx + 166, qy + 78, 110, '#ffffff'); reg('pen' + t.sym, qx, qy, 332, 150);
   });
-  board(512, 1174, 512, 100, '#5a3219'); text('WAVES', 768, 1226, 96, '#ffcd77'); reg('waves', 512, 1174, 512, 100);
+  board(512, 1174, 512, 100, '#5a3219'); text('STORM HUNT', 768, 1226, 72, '#ffcd77'); reg('waves', 512, 1174, 512, 100);
   board(512, 1274, 512, 104, '#5a3219'); text('ARENA:  SOLO | SQUADS', 768, 1328, 76, '#fa0d0d'); reg('arena', 512, 1274, 512, 104);
   board(0, 1962, 512, 84, '#5a3219'); text('SPECTATE', 256, 2006, 76, '#ffcd77'); reg('spectate', 0, 1962, 512, 84);
   board(512, 1962, 512, 84, '#5a3219'); text('SQUAD HALL', 768, 2006, 76, '#ffcd77'); reg('squad', 512, 1962, 512, 84);
@@ -921,7 +921,7 @@ const pierPt = (k, t, d) => { const { u, v } = pierUV(PIER_ANGLES[k]); return { 
 export const ISLAND_POIS = [
   { id: 'spawn', label: 'Spawn (pier 1)', ...pierPt(0, 0, 80), r: 3, yaw: PIER_ANGLES[0] + Math.PI, action: null },
   { id: 'sail', label: 'Board your ship / sail to the harbor', ...pierPt(0, 0, 88), r: 3, action: null },
-  { id: 'waves', label: 'Waves board + captain', x: -17, z: 51, r: 3.5, yaw: Math.atan2(17, -27), action: null },
+  { id: 'waves', label: 'Storm Hunt board + captain', x: -17, z: 51, r: 3.5, yaw: Math.atan2(17, -27), action: null },
   { id: 'arena', label: 'Arena queue: Solo | Squads', x: 17, z: 51, r: 3.5, yaw: Math.atan2(-17, -27), action: null },
   { id: 'spectate', label: 'Spectate spyglass (pier 4 end platform)', ...pierPt(PIER_ANGLES.length - 1, PIER.headHalf + 3.5, (PIER.head0 + PIER.head1) / 2), r: 3, action: null },
 ];

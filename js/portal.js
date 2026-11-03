@@ -31,7 +31,7 @@ function initPortal() {
     const close = $('faq-close');
     card.innerHTML = `<h3 id="faq-q1">How to play</h3>
       <p>Hit SET SAIL. ${controlsLine()}. Change keys with the ⌨ button.</p>
-      <h3>Waves and THE COMMODORE</h3>
+      <h3>Storm Hunt and THE COMMODORE</h3>
       <p>Every wave brings more enemy ships and tougher hulls. Every fourth wave, THE COMMODORE arrives with escorts.</p>
       <h3>Gold and the shipwright</h3>
       <p>Sink ships and grab their floating treasure, then spend your gold on upgrades and escort ships. A new ship skin unlocks every 5 waves. Your best score and unlocks are saved in this browser.</p>
