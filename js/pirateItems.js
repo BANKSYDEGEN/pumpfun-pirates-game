@@ -22,7 +22,7 @@ const item = (id, label, slot, price, tint, hide, o = {}) => ({ id, label, slot,
   icon: `${DIR}icons/${id}.png`, tint, files: files(id, o.perBase), hide, ...o });
 // hide rules (bind space, three units): region (cyl | arm | leg | torso | sph | all) AND optional tint keys ('fixed' = untinted parts)
 export const ITEMS = [
-  item('hat_tricorn', 'Pirate Hat', 'head', 250, { hat: '#18181b' }, [{ cyl: [0, -0.005, 0.27], y: [HY + 0.085, 9], tilt: 0.1, tints: ['hair'] }], { v5: v5files('hat_tricorn'), v5hide: [], skull: false }   /* skull decal: next push */),
+  item('hat_tricorn', 'Pirate Hat', 'head', 250, { hat: '#18181b' }, [{ cyl: [0, -0.005, 0.27], y: [HY + 0.085, 9], tilt: 0.1, tints: ['hair'] }], { v5: v5files('hat_tricorn'), v5hide: [], skull: false }),
   item('crown', 'Pirate King Crown', 'head', 1200, { accent: '#8e1b2a' }, [{ cyl: [0, 0, 0.228], y: [HY + 0.15, 9], tilt: 0.06, tints: ['hair'] }], { v5new: v5files('crown'), v5hide: [] }),   // v5new: Raul's Imperial State Crown, ships after BANKSY OKs the fit shots   // v5: Raul's Imperial State Crown (fixed colours)
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
@@ -75,18 +75,41 @@ function applyHide(p) {
   const rules = Object.values(p.items).flatMap((it) => (p.v5 && it.v5hide ? it.v5hide : it.hide) || []);
   for (const o of p.atlasMeshes || []) {
     const g = ownGeometry(o), base = g.userData.baseIndex;
+    g.userData.basePos ||= g.attributes.position; g.userData.shrink = null;
     if (!rules.length) { g.setIndex(base); continue; }
-    const P = g.attributes.position, Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n);
+    const P = g.userData.basePos, Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n); let shr = null;
     for (let i = 0; i < n; i++) { const t = Tt ? Math.round(Tt.getX(i)) : -1, rX = P.getX(i), rY = P.getY(i), rZ = P.getZ(i); let X = rX, Y = rY, Z = rZ; if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
       for (const r of rules) { if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
         if (p.v5 && r.tints?.includes('hair') && !r.raw) continue;   // [v123] Raul: never hide v5 hair under a hat (the AI head is hollow: holes)
+        if (p.v5 && r.v5torso) {   // [v124] BANKSY "jacket has holes": hiding the v5 torso opened the hollow body in the coat's open front.
+          if (r.tints && !r.tints.some((k) => TI(k) === t)) continue;   // Now the torso is pulled in under the garment instead (shrink); only the upper arms inside the sleeves hide
+          const [y0, y1, s1] = r.v5torso; if (Y < y0 || Y > y1) continue;
+          if (Math.abs(X) < 0.2) { (shr ||= new Uint8Array(n))[i] = 1; continue; }
+          if (s1 && sArm(X, Y, X > 0 ? 1 : -1) < s1 - 0.04) { hid[i] = 1; break; } continue; }
         if (ruleHit(r, X, Y, Z, t, p.female, p.lod, !!p.v5)) { hid[i] = 1; break; } } }
     const src = base.array, out = [];
     for (let i = 0; i < src.length; i += 3) if (!(hid[src[i]] && hid[src[i + 1]] && hid[src[i + 2]])) out.push(src[i], src[i + 1], src[i + 2]);
-    g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1));
+    g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1)); g.userData.shrink = shr;
+  }
+  flattenHair(p);
+}
+function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
+  const F = p.v5 ? Object.values(p.items || {}).map((it) => it.flatten).find(Boolean) : null, iH = TINTS.indexOf('hair');
+  for (const o of p.atlasMeshes || []) {
+    const g = ownGeometry(o); g.userData.basePos ||= o.geometry.attributes.position;
+    const S = g.userData.shrink;
+    if (!F && !S) { if (g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); continue; }
+    const B = g.userData.basePos, P = B.clone(), T = g.attributes._tint;
+    if (S) { let cz = 0, c = 0; for (let i = 0; i < P.count; i++) if (S[i]) { cz += P.getZ(i); c++; } cz /= c || 1;
+      for (let i = 0; i < P.count; i++) if (S[i]) { P.setX(i, P.getX(i) * 0.9); P.setZ(i, cz + (P.getZ(i) - cz) * 0.9); } }   // torso 10 % in under the coat / shirt
+    if (!F) { g.setAttribute('position', P); continue; }
+    for (let i = 0; i < P.count; i++) { if (!T || Math.round(T.getX(i)) !== iH) continue; const y = P.getY(i); if (y <= F.y) continue;
+      const dx = (P.getX(i) - F.cx) / F.ex, dz = (P.getZ(i) - F.cz) / F.ez; if (dx * dx + dz * dz > 1) continue; P.setY(i, F.y + (y - F.y) * F.k); }
+    g.setAttribute('position', P);
   }
 }
-function itemMaterial(src, low) {
+function itemMaterial(src, low, two = false) { const m = itemMaterial0(src, low); if (two) m.side = THREE.DoubleSide; return m; }   // [v124] v5 hats / eyewear / hooks: solid from inside too (tops have their own lining)
+function itemMaterial0(src, low) {
   if (low) return new THREE.MeshBasicMaterial({ name: 'item_lo', map: src.map || null, vertexColors: true });
   return new THREE.MeshToonMaterial({ name: 'item_hi', map: src.map || null, normalMap: src.normalMap || null, vertexColors: true, gradientMap: gradient() });
 }
@@ -151,13 +174,15 @@ function keyColors(geo, pal, low) {   // magenta 1 / cyan 2 / yellow 3 / blue 4 
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
-  const geo = g0.clone(); if (def.id === 'crown') geo.setAttribute('position', geo.attributes.position.clone());
+  const geo = g0.clone(); if (def.id === 'crown' || def.v5dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors) retint(geo, opts.colors);
-  const m = new THREE.SkinnedMesh(geo, itemMaterial(mat || {}, low)); m.name = 'item_' + def.id; m.frustumCulled = false;
+  const m = new THREE.SkinnedMesh(geo, itemMaterial(mat || {}, low, def.slot !== 'outfit')); m.name = 'item_' + def.id; m.frustumCulled = false;
   body.parent.add(m); m.bind(skel, body.bindMatrix);
-  const decal = def.skull ? skullDecal(geo, skel, body, low) : null;
+  if (def.v5dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + def.v5dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
+  const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;
   const v5hide = def.id === 'crown' ? fitCrown(geo, p) : null;
-  return { obj: m, decal, v5hide };
+  const flatten = null;   // hair flatten under hats: next push
+  return { obj: m, decal, v5hide, flatten };
 }
 // [v123] BANKSY on Raul's crown: "Looks good, doesn't fit on head". Same design, re-seated per body: the ermine rim is scaled to the
 // head + hair cross-section at brow / ear height (bind space) and dropped there; the hair inside the crown is hidden (the velvet cap closes it).
@@ -180,40 +205,53 @@ function fitCrown(geo, p) {
 // white skull on the hat is found by colour, painted over with the hat felt, and the decal sits on that spot (curved to the surface).
 let _skullTex = null;
 export function skullTexture() { if (_skullTex) return _skullTex; _skullTex = new THREE.TextureLoader().load('assets/pirates/skull_decal.png'); _skullTex.colorSpace = THREE.SRGBColorSpace; _skullTex.anisotropy = 4; return _skullTex; }
-export function skullDecal(geo, skel, body, low) {
-  const P = geo.attributes.position, C = geo.attributes.color, N = geo.attributes.normal, n = P.count, W = [];
-  const white = (i) => C.getX(i) > 0.78 && C.getY(i) > 0.72 && C.getZ(i) > 0.6 && C.getX(i) - C.getZ(i) < 0.25;   // cream / white skull (not the gold trim)
-  for (let i = 0; i < n; i++) if (white(i) && P.getZ(i) > 0 && Math.abs(P.getX(i)) < 0.16) W.push(i);
-  if (W.length < 6) return null;
-  // the front cluster: whites near the front-most white vertex
-  let f = W[0]; for (const i of W) if (P.getZ(i) > P.getZ(f)) f = i;
-  const fx = P.getX(f), fy = P.getY(f), S = W.filter((i) => Math.hypot(P.getX(i) - fx, P.getY(i) - fy) < 0.14 && Math.abs(P.getX(i)) < 0.16);
-  const ctr = new THREE.Vector3(), nn = new THREE.Vector3(), bb = new THREE.Box3();
-  for (const i of S) { const v = new THREE.Vector3(P.getX(i), P.getY(i), P.getZ(i)); ctr.add(v); bb.expandByPoint(v); if (N) nn.add(new THREE.Vector3(N.getX(i), N.getY(i), N.getZ(i))); }
-  ctr.divideScalar(S.length); ctr.x = (bb.min.x + bb.max.x) / 2; ctr.y = (bb.min.y + bb.max.y) / 2;
-  if (nn.lengthSq() < 1e-6) nn.set(0, 0, 1); nn.normalize(); nn.lerp(new THREE.Vector3(0, nn.y, 1), 0.5).normalize();
-  const size = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y) * 1.12;
-  // paint the old modelled skull with the felt around it (median of the non-white front verts nearby)
-  const near = []; for (let i = 0; i < n; i++) { if (white(i)) continue; const d = Math.hypot(P.getX(i) - ctr.x, P.getY(i) - ctr.y, P.getZ(i) - ctr.z); if (d < size * 1.2 && P.getZ(i) > 0) near.push(i); }
-  if (near.length) { const ch = [0, 1, 2].map((k) => near.map((i) => C.getComponent(i, k)).sort((a, b) => a - b)[near.length >> 1]); const c2 = C.clone(); for (const i of S) c2.setXYZ(i, ch[0], ch[1], ch[2]); geo.setAttribute('color', c2); }
-  // curved 8 x 8 grid over the spot, each point pushed onto the hat surface (nearest front vertex depth) + 3 mm
-  const up = new THREE.Vector3(0, 1, 0).addScaledVector(nn, -nn.y).normalize(), rt = new THREE.Vector3().crossVectors(up, nn).normalize(), G = 8, pos = [], uv = [], idx = [], si = [], sw = [];
-  const cand = []; for (let i = 0; i < n; i++) if (P.getZ(i) > 0 && Math.hypot(P.getX(i) - ctr.x, P.getY(i) - ctr.y, P.getZ(i) - ctr.z) < size) cand.push(i);
-  const SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight, q = new THREE.Vector3(), v = new THREE.Vector3();
+export const SKULL = { size: 0.075, lift: 0.004 };   // ~9-10 cm in game (the figure is drawn 1.25x the bind size)
+export function skullDecal(geo, skel, body, low, opt = {}) {
+  const P = geo.attributes.position, C = geo.attributes.color, N = geo.attributes.normal, n = P.count;
+  const white = (i) => C && C.getX(i) > 0.78 && C.getY(i) > 0.72 && C.getZ(i) > 0.6 && C.getX(i) - C.getZ(i) < 0.25;   // cream / white (not gold trim)
+  let y0 = 1e9, y1 = -1e9; for (let i = 0; i < n; i++) { y0 = Math.min(y0, P.getY(i)); y1 = Math.max(y1, P.getY(i)); }
+  // the spot: the modelled skull (cream cluster on the front centre line), else the front-most centre point at 55% of the hat height
+  const ctr = new THREE.Vector3(); let zmax = -1e9, cnt = 0;
+  for (let i = 0; i < n; i++) if (white(i) && !opt.geometric && Math.abs(P.getX(i)) < 0.05 && P.getZ(i) > 0) zmax = Math.max(zmax, P.getZ(i));
+  if (zmax > -1e9) { for (let i = 0; i < n; i++) if (white(i) && Math.abs(P.getX(i)) < 0.05 && P.getZ(i) > zmax - 0.03) { ctr.x += P.getX(i); ctr.y += P.getY(i); ctr.z += P.getZ(i); cnt++; } ctr.divideScalar(cnt); }
+  else { const yt = y0 + (y1 - y0) * (opt.at ?? 0.55); let best = -1; for (let i = 0; i < n; i++) if (Math.abs(P.getX(i)) < 0.02 && Math.abs(P.getY(i) - yt) < 0.03 && (best < 0 || P.getZ(i) > P.getZ(best))) best = i;
+    if (best < 0) return null; ctr.set(0, P.getY(best), P.getZ(best)); }
+  ctr.x = 0;
+  const size = SKULL.size * (opt.scale || 1), R = size * 0.9;
+  // facing: the surface normal round the spot, kept mostly forward
+  const nn = new THREE.Vector3(), v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) { v.set(P.getX(i), P.getY(i), P.getZ(i)); if (v.distanceTo(ctr) < R && N && N.getZ(i) > 0.2) nn.add(new THREE.Vector3(N.getX(i), N.getY(i), N.getZ(i))); }
+  if (nn.lengthSq() < 1e-6) nn.set(0, 0, 1); nn.normalize(); nn.y = Math.max(-0.35, Math.min(0.35, nn.y)); nn.x = 0; nn.normalize();
+  // paint the old modelled skull with the felt round it, so only the real logo shows
+  if (C && zmax > -1e9) { const near = [], S = []; for (let i = 0; i < n; i++) { v.set(P.getX(i), P.getY(i), P.getZ(i)); const d = v.distanceTo(ctr); if (d > 0.16 || P.getZ(i) < ctr.z - 0.12) continue; const lit = C.getX(i) + C.getY(i) + C.getZ(i) > 0.6; if (white(i) || (opt.gold && lit && d < 0.11 && P.getZ(i) > ctr.z - 0.06)) S.push(i); else if (!opt.gold || !lit) near.push(i); }
+    if (near.length) { const ch = [0, 1, 2].map((k) => near.map((i) => C.getComponent(i, k)).sort((x, y) => x - y)[near.length >> 1]); const c2 = C.clone(); for (const i of S) c2.setXYZ(i, ch[0], ch[1], ch[2]); geo.setAttribute('color', c2); } }
+  // 6 x 6 grid on the plane, each point lifted just above the hat surface under it (never sunk, never floating far)
+  const up = new THREE.Vector3(0, 1, 0).addScaledVector(nn, -nn.y).normalize(), rt = new THREE.Vector3().crossVectors(up, nn).normalize(), G = 6, pos = [], uv = [], idx = [], si = [], sw = [];
+  const cand = []; for (let i = 0; i < n; i++) { v.set(P.getX(i), P.getY(i), P.getZ(i)); if (v.distanceTo(ctr) < size * 1.2) cand.push(i); }
+  const SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight, q = new THREE.Vector3(); let anchor = cand[0] ?? 0;
   for (let a = 0; a <= G; a++) for (let b = 0; b <= G; b++) {
     const u = a / G, w = b / G; q.copy(ctr).addScaledVector(rt, (u - 0.5) * size).addScaledVector(up, (w - 0.5) * size);
-    let best = -1, bd = 1e9; for (const i of cand) { v.set(P.getX(i), P.getY(i), P.getZ(i)); const d = v.clone().sub(q).cross(nn).lengthSq(); if (d < bd) { bd = d; best = i; } }
-    if (best >= 0) { v.set(P.getX(best), P.getY(best), P.getZ(best)); q.addScaledVector(nn, v.sub(q).dot(nn)); }
-    q.addScaledVector(nn, 0.003); pos.push(q.x, q.y, q.z); uv.push(u, w);
-    const bi = best >= 0 ? best : 0; for (let k = 0; k < 4; k++) { si.push(SI.getComponent(bi, k)); sw.push(SW.getComponent(bi, k)); }
+    let d = -1e9; for (const i of cand) { v.set(P.getX(i), P.getY(i), P.getZ(i)).sub(q); const lat = v.clone().addScaledVector(nn, -v.dot(nn)).length(); if (lat < 0.012) d = Math.max(d, v.dot(nn)); }
+    if (d > -1e9 && d < 0.06) q.addScaledVector(nn, d);
+    q.addScaledVector(nn, SKULL.lift); pos.push(q.x, q.y, q.z); uv.push(u, w);
   }
+  for (let i = 0; i < (G + 1) * (G + 1); i++) for (let k = 0; k < 4; k++) { si.push(SI.getComponent(anchor, k)); sw.push(SW.getComponent(anchor, k)); }
   for (let a = 0; a < G; a++) for (let b = 0; b < G; b++) { const i0 = a * (G + 1) + b, i1 = i0 + G + 1; idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4)); g.setIndex(idx); g.computeVertexNormals();
   const mat = low ? new THREE.MeshBasicMaterial({ name: 'skull_decal', map: skullTexture(), alphaTest: 0.5, side: THREE.DoubleSide })
     : new THREE.MeshToonMaterial({ name: 'skull_decal', map: skullTexture(), alphaTest: 0.5, side: THREE.DoubleSide, gradientMap: gradient() });
-  const m = new THREE.SkinnedMesh(g, mat); m.name = 'skull_decal'; m.frustumCulled = false; m.renderOrder = 1; m.userData.skullDecal = true;
+  const m = new THREE.SkinnedMesh(g, mat); m.name = 'skull_decal'; m.frustumCulled = false; m.userData.skullDecal = true;
   body.parent.add(m); m.bind(skel, body.bindMatrix); return m;
+}
+// [v124] BANKSY: hair spikes poked through the bicorne / bandana. The v5 head is one shell (no hiding), so under a hat the hair above
+// the hat's inner seat is squashed down into it (per pirate copy of the positions; the base mesh is untouched)
+function hatFlatten(geo) {
+  const P = geo.attributes.position; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, y0 = 1e9;
+  for (let i = 0; i < P.count; i++) { const x = P.getX(i), z = P.getZ(i); x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ex = (x1 - x0) / 2, ez = (z1 - z0) / 2;
+  for (let i = 0; i < P.count; i++) if (P.getZ(i) > cz + ez * 0.3 && Math.abs(P.getX(i) - cx) < ex * 0.3) y0 = Math.min(y0, P.getY(i));   // the seat: the hat's front rim (forehead)
+  return { cx, cz, ex: ex * 0.95, ez: ez * 0.95, y: y0 + 0.03, k: 0.2 };
 }
 function drop(it) { for (const ob of [it.obj, it.decal]) { if (!ob) continue; ob.parent?.remove(ob); ob.traverse((o) => { if (o.isMesh) { o.material.dispose(); } }); } it.mixer?.stopAllAction(); }
 export async function equip(p, id, opts = {}) {

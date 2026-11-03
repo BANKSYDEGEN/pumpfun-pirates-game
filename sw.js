@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v123'; // [v123] v5 polish bases (chibi hands, opaque hair), solid player bodies, Raul's per-body hat / eyewear / hook / peg fits
+const VERSION = 'pfp-v124'; // [v124] holes + skin patches: tops solid (torso pulled in under the garment, not cut open), body atlas re-tiled per part (no white / orange skin streaks), golden hair flecks take the hair pick
 const SHELL = [
   "./",
   "./index.html",
