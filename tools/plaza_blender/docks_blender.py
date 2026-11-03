@@ -181,6 +181,9 @@ for ci, segs in enumerate(pieces):
     for (ra, rb) in roots:
         for x in (ra - 0.35, rb + 0.35):
             if lxa <= x < lxb: c['col'].append(['c', round(x, 3), BW['lz1'] - 0.2, 0.3])
+    for a, e in spans:   # [collisions] the sea rail between the jetty roots (was walk-through: you stood half inside it)
+        lo, hi = max(a, lxa), min(e, lxb)
+        if hi - lo >= 0.5: c['col'].append(['b', round((lo + hi) / 2, 3), BW['lz1'] - 0.2, round(hi - lo, 3), 0.2])
 
 # ---- jetties (boards across the walk; edge stringers, pile bents every 6 m, bollards at the blockout spots, mooring lines, ladders, plaques)
 for j in JETTIES:
@@ -214,7 +217,7 @@ for j in JETTIES:
         for zz in (-16, 0, 16): c['col'].append(['c', X + sx * (JW / 2 - 0.5), SHIP_LZ + zz, 0.4])
         c['col'].append(['c', X + sx * (JW / 2 - 0.55), SHIP_LZ - 8, 0.4])
     for bt in BERTHS:
-        if bt['j'] is j: c['col'].append(['c', bt['alx'], SHIP_LZ - 18, 0.3])
+        if bt['j'] is j: c['col'].append(['b', round(X + bt['side'] * (JW / 2 - 0.775), 3), SHIP_LZ - 18, 1.55, 1.95])   # [collisions] the whole plaque board, out to the deck edge (no notch to stick in)
 
 # ---- materials, objects, export ----
 def mat(name, kind):

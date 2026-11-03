@@ -52,12 +52,15 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   function camPos(out) { const cp = Math.cos(w.pitch); out.set(w.x - Math.sin(w.camYaw) * w.dist * cp, w.y + 1.7 + Math.sin(w.pitch) * w.dist, w.z - Math.cos(w.camYaw) * w.dist * cp);
     const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
+  const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // ?deflect=0 = the old axis-only slide
   function step(dx, dz) { // move with sliding + a few sub-steps so a fast run never tunnels through a wall
     const n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let moved = 0; // [v103] ≤0.3 m sub-steps (< the 0.45 m body radius) at the faster sprint
     for (let i = 0; i < n; i++) { const sx = dx / n, sz = dz / n;
       if (!world.blocked(w.x + sx, w.z + sz, w.x, w.z)) { w.x += sx; w.z += sz; moved++; }
       else if (Math.abs(sx) > 1e-4 && !world.blocked(w.x + sx, w.z, w.x, w.z)) { w.x += sx; moved += 0.5; }
-      else if (Math.abs(sz) > 1e-4 && !world.blocked(w.x, w.z + sz, w.x, w.z)) { w.z += sz; moved += 0.5; } }
+      else if (Math.abs(sz) > 1e-4 && !world.blocked(w.x, w.z + sz, w.x, w.z)) { w.z += sz; moved += 0.5; }
+      else if (DEFLECT) for (const r of DEFLECT) { const c = Math.cos(r), s = Math.sin(r), rx = sx * c - sz * s, rz = sx * s + sz * c; // [Timothy collisions] head-on into a post / round prop, or a V-notch
+        if (!world.blocked(w.x + rx, w.z + rz, w.x, w.z)) { w.x += rx; w.z += rz; moved += 0.25; break; } } }        // between two props: slide round it instead of sticking
     return moved / n;
   }
   function update(dt) {

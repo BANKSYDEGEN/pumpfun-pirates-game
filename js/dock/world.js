@@ -56,6 +56,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   const quay = k.build(MATS, OUT); quay.name = 'onfoot_berths'; root.add(quay);
   // ---- walk API (harbor coords) ----
   const decks = layout.decks.map(d => ({ ...d, c: Math.cos(d.yaw), s: Math.sin(d.yaw) }));
+  const DECK_COLL = !(typeof location !== 'undefined' && /[?&]deckcoll=0/.test(location.search));
   function deckAt(x, z) { let y = null; for (const d of decks) { const dx = x - d.x, dz = z - d.z, along = dx * d.s + dz * d.c, across = dx * d.c - dz * d.s;
     if (Math.abs(along) <= d.hl && Math.abs(across) <= d.hw - 0.35) y = Math.max(y ?? -1e9, d.y); } return y; }
   const toF = layout.harborToFoot;
@@ -65,6 +66,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   function stand(x, z) { const g = ground(x, z), s = water(x, z); return s !== null && s - g > FM.FOOT_SWIM.depth ? s - FM.FOOT_SWIM.float : g; }
   function blocked(x, z, px, pz) {
     const d = deckAt(x, z);
+    if (d !== null && DECK_COLL && FM.hitCollider?.(...toF(x, z))) return true; // [Timothy collisions] props ON a deck block too (bollards, coils, posts, rails, crates, stalls on the boardwalk / jetties / plaza deck zones were walk-through); ?deckcoll=0 = old
     if (d !== null) { if (px === undefined) return false; const from = stand(px, pz); return d - from > 2.4; } // up a step / stairs ([Raul] from the water: where you float)
     const [fx, fz] = toF(x, z);
     if (px !== undefined && deckAt(px, pz) !== null) return foot.blocked(fx, fz) || foot.H(fx, fz) - deckAt(px, pz) > 2.4; // stepping off a deck

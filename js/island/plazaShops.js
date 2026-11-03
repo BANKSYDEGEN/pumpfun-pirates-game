@@ -39,8 +39,9 @@ function loadBattery(low) {
       node.traverse(mm => { if (mm.isMesh) { rel.multiplyMatrices(inv, mm.matrixWorld); parts.push(deq(mm.geometry, rel)); } }); if (!parts.length) return null;
       const g = parts.length > 1 ? mergeGeometries(parts, false) : parts[0]; g.computeBoundingSphere(); return g; };
     const lods = [0, 1].map(i => merged('battery_LOD' + i)).filter(Boolean);
-    let flag = null; try { flag = JSON.parse(root.userData.flag); } catch (e) { /* none */ }
-    BATTERY_KIT = { low, mat: solid, lods, carriage: merged('gun_carriage'), barrel: merged('gun_barrel'), flag };
+    let flag = null, rocks = []; try { flag = JSON.parse(root.userData.flag); } catch (e) { /* none */ }
+    try { rocks = JSON.parse(root.userData.rocks || '[]'); } catch (e) { /* none */ }   // [collisions] [lx, lz, r] per Blender boulder
+    BATTERY_KIT = { low, mat: solid, lods, carriage: merged('gun_carriage'), barrel: merged('gun_barrel'), flag, rocks };
     return BATTERY_KIT; }).catch(e => { console.warn('[battery] Blender models failed, procedural art instead', e); return null; });
 }
 // the static battery art as one LOD (Low: LOD1 only), placed in foot-world by the caller

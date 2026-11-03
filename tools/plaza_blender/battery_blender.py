@@ -161,23 +161,24 @@ def static(lod):
         for s in (-1, 1): b.box(1.3, 0.05, 0.12, fx + 1.7, fy + math.sin(2 * 1.3) * 0.18 - 0.05, B['y'] + 10.0, 0xf2efe6, ry=s * 0.6)
     # rocky cliff dressing: faceted mossy boulders seated on the terrain round the seaward rim, below the landing and along the ramp's
     # outer foot (never on a walkable surface: outside the deck / ramp / landing / apron rects + 1.5 m)
-    rr = random.Random(3)
+    rr = random.Random(3); tr = random.Random(4)   # [collisions] tufts on their own stream: desktop + phone now get the SAME boulders (the colliders match both)
     def walk_clear(lx, lz):
         def rd(R): return math.hypot(max(R['lx0'] - lx, 0, lx - R['lx1']), max(R['lz0'] - lz, 0, lz - R['lz1']))
         return math.hypot(lx - B['lx'], lz - B['lz']) > B['deckR'] + 1.6 and rd(RAMP) > 1.6 and rd(LANDING) > 1.6 and rd(FOOT) > 2.0
     spots = []
-    for i in range(70 if lod == 0 else 30):
+    for i in range(70):
         t = rr.random()
         if t < 0.55: a = rr.uniform(-1.6, 1.6); r = rr.uniform(B['deckR'] + 2.5, B['deckR'] + 9); lx, lz = B['lx'] + math.sin(a) * r, B['lz'] + math.cos(a) * r
         elif t < 0.8: lx, lz = rr.uniform(RAMP['lx0'] + 6, RAMP['lx1']), rr.choice([-1, 1]) * rr.uniform(6.5, 11)
         else: lx, lz = rr.uniform(LANDING['lx1'] + 2, LANDING['lx1'] + 8), rr.uniform(-8, 22)
         if not walk_clear(lx, lz): continue
         h = Ht(lx, lz); r = rr.uniform(1.0, 2.6); x, y = P(lx, lz); rock(b, x, y, h - r * 0.25, r, rng, lod)
-        if lod == 0 and rr.random() < 0.45:   # tufts of foliage at the base
-            for k in range(3): b.box(0.12, 0.7, 0.04, x + rr.uniform(-r, r), y + rr.uniform(-r, r), h + 0.1, 0x3fa645, rx=0.6, rz=rr.uniform(0, 6.28), base=True)
+        if lod == 0: ROCKS.append([round(lx, 2), round(lz, 2), round(r * 0.95, 2)])   # [collisions] battery.js adds a circle per boulder
+        if lod == 0 and tr.random() < 0.45:   # tufts of foliage at the base
+            for k in range(3): b.box(0.12, 0.7, 0.04, x + tr.uniform(-r, r), y + tr.uniform(-r, r), h + 0.1, 0x3fa645, rx=0.6, rz=tr.uniform(0, 6.28), base=True)
     return b
 
-FLAG = (151.0, 31.5)
+FLAG = (151.0, 31.5); ROCKS = []
 def carriage():
     b = Builder()   # gun frame (Blender): -y = muzzle direction (three +z), origin on the deck
     for s in (-1, 1):   # stepped cheeks (brackets)
@@ -227,7 +228,7 @@ for name, bld in (('battery_LOD0', lambda: static(0)), ('battery_LOD1', lambda: 
     b = bld(); me = b.bake(name); me.validate(clean_customdata=False)
     for m in MATS: me.materials.append(m)
     o = bpy.data.objects.new(name, me); COLL.objects.link(o); o.parent = root; REP[name] = b.tris(); print(name, b.tris())
-root['flag'] = json.dumps(FLAG)
+root['flag'] = json.dumps(FLAG); root['rocks'] = json.dumps(ROCKS)
 json.dump(REP, open(os.path.join(OUT, 'battery_report.json'), 'w'))
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'battery.blend'))
 for o in bpy.data.objects: o.select_set(True)

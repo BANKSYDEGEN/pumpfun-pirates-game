@@ -52,6 +52,7 @@ export function buildArt(o) {
   const { k, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o, yaw0 = CO.t2wYaw(0), B = BATTERY;
   const KB = BATTERY_KIT, W = KB ? () => {} : o.W;   // [Timothy] Blender art loaded: draw nothing procedural, keep every collider + the lamps
   if (KB && KB.flag) { const [x, z] = T(KB.flag[0], KB.flag[1]); addCirc(x, z, 0.7); }   // the flagpole plinth
+  if (KB && KB.rocks) for (const [lx, lz, r] of KB.rocks) addCirc(...T(lx, lz), r);   // [collisions] the Blender boulders (were walk-through)
   // a wall piece centred on (lx, lz), long axis along town lx (len) or lz (alongZ), top at y, 7 m deep into the ground
   const wall = (lx, lz, len, top, alongZ = false, th = 0.8, col = C.STONE) => { const [x, z] = T(lx, lz), hgt = 8;
     W(k, box(alongZ ? th : len, hgt, alongZ ? len : th), col, 11, M(x, top - hgt / 2, z, yaw0));
@@ -73,7 +74,10 @@ export function buildArt(o) {
     const [kx, kz] = T(q.lx + px * 2.4 - Math.sin(q.a) * 3.2, q.lz + pz * 2.4 - Math.cos(q.a) * 3.2);
     W(k, cyl(0.42, 0.42, 0.95, 10), C.WOOD, 2, M(kx, y + 0.47, kz)); W(k, cyl(0.44, 0.44, 0.08, 10), C.IRON, 0, M(kx, y + 0.75, kz), false);
     addCirc(bx, bz, 0.55); addCirc(kx, kz, 0.5);
-    const [gx, gz] = T(q.lx, q.lz); addCirc(gx, gz, 1.45); }
+    const [gx, gz] = T(q.lx, q.lz); addCirc(gx, gz, 1.45);
+    // [collisions] one rounded footprint per gun station (gun -> shot pile -> keg): the gaps between them were narrower than you
+    // (V-notches you stuck in); bridge circles close them so you slide round the whole group
+    addCirc((gx + bx) / 2, (gz + bz) / 2, 0.75); addCirc((bx + kx) / 2, (bz + kz) / 2, 0.5); }
   // lamps
   for (const [lx, lz, y] of [[RAMP.lx0 - 0.6, RAMP.lz0 - 0.4, RAMP.y0], [RAMP.lx0 - 0.6, RAMP.lz1 + 0.4, RAMP.y0], [(RAMP.lx0 + RAMP.lx1) / 2, RAMP.lz0 - 0.4, rampY((RAMP.lx0 + RAMP.lx1) / 2) + 1.1],
     [LANDING.lx0 + 1, LANDING.lz0 - 0.4, B.y + 1.1], [B.lx, B.lz - 14, B.y]]) { const [x, z] = T(lx, lz); torchPost(k, F, x, y === null ? H(x, z) : y, z); }

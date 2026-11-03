@@ -58,7 +58,7 @@ def cyl(m, r0, r1, h, n, reg, T=None, tint=(1, 1, 1), caps=True, vert=False):
         s0, s1 = i / n * circ, (i + 1) / n * circ
         if vert: uvs = [region_uv(reg, y + h / 2, s, 0, h, s0, s1) for (y, s) in [(-h / 2, s0), (h / 2, s0), (h / 2, s1), (-h / 2, s1)]]
         else: uvs = [region_uv(reg, s, y, s0, s1, -h / 2, h / 2) if reg in FIT else region_uv(reg, s, y, 0, circ, -h / 2, h / 2) for (s, y) in [(s0, -h / 2), (s0, h / 2), (s1, h / 2), (s1, -h / 2)]]
-        m.poly([xf(M_, p) for p in pts][::-1], uvs[::-1], tint)
+        m.poly([xf(M_, p) for p in pts], uvs, tint)   # [Timothy] outward winding (the [::-1] turned every cylinder wall inside out: barrels, torch / lamp posts rendered see-through)
     if caps:
         for y, r, sg in [(h / 2, r1, 1), (-h / 2, r0, -1)]:
             pts = [(math.cos(i / n * 2 * math.pi) * r, y, math.sin(i / n * 2 * math.pi) * r) for i in range(n)]

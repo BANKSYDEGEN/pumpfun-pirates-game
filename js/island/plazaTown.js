@@ -224,15 +224,16 @@ export function buildPlazaV2(h) {
     stoneHouse(hs.lx, hs.w, hs.fl, hs.v); if (hs.tavern) hanging('tavern', hs.lx, hs.w); }
   // ---- market street + stalls + tavern tables + carts ----
   for (const [lx, lz] of LAMPS) { const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
-  for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); addCirc(x, z, 1.8);
+  for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); { const [bx, bz] = T(s.lx, s.lz - 0.2); addBox(bx, bz, 4.3, 3.0, yaw0); }   // [collisions] counter + the 4 awning posts (the r 1.8 circle let you walk through the corner posts)
     at(s.lx, s.lz, Math.PI, () => { W(k, box(4.4, 0.1, 3.2), s.c, 12, M(0, 3.0, 0.3, 0, 0.14)); for (const sx of [-2.0, 2.0]) for (const sz of [-1.2, 1.6]) W(k, box(0.14, 3.0, 0.14), C.WOOD_D, 2, M(sx, 1.5, sz), false);
       for (let p = 0; p < 5; p++) k.add(new THREE.IcosahedronGeometry(0.28, 0), [0xff7a1a, 0xffd43b, 0x7cc142, 0xd8322f][(p + s.lx) & 3], { m: M(-1.2 + p * 0.6, 1.2, 0.2), outline: false, mat: 0 }); }, Y0);
     const [bx, bz] = T(s.lx + 2.8, s.lz + 1.0); ((s.lx / 8) % 2 ? barrel : sacks)(k, M(bx, Y0, bz, s.lx)); addCirc(bx, bz, 0.7); }
   for (const [lx, lz] of CARTS) { at(lx, lz, 0.3, () => { W(k, box(2.6, 0.5, 1.5), C.WOOD, 2, M(0, 0.95, 0)); for (const sz of [-0.85, 0.85]) W(k, cyl(0.55, 0.55, 0.14, 10), C.WOOD_D, 2, M(-0.4, 0.55, sz, 0, Math.PI / 2), false);
       W(k, box(1.8, 0.1, 0.1), C.WOOD_D, 2, M(2.1, 0.8, 0.4), false); W(k, box(1.8, 0.1, 0.1), C.WOOD_D, 2, M(2.1, 0.8, -0.4), false); }, Y0);
-    const [x, z] = T(lx, lz); barrel(k, M(x, Y0 + 1.2, z, 1)); addCirc(x, z, 1.5); }
+    const [x, z] = T(lx, lz); barrel(k, M(x, Y0 + 1.2, z, 1)); { const c = Math.cos(0.3), s = Math.sin(0.3), [bx, bz] = T(lx + 0.9 * c, lz - 0.9 * s); addBox(bx, bz, 4.9, 1.8, yaw0 + 0.3); } }   // [collisions] cart body + wheels + the shafts (circle 1.5 missed the shafts)
   for (const [lx, lz] of TAVERN_TABLES) { at(lx, lz, 0, () => { W(k, cyl(0.9, 0.9, 0.12, 10), C.WOOD, 2, M(0, 1.0, 0)); W(k, cyl(0.15, 0.25, 1.0, 6), C.WOOD_D, 2, M(0, 0.5, 0), false);
-      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.35, 0.35, 0.55, 8), C.WOOD_L, 2, M(Math.sin(a) * 1.3, 0.28, Math.cos(a) * 1.3), false); }, Y0); const [x, z] = T(lx, lz); addCirc(x, z, 1.0); }
+      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.35, 0.35, 0.55, 8), C.WOOD_L, 2, M(Math.sin(a) * 1.3, 0.28, Math.cos(a) * 1.3), false); }, Y0); const [x, z] = T(lx, lz); addCirc(x, z, 1.0);
+    addCirc(x, z, 1.72); }   // [collisions] table + its 3 stools as one round footprint (the stools were walk-through; separate circles left pockets)
   // ---- palms (blockout: chunky trunk + fronds; phase 2 = the nature kit palm) ----
   for (const [i, [lx, lz]] of PALMS.entries()) at(lx, lz, i * 1.3, () => { for (let s = 0; s < 4; s++) W(k, cyl(0.32 - s * 0.04, 0.36 - s * 0.04, 2.0, 7), C.BARK, 5, M(s * 0.18, 1 + s * 1.9, 0, 0, 0, -0.06 * s));
       for (let f = 0; f < 6; f++) W(k, box(0.9, 0.14, 3.6), 0x3fca45, 6, M(0.7 + Math.sin(f * 1.05) * 1.5, 7.6, Math.cos(f * 1.05) * 1.5, f * 1.05, 0.38)); addCirc(...T(lx, lz), 0.5); }, Y0);
@@ -248,7 +249,7 @@ export function buildPlazaV2(h) {
   // [Timothy] Blender docks (plazaShops.js DOCKS_KIT): boardwalk, jetty decks, pilings, bollards, mooring posts, rope, ladders and the
   // B1-B10 plaques come from assets/island/docks*.glb (same decks / heights / bollard spots, colliders from the GLB); the torch posts stay
   DOCK_PLACES.length = 0;
-  if (DOCKS_KIT) DOCKS_KIT.chunks.forEach((c, i) => { const [x, z] = T(c.lx, c.lz); DOCK_PLACES.push({ i, m: M(x, 0, z, yaw0) }); for (const q of c.colliders) addCirc(...T(q[1], q[2]), q[3]); });
+  if (DOCKS_KIT) DOCKS_KIT.chunks.forEach((c, i) => { const [x, z] = T(c.lx, c.lz); DOCK_PLACES.push({ i, m: M(x, 0, z, yaw0) }); for (const q of c.colliders) { if (q[0] === 'b') addBox(...T(q[1], q[2]), q[3], q[4], yaw0); else addCirc(...T(q[1], q[2]), q[3]); } });   // [collisions] 'b' = town-axis box (rails, plaques)
   if (!DOCKS_KIT) { const B = BOARDWALK, D = B.lz1 - B.lz0, zc = (B.lz0 + B.lz1) / 2;
     const plank = (a, b, ya, yb) => { const L = b - a, ang = Math.atan2(ya - yb, L), len = Math.hypot(L, ya - yb);
       at((a + b) / 2, zc, 0, () => { W(k, box(len, 0.3, D), C.WOOD_L, 2, M(0, -0.15, 0, 0, 0, -ang));

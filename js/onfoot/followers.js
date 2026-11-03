@@ -16,6 +16,7 @@ import { crewGear } from '../crewLoadout.js';
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
 const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
+const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // [Timothy collisions] ?deflect=0 = old
 // [Emerly] keepOut(x, z, i) -> null | [x, z]: places the crew must not walk into (the SWORD PIT / MUSKET RANGE, js/onfoot/battle.js);
 // a target inside one becomes that place's waiting spot for follower i (outside the gate), and they never step across its edge.
 export function createFollowers({ scene, world, walker, low, keepOut = null }) {
@@ -67,7 +68,9 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
     for (let i = 0; i < k; i++) { const sx = dx / k, sz = dz / k;
       if (!blocked(c.x + sx, c.z + sz, c.x, c.z)) { c.x += sx; c.z += sz; got++; }
       else if (!blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
-      else if (!blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; } }
+      else if (!blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; }
+      else if (DEFLECT) for (const r of DEFLECT) { const cs = Math.cos(r), sn = Math.sin(r), rx = sx * cs - sz * sn, rz = sx * sn + sz * cs; // [Timothy collisions] walk round a post /
+        if (!blocked(c.x + rx, c.z + rz, c.x, c.z)) { c.x += rx; c.z += rz; got += 0.25; break; } } }                       // barrel / lamp in the way instead of pushing into it
     return got / k; }
   const fx = waterFX(scene, low);
   function update(dt, camera) {
@@ -80,6 +83,9 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
     crew.forEach((c, i) => {
       const pt = trailAt(BACK[i]); let tx = pt[0], tz = pt[1];
       { const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw), sx = -bz * SIDE[i], sz = bx * SIDE[i]; if (SIDE[i] && !world.blocked(tx + sx, tz + sz, tx, tz)) { tx += sx; tz += sz; } }
+      if (DEFLECT && c.stuck > 0.3 && trail.length > 1) { let m = 0, md = 1e9; // [Timothy collisions] caught on a prop corner: drop the shortcut + side offset and walk
+        for (let q = 0; q < trail.length; q++) { const e = (trail[q][0] - c.x) ** 2 + (trail[q][1] - c.z) ** 2; if (e < md) { md = e; m = q; } }   // your own breadcrumbs
+        const q = trail[Math.max(0, m - 1)]; tx = q[0]; tz = q[1]; }                                                                       // (always walkable) round it
       const wait = ko(tx, tz, i) || (ko(W.x, W.z, i) ? ko(W.x, W.z, i) : null); if (wait) { tx = wait[0]; tz = wait[1]; } // [Emerly] you're in an arena: wait outside its gate
       { const inside = ko(c.x, c.z, i); if (inside) { c.x = inside[0]; c.z = inside[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; } } // never left standing inside one
       const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);

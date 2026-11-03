@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v162'; // [v162] Raul's gear colours: the HQ helmet + luchador mask take the free hat colour (crew helmet too)
+const VERSION = 'pfp-v163'; // [v163] Timothy plaza collisions: deck props block, slide-friendly boxes, follower path-around, town-kit cylinders (barrels) wound outward
 const SHELL = [
   "./",
   "./index.html",
