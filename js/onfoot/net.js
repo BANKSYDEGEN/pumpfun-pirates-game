@@ -22,10 +22,10 @@ function nameTag(text) {
 export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
   const peers = new Map();
   let ftLast = '', ftAt = 0;
-  function netState(me) { // fields merged into YOUR outgoing room state; the walk pose refreshes at most ~3 Hz (FT_MS), so the
+  function netState(me, fast = false) { // fields merged into YOUR outgoing room state; the walk pose refreshes at most ~3 Hz (FT_MS), so the
     // transport (which only sends changed fields) adds ~3 small messages / s while you walk and nothing while you stand still
     const now = performance.now();
-    if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= FT_MS) { ftAt = now; ftLast = [Math.round(me.w.x * 2) / 2, Math.round(me.w.z * 2) / 2, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
+    if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= (fast ? 90 : FT_MS)) { ftAt = now; const q = fast ? 10 : 2; ftLast = [Math.round(me.w.x * q) / q, Math.round(me.w.z * q) / q, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
     // [v106] fj: your jump counter (changes once per jump; the transport only sends changed fields, older clients ignore it)
     return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ds: docking.fresh?.() ? 1 : 0, ft: ftLast,   // [v152] ds = 1 for a few s after the join spawn moored you (older clients ignore it)
       ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };

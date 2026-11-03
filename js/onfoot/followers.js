@@ -16,7 +16,9 @@ import { crewGear } from '../crewLoadout.js';
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
 const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
-export function createFollowers({ scene, world, walker, low }) {
+// [Emerly] keepOut(x, z, i) -> null | [x, z]: places the crew must not walk into (the SWORD PIT / MUSKET RANGE, js/onfoot/battle.js);
+// a target inside one becomes that place's waiting spot for follower i (outside the gate), and they never step across its edge.
+export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   const n = low ? 2 : 3, crew = [];
   const trail = []; let trailLen = 0; // [x, z] newest first, ~STEP m apart
   // [v109b] the crew wears YOUR resolved clothes colours: your picked clothes colour (outfitColor) or your ship skin's when it's 0 / SHIP,
@@ -58,12 +60,14 @@ export function createFollowers({ scene, world, walker, low }) {
   function trailAt(d) { const W = walker.w; let px = W.x, pz = W.z, acc = 0;
     for (const q of trail) { const s = Math.hypot(q[0] - px, q[1] - pz); if (acc + s >= d) { const f = (d - acc) / Math.max(1e-3, s); _pt[0] = px + (q[0] - px) * f; _pt[1] = pz + (q[1] - pz) * f; return _pt; } acc += s; px = q[0]; pz = q[1]; }
     _pt[0] = px; _pt[1] = pz; return _pt; }
+  const ko = (x, z, i) => { try { return keepOut ? keepOut(x, z, i) : null; } catch { return null; } };
+  const blocked = (x, z, fx, fz) => world.blocked(x, z, fx, fz) || (!!keepOut && !ko(fx, fz, 0) && !!ko(x, z, 0)); // [Emerly] never step into an arena
   function move(c, dx, dz) { // slide along walls like the walker, ≤0.3 m sub-steps
     const k = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let got = 0;
     for (let i = 0; i < k; i++) { const sx = dx / k, sz = dz / k;
-      if (!world.blocked(c.x + sx, c.z + sz, c.x, c.z)) { c.x += sx; c.z += sz; got++; }
-      else if (!world.blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
-      else if (!world.blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; } }
+      if (!blocked(c.x + sx, c.z + sz, c.x, c.z)) { c.x += sx; c.z += sz; got++; }
+      else if (!blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
+      else if (!blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; } }
     return got / k; }
   const fx = waterFX(scene, low);
   function update(dt, camera) {
@@ -76,13 +80,15 @@ export function createFollowers({ scene, world, walker, low }) {
     crew.forEach((c, i) => {
       const pt = trailAt(BACK[i]); let tx = pt[0], tz = pt[1];
       { const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw), sx = -bz * SIDE[i], sz = bx * SIDE[i]; if (SIDE[i] && !world.blocked(tx + sx, tz + sz, tx, tz)) { tx += sx; tz += sz; } }
+      const wait = ko(tx, tz, i) || (ko(W.x, W.z, i) ? ko(W.x, W.z, i) : null); if (wait) { tx = wait[0]; tz = wait[1]; } // [Emerly] you're in an arena: wait outside its gate
+      { const inside = ko(c.x, c.z, i); if (inside) { c.x = inside[0]; c.z = inside[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; } } // never left standing inside one
       const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);
-      if (dp > 40) { const q = trailAt(BACK[i] + 1); c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
+      if (dp > 40 && !wait) { const q0 = trailAt(BACK[i] + 1), q = ko(q0[0], q0[1], i) || q0; c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
       let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body);
       c.speed += (want - c.speed) * Math.min(1, dt * 6);
       if (c.speed > 0.15 && d > 0.05) {
         const got = move(c, dx / d * c.speed * dt, dz / d * c.speed * dt);
-        c.stuck = got < 0.3 ? c.stuck + dt : 0; if (c.stuck > 1.5) { const q = trailAt(BACK[i]); c.x = q[0]; c.z = q[1]; c.stuck = 0; }
+        c.stuck = got < 0.3 ? c.stuck + dt : 0; if (c.stuck > 1.5) { const q = wait || trailAt(BACK[i]), w2 = ko(q[0], q[1], i) || q; c.x = w2[0]; c.z = w2[1]; c.stuck = 0; }
         let dy = Math.atan2(dx, dz) - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.yaw += dy * Math.min(1, dt * 10); c.idleT = 0;
       } else { // idle: face you, glance around every few seconds
         c.idleT += dt; if (c.idleT > 3 + i) { c.idleT = 0; c.look = (Math.random() - 0.5) * 1.6; }

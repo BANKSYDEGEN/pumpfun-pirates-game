@@ -26,7 +26,9 @@ export class Batcher { // exported for tests
   on(ev, fn) { this.handlers.set(ev, fn); return this; }
   setState(fn) { this.provider = fn; }
   heard() { const now = performance.now(); let n = 0; for (const [id, t] of this.heardAt) { if (now - t < 6000) n++; else { this.heardAt.delete(id); this.full.delete(id); } } return n; }
-  hz() { return this.heard() > 0 ? this.cfg.hz : this.cfg.soloHz; }
+  hz() { if (!(this.heard() > 0)) return this.cfg.soloHz; // [Emerly] boost: an optional () => Hz (harbor rooms: the battle areas' fight rate, 0 = off)
+    let b = 0; if (this.boost) try { b = Math.min(this.cfg.fight?.max || 10, Math.max(0, +this.boost() || 0)); } catch { b = 0; }
+    return Math.max(this.cfg.hz, b); }
   send(ev, payload, o = {}) { this.q.push([ev, payload]); if (o.now) this.flush(true); return true; }
   tick() { if (performance.now() - this.last >= 1000 / this.hz() - 8) this.flush(false); }
   flush(force) {

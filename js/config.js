@@ -76,7 +76,8 @@ export const PVP_NET = {
 // fight the host's AI ships + boss together. 1 Hz state (+ volleys at once), a heartbeat every `beat` s; alone in a copy = no
 // Realtime socket at all (the local v98 harbor). No input for `afk` s or a hidden tab = back to a private harbor (saves the
 // free plan's 2M msgs/month). `on: false` turns sharing off everywhere (every harbor is private again).
-export const HARBOR_NET = { on: true, hz: 1, soloHz: 0.5, keepalive: 2, cap: 4, beat: 6, afk: 90, listen: 2.5, extraAi: 1, extraAiMax: 3 };
+export const HARBOR_NET = { on: true, hz: 1, soloHz: 0.5, keepalive: 2, cap: 4, beat: 6, afk: 90, listen: 2.5, extraAi: 1, extraAiMax: 3,
+  fight: { hz: 10, hz4: 5, max: 10 } }; // [Emerly] SWORD PIT / MUSKET RANGE: a pirate sharing an area with another sends at hz (2 fighters) / hz4 (3-4), never above max; everyone else stays at hz 1
 export const PVP_AI_SHIPS = 3;        // local AI ships when you are alone in the arena (or waiting in the harbor); gone when a 2nd pirate joins
 export const PVP_AFK = { kick: 180, warn: 30, farm: 60 }; // arena: no input for `kick` s = sent back to the harbor (warning for the last `warn` s), ALWAYS (queue or not). Sunk after `farm` s idle = no +100 bonus, no kill credit
 export const PVP_OFFER = 15;          // seconds to accept 'Battle ready! Set sail?' when your queued slot opens (must match the lobby server)

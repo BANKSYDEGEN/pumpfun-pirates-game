@@ -17,6 +17,7 @@ import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
+import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
 #dk-safe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#7cff6b;background:rgba(22,22,22,.72);border:2px solid #7cff6b;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
@@ -61,7 +62,7 @@ export async function createDock(ctx) {
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });
-  const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW });
+  const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
@@ -78,6 +79,7 @@ export async function createDock(ctx) {
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera }); // [Timothy] adds its 6 FIRE CANNON points to layout.interact
+  const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW }); // [Timothy] adds the WEAPON STORE point to layout.interact (window.openWeaponStore)
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
 
@@ -128,7 +130,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); }
+    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); battle?.clear(); }
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -169,7 +171,7 @@ export async function createDock(ctx) {
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); openBoard(); break;
       case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;
       case 'shop': if (q.open === 'upgrades') { let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES?.(); } catch {} if (!ok) toast('THE UPGRADE SHOP IS CLOSED RIGHT NOW<br><small>ship upgrades open from the harbor</small>', 2400); break; } // [v146] the UPGRADE SHOP storefront: straight to the upgrades panel (its own shop: never the skins grid)
-        Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.vendor === 'clothes' ? 'gear' : 'skins', slot: q.slot, from: 'island' }) : false)
+        Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.tab || (q.vendor === 'clothes' ? 'gear' : 'skins'), slot: q.slot, title: q.title, from: 'island' }) : false) // [Emerly] q.tab / q.title: SWORD SHOP / MUSKET SHOP
         .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
       case 'tavern': toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break;
       case 'bounties': toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break;
@@ -236,6 +238,7 @@ export async function createDock(ctx) {
       else if (q.reason === 'taken') setActs({ label: 'BERTH TAKEN', disabled: true }, null);
       else setActs({ label: '⚓ DOCK', key: 'E', primary: true, fn: () => dockNow(q.berth) }, null);
     } else setActs(null, null);
+    battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
     fnet.tick(dt);
     if (bcLink) bcLink.tick();
   }
@@ -247,9 +250,9 @@ export async function createDock(ctx) {
   if (new URLSearchParams(location.search).has('harborbc')) {
     const ch = new BroadcastChannel('pfp-harbor-test'); let last = 0;
     ch.onmessage = (ev) => { if (on) handlePeer(ev.data); };
-    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
+    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
   }
-  function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m);
+  function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m);
     if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
       const go = () => { if (!on || onFoot || !docking.fresh()) return;
         if (b) { docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`BERTH TAKEN · MOORED AT ${b.id}`); }
@@ -259,7 +262,7 @@ export async function createDock(ctx) {
     if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
   const api = {
-    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery,
+    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle,
     get on() { return on; }, get onFoot() { return onFoot; },
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : null), followers: crewF,
@@ -269,7 +272,7 @@ export async function createDock(ctx) {
     invuln: (s) => on && zone.inside(s.x, s.z),
     isSafe: (s) => on && !!s && zone.inside(s.x, s.z),
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
-    netState: () => (on ? { ...fnet.netState(walker), ...(battery?.netState() || {}) } : {}), // [Timothy] + 'bc' (your last battery shot)
+    netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}) } : {}), // [Timothy] + 'bc' (your last battery shot) + 'ba' / 'bh' (battle areas)
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)

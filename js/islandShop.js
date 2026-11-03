@@ -7,7 +7,7 @@
 //                          the MOCK provider only; the real one calls the `pvp` Edge Function (shop_state / shop_buy / shop_equip)
 //                          and the SERVER decides every purchase (price, goal, gold, owned): see shop/PLAN.md.
 // Events: 'pfp-shop' { open: true|false, vendor } on window. Off on the crypto-free portal builds (itch.io / Newgrounds).
-import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, sortByPrice } from './shopCatalog.js';
+import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, WEAPON_ITEMS, SWORD_FREE, MUSKET_FREE, sortByPrice } from './shopCatalog.js';
 import { CREW_LOOK, CREW_DEFAULT } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
@@ -29,7 +29,7 @@ export function mockProvider(seed = {}) {
     ...seed,
   };
   const clone = () => JSON.parse(JSON.stringify(st));
-  const find = (kind, id) => kind === 'skin' ? SKIN_ITEMS.find(i => i.id === id) : [...GEAR_ITEMS, ...CREW_ITEMS].find(i => gearKey(i) === id);
+  const find = (kind, id) => kind === 'skin' ? SKIN_ITEMS.find(i => i.id === id) : [...GEAR_ITEMS, ...CREW_ITEMS, ...WEAPON_ITEMS].find(i => gearKey(i) === id);
   return {
     state: st,
     load: async () => clone(),
@@ -101,6 +101,9 @@ const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipp
 // a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
 const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: 0, eyeColor: 0, wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : thumbOpts();
 function gearThumb(it, live = false) {
+  if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
+    const d = document.createElement('div'); d.className = 'ishop-sw gear real3d weapon'; const img = new Image(); img.alt = ''; img.decoding = 'async';
+    img.className = 'gear-thumb'; img.src = new URL(`../assets/pirates/thumbs/weapon_${it.slot}_${it.id}.png`, import.meta.url).href; d.append(img); return d; }
   const base = it.base ? { ...it, slot: it.base } : it, sl = base.slot;
   const d = svgThumb(base); d.classList.add('real3d'); if (it.crew) d.classList.add('crew'); const svg = d.firstElementChild;
   if (live) { const cv = document.createElement('canvas'); cv.className = 'gear-live'; d.append(cv); gearLive(cv, sl, it.id, optsFor(it)); if (svg) svg.style.display = 'none'; return d; }
@@ -119,9 +122,11 @@ setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; cons
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
 // ---------- item model ----------
+const TAB_SLOT = { swords: 'sword', muskets: 'musket' }; // [Timothy] WEAPON STORE tabs: one gear slot each
 const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
-  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first
-const eqGear = (slot) => state.equipped.gear?.[slot] ?? CREW_DEFAULT[slot]; // [Timothy] a state without the crew slots (older server) = the crew uniform
+  : TAB_SLOT[view.tab] ? WEAPON_ITEMS.filter(it => it.slot === TAB_SLOT[view.tab]).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }))
+  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first (weapon tabs too)
+const eqGear = (slot) => state.equipped.gear?.[slot] ?? (slot === 'sword' ? SWORD_FREE : slot === 'musket' ? MUSKET_FREE : CREW_DEFAULT[slot]); // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
   const owned = state.owner || x.it.price === 0 || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
   const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
@@ -154,14 +159,14 @@ function render() {
   const V = VENDORS[view.vendor] || VENDORS.shop;
   root.dataset.vendor = view.vendor; root.dataset.tab = view.tab;
   root.style.setProperty('--ishop-awning', V.awning || 'transparent'); root.classList.toggle('stall', !!V.awning);
-  $('.ishop-title b', root).textContent = V.name; $('.ishop-title small', root).textContent = V.sub;
+  $('.ishop-title b', root).textContent = view.title || V.name; $('.ishop-title small', root).textContent = V.sub;
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
   const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
-  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PARROTS' : 'PIRATE GEAR';
+  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PARROTS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : 'PIRATE GEAR';
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
-  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; view.sel = null; render(); });
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; view.sel = null; render(); });
   const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear' || V.slots.length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
   chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
@@ -204,6 +209,9 @@ function detail(x) {
     ${x.it.use === 'once' && s.k !== 'soon' ? `<div class="ishop-gl">One use: marks ${esc(x.it.dig)} on your island map</div>` : ''}
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
+  if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
+    ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b> · every blade hits the same: cosmetic only. Pit KOs pay nothing and never count towards goals.</div>'
+    : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b> · every musket shoots the same: cosmetic only. Range KOs pay nothing and never count towards goals.</div>');
   if (x.it.crew) { // [Timothy] CREW SHOP
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
   if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
@@ -246,7 +254,7 @@ export async function openShop(opts = {}) {
   if (ON_PORTAL || !provider) return false; // crypto-free portal builds: no Battle Royale, no shared gold, so no shop
   if (!root) build();
   const v = VENDORS[opts.vendor] ? opts.vendor : 'shop', V = VENDORS[v];
-  view = { vendor: v, tab: V.tabs.includes(opts.tab) ? opts.tab : V.tabs[0], slot: V.slots.includes(opts.slot) ? opts.slot : V.slots[0], sel: opts.item || null };
+  view = { vendor: v, tab: V.tabs.includes(opts.tab) ? opts.tab : V.tabs[0], slot: V.slots.includes(opts.slot) ? opts.slot : V.slots[0], sel: opts.item || null, title: typeof opts.title === 'string' ? opts.title : null }; // [Emerly] title: e.g. SWORD SHOP / MUSKET SHOP (vendor 'weapons')
   if (!skinMod) try { const [a, b, c] = await Promise.all([import('./skins.js'), import('./pvpSkins.js'), import('./skinPreview.js')]); skinMod = { skinSwatch: a.skinSwatch, pvpSkin: b.pvpSkin, previewCards: c.previewCards }; } catch { skinMod = null; }
   state = await provider.load(); if (!state) return false; // offline: the caller shows a toast
   open = true; root.classList.remove('hidden'); document.documentElement.classList.add('shop-open'); render();

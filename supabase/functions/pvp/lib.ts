@@ -123,6 +123,14 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   // (crewhat bandana + crewoutfit tank) is free (GEAR_SLOTS first id). 'gear:crew*:<id>' fits the pvp_owned item check: no migration.
   "gear:crewhat:tricorn": { price: 400 }, "gear:crewhat:bicorne": { price: 1200 }, "gear:crewhat:crown": { price: 15000 }, "gear:crewhat:crown_imperial": { price: 25000 }, "gear:crewhat:helmet_hq": { price: 800 },
   "gear:crewoutfit:tshirt": { price: 300 }, "gear:crewoutfit:coat": { price: 1000 }, "gear:crewoutfit:shirt": { price: 300 }, "gear:crewoutfit:suit": { price: 3000 },
+  // [Timothy] WEAPON STORE: cosmetic swords (SWORD PIT) + muskets (MUSKET RANGE), BANKSY's prices + goals; the rusty cutlass + rusty
+  // flintlock are free (GEAR_SLOTS.sword[0] / .musket[0]). Pit / range KOs never reach pvp_claim_kill, so they can't feed these goals.
+  "gear:sword:cutlass": { price: 1500 }, "gear:sword:rapier": { price: 4000 }, "gear:sword:bone": { price: 12000 },
+  "gear:sword:sabre_gilded": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
+  "gear:sword:blade_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
+  "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 }, "gear:musket:dragoon": { price: 12000 },
+  "gear:musket:bone": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
+  "gear:musket:blunder_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
 export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq", "mask_luchador"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit", "singlet"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
@@ -130,7 +138,9 @@ export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "
   leg: ["none", "peg"], face: ["none", "facepaint_retardio"],
   // [Timothy] CREW SHOP: the crew's OWN loadout (stored in the same gear jsonb: gear.crewhat / gear.crewoutfit; a row without them =
   // the free uniform, ids[0]). The crew no longer copy the captain's hat + clothes. APPEND-ONLY (js/crewLoadout.js CREW_SLOTS).
-  crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
+  crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit"],
+  // [Timothy] WEAPON STORE sword + musket (a row without them = the free rusty cutlass / flintlock). APPEND-ONLY (js/onfoot/swords.js).
+  sword: ["rusty", "cutlass", "rapier", "bone", "sabre_gilded", "blade_gold"], musket: ["rusty", "navy", "blunder", "dragoon", "bone", "blunder_gold"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
 export const SEED_GOLD_CAP = 5000; // [security H3] was 25000. First server copy of a device save: gold above this is released at the normal earning pace (stepToward)
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
 export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);

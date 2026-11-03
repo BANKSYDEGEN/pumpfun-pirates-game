@@ -96,6 +96,24 @@ export const CREW_ITEMS = Object.entries(CREW_FROM).flatMap(([slot, ids]) => ids
   const free = CREW_FREE[slot] === id;
   return { slot, id, base, crew: true, label: (free ? 'CREW ' : '') + p.label, price: free ? 0 : p.price, glb: p.glb, tint: p.tint, free: free || undefined };
 }));
+// ---------- [Timothy] WEAPON STORE: cosmetic SWORDS for the SWORD PIT (js/onfoot/battle.js; models js/onfoot/swords.js). BANKSY's
+// prices + goals (Nov 3). The RUSTY CUTLASS is free (every pirate's default, GEAR_SLOTS.sword[0]). Cosmetic only: every blade does the
+// same damage in the pit, and pit KOs never count towards any goal. Server: lib.ts SHOP_ITEMS 'gear:sword:<id>' + GEAR_SLOTS.sword.
+export const SWORD_SLOT = 'sword', SWORD_FREE = 'rusty'; export const MUSKET_FREE = 'rusty';
+// ONE PRICE TABLE for the WEAPON STORE (BANKSY, Nov 3: swords + muskets approved). Change a price / goal here AND in lib.ts SHOP_ITEMS.
+// [slot, id, label, price, goal]; the first of each slot is the free default. Rows are cheapest first (free at the top); the window keeps
+// this order and adds no hand-ordering of its own, so a central price sort (BANKSY: every shop cheapest first) gives the same result. Ids are APPEND-ONLY (js/onfoot/swords.js SWORD_IDS / MUSKET_IDS).
+const BOSS25 = { all: [{ stat: 'bossKills', need: 25, label: 'Harbor boss kills' }] }, PVP2K = { all: [{ stat: 'kills', need: 2000, label: 'PvP kills (Solo + Squads)', modes: true }] };
+export const WEAPON_PRICES = [
+  ['sword', 'rusty', 'RUSTY CUTLASS', 0], ['sword', 'cutlass', 'CUTLASS', 1500], ['sword', 'rapier', 'RAPIER', 4000], ['sword', 'bone', 'BONE SKULL BLADE', 12000],
+  ['sword', 'sabre_gilded', "GILDED CAPTAIN'S SABRE", 25000, BOSS25], ['sword', 'blade_gold', 'LEGENDARY GOLD BLADE', 75000, PVP2K],
+  ['musket', 'rusty', 'RUSTY FLINTLOCK', 0], ['musket', 'navy', 'NAVY MUSKET', 2000], ['musket', 'blunder', 'BLUNDERBUSS', 5000], ['musket', 'dragoon', 'BRASS DRAGOON', 12000],
+  ['musket', 'bone', 'BONE MUSKET', 25000, BOSS25], ['musket', 'blunder_gold', 'GOLDEN BLUNDERBUSS', 75000, PVP2K],
+];
+const weaponItem = ([slot, id, label, price, goal]) => ({ slot, id, label, price, glb: null, tint: null, weapon: true, ...(price ? {} : { free: true }), ...(goal ? { goal } : {}) });
+export const SWORD_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'sword').map(weaponItem);
+export const MUSKET_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'musket').map(weaponItem);
+export const WEAPON_ITEMS = [...SWORD_ITEMS, ...MUSKET_ITEMS];
 // ---------- [Timothy] PET STORE: rarity per parrot (display only; prices + goals are the GEAR_ITEMS ones, unchanged)
 export const PET_RARITY = { none: '', parrot_green: 'COMMON', parrot_red: 'UNCOMMON', parrot_blue: 'UNCOMMON', parrot_cockatoo: 'RARE', parrot_black: 'EPIC', parrot_gold: 'LEGENDARY', parrot_diamond: 'MYTHIC' };
 
@@ -108,6 +126,7 @@ export const VENDORS = {
   clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face'], awning: '#d8322f' },
   pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots for your shoulder', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear'], slots: ['crewhat', 'crewoutfit'], awning: '#6a4fb3', crew: true },   // [Timothy] plaza CREW SHOP counter
+  weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // [Timothy] window.openWeaponStore(); the SWORD SHOP + MUSKET SHOP doors on Main Street (battleAreas.js MAIN_ST_SHOPS) open it with their own title
   ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')
 };
 

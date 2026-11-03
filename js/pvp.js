@@ -433,7 +433,8 @@ export function createPvp(K) {
   async function hbConnect(copy, g) {
     let link; try { link = await hbNet.openRoom(copy); } catch (e) { console.warn('[harbor] connect failed', e?.message); return; }
     if (!active || g !== hb.gen || where !== 'harbor' || spec.on || room) { link.close(); return; }
-    room = link; link.hbCopy = copy; roomIdx = copy; hb.hj = Date.now(); hb.listenUntil = performance.now() + HARBOR_NET.listen * 1000;
+    room = link; link.hbCopy = copy; roomIdx = copy; link.boost = () => window.PFP?.dock?.battle?.fastHz?.() || 0; // [Emerly] faster sends only while YOU fight someone in the SWORD PIT / MUSKET RANGE
+    hb.hj = Date.now(); hb.listenUntil = performance.now() + HARBOR_NET.listen * 1000;
     isHost = false; hostId = null; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true });
   }
   function hbDisconnect() { // close the copy's room: its pirates and the host's AI ships leave with it (our own AI ships stay)

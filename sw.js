@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v158'; // [v158] every shop lists cheapest first (free first, ties by name; upgrades by next-level price)
+const VERSION = 'pfp-v159'; // [v159] battle areas: MUSKET RANGE + SWORD PIT ashore, SWORD SHOP + MUSKET SHOP on Main Street (cosmetic swords + muskets, 1v1 / 2v2, no rewards)
 const SHELL = [
   "./",
   "./index.html",
@@ -42,6 +42,9 @@ const SHELL = [
   "./js/onfoot/pirate.js",
   "./js/onfoot/walker.js",
   "./js/onfoot/physics.js", // [v154] Raul: falling + swimming
+  "./js/onfoot/battle.js", // [v149] SWORD PIT + MUSKET RANGE
+  "./js/onfoot/swords.js",
+  "./js/island/battleAreas.js",
   "./js/island/art.js",
   "./js/island/bake.js",
   "./js/island/foot.js",
@@ -182,6 +185,31 @@ const ASSETS = [
   "./assets/pirates/pirate_female_v5_hi.glb",
   "./assets/pirates/pirate_female_v5_lo.glb",
   "./assets/pirates/skull_decal.png",
+  // [Raul] weapon models (js/onfoot/swords.js loadWeaponModels)
+  "./assets/pirates/items/v5/weapon_sword_rusty_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_rusty_lo.glb",
+  "./assets/pirates/items/v5/weapon_sword_cutlass_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_cutlass_lo.glb",
+  "./assets/pirates/items/v5/weapon_sword_rapier_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_rapier_lo.glb",
+  "./assets/pirates/items/v5/weapon_sword_bone_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_bone_lo.glb",
+  "./assets/pirates/items/v5/weapon_sword_sabre_gilded_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_sabre_gilded_lo.glb",
+  "./assets/pirates/items/v5/weapon_sword_blade_gold_hi.glb",
+  "./assets/pirates/items/v5/weapon_sword_blade_gold_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_rusty_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_rusty_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_navy_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_navy_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_blunder_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_blunder_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_dragoon_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_dragoon_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_bone_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_bone_lo.glb",
+  "./assets/pirates/items/v5/weapon_musket_blunder_gold_hi.glb",
+  "./assets/pirates/items/v5/weapon_musket_blunder_gold_lo.glb",
   "./assets/pirates/items/v5/crown_female_hi.glb",
   "./assets/pirates/items/v5/crown_female_lo.glb",
   "./assets/pirates/items/v5/crown_male_hi.glb",
