@@ -84,7 +84,10 @@ export const PVP_OFFER = 15;          // seconds to accept 'Battle ready! Set sa
 export const PVP_ARENA_R = 420;       // metres from the arena centre you can sail
 export const PVP_MAX_CARRY = 8000;    // most gold the host accepts as one player's death drop when it can't check their pickups
 export const PVP_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pvp` : ''; // wallet-signed PvP save (Edge Function `pvp`)
-// PvP skins unlock by LIFETIME PvP kills on real players (AI kills don't count). Cosmetic only, no stat changes.
+// PvP skins: the LIST of Battle Royale skins (order = the menu's). [v102] since the island shop they are BOUGHT with gold; `kills` /
+// `prestige` here are display only, the BUY goals live in js/shopCatalog.js SKIN_ITEMS + supabase/functions/pvp/lib.ts SHOP_ITEMS.
+// [prestige] BANKSY: GHOST SHIP 100 kills, FLAMING 200 kills (no K/D), GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (both given free).
+// (PvP skins once unlocked by LIFETIME PvP kills on real players; AI kills don't count. Cosmetic only, no stat changes.)
 // Skin looks live in assets/ships/pvp/*.js, wired in js/pvpSkins.js. Mirror any tier change in supabase/functions/pvp/lib.ts.
 export const PVP_SKIN_TIERS = [
   { id: 'classic', name: 'DEFAULT', kills: 0 },
@@ -94,11 +97,11 @@ export const PVP_SKIN_TIERS = [
   { id: 'coral', name: 'CORAL REEF', kills: 150 },       // mobile app · [v87] swapped with GOLDEN GALLEON (BANKSY)
   { id: 'storm', name: 'STORM RIDER', kills: 300 },      // mobile app · [v87] swapped with GHOST SHIP (BANKSY)
   { id: 'kraken', name: 'KRAKEN INK', kills: 600 },      // mobile app
-  { id: 'golden', name: 'GOLDEN GALLEON', kills: 1000 },
-  { id: 'ghost', name: 'GHOST SHIP', kills: 1500 },
+  { id: 'golden', name: 'GOLDEN GALLEON', prestige: 1 }, // [prestige] was 1,000 kills
+  { id: 'ghost', name: 'GHOST SHIP', kills: 100 },         // [prestige] was 1,500
   { id: 'admiral', name: 'ADMIRAL WHITE', kills: 2000 }, // mobile app
-  { id: 'flaming', name: 'FLAMING SHIP', kills: 2500 },
-  { id: 'diamond', name: 'DIAMOND SHIP', kills: 5000 },  // Raul's diamond.js
+  { id: 'flaming', name: 'FLAMING SHIP', kills: 200 },     // [prestige] was 2,500 (the FIRE goal: 200 PvP kills only)
+  { id: 'diamond', name: 'DIAMOND SHIP', prestige: 2 },  // Raul's diamond.js · [prestige] was 5,000 kills
 ];
 // [Timothy] PvP skin(s) unlocked by HARBOR kills, not player kills (looks: assets/ships/pvp/unlockSkins.js). Locked by default;
 // the counters / progress bars that clear `locked` are Emerly's. Kept out of PVP_SKIN_TIERS so the kill-tier unlock,

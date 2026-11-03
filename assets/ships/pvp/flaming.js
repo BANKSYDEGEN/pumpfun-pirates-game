@@ -31,7 +31,7 @@ import { toon, outlineFor, outlineMat } from '../../../js/toon.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // change the unlock tier here only
-export const FLAMING_KILLS = 2500;
+export const FLAMING_KILLS = 200; // [prestige] BANKSY (was 2500)
 
 export const FLAMING = {
   id: 'flaming', name: 'FLAMING SHIP', killsRequired: FLAMING_KILLS, price: 0, premium: 'pvp',

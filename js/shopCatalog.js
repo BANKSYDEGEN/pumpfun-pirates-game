@@ -1,5 +1,5 @@
 // [Timothy] PUMPFUN PIRATES · ISLAND SHOP catalog. Data only. [v102 live] Timothy's proposed prices as-is (BANKSY tunes later);
-// goals = BANKSY's three only (COMMODORE 100 boss kills, FIRE K/D 10 + 50 kills, DIAMOND 5,000 kills). Item ids are STABLE.
+// goals = BANKSY's: COMMODORE 100 boss kills, GHOST 100 kills, FIRE 200 kills, GOLDEN = PRESTIGE 1 (free), DIAMOND = PRESTIGE 2 (free) ([prestige]). Item ids are STABLE.
 // soon: true = no model on the v4 pirate yet: shown as COMING SOON, never sold (the server catalog doesn't list it either).
 // Battle Royale only: Waves is separate and unchanged (its skins still unlock every 5 waves, its shop stays upgrades-only).
 // The server copy (supabase/functions/pvp/lib.ts SHOP_*) must mirror every price / goal here; the server's copy is the one
@@ -20,11 +20,14 @@ export const SKIN_ITEMS = [
   { id: 'storm',     name: 'STORM RIDER',     price: 25000 },
   { id: 'kraken',    name: 'KRAKEN INK',      price: 40000 },
   { id: 'commodore', name: 'COMMODORE',       price: 50000, goal: { all: [{ stat: 'bossKills', need: 100, label: 'Harbor boss kills' }] } },
-  { id: 'golden',    name: 'GOLDEN GALLEON',  price: 75000 },
-  { id: 'ghost',     name: 'GHOST SHIP',      price: 100000 },
+  // [prestige] BANKSY: GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (were the 1,000 / 5,000 kill tiers), GIVEN FREE on reaching
+  // that prestige (grant: 'prestige', price 0; the server adds them to pvp_owned). GHOST SHIP 100 kills, FIRE 200 kills (no K/D).
+  // Mirror: supabase/functions/pvp/lib.ts SHOP_ITEMS.
+  { id: 'golden',    name: 'GOLDEN GALLEON',  price: 0, grant: 'prestige', goal: { tag: 'PRESTIGE 1', all: [{ stat: 'prestige', need: 1, label: 'Prestige', fmt: 'prestige' }] } },
+  { id: 'ghost',     name: 'GHOST SHIP',      price: 100000, goal: { all: [{ stat: 'kills', need: 100, label: 'BR kills' }] } },
   { id: 'admiral',   name: 'ADMIRAL WHITE',   price: 125000 },
-  { id: 'flaming',   name: 'FLAMING SHIP',    price: 150000, goal: { tag: 'FIRE', all: [{ stat: 'kd', need: 10, label: 'K/D', fmt: 'kd' }, { stat: 'kills', need: 50, label: 'kills' }] } },
-  { id: 'diamond',   name: 'DIAMOND SHIP',    price: 250000, goal: { all: [{ stat: 'kills', need: 5000, label: 'BR kills', modes: true }] } }, // Solo + Squads both count
+  { id: 'flaming',   name: 'FLAMING SHIP',    price: 150000, goal: { tag: 'FIRE', all: [{ stat: 'kills', need: 200, label: 'BR kills' }] } }, // [prestige] BANKSY: 200 PvP kills only (no K/D)
+  { id: 'diamond',   name: 'DIAMOND SHIP',    price: 0, grant: 'prestige', goal: { tag: 'PRESTIGE 2', all: [{ stat: 'prestige', need: 2, label: 'Prestige', fmt: 'prestige' }] } },
 ];
 
 // ---------- pirate gear (pfp_captain_v1 parts: { id, label, glb, tint }). PROVISIONAL ids: Raul's GLBs wait on BANKSY approving
@@ -147,7 +150,7 @@ export function goalProgress(goal, stats) {
 const fmtN = (n) => Math.floor(n).toLocaleString('en-US');
 const kd1 = (x) => (Math.floor(x * 10) / 10).toFixed(1); // floor: 9.96 shows 9.9, never a "10.0" that isn't met yet
 // 'Harbor boss kills 37/100' · 'K/D 6.2 / 10' · 'kills 41/50' · 'BR kills 1,234/5,000'
-export const fmtGoalRow = (r) => r.fmt === 'kd' ? `K/D ${kd1(r.have)} / ${r.need}` : `${r.label} ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}`;
+export const fmtGoalRow = (r) => r.fmt === 'prestige' ? `PRESTIGE ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}` : r.fmt === 'kd' ? `K/D ${kd1(r.have)} / ${r.need}` : `${r.label} ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}`;
 export const fmtGoal = (g) => g.rows.map(fmtGoalRow).join(' · ');
 export const fmtGold = (n) => `${fmtN(n)}g`;
 // [v157] BANKSY: "keep shops sorted by price". Every shop list goes through this: free/default first, then gold price

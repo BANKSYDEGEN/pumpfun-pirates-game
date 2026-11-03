@@ -6,7 +6,7 @@
 // Low quality: fewer hull sections / rail posts, no outlines on the small gold parts.
 import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
-export const GOLDEN_KILLS = 1000; // change the tier here only
+export const GOLDEN_KILLS = 1000; // display only now: [prestige] the GOLDEN GALLEON is a PRESTIGE 1 goal (js/shopCatalog.js)
 
 // polished gold: saturated yellow-gold base (texture kept only as luminance = gold-leaf panel lines), toon-banded fake
 // env reflection dark amber -> white-gold, hard specular hotspot, fresnel rim, fast glint sweeps, 4-point star sparkles

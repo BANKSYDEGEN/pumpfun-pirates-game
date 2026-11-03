@@ -30,7 +30,8 @@ export function cleanGear(g) { const o = {}; for (const [sl, ids] of Object.entr
   const ch = Math.floor(+g?.crewhatColor); if (Number.isFinite(ch) && ch > 0 && ch <= 12) o.crewhatColor = ch; return o; } // [Raul gear colours] the crew's free hat colour (additive: only when picked) // [v105] free hat colour (HAT_SWATCHES index)
 // shop state from the server: { rev, skins: [...], gear: [...] } (null until it answers); the ONE copy of shop_rev on this device
 const shop = { rev: null, skins: null, gear: null };
-export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, gear: cleanGear(null), gearOwned: [], rev: 0, stats: { kills: 0, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 } }); // [v98] + harbor AI / boss kills (unlock tracks)
+let seenPrestige = 0; // [prestige] the highest prestige level the server has told this page (see notePrestige)
+export const blankProfile = () => ({ v: 1, gold: 0, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])), skins: { owned: [], equipped: 'classic' }, gear: cleanGear(null), gearOwned: [], rev: 0, prestige: 0, stats: { kills: 0, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 } }); // [v98] + harbor AI / boss kills (unlock tracks)
 export function cleanProfile(p) {
   const b = blankProfile(); if (!p || typeof p !== 'object') return b;
   const n = (x, hi) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
@@ -44,6 +45,7 @@ export function cleanProfile(p) {
   const eq = p.skins?.equipped; b.skins.equipped = eq === 'classic' || b.skins.owned.includes(eq) ? eq : 'classic';
   b.gear = cleanGear(p.gear); b.gearOwned = ownerAll ? ['*'] : (shop.gear || (Array.isArray(p.gearOwned) ? p.gearOwned : [])).filter(k => typeof k === 'string' && /^[a-z]{2,10}:[a-z0-9_]{2,24}$/.test(k));
   for (const [sl, ids] of Object.entries(GEAR_SLOTS)) if (b.gear[sl] !== ids[0] && !ownerAll && !b.gearOwned.includes(`${sl}:${b.gear[sl]}`)) b.gear[sl] = ids[0];
+  b.prestige = Math.max(n(p.prestige, 100), seenPrestige); // [prestige] never below what the server last said (a stale copy can't lower it)
   b.rev = Number.isFinite(p.rev) ? Math.max(0, p.rev | 0) : (shop.rev ?? 0); // the rev travels WITH the gold it was taken at (bumped only by a buy)
   return b;
 }
@@ -85,8 +87,33 @@ export function signOut() { const s = session(); ls.set(SESSION_KEY, null); clai
 async function api(action, body = {}, opts = {}) {
   const r = await fetch(PVP_FN_URL, { method: 'POST', keepalive: !!opts.keepalive, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) });
   let j = null; try { j = await r.json(); } catch {}
+  if (r.ok && j && Number.isFinite(j.prestige) && action !== 'prestige') notePrestige(j.prestige); // [prestige] every save / sync / load answer carries it
   if (!r.ok) { const e = new Error(j?.error || `pvp ${action} ${r.status}`); e.status = r.status; e.body = j; throw e; }
   return j;
+}
+// ---------- [prestige] PRESTIGE (BANKSY: "Add ability to prestige when max out ship") ----------
+// The level lives on the server (pvp_prestige, migration 031). A HIGHER level than this device knew (prestiged on another device /
+// account / the wallet) = this device's upgrades were reset there: they go back to base here too, once ('pfp-prestige' tells pvp.js).
+export const prestigeLevel = () => seenPrestige;
+function notePrestige(level) { const lv = Math.max(0, Math.min(100, level | 0)); if (lv <= seenPrestige) return;
+  const d = readDevice(), reset = lv > (d.prestige | 0); seenPrestige = lv;
+  if (reset) writeDevice(cleanProfile({ ...d, prestige: lv, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])) }));
+  try { dispatchEvent(new CustomEvent('pfp-prestige', { detail: { level: lv, reset } })); } catch {} }
+// every track at its top level (the server checks its own copy again)
+export const isMaxed = (levels) => UPGRADES.every(u => (levels?.[u.id] | 0) >= u.tiers.length);
+// PRESTIGE now: the latest save goes up first (so a level bought a moment ago counts), then the server checks + resets in one step.
+// Returns { ok, prestige, levels } or { ok: false, error }. The CALLER puts the returned (base) levels on the ship and saves.
+export async function prestigeNow(profile) {
+  if (!PVP_FN_URL) return { ok: false, error: 'offline' };
+  await ownerReady; const s = session(), p = cleanProfile(profile), ac = !s && !group && !ownerAll && acct();
+  try {
+    if (s) await saveProfile(p, { now: true }); else if (!s && group) { gPending = p; await groupFlush(); } else if (ac) await acctSyncNow(p, 5000); else await devSyncNow(p, 5000);
+    const j = await api('prestige', { ...(s ? { token: s.token } : { dk: deviceKey() }), confirm: true, from: p.prestige | 0, profile: p, rev: p.rev | 0 });
+    const lv = Math.max(0, Math.min(100, j.prestige | 0)); seenPrestige = Math.max(seenPrestige, lv);
+    writeDevice(cleanProfile({ ...readDevice(), prestige: lv, levels: Object.fromEntries(UPGRADES.map(u => [u.id, 0])) }));
+    return { ok: true, prestige: lv, levels: j.levels || null, owner: !!j.owner };
+  } catch (e) { if (Number.isFinite(e.body?.prestige)) notePrestige(e.body.prestige);
+    return { ok: false, status: e.status, error: ({ 'not maxed': 'max every upgrade first (the server copy is still catching up: try again in a few seconds)', 'prestige changed': 'already prestiged on another device', "prestige isn't switched on yet": "prestige isn't switched on yet" })[e.message] || e.message || 'offline' }; }
 }
 const b64 = (u8) => { let s = ''; for (const b of u8) s += String.fromCharCode(b); return btoa(s); };
 
@@ -424,4 +451,4 @@ export async function acctCheck() { const a = acct(); if (!a || !PVP_FN_URL) ret
   try { const j = await api('acct_sync', { dk: deviceKey(), acct: a.token }); if (j.expires_at) ls.set(ACCT_KEY, JSON.stringify({ ...a, expires_at: j.expires_at })); return j; }
   catch (e) { if (e.status === 401) acctDrop('You were logged out (the password was changed or the session ended). This device is back to its own save.'); return null; } }
 window.PFP_ACCT = { info: accountInfo, setPassword: acctSetPassword, login: acctLogin, logout: acctLogout, changePassword: acctChangePassword, check: acctCheck, note: acctNote, takenByAccount };
-window.PFP_PVP_SAVE = { checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };
+window.PFP_PVP_SAVE = { prestigeLevel, checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };

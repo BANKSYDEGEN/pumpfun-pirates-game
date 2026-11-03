@@ -16,7 +16,7 @@ import { SKIN_ITEMS, GEAR_ITEMS, liveGoal, goalProgress, fmtGoalRow, fmtGold, ge
 import { readModeKills } from './modeKills.js';
 import { ON_PORTAL } from './config.js';
 
-const KEYS = ['kills', 'deaths', 'botKills', 'harborKills', 'bossKills'];
+const KEYS = ['kills', 'deaths', 'botKills', 'harborKills', 'bossKills', 'prestige']; // [prestige] GOLDEN (1) / DIAMOND (2) goals; the server's stats carry it
 const src = { server: null, board: null, boardAt: 0 };
 const subs = new Set();
 const emit = () => { for (const f of subs) try { f(goalStats()); } catch {} };
@@ -30,8 +30,8 @@ try { addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; const
 export function takeServerStats(j) { const st = cleanStats(j?.stats); if (!st) return; src.server = { stats: st, goals: j.goals || null, modes: j.modes || null, owner: !!j.owner, at: Date.now() }; emit(); }
 
 function deviceStats() {
-  const live = window.PFP_PVP?.profile?.stats; if (live) return cleanStats(live);
-  try { const all = JSON.parse(localStorage.getItem('pfp_pvp_save_v1') || 'null'); return cleanStats(all?.profiles?.device?.stats); } catch { return null; }
+  const lp = window.PFP_PVP?.profile; if (lp?.stats) return cleanStats({ ...lp.stats, prestige: lp.prestige }); // [prestige] kept next to the stats
+  try { const all = JSON.parse(localStorage.getItem('pfp_pvp_save_v1') || 'null'), d = all?.profiles?.device; return d?.stats ? cleanStats({ ...d.stats, prestige: d.prestige }) : null; } catch { return null; }
 }
 // { stats | null, src: 'server' | 'device' | 'none', modes: { solo, squads, src } | null, owner }
 export function goalStats() {

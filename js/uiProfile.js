@@ -12,6 +12,7 @@
 import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { ON_PORTAL } from './config.js';
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet } from './wallet.js';
+import { badgeHtml } from './prestige.js'; // [prestige] the PRESTIGE badge next to your name
 
 const $ = (id) => document.getElementById(id), html = document.documentElement;
 let root = null, pausedByUs = false;
@@ -67,6 +68,8 @@ export function openProfile() {
   $('pf-img').src = $('captain-img')?.src || ''; $('pf-name').textContent = $('captain-name')?.textContent || '';
   const st = ['score', 'wave', 'gold', 'sunk'].map(id => [$(id)?.previousElementSibling?.textContent || '', $(id)?.textContent || '']).filter(([, v]) => v !== '');
   $('pf-stats').textContent = st.map(([l, v]) => `${l} ${v}`.trim()).join(' · ');
+  { const lv = isBR() ? (window.PFP_PRESTIGE?.level?.() | 0) : 0, old = $('pf-prest'); old?.remove(); // [prestige]
+    if (lv) { const b = document.createElement('span'); b.id = 'pf-prest'; b.innerHTML = badgeHtml(lv, 22); $('pf-name').after(b); } }
   const a = $('we-addr'); if (a) { a.value = getSavedWallet() || g?.wallet || ''; a.dispatchEvent(new Event('input')); }
   if (isBR() && $('pf-link')) renderBR();
   try { window.PFP_ACCT_UI?.renderProfile($('pf-acct')); } catch (e) { console.warn('[account] profile', e); }

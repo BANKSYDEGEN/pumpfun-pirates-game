@@ -14,7 +14,7 @@
 //   SHIP_TICKS: replace flamingTick with flamingRedesignTick
 import { THREE, toon, outlineFor, place, merge, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
-export const FLAMING_KILLS = 2500; // tier lives in config.js 'flaming'; mirrored here for the harness skin only
+export const FLAMING_KILLS = 200; // [prestige] BANKSY (was 2500); tier lives in config.js 'flaming'; mirrored here for the harness skin only
 
 const NOISE = `float fzH(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float fzN(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);

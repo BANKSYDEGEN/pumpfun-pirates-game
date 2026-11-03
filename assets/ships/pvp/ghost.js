@@ -6,7 +6,7 @@
 // the sail meshes). Low quality: fewer sections / ribs, 12 mist puffs instead of 36.
 import { THREE, toon, place, merge, meshOf, loftHull, injectShine, fxOf, hash, wind, liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
-export const GHOST_KILLS = 1500; // change the tier here only
+export const GHOST_KILLS = 100; // [prestige] BANKSY (was 1500); the BUY goal itself: js/shopCatalog.js + pvp lib.ts SHOP_ITEMS
 
 const SPECTRAL = `
   float flick = 0.75 + 0.25 * sin(uKT * 5.0 + vKW.z * 0.4) * sin(uKT * 1.7 + vKW.x);

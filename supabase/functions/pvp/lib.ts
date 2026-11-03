@@ -23,7 +23,9 @@ export async function tokenBalance(rpc: string, owner: string, mint: string): Pr
   const j = await r.json(); if (j.error || !Array.isArray(j.result?.value)) throw new Error("rpc error");
   return j.result.value.reduce((a: number, v: any) => a + (Number(v?.account?.data?.parsed?.info?.tokenAmount?.uiAmount) || 0), 0);
 }
-// PvP skins unlock by lifetime player kills (must match PVP_SKIN_TIERS in js/config.js)
+// LEGACY kill tiers (pre-shop, v101 and older): ONLY used to seed pvp_owned once for a pirate known before the island shop
+// (index.ts devSync `known`) and to accept an equipped id. FROZEN at the old numbers on purpose: lowering them (the [prestige]
+// GHOST 100 / FLAMING 200 kill goals below) must not hand out free skins. What makes a skin buyable is SHOP_ITEMS' goal.
 // [v98] harbor-unlock skins (must match PVP_UNLOCK_SKINS in js/config.js): COMMODORE = 100 harbor boss kills
 export const UNLOCK_SKINS: Record<string, { stat: "harborKills" | "bossKills"; need: number }> = { commodore: { stat: "bossKills", need: 100 } };
 export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagreen: 25, midnight: 50, coral: 150, storm: 300, kraken: 600, golden: 1000, ghost: 1500, admiral: 2000, flaming: 2500, diamond: 5000 };
@@ -55,7 +57,7 @@ export function verifySignature(message: string, signatureB64: string, wallet: s
   } catch { return false; }
 }
 
-export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; gear?: Record<string, string>; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number } };
+export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; gear?: Record<string, string>; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number; prestige?: number }; prestige?: number };
 const n = (x: unknown, hi: number) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
 export function cleanProfile(p: any): Profile {
   const o = p && typeof p === "object" ? p : {};
@@ -65,7 +67,8 @@ export function cleanProfile(p: any): Profile {
   // [v102] the island shop: owned skins come ONLY from pvp_owned (the handlers fill + check them: fitEquipped); here the
   // equipped id just has to be a known skin
   const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || o.skins.equipped in SKIN_KILLS || o.skins.equipped in UNLOCK_SKINS) ? o.skins.equipped : "classic";
-  return { gold: n(o.gold, 10_000_000), levels, skins: { owned: [], equipped: eq }, stats, gear: cleanGear(o.gear) } as Profile;
+  // [prestige] the prestige level the client last saw (the server's pvp_prestige row decides; see stalePrestige)
+  return { gold: n(o.gold, 10_000_000), levels, skins: { owned: [], equipped: eq }, stats, gear: cleanGear(o.gear), prestige: n(o.prestige, 100) } as Profile;
 }
 // total gold value held in a save: carried gold + what its upgrades cost (skins are cosmetic and also unlock in solo, so not counted)
 export function value(p: Profile) {
@@ -97,17 +100,20 @@ export function keepCounters(cur: Profile, next: Profile): Profile {
 }
 
 // ---------------- [v102] THE ISLAND SHOP (server copy; js/shopCatalog.js only draws the shop, THIS decides) ----------------
-// Skins + pirate gear are bought with Battle Royale gold. Goals make an item BUYABLE, never free (BANKSY): COMMODORE 100 harbor
-// boss kills, FLAMING ("FIRE") K/D >= 10 with at least 50 kills, DIAMOND keeps its 5,000 kills (Solo + Squads). Items not listed
+// Skins + pirate gear are bought with Battle Royale gold. Goals make an item BUYABLE (BANKSY): COMMODORE 100 harbor boss kills,
+// GHOST 100 kills, FLAMING ("FIRE") 200 kills; [prestige] GOLDEN (P1) / DIAMOND (P2) are the free exceptions (given). Items not listed
 // here (all pirate gear until its model shows on the v4 pirate: COMING SOON) can't be bought at all.
 export const OWNER_MAIN = "dev:e191a32e15abea4f14355121";
-export type Goal = { stat: "kills" | "deaths" | "bossKills" | "harborKills" | "kd"; need: number }[];
+export type Goal = { stat: "kills" | "deaths" | "bossKills" | "harborKills" | "kd" | "prestige"; need: number }[];
 export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:blood": { price: 5000 }, "skin:seagreen": { price: 8000 }, "skin:midnight": { price: 12000 }, "skin:coral": { price: 18000 },
   "skin:storm": { price: 25000 }, "skin:kraken": { price: 40000 }, "skin:commodore": { price: 50000, goal: [{ stat: "bossKills", need: 100 }] },
-  "skin:golden": { price: 75000 }, "skin:ghost": { price: 100000 }, "skin:admiral": { price: 125000 },
-  "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
-  "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
+  // [prestige] BANKSY: GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (replace the 1,000 / 5,000 kill tiers), GHOST SHIP 100 kills,
+  // FLAMING ("FIRE") 200 kills only (no K/D). GOLDEN / DIAMOND are GIVEN free on reaching that prestige (price 0; index.ts adds them to
+  // pvp_owned on prestige + ownedSet counts them for anyone at that level). Anyone who already owns one keeps it (pvp_owned).
+  "skin:golden": { price: 0, goal: [{ stat: "prestige", need: 1 }] }, "skin:ghost": { price: 100000, goal: [{ stat: "kills", need: 100 }] }, "skin:admiral": { price: 125000 },
+  "skin:flaming": { price: 150000, goal: [{ stat: "kills", need: 200 }] },
+  "skin:diamond": { price: 0, goal: [{ stat: "prestige", need: 2 }] },
   // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.
   "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 }, "gear:hat:crown_imperial": { price: 25000 }, "gear:hat:helmet_hq": { price: 800 }, "gear:hat:mask_luchador": { price: 1500 },
   "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
@@ -220,3 +226,14 @@ export function boostsFor(gear: unknown, owned: Set<string>, owner: boolean): Re
   out.combat = r4(Math.min(BOOST_COMBAT_CAP, combat)); out.ver = 1;
   return out;
 }
+// ---------------- [prestige] PRESTIGE (BANKSY: "Add ability to prestige when max out ship") ----------------
+// Every upgrade track at its top level -> PRESTIGE: the level goes up by one (pvp_prestige, migration 031) and ONLY the ship upgrades
+// go back to base. PRESTIGE_MAX = the top level of each track (= TIER_COSTS lengths = js/upgrades.js tiers).
+export const PRESTIGE_MAX: Record<string, number> = Object.fromEntries(Object.entries(TIER_COSTS).map(([k, c]) => [k, c.length]));
+export const maxedLevels = (lv: Record<string, number>) => Object.entries(PRESTIGE_MAX).every(([k, m]) => (Number(lv?.[k]) || 0) >= m);
+// a save from a device that has not seen the latest prestige (its `prestige` is lower than the server's) may not bring its old
+// upgrade levels back: true = ignore that save's levels (keep the server's). Older clients send no prestige (= 0): fine at 0.
+// [prestige] BANKSY: the skins a prestige level GIVES (mirror: js/prestige.js PRESTIGE_REWARDS). Only ever ADDED to pvp_owned.
+export const PRESTIGE_SKINS: Record<number, string> = { 1: "skin:golden", 2: "skin:diamond" };
+export const prestigeSkins = (lv: number) => Object.entries(PRESTIGE_SKINS).filter(([n]) => (Number(lv) || 0) >= Number(n)).map(([, it]) => it);
+export const stalePrestige = (sent: number | undefined, server: number) => server > 0 && (Number(sent) || 0) < server;

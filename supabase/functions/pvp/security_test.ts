@@ -1,7 +1,7 @@
 // deno test supabase/functions/   (no network, no database)
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, parseTopic, mintJwt, seatNetOk, relayTicket } from "./security.ts";
-import { saveProblem, cleanProfile, CAPS, SEED_GOLD_CAP, goalMet, SHOP_ITEMS } from "./lib.ts";
+import { saveProblem, cleanProfile, CAPS, SEED_GOLD_CAP, goalMet, SHOP_ITEMS, SKIN_KILLS, PRESTIGE_MAX, maxedLevels, stalePrestige, prestigeSkins } from "./lib.ts";
 import { buildMessage, messageFor } from "../pirate/lib.ts";
 
 Deno.test("trustedIp never uses the client-typed first x-forwarded-for hop", () => {
@@ -76,7 +76,7 @@ Deno.test("H3 caps: real paces pass, the old 10k/min farm does not", () => {
 });
 
 Deno.test("goals: kills come from the caller (shop_buy / shopView pass the confirmed board)", () => {
-  const diamond = SHOP_ITEMS["skin:diamond"].goal;
+  const diamond = SHOP_ITEMS["gear:parrot:parrot_diamond"].goal; // [prestige] the DIAMOND SHIP is a prestige goal now; the parrot keeps 5,000 kills
   assertFalse(goalMet(diamond, { kills: 4999, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 }));
   assert(goalMet(diamond, { kills: 5000, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 }));
 });
@@ -103,4 +103,22 @@ Deno.test("boosts: PET gold find widens the save pace by its share only", () => 
   const over = cleanProfile({ gold: CAPS.valueBase + CAPS.valuePerMin * 1.1 * 10 + 50 }); // just past the 10% widening
   assert(saveProblem(cur, over, 10, 0.10) !== null); assert(saveProblem(cur, over, 10, 5) !== null); // a bigger goldFind is clamped to 10%
   assertEquals(saveProblem(cur, cleanProfile({ gold: 100 }), 1), null); // default unchanged
+});
+// [prestige] BANKSY: GOLDEN = PRESTIGE 1, DIAMOND = PRESTIGE 2 (both given free), GHOST 100 kills, FIRE 200 kills only
+Deno.test("prestige: skin goals + the maxed check + stale saves", () => {
+  const st = (o: Record<string, number> = {}) => ({ kills: 0, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0, prestige: 0, ...o });
+  const g = (k: string) => SHOP_ITEMS[k].goal;
+  assertFalse(goalMet(g("skin:golden"), st({ kills: 99999 }))); assert(goalMet(g("skin:golden"), st({ prestige: 1 })));
+  assertFalse(goalMet(g("skin:diamond"), st({ prestige: 1, kills: 5000 }))); assert(goalMet(g("skin:diamond"), st({ prestige: 2 })));
+  assertFalse(goalMet(g("skin:ghost"), st({ kills: 99 }))); assert(goalMet(g("skin:ghost"), st({ kills: 100 })));
+  assertFalse(goalMet(g("skin:flaming"), st({ kills: 199 }))); assert(goalMet(g("skin:flaming"), st({ kills: 200, deaths: 500 }))); // no K/D any more
+  assertEquals([SHOP_ITEMS["skin:golden"].price, SHOP_ITEMS["skin:ghost"].price, SHOP_ITEMS["skin:flaming"].price, SHOP_ITEMS["skin:diamond"].price], [0, 100000, 150000, 0]);
+  assertEquals(prestigeSkins(0), []); assertEquals(prestigeSkins(1), ["skin:golden"]); assertEquals(prestigeSkins(2), ["skin:golden", "skin:diamond"]); assertEquals(prestigeSkins(7), ["skin:golden", "skin:diamond"]);
+  assertEquals(SKIN_KILLS.ghost, 1500); assertEquals(SKIN_KILLS.flaming, 2500); // legacy seed table stays frozen (no free skins)
+  assertEquals(PRESTIGE_MAX, { hull: 6, armor: 6, sails: 6, rudder: 6, cannons: 8, reload: 6, range: 6 });
+  assert(maxedLevels(PRESTIGE_MAX)); assertFalse(maxedLevels({ ...PRESTIGE_MAX, cannons: 7 })); assertFalse(maxedLevels({}));
+  assertFalse(stalePrestige(undefined, 0)); assertFalse(stalePrestige(1, 1)); assert(stalePrestige(0, 1)); assert(stalePrestige(undefined, 2));
+  assertEquals(cleanProfile({ prestige: 3 }).prestige, 3); assertEquals(cleanProfile({}).prestige, 0);
+  // prices stay sorted cheapest first (BANKSY: every shop by price)
+  const sk = Object.entries(SHOP_ITEMS).filter(([k, v]) => k.startsWith("skin:") && v.price > 0).map(([, v]) => v.price); // the free prestige grants (price 0) sort first in the client assertEquals(sk, [...sk].sort((a, b) => a - b));
 });

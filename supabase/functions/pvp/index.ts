@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor } from "./lib.ts";
+  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
@@ -64,7 +64,12 @@ async function whoAmI(b: Record<string, unknown>) {
   const { data } = await db.rpc("pvp_main", { p_id: raw }); const pid = typeof data === "string" ? data : raw;
   return { raw, pid, wallet: sw, owner: pid === OWNER_MAIN };
 }
-async function ownedSet(pid: string) { const { data } = await db.from("pvp_owned").select("item").eq("player_id", pid); return new Set((data ?? []).map((r: any) => r.item as string)); }
+async function ownedSet(pid: string) { const { data } = await db.from("pvp_owned").select("item").eq("player_id", pid); const own = new Set((data ?? []).map((r: any) => r.item as string));
+  for (const it of prestigeSkins(await prestigeOf(pid))) own.add(it); // [prestige] BANKSY: P1 GOLDEN / P2 DIAMOND are GIVEN (also counts for anyone already at that level)
+  return own; }
+// [prestige] write the given skins into pvp_owned (source 'grant', price 0). ADD only: an existing row is left as it is, nothing is removed.
+async function grantPrestigeSkins(pid: string, lv: number) { const rows = prestigeSkins(lv).map((item) => ({ player_id: pid, item, source: "grant", price: 0 }));
+  if (rows.length) { const { error } = await db.from("pvp_owned").upsert(rows, { onConflict: "player_id,item", ignoreDuplicates: true }); if (error) console.error("prestige grant", error.message); } }
 const ownedLists = (own: Set<string>, owner: boolean) => owner
   ? { skins: ["classic", ...SHOP_SKINS], gear: Object.entries(GEAR_SLOTS).flatMap(([s, ids]) => ids.map((i) => `${s}:${i}`)) }
   : { skins: ["classic", ...[...own].filter((i) => i.startsWith("skin:")).map((i) => i.slice(5))], gear: [...own].filter((i) => i.startsWith("gear:")).map((i) => i.slice(5)) };
@@ -79,6 +84,9 @@ async function boostsOf(who: { pid: string; owner: boolean; wallet: string | nul
     return gear ? boostsFor(gear, await ownedSet(who.pid), false) : boostsFor(null, new Set(), false);
   } catch { return boostsFor(null, new Set(), false); }
 }
+// [prestige] this pirate's prestige level (migration 031; 0 while it isn't applied or on any read error: nothing locks up)
+async function prestigeOf(pid: string) { try { const { data, error } = await db.from("pvp_prestige").select("level").eq("player_id", pid).maybeSingle(); return error ? 0 : Math.max(0, Number(data?.level) || 0); } catch { return 0; } }
+const zeroLevels = () => Object.fromEntries(Object.keys(PRESTIGE_MAX).map((k) => [k, 0]));
 async function boardKD(pid: string) { const { data } = await db.rpc("pvp_kills_me", { p_player: pid }); const r = Array.isArray(data) ? data[0] : data; return { kills: Number(r?.kills ?? 0), deaths: Number(r?.deaths ?? 0) }; }
 async function spendSince(pid: string, rev: number) { const { data } = await db.from("pvp_purchases").select("price").eq("player_id", pid).gt("rev", rev); return (data ?? []).reduce((a: number, r: any) => a + (r.price | 0), 0); }
 // device row <-> Profile
@@ -98,10 +106,10 @@ function stepToward(cur: Profile, rep: Profile, mins: number, goldFind = 0): Pro
   return next;
 }
 async function shopView(who: { pid: string; owner: boolean }, gold: number, stats: Profile["stats"], rev: number, extra: Record<string, unknown> = {}, gear?: unknown) {
-  const own = who.owner ? new Set<string>() : await ownedSet(who.pid), bd = await boardKD(who.pid);
-  const st = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths) }; // [security H3] kill goals = the both-sides-confirmed board only (a save's own count is client-reported)
+  const own = who.owner ? new Set<string>() : await ownedSet(who.pid), bd = await boardKD(who.pid), prestige = await prestigeOf(who.pid);
+  const st = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths), prestige }; // [prestige] GOLDEN / DIAMOND goals; [security H3] kill goals = the both-sides-confirmed board only (a save's own count is client-reported)
   // [Timothy] goals = progress on the SAME stats shop_buy checks; modes = Solo / Squads split of the board (null until 025 runs)
-  return { ok: true, owner: who.owner, gold, rev, stats: st, owned: ownedLists(own, who.owner), goals: goalsView(st), modes: await killsByMode(db, who.pid), boosts: boostsFor(gear ?? (extra as any).equipped?.gear ?? null, own, who.owner), ...extra }; // [Emerly] + boosts
+  return { ok: true, owner: who.owner, gold, rev, stats: st, owned: ownedLists(own, who.owner), goals: goalsView(st), modes: await killsByMode(db, who.pid), boosts: boostsFor(gear ?? (extra as any).equipped?.gear ?? null, own, who.owner), prestige, ...extra }; // [Emerly] + boosts; [prestige] + level
 }
 async function devSync(who: { pid: string; owner: boolean }, b: Record<string, unknown>) {
   const rep0 = cleanProfile(b.profile), crev = Math.max(0, Math.floor(Number(b.rev) || 0));
@@ -123,6 +131,7 @@ async function devSync(who: { pid: string; owner: boolean }, b: Record<string, u
       return shopView(who, p.gold, p.stats, 0, { seeded: true, equipped: { skin: p.skins.equipped, gear: p.gear } });
     }
     const cur = devProfile(row), rep = cleanProfile(rep0);
+    if (stalePrestige(rep0.prestige, await prestigeOf(who.pid))) rep.levels = { ...cur.levels }; // [prestige] an old snapshot can't undo the reset
     if (crev < row.shop_rev) rep.gold = Math.max(0, rep.gold - await spendSince(who.pid, crev)); // an older save can't refund a purchase
     const ownS = await ownedSet(who.pid), gfind = boostsFor(rep.gear, ownS, false).goldFind; // [Emerly boosts] PET gold find widens the pace
     const next = stepToward(cur, rep, (Date.now() - Date.parse(row.updated_at)) / 60000, gfind);
@@ -165,7 +174,7 @@ Deno.serve(async (req) => {
   try {
     // [v106] PLAYER ACCOUNTS: acct_set / acct_login / acct_sync / acct_change / acct_logout (accounts.ts)
     if (typeof b.action === "string" && b.action.startsWith("acct_")) {
-      const r = await acctAction({ db, ip: ipHash, devId, sha256, newToken: () => b64url(rand(32)), whoAmI, sessionWallet, devSync, devProfile, devCols, shopView, ownedSet, upgValue }, b.action, b);
+      const r = await acctAction({ db, ip: ipHash, devId, sha256, newToken: () => b64url(rand(32)), whoAmI, sessionWallet, devSync, devProfile, devCols, shopView, ownedSet, upgValue, prestigeOf }, b.action, b);
       if (r) return json(r.status, r.body);
     }
     switch (b.action) {
@@ -202,15 +211,17 @@ Deno.serve(async (req) => {
         await db.from("pvp_sessions").delete().eq("wallet", wallet).lt("expires_at", new Date().toISOString());
         const { error } = await db.from("pvp_sessions").insert({ token_hash: await sha256(token), wallet, expires_at: exp });
         if (error) throw error;
-        return json(200, { token, expires_at: exp, profile: await withOwned(toProfile(row), `wallet:${wallet}`), rev: row.shop_rev ?? 0, link });
+        return json(200, { token, expires_at: exp, profile: await withOwned(toProfile(row), `wallet:${wallet}`), rev: row.shop_rev ?? 0, link, prestige: await prestigeOf((await whoAmI({ token }))?.pid ?? `wallet:${wallet}`) });
       }
       case "load": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
-        const lr = await getRow(wallet), lp = await withOwned(toProfile(lr), `wallet:${wallet}`); return json(200, { profile: lp, rev: lr.shop_rev ?? 0, boosts: boostsFor(lp.gear, ownedOfProfile(lp), false) }); // [Emerly] + boosts
+        const lr = await getRow(wallet), lp = await withOwned(toProfile(lr), `wallet:${wallet}`); return json(200, { profile: lp, rev: lr.shop_rev ?? 0, boosts: boostsFor(lp.gear, ownedOfProfile(lp), false), prestige: await prestigeOf((await whoAmI(b))?.pid ?? `wallet:${wallet}`) }); // [Emerly] + boosts
       }
       case "save": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
         const row = await getRow(wallet), cur = toProfile(row), next = keepCounters(toProfile(row), cleanProfile(b.profile));
+        const pres = await prestigeOf((await whoAmI(b))?.pid ?? `wallet:${wallet}`);
+        if (stalePrestige(cleanProfile(b.profile).prestige, pres)) next.levels = { ...cur.levels }; // [prestige] a pre-prestige save keeps the reset
         // [v102] shop: a save from before a purchase (older shop_rev) can't refund it; equipped must be owned
         const crev = Math.max(0, Math.floor(Number(b.rev) || 0)), srev = row.shop_rev ?? 0;
         if (b.rev !== undefined && crev < srev) next.gold = Math.max(0, next.gold - await spendSince(`wallet:${wallet}`, crev));
@@ -229,7 +240,7 @@ Deno.serve(async (req) => {
             stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills), harborKills: Math.max(cur.stats.harborKills, next.stats.harborKills), bossKills: Math.max(cur.stats.bossKills, next.stats.bossKills) } });
           const { data, error } = await db.from("pvp_profiles").update({ ...toRow(m), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
           if (error) throw error;
-          return json(200, { profile: await withOwned(toProfile(data as Row), `wallet:${wallet}`), merged: true, rev: srev });
+          return json(200, { profile: await withOwned(toProfile(data as Row), `wallet:${wallet}`), merged: true, rev: srev, prestige: pres });
         }
         const why = b.seed === true && blank ? null : saveProblem(cur, next, (Date.now() - Date.parse(row.updated_at)) / 60000, gfind);
         if (why) return json(422, { error: why, profile: await withOwned(cur, `wallet:${wallet}`), rev: srev });
@@ -237,7 +248,7 @@ Deno.serve(async (req) => {
         const { data, error } = await db.from("pvp_profiles").update({ ...toRow(next), updated_at: new Date().toISOString() }).eq("id", row.id).eq("shop_rev", srev).select().maybeSingle();
         if (error) throw error;
         if (!data) return json(409, { error: "purchase in progress, retry", profile: await withOwned(cur, `wallet:${wallet}`), rev: srev });
-        const sp = await withOwned(toProfile(data as Row), `wallet:${wallet}`); return json(200, { profile: sp, rev: srev, boosts: boostsFor(sp.gear, ownedOfProfile(sp), false) }); // [Emerly] + boosts
+        const sp = await withOwned(toProfile(data as Row), `wallet:${wallet}`); return json(200, { profile: sp, rev: srev, boosts: boostsFor(sp.gear, ownedOfProfile(sp), false), prestige: pres }); // [Emerly] + boosts
       }
       // [v92] OWNER-ONLY one-off: the merged no-wallet account (pvp_alias group, migrations 017/018) shares gold + upgrades across
       // its devices. First sync per device adds its local gold once (max of each upgrade); later syncs send the gold delta.
@@ -245,10 +256,12 @@ Deno.serve(async (req) => {
       case "group_sync": {
         const dev = await devId(b); if (!dev) return json(401, { error: "no device" });
         const p = cleanProfile(b.profile), delta = Math.max(-1e7, Math.min(1e7, Math.floor(Number(b.delta) || 0)));
+        const gw = await whoAmI({ dk: b.dk }), gpres = gw ? await prestigeOf(gw.pid) : 0;
+        if (stalePrestige(p.prestige, gpres)) p.levels = zeroLevels(); // [prestige] the group keeps the max of each level: a stale device sends none
         const { data, error } = await db.rpc("pvp_group_sync", { p_dev: dev, p_gold: p.gold, p_delta: delta, p_levels: p.levels, p_gain_base: CAPS.valueBase, p_gain_per_min: CAPS.valuePerMin });
         if (error) throw error;
         if (!data?.ok) return data?.why === "not a group" || !data ? json(404, { error: "not a group" }) : json(422, { error: data.why });
-        return json(200, { gold: data.gold, levels: data.levels, seeded: !!data.seeded, devices: data.devices });
+        return json(200, { gold: data.gold, levels: data.levels, seeded: !!data.seeded, devices: data.devices, prestige: gpres });
       }
       case "logout": {
         if (typeof b.token === "string") await db.from("pvp_sessions").delete().eq("token_hash", await sha256(b.token));
@@ -381,13 +394,30 @@ Deno.serve(async (req) => {
         let stats: Profile["stats"];
         if (who.wallet) stats = toProfile(await getRow(who.wallet)).stats;
         else { const { data: r } = await db.from("pvp_dev_profiles").select("*").eq("id", who.pid).maybeSingle(); if (!r) return json(409, { error: "no save yet" }); stats = devProfile(r as DevRow).stats; }
-        const bd = await boardKD(who.pid); stats = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths) }; // [security H3] confirmed kills only
+        const bd = await boardKD(who.pid); stats = { ...stats, kills: bd.kills, deaths: Math.max(stats.deaths, bd.deaths), prestige: await prestigeOf(who.pid) }; // [security H3] confirmed kills only; [prestige] GOLDEN / DIAMOND
         if (!goalMet(it.goal, stats)) return json(403, { error: "goal not reached", goal: goalsView(stats)[item] ?? null, stats }); // [Timothy] + where they stand
         const { data, error } = await db.rpc("pvp_shop_buy", { p_player: who.pid, p_item: item, p_price: it.price, p_req: req });
         if (error) throw error;
         if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not buy", gold: data?.gold });
         if (!who.wallet && !data.retry) await acctBump(db, who.raw, -it.price); // [v106] a logged-in device takes the price off its own save too
         return json(200, { ok: true, item, price: it.price, gold: data.gold, rev: data.rev, retry: !!data.retry });
+      }
+      // [prestige] PRESTIGE (BANKSY: "Add ability to prestige when max out ship"). Every upgrade track at its top level (checked on the
+      // SERVER's copy of the save) -> the prestige level goes up by one and ONLY the ship upgrades go back to base, in one transaction
+      // (migration 031 pvp_prestige_do, which also logs the old levels as a backup). `from` = the level the client saw (a double tap
+      // or a second device can't prestige twice). Gold, skins, gear, kills, deaths and the boards are not touched.
+      // The owner (BANKSYDEGEN) prestiges from the shared group save; everything is free for the owner anyway.
+      case "prestige": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        if (b.confirm !== true) return json(400, { error: "confirm first" });
+        const from = Math.floor(Number(b.from)); if (!Number.isFinite(from) || from < 0) return json(400, { error: "bad request" });
+        const store = who.wallet ? "wallet" : who.owner ? "group" : "dev", sid = who.wallet ? `wallet:${who.wallet}` : who.pid;
+        if (store === "dev" && !who.owner && !(await isAcctDevice(db, who.raw)) && b.profile) await devSync(who, b); // the latest device save first (levels bought a moment ago)
+        const { data, error } = await db.rpc("pvp_prestige_do", { p_player: who.pid, p_store: store, p_store_id: sid, p_max: PRESTIGE_MAX, p_from: from, p_force: false });
+        if (error) { if (/pvp_prestige/.test(error.message || "")) return json(503, { error: "prestige isn't switched on yet" }); throw error; }
+        if (!data?.ok) return json(data?.why === "not maxed" ? 403 : 409, { error: data?.why || "could not prestige", prestige: data?.level ?? null, levels: data?.levels ?? null });
+        if (!who.owner) await grantPrestigeSkins(who.pid, data.level | 0); // [prestige] P1 GOLDEN / P2 DIAMOND given free (the owner owns everything)
+        return json(200, { ok: true, prestige: data.level | 0, levels: data.levels, owner: who.owner, granted: prestigeSkins(data.level | 0).map((i) => i.slice(5)) });
       }
       // [v103] WAVES PAYS GOLD FROM SCORE. waves_start: the server notes the run + its start time (one run at a time, max 1 / 10 s).
       // waves_claim: one payout per run id, the score checked against the server-measured run length, per-run + daily caps.

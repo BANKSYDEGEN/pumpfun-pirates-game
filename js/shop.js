@@ -10,6 +10,7 @@ import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visual
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
 import { initSkinPreview, requestPreviews, pausePreviews } from './skinPreview.js'; // [Raul] skin previews
+import { emblemSvg, rewardFor } from './prestige.js'; // [prestige]
 import { pvpTierCost, PVP_REPAIR_COST, PVP_BASE_HP, PVP_HULL_MUL, PVP_REPAIR_MUL } from './config.js'; // [pvp] same items/stats, PvP cost curve (by tier index)
 const PVP = () => ctx?.game.mode === 'pvp';
 const TIER_IDX = new Map(); for (const u of UPGRADES) u.tiers.forEach((t, i) => TIER_IDX.set(t, i));
@@ -56,10 +57,19 @@ function buildDom() {
     <div class="shop-tabs" role="tablist"><button id="tab-upg" class="shop-tab on" role="tab">UPGRADES</button><button id="tab-skins" class="shop-tab" role="tab">SKINS</button></div>
     <div id="shop-grid" class="shop-grid"></div>
     <div id="skin-grid" class="shop-grid skin-grid hidden"></div>
+    <div id="shop-prestige" class="shop-prest hidden"><span class="sp-emb"></span><span class="sp-txt"><b>SHIP MAXED</b><small></small></span><button id="shop-prest-btn" type="button" class="buy sp-btn">PRESTIGE</button></div>
+    <div id="prest-confirm" class="prest-confirm hidden" role="dialog" aria-modal="true" aria-labelledby="pc-title"><div class="pc-card">
+      <div class="pc-emb"></div><h2 id="pc-title">PRESTIGE?</h2>
+      <ul class="pc-list"><li class="pc-reset">Every ship upgrade goes back to <b>base</b> (level 0). Your ship starts fresh.</li>
+        <li class="pc-keep">You keep your <b>gold, skins, gear, kills</b> and your <b>leaderboard</b> spots.</li><li class="pc-gain"></li></ul>
+      <div class="pc-err" role="alert"></div>
+      <div class="pc-btns"><button id="pc-no" type="button" class="pc-no">CANCEL</button><button id="pc-yes" type="button" class="buy pc-yes">PRESTIGE</button></div></div></div>
     <button id="shop-close" class="big">BACK TO BATTLE</button>
     <div class="shop-keys muted">U / B / Esc to close</div>
   </div>`;
   document.body.appendChild(ov);
+  ov.querySelector('#shop-prest-btn').onclick = showPrestConfirm; ov.querySelector('#pc-no').onclick = hidePrestConfirm; ov.querySelector('#pc-yes').onclick = doPrestige; // [prestige]
+  ov.querySelector('#prest-confirm').addEventListener('pointerdown', (e) => { if (e.target.id === 'prest-confirm') hidePrestConfirm(); });
   ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
   $('shop-close').onclick = close;
   // [Timothy] the island SKINS | UPGRADES toggle is gone (separate shops; css hides .shop-isle-tabs); the handler stays harmless.
@@ -177,6 +187,31 @@ function render() {
   UPGRADES.map((u, i) => [u, i]).sort((a, b) => (nx(a[0]) - nx(b[0])) || (a[1] - b[1])).forEach(([u]) => g.appendChild(g.querySelector(`[data-id="${u.id}"]`)));
   renderEscorts();
   renderSkins();
+  renderPrestige();
+}
+// ---------------- [prestige] BANKSY: "Add ability to prestige when max out ship" ----------------
+// Battle Royale UPGRADE SHOP only: every track maxed -> PRESTIGE (+ confirm). js/pvp.js window.PFP_PRESTIGE does it (server-checked).
+const PR = () => window.PFP_PRESTIGE;
+function rewardLine(n) { const rw = rewardFor(n);
+  return rw ? `Unlocks the <b>${rw.name}</b> <b>FREE</b> (yours to equip at the SHIP SKINS shop).` : `Earns the <b>PRESTIGE ${n}</b> emblem.`; }
+function renderPrestige() {
+  const box = $('shop-prestige'); if (!box) return;
+  const on = PVP() && fromIsland && !!PR()?.canPrestige?.(); box.classList.toggle('hidden', !on); if (!on) { hidePrestConfirm(); return; }
+  const n = PR().next().level; box.querySelector('.sp-emb').innerHTML = emblemSvg(n, 34);
+  box.querySelector('small').innerHTML = `PRESTIGE ${n}: upgrades back to base. ${rewardLine(n)}`;
+}
+function showPrestConfirm() {
+  if (!PR()?.canPrestige?.()) return; const n = PR().next().level, d = $('prest-confirm');
+  d.querySelector('.pc-emb').innerHTML = emblemSvg(n, 56); d.querySelector('#pc-title').textContent = `PRESTIGE ${n}?`;
+  d.querySelector('.pc-gain').innerHTML = rewardLine(n); d.querySelector('.pc-err').textContent = '';
+  const y = $('pc-yes'); y.disabled = false; y.textContent = `PRESTIGE ${n}`; d.classList.remove('hidden'); $('pc-no').focus();
+}
+function hidePrestConfirm() { $('prest-confirm')?.classList.add('hidden'); }
+async function doPrestige() {
+  const y = $('pc-yes'); if (y.disabled) return; y.disabled = true; y.textContent = 'PRESTIGING…';
+  const r = await PR()?.run?.().catch(e => ({ ok: false, error: e?.message })) || { ok: false, error: 'offline' };
+  if (!r.ok) { y.disabled = false; y.textContent = 'TRY AGAIN'; $('prest-confirm').querySelector('.pc-err').textContent = r.error === 'busy' ? 'One moment…' : `Couldn't prestige: ${r.error || 'offline'}`; return; }
+  hidePrestConfirm(); render();
 }
 // [escorts] HIRE ESCORT: 1500g, up to 5 afloat; they stay until sunk (rest of the run)
 function renderEscorts() {
@@ -250,7 +285,7 @@ export function open(opts = {}) {
 }
 export function close() {
   if (!ctx || ctx.game.state !== 'shop') return;
-  fromIsland = false; $('shop').classList.remove('from-island');
+  fromIsland = false; $('shop').classList.remove('from-island'); hidePrestConfirm();
   ctx.game.state = 'playing'; $('shop').classList.add('hidden'); pausePreviews(); // [Raul] skin previews
   if (lastBuy) { celebrateUpgrade(ctx.getPlayer().mesh, lastBuy.id, { camera: ctx.camera, label: lastBuy.label, legendary: lastBuy.legendary }); lastBuy = null; }
 }
@@ -284,6 +319,7 @@ export function initShop(c) {
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (isKey('shop', e.code)) toggle();
+    else if (e.code === 'Escape' && ctx.game.state === 'shop' && !$('prest-confirm')?.classList.contains('hidden')) { e.stopImmediatePropagation(); hidePrestConfirm(); } // [prestige] Esc closes the confirm first
     else if (e.code === 'Escape' && ctx.game.state === 'shop') { e.stopImmediatePropagation(); close(); }
   }, true);
   setInterval(() => { const b = $('btn-shop'); if (b) b.classList.toggle('afford', canAfford()); }, 400);

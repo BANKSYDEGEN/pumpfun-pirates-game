@@ -16,7 +16,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { liftRig, signatureWake, sealGeometry } from './pvpKit.js';
 
 // change the unlock tier here only
-export const DIAMOND_KILLS = 5000;
+export const DIAMOND_KILLS = 5000; // display only now: [prestige] the DIAMOND SHIP is a PRESTIGE 2 goal (js/shopCatalog.js)
 
 export const DIAMOND = {
   id: 'diamond', name: 'DIAMOND', killsRequired: DIAMOND_KILLS, price: 0, premium: 'pvp',

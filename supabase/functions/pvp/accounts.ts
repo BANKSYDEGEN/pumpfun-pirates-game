@@ -9,7 +9,7 @@
 // is stored (pvp_acct_devices.token_hash), bound to this device's key. Errors are generic; attempts are rate-limited per name
 // and per (hashed) IP.
 import bcrypt from "npm:bcryptjs@2.4.3";
-import { cleanProfile, fitEquipped, CAPS, OWNER_MAIN, type Profile } from "./lib.ts";
+import { cleanProfile, fitEquipped, CAPS, OWNER_MAIN, stalePrestige, type Profile } from "./lib.ts";
 
 export const ACCT_TTL_MS = 60 * 24 * 3600 * 1000; // 60 days, renewed by every sync
 // [security M3] new passwords need 10+ characters (login still accepts an existing 8-9 character password)
@@ -35,6 +35,7 @@ type Ctx = {
   shopView: (who: { pid: string; owner: boolean }, gold: number, stats: Profile["stats"], rev: number, extra?: Record<string, unknown>) => Promise<any>;
   ownedSet: (pid: string) => Promise<Set<string>>;
   upgValue: (lv: Record<string, number>) => number;
+  prestigeOf: (pid: string) => Promise<number>; // [prestige]
 };
 type Out = { status: number; body: unknown };
 const out = (status: number, body: unknown): Out => ({ status, body });
@@ -177,6 +178,7 @@ export async function acctAction(ctx: Ctx, action: string, b: Record<string, unk
       const R = cleanProfile(b.profile), L = { gold: Math.floor(Number(d.last?.gold) || 0), stats: d.last?.stats ?? {} } as { gold: number; stats: Record<string, number> };
       const m = Math.max(0.25, Math.min(60, (Date.now() - Date.parse(d.last_at)) / 60000));
       const who = { pid: d.main, owner: false };
+      if (stalePrestige(R.prestige, await ctx.prestigeOf(d.main))) for (const k of Object.keys(R.levels)) R.levels[k] = 0; // [prestige] this device hasn't seen the latest prestige: its old levels can't come back through the max merge
       for (let attempt = 0; attempt < 5; attempt++) {
         const { data: row } = await ctx.db.from("pvp_dev_profiles").select("*").eq("id", d.main).maybeSingle();
         if (!row) return out(409, { error: "no save yet" });

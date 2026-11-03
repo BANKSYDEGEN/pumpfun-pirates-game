@@ -33,7 +33,8 @@ const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 2
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
-import { shopState, shopBuy, cleanGear, mapsState, mapDig } from './pvpSave.js';
+import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed } from './pvpSave.js';
+import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
@@ -170,7 +171,7 @@ export function createPvp(K) {
   }
   const skinId = () => profile.skins.equipped || 'classic';
   const skinObj = () => pvpSkin(skinId());
-  function snapshot() { return cleanProfile({ gold: game.gold, levels: getRunLevels(), skins: { equipped: skinId(), owned: profile.skins.owned }, gear: profile.gear, gearOwned: profile.gearOwned, rev: profile.rev, stats: profile.stats }); }
+  function snapshot() { return cleanProfile({ gold: game.gold, levels: getRunLevels(), skins: { equipped: skinId(), owned: profile.skins.owned }, gear: profile.gear, gearOwned: profile.gearOwned, rev: profile.rev, prestige: profile.prestige | 0, stats: profile.stats }); }
   // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
   // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
   // plug in there; until then every gear item is COMING SOON and nothing is drawn).
@@ -186,7 +187,7 @@ export function createPvp(K) {
   let shopBehind = 0;
   const shopStateNow = async () => { const st = await shopState(snapshot()); if (!st) return null;
     return { source: 'live', owner: !!st.owner, gold: st.owner ? (game.gold | 0) : (st.gold ?? 0) | 0, behind: Math.max(0, (game.gold | 0) - ((st.gold ?? 0) | 0)) > 0 && !st.owner,
-      stats: { ...profile.stats, ...(st.stats || {}) }, owned: st.owned, equipped: { skin: skinId(), gear: { ...profile.gear } } }; };
+      stats: { ...profile.stats, prestige: profile.prestige | 0, ...(st.stats || {}) }, owned: st.owned, equipped: { skin: skinId(), gear: { ...profile.gear } } }; };
   setShopProvider({
     load: shopStateNow,
     async buy(kind, key) {
@@ -215,6 +216,27 @@ export function createPvp(K) {
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }
+  // ---------------- [prestige] PRESTIGE (BANKSY: "Add ability to prestige when max out ship") ----------------
+  // The UPGRADE SHOP (js/shop.js) shows PRESTIGE once every track is maxed and asks to confirm; this does it: the server checks its own
+  // copy of the save, raises the level and resets ONLY the upgrades (gold, skins, gear, kills kept). P1 = GOLDEN GALLEON buyable,
+  // P2 = DIAMOND SHIP, both given free. A higher level from another device ('pfp-prestige') resets this device's upgrades the same way.
+  const BASE_LV = () => Object.fromEntries(UPGRADES.map(u => [u.id, 0]));
+  function prestigeApplied(lv) { profile.prestige = lv; profile.levels = BASE_LV();
+    if (active) setRunLevels(profile.levels); // = buying an upgrade: stats + model rebuilt once (shop.js), hull full
+    showRank(); K.updateHud(); if (!$('pvp-menu')?.classList.contains('hidden')) renderMenu(); }
+  addEventListener('pfp-prestige', (e) => { const { level, reset } = e.detail || {}; if (!profile || !(level > (profile.prestige | 0))) return;
+    if (reset) prestigeApplied(level); else { profile.prestige = level; showRank(); } });
+  let prestBusy = false;
+  window.PFP_PRESTIGE = Object.freeze({
+    level: () => profile?.prestige | 0,
+    canPrestige: () => active && !!profile && isMaxed(getRunLevels()),
+    next: () => { const n = (profile?.prestige | 0) + 1; return { level: n, reward: rewardFor(n) }; },
+    async run() { if (prestBusy || !active) return { ok: false, error: 'busy' }; prestBusy = true;
+      try { const r = await prestigeNow(snapshot()); if (!r.ok) return r;
+        prestigeApplied(r.prestige); { const rw0 = rewardFor(r.prestige); if (rw0) { profile.skins.owned = [...new Set([...profile.skins.owned, rw0.skin])]; setOwnedSkins(profile.skins.owned); } } save({ now: true, force: true }); sfx.equip?.();
+        const rw = rewardFor(r.prestige); K.banner(`PRESTIGE ${r.prestige}`, rw ? `${rw.name} UNLOCKED · FREE: equip it at the SHIP SKINS shop` : 'your ship starts fresh: upgrade it again');
+        return r; } finally { prestBusy = false; } },
+  });
   addEventListener('pfp-save-now', () => { if (active) save({ now: true, force: true }); }); // [v106] right before LOG OUT: the latest gold lands on the account
   function save(opts = {}) { if (!active && !opts.force) return; profile = snapshot(); saveProfile(profile, opts).then(r => { if (r && r.ok === false && r.status === 401) { wallet = ''; renderMenu(); } }); }
 
@@ -1142,7 +1164,20 @@ export function createPvp(K) {
     const a = document.createElement('span'), b = document.createElement('span'); a.className = 'cn-name'; b.className = 'cn-rank';
     setAvatar($('captain-img'), nftSrc(rk.rank)); // [v78] rank #N = NFT #N (1–333), else the skull
     a.textContent = String(name).toUpperCase(); b.textContent = `\u00a0· #${rankTxt()}`; b.title = 'Your BATTLE ROYALE rank (all-time kills)'; hn.replaceChildren(a, b); hn.classList.add('cn-split');
+    prestigeEmblem();
   }
+  // [prestige] BANKSY: "Add prestige emblem to player top left section": a small emblem on the corner of your avatar (no extra width on
+  // phones). P1 gold shield, P2 diamond, P3+ diamond with a gold rim; the number on it. Nothing at prestige 0 (and outside Battle Royale).
+  function prestigeEmblem() {
+    const cap = $('captain'), img = $('captain-img'); if (!cap || !img) return;
+    let e = $('cap-prest'); const lv = active && profile ? profile.prestige | 0 : 0;
+    if (!lv) { if (e) e.remove(); return; }
+    if (!e) { e = document.createElement('span'); e.id = 'cap-prest'; cap.appendChild(e); }
+    if (e.dataset.lv !== String(lv)) { e.dataset.lv = String(lv); e.className = `p${Math.min(3, lv)}`; e.innerHTML = emblemSvg(lv, 24); e.title = emblemLabel(lv); }
+    const s = Math.round(Math.max(18, Math.min(26, img.offsetWidth * 0.46))); e.style.width = e.style.height = `${s}px`; // follows the avatar size (58 / 42 / 38 px)
+    e.style.left = `${img.offsetLeft + img.offsetWidth - s * 0.72}px`; e.style.top = `${img.offsetTop + img.offsetHeight - s * 0.78}px`;
+  }
+  addEventListener('resize', () => { if ($('cap-prest')) requestAnimationFrame(prestigeEmblem); });
   function refreshRank(force = false) {
     if (rk.busy || (!force && performance.now() - rk.at < 30000)) return; rk.busy = true; rk.at = performance.now(); const t0 = rk.at;
     fetchMe().then(r => { if (r) { rk.rank = r.rank; rk.kills = r.kills | 0; rk.deaths = r.deaths | 0; rk.got = true;
@@ -1186,14 +1221,14 @@ export function createPvp(K) {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
     const st = profile.stats; // [v102] skins are bought with gold at the island shop (or from here: tap a locked skin)
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted pvp-isle-ptr">⛵ Skins at the SHIP SKINS shop, upgrades at the UPGRADE SHOP on the island</span>`;
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses${profile.prestige ? ` · <b class="pvp-prest">${emblemSvg(profile.prestige, 16)} PRESTIGE ${profile.prestige}</b>` : ''}<br><span class="muted pvp-isle-ptr">⛵ Skins at the SHIP SKINS shop, upgrades at the UPGRADE SHOP on the island</span>`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of [...TIERS, ...UNLOCKS]) {
-      const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD() }) : null;
+      const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD(), prestige: profile.prestige | 0 }) : null;
       const c = document.createElement('div'); c.className = `pvp-skin view-only${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id; // [Timothy] display only: buy / equip at the island ship shop
       c.appendChild(skinSwatch(pvpSkin(t.id), 96, 48));
       const lab = document.createElement('span');
-      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'EQUIPPED' : 'OWNED') : g && !g.done ? '🔒 goal' : `${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
+      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'EQUIPPED' : 'OWNED') : g && !g.done ? `🔒 ${g.rows.filter(x => !x.done).map(x => x.fmt === 'prestige' ? `PRESTIGE ${x.need}` : x.fmt === 'kd' ? `K/D ${x.need}` : `${x.need.toLocaleString('en-US')} kills`).join(' + ')}` : `${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
       grid.appendChild(c);
     }
     previewCards(grid, [...TIERS, ...UNLOCKS].map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
@@ -1563,7 +1598,7 @@ export function createPvp(K) {
     room?.send('bye', { i: myId }, { now: true });
     net.lobby('leave', lobbyOpts({ keepalive: true })); // free the arena seat / queue place for the next pirate
     if (unloading) return; // the page is going away; the socket closes with it
-    active = false; document.documentElement.classList.remove('pvp');
+    active = false; document.documentElement.classList.remove('pvp'); $('cap-prest')?.remove(); // [prestige] Battle Royale only
     room?.close(); room = null; clearPeers();
     for (const pid of [...piles.keys()]) removePile(pid);
     isHost = false; hostId = null; showDead(false); toggleMenu(false); clearLocalAi(true); where = 'harbor'; setBoostZone('harbor'); showOffer(false);

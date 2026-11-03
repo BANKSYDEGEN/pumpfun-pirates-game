@@ -5,6 +5,7 @@
 //                                              gated by opts.pvp in the compiler, so solo ships never change
 //   tick(mesh, { speed, alive, dt, t })     -> per-frame effects for local AND remote ships (see SHIP_TICKS)
 import { registerSkin, getSkin, SKINS } from './skins.js';
+import { PRESTIGE_GRANT_LV } from './prestige.js'; // [prestige] skins given free at a prestige level
 import './skinLooks.js'; // golden / ghost / blood / midnight looks (shared with Waves)
 import { PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT } from './config.js';
 import { ownerAllSkins } from './pvpSave.js'; // [v85] owner-only: BANKSYDEGEN's two devices have every skin
@@ -39,7 +40,10 @@ export const unlockedSkins = () => TIERS.filter(t => canUse(t.id)).map(t => t.id
 // server's list (pvp_owned via js/pvpSave.js), set here by pvp.js; the owner (BANKSYDEGEN) has every skin.
 let OWNED = new Set(['classic']);
 export const setOwnedSkins = (list) => { OWNED = new Set(['classic', ...(Array.isArray(list) ? list : [])]); };
-export const canUse = (id) => ownerAllSkins() || id === 'classic' || OWNED.has(id);
+// [prestige] the GOLDEN GALLEON (P1) / DIAMOND SHIP (P2) are GIVEN on reaching that prestige: owned from then on (the server adds them to pvp_owned too)
+const prestigeLv = () => Math.max(window.PFP_PRESTIGE?.level?.() | 0, window.PFP_PVP_SAVE?.prestigeLevel?.() | 0);
+export const prestigeGranted = (id) => { const lv = PRESTIGE_GRANT_LV[id]; return !!lv && prestigeLv() >= lv; };
+export const canUse = (id) => ownerAllSkins() || id === 'classic' || OWNED.has(id) || prestigeGranted(id);
 // [Timothy] harbor-kill unlock skins: data only here (locked: true + unlock { type, count }); renderable by id, but canUse() /
 // unlockedSkins() stay kill-tier only until the harbor counters are wired (Emerly)
 export const UNLOCKS = PVP_UNLOCK_SKINS;

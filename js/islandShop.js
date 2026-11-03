@@ -130,14 +130,15 @@ const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => (
   : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first (weapon tabs too)
 const eqGear = (slot) => state.equipped.gear?.[slot] ?? (slot === 'sword' ? SWORD_FREE : slot === 'musket' ? MUSKET_FREE : CREW_DEFAULT[slot]); // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
-  const owned = state.owner || x.it.price === 0 || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
-  const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
   const g = goalProgress(liveGoal(x.it), state.stats);
+  // [prestige] a prestige grant (GOLDEN P1 / DIAMOND P2) is owned once that prestige is reached; other price-0 items are always free
+  const owned = state.owner || (x.it.price === 0 && (x.it.grant !== 'prestige' || !!g?.done)) || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
+  const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
   if (x.it.soon && !state.owner) return { k: 'soon', owned: false, g: null }; // [v102] not on sale yet: never sold, never equipped ([Timothy] the owner owns + equips everything)
   if (eq) return { k: 'equipped', owned, g }; if (owned) return { k: 'owned', owned, g };
   if (g && !g.done) return { k: 'locked', g }; if (state.gold < x.it.price) return { k: 'poor', g }; return { k: 'buy', g };
 }
-const goalLine = (x, g) => `${g.tag ? g.tag + ': ' : ''}${fmtGoal(g)}`;
+const goalLine = (x, g) => `${g.tag && !g.rows.every(r => r.fmt === 'prestige') ? g.tag + ': ' : ''}${fmtGoal(g)}`; // [prestige] 'PRESTIGE 0/1', not 'PRESTIGE 1: PRESTIGE 0/1'
 
 // ---------- render ----------
 function build() {
@@ -185,7 +186,7 @@ function render() {
     const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON' }[s.k];
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
-    c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? 'FREE' : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
+    c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? (x.it.grant === 'prestige' ? 'UNLOCKED · FREE' : 'FREE') : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
     if (x.kind === 'gear') { const b = boostOf(x.it.slot, x.it.id); if (b && boostChips(b).length) c.insertAdjacentHTML('beforeend', `<span class="ishop-bst">${boostChipHtml(b, esc)}</span>`); } // [Emerly] '+4% RELOAD'
     c.onclick = () => { view.sel = x.key; render(); };
     grid.appendChild(c);
@@ -204,12 +205,12 @@ function detail(x) {
   d.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it, true));
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
   const btn = { equipped: '<button type="button" class="ishop-act ghost" disabled>EQUIPPED ✓</button>', owned: '<button type="button" class="ishop-act big" data-a="equip">EQUIP</button>',
-    locked: '<button type="button" class="ishop-act" disabled>REACH THE GOAL FIRST</button>', poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
+    locked: `<button type="button" class="ishop-act" disabled>${x.it.grant === 'prestige' ? 'PRESTIGE TO UNLOCK · FREE' : 'REACH THE GOAL FIRST'}</button>`, poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
     buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>' }[s.k];
   d.insertAdjacentHTML('beforeend', `<div class="ishop-info"><h4>${esc(x.name)}</h4>
     <div class="ishop-pr">${x.it.price ? fmtGold(x.it.price) : 'FREE'}${s.owned ? ' · <b>OWNED</b>' : ''}${s.k === 'soon' ? ' · <b>COMING SOON</b>' : ''}</div>
     ${s.k === 'soon' ? '<div class="ishop-gl">Goes on sale when it shows on your pirate.</div>' : ''}
-    ${s.g ? `<div class="ishop-gl">${s.g.done ? (s.owned ? 'Goal reached' : 'Goal reached: you can buy it') : s.g.nostats ? `Goal unlocks buying · <b>${esc(s.g.rows.map(r => r.fmt === 'kd' ? `K/D ${r.need}` : `${r.need.toLocaleString('en-US')} ${r.label}`).join(' + '))}</b>` : `Goal unlocks buying · <b>${esc(goalLine(x, s.g))}</b>`}${s.g.proposed ? ' <em class="ishop-prop">proposed goal</em>' : ''}</div>${rows}` : ''}
+    ${s.g ? `<div class="ishop-gl">${x.it.grant === 'prestige' ? (s.g.done ? '<b>UNLOCKED · FREE</b>: your prestige reward' : `Prestige reward · <b>FREE</b> at <b>${esc(goalLine(x, s.g))}</b>`) : s.g.done ? (s.owned ? 'Goal reached' : 'Goal reached: you can buy it') : s.g.nostats ? `Goal unlocks buying · <b>${esc(s.g.rows.map(r => r.fmt === 'prestige' ? `PRESTIGE ${r.need}` : r.fmt === 'kd' ? `K/D ${r.need}` : `${r.need.toLocaleString('en-US')} ${r.label}`).join(' + '))}</b>` : `Goal unlocks buying · <b>${esc(goalLine(x, s.g))}</b>`}${s.g.proposed ? ' <em class="ishop-prop">proposed goal</em>' : ''}</div>${rows}` : ''}
     ${x.it.use === 'once' && s.k !== 'soon' ? `<div class="ishop-gl">One use: marks ${esc(x.it.dig)} on your island map</div>` : ''}
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);

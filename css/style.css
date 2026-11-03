@@ -1008,3 +1008,15 @@ html.ui-cap-press #captain { transform: scale(0.97); }
 @media (hover: none) { .token-row.tk2 .ca-chip:hover { background: transparent; } .token-row.tk2 .ca-chip:hover .ca { color: rgba(255,255,255,0.9); text-decoration-color: rgba(255,205,119,0); } }
 /* [v115] BANKSY: entry screens ask for a name + SET SAIL only; the wallet field + save-progress row live in the profile (uiProfile.js moves them there) */
 #waves-entry .we-crypto, #waves-entry .wallet-row { display: none !important; }
+
+/* [prestige] BANKSY: "Add prestige emblem to player top left section": on the corner of the avatar (js/pvp.js prestigeEmblem places it
+   from the avatar's real size, so it adds no width on phones). P1 gold shield, P2 diamond, P3+ diamond + gold rim. None at 0. */
+#cap-prest { position: absolute; z-index: 2; pointer-events: none; line-height: 0; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.85)); }
+#cap-prest svg { width: 100%; height: 100%; }
+#cap-prest.p1 { animation: cap-prest-g 3.2s ease-in-out infinite; } #cap-prest.p2, #cap-prest.p3 { animation: cap-prest-d 2.6s ease-in-out infinite; }
+@keyframes cap-prest-g { 50% { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.85)) drop-shadow(0 0 4px rgba(255,205,119,0.9)); } }
+@keyframes cap-prest-d { 50% { filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.85)) drop-shadow(0 0 5px rgba(191,232,255,0.95)); } }
+html.pvp-spec #cap-prest { display: none; }
+.pvp-prest { color: var(--gold); white-space: nowrap; } .pvp-prest svg { vertical-align: -3px; }
+.prest-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--gold); white-space: nowrap; } .prest-badge.p2, .prest-badge.p3 { color: #bfe8ff; }
+#profile #pf-prest { display: block; margin-top: 3px; } #profile #pf-prest .prest-badge b { display: inline; font-size: 18px; line-height: 1; } /* [prestige] */

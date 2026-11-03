@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v164'; // [v164] HOTFIX: UPGRADE SHOP DOM build was commented out by the v161 merge (shop.js initShop)
+const VERSION = 'pfp-v165'; // [v165] PRESTIGE (max every upgrade -> PRESTIGE: upgrades back to base; P1 = GOLDEN GALLEON, P2 = DIAMOND granted free; HUD emblem), GHOST 100 / FIRE 200 kills
 const SHELL = [
   "./",
   "./index.html",
@@ -121,6 +121,7 @@ const SHELL = [
   "./js/shopCatalog.js",
   "./js/boosts.js", // [Emerly] ITEM SKILL BOOSTS (shop.js, pvp.js, islandShop.js import it)
   "./js/shopGoals.js", // [Timothy] shop goal progress (islandShop.js imports it)
+  "./js/prestige.js", // [prestige] emblem + reward text (pvp.js, shop.js, uiProfile.js)
   "./js/modeKills.js", // [Timothy] pvp.js imports it (BR kills by mode, display only)
   "./js/islandMap.js",
   "./js/pvpBoard.js",

@@ -180,3 +180,32 @@
 /* [v112] BANKSY: "remove the shop button on hud" -> no chest button in the harbor, Battle Royale or on foot (the island SHIP SKINS + UPGRADES
    shop is the way in). WAVES keeps it: it is the in-run shipwright (also U / B). */
 html.pvp #btn-shop { display: none !important; }
+
+/* [prestige] BANKSY: "Add ability to prestige when max out ship": the UPGRADE SHOP bar (every track maxed) + its confirm */
+.shop-prest { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; padding: 8px 10px; border-radius: 12px; border: 2px solid var(--gold);
+  background: linear-gradient(90deg, rgba(255,205,119,0.22), rgba(191,232,255,0.14)); box-shadow: 0 0 14px rgba(255,205,119,0.3); }
+.shop-prest .sp-emb { flex: none; line-height: 0; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+.shop-prest .sp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.05; }
+.shop-prest .sp-txt b { color: var(--gold); font-size: 22px; letter-spacing: 0.5px; }
+.shop-prest .sp-txt small { font-size: 16px; color: #f3e6c8; } .shop-prest .sp-txt small b { font-size: inherit; color: #fff; letter-spacing: 0; }
+.shop-panel button.buy.sp-btn { flex: none; font-size: 24px; padding: 6px 16px; background: linear-gradient(#ffe2a8, #d9a441); color: #161616; text-shadow: none; box-shadow: 0 3px 0 #8a5a1a; animation: sp-glow 1.6s ease-in-out infinite; }
+@keyframes sp-glow { 50% { box-shadow: 0 3px 0 #8a5a1a, 0 0 16px rgba(255,205,119,0.9); } }
+.prest-confirm { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); padding: 16px; }
+.prest-confirm.hidden { display: none; }
+.prest-confirm .pc-card { width: min(420px, 100%); background: rgba(22,16,10,0.97); border: 2px solid var(--gold); border-radius: 16px; padding: 16px 18px 14px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+.prest-confirm .pc-emb { line-height: 0; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.6)); }
+.prest-confirm h2 { margin: 6px 0 8px; color: var(--gold); font-size: 34px; letter-spacing: 1px; }
+.prest-confirm .pc-list { list-style: none; margin: 0 0 10px; padding: 0; text-align: left; font-size: 19px; line-height: 1.15; color: #f3e6c8; }
+.prest-confirm .pc-list li { padding: 5px 0 5px 26px; position: relative; } .prest-confirm .pc-list b { color: #fff; }
+.prest-confirm .pc-reset::before { content: '⚠'; position: absolute; left: 2px; color: #ff6a4a; }
+.prest-confirm .pc-keep::before { content: '✓'; position: absolute; left: 4px; color: #4ee37a; }
+.prest-confirm .pc-gain::before { content: '★'; position: absolute; left: 3px; color: var(--gold); }
+.prest-confirm .pc-err { min-height: 1.1em; color: #ff8a6a; font-size: 17px; margin-bottom: 6px; }
+.prest-confirm .pc-btns { display: flex; gap: 10px; justify-content: center; }
+.prest-confirm .pc-no { font: inherit; font-size: 22px; padding: 6px 18px; border-radius: 999px; border: 2px solid rgba(255,205,119,0.5); background: transparent; color: var(--gold); cursor: pointer; }
+.prest-confirm button.buy.pc-yes { font-size: 22px; padding: 6px 18px; background: linear-gradient(#ffe2a8, #d9a441); color: #161616; text-shadow: none; box-shadow: 0 3px 0 #8a5a1a; }
+@media (max-width: 560px), (max-height: 480px) {
+  .shop-prest { gap: 8px; padding: 6px 8px; } .shop-prest .sp-txt b { font-size: 19px; } .shop-prest .sp-txt small { font-size: 14px; }
+  .shop-panel button.buy.sp-btn { font-size: 19px; padding: 5px 11px; }
+  .prest-confirm h2 { font-size: 28px; } .prest-confirm .pc-list { font-size: 16px; }
+}
