@@ -64,8 +64,9 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
   let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, gear, local, bodyFromGear, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
   let ph = 0, blend = 0, t = 0;
   function update(dt, speed = 0, state = 'idle') {
-    if (v4) { const c = speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
-      if (v4.action) v4.action.setEffectiveTimeScale(c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
+    if (v4) { // [Raul] state (js/onfoot/physics.js poseBody): swim = the run clip slowed under the swim lean (arm strokes + kick), tread = slow walk, fall = fast run (flailing)
+      const c = state === 'swim' || state === 'fall' ? 'run' : state === 'tread' ? 'walk' : speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
+      if (v4.action) v4.action.setEffectiveTimeScale(state === 'swim' ? 0.5 + speed * 0.1 : state === 'tread' ? 0.45 : state === 'fall' ? 1.7 : c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
     t += dt; const run = Math.min(1, Math.max(0, (speed - 4.4) / 2)), walk = Math.min(1, speed / 1.2);
     blend += (walk - blend) * Math.min(1, dt * 10);
     ph += dt * (speed > 0.1 ? 2.2 + speed * 1.15 : 0);

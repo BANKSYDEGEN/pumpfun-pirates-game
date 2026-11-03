@@ -60,9 +60,12 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
     if (Math.abs(along) <= d.hl && Math.abs(across) <= d.hw - 0.35) y = Math.max(y ?? -1e9, d.y); } return y; }
   const toF = layout.harborToFoot;
   function ground(x, z) { const d = deckAt(x, z), [fx, fz] = toF(x, z), g = foot.groundAt(fx, fz); return d !== null ? Math.max(d, g) : g; }
+  // [Raul] still-water surface (null = dry) and where you stand: swimming = feet FOOT_SWIM.float under it, else the ground / deck
+  function water(x, z) { if (deckAt(x, z) !== null || !foot.waterAt) return null; const [fx, fz] = toF(x, z); return foot.waterAt(fx, fz); }
+  function stand(x, z) { const g = ground(x, z), s = water(x, z); return s !== null && s - g > FM.FOOT_SWIM.depth ? s - FM.FOOT_SWIM.float : g; }
   function blocked(x, z, px, pz) {
     const d = deckAt(x, z);
-    if (d !== null) { if (px === undefined) return false; const from = ground(px, pz); return d - from > 2.4; } // up a step / stairs
+    if (d !== null) { if (px === undefined) return false; const from = stand(px, pz); return d - from > 2.4; } // up a step / stairs ([Raul] from the water: where you float)
     const [fx, fz] = toF(x, z);
     if (px !== undefined && deckAt(px, pz) !== null) return foot.blocked(fx, fz) || foot.H(fx, fz) - deckAt(px, pz) > 2.4; // stepping off a deck
     if (px === undefined) return foot.blocked(fx, fz);
@@ -73,7 +76,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   // foot.js interact points (Squad Hall, digs, treasure cave) in harbor coords
   const footInteract = FM.INTERACT.map(q => { const [x, z] = layout.footToHarbor(q.x, q.z); return { ...q, x, z, src: q, kind: q.id.startsWith('dig') ? 'dig' : q.id, label: q.label.replace(/^E · /, '') }; });
   const stats = { ms: Math.round(performance.now() - t0), footBuildMs: FM.BUILD_MS, foot: foot.stats };
-  return { root, foot, footGroup, atlas, ground, blocked, deckAt, update, footInteract, activate: (q, t) => foot.activate(q.src, t), rearm: (q) => { foot.rearm?.(q.src.id); q.used = false; }, stats, quay };
+  return { root, foot, footGroup, atlas, ground, water, stand, blocked, deckAt, update, footInteract, activate: (q, t) => foot.activate(q.src, t), rearm: (q) => { foot.rearm?.(q.src.id); q.used = false; }, stats, quay };
 }
 
 // ship colliders -> props.js harbor zone sets (clustered, so each ship only scans the circles near it)

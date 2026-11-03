@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v153'; // [v153] v5 shop previews: every pre-baked card PNG re-rendered on the v5 pirate (+13 new crew / face paint cards), PET STORE pane never empty, hooks + peg legs single-sided (no black blobs)
+const VERSION = 'pfp-v154'; // [v154] Raul's foot physics: falling off ledges, floating + swimming in deep water, wading, the west-beach swim cove
 const SHELL = [
   "./",
   "./index.html",
@@ -41,6 +41,7 @@ const SHELL = [
   "./js/onfoot/net.js",
   "./js/onfoot/pirate.js",
   "./js/onfoot/walker.js",
+  "./js/onfoot/physics.js", // [v154] Raul: falling + swimming
   "./js/island/art.js",
   "./js/island/bake.js",
   "./js/island/foot.js",

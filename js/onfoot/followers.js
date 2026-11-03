@@ -8,7 +8,8 @@
 //  - lost (> 40 m behind, e.g. after a long run or a fast jump): they quietly regroup behind you
 //  - cheap: one v4 Low pirate each (2 draw calls + their gear), hidden beyond 70 m, no per-frame allocation
 import { loadPirate } from './pirate.js';
-import { jumpArc } from './walker.js';
+import { JUMP } from './walker.js';
+import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] they fall, wade + swim like you
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
@@ -29,7 +30,7 @@ export function createFollowers({ scene, world, walker, low }) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality
     // [v130] BANKSY "no crew walking with me": v128 put that note at the end of this line and commented out applyGear / scene.add
     const p = loadPirate({ look: LOOKS[i], low, outline: false }); applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
-    crew.push({ p, x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
+    crew.push({ p, body: newBody(), x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
   }
   // [v112] BANKSY "why are my crew members shirtless": a dress that failed once (gear library / item load error, or a dress started
   // before the pirate GLB arrived and lost) was never retried, because the wanted gear key hadn't changed. Now every check also looks
@@ -47,12 +48,11 @@ export function createFollowers({ scene, world, walker, low }) {
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground
       let x = W.x + bx * (1.2 + i * 0.9), z = W.z + bz * (1.2 + i * 0.9); if (world.blocked(x, z, W.x, W.z)) { x = W.x; z = W.z; }
-      Object.assign(c, { x, z, y: world.ground(x, z), yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); c.p.object.visible = true; place(c); });
+      Object.assign(c, { x, z, yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); placeBody(c.body, world, x, z); c.y = c.body.y; c.p.object.visible = true; place(c); });
     active = true;
   }
   function exit() { active = false; for (const c of crew) c.p.object.visible = false; }
-  function place(c) { const o = c.p.object, h = c.jt ? jumpArc((performance.now() - c.jt) / 1000) : 0; if (c.jt && performance.now() - c.jt > 900) c.jt = 0;
-    o.position.set(c.x, c.y + h, c.z); o.rotation.y = c.yaw; }
+  function place(c) { c.pose = poseBody(c.p.object, c.body, c.x, c.z, c.yaw, c.speed, performance.now() / 1000 + c.yaw); }
   // point on your trail `d` metres behind you
   const _pt = [0, 0];
   function trailAt(d) { const W = walker.w; let px = W.x, pz = W.z, acc = 0;
@@ -65,19 +65,20 @@ export function createFollowers({ scene, world, walker, low }) {
       else if (!world.blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
       else if (!world.blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; } }
     return got / k; }
+  const fx = waterFX(scene, low);
   function update(dt, camera) {
     if (!active) return;
     if ((chkT -= dt) <= 0) { chkT = 0.5; redress(); } // ship skin / colour changes (cheap string compare, re-dress only on a change)
     const W = walker.w, now = performance.now();
     // breadcrumbs
     const h = trail[0]; if (!h || Math.hypot(W.x - h[0], W.z - h[1]) >= STEP) { trail.unshift([W.x, W.z]); if (trail.length > TRAIL_N) trail.pop(); }
-    if (W.jumps !== lastJumps) { lastJumps = W.jumps; crew.forEach((c, i) => setTimeout(() => { if (active && !c.jt) c.jt = performance.now(); }, 120 + i * 140)); }
+    if (W.jumps !== lastJumps) { lastJumps = W.jumps; crew.forEach((c, i) => setTimeout(() => { if (active) jumpBody(c.body, JUMP.h); }, 120 + i * 140)); }
     crew.forEach((c, i) => {
       const pt = trailAt(BACK[i]); let tx = pt[0], tz = pt[1];
       { const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw), sx = -bz * SIDE[i], sz = bx * SIDE[i]; if (SIDE[i] && !world.blocked(tx + sx, tz + sz, tx, tz)) { tx += sx; tz += sz; } }
       const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);
-      if (dp > 40) { const q = trailAt(BACK[i] + 1); c.x = q[0]; c.z = q[1]; c.y = world.ground(c.x, c.z); c.speed = 0; return place(c); } // lost: regroup
-      const want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0;
+      if (dp > 40) { const q = trailAt(BACK[i] + 1); c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
+      let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body);
       c.speed += (want - c.speed) * Math.min(1, dt * 6);
       if (c.speed > 0.15 && d > 0.05) {
         const got = move(c, dx / d * c.speed * dt, dz / d * c.speed * dt);
@@ -87,9 +88,9 @@ export function createFollowers({ scene, world, walker, low }) {
         c.idleT += dt; if (c.idleT > 3 + i) { c.idleT = 0; c.look = (Math.random() - 0.5) * 1.6; }
         const face = Math.atan2(W.x - c.x, W.z - c.z) + (c.idleT < 1.4 ? c.look : 0); let dy = face - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.yaw += dy * Math.min(1, dt * 3);
       }
-      const gy = world.ground(c.x, c.z); c.y += (gy - c.y) * Math.min(1, dt * 16);
+      stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; bodyFX(fx, c.body, c.x, c.z, c.speed, dt); fx?.update();
       const far = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far;
-      place(c); if (!far) c.p.update(dt, c.speed);
+      place(c); if (!far) c.p.update(dt, c.speed, c.pose);
     });
   }
   return { enter, exit, update, get list() { return crew; }, get active() { return active; } };

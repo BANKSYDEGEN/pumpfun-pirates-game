@@ -57,7 +57,7 @@ export async function createDock(ctx) {
   const myId = () => ctx.pvp()?.myId || 'me';
   const docking = createDocking({ berths: layout.berths, myId }); // [v152] a getter: the room id can arrive later
   const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate.object.visible = false; scene.add(pirate.object); // [Timothy] + your shop gear
-  const walker = createWalker({ camera, canvas, world, pirate, touch });
+  const walker = createWalker({ camera, canvas, world, pirate, touch, low: LOW });
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });

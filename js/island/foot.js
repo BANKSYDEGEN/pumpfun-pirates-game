@@ -114,6 +114,11 @@ function stamp(path, R, D, L = null, lv = null) {
       if (d < D[q]) { D[q] = d; if (L) L[q] = lv((s + t * sl) / Ltot); } }
     s += sl; }
 }
+// [Raul] SWIM COVE (BANKSY): carve CO.SWIM_COVE into the west beach: pool floor (shallow west -> deep east), a low sand / rock rim
+// that holds the raised still water, blended back into the beach by q = CO.SWIM_COVE.bank (ellipse units)
+function coveH(lx, lz, h) { const C = CO.SWIM_COVE, q = CO.coveQ(lx, lz); if (q >= C.bank) return h; const dx = lx - C.lx;
+  if (q < 1) return C.y - (0.7 + (C.y - C.bottom - 0.7) * sm(-30, 8, dx)) * (1 - sm(0.7, 1, q));
+  const sand = 1 - sm(-20, 0, dx), rim = C.y + 0.6 * sm(1, 1.06 + 0.24 * sand, q), t = sm(1.18, C.bank, q); return rim * (1 - t) + h * t; }
 export const SKULL = { x: PEAK.x, z: PEAK.z - 62 }; SKULL.y = rawH(SKULL.x, SKULL.z, coastSD(SKULL.x, SKULL.z)); // treasure-cave floor pad
 const t0 = performance.now();
 stamp(TRAILS.A, 14, TRg); stamp(TRAILS.B, 14, TRg); stamp(STREETP, 30, STg);
@@ -137,7 +142,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     h = lz > STREET.z1 ? Math.max(h, bridge) * (1 - w) + ys * w : h * (1 - along * w) + Math.max(h, ys) * along * w;
   }
   // the dock town keeps its own terrain disc: the big terrain sits just under it (no seams, no z-fight)
-  if (COASTM) coastH(); else { const rT = Math.hypot(lx, lz); if (rT < 104) { const gy = groundY(lx, lz) - 0.6; h = rT < 90 ? Math.max(Math.min(h, gy), lz < -50 && sx < STREET.half + 14 ? h : gy) : Math.max(h, gy); } }
+  if (COASTM) { coastH(); h = coveH(lx, lz, h); } else { const rT = Math.hypot(lx, lz); if (rT < 104) { const gy = groundY(lx, lz) - 0.6; h = rT < 90 ? Math.max(Math.min(h, gy), lz < -50 && sx < STREET.half + 14 ? h : gy) : Math.max(h, gy); } }
   function coastH() { // [coast] stone quay + plaza flat, mole, cliff headland, fort knoll
     const e = sm(-64, -52, lz) * sm(CO.PLAZA.lx0 - 12, CO.PLAZA.lx0, lx) * (1 - sm(CO.PLAZA.lx1, CO.PLAZA.lx1 + 12, lx));
     if (lz <= 0.5) h = h * (1 - e) + CO.QUAY.y * e;
@@ -180,6 +185,25 @@ export function H(x, z) {
   const fx = Math.min(NX - 1e-3, Math.max(0, (x - X0) / G)), fz = Math.min(NZ - 1e-3, Math.max(0, (z - Z0) / G)), i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
   return (Hg[IDX(i, j)] * (1 - u) + Hg[IDX(i + 1, j)] * u) * (1 - v) + (Hg[IDX(i, j + 1)] * (1 - u) + Hg[IDX(i + 1, j + 1)] * u) * v;
 }
+// [Raul] water + the swim cove's walkable jetty (foot world). waterAt = the still-water surface over (x, z) or null (dry): the lake,
+// the river ribbon, the sea (CO.FOOT_SWIM.seaY). seaLimit = sea you may not swim in (open water, the dredged berths).
+export const FOOT_SWIM = CO.FOOT_SWIM;
+export function waterAt(x, z) { const h = H(x, z);
+  if (COASTM) { const [lx, lz] = worldToTown(x, z); if (CO.coveQ(lx, lz) < 1.02) return h < CO.SWIM_COVE.y ? CO.SWIM_COVE.y : null; }   // the swim cove
+  if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2.5) return h < LAKE.y + 0.05 ? LAKE.y + 0.05 : null;
+  const q = IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))));
+  if (RVg[q] < 6.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) return RVl[q] + 0.2;
+  return h < FOOT_SWIM.seaY ? FOOT_SWIM.seaY : null; }
+function seaLimit(x, z, h, surf) { if (surf !== FOOT_SWIM.seaY) return false; if (h < FOOT_SWIM.maxSea) return true;
+  if (!COASTM || surf - h <= FOOT_SWIM.depth) return false; const [lx, lz] = worldToTown(x, z); return CO.inPoly(lx, lz, CO.SAFE); }
+// the cove jetty (bank -> west): walkway, 4 steps, the diving tower, the board (a = metres out from the bank). null = not on it
+export function coveDeckAt(x, z) { if (!COASTM) return null; const [lx, lz] = worldToTown(x, z), J = CO.SWIM_COVE.jetty, a = J.lx0 - lx, dz = Math.abs(lz - J.lz);
+  const aS = J.lx0 - J.lx1, aT0 = J.lx0 - J.tower.lx0, aT1 = J.lx0 - J.tower.lx1;
+  if (a < 0 || a > J.lx0 - J.board.lx1 || dz > J.tower.hw) return null;
+  if (a > aT1) return dz <= J.board.hw ? J.tower.y + 0.1 : null;
+  if (a >= aT0) return J.tower.y;
+  if (dz > J.hw) return null; return a < aS ? J.y : J.steps[Math.min(J.steps.length - 1, Math.floor(a - aS))]; }
+const coveTower = (x, z) => coveDeckAt(x, z) === CO.SWIM_COVE.jetty.tower.y;   // the tower deck itself (not the board)
 const gridAt = (A, x, z) => A[IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))))];
 export const trailDist = (x, z) => gridAt(TRg, x, z);
 
@@ -430,7 +454,7 @@ function foliageSpots() {
     return al > -8 && al < v.L + 10 && (lat < 14 || (al < 60 && lat < 8 + al * 0.8)); });
   for (let j = 1; j < NZ; j += 2) for (let i = 1; i < NX; i += 2) {
     const x = X0 + i * G + (hash(i, j) - 0.5) * 7, z = Z0 + j * G + (hash(j, i) - 0.5) * 7, h = H(x, z), q = IDX(i, j), r = hash(i * 3.1, j * 1.7);
-    if (h < 0.9) continue; const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 110) continue;
+    if (h < 0.9) continue; const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 110) continue; if (COASTM && CO.coveQ(lx, lz) < 1.5) continue; // [Raul] swim cove
     if (STg[q] < 26 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 || RVg[q] < 7) continue;
     const sl = slopeAt(i, j);
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
@@ -463,7 +487,7 @@ function grassGeos() {
 }
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRg[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
-  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; return 1; };
+  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
 export const DIG_HINTS = [[-306, 150, 1], [-82, 456, 2], [340, -360, 3], [-335, -580, 4], [421, 100, 5], [-631, -208, 6]];
@@ -729,7 +753,61 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     for (let i = 0; i < 4; i++) cannon(k, M(-6 + i * 4, 6.1, 13.4, 0)); }, null); { const [x, z] = T(CO.FORT.lx, CO.FORT.lz); addBox(x, z, 27, 27, yaw0); }
   // battery on the cliff headland: [Timothy] js/island/battery.js (ramp up from the quay, parapets, shot piles, lamps, colliders; the 6 guns are createGuns)
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
+  buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   return k;
+}
+// [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and
+// a board, a swim ladder, a red / white buoy line on a rope at the chest-deep line, boulders on the dune. Walk data: coveDeckAt.
+function buildSwimCove(k, at, low) {
+  const C = CO.SWIM_COVE, J = C.jetty, TW = J.tower, PLANK = 0xc99566, L = J.lx0 - J.lx1, PB = C.bottom - 0.3;
+  at(J.lx0 - L / 2, J.lz, 0, () => { W(k, box(L, 0.22, J.hw * 2), PLANK, 2, M(0, J.y - 0.11, 0));                                   // walkway
+    for (let i = 0; i <= 4; i++) for (const s of [-1, 1]) W(k, cyl(0.13, 0.15, J.y - PB, 6), WOOD_D, 2, M(-L / 2 + 0.3 + i * (L - 0.6) / 4, (J.y + PB) / 2 - 0.2, s * (J.hw - 0.15)), false); }, 0);
+  J.steps.forEach((y, i) => at(J.lx1 - i - 0.5, J.lz, 0, () => W(k, box(1.0, y - PB, J.hw * 2), PLANK, 2, M(0, (y + PB) / 2, 0)), 0));
+  const tl = TW.lx0 - TW.lx1;
+  at(TW.lx0 - tl / 2, J.lz, 0, () => { W(k, box(tl, 0.3, TW.hw * 2), PLANK, 2, M(0, TW.y - 0.15, 0));                                // tower deck
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) W(k, cyl(0.18, 0.2, TW.y - PB, 6), WOOD_D, 2, M(sx * (tl / 2 - 0.25), (TW.y + PB) / 2 - 0.3, sz * (TW.hw - 0.25)), false);
+    for (const sz of [-1, 1]) { W(k, box(tl, 0.1, 0.1), WOOD_D, 2, M(0, TW.y + 0.95, sz * (TW.hw - 0.1)), false); for (const sx of [-1, 0, 1]) W(k, cyl(0.05, 0.05, 0.95, 5), WOOD_D, 2, M(sx * (tl / 2 - 0.2), TW.y + 0.47, sz * (TW.hw - 0.1)), false); } }, 0);
+  at(J.lx1 + 2, J.lz - J.hw - 0.12, 0, () => { for (const sx of [-0.3, 0.3]) W(k, cyl(0.04, 0.04, J.y - C.y + 2.2, 5), IRON, 0, M(sx, (J.y + C.y - 2.2) / 2 + 0.6, 0), false);   // swim ladder
+    for (let y = C.y - 1.2; y < J.y; y += 0.4) W(k, cyl(0.03, 0.03, 0.6, 4), IRON, 0, M(0, y, 0, 0, 0, Math.PI / 2), false); }, 0);
+  const bl = TW.lx1 - J.board.lx1; at(TW.lx1 - bl / 2, J.lz, 0, () => { W(k, box(bl + 0.6, 0.12, J.board.hw * 2), 0xf2e4c4, 12, M(0.3, TW.y + 0.04, 0)); }, 0);  // diving board
+  // buoy rope at the chest-deep line (static: the cove is calm)
+  const B = C.buoys, pts = []; for (let i = 0; i < B.n; i++) { const u = i / (B.n - 1); pts.push([B.lx - Math.sin(u * Math.PI) * 3, B.lz0 + (B.lz1 - B.lz0) * u]); }
+  pts.forEach(([lx, lz], i) => { at(lx, lz, 0, () => W(k, new THREE.SphereGeometry(0.38, low ? 8 : 12, low ? 6 : 8), i % 2 ? 0xffffff : 0xe0302a, 12, M(0, C.y + 0.08, 0, 0, 0, 0, [1, 0.85, 1])), 0);
+    if (i) { const [ax, az] = pts[i - 1], dl = Math.hypot(lx - ax, lz - az); at((lx + ax) / 2, (lz + az) / 2, 0, () => W(k, cyl(0.035, 0.035, dl, 4), 0xe8d9a8, 12, M(0, C.y + 0.12, 0, Math.atan2(lx - ax, lz - az), Math.PI / 2), false), 0); } });
+  // boulders round the rim (shelter + a low jump-off rock on the north side)
+  [[-224, -70.5, 2.2], [-262, -71, 1.8], [-206, -62, 1.9], [-236, -25, 1.6], [-268, -26.5, 1.4], [-209, -33, 2.0]].forEach(([lx, lz, sc], i) => at(lx, lz, 0, () =>
+    W(k, jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, 40 + i), (px, py) => (py > 0.2 ? 0xa8a095 : 0x7f786f), 3, M(0, sc * 0.2, 0, i, 0.3, 0.2, [sc * 1.2, sc * 0.8, sc]))));
+}
+// [Raul] SWIM COVE water: one calm, clear ellipse at CO.SWIM_COVE.y (sandy tint in the shallows, deeper blue, slow caustics, a soft
+// lip at the shore); per-vertex depth from the terrain. 1 draw call, ~250 (phone) / ~650 tris
+function coveWater(uTime, low) {
+  const C = CO.SWIM_COVE, NR = low ? 6 : 10, NS = low ? 24 : 40, pos = [], dep = [], idx = [];
+  pos.push(...(([x, z]) => [x, C.y + 0.03, z])(CO.t2w(C.lx, C.lz))); dep.push(C.y - H(...CO.t2w(C.lx, C.lz)), 0);
+  for (let r = 1; r <= NR; r++) for (let s = 0; s < NS; s++) { const u = r / NR * 1.02, a = s / NS * Math.PI * 2, [x, z] = CO.t2w(C.lx + Math.cos(a) * C.ax * u, C.lz + Math.sin(a) * C.az * u); pos.push(x, C.y + 0.03, z); dep.push(C.y - H(x, z), u); }
+  for (let s = 0; s < NS; s++) idx.push(0, 1 + (s + 1) % NS, 1 + s);
+  for (let r = 1; r < NR; r++) for (let s = 0; s < NS; s++) { const a = 1 + (r - 1) * NS + s, b = 1 + (r - 1) * NS + (s + 1) % NS, c = a + NS, d = b + NS; idx.push(a, b, d, a, d, c); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aD', new THREE.Float32BufferAttribute(dep, 2)); g.setIndex(idx);
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: true, uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 } }]),
+    vertexShader: `attribute vec2 aD; varying vec2 vD; varying vec3 vP;
+      #include <fog_pars_vertex>
+      void main(){ vD = aD; vP = position; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform float uTime; varying vec2 vD; varying vec3 vP;
+      #include <common>
+      #include <fog_pars_fragment>
+      void main(){ float d = max(vD.x, 0.0);
+        vec3 col = mix(vec3(0.42, 0.86, 0.84), vec3(0.08, 0.5, 0.74), smoothstep(0.1, 2.2, d));
+        float caus = pow(abs(sin(vP.x * 0.6 + uTime * 0.5 + sin(vP.z * 0.35)) * sin(vP.z * 0.5 - uTime * 0.45 + sin(vP.x * 0.3))), 6.0);
+        col += caus * 0.22 * smoothstep(2.6, 0.2, d);
+        float lip = smoothstep(0.12, 0.0, d) * 0.35 + smoothstep(0.97, 1.02, vD.y) * 0.2;
+        col = mix(col, vec3(1.0), lip); float a = mix(0.3, 0.88, smoothstep(0.05, 1.8, d)); a = max(a, lip);
+        gl_FragColor = vec4(col, a * (1.0 - smoothstep(0.99, 1.02, vD.y) * 0.5));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }` });
+  m.uniforms.uTime = uTime; const mesh = new THREE.Mesh(g, m); mesh.name = 'cove_water'; mesh.renderOrder = 3; return mesh;
 }
 // 2D review map of the coast harbor (?coast=1&map=1): battle area, rings, spawns, berths, no-fire zone, town, Main Street lots
 export function drawCoastMap(cv) {
@@ -1013,6 +1091,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const hTex = heightTexture();
   const sea = shallows(uTime, uWaves, low, hTex); root.add(sea);
   const fresh = freshWater(uTime, low); root.add(fresh);
+  if (COASTM) root.add(coveWater(uTime, low));                                                     // [Raul] swim cove water
   let top = H(FALLS_CLIFF.x + 6, LAKE.z - LAKE.r - 10); if (!isFinite(top)) top = LAKE.y + 30; const [fall, mist] = waterfall(uTime, Math.max(top, LAKE.y + 20), low); root.add(fall); if (!low) root.add(mist);
   // foliage (instanced, streamed nearest-N around the camera)
   const spots = foliageSpots();
@@ -1100,26 +1179,37 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   // gameplay hooks (world coords): solid props, water / slope / bridge rules, interact points
   function bridgeAt(x, z) { const B = BRIDGE; if (!B.L) return null; const dx = x - B.ax, dz = z - B.az, along = dx * Math.sin(B.yaw) + dz * Math.cos(B.yaw), across = dx * Math.cos(B.yaw) - dz * Math.sin(B.yaw);
     if (along < -1 || along > B.L + 1 || Math.abs(across) > B.half + 0.6) return null; return { y: B.deckY - Math.sin(Math.min(1, Math.max(0, along / B.L)) * Math.PI) * B.sag, inside: Math.abs(across) <= B.half }; }
-  function groundAt(x, z) { const b = bridgeAt(x, z); return b ? b.y + 0.12 : H(x, z); }
+  // [Raul] dig mounds are walked ON (the beach one outside the plaza sank your feet 0.7 m into it): the mound's dome (r 1.9, 0.855 tall at d.y - 0.1, shrinks as it's dug)
+  function moundAt(x, z, h) { for (const d of digs) { if (!d.mound.visible) continue; const s = d.mound.scale.x, r = Math.hypot(x - d.x, z - d.z) / (1.9 * s); if (r < 1) h = Math.max(h, d.y - 0.1 + 0.855 * s * Math.sqrt(1 - r * r)); } return h; }
+  function groundAt(x, z) { const b = bridgeAt(x, z); if (b) return b.y + 0.12; const h = moundAt(x, z, H(x, z)), c = coveDeckAt(x, z); return c !== null && c > h ? c : h; }
+  // [Raul] foot physics (BANKSY "fall off cliffs" + "float / swim"): you may now walk OFF any ledge (js/onfoot/physics.js drops you
+  // with gravity) and into water (deeper than chest height = swim at the surface). Uphill keeps the v105 grade limit; out of the
+  // water you can pull yourself up onto anything up to FOOT_SWIM.climb above the surface (shore rocks, the lake rim, low jetties).
   function blocked(x, z, fx, fz) { const b = bridgeAt(x, z); if (b) return !b.inside;          // on the deck: rails bound you
-    if (hitCollider(x, z)) return true; const h = H(x, z); if (h < 0.4) return true;               // sea
-    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r - 3) return true;
-    const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return true; const q = IDX(i, j);
-    if (RVg[q] < 4.5 && h < RVl[q] + 0.8) return true;                                              // river
-    if (fx !== undefined) { const d = Math.hypot(x - fx, z - fz); if (d > 1e-4) {           // [v105] slope limit: only real cliffs / steep faces
-      const ux = (x - fx) / d, uz = (z - fz) / d, e = Math.max(d, 0.1), g = (H(x, z) - H(x - ux * e, z - uz * e)) / e;     // the grade of the step you just took (no look-ahead: a cliff edge doesn't fence off the ground in front of it)
-      if (Math.abs(g) > WALK_RULES.slope) return true; } }                                            // same limit up AND down: you never drop into a pit you can't climb out of
-    return false; }
+    if (hitCollider(x, z)) return true; const h = H(x, z);
+    const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return true;
+    const surf = waterAt(x, z); if (surf !== null && seaLimit(x, z, h, surf)) return true;       // open sea / the berths stay off limits
+    if (fx === undefined) return false;
+    const d = Math.hypot(x - fx, z - fz); if (d < 1e-4) return false;
+    if (coveTower(fx, fz) && coveDeckAt(x, z) === null) return true;                               // the diving tower's rails (dive off the board)
+    const to = groundAt(x, z), fromG = groundAt(fx, fz), fs = waterAt(fx, fz), fromS = fs !== null && fs - fromG > FOOT_SWIM.depth ? fs - FOOT_SWIM.float : fromG;
+    const toS = surf !== null && surf - to > FOOT_SWIM.depth ? surf - FOOT_SWIM.float : to, rise = toS - fromS;
+    if (rise <= 0.02) return false;                                                                  // level / down: walk on, or drop off the edge (gravity)
+    if (fs !== null && fs - fromG > 0.5 && toS <= fs + FOOT_SWIM.climb) return false;              // climbing out of the water
+    const cd = coveDeckAt(x, z); if (cd !== null && cd >= h) return rise > FOOT_SWIM.step;          // onto the cove jetty: steps only
+    if (coveDeckAt(fx, fz) !== null && rise <= FOOT_SWIM.step) return false;                       // jetty -> sand
+    const ux = (x - fx) / d, uz = (z - fz) / d, e = Math.max(d, 0.1), g = (h - H(x - ux * e, z - uz * e)) / e;   // [v105] uphill grade of the step you just took
+    return g > WALK_RULES.slope; }
   function whyBlocked(x, z, fx, fz) { const b = bridgeAt(x, z); if (b) return b.inside ? '' : 'rail';  // [v105] dev: reachability report
-    if (hitCollider(x, z)) return 'prop'; const h = H(x, z); if (h < 0.4) return 'sea'; if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r - 3) return 'lake';
-    const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge'; const q = IDX(i, j);
-    if (RVg[q] < 4.5 && h < RVl[q] + 0.8) return 'river'; return blocked(x, z, fx, fz) ? 'slope' : ''; }
+    if (hitCollider(x, z)) return 'prop'; const h = H(x, z);
+    const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge';
+    const surf = waterAt(x, z); if (surf !== null && seaLimit(x, z, h, surf)) return 'sea'; return blocked(x, z, fx, fz) ? 'slope' : ''; }
   function nearInteract(x, z) { let best = null, bd = 1e9; for (const q of INTERACT) { const d = Math.hypot(q.x - x, q.z - z); if (d < q.r && d < bd && !(q.used)) { bd = d; best = q; } } return best; }
   function rearm(id) { const d = digs.find(d => d.id === id); if (d) { d.t = -1; d.mound.scale.setScalar(1); d.mound.visible = true; d.cg.position.y = -1.6; d.lid.rotation.x = 0; }
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, battery, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

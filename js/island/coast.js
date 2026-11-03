@@ -64,3 +64,16 @@ export function spawnCheck() {
     out.push({ r: Math.round(r), deg, hx: Math.round(hx), hz: Math.round(hz), ok: !land && lz > 70 + 25, why: land ? 'on land / in town' : lz <= 95 ? 'in or next to the no-fire zone' : '' }); }
   return out;
 }
+// [Raul] SWIM COVE (BANKSY "a swim area near that would be cool too"): a sheltered lagoon pool on the WEST beach behind the dune
+// (town-local, lx -286..-202). Its own calm still surface at `y` (no swell, inland of the quay line: no ships, outside the ship lanes
+// and the battle water), an ax x az ellipse round (lx, lz): sandy entry at the west end (wading), chest deep from the buoy rope on,
+// deepest (y - bottom) at the east end under the diving platform. Clear of Post's NW camp (lx < -342) and the plaza (lx > -176).
+export const SWIM_COVE = { lx: -244, lz: -48, ax: 42, az: 22, y: 2.8, bottom: 0.5, bank: 1.4,
+  jetty: { lz: -46, lx0: -194, lx1: -212, hw: 1.2, y: 3.45, steps: [3.85, 4.25, 4.65, 5.05], tower: { lx0: -216, lx1: -222, hw: 1.8, y: 5.45 }, board: { lx1: -226, hw: 0.45 } },
+  buoys: { lx: -258, lz0: -67, lz1: -29, n: 9 } };
+export const coveQ = (lx, lz) => Math.hypot((lx - SWIM_COVE.lx) / SWIM_COVE.ax, (lz - SWIM_COVE.lz) / SWIM_COVE.az);
+// [Raul] foot physics tuning (js/onfoot/physics.js + foot.js walk rules), metres: deeper than `depth` = swim with your feet `float`
+// under the surface (head + shoulders out); pull out of the water onto ground / decks up to `climb` above the surface; `step` = the
+// tallest step / ledge you walk up (taller drops are falls); `seaY` = still-water sea level; `maxSea` = how deep the sea floor may get
+// before you are turned back (open water stays off limits, so do the dredged berths inside SAFE).
+export const FOOT_SWIM = { depth: 1.25, float: 1.12, climb: 1.6, step: 0.45, seaY: 0.05, maxSea: -9 };
