@@ -149,6 +149,13 @@ function joinChunks(cs) { // [Timothy] several baked chunks -> one (same layout)
   for (const k of ['pos', 'nrm', 'col', 'uv', 'part', 'vel']) { const n = cs.reduce((a, c) => a + c[k].length, 0), a = new Float32Array(n); let off = 0; for (const c of cs) { a.set(c[k], off); off += c[k].length; } o[k] = a; }
   return o;
 }
+// [Raul gear colours] a map's pixels (cached per image) for the per-vertex sample above (the HQ helmet / luchador mask in the crew's colour)
+const _texPx = new WeakMap();
+function texPixels(t) {
+  const img = t?.image; if (!img?.width || typeof document === 'undefined') return null; if (_texPx.has(img)) return _texPx.get(img);
+  let r = null; try { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0); r = { w: c.width, h: c.height, d: x.getImageData(0, 0, c.width, c.height).data }; } catch (e) { console.warn('[crew] map sample', e); }
+  _texPx.set(img, r); return r;
+}
 function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false) { // plain: no stripe uv (Raul's items: vertex colour only)
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
@@ -156,7 +163,7 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false
   const g = mesh.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, U = g.attributes.uv, J = g.attributes.skinIndex, W = g.attributes.skinWeight;
   const idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count, bm = mesh.skeleton.boneMatrices, bones = mesh.skeleton.bones;
   const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), part = new Float32Array(n), vel = new Float32Array(n);
-  const TT = velvet ? g.attributes._tint : null, iA = TINTS.indexOf('accent');
+  const TT = velvet ? g.attributes._tint : null, iA = TINTS.indexOf('accent'), TX = plain && mesh.userData.texVerts ? texPixels(mesh.material?.map) : null;   // [Raul gear colours] helmet / mask: their painted (recoloured) map
   const full = new THREE.Matrix4();
   for (let q = 0; q < n; q++) {
     const i = idx ? idx[q] : q;
@@ -168,6 +175,8 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false
     full.copy(mesh.matrixWorld).multiply(mesh.bindMatrixInverse).multiply(_m).multiply(mesh.bindMatrix); _n3.setFromMatrix4(full);
     _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z;
     col[q * 3] = C ? C.getX(i) : 1; col[q * 3 + 1] = C ? C.getY(i) : 1; col[q * 3 + 2] = C ? C.getZ(i) : 1;
+    if (TX && U) { const x = Math.min(TX.w - 1, Math.floor((U.getX(i) % 1 + 1) % 1 * TX.w)), y = Math.min(TX.h - 1, Math.floor((U.getY(i) % 1 + 1) % 1 * TX.h)), o = (y * TX.w + x) * 4, D = TX.d;
+      col[q * 3] *= (D[o] / 255) ** 2.2; col[q * 3 + 1] *= (D[o + 1] / 255) ** 2.2; col[q * 3 + 2] *= (D[o + 2] / 255) ** 2.2; }   // [Raul gear colours] painted map -> vertex colour (linear)
     uv[q * 2] = decal ? 4 + Math.min(0.999, U.getX(i)) : 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
     if (decal) { col[q * 3] = col[q * 3 + 1] = col[q * 3 + 2] = 1; }
     part[q] = PARTN[bn(bones[best]?.name)] || 0; if (TT && Math.round(TT.getX(i)) === iA) vel[q] = 1;

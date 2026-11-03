@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
+import { recolorPixels } from './gearRecolor.js';   // [Raul gear colours] helmet + mask hat colours
 
 const DIR = 'assets/pirates/items/', HY = 1.12;
 export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes', 'face', 'base'];
@@ -29,7 +30,7 @@ export const ITEMS = [
   item('crown_imperial', 'Imperial Crown', 'head', 2500, null, [{ cyl: [0, 0, 0.228], y: [HY + 0.15, 9], tilt: 0.06, tints: ['hair'] }], { v5: v5files('crown'), v5hide: [], crownFit: true, files: files('crown'), glb: files('crown').male.hi, icon: `${DIR}icons/crown.png` }),
   // [v144] BANKSY "Add a green hq helmet": Raul's olive M1 helmet (HQ stencil, skull + crossbones on the left side, leather strap + brass buckle),
   // pre-fitted per body, rigid on 'head'. v4: hair under the dome hidden; v5: hatFlatten squashes the hair above the front rim (one-shell head)
-  item('helmet_hq', 'HQ Helmet', 'head', 800, null, [{ cyl: [0, 0.01, 0.29], y: [HY + 0.06, 9], tilt: 0.08, tints: ['hair'] }], { v5: v5files('helmet_hq'), v5hide: [], skull: false, v5dy: { female: 0.015 } }),   // [v144] the female brim off her eyes
+  item('helmet_hq', 'HQ Helmet', 'head', 800, null, [{ cyl: [0, 0.01, 0.29], y: [HY + 0.06, 9], tilt: 0.08, tints: ['hair'] }], { v5: v5files('helmet_hq'), v5hide: [], skull: false, v5dy: { female: 0.015 }, recolor: 'helmet' }),   // [Raul gear colours] recolor: colors.recolor repaints its map   // [v144] the female brim off her eyes
   // [v145] BANKSY: Retardio face paint v2 (Raul): warm white face base, blue diamonds round the eyes, red Joker smile; a thin shell off the
   // face under all facial hair, eye holes open. v5 only (v4 bodies draw nothing), own slot 'face' so it is worn with shades / an eye patch
   item('facepaint_retardio', 'Retardio Face Paint', 'face', 350, null, [], { v5: v5files('facepaint_retardio'), v5hide: [], v5only: true, paint: true }),
@@ -37,7 +38,7 @@ export const ITEMS = [
   // skull on the forehead, laced back), pre-fitted per body round the head + hair, rigid on 'head'. Hat slot (no hat over it); the
   // v2 (BANKSY "giant gold egg"): a snug hood a few mm off the face + skull; the LUCHA rule hides the head under it (hair, bangs, ears,
   // her long back hair), keeps the eye-hole + open-chin zones (his beard) and her braid (out the back). No flattening (noFlatten)
-  item('mask_luchador', 'Luchador Mask', 'head', 0, null, [], { v5: v5files('mask_luchador'), v5hide: [{ lucha: 1 }], v5only: true, noFlatten: true }),
+  item('mask_luchador', 'Luchador Mask', 'head', 0, null, [], { v5: v5files('mask_luchador'), v5hide: [{ lucha: 1 }], v5only: true, noFlatten: true, recolor: 'lucha' }),
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
@@ -265,6 +266,25 @@ function retint(geo, colors) {
   const t = geo.attributes._tint; if (!t || !colors) return; const c = geo.attributes.color.clone(), col = new THREE.Color(); geo.setAttribute('color', c);
   for (let i = 0; i < t.count; i++) { const k = TINTS[Math.round(t.getX(i))]; if (k && colors[k] != null) { col.set(colors[k]); c.setXYZ(i, col.r, col.g, col.b); } }
 }
+// [Raul gear colours] the HQ helmet + luchador mask are painted maps: the hat colour repaints a cached COPY of the map
+// (js/gearRecolor.js recolorPixels), never the shared original. m.userData.texVerts: ship crews bake vertex colours only, so
+// js/crewV4.js samples this map per vertex for them (their helmet / mask in the same colour).
+const _rcTex = new Map();
+function recolorTex(tex, kind, hex) {
+  const img = tex?.image; if (!img?.width || !img.height || typeof document === 'undefined') return tex;
+  const key = tex.uuid + kind + hex; if (_rcTex.has(key)) return _rcTex.get(key);
+  let out = tex;
+  try {
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const cx = c.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0); const d = cx.getImageData(0, 0, c.width, c.height); recolorPixels(d.data, kind, hex, c.width); cx.putImageData(d, 0, 0);
+    out = tex.clone(); out.source = new THREE.Source(c); out.needsUpdate = true;
+  } catch (e) { console.warn('[gear] recolour', kind, e); }
+  _rcTex.set(key, out); return out;
+}
+function recolorItem(m, def, colors) {
+  if (!def.recolor) return; m.userData.texVerts = true; const hex = colors?.recolor; if (!hex || !m.material?.map) return;
+  m.material.map = recolorTex(m.material.map, def.recolor, hex); m.material.needsUpdate = true;
+}
 const _remap = new Map();
 function remapped(url, src, names) {  // item skinIndex -> pirate skeleton bone order (cached per GLB)
   if (_remap.has(url)) return _remap.get(url);
@@ -300,6 +320,7 @@ async function build(p, def, opts) {
   }
   if (def.skull && !p.warp && geo === remapped(url, src, names)) geo = geo.clone();   // the decal repaints the old skull: own colours
   const UC = underOn(p, def.id) ? UNDER[def.id] : null, m = new THREE.SkinnedMesh(geo, UC ? backCloth(itemMaterial(src.material, low, true), opts.colors?.[UC.tint] || def.tint?.[UC.tint], low) : itemMaterial(src.material, low)); m.name = 'item_' + def.id; m.frustumCulled = false;   // [v136] tops: single cloth layer (lining stripped), both sides
+  recolorItem(m, def, opts.colors);
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   const under = p.warp && underOn(p, def.id) ? underShell(p, body, UNDER[def.id], opts.colors?.[UNDER[def.id].tint] || def.tint?.[UNDER[def.id].tint], low) : null;   // [v136]
   if (under) { const u = new THREE.SkinnedMesh(under, itemMaterial({}, low)); u.name = 'item_' + def.id + '_under'; u.frustumCulled = false; m.add(u); u.bind(skel, body.bindMatrix); }
@@ -490,6 +511,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   if (def.paint && p.lod === 'lo') paintLo(geo);
   const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
   const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, (def.slot !== 'outfit' || !!def.v5cloth) && !/^(hook|peg)_/.test(def.id))); m.name = 'item_' + def.id; m.frustumCulled = false;   // [Timothy] hooks + pegs single-sided: their black ink outline shell drew over the whole item when double-sided (black hook / peg)
+  recolorItem(m, def, opts.colors);
   if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }

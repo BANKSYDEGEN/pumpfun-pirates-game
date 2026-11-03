@@ -100,7 +100,8 @@ function svgThumb(it) { // the painted fallback (only shown until the real rende
 const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0 }; };
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
 // a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
-const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: 0, eyeColor: 0, wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : thumbOpts();
+const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0,   // [Raul gear colours] crew hats in the crew's hat colour
+  wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : thumbOpts();
 function gearThumb(it, live = false) {
   if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
     const d = document.createElement('div'); d.className = 'ishop-sw gear real3d weapon'; const img = new Image(); img.alt = ''; img.decoding = 'async';
@@ -224,6 +225,12 @@ function detail(x) {
     d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>
       `<button type="button" data-hc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);
     d.querySelectorAll('[data-hc]').forEach(b => b.onclick = async () => { state = await provider.hatColor(+b.dataset.hc); render(); });
+  }
+  if (x.it.crew && x.it.slot === 'crewhat' && x.it.tint?.hatColor && s.owned && provider.crewHatColor) { // [Raul gear colours] the crew's own free hat colour (same swatches)
+    const cg = state.equipped?.gear || {}, cur = cg.crewhatColor | 0, eq = (cg.crewhat || CREW_DEFAULT.crewhat) === x.it.id;
+    d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>CREW HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>
+      `<button type="button" data-chc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);
+    d.querySelectorAll('[data-chc]').forEach(b => b.onclick = async () => { state = await provider.crewHatColor(+b.dataset.chc); render(); });
   }
   if (x.kind === 'gear' && x.it.slot === 'outfit' && x.it.id !== 'shirtless') { // [Timothy] clothes: your ship skin's colours, or a free clothes colour
     const oc = getLocalGear().outfitColor | 0;

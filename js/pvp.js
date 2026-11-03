@@ -50,7 +50,7 @@ import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './c
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
 const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
-import { setCrewLoadout, crewGear, crewToWire, crewFromWire, CREW_SLOTS } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew wear their OWN loadout, not yours
+import { setCrewLoadout, crewGear, crewToWire, crewFromWire, crewColorToWire, crewColorFromWire, CREW_SLOTS } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew wear their OWN loadout, not yours
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -198,6 +198,8 @@ export function createPvp(K) {
       return { ok: !!r.ok, error: r.ok ? null : ({ 'goal not reached': 'reach the goal first', 'not enough gold': 'not enough gold', 'already owned': 'already yours' }[r.error] || r.error || 'shop offline'), state: st };
     },
     async hatColor(i) { const g = cleanGear({ ...profile.gear, hatColor: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); // [v105] free
+      return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
+    async crewHatColor(i) { const g = cleanGear({ ...profile.gear, crewhatColor: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); // [Raul gear colours] free, the crew's own hat colour
       return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
     async equip(kind, key) {
       if (kind === 'skin') { if (canUse(key)) { profile.skins.equipped = key; if (active) K.rebuildShip(getRunLevels()); sfx.equip?.(); } }
@@ -623,7 +625,7 @@ export function createPvp(K) {
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
-    syncCrewGear(p.ship.mesh, crewGear(crewFromWire(m.cr)), { skin: sk }); // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
+    syncCrewGear(p.ship.mesh, crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), { skin: sk }); // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
   }
   function updateRemote(e, dt) {
     const st = e.netState;
@@ -1110,14 +1112,14 @@ export function createPvp(K) {
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; hud(); renderFeed(); if (!$('pvp-menu').classList.contains('hidden')) renderBoard(); }
     saveT -= dt; if (saveT <= 0) { saveT = 10; save(); }
   }
-  let sentGear = false, sentCrew = false;
+  let sentGear = false, sentCrew = false, sentCC = false;   // [Raul gear colours] cc = the crew's hat colour
   function stateMsg() { // the transport asks for this once per tick
     const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
     if ((where !== 'arena' && !shared) || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
-    const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; { const cw = crewToWire(); if (cw || sentCrew) { m.cr = cw; sentCrew = true; } } // [Timothy] cr = your crew's loadout (js/crewLoadout.js) // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
+    const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; { const cw = crewToWire(); if (cw || sentCrew) { m.cr = cw; sentCrew = true; } } { const cc = crewColorToWire(); if (cc || sentCC) { m.cc = cc; sentCC = true; } } // [Timothy] cr = your crew's loadout (js/crewLoadout.js) // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;

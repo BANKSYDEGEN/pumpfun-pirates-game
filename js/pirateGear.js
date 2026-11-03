@@ -40,7 +40,7 @@ export const HAT_SWATCHES = Object.freeze([
   ['RED', '#c8302c'], ['GOLD', '#e9b949'], ['NAVY', '#1b2f6b'], ['BLUE', '#2a6df4'], ['GREEN', '#2fbf5a'], ['TEAL', '#2ec4a0'],
   ['PURPLE', '#7a3fb0'], ['PINK', '#ff5fa2'], ['ORANGE', '#ff7a1a'], ['WHITE', '#f4f1e8'], ['BLACK', '#1c1c20'], ['BROWN', '#8a5a32'],
 ]);
-const HAT_DEFAULT = { bandana: '#c8302c', tricorn: '#18181b', bicorne: '#e9b949', crown: '#8e1b2a' };   // tricorn = Raul's black felt, crown = his velvet
+const HAT_DEFAULT = { bandana: '#c8302c', tricorn: '#18181b', bicorne: '#e9b949', crown: '#8e1b2a', helmet_hq: '#5b6b32', mask_luchador: '#e2a823' };   // [Raul gear colours] helmet = his olive, mask = his gold (DEFAULT swatch)   // tricorn = Raul's black felt, crown = his velvet
 export const hatColorHex = (hat, i) => (i > 0 && HAT_SWATCHES[i - 1] ? HAT_SWATCHES[i - 1][1] : HAT_DEFAULT[hat] || '#c8302c');
 
 // SKIN + HAIR COLOUR (BANKSY: "skin color and hair color choice"): free picks from these curated lists, 0 = Raul's baked default.
@@ -112,7 +112,7 @@ const RAUL = {
   'hat:tricorn':   ['head', 'hat_tricorn', (g) => ({ hat: hatColorHex('tricorn', g.hatColor) })],
   'hat:crown':     ['head', 'crown', (g, c, p) => ({ accent: hairHexOf(p, g) })],   // [v109b] BANKSY: the crown's velvet = the wearer's hair colour (gold rim + gems untouched)
   'hat:crown_imperial': ['head', 'crown_imperial', null],
-  'hat:helmet_hq':  ['head', 'helmet_hq', null],   // [v144] Raul's HQ Helmet (own texture, no tint)   // [v143] Raul's Imperial State Crown (own purple velvet, ermine rim, gems)
+  'hat:helmet_hq':  ['head', 'helmet_hq', (g) => (g.hatColor ? { recolor: hatColorHex('helmet_hq', g.hatColor) } : null)],   // [Raul gear colours] the hat colour repaints the olive shell (0 = his olive; js/gearRecolor.js)   // [v144] Raul's HQ Helmet (own texture, no tint)   // [v143] Raul's Imperial State Crown (own purple velvet, ermine rim, gems)
   // hooks + peg: the side the player picked (gear.hookSide / legSide 'L' | 'R') = Raul's left or right model on that arm / leg
   'hook:hook_iron': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null], 'hook:hook_gold': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null, { gold: true }],
   'leg:peg':       [(g) => 'leg' + g.legSide, (g) => 'peg_' + g.legSide.toLowerCase(), null],
@@ -133,7 +133,7 @@ const RAUL5 = {
   'outfit:coat':   ['outfit', 'cloth_coat', (g, c) => { const o = outfitColors('coat', c); return { coat: o.cloth, accent: o.trim, shirt: o.stripe }; }],
   // [Raul wrestler] v5 only (v4 bodies draw nothing for them): the singlet in the clothes colour (gold side stripes fixed), the mask in its own colours
   'outfit:singlet': ['outfit', 'cloth_singlet', (g, c) => ({ shirt: outfitColors('singlet', c).cloth })],
-  'hat:mask_luchador': ['head', 'mask_luchador', null],
+  'hat:mask_luchador': ['head', 'mask_luchador', (g) => (g.hatColor ? { recolor: hatColorHex('mask_luchador', g.hatColor) } : null)],   // [Raul gear colours] the hat colour = the hood; flames + trim auto-contrast (0 = his gold)
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face'];

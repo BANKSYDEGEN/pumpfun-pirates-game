@@ -46,8 +46,8 @@ export const GEAR_ITEMS = [
   { slot: 'hat', id: 'bicorne', label: "CAPTAIN'S HAT", price: 1200, glb: 'gear', tint: { hatColor: true } },
   { slot: 'hat', id: 'crown', label: 'PIRATE KING CROWN', price: 15000, glb: 'raul:crown', tint: { hair: true } },   // [Raul] model (de13179); [v109b] velvet = the wearer's HAIR colour (BANKSY), gold rim + gems fixed. soon: server SHOP_ITEMS first (the owner wears it now)
   { slot: 'hat', id: 'crown_imperial', label: 'IMPERIAL CROWN', price: 25000, glb: 'raul:crown_imperial', tint: null },   // [v143] BANKSY: Raul's Imperial State Crown, its own item next to the Pirate King Crown (fancier: priced above it)
-  { slot: 'hat', id: 'helmet_hq', label: 'HQ HELMET', price: 800, glb: 'raul:helmet_hq', tint: null },   // [v144] BANKSY: Raul's olive HQ helmet (own colours, no hat-colour pick)
-  { slot: 'hat', id: 'mask_luchador', label: 'LUCHADOR MASK', price: 1500, glb: 'raul:mask_luchador', tint: null },   // [Raul wrestler] BANKSY "libre mask": gold hood, red flames + white trim, skull on the brow (own colours). v5 bodies only
+  { slot: 'hat', id: 'helmet_hq', label: 'HQ HELMET', price: 800, glb: 'raul:helmet_hq', tint: { hatColor: true } },   // [v144] BANKSY: Raul's olive HQ helmet; [Raul gear colours] + the free hat colour (DEFAULT = his olive; shell repainted, stencil + skull readable)
+  { slot: 'hat', id: 'mask_luchador', label: 'LUCHADOR MASK', price: 1500, glb: 'raul:mask_luchador', tint: { hatColor: true } },   // [Raul gear colours] + the free hat colour = the hood (DEFAULT = his gold; flames + trim auto-contrast)   // [Raul wrestler] BANKSY "libre mask": gold hood, red flames + white trim, skull on the brow (own colours). v5 bodies only
   { slot: 'outfit', id: 'shirtless', label: 'SHIRTLESS', price: 0, glb: null, tint: null, free: true },
   { slot: 'outfit', id: 'tank', label: 'TANK', price: 150, glb: 'gear', tint: { skin: true } },
   { slot: 'outfit', id: 'tshirt', label: 'T-SHIRT', price: 300, glb: 'gear', tint: { skin: true } },

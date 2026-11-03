@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v161'; // [v161] ITEM SKILL BOOSTS: worn hats / clothes / eyes / hook / peg / face paint / crew gear / parrots (+ swords + muskets once they land) give capped % ship boosts; BR 50%, off in the SWORD PIT / MUSKET RANGE
+const VERSION = 'pfp-v162'; // [v162] Raul's gear colours: the HQ helmet + luchador mask take the free hat colour (crew helmet too)
 const SHELL = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const SHELL = [
   "./js/pirateGear.js", // [Timothy] island-shop gear on the v4 pirate
   "./js/gearColorPicker.js", // [Timothy] SKIN & HAIR + CLOTHES COLOUR pickers (island shop)
   "./js/gearThumbs.js", // [Timothy] real 3D gear card art (island shop)
+  "./js/gearRecolor.js", // [v157] Raul: hat-colour repaint for the helmet + mask maps
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)

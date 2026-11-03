@@ -148,7 +148,8 @@ export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal |
 export const HAT_COLORS = 12; // [v105] free hat colour pick: 0 = the hat's default, 1..12 = Timothy's HAT_SWATCHES
 export function cleanGear(g: any): Record<string, any> { const o: Record<string, any> = {};
   for (const [s, ids] of Object.entries(GEAR_SLOTS)) o[s] = typeof g?.[s] === "string" && ids.includes(g[s]) ? g[s] : ids[0];
-  const h = Math.floor(Number(g?.hatColor)); o.hatColor = Number.isFinite(h) && h >= 0 && h <= HAT_COLORS ? h : 0; return o; }
+  const h = Math.floor(Number(g?.hatColor)); o.hatColor = Number.isFinite(h) && h >= 0 && h <= HAT_COLORS ? h : 0;
+  const ch = Math.floor(Number(g?.crewhatColor)); if (Number.isFinite(ch) && ch > 0 && ch <= HAT_COLORS) o.crewhatColor = ch; return o; } // [Raul gear colours] the crew's free hat colour (additive: only when picked; js/crewLoadout.js)
 // owned list -> the equipped skin / gear a save may keep (free defaults always ok)
 export function fitEquipped(p: Profile, owned: Set<string>, owner: boolean) {
   const eq = p.skins.equipped; p.skins.equipped = eq === "classic" || owner || owned.has("skin:" + eq) ? eq : "classic";
