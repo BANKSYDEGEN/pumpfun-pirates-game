@@ -1179,7 +1179,7 @@ export function createPvp(K) {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
     const st = profile.stats; // [v102] skins are bought with gold at the island shop (or from here: tap a locked skin)
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted pvp-isle-ptr">⛵ Buy, equip and upgrade at the SHIP SKINS + UPGRADES shop on the island</span>`;
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses<br><span class="muted pvp-isle-ptr">⛵ Skins at the SHIP SKINS shop, upgrades at the UPGRADE SHOP on the island</span>`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of [...TIERS, ...UNLOCKS]) {
       const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD() }) : null;
@@ -1202,8 +1202,8 @@ export function createPvp(K) {
   function skinToast(t) {
     document.getElementById('skin-toast')?.remove();
     const el = document.createElement('div'); el.id = 'skin-toast';
-    el.innerHTML = t.goal ? `<div class="st-txt"><b>GOAL REACHED</b><span>${t.name} · buy it at the SHIP SKINS + UPGRADES shop on the island</span></div>` // [Timothy] no remote SHOP / EQUIP button
-      : `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · equip it at the SHIP SKINS + UPGRADES shop on the island</span></div>`;
+    el.innerHTML = t.goal ? `<div class="st-txt"><b>GOAL REACHED</b><span>${t.name} · buy it at the SHIP SKINS shop on the island</span></div>` // [Timothy] no remote SHOP / EQUIP button
+      : `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${t.name} · equip it at the SHIP SKINS shop on the island</span></div>`;
     const sw = skinSwatch(pvpSkin(t.id), 88, 44); sw.className = 'st-sw'; el.prepend(sw);
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
     document.body.appendChild(el); setTimeout(() => el.remove(), 6000);
@@ -1288,7 +1288,7 @@ export function createPvp(K) {
     addEventListener('keydown', (e) => { if (!active || e.target.tagName === 'INPUT') return; if (isKey('menu', e.code)) { e.preventDefault(); toggleMenu(); } });
     addEventListener('pagehide', () => leave(true));
   }
-  window.PFP_OPEN_UPGRADES = () => { if (!active || where !== 'harbor') return false; $('pvp-menu')?.classList.add('hidden'); return !!openUpgradesPanel({ island: true }); }; // [Timothy] the island SHIP SKINS + UPGRADES shop's UPGRADES tab (was: the BR menu)
+  window.PFP_OPEN_UPGRADES = () => { if (!active || where !== 'harbor') return false; $('pvp-menu')?.classList.add('hidden'); return !!openUpgradesPanel({ island: true }); }; // [Timothy] the island UPGRADE SHOP storefront (separate from SHIP SKINS) (was: the BR menu)
   function toggleMenu(on) { const m = $('pvp-menu'); const show = on ?? m.classList.contains('hidden'); m.classList.toggle('hidden', !show); if (show) { renderMenu(); const kb = $('pvp-kills'); if (kb) { mountKillsBoard(kb); renderKills(kb); } } }
 
   // ---------------- harbor UI ----------------

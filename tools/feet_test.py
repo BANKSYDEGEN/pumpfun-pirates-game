@@ -1,14 +1,14 @@
 # PUMPFUN PIRATES plaza v2 feet test: walk height (the game's js/dock/world.js ground() = max(layout deck, foot.groundAt)) vs a
 # downward raycast against the visible surface meshes (terrain chunks + the merged coast / street kit + town-kit meshes), on a
 # grid over the plaza street, the boardwalk and all 5 jetties. + = floating, - = sunk (metres).
-import asyncio, json, sys; from playwright.async_api import async_playwright
+import asyncio, json, sys, os; from playwright.async_api import async_playwright
 ARGS=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']
 Q = sys.argv[1] if len(sys.argv) > 1 else 'plaza=2'
 async def main():
   async with async_playwright() as p:
     b = await p.chromium.launch(executable_path='/usr/bin/google-chrome', args=ARGS); pg = await (await b.new_context(viewport={'width':800,'height':450})).new_page()
     errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    await pg.goto(f'http://127.0.0.1:18960/timothy-plaza/island.html?coast=1&shot&quality=high&{Q}'); await pg.wait_for_function('window.ISLAND && ISLAND.foot', timeout=240000)
+    await pg.goto(f'http://127.0.0.1:18960/{os.environ.get('PFP_PATH', 'timothy-plaza')}/island.html?coast=1&shot&quality=high&{Q}'); await pg.wait_for_function('window.ISLAND && ISLAND.foot', timeout=240000)
     r = await pg.evaluate("""(async()=>{ const THREE = await import('three'), CO = await import('./js/island/coast.js'), LY = await import('./js/dock/layout.js'), PV = await import('./js/island/plazaTown.js');
       const I = ISLAND, F = I.foot, L = await LY.coastLayout();
       // put the camera over the plaza so every chunk there is at its finest LOD, then let streaming settle

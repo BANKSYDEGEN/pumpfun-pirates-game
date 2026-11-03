@@ -23,6 +23,8 @@
 //   lz   0 ..  56  5 JETTIES x 2 = 10 BERTHS (full-size ships side by side, bows to sea), approach lane lz 66+
 import * as THREE from 'three';
 import { ON_PORTAL } from '../config.js';
+import { SHOPS_KIT, SHOP_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
+export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 // PLAZA_V2_DEFAULT = the build's default (flip to true to ship v2 as THE plaza); ?plaza=2 forces it on, ?plaza=1 forces the v103 plaza
@@ -74,7 +76,10 @@ export const STOREFRONTS = [
 export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5 }];
 export const TOKEN_SLOTS = { SUNK: -30.5, AHOY: -25, PUMP: -19.5, HQ: 42.5, RETARDIO: 51.5 };
 export const TRENDING = { lx0: 39.5, lx1: 54.5, y: 6.6, n: 5 };   // upstairs row on hall_e: room for the coming trending boards
-export const HOUSES = [{ lx: 70, w: 8, fl: 3, v: 2, tavern: true }];
+export const HOUSES = [{ lx: 70, w: 8, fl: 3, v: 2, tavern: true },
+  // [Timothy] the gap between the tavern (66-74) and the harbor tower (81.5-90.5): a plain stone house (Blender 'house_e', no shop, no
+  // trigger; the WEAPON STORE moved up the hill to Emerly's shops). Footprint box = the storefront rule (w + 0.6 x ROW_D + 0.6).
+  { lx: 77.9, w: 7, fl: 3, v: 2, glb: 'house_e' }];
 export const STALLS = [-50, -42, -34, -26, -18, 26, 34, 50].map((lx, i) => ({ lx, lz: STALL_LZ, c: [0xf2efe6, 0xd8322f, 0xe9dcc0, 0x2a6df4, 0xf2efe6][i % 5] }));
 export const CARTS = [[-30, -22.5], [40, -22]], TAVERN_TABLES = [[64, -24.5], [70, -24.5], [76, -24.5]];
 export const PALMS = [[-56, -12], [-24, -9], [-3, -9], [15, -9], [44, -9], [76, -8], [92, -14], [-68, -10]];
@@ -96,7 +101,7 @@ export const PLAZA = {
     { id: 'headland_east', lx: 100, lz: -30, y: Y_QUAY, dir: 'east', w: 40, note: 'tower + cliff battery' },
   ],
   ship: SHIP, boardwalk: BOARDWALK, jetty: JETTY, jetties: JETTIES, berths: BERTHS, approach: APPROACH,
-  storefronts: STOREFRONTS, halls: HALLS, tokenSlots: TOKEN_SLOTS, trending: TRENDING, spawn: SPAWN,
+  storefronts: STOREFRONTS, triggers: Object.fromEntries(STOREFRONTS.filter(s => s.trigger).map(s => [s.trigger, { id: s.id, lx: s.lx, lz: s.lz + 3.8 }])), halls: HALLS, tokenSlots: TOKEN_SLOTS, trending: TRENDING, spawn: SPAWN,
 };
 
 // v2 ground: the shore behind the sloped boardwalk (lx -176..-55, lz -14..0) is raised to the boardwalk's height, fading into the
@@ -180,7 +185,14 @@ export function buildPlazaV2(h) {
   const hanging = (key, lx, w) => { at(lx + w / 2 - 1.1, FACADE_LZ, 0, () => { W(k, box(0.12, 0.12, 2.2), C.IRON, 0, M(0, 5.6, 1.1), false); W(k, box(0.08, 0.6, 0.08), C.IRON, 0, M(0, 5.3, 0.3, 0, 0.8), false);
       for (const sz of [0.9, 2.0]) W(k, box(0.04, 0.35, 0.04), C.IRON, 0, M(0, 5.4, sz), false); W(k, box(0.16, 1.45, 2.7), C.WOOD_D, 2, M(0, 4.5, 1.45)); }, Y0);
     sign(key, 2.5, 1.3, lx + w / 2 - 1.1 + 0.09, Y0 + 4.5, FACADE_LZ + 1.45, Math.PI / 2); sign(key, 2.5, 1.3, lx + w / 2 - 1.1 - 0.09, Y0 + 4.5, FACADE_LZ + 1.45, -Math.PI / 2); };
+  SHOP_PLACES.length = 0;
   for (const s of STOREFRONTS) {
+    const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
+    if (glb) {   // [Timothy] Blender model: same footprint + counter + awning-post colliders as the blockout, plus its prop colliders
+      { const [x, z] = T(s.lx, cz); addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }
+      for (const c of glb.colliders) { const [x, z] = T(s.lx + c[1], cz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
+      { const [x, z] = T(s.lx, FACADE_LZ + 1.0); addBox(x, z, s.w * 0.6 + 0.4, 1.4, yaw0); } for (const sx of [-1, 1]) addCirc(...T(s.lx + sx * s.w * 0.33, FACADE_LZ + 2.5), 0.25);
+      continue; }
     stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true });
     at(s.lx, FACADE_LZ, 0, () => {                                          // walk-up counter + canvas awning on timber posts
       W(k, box(s.w * 0.6, 1.1, 1.0), C.WOOD, 2, M(0, 0.55, 1.0)); W(k, box(s.w * 0.6 + 0.3, 0.14, 1.25), C.WOOD_L, 2, M(0, 1.16, 1.0), false);
@@ -207,7 +219,9 @@ export function buildPlazaV2(h) {
     at(lx, FACADE_LZ + 0.6, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, 2, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, 2, M(0, 3.75, 0)); }, Y0);
     sign('tok_' + sym, 4.1, 3.6, lx, Y0 + 3.85, FACADE_LZ + 0.74); }
   { const [x, z] = T(62, -27.4); addBox(x, z, 4.9, 1.2, yaw0); }   // the v103 token exchange counter (was walk-through)
-  for (const hs of HOUSES) { stoneHouse(hs.lx, hs.w, hs.fl, hs.v); if (hs.tavern) hanging('tavern', hs.lx, hs.w); }
+  for (const hs of HOUSES) { const glb = hs.glb && SHOPS_KIT && SHOPS_KIT.shops[hs.glb];
+    if (glb) { const [x, z] = T(hs.lx, cz); addBox(x, z, hs.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: hs.glb, m: M(x, Y0, z, yaw0) }); continue; }
+    stoneHouse(hs.lx, hs.w, hs.fl, hs.v); if (hs.tavern) hanging('tavern', hs.lx, hs.w); }
   // ---- market street + stalls + tavern tables + carts ----
   for (const [lx, lz] of LAMPS) { const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
   for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); addCirc(x, z, 1.8);
@@ -231,7 +245,11 @@ export function buildPlazaV2(h) {
     W(k, cyl(0.04, 0.04, 3.0, 4), 0xe7c08d, 12, M(0, 5.8, 5.7), false); W(k, box(1.4, 1.0, 1.4), C.WOOD_L, 2, M(0, 4.0, 5.7)); }, Y0); addCirc(...T(CRANE.lx, CRANE.lz), 0.9);
   // ---- the waterfront boardwalk: flat east part at street level, gently sloped west part; stilts, a low sea rail between the jetty
   // roots (open at every jetty), bollards on the edge; the 5 jetties root into its outer edge at the same height ----
-  { const B = BOARDWALK, D = B.lz1 - B.lz0, zc = (B.lz0 + B.lz1) / 2;
+  // [Timothy] Blender docks (plazaShops.js DOCKS_KIT): boardwalk, jetty decks, pilings, bollards, mooring posts, rope, ladders and the
+  // B1-B10 plaques come from assets/island/docks*.glb (same decks / heights / bollard spots, colliders from the GLB); the torch posts stay
+  DOCK_PLACES.length = 0;
+  if (DOCKS_KIT) DOCKS_KIT.chunks.forEach((c, i) => { const [x, z] = T(c.lx, c.lz); DOCK_PLACES.push({ i, m: M(x, 0, z, yaw0) }); for (const q of c.colliders) addCirc(...T(q[1], q[2]), q[3]); });
+  if (!DOCKS_KIT) { const B = BOARDWALK, D = B.lz1 - B.lz0, zc = (B.lz0 + B.lz1) / 2;
     const plank = (a, b, ya, yb) => { const L = b - a, ang = Math.atan2(ya - yb, L), len = Math.hypot(L, ya - yb);
       at((a + b) / 2, zc, 0, () => { W(k, box(len, 0.3, D), C.WOOD_L, 2, M(0, -0.15, 0, 0, 0, -ang));
         for (let x = -L / 2 + 2; x < L / 2; x += 5) W(k, cyl(0.25, 0.3, 7, 6), C.WOOD_D, 2, M(x, -3.65 - x * Math.tan(ang), D / 2 - 0.3), false); }, (ya + yb) / 2); };
@@ -245,13 +263,13 @@ export function buildPlazaV2(h) {
         for (let x = -L / 2 + 0.3; x <= L / 2; x += 2.5) W(k, cyl(0.07, 0.08, 1.0, 5), C.WOOD_D, 2, M(x, 0.45 + x * Math.tan(-ang), 0), false); }, (ya + yb) / 2);
       for (let x = a + 6; x < b - 3; x += 12) { const [bx, bz] = T(x, B.lz1 - 0.9); W(k, cyl(0.28, 0.34, 0.8, 8), C.IRON, 0, M(bx, bwY(x) + 0.4, bz), false); addCirc(bx, bz, 0.4); } } }
   for (const j of JETTIES) { const L = JETTY.lz1 - j.lz0;
-    at(j.lx, (j.lz0 + JETTY.lz1) / 2, 0, () => {
+    if (!DOCKS_KIT) at(j.lx, (j.lz0 + JETTY.lz1) / 2, 0, () => {
       { const n = Math.ceil(L / 6), st = L / n; for (let i = 0; i < n; i++) for (const sx of [-1, 1]) W(k, box(JETTY.w / 2, 0.3, st), C.WOOD_L, 2, M(sx * JETTY.w / 4, j.y - 0.15, -L / 2 + (i + 0.5) * st)); } // 6 x 6 m bays (grain at pier scale) for (let zz = -L / 2 + 2; zz < L / 2; zz += 6) for (const sx of [-JETTY.w / 2 + 0.4, 0, JETTY.w / 2 - 0.4]) W(k, cyl(0.28, 0.32, 8, 6), C.WOOD_D, 2, M(sx, j.y - 4.3, zz), false);
       for (const sx of [-1, 1]) for (const zz of [-16, 0, 16]) W(k, cyl(0.28, 0.34, 0.8, 8), C.IRON, 0, M(sx * (JETTY.w / 2 - 0.5), j.y + 0.4, JETTY.shipLz - (j.lz0 + JETTY.lz1) / 2 + zz), false); // bollards
     }, 0);
-    for (const sx of [-1, 1]) for (const zz of [-16, 0, 16]) addCirc(...T(j.lx + sx * (JETTY.w / 2 - 0.5), JETTY.shipLz + zz), 0.4);
+    if (!DOCKS_KIT) for (const sx of [-1, 1]) for (const zz of [-16, 0, 16]) addCirc(...T(j.lx + sx * (JETTY.w / 2 - 0.5), JETTY.shipLz + zz), 0.4);
     for (const sx of [-1, 1]) { const [x, z] = T(j.lx + sx * (JETTY.w / 2 - 0.6), JETTY.lz1 - 1); torchPost(k, F, x, j.y, z); addCirc(x, z, 0.3); const [x0, z0] = T(j.lx + sx * (JETTY.w / 2 + 0.6), BOARDWALK.lz1 - 0.6); torchPost(k, F, x0, bwY(j.lx), z0); addCirc(x0, z0, 0.3); } }
-  for (const b of BERTHS) { addCirc(...T(b.ashore.lx, b.lz - 18), 0.3); at(b.ashore.lx, b.lz - 18, 0, () => { W(k, box(0.2, 1.6, 0.2), C.WOOD_D, 2, M(0, 0.8, 0), false); W(k, box(0.14, 0.9, 1.7), C.WOOD_D, 2, M(0, 1.9, 0)); }, b.ashore.y);
+  if (!DOCKS_KIT) for (const b of BERTHS) { addCirc(...T(b.ashore.lx, b.lz - 18), 0.3); at(b.ashore.lx, b.lz - 18, 0, () => { W(k, box(0.2, 1.6, 0.2), C.WOOD_D, 2, M(0, 0.8, 0), false); W(k, box(0.14, 0.9, 1.7), C.WOOD_D, 2, M(0, 1.9, 0)); }, b.ashore.y);
     sign('berth_' + b.id, 1.5, 0.8, b.ashore.lx + b.side * 0.08, b.ashore.y + 1.9, b.lz - 18, b.side * Math.PI / 2); }
   return signs;
 }

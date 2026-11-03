@@ -164,9 +164,9 @@
   .shop-card button.buy { min-height: 36px; }
 }
 .pvp-hide{display:none!important}
-/* [Timothy] opened from the island SHIP SKINS + UPGRADES shop (BR): SKINS | UPGRADES toggle, same look as the island shop tabs */
+/* [Timothy] opened from the island UPGRADE SHOP (BR); the SKINS | UPGRADES toggle is hidden now (separate shops) */
 .shop-isle-tabs { display: none; gap: 6px; padding: 4px; margin: 4px 0 6px; background: rgba(0, 0, 0, 0.38); border: 1px solid rgba(201, 152, 74, 0.55); border-radius: 12px; }
-#shop.from-island .shop-isle-tabs { display: flex; }
+/* [Timothy] skins + upgrades are separate shops: no SKINS tab in the island upgrades panel (was: #shop.from-island .shop-isle-tabs { display: flex; }) */
 #shop.from-island .shop-tabs { display: none; }
 .shop-isle-tabs button { flex: 1; min-height: 44px; font-family: inherit; font-size: 22px; letter-spacing: 0.04em; color: #fff; background: transparent; border: 0; border-radius: 8px; padding: 3px 10px 1px; cursor: pointer; white-space: nowrap; box-shadow: none; }
 .shop-isle-tabs button.on { background: var(--gold, #ffcd77); color: #1b1300; cursor: default; }

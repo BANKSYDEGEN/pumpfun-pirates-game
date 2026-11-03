@@ -512,7 +512,7 @@ export function makeAtlas(skull) {
   board(512, 1962, 512, 84, '#5a3219'); text('SQUAD HALL', 768, 2006, 76, '#ffcd77'); reg('squad', 512, 1962, 512, 84);
   // [v103] plaza (BANKSY): CLOTHES SHOP + SHIP SHOP signs, one token billboard per token (brand: Just Another Hand, red / gold / dark)
   board(0, 2048, 512, 132, '#5a3219'); text('CLOTHES SHOP', 256, 2116, 104, '#ffcd77'); reg('clothesShop', 0, 2048, 512, 132);
-  board(512, 2048, 512, 132, '#5a3219'); text('SHIP SKINS + UPGRADES', 768, 2116, 70, '#ffcd77'); reg('shipShop', 512, 2048, 512, 132);
+  board(512, 2048, 512, 132, '#5a3219'); text('SHIP SKINS', 768, 2116, 70, '#ffcd77'); reg('shipShop', 512, 2048, 512, 132);
   ISLAND_TOKEN_SIGNS.forEach((t, i) => {
     const [x, y] = bbAt(i), w = 332, h = 300; { const [lx, ly] = liveAt(i); reg('tokLive' + t.sym, lx, ly, w, 110); }   // live price strip
     g.fillStyle = '#161616'; g.fillRect(x, y, w, h); g.strokeStyle = '#ffcd77'; g.lineWidth = 10; g.strokeRect(x + 5, y + 5, w - 10, h - 10);

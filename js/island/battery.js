@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { Kit, M } from './kit.js';
 import * as CO from './coast.js';
+import { BATTERY_KIT, buildBatteryStatic } from './plazaShops.js';   // [Timothy] Blender battery art + gun models (null = procedural)
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export const BATTERY = { lx: 160, lz: 42, ring: 15, y: 21, deckR: 22, paveR: 20 };
@@ -48,7 +49,9 @@ export function clearAt(lx, lz) {
 
 // static art + colliders, merged into the coast kit (0 extra draw calls). o = foot.js buildCoast helpers
 export function buildArt(o) {
-  const { k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o, yaw0 = CO.t2wYaw(0), B = BATTERY;
+  const { k, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o, yaw0 = CO.t2wYaw(0), B = BATTERY;
+  const KB = BATTERY_KIT, W = KB ? () => {} : o.W;   // [Timothy] Blender art loaded: draw nothing procedural, keep every collider + the lamps
+  if (KB && KB.flag) { const [x, z] = T(KB.flag[0], KB.flag[1]); addCirc(x, z, 0.7); }   // the flagpole plinth
   // a wall piece centred on (lx, lz), long axis along town lx (len) or lz (alongZ), top at y, 7 m deep into the ground
   const wall = (lx, lz, len, top, alongZ = false, th = 0.8, col = C.STONE) => { const [x, z] = T(lx, lz), hgt = 8;
     W(k, box(alongZ ? th : len, hgt, alongZ ? len : th), col, 11, M(x, top - hgt / 2, z, yaw0));
@@ -90,10 +93,13 @@ export function createGuns(root, MATS, OUT, low, H) {
     k.add(new THREE.CylinderGeometry(0.4, 0.4, 0.22, 12), IRON, { m: M(0, 0, 2.3, 0, Math.PI / 2), mat: 0 });                                    // muzzle swell
     k.add(new THREE.CylinderGeometry(0.47, 0.47, 0.12, 12), GOLD, { m: M(0, 0, -0.25, 0, Math.PI / 2), mat: 0, outline: false });              // brass band
     k.add(new THREE.SphereGeometry(0.2, 8, 6), IRON, { m: M(0, 0, -0.75), mat: 0 }); });
+  const KB = BATTERY_KIT; let [cG2, bG2, cO2, bO2, mat2] = [cG, bG, cO, bO, MATS.toon];
+  if (KB && KB.carriage && KB.barrel) { [cG2, bG2, cO2, bO2, mat2] = [KB.carriage, KB.barrel, null, null, KB.mat];   // same frames: carriage on the deck, barrel origin = PIV
+    const st = buildBatteryStatic(new THREE.Vector3(...((p) => [p[0], 0, p[1]])(CO.t2w(BATTERY.lx, BATTERY.lz))), CO.t2wYaw(0)); if (st) root.add(st); }
   const mk = (g, mat, name, sh) => { const m = new THREE.InstancedMesh(g, mat, GUNS.length); m.name = name; m.frustumCulled = false; m.castShadow = sh && !low; m.receiveShadow = !low; root.add(m); return m; };
-  const meshes = [[mk(cG, MATS.toon, 'battery_carriage', true), 'c'], [mk(bG, MATS.toon, 'battery_barrel', true), 'b']];
-  if (cO) { const o = mk(cO, OUT.plain, 'battery_carriage_outline', false); o.userData.outline = true; meshes.push([o, 'c']); }
-  if (bO) { const o = mk(bO, OUT.plain, 'battery_barrel_outline', false); o.userData.outline = true; meshes.push([o, 'b']); }
+  const meshes = [[mk(cG2, mat2, 'battery_carriage', true), 'c'], [mk(bG2, mat2, 'battery_barrel', true), 'b']];
+  if (cO2) { const o = mk(cO2, OUT.plain, 'battery_carriage_outline', false); o.userData.outline = true; meshes.push([o, 'c']); }
+  if (bO2) { const o = mk(bO2, OUT.plain, 'battery_barrel_outline', false); o.userData.outline = true; meshes.push([o, 'b']); }
   const PIV = new THREE.Vector3(0, 1.2, 0.15), TIP = 2.45;
   const guns = GUNS.map(q => { const [x, z] = CO.t2w(q.lx, q.lz), [sx, sz] = CO.t2w(q.slx, q.slz), rest = CO.t2wYaw(q.a);
     return { ...q, x, y: BATTERY.y, z, sx, sz, rest, yaw: rest, pitch: AIM.rest, recoil: 0, ty: rest, tp: AIM.rest, cool: 0 }; });

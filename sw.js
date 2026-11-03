@@ -1,6 +1,7 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v149'; // [v149] headland battery: trees cleared round the cliff guns, a paved ramp up from the quay, 6 playable cosmetic cannons (FIRE CANNON, reload, no damage)
+const VERSION = 'pfp-v150'; // [v150] Blender plaza + docks: the 5 storefronts + a plain house, the boardwalk / 5 jetties / B1-B10 plaques and the headland battery as Blender models (assets/island/plaza_shops*.glb, docks*.glb, battery*.glb)
+// was: [v149] headland battery: trees cleared round the cliff guns, a paved ramp up from the quay, 6 playable cosmetic cannons (FIRE CANNON, reload, no damage)
 const SHELL = [
   "./",
   "./index.html",
@@ -46,6 +47,7 @@ const SHELL = [
   "./js/island/foot.js",
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
+  "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader
   "./js/island/harbor.js",
   "./js/island/kit.js",
   "./js/island/look.js",
@@ -234,6 +236,12 @@ const ASSETS = [
   "./assets/island/town_kit.webp.glb",
   "./assets/island/town_kit_low.glb",
   "./assets/island/town_kit_low.webp.glb",
+  "./assets/island/plaza_shops.glb",
+  "./assets/island/plaza_shops_low.glb",
+  "./assets/island/docks.glb",
+  "./assets/island/docks_low.glb",
+  "./assets/island/battery.glb",
+  "./assets/island/battery_low.glb",
   "./assets/island/nature_kit.glb",
   "./assets/island/nature_kit.webp.glb",
   "./assets/island/nature_kit_low.glb",

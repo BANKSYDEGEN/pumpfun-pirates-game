@@ -16,7 +16,7 @@ async def main():
       resp = await r.fetch(); h = dict(resp.headers); h['access-control-allow-origin'] = '*'; await r.fulfill(response=resp, headers=h)
     await ctx.route('**/functions/v1/**', cors)
     await ctx.add_init_script("localStorage.setItem('pfp_name','CANNON_QA');localStorage.setItem('pfp_tut_seen','1');localStorage.setItem('pfp_tutorial_v1','1');localStorage.setItem('pfp_gfx_hint','1')")
-    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append('PAGE '+str(e)))
+    pg = await ctx.new_page(); pg.set_default_timeout(180000); errs = []; pg.on('pageerror', lambda e: errs.append('PAGE '+str(e)))
     pg.on('console', lambda m: errs.append(m.type+': '+m.text[:200]) if m.type=='error' else None); R = {}
     await pg.goto(f'http://127.0.0.1:18960/{WT}/index.html' + ('?' + Q if Q else '')); await pg.wait_for_function('window.PFP && PFP.renderer', timeout=180000); await pg.wait_for_timeout(2000)
     await (pg.tap('#btn-pvp') if mob else pg.click('#btn-pvp'))

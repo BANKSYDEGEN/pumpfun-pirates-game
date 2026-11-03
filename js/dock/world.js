@@ -39,6 +39,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   const KIT = await loadTownKit(LOW, renderer).catch(e => { console.warn('[onfoot] town kit failed', e); return null; });
   // [release] Raul's island art M2: the Blender nature kit (palms, jungle trees, ferns, rocks, cliffs, Skull Peak); ?nature=0 = procedural
   const NAT = KIT && new URLSearchParams(location.search).get('nature') !== '0' ? await loadNatureKit(LOW, renderer).catch(e => { console.warn('[onfoot] nature kit failed', e); return null; }) : null;
+  await FM.PV?.plazaShopsReady?.(LOW); // [Timothy] Blender storefront models (plaza v2) before the plaza is built; resolves null on failure
   const foot = FM.createFoot({ scene: footGroup, isle: null, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT, decorHulls: false }); // live berths: no toy hulls parked in them
   if (layout.shopInteract) for (const q of layout.shopInteract()) if (!layout.interact.some(o => o.id === q.id)) layout.interact.push(q);
   // same NaN guard for foot.js's own foliage materials (trees / ferns carry a few zero normals): fix those geometries once

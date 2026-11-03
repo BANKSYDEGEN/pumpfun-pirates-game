@@ -153,7 +153,7 @@ export async function createDock(ctx) {
       case 'exchange': plaza.openToken('SUNK'); break;
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); openBoard(); break;
       case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;
-      case 'shop': if (q.open === 'upgrades') { let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES?.(); } catch {} if (ok) break; } // [v146] the UPGRADE SHOP storefront: straight to the upgrades panel
+      case 'shop': if (q.open === 'upgrades') { let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES?.(); } catch {} if (!ok) toast('THE UPGRADE SHOP IS CLOSED RIGHT NOW<br><small>ship upgrades open from the harbor</small>', 2400); break; } // [v146] the UPGRADE SHOP storefront: straight to the upgrades panel (its own shop: never the skins grid)
         Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.vendor === 'clothes' ? 'gear' : 'skins', slot: q.slot, from: 'island' }) : false)
         .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
       case 'tavern': toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break;

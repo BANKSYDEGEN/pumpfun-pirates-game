@@ -17,7 +17,7 @@ const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, shipStat
 const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
 const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
 
-let ctx = null, run = newRun(), lastBuy = null, fromIsland = false; // [Timothy] fromIsland: opened from the island SHIP SKINS + UPGRADES shop (BR) // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
+let ctx = null, run = newRun(), lastBuy = null, fromIsland = false; // [Timothy] fromIsland: opened from the island UPGRADE SHOP (BR) // [Raul] lastBuy replays the purchase moment on the ship when the shop closes
 const $ = (id) => document.getElementById(id);
 
 const CHEST_SVG = `<svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
@@ -60,7 +60,7 @@ function buildDom() {
   document.body.appendChild(ov);
   ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
   $('shop-close').onclick = close;
-  // [Timothy] BANKSY: the island ship shop is SKINS | UPGRADES. From the island, SKINS goes back to the island ship-skins grid.
+  // [Timothy] the island SKINS | UPGRADES toggle is gone (separate shops; css hides .shop-isle-tabs); the handler stays harmless.
   ov.querySelector('[data-isle="skins"]').onclick = () => { close(); try { (window.PFP_ISLAND_SHOP || window).openShop?.({ vendor: 'ships', tab: 'skins', from: 'island' }); } catch (e) { console.warn(e); } };
   $('shop-repair').onclick = repair;
   $('shop-hire').onclick = hire; // [escorts]
@@ -220,10 +220,12 @@ function repair() {
   ctx.sfx?.coin?.(); ctx.updateHud(); render(); ctx.onRunChange?.(run);
 }
 
-// [Timothy] BANKSY: "Remove other ways to upgrade ship or change skins, make them go to the shop on island". In BATTLE ROYALE
-// (permanent, saved upgrades) the panel only opens from the island SHIP SKINS + UPGRADES shop (UPGRADES tab -> open({ island: true }));
-// the chest button / U / B show a pointer there instead. Waves (per-run upgrades, gone when the run ends) is unchanged.
-const ISLE_MSG = '⛵ Ship upgrades + skins: visit the SHIP SKINS + UPGRADES shop on the island';
+// [Timothy] BANKSY: "Remove other ways to upgrade ship or change skins, make them go to the shop on island" + "ship skins and ship
+// upgrades must be separate shops". In BATTLE ROYALE (permanent, saved upgrades) this panel only opens from the island UPGRADE SHOP
+// storefront (plazaTown shop_upgrades, open: 'upgrades' -> js/dock/index.js -> PFP_OPEN_UPGRADES -> open({ island: true }), no skins
+// tab); skins are the separate SHIP SKINS shop (shopCatalog vendor 'ships'). Island / harbor only, never in battle: the chest button /
+// U / B show a pointer instead. Waves (per-run upgrades, gone when the run ends) is unchanged.
+const ISLE_MSG = '⛵ Ship upgrades: visit the UPGRADE SHOP on the island · skins: the SHIP SKINS shop';
 export function islandPointer(msg = ISLE_MSG) {
   let t = $('shop-pointer'); if (!t) { t = document.createElement('div'); t.id = 'shop-pointer'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
   t.textContent = msg; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);

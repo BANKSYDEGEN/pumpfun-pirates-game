@@ -568,7 +568,7 @@ const tw = (lx, lz) => townToWorld(lx, lz), twy = (lyaw) => lyaw + TOWN.yaw;
 // points on them, js/dock/plaza.js lays the live leaderboard screens on PLAZA_BOARD.
 export const PLAZA_BOARD = { w: 6.0, h: 4.4, y: 3.5, face: 0.2 };
 export const PLAZA_SHOPS = [{ id: 'shop_clothes', vendor: 'clothes', lx: -50, lz: -32, sign: 'clothesShop', wall: 0xc9a27a, roof: 0xd8322f, label: 'CLOTHES SHOP · PIRATE GEAR' },
-  { id: 'shop_ships', vendor: 'ships', lx: -22, lz: -32, sign: 'shipShop', wall: 0x9db7c9, roof: 0x2a6df4, label: 'SHIP SKINS + UPGRADES' }];
+  { id: 'shop_ships', vendor: 'ships', lx: -22, lz: -32, sign: 'shipShop', wall: 0x9db7c9, roof: 0x2a6df4, label: 'SHIP SKINS' }]; // [Timothy] skins + upgrades are separate shops (upgrades: the plaza v2 UPGRADE SHOP)
 export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP', HQ: '$HQ', RETARDIO: '$RETARDIO' }; // [v108] billboard titles (config ISLAND_TOKENS)
 export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 },
   { sym: 'HQ', lx: 45, lz: -36 }, { sym: 'RETARDIO', lx: 51, lz: -36 }];   // [v144] the other side of the plaza (the first three mirrored across the leaderboards)
@@ -992,6 +992,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
+  if (coast && PLAZA_V2_SIGNS) { const ps = PV.buildPlazaShops(); if (ps) root.add(ps); } // [Timothy] Blender storefront models (plazaShops.js; null = blockout shells)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
   // High: the coast kit group (the waterfront runs ~700 m) is cut into KIT_TILE m tiles so each tile frustum-culls (main + shadow pass)
