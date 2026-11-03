@@ -46,7 +46,8 @@ import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { compilePreview } from './upgradeVisuals.js';
 import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
-import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire } from './pirateGear.js'; // [Timothy] other players see your shop gear ('gr')
+import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
+const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
@@ -589,11 +590,11 @@ export function createPvp(K) {
     // [Timothy] their shop gear ('gr', static field: sent on join / change + the transport's 3 s static refresh). Validated against
     // GEAR_RENDERS; missing / default = the deck crew's captain (no extra figure). Dressed = Raul's v4 captain at their wheel.
     // Their clothes take the colours of the ship skin they already send ('sk', validated above): no extra field.
-    const gw = cleanWire(m.gr), gk = gw + '|' + sk;
-    if (gk !== (p.gk ?? '|classic')) { const gNew = gw !== (p.gw ?? ''); p.gw = gw; p.gk = gk;
+    const gw = cleanWire(m.gr), ec = eyeOf(m.ec), gk = gw + '|' + sk + '|' + ec;
+    if (gk !== (p.gk ?? '|classic')) { const gNew = gw + '|' + ec !== (p.gw ?? '|0'); p.gw = gw + '|' + ec; p.gk = gk;
       // their chosen skin + hair colour ride in the wire (gear.skinColor / hairColor, validated) and applyGear paints them (setBodyLook);
       // the id hash is only the fallback look for a pirate who kept the DEFAULT skin / hair
-      const gg = gw ? gearFromWire(gw) : null, hashLook = { skin: [...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: p.id.charCodeAt(p.id.length - 1) % 5 };
+      const gg = gw || ec ? { ...gearFromWire(gw), eyeColor: ec } : null, hashLook = { skin: [...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: p.id.charCodeAt(p.id.length - 1) % 5 };
       p.captain = gg ? { v: 1, remote: true, gear: gg, skin: sk, look: { skin: gg.skinColor ? 0 : hashLook.skin, hair: gg.hairColor ? 0 : hashLook.hair } } : null;
       if (p.ship?.mesh && (gNew || p.key === key)) { if (p.captain) attachCaptain(p.ship.mesh, p.captain); else detachCaptain(p.ship.mesh); } }   // a new skin rebuilds the ship below (it re-attaches)
     if (!p.ship) {
@@ -1102,7 +1103,7 @@ export function createPvp(K) {
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
-    const gw = gearToWire(getLocalGear()); if (gw || sentGear) { m.gr = gw; if (gw) sentGear = true; } // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
+    const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;

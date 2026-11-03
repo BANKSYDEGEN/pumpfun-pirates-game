@@ -6,7 +6,7 @@
 //
 //   import { openGearColorPicker } from './gearColorPicker.js';
 //   const close = openGearColorPicker({ kind: 'hat' | 'look', onPick(key, i) {}, onClose() {} });   // i = swatch index (0 = DEFAULT)
-import { HAT_SWATCHES, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, outfitColors, getLocalColors, hatColorHex, getLocalGear, setLocalGear } from './pirateGear.js';
+import { HAT_SWATCHES, SKIN_SWATCHES, HAIR_SWATCHES, EYE_SWATCHES, CLOTH_SWATCHES, outfitColors, getLocalColors, hatColorHex, getLocalGear, setLocalGear } from './pirateGear.js';
 
 const BASE_SKIN = '#d99b6c', BASE_HAIR = '#2b1b12';   // Raul's baked defaults (js/pirates.js lookColors index 0)
 let _open = null;
@@ -46,7 +46,7 @@ export function openGearColorPicker({ kind = 'hat', onPick = null, onClose = nul
       b.onclick = (e) => { e.stopPropagation(); setLocalGear({ body: v }); markB(v); try { onPick?.('body', v); } catch (err) { console.warn(err); } }; row.appendChild(b); return b; });
     const markB = (v) => bb.forEach((b, k) => { b.style.borderColor = k === v ? '#e9b949' : 'transparent'; b.setAttribute('aria-pressed', String(k === v)); });
     markB(g.body | 0); box.append(h, row);
-    section(title || 'SKIN TONE', 'skinColor', [['DEFAULT', BASE_SKIN], ...SKIN_SWATCHES]); section('HAIR + BEARD', 'hairColor', [['DEFAULT', BASE_HAIR], ...HAIR_SWATCHES]); }
+    section(title || 'SKIN TONE', 'skinColor', [['DEFAULT', BASE_SKIN], ...SKIN_SWATCHES]); section('HAIR + BEARD', 'hairColor', [['DEFAULT', BASE_HAIR], ...HAIR_SWATCHES]); section('EYES', 'eyeColor', [['BROWN', EYE_SWATCHES[0][1]], ...EYE_SWATCHES]); { const gr = box.lastElementChild; const dup = gr?.children?.[1]; if (dup) dup.style.display = 'none'; } } // [v118] 0 = DEFAULT = BROWN (BANKSY: default brown); swatch 1 (BROWN again) is hidden
   else section(title || 'HAT COLOUR', 'hatColor', [['DEFAULT', hatColorHex(hat, 0)], ...HAT_SWATCHES]);
   const done = document.createElement('button'); done.type = 'button'; done.textContent = 'DONE';
   done.style.cssText = 'display:block;margin:4px auto 0;padding:8px 26px;border-radius:8px;border:0;background:#e9b949;color:#2a1a0e;font:inherit;cursor:pointer;min-height:40px';

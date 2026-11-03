@@ -48,6 +48,11 @@ export const SKIN_SWATCHES = Object.freeze([
   ['PORCELAIN', '#f5d6b8'], ['FAIR', '#f2c9a0'], ['LIGHT', '#e8b48a'], ['WARM', '#d99b6c'], ['OLIVE', '#c68a5e'], ['TAN', '#b07848'],
   ['BROWN', '#9a6440'], ['DARK', '#6e4528'], ['DEEP', '#4e2f1c'], ['GHOST', '#cfe6e0'], ['ZOMBIE', '#8fb07a'], ['DEEP SEA', '#7fa8c9'],
 ]);
+// [v115] BANKSY "add eye color selection": the iris colour (face decal tint, js/pirateGLB.js setIris). 0 = DEFAULT = BROWN (BANKSY: default brown; old builds still draw the blue). APPEND-ONLY.
+export const EYE_SWATCHES = Object.freeze([
+  ['BROWN', '#6b3e1f'], ['HAZEL', '#8a6a2c'], ['GREEN', '#3f8f3a'], ['BLUE', '#2f6fd6'], ['GREY', '#8a96a0'], ['AMBER', '#d08a1c'],
+  ['RED', '#d8262c'], ['GOLD', '#f2c230'], ['VIOLET', '#8a4ad8'],
+]);
 export const HAIR_SWATCHES = Object.freeze([
   ['BLACK', '#161616'], ['DARK BROWN', '#2b1b12'], ['BROWN', '#4a2c17'], ['CHESTNUT', '#7a4a22'], ['GINGER', '#b5401f'], ['BLOND', '#d9b25a'],
   ['PLATINUM', '#ece0bc'], ['GREY', '#8a8a8a'], ['WHITE', '#f2f0ea'], ['BLUE', '#2a6df4'], ['PINK', '#e05aa8'], ['GREEN', '#2f9e4f'], ['PURPLE', '#7b3fbf'],
@@ -58,7 +63,7 @@ export const CLOTH_SWATCHES = Object.freeze([
   ['PURPLE', '#7a3fb0'], ['PINK', '#ff5fa2'], ['ORANGE', '#ff7a1a'], ['GOLD', '#e9b949'], ['WHITE', '#f4f1e8'], ['BLACK', '#1c1c20'],
 ]);
 // the free, per-player look that rides with the gear (not sold, not in the server profile): hat colour, hook / peg side, skin, hair
-export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor', 'body']; // [v112] body: 0 = male (default, every old save), 1 = female
+export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor', 'body', 'eyeColor']; // [v115] eyeColor: 0 = DEFAULT, 1.. = EYE_SWATCHES // [v112] body: 0 = male (default, every old save), 1 = female
 // the clothes colours for this gear: the ship skin's (colors.skin) unless the player picked a clothes colour (trim stays the skin's)
 export const clothColors = (gear, colors) => (gear?.outfitColor > 0 && CLOTH_SWATCHES[gear.outfitColor - 1] ? { ...(colors || {}), cloth: CLOTH_SWATCHES[gear.outfitColor - 1][1] } : colors);
 const pickLook = (g) => Object.fromEntries(LOOK_KEYS.map((k) => [k, g[k]]));
@@ -122,7 +127,7 @@ const OUTFITS = {
 
 const clampIx = (v, n) => { const i = Math.floor(+v); return Number.isFinite(i) && i >= 0 && i <= n ? i : 0; };
 export function normalizeGear(g) {
-  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0 };
+  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0, eyeColor: 0 };
   for (const k of Object.keys(GEAR_DEFAULTS)) if (typeof s[k] === 'string' && s[k]) o[k] = s[k];
   if (s.eyes == null && typeof s.face === 'string' && s.face !== 'plain') o.eyes = s.face;     // creator 'face' = shop 'eyes'
   if (s.eyepatch === true) o.eyes = 'eyepatch';
@@ -131,11 +136,12 @@ export function normalizeGear(g) {
   o.hatColor = clampIx(s.hatColor, HAT_SWATCHES.length);
   if (s.hookSide === 'L' || s.hookSide === 'R') o.hookSide = s.hookSide; if (s.legSide === 'L' || s.legSide === 'R') o.legSide = s.legSide;   // old saves: R
   o.skinColor = clampIx(s.skinColor, SKIN_SWATCHES.length); o.hairColor = clampIx(s.hairColor, HAIR_SWATCHES.length); o.outfitColor = clampIx(s.outfitColor, CLOTH_SWATCHES.length);
+  o.eyeColor = clampIx(s.eyeColor, EYE_SWATCHES.length);
   o.body = s.body === 1 || s.body === '1' || s.body === 'f' || s.body === true ? 1 : 0;
   return o;
 }
 const gearKey = (g) => Object.keys(GEAR_DEFAULTS).map((k) => g[k]).join('|') + '|' + LOOK_KEYS.map((k) => g[k] ?? '').join('|');
-export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gearRenders(k, g?.[k])) && !(g?.skinColor > 0) && !(g?.hairColor > 0) && !(g?.body > 0);
+export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gearRenders(k, g?.[k])) && !(g?.skinColor > 0) && !(g?.hairColor > 0) && !(g?.body > 0) && !(g?.eyeColor > 0);
 
 // ---------- network: the equipped gear as ONE short string ('gr' in the PvP / harbor state, js/transport.js STATIC) ----------
 // Base-36 digits: one per slot in WIRE_SLOTS order = 1 + the index in GEAR_RENDERS[slot] (0 = default), then the hat colour
@@ -417,7 +423,8 @@ export const raulItemOf = (slot, id, gear) => { const r = RAUL[`${slot}:${id}`];
 // Tinted materials (separate parts) are per pirate already (PirateGLB toonizes per instance). Hook point: setBodyLook(p, look). ----------
 const iSkin = TINTS.indexOf('skin'), iHair = TINTS.indexOf('hair');
 const _lookBase = new WeakMap(); // mesh -> { geo, base COLOR_0 } for skinColor / hairColor resets
-export function setBodyLook(p, { skinColor = 0, hairColor = 0 } = {}) {
+export function setBodyLook(p, { skinColor = 0, hairColor = 0, eyeColor = 0 } = {}) {
+  try { p.setIris?.(EYE_SWATCHES[Math.max(0, eyeColor - 1)]?.[1] || EYE_SWATCHES[0][1]); } catch (e) { console.warn('[gear] eyes', e); } // [v115]
   const sk = skinColor > 0 ? SKIN_SWATCHES[skinColor - 1]?.[1] : null, hr = hairColor > 0 ? HAIR_SWATCHES[hairColor - 1]?.[1] : null;
   const key = (sk || '') + '|' + (hr || ''); if ((p.gearLook || '|') === key) return; p.gearLook = key;
   const col = new THREE.Color(), want = { skin: sk, hair: hr };
@@ -476,4 +483,4 @@ export function applyGear(target, gear, colors = null) {
 // pirateFigure hook: called once the v4 GLB is in
 export function gearOnReady(root, p) { const g = root.userData.gear; return g ? dress(p, g, clothColors(g, root.userData.gearColors)) : null; }
 
-devHook('PFP_GEAR', { applyGear, setBodyLook, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, setLocalGear, setLocalSkin, getLocalGear, getLocalColors, outfitColors, HAT_SWATCHES, PARROTS, gearRenders, normalizeGear, gearToWire, gearFromWire, GEAR_RENDERS, GEAR_DEFAULTS });
+devHook('PFP_GEAR', { applyGear, setBodyLook, EYE_SWATCHES, SKIN_SWATCHES, HAIR_SWATCHES, CLOTH_SWATCHES, setLocalGear, setLocalSkin, getLocalGear, getLocalColors, outfitColors, HAT_SWATCHES, PARROTS, gearRenders, normalizeGear, gearToWire, gearFromWire, GEAR_RENDERS, GEAR_DEFAULTS });

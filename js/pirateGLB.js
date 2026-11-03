@@ -62,6 +62,16 @@ function ownColorAttr(o) {
   for (const gr of g.groups) n.addGroup(gr.start, gr.count, gr.materialIndex); n.boundingBox = g.boundingBox; n.boundingSphere = g.boundingSphere; n.drawRange = { ...g.drawRange }; n.userData = g.userData; n.name = g.name;
   o.geometry = n;
 }
+// [v115] eye colour: patch one face material. The authored iris is light blue (sRGB #88c0f0 + highlight #b0d8f0): blue clearly above red.
+// Shade (dark iris -> highlight) is kept from the original red channel; edge pixels blend by how blue they are, so the outlines stay crisp.
+function irisPatch(m, uIris, uOn) {
+  m.onBeforeCompile = ((prev) => (s, r) => { prev?.(s, r); s.uniforms.uIris = uIris; s.uniforms.uIrisOn = uOn;
+    s.fragmentShader = 'uniform vec3 uIris; uniform float uIrisOn;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      if (uIrisOn > 0.5) { vec3 c0 = diffuseColor.rgb; float blu = c0.b - c0.r; float k = smoothstep(0.12, 0.32, blu);
+        float hl = clamp((c0.r - 0.24) / 0.19, 0.0, 1.0); vec3 tint = mix(uIris, mix(uIris, vec3(1.0), 0.22), hl);
+        diffuseColor.rgb = mix(c0, tint, k); }`); })(m.onBeforeCompile);
+  const key = m.customProgramCacheKey?.bind(m); m.customProgramCacheKey = () => (key ? key() : '') + '|iris'; m.needsUpdate = true;
+}
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
@@ -79,6 +89,9 @@ export class PirateGLB {
     });
     this.atlasMeshes = []; scene.traverse((o) => { if (o.isSkinnedMesh && o.geometry.attributes._tint) this.atlasMeshes.push(o); });
     if (low) this._mergeLow(scene);
+    // [v115] iris tint: the face decal's light-blue iris (both tones) is re-coloured in the shader, sclera / pupil / lids / glints untouched
+    this._iris = { value: new THREE.Color(1, 1, 1) }; this._irisOn = { value: 0 };
+    scene.traverse((o) => { if (!o.isMesh || !/face/i.test(o.name)) return; for (const m of [o.material].flat()) if (m?.map) irisPatch(m, this._iris, this._irisOn); });
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
     this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, a]));
@@ -109,6 +122,7 @@ export class PirateGLB {
     if (this.action) this.action.crossFadeTo(a, fade, false);
     this.action = a; this.clip = name;
   }
+  setIris(hex) { if (!this._iris) return; if (hex) { this._iris.value.set(hex); this._irisOn.value = 1; } else this._irisOn.value = 0; } // [v115] null = the drawn blue
   setExpression(name) {
     const uv = EXPR_UV[name] || EXPR_UV.neutral;
     for (const m of this.decals) if (m.userData.decal !== 'skull' && m.map) { m.map.offset.set(uv[0], uv[1]); m.map.updateMatrix(); }
