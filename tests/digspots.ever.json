@@ -1,0 +1,6 @@
+{
+  "_": "FROZEN: every dig-spot id ever shipped as diggable, in roll order. Append only (tests/digspots.test.mjs). Ids here must stay in MAP_SPOTS_ALL forever.",
+  "roll": ["dig1", "dig2", "dig3", "dig4", "dig5", "dig6"],
+  "valid": ["dig1", "dig2", "dig3", "dig4", "dig5", "dig6", "cave"],
+  "coords_v148": { "dig1": [-340, 164], "dig2": [-28, 436], "dig3": [396, -460], "dig4": [-332, -580], "dig5": [420, 100], "dig6": [-628, -212], "cave": [90, 180] }
+}

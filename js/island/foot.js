@@ -10,6 +10,8 @@ import { buildBirds, buildCrabs, buildFlames, buildNets, grassMaterial, islandSu
 import { toon } from '../toon.js';
 import { kitMesh, pickHouse, HOUSE_VARIANTS } from './townkit.js';
 import * as CO from './coast.js';
+import { activeDigs } from './digSpots.js';
+import { AREA_TERRAIN, registerAreas, createAreas, FORT_WALKIN } from './areas/index.js'; // [island-rework] the six rework areas (lazy-built, per-area culling) // [island-rework] dig spots: one shared registry (baked coords; server lists generated from it)
 import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
 import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
@@ -50,7 +52,7 @@ const GATE = townToWorld(STREET.x, STREET.z1);
 const TRAIL_A = [GATE, [-380, -170], [-292, -262], [-170, -330], [-20, -400], [110, -330], [230, -262], [300, -150], [190, -100], [20, -150], [10, -40], [-120, -40], [-300, -64]];
 // [v105] coast mode: the west leg used to run ~500 m through the sea inlet (-280..0, 100..510); it now follows the inlet's east shore
 const TRAIL_B = [[-120, -40], ...(COASTM ? [[-150, 60], [-140, 170], [-100, 290], [-30, 400], [20, 500]] : [[-210, 60], [-282, 150], [-200, 290], [-60, 420]]), [40, 540], [150, 420], [232, 252], [196, 150], [130, 150], [40, 60], [-30, -10]];
-const ROPE_BRIDGE = { c: [16, -82] };                                                              // trail A over the river gorge
+const ROPE_BRIDGE = { c: [16, -82], a: [16, -103], b: [16, -64] }; // [island-rework] a / b = the deck ends as live builds them (pinned for the D3 approaches)                                                              // trail A over the river gorge
 
 // ---------- helpers ----------
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -178,6 +180,18 @@ for (const r of (typeof location !== 'undefined' && /[?&]ramps=0/.test(location.
   const j0 = Math.max(0, Math.floor((Math.min(r.az, r.bz) - 6 - Z0) / G)), j1 = Math.min(NZ, Math.ceil((Math.max(r.az, r.bz) + 6 - Z0) / G));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const [d, t] = segD(X0 + i * G, Z0 + j * G, r.ax, r.az, r.bx, r.bz), q = IDX(i, j); if (d > 5) continue;
     const w = 1 - sm(2.5, 5, d); Hg[q] += (r.ay + (r.by - r.ay) * t - Hg[q]) * w; TRg[q] = Math.min(TRg[q], d); } }
+// [island-rework] area terrain: flat floors (pads: [x0, x1, z0, z1, y], hard edges = chunky cut walls) + trails (painted + kept clear like trails A / B)
+// pads: [x0, x1, z0, z1, y, blend = 0]: blend > 0 eases the ground outside the rect into the floor over `blend` m (only where the floor is ABOVE it = a ramp up)
+for (const [x0, x1, z0, z1, y, bl = 0] of AREA_TERRAIN.pads) for (let j = Math.max(0, Math.floor((z0 - bl - Z0) / G)); j <= Math.min(NZ, Math.ceil((z1 + bl - Z0) / G)); j++) for (let i = Math.max(0, Math.floor((x0 - bl - X0) / G)); i <= Math.min(NX, Math.ceil((x1 + bl - X0) / G)); i++) {
+  const x = X0 + i * G, z = Z0 + j * G, d = Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1)), q = IDX(i, j);
+  if (d === 0) Hg[q] = y; else if (bl > 0 && d < bl && Hg[q] < y) Hg[q] += (y - Hg[q]) * (1 - sm(0, bl, d)); }
+// cuts: [ax, az, ay, bx, bz, by, hw]: lower the ground (never raise it) to just under a ramp / stair deck from a (y ay) to b (y by), so a
+// deck built over it always sits ON TOP (the area hides the cut with retaining walls). Only grid points within hw + G/2 are touched.
+for (const [ax, az, ay, bx, bz, by, hw] of AREA_TERRAIN.cuts || []) { const m = hw + G * 0.5;
+  for (let j = Math.max(0, Math.floor((Math.min(az, bz) - m - Z0) / G)); j <= Math.min(NZ, Math.ceil((Math.max(az, bz) + m - Z0) / G)); j++)
+    for (let i = Math.max(0, Math.floor((Math.min(ax, bx) - m - X0) / G)); i <= Math.min(NX, Math.ceil((Math.max(ax, bx) + m - X0) / G)); i++) {
+      const [d, t] = segD(X0 + i * G, Z0 + j * G, ax, az, bx, bz); if (d > m) continue; const q = IDX(i, j); Hg[q] = Math.min(Hg[q], ay + (by - ay) * t - 0.45); } }
+for (const p of AREA_TERRAIN.paths) { const path = catmull(p.pts, false, 3); stamp(path, 12, TRg); }
 // [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
 const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 export const WALK_RULES = { slope: +(QS.get('slope') || 1.25), trees: QS.get('trees') !== '0' };
@@ -500,9 +514,12 @@ const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
-export const DIG_HINTS = [[-306, 150, 1], [-82, 456, 2], [340, -360, 3], [-335, -580, 4], [421, 100, 5], [-631, -208, 6]];
+// [island-rework] now read from js/island/digSpots.js (active spots only, BAKED coords = today's beachNear() results, so no X moves)
+export const DIG_HINTS = activeDigs().map(d => [d.x, d.z, d.n]);
+const DIG_BAKED = new Set(DIG_HINTS.map(([x, z]) => x + ',' + z));
 // nearest sandy beach cell to a hint (dig sites)
-function beachNear(x, z) { let best = [x, z], bd = 1e9;
+function beachNear(x, z) { if (DIG_BAKED.has(x + ',' + z)) return [x, z]; // [island-rework] baked registry spot: used as-is (terrain edits can't move it)
+  let best = [x, z], bd = 1e9;
   for (let j = 0; j <= NZ; j += 2) for (let i = 0; i <= NX; i += 2) { const q = IDX(i, j), h = Hg[q]; if (h < 1.4 || h > 3.0 || SDg[q] > -6) continue;
     const px = X0 + i * G, pz = Z0 + j * G, d = (px - x) ** 2 + (pz - z) ** 2; if (d < bd) { bd = d; best = [px, pz]; } }
   return best; }
@@ -517,6 +534,22 @@ const CIRC = [], BOXES = [], CELL = 16, HASH = new Map();
 function hashAdd(o, x, z, r) { for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) { const k = i * 4096 + j; if (!HASH.has(k)) HASH.set(k, []); HASH.get(k).push(o); } }
 function addCirc(x, z, r) { const o = { t: 0, x, z, r }; CIRC.push(o); hashAdd(o, x, z, r); }
 function addBox(x, z, w, d, yaw) { const o = { t: 1, x, z, hx: w / 2, hz: d / 2, c: Math.cos(yaw), s: Math.sin(yaw) }; BOXES.push(o); hashAdd(o, x, z, Math.hypot(w, d) / 2); }
+// [island-rework] walkable area decks (fishing dock, stepping stones, temple floors ...): rect { x, z, hw, hl, yaw, y } or disc { x, z, r, y }
+export const AREA_DECKS = [];
+// decks: { x, z, r } disc or { x, z, hw, hl, yaw } box at y; a box deck can also be a STAIR / RAMP along its length (local +l = yaw
+// direction): prof = tread tops [y0, y1, ...] from the -hl end (equal treads), or y1 = a smooth ramp from y (at -hl) to y1 (at +hl)
+// [island-rework] smooth joins (BANKSY 5:50 PM "make it all transition smoothly"): a stair deck's WALK height is the line through its
+// tread centres (prof[k] at u = (k + 0.5) / n), pinned to d.ya / d.yb at the two ends (= the ground / deck it joins), so the walker
+// glides up the steps with no 0.2 m pops and meets the terrain / the next deck at the same height (walk test: <= 3 cm lips)
+function profAt(d, u) { const P = d.prof, n = P.length, t = u * n - 0.5; if (t <= 0) { const a = d.ya ?? P[0]; return a + (P[0] - a) * Math.min(1, Math.max(0, u * n * 2)); }
+  if (t >= n - 1) { const b = d.yb ?? P[n - 1]; return P[n - 1] + (b - P[n - 1]) * Math.min(1, Math.max(0, (u * n - (n - 0.5)) * 2)); }
+  const i = Math.floor(t), f = t - i; return P[i] + (P[i + 1] - P[i]) * f; }
+export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { const dx = x - d.x, dz = z - d.z;
+  if (d.r) { if (dx * dx + dz * dz <= d.r * d.r) y = Math.max(y ?? -1e9, d.y); continue; }
+  const l = dx * d.s + dz * d.c; if (Math.abs(dx * d.c - dz * d.s) > d.hw || Math.abs(l) > d.hl) continue;
+  const u = (l + d.hl) / (2 * d.hl); const yy = d.prof ? profAt(d, u) : d.y1 !== undefined ? d.y + (d.y1 - d.y) * u : d.y;
+  y = Math.max(y ?? -1e9, yy); } return y; }
+const addDeck = (d) => { AREA_DECKS.push({ ...d, c: Math.cos(d.yaw || 0), s: Math.sin(d.yaw || 0) }); };
 export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
 export function hitCollider(x, z, rad = 0.45) {
   const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)); if (!list) return false;
@@ -757,10 +790,11 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   // spectate spyglass on the mole deck (CO.SPYGLASS, walkable; the interact point is the same spot)
   at(CO.SPYGLASS.lx, CO.SPYGLASS.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.SPYGLASS.y);
   // fort at the top of Main Street: keep, curtain wall, 4 round towers, pirate flag
-  at(CO.FORT.lx, CO.FORT.lz, 0, () => { W(k, box(26, 7, 26), STONE, 11, M(0, 2.5, 0)); W(k, box(14, 18, 14), STONE_D, 11, M(0, 10.5, 0));
+  // [island-rework] FORT_WALKIN: js/island/areas/fort.js builds the walk-in fort (gate stair, courtyard, keep war room, ramparts) instead
+  if (!FORT_WALKIN) at(CO.FORT.lx, CO.FORT.lz, 0, () => { W(k, box(26, 7, 26), STONE, 11, M(0, 2.5, 0)); W(k, box(14, 18, 14), STONE_D, 11, M(0, 10.5, 0));
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { W(k, cyl(3.2, 3.6, 18, 12), STONE, 11, M(sx * 13, 7, sz * 13)); W(k, new THREE.ConeGeometry(4, 5, 12), ROOFS[0], 4, M(sx * 13, 18.5, sz * 13)); }
     W(k, cyl(0.2, 0.2, 12, 5), WOOD_D, 2, M(0, 25.5, 0), false); if (A.ppflag) { atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, 0.03)); atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, -0.03, Math.PI)); }
-    for (let i = 0; i < 4; i++) cannon(k, M(-6 + i * 4, 6.1, 13.4, 0)); }, null); { const [x, z] = T(CO.FORT.lx, CO.FORT.lz); addBox(x, z, 27, 27, yaw0); }
+    for (let i = 0; i < 4; i++) cannon(k, M(-6 + i * 4, 6.1, 13.4, 0)); }, null); if (!FORT_WALKIN) { const [x, z] = T(CO.FORT.lx, CO.FORT.lz); addBox(x, z, 27, 27, yaw0); }
   // battery on the cliff headland: [Timothy] js/island/battery.js (ramp up from the quay, parapets, shot piles, lamps, colliders; the 6 guns are createGuns)
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
@@ -928,7 +962,7 @@ export function buildInland(A, low, F) {
     for (let i = 0; i < 7; i++) boulder(k, p.x - 10 + hash(i, 3) * 6, p.z - 6 + i * 3, 1.4 + hash(i, 4) * 1.6, i); }
   // rope bridge over the gorge: jittered planks, rope rails + hangers, side netting, anchor posts with rope wraps
   { const c = ROPE_BRIDGE.c, deckY = H(c[0], c[1]) + 24, out = (dz) => { let z = c[1]; while (H(c[0], z) < deckY && Math.abs(z - c[1]) < 90) z += dz; return [c[0], z]; };
-    const [ax, az] = out(-1), [bx, bz] = out(1), L = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(bx - ax, bz - az), sag = Math.min(3.5, L * 0.05);
+    const [ax, az] = ROPE_BRIDGE.a || out(-1), [bx, bz] = ROPE_BRIDGE.b || out(1), L = Math.hypot(bx - ax, bz - az)  /* [island-rework] pinned to the live ends (v156: z -103 / -64) so the D3 approach cuts can't move them */, yaw = Math.atan2(bx - ax, bz - az), sag = Math.min(3.5, L * 0.05);
     Object.assign(BRIDGE, { ax, az, bx, bz, L, yaw, deckY, sag, half: 1.35 });
     const p = poi('bridge', 'Rope bridge over the gorge', (ax + bx) / 2, (az + bz) / 2, { deck: deckY });
     const n = Math.round(L / 0.62), cs = Math.cos(yaw), sn = Math.sin(yaw), Y = (t) => deckY - Math.sin(t * Math.PI) * sag;
@@ -1043,6 +1077,7 @@ export function buildInland(A, low, F) {
   for (const path of Object.values(TRAILS)) { let acc = 0; for (let i = 1; i < path.length; i++) { acc += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); if (acc > 45) { acc = 0;
     const [x, z] = path[i], dx = path[i][0] - path[i - 1][0], dz = path[i][1] - path[i - 1][1], n = Math.hypot(dx, dz) || 1, tx = x + dz / n * 3.2, tz = z - dx / n * 3.2; if (H(tx, tz) > 1) torchPost(k, F, tx, H(tx, tz), tz); } } }
   poi('gate', 'Town gate (trailhead A + B)', GATE[0], GATE[1]);
+  registerAreas({ H, poi, addCirc, addBox, addDeck, INTERACT, TRAILS, GATE, STREET, townToWorld }); // [island-rework] eager part of each area (POIs keep the foliage clear)
   for (const [id, ty, up, d0, d1] of [['skullpeak', 14, 2.2, 45, 120], ['gallows', 4, 1.7, 45, 120], ['falls', LAKE.y + 12 - H(-206, -186), 1.7, 60, 150]]) { const q = FOOT_POIS.find(p => p.id === id); q.view = vantage(q, q.y + ty, up, d0, d1); q.ty = q.y + ty; }
   return k;
 }
@@ -1166,6 +1201,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     root.add(buildCrabs(cs, uTime)); }
   // dig sites: mound -> dig -> chest rises + lid opens (local only, no rewards backend)
   const digs = DIGS.map(d => { const c = digChest(MATS, OUT, low); c.grp.position.set(d.x, d.y, d.z); c.cg.position.y = -1.6; root.add(c.grp); return { ...d, ...c, t: -1 }; });
+  const areas = createAreas({ root, MATS, OUT, low, uTime, H }); // [island-rework] lazy area meshes
   let lastP = new THREE.Vector3(1e9, 0, 0), lastG = new THREE.Vector3(1e9, 0, 0), allDone = false; const GROUP_R = low ? 260 : 900;
   const lightPick = new THREE.Vector3();
   function update(cam, t, opts = {}) {
@@ -1185,6 +1221,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     if (lights.length) { const near = F.map(f => [(f.x - cam.x) ** 2 + (f.z - cam.z) ** 2, f]).sort((a, b) => a[0] - b[0]);
       lights.forEach((l, i) => { const f = near[i] && near[i][1]; if (!f || near[i][0] > 90 * 90) { l.intensity = 0; return; } l.position.set(f.x, f.y + 0.6, f.z); l.intensity = (f.fire ? 30 : 18) * (0.85 + 0.15 * Math.sin(t * 13 + i * 1.7) + 0.08 * Math.sin(t * 23 + i)); }); }
     for (const g of lhs) tickLighthouse(g, t, opts.camW || cam, opts.storm || 0);
+    areas.update(cam, t, all);
     for (const d of digs) if (d.t >= 0) { const k = Math.min(1, (t - d.t) / 2.2); d.mound.scale.setScalar(Math.max(0.01, 1 - k)); d.cg.position.y = -1.6 + 1.7 * sm(0, 0.7, k); d.lid.rotation.x = -1.6 * sm(0.6, 1, k); d.mound.visible = k < 1; }
   }
   // gameplay hooks (world coords): solid props, water / slope / bridge rules, interact points
@@ -1192,8 +1229,10 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     if (along < -1 || along > B.L + 1 || Math.abs(across) > B.half + 0.6) return null; return { y: B.deckY - Math.sin(Math.min(1, Math.max(0, along / B.L)) * Math.PI) * B.sag, inside: Math.abs(across) <= B.half }; }
   // [Raul] dig mounds are walked ON (the beach one outside the plaza sank your feet 0.7 m into it): the mound's dome (r 1.9, 0.855 tall at d.y - 0.1, shrinks as it's dug)
   function moundAt(x, z, h) { for (const d of digs) { if (!d.mound.visible) continue; const s = d.mound.scale.x, r = Math.hypot(x - d.x, z - d.z) / (1.9 * s); if (r < 1) h = Math.max(h, d.y - 0.1 + 0.855 * s * Math.sqrt(1 - r * r)); } return h; }
-  function groundAt(x, z) { const b = bridgeAt(x, z); if (b) return b.y + 0.12; const h0 = H(x, z), w = COASTM ? BA.onPath(...CO.w2t(x, z)) : 0; // [Emerly] battle-area paths: walk on the drawn triangles
+  function groundAt(x, z) { const b = bridgeAt(x, z); if (b) return b.y + 0.12; const ad = AREA_DECKS.length ? areaDeckAt(x, z) : null; if (ad !== null) return ad; // [island-rework] area decks (docks, stairs, ramps, ramparts) ARE the floor
+    const h0 = H(x, z), w = COASTM ? BA.onPath(...CO.w2t(x, z)) : 0; // [Emerly] battle-area paths: walk on the drawn triangles
     const h = moundAt(x, z, w > 0 ? h0 + (Htri(x, z) - h0) * w : h0), c = coveDeckAt(x, z); return c !== null && c > h ? c : h; }
+  const DECK_STEP = 0.6; // [island-rework] the biggest step up onto / along an area deck (stair treads are <= 0.25)
   // [Raul] foot physics (BANKSY "fall off cliffs" + "float / swim"): you may now walk OFF any ledge (js/onfoot/physics.js drops you
   // with gravity) and into water (deeper than chest height = swim at the surface). Uphill keeps the v105 grade limit; out of the
   // water you can pull yourself up onto anything up to FOOT_SWIM.climb above the surface (shore rocks, the lake rim, low jetties).
@@ -1209,11 +1248,14 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     if (rise <= 0.02) return false;                                                                  // level / down: walk on, or drop off the edge (gravity)
     if (fs !== null && fs - fromG > 0.5 && toS <= fs + FOOT_SWIM.climb) return false;              // climbing out of the water
     const cd = coveDeckAt(x, z); if (cd !== null && cd >= h) return rise > FOOT_SWIM.step;          // onto the cove jetty: steps only
+    if (AREA_DECKS.length) { if (areaDeckAt(x, z) !== null) return rise > DECK_STEP;                  // [island-rework] onto / along an area deck: steps only
+      if (areaDeckAt(fx, fz) !== null && rise <= DECK_STEP) return false; }                         // deck -> ground
     if (coveDeckAt(fx, fz) !== null && rise <= FOOT_SWIM.step) return false;                       // jetty -> sand
     const ux = (x - fx) / d, uz = (z - fz) / d, e = Math.max(d, 0.1), g = (h - H(x - ux * e, z - uz * e)) / e;   // [v105] uphill grade of the step you just took
     return g > WALK_RULES.slope; }
   function whyBlocked(x, z, fx, fz) { const b = bridgeAt(x, z); if (b) return b.inside ? '' : 'rail';  // [v105] dev: reachability report
     if (hitCollider(x, z)) return 'prop'; const h = H(x, z);
+    if (AREA_DECKS.length && areaDeckAt(x, z) !== null) return blocked(x, z, fx, fz) ? 'deck step' : '';
     const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge';
     const surf = waterAt(x, z); if (surf !== null && seaLimit(x, z, h, surf)) return 'sea'; return blocked(x, z, fx, fz) ? 'slope' : ''; }
   function nearInteract(x, z) { let best = null, bd = 1e9; for (const q of INTERACT) { const d = Math.hypot(q.x - x, q.z - z); if (d < q.r && d < bd && !(q.used)) { bd = d; best = q; } } return best; }
@@ -1221,7 +1263,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { areas, root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

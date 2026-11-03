@@ -161,8 +161,11 @@ export async function createDock(ctx) {
     if (instant) fin(); else fadeTo(fin);
   }
   function setSail() { if (docking.setSail(P())) { const s = P(); s.anchor = false; s.sail = 1; toast('SET SAIL!'); } }
+  // [island-rework] what an area activity may do to you: a toast, or put you back at a spot (trap runs). Foot-frame coords.
+  const areaApi = { toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
+    if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); if (m) toast(m, 2800); return; } // [island-rework] area activities (cosmetic; gold behind areas/flags.js)
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
       case 'token': plaza.openToken(q.sym); break;
@@ -224,10 +227,11 @@ export async function createDock(ctx) {
     // prompts
     if (onFoot) {
       walker.update(dt); crewF?.update(dt, camera);
+      world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
       if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) best = { label: 'BOARD SHIP', fn: () => goAboard() };
-      if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used) continue; const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: treasure.label(q) || q.label, fn: () => interact(q) }; } }
+      if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used) continue; const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
       setActs(best ? { ...best, key: 'E', primary: true } : null, null);
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {

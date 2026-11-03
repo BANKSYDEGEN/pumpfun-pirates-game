@@ -11,6 +11,7 @@
 //   - the X is the REAL dig spot: v122's radar circle was centred 6-20 m off it on purpose (a fuzzy area seeded by the map id), and
 //     the X painted on the sand sat 4.3 m off the mound (js/island/foot.js); both now sit on the spot the DIG prompt + server use.
 import { createTreasureMap } from './treasureMap.js';
+import { validIds } from '../island/digSpots.js'; // [island-rework] the shared dig-spot registry (server lists are generated from it)
 const TIER = { common: ['COMMON MAP', '#e8cf95'], rare: ['RARE MAP', '#7fd0ff'], legendary: ['LEGENDARY MAP', '#ffcd3c'] };
 const RANK = { common: 0, rare: 1, legendary: 2 };
 const WHY = {
@@ -32,6 +33,9 @@ const CSS = `
 `;
 export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => true, getPos = () => null, sfx = null, low = false }) {
   const spots = new Map(world.footInteract.filter(q => q.kind === 'dig' || q.id === 'cave').map(q => [q.id, q]));
+  // [island-rework] every id the server accepts must have its X here (tools/check_digspots.py checks the positions too)
+  { const miss = validIds().filter(id => !spots.has(id)); if (miss.length) console.warn('[treasure] dig spots missing on this island:', miss.join(', ')); }
+  let warnedNew = false;
   let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false, pending = null;
   const toF = layout.harborToFoot;
   const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx });
@@ -75,6 +79,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     try { const r = await pv.maps.state(); if (!r || !r.ok) return;
       const had = new Set(maps.map(m => m.id));
       maps = (r.maps || []).filter(m => spots.has(m.spot)); recent = r.recent || [];
+      if (!warnedNew && (r.maps || []).some(m => !spots.has(m.spot))) { warnedNew = true; toast('A MAP POINTS TO A NEW PART OF THE ISLAND<br><small>reload to update the game</small>', 3200); } // [island-rework] old cached client
       if (sel && !maps.some(m => m.id === sel.id)) sel = null; if (!sel && maps.length) sel = maps[0];
       if ((r.new | 0) > 0) { const fresh = maps.filter(m => !had.has(m.id)).slice(-(r.new | 0)); queueReveal(fresh.length ? fresh : maps.slice(-(r.new | 0))); }
       renderUi(); } finally { loading = false; } }
@@ -100,5 +105,5 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     } finally { busy = false; }
     return true; }
   btn.innerHTML = '🗺 MAPS<b>0</b>';
-  return { tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap };
+  return { spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap };
 }

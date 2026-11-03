@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v159'; // [v159] battle areas: MUSKET RANGE + SWORD PIT ashore, SWORD SHOP + MUSKET SHOP on Main Street (cosmetic swords + muskets, 1v1 / 2v2, no rewards)
+const VERSION = 'pfp-v160'; // [v160] island rework: seamless joins (stair walk height = smooth line pinned to the ground / deck at both ends; rope bridge deck-end lips cut away, ends pinned to live) + tools/walktest
 const SHELL = [
   "./",
   "./index.html",
@@ -48,6 +48,8 @@ const SHELL = [
   "./js/island/art.js",
   "./js/island/bake.js",
   "./js/island/foot.js",
+  "./js/island/digSpots.js", // [v149] dig-spot registry (foot.js + dock/treasure.js import it)
+  "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader

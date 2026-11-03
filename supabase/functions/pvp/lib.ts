@@ -174,5 +174,6 @@ export function wavesProblem(score: number, wave: number, sunk: number, elapsed:
 
 // ---------------- [v105] TREASURE MAPS (BANKSY) ----------------
 // dig spots (js/island/foot.js DIGS ids; 'cave' = the Skull Peak treasure cave, legendary maps only). APPEND-ONLY.
-export const MAP_SPOTS = ["dig1", "dig2", "dig3", "dig4", "dig5", "dig6"];
-export const MAP_SPOTS_ALL = [...MAP_SPOTS, "cave"];
+// [island-rework] now GENERATED from the shared registry js/island/digSpots.js (tools/gen_digspots.mjs -> ./digSpots.ts); same values as before:
+// MAP_SPOTS = dig1..dig6, MAP_SPOTS_ALL = dig1..dig6 + cave. New island spots are registered OFF until each area ships.
+export { MAP_SPOTS, MAP_SPOTS_ALL } from "./digSpots.ts";
