@@ -35,7 +35,7 @@ export function createDocking({ berths, myId }) {
   // call every frame AFTER the normal ship move: overrides the pose while docking / docked / leaving
   function tick(s, dt) {
     if (st.mode === 'sea') return false;
-    const b = st.berth; st.t += dt; const k = Math.min(1, st.t / st.dur), e = sm(k);
+    const b = st.berth; if (!b && st.mode !== 'out') { st.mode = 'sea'; return false; } st.t += dt; const k = Math.min(1, st.t / st.dur), e = sm(k);   // [v131] never throw on a lost berth
     if (st.mode === 'in') {
       const u = 1 - e, x = u * u * st.from.x + 2 * u * e * st.ctl.x + e * e * b.x, z = u * u * st.from.z + 2 * u * e * st.ctl.z + e * e * b.z;
       pose(s, x, z, st.from.yaw + wrap(b.yaw - st.from.yaw) * e, (1 - e) * Math.max(1.5, Math.abs(st.from.speed)));
@@ -57,7 +57,10 @@ export function createDocking({ berths, myId }) {
   function onPeer(id, dk) {
     dk = peerBerth(dk);
     if (dk && byId.has(dk)) peers.set(id, { berth: dk, t: performance.now() }); else peers.delete(id);
-    if (st.berth && dk === st.berth.id && id < myId && (st.mode === 'in' || st.mode === 'docked')) { // they win: move over
+    // [v131] BANKSY "my ship drifted away": a docked ship used to give up its berth to any lower-id peer reporting it (even with you ashore),
+    // sailing itself to another berth / releasing to sea. A moored ship now keeps its berth; only a ship still coming in (or one that
+    // docked in the same instant, < 3 s, a race the lower id wins) moves over. Peers only report dk once moored.
+    if (st.berth && dk === st.berth.id && (st.mode === 'in' || (st.mode === 'docked' && st.t < 3 && id < myId))) { // they win: move over
       const alt = nearest(st.berth.x, st.berth.z, 400, true);
       if (alt) { const old = st.berth; st.berth = null; return { moved: alt, from: old }; }
       return { moved: null };
