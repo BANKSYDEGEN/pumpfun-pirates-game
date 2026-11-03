@@ -112,7 +112,8 @@ export class PirateGLB {
   constructor({ female = false, lod = 'hi', colors = null, v4 = false } = {}) {
     this.female = female; this.lod = lod; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
     this.decals = []; this.tinted = []; this.action = null; this.clip = null;
-    this.ready = loadPirateGLB((v4 ? PIRATE_GLB_V4 : PIRATE_GLB)[female ? 'female' : 'male'][lod]).then((g) => this._init(g, colors));
+    this._url = (v4 ? PIRATE_GLB_V4 : PIRATE_GLB)[female ? 'female' : 'male'][lod];
+    this.ready = loadPirateGLB(this._url).then((g) => this._init(g, colors));
   }
   _init(gltf, colors) {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
@@ -126,13 +127,16 @@ export class PirateGLB {
     if (this.v5) for (const o of this.atlasMeshes) { o.userData.v5 = true; try { this.warp ||= JSON.parse(o.userData.v5warp || 'null'); } catch {} } // [v121]
     if (this.v5 && this.warp) for (const o of this.atlasMeshes) o.userData.warp = this.warp;
     if (low) this._mergeLow(scene);
+    // [v123] v5 bodies are an AI sculpt with some faces wound inward: draw both sides (front-only showed HOLLOW pirates / crew followers)
+    if (this.v5) scene.traverse((o) => { if (o.isMesh && !/ink/i.test(o.name)) for (const m of [o.material].flat()) if (m && m.name !== 'ink') { m.side = THREE.DoubleSide; m.needsUpdate = true; } });
     // [v115] iris tint: the face decal's light-blue iris (both tones) is re-coloured in the shader, sclera / pupil / lids / glints untouched
     this._iris = { value: new THREE.Color(1, 1, 1) }; this._irisOn = { value: 0 };
     scene.traverse((o) => { if (!o.isMesh || !/face/i.test(o.name)) return; for (const m of [o.material].flat()) if (m?.map) irisPatch(m, this._iris, this._irisOn); });
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
     this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, a]));
-    this.play('idle'); return this;
+    this.play('idle');
+    return this;
   }
   // Low (exported from Blender already merged): 'pirate_lo_body' = ONE smooth-skinned mesh (T-pose bind), ONE atlas with baked AO + soft light in
   // the albedo, COLOR_0 = tint colour, '_tint' = tint key index (TINTS) -> unlit material, retint = rewrite COLOR_0.

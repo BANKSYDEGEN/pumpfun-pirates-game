@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadPirateGLB, PIRATE_GLB, TINTS } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
+import { skullTexture } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -49,6 +50,15 @@ function bake(gltf, clipName, time, slot) {
   if (face) { const g = face.geometry.index ? face.geometry.toNonIndexed() : face.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv; _n3.getNormalMatrix(face.matrixWorld);
     for (let i = 0; i < P.count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(face.matrixWorld); out.pos.push(_v.x, _v.y, _v.z); _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
       out.uv.push(U.getX(i) + slot + 4, U.getY(i)); out.col.push(1, 1, 1); out.tint.push(-1); out.part.push(0); } }
+  { // [v123] smooth crew normals: weld by position + 2 neighbour passes. The v5 hair is a spiky sculpt; per-face normals made the
+    // crew shader's inked rim / light bands speckle it ("shredded" hair, white shoulder patches). Shape is untouched.
+    const P = out.pos, N = out.nrm, n = P.length / 3, key = new Int32Array(n), map = new Map(); let K = 0;
+    for (let i = 0; i < n; i++) { const k = Math.round(P[i * 3] * 400) + ',' + Math.round(P[i * 3 + 1] * 400) + ',' + Math.round(P[i * 3 + 2] * 400);
+      let id = map.get(k); if (id === undefined) { id = K++; map.set(k, id); } key[i] = id; }
+    let acc = new Float32Array(K * 3); for (let i = 0; i < n; i++) for (let a = 0; a < 3; a++) acc[key[i] * 3 + a] += N[i * 3 + a];
+    const nb = Array.from({ length: K }, () => new Set()); for (let v = 0; v + 2 < n; v += 3) { const a = key[v], b = key[v + 1], c = key[v + 2]; nb[a].add(b).add(c); nb[b].add(a).add(c); nb[c].add(a).add(b); }
+    for (let it = 0; it < 2; it++) { const nx = acc.slice(); for (let k = 0; k < K; k++) for (const j of nb[k]) { const l = Math.hypot(acc[j * 3], acc[j * 3 + 1], acc[j * 3 + 2]) || 1; for (let a = 0; a < 3; a++) nx[k * 3 + a] += acc[j * 3 + a] / l * 0.5; } acc = nx; }
+    for (let i = 0; i < n; i++) { const k = key[i], l = Math.hypot(acc[k * 3], acc[k * 3 + 1], acc[k * 3 + 2]) || 1; for (let a = 0; a < 3; a++) N[i * 3 + a] = acc[k * 3 + a] / l; } }
   { // [v122] v5 hotfix: the decimated Low body has a few triangles wound against their normals; crews render front faces only -> holes. Re-wind them.
     const P = out.pos, N = out.nrm, sw = (a, s, i, j) => { for (let k = 0; k < s; k++) { const x = a[i * s + k]; a[i * s + k] = a[j * s + k]; a[j * s + k] = x; } };
     for (let v = 0; v + 2 < P.length / 3; v += 3) { const i = v * 3;
@@ -75,7 +85,7 @@ export function initCrewV4() {
       let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < idle.out.pos.length; i += 3) { y0 = Math.min(y0, idle.out.pos[i]); y1 = Math.max(y1, idle.out.pos[i]); }
       const k = CREW_H / (y1 - y0);
       if (sex === 'm') { if (idle.hip) hipY = (idle.hip.y - y0) * k; if (idle.sh) shY = (idle.sh.y - y0) * k; if (idle.head) eyeY = (idle.head.y - y0) * k + 0.12; }
-      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1];
+      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1] || (slot === 0 ? skullTexture() : null); // [v123] v5 has no face decal: slot tF0 = the hat skull
     }
     for (const t of tex) if (t) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; }
     V4 = { tpl, tex, hipY, shY, eyeY }; return V4;
@@ -127,7 +137,8 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       if (!meshes.length) return null;
       out[sex] = {};
       const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
-      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks(meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown)));
+      const decals = Object.values(p.items || {}).map((it) => it.decal).filter((o) => o?.isSkinnedMesh && o.parent); // [v123] the PUMPFUN skull on the hat (crew slot tF0)
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown)), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
     }
     return out;
   })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
@@ -138,7 +149,7 @@ function joinChunks(cs) { // [Timothy] several baked chunks -> one (same layout)
   for (const k of ['pos', 'nrm', 'col', 'uv', 'part', 'vel']) { const n = cs.reduce((a, c) => a + c[k].length, 0), a = new Float32Array(n); let off = 0; for (const c of cs) { a.set(c[k], off); off += c[k].length; } o[k] = a; }
   return o;
 }
-function bakeGear(p, mesh, pose, T, plain = false, velvet = false) { // plain: no stripe uv (Raul's items: vertex colour only)
+function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false) { // plain: no stripe uv (Raul's items: vertex colour only)
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
   p.scene.updateMatrixWorld(true); mesh.skeleton.update();
@@ -156,8 +167,9 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false) { // plain: n
       for (let e = 0; e < 16; e++) _m.elements[e] += _t.elements[e] * w; if (w > bw) { bw = w; best = j; } }
     full.copy(mesh.matrixWorld).multiply(mesh.bindMatrixInverse).multiply(_m).multiply(mesh.bindMatrix); _n3.setFromMatrix4(full);
     _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z;
-    col[q * 3] = C.getX(i); col[q * 3 + 1] = C.getY(i); col[q * 3 + 2] = C.getZ(i);
-    uv[q * 2] = 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
+    col[q * 3] = C ? C.getX(i) : 1; col[q * 3 + 1] = C ? C.getY(i) : 1; col[q * 3 + 2] = C ? C.getZ(i) : 1;
+    uv[q * 2] = decal ? 4 + Math.min(0.999, U.getX(i)) : 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
+    if (decal) { col[q * 3] = col[q * 3 + 1] = col[q * 3 + 2] = 1; }
     part[q] = PARTN[bn(bones[best]?.name)] || 0; if (TT && Math.round(TT.getX(i)) === iA) vel[q] = 1;
   }
   return { pos, nrm, col, uv, part, vel };

@@ -116,7 +116,15 @@ const RAUL = {
   'outfit:shirt':  ['outfit', 'shirt', (g, c) => ({ shirt: outfitColors('shirt', c).cloth })],
   'outfit:suit':   ['outfit', 'suit', (g, c) => { const o = outfitColors('suit', c); return { coat: o.cloth, accent: o.trim }; }],
 };
-const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit'];
+// [v123] v5 bodies: Raul's per-body fits (raul_polish) replace these merged pieces (js/pirateItems.js v5only items)
+const RAUL5 = {
+  'hat:bicorne':   ['head', 'hat_bicorne', (g) => ({ 1: hatColorHex('bicorne', g.hatColor) })],
+  'hat:bandana':   ['head', 'hat_bandana', (g) => ({ 1: hatColorHex('bandana', g.hatColor) })],
+  'eyes:eyepatch': ['eyes', 'eyes_eyepatch', null],
+  'eyes:laser':    ['eyes', 'eyes_vr', null],
+};
+const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
+const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes'];
 const rv = (v, g) => (typeof v === 'function' ? v(g) : v);
 // clothes: which body skin they cover (bind pose, three space: y up, +z front; belt top y 0.49, wrist |x| 0.555)
 const OUTFITS = {
@@ -390,7 +398,7 @@ function buildGearGeometry(p, body, gear, lib, colors) {
   const W5 = body.userData.warp || null, _w5 = [0, 0, 0];
   const toBody = new THREE.Matrix4().copy(body.matrixWorld).invert().multiply(p.scene.matrixWorld), nm3 = new THREE.Matrix3().getNormalMatrix(toBody), v = new THREE.Vector3(), c = new THREE.Color();
   for (const slot of ['hat', 'eyes', 'parrot', 'hook']) {
-    const pc = PIECES[`${slot}:${gear[slot]}`]; if (!pc) continue;
+    const pc = PIECES[`${slot}:${gear[slot]}`]; if (!pc || (p.v5 && RAUL5[`${slot}:${gear[slot]}`])) continue;
     for (const mesh of pc[0]) {
     const src = lib?.[mesh]; if (!src) continue;
     const pal = pc[2] ? pc[2](gear) : null, fx = pc[3] || {}, bi = boneIx(pc[1]), n = src.n;
@@ -437,7 +445,7 @@ function goldHook(obj) {   // the gold hook = Raul's hook with its steel turned 
 }
 function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
-  for (const slot of Object.keys(GEAR_DEFAULTS)) { const r = RAUL[`${slot}:${gear[slot]}`]; if (r) want[rv(r[0], gear)] = r; }
+  for (const slot of Object.keys(GEAR_DEFAULTS)) { const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }
   for (const rs of RAUL_SLOTS) {
     const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
     if ((p.raulKeys[rs] || '') === k) continue; p.raulKeys[rs] = k;
