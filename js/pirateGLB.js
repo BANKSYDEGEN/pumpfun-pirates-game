@@ -10,10 +10,44 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
+// [v121] BANKSY "Push them in game for now": the v5 bases (turnaround-sheet look, painted anime eyes, pill tattoo) on the SAME v4
+// armature + clips, same layout ('pirate_{hi,lo}_body' atlas x COLOR_0 + _TINT; skin / hair / shirt tint keys), plus 'v5_face_eyes'
+// (iris tint, setIris) and 'v5_tattoo' (alpha decal). Players (on foot, captain, remote, shop thumbs) use v5; the baked ship crew keeps v4.
 export const PIRATE_GLB = {
+  male: { hi: 'assets/pirates/pirate_male_v5_hi.glb', lo: 'assets/pirates/pirate_male_v5_lo.glb' },
+  female: { hi: 'assets/pirates/pirate_female_v5_hi.glb', lo: 'assets/pirates/pirate_female_v5_lo.glb' },
+};
+export const PIRATE_GLB_V4 = {
   male: { hi: 'assets/pirates/pirate_male_hi.glb', lo: 'assets/pirates/pirate_male_lo.glb' },
   female: { hi: 'assets/pirates/pirate_female_hi.glb', lo: 'assets/pirates/pirate_female_lo.glb' },
 };
+// [v121] v5 GEAR WARP: every hat / eyewear / hook / peg / garment was authored on the v4 body. The v5 body keeps its own sculpted
+// proportions (uniform scale only), so gear is mapped v4 bind space -> v5 bind space instead: heights by landmarks (feet, arm line,
+// eye line, crown), arms compressed past the shoulder to the shorter v5 arm, the face plane moved to the v5 face, hats scaled to
+// the bigger v5 hair. W = the body's 'v5warp' extras (tools: brand/v5 rig.py). v5Inv = the way back (hide rules, clothes shells).
+const lerpA = (v, A, B) => { if (v <= A[0]) return B[0] + (v - A[0]) * ((B[1] - B[0]) / (A[1] - A[0] || 1)); for (let i = 1; i < A.length; i++) if (v <= A[i] || i === A.length - 1) { const t = (v - A[i - 1]) / ((A[i] - A[i - 1]) || 1); return B[i - 1] + t * (B[i] - B[i - 1]); } return v; };
+const sstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+const bandW = (W, y) => sstep(W.band[0] - 0.05, W.band[0] + 0.02, y) * (1 - sstep(W.band[1] - 0.02, W.band[1] + 0.05, y));
+export function v5Fwd(W, x, y, z, hat = false, out = [0, 0, 0]) {
+  const s0 = W.sh * 0.85, ax = Math.abs(x); let nx = x;
+  if (ax > s0) { const w = Math.min(1, (ax - s0) / (W.sh * 0.3)) * bandW(W, y); nx = Math.sign(x) * (s0 + (ax - s0) * (1 + (W.armK - 1) * w)); }
+  const ny = lerpA(y, W.a4, W.a5), hw = sstep(W.neck, W.neck + 0.08, y); let nz = z + hw * W.faceDz, fx = nx, fy = ny;
+  if (hat) { const cx = W.headC[0], cy = W.a5[2], cz = W.headC[1] + W.faceDz * 0; fx = cx + (nx - cx) * W.hatS; fy = cy + (ny - cy) * W.hatS; nz = cz + (nz - cz) * W.hatS; }
+  out[0] = fx; out[1] = fy; out[2] = nz; return out;
+}
+export function v5Inv(W, x, y, z, out = [0, 0, 0]) {
+  const y4 = lerpA(y, W.a5, W.a4), s0 = W.sh * 0.85, ax = Math.abs(x); let a = ax;
+  if (ax > s0) { const b = bandW(W, y4); for (let k = 0; k < 4; k++) { const w = Math.min(1, (a - s0) / (W.sh * 0.3)) * b; a = s0 + (ax - s0) / (1 + (W.armK - 1) * w); } }
+  out[0] = Math.sign(x) * a; out[1] = y4; out[2] = z - sstep(W.neck, W.neck + 0.08, y4) * W.faceDz; return out;
+}
+// per-hat seat on the v5 hair after the warp (scale about the head centre, drop dy, push dz, tilt rx back): tuned on the gear grid
+export const V5_HAT_FIT = { bandana: { s: 1, dy: 0, dz: 0, rx: 0 }, tricorn: { s: 1, dy: 0, dz: 0, rx: 0 }, bicorne: { s: 1, dy: 0, dz: 0, rx: 0 }, crown: { s: 1, dy: 0, dz: 0, rx: 0 } };
+export function v5Hat(W, id, p) {   // p = [x, y, z] already warped; in place
+  const F = V5_HAT_FIT[id]; if (!F) return p; const cx = W.headC[0], cy = W.a5[2], cz = W.headC[1];
+  let x = cx + (p[0] - cx) * F.s, y = cy + (p[1] - cy) * F.s, z = cz + (p[2] - cz) * F.s;
+  if (F.rx) { const c = Math.cos(F.rx), s = Math.sin(F.rx), yy = y - cy, zz = z - cz; y = cy + yy * c + zz * s; z = cz - yy * s + zz * c; }
+  p[0] = x; p[1] = y - F.dy; p[2] = z + F.dz; return p;
+}
 export const TINTS = ['skin', 'hair', 'coat', 'accent', 'hat', 'pants', 'boots', 'shirt'];
 export const PIRATE_CLIPS = ['idle', 'walk', 'run', 'cannon', 'steer'];
 // face / mouth decal atlases are 2 x 2: neutral | shout / hurt | blink  -> UV offset per expression
@@ -75,10 +109,10 @@ function irisPatch(m, uIris, uOn) {
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
-  constructor({ female = false, lod = 'hi', colors = null } = {}) {
+  constructor({ female = false, lod = 'hi', colors = null, v4 = false } = {}) {
     this.female = female; this.lod = lod; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
     this.decals = []; this.tinted = []; this.action = null; this.clip = null;
-    this.ready = loadPirateGLB(PIRATE_GLB[female ? 'female' : 'male'][lod]).then((g) => this._init(g, colors));
+    this.ready = loadPirateGLB((v4 ? PIRATE_GLB_V4 : PIRATE_GLB)[female ? 'female' : 'male'][lod]).then((g) => this._init(g, colors));
   }
   _init(gltf, colors) {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
@@ -88,6 +122,9 @@ export class PirateGLB {
       for (const m of [o.material].flat()) { if (m.userData?.decal) this.decals.push(m); else if (m.userData?.tint) this.tinted.push(m); }
     });
     this.atlasMeshes = []; scene.traverse((o) => { if (o.isSkinnedMesh && o.geometry.attributes._tint) this.atlasMeshes.push(o); });
+    this.v5 = false; this.warp = null; scene.traverse((o) => { if (/^v5_/.test(o.name)) this.v5 = true; });
+    if (this.v5) for (const o of this.atlasMeshes) { o.userData.v5 = true; try { this.warp ||= JSON.parse(o.userData.v5warp || 'null'); } catch {} } // [v121]
+    if (this.v5 && this.warp) for (const o of this.atlasMeshes) o.userData.warp = this.warp;
     if (low) this._mergeLow(scene);
     // [v115] iris tint: the face decal's light-blue iris (both tones) is re-coloured in the shader, sclera / pupil / lids / glints untouched
     this._iris = { value: new THREE.Color(1, 1, 1) }; this._irisOn = { value: 0 };
@@ -102,7 +139,7 @@ export class PirateGLB {
   _mergeLow(scene) {
     scene.traverse((o) => {
       if (!o.isSkinnedMesh) return;
-      o.material = new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo' }); o.frustumCulled = false; this.lowMesh = o;
+      const at = o.material.alphaTest || 0; o.material = new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', alphaTest: at }); o.frustumCulled = false; if (o.geometry.attributes._tint) this.lowMesh = o; // [v121] v5: + eyes / tattoo meshes (tattoo keeps its alpha cut-out)
     });
   }
   // retint by ship skin / creator colours: { coat, accent, skin, hair, ... }

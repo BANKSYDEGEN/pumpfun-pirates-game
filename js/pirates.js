@@ -26,7 +26,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
   root.userData.bodyFromGear = bodyFromGear;
   let ticket = 0;
   const build = (fem) => { const tk = ++ticket; root.userData.bodyF = fem;
-    return PirateGLB.create({ female: fem, lod: low ? 'lo' : 'hi', colors: lookColors(look) }).then((p) => {
+    return PirateGLB.create({ female: fem, lod: low ? 'lo' : 'hi', colors: bodyFromGear ? null : lookColors(look) }).then((p) => { // [v121] players keep the v5 drawn skin / hair as DEFAULT (picks: setBodyLook)
       if (root.userData.disposed || tk !== ticket) { try { p.dispose?.(); } catch {} return null; }   // a newer pick won
       const box = new THREE.Box3().setFromObject(p.root), h = Math.max(0.01, box.max.y - box.min.y);
       p.root.scale.setScalar(height / h); p.root.position.y = -box.min.y * height / h;

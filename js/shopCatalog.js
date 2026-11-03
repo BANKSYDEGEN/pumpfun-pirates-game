@@ -54,7 +54,7 @@ export const GEAR_ITEMS = [
   { slot: 'eyes', id: 'plain', label: 'NONE', price: 0, glb: null, tint: null, free: true }, // = face 'plain' (free)
   { slot: 'eyes', id: 'eyepatch', label: 'EYE PATCH', price: 200, glb: 'gear', tint: null },
   { slot: 'eyes', id: 'sunglasses', label: 'SHADES', price: 500, glb: 'gear', tint: null },
-  { slot: 'eyes', id: 'laser', label: 'LASER EYES', price: 3000, glb: 'gear', tint: null },
+  { slot: 'eyes', id: 'laser', label: 'VR GOGGLES', price: 3000, glb: 'gear', tint: null },   // [v121] BANKSY: laser eyes removed, VR GOGGLES in their place (same id + price: owners keep it)
   { slot: 'parrot', id: 'none', label: 'NO PARROT', price: 0, glb: null, tint: null, free: true },
   { slot: 'parrot', id: 'parrot_green', label: 'GREEN PARROT', price: 2000, glb: 'gear', tint: { body: '#3fd16a' } },
   { slot: 'parrot', id: 'parrot_red', label: 'RED MACAW', price: 5000, glb: 'gear', tint: { body: '#e8231d' } },

@@ -10,7 +10,7 @@
 //   unequip(p, 'head') // or unequip(p, 'crown');  equipped(p) -> { head: 'crown', outfit: 'suit' };  p.update(dt) also ticks the parrot.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
+import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
 
 const DIR = 'assets/pirates/items/', HY = 1.12;
 export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder'];
@@ -26,9 +26,11 @@ export const ITEMS = [
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }]),
   item('peg_r', 'Peg Leg (Right)', 'legR', 400, { boots: '#221a16' }, [{ leg: 'R', y: 0.225, tints: ['pants'] }, { leg: 'R', y: 0.3, tints: ['boots', 'fixed'] }]),
   item('shirt', 'Pirate Shirt', 'outfit', 300, { shirt: '#f4efe3' }, [{ all: 1, tints: ['shirt'], lod: 'hi' }, { torso: [0.47, 0.62], tints: ['skin'], female: 1 }, { torso: [0.47, 0.54], tints: ['skin'], male: 1 }, { torso: [0.47, 0.86], back: 1, tints: ['skin'] },
-    { arm: 'L', s: [0.04, 0.18], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.18], tints: ['skin'] }], { perBase: true }),
+    { arm: 'L', s: [0.04, 0.18], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.18], tints: ['skin'] },
+    { v5: 1, v5torso: [0.36, 0.95, 0.16], vneck: 0.62, tints: ['skin', 'shirt'] }], { perBase: true }),   // [v121] v5: the body under the shirt
   item('suit', "Captain's Coat", 'outfit', 900, { coat: '#b3201f', accent: '#1d2a52' }, [{ all: 1, tints: ['shirt'] }, { torso: [0.47, 0.75], tints: ['skin'], female: 1 }, { torso: [0.47, 0.59], tints: ['skin'], male: 1 }, { torso: [0.47, 0.86], back: 1, tints: ['skin'] },
-    { arm: 'L', s: [0.04, 0.3], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.3], tints: ['skin'] }], { perBase: true }),
+    { arm: 'L', s: [0.04, 0.3], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.3], tints: ['skin'] },
+    { v5: 1, v5torso: [0.36, 0.95, 0.28], vneck: 0.66, tints: ['skin', 'shirt'] }], { perBase: true }),   // [v121] v5: the body under the coat
   item('parrot', 'Parrot', 'shoulder', 1500, null, [],
     { attach: { bone: 'spine', feet: [0.242, 0.916, -0.016], offset: { male: [0, 0, 0], female: [0.05, -0.034, 0.0] }, lean: { male: 0, female: -0.42 } }, clip: 'parrot_idle' }),
 ];
@@ -37,10 +39,14 @@ export const itemsForSlot = (slot) => ITEMS.filter((d) => d.slot === slot);
 
 const TI = (k) => (k === 'fixed' ? -1 : TINTS.indexOf(k));
 const sArm = (x, y, sx) => (x - sx * 0.215) * sx * Math.sin(1.48) + (y - 0.86) * -Math.cos(1.48);   // distance along the T-pose arm from the shoulder
-function ruleHit(r, x, y, z, t, female, lod) {
+function ruleHit(r, x, y, z, t, female, lod, v5 = false) {
+  if (r.v5 && !v5) return false;   // [v121] rules for the v5 bodies only
   if (r.female && !female) return false;
   if (r.male && female) return false;
-  if (r.lod && r.lod !== lod) return false;   // Low keeps the wrap top under the shirt (its chest skin is baked dark under it)
+  if (r.lod && r.lod !== lod && !v5) return false;   // v5: the base top hides under the shirt / coat on BOTH LODs
+  if (r.v5torso) { const [y0, y1, s1] = r.v5torso; if (y < y0 || y > y1) return false;   // v5 torso (+ upper arms to s1) under a garment, front V-neck kept
+    if (r.vneck && z > 0 && Math.abs(x) < 0.075 && y > r.vneck) return false;
+    if (Math.abs(x) < 0.2) return true; if (!s1) return false; const s = sArm(x, y, x > 0 ? 1 : -1); return s < s1; }   // Low keeps the wrap top under the shirt (its chest skin is baked dark under it)
   if (r.tints && !r.tints.some((k) => TI(k) === t)) return false;
   if (r.all) return true;
   if (r.cyl) { const [cx, cz, rr] = r.cyl, dx = x - cx, dz = z - cz; return dx * dx + dz * dz < rr * rr && y > r.y[0] + (r.tilt || 0) * z && y < r.y[1]; }
@@ -63,7 +69,8 @@ function applyHide(p) {
     const g = ownGeometry(o), base = g.userData.baseIndex;
     if (!rules.length) { g.setIndex(base); continue; }
     const P = g.attributes.position, Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { const t = Tt ? Math.round(Tt.getX(i)) : -1; for (const r of rules) if (ruleHit(r, P.getX(i), P.getY(i), P.getZ(i), t, p.female, p.lod)) { hid[i] = 1; break; } }
+    for (let i = 0; i < n; i++) { const t = Tt ? Math.round(Tt.getX(i)) : -1; let X = P.getX(i), Y = P.getY(i), Z = P.getZ(i); if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
+      for (const r of rules) if (ruleHit(r, X, Y, Z, t, p.female, p.lod, !!p.v5)) { hid[i] = 1; break; } }
     const src = base.array, out = [];
     for (let i = 0; i < src.length; i += 3) if (!(hid[src[i]] && hid[src[i + 1]] && hid[src[i + 2]])) out.push(src[i], src[i + 1], src[i + 2]);
     g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1));
@@ -90,7 +97,7 @@ async function build(p, def, opts) {
   const body = p.atlasMeshes[0], skel = body.skeleton, names = skel.bones.map((b) => b.name);
   if (def.attach) {  // parrot: own rig + clip, rides a pirate bone (bind space -> bone space via that bone's inverse bind matrix)
     const sc = SkeletonUtils.clone(gltf.scene); sc.traverse((o) => { if (o.isMesh) { const g = o.geometry.clone(); retint(g, opts.colors); o.geometry = g; o.material = itemMaterial(o.material, low); o.frustumCulled = false; } });
-    const A = def.attach, bi = names.indexOf(A.bone), off = A.offset?.[base] || [0, 0, 0], f = A.feet || [0, 0, 0], holder = new THREE.Group(); holder.name = 'item_' + def.id; holder.matrixAutoUpdate = false;
+    const A = def.attach, bi = names.indexOf(A.bone), off0 = A.offset?.[base] || [0, 0, 0], off = p.warp ? (() => { const f0 = A.feet || [0, 0, 0], q = v5Fwd(p.warp, f0[0] + off0[0], f0[1] + off0[1], f0[2] + off0[2]); return [q[0] - f0[0], q[1] - f0[1], q[2] - f0[2]]; })() : off0, f = A.feet || [0, 0, 0], holder = new THREE.Group(); holder.name = 'item_' + def.id; holder.matrixAutoUpdate = false;
     const M = new THREE.Matrix4(), lean = new THREE.Matrix4().makeTranslation(f[0], f[1], f[2]).multiply(M.makeRotationZ(A.lean?.[base] || 0)).multiply(new THREE.Matrix4().makeTranslation(-f[0], -f[1], -f[2]));
     holder.matrix.copy(skel.boneInverses[bi]).multiply(new THREE.Matrix4().makeTranslation(off[0], off[1], off[2])).multiply(lean).multiply(body.bindMatrix); holder.add(sc); skel.bones[bi].add(holder);
     const mixer = new THREE.AnimationMixer(sc), clip = gltf.animations.find((a) => a.name === def.clip) || gltf.animations[0];
@@ -98,7 +105,12 @@ async function build(p, def, opts) {
     return { obj: holder, mixer };
   }
   let src = null; gltf.scene.traverse((o) => { if (!src && o.isSkinnedMesh) src = o; });
-  let geo = remapped(url, src, names); if (opts.colors) { geo = geo.clone(); retint(geo, opts.colors); }
+  let geo = remapped(url, src, names); if (opts.colors || p.warp) { geo = geo.clone(); if (opts.colors) retint(geo, opts.colors); }
+  if (p.warp) {   // [v121] v4-authored item -> the v5 body (heights, shorter arms, face plane, hat seat)
+    const P = geo.attributes.position.clone(), q = [0, 0, 0], hat = def.slot === 'head', hid = def.id === 'hat_tricorn' ? 'tricorn' : def.id;
+    for (let i = 0; i < P.count; i++) { v5Fwd(p.warp, P.getX(i), P.getY(i), P.getZ(i), hat, q); if (hat) v5Hat(p.warp, hid, q); P.setXYZ(i, q[0], q[1], q[2]); }
+    geo.setAttribute('position', P); geo.computeBoundingSphere();
+  }
   const m = new THREE.SkinnedMesh(geo, itemMaterial(src.material, low)); m.name = 'item_' + def.id; m.frustumCulled = false;
   body.parent.add(m); m.bind(skel, body.bindMatrix); return { obj: m };
 }

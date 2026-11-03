@@ -8,7 +8,7 @@
 // Textures (body atlas + face decal, male + female) ride in the same material: uv.x carries a texture slot offset.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, PIRATE_GLB, TINTS } from './pirateGLB.js';
+import { loadPirateGLB, PIRATE_GLB, TINTS } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -25,9 +25,13 @@ function bake(gltf, clipName, time, slot) {
   const clip = gltf.animations.find(a => a.name === clipName) || gltf.animations.find(a => a.name === 'idle');
   if (clip) { const mx = new THREE.AnimationMixer(scene); mx.clipAction(clip).play(); mx.update(Math.min(time, clip.duration * 0.999)); }
   scene.updateMatrixWorld(true);
-  let body = null, face = null; scene.traverse(o => { if (o.isSkinnedMesh && !body) body = o; else if (o.isMesh && !o.isSkinnedMesh && !face) face = o; });
+  let body = null, face = null; const extra = [];
+  scene.traverse(o => { if (o.isSkinnedMesh && o.geometry.attributes._tint && !body) body = o; else if (o.isSkinnedMesh && /^v5_face/.test(o.name)) extra.push(o); else if (o.isMesh && !o.isSkinnedMesh && !face) face = o; });
+  if (!body) scene.traverse(o => { if (o.isSkinnedMesh && !body) body = o; });
   body.skeleton.update();
   const out = { pos: [], nrm: [], uv: [], col: [], tint: [], part: [] };
+  for (const src of [body, ...extra]) { // [v121] v5: the painted eyes are their own skinned mesh on the SAME atlas layout -> baked in with the body
+  const body = src;
   { const g = body.geometry = body.geometry.index ? body.geometry.toNonIndexed() : body.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv,
       Cc = g.attributes.color, T = g.attributes._tint, J = g.attributes.skinIndex, W = g.attributes.skinWeight, bm = body.skeleton.boneMatrices;
     const full = new THREE.Matrix4();
@@ -41,7 +45,7 @@ function bake(gltf, clipName, time, slot) {
       out.uv.push(U ? U.getX(i) + slot : -1, U ? U.getY(i) : -1);
       out.col.push(Cc ? Cc.getX(i) : 1, Cc ? Cc.getY(i) : 1, Cc ? Cc.getZ(i) : 1); out.tint.push(T ? Math.round(T.getX(i)) : -1);
       out.part.push(PARTN[bn(body.skeleton.bones[best]?.name)] || 0);
-    } }
+    } } }
   if (face) { const g = face.geometry.index ? face.geometry.toNonIndexed() : face.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv; _n3.getNormalMatrix(face.matrixWorld);
     for (let i = 0; i < P.count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(face.matrixWorld); out.pos.push(_v.x, _v.y, _v.z); _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
       out.uv.push(U.getX(i) + slot + 4, U.getY(i)); out.col.push(1, 1, 1); out.tint.push(-1); out.part.push(0); } }

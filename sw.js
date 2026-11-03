@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v120'; // [v120] eyes: blue default again
+const VERSION = 'pfp-v121'; // [v121] v5 pirates (BANKSY's turnaround bodies) for players + crews
 const SHELL = [
   "./",
   "./index.html",
@@ -169,6 +169,10 @@ const ASSETS = [
   "./assets/pirates/pirate_male_lo.glb",
   "./assets/pirates/pirate_female_hi.glb",
   "./assets/pirates/pirate_female_lo.glb",
+  "./assets/pirates/pirate_male_v5_hi.glb",
+  "./assets/pirates/pirate_male_v5_lo.glb",
+  "./assets/pirates/pirate_female_v5_hi.glb",
+  "./assets/pirates/pirate_female_v5_lo.glb",
   "./assets/pirates/gear_hi.glb", // [Timothy] shop gear (hats, eyewear, parrots, hooks)
   "./assets/pirates/gear_lo.glb",
   "./assets/island/town_kit.glb",

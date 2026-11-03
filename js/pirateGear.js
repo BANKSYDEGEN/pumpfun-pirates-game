@@ -19,7 +19,7 @@ import { devHook } from './env.js'; // [security L] console/test hook: local dev
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { TINTS } from './pirateGLB.js';
+import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
 import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped } from './pirateItems.js'; // [Raul] his item models (not edited)
 
 export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none' });
@@ -100,7 +100,7 @@ const PARROTS = {
 const PIECES = {
   'hat:bandana': [['hat_bandana'], 'head', (g) => ({ 1: hatColorHex('bandana', g.hatColor) })],
   'hat:bicorne': [['hat_bicorne'], 'head', (g) => ({ 1: hatColorHex('bicorne', g.hatColor) })],
-  'eyes:eyepatch': [['eyes_eyepatch'], 'head', null], 'eyes:sunglasses': [['eyes_sunglasses'], 'head', null], 'eyes:laser': [['eyes_laser'], 'head', null],
+  'eyes:eyepatch': [['eyes_eyepatch'], 'head', null], 'eyes:sunglasses': [['eyes_sunglasses'], 'head', null], 'eyes:laser': [['eyes_vr'], 'head', null] /* [v121] id 'laser' = VR GOGGLES now (owners keep the purchase) */,
 };
 for (const [id, pal] of Object.entries(PARROTS)) PIECES['parrot:' + id] = [pal.crest ? ['parrot_parrot', 'parrot_crest'] : ['parrot_parrot'], 'spine', () => pal, pal];
 // ONE gear system: these catalog ids draw with RAUL's models (js/pirateItems.js equip / unequip, his hide rules: hair under the hat,
@@ -233,10 +233,41 @@ function loadLib(lod) {
       let nm = o.name, a = o; while (!/^(hat|eyes|parrot|hook)_/.test(nm) && a.parent) { a = a.parent; nm = a.name; }   // gltfpack: the named node is the parent
       out[nm.replace(/\.\d+$/, '')] = { pos, nrm, col, key, n };
     });
+    if (out.eyes_sunglasses) out.eyes_vr = vrGoggles(out.eyes_sunglasses);   // [v121] BANKSY: laser eyes out, VR GOGGLES in (same 'laser' id: owners keep it)
     return out;
   }).catch((e) => { delete _libs[lod]; throw e; })); // [v112] a failed load (network hiccup) is retried next time, not cached forever
 }
 
+// [v121] VR GOGGLES (BANKSY "If anything add vr goggles"): a chunky low-poly headset + strap, built from boxes and fitted to the
+// SHADES' own bind-space bounds, so it sits over the eyes on every body (v5 + v4) and LOD exactly where the shades do.
+function vrGoggles(sh) {
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < sh.n; i++) { const x = sh.pos[i * 3], y = sh.pos[i * 3 + 1], z = sh.pos[i * 3 + 2];
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, w = (x1 - x0) * 0.92, h = Math.max(0.075, (y1 - y0) * 1.5), zf = z1;
+  const P = [], N = [], C = [], c = (hex) => new THREE.Color(hex);
+  const box = (bx, by, bz, sx, sy, sz, col, ry = 0) => {   // axis box (optionally turned about y), 12 tris
+    const hx = sx / 2, hy = sy / 2, hz = sz / 2, cs = Math.cos(ry), sn = Math.sin(ry);
+    const T = (x, z) => [bx + x * cs + z * sn, bz - x * sn + z * cs];
+    const F = [[[1, 0, 0], [[hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz], [hx, -hy, hz]]], [[-1, 0, 0], [[-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz], [-hx, -hy, -hz]]],
+      [[0, 1, 0], [[-hx, hy, -hz], [-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz]]], [[0, -1, 0], [[-hx, -hy, hz], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz]]],
+      [[0, 0, 1], [[-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]]], [[0, 0, -1], [[hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz]]]];
+    for (const [n, q] of F) { const nn = T(n[0], n[2]); for (const k of [0, 1, 2, 0, 2, 3]) { const [x, y, z] = q[k], t = T(x, z);
+      P.push(t[0], by + y, t[1]); N.push(nn[0] - bx, n[1], nn[1] - bz); C.push(col.r, col.g, col.b); } }
+  };
+  const body = c('#2b2e36'), face = c('#0d0f14'), glow = c('#38e1ff'), strap = c('#1b1b1f');
+  const d = 0.085;                                   // headset depth
+  box(cx, cy, zf + d / 2 - 0.035, w, h, d, body);              // main shell over the eyes
+  box(cx, cy, zf + d - 0.03, w * 0.86, h * 0.72, 0.012, face); // black front plate
+  box(cx, cy - h * 0.18, zf + d - 0.022, w * 0.6, 0.012, 0.006, glow); // cyan light bar
+  const hz = zf - 0.24, rx = w / 2 + 0.02, rz = (zf - hz) + 0.01, segs = 12;   // strap: an ellipse around the head at eye height
+  for (let i = 0; i <= segs; i++) { const a = -Math.PI / 2 + (i / segs) * Math.PI * 1.0, a2 = Math.PI / 2 + (i / segs) * Math.PI;
+    for (const aa of [a2]) { const x = cx + Math.sin(aa) * rx, z = hz + Math.cos(aa) * rz; if (z > zf - 0.03) continue;
+      box(x, cy + 0.005, z, 0.075, 0.032, 0.022, strap, aa + Math.PI / 2); } }
+  const n = P.length / 3, key = new Uint8Array(n);
+  for (let i = 0; i < n; i++) { const l = Math.hypot(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]) || 1; N[i * 3] /= l; N[i * 3 + 1] /= l; N[i * 3 + 2] /= l; }
+  return { pos: new Float32Array(P), nrm: new Float32Array(N), col: new Float32Array(C), key, n };
+}
 // ---------- shared bits ----------
 const bn = (s) => (s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
 const _tex = {};
@@ -275,7 +306,7 @@ function bodyOf(p) {
 }
 
 // ---------- clothes shell from the body's skin (cached per body geometry + outfit + colours) ----------
-const _shells = new Map(), _attrIds = new WeakMap(); let _attrN = 0;
+const _shells = new Map(), _attrIds = new WeakMap(); let _attrN = 0; const _q5 = [0, 0, 0];
 const attrId = (a) => { let i = _attrIds.get(a); if (!i) _attrIds.set(a, (i = ++_attrN)); return i; };
 function shellOf(body, id, colors, low) {
   const spec = OUTFITS[id]; if (!spec) return null;
@@ -288,6 +319,13 @@ function shellOf(body, id, colors, low) {
   for (let i = 0; i < n; i++) {
     const t = Math.round(T.getX(i)); if (t !== iS && t !== iSh) continue;
     const b = bone(i), x = Math.abs(P.getX(i)), y = P.getY(i), z = P.getZ(i);
+    if (body.userData.warp) {   // [v121] v5 bases: by position mapped back to v4 bind space (the v5 torso is wider, so its sides carry arm weights)
+      const q = v5Inv(body.userData.warp, P.getX(i), y, z, _q5), qx = Math.abs(q[0]), qy = q[1], qz = q[2];
+      if (qy < 0.44 || qy > 0.95) continue;
+      if (!(qx > 0.2 && qy > 0.72)) { if (spec.hole && ((qx > 0.13 && qy > 0.80) || (qz > 0 && qx < 0.085 && qy > 0.86))) continue; keep[i] = 1; }
+      else if (spec.arms && qx < spec.arms) keep[i] = 1;
+      continue;
+    }
     if (b === 'spine') {
       if (y < 0.44) continue;   // a little under the belt top (0.49) so Low's coarse waist has no skin gap; the belt + pants hide it
       if (spec.hole && ((x > 0.13 && y > 0.80) || (z > 0 && x < 0.085 && y > 0.86))) continue;   // tank: arm holes + scoop neck
@@ -305,7 +343,8 @@ function shellOf(body, id, colors, low) {
     si = new Uint16Array(m * 4), sw = new Float32Array(m * 4), c = new THREE.Color();
   list.forEach((v, i) => {
     const nx = N.getX(v), ny = N.getY(v), nz = N.getZ(v), x = P.getX(v), y = P.getY(v), z = P.getZ(v), ax = Math.abs(x);
-    pos.set([x + nx * spec.off, y + ny * spec.off, z + nz * spec.off], i * 3); nrm.set([nx, ny, nz], i * 3);
+    const off = spec.off + (body.userData.v5 ? 0.012 : 0);   // [v121] v5: a little more air (sculpted AI surface), no z-fighting
+    pos.set([x + nx * off, y + ny * off, z + nz * off], i * 3); nrm.set([nx, ny, nz], i * 3);
     for (let k = 0; k < 4; k++) { si[i * 4 + k] = J.getComponent(v, k); sw[i * 4 + k] = W.getComponent(v, k); }
     let striped = !!spec.stripes; c.copy(striped ? white : cloth);
     if (spec.trim) {   // red coat: open front over a striped shirt, gold edging + cuffs (NFT redcoat)
@@ -348,6 +387,7 @@ function buildGearGeometry(p, body, gear, lib, colors) {
   if (gear.outfit !== 'shirtless') { const s = shellOf(body, gear.outfit, colors, low); if (s) { chunks.push(s); if (s.tails) chunks.push(s.tails); } }
   // accessories: GLB (scene space) -> body space
   p.scene.updateMatrixWorld(true);
+  const W5 = body.userData.warp || null, _w5 = [0, 0, 0];
   const toBody = new THREE.Matrix4().copy(body.matrixWorld).invert().multiply(p.scene.matrixWorld), nm3 = new THREE.Matrix3().getNormalMatrix(toBody), v = new THREE.Vector3(), c = new THREE.Color();
   for (const slot of ['hat', 'eyes', 'parrot', 'hook']) {
     const pc = PIECES[`${slot}:${gear[slot]}`]; if (!pc) continue;
@@ -357,6 +397,7 @@ function buildGearGeometry(p, body, gear, lib, colors) {
     const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       v.fromArray(src.pos, i * 3).applyMatrix4(toBody).toArray(pos, i * 3); v.fromArray(src.nrm, i * 3).applyMatrix3(nm3).normalize().toArray(nrm, i * 3);
+      if (W5) { v5Fwd(W5, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], slot === 'hat', _w5); if (slot === 'hat') v5Hat(W5, gear.hat, _w5); pos.set(_w5, i * 3); }   // [v121] v4-authored piece -> the v5 body
       const k = src.key[i]; if (k && pal?.[k]) c.set(pal[k]); else if (k === 4) c.set(pal?.[1] || '#c8302c'); else if (k) c.set('#c8302c'); else c.fromArray(src.col, i * 3);
       if (fx.facets && k) {   // DIAMOND: every triangle its own crystal facet, a few flash white (glints)
         const f = Math.floor(i / 3), hsh = Math.abs(Math.sin(f * 12.9898 + 78.233) * 43758.5453) % 1;
