@@ -36,8 +36,9 @@ export async function coastLayout() {
   const footToHarbor = CO.toHarbor, harborToFoot = CO.fromHarbor;
   const sea = (() => { const [a, b] = L(0, 0), [c, d] = L(0, 1); return { x: c - a, z: d - b }; })(); // town +lz = out to sea
   // ---- berths ----
-  const berths = CO.COAST_BERTHS.map(b => { const [ax, az] = L(b.lx, HEAD_ASHORE_LZ);
-    return { id: b.id, x: b.hx, z: b.hz, yaw: b.yaw, len: b.len, beam: b.maxBeam, ashore: { x: ax, z: az }, out: sea }; });
+  const berths = CO.COAST_BERTHS.map(b => { const [ax, az] = L(b.lx, b.quay ? b.ashoreLz : HEAD_ASHORE_LZ); // [v117] quay berths step onto the seawall
+    const bl = (s) => L(b.lx + s * (b.len / 2 - 5), b.quay ? b.ashoreLz + 1.6 : CO.PIERS[0].head1 - 0.6);  // mooring bollards at bow + stern
+    return { id: b.id, x: b.hx, z: b.hz, yaw: b.yaw, len: b.len, beam: b.maxBeam, quay: !!b.quay, outLen: b.outLen, ashore: { x: ax, z: az, y: b.quay ? CO.QUAY.y : DECK_Y }, bollards: [bl(-1), bl(1)], out: sea }; });
   // ---- walkable decks over water (the quay, plaza and mole are terrain in foot.js coast mode) ----
   const B = CO.BOARDWALK, decks = [rect('boardwalk', B.lx0, B.lx1, B.lz0, B.lz1)];
   for (const p of CO.PIERS) {

@@ -21,8 +21,17 @@ export const QUAY = { lx0: -55, lx1: 100, y: 2.6 };                             
 export const BOARDWALK = { lx0: -300, lx1: -55, lz0: -2, lz1: 6, y: 2.8 };         // wooden boardwalk on stilts along the beach
 export const PIERS = [-90, -150, -210, -270].map((lx, k) => ({ k, lx, lz0: 4, head0: 40, head1: 44, half: 24 }));
 export const BERTH_LZ = 48.5;                                                      // ships lie along the T-head face, 4.5 m off it
-export const COAST_BERTHS = PIERS.flatMap(p => [-12, 12].map((t, j) => { const lx = p.lx + t, [x, z] = t2w(lx, BERTH_LZ), [hx, hz] = toHarbor(x, z);
-  return { id: 'P' + (p.k + 1) + 'LR'[j], pier: p.k + 1, lx, lz: BERTH_LZ, x: +x.toFixed(2), z: +z.toFixed(2), hx: +hx.toFixed(2), hz: +hz.toFixed(2), yaw: +t2wYaw(Math.PI / 2).toFixed(4), len: 22, maxBeam: 7.3 }; }));
+// [v117] BANKSY: "the ships get big so only allow 1 ship to park in middle of each pier" + "add some parking spots" on the plaza quay.
+// ONE berth per pier, centred on its 48 m T-head (piers 60 m apart: two 44 m CANNONS VIII hulls keep a 16 m gap), plus 3 quay berths
+// along the plaza seawall (wall at lz ~2, 4+ m deep from lz 4; VIII beam 10.4 m, so quay ships lie at lz 10.5 and pier ships 5.8 m off the T-head; 47 m apart, the west one clear of the boardwalk, the east one 16 m
+// short of the mole). Quay ships lie bow-west and leave on a short swing (outLen) so they never sweep a neighbour.
+// Old builds' ids P1L / P1R map onto P1 (js/dock/docking.js peerBerth).
+export const BERTH_SLOT = 44;                                                      // longest visible hull (BR hull 6, CANNONS VIII)
+export const PIER_BERTH_LZ = 49.8, QUAY_BERTH_LZ = 10.5, QUAY_BERTHS_LX = [-31, 16, 63];
+const berthAt = (id, lx, lz, yaw, extra) => { const [x, z] = t2w(lx, lz), [hx, hz] = toHarbor(x, z);
+  return { id, lx, lz, x: +x.toFixed(2), z: +z.toFixed(2), hx: +hx.toFixed(2), hz: +hz.toFixed(2), yaw: +t2wYaw(yaw).toFixed(4), len: BERTH_SLOT, maxBeam: 10.4, ...extra }; };
+export const COAST_BERTHS = [...PIERS.map(p => berthAt('P' + (p.k + 1), p.lx, PIER_BERTH_LZ, Math.PI / 2, { pier: p.k + 1 })),
+  ...QUAY_BERTHS_LX.map((lx, i) => berthAt('Q' + (i + 1), lx, QUAY_BERTH_LZ, -Math.PI / 2, { quay: true, ashoreLz: -2.6, outLen: 18 }))];
 export const MOLE = { lx: 108, lz0: 0, lz1: 118, w: 8, tipR: 9, y: 2.4 };
 // spectate spyglass: ON the mole deck 14 m short of the tip (the lighthouse base + its r 7.4 collider fill the tip), so a pirate can
 // walk up to it. Single source of truth for the spyglass art (js/island/foot.js) and the interact point (js/dock/layout.js).

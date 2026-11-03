@@ -29,7 +29,7 @@ export function createDocking({ berths, myId }) {
     const k = Math.min(12, d * 0.45); st.ctl = { x: s.x + Math.sin(s.yaw) * k, z: s.z + Math.cos(s.yaw) * k };
   }
   // SET SAIL: ease forward out of the slip and swing toward open water (berth.out), ending under way on the curve's heading
-  function setSail(s) { if (st.mode !== 'docked') return false; const b = st.berth, fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), o = b.out || { x: fx, z: fz }, L = DOCK.outLen;
+  function setSail(s) { if (st.mode !== 'docked') return false; const b = st.berth, fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), o = b.out || { x: fx, z: fz }, L = b.outLen || DOCK.outLen; // [v117] quay berths: a short swing
     Object.assign(st, { mode: 'out', t: 0, dur: DOCK.outT, from: { x: b.x, z: b.z, yaw: b.yaw }, ctl: { x: b.x + fx * L * 0.5, z: b.z + fz * L * 0.5 }, to: { x: b.x + fx * L * 0.85 + o.x * L * 0.75, z: b.z + fz * L * 0.85 + o.z * L * 0.75 } }); return true; }
   function pose(s, x, z, yaw, speed) { s.x = x; s.z = z; s.yaw = yaw; s.speed = speed; s.turn = 0; }
   // call every frame AFTER the normal ship move: overrides the pose while docking / docked / leaving
@@ -53,7 +53,9 @@ export function createDocking({ berths, myId }) {
   }
   function release() { st.mode = 'sea'; st.berth = null; }
   // a peer's state: dk = berth id ('' = none)
+  const peerBerth = (dk) => byId.has(dk) ? dk : (/^P[1-9][LR]$/.test(dk || '') && byId.has(dk.slice(0, 2)) ? dk.slice(0, 2) : dk); // [v117] old builds' P1L / P1R = pier 1's one berth
   function onPeer(id, dk) {
+    dk = peerBerth(dk);
     if (dk && byId.has(dk)) peers.set(id, { berth: dk, t: performance.now() }); else peers.delete(id);
     if (st.berth && dk === st.berth.id && id < myId && (st.mode === 'in' || st.mode === 'docked')) { // they win: move over
       const alt = nearest(st.berth.x, st.berth.z, 400, true);

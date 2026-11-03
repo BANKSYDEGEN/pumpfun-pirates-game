@@ -652,7 +652,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     // small side jetty with a rowboat between piers
     stem(p.lx - 30, 4, 22); at(p.lx - 26, 16, 0, () => { W(k, box(2.2, 0.8, 5.5), WOOD, 2, M(0, 0.2, 0)); W(k, box(1.8, 0.15, 5.0), WOOD_L, 2, M(0, 0.62, 0), false); }, 0); }
   // decor ships on 7 berths (the 8th, P4R, gets a real baked game ship in main.js)
-  CO.COAST_BERTHS.forEach((b, i) => { if (decorHulls && b.id !== 'P4R') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
+  CO.COAST_BERTHS.forEach((b, i) => { if (decorHulls && b.id !== 'P4') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
   // shacks on stilts at the waterline + on the beach behind the boardwalk, barrels / crates / nets between them
   for (let i = 0; i < 9; i++) { const lx = -70 - i * 26 - hash(i, 2) * 6, onW = i % 3 === 1; shack(lx, onW ? 12 : -8 - hash(i, 5) * 8, onW ? Math.PI / 2 : 0, 5 + hash(i, 1) * 2, 4.5 + hash(i, 3) * 1.5, onW ? PY : H(...T(lx, -8)) + 1.6, [0xa86a3a, 0x8a5a2b, 0xb98a5a, 0x7a5232][i % 4]);
     const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
@@ -741,7 +741,7 @@ export function drawCoastMap(cv) {
     rectL(CO.MOLE.lx - 4, 0, CO.MOLE.lx + 4, CO.MOLE.lz1, '#8a837a', '#333'); { const [a, b] = L(CO.MOLE.lx, CO.MOLE.lz1); g.fillStyle = '#8a837a'; g.beginPath(); g.arc(a, b, 9 * sc, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(a, b, Math.max(3, 3 * sc), 0, 7); g.fill(); }
     rectL(CO.BOARDWALK.lx0, CO.BOARDWALK.lz0, CO.BOARDWALK.lx1, CO.BOARDWALK.lz1, '#c48a50', '#5a3a1e');
     for (const p of CO.PIERS) { rectL(p.lx - 2.5, p.lz0, p.lx + 2.5, p.head0, '#c48a50', '#5a3a1e'); rectL(p.lx - p.half, p.head0, p.lx + p.half, p.head1, '#c48a50', '#5a3a1e'); }
-    for (const b of CO.COAST_BERTHS) { rectL(b.lx - 10, b.lz - 3.6, b.lx + 10, b.lz + 3.6, 'rgba(103,232,249,0.85)', '#0e7490'); if (zoom) { const [a, c] = L(b.lx, b.lz + 9); T(b.id, a, c, 12, '#67e8f9', 'center'); } }
+    for (const b of CO.COAST_BERTHS) { rectL(b.lx - b.len / 2, b.lz - 4.5, b.lx + b.len / 2, b.lz + 4.5, 'rgba(103,232,249,0.85)', '#0e7490'); if (zoom) { const [a, c] = L(b.lx, b.lz + 9); T(b.id, a, c, 12, '#67e8f9', 'center'); } }
     { const f = CO.FORT; const [a, b] = L(f.lx, f.lz); g.fillStyle = '#b9b2a6'; g.strokeStyle = '#333'; g.lineWidth = 2; g.fillRect(a - 13 * sc, b - 13 * sc, 26 * sc, 26 * sc); g.strokeRect(a - 13 * sc, b - 13 * sc, 26 * sc, 26 * sc); }
     // main street
     { const [a, b] = L(STREET.x, STREET.z0), [c, d] = L(STREET.x, STREET.z1); g.strokeStyle = '#111'; g.lineWidth = Math.max(5, 15 * sc); g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); g.strokeStyle = '#e7d7b8'; g.lineWidth = Math.max(3, 12 * sc); g.stroke(); }
@@ -760,7 +760,7 @@ export function drawCoastMap(cv) {
       T('Battle edge 420 m (ships stopped)', ...P(hx0 - 300, hz0 + 330), 14, '#ff6b6b', 'center'); T('AI turn back 370 m', ...P(hx0 - 230, hz0 + 280), 13, '#ff9a3a', 'center');
       T('PLAYER SPAWN', ...(([a, b]) => [a, b - 18])(P(hx0, hz0)), 14, '#93c5fd', 'center'); T('respawn rings 40 / 85 / 130 m', ...P(hx0 - 60, hz0 + 150), 13, '#4ade80', 'center');
       T('AI / boss spawn rings 176 + 344 m', ...P(hx0 - 160, hz0 - 360), 13, '#fbbf24', 'center'); T('✕ = AI spawn that must move (on land / no-fire)', ...P(hx0 - 250, hz0 + 395), 13, '#ff6b6b', 'center');
-      T('NO-FIRE SAFE HARBOR', ...L(-100, 100), 15, '#fff', 'center'); T('8 BERTHS (P1-P4, L/R)', ...L(-180, 62), 13, '#67e8f9', 'center');
+      T('NO-FIRE SAFE HARBOR', ...L(-100, 100), 15, '#fff', 'center'); T('7 BERTHS (P1-P4 + quay Q1-Q3)', ...L(-180, 62), 13, '#67e8f9', 'center');
       { const [a, b] = L(150, -140); T('DOCK TOWN', a, b, 20, '#fde68a', 'center'); T('(built into the coast)', a, b + 22, 13, '#fde68a', 'center'); } T('MAIN STREET', ...(([a, b]) => [a, b - 14])(L(STREET.x, -150)), 13, '#e7d7b8', 'center');
       T('FORT', ...(([a, b]) => [a + 18, b])(L(CO.FORT.lx, CO.FORT.lz)), 14); T('FORT BATTERY', ...(([a, b]) => [a + 14, b])(L(CO.HEADLAND.lx + 25, CO.HEADLAND.lz + 20)), 14);
       T('LIGHTHOUSE MOLE', ...(([a, b]) => [a + 12, b])(L(CO.MOLE.lx, CO.MOLE.lz1 + 10)), 13); T('SANDBAR', ...L(CO.ISLET.lx, CO.ISLET.lz + 32), 12, '#fff', 'center');

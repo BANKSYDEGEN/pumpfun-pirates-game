@@ -196,7 +196,7 @@ const ships = [];
 // real moored ships: Q1E is a maxed hull 3 (len 20.4, the longest a berth takes)
 const REAL_KIT = [[{ hull: 3, sails: 1, cannons: 1, armor: 1 }, 'golden'], [{ hull: 2, sails: 1, cannons: 1 }, 'midnight'], [{ hull: 1, sails: 1 }, 'blood']];
 const CB = COASTM ? Object.fromEntries(FM.CO.COAST_BERTHS.map(b => [b.id, b])) : null;
-(COASTM ? ['P4R'] : REAL).forEach((id, i) => { const b = BERTH[id], w = COASTM ? new THREE.Vector3(CB[id].x, 0, CB[id].z) : L2W(b.x, 0, b.z);
+(COASTM ? ['P4'] : REAL).forEach((id, i) => { const b = BERTH[id], w = COASTM ? new THREE.Vector3(CB[id].x, 0, CB[id].z) : L2W(b.x, 0, b.z);
   ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true), x: w.x, z: w.z, yaw: COASTM ? CB[id].yaw : b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
 let approach = null; const duel = [];
 if (HARBOR) {
