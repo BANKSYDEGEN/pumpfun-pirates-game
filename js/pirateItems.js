@@ -13,7 +13,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
 
 const DIR = 'assets/pirates/items/', HY = 1.12;
-export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes'];
+export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes', 'face'];
 // [v123] Raul's per-body v5 fits (raul_polish): assets/pirates/items/v5/<id>_<male|female>_<hi|lo>.glb, pre-fitted in the v5 bind space
 // (no v5Fwd / v5Hat), skinned or rigid on bone 'head'; v5hide = his hide rules (v4 space, evaluated through v5Inv like the rest)
 const V5DIR = DIR + 'v5/', v5files = (id) => Object.fromEntries(['male', 'female'].map((b) => [b, { hi: `${V5DIR}${id}_${b}_hi.glb`, lo: `${V5DIR}${id}_${b}_lo.glb` }]));
@@ -30,6 +30,9 @@ export const ITEMS = [
   // [v144] BANKSY "Add a green hq helmet": Raul's olive M1 helmet (HQ stencil, skull + crossbones on the left side, leather strap + brass buckle),
   // pre-fitted per body, rigid on 'head'. v4: hair under the dome hidden; v5: hatFlatten squashes the hair above the front rim (one-shell head)
   item('helmet_hq', 'HQ Helmet', 'head', 800, null, [{ cyl: [0, 0.01, 0.29], y: [HY + 0.06, 9], tilt: 0.08, tints: ['hair'] }], { v5: v5files('helmet_hq'), v5hide: [], skull: false, v5dy: { female: 0.015 } }),   // [v144] the female brim off her eyes
+  // [v145] BANKSY: Retardio face paint v2 (Raul): warm white face base, blue diamonds round the eyes, red Joker smile; a thin shell off the
+  // face under all facial hair, eye holes open. v5 only (v4 bodies draw nothing), own slot 'face' so it is worn with shades / an eye patch
+  item('facepaint_retardio', 'Retardio Face Paint', 'face', 350, null, [], { v5: v5files('facepaint_retardio'), v5hide: [], v5only: true, paint: true }),
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
@@ -119,13 +122,15 @@ function applyHide(p) {
 }
 function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
   const F = p.v5 ? Object.values(p.items || {}).map((it) => it.flatten).find(Boolean) : null, iH = TINTS.indexOf('hair');
+  const PT = p.v5 && p.lod === 'lo' ? Object.values(p.items || {}).find((it) => it.paint && it.obj?.geometry) : null;
   for (const o of p.atlasMeshes || []) {
     const g = ownGeometry(o); g.userData.basePos ||= o.geometry.attributes.position;
     const S = g.userData.shrink;
-    const U = g.userData.under;
-    if (!F && !S && !U) { if (g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); continue; }
+    const U = g.userData.under, D = PT && g.attributes.normal ? paintBack(g.userData.basePos, g.attributes.normal, g.attributes._tint, PT.obj.geometry) : null;
+    if (!F && !S && !U && !D) { if (g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); continue; }
     const B = g.userData.basePos, P = B.clone(), T = g.attributes._tint;
     if (U) for (let i = 0; i < P.count; i++) P.setXYZ(i, P.getX(i) + U[i * 3], P.getY(i) + U[i * 3 + 1], P.getZ(i) + U[i * 3 + 2]);
+    if (D) for (let i = 0; i < P.count; i++) if (D[i]) P.setXYZ(i, P.getX(i) - g.attributes.normal.getX(i) * D[i], P.getY(i) - g.attributes.normal.getY(i) * D[i], P.getZ(i) - g.attributes.normal.getZ(i) * D[i]);
     if (S) { let cz = 0, c = 0; for (let i = 0; i < P.count; i++) if (S[i]) { cz += P.getZ(i); c++; } cz /= c || 1;
       for (let i = 0; i < P.count; i++) if (S[i]) { P.setX(i, P.getX(i) * 0.9); P.setZ(i, cz + (P.getZ(i) - cz) * 0.9); } }   // torso 10 % in under the coat / shirt
     if (!F) { g.setAttribute('position', P); continue; }
@@ -213,6 +218,20 @@ function sashTails(o, P) {
 }
 // [v137] hair verts below the head that sit inside / within 1.5 cm of a worn top are pushed radially out to just over its outer surface
 // (angle x height bins of the cloth's outermost radius around the torso axis)
+// [v145] the phone bodies' coarse face skin pokes through the 4 mm face paint shell in tan patches: skin under the paint (a paint
+// vertex within 1.2 cm; tinted or painted skin) sinks 6 mm along its normal. Eye-hole rims and the hair keep their place. Bind space, cached per body + paint
+const _paint = new WeakMap();
+function paintBack(B, N, T, paint) {
+  let m = _paint.get(paint); if (!m) _paint.set(paint, (m = new WeakMap())); if (m.has(B)) return m.get(B);
+  const Q = paint.attributes.position, iS = TINTS.indexOf('skin'), grid = new Map(), c = 0.012, k = (x, y, z) => `${Math.floor(x / c)},${Math.floor(y / c)},${Math.floor(z / c)}`;
+  let y0 = Infinity; for (let j = 0; j < Q.count; j++) { const x = Q.getX(j), y = Q.getY(j), z = Q.getZ(j), kk = k(x, y, z); y0 = Math.min(y0, y); (grid.get(kk) || grid.set(kk, []).get(kk)).push(x, y, z); }
+  let D = null;
+  for (let i = 0; i < B.count; i++) { const t = T ? Math.round(T.getX(i)) : -1; if (t !== iS && t !== -1) continue; const x = B.getX(i), y = B.getY(i), z = B.getZ(i); if (y < y0 - c) continue;
+    const gx = Math.floor(x / c), gy = Math.floor(y / c), gz = Math.floor(z / c); let best = c * c;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let e = -1; e <= 1; e++) { const L = grid.get(`${gx + a},${gy + b},${gz + e}`); if (L) for (let j = 0; j < L.length; j += 3) best = Math.min(best, (L[j] - x) ** 2 + (L[j + 1] - y) ** 2 + (L[j + 2] - z) ** 2); }
+    if (best < c * c) (D ||= new Float32Array(B.count))[i] = 0.006; }
+  m.set(B, D); return D;
+}
 const _hair = new WeakMap();
 function hairOver(B, T, cloth, tuck = false) {
   const iH = TINTS.indexOf('hair'), C = cloth.attributes.position, n = B.count; if (!C) return null;
@@ -338,12 +357,29 @@ function keyColors(geo, pal, low) {   // magenta 1 / cyan 2 / yellow 3 / blue 4 
     if (low && N) { const s = 0.58 + 0.42 * Math.max(0, N.getX(i) * 0.37 + N.getY(i) * 0.84 + N.getZ(i) * 0.4) + 0.08 * Math.max(0, N.getY(i)); c.setXYZ(i, c.getX(i) * s, c.getY(i) * s, c.getZ(i) * s); } }
   geo.setAttribute('color', c);
 }
+// [v145] the phone face paint's baked light is flat per triangle (a blocky grey checker on the white). Snap each corner to its paint colour and
+// average the light over the corners that share a spot, so it shades smoothly. Bind space, per pirate copy (the geometry is a clone)
+const PAINT = [[0.8, 0.69, 0.53], [0.01, 0.04, 0.41], [0.43, 0, 0], [0, 0, 0.03]];
+function paintLo(geo) {
+  if (!geo.attributes.color) return; const C = geo.attributes.color.clone(), P = geo.attributes.position; geo.setAttribute('color', C);
+  const lit = new Float32Array(C.count), pick = new Uint8Array(C.count), sum = new Map(), key = (i) => `${Math.round(P.getX(i) * 2000)},${Math.round(P.getY(i) * 2000)},${Math.round(P.getZ(i) * 2000)}`;
+  for (let i = 0; i < C.count; i++) {
+    const c = [C.getX(i), C.getY(i), C.getZ(i)], m = Math.max(...c, 1e-4); let best = 0, bd = 9;
+    PAINT.forEach((q, j) => { const qm = Math.max(...q, 1e-4), d = (m < 0.06 ? 1 : 0) !== (j === 3 ? 1 : 0) ? 9 : q.reduce((a, v, k) => a + (v / qm - c[k] / m) ** 2, 0); if (d < bd) { bd = d; best = j; } });
+    pick[i] = best; lit[i] = best === 3 ? 1 : Math.min(1, m / Math.max(...PAINT[best])); const k = key(i), e = sum.get(k) || [0, 0]; e[0] += lit[i]; e[1]++; sum.set(k, e);
+  }
+  for (let i = 0; i < C.count; i++) { const e = sum.get(key(i)), l = 0.25 + 0.75 * (e[0] / e[1]), q = PAINT[pick[i]]; C.setXYZ(i, q[0] * l, q[1] * l, q[2] * l); }
+  C.needsUpdate = true;
+}
+
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors) retint(geo, opts.colors);
+  if (def.paint && p.lod === 'lo') paintLo(geo);
   const m = new THREE.SkinnedMesh(geo, itemMaterial(mat || {}, low, def.slot !== 'outfit')); m.name = 'item_' + def.id; m.frustumCulled = false;
+  if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
   const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;
@@ -441,7 +477,7 @@ export async function equip(p, id, opts = {}) {
   const it = await build(p, def, opts);
   if (p._eqTok[def.slot] !== tok) { drop(it); return null; }   // a newer equip / unequip on this slot won
   if (p.items[def.slot]) drop(p.items[def.slot]);
-  p.items[def.slot] = { id, hide: def.hide, ...it, v5hide: def.v5 ? (it.v5hide || def.v5hide) : null }; applyHide(p); return it.obj;
+  p.items[def.slot] = { id, hide: def.hide, paint: def.paint, ...it, v5hide: def.v5 ? (it.v5hide || def.v5hide) : null }; applyHide(p); return it.obj;
 }
 export function unequip(p, slotOrId) {
   const slot = ITEM_SLOTS.includes(slotOrId) ? slotOrId : ITEM_BY_ID[slotOrId]?.slot; if (!slot || !p.items?.[slot]) return;

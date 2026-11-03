@@ -22,12 +22,13 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
 import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped } from './pirateItems.js'; // [Raul] his item models (not edited)
 
-export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none' });
+export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none' });   // [v145] + face paint (own slot: worn with shades)
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
 export const GEAR_RENDERS = Object.freeze({
   hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'], eyes: ['eyepatch', 'sunglasses', 'laser'],
   parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond'], hook: ['hook_iron', 'hook_gold'],
   leg: ['peg'],   // one PEG LEG item; the side is gear.legSide
+  face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
 });
 export const gearRenders = (slot, id) => !!GEAR_RENDERS[slot]?.includes(id);
 const GEAR_URL = { hi: 'assets/pirates/gear_hi.glb', lo: 'assets/pirates/gear_lo.glb' };
@@ -124,9 +125,10 @@ const RAUL5 = {
   'hat:bandana':   ['head', 'hat_bandana', (g) => ({ 1: hatColorHex('bandana', g.hatColor) })],
   'eyes:eyepatch': ['eyes', 'eyes_eyepatch', null],
   'eyes:laser':    ['eyes', 'eyes_vr', null],
+  'face:facepaint_retardio': ['face', 'facepaint_retardio', null],   // [v145] v4 bodies draw nothing for it
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
-const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes'];
+const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face'];
 const rv = (v, g) => (typeof v === 'function' ? v(g) : v);
 // clothes: which body skin they cover (bind pose, three space: y up, +z front; belt top y 0.49, wrist |x| 0.555)
 const OUTFITS = {
@@ -139,7 +141,8 @@ const clampIx = (v, n) => { const i = Math.floor(+v); return Number.isFinite(i) 
 export function normalizeGear(g) {
   const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0, eyeColor: 0 };
   for (const k of Object.keys(GEAR_DEFAULTS)) if (typeof s[k] === 'string' && s[k]) o[k] = s[k];
-  if (s.eyes == null && typeof s.face === 'string' && s.face !== 'plain') o.eyes = s.face;     // creator 'face' = shop 'eyes'
+  if (s.eyes == null && typeof s.face === 'string' && s.face !== 'plain' && !GEAR_RENDERS.face.includes(s.face)) o.eyes = s.face;     // creator 'face' = shop 'eyes'
+  if (!GEAR_RENDERS.face.includes(o.face)) o.face = 'none';   // [v145] old saves' 'face' is the eyewear
   if (s.eyepatch === true) o.eyes = 'eyepatch';
   if (o.parrot === 'parrot') o.parrot = 'parrot_green'; if (o.hook === 'hook') o.hook = 'hook_iron';
   if (o.leg === 'peg_l' || o.leg === 'peg_r') { if (s.legSide == null) o.legSide = o.leg === 'peg_l' ? 'L' : 'R'; o.leg = 'peg'; }
@@ -162,10 +165,10 @@ export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gea
 // else (unknown digit, wrong type, too long) is the default for that field, so free-form data never reaches applyGear. A
 // missing field = shirtless/default. The clothes colour comes from the ship skin ('sk', already sent).
 export const WIRE_SLOTS = ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'];
-const WIRE_LEN = WIRE_SLOTS.length + 5;
+const WIRE_LEN = WIRE_SLOTS.length + 6;   // [v145] + the face paint digit (last)
 export function gearToWire(gear) {
   const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0) + (g.body ? 4 : 0); // [v112] bit 4 = female body (same digit: no longer string, old clients just see a male)
-  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
+  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
 }
 export function gearFromWire(w) {
   const g = normalizeGear(null);
@@ -174,6 +177,7 @@ export function gearFromWire(w) {
   WIRE_SLOTS.forEach((k, i) => { const v = d(i); if (v > 0 && v <= GEAR_RENDERS[k].length) g[k] = GEAR_RENDERS[k][v - 1]; });
   g.hatColor = clampIx(d(n), HAT_SWATCHES.length); const sd = d(n + 1) <= 7 ? d(n + 1) : 0; g.hookSide = sd & 1 ? 'L' : 'R'; g.legSide = sd & 2 ? 'L' : 'R'; g.body = sd & 4 ? 1 : 0;
   g.skinColor = clampIx(d(n + 2), SKIN_SWATCHES.length); g.hairColor = clampIx(d(n + 3), HAIR_SWATCHES.length); g.outfitColor = clampIx(d(n + 4), CLOTH_SWATCHES.length);
+  { const v = d(n + 5); if (v > 0 && v <= GEAR_RENDERS.face.length) g.face = GEAR_RENDERS.face[v - 1]; }
   return g;
 }
 // clean wire string (re-encoded from the decoded gear) or '' : what the receivers store / compare
@@ -187,7 +191,7 @@ let _mem = null, _skin = 'classic';
 export function getLocalGear() {
   const c = _mem || (_mem = readSave());
   if (!c || !c.gearV) return normalizeGear(c ? pickLook(c) : null);   // the look (skin / hair / sides) is kept even before any gear
-  return normalizeGear({ hat: c.hat, outfit: c.outfit, eyes: c.eyes ?? c.face, parrot: c.parrot, hook: c.hook, leg: c.leg, ...pickLook(c) });
+  return normalizeGear({ hat: c.hat, outfit: c.outfit, eyes: c.eyes ?? c.face, parrot: c.parrot, hook: c.hook, leg: c.leg, face: c.facePaint, ...pickLook(c) });
 }
 export const getLocalColors = () => ({ skin: _skin });
 const LOCAL = new Set();   // your own pirates (on-foot + captain at the wheel), re-dressed by setLocalGear / setLocalSkin
@@ -200,7 +204,7 @@ function redressLocal() {
 // after shop_equip / a hat colour pick: { hat, outfit, eyes, parrot, hook, hatColor } (missing keys keep what you wear)
 export function setLocalGear(gear) {
   const g = normalizeGear({ ...getLocalGear(), ...(gear || {}) }), c = { ...(readSave() || { v: 1 }) };
-  c.v = 1; c.gearV = 1; c.hat = g.hat; c.outfit = g.outfit; c.eyes = g.eyes; c.face = g.eyes === 'plain' ? 'plain' : g.eyes; c.parrot = g.parrot; c.hook = g.hook; c.leg = g.leg; Object.assign(c, pickLook(g));
+  c.v = 1; c.gearV = 1; c.hat = g.hat; c.outfit = g.outfit; c.eyes = g.eyes; c.face = g.eyes === 'plain' ? 'plain' : g.eyes; c.parrot = g.parrot; c.hook = g.hook; c.leg = g.leg; c.facePaint = g.face; Object.assign(c, pickLook(g));
   _mem = c; try { localStorage.setItem(KEY, JSON.stringify(c)); } catch { /* memory only */ }
   redressLocal();
   try { window.dispatchEvent(new CustomEvent('pfp-gear-local', { detail: g })); window.dispatchEvent(new CustomEvent('pfp-gear', { detail: g })); } catch {}   // 'pfp-gear' = v106 crew / followers re-bake

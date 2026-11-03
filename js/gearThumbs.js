@@ -24,6 +24,7 @@ export const thumbFallback = PNG;
 const FRAME = {   // measured from the skinned item bounds in the idle pose (big-head v4: head ~1.2-1.75 m, hands ~0.55 m)
   hat:    { c: [0, 1.68, 0.05], d: [0.3, 0.3, 1], r: 0.42 },   // [v142] v5 heads: tall hats (captain's hat to ~2.05 m) no longer cut at the top
   eyes:   { c: [0, 1.29, 0.12], d: [0.22, 0.05, 1], r: 0.3 },   // [v142] v5 eye line ~1.27 m
+  face:   { c: [0, 1.22, 0.12], d: [0.22, 0.05, 1], r: 0.32 },   // [v145] face paint: eyes to chin
   outfit: { c: [0, 0.9, 0], d: [0.3, 0.12, 1], r: 0.52 },
   parrot: { c: [0.27, 1.28, 0], d: [0.9, 0.2, 0.85], r: 0.36 },
   hook:   { c: [-0.25, 0.68, 0.06], d: [-0.75, 0.25, 1], r: 0.2 },   // [v142] v5 shorter arms: the hand sits higher / closer in

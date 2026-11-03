@@ -118,12 +118,12 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:parrot:parrot_gold": { price: 50000, goal: [{ stat: "bossKills", need: 50 }] },
   "gear:parrot:parrot_diamond": { price: 100000, goal: [{ stat: "kills", need: 5000 }] },
   "gear:hook:hook_iron": { price: 500 }, "gear:hook:hook_gold": { price: 2500 },
-  "gear:leg:peg": { price: 1000 },
+  "gear:leg:peg": { price: 1000 }, "gear:face:facepaint_retardio": { price: 350 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
 export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
   parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
-  leg: ["none", "peg"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
+  leg: ["none", "peg"], face: ["none", "facepaint_retardio"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
 export const SEED_GOLD_CAP = 5000; // [security H3] was 25000. First server copy of a device save: gold above this is released at the normal earning pace (stepToward)
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);
 export const goalMet = (goal: Goal | undefined, st: Profile["stats"]) => !goal || goal.every((g) => statOf(st, g.stat) >= g.need);

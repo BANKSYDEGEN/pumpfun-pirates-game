@@ -19,13 +19,13 @@ const bubbles = new Map(); // ship -> { el, until }
 const _v = new THREE.Vector3();
 let K = null, last = -1e9, open = false;
 
-export function showEmote(ship, e, { vol = 1, pitch = 1, own = false } = {}) {
+export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = null } = {}) {
   if (!ship || !validEmote(e)) return false;
   let b = bubbles.get(ship);
   if (!b) { const el = document.createElement('div'); el.className = 'emote-bubble'; $('emote-bubbles')?.appendChild(el); b = { el }; bubbles.set(ship, b); }
   b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000;
   b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
-  if (vol > 0.03) sfx.emote?.(e, vol, pitch, own); // [v101] own = your crew joins in (real recorded voices)
+  if (vol > 0.03) sfx.emote?.(e, vol, pitch, own, body); // [v101] own = your crew joins in (real recorded voices)
   return true;
 }
 // your own pick: rate limit, bubble over your ship, voice, then K.send (pvp broadcast when in a room)

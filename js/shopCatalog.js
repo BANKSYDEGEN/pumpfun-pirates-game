@@ -36,7 +36,7 @@ export const SKIN_ITEMS = [
 // kept on this device in pfp_captain_v1, sent to other players in 'gr'). Card art: js/gearThumbs.js gearThumb(slot, id).
 // ONE gear system (js/pirateGear.js applyGear): glb 'raul:<id>' = drawn with Raul's model (js/pirateItems.js), the rest with Timothy's.
 export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none', leg: 'none' };
-export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS'], ['leg', 'PEG LEGS']];
+export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS'], ['leg', 'PEG LEGS'], ['face', 'FACE PAINT']];
 export const GEAR_ITEMS = [
   // [v105] Timothy's gear renders (js/pirateGear.js GEAR_RENDERS): sold for gold. Clothes take your ship skin's colours; hats get a
   // free colour pick (gear.hatColor, a HAT_SWATCHES index). soon: true = in the catalog, not buyable yet (renders in a later build).
@@ -71,6 +71,9 @@ export const GEAR_ITEMS = [
   // [Timothy x Raul] PEG LEG: new 'leg' slot (synced in 'gr', validated like the others). ON SALE (BANKSY). LEFT / RIGHT = free pick (legSide)
   { slot: 'leg', id: 'none', label: 'BOTH LEGS', price: 0, glb: null, tint: null, free: true },
   { slot: 'leg', id: 'peg', label: 'PEG LEG', price: 1000, glb: 'raul:peg_l|peg_r', tint: null, side: 'legSide' },
+  // [v145] FACE PAINT: own slot (worn with any eyewear). v5 bodies only
+  { slot: 'face', id: 'none', label: 'NO PAINT', price: 0, glb: null, tint: null, free: true },
+  { slot: 'face', id: 'facepaint_retardio', label: 'RETARDIO FACE PAINT', price: 350, glb: 'raul:facepaint_retardio', tint: null },
   // treasure maps are not sold: they DROP (harbor bosses, BR kills / wins) and are used on the island (js/treasure.js, v105)
 ];
 // [v105] free hat colour pick (BANKSY): gear.hatColor = 0 (the hat's own colour) or 1..12 = this list. Mirrors Timothy's
@@ -81,11 +84,11 @@ export const gearKey = (it) => `${it.slot}:${it.id}`; // owned gear is stored as
 
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {
-  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'], awning: null },
-  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes'], awning: '#d8322f' },
+  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face'], awning: null },
+  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'face'], awning: '#d8322f' },
   stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
-  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'], awning: '#d8322f' },
+  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face'], awning: '#d8322f' },
   ships:      { name: 'SHIP SKINS + UPGRADES', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: true },
 };
 

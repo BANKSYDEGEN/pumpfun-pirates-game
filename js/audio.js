@@ -16,7 +16,7 @@
 // re-arms after interruptions and when the tab becomes visible again, and the mute state is persisted + shown.
 import { soundProfile, hitTier, HIT_THROTTLE } from './soundProfile.js';
 
-let ctx = null, comp = null, master = null, sfxBus = null, musicBus = null, musicDuck = null, ambBus = null, noiseBuf = null;
+let ctx = null, comp = null, master = null, sfxBus = null, voiceBus = null, musicBus = null, musicDuck = null, ambBus = null, noiseBuf = null;
 const SET_KEY = 'pfp_audio_v1';
 const settings = (() => {
   const d = { master: 0.8, sfx: 0.9, music: 0.35 };
@@ -45,6 +45,10 @@ function create() {
   comp = makeLimiter(ctx, ctx.destination); // glue compressor + brick-wall-ish limiter: 7 overlapping booms never clip
   master = ctx.createGain(); sfxBus = ctx.createGain(); musicBus = ctx.createGain(); ambBus = ctx.createGain(); musicDuck = ctx.createGain();
   sfxBus.connect(master); musicBus.connect(musicDuck).connect(master); ambBus.connect(master); master.connect(comp);
+  // [v145] BANKSY "emote sounds are very quiet": voices sat ~6 dB under the cannons / hits (-23 vs -17 dBFS speech RMS). They now get their
+  // own bus: levelled +5 dB louder into a speech compressor (peaks held, the master limiter still guards clipping) on the sfx bus
+  const vc = ctx.createDynamicsCompressor(); vc.threshold.value = -18; vc.knee.value = 6; vc.ratio.value = 4; vc.attack.value = 0.003; vc.release.value = 0.15;
+  voiceBus = ctx.createGain(); voiceBus.gain.value = 1.8; vc.connect(voiceBus).connect(sfxBus); voiceBus.in = vc;
   applyLevels();
   noiseBuf = makeNoise(ctx);
   ctx.onstatechange = () => { if (ctx.state !== 'running') arm(); notify(); };
@@ -183,7 +187,7 @@ const SAMPLES = {
 const LOAD_ORDER = [['cannon', 'impact', 'impactLight', 'impactMedium', 'impactHeavy', 'splashNear', 'splashMid', 'splashFar'],
   ['arrM', 'arrF', 'fireM', 'fireF', 'laughM', 'laughF', 'attackM', 'attackF', 'followM', 'followF', 'bossM', 'bossF', 'helpM', 'helpF', 'retreatM', 'retreatF', 'ggM', 'ggF', 'debris', 'sink', 'sinkBig', 'lowBeat', 'lowBell', 'victory', 'defeat', 'hornWave', 'hornBoss', 'legendary'], ['ambSea', 'thunder', 'shanty']];
 // per-slot trims (linear), loudness-matched against the synth they replace (see the v101 notes in the commit)
-const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 0.45, victory: 0.55, shanty: 0.30,
+const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 1, /* [v145] was 0.45: see voiceBus */ victory: 0.55, shanty: 0.30,
   light: 1.894, medium: 1.831, heavy: 2.606, debris: 0.937, sink: 0.579, sinkBig: 0.983, beat: 0.642, bell: 0.688, amb: 10.995, defeat: 0.495,
   thunder: 0.719, hornWave: 0.556, hornBoss: 1.122, legendary: 0.589 };
 const bufs = {}; let _loading = false;
@@ -240,13 +244,13 @@ const SPREAD = [0, -0.45, 0.4, -0.7, 0.7, -0.2];
 // play one stacked callout. key = 'arr' | 'fire' | 'laugh'; n voices; lead = 'm' | 'f'; v = volume
 // [v112] round 6 re-trimmed takes came in 3-8 dB quieter than v110's (fire_male_2 -24.5 dB mean vs -16.8): emotes drowned under sea + music.
 // Level every voice take to one speech loudness at decode time (gated RMS over the speech frames), peak-safe, so a quiet take can't vanish again.
-const _vNorm = new WeakMap(), V_TARGET = 0.16;
+const _vNorm = new WeakMap(), V_TARGET = 0.2;   // [v145] 0.16 -> 0.2 into the voice compressor (peaks: the compressor, not a per-take cap)
 function voiceNorm(buf) {
   let g = _vNorm.get(buf); if (g) return g;
   const d = buf.getChannelData(0), F = 1024; let e = 0, nf = 0, pk = 0;
   for (let i = 0; i + F <= d.length; i += F) { let s = 0; for (let j = i; j < i + F; j++) { const x = d[j]; s += x * x; const a = x < 0 ? -x : x; if (a > pk) pk = a; } s /= F; if (s > 1e-4) { e += s; nf++; } } // frames above -40 dBFS only
   const rms = nf ? Math.sqrt(e / nf) : V_TARGET;
-  g = Math.max(1, Math.min(3, V_TARGET / rms, pk > 0 ? 1 / pk : 3)); _vNorm.set(buf, g); return g;
+  g = Math.max(0.4, Math.min(4, V_TARGET / rms)); _vNorm.set(buf, g); return g;   // [v145] loud takes come down too (one level for all)
 }
 function crewCall(key, n, lead, v, rate0 = 1) {
   const kM = key + 'M', kF = key + 'F'; if (!has(kM) && !has(kF)) return false;
@@ -259,7 +263,7 @@ function crewCall(key, n, lead, v, rate0 = 1) {
     if (i === 1 || i === 2) tt = t0 + 0.02 + Math.random() * 0.06; else if (i > 2) tt = t0 + 0.08 + Math.random() * 0.05;
     const rate = (i === 0 ? rate0 : 1 + (Math.random() * 2 - 1) * 0.03);
     liveVoices++; played++;
-    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * voiceNorm(buf) * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), fadeAt: key === 'laugh' ? 2.1 : 0 /* v105: the v101 laugh takes kept (3.5 dB louder on phones than the round-4 trims), so their 2.1 s fade too */, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
+    playBuf(buf, { t: tt, vol: LVL.voice * v * comp * voiceNorm(buf) * (i ? Math.pow(10, -Math.random() * 4 / 20) : 1), rate, pan: SPREAD[i] * (n > 1 ? 1 : 0), out: voiceBus?.in || sfxBus, fadeAt: key === 'laugh' ? 2.1 : 0 /* v105: the v101 laugh takes kept (3.5 dB louder on phones than the round-4 trims), so their 2.1 s fade too */, onend: () => { liveVoices = Math.max(0, liveVoices - 1); } });
   }
   return played > 0;
 }
@@ -442,10 +446,11 @@ function pirateVoice(e, v = 1, pitch = 1) {
   if (e === 7) [0, 0.28, 0.56].forEach(d => tone({ t: t + d, dur: 0.12, f0: 180, f1: 90, vol: 0.18 * v }));  // stomp
 }
 export const sfx = {
-  // own = your callout (your crew joins in, crew size = GUN CREW); remote pirates: 1 voice, male/female by their id-hash pitch
-  emote: (e = 0, v = 1, pitch = 1, own = false) => {
+  // own = your callout (your crew joins in, crew size = GUN CREW); remote pirates: 1 voice in their body's voice
+  // [v145] BANKSY "male voices when male character and female for female": body = 'm' | 'f' from the emoter's v5 body (gear.body)
+  emote: (e = 0, v = 1, pitch = 1, own = false, body = null) => {
     if (!live() || !voice(2, 1.2)) return;
-    const vv = Math.min(1, v), lead = own ? myVoice : (pitch >= 1 ? 'f' : 'm');
+    const vv = Math.min(1, v), lead = own ? myVoice : body === 'f' || body === 'm' ? body : 'm';
     for (const key of LINE_KEY[e | 0] || []) if (crewCall(key, own && STACK[key] ? crewSize() : 1, lead, vv, own ? 1 : 1 + (pitch - 1) * 0.25)) return;
     pirateVoice(e | 0, vv, Math.max(0.75, Math.min(1.3, pitch)));
   },

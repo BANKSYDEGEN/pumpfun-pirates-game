@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v144'; // [v144] HQ Helmet (Raul, the female brim off her eyes) + $HQ / $RETARDIO plaza billboards across the plaza
+const VERSION = 'pfp-v145'; // [v145] Retardio face paint (new FACE slot, worn with shades) + louder emote voices in the emoter's body voice
 const SHELL = [
   "./",
   "./index.html",
@@ -182,6 +182,10 @@ const ASSETS = [
   "./assets/pirates/items/v5/helmet_hq_female_lo.glb",
   "./assets/pirates/items/v5/helmet_hq_male_hi.glb",
   "./assets/pirates/items/v5/helmet_hq_male_lo.glb",
+  "./assets/pirates/items/v5/facepaint_retardio_female_hi.glb",
+  "./assets/pirates/items/v5/facepaint_retardio_female_lo.glb",
+  "./assets/pirates/items/v5/facepaint_retardio_male_hi.glb",
+  "./assets/pirates/items/v5/facepaint_retardio_male_lo.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_female_hi.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_female_lo.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_male_hi.glb",
