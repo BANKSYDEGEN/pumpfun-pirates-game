@@ -132,10 +132,13 @@ void main(){
     else if (role > 1.5) { look *= 1.0 - min(1.0, hr * 2.0); arm = mix(arm, -1.45, min(1.0, hr * 2.0)); leg *= 1.0 - hr; } // lookout grabs the rail
     else { arm = mix(arm, -2.9, min(1.0, hr * 1.6)); leg = mix(leg, 0.35 * sin(th * 12.0 + ph * 4.0), min(1.0, hr * 1.6)); } // arms over the head, stumbling feet
   }
-  if (aPart > 0.5 && aPart < 1.5) p = rotX(p, vec3(0.0, 0.36, 0.0), leg);
-  else if (aPart > 1.5 && aPart < 2.5) p = rotX(p, vec3(0.0, 0.36, 0.0), -leg);
-  else if (aPart > 2.5 && aPart < 3.5) p = rotX(p, vec3(0.0, 0.72, 0.0), mix(arm, -2.25, look));
-  else if (aPart > 3.5 && aPart < 4.5) p = rotX(p, vec3(0.0, 0.72, 0.0), role > 2.5 ? armB : mix(role < 0.5 ? arm : -arm, -1.35, look));
+  /* [v129] BANKSY "holes when walking": each limb used to swing as one rigid piece, so the hip / shoulder seam opened mid-stride.
+     The swing now fades in over the joint (none at the hip / shoulder line, full a few cm below): the seam bends instead of tearing. */
+  float kL = smoothstep(-0.03, 0.09, vec3(0.0, 0.36, 0.0).y - p.y), kA = smoothstep(-0.02, 0.11, vec3(0.0, 0.72, 0.0).y - p.y);
+  if (aPart > 0.5 && aPart < 1.5) { p = rotX(p, vec3(0.0, 0.36, 0.0), leg * kL); n = rotX(n, vec3(0.0), leg * kL); }
+  else if (aPart > 1.5 && aPart < 2.5) { p = rotX(p, vec3(0.0, 0.36, 0.0), -leg * kL); n = rotX(n, vec3(0.0), -leg * kL); }
+  else if (aPart > 2.5 && aPart < 3.5) { float a = mix(arm, -2.25, look) * mix(kA, 1.0, look); p = rotX(p, vec3(0.0, 0.72, 0.0), a); n = rotX(n, vec3(0.0), a); }
+  else if (aPart > 3.5 && aPart < 4.5) { float a = (role > 2.5 ? armB : mix(role < 0.5 ? arm : -arm, -1.35, look)) * mix(kA, 1.0, max(look, step(2.5, role))); p = rotX(p, vec3(0.0, 0.72, 0.0), a); n = rotX(n, vec3(0.0), a); }
   else if (aPart > 4.5) { // telescope: modelled at the eye; held in the right hand (tilted down-forward) until raised
     float ra = mix(arm, -2.25, look) + 2.25, ta = -1.47 * (1.0 - look);
     p = rotX(rotX(p, vec3(0.0, 0.92, 0.25), ta), vec3(0.0, 0.72, 0.0), ra); n = rotX(rotX(n, vec3(0.0), ta), vec3(0.0), ra); }
