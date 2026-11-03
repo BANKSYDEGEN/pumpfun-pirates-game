@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v125'; // [v125] harbor safe zone wider, bicorne raised, PUMPFUN PIRATES skull logo on tricorn / bicorne / bandana, hair flattened under hats
+const VERSION = 'pfp-v126'; // [v126] phone (lo LOD) hat skull decal lifted clear of the hat surface
 const SHELL = [
   "./",
   "./index.html",

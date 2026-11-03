@@ -231,9 +231,9 @@ export function skullDecal(geo, skel, body, low, opt = {}) {
   const SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight, q = new THREE.Vector3(); let anchor = cand[0] ?? 0;
   for (let a = 0; a <= G; a++) for (let b = 0; b <= G; b++) {
     const u = a / G, w = b / G; q.copy(ctr).addScaledVector(rt, (u - 0.5) * size).addScaledVector(up, (w - 0.5) * size);
-    let d = -1e9; for (const i of cand) { v.set(P.getX(i), P.getY(i), P.getZ(i)).sub(q); const lat = v.clone().addScaledVector(nn, -v.dot(nn)).length(); if (lat < 0.012) d = Math.max(d, v.dot(nn)); }
+    let d = -1e9; for (const i of cand) { v.set(P.getX(i), P.getY(i), P.getZ(i)).sub(q); const lat = v.clone().addScaledVector(nn, -v.dot(nn)).length(); if (lat < (low ? 0.03 : 0.012)) d = Math.max(d, v.dot(nn)); }
     if (d > -1e9 && d < 0.06) q.addScaledVector(nn, d);
-    q.addScaledVector(nn, SKULL.lift); pos.push(q.x, q.y, q.z); uv.push(u, w);
+    q.addScaledVector(nn, low ? SKULL.lift * 4 : SKULL.lift); pos.push(q.x, q.y, q.z); uv.push(u, w);
   }
   for (let i = 0; i < (G + 1) * (G + 1); i++) for (let k = 0; k < 4; k++) { si.push(SI.getComponent(anchor, k)); sw.push(SW.getComponent(anchor, k)); }
   for (let a = 0; a < G; a++) for (let b = 0; b < G; b++) { const i0 = a * (G + 1) + b, i1 = i0 + G + 1; idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1); }
