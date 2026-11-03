@@ -28,9 +28,10 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   parrot: { c: [0.27, 1.28, 0], d: [0.9, 0.2, 0.85], r: 0.36 },
   hook:   { c: [-0.25, 0.68, 0.06], d: [-0.75, 0.25, 1], r: 0.2 },   // [v142] v5 shorter arms: the hand sits higher / closer in
   leg:    { c: [-0.14, 0.2, 0.05], d: [-0.25, 0.35, 1], r: 0.3 },   // right leg; LEFT = mirrored [v142] v5 peg y 0-0.33
+  'hat:crown_imperial': { c: [0, 1.82, 0.05], d: [0.3, 0.22, 1], r: 0.5 },   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
 };
 // the frame for this slot, mirrored to the pirate's LEFT (+x) for a left hook / peg
-function frameOf(slot, o) { const F = FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
+function frameOf(slot, o, id) { const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
   return side === 'L' ? { c: [-F.c[0], F.c[1], F.c[2]], d: [-F.d[0], F.d[1], F.d[2]], r: F.r } : F; }
 const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin || 'classic') : '', slot === 'hat' ? (o.hatColor | 0) : '', slot === 'hook' ? (o.hookSide === 'L' ? 'L' : 'R') : '',
   slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0].join('|');
@@ -91,7 +92,7 @@ async function renderOne(slot, id, o) {
     const td = performance.now(); await dressFor(slot, id, o); thumbStats.dressMs.push(Math.round((performance.now() - td) * 10) / 10);
     await new Promise((r) => requestAnimationFrame(r));   // dress and draw in separate frames (each stays short)
     (fig.userData.v4 || p).mixer?.setTime(0.35); fig.updateMatrixWorld(true); // [v112] the body may have been swapped (BODY pick)
-    const F = frameOf(slot, o), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    const F = frameOf(slot, o, id), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
   }
   cam.aspect = w / h; cam.updateProjectionMatrix();
@@ -137,7 +138,7 @@ export function gearLive(el, slot, id, opts = {}) {
     else {
       if (fig.userData.thumbKey !== dk) { if (!queue.length && !redress) { redress = true; dressFor(slot, id, opts).finally(() => { redress = false; }); } return; }   // stills first
       if (scroll) scroll.visible = false; fig.visible = true; a += 0.03; fig.rotation.y = Math.sin(a) * 0.7;
-      const F = frameOf(slot, opts), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+      const F = frameOf(slot, opts, id), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
       cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
     }
     cam.aspect = w / h; cam.updateProjectionMatrix(); if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);

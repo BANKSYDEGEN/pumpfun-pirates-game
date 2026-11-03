@@ -24,6 +24,9 @@ const item = (id, label, slot, price, tint, hide, o = {}) => ({ id, label, slot,
 export const ITEMS = [
   item('hat_tricorn', 'Pirate Hat', 'head', 250, { hat: '#18181b' }, [{ cyl: [0, -0.005, 0.27], y: [HY + 0.085, 9], tilt: 0.1, tints: ['hair'] }], { v5hide: [], skull: false }),   // [v128] BANKSY "Add this hat back in": the original compact v4 Pirate Hat (gold trim, big skull + crossbones) warped onto v5 (v5Fwd / v5Hat) instead of the wide v5 refit
   item('crown', 'Pirate King Crown', 'head', 1200, { accent: '#8e1b2a' }, [{ cyl: [0, 0, 0.228], y: [HY + 0.15, 9], tilt: 0.06, tints: ['hair'] }], { v5new: v5files('crown'), v5hide: [] }),   // v5new: Raul's Imperial State Crown, ships after BANKSY OKs the fit shots   // v5: Raul's Imperial State Crown (fixed colours)
+  // [v143] BANKSY "Fix and ship the Imperial crown as well": Raul's Imperial State Crown as its own item (the Pirate King Crown above is untouched).
+  // v5 bodies: his per-body fits re-seated by fitCrown, the hair inside hidden and the hair round the ermine rim tucked in under it (crownTuck)
+  item('crown_imperial', 'Imperial Crown', 'head', 2500, null, [{ cyl: [0, 0, 0.228], y: [HY + 0.15, 9], tilt: 0.06, tints: ['hair'] }], { v5: v5files('crown'), v5hide: [], crownFit: true, files: files('crown'), glb: files('crown').male.hi, icon: `${DIR}icons/crown.png` }),
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
@@ -123,6 +126,7 @@ function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
     if (S) { let cz = 0, c = 0; for (let i = 0; i < P.count; i++) if (S[i]) { cz += P.getZ(i); c++; } cz /= c || 1;
       for (let i = 0; i < P.count; i++) if (S[i]) { P.setX(i, P.getX(i) * 0.9); P.setZ(i, cz + (P.getZ(i) - cz) * 0.9); } }   // torso 10 % in under the coat / shirt
     if (!F) { g.setAttribute('position', P); continue; }
+    if (F.tuck) { tuckHair(P, T, F, iH); g.setAttribute('position', P); continue; }
     for (let i = 0; i < P.count; i++) { if (!T || Math.round(T.getX(i)) !== iH) continue; const y = P.getY(i); if (y <= F.y) continue;
       const dx = (P.getX(i) - F.cx) / F.ex, dz = (P.getZ(i) - F.cz) / F.ez; if (dx * dx + dz * dz > 1) continue; P.setY(i, F.y + (y - F.y) * F.k); }
     g.setAttribute('position', P);
@@ -333,14 +337,14 @@ function keyColors(geo, pal, low) {   // magenta 1 / cyan 2 / yellow 3 / blue 4 
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
-  const geo = g0.clone(); if (def.id === 'crown' || def.v5dy) geo.setAttribute('position', geo.attributes.position.clone());
+  const geo = g0.clone(); if (def.crownFit || def.v5dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors) retint(geo, opts.colors);
   const m = new THREE.SkinnedMesh(geo, itemMaterial(mat || {}, low, def.slot !== 'outfit')); m.name = 'item_' + def.id; m.frustumCulled = false;
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   if (def.v5dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + def.v5dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
   const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;
-  const v5hide = def.id === 'crown' ? fitCrown(geo, p) : null;
-  const flatten = def.slot === 'head' && def.id !== 'crown' ? hatFlatten(geo) : null;
+  const v5hide = def.crownFit ? fitCrown(geo, p) : null;
+  const flatten = def.crownFit ? (v5hide && crownTuck(v5hide, p)) : def.slot === 'head' ? hatFlatten(geo) : null;
   return { obj: m, decal, v5hide, flatten };
 }
 // [v123] BANKSY on Raul's crown: "Looks good, doesn't fit on head". Same design, re-seated per body: the ermine rim is scaled to the
@@ -358,7 +362,21 @@ function fitCrown(geo, p) {
   const sx = rx * CROWN_FIT.snug / ((a1 - a0) / 2), sz = rz * CROWN_FIT.snug / ((b1 - b0) / 2), sy = (sx + sz) / 2;
   for (let i = 0; i < P.count; i++) P.setXYZ(i, cx + (P.getX(i) - ca) * sx, Y - CROWN_FIT.drop + (P.getY(i) - ymin) * sy, cz + (P.getZ(i) - cb) * sz);
   P.needsUpdate = true; geo.computeBoundingSphere();
-  return [{ raw: 1, ell: [cx, cz, rx * 0.97, rz * 0.97], y0: Y + 0.02, tints: ['hair'] }];
+  return [{ raw: 1, ell: [cx, cz, rx * 0.97, rz * 0.97], y0: Y + 0.02, tints: ['hair'], rim: Y - CROWN_FIT.drop }];
+}
+// [v143] the hair round the crown's ermine rim (phone: black strands through the white fur, the female's long hair over it at the side /
+// back; High: dark specks on the fur): every hair vertex from the rim's bottom up is drawn in inside the rim and pressed down into the band,
+// and just below the rim the hair is eased in to the rim's line, so the fur sits on the hair instead of in it. Bind space, per pirate copy.
+export const CROWN_TUCK = { r: 0.86, squash: 0.3, fall: { hi: 0.045, lo: 0.12 } };
+function crownTuck(h, p) {
+  const [cx, cz, rx, rz] = h[0].ell; return { tuck: 1, cx, cz, rx: rx / 0.97, rz: rz / 0.97, y0: h[0].rim, fall: CROWN_TUCK.fall[p.lod === 'lo' ? 'lo' : 'hi'] };
+}
+function tuckHair(P, T, F, iH) {
+  for (let i = 0; i < P.count; i++) { const t = T ? Math.round(T.getX(i)) : 0, y = P.getY(i); if (t !== iH && t !== -1 && !(t === 0 && y > F.y0)) continue; if (y < F.y0 - F.fall) continue;   // hair + painted strands / ties round it (+ scalp skin above the rim: Low's forehead spikes)
+    const dx = P.getX(i) - F.cx, dz = P.getZ(i) - F.cz, r = Math.sqrt((dx / F.rx) ** 2 + (dz / F.rz) ** 2);
+    const a = Math.min(1, (y - (F.y0 - F.fall)) / F.fall), lim = CROWN_TUCK.r + (1 - a * a * (3 - 2 * a)) * 0.6;   // the limit closes in smoothly to the rim
+    if (t === -1 && r > 1.6) continue; if (r > lim) { const k = lim / r; P.setX(i, F.cx + dx * k); P.setZ(i, F.cz + dz * k); }
+    if (y > F.y0) P.setY(i, F.y0 + (y - F.y0) * CROWN_TUCK.squash); }
 }
 // [v123] BANKSY: every skull hat carries the REAL PUMPFUN PIRATES skull (assets/pirates/skull_decal.png, alpha decal). The modelled
 // white skull on the hat is found by colour, painted over with the hat felt, and the decal sits on that spot (curved to the surface).

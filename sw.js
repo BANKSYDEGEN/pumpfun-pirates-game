@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v142'; // [v142] shop gear cards framed for the v5 bodies: tall hats, eyewear, hooks, peg leg fully in frame
+const VERSION = 'pfp-v143'; // [v143] the Imperial Crown: its own shop item next to the Pirate King Crown (hair tucked under the ermine rim on every body / LOD)
 const SHELL = [
   "./",
   "./index.html",

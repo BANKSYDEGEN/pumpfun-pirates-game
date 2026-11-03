@@ -108,7 +108,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
   "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
   // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.
-  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 },
+  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 }, "gear:hat:crown_imperial": { price: 25000 },
   "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
   "gear:outfit:shirt": { price: 300 }, "gear:outfit:suit": { price: 3000 },
   "gear:eyes:eyepatch": { price: 200 }, "gear:eyes:sunglasses": { price: 500 }, "gear:eyes:laser": { price: 3000 },
@@ -121,7 +121,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:leg:peg": { price: 1000 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
-export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
+export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
   parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
   leg: ["none", "peg"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
 export const SEED_GOLD_CAP = 5000; // [security H3] was 25000. First server copy of a device save: gold above this is released at the normal earning pace (stepToward)
