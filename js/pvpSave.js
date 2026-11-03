@@ -114,7 +114,7 @@ function takeShop(j) { if (!j) return;
   const sk = j.owned?.skins || j.profile?.skins?.owned, gr = j.owned?.gear || j.profile?.gearOwned;
   if (Array.isArray(sk)) shop.skins = sk.filter(x => x !== 'classic'); if (Array.isArray(gr)) shop.gear = gr;
   if (j.stats) shopStats = j.stats; if (Number.isFinite(j.gold)) shopGold = j.gold | 0; shopOwner = !!j.owner;
-  try { dispatchEvent(new CustomEvent('pfp-shop-sync', { detail: { owned: { skins: ['classic', ...(shop.skins || [])], gear: shop.gear || [] }, rev: shop.rev, gold: shopGold, stats: shopStats, owner: shopOwner, goals: j.goals || null, modes: j.modes || null } })); } catch {} } // [v105] + Timothy's goals.ts progress
+  try { dispatchEvent(new CustomEvent('pfp-shop-sync', { detail: { owned: { skins: ['classic', ...(shop.skins || [])], gear: shop.gear || [] }, rev: shop.rev, gold: shopGold, stats: shopStats, owner: shopOwner, goals: j.goals || null, modes: j.modes || null, boosts: j.boosts || null } })); } catch {} } // [Emerly] + the server's boosts (supabase lib.ts boostsFor) // [v105] + Timothy's goals.ts progress
 let shopStats = null, shopGold = null, shopOwner = false;
 function devFlush(keepalive = false) {
   clearTimeout(devTimer); devTimer = 0;

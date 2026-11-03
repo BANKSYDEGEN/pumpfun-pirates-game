@@ -14,6 +14,7 @@ import { ON_PORTAL } from './config.js';
 import { gearThumbEl, gearLive } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
 import { getLocalGear, setLocalGear } from './pirateGear.js';
 import { openGearColorPicker } from './gearColorPicker.js';
+import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -144,7 +145,7 @@ function build() {
   root.innerHTML = `<div class="ishop-panel">
     <div class="ishop-awning" aria-hidden="true"></div>
     <header class="ishop-head"><div class="ishop-title"><b></b><small></small></div><div class="ishop-purse" aria-live="polite"></div><button class="ishop-x faq-x" type="button" aria-label="Close shop">✕</button></header>
-    <nav class="ishop-tabs" role="tablist"></nav><div class="ishop-chips" role="tablist" aria-label="Gear"></div>
+    <nav class="ishop-tabs" role="tablist"></nav><div class="ishop-chips" role="tablist" aria-label="Gear"></div><div class="ishop-bsts" aria-live="polite"></div>
     <div class="ishop-body"><aside class="ishop-detail" aria-live="polite"></aside><div class="ishop-grid"></div></div>
     <footer class="ishop-foot"></footer>
     <div class="ishop-confirm hidden" role="alertdialog" aria-modal="true"><div class="ishop-cbox"></div></div></div>`;
@@ -172,6 +173,7 @@ function render() {
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
+  boostBar(V);
   const items = itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
   const grid = $('.ishop-grid', root); grid.innerHTML = '';
   for (const x of items) {
@@ -183,11 +185,12 @@ function render() {
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? 'FREE' : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
+    if (x.kind === 'gear') { const b = boostOf(x.it.slot, x.it.id); if (b && boostChips(b).length) c.insertAdjacentHTML('beforeend', `<span class="ishop-bst">${boostChipHtml(b, esc)}</span>`); } // [Emerly] '+4% RELOAD'
     c.onclick = () => { view.sel = x.key; render(); };
     grid.appendChild(c);
   }
   detail(items.find(x => x.key === view.sel));
-  $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent · cosmetic only, never a stat change' : `Paid from your Battle Royale gold · cosmetic only, never a stat change${state.behind ? ' · some gold is still syncing' : ''}`;
+  $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale gold${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some gold is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
 }
 function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgrades panel (js/shop.js, opened in island mode)
@@ -210,8 +213,9 @@ function detail(x) {
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
-    ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b> · every blade hits the same: cosmetic only. Pit KOs pay nothing and never count towards goals.</div>'
-    : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b> · every musket shoots the same: cosmetic only. Range KOs pay nothing and never count towards goals.</div>');
+    ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b>. Pit KOs pay nothing and never count towards goals.</div>'
+    : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b>. Range KOs pay nothing and never count towards goals.</div>');
+  if (x.kind === 'gear') boostDetail(x, s, d); // [Emerly] ITEM SKILL BOOSTS
   if (x.it.crew) { // [Timothy] CREW SHOP
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
   if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
@@ -232,11 +236,38 @@ function detail(x) {
     w.querySelectorAll('button').forEach(b => b.onclick = () => setLocalGear({ [x.it.side]: b.dataset.side }));
     $('.ishop-info', d)?.append(w); }
 }
+// ---------- [Emerly] ITEM SKILL BOOSTS (js/boosts.js): card chips, the detail pane, the totals bar ----------
+const eqState = () => { const g = { ...(state?.equipped?.gear || {}) }; for (const k of ['crewhat', 'crewoutfit']) g[k] = eqGear(k); return g; };
+const ownedState = () => state?.owned?.gear || [];
+const totalNow = (gear = eqState()) => boostsFor(gear, ownedState(), !!state?.owner);
+function boostLine(x) { const b = boostOf(x.it.slot, x.it.id), c = boostChips(b); return c.length ? `Gives ${c.map(c => c.text).join(' + ')} while worn` : 'Cosmetic only'; }
+function boostDetail(x, s, d) {
+  const b = boostOf(x.it.slot, x.it.id), chips = boostChips(b), cur = eqGear(x.it.slot), curB = cur !== x.it.id ? boostOf(x.it.slot, cur) : null;
+  const pr = $('.ishop-pr', d); if (!pr) return;
+  if (!chips.length) { if (x.it.price) pr.insertAdjacentHTML('afterend', '<div class="ishop-gl ishop-bstd none">No skill boost · cosmetic only</div>'); return; }
+  const k0 = chips[0].k, S = BOOST_STATS[k0];
+  // compare with what this slot wears now: '+2% → +5% RANGE'; the totals after equipping (caps applied)
+  const now = totalNow(), after = totalNow({ ...eqState(), [x.it.slot]: x.it.id }), owned = s.owned || state.owner;
+  const cmp = curB && boostChips(curB).length ? `<div class="ishop-gl">Now wearing: ${boostChipHtml(curB, esc)} → this</div>` : '';
+  const capNote = after.capped.includes(k0) ? ` · <b class="bst-cap">${S.label} CAPPED at ${fmtPct(S.cap)}</b>` : after.capped.includes('combat') ? ` · <b class="bst-cap">TOTAL CAPPED at ${Math.round(COMBAT_CAP * 100)}</b>` : '';
+  const pv = S.combat ? statPreview(k0, after[k0] || 0, now[k0] || 0) : null;
+  const unit = pv ? `<div class="ishop-gl">Your ship: <b>${esc(pv.from)} → ${esc(pv.to)}</b> ${esc(S.label.toLowerCase())}${state.owner || owned ? '' : ' once bought + worn'}</div>` : '';
+  const where = S.combat ? `Stacks with ${esc(S.track)} upgrades · Battle Royale ${Math.round(BOOST_MODE.br * 100)}% · off in the SWORD PIT + MUSKET RANGE` : x.it.slot === 'parrot' ? 'More gold from loot piles, wins + Waves payouts (not the holder daily gold)' : S.foot ? `Your ${k0 === 'swordHit' ? 'sword' : 'musket'} lands more often, on foot in battle modes · never your ship's cannons${ARENA_WEAPON_BOOSTS ? '' : ' · off in the SWORD PIT + MUSKET RANGE for now'}` : '';
+  pr.insertAdjacentHTML('afterend', `<div class="ishop-bstd"><small>SKILL BOOST</small><span class="ishop-bst big">${boostChipHtml(b, esc)}</span></div>${cmp}${unit}<div class="ishop-gl">${where}${capNote}</div>`);
+  if (now.combat !== after.combat && S.combat) $('.ishop-bstd', d)?.insertAdjacentHTML('beforeend', `<small class="bst-tot">TOTAL ${Math.round(now.combat * 100)} → ${Math.round(after.combat * 100)} / ${Math.round(COMBAT_CAP * 100)}</small>`);
+}
+function boostBar(V) {
+  const el = $('.ishop-bsts', root); if (!el) return;
+  if (view.tab === 'skins' || view.tab === 'upgrades') { el.hidden = true; return; }
+  const t = totalNow(), chips = boostChips(t);
+  el.hidden = false;
+  el.innerHTML = `<b class="bst-head">BOOSTS <span>${Math.round(t.combat * 100)} / ${Math.round(COMBAT_CAP * 100)}</span></b><span class="bst-meter" role="img" aria-label="Combat boosts ${Math.round(t.combat * 100)} of ${Math.round(COMBAT_CAP * 100)}"><i style="width:${Math.min(100, t.combat / COMBAT_CAP * 100)}%"></i></span>${chips.length ? `<span class="ishop-bst">${chips.map(c => `<i class="bst bst-${c.k}${t.capped.includes(c.k) ? ' capped' : ''}">${c.icon} ${esc(c.text)}${t.capped.includes(c.k) ? ' · CAPPED' : ''}</i>`).join('')}</span>` : '<span class="bst-none">Wear gear to get skill boosts</span>'}`;
+}
 function confirmBuy(x) {
   const box = $('.ishop-confirm', root), cb = $('.ishop-cbox', box);
   cb.innerHTML = ''; cb.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it));
   cb.insertAdjacentHTML('beforeend', `<h4>BUY ${esc(x.name)}?</h4><p class="ishop-math"><span>${fmtGold(state.gold)}</span> − <b>${fmtGold(x.it.price)}</b> = <span>${fmtGold(state.gold - x.it.price)}</span></p>
-    <p class="muted">Paid from your Battle Royale gold. ${x.kind === 'skin' ? 'Cosmetic only.' : x.it.crew ? 'Cosmetic only · for your crew (not your own pirate) · on every device with this save.' : 'Cosmetic only · yours on every device with this save.'}</p>
+    <p class="muted">Paid from your Battle Royale gold. ${x.kind === 'skin' ? 'Cosmetic only.' : boostLine(x) + (x.it.crew ? ' · for your crew (not your own pirate) · on every device with this save.' : ' · yours on every device with this save.')}</p>
     <div class="ishop-cbtns"><button type="button" class="ghost" data-c="no">CANCEL</button><button type="button" class="big" data-c="yes">CONFIRM</button></div><p class="ishop-err" aria-live="assertive"></p>`);
   box.classList.remove('hidden'); $('[data-c="yes"]', cb).focus();
   $('[data-c="no"]', cb).onclick = hideConfirm;

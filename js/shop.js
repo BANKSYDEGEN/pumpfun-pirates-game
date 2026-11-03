@@ -5,6 +5,7 @@ import { isKey } from './keybinds.js';
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
 import { UPGRADES, REPAIR, newRun, modeStats, applyStats, fmtStat, ROMAN, BASE_SHIP } from './upgrades.js';
 import { sortByPrice } from './shopCatalog.js'; // [v157] shops sorted by price
+import { applyBoosts, activeBoosts, setStatsSource } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: worn gear adds a capped % after the upgrade tiers
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
@@ -13,7 +14,7 @@ import { pvpTierCost, PVP_REPAIR_COST, PVP_BASE_HP, PVP_HULL_MUL, PVP_REPAIR_MUL
 const PVP = () => ctx?.game.mode === 'pvp';
 const TIER_IDX = new Map(); for (const u of UPGRADES) u.tiers.forEach((t, i) => TIER_IDX.set(t, i));
 const costOf = (t) => PVP() ? pvpTierCost(TIER_IDX.get(t) ?? 0) : t.cost; // [pvp] same price in the harbor and the arena
-const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, shipStats = (r) => modeStats(r, PVP() ? PVP_HULL : null), repairHp = () => REPAIR.hp * (PVP() ? PVP_REPAIR_MUL : 1); // [pvp hp] 300 HP base in Battle Royale
+const PVP_HULL = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, shipStats = (r) => applyBoosts(modeStats(r, PVP() ? PVP_HULL : null), activeBoosts(ctx?.game.mode)), repairHp = () => REPAIR.hp * (PVP() ? PVP_REPAIR_MUL : 1); // [pvp hp] 300 HP base in Battle Royale
 
 const repairCost = () => PVP() ? PVP_REPAIR_COST : REPAIR.cost; // [pvp]
 const SUB_UPG = () => PVP() ? 'Spend PvP gold on your ship. Upgrades are kept after you sink (and saved if you chose a save).' : 'Spend looted gold on your ship. Upgrades last this voyage only.';
@@ -275,9 +276,11 @@ export function setRunLevels(lv = {}) {
   setLoadout(run.levels); if (ctx) { const p = ctx.getPlayer(); p.maxHp = 0; applyStats(p, shipStats(run)); p.hp = p.maxHp; ctx.rebuildShip?.(run.levels); }
 }
 export const getRunLevels = () => ({ ...run.levels });
+// [Emerly] boosts changed (gear equipped / bought, harbor <-> Battle Royale, the SWORD PIT): re-apply the stats, keep the hull's damage
+addEventListener('pfp-boosts', () => { if (!ctx) return; const p = ctx.getPlayer(); if (!p) return; const dead = !(p.hp > 0) || p.alive === false, lost = Math.max(0, (p.maxHp || 0) - (p.hp || 0)); applyStats(p, shipStats(run)); p.hp = dead ? 0 : Math.max(1, Math.min(p.maxHp, p.maxHp - lost)); if (ctx.game.state === 'shop') render(); });
 
 export function initShop(c) {
-  ctx = c; injectCss(); buildDom(); initSkinPreview(c.previewBase || {});
+  ctx = c; setStatsSource((b) => applyBoosts(modeStats(run, PVP() ? PVP_HULL : null), b)); // [Emerly] boosts: the island shop's '2.20 s → 2.07 s' preview injectCss(); buildDom(); initSkinPreview(c.previewBase || {});
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (isKey('shop', e.code)) toggle();

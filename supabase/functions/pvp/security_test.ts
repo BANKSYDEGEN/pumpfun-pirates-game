@@ -80,3 +80,27 @@ Deno.test("goals: kills come from the caller (shop_buy / shopView pass the confi
   assertFalse(goalMet(diamond, { kills: 4999, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 }));
   assert(goalMet(diamond, { kills: 5000, deaths: 0, botKills: 0, harborKills: 0, bossKills: 0 }));
 });
+
+// [Emerly] ITEM SKILL BOOSTS (lib.ts boostsFor)
+import { boostsFor, BOOSTS, BOOST_CAPS, BOOST_COMBAT_CAP } from "./lib.ts";
+Deno.test("boosts: unowned gear gives nothing, owned gives its boost, the owner is still capped", () => {
+  const gear = { hat: "crown_imperial", parrot: "parrot_diamond", hook: "hook_gold" };
+  const none = boostsFor(gear, new Set(), false); assertEquals(none.reload, 0); assertEquals(none.goldFind, 0); assertEquals(none.combat, 0);
+  const own = boostsFor(gear, new Set(["gear:hat:crown_imperial", "gear:parrot:parrot_diamond"]), false);
+  assertEquals(own.reload, 0.06); assertEquals(own.goldFind, 0.10); assertEquals(own.dmg, 0); // hook not owned
+  const all = boostsFor({ hat: "crown_imperial", outfit: "suit", eyes: "laser", hook: "hook_gold", leg: "peg", face: "facepaint_retardio", crewhat: "crown_imperial", crewoutfit: "suit", parrot: "parrot_diamond" }, new Set(), true);
+  for (const [k, cap] of Object.entries(BOOST_CAPS)) assert(all[k] <= cap + 1e-9, k);
+  assert(all.combat <= BOOST_COMBAT_CAP + 1e-9); assertEquals(all.speed <= BOOST_CAPS.speed, true);
+});
+Deno.test("boosts: junk gear + unknown ids are ignored; weapons wait for their gear slots", () => {
+  assertEquals(boostsFor({ hat: "crown_imperial'; drop", sword: "blade_gold" }, new Set(["gear:sword:blade_gold"]), false).combat, 0);
+  assertEquals(Object.keys(BOOSTS["sword:blade_gold"]), ["swordHit"]); assertEquals(Object.keys(BOOSTS["musket:blunder_gold"]), ["musketHit"]); // their own hit rate, never ship stats
+  assertEquals(BOOST_CAPS.dmg, 0.04); assertEquals(BOOST_CAPS.range, 0.05);
+});
+Deno.test("boosts: PET gold find widens the save pace by its share only", () => {
+  const cur = cleanProfile({ gold: 0 }), next = cleanProfile({ gold: CAPS.valueBase + CAPS.valuePerMin * 10 + 2000 });
+  assert(saveProblem(cur, next, 10) !== null); assertEquals(saveProblem(cur, next, 10, 0.10), null);
+  const over = cleanProfile({ gold: CAPS.valueBase + CAPS.valuePerMin * 1.1 * 10 + 50 }); // just past the 10% widening
+  assert(saveProblem(cur, over, 10, 0.10) !== null); assert(saveProblem(cur, over, 10, 5) !== null); // a bigger goldFind is clamped to 10%
+  assertEquals(saveProblem(cur, cleanProfile({ gold: 100 }), 1), null); // default unchanged
+});

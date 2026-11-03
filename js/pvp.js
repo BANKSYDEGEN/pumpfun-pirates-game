@@ -44,6 +44,7 @@ import { IS_PROD_HOST } from './env.js'; // [security H5] peer ids whitelisted, 
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
+import { setBoostSource, setBoostZone, goldFindBonus, MAX_BOOST } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS
 import { compilePreview } from './upgradeVisuals.js';
 import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
@@ -70,9 +71,9 @@ const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
 // [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
 const PVP_MODE = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, MAXED = modeStats(maxRun(), PVP_MODE);
 const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map((_, i) => modeStats({ levels: { cannons: i + 1 } }, PVP_MODE).gunDmg));
-export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * PVP_DMG_MUL) + 1); // 48: v94 clients (up to 8 heavier balls) while they update; // [pvp hp] ×1.4 PvP cannonballs
-const MAX_SPEED = 3 * 4.2 * MAXED.speed * 1.15;
-const MAX_HP = MAXED.maxHp;
+export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * (1 + MAX_BOOST.dmg) * PVP_DMG_MUL) + 1); // 48: v94 clients (up to 8 heavier balls) while they update; // [pvp hp] ×1.4 PvP cannonballs
+const MAX_SPEED = 3 * 4.2 * MAXED.speed * (1 + MAX_BOOST.speed) * 1.15; // [Emerly] + the most a boost can add (a boosted peer never reads as a cheater)
+const MAX_HP = Math.round(MAXED.maxHp * (1 + MAX_BOOST.hp));
 const SQ_PREFIX = 'pfp-pvp-' + ROOM_PREFIX.slice(8, 22) + 'sq'; // [v98] the SQUADS arena: its own lobby prefix + room (live: pfp-pvp-v1sq)
 const SQ_MIN = Math.max(2, Math.min(SQUADS.players, +QS.get('sqmin') || SQUADS.players)); // pirates needed to start a round (tests: ?sqmin=2)
 const ls0 = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -173,9 +174,12 @@ export function createPvp(K) {
   // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
   // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
   // plug in there; until then every gear item is COMING SOON and nothing is drawn).
-  function gearChanged() { try { setLocalGear({ ...profile.gear }); } catch (e) { console.warn('[gear]', e); } setCrewLoadout(profile.gear); } // [v105] Timothy's js/pirateGear.js: saves + re-dresses your on-foot pirate + your captain (fires 'pfp-gear')
+  function gearChanged() { try { setLocalGear({ ...profile.gear }); } catch (e) { console.warn('[gear]', e); } setCrewLoadout(profile.gear); boostSrc(); } // [v105] Timothy's js/pirateGear.js: saves + re-dresses your on-foot pirate + your captain (fires 'pfp-gear')
+  // [Emerly] ITEM SKILL BOOSTS: what you wear ∩ what the server says you own (owner = everything, still capped)
+  function boostSrc() { try { setBoostSource({ gear: { ...(profile.gear || {}) }, owned: profile.gearOwned || [], owner: !!ownerAllSkins() }); } catch (e) { console.warn('[boosts]', e); } }
   addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
     profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
+    try { setBoostSource({ owned: d.owned.gear, owner: !!d.owner || !!ownerAllSkins(), server: d.boosts || null }); } catch {} // [Emerly] boosts follow the server's owned list
     if (!d.owner && profile.gear) { for (const [sl, ids] of Object.entries(CREW_SLOTS)) if (profile.gear[sl] && profile.gear[sl] !== ids[0] && !d.owned.gear.includes(`${sl}:${profile.gear[sl]}`)) profile.gear[sl] = ids[0]; setCrewLoadout(profile.gear); } // [Timothy] crew items: owned or the uniform
     if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
     if (active && !$('pvp-menu')?.classList.contains('hidden')) renderMenu(); });
@@ -188,7 +192,7 @@ export function createPvp(K) {
     async buy(kind, key) {
       const r = await shopBuy(kind === 'skin' ? `skin:${key}` : `gear:${key}`, snapshot());
       if (r.ok) { if (!r.owner) { game.gold = Math.max(0, (game.gold | 0) - (r.price | 0)); profile.rev = r.rev | 0; } // SAME tick as the rev bump
-        if (kind === 'skin') profile.skins.owned = [...new Set([...profile.skins.owned, key])]; else profile.gearOwned = [...new Set([...(profile.gearOwned || []), key])];
+        if (kind === 'skin') profile.skins.owned = [...new Set([...profile.skins.owned, key])]; else { profile.gearOwned = [...new Set([...(profile.gearOwned || []), key])]; boostSrc(); }
         setOwnedSkins(profile.skins.owned); save({ now: true, force: true }); K.updateHud(); sfx.coin?.(); }
       const st = (await shopStateNow()) || { source: 'live', owner: false, gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } };
       return { ok: !!r.ok, error: r.ok ? null : ({ 'goal not reached': 'reach the goal first', 'not enough gold': 'not enough gold', 'already owned': 'already yours' }[r.error] || r.error || 'shop offline'), state: st };
@@ -249,7 +253,7 @@ export function createPvp(K) {
     try { link = await net.openRoom(1); } catch (e) { console.warn('[pvp] arena connect failed', e?.message); await lobbyCall('leave'); K.banner('ARENA OFFLINE', 'could not connect, back in the harbor'); return false; }
     if (!active) { link.close(); return false; }
     room = link; roomIdx = 1; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true }); sqReset();
-    where = 'arena'; lob.queuedByDeath = false; document.documentElement.classList.remove('pvp-harbor'); harborUi();
+    where = 'arena'; setBoostZone('br'); lob.queuedByDeath = false; document.documentElement.classList.remove('pvp-harbor'); harborUi();
     me.dead = true; P().alive = false; P().mesh.visible = false; // listen a moment so the spawn is the farthest from everyone
     K.banner('ENTERING THE ARENA', 'finding the quietest spawn…');
     await new Promise(res => setTimeout(res, 1200));
@@ -261,7 +265,7 @@ export function createPvp(K) {
     resetBounty(); me.ret = null;
     if (room) { room.send('bye', { i: myId }, { now: true }); room.close(); }
     room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
-    isHost = false; hostId = null; where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); sqReset(); sqVis();
+    isHost = false; hostId = null; where = 'harbor'; setBoostZone('harbor'); document.documentElement.classList.add('pvp-harbor'); sqReset(); sqVis();
     respawnHarbor(); hb.beatAt = 0; harborUi(); K.banner(title, sub); // [v99] back into a shared harbor copy at the next heartbeat
   }
   function respawnHarbor(afterDeath = false) {
@@ -922,7 +926,7 @@ export function createPvp(K) {
   function applyGot(m) {
     const l = piles.get(m.pid); const v = clamp(Math.floor(+m.v || 0), 0, l ? l.value : 0);
     if (l) { if (m.to !== myId) K.popup(l.mesh.position.clone().setY(5), `${nameOf(m.to)} +${v}`, 'hit'); removePile(m.pid); }
-    const hb = m.to === myId && l ? holderMul(l.earned) : 0; // HOLDER ×2 on earned gold only
+    const hb = m.to === myId && l ? holderMul(l.earned) + goldFindBonus(l.earned) : 0; // HOLDER ×2 on earned gold only · [Emerly] + PET gold find (earned gold only)
     if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); K.updateHud(); save(); }
   }
   function respawn() {
@@ -1025,7 +1029,7 @@ export function createPvp(K) {
       const myT = sq.A0.includes(myId) ? 'A' : sq.B0.includes(myId) ? 'B' : null, won = !!myT && sq.w === myT, draw = sq.w === 'D', losers = sq.w === 'A' ? sq.B0 : sq.A0;
       let gold = 0;
       if (won && [...sq.sunk].some(id => losers.includes(id))) { // win gold only for a real fight (someone on the other team was sunk), earned gold: the holder perk doubles it
-        gold = SQUADS.winGold + holderMul(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${gold} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
+        gold = SQUADS.winGold + holderMul(SQUADS.winGold) + goldFindBonus(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${gold} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
       if (won) sfx.victory?.(); // [v101] recorded victory stinger
       K.banner(draw ? 'DRAW' : won ? 'VICTORY!' : myT ? 'DEFEAT' : 'ROUND OVER', won ? (gold ? `+${gold} gold · next round in ${SQUADS.endSecs} s` : 'no gold: nobody on their team was sunk') : draw ? 'nobody wins this round' : `next round in ${SQUADS.endSecs} s`);
       if (myT && !won && lob.queue > 0) lobbyCall('died').then((r) => { if (r.state === 'queue') lob.queuedByDeath = true; }); // rotation: the losing team makes room for the queue
@@ -1395,7 +1399,7 @@ export function createPvp(K) {
     if (!spec.on) return; room?.close(); room = null; clearPeers(); for (const pid of [...piles.keys()]) removePile(pid);
     const left = net.lobby('leave', lobbyOpts()).then(() => { if (lob.state === 'queue') return lobbyCall('play'); }).catch(() => {}); // (spec seat freed; a queued seat id re-queues at its place only if still alive)
     if (spec.harbor) { hbNet?.call('leave', { seat: seatId }); clearLocalAi(true); } // [v99] free the harbor spectator seat
-    specOff(); where = 'harbor'; document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); hb.beatAt = 0; harborUi();
+    specOff(); where = 'harbor'; setBoostZone('harbor'); document.documentElement.classList.add('pvp-harbor'); respawnHarbor(); hb.beatAt = 0; harborUi();
     return left;
   }
   function specOff() {
@@ -1531,7 +1535,7 @@ export function createPvp(K) {
     active = true; wireUi(); document.documentElement.classList.add('pvp');
     me.life = 0; me.kills = me.deaths = me.gold = 0; me.dead = false; me.protect = 99; feed.length = 0;
     const pl = P(); pl.x = 0; pl.z = 0;
-    where = 'harbor'; Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
+    where = 'harbor'; setBoostZone('harbor'); Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
     if (spec.want) { const sm = ls0('pfp_spec_mode'); spec.harbor = sm === 'harbor' && !!hbNet; setNet(sm === 'squads' ? 'squads' : 'solo'); return specBegin(); } // [v98] the home switch picks the arena to watch; [v99] or the HARBOR
     document.documentElement.classList.add('pvp-harbor');
     respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi); refreshRank(true);
@@ -1560,7 +1564,7 @@ export function createPvp(K) {
     active = false; document.documentElement.classList.remove('pvp');
     room?.close(); room = null; clearPeers();
     for (const pid of [...piles.keys()]) removePile(pid);
-    isHost = false; hostId = null; showDead(false); toggleMenu(false); clearLocalAi(true); where = 'harbor'; showOffer(false);
+    isHost = false; hostId = null; showDead(false); toggleMenu(false); clearLocalAi(true); where = 'harbor'; setBoostZone('harbor'); showOffer(false);
     document.documentElement.classList.remove('pvp-harbor'); harborUi(); $('pvp-entry')?.classList.add('hidden'); $('pvp-afk')?.classList.add('hidden');
     if (P().shield) P().shield.visible = false;
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length === 4) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[3].textContent = 'SUNK'; }

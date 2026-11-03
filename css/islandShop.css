@@ -159,3 +159,31 @@
 .ishop.pets .ishop-card, .ishop.crewshop .ishop-card { position: relative; }
 .ishop.crewshop .ishop-sw.crew::after { content: 'CREW'; position: absolute; right: 6px; top: 6px; font: 800 9px/1 system-ui, sans-serif; padding: 3px 6px; border-radius: 6px; background: #6a4fb3; color: #fff; }
 .ishop.crewshop .ishop-sw.crew { position: relative; }
+/* [Emerly] ITEM SKILL BOOSTS: card chips ('+4% RELOAD'), the detail pane block, the BOOSTS n / 30 bar */
+.ishop-bst { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: 2px; }
+.bst { font-style: normal; font-size: 14px; line-height: 1; padding: 3px 6px 2px; border-radius: 999px; background: rgba(78, 227, 122, 0.16); color: #7dffa6; border: 1px solid rgba(78, 227, 122, 0.45); white-space: nowrap; letter-spacing: 0.02em; }
+.bst-goldFind, .bst-digLuck { background: rgba(255, 205, 119, 0.16); color: var(--s-gold, #ffcd77); border-color: rgba(255, 205, 119, 0.5); }
+.bst.capped { opacity: 0.6; text-decoration: line-through rgba(255, 255, 255, 0.35); }
+.ishop-bst.big .bst { font-size: 17px; padding: 4px 9px 3px; }
+.ishop-bstd { display: flex; flex-direction: column; align-items: center; gap: 3px; margin: 4px 0 2px; }
+.ishop-bstd > small { font-size: 12px; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.55); }
+.ishop-bstd.none { opacity: 0.6; }
+.bst-tot { color: #7dffa6; } .bst-cap { color: #ff9a6b; }
+.ishop-bsts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 10px; margin: 0 8px 4px; border-radius: var(--s-r-in, 8px); background: rgba(0, 0, 0, 0.28); font-size: 14px; }
+.ishop-bsts[hidden] { display: none; }
+.ishop-bsts .bst-head { color: #fff; letter-spacing: 0.06em; white-space: nowrap; } .ishop-bsts .bst-head span { color: #7dffa6; }
+.ishop-bsts .bst-meter { flex: 0 0 90px; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.ishop-bsts .bst-meter i { display: block; height: 100%; background: linear-gradient(90deg, #4ee37a, #c8ff6b); }
+.ishop-bsts .ishop-bst { justify-content: flex-start; margin: 0; } .ishop-bsts .bst-none { color: rgba(255, 255, 255, 0.55); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .ishop-bsts { padding: 2px 6px; margin: 0 4px 2px; gap: 5px; font-size: 12px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .ishop-bsts .bst-meter { flex-basis: 50px; } .bst { font-size: 11px; padding: 2px 4px 1px; } .ishop-bst.big .bst { font-size: 14px; }
+  .ishop-card .ishop-bst .bst { font-size: 10px; }
+}
+/* profile: SKILL BOOSTS section (js/boosts.js mountProfileBoosts) */
+#pf-boosts .pfb-rows { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; font-size: 14px; }
+#pf-boosts .pfb-bar { height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; position: relative; }
+#pf-boosts .pfb-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4ee37a, #c8ff6b); }
+#pf-boosts .pfb-bar.gold i { background: linear-gradient(90deg, #ffcd77, #ffe9a8); }
+#pf-boosts .pfb-v { color: #7dffa6; white-space: nowrap; } #pf-boosts .pfb-v.capped { color: #ff9a6b; }
+#pf-boosts h4 span { color: #7dffa6; }

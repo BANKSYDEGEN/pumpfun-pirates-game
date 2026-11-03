@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>boosts: sword + musket cards (preview)</title>
+<link rel="stylesheet" href="../css/style.css"><link rel="stylesheet" href="../css/islandShop.css">
+<style>body{background:#0e1a20;margin:0;padding:12px;font-family:inherit}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;max-width:980px}
+h3{color:#ffcd77;margin:8px 0 4px;font-weight:normal;letter-spacing:1px}.ishop-card{display:flex;height:auto;min-height:0;flex-direction:column;align-items:center;gap:3px;padding:8px;border:2px solid #6b4527;border-radius:10px;background:#2a1a10;color:#fff}
+.ishop-name{font-size:16px}.ishop-badge{color:#ffcd77}#bar{max-width:980px}</style>
+<div id="wrap" style="display:block"><h3>WEAPON STORE preview · SWORDS (mock cards, the real store lands with emerly/battle-areas)</h3><div class="g" id="sw"></div>
+<h3>MUSKETS</h3><div class="g" id="mu"></div><h3>BOOSTS bar + detail line</h3><div class="ishop-bsts" id="bar"></div><p id="d" class="ishop-gl" style="color:#fff;max-width:600px"></p></div>
+<script type="module">
+import { BOOSTS, boostOf, boostChipHtml, boostChips, boostsFor, ARENA_WEAPON_BOOSTS } from '../js/boosts.js';
+const W = [['sword','rusty','RUSTY CUTLASS',0],['sword','cutlass','CUTLASS',1500],['sword','rapier','RAPIER',4000],['sword','bone','BONE SKULL BLADE',12000],['sword','sabre_gilded',"GILDED CAPTAIN'S SABRE",25000],['sword','blade_gold','LEGENDARY GOLD BLADE',75000],
+ ['musket','rusty','RUSTY FLINTLOCK',0],['musket','navy','NAVY MUSKET',2000],['musket','blunder','BLUNDERBUSS',5000],['musket','dragoon','BRASS DRAGOON',12000],['musket','bone','BONE MUSKET',25000],['musket','blunder_gold','GOLDEN BLUNDERBUSS',75000]];
+for (const [slot,id,label,price] of W) { const b = boostOf(slot,id), c = document.createElement('div'); c.className = 'ishop-card'; c.dataset.id = `${slot}:${id}`;
+  c.innerHTML = `<b class="ishop-name">${label}</b><span class="ishop-badge">${price ? price.toLocaleString('en-US') + 'g' : 'FREE'}</span>${b && boostChips(b).length ? `<span class="ishop-bst">${boostChipHtml(b)}</span>` : ''}`;
+  document.getElementById(slot === 'sword' ? 'sw' : 'mu').append(c); }
+const t = boostsFor({ hat: 'tricorn', sword: 'rapier', musket: 'dragoon' }, [], true);
+document.getElementById('bar').innerHTML = `<b class="bst-head">BOOSTS <span>${Math.round(t.combat*100)} / 30</span></b><span class="ishop-bst">${boostChipHtml(t)}</span>`;
+document.getElementById('d').textContent = `Your sword lands more often, on foot in battle modes · never your ship's cannons${ARENA_WEAPON_BOOSTS ? '' : ' · off in the SWORD PIT + MUSKET RANGE for now'}`;
+document.body.dataset.ready = '1';
+</script>

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v160'; // [v160] island rework: seamless joins (stair walk height = smooth line pinned to the ground / deck at both ends; rope bridge deck-end lips cut away, ends pinned to live) + tools/walktest
+const VERSION = 'pfp-v161'; // [v161] ITEM SKILL BOOSTS: worn hats / clothes / eyes / hook / peg / face paint / crew gear / parrots (+ swords + muskets once they land) give capped % ship boosts; BR 50%, off in the SWORD PIT / MUSKET RANGE
 const SHELL = [
   "./",
   "./index.html",
@@ -118,6 +118,7 @@ const SHELL = [
   "./js/pvpSkins.js",
   "./js/islandShop.js",
   "./js/shopCatalog.js",
+  "./js/boosts.js", // [Emerly] ITEM SKILL BOOSTS (shop.js, pvp.js, islandShop.js import it)
   "./js/shopGoals.js", // [Timothy] shop goal progress (islandShop.js imports it)
   "./js/modeKills.js", // [Timothy] pvp.js imports it (BR kills by mode, display only)
   "./js/islandMap.js",

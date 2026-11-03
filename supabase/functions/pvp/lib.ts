@@ -74,9 +74,10 @@ export function value(p: Profile) {
   return v;
 }
 // Is going from `cur` to `next` plausible in `mins` minutes? Returns a reason string when not.
-export function saveProblem(cur: Profile, next: Profile, mins: number): string | null {
-  const m = Math.max(0, Math.min(mins, 60));
-  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * m) return "gold gained too fast";
+// [Emerly boosts] goldFind (0..0.10, the PET gold find from boostsFor) widens the gold pace by the same share (default 0 = unchanged)
+export function saveProblem(cur: Profile, next: Profile, mins: number, goldFind = 0): string | null {
+  const m = Math.max(0, Math.min(mins, 60)), gf = 1 + Math.max(0, Math.min(0.10, Number(goldFind) || 0));
+  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m) return "gold gained too fast";
   const dk = next.stats.kills - cur.stats.kills, dd = next.stats.deaths - cur.stats.deaths, db = next.stats.botKills - cur.stats.botKills;
   if (dk < 0 || dd < 0 || db < 0) return "K/D can't go down";
   if (dk > CAPS.killsBase + CAPS.killsPerMin * m || db > CAPS.killsBase + CAPS.killsPerMin * m) return "too many kills for the time";
@@ -177,3 +178,44 @@ export function wavesProblem(score: number, wave: number, sunk: number, elapsed:
 // [island-rework] now GENERATED from the shared registry js/island/digSpots.js (tools/gen_digspots.mjs -> ./digSpots.ts); same values as before:
 // MAP_SPOTS = dig1..dig6, MAP_SPOTS_ALL = dig1..dig6 + cave. New island spots are registered OFF until each area ships.
 export { MAP_SPOTS, MAP_SPOTS_ALL } from "./digSpots.ts";
+
+// ---------------- [Emerly] ITEM SKILL BOOSTS (BANKSY, Nov 3; plan timothy-boosts/PLAN.md). ADDITIVE: no migration. ----------------
+// Server copy of js/boosts.js BOOSTS (tests/boosts_test.mjs checks the two tables match). Boosts = equipped gear ∩ pvp_owned
+// (the owner owns everything, still CAPPED). The server applies GOLD FIND to the gold it pays (waves_claim) and widens the save
+// pace check by it; combat boosts ride the same trust as upgrade levels (the client runs its own ship).
+export const BOOST_CAPS: Record<string, number> = { reload: 0.06, hp: 0.05, range: 0.05, dmg: 0.04, turn: 0.04, speed: 0.05, regen: 0.08, goldFind: 0.10, digLuck: 0.15, swordHit: 0.04, musketHit: 0.05 };
+const BOOST_COMBAT = ["reload", "hp", "range", "dmg", "turn", "speed", "regen"];
+export const BOOST_COMBAT_CAP = 0.30;
+export const BOOSTS: Record<string, Record<string, number>> = {
+  "hat:bandana": { reload: 0.01 }, "hat:tricorn": { reload: 0.02 }, "hat:helmet_hq": { reload: 0.03 }, "hat:bicorne": { reload: 0.04 },
+  "hat:crown": { reload: 0.05 }, "hat:crown_imperial": { reload: 0.06 },
+  "outfit:tank": { hp: 0.01 }, "outfit:tshirt": { hp: 0.02 }, "outfit:shirt": { hp: 0.02 }, "outfit:coat": { hp: 0.03 }, "outfit:suit": { hp: 0.05 },
+  "eyes:eyepatch": { range: 0.02 }, "eyes:sunglasses": { range: 0.03 }, "eyes:laser": { range: 0.05 },
+  "hook:hook_iron": { dmg: 0.02 }, "hook:hook_gold": { dmg: 0.04 },
+  "leg:peg": { turn: 0.04 },
+  "face:facepaint_retardio": { speed: 0.02 },
+  "crewhat:tricorn": { speed: 0.01 }, "crewhat:helmet_hq": { speed: 0.015 }, "crewhat:bicorne": { speed: 0.02 }, "crewhat:crown": { speed: 0.03 }, "crewhat:crown_imperial": { speed: 0.035 },
+  "crewoutfit:tshirt": { regen: 0.03 }, "crewoutfit:shirt": { regen: 0.03 }, "crewoutfit:coat": { regen: 0.05 }, "crewoutfit:suit": { regen: 0.08 },
+  "parrot:parrot_green": { goldFind: 0.02 }, "parrot:parrot_red": { goldFind: 0.03 }, "parrot:parrot_blue": { goldFind: 0.04 },
+  "parrot:parrot_cockatoo": { goldFind: 0.05, digLuck: 0.05 }, "parrot:parrot_black": { goldFind: 0.06, digLuck: 0.08 },
+  "parrot:parrot_gold": { goldFind: 0.08, digLuck: 0.12 }, "parrot:parrot_diamond": { goldFind: 0.10, digLuck: 0.15 },
+  // swords + muskets: their OWN on-foot hit rate (BANKSY 5:29 PM), never ship stats. They count once GEAR_SLOTS has sword / musket.
+  "sword:cutlass": { swordHit: 0.01 }, "sword:rapier": { swordHit: 0.015 }, "sword:bone": { swordHit: 0.02 }, "sword:sabre_gilded": { swordHit: 0.03 }, "sword:blade_gold": { swordHit: 0.04 },
+  "musket:navy": { musketHit: 0.01 }, "musket:blunder": { musketHit: 0.02 }, "musket:dragoon": { musketHit: 0.03 }, "musket:bone": { musketHit: 0.04 }, "musket:blunder_gold": { musketHit: 0.05 },
+};
+const r4 = (v: number) => Math.round(v * 10000) / 10000;
+// gear (any shape: cleaned here) + the pvp_owned set ('gear:slot:id') -> capped boosts. Never throws.
+export function boostsFor(gear: unknown, owned: Set<string>, owner: boolean): Record<string, number> {
+  const g = cleanGear(gear), raw: Record<string, number> = Object.fromEntries(Object.keys(BOOST_CAPS).map((k) => [k, 0]));
+  for (const [slot, id] of Object.entries(g)) {
+    const b = typeof id === "string" ? BOOSTS[`${slot}:${id}`] : undefined; if (!b) continue;
+    if (!owner && !owned.has(`gear:${slot}:${id}`)) continue;
+    for (const [k, v] of Object.entries(b)) raw[k] += v;
+  }
+  const out: Record<string, number> = {}; for (const [k, cap] of Object.entries(BOOST_CAPS)) out[k] = Math.min(raw[k], cap);
+  const combat = BOOST_COMBAT.reduce((a, k) => a + out[k], 0);
+  if (combat > BOOST_COMBAT_CAP) { const f = BOOST_COMBAT_CAP / combat; for (const k of BOOST_COMBAT) out[k] *= f; }
+  for (const k of Object.keys(out)) out[k] = r4(out[k]);
+  out.combat = r4(Math.min(BOOST_COMBAT_CAP, combat)); out.ver = 1;
+  return out;
+}
