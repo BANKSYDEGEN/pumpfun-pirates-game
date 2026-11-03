@@ -49,6 +49,13 @@ function bake(gltf, clipName, time, slot) {
   if (face) { const g = face.geometry.index ? face.geometry.toNonIndexed() : face.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv; _n3.getNormalMatrix(face.matrixWorld);
     for (let i = 0; i < P.count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(face.matrixWorld); out.pos.push(_v.x, _v.y, _v.z); _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
       out.uv.push(U.getX(i) + slot + 4, U.getY(i)); out.col.push(1, 1, 1); out.tint.push(-1); out.part.push(0); } }
+  { // [v122] v5 hotfix: the decimated Low body has a few triangles wound against their normals; crews render front faces only -> holes. Re-wind them.
+    const P = out.pos, N = out.nrm, sw = (a, s, i, j) => { for (let k = 0; k < s; k++) { const x = a[i * s + k]; a[i * s + k] = a[j * s + k]; a[j * s + k] = x; } };
+    for (let v = 0; v + 2 < P.length / 3; v += 3) { const i = v * 3;
+      const ax = P[i + 3] - P[i], ay = P[i + 4] - P[i + 1], az = P[i + 5] - P[i + 2], bx = P[i + 6] - P[i], by = P[i + 7] - P[i + 1], bz = P[i + 8] - P[i + 2];
+      const cx = ay * bz - az * by, cy = az * bx - ax * bz, cz = ax * by - ay * bx;
+      if (cx * (N[i] + N[i + 3] + N[i + 6]) + cy * (N[i + 1] + N[i + 4] + N[i + 7]) + cz * (N[i + 2] + N[i + 5] + N[i + 8]) < 0) {
+        sw(P, 3, v + 1, v + 2); sw(N, 3, v + 1, v + 2); sw(out.uv, 2, v + 1, v + 2); sw(out.col, 3, v + 1, v + 2); sw(out.tint, 1, v + 1, v + 2); sw(out.part, 1, v + 1, v + 2); } } }
   const bone = (nm) => { const b = body.skeleton.bones.find(q => bn(q.name) === bn(nm)); return b ? b.getWorldPosition(new THREE.Vector3()) : null; };
   return { out, hip: bone('thigh.L'), sh: bone('upperarm.L'), head: bone('head'), tex: [body.material.map, face?.material.map || null] };
 }

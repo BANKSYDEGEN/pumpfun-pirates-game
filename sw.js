@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v121'; // [v121] v5 pirates (BANKSY's turnaround bodies) for players + crews
+const VERSION = 'pfp-v122'; // [v122] hotfix: v5 crew holes (re-wound Low triangles + double-sided crew shader)
 const SHELL = [
   "./",
   "./index.html",

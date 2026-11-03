@@ -152,7 +152,7 @@ void main(){
 const FRAG = `uniform vec3 uSunV; varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
 uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1; uniform sampler2D tS;
 #include <fog_pars_fragment>
-void main(){ vec3 N = normalize(vN); float d = dot(N, normalize(uSunV));
+void main(){ vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; /* [v122] double-sided: v5 bodies show no holes */ float d = dot(N, normalize(uSunV));
   float band = d > 0.35 ? 1.0 : (d > -0.1 ? 0.78 : 0.58);
   float rim = 1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0);
   vec3 base = vC;
@@ -174,7 +174,7 @@ function crewMaterial() {
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uDk: { value: new THREE.Vector4(0, 0, 1, 1) }, uDk2: { value: new THREE.Vector4(0, 0, 0, 0) }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
-      .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true,
+      .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
   });
   if (V4) { const [a0, a1, f0, f1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 }, tS: { value: stripeTex() } }); }
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
