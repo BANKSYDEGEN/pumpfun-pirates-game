@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
-import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped } from './pirateItems.js'; // [Raul] his item models (not edited)
+import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped, ITEM_BY_ID as RAUL_ITEMS } from './pirateItems.js'; // [Raul] his item models (not edited)
 
 export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none' });   // [v145] + face paint (own slot: worn with shades)
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
@@ -126,6 +126,9 @@ const RAUL5 = {
   'eyes:eyepatch': ['eyes', 'eyes_eyepatch', null],
   'eyes:laser':    ['eyes', 'eyes_vr', null],
   'face:facepaint_retardio': ['face', 'facepaint_retardio', null],   // [v145] v4 bodies draw nothing for it
+  // [Raul clothes v5] the tank / t-shirt are his own per-body garments on v5 (same catalog ids, same colours: outfitColors(..).cloth)
+  'outfit:tank':   ['outfit', 'cloth_tank', (g, c) => ({ shirt: outfitColors('tank', c).cloth })],
+  'outfit:tshirt': ['outfit', 'cloth_tshirt', (g, c) => ({ shirt: outfitColors('tshirt', c).cloth })],
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face'];
@@ -404,7 +407,7 @@ function parrotSeat(P, q) { const f = P.f, t = P.to, s = P.s; for (let k = 0; k 
 function buildGearGeometry(p, body, gear, lib, colors) {
   const low = p.lod === 'lo', boneIx = (nm) => Math.max(0, body.skeleton.bones.findIndex((b) => bn(b.name) === bn(nm)));
   const chunks = [];
-  if (gear.outfit !== 'shirtless') { const s = shellOf(body, gear.outfit, colors, low); if (s) { chunks.push(s); if (s.tails) chunks.push(s.tails); } }
+  if (gear.outfit !== 'shirtless' && !(p.v5 && RAUL5['outfit:' + gear.outfit])) { const s = shellOf(body, gear.outfit, colors, low); if (s) { chunks.push(s); if (s.tails) chunks.push(s.tails); } }
   // accessories: GLB (scene space) -> body space
   p.scene.updateMatrixWorld(true);
   const W5 = body.userData.warp || null, _w5 = [0, 0, 0];
@@ -458,6 +461,8 @@ function goldHook(obj) {   // the gold hook = Raul's hook with its steel turned 
 }
 function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
+  // [Raul clothes v5] every dressed v5 pirate wears his base outfit mesh (pants, belt, sash, boots, her wrap top); crews keep the baked body
+  if (p.v5 && !p.forCrew && !p.raulKeys.base && RAUL_ITEMS.cloth_base) { p.raulKeys.base = 'cloth_base'; jobs.push(raulEquip(p, 'cloth_base').catch((e) => { console.warn('[gear] base outfit', e); p.raulKeys.base = ''; })); }
   for (const slot of Object.keys(GEAR_DEFAULTS)) { const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }
   for (const rs of RAUL_SLOTS) {
     const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
@@ -538,7 +543,7 @@ function dress(p, gear, colors) {
   try { tankTop(p, null); setBodyLook(p, gear); if (gear.outfit === 'tank') tankTop(p, outfitColors('tank', colors).cloth); } catch (e) { console.warn('[gear] look', e); }   // [v141]
   p.gearKey = key; const ticket = (p.gearTicket = (p.gearTicket || 0) + 1);
   const needLib = ['hat', 'eyes', 'parrot', 'hook'].some((s) => PIECES[`${s}:${gear[s]}`]);
-  if (!needLib && !OUTFITS[gear.outfit]) {   // nothing of Timothy's: just Raul's items (or bare)
+  if (!needLib && !(OUTFITS[gear.outfit] && !(p.v5 && RAUL5['outfit:' + gear.outfit]))) {   // nothing of Timothy's: just Raul's items (or bare)
     if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); p.gearMesh = null; }
     return syncRaul(p, gear, colors, ticket).then(() => null);
   }

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v146'; // [v146] the new harbor-town plaza is the default (?plaza=1 = the old one), 5 storefronts, 10 berths; crew emote chorus in each crew member's voice
+const VERSION = 'pfp-v147'; // [v147] Raul's v5 clothes rebuild: tank, striped tee, base outfit, pirate shirt, bandana
 const SHELL = [
   "./",
   "./index.html",
