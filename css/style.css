@@ -974,11 +974,18 @@ html.ui-cap-press #captain { transform: scale(0.97); }
 .token-row.tk2 { display: flex; flex-direction: column; align-items: center; flex-wrap: nowrap; gap: 6px; width: 100%; max-width: 100%; box-sizing: border-box; padding: 0 6px; }
 .token-row.tk2 .socs { display: flex; justify-content: center; gap: 8px; flex: 0 0 auto; }
 .token-row.tk2 .ca-line { display: flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; min-height: 36px; padding: 3px 4px 3px 4px; border-radius: 999px; border: 1px solid var(--gold); background: rgba(0,0,0,0.5); }
-.token-row.tk2 .tk-pick { position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; height: 30px; border-radius: 999px; background: rgba(255,205,119,0.14); border: 1px solid rgba(255,205,119,0.45); color: var(--gold); cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.token-row.tk2 .tk-pick select { -webkit-appearance: none; appearance: none; background: transparent; border: 0; outline: none; margin: 0; color: var(--gold); font: inherit; font-size: 20px; line-height: 1; height: 30px; padding: 0 24px 0 11px; cursor: pointer; touch-action: manipulation; border-radius: 999px; }
-.token-row.tk2 .tk-pick select:focus-visible { box-shadow: 0 0 0 2px rgba(255,205,119,0.6); }
-.token-row.tk2 .tk-pick select option { color: #111; background: #fff; font-family: system-ui, sans-serif; }
-.token-row.tk2 .tk-pick .caret { position: absolute; right: 9px; top: 50%; width: 9px; height: 6px; margin-top: -3px; pointer-events: none; }
+.token-row.tk2 .tk-pick { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; height: 30px; margin: 0; padding: 0 8px 0 3px; border-radius: 999px; background: linear-gradient(#22201a, #14130f); border: 1.5px solid var(--gold); color: var(--gold); font: inherit; font-size: 21px; line-height: 1; letter-spacing: 0.04em; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; box-shadow: inset 0 1px 0 rgba(255,205,119,0.18), 0 1px 3px rgba(0,0,0,0.5); transition: background 0.15s, box-shadow 0.15s, transform 0.08s; }
+/* [v117] token TOGGLE (no list): one game-styled button, logo + $SYM + ⇄; each click / tap / Enter / Space switches $SUNK <-> $AHOY */
+.token-row.tk2 .tk-pick .tk-logo { width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255,205,119,0.55); object-fit: cover; background: #000; flex: 0 0 auto; }
+.token-row.tk2 .tk-pick .tk-sym { display: inline-block; min-width: 2.75em; text-align: left; padding-top: 2px; }
+.token-row.tk2 .tk-pick .tk-swap { width: 15px; height: 15px; flex: 0 0 auto; opacity: 0.9; transition: transform 0.25s; }
+.token-row.tk2 .tk-pick:hover { background: linear-gradient(#3a3122, #1d1a13); box-shadow: inset 0 1px 0 rgba(255,205,119,0.3), 0 0 8px rgba(255,205,119,0.35); }
+.token-row.tk2 .tk-pick:hover .tk-swap { transform: rotate(180deg); }
+.token-row.tk2 .tk-pick:active { transform: scale(0.96); }
+.token-row.tk2 .tk-pick:focus { outline: none; } .token-row.tk2 .tk-pick:focus-visible { box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--gold); }
+.token-row.tk2 .tk-pick.flip .tk-sym, .token-row.tk2 .tk-pick.flip .tk-logo { animation: tkFlip 0.22s ease-out; }
+@keyframes tkFlip { from { opacity: 0.2; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (hover: none) { .token-row.tk2 .tk-pick:hover { background: linear-gradient(#22201a, #14130f); box-shadow: inset 0 1px 0 rgba(255,205,119,0.18), 0 1px 3px rgba(0,0,0,0.5); } .token-row.tk2 .tk-pick:hover .tk-swap { transform: none; } }
 .token-row.tk2 .ca-chip { display: flex; align-items: center; gap: 7px; min-width: 0; max-width: none; flex: 0 1 auto; height: 30px; padding: 0 0 0 2px; border: 0; background: transparent; box-shadow: none; font-size: 20px; }
 .token-row.tk2 .ca-chip .ca { display: block; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 15px; letter-spacing: 0; color: rgba(255,255,255,0.9); }
 .token-row.tk2 .ca-chip .ca-full { display: inline; }
@@ -986,6 +993,18 @@ html.ui-cap-press #captain { transform: scale(0.97); }
 .token-row.tk2 .ca-line.stack .ca-chip { flex: 1 1 100%; justify-content: center; min-width: 0; }
 .token-row.tk2 .ca-line.wrap .ca-chip { height: auto; } .token-row.tk2 .ca-line.wrap .ca-chip .ca { white-space: normal; word-break: break-all; text-align: center; }
 @media (max-width: 380px) { .token-row.tk2 .socs { gap: 6px; } }
-.token-row.tk2 .ca-chip .cp { min-width: 76px; text-align: center; box-sizing: border-box; } /* COPY -> COPIED! never widens the pill (the fit is measured once) */
+.token-row.tk2 .ca-line { flex-wrap: nowrap; padding-right: 8px; gap: 4px; }
+/* [v117] no COPY button: the CA itself copies (pointer + gold hover), a small COPIED! toast pops above it */
+.token-row.tk2 .ca-chip { position: relative; cursor: pointer; border-radius: 8px; padding: 0 3px; transition: background 0.15s; }
+.token-row.tk2 .ca-chip .ca { transition: color 0.15s; text-decoration: underline dotted rgba(255,205,119,0); text-underline-offset: 4px; }
+.token-row.tk2 .ca-chip:hover { background: rgba(255,205,119,0.1); box-shadow: none; } .token-row.tk2 .ca-chip:hover .ca { color: var(--gold); text-decoration-color: rgba(255,205,119,0.6); }
+.token-row.tk2 .ca-chip:focus { outline: none; } .token-row.tk2 .ca-chip:focus-visible { box-shadow: 0 0 0 2px var(--gold); }
+.token-row.tk2 .ca-chip.tba { cursor: default; } .token-row.tk2 .ca-chip.tba:hover { background: transparent; }
+.token-row.tk2 .ca-chip.copied .ca { color: #7ee08f; } .token-row.tk2 .ca-chip.failed .ca { color: #ff8a8a; }
+.token-row.tk2 .ca-chip .cp-toast { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 4px); padding: 3px 10px 1px; border-radius: 8px; border: 1.5px solid var(--gold); background: #14130f; color: var(--gold); font-size: 18px; line-height: 1.1; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s, transform 0.15s; z-index: 5; box-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+.token-row.tk2 .ca-chip .cp-toast:empty { display: none; }
+.token-row.tk2 .ca-chip.copied .cp-toast, .token-row.tk2 .ca-chip.failed .cp-toast { opacity: 1; transform: translate(-50%, 0); }
+.token-row.tk2 .ca-chip.failed .cp-toast { color: #ff8a8a; border-color: #ff8a8a; }
+@media (hover: none) { .token-row.tk2 .ca-chip:hover { background: transparent; } .token-row.tk2 .ca-chip:hover .ca { color: rgba(255,255,255,0.9); text-decoration-color: rgba(255,205,119,0); } }
 /* [v115] BANKSY: entry screens ask for a name + SET SAIL only; the wallet field + save-progress row live in the profile (uiProfile.js moves them there) */
 #waves-entry .we-crypto, #waves-entry .wallet-row { display: none !important; }

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v116'; // [v116] THE HARBOR entry: name + SET SAIL; wallet in the profile
+const VERSION = 'pfp-v117'; // [v117] title token toggle ($SUNK ⇄ $AHOY button, no dropdown)
 const SHELL = [
   "./",
   "./index.html",
@@ -24,7 +24,7 @@ const SHELL = [
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card
   "./js/lighthouseKit.js", // [v108] shared lighthouse kit
-  "./assets/tokens/sunk.png", "./assets/tokens/pump.png", // [v108] token billboard logos
+  "./assets/tokens/sunk.png", "./assets/tokens/pump.png", "./assets/tokens/ahoy.png", // [v108] token billboard logos
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
   "./js/dock/docking.js",
