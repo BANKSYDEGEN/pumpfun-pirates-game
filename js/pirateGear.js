@@ -390,6 +390,10 @@ function tailsOf(bones, cloth, trim, low) {
 
 // (the hook's hand: Raul's hide rules in js/pirateItems.js hide it now)
 
+// [v140] BANKSY "parrot fit": on the v5 bodies the warp carried the parrot up beside the big head (feet ~30 cm over the shoulder, the
+// same at every LOD). Per body: scale about its feet f, then move them onto the shoulder top (bind pose; it rides the spine bone).
+const PARROT5 = { male: { f: [0.26, 1.136, 0.04], to: [0.25, 1.0, 0.06], s: 1 }, female: { f: [0.26, 1.173, 0.05], to: [0.24, 1.055, 0.07], s: 1 } };
+function parrotSeat(P, q) { const f = P.f, t = P.to, s = P.s; for (let k = 0; k < 3; k++) q[k] = t[k] + (q[k] - f[k]) * s; return q; }
 // ---------- the merged gear mesh ----------
 function buildGearGeometry(p, body, gear, lib, colors) {
   const low = p.lod === 'lo', boneIx = (nm) => Math.max(0, body.skeleton.bones.findIndex((b) => bn(b.name) === bn(nm)));
@@ -404,10 +408,11 @@ function buildGearGeometry(p, body, gear, lib, colors) {
     for (const mesh of pc[0]) {
     const src = lib?.[mesh]; if (!src) continue;
     const pal = pc[2] ? pc[2](gear) : null, fx = pc[3] || {}, bi = boneIx(pc[1]), n = src.n;
+    const pf = W5 && slot === 'parrot' ? PARROT5[p.female ? 'female' : 'male'] : null;   // [v140]
     const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       v.fromArray(src.pos, i * 3).applyMatrix4(toBody).toArray(pos, i * 3); v.fromArray(src.nrm, i * 3).applyMatrix3(nm3).normalize().toArray(nrm, i * 3);
-      if (W5) { v5Fwd(W5, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], slot === 'hat', _w5); if (slot === 'hat') v5Hat(W5, gear.hat, _w5); pos.set(_w5, i * 3); }   // [v121] v4-authored piece -> the v5 body
+      if (W5) { v5Fwd(W5, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], slot === 'hat', _w5); if (slot === 'hat') v5Hat(W5, gear.hat, _w5); if (pf) parrotSeat(pf, _w5); pos.set(_w5, i * 3); }   // [v121] v4-authored piece -> the v5 body
       const k = src.key[i]; if (k && pal?.[k]) c.set(pal[k]); else if (k === 4) c.set(pal?.[1] || '#c8302c'); else if (k) c.set('#c8302c'); else c.fromArray(src.col, i * 3);
       if (fx.facets && k) {   // DIAMOND: every triangle its own crystal facet, a few flash white (glints)
         const f = Math.floor(i / 3), hsh = Math.abs(Math.sin(f * 12.9898 + 78.233) * 43758.5453) % 1;
