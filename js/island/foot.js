@@ -11,6 +11,7 @@ import { toon } from '../toon.js';
 import { kitMesh, pickHouse, HOUSE_VARIANTS } from './townkit.js';
 import * as CO from './coast.js';
 import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
+import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
 const PV2 = COAST_ON_PV2();
 function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
@@ -145,6 +146,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     if ((Math.abs(lx - CO.MOLE.lx) < CO.MOLE.w / 2 + 1 && lz > -2 && lz < CO.MOLE.lz1) || Math.hypot(lx - CO.MOLE.lx, lz - CO.MOLE.lz1) < CO.MOLE.tipR) h = CO.MOLE.y;
     const hd = Math.hypot(lx - CO.HEADLAND.lx, lz - CO.HEADLAND.lz); if (sd < 0) h = Math.max(h, CO.HEADLAND.top * (1 - sm(CO.HEADLAND.r * 0.6, CO.HEADLAND.r * 1.5, hd)) * sm(-2, 6, -sd));
     const fd = Math.hypot(lx - CO.FORT.lx, lz - CO.FORT.lz); if (fd < CO.FORT.r * 2.8) h = Math.max(h, CO.FORT.top * (1 - sm(CO.FORT.r, CO.FORT.r * 2.8, fd)));
+    h = BT.ground(lx, lz, h); // [Timothy] battery ramp + gun deck
   }
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
@@ -196,6 +198,7 @@ function colorAt(i, j, out) {
   if (RVg[q] < 12 && h < RVl[q] + 2) out.lerp(BANK, 0.6);
   out.lerp(DIRT, 1 - sm(2.4, 4.4, TRg[q]));
   out.lerp(COBBLE, 1 - sm(STREET.half - 0.5, STREET.half + 1, STg[q]));
+  if (COASTM) out.lerp(COBBLE, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
   return out;
 }
 
@@ -216,6 +219,7 @@ function splatAt(i, j, w) {
   paint(4, sm(0.7, 1.05, sl) + sm(75, 105, h) * 0.7);
   paint(5, sm(1.05, 1.5, sl));
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
+  if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 24) paint(4, 1 - sm(14, 24, sk));
   return w;
 }
@@ -430,7 +434,9 @@ function foliageSpots() {
     if (STg[q] < 26 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 || RVg[q] < 7) continue;
     const sl = slopeAt(i, j);
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
+    const clr = COASTM ? BT.clearAt(lx, lz) : 0; if (clr > 1) continue; // [Timothy] battery: ramp + gun deck clear, no trees round the guns
     if (sl > 0.95 && TRg[q] > 9) { if (r < 0.2 && !inView(x, z)) cliffs.push([x, h, z, r]); else if (r < 0.3) rocks.push([x, h, z, r]); continue; }
+    if (clr) continue;
     if (inView(x, z)) { if (r < 0.1 && TRg[q] > 6) ferns.push([x, h, z, r]); continue; }
     if (Math.hypot(x - SKULL.x, z - SKULL.z - 6) < 34) continue;
     if (TRg[q] < 10) { if (TRg[q] > 4.5 && r < 0.18) ferns.push([x, h, z, r]); continue; }
@@ -457,7 +463,7 @@ function grassGeos() {
 }
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRg[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
-  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; return 1; };
+  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
 export const DIG_HINTS = [[-306, 150, 1], [-82, 456, 2], [340, -360, 3], [-335, -580, 4], [421, 100, 5], [-631, -208, 6]];
@@ -721,10 +727,8 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { W(k, cyl(3.2, 3.6, 18, 12), STONE, 11, M(sx * 13, 7, sz * 13)); W(k, new THREE.ConeGeometry(4, 5, 12), ROOFS[0], 4, M(sx * 13, 18.5, sz * 13)); }
     W(k, cyl(0.2, 0.2, 12, 5), WOOD_D, 2, M(0, 25.5, 0), false); if (A.ppflag) { atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, 0.03)); atlasQuad(k, 6, 4, A.ppflag, M(3.05, 29, -0.03, Math.PI)); }
     for (let i = 0; i < 4; i++) cannon(k, M(-6 + i * 4, 6.1, 13.4, 0)); }, null); { const [x, z] = T(CO.FORT.lx, CO.FORT.lz); addBox(x, z, 27, 27, yaw0); }
-  // battery on the cliff headland: parapet + 6 cannons facing the harbor
-  { const hd = CO.HEADLAND; for (let i = 0; i < 6; i++) { const a = -0.75 + i * 0.3, lx = hd.lx + Math.sin(a) * 15, lz = hd.lz + 6 + Math.cos(a) * 15, [x, z] = T(lx, lz);
-      cannon(k, M(x, H(x, z) - 0.1, z, CO.t2wYaw(a))); W(k, box(4, 1.3, 1.2), STONE, 11, M(...(([xx, zz]) => [xx, H(xx, zz) + 0.4, zz])(T(hd.lx + Math.sin(a) * 18, hd.lz + 6 + Math.cos(a) * 18)), CO.t2wYaw(a)), false); }
-    const [x, z] = T(hd.lx, hd.lz - 8); torchPost(k, F, x, H(x, z), z); }
+  // battery on the cliff headland: [Timothy] js/island/battery.js (ramp up from the quay, parapets, shot piles, lamps, colliders; the 6 guns are createGuns)
+  BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   return k;
 }
 // 2D review map of the coast harbor (?coast=1&map=1): battle area, rings, spawns, berths, no-fire zone, town, Main Street lots
@@ -986,6 +990,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
+  const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
@@ -1113,7 +1118,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { root, update, battery, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

@@ -136,7 +136,7 @@ const harborIsle = { obj: null, loading: false, on: false };
 const DOCK_ON = HARBOR_ISLAND_ON && COAST_ON && new URLSearchParams(location.search).get('dock') !== '0'; // gated on Raul's coast flag (on by default; ?coast=0 = old harbor)
 let dock = null, dockLoading = false;
 function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
-  import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx,
+  import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx, fx, /* [Timothy] battery muzzle / smoke / splash */
     openWaves: () => openWavesEntry(), camReset: () => { resetCamera(); lastTarget.set(player.x, player.y + 4 * camScale(player.mesh.userData) + 2.2 * ((player.mesh.userData.frameK || 1) - 1), player.z); } }))
     .then(d => { dock = d; }).catch(e => console.warn('[dock] failed', e)).finally(() => { dockLoading = false; }); }
 function harborIslandTick(t) {

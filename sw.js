@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v148'; // [v148] the treasure map moment: drop reveal (scroll + fanfare + sparkles, queued until calm), MAPS = parchment chart with the trail to the X, the X on the real dig spot
+const VERSION = 'pfp-v149'; // [v149] headland battery: trees cleared round the cliff guns, a paved ramp up from the quay, 6 playable cosmetic cannons (FIRE CANNON, reload, no damage)
 const SHELL = [
   "./",
   "./index.html",
@@ -35,6 +35,7 @@ const SHELL = [
   "./js/dock/plaza.js",
   "./js/dock/treasure.js", // [v145] treasure maps + the parchment chart / drop reveal
   "./js/dock/treasureMap.js",
+  "./js/dock/battery.js", // [Timothy] headland battery guns (game side)
   "./js/uiProfile.js",
   "./js/accountUi.js", // [v106] player accounts
   "./js/onfoot/net.js",
@@ -44,6 +45,7 @@ const SHELL = [
   "./js/island/bake.js",
   "./js/island/foot.js",
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
+  "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/harbor.js",
   "./js/island/kit.js",
   "./js/island/look.js",

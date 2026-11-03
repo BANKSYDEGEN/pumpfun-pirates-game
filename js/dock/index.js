@@ -16,6 +16,7 @@ import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
+import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
 
 const CSS = `
 #dk-safe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#7cff6b;background:rgba(22,22,22,.72);border:2px solid #7cff6b;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
@@ -76,6 +77,7 @@ export async function createDock(ctx) {
   const treasure = createTreasure({ world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
+  const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera }); // [Timothy] adds its 6 FIRE CANNON points to layout.interact
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
 
@@ -126,7 +128,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); }
+    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); }
   }
   // ---------- actions ----------
   function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
@@ -147,6 +149,7 @@ export async function createDock(ctx) {
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
       case 'token': plaza.openToken(q.sym); break;
+      case 'cannon': battery?.fire(q); break; // [Timothy] cosmetic shot (no damage / kills / gold / stats)
       case 'exchange': plaza.openToken('SUNK'); break;
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); openBoard(); break;
       case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;
@@ -192,6 +195,7 @@ export async function createDock(ctx) {
     if (r === 'docked') toast('MOORED · SAFE HARBOR');
     if (r === 'free') { s.anchor = false; s.sail = Math.max(1, s.sail); leftAt = now; }
     zone.tick(s, now);
+    battery?.tick(dt, walker, onFoot); // [Timothy] aim the gun you stand at, fly the cosmetic balls
     // HUD tag
     const g = zone.graceLeft(s, now);
     if (onFoot) safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
@@ -228,10 +232,10 @@ export async function createDock(ctx) {
     ch.onmessage = (ev) => { if (on) handlePeer(ev.data); };
     bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
   }
-  function handlePeer(m) { const r = fnet.onPeerState(m); if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
+  function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m); if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
   const api = {
-    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza,
+    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery,
     get on() { return on; }, get onFoot() { return onFoot; },
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : null), followers: crewF,
@@ -241,7 +245,7 @@ export async function createDock(ctx) {
     invuln: (s) => on && zone.inside(s.x, s.z),
     isSafe: (s) => on && !!s && zone.inside(s.x, s.z),
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
-    netState: () => (on ? fnet.netState(walker) : {}),
+    netState: () => (on ? { ...fnet.netState(walker), ...(battery?.netState() || {}) } : {}), // [Timothy] + 'bc' (your last battery shot)
     onPeerState: (m) => { if (on) handlePeer(m); },
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
