@@ -13,8 +13,10 @@ const WHY = {
 const SRC = { boss: 'from a boss', kill: 'from a battle kill', streak: 'from a 3-kill streak' };
 const spotName = (s) => s === 'cave' ? 'TREASURE CAVE' : 'DIG SITE ' + String(s).replace(/\D/g, '');
 const CSS = `
-#tm-btn{position:fixed;right:calc(var(--safe-r,0px) + 14px);top:calc(var(--safe-t,0px) + 172px);z-index:8;display:none;font:22px 'Just Another Hand',cursive;letter-spacing:.04em;padding:5px 12px 2px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer}
+/* [v135] BANKSY "Fix the location of maps": the MAPS button sits IN the top-right HUD column, under the radar + harbor line (holder 2x badge), so it can never overlap them */
+#tm-btn{position:static;white-space:nowrap;align-self:flex-end;margin-top:6px;pointer-events:auto;z-index:8;display:none;font:22px 'Just Another Hand',cursive;letter-spacing:.04em;padding:5px 12px 2px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer}
 #tm-btn b{color:#fff;margin-left:4px}
+@media (max-height:520px){#hud-tr #tm-btn{position:absolute;right:calc(100% + 8px);top:52px;margin:0;white-space:nowrap;font-size:19px;padding:3px 9px 1px}}   /* phone landscape: left of the radar (the chat / emote button sits under it) */
 #tm-panel{position:fixed;right:calc(var(--safe-r,0px) + 14px);top:calc(var(--safe-t,0px) + 212px);z-index:9;display:none;width:min(320px,calc(100vw - 28px));max-height:min(60vh,420px);overflow:auto;background:rgba(22,22,22,.94);border:2px solid #ffcd77;border-radius:14px;padding:10px 12px;color:#fff;font:20px 'Just Another Hand',cursive}
 #tm-panel h3{margin:0 0 6px;font-size:28px;color:#ffcd77;font-weight:normal;display:flex;justify-content:space-between;align-items:center}
 #tm-panel h3 button{font:20px 'Just Another Hand',cursive;background:none;border:0;color:#ffcd77;cursor:pointer}
@@ -27,7 +29,7 @@ export function createTreasure({ world, toast, pvp, isOn }) {
   const spots = new Map(world.footInteract.filter(q => q.kind === 'dig' || q.id === 'cave').map(q => [q.id, q]));
   let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false;
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
-  const btn = document.createElement('button'); btn.id = 'tm-btn'; document.body.appendChild(btn);
+  const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; (document.getElementById('hud-tr') || document.body).appendChild(btn);
   const panel = document.createElement('div'); panel.id = 'tm-panel'; document.body.appendChild(panel);
   for (const e of [btn, panel]) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) e.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
   btn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display === 'block' ? close() : open(); });
@@ -44,7 +46,7 @@ export function createTreasure({ world, toast, pvp, isOn }) {
     const rec = recent.length ? `<div class="tm-r">last finds: ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>`).join(' · ')}</div>` : '';
     panel.innerHTML = `<h3>TREASURE MAPS <button data-x>✕</button></h3>${rows || '<div class="tm-r">no maps yet · sink bosses + win battle kills</div>'}${rec}`;
   }
-  const open = () => { render(); panel.style.display = 'block'; }, close = () => { panel.style.display = 'none'; };
+  const open = () => { render(); const r = btn.getBoundingClientRect(); panel.style.top = Math.round(r.bottom + 6) + 'px'; panel.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px'; panel.style.maxHeight = Math.max(160, Math.round(innerHeight - r.bottom - 16)) + 'px'; panel.style.display = 'block'; }, close = () => { panel.style.display = 'none'; };
   async function refresh() {
     const pv = pvp(); if (!pv?.maps || loading) return; loading = true;
     try { const r = await pv.maps.state(); if (!r || !r.ok) return;

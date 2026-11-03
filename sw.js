@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v134'; // [v134] token boards read $SUNK · $AHOY · $PUMP
+const VERSION = 'pfp-v135'; // [v135] MAPS button stacked under the radar + holder badge
 const SHELL = [
   "./",
   "./index.html",
