@@ -48,7 +48,7 @@ export const SKIN_SWATCHES = Object.freeze([
   ['PORCELAIN', '#f5d6b8'], ['FAIR', '#f2c9a0'], ['LIGHT', '#e8b48a'], ['WARM', '#d99b6c'], ['OLIVE', '#c68a5e'], ['TAN', '#b07848'],
   ['BROWN', '#9a6440'], ['DARK', '#6e4528'], ['DEEP', '#4e2f1c'], ['GHOST', '#cfe6e0'], ['ZOMBIE', '#8fb07a'], ['DEEP SEA', '#7fa8c9'],
 ]);
-// [v115] BANKSY "add eye color selection": the iris colour (face decal tint, js/pirateGLB.js setIris). 0 = DEFAULT = BROWN (BANKSY: default brown; old builds still draw the blue). APPEND-ONLY.
+// [v115] BANKSY "add eye color selection": the iris colour (face decal tint, js/pirateGLB.js setIris). 0 = DEFAULT = the drawn blue (BANKSY's v5 references); blank / invalid = blue. APPEND-ONLY.
 export const EYE_SWATCHES = Object.freeze([
   ['BROWN', '#6b3e1f'], ['HAZEL', '#8a6a2c'], ['GREEN', '#3f8f3a'], ['BLUE', '#2f6fd6'], ['GREY', '#8a96a0'], ['AMBER', '#d08a1c'],
   ['RED', '#d8262c'], ['GOLD', '#f2c230'], ['VIOLET', '#8a4ad8'],
@@ -424,7 +424,7 @@ export const raulItemOf = (slot, id, gear) => { const r = RAUL[`${slot}:${id}`];
 const iSkin = TINTS.indexOf('skin'), iHair = TINTS.indexOf('hair');
 const _lookBase = new WeakMap(); // mesh -> { geo, base COLOR_0 } for skinColor / hairColor resets
 export function setBodyLook(p, { skinColor = 0, hairColor = 0, eyeColor = 0 } = {}) {
-  try { p.setIris?.(EYE_SWATCHES[Math.max(0, eyeColor - 1)]?.[1] || EYE_SWATCHES[0][1]); } catch (e) { console.warn('[gear] eyes', e); } // [v115]
+  try { p.setIris?.(eyeColor > 0 ? EYE_SWATCHES[eyeColor - 1]?.[1] || null : null); } catch (e) { console.warn('[gear] eyes', e); } // [v115]
   const sk = skinColor > 0 ? SKIN_SWATCHES[skinColor - 1]?.[1] : null, hr = hairColor > 0 ? HAIR_SWATCHES[hairColor - 1]?.[1] : null;
   const key = (sk || '') + '|' + (hr || ''); if ((p.gearLook || '|') === key) return; p.gearLook = key;
   const col = new THREE.Color(), want = { skin: sk, hair: hr };

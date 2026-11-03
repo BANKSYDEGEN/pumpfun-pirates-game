@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v119'; // [v119] eye colour pick (BODY · SKIN · HAIR · EYES)
+const VERSION = 'pfp-v120'; // [v120] eyes: blue default again
 const SHELL = [
   "./",
   "./index.html",
