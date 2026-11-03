@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v138'; // [v138] beard / hairline edge: fixed-colour fringe joins the hair tint; eye decal front-only
+const VERSION = 'pfp-v139'; // [v139] male coat / shirt: inside faces in the cloth colour (no black shards on the phone shoulder line), hair tips tucked under the collar
 const SHELL = [
   "./",
   "./index.html",

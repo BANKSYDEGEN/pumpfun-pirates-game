@@ -95,9 +95,9 @@ function applyHide(p) {
       if (!m.has(P)) m.set(P, underCloth(P, o.geometry.attributes.normal, cg, p.lod === 'lo' ? 0.055 : 0.032, o.geometry.attributes._tint)); const D = m.get(P); if (D) { g.userData.under = D; g.userData.shrink = null; } }
     // [v137] BANKSY "speckled hair / black speckles by the braid": the braid + long hair lie ON the coat / shirt and z-fought it: hair
     // over a worn top is lifted just outside the cloth (the female: the male's hair stays tucked in his collar)
-    const tp = p.v5 && p.warp && p.female ? Object.values(p.items).find((it) => (it.id === 'suit' || it.id === 'shirt') && it.obj?.geometry) : null;
+    const tp = p.v5 && p.warp ? Object.values(p.items).find((it) => (it.id === 'suit' || it.id === 'shirt') && it.obj?.geometry) : null;
     if (tp && g.attributes._tint) { const cg = tp.obj.geometry; let m = _hair.get(cg); if (!m) _hair.set(cg, (m = new WeakMap()));
-      if (!m.has(P)) m.set(P, hairOver(P, g.attributes._tint, cg)); const H = m.get(P);
+      if (!m.has(P)) m.set(P, hairOver(P, g.attributes._tint, cg, !p.female)); const H = m.get(P);
       if (H) { const U0 = g.userData.under; if (U0) { const S2 = new Float32Array(U0.length); for (let i = 0; i < S2.length; i++) S2[i] = U0[i] + H[i]; g.userData.under = S2; } else g.userData.under = H; } }
     // [v136] body faces the cloth-coloured underlayer replaces go (Low's coarse chest poked through the lapels in big skin shards)
     if (top && T0(o)) { const { keep } = underKeep(p, o, UNDER[top.id]), I = g.index.array, o2 = [];
@@ -129,6 +129,13 @@ function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
   }
 }
 function itemMaterial(src, low, two = false) { const m = itemMaterial0(src, low); if (two) m.side = THREE.DoubleSide; return m; }   // [v124] v5 hats / eyewear / hooks: solid from inside too (tops have their own lining)
+// [v139] BANKSY "black bits on the male phone shoulder line": the warped coat folds a few cloth triangles over at the shoulder / collar,
+// so their inside (dark lining texels) faced out as black shards. Inside faces of the male tops now draw in the cloth colour, shaded.
+function backCloth(m, hex, low) {
+  if (hex == null) return m; const c = new THREE.Color(hex).multiplyScalar(low ? 0.7 : 0.85), u = { value: c };
+  m.onBeforeCompile = (sh) => { sh.uniforms.uBack = u; sh.fragmentShader = 'uniform vec3 uBack;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n  if (!gl_FrontFacing) diffuseColor.rgb = uBack;'); };
+  m.customProgramCacheKey = () => 'backCloth'; return m;
+}
 function itemMaterial0(src, low) {
   if (low) return new THREE.MeshBasicMaterial({ name: 'item_lo', map: src.map || null, vertexColors: true });
   return new THREE.MeshToonMaterial({ name: 'item_hi', map: src.map || null, normalMap: src.normalMap || null, vertexColors: true, gradientMap: gradient() });
@@ -171,7 +178,7 @@ async function build(p, def, opts) {
     geo.computeBoundingSphere();
   }
   if (def.skull && !p.warp && geo === remapped(url, src, names)) geo = geo.clone();   // the decal repaints the old skull: own colours
-  const m = new THREE.SkinnedMesh(geo, itemMaterial(src.material, low, underOn(p, def.id))); m.name = 'item_' + def.id; m.frustumCulled = false;   // [v136] tops: single cloth layer (lining stripped), both sides
+  const UC = underOn(p, def.id) ? UNDER[def.id] : null, m = new THREE.SkinnedMesh(geo, UC ? backCloth(itemMaterial(src.material, low, true), opts.colors?.[UC.tint] || def.tint?.[UC.tint], low) : itemMaterial(src.material, low)); m.name = 'item_' + def.id; m.frustumCulled = false;   // [v136] tops: single cloth layer (lining stripped), both sides
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   const under = p.warp && underOn(p, def.id) ? underShell(p, body, UNDER[def.id], opts.colors?.[UNDER[def.id].tint] || def.tint?.[UNDER[def.id].tint], low) : null;   // [v136]
   if (under) { const u = new THREE.SkinnedMesh(under, itemMaterial({}, low)); u.name = 'item_' + def.id + '_under'; u.frustumCulled = false; m.add(u); u.bind(skel, body.bindMatrix); }
@@ -200,7 +207,7 @@ function sashTails(o, P) {
 // [v137] hair verts below the head that sit inside / within 1.5 cm of a worn top are pushed radially out to just over its outer surface
 // (angle x height bins of the cloth's outermost radius around the torso axis)
 const _hair = new WeakMap();
-function hairOver(B, T, cloth) {
+function hairOver(B, T, cloth, tuck = false) {
   const iH = TINTS.indexOf('hair'), C = cloth.attributes.position, n = B.count; if (!C) return null;
   let cx = 0, cz = 0, y0 = Infinity, y1 = -Infinity; for (let i = 0; i < C.count; i++) { cx += C.getX(i); cz += C.getZ(i); const y = C.getY(i); if (y < y0) y0 = y; if (y > y1) y1 = y; } cx /= C.count; cz /= C.count;
   const AS = 0.07, YS = 0.025, bins = new Map(), key = (a, h) => a * 4096 + h;
@@ -211,6 +218,7 @@ function hairOver(B, T, cloth) {
     const dx = B.getX(i) - cx, dz = B.getZ(i) - cz, r = Math.hypot(dx, dz); if (r < 1e-4) continue; const a = Math.round(Math.atan2(dx, dz) / AS), h = Math.round(y / YS);
     let rc = -1; for (let da = -1; da <= 1; da++) for (let dh = -1; dh <= 1; dh++) { let aa = a + da; if (aa > na) aa -= 2 * na; if (aa < -na) aa += 2 * na; const v = bins.get(key(aa, h + dh)); if (v > rc) rc = v; }
     if (rc < 0 || r > rc + 0.015 || r < rc - 0.08) continue;   // clear of it already / deep inside the body (not lying on the cloth)
+    if (tuck) { if (r < rc + 0.02 && r > rc - 0.03) { const k = (rc - 0.03 - r) / r; D[i * 3] = dx * k; D[i * 3 + 2] = dz * k; moved++; } continue; }   // [v139] the male: his hair tips stay inside the collar / shoulders
     if (dz > 0 && r > rc - 0.03 && r < rc + 0.004) { const k = (rc - 0.03 - r) / r; D[i * 3] = dx * k; D[i * 3 + 2] = dz * k; moved++; continue; }   // front strands: tucked under the lapels instead
     if (dz > 0 && r < rc) continue;
     const k = (rc + 0.015 - r) / r; D[i * 3] = dx * k; D[i * 3 + 2] = dz * k; moved++; }
