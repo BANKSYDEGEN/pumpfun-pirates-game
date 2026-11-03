@@ -131,3 +131,8 @@ const kd1 = (x) => (Math.floor(x * 10) / 10).toFixed(1); // floor: 9.96 shows 9.
 export const fmtGoalRow = (r) => r.fmt === 'kd' ? `K/D ${kd1(r.have)} / ${r.need}` : `${r.label} ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}`;
 export const fmtGoal = (g) => g.rows.map(fmtGoalRow).join(' · ');
 export const fmtGold = (n) => `${fmtN(n)}g`;
+// [v157] BANKSY: "keep shops sorted by price". Every shop list goes through this: free/default first, then gold price
+// ascending (kill-gated items sort by their gold price too), ties by name. Returns a new array; prices, ids, ownership untouched.
+export const byPrice = (price = (x) => x.price, name = (x) => x.name || x.label || '') => (a, b) =>
+  ((+price(a) || 0) - (+price(b) || 0)) || String(name(a)).localeCompare(String(name(b)));
+export const sortByPrice = (list, price, name) => [...list].sort(byPrice(price, name));

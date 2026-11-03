@@ -4,6 +4,7 @@ import { isKey } from './keybinds.js';
 // Tap SHOP (or press U / B) to pause and open the shop; close (or U / B / Esc) to resume.
 // In-game gold only. Nothing here touches a wallet, token, NFT or the leaderboard.
 import { UPGRADES, REPAIR, newRun, modeStats, applyStats, fmtStat, ROMAN, BASE_SHIP } from './upgrades.js';
+import { sortByPrice } from './shopCatalog.js'; // [v157] shops sorted by price
 import { celebrateUpgrade } from './upgradeVisuals.js'; // [Raul] upgrade visuals
 import { setLoadout } from './audio.js'; // [Raul] sound upgrades: sounds follow the upgrade levels
 import { SKINS, ownsSkin, equippedSkin, unlockSkin, equipSkin, skinSwatch } from './skins.js'; // [Raul] ship skins
@@ -76,7 +77,7 @@ function buildDom() {
   // [Raul] ship skins: permanent cosmetic unlocks bought with in-game gold
   $('tab-upg').onclick = () => setTab('upg'); $('tab-skins').onclick = () => setTab('skins');
   const sg = $('skin-grid');
-  for (const s of SKINS) {
+  for (const s of sortByPrice(SKINS)) { // [v157] cheapest first
     const c = document.createElement('div'); c.className = 'shop-card skin-card'; c.dataset.skin = s.id;
     c.innerHTML = `<div class="sk-sw"><canvas class="sk-prev" aria-hidden="true"></canvas><span class="sk-lock" title="Locked">🔒</span></div><div class="sc-name">${s.name}</div><div class="sk-blurb muted">${s.blurb}</div><button class="buy"></button>`;
     const sw = skinSwatch(s); sw.classList.add('sk-swatch'); c.querySelector('.sk-sw').prepend(sw); // fallback until / unless the 3D preview renders
@@ -170,6 +171,9 @@ function render() {
     c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, ns[u.stat], ns.gunDmg)}</b>`;
     b.textContent = `${costOf(next)}g`; b.disabled = game.gold < costOf(next);
   }
+  // [v157] cheapest next level first; maxed upgrades last; ties keep the catalogue order
+  const g = $('shop-grid'), nx = (u) => { const t = u.tiers[run.levels[u.id]]; return t ? costOf(t) : Infinity; };
+  UPGRADES.map((u, i) => [u, i]).sort((a, b) => (nx(a[0]) - nx(b[0])) || (a[1] - b[1])).forEach(([u]) => g.appendChild(g.querySelector(`[data-id="${u.id}"]`)));
   renderEscorts();
   renderSkins();
 }

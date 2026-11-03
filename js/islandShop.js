@@ -7,7 +7,7 @@
 //                          the MOCK provider only; the real one calls the `pvp` Edge Function (shop_state / shop_buy / shop_equip)
 //                          and the SERVER decides every purchase (price, goal, gold, owned): see shop/PLAN.md.
 // Events: 'pfp-shop' { open: true|false, vendor } on window. Off on the crypto-free portal builds (itch.io / Newgrounds).
-import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY } from './shopCatalog.js';
+import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, sortByPrice } from './shopCatalog.js';
 import { CREW_LOOK, CREW_DEFAULT } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
@@ -119,8 +119,8 @@ setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; cons
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
 // ---------- item model ----------
-const itemsFor = () => view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
-  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }));
+const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
+  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first
 const eqGear = (slot) => state.equipped.gear?.[slot] ?? CREW_DEFAULT[slot]; // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
   const owned = state.owner || x.it.price === 0 || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
@@ -183,7 +183,7 @@ function render() {
   }
   detail(items.find(x => x.key === view.sel));
   $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent · cosmetic only, never a stat change' : `Paid from your Battle Royale gold · cosmetic only, never a stat change${state.behind ? ' · some gold is still syncing' : ''}`;
-  if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, SKIN_ITEMS.map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
+  if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
 }
 function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgrades panel (js/shop.js, opened in island mode)
   let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES(); } catch (e) { console.warn('[shop] upgrades', e); }
