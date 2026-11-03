@@ -1225,15 +1225,18 @@ export function createPvp(K) {
     return ok;
   }
   let airdropAsked = '';
-  function entryAirdrop() { // optional: a valid address is saved (same slot as Waves) and stored privately server-side; anything else is ignored
-    const inp = $('pvp-entry-addr'); if (!inp || ON_PORTAL) return;
-    const v = inp.value.trim(); if (!isValidSolanaAddress(v)) return;
-    saveWallet(v); saveAirdrop(v, name).then(async (r) => { // [security H4] changing the airdrop wallet: the new wallet confirms it
+  function syncWallet(v) { // stored privately server-side; [security H4] changing it: the new wallet confirms it with a free signature
+    if (ON_PORTAL || !isValidSolanaAddress(v)) return;
+    saveAirdrop(v, name).then(async (r) => {
       if (r?.need !== 'signature' || airdropAsked === v) return; airdropAsked = v;
       const c = await confirmAirdrop(v, name).catch((e) => ({ ok: false, error: e?.message || 'not confirmed' }));
-      nameToast(c?.ok ? `Airdrop wallet changed to ${shortWallet(v)}` : `Airdrop wallet NOT changed: confirm ${shortWallet(v)} in your wallet app (${c?.error || 'not confirmed'})`);
+      nameToast(c?.ok ? `Wallet changed to ${shortWallet(v)}` : `Wallet NOT changed: confirm ${shortWallet(v)} in your wallet app (${c?.error || 'not confirmed'})`);
     }).catch(() => {});
   }
+  function entryAirdrop() { // [v116] the wallet is set in the PROFILE now (same saved slot as Waves): SET SAIL still syncs a valid saved one, as before
+    syncWallet(String(getSavedWallet() || '').trim());
+  }
+  if (typeof window !== 'undefined') window.PFP_PVP_WALLET = (v) => { if (ON_PORTAL || !isValidSolanaAddress(v)) return; saveWallet(v); syncWallet(v); }; // profile field -> server copy
   let uiWired = false;
   function wireUi() {
     if (uiWired) return; uiWired = true;
@@ -1265,15 +1268,9 @@ export function createPvp(K) {
       if (v) setName(v); else setName(getSavedName() || (capNo() ? `CAPT. #${capNo()}` : name), false); entryAirdrop(); syncName(name); $('pvp-entry').classList.add('hidden');  };
     // [airdrop] optional SOLANA WALLET paste field, same stored wallet + checks as the Waves game-over entry; never blocks SET SAIL
     if (ON_PORTAL) document.querySelectorAll('.pvp-airdrop').forEach(n => n.remove()); // crypto-free portal builds
-    const addr = $('pvp-entry-addr');
-    if (addr) {
-      addr.addEventListener('input', addrCheck);
-      addr.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!addr.value.trim() || addrCheck()) $('pvp-entry-go').click(); } });
-      $('pvp-entry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addr.focus(); } });
-    }
+    $('pvp-entry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('pvp-entry-go').click(); } }); // [v115] name -> SET SAIL
     for (const id of ['pvp-return', 'pvp-menu-return']) $(id)?.addEventListener('click', (e) => { e.stopPropagation(); requestReturn(); });
     for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $('pvp-return')?.addEventListener(ev, e => e.stopPropagation());
-    $('pvp-entry-wallet').onclick = (e) => { e.stopPropagation(); $('pvp-entry').classList.add('hidden'); toggleMenu(true); };
     for (const id of ['pvp-harbor', 'pvp-offer', 'pvp-entry', 'pvp-afk']) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) $(id)?.addEventListener(ev, e => e.stopPropagation());
     for (const ev of ['keydown', 'pointerdown', 'touchstart', 'wheel']) addEventListener(ev, () => { if (active) markInput(); }, { passive: true, capture: true });
     for (const ev of ['pointermove', 'touchmove']) addEventListener(ev, () => { hb.moveAt = performance.now(); }, { passive: true, capture: true }); // [v99] harbor presence only (the arena AFK rule is unchanged)

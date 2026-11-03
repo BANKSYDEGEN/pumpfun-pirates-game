@@ -987,3 +987,5 @@ html.ui-cap-press #captain { transform: scale(0.97); }
 .token-row.tk2 .ca-line.wrap .ca-chip { height: auto; } .token-row.tk2 .ca-line.wrap .ca-chip .ca { white-space: normal; word-break: break-all; text-align: center; }
 @media (max-width: 380px) { .token-row.tk2 .socs { gap: 6px; } }
 .token-row.tk2 .ca-chip .cp { min-width: 76px; text-align: center; box-sizing: border-box; } /* COPY -> COPIED! never widens the pill (the fit is measured once) */
+/* [v115] BANKSY: entry screens ask for a name + SET SAIL only; the wallet field + save-progress row live in the profile (uiProfile.js moves them there) */
+#waves-entry .we-crypto, #waves-entry .wallet-row { display: none !important; }

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v115'; // [security fixes] also drops the old forever-cached jsDelivr copies (activate deletes old caches)
+const VERSION = 'pfp-v116'; // [v116] THE HARBOR entry: name + SET SAIL; wallet in the profile
 const SHELL = [
   "./",
   "./index.html",

@@ -880,7 +880,7 @@ function weCheck() {
   if (!weAddr) return false;
   const v = weAddr.value.trim(), ok = isValidSolanaAddress(v);
   weAddr.classList.toggle('good', ok); weAddr.classList.toggle('bad', !!v && !ok);
-  $('we-addr-msg').textContent = !v ? 'Used for airdrops. Never asks for keys or signatures.' : ok ? `Ahoy ${shortWallet(v)}! Used for airdrops. Never asks for keys or signatures.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
+  $('we-addr-msg').textContent = !v ? 'Optional. Never asks for keys. Changing it later: a free signature.' : ok ? `Ahoy ${shortWallet(v)}! Never asks for keys. Changing it later: a free signature.` : 'That doesn’t look like a Solana address (base58, 32–44 characters).';
   return ok;
 }
 function renderWavesSkins() { // same cards as the BATTLE ROYALE picker; locked ones show their unlock wave

@@ -23,8 +23,8 @@ function build() {
   root.innerHTML = `<div class="pf-card">
     <button id="pf-x" class="faq-x" type="button" aria-label="Close profile">✕</button>
     <div class="pf-head"><img id="pf-img" alt=""><div class="pf-who"><b id="pf-name"></b><small id="pf-stats"></small></div></div>
-    <section class="pf-sec pf-crypto" id="pf-label"><h4>WALLET LABEL <em>read-only · no signing</em></h4>
-      <p class="pf-note">A Solana address used as a label: airdrops and your WAVES scores. It never signs anything and gives <b>no boost</b>.</p></section>
+    <section class="pf-sec pf-crypto" id="pf-label"><h4>SOLANA WALLET <em>(optional)</em></h4>
+      <p class="pf-note">Shown with your name on the boards and keys your WAVES scores. Read-only: it never signs anything and gives <b>no boost</b>.</p></section>
     <section class="pf-sec pf-crypto pf-waves" id="pf-save"><h4>SAVE PROGRESS <em>read-only wallet sign-in</em></h4>
       <p class="pf-note">Signs a free message (never a transaction) so your WAVES progress follows the wallet.</p></section>
     <section class="pf-sec pf-crypto pf-br" id="pf-boost"><h4>LINK WALLET <em>Battle Royale · holder 2× gold</em></h4>
@@ -40,12 +40,12 @@ function build() {
   if (!lab) $('pf-label').remove(); if (!row) $('pf-save').remove();
   if (ON_PORTAL) root.querySelectorAll('.pf-crypto').forEach(n => n.remove());
   // the WAVES pop-up points here instead (website only)
-  if (!ON_PORTAL && $('we-go') && !$('we-prof-hint')) { const p = document.createElement('p'); p.id = 'we-prof-hint'; p.className = 'muted'; p.textContent = 'Wallet + save progress: tap your captain (top left) in game.'; $('we-go').before(p); }
+  // [v115] BANKSY: mode entry screens ask for a name only; the wallet is added in this profile (no hint line on the entry)
   const a = $('we-addr');
   if (a) a.addEventListener('change', () => { // the label is saved here too (the WAVES pop-up used to save it on SET SAIL)
     const v = a.value.trim(); if (v && !isValidSolanaAddress(v)) return;
     saveWallet(v); const g = G(); if (g) g.wallet = v; if ($('wallet-short')) $('wallet-short').textContent = shortWallet(v);
-    const b = $('pvp-entry-addr'); if (b) b.value = v; });
+    if (v) try { window.PFP_PVP_WALLET?.(v); } catch (e) { console.warn('[wallet]', e); } }); // [v115] the BR server copy (was the harbor entry's field)
   $('pf-x').onclick = closeProfile;
   root.addEventListener('pointerdown', (e) => { if (e.target === root) closeProfile(); });
   for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) root.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });

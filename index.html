@@ -115,12 +115,9 @@
     <div class="po-t"><b id="pvp-offer-t">15</b> s</div><div class="po-btns"><button id="pvp-offer-yes" type="button" class="pvp-btn big">SET SAIL</button><button id="pvp-offer-no" type="button" class="ghost">NOT NOW</button></div>
     <p class="muted">Miss it once and you keep your place; miss it twice and you go to the back of the line.</p></div></div>
   <div id="pvp-afk" class="hidden pvp-only">MOVE OR BE SENT TO THE HARBOR · <b>30</b></div>
-  <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>BATTLE ROYALE</h2>
+  <div id="pvp-entry" class="hidden pvp-only"><div class="pe-card"><h2>THE HARBOR</h2><!-- [v115] BANKSY: name + SET SAIL only; the wallet lives in the PROFILE -->
     <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
     <small id="pvp-entry-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
-    <label class="field pvp-airdrop"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="pvp-entry-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
-    <small id="pvp-entry-addr-msg" class="muted pvp-airdrop">Used for airdrops. Never asks for keys. Changing it later: a free signature.</small>
-    <button id="pvp-entry-wallet" type="button" class="wallet-link">Connect wallet to save (optional, read-only)</button>
     <button id="pvp-entry-go" type="button" class="pvp-btn big">SET SAIL</button>
     <p class="muted">You start in the harbor: farm AI ships for small gold, then JOIN BATTLE.</p></div></div>
   <!-- [pvp] SPECTATE HUD (receive-only viewer): who you follow, camera modes, in-room leaderboard. H hides it all. -->
@@ -179,7 +176,7 @@
     <label class="field"><span>PIRATE NAME</span><input id="we-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
     <small id="we-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
     <label class="field we-crypto"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="we-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
-    <small id="we-addr-msg" class="muted we-crypto">Used for airdrops. Never asks for keys or signatures.</small>
+    <small id="we-addr-msg" class="muted we-crypto">Optional. Never asks for keys. Changing it later: a free signature.</small>
     <div class="row wallet-row we-crypto"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
       <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
       <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
