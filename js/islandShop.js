@@ -98,7 +98,8 @@ function svgThumb(it) { // the painted fallback (only shown until the real rende
 // The pre-baked PNG shows while it renders; the painted SVG only if both fail. The detail pane turns it slowly (live preview).
 const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0 }; };
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
-const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: 0, eyeColor: 0 } : thumbOpts();
+// a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
+const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: 0, eyeColor: 0, wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : thumbOpts();
 function gearThumb(it, live = false) {
   const base = it.base ? { ...it, slot: it.base } : it, sl = base.slot;
   const d = svgThumb(base); d.classList.add('real3d'); if (it.crew) d.classList.add('crew'); const svg = d.firstElementChild;

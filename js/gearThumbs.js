@@ -35,7 +35,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
 function frameOf(slot, o, id) { const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
   return side === 'L' ? { c: [-F.c[0], F.c[1], F.c[2]], d: [-F.d[0], F.d[1], F.d[2]], r: F.r } : F; }
 const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin || 'classic') : '', slot === 'hat' ? (o.hatColor | 0) : '', slot === 'hook' ? (o.hookSide === 'L' ? 'L' : 'R') : '',
-  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0].join('|');
+  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0, o.wear ? JSON.stringify(o.wear) + (o.skin || '') : ''].join('|');   // [Timothy] wear = other items worn under it (the Crew Shop's uniform)
 const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}`;
 const TW = 200, TH = 102;   // the shop card swatch is 150 x 76 (css .ishop-sw), drawn at ~1.33x
 const cache = new Map();   // key -> dataURL
@@ -81,7 +81,7 @@ function mapScroll() {
 
 const dressKey = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}`;
 async function dressFor(slot, id, o) {
-  await applyGear(fig, normalizeGear({ [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0 }), slot === 'outfit' ? { skin: o.skin || 'classic' } : null);
+  await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0 }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
   fig.userData.thumbKey = dressKey(slot, id, o);
 }
 async function renderOne(slot, id, o) {
@@ -112,15 +112,16 @@ function pump() {
   requestAnimationFrame(step);
 }
 export function gearThumb(slot, id, opts = {}) {
-  const k = keyOf(slot, id, opts); if (cache.has(k)) return cache.get(k);
-  const pr = new Promise((res) => { queue.push({ slot, id, o: opts, res }); pump(); }).then((u) => { if (!u) cache.delete(k); return u; });
+  const k = keyOf(slot, id, opts);
+  if (cache.has(k)) { if (opts.priority) { const i = queue.findIndex((j) => j.k === k); if (i > 0) queue.unshift(...queue.splice(i, 1)); } return cache.get(k); }   // [Timothy] the detail pane jumps the card queue
+  const pr = new Promise((res) => { const job = { k, slot, id, o: opts, res }; if (opts.priority) queue.unshift(job); else queue.push(job); pump(); }).then((u) => { if (!u) cache.delete(k); return u; });
   cache.set(k, pr); return pr;
 }
 export const gearThumbCached = (slot, id, opts = {}) => { const v = cache.get(keyOf(slot, id, opts)); return v && typeof v.then !== 'function' ? v : null; };
 export function gearThumbEl(slot, id, opts = {}) {
   const img = new Image(); img.className = 'gear-thumb'; img.alt = ''; img.decoding = 'async'; img.draggable = false;
   const rid = raulItemOf(slot, id, opts), icon = rid && new URL(`../assets/pirates/items/icons/${rid}.png`, import.meta.url).href;   // Raul's 256 px icon (the chosen side)
-  img.src = PNG(slot, id); img.onerror = () => { if (icon && img.src !== icon) { img.src = icon; return; } img.onerror = null; img.style.visibility = 'hidden'; };
+  img.src = opts.png ? new URL(`../assets/pirates/thumbs/${opts.png}.png`, import.meta.url).href : PNG(slot, id); img.onerror = () => { if (icon && img.src !== icon) { img.src = icon; return; } img.onerror = null; img.style.visibility = 'hidden'; };
   gearThumb(slot, id, opts).then((u) => { if (u) { img.onerror = null; img.style.visibility = ''; img.src = u; img.classList.add('real'); } });
   return img;
 }
@@ -131,7 +132,12 @@ export function gearLive(el, slot, id, opts = {}) {
   cv.width = w; cv.height = h; cv.className = cv.className || 'gear-live'; const ctx = cv.getContext('2d');
   let on = true, last = 0, a = 0, ready = false, redress = false; const me = { stop }, dk = dressKey(slot, id, opts);
   LIVE.add(me);
-  (async () => { await gearThumb(slot, id, opts); ready = true; })();   // dresses + caches the still first
+  // [Timothy] the pane is never empty: the pre-baked PNG at once, then this item's real still (rendered FIRST, ahead of the cards),
+  // then the slow turn once the card queue has drained (the shared figure is re-dressed for the cards until then)
+  let turned = false; const still = new Image(); still.decoding = 'async';
+  still.onload = () => { if (on && !turned) { ctx.clearRect(0, 0, w, h); ctx.drawImage(still, 0, 0, w, h); } };
+  if (slot !== 'map') still.src = opts.png ? new URL(`../assets/pirates/thumbs/${opts.png}.png`, import.meta.url).href : PNG(slot, id);
+  (async () => { const u = await gearThumb(slot, id, { ...opts, priority: true }); if (u && on && !turned) still.src = u; ready = true; })();   // dresses + caches the still first
   function frame(t) {
     if (!on) return; if (!cv.isConnected && t > 2000 && last) return stop();
     requestAnimationFrame(frame); if (!ready || t - last < 1000 / (LOW ? 20 : 30) || !R || cv.offsetParent === null || document.hidden) return; last = t;
@@ -143,7 +149,7 @@ export function gearLive(el, slot, id, opts = {}) {
       cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
     }
     cam.aspect = w / h; cam.updateProjectionMatrix(); if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);
-    R.render(scene, cam); ctx.clearRect(0, 0, w, h); ctx.drawImage(R.domElement, 0, 0); fig.rotation.y = 0; idleT = performance.now();
+    R.render(scene, cam); ctx.clearRect(0, 0, w, h); ctx.drawImage(R.domElement, 0, 0); fig.rotation.y = 0; idleT = performance.now(); turned = true;
   }
   requestAnimationFrame(frame);
   function stop() { on = false; LIVE.delete(me); }

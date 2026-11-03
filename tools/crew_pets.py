@@ -63,7 +63,7 @@ async def run(b,name,vp,phone,errs):
     await pg.evaluate("window.openShop({vendor:'crew', tab:'skins'})"); await pg.wait_for_timeout(4000)
     v=await pg.evaluate("""(()=>{ const r=document.getElementById('island-shop'); return { title: r.querySelector('.ishop-title b').textContent, cards:[...r.querySelectorAll('.ishop-card')].map(c=>c.dataset.id+'|'+c.querySelector('.ishop-badge')?.textContent),
       chips:[...r.querySelectorAll('.ishop-chips button')].map(b=>b.textContent), chipsHidden: r.querySelector('.ishop-chips').hidden, live: !!r.querySelector('.ishop-detail canvas.gear-live') }; })()""")
-    ok(f'{name} CREW SHOP opens (counter vendor crew; tab falls back to gear)', v['title']=='CREW SHOP' and len(v['cards'])==5 and all(c.startswith('crewhat:') for c in v['cards']), v)
+    ok(f'{name} CREW SHOP opens with the 6 crew hats incl. HQ HELMET (counter vendor crew; tab falls back to gear)', v['title']=='CREW SHOP' and len(v['cards'])==6 and all(c.startswith('crewhat:') for c in v['cards']), v)
     ok(f'{name} CREW SHOP chips: CREW HATS / CREW CLOTHES', v['chips']==['CREW HATS','CREW CLOTHES'] and not v['chipsHidden'], v['chips'])
     ok(f'{name} CREW SHOP prices = player prices, uniform free + equipped', 'crewhat:bandana|EQUIPPED ✓' in v['cards'] and 'crewhat:tricorn|400g' in ''.join(v['cards']).replace(',','') or any('crewhat:tricorn' in c and '400' in c for c in v['cards']), v['cards'])
     ok(f'{name} CREW SHOP: owning the player bicorne does NOT own the crew bicorne', any(c.startswith('crewhat:bicorne|') and 'OWNED' not in c and 'EQUIPPED' not in c for c in v['cards']), v['cards'])
@@ -95,7 +95,14 @@ async def run(b,name,vp,phone,errs):
     ok(f'{name} PET STORE opens with the 8 parrot cards (7 parrots + NO PARROT), chips hidden', v['title']=='PET STORE' and len(v['cards'])==8 and v['chipsHidden'], v)
     ok(f'{name} PET STORE goals kept: BLACK goal met (1240 kills >= 1000, then gold), GOLD + DIAMOND locked', any(c.startswith('parrot:parrot_black|buy') or c.startswith('parrot:parrot_black|poor') for c in v['cards']) and await pg.evaluate("document.querySelector('#island-shop .ishop-card[data-id=\"parrot:parrot_black\"]').classList.contains('goal-met')") and any(c.startswith('parrot:parrot_gold|locked') for c in v['cards']) and any(c.startswith('parrot:parrot_diamond|locked') for c in v['cards']), v['cards'])
     ok(f'{name} PET STORE rarity tags', sum(1 for c in v['cards'] if c.split('|')[2])==7, v['cards'])
-    await pg.wait_for_timeout(2500); await shot('petstore')
+    PX="""(()=>{ const cv=document.querySelector('#island-shop .ishop-detail canvas.gear-live'); if(!cv) return -1; const d=cv.getContext('2d').getImageData(0,0,cv.width,cv.height).data; let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>0) n++; return n; })()"""
+    await pg.wait_for_timeout(1500); n0=await pg.evaluate(PX)
+    ok(f'{name} PET STORE detail pane shows the selected parrot within 1.5 s of opening (equipped BLUE MACAW)', n0>2000, n0)
+    await pg.wait_for_timeout(1000); await shot('petstore')
+    for pid,tag in [('parrot:parrot_gold','locked'),('parrot:none','none'),('parrot:parrot_blue','owned')]:
+        await pg.evaluate(f"document.querySelector('#island-shop .ishop-card[data-id=\"{pid}\"]').click()"); await pg.wait_for_timeout(1500); n=await pg.evaluate(PX)
+        ok(f'{name} PET STORE detail pane drawn for {tag} ({pid})', n>2000, n)
+        if tag=='none': await shot('petstore_none')
     await pg.evaluate("document.querySelector('#island-shop .ishop-card[data-id=\"parrot:parrot_gold\"]').click()"); await pg.wait_for_timeout(2500); await shot('petstore_locked_gold')
     await pg.evaluate("document.querySelector('#island-shop .ishop-card[data-id=\"parrot:parrot_red\"]').click()"); await pg.wait_for_timeout(500)
     await pg.evaluate("document.querySelector('#island-shop .ishop-detail [data-a=buy]').click()"); await pg.wait_for_timeout(400)

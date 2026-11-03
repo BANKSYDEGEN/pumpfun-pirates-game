@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v152'; // [v152] harbor join / respawn spawns you moored at a free berth (B1-B10), all taken = at sea as before
+const VERSION = 'pfp-v153'; // [v153] v5 shop previews: every pre-baked card PNG re-rendered on the v5 pirate (+13 new crew / face paint cards), PET STORE pane never empty, hooks + peg legs single-sided (no black blobs)
 const SHELL = [
   "./",
   "./index.html",
