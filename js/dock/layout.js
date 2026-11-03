@@ -79,5 +79,5 @@ export async function coastLayout() {
   // ---- SAFE HARBOR: Raul's town-local polygon (berths + 22 m, quay front, mole) ----
   const safe = { kind: 'poly', pts: CO.SAFE.map(([lx, lz]) => L(lx, lz)), exit: { x: 0, z: 0 } };
   const spawn = (() => { const [x, z] = L(PP.arrive.lx, PP.arrive.lz); return { x, z, yaw: CO.t2wYaw(Math.PI) }; })();
-  return { id: 'raul-coast-aa0fd43', shopInteract, berths, decks, safe, graceS: 3, interact, shipCircles, spawn, footToHarbor, harborToFoot, FM, CO, deckY: DECK_Y };
+  return { id: 'raul-coast-aa0fd43', shopInteract, berths, decks, safe, graceS: 4, interact, shipCircles, spawn, footToHarbor, harborToFoot, FM, CO, deckY: DECK_Y };
 }

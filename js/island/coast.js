@@ -47,7 +47,9 @@ export const PLAZA_POIS = [                                                     
   { id: 'arrive', label: 'Step ashore (P1 head)', lx: -90, lz: 42 },
 ];
 // no-fire safe harbor (town-local polygon): berths + 22 m, the quay front and the mole
-export const SAFE = [[-300, -5], [-300, 70], [92, 70], [92, 130], [124, 130], [124, -5]];
+// [v124] BANKSY "make the harbor battle zone farther away from dock, I get shot right away": the no-fire zone runs ~105 m past the pier
+// heads (was 26 m) and 60 m past the outer pier; leaving it you still cannot fire for layout.graceS (4 s)
+export const SAFE = [[-360, -5], [-360, 150], [92, 150], [92, 170], [124, 170], [124, -5]];
 // the land added to the main island for the town (town-local polygon; straight quay along lz = 0)
 export const APRON = [[-430, -300], [-430, -60], [-400, -15], [-360, 4], [-300, 2], [-55, 0], [100, 0], [126, 4], [134, 40], [148, 72], [172, 76], [192, 52],
   [206, 14], [240, -2], [300, -10], [345, -40], [360, -300]];
