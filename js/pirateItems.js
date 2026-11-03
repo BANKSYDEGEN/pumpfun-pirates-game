@@ -89,7 +89,19 @@ function applyHide(p) {
         if (ruleHit(r, X, Y, Z, t, p.female, p.lod, !!p.v5)) { hid[i] = 1; break; } } }
     const src = base.array, out = [];
     for (let i = 0; i < src.length; i += 3) if (!(hid[src[i]] && hid[src[i + 1]] && hid[src[i + 2]])) out.push(src[i], src[i + 1], src[i + 2]);
-    g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1)); g.userData.shrink = shr;
+    g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1)); g.userData.shrink = shr; g.userData.under = null;
+    const top = p.v5 && p.warp ? Object.values(p.items).find((it) => underOn(p, it.id) && it.obj?.geometry) : null;
+    if (top && o.geometry.attributes.normal) { const cg = top.obj.geometry; let m = _under.get(cg); if (!m) _under.set(cg, (m = new WeakMap()));
+      if (!m.has(P)) m.set(P, underCloth(P, o.geometry.attributes.normal, cg, p.lod === 'lo' ? 0.055 : 0.032)); const D = m.get(P); if (D) { g.userData.under = D; g.userData.shrink = null; } }
+    // [v136] body faces the cloth-coloured underlayer replaces go (Low's coarse chest poked through the lapels in big skin shards)
+    if (top && T0(o)) { const { keep } = underKeep(p, o, UNDER[top.id]), I = g.index.array, o2 = [];
+      for (let i = 0; i < I.length; i += 3) if (!(keep[I[i]] && keep[I[i + 1]] && keep[I[i + 2]])) o2.push(I[i], I[i + 1], I[i + 2]);
+      g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(o2) : new Uint16Array(o2), 1)); }
+    // [v136] the v5 body's red sash tails flap with the legs and poked through the long coat at the hips: hidden under it
+    // (red in the body texture, waist down, off the centre line where the coat always covers)
+    const tl = top && top.id === 'suit' ? sashTails(o, P) : null;
+    if (tl) { const I = g.index.array, o2 = []; for (let i = 0; i < I.length; i += 3) if (!(tl[I[i]] || tl[I[i + 1]] || tl[I[i + 2]])) o2.push(I[i], I[i + 1], I[i + 2]);
+      g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(o2) : new Uint16Array(o2), 1)); }
   }
   flattenHair(p);
 }
@@ -98,8 +110,10 @@ function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
   for (const o of p.atlasMeshes || []) {
     const g = ownGeometry(o); g.userData.basePos ||= o.geometry.attributes.position;
     const S = g.userData.shrink;
-    if (!F && !S) { if (g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); continue; }
+    const U = g.userData.under;
+    if (!F && !S && !U) { if (g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); continue; }
     const B = g.userData.basePos, P = B.clone(), T = g.attributes._tint;
+    if (U) for (let i = 0; i < P.count; i++) P.setXYZ(i, P.getX(i) + U[i * 3], P.getY(i) + U[i * 3 + 1], P.getZ(i) + U[i * 3 + 2]);
     if (S) { let cz = 0, c = 0; for (let i = 0; i < P.count; i++) if (S[i]) { cz += P.getZ(i); c++; } cz /= c || 1;
       for (let i = 0; i < P.count; i++) if (S[i]) { P.setX(i, P.getX(i) * 0.9); P.setZ(i, cz + (P.getZ(i) - cz) * 0.9); } }   // torso 10 % in under the coat / shirt
     if (!F) { g.setAttribute('position', P); continue; }
@@ -126,7 +140,9 @@ function remapped(url, src, names) {  // item skinIndex -> pirate skeleton bone 
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(a, 4)); g.setIndex(src.geometry.index); g.computeBoundingSphere(); _remap.set(url, g); return g;
 }
 async function build(p, def, opts) {
-  const base = p.female ? 'female' : 'male', low = p.lod === 'lo', url = def.files[base][p.lod];
+  // [v133] BANKSY "That male jacket is still bad": decimated Low tops tear (thin double-layer cloth); players on Low wear the High top
+  // (one per pirate, Low material). Ship crews (crewV4 sets p.forCrew) still bake the light Low file.
+  const base = p.female ? 'female' : 'male', low = p.lod === 'lo', url = def.files[base][low && def.slot === 'outfit' && !p.forCrew ? 'hi' : p.lod];
   const body = p.atlasMeshes[0], skel = body.skeleton, names = skel.bones.map((b) => b.name);
   if (p.v5 && def.v5) return buildV5(p, def, opts, low, body, skel, names);
   const gltf = await loadPirateGLB(url);
@@ -142,13 +158,123 @@ async function build(p, def, opts) {
   let src = null; gltf.scene.traverse((o) => { if (!src && o.isSkinnedMesh) src = o; });
   let geo = remapped(url, src, names); if (opts.colors || p.warp) { geo = geo.clone(); if (opts.colors) retint(geo, opts.colors); }
   if (p.warp) {   // [v121] v4-authored item -> the v5 body (heights, shorter arms, face plane, hat seat)
-    const P = geo.attributes.position.clone(), q = [0, 0, 0], hat = def.slot === 'head', hid = def.id === 'hat_tricorn' ? 'tricorn' : def.id;
+    const P0 = geo.attributes.position, P = P0.clone(), q = [0, 0, 0], hat = def.slot === 'head', hid = def.id === 'hat_tricorn' ? 'tricorn' : def.id;
     for (let i = 0; i < P.count; i++) { v5Fwd(p.warp, P.getX(i), P.getY(i), P.getZ(i), hat, q); if (hat) v5Hat(p.warp, hid, q); P.setXYZ(i, q[0], q[1], q[2]); }
-    geo.setAttribute('position', P); geo.computeBoundingSphere();
+    geo.setAttribute('position', P);
+    if (underOn(p, def.id)) { taubin(geo, 8, (x, y) => y > 0.64 && Math.abs(x) < 0.3, P0); skirtOffArms(geo, P0, names); }   // [v136] v4-space mask: collar, lapels, shoulders (not buttons / cuffs)
+    geo.computeBoundingSphere();
   }
   if (def.skull && !p.warp && geo === remapped(url, src, names)) geo = geo.clone();   // the decal repaints the old skull: own colours
-  const m = new THREE.SkinnedMesh(geo, itemMaterial(src.material, low)); m.name = 'item_' + def.id; m.frustumCulled = false;
-  body.parent.add(m); m.bind(skel, body.bindMatrix); return { obj: m, decal: def.skull ? skullDecal(geo, skel, body, low) : null };
+  const m = new THREE.SkinnedMesh(geo, itemMaterial(src.material, low, underOn(p, def.id))); m.name = 'item_' + def.id; m.frustumCulled = false;   // [v136] tops: single cloth layer (lining stripped), both sides
+  body.parent.add(m); m.bind(skel, body.bindMatrix);
+  const under = p.warp && underOn(p, def.id) ? underShell(p, body, UNDER[def.id], opts.colors?.[UNDER[def.id].tint] || def.tint?.[UNDER[def.id].tint], low) : null;   // [v136]
+  if (under) { const u = new THREE.SkinnedMesh(under, itemMaterial({}, low)); u.name = 'item_' + def.id + '_under'; u.frustumCulled = false; m.add(u); u.bind(skel, body.bindMatrix); }
+  return { obj: m, decal: def.skull ? skullDecal(geo, skel, body, low) : null };
+}
+// [v136] BANKSY "That male jacket is still bad": the v5 body (broader male chest / shoulders) poked through the v4 coat warped onto
+// it (skin shards on the lapels, collar and shoulders, specks on the back). The coat stays as authored; the BODY under it is pulled in:
+// every body vertex the cloth covers is moved to >= CLEAR inside the nearest outward-facing cloth surface (smooth, no hard band steps).
+const _sash = new WeakMap();
+function sashTails(o, P) {
+  if (_sash.has(P)) return _sash.get(P);
+  let m = null;
+  try { const map = o.material?.map, img = map?.image, U = o.geometry.attributes.uv, T = o.geometry.attributes._tint; if (img && U && T) {
+    const S = 256, cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(S, S) : Object.assign(document.createElement('canvas'), { width: S, height: S }), cx = cv.getContext('2d');
+    cx.drawImage(img, 0, 0, S, S); const d = cx.getImageData(0, 0, S, S).data, n = P.count; m = new Uint8Array(n); let any = 0;
+    for (let i = 0; i < n; i++) { if (Math.round(T.getX(i)) !== -1) continue; const y = P.getY(i); if (y < 0.25 || y > 0.62 || Math.abs(P.getX(i)) < 0.09) continue;
+      let u = U.getX(i) % 1, v = U.getY(i) % 1; if (u < 0) u += 1; if (v < 0) v += 1; if (map.flipY) v = 1 - v;
+      const k = (Math.min(S - 1, Math.floor(v * S)) * S + Math.min(S - 1, Math.floor(u * S))) * 4, R = d[k], G = d[k + 1], B = d[k + 2];
+      if (R > 35 && R > G * 1.45 && R > B * 1.45) { m[i] = 1; any = 1; } }
+    if (any) { const I = (o.geometry.userData.baseIndex || o.geometry.index).array;   // grow over the tails' dark fringe (a few rings, same zone)
+      for (let ring = 0; ring < +(2); ring++) { const add = []; for (let t = 0; t < I.length; t += 3) { const a = I[t], b = I[t + 1], c = I[t + 2]; if (m[a] || m[b] || m[c]) add.push(a, b, c); }
+        for (const q of add) { const y = P.getY(q); if (y >= 0.22 && y <= 0.6 && Math.abs(P.getX(q)) >= 0.1 && Math.round(T.getX(q)) === -1) m[q] = 1; } } }
+    if (!any) m = null; } } catch (e) { m = null; }
+  _sash.set(P, m); return m;
+}
+const _under = new WeakMap();
+function underCloth(B, BN, cloth, CLEAR) {
+  const R = 0.11, cs = 0.04, grid = new Map(), key = (x, y, z) => (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+  const C = cloth.attributes.position, CN = cloth.attributes.normal; if (!CN) return null;
+  for (let i = 0; i < C.count; i++) { const k = key(Math.floor(C.getX(i) / cs), Math.floor(C.getY(i) / cs), Math.floor(C.getZ(i) / cs)); let c = grid.get(k); if (!c) grid.set(k, (c = [])); c.push(i); }
+  const n = B.count, D = new Float32Array(n * 3); let moved = 0;
+  for (let i = 0; i < n; i++) {
+    const x = B.getX(i), y = B.getY(i), z = B.getZ(i), bx = BN.getX(i), by = BN.getY(i), bz = BN.getZ(i), gx = Math.floor(x / cs), gy = Math.floor(y / cs), gz = Math.floor(z / cs); let best = -1, bd = R * R;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (let c = -2; c <= 2; c++) { const L = grid.get(key(gx + a, gy + b, gz + c)); if (!L) continue;
+      for (const j of L) { if (Math.abs(CN.getX(j) * bx + CN.getY(j) * by + CN.getZ(j) * bz) < 0.3) continue;   // [v136] single-layer cloth: either winding
+        const dx = x - C.getX(j), dy = y - C.getY(j), dz = z - C.getZ(j), d = dx * dx + dy * dy + dz * dz; if (d < bd) { bd = d; best = j; } } }
+    if (best < 0) continue;
+    const nx = bx, ny = by, nz = bz, h = (x - C.getX(best)) * nx + (y - C.getY(best)) * ny + (z - C.getZ(best)) * nz;   // [v136] along the body normal
+    const CL = CLEAR;
+    if (h > 0.09 - CL) { const cx = C.getX(best) - nx * CL * 1.5, cy = C.getY(best) - ny * CL * 1.5, cz = C.getZ(best) - nz * CL * 1.5; D[i * 3] = cx - x; D[i * 3 + 1] = cy - y; D[i * 3 + 2] = cz - z; moved++; continue; }   // [v136] far out (the v5 sash tails): tuck right under the cloth
+    if (h > -CL) { const k = Math.min(0.09, h + CL) * Math.min(1, (R - Math.sqrt(bd)) / (R * 0.4)); D[i * 3] = -nx * k; D[i * 3 + 1] = -ny * k; D[i * 3 + 2] = -nz * k; moved++; } }
+  return moved ? D : null;
+}
+// [v136] coat skirt / shirt hem verts carrying arm / hand weights got dragged out by the swinging hands (red shards at the hips while
+// walking): below the waist (v4 space) hand the arm share to the vertex's strongest torso / leg bone
+function skirtOffArms(geo, P0, names) {
+  const arm = names.map((nm) => /arm|hand|elbow|wrist|shoulder|clav|finger|thumb/i.test(nm)), SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight;
+  const si = SI.array.slice(), sw = SW.array.slice();
+  for (let i = 0; i < SI.count; i++) { const y = P0.getY(i); if (y > 0.62) continue;
+    let a = 0, best = -1, bw = 0; for (let k = 0; k < 4; k++) { const j = si[i * 4 + k], w = sw[i * 4 + k]; if (!w) continue; if (arm[j]) a += w; else if (w > bw) { bw = w; best = k; } }
+    if (!a || best < 0) continue; const t = Math.min(1, (0.62 - y) / 0.06);
+    for (let k = 0; k < 4; k++) if (arm[si[i * 4 + k]]) sw[i * 4 + k] *= 1 - t; sw[i * 4 + best] += a * t; }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+}
+// [v136] the v4 -> v5 warp folds thin cloth (lapel revers / collar) into saw-tooth spikes: Taubin smoothing (volume-keeping) on the
+// welded cloth irons them out without shrinking the garment
+function taubin(geo, iters, mask, P0) {
+  const P = geo.attributes.position, n = P.count, I = geo.index ? geo.index.array : null; if (!I) return;
+  const wid = new Int32Array(n), wm = new Map(); let nw = 0;
+  for (let i = 0; i < n; i++) { const k = Math.round(P.getX(i) * 2e4) + ',' + Math.round(P.getY(i) * 2e4) + ',' + Math.round(P.getZ(i) * 2e4); let w = wm.get(k); if (w === undefined) { w = nw++; wm.set(k, w); } wid[i] = w; }
+  const X = new Float32Array(nw * 3), on = new Float32Array(nw); for (let i = 0; i < n; i++) { X.set([P.getX(i), P.getY(i), P.getZ(i)], wid[i] * 3); if (!mask || mask(Math.abs(P0.getX(i)), P0.getY(i))) on[wid[i]] = 1; }
+  const nb = Array.from({ length: nw }, () => new Set()); for (let t = 0; t < I.length; t += 3) { const a = wid[I[t]], b = wid[I[t + 1]], c = wid[I[t + 2]]; nb[a].add(b).add(c); nb[b].add(a).add(c); nb[c].add(a).add(b); }
+  const step = (k) => { const Y = X.slice(); for (let w = 0; w < nw; w++) { const L = nb[w]; if (L.size < 3 || !on[w]) continue; let sx = 0, sy = 0, sz = 0; for (const q of L) { sx += X[q * 3]; sy += X[q * 3 + 1]; sz += X[q * 3 + 2]; }
+      const m = L.size; Y[w * 3] += k * (sx / m - X[w * 3]); Y[w * 3 + 1] += k * (sy / m - X[w * 3 + 1]); Y[w * 3 + 2] += k * (sz / m - X[w * 3 + 2]); } X.set(Y); };
+  for (let it = 0; it < iters; it++) { step(0.5); step(-0.53); }
+  for (let i = 0; i < n; i++) P.setXYZ(i, X[wid[i] * 3], X[wid[i] * 3 + 1], X[wid[i] * 3 + 2]);
+  P.needsUpdate = true; geo.computeVertexNormals();
+}
+// [v136] BANKSY "That male jacket is still bad": the v4 coat / shirt warped onto the v5 bodies leaves slivers where the broader v5
+// chest and shoulders show through between its panels. A thin cloth-coloured layer grown from the body's own torso + arm skin sits just
+// under the garment (open V at the chest like the garment, sleeves stop inside the cuffs), so any gap shows cloth, never skin.
+const UNDER = { suit: { tint: 'coat', vneck: 0.62, vk: 0.22, vkLo: 0.1, collar: 0.075, arms: 0.47, waist: [0.5, 0.62, 0.1, '#1d2a52'] }, shirt: { tint: 'shirt', vneck: 0.6, vkLo: 0.2, arms: 0.2, shade: 0.94 } };
+// [v136] the male v4 tops only: the female coat / shirt sit right on the v5 female as authored (BANKSY's quality bar), untouched
+const underOn = (p, id) => !!UNDER[id] && !p.female;
+const T0 = (o) => !!(o.geometry.attributes._tint && o.geometry.attributes.normal && o.geometry.attributes.skinIndex);
+const _uq = [0, 0, 0];
+// [v136] which body verts the cloth-coloured underlayer replaces (cached per body geometry + top): torso / sleeve skin, minus the open V
+const _keep = new WeakMap();
+function underKeep(p, body, U) {
+  const g = body.geometry, P = g.userData.basePos || g.attributes.position, T = g.attributes._tint; let c = _keep.get(P); if (!c) _keep.set(P, (c = new Map()));
+  if (c.has(U)) return c.get(U);
+  const iS = TINTS.indexOf('skin'), iSh = TINTS.indexOf('shirt'), n = P.count, keep = new Uint8Array(n), zone = new Uint8Array(n), acc = !!U.waist;
+  for (let i = 0; i < n; i++) { const t = Math.round(T.getX(i)); if (t !== iS && t !== iSh && t !== -1) continue;
+    const q = v5Inv(p.warp, P.getX(i), P.getY(i), P.getZ(i), _uq), qx = Math.abs(q[0]), qy = q[1], qz = q[2];
+    if (qy < 0.46 || qy > 0.93 || (t === -1 && qy < 0.64)) continue;   // Low bakes the chest skin into the texture (fixed colour): above the belt only
+    if (qx > 0.2 && qy > 0.7) { if (qx < U.arms) keep[i] = 1; continue; }   // sleeves (inside the garment's cuffs)
+    if (qz > 0 && qy > U.vneck && qx < 0.03 + (qy - U.vneck) * ((p.lod === 'lo' ? U.vkLo : 0) || U.vk || 0.4)) continue;   // open V at the chest (narrower on Low's coarse body)
+    if (qz > 0 && qy > 0.84 && qx < (U.collar || 0.11)) continue;   // collar / neck
+    keep[i] = 1; if (acc && qz > 0 && qy > U.waist[0] && qy < U.waist[1] && qx < U.waist[2]) zone[i] = 1; }
+  const r = { keep, zone }; c.set(U, r); return r;
+}
+function underShell(p, body, U, hex, low) {
+  const g = body.geometry, P = g.userData.basePos || g.attributes.position, N = g.attributes.normal, T = g.attributes._tint, J = g.attributes.skinIndex, Wt = g.attributes.skinWeight;
+  if (!N || !T || !J || !Wt) return null;
+  const n = P.count, cloth = new THREE.Color(hex || '#b3201f'), acc = U.waist ? new THREE.Color(U.waist[3]) : null;
+  const { keep, zone } = underKeep(p, body, U);
+  const bi = g.userData.baseIndex || g.index; if (!bi) return null; const I = bi.array, remap = new Int32Array(n).fill(-1), list = [], out = [];
+  for (let f = 0; f < I.length; f += 3) { const a = I[f], b = I[f + 1], c = I[f + 2]; if (!(keep[a] && keep[b] && keep[c])) continue;
+    for (const v of [a, b, c]) { if (remap[v] < 0) { remap[v] = list.length; list.push(v); } out.push(remap[v]); } }
+  if (!out.length) return null;
+  const m = list.length, pos = new Float32Array(m * 3), nrm = new Float32Array(m * 3), col = new Float32Array(m * 3), uv = new Float32Array(m * 2), si = new Uint16Array(m * 4), sw = new Float32Array(m * 4), c = new THREE.Color();
+  list.forEach((v, i) => { const nx = N.getX(v), ny = N.getY(v), nz = N.getZ(v), off = 0.004;
+    pos.set([P.getX(v) + nx * off, P.getY(v) + ny * off, P.getZ(v) + nz * off], i * 3); nrm.set([nx, ny, nz], i * 3);
+    for (let k = 0; k < 4; k++) { si[i * 4 + k] = J.getComponent(v, k); sw[i * 4 + k] = Wt.getComponent(v, k); }
+    c.copy(zone[v] ? acc : cloth).multiplyScalar(U.shade || 0.8); col.set([c.r, c.g, c.b], i * 3); });   // a shade darker: reads as the inside / a fold
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  geo.setIndex(out); geo.computeBoundingSphere(); return geo;
 }
 // [v123] Raul's pre-fitted v5 piece: skinned (his v5 armature, remapped by bone name) or rigid on 'head'; marker colours (keyed) like js/pirateGear.js
 const _v5geo = new Map(), _kc = new THREE.Color();

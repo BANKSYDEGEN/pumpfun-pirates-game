@@ -117,7 +117,7 @@ const gearMod = () => (_gearMod ||= import('./pirateGear.js'));
 async function gearPirate(sex) {
   if (_gp[sex]) return _gp[sex];
   const { PirateGLB } = await import('./pirateGLB.js');
-  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo' }));
+  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo' }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
 }
 export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
 export function crewGearOf(gear) {
