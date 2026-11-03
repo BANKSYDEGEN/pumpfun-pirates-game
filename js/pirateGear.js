@@ -25,7 +25,7 @@ import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped } 
 export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none' });
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
 export const GEAR_RENDERS = Object.freeze({
-  hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'], eyes: ['eyepatch', 'sunglasses', 'laser'],
+  hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'], eyes: ['eyepatch', 'sunglasses', 'laser'],
   parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond'], hook: ['hook_iron', 'hook_gold'],
   leg: ['peg'],   // one PEG LEG item; the side is gear.legSide
 });
@@ -110,7 +110,8 @@ for (const [id, pal] of Object.entries(PARROTS)) PIECES['parrot:' + id] = [pal.c
 const RAUL = {
   'hat:tricorn':   ['head', 'hat_tricorn', (g) => ({ hat: hatColorHex('tricorn', g.hatColor) })],
   'hat:crown':     ['head', 'crown', (g, c, p) => ({ accent: hairHexOf(p, g) })],   // [v109b] BANKSY: the crown's velvet = the wearer's hair colour (gold rim + gems untouched)
-  'hat:crown_imperial': ['head', 'crown_imperial', null],   // [v143] Raul's Imperial State Crown (own purple velvet, ermine rim, gems)
+  'hat:crown_imperial': ['head', 'crown_imperial', null],
+  'hat:helmet_hq':  ['head', 'helmet_hq', null],   // [v144] Raul's HQ Helmet (own texture, no tint)   // [v143] Raul's Imperial State Crown (own purple velvet, ermine rim, gems)
   // hooks + peg: the side the player picked (gear.hookSide / legSide 'L' | 'R') = Raul's left or right model on that arm / leg
   'hook:hook_iron': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null], 'hook:hook_gold': [(g) => 'hand' + g.hookSide, (g) => 'hook_' + g.hookSide.toLowerCase(), null, { gold: true }],
   'leg:peg':       [(g) => 'leg' + g.legSide, (g) => 'peg_' + g.legSide.toLowerCase(), null],

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v143'; // [v143] the Imperial Crown: its own shop item next to the Pirate King Crown (hair tucked under the ermine rim on every body / LOD)
+const VERSION = 'pfp-v144'; // [v144] HQ Helmet (Raul, the female brim off her eyes) + $HQ / $RETARDIO plaza billboards across the plaza
 const SHELL = [
   "./",
   "./index.html",
@@ -24,7 +24,7 @@ const SHELL = [
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card
   "./js/lighthouseKit.js", // [v108] shared lighthouse kit
-  "./assets/tokens/sunk.png", "./assets/tokens/pump.png", "./assets/tokens/ahoy.png", // [v108] token billboard logos
+  "./assets/tokens/sunk.png", "./assets/tokens/pump.png", "./assets/tokens/ahoy.png", "./assets/tokens/hq.png", "./assets/tokens/retardio.png", // [v108] token billboard logos ([v144] + $HQ / $RETARDIO)
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
   "./js/dock/docking.js",
@@ -178,6 +178,10 @@ const ASSETS = [
   "./assets/pirates/items/v5/crown_female_lo.glb",
   "./assets/pirates/items/v5/crown_male_hi.glb",
   "./assets/pirates/items/v5/crown_male_lo.glb",
+  "./assets/pirates/items/v5/helmet_hq_female_hi.glb",
+  "./assets/pirates/items/v5/helmet_hq_female_lo.glb",
+  "./assets/pirates/items/v5/helmet_hq_male_hi.glb",
+  "./assets/pirates/items/v5/helmet_hq_male_lo.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_female_hi.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_female_lo.glb",
   "./assets/pirates/items/v5/eyes_eyepatch_male_hi.glb",

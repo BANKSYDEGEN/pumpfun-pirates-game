@@ -461,7 +461,7 @@ export function buildChest(low, A) {
 // ---------- atlas: signs, posters, flags (one canvas texture) ----------
 export function makeAtlas(skull) {
   let atlasTex = null; // [v108] token logos load async and re-upload the atlas
-  const S = 1024, SH = 2560, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */ c.width = S; c.height = SH; const g = c.getContext('2d');
+  const S = 1024, SH = 2976, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */ c.width = S; c.height = SH; const g = c.getContext('2d');
   const R = {}, reg = (k, x, y, w, h) => { R[k] = { u0: x / S, u1: (x + w) / S, v0: 1 - (y + h) / SH, v1: 1 - y / SH }; };
   const font = (px) => `${px}px "Just Another Hand", cursive`;
   const board = (x, y, w, h, bg) => { g.fillStyle = bg; g.fillRect(x, y, w, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(x, y + h * i / 4 + (i % 2) * 3); g.lineTo(x + w, y + h * i / 4); g.stroke(); } g.lineWidth = 10; g.strokeStyle = '#161616'; g.strokeRect(x + 5, y + 5, w - 10, h - 10); };
@@ -498,13 +498,12 @@ export function makeAtlas(skull) {
     text('PUMPFUN PIRATES', x + w / 2, y + h - 52, 78, '#ffffff'); reg('ppflag', x, y, w, h); }
   // TOKEN EXCHANGE sign + one big painted sign per token (live price strip redrawn by drawTokenBoard) + pier pennants
   board(512, 1024, 512, 150, '#5a3219'); text('TOKEN EXCHANGE', 768, 1100, 92); reg('exchange', 512, 1024, 512, 150);
-  ISLAND_TOKEN_SIGNS.forEach((t, i) => {
+  ISLAND_TOKEN_SIGNS.slice(0, 3).forEach((t, i) => {   // [v144] the island.html exchange keeps its three
     const x = i * 340 + 4, y = 1380, w = 332, h = 300;
     g.fillStyle = '#f2d39a'; g.fillRect(x, y, w, h); g.strokeStyle = '#5a3219'; g.lineWidth = 14; g.strokeRect(x + 7, y + 7, w - 14, h - 14);
     g.fillStyle = t.color; g.beginPath(); g.arc(x + w / 2, y + 92, 64, 0, 7); g.fill(); g.lineWidth = 6; g.strokeStyle = '#161616'; g.stroke();
     text(t.sym[0], x + w / 2, y + 96, 96, '#ffffff'); text('$' + t.sym, x + w / 2, y + 196, 96, t.color);
     reg('tok' + t.sym, x, y, w, h);
-    const py = 1690; reg('tokLive' + t.sym, x, py, w, 110); // live price strip
     const qx = i * 340 + 4, qy = 1810; g.fillStyle = t.color; g.fillRect(qx, qy, 332, 150); text('$' + t.sym, qx + 166, qy + 78, 110, '#ffffff'); reg('pen' + t.sym, qx, qy, 332, 150);
   });
   board(512, 1174, 512, 100, '#5a3219'); text('STORM HUNT', 768, 1226, 72, '#ffcd77'); reg('waves', 512, 1174, 512, 100);
@@ -515,7 +514,7 @@ export function makeAtlas(skull) {
   board(0, 2048, 512, 132, '#5a3219'); text('CLOTHES SHOP', 256, 2116, 104, '#ffcd77'); reg('clothesShop', 0, 2048, 512, 132);
   board(512, 2048, 512, 132, '#5a3219'); text('SHIP SKINS + UPGRADES', 768, 2116, 70, '#ffcd77'); reg('shipShop', 512, 2048, 512, 132);
   ISLAND_TOKEN_SIGNS.forEach((t, i) => {
-    const x = i * 340 + 4, y = 2188, w = 332, h = 300;
+    const [x, y] = bbAt(i), w = 332, h = 300; { const [lx, ly] = liveAt(i); reg('tokLive' + t.sym, lx, ly, w, 110); }   // live price strip
     g.fillStyle = '#161616'; g.fillRect(x, y, w, h); g.strokeStyle = '#ffcd77'; g.lineWidth = 10; g.strokeRect(x + 5, y + 5, w - 10, h - 10);
     g.strokeStyle = t.color; g.lineWidth = 4; g.strokeRect(x + 16, y + 16, w - 32, h - 32);
     // [v108] title, logo, CA, copy + DexScreener (press E) only: no description lines
@@ -535,13 +534,15 @@ export function makeAtlas(skull) {
   });
   const tex = atlasTex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // live board: redraw a token's price strip in place (0 extra draw calls; the atlas texture just re-uploads)
-  const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const x = i * 340 + 4, y = 1690;
+  const drawTokenBoard = (sym, lines) => { const i = ISLAND_TOKEN_SIGNS.findIndex(t => t.sym === sym); if (i < 0) return; const [x, y] = liveAt(i);
     g.fillStyle = '#161616'; g.fillRect(x, y, 332, 110);
     const fitS = (str, cy, maxPx, col) => { let px = maxPx; g.font = font(px); while (px > 18 && g.measureText(str).width > 292) { px -= 2; g.font = font(px); } text(str, x + 166, cy, px, col); }; // [v111] 20 px margins
     fitS(lines[0], y + 36, 54, '#ffcd77'); fitS(lines[1] || '', y + 80, 42, lines[2] || '#ffffff'); tex.needsUpdate = true; };
   ISLAND_TOKEN_SIGNS.forEach(t => drawTokenBoard(t.sym, ['loading…', '']));
   return { tex, R, drawTokenBoard };
 }
+// [v144] atlas slots: billboards 0-2 (+ their live strips) where they were, 3-5 in the rows added below
+const bbAt = (i) => (i < 3 ? [i * 340 + 4, 2188] : [(i - 3) * 340 + 4, 2560]), liveAt = (i) => (i < 3 ? [i * 340 + 4, 1690] : [(i - 3) * 340 + 4, 2864]);
 export const ISLAND_TOKEN_SIGNS = ISLAND_TOKENS.map(t => ({ sym: t.sym, color: t.color, title: t.title, logo: t.logo, ca: t.ca })); // [v108] from config (titles, logos, CAs)
 
 // ---------- lookout tower (left flank): tapered timber legs, platform with a rail, spyglass on a tripod aimed at the harbor ----------
@@ -797,7 +798,7 @@ function sailboat(kit, x, z, v, low) {
 const EX_X = [-4.8, 0, 4.8];
 export function tokenSlots() { // where a pirate stands to interact with each sign (island-local)
   const s = SPOTS.exchange, c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
-  return ISLAND_TOKEN_SIGNS.map((t, i) => { const lx = EX_X[i], lz = 4.4; return { sym: t.sym, x: s.x + c * lx + sn * lz, z: s.z - sn * lx + c * lz }; });
+  return ISLAND_TOKEN_SIGNS.slice(0, 3).map((t, i) => { const lx = EX_X[i], lz = 4.4; return { sym: t.sym, x: s.x + c * lx + sn * lz, z: s.z - sn * lx + c * lz }; });
 }
 function tokenExchange(kit, A, low) {
   const s = SPOTS.exchange, y = groundY(s.x, s.z) - 0.2;
@@ -810,7 +811,7 @@ function tokenExchange(kit, A, low) {
     kit.add(RB(8.4, 1.7, 0.3, 0.12), WOOD_D, { m: M(0, 8.1, -3.0) }); quad(kit, 8.0, 1.5, A.exchange, M(0, 8.1, -2.83));
     kit.add(RB(15, 1.3, 1.3, 0.15), WOOD, { m: M(0, 1.15, 2.1) });
     kit.add(RB(15.3, 0.25, 1.6, 0.06), WOOD_L, { m: M(0, 1.9, 2.1), outline: false });
-    ISLAND_TOKEN_SIGNS.forEach((t, i) => { const x = EX_X[i];
+    ISLAND_TOKEN_SIGNS.slice(0, 3).forEach((t, i) => { const x = EX_X[i];
       kit.add(RB(4.5, 4.4, 0.35, 0.15), WOOD_D, { m: M(x, 4.35, -2.95) }); quad(kit, 4.1, 3.7, A['tok' + t.sym], M(x, 4.35, -2.76));
       quad(kit, 4.2, 1.25, A['tokLive' + t.sym], M(x, 1.15, 2.77));
       for (let k = 0; k < (low ? 5 : 10); k++) kit.add(cyl(0.3, 0.3, 0.1, 10), GOLD, { m: M(x - 1.2 + (k % 5) * 0.55, 2.08 + Math.floor(k / 5) * 0.11, 1.8 + (k % 2) * 0.3), outline: false });

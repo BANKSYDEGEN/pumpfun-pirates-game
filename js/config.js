@@ -179,7 +179,12 @@ export const ISLAND_TOKENS = [
   { sym: 'SUNK', title: '$SUNK', logo: 'assets/tokens/sunk.png', ca: SUNK_CA, dex: SUNK_DEX_URL, color: '#fa0d0d' },
   { sym: 'AHOY', title: '$AHOY', logo: null, ca: AHOY_CA, dex: AHOY_DEX_URL, color: '#2a6df4' }, // logo: the skull in the token colour (unchanged)
   { sym: 'PUMP', title: '$PUMP', logo: 'assets/tokens/pump.png', ca: PUMP_CA, dex: null, site: PUMP_SITE_URL, color: '#22c55e' }, // dex pair resolved at runtime
+  // [v144] BANKSY "Add boards for hq and retardio" / "Add these off to other side": two more plaza billboards across the plaza (js/island/foot.js PLAZA_TOKENS)
+  { sym: 'HQ', title: '$HQ', logo: 'assets/tokens/hq.png', ca: 'EDTmJjr4VoV9S8ftCQFt4ZBvmDy9s1tBoiWVrmDApump', dex: 'https://dexscreener.com/solana/bmozogdaak3hwbex4rabvmoae46nqe1l2pfsugm3jeca', color: '#3fbf4a' },
+  { sym: 'RETARDIO', title: '$RETARDIO', logo: 'assets/tokens/retardio.png', ca: 'CSRRgTwf9o5KLgguS2M16aEAhV5PUUzfshrAAQ8opump', dex: 'https://dexscreener.com/solana/98ewlhskoxmu9g9ngumykjgufz2rc8wsrscxb67bmubh', color: '#ffcd1f' },
 ];
+//   hq.png       <- https://cdn.dexscreener.com/cms/images/C5axIAYVWORnOCLB?width=800&height=800&quality=95&format=auto
+//   retardio.png <- https://cdn.dexscreener.com/cms/images/YaRcfdsS2j1Yn_rQ?width=800&height=800&quality=95&format=auto
 // [v108] token billboard logos = the tokens' own images (not redrawn), 256 px PNG copies in assets/tokens/:
 //   sunk.png  <- DexScreener tokens API info.imageUrl for By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump:
 //                https://cdn.dexscreener.com/cms/images/3uFmlFun2_4M55Ng?width=800&height=800&quality=95&format=auto

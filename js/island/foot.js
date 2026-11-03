@@ -559,8 +559,9 @@ const tw = (lx, lz) => townToWorld(lx, lz), twy = (lyaw) => lyaw + TOWN.yaw;
 export const PLAZA_BOARD = { w: 6.0, h: 4.4, y: 3.5, face: 0.2 };
 export const PLAZA_SHOPS = [{ id: 'shop_clothes', vendor: 'clothes', lx: -50, lz: -32, sign: 'clothesShop', wall: 0xc9a27a, roof: 0xd8322f, label: 'CLOTHES SHOP · PIRATE GEAR' },
   { id: 'shop_ships', vendor: 'ships', lx: -22, lz: -32, sign: 'shipShop', wall: 0x9db7c9, roof: 0x2a6df4, label: 'SHIP SKINS + UPGRADES' }];
-export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP' }; // [v108] billboard titles (config ISLAND_TOKENS)
-export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 }];
+export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP', HQ: '$HQ', RETARDIO: '$RETARDIO' }; // [v108] billboard titles (config ISLAND_TOKENS)
+export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 },
+  { sym: 'HQ', lx: 45, lz: -36 }, { sym: 'RETARDIO', lx: 51, lz: -36 }];   // [v144] the other side of the plaza (the first three mirrored across the leaderboards)
 export const INTERACT = []; // { id, x, z, r, label }
 export function buildStreet(A, low, F) {
   const k = new Kit(), S = STREET; k.ao = (x, y, z) => 0.58 + 0.42 * sm(0, 2.6, y - H(x, z)); KPG = 'street';

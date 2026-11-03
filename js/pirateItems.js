@@ -27,6 +27,9 @@ export const ITEMS = [
   // [v143] BANKSY "Fix and ship the Imperial crown as well": Raul's Imperial State Crown as its own item (the Pirate King Crown above is untouched).
   // v5 bodies: his per-body fits re-seated by fitCrown, the hair inside hidden and the hair round the ermine rim tucked in under it (crownTuck)
   item('crown_imperial', 'Imperial Crown', 'head', 2500, null, [{ cyl: [0, 0, 0.228], y: [HY + 0.15, 9], tilt: 0.06, tints: ['hair'] }], { v5: v5files('crown'), v5hide: [], crownFit: true, files: files('crown'), glb: files('crown').male.hi, icon: `${DIR}icons/crown.png` }),
+  // [v144] BANKSY "Add a green hq helmet": Raul's olive M1 helmet (HQ stencil, skull + crossbones on the left side, leather strap + brass buckle),
+  // pre-fitted per body, rigid on 'head'. v4: hair under the dome hidden; v5: hatFlatten squashes the hair above the front rim (one-shell head)
+  item('helmet_hq', 'HQ Helmet', 'head', 800, null, [{ cyl: [0, 0.01, 0.29], y: [HY + 0.06, 9], tilt: 0.08, tints: ['hair'] }], { v5: v5files('helmet_hq'), v5hide: [], skull: false, v5dy: { female: 0.015 } }),   // [v144] the female brim off her eyes
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
@@ -337,11 +340,12 @@ function keyColors(geo, pal, low) {   // magenta 1 / cyan 2 / yellow 3 / blue 4 
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
-  const geo = g0.clone(); if (def.crownFit || def.v5dy) geo.setAttribute('position', geo.attributes.position.clone());
+  const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
+  const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors) retint(geo, opts.colors);
   const m = new THREE.SkinnedMesh(geo, itemMaterial(mat || {}, low, def.slot !== 'outfit')); m.name = 'item_' + def.id; m.frustumCulled = false;
   body.parent.add(m); m.bind(skel, body.bindMatrix);
-  if (def.v5dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + def.v5dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
+  if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
   const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;
   const v5hide = def.crownFit ? fitCrown(geo, p) : null;
   const flatten = def.crownFit ? (v5hide && crownTuck(v5hide, p)) : def.slot === 'head' ? hatFlatten(geo) : null;
