@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v129'; // [v129] deck crew limbs bend at the hip / shoulder instead of swinging rigid (no seam gaps mid-stride)
+const VERSION = 'pfp-v130'; // [v130] on-foot crew followers are back (v128 commented out their dress + scene.add)
 const SHELL = [
   "./",
   "./index.html",
