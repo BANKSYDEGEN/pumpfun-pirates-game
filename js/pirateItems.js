@@ -33,6 +33,11 @@ export const ITEMS = [
   // [v145] BANKSY: Retardio face paint v2 (Raul): warm white face base, blue diamonds round the eyes, red Joker smile; a thin shell off the
   // face under all facial hair, eye holes open. v5 only (v4 bodies draw nothing), own slot 'face' so it is worn with shades / an eye patch
   item('facepaint_retardio', 'Retardio Face Paint', 'face', 350, null, [], { v5: v5files('facepaint_retardio'), v5hide: [], v5only: true, paint: true }),
+  // [Raul wrestler] LUCHADOR MASK: full-head fabric hood (gold, red flame eye surrounds + mouth trim outlined white, PUMPFUN PIRATES
+  // skull on the forehead, laced back), pre-fitted per body round the head + hair, rigid on 'head'. Hat slot (no hat over it); the
+  // v2 (BANKSY "giant gold egg"): a snug hood a few mm off the face + skull; the LUCHA rule hides the head under it (hair, bangs, ears,
+  // her long back hair), keeps the eye-hole + open-chin zones (his beard) and her braid (out the back). No flattening (noFlatten)
+  item('mask_luchador', 'Luchador Mask', 'head', 0, null, [], { v5: v5files('mask_luchador'), v5hide: [{ lucha: 1 }], v5only: true, noFlatten: true }),
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
   item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
@@ -48,6 +53,9 @@ export const ITEMS = [
   item('cloth_tank', 'Tank', 'outfit', 0, { shirt: '#f1ede2' }, [], { v5: v5files('cloth_tank'), v5hide: [], v5only: true, v5cloth: true }),
   item('cloth_tshirt', 'T-Shirt', 'outfit', 0, { shirt: '#222c4e' }, [], { v5: v5files('cloth_tshirt'), v5hide: [], v5only: true, v5cloth: true, cream: '#f3efe6' }),   // cream body (fixed) + stripes in the cloth colour
   item('cloth_base', 'Base outfit', 'base', 0, null, [], { v5: v5files('cloth_base'), v5hide: [], v5only: true, v5cloth: true, base: true }),   // [Raul clothes v5] the body's painted pants / belt / boots / sash (her wrap top) as their own cloth
+  // [Raul wrestler] BANKSY "Make a wrestling singlet and libre mask": one-piece singlet (deep scoop straps, racer arm holes, legs to the
+  // boot tops: the chibi thigh is ~5 cm) per body + LOD, tinted 'shirt' (ship skin / clothes colour, default red); cream = the gold side stripes
+  item('cloth_singlet', 'Wrestling Singlet', 'outfit', 0, { shirt: '#c8302c' }, [], { v5: v5files('cloth_singlet'), v5hide: [], v5only: true, v5cloth: true, cream: '#e9b949' }),
   item('shirt', 'Pirate Shirt', 'outfit', 300, { shirt: '#f4efe3' }, [{ all: 1, tints: ['shirt'], lod: 'hi' }, { torso: [0.47, 0.62], tints: ['skin'], female: 1 }, { torso: [0.47, 0.54], tints: ['skin'], male: 1 }, { torso: [0.47, 0.86], back: 1, tints: ['skin'] },
     { arm: 'L', s: [0.04, 0.18], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.18], tints: ['skin'] },
     { v5: 1, v5torso: [0.36, 0.95, 0.16], vneck: 0.62, tints: ['skin', 'shirt'] }], { perBase: true, v5: v5files('cloth_shirt'), v5hide: [], v5cloth: true, cream: '#3a2414' }),   // [Raul clothes v5] v5: own single-layer laced shirt (cream = the laces)   // [v121] v5: the body under the shirt
@@ -91,6 +99,40 @@ function baseMask(o, P, T, female) {
     out[i] = 1; }
   _baseM.set(P, out); return out;
 }
+// [Raul wrestler] under the luchador mask (three bind space, per body; tools/mask.py prints these): every head vertex above the mask's
+// bottom (cut) goes, except the front eye-hole zones + the open chin (x, y centre, x, y radii; front = z > zf); below the cut only the
+// hair (the male beard in front stays). Her braid (top bone 'braid') always stays.
+export const LUCHA = {
+  male: { cut: 0.855, zf: 0.1, eyes: [[0.0961, 1.0275, 0.1161, 0.1317], [-0.0887, 1.0245, 0.1141, 0.1256]], chin: [0, 0.735, 0.18, 0.189] },
+  female: { cut: 0.925, zf: 0.1, eyes: [[0.0942, 1.0804, 0.1045, 0.0982], [-0.0919, 1.0905, 0.1129, 0.1227]], chin: [0, 0.805, 0.15, 0.202] },
+};
+const _braid = new WeakMap();
+function braidOf(o) {   // per body geometry: the vertex's strongest bone, 1 = 'braid', 2 = 'head'
+  const g = o.geometry, P = g.userData.basePos || g.attributes.position; if (_braid.has(P)) return _braid.get(P);
+  const J = g.attributes.skinIndex, W = g.attributes.skinWeight, bones = o.skeleton?.bones.map((b) => b.name.replace(/[^A-Za-z0-9]/g, '').toLowerCase()) || [], out = new Uint8Array(P.count);
+  if (J && W) for (let i = 0; i < P.count; i++) { let b = 0, w = -1; for (let k = 0; k < 4; k++) { const x = W.getComponent(i, k); if (x > w) { w = x; b = J.getComponent(i, k); } } out[i] = bones[b] === 'braid' ? 1 : bones[b] === 'head' ? 2 : 0; }
+  _braid.set(P, out); return out;
+}
+const _ell = (e, x, y) => ((x - e[0]) / e[2]) ** 2 + ((y - e[1]) / e[3]) ** 2 < 1;
+// [wrestler v2] BANKSY "singlet legs read like a dress": the baggy base pants under the singlet are pulled in round each leg's axis
+// (same transform as the singlet's fitting proxy, singlet.py), so the singlet hugs the hips + thighs and opens a crotch line
+export const LEGPULL = { male: { cx: 0.10, cz: 0.06, a: 0.22, belt: 0.58 }, female: { cx: 0.10, cz: 0.05, a: 0.18, belt: 0.64 } };
+const _ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const _pull = new WeakMap();
+function legPull(P, L) {
+  let m = _pull.get(P); if (!m) _pull.set(P, (m = new Map())); if (m.has(L)) return m.get(L);
+  const Q = P.clone();
+  for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), w = _ss(0.30, 0.36, y) * (1 - _ss(L.belt - 0.14, L.belt - 0.04, y)); if (!w) continue;
+    const k = L.a * w, cx = L.cx * Math.tanh(x / 0.06); Q.setX(i, x - (x - cx) * k); Q.setZ(i, z - (z - L.cz) * k); }
+  m.set(L, Q); return Q;
+}
+function luchaHit(L, x, y, z, t, bone) {   // braid / side strands hidden too (no clean re-attach out of the hood)
+  if (bone === 1) return true;
+  if (!L.male && bone === 2 && y < L.cut && (y < L.cut - 0.1 || Math.hypot(x, z) > 0.12)) return true;   // her loose strands round the neck (head-weighted, any tint); the neck itself stays
+  const front = z > L.zf, hair = t === TINTS.indexOf('hair');
+  if (y > L.cut) return !(front && ((_ell(L.chin, x, y) && (L.male || !hair)) || (!hair && L.eyes.some((e) => _ell(e, x, y)))));
+  return hair && !(L.male && front);
+}
 const TI = (k) => (k === 'fixed' ? -1 : TINTS.indexOf(k));
 const sArm = (x, y, sx) => (x - sx * 0.215) * sx * Math.sin(1.48) + (y - 0.86) * -Math.cos(1.48);   // distance along the T-pose arm from the shoulder
 function ruleHit(r, x, y, z, t, female, lod, v5 = false) {
@@ -123,13 +165,18 @@ function applyHide(p) {
   for (const o of [...(p.atlasMeshes || []), ...(bIt?.obj ? [bIt.obj] : [])]) {
     const g = ownGeometry(o), base = g.userData.baseIndex, isCloth = o === bIt?.obj;
     g.userData.basePos ||= g.attributes.position; g.userData.shrink = null;
-    if (!rules.length && !tops.length && !(bIt && !isCloth)) { g.setIndex(base); continue; }
-    const P = g.userData.basePos, Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n); let shr = null;
+    if (!rules.length && !tops.length && !(bIt && !isCloth)) { if (isCloth && g.attributes.position !== g.userData.basePos) g.setAttribute('position', g.userData.basePos); g.setIndex(base); continue; }
+    let P = g.userData.basePos; const Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n); let shr = null;
+    if (isCloth) { const PP = p.items.outfit?.id === 'cloth_singlet' ? legPull(P, LEGPULL[p.female ? 'female' : 'male']) : P; if (g.attributes.position !== PP) g.setAttribute('position', PP); P = PP; }
     if (bIt && !isCloth && Tt) hid.set(baseMask(o, P, Tt, p.female));
     for (const tp of tops) { const cm = coverMask(P, Tt, tp.obj.geometry); for (let i = 0; i < n; i++) if (cm[i]) hid[i] = 1; }
-    if (isCloth && (p.items.outfit?.id === 'suit' || ITEM_BY_ID[p.items.outfit?.id]?.longCoat) && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coat
+    if (isCloth && (p.items.outfit?.id === 'suit' || p.items.outfit?.id === 'cloth_singlet' || ITEM_BY_ID[p.items.outfit?.id]?.longCoat) && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coats / the singlet
+    const LU = p.v5 && !isCloth && rules.some((r) => r.lucha) ? { ...LUCHA[p.female ? 'female' : 'male'], male: !p.female } : null, BR = LU ? braidOf(o) : null;   // [Raul wrestler]
+    const SG = p.v5 && !isCloth && p.items.outfit?.id === 'cloth_singlet' ? CLOTH.cut[p.female ? 'female' : 'male'] : 0, SB = SG ? braidOf(o) : null;
     for (let i = 0; i < n; i++) { if (hid[i]) continue; const t = Tt ? Math.round(Tt.getX(i)) : -1, rX = P.getX(i), rY = P.getY(i), rZ = P.getZ(i); let X = rX, Y = rY, Z = rZ; if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
-      for (const r of rules) { if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
+      if (LU && luchaHit(LU, rX, rY, rZ, t, BR[i])) { hid[i] = 1; continue; }
+      if (SG && t === TINTS.indexOf('hair') && rY < SG && (p.female || Math.abs(rX) < 0.14) && SB[i] !== 1) { hid[i] = 1; continue; }   // [wrestler v2] hair-tinted pants detail (fly / sash folds) under the fitted singlet legs (never the braid)
+      for (const r of rules) { if (r.lucha) continue; if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
         if (p.v5 && r.tints?.includes('hair') && !r.raw) continue;
         if (isCloth && (r.raw || r.v5torso)) continue;   // the base outfit only takes the plain region rules (peg leg)   // [v123] Raul: never hide v5 hair under a hat (the AI head is hollow: holes)
         if (p.v5 && r.v5torso) {   // [v124] BANKSY "jacket has holes": hiding the v5 torso opened the hollow body in the coat's open front.
@@ -149,7 +196,7 @@ function applyHide(p) {
     // over a worn top is lifted just outside the cloth (the female: the male's hair stays tucked in his collar)
     const tp = p.v5 && p.warp ? Object.values(p.items).find((it) => (it.id === 'suit' || it.id === 'shirt' || (it.cloth && it !== bIt)) && it.obj?.geometry) : null;
     if (tp && g.attributes._tint) { const cg = tp.obj.geometry; let m = _hair.get(cg); if (!m) _hair.set(cg, (m = new WeakMap()));
-      if (!m.has(P)) m.set(P, hairOver(P, g.attributes._tint, cg, !p.female, tp.cloth ? 0.17 : 0)); const H = m.get(P);
+      if (!m.has(P)) m.set(P, hairOver(P, g.attributes._tint, cg, !p.female, tp.cloth && tp.id !== 'cloth_singlet' ? 0.17 : 0)); const H = m.get(P);
       if (H) { const U0 = g.userData.under; if (U0) { const S2 = new Float32Array(U0.length); for (let i = 0; i < S2.length; i++) S2[i] = U0[i] + H[i]; g.userData.under = S2; } else g.userData.under = H; } }
     // [v136] body faces the cloth-coloured underlayer replaces go (Low's coarse chest poked through the lapels in big skin shards)
     if (top && T0(o)) { const { keep } = underKeep(p, o, UNDER[top.id]), I = g.index.array, o2 = [];
@@ -448,7 +495,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
   const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;
   const v5hide = def.crownFit ? fitCrown(geo, p) : null;
-  const flatten = def.crownFit ? (v5hide && crownTuck(v5hide, p)) : def.slot === 'head' ? hatFlatten(geo) : null;
+  const flatten = def.crownFit ? (v5hide && crownTuck(v5hide, p)) : def.slot === 'head' && !def.noFlatten ? hatFlatten(geo) : null;
   const cl = def.v5cloth ? { cloth: true, hex, col0: def.base ? colors3(geo.attributes.color) : null } : null;
   return { obj: m, decal, v5hide, flatten, ...cl };
 }

@@ -29,7 +29,8 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   parrot: { c: [0.27, 1.28, 0], d: [0.9, 0.2, 0.85], r: 0.36 },
   hook:   { c: [-0.25, 0.68, 0.06], d: [-0.75, 0.25, 1], r: 0.2 },   // [v142] v5 shorter arms: the hand sits higher / closer in
   leg:    { c: [-0.14, 0.2, 0.05], d: [-0.25, 0.35, 1], r: 0.3 },   // right leg; LEFT = mirrored [v142] v5 peg y 0-0.33
-  'hat:crown_imperial': { c: [0, 1.82, 0.05], d: [0.3, 0.22, 1], r: 0.5 },   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
+  'hat:crown_imperial': { c: [0, 1.82, 0.05], d: [0.3, 0.22, 1], r: 0.5 },
+  'hat:mask_luchador': { c: [0, 1.4, 0.05], d: [0.3, 0.12, 1], r: 0.36 },   // [Raul wrestler] the full-head mask: brow skull to the open chin   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
 };
 // the frame for this slot, mirrored to the pirate's LEFT (+x) for a left hook / peg
 function frameOf(slot, o, id) { const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';

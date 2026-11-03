@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v154'; // [v154] Raul's foot physics: falling off ledges, floating + swimming in deep water, wading, the west-beach swim cove
+const VERSION = 'pfp-v155'; // [v155] Raul's wrestler items: WRESTLING SINGLET (600, outfit) + LUCHADOR MASK (1500, hat slot), v5 per body hi + lo
 const SHELL = [
   "./",
   "./index.html",
@@ -190,6 +190,14 @@ const ASSETS = [
   "./assets/pirates/items/v5/helmet_hq_female_lo.glb",
   "./assets/pirates/items/v5/helmet_hq_male_hi.glb",
   "./assets/pirates/items/v5/helmet_hq_male_lo.glb",
+  "./assets/pirates/items/v5/mask_luchador_female_hi.glb",
+  "./assets/pirates/items/v5/mask_luchador_female_lo.glb",
+  "./assets/pirates/items/v5/mask_luchador_male_hi.glb",
+  "./assets/pirates/items/v5/mask_luchador_male_lo.glb",
+  "./assets/pirates/items/v5/cloth_singlet_female_hi.glb",
+  "./assets/pirates/items/v5/cloth_singlet_female_lo.glb",
+  "./assets/pirates/items/v5/cloth_singlet_male_hi.glb",
+  "./assets/pirates/items/v5/cloth_singlet_male_lo.glb",
   "./assets/pirates/items/v5/facepaint_retardio_female_hi.glb",
   "./assets/pirates/items/v5/facepaint_retardio_female_lo.glb",
   "./assets/pirates/items/v5/facepaint_retardio_male_hi.glb",

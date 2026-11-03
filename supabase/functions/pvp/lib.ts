@@ -108,9 +108,9 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:flaming": { price: 150000, goal: [{ stat: "kd", need: 10 }, { stat: "kills", need: 50 }] },
   "skin:diamond": { price: 250000, goal: [{ stat: "kills", need: 5000 }] },
   // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.
-  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 }, "gear:hat:crown_imperial": { price: 25000 }, "gear:hat:helmet_hq": { price: 800 },
+  "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 }, "gear:hat:crown_imperial": { price: 25000 }, "gear:hat:helmet_hq": { price: 800 }, "gear:hat:mask_luchador": { price: 1500 },
   "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
-  "gear:outfit:shirt": { price: 300 }, "gear:outfit:suit": { price: 3000 },
+  "gear:outfit:shirt": { price: 300 }, "gear:outfit:suit": { price: 3000 }, "gear:outfit:singlet": { price: 600 },
   "gear:eyes:eyepatch": { price: 200 }, "gear:eyes:sunglasses": { price: 500 }, "gear:eyes:laser": { price: 3000 },
   "gear:parrot:parrot_green": { price: 2000 }, "gear:parrot:parrot_red": { price: 5000 },
   "gear:parrot:parrot_blue": { price: 8000 }, "gear:parrot:parrot_cockatoo": { price: 12000 },
@@ -125,7 +125,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:crewoutfit:tshirt": { price: 300 }, "gear:crewoutfit:coat": { price: 1000 }, "gear:crewoutfit:shirt": { price: 300 }, "gear:crewoutfit:suit": { price: 3000 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
-export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
+export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq", "mask_luchador"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit", "singlet"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
   parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
   leg: ["none", "peg"], face: ["none", "facepaint_retardio"],
   // [Timothy] CREW SHOP: the crew's OWN loadout (stored in the same gear jsonb: gear.crewhat / gear.crewoutfit; a row without them =

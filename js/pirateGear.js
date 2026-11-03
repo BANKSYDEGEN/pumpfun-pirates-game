@@ -25,7 +25,7 @@ import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped, I
 export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none' });   // [v145] + face paint (own slot: worn with shades)
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
 export const GEAR_RENDERS = Object.freeze({
-  hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'], eyes: ['eyepatch', 'sunglasses', 'laser'],
+  hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['eyepatch', 'sunglasses', 'laser'],
   parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond'], hook: ['hook_iron', 'hook_gold'],
   leg: ['peg'],   // one PEG LEG item; the side is gear.legSide
   face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
@@ -82,7 +82,7 @@ export const knownGearSkin = (id) => id === 'classic' || !!SKIN_CLOTH[id];
 // colors: { skin } (ship skin id) and / or explicit { cloth, trim } overrides
 export function outfitColors(outfit, colors = {}) {
   // tank = all cloth, t-shirt = cream with cloth stripes, coat = cloth + trim edging over a cream shirt with navy (DEFAULT) / cloth stripes
-  const k = SKIN_CLOTH[colors?.skin], d = { tank: '#f1ede2', tshirt: '#222c4e', coat: '#c8302c', shirt: '#f4efe3', suit: '#b3201f' }[outfit] || '#f1ede2';
+  const k = SKIN_CLOTH[colors?.skin], d = { tank: '#f1ede2', tshirt: '#222c4e', coat: '#c8302c', shirt: '#f4efe3', suit: '#b3201f', singlet: '#c8302c' }[outfit] || '#f1ede2';
   const cloth = colors?.cloth || (k ? (outfit === 'shirt' ? k[1] : k[0]) : d), trim = colors?.trim || (k ? k[2] : outfit === 'suit' ? '#1d2a52' : '#e9b949');   // shirt = the skin's light colour
   return { cloth, trim, stripe: outfit === 'coat' && !k && !colors?.cloth ? '#222c4e' : cloth };
 }
@@ -131,6 +131,9 @@ const RAUL5 = {
   'outfit:tshirt': ['outfit', 'cloth_tshirt', (g, c) => ({ shirt: outfitColors('tshirt', c).cloth })],
   // [Raul coats v5] the COAT on v5 = his own per-body coat (same colours as Timothy's shell: cloth, trim, stripe)
   'outfit:coat':   ['outfit', 'cloth_coat', (g, c) => { const o = outfitColors('coat', c); return { coat: o.cloth, accent: o.trim, shirt: o.stripe }; }],
+  // [Raul wrestler] v5 only (v4 bodies draw nothing for them): the singlet in the clothes colour (gold side stripes fixed), the mask in its own colours
+  'outfit:singlet': ['outfit', 'cloth_singlet', (g, c) => ({ shirt: outfitColors('singlet', c).cloth })],
+  'hat:mask_luchador': ['head', 'mask_luchador', null],
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face'];
