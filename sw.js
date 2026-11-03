@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v131'; // [v131] a moored ship keeps its berth (no more sailing off while you are ashore)
+const VERSION = 'pfp-v132'; // [v132] a moored ship never gives up its berth
 const SHELL = [
   "./",
   "./index.html",

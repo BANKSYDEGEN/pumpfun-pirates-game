@@ -58,9 +58,8 @@ export function createDocking({ berths, myId }) {
     dk = peerBerth(dk);
     if (dk && byId.has(dk)) peers.set(id, { berth: dk, t: performance.now() }); else peers.delete(id);
     // [v131] BANKSY "my ship drifted away": a docked ship used to give up its berth to any lower-id peer reporting it (even with you ashore),
-    // sailing itself to another berth / releasing to sea. A moored ship now keeps its berth; only a ship still coming in (or one that
-    // docked in the same instant, < 3 s, a race the lower id wins) moves over. Peers only report dk once moored.
-    if (st.berth && dk === st.berth.id && (st.mode === 'in' || (st.mode === 'docked' && st.t < 3 && id < myId))) { // they win: move over
+    // sailing itself to another berth / releasing to sea. A moored ship now keeps its berth; only a ship still coming in moves over. Peers only report dk once moored.
+    if (st.berth && dk === st.berth.id && st.mode === 'in') { // they win: move over
       const alt = nearest(st.berth.x, st.berth.z, 400, true);
       if (alt) { const old = st.berth; st.berth = null; return { moved: alt, from: old }; }
       return { moved: null };
