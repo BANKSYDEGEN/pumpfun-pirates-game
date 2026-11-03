@@ -82,6 +82,21 @@ export const HAT_SWATCHES = [['RED', '#c8302c'], ['GOLD', '#e9b949'], ['NAVY', '
   ['PURPLE', '#7a3fb0'], ['PINK', '#ff5fa2'], ['ORANGE', '#ff7a1a'], ['WHITE', '#f4f1e8'], ['BLACK', '#1c1c20'], ['BROWN', '#8a5a32']];
 export const gearKey = (it) => `${it.slot}:${it.id}`; // owned gear is stored as 'slot:id' (ids repeat across slots: 'none')
 
+// ---------- [Timothy] CREW SHOP: crew versions of the REAL hats + clothes (js/crewLoadout.js). No new art: each draws with the
+// player item of the same id (base slot). PRICING RULE: a crew item costs EXACTLY what the player version costs (1:1, BANKSY:
+// expensive + grindy; one buy dresses the whole crew). The crew uniform (bandana + tank) is free. Server: lib.ts SHOP_ITEMS
+// 'gear:crewhat:<id>' / 'gear:crewoutfit:<id>' (same prices) + GEAR_SLOTS crewhat / crewoutfit.
+export const CREW_SLOT_LABELS = [['crewhat', 'CREW HATS'], ['crewoutfit', 'CREW CLOTHES']];
+const CREW_FROM = { crewhat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq'], crewoutfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'] };
+const CREW_FREE = { crewhat: 'bandana', crewoutfit: 'tank' };
+export const CREW_ITEMS = Object.entries(CREW_FROM).flatMap(([slot, ids]) => ids.map((id) => {
+  const base = slot === 'crewhat' ? 'hat' : 'outfit', p = GEAR_ITEMS.find((g) => g.slot === base && g.id === id);
+  const free = CREW_FREE[slot] === id;
+  return { slot, id, base, crew: true, label: (free ? 'CREW ' : '') + p.label, price: free ? 0 : p.price, glb: p.glb, tint: p.tint, free: free || undefined };
+}));
+// ---------- [Timothy] PET STORE: rarity per parrot (display only; prices + goals are the GEAR_ITEMS ones, unchanged)
+export const PET_RARITY = { none: '', parrot_green: 'COMMON', parrot_red: 'UNCOMMON', parrot_blue: 'UNCOMMON', parrot_cockatoo: 'RARE', parrot_black: 'EPIC', parrot_gold: 'LEGENDARY', parrot_diamond: 'MYTHIC' };
+
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {
   shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face'], awning: null },
@@ -89,6 +104,8 @@ export const VENDORS = {
   stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
   clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face'], awning: '#d8322f' },
+  pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots for your shoulder', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
+  crew:       { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear'], slots: ['crewhat', 'crewoutfit'], awning: '#6a4fb3', crew: true },   // [Timothy] plaza CREW SHOP counter
   ships:      { name: 'SHIP SKINS + UPGRADES', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: true },
 };
 

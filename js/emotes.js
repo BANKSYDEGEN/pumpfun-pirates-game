@@ -6,6 +6,7 @@ import { devHook } from './env.js'; // [security L] console/test hook: local dev
 import * as THREE from 'three';
 import { sfx } from './audio.js';
 import { isKey } from './keybinds.js';
+import { crewLodOf } from './crew.js'; import { crewFemale } from './crewV4.js'; // [v146] your crew's chorus in each crew member's own voice
 
 export const EMOTES = [
   { t: 'Arr!', i: '🏴‍☠️' }, { t: 'Follow me!', i: '🧭' }, { t: 'Boss incoming!', i: '💀' }, { t: 'Need help!', i: '🆘' },
@@ -19,13 +20,13 @@ const bubbles = new Map(); // ship -> { el, until }
 const _v = new THREE.Vector3();
 let K = null, last = -1e9, open = false;
 
-export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = null } = {}) {
+export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = null, crew = null } = {}) {
   if (!ship || !validEmote(e)) return false;
   let b = bubbles.get(ship);
   if (!b) { const el = document.createElement('div'); el.className = 'emote-bubble'; $('emote-bubbles')?.appendChild(el); b = { el }; bubbles.set(ship, b); }
   b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000;
   b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
-  if (vol > 0.03) sfx.emote?.(e, vol, pitch, own, body); // [v101] own = your crew joins in (real recorded voices)
+  if (vol > 0.03) sfx.emote?.(e, vol, pitch, own, body, crew); // [v101] own = your crew joins in (real recorded voices)
   return true;
 }
 // your own pick: rate limit, bubble over your ship, voice, then K.send (pvp broadcast when in a room)
@@ -34,8 +35,11 @@ export function sendEmote(e) {
   const pl = K.getPlayer(), now = performance.now();
   if (!K.canEmote() || !pl?.alive) return false;
   if (now - last < EMOTE_GAP) { flashWait(); return false; }
-  last = now; showEmote(pl, e, { own: true }); K.send?.(e); setWheel(false); return true;
+  last = now; showEmote(pl, e, { own: true, crew: crewVoices(pl) }); K.send?.(e); setWheel(false); return true;
 }
+// [v146] the deck crew's voices, seat order (crewV4: each seat's body is male / female from its seat hash): 'm' | 'f' per gunner
+function crewVoices(pl) { try { const m = pl?.mesh, lod = crewLodOf(m?.userData?.body || m); const seats = lod?.userData?.seats;
+  return Array.isArray(seats) ? seats.filter(c => !c.cap && c.v != null).map(c => (crewFemale(c.v) ? 'f' : 'm')) : null; } catch { return null; } }
 function flashWait() { const b = $('btn-emote'); if (!b) return; b.classList.remove('wait'); void b.offsetWidth; b.classList.add('wait'); }
 
 function setWheel(on) {

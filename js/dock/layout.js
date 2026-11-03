@@ -40,15 +40,19 @@ export async function coastLayout() {
     const bl = (s) => L(b.lx + s * (b.len / 2 - 5), b.quay ? b.ashoreLz + 1.6 : CO.PIERS[0].head1 - 0.6);  // mooring bollards at bow + stern
     return { id: b.id, x: b.hx, z: b.hz, yaw: b.yaw, len: b.len, beam: b.maxBeam, quay: !!b.quay, outLen: b.outLen, ashore: { x: ax, z: az, y: b.quay ? CO.QUAY.y : DECK_Y }, bollards: [bl(-1), bl(1)], out: sea }; });
   // ---- walkable decks over water (the quay, plaza and mole are terrain in foot.js coast mode) ----
-  const B = CO.BOARDWALK, decks = [rect('boardwalk', B.lx0, B.lx1, B.lz0, B.lz1)];
-  for (const p of CO.PIERS) {
+  const B = CO.BOARDWALK, PV2 = FM.PLAZA_SHOPS_ON && FM.PLAZA_SHOPS_ON !== FM.PLAZA_SHOPS; // [Timothy] ?plaza=2 (js/island/plazaTown.js): 10 jetty berths, dock ramp
+  const PVH = PV2 ? FM.PV.harborParts(L, CO.t2wYaw) : null;
+  const decks = PV2 ? [rect('boardwalk', B.lx0, FM.PV_DOCK.deckEnd, B.lz0, B.lz1)] : [rect('boardwalk', B.lx0, B.lx1, B.lz0, B.lz1)]; // v2: + the waterfront boardwalk (PVH.decks)
+  if (PVH) { decks.push(...PVH.decks); berths.length = 0; berths.push(...PVH.berths); }
+  for (const p of CO.PIERS) { if (PVH && !FM.PV.keepOldPier(p.lx)) continue;
     decks.push(rect('stem' + (p.k + 1), p.lx - 2.6, p.lx + 2.6, p.lz0 - 1, p.head0 + 0.5));
     decks.push(rect('head' + (p.k + 1), p.lx - p.half, p.lx + p.half, p.head0, p.head1));
     decks.push(rect('jetty' + (p.k + 1), p.lx - 32.6, p.lx - 27.4, 3, 22));
   }
   // ---- ship colliders: pier stems + T-heads, side jetties, quay face, mole, land edge ----
   const shipCircles = [], ring = (lx, lz, r, h = DECK_Y + 2) => { const [x, z] = L(lx, lz); shipCircles.push({ x, z, r, h, pier: true }); };
-  for (const p of CO.PIERS) { for (let lz = p.lz0; lz <= p.head0; lz += 4) ring(p.lx, lz, 3.2);
+  if (PVH) shipCircles.push(...PVH.circles);
+  for (const p of CO.PIERS) { if (PVH && !FM.PV.keepOldPier(p.lx)) continue; for (let lz = p.lz0; lz <= p.head0; lz += 4) ring(p.lx, lz, 3.2);
     for (let lx = p.lx - p.half + 2; lx <= p.lx + p.half - 2; lx += 4) ring(lx, (p.head0 + p.head1) / 2, 2.6);
     for (let lz = 4; lz <= 22; lz += 4) ring(p.lx - 30, lz, 3); }
   { const m = CO.MOLE; for (let lz = m.lz0; lz <= m.lz1; lz += 5) ring(m.lx, lz, m.w / 2 + 0.5, m.y + 3); ring(m.lx, m.lz1, m.tipR, m.y + 3); }
@@ -67,8 +71,9 @@ export async function coastLayout() {
   P('spyglass', 'spyglass', CO.SPYGLASS.lx, CO.SPYGLASS.lz, 'SPYGLASS · SPECTATE', CO.SPYGLASS.r); // Raul's spyglass prop (coast.js SPYGLASS, single source of truth)
   P('exchange', 'exchange', PP.exchange.lx, PP.exchange.lz + 4.2, 'TOKEN EXCHANGE');
   // [v103] the old HARBOR MARKET: CLOTHES SHOP + SHIP SKINS / UPGRADES shops and the three token billboards (foot.js PLAZA_*)
-  for (const sp of FM.PLAZA_SHOPS) { const [x, z] = L(sp.lx, sp.lz + 3.8); interact.push({ id: sp.id, kind: 'shop', vendor: sp.vendor, x, z, r: 3.4, label: sp.label }); }
-  for (const tb of FM.PLAZA_TOKENS) { const [x, z] = L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: (FM.PLAZA_TOKENS_TITLE?.[tb.sym] || '$' + tb.sym) + ' · CA + CHART' }); }
+  for (const sp of (FM.PLAZA_SHOPS_ON || FM.PLAZA_SHOPS)) { if (!sp.vendor && !sp.soon) continue; const [x, z] = L(sp.lx, sp.lz + 3.8); // [v146] pet store -> parrots, upgrade shop -> upgrades panel, crew shop -> coming soon
+    interact.push(sp.vendor ? { id: sp.id, kind: 'shop', vendor: sp.vendor, slot: sp.slot, open: sp.open, x, z, r: 3.4, label: sp.label } : { id: sp.id, kind: 'soon', x, z, r: 3.4, label: sp.soon }); }
+  for (const tb of (FM.PLAZA_TOKENS_ON || FM.PLAZA_TOKENS)) { const [x, z] = L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: (FM.PLAZA_TOKENS_TITLE?.[tb.sym] || '$' + tb.sym) + ' · CA + CHART' }); }
   // Timothy's SHOP door + the red / blue stalls: foot.js fills SHOP_SPOTS while it builds the street (createFoot), so world.js
   // calls this right after
   const shopInteract = () => Object.values(FM.SHOP_SPOTS).map(s => { const [x, z] = footToHarbor(s.x, s.z);
@@ -78,6 +83,6 @@ export async function coastLayout() {
       const [x, z] = footToHarbor(...FM.townToWorld(S.x + side * (S.half - 0.5), lot[0])); interact.push({ id: kind, kind, x, z, r: 3.4, label: kind === 'tavern' ? 'TAVERN' : 'BOUNTY BOARD' }); } }
   // ---- SAFE HARBOR: Raul's town-local polygon (berths + 22 m, quay front, mole) ----
   const safe = { kind: 'poly', pts: CO.SAFE.map(([lx, lz]) => L(lx, lz)), exit: { x: 0, z: 0 } };
-  const spawn = (() => { const [x, z] = L(PP.arrive.lx, PP.arrive.lz); return { x, z, yaw: CO.t2wYaw(Math.PI) }; })();
+  const spawn = PVH ? PVH.spawn : (() => { const [x, z] = L(PP.arrive.lx, PP.arrive.lz); return { x, z, yaw: CO.t2wYaw(Math.PI) }; })();
   return { id: 'raul-coast-aa0fd43', shopInteract, berths, decks, safe, graceS: 4, interact, shipCircles, spawn, footToHarbor, harborToFoot, FM, CO, deckY: DECK_Y };
 }

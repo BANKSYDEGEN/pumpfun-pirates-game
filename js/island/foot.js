@@ -10,6 +10,9 @@ import { buildBirds, buildCrabs, buildFlames, buildNets, grassMaterial, islandSu
 import { toon } from '../toon.js';
 import { kitMesh, pickHouse, HOUSE_VARIANTS } from './townkit.js';
 import * as CO from './coast.js';
+import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
+const PV2 = COAST_ON_PV2();
+function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
 export { CO }; // ?coast=1: town + berths built into the main island's west coast (js/island/coast.js); no round dock island
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -137,6 +140,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
   function coastH() { // [coast] stone quay + plaza flat, mole, cliff headland, fort knoll
     const e = sm(-64, -52, lz) * sm(CO.PLAZA.lx0 - 12, CO.PLAZA.lx0, lx) * (1 - sm(CO.PLAZA.lx1, CO.PLAZA.lx1 + 12, lx));
     if (lz <= 0.5) h = h * (1 - e) + CO.QUAY.y * e;
+    if (PV2) h = PV.plazaGround(lx, lz, h);   // [Timothy] v2 dock corner apron
     if (lz > 0.5 && lx > -320 && lx < 132 && sd > 0) h = Math.min(h, -3.5 - Math.min(lz, 60) * 0.12);   // dredged harbor: berths + quay stay deep
     if ((Math.abs(lx - CO.MOLE.lx) < CO.MOLE.w / 2 + 1 && lz > -2 && lz < CO.MOLE.lz1) || Math.hypot(lx - CO.MOLE.lx, lz - CO.MOLE.lz1) < CO.MOLE.tipR) h = CO.MOLE.y;
     const hd = Math.hypot(lx - CO.HEADLAND.lx, lz - CO.HEADLAND.lz); if (sd < 0) h = Math.max(h, CO.HEADLAND.top * (1 - sm(CO.HEADLAND.r * 0.6, CO.HEADLAND.r * 1.5, hd)) * sm(-2, 6, -sd));
@@ -562,6 +566,9 @@ export const PLAZA_SHOPS = [{ id: 'shop_clothes', vendor: 'clothes', lx: -50, lz
 export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP', HQ: '$HQ', RETARDIO: '$RETARDIO' }; // [v108] billboard titles (config ISLAND_TOKENS)
 export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 },
   { sym: 'HQ', lx: 45, lz: -36 }, { sym: 'RETARDIO', lx: 51, lz: -36 }];   // [v144] the other side of the plaza (the first three mirrored across the leaderboards)
+// [Timothy] ?plaza=2: the shops + billboards the plaza actually shows (js/dock/layout.js uses these too)
+export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS;
+export let PLAZA_V2_SIGNS = null; export const PV_DOCK = PV.DOCK; export { PV };
 export const INTERACT = []; // { id, x, z, r, label }
 export function buildStreet(A, low, F) {
   const k = new Kit(), S = STREET; k.ao = (x, y, z) => 0.58 + 0.42 * sm(0, 2.6, y - H(x, z)); KPG = 'street';
@@ -639,26 +646,28 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     for (const s of [-1, 1]) W(k, box(w + 1.2, 0.2, d / 2 / Math.cos(0.55) + 0.6), ROOFS[(lx | 0) & 3] === undefined ? WOOD : 0x8a6a45, 4, M(0, b + 3.1 + Math.tan(0.55) * d / 4, s * d / 4, 0, s * 0.55)); }, 0);
   // stone quay: seawall face + coping + a cobbled plaza slab, bollards along the edge
   { const L = CO.QUAY.lx1 - CO.QUAY.lx0, cx = (CO.QUAY.lx0 + CO.QUAY.lx1) / 2;
-    at(cx, 0.6, 0, () => { W(k, box(L, 7.6, 1.6), STONE_D, 11, M(0, Y0 - 3.7, 0)); W(k, box(L + 0.4, 0.4, 2.0), STONE, 11, M(0, Y0 + 0.1, 0), false); }, 0);
+    if (PV2) at(cx, -0.2, 0, () => { W(k, box(L, 7.6, 0.4), STONE_D, 11, M(0, Y0 - 3.7, 0)); W(k, box(L + 0.4, 0.3, 0.4), STONE, 11, M(0, PV.STREET_Y - 0.15, 0), false); }, 0); // [Timothy] v2: the boardwalk covers the old coping; this one is flush with the street
+    else at(cx, 0.6, 0, () => { W(k, box(L, 7.6, 1.6), STONE_D, 11, M(0, Y0 - 3.7, 0)); W(k, box(L + 0.4, 0.4, 2.0), STONE, 11, M(0, Y0 + 0.1, 0), false); }, 0);
     at(cx, -27, 0, () => W(k, box(L - 2, 0.3, 54), 0xc9bfae, 10, M(0, Y0 - 0.02, 0), false), 0);
-    for (let lx = CO.QUAY.lx0 + 6; lx < CO.QUAY.lx1 - 4; lx += 12) { const [x, z] = T(lx, -0.6); if (KP) kp(k, 'bollard', M(x, Y0 + 0.2, z)); } }
+    for (let lx = CO.QUAY.lx0 + 6; lx < CO.QUAY.lx1 - 4; lx += 12) { if (PV2) continue; // [Timothy] v2: the quay edge is the boardwalk (bollards on its sea rail)
+      const [x, z] = T(lx, -0.6); if (KP) kp(k, 'bollard', M(x, Y0 + 0.2, z)); } }
   // stone mole out to the lighthouse (the lighthouse itself = the inland lighthouse POI, moved onto the mole tip)
   { const m = CO.MOLE; at(m.lx, (m.lz0 + m.lz1) / 2, 0, () => { W(k, box(m.w, 7.6, m.lz1 - m.lz0), STONE_D, 11, M(0, m.y - 3.7, 0)); W(k, box(m.w + 0.4, 0.4, m.lz1 - m.lz0), STONE, 11, M(0, m.y + 0.1, 0), false); }, 0);
     at(m.lx, m.lz1, 0, () => W(k, cyl(m.tipR, m.tipR + 0.6, 7.6, 18), STONE_D, 11, M(0, m.y - 3.7, 0)), 0);
     for (let lz = 10; lz < m.lz1 - 8; lz += 14) { const [x, z] = T(m.lx, lz); if (KP) kp(k, 'lamp', M(x, m.y + 0.2, z)); F.push({ x, y: m.y + 4.2, z, lamp: true }); } }
   // boardwalk on stilts along the beach + the four T-head piers (8 berths)
-  { const B = CO.BOARDWALK; deck((B.lx0 + B.lx1) / 2, (B.lz0 + B.lz1) / 2, B.lx1 - B.lx0, B.lz1 - B.lz0); }
-  for (const p of CO.PIERS) { stem(p.lx, p.lz0, p.head0); deck(p.lx, (p.head0 + p.head1) / 2, p.half * 2, p.head1 - p.head0);
+  { const B = CO.BOARDWALK, lx1 = PV2 ? PV.DOCK.deckEnd : B.lx1; deck((B.lx0 + lx1) / 2, (B.lz0 + B.lz1) / 2, lx1 - B.lx0, B.lz1 - B.lz0); } // [Timothy] v2: the last 9 m are the dock ramp
+  for (const p of CO.PIERS) { if (PV2 && !PV.keepOldPier(p.lx)) continue; stem(p.lx, p.lz0, p.head0); deck(p.lx, (p.head0 + p.head1) / 2, p.half * 2, p.head1 - p.head0);
     for (const t of [-12, 12]) for (const e of [-8.5, 8.5]) { const [x, z] = T(p.lx + t + e, p.head1 - 0.7); if (KP) kp(k, 'bollard', M(x, PY + 0.16, z)); }
     for (const sx of [-1, 1]) torchPost(k, F, ...(([x, z]) => [x, PY + 0.15, z])(T(p.lx + sx * (p.half - 1), (p.head0 + p.head1) / 2)));
     { const [x, z] = T(p.lx - 2.2, p.head0 + 1.6); crate(k, M(x, PY + 0.16, z, 0.3 + p.k)); } { const [x, z] = T(p.lx + 2.4, p.head0 + 1.5); barrel(k, M(x, PY + 0.16, z)); }
     // small side jetty with a rowboat between piers
     stem(p.lx - 30, 4, 22); at(p.lx - 26, 16, 0, () => { W(k, box(2.2, 0.8, 5.5), WOOD, 2, M(0, 0.2, 0)); W(k, box(1.8, 0.15, 5.0), WOOD_L, 2, M(0, 0.62, 0), false); }, 0); }
   // decor ships on 7 berths (the 8th, P4R, gets a real baked game ship in main.js)
-  CO.COAST_BERTHS.forEach((b, i) => { if (decorHulls && b.id !== 'P4') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
+  if (!PV2) CO.COAST_BERTHS.forEach((b, i) => { if (decorHulls && b.id !== 'P4') hull(b.lx, b.lz, 20, [0x6b4527, 0x3d2a1c, 0x7b3b20, 0x2c3e50][i % 4], i % 3 !== 2); });
   // shacks on stilts at the waterline + on the beach behind the boardwalk, barrels / crates / nets between them
-  for (let i = 0; i < 9; i++) { const lx = -70 - i * 26 - hash(i, 2) * 6, onW = i % 3 === 1; shack(lx, onW ? 12 : -8 - hash(i, 5) * 8, onW ? Math.PI / 2 : 0, 5 + hash(i, 1) * 2, 4.5 + hash(i, 3) * 1.5, onW ? PY : H(...T(lx, -8)) + 1.6, [0xa86a3a, 0x8a5a2b, 0xb98a5a, 0x7a5232][i % 4]);
-    const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
+  for (let i = 0; i < 9; i++) { const lx = -70 - i * 26 - hash(i, 2) * 6, onW = i % 3 === 1; if (PV2 && lx > PV.BOARDWALK.lx0 - 14 && lx < PV.BOARDWALK.lx1) continue; shack(lx, onW ? 12 : -8 - hash(i, 5) * 8, onW ? Math.PI / 2 : 0, 5 + hash(i, 1) * 2, 4.5 + hash(i, 3) * 1.5, onW ? PY : H(...T(lx, -8)) + 1.6, [0xa86a3a, 0x8a5a2b, 0xb98a5a, 0x7a5232][i % 4]);
+    if (PV2 && lx + 12 > PV.DOCK.deckEnd) continue; const [x, z] = T(lx + 9, -1); barrel(k, M(x, PY + 0.16, z)); const [x2, z2] = T(lx + 11, 1.5); crate(k, M(x2, PY + 0.16, z2, i)); }
   // plaza: WAVES + ARENA boards facing the harbor, token exchange, harbor market, the tall stone harbor tower framing it
   const P = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
   // [v103] WAVES + ARENA boards are LIVE LEADERBOARDS (BANKSY): a bigger frame; js/dock/plaza.js lays one live canvas screen
@@ -675,7 +684,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }
   // [v103] the HARBOR MARKET stalls are now two proper shops (BANKSY): CLOTHES SHOP + SHIP SKINS / UPGRADES, and between them
   // three token billboards ($SUNK / $AHOY / $PUMP). All static + atlas signage, merged into the street mesh (0 extra draw calls).
-  for (const sp of PLAZA_SHOPS) at(sp.lx, sp.lz, 0, () => { const w = 7.2, d = 4.4;
+  if (!PV2) for (const sp of PLAZA_SHOPS) at(sp.lx, sp.lz, 0, () => { const w = 7.2, d = 4.4;
     W(k, box(w, 3.4, 0.3), sp.wall, 7, M(0, 1.7, -d / 2));                                                   // back wall
     for (const sx of [-1, 1]) W(k, box(0.3, 3.4, d), sp.wall, 7, M(sx * w / 2, 1.7, 0));                      // side walls
     W(k, box(w - 0.6, 1.1, 1.0), WOOD, 2, M(0, 0.55, d / 2 - 0.6));                                            // counter
@@ -690,19 +699,21 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     else { for (const [sx, c] of [[-2.2, 0xffc93c], [0, 0xfa0d0d], [2.2, 0x2a6df4]]) { W(k, box(1.4, 0.5, 0.7), WOOD_D, 2, M(sx, 1.45, -d / 2 + 0.5), false);   // ship models on stands
         W(k, box(1.1, 0.35, 0.36), c, 12, M(sx, 1.85, -d / 2 + 0.5)); W(k, cyl(0.04, 0.04, 1.0, 4), WOOD_D, 2, M(sx, 2.4, -d / 2 + 0.5), false); W(k, box(0.7, 0.55, 0.04), 0xf2efe6, 12, M(sx, 2.45, -d / 2 + 0.56), false); } }
   }, Y0);
-  for (const sp of PLAZA_SHOPS) { const [x, z] = T(sp.lx, sp.lz); addBox(x, z, 7.6, 4.8, yaw0); }
-  for (const tb of PLAZA_TOKENS) at(tb.lx, tb.lz, 0, () => {
+  if (!PV2) for (const sp of PLAZA_SHOPS) { const [x, z] = T(sp.lx, sp.lz); addBox(x, z, 7.6, 4.8, yaw0); }
+  for (const tb of PLAZA_TOKENS_ON) at(tb.lx, tb.lz, 0, () => {
     for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), WOOD_D, 2, M(sx * 2.05, 2.9, 0));
     W(k, box(4.5, 4.0, 0.24), WOOD_D, 2, M(0, 3.75, 0)); if (A['bb' + tb.sym]) atlasQuad(k, 4.2, 3.8, A['bb' + tb.sym], M(0, 3.95, 0.13));
     if (A['tokLive' + tb.sym]) atlasQuad(k, 3.8, 1.0, A['tokLive' + tb.sym], M(0, 1.55, 0.13));                // live price strip (atlas.drawTokenBoard)
     W(k, box(4.2, 1.2, 0.2), 0x161616, 0, M(0, 1.55, 0.02), false);
     if (A.ppflag) atlasQuad(k, 4.2, 3.0, A.ppflag, M(0, 3.75, -0.13, Math.PI));                                  // back: the PUMPFUN PIRATES flag
   }, Y0);
-  for (const tb of PLAZA_TOKENS) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
-  for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
+  for (const tb of PLAZA_TOKENS_ON) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
+  if (PV2) PLAZA_V2_SIGNS = PV.buildPlazaV2({ k, W, box, cyl, M, at, colonial, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, H, F, A, low, Y0, yaw0, deckY: PY + 0.15,
+    C: { WOOD, WOOD_D, WOOD_L, IRON, STONE, STONE_D, ROOF: ROOFS[1], ROOFS, SHUTTER, BARK: 0xa96a38, GOLD, CREAM } });   // [Timothy] harbor town blockout
+  if (!PV2) for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
   at(P.tower.lx, P.tower.lz, 0, () => { W(k, box(9, 24, 9), STONE, 11, M(0, 12, 0)); W(k, box(10, 1, 10), STONE_D, 11, M(0, 24.3, 0), false); W(k, new THREE.ConeGeometry(7.4, 7, 4), ROOFS[1], 4, M(0, 28.3, 0, Math.PI / 4));
     for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); }
-  for (const lx of [-50, -20, 10, 40, 70]) { const [x, z] = T(lx, -3); torchPost(k, F, x, Y0, z); }
+  if (!PV2) for (const lx of [-50, -20, 10, 40, 70]) { const [x, z] = T(lx, -3); torchPost(k, F, x, Y0, z); } // [Timothy] v2 lights its own jetty roots
   // spectate spyglass on the mole deck (CO.SPYGLASS, walkable; the interact point is the same spot)
   at(CO.SPYGLASS.lx, CO.SPYGLASS.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.SPYGLASS.y);
   // fort at the top of Main Street: keep, curtain wall, 4 round towers, pirate flag
@@ -972,6 +983,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
+  if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
   // High: the coast kit group (the waterfront runs ~700 m) is cut into KIT_TILE m tiles so each tile frustum-culls (main + shadow pass)

@@ -49,6 +49,7 @@ import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './c
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
 const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
+import { setCrewLoadout, crewGear, crewToWire, crewFromWire, CREW_SLOTS } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew wear their OWN loadout, not yours
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -172,9 +173,10 @@ export function createPvp(K) {
   // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
   // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
   // plug in there; until then every gear item is COMING SOON and nothing is drawn).
-  function gearChanged() { try { setLocalGear({ ...profile.gear }); } catch (e) { console.warn('[gear]', e); } } // [v105] Timothy's js/pirateGear.js: saves + re-dresses your on-foot pirate + your captain (fires 'pfp-gear')
+  function gearChanged() { try { setLocalGear({ ...profile.gear }); } catch (e) { console.warn('[gear]', e); } setCrewLoadout(profile.gear); } // [v105] Timothy's js/pirateGear.js: saves + re-dresses your on-foot pirate + your captain (fires 'pfp-gear')
   addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
     profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
+    if (!d.owner && profile.gear) { for (const [sl, ids] of Object.entries(CREW_SLOTS)) if (profile.gear[sl] && profile.gear[sl] !== ids[0] && !d.owned.gear.includes(`${sl}:${profile.gear[sl]}`)) profile.gear[sl] = ids[0]; setCrewLoadout(profile.gear); } // [Timothy] crew items: owned or the uniform
     if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
     if (active && !$('pvp-menu')?.classList.contains('hidden')) renderMenu(); });
   let shopBehind = 0;
@@ -615,7 +617,7 @@ export function createPvp(K) {
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
-    syncCrewGear(p.ship.mesh, p.captain?.gear || null, p.captain?.skin ? { skin: p.captain.skin } : null); // [v106] their crew in their clothes (gear netcode: p.captain)
+    syncCrewGear(p.ship.mesh, crewGear(crewFromWire(m.cr)), { skin: sk }); // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
   }
   function updateRemote(e, dt) {
     const st = e.netState;
@@ -1102,14 +1104,14 @@ export function createPvp(K) {
     hudT -= dt; if (hudT <= 0) { hudT = 0.5; hud(); renderFeed(); if (!$('pvp-menu').classList.contains('hidden')) renderBoard(); }
     saveT -= dt; if (saveT <= 0) { saveT = 10; save(); }
   }
-  let sentGear = false;
+  let sentGear = false, sentCrew = false;
   function stateMsg() { // the transport asks for this once per tick
     const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
     if ((where !== 'arena' && !shared) || spec.on) return null;
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
-    const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
+    const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; { const cw = crewToWire(); if (cw || sentCrew) { m.cr = cw; sentCrew = true; } } // [Timothy] cr = your crew's loadout (js/crewLoadout.js) // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;
@@ -1212,7 +1214,7 @@ export function createPvp(K) {
       $('pvp-wallet').disabled = true;
       const r = await walletSignIn(msg); wallet = r.wallet;
       const use = await linkWallet(r.profile, snapshot());
-      const cur = getRunLevels(); profile = use; game.gold = use.gold;
+      const cur = getRunLevels(); profile = use; game.gold = use.gold; setCrewLoadout(profile.gear);
       if (JSON.stringify(cur) !== JSON.stringify(use.levels)) setRunLevels(use.levels); else K.rebuildShip(use.levels);
       K.updateHud(); renderMenu(); refreshHolder(); refreshRank(true); clearKillsTopCache(); msg(`Linked! Saving to this device + wallet ${wallet.slice(0, 4)}…${wallet.slice(-4)}`);
     } catch (e) { msg(String(e?.message || e).slice(0, 120)); }

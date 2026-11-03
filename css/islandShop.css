@@ -150,3 +150,12 @@
 .ishop-side button { flex: 1; min-height: 36px; border-radius: 8px; border: 2px solid rgba(233,185,73,.45); background: #1a0f08; color: #fff2c4; font: inherit; font-weight: 800; letter-spacing: .04em; cursor: pointer; }
 .ishop-side button.on { border-color: #e9b949; background: #e9b949; color: #2a1a0e; }
 .ishop-chips .ishop-look { margin-left: auto; white-space: nowrap; box-shadow: inset 0 0 0 2px var(--s-gold, #e9b949); }
+
+/* [Timothy] PET STORE + CREW SHOP (plaza counters) */
+.ishop-rar { position: absolute; top: 6px; left: 6px; font: 800 9px/1 system-ui, sans-serif; letter-spacing: .08em; padding: 3px 6px; border-radius: 6px; background: #2a3a2f; color: #cfe; font-style: normal; z-index: 1; }
+.ishop-info .ishop-rar { position: static; display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.ishop-rar.r-uncommon { background: #1f5f8a; color: #def } .ishop-rar.r-rare { background: #6a3fb3; color: #f2e9ff } .ishop-rar.r-epic { background: #3a1a4a; color: #ff9cf0 }
+.ishop-rar.r-legendary { background: #8a5a12; color: #ffe39a } .ishop-rar.r-mythic { background: linear-gradient(90deg, #2a6df4, #9fe8ff); color: #08203a }
+.ishop.pets .ishop-card, .ishop.crewshop .ishop-card { position: relative; }
+.ishop.crewshop .ishop-sw.crew::after { content: 'CREW'; position: absolute; right: 6px; top: 6px; font: 800 9px/1 system-ui, sans-serif; padding: 3px 6px; border-radius: 6px; background: #6a4fb3; color: #fff; }
+.ishop.crewshop .ishop-sw.crew { position: relative; }

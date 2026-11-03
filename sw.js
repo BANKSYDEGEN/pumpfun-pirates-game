@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v145'; // [v145] Retardio face paint (new FACE slot, worn with shades) + louder emote voices in the emoter's body voice
+const VERSION = 'pfp-v146'; // [v146] the new harbor-town plaza is the default (?plaza=1 = the old one), 5 storefronts, 10 berths; crew emote chorus in each crew member's voice
 const SHELL = [
   "./",
   "./index.html",
@@ -21,6 +21,7 @@ const SHELL = [
   "./js/gearThumbs.js", // [Timothy] real 3D gear card art (island shop)
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
+  "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card
   "./js/lighthouseKit.js", // [v108] shared lighthouse kit
@@ -40,6 +41,7 @@ const SHELL = [
   "./js/island/art.js",
   "./js/island/bake.js",
   "./js/island/foot.js",
+  "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/harbor.js",
   "./js/island/kit.js",
   "./js/island/look.js",

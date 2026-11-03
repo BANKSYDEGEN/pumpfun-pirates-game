@@ -252,14 +252,19 @@ function voiceNorm(buf) {
   const rms = nf ? Math.sqrt(e / nf) : V_TARGET;
   g = Math.max(0.4, Math.min(4, V_TARGET / rms)); _vNorm.set(buf, g); return g;   // [v145] loud takes come down too (one level for all)
 }
-function crewCall(key, n, lead, v, rate0 = 1) {
-  const kM = key + 'M', kF = key + 'F'; if (!has(kM) && !has(kF)) return false;
+// [v146] strict voices: a female pirate only ever uses female takes, a male only male ones (no female "Retreat!" take exists yet:
+// that line is bubble only for her, never a male take). crew = your deck crew's voices in seat order ('m' | 'f' from each crew
+// member's body), so the chorus behind you matches who is on deck; without it the crew mix (~42% women) is guessed.
+function crewCall(key, n, lead, v, rate0 = 1, crew = null) {
+  const kM = key + 'M', kF = key + 'F', hm = has(kM), hf = has(kF); if (!hm && !hf) return false;
+  if (lead === 'f' ? !hf : !hm) return false;
   const comp = Math.sqrt(Math.pow(n, Math.log(2) / Math.log(6)) / n); // 1 -> 6 voices grows ~+3 LU, not +8
   const t0 = ctx.currentTime + 0.02; let tt = t0, played = 0;
   for (let i = 0; i < n; i++) {
     if (liveVoices >= VOICE_CAP) break;
-    const g = i === 0 ? lead : (Math.random() < 0.5 ? 'm' : 'f');
-    const buf = pick(g === 'f' && has(kF) ? kF : has(kM) ? kM : kF); if (!buf) break;
+    const g = i === 0 ? lead : crew && crew.length ? crew[(i - 1) % crew.length] : (Math.random() < 0.42 ? 'f' : 'm');
+    if (g === 'f' ? !hf : !hm) continue;
+    const buf = pick(g === 'f' ? kF : kM); if (!buf) continue;
     if (i === 1 || i === 2) tt = t0 + 0.02 + Math.random() * 0.06; else if (i > 2) tt = t0 + 0.08 + Math.random() * 0.05;
     const rate = (i === 0 ? rate0 : 1 + (Math.random() * 2 - 1) * 0.03);
     liveVoices++; played++;
@@ -448,11 +453,12 @@ function pirateVoice(e, v = 1, pitch = 1) {
 export const sfx = {
   // own = your callout (your crew joins in, crew size = GUN CREW); remote pirates: 1 voice in their body's voice
   // [v145] BANKSY "male voices when male character and female for female": body = 'm' | 'f' from the emoter's v5 body (gear.body)
-  emote: (e = 0, v = 1, pitch = 1, own = false, body = null) => {
+  emote: (e = 0, v = 1, pitch = 1, own = false, body = null, crew = null) => {
     if (!live() || !voice(2, 1.2)) return;
     const vv = Math.min(1, v), lead = own ? myVoice : body === 'f' || body === 'm' ? body : 'm';
-    for (const key of LINE_KEY[e | 0] || []) if (crewCall(key, own && STACK[key] ? crewSize() : 1, lead, vv, own ? 1 : 1 + (pitch - 1) * 0.25)) return;
-    pirateVoice(e | 0, vv, Math.max(0.75, Math.min(1.3, pitch)));
+    for (const key of LINE_KEY[e | 0] || []) if (crewCall(key, own && STACK[key] ? crewSize() : 1, lead, vv, own ? 1 : 1 + (pitch - 1) * 0.25, own ? crew : null)) return;
+    if ((LINE_KEY[e | 0] || []).some((k) => has(k + 'M') || has(k + 'F'))) return;   // [v146] recorded line, no take in this voice: bubble only
+    pirateVoice(e | 0, vv, Math.max(0.75, Math.min(1.3, pitch)));   // the takes failed to load (or ?oldaudio=1): the v96 synth
   },
   // generic cannon (kept for compatibility); v = distance volume
   cannon: (v = 1) => { if (!live() || !voice(1, 3)) return; boom(ENEMY_GUN, ctx.currentTime, v, 1 - v); },

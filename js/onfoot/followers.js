@@ -11,6 +11,7 @@ import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
+import { crewGear } from '../crewLoadout.js';
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
 const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
@@ -21,7 +22,8 @@ export function createFollowers({ scene, world, walker, low }) {
   // + your hat colour. Always read from pirateGear (getLocalGear + getLocalColors), never from the event detail (the BR profile's copy
   // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
   const NAKED = { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
-  const want = () => { const g = crewGearOf(getLocalGear()) || NAKED, c = getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
+  // [Timothy] the crew's OWN loadout (Crew Shop, js/crewLoadout.js), not your hat + clothes
+  const want = () => { const g = crewGearOf(crewGear()) || NAKED, c = getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
   let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality
@@ -37,7 +39,7 @@ export function createFollowers({ scene, world, walker, low }) {
     for (const c of crew) { const r = c.p.object, v = r.userData?.v4 || null; let fig = v; if (!fig) r.traverse((o) => { if (!fig && o.userData?.v4) fig = o.userData.v4; });
       const off = gk(r.userData?.gear) !== gk(normalizeGear(w.g)) || (fig && !fig.gearKey && w.g !== NAKED);
       if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); } } }
-  addEventListener('pfp-gear', () => setTimeout(redress, 0)); // after pirateGear has merged it (its own 'pfp-gear' listener)
+  addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
     redress(true); // [v112] going ashore always re-dresses the crew in your current gear

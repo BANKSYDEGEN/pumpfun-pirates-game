@@ -7,7 +7,8 @@
 //                          the MOCK provider only; the real one calls the `pvp` Edge Function (shop_state / shop_buy / shop_equip)
 //                          and the SERVER decides every purchase (price, goal, gold, owned): see shop/PLAN.md.
 // Events: 'pfp-shop' { open: true|false, vendor } on window. Off on the crypto-free portal builds (itch.io / Newgrounds).
-import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal } from './shopCatalog.js';
+import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY } from './shopCatalog.js';
+import { CREW_LOOK, CREW_DEFAULT } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
 import { gearThumbEl, gearLive } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
@@ -24,11 +25,11 @@ export function mockProvider(seed = {}) {
     source: 'mock', owner: false, gold: 3400,
     stats: { kills: 38, deaths: 6, botKills: 120, harborKills: 412, bossKills: 64, goldEarned: 23450, sqWins: 3, bestStreak: 4 },
     owned: { skins: ['classic', 'blood', 'seagreen', 'midnight'], gear: ['hat:none', 'outfit:shirtless', 'eyes:plain', 'parrot:none', 'hook:none', 'hat:bandana', 'outfit:tank'] },
-    equipped: { skin: 'midnight', gear: { ...CAPTAIN_DEFAULTS, hat: 'bandana', eyes: 'plain' } },
+    equipped: { skin: 'midnight', gear: { ...CAPTAIN_DEFAULTS, hat: 'bandana', eyes: 'plain', ...CREW_DEFAULT } },
     ...seed,
   };
   const clone = () => JSON.parse(JSON.stringify(st));
-  const find = (kind, id) => kind === 'skin' ? SKIN_ITEMS.find(i => i.id === id) : GEAR_ITEMS.find(i => gearKey(i) === id);
+  const find = (kind, id) => kind === 'skin' ? SKIN_ITEMS.find(i => i.id === id) : [...GEAR_ITEMS, ...CREW_ITEMS].find(i => gearKey(i) === id);
   return {
     state: st,
     load: async () => clone(),
@@ -43,7 +44,7 @@ export function mockProvider(seed = {}) {
     },
     async equip(kind, id) {
       if (kind === 'skin') { if (st.owner || st.owned.skins.includes(id)) st.equipped.skin = id; }
-      else if (st.owner || st.owned.gear.includes(id)) { const [slot, gid] = id.split(':'); st.equipped.gear[slot] = gid; }
+      else if (st.owner || st.owned.gear.includes(id) || find(kind, id)?.price === 0) { const [slot, gid] = id.split(':'); st.equipped.gear[slot] = gid; }
       return clone();
     },
   };
@@ -96,10 +97,13 @@ function svgThumb(it) { // the painted fallback (only shown until the real rende
 // pirate (js/gearThumbs.js: offscreen render, cached, one per frame), hats in your hat colour, clothes in your ship skin's colours.
 // The pre-baked PNG shows while it renders; the painted SVG only if both fail. The detail pane turns it slowly (live preview).
 const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0 }; };
+// [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
+const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: 0, eyeColor: 0 } : thumbOpts();
 function gearThumb(it, live = false) {
-  const d = svgThumb(it); d.classList.add('real3d'); const svg = d.firstElementChild;
-  if (live) { const cv = document.createElement('canvas'); cv.className = 'gear-live'; d.append(cv); gearLive(cv, it.slot, it.id, thumbOpts()); if (svg) svg.style.display = 'none'; return d; }
-  const img = gearThumbEl(it.slot, it.id, thumbOpts()); img.addEventListener('load', () => { if (svg) svg.style.display = 'none'; img.style.display = ''; });
+  const base = it.base ? { ...it, slot: it.base } : it, sl = base.slot;
+  const d = svgThumb(base); d.classList.add('real3d'); if (it.crew) d.classList.add('crew'); const svg = d.firstElementChild;
+  if (live) { const cv = document.createElement('canvas'); cv.className = 'gear-live'; d.append(cv); gearLive(cv, sl, it.id, optsFor(it)); if (svg) svg.style.display = 'none'; return d; }
+  const img = gearThumbEl(sl, it.id, optsFor(it)); img.addEventListener('load', () => { if (svg) svg.style.display = 'none'; img.style.display = ''; });
   img.style.display = 'none'; d.append(img); return d;
 }
 addEventListener('pfp-gear-local', () => { if (open && view?.tab === 'gear' && !document.querySelector('.pfp-hatcolor')) render(); }); // a new hat colour / side / skin / hair: redraw the cards (cached)
@@ -115,10 +119,11 @@ setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; cons
 
 // ---------- item model ----------
 const itemsFor = () => view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
-  : GEAR_ITEMS.filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }));
+  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }));
+const eqGear = (slot) => state.equipped.gear?.[slot] ?? CREW_DEFAULT[slot]; // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
   const owned = state.owner || x.it.price === 0 || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
-  const eq = x.kind === 'skin' ? state.equipped.skin === x.key : state.equipped.gear[x.it.slot] === x.it.id;
+  const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
   const g = goalProgress(liveGoal(x.it), state.stats);
   if (x.it.soon && !state.owner) return { k: 'soon', owned: false, g: null }; // [v102] not on sale yet: never sold, never equipped ([Timothy] the owner owns + equips everything)
   if (eq) return { k: 'equipped', owned, g }; if (owned) return { k: 'owned', owned, g };
@@ -152,12 +157,12 @@ function render() {
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] BANKSY: the ship shop is SKINS | UPGRADES (UPGRADES opens the ship upgrades panel, which has the same toggle back)
   const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
-  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : 'PIRATE GEAR';
+  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PARROTS' : 'PIRATE GEAR';
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; view.sel = null; render(); });
-  const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear';
-  chips.innerHTML = GEAR_SLOTS.filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
+  const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear' || V.slots.length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
+  chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
@@ -170,6 +175,7 @@ function render() {
     const met = s.g && s.g.done && (s.k === 'buy' || s.k === 'poor');
     const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON' }[s.k];
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
+    if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? 'FREE' : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
     c.onclick = () => { view.sel = x.key; render(); };
     grid.appendChild(c);
@@ -197,6 +203,9 @@ function detail(x) {
     ${x.it.use === 'once' && s.k !== 'soon' ? `<div class="ishop-gl">One use: marks ${esc(x.it.dig)} on your island map</div>` : ''}
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
+  if (x.it.crew) { // [Timothy] CREW SHOP
+    $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
+  if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
   if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && x.it.tint?.hatColor && s.owned && provider.hatColor) { // [v109b] not the crown (its velvet = your hair colour) // [v105] free hat colour (equipped hat)
     const cur = state.equipped?.gear?.hatColor | 0, eq = state.equipped?.gear?.hat === x.it.id;
     d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>
@@ -218,14 +227,14 @@ function confirmBuy(x) {
   const box = $('.ishop-confirm', root), cb = $('.ishop-cbox', box);
   cb.innerHTML = ''; cb.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it));
   cb.insertAdjacentHTML('beforeend', `<h4>BUY ${esc(x.name)}?</h4><p class="ishop-math"><span>${fmtGold(state.gold)}</span> − <b>${fmtGold(x.it.price)}</b> = <span>${fmtGold(state.gold - x.it.price)}</span></p>
-    <p class="muted">Paid from your Battle Royale gold. ${x.kind === 'skin' ? 'Cosmetic only.' : 'Cosmetic only · yours on every device with this save.'}</p>
+    <p class="muted">Paid from your Battle Royale gold. ${x.kind === 'skin' ? 'Cosmetic only.' : x.it.crew ? 'Cosmetic only · for your crew (not your own pirate) · on every device with this save.' : 'Cosmetic only · yours on every device with this save.'}</p>
     <div class="ishop-cbtns"><button type="button" class="ghost" data-c="no">CANCEL</button><button type="button" class="big" data-c="yes">CONFIRM</button></div><p class="ishop-err" aria-live="assertive"></p>`);
   box.classList.remove('hidden'); $('[data-c="yes"]', cb).focus();
   $('[data-c="no"]', cb).onclick = hideConfirm;
   $('[data-c="yes"]', cb).onclick = async (e) => { e.target.disabled = true; e.target.textContent = '…';
     const r = await provider.buy(x.kind, x.key); state = r.state;
     if (!r.ok) { $('.ishop-err', cb).textContent = String(r.error || 'could not buy').toUpperCase(); e.target.disabled = false; e.target.textContent = 'CONFIRM'; return; }
-    hideConfirm(); render(); toast(`${x.name} is yours`); };
+    hideConfirm(); render(); toast(x.it?.crew ? `Your crew can wear ${x.name}` : `${x.name} is yours`); };
 }
 const hideConfirm = () => $('.ishop-confirm', root).classList.add('hidden');
 async function doEquip(x) { state = await provider.equip(x.kind, x.key); render(); }
