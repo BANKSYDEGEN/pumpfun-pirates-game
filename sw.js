@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v140'; // [v140] parrot seated on the shoulder of the v5 bodies (was floating beside the head), both bodies, both LODs
+const VERSION = 'pfp-v141'; // [v141] female tank arm holes: her own red wrap top under the tank takes the tank colour (no red rims)
 const SHELL = [
   "./",
   "./index.html",

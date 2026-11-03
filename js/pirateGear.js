@@ -503,11 +503,33 @@ export function setBodyLook(p, { skinColor = 0, hairColor = 0, eyeColor = 0 } = 
     c.needsUpdate = true;
   }
 }
+// [v141] BANKSY "female tank arm holes": the v5 female's own red wrap top (shirt tint) showed as red rims round the tank's arm holes
+// and hem. Under the tank, her torso's top verts take the tank colour (restored when it comes off); the braid ties keep theirs.
+const _tankBase = new WeakMap();   // mesh -> { geo, idx, rgb } original COLOR_0 of the torso top
+function tankTop(p, hex) {
+  if (!p.v5) return; const iSh = TINTS.indexOf('shirt'), col = new THREE.Color();
+  for (const o of p.atlasMeshes || []) {
+    let st = _tankBase.get(o); const T = o.geometry.attributes._tint; if (!T || !o.geometry.attributes.color) continue;
+    if (!hex) { if (st && st.on && st.geo === o.geometry) { const c = o.geometry.attributes.color; st.idx.forEach((v, k) => c.setXYZ(v, st.rgb[k * 3], st.rgb[k * 3 + 1], st.rgb[k * 3 + 2])); c.needsUpdate = true; st.on = false; } continue; }
+    if (!st || st.geo !== o.geometry) {
+      if (!o.userData.ownColor) {   // own COLOR_0 (as setBodyLook): clones never share the recolour
+        const src = o.geometry, g = new THREE.BufferGeometry(); for (const k in src.attributes) g.setAttribute(k, k === 'color' ? src.attributes[k].clone() : src.attributes[k]);
+        g.setIndex(src.index); for (const gr of src.groups) g.addGroup(gr.start, gr.count, gr.materialIndex);
+        g.boundingSphere = src.boundingSphere; g.boundingBox = src.boundingBox; g.userData.baseIndex = src.userData.baseIndex || src.index; o.geometry = g; o.userData.ownGeo = o.userData.ownColor = true;
+      }
+      const g = o.geometry, c = g.attributes.color, J = g.attributes.skinIndex, W = g.attributes.skinWeight, bones = o.skeleton?.bones.map((b) => bn(b.name)) || [], idx = [];
+      for (let i = 0; i < T.count; i++) { if (Math.round(T.getX(i)) !== iSh) continue; let b = 0, w = -1; for (let k = 0; k < 4; k++) { const x = W.getComponent(i, k); if (x > w) { w = x; b = J.getComponent(i, k); } } if (bones[b] === 'spine') idx.push(i); }
+      const rgb = new Float32Array(idx.length * 3); idx.forEach((v, k) => { rgb[k * 3] = c.getX(v); rgb[k * 3 + 1] = c.getY(v); rgb[k * 3 + 2] = c.getZ(v); });
+      st = { geo: g, idx, rgb, on: false }; _tankBase.set(o, st);
+    }
+    const c = o.geometry.attributes.color; col.set(hex); for (const v of st.idx) c.setXYZ(v, col.r, col.g, col.b); c.needsUpdate = true; st.on = true;
+  }
+}
 function dress(p, gear, colors) {
   const body = bodyOf(p); if (!body) return Promise.resolve(null);
   const key = gearKey(gear) + '|' + JSON.stringify(colors || {});
   if (p.gearKey === key) return Promise.resolve(p.gearMesh || null);
-  try { setBodyLook(p, gear); } catch (e) { console.warn('[gear] look', e); }
+  try { tankTop(p, null); setBodyLook(p, gear); if (gear.outfit === 'tank') tankTop(p, outfitColors('tank', colors).cloth); } catch (e) { console.warn('[gear] look', e); }   // [v141]
   p.gearKey = key; const ticket = (p.gearTicket = (p.gearTicket || 0) + 1);
   const needLib = ['hat', 'eyes', 'parrot', 'hook'].some((s) => PIECES[`${s}:${gear[s]}`]);
   if (!needLib && !OUTFITS[gear.outfit]) {   // nothing of Timothy's: just Raul's items (or bare)
