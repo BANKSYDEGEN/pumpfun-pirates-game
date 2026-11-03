@@ -69,10 +69,12 @@ export async function createDock(ctx) {
     for (const p of fnet.peers.values()) peers.push({ x: p.x, z: p.z, foot: true });
     return { ...st, peers, me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: treasure.target() || (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
   }
-  const openIsleMap = () => { if (on && game.state === 'playing') imap.open(() => minimapState(mapSt)); };
+  const openIsleMap = () => { if (on && game.state === 'playing' && !treasure.isOpen) imap.open(() => minimapState(mapSt)); };
   const radarEl = document.getElementById('radar');
   radarEl?.addEventListener('pointerdown', (e) => { if (!on || !radarEl.classList.contains('isle-tap')) return; e.preventDefault(); e.stopPropagation(); openIsleMap(); });
-  const treasure = createTreasure({ world, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor() });
+  // [v145] calm() = the treasure-map reveal may play now (never mid-fight); getPos() = you on foot, else your ship (harbor coords)
+  const treasure = createTreasure({ world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
+    getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
@@ -109,6 +111,14 @@ export async function createDock(ctx) {
   // ---------- state ----------
   let viewing = false; // [v105] harbor spectate view
   let on = false, onFoot = false, lastShot = 0, leftAt = -99, sprintHinted = false;
+  // [v145] combat watch for the treasure-map reveal queue: a hit taken, a broadside fired or an AI ship close = fighting
+  let combatT = -99, lastHp = null, lastCd = 0, bossOn = false;
+  function calm() {
+    const s = P(); if (!on || game.state !== 'playing' || !s || !s.alive || imap.isOpen || document.documentElement.classList.contains('dk-board')) return false;
+    if (onFoot || docking.mode === 'docked' || zone.inside(s.x, s.z)) return true;
+    if (game.t - combatT < 6) return false;
+    return !(mapSt.ai || []).some(e => Math.hypot(e.x - s.x, e.z - s.z) < (e.boss ? 260 : 150));
+  }
   const P = () => ctx.getPlayer();
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
   // the harbor zone (clear water round the coast, curated islets, the coast colliders, no grid rocks on the land): sailing it OR spectating it
@@ -152,7 +162,7 @@ export async function createDock(ctx) {
   }
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
-    if (!on || e.target?.tagName === 'INPUT') return;
+    if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen) return; // [v145] the treasure map closes on its own keys (Esc / M)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && document.documentElement.classList.contains('dk-board')) { closeBoard(); e.stopImmediatePropagation(); e.preventDefault(); return; }
@@ -175,6 +185,8 @@ export async function createDock(ctx) {
     treasure.tick();
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
+    { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
+      const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
     const r = docking.tick(s, dt);
     if (r === 'docked') toast('MOORED · SAFE HARBOR');

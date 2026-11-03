@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v147'; // [v147] Raul's v5 clothes rebuild: tank, striped tee, base outfit, pirate shirt, bandana
+const VERSION = 'pfp-v148'; // [v148] the treasure map moment: drop reveal (scroll + fanfare + sparkles, queued until calm), MAPS = parchment chart with the trail to the X, the X on the real dig spot
 const SHELL = [
   "./",
   "./index.html",
@@ -33,6 +33,8 @@ const SHELL = [
   "./js/dock/safe.js",
   "./js/dock/world.js",
   "./js/dock/plaza.js",
+  "./js/dock/treasure.js", // [v145] treasure maps + the parchment chart / drop reveal
+  "./js/dock/treasureMap.js",
   "./js/uiProfile.js",
   "./js/accountUi.js", // [v106] player accounts
   "./js/onfoot/net.js",

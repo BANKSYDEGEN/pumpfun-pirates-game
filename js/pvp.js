@@ -539,7 +539,8 @@ export function createPvp(K) {
     if (!local && e && e.remote && e.alive) { e.alive = false; e.hp = 0; e.sinking = 0.001; if (e.netState) e.netState.a = false; sfx.sink(!!e.big); fx.ring(new THREE.Vector3(e.x, 0, e.z), 3, 16, 2.2); }
     const capG = Math.max(1, e?.gold || harborGold(80) * HARBOR_BOSS.pay), mine = Array.isArray(m.p) ? m.p.find(q => Array.isArray(q) && q[0] === myId) : null;
     const g = mine ? clamp(Math.floor(+mine[1] || 0), 0, capG) : 0;
-    if (g > 0 && !spec.on && !m.sp) spawnPile(m.b, x, z, g, true); // (a v104 host: your damage share, only you see it)
+    const mapDrop = isBoss && m.k === myId && !spec.on; // [v145] your boss kill = your treasure map: your share floats in the crimson map chest
+    if (g > 0 && !spec.on && !m.sp) spawnPile(m.b, x, z, g, true, g, mapDrop); // (a v104 host: your damage share, only you see it)
     if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', m.sp ? `${clamp(m.g | 0, 0, capG * 2)}g of treasure in the water · first to grab it gets it` : g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
     if (m.k === myId && !spec.on) countBotKill(isBoss);
   }
@@ -833,7 +834,7 @@ export function createPvp(K) {
     if (e.remote) return;
     if (room && where === 'harbor' && isHost && !e.fade) { hostBotSunk(e, src); return; } // [v99] shared copy: kill + gold shares for everyone
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
-    if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true);
+    if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true, e.gold || PVP_AI_GOLD, !!e.harborBoss && by === myId); // [v145] your boss kill: the crimson map chest
     if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
     if (by === myId && !e.fade) countBotKill(!!e.harborBoss);
   }
@@ -886,19 +887,19 @@ export function createPvp(K) {
   }
   function dropSpot(x, z) { // [v105] a drop always floats in open water you can sail to (never on the shore or inside a rock)
     try { const q = K.islands?.freeSpot?.(x, z, 9); if (q && isFinite(q[0]) && isFinite(q[1])) return [q[0], q[1]]; } catch {} return [x, z]; }
-  function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0) { // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
+  function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0, map = false) { // [v145] map: the crimson treasure-map chest (look only, local piles) // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
     const pid = `${String(v).slice(-6)}${(++pileSeq).toString(36)}${myId.slice(-3)}`;
     if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart, h: myId });
-    addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart);
+    addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart, map);
   }
-  function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0) {
+  function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0, map = false) {
     if (typeof pid !== 'string' || piles.has(pid)) return;
     value = clamp(Math.floor(+value || 0), 0, PVP_PILE_MAX); // merged piles can be big; never expire (life Infinity)
-    const g = makeChest(); scene.add(g);
-    const l = { mesh: g, x: +x || 0, z: +z || 0, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
+    const g = makeChest(map ? { map: true } : undefined); scene.add(g);
+    const l = { mesh: g, map, x: +x || 0, z: +z || 0, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
     pileLook(l);
     l.local = local; l.earned = clamp(Math.floor(+earnedPart || 0), 0, value); loot.push(l); piles.set(pid, l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
-    if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), `${value} GOLD`, 'hit');
+    if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), map ? `${value} GOLD + TREASURE MAP` : `${value} GOLD`, 'hit');
   }
   function removePile(pid) { const l = piles.get(pid); if (!l) return; piles.delete(pid); const i = loot.indexOf(l); if (i >= 0) loot.splice(i, 1); scene.remove(l.mesh); }
   function lootStep(l) { // main loop, per pile: claim it when we sail over it

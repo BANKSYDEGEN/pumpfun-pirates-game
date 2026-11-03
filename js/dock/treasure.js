@@ -1,13 +1,23 @@
 // [v122] TREASURE MAPS in the harbor (server: supabase/migrations/026 + pvp maps_state / map_dig). Maps drop server-side from boss kills
-// (common) and confirmed BR kills (rare; legendary = the cave). A MAPS button lists your undug maps; the selected one draws a fuzzy dig
-// area on the radar (islandMap.js st.dig); the matching dig site (or the cave) asks the server, which checks the spot + rate limits and
-// credits the gold (pvp.js adds the same gold to your save in the same tick; logged-in devices send mirror: true).
+// (common) and confirmed BR kills (rare; legendary = the cave). The matching dig site (or the cave) asks the server, which checks the
+// spot + rate limits and credits the gold (pvp.js adds the same gold to your save in the same tick; logged-in devices send mirror: true).
+// [v145] BANKSY: "make it more of a moment when they get a treasure map, also when they open it a treasure map needs to pop up with
+// island map on it with the treasure hunt" (js/dock/treasureMap.js draws both):
+//   - a NEW map = a big reveal (scroll unrolls with the chart + X, rays, sparkles, fanfare). It is QUEUED until it is calm: it only
+//     plays in the harbor, in 'playing', with no menu / map open, and never mid-fight (index.js calm(): on foot, moored, inside SAFE
+//     HARBOR, or 6 s with no hits taken / shots fired and no AI ship close). A boss sinking asks the server again 6 s later, so the
+//     reveal lands right after the fight instead of on the next 90 s poll. Several drops in a row = one reveal ("3 NEW MAPS").
+//   - MAPS = the full-screen parchment chart of the real island + harbor: dotted trail from you to the red X, chips to pick a map.
+//   - the X is the REAL dig spot: v122's radar circle was centred 6-20 m off it on purpose (a fuzzy area seeded by the map id), and
+//     the X painted on the sand sat 4.3 m off the mound (js/island/foot.js); both now sit on the spot the DIG prompt + server use.
+import { createTreasureMap } from './treasureMap.js';
 const TIER = { common: ['COMMON MAP', '#e8cf95'], rare: ['RARE MAP', '#7fd0ff'], legendary: ['LEGENDARY MAP', '#ffcd3c'] };
+const RANK = { common: 0, rare: 1, legendary: 2 };
 const WHY = {
   'too soon': 'THE INK IS STILL WET<br><small>a new map can be dug 30 s after it drops</small>',
   'slow down': 'CATCH YOUR BREATH<br><small>20 s between digs</small>',
   'daily dig limit': '25 DIGS TODAY<br><small>the sand is yours again tomorrow</small>',
-  'wrong spot': 'NOTHING HERE<br><small>this map points somewhere else · check the radar</small>',
+  'wrong spot': 'NOTHING HERE<br><small>this map points somewhere else · tap MAPS</small>',
   'already dug': 'ALREADY DUG UP', 'not your map': 'THAT MAP IS GONE',
 };
 const SRC = { boss: 'from a boss', kill: 'from a battle kill', streak: 'from a 3-kill streak' };
@@ -16,63 +26,79 @@ const CSS = `
 /* [v135] BANKSY "Fix the location of maps": the MAPS button sits IN the top-right HUD column, under the radar + harbor line (holder 2x badge), so it can never overlap them */
 #tm-btn{position:static;white-space:nowrap;align-self:flex-end;margin-top:6px;pointer-events:auto;z-index:8;display:none;font:22px 'Just Another Hand',cursive;letter-spacing:.04em;padding:5px 12px 2px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer}
 #tm-btn b{color:#fff;margin-left:4px}
+#tm-btn.new{animation:tmBtn 1s ease-in-out 4}
+@keyframes tmBtn{50%{background:#7a4a10;box-shadow:0 0 14px #ffcd3c}}
 @media (max-height:520px){#hud-tr #tm-btn{position:absolute;right:calc(100% + 8px);top:52px;margin:0;white-space:nowrap;font-size:19px;padding:3px 9px 1px}}   /* phone landscape: left of the radar (the chat / emote button sits under it) */
-#tm-panel{position:fixed;right:calc(var(--safe-r,0px) + 14px);top:calc(var(--safe-t,0px) + 212px);z-index:9;display:none;width:min(320px,calc(100vw - 28px));max-height:min(60vh,420px);overflow:auto;background:rgba(22,22,22,.94);border:2px solid #ffcd77;border-radius:14px;padding:10px 12px;color:#fff;font:20px 'Just Another Hand',cursive}
-#tm-panel h3{margin:0 0 6px;font-size:28px;color:#ffcd77;font-weight:normal;display:flex;justify-content:space-between;align-items:center}
-#tm-panel h3 button{font:20px 'Just Another Hand',cursive;background:none;border:0;color:#ffcd77;cursor:pointer}
-#tm-panel .tm-m{display:flex;align-items:center;gap:8px;padding:6px 8px;margin:4px 0;border-radius:10px;border:2px solid #444;cursor:pointer}
-#tm-panel .tm-m.sel{border-color:#ffcd77;background:rgba(255,205,119,.12)}
-#tm-panel .tm-m i{font-style:normal;font-size:24px} #tm-panel .tm-m div{flex:1;line-height:1.05} #tm-panel .tm-m small{color:#bbb}
-#tm-panel .tm-r{color:#bbb;font-size:18px;margin-top:6px} #tm-panel .tm-r b{color:#ffcd3c;font-weight:normal}
 `;
-export function createTreasure({ world, toast, pvp, isOn }) {
+export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => true, getPos = () => null, sfx = null, low = false }) {
   const spots = new Map(world.footInteract.filter(q => q.kind === 'dig' || q.id === 'cave').map(q => [q.id, q]));
-  let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false;
+  let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false, pending = null;
+  const toF = layout.harborToFoot;
+  const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx });
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; (document.getElementById('hud-tr') || document.body).appendChild(btn);
-  const panel = document.createElement('div'); panel.id = 'tm-panel'; document.body.appendChild(panel);
-  for (const e of [btn, panel]) for (const ev of ['pointerdown', 'touchstart', 'mousedown']) e.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
-  btn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display === 'block' ? close() : open(); });
-  panel.addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-id],[data-x]'); if (!b) return;
-    if (b.dataset.x !== undefined) { close(); return; } sel = maps.find(m => m.id === b.dataset.id) || sel; render(); toast(`${spotName(sel.spot)}<br><small>dig inside the gold circle on your radar</small>`, 2200); });
-  const hash = (s) => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
-  function target() { // a fuzzy area round the spot (offset seeded by the map id, so it never moves), harbor coords for the radar
-    if (!sel) return null; const q = spots.get(sel.spot); if (!q) return null; const h = hash(sel.id), a = h * Math.PI * 2, d = 6 + ((h * 7919) % 1) * 14;
-    return { x: q.x + Math.cos(a) * d, z: q.z + Math.sin(a) * d, r: 28 }; }
-  function render() {
-    btn.innerHTML = `🗺 MAPS<b>${maps.length}</b>`;
-    const rows = maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
-      return `<div class="tm-m${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><i style="color:${tc}">✕</i><div><span style="color:${tc}">${tn}</span><br><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></div>${sel && sel.id === m.id ? '<small>ON RADAR</small>' : ''}</div>`; }).join('');
-    const rec = recent.length ? `<div class="tm-r">last finds: ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>`).join(' · ')}</div>` : '';
-    panel.innerHTML = `<h3>TREASURE MAPS <button data-x>✕</button></h3>${rows || '<div class="tm-r">no maps yet · sink bosses + win battle kills</div>'}${rec}`;
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) btn.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
+  btn.addEventListener('click', (e) => { e.stopPropagation(); tmap.isOpen ? close() : open(); });
+  // the dig target = the spot itself (harbor coords, for the radar): r = the DIG prompt radius
+  function target() { if (!sel) return null; const q = spots.get(sel.spot); if (!q) return null; return { x: q.x, z: q.z, r: q.r || 3 }; }
+  const footOf = (q) => { const [x, z] = toF(q.x, q.z); return { x, z }; };
+  function mapState() { // what the chart draws (foot frame)
+    const p = getPos(), q = sel && spots.get(sel.spot), me = p ? { ...footOf(p), yaw: p.yaw, foot: !!p.foot } : null, t = q ? { ...footOf(q), id: sel.id } : null;
+    const others = maps.filter(m => m !== sel && m.spot !== sel?.spot).map(m => spots.get(m.spot)).filter(Boolean).map(footOf);
+    const d = p && q ? Math.round(Math.hypot(p.x - q.x, p.z - q.z)) : null;
+    return { me, target: t, others, label: q ? `${spotName(sel.spot)}${d !== null ? ' · ' + d + ' m' : ''}` : null };
   }
-  const open = () => { render(); const r = btn.getBoundingClientRect(); panel.style.top = Math.round(r.bottom + 6) + 'px'; panel.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px'; panel.style.maxHeight = Math.max(160, Math.round(innerHeight - r.bottom - 16)) + 'px'; panel.style.display = 'block'; }, close = () => { panel.style.display = 'none'; };
+  function renderUi() {
+    btn.innerHTML = `🗺 MAPS<b>${maps.length}</b>`;
+    const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
+      return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
+    const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>`).join(' ')}` : '';
+    const hint = !sel ? 'NO MAPS YET · sink bosses + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
+    const one = maps.length === 1 ? `<span style="color:${(TIER[sel.tier] || TIER.common)[1]}">${(TIER[sel.tier] || TIER.common)[0]}</span> · ${spotName(sel.spot)} · ` : '';
+    tmap.setUi(chips, one + hint);
+  }
+  function pick(id) { sel = maps.find(m => m.id === id) || sel; renderUi(); }
+  const open = () => { renderUi(); tmap.open(mapState, pick); }, close = () => tmap.close();
+  function queueReveal(fresh) { // fresh: the newly dropped maps (newest last)
+    if (!fresh.length) return; const best = fresh.reduce((a, m) => (RANK[m.tier] | 0) > (RANK[a.tier] | 0) ? m : a, fresh[fresh.length - 1]);
+    pending = pending ? { n: pending.n + fresh.length, best: (RANK[best.tier] | 0) >= (RANK[pending.best.tier] | 0) ? best : pending.best } : { n: fresh.length, best };
+  }
+  function playReveal() {
+    const { n, best } = pending; pending = null; const m = maps.find(x => x.id === best.id) || maps[maps.length - 1]; if (!m) return; // dug / gone meanwhile
+    sel = m; const [tn, tc] = TIER[m.tier] || TIER.common, q = spots.get(m.spot);
+    btn.classList.remove('new'); void btn.offsetWidth; btn.classList.add('new'); renderUi();
+    tmap.reveal({ title: n > 1 ? `${n} NEW TREASURE MAPS!` : 'TREASURE MAP!', tier: tn, color: tc, sub: `${spotName(m.spot)} · ${SRC[m.source] || 'found'} · tap to open`,
+      target: q ? { ...footOf(q), id: m.id } : null, others: maps.filter(x => x !== m && x.spot !== m.spot).map(x => spots.get(x.spot)).filter(Boolean).map(footOf), onView: () => { sel = m; open(); } });
+  }
   async function refresh() {
     const pv = pvp(); if (!pv?.maps || loading) return; loading = true;
     try { const r = await pv.maps.state(); if (!r || !r.ok) return;
+      const had = new Set(maps.map(m => m.id));
       maps = (r.maps || []).filter(m => spots.has(m.spot)); recent = r.recent || [];
       if (sel && !maps.some(m => m.id === sel.id)) sel = null; if (!sel && maps.length) sel = maps[0];
-      if ((r.new | 0) > 0) toast(`NEW TREASURE MAP${r.new > 1 ? 'S' : ''}!<br><small>tap MAPS · the radar shows where to dig</small>`, 2800);
-      render(); } finally { loading = false; } }
+      if ((r.new | 0) > 0) { const fresh = maps.filter(m => !had.has(m.id)).slice(-(r.new | 0)); queueReveal(fresh.length ? fresh : maps.slice(-(r.new | 0))); }
+      renderUi(); } finally { loading = false; } }
   function tick() { const o = !!isOn(), now = performance.now();
     if (o && (!wasOn || now - lastAt > 90000)) { lastAt = now; refresh(); }
-    wasOn = o; btn.style.display = o && maps.length ? 'block' : 'none'; if (!o || !maps.length) close(); }
+    wasOn = o; btn.style.display = o && maps.length ? 'block' : 'none'; if (!o) { close(); tmap.dismiss(true); }
+    if (pending && o && !tmap.isOpen && !tmap.revealing && calm()) playReveal(); }
+  const soon = (ms = 6000) => { lastAt = Math.min(lastAt, performance.now() - 90000 + ms); }; // ask the server again in ~ms (after a boss sinks)
   const mapFor = (id) => (sel && sel.spot === id) ? sel : maps.find(m => m.spot === id);
   const label = (q) => mapFor(q.id) ? (q.id === 'cave' ? 'DIG FOR THE LEGENDARY CHEST' : 'DIG · TREASURE MAP') : null;
   async function dig(q, t) { // true = handled (else the caller falls back to its old prompt)
     const pv = pvp(); if (!pv?.maps) { if (q.kind === 'dig') world.activate(q, t); return true; }
     const m = mapFor(q.id);
     if (!m) { if (q.id === 'cave') return false;
-      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · check the radar</small>' : 'NO TREASURE MAP<br><small>maps drop from boss kills + battle kills</small>', 2400); return true; }
+      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · tap MAPS</small>' : 'NO TREASURE MAP<br><small>maps drop from boss kills + battle kills</small>', 2400); return true; }
     if (busy) return true; busy = true; toast('DIGGING…', 1400);
     try { const r = await pv.maps.dig(m.id, q.id);
       if (r && r.ok) {
         if (q.kind === 'dig') { world.activate(q, t); q.used = true; setTimeout(() => world.rearm(q), 9000); }
         maps = maps.filter(x => x.id !== m.id); recent = [{ tier: r.tier, gold: r.gold }, ...recent]; if (sel && sel.id === m.id) sel = maps[0] || null;
-        toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200); render();
+        toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200); renderUi();
       } else { toast(WHY[r?.error] || 'THE DIG FAILED<br><small>check your connection and try again</small>', 2600); if (r?.error === 'already dug' || r?.error === 'not your map') refresh(); }
     } finally { busy = false; }
     return true; }
-  render();
-  return { tick, refresh, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, open, close };
+  btn.innerHTML = '🗺 MAPS<b>0</b>';
+  return { tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap };
 }

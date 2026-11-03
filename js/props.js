@@ -47,8 +47,33 @@ function chestTemplate() {
   _chest = g;
   return g;
 }
-export function makeChest() { const c = chestTemplate().clone(); c.userData.shared = true; return c; }
-export function chestTime(t) { if (_chest) _chest.userData.beamMat.uniforms.uTime.value = t; }
+// [v145] BANKSY: "Make a different color drop when boss sinks and a map is dropped": the boss chest that carries YOUR treasure map
+// (the killer's boss kill = a map, migration 026) is a crimson chest: a red pulsing beam (the normal gold one stays for every other
+// drop), a red ring on the water and a parchment scroll with a red X floating over the coins. Visual only (same gold, same pickup).
+let _mapChest = null, _mapBeam = null;
+function mapChestTemplate() {
+  if (_mapChest) return _mapChest;
+  const base = chestTemplate(), g = base.clone(); g.userData = {};
+  _mapBeam = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'uniform float uTime; varying vec2 vUv; void main(){ float a = pow(1.0 - vUv.y, 1.25) * (0.65 + 0.35 * sin(vUv.y * 22.0 - uTime * 8.0)); a *= 0.55 + 0.45 * sin(vUv.x * 6.2831 * 4.0 - uTime * 3.0); a *= 0.8 + 0.2 * sin(uTime * 4.0); gl_FragColor = vec4(vec3(1.9, 0.22, 0.16) * a, a); }',
+  });
+  g.traverse(o => { if (o.isMesh && o.material === base.userData.beamMat) { o.material = _mapBeam; o.scale.set(1.35, 1.5, 1.35); } });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.5, 2.0, 32), glowMat(0xff2a1a, 1.8)); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; g.add(ring);
+  const scroll = new THREE.Group(); scroll.position.set(0, 2.35, 0);
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.95), toon(0xf0dcaa, null, { side: THREE.DoubleSide })); scroll.add(paper);
+  for (const y of [0.5, -0.5]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.5, 8), toon(0x6b3b17)); r.rotation.z = Math.PI / 2; r.position.y = y; scroll.add(r); }
+  const xm = glowMat(0xff2a1a, 2.0);
+  for (const s of [1, -1]) for (const z of [0.012, -0.012]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.11, 0.01), xm); b.rotation.z = s * 0.7; b.position.set(0.12, -0.05, z); scroll.add(b); }
+  const dots = toon(0x7a1a10); for (let i = 0; i < 4; i++) for (const z of [0.012, -0.012]) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.04, 6), dots); d.position.set(-0.5 + i * 0.13, 0.22 - i * 0.07, z); if (z < 0) d.rotation.y = Math.PI; scroll.add(d); }
+  g.add(scroll);
+  _mapChest = g;
+  return g;
+}
+export function makeChest(opts) { const c = (opts?.map ? mapChestTemplate() : chestTemplate()).clone(); c.userData.shared = true; if (opts?.map) c.userData.mapDrop = true; return c; }
+export function chestTime(t) { if (_chest) _chest.userData.beamMat.uniforms.uTime.value = t; if (_mapBeam) _mapBeam.uniforms.uTime.value = t; }
 
 // ---------- horizon islands ----------
 // A ring of craggy sea stacks that follows the camera (pure backdrop, no collisions), one with a lighthouse.

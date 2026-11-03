@@ -553,6 +553,20 @@ export const sfx = {
     arp(t + 0.55, [1175, 1480, 1760, 2349], 0.06, 0.07, 'triangle', 0.6);
     noise({ t: t + 0.55, dur: 1.2, f0: 9000, f1: 3500, vol: 0.09, type: 'highpass', a: 0.05 });
   },
+  // [v145] TREASURE MAP drop reveal: parchment unroll swish, the recorded legendary fanfare (synth brass if it hasn't
+  // decoded), then a high sparkle shimmer. voice() returns false while muted, so the mute buttons silence it like everything else.
+  treasureMap: () => {
+    if (!live() || !voice(4, 2.5)) return;
+    const t = ctx.currentTime;
+    noise({ t, dur: 0.42, f0: 900, f1: 3800, vol: 0.07, type: 'bandpass', q: 0.9, a: 0.03 });             // the scroll unrolling
+    noise({ t: t + 0.18, dur: 0.3, f0: 3200, f1: 1200, vol: 0.05, type: 'bandpass', q: 1.1, a: 0.02 });
+    const lb = pick('legendary');
+    if (lb) playBuf(lb, { t: t + 0.2, vol: LVL.legendary });
+    else { const f = t + 0.2; horn(f, [293.7, 370, 440], 0.26, 0.05, 2400); horn(f + 0.28, [293.7, 370, 440], 0.2, 0.05, 2400); horn(f + 0.52, [392, 493.9, 587.3], 1.2, 0.06, 2600);
+      drum(f, 0.6); drum(f + 0.28, 0.5); drum(f + 0.52, 0.8); }
+    arp(t + 0.75, [1568, 1976, 2349, 3136, 2637], 0.07, 0.045, 'triangle', 0.5);                            // sparkle
+    noise({ t: t + 0.75, dur: 1.4, f0: 9500, f1: 4000, vol: 0.07, type: 'highpass', a: 0.06 });
+  },
   // skin equip: cloth swish + sparkle
   equip: () => { if (!live() || !voice(3, 1)) return; const t = ctx.currentTime; noise({ t, dur: 0.35, f0: 500, f1: 4500, vol: 0.18, type: 'bandpass', q: 0.8, a: 0.12 }); arp(t + 0.2, [1047, 1568, 2093], 0.06, 0.06, 'sine', 0.5); },
 };

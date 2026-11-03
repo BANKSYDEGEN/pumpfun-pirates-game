@@ -938,7 +938,10 @@ export function buildInland(A, low, F) {
   // beach dig sites: buried chests (interactive, js/island/main.js); static dressing here
   for (const [x0, z0, n] of DIG_HINTS) { const [x, z] = beachNear(x0, z0), y = H(x, z); poi('dig' + n, 'Dig site ' + n, x, z);
     DIGS.push({ id: 'dig' + n, x, z, y }); INTERACT.push({ id: 'dig' + n, x, z, r: 3, label: 'E · DIG' });
-    for (const r of [0.6, -0.6]) W(k, box(4.4, 0.08, 0.5), RED, 0, M(x + 3.5, y + 0.06, z + 2.5, r), false);
+    // [v145] the painted X sits ON the dig spot (it was drawn 3.5 m / 2.5 m off it, 4.3 m away = outside the 3 m DIG prompt): centred on the mound, arms long enough to show round it
+    for (const r of [0.6, -0.6, 0.6 + Math.PI, -0.6 + Math.PI]) { const cx = Math.cos(r), cz = -Math.sin(r); // 4 arms, each laid on the sloping sand in 2 pieces
+      for (const [r0, r1] of [[0, 1.7], [1.7, 3.4]]) { const ya = H(x + cx * r0, z + cz * r0), yb = H(x + cx * r1, z + cz * r1), rm = (r0 + r1) / 2, L = r1 - r0;
+        W(k, box(L + 0.12, 0.1, 0.62), RED, 0, M(x + cx * rm, (ya + yb) / 2 + 0.1, z + cz * rm, r, 0, Math.atan2(yb - ya, L)), false); } }
     W(k, cyl(0.06, 0.06, 1.8, 5), WOOD_D, 2, M(x - 2.6, y + 0.8, z - 1.6, 0, 0.3, 0.2), false); W(k, box(0.5, 0.6, 0.06), IRON, 0, M(x - 2.9, y + 0.15, z - 1.75, 0, 0.3, 0.2), false);
     W(k, cyl(0.05, 0.05, 2.4, 4), WOOD_D, 2, M(x + 1.5, y + 1.2, z - 2.5), false); W(k, box(0.9, 0.6, 0.04), RED, 12, M(x + 1.95, y + 2.1, z - 2.5), false);
     for (let i = 0; i < 4; i++) boulder(k, x + Math.cos(i * 1.7) * 7, z + Math.sin(i * 1.7) * 7, 0.6 + hash(i, n) * 0.7, i + n * 10); }
