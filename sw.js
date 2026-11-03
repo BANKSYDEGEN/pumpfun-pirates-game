@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v136'; // [v136] male Captain's Coat + Pirate Shirt rebuilt on the v5 body (single cloth layer, body tucked under, no shards)
+const VERSION = 'pfp-v137'; // [v137] jackets round 2: male phone coat, female braid over the coat, crew coat + shirt linings, shirt specks, female tank
 const SHELL = [
   "./",
   "./index.html",

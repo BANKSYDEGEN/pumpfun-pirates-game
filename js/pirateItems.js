@@ -92,7 +92,13 @@ function applyHide(p) {
     g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1)); g.userData.shrink = shr; g.userData.under = null;
     const top = p.v5 && p.warp ? Object.values(p.items).find((it) => underOn(p, it.id) && it.obj?.geometry) : null;
     if (top && o.geometry.attributes.normal) { const cg = top.obj.geometry; let m = _under.get(cg); if (!m) _under.set(cg, (m = new WeakMap()));
-      if (!m.has(P)) m.set(P, underCloth(P, o.geometry.attributes.normal, cg, p.lod === 'lo' ? 0.055 : 0.032)); const D = m.get(P); if (D) { g.userData.under = D; g.userData.shrink = null; } }
+      if (!m.has(P)) m.set(P, underCloth(P, o.geometry.attributes.normal, cg, p.lod === 'lo' ? 0.055 : 0.032, o.geometry.attributes._tint)); const D = m.get(P); if (D) { g.userData.under = D; g.userData.shrink = null; } }
+    // [v137] BANKSY "speckled hair / black speckles by the braid": the braid + long hair lie ON the coat / shirt and z-fought it: hair
+    // over a worn top is lifted just outside the cloth (the female: the male's hair stays tucked in his collar)
+    const tp = p.v5 && p.warp && p.female ? Object.values(p.items).find((it) => (it.id === 'suit' || it.id === 'shirt') && it.obj?.geometry) : null;
+    if (tp && g.attributes._tint) { const cg = tp.obj.geometry; let m = _hair.get(cg); if (!m) _hair.set(cg, (m = new WeakMap()));
+      if (!m.has(P)) m.set(P, hairOver(P, g.attributes._tint, cg)); const H = m.get(P);
+      if (H) { const U0 = g.userData.under; if (U0) { const S2 = new Float32Array(U0.length); for (let i = 0; i < S2.length; i++) S2[i] = U0[i] + H[i]; g.userData.under = S2; } else g.userData.under = H; } }
     // [v136] body faces the cloth-coloured underlayer replaces go (Low's coarse chest poked through the lapels in big skin shards)
     if (top && T0(o)) { const { keep } = underKeep(p, o, UNDER[top.id]), I = g.index.array, o2 = [];
       for (let i = 0; i < I.length; i += 3) if (!(keep[I[i]] && keep[I[i + 1]] && keep[I[i + 2]])) o2.push(I[i], I[i + 1], I[i + 2]);
@@ -191,13 +197,33 @@ function sashTails(o, P) {
     if (!any) m = null; } } catch (e) { m = null; }
   _sash.set(P, m); return m;
 }
+// [v137] hair verts below the head that sit inside / within 1.5 cm of a worn top are pushed radially out to just over its outer surface
+// (angle x height bins of the cloth's outermost radius around the torso axis)
+const _hair = new WeakMap();
+function hairOver(B, T, cloth) {
+  const iH = TINTS.indexOf('hair'), C = cloth.attributes.position, n = B.count; if (!C) return null;
+  let cx = 0, cz = 0, y0 = Infinity, y1 = -Infinity; for (let i = 0; i < C.count; i++) { cx += C.getX(i); cz += C.getZ(i); const y = C.getY(i); if (y < y0) y0 = y; if (y > y1) y1 = y; } cx /= C.count; cz /= C.count;
+  const AS = 0.07, YS = 0.025, bins = new Map(), key = (a, h) => a * 4096 + h;
+  for (let i = 0; i < C.count; i++) { const dx = C.getX(i) - cx, dz = C.getZ(i) - cz, r = Math.hypot(dx, dz), a = Math.round(Math.atan2(dx, dz) / AS), h = Math.round(C.getY(i) / YS), k = key(a, h);
+    if (!(bins.get(k) >= r)) bins.set(k, r); }
+  const na = Math.round(Math.PI / AS), D = new Float32Array(n * 3); let moved = 0;
+  for (let i = 0; i < n; i++) { if (Math.round(T.getX(i)) !== iH) continue; const y = B.getY(i); if (y < y0 || y > y1) continue;
+    const dx = B.getX(i) - cx, dz = B.getZ(i) - cz, r = Math.hypot(dx, dz); if (r < 1e-4) continue; const a = Math.round(Math.atan2(dx, dz) / AS), h = Math.round(y / YS);
+    let rc = -1; for (let da = -1; da <= 1; da++) for (let dh = -1; dh <= 1; dh++) { let aa = a + da; if (aa > na) aa -= 2 * na; if (aa < -na) aa += 2 * na; const v = bins.get(key(aa, h + dh)); if (v > rc) rc = v; }
+    if (rc < 0 || r > rc + 0.015 || r < rc - 0.08) continue;   // clear of it already / deep inside the body (not lying on the cloth)
+    if (dz > 0 && r > rc - 0.03 && r < rc + 0.004) { const k = (rc - 0.03 - r) / r; D[i * 3] = dx * k; D[i * 3 + 2] = dz * k; moved++; continue; }   // front strands: tucked under the lapels instead
+    if (dz > 0 && r < rc) continue;
+    const k = (rc + 0.015 - r) / r; D[i * 3] = dx * k; D[i * 3 + 2] = dz * k; moved++; }
+  return moved ? D : null;
+}
 const _under = new WeakMap();
-function underCloth(B, BN, cloth, CLEAR) {
+function underCloth(B, BN, cloth, CLEAR, T) {
+  const iH = TINTS.indexOf('hair');   // [v137] never the hair / beard (Low's beard got dragged into long shards along the collar)
   const R = 0.11, cs = 0.04, grid = new Map(), key = (x, y, z) => (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
   const C = cloth.attributes.position, CN = cloth.attributes.normal; if (!CN) return null;
   for (let i = 0; i < C.count; i++) { const k = key(Math.floor(C.getX(i) / cs), Math.floor(C.getY(i) / cs), Math.floor(C.getZ(i) / cs)); let c = grid.get(k); if (!c) grid.set(k, (c = [])); c.push(i); }
   const n = B.count, D = new Float32Array(n * 3); let moved = 0;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < n; i++) { if (T && Math.round(T.getX(i)) === iH) continue;
     const x = B.getX(i), y = B.getY(i), z = B.getZ(i), bx = BN.getX(i), by = BN.getY(i), bz = BN.getZ(i), gx = Math.floor(x / cs), gy = Math.floor(y / cs), gz = Math.floor(z / cs); let best = -1, bd = R * R;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (let c = -2; c <= 2; c++) { const L = grid.get(key(gx + a, gy + b, gz + c)); if (!L) continue;
       for (const j of L) { if (Math.abs(CN.getX(j) * bx + CN.getY(j) * by + CN.getZ(j) * bz) < 0.3) continue;   // [v136] single-layer cloth: either winding
@@ -205,7 +231,6 @@ function underCloth(B, BN, cloth, CLEAR) {
     if (best < 0) continue;
     const nx = bx, ny = by, nz = bz, h = (x - C.getX(best)) * nx + (y - C.getY(best)) * ny + (z - C.getZ(best)) * nz;   // [v136] along the body normal
     const CL = CLEAR;
-    if (h > 0.09 - CL) { const cx = C.getX(best) - nx * CL * 1.5, cy = C.getY(best) - ny * CL * 1.5, cz = C.getZ(best) - nz * CL * 1.5; D[i * 3] = cx - x; D[i * 3 + 1] = cy - y; D[i * 3 + 2] = cz - z; moved++; continue; }   // [v136] far out (the v5 sash tails): tuck right under the cloth
     if (h > -CL) { const k = Math.min(0.09, h + CL) * Math.min(1, (R - Math.sqrt(bd)) / (R * 0.4)); D[i * 3] = -nx * k; D[i * 3 + 1] = -ny * k; D[i * 3 + 2] = -nz * k; moved++; } }
   return moved ? D : null;
 }

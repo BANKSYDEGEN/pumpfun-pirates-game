@@ -325,12 +325,13 @@ function shellOf(body, id, colors, low) {
   const bone = (i) => { let b = 0, w = -1; for (let k = 0; k < 4; k++) { const x = W.getComponent(i, k); if (x > w) { w = x; b = J.getComponent(i, k); } } return bones[b] || ''; };
   const n = P.count, keep = new Int8Array(n);
   for (let i = 0; i < n; i++) {
-    const t = Math.round(T.getX(i)); if (t !== iS && t !== iSh) continue;
+    const t = Math.round(T.getX(i)); if (t !== iS && t !== iSh && !(t === -1 && body.userData.warp)) continue;   // [v137] v5: also the base top baked into the texture (fixed colour)
     const b = bone(i), x = Math.abs(P.getX(i)), y = P.getY(i), z = P.getZ(i);
     if (body.userData.warp) {   // [v121] v5 bases: by position mapped back to v4 bind space (the v5 torso is wider, so its sides carry arm weights)
       const q = v5Inv(body.userData.warp, P.getX(i), y, z, _q5), qx = Math.abs(q[0]), qy = q[1], qz = q[2];
       if (qy < 0.44 || qy > 0.95) continue;
-      if (!(qx > 0.2 && qy > 0.72)) { if (spec.hole && ((qx > 0.13 && qy > 0.80) || (qz > 0 && qx < 0.085 && qy > 0.86))) continue; keep[i] = 1; }
+      if (t === -1 && (qy < 0.67 || qy > 0.9)) continue;   // [v137] BANKSY tank specks: the female wrap top poked through around the tank; above the belt only
+      if (!(qx > 0.2 && qy > 0.72)) { if (spec.hole && ((qx > 0.13 && qy > 0.80) || (qz > 0 && qx < 0.085 && qy > 0.86))) continue; keep[i] = t === -1 ? 2 : 1; }
       else if (spec.arms && qx < spec.arms) keep[i] = 1;
       continue;
     }
@@ -344,7 +345,8 @@ function shellOf(body, id, colors, low) {
   const bi = g.userData.baseIndex || g.index, idx = bi ? bi.array : null, tri = idx ? idx.length / 3 : n / 3, remap = new Int32Array(n).fill(-1), list = [], out = [];
   for (let f = 0; f < tri; f++) {
     const a = idx ? idx[f * 3] : f * 3, b = idx ? idx[f * 3 + 1] : f * 3 + 1, c = idx ? idx[f * 3 + 2] : f * 3 + 2;
-    if (keep[a] + keep[b] + keep[c] < (low ? 2 : 3)) continue;   // Low's torso is coarse: 2 of 3 corners is enough there (no torn edges)
+    const ka = keep[a] ? 1 : 0, kb = keep[b] ? 1 : 0, kc = keep[c] ? 1 : 0, fx = keep[a] === 2 || keep[b] === 2 || keep[c] === 2;
+    if (ka + kb + kc < (low && !fx ? 2 : 3)) continue;   // Low's torso is coarse: 2 of 3 corners is enough there (no torn edges); [v137] never at the base-top rim (white spikes)
     for (const v of [a, b, c]) { if (remap[v] < 0) { remap[v] = list.length; list.push(v); } out.push(remap[v]); }
   }
   const m = list.length, pos = new Float32Array(m * 3), nrm = new Float32Array(m * 3), col = new Float32Array(m * 3), uv = new Float32Array(m * 2),
