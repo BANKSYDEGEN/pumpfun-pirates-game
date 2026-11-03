@@ -129,6 +129,8 @@ const RAUL5 = {
   // [Raul clothes v5] the tank / t-shirt are his own per-body garments on v5 (same catalog ids, same colours: outfitColors(..).cloth)
   'outfit:tank':   ['outfit', 'cloth_tank', (g, c) => ({ shirt: outfitColors('tank', c).cloth })],
   'outfit:tshirt': ['outfit', 'cloth_tshirt', (g, c) => ({ shirt: outfitColors('tshirt', c).cloth })],
+  // [Raul coats v5] the COAT on v5 = his own per-body coat (same colours as Timothy's shell: cloth, trim, stripe)
+  'outfit:coat':   ['outfit', 'cloth_coat', (g, c) => { const o = outfitColors('coat', c); return { coat: o.cloth, accent: o.trim, shirt: o.stripe }; }],
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face'];

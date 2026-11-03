@@ -1,7 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v150'; // [v150] Blender plaza + docks: the 5 storefronts + a plain house, the boardwalk / 5 jetties / B1-B10 plaques and the headland battery as Blender models (assets/island/plaza_shops*.glb, docks*.glb, battery*.glb)
-// was: [v149] headland battery: trees cleared round the cliff guns, a paved ramp up from the quay, 6 playable cosmetic cannons (FIRE CANNON, reload, no damage)
+const VERSION = 'pfp-v151'; // [v151] Raul's v5 coats: the COAT and the CAPTAIN'S COAT rebuilt per body on v5 (hi + lo), coat-coloured lining, sash tails hidden under both coats
 const SHELL = [
   "./",
   "./index.html",

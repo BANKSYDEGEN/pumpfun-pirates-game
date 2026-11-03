@@ -53,7 +53,10 @@ export const ITEMS = [
     { v5: 1, v5torso: [0.36, 0.95, 0.16], vneck: 0.62, tints: ['skin', 'shirt'] }], { perBase: true, v5: v5files('cloth_shirt'), v5hide: [], v5cloth: true, cream: '#3a2414' }),   // [Raul clothes v5] v5: own single-layer laced shirt (cream = the laces)   // [v121] v5: the body under the shirt
   item('suit', "Captain's Coat", 'outfit', 900, { coat: '#b3201f', accent: '#1d2a52' }, [{ all: 1, tints: ['shirt'] }, { torso: [0.47, 0.75], tints: ['skin'], female: 1 }, { torso: [0.47, 0.59], tints: ['skin'], male: 1 }, { torso: [0.47, 0.86], back: 1, tints: ['skin'] },
     { arm: 'L', s: [0.04, 0.3], tints: ['skin'] }, { arm: 'R', s: [0.04, 0.3], tints: ['skin'] },
-    { v5: 1, v5torso: [0.36, 0.95, 0.28], vneck: 0.66, tints: ['skin', 'shirt'] }], { perBase: true }),   // [v121] v5: the body under the coat
+    { v5: 1, v5torso: [0.36, 0.95, 0.28], vneck: 0.66, tints: ['skin', 'shirt'] }], { perBase: true, v5: v5files('cloth_suit'), v5hide: [], v5cloth: true, backTint: 'coat', longCoat: true }),   // [Raul coats v5] v5: own long coat (gold trim + epaulettes, waistcoat = accent, knee skirt on spine -> thighs); v4 keeps the old files
+  // [Raul coats v5] BANKSY "Also need the jackets": the COAT (Timothy's grown shell on v4) is Raul's own per-body garment on v5: open front over
+  // a striped shirt (cream + stripe colour via the texture alpha), trim = accent, tails from the belt to mid thigh (spine -> thigh weights)
+  item('cloth_coat', 'Coat', 'outfit', 0, { coat: '#c8302c', accent: '#e9b949', shirt: '#222c4e' }, [], { v5: v5files('cloth_coat'), v5hide: [], v5only: true, v5cloth: true, cream: '#f3efe6', backTint: 'coat', longCoat: true }),
   item('parrot', 'Parrot', 'shoulder', 1500, null, [],
     { attach: { bone: 'spine', feet: [0.242, 0.916, -0.016], offset: { male: [0, 0, 0], female: [0.05, -0.034, 0.0] }, lean: { male: 0, female: -0.42 } }, clip: 'parrot_idle' }),
 ];
@@ -124,7 +127,7 @@ function applyHide(p) {
     const P = g.userData.basePos, Tt = g.attributes._tint, n = P.count, hid = new Uint8Array(n); let shr = null;
     if (bIt && !isCloth && Tt) hid.set(baseMask(o, P, Tt, p.female));
     for (const tp of tops) { const cm = coverMask(P, Tt, tp.obj.geometry); for (let i = 0; i < n; i++) if (cm[i]) hid[i] = 1; }
-    if (isCloth && p.items.outfit?.id === 'suit' && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coat
+    if (isCloth && (p.items.outfit?.id === 'suit' || ITEM_BY_ID[p.items.outfit?.id]?.longCoat) && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coat
     for (let i = 0; i < n; i++) { if (hid[i]) continue; const t = Tt ? Math.round(Tt.getX(i)) : -1, rX = P.getX(i), rY = P.getY(i), rZ = P.getZ(i); let X = rX, Y = rY, Z = rZ; if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
       for (const r of rules) { if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
         if (p.v5 && r.tints?.includes('hair') && !r.raw) continue;
@@ -438,7 +441,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors && !def.base) retint(geo, opts.colors);
   if (def.paint && p.lod === 'lo') paintLo(geo);
-  const hex = def.v5cloth ? opts.colors?.shirt ?? def.tint?.shirt : null;   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
+  const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
   const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, def.slot !== 'outfit' || !!def.v5cloth)); m.name = 'item_' + def.id; m.frustumCulled = false;
   if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);
