@@ -6,9 +6,10 @@ const sm = (k) => k * k * (3 - 2 * k), wrap = (a) => Math.atan2(Math.sin(a), Mat
 export const DOCK = { range: 30, slow: 6.6, inMin: 2.2, inMax: 4.2, outLen: 34, outT: 3.4 };
 
 export function createDocking({ berths, myId }) {
+  const meId = () => String(typeof myId === 'function' ? myId() : myId); // [v152] a getter (the room id arrives after the harbor is built)
   const byId = new Map(berths.map(b => [b.id, b]));
-  const peers = new Map(); // peerId -> { berth, t }
-  const st = { mode: 'sea', berth: null, t: 0, dur: 0, from: null, ctl: null };
+  const peers = new Map(); // peerId -> { berth, t, fresh }
+  const st = { mode: 'sea', berth: null, t: 0, dur: 0, from: null, ctl: null, spawnAt: 0 };   // [v152] spawnAt = moored by the join spawn (a few s of grace to settle a clash)
   const takenBy = (id) => { for (const [pid, p] of peers) if (p.berth === id && performance.now() - p.t < 6000) return pid; return null; };
   const isFree = (b) => !takenBy(b.id) && (st.berth !== b);
   function nearest(x, z, maxD = DOCK.range, free = true) {
@@ -24,13 +25,13 @@ export function createDocking({ berths, myId }) {
   }
   function begin(s, b) {
     const d = Math.hypot(b.x - s.x, b.z - s.z);
-    Object.assign(st, { mode: 'in', berth: b, t: 0, dur: Math.min(DOCK.inMax, Math.max(DOCK.inMin, d / 6)), from: { x: s.x, z: s.z, yaw: s.yaw, speed: s.speed } });
+    Object.assign(st, { spawnAt: 0, mode: 'in', berth: b, t: 0, dur: Math.min(DOCK.inMax, Math.max(DOCK.inMin, d / 6)), from: { x: s.x, z: s.z, yaw: s.yaw, speed: s.speed } });
     // bezier control: carry on along the current heading a little, so the ship swings in rather than sliding sideways
     const k = Math.min(12, d * 0.45); st.ctl = { x: s.x + Math.sin(s.yaw) * k, z: s.z + Math.cos(s.yaw) * k };
   }
   // SET SAIL: ease forward out of the slip and swing toward open water (berth.out), ending under way on the curve's heading
   function setSail(s) { if (st.mode !== 'docked') return false; const b = st.berth, fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), o = b.out || { x: fx, z: fz }, L = b.outLen || DOCK.outLen; // [v117] quay berths: a short swing
-    Object.assign(st, { mode: 'out', t: 0, dur: DOCK.outT, from: { x: b.x, z: b.z, yaw: b.yaw }, ctl: { x: b.x + fx * L * 0.5, z: b.z + fz * L * 0.5 }, to: { x: b.x + fx * L * 0.85 + o.x * L * 0.75, z: b.z + fz * L * 0.85 + o.z * L * 0.75 } }); return true; }
+    Object.assign(st, { spawnAt: 0, mode: 'out', t: 0, dur: DOCK.outT, from: { x: b.x, z: b.z, yaw: b.yaw }, ctl: { x: b.x + fx * L * 0.5, z: b.z + fz * L * 0.5 }, to: { x: b.x + fx * L * 0.85 + o.x * L * 0.75, z: b.z + fz * L * 0.85 + o.z * L * 0.75 } }); return true; }
   function pose(s, x, z, yaw, speed) { s.x = x; s.z = z; s.yaw = yaw; s.speed = speed; s.turn = 0; }
   // call every frame AFTER the normal ship move: overrides the pose while docking / docked / leaving
   function tick(s, dt) {
@@ -51,12 +52,23 @@ export function createDocking({ berths, myId }) {
     s.anchor = true; s.sail = 0;
     return true;
   }
-  function release() { st.mode = 'sea'; st.berth = null; }
+  function release() { st.mode = 'sea'; st.berth = null; st.spawnAt = 0; }
+  // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea":
+  // a free berth picked deterministically from your id (two pirates joining at once start at different berths), moored on the spot
+  const SPAWN_GRACE = 6000, fresh = () => st.mode === 'docked' && st.spawnAt > 0 && performance.now() - st.spawnAt < SPAWN_GRACE;
+  function spawnPick(skip = null) {
+    const n = berths.length; if (!n) return null; let h = 0; for (const c of meId()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    for (let k = 0; k < n; k++) { const b = berths[(h + k) % n]; if (b !== skip && !takenBy(b.id) && st.berth !== b) return b; } return null;
+  }
+  function moor(s, b) { Object.assign(st, { mode: 'docked', berth: b, t: 0, dur: 0, from: null, ctl: null, spawnAt: performance.now() }); pose(s, b.x, b.z, b.yaw, 0); s.anchor = true; s.sail = 0; }
   // a peer's state: dk = berth id ('' = none)
   const peerBerth = (dk) => byId.has(dk) ? dk : (/^P[1-9][LR]$/.test(dk || '') && byId.has(dk.slice(0, 2)) ? dk.slice(0, 2) : dk); // [v117] old builds' P1L / P1R = pier 1's one berth
-  function onPeer(id, dk) {
+  function onPeer(id, dk, ds = 0) {
     dk = peerBerth(dk);
-    if (dk && byId.has(dk)) peers.set(id, { berth: dk, t: performance.now() }); else peers.delete(id);
+    if (dk && byId.has(dk)) peers.set(id, { berth: dk, t: performance.now(), fresh: !!ds }); else peers.delete(id);
+    // [v152] you were just moored by the join spawn and a pirate reports the same berth: an already-moored pirate (no ds) always keeps it
+    // (the v131 rule), two fresh spawns = the lower id keeps it; the other one moves to the next free berth, or back out to sea if all are full
+    if (st.berth && dk === st.berth.id && fresh() && (!ds || String(id) < meId())) { const alt = spawnPick(st.berth); return { spawnMoved: alt }; }
     // [v131] BANKSY "my ship drifted away": a docked ship used to give up its berth to any lower-id peer reporting it (even with you ashore),
     // sailing itself to another berth / releasing to sea. A moored ship now keeps its berth; only a ship still coming in moves over. Peers only report dk once moored.
     if (st.berth && dk === st.berth.id && st.mode === 'in') { // they win: move over
@@ -67,5 +79,5 @@ export function createDocking({ berths, myId }) {
     return null;
   }
   const dropPeer = (id) => peers.delete(id);
-  return { st, berths, query, begin, setSail, tick, release, onPeer, dropPeer, takenBy, isFree, nearest, get berth() { return st.berth; }, get mode() { return st.mode; } };
+  return { st, berths, query, begin, setSail, tick, release, onPeer, spawnPick, moor, fresh, dropPeer, takenBy, isFree, nearest, get berth() { return st.berth; }, get mode() { return st.mode; } };
 }

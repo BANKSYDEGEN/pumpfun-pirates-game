@@ -55,7 +55,7 @@ export async function createDock(ctx) {
   const world = await buildWorld({ layout, scene, quality, ocean, renderer, uTime });
   const zone = createSafeZone(layout.safe, layout.graceS);
   const myId = () => ctx.pvp()?.myId || 'me';
-  const docking = createDocking({ berths: layout.berths, myId: myId() });
+  const docking = createDocking({ berths: layout.berths, myId }); // [v152] a getter: the room id can arrive later
   const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate.object.visible = false; scene.add(pirate.object); // [Timothy] + your shop gear
   const walker = createWalker({ camera, canvas, world, pirate, touch });
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
@@ -131,6 +131,22 @@ export async function createDock(ctx) {
     if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); }
   }
   // ---------- actions ----------
+  // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
+  // (first join, back from the arena / spectate, a re-join) or respawning there after a sinking moors your ship at a free berth B1-B10.
+  // We wait ~1.5 s at the normal sea spawn first so the harbor room's berth claims (dk) arrive; all berths taken = you stay at sea as before.
+  // ?berthspawn=0 = the old sea spawn (tests)
+  const BERTH_SPAWN = new URLSearchParams(location.search).get('berthspawn') !== '0', SPAWN_SETTLE = 1500;
+  let spawnAt = 0, spawnFrom = null, wasAlive = false;
+  function wantSpawn(s) { if (!BERTH_SPAWN || !s) return; spawnAt = performance.now() + SPAWN_SETTLE; spawnFrom = { x: s.x, z: s.z, yaw: s.yaw }; }
+  function spawnBerth(s, b) { // snap-moor (no ease-in: it's a spawn), fade so it never looks like a jump
+    fadeTo(() => { if (!on || !s.alive || onFoot || docking.mode !== 'sea' || !docking.isFree(b)) return;
+      docking.moor(s, b); ctx.camReset?.(); toast(`MOORED AT BERTH ${b.id} · SAFE HARBOR`, 2000); });
+  }
+  function trySpawn(s) {
+    if (!on || !s?.alive || onFoot || docking.mode !== 'sea' || !['playing', 'paused', 'shop'].includes(game.state)) return;
+    if (spawnFrom && Math.hypot(s.x - spawnFrom.x, s.z - spawnFrom.z) > 25) return; // you already sailed off: leave you be
+    const b = docking.spawnPick(); if (b) spawnBerth(s, b); // all berths taken: the sea spawn stands
+  }
   function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
   function goAshore() {
     if (docking.mode !== 'docked') return; const b = docking.berth;
@@ -182,12 +198,14 @@ export async function createDock(ctx) {
 
   // ---------- per frame (main.js: after pvp.update, before floatShip) ----------
   function ship(dt) {
-    const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); setOn(want);
+    const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); const was = on; setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); } if (view) world.update(camera.position, game.t, game.storm || 0);
     treasure.tick();
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
+    if ((!was || (s.alive && !wasAlive)) && s.alive) wantSpawn(s); wasAlive = !!s.alive; // [v152] joined / respawned in the harbor
+    if (spawnAt && performance.now() >= spawnAt) { spawnAt = 0; trySpawn(s); }
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
@@ -232,7 +250,12 @@ export async function createDock(ctx) {
     ch.onmessage = (ev) => { if (on) handlePeer(ev.data); };
     bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
   }
-  function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m); if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
+  function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m);
+    if (r && r.spawnMoved !== undefined) { const s = P(); // [v152] two pirates spawned onto the same berth: the other keeps it
+      if (r.spawnMoved) { docking.moor(s, r.spawnMoved); toast(`BERTH TAKEN · MOORED AT ${r.spawnMoved.id}`); }
+      else { docking.release(); if (spawnFrom) { s.x = spawnFrom.x; s.z = spawnFrom.z; s.yaw = spawnFrom.yaw; s.speed = 0; s.anchor = false; ctx.camReset?.(); } toast('ALL BERTHS TAKEN · AT SEA'); }
+      return; }
+    if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
   const api = {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery,

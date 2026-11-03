@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v151'; // [v151] Raul's v5 coats: the COAT and the CAPTAIN'S COAT rebuilt per body on v5 (hi + lo), coat-coloured lining, sash tails hidden under both coats
+const VERSION = 'pfp-v152'; // [v152] harbor join / respawn spawns you moored at a free berth (B1-B10), all taken = at sea as before
 const SHELL = [
   "./",
   "./index.html",

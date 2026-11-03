@@ -26,11 +26,12 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
     const now = performance.now();
     if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= FT_MS) { ftAt = now; ftLast = [Math.round(me.w.x * 2) / 2, Math.round(me.w.z * 2) / 2, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
     // [v106] fj: your jump counter (changes once per jump; the transport only sends changed fields, older clients ignore it)
-    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ft: ftLast, ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };
+    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ds: docking.fresh?.() ? 1 : 0, ft: ftLast,   // [v152] ds = 1 for a few s after the join spawn moored you (older clients ignore it)
+      ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };
   }
   function onPeerState(m) { // a peer's state (any transport); m.i = id, m.n = name
     if (!m || !isNetId(m.i)) return null;
-    const moved = docking.onPeer(m.i, typeof m.dk === 'string' ? m.dk : '');
+    const moved = docking.onPeer(m.i, typeof m.dk === 'string' ? m.dk : '', m.ds === 1 ? 1 : 0);
     let p = peers.get(m.i);
     const ft = Array.isArray(m.ft) && m.ft.length === 4 && m.ft.every(Number.isFinite) ? m.ft : null;
     if (ft) {
