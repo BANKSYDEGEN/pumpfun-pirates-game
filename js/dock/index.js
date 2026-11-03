@@ -133,19 +133,18 @@ export async function createDock(ctx) {
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
   // (first join, back from the arena / spectate, a re-join) or respawning there after a sinking moors your ship at a free berth B1-B10.
-  // We wait ~1.5 s at the normal sea spawn first so the harbor room's berth claims (dk) arrive; all berths taken = you stay at sea as before.
+  // [v157] BANKSY "Start them at dock": moored on the very frame you join / respawn (was: 1.5 s at the sea spawn, then a fade + jump to the berth).
+  // The berth is provisional: a pirate already moored there (or a lower-id fresh spawn) still wins and you move over (the v152 'ds' clash rule);
+  // every berth taken = back to the sea spawn. Those moves fade (no toast while the name card is up).
   // ?berthspawn=0 = the old sea spawn (tests)
-  const BERTH_SPAWN = new URLSearchParams(location.search).get('berthspawn') !== '0', SPAWN_SETTLE = 1500;
-  let spawnAt = 0, spawnFrom = null, wasAlive = false;
-  function wantSpawn(s) { if (!BERTH_SPAWN || !s) return; spawnAt = performance.now() + SPAWN_SETTLE; spawnFrom = { x: s.x, z: s.z, yaw: s.yaw }; }
-  function spawnBerth(s, b) { // snap-moor (no ease-in: it's a spawn), fade so it never looks like a jump
-    fadeTo(() => { if (!on || !s.alive || onFoot || docking.mode !== 'sea' || !docking.isFree(b)) return;
-      docking.moor(s, b); ctx.camReset?.(); toast(`MOORED AT BERTH ${b.id} · SAFE HARBOR`, 2000); });
-  }
-  function trySpawn(s) {
-    if (!on || !s?.alive || onFoot || docking.mode !== 'sea' || !['playing', 'paused', 'shop'].includes(game.state)) return;
-    if (spawnFrom && Math.hypot(s.x - spawnFrom.x, s.z - spawnFrom.z) > 25) return; // you already sailed off: leave you be
-    const b = docking.spawnPick(); if (b) spawnBerth(s, b); // all berths taken: the sea spawn stands
+  const BERTH_SPAWN = new URLSearchParams(location.search).get('berthspawn') !== '0';
+  let spawnFrom = null, wasAlive = false;
+  const hidden = () => { const en = document.getElementById('pvp-entry'); return !!en && !en.classList.contains('hidden'); }; // the name card is up: nothing on screen to jump
+  function spawnNow(s) { // snap-moor on the spawn frame (no ease-in, no fade: the camera starts there)
+    if (!BERTH_SPAWN || !s?.alive || onFoot || docking.mode !== 'sea') return;
+    spawnFrom = { x: s.x, z: s.z, yaw: s.yaw };
+    const b = docking.spawnPick(); if (!b) return; // all berths taken: the sea spawn stands
+    docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`MOORED AT BERTH ${b.id} · SAFE HARBOR`, 2000);
   }
   function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
   function goAshore() {
@@ -204,8 +203,8 @@ export async function createDock(ctx) {
     treasure.tick();
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
-    if ((!was || (s.alive && !wasAlive)) && s.alive) wantSpawn(s); wasAlive = !!s.alive; // [v152] joined / respawned in the harbor
-    if (spawnAt && performance.now() >= spawnAt) { spawnAt = 0; trySpawn(s); }
+    if ((!was || (s.alive && !wasAlive)) && s.alive) spawnNow(s); wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
+    if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
@@ -251,9 +250,11 @@ export async function createDock(ctx) {
     bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
   }
   function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m);
-    if (r && r.spawnMoved !== undefined) { const s = P(); // [v152] two pirates spawned onto the same berth: the other keeps it
-      if (r.spawnMoved) { docking.moor(s, r.spawnMoved); toast(`BERTH TAKEN · MOORED AT ${r.spawnMoved.id}`); }
-      else { docking.release(); if (spawnFrom) { s.x = spawnFrom.x; s.z = spawnFrom.z; s.yaw = spawnFrom.yaw; s.speed = 0; s.anchor = false; ctx.camReset?.(); } toast('ALL BERTHS TAKEN · AT SEA'); }
+    if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
+      const go = () => { if (!on || onFoot || !docking.fresh()) return;
+        if (b) { docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`BERTH TAKEN · MOORED AT ${b.id}`); }
+        else { docking.release(); if (spawnFrom) { s.x = spawnFrom.x; s.z = spawnFrom.z; s.yaw = spawnFrom.yaw; s.speed = 0; s.anchor = false; ctx.camReset?.(); } if (!hidden()) toast('ALL BERTHS TAKEN · AT SEA'); } };
+      fadeTo(go); // [v157] a fade, never a visible jump (the name card is see-through)
       return; }
     if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
@@ -269,7 +270,7 @@ export async function createDock(ctx) {
     isSafe: (s) => on && !!s && zone.inside(s.x, s.z),
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
     netState: () => (on ? { ...fnet.netState(walker), ...(battery?.netState() || {}) } : {}), // [Timothy] + 'bc' (your last battery shot)
-    onPeerState: (m) => { if (on) handlePeer(m); },
+    onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar

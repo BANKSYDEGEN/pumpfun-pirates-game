@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v156'; // [v156] Raul's luchador mask: male phone (lo) mask rebuilt, no jaw specks
+const VERSION = 'pfp-v157'; // [v157] dock spawn: moored on the first frame after the name pick (no sea frame, no jump)
 const SHELL = [
   "./",
   "./index.html",

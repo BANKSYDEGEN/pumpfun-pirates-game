@@ -138,7 +138,17 @@ let dock = null, dockLoading = false;
 function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
   import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx, fx, /* [Timothy] battery muzzle / smoke / splash */
     openWaves: () => openWavesEntry(), camReset: () => { resetCamera(); lastTarget.set(player.x, player.y + 4 * camScale(player.mesh.userData) + 2.2 * ((player.mesh.userData.frameK || 1) - 1), player.z); } }))
-    .then(d => { dock = d; }).catch(e => console.warn('[dock] failed', e)).finally(() => { dockLoading = false; }); }
+    .then(d => { dock = d; }).catch(e => { dockFailed = true; console.warn('[dock] failed', e); }).finally(() => { dockLoading = false; }); }
+// [v157] BANKSY "Start them at dock": while the harbor world is still loading, a dark cover hides the sea spawn (under the name card),
+// so the first ship frame you see is already moored at your berth (js/dock/index.js spawnNow)
+let dockFailed = false, dockCover = null;
+function dockCoverTick() {
+  const want = DOCK_ON && !dockFailed && game.mode === 'pvp' && !!pvp && pvp.active && pvp.where === 'harbor' && !pvp.spectating && game.state !== 'title' && !dock?.on;
+  if (want && !dockCover) { dockCover = document.createElement('div'); dockCover.id = 'dk-cover';
+    dockCover.style.cssText = 'position:fixed;inset:0;z-index:29;background:radial-gradient(circle at 50% 40%,#10202c,#05080c);pointer-events:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:12vh;color:#f5c542;font:700 18px/1.2 system-ui,sans-serif;letter-spacing:.12em';
+    dockCover.textContent = 'ROWING INTO THE HARBOR…'; const en = document.getElementById('pvp-entry'); if (en?.parentNode) en.parentNode.insertBefore(dockCover, en); else document.body.appendChild(dockCover); } // under the name card (same stacking context, z 29 < 30)
+  if (dockCover) dockCover.style.display = want ? 'flex' : 'none';
+}
 function harborIslandTick(t) {
   if (DOCK_ON) { if (game.mode === 'pvp' && !!pvp && (pvp.where === 'harbor' || pvp.specHarbor)) dockLoad(); return; } // [v105] + harbor spectate (the whole coast island, no holes) // [Emerly] the dock world replaces Dock Town
   const want = HARBOR_ISLAND_ON && game.mode === 'pvp' && !!pvp && pvp.where === 'harbor';
@@ -1231,6 +1241,7 @@ function frame() {
     }
     if (game.mode === 'pvp') pvp.update(dt); // [pvp] netcode, host duties, respawn
     dock?.ship(dt); // [Emerly] docking ease / moored pose, SAFE HARBOR, on-foot pirate + prompts
+    dockCoverTick(); // [v157] hide the sea spawn until the dock is on (it moors you on that frame)
     floatShip(player, dt);
     setLocalSkin(player.mesh?.userData?.skinId); // [Timothy] your shop clothes follow your ship skin (no-op unless it changed)
     if (game.mode !== 'pvp') wavesShipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t, id: 'waves' }); // [skin looks] (PvP runs its own skinFx)
