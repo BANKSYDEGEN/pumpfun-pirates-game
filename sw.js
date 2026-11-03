@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v141'; // [v141] female tank arm holes: her own red wrap top under the tank takes the tank colour (no red rims)
+const VERSION = 'pfp-v142'; // [v142] shop gear cards framed for the v5 bodies: tall hats, eyewear, hooks, peg leg fully in frame
 const SHELL = [
   "./",
   "./index.html",

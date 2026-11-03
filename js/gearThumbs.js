@@ -22,12 +22,12 @@ export const thumbFallback = PNG;
 // framing per slot (pirate space: y up, +z = the pirate's front, +x = his left; height 1.75 m)
 //   c = look-at point, d = camera direction, r = half the shown height
 const FRAME = {   // measured from the skinned item bounds in the idle pose (big-head v4: head ~1.2-1.75 m, hands ~0.55 m)
-  hat:    { c: [0, 1.6, 0.05], d: [0.3, 0.3, 1], r: 0.36 },
-  eyes:   { c: [0, 1.42, 0.1], d: [0.22, 0.05, 1], r: 0.25 },
+  hat:    { c: [0, 1.68, 0.05], d: [0.3, 0.3, 1], r: 0.42 },   // [v142] v5 heads: tall hats (captain's hat to ~2.05 m) no longer cut at the top
+  eyes:   { c: [0, 1.29, 0.12], d: [0.22, 0.05, 1], r: 0.3 },   // [v142] v5 eye line ~1.27 m
   outfit: { c: [0, 0.9, 0], d: [0.3, 0.12, 1], r: 0.52 },
   parrot: { c: [0.27, 1.28, 0], d: [0.9, 0.2, 0.85], r: 0.36 },
-  hook:   { c: [-0.36, 0.57, 0.1], d: [-0.75, 0.25, 1], r: 0.2 },
-  leg:    { c: [-0.08, 0.3, 0.05], d: [-0.25, 0.35, 1], r: 0.32 },   // right leg; LEFT = mirrored
+  hook:   { c: [-0.25, 0.68, 0.06], d: [-0.75, 0.25, 1], r: 0.2 },   // [v142] v5 shorter arms: the hand sits higher / closer in
+  leg:    { c: [-0.14, 0.2, 0.05], d: [-0.25, 0.35, 1], r: 0.3 },   // right leg; LEFT = mirrored [v142] v5 peg y 0-0.33
 };
 // the frame for this slot, mirrored to the pirate's LEFT (+x) for a left hook / peg
 function frameOf(slot, o) { const F = FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
