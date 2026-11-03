@@ -33,7 +33,7 @@ const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 2
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
-import { shopState, shopBuy, cleanGear } from './pvpSave.js';
+import { shopState, shopBuy, cleanGear, mapsState, mapDig } from './pvpSave.js';
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
@@ -199,6 +199,11 @@ export function createPvp(K) {
       save({ now: true, force: true }); return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } });
     },
   });
+  // [v122] treasure maps (js/dock/treasure.js drives the UI): the dig gold lands on THIS save in the same tick, then saves
+  const maps = { state: () => mapsState(snapshot()),
+    async dig(id, spot) { const r = await mapDig(id, spot, snapshot());
+      if (r && r.ok && (r.gold | 0) > 0) { game.gold = Math.min(1e7, (game.gold | 0) + (r.gold | 0)); save({ now: true, force: true }); K.updateHud(); sfx.coin?.(); }
+      return r || { ok: false, error: 'offline' }; } };
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }
@@ -1559,7 +1564,7 @@ export function createPvp(K) {
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game

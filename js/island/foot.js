@@ -455,6 +455,8 @@ const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round
   if (h < 3.2 || TRg[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; return 1; };
 
+// [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
+export const DIG_HINTS = [[-306, 150, 1], [-82, 456, 2], [340, -360, 3], [-335, -580, 4], [421, 100, 5], [-631, -208, 6]];
 // nearest sandy beach cell to a hint (dig sites)
 function beachNear(x, z) { let best = [x, z], bd = 1e9;
   for (let j = 0; j <= NZ; j += 2) for (let i = 0; i <= NX; i += 2) { const q = IDX(i, j), h = Hg[q]; if (h < 1.4 || h > 3.0 || SDg[q] > -6) continue;
@@ -922,7 +924,7 @@ export function buildInland(A, low, F) {
     for (const s of [-1, 1]) boulder(k, fx + s * 7, fz - 3, 3.2, 40 + s); }
   KPG = 'digs';
   // beach dig sites: buried chests (interactive, js/island/main.js); static dressing here
-  for (const [x0, z0, n] of [[-306, 150, 1], [-82, 456, 2], [340, -360, 3]]) { const [x, z] = beachNear(x0, z0), y = H(x, z); poi('dig' + n, 'Dig site ' + n, x, z);
+  for (const [x0, z0, n] of DIG_HINTS) { const [x, z] = beachNear(x0, z0), y = H(x, z); poi('dig' + n, 'Dig site ' + n, x, z);
     DIGS.push({ id: 'dig' + n, x, z, y }); INTERACT.push({ id: 'dig' + n, x, z, r: 3, label: 'E · DIG' });
     for (const r of [0.6, -0.6]) W(k, box(4.4, 0.08, 0.5), RED, 0, M(x + 3.5, y + 0.06, z + 2.5, r), false);
     W(k, cyl(0.06, 0.06, 1.8, 5), WOOD_D, 2, M(x - 2.6, y + 0.8, z - 1.6, 0, 0.3, 0.2), false); W(k, box(0.5, 0.6, 0.06), IRON, 0, M(x - 2.9, y + 0.15, z - 1.75, 0, 0.3, 0.2), false);
@@ -1091,9 +1093,11 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge'; const q = IDX(i, j);
     if (RVg[q] < 4.5 && h < RVl[q] + 0.8) return 'river'; return blocked(x, z, fx, fz) ? 'slope' : ''; }
   function nearInteract(x, z) { let best = null, bd = 1e9; for (const q of INTERACT) { const d = Math.hypot(q.x - x, q.z - z); if (d < q.r && d < bd && !(q.used)) { bd = d; best = q; } } return best; }
+  function rearm(id) { const d = digs.find(d => d.id === id); if (d) { d.t = -1; d.mound.scale.setScalar(1); d.mound.visible = true; d.cg.position.y = -1.6; d.lid.rotation.x = 0; }
+    const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { root, update, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { root, update, lighthouses: lhs, H, groundAt, blocked, whyBlocked, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

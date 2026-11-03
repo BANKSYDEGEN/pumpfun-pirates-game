@@ -14,6 +14,7 @@ import { createFootNet } from '../onfoot/net.js';
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
 import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
+import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 
 const CSS = `
@@ -66,11 +67,12 @@ export async function createDock(ctx) {
   function minimapState(st) {
     const W = walker.w, peers = [...(st.peers || [])];
     for (const p of fnet.peers.values()) peers.push({ x: p.x, z: p.z, foot: true });
-    return { ...st, peers, me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
+    return { ...st, peers, me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: treasure.target() || (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
   }
   const openIsleMap = () => { if (on && game.state === 'playing') imap.open(() => minimapState(mapSt)); };
   const radarEl = document.getElementById('radar');
   radarEl?.addEventListener('pointerdown', (e) => { if (!on || !radarEl.classList.contains('isle-tap')) return; e.preventDefault(); e.stopPropagation(); openIsleMap(); });
+  const treasure = createTreasure({ world, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor() });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
@@ -143,7 +145,7 @@ export async function createDock(ctx) {
       case 'tavern': toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break;
       case 'bounties': toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break;
       case 'stall': toast(`${q.id === 'stall_red' ? 'THE TAILOR' : 'CURIOS'} · COMING SOON<br><small>${q.id === 'stall_red' ? 'hats, clothes + eye patches' : 'parrots, hooks + treasure maps'} for gold</small>`, 2400); break; // [v102] gear: no model on the pirate yet
-      case 'dig': case 'cave': world.activate(q, t); break;
+      case 'dig': case 'cave': treasure.dig(q, t).then(h => { if (!h) toast(q.label); }); break; // [v122] server digs (the cave needs a legendary map)
       default: toast(q.label);
     }
   }
@@ -169,6 +171,7 @@ export async function createDock(ctx) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); } if (view) world.update(camera.position, game.t, game.storm || 0);
+    treasure.tick();
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
@@ -188,7 +191,7 @@ export async function createDock(ctx) {
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
       if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) best = { label: 'BOARD SHIP', fn: () => goAboard() };
-      if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used) continue; const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: q.label, fn: () => interact(q) }; } }
+      if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used) continue; const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: treasure.label(q) || q.label, fn: () => interact(q) }; } }
       setActs(best ? { ...best, key: 'E', primary: true } : null, null);
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
@@ -227,7 +230,7 @@ export async function createDock(ctx) {
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
     netState: () => (on ? fnet.netState(walker) : {}),
     onPeerState: (m) => { if (on) handlePeer(m); },
-    dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard,
+    dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure,
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,

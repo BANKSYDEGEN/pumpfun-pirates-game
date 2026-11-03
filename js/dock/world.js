@@ -72,7 +72,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   // foot.js interact points (Squad Hall, digs, treasure cave) in harbor coords
   const footInteract = FM.INTERACT.map(q => { const [x, z] = layout.footToHarbor(q.x, q.z); return { ...q, x, z, src: q, kind: q.id.startsWith('dig') ? 'dig' : q.id, label: q.label.replace(/^E · /, '') }; });
   const stats = { ms: Math.round(performance.now() - t0), footBuildMs: FM.BUILD_MS, foot: foot.stats };
-  return { root, foot, footGroup, atlas, ground, blocked, deckAt, update, footInteract, activate: (q, t) => foot.activate(q.src, t), stats, quay };
+  return { root, foot, footGroup, atlas, ground, blocked, deckAt, update, footInteract, activate: (q, t) => foot.activate(q.src, t), rearm: (q) => { foot.rearm?.(q.src.id); q.used = false; }, stats, quay };
 }
 
 // ship colliders -> props.js harbor zone sets (clustered, so each ship only scans the circles near it)

@@ -133,6 +133,19 @@ export async function shopState(profile) {
 }
 const reqId = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); return b64(a).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 // buy one catalog item ('skin:blood'). The SERVER checks the price, the goal, the gold and ownership. Returns { ok, price, gold, rev } or { ok:false, error }.
+// [v122] TREASURE MAPS (migration 026, server-side drops): maps_state scans for new maps (boss kills from the stored save, confirmed BR
+// kills) + lists your undug ones; map_dig claims one at its spot. Like a shop buy the server credits the server copy, the CALLER adds the
+// same gold to its save in the same tick (pvp.js), and a logged-in device sends mirror: true so the account save counts it once.
+export async function mapsState(profile) { if (!PVP_FN_URL) return null; await ownerReady; const s = session();
+  try { return await api('maps_state', { ...(s ? { token: s.token } : { dk: deviceKey() }), ...(!s && ownerAll && profile ? { profile: cleanProfile(profile) } : {}) }); }
+  catch (e) { console.warn('[maps] state', e.message); return null; } }
+export async function mapDig(map, spot, profile) {
+  if (!PVP_FN_URL) return { ok: false, error: 'offline' }; await ownerReady; const s = session(), ac = !s && !group && !ownerAll && acct();
+  if (ac) await acctSyncNow(profile, 4000); else if (!s && !group && !ownerAll) await devSyncNow(profile, 4000);
+  if (ac) acctHold(); // nothing in flight until the caller has added the dig gold to this save (its next save unholds)
+  try { const j = await api('map_dig', { ...(s ? { token: s.token } : { dk: deviceKey() }), map: String(map), spot: String(spot), mirror: true });
+    if (ac) acctBoughtFor(-(j.gold | 0)); return j; }
+  catch (e) { if (ac) acctUnhold(); return { ok: false, error: e.message, status: e.status }; } }
 export async function shopBuy(item, profile) {
   await ownerReady; const s = session(); const req = reqId(), ac = !s && !group && !ownerAll && acct();
   if (ac) await acctSyncNow(profile); else if (!s && !group && !ownerAll) await devSyncNow(profile);
