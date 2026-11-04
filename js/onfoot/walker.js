@@ -74,10 +74,12 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     const K = w.keys; let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), s = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
     let mag = Math.min(1, Math.hypot(f, s)), run = held('sprint', K);
     if (w.joy.on && Math.hypot(w.joy.x, w.joy.y) > 0.12) { f = -w.joy.y; s = w.joy.x; mag = Math.min(1, Math.hypot(f, s)); run = mag > 0.88; }
+    if (w.moveK) run = false; // [Timothy tps] aiming down the sights (js/onfoot/tps.js): no sprint
     let want = 0;
     if (mag > 0.01) {
       const n = Math.hypot(f, s), fx = Math.sin(w.camYaw), fz = Math.cos(w.camYaw), dx = (fx * f - fz * s) / n, dz = (fz * f + fx * s) / n;
       want = (w.body.swim ? PHYS.swim[run ? 1 : 0] : (run ? WALK.run : WALK.walk) * wadeFactor(w.body)) * (w.joy.on ? Math.max(0.35, mag) : 1); // [Raul] swim / wade slower
+      if (w.moveK) want *= w.moveK; // [Timothy tps] ADS: half speed
       if (climbing(w.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] shuffle forward during the 0.6 s pull-up out of the water
       const yawT = Math.atan2(dx, dz); let dy = yawT - w.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); w.yaw += dy * Math.min(1, dt * 12);
       w.speed += (want - w.speed) * Math.min(1, dt * 10);
@@ -85,6 +87,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
       // the camera drifts behind you while you walk (not while you are dragging / just dragged it)
       if (!w.drags.size && performance.now() - w.look > 1200) { let c = w.yaw - w.camYaw; c = Math.atan2(Math.sin(c), Math.cos(c)); w.camYaw += c * Math.min(1, dt * 1.4 * mag); }
     } else w.speed += (0 - w.speed) * Math.min(1, dt * 12);
+    if (w.faceYaw !== undefined && w.faceYaw !== null) w.yaw = w.faceYaw; // [Timothy tps] aiming / just fired: face the crosshair
     // [Raul] vertical: exact ground on slopes (no smoothing lag), eased steps, gravity off ledges + jumps, swim at the surface
     if (w.jumpQ) { w.jumpQ = false; jump(); }
     const B = w.body; stepBody(B, world, w.x, w.z, dt, w.speed); w.y = B.y; w.air = B.air; w.vy = B.vy; w.swim = B.swim; w.wade = B.wade; w.jh = 0;
@@ -92,6 +95,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     fx ||= waterFX(pirate.object.parent, low); bodyFX(fx, B, w.x, w.z, w.speed, dt); if (fx) fx.update();
     place(); pirate.update(dt, w.speed, w.pose);
     fovPush(dt, Math.min(1, Math.max(0, (w.speed - WALK.walk) / (WALK.run - WALK.walk)))); w.running = w.speed > WALK.walk + 0.5;
+    if (w.camHook) { w.camHook(dt); return; } // [Timothy tps] the musket's over-the-shoulder camera (js/onfoot/tps.js)
     camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 10)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt);
   }
   return { w, world, enter, exit, update, onKey, snapCam, jump: () => { w.jumpQ = true; }, get active() { return w.active; } };

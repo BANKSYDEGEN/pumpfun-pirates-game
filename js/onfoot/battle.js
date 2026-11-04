@@ -30,6 +30,7 @@ import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
+import { createTps, TPS_ON } from './tps.js'; // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 
 export const ARENA = {
   hp: 100, sword: { dmg: 34, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 },
@@ -155,6 +156,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const dummies = BA.DUMMIES.map(d => { const [x, z] = H(d.lx, d.lz), g = new THREE.Group(); g.position.set(x, BA.PIT.y + 0.9, z); g.rotation.y = yawW(d.ly); root.add(g); const m = withOutline(dummyGeo); g.add(m); return { x, z, g, m, w: 0, wv: 0 }; });
   // cover (blocks musket balls) in harbor coords
   const cover = BA.COVER.map(([lx, lz, k]) => { const [x, z] = H(lx, lz); return { x, z, r: k === 'hay' ? 1.25 : 0.85 }; });
+  // [Timothy tps] the third-person musket camera / crosshair / sights (js/onfoot/tps.js): what the crosshair ray can land on
+  const rangeMen = () => [...fnet.peers].filter(([id]) => { const r = peerR.get(id); return r && r.ba[0] === Z_RANGE && !r.ba[6]; }).map(([, p]) => p);
+  const tps = TPS_ON ? createTps({ walker, camera, canvas, touch, world, sfx, attack: () => attack(),
+    aimables: () => { const sp = [], cy = []; for (const t of targets) if (t.flip <= 0.2) sp.push([t.cx, t.cy, t.cz, 0.75, 'target']);
+      for (const p of rangeMen()) { const g = world.ground(p.x, p.z); cy.push([p.x, p.z, 0.5, g - 0.2, g + 1.95, 'pirate']); }
+      for (const c of cover) { const g = world.ground(c.x, c.z); cy.push([c.x, c.z, c.r, g - 0.5, g + 1.4, 'cover']); } return { spheres: sp, cyls: cy }; },
+    pointers: () => [...targets.filter(t => t.flip <= 0.2).map(t => [t.cx, t.cy, t.cz]), ...rangeMen().map(p => [p.x, world.ground(p.x, p.z) + 1.2, p.z])] }) : null;
 
   // ---------- small FX pool: muzzle flash, smoke, sparks, tracers ----------
   const fxs = [], dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t; })();
@@ -272,7 +280,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     atk.textContent = z === Z_PIT ? 'SWING' : reload ? '…' : 'FIRE'; atk.disabled = me.down > 0 || reload; }
   // desktop: R (unbound everywhere; F = fullscreen) or a left click (not a drag) attacks while you are in an area
   addEventListener('keydown', (e) => { if (!me.zone || (e.code !== 'KeyR' && e.code !== 'KeyG') || e.repeat || e.target?.tagName === 'INPUT' || !walker.active) return; if (e.code === 'KeyG') setTeam(); else attack(); e.stopImmediatePropagation(); e.preventDefault(); }, true);
-  let pd = null; canvas?.addEventListener('pointerdown', (e) => { if (me.zone && e.button === 0 && e.pointerType === 'mouse') pd = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  let pd = null; canvas?.addEventListener('pointerdown', (e) => { if (me.zone && !tps?.on && e.button === 0 && e.pointerType === 'mouse') pd = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   addEventListener('pointerup', (e) => { if (!pd || e.pointerType !== 'mouse') return; const d = pd; pd = null; if (me.zone && walker.active && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6 && performance.now() - d.t < 300) attack(); });
 
   // ---------- attacking ----------
@@ -297,20 +305,25 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function spark(x, y, z) { const p = new THREE.Vector3(x, y, z); for (let i = 0; i < 6; i++) puff(p, 0xfff1b0, 0.25, 0.25, new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 4, (Math.random() - 0.5) * 5), true); puff(p, 0xffffff, 0.8, 0.12, new THREE.Vector3(), true); }
   // a musket ball (yours or a peer's replay): first thing along the line = a pirate (yours only), a target board, cover, or 60 m
   function shoot(R, x, z, yaw, mine) {
+    let aim = null; if (mine && tps?.on) { const s = tps.shotYaw(x, z); yaw = s.yaw; aim = s.aim; walker.w.yaw = yaw; } // [Timothy tps] the line through the crosshair's aim point
     const S = ARENA.musket, f = fwd(yaw, new THREE.Vector3()), mz = muzzleWorld(R, new THREE.Vector3()); if (!mz.lengthSq()) mz.set(x, world.ground(x, z) + 1.3, z);
     let best = S.range, hit = null;
+    // [Timothy tps] with the crosshair the ball also has a height: muzzle -> aim point (null = the old flat line, peers' replays, &tps=0)
+    const aimD = aim ? Math.max(0.1, Math.hypot(aim[0] - x, aim[2] - z)) : 0, slope = aim ? (aim[1] - mz.y) / aimD : null, vOk = (a, y0, y1) => slope === null || (mz.y + slope * a >= y0 && mz.y + slope * a <= y1);
     const along = (px, pz, r) => { const dx = px - x, dz = pz - z, a = dx * f.x + dz * f.z; if (a < 0.3 || a > best) return -1; const side = Math.abs(dx * f.z - dz * f.x); return side <= r ? a : -1; };
-    for (const c of cover) { const a = along(c.x, c.z, c.r); if (a > 0) { best = a; hit = { kind: 'cover' }; } }
-    for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
-    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!r || r.ba[0] !== Z_RANGE || r.ba[6] || r.guard > 0 || mate(r)) continue; const a = along(p.x, p.z, S.wide); if (a > 0) { best = a; hit = { kind: 'pirate', id, p, r }; } }
+    for (const c of cover) { const a = along(c.x, c.z, c.r); if (a > 0 && vOk(a, -1e9, world.ground(c.x, c.z) + 1.4)) { best = a; hit = { kind: 'cover' }; } }
+    for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0 && vOk(a, t.cy - 0.85, t.cy + 0.85)) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
+    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!r || r.ba[0] !== Z_RANGE || r.ba[6] || r.guard > 0 || mate(r)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
+    if (aim && slope < 0 && !hit) { const g = mz.y + slope * best; if (g < world.ground(x + f.x * best, z + f.z * best)) best = Math.min(best, aimD); } // [Timothy tps] aimed at the ground: the ball lands there
     { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
-    const end = new THREE.Vector3(x + f.x * best, mz.y - 0.05, z + f.z * best);
+    const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
     tracer(mz, end); puff(mz.clone().addScaledVector(f, 0.1), 0xffd27a, 0.9, 0.09, new THREE.Vector3(), true);
     for (let i = 0; i < 4; i++) puff(mz.clone().addScaledVector(f, 0.3 + i * 0.25), 0xe8e2d4, 0.55 + i * 0.12, 1.2, new THREE.Vector3(f.x * 0.8, 0.5, f.z * 0.8));
     sfx?.cannon?.(Math.min(0.35, vol(mz) * 0.35)); R.st.recoil = 1;
     if (hit?.kind === 'target') { hit.t.flip = 1.4; hit.t.t = 2.2; if (mine) say(hit.off < 0.18 ? 'BULLSEYE!' : hit.off < 0.42 ? 'NICE SHOT' : 'HIT', 900); spark(end.x, end.y, end.z); }
     else if (hit?.kind === 'pirate') { addDmg(hit.id, hit.r.ba[2], S.dmg); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - S.dmg); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); }
     else puff(end, 0xb89a6a, 0.7, 0.6);
+    if (mine) tps?.onShot(hit); // [Timothy tps] hit marker + sound, recoil kick, bloom
   }
 
   // ---------- getting hit (peers' bh) / KO / respawn ----------
@@ -363,12 +376,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (me.down > 0) { me.down -= dt; if (me.downAt) { W.x = me.downAt[0]; W.z = me.downAt[1]; W.speed = 0; pirate.object.position.x = W.x; pirate.object.position.z = W.z; } if (me.down <= 0) respawn(); }
     me.guard = Math.max(0, me.guard - dt); me.cool = Math.max(0, me.cool - dt);
     const z = me.down > 0 ? me.zone : zoneAt(W.x, W.z);
-    if (z !== me.zone) { if (z) { readSword(); me.lastZone = z; if (!me.zone) say(z === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } else leave(); me.zone = z; me.cool = 0; mineR.st.act = null; }
+    if (z !== me.zone) { if (z) { readSword(); me.lastZone = z; if (!me.zone) say(z === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (tps ? (touch ? 'drag the right side to aim · hold AIM for sights · tap FIRE' : 'click where you want to shoot · hold RIGHT to zoom') : touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } else leave(); me.zone = z; me.cool = 0; mineR.st.act = null; }
     // my rig
     const st = mineR.st; st.zone = me.zone; st.w += ((me.zone ? 1 : 0) - st.w) * Math.min(1, dt * 8); st.recoil = Math.max(0, st.recoil - dt * 5);
     if (st.act) { const a = st.act; a.t += dt; if (!a.hit && a.t >= ARENA.sword.hitAt) { a.hit = true; swordHit(); } if (a.t >= ARENA.sword.dur) st.act = null; }
     if (me.fireAt >= 0) { me.fireAt -= dt; if (me.fireAt < 0) shoot(mineR, W.x, W.z, W.yaw, true); }
-    if (me.zone === Z_RANGE && !st.act) { let dy = W.camYaw - W.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); if (W.speed < 0.3) W.yaw += dy * Math.min(1, dt * 6); }   // standing at the range you face where you aim
+    tps?.tick(dt, me.zone === Z_RANGE); // [Timothy tps] over-the-shoulder camera while you hold a musket
+    if (me.zone === Z_RANGE && !st.act && !tps?.on) { let dy = W.camYaw - W.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); if (W.speed < 0.3) W.yaw += dy * Math.min(1, dt * 6); }   // standing at the range you face where you aim
     dress(mineR, me.zone, swordId, musketId, me.team); knock(mineR, me.down > 0 ? Math.min(1, (ARENA.downS - me.down) * 4) : 0);
     if (me.guard > 0 && mineR.fig) mineR.fig.visible = Math.floor(t * 12) % 2 === 0; else if (mineR.fig) mineR.fig.visible = true;
     // peers
@@ -379,7 +393,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       dress(r, s.zone, r.swordId || SWORD_DEFAULT, r.musketId || MUSKET_DEFAULT, r.team || 0); knock(r, r.ba[6] ? 1 : 0); hpBar(r); }
     drawHud();
   }
-  function leave() { me.zone = 0; me.hp = ARENA.hp; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) mineR.fig.visible = true; } drawHud(); }
+  function leave() { tps?.off(); me.zone = 0; me.hp = ARENA.hp; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) mineR.fig.visible = true; } drawHud(); }
   function netState() {
     if (!me.zone) return { ba: 0 };
     const out = { ba: [me.zone, Math.round(me.hp), me.life, me.seq, me.kind, Math.max(0, SWORD_IDS.indexOf(swordId)), me.down > 0 ? 1 : 0, Math.max(0, MUSKET_IDS.indexOf(musketId)), me.team] };
@@ -400,5 +414,5 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // shop card renders (tools/battle/weapon_thumbs.html): pose any loaded v5 pirate with a weapon, outside the game loop
   function preview(obj, zone, id, act = null) { const R = { ...rig(obj), obj }; if (!hookBody(R)) return null; R.st.zone = zone; R.st.w = 1; R.st.act = act;
     dress(R, zone, zone === Z_PIT ? id : SWORD_DEFAULT, zone === Z_RANGE ? id : MUSKET_DEFAULT); return R; }
-  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview };
+  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps };
 }

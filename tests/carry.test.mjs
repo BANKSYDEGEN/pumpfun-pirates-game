@@ -34,5 +34,5 @@ test('carry: wired into gear + wire + battle, crews never carry, phones light', 
   assert.match(w, /isSkinnedMesh && !\/\^pet\/\.test\(o\.name\)/);   // the musket's lift is measured over every worn mesh (coats, capes)
   assert.match(b, /carryArmed\(R\.fig, zone === Z_PIT, zone === Z_RANGE\)/);
   assert.match(c, /export const CREW_EXTRA_SLOTS = \[\]/); assert.doesNotMatch(c, /carry/);
-  assert.match(src('sw.js'), /const VERSION = 'pfp-v202'/);
+  { const v = +(src('sw.js').match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 202, 'sw at or past v202 (carried weapons): ' + v); }
 });
