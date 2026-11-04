@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v173'; // [v173] phone performance: cached art carried across versions, phones precache only the light art (~32 -> 8 MB), softer adaptive resolution (never below 1.0), WebGL context-loss recovery, 512 px gear recolours on phones
+const VERSION = 'pfp-v174'; // [v174] phones: half-size island atlas + smaller plaza sign canvas (~17 MB less texture memory), island art lost in the fog is not drawn (~25 % fewer draw calls)
 const SHELL = [
   "./",
   "./index.html",

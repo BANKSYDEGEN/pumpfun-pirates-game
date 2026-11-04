@@ -6,6 +6,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { rng } from '../toon.js';
 import { Kit, M } from './kit.js';
 import { ISLAND_TOKENS } from '../config.js';
+const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 
 // ---------- layout (world units, 1:1 with the game: a ship is 17-20.4 long, a pirate 1.8 tall) ----------
 // Island-local frame: +z faces the HARBOR centre. The v2 toy island, round, scaled up (grass radius ~65, waterline ~73,
@@ -461,7 +462,9 @@ export function buildChest(low, A) {
 // ---------- atlas: signs, posters, flags (one canvas texture) ----------
 export function makeAtlas(skull) {
   let atlasTex = null; // [v108] token logos load async and re-upload the atlas
-  const S = 1024, SH = 2976, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */ c.width = S; c.height = SH; const g = c.getContext('2d');
+  const S = 1024, SH = 2976, c = document.createElement('canvas'); /* [v103] +512 rows: plaza shop signs + token billboards */
+  // [mobile-perf-2] phones: the atlas canvas is half size (16 -> 4 MB of GPU memory); everything still draws in the 1024 x 2976 layout through a scale
+  const AK = PHONE_TEX ? 0.5 : 1; c.width = S * AK; c.height = SH * AK; const g = c.getContext('2d'); g.setTransform(AK, 0, 0, AK, 0, 0);
   const R = {}, reg = (k, x, y, w, h) => { R[k] = { u0: x / S, u1: (x + w) / S, v0: 1 - (y + h) / SH, v1: 1 - y / SH }; };
   const font = (px) => `${px}px "Just Another Hand", cursive`;
   const board = (x, y, w, h, bg) => { g.fillStyle = bg; g.fillRect(x, y, w, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3; for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(x, y + h * i / 4 + (i % 2) * 3); g.lineTo(x + w, y + h * i / 4); g.stroke(); } g.lineWidth = 10; g.strokeStyle = '#161616'; g.strokeRect(x + 5, y + 5, w - 10, h - 10); };

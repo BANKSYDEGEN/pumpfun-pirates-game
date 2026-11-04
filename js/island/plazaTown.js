@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { ON_PORTAL } from '../config.js';
 import { SHOPS_KIT, SHOP_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
+const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 export { hillLot, hillClear } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 
@@ -290,7 +291,7 @@ export function buildBerthPreview() {
 
 // the sign mesh
 export function buildPlazaSigns(signs) {
-  const L = signList(), CW = 512, RH = 128, cv = document.createElement('canvas'); cv.width = CW; cv.height = RH * L.length; const g = cv.getContext('2d'), R = {};
+  const L = signList(), CW = 512, RH = 128, cv = document.createElement('canvas'), SK = PHONE_TEX ? 0.625 : 1; cv.width = CW * SK; cv.height = RH * L.length * SK; const g = cv.getContext('2d'), R = {}; g.setTransform(SK, 0, 0, SK, 0, 0); // [mobile-perf-2] phones: 8.4 -> 3.3 MB, same layout
   const skull = new Image(); skull.src = 'assets/skull_transparent.png';
   const paint = () => L.forEach((s, i) => { const y = i * RH; g.fillStyle = s.bg; g.fillRect(0, y, CW, RH); g.strokeStyle = s.col; g.lineWidth = 8; g.strokeRect(6, y + 6, CW - 12, RH - 12);
     const sk = s.skull && skull.complete && skull.naturalWidth, x0 = sk ? 60 : 0; if (sk) g.drawImage(skull, 18, y + 18, 92, 92);

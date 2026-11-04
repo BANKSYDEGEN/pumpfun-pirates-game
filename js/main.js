@@ -1206,6 +1206,21 @@ function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8
 // [mobile] adaptive resolution: on phones / low quality, if a busy scene averages under ~40 fps for 2 s of
 // play, step the render pixel ratio down (1.25 -> 1.12 -> 1.0). Down only, so it never oscillates.
 const ADAPT = { on: isMobile || quality === 'low', steps: [1.12, 1], t0: 0, n: 0, slow: 0 }; // [mobile-perf] BANKSY "graphics get downgraded really bad": softer steps (1.25 -> 1.12 -> 1.0, never the blurry 0.85) and only after TWO slow windows in a row (a loading hitch no longer costs resolution for good)
+// [mobile-perf-2] phones: island pieces lost in the fog are not drawn. FogExp2 is >99.5 % fog colour past 2.3 / density (~550 m), so a
+// static island mesh whose whole bounding sphere sits beyond that is invisible anyway: skip it (draw calls + triangles), no visual change.
+// Only the static island art (terrain chunks, trees / palms / rocks / nature, docks, shops, hill street, coast kit), never a LOD's own
+// levels, never anything another system hid (we only re-show what WE hid). Re-checked ~4x a second; candidates re-collected every 3 s.
+const FC = { list: [], t: 0, n: 0, re: /^(chunk_|foot_(trees|palms|rocks|nature|townkit)|dock_|shop_|hill_|plaza_|battery_|island_(toon|outline|glow))/, _s: new THREE.Sphere() };
+function fogCull() {
+  const now = performance.now(); if (now - FC.t < 250) return; FC.t = now;
+  if (now - (FC.c || 0) > 3000) { FC.c = now; const L = []; scene.traverse((o) => { if (o.isMesh && FC.re.test(o.name || '') && !o.parent?.isLOD && o.geometry) L.push(o); });
+    for (const o of FC.list) if (o.userData.fogHid && !L.includes(o)) { o.visible = true; o.userData.fogHid = false; } FC.list = L; }
+  const d = scene.fog?.density; if (!d) { for (const o of FC.list) if (o.userData.fogHid) { o.visible = true; o.userData.fogHid = false; } return; }
+  const far = 2.3 / d, cp = camera.position;
+  for (const o of FC.list) { if (!o.visible && !o.userData.fogHid) continue; const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere();
+    FC._s.copy(g.boundingSphere).applyMatrix4(o.matrixWorld); const out = FC._s.center.distanceTo(cp) - FC._s.radius > far;
+    if (out && o.visible) { o.visible = false; o.userData.fogHid = true; } else if (!out && o.userData.fogHid) { o.visible = true; o.userData.fogHid = false; } }
+}
 function adaptResolution() {
   if (!ADAPT.on || game.state !== 'playing' || document.hidden) { ADAPT.t0 = 0; return; }
   const now = performance.now();
@@ -1340,6 +1355,7 @@ function frame() {
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin
   tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
+  if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
