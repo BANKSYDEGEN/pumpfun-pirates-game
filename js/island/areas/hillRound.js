@@ -26,12 +26,18 @@ import { libMaterial } from '../libTex.js';
 // LOD1: one mesh, one draw call, library stone): OFF by default for the layout pass, &rbglb=1 = try it; a failed load = the kit fountain (same heights, same collider).
 const RBGLB_ON = typeof location !== 'undefined' && (/[?&]rbblend=0(&|$)/.test(location.search) ? /[?&]rbglb=1(&|$)/.test(location.search) : !/[?&]rbglb=0(&|$)/.test(location.search));   // [rb-blender] ON with the Blender pass (&rbglb=0 = the kit fountain)   // BANKSY 1:14 PM: three.js kit layout first, Blender pass after he approves it
 let RBG = null;
+// [plaza-fix] BANKSY 5:19 PM "Fountain plaza is broken / the ground was missing": both GLBs are meshopt + KHR_mesh_quantization, so the
+// positions are int16 in -1..1 and the NODE carries the real size (rb_plaza: scale 76.6 + an offset, rb_fountain: scale 4.73, y +3.1).
+// Taking only mesh.geometry dropped that: the plaza shrank to a ~2 m lump inside the fountain and the fountain to a small white post in
+// the kit water. keepNode keeps the node's translation / rotation / scale on an inner mesh (never baked into the int16 attributes).
+function keepNode(src, mat, name) { const g = new THREE.Group(), m = new THREE.Mesh(src.geometry, mat); let r = src; while (r.parent) r = r.parent; r.updateMatrixWorld(true); src.matrixWorld.decompose(m.position, m.quaternion, m.scale); // the GLB scene's own frame (root = identity)
+  m.name = name + '_mesh'; g.name = name; g.add(m); return g; }
 function rbFountainGLB(low) {
   if (!RBGLB_ON || typeof window === 'undefined') return Promise.resolve(null);
   if (!RBG) { const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); solid.name = 'rb_solid';
     RBG = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/rb_fountain${low ? '_low' : ''}.glb`).then(gl => {
       const want = low ? 'rb_fountain_LOD1' : 'rb_fountain_LOD0'; let mesh = null; gl.scene.traverse(o => { if (o.isMesh && (o.name === want || o.parent?.name === want)) mesh = o; });
-      if (!mesh) return null; const m = new THREE.Mesh(mesh.geometry, solid); m.name = 'rb_fountain_glb'; m.castShadow = !low; m.receiveShadow = !low;
+      if (!mesh) return null; const m = keepNode(mesh, solid, 'rb_fountain_glb'); m.children[0].castShadow = !low; m.children[0].receiveShadow = !low;
       RB_STATS.fountainTris = mesh.geometry.index ? mesh.geometry.index.count / 3 : mesh.geometry.attributes.position.count / 3; return m; })
       .catch(e => { console.warn('[hill_round] Blender fountain failed, the kit fountain stays', e); return null; }); }
   return RBG.then(m => m && m.clone());
@@ -64,7 +70,7 @@ function rbPlazaGLB(low, lay) {
     RBP = fetch('assets/island/rb_plaza_layout.json').then(r => r.json()).then(ref => { if (!layoutMatch(ref.pieces, lay)) { console.warn('[hill_round] rb_plaza layout differs from this build: the kit stone stays'); RB_STATS.plazaMismatch = true; return null; }
       return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/rb_plaza${low ? '_low' : ''}.glb`).then(gl => {
         const want = low ? 'rb_plaza_LOD1' : 'rb_plaza_LOD0'; let mesh = null; gl.scene.traverse(o => { if (o.isMesh && (o.name === want || o.parent?.name === want)) mesh = o; });
-        if (!mesh) return null; const m = new THREE.Mesh(mesh.geometry, solid); m.name = 'rb_plaza_glb'; m.position.set(...RB_ORIGIN); m.castShadow = !low; m.receiveShadow = true;
+        if (!mesh) return null; const m = keepNode(mesh, solid, 'rb_plaza_glb'); m.position.set(...RB_ORIGIN); m.children[0].castShadow = !low; m.children[0].receiveShadow = true;
         RB_STATS.plazaTris = mesh.geometry.index ? mesh.geometry.index.count / 3 : mesh.geometry.attributes.position.count / 3; return m; }); })
       .catch(e => { console.warn('[hill_round] Blender plaza failed, the kit stone stays', e); return null; }); }
   return RBP;
