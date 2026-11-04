@@ -19,7 +19,7 @@ export const SKIN_ITEMS = [
   { id: 'coral',     name: 'CORAL REEF',      price: 18000 },
   { id: 'storm',     name: 'STORM RIDER',     price: 25000 },
   { id: 'kraken',    name: 'KRAKEN INK',      price: 40000 },
-  { id: 'commodore', name: 'COMMODORE',       price: 50000, goal: { all: [{ stat: 'bossKills', need: 100, label: 'Harbor boss kills' }] } },
+  { id: 'commodore', name: 'COMMODORE',       price: 50000, goal: { all: [{ stat: 'bossKills', need: 100, label: 'Commodore kills' }] } },
   // [prestige] BANKSY: GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (were the 1,000 / 5,000 kill tiers), GIVEN FREE on reaching
   // that prestige (grant: 'prestige', price 0; the server adds them to pvp_owned). GHOST SHIP 100 kills, FIRE 200 kills (no K/D).
   // Mirror: supabase/functions/pvp/lib.ts SHOP_ITEMS.
@@ -69,7 +69,7 @@ export const GEAR_ITEMS = [
   { slot: 'parrot', id: 'parrot_blue', label: 'BLUE MACAW', price: 8000, glb: 'gear', tint: { body: '#1e74e8' } },
   { slot: 'parrot', id: 'parrot_cockatoo', label: 'COCKATOO', price: 12000, glb: 'gear', tint: { body: '#f6f4ee' } },
   { slot: 'parrot', id: 'parrot_black', label: 'BLACK PARROT', price: 20000, glb: 'gear', tint: { body: '#1a1a1e' }, goal: { all: [{ stat: 'kills', need: 1000, label: 'BR kills (Solo + Squads)' }] } },
-  { slot: 'parrot', id: 'parrot_gold', label: 'GOLDEN PARROT', price: 50000, glb: 'gear', tint: { body: '#ffcd77' }, goal: { all: [{ stat: 'bossKills', need: 50, label: 'harbor boss kills' }] } },
+  { slot: 'parrot', id: 'parrot_gold', label: 'GOLDEN PARROT', price: 50000, glb: 'gear', tint: { body: '#ffcd77' }, goal: { all: [{ stat: 'bossKills', need: 50, label: 'Commodore kills' }] } },
   { slot: 'parrot', id: 'parrot_diamond', label: 'DIAMOND PARROT', price: 100000, glb: 'gear', tint: { body: '#bfe8ff' }, goal: { all: [{ stat: 'kills', need: 5000, label: 'BR kills (Solo + Squads)' }] } },
   { slot: 'hook', id: 'none', label: 'NO HOOK', price: 0, glb: null, tint: null, free: true },
   { slot: 'hook', id: 'hook_iron', label: 'IRON HOOK', price: 500, glb: 'raul:hook_l|hook_r', tint: { metal: '#9aa3ad' }, side: 'hookSide' },   // [Raul] model, LEFT / RIGHT = free pick (hookSide)
@@ -143,7 +143,7 @@ export const SWORD_SLOT = 'sword', SWORD_FREE = 'rusty'; export const MUSKET_FRE
 // ONE PRICE TABLE for the WEAPON STORE (BANKSY, Nov 3: swords + muskets approved). Change a price / goal here AND in lib.ts SHOP_ITEMS.
 // [slot, id, label, price, goal]; the first of each slot is the free default. Rows are cheapest first (free at the top); the window keeps
 // this order and adds no hand-ordering of its own, so a central price sort (BANKSY: every shop cheapest first) gives the same result. Ids are APPEND-ONLY (js/onfoot/swords.js SWORD_IDS / MUSKET_IDS).
-const BOSS25 = { all: [{ stat: 'bossKills', need: 25, label: 'Harbor boss kills' }] }, PVP2K = { all: [{ stat: 'kills', need: 2000, label: 'PvP kills (Solo + Squads)', modes: true }] };
+const BOSS25 = { all: [{ stat: 'bossKills', need: 25, label: 'Commodore kills' }] }, PVP2K = { all: [{ stat: 'kills', need: 2000, label: 'PvP kills (Solo + Squads)', modes: true }] };
 export const WEAPON_PRICES = [
   ['sword', 'rusty', 'RUSTY CUTLASS', 0], ['sword', 'cutlass', 'CUTLASS', 1500], ['sword', 'rapier', 'RAPIER', 4000], ['sword', 'bone', 'BONE SKULL BLADE', 12000],
   ['sword', 'sabre_gilded', "GILDED CAPTAIN'S SABRE", 25000, BOSS25], ['sword', 'blade_gold', 'LEGENDARY GOLD BLADE', 75000, PVP2K],

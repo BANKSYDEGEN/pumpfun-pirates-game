@@ -21,7 +21,7 @@ const WHY = {
   'wrong spot': 'NOTHING HERE<br><small>this map points somewhere else · tap MAPS</small>',
   'already dug': 'ALREADY DUG UP', 'not your map': 'THAT MAP IS GONE',
 };
-const SRC = { boss: 'from a boss', kill: 'from a battle kill', streak: 'from a 3-kill streak' };
+const SRC = { boss: 'from the Commodore', kill: 'from a battle kill', streak: 'from a 3-kill streak' };
 const spotName = (s) => s === 'cave' ? 'TREASURE CAVE' : 'DIG SITE ' + String(s).replace(/\D/g, '');
 const CSS = `
 /* [v135] BANKSY "Fix the location of maps": the MAPS button sits IN the top-right HUD column, under the radar + harbor line (holder 2x badge), so it can never overlap them */
@@ -57,7 +57,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
       return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
     const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>`).join(' ')}` : '';
-    const hint = !sel ? 'NO MAPS YET · sink bosses + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
+    const hint = !sel ? 'NO MAPS YET · sink the COMMODORE + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
     const one = maps.length === 1 ? `<span style="color:${(TIER[sel.tier] || TIER.common)[1]}">${(TIER[sel.tier] || TIER.common)[0]}</span> · ${spotName(sel.spot)} · ` : '';
     tmap.setUi(chips, one + hint);
   }
@@ -94,7 +94,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     const pv = pvp(); if (!pv?.maps) { if (q.kind === 'dig') world.activate(q, t); return true; }
     const m = mapFor(q.id);
     if (!m) { if (q.id === 'cave') return false;
-      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · tap MAPS</small>' : 'NO TREASURE MAP<br><small>maps drop from boss kills + battle kills</small>', 2400); return true; }
+      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · tap MAPS</small>' : 'NO TREASURE MAP<br><small>maps drop from Commodore kills + battle kills</small>', 2400); return true; }
     if (busy) return true; busy = true; toast('DIGGING…', 1400);
     try { const r = await pv.maps.dig(m.id, q.id);
       if (r && r.ok) {

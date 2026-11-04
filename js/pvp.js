@@ -385,9 +385,9 @@ export function createPvp(K) {
     const [x, z] = pickSpawn().pt, e = K.spawnEnemy(x, z, 2, 'boss'), id = `b${++botSeq}${myId.slice(-4)}`;
     e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true; e.noFlee = true; e.dmgBy = new Map();
     e.pilot = hunterPilot(e); // [v99] hunter hook (always null: the AI sails it)
-    e.bar.querySelector('.name').textContent = '☠ HARBOR BOSS'; e.bar.classList.add('t-boss', 'harbor-boss');
+    e.bar.querySelector('.name').textContent = '☠ THE COMMODORE'; e.bar.classList.add('t-boss', 'harbor-boss');
     scaleAi(e); bots.set(id, e); boss.e = e;
-    K.banner('☠ HARBOR BOSS!', room ? `a boss ship sails in · ${e.gold}g, shared by damage` : `a boss ship sails in · sink it for ${e.gold}g`); K.sfx?.boss?.();
+    K.banner('☠ THE COMMODORE!', room ? `the Commodore sails in · ${e.gold}g, shared by damage` : `the Commodore sails in · sink him for ${e.gold}g`); K.sfx?.boss?.();
     return e;
   }
   function bossTick(dt) {
@@ -397,7 +397,7 @@ export function createPvp(K) {
   }
   function bossBar() {
     let b = boss.bar; const show = bossAlive() && (where === 'harbor' || (spec.on && spec.harbor));
-    if (show && !b) { b = boss.bar = document.createElement('div'); b.id = 'pvp-boss-bar'; b.innerHTML = '<span>☠ HARBOR BOSS</span><i><b></b></i>'; document.body.appendChild(b); }
+    if (show && !b) { b = boss.bar = document.createElement('div'); b.id = 'pvp-boss-bar'; b.innerHTML = '<span>☠ THE COMMODORE</span><i><b></b></i>'; document.body.appendChild(b); }
     if (b) { b.hidden = !show; if (show) b.querySelector('b').style.width = `${Math.max(0, boss.e.hp / boss.e.maxHp) * 100}%`; }
   }
   function aiTick(dt) {
@@ -508,8 +508,8 @@ export function createPvp(K) {
   function makeProxy(id, isBoss, x, z, k, guns) {
     const e = K.spawnEnemy(x, z, isBoss ? 2 : 1, isBoss ? 'boss' : null);
     e.x = x; e.z = z; e.net = { id, kind: 'bot' }; e.remote = true; e.aiK = k;
-    if (isBoss) { e.harborBoss = true; e.noFlee = true; e.bar.querySelector('.name').textContent = '☠ HARBOR BOSS'; e.bar.classList.add('t-boss', 'harbor-boss'); if (guns) { e.cannons = guns; K.refitGuns?.(e); } boss.e = e;
-      if (!spec.on || spec.harbor) { K.banner('☠ HARBOR BOSS!', 'a boss ship sails in · sink it together, the gold is shared by damage'); K.sfx?.boss?.(); } }
+    if (isBoss) { e.harborBoss = true; e.noFlee = true; e.bar.querySelector('.name').textContent = '☠ THE COMMODORE'; e.bar.classList.add('t-boss', 'harbor-boss'); if (guns) { e.cannons = guns; K.refitGuns?.(e); } boss.e = e;
+      if (!spec.on || spec.harbor) { K.banner('☠ THE COMMODORE!', 'the Commodore sails in · sink him together, the gold is shared by damage'); K.sfx?.boss?.(); } }
     else e.bar.querySelector('.name').textContent = '';
     scaleMesh(e, k); bots.set(id, e); return e;
   }
@@ -572,7 +572,7 @@ export function createPvp(K) {
     const g = mine ? clamp(Math.floor(+mine[1] || 0), 0, capG) : 0;
     const mapDrop = isBoss && m.k === myId && !spec.on; // [v145] your boss kill = your treasure map: your share floats in the crimson map chest
     if (g > 0 && !spec.on && !m.sp) spawnPile(m.b, x, z, g, true, g, mapDrop); // (a v104 host: your damage share, only you see it)
-    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', m.sp ? `${clamp(m.g | 0, 0, capG * 2)}g of treasure in the water · first to grab it gets it` : g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
+    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', m.sp ? `${clamp(m.g | 0, 0, capG * 2)}g of treasure in the water · first to grab it gets it` : g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
     if (m.k === myId && !spec.on) countBotKill(isBoss);
   }
   function wire(r) {
@@ -873,7 +873,7 @@ export function createPvp(K) {
     const byAi = !!by && (bots.has(by) || String(by).startsWith('b'));
     if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
       const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
-      me.dead = true; me.respawn = where === 'harbor' ? PVP_HARBOR_RESPAWN : PVP_RESPAWN; me.respawnAt = where === 'harbor' ? performance.now() + PVP_HARBOR_RESPAWN * 1000 : 0; me.killedBy = bots.get(by)?.harborBoss ? 'the HARBOR BOSS' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
+      me.dead = true; me.respawn = where === 'harbor' ? PVP_HARBOR_RESPAWN : PVP_RESPAWN; me.respawnAt = where === 'harbor' ? performance.now() + PVP_HARBOR_RESPAWN * 1000 : 0; me.killedBy = bots.get(by)?.harborBoss ? 'the COMMODORE' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
       if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); }
       showDead(true); return;
     }
@@ -900,7 +900,7 @@ export function createPvp(K) {
     if (room && where === 'harbor' && isHost && !e.fade) { hostBotSunk(e, src); return; } // [v99] shared copy: kill + gold shares for everyone
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true, e.gold || PVP_AI_GOLD, !!e.harborBoss && by === myId); // [v145] your boss kill: the crimson map chest
-    if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('HARBOR BOSS SUNK!', `${e.gold}g of treasure in the water · grab it`); }
+    if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', `${e.gold}g of treasure in the water · grab it`); }
     if (by === myId && !e.fade) countBotKill(!!e.harborBoss);
   }
   function countBotKill(isBoss) { // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills); the server caps their pace ([v99] shared harbor: the last hit)
@@ -1257,7 +1257,7 @@ export function createPvp(K) {
     const m = $('pvp-menu'); if (!m) return;
     $('pvp-name').value = name;
     const st = profile.stats; // [v102] skins are bought with gold at the island shop (or from here: tap a locked skin)
-    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} bosses${profile.prestige ? ` · <b class="pvp-prest">${emblemSvg(profile.prestige, 16)} PRESTIGE ${profile.prestige}</b>` : ''}<br><span class="muted pvp-isle-ptr">⛵ Skins at the SHIP SKINS shop, upgrades at the UPGRADE SHOP on the island</span>`;
+    $('pvp-kd').innerHTML = `Lifetime K/D <b>${kd(lifeK(), lifeD())}</b> · ${lifeK()} player kills · ${lifeD()} deaths · ${st.botKills} AI sunk · ${st.bossKills | 0} Commodores sunk${profile.prestige ? ` · <b class="pvp-prest">${emblemSvg(profile.prestige, 16)} PRESTIGE ${profile.prestige}</b>` : ''}<br><span class="muted pvp-isle-ptr">⛵ Skins at the SHIP SKINS shop, upgrades at the UPGRADE SHOP on the island</span>`;
     const grid = $('pvp-skins'); grid.innerHTML = '';
     for (const t of [...TIERS, ...UNLOCKS]) {
       const ok = canUse(t.id), it = SKIN_ITEMS.find(i => i.id === t.id), g = it?.goal ? goalProgress(it.goal, { ...st, kills: lifeK(), deaths: lifeD(), prestige: profile.prestige | 0 }) : null;
