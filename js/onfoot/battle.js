@@ -28,6 +28,7 @@ import * as BA from '../island/battleAreas.js';
 import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty } from './swords.js';
 import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
+import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 import { createTps, TPS_ON } from './tps.js';
@@ -182,9 +183,9 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // ---------- pirates: weapon meshes + the procedural arm pose (runs right after each body's clip, see hookBody) ----------
   const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _v = new THREE.Vector3(), _w = new THREE.Vector3(), _a = new THREE.Vector3(), _x = new THREE.Vector3(), _rq = new THREE.Quaternion(), _s = new THREE.Vector3();
   const BONE_DIR = new THREE.Vector3(-1, 0, 0), BONE_PERP = new THREE.Vector3(0, 0, 1);
-  function aimBone(bone, dirRoot, k, rootQ, rollRoot = null) { // point the bone (its -X) along dirRoot (pirate space), blend k
+  function aimBone(bone, dirRoot, k, rootQ, rollRoot = null, axis = -1) { // point the bone (its -X) along dirRoot (pirate space), blend k
     if (!bone || k <= 0) return; bone.updateWorldMatrix(true, false); bone.getWorldQuaternion(_q);
-    _v.copy(BONE_DIR).applyQuaternion(_q); _w.copy(dirRoot).applyQuaternion(rootQ);
+    _v.copy(BONE_DIR).multiplyScalar(-axis).applyQuaternion(_q); _w.copy(dirRoot).applyQuaternion(rootQ);
     _q2.setFromUnitVectors(_v, _w); _q2.slerp(_rq.identity(), 1 - k); _q.premultiply(_q2);
     if (rollRoot) { _w.normalize(); _a.copy(rollRoot).applyQuaternion(rootQ); _a.addScaledVector(_w, -_a.dot(_w)).normalize(); _x.copy(BONE_PERP).applyQuaternion(_q); _x.addScaledVector(_w, -_x.dot(_w)).normalize();
       if (_a.lengthSq() > 0.5 && _x.lengthSq() > 0.5) { const ang = Math.atan2(_v.crossVectors(_x, _a).dot(_w), _x.dot(_a)); _q2.setFromAxisAngle(_w, ang * k); _q.premultiply(_q2); } }
@@ -219,9 +220,12 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       let p0 = P_READY, p1 = P_READY, t = 0;
       if (st.act && st.act.kind === 1) { const s = st.act.t / ARENA.sword.dur;
         if (s < 0.28) { p0 = P_READY; p1 = P_WIND; t = ease(s / 0.28); } else if (s < 0.62) { p0 = P_WIND; p1 = P_SLASH; t = ease((s - 0.28) / 0.34); } else if (s < 1) { p0 = P_SLASH; p1 = P_READY; t = ease((s - 0.62) / 0.38); } }
-      twist(B.spine, (p0.sp + (p1.sp - p0.sp) * t) * k, _rootQ);
-      aimBone(B.uR, lerpDir(p0.u, p1.u, t, _dir), k, _rootQ);
-      aimBone(B.fR, lerpDir(p0.f, p1.f, t, _dir2), k, _rootQ, lerpDir(p0.b, p1.b, t, _blade));
+      // [Emerly sword-hand] the blade + swing are in the hand without the hook (js/onfoot/swordHand.js); the left hand mirrors the right's poses
+      const hd = R.swordHand || 'R', L = hd === 'L', ax = handAxis(hd);
+      twist(B.spine, mirrorTwist((p0.sp + (p1.sp - p0.sp) * t) * k, hd), _rootQ);
+      lerpDir(p0.u, p1.u, t, _dir); lerpDir(p0.f, p1.f, t, _dir2); lerpDir(p0.b, p1.b, t, _blade); if (L) { _dir.x = -_dir.x; _dir2.x = -_dir2.x; _blade.x = -_blade.x; }
+      aimBone(L ? B.uL : B.uR, _dir, k, _rootQ, null, ax);
+      aimBone(L ? B.fL : B.fR, _dir2, k, _rootQ, _blade, ax);
     } else if (st.zone === Z_RANGE) {
       const gr = R.musket && weaponEmpty('musket', R.musketId, 'grip_r'), gl = R.musket && weaponEmpty('musket', R.musketId, 'grip_l');
       if (gr && gl) { R.musket.updateWorldMatrix(true, false); // [Emerly] both hands on the model's grip_r / grip_l empties (2-bone reach)
@@ -239,9 +243,10 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     carryArmed(R.fig, zone === Z_PIT, zone === Z_RANGE);   // [Raul carry] the arena's weapon is in your hands: hide the carried sword / back musket
     if (!R.v4 || !R.bones) return;
     const wantSword = zone === Z_PIT, wantMusket = zone === Z_RANGE;
-    if (wantSword && (R.swordId !== swordId || !R.sword)) { R.sword?.removeFromParent(); const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : mat);
-      const fr = R.bones.fR; fr.updateWorldMatrix(true, false); fr.getWorldScale(_s); const sc = 0.85 / Math.max(1e-3, _s.x);
-      s.scale.setScalar(sc); s.position.set(-0.15 / Math.max(1e-3, _s.x), 0, 0); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), BONE_PERP); fr.add(s); R.sword = s; R.swordId = swordId; }
+    const hd = swordHand(R.fig?.userData?.gear);   // [Emerly sword-hand] same hand as the carried sword (no hook / left hook: right)
+    if (wantSword && (R.swordId !== swordId || !R.sword || R.swordHand !== hd)) { R.sword?.removeFromParent(); R.swordHand = hd; const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : mat);
+      const fr = hd === 'L' ? R.bones.fL : R.bones.fR; fr.updateWorldMatrix(true, false); fr.getWorldScale(_s); const sc = 0.85 / Math.max(1e-3, _s.x);
+      s.scale.setScalar(sc); s.position.set(handAxis(hd) * 0.15 / Math.max(1e-3, _s.x), 0, 0); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), BONE_PERP); fr.add(s); R.sword = s; R.swordId = swordId; }
     if (R.sword) R.sword.visible = wantSword;
     if (wantMusket && (!R.musket || R.musketId !== musketId)) { R.musket?.removeFromParent(); const m = weaponMesh(musketGeo(musketId), shellMusket); m.scale.setScalar(0.7); R.fig.add(m); R.musket = m; R.musketId = musketId; }
     if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil; R.musket.position.set(-0.13, 0.9 + rc * 0.04, 0.1 - rc * 0.07); R.musket.rotation.set(-0.04 - rc * 0.22, 0.04, 0); }
