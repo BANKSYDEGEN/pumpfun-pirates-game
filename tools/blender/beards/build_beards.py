@@ -32,7 +32,12 @@ BRD = BV[HAIR & (BV[:, 2] < EZ0 - 0.005) & (BV[:, 1] < H[1] + 0.03) & (BV[:, 2] 
 MO = BV[SKIN & (BV[:, 1] < -0.2) & (np.abs(BV[:, 0]) < 0.11) & (BV[:, 2] > 0.85) & (BV[:, 2] < EZ0 - 0.01)]
 if len(MO) < 4: MO = np.array([[0, -0.26, EZ0 - 0.07], [0.04, -0.25, EZ0 - 0.06], [-0.04, -0.25, EZ0 - 0.08]])
 mz0, mz1, mx = 0.890, 0.929, 0.064; MZ = (mz0 + mz1) / 2   # the mouth (the teeth items' fit: grill_gold bounds), same on both LODs
-STEP = 0.0032 if HI else 0.005
+if not HI:   # phone: the lo body's beard is sparse -> also take the hi body's painted beard so the shell has no gaps (then a bit more margin)
+  o2 = imp(f'{WT}/assets/pirates/pirate_{who}_v5_hi.glb'); b2 = [o for o in o2 if o.type == 'MESH' and 'body' in o.name][0]
+  V2 = np.array([b2.matrix_world @ v.co for v in b2.data.vertices]); T2 = np.array([a.value for a in b2.data.attributes['_TINT'].data])
+  BRD = np.vstack([BRD, V2[(np.abs(T2 - 1) < 0.01) & (V2[:, 2] < EZ0 - 0.005) & (V2[:, 1] < H[1] + 0.03) & (V2[:, 2] > 0.70)]])
+  for o in o2: bpy.data.objects.remove(o, do_unlink=True)
+STEP = 0.0032 if HI else 0.0036
 lo = np.array([-0.31, -0.40, 0.52]); hi_ = np.array([0.31, 0.06, EZ0 + 0.04])
 gx, gy, gz = [np.arange(lo[k], hi_[k], STEP, dtype=np.float32) for k in range(3)]; X, Y, Z = np.meshgrid(gx, gy, gz, indexing='ij'); G = (X, Y, Z, lo, STEP)
 PTS = np.c_[X.ravel(), Y.ravel(), Z.ravel()]
@@ -45,7 +50,7 @@ def env(margin):   # the painted beard as a smooth polar shell round the head ax
   RR = ndimage.grey_dilation(RR, size=(1, 2), mode='wrap'); RR = ndimage.uniform_filter(RR, size=(3, 3), mode=('nearest', 'wrap'))
   cen = np.tile([0.0, H[1]], (len(zs), 1)); rho, R, _ = _polar(X, Y, Z, zs, cen, RR)
   th = np.arctan2(X, -(Y - H[1])); tw = th * 8 + (Z - 0.8) * 20   # sculpted clumps: vertical lock ridges that twist a little down the beard
-  top = np.clip((EZ0 - 0.012 - Z) / 0.045, 0, 1); R = R - margin * (1 - top) ** 2 + 0.012 * top * (0.5 + 0.5 * np.cos(tw)) ** 2
+  top = np.clip((EZ0 - 0.012 - Z) / 0.045, 0, 1); R = R - margin * (1 - top) ** 2 + (0.012 if HI else 0.008) * top * (0.5 + 0.5 * np.cos(tw)) ** 2
   return np.maximum(smax(np.where(R > 0.02, rho - R, 0.05), np.abs(X) - 0.195, 0.01), np.maximum(zs[0] - Z, Z - (EZ0 - 0.012))).astype(np.float32)
 def mouth_cut(f, grow=0.006):   # leave the mouth open (a soft tunnel through the beard along y)
   e = np.sqrt((X / (mx + grow)) ** 2 + ((Z - MZ) / ((mz1 - mz0) / 2 + grow)) ** 2) - 1
@@ -76,14 +81,14 @@ parts = []; KEYED = item != 'beard_black'
 C1 = np.array(KEY1, float); C2 = np.array(KEY2, float)
 GOLD = COL('#e8ad2a'); RED = COL('#c41e2a')
 if item == 'beard_moustache':
-  f = union(moustache(1.25, 1.0, 0.006, 3), 0.008)
+  f = union(moustache(1.25, 1.0, 0.006 if HI else 0.011, 3 if HI else 2), 0.008)
   f = smin(f, sd_ellipsoid(X, Y - (face_y(0, mz1 + 0.02) - 0.004), Z - (mz1 + 0.026), 0.026, 0.012, 0.014), 0.01)   # the root under the nose
   CLUMPS.append(('root', f))
   parts.append(('hair', ndimage.gaussian_filter(f, 0.7)))
-  BUD = {'hair': 700 if HI else 250}
+  BUD = {'hair': 700 if HI else 284}
 else:
   big = item == 'beard_black'
-  base = mouth_cut(env(0.009 if not big else 0.012)); CLUMPS.append(('base', base))
+  base = mouth_cut(env((0.009 if not big else 0.012) + (0 if HI else 0.005))); CLUMPS.append(('base', base))
   # jaw contour: per angle round the head axis, the bottom of the painted beard
   th_ = np.arctan2(BRD[:, 0], -(BRD[:, 1] - H[1])); locks = []
   angs = np.linspace(-1.25, 1.25, 9 if big else 5)
