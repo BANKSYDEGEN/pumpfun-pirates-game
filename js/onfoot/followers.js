@@ -20,15 +20,16 @@ const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
 const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // [Timothy collisions] ?deflect=0 = old
 // [Emerly] keepOut(x, z, i) -> null | [x, z]: places the crew must not walk into (the SWORD PIT / MUSKET RANGE, js/onfoot/battle.js);
 // a target inside one becomes that place's waiting spot for follower i (outside the gate), and they never step across its edge.
-export function createFollowers({ scene, world, walker, low, keepOut = null }) {
-  const n = low ? 2 : 3, crew = [];
+// [remote-crew] count / gearOf / colorsOf: another pirate's shore crew (js/onfoot/net.js): their Crew Shop loadout from the wire, fewer of them
+export function createFollowers({ scene, world, walker, low, keepOut = null, count = null, gearOf = null, colorsOf = null }) {
+  const n = count ?? (low ? 2 : 3), crew = [];
   const TR = makeTrail(STEP, TRAIL_N), trail = TR.trail; // [x, z] newest first, ~STEP m apart
   // [v109b] the crew wears YOUR resolved clothes colours: your picked clothes colour (outfitColor) or your ship skin's when it's 0 / SHIP,
   // + your hat colour. Always read from pirateGear (getLocalGear + getLocalColors), never from the event detail (the BR profile's copy
   // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
   const NAKED = { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
   // [Timothy] the crew's OWN loadout (Crew Shop, js/crewLoadout.js), not your hat + clothes
-  const want = () => { const g = crewGearOf(crewGear()) || NAKED, c = getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
+  const want = () => { const g = (gearOf ? gearOf() : crewGearOf(crewGear())) || NAKED, c = colorsOf ? colorsOf() : getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
   let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality
@@ -44,7 +45,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
     for (const c of crew) { const r = c.p.object, v = r.userData?.v4 || null; let fig = v; if (!fig) r.traverse((o) => { if (!fig && o.userData?.v4) fig = o.userData.v4; });
       const off = gk(r.userData?.gear) !== gk(normalizeGear(w.g)) || (fig && !fig.gearKey && w.g !== NAKED);
       if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); } } }
-  addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
+  if (!gearOf) { addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); } // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
     redress(true); // [v112] going ashore always re-dresses the crew in your current gear
@@ -81,5 +82,6 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
       place(c); if (!far) c.p.update(dt, c.speed, c.pose);
     });
   }
-  return { enter, exit, update, get list() { return crew; }, get active() { return active; } };
+  function dispose() { active = false; for (const c of crew) { c.p.object.removeFromParent(); try { c.p.dispose?.(); } catch {} } crew.length = 0; } // [remote-crew] a remote pirate left / went aboard
+  return { enter, exit, update, dispose, get list() { return crew; }, get active() { return active; } };
 }

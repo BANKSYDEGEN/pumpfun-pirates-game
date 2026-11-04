@@ -68,7 +68,7 @@ export async function createDock(ctx) {
   import('../island/terrainEdit.js').then(m => m.initTerrainEdit({ scene, camera, canvas, footRoot: world.foot.root, walker, touch, toast: (t) => toast(t) })).then(te => { api.terrain = te; }).catch(e => console.warn('[terrain-edit]', e)); // [terrain-edit] everyone: saved deltas; owner: BUILD mode
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
-  const fnet = createFootNet({ scene, low: LOW, world, docking });
+  const fnet = createFootNet({ scene, low: LOW, world, docking, getCamera: () => camera });
   const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map(); // [berth-signs] peer id -> last synced name
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
