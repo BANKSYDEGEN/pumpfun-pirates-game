@@ -238,12 +238,13 @@ function rebuild(dirty) { if (CHUNKS) for (const c of CHUNKS) if (dirty.has(c.ci
 export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
   base(q) { return Hb ? Hb[q] : Hg[q]; }, delta: DELTA, cell(x, z) { return [Math.round((x - X0) / G), Math.round((z - Z0) / G)]; },
   // set some cells' deltas (Map / [[q, m]]): rewrites Hg there and rebuilds only the touched chunks (their LOD meshes regenerate lazily)
-  set(entries) { if (!Hb) Hb = Hg.slice(); const dirty = new Set();
+  rev: 0, // [minimap-themes] bumped by set / paint: the island map + treasure chart re-bake from the edited ground
+  set(entries) { if (!Hb) Hb = Hg.slice(); const dirty = new Set(); this.rev++;
     for (const [q, d] of entries) { const v = Math.abs(d) < 0.005 ? 0 : d; if (v) DELTA.set(q, v); else DELTA.delete(q); Hg[q] = Hb[q] + v;
       const i = q % (NX + 1), j = (q - i) / (NX + 1), ci = Math.floor(i / CH), cj = Math.floor(j / CH);
       dirty.add(ci + ',' + cj); if (i % CH === 0 && ci > 0) dirty.add((ci - 1) + ',' + cj); if (j % CH === 0 && cj > 0) dirty.add(ci + ',' + (cj - 1)); if (i % CH === 0 && j % CH === 0 && ci > 0 && cj > 0) dirty.add((ci - 1) + ',' + (cj - 1)); }
     rebuild(dirty); return dirty.size; },
-  paint(entries) { const dirty = new Set(); for (const [q, v] of entries) { if (v && v[1] > 0.01) PAINTM.set(q, v); else PAINTM.delete(q); const i = q % (NX + 1), j = (q - i) / (NX + 1); dirty.add(Math.floor(i / CH) + ',' + Math.floor(j / CH)); } rebuild(dirty); return dirty.size; },
+  paint(entries) { const dirty = new Set(); this.rev++; for (const [q, v] of entries) { if (v && v[1] > 0.01) PAINTM.set(q, v); else PAINTM.delete(q); const i = q % (NX + 1), j = (q - i) / (NX + 1); dirty.add(Math.floor(i / CH) + ',' + Math.floor(j / CH)); } rebuild(dirty); return dirty.size; },
   paintMap: PAINTM, LAYERS: { grass: 2, sand: 0, dirt: 1, rock: 4, path: 6 },
   replacePaint(obj) { const next = new Map(Object.entries(obj || {}).map(([q, v]) => [+q, [Math.floor((v | 0) / 1000), ((v | 0) % 1000) / 100]])); const ch = [];
     for (const q of PAINTM.keys()) if (!next.has(q)) ch.push([q, null]); for (const [q, v] of next) { const o = PAINTM.get(q); if (!o || o[0] !== v[0] || o[1] !== v[1]) ch.push([q, v]); } return ch.length ? this.paint(ch) : 0; },
@@ -1022,9 +1023,11 @@ export function mapPixel(x, z, out) {
   if (h < -4) { out.set(0x1f6e94).lerp(_deep, Math.min(1, (-h - 4) / 12)); return 2; }
   if (h < 0.3) { out.set(0x3fc6c9).lerp(_mc.set(0x1f8fb0), sm(0.3, -4, h)); return 2; }
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r || (RVg[q] < 5 && h < RVl[q] + 0.5)) { out.set(0x2fb8c9); return 2; }
-  colorAt(i, j, out); return slopeAt(i, j) > WALK_RULES.slope ? 1 : 0;
+  colorAt(i, j, out); const pm = PAINTM.get(q); if (pm) out.lerp(SPLAT_C[pm[0]] || out, Math.min(1, pm[1])); // [minimap-themes] build-mode PAINT shows on the maps
+  return slopeAt(i, j) > WALK_RULES.slope ? 1 : 0;
 }
-export const MAP_PATHS = () => ({ A: TRAILS.A, B: TRAILS.B, street: STREETP, ramps: RAMPS.map(r => [[r.ax, r.az], [r.bx, r.bz]]), lake: LAKE, river: RIVERP });
+export const MAP_PATHS = () => ({ A: TRAILS.A, B: TRAILS.B, street: STREETP, ramps: RAMPS.map(r => [[r.ax, r.az], [r.bx, r.bz]]), lake: LAKE, river: RIVERP,
+  areas: AREA_TERRAIN.paths.map(p => ({ id: p.id, pave: !!p.pave, pts: catmull(p.pts, false, 3) })) }); // [minimap-themes] the rework cells' paths (Pirates' Climb, jungle trail, bridge approaches ...)
 // ---------- inland POIs ----------
 export const FOOT_POIS = [];
 export const LIGHTHOUSES = []; // [v108] { id, x, y, z, opts } built with the shared lighthouse kit (createFoot adds them to the root)

@@ -68,13 +68,16 @@ export async function createDock(ctx) {
   const fnet = createFootNet({ scene, low: LOW, world, docking });
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
-  const imap = createIslandMap({ world, layout, low: LOW || touch, islands }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
+  const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: () => treasure.map.sheet() }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
   function minimapState(st) {
     const W = walker.w, peers = [...(st.peers || [])];
     for (const p of fnet.peers.values()) peers.push({ x: p.x, z: p.z, foot: true });
-    return { ...st, peers, me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: treasure.target() || (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
+    const crew = onFoot && crewF?.active ? crewF.list.map(c => ({ x: c.x, z: c.z })) : []; // [minimap-themes] your crew on the radar
+    const demo = typeof window !== 'undefined' && typeof window.PFP_MAP_DEMO === 'function' && onFoot ? window.PFP_MAP_DEMO({ x: W.x, z: W.z }) : null; // dev: icon shots (tools)
+    if (demo) { peers.push(...(demo.peers || [])); crew.push(...(demo.crew || [])); }
+    return { ...st, peers, crew, ai: [...(st.ai || []), ...(demo?.ai || [])], me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: treasure.target() || (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
   }
   const openIsleMap = () => { if (on && game.state === 'playing' && !treasure.isOpen) imap.open(() => minimapState(mapSt)); };
   const radarEl = document.getElementById('radar');

@@ -10,6 +10,8 @@
 //   - reveal(): the drop moment: a scroll unrolls with this chart on it, gold light rays, sparkles, fanfare (audio.js
 //     sfx.treasureMap). It never takes input from the game (pointer-events: none except the scroll / VIEW MAP).
 // Everything is in the FOOT frame (north = -z up, like js/islandMap.js); the spots + you come in harbor coords (toF converts).
+import { mapLandmarks, mapDocks } from '../mapLandmarks.js'; // [minimap-themes] the chart's new landmarks (fort, battery, battle areas, shops, D2 ruins, docks)
+import { SHOP_ICONS, drawShopIcon } from '../mapIcons.js';
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // the on-foot grid (same box as js/islandMap.js)
 const INK = '#3b2410', INK_S = 'rgba(59,36,16,', RED = '#b5150d';
 const LABELS = { skullpeak: 'Skull Peak', falls: 'Waterfall', gallows: 'Gallows Hill', bridge: 'Rope Bridge', lighthouse: 'Lighthouse', sandbar_lh: 'Sandbar Light', cove: "Smugglers' Cove", gate: 'Town Gate' };
@@ -52,12 +54,12 @@ const CSS = `
 @media (max-height:480px){#tm-reveal .tm-scroll{width:min(58vh*1.5,60vw)} #tm-reveal .tm-head{font-size:40px;margin-bottom:2px} #tm-reveal .tm-sub{margin-top:4px;font-size:22px} #tm-reveal .tm-view{margin-top:4px;padding:4px 14px 2px;font-size:20px}}
 `;
 
-export function createTreasureMap({ FM, toF, decks = [], spots = null, low = false, sfx = null }) {
+export function createTreasureMap({ FM, toF, decks = [], spots = null, low = false, sfx = null, layout = null }) { // layout: docks (berths) for the chart
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   // ---------------- the chart (baked once) ----------------
   let SH = null; // { cv, x0, z0, k, w, h }
   function sheet() {
-    if (SH) return SH;
+    if (SH && SH.rev === (FM.TERRAIN?.rev || 0)) return SH; // [minimap-themes] build-mode edits re-ink the chart (next time it's shown)
     const t0 = performance.now(), S = 5, nx = Math.floor((B.x1 - B.x0) / S) + 1, nz = Math.floor((B.z1 - B.z0) / S) + 1, G = new Float32Array(nx * nz);
     let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = B.x0 + i * S, z = B.z0 + j * S, h = FM.H(x, z); G[j * nx + i] = h;
@@ -126,8 +128,10 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
     for (const dk of decks) { const [fx, fz] = toF(dk.x, dk.z), [a, b] = P(fx, fz); g.save(); g.translate(a, b); g.rotate(-(dk.yaw || 0));
       g.fillStyle = '#b07a46'; g.strokeStyle = INK; g.lineWidth = lw(1.1); g.fillRect(-dk.hw * k, -dk.hl * k, 2 * dk.hw * k, 2 * dk.hl * k); g.strokeRect(-dk.hw * k, -dk.hl * k, 2 * dk.hw * k, 2 * dk.hl * k); g.restore(); }
     // trails + bridge
-    if (MP) { poly(MP.A, lw(2), 'rgba(122,30,18,0.75)', [lw(7), lw(5)]); poly(MP.B, lw(2), 'rgba(110,78,18,0.8)', [lw(7), lw(5)]);
-      for (const r of MP.ramps || []) poly(r, lw(3), INK_S + '0.6)'); }
+    // [minimap-themes] the red / yellow loop is a paved road now (cobbles + kerbs): inked double line, the trail colour between
+    if (MP) { for (const [pts, col] of [[MP.A, 'rgba(160,32,18,0.85)'], [MP.B, 'rgba(176,120,18,0.9)']]) { poly(pts, lw(5.2), INK_S + '0.8)'); poly(pts, lw(3.4), 'rgba(226,206,160,0.95)'); poly(pts, lw(1.4), col, [lw(7), lw(4)]); }
+      for (const r of MP.ramps || []) poly(r, lw(3), INK_S + '0.6)');
+      for (const a of MP.areas || []) { poly(a.pts, lw(a.pave ? 4.4 : 2.6), INK_S + (a.pave ? '0.8)' : '0.6)')); if (a.pave) poly(a.pts, lw(2.6), 'rgba(226,206,160,0.95)'); else poly(a.pts, lw(1.2), 'rgba(236,220,180,0.9)', [lw(4), lw(3)]); } }
     const BR = FM.BRIDGE; if (BR && BR.L) { poly([[BR.ax, BR.az], [BR.bx, BR.bz]], lw(4), INK); poly([[BR.ax, BR.az], [BR.bx, BR.bz]], lw(1.6), '#c48a50'); }
     // labels
     const label = (txt, x, z, size, color = INK, align = 'center', rot = 0) => { const [a, b] = P(x, z); g.save(); g.translate(a, b); g.rotate(rot); g.font = `${Math.round(lw(size))}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle';
@@ -137,6 +141,12 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       if (/lighthouse|_lh$/.test(p.id)) { const [a, b] = P(p.x, p.z); g.fillStyle = '#f3e3b5'; g.strokeStyle = INK; g.lineWidth = lw(1.3); g.beginPath(); g.moveTo(a - lw(4), b + lw(6)); g.lineTo(a - lw(2.4), b - lw(7)); g.lineTo(a + lw(2.4), b - lw(7)); g.lineTo(a + lw(4), b + lw(6)); g.closePath(); g.fill(); g.stroke();
         g.fillStyle = 'rgba(255,190,60,.9)'; g.beginPath(); g.arc(a, b - lw(9), lw(2.6), 0, 7); g.fill(); label(t, p.x + 14 / k * lw(1), p.z, 34, INK, 'left'); continue; }
       label(t, p.x, p.z, 38); }
+    // [minimap-themes] landmarks: ink-and-parchment badges + hand labels (same list as the island map)
+    { const L = [...mapLandmarks(FM), ...(layout ? mapDocks(layout).slice(0, 1).map(d => ({ ...d, label: 'Docks' })) : [])];
+      const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'Big Shop', x: sq.x, z: sq.z });
+      const nice = (t) => t.toLowerCase().replace(/(^|[\s·'])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+      for (const l of L) { const ic = SHOP_ICONS[l.icon]; if (!ic) continue; const [a, b] = P(l.x, l.z), r = lw(15);
+        drawShopIcon(g, ic, a, b, r, 'paper'); label(nice(l.label), l.x + (r * 1.25) / k, l.z, 30, INK, 'left'); } }
     { const near = decks.map(d => toF(d.x, d.z)); if (near.length) { const cx = near.reduce((s, p) => s + p[0], 0) / near.length, cz = near.reduce((s, p) => s + p[1], 0) / near.length;
         label('Harbor Town', cx + 85, cz - 60, 50, '#5a1a0c'); label('THE HARBOR', cx - 95, cz + 150, 44, 'rgba(30,62,66,.9)', 'center', -Math.PI / 2); } }
     // compass rose (top-left corner of the sea) + title cartouche + scale bar
@@ -172,7 +182,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       g.save(); g.globalCompositeOperation = 'destination-in'; path(); g.fillStyle = '#000'; g.fill(); g.restore();
       g.save(); path(); g.clip(); g.shadowColor = 'rgba(70,32,6,0.9)'; g.shadowBlur = lw(18); g.lineWidth = lw(7); g.strokeStyle = 'rgba(70,32,6,0.85)'; path(); g.stroke(); g.restore();
       g.lineWidth = lw(1.4); g.strokeStyle = 'rgba(50,22,4,0.9)'; path(); g.stroke(); }
-    SH = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0) };
+    SH = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0), rev: FM.TERRAIN?.rev || 0 };
     return SH;
   }
 

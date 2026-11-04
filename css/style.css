@@ -630,6 +630,7 @@ html.pvp-spec.hud-off #spec-showhud { display: block; }
 .gfx-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: rgba(0,0,0,0.4); border: 1px solid var(--line); }
 .gfx-seg button { font-size: 14px; line-height: 1; padding: 4px 9px 3px; border-radius: 999px; border: none; background: transparent; color: rgba(255,255,255,0.7); }
 .gfx-seg button.on { background: var(--gold); color: #1a1206; }
+#map-style-pause .gfx-seg { flex-wrap: wrap; justify-content: center; border-radius: 14px; } /* [minimap-themes] 5 MINIMAP themes wrap on narrow phones */
 .gfx-seg button[data-q="ultra"]:not(.on) { color: #ffd98a; }
 .gfx-note { flex-basis: 100%; text-align: center; font-size: 13px; min-height: 0; }
 .gfx-note:empty { display: none; }

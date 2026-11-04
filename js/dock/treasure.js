@@ -39,7 +39,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
   let warnedNew = false;
   let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false, pending = null;
   const toF = layout.harborToFoot;
-  const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx });
+  const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx, layout });
   const chest = createChestReveal({ sfx, low, onWear: (key) => pvp()?.maps?.wear?.(key), canWear: (key) => !!pvp()?.maps?.canWear?.(key) }); // [v152] what the chest held
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; (document.getElementById('hud-tr') || document.body).appendChild(btn);
