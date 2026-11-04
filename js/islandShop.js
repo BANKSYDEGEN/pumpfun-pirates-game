@@ -249,7 +249,7 @@ function detail(x) {
 const eqState = () => { const g = { ...(state?.equipped?.gear || {}) }; for (const k of ['crewhat', 'crewoutfit']) g[k] = eqGear(k); return g; };
 const ownedState = () => state?.owned?.gear || [];
 const totalNow = (gear = eqState()) => boostsFor(gear, ownedState(), !!state?.owner);
-function boostLine(x) { const b = boostOf(x.it.slot, x.it.id), c = boostChips(b); return c.length ? `Gives ${c.map(c => c.text).join(' + ')} while worn` : 'Cosmetic only'; }
+function boostLine(x) { const b = boostOf(x.it.slot, x.it.id), c = boostChips(b); return c.length ? `Gives ${c.map(c => c.text + (BOOST_STATS[c.k]?.hint ? ` (${BOOST_STATS[c.k].hint})` : '')).join(' + ')} while worn` : 'Cosmetic only'; }   // [Raul items redo 2] + what a SELL BONUS pays on
 function boostDetail(x, s, d) {
   const b = boostOf(x.it.slot, x.it.id), chips = boostChips(b), cur = eqGear(x.it.slot), curB = cur !== x.it.id ? boostOf(x.it.slot, cur) : null;
   const pr = $('.ishop-pr', d); if (!pr) return;

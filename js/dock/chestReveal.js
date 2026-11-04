@@ -56,7 +56,7 @@ export function createChestReveal({ sfx = null, low = false, onWear = null, canW
     el = document.createElement('div'); el.id = 'ch-reveal'; document.body.appendChild(el);
     for (const ev of ['touchstart', 'mousedown']) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
     el.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; e.preventDefault(); e.stopPropagation(); hide(); }); }
-  // r = the map_dig answer: { gold, dig_gold, tier, holder, loot: { item: 'slot:id', crew, dup, dup_gold } | null }
+  // r = the map_dig answer: { gold, dig_gold, tier, holder, loot: { item: 'slot:id', crew, dup, dup_gold, sell } | null }   // sell = the pet sell bonus the server applied to dup_gold
   function show(r, ms = 6500) {
     if (!el) build(); clearTimeout(t); cancelAnimationFrame(raf);
     const [tn, tc] = TIER[r.tier] || TIER.common, L = r.loot, gold = (r.gold | 0), dig = (r.dig_gold ?? r.gold) | 0, x2 = r.holder ? ' · x2 HOLDER' : '';
@@ -66,7 +66,7 @@ export function createChestReveal({ sfx = null, low = false, onWear = null, canW
       html += `<div class="ch-head">CHEST: ${I.label}!</div><div class="ch-tier" style="color:${tc}">${tn}</div>` +
         `<div class="ch-card"><div class="ch-for${L.dup ? ' dup' : I.crew ? ' crew' : ''}">${who}</div><div class="ch-art"><img alt="" src="${I.thumb}"></div>` +
         `<div class="ch-name">${I.label}</div><div class="ch-kind">${I.kind}${I.weapon ? ' · cosmetic' : ''}</div></div>` +
-        `<div class="ch-gold">+${gold.toLocaleString()} GOLD<small>${L.dup ? `treasure ${dig.toLocaleString()} + ${(L.dup_gold | 0).toLocaleString()} for the spare ${I.kind.toLowerCase()}` : 'treasure gold'}${x2}</small></div>` +
+        `<div class="ch-gold">+${gold.toLocaleString()} GOLD<small>${L.dup ? `treasure ${dig.toLocaleString()} + ${(L.dup_gold | 0).toLocaleString()} sold for the spare ${I.kind.toLowerCase()}${L.sell > 0 ? ` (pet +${Math.round(L.sell * 100)}% sell)` : ''}` : 'treasure gold'}${x2}</small></div>` +
         `<div class="ch-btns">${!L.dup && onWear && canWear(L.item) ? `<button type="button" class="wear">${I.crew ? 'DRESS CREW' : 'WEAR IT'}</button>` : ''}<button type="button" class="ok">NICE!</button></div>`;
     } else {
       html += `<div class="ch-head">TREASURE!</div><div class="ch-tier" style="color:${tc}">${tn}</div><div class="ch-chest">${CHEST_SVG}</div>` +

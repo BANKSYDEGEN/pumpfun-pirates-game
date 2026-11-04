@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor } from "./lib.ts";
+  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked)
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
@@ -573,15 +573,17 @@ Deno.serve(async (req) => {
         // migration 035 grants it in the dig's own transaction. 035 not run yet -> the 026 dig (gold only), same as before.
         let drop: ChestDrop = null;
         if (!who.owner) { const { data: mr } = await db.from("pvp_maps").select("tier").eq("id", id).eq("player_id", who.pid).is("dug_at", null).maybeSingle(); if (mr) drop = chestDrop(id, mr.tier); }
+        // [Raul items redo 2] PET SELL BONUS (PROPOSED): a spare item is SOLD for CHEST_DUP_SHARE of its price; the worn pet adds its % (server gear + ownership)
+        const sell = drop ? ((await boostsOf(who, b)).sell || 0) : 0;
         let { data, error } = drop
-          ? await db.rpc("pvp_map_dig_item", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_item: drop.item, p_crew: drop.crew, p_dup: drop.dup_gold })
+          ? await db.rpc("pvp_map_dig_item", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_item: drop.item, p_crew: drop.crew, p_dup: sellGold(drop.dup_gold, sell) })
           : await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder });
         if (error && drop && /pvp_map_dig_item|PGRST202|42883/.test(`${error.code} ${error.message}`)) { drop = null; ({ data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder })); }
         if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no treasure" });
         // [v106] a logged-in device that adds the dig gold to its own save too sends mirror: true (like the Waves payout)
         if (b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0);
-        const loot = drop && data.item ? { item: String(data.item).slice(5), crew: !!data.crew, dup: !!data.dup, dup_gold: data.dup_gold | 0, price: drop.price } : null; // item = 'slot:id' (the client's gear key)
+        const loot = drop && data.item ? { item: String(data.item).slice(5), crew: !!data.crew, dup: !!data.dup, dup_gold: data.dup_gold | 0, price: drop.price, sell: data.dup ? sell : 0 } : null; // item = 'slot:id' (the client's gear key)
         return json(200, { ok: true, gold: data.gold, dig_gold: data.dig_gold ?? data.gold, base: data.base, tier: data.tier, holder, owner: who.owner, loot });
       }
       default: return json(400, { error: "unknown action" });

@@ -202,7 +202,10 @@ export { MAP_SPOTS, MAP_SPOTS_ALL } from "./digSpots.ts";
 // Server copy of js/boosts.js BOOSTS (tests/boosts_test.mjs checks the two tables match). Boosts = equipped gear ∩ pvp_owned
 // (the owner owns everything, still CAPPED). The server applies GOLD FIND to the gold it pays (waves_claim) and widens the save
 // pace check by it; combat boosts ride the same trust as upgrade levels (the client runs its own ship).
-export const BOOST_CAPS: Record<string, number> = { reload: 0.06, hp: 0.05, range: 0.05, dmg: 0.04, turn: 0.04, speed: 0.05, regen: 0.08, goldFind: 0.10, digLuck: 0.15, swordHit: 0.04, musketHit: 0.05 };
+export const BOOST_CAPS: Record<string, number> = { reload: 0.06, hp: 0.05, range: 0.05, dmg: 0.04, turn: 0.04, speed: 0.05, regen: 0.08, goldFind: 0.10, digLuck: 0.15, swordHit: 0.04, musketHit: 0.05, sell: 0.40 };
+// [Raul items redo 2] PET SELL BONUS (BANKSY 11:29 AM, PROPOSED): the gold the game pays when it SELLS for you (a chest item you already
+// own -> CHEST_DUP_SHARE of its price) x (1 + sell), sell clamped to its cap. Before the holder x2 (the SQL doubles it, like the dig gold).
+export const sellGold = (base: number, sell = 0) => Math.round(Math.max(0, Number(base) || 0) * (1 + Math.max(0, Math.min(BOOST_CAPS.sell, Number(sell) || 0))));
 const BOOST_COMBAT = ["reload", "hp", "range", "dmg", "turn", "speed", "regen"];
 export const BOOST_COMBAT_CAP = 0.30;
 export const BOOSTS: Record<string, Record<string, number>> = {
@@ -224,9 +227,9 @@ export const BOOSTS: Record<string, Record<string, number>> = {
   "teeth:tooth_gold": { goldFind: 0.01 }, "teeth:grill_gold": { goldFind: 0.02 }, "teeth:grill_diamond": { goldFind: 0.03 },
   "boots:boots_buckle": { speed: 0.01 }, "boots:boots_cavalier": { speed: 0.015 }, "boots:boots_gold": { speed: 0.02 },
   "cape:cape_tattered": { hp: 0.01 }, "cape:cape_captain": { hp: 0.02 }, "cape:cape_royal": { hp: 0.04 },
-  // [Raul items redo 2] PROPOSED: each animal its own boost (mirror js/boosts.js); the old pets keep their gold find + gain a second stat
-  "parrot:pet_cat": { goldFind: 0.025, range: 0.01 }, "parrot:pet_monkey": { goldFind: 0.03, turn: 0.015 }, "parrot:pet_cat_black": { goldFind: 0.035, dmg: 0.015 },
-  "parrot:pet_chimp": { speed: 0.03 }, "parrot:pet_gorilla": { hp: 0.04 }, "parrot:pet_gorilla_white": { regen: 0.05, dmg: 0.02 },
+  // [Raul items redo 2] PROPOSED (BANKSY 11:29 AM "make pets be good boost on sells"): each ground pet its own SELL BONUS up the price ladder (mirror js/boosts.js); the old three keep their gold find
+  "parrot:pet_cat": { sell: 0.10, goldFind: 0.025 }, "parrot:pet_monkey": { sell: 0.15, goldFind: 0.03 }, "parrot:pet_chimp": { sell: 0.20 },
+  "parrot:pet_cat_black": { sell: 0.25, goldFind: 0.035 }, "parrot:pet_gorilla": { sell: 0.30 }, "parrot:pet_gorilla_white": { sell: 0.40 },
   "flag:flag_cutlass": { reload: 0.01 }, "flag:flag_red": { reload: 0.02 }, "flag:flag_gold": { reload: 0.03 },
   "figure:fig_mermaid": { dmg: 0.02 }, "figure:fig_kraken": { dmg: 0.03 }, "figure:fig_lion": { dmg: 0.04 },
   "leg:peg_gold": { turn: 0.04, speed: 0.01 }, "leg:peg_kraken": { turn: 0.04, speed: 0.015 }, "leg:peg_ghost": { turn: 0.04, speed: 0.02 },

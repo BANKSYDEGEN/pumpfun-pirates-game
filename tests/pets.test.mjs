@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { GROUND_PETS, PET_FOLLOW, PET_SIT, newPetState, petPose, FLIGHT, FLIGHT_T, birdFlight, newBirdState, birdTick, isBird, isGroundPet } from '../js/petMotion.js';
 import { makeTrail, makeMover, followStep } from '../js/onfoot/followPath.js';
 import { PET_RIG } from '../js/petRig.js';
-import { BOOSTS } from '../js/boosts.js';
+import { BOOSTS, BOOST_STATS } from '../js/boosts.js';
 import { GEAR_ITEMS } from '../js/shopCatalog.js';
 const ROOT = new URL('../', import.meta.url), txt = (p) => readFileSync(new URL(p, ROOT), 'utf8');
 const seq = (a) => { let i = 0; return () => a[i++ % a.length]; };
@@ -137,9 +137,25 @@ test('new pets: in the shop (proposed), server prices + gear slots, client save 
     assert.match(lib, new RegExp(`"gear:parrot:${id}": \\{ price: ${it.price} \\}`)); assert.match(lib.match(/parrot: \[[^\]]*\]/)[0], new RegExp(`"${id}"`));
     assert.match(save.match(/parrot: \[[^\]]*\]/)[0], new RegExp(`'${id}'`));
   }
-  const first = pets.map((i) => [i.id, Object.keys(BOOSTS[`parrot:${i.id}`] || {})]);
-  const seen = new Set(); for (const [id, ks] of first) { assert.ok(ks.length, `${id} has a boost`); const sig = ks.join('+'); assert.ok(!seen.has(sig), `${id} boost type ${sig} is distinct`); seen.add(sig); }
-  const ape = (id) => GEAR_ITEMS.find((i) => i.id === id).price; assert.ok(ape('pet_chimp') < ape('pet_gorilla') && ape('pet_gorilla') < ape('pet_gorilla_white'));
-  assert.ok(BOOSTS['parrot:pet_cat'].goldFind && BOOSTS['parrot:pet_monkey'].goldFind && BOOSTS['parrot:pet_cat_black'].goldFind, 'owned pets keep their gold find');
+  // BANKSY 11:29 AM "make pets be good boost on sells" (PROPOSED): every ground pet = its own sell bonus, strictly up the price ladder,
+  // the white gorilla the biggest and the priciest (after the black gorilla); the three pets already sold keep their gold find
+  const ladder = pets.map((i) => [i.id, i.price, BOOSTS[`parrot:${i.id}`]?.sell || 0]).sort((a, b) => a[1] - b[1]);
+  for (const [id, , v] of ladder) assert.ok(v > 0 && Object.keys(BOOSTS[`parrot:${id}`])[0] === 'sell', `${id} leads with a sell bonus`);
+  for (let k = 1; k < ladder.length; k++) assert.ok(ladder[k][2] > ladder[k - 1][2], `${ladder[k][0]} sells better than ${ladder[k - 1][0]}`);
+  assert.equal(ladder.at(-1)[0], 'pet_gorilla_white'); assert.equal(ladder.at(-2)[0], 'pet_gorilla');
+  assert.equal(new Set(ladder.map((l) => l[2])).size, ladder.length, 'each pet its own sell bonus');
+  for (const [id, gf] of [['pet_cat', 0.025], ['pet_monkey', 0.03], ['pet_cat_black', 0.035]]) assert.equal(BOOSTS[`parrot:${id}`].goldFind, gf, `${id} keeps its gold find`);
+  for (const [k, b] of Object.entries(BOOSTS)) if (k.startsWith('parrot:parrot_')) assert.equal(b.sell, undefined, `${k}: parrots keep their own boosts`);
+  for (const [k, b] of Object.entries(BOOSTS)) if (!k.startsWith('parrot:pet_')) assert.equal(b.sell, undefined, `${k}: sell is a pet-only boost`);
   assert.match(crew, /export const CREW_EXTRA_SLOTS = \[\]/);
+});
+test('sell bonus is applied server-side where the game sells (a spare chest item -> gold) and shown on the card + reveal', async () => {
+  const lib = txt('supabase/functions/pvp/lib.ts'), idx = txt('supabase/functions/pvp/index.ts');
+  assert.match(lib, /BOOST_CAPS[^\n]*sell: 0\.40/); assert.equal(BOOST_STATS.sell.cap, 0.40); assert.ok(BOOST_STATS.sell.live);
+  const sellGold = Function(`const BOOST_CAPS = { sell: 0.40 }; return ${lib.match(/export const sellGold = ([^\n]*);/)[1].replace(/: number/g, '')};`)();
+  assert.equal(sellGold(1000, 0), 1000); assert.equal(sellGold(1000, 0.4), 1400); assert.equal(sellGold(1000, 0.9), 1400, 'capped'); assert.equal(sellGold(1000, -1), 1000); assert.equal(sellGold(-5, 0.2), 0);
+  assert.match(idx, /const sell = drop \? \(\(await boostsOf\(who, b\)\)\.sell \|\| 0\) : 0;/, 'map_dig reads the worn pet from the server copy');
+  assert.match(idx, /p_dup: sellGold\(drop\.dup_gold, sell\)/, 'the spare-item sale pays the bonus');
+  assert.match(txt('js/dock/chestReveal.js'), /pet \+\$\{Math\.round\(L\.sell \* 100\)\}% sell/);
+  assert.match(txt('js/islandShop.js'), /BOOST_STATS\[c\.k\]\?\.hint/);
 });

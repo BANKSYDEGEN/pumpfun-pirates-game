@@ -23,7 +23,8 @@ test('every boosted gear key is a real shop item; free defaults give nothing', (
   for (const id of ['navy', 'blunder', 'dragoon', 'bone', 'blunder_gold']) assert.ok(BOOSTS[`musket:${id}`]);
 });
 test('within a slot, a pricier item never boosts less', () => {
-  const bySlot = {}; for (const it of [...GEAR_ITEMS, ...CREW_ITEMS]) { const b = BOOSTS[`${it.slot}:${it.id}`]; if (b) (bySlot[it.slot] ||= []).push([it.price, Object.values(b)[0]]); }
+  // per slot AND headline stat ([Raul items redo 2] the pets' SELL BONUS ladder sits beside the parrots' GOLD FIND ladder in the same slot)
+  const bySlot = {}; for (const it of [...GEAR_ITEMS, ...CREW_ITEMS]) { const b = BOOSTS[`${it.slot}:${it.id}`]; if (b) (bySlot[`${it.slot}/${Object.keys(b)[0]}`] ||= []).push([it.price, Object.values(b)[0]]); }
   for (const [s, L] of Object.entries(bySlot)) { L.sort((a, b) => a[0] - b[0] || a[1] - b[1]); for (let i = 1; i < L.length; i++) assert.ok(L[i][1] >= L[i - 1][1], s); }
 });
 test('ownership: unowned gives 0; owner owns all but is still capped', () => {
