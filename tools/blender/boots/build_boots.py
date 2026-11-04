@@ -36,13 +36,13 @@ PTS = np.array(PTS)
 KNEE = float((arm.matrix_world @ arm.data.bones['shin.L'].head_local).z)   # male 0.214, female 0.224
 # per-style dimensions (metres, bind space; the chibi foot is ~0.17 wide x 0.25 long)
 # [Raul items redo 2] tops sit just under the knee and flare over the baggy pant hem (tucked-in read), never past the knee
-S = {'buckle': dict(top=KNEE - 0.020, lth=COL('#7a4526'), dk=COL('#4a2716')),
-     'cavalier': dict(top=KNEE - 0.024, lth=COL('#2a2124'), dk=COL('#151012')),
-     'gold': dict(top=KNEE - 0.022, lth=COL('#231d22'), dk=COL('#110d10'))}[STYLE]
+S = {'buckle': dict(top=KNEE - 0.020, lth=COL('#86482a'), dk=COL('#4a2716')),   # [boots 3] BANKSY 4:02 PM 'make the boots nicer': richer toon leather
+     'cavalier': dict(top=KNEE - 0.024, lth=COL('#2f2629'), dk=COL('#151012')),
+     'gold': dict(top=KNEE - 0.022, lth=COL('#28222a'), dk=COL('#110d10'))}[STYLE]
 TOP = S['top']; CUT = TOP - 0.024
 STEP = 0.0026 if HI else 0.0042
 NTH, SUB = (32, 2) if HI else (16, 1)
-parts = []; side_pts = {}
+parts = []; side_pts = {}; FOOT = {}
 for sx in (1, -1):
   sel = (np.sign(PTS[:, 0]) == sx) & (np.abs(PTS[:, 0]) > 0.004)
   P = PTS[sel]; side_pts[sx] = (P, [WTS[i] for i in np.where(sel)[0]])
@@ -82,7 +82,7 @@ for sx in (1, -1):
   # ---- the leather upper: toe box (rounded, bulbous toe) U ankle U shaft, smooth unions
   mx = 0.012; fcx = (fx0 + fx1) / 2; fhx = abs(fx1 - fx0) / 2 + mx; toe = fy0 - mx - 0.006; heel = fy1 + mx
   foot_top = float(np.percentile(foot[foot[:, 1] < fy0 + 0.08][:, 2], 98)) if (foot[:, 1] < fy0 + 0.08).any() else 0.07
-  fl = (heel - toe) / 2; fcy = (heel + toe) / 2
+  fl = (heel - toe) / 2; fcy = (heel + toe) / 2; FOOT[sx] = (fcx, toe, heel)
   d_foot = sd_superellipsoid(X - fcx, Y - fcy, Z - 0.045, fhx, fl, max(0.05, foot_top + 0.012 - 0.045) , 3.2, 2.6)
   # toe box: fatter dome at the front (vinyl-toy bulb)
   d_toe = sd_ellipsoid(X - fcx, Y - (toe + 0.07), Z - 0.042, fhx * 1.02, 0.085, foot_top + 0.004 - 0.02)
@@ -101,10 +101,10 @@ for sx in (1, -1):
   up = smax(up, INNER - sx * X, 0.008)
   # sole + heel block: footprint of the upper at z 0.02, 7 mm proud, rounded slab; heel taller at the back (cavalier: stacked heel)
   foot2d = ndimage.gaussian_filter(np.min(np.where(np.abs(Z - 0.022) < STEP * 1.5, up, 9), axis=2), 1.0)[:, :, None]
-  hz = {'cavalier': 0.040, 'buckle': 0.030, 'gold': 0.030}[STYLE]
+  hz = {'cavalier': 0.040, 'buckle': 0.036, 'gold': 0.035}[STYLE]   # [boots 3] a defined heel block
   heel_r = np.clip((Y - (heel - 0.075)) / 0.03, 0, 1)
   sole_top = 0.022 + (hz - 0.022) * heel_r
-  d_sole = np.maximum(foot2d - 0.007, np.maximum(Z - sole_top, -0.003 - Z))
+  d_sole = np.maximum(foot2d - 0.0085, np.maximum(Z - sole_top, -0.003 - Z))   # [boots 3] welt 8.5 mm proud (was 7)
   d_sole = np.maximum(d_sole, -(np.maximum(heel - 0.075 - 0.02 - Y, 0.012 - Z) ) - 0.0) if STYLE == 'cavalier' else d_sole   # cavalier: arch gap in front of the heel
   d_sole = ndimage.gaussian_filter(d_sole, 0.9)
   d_sole = smax(d_sole, INNER - sx * X, 0.006)
@@ -121,7 +121,7 @@ for sx in (1, -1):
     zb = 0.072 + 0.22 * np.clip(Y - (toe + 0.11), -0.2, 0.2)
     parts.append(mc_part(shell(np.abs(Z - zb) - 0.013, 0.0075), G, 'strap', sx))
     bp, bn = on_surface(up, G, fcx, 0.078, front=True)
-    parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.004, bn, 0.046, 0.036, 0.008, 0.0085), G, 'gold', sx))
+    parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.004, bn, 0.054, 0.042, 0.0085, 0.009), G, 'gold', sx))   # [boots 3] bigger buckle (reads at game distance)
   elif STYLE == 'cavalier':
     # tall shaft + big flared bucket cuff folded down (tan suede), spur strap + silver spur
     c0 = TOP - 0.068; ct = TOP + 0.013
@@ -146,7 +146,7 @@ for sx in (1, -1):
     bp, bn = on_surface(up, G, fcx, TOP - 0.05, front=True)
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.003, bn, 0.028, 0.024, 0.007, 0.006), G, 'gold', sx))
 # ---- decimate each part to the LOD budget, colour it, skin it
-BUD = {'upper': 1000, 'sole': 240, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
+BUD = {'upper': 1500, 'sole': 300, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
       {'upper': 280, 'sole': 60, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'goldtoe': 64, 'silver': 36}
 mesh_parts = []
 for kind, sx, V, Fc in parts:
@@ -161,6 +161,25 @@ COLS = dict(upper=S['lth'], sole=COL('#2b1a12'), rim=S['dk'], strap=COL('#3b2216
 geo_parts = []
 for kind, sx, V, Fc in mesh_parts:
   C = shade('gold' if kind == 'goldtoe' else kind, V, Fc, COLS[kind], TOP)
+  if kind in ('upper', 'sole', 'strap', 'cuff'):   # [boots 3] painted leather detail: welt stitching, toe-cap seam, back seam, worn toe, sole edge
+    fcx, toe, heel = FOOT[sx]; N = vnormals(V, Fc); fr = np.clip(-N[:, 1], 0, 1); bk = np.clip(N[:, 1], 0, 1); upn = np.clip(N[:, 2], 0, 1)
+    ang = np.arctan2(V[:, 1] - (toe + heel) / 2, V[:, 0] - fcx); dash = np.sin(ang * (44 if HI else 22)) > 0.1
+    if kind == 'upper':
+      stitch = (np.abs(V[:, 2] - 0.032) < (0.0045 if HI else 0.006)) & dash
+      C = np.where(stitch[:, None], np.minimum(C * 1.9 + 0.05, 1), C)
+      dt = np.linalg.norm(V[:, [1, 2]] - np.array([toe + 0.005, 0.03]), axis=1)
+      C = np.where(((np.abs(dt - 0.068) < (0.004 if HI else 0.006)) & (V[:, 1] < toe + 0.07) & (V[:, 2] > 0.03))[:, None], C * 0.55, C)   # toe-cap seam
+      C = np.where(((np.abs(V[:, 0] - fcx) < (0.0045 if HI else 0.006)) & (bk > 0.55) & (V[:, 2] > 0.05))[:, None], C * 0.6, C)   # back seam
+      wear = np.clip((toe + 0.06 - V[:, 1]) / 0.06, 0, 1) * upn * fr; C = C * (1 + 0.35 * wear)[:, None]   # polished toe
+      cr = (V[:, 2] > 0.06) & (V[:, 2] < TOP - 0.02); C = C * (1 - 0.1 * cr * (0.5 + 0.5 * np.sin(V[:, 2] * (260 if HI else 150) + 2 * np.sin(ang * 3))))[:, None]   # shaft creases
+    elif kind == 'sole':
+      side_ = np.abs(N[:, 2]) < 0.6; C = np.where(side_[:, None], COL('#5a3b26') * (0.9 + 0.1 * fr)[:, None], C)   # light sole edge
+      C = np.where((side_ & (V[:, 2] < 0.004))[:, None], COL('#1a110c'), C)   # dark tread line
+    elif kind == 'strap':
+      C = np.where((dash & (upn < 0.8))[:, None], np.minimum(C * 1.7 + 0.04, 1), C)
+    elif kind == 'cuff':
+      C = C * (0.78 + 0.22 * upn)[:, None] * (1 + 0.06 * np.sin(ang * 9))[:, None]   # suede folds: darker underside
+    C = np.clip(C, 0, 1)
   geo_parts.append(Part(V, Fc, C, True))
 m = finish(geo_parts, ink=(0.0035 if HI else 0.0055), lowlight=not HI)
 side = np.sign(m.V[:, 0])
