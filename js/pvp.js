@@ -420,11 +420,11 @@ export function createPvp(K) {
   const copyLevel = () => { if (!(room && where === 'harbor')) return totalLevel(); const L = [totalLevel(), ...livePeers().filter(p => p.lv).map(p => lvSum(p.lv))]; return Math.round(L.reduce((a, b) => a + b, 0) / L.length); };
   function scaleAi(e) {
     const L = copyLevel(), sc = harborScale(L), sz = 1 + HARBOR_SIZE_PER_LV * L, ud = e.mesh.userData;
-    e.hp = e.maxHp = Math.round(HARBOR_HP_BASE * harborHpScale(L) * PVP_DMG_MUL); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [pvp hp] same harbor pace with the bigger BR hulls
+    const hp0 = HARBOR_HP_BASE * harborHpScale(L) * PVP_DMG_MUL; e.hp = e.maxHp = Math.round(hp0 * (e.harborBoss ? 1 : HARBOR_AI.hpMul)); e.dmgMul = (1 + HARBOR_DMG_PER_LV * L) * PVP_AI_DMG_MUL; // [harbor-ai-tough] harbor AI x1.75 HP (bosses unchanged, below); [pvp hp] same harbor pace with the bigger BR hulls
     { const f = Math.min(1, Math.max(0, L) / 44), lerp = (a) => a[0] + (a[1] - a[0]) * f; // [v93] sharper AI as you grow (HARBOR_AI)
       e.reload = lerp(HARBOR_AI.reload); e.accuracy = lerp(HARBOR_AI.accuracy); e.fireR = lerp(HARBOR_AI.fireR); e.maxSpeed *= 1 + HARBOR_AI.speed * f; e.cd = Math.min(e.cd, e.reload); }
     e.gold = harborGold(L); e.aiLevel = L;
-    if (e.harborBoss) { const B = HARBOR_BOSS; e.hp = e.maxHp = e.maxHp * B.hp; e.dmgMul *= B.dmg; e.reload *= B.reloadMul; e.accuracy = Math.min(0.92, e.accuracy + B.accuracy);
+    if (e.harborBoss) { const B = HARBOR_BOSS; e.hp = e.maxHp = Math.round(hp0) * B.hp; e.dmgMul *= B.dmg; e.reload *= B.reloadMul; e.accuracy = Math.min(0.92, 0.6 + 0.2 * Math.min(1, Math.max(0, L) / 44) + B.accuracy); // [harbor-ai-tough] boss aim on the old 0.6-0.8 curve (unchanged)
       e.cannons = Math.min(B.guns[1], B.guns[0] + Math.floor(L / 15)); K.refitGuns?.(e); e.gold = harborGold(L) * B.pay; e.maxSpeed = Math.min(e.maxSpeed, 7.5 * (1 + HARBOR_AI.speed * Math.min(1, L / 44))); }
     const k = sz * (e.harborBoss ? HARBOR_BOSS.scale : 1);
     e.aiK = k; scaleMesh(e, k);
