@@ -78,8 +78,13 @@ const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfx
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
 setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
+// [load-speed] BANKSY 4:53 PM "work on loading speed": the crew bodies (~0.85-1.6 MB of pirate GLBs + the bake), the skull flag image and the
+// brand font used to start only AFTER the ship kit + figureheads had finished; they don't depend on each other, so all of them load at once now
+// (same awaits, same order of use: only the downloads overlap).
+const bootArt = Promise.all([loadImage('assets/skull_transparent.png'), document.fonts.load('40px "Just Another Hand"')]); bootArt.catch(() => {});
+const crewV4P = initCrewV4({ lod: pirateBodyLod({ low: quality === 'low' || isMobile, many: true, quality }) }); let crewV4Late = false;
 await Promise.all([initKit(quality === 'low' || isMobile), figuresReady(quality === 'low' || isMobile)]); // [figureheads 2] + the carved shop figureheads (same LOD)
-const crewV4P = initCrewV4({ lod: pirateBodyLod({ low: quality === 'low' || isMobile, many: true, quality }) }); let crewV4Late = false; // [crew holes] HIGH desktops bake the High body (the v128 walking-crew fix)
+// [crew holes] HIGH desktops bake the High body (the v128 walking-crew fix): crewV4P is started above, before the kit
 await Promise.race([crewV4P, new Promise(r => setTimeout(() => { crewV4Late = true; r(); }, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 // [v112] Raul: a late bake (slow phone) re-bakes every crew built meanwhile (rebakeCrewV4) and re-dresses yours, instead of keeping the placeholder crew forever
 Promise.resolve(crewV4P).then(() => { if (!crewV4Late) return; const go = () => { try { const n = rebakeCrewV4(scene); crewGearT = 0; console.info('[crew] v4 bake landed late: re-baked', n, 'crews'); } catch (e) { setTimeout(go, 500); } }; go(); }, () => {});
@@ -232,7 +237,7 @@ if (HIGH) {
 
 // ---------- assets ----------
 function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
-const [skullImg] = await Promise.all([loadImage('assets/skull_transparent.png'), document.fonts.load('40px "Just Another Hand"')]);
+const [skullImg] = await bootArt; // [load-speed] started at the top, next to the kit
 const flagTex = makeSkullTexture(skullImg, { w: 512, h: 340, pad: 0.1 });
 const sailTex = makeSkullTexture(skullImg, { w: 512, h: 400, bg: '#121212', pad: 0.14 });
 const pillTex = makePillTexture();
