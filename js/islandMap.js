@@ -89,7 +89,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   // ---------- markers (shared by the radar and the full map) ----------
   // st: { me: {x, z, yaw, foot}, ship: {x, z, yaw} | null, peers: [{x, z, foot}], ai: [{x, z, boss}], loot: [{x, z}], dig: {x, z, r} | null } (harbor frame)
   function markers(ctx, T, k, st, sz, clip, th = THEMES.colored) { // T(xh, zh) -> screen; k = px per metre; th = the MINIMAP theme (ink + X colours)
-    if (th === true) th = THEMES.paper; else if (!th) th = THEMES.colored; const paper = th === THEMES.paper;
+    if (th === true) th = THEMES.paper; else if (!th) th = THEMES.colored; const paper = th.badge === 'paper';
     const out = (a, b) => clip && Math.hypot(a - clip[0], b - clip[1]) > clip[2];
     if (st.dig) { const [a, b] = T(st.dig.x, st.dig.z), r = Math.max(sz * 1.3, st.dig.r * k), ph = (performance.now() / 600) % 1;
       ctx.strokeStyle = paper ? 'rgba(181,21,13,0.6)' : '#ff3b3b'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(a, b, r * (1 + ph * 0.25), 0, 7); ctx.stroke(); ctx.setLineDash([]);
@@ -143,10 +143,11 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     ctx.fillStyle = SH ? SEA_P : th.sea; ctx.fillRect(0, 0, W, W);
     ctx.save(); ctx.translate(R, R); ctx.rotate(rot); ctx.scale(k, k); ctx.translate(-mx, -mz); ctx.imageSmoothingEnabled = true;
     if (SH) ctx.drawImage(SH.cv, SH.x0, SH.z0, SH.w / SH.k, SH.h / SH.k); else ctx.drawImage(base(th), B.x0, B.z0, N * mpp, NZ * mpp); ctx.restore();
+    if (th.burn) { const gr = ctx.createRadialGradient(R, R, R * 0.55, R, R, R); gr.addColorStop(0, 'rgba(90,45,12,0)'); gr.addColorStop(0.75, 'rgba(110,60,20,.28)'); gr.addColorStop(1, 'rgba(60,28,8,.75)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, W); } // [minimap-themes] TREASURE MAP: burnt parchment edge
     const sz = Math.max(6, W / 13), ir = Math.max(7, W / 15);
     const icons = [];
     for (const p of P || []) { const [a, b] = T(...toH(p.x, p.z)); if (Math.hypot(a - R, b - R) > R - 4) continue; if (p.icon) { icons.push([p.icon, a, b]); continue; }
-      ctx.fillStyle = SH ? '#f3e3b5' : p.s[1]; ctx.strokeStyle = th.ink === '#e6f2ff' ? '#e6f2ff' : th.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(a, b, sz * 0.42, 0, 7); ctx.fill(); ctx.stroke(); if (SH) { ctx.fillStyle = p.s[1]; ctx.beginPath(); ctx.arc(a, b, sz * 0.22, 0, 7); ctx.fill(); } }
+      { const d = sz * 0.36, lite = th.badge === 'line' ? '#0b3772' : '#fff7e3'; ctx.save(); ctx.translate(a, b); ctx.rotate(Math.PI / 4); ctx.fillStyle = lite; ctx.strokeStyle = th.badge === 'line' ? '#e6f2ff' : '#161616'; ctx.lineWidth = 1.4; ctx.fillRect(-d, -d, 2 * d, 2 * d); ctx.strokeRect(-d, -d, 2 * d, 2 * d); ctx.fillStyle = p.s[1]; ctx.fillRect(-d * 0.45, -d * 0.45, d * 0.9, d * 0.9); ctx.restore(); } } // [minimap-themes] BANKSY 11:57: no plain colour dots: a small outlined landmark diamond
     icons.sort((u, v) => u[2] - v[2]); for (const [ic, a, b] of icons) drawShopIcon(ctx, ic, a, b, ir, th.badge); // lower on screen drawn last (on top)
     if (st.dig) digPointer(ctx, T, R, st, W, th); // trail from you + an edge pin when the X is off the radar
     const fix = (o) => o && { ...o, yaw: Math.PI - (Math.PI - o.yaw + rot) }; // markers() turns arrows by (PI - yaw) in screen space: add the map rotation
@@ -159,7 +160,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     return true;
   }
   // [v153] the dig X on the radar: a dotted trail from you (the centre) to the X; off the radar = a red pin on the rim pointing at it
-  function digPointer(ctx, T, R, st, W, th) { const paper = th === THEMES.paper || th === true;
+  function digPointer(ctx, T, R, st, W, th) { const paper = th === true || th?.badge === 'paper';
     const [a, b] = T(st.dig.x, st.dig.z), dx = a - R, dy = b - R, L = Math.hypot(dx, dy); if (L < W / 12) return;
     const inside = L < R - W / 12, ex = inside ? a : R + dx / L * (R - W / 12), ey = inside ? b : R + dy / L * (R - W / 12);
     ctx.save(); ctx.fillStyle = paper ? 'rgba(150,18,10,0.9)' : th.x || '#ff3b3b'; const step = W / 22, r0 = W / 70, off = (performance.now() / 1000 * step * 1.6) % step;
