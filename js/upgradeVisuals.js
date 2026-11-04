@@ -710,7 +710,7 @@ export function compilePreview(levels = {}, opts = {}) { return buildCompiled(no
 // ---------- pre-build + shader warm-up (makes purchase swaps instant) ----------
 let R = null; // { renderer, scene, camera, canWork }
 const _ready = new Map(); let _queue = [], _pump = 0;
-const MAX_READY = 8;
+const MAX_READY = 8, PREBUILD_N = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 2 : 4; // phones: the 2 cheapest affordable next buys
 export function setRenderContext(ctx) { R = ctx; warmUp(); }
 function warm(obj) { if (!R?.renderer) return; try { R.renderer.compile(obj, R.camera, R.scene); } catch { /* older three: skipped */ } }
 // compile shader programs for every material the trait parts / purchase effect can use (once per skin + quality)
@@ -736,7 +736,7 @@ export function prebuildNext(levels = {}, { gold = Infinity } = {}) {
     .sort((a, b) => (b.cost <= gold) - (a.cost <= gold) || a.cost - b.cost); // affordable first, then cheapest
   _queue = []; // older candidates are one purchase stale now
   const want = new Set();
-  for (const c of cands) {
+  for (const c of cands.slice(0, PREBUILD_N)) { // [shop-exit-crash] BANKSY "lags really hard when buy an upgrade": every buy pre-built a ship for EVERY next upgrade (~7 full builds on the main thread); now the likeliest few
     const nl = { ...lv, [c.id]: lv[c.id] + 1 }, key = shipKey(nl, skin, lastOpts.quality, lastOpts.shadows, lastOpts.pvp);
     want.add(key);
     if (!_ready.has(key)) _queue.push({ key, lv: nl, skin, opts: lastOpts });
