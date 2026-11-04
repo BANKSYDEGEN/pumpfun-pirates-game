@@ -62,7 +62,8 @@ export default {
     h.addCirc(F.x - 4, F.z + 6, 1.5); h.addCirc(TABLE.x, TABLE.z, 1.4); h.addCirc(MAST.x, MAST.z, 0.4); h.addCirc(F.x - 9, F.z - 8, 0.5);
     for (let i = 0; i < 4; i++) h.addCirc(F.x - 6 + i * 4, Z0 + 1.2, 0.6);
     h.addBox(F.x + 2.3, F.z - 8.7, 4.0, 2.6, 0);                                               // crates
-    for (const s of [-1, 1]) h.addBox(X0 + 0.6, F.z + s * (F.gateHW + 1.4), 3.4, 2.8, 0);        // gatehouse towers
+    for (const s of [-1, 1]) { h.addBox(X0 + 0.6, F.z + s * (F.gateHW + 1.4), 3.4, 2.8, 0);      // gatehouse towers: collider + a solid deck at the
+      h.addDeck({ id: 'fort_gatetower_' + s, x: X0 + 0.6, z: F.z + s * (F.gateHW + 1.4), hw: 1.7, hl: 1.4, yaw: 0, y: WT + 4.45 }); } // cap, so the follow camera pulls in in front of them (never inside)
     h.poi('fort', 'Hilltop Fort', F.x, F.z, { clear: 22 }); h.poi('fort_stair', 'Fort stair', LEG1.x, (LEG1.z0 + LEG1.z1) / 2, { clear: 6 });
     h.INTERACT.push({ id: 'fort_table', area: 'hilltop_fort', x: TABLE.x - 2.2, z: TABLE.z, r: 2.4, label: 'E · WAR-ROOM MAP TABLE' });
     h.INTERACT.push({ id: 'fort_flag', area: 'hilltop_fort', x: MAST.x + 1.2, z: MAST.z, r: 2.4, label: 'E · RAISE THE COLOURS' });

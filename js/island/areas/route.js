@@ -24,8 +24,12 @@ const side = (p, d) => [p.x + p.uz * d, p.z - p.ux * d];
 
 function prep(h) {
   if (RT.ready) return; RT.ready = true; const { H } = h, A = h.TRAILS.A;
-  let acc = 0; RT.pts.push(A[0]); RT.acc.push(0);
-  for (let i = 1; i < A.length; i++) { const d = Math.hypot(A[i][0] - A[i - 1][0], A[i][1] - A[i - 1][1]); if (acc + d > ROUTE.along) break; acc += d; RT.pts.push(A[i]); RT.acc.push(acc); }
+  // lead-in: trail A's loop spline bows ~2.5 m west out of the gate into the gate tower + the first west lot (the walker slid along
+  // them for 8 m); the designed route leaves the gate straight and rejoins trail A 20.7 m on (A[10], the top of the gate-drop steps), flat ground (y 19.8-19.95)
+  let acc = 0; RT.pts.push(A[0]); RT.acc.push(0); const J0 = 10;
+  for (const t of [0.25, 0.5, 0.75]) { const p = [lerp(A[0][0], A[J0][0], t) + Math.sin(t * Math.PI) * 1.2, lerp(A[0][1], A[J0][1], t)]; /* bowed 1.2 m east: both tread edges clear the lot */ acc += Math.hypot(p[0] - RT.pts[RT.pts.length - 1][0], p[1] - RT.pts[RT.pts.length - 1][1]); RT.pts.push(p); RT.acc.push(acc); }
+  acc += Math.hypot(A[J0][0] - RT.pts[RT.pts.length - 1][0], A[J0][1] - RT.pts[RT.pts.length - 1][1]); RT.pts.push(A[J0]); RT.acc.push(acc); RT.lead = { from: A[0], to: A[J0] };
+  for (let i = J0 + 1; i < A.length; i++) { const d = Math.hypot(A[i][0] - A[i - 1][0], A[i][1] - A[i - 1][1]); if (acc + d > ROUTE.along) break; acc += d; RT.pts.push(A[i]); RT.acc.push(acc); }
   RT.pts.push([TH.x, TH.z]); RT.acc.push(acc + Math.hypot(TH.x - RT.pts[RT.pts.length - 2][0], TH.z - RT.pts[RT.pts.length - 2][1]));
   // L1: the stream ford = the lowest point between 50 and 130 m; L4: the ridge = the highest between 380 and 500 m
   let lo = 1e9, hi = -1e9; for (let a = 50; a <= 130; a += 2) { const p = at(a), y = H(p.x, p.z); if (y < lo) { lo = y; RT.lm.ford = a; } }
@@ -51,12 +55,23 @@ function prep(h) {
     for (let k = 0; k < n; k++) { let mx = -1e9, mn = 1e9; for (const u of [k / n, (k + 0.5) / n, (k + 1) / n]) for (const s of [-ROUTE.hw - 0.3, -1.2, 0, 1.2, ROUTE.hw + 0.3]) {
       const x = a[0] + (b[0] - a[0]) * u + uz * s, z = a[1] + (b[1] - a[1]) * u - ux * s, y = H(x, z); if (Math.abs(s) < 1.5) mx = Math.max(mx, y); mn = Math.min(mn, y); } prof.push(mx + 0.04); low.push(mn); }
     if (yb < ya) for (let k = n - 2; k >= 0; k--) prof[k] = Math.max(prof[k], prof[k + 1]); else for (let k = 1; k < n; k++) prof[k] = Math.max(prof[k], prof[k - 1]); // never a tread that dips
-    const st = { i, a, b, L, ux, uz, g, prof, low, along: mid, x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, yaw: Math.atan2(ux, uz) }; RT.stairs.push(st);
-    h.addDeck({ id: 'route_stair_' + i, x: st.x, z: st.z, hw: ROUTE.hw, hl: L / 2 + 0.05, yaw: st.yaw, y: prof[0], prof, ya: H(a[0], a[1]), yb: H(b[0], b[1]) });
+    const st = { i, a, b, L, ux, uz, g, prof, prof0: prof.slice(), low, along: mid, x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, yaw: Math.atan2(ux, uz) }; RT.stairs.push(st);
+
     // retaining wall on the uphill side where the trail cuts across the slope (> 1.2 m between the two edges)
     const [lx, lz] = [st.x + uz * 3.6, st.z - ux * 3.6], [rx, rz] = [st.x - uz * 3.6, st.z + ux * 3.6], hl = H(lx, lz), hr = H(rx, rz);
     if (Math.abs(hl - hr) > 1.2) { const s = hl > hr ? 1 : -1, wx = st.x + uz * 2.95 * s, wz = st.z - ux * 2.95 * s; RT.walls.push({ s, x: wx, z: wz, L: L + 0.3, yaw: st.yaw, top: Math.max(hl, hr) + 0.3, base: Math.min(...low) - 0.4, along: mid });
       h.addBox(wx, wz, 0.7, L + 0.3, st.yaw); } }
+  // stair joins (BANKSY 5:50 PM "no height pops over 3 cm"): two stair decks meeting share ONE join height (the mean of their end treads);
+  // a stair meeting the dirt trail ends at the trail-centre ground. Then the treads are pulled onto the stair's line
+  // (every tread top within a quarter rise of the straight line between the stair's two end heights), so the walk line through the
+  // tread centres never jumps (the old ends faded tread-top -> centre-line ground over half a tread: up to 0.5 m on the cross-slopes
+  // = 0.04-0.25 m per 2 cm step)
+  { const byI = new Map(RT.stairs.map(s => [s.i, s])), R = ROUTE.rise;
+    for (const st of RT.stairs) { const p = byI.get(st.i - 1), q = byI.get(st.i + 1);
+      st.ya = p ? (p.prof0[p.prof0.length - 1] + st.prof0[0]) / 2 : H(st.a[0], st.a[1]); st.yb = q ? (st.prof0[st.prof0.length - 1] + q.prof0[0]) / 2 : H(st.b[0], st.b[1]); }
+    for (const st of RT.stairs) { const P = st.prof, n = P.length, tol = R * 0.25; // each tread top within a quarter rise of the straight ya -> yb line
+      for (let k = 0; k < n; k++) { const c = st.ya + (st.yb - st.ya) * (k + 0.5) / n; P[k] = Math.min(c + tol, Math.max(c - tol, P[k])); }
+      h.addDeck({ id: 'route_stair_' + st.i, x: st.x, z: st.z, hw: ROUTE.hw, hl: st.L / 2 + 1.2, pad: 1.2, skirt: [byI.has(st.i - 1) ? 'join' : 'ground', byI.has(st.i + 1) ? 'join' : 'ground'], yaw: st.yaw, y: P[0], prof: P, ya: st.ya, yb: st.yb }); } }
   // lamps: every 30 m on the side opposite the trail's own torches (foot.js puts those at +3.2)
   for (let a = 15, k = 0; a < ROUTE.along - 4; a += ROUTE.lampEvery, k++) { const p = at(a), w = RT.walls.find(w => w.s < 0 && Math.abs(w.along - a) < w.L / 2 + 1.5), off = w ? 2.95 : ROUTE.lampOff; // on a retaining wall: stand on its cap
     const [x, z] = side(p, -off), [ix, iz] = side(p, -1.4); RT.lamps.push({ k, x, z, y: w ? w.top + 0.12 : H(x, z), along: a, yaw: Math.atan2(p.ux, p.uz), onWall: !!w });

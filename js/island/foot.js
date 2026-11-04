@@ -135,7 +135,9 @@ stamp(TRAILS.A, 14, TRg); stamp(TRAILS.B, 14, TRg); stamp(STREETP, 30, STg);
 // Main Street cobble splat layer (layer 6 + COBBLE colour, the same shader + material: 0 extra geometry / draw calls, no height change).
 // Not paved: near the dig spots (they stay sand / dirt), Raul's swim cove, the battle areas (Timothy's dirt floors), Main Street (already cobbled).
 const PAVE = { full: 2.6, out: 4.0, kerb: 2.8 }; // cobbles full out to 2.6 m, fade by 4 m (just past the kerb stones); kerbs 2.8 m each side of the centre line
-const PVg = new Float32Array(Hg.length).fill(99); stamp(TRAILS.A, 8, PVg); stamp(TRAILS.B, 8, PVg);
+// [ir2] + area paths flagged pave: true (the cells' connecting paths) get the same cobbles + kerbs as the loop
+const PAVED_PATHS = AREA_TERRAIN.paths.filter(p => p.pave).map(p => catmull(p.pts, false, 3));
+const PVg = new Float32Array(Hg.length).fill(99); stamp(TRAILS.A, 8, PVg); stamp(TRAILS.B, 8, PVg); for (const P of PAVED_PATHS) stamp(P, 8, PVg);
 const PAVE_DIGS = activeDigs().map(d => [d.x, d.z]);
 // [path-hotfix] BANKSY 9:48-9:50 PM (live v175) 'how do i get up here' / 'and this before bridge': the cobbles wrapped up the bridge
 // cuttings' near-vertical walls (stretched, read as a climbable stone terrace). Paving is the walk surface only: none past ~35 deg (grade 0.7),
@@ -214,10 +216,11 @@ for (const [x0, x1, z0, z1, y, bl = 0] of AREA_TERRAIN.pads) for (let j = Math.m
   if (d === 0) Hg[q] = y; else if (bl > 0 && d < bl && Hg[q] < y) Hg[q] += (y - Hg[q]) * (1 - sm(0, bl, d)); }
 // cuts: [ax, az, ay, bx, bz, by, hw]: lower the ground (never raise it) to just under a ramp / stair deck from a (y ay) to b (y by), so a
 // deck built over it always sits ON TOP (the area hides the cut with retaining walls). Only grid points within hw + G/2 are touched.
-for (const [ax, az, ay, bx, bz, by, hw] of AREA_TERRAIN.cuts || []) { const m = hw + G * 0.5;
+for (const [ax, az, ay, bx, bz, by, hw, soft = 0] of AREA_TERRAIN.cuts || []) { const m = hw + (soft || G * 0.5); // [ir2] soft = the cut's sides ease out over soft m (a cutting, not a slot)
   for (let j = Math.max(0, Math.floor((Math.min(az, bz) - m - Z0) / G)); j <= Math.min(NZ, Math.ceil((Math.max(az, bz) + m - Z0) / G)); j++)
     for (let i = Math.max(0, Math.floor((Math.min(ax, bx) - m - X0) / G)); i <= Math.min(NX, Math.ceil((Math.max(ax, bx) + m - X0) / G)); i++) {
-      const [d, t] = segD(X0 + i * G, Z0 + j * G, ax, az, bx, bz); if (d > m) continue; const q = IDX(i, j); Hg[q] = Math.min(Hg[q], ay + (by - ay) * t - 0.45); } }
+      const [d, t] = segD(X0 + i * G, Z0 + j * G, ax, az, bx, bz); if (d > m) continue; const q = IDX(i, j), yl = ay + (by - ay) * t - 0.45;
+      Hg[q] = soft ? Math.min(Hg[q], Hg[q] + (yl - Hg[q]) * (1 - sm(hw, m, d))) : Math.min(Hg[q], yl); } }
 for (const p of AREA_TERRAIN.paths) { const path = catmull(p.pts, false, 3); stamp(path, 12, TRg); }
 // [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
 const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -576,7 +579,14 @@ function profAt(d, u) { const P = d.prof, n = P.length, t = u * n - 0.5; if (t <
 export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { const dx = x - d.x, dz = z - d.z;
   if (d.r) { if (dx * dx + dz * dz <= d.r * d.r) y = Math.max(y ?? -1e9, d.y); continue; }
   const l = dx * d.s + dz * d.c; if (Math.abs(dx * d.c - dz * d.s) > d.hw || Math.abs(l) > d.hl) continue;
-  const u = (l + d.hl) / (2 * d.hl); const yy = d.prof ? profAt(d, u) : d.y1 !== undefined ? d.y + (d.y1 - d.y) * u : d.y;
+  // pad: the footprint runs pad m past both ends as a skirt that falls away 1:1 from the end height, so where two stair decks overlap
+  // (a join, the outside wedge of a turn) the max of the two is the one you are really on: no plateau, no lip when you leave the other
+  // skirt: [a end, b end]: 'join' = falls away 3:1 (another stair deck carries on: steeper than any stair, so the max is always the deck you are on), 'ground' = eases from the end height into the terrain
+  // over the pad (the stair end on a cross-slope: no 0.3-0.9 m edge step onto the bank), null = stops at the true end
+  const hp = d.hl - (d.pad || 0), u0 = (l + hp) / (2 * hp), u = Math.min(1, Math.max(0, u0)), out = d.pad ? Math.abs(u0 - u) * 2 * hp : 0;
+  const sk = out > 0 ? (d.skirt ? d.skirt[u0 < 0 ? 0 : 1] : 'join') : null; if (out > 0 && !sk) continue;
+  let yy = d.prof ? profAt(d, u) : d.y1 !== undefined ? d.y + (d.y1 - d.y) * u : d.y;
+  if (sk === 'join') yy -= out * 3; else if (sk === 'ground') { const t = out / d.pad, e = t * t * (3 - 2 * t); yy += (H(x, z) - yy) * e; }
   y = Math.max(y ?? -1e9, yy); } return y; }
 const addDeck = (d) => { AREA_DECKS.push({ ...d, c: Math.cos(d.yaw || 0), s: Math.sin(d.yaw || 0) }); };
 export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
@@ -664,7 +674,7 @@ function buildKerbs(MATS, OUT, low) {
   const ok = (cx, cz, mx, mz) => (paveW(mx, mz) > 0.5 || no('unpaved')) && (gridBi(TRg, cx, cz) > off - 0.9 || no('trail')) && (gridBi(STg, cx, cz) > STREET.half + 2.5 || no('street'))
     && (waterAt(cx, cz) === null && H(cx, cz) > 0.3 && gridBi(RVg, cx, cz) > 8 || no('water')) /* [path-hotfix] + no kerb stones across a river ford */ && (areaDeckAt(cx, cz) === null && areaDeckAt(mx, mz) === null || no('deck'))
     && (!(Math.abs(cx - ROPE_BRIDGE.c[0]) < 7 && cz > -108 && cz < -59) || no('bridge')) && (!hitCollider(cx, cz, 0.3) || no('collider'));
-  for (const path of [TRAILS.A, TRAILS.B]) { const P = [path[0]]; // resample the spline at the stone length
+  for (const path of [TRAILS.A, TRAILS.B, ...PAVED_PATHS]) { const P = [path[0]]; // resample the spline at the stone length
     for (let i = 1, acc = 0; i < path.length; i++) { const [ax, az] = path[i - 1], [bx, bz] = path[i], L = Math.hypot(bx - ax, bz - az); let t = seg - acc;
       while (t <= L) { P.push([ax + (bx - ax) * t / L, az + (bz - az) * t / L]); t += seg; } acc = L - (t - seg); }
     for (let i = 1; i < P.length; i++) { const [ax, az] = P[i - 1], [bx, bz] = P[i], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 0.3) continue;

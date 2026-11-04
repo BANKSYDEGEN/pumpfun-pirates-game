@@ -9,7 +9,7 @@
 // Cosmetic only. Nothing pays gold (flags.js).
 import * as THREE from 'three';
 import { Kit, M, box, cyl, hash, W, C } from './common.js';
-export const RB = { x: 16, zS: -103, zN: -64, s0: -103.6, s1: -150, n0: -63.4, n1: -45, hw: 1.9 };
+export const RB = { x: 16, zS: -103, zN: -64, s0: -104, s1: -150, n0: -63, n1: -45, hw: 1.9 }; // s0 / n0 = where foot.js bridgeAt takes over (deck end z -103 / -64 + its 1 m landing): the steps meet it at its height, no lip
 // the v105 slots left a 1.7-1.8 m LIP at both deck ends (deck y 35.24, slot ground 37.1-37.2 right past it: the walker's 1.25 grade limit
 // can't climb that, which is why the bridge felt unreachable). Cut each slot to a straight grade from the deck end (y 35.24) to where it
 // meets the old slot floor, and lay the steps on that line: deck end -> steps -> slot -> trail A with no lip.

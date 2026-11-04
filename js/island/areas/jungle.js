@@ -19,12 +19,18 @@ const SHARDS = [[24, -423.5], [58, -440], [30, -466], [52, -466.5], [95, -335], 
 const PAGES = [[17, -413], [70, -455], [120, -342], [44, -482]];
 const HIDDEN = [{ id: 'j_moss', x: 61.5, z: -469, label: 'BEHIND THE MOSS CURTAIN' }, { id: 'j_idol', x: 18, z: -436, label: 'UNDER THE TOPPLED IDOL' }, { id: 'j_ledge', x: 45, z: -479, label: 'THE HIGH LEDGE' }];
 const IDOL_HEAD = { x: 16, z: -440 };
+// [ir2 D2] RUIN STEPS up + down GALLOWS HILL (trail A): the hill's flanks are 1.1-1.4:1 (the walk test's 302 'stuck' + BANKSY's 'the gallows
+// hills path doesn't work'); two straight cuts (grade ~0.6) carry trail A up from the west (25 m) and down to the east (31 m), stone step
+// bands laid in the paved floor. [ax, az, ay, bx, bz, by] foot frame, trail A's own line.
+const STEPS = [[69, -357.2, 25.4, 106, -332.4, 52], [158, -306.4, 30.6, 124, -322.2, 52]];
+const IDOLS = [[72.6, -362.2, -0.62], [65.4, -352.2, 2.52]]; // the two moss-grown idol heads guarding the foot of the west steps (concept D2)
+const FIRE = { x: TH.x - 4.5, z: TH.z + 9.5 };
 const trap = { start: [RUN.x, RUN.z0 + 1.2], last: -1, fake: [] };
 const dayHash = () => { const d = today(); let h = 0; for (const c of d) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
 
 export default {
   id: 'jungle_ruins', name: 'Jungle Trail & Ruins', rect: [0, 260, -490, -215],
-  terrain: { pads: [[TEMPLE.x0, TEMPLE.x1, TEMPLE.z0, TEMPLE.z1, TEMPLE.y, 7]], paths: [{ id: 'jungle_trail', pts: PATH }] },
+  terrain: { pads: [[TEMPLE.x0, TEMPLE.x1, TEMPLE.z0, TEMPLE.z1, TEMPLE.y, 7]], paths: [{ id: 'jungle_trail', pts: PATH, pave: true }], cuts: STEPS.map(c => [...c, 3.4, 10]) },
   register(h) {
     const { H } = h;
     h.poi('jungle_trailhead', 'Jungle trailhead', TH.x, TH.z, { clear: 9 });
@@ -34,6 +40,9 @@ export default {
     h.addBox(45, TEMPLE.z0 + 0.8, 40, 1.6, 0); for (const x of [TEMPLE.x0 + 0.8, TEMPLE.x1 - 0.8]) h.addBox(x, (TEMPLE.z0 + TEMPLE.z1) / 2, 1.6, TEMPLE.z1 - TEMPLE.z0, 0);
     for (const s of [-1, 1]) h.addBox(RUN.x + s * (RUN.hw + 0.6), (RUN.z0 + RUN.z1) / 2, 1.2, Math.abs(RUN.z1 - RUN.z0), 0);
     for (const s of [-1, 1]) h.addCirc(45 + s * 3.6, TEMPLE.z1 - 1, 0.9);
+    for (const [x, z] of IDOLS) h.addCirc(x, z, 1.4); // [ir2 D2] idol heads + the step gateway pillars
+    for (const [ax, az, , bx, bz] of STEPS) { const L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L; for (const sd of [-1, 1]) h.addCirc(ax + ux + uz * 3.6 * sd, az + uz - ux * 3.6 * sd, 0.75); }
+    h.poi('gallows_steps_w', 'Ruin Steps (Gallows Hill, west)', STEPS[0][0], STEPS[0][1], { clear: 6 }); h.poi('gallows_steps_e', 'Ruin Steps (Gallows Hill, east)', STEPS[1][0], STEPS[1][1], { clear: 6 });
     h.addBox(ALTAR.x, ALTAR.z - 1.6, 4, 1.4, 0); h.addCirc(IDOL_HEAD.x, IDOL_HEAD.z, 2.2); h.addCirc(MB.x, MB.z, 0.6);
     h.INTERACT.push({ id: 'jungle_mossbeard', area: 'jungle_ruins', x: MB.x + 0.8, z: MB.z - 1.2, r: 2.6, label: 'E · OLD MOSSBEARD' });
     h.INTERACT.push({ id: 'jungle_ruin_chest', area: 'jungle_ruins', x: ALTAR.x, z: ALTAR.z + 0.4, r: 2.4, label: 'E · RUIN CHEST' });
@@ -77,8 +86,21 @@ export default {
       W(k, box(3.6, 0.15, 2.6), 0x6f9a3a, M(hx, hy + 2.0, hz + 0.9, 0, 0.5)); W(k, box(1.6, 0.8, 0.9), C.WOOD, M(hx, hy + 0.4, hz + 0.6)); W(k, box(1.2, 0.04, 0.7), C.CLOTH, M(hx, hy + 0.82, hz + 0.6), false); }
     { const sx = TH.x - 1, sz = TH.z - 3.2, sy = H(sx, sz); W(k, box(0.18, 2.4, 0.18), C.WOOD_D, M(sx, sy + 1.2, sz)); W(k, box(1.8, 0.45, 0.1), C.WOOD_L, M(sx + 0.6, sy + 2.0, sz, -Math.atan2(TH.heading.dz, TH.heading.dx)));
       W(k, cyl(0, 0.3, 0.5, 3), C.WOOD_L, M(sx + 1.6, sy + 2.0, sz, 0, 0, -Math.PI / 2), false); }
-    // trail edging stones + jungle torches along the new trail
-    for (let i = 1; i < PATH.length - 1; i++) { const [x, z] = PATH[i]; for (const s of [-1, 1]) { const ex = x + s * 3.2, ez = z + s * 1.2; W(k, jitter(new THREE.IcosahedronGeometry(0.45, 0), 0.25, i * s), C.STONE_D, M(ex, H(ex, ez) + 0.1, ez), false); } }
+    // [ir2 D2] ruin step bands on the gallows hill cuts (flush, tilted to the grade) + a broken stone gateway at each foot
+    for (const [ax, az, , bx, bz] of STEPS) { const L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L, yaw = Math.atan2(ux, uz);
+      for (let f = 2; f < L - 1; f += 1.6) { const x = ax + ux * f, z = az + uz * f, g = (H(x + ux, z + uz) - H(x - ux, z - uz)) / 2;
+        W(k, box(5.2, 0.12, 0.5), f % 3.2 < 1.6 ? 0x8a837a : 0x9e978a, M(x, H(x, z) + 0.04, z, yaw, -Math.atan(g), 0), false); }
+      for (const sd of [-1, 1]) { const x = ax + ux * 1 + uz * 3.6 * sd, z = az + uz * 1 - ux * 3.6 * sd, yy = H(x, z), hh = sd > 0 ? 4.2 : 2.6;
+        W(k, box(1.3, hh, 1.3), C.STONE, M(x, yy + hh / 2, z, yaw)); vine(x, yy + hh, z + 0.7, hh * 0.7); } }
+    // idol heads at the foot of the west steps (moss caps, dark eyes)
+    for (const [x, z, r] of IDOLS) { const yy = H(x, z); k.at(M(x, yy, z, r), () => { W(k, box(2.2, 2.8, 2), 0xa39c8e, M(0, 1.4, 0)); W(k, box(2.3, 0.5, 2.1), C.MOSS, M(0, 2.9, 0), false);
+      for (const s2 of [-1, 1]) W(k, box(0.5, 0.35, 0.1), 0x2a2622, M(s2 * 0.5, 1.9, 1.02), false); W(k, box(1.2, 0.25, 0.1), 0x2a2622, M(0, 0.9, 1.02), false); W(k, box(2.4, 0.4, 0.5), 0x8a837a, M(0, 2.2, 1.1), false); }); }
+    // the golden idol on the altar (concept centrepiece) + Mossbeard's hammock and campfire ring
+    W(k, box(0.7, 1.0, 0.5), C.GOLD, M(ALTAR.x, y + 1.9, ALTAR.z - 2.1)); W(k, box(0.55, 0.5, 0.45), C.GOLD, M(ALTAR.x, y + 2.65, ALTAR.z - 2.1)); W(k, box(0.9, 0.12, 0.6), 0xe0a020, M(ALTAR.x, y + 1.42, ALTAR.z - 2.1), false);
+    { const yy = H(FIRE.x, FIRE.z); for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; W(k, jitter(new THREE.IcosahedronGeometry(0.3, 0), 0.2, i), C.STONE_D, M(FIRE.x + Math.cos(a) * 0.9, yy + 0.12, FIRE.z + Math.sin(a) * 0.9), false); }
+      for (let i = 0; i < 3; i++) W(k, cyl(0.1, 0.1, 1.2, 5), C.WOOD_D, M(FIRE.x, yy + 0.2, FIRE.z, i * 1.05, 0, Math.PI / 2 - 0.25), false);
+      const hx0 = FIRE.x + 3.5, hz = FIRE.z + 1, h0 = H(hx0, hz), h1 = H(hx0 + 4, hz); for (const [x, yb] of [[hx0, h0], [hx0 + 4, h1]]) W(k, cyl(0.15, 0.18, 2.4, 6), C.WOOD_D, M(x, yb + 1.2, hz));
+      W(k, box(3.6, 0.08, 1.0), 0xc9a36b, M(hx0 + 2, (h0 + h1) / 2 + 1.1, hz), false); for (const e of [-1, 1]) W(k, box(0.8, 0.04, 0.04), 0x8a6a3a, M(hx0 + 2 + e * 2.1, (h0 + h1) / 2 + 1.5, hz, 0, 0, e * 0.5), false); }
     // the high ledge: a ruined lookout plinth above the altar
     { const x = HIDDEN[2].x, z = HIDDEN[2].z - 2.5, yy = H(x, z); W(k, box(4, 1.2, 3), C.STONE, M(x, yy + 0.4, z)); vine(x + 1.6, yy + 1, z + 1.6, 1.5); }
     // moss curtain in the NE corner (walk through it)
@@ -102,8 +124,9 @@ export default {
     // far: temple massing only
     const kf = new Kit(); W(kf, box(40, 8, 2), C.STONE, M(cx, y + 4, TEMPLE.z0 + 0.8), false); for (let s = 0; s < 4; s++) W(kf, box(14 - s * 3, 1.6, 6 - s * 1.2), C.STONE, M(cx, y + 0.8 + s * 1.6, TEMPLE.z0 + 4.5), false);
     for (const sx of [TEMPLE.x0 + 0.8, TEMPLE.x1 - 0.8]) W(kf, box(1.7, 4, 36), C.STONE, M(sx, y + 2, (TEMPLE.z0 + TEMPLE.z1) / 2), false); W(kf, box(1.8, 7, 1.8), C.STONE, M(cx - 3.6, y + 3.5, TEMPLE.z1 - 1), false); far.add(kf.build(MATS, OUT));
-    const B = { near, far, chests, refresh, logG, dartG, tiles,
-      tick(t) { for (const c of Object.values(chests)) c.tick(t); logG.rotation.z = Math.sin(t * 1.6) * 1.05;
+    const fk = new Kit(); W(fk, cyl(0, 0.35, 0.9, 5), 0xffa21a, M(0, 0.45, 0), false); W(fk, cyl(0, 0.2, 0.6, 5), 0xffe066, M(0, 0.4, 0), false); const fire = new THREE.Group(); fire.add(fk.build(MATS, OUT)); fire.position.set(FIRE.x, H(FIRE.x, FIRE.z) + 0.15, FIRE.z); near.add(fire);
+    const B = { fire, near, far, chests, refresh, logG, dartG, tiles,
+      tick(t) { for (const c of Object.values(chests)) c.tick(t); fire.scale.set(1, 0.85 + Math.sin(t * 9) * 0.15 + Math.sin(t * 23) * 0.06, 1); logG.rotation.z = Math.sin(t * 1.6) * 1.05;
         const ph = (t % 3.2) / 3.2; dartG.visible = ph < 0.3; if (dartG.visible) dartG.position.set(RUN.x - RUN.hw + ph / 0.3 * RUN.hw * 2, y, DARTS.z);
         for (const q of tiles) { if (q.t >= 0) { const u = t - q.t; q.g.position.y = y - Math.max(0, u - 0.25) ** 2 * 6; if (u > 3) { q.t = -1; q.g.position.y = y; } } }
         const sh = shards.children[0]; if (sh) shards.children.forEach(im => { im.rotation.y = 0; }); } };

@@ -4,6 +4,7 @@
 export const GRID = { x0: -810, z0: -680, size: 250, cols: 'ABCDE', rows: 5 };
 export const cellOf = (x, z) => { const c = Math.floor((x - GRID.x0) / GRID.size), r = Math.floor((z - GRID.z0) / GRID.size);
   return c < 0 || r < 0 || c > 4 || r > 4 ? 'off' : GRID.cols[c] + (r + 1); };
+const offset = (P, o) => P.map((p, i) => { const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [p[0] + (b[1] - a[1]) / L * o, p[1] - (b[0] - a[0]) / L * o]; });
 export function routes(set, ctx) {
   const { FM, AREA_DECKS } = ctx, R = [];
   const GATE = FM.townToWorld(FM.STREET.x, FM.STREET.z1), PLAZA = FM.townToWorld(FM.STREET.x, -40);
@@ -11,8 +12,8 @@ export function routes(set, ctx) {
     R.push({ id: 'plaza_to_gate', pts: [PLAZA, FM.townToWorld(FM.STREET.x, FM.STREET.z0), GATE] });
     R.push({ id: 'gate_to_fort_ramparts', pts: [GATE, [-434, -76], [-434, -72], [-434, -44], [-431.5, -44], [-420, -44], [-414, -44], [-417.5, -34.75], [-416.5, -34.75], [-404, -34.75], [-404, -32.4], [-410, -32.4], [-418, -32.4]] });
     R.push({ id: 'fort_yard_to_keep', pts: [[-414, -44], [-409, -44], [-405, -44]] });
-    { const A = FM.TRAILS.A, pts = [A[0]]; let acc = 0; for (let i = 1; i < A.length && acc < 566; i++) { acc += Math.hypot(A[i][0] - A[i - 1][0], A[i][1] - A[i - 1][1]); pts.push(A[i]); }
-      R.push({ id: 'pirates_climb_gate_to_trailhead', pts }); }
+    R.push({ id: 'pirates_climb_gate_to_trailhead', pts: ctx.ROUTE_PTS }); // the designed route (route.js: trail A + the straight gate lead-in)
+    for (const o of [-1.6, 1.6]) R.push({ id: 'pirates_climb_edge_' + (o < 0 ? 'l' : 'r'), pts: offset(ctx.ROUTE_PTS, o) }); // both edges of the 4.6 m tread (turn wedges, cross-slope)
     R.push({ id: 'rope_bridge_s_to_n', pts: [[16, -150], [16, -104.5], [16, -83], [16, -62.5], [16, -46]] });
   }
   if (set === 'island') {
