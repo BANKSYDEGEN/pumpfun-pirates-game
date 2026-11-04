@@ -47,12 +47,13 @@ export const PVP_ENABLED = !ON_PORTAL && !!SUPABASE_URL;
 export const PVP_HARBOR_DEATH_LOSS = 100; // [v92] BANKSY: sinking in the HARBOR costs min(100, your gold); you keep the rest (was free)
 export const PVP_HARBOR_RESPAWN = 5;  // [v95] sunk in the HARBOR: big 5-4-3-2-1 countdown, then back at sea in the harbor (never the lobby)
 export const PVP_HARBOR_PROTECT = 4;  // [v95] harbor respawn bubble (AI + boss ignore you; ends early when you fire)
-export const PVP_DEATH_BONUS = 100;   // a sunk pirate drops ALL carried gold + this flat bonus (carrying 0 drops 100; 1000 drops 1100)
+export const PVP_DEATH_BONUS = 100;   // a sunk pirate's drop = what they lose (PVP_BR_DEATH_LOSS) + this flat bonus (carrying 0 drops 100; 1000 drops 200)
+export const PVP_BR_DEATH_LOSS = 100; // [br-death] BANKSY: sunk in SOLO / SQUADS = lose min(100, gold), keep the rest, back to the harbor
 export const PVP_AI_GOLD = 10;        // fallback gold pile of a LOCAL AI ship (harbor, or a lone player in the arena); real value = harborGold(L) below. AI kills never count for K/D / boards
 export const PVP_PILE_LIFE = Infinity; // PvP gold piles never despawn (BANKSY): they float until someone collects them
 export const PVP_PILE_CAP = 30;       // live piles per arena (and in your harbor); past it the OLDEST pile's gold merges into its nearest pile
 export const PVP_PILE_MAX = 100000;   // value clamp for a (merged) pile
-export const PVP_RESPAWN = 4;         // seconds before you sail again after sinking (upgrades kept, gold back to 0)
+export const PVP_RESPAWN = 4;         // seconds of death screen after sinking ([br-death] arena: then back to the harbor, gold minus the flat loss)
 export const PVP_PROTECT = 3;         // spawn protection seconds (ends early the moment you fire)
 // ---- PvP NETWORK CAPACITY: the ONE place to change it (the server side must match: supabase/migrations/007_pvp_lobby.sql, server/relay.js env) ----
 // Supabase Realtime FREE: 100 msgs/s project-wide (sent + delivered), 200 connections, 20 presence msgs/s (we use none).

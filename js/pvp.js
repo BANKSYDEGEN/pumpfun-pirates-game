@@ -30,7 +30,7 @@ import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from '
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { COAST_ON, fromHarbor as coastFromHarbor, w2t as coastW2t, inPoly as coastInPoly, APRON as COAST_APRON, ISLET as COAST_ISLET, HEADLAND as COAST_HEADLAND, SAFE as COAST_SAFE } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
-import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
+import { PVP_DEATH_BONUS, PVP_BR_DEATH_LOSS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
@@ -875,6 +875,7 @@ export function createPvp(K) {
   }
 
   // ---------------- deaths, piles, gold ----------------
+  const brLoss = (g) => Math.min(PVP_BR_DEATH_LOSS, Math.max(0, Math.floor(+g || 0))); // [br-death] what a sunk pirate loses in the arena
   const nameOf = (id) => id === myId ? name : (peers.get(id)?.name || (bots.has(id) || String(id).startsWith('b') ? 'an AI ship' : 'a pirate'));
   function addFeed(html) { feed.unshift({ html, t: performance.now() }); feed.length = Math.min(feed.length, 5); renderFeed(); }
   function renderFeed() { const el = $('pvp-feed'); if (!el) return; const now = performance.now(); el.innerHTML = feed.filter(f => now - f.t < 7000).map(f => `<div>${f.html}</div>`).join(''); }
@@ -890,22 +891,19 @@ export function createPvp(K) {
       showDead(true); return;
     }
     me.aiDeath = false;
-    const carried = game.gold | 0, afk = idleMs() >= AFK_FARM; // idle ≥ PVP_AFK.farm s: no +100 bonus, no kill credit (anti-farming)
-    me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = by ? nameOf(by) : 'the sea'; me.dropped = carried + (afk ? 0 : PVP_DEATH_BONUS); me.afkDeath = afk;
+    // [br-death] BANKSY: a sunk pirate loses only min(PVP_BR_DEATH_LOSS, gold) (keeps the rest) + the +100 bonus on top, then goes back to the harbor
+    const carried = brLoss(game.gold), afk = idleMs() >= AFK_FARM; // idle ≥ PVP_AFK.farm s: no +100 bonus, no kill credit (anti-farming)
+    me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = by ? nameOf(by) : 'the sea'; me.dropped = carried + (afk ? 0 : PVP_DEATH_BONUS); me.afkDeath = afk; me.lostGold = carried;
     if (!afk) { me.deaths++; profile.stats.deaths++; }
-    game.gold = 0; save({ now: true });
+    game.gold = Math.max(0, (game.gold | 0) - carried); save({ now: true });
     const bounty = me.bounty; me.dropped += bounty; me.lostBounty = bounty; resetBounty();
     room?.send('sunk', { v: myId, by, l: me.life, x: r1(pl.x), z: r1(pl.z), g: carried, b: bounty, ...(afk ? { af: 1 } : {}) });
     if (!afk && by && peers.has(by)) boardClaim('v', by, myId, me.life);
     if (isHost) spawnPile(myId, pl.x, pl.z, Math.min(carried, earned.get(myId) ?? PVP_MAX_CARRY) + (afk ? 0 : PVP_DEATH_BONUS) + bounty, false, afk ? 0 : PVP_DEATH_BONUS);
     earned.delete(myId);
     addFeed(`<b>${esc(me.killedBy)}</b> sank <b class="me">${esc(name)}</b>`);
-    if (isSq()) { sq.sunk.add(myId); me.respawn = Infinity; me.deadAt = performance.now(); showDead(true); K.updateHud(); return; } // [v98] squads: out until the round ends (rotation at the round end)
+    if (isSq()) { sq.sunk.add(myId); me.respawn = Infinity; me.deadAt = performance.now(); showDead(true); K.updateHud(); return; } // [v98] squads: out until the round ends, watching your teammate
     showDead(true); K.updateHud();
-    // rotation: the lobby decides. Queue non-empty = back of the queue (into the harbor after the death screen)
-    lobbyCall('died').then((r) => {
-      if (r.state === 'queue') { lob.queuedByDeath = true; const q = $('pvp-dead')?.querySelector('.pd-queue'); if (q) { q.textContent = `Sent to the queue, position #${r.pos}`; q.hidden = false; } const re = $('pvp-dead')?.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'To the harbor in '; }
-    });
   }
   function onBotSunk(e, src) { // one of our AI ships went down (local harbor, or we host the shared copy)
     if (e.remote) return;
@@ -958,7 +956,7 @@ export function createPvp(K) {
     if (!afk && by === myId && peers.has(m.v)) boardClaim('k', myId, m.v, m.l | 0);
     if (isHost) {
       const x = clamp(+m.x || 0, -PVP_ARENA_R, PVP_ARENA_R), z = clamp(+m.z || 0, -PVP_ARENA_R, PVP_ARENA_R);
-      const g = clamp(Math.floor(+m.g || 0), 0, earned.has(m.v) ? earned.get(m.v) : PVP_MAX_CARRY);
+      const g = clamp(Math.floor(+m.g || 0), 0, Math.min(PVP_BR_DEATH_LOSS, earned.has(m.v) ? earned.get(m.v) : PVP_MAX_CARRY)); // [br-death] never more than the flat loss (old clients still report all carried)
       spawnPile(m.v, x, z, g + (afk ? 0 : PVP_DEATH_BONUS) + vb, false, afk ? 0 : PVP_DEATH_BONUS); earned.delete(m.v);
     }
   }
@@ -1005,6 +1003,7 @@ export function createPvp(K) {
     me.respawnAt = 0;
     if (where === 'harbor' || (where === 'arena' && me.aiDeath && !room)) { respawnHarbor(true); return; } // [v95] stay in the harbor, never the lobby
     if (lob.queuedByDeath) { lob.queuedByDeath = false; toHarbor('IN THE QUEUE', `position #${lob.pos || '?'} · farm the harbor AI while you wait`); return; }
+    if (where === 'arena' && !me.aiDeath && !isSq()) { lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${game.gold | 0} gold · JOIN BATTLE to go again`); return; } // [br-death] sunk by a pirate: no arena respawn
     const pl = P(), { pt, crowded } = pickSpawn(pl);
     me.dead = false; me.life++; me.protect = PVP_PROTECT * (crowded ? 2 : 1); me.lastBy = null; me.lastDamageAt = 0;
     Object.assign(pl, { alive: true, sinking: 0, hp: pl.maxHp, x: pt[0], z: pt[1], yaw: Math.atan2(-pt[0], -pt[1]), speed: 0, sail: 1, anchor: false, calm: 0, repT: 0 });
@@ -1255,10 +1254,11 @@ export function createPvp(K) {
     const q = el.querySelector('.pd-queue'); if (q) q.hidden = true; const re = el.querySelector('.pd-re'); if (re) re.firstChild.textContent = 'Back at sea in ';
     const tt = el.querySelector('#pvp-dead-t'); if (tt) tt.hidden = false;
     if (isSq() && where === 'arena' && !me.aiDeath) { if (re) re.firstChild.textContent = 'Out for this round · your teammate fights on'; if (tt) tt.hidden = true; }
+    else if (where === 'arena' && !me.aiDeath && re) re.firstChild.textContent = 'Back to the harbor in '; // [br-death] SOLO
     el.classList.toggle('pd-harbor', where === 'harbor'); // [v95] harbor: big centred 5-4-3-2-1, respawn right here
     if (where === 'harbor' && re) re.firstChild.textContent = 'Back at sea in the harbor in ';
     el.querySelector('.pd-drop').textContent = me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
-      : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D.` : `You dropped ${me.dropped} gold (${me.dropped - PVP_DEATH_BONUS - (me.lostBounty || 0)} carried + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). Upgrades kept.`;
+      : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D. You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}` : `You dropped ${me.dropped} gold (${me.lostGold | 0} + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}`;
     el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
   }
   function renderBoard() {
@@ -1629,7 +1629,7 @@ export function createPvp(K) {
   // quit-to-dodge / AFK in a fight: leaving the arena within 10 s of taking PvP damage counts as a death (gold drops for the others)
   function combatLog(unloading) {
     const pl = P(), by = me.lastBy && !String(me.lastBy).startsWith('b') ? me.lastBy : null; if (!by) return; // AI damage never counts
-    const carried = game.gold | 0, bounty = me.bounty; profile.stats.deaths++; me.deaths++; game.gold = 0; resetBounty();
+    const carried = brLoss(game.gold), bounty = me.bounty; profile.stats.deaths++; me.deaths++; game.gold = Math.max(0, (game.gold | 0) - carried); resetBounty(); // [br-death] flat loss here too
     room?.send('sunk', { v: myId, by, l: me.life, x: r1(pl.x), z: r1(pl.z), g: carried, b: bounty }, { now: true });
     if (peers.has(by)) boardClaim('v', by, myId, me.life, unloading);
     if (isHost) spawnPile(myId, pl.x, pl.z, carried + PVP_DEATH_BONUS + bounty, false, PVP_DEATH_BONUS);
