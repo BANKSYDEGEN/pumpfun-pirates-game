@@ -14,7 +14,8 @@ const _f = { gy: 0, surf: null, depth: 0, swim: false, floor: 0 };
 export function floorAt(world, x, z, out = _f) { const gy = world.ground(x, z), s = world.water ? world.water(x, z) : null, d = s === null ? 0 : s - gy;
   out.gy = gy; out.surf = s; out.depth = d > 0 ? d : 0; out.swim = d > PHYS.depth; out.floor = out.swim ? s - PHYS.float : gy; return out; }
 export const newBody = () => ({ y: 0, vy: 0, air: false, airT: 0, off: 0, last: null, swim: false, wade: 0, surf: null, dip: 0, dipV: 0, landT: -9, ev: null, impact: 0, climb: 0, climbD: 0, hop: false, hopFX: false });
-export function placeBody(b, world, x, z) { const f = floorAt(world, x, z); Object.assign(b, { y: f.floor, vy: 0, air: false, off: 0, last: f.floor, swim: f.swim, wade: f.swim ? 0 : f.depth, surf: f.surf, dip: 0, dipV: 0, climb: 0, climbD: 0, hop: false }); }
+export function placeBody(b, world, x, z, ly = null) { world.layer?.(ly); const f = floorAt(world, x, z); world.layer?.(null); // [path-fix2] ly = place at that height's layer (a follower joining you on a high bridge)
+  Object.assign(b, { y: f.floor, vy: 0, air: false, off: 0, last: f.floor, swim: f.swim, wade: f.swim ? 0 : f.depth, surf: f.surf, dip: 0, dipV: 0, climb: 0, climbD: 0, hop: false }); }
 // [Raul swim-anim] in deep water a jump is the surface kick: a small PHYS.hop hop (dolphin kick pose), back in with a splash
 export function jumpBody(b, h) { if (b.air || b.climb) return false; if (b.swim) { h = PHYS.hop; b.hop = true; b.hopFX = true; b.dip = b.dipV = 0; }
   b.air = true; b.airT = 0; b.vy = Math.sqrt(2 * PHYS.g * h); b.off = 0; b.last = null; return true; }
@@ -23,8 +24,8 @@ export const climbing = (b) => b.climb > 0;   // mid pull-up (callers slow the w
 const EVR = { splash: 3, land: 2, fall: 1 };
 export function stepBody(b, world, x, z, dt, speed = 0) { // fixed <= 1/30 s sub-steps: a slow phone frame never turns a fall into slow motion
   let ev = null; dt = Math.min(dt, 0.25); const fdt = dt;
-  while (dt > 1e-4) { const h = Math.min(dt, 1 / 30); dt -= h; const e = step1(b, world, x, z, h, speed, fdt); if (e && (!ev || EVR[e] > EVR[ev])) ev = e; }
-  b.ev = ev; return ev; }
+  while (dt > 1e-4) { const h = Math.min(dt, 1 / 30); dt -= h; world.layer?.(b.y); const e = step1(b, world, x, z, h, speed, fdt); if (e && (!ev || EVR[e] > EVR[ev])) ev = e; }
+  world.layer?.(null); b.ev = ev; return ev; } // [path-fix2] layer = this body's feet: a high bridge is the floor only for whoever is up on it
 function step1(b, world, x, z, dt, speed, fdt) { // fdt = the whole frame (the horizontal move it made: slope vs step)
   const f = floorAt(world, x, z); b.ev = null; b.surf = f.surf;
   if (b.air) { b.airT += dt; b.vy -= PHYS.g * dt; b.y += b.vy * dt;

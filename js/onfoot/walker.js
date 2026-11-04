@@ -52,22 +52,22 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   function camPos(out) { const cp = Math.cos(w.pitch); out.set(w.x - Math.sin(w.camYaw) * w.dist * cp, w.y + 1.7 + Math.sin(w.pitch) * w.dist, w.z - Math.cos(w.camYaw) * w.dist * cp);
     // [bridge-path-fix] (ported from post/island-rework-2) walls / cliff faces / slot walls (the walk ground jumps > 1.2 m between two samples)
     // between your head and the camera pull it in in front of them instead of popping it up over the top (the rope-bridge slots); smooth slopes still lift it
-    { const hx = w.x, hy = w.y + 1.5, hz = w.z, N = 10; let pg = world.ground(hx, hz), cut = 1;
+    world.layer?.(w.y); { const hx = w.x, hy = w.y + 1.5, hz = w.z, N = 10; let pg = world.ground(hx, hz), cut = 1;
       for (let i = 1; i <= N; i++) { const t = i / N, x = hx + (out.x - hx) * t, z = hz + (out.z - hz) * t, g = world.ground(x, z);
         if (g - pg > 1.2 && g + 0.3 > hy + (out.y - hy) * t) { cut = Math.max(0.1, t - 1 / N - 0.3 / w.dist); break; } pg = g; }
       if (cut < 1) out.set(hx + (out.x - hx) * cut, hy + (out.y - hy) * cut, hz + (out.z - hz) * cut); }
-    const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; return out; }
+    const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; world.layer?.(null); return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
   const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // ?deflect=0 = the old axis-only slide
   function step(dx, dz) { // move with sliding + a few sub-steps so a fast run never tunnels through a wall
-    const n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let moved = 0; // [v103] ≤0.3 m sub-steps (< the 0.45 m body radius) at the faster sprint
+    const n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let moved = 0; world.layer?.(w.y); // [path-fix2] high bridges: you are at w.y // [v103] ≤0.3 m sub-steps (< the 0.45 m body radius) at the faster sprint
     for (let i = 0; i < n; i++) { const sx = dx / n, sz = dz / n;
       if (!world.blocked(w.x + sx, w.z + sz, w.x, w.z)) { w.x += sx; w.z += sz; moved++; }
       else if (Math.abs(sx) > 1e-4 && !world.blocked(w.x + sx, w.z, w.x, w.z)) { w.x += sx; moved += 0.5; }
       else if (Math.abs(sz) > 1e-4 && !world.blocked(w.x, w.z + sz, w.x, w.z)) { w.z += sz; moved += 0.5; }
       else if (DEFLECT) for (const r of DEFLECT) { const c = Math.cos(r), s = Math.sin(r), rx = sx * c - sz * s, rz = sx * s + sz * c; // [Timothy collisions] head-on into a post / round prop, or a V-notch
         if (!world.blocked(w.x + rx, w.z + rz, w.x, w.z)) { w.x += rx; w.z += rz; moved += 0.25; break; } } }        // between two props: slide round it instead of sticking
-    return moved / n;
+    world.layer?.(null); return moved / n;
   }
   function update(dt) {
     if (!w.active) return;

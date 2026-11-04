@@ -51,7 +51,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground
       let x = W.x + bx * (1.2 + i * 0.9), z = W.z + bz * (1.2 + i * 0.9); if (world.blocked(x, z, W.x, W.z)) { x = W.x; z = W.z; }
-      Object.assign(c, { x, z, yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); placeBody(c.body, world, x, z); c.y = c.body.y; c.p.object.visible = true; place(c); });
+      Object.assign(c, { x, z, yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); placeBody(c.body, world, x, z, W.y); c.y = c.body.y; c.p.object.visible = true; place(c); });
     active = true;
   }
   function exit() { active = false; for (const c of crew) c.p.object.visible = false; }
@@ -64,14 +64,14 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   const ko = (x, z, i) => { try { return keepOut ? keepOut(x, z, i) : null; } catch { return null; } };
   const blocked = (x, z, fx, fz) => world.blocked(x, z, fx, fz) || (!!keepOut && !ko(fx, fz, 0) && !!ko(x, z, 0)); // [Emerly] never step into an arena
   function move(c, dx, dz) { // slide along walls like the walker, ≤0.3 m sub-steps
-    const k = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let got = 0;
+    const k = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let got = 0; world.layer?.(c.y); // [path-fix2] high bridges: this follower's height
     for (let i = 0; i < k; i++) { const sx = dx / k, sz = dz / k;
       if (!blocked(c.x + sx, c.z + sz, c.x, c.z)) { c.x += sx; c.z += sz; got++; }
       else if (!blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
       else if (!blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; }
       else if (DEFLECT) for (const r of DEFLECT) { const cs = Math.cos(r), sn = Math.sin(r), rx = sx * cs - sz * sn, rz = sx * sn + sz * cs; // [Timothy collisions] walk round a post /
         if (!blocked(c.x + rx, c.z + rz, c.x, c.z)) { c.x += rx; c.z += rz; got += 0.25; break; } } }                       // barrel / lamp in the way instead of pushing into it
-    return got / k; }
+    world.layer?.(null); return got / k; }
   const fx = waterFX(scene, low);
   function update(dt, camera) {
     if (!active) return;
@@ -89,7 +89,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
       const wait = ko(tx, tz, i) || (ko(W.x, W.z, i) ? ko(W.x, W.z, i) : null); if (wait) { tx = wait[0]; tz = wait[1]; } // [Emerly] you're in an arena: wait outside its gate
       { const inside = ko(c.x, c.z, i); if (inside) { c.x = inside[0]; c.z = inside[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; } } // never left standing inside one
       const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);
-      if (dp > 40 && !wait) { const q0 = trailAt(BACK[i] + 1), q = ko(q0[0], q0[1], i) || q0; c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
+      if (dp > 40 && !wait) { const q0 = trailAt(BACK[i] + 1), q = ko(q0[0], q0[1], i) || q0; c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z, W.y); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
       let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] pull-up
       c.speed += (want - c.speed) * Math.min(1, dt * 6);
       if (c.speed > 0.15 && d > 0.05) {

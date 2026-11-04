@@ -8,9 +8,10 @@ import jungle from './jungle.js';
 import route from './route.js';
 import ropeBridge from './ropeBridge.js';
 import fort, { FORT_WALKIN } from './fort.js';
+import hillRound from './hillRound.js';   // [path-fix2] fountain roundabout + high rope bridge
 import { libAreaBuilt } from '../libTex.js';   // [Timothy] shared material library: re-tags a built area's kit pieces (the hilltop fort, the Pirates' Climb) + the gate junction dressing
 export { FORT_WALKIN };
-export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort];
+export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort, hillRound];
 // terrain edits (applied by foot.js to the height grid at load): pads = flat floors [x0, x1, z0, z1, y], paths = trails (painted + kept clear)
 export const AREA_TERRAIN = { pads: AREA_MODS.flatMap(a => a.terrain?.pads || []), paths: AREA_MODS.flatMap(a => a.terrain?.paths || []), cuts: AREA_MODS.flatMap(a => a.terrain?.cuts || []) };
 const dRect = (x, z, r) => Math.hypot(Math.max(r[0] - x, 0, x - r[1]), Math.max(r[2] - z, 0, z - r[3]));
