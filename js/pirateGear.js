@@ -160,7 +160,7 @@ const _bc = new THREE.Color(), _bl = new THREE.Color();
 // [Raul items redo] BANKSY "the new items are bad": on the default (painted black) hair the beard was black on black and vanished into
 // the male's own beard. Default hair = a honey-brown beard (v5 warm palette); a picked hair colour is followed, the darkest picks lifted
 // a little so the locks still read over his painted beard. Key 2 = the groove shade between the locks.
-export const BEARD_DEFAULT = '#a8692f';
+export const BEARD_DEFAULT = '#b58132';
 export function beardCols(p, g) {
   const h = g?.hairColor > 0 ? hairHexOf(p, g) : BEARD_DEFAULT; _bc.set(h); const l = 0.2126 * _bc.r + 0.7152 * _bc.g + 0.0722 * _bc.b;
   if (l < 0.03) _bc.lerp(_bl.set('#5a4a42'), 0.45); const k1 = '#' + _bc.getHexString(); _bc.multiplyScalar(0.62); return { 1: k1, 2: '#' + _bc.getHexString() };

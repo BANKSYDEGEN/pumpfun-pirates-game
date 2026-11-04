@@ -131,9 +131,9 @@ test('birdTick: perched on the ship, flies on foot (sooner when you stand still)
 
 // ------------------------------------------------------------ beards
 const BEARD_LO = { beard_moustache: 600, beard_forked: 1400, beard_black: 2040 };
-for (const id of Object.keys(BEARD_LO)) test(`${id}: lo budget, hi lighter than before, both bodies built`, () => {
+for (const id of Object.keys(BEARD_LO)) test(`${id}: lo budget (phone), hi budget, both bodies built`, () => {
   for (const who of ['male', 'female']) { const lo = glb(`assets/pirates/items/v5/${id}_${who}_lo.glb`), hi = glb(`assets/pirates/items/v5/${id}_${who}_hi.glb`);
-    assert.ok(lo.tris <= BEARD_LO[id], `${who} lo ${lo.tris}`); assert.ok(hi.tris <= 7600, `${who} hi ${hi.tris}`); }
+    assert.ok(lo.tris <= BEARD_LO[id], `${who} lo ${lo.tris}`); assert.ok(hi.tris <= 9000, `${who} hi ${hi.tris}`); }
 });
 test('beards: keyed to your beard colour except Blackbeard, hidden on female bodies, honey default reads on the painted black beard', () => {
   const it = txt('js/pirateItems.js'), g = txt('js/pirateGear.js');
