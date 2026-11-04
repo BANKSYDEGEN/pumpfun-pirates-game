@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail, placeCrew } from './ships.js';
+import { buildShip, disposeShip, CANNON, gunT as shipGunT, stretchFor, triSail, placeCrew, mergedTags } from './ships.js';
 import { addLookout, dressCrew } from './crew.js'; // [v84] spy tower lookout · [v85] crew outfits follow the skin
 import { toon, glowMat, outlineFor, woodTexture, metalTexture, goldTexture } from './toon.js';
 import { UPGRADES, BASE_SHIP } from './upgrades.js';
@@ -146,6 +146,7 @@ class Layer {
     if (!c.index) { const n = c.attributes.position.count, ix = new Uint32Array(n); for (let i = 0; i < n; i++) ix[i] = i; c.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (!c.attributes.uv) c.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(c.attributes.position.count * 2), 2));
     if (!c.attributes.normal) c.computeVertexNormals();
+    if (this.curTag) c.userData.tag = this.curTag;   // [Raul shop2 fixes]
     if (!this.by.has(mat)) this.by.set(mat, []);
     this.by.get(mat).push(c);
   }
@@ -156,11 +157,11 @@ class Layer {
   build() {
     const parts = [], outlines = [], box3 = new THREE.Box3(), outlined = LO ? M.outlinedLo : M.outlinedHi;
     for (const [mat, list] of this.by) {
-      const geo = mergeGeometries(list, false); list.forEach(g => g.dispose());
+      const geo = mergeGeometries(list, false); if (geo) geo.userData.tagRanges = mergedTags(list); list.forEach(g => g.dispose());
       if (!geo) continue;
       geo.computeBoundingBox(); box3.union(geo.boundingBox);
       parts.push({ mat, geo });
-      if (outlined.has(mat)) { const o = outlineFor(new THREE.Mesh(geo, mat), 0.05); outlines.push({ mat: o.material, geo: o.geometry }); }
+      if (outlined.has(mat)) { const o = outlineFor(new THREE.Mesh(geo, mat), 0.05); o.geometry.userData.tagRanges = geo.userData.tagRanges; outlines.push({ mat: o.material, geo: o.geometry }); }
     }
     this.by.clear();
     this.group.children.forEach(o => o.traverse(c => { if (c.geometry) c.userData.sharedGeo = true; }));
@@ -292,6 +293,7 @@ const PARTS = {
     if (T.gold) for (const sx of [1, -1]) Ly.add(M.gold, tube(lineCurve(A, sx, 0.45 * k, 0.12, 0.08, 0.9), 40, 0.08, 5));
     const F = ship?.userData?.art && ship.userData.figure;
     if (F && T.gold) { // [Timothy v2] max HULL: the figurehead is crowned, winged and gem-eyed
+      Ly.curTag = 'fig';   // [Raul shop2 fixes] hidden with the skull under a shop figurehead (js/shipGear.js)
       const [fx, fy, fz] = F.p, fs = F.s;
       Ly.add(M.gold, cyl(0.38 * fs, 0.32 * fs, 0.2 * fs, 10, true), [fx, fy + 1.12 * fs, fz + 0.05 * fs]);
       for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; Ly.add(M.gold, new THREE.ConeGeometry(0.09 * fs, 0.32 * fs, 5), [fx + Math.cos(a) * 0.35 * fs, fy + 1.36 * fs, fz + 0.05 * fs + Math.sin(a) * 0.35 * fs]); }
@@ -300,6 +302,7 @@ const PARTS = {
         const w = new THREE.CylinderGeometry(0.95 * fs, 0.95 * fs, 0.06, 12, 1, false, 0.25 * Math.PI, 0.6 * Math.PI); w.rotateZ(Math.PI / 2);
         Ly.add(M.gold, w, [fx + sx * 0.34 * fs, fy + 0.35 * fs, fz - 0.05 * fs], [0, 0, sx * 0.25]);
       }
+      Ly.curTag = null;
     }
     if (T.patches) for (const sx of [1, -1]) for (const [t, d] of [[0.16, 0.9], [0.34, 1.35], [0.58, 1.0], [0.8, 1.3]]) { // [more levels] fresh repair planks + nails on the sides
       Ly.add(M.deck, box(0.1, 0.42 * k, 1.5, 0.03), [sx * (A.sideX(t, d * k) + 0.07), A.shape.top(t) - d * k, A.zAt(t)], [0, A.sideYaw(t, sx), sx * 0.08]);
@@ -639,7 +642,7 @@ function buildCompiled(lv, opts, skin) {
   const traits = new THREE.Group(); traits.name = 'upg-traits';
   for (const [mat, list] of buckets) {
     const geo = list.length === 1 ? list[0].clone() : mergeGeometries(list, false);
-    if (!geo) continue;
+    if (!geo) continue; geo.userData.tagRanges = mergedTags(list);   // [Raul shop2 fixes] e.g. the max-HULL crown + wings on the skull figure ('fig')
     const mesh = new THREE.Mesh(geo, mat);
     if (mat.side === THREE.BackSide && mat.isMeshBasicMaterial) { mesh.userData.outline = true; mesh.renderOrder = 0; }
     else mesh.castShadow = mesh.receiveShadow = !!opts.shadows && !mat.isMeshBasicMaterial;

@@ -354,6 +354,24 @@ export const stretchFor = (n, len, gap = 1.55, min = 1) => Math.max(min, n > 1 ?
 const SCHEME_OUTFIT = { slime: 'degen', grape: 'kraken', reef: 'navy', boss: 'midnight', rammer: 'storm', runner: 'coral' };
 
 // collects static parts per material, then merges them into one mesh per material (few draw calls)
+// [Raul shop2 fixes] tagged pieces inside a merged mesh (Parts / upgradeVisuals Layer: geometry.userData.tag before the merge) -> index
+// ranges { tag: [[start, count], ...] } on the merged geometry, so one piece can be hidden later without a rebuild (setTagHidden)
+export function mergedTags(list) {
+  const out = {}; let o = 0;
+  for (const g of list) { const n = g.index ? g.index.count : g.attributes.position.count;
+    if (g.userData?.tag) (out[g.userData.tag] ||= []).push([o, n]);
+    for (const [t, rs] of Object.entries(g.userData?.tagRanges || {})) for (const [a, c] of rs) (out[t] ||= []).push([o + a, c]);
+    o += n; }
+  return Object.keys(out).length ? out : null;
+}
+const _tagSaved = new WeakMap();   // index attribute -> { tag: saved index slices } (the ink outline shares its mesh's index: done once)
+export function setTagHidden(root, tag, hide) {
+  const seen = new Set();
+  root?.traverse((m) => { const g = m.geometry, R = g?.userData?.tagRanges?.[tag], A = g?.index; if (!R || !A || seen.has(A)) return; seen.add(A);
+    const I = A.array; let S = _tagSaved.get(A); if (!S) _tagSaved.set(A, (S = {}));
+    if (hide && !S[tag]) { S[tag] = R.map(([a, c]) => I.slice(a, a + c)); for (const [a, c] of R) I.fill(I[a], a, a + c); A.needsUpdate = true; }   // zero-area triangles
+    else if (!hide && S[tag]) { R.forEach(([a], k) => I.set(S[tag][k], a)); delete S[tag]; A.needsUpdate = true; } });
+}
 class Parts {
   constructor() { this.by = new Map(); this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._e = new THREE.Euler(); }
   add(mat, geo, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]) {
@@ -363,6 +381,7 @@ class Parts {
     for (const k of Object.keys(c.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(k)) c.deleteAttribute(k); // [Timothy] colour = kit AO (kit materials only)
     if (!c.index) { const n = c.attributes.position.count, ix = new (n > 65535 ? Uint32Array : Uint16Array)(n); for (let i = 0; i < n; i++) ix[i] = i; c.setIndex(new THREE.BufferAttribute(ix, 1)); }
     if (!c.attributes.uv) c.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(c.attributes.position.count * 2), 2));
+    if (this.curTag) c.userData.tag = this.curTag;   // [Raul shop2 fixes] tagged pieces (mergedTags)
     if (!this.by.has(mat)) this.by.set(mat, []);
     this.by.get(mat).push(c);
   }
@@ -400,7 +419,7 @@ class Parts {
   }
   build(parent, outlined = new Set(), thickness = 0.05, shadows = false) {
     for (const [mat, list] of this.by) {
-      const geo = mergeGeometries(list, false);
+      const geo = mergeGeometries(list, false); geo.userData.tagRanges = mergedTags(list);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = shadows && !mat.isMeshBasicMaterial; mesh.receiveShadow = shadows && !mat.isMeshBasicMaterial;
       parent.add(mesh);
@@ -459,7 +478,7 @@ export function buildShip(opts) {
   // [v87] seated ON the stem head (it used to overhang the bow and read as floating off the front), on a short knee post
   if (ART && kg('figurehead_gold')) { // [Timothy] gilded skull-in-a-tricorn figurehead on the cutwater, under the bowsprit
     const fs = depth / 3.1 * (opts.kitArt?.ram ? 0.85 : 1.05), fp = [0, bowY - (opts.kitArt?.ram ? 0.55 : 0.95) * fs, zAt(1) - 0.32 * fs];
-    for (const [n, m] of [['figurehead_gold', K.goldK], ['figurehead_dark', K.darkK], ['figurehead_wood', K.woodK]]) parts.add(m, kg(n), fp, [0, 0, 0], fs);
+    parts.curTag = 'fig'; for (const [n, m] of [['figurehead_gold', K.goldK], ['figurehead_dark', K.darkK], ['figurehead_wood', K.woodK]]) parts.add(m, kg(n), fp, [0, 0, 0], fs); parts.curTag = null;   // [Raul shop2 fixes] 'fig': a shop figurehead hides it (js/shipGear.js)
     figInfo = { p: fp, s: fs, bowY, zb: zAt(1) }; // [Timothy v2] HULL max crowns + winged figurehead (upgradeVisuals)
     parts.add(K.goldK, vc(new THREE.SphereGeometry(0.24, 14, 10)), [0, bowY + 0.3, zAt(1) - 0.24]); // stem-head knob
   } else parts.add(K.gold, new THREE.SphereGeometry(0.32, 10, 8), [0, bowY + 0.32, zAt(1) - 0.24]);

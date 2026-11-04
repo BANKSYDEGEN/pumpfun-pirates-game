@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- [Raul shop2 fixes] PUMPFUN PIRATES pose x gear viewer (dev only, not shipped): the real on-foot pirate (js/onfoot/pirate.js loadPirate,
+     dressed with ?cells gear) in the common poses: idle / walk / run / swim / tread / emote:<n> / steer (the wheel clip).
+     tools/pose_gear_viewer.html?lod=hi|lo&sex=m|f&cols=N&cells=[[label, gear, mode, t, view], ...]   view = q | back | side | bq | front -->
+<html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES pose x gear viewer</title>
+<style>html,body{margin:0;background:#1d2833;color:#fff;font:600 13px system-ui;overflow:hidden}#lab{position:fixed;inset:0;pointer-events:none}
+#lab div{position:absolute;text-align:center;text-shadow:0 1px 2px #000}#hd{position:fixed;left:8px;top:4px;font-size:15px;opacity:.9}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three-0.165.0/build/three.module.js","three/addons/":"./vendor/three-0.165.0/examples/jsm/"}}</script>
+</head><body><div id="hd"></div><div id="lab"></div>
+<script type="module">
+import * as THREE from 'three';
+import { loadPirate } from './js/onfoot/pirate.js';
+import { PHYS, newBody, placeBody, stepBody, poseBody } from './js/onfoot/physics.js';
+const q = new URLSearchParams(location.search), LOW = q.get('lod') === 'lo', FEM = q.get('sex') === 'f';
+const CELLS = JSON.parse(q.get('cells') || '[["IDLE",{"cape":"cape_royal"},"idle",1,"bq"]]'), COLS = +(q.get('cols') || 6), ROWS = Math.ceil(CELLS.length / COLS);
+const DRY = { ground: () => 0, water: () => null }, WATER = { ground: () => -3, water: () => 0 };
+document.getElementById('hd').textContent = q.get('title') || `PUMPFUN PIRATES poses x gear · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High (desktop)'}`;
+const renderer = new THREE.WebGLRenderer({ antialias: !LOW, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.autoClear = false; document.body.prepend(renderer.domElement);
+const cells = [];
+CELLS.forEach(([label, gear, mode, T, view], i) => {
+  const s = new THREE.Scene(); s.background = new THREE.Color(0x9fc4d8);
+  s.add(new THREE.HemisphereLight(0xdfefff, 0x4a3a2a, 1.6)); const d = new THREE.DirectionalLight(0xfff1dc, 2.2); d.position.set(3, 6, 4); s.add(d);
+  const wet = mode === 'swim' || mode === 'tread';
+  if (wet) { const wm = new THREE.Mesh(new THREE.PlaneGeometry(40, 12), new THREE.MeshLambertMaterial({ color: 0x2a7fa8, transparent: true, opacity: 0.3, depthWrite: false })); wm.rotation.x = -Math.PI / 2; wm.renderOrder = 2; s.add(wm); }
+  else { const g = new THREE.Mesh(new THREE.PlaneGeometry(60, 12), new THREE.MeshLambertMaterial({ color: 0xc9b083 })); g.rotation.x = -Math.PI / 2; s.add(g); }
+  const p = loadPirate({ look: { skin: 0, hair: 0, female: FEM }, low: LOW, gear: { body: FEM ? 1 : 0, ...gear } }); s.add(p.object);
+  cells.push({ label, gear, mode, T: +T || 1, view: view || 'bq', s, p, wet, petT: CELLS[i][5] ?? null });
+  const l = document.createElement('div'); l.textContent = label; document.getElementById('lab').append(l); l.dataset.i = i; });
+const v4of = (p) => p.object.userData.v4 || p.object.children.find((o) => o.userData?.v4)?.userData.v4;
+function sim(cell) {
+  const { p, mode, T, wet } = cell, b = newBody(), dt = 1 / 30, W = wet ? WATER : DRY, em = /^emote:(\d)/.exec(mode);
+  const v = { walk: 2.4, run: 6, swim: PHYS.swim[0] }[mode] || 0, yaw = v ? Math.PI / 2 : 0.3; let x = 0, t = 0, fired = false; const v4 = v4of(p);
+  placeBody(b, W, x, 0);
+  for (let i = 0; i < 600 && t < T + (em ? 1 : 0); i++) {
+    if (em && !fired && t >= 1) { p.emote(+em[1]); fired = true; }
+    if (mode === 'steer') { p.object.position.set(0, 0, 0); p.object.rotation.y = yaw; v4.play('steer'); v4.update(dt); t += dt; continue; }
+    x += v * dt; stepBody(b, W, x, 0, dt, v);
+    const st = poseBody(p.object, b, x, 0, yaw, v, t); p.update(dt, v, st); v4?.update(dt); t += dt; }
+  cell.x = mode === 'steer' ? 0 : x; cell.yaw = yaw;
+  if (cell.petT != null) p.object.traverse((o) => { const L = o.userData.layer; if (L && L.kind !== 'CAPE') L.U.uLyT.value = cell.petT; }); }
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
+const VIEWS = { q: [1.9, 1.1, 5.0], front: [0.4, 0.9, 5.2], side: [5.2, 0.9, 0.4], back: [-0.4, 1.0, -5.2], bq: [-2.6, 1.2, -4.4], top: [-2.2, 3.8, -2.6], pet: [1.1, 1.45, 1.35, 1.12, 0.22], petside: [1.7, 1.25, 0.2, 1.12, 0.22] };
+function layout() { const w = innerWidth / COLS, h = (innerHeight - 24) / ROWS;
+  document.querySelectorAll('#lab div').forEach((l) => { const i = +l.dataset.i; l.style.left = (i % COLS) * w + 'px'; l.style.width = w + 'px'; l.style.top = (24 + Math.floor(i / COLS) * h + h - 20) + 'px'; }); return { w, h }; }
+function maskMats() { for (const k of cells) k.p.object.traverse((o) => { if (o.isMesh) o.material = /^item_cape_/.test(o.name) ? M_C : (/^item_(cloth_(?!base)|shirt|suit)/.test(o.name) || o.name === 'pirate-gear') ? M_O : M_B; }); }
+function render() { if (q.get('mask')) maskMats(); const { w, h } = layout(); renderer.setScissorTest(true); renderer.clear(); cam.aspect = w / h; cam.updateProjectionMatrix();
+  const Z = +(q.get('zoom') || 1);
+  cells.forEach((k, i) => { const x = (i % COLS) * w, y = innerHeight - (24 + (Math.floor(i / COLS) + 1) * h), V = VIEWS[k.view] || VIEWS.bq, ly = k.wet ? 0.1 : 0.95;
+    const c = Math.cos(k.yaw || 0), sn = Math.sin(k.yaw || 0), vx = V[0] * c + V[2] * sn, vz = -V[0] * sn + V[2] * c;   // views are in the pirate's frame
+    const LY = V[3] ?? ly, LX = V[4] ? V[4] * c : 0, LZ = V[4] ? -V[4] * sn : 0; cam.position.set(k.x + LX + vx / Z, LY + (V[1] - 0.95) / Z, LZ + vz / Z); cam.lookAt(k.x + LX, LY, LZ);
+    renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.render(k.s, cam); }); }
+// poke-through metric: pixels where the pirate (body / coat / legs) draws OVER the cape's own silhouette, seen from the given view
+const RT = new THREE.WebGLRenderTarget(200, 260), PX = new Uint8Array(200 * 260 * 4), M_C = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide }), M_B = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide }), M_O = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide });
+function clipCount(k, view) {
+  const meshes = []; k.p.object.traverse((o) => { if (o.isMesh) meshes.push([o, o.material, o.visible]); });
+  const isCape = (o) => /^item_cape_/.test(o.name); if (!meshes.some(([o]) => isCape(o))) return null;
+  const V = VIEWS[view] || VIEWS.back, c = Math.cos(k.yaw || 0), sn = Math.sin(k.yaw || 0), ly = k.wet ? 0.1 : 0.95, cm = new THREE.PerspectiveCamera(30, 200 / 260, 0.1, 60);
+  cm.position.set(k.x + V[0] * c + V[2] * sn, ly + V[1] - 0.95, -V[0] * sn + V[2] * c); cm.lookAt(k.x, ly, 0);
+  const bg = k.s.background; k.s.background = null; const hid = []; k.s.children.forEach((o) => { if (o !== k.p.object && o.visible && o.isMesh) { o.visible = false; hid.push(o); } });
+  renderer.setScissorTest(false); renderer.setRenderTarget(RT);
+  const pass = (onlyCape) => { for (const [o] of meshes) { o.material = isCape(o) ? M_C : (/^item_(cloth_(?!base)|shirt|suit)/.test(o.name) || o.name === "pirate-gear") ? M_O : M_B; if (onlyCape && !isCape(o)) o.visible = false; }
+    renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(k.s, cm); renderer.readRenderTargetPixels(RT, 0, 0, 200, 260, PX); const a = PX.slice(); for (const [o, , v] of meshes) o.visible = v; return a; };
+  const A = pass(true), B = pass(false); let cape = 0, poke = 0, cloth = 0;
+  let y0 = 1e9, y1 = -1; for (let i = 0; i < A.length; i += 4) if (A[i + 1] > 128) { const y = (i / 4 / 200) | 0; y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const yc = y0 + (y1 - y0) * (+q.get('capeFrac') || 0.55);   // the lower 55 % of the cape (rows count up from the bottom): no head / hair / collar over its top
+  for (let i = 0; i < A.length; i += 4) if (A[i + 1] > 128 && ((i / 4 / 200) | 0) < yc) { cape++; if (B[i] > 128 && B[i + 1] < 100) poke++; if (B[i + 2] > 128 && B[i + 1] < 100) cloth++; }
+  for (const [o, m] of meshes) o.material = m; hid.forEach((o) => (o.visible = true)); k.s.background = bg; renderer.setRenderTarget(null);
+  return { cape, poke, cloth, pct: +(100 * (poke + cloth) / Math.max(1, cape)).toFixed(1), body: +(100 * poke / Math.max(1, cape)).toFixed(1), top: +(100 * cloth / Math.max(1, cape)).toFixed(1) };
+}
+const ready = () => cells.every((k) => { const v = v4of(k.p); return v && v.gearKey != null; });
+window.PGV = { ready, go() { cells.forEach(sim); render(); return cells.map((k) => [k.label, +k.x.toFixed(2)]); }, cells, render, clip: (view = 'back') => cells.map((k) => [k.label, clipCount(k, view)]) };
+</script></body></html>

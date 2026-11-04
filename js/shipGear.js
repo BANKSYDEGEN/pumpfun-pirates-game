@@ -3,7 +3,7 @@
 // dresses whatever ship was built, after the build). One extra draw call per figurehead, none for a flag.
 //   import { applyShipGear } from './shipGear.js';  applyShipGear(shipMesh, gear)   // gear.flag / gear.figure (js/pirateGear.js ids); 'none' = the skin's own
 import * as THREE from 'three';
-import { flagMats } from './ships.js';
+import { flagMats, setTagHidden } from './ships.js';
 
 export const SHIP_FLAGS = ['flag_cutlass', 'flag_red', 'flag_gold'];
 export const SHIP_FIGURES = ['fig_mermaid', 'fig_kraken', 'fig_lion'];
@@ -103,10 +103,14 @@ export function applyShipGear(ship, gear) {
   const key = (fl || '') + '|' + (fg || ''); if (u.shipGearKey === key) return; u.shipGearKey = key;
   try {
     const F = u.flag; if (F?.children?.length >= 2) {
-      if (!F.userData.mats0) F.userData.mats0 = [F.children[0].material, F.children[1].material];
-      const m = fl ? flagMats(flagTex(fl)) : F.userData.mats0; F.children[0].material = m[0]; F.children[1].material = m[1];
+      const C = F.children; if (!F.userData.mats0) F.userData.mats0 = [C[0].userData.teamOrig || C[0].material, C[1].userData.teamOrig || C[1].material];
+      const m = fl ? flagMats(flagTex(fl)) : F.userData.mats0;
+      // [Raul shop2 fixes] squads team paint (js/squads.js) keeps the flag it restores in userData.teamOrig: the shop flag goes there too, so a
+      // team flag (2v2: team colour wins while it lasts) or a later teamPaint(null) in the harbor never puts the skin's flag back over yours
+      for (const k of [0, 1]) { if (C[k].userData.teamOrig) C[k].userData.teamOrig = m[k]; if (u.teamHex == null) C[k].material = m[k]; }
     }
     const body = u.body || ship; const old = body.getObjectByName('shipgear_figure'); if (old) old.removeFromParent();
+    setTagHidden(ship, 'fig', !!fg);   // [Raul shop2 fixes] BANKSY via Emerly: a shop figurehead REPLACES Timothy's skull-in-a-tricorn (+ its max-HULL crown + wings), no overlap
     if (fg) { const fi = u.figure, m = figureMesh(fg);
       if (fi) { const sc = fi.s * FIG_K; m.position.set(fi.p[0], fi.p[1] - FIG_DY * sc, fi.p[2] + FIG_DZ * fi.s); m.scale.setScalar(sc); }
       else { const L = u.layout; m.position.set(0, (L?.bowY ?? 2) - 1.0, (L?.zAt ? L.zAt(1) : (u.len || 16) / 2) - 0.3); m.scale.setScalar(0.9); }

@@ -35,6 +35,10 @@ export const GEAR_RENDERS = Object.freeze({
 });
 export const EXTRA_SLOTS = ['beard', 'ears', 'teeth', 'boots', 'cape', 'flag', 'figure'];   // [Raul shop items 2] wire digits after the face paint, in this order (APPEND-ONLY)
 export const gearRenders = (slot, id) => !!GEAR_RENDERS[slot]?.includes(id);
+// [Raul shop2 fixes] BANKSY via Emerly "hide beards on female bodies (or make that a choice)": a beard is worn on male bodies only. The pick is
+// kept in the gear (a pirate who switches to the male body gets it back). true = draw it on female bodies too (a later player toggle could set it).
+export const BEARD_ON_FEMALE = false;
+export const beardShows = (g) => g?.beard && g.beard !== 'none' && (BEARD_ON_FEMALE || !(g.body | 0));
 const GEAR_URL = { hi: 'assets/pirates/gear_hi.glb', lo: 'assets/pirates/gear_lo.glb' };
 
 // HAT COLOUR (BANKSY: "they can pick their ... hat color"): free, one of these swatches; 0 = the hat's own default
@@ -484,7 +488,7 @@ function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
   // [Raul clothes v5] every dressed v5 pirate wears his base outfit mesh (pants, belt, sash, boots, her wrap top); crews keep the baked body
   if (p.v5 && !p.forCrew && !p.raulKeys.base && RAUL_ITEMS.cloth_base) { p.raulKeys.base = 'cloth_base'; jobs.push(raulEquip(p, 'cloth_base').catch((e) => { console.warn('[gear] base outfit', e); p.raulKeys.base = ''; })); }
-  for (const slot of Object.keys(GEAR_DEFAULTS)) { const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }
+  for (const slot of Object.keys(GEAR_DEFAULTS)) { if (slot === 'beard' && p.female && !BEARD_ON_FEMALE) continue; const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }   // [Raul shop2 fixes] no beard on a female body
   for (const rs of RAUL_SLOTS) {
     const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
     if ((p.raulKeys[rs] || '') === k) continue; p.raulKeys[rs] = k;

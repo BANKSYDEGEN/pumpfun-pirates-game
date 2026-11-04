@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadPirateGLB, PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
-import { skullTexture } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
+import { skullTexture, ITEM_BY_ID } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -125,9 +125,18 @@ async function gearPirate(sex) {
   return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo' }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
 }
 export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
+// [Raul shop2 fixes] BANKSY via Emerly "deck crew wear the new items": the crew keep THEIR OWN hat + outfit (Crew Shop, js/crewLoadout.js) and
+// also wear the captain's shop-items-2 EXTRAS: beard (male crew only, like the captain), earrings, gold teeth, boots, cape. Pets + pegs stay
+// on the captain (no ship full of monkeys). Phone / Low crews: beard + cape only (earrings / teeth / boots are sub-pixel at crew size and
+// cost the most triangles per seat). Baked into the same chunk: still ONE crew draw call per ship.
+export const CREW_EXTRA_SLOTS = [], CREW_EXTRA_LOW = [];   // [v184] BANKSY "Crew shouldn't copy any of my items": no captain extras on the crew (they keep their own Crew Shop hat + coat)
+export function captainExtras(gear, low = false) {
+  const o = {}; for (const k of low ? CREW_EXTRA_LOW : CREW_EXTRA_SLOTS) if (gear?.[k] && gear[k] !== 'none') o[k] = gear[k]; return o;
+}
 export function crewGearOf(gear) {
   if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
-  return (g.hat === 'none' && g.outfit === 'shirtless') ? null : g;
+  for (const k of CREW_EXTRA_SLOTS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [Raul shop2 fixes]
+  return (g.hat === 'none' && g.outfit === 'shirtless' && !CREW_EXTRA_SLOTS.some((k) => g[k])) ? null : g;
 }
 const _gc = new Map();
 export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, cannon }, f: {...} } | null>
@@ -143,7 +152,9 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       out[sex] = {}; out[sex].top = g.outfit !== 'shirtless';   // [v128] the seat body is pulled in under tops (as the player since v124)
       const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
       const decals = Object.values(p.items || {}).map((it) => it.decal).filter((o) => o?.isSkinnedMesh && o.parent); // [v123] the PUMPFUN skull on the hat (crew slot tF0)
-      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown)), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
+      const hairy = new Set(Object.values(p.items || {}).filter((it) => /^beard_(moustache|forked)$/.test(it.id)).map((it) => it.obj));   // [Raul shop2 fixes] beards in each seat's hair colour
+      const raul2 = new Set(Object.values(p.items || {}).filter((it) => it.obj && ITEM_BY_ID[it.id]?.single).map((it) => it.obj));   // shop items 2: drop their ink shells (the crew shader inks its own rim)
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown ? 1 : hairy.has(m) ? 2 : 0, false, raul2.has(m))), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
     }
     return out;
   })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
@@ -161,14 +172,21 @@ function texPixels(t) {
   let r = null; try { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0); r = { w: c.width, h: c.height, d: x.getImageData(0, 0, c.width, c.height).data }; } catch (e) { console.warn('[crew] map sample', e); }
   _texPx.set(img, r); return r;
 }
-function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false) { // plain: no stripe uv (Raul's items: vertex colour only)
+function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false, noInk = false) {   // velvet: 1 = crown velvet (accent tint), 2 = the whole item (beards, scaled by its own shade) // plain: no stripe uv (Raul's items: vertex colour only)
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
   p.scene.updateMatrixWorld(true); mesh.skeleton.update();
   const g = mesh.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, U = g.attributes.uv, J = g.attributes.skinIndex, W = g.attributes.skinWeight;
-  const idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count, bm = mesh.skeleton.boneMatrices, bones = mesh.skeleton.bones;
+  let idx = g.index ? g.index.array : null; const bm = mesh.skeleton.boneMatrices, bones = mesh.skeleton.bones;
+  if (noInk && idx && C) { const keep = [], isInk = (i) => { const r = C.getX(i), g = C.getY(i), b = C.getZ(i); return r > 0.003 && r < 0.0088 && Math.abs(g / r - 0.747) < 0.05 && Math.abs(b / r - 0.63) < 0.07; };
+    // [Raul shop2 fixes] drop the item's inverted-hull ink shell (INK #15110f, x the Low light bake): the crew material is DoubleSide, so the
+    // shell would paint the whole item black; the crew shader draws its own rim ink. Halves the triangles per seat too.
+    for (let t = 0; t < idx.length; t += 3) if (!(isInk(idx[t]) && isInk(idx[t + 1]) && isInk(idx[t + 2]))) keep.push(idx[t], idx[t + 1], idx[t + 2]);
+    idx = keep; }
+  const n = idx ? idx.length : P.count;
   const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), part = new Float32Array(n), vel = new Float32Array(n);
-  const TT = velvet ? g.attributes._tint : null, iA = TINTS.indexOf('accent'), TX = plain && mesh.userData.texVerts ? texPixels(mesh.material?.map) : null;   // [Raul gear colours] helmet / mask: their painted (recoloured) map
+  let vmax = 0; if (velvet === 2 && C) for (let i = 0; i < C.count; i++) vmax = Math.max(vmax, C.getX(i) + C.getY(i) + C.getZ(i));
+  const TT = velvet === 1 ? g.attributes._tint : null, iA = TINTS.indexOf('accent'), TX = plain && mesh.userData.texVerts ? texPixels(mesh.material?.map) : null;   // [Raul gear colours] helmet / mask: their painted (recoloured) map
   const full = new THREE.Matrix4();
   for (let q = 0; q < n; q++) {
     const i = idx ? idx[q] : q;
@@ -185,6 +203,7 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false
     uv[q * 2] = decal ? 4 + Math.min(0.999, U.getX(i)) : 8 + (U && !plain ? U.getX(i) : 0.75); uv[q * 2 + 1] = U && !plain ? U.getY(i) : 0;
     if (decal) { col[q * 3] = col[q * 3 + 1] = col[q * 3 + 2] = 1; }
     part[q] = PARTN[bn(bones[best]?.name)] || 0; if (TT && Math.round(TT.getX(i)) === iA) vel[q] = 1;
+    if (velvet === 2 && vmax > 0) vel[q] = Math.max(0.05, (col[q * 3] + col[q * 3 + 1] + col[q * 3 + 2]) / vmax);   // the seat's hair x this vertex's shade (a shade darker under the braids)
   }
   return { pos, nrm, col, uv, part, vel };
 }
@@ -206,6 +225,6 @@ export function crewPirateV4Dressed(v, pose, chunks, tag) {
   g.setAttribute('position', cat(BP, ch.pos, 3)); g.setAttribute('normal', cat(A.normal.array, ch.nrm, 3)); g.setAttribute('color', cat(A.color.array, ch.col, 3));
   g.setAttribute('aPart', cat(A.aPart.array, ch.part, 1)); g.setAttribute('uv', cat(A.uv.array, ch.uv, 2));
   if (ch.vel?.some?.((x) => x)) { const hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]), C = g.attributes.color.array, o = A.position.count; // [v109b] crown velvet = this seat's hair
-    for (let q = 0; q < ch.vel.length; q++) if (ch.vel[q]) { C[(o + q) * 3] = hair.r; C[(o + q) * 3 + 1] = hair.g; C[(o + q) * 3 + 2] = hair.b; } }
+    for (let q = 0; q < ch.vel.length; q++) if (ch.vel[q]) { const k = ch.vel[q]; C[(o + q) * 3] = hair.r * k; C[(o + q) * 3 + 1] = hair.g * k; C[(o + q) * 3 + 2] = hair.b * k; } }
   if (_dc.size > 400) _dc.clear(); _dc.set(key, g); return g;
 }

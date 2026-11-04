@@ -13,6 +13,7 @@ import { createOcean, createSky, WAVES, FOG_COLOR } from '../ocean.js';
 import { wind, makeSkullTexture, animateShip } from '../ships.js';
 import { setCrewQuality } from '../crew.js';
 import { compileShip } from '../upgradeVisuals.js';
+import { applyShipGear } from '../shipGear.js'; import { getLocalGear } from '../pirateGear.js'; // [Raul shop2 fixes] your shop flag + figurehead on YOUR ship in the harbor
 import { getSkin } from '../skins.js';
 import { createIslands } from '../props.js';
 import { PVP_ARENA_R, ISLAND_TOKENS } from '../config.js';
@@ -188,8 +189,9 @@ function setLod(d) {
 setCrewQuality(LOW ? 'low' : 'high', phone);
 const flagTex = skull ? makeSkullTexture(skull, { w: 512, h: 340, pad: 0.1 }) : null;
 const sailTex = skull ? makeSkullTexture(skull, { w: 512, h: 400, bg: '#121212', pad: 0.14 }) : null;
-const mkShip = (levels, skin, bake) => {
+const mkShip = (levels, skin, bake, mine = false) => {
   const mesh = compileShip(levels, { mainSailMap: sailTex, flagMap: flagTex, light: false, shadows: false, quality: LOW ? 'low' : 'high', skin: getSkin(skin) });
+  if (mine) try { applyShipGear(mesh, getLocalGear()); } catch (e) { console.warn('[ship gear]', e); }   // before the bake (the figure merges in, the skull stays hidden)
   if (bake) { for (let k = 0; k < 90; k++) animateShip(mesh, 0, 0.5); bakeShip(mesh); } // moored: static parts merged per material
   mesh.traverse(o => { o.castShadow = false; }); scene.add(mesh); return mesh;
 };
@@ -198,11 +200,12 @@ const ships = [];
 const REAL_KIT = [[{ hull: 3, sails: 1, cannons: 1, armor: 1 }, 'golden'], [{ hull: 2, sails: 1, cannons: 1 }, 'midnight'], [{ hull: 1, sails: 1 }, 'blood']];
 const CB = COASTM ? Object.fromEntries(FM.CO.COAST_BERTHS.map(b => [b.id, b])) : null;
 (COASTM ? ['P4'] : REAL).forEach((id, i) => { const b = BERTH[id], w = COASTM ? new THREE.Vector3(CB[id].x, 0, CB[id].z) : L2W(b.x, 0, b.z);
-  ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true), x: w.x, z: w.z, yaw: COASTM ? CB[id].yaw : b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
+  ships.push({ mesh: mkShip(REAL_KIT[i][0], REAL_KIT[i][1], true, COASTM), x: w.x, z: w.z, yaw: COASTM ? CB[id].yaw : b.yaw + isle.rotation.y, sail: 0.5, ph: i, moored: true, berth: id }); });
 let approach = null; const duel = [];
 if (HARBOR) {
   // a ship sailing in from open water and pulling alongside berth P1L (the harbor-facing end of pier 1; 40 s loop)
-  approach = { mesh: mkShip({ hull: 1, sails: 1 }, 'classic', false), x: 0, z: 0, yaw: 0, sail: 1, ph: 1.3 }; ships.push(approach);
+  approach = { mesh: mkShip({ hull: 1, sails: 1 }, 'classic', false, true), x: 0, z: 0, yaw: 0, sail: 1, ph: 1.3 }; ships.push(approach);   // [Raul shop2 fixes] the ship pulling in = yours: your shop flag + figurehead
+  addEventListener('pfp-gear', () => { try { applyShipGear(approach.mesh, getLocalGear()); } catch {} });
   // two AI-style ships duelling out in the harbor, in view of the beach / dock / terrace / lookout
   if (!LOW) for (let i = 0; i < 2; i++) { const s = { mesh: mkShip({ hull: i, cannons: 1 }, i ? 'blood' : 'midnight', false), x: 0, z: 0, yaw: 0, sail: 1, ph: i * 2.1 }; duel.push(s); ships.push(s); }
 }

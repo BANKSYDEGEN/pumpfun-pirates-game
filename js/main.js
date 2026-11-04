@@ -1356,7 +1356,7 @@ function frame() {
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
-  { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin
+  { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
   tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
   if (composer) composer.render(); else renderer.render(scene, camera);

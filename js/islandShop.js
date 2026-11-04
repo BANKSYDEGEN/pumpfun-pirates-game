@@ -101,7 +101,7 @@ const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipp
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
 // a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
 const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0,   // [Raul gear colours] crew hats in the crew's hat colour
-  wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : thumbOpts();
+  wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
 function gearThumb(it, live = false) {
   if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
     const d = document.createElement('div'); d.className = 'ishop-sw gear real3d weapon'; const img = new Image(); img.alt = ''; img.decoding = 'async';
@@ -220,6 +220,7 @@ function detail(x) {
   if (x.kind === 'gear') boostDetail(x, s, d); // [Emerly] ITEM SKILL BOOSTS
   if (x.it.crew) { // [Timothy] CREW SHOP
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
+  if (x.kind === 'gear' && x.it.maleOnly) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">Male pirates only${getLocalGear().body ? ' · <b>not shown on your female pirate</b>' : ''}</div>`); // [Raul shop2 fixes]
   if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
   if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && x.it.tint?.hatColor && s.owned && provider.hatColor) { // [v109b] not the crown (its velvet = your hair colour) // [v105] free hat colour (equipped hat)
     const cur = state.equipped?.gear?.hatColor | 0, eq = state.equipped?.gear?.hat === x.it.id;

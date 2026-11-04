@@ -545,15 +545,75 @@ function paintLo(geo) {
   C.needsUpdate = true;
 }
 
+// [Raul shop2 fixes] tiny vertex-shader layers on Raul's rigid items (bind space, before skinning, so they ride the bones as before):
+//  - the shoulder PETS idle (BANKSY via Emerly "give the pets an idle animation"): breathing, the head looking about, the tail swishing
+//  - the CAPE's swim lift: in the water (swim / tread / climb / hop) the cape floats a few cm off the back, so the crawl's shoulders and
+//    the coat under it no longer push through
+// Driven by ONE PirateGLB post hook ('items', order 2: after the swim (0) and emote (1) layers; battle.js weapons still land last).
+// No bones, no mixer, no allocation per frame: one uniform write per item.
+// pets: B = the pet's body seat (build.py 'b'), measured from the GLB bounds: [x = mid, y = top - dy, z = front - dz]
+export const PET_IDLE = { pet_cat: { kind: 'CAT', dy: 0.115, dz: 0.168 }, pet_cat_black: { kind: 'CAT', dy: 0.115, dz: 0.168 }, pet_monkey: { kind: 'MONKEY', dy: 0.1885, dz: 0.088 } };
+export const CAPE_LIFT = 0.07;   // m off the back at full swim weight
+const LAYER_FN = `
+vec3 lyRotY(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
+vec3 lyRotX(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
+vec3 lyRotZ(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z); }`;
+const LAYER_GLSL = {
+  CAT: `{ vec3 B = uLyB, p = transformed; float t = uLyT;
+    float wh = smoothstep(B.z + 0.05, B.z + 0.085, p.z), wt = smoothstep(B.z - 0.085, B.z - 0.115, p.z) * (0.35 + 0.65 * smoothstep(B.y + 0.01, B.y - 0.15, p.y));
+    float br = 0.03 * sin(t * 2.6) * (1.0 - wh) * (1.0 - wt); p.x = B.x + (p.x - B.x) * (1.0 + br); p.y = B.y + (p.y - B.y) * (1.0 + br * 1.3);
+    vec3 nk = B + vec3(0.0, 0.02, 0.065); p = mix(p, lyRotX(lyRotY(p, nk, 0.3 * sin(t * 0.55) + 0.08 * sin(t * 1.7)), nk, 0.08 * sin(t * 1.15 + 1.0)), wh);
+    p = mix(p, lyRotZ(lyRotY(p, B + vec3(0.0, 0.0, -0.1), 0.15 * sin(t * 1.1)), B + vec3(0.0, 0.0, -0.1), 0.45 * sin(t * 1.8)), wt); transformed = p; }`,
+  MONKEY: `{ vec3 B = uLyB, p = transformed; float t = uLyT;
+    float wh = smoothstep(B.y + 0.045, B.y + 0.075, p.y), wt = smoothstep(B.z - 0.035, B.z - 0.07, p.z) * (0.3 + 0.7 * smoothstep(B.y + 0.03, B.y - 0.2, p.y));
+    float br = 0.035 * sin(t * 2.9) * (1.0 - wh) * (1.0 - wt); p.x = B.x + (p.x - B.x) * (1.0 + br); p.z = B.z + (p.z - B.z) * (1.0 + br);
+    vec3 nk = B + vec3(0.0, 0.06, 0.0); p = mix(p, lyRotZ(lyRotY(p, nk, 0.35 * sin(t * 0.7) + 0.1 * sin(t * 2.3)), nk, 0.12 * sin(t * 1.3)), wh);
+    vec3 tr = B + vec3(0.0, 0.02, -0.06); p = mix(p, lyRotX(lyRotZ(p, tr, 0.4 * sin(t * 2.1)), tr, 0.15 * sin(t * 1.4)), wt); transformed = p; }`,
+  CAPE: `{ float w = smoothstep(uLyB.y, uLyB.y - 0.18, transformed.y) * uLyT; transformed.z -= w; transformed.x *= 1.0 + 0.6 * w; }`,
+};
+function itemLayer(m, g0, def) {
+  const kind = def.slot === 'cape' ? 'CAPE' : PET_IDLE[def.id].kind, bb = g0.boundingBox || (g0.computeBoundingBox(), g0.boundingBox), P = PET_IDLE[def.id];
+  const B = kind === 'CAPE' ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : new THREE.Vector3((bb.min.x + bb.max.x) / 2, bb.max.y - P.dy, bb.max.z - P.dz);
+  const U = { uLyT: { value: 0 }, uLyB: { value: B } }, mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
+  mat.onBeforeCompile = (sh, r) => { prev?.call(mat, sh, r); Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LAYER_GLSL[kind]); };
+  mat.customProgramCacheKey = () => (ck ? ck() : '') + '|ly' + kind;
+  m.userData.layer = { kind, U, t: Math.random() * 20 };
+}
+function itemsPost(dt) {   // PirateGLB post hook (this = the pirate)
+  for (const k of ['shoulder', 'cape']) { const L = this.items?.[k]?.obj?.userData?.layer; if (!L) continue;
+    if (L.kind === 'CAPE') { const w = this._sw?.w || 0; L.U.uLyT.value = CAPE_LIFT * w * w * (3 - 2 * w); }
+    else { L.t += Math.min(0.1, dt || 0); L.U.uLyT.value = L.t; } }
+}
+// [Raul shop2 fixes] BANKSY via Emerly "fix the cape and coat clipping": the capes were rigid on the spine, so the back leg (walk / run),
+// the flutter kick (swim) and the jig kicked through the hem. Below the hips the cape now blends from the spine onto the thighs, like the
+// coat tails it hangs over (they move together: no tails poking through either): each side mostly its own thigh, a little of the other
+// (no split down the middle). Bind-space weights only, computed once per GLB (same cost to draw, no new bones).
+export const CAPE_FOLLOW = { top: 0.06, bottom: 0.3, max: 0.78, own: 0.8, side: 0.07 };
+function capeFollowLegs(g0, geo, skel, names) {
+  const ix = (n) => names.findIndex((b) => b.replace(/[^A-Za-z0-9]/g, '').toLowerCase() === n), iL = ix('thighl'), iR = ix('thighr'), iS = ix('spine');
+  if (iL < 0 || iR < 0 || iS < 0) return;
+  let W = g0.userData.capeW;
+  if (!W) {
+    const BL = new THREE.Matrix4().copy(skel.boneInverses[iL]).invert().elements, hy = BL[13], sx = Math.sign(BL[12]) || 1, P = g0.attributes.position, n = P.count, F = CAPE_FOLLOW;
+    const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    for (let i = 0; i < n; i++) { const w = F.max * ss(hy + F.top, hy - F.bottom, P.getY(i)), l = ss(-F.side, F.side, P.getX(i) * sx), wl = w * (l * F.own + (1 - l) * (1 - F.own)), wr = w - wl;
+      si.set([iS, iL, iR, 0], i * 4); sw.set([1 - w, wl, wr, 0], i * 4); }
+    W = g0.userData.capeW = { si, sw };
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(W.si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(W.sw, 4));
+}
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
+  if (def.slot === 'cape') capeFollowLegs(g0, geo, skel, names);   // [Raul shop2 fixes] the hem rides the thighs (walk / run / swim / emotes: no legs through it)
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors && !def.base) retint(geo, opts.colors);
   if (def.paint && p.lod === 'lo') paintLo(geo);
   const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
   const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, (def.slot !== 'outfit' || !!def.v5cloth) && !/^(hook|peg)_/.test(def.id) && !def.single)); m.name = 'item_' + def.id; m.frustumCulled = false;   // [Timothy] hooks + pegs single-sided: their black ink outline shell drew over the whole item when double-sided (black hook / peg)
   recolorItem(m, def, opts.colors);
+  if (PET_IDLE[def.id] || def.slot === 'cape') { itemLayer(m, g0, def); p.addPost?.('items', itemsPost, 2); }   // [Raul shop2 fixes] pet idle + the cape's swim lift
   if (def.decal) Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });   // [Raul shop items 2] the grin sticker wins over the lips / beard under it
   if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);

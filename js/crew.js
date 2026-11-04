@@ -12,6 +12,7 @@ import { V4, crewPirateV4, crewPirateV4Dressed } from './crewV4.js'; // [v101] R
 
 let Q = 'high', PHONE = false;
 export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
+export const crewLow = () => Q === 'low' || PHONE;   // [Raul shop2 fixes] phone / Low crews wear fewer of the captain's extras (js/crewV4.js captainExtras)
 
 const C = (h) => new THREE.Color(h);
 const SKIN = [C(0xf2c9a0), C(0xe0ac7e), C(0x8a5a3c), C(0xf5f0ea)], BEARD = [C(0x1a1410), C(0xd9b25a), C(0x39ff6a), C(0x7a4a22)];

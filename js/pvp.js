@@ -651,7 +651,7 @@ export function createPvp(K) {
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
-    syncCrewGear(p.ship.mesh, crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), { skin: sk }); // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
+    syncCrewGear(p.ship.mesh, crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), { skin: sk }, p.captain?.gear); // [Raul shop2 fixes] + their captain's shop-items-2 extras // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
   }
   function updateRemote(e, dt) {
     const st = e.netState;
