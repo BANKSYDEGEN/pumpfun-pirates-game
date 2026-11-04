@@ -37,7 +37,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   cape:   { c: [0, 0.85, -0.05], d: [0.7, 0.15, -1], r: 0.6 },
   // [Raul items redo 2] the ground pets stand by the captain's left foot (js/petRig.js anchors x 1.25 for the 1.75 m mannequin)
   'parrot:pet_cat': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_cat_black': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_monkey': { c: [0.55, 0.25, 0.05], d: [0.75, 0.22, 1], r: 0.33 },
-  'parrot:pet_chimp': { c: [0.65, 0.3, 0.05], d: [0.75, 0.22, 1], r: 0.4 }, 'parrot:pet_gorilla': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_gorilla_white': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 },
+  'parrot:pet_chimp': { c: [0.65, 0.3, 0.05], d: [0.75, 0.22, 1], r: 0.4 }, 'parrot:pet_gorilla': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_gorilla_white': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_tiger': { c: [0.68, 0.42, 0.05], d: [0.95, 0.22, 1], r: 0.6 },
   'hat:crown_imperial': { c: [0, 1.82, 0.05], d: [0.3, 0.22, 1], r: 0.5 },
   'hat:mask_luchador': { c: [0, 1.4, 0.05], d: [0.3, 0.12, 1], r: 0.36 },   // [Raul wrestler] the full-head mask: brow skull to the open chin   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
 };

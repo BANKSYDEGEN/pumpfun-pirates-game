@@ -27,7 +27,7 @@ export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', e
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
 export const GEAR_RENDERS = Object.freeze({
   hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['eyepatch', 'sunglasses', 'laser'],
-  parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond', 'pet_monkey', 'pet_cat', 'pet_cat_black', 'pet_chimp', 'pet_gorilla', 'pet_gorilla_white'], hook: ['hook_iron', 'hook_gold'],   // [Raul shop items 2] + shoulder pets (the parrot slot: one shoulder pet)
+  parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond', 'pet_monkey', 'pet_cat', 'pet_cat_black', 'pet_chimp', 'pet_gorilla', 'pet_gorilla_white', 'pet_tiger'], hook: ['hook_iron', 'hook_gold'],   // [Raul shop items 2] + shoulder pets (the parrot slot: one shoulder pet)
   leg: ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'],   // [Raul pegs 2] + the GHOST BONE PEG;   // [Raul shop items 2] + BANKSY's SPECIAL pegs (same side pick: legSide)   // one PEG LEG item; the side is gear.legSide
   face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
   // [Raul shop items 2] v5 bodies only (v4 bodies draw nothing); flag + figure dress YOUR SHIP (js/shipGear.js), not the pirate
@@ -151,7 +151,7 @@ const RAUL5 = {
   'teeth:tooth_gold': ['teeth', 'tooth_gold', null], 'teeth:grill_gold': ['teeth', 'grill_gold', null], 'teeth:grill_diamond': ['teeth', 'grill_diamond', null],
   'boots:boots_buckle': ['boots', 'boots_buckle', null], 'boots:boots_cavalier': ['boots', 'boots_cavalier', null], 'boots:boots_gold': ['boots', 'boots_gold', null],
   'cape:cape_tattered': ['cape', 'cape_tattered', null], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => ({ 1: outfitColors('suit', c).cloth })], 'cape:cape_royal': ['cape', 'cape_royal', null],
-  'parrot:pet_monkey': ['shoulder', 'pet_monkey', null], 'parrot:pet_cat': ['shoulder', 'pet_cat', null], 'parrot:pet_cat_black': ['shoulder', 'pet_cat_black', null], 'parrot:pet_chimp': ['shoulder', 'pet_chimp', null], 'parrot:pet_gorilla': ['shoulder', 'pet_gorilla', null], 'parrot:pet_gorilla_white': ['shoulder', 'pet_gorilla_white', null],
+  'parrot:pet_monkey': ['shoulder', 'pet_monkey', null], 'parrot:pet_cat': ['shoulder', 'pet_cat', null], 'parrot:pet_cat_black': ['shoulder', 'pet_cat_black', null], 'parrot:pet_chimp': ['shoulder', 'pet_chimp', null], 'parrot:pet_gorilla': ['shoulder', 'pet_gorilla', null], 'parrot:pet_gorilla_white': ['shoulder', 'pet_gorilla_white', null], 'parrot:pet_tiger': ['shoulder', 'pet_tiger', null],
   'hat:mask_luchador': ['head', 'mask_luchador', (g) => (g.hatColor ? { recolor: hatColorHex('mask_luchador', g.hatColor) } : null)],   // [Raul gear colours] the hat colour = the hood; flames + trim auto-contrast (0 = his gold)
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);

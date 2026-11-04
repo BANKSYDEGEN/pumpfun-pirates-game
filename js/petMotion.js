@@ -6,19 +6,20 @@
 //    gorillas knuckle-walk, sit back and beat their chest); out -> G = [phase, walk, run, sit], A = [groom | beat, hop, look, lookPitch]
 //  - parrots: perched on the shoulder; on foot they take off now and then (sooner when you stand still), fly a loop round you and land
 //    back on the shoulder: birdFlight(t) = offset from the perch (bind space, m), heading, bank, wing flap.
-export const GROUND_PETS = { pet_cat: 'cat', pet_cat_black: 'cat', pet_monkey: 'monkey', pet_chimp: 'chimp', pet_gorilla: 'gorilla', pet_gorilla_white: 'gorilla' };
+export const GROUND_PETS = { pet_cat: 'cat', pet_cat_black: 'cat', pet_monkey: 'monkey', pet_chimp: 'chimp', pet_gorilla: 'gorilla', pet_gorilla_white: 'gorilla', pet_tiger: 'tiger' };   // [BANKSY 11:39 AM] + tiger
 export const isGroundPet = (id) => !!GROUND_PETS[id];
 export const isBird = (id) => typeof id === 'string' && id.startsWith('parrot_');
-export const PET_KIND_ID = { cat: 0, monkey: 1, chimp: 2, gorilla: 2 };
+export const PET_KIND_ID = { cat: 0, monkey: 1, chimp: 2, gorilla: 2, tiger: 0 };   // the tiger walks / runs / sits like the cat (+ uLyK.z = 1: stretch + pounce)
 // follow distance behind you (m, along your own trail like the crew), side offset, stride (m per gait cycle), top speeds
 export const PET_FOLLOW = {
-  back: { cat: 1.25, monkey: 1.35, chimp: 1.55, gorilla: 1.9 }, side: 0.85, lost: 30, stuck: 1.5,
-  stride: { cat: 0.55, monkey: 0.7, chimp: 0.95, gorilla: 1.35 }, run: 10.2, near: 0.5,
+  back: { cat: 1.25, monkey: 1.35, chimp: 1.55, gorilla: 1.9, tiger: 2.0 }, side: 0.85, lost: 30, stuck: 1.5,
+  stride: { cat: 0.55, monkey: 0.7, chimp: 0.95, gorilla: 1.35, tiger: 1.45 }, run: 10.2, near: 0.5,
 };
 export const PET_ACTS = {   // idle personality: [act, every (s, + random up to the same again), lasts (s)]
   cat: [['groom', 6, 3.2]], monkey: [['hop', 2.6, 0.55], ['look', 4, 1.6]], chimp: [['hop', 4, 0.6], ['look', 5, 1.8]], gorilla: [['beat', 7, 2.2], ['look', 5, 2]],
+  tiger: [['stretch', 7, 2.6], ['hop', 4.5, 0.75], ['look', 5, 1.8]],   // a big stretch + yawn, a playful pounce
 };
-export const PET_SIT = { cat: 1, monkey: 0, chimp: 0.7, gorilla: 0.55 };   // how far they settle down when idle (on deck: sitting by the wheel)
+export const PET_SIT = { cat: 1, monkey: 0, chimp: 0.7, gorilla: 0.55, tiger: 0.9 };   // how far they settle down when idle (on deck: sitting by the wheel)
 export function newPetState(kind, seed = 0.5) {
   return { kind, ph: 0, walk: 0, run: 0, sit: PET_SIT[kind] || 0, act: '', actT: 0, actLen: 0, nextAct: 2 + seed * 3, idleT: 9, look: 0, lookP: 0, lookTo: 0,
     seed, G: [0, 0, 0, PET_SIT[kind] || 0], A: [0, 0, 0, 0] };
@@ -39,12 +40,12 @@ export function petPose(st, speed, dt, rnd = Math.random) {
     if (a) { st.act = a[0]; st.actT = 0; st.actLen = a[2]; st.nextAct = a[1] * (1 + rnd()); if (a[0] === 'look') st.lookTo = (rnd() - 0.5) * 1.6; }
   }
   const u = st.actLen ? st.actT / st.actLen : 0, env = st.act ? Math.min(1, u * 5, (1 - u) * 5) : 0;
-  const groom = st.act === 'groom' ? env : 0, beat = st.act === 'beat' ? env : 0;
+  const groom = st.act === 'groom' ? env : 0, beat = st.act === 'beat' ? env : 0, stretch = st.act === 'stretch' ? env : 0;
   const hop = st.act === 'hop' ? Math.sin(Math.PI * clamp(u, 0, 1)) : 0;
   st.look = ease(st.look, st.act === 'look' ? st.lookTo : moving ? 0 : 0.25 * Math.sin(st.idleT * 0.6 + st.seed * 6), dt * 3);
-  st.lookP = ease(st.lookP, groom ? 0.45 : beat ? -0.3 : 0, dt * 6);
+  st.lookP = ease(st.lookP, groom ? 0.45 : beat ? -0.3 : stretch ? -0.55 * stretch : 0, dt * 6);   // stretch: head up in a big yawn
   st.G[0] = st.ph; st.G[1] = st.walk; st.G[2] = st.run; st.G[3] = st.sit;
-  st.A[0] = k === 'cat' ? groom : beat; st.A[1] = hop; st.A[2] = st.look; st.A[3] = st.lookP;
+  st.A[0] = k === 'cat' ? groom : k === 'tiger' ? stretch : beat; st.A[1] = hop; st.A[2] = st.look; st.A[3] = st.lookP;
   return st;
 }
 // ---------------------------------------------------------------- parrots

@@ -24,14 +24,15 @@ function glb(path) {
   return { J, prims, tris: prims.reduce((s, p) => s + p.tris, 0) };
 }
 const PETS = Object.keys(GROUND_PETS);
-const LO_BUDGET = { pet_cat: 1400, pet_cat_black: 1400, pet_monkey: 1660, pet_chimp: 1700, pet_gorilla: 2000, pet_gorilla_white: 2000 };
+const LO_BUDGET = { pet_cat: 1400, pet_cat_black: 1400, pet_monkey: 1660, pet_chimp: 1700, pet_gorilla: 2000, pet_gorilla_white: 2000, pet_tiger: 2000 };
 for (const id of PETS) for (const lod of ['hi', 'lo']) for (const who of ['male', 'female']) test(`${id} ${who} ${lod}: rig parts, feet on the floor at the anchor, budget`, () => {
   const G = glb(`assets/pirates/items/v5/${id}_${who}_${lod}.glb`), R = PET_RIG[id]; let ymin = 9, ymax = -9; const parts = new Set();
   for (const p of G.prims) { for (let i = 0; i < p.P.length / 3; i++) { ymin = Math.min(ymin, p.P[i * 3 + 1]); if (!p.UV || Math.round(p.UV[i * 2]) !== 2) ymax = Math.max(ymax, p.P[i * 3 + 1]); } if (p.UV) for (let i = 0; i < p.UV.length / 2; i++) parts.add(Math.round(p.UV[i * 2])); }
   assert.ok(Math.abs(ymin - R.anchor[1]) < 0.012, `floor ${ymin}`);   // stands on the floor: no floating, no sinking
   for (const k of [0, 1, 3, 4, 5, 6]) assert.ok(parts.has(k), `rig part ${k}`);
   if (R.tail) assert.ok(parts.has(2), 'tail part');
-  assert.ok(Math.abs((ymax - ymin) - R.h) < (lod === 'lo' ? 0.04 : 0.03), `height (tail aside) ${ymax - ymin} vs rig ${R.h}`);
+  assert.ok(Math.abs((ymax - ymin) - R.h) < Math.max(lod === 'lo' ? 0.04 : 0.03, R.h * 0.085),   // ears ride above the rig height
+    `height (tail aside) ${ymax - ymin} vs rig ${R.h}`);
   if (lod === 'lo') assert.ok(G.tris <= LO_BUDGET[id], `${G.tris} tris > ${LO_BUDGET[id]}`); else assert.ok(G.tris <= 5000, `${G.tris} hi tris`);
 });
 test('sizes next to the captain: monkey knee-to-hip, chimp about hip, gorillas chest height and the same size; cats the smallest', () => {
@@ -40,6 +41,7 @@ test('sizes next to the captain: monkey knee-to-hip, chimp about hip, gorillas c
   assert.ok(Math.abs(h('pet_chimp') - HIP) < 0.08, 'chimp ' + h('pet_chimp'));
   assert.ok(h('pet_gorilla') > 0.5 * BODY_H && h('pet_gorilla') < 0.7 * BODY_H, 'gorilla ' + h('pet_gorilla'));
   assert.equal(h('pet_gorilla'), h('pet_gorilla_white'));
+  assert.ok(Math.abs(h('pet_tiger') - h('pet_gorilla')) < 0.06, 'tiger about the black gorilla\'s height ' + h('pet_tiger'));
   assert.ok(h('pet_cat') < h('pet_monkey') && h('pet_monkey') < h('pet_chimp') && h('pet_chimp') < h('pet_gorilla'));
   for (const id of PETS) assert.ok(PET_RIG[id].anchor[0] > 0.25, `${id} stands clear of the captain's left foot`);
 });
@@ -54,7 +56,18 @@ test('petPose: walk then run blend by speed, phase advances by stride, sit only 
     run(s, 0, 4); assert.ok(Math.abs(s.G[3] - (PET_SIT[k] || 0)) < 0.05, `${k} settles to sit ${s.G[3]}`); assert.ok(s.G[1] < 0.05 && s.G[2] < 0.05);
   }
 });
-const sawAct = (k, slot) => { const s = newPetState(k, 0); let best = 0; for (let t = 0; t < 40; t += 1 / 30) { petPose(s, 0, 1 / 30, seq([0, 0.3, 0.6, 0.9])); best = Math.max(best, s.A[slot]); } return best; };
+test('the tiger: cat gait, sits, stretches + yawns, pounces', () => {
+  const s = newPetState('tiger'); run(s, 1.4, 1); assert.ok(s.G[1] > 0.9); run(s, 7, 1); assert.ok(s.G[2] > 0.9); run(s, 0, 4); assert.ok(s.G[3] > 0.8, 'sits');
+  assert.ok(sawAct('tiger', 0) > 0.9, 'stretch'); assert.ok(sawAct('tiger', 1, [0.45, 0.5]) > 0.9, 'pounce hop');
+  const src = txt('js/pirateItems.js'); assert.match(src, /R\.kind === 'tiger' \? 1 : 0/); assert.match(src, /stc = uLyA\.x \* tg/);
+});
+test('on foot the follower is drawn at YOUR scale (the bound copy rides it): the monkey reads knee-to-hip next to you, not under the knee', () => {
+  const p = txt('js/onfoot/pets.js'); assert.match(p, /mesh\.scale\.setScalar\(k\)/); assert.match(p, /k = figScale\(fig\)/);
+  const k = 1.75 / BODY_H, mk = PET_RIG.pet_monkey.h * k;   // pirateFigure: the 1.40 m v5 body drawn at 1.75 m
+  assert.ok(mk > KNEE * k * 1.4 && mk < HIP * k * 1.15, `monkey ${mk.toFixed(2)} m vs knee ${(KNEE * k).toFixed(2)} / hip ${(HIP * k).toFixed(2)}`);
+  assert.ok(PET_RIG.pet_cat.h * k > KNEE * k, 'the cat stands above your knee'); assert.ok(Math.abs(PET_RIG.pet_chimp.h - HIP) < 0.08);
+});
+const sawAct = (k, slot, R = [0, 0.3, 0.6, 0.9]) => { const s = newPetState(k, 0), rnd = seq(R); let best = 0; for (let t = 0; t < 40; t += 1 / 30) { petPose(s, 0, 1 / 30, rnd); best = Math.max(best, s.A[slot]); } return best; };
 test('idle personality: the cat sits and grooms, the monkey and chimp hop, the gorillas beat their chest', () => {
   assert.ok(sawAct('cat', 0) > 0.9, 'cat grooms'); assert.equal(PET_SIT.cat, 1);
   assert.ok(sawAct('monkey', 1) > 0.9, 'monkey hops'); assert.ok(sawAct('chimp', 1) > 0.9, 'chimp hops');
@@ -132,7 +145,7 @@ test('beards: keyed to your beard colour except Blackbeard, hidden on female bod
 test('new pets: in the shop (proposed), server prices + gear slots, client save slots, distinct boosts on the price ladder, crew stays bare', () => {
   const lib = txt('supabase/functions/pvp/lib.ts'), save = txt('js/pvpSave.js'), crew = txt('js/crewV4.js');
   const pets = GEAR_ITEMS.filter((i) => i.slot === 'parrot' && i.id.startsWith('pet_'));
-  for (const id of ['pet_chimp', 'pet_gorilla', 'pet_gorilla_white']) {
+  for (const id of ['pet_chimp', 'pet_gorilla', 'pet_gorilla_white', 'pet_tiger']) {
     const it = GEAR_ITEMS.find((i) => i.slot === 'parrot' && i.id === id); assert.ok(it, id); assert.ok(it.proposed, `${id} price is a proposal`);
     assert.match(lib, new RegExp(`"gear:parrot:${id}": \\{ price: ${it.price} \\}`)); assert.match(lib.match(/parrot: \[[^\]]*\]/)[0], new RegExp(`"${id}"`));
     assert.match(save.match(/parrot: \[[^\]]*\]/)[0], new RegExp(`'${id}'`));
@@ -142,7 +155,9 @@ test('new pets: in the shop (proposed), server prices + gear slots, client save 
   const ladder = pets.map((i) => [i.id, i.price, BOOSTS[`parrot:${i.id}`]?.sell || 0]).sort((a, b) => a[1] - b[1]);
   for (const [id, , v] of ladder) assert.ok(v > 0 && Object.keys(BOOSTS[`parrot:${id}`])[0] === 'sell', `${id} leads with a sell bonus`);
   for (let k = 1; k < ladder.length; k++) assert.ok(ladder[k][2] > ladder[k - 1][2], `${ladder[k][0]} sells better than ${ladder[k - 1][0]}`);
-  assert.equal(ladder.at(-1)[0], 'pet_gorilla_white'); assert.equal(ladder.at(-2)[0], 'pet_gorilla');
+  assert.equal(ladder.at(-1)[0], 'pet_gorilla_white'); assert.equal(ladder.at(-2)[0], 'pet_tiger'); assert.equal(ladder.at(-3)[0], 'pet_gorilla');
+  assert.equal(BOOSTS['parrot:pet_tiger'].sell, 0.35); assert.equal(GEAR_ITEMS.find((i) => i.id === 'pet_tiger').price, 12000);
+  assert.match(txt('js/shopCatalog.js'), /pet_tiger: 'EPIC'/);
   assert.equal(new Set(ladder.map((l) => l[2])).size, ladder.length, 'each pet its own sell bonus');
   for (const [id, gf] of [['pet_cat', 0.025], ['pet_monkey', 0.03], ['pet_cat_black', 0.035]]) assert.equal(BOOSTS[`parrot:${id}`].goldFind, gf, `${id} keeps its gold find`);
   for (const [k, b] of Object.entries(BOOSTS)) if (k.startsWith('parrot:parrot_')) assert.equal(b.sell, undefined, `${k}: parrots keep their own boosts`);

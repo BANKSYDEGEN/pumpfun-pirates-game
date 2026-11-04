@@ -99,6 +99,7 @@ export const ITEMS = [
   item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
   item('pet_chimp', 'Chimp', 'shoulder', 0, null, [], { v5: v5files('pet_chimp'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2]
   item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true }),
+  item('pet_tiger', 'Tiger', 'shoulder', 0, null, [], { v5: v5files('pet_tiger'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2] BANKSY 11:39 AM
   item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true }),
   // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit; [Raul pegleg] re-seated on the v5 peg fit (knee sleeve, PEG5 hide)
   item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: PEG5('L'), v5only: true }),
@@ -585,7 +586,7 @@ vec3 lyRotY(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); ret
 vec3 lyRotX(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
 vec3 lyRotZ(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z); }`;
 const PET_GLSL = `{ vec3 q = transformed - uLyB; float part = floor(uv.x + 0.5), lv = uv.y, ph = uLyG.x, wk = uLyG.y, rn = uLyG.z, st = uLyG.w, t = uLyT;
-    float S = uLyK.x, kind = uLyK.y, ape = step(1.5, kind), mky = step(0.5, kind) * (1.0 - ape), cat = 1.0 - step(0.5, kind), beat = uLyA.x * ape, groom = uLyA.x * cat;
+    float S = uLyK.x, kind = uLyK.y, ape = step(1.5, kind), mky = step(0.5, kind) * (1.0 - ape), cat = 1.0 - step(0.5, kind), tg = step(0.5, uLyK.z), beat = uLyA.x * ape, groom = uLyA.x * cat * (1.0 - tg), stc = uLyA.x * tg, pnc = uLyA.y * tg;   // tg: the tiger (cat gait + stretch / pounce)
     float th = st * mix(0.55, 0.32, step(0.5, kind)), amp = (wk * 0.5 + rn * 0.35) * (1.0 - st);
     // limbs: diagonal pairs at a walk, a bound at a run (fronts together, backs together); the monkey hops (legs together, arms swing)
     if (part > 2.5) { float li = part - 3.0; vec3 pv = li < 0.5 ? uPv[3] : li < 1.5 ? uPv[4] : li < 2.5 ? uPv[5] : uPv[6];
@@ -596,6 +597,7 @@ const PET_GLSL = `{ vec3 q = transformed - uLyB; float part = floor(uv.x + 0.5),
       q = lyRotX(q, pv, a); q.y += max(0.0, cos(ph + o)) * (wk * 0.025 + rn * 0.035) * S * lv;
       if (li < 1.5) {   // front limbs: counter the sit pitch (paws stay down), groom (cat: the left paw up to the mouth), chest-beat (gorillas)
         q = lyRotX(q, pv, th); q.y -= st * 0.06 * S * lv * cat;
+        q = lyRotX(q, pv, -0.95 * stc - 0.85 * pnc);   // tiger: front paws reach out in the stretch / the pounce
         float up = li < 0.5 ? groom : 0.0; q = lyRotX(q, pv, -1.5 * up + 0.12 * up * sin(t * 9.0));
         float sl = -1.35 * beat - 0.5 * beat * (li < 0.5 ? sin(t * 13.0) : -sin(t * 13.0)); q = lyRotY(lyRotX(q, pv, sl), pv, (li < 0.5 ? -0.7 : 0.7) * beat);
       } }
@@ -606,7 +608,7 @@ const PET_GLSL = `{ vec3 q = transformed - uLyB; float part = floor(uv.x + 0.5),
     // body: breathe, bob with the gait, hop, settle into the sit, rear up to beat the chest
     float br = 0.025 * sin(t * 2.4) * (1.0 - step(0.5, part)); q = vec3(q.x * (1.0 + br), q.y * (1.0 + br * 0.6), q.z);
     q.y += (wk * 0.012 + rn * 0.03) * S * abs(sin(ph)) * (1.0 - mky) + mky * (wk * 0.06 + rn * 0.09) * S * abs(sin(ph * 0.5)) + uLyA.y * 0.13 * S;
-    vec3 sp = uPv[1]; q = lyRotX(q, sp, -th - 0.42 * beat); q.y -= st * 0.035 * S * cat;
+    vec3 sp = uPv[1]; q = lyRotX(q, sp, -th - 0.42 * beat + 0.3 * stc - 0.2 * pnc); q.y -= st * 0.035 * S * cat; q.z += pnc * 0.16 * S;   // tiger: chest down + rump up to stretch, leans into the pounce
     transformed = q + uLyB; }`;
 const LAYER_GLSL = {
   PET: PET_GLSL,
@@ -617,7 +619,7 @@ function itemLayer(m, g0, def, B0 = null) {   // B0: a free pet copy (its own or
   const B = !pet ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : B0 || new THREE.Vector3(...R.anchor);
   const U = { uLyT: { value: 0 }, uLyB: { value: B } };
   if (pet) Object.assign(U, { uLyG: { value: new THREE.Vector4(0, 0, 0, PET_SIT[R.kind] || 0) }, uLyA: { value: new THREE.Vector4() },
-    uLyK: { value: new THREE.Vector4(R.h / 0.3, PET_KIND_ID[R.kind], 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...(R[k] || R.sit))) } });
+    uLyK: { value: new THREE.Vector4(R.h / 0.3, PET_KIND_ID[R.kind], R.kind === 'tiger' ? 1 : 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...(R[k] || R.sit))) } });
   const mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
   mat.onBeforeCompile = (sh, r) => { prev?.call(mat, sh, r); Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + (pet ? ' uniform vec4 uLyG, uLyA, uLyK; uniform vec3 uPv[7];' : '') + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LAYER_GLSL[kind]); };

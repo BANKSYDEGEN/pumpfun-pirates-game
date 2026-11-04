@@ -42,7 +42,7 @@ function sim(cell) {
     const st = poseBody(p.object, b, x, 0, yaw, vv, t); p.update(dt, vv, st); v4?.update(dt); cell.pf?.update(dt, { x, z: 0, yaw }, { pirateObj: p.object, petId: cell.gear.parrot }); t += dt; }
   if (cell.opt.fly != null && v4?.gearMesh?.userData.bird) { const B = v4.gearMesh.userData.bird; B.st.t = cell.opt.fly; v4.birdFly = true; v4.update(0); }
   if (cell.opt.act) cell.s.traverse((o) => { const L = o.userData.layer; if (L?.st) { L.st.act = cell.opt.act; L.st.actLen = 2; L.st.actT = cell.opt.actT ?? 1; L.st.idleT = 9; L.st.sit = cell.opt.sit ?? L.st.sit; } });
-  if (cell.opt.act) cell.s.traverse((o) => { const L = o.userData.layer; if (L?.st) { const sp = L.st; const k = sp.kind; L.U.uLyA.value.set(cell.opt.act === 'groom' || cell.opt.act === 'beat' ? 1 : 0, cell.opt.act === 'hop' ? 1 : 0, 0, cell.opt.act === 'groom' ? 0.45 : cell.opt.act === 'beat' ? -0.3 : 0); L.U.uLyG.value.w = sp.sit; } });
+  if (cell.opt.act) cell.s.traverse((o) => { const L = o.userData.layer; if (L?.st) { const sp = L.st; const k = sp.kind; L.U.uLyA.value.set(/^(groom|beat|stretch)$/.test(cell.opt.act) ? 1 : 0, cell.opt.act === 'hop' ? 1 : 0, 0, cell.opt.act === 'groom' ? 0.45 : cell.opt.act === 'beat' ? -0.3 : cell.opt.act === 'stretch' ? -0.55 : 0); L.U.uLyG.value.w = sp.sit; } });
   cell.x = mode === 'steer' ? 0 : x; cell.yaw = yaw; if (cell.pf) { const c = cell.pf.state; cell.px = c.x; cell.pz = c.z; }
   if (cell.petT != null) p.object.traverse((o) => { const L = o.userData.layer; if (L && L.kind !== 'CAPE') L.U.uLyT.value = cell.petT; }); }
 const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 60);

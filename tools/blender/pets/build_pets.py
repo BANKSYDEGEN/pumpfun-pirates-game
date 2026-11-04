@@ -48,14 +48,31 @@ SPECIES = {
     tail=[A([0, 0.06, 0.1]), A([0, 0.14, 0.075]), A([0, 0.205, 0.14]), A([0, 0.2, 0.235]), A([0, 0.155, 0.27]), A([0, 0.13, 0.235])], trad=A([0.022, 0.019, 0.017, 0.015, 0.013, 0.011]),
     neck=A([0, -0.005, 0.245]), eyes=dict(c=A([0.03, -0.077, 0.298]), r=0.018), face=A([0, -0.07, 0.29]), sit=A([0, 0.02, 0.06])),
   'chimp': ape(0.6, lean=0.9, limb=0.86, ears=1.0, hump=0.55),
+  'tiger': None,   # filled below from the cat (bigcat)
   'gorilla': ape(1.0),
 }
+# [Raul items redo 2] BANKSY 11:39 AM "Also add a tiger pet": a chunky chibi big cat from the cat's proportions, ~the black gorilla's height
+HC = A([0, -0.13, 0.215])   # the cat's head centre: the tiger's head is a touch bigger round it (chibi)
+def bigcat(s, head=1.12, limb=1.32):
+  C = SPECIES['cat']; S = lambda v: A(v, float) * s; Hd = lambda v: (HC + (A(v, float) - HC) * head) * s
+  return dict(
+    body=[('el', S(c) + A([0, 0, 0.012 * s]), S(r) * A([1.18, 1.02, 1.12])) for _, c, r in C['body']],
+    head=[('el', Hd(c), A(r, float) * head * s * (A([1.08, 1.0, 1.0]) if i == 0 else A([1.15, 1.1, 1.05]))) for i, (_, c, r) in enumerate(C['head'])],
+    ears=[[Hd(ch[0]), Hd(ch[0] + (ch[1] - ch[0]) * 0.5)] for ch in C['ears']], erad=A([0.03, 0.024]) * s,
+    front=[[S(p) for p in ch] for ch in C['front']], frad=S(C['frad']) * limb,
+    paw=('el', S(C['paw'][1]), S(C['paw'][2]) * limb * 1.12),
+    back=[[S(p) for p in ch] for ch in C['back']], brad=S(C['brad']) * limb,
+    foot=('el', S(C['foot'][1]), S(C['foot'][2]) * limb * 1.12),
+    tail=[S(v) for v in ([0, 0.115, 0.15], [0, 0.19, 0.125], [0, 0.26, 0.085], [0, 0.31, 0.1], [0, 0.335, 0.16])], trad=S([0.024, 0.022, 0.02, 0.019, 0.018]),
+    neck=S(C['neck']), eyes=dict(c=Hd(C['eyes']['c']), r=C['eyes']['r'] * s * 1.02), face=Hd(C['face']), sit=S(C['sit']), nose=Hd([0, -0.222, 0.205]), ts=s, hd=head)
+SPECIES['tiger'] = bigcat(2.55)
 PETS = {
   'pet_cat': dict(sp='cat', fur='#e8883a', dark='#b0561c', light='#fff3e2', skin='#f29aa6', eye='#7fd04a', stripes=True, bud=(1500, 640)),
   'pet_cat_black': dict(sp='cat', fur='#1f1d25', dark='#0c0b10', light='#2b2a36', sheen='#5a6488', skin='#c76a80', eye='#ffd02a', bud=(1500, 640)),
   'pet_monkey': dict(sp='monkey', fur='#7c4a28', dark='#4e2c15', light='#f3d9b4', skin='#e9bf98', eye='#3a2412', bud=(1650, 700)),
   'pet_chimp': dict(sp='chimp', fur='#2c221d', dark='#140f0c', light='#3c302a', skin='#cfa07c', eye='#3a2412', bud=(1700, 720)),
   'pet_gorilla': dict(sp='gorilla', fur='#2e2c36', dark='#141319', light='#3a3844', skin='#5a4c56', silver='#bfc3cc', eye='#4a2a14', bud=(1950, 800)),
+  'pet_tiger': dict(sp='tiger', fur='#f2861e', dark='#16100e', light='#fff6ea', skin='#e88e8c', eye='#ffc21a', bud=(2000, 820)),
   'pet_gorilla_white': dict(sp='gorilla', fur='#f2f3f7', dark='#a9b3c8', light='#ffffff', skin='#4b4352', eye='#5cc8ff', gold=True, bud=(1950, 800)),
 }
 GAP = 0.04   # floor gap between the captain's left foot and the pet's side
@@ -168,6 +185,19 @@ for kind, fld in parts:
       sh = np.clip(up * 0.8 + 0.25 * nz, 0, 1); C = C * (1 - 0.5 * sh[:, None]) + COL(P['sheen']) * 0.5 * sh[:, None]
     nose = np.linalg.norm(V - A([0, -0.222, 0.205]), axis=1) < 0.012; C = np.where(nose[:, None], skin, C)
     ear_in = (part == 1) & (V[:, 2] > 0.27) & (N[:, 1] < -0.35); C = np.where(ear_in[:, None], skin * 0.95, C)
+  elif sp == 'tiger':   # orange coat, black stripes (back, flanks, legs, tail rings, forehead + cheeks), white muzzle / cheeks / belly / paws
+    Vn = V / X['ts']; hc = HC + (Vn - HC) / X['hd']   # body coords in cat units; hc = head coords in the cat's head units
+    st = (np.sin(Vn[:, 1] * 115 + np.sin(Vn[:, 0] * 38) * 2.2 + 1.5 * nz) > 0.42) & (part != 1) & (part < 3) & (Vn[:, 2] > 0.1) & (N[:, 2] > -0.35)
+    st |= (part >= 3) & (np.sin(Vn[:, 2] * 150 + 2 * nz) > 0.62) & (Vn[:, 2] > 0.05) & (np.abs(N[:, 1]) < 0.9)
+    C = np.where(st[:, None], dark * (0.9 + 0.2 * up)[:, None], C)
+    wh = ((part == 1) & (hc[:, 1] < -0.172) & (hc[:, 2] < 0.212)) | ((part == 1) & (np.abs(hc[:, 0]) > 0.035) & (hc[:, 1] < -0.14) & (hc[:, 2] < 0.2)) \
+       | ((part == 0) & (((Vn[:, 2] < 0.105) & (N[:, 2] < -0.2)) | ((Vn[:, 1] < -0.09) & (np.abs(Vn[:, 0]) < 0.05) & (Vn[:, 2] < 0.16)))) | (Vn[:, 2] < 0.028)
+    C = np.where(wh[:, None], light * (0.86 + 0.18 * up)[:, None], C)
+    hs_ = (part == 1) & (((hc[:, 2] > 0.25) & (np.sin(hc[:, 0] * 170) > 0.55) & (hc[:, 1] > -0.2)) | ((np.abs(hc[:, 0]) > 0.075) & (np.sin(hc[:, 2] * 230) > 0.6) & (hc[:, 1] > -0.17)))
+    C = np.where(hs_[:, None], dark * k[:, None], C)
+    if X.get('tail') is not None: C = np.where(((part == 2) & (np.linalg.norm(V - X['tail'][-1], axis=1) < 0.03 * X['ts']))[:, None], dark, C)   # black tail tip
+    nose = np.linalg.norm(V - X['nose'], axis=1) < 0.014 * X['ts']; C = np.where(nose[:, None], skin, C)
+    ear_in = (part == 1) & (hc[:, 2] > 0.265) & (N[:, 1] < -0.35); C = np.where(ear_in[:, None], skin * 0.9, C)
   elif sp == 'monkey':
     face = (part == 1) & (V[:, 1] < -0.04) & (V[:, 2] < 0.335) & (V[:, 2] > 0.235); C = np.where(face[:, None], light * (0.86 + 0.18 * up)[:, None], C)
     ear = (part == 1) & (np.abs(V[:, 0]) > 0.075); C = np.where(ear[:, None], skin * 0.9, C)

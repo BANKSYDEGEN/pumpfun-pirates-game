@@ -110,6 +110,7 @@ export const GEAR_ITEMS = [
   // [Raul items redo 2] BANKSY 10:53 AM: three big ground pets (follow you ashore like the crew, sit on deck at sea). PROPOSED prices.
   { slot: 'parrot', id: 'pet_chimp', label: 'CHIMP', price: 5000, glb: 'raul:pet_chimp', tint: null, proposed: true },
   { slot: 'parrot', id: 'pet_gorilla', label: 'GORILLA', price: 8000, glb: 'raul:pet_gorilla', tint: null, proposed: true },
+  { slot: 'parrot', id: 'pet_tiger', label: 'TIGER', price: 12000, glb: 'raul:pet_tiger', tint: null, proposed: true },   // [Raul items redo 2] BANKSY 11:39 AM "Also add a tiger pet" (price PROPOSED)
   { slot: 'parrot', id: 'pet_gorilla_white', label: 'WHITE GORILLA', price: 15000, glb: 'raul:pet_gorilla_white', tint: null, proposed: true },
   { slot: 'leg', id: 'peg_gold', label: 'GILDED SKULL PEG', price: 30000, glb: 'raul:peg_gold', tint: null, proposed: true, side: 'legSide' },
   { slot: 'leg', id: 'peg_kraken', label: 'KRAKEN BONE PEG', price: 45000, glb: 'raul:peg_kraken', tint: null, proposed: true, side: 'legSide' },
@@ -159,7 +160,7 @@ export const SWORD_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'sword').map(weapo
 export const MUSKET_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'musket').map(weaponItem);
 export const WEAPON_ITEMS = [...SWORD_ITEMS, ...MUSKET_ITEMS];
 // ---------- [Timothy] PET STORE: rarity per parrot (display only; prices + goals are the GEAR_ITEMS ones, unchanged)
-export const PET_RARITY = { none: '', pet_cat: 'UNCOMMON', pet_monkey: 'RARE', pet_cat_black: 'RARE', pet_chimp: 'RARE', pet_gorilla: 'EPIC', pet_gorilla_white: 'LEGENDARY', parrot_green: 'COMMON', parrot_red: 'UNCOMMON', parrot_blue: 'UNCOMMON', parrot_cockatoo: 'RARE', parrot_black: 'EPIC', parrot_gold: 'LEGENDARY', parrot_diamond: 'MYTHIC' };
+export const PET_RARITY = { none: '', pet_cat: 'UNCOMMON', pet_monkey: 'RARE', pet_cat_black: 'RARE', pet_chimp: 'RARE', pet_gorilla: 'EPIC', pet_tiger: 'EPIC', pet_gorilla_white: 'LEGENDARY', parrot_green: 'COMMON', parrot_red: 'UNCOMMON', parrot_blue: 'UNCOMMON', parrot_cockatoo: 'RARE', parrot_black: 'EPIC', parrot_gold: 'LEGENDARY', parrot_diamond: 'MYTHIC' };
 
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {

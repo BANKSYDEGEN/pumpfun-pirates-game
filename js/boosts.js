@@ -65,7 +65,7 @@ export const BOOSTS = {
   // [Raul items redo 2] BANKSY 11:29 AM "make pets be good boost on sells" (PROPOSED): every ground pet = its own SELL BONUS, up the price
   // ladder (white gorilla biggest); the three pets already sold keep the gold find they shipped with (owners lose nothing). Parrots unchanged.
   'parrot:pet_cat': { sell: 0.10, goldFind: 0.025 }, 'parrot:pet_monkey': { sell: 0.15, goldFind: 0.03 }, 'parrot:pet_chimp': { sell: 0.20 },
-  'parrot:pet_cat_black': { sell: 0.25, goldFind: 0.035 }, 'parrot:pet_gorilla': { sell: 0.30 }, 'parrot:pet_gorilla_white': { sell: 0.40 },
+  'parrot:pet_cat_black': { sell: 0.25, goldFind: 0.035 }, 'parrot:pet_gorilla': { sell: 0.30 }, 'parrot:pet_tiger': { sell: 0.35 }, 'parrot:pet_gorilla_white': { sell: 0.40 },
   'flag:flag_cutlass': { reload: 0.01 }, 'flag:flag_red': { reload: 0.02 }, 'flag:flag_gold': { reload: 0.03 },
   'figure:fig_mermaid': { dmg: 0.02 }, 'figure:fig_kraken': { dmg: 0.03 }, 'figure:fig_lion': { dmg: 0.04 },
   'leg:peg_gold': { turn: 0.04, speed: 0.01 }, 'leg:peg_kraken': { turn: 0.04, speed: 0.015 }, 'leg:peg_ghost': { turn: 0.04, speed: 0.02 },

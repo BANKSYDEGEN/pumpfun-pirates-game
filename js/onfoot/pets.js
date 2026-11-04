@@ -12,6 +12,9 @@ import { GROUND_PETS, PET_FOLLOW } from '../petMotion.js';
 import { makeTrail, makeMover, followStep } from './followPath.js';
 import { newBody, placeBody, stepBody, wadeFactor } from './physics.js';
 const DEFLECT = [0.6, -0.6, 1.2, -1.2];
+// [Raul items redo 2] the free copy is drawn at the PIRATE'S scale (pirateFigure scales the v5 body ~1.25x to 1.75 m; the bound copy rides
+// that scale, the free copy did not: on foot every pet read ~20 % small next to you, the monkey under the knee). BANKSY 11:39 AM.
+export const figScale = (fig) => { const r = fig?.root; if (!r?.getWorldScale) return 1.25; r.updateWorldMatrix?.(true, false); const v = r.getWorldScale(new r.scale.constructor()); return v.x > 0.05 ? v.x : 1.25; };
 export function figOf(obj) { let f = obj?.userData?.v4 || null; if (!f) obj?.traverse?.((o) => { if (!f && o.userData?.v4) f = o.userData.v4; }); return f; }
 export function createPetFollower({ scene, world, low = false, keepOut = null, lost = PET_FOLLOW.lost }) {
   let id = 'none', female = false, mesh = null, ticket = 0, active = false, fig = null;
@@ -25,7 +28,7 @@ export function createPetFollower({ scene, world, low = false, keepOut = null, l
     if (nid === id && fem === female) return; id = nid; female = fem; const t = ++ticket;
     if (mesh) { mesh.removeFromParent(); mesh = null; }
     const R = PET_RIG[id]; if (!GROUND_PETS[id] || !R) return;
-    const k = R.kind; env.back = PET_FOLLOW.back[k] || 1.3; const sc = R.h / 0.3;
+    const k = R.kind; env.back = (PET_FOLLOW.back[k] || 1.3) * 1.15; const sc = R.h * 1.25 / 0.3;   // follow distances at the pet's drawn size
     env.sp = { far: 7, run: PET_FOLLOW.run, near: PET_FOLLOW.near + 0.15 * sc, walk: PET_FOLLOW.run, base: 1.6, k: 2.4 };   // a smooth catch-up (no walk cap): a steady ~1.5-3 m behind you at a walk or a run
     petMesh(id, female, low).then((m) => { if (t !== ticket || !m) return; mesh = m; m.visible = active; scene.add(m); place(); }).catch((e) => console.warn('[pets]', e));
   }
@@ -36,8 +39,8 @@ export function createPetFollower({ scene, world, low = false, keepOut = null, l
     Object.assign(c, { yaw: o.yaw, speed: 0, stuck: 0, idleT: 0 }); placeBody(c.body, world, c.x, c.z); c.y = c.body.y; active = true; if (mesh) mesh.visible = true; place();
   }
   function exit() { active = false; if (mesh) mesh.visible = false; bound(true); }
-  function place() { if (!mesh) return; const s = c.body.swim && world.water ? world.water(c.x, c.z) : null, R = PET_RIG[id];
-    mesh.position.set(c.x, s != null ? s - 0.32 * (R?.h || 0.3) : c.y, c.z); mesh.rotation.y = c.yaw; }   // swimming: head + back above the water
+  function place() { if (!mesh) return; const s = c.body.swim && world.water ? world.water(c.x, c.z) : null, R = PET_RIG[id], k = figScale(fig);
+    mesh.scale.setScalar(k); mesh.position.set(c.x, s != null ? s - 0.32 * (R?.h || 0.3) * k : c.y, c.z); mesh.rotation.y = c.yaw; }   // swimming: head + back above the water
   // o = the pirate you follow { x, z, yaw }; pirateObj = their loadPirate object (finds the bound copy); petId = their parrot-slot id
   function update(dt, o, { camera = null, pirateObj = null, petId = 'none' } = {}) {
     fig = figOf(pirateObj) || fig; setPet(petId, !!fig?.female);
