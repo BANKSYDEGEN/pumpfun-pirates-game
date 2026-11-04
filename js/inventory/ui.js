@@ -3,6 +3,22 @@
 // weapon), GIVE (a player + a quantity), and at a plaza shop SELL (Fish Stand / Antiques) or LIST (Marketplace). The server does every
 // move (migration 036); this only shows what it says. Used items leave the grid (a dug / sold / given map, a sold fish...).
 import { itemInfo, RARITY_COLOR, FLAGS, MARKET } from './catalog.js';
+// [item-icons] real pictures for every item (assets/items/*.webp, 256 px, lazy); a spare cosmetic uses its baked shop render. The emoji stays as the fallback.
+const IMG_DIR = new URL('../../assets/items/', import.meta.url).href, THUMB_DIR = new URL('../../assets/pirates/thumbs/', import.meta.url).href;
+const MAP_TIER = { common: 'common', uncommon: 'common', rare: 'rare', epic: 'rare', legendary: 'legendary' };
+export function itemImg(key, info) {
+  const p = String(key).split(':'); if (!info) return '';
+  if (info.kind === 'fish') return `${IMG_DIR}fish_${p[1]}.webp`;
+  if (info.kind === 'valuable') return `${IMG_DIR}val_${p[1]}.webp`;
+  if (info.kind === 'weapon') return `${IMG_DIR}wpn_${info.slot}_${info.base}.webp`;
+  if (info.kind === 'map') return `${IMG_DIR}map_${MAP_TIER[info.rarity] || 'common'}.webp`;
+  if (info.kind === 'dup') return `${THUMB_DIR}${info.slot}_${info.id}.png`;
+  return '';
+}
+// grid label: weapons drop the rarity word (the border colour shows it), so "Legendary rusty musket" reads "Rusty Musket"
+const cap = (w) => w.replace(/\b[a-z]/g, c => c.toUpperCase());
+export const shortName = (info) => info.kind === 'weapon' ? cap(`${info.base === 'blunder' ? 'blunderbuss' : info.base} ${info.base === 'blunder' ? '' : info.slot}`.trim()) : info.name;
+const icoHtml = (key, info) => { const u = itemImg(key, info); return u ? `<i><img src="${u}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(document.createTextNode(${JSON.stringify(info.icon || '❔').replace(/"/g, '&quot;')}))"></i>` : `<i>${info.icon || '❔'}</i>`; };
 const CSS = `
 #inv-panel{position:fixed;inset:0;z-index:62;display:none;background:rgba(10,7,4,.72);font-family:'Just Another Hand',cursive;color:#f4e2bb;touch-action:manipulation}
 #inv-panel.on{display:flex;align-items:center;justify-content:center}
@@ -16,8 +32,9 @@ const CSS = `
 #inv-panel .iv-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;padding:8px 14px 12px}
 #inv-panel .iv-slot{position:relative;aspect-ratio:1;min-height:64px;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
 #inv-panel .iv-slot.sel{outline:3px solid #fff;outline-offset:1px}
-#inv-panel .iv-slot i{font-style:normal;font-size:32px;line-height:1}
-#inv-panel .iv-slot span{font-size:14px;line-height:1;color:#e8d3a6;text-align:center;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#inv-panel .iv-slot i{font-style:normal;font-size:32px;line-height:1;display:flex;align-items:center;justify-content:center;width:60%;aspect-ratio:1;flex:none}
+#inv-panel .iv-slot i img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.55));pointer-events:none}
+#inv-panel .iv-slot span{font-size:13px;line-height:.95;color:#e8d3a6;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:1.9em}
 #inv-panel .iv-slot b{position:absolute;right:4px;bottom:2px;font:bold 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #inv-panel .iv-slot em{position:absolute;left:4px;top:2px;font:bold 12px system-ui,sans-serif;font-style:normal;color:#ffcd3c}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
@@ -58,11 +75,11 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     const g = $('.iv-grid');
     if (mode === 'market' && tab === 'browse') {
       g.innerHTML = listings.length ? listings.map(l => { const i = itemInfo(l.item) || { icon: '❔', name: l.item, rarity: 'common' };
-        return `<div class="iv-slot${sel === 'L' + l.id ? ' sel' : ''}" data-l="${l.id}" style="border-color:${RARITY_COLOR[i.rarity] || '#6b4a24'}"><em>${l.price.toLocaleString()}g</em><i>${i.icon}</i><span>${i.name}</span><b>${l.qty > 1 ? '×' + l.qty : ''}</b></div>`; }).join('') : '<div class="iv-empty">nothing for sale yet</div>';
+        return `<div class="iv-slot${sel === 'L' + l.id ? ' sel' : ''}" data-l="${l.id}" style="border-color:${RARITY_COLOR[i.rarity] || '#6b4a24'}"><em>${l.price.toLocaleString()}g</em>${icoHtml(l.item, i)}<span>${i.kind ? shortName(i) : i.name}</span><b>${l.qty > 1 ? '×' + l.qty : ''}</b></div>`; }).join('') : '<div class="iv-empty">nothing for sale yet</div>';
       g.querySelectorAll('[data-l]').forEach(d => d.onclick = () => { sel = 'L' + d.dataset.l; render(); });
     } else {
       const list = slots().filter(shopTakes);
-      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}<i>${s.info.icon}</i><span>${s.info.name}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
+      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); });
     }
