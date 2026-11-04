@@ -95,6 +95,9 @@ export const ITEMS = [
   item('pet_monkey', 'Shoulder Monkey', 'shoulder', 0, null, [], { v5: v5files('pet_monkey'), v5hide: [], v5only: true, single: true }),
   item('pet_cat', "Ship's Cat", 'shoulder', 0, null, [], { v5: v5files('pet_cat'), v5hide: [], v5only: true, single: true }),
   item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
+  item('pet_chimp', 'Chimp', 'shoulder', 0, null, [], { v5: v5files('pet_chimp'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2]
+  item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true }),
+  item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true }),
   // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit; [Raul pegleg] re-seated on the v5 peg fit (knee sleeve, PEG5 hide)
   item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: PEG5('L'), v5only: true }),
   item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: PEG5('R'), v5only: true }),

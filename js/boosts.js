@@ -59,7 +59,10 @@ export const BOOSTS = {
   'teeth:tooth_gold': { goldFind: 0.01 }, 'teeth:grill_gold': { goldFind: 0.02 }, 'teeth:grill_diamond': { goldFind: 0.03 },
   'boots:boots_buckle': { speed: 0.01 }, 'boots:boots_cavalier': { speed: 0.015 }, 'boots:boots_gold': { speed: 0.02 },
   'cape:cape_tattered': { hp: 0.01 }, 'cape:cape_captain': { hp: 0.02 }, 'cape:cape_royal': { hp: 0.04 },
-  'parrot:pet_cat': { goldFind: 0.025 }, 'parrot:pet_monkey': { goldFind: 0.03 }, 'parrot:pet_cat_black': { goldFind: 0.035 },
+  // [Raul items redo 2] BANKSY "give each animal different boost abilities" (PROPOSED): every ground pet keeps the gold find it had
+  // (owners lose nothing) + its OWN second stat; the new big apes get their own stats. Parrots = gold find + dig luck (unchanged).
+  'parrot:pet_cat': { goldFind: 0.025, range: 0.01 }, 'parrot:pet_monkey': { goldFind: 0.03, turn: 0.015 }, 'parrot:pet_cat_black': { goldFind: 0.035, dmg: 0.015 },
+  'parrot:pet_chimp': { speed: 0.03 }, 'parrot:pet_gorilla': { hp: 0.04 }, 'parrot:pet_gorilla_white': { regen: 0.05, dmg: 0.02 },
   'flag:flag_cutlass': { reload: 0.01 }, 'flag:flag_red': { reload: 0.02 }, 'flag:flag_gold': { reload: 0.03 },
   'figure:fig_mermaid': { dmg: 0.02 }, 'figure:fig_kraken': { dmg: 0.03 }, 'figure:fig_lion': { dmg: 0.04 },
   'leg:peg_gold': { turn: 0.04, speed: 0.01 }, 'leg:peg_kraken': { turn: 0.04, speed: 0.015 }, 'leg:peg_ghost': { turn: 0.04, speed: 0.02 },
