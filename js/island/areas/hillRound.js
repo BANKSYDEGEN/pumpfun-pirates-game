@@ -30,8 +30,16 @@ let RBG = null;
 // positions are int16 in -1..1 and the NODE carries the real size (rb_plaza: scale 76.6 + an offset, rb_fountain: scale 4.73, y +3.1).
 // Taking only mesh.geometry dropped that: the plaza shrank to a ~2 m lump inside the fountain and the fountain to a small white post in
 // the kit water. keepNode keeps the node's translation / rotation / scale on an inner mesh (never baked into the int16 attributes).
-function keepNode(src, mat, name) { const g = new THREE.Group(), m = new THREE.Mesh(src.geometry, mat); let r = src; while (r.parent) r = r.parent; r.updateMatrixWorld(true); src.matrixWorld.decompose(m.position, m.quaternion, m.scale); // the GLB scene's own frame (root = identity)
-  m.name = name + '_mesh'; g.name = name; g.add(m); return g; }
+// [plaza-fix2] BANKSY 5:29 PM "the textures are just broken": the library stone (libTex.js) is triplanar on the vertex `position`, so a
+// mesh left in its quantized -1..1 frame (scale on the node) got the stone tiled ~76x too big = flat, featureless walls + white fountain
+// tiers. Bake the node matrix into plain float geometry like townkit.js toFloat (the shops / docks), so the stone tiles in metres.
+function keepNode(src, mat, name) { let r = src; while (r.parent) r = r.parent; r.updateMatrixWorld(true);
+  const s = src.geometry, g = new THREE.BufferGeometry();
+  for (const k of ['position', 'normal', 'uv', 'color']) { const a = s.attributes[k]; if (!a) continue; const n = k === 'color' ? Math.min(a.itemSize, 3) : a.itemSize, out = new Float32Array(a.count * n);
+    for (let i = 0; i < a.count; i++) { out[i * n] = a.getX(i); if (n > 1) out[i * n + 1] = a.getY(i); if (n > 2) out[i * n + 2] = a.getZ(i); }
+    g.setAttribute(k, new THREE.BufferAttribute(out, n)); }
+  if (s.index) g.setIndex(Array.from(s.index.array)); g.applyMatrix4(src.matrixWorld); g.computeBoundingBox(); g.computeBoundingSphere();
+  const grp = new THREE.Group(), m = new THREE.Mesh(g, mat); m.name = name + '_mesh'; grp.name = name; grp.add(m); return grp; }
 function rbFountainGLB(low) {
   if (!RBGLB_ON || typeof window === 'undefined') return Promise.resolve(null);
   if (!RBG) { const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); solid.name = 'rb_solid';

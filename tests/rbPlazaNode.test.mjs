@@ -9,7 +9,7 @@ test('plaza + fountain GLBs: quantized, the node scale is the real size', () => 
     if (!(j.extensionsUsed || []).includes('KHR_mesh_quantization')) continue; assert.ok(j.nodes.some(n => n.mesh !== undefined && n.scale && n.scale[0] > 2), f); }
 });
 test('hillRound.js keeps the node transform (never just mesh.geometry on a bare Mesh)', () => {
-  assert.match(src, /function keepNode\(src, mat, name\)/); assert.match(src, /matrixWorld\.decompose/);
+  assert.match(src, /function keepNode\(src, mat, name\)/); assert.match(src, /g\.applyMatrix4\(src\.matrixWorld\)/);
   assert.doesNotMatch(src, /new THREE\.Mesh\(mesh\.geometry, solid\)/);
   assert.match(src, /keepNode\(mesh, solid, 'rb_plaza_glb'\)/); assert.match(src, /keepNode\(mesh, solid, 'rb_fountain_glb'\)/);
 });
