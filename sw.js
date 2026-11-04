@@ -23,6 +23,7 @@ const SHELL = [
   "./js/gearRecolor.js", // [v157] Raul: hat-colour repaint for the helmet + mask maps
   "./js/shipGear.js", // [Raul shop items 2] shop flag + figurehead on ships
   "./js/bootPeg.js", // [v191] Raul: shop boots x peg legs (boot hide rule + the peg-side drop)
+  "./js/petRig.js", "./js/petMotion.js", "./js/onfoot/pets.js", // [v198] Raul: ground pets that follow you (rig + gait), parrot flight
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)

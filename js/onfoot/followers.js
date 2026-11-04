@@ -13,6 +13,7 @@ import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, wat
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
+import { makeTrail, makeMover, followStep } from './followPath.js'; // [Raul items redo 2] the pathing below, shared with the ground pets (js/onfoot/pets.js)
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
 const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
@@ -21,7 +22,7 @@ const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location
 // a target inside one becomes that place's waiting spot for follower i (outside the gate), and they never step across its edge.
 export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   const n = low ? 2 : 3, crew = [];
-  const trail = []; let trailLen = 0; // [x, z] newest first, ~STEP m apart
+  const TR = makeTrail(STEP, TRAIL_N), trail = TR.trail; // [x, z] newest first, ~STEP m apart
   // [v109b] the crew wears YOUR resolved clothes colours: your picked clothes colour (outfitColor) or your ship skin's when it's 0 / SHIP,
   // + your hat colour. Always read from pirateGear (getLocalGear + getLocalColors), never from the event detail (the BR profile's copy
   // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
@@ -47,7 +48,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   let active = false, lastJumps = 0;
   function enter() {
     redress(true); // [v112] going ashore always re-dresses the crew in your current gear
-    const W = walker.w; trail.length = 0; trailLen = 0; lastJumps = W.jumps;
+    const W = walker.w; TR.clear(); lastJumps = W.jumps;
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground
       let x = W.x + bx * (1.2 + i * 0.9), z = W.z + bz * (1.2 + i * 0.9); if (world.blocked(x, z, W.x, W.z)) { x = W.x; z = W.z; }
@@ -56,50 +57,25 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   }
   function exit() { active = false; for (const c of crew) c.p.object.visible = false; }
   function place(c) { c.pose = poseBody(c.p.object, c.body, c.x, c.z, c.yaw, c.speed, performance.now() / 1000 + c.yaw); }
-  // point on your trail `d` metres behind you
-  const _pt = [0, 0];
-  function trailAt(d) { const W = walker.w; let px = W.x, pz = W.z, acc = 0;
-    for (const q of trail) { const s = Math.hypot(q[0] - px, q[1] - pz); if (acc + s >= d) { const f = (d - acc) / Math.max(1e-3, s); _pt[0] = px + (q[0] - px) * f; _pt[1] = pz + (q[1] - pz) * f; return _pt; } acc += s; px = q[0]; pz = q[1]; }
-    _pt[0] = px; _pt[1] = pz; return _pt; }
+  const trailAt = (d) => TR.at(d, walker.w.x, walker.w.z);
   const ko = (x, z, i) => { try { return keepOut ? keepOut(x, z, i) : null; } catch { return null; } };
   const blocked = (x, z, fx, fz) => world.blocked(x, z, fx, fz) || (!!keepOut && !ko(fx, fz, 0) && !!ko(x, z, 0)); // [Emerly] never step into an arena
-  function move(c, dx, dz) { // slide along walls like the walker, ≤0.3 m sub-steps
-    const k = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3)); let got = 0;
-    for (let i = 0; i < k; i++) { const sx = dx / k, sz = dz / k;
-      if (!blocked(c.x + sx, c.z + sz, c.x, c.z)) { c.x += sx; c.z += sz; got++; }
-      else if (!blocked(c.x + sx, c.z, c.x, c.z)) { c.x += sx; got += 0.5; }
-      else if (!blocked(c.x, c.z + sz, c.x, c.z)) { c.z += sz; got += 0.5; }
-      else if (DEFLECT) for (const r of DEFLECT) { const cs = Math.cos(r), sn = Math.sin(r), rx = sx * cs - sz * sn, rz = sx * sn + sz * cs; // [Timothy collisions] walk round a post /
-        if (!blocked(c.x + rx, c.z + rz, c.x, c.z)) { c.x += rx; c.z += rz; got += 0.25; break; } } }                       // barrel / lamp in the way instead of pushing into it
-    return got / k; }
+  const move = makeMover(blocked, DEFLECT); // slide along walls like the walker, ≤0.3 m sub-steps; [Timothy collisions] walk round a post / barrel / lamp
+  const free = (x, z, fx, fz) => !world.blocked(x, z, fx, fz);
+  const snap = (c) => { placeBody(c.body, world, c.x, c.z); c.y = c.body.y; };
+  const cap = (c, want) => { if (c.body.swim) want = Math.min(want, want > 4.2 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); return want; }; // [Raul swim-anim] pull-up
+  const env = { trail: TR, move, ko, free, cap, place: snap, deflect: !!DEFLECT, back: 0, side: 0, i: 0 };
   const fx = waterFX(scene, low);
   function update(dt, camera) {
     if (!active) return;
     if ((chkT -= dt) <= 0) { chkT = 0.5; redress(); } // ship skin / colour changes (cheap string compare, re-dress only on a change)
     const W = walker.w, now = performance.now();
     // breadcrumbs
-    const h = trail[0]; if (!h || Math.hypot(W.x - h[0], W.z - h[1]) >= STEP) { trail.unshift([W.x, W.z]); if (trail.length > TRAIL_N) trail.pop(); }
+    TR.push(W.x, W.z);
     if (W.jumps !== lastJumps) { lastJumps = W.jumps; crew.forEach((c, i) => setTimeout(() => { if (active) jumpBody(c.body, JUMP.h); }, 120 + i * 140)); }
     crew.forEach((c, i) => {
-      const pt = trailAt(BACK[i]); let tx = pt[0], tz = pt[1];
-      { const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw), sx = -bz * SIDE[i], sz = bx * SIDE[i]; if (SIDE[i] && !world.blocked(tx + sx, tz + sz, tx, tz)) { tx += sx; tz += sz; } }
-      if (DEFLECT && c.stuck > 0.3 && trail.length > 1) { let m = 0, md = 1e9; // [Timothy collisions] caught on a prop corner: drop the shortcut + side offset and walk
-        for (let q = 0; q < trail.length; q++) { const e = (trail[q][0] - c.x) ** 2 + (trail[q][1] - c.z) ** 2; if (e < md) { md = e; m = q; } }   // your own breadcrumbs
-        const q = trail[Math.max(0, m - 1)]; tx = q[0]; tz = q[1]; }                                                                       // (always walkable) round it
-      const wait = ko(tx, tz, i) || (ko(W.x, W.z, i) ? ko(W.x, W.z, i) : null); if (wait) { tx = wait[0]; tz = wait[1]; } // [Emerly] you're in an arena: wait outside its gate
-      { const inside = ko(c.x, c.z, i); if (inside) { c.x = inside[0]; c.z = inside[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; } } // never left standing inside one
-      const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);
-      if (dp > 40 && !wait) { const q0 = trailAt(BACK[i] + 1), q = ko(q0[0], q0[1], i) || q0; c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
-      let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] pull-up
-      c.speed += (want - c.speed) * Math.min(1, dt * 6);
-      if (c.speed > 0.15 && d > 0.05) {
-        const got = move(c, dx / d * c.speed * dt, dz / d * c.speed * dt);
-        c.stuck = got < 0.3 ? c.stuck + dt : 0; if (c.stuck > 1.5) { const q = wait || trailAt(BACK[i]), w2 = ko(q[0], q[1], i) || q; c.x = w2[0]; c.z = w2[1]; c.stuck = 0; }
-        let dy = Math.atan2(dx, dz) - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.yaw += dy * Math.min(1, dt * 10); c.idleT = 0;
-      } else { // idle: face you, glance around every few seconds
-        c.idleT += dt; if (c.idleT > 3 + i) { c.idleT = 0; c.look = (Math.random() - 0.5) * 1.6; }
-        const face = Math.atan2(W.x - c.x, W.z - c.z) + (c.idleT < 1.4 ? c.look : 0); let dy = face - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); c.yaw += dy * Math.min(1, dt * 3);
-      }
+      env.back = BACK[i]; env.side = SIDE[i]; env.i = i;
+      if (followStep(c, W, dt, env) === 'tp') return place(c); // lost (> 40 m behind): regroup on your trail
       stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; bodyFX(fx, c.body, c.x, c.z, c.speed, dt); fx?.update();
       const far = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far;
       place(c); if (!far) c.p.update(dt, c.speed, c.pose);

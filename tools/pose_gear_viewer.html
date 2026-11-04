@@ -11,9 +11,10 @@
 import * as THREE from 'three';
 import { loadPirate } from './js/onfoot/pirate.js';
 import { PHYS, newBody, placeBody, stepBody, poseBody } from './js/onfoot/physics.js';
+import { createPetFollower } from './js/onfoot/pets.js';   // [Raul items redo 2] cell opts (7th) { follow: 1 } = the ground pet follows; { fly: t } = parrot t s into its loop
 const q = new URLSearchParams(location.search), LOW = q.get('lod') === 'lo', FEM = q.get('sex') === 'f';
 const CELLS = JSON.parse(q.get('cells') || '[["IDLE",{"cape":"cape_royal"},"idle",1,"bq"]]'), COLS = +(q.get('cols') || 6), ROWS = Math.ceil(CELLS.length / COLS);
-const DRY = { ground: () => 0, water: () => null }, WATER = { ground: () => -3, water: () => 0 };
+const DRY = { ground: () => 0, water: () => null, blocked: () => false }, WATER = { ground: () => -3, water: () => 0 };
 document.getElementById('hd').textContent = q.get('title') || `PUMPFUN PIRATES poses x gear · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High (desktop)'}`;
 const renderer = new THREE.WebGLRenderer({ antialias: !LOW, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.autoClear = false; document.body.prepend(renderer.domElement);
@@ -23,9 +24,11 @@ CELLS.forEach(([label, gear, mode, T, view], i) => {
   s.add(new THREE.HemisphereLight(0xdfefff, 0x4a3a2a, 1.6)); const d = new THREE.DirectionalLight(0xfff1dc, 2.2); d.position.set(3, 6, 4); s.add(d);
   const wet = mode === 'swim' || mode === 'tread';
   if (wet) { const wm = new THREE.Mesh(new THREE.PlaneGeometry(40, 12), new THREE.MeshLambertMaterial({ color: 0x2a7fa8, transparent: true, opacity: 0.3, depthWrite: false })); wm.rotation.x = -Math.PI / 2; wm.renderOrder = 2; s.add(wm); }
-  else { const g = new THREE.Mesh(new THREE.PlaneGeometry(60, 12), new THREE.MeshLambertMaterial({ color: 0xc9b083 })); g.rotation.x = -Math.PI / 2; s.add(g); }
+  else { const g = new THREE.Mesh(new THREE.PlaneGeometry(200, 80), new THREE.MeshLambertMaterial({ color: 0xc9b083 })); g.rotation.x = -Math.PI / 2; s.add(g); }
   const p = loadPirate({ look: { skin: 0, hair: 0, female: FEM }, low: LOW, gear: { body: FEM ? 1 : 0, ...gear } }); s.add(p.object);
-  cells.push({ label, gear, mode, T: +T || 1, view: view || 'bq', s, p, wet, petT: CELLS[i][5] ?? null });
+  const opt = CELLS[i][6] || {}, pf = opt.follow ? createPetFollower({ scene: s, world: DRY, low: LOW }) : null;
+  if (pf) pf.update(0, { x: 0, z: 0, yaw: 0 }, { pirateObj: p.object, petId: gear.parrot });
+  cells.push({ label, gear, mode, T: +T || 1, view: view || 'bq', s, p, wet, petT: CELLS[i][5] ?? null, opt, pf });
   const l = document.createElement('div'); l.textContent = label; document.getElementById('lab').append(l); l.dataset.i = i; });
 const v4of = (p) => p.object.userData.v4 || p.object.children.find((o) => o.userData?.v4)?.userData.v4;
 function sim(cell) {
@@ -35,12 +38,15 @@ function sim(cell) {
   for (let i = 0; i < 600 && t < T + (em ? 1 : 0); i++) {
     if (em && !fired && t >= 1) { p.emote(+em[1]); fired = true; }
     if (mode === 'steer') { p.object.position.set(0, 0, 0); p.object.rotation.y = yaw; v4.play('steer'); v4.update(dt); t += dt; continue; }
-    x += v * dt; stepBody(b, W, x, 0, dt, v);
-    const st = poseBody(p.object, b, x, 0, yaw, v, t); p.update(dt, v, st); v4?.update(dt); t += dt; }
-  cell.x = mode === 'steer' ? 0 : x; cell.yaw = yaw;
+    const vv = cell.opt.stopAt != null && t > cell.opt.stopAt ? 0 : v; x += vv * dt; stepBody(b, W, x, 0, dt, vv);
+    const st = poseBody(p.object, b, x, 0, yaw, vv, t); p.update(dt, vv, st); v4?.update(dt); cell.pf?.update(dt, { x, z: 0, yaw }, { pirateObj: p.object, petId: cell.gear.parrot }); t += dt; }
+  if (cell.opt.fly != null && v4?.gearMesh?.userData.bird) { const B = v4.gearMesh.userData.bird; B.st.t = cell.opt.fly; v4.birdFly = true; v4.update(0); }
+  if (cell.opt.act) cell.s.traverse((o) => { const L = o.userData.layer; if (L?.st) { L.st.act = cell.opt.act; L.st.actLen = 2; L.st.actT = cell.opt.actT ?? 1; L.st.idleT = 9; L.st.sit = cell.opt.sit ?? L.st.sit; } });
+  if (cell.opt.act) cell.s.traverse((o) => { const L = o.userData.layer; if (L?.st) { const sp = L.st; const k = sp.kind; L.U.uLyA.value.set(cell.opt.act === 'groom' || cell.opt.act === 'beat' ? 1 : 0, cell.opt.act === 'hop' ? 1 : 0, 0, cell.opt.act === 'groom' ? 0.45 : cell.opt.act === 'beat' ? -0.3 : 0); L.U.uLyG.value.w = sp.sit; } });
+  cell.x = mode === 'steer' ? 0 : x; cell.yaw = yaw; if (cell.pf) { const c = cell.pf.state; cell.px = c.x; cell.pz = c.z; }
   if (cell.petT != null) p.object.traverse((o) => { const L = o.userData.layer; if (L && L.kind !== 'CAPE') L.U.uLyT.value = cell.petT; }); }
 const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
-const VIEWS = { q: [1.9, 1.1, 5.0], front: [0.4, 0.9, 5.2], side: [5.2, 0.9, 0.4], back: [-0.4, 1.0, -5.2], bq: [-2.6, 1.2, -4.4], top: [-2.2, 3.8, -2.6], pet: [1.1, 1.45, 1.35, 1.12, 0.22], ff: [0.35, 1.12, 2.1, 0.24], fs: [2.1, 1.12, 0.3, 0.24], fb: [-0.35, 1.17, -2.1, 0.24], fq: [1.4, 1.17, 1.6, 0.24], swa: [1.5, 1.35, 0.4, 0.0, -0.55], swb: [1.9, 1.6, 0.9, 0.0, 0.62], hf: [0.25, 0.95, 1.9, 1.05], hs: [1.9, 0.95, 0.25, 1.05], hb: [-0.25, 0.95, -1.9, 1.05], bf: [0.3, 0.95, 3.0, 0.62], bs: [3.0, 0.95, 0.3, 0.62], bb: [-0.3, 0.95, -3.0, 0.62], petside: [1.7, 1.25, 0.2, 1.12, 0.22] };
+const VIEWS = { q: [1.9, 1.1, 5.0], front: [0.4, 0.9, 5.2], side: [5.2, 0.9, 0.4], back: [-0.4, 1.0, -5.2], bq: [-2.6, 1.2, -4.4], top: [-2.2, 3.8, -2.6], pet: [1.1, 1.45, 1.35, 1.12, 0.22], ff: [0.35, 1.12, 2.1, 0.24], fs: [2.1, 1.12, 0.3, 0.24], fb: [-0.35, 1.17, -2.1, 0.24], fq: [1.4, 1.17, 1.6, 0.24], swa: [1.5, 1.35, 0.4, 0.0, -0.55], swb: [1.9, 1.6, 0.9, 0.0, 0.62], hf: [0.25, 0.95, 1.9, 1.05], hs: [1.9, 0.95, 0.25, 1.05], hb: [-0.25, 0.95, -1.9, 1.05], bf: [0.3, 0.95, 3.0, 0.62], bs: [3.0, 0.95, 0.3, 0.62], bb: [-0.3, 0.95, -3.0, 0.62], petside: [1.7, 1.25, 0.2, 1.12, 0.22], pf: [0.4, 1.0, 4.4, 0.78, 0.4], ps: [4.4, 1.0, 0.6, 0.78, 0.4], pb: [-0.4, 1.0, -4.4, 0.78, 0.4], pq: [2.6, 1.4, 3.6, 0.72, 0.4], pz: [1.4, 0.9, 2.2, 0.45, 0.55], fw: [4.6, 1.3, -0.9, 0.45, 0.4, -1.1], fw2: [5.6, 1.5, -1.0, 0.55, 0.4, -1.3] };
 function layout() { const w = innerWidth / COLS, h = (innerHeight - 24) / ROWS;
   document.querySelectorAll('#lab div').forEach((l) => { const i = +l.dataset.i; l.style.left = (i % COLS) * w + 'px'; l.style.width = w + 'px'; l.style.top = (24 + Math.floor(i / COLS) * h + h - 20) + 'px'; }); return { w, h }; }
 function maskMats() { for (const k of cells) k.p.object.traverse((o) => { if (o.isMesh) o.material = /^item_cape_/.test(o.name) ? M_C : (/^item_(cloth_(?!base)|shirt|suit)/.test(o.name) || o.name === 'pirate-gear') ? M_O : M_B; }); }
@@ -48,7 +54,9 @@ function render() { if (q.get('mask')) maskMats(); const { w, h } = layout(); re
   const Z = +(q.get('zoom') || 1);
   cells.forEach((k, i) => { const x = (i % COLS) * w, y = innerHeight - (24 + (Math.floor(i / COLS) + 1) * h), V = VIEWS[k.view] || VIEWS.bq, ly = k.wet ? 0.1 : 0.95;
     const c = Math.cos(k.yaw || 0), sn = Math.sin(k.yaw || 0), vx = V[0] * c + V[2] * sn, vz = -V[0] * sn + V[2] * c;   // views are in the pirate's frame
-    const LY = V[3] ?? ly, LX = V[4] ? V[4] * c : 0, LZ = V[4] ? -V[4] * sn : 0; cam.position.set(k.x + LX + vx / Z, LY + (V[1] - 0.95) / Z, LZ + vz / Z); cam.lookAt(k.x + LX, LY, LZ);
+    if (k.view === 'mid' && k.px != null) { const mx = (k.x + k.px) / 2, mz = k.pz / 2, span = Math.hypot(k.x - k.px, k.pz), D = (2.4 + span * 2.1) / Z, ty = 0.45 + 0.05 * span;
+      cam.position.set(mx + 0.08 * D, ty + 0.12 * D, mz - D); cam.lookAt(mx, ty, mz); renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.render(k.s, cam); return; }
+    const LY = V[3] ?? ly, LX = (V[4] || 0) * c + (V[5] || 0) * sn, LZ = -(V[4] || 0) * sn + (V[5] || 0) * c; cam.position.set(k.x + LX + vx / Z, LY + (V[1] - 0.95) / Z, LZ + vz / Z); cam.lookAt(k.x + LX, LY, LZ);
     renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.render(k.s, cam); }); }
 // poke-through metric: pixels where the pirate (body / coat / legs) draws OVER the cape's own silhouette, seen from the given view
 const RT = new THREE.WebGLRenderTarget(200, 260), PX = new Uint8Array(200 * 260 * 4), M_C = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide }), M_B = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide }), M_O = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide });
@@ -68,6 +76,6 @@ function clipCount(k, view) {
   for (const [o, m] of meshes) o.material = m; hid.forEach((o) => (o.visible = true)); k.s.background = bg; renderer.setRenderTarget(null);
   return { cape, poke, cloth, pct: +(100 * (poke + cloth) / Math.max(1, cape)).toFixed(1), body: +(100 * poke / Math.max(1, cape)).toFixed(1), top: +(100 * cloth / Math.max(1, cape)).toFixed(1) };
 }
-const ready = () => cells.every((k) => { const v = v4of(k.p); return v && v.gearKey != null; });
-window.PGV = { ready, go() { cells.forEach(sim); render(); return cells.map((k) => [k.label, +k.x.toFixed(2)]); }, cells, render, clip: (view = 'back') => cells.map((k) => [k.label, clipCount(k, view)]) };
+const ready = () => cells.every((k) => { const v = v4of(k.p); if (k.pf) k.pf.update(0, { x: 0, z: 0, yaw: 0 }, { pirateObj: k.p.object, petId: k.gear.parrot }); return v && v.gearKey != null && (!k.pf || k.pf.mesh); });
+window.PGV = { ready, go() { cells.forEach(sim); render(); return cells.map((k) => [k.label, +k.x.toFixed(2), k.px == null ? null : [+k.px.toFixed(2), +k.pz.toFixed(2)]]); }, cells, render, clip: (view = 'back') => cells.map((k) => [k.label, clipCount(k, view)]) };
 </script></body></html>

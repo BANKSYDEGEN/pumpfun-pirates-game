@@ -9,6 +9,8 @@
 //   const p = await PirateGLB.create({ female, lod }); await equip(p, 'crown'); await equip(p, 'suit', { colors: { coat: '#1d2a52' } });
 //   unequip(p, 'head') // or unequip(p, 'crown');  equipped(p) -> { head: 'crown', outfit: 'suit' };  p.update(dt) also ticks the parrot.
 import * as THREE from 'three';
+import { PET_RIG } from './petRig.js';   // [Raul items redo 2] the ground pets' rig + motion
+import { petPose, newPetState, PET_SIT, PET_KIND_ID } from './petMotion.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
 import { recolorPixels } from './gearRecolor.js';
@@ -572,39 +574,66 @@ function paintLo(geo) {
 //    the coat under it no longer push through
 // Driven by ONE PirateGLB post hook ('items', order 2: after the swim (0) and emote (1) layers; battle.js weapons still land last).
 // No bones, no mixer, no allocation per frame: one uniform write per item.
-// pets: B = the pet's body seat (build.py 'b'), measured from the GLB bounds: [x = mid, y = top - dy, z = front - dz]
-export const PET_IDLE = { pet_cat: { kind: 'CAT', dy: 0.115, dz: 0.168 }, pet_cat_black: { kind: 'CAT', dy: 0.115, dz: 0.168 }, pet_monkey: { kind: 'MONKEY', dy: 0.1885, dz: 0.088 } };
+// [Raul items redo 2] the GROUND PETS (cat, black cat, monkey, chimp, gorillas) stand on the floor (bind copy: beside your left foot, rides
+// 'root'; on foot js/onfoot/pets.js draws a free copy that follows you). Their motion is the PET layer below: the GLB's uv = the rig
+// (u = part: 0 body, 1 head, 2 tail, 3 / 4 front limbs, 5 / 6 back legs; v = along the limb), pivots = js/petRig.js, numbers =
+// js/petMotion.js petPose (walk / run gait, sit, groom, hop, knuckle-walk, chest-beat). The old shoulder pets' PET_IDLE is gone.
+export const PET_IDLE = Object.fromEntries(Object.keys(PET_RIG).map((id) => [id, { kind: 'PET' }]));
 export const CAPE_LIFT = 0.07;   // m off the back at full swim weight
 const LAYER_FN = `
 vec3 lyRotY(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
 vec3 lyRotX(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
 vec3 lyRotZ(vec3 p, vec3 o, float a) { p -= o; float c = cos(a), s = sin(a); return o + vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z); }`;
+const PET_GLSL = `{ vec3 q = transformed - uLyB; float part = floor(uv.x + 0.5), lv = uv.y, ph = uLyG.x, wk = uLyG.y, rn = uLyG.z, st = uLyG.w, t = uLyT;
+    float S = uLyK.x, kind = uLyK.y, ape = step(1.5, kind), mky = step(0.5, kind) * (1.0 - ape), cat = 1.0 - step(0.5, kind), beat = uLyA.x * ape, groom = uLyA.x * cat;
+    float th = st * mix(0.55, 0.32, step(0.5, kind)), amp = (wk * 0.5 + rn * 0.35) * (1.0 - st);
+    // limbs: diagonal pairs at a walk, a bound at a run (fronts together, backs together); the monkey hops (legs together, arms swing)
+    if (part > 2.5) { float li = part - 3.0; vec3 pv = li < 0.5 ? uPv[3] : li < 1.5 ? uPv[4] : li < 2.5 ? uPv[5] : uPv[6];
+      float diag = (li < 0.5 || li > 2.5) ? 0.0 : 3.14159, bnd = li < 1.5 ? 0.0 : 2.2, o = mix(diag, bnd + mod(li, 2.0) * 0.3, rn);
+      if (mky > 0.5) o = li < 1.5 ? (li < 0.5 ? 0.0 : 3.14159) : 1.57;
+      float a = amp * sin(ph + o) * (mky > 0.5 && li > 1.5 ? 0.45 : 1.0);
+      if (li > 1.5) { q = pv + (q - pv) * vec3(1.0, 1.0 - 0.5 * st * cat * lv, 1.0); }   // sit: the hind legs fold under the haunch
+      q = lyRotX(q, pv, a); q.y += max(0.0, cos(ph + o)) * (wk * 0.025 + rn * 0.035) * S * lv;
+      if (li < 1.5) {   // front limbs: counter the sit pitch (paws stay down), groom (cat: the left paw up to the mouth), chest-beat (gorillas)
+        q = lyRotX(q, pv, th); q.y -= st * 0.06 * S * lv * cat;
+        float up = li < 0.5 ? groom : 0.0; q = lyRotX(q, pv, -1.5 * up + 0.12 * up * sin(t * 9.0));
+        float sl = -1.35 * beat - 0.5 * beat * (li < 0.5 ? sin(t * 13.0) : -sin(t * 13.0)); q = lyRotY(lyRotX(q, pv, sl), pv, (li < 0.5 ? -0.7 : 0.7) * beat);
+      } }
+    // head: look about, nod; groom = head down to the paw; it counters the sit / beat pitch so the face stays level
+    if (part > 0.5 && part < 1.5) { vec3 nk = uPv[0]; q = lyRotX(lyRotY(q, nk, uLyA.z + 0.25 * groom * sin(t * 4.5)), nk, uLyA.w + th * 0.8 + 0.3 * beat - 0.04 * sin(t * 1.3)); }
+    // tail: lazy swish, faster at a walk, curls up when sitting
+    if (part > 1.5 && part < 2.5) { vec3 tr = uPv[2]; q = lyRotY(q, tr, (0.32 * sin(t * 1.6) + 0.25 * wk * sin(ph)) * lv); q = lyRotX(q, tr, (-0.25 * st - 0.15 * rn) * lv); }
+    // body: breathe, bob with the gait, hop, settle into the sit, rear up to beat the chest
+    float br = 0.025 * sin(t * 2.4) * (1.0 - step(0.5, part)); q = vec3(q.x * (1.0 + br), q.y * (1.0 + br * 0.6), q.z);
+    q.y += (wk * 0.012 + rn * 0.03) * S * abs(sin(ph)) * (1.0 - mky) + mky * (wk * 0.06 + rn * 0.09) * S * abs(sin(ph * 0.5)) + uLyA.y * 0.13 * S;
+    vec3 sp = uPv[1]; q = lyRotX(q, sp, -th - 0.42 * beat); q.y -= st * 0.035 * S * cat;
+    transformed = q + uLyB; }`;
 const LAYER_GLSL = {
-  CAT: `{ vec3 B = uLyB, p = transformed; float t = uLyT;
-    float wh = smoothstep(B.z + 0.05, B.z + 0.085, p.z), wt = smoothstep(B.z - 0.085, B.z - 0.115, p.z) * (0.35 + 0.65 * smoothstep(B.y + 0.01, B.y - 0.15, p.y));
-    float br = 0.03 * sin(t * 2.6) * (1.0 - wh) * (1.0 - wt); p.x = B.x + (p.x - B.x) * (1.0 + br); p.y = B.y + (p.y - B.y) * (1.0 + br * 1.3);
-    vec3 nk = B + vec3(0.0, 0.02, 0.065); p = mix(p, lyRotX(lyRotY(p, nk, 0.3 * sin(t * 0.55) + 0.08 * sin(t * 1.7)), nk, 0.08 * sin(t * 1.15 + 1.0)), wh);
-    p = mix(p, lyRotZ(lyRotY(p, B + vec3(0.0, 0.0, -0.1), 0.15 * sin(t * 1.1)), B + vec3(0.0, 0.0, -0.1), 0.45 * sin(t * 1.8)), wt); transformed = p; }`,
-  MONKEY: `{ vec3 B = uLyB, p = transformed; float t = uLyT;
-    float wh = smoothstep(B.y + 0.045, B.y + 0.075, p.y), wt = smoothstep(B.z - 0.035, B.z - 0.07, p.z) * (0.3 + 0.7 * smoothstep(B.y + 0.03, B.y - 0.2, p.y));
-    float br = 0.035 * sin(t * 2.9) * (1.0 - wh) * (1.0 - wt); p.x = B.x + (p.x - B.x) * (1.0 + br); p.z = B.z + (p.z - B.z) * (1.0 + br);
-    vec3 nk = B + vec3(0.0, 0.06, 0.0); p = mix(p, lyRotZ(lyRotY(p, nk, 0.35 * sin(t * 0.7) + 0.1 * sin(t * 2.3)), nk, 0.12 * sin(t * 1.3)), wh);
-    vec3 tr = B + vec3(0.0, 0.02, -0.06); p = mix(p, lyRotX(lyRotZ(p, tr, 0.4 * sin(t * 2.1)), tr, 0.15 * sin(t * 1.4)), wt); transformed = p; }`,
+  PET: PET_GLSL,
   CAPE: `{ float w = smoothstep(uLyB.y, uLyB.y - 0.18, transformed.y) * uLyT; transformed.z -= w; transformed.x *= 1.0 + 0.6 * w; }`,
 };
-function itemLayer(m, g0, def) {
-  const kind = def.slot === 'cape' ? 'CAPE' : PET_IDLE[def.id].kind, bb = g0.boundingBox || (g0.computeBoundingBox(), g0.boundingBox), P = PET_IDLE[def.id];
-  const B = kind === 'CAPE' ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : new THREE.Vector3((bb.min.x + bb.max.x) / 2, bb.max.y - P.dy, bb.max.z - P.dz);
-  const U = { uLyT: { value: 0 }, uLyB: { value: B } }, mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
+function itemLayer(m, g0, def, B0 = null) {   // B0: a free pet copy (its own origin) instead of the bind-space anchor
+  const pet = def.slot !== 'cape', kind = pet ? 'PET' : 'CAPE', bb = g0.boundingBox || (g0.computeBoundingBox(), g0.boundingBox), R = pet ? PET_RIG[def.id] : null;
+  const B = !pet ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : B0 || new THREE.Vector3(...R.anchor);
+  const U = { uLyT: { value: 0 }, uLyB: { value: B } };
+  if (pet) Object.assign(U, { uLyG: { value: new THREE.Vector4(0, 0, 0, PET_SIT[R.kind] || 0) }, uLyA: { value: new THREE.Vector4() },
+    uLyK: { value: new THREE.Vector4(R.h / 0.3, PET_KIND_ID[R.kind], 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...(R[k] || R.sit))) } });
+  const mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
   mat.onBeforeCompile = (sh, r) => { prev?.call(mat, sh, r); Object.assign(sh.uniforms, U);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LAYER_GLSL[kind]); };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + (pet ? ' uniform vec4 uLyG, uLyA, uLyK; uniform vec3 uPv[7];' : '') + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LAYER_GLSL[kind]); };
   mat.customProgramCacheKey = () => (ck ? ck() : '') + '|ly' + kind;
-  m.userData.layer = { kind, U, t: Math.random() * 20 };
+  m.userData.layer = { kind, U, t: Math.random() * 20, st: pet ? newPetState(R.kind, Math.random()) : null };
+  return m.userData.layer;
+}
+// drive one pet layer: speed = how fast it moves (0 = the bound copy: sits by your feet / on deck, does its idle acts)
+export function petLayerTick(L, dt, speed = 0) {
+  if (!L?.st) return; L.t += Math.min(0.1, dt || 0); L.U.uLyT.value = L.t; petPose(L.st, speed, dt);
+  L.U.uLyG.value.fromArray(L.st.G); L.U.uLyA.value.fromArray(L.st.A);
 }
 function itemsPost(dt) {   // PirateGLB post hook (this = the pirate)
   for (const k of ['shoulder', 'cape']) { const L = this.items?.[k]?.obj?.userData?.layer; if (!L) continue;
     if (L.kind === 'CAPE') { const w = this._sw?.w || 0; L.U.uLyT.value = CAPE_LIFT * w * w * (3 - 2 * w); }
-    else { L.t += Math.min(0.1, dt || 0); L.U.uLyT.value = L.t; } }
+    else if (this.items[k].obj.visible) petLayerTick(L, dt, 0); }
 }
 // [Raul shop2 fixes] BANKSY via Emerly "fix the cape and coat clipping": the capes were rigid on the spine, so the back leg (walk / run),
 // the flutter kick (swim) and the jig kicked through the hem. Below the hips the cape now blends from the spine onto the thighs, like the
@@ -623,6 +652,19 @@ function capeFollowLegs(g0, geo, skel, names) {
     W = g0.userData.capeW = { si, sw };
   }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(W.si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(W.sw, 4));
+}
+// [Raul items redo 2] a FREE copy of a ground pet (js/onfoot/pets.js: it follows you on foot): a plain mesh, origin = the floor under it,
+// facing +z, its own PET layer (drive it with petLayerTick(mesh.userData.layer, dt, speed)). Shares the GLB's buffers with the bound copy.
+const _petGeo = new Map();
+export async function petMesh(id, female, low) {
+  const def = ITEM_BY_ID[id], R = PET_RIG[id]; if (!def?.v5 || !R) return null;
+  const url = def.v5[female ? 'female' : 'male'][low ? 'lo' : 'hi'];
+  let e = _petGeo.get(url);
+  if (!e) { const gltf = await loadPirateGLB(url); let src = null; gltf.scene.traverse((o) => { if (o.isMesh && (!src || o.geometry.attributes.position.count > src.geometry.attributes.position.count)) src = o; });
+    const g = new THREE.BufferGeometry(); for (const k of ['position', 'normal', 'color', 'uv']) if (src.geometry.attributes[k]) g.setAttribute(k, k === 'position' ? src.geometry.attributes[k].clone() : src.geometry.attributes[k]);
+    g.setIndex(src.geometry.index); g.translate(-R.anchor[0], -R.anchor[1], -R.anchor[2]); g.computeBoundingSphere(); e = { g, mat: src.material }; _petGeo.set(url, e); }
+  const m = new THREE.Mesh(e.g, itemMaterial(e.mat || {}, low)); m.name = 'pet-' + id; m.frustumCulled = true;
+  itemLayer(m, e.g, def, new THREE.Vector3()); return m;
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);

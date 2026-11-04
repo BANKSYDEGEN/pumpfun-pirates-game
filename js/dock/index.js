@@ -13,6 +13,7 @@ import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
+import { createPetFollower } from '../onfoot/pets.js'; // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
 import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
@@ -66,6 +67,7 @@ export async function createDock(ctx) {
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking });
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
+  const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands }); // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
@@ -178,11 +180,11 @@ export async function createDock(ctx) {
     if (docking.mode !== 'docked') return; const b = docking.berth;
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
       walker.enter(b.ashore.x, b.ashore.z, b.out ? Math.atan2(-b.out.x, -b.out.z) : b.yaw + Math.PI); // face inland
-      crewF?.enter();
+      crewF?.enter(); petF?.enter(walker.w);
       if (!sprintHinted) { sprintHinted = true; toast(touch ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
-    const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); // [Raul emotes] no half-played emote next time ashore
+    const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); petF?.exit(); // [Raul emotes] no half-played emote next time ashore
       closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
     if (instant) fin(); else fadeTo(fin);
   }
@@ -252,7 +254,7 @@ export async function createDock(ctx) {
     else safeTag.style.display = 'none';
     // prompts
     if (onFoot) {
-      walker.update(dt); crewF?.update(dt, camera);
+      walker.update(dt); crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
       world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;

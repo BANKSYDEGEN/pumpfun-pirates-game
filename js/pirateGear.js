@@ -17,6 +17,7 @@
 // Visual only: no stats, hitboxes, gold or server code. Unknown / unowned ids just draw nothing (the shop validates ownership).
 import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
+import { birdFlight, birdTick, newBirdState } from './petMotion.js';   // [Raul items redo 2] parrot flight
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
@@ -436,6 +437,33 @@ function tailsOf(bones, cloth, trim, low) {
 // same at every LOD). Per body: scale about its feet f, then move them onto the shoulder top (bind pose; it rides the spine bone).
 const PARROT5 = { male: { f: [0.26, 1.136, 0.04], to: [0.25, 1.0, 0.06], s: 1 }, female: { f: [0.26, 1.173, 0.05], to: [0.24, 1.055, 0.07], s: 1 } };
 function parrotSeat(P, q) { const f = P.f, t = P.to, s = P.s; for (let k = 0; k < 3; k++) q[k] = t[k] + (q[k] - f[k]) * s; return q; }
+// [Raul items redo 2] BANKSY 10:36 AM "make the parrot fly around and land back on shoulder": the parrot rides the merged gear mesh, so
+// its flight is a vertex-shader offset of its own vertices (aBird) in bind space: perched = untouched; on foot (js/onfoot/pirate.js sets
+// birdFly) it takes off now and then or when you stand still, flies one loop round you and lands back on the shoulder (js/petMotion.js).
+// At sea (ship captains) and in the shop it stays perched. Cost: one cloned material per parrot owner, 3 uniforms per frame.
+const BIRD_GLSL = `if (aBird > 0.5) { vec3 bq = transformed - uBirdC;
+    if (aBird > 1.5) { float sd = bq.x >= 0.0 ? 1.0 : -1.0, fa = uBirdF * sd, c = cos(fa), s = sin(fa); vec3 pv = vec3(0.0, 0.012, 0.0); vec3 r = bq - pv; bq = pv + vec3(c * r.x - s * r.y, s * r.x + c * r.y, r.z); }
+    transformed = uBirdC + uBirdP + uBirdR * bq; }`;
+function birdLayer(m, c) {
+  const U = { uBirdC: { value: new THREE.Vector3(...c) }, uBirdP: { value: new THREE.Vector3() }, uBirdR: { value: new THREE.Matrix3() }, uBirdF: { value: 0 } };
+  const mat = m.material.clone(); m.material = mat;
+  mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aBird; uniform vec3 uBirdC, uBirdP; uniform mat3 uBirdR; uniform float uBirdF;')
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nif (aBird > 0.5) objectNormal = uBirdR * objectNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + BIRD_GLSL); };
+  mat.customProgramCacheKey = () => 'pirateBird';
+  m.userData.bird = { U, st: newBirdState(Math.random()), f: { p: [0, 0, 0], yaw: 0, bank: 0, pitch: 0, flap: 0 }, seat: c.slice(), t: 0 };
+}
+const _be = new THREE.Euler(), _bm = new THREE.Matrix4();
+function birdPost(dt) {   // PirateGLB post hook (this = the pirate)
+  const B = this.gearMesh?.userData?.bird; if (!B) return;
+  const sp = this.footSpeed || 0, wet = /swim|tread|climb|hop/.test(this.footState || '');
+  birdTick(B.st, dt, { moving: sp > 0.3, canFly: !!this.birdFly && !wet && !this.userData?.emote });
+  const f = this.birdFly ? birdFlight(B.st.t, B.seat, B.f) : null, U = B.U; B.t += dt || 0;
+  if (!f) { U.uBirdP.value.set(0, 0, 0); U.uBirdR.value.identity(); U.uBirdF.value = 0.06 * Math.max(0, Math.sin(B.t * 1.3)) * Math.sin(B.t * 30) * (Math.sin(B.t * 0.37) > 0.8 ? 1 : 0); return; }   // perched: a little ruffle now and then
+  U.uBirdP.value.set(f.p[0] - B.seat[0], f.p[1] - B.seat[1], f.p[2] - B.seat[2]);
+  _be.set(f.pitch, f.yaw, f.bank, 'YXZ'); _bm.makeRotationFromEuler(_be); U.uBirdR.value.setFromMatrix4(_bm); U.uBirdF.value = f.flap;
+}
 // ---------- the merged gear mesh ----------
 function buildGearGeometry(p, body, gear, lib, colors) {
   const low = p.lod === 'lo', boneIx = (nm) => Math.max(0, body.skeleton.bones.findIndex((b) => bn(b.name) === bn(nm)));
@@ -464,7 +492,8 @@ function buildGearGeometry(p, body, gear, lib, colors) {
       c.toArray(col, i * 3);
     }
     chunks.push({ pos, nrm, col, uv: new Float32Array(n * 2).fill(0.75), si: new Uint16Array(n * 4).map((_, k) => (k % 4 ? 0 : bi)),
-      sw: new Float32Array(n * 4).map((_, k) => (k % 4 ? 0 : 1)), index: null });
+      sw: new Float32Array(n * 4).map((_, k) => (k % 4 ? 0 : 1)), index: null,
+      bird: slot === 'parrot' ? Float32Array.from({ length: n }, (_, i) => (src.key[i] === 2 ? 2 : 1)) : null });   // [Raul items redo 2] 1 bird, 2 its wings (flight)
     }
   }
   if (!chunks.length) return null;
@@ -481,7 +510,13 @@ function buildGearGeometry(p, body, gear, lib, colors) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('color', new THREE.BufferAttribute(C, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(U, 2)); g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(SW, 4));
-  g.setIndex(new THREE.BufferAttribute(I, 1)); g.userData.stripe = stripe; return g;
+  g.setIndex(new THREE.BufferAttribute(I, 1)); g.userData.stripe = stripe;
+  if (chunks.some((ch) => ch.bird)) {   // [Raul items redo 2] the parrot can fly: aBird marks its vertices, its perch = their centre (bind space)
+    const B = new Float32Array(nv), c = [0, 0, 0]; let o = 0, nb = 0;
+    for (const ch of chunks) { const n = ch.pos.length / 3; if (ch.bird) { B.set(ch.bird, o); for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) c[k] += ch.pos[i * 3 + k]; nb += n; } o += n; }
+    g.setAttribute('aBird', new THREE.BufferAttribute(B, 1)); g.userData.bird = { c: c.map((v) => v / Math.max(1, nb)) };
+  }
+  return g;
 }
 
 // Raul's items for this gear: equip what changed, unequip what is gone (his equip is async; a newer dress wins)
@@ -577,15 +612,16 @@ function dress(p, gear, colors) {
   p.gearKey = key; const ticket = (p.gearTicket = (p.gearTicket || 0) + 1);
   const needLib = ['hat', 'eyes', 'parrot', 'hook'].some((s) => PIECES[`${s}:${gear[s]}`]);
   if (!needLib && !(OUTFITS[gear.outfit] && !(p.v5 && RAUL5['outfit:' + gear.outfit]))) {   // nothing of Timothy's: just Raul's items (or bare)
-    if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); p.gearMesh = null; }
+    if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); if (p.gearMesh.userData.bird) p.gearMesh.material.dispose(); p.gearMesh = null; }
     return syncRaul(p, gear, colors, ticket).then(() => null);
   }
   return (needLib ? loadLib(p.lod === 'lo' ? 'lo' : 'hi') : Promise.resolve(null)).then((lib) => {
     if (ticket !== p.gearTicket) return null;
-    if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); p.gearMesh = null; }
+    if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); if (p.gearMesh.userData.bird) p.gearMesh.material.dispose(); p.gearMesh = null; }
     const rj = syncRaul(p, gear, colors, ticket);
     const geo = buildGearGeometry(p, body, gear, lib, colors); if (!geo) return rj.then(() => null);
     const m = new THREE.SkinnedMesh(geo, gearMat(p.lod === 'lo', geo.userData.stripe)); m.name = 'pirate-gear'; m.userData.isGear = true;
+    if (geo.userData.bird) { birdLayer(m, geo.userData.bird.c); p.addPost?.('bird', birdPost, 3); }   // [Raul items redo 2] the parrot flies a loop + lands back
     m.frustumCulled = false; m.castShadow = p.lod !== 'lo';
     body.parent.add(m); m.bind(body.skeleton, body.bindMatrix); p.gearMesh = m; return rj.then(() => m);
   }).catch((e) => { console.warn('[gear] failed, pirate stays as is', e); p.gearKey = null; return null; });
