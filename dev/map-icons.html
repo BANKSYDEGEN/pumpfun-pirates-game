@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>minimap shop icons</title>
+<body style="margin:0;background:#222;color:#fff;font:14px system-ui">
+<canvas id="c" width="1200" height="520"></canvas>
+<script type="module">
+import { SHOP_ICONS, drawShopIcon } from '../js/mapIcons.js';
+const c = document.getElementById('c').getContext('2d'); const ids = Object.keys(SHOP_ICONS);
+let y = 20;
+for (const [style, bg] of [['colored', '#174f70'], ['paper', '#cfc79d']]) for (const r of [6, 10, 22]) {
+  c.fillStyle = bg; c.fillRect(0, y - 10, 1200, r * 2 + 40);
+  c.fillStyle = style === 'paper' ? '#3b2410' : '#fff'; c.font = 'bold 13px system-ui'; c.fillText(`${style} r=${r}`, 8, y + r + 4);
+  ids.forEach((id, i) => { drawShopIcon(c, SHOP_ICONS[id], 160 + i * 130, y + r + 6, r, style); if (r === 22) { c.fillStyle = style === 'paper' ? '#3b2410' : '#fff'; c.font = '11px system-ui'; c.textAlign = 'center'; c.fillText(SHOP_ICONS[id][4], 160 + i * 130, y + r * 2 + 22); c.textAlign = 'left'; } });
+  y += r * 2 + 44; }
+</script></body>

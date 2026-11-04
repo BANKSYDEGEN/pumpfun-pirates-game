@@ -45,6 +45,7 @@ import { waveRoster, applyEnemyType, ENEMY_TYPES, ENEMY_BUILDS, updateSpecialEne
 import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, getRunLevels } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
+import { getMapStyle, setMapStyle, THEMES } from './mapIcons.js'; // [v153] MINIMAP STYLE setting // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
 import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
 import { escHtml } from './safe.js'; // [security H5]
@@ -1394,7 +1395,8 @@ function fitCamera(w, h) {
 }
 function isPortrait() { const [w, h] = viewSize(); return h > w; }
 function updateRotateHint() {
-  const show = isPortrait() && game.state === 'playing' && !rotateDismissed && isMobile;
+  const [vw, vh] = viewSize(); // [v153] near-square phone screens (iPhone Duo inner + outer ~1.42) play fine upright: no rotate prompt (iPads keep it: short side >= 700)
+  const show = isPortrait() && !(vh / vw < 1.5 && vw < 700) && game.state === 'playing' && !rotateDismissed && isMobile;
   $('rotate').classList.toggle('show', show);
   if (show && !rotateTimer) rotateTimer = setTimeout(() => { $('rotate').classList.remove('show'); rotateDismissed = true; }, 9000);
 }
@@ -1489,6 +1491,14 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
     }
     if (qp) note.textContent = `?quality=${qp} in the link overrides this`;
   }
+  // [v153] BANKSY: MINIMAP STYLE in settings: COLORED (default) or PAPER (the MAPS parchment look), saved on this device, applies at once
+  { const box = $('map-style-pause'); if (box) { const cur = getMapStyle();
+    box.innerHTML = '<span class="label">MINIMAP</span><span class="gfx-seg" role="radiogroup" aria-label="Minimap style"></span>';
+    const seg = box.querySelector('.gfx-seg');
+    for (const [id, { label }] of Object.entries(THEMES)) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.ms = id; b.setAttribute('role', 'radio');
+      b.classList.toggle('on', id === cur); b.setAttribute('aria-checked', id === cur);
+      b.onclick = () => { setMapStyle(id); seg.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); };
+      seg.appendChild(b); } } }
   // suggest ULTRA (never auto-pick it): desktop + high-end GPU string + a smooth HIGH title screen
   if (!isMobile && quality === 'high' && !ULTRA && !qp && !localStorage.getItem('pfp_gfx_hint')) setTimeout(() => {
     let gpu = ''; try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch {}
