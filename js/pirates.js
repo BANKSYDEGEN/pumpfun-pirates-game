@@ -4,7 +4,7 @@
 // (or if it fails) the caller's fallback stays visible. Every live pirate's mixer is ticked from tickPirates(dt).
 import * as THREE from 'three';
 import { PirateGLB } from './pirateGLB.js';
-import { gearOnReady, getLocalGear, getLocalColors, markLocal, normalizeGear } from './pirateGear.js'; // [Timothy] island-shop gear
+import { gearOnReady, getLocalGear, getLocalColors, markLocal, unmarkLocal, normalizeGear } from './pirateGear.js'; // [Timothy] island-shop gear
 
 const LIVE = new Set();
 // [v102] GEAR HOOK for Timothy's gear meshes: window.applyPirateGear(pirateObj, gear) puts the equipped gear on one pirate.
@@ -39,7 +39,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
     }).catch((e) => { console.warn('[pirates] v4 GLB failed, keeping the fallback', e); return null; }); };
   root.userData.setBody = (fem) => (root.userData.bodyF === !!fem ? null : build(!!fem));
   build(bodyFromGear && root.userData.gear ? root.userData.gear.body === 1 : female);
-  root.userData.dispose = () => { root.userData.disposed = true; if (root.userData.v4) LIVE.delete(root.userData.v4); };
+  root.userData.dispose = () => { root.userData.disposed = true; unmarkLocal(root); const p = root.userData.v4; if (p) { LIVE.delete(p); root.userData.v4 = null; try { p.dispose?.(); } catch {} } }; // [shop-exit-crash] + the GLB body + the local-gear list (disposeShip calls this for the captain)
   return root;
 }
 const inScene = (o) => { while (o.parent) o = o.parent; return !!o.isScene; };

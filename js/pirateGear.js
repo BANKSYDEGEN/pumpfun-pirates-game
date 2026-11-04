@@ -255,6 +255,8 @@ function localGear0() {
 export const getLocalColors = () => ({ skin: _skin });
 const LOCAL = new Set();   // your own pirates (on-foot + captain at the wheel), re-dressed by setLocalGear / setLocalSkin
 export function markLocal(target) { const r = rootOf(target); if (r) LOCAL.add(r); return target; }
+export function unmarkLocal(root) { LOCAL.delete(root); } // [shop-exit-crash] a disposed figure (the old captain of a rebuilt ship) must not stay referenced
+export function unmarkLocalIn(tree) { for (const r of LOCAL) for (let o = r; o; o = o.parent) if (o === tree) { LOCAL.delete(r); break; } } // every local figure inside a disposed ship
 function redressLocal() {
   const g = getLocalGear(), c = getLocalColors();
   for (const r of LOCAL) { let o = r; while (o.parent) o = o.parent; if (!o.isScene) { LOCAL.delete(r); continue; } applyGear(r, g, c); }   // gone = dropped

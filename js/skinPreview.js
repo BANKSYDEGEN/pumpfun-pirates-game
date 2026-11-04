@@ -15,6 +15,7 @@ const W = 360, H = 200;            // preview bitmap size (CSS shows it at card 
 const cache = new Map();           // key -> HTMLCanvasElement (2D, transparent)
 const MAX_CACHE = 24;
 let R = null, failed = false, idleKill = 0;
+const PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 let base = {};                     // buildShip extras from main.js (classic sail / flag textures), quality
 export const previewOptions = { glow: 'rim' }; // 'none' | 'rim' (soft skin-tinted halo hugging the silhouette) | 'radial'
 
@@ -127,7 +128,7 @@ function pump() {
   });
 }
 // shop closed: stop work, free the GL context after a while (cached bitmaps stay)
-export function pausePreviews() { queue = []; clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, 20000); }
+export function pausePreviews() { queue = []; clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, PHONE ? 1500 : 20000); } // [shop-exit-crash] phones: free the 2nd GL context right away
 // [v75] the WAVES + BATTLE ROYALE skin pickers: swap each card's painted swatch for the same real render the shop uses
 // (cards carry data-skin; skins: [{ id, skin }]). GL context released ~20 s after the last render.
 export function previewCards(grid, skins, levels = {}, extra = null) {

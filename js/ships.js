@@ -1,5 +1,6 @@
 // Stylized toon ships built in code: rounded plank hulls with painted strakes, railings,
-import { SHIP_MERGE, mergeShipBody, atlasCandidate, shipAtlas } from './staticMerge.js';
+import { SHIP_MERGE, mergeShipBody, atlasCandidate, shipAtlas, releaseShadowProxies } from './staticMerge.js';
+import { unmarkLocalIn } from './pirateGear.js'; // [shop-exit-crash] disposeShip drops the old captain from the local-gear list
 // chunky cannons, cabins with glowing windows, crow's nest, lanterns, rippling sails, waving flags.
 import * as THREE from 'three';
 import { addCrew, dressCrew, addLookout, crewLodOf, setWalkLanes } from './crew.js'; // [Raul] deck crew
@@ -896,4 +897,4 @@ export function flagMats(map) {
   return _flagMats.get(map);
 }
 // free a removed ship's GPU geometry (materials/textures are shared per scheme and kept)
-export function disposeShip(ship) { ship.traverse(o => { if (o.geometry && !o.userData.sharedGeo) o.geometry.dispose(); }); }
+export function disposeShip(ship) { releaseShadowProxies(ship); ship.traverse(o => { if (o.geometry && !o.userData.sharedGeo) o.geometry.dispose(); if (typeof o.userData.dispose === 'function') try { o.userData.dispose(); } catch {} }); unmarkLocalIn(ship); } // [shop-exit-crash] + its shadow proxies + its captain figure (js/pirates.js LIVE / local-gear lists held the whole old ship)

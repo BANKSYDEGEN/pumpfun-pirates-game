@@ -67,9 +67,10 @@ function setup(lod) {
   figP = new Promise((res) => { fig = pirateFigure({ bodyFromGear: true, look: { skin: 0, hair: 0 }, low: (lod || pirateBodyLod({ low: false })) === 'lo', /* [crew holes] BANKSY "shop mannequins have holes": ONE figure, so phones get the High body too (the Low one shredded the beard / hair and poked skin through tops) */ height: 1.75, clip: 'idle', onReady: (p) => { thumbStats.firstReadyMs = Math.round(performance.now() - t0); res(p); } }); scene.add(fig); });
   return figP;
 }
-function release() { if (!R || performance.now() - idleT < 15000 || queue.length || LIVE.size) return;
+const IDLE_MS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 3000 : 15000; // [shop-exit-crash] phones: free this 2nd GL context sooner (iOS drops the game's own context under memory pressure)
+function release() { if (!R || performance.now() - idleT < IDLE_MS || queue.length || LIVE.size) return;
   try { fig?.userData.dispose?.(); } catch {} R.dispose(); R.forceContextLoss?.(); R = scene = cam = fig = figP = null; }
-setInterval(release, 5000);
+setInterval(release, IDLE_MS === 3000 ? 1500 : 5000);
 
 // a little treasure map scroll (parchment with a dotted path and a red X between two wooden rolls)
 function mapScroll() {

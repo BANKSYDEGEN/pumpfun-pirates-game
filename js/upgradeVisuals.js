@@ -593,12 +593,14 @@ const PARTS = {
 };
 
 // ---------- compiler ----------
-const _parts = new Map(); // trait part templates, keyed by everything that shapes them
+const _parts = new Map(), PARTS_MAX = 64; // trait part templates, keyed by everything that shapes them
 function partKey(id, lv, skin, art) { return `${id}:${lv[id] || 0}|h${lv.hull}s${lv.sails}c${lv.cannons}|${skin.id}|${LO ? 'L' : 'H'}${PV ? '|pv' : ''}${art ? '|a' : ''}`; }
 function partSet(id, A, lv, ship, skin) {
   const key = partKey(id, lv, skin, ship?.userData?.art);
   let tpl = _parts.get(key);
-  if (!tpl) { const Ly = new Layer(id); PARTS[id](A, TRAITS[id][lv[id] || 0], Ly, ship, lv); tpl = Ly.build(); _parts.set(key, tpl); }
+  if (!tpl) { const Ly = new Layer(id); PARTS[id](A, TRAITS[id][lv[id] || 0], Ly, ship, lv); tpl = Ly.build(); }
+  _parts.delete(key); _parts.set(key, tpl); // [shop-exit-crash] LRU: was unbounded (every buy + pre-build + skin preview added ~7 templates per level combo x skin: phones ran out of memory)
+  while (_parts.size > PARTS_MAX) _parts.delete(_parts.keys().next().value); // dropped templates: GC'd (built ships hold their own merged copies; shared extras keep their geometry alive)
   return tpl;
 }
 const normLevels = (levels = {}) => Object.fromEntries(TRAIT_IDS.map(id => [id, Math.max(0, Math.min(TRAITS[id].length - 1, levels[id] || 0))]));

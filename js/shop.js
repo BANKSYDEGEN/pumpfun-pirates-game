@@ -104,7 +104,7 @@ function showPreview(s, src) {
   const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
   c.classList.add('has-prev');
 }
-function refreshPreviews() { if (ctx && ctx.game.state === 'shop') requestPreviews(SKINS, { ...run.levels }, showPreview); }
+function refreshPreviews() { if (ctx && ctx.game.state === 'shop' && tab === 'skins') requestPreviews(SKINS, { ...run.levels }, showPreview); } // [shop-exit-crash] only while the SKINS tab shows (the island SHIPWRIGHT has none: it rebuilt every skin's ship in a 2nd WebGL context on open + after every buy)
 function setTab(t) {
   tab = t;
   $('tab-upg').classList.toggle('on', t === 'upg'); $('tab-skins').classList.toggle('on', t === 'skins');

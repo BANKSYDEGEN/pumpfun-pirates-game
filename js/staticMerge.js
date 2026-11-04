@@ -39,7 +39,7 @@ export function mergeInto(host, meshes, keyOf = () => '') {
 // island kit meshes (Kit.build: island_toon / island_outline / island_glow / island_atlas): per top-level scene child + 200 m cell
 const KIT_RE = /^island_(toon|outline|glow|atlas)$/;
 export function mergeIslandKits(scene) {
-  if (!KIT_MERGE) return 0; scene.updateMatrixWorld(true); let saved = 0;
+  pruneProxies(); if (!KIT_MERGE) return 0; scene.updateMatrixWorld(true); let saved = 0;
   for (const top of scene.children) {
     const L = []; let ok = true;
     top.traverse(o => { if (o.isLOD || o.userData?.isShip) ok = false; });
@@ -63,7 +63,7 @@ export function mergeShipBody(body) {
   if (!SHIP_MERGE || !body) return 0; let saved = 0;
   const groups = [body, ...body.children.filter(c => !c.isMesh && /^hull-(dress|legacy)$/.test(c.name))];
   for (const h of groups) { const ok = (c) => c.isMesh && !SHIP_SKIP.test(c.name) && !SHIP_SKIP.test(c.material?.name || '');
-    saved += mergeInto(h, h.children.filter(ok)); saved += shadowProxy(h, h.children.filter(ok)); }
+    saved += mergeInto(h, h.children.filter(ok)); saved += shadowProxy(h, h.children.filter(ok)); for (const c of h.children) if (c.userData.shadowProxy) c.userData.shipProxy = true; }
   return saved;
 }
 
@@ -86,6 +86,11 @@ export function installShadowProxies(renderer) {
   const sm = renderer?.shadowMap; if (!sm || sm.__proxied) return; sm.__proxied = true; const r0 = sm.render.bind(sm);
   sm.render = function (...a) { for (const p of PROXIES) p.visible = true; try { return r0(...a); } finally { for (const p of PROXIES) p.visible = false; } };
 }
+// [shop-exit-crash] a disposed ship's proxy left in PROXIES kept the whole ship (every part's geometry arrays) alive forever: every
+// upgrade buy / pre-build / skin preview builds several ships, so phones ran out of memory in the UPGRADE SHOP and the tab reloaded.
+// disposeShip calls this; detached SHIP proxies are also dropped on the next kit merge pass (a ship nobody disposed).
+export function releaseShadowProxies(root) { root?.traverse?.(o => { if (o.userData?.shadowProxy) PROXIES.delete(o); }); }
+function pruneProxies() { for (const p of PROXIES) { if (!p.userData.shipProxy) continue; let o = p; while (o.parent) o = o.parent; if (!o.isScene) PROXIES.delete(p); } } // ship proxies only (island kit areas may detach + re-attach)
 
 // [perf4] SHIP ATLAS: plain toon part materials (kit() marks them userData.atlasOK: mast, iron, dark + their AO twins) share one
 // canvas atlas + one material per class (vertex-coloured or not), so Parts.build merges them into one mesh. Each vertex carries
