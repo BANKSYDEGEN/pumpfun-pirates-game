@@ -79,7 +79,8 @@ export async function createDock(ctx) {
   const treasure = createTreasure({ world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
-  const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera }); // [Timothy] adds its 6 FIRE CANNON points to layout.interact
+  const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
+    hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact
   const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW }); // [Timothy] adds the WEAPON STORE point to layout.interact (window.openWeaponStore)
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
@@ -191,7 +192,7 @@ export async function createDock(ctx) {
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
       case 'token': plaza.openToken(q.sym); break;
-      case 'cannon': battery?.fire(q); break; // [Timothy] cosmetic shot (no damage / kills / gold / stats)
+      case 'cannon': battery?.fire(q); break; // [Timothy] headland gun; [v171] live: hits AI + pirate ships (pvp.batteryStep)
       case 'exchange': plaza.openToken('SUNK'); break;
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); openBoard(); break;
       case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;

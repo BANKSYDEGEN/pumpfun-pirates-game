@@ -33,6 +33,7 @@ const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 2
 import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
+import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
 import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed } from './pvpSave.js';
 import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
@@ -789,6 +790,23 @@ export function createPvp(K) {
     }
     return false;
   }
+  // [v171] BANKSY "make it so the cannons on cliff can damage ai and player ships": a live headland-battery ball (js/dock/battery.js, YOUR shot).
+  // Same path as a ship cannon (applyHit: our AI -> K.damage + kill credit, the host's AI -> botHits, a pirate -> a 'hit' message), basic
+  // damage (BALL_DMG x PVP_DMG_MUL, no CANNONS / boosts), never your own ship or a party mate's, a spawn bubble soaks it, SAFE HARBOR ships
+  // stay immune (K.damage -> dock.invuln). Unlike ship balls, battery balls DO hit other pirates' ships in the shared harbor (BANKSY's ask).
+  function batteryStep(p, gun) {
+    const pl = P(); if (!pl || where !== 'harbor') return false;
+    for (const s of enemies) {
+      if (!s.alive || !s.mesh) continue;
+      const pid = s.net?.kind === 'player' ? s.net.id : null; if (pid && party.mates?.has?.(pid)) continue;   // squad / party mates: pass through
+      if (!inside(s, p)) continue;
+      if (s.prot) { fx.splash(p); return true; }
+      const raw = (BALL_DMG[0] + Math.random() * (BALL_DMG[1] - BALL_DMG[0])) * PVP_DMG_MUL;
+      if (pid) { flushHits(); hitQueue.g = gun | 0; }   // tagged + sent on its own: the receiver validates the gun, not our (moored) ship's distance
+      applyHit(s, raw, p.clone(), pl); if (pid) flushHits(); return true;
+    }
+    return false;
+  }
   function applyHit(target, raw, p, shooter) {
     const pl = P(), sid = shooter === pl ? myId : shooter.net?.id; if (!sid) return;
     if (target === pl) return localDamage(raw, sid, p, shooter);
@@ -803,7 +821,7 @@ export function createPvp(K) {
     hitQueue.sid = sid; hitQueue.push([target.net.id, Math.round(raw)]); crewHit(target.mesh, raw / Math.max(1, target.maxHp || 100) * 6); /* [v87] their crew stagger (visual) */ fx.hit(p); sfx.impact?.({ dmg: raw, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.8 });
     if (shooter === pl) K.popup(p, `-${Math.round(raw)}`, 'hit');
   }
-  function flushHits() { if (hitQueue.length && room) room.send('hit', { s: hitQueue.sid, h: hitQueue.slice(0, 12) }); hitQueue = []; hitQueue.sid = null; }
+  function flushHits() { if (hitQueue.length && room) room.send('hit', { s: hitQueue.sid, h: hitQueue.slice(0, 12), ...(hitQueue.g != null ? { g: hitQueue.g } : {}) }); hitQueue = []; hitQueue.sid = null; hitQueue.g = null; }
   function localDamage(raw, by, p, shooterObj = null) {
     const pl = P(); if (me.dead || !pl.alive || me.protect > 0) return;
     const amt = Math.max(1, Math.round(raw * (1 - (pl.armor || 0))));
@@ -818,11 +836,16 @@ export function createPvp(K) {
     const now = performance.now(), bk = buckets.get(m.s) || { tokens: 12, t: now };
     bk.tokens = Math.min(12, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
     const cap = MAX_HIT;
+    // [v171] a cliff-battery hit (m.g = gun): only in the harbor, only from a pirate whose shot from that gun we just saw (battery.js replay), never a party mate, basic damage only
+    let bat = null; if (m.g != null) { const gi = m.g | 0; if (where !== 'harbor' || !Number.isInteger(m.g) || !BATTERY_GUNS[gi] || !batteryShotRecent(m.s, gi) || party.mates?.has?.(m.s)) return;
+      bat = { g: gi, cap: Math.ceil(BALL_DMG[1] * PVP_DMG_MUL) + 1 }; }
     for (const [t, d] of m.h.slice(0, 12)) {
       if (bk.tokens < 1) break; bk.tokens--;
       const dmg = clamp(Math.round(+d || 0), 0, cap); if (!dmg) continue;
       if (t !== myId) { const o = ownerObj(t); if (o?.mesh) crewHit(o.mesh, dmg / Math.max(1, o.maxHp || 100) * 6); continue; } // [v87] another pirate got hit: their crew stagger (visual)
-      if (t === myId) { const pl = P(); if (Math.hypot(shooter.x - pl.x, shooter.z - pl.z) > 230) continue; localDamage(dmg, m.s, null, shooter); }
+      if (t === myId) { const pl = P();
+        if (bat) { const g = BATTERY_GUNS[bat.g]; if (!g || Math.hypot(g.x - pl.x, g.z - pl.z) > BATTERY_RANGE || dmg > bat.cap) continue; localDamage(dmg, m.s, null, shooter); continue; } // [v171] cliff gun: gun -> you range
+        if (Math.hypot(shooter.x - pl.x, shooter.z - pl.z) > 230) continue; localDamage(dmg, m.s, null, shooter); }
     }
   }
 
@@ -1607,7 +1630,7 @@ export function createPvp(K) {
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length === 4) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[3].textContent = 'SUNK'; }
   }
 
-  const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
+  const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps,

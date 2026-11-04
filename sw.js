@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v170'; // [v170] Timothy's HILL STREET: Main Street rebuilt in Blender (24 buildings, 22 empty rentable shops, SWORD SHOP L6 + MUSKET SHOP R6 buildings; the old R3 SHOP house is gone)
+const VERSION = 'pfp-v171'; // [v171] the cliff cannons fire for real (AI + pirate ships, basic cannon damage) and reach the battle water (~220 m -> ~650 m)
 const SHELL = [
   "./",
   "./index.html",

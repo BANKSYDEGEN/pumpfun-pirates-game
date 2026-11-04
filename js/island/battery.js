@@ -19,7 +19,7 @@ export const FOOT = { lx0: 110, lx1: 122, lz0: -4, lz1: 4 };                    
 export const LANDING = { lx0: 174, lx1: 186, lz0: -4, lz1: 20 };                // flat at BATTERY.y, joins the gun deck
 export const GUNS = Array.from({ length: 6 }, (_, i) => { const a = -0.75 + i * 0.3, B = BATTERY;
   return { i, a, lx: B.lx + Math.sin(a) * B.ring, lz: B.lz + Math.cos(a) * B.ring, slx: B.lx + Math.sin(a) * (B.ring - 3.1), slz: B.lz + Math.cos(a) * (B.ring - 3.1) }; });
-export const AIM = { yaw: 0.5, pitch: [0.03, 0.34], rest: 0.1, reload: 4 };    // radians either side of the embrasure; elevation range
+export const AIM = { yaw: 0.5, pitch: [0.03, 0.45], rest: 0.1, reload: 5 };    // [v171] live shots: up to 0.45 rad (long range), 5 s reload    // radians either side of the embrasure; elevation range
 
 const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Math.max(R.lz0 - lz, 0, lz - R.lz1));
 export const rampY = (lx) => RAMP.y0 + (RAMP.y1 - RAMP.y0) * Math.min(1, Math.max(0, (lx - RAMP.lx0) / (RAMP.lx1 - RAMP.lx0)));
