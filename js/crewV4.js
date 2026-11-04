@@ -8,7 +8,7 @@
 // Textures (body atlas + face decal, male + female) ride in the same material: uv.x carries a texture slot offset.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, PIRATE_GLB, TINTS } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
+import { loadPirateGLB, PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
 import { skullTexture } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
@@ -31,7 +31,8 @@ function bake(gltf, clipName, time, slot) {
   if (!body) scene.traverse(o => { if (o.isSkinnedMesh && !body) body = o; });
   body.skeleton.update();
   const out = { pos: [], nrm: [], uv: [], col: [], tint: [], part: [] };
-  for (const src of [body, ...extra]) { // [v121] v5: the painted eyes are their own skinned mesh on the SAME atlas layout -> baked in with the body
+  let bodyEnd = 0; const main0 = body;
+  for (const src of [body, ...extra]) { if (src !== main0 && !bodyEnd) bodyEnd = out.pos.length; // [v121] v5: the painted eyes are their own skinned mesh on the SAME atlas layout -> baked in with the body
   const body = src;
   { const g = body.geometry = body.geometry.index ? body.geometry.toNonIndexed() : body.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv,
       Cc = g.attributes.color, T = g.attributes._tint, J = g.attributes.skinIndex, W = g.attributes.skinWeight, bm = body.skeleton.boneMatrices;
@@ -43,10 +44,13 @@ function bake(gltf, clipName, time, slot) {
         for (let e = 0; e < 16; e++) _m.elements[e] += _t.elements[e] * w; if (w > bw) { bw = w; best = j; } }
       full.copy(body.matrixWorld).multiply(body.bindMatrixInverse).multiply(_m).multiply(body.bindMatrix); _n3.setFromMatrix4(full);
       _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
-      out.uv.push(U ? U.getX(i) + slot : -1, U ? U.getY(i) : -1);
+      out.uv.push(U ? U.getX(i) + slot + (src !== main0 ? 10 : 0) : -1, U ? U.getY(i) : -1); // [crew holes] the eyes sample their OWN map (slots 5 / 6 = tE0 / tE1): their uvs are the old albedo layout, not the per-part body atlas (streaked eyes)
       out.col.push(Cc ? Cc.getX(i) : 1, Cc ? Cc.getY(i) : 1, Cc ? Cc.getZ(i) : 1); out.tint.push(T ? Math.round(T.getX(i)) : -1);
       out.part.push(PARTN[bn(body.skeleton.bones[best]?.name)] || 0);
     } } }
+  if (bodyEnd) { // [crew holes] the painted eyes sit a hair off the face: at crew scale they z-fought it (torn / streaked eyes). Lift them along their normal
+    let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < bodyEnd; i += 3) { y0 = Math.min(y0, out.pos[i]); y1 = Math.max(y1, out.pos[i]); } const e = (y1 - y0) * 0.004;
+    for (let i = bodyEnd; i < out.pos.length; i++) out.pos[i] += out.nrm[i] * e; }
   if (face) { const g = face.geometry.index ? face.geometry.toNonIndexed() : face.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv; _n3.getNormalMatrix(face.matrixWorld);
     for (let i = 0; i < P.count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(face.matrixWorld); out.pos.push(_v.x, _v.y, _v.z); _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
       out.uv.push(U.getX(i) + slot + 4, U.getY(i)); out.col.push(1, 1, 1); out.tint.push(-1); out.part.push(0); } }
@@ -67,17 +71,18 @@ function bake(gltf, clipName, time, slot) {
       if (cx * (N[i] + N[i + 3] + N[i + 6]) + cy * (N[i + 1] + N[i + 4] + N[i + 7]) + cz * (N[i + 2] + N[i + 5] + N[i + 8]) < 0) {
         sw(P, 3, v + 1, v + 2); sw(N, 3, v + 1, v + 2); sw(out.uv, 2, v + 1, v + 2); sw(out.col, 3, v + 1, v + 2); sw(out.tint, 1, v + 1, v + 2); sw(out.part, 1, v + 1, v + 2); } } }
   const bone = (nm) => { const b = body.skeleton.bones.find(q => bn(q.name) === bn(nm)); return b ? b.getWorldPosition(new THREE.Vector3()) : null; };
-  return { out, hip: bone('thigh.L'), sh: bone('upperarm.L'), head: bone('head'), tex: [body.material.map, face?.material.map || null] };
+  return { out, hip: bone('thigh.L'), sh: bone('upperarm.L'), head: bone('head'), tex: [body.material.map, face?.material.map || null, extra[0]?.material?.map || null] };
 }
 function finish(b, k, y0) { // normalise: feet on y 0, CREW_H tall, centred on x/z
   const p = b.out.pos; for (let i = 0; i < p.length; i += 3) { p[i] *= k; p[i + 1] = (p[i + 1] - y0) * k; p[i + 2] *= k; }
   return { pos: new Float32Array(p), nrm: new Float32Array(b.out.nrm), uv: new Float32Array(b.out.uv), col: new Float32Array(b.out.col), tint: b.out.tint, part: new Float32Array(b.out.part) };
 }
 let _loading = null;
-export function initCrewV4() {
+export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirateBodyLod({ many: true }) in main.js
   if (_loading) return _loading;
   _loading = (async () => {
-    const [gm, gf] = await Promise.all([loadPirateGLB(PIRATE_GLB.male.lo), loadPirateGLB(PIRATE_GLB.female.lo)]);
+    const [gm, gf] = await Promise.all([loadPirateGLB(PIRATE_GLB.male[lod]), loadPirateGLB(PIRATE_GLB.female[lod])]);
+    for (const g of [gm, gf]) prepV5Body(g.scene, lod); // [crew holes] the same hair rim the walking crew get (it was only there if a PirateGLB of that LOD happened to load first)
     const tpl = {}, tex = [];
     let hipY = 0.36, shY = 0.72, eyeY = 0.97;
     for (const [sex, g, slot] of [['m', gm, 0], ['f', gf, 2]]) {
@@ -85,7 +90,7 @@ export function initCrewV4() {
       let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < idle.out.pos.length; i += 3) { y0 = Math.min(y0, idle.out.pos[i]); y1 = Math.max(y1, idle.out.pos[i]); }
       const k = CREW_H / (y1 - y0);
       if (sex === 'm') { if (idle.hip) hipY = (idle.hip.y - y0) * k; if (idle.sh) shY = (idle.sh.y - y0) * k; if (idle.head) eyeY = (idle.head.y - y0) * k + 0.12; }
-      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1] || (slot === 0 ? skullTexture() : null); // [v123] v5 has no face decal: slot tF0 = the hat skull
+      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1] || (slot === 0 ? skullTexture() : null); tex[slot === 0 ? 4 : 5] = idle.tex[2] || null; // [v123] v5 has no face decal: slot tF0 = the hat skull
     }
     for (const t of tex) if (t) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; }
     V4 = { tpl, tex, hipY, shY, eyeY }; return V4;

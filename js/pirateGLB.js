@@ -110,6 +110,12 @@ function irisPatch(m, uIris, uOn) {
 // beard and hairline read as a shredded orange fringe (worse on Low's big triangles). The fixed verts touching the hair (2 rings) join
 // the hair tint, once per shared geometry; the hair colour then runs cleanly to the skin edge.
 const _rim = new WeakSet();
+// [crew holes] ONE place for the v5 body fixes every render path needs (walking crew / captain / shop figure via PirateGLB, the deck crew
+// bake in js/crewV4.js): the hair rim (skin-tinted verts round the hair -> hair, no skin specks / torn hair). Idempotent per geometry.
+export function prepV5Body(root, lod = 'hi') { root.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?._tint) hairRim(o.geometry, lod === 'lo' ? 5 : 2); }); }
+// [crew holes] which v5 body a render path uses (the v128 holes fix: the decimated Low body only where the GPU budget needs it).
+// many = a path that draws a dozen+ bodies at once (the deck crew bake): High only on HIGH quality desktops.
+export const pirateBodyLod = ({ low = false, many = false, quality = 'high' } = {}) => (low || (many && quality !== 'high') ? 'lo' : 'hi');
 function hairRim(g, rings = 2) {
   const T = g.attributes._tint, C = g.attributes.color, P = g.attributes.position, N = g.attributes.normal, I = g.index?.array; if (!T || !C || !P || !I || _rim.has(T)) return; _rim.add(T);
   const iH = TINTS.indexOf('hair'), n = P.count, wid = new Int32Array(n), wm = new Map(); let nw = 0;
@@ -145,7 +151,7 @@ export class PirateGLB {
     if (this.v5) for (const o of this.atlasMeshes) { o.userData.v5 = true; try { this.warp ||= JSON.parse(o.userData.v5warp || 'null'); } catch {} } // [v121]
     if (this.v5 && this.warp) for (const o of this.atlasMeshes) o.userData.warp = this.warp;
     // [v138] the eye decal stays front-only: drawn both sides it showed through the hair as blue specks on the back of Low heads
-    if (this.v5) for (const o of this.atlasMeshes) hairRim(o.geometry, this.lod === 'lo' ? 5 : 2);   // [v138]
+    if (this.v5) prepV5Body(scene, this.lod);   // [v138] (shared with the crew bake: js/crewV4.js)
     if (low) this._mergeLow(scene);
     // [v123] v5 bodies are an AI sculpt with some faces wound inward: draw both sides (front-only showed HOLLOW pirates / crew followers)
     if (this.v5) scene.traverse((o) => { if (o.isMesh && !/ink/i.test(o.name) && !/face_eyes/i.test(o.name)) for (const m of [o.material].flat()) if (m && m.name !== 'ink') { m.side = THREE.DoubleSide; m.needsUpdate = true; } });

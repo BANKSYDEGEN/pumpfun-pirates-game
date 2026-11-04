@@ -153,15 +153,15 @@ void main(){
   #include <fog_vertex>
 }`;
 const FRAG = `uniform vec3 uSunV; varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
-uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1; uniform sampler2D tS;
+uniform sampler2D tA0; uniform sampler2D tA1; uniform sampler2D tF0; uniform sampler2D tF1; uniform sampler2D tS; uniform sampler2D tE0; uniform sampler2D tE1;
 #include <fog_pars_fragment>
 void main(){ vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N; /* [v122] double-sided: v5 bodies show no holes */ float d = dot(N, normalize(uSunV));
   float band = d > 0.35 ? 1.0 : (d > -0.1 ? 0.78 : 0.58);
   float rim = 1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0);
   vec3 base = vC;
   if (vK > -0.5) { // [v101] v4 pirate: body atlas (baked light) x tint colour, or the face decal (alpha-tested)
-    vec4 tx = vK < 0.5 ? texture2D(tA0, vUv) : vK < 1.5 ? texture2D(tA1, vUv) : vK < 2.5 ? texture2D(tF0, vUv) : vK < 3.5 ? texture2D(tF1, vUv) : texture2D(tS, vUv);
-    if (vK > 1.5 && vK < 3.5) { if (tx.a < 0.5) discard; base = tx.rgb; rim = 0.0; } else base = vC * tx.rgb; // [v106] slot 4 = captain's gear (stripe tex x colour)
+    vec4 tx = vK < 0.5 ? texture2D(tA0, vUv) : vK < 1.5 ? texture2D(tA1, vUv) : vK < 2.5 ? texture2D(tF0, vUv) : vK < 3.5 ? texture2D(tF1, vUv) : vK < 4.5 ? texture2D(tS, vUv) : vK < 5.5 ? texture2D(tE0, vUv) : texture2D(tE1, vUv); // [crew holes] 5 / 6 = the v5 eyes' own map
+    if ((vK > 1.5 && vK < 3.5) || vK > 4.5) { if (tx.a < 0.5) discard; base = tx.rgb; rim = 0.0; } else base = vC * tx.rgb; // [v106] slot 4 = captain's gear (stripe tex x colour)
     band = mix(1.0, band, 0.55); }
   vec3 col = base * band * (rim > 0.78 ? 0.25 : 1.0); // inked silhouette edge (bold-outline NFT look) without an outline mesh
   gl_FragColor = vec4(col, 1.0);
@@ -179,7 +179,7 @@ function crewMaterial() {
     vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
       .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
   });
-  if (V4) { const [a0, a1, f0, f1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 }, tS: { value: stripeTex() } }); }
+  if (V4) { const [a0, a1, f0, f1, e0, e1] = V4.tex; Object.assign(m.uniforms, { tA0: { value: a0 }, tA1: { value: a1 }, tF0: { value: f0 }, tF1: { value: f1 }, tS: { value: stripeTex() }, tE0: { value: e0 || a0 }, tE1: { value: e1 || a1 } }); }
   m.uniforms.uT = wind.uTime; // shared clock: every client animates the same way
   return m;
 }

@@ -14,6 +14,7 @@
 import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import * as THREE from 'three';
 import { pirateFigure } from './pirates.js';
+import { pirateBodyLod } from './pirateGLB.js';
 import { applyGear, normalizeGear, raulItemOf } from './pirateGear.js';
 
 const LOW = (() => { try { return /quality=low/.test(location.search) || matchMedia('(pointer: coarse)').matches; } catch { return false; } })();
@@ -55,7 +56,7 @@ function setup(lod) {
   const rim = new THREE.DirectionalLight(0xbfd8ff, 0.9); rim.position.set(-2, 2, -3); scene.add(rim);
   cam = new THREE.PerspectiveCamera(28, 1, 0.05, 20);
   const t0 = performance.now();
-  figP = new Promise((res) => { fig = pirateFigure({ bodyFromGear: true, look: { skin: 0, hair: 0 }, low: (lod || (LOW ? 'lo' : 'hi')) === 'lo', height: 1.75, clip: 'idle', onReady: (p) => { thumbStats.firstReadyMs = Math.round(performance.now() - t0); res(p); } }); scene.add(fig); });
+  figP = new Promise((res) => { fig = pirateFigure({ bodyFromGear: true, look: { skin: 0, hair: 0 }, low: (lod || pirateBodyLod({ low: false })) === 'lo', /* [crew holes] BANKSY "shop mannequins have holes": ONE figure, so phones get the High body too (the Low one shredded the beard / hair and poked skin through tops) */ height: 1.75, clip: 'idle', onReady: (p) => { thumbStats.firstReadyMs = Math.round(performance.now() - t0); res(p); } }); scene.add(fig); });
   return figP;
 }
 function release() { if (!R || performance.now() - idleT < 15000 || queue.length || LIVE.size) return;

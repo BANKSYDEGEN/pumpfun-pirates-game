@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v167'; // [v167] no stale home flash on refresh: #title panel hidden until boot reshapes it (css/style.css html.pfp-booted)
+const VERSION = 'pfp-v168'; // [v168] no holes in the deck crew or the shop mannequins: crew eyes use their own map, the shared v5 hair rim on the crew bake, the shop figure is the High body on phones too (pirateGLB.js prepV5Body / pirateBodyLod)
 const SHELL = [
   "./",
   "./index.html",
