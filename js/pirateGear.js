@@ -92,6 +92,8 @@ const SKIN_CLOTH = {
 };
 export const knownGearSkin = (id) => id === 'classic' || !!SKIN_CLOTH[id];
 // colors: { skin } (ship skin id) and / or explicit { cloth, trim } overrides
+// [capes 2] the captain's cape fold valleys (its cyan key): the cape colour, 30% darker
+function capeFold(hex) { const n = parseInt(String(hex).replace('#', ''), 16) || 0, f = (v) => Math.round(v * 0.7).toString(16).padStart(2, '0'); return '#' + f(n >> 16 & 255) + f(n >> 8 & 255) + f(n & 255); }
 export function outfitColors(outfit, colors = {}) {
   // tank = all cloth, t-shirt = cream with cloth stripes, coat = cloth + trim edging over a cream shirt with navy (DEFAULT) / cloth stripes
   const k = SKIN_CLOTH[colors?.skin], d = { tank: '#f1ede2', tshirt: '#222c4e', coat: '#c8302c', shirt: '#f4efe3', suit: '#b3201f', singlet: '#c8302c' }[outfit] || '#f1ede2';
@@ -153,7 +155,7 @@ const RAUL5 = {
   'ears:earring_hoop': ['ears', 'earring_hoop', null], 'ears:earring_double': ['ears', 'earring_double', null], 'ears:earring_skull': ['ears', 'earring_skull', null],
   'teeth:tooth_gold': ['teeth', 'tooth_gold', null], 'teeth:grill_gold': ['teeth', 'grill_gold', null], 'teeth:grill_diamond': ['teeth', 'grill_diamond', null],
   'boots:boots_buckle': ['boots', 'boots_buckle', null], 'boots:boots_cavalier': ['boots', 'boots_cavalier', null], 'boots:boots_gold': ['boots', 'boots_gold', null],
-  'cape:cape_tattered': ['cape', 'cape_tattered', null], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => ({ 1: outfitColors('suit', c).cloth })], 'cape:cape_royal': ['cape', 'cape_royal', null],
+  'cape:cape_tattered': ['cape', 'cape_tattered', null], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => { const k = outfitColors('suit', c).cloth; return { 1: k, 2: capeFold(k) }; }], 'cape:cape_royal': ['cape', 'cape_royal', null],
   'parrot:pet_monkey': ['shoulder', 'pet_monkey', null], 'parrot:pet_cat': ['shoulder', 'pet_cat', null], 'parrot:pet_cat_black': ['shoulder', 'pet_cat_black', null], 'parrot:pet_chimp': ['shoulder', 'pet_chimp', null], 'parrot:pet_gorilla': ['shoulder', 'pet_gorilla', null], 'parrot:pet_gorilla_white': ['shoulder', 'pet_gorilla_white', null], 'parrot:pet_tiger': ['shoulder', 'pet_tiger', null],
   'hat:mask_luchador': ['head', 'mask_luchador', (g) => (g.hatColor ? { recolor: hatColorHex('mask_luchador', g.hatColor) } : null)],   // [Raul gear colours] the hat colour = the hood; flames + trim auto-contrast (0 = his gold)
 };

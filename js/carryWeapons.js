@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { swordGeo, musketGeo, musketMuzzle, loadWeaponModels, SWORD_IDS, MUSKET_IDS } from './onfoot/swords.js';
 import { toon } from './toon.js';
 import { carryHand, carryShows } from './carryRules.js';
+import { TINTS } from './pirateGLB.js';
 
 export const CARRY = {
   sword: { at: 0.15, scale: 0.8, down: 0.95, out: 0.25 },       // grip along the forearm (world m), blade length scale, blade tilt down (rad) from the forearm's normal, and outwards
@@ -67,6 +68,7 @@ function placeSword(st) {
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), blade); st.swordPlaced = true;
 }
 // the musket on the back: bind space (y up, +z front) -> spine bone space (L = boneInverse * bindMatrix * D), lifted off whatever you wear
+const HAIR = TINTS.indexOf('hair'), HAIR_SQUASH = 0.45;
 function placeMusket(st) {
   const body = st.body, m = st.musket, sb = m.parent, sk = body.skeleton, bi = sk.boneInverses[sk.bones.indexOf(sb)]; if (!bi) return;
   const g = body.geometry; if (!g.boundingBox) g.computeBoundingBox(); const H = g.boundingBox.max.y - g.boundingBox.min.y, C = CARRY.musket;
@@ -76,8 +78,11 @@ function placeMusket(st) {
   // the back's furthest point (min z) in 12 bins along the sling line, over the body + every item / gear mesh it wears (not pets, not the
   // parrot), then the musket is laid on a straight line just outside all of them (it may tilt: butt on the lower back, muzzle over the hair)
   const NB = 12, zb = new Array(NB).fill(0), meshes = []; body.parent.traverse((o) => { if (o.isSkinnedMesh && !/^pet/.test(o.name) && !o.userData.carry) meshes.push(o); });
-  for (const o of meshes) { const P = o.geometry.attributes.position, B = o.geometry.attributes.aBird; if (!P) continue;
-    for (let i = 0; i < P.count; i++) { if (B && B.getX(i) > 0.5) continue; const z = P.getZ(i); if (z > -0.02) continue;
+  // [capes 2] long / big hair below the shoulders only counts at HAIR_SQUASH of its depth (the gun presses into the hanging hair instead of
+  // floating a hand off it); hair above the shoulders (the head) still counts in full, so the muzzle never cuts into a head of hair
+  const ua = sk.bones.findIndex((b) => /upperarm/i.test(b.name)), ySh = ua >= 0 ? _m.copy(sk.boneInverses[ua]).invert().elements[13] : Infinity;
+  for (const o of meshes) { const P = o.geometry.attributes.position, B = o.geometry.attributes.aBird, T = o === body ? o.geometry.attributes._tint : null; if (!P) continue;
+    for (let i = 0; i < P.count; i++) { if (B && B.getX(i) > 0.5) continue; let z = P.getZ(i); if (T && Math.round(T.getX(i)) === HAIR && P.getY(i) < ySh) z *= HAIR_SQUASH; if (z > -0.02) continue;
       const x = P.getX(i) - butt.x, y = P.getY(i) - butt.y, t = (x * dir.x + y * dir.y) / len; if (t < 0 || t > 1) continue;
       const dx = x - dir.x * t * len, dy = y - dir.y * t * len; if (dx * dx + dy * dy > 0.0025) continue; const k = Math.min(NB - 1, (t * NB) | 0); if (z < zb[k]) zb[k] = z; } }
   const need = zb.map((z) => z - C.clear - C.half), tk = need.map((_, k) => (k + 0.5) / NB);
