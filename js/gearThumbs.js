@@ -30,6 +30,12 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   parrot: { c: [0.27, 1.28, 0], d: [0.9, 0.2, 0.85], r: 0.36 },
   hook:   { c: [-0.25, 0.68, 0.06], d: [-0.75, 0.25, 1], r: 0.2 },   // [v142] v5 shorter arms: the hand sits higher / closer in
   leg:    { c: [-0.14, 0.2, 0.05], d: [-0.25, 0.35, 1], r: 0.3 },   // right leg; LEFT = mirrored [v142] v5 peg y 0-0.33
+  beard:  { c: [0, 1.12, 0.12], d: [0.35, 0.05, 1], r: 0.36 },   // [Raul shop items 2] chin to chest (braids)
+  ears:   { c: [0.18, 1.2, 0.0], d: [0.85, 0.05, 0.75], r: 0.24 },
+  teeth:  { c: [0, 1.15, 0.15], d: [0.1, 0.02, 1], r: 0.15 },
+  boots:  { c: [0, 0.16, 0.04], d: [0.3, 0.3, 1], r: 0.24 },
+  cape:   { c: [0, 0.85, -0.05], d: [0.7, 0.15, -1], r: 0.6 },
+  'parrot:pet_monkey': { c: [0.32, 1.18, 0], d: [0.9, 0.2, 0.85], r: 0.34 }, 'parrot:pet_cat': { c: [0.32, 1.12, 0], d: [0.9, 0.25, 0.85], r: 0.32 }, 'parrot:pet_cat_black': { c: [0.32, 1.12, 0], d: [0.9, 0.25, 0.85], r: 0.32 },
   'hat:crown_imperial': { c: [0, 1.82, 0.05], d: [0.3, 0.22, 1], r: 0.5 },
   'hat:mask_luchador': { c: [0, 1.4, 0.05], d: [0.3, 0.12, 1], r: 0.36 },   // [Raul wrestler] the full-head mask: brow skull to the open chin   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
 };
@@ -113,7 +119,9 @@ function pump() {
   };
   requestAnimationFrame(step);
 }
+const SHIP_SLOTS = new Set(['flag', 'figure']);   // [Raul shop items 2] ship items: the pre-baked PNG only (no pirate to dress)
 export function gearThumb(slot, id, opts = {}) {
+  if (SHIP_SLOTS.has(slot)) return Promise.resolve(null);
   const k = keyOf(slot, id, opts);
   if (cache.has(k)) { if (opts.priority) { const i = queue.findIndex((j) => j.k === k); if (i > 0) queue.unshift(...queue.splice(i, 1)); } return cache.get(k); }   // [Timothy] the detail pane jumps the card queue
   const pr = new Promise((res) => { const job = { k, slot, id, o: opts, res }; if (opts.priority) queue.unshift(job); else queue.push(job); pump(); }).then((u) => { if (!u) cache.delete(k); return u; });
@@ -133,6 +141,7 @@ export function gearLive(el, slot, id, opts = {}) {
   const cv = el.tagName === 'CANVAS' ? el : el.appendChild(document.createElement('canvas')); const w = opts.w || (LOW ? 240 : 320), h = opts.h || Math.round(w * 76 / 150);
   cv.width = w; cv.height = h; cv.className = cv.className || 'gear-live'; const ctx = cv.getContext('2d');
   let on = true, last = 0, a = 0, ready = false, redress = false; const me = { stop }, dk = dressKey(slot, id, opts);
+  if (SHIP_SLOTS.has(slot)) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, h); im.src = PNG(slot, id); return () => {}; }   // [Raul shop items 2]
   LIVE.add(me);
   // [Timothy] the pane is never empty: the pre-baked PNG at once, then this item's real still (rendered FIRST, ahead of the cards),
   // then the slow turn once the card queue has drained (the shared figure is re-dressed for the cards until then)

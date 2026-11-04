@@ -8,6 +8,7 @@ import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
 import { setLocalSkin } from './pirateGear.js'; // [Timothy] shop clothes follow your ship skin
+import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] your shop FLAG + FIGUREHEAD on your ship
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
 import { initCrewV4 } from './crewV4.js'; import { pirateBodyLod } from './pirateGLB.js';
 import { syncCrewGear } from './crewGear.js';
@@ -234,11 +235,12 @@ let pvp = null; // [pvp] PvP ARENA controller (js/pvp.js), loaded on first PVP t
 const shipOpts = () => game.mode === 'pvp' && pvp ? { ...PLAYER_SHIP, skin: pvp.skinObj(), pvp: true } : PLAYER_SHIP; // [pvp] kill-tier skin + skin parts
 function makePlayer() {
   const mesh = compileShip({}, shipOpts());
-  attachCaptain(mesh, localCaptain());
+  attachCaptain(mesh, localCaptain()); applyShipGear(mesh, getLocalGear()); // [Raul shop items 2]
   scene.add(mesh);
   return { mesh, x: 0, z: 0, yaw: 0, speed: 0, sail: 2, anchor: false, hp: 100, maxHp: 100, cd: { port: 0, star: 0 }, reload: 2.2, roll: 0, pitch: 0, y: 0, sinking: 0, alive: true, turn: 0 };
 }
 let player = makePlayer();
+addEventListener('pfp-gear', () => { try { applyShipGear(player?.mesh, getLocalGear()); } catch {} }); // [Raul shop items 2] a flag / figurehead bought or swapped: at once
 // [Raul] upgrade visuals: swap in a freshly compiled ship for new upgrade levels (same pose, old one freed)
 const PHONE_MQ = matchMedia('(max-width: 600px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape)');
 const PHONE_MQ_LAND = matchMedia('(orientation: landscape)');
@@ -247,7 +249,7 @@ function rebuildPlayerShip(levels) {
   const old = player.mesh, mesh = compileShip(levels, shipOpts());
   mesh.position.copy(old.position); mesh.rotation.copy(old.rotation); mesh.userData.body.rotation.copy(old.userData.body.rotation);
   mesh.userData.sails.forEach((sl, i) => { const o = old.userData.sails[i]; if (o) { sl.scale.y = o.scale.y; sl.scale.z = o.scale.z; } });
-  attachCaptain(mesh, localCaptain());
+  attachCaptain(mesh, localCaptain()); applyShipGear(mesh, getLocalGear()); // [Raul shop items 2]
   scene.remove(old); disposeShip(old); scene.add(mesh); player.mesh = mesh;
   return mesh;
 }

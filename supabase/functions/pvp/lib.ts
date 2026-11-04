@@ -138,11 +138,15 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 }, "gear:musket:dragoon": { price: 12000 },
   "gear:musket:bone": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
   "gear:musket:blunder_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
+  // [Raul shop items 2] PROPOSED prices (BANKSY OKs them; mirror js/shopCatalog.js). Cosmetic only, no BOOSTS entries.
+  "gear:beard:beard_moustache": { price: 400 }, "gear:beard:beard_forked": { price: 900 }, "gear:beard:beard_black": { price: 2500 }, "gear:ears:earring_hoop": { price: 250 }, "gear:ears:earring_double": { price: 600 }, "gear:ears:earring_skull": { price: 1200 }, "gear:teeth:tooth_gold": { price: 300 }, "gear:teeth:grill_gold": { price: 1500 }, "gear:teeth:grill_diamond": { price: 6000 }, "gear:boots:boots_buckle": { price: 350 }, "gear:boots:boots_cavalier": { price: 1000 }, "gear:boots:boots_gold": { price: 3000 }, "gear:cape:cape_tattered": { price: 800 }, "gear:cape:cape_captain": { price: 2000 }, "gear:cape:cape_royal": { price: 8000 }, "gear:parrot:pet_cat": { price: 3000 }, "gear:parrot:pet_monkey": { price: 4000 }, "gear:parrot:pet_cat_black": { price: 6000 }, "gear:leg:peg_gold": { price: 30000 }, "gear:leg:peg_kraken": { price: 45000 }, "gear:flag:flag_cutlass": { price: 1000 }, "gear:flag:flag_red": { price: 2500 }, "gear:flag:flag_gold": { price: 7500 }, "gear:figure:fig_mermaid": { price: 5000 }, "gear:figure:fig_kraken": { price: 9000 }, "gear:figure:fig_lion": { price: 15000 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
 export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq", "mask_luchador"], outfit: ["shirtless", "tank", "tshirt", "coat", "shirt", "suit", "singlet"], eyes: ["plain", "eyepatch", "sunglasses", "laser"],
-  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond"], hook: ["none", "hook_iron", "hook_gold"],
-  leg: ["none", "peg"], face: ["none", "facepaint_retardio"],
+  parrot: ["none", "parrot_green", "parrot_red", "parrot_gold", "parrot_blue", "parrot_cockatoo", "parrot_black", "parrot_diamond", "pet_monkey", "pet_cat", "pet_cat_black"], hook: ["none", "hook_iron", "hook_gold"],
+  leg: ["none", "peg", "peg_gold", "peg_kraken"], face: ["none", "facepaint_retardio"],
+  // [Raul shop items 2] new slots (a row without them = none). APPEND-ONLY. The OWNER owns every id here (ownedLists).
+  beard: ["none", "beard_moustache", "beard_forked", "beard_black"], ears: ["none", "earring_hoop", "earring_double", "earring_skull"], teeth: ["none", "tooth_gold", "grill_gold", "grill_diamond"], boots: ["none", "boots_buckle", "boots_cavalier", "boots_gold"], cape: ["none", "cape_tattered", "cape_captain", "cape_royal"], flag: ["none", "flag_cutlass", "flag_red", "flag_gold"], figure: ["none", "fig_mermaid", "fig_kraken", "fig_lion"],
   // [Timothy] CREW SHOP: the crew's OWN loadout (stored in the same gear jsonb: gear.crewhat / gear.crewoutfit; a row without them =
   // the free uniform, ids[0]). The crew no longer copy the captain's hat + clothes. APPEND-ONLY (js/crewLoadout.js CREW_SLOTS).
   crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit"],

@@ -14,7 +14,7 @@ import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB
 import { recolorPixels } from './gearRecolor.js';   // [Raul gear colours] helmet + mask hat colours
 
 const DIR = 'assets/pirates/items/', HY = 1.12;
-export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes', 'face', 'base'];
+export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes', 'face', 'base', 'beard', 'ears', 'teeth', 'boots', 'cape'];   // [Raul shop items 2] + beard / ears / teeth / boots / cape
 // [v123] Raul's per-body v5 fits (raul_polish): assets/pirates/items/v5/<id>_<male|female>_<hi|lo>.glb, pre-fitted in the v5 bind space
 // (no v5Fwd / v5Hat), skinned or rigid on bone 'head'; v5hide = his hide rules (v4 space, evaluated through v5Inv like the rest)
 const V5DIR = DIR + 'v5/', v5files = (id) => Object.fromEntries(['male', 'female'].map((b) => [b, { hi: `${V5DIR}${id}_${b}_hi.glb`, lo: `${V5DIR}${id}_${b}_lo.glb` }]));
@@ -66,6 +66,32 @@ export const ITEMS = [
   // [Raul coats v5] BANKSY "Also need the jackets": the COAT (Timothy's grown shell on v4) is Raul's own per-body garment on v5: open front over
   // a striped shirt (cream + stripe colour via the texture alpha), trim = accent, tails from the belt to mid thigh (spine -> thigh weights)
   item('cloth_coat', 'Coat', 'outfit', 0, { coat: '#c8302c', accent: '#e9b949', shirt: '#222c4e' }, [], { v5: v5files('cloth_coat'), v5hide: [], v5only: true, v5cloth: true, cream: '#f3efe6', backTint: 'coat', longCoat: true }),
+  // [Raul shop items 2] BANKSY "Do new shop items": v5-only per-body fits (brand/v5_models/raul_shop_items_2/tools/build.py), one mesh each,
+  // own ink outline shell (single-sided: single). Beards + the captain's cape = marker colours (keyed: hair / clothes colour); rigid on 'head'
+  // (beards, earrings, teeth), shins (boots, special pegs) or spine (capes, shoulder pets). No hide rules: each sits outside what it covers.
+  item('beard_moustache', "Captain's Moustache", 'beard', 0, null, [], { v5: v5files('beard_moustache'), v5hide: [], v5only: true, keyed: true, single: true }),
+  item('beard_forked', 'Forked Beard', 'beard', 0, null, [], { v5: v5files('beard_forked'), v5hide: [], v5only: true, keyed: true, single: true }),
+  item('beard_black', 'Blackbeard', 'beard', 0, null, [], { v5: v5files('beard_black'), v5hide: [], v5only: true, single: true }),
+  item('earring_hoop', 'Gold Hoops', 'ears', 0, null, [], { v5: v5files('earring_hoop'), v5hide: [], v5only: true, single: true }),
+  item('earring_double', 'Double Hoops', 'ears', 0, null, [], { v5: v5files('earring_double'), v5hide: [], v5only: true, single: true }),
+  item('earring_skull', 'Skull Earrings', 'ears', 0, null, [], { v5: v5files('earring_skull'), v5hide: [], v5only: true, single: true }),
+  item('tooth_gold', 'Gold Tooth', 'teeth', 0, null, [], { v5: v5files('tooth_gold'), v5hide: [], v5only: true, single: true, decal: true }),
+  item('grill_gold', 'Gold Grill', 'teeth', 0, null, [], { v5: v5files('grill_gold'), v5hide: [], v5only: true, single: true, decal: true }),
+  item('grill_diamond', 'Diamond Grill', 'teeth', 0, null, [], { v5: v5files('grill_diamond'), v5hide: [], v5only: true, single: true, decal: true }),
+  item('boots_buckle', 'Buckle Boots', 'boots', 0, null, [], { v5: v5files('boots_buckle'), v5hide: [], v5only: true, single: true, boots: true }),
+  item('boots_cavalier', 'Cavalier Boots', 'boots', 0, null, [], { v5: v5files('boots_cavalier'), v5hide: [], v5only: true, single: true, boots: true }),
+  item('boots_gold', 'Gold-Toe Boots', 'boots', 0, null, [], { v5: v5files('boots_gold'), v5hide: [], v5only: true, single: true, boots: true }),
+  item('cape_tattered', 'Tattered Cape', 'cape', 0, null, [], { v5: v5files('cape_tattered'), v5hide: [], v5only: true, single: true }),
+  item('cape_captain', "Captain's Cape", 'cape', 0, null, [], { v5: v5files('cape_captain'), v5hide: [], v5only: true, single: true, keyed: true }),
+  item('cape_royal', 'Royal Cape', 'cape', 0, null, [], { v5: v5files('cape_royal'), v5hide: [], v5only: true, single: true }),
+  item('pet_monkey', 'Shoulder Monkey', 'shoulder', 0, null, [], { v5: v5files('pet_monkey'), v5hide: [], v5only: true, single: true }),
+  item('pet_cat', "Ship's Cat", 'shoulder', 0, null, [], { v5: v5files('pet_cat'), v5hide: [], v5only: true, single: true }),
+  item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
+  // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit (knee cup + shaft; same lower-leg hide as the peg)
+  item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
+  item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: [{ leg: 'R', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
+  item('peg_kraken_l', 'Kraken Bone Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_kraken_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
+  item('peg_kraken_r', 'Kraken Bone Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_kraken_r'), v5hide: [{ leg: 'R', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
   item('parrot', 'Parrot', 'shoulder', 1500, null, [],
     { attach: { bone: 'spine', feet: [0.242, 0.916, -0.016], offset: { male: [0, 0, 0], female: [0.05, -0.034, 0.0] }, lean: { male: 0, female: -0.42 } }, clip: 'parrot_idle' }),
 ];
@@ -209,7 +235,16 @@ function applyHide(p) {
     if (tl) { const I = g.index.array, o2 = []; for (let i = 0; i < I.length; i += 3) if (!(tl[I[i]] || tl[I[i + 1]] || tl[I[i + 2]])) o2.push(I[i], I[i + 1], I[i + 2]);
       g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(o2) : new Uint16Array(o2), 1)); }
   }
-  flattenHair(p); baseTop(p);
+  flattenHair(p); baseTop(p); bootsUnderPeg(p);
+}
+// [Raul shop items 2] boots + a peg leg: the boot on the peg's side goes (its half of the mesh: x sign in bind space)
+function bootsUnderPeg(p) {
+  const b = p.items?.boots, g = b?.obj?.geometry; if (!g) return; g.userData.bootIndex ||= g.index;
+  const L = !!p.items.legL, R = !!p.items.legR, key = (L ? 'L' : '') + (R ? 'R' : ''); if (b.pegKey === key) return; b.pegKey = key;
+  if (!key) { g.setIndex(g.userData.bootIndex); return; }
+  const P = g.attributes.position, I = g.userData.bootIndex.array, out = [];
+  for (let i = 0; i < I.length; i += 3) { const x = P.getX(I[i]); if ((L && x > 0) || (R && x < 0)) continue; out.push(I[i], I[i + 1], I[i + 2]); }
+  g.setIndex(new THREE.BufferAttribute(P.count > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1));
 }
 // [Raul clothes v5] (v141 tankTop, on the base outfit now) under a worn v5 top her wrap top takes the top's colour: no red rims at the
 // arm holes / neckline; restored when it comes off (or under the coat)
@@ -511,8 +546,9 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors && !def.base) retint(geo, opts.colors);
   if (def.paint && p.lod === 'lo') paintLo(geo);
   const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
-  const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, (def.slot !== 'outfit' || !!def.v5cloth) && !/^(hook|peg)_/.test(def.id))); m.name = 'item_' + def.id; m.frustumCulled = false;   // [Timothy] hooks + pegs single-sided: their black ink outline shell drew over the whole item when double-sided (black hook / peg)
+  const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, (def.slot !== 'outfit' || !!def.v5cloth) && !/^(hook|peg)_/.test(def.id) && !def.single)); m.name = 'item_' + def.id; m.frustumCulled = false;   // [Timothy] hooks + pegs single-sided: their black ink outline shell drew over the whole item when double-sided (black hook / peg)
   recolorItem(m, def, opts.colors);
+  if (def.decal) Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });   // [Raul shop items 2] the grin sticker wins over the lips / beard under it
   if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }

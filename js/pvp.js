@@ -48,6 +48,7 @@ import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills
 import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
 import { setBoostSource, setBoostZone, goldFindBonus, MAX_BOOST } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS
 import { compilePreview } from './upgradeVisuals.js';
+import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] their shop flag + figurehead (from 'gr')
 import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
 const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
@@ -601,6 +602,7 @@ export function createPvp(K) {
   }
   function buildRemoteMesh(p, lv, sk) {
     const mesh = compilePreview(lv, shipOptsFor(sk)); scene.add(mesh);
+    applyShipGear(mesh, p.captain?.gear); // [Raul shop items 2]
     if (p.captain) attachCaptain(mesh, p.captain); // [Timothy v2] remote player's captain JSON (pfp_captain_v1) when the netcode sends it
     if (p.ship?.mesh) { mesh.position.copy(p.ship.mesh.position); scene.remove(p.ship.mesh); K.disposeShip(p.ship.mesh); p.ship.mesh = mesh; }
     return mesh;
@@ -634,6 +636,7 @@ export function createPvp(K) {
       // the id hash is only the fallback look for a pirate who kept the DEFAULT skin / hair
       const gg = gw || ec ? { ...gearFromWire(gw), eyeColor: ec } : null, hashLook = { skin: [...p.id].reduce((a, c) => a + c.charCodeAt(0), 0) % 5, hair: p.id.charCodeAt(p.id.length - 1) % 5 };
       p.captain = gg ? { v: 1, remote: true, gear: gg, skin: sk, look: { skin: gg.skinColor ? 0 : hashLook.skin, hair: gg.hairColor ? 0 : hashLook.hair } } : null;
+      if (p.ship?.mesh) applyShipGear(p.ship.mesh, p.captain?.gear); // [Raul shop items 2]
       if (p.ship?.mesh && (gNew || p.key === key)) { if (p.captain) attachCaptain(p.ship.mesh, p.captain); else detachCaptain(p.ship.mesh); } }   // a new skin rebuilds the ship below (it re-attaches)
     if (!p.ship) {
       const obj = { mesh: null, x, z, yaw: p.st.y, speed: 0, turn: 0, hp: p.st.h, maxHp: p.st.m, alive: p.st.a, roll: 0, pitch: 0, y: 0, sinking: p.st.a ? 0 : 99, state: 'roam', net: { id: p.id, kind: 'player' }, remote: true, cannons: stats.cannons };

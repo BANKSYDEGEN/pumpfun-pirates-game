@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v177'; // [v177] Timothy's shared material library (plaza / docks / battery / hill street / hilltop fort) + the gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
+const VERSION = 'pfp-v178'; // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
   "./index.html",
@@ -20,6 +20,7 @@ const SHELL = [
   "./js/gearColorPicker.js", // [Timothy] SKIN & HAIR + CLOTHES COLOUR pickers (island shop)
   "./js/gearThumbs.js", // [Timothy] real 3D gear card art (island shop)
   "./js/gearRecolor.js", // [v157] Raul: hat-colour repaint for the helmet + mask maps
+  "./js/shipGear.js", // [Raul shop items 2] shop flag + figurehead on ships
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)
