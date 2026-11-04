@@ -28,7 +28,7 @@ export function M(x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, s = 1) {
 }
 
 export class Kit {
-  constructor({ outlineK = 0.09 } = {}) { this.b = new Map(); this.out = []; this.stack = [new THREE.Matrix4()]; this.outlineK = outlineK; }
+  constructor({ outlineK = 0.09 } = {}) { this.b = new Map(); this.out = []; this.stack = [new THREE.Matrix4()]; this.outlineK = outlineK; this.tag = null; this.pn = 0; this.pieces = []; } // [build-mode] tag = the selectable item the next add()s belong to (null: each add is its own piece)
   // run fn with every add() placed inside parent matrix m
   at(m, fn) { this.stack.push(this.stack[this.stack.length - 1].clone().multiply(m)); fn(); this.stack.pop(); }
   // geo: any BufferGeometry (consumed). color: hex | (localPos, i) => hex. opts: bucket, m (Matrix4), outline, sway (fn localPos -> 0..1)
@@ -60,32 +60,39 @@ export class Kit {
       for (let i = 0; i < n; i++) { const k = this.ao(P.getX(i), P.getY(i), P.getZ(i)); C.setXYZ(i, C.getX(i) * k, C.getY(i) * k, C.getZ(i) * k); } }
     if (!this.b.has(bucket)) this.b.set(bucket, []);
     this.b.get(bucket).push(g);
+    const pc = { key: this.tag || 'p' + this.pn, bucket, gi: this.b.get(bucket).length - 1, o: -1 }; this.pn++; g.computeBoundingBox(); pc.box = g.boundingBox.clone(); this.pieces.push(pc); // [build-mode]
     if (outline) {
       const o = outlineFor(new THREE.Mesh(g), 1).geometry; // smooth-normal shell (thickness set by the merged material)
       for (const k of Object.keys(o.attributes)) if (k !== 'position' && k !== 'normal' && !(bucket === 'sway' && k === 'aSway')) o.deleteAttribute(k);
       if (bucket === 'sway' && !o.attributes.aSway) o.setAttribute('aSway', g.attributes.aSway.clone());
       const k = outline === true ? 1 : outline, N = o.attributes.normal; // per-piece thickness rides in the normal length
       for (let i = 0; i < N.count; i++) { _v.fromBufferAttribute(N, i).normalize().multiplyScalar(k); N.setXYZ(i, _v.x, _v.y, _v.z); }
-      this.out.push({ g: o, sway: bucket === 'sway' });
+      this.out.push({ g: o, sway: bucket === 'sway' }); pc.o = this.out.length - 1;
     }
     return g;
   }
   // merge: { bucket: material }, outline materials { plain, sway }. Returns a Group of merged meshes.
   build(mats, outlineMats) {
     const grp = new THREE.Group(), stats = {};
-    for (const [k, list] of this.b) {
+    const offs = new Map(), meshes = new Map(); // [build-mode] each piece's vertex range in its merged mesh
+    for (const [k, list] of this.b) { let o = 0; offs.set(k, list.map(x => { const r = [o, x.attributes.position.count]; o += r[1]; return r; }));
       const g = mergeGeometries(list, false); list.forEach(x => x.dispose());
       g.computeBoundingSphere();
       const mesh = new THREE.Mesh(g, mats[k]); mesh.name = 'island_' + k; mesh.userData.bucket = k;
-      grp.add(mesh); stats[k] = g.attributes.position.count / 3;
+      grp.add(mesh); stats[k] = g.attributes.position.count / 3; meshes.set(k, mesh);
     }
+    const oOff = new Map(), oMesh = {}; for (const sw of [false, true]) { let o = 0; this.out.forEach((e, i) => { if (e.sway !== sw) return; const g = e.g, n = g.attributes.position.count; oOff.set(i, [sw, o, n]); o += n; }); }
     for (const sw of [false, true]) {
       const list = this.out.filter(o => o.sway === sw).map(o => o.g); if (!list.length) continue;
       const g = mergeGeometries(list, false); list.forEach(x => x.dispose()); g.computeBoundingSphere();
       const o = new THREE.Mesh(g, sw ? outlineMats.sway : outlineMats.plain); o.name = sw ? 'island_outline_sway' : 'island_outline'; o.userData.outline = true;
-      grp.add(o);
+      grp.add(o); oMesh[sw] = o;
     }
-    this.b.clear(); this.out = [];
+    const items = new Map(); for (const pc of this.pieces) { const m = meshes.get(pc.bucket); if (!m) continue; const [a, n] = offs.get(pc.bucket)[pc.gi];
+      let it = items.get(pc.key); if (!it) items.set(pc.key, it = { key: pc.key, ranges: [], box: pc.box.clone() }); else it.box.union(pc.box);
+      it.ranges.push([m, a, n]); if (pc.o >= 0 && oOff.has(pc.o)) { const [sw, oa, on] = oOff.get(pc.o); if (oMesh[sw]) it.ranges.push([oMesh[sw], oa, on]); } }
+    for (const m of meshes.values()) m.userData.kitItems = items; grp.userData.kitItems = items;
+    this.b.clear(); this.out = []; this.pieces = []; this.pn = 0;
     grp.userData.tris = stats;
     return grp;
   }

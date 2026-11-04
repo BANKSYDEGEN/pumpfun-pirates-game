@@ -407,6 +407,33 @@ Deno.serve(async (req) => {
       // (migration 031 pvp_prestige_do, which also logs the old levels as a backup). `from` = the level the client saw (a double tap
       // or a second device can't prestige twice). Gold, skins, gear, kills, deaths and the boards are not touched.
       // The owner (BANKSYDEGEN) prestiges from the shared group save; everything is free for the owner anyway.
+      // [terrain-edit] BANKSY's island terrain deltas: anyone reads them (every client applies them at startup); only the owner writes
+      case "terrain_get": {
+        const who = (b.token || b.dk) ? await whoAmI(b).catch(() => null) : null;
+        const { data } = await db.from("pvp_terrain").select("cells, pieces, rev").eq("id", "island").maybeSingle();
+        return json(200, { ok: true, cells: data?.cells ?? {}, pieces: data?.pieces ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
+      }
+      case "terrain_put": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        if (!who.owner) return json(403, { error: "owner only" });
+        const src = b.cells && typeof b.cells === "object" && !Array.isArray(b.cells) ? b.cells as Record<string, unknown> : null;
+        if (!src) return json(400, { error: "bad cells" });
+        const cells: Record<string, number> = {}; let n = 0;
+        for (const [k, v] of Object.entries(src)) { const q = Number(k), cm = Math.round(Number(v));
+          if (!Number.isInteger(q) || q < 0 || q > 400000 || !Number.isFinite(cm) || cm === 0) continue; if (++n > 60000) return json(413, { error: "too many cells" });
+          cells[String(q)] = Math.max(-3000, Math.min(3000, cm)); }
+        const pieces: Record<string, Record<string, number>> = {}; let np = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
+        for (const [id, v] of Object.entries(ps)) { if (typeof id !== "string" || id.length > 160 || !v || typeof v !== "object") continue; if (++np > 5000) return json(413, { error: "too many pieces" });
+          const f = (x: unknown, lim: number) => Math.max(-lim, Math.min(lim, Math.round((Number(x) || 0) * 100) / 100));
+          pieces[id] = v.h ? { h: 1 } : { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; }
+        const { data: cur } = await db.from("pvp_terrain").select("cells, pieces, rev, log").eq("id", "island").maybeSingle();
+        if (cur && Number.isInteger(b.rev) && b.rev !== cur.rev) return json(409, { error: "terrain changed", cells: cur.cells, pieces: cur.pieces, rev: cur.rev });
+        const log = [...(Array.isArray(cur?.log) ? cur.log : []), ...(cur ? [{ at: new Date().toISOString(), rev: cur.rev, cells: cur.cells, pieces: cur.pieces }] : [])].slice(-20);
+        const rev = (cur?.rev ?? 0) + 1;
+        const { error } = await db.from("pvp_terrain").upsert({ id: "island", cells, pieces, rev, log, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return json(200, { ok: true, rev, n, np });
+      }
       case "prestige": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         if (b.confirm !== true) return json(400, { error: "confirm first" });

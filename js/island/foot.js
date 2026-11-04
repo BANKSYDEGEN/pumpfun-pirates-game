@@ -227,6 +227,25 @@ const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search
 export const WALK_RULES = { slope: +(QS.get('slope') || 1.25), trees: QS.get('trees') !== '0' };
 export const BUILD_MS = Math.round(performance.now() - t0);
 // bilinear sample (world metres)
+// [terrain-edit] BANKSY's owner terrain editor: a height-delta layer on top of the built grid (cells q -> metres). Every reader (H, Htri,
+// waterAt, the chunk meshes) reads Hg, so applying here moves the drawn ground, the walk / collision height and the followers together.
+let Hb = null, CHUNKS = null; const DELTA = new Map();
+// [build-mode] a deleted built-in piece takes its walk decks + colliders with it (those whose centre sits inside its footprint); restore = back on
+export function pieceBlockers(box, off) { const hit = (x, z) => x >= box.min.x - 0.3 && x <= box.max.x + 0.3 && z >= box.min.z - 0.3 && z <= box.max.z + 0.3; let n = 0;
+  for (const d of AREA_DECKS) if (hit(d.x, d.z) && d.y >= box.min.y - 1 && d.y <= box.max.y + 1) { d.off = off; n++; }
+  for (const o of [...CIRC, ...BOXES]) if (hit(o.x, o.z)) { o.off = off; n++; } return n; }
+export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
+  base(q) { return Hb ? Hb[q] : Hg[q]; }, delta: DELTA, cell(x, z) { return [Math.round((x - X0) / G), Math.round((z - Z0) / G)]; },
+  // set some cells' deltas (Map / [[q, m]]): rewrites Hg there and rebuilds only the touched chunks (their LOD meshes regenerate lazily)
+  set(entries) { if (!Hb) Hb = Hg.slice(); const dirty = new Set();
+    for (const [q, d] of entries) { const v = Math.abs(d) < 0.005 ? 0 : d; if (v) DELTA.set(q, v); else DELTA.delete(q); Hg[q] = Hb[q] + v;
+      const i = q % (NX + 1), j = (q - i) / (NX + 1), ci = Math.floor(i / CH), cj = Math.floor(j / CH);
+      dirty.add(ci + ',' + cj); if (i % CH === 0 && ci > 0) dirty.add((ci - 1) + ',' + cj); if (j % CH === 0 && cj > 0) dirty.add(ci + ',' + (cj - 1)); if (i % CH === 0 && j % CH === 0 && ci > 0 && cj > 0) dirty.add((ci - 1) + ',' + (cj - 1)); }
+    if (CHUNKS) for (const c of CHUNKS) if (dirty.has(c.ci + ',' + c.cj)) { for (const g of Object.values(c.geos)) if (g !== c.mesh.geometry) g.dispose(); const old = c.mesh.geometry; c.geos = {}; if (c.lod >= 0) { c.geos[c.lod] = chunkGeo(c.ci, c.cj, c.lod); c.mesh.geometry = c.geos[c.lod]; old.dispose(); } }
+    return dirty.size; },
+  replace(obj) { const next = new Map(Object.entries(obj || {}).map(([q, cm]) => [+q, (cm | 0) / 100]).filter(([q]) => q >= 0 && q < Hg.length)); const ch = [];
+    for (const q of DELTA.keys()) if (!next.has(q)) ch.push([q, 0]); for (const [q, d] of next) if (DELTA.get(q) !== d) ch.push([q, d]); return ch.length ? this.set(ch) : 0; },
+  dump() { const o = {}; for (const [q, d] of DELTA) o[q] = Math.round(d * 100); return o; } };
 export function H(x, z) {
   const fx = Math.min(NX - 1e-3, Math.max(0, (x - X0) / G)), fz = Math.min(NZ - 1e-3, Math.max(0, (z - Z0) / G)), i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
   return (Hg[IDX(i, j)] * (1 - u) + Hg[IDX(i + 1, j)] * u) * (1 - v) + (Hg[IDX(i, j + 1)] * (1 - u) + Hg[IDX(i + 1, j + 1)] * u) * v;
@@ -576,7 +595,7 @@ export const AREA_DECKS = [];
 function profAt(d, u) { const P = d.prof, n = P.length, t = u * n - 0.5; if (t <= 0) { const a = d.ya ?? P[0]; return a + (P[0] - a) * Math.min(1, Math.max(0, u * n * 2)); }
   if (t >= n - 1) { const b = d.yb ?? P[n - 1]; return P[n - 1] + (b - P[n - 1]) * Math.min(1, Math.max(0, (u * n - (n - 0.5)) * 2)); }
   const i = Math.floor(t), f = t - i; return P[i] + (P[i + 1] - P[i]) * f; }
-export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { const dx = x - d.x, dz = z - d.z;
+export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { if (d.off) continue; const dx = x - d.x, dz = z - d.z;
   if (d.r) { if (dx * dx + dz * dz <= d.r * d.r) y = Math.max(y ?? -1e9, d.y); continue; }
   const l = dx * d.s + dz * d.c; if (Math.abs(dx * d.c - dz * d.s) > d.hw || Math.abs(l) > d.hl) continue;
   // pad: the footprint runs pad m past both ends as a skirt that falls away 1:1 from the end height, so where two stair decks overlap
@@ -592,7 +611,7 @@ const addDeck = (d) => { AREA_DECKS.push({ ...d, c: Math.cos(d.yaw || 0), s: Mat
 export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
 export function hitCollider(x, z, rad = 0.45) {
   const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)); if (!list) return false;
-  for (const o of list) { if (o.t === 0) { if (Math.hypot(x - o.x, z - o.z) < o.r + rad) return true; }
+  for (const o of list) { if (o.off) continue; if (o.t === 0) { if (Math.hypot(x - o.x, z - o.z) < o.r + rad) return true; }
     else { const dx = x - o.x, dz = z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c; if (Math.abs(lx) < o.hx + rad && Math.abs(lz) < o.hz + rad) return true; } }
   return false; }
 
@@ -1171,6 +1190,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const mesh = new THREE.Mesh(new THREE.BufferGeometry(), MATS.toon); mesh.receiveShadow = !low; mesh.name = `chunk_${ci}_${cj}`; mesh.visible = false;
     chunks.push({ ci, cj, cx, cz, mesh, geos: {}, lod: -1 }); root.add(mesh);
   }
+  CHUNKS = chunks; // [terrain-edit] TERRAIN.set rebuilds the touched ones
   // terrain LOD steps by chunk distance (centre - 160 m): High 4 / 8 / 16 / 32 m grid, Low 8 / 16 / 32 m
   const LODS = low ? [[0, 2], [150, 4], [330, 8]] : [[0, 1], [110, 2], [300, 4], [560, 8]], VIEW_R = low ? 560 : 1100;
   // kits: street (world coords) + inland POIs, each a handful of merged meshes
@@ -1194,8 +1214,9 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   if (KP) for (const [gname, list] of Object.entries(KP)) { const m = kitMesh(kit, list, 'foot_townkit_' + gname); if (!m) continue; root.add(m); groups.push(m); kitN += list.length; kitTris += m.userData.tris;
     if (!low) { const f = kitMesh(kit, list, 'foot_townkit_' + gname + '_lod1', true); if (f) { f.castShadow = false; f.visible = false; root.add(f); m.userData.far = f; } } } // High: LOD1 twin beyond ~170 m
   if (NP) for (const [gname, list] of Object.entries(NP)) { const parts = list.map(([nm, lod, m]) => { const g = nat.get(nm, low ? 1 : lod); return g ? g.clone().applyMatrix4(m) : null; }).filter(Boolean);
-    if (!parts.length) continue; const g = safeNormals(mergeGeometries(parts, false)); parts.forEach(p => p.dispose()); g.computeBoundingSphere();
-    const m = new THREE.Mesh(g, fm); m.name = 'foot_nature_' + gname; m.castShadow = m.receiveShadow = !low; m.customDepthMaterial = fm.userData.depth; root.add(m); groups.push(m);
+    if (!parts.length) continue; const items = new Map(); { let a = 0; parts.forEach((p, i) => { const c = p.attributes.position.count; p.computeBoundingBox(); items.set('n' + i, { key: 'n' + i, name: (list[i]?.[0] || 'plant'), ranges: [[null, a, c]], box: p.boundingBox.clone() }); a += c; }); } // [build-mode] one item per tree / rock
+    const g = safeNormals(mergeGeometries(parts, false)); parts.forEach(p => p.dispose()); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, fm); m.name = 'foot_nature_' + gname; for (const it of items.values()) it.ranges[0][0] = m; m.userData.kitItems = items; m.castShadow = m.receiveShadow = !low; m.customDepthMaterial = fm.userData.depth; root.add(m); groups.push(m);
     natN += list.length; natTris += (g.index ? g.index.count : g.attributes.position.count) / 3; }
   const kitM = groups[0] || null; KP = null; NP = null;
   for (const g of [street, inland, coast].filter(Boolean)) g.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !low; o.receiveShadow = !low; } });

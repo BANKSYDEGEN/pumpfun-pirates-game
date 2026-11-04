@@ -121,17 +121,20 @@ function buildTrail(part, { MATS, OUT, low, H }) {
   if (part === 'route_low') {
     const s = RT.lm.sign; W(k, box(0.2, 2.8, 0.2), C.WOOD_D, M(s.x, s.y + 1.4, s.z));
     [['TOWN', Math.PI], ['FORT', Math.PI / 2], ['JUNGLE', 0]].forEach(([_, a], i) => W(k, box(1.6, 0.36, 0.08), i === 2 ? C.WOOD_L : C.WOOD, M(s.x, s.y + 2.4 - i * 0.45, s.z, s.yaw + a + Math.PI / 2)));
+    k.tag = 'footbridge'; // [build-mode] the whole log footbridge is one selectable item
     const b = RT.bridge, n = b.prof.length; // L1 log footbridge: planks follow the deck, log stringers, posts + rope rails
     for (let j = 0; j < n; j++) { const u = (j + 0.5) / n, x = b.x + b.ux * (u - 0.5) * b.L, z = b.z + b.uz * (u - 0.5) * b.L; W(k, box(2.5, 0.16, b.L / n - 0.06), j % 2 ? C.WOOD : C.WOOD_L, M(x, b.prof[j] - 0.08, z, b.yaw), false); }
     for (const sd of [-1, 1]) { for (let j = 0; j <= 4; j++) { const u = j / 4, ii = Math.min(n - 1, Math.floor(u * n)), x = b.x + b.ux * (u - 0.5) * b.L + b.uz * 1.3 * sd, z = b.z + b.uz * (u - 0.5) * b.L - b.ux * 1.3 * sd, y = b.prof[ii];
       W(k, cyl(0.12, 0.14, 2.6, 6), C.WOOD_D, M(x, y - 0.3, z)); }
       const x = b.x + b.uz * 1.3 * sd, z = b.z - b.ux * 1.3 * sd, y = Math.max(...b.prof); W(k, cyl(0.035, 0.035, b.L, 4), 0xc9a36b, M(x, y + 0.9, z, b.yaw, Math.PI / 2, 0), false);
       W(k, cyl(0.22, 0.22, b.L, 7), C.WOOD_D, M(b.x + b.uz * 0.9 * sd, Math.min(...b.prof) - 0.3, b.z - b.ux * 0.9 * sd, b.yaw, Math.PI / 2, 0)); }
+    k.tag = 'overlook';
     const o = RT.lm.ov; W(k, box(5.2, 0.3, 5.5), C.WOOD, M(o.x, o.y - 0.15, o.z, o.yaw)); // L3 Lagoon Overlook deck on stone piers + railings
     for (const [u, v] of [[-2.3, -2.1], [2.3, -2.1], [-2.3, 2.1], [2.3, 2.1]]) { const x = o.x + o.oz * u + o.ox * v, z = o.z - o.ox * u + o.oz * v, g = H(x, z); W(k, box(0.6, Math.max(0.6, o.y - g + 0.8), 0.6), C.STONE_D, M(x, (o.y + g - 0.8) / 2, z)); }
     W(k, box(5.2, 0.14, 0.14), C.WOOD_D, M(o.x + o.ox * 2.3, o.y + 1.0, o.z + o.oz * 2.3, o.yaw), false); for (const sd of [-1, 1]) W(k, box(0.14, 0.14, 4.6), C.WOOD_D, M(o.x + o.oz * 2.55 * sd, o.y + 1.0, o.z - o.ox * 2.55 * sd, o.yaw), false);
     for (let j = -2; j <= 2; j++) W(k, box(0.12, 1.0, 0.12), C.WOOD_D, M(o.x + o.ox * 2.3 + o.oz * j * 1.25, o.y + 0.5, o.z + o.oz * 2.3 - o.ox * j * 1.25), false);
     W(k, cyl(0.07, 0.09, 0.9, 5), C.GOLD, M(o.x + o.ox * 1.9, o.y + 1.2, o.z + o.oz * 1.9, o.yaw, Math.PI / 2 - 0.25, 0), false); // a fixed spyglass on the rail
+    k.tag = null;
   } else {
     const r = RT.lm.rv; W(k, box(2.6, 0.45, 0.8), C.STONE, M(r.x, r.y + 0.45, r.z, r.yaw + Math.PI / 2)); for (const sd of [-1, 1]) W(k, box(0.5, 0.45, 0.7), C.STONE_D, M(r.x + Math.cos(r.yaw) * 1.0 * sd, r.y + 0.22, r.z - Math.sin(r.yaw) * 1.0 * sd, r.yaw + Math.PI / 2), false);
     const cx = r.x + Math.sin(r.yaw) * 2.4, cz = r.z + Math.cos(r.yaw) * 2.4, cy = H(cx, cz); for (let j = 0; j < 5; j++) W(k, jitter(new THREE.IcosahedronGeometry(0.75 - j * 0.12, 0), 0.2, j), j % 2 ? C.STONE : C.STONE_D, M(cx, cy + 0.4 + j * 0.55, cz, j), j === 0);
