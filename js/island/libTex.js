@@ -88,7 +88,7 @@ function libRetag(group, rules, { tol = 0.03, floor = null, wear = false } = {})
       const s = r + gg + b + 1e-5; let best = 9, id = -1;
       for (const q of R) { const d = Math.abs(r / s - q[0]) + Math.abs(gg / s - q[1]) + Math.abs(b / s - q[2]); if (d < best) { best = d; id = q[3]; } }
       if (id <= 0 || best > tol) continue;
-      if (floor && N && N.getY(t) > 0.9 && P.getY(t) > (floor.y0 ?? -1e9) && P.getY(t) < (floor.y1 ?? 1e9) && id === 20 + LIB_ID[floor.from]) id = 20 + LIB_ID[floor.to];
+      if (floor && N && N.getY(t) > 0.9) for (const fl of [].concat(floor)) if (P.getY(t) > (fl.y0 ?? -1e9) && P.getY(t) < (fl.y1 ?? 1e9) && id === 20 + LIB_ID[fl.from]) { id = 20 + LIB_ID[fl.to]; break; }   // [roundabout-bridge] floor may be a list (first y band wins)
       A.setX(t, id); A.setX(t + 1, id); A.setX(t + 2, id); n++;
       if (wear && N && Math.abs(N.getY(t)) < 0.5 && (id === 20 + LIB_ID.stone_ashlar || id === 20 + LIB_ID.stone_trim)) {   // worn top arris (lighter) + grime at the foot of every stone side
         const top = Math.max(P.getY(t), P.getY(t + 1), P.getY(t + 2)); for (let q = 0; q < 3; q++) { const f = P.getY(t + q) > top - 0.01 ? 1.1 : 0.84; C.setXYZ(t + q, Math.min(1, C.getX(t + q) * f), Math.min(1, C.getY(t + q) * f), Math.min(1, C.getZ(t + q) * f)); } } }
@@ -105,10 +105,17 @@ const FORT_RULES = [[0xb9b2a6, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0xc
 const ROUTE_RULES = [[0xb9b2a6, 'stone_ashlar'], [0xbdb6a8, 'stone_ashlar'], [0xa9a294, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0x9e978a, 'stone_ashlar'], [0xd8d0bf, 'stone_ashlar'],
   [0xcfc8bb, 'stone_ashlar'], [0xa39c8e, 'stone_ashlar'], [0xa86a3a, 'timber'], [0x6b4527, 'timber'], [0xd9a36b, 'timber'], [0x2b2f36, 'iron'], [0x3b2a1a, 'iron'], [0xc9a36b, 'rope'],
   [0xffd75a, null], [0xffd27a, null], [0xffc93c, null], [0xd8322f, null], [0x2f8a3a, null], [0x5f9a3a, null], [0xf4e9c8, null], [0xf4efe6, null]];
+// the FOUNTAIN PLAZA + Pirates' Climb stairs + high rope bridge (areas/hillRound.js): stone -> ashlar; the plaza / apron tops -> cobbles; the stair treads,
+// landings, copings and the fountain rims -> dressed sandstone; deck planks -> weathered planks; posts / beams -> timber; ropes, iron
+const RB_RULES = [[0xb9b2a6, 'stone_ashlar'], [0xb0a99c, 'stone_ashlar'], [0xa9a294, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0x9f9585, 'stone_ashlar'], [0xc8bda7, 'stone_ashlar'],
+  [0xd2c9b6, 'stone_ashlar'], [0x8f8676, 'stone_ashlar'], [0xb3a993, 'stone_ashlar'], [0x9e978a, 'stone_ashlar'], [0xd9a36b, 'planks_weathered'], [0xc28a55, 'planks_weathered'],
+  [0xa86a3a, 'timber'], [0x6b4527, 'timber'], [0x5e3b20, 'timber'], [0xc98a4c, 'timber'], [0xe7c08d, 'timber'], [0xc9a36b, 'rope'], [0x2b2f36, 'iron'], [0x5a3a22, null],
+  [0xffd27a, null], [0xffc93c, null], [0xd8322f, null], [0x4e8a34, null], [0x5f9a3a, null], [0x6fae45, null], [0xf4efe6, null]];
 export const LIB_AREA_STATS = {};
 export function libAreaBuilt(id, built, ctx = null) {
   if (id === 'jungle_ruins') { import('./d2Blender.js').then(m => m.d2Built(built, ctx)).catch(e => console.warn('[d2]', e)); return; }   // [Timothy] D2 JUNGLE RUINS in Blender (&d2glb=0 = Post's kit)
   if (!LIB_ON || !built) return;
+  if (id === 'hill_round') { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, RB_RULES, { floor: [{ y0: 20.0, y1: 20.35, from: 'stone_ashlar', to: 'cobble' }, { from: 'stone_ashlar', to: 'stone_trim' }], wear: true }), 0); return; }
   if (id === 'hilltop_fort') LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, FORT_RULES, { floor: { y0: 35.9, y1: 36.4, from: 'stone_ashlar', to: 'cobble' } }), 0);
   else if (/^route_/.test(id)) { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { floor: { from: 'stone_ashlar', to: 'stone_trim' }, wear: true }), 0);
     if (id === 'route_low' && ctx) import('./gateJunction.js').then(({ buildGateJunction, mergeInto, GATEJX }) => {   // the hill street's top end (BANKSY 9:55 PM); lazy: keeps look.js's imports light

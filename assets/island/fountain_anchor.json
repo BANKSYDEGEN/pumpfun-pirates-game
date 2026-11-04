@@ -1,0 +1,21 @@
+{
+ "note": "Fountain plaza (js/island/areas/hillRound.js FOUNTAIN_ANCHORS). rim = where a player stands for the prompt (world feet y); coin = the splash point on the basin water; radius = the prompt trigger radius around rim. &roundabout=0 = no fountain.",
+ "fountain": {
+  "x": -425.5,
+  "z": -88,
+  "basinR": 4.2,
+  "rimY": 20.85,
+  "waterY": 20.72
+ },
+ "rim": {
+  "x": -430.25,
+  "y": 20.1,
+  "z": -88
+ },
+ "coin": {
+  "x": -428.1,
+  "y": 20.72,
+  "z": -88
+ },
+ "radius": 1.6
+}

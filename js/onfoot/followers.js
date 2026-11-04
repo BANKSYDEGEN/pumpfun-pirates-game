@@ -52,7 +52,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground
       let x = W.x + bx * (1.2 + i * 0.9), z = W.z + bz * (1.2 + i * 0.9); if (world.blocked(x, z, W.x, W.z)) { x = W.x; z = W.z; }
-      Object.assign(c, { x, z, yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); placeBody(c.body, world, x, z); c.y = c.body.y; c.p.object.visible = true; place(c); });
+      Object.assign(c, { x, z, yaw: W.yaw, speed: 0, jt: 0, idleT: 0, stuck: 0 }); placeBody(c.body, world, x, z, W.y); c.y = c.body.y; c.p.object.visible = true; place(c); }); // [path-fix2] W.y: land on a high bridge with you
     active = true;
   }
   function exit() { active = false; for (const c of crew) c.p.object.visible = false; }
@@ -60,9 +60,9 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
   const trailAt = (d) => TR.at(d, walker.w.x, walker.w.z);
   const ko = (x, z, i) => { try { return keepOut ? keepOut(x, z, i) : null; } catch { return null; } };
   const blocked = (x, z, fx, fz) => world.blocked(x, z, fx, fz) || (!!keepOut && !ko(fx, fz, 0) && !!ko(x, z, 0)); // [Emerly] never step into an arena
-  const move = makeMover(blocked, DEFLECT); // slide along walls like the walker, ≤0.3 m sub-steps; [Timothy collisions] walk round a post / barrel / lamp
+  const mv0 = makeMover(blocked, DEFLECT), move = (c, dx, dz) => { world.layer?.(c.y); const g = mv0(c, dx, dz); world.layer?.(null); return g; }; // [path-fix2] high bridges: this follower's height; slide along walls like the walker, ≤0.3 m sub-steps; [Timothy collisions] walk round a post / barrel / lamp
   const free = (x, z, fx, fz) => !world.blocked(x, z, fx, fz);
-  const snap = (c) => { placeBody(c.body, world, c.x, c.z); c.y = c.body.y; };
+  const snap = (c) => { placeBody(c.body, world, c.x, c.z, walker.w.y); c.y = c.body.y; }; // [path-fix2] regroup onto a high bridge when you're on it
   const cap = (c, want) => { if (c.body.swim) want = Math.min(want, want > 4.2 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); return want; }; // [Raul swim-anim] pull-up
   const env = { trail: TR, move, ko, free, cap, place: snap, deflect: !!DEFLECT, back: 0, side: 0, i: 0 };
   const fx = waterFX(scene, low);

@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Kit, M, box, cyl, hash, jitter, C } from './areas/common.js';
 import { _route as RT, ROUTE } from './areas/route.js';
+import { RB_ON } from './areas/index.js'; import { RB2 } from './areas/hillRound.js';   // [roundabout-bridge] no flags under the fountain plaza deck
 import { Htri, trailDist } from './foot.js';   // the drawn terrain triangles (this module is loaded lazily, after foot.js)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
@@ -35,7 +36,8 @@ export function buildGateJunction({ MATS, OUT, low, H: Hb }, LIB) {
   if (!GATEJX_ON || !RT.ready || !RT.street) return null;
   const k = new Kit(), id = (n) => 20 + LIB.LIB_ID[n], add = (g, c, m, mat, o = false) => k.add(g, c, { m, mat: id(mat), outline: o });
   const P = GATEJX.pad, st = { flags: 0, caps: 0, rocks: 0, tufts: 0 };
-  const inPad = (x, z, s = 1) => x > P.xMin && ((x - P.x) / (P.rx * s)) ** 2 + ((z - P.z) / (P.rz * s)) ** 2 < 1;
+  const inRB = (x, z) => RB_ON && x > RB2.plaza[0] - 0.3 && x < RB2.plaza[1] + 0.3 && z > RB2.plaza[2] - 0.3 && z < RB2.plaza[3] + 0.3;
+  const inPad = (x, z, s = 1) => x > P.xMin && ((x - P.x) / (P.rx * s)) ** 2 + ((z - P.z) / (P.rz * s)) ** 2 < 1 && !inRB(x, z);
   // ---- the flagstone pad: running-bond courses across the junction (x strips), irregular rim
   { let x = P.xMin; for (let c = 0; x < P.x + P.rx; c++) { const w = 0.95 + hash(c, 1.7) * 0.5; let z = P.z - P.rz - hash(c, 2.1) * 0.8;
       for (let r = 0; z < P.z + P.rz; r++) { const l = 0.8 + hash(c, r + 3.3) * 0.7, cx = x + w / 2, cz = z + l / 2;
@@ -99,6 +101,7 @@ export function buildGateJunction({ MATS, OUT, low, H: Hb }, LIB) {
 }
 
 // merge the dressing into the area's own toon / outline meshes (same materials -> no extra draw calls); falls back to adding the group
+const inRBp = (x, z) => RB_ON && x > RB2.plaza[0] - 0.8 && x < RB2.plaza[1] + 0.8 && z > RB2.plaza[2] - 0.8 && z < RB2.plaza[3] + 0.8;   // [roundabout-bridge] + Post's edging under the plaza deck
 export function mergeInto(near, grp) {
   if (!near || !grp) return 0; let merged = 0;
   const own = []; near.traverse(o => { if (o.isMesh) own.push(o); });
@@ -106,7 +109,7 @@ export function mergeInto(near, grp) {
   // (degenerate triangles; nothing else is touched) - the pad's rim is the edge now
   { const P = GATEJX.pad, cs = [], Hs = GATEJX._H; for (let a = 1; a < 60; a += 0.5) { let i = 1; while (i < RT.pts.length - 1 && RT.acc[i] < a) i++; const A = RT.pts[i - 1], B = RT.pts[i], L = RT.acc[i] - RT.acc[i - 1] || 1, t = (a - RT.acc[i - 1]) / L,
       x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t, ux = (B[0] - A[0]) / L, uz = (B[1] - A[1]) / L;
-      for (const sd of [-1, 1]) { const cx = x + uz * 2.75 * sd, cz = z - ux * 2.75 * sd; if (cx > P.xMin - 0.6 && ((cx - P.x) / P.rx) ** 2 + ((cz - P.z) / P.rz) ** 2 < 1.1) cs.push([cx, cz]); } }
+      for (const sd of [-1, 1]) { const cx = x + uz * 2.75 * sd, cz = z - ux * 2.75 * sd; if ((cx > P.xMin - 0.6 && ((cx - P.x) / P.rx) ** 2 + ((cz - P.z) / P.rz) ** 2 < 1.1) || inRBp(cx, cz)) cs.push([cx, cz]); } }
     let hid = 0; if (cs.length && Hs) for (const o of own) { const Pa = o.geometry.attributes.position; if (!Pa || o.geometry.index) continue; let ch = false;
       for (let t = 0; t + 2 < Pa.count; t += 3) { const x = (Pa.getX(t) + Pa.getX(t + 1) + Pa.getX(t + 2)) / 3, y = (Pa.getY(t) + Pa.getY(t + 1) + Pa.getY(t + 2)) / 3, z = (Pa.getZ(t) + Pa.getZ(t + 1) + Pa.getZ(t + 2)) / 3;
         if (!cs.some(([cx, cz]) => Math.hypot(x - cx, z - cz) < 0.72) || y - Hs(x, z) > 0.75 || y - Hs(x, z) < -0.5) continue;
