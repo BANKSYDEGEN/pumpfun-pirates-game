@@ -1,4 +1,5 @@
 // Stylized toon ships built in code: rounded plank hulls with painted strakes, railings,
+import { SHIP_MERGE, mergeShipBody, atlasCandidate, shipAtlas } from './staticMerge.js';
 // chunky cannons, cabins with glowing windows, crow's nest, lanterns, rippling sails, waving flags.
 import * as THREE from 'three';
 import { addCrew, dressCrew, addLookout, crewLodOf, setWalkLanes } from './crew.js'; // [Raul] deck crew
@@ -128,6 +129,7 @@ function kit(name, mainSailMap, art = false) {
     K.ratline = ratlineMat();
     K.art = true;
   }
+  for (const n of ['mast', 'iron', 'dark', 'ironK', 'darkK', 'ropeK']) if (kitObj[n]) kitObj[n].userData.atlasOK = true; // [perf4] js/staticMerge.js shipAtlas (gold / lid / upper stay: skins recolour them via kitMats)
   if (art) for (const m of Object.values(kitObj)) if (m?.isMaterial && m.customProgramCacheKey?.() !== 'sail') m.userData.art = true; // [Timothy v2] skins tone their glow down on the big flat castle walls
   _kits.set(k, kitObj);
   return kitObj;
@@ -419,6 +421,12 @@ class Parts {
     return this;
   }
   build(parent, outlined = new Set(), thickness = 0.05, shadows = false) {
+    { const cls = new Map(); for (const mat of this.by.keys()) if (atlasCandidate(mat)) { const k = (mat.vertexColors ? 'v' : 'p') + (outlined.has(mat) ? 'o' : ''); if (!cls.has(k)) cls.set(k, []); cls.get(k).push(mat); }
+      for (const [k, ms] of cls) { if (ms.length < 2) continue; const vc = k[0] === 'v', A = shipAtlas(ms, vc, ms[0].gradientMap), all = []; // [perf4] one atlas material per class
+        for (const m of ms) { const r = A.rect.get(m); for (const g of this.by.get(m)) { const n = g.attributes.position.count, a = new Float32Array(n * 4); for (let i = 0; i < n; i++) a.set(r, i * 4);
+            g.setAttribute('aAtl', new THREE.BufferAttribute(a, 4)); if (vc && !g.attributes.color) g.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3)); if (!vc) g.deleteAttribute('color'); all.push(g); }
+          this.by.delete(m); }
+        this.by.set(A.mat, all); if (k.includes('o')) outlined.add(A.mat); } }
     for (const [mat, list] of this.by) {
       const geo = mergeGeometries(list, false); geo.userData.tagRanges = mergedTags(list);
       const mesh = new THREE.Mesh(geo, mat);
@@ -861,6 +869,9 @@ export function buildShip(opts) {
   ship.userData.walkInfo = walkInfo; ship.userData.walkLanes = lanes; ship.userData.deckObs = obs; ship.userData.gunT = GT; ship.userData.rowFit = rowFit; ship.userData.gunSlots = gunSlots; ship.userData.room = art ? { z0: zAt(0), z1: zB, y0: deckAt(art.tB) - 0.1, y1: art.Q } : { z0: zAt(0), z1: cabZ + cabL / 2, y0: cabY0, y1: cabY0 + cabH, w: cabW / 2 }; // [Raul] tests + upgrade layers
   placeCrew(ship); // [Raul] gunners by their guns + walker lanes round everything (upgrade builds re-run it with their deck parts)
   ship.userData.layout = { shape, deckDrop, mastDefs, cab: { z: cabZ, l: cabL, w: cabW, h: cabH, y0: cabY0 }, bowY, bsL, flagPole, zAt, stretch };
+  if (SHIP_MERGE) { const mark = (v, d = 0) => { if (!v || d > 3) return; if (v.isObject3D) { v.traverse(o => { o.userData.noMerge = true; }); return; } if (Array.isArray(v)) v.forEach(x => mark(x, d + 1)); else if (typeof v === 'object' && !v.isMaterial && !v.isTexture && !v.isBufferGeometry) Object.values(v).forEach(x => mark(x, d + 1)); };
+    for (const [k, v] of Object.entries(ship.userData)) if (k !== 'body') mark(v);
+    ship.userData.merged = mergeShipBody(body); } // [perf4] same-material body parts -> one mesh (&shipmerge=0)
   return ship;
 }
 

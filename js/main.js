@@ -1,4 +1,5 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
+import { mergeIslandKits, installShadowProxies } from './staticMerge.js';
 import { DEV, devHook } from './env.js'; // [security L] console/test hooks exist on local dev servers only
 import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
@@ -114,7 +115,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const HIGH = quality === 'high';
-if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
+if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; } installShadowProxies(renderer); // [perf4] merged shadow-only meshes (js/staticMerge.js)
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0042);
@@ -1249,7 +1250,7 @@ function adaptResolution() {
 }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
-  if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable')); } // [perf3] deferred loads (music) start now
+  if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable'));  { let n = 0; const iv = setInterval(() => { window.__pfpKitMerged = (window.__pfpKitMerged || 0) + mergeIslandKits(scene); if (++n >= 45) clearInterval(iv); }, 4000); } } // [perf4] the on-foot world is built on harbor entry: merge whenever its kit meshes appear // [perf3] deferred loads (music) start now
   adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title' || (game.mode === 'pvp' && (game.state === 'shop' || game.state === 'paused')); // [pvp] the shared sea never pauses
   if (running) game.t += dt;
