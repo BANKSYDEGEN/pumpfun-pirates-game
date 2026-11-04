@@ -4,6 +4,8 @@
 //   import { applyShipGear } from './shipGear.js';  applyShipGear(shipMesh, gear)   // gear.flag / gear.figure (js/pirateGear.js ids); 'none' = the skin's own
 import * as THREE from 'three';
 import { flagMats, setTagHidden } from './ships.js';
+import { KIT } from './shipKit.js';
+import { loadPirateGLB } from './pirateGLB.js';
 
 export const SHIP_FLAGS = ['flag_cutlass', 'flag_red', 'flag_gold'];
 export const SHIP_FIGURES = ['fig_mermaid', 'fig_kraken', 'fig_lion'];
@@ -18,7 +20,35 @@ function cutlass(g, x, y, a, s, blade = '#e8edf2', hilt = '#e9b949') {
   g.fillStyle = hilt; g.fillRect(-34, 38, 52, 12); g.fillStyle = '#5a3420'; g.fillRect(-14, 50, 12, 36); g.fillStyle = hilt; g.beginPath(); g.arc(-8, 92, 9, 0, 7); g.fill(); g.restore();
 }
 // the flag canvas (512 x 340 like ships.js makeSkullTexture): the REAL skull logo image, never redrawn
+// [figureheads 2] the BLOOD RED flag, redrawn to the ships' quality: woven cloth with soft folds, a dark hoist sleeve with brass grommets, a
+// stitched border, the skull with a cast shadow, a few blood drips off the head, a battle-worn fly (charred, frayed, two shot holes)
+function drawRed(g, w, h, img) {
+  const rnd = ((k) => () => (k = (k * 16807) % 2147483647) / 2147483647)(7);
+  let gr = g.createRadialGradient(w * 0.56, h * 0.46, 20, w * 0.56, h * 0.46, w * 0.62); gr.addColorStop(0, '#c0141f'); gr.addColorStop(0.65, '#9a0c16'); gr.addColorStop(1, '#5e070c');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 5; i++) { const x = 60 + i * 96, f = g.createLinearGradient(x - 48, 0, x + 48, 0); f.addColorStop(0, 'rgba(0,0,0,0)'); f.addColorStop(0.5, i % 2 ? 'rgba(255,190,190,0.07)' : 'rgba(0,0,0,0.13)'); f.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = f; g.fillRect(x - 48, 0, 96, h); }
+  g.globalAlpha = 0.07; g.fillStyle = '#fff'; for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1); g.fillStyle = '#000'; for (let x = 0; x < w; x += 4) g.fillRect(x, 0, 1, h); g.globalAlpha = 1;
+  // stitched border
+  g.strokeStyle = '#2a0508'; g.lineWidth = 9; g.strokeRect(44, 12, w - 58, h - 24); g.setLineDash([9, 7]); g.strokeStyle = 'rgba(240,200,160,0.55)'; g.lineWidth = 2; g.strokeRect(56, 24, w - 82, h - 48); g.setLineDash([]);
+  // blood drips off the head of the border
+  g.fillStyle = '#4a0408'; for (const [x, l] of [[120, 34], [178, 18], [262, 46], [344, 24], [418, 38]]) { g.beginPath(); g.moveTo(x - 6, 14); g.lineTo(x + 6, 14); g.lineTo(x + 3, 14 + l); g.arc(x, 14 + l, 4.5, 0, Math.PI); g.closePath(); g.fill(); }
+  // the skull (the real logo) with its shadow
+  if (img.complete && img.naturalWidth) {
+    const s = h * 0.7, ar = img.naturalWidth / img.naturalHeight, sw = ar >= 1 ? s : s * ar, sh = ar >= 1 ? s / ar : s, x = (w - sw) / 2 + 18, y = (h - sh) / 2;
+    const t = document.createElement('canvas'); t.width = sw; t.height = sh; const tg = t.getContext('2d'); tg.drawImage(img, 0, 0, sw, sh); tg.globalCompositeOperation = 'source-atop'; tg.fillStyle = '#1a0204'; tg.fillRect(0, 0, sw, sh);
+    g.globalAlpha = 0.45; g.drawImage(t, x + 6, y + 7); g.globalAlpha = 1; g.drawImage(img, x, y, sw, sh);
+  }
+  // hoist sleeve + brass grommets
+  gr = g.createLinearGradient(0, 0, 40, 0); gr.addColorStop(0, '#1c0306'); gr.addColorStop(1, '#3e070c'); g.fillStyle = gr; g.fillRect(0, 0, 40, h);
+  g.setLineDash([6, 6]); g.strokeStyle = 'rgba(230,190,150,0.5)'; g.lineWidth = 2; g.beginPath(); g.moveTo(37, 0); g.lineTo(37, h); g.stroke(); g.setLineDash([]);
+  for (const y of [h * 0.12, h * 0.5, h * 0.88]) { g.fillStyle = '#e0b04a'; g.beginPath(); g.arc(20, y, 9, 0, 7); g.fill(); g.fillStyle = '#7a5410'; g.beginPath(); g.arc(20, y, 9, 0, 7); g.lineWidth = 2; g.strokeStyle = '#7a5410'; g.stroke(); g.fillStyle = '#120204'; g.beginPath(); g.arc(20, y, 4.5, 0, 7); g.fill(); }
+  // battle-worn fly: a charred, frayed edge and two shot holes
+  g.fillStyle = '#240406'; g.beginPath(); g.moveTo(w, 0); for (let y = 0; y <= h; y += 10) g.lineTo(w - 10 - rnd() * 26, y); g.lineTo(w, h); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(40,4,6,0.8)'; g.lineWidth = 2; for (let y = 6; y < h; y += 9) { const x = w - 30 - rnd() * 22; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 10 - rnd() * 14, y + 2); g.stroke(); }
+  for (const [x, y, r] of [[w - 80, h * 0.24, 7], [w - 128, h * 0.78, 5]]) { g.fillStyle = '#5a1a12'; g.beginPath(); g.arc(x, y, r + 4, 0, 7); g.fill(); g.fillStyle = '#0c0203'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+}
 export function drawFlag(id, c) {
+  if (id === 'flag_red') { c.width = 512; c.height = 340; drawRed(c.getContext('2d'), 512, 340, skullImg()); return c; }
   const w = c.width = 512, h = c.height = 340, g = c.getContext('2d'), img = skullImg(), S = { flag_cutlass: ['#0b0b0b', null], flag_red: ['#9e0c14', '#1a0a0a'], flag_gold: ['#14100a', '#f2c230'] }[id] || ['#0b0b0b', null];
   g.fillStyle = S[0]; g.fillRect(0, 0, w, h); g.globalAlpha = 0.07; g.fillStyle = '#fff'; for (let y = 0; y < h; y += 6) g.fillRect(0, y, w, 1); g.globalAlpha = 1;
   if (S[1]) { g.strokeStyle = S[1]; g.lineWidth = 14; g.strokeRect(9, 9, w - 18, h - 18); }
@@ -44,7 +74,7 @@ function flagTex(id) {
 // ---------- figureheads (toon, one merged mesh per figure; built once per id, shared geometry) ----------
 const _figs = new Map(); let _grad = null;
 const grad = () => _grad || (_grad = (() => { const t = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 170, 170, 170, 255, 235, 235, 235, 255, 255, 255, 255, 255]), 4, 1); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })());
-function figGeo(id) {
+function figGeoOld(id) {   // the procedural fallback (the GLB below failed / is not loaded yet)
   if (_figs.has(id)) return _figs.get(id);
   const parts = [], c = new THREE.Color();
   const add = (geo, hex, p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1]) => { const g = geo.toNonIndexed(); g.deleteAttribute('uv'); g.scale(...s); g.rotateX(r[0]); g.rotateY(r[1]); g.rotateZ(r[2]); g.translate(...p); c.set(hex);
@@ -95,9 +125,77 @@ function mergeGeos(list) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('color', new THREE.BufferAttribute(C, 3)); return g;
 }
 let _mat = null; const figMat = () => _mat || (_mat = new THREE.MeshToonMaterial({ name: 'ship_figure', vertexColors: true, gradientMap: grad() }));
-export function figureMesh(id) { const m = new THREE.Mesh(figGeo(id), figMat()); m.name = 'shipgear_figure'; m.userData.sharedGeo = true; return m; }
-// FIGURE seat: Timothy's figure info (ships.js figInfo p = the seat on the cutwater, s = its scale); a ship without the kit figure: the bow
-const FIG_K = 1.35, FIG_DY = 0.5, FIG_DZ = 0.85;   // figure size vs the kit figure; DY drops its centre (figures are ~1.5 tall from y 0) onto the skull-in-a-tricorn, DZ pushes it ahead of it
+// [figureheads 2] the carved figureheads: tools/blender/figureheads/build_figureheads.py -> assets/ships/gear/figureheads_{hi,lo}.glb (draco, one
+// mesh per id, vertex colour + baked AO + its own ink shell). High ~4.5k tris, Low (phones) ~1.3k. Frame: y up, z forward, z = 0 = the figure's
+// BACK (its mount plane), a mount block behind it. figuresReady(lo) loads once (main.js / island await it with the ship kit); a ship dressed
+// before it lands gets the old procedural figure and is re-dressed when it does.
+const _glb = { hi: null, lo: null }, _load = {}; let _lo = null;
+const figLo = () => (_lo ?? !!KIT.lo);
+export function figuresReady(lo) {
+  if (lo != null && _lo == null) _lo = !!lo; const k = figLo() ? 'lo' : 'hi';
+  if (!_load[k]) _load[k] = Promise.race([loadPirateGLB(new URL(`../assets/ships/gear/figureheads_${k}.glb`, import.meta.url).href).then((gl) => {
+      const out = new Map(); gl.scene.updateMatrixWorld(true);
+      gl.scene.traverse((o) => { if (!o.isMesh || !SHIP_FIGURES.includes(o.name)) return; const g = o.geometry.clone().applyMatrix4(o.matrixWorld), a = g.attributes.color;
+        if (a && (a.itemSize === 4 || a.normalized)) { const c = new Float32Array(a.count * 3); for (let i = 0; i < a.count; i++) { c[i * 3] = a.getX(i); c[i * 3 + 1] = a.getY(i); c[i * 3 + 2] = a.getZ(i); } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); }
+        for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(n)) g.deleteAttribute(n);
+        g.computeBoundingSphere(); g.computeBoundingBox(); out.set(o.name, g); });
+      _glb[k] = out; return true; }), new Promise((r) => setTimeout(() => r(false), 10000))]).catch((e) => { console.warn('[ship gear] figureheads: procedural fallback', e?.message || e); return false; });
+  return _load[k];
+}
+const figGeo = (id) => _glb[figLo() ? 'lo' : 'hi']?.get(id) || null;
+export function figureMesh(id) { const g = figGeo(id), m = new THREE.Mesh(g || figGeoOld(id), figMat()); m.name = 'shipgear_figure'; m.userData.sharedGeo = true; m.userData.carved = !!g; return m; }
+// SEAT: the figure's back plane is pressed onto the REAL bow of whatever was built (Timothy's kit hull, a skin's parts override, the COMMODORE
+// boss build): rays from ahead of the bow at the figure's heights (x = 0 and either side, median) find the stem; the figure tilts with its rake
+// and sits on its most forward point, its mount block (0.25 deep) filling any hollow behind. Height / size: Timothy's figure seat as before.
+const FIG_K = 1.35, FIG_DY = 0.5, FIG_DZ = 0.85, EMBED = 0.04, NRAY = 10;   // FIG_DZ: the old procedural figure only
+const _m4 = new THREE.Matrix4(), _bx = new THREE.Box3(), _sl = new THREE.Box3(), _p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+// the bow's front (max z) in NB height bins over [ya, yb], on the planes x = -w, 0, +w (body frame), median of the three per bin (a rope / stay
+// crossing one plane is not the stem). One pass over the triangles of the visible, solid meshes whose box reaches the slab (no raycaster: ~ms).
+function stemProfile(body, skip, w, ya, yb, NB) {
+  const Z = [0, 1, 2].map(() => new Float32Array(NB).fill(-1e9)), X = [-w, 0, w], vis = (o) => { for (let q = o; q && q !== body.parent; q = q.parent) if (!q.visible) return false; return true; };
+  body.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(body.matrixWorld).invert(); _sl.min.set(-w * 1.01, ya, -1e9); _sl.max.set(w * 1.01, yb, 1e9);
+  const put = (k, y0, z0, y1, z1) => { let i0 = Math.floor((y0 - ya) / (yb - ya) * NB), i1 = Math.floor((y1 - ya) / (yb - ya) * NB); if (i0 > i1) { [i0, i1] = [i1, i0]; [y0, y1] = [y1, y0]; [z0, z1] = [z1, z0]; }
+    for (let i = Math.max(0, i0); i <= Math.min(NB - 1, i1); i++) { const yc = ya + (i + 0.5) * (yb - ya) / NB, t = y1 > y0 ? Math.min(1, Math.max(0, (yc - y0) / (y1 - y0))) : 0, z = z0 + (z1 - z0) * t; if (z > Z[k][i]) Z[k][i] = z; } };
+  body.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || o === skip || !o.material || Array.isArray(o.material) || o.material.blending === THREE.AdditiveBlending || o.material.depthWrite === false || !vis(o)) return;
+    const g = o.geometry, P = g.attributes.position; if (!P) return; if (!g.boundingBox) g.computeBoundingBox(); _m4.multiplyMatrices(inv, o.matrixWorld);
+    if (!_bx.copy(g.boundingBox).applyMatrix4(_m4).intersectsBox(_sl)) return;
+    const I = g.index, n = I ? I.count : P.count, e = _m4.elements;
+    for (let t = 0; t < n; t += 3) { const ia = I ? I.getX(t) : t, ib = I ? I.getX(t + 1) : t + 1, ic = I ? I.getX(t + 2) : t + 2; if (ia === ib && ib === ic) continue;
+      let xmin = 1e9, xmax = -1e9, ymin = 1e9, ymax = -1e9;
+      for (let j = 0; j < 3; j++) { const q = _p[j], vi = j === 0 ? ia : j === 1 ? ib : ic, x = P.getX(vi), y = P.getY(vi), z = P.getZ(vi);
+        q.set(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14]);
+        xmin = Math.min(xmin, q.x); xmax = Math.max(xmax, q.x); ymin = Math.min(ymin, q.y); ymax = Math.max(ymax, q.y); }
+      if (xmax < -w || xmin > w || ymax < ya || ymin > yb) continue;
+      for (let k = 0; k < 3; k++) { const c = X[k]; if (xmax < c || xmin > c) continue; const pts = [];
+        for (let j = 0; j < 3; j++) { const A = _p[j], B = _p[(j + 1) % 3], da = A.x - c, db = B.x - c; if (da === 0) pts.push(A.y, A.z); else if (da * db < 0) { const f = da / (da - db); pts.push(A.y + (B.y - A.y) * f, A.z + (B.z - A.z) * f); } }
+        if (pts.length >= 4) put(k, pts[0], pts[1], pts[2], pts[3]); else if (pts.length === 2) put(k, pts[0], pts[1], pts[0], pts[1]); } } });
+  return Array.from({ length: NB }, (_, i) => { const v = [Z[0][i], Z[1][i], Z[2][i]].sort((a, b) => a - b)[1]; return v > -1e8 ? v : null; });
+}
+const _seats = new Map();   // ship build key -> seat (PvP: one sweep per build, not per ship)
+export function seatFigure(body, m, u) {
+  const fi = u.figure, fs = fi ? fi.s : (u.depth || 3) / 3.1 * 1.05, sc = fs * FIG_K, L = u.layout;
+  const y0 = fi ? fi.p[1] - FIG_DY * sc : (fi?.bowY ?? L?.bowY ?? 2) - 0.95 * fs - FIG_DY * sc, zb = fi ? fi.zb : (L?.zAt ? L.zAt(1) : (u.len || 16) / 2);
+  m.scale.setScalar(sc); m.rotation.set(0, 0, 0); m.position.set(0, y0, zb);
+  if (!m.userData.carved) { if (fi) m.position.z = fi.p[2] + FIG_DZ * fi.s; m.rotation.x = -0.35; return; }
+  const key = (u.key || '') + '|' + (u.skinId || '') + '|' + m.geometry.uuid, hit = u.key ? _seats.get(key) : null;
+  if (hit) { m.rotation.x = hit[0]; m.position.z = hit[1]; m.position.y = hit[3]; m.scale.setScalar(hit[4]); m.userData.seat = hit[2]; return; }
+  const bowY = fi?.bowY ?? L?.bowY ?? y0 + 2 * sc, top = Math.min(y0 + 1.25 * sc, bowY - 0.12 * sc), ya = y0 - 0.35 * sc, z = stemProfile(body, m, 0.1 * sc, ya, top, NRAY);
+  const P = z.map((v, k) => [ya + (k + 0.5) * (top - ya) / NRAY, v]).filter((p) => p[1] != null); if (P.length < 2) { m.position.z = zb; return; }
+  // the stem: walk down from the top bin while the bow stays within 0.15 of a figure of the bin above; a jump forward is a protrusion (a RAM
+  // blade under the figure): the figure then stands on it (lifted clear of its top, scaled to fit under the bowsprit). Then least squares.
+  P.sort((a, b) => b[0] - a[0]); const Q = [P[0]]; let yp = null;
+  for (let k = 1; k < P.length; k++) { if (P[k][1] > Q[Q.length - 1][1] + 0.15 * sc) { yp = P[k][0] + 0.5 * (top - ya) / NRAY + 0.03 * sc; break; } Q.push(P[k]); }
+  if (yp != null && yp > y0 - 0.42 * sc) {   // the ceiling over it: the bowsprit (the first bin above the stem head that reaches well forward)
+    const cy0 = bowY - 0.6 * sc, cy1 = bowY + 1.2 * sc, C = stemProfile(body, m, 0.1 * sc, cy0, cy1, 12); let ceil = cy1;
+    for (let k = 0; k < 12; k++) if (C[k] != null && C[k] > Q[0][1] + 0.5 * sc) { ceil = cy0 + k * (cy1 - cy0) / 12; break; }
+    const k = Math.max(0.45, Math.min(1, (ceil - 0.03 * sc - yp) / (1.97 * sc))); m.scale.setScalar(sc * k); m.position.y = Math.max(y0, yp + 0.42 * sc * k); }
+  const my = Q.reduce((s, p) => s + p[0], 0) / Q.length, mz = Q.reduce((s, p) => s + p[1], 0) / Q.length;
+  const sl = Q.length < 2 ? 0 : Math.max(0, Math.min(0.6, Q.reduce((s, p) => s + (p[0] - my) * (p[1] - mz), 0) / Math.max(1e-6, Q.reduce((s, p) => s + (p[0] - my) ** 2, 0))));
+  const res = Q.map((p) => p[1] - (mz + sl * (p[0] - my))), keep = res;
+  m.rotation.x = Math.atan(sl); m.position.z = mz + sl * (m.position.y - my) + Math.max(...keep) - EMBED * sc; m.userData.seat = { sl: +sl.toFixed(3), res: res.map((r) => +r.toFixed(2)) };
+  if (u.key) _seats.set(key, [m.rotation.x, m.position.z, m.userData.seat, m.position.y, m.scale.x]);
+}
 export function applyShipGear(ship, gear) {
   if (!ship?.userData) return; const u = ship.userData, fl = SHIP_FLAGS.includes(gear?.flag) ? gear.flag : null, fg = SHIP_FIGURES.includes(gear?.figure) ? gear.figure : null;
   const key = (fl || '') + '|' + (fg || ''); if (u.shipGearKey === key) return; u.shipGearKey = key;
@@ -111,9 +209,7 @@ export function applyShipGear(ship, gear) {
     }
     const body = u.body || ship; const old = body.getObjectByName('shipgear_figure'); if (old) old.removeFromParent();
     setTagHidden(ship, 'fig', !!fg);   // [Raul shop2 fixes] BANKSY via Emerly: a shop figurehead REPLACES Timothy's skull-in-a-tricorn (+ its max-HULL crown + wings), no overlap
-    if (fg) { const fi = u.figure, m = figureMesh(fg);
-      if (fi) { const sc = fi.s * FIG_K; m.position.set(fi.p[0], fi.p[1] - FIG_DY * sc, fi.p[2] + FIG_DZ * fi.s); m.scale.setScalar(sc); }
-      else { const L = u.layout; m.position.set(0, (L?.bowY ?? 2) - 1.0, (L?.zAt ? L.zAt(1) : (u.len || 16) / 2) - 0.3); m.scale.setScalar(0.9); }
-      m.rotation.x = -0.35; m.castShadow = true; body.add(m); }
+    if (fg) { const m = figureMesh(fg); m.castShadow = true; seatFigure(body, m, u); body.add(m);
+      if (!m.userData.carved) figuresReady().then((ok) => { if (ok && m.parent && !u.baked) { u.shipGearKey = null; applyShipGear(ship, gear); } }); }
   } catch (e) { console.warn('[ship gear]', e); }
 }

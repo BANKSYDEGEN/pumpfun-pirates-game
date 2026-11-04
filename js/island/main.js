@@ -13,7 +13,7 @@ import { createOcean, createSky, WAVES, FOG_COLOR } from '../ocean.js';
 import { wind, makeSkullTexture, animateShip } from '../ships.js';
 import { setCrewQuality } from '../crew.js';
 import { compileShip } from '../upgradeVisuals.js';
-import { applyShipGear } from '../shipGear.js'; import { getLocalGear } from '../pirateGear.js'; // [Raul shop2 fixes] your shop flag + figurehead on YOUR ship in the harbor
+import { applyShipGear, figuresReady } from '../shipGear.js'; import { getLocalGear } from '../pirateGear.js'; // [Raul shop2 fixes] your shop flag + figurehead on YOUR ship in the harbor
 import { getSkin } from '../skins.js';
 import { createIslands } from '../props.js';
 import { PVP_ARENA_R, ISLAND_TOKENS } from '../config.js';
@@ -186,6 +186,7 @@ function setLod(d) {
 }
 
 // ---------- ships (the real game ship compiler) ----------
+await figuresReady(LOW);   // [figureheads 2] your carved shop figurehead is in before your ship is baked
 setCrewQuality(LOW ? 'low' : 'high', phone);
 const flagTex = skull ? makeSkullTexture(skull, { w: 512, h: 340, pad: 0.1 }) : null;
 const sailTex = skull ? makeSkullTexture(skull, { w: 512, h: 400, bg: '#121212', pad: 0.14 }) : null;

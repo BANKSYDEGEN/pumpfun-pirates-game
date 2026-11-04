@@ -8,7 +8,7 @@ import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
 import { setLocalSkin } from './pirateGear.js'; // [Timothy] shop clothes follow your ship skin
-import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] your shop FLAG + FIGUREHEAD on your ship
+import { applyShipGear, figuresReady } from './shipGear.js'; // [Raul shop items 2] your shop FLAG + FIGUREHEAD on your ship
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
 import { initCrewV4 } from './crewV4.js'; import { pirateBodyLod } from './pirateGLB.js';
 import { syncCrewGear } from './crewGear.js';
@@ -74,7 +74,7 @@ const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfx
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
 setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
-await initKit(quality === 'low' || isMobile);
+await Promise.all([initKit(quality === 'low' || isMobile), figuresReady(quality === 'low' || isMobile)]); // [figureheads 2] + the carved shop figureheads (same LOD)
 const crewV4P = initCrewV4({ lod: pirateBodyLod({ low: quality === 'low' || isMobile, many: true, quality }) }); let crewV4Late = false; // [crew holes] HIGH desktops bake the High body (the v128 walking-crew fix)
 await Promise.race([crewV4P, new Promise(r => setTimeout(() => { crewV4Late = true; r(); }, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 // [v112] Raul: a late bake (slow phone) re-bakes every crew built meanwhile (rebakeCrewV4) and re-dresses yours, instead of keeping the placeholder crew forever
