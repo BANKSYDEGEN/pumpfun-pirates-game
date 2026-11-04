@@ -4,10 +4,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 const mkEl = () => { const cls = new Set(), kids = new Map();
   return { style: {}, dataset: {}, textContent: '', innerHTML: '', classList: { add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) },
-    addEventListener() {}, appendChild() {}, querySelector: (s) => { if (!kids.has(s)) kids.set(s, mkEl()); return kids.get(s); }, querySelectorAll: () => [] }; };
+    addEventListener() {}, appendChild() {}, setAttribute() {}, removeAttribute() {}, remove() {}, append() {}, focus() {}, querySelector: (s) => { if (!kids.has(s)) kids.set(s, mkEl()); return kids.get(s); }, querySelectorAll: () => [] }; };
 const W = new EventTarget();
 globalThis.window = W; globalThis.CustomEvent ??= class extends Event { constructor(t, o = {}) { super(t); this.detail = o.detail; } };
-globalThis.document = { createElement: mkEl, head: mkEl(), body: mkEl() };
+globalThis.document = { createElement: mkEl, head: mkEl(), body: mkEl(), documentElement: mkEl(), addEventListener() {}, removeEventListener() {} };
 const { createInventory } = await import('../js/inventory/ui.js');
 const calls = [], inv = createInventory({ pvp: () => ({ inv: { call: async (a) => { calls.push(a); return { ok: true, items: [], maps: [], flags: {}, equipped: {} }; } } }), toast() {} });
 const fire = (detail) => W.dispatchEvent(new CustomEvent('pfp-shop', { detail }));

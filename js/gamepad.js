@@ -148,7 +148,7 @@ let _rumble = null; export const padRumble = (w, s, ms) => { if (active) _rumble
 // ---------- menus: what is open on top ----------
 // top-most first; the first one that is really on screen is the layer the focus ring walks
 const LAYERS = ['#ctl-ov', '.pfp-hatcolor', '#prest-confirm', '.ishop-confirm', '#pfp-share', '#acct-login', '#ch-reveal', '#tm-reveal', '#tm-map', '#isle-map', '#emote-wheel',
-  '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title'];
+  '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title'];
 const FOCUSABLE = 'button, a[href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"]), [role=button], [role=menuitem], [role=tab], [role=radio], .ew-opt, .iv-slot, [data-id], [data-skin], tr[data-id]'; // + the inventory / shop card grids (divs with a click handler)
 function shown(el) {
   if (!el || el.hidden || !el.isConnected) return false; const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false;
