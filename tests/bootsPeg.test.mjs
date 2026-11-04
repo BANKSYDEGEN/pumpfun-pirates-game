@@ -32,7 +32,7 @@ for (const boot of BOOTS) for (const who of ['male', 'female']) for (const lod o
     assert.ok(zmin > -0.01 && zmin < 0.002, 'sole on the floor ' + zmin);
     for (const s of ['L', 'R']) { assert.ok(top[s] > BOOT_CUT[boot][who] + 0.02, `${s} top ${top[s]} over the cut`); assert.ok(top[s] < PEG_CUT[who] + 0.03, 'under the knee'); }
     assert.ok(BOOT_CUT[boot][who] < PEG_CUT[who], 'boot hide line under the peg sleeve cut');
-    const tris = I.length / 3; assert.ok(tris < (lod === 'lo' ? 2800 : 9000), 'tris ' + tris);
+    const tris = I.length / 3; assert.ok(tris < (lod === 'lo' ? 3400 : 12000), 'tris ' + tris);   // [boots 4] BANKSY-approved caps: hi ~12k, lo +25%
   });
   for (const peg of PEGS) for (const side of ['L', 'R']) test(`${boot} x ${peg} ${side} (${who} ${lod}): the peg-side boot is hidden, the other foot keeps its boot`, () => {
     // the peg item routes to slot leg<side> (js/pirateGear.js), its v5 fit lives on that side

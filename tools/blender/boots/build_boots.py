@@ -79,35 +79,44 @@ for sx in (1, -1):
   lo = np.array([min(fx0, fx1) - 0.05, fy0 - 0.06, -0.006]); hi_ = np.array([max(fx0, fx1) + 0.05, fy1 + 0.06, TOP + 0.05])
   gx, gy, gz = [np.arange(lo[k], hi_[k], STEP) for k in range(3)]
   X, Y, Z = np.meshgrid(gx, gy, gz, indexing='ij')
-  # ---- the leather upper: toe box (rounded, bulbous toe) U ankle U shaft, smooth unions
-  mx = 0.012; fcx = (fx0 + fx1) / 2; fhx = abs(fx1 - fx0) / 2 + mx; toe = fy0 - mx - 0.006; heel = fy1 + mx
-  foot_top = float(np.percentile(foot[foot[:, 1] < fy0 + 0.08][:, 2], 98)) if (foot[:, 1] < fy0 + 0.08).any() else 0.07
-  fl = (heel - toe) / 2; fcy = (heel + toe) / 2; FOOT[sx] = (fcx, toe, heel)
-  d_foot = sd_superellipsoid(X - fcx, Y - fcy, Z - 0.045, fhx, fl, max(0.05, foot_top + 0.012 - 0.045) , 3.2, 2.6)
-  # toe box: fatter dome at the front (vinyl-toy bulb)
-  d_toe = sd_ellipsoid(X - fcx, Y - (toe + 0.07), Z - 0.042, fhx * 1.02, 0.085, foot_top + 0.004 - 0.02)
-  # shaft: polar envelope + margin, interpolated in z (flare per style)
+  # ---- [boots 4] BANKSY "make them look like real shoes not Mickey Mouse feet": a lasted shoe, not a bulb. The body + base outfit
+  # below BOOT_CUT are hidden under the boot, so under the cut the boot no longer has to swallow the chibi foot: slim tapered toe,
+  # arch + instep, stacked heel, the shaft narrows to the ankle and fits the calf; above the cut it still wraps the leg / pant hem.
+  bfx = abs(fx1 - fx0) / 2; fcx = (fx0 + fx1) / 2
+  toe = fy0 - 0.022; heel = fy1 + 0.004; Lf = heel - toe
+  HH = {'cavalier': 0.047, 'buckle': 0.036, 'gold': 0.038}[STYLE]   # stacked heel height
+  T = np.clip((heel - Y) / Lf, -0.05, 1.05)                                       # 0 heel .. 1 toe tip
+  W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], [0.40, 0.50, 0.55, 0.56, 0.64, 0.58, 0.44, 0.22, 0.12])   # half width: heel, waist, ball, taper
+  ZB = np.interp(T, [0.0, 0.24, 0.55, 0.9, 1.0], [HH, HH, 0.013, 0.013, 0.022])   # the upper's underside = the sole's top (toe spring)
+  ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], [0.06, 0.088, 0.112, 0.104, 0.075, 0.058, 0.048, 0.036, 0.03])   # heel counter, instep, low toe
+  zc = (ZB + ZT) / 2; hz = np.maximum((ZT - ZB) / 2, 0.006)
+  q = (np.abs(X - fcx) / W) ** 2.6 + (np.abs(Z - zc) / hz) ** 2.2
+  d_foot = (q ** (1 / 2.4) - 1) * np.minimum(W, hz)
+  d_foot = np.maximum(d_foot, np.maximum(Y - heel, toe - Y))
+  fhx = bfx * 0.64   # the ball half width (straps / caps below)
+  # shaft: the leg envelope, kept above the cut (wraps the leg + pant hem), narrowing to a slim ankle below it, a fitted calf between
   ms = 0.011 if STYLE != 'cavalier' else 0.013
-  d_shaft = sd_polar(X, Y, Z, zs, cen, RR, ms, 0.03, TOP, flare=(0.010 if STYLE == 'cavalier' else 0.004))
-  up = smin(smin(d_foot, d_toe, 0.02), d_shaft, 0.035)
-  # catch-all: anything of the leg below the top this shape still misses gets covered (sphere union), then smooth
-  kd = cKDTree(Pl); dd, _ = kd.query(np.c_[X.ravel(), Y.ravel(), Z.ravel()], distance_upper_bound=0.05); dd = np.minimum(dd, 0.05).reshape(X.shape)
-  up = np.minimum(up, dd - 0.010)
+  kz = np.interp(zs, [0.05, 0.095, CUT - 0.035, CUT - 0.005], [0.56, 0.58, 0.88, 1.0])[:, None]
+  RRs = RR * kz; d_shaft = sd_polar(X, Y, Z, zs, cen, RRs, ms * np.interp(Z, [0.05, CUT - 0.01], [0.2, 1.0]), 0.05, TOP, flare=(0.010 if STYLE == 'cavalier' else 0.004))
+  up = smin(d_foot, d_shaft, 0.022)
+  # catch-all only above the cut (below it the leg is hidden): anything of the leg there the shaft misses gets covered
+  Pk = Pl[Pl[:, 2] > CUT - 0.006]
+  if len(Pk):
+    kd = cKDTree(Pk); dd, _ = kd.query(np.c_[X.ravel(), Y.ravel(), Z.ravel()], distance_upper_bound=0.05); dd = np.minimum(dd, 0.05).reshape(X.shape)
+    up = np.minimum(up, np.maximum(dd - 0.010, CUT - 0.012 - Z))
   up = np.maximum(up, Z - TOP)                 # flat top (the pants cover it / the cuff sits on it)
-  up = np.maximum(up, 0.010 - Z)               # the sole takes the bottom
-  up = ndimage.gaussian_filter(up, 1.1 if HI else 0.8)
+  up = np.maximum(up, ZB - 0.002 - Z)          # the sole takes the bottom (follows the heel / arch)
+  up = ndimage.gaussian_filter(up, 1.0 if HI else 0.8)
   G = (X, Y, Z, lo, STEP)
   INNER = 0.015   # the inner wall stays this far off the centre line (the other leg: no touching / crossing on walk, swim, emotes)
   up = smax(up, INNER - sx * X, 0.008)
-  # sole + heel block: footprint of the upper at z 0.02, 7 mm proud, rounded slab; heel taller at the back (cavalier: stacked heel)
-  foot2d = ndimage.gaussian_filter(np.min(np.where(np.abs(Z - 0.022) < STEP * 1.5, up, 9), axis=2), 1.0)[:, :, None]
-  hz = {'cavalier': 0.040, 'buckle': 0.036, 'gold': 0.035}[STYLE]   # [boots 3] a defined heel block
-  heel_r = np.clip((Y - (heel - 0.075)) / 0.03, 0, 1)
-  sole_top = 0.022 + (hz - 0.022) * heel_r
-  d_sole = np.maximum(foot2d - 0.0085, np.maximum(Z - sole_top, -0.003 - Z))   # [boots 3] welt 8.5 mm proud (was 7)
-  d_sole = np.maximum(d_sole, -(np.maximum(heel - 0.075 - 0.02 - Y, 0.012 - Z) ) - 0.0) if STYLE == 'cavalier' else d_sole   # cavalier: arch gap in front of the heel
-  d_sole = ndimage.gaussian_filter(d_sole, 0.9)
+  # sole: welt 4 mm proud of the upper's footprint; stacked heel block at the back, an arch gap, forefoot sole with toe spring
+  ZS0 = np.interp(T, [0.0, 0.225, 0.255, 0.4, 0.56, 0.92, 1.0], [0.0, 0.0, 0.026, 0.017, 0.0, 0.0, 0.009])
+  d2 = np.maximum((np.abs(X - fcx) - (W * 1.05 + 0.004)), np.maximum(Y - heel - 0.003, toe - 0.004 - Y))
+  d_sole = np.maximum(d2, np.maximum(ZS0 - Z, Z - (ZB + 0.003)))
+  d_sole = ndimage.gaussian_filter(d_sole, 0.8)
   d_sole = smax(d_sole, INNER - sx * X, 0.006)
+  FOOT[sx] = (fcx, toe, heel)
   parts.append(mc_part(d_sole, G, 'sole', sx))
   parts.append(mc_part(up, G, 'upper', sx))
   ring_c = cen[-1]; ring_R = RR[-1]
@@ -118,19 +127,19 @@ for sx in (1, -1):
     rr_ = 0.0095; prof = [(rr_ * math.cos(a), TOP - 0.004 + rr_ * 0.85 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 6 if HI else 4, endpoint=False)]
     parts.append(('rim', sx) + sweep(ring_c, ring_R, ms + 0.004 + 0.002, prof, NTH * 3 // 4, 1))
     # strap: a slanted band over the instep, round the ankle
-    zb = 0.072 + 0.22 * np.clip(Y - (toe + 0.11), -0.2, 0.2)
+    zb = 0.072 + 0.22 * np.clip(Y - (toe + 0.14), -0.2, 0.2)
     parts.append(mc_part(shell(np.abs(Z - zb) - 0.013, 0.0075), G, 'strap', sx))
     bp, bn = on_surface(up, G, fcx, 0.078, front=True)
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.004, bn, 0.054, 0.042, 0.0085, 0.009), G, 'gold', sx))   # [boots 3] bigger buckle (reads at game distance)
   elif STYLE == 'cavalier':
     # tall shaft + big flared bucket cuff folded down (tan suede), spur strap + silver spur
     c0 = TOP - 0.068; ct = TOP + 0.013
-    prof = [(0.000, c0 - 0.002), (0.003, c0 + 0.03), (0.007, ct - 0.004), (0.015, ct + 0.003), (0.025, ct - 0.0), (0.028, ct - 0.010), (0.020, c0 + 0.02), (0.010, c0 - 0.004)]
-    inner = lambda th: 0.4 + 0.6 * min(1.0, max(0.0, math.cos(th) * sx + 0.45))   # thin on the inside (the other leg), full flare outside / front / back
+    prof = [(0.002, ct - 0.008), (0.005, ct + 0.005), (0.011, ct + 0.006), (0.015, ct - 0.004), (0.022, c0 + 0.003), (0.023, c0 - 0.003), (0.016, c0 - 0.002), (0.006, ct - 0.02)]   # [boots 4] fold-over: rolled top edge, flaring bucket down to a thick lip
+    inner = lambda th: 0.25 + 0.75 * min(1.0, max(0.0, math.cos(th) * sx + 0.45))   # thin on the inside (the other leg), full flare outside / front / back
     parts.append(('cuff', sx) + sweep(ring_c, ring_R, ms + 0.010 + 0.002, prof, NTH + 4 if HI else NTH, 1, wave=lambda th: 0.003 * math.sin(5 * th) * inner(th), amp=inner))
-    zb = 0.064 + 0.22 * np.clip(Y - (toe + 0.12), -0.2, 0.2)
+    zb = 0.064 + 0.22 * np.clip(Y - (toe + 0.15), -0.2, 0.2)
     parts.append(mc_part(shell(np.abs(Z - zb) - 0.010, 0.0075), G, 'strap', sx))
-    ox = fcx + sx * (fhx - 0.004); yy = toe + 0.15; bz = 0.064 + 0.22 * (yy - (toe + 0.12))   # buckle on the outer side of the strap
+    ox = fcx + sx * (fhx - 0.004); yy = toe + 0.18; bz = 0.064 + 0.22 * (yy - (toe + 0.15))   # buckle on the outer side of the strap
     col_ = up[int(round((ox - lo[0]) / STEP)), int(round((yy - lo[1]) / STEP)), :]
     sp_ = np.array([ox, yy, bz]); ix_ = int(round((ox - lo[0]) / STEP))
     row = up[:, int(round((yy - lo[1]) / STEP)), int(round((bz - lo[2]) / STEP))]; ins = np.where(row < 0)[0]
@@ -146,11 +155,11 @@ for sx in (1, -1):
     bp, bn = on_surface(up, G, fcx, TOP - 0.05, front=True)
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.003, bn, 0.028, 0.024, 0.007, 0.006), G, 'gold', sx))
 # ---- decimate each part to the LOD budget, colour it, skin it
-BUD = {'upper': 1000, 'sole': 240, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
-      {'upper': 280, 'sole': 60, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'goldtoe': 64, 'silver': 36}
+BUD = {'upper': 1500, 'sole': 420, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
+      {'upper': 330, 'sole': 90, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'goldtoe': 64, 'silver': 36}
 mesh_parts = []
 for kind, sx, V, Fc in parts:
-  if len(V): V = V.copy(); V[:, 0] = sx * np.maximum(sx * V[:, 0], 0.0145 + 0.004 * np.clip((sx * V[:, 0] - 0.0145) / 0.02, 0, 1) * 0)
+  if len(V): V = V.copy(); V[:, 0] = sx * np.maximum(sx * V[:, 0], 0.0152 + 0.004 * np.clip((sx * V[:, 0] - 0.0145) / 0.02, 0, 1) * 0)
   if len(Fc) == 0: continue
   if kind in ('rim', 'cuff') or (kind == 'gold' and len(Fc) < 1200 and STYLE == 'gold' and V[:, 2].max() > TOP - 0.001): mesh_parts.append((kind, sx, V, Fc)); continue   # swept: already at the LOD's ring count
   n = BUD[kind] * (0.5 if kind == 'gold' and STYLE == 'gold' else 1)
