@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v166'; // [v166] phones: the on-foot shop / interact prompt never sits under the joystick, JUMP or ATTACK (dock/index.js placeActs)
+const VERSION = 'pfp-v167'; // [v167] no stale home flash on refresh: #title panel hidden until boot reshapes it (css/style.css html.pfp-booted)
 const SHELL = [
   "./",
   "./index.html",

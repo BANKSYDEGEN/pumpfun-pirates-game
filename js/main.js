@@ -1396,6 +1396,7 @@ lastTarget.set(player.x, player.y + 4, player.z);
 renderBoard($('board-title'));
 initHomeBoard(); // [pvp]
 addEventListener('pfp-renamed', () => { if (!$('title').classList.contains('hidden')) renderBoard($('board-title')); }); // [v74] Waves board too
+document.documentElement.classList.add('pfp-booted'); // [v167] BANKSY: "on refresh it shows the OLD home screen then the NEW one": index.html ships the old home markup and the code above reshapes it (ENTER GAME, no STORM HUNT, portal / account bits) after the GLB awaits; css/style.css keeps #title's panel hidden until here
 $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_retry'); } catch {}
 requestAnimationFrame(frame);
 
