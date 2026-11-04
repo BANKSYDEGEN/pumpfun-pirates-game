@@ -12,8 +12,8 @@ export const isBird = (id) => typeof id === 'string' && id.startsWith('parrot_')
 export const PET_KIND_ID = { cat: 0, monkey: 1, chimp: 2, gorilla: 2, tiger: 0 };   // the tiger walks / runs / sits like the cat (+ uLyK.z = 1: stretch + pounce)
 // follow distance behind you (m, along your own trail like the crew), side offset, stride (m per gait cycle), top speeds
 export const PET_FOLLOW = {
-  back: { cat: 1.25, monkey: 1.35, chimp: 1.55, gorilla: 1.9, tiger: 2.0 }, side: 0.85, lost: 30, stuck: 1.5,
-  stride: { cat: 0.55, monkey: 0.7, chimp: 0.95, gorilla: 1.35, tiger: 1.45 }, run: 10.2, near: 0.5,
+  back: { cat: 1.25, monkey: 1.5, chimp: 1.7, gorilla: 1.9, tiger: 2.0 }, side: 0.85, lost: 30, stuck: 1.5,
+  stride: { cat: 0.55, monkey: 0.9, chimp: 1.1, gorilla: 1.35, tiger: 1.45 }, run: 10.2, near: 0.5,
 };
 export const PET_ACTS = {   // idle personality: [act, every (s, + random up to the same again), lasts (s)]
   cat: [['groom', 6, 3.2]], monkey: [['hop', 2.6, 0.55], ['look', 4, 1.6]], chimp: [['hop', 4, 0.6], ['look', 5, 1.8]], gorilla: [['beat', 7, 2.2], ['look', 5, 2]],

@@ -12,6 +12,8 @@ import { GEAR_ITEMS } from '../js/shopCatalog.js';
 const ROOT = new URL('../', import.meta.url), txt = (p) => readFileSync(new URL(p, ROOT), 'utf8');
 const seq = (a) => { let i = 0; return () => a[i++ % a.length]; };
 const KNEE = 0.214, HIP = 0.402, BODY_H = 1.40;   // the v5 male in bind space (m)
+// the hip JOINT (0.40) sits at the crotch on this chibi body; what reads as "your hip" is the sash / belt line, ~0.50 (measured off the pf renders)
+const SASH = 0.50;
 
 // ------------------------------------------------------------ GLB reader (every mesh / primitive, node transforms are identity)
 function glb(path) {
@@ -37,8 +39,8 @@ for (const id of PETS) for (const lod of ['hi', 'lo']) for (const who of ['male'
 });
 test('sizes next to the captain: monkey knee-to-hip, chimp about hip, gorillas chest height and the same size; cats the smallest', () => {
   const h = (id) => PET_RIG[id].h;
-  assert.ok(h('pet_monkey') > KNEE && h('pet_monkey') < HIP, 'monkey ' + h('pet_monkey'));
-  assert.ok(Math.abs(h('pet_chimp') - HIP) < 0.08, 'chimp ' + h('pet_chimp'));
+  assert.ok(h('pet_monkey') > HIP && h('pet_monkey') <= SASH + 0.02, 'monkey ' + h('pet_monkey'));   // 11:39 AM: clearly above the knee, top at the sash
+  assert.ok(Math.abs(h('pet_chimp') - SASH) < 0.08, 'chimp ' + h('pet_chimp'));
   assert.ok(h('pet_gorilla') > 0.5 * BODY_H && h('pet_gorilla') < 0.7 * BODY_H, 'gorilla ' + h('pet_gorilla'));
   assert.equal(h('pet_gorilla'), h('pet_gorilla_white'));
   assert.ok(Math.abs(h('pet_tiger') - h('pet_gorilla')) < 0.06, 'tiger about the black gorilla\'s height ' + h('pet_tiger'));
@@ -64,8 +66,8 @@ test('the tiger: cat gait, sits, stretches + yawns, pounces', () => {
 test('on foot the follower is drawn at YOUR scale (the bound copy rides it): the monkey reads knee-to-hip next to you, not under the knee', () => {
   const p = txt('js/onfoot/pets.js'); assert.match(p, /mesh\.scale\.setScalar\(k\)/); assert.match(p, /k = figScale\(fig\)/);
   const k = 1.75 / BODY_H, mk = PET_RIG.pet_monkey.h * k;   // pirateFigure: the 1.40 m v5 body drawn at 1.75 m
-  assert.ok(mk > KNEE * k * 1.4 && mk < HIP * k * 1.15, `monkey ${mk.toFixed(2)} m vs knee ${(KNEE * k).toFixed(2)} / hip ${(HIP * k).toFixed(2)}`);
-  assert.ok(PET_RIG.pet_cat.h * k > KNEE * k, 'the cat stands above your knee'); assert.ok(Math.abs(PET_RIG.pet_chimp.h - HIP) < 0.08);
+  assert.ok(mk > KNEE * k * 2 && mk <= (SASH + 0.02) * k, `monkey ${mk.toFixed(2)} m vs knee ${(KNEE * k).toFixed(2)} / sash ${(SASH * k).toFixed(2)}`);
+  assert.ok(PET_RIG.pet_cat.h * k > KNEE * k, 'the cat stands above your knee'); assert.ok(Math.abs(PET_RIG.pet_chimp.h - SASH) < 0.08);
 });
 const sawAct = (k, slot, R = [0, 0.3, 0.6, 0.9]) => { const s = newPetState(k, 0), rnd = seq(R); let best = 0; for (let t = 0; t < 40; t += 1 / 30) { petPose(s, 0, 1 / 30, rnd); best = Math.max(best, s.A[slot]); } return best; };
 test('idle personality: the cat sits and grooms, the monkey and chimp hop, the gorillas beat their chest', () => {

@@ -47,7 +47,7 @@ SPECIES = {
     foot=('el', A([0, -0.022, -0.006]), A([0.026, 0.044, 0.016])),
     tail=[A([0, 0.06, 0.1]), A([0, 0.14, 0.075]), A([0, 0.205, 0.14]), A([0, 0.2, 0.235]), A([0, 0.155, 0.27]), A([0, 0.13, 0.235])], trad=A([0.022, 0.019, 0.017, 0.015, 0.013, 0.011]),
     neck=A([0, -0.005, 0.245]), eyes=dict(c=A([0.03, -0.077, 0.298]), r=0.018), face=A([0, -0.07, 0.29]), sit=A([0, 0.02, 0.06])),
-  'chimp': ape(0.6, lean=0.9, limb=0.86, ears=1.0, hump=0.55),
+  'chimp': ape(0.72, lean=0.9, limb=0.86, ears=1.0, hump=0.55),   # [11:39 AM] 0.6 -> 0.72: stays a step above the bigger monkey, top at the sash
   'tiger': None,   # filled below from the cat (bigcat)
   'gorilla': ape(1.0),
 }
@@ -65,7 +65,15 @@ def bigcat(s, head=1.12, limb=1.32):
     foot=('el', S(C['foot'][1]), S(C['foot'][2]) * limb * 1.12),
     tail=[S(v) for v in ([0, 0.115, 0.15], [0, 0.19, 0.125], [0, 0.26, 0.085], [0, 0.31, 0.1], [0, 0.335, 0.16])], trad=S([0.024, 0.022, 0.02, 0.019, 0.018]),
     neck=S(C['neck']), eyes=dict(c=Hd(C['eyes']['c']), r=C['eyes']['r'] * s * 1.02), face=Hd(C['face']), sit=S(C['sit']), nose=Hd([0, -0.222, 0.205]), ts=s, hd=head)
-SPECIES['tiger'] = bigcat(2.55)
+def scaled(v, k):   # every point / radius of a species x k (floor stays at z = 0)
+  if isinstance(v, np.ndarray): return v * k
+  if isinstance(v, (list, tuple)): return type(v)(scaled(x, k) for x in v)
+  if isinstance(v, dict): return {a: (b * k if a == 'r' else scaled(b, k)) for a, b in v.items()}
+  return v
+# [Raul items redo 2] BANKSY 11:39 AM: the monkey still read under the knee on foot -> x1.3 (head 0.49 m bind = 0.61 m drawn: from your knee
+# up to the sash; the v5 hip JOINT, 0.40, sits at the crotch on this chibi body)
+SPECIES['monkey'] = scaled(SPECIES['monkey'], 1.3)
+SPECIES['tiger'] = bigcat(2.4)   # head 0.73 m, ear tips ~0.78 m = the black gorilla's crest
 PETS = {
   'pet_cat': dict(sp='cat', fur='#e8883a', dark='#b0561c', light='#fff3e2', skin='#f29aa6', eye='#7fd04a', stripes=True, bud=(1500, 640)),
   'pet_cat_black': dict(sp='cat', fur='#1f1d25', dark='#0c0b10', light='#2b2a36', sheen='#5a6488', skin='#c76a80', eye='#ffd02a', bud=(1500, 640)),
@@ -144,6 +152,11 @@ if P.get('gold'):   # the white gorilla: gold cuffs on both wrists + a gold hoop
   gold.append(torus_sd(A([0.11, -0.16, 0.6]), A([1, 0, 0]), 0.022, 0.0055))
   parts.append(('gold', union(gold, 0.002)))
 CLUMP = PART
+def ear_d(V):   # distance to the nearest ear's centre line (cats / tiger)
+  out = np.full(len(V), 9.0)
+  for a, b in X.get('ears', []):
+    ab = b - a; t = np.clip(((V - a) @ ab) / (ab @ ab), 0, 1); out = np.minimum(out, np.linalg.norm(V - (a + t[:, None] * ab), axis=1))
+  return out
 # ---------------------------------------------------------------- mesh, colours, rig uv
 geo = []; BUD = dict(fur=P['bud'][0 if HI else 1], eye=(110 if HI else 48), gold=(320 if HI else 120))
 for kind, fld in parts:
@@ -171,7 +184,8 @@ for kind, fld in parts:
   k = (0.78 + 0.3 * up) * (1 + 0.06 * nz); C = fur * k[:, None]
   # fur clumps: a soft groove pattern (darker strokes) so it reads as fur, not a ball
   strokes = np.sin(V[:, 0] * 95 / s + V[:, 2] * 60 / s + 3 * nz) * np.sin(V[:, 1] * 80 / s - V[:, 2] * 40 / s)
-  C = np.where((strokes > 0.55)[:, None], dark * (0.9 + 0.2 * up)[:, None] * 0.9 + fur * 0.1, C)
+  if P['sp'] == 'tiger': C = np.where((strokes > 0.55)[:, None], fur * 0.8 * (0.9 + 0.2 * up)[:, None], C)   # tiger: dark = stripe black, so its clumps are a deeper orange
+  else: C = np.where((strokes > 0.55)[:, None], dark * (0.9 + 0.2 * up)[:, None] * 0.9 + fur * 0.1, C)
   fc = X['face']; dfa = np.linalg.norm((V - fc) / A([1.0, 0.7, 1.0]), axis=1)
   sp = P['sp']
   if sp == 'cat':
@@ -184,10 +198,11 @@ for kind, fld in parts:
     else:   # black cat: blue-grey sheen on the crests
       sh = np.clip(up * 0.8 + 0.25 * nz, 0, 1); C = C * (1 - 0.5 * sh[:, None]) + COL(P['sheen']) * 0.5 * sh[:, None]
     nose = np.linalg.norm(V - A([0, -0.222, 0.205]), axis=1) < 0.012; C = np.where(nose[:, None], skin, C)
-    ear_in = (part == 1) & (V[:, 2] > 0.27) & (N[:, 1] < -0.35); C = np.where(ear_in[:, None], skin * 0.95, C)
+    ear_in = (part == 1) & (ear_d(V) < X['erad'][0] * 1.25) & (N[:, 1] < -0.3) & (V[:, 2] > X['ears'][0][0][2]); C = np.where(ear_in[:, None], skin * 0.95, C)
   elif sp == 'tiger':   # orange coat, black stripes (back, flanks, legs, tail rings, forehead + cheeks), white muzzle / cheeks / belly / paws
     Vn = V / X['ts']; hc = HC + (Vn - HC) / X['hd']   # body coords in cat units; hc = head coords in the cat's head units
-    st = (np.sin(Vn[:, 1] * 115 + np.sin(Vn[:, 0] * 38) * 2.2 + 1.5 * nz) > 0.42) & (part != 1) & (part < 3) & (Vn[:, 2] > 0.1) & (N[:, 2] > -0.35)
+    tp = np.clip((Vn[:, 2] - 0.09) / 0.07, 0, 1)   # stripes: clean vertical bands from the spine, thinning down the flanks
+    st = (np.sin(Vn[:, 1] * 105 + np.sin(Vn[:, 0] * 30) * 1.2 + 0.35 * nz) > 0.78 - 0.5 * tp) & (part != 1) & (part < 3) & (Vn[:, 2] > 0.085) & (N[:, 2] > -0.3)
     st |= (part >= 3) & (np.sin(Vn[:, 2] * 150 + 2 * nz) > 0.62) & (Vn[:, 2] > 0.05) & (np.abs(N[:, 1]) < 0.9)
     C = np.where(st[:, None], dark * (0.9 + 0.2 * up)[:, None], C)
     wh = ((part == 1) & (hc[:, 1] < -0.172) & (hc[:, 2] < 0.212)) | ((part == 1) & (np.abs(hc[:, 0]) > 0.035) & (hc[:, 1] < -0.14) & (hc[:, 2] < 0.2)) \
@@ -197,12 +212,13 @@ for kind, fld in parts:
     C = np.where(hs_[:, None], dark * k[:, None], C)
     if X.get('tail') is not None: C = np.where(((part == 2) & (np.linalg.norm(V - X['tail'][-1], axis=1) < 0.03 * X['ts']))[:, None], dark, C)   # black tail tip
     nose = np.linalg.norm(V - X['nose'], axis=1) < 0.014 * X['ts']; C = np.where(nose[:, None], skin, C)
-    ear_in = (part == 1) & (hc[:, 2] > 0.265) & (N[:, 1] < -0.35); C = np.where(ear_in[:, None], skin * 0.9, C)
+    ear_in = (part == 1) & (ear_d(V) < X['erad'][1] * 1.1) & (N[:, 1] < -0.3) & (V[:, 2] > X['ears'][0][0][2]); C = np.where(ear_in[:, None], skin * 0.9, C)
   elif sp == 'monkey':
+    V0 = V; V = V / 1.3   # the colour masks are in the original monkey units
     face = (part == 1) & (V[:, 1] < -0.04) & (V[:, 2] < 0.335) & (V[:, 2] > 0.235); C = np.where(face[:, None], light * (0.86 + 0.18 * up)[:, None], C)
     ear = (part == 1) & (np.abs(V[:, 0]) > 0.075); C = np.where(ear[:, None], skin * 0.9, C)
     belly = (part == 0) & (V[:, 1] < -0.04) & (np.abs(V[:, 0]) < 0.045); C = np.where(belly[:, None], light * 0.85, C)
-    hands = ((part >= 3) & (V[:, 2] < 0.05)); C = np.where(hands[:, None], skin * 0.85, C)
+    hands = ((part >= 3) & (V[:, 2] < 0.05)); C = np.where(hands[:, None], skin * 0.85, C); V = V0
   else:   # apes: bare face / muzzle, chest (gorillas), fingers + soles; gorilla silverback; white gorilla icy fur
     hs = H / 0.78
     face = (part == 1) & (V[:, 1] < -0.215 * hs) & (V[:, 2] < 0.69 * hs) & (V[:, 2] > 0.545 * hs); C = np.where(face[:, None], skin * (0.85 + 0.25 * up)[:, None], C)
