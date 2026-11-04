@@ -27,12 +27,13 @@ export async function copyText(text) {
 // The shown CA, COPY and the chart link follow the pick (saved in pfp_ca_token). The full CA always shows: the font shrinks to fit,
 // then the pill stacks (token + COPY on top, the CA on its own line), last resort the CA wraps. COPY always copies the full address.
 const TOKENS = { SUNK: { ca: SUNK_CA, text: SUNK_CA_TEXT, dex: SUNK_DEX_URL, logo: 'assets/tokens/sunk.png' }, AHOY: { ca: AHOY_CA, text: AHOY_CA || 'TBA', dex: AHOY_DEX_URL, logo: 'assets/tokens/ahoy.png' } };
-const ORDER = ['SUNK', 'AHOY'];
+const ORDER = ['SUNK', 'AHOY'];   // [sunk-first] fixed order: $SUNK always first
 const PICK_KEY = 'pfp_ca_token';
 function init() {
   const chip = $('ca-chip'), line = $('ca-line'), sel = $('ca-token'); if (!chip || !line) return;
   for (const [id, url] of [['lnk-x', X_URL], ['lnk-tg', TG_URL]]) { const a = $(id); if (!a) continue; if (url) a.href = url; else a.style.display = 'none'; }
-  let sym = 'SUNK'; try { const v = localStorage.getItem(PICK_KEY); if (TOKENS[v]) sym = v; } catch { /* private mode */ }
+  let sym = ORDER[0]; // [sunk-first] BANKSY: "on home page $sunk always shows first": every load starts on $SUNK (a switch to $AHOY lasts this visit only)
+  try { localStorage.removeItem(PICK_KEY); } catch { /* private mode */ }
   const ca = chip.querySelector('.ca'), full = $('ca-full'), label = $('ca-copy');
   // [v117] ONE line always: the toggle + the CA. The full CA shrinks 15 -> 10 px to fit; if it still can't (phones), a short CA
   // (By1Nd4…Bpump) on the same line. The tap / copy always uses the FULL address.
@@ -61,7 +62,7 @@ function init() {
   if (sel) { // a real <button>: Enter / Space fire click natively, so keyboard + touch + mouse all take this one path
     sel.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
-      sym = ORDER[(ORDER.indexOf(sym) + 1) % ORDER.length]; try { localStorage.setItem(PICK_KEY, sym); } catch {} show();
+      sym = ORDER[(ORDER.indexOf(sym) + 1) % ORDER.length]; show();
       sel.classList.remove('flip'); void sel.offsetWidth; sel.classList.add('flip');
     });
     for (const t of ['pointerdown', 'touchstart']) sel.addEventListener(t, (e) => e.stopPropagation(), { passive: true }); // the title screen's own taps never see the toggle
