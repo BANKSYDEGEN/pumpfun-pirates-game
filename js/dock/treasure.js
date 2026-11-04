@@ -14,6 +14,7 @@ import { createTreasureMap } from './treasureMap.js';
 import { validIds } from '../island/digSpots.js'; // [island-rework] the shared dig-spot registry (server lists are generated from it)
 import { createChestReveal, chestItemInfo } from './chestReveal.js'; // [v152] chest items (server-picked)
 import { itemInfo } from '../inventory/catalog.js'; // [inventory]
+import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] the dig hint names the pad button
 const TIER = { common: ['COMMON MAP', '#e8cf95'], rare: ['RARE MAP', '#7fd0ff'], legendary: ['LEGENDARY MAP', '#ffcd3c'] };
 const RANK = { common: 0, rare: 1, legendary: 2 };
 const WHY = {
@@ -60,7 +61,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
       return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
     const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>${r.loot && r.loot.item && !r.loot.dup ? ` + ${chestItemInfo(r.loot.item, r.loot.crew).label}${r.loot.crew ? ' (crew)' : ''}` : ''}`).join(' ')}` : '';
-    const hint = !sel ? 'NO MAPS YET · sink the COMMODORE + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
+    const hint = !sel ? 'NO MAPS YET · sink the COMMODORE + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${padActive() ? `press ${padGlyph('A')} ·` : 'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
     const one = maps.length === 1 ? `<span style="color:${(TIER[sel.tier] || TIER.common)[1]}">${(TIER[sel.tier] || TIER.common)[0]}</span> · ${spotName(sel.spot)} · ` : '';
     tmap.setUi(chips, one + hint);
   }

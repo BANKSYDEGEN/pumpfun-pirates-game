@@ -14,6 +14,7 @@
 // marker (X) + the hit sound; each shot kicks (phone: the camera, PC: the reticle). Stats, reload, KOs and the boost rules are battle.js's,
 // unchanged. Off in build mode, paused and on the leaderboard board; while knocked out it stays.
 import * as THREE from 'three';
+import { padActive } from '../gamepad.js'; // [Emerly gamepad] a pad on a PC aims like the phone: over the shoulder, centre crosshair, right stick looks
 import { TPS, tpsOn, sensLoad, sensSave, spreadTarget, spreadReal, approach, aimDir, shoulderCam, yawTo, angleTo, raySphere, rayCyl, spreadPx, zoomWindow, clamp } from './tpsMath.js';
 
 export const TPS_ON = tpsOn(typeof location !== 'undefined' ? location.search : '');
@@ -45,9 +46,9 @@ const hit3 = (o, d, c, r) => raySphere(o, d, c, r);
 // opts: walker, camera, canvas, touch, world, sfx, attack() (battle.js: fires if loaded), aimables() -> { spheres: [[x, y, z, r, kind]], cyls: [[x, z, r, y0, y1, kind]] },
 // pointers() -> [[x, y, z]] (aim-assist centres)
 export function createTps({ walker, camera, canvas, touch, world, sfx, attack, aimables, pointers }) {
-  const doc = document.documentElement, W = () => walker.w, pc = !touch;
+  const doc = document.documentElement, W = () => walker.w, pc = !touch, pcAim = () => pc && !st.pad; // [Emerly gamepad] pcAim: the cursor is the aim (PC without a pad in use)
   const st = { on: false, ads: 0, adsHeld: false, side: 1, sideK: 1, pitch: 0, kick: 0, spread: TPS.spread.hip, fired: -9, sens: sensLoad(globalThis.localStorage), look: null, camOk: false,
-    mx: -1, my: -1, over: false, anchor: null, click: null, aim: null };
+    mx: -1, my: -1, over: false, anchor: null, click: null, aim: null, pad: false };
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const xh = el('div', 'tps-x', '<i class="d"></i><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i>'), hm = el('div', 'tps-hm', '<i></i><i></i><i></i><i></i>');
@@ -76,7 +77,7 @@ export function createTps({ walker, camera, canvas, touch, world, sfx, attack, a
   }
   // ---------- PC input: the cursor is the aim ----------
   if (pc) {
-    addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; st.mx = e.clientX; st.my = e.clientY; st.over = e.target === canvas; if (!(e.buttons & 2)) st.adsHeld = false; }, true);
+    addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; st.mx = e.clientX; st.my = e.clientY; st.over = e.target === canvas; if (!(e.buttons & 2) && !st.pad) st.adsHeld = false; }, true);
     // left: a click (not a camera drag) fires at the cursor. mousedown / up, not pointer events: with the right button already held for the
     // zoom the browser sends no 2nd pointerdown. The walker keeps its left-drag camera turn.
     addEventListener('mousedown', (e) => { if (!st.on || e.target !== canvas) return;
@@ -114,7 +115,7 @@ export function createTps({ walker, camera, canvas, touch, world, sfx, attack, a
     const z = 1 + (TPS.zoom - 1) * st.ads; if (Math.abs(camera.zoom - z) > 1e-4) { camera.zoom = z; camera.updateProjectionMatrix(); } }
   // ---------- aiming ----------
   // the aim point (+ the real part of the bloom): first target / pirate / cover / ground along the ray (PC: through the cursor, phone: the centre)
-  function aimPoint(bloom = true) { const w = W(), o = camera.position.toArray(); let d = pc ? cursorRay() : aimDir(w.camYaw, st.pitch + st.kick);
+  function aimPoint(bloom = true) { const w = W(), o = camera.position.toArray(); let d = pcAim() ? cursorRay() : aimDir(w.camYaw, st.pitch + st.kick);
     const dev = bloom ? spreadReal(st.spread, st.ads) * Math.PI / 180 : 0;
     if (dev > 0) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * dev, y0 = Math.atan2(d[0], d[2]), p0 = Math.asin(clamp(d[1], -1, 1)); d = aimDir(y0 + Math.cos(a) * r, p0 + Math.sin(a) * r); }
     let best = TPS.range + 8, kind = null; const A = aimables();
@@ -124,29 +125,35 @@ export function createTps({ walker, camera, canvas, touch, world, sfx, attack, a
     return { p: [o[0] + d[0] * best, o[1] + d[1] * best, o[2] + d[2] * best], kind, t: best }; }
   // battle.js shoot(): the yaw your ball flies along (from your feet x, z through the aim point) + the aim point for the tracer
   function shotYaw(x, z) { const a = aimPoint(true); st.lastAim = a; const dx = a.p[0] - x, dz = a.p[2] - z;
-    if (Math.hypot(dx, dz) < 1.2) { const w = W(); return { yaw: pc ? w.yaw : w.camYaw, aim: null }; } return { yaw: yawTo(x, z, a.p[0], a.p[2]), aim: a.p }; }
-  function onShot(hit) { st.fired = performance.now(); if (touch) st.kick += TPS.recoil.kick * (st.ads > 0.5 ? 0.6 : 1); st.spread += TPS.spread.kick * (st.ads > 0.5 ? 0.5 : 1);
-    if (pc) { hm.style.left = st.mx + 'px'; hm.style.top = st.my + 'px'; }
+    if (Math.hypot(dx, dz) < 1.2) { const w = W(); return { yaw: pcAim() ? w.yaw : w.camYaw, aim: null }; } return { yaw: yawTo(x, z, a.p[0], a.p[2]), aim: a.p }; }
+  function onShot(hit) { st.fired = performance.now(); if (!pcAim()) st.kick += TPS.recoil.kick * (st.ads > 0.5 ? 0.6 : 1); st.spread += TPS.spread.kick * (st.ads > 0.5 ? 0.5 : 1);
+    if (pcAim()) { hm.style.left = st.mx + 'px'; hm.style.top = st.my + 'px'; } else hm.style.left = hm.style.top = '';
     if (hit && (hit.kind === 'target' || hit.kind === 'pirate')) { hm.classList.toggle('ko', hit.kind === 'pirate' && (hit.r?.hpShown ?? 100) <= 0); hm.classList.remove('on'); void hm.offsetWidth; hm.classList.add('on'); if (hit.kind === 'target') sfx?.hit?.(0.55); } } // a pirate hit already plays battle.js's hit sound
   // ---------- per frame (battle.tick) ----------
-  function set(v) { if (v === st.on) return; st.on = v; doc.classList.toggle('tps-on', v); doc.classList.toggle('tps-pc', v && pc); const w = W();
-    if (v) { st.pitch = 0.04; st.kick = 0; st.ads = 0; st.camOk = false; st.side = st.sideK = 1; if (touch) w.camHook = camHook; }
+  function set(v) { if (v === st.on) return; st.on = v; doc.classList.toggle('tps-on', v); doc.classList.toggle('tps-pc', v && pcAim()); const w = W();
+    if (v) { st.pitch = 0.04; st.kick = 0; st.ads = 0; st.camOk = false; st.side = st.sideK = 1; if (!pcAim()) w.camHook = camHook; }
     else { w.camHook = null; w.moveK = undefined; w.faceYaw = undefined; st.adsHeld = false; st.ads = 0; st.look = null; st.click = null; adsB.classList.remove('on');
       if (camera.zoom !== 1) { camera.zoom = 1; camera.updateProjectionMatrix(); } if (viewSet) { camera.clearViewOffset(); viewSet = false; } } }
   const blocked = () => { const pz = document.getElementById('pause'); return (!!pz && !pz.classList.contains('hidden')) || doc.classList.contains('pfp-tedit') || doc.classList.contains('dk-board'); };
   { const mo = new MutationObserver(() => { if (st.on && blocked()) set(false); }); mo.observe(doc, { attributes: true, attributeFilter: ['class'] }); const pz = document.getElementById('pause'); if (pz) mo.observe(pz, { attributes: true, attributeFilter: ['class'] }); }
+  // [Emerly gamepad] PC: picking up / putting down a pad mid-range swaps the PC cursor aim <-> the phone shoulder camera
+  function padSwitch() { const p = pc && padActive(); if (p === st.pad) return; st.pad = p; if (!st.on) return; const w = W();
+    doc.classList.toggle('tps-pc', !p); xh.style.left = xh.style.top = ''; xh.classList.remove('off'); st.anchor = null; if (!p) st.adsHeld = false;
+    if (viewSet) { camera.clearViewOffset(); viewSet = false; } if (camera.zoom !== 1) { camera.zoom = 1; camera.updateProjectionMatrix(); }
+    if (p) { st.pitch = 0.04; st.camOk = false; w.camYaw = w.yaw; w.camHook = camHook; } else { w.camHook = null; w.faceYaw = undefined; } }
   function tick(dt, want) { 
-    set(!!want && !blocked() && walker.active); if (!st.on) return; const w = W(), now = performance.now();
+    padSwitch(); set(!!want && !blocked() && walker.active); if (!st.on) return; const w = W(), now = performance.now();
     st.ads = approach(st.ads, st.adsHeld ? 1 : 0, 12, dt); st.kick = approach(st.kick, 0, TPS.recoil.rec, dt);
     st.spread = approach(st.spread, spreadTarget({ speed: w.speed, air: w.air, ads: st.ads }), TPS.spread.rec, dt);
     w.moveK = st.ads > 0.3 ? TPS.adsMove : undefined; // the walker: half speed + no sprint
     let zoom = camera.zoom;
-    if (pc) { zoomView(); zoom = 1 + (TPS.zoom - 1) * st.ads;
+    if (pcAim()) { zoomView(); zoom = 1 + (TPS.zoom - 1) * st.ads;
       // your pirate faces the point under the cursor
       const a = aimPoint(false); st.aim = a; const dx = a.p[0] - w.x, dz = a.p[2] - w.z; w.faceYaw = Math.hypot(dx, dz) > 1.2 ? yawTo(w.x, w.z, a.p[0], a.p[2]) : undefined;
       xh.style.left = (st.mx < 0 ? innerWidth / 2 : st.mx) + 'px'; xh.style.top = (st.my < 0 ? innerHeight / 2 : st.my) + 'px'; xh.classList.toggle('off', st.mx >= 0 && !st.over); }
     else { w.look = now; w.faceYaw = st.ads > 0.3 || now - st.fired < 700 ? w.camYaw : undefined; } // phone: no auto-drift while you aim; aiming / just fired = face the crosshair
     const g = spreadPx(st.spread, camera.fov, zoom, innerHeight) + 3; parts.t.style.top = (-g - 10) + 'px'; parts.b.style.top = g + 'px'; parts.l.style.left = (-g - 10) + 'px'; parts.r.style.left = g + 'px';
     xh.classList.toggle('ads', st.ads > 0.5); }
-  return { tick, shotYaw, onShot, aimPoint, swap, off: () => set(false), st, get on() { return st.on; }, pc };
+  return { tick, shotYaw, onShot, aimPoint, swap, off: () => set(false), st, get on() { return st.on; }, pc,
+    padLook: (dx, dy) => { if (st.on && !pcAim()) look(dx, dy, TPS.sensTouch); } }; // [Emerly gamepad] right stick (virtual px): AIM SENS + aim assist apply
 }

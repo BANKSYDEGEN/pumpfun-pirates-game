@@ -20,6 +20,7 @@ import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS li
 import { createInventory } from '../inventory/ui.js'; // [inventory] the INVENTORY grid + plaza shop panels (migration 036)
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
+import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
@@ -54,7 +55,7 @@ html.dk-touch.pfp-onfoot #dk-acts{max-width:calc(100vw - var(--safe-l,0px) - var
 export async function createDock(ctx) {
   const { scene, camera, controls, renderer, ocean, islands, game, quality, canvas } = ctx;
   const LOW = quality === 'low', $ = (id) => document.getElementById(id);
-  const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  const touch = !CONSOLE && (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window); // [Emerly gamepad] consoles: no touch stick / JUMP (the pad walks)
   const layout = await coastLayout();
   const uTime = { value: 0 };
   const world = await buildWorld({ layout, scene, quality, ocean, renderer, uTime });
@@ -104,9 +105,9 @@ export async function createDock(ctx) {
   const bA = document.createElement('button'), bB = document.createElement('button'); acts.append(bA, bB);
   let actA = null, actB = null, uiSig = '';
   function setActs(a, b) { // a / b: { label, key, fn, primary, disabled } | null
-    actA = a; actB = b; const sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary], b && [b.label, b.key]]); if (sig === uiSig) return; uiSig = sig;
+    actA = a; actB = b; const pd = padActive(), sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary], b && [b.label, b.key], pd && padGlyph('A')]); if (sig === uiSig) return; uiSig = sig;
     acts.style.display = a || b ? 'flex' : 'none';
-    for (const [btn, s] of [[bA, a], [bB, b]]) { btn.hidden = !s; if (!s) continue; btn.innerHTML = (s.key && !touch ? `<kbd>${s.key}</kbd>` : '') + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary); }
+    for (const [btn, s, i] of [[bA, a, 0], [bB, b, 1]]) { btn.hidden = !s; if (!s) continue; btn.innerHTML = ((s.key || (pd && s.fn)) && (!touch || pd) ? `<kbd>${s.key && !pd ? s.key : promptKey(s.key || 'E', i)}</kbd>` : '') + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary); } // [Emerly gamepad] 'A · TOSS A COIN' while a pad is in use
     placeActs(); // [v166] touch: never under the stick / JUMP
   }
   // [v166] BANKSY: the on-foot prompt (shops, weapon shops, battle areas, the dock) sat under the joystick + JUMP on phones. Touch only
@@ -142,6 +143,18 @@ export async function createDock(ctx) {
     joy.addEventListener('pointerup', end); joy.addEventListener('pointercancel', end); joy.addEventListener('lostpointercapture', end); }
   jumpB.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (on && onFoot) walker.jump(); }); // [v106] phone JUMP (next to the stick)
   boardX.onclick = (e) => { e.stopPropagation(); closeBoard(); };
+  // [Emerly gamepad] what the pad needs from the dock (js/gamepad.js): the prompts, the walker stick + camera, jump, the musket sights
+  { let padJoy = false;
+    onPadMode(() => { uiSig = ''; setActs(actA, actB); if (battle) battle.padHud?.(); });
+    registerPadDock({ on: () => on, onFoot: () => on && onFoot,
+      prompts: () => [!!(actA && !actA.disabled && actA.fn), !!(actB && !actB.disabled && actB.fn)], press: (i) => { if (game.state === 'playing') press(i ? actB : actA); },
+      zone: () => !!battle?.zone, tps: () => battle?.tps || null,
+      ads: (v) => { const t = battle?.tps; if (t?.st) t.st.adsHeld = !!v && t.on; },
+      jump: () => { if (on && onFoot && game.state === 'playing') walker.jump(); },
+      move: (x, y, act) => { const j = walker.w.joy; if (act && on && onFoot) { j.on = true; j.x = x; j.y = y; padJoy = true; } else if (padJoy) { padJoy = false; j.on = false; j.x = j.y = 0; } },
+      look: (rx, ry, dt) => { if (!on || !onFoot) return; const t = battle?.tps; if (t?.on && t.padLook) { t.padLook(rx * PAD.aim * dt, ry * PAD.aim * dt); return; }
+        const w = walker.w; w.camYaw -= rx * PAD.look[0] * dt; w.pitch = Math.min(1.1, Math.max(-0.35, w.pitch + ry * PAD.look[1] * dt)); w.look = performance.now(); },
+      camBehind: () => { if (on && onFoot) { walker.w.camYaw = walker.w.yaw; walker.w.look = 0; } } }); }
   function openBoard() { document.documentElement.classList.add('dk-board'); ctx.pvp()?.harborUi?.(); }
   function closeBoard() { document.documentElement.classList.remove('dk-board'); }
 
@@ -187,7 +200,7 @@ export async function createDock(ctx) {
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
       walker.enter(b.ashore.x, b.ashore.z, b.out ? Math.atan2(-b.out.x, -b.out.z) : b.yaw + Math.PI); // face inland
       crewF?.enter(); petF?.enter(walker.w);
-      if (!sprintHinted) { sprintHinted = true; toast(touch ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
+      if (!sprintHinted) { sprintHinted = true; toast(touch || padActive() ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
     const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); petF?.exit(); // [Raul emotes] no half-played emote next time ashore

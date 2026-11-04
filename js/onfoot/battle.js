@@ -32,6 +32,7 @@ import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 import { createTps, TPS_ON } from './tps.js';
+import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hints name the pad buttons while a pad is in use
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 
 export const ARENA = {
@@ -279,12 +280,12 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const mate = (r) => !!me.team && r?.team === me.team;
   let hudSig = '';
   function drawHud() { const z = me.zone; document.documentElement.classList.toggle('bt-on', !!z); if (!z) { if (hudSig) { hud.style.display = 'none'; hudSig = ''; } return; }
-    const reload = z === Z_RANGE && me.cool > 0, teams = me.team || [...peerR.values()].some(r => r.ba[0] === z && r.team), sig = [z, me.hp, me.down > 0, me.kos, me.downs, reload ? Math.ceil(me.cool * 2) : 0, me.team, teams, ...me.score].join('|'); if (sig === hudSig) return; hudSig = sig;
+    const reload = z === Z_RANGE && me.cool > 0, teams = me.team || [...peerR.values()].some(r => r.ba[0] === z && r.team), pd = padActive(), sig = [z, me.hp, me.down > 0, me.kos, me.downs, reload ? Math.ceil(me.cool * 2) : 0, me.team, teams, pd && padGlyph('RT'), ...me.score].join('|'); if (sig === hudSig) return; hudSig = sig;
     hud.style.display = 'block'; hud.querySelector('b').textContent = z === Z_PIT ? '⚔ SWORD PIT' : '🎯 MUSKET RANGE';
-    tmBtn.textContent = (me.team ? 'TEAM ' : '') + TEAM[me.team] + (touch ? '' : ' · G'); tmBtn.className = 'tm t' + me.team;
+    tmBtn.textContent = (me.team ? 'TEAM ' : '') + TEAM[me.team] + (pd ? ' · ' + padGlyph('LB') : touch ? '' : ' · G'); tmBtn.className = 'tm t' + me.team;
     hud.querySelector('.sc').innerHTML = teams ? `<i>RED ${me.score[1]}</i> · <u>BLUE ${me.score[2]}</u>` : '';
     const hp = hud.querySelector('.hp'); hp.querySelector('i').style.width = Math.max(0, me.hp) + '%'; hp.classList.toggle('low', me.hp <= 34);
-    hud.querySelector('small').textContent = me.down > 0 ? 'KNOCKED OUT · back up in a moment' : `KOs ${me.kos} · DOWNS ${me.downs} · just for fun, no rewards` + (touch ? '' : z === Z_PIT ? ' · R / CLICK = SWING' : reload ? ' · RELOADING' : ' · R / CLICK = FIRE');
+    hud.querySelector('small').textContent = me.down > 0 ? 'KNOCKED OUT · back up in a moment' : `KOs ${me.kos} · DOWNS ${me.downs} · just for fun, no rewards` + (pd ? (z === Z_PIT ? ` · ${padGlyph('RT')} = SWING` : reload ? ' · RELOADING' : ` · ${padGlyph('RT')} = FIRE · ${padGlyph('LT')} = AIM`) : touch ? '' : z === Z_PIT ? ' · R / CLICK = SWING' : reload ? ' · RELOADING' : ' · R / CLICK = FIRE');
     atk.textContent = z === Z_PIT ? 'SWING' : reload ? '…' : 'FIRE'; atk.disabled = me.down > 0 || reload; }
   // desktop: R (unbound everywhere; F = fullscreen) or a left click (not a drag) attacks while you are in an area
   addEventListener('keydown', (e) => { if (!me.zone || (e.code !== 'KeyR' && e.code !== 'KeyG') || e.repeat || e.target?.tagName === 'INPUT' || !walker.active) return; if (e.code === 'KeyG') setTeam(); else attack(); e.stopImmediatePropagation(); e.preventDefault(); }, true);
@@ -422,5 +423,5 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // shop card renders (tools/battle/weapon_thumbs.html): pose any loaded v5 pirate with a weapon, outside the game loop
   function preview(obj, zone, id, act = null) { const R = { ...rig(obj), obj }; if (!hookBody(R)) return null; R.st.zone = zone; R.st.w = 1; R.st.act = act;
     dress(R, zone, zone === Z_PIT ? id : SWORD_DEFAULT, zone === Z_RANGE ? id : MUSKET_DEFAULT); return R; }
-  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps };
+  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps, padHud: () => { hudSig = ''; drawHud(); } };
 }

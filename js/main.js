@@ -34,6 +34,7 @@ import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: nam
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
 import { isKey, held as heldKey, installMouseBinds, binds, keyName } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
+import { initGamepad, CONSOLE } from './gamepad.js'; // [Emerly gamepad] controllers (Gamepad API) + console browsers (Xbox Edge / PlayStation); &pad=0 = off
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
 import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
@@ -62,14 +63,14 @@ const ENEMY_NAMES = ['RUG PULLER', 'JEETER', 'PAPER HANDS', 'DUMPER', 'BAG DUMPE
 
 // ---------- quality ----------
 const qp = new URLSearchParams(location.search).get('quality');
-const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isMobile = !CONSOLE && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); // [Emerly gamepad] a console (its browser may report a coarse pointer) is never a phone: no touch sticks, the TV layout
 // [ultra] graphics choice (pause menu / start page), persisted: auto | low | high | ultra. ?quality=… still wins for one visit.
 // ULTRA is opt-in only (never auto-picked, not offered on phones) and renders on top of the HIGH tier: quality stays 'high'
 // for every gameplay / ship / hitbox path, the extras below are gated on ULTRA, so LOW and HIGH render exactly as before.
 const GFX_KEY = 'pfp_gfx';
 const gfxSaved = (() => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } })();
 const gfxPick = ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
-const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 ? 'low' : 'high');
+const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH)
 const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
 const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
@@ -92,7 +93,7 @@ const canvas = $('game');
 // [perf2] BANKSY "hd sharp and fast": MSAA on every tier except an explicit LOW pick (phones were aliased at 1.0x); phones start at
 // 1.5x on 2x+ screens (was 1.25, often stepped to 1.0 = blurry on a 3x phone), desktop 2x cap. Adaptive steps down only on slow FPS.
 const DPR = window.devicePixelRatio || 1, LOW_PICK = gfxPick === 'low';
-const PR0 = ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2);
+const PR0 = Math.min(CONSOLE ? 1.25 : 9, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high' || !LOW_PICK, powerPreference: 'high-performance' });
 renderer.setPixelRatio(PR0); // [ultra] supersamples 1x screens
 // [perf2] three.js reads every shader's info log after compiling (forces a synchronous wait per program: ~4.8 s of a 15 s desktop
@@ -756,6 +757,7 @@ function setSaveUi() {
 const _bsp = $('btn-set-pvpmenu'); if (_bsp) _bsp.onclick = () => { togglePause(); if (!$('pause').classList.contains('hidden')) $('pause').classList.add('hidden'); pvp?.toggleMenu(true); };
 const _bsh = $('btn-set-harbor'); if (_bsh) _bsh.onclick = () => { if (_bsh.disabled) return; togglePause(); $('pause').classList.add('hidden'); $('pvp-menu-return')?.click(); };
 installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spectating });
+const pad = initGamepad({ game: () => game, controls, camera, binds, spectating: () => !!pvp?.spectating }); // [Emerly gamepad] js/gamepad.js
 { const b = $('btn-ctl-title'); if (b) b.onclick = () => openControls(); }
 { const b = $('btn-ctl-pause'); if (b) b.onclick = () => openControls(); }
 $('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
@@ -1250,6 +1252,7 @@ function adaptResolution() {
 }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  try { pad.tick(dt); } catch (e) { console.warn('[pad]', e); } // [Emerly gamepad] poll the pads first: keys / sticks land before the ship + walker read them this frame
   if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable'));  { let n = 0; const iv = setInterval(() => { window.__pfpKitMerged = (window.__pfpKitMerged || 0) + mergeIslandKits(scene); if (++n >= 45) clearInterval(iv); }, 4000); } } // [perf4] the on-foot world is built on harbor entry: merge whenever its kit meshes appear // [perf3] deferred loads (music) start now
   adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title' || (game.mode === 'pvp' && (game.state === 'shop' || game.state === 'paused')); // [pvp] the shared sea never pauses

@@ -16,6 +16,13 @@ if (/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname
     var p = document.querySelector('#loading .panel'); if (p) { p.innerHTML = '<h1>Ship needs a refresh</h1><p>Could not load the latest version.</p><button class="big" type="button" id="boot-reload">RELOAD</button>';
       var b = document.getElementById('boot-reload'); if (b) b.addEventListener('click', function () { try { sessionStorage.removeItem(KEY); } catch (e) {} location.reload(); }); }
   };
+  // [Emerly gamepad] no WebGL at all (the PlayStation 5's hidden browser, some TV / kiosk browsers): say so instead of the reload loop
+  var noGL = function () { try { var c = document.createElement('canvas'), g = c.getContext('webgl2') || c.getContext('webgl'); if (!g) return true; var x = g.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); return false; } catch (e) { return false; } };
+  if (!/[?&]pad=0(&|$)/.test(location.search) && noGL()) { window.__pfpBootFail = 1; document.addEventListener('DOMContentLoaded', function () {
+    var p = document.querySelector('#loading .panel'), ps = /PlayStation/.test(navigator.userAgent), xb = /\bXbox\b/.test(navigator.userAgent);
+    if (p) p.innerHTML = '<h1>This browser can\'t run the 3D sea</h1><p>' + (ps ? 'The PlayStation browser has no WebGL (3D graphics), so PUMPFUN PIRATES can\'t start here. Play on a PC, Mac, phone or the Xbox Edge browser: your DualSense works there (USB or Bluetooth).'
+      : xb ? 'Turn on hardware acceleration in Edge settings, then reload.' : 'WebGL (3D graphics) is turned off or not supported. Try Chrome, Edge, Firefox or Safari with hardware acceleration on.') + '</p>';
+  }); }
   addEventListener('error', function (e) { if (e instanceof ErrorEvent && !booted()) setTimeout(fail, 400); }, true);
   addEventListener('unhandledrejection', function () { if (!booted()) setTimeout(fail, 400); });
   setTimeout(function () { if (!booted()) fail(); }, 30000);
