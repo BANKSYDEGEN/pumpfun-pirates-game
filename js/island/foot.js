@@ -270,6 +270,7 @@ function colorAt(i, j, out) {
   out.lerp(SAND, 1 - sm(2.4, 4.2, h)).lerp(WETS, sm(1.2, 0.2, h) * (sd > -40 ? 1 : 0));
   out.lerp(ROCK, sm(0.85, 1.35, slope)).lerp(ROCK2, sm(85, 120, h) * 0.8);
   if (RVg[q] < 12 && h < RVl[q] + 2) out.lerp(BANK, 0.6);
+  out.lerp(ROCK, sm(0.4, 0.7, slope) * (1 - sm(10, 22, TRg[q]))); // [path-hotfix] trail cuttings / bridge slots: grey cliff rock (matches splat layer 5 there)
   out.lerp(DIRT, (1 - sm(2.4, 4.4, TRg[q])) * (1 - sm(0.75, 1.05, slope))); out.lerp(COBBLE, paveAt(q, x, z) * PAVE_FLAT(slope)); // [path-hotfix] cutting / slot walls keep the rock colour
   out.lerp(COBBLE, 1 - sm(STREET.half - 0.5, STREET.half + 1, STg[q]));
   if (COASTM) out.lerp(COBBLE, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
@@ -291,7 +292,7 @@ function splatAt(i, j, w) {
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 8) paint(1, 0.8 * sm(LAKE.r + 8, LAKE.r, Math.hypot(x - LAKE.x, z - LAKE.z)));
   paint(3, 1 - sm(2.0, 4.3, TRg[q]));
   paint(4, sm(0.7, 1.05, sl) + sm(75, 105, h) * 0.7);
-  paint(5, sm(1.05, 1.5, sl));
+  paint(5, Math.max(sm(1.05, 1.5, sl), sm(0.4, 0.7, sl) * (1 - sm(10, 22, TRg[q])))); // [path-hotfix] trail cuttings / bridge slots: steep walls are fractured cliff rock, not stone blocks
   paint(6, paveAt(q, x, z) * PAVE_FLAT(sl)); // [bridge-path-fix] paved trails: Main Street's cobble layer on the walkable floor only
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
   if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck

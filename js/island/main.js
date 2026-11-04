@@ -474,7 +474,10 @@ function updateWalker(dt, t) {
   }
   const y = fY(w.x, w.z);
   w.mesh.position.set(w.x, y + Math.abs(Math.sin(w.ph)) * 0.08 * (n > 0 ? 1 : 0), w.z); w.mesh.rotation.y = w.yaw;
-  const D = 6.5, cy = 2.6 + w.pitch * 6, cx = w.x - Math.sin(w.camYaw) * D * Math.cos(w.pitch * 0.6), cz = w.z - Math.cos(w.camYaw) * D * Math.cos(w.pitch * 0.6);
+  // [path-hotfix] camera boom pulls in when terrain (cutting / slot walls) blocks it, instead of popping up through the rock
+  let D = 6.5; const cy = 2.6 + w.pitch * 6, cp = Math.cos(w.pitch * 0.6);
+  for (let k = 1; k <= 8; k++) { const t = k / 8, sx = w.x - Math.sin(w.camYaw) * 6.5 * cp * t, sz = w.z - Math.cos(w.camYaw) * 6.5 * cp * t; if (fY(sx, sz) + 0.9 > y + 1.6 + (cy - 1.6) * t) { D = Math.max(1.6, 6.5 * (k - 1.5) / 8); break; } }
+  const cx = w.x - Math.sin(w.camYaw) * D * Math.cos(w.pitch * 0.6), cz = w.z - Math.cos(w.camYaw) * D * Math.cos(w.pitch * 0.6);
   const camY = Math.max(y + cy, fY(cx, cz) + 1.2, 0.8);
   camera.position.lerp(L2W(cx, camY, cz), SHOT ? 1 : Math.min(1, dt * 8)); controls.target.copy(L2W(w.x + Math.sin(w.camYaw) * 3, y + 1.6, w.z + Math.cos(w.camYaw) * 3)); camera.lookAt(controls.target);
 }
