@@ -76,7 +76,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   const play = (e, back) => { if (e.k === 'multi') { for (const x of back ? [...e.e].reverse() : e.e) play(x, back); return; } if (e.k === 'paint') T.paint([...(back ? e.o : e.n)]); else if (e.k === 'cells') T.set([...(back ? e.o : e.n)]); else for (const [id, b, a] of e.c) setPiece(id, back ? b : a); drawSel(); };
   const css = document.createElement('style'); css.textContent = `
   #te-btn { position: fixed; top: calc(64px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 60; display: none; }
-  .pfp-onfoot #te-btn { display: block; }
+  /* [v190] BANKSY: "move the build button to settings": no floating HUD button; owner-only ⚙ SETTINGS entry (#btn-set-build) */
+  #btn-set-build.off { opacity: .5; }
   .te-r { font-family: 'Just Another Hand', cursive; border-radius: 50%; border: 3px solid #ffcd77; background: radial-gradient(circle at 35% 30%, #3a2a1a, #161616 70%); color: #ffcd77;
     box-shadow: 0 4px 0 #000, 0 0 0 2px #000 inset; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: manipulation; padding: 0; }
   #te-btn.te-r { width: 64px; height: 64px; font-size: 15px; } #te-btn .i { font-size: 26px; line-height: 1; }
@@ -132,6 +133,12 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     paint(); });
   $('.sz').addEventListener('input', (e) => setSize(+e.target.value)); $('.st').addEventListener('input', (e) => { ui.str = +e.target.value; paint(); });
   btn.addEventListener('click', () => setOn(true));
+  addEventListener('keydown', (e) => { if (on && e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); setOn(false); } }, true); // [v190] Esc in build mode = EXIT only (not also ⚙ settings)
+  { const pz = document.querySelector('#pause .panel'), res = document.getElementById('btn-resume'); if (pz) { const sb = document.createElement('button'); sb.id = 'btn-set-build'; sb.type = 'button'; sb.className = 'ghost'; sb.textContent = '🛠️ BUILD MODE';
+      pz.insertBefore(sb, res || null); const sync = () => { const ok = document.documentElement.classList.contains('pfp-onfoot'); sb.classList.toggle('off', !ok); sb.title = ok ? 'owner build mode (EXIT / Esc to leave)' : 'go ashore first'; };
+      new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); sync();
+      sb.addEventListener('click', () => { if (!document.documentElement.classList.contains('pfp-onfoot')) { toast('GO ASHORE FIRST, THEN OPEN BUILD MODE'); return; }
+        if (!document.getElementById('pause').classList.contains('hidden')) res?.click(); document.getElementById('pause').classList.add('hidden'); setOn(true); }); } }
   function setOn(v) { on = v; live.on = v; if (v) scan(); document.documentElement.classList.toggle('pfp-tedit', v); ring.visible = grid.visible = false; if (ghost) ghost.visible = false; if (!v) { sel.clear(); drawSel(); rest.style.display = 'none'; flush(); } paint(); }
   // ring + height grid preview (in the foot island's frame: footRoot's parent)
   const frame = footRoot.parent || footRoot, N = 64, GN = 9;

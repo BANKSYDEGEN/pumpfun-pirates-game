@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v189'; // [v189] cliff gold: +50 gold per cliff-cannon hit on a ship (server-capped 2 + 10 / min); [v188] build mode BUILD tool (place props, owner only); [v187] build mode: SELECT (delete / move / rotate / restore built-in pieces) + PAINT (grass, sand, dirt, rock, path)
+const VERSION = 'pfp-v190'; // [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
