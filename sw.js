@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v165'; // [v165] PRESTIGE (max every upgrade -> PRESTIGE: upgrades back to base; P1 = GOLDEN GALLEON, P2 = DIAMOND granted free; HUD emblem), GHOST 100 / FIRE 200 kills
+const VERSION = 'pfp-v166'; // [v166] phones: the on-foot shop / interact prompt never sits under the joystick, JUMP or ATTACK (dock/index.js placeActs)
 const SHELL = [
   "./",
   "./index.html",

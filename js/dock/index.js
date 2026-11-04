@@ -41,6 +41,7 @@ html.pfp-onfoot.dk-touch #dk-joy{display:block}
 html.pfp-onfoot.dk-touch #dk-jump{display:block}
 html.dk-touch.pfp-onfoot #dk-acts{left:auto;right:calc(var(--safe-r,0px) + 22px);bottom:calc(var(--safe-b,0px) + 40px);transform:none;flex-direction:column;align-items:flex-end}
 html.dk-touch.pfp-onfoot #dk-acts button{font-size:24px;padding:14px 18px 10px}
+html.dk-touch.pfp-onfoot #dk-acts{max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 24px)} html.dk-touch.pfp-onfoot #dk-acts button{white-space:normal;text-align:center;max-width:100%} /* [v166] long shop labels wrap instead of running under the stick */
 #dk-fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .28s}
 #dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
 @media (max-height:480px){#dk-acts{bottom:calc(var(--safe-b,0px) + 104px)} #dk-acts button{font-size:22px;padding:8px 14px 5px} #dk-safe{top:calc(var(--safe-t,0px) + 46px);font-size:18px}}
@@ -95,7 +96,28 @@ export async function createDock(ctx) {
     actA = a; actB = b; const sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary], b && [b.label, b.key]]); if (sig === uiSig) return; uiSig = sig;
     acts.style.display = a || b ? 'flex' : 'none';
     for (const [btn, s] of [[bA, a], [bB, b]]) { btn.hidden = !s; if (!s) continue; btn.innerHTML = (s.key && !touch ? `<kbd>${s.key}</kbd>` : '') + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary); }
+    placeActs(); // [v166] touch: never under the stick / JUMP
   }
+  // [v166] BANKSY: the on-foot prompt (shops, weapon shops, battle areas, the dock) sat under the joystick + JUMP on phones. Touch only
+  // (desktop keeps the CSS): try spots in order, keep the first that hits no visible touch control (stick, JUMP, ATTACK, quick chat):
+  // 1) bottom, in the gap right of JUMP (one line only)  2) right-aligned just above the stick  3) above every control. Real rects = safe areas + landscape.
+  function placeActs() {
+    if (!touch || acts.style.display === 'none') return;
+    const st = acts.style; st.left = st.right = st.bottom = st.top = st.transform = '';
+    if (!document.documentElement.classList.contains('pfp-onfoot')) return; // aboard: the CSS spot (no stick / JUMP)
+    const W = innerWidth, H = innerHeight, cs = getComputedStyle(document.documentElement), px = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
+    const sr = px('--safe-r'), sb = px('--safe-b'), pad = 10;
+    const ctrls = ['dk-joy', 'dk-jump', 'bt-atk', 'btn-emote'].map(id => document.getElementById(id)).filter(e => e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden')
+      .map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    const hits = (oneLine) => { const r = acts.getBoundingClientRect(); if (r.left < 0 || r.right > W - sr - 8 || r.top < 0 || (oneLine && r.height > 64)) return true;
+      return ctrls.some(c => r.left < c.right + pad && r.right > c.left - pad && r.top < c.bottom + pad && r.bottom > c.top - pad); };
+    const left = ctrls.filter(c => c.left < W / 2), gapL = Math.max(0, ...left.map(c => c.right)) + pad;
+    const tryAt = (o, oneLine) => { st.left = o.left ?? 'auto'; st.right = o.right ?? 'auto'; st.bottom = o.bottom; st.transform = 'none'; return !hits(oneLine); };
+    if (left.length && tryAt({ left: `${gapL}px`, bottom: `${sb + 24}px` }, true)) return; // the gap only when the label fits on one line
+    const joyTop = Math.min(H, ...left.map(c => c.top)); if (tryAt({ right: `${sr + 22}px`, bottom: `${H - joyTop + pad}px` })) return;
+    const allTop = Math.min(H, ...ctrls.map(c => c.top)); tryAt({ right: `${sr + 22}px`, bottom: `${H - allTop + pad}px` });
+  }
+  if (touch) { addEventListener('resize', () => requestAnimationFrame(placeActs)); setInterval(placeActs, 600); } // controls come and go (battle areas, chat)
   const press = (s) => { if (s && !s.disabled) s.fn(); };
   for (const [btn, get] of [[bA, () => actA], [bB, () => actB]]) btn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); press(get()); });
   let toastT = 0; function toast(t, ms = 1600) { toastEl.innerHTML = t; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { toastEl.style.opacity = 0; }, ms); }
