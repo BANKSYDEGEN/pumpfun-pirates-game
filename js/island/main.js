@@ -136,7 +136,7 @@ const setFxPx = () => { fx.material.uniforms.uPx.value = renderer.getDrawingBuff
 isle.add(near, far, foam, plants, lagoonMesh, grove, fx);
 if (COASTM) isle.visible = false; // the round Dock Town island is not part of the coast layout (kept only as the town frame)
 // on-foot island (blockout): chunked heightmap terrain, streamed jungle, main street + inland POIs
-if (FOOT) await FM.PV?.plazaShopsReady?.(LOW); // [Timothy] Blender storefront models (plaza v2)
+if (FOOT) await FM.PV?.plazaShopsReady?.(LOW, renderer); // [Timothy] Blender storefront models (plaza v2) + the shared material library (KTX2 needs the renderer)
 const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT }) : null;
 const _fw = new THREE.Vector3();
 const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return COASTM ? foot.groundAt(_fw.x, _fw.z) : Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;

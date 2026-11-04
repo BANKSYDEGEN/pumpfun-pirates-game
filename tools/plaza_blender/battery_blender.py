@@ -26,6 +26,8 @@ rampY = lambda lx: RAMP['y0'] + (RAMP['y1'] - RAMP['y0']) * min(1, max(0, (lx - 
 P = lambda lx, lz: (lx - B['lx'], -(lz - B['lz']))           # town-local -> battery-local Blender x, y
 STONE, STONE_D, PAVE, GROUT, IRON, WOOD, WOOD_D, GOLD, BRASS = 0xb9b2a6, 0x8a837a, 0xc4b8a2, 0x6f675d, 0x2b2f36, 0xa86a3a, 0x5e3b20, 0xffc93c, 0xc9a243
 ROCK, MOSS = 0x8f8578, 0x4f8a3a
+# [material library] palette -> shared library layer (materials.py): walls ashlar, coping / paving / rocks dressed sandstone, guns iron, carriages timber
+Builder.AUTO = {STONE: 'stone_ashlar', STONE_D: 'stone_trim', PAVE: 'stone_trim', GROUT: 'stone_trim', ROCK: 'stone_trim', IRON: 'iron', WOOD: 'timber', WOOD_D: 'timber'}
 
 def wall(b, lx, lz, length, top, alongZ, lod, rng, th=0.8):
     x, y = P(lx, lz); sx, sy = (th, length) if alongZ else (length, th)

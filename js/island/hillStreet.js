@@ -12,6 +12,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
+import { libMaterial } from './libTex.js';   // [Timothy] the shared material library (TEXCOORD_0 = layer code)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const HILL_GLB_ON = !(Q && Q.get('hillglb') === '0');
@@ -24,7 +25,7 @@ const LOD_D = 46;                    // desktop: LOD0 -> LOD1 (m)
 
 export function loadHill(low) {
   if (!HILL_GLB_ON) return Promise.resolve(null);
-  const solid = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }); solid.name = 'hill_solid';   // shop floors lie 1 cm over the terrain
+  const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low); solid.name = 'hill_solid';   // shop floors lie 1 cm over the terrain
   const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }); glow.name = 'hill_glow';
   const pick = (m) => /glow/.test(m.name) ? glow : solid, lots = {};
   const one = (f) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/${f}${low ? '_low' : ''}.glb`).then(gl => {
@@ -56,6 +57,14 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   return true;
 }
 
+// [Timothy] material library: the layer is projected in object space; merged into the world frame (phones) a building turned a quarter turn
+// would swap the grain of its top faces (deck boards, roof tiles along the ridge), so flip their swap bit back (side faces keep it)
+function libTurn(geo, m) {
+  const U = geo.attributes.uv, N = geo.attributes.normal; if (!U || !N) return; const e = m.elements, quarter = Math.abs(e[0]) < 0.5;   // x axis mostly turned onto z
+  if (!quarter) return;
+  for (let i = 0; i < U.count; i++) { const ny = Math.abs(N.getY(i)); if (ny < Math.abs(N.getX(i)) || ny < Math.abs(N.getZ(i))) continue;
+    const c = Math.floor(U.getX(i) * 32); if (c < 2) continue; U.setX(i, ((c ^ 1) + 0.5) / 32); }
+}
 // the placed street (call after foot.js buildStreet): desktop one THREE.LOD per building; phones all LOD1 buildings merged (2 draw calls)
 export function buildHill() {
   const K = HILL_KIT; if (!K || !HILL_PLACES.length) return null;
@@ -64,10 +73,10 @@ export function buildHill() {
   for (const { key, m } of HILL_PLACES) { const L = K.lots[key]; if (!L) continue;
     const g = new THREE.Group(); g.name = 'hill_' + key; m.decompose(g.position, g.quaternion, g.scale); root.add(g);
     if (K.low) { g.updateMatrix(); L.lods[0].traverse(o => { if (!o.isMesh) return; o.updateMatrix(); mm.multiplyMatrices(g.matrix, o.matrix); const geo = o.geometry.clone();
-        for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color'].includes(k)) geo.deleteAttribute(k);
-        for (const k of ['position', 'normal', 'color']) { const a = geo.attributes[k]; if (a && (a.normalized || !(a.array instanceof Float32Array))) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); geo.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }
+        for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) geo.deleteAttribute(k);
+        for (const k of ['position', 'normal', 'color', 'uv']) { const a = geo.attributes[k]; if (a && (a.normalized || !(a.array instanceof Float32Array))) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); geo.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }
         if (geo.attributes.color && geo.attributes.color.itemSize === 4) { const a = geo.attributes.color, f = new Float32Array(a.count * 3); for (let i = 0; i < a.count; i++) { f[i * 3] = a.getX(i); f[i * 3 + 1] = a.getY(i); f[i * 3 + 2] = a.getZ(i); } geo.setAttribute('color', new THREE.BufferAttribute(f, 3)); }
-        geo.applyMatrix4(mm); (o.material === K.mats.glow ? merge.glow : merge.solid).push(geo); }); }
+        geo.applyMatrix4(mm); libTurn(geo, mm); (o.material === K.mats.glow ? merge.glow : merge.solid).push(geo); }); }
     else { const lod = new THREE.LOD(); lod.name = 'hill_lod_' + key; L.lods.forEach((lv, i) => lod.addLevel(lv, i ? LOD_D : 0)); g.add(lod);
       L.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; }); }
     if (L.sign) g.add(L.sign); if (L.empty) g.add(L.empty); }

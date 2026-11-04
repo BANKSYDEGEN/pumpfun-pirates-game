@@ -144,9 +144,11 @@ export function signList() {
 }
 
 // builder: h = foot.js kit helpers (merged toon kit: every stone piece shares the masonry surface layer, 0 extra materials)
+// [Timothy] material library (js/island/libTex.js): masonry walls = stone_ashlar (MASON 11 -> the library via look.js), quoins / lintels /
+// string courses = stone_trim, timber = timber, awnings + stall canvas = awning_cloth, rope coils = rope (aMat 20 + library id)
 export function buildPlazaV2(h) {
   const { k, W, box, cyl, M, at, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, F, A, low, C, yaw0, deckY } = h, Y0 = STREET_Y;   // everything stands on the slab top
-  const signs = [], MASON = 11, STONES = [0xc9bfae, 0xb9b2a6, 0xd6c7a8, 0xa99f90], QUOIN = 0x8a837a;
+  const signs = [], MASON = 11, TRIM = 22, TIMBER = 26, ROPE = 31, CLOTH = 32, STONES = [0xc9bfae, 0xb9b2a6, 0xd6c7a8, 0xa99f90], QUOIN = 0x8a837a;
   const sign = (key, w, hh, lx, y, lz, ly = 0) => { const [x, z] = T(lx, lz); signs.push([key, w, hh, M(x, y, z, yaw0 + ly)]); };
   const cz = FACADE_LZ - ROW_D / 2;
   // ---- stone building (front = local +z = the street): plinth, ashlar storeys + string courses, quoins, stone-framed windows
@@ -155,37 +157,37 @@ export function buildPlazaV2(h) {
     const [x, z] = T(lx, cz); addBox(x, z, w + 0.6, ROW_D + 0.6, yaw0);
     at(lx, cz, 0, () => {
       const d = ROW_D, fh = 3.5, col = STONES[v % 4], sh = C.SHUTTER[(v + 2) % C.SHUTTER.length];
-      W(k, box(w + 0.6, 0.7, d + 0.6), QUOIN, MASON, M(0, 0.15, 0));
+      W(k, box(w + 0.6, 0.7, d + 0.6), QUOIN, TRIM, M(0, 0.15, 0));
       for (let f = 0; f < fl; f++) { const y0 = 0.5 + f * fh;
         W(k, box(w, fh, d), col, MASON, M(0, y0 + fh / 2, 0));
-        W(k, box(w + 0.36, 0.3, d + 0.36), QUOIN, MASON, M(0, y0 + fh, 0), false);                       // string course
-        for (const sx of [-1, 1]) for (let q = 0; q < (low ? 1 : 3); q++) W(k, box(0.8, low ? fh : 0.9, 0.8), QUOIN, MASON, M(sx * (w / 2 - 0.3), y0 + (low ? fh / 2 : 0.55 + q * 1.15), d / 2 - 0.3), false); // quoins
+        W(k, box(w + 0.36, 0.3, d + 0.36), QUOIN, TRIM, M(0, y0 + fh, 0), false);                       // string course
+        for (const sx of [-1, 1]) for (let q = 0; q < (low ? 1 : 3); q++) W(k, box(0.8, low ? fh : 0.9, 0.8), QUOIN, TRIM, M(sx * (w / 2 - 0.3), y0 + (low ? fh / 2 : 0.55 + q * 1.15), d / 2 - 0.3), false); // quoins
         const nw = Math.max(1, Math.floor(w / 3.2));
         for (let i = 0; i < nw; i++) { const wx = (i - (nw - 1) / 2) * (w / nw);
           if (f === 0 && o.shop) continue;
           W(k, box(1.1, 1.6, 0.12), 0x2b3d4a, 0, M(wx, y0 + 1.9, d / 2 + 0.02), false);                   // window
-          W(k, box(1.6, 0.32, 0.3), QUOIN, MASON, M(wx, y0 + 2.85, d / 2 + 0.1), false);                  // lintel
-          W(k, box(1.5, 0.18, 0.4), QUOIN, MASON, M(wx, y0 + 1.05, d / 2 + 0.15), false);                 // sill
-          if (!low || i % 2 === 0) for (const s of [-1, 1]) W(k, box(0.58, 1.6, 0.08), sh, 2, M(wx + s * 0.88, y0 + 1.9, d / 2 + 0.22, s * 0.45), false); }
-        if (f > 0 && (f === 1 || !low)) { W(k, box(w - 0.8, 0.22, 1.4), C.WOOD, 2, M(0, y0 + 0.1, d / 2 + 0.7));   // timber balcony
-          W(k, box(w - 0.8, 0.12, 0.12), C.WOOD_D, 2, M(0, y0 + 1.15, d / 2 + 1.35), false);
-          for (let b = -(w - 0.8) / 2; b <= (w - 0.8) / 2 + 0.01; b += low ? 1.2 : 0.5) W(k, box(0.09, 1.0, 0.09), C.WOOD_L, 2, M(b, y0 + 0.65, d / 2 + 1.35), false);
-          for (const sx of [-1, 1]) W(k, box(0.2, 0.9, 0.2), C.WOOD_D, 2, M(sx * (w / 2 - 0.8), y0 - 0.3, d / 2 + 0.55, 0, 0.75), false); }
+          W(k, box(1.6, 0.32, 0.3), QUOIN, TRIM, M(wx, y0 + 2.85, d / 2 + 0.1), false);                  // lintel
+          W(k, box(1.5, 0.18, 0.4), QUOIN, TRIM, M(wx, y0 + 1.05, d / 2 + 0.15), false);                 // sill
+          if (!low || i % 2 === 0) for (const s of [-1, 1]) W(k, box(0.58, 1.6, 0.08), sh, TIMBER, M(wx + s * 0.88, y0 + 1.9, d / 2 + 0.22, s * 0.45), false); }
+        if (f > 0 && (f === 1 || !low)) { W(k, box(w - 0.8, 0.22, 1.4), C.WOOD, TIMBER, M(0, y0 + 0.1, d / 2 + 0.7));   // timber balcony
+          W(k, box(w - 0.8, 0.12, 0.12), C.WOOD_D, TIMBER, M(0, y0 + 1.15, d / 2 + 1.35), false);
+          for (let b = -(w - 0.8) / 2; b <= (w - 0.8) / 2 + 0.01; b += low ? 1.2 : 0.5) W(k, box(0.09, 1.0, 0.09), C.WOOD_L, TIMBER, M(b, y0 + 0.65, d / 2 + 1.35), false);
+          for (const sx of [-1, 1]) W(k, box(0.2, 0.9, 0.2), C.WOOD_D, TIMBER, M(sx * (w / 2 - 0.8), y0 - 0.3, d / 2 + 0.55, 0, 0.75), false); }
       }
       if (o.shop) { W(k, box(w * 0.62, 2.9, 0.14), 0x2a1d14, 0, M(0, 1.95, d / 2 + 0.02), false);          // shop opening + arch
-        W(k, box(w * 0.62 + 0.8, 0.5, 0.4), QUOIN, MASON, M(0, 3.6, d / 2 + 0.15), false); for (const sx of [-1, 1]) W(k, box(0.5, 3.1, 0.4), QUOIN, MASON, M(sx * (w * 0.31 + 0.2), 2.05, d / 2 + 0.15), false); }
-      const top = 0.5 + fl * fh; W(k, box(w + 0.2, 0.3, 0.3), C.WOOD_D, 2, M(0, top - 0.2, d / 2 + 0.25), false);   // eave beam
+        W(k, box(w * 0.62 + 0.8, 0.5, 0.4), QUOIN, TRIM, M(0, 3.6, d / 2 + 0.15), false); for (const sx of [-1, 1]) W(k, box(0.5, 3.1, 0.4), QUOIN, TRIM, M(sx * (w * 0.31 + 0.2), 2.05, d / 2 + 0.15), false); }
+      const top = 0.5 + fl * fh; W(k, box(w + 0.2, 0.3, 0.3), C.WOOD_D, TIMBER, M(0, top - 0.2, d / 2 + 0.25), false);   // eave beam
       const pitch = 0.55, half = d / 2 + 0.8, slab = half / Math.cos(pitch), rise = Math.tan(pitch) * half;
       for (const s of [-1, 1]) W(k, box(w + 1.0, 0.32, slab), C.ROOFS[v % 4], 4, M(0, top + rise / 2, s * half / 2, 0, s * pitch));
       W(k, cyl(0.26, 0.26, w + 1.1, 6), C.ROOFS[(v + 1) % 4], 4, M(0, top + rise + 0.05, 0, 0, 0, Math.PI / 2), false);
       const gable = new THREE.BufferGeometry(); gable.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -d / 2, 0, 0, d / 2, 0, rise - 0.15, 0], 3)); gable.computeVertexNormals();
       for (const sx of [-1, 1]) { const g = gable.clone(); if (sx < 0) g.scale(-1, 1, 1); W(k, g, col, MASON, M(sx * (w / 2 + 0.01), top, 0, sx > 0 ? 0 : Math.PI), false); }
-      W(k, box(1.0, 2.6, 1.0), QUOIN, MASON, M(w * 0.3, top + rise * 0.6 + 1.0, -d * 0.2));
+      W(k, box(1.0, 2.6, 1.0), QUOIN, TRIM, M(w * 0.3, top + rise * 0.6 + 1.0, -d * 0.2));
     }, Y0);
   }
   // carved hanging sign on an iron bracket, perpendicular to the facade (reads down the street both ways) + facade board
   const hanging = (key, lx, w) => { at(lx + w / 2 - 1.1, FACADE_LZ, 0, () => { W(k, box(0.12, 0.12, 2.2), C.IRON, 0, M(0, 5.6, 1.1), false); W(k, box(0.08, 0.6, 0.08), C.IRON, 0, M(0, 5.3, 0.3, 0, 0.8), false);
-      for (const sz of [0.9, 2.0]) W(k, box(0.04, 0.35, 0.04), C.IRON, 0, M(0, 5.4, sz), false); W(k, box(0.16, 1.45, 2.7), C.WOOD_D, 2, M(0, 4.5, 1.45)); }, Y0);
+      for (const sz of [0.9, 2.0]) W(k, box(0.04, 0.35, 0.04), C.IRON, 0, M(0, 5.4, sz), false); W(k, box(0.16, 1.45, 2.7), C.WOOD_D, TIMBER, M(0, 4.5, 1.45)); }, Y0);
     sign(key, 2.5, 1.3, lx + w / 2 - 1.1 + 0.09, Y0 + 4.5, FACADE_LZ + 1.45, Math.PI / 2); sign(key, 2.5, 1.3, lx + w / 2 - 1.1 - 0.09, Y0 + 4.5, FACADE_LZ + 1.45, -Math.PI / 2); };
   SHOP_PLACES.length = 0;
   for (const s of STOREFRONTS) {
@@ -197,28 +199,28 @@ export function buildPlazaV2(h) {
       continue; }
     stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true });
     at(s.lx, FACADE_LZ, 0, () => {                                          // walk-up counter + canvas awning on timber posts
-      W(k, box(s.w * 0.6, 1.1, 1.0), C.WOOD, 2, M(0, 0.55, 1.0)); W(k, box(s.w * 0.6 + 0.3, 0.14, 1.25), C.WOOD_L, 2, M(0, 1.16, 1.0), false);
-      for (const sx of [-1, 1]) W(k, box(0.22, 3.0, 0.22), C.WOOD_D, 2, M(sx * s.w * 0.33, 1.5, 2.5), false);
-      W(k, box(s.w * 0.72, 0.12, 2.8), s.awn, 4, M(0, 3.25, 1.35, 0, 0.24));
-      for (let i = 0; i < 6; i++) W(k, box(s.w * 0.72 / 6 - 0.04, 0.45, 0.06), i % 2 ? 0xf2efe6 : s.awn, 12, M(-s.w * 0.36 + (i + 0.5) * s.w * 0.12, 2.8, 2.72), false);
-      W(k, box(s.w * 0.64, 1.0, 0.16), C.WOOD_D, 2, M(0, 4.35, 0.42), false);
+      W(k, box(s.w * 0.6, 1.1, 1.0), C.WOOD, TIMBER, M(0, 0.55, 1.0)); W(k, box(s.w * 0.6 + 0.3, 0.14, 1.25), C.WOOD_L, TIMBER, M(0, 1.16, 1.0), false);
+      for (const sx of [-1, 1]) W(k, box(0.22, 3.0, 0.22), C.WOOD_D, TIMBER, M(sx * s.w * 0.33, 1.5, 2.5), false);
+      W(k, box(s.w * 0.72, 0.12, 2.8), s.awn, CLOTH, M(0, 3.25, 1.35, 0, 0.24));
+      for (let i = 0; i < 6; i++) W(k, box(s.w * 0.72 / 6 - 0.04, 0.45, 0.06), i % 2 ? 0xf2efe6 : s.awn, CLOTH, M(-s.w * 0.36 + (i + 0.5) * s.w * 0.12, 2.8, 2.72), false);
+      W(k, box(s.w * 0.64, 1.0, 0.16), C.WOOD_D, TIMBER, M(0, 4.35, 0.42), false);
     }, Y0);
     sign(s.id, s.w * 0.6, 0.85, s.lx, Y0 + 4.35, FACADE_LZ + 0.52); hanging(s.id, s.lx, s.w);
     { const [x, z] = T(s.lx, FACADE_LZ + 1.0); addBox(x, z, s.w * 0.6 + 0.4, 1.4, yaw0); } for (const sx of [-1, 1]) addCirc(...T(s.lx + sx * s.w * 0.33, FACADE_LZ + 2.5), 0.25); // counter + awning posts are solid
   }
   for (const hl of HALLS) {                                                 // stone warehouse: billboards on the ground floor
     const [x, z] = T(hl.lx, cz); addBox(x, z, hl.w + 0.6, ROW_D + 0.6, yaw0);
-    at(hl.lx, cz, 0, () => { W(k, box(hl.w + 0.6, 0.7, ROW_D + 0.6), QUOIN, MASON, M(0, 0.15, 0)); W(k, box(hl.w, 4.4, ROW_D), 0xa99f90, MASON, M(0, 2.7, 0));
-      W(k, box(hl.w + 0.4, 0.4, ROW_D + 0.4), QUOIN, MASON, M(0, 5.0, 0), false); W(k, box(hl.w, 3.6, ROW_D), 0xc9bfae, MASON, M(0, 6.9, 0));
-      for (const sx of [-1, 1]) for (let q = 0; q < 6; q++) W(k, box(0.8, 0.9, 0.8), QUOIN, MASON, M(sx * (hl.w / 2 - 0.3), 1.0 + q * 1.4, ROW_D / 2 - 0.3), false);
-      W(k, box(hl.w + 1.2, 0.4, ROW_D + 1.6), C.ROOF, 4, M(0, 8.9, 0)); W(k, box(hl.w * 0.7, 1.4, 0.2), C.WOOD_D, 2, M(0, 9.9, ROW_D / 2 - 0.4), false);
-      W(k, box(hl.w + 0.2, 0.3, 0.3), C.WOOD_D, 2, M(0, 8.5, ROW_D / 2 + 0.2), false); }, Y0);
+    at(hl.lx, cz, 0, () => { W(k, box(hl.w + 0.6, 0.7, ROW_D + 0.6), QUOIN, TRIM, M(0, 0.15, 0)); W(k, box(hl.w, 4.4, ROW_D), 0xa99f90, MASON, M(0, 2.7, 0));
+      W(k, box(hl.w + 0.4, 0.4, ROW_D + 0.4), QUOIN, TRIM, M(0, 5.0, 0), false); W(k, box(hl.w, 3.6, ROW_D), 0xc9bfae, MASON, M(0, 6.9, 0));
+      for (const sx of [-1, 1]) for (let q = 0; q < 6; q++) W(k, box(0.8, 0.9, 0.8), QUOIN, TRIM, M(sx * (hl.w / 2 - 0.3), 1.0 + q * 1.4, ROW_D / 2 - 0.3), false);
+      W(k, box(hl.w + 1.2, 0.4, ROW_D + 1.6), C.ROOF, 4, M(0, 8.9, 0)); W(k, box(hl.w * 0.7, 1.4, 0.2), C.WOOD_D, TIMBER, M(0, 9.9, ROW_D / 2 - 0.4), false);
+      W(k, box(hl.w + 0.2, 0.3, 0.3), C.WOOD_D, TIMBER, M(0, 8.5, ROW_D / 2 + 0.2), false); }, Y0);
     sign('hall', hl.w * 0.66, 1.2, hl.lx, Y0 + 9.9, FACADE_LZ - 0.28);
     if (hl.trending && !ON_PORTAL) for (let i = 0; i < TRENDING.n; i++) { const lx = TRENDING.lx0 + i * (TRENDING.lx1 - TRENDING.lx0) / (TRENDING.n - 1);
-      at(lx, FACADE_LZ, 0, () => W(k, box(2.9, 2.2, 0.2), C.WOOD_D, 2, M(0, TRENDING.y, 0.12), false), Y0); sign('trend' + i, 2.6, 1.9, lx, Y0 + TRENDING.y, FACADE_LZ + 0.24); }
+      at(lx, FACADE_LZ, 0, () => W(k, box(2.9, 2.2, 0.2), C.WOOD_D, TIMBER, M(0, TRENDING.y, 0.12), false), Y0); sign('trend' + i, 2.6, 1.9, lx, Y0 + TRENDING.y, FACADE_LZ + 0.24); }
   }
   if (!ON_PORTAL) for (const [sym, lx] of Object.entries(TOKEN_SLOTS)) if (!A['bb' + sym]) {     // slot frames for boards not in this build
-    at(lx, FACADE_LZ + 0.6, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, 2, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, 2, M(0, 3.75, 0)); }, Y0);
+    at(lx, FACADE_LZ + 0.6, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, TIMBER, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, TIMBER, M(0, 3.75, 0)); }, Y0);
     sign('tok_' + sym, 4.1, 3.6, lx, Y0 + 3.85, FACADE_LZ + 0.74); }
   { const [x, z] = T(62, -27.4); addBox(x, z, 4.9, 1.2, yaw0); }   // the v103 token exchange counter (was walk-through)
   for (const hs of HOUSES) { const glb = hs.glb && SHOPS_KIT && SHOPS_KIT.shops[hs.glb];
@@ -227,14 +229,14 @@ export function buildPlazaV2(h) {
   // ---- market street + stalls + tavern tables + carts ----
   for (const [lx, lz] of LAMPS) { const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
   for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); { const [bx, bz] = T(s.lx, s.lz - 0.2); addBox(bx, bz, 4.3, 3.0, yaw0); }   // [collisions] counter + the 4 awning posts (the r 1.8 circle let you walk through the corner posts)
-    at(s.lx, s.lz, Math.PI, () => { W(k, box(4.4, 0.1, 3.2), s.c, 12, M(0, 3.0, 0.3, 0, 0.14)); for (const sx of [-2.0, 2.0]) for (const sz of [-1.2, 1.6]) W(k, box(0.14, 3.0, 0.14), C.WOOD_D, 2, M(sx, 1.5, sz), false);
+    at(s.lx, s.lz, Math.PI, () => { W(k, box(4.4, 0.1, 3.2), s.c, CLOTH, M(0, 3.0, 0.3, 0, 0.14)); for (const sx of [-2.0, 2.0]) for (const sz of [-1.2, 1.6]) W(k, box(0.14, 3.0, 0.14), C.WOOD_D, TIMBER, M(sx, 1.5, sz), false);
       for (let p = 0; p < 5; p++) k.add(new THREE.IcosahedronGeometry(0.28, 0), [0xff7a1a, 0xffd43b, 0x7cc142, 0xd8322f][(p + s.lx) & 3], { m: M(-1.2 + p * 0.6, 1.2, 0.2), outline: false, mat: 0 }); }, Y0);
     const [bx, bz] = T(s.lx + 2.8, s.lz + 1.0); ((s.lx / 8) % 2 ? barrel : sacks)(k, M(bx, Y0, bz, s.lx)); addCirc(bx, bz, 0.7); }
-  for (const [lx, lz] of CARTS) { at(lx, lz, 0.3, () => { W(k, box(2.6, 0.5, 1.5), C.WOOD, 2, M(0, 0.95, 0)); for (const sz of [-0.85, 0.85]) W(k, cyl(0.55, 0.55, 0.14, 10), C.WOOD_D, 2, M(-0.4, 0.55, sz, 0, Math.PI / 2), false);
-      W(k, box(1.8, 0.1, 0.1), C.WOOD_D, 2, M(2.1, 0.8, 0.4), false); W(k, box(1.8, 0.1, 0.1), C.WOOD_D, 2, M(2.1, 0.8, -0.4), false); }, Y0);
+  for (const [lx, lz] of CARTS) { at(lx, lz, 0.3, () => { W(k, box(2.6, 0.5, 1.5), C.WOOD, TIMBER, M(0, 0.95, 0)); for (const sz of [-0.85, 0.85]) W(k, cyl(0.55, 0.55, 0.14, 10), C.WOOD_D, TIMBER, M(-0.4, 0.55, sz, 0, Math.PI / 2), false);
+      W(k, box(1.8, 0.1, 0.1), C.WOOD_D, TIMBER, M(2.1, 0.8, 0.4), false); W(k, box(1.8, 0.1, 0.1), C.WOOD_D, TIMBER, M(2.1, 0.8, -0.4), false); }, Y0);
     const [x, z] = T(lx, lz); barrel(k, M(x, Y0 + 1.2, z, 1)); { const c = Math.cos(0.3), s = Math.sin(0.3), [bx, bz] = T(lx + 0.9 * c, lz - 0.9 * s); addBox(bx, bz, 4.9, 1.8, yaw0 + 0.3); } }   // [collisions] cart body + wheels + the shafts (circle 1.5 missed the shafts)
-  for (const [lx, lz] of TAVERN_TABLES) { at(lx, lz, 0, () => { W(k, cyl(0.9, 0.9, 0.12, 10), C.WOOD, 2, M(0, 1.0, 0)); W(k, cyl(0.15, 0.25, 1.0, 6), C.WOOD_D, 2, M(0, 0.5, 0), false);
-      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.35, 0.35, 0.55, 8), C.WOOD_L, 2, M(Math.sin(a) * 1.3, 0.28, Math.cos(a) * 1.3), false); }, Y0); const [x, z] = T(lx, lz); addCirc(x, z, 1.0);
+  for (const [lx, lz] of TAVERN_TABLES) { at(lx, lz, 0, () => { W(k, cyl(0.9, 0.9, 0.12, 10), C.WOOD, TIMBER, M(0, 1.0, 0)); W(k, cyl(0.15, 0.25, 1.0, 6), C.WOOD_D, TIMBER, M(0, 0.5, 0), false);
+      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.35, 0.35, 0.55, 8), C.WOOD_L, TIMBER, M(Math.sin(a) * 1.3, 0.28, Math.cos(a) * 1.3), false); }, Y0); const [x, z] = T(lx, lz); addCirc(x, z, 1.0);
     addCirc(x, z, 1.72); }   // [collisions] table + its 3 stools as one round footprint (the stools were walk-through; separate circles left pockets)
   // ---- palms (blockout: chunky trunk + fronds; phase 2 = the nature kit palm) ----
   for (const [i, [lx, lz]] of PALMS.entries()) at(lx, lz, i * 1.3, () => { for (let s = 0; s < 4; s++) W(k, cyl(0.32 - s * 0.04, 0.36 - s * 0.04, 2.0, 7), C.BARK, 5, M(s * 0.18, 1 + s * 1.9, 0, 0, 0, -0.06 * s));
@@ -242,10 +244,10 @@ export function buildPlazaV2(h) {
   // ---- cargo between the jetty roots (never on a jetty root or berth lane), rope coils, crane ----
   for (const [i, [lx, lz]] of CARGO.entries()) { if (!clearOfJetties(lx, 3)) continue; const [x, z] = T(lx, lz), y = lx < BOARDWALK.lxS ? bwY(lx) - 0.02 : Y0;
     crate(k, M(x, y, z, i * 0.7), 1.3); if (i % 2 === 0) crate(k, M(x, y + 1.3, z, i * 0.7 + 0.4), 1.1); const [x2, z2] = T(lx + 1.8, lz + 0.4); barrel(k, M(x2, y, z2, i));
-    at(lx - 1.8, lz + 0.6, 0, () => { W(k, cyl(0.6, 0.6, 0.35, 12), 0xd9c39a, 12, M(0, 0.18, 0)); W(k, cyl(0.25, 0.25, 0.37, 8), 0x8a6a3a, 12, M(0, 0.19, 0), false); }, y); addCirc(...T(lx - 1.8, lz + 0.6), 0.65); addCirc(x2, z2, 0.7);
+    at(lx - 1.8, lz + 0.6, 0, () => { W(k, cyl(0.6, 0.6, 0.35, 12), 0xd9c39a, ROPE, M(0, 0.18, 0)); W(k, cyl(0.25, 0.25, 0.37, 8), 0x8a6a3a, ROPE, M(0, 0.19, 0), false); }, y); addCirc(...T(lx - 1.8, lz + 0.6), 0.65); addCirc(x2, z2, 0.7);
     addCirc(x, z, 1.1); }
-  at(CRANE.lx, CRANE.lz, 0, () => { W(k, box(1.4, 0.6, 1.4), QUOIN, MASON, M(0, 0.3, 0)); W(k, cyl(0.28, 0.34, 7, 8), C.WOOD_D, 2, M(0, 3.8, 0)); W(k, box(0.35, 0.35, 7.5), C.WOOD_D, 2, M(0, 6.6, 2.6, 0, -0.5));
-    W(k, cyl(0.04, 0.04, 3.0, 4), 0xe7c08d, 12, M(0, 5.8, 5.7), false); W(k, box(1.4, 1.0, 1.4), C.WOOD_L, 2, M(0, 4.0, 5.7)); }, Y0); addCirc(...T(CRANE.lx, CRANE.lz), 0.9);
+  at(CRANE.lx, CRANE.lz, 0, () => { W(k, box(1.4, 0.6, 1.4), QUOIN, TRIM, M(0, 0.3, 0)); W(k, cyl(0.28, 0.34, 7, 8), C.WOOD_D, TIMBER, M(0, 3.8, 0)); W(k, box(0.35, 0.35, 7.5), C.WOOD_D, TIMBER, M(0, 6.6, 2.6, 0, -0.5));
+    W(k, cyl(0.04, 0.04, 3.0, 4), 0xe7c08d, ROPE, M(0, 5.8, 5.7), false); W(k, box(1.4, 1.0, 1.4), C.WOOD_L, TIMBER, M(0, 4.0, 5.7)); }, Y0); addCirc(...T(CRANE.lx, CRANE.lz), 0.9);
   // ---- the waterfront boardwalk: flat east part at street level, gently sloped west part; stilts, a low sea rail between the jetty
   // roots (open at every jetty), bollards on the edge; the 5 jetties root into its outer edge at the same height ----
   // [Timothy] Blender docks (plazaShops.js DOCKS_KIT): boardwalk, jetty decks, pilings, bollards, mooring posts, rope, ladders and the

@@ -11,6 +11,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
 import { loadHill, buildHill } from './hillStreet.js';   // [Timothy] the Blender hill street (Main Street)
+import { initLib, libMaterial } from './libTex.js';      // [Timothy] the shared material library (TEXCOORD_0 = layer code, no UV maps)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const SHOPS_GLB_ON = !(Q && Q.get('shopsglb') === '0');
@@ -27,15 +28,15 @@ export let BATTERY_KIT = null;
 const BATTERY_GLB_ON = !(Q && Q.get('batteryglb') === '0');
 function deq(src, m) {   // quantized glTF attributes -> float geometry in the parent frame (InstancedMesh / merge friendly)
   const g = new THREE.BufferGeometry();
-  for (const k of ['position', 'normal', 'color']) { const a = src.attributes[k]; if (!a) continue; const n = Math.min(a.itemSize, 3), out = new Float32Array(a.count * n);
-    for (let i = 0; i < a.count; i++) { out[i * n] = a.getX(i); out[i * n + 1] = a.getY(i); out[i * n + 2] = a.getZ(i); } g.setAttribute(k, new THREE.BufferAttribute(out, n)); }
+  for (const k of ['position', 'normal', 'color', 'uv']) { const a = src.attributes[k]; if (!a) continue; const n = Math.min(a.itemSize, 3), out = new Float32Array(a.count * n);   // uv = the library layer code
+    for (let i = 0; i < a.count; i++) { out[i * n] = a.getX(i); out[i * n + 1] = a.getY(i); if (n > 2) out[i * n + 2] = a.getZ(i); } g.setAttribute(k, new THREE.BufferAttribute(out, n)); }
   if (src.index) g.setIndex(Array.from(src.index.array)); g.applyMatrix4(m); return g;
 }
 function loadBattery(low) {
   if (!BATTERY_GLB_ON) return Promise.resolve(null);
   return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/battery${low ? '_low' : ''}.glb`).then(gl => {
     gl.scene.updateMatrixWorld(true); const root = gl.scene.getObjectByName('battery'), inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), rel = new THREE.Matrix4();
-    const solid = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }); solid.name = 'battery_solid';   // paving lies 3-7 mm over the terrain
+    const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low); solid.name = 'battery_solid';   // paving lies 3-7 mm over the terrain
     const merged = (name) => { const node = gl.scene.getObjectByName(name); if (!node) return null; const parts = [];
       node.traverse(mm => { if (mm.isMesh) { rel.multiplyMatrices(inv, mm.matrixWorld); parts.push(deq(mm.geometry, rel)); } }); if (!parts.length) return null;
       const g = parts.length > 1 ? mergeGeometries(parts, false) : parts[0]; g.computeBoundingSphere(); return g; };
@@ -55,7 +56,7 @@ export function buildBatteryStatic(pos, yaw) {
 
 // ---- the docks (tools/plaza_blender/docks_blender.py -> assets/island/docks*.glb): boardwalk + 5 jetties (B1-B10) in ~20-26 m chunks,
 // each a THREE.LOD (desktop LOD0 / LOD1, phones LOD1). Chunk frame = town-local, origin at the chunk centre (lx, lz) = extras lxlz.
-// dock_wood = the real plank texture (CC0, tools/plaza_blender/tex) x vertex colour. Colliders (town-local) ride in the extras.
+// Materials = the shared library (js/island/libTex.js: planks, timber, wet pilings, iron, rope) x vertex colour. Colliders (town-local) ride in the extras.
 // &docksglb=0 = the procedural boardwalk / jetties.
 export let DOCKS_KIT = null;                  // { low, chunks: [{ name, lx, lz, lods: [Group], colliders }] }
 export const DOCK_PLACES = [];                // [{ i, m: Matrix4 }] filled by plazaTown.buildPlazaV2
@@ -63,10 +64,8 @@ const DOCKS_GLB_ON = !(Q && Q.get('docksglb') === '0');
 function loadDocks(low) {
   if (!DOCKS_GLB_ON) return Promise.resolve(null);
   return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/docks${low ? '_low' : ''}.glb`).then(gl => {
-    let map = null; gl.scene.traverse(o => { if (o.isMesh && !map && o.material.map) map = o.material.map; });
-    if (map) { map.anisotropy = low ? 2 : 8; map.colorSpace = THREE.SRGBColorSpace; }
-    const wood = new THREE.MeshToonMaterial({ map, vertexColors: true, gradientMap: softRamp() }); wood.name = 'dock_wood';
-    const solid = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }); solid.name = 'dock_solid';
+    const wood = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); wood.name = 'dock_wood';   // planks / beams / pilings: library x vertex colour (no plank photo)
+    const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low); solid.name = 'dock_solid';
     const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }); glow.name = 'dock_glow';
     const pick = (m) => /wood/.test(m.name) ? wood : /glow/.test(m.name) ? glow : solid;
     gl.scene.updateMatrixWorld(true); const inv = new THREE.Matrix4(), rel = new THREE.Matrix4(), chunks = [];
@@ -81,13 +80,13 @@ function loadDocks(low) {
   }).catch(e => { console.warn('[docks] Blender models failed, procedural docks instead', e); return null; });
 }
 
-export function plazaShopsReady(low) {
-  const bat = Promise.all([loadBattery(low), (Q && /^[01]$/.test(Q.get('plaza') || '')) ? null : loadDocks(low)]);
+export function plazaShopsReady(low, renderer = null) {
+  const bat = Promise.all([loadBattery(low), (Q && /^[01]$/.test(Q.get('plaza') || '')) ? null : loadDocks(low), initLib(low, renderer)]);   // [Timothy] + the material library (KTX2 array)
   if (!SHOPS_GLB_ON || (Q && /^[01]$/.test(Q.get('plaza') || ''))) return bat.then(() => null);   // ?plaza=1/0 = the old v103 plaza
   if (_p) return _p;
   const url = `assets/island/plaza_shops${low ? '_low' : ''}.glb`;
   _p = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url).then(gl => {
-    const solid = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }); solid.name = 'plaza_shops_solid';
+    const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); solid.name = 'plaza_shops_solid';
     const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }); glow.name = 'plaza_shops_glow';
     const glass = new THREE.MeshBasicMaterial({ color: 0xd8eef6, transparent: true, opacity: 0.22, depthWrite: false }); glass.name = 'plaza_shops_glass';
     const pick = (m) => /glow/.test(m.name) ? glow : /glass/.test(m.name) ? glass : solid;

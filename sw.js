@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v176'; // [v176] load fix (no cache copy while activating), no SAFE HARBOR pill, moored ships ride higher
+const VERSION = 'pfp-v177'; // [v177] Timothy's shared material library (plaza / docks / battery / hill street / hilltop fort) + the gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
   "./index.html",
@@ -56,6 +56,7 @@ const SHELL = [
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader
   "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
+  "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
   "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
   "./js/island/kit.js",
@@ -290,6 +291,7 @@ const ASSETS = [
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",
   "./assets/island/battery_low.glb",
+  "./assets/island/tex/lib_lo.ktx2",   // [Timothy] material library, phone set (the desktop lib.ktx2 is cached on first use)
   "./assets/island/nature_kit.glb",
   "./assets/island/nature_kit.webp.glb",
   "./assets/island/nature_kit_low.glb",

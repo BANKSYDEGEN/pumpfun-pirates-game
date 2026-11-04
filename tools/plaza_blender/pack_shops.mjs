@@ -13,7 +13,11 @@ const report = {};
 for (const low of [false, true]) {
   const doc = await io.read(src), root = doc.getRoot();
   if (low) for (const n of root.listNodes()) if (/_LOD0$/.test(n.getName())) n.dispose();
-  await doc.transform(weld(), dedup(), prune(), reorder({ encoder: MeshoptEncoder }), quantize({ quantizeColor: 8, quantizeNormal: 8, quantizePosition: +(process.env.QBITS || 14), quantizeTexcoord: 12 }));
+  for (const m of root.listMeshes()) for (const p of m.listPrimitives()) {   // the exporter can put a constant-white set first (docks): keep the baked 'Col' set as COLOR_0
+    const c0 = p.getAttribute('COLOR_0'), c1 = p.getAttribute('COLOR_1');
+    if (c0 && c1) { const e = []; let white = true; for (let i = 0; i < c0.getCount() && white; i++) { c0.getElement(i, e); white = e[0] > 0.999 && e[1] > 0.999 && e[2] > 0.999; } if (white) p.setAttribute('COLOR_0', c1); }
+    for (const sem of p.listSemantics()) if (/^COLOR_[1-9]/.test(sem)) p.setAttribute(sem, null); }   // only COLOR_0 is drawn
+  await doc.transform(weld(), dedup(), prune({ keepAttributes: true }), reorder({ encoder: MeshoptEncoder }), quantize({ quantizeColor: 8, quantizeNormal: 8, quantizePosition: +(process.env.QBITS || 14), quantizeTexcoord: 8 }));
   doc.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.QUANTIZE });
   const f = `${out}/${name}${low ? '_low' : ''}.glb`; await io.write(f, doc);
   const tris = {}; for (const n of root.listNodes()) { const m = n.getMesh(); if (!m) continue; tris[n.getName()] = m.listPrimitives().reduce((s, p) => s + (p.getIndices() ? p.getIndices().getCount() / 3 : p.getAttribute('POSITION').getCount() / 3), 0); }

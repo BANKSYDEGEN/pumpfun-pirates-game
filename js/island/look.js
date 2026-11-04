@@ -8,6 +8,7 @@
 //   Low: half-res layers, albedo detail only (no bump, no rim, no extra passes).
 import * as THREE from 'three';
 import { SWAY_DECL, SWAY_BODY } from './kit.js';
+import { LIB_U, LIB_FDECL } from './libTex.js';   // [Timothy] the shared material library (aMat 21..32 + the town's man-made layers)
 
 // ---------- tileable procedural layers ----------
 function hash(x, y, s) { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -85,6 +86,8 @@ const VERT_BODY = 'vMat = aMat; vOP = position; vON = normal; vW0 = aW0; vW1 = a
 function fragDecl(low) {
   return `
 uniform sampler2DArray uDetail; uniform float uScale[13]; uniform float uBump[13];
+const int LIB_PL[12] = int[12](11, 11, 11, 7, 10, 2, 2, 2, 4, 3, 12, 12); // library layer -> procedural fallback (&plazatex=0 / not loaded)
+${LIB_FDECL}
 varying float vMat; varying vec3 vOP; varying vec3 vON; varying vec4 vW0; varying vec4 vW1;
 vec2 isTri(int L, vec3 p, vec3 w) { float s = 1.0 / uScale[L]; float l = float(L);
   return texture(uDetail, vec3(p.zy * s, l)).rg * w.x + texture(uDetail, vec3(p.xz * s, l)).rg * w.y + texture(uDetail, vec3(p.xy * s, l)).rg * w.z; }
@@ -114,6 +117,10 @@ if (isM > 0) {
     vec2 acc = vec2(0.0); float ws = 0.0; for (int i = 0; i < 8; i++) { float k = max(w[i] - (mx - 0.25), 0.0); acc += L[i] * k; ws += k; }
     d = acc / max(ws, 1e-4);
   }${cards ? ` else if (isM == 14) { vec4 cc = texture2D(uCards, vCUv); if (cc.a < 0.5) discard; diffuseColor.rgb *= cc.rgb * 1.35; d = vec2(0.5, dot(cc.rgb, vec3(0.3, 0.6, 0.1)) * 1.4); }` : ''}
+  else if (isM >= 21 || (uLibOn > 0.5 && (isM == 4 || isM == 7 || isM == 10 || isM == 11))) { // [Timothy] material library layer (libTex.js)
+    int li = isM >= 21 ? min(isM - 21, 11) : (isM == 4 ? 8 : isM == 7 ? 3 : isM == 10 ? 4 : 0);
+    if (uLibOn > 0.5) { vec4 lt = libTri(li, vOP, vON, 0.0); diffuseColor.rgb *= lt.rgb * 2.0; d = vec2(0.5, lt.a); } else d = isTri(LIB_PL[li], vOP, tw);
+  }
   else d = isTri(min(isM, 12), vOP, tw);
   diffuseColor.rgb *= 0.7 + 0.6 * d.x; isH = d.y;
 }
@@ -135,7 +142,7 @@ export function islandSurface(mat, { low, uTime = null, sway = false, cards = nu
   const tex = detailTexture(low);
   mat.gradientMap = softRamp();
   mat.onBeforeCompile = (s) => {
-    s.uniforms.uDetail = { value: tex }; s.uniforms.uScale = { value: SCALE }; s.uniforms.uBump = { value: BUMP }; if (cards) s.uniforms.uCards = { value: cards };
+    s.uniforms.uDetail = { value: tex }; s.uniforms.uScale = { value: SCALE }; s.uniforms.uBump = { value: BUMP }; Object.assign(s.uniforms, LIB_U); if (cards) s.uniforms.uCards = { value: cards };
     if (sway) s.uniforms.uTime = uTime;
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>' + VERT_DECL + (cards ? CARD_VDECL : '') + (sway ? SWAY_DECL : ''))
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_BODY + (cards ? 'vCUv = aCardUv;\n' : '') + (sway ? SWAY_BODY : ''));

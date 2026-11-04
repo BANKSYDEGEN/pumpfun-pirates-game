@@ -1,9 +1,16 @@
 # [Timothy] PUMPFUN PIRATES plaza shops: geometry helpers for plaza_shops_blender.py (Blender 4.2, bpy + numpy).
 # One Builder per shop per LOD collects flat-shaded primitives + baked item meshes into 3 material buckets
 # (0 solid toon, 1 glow, 2 glass) with sRGB vertex colours: no textures, one mesh (<= 3 primitives) per shop LOD.
-import bpy, bmesh, math, random
+# [material library] every solid part also names a library layer (materials.py: stone_ashlar, brick, timber, roof_tile, ...): explicit
+# (mat='timber' / lib=...) or from its palette colour (Builder.AUTO / .auto: hex -> name, nearest within 0.1 for jittered colours). bake()
+# writes it per corner as the ONE uv layer 'LibID' (u = layer code incl. the grain-swap bit, v = 0.5: no UV maps, no textures in the GLB,
+# no extra primitives) and bakes edge wear / grime into the vertex colours (per part: darker at its foot, a lighter worn top edge; plus a
+# contact grime band above the ground when .ground(x, y) is set).
+import bpy, bmesh, math, random, os, sys
 import numpy as np
 from mathutils import Matrix, Vector
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import materials as ML
 
 def hexc(h, j=0.0, rng=None):
     c = np.array([(h >> 16) & 255, (h >> 8) & 255, h & 255], float) / 255
@@ -20,16 +27,38 @@ def T(x=0, y=0, z=0, rx=0, ry=0, rz=0, s=None):
 _BOX_F = [(3, 2, 1, 0), (5, 6, 7, 4), (1, 5, 4, 0), (2, 6, 5, 1), (3, 7, 6, 2), (0, 4, 7, 3)]   # outward normals (CCW seen from outside)
 
 class Builder:
+    AUTO = {}                                 # [material library] script-wide palette hex -> library name (set once by each build script)
+    GRIME = True
     def __init__(self):
-        self.parts = {0: [], 1: [], 2: []}   # (verts Nx3, faces list[tuple], cols Fx3 per face or per-corner, smooth flags)
+        self.parts = {0: [], 1: [], 2: []}   # (verts Nx3, faces list[tuple], cols Fx3 per face or per-corner, smooth flags, lib name, face swaps)
         self.stack = [Matrix.Identity(4)]
         self.boxes = []                       # (tag, world-local AABB min, max) for overlap checks
+        self.auto = dict(Builder.AUTO); self._autoc = None
+        self.ground = None                    # optional fn(x, y) -> ground z (contact grime band)
     def push(self, m): self.stack.append(self.stack[-1] @ m)
     def pop(self): self.stack.pop()
-    def _add(self, V, F, col, mat=0, smooth=False, corner_cols=None, m=None):
+    def lib_for(self, col):
+        if col is None or not self.auto: return None
+        if isinstance(col, (int, np.integer)):
+            if int(col) in self.auto: return self.auto[int(col)]
+            col = hexc(int(col))
+        if self._autoc is None: self._autoc = [(hexc(k), v) for k, v in self.auto.items()]
+        c = np.asarray(col, float)[:3]; d, nm = min(((float(np.abs(c - k).max()), v) for k, v in self._autoc), key=lambda q: q[0])
+        return nm if d < 0.1 else None
+    def _add(self, V, F, col, mat=0, smooth=False, corner_cols=None, m=None, lib=None, grain=None):
+        if isinstance(mat, str): lib, mat = mat, 0
         M = self.stack[-1] @ (m or Matrix.Identity(4))
-        A = np.array(M); V = np.asarray(V, float); V = V @ A[:3, :3].T + A[:3, 3]
-        self.parts[mat].append((V, F, col, smooth, corner_cols))
+        A = np.array(M); V0 = np.asarray(V, float); V = V0 @ A[:3, :3].T + A[:3, 3]
+        if lib is None and mat == 0 and corner_cols is None: lib = self.lib_for(col)
+        sw = None
+        if lib and ML.INFO.get(lib, {}).get('grain'):   # grain axis: given (local) or the part's longest local extent, in the builder frame
+            if grain is None: ext = V0.max(0) - V0.min(0); grain = np.eye(3)[int(np.argmax(ext))]
+            ga = A[:3, :3] @ np.asarray(grain, float); sw = []
+            for f in F:
+                P = V[list(f)]; n = np.cross(P[1] - P[0], P[2] - P[0]) if len(f) >= 3 else np.zeros(3)
+                if len(f) > 3: n = n + np.cross(P[2] - P[0], P[3] - P[0])
+                sw.append(ML.swap_for(lib, n, ga))
+        self.parts[mat].append((V, F, col, smooth, corner_cols, lib if mat == 0 else None, sw))
         return V
     def box(self, sx, sy, sz, x=0, y=0, z=0, col=0xffffff, rx=0, ry=0, rz=0, mat=0, tag=None, base=False):
         # centred box (base=True: z is the bottom)
@@ -69,15 +98,29 @@ class Builder:
         return self._add(V, F, col, mat, smooth=smooth, corner_cols=corner_cols, m=m)
     def bake(self, name):
         me = bpy.data.meshes.new(name); verts = []; faces = []; fcols = []; ccols = []; smooth = []; mats = []; off = 0
+        lu = []
         for mat, plist in self.parts.items():
-            for V, F, col, sm, cc in plist:
+            for V, F, col, sm, cc, lib, sw in plist:
                 verts.append(V)
+                z0, z1 = float(V[:, 2].min()), float(V[:, 2].max()); hz = z1 - z0
                 for fi, f in enumerate(F):
                     faces.append([i + off for i in f]); mats.append(mat); smooth.append(sm)
-                    if cc is not None: ccols.extend(cc[fi])
+                    lu.extend([ML.code(lib, sw[fi] if sw else 0)] * len(f))
+                    if cc is not None: fc = [np.asarray(c, float) for c in cc[fi]]
                     else:
-                        c = hexc(col) if isinstance(col, int) else np.asarray(col, float)
-                        ccols.extend([c] * len(f))
+                        c = hexc(col) if isinstance(col, (int, np.integer)) else np.asarray(col, float)
+                        fc = [c] * len(f)
+                    if mat == 0 and cc is None and Builder.GRIME:   # edge wear + grime baked into the vertex colours
+                        out = []; P3 = V[list(f)]; fn = np.cross(P3[1] - P3[0], P3[2] - P3[0]) if len(f) >= 3 else np.zeros(3)
+                        wall = abs(fn[2]) < 0.7 * (np.linalg.norm(fn) + 1e-9)   # contact grime only on walls / sides (never on floors or decks)
+                        for c, vi in zip(fc, f):
+                            p = V[vi]; k = 1.0
+                            if hz > 0.12: t = (p[2] - z0) / hz; k *= 0.9 + 0.13 * t          # darker foot, lighter worn top edge
+                            if self.ground is not None and wall:
+                                dz = p[2] - self.ground(p[0], p[1]); k *= 0.8 + 0.2 * min(1.0, max(0.0, dz / 1.1)) ** 0.7   # contact grime
+                            out.append(np.clip(np.asarray(c, float) * k, 0, 1))
+                        fc = out
+                    ccols.extend(fc)
                 off += len(V)
         if not verts: return None
         V = np.concatenate(verts)
@@ -86,6 +129,7 @@ class Builder:
         ca = me.color_attributes.new('Col', 'BYTE_COLOR', 'CORNER')
         C = np.ones((len(ccols), 4)); C[:, :3] = np.clip(np.array(ccols), 0, 1)
         ca.data.foreach_set('color_srgb', C.ravel())
+        uvl = me.uv_layers.new(name='LibID'); U = np.full((len(lu), 2), 0.5); U[:, 0] = lu; uvl.data.foreach_set('uv', U.ravel())
         return me
     def tris(self):
         t = 0

@@ -4,8 +4,8 @@
 # js/dock/docking.js berths, approach lanes and ship footprints are untouched, and every deck top = the walk height exactly:
 #   boardwalk: one flat deck per BW_SEGS piece (the walk deck layout.js builds), east part flat at yE; jetties flat at j.y.
 # Frame: Blender x = town lx, y = -lz, z = world y. One chunk node per ~20-26 m of boardwalk and per jetty (origin at its centre, so
-# quantisation stays sub-mm), each with _LOD0 (desktop near) and _LOD1 (far + phones). Materials: dock_wood (real plank texture
-# tools/plaza_blender/tex/dock_planks_512.jpg x vertex colour), dock_solid (vertex colour), dock_glow.
+# quantisation stays sub-mm), each with _LOD0 (desktop near) and _LOD1 (far + phones). Materials: dock_wood + dock_solid (vertex colour x the
+# shared material library layer named per corner: planks_weathered decks, timber, piling_wet, iron, rope; materials.py), dock_glow.
 #   blender -b --factory-startup -P tools/plaza_blender/docks_blender.py -- OUT_DIR
 import bpy, sys, os, math, json, random
 import numpy as np
@@ -13,8 +13,9 @@ from mathutils import Matrix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import Builder, T, hexc, text_mesh
 OUT = sys.argv[sys.argv.index('--') + 1:][0]; os.makedirs(OUT, exist_ok=True)
+bpy.ops.wm.read_factory_settings(use_empty=True)   # [material library] no default cube in the export
 HERE = os.path.dirname(os.path.abspath(__file__)); FONT = os.path.join(HERE, '..', '..', 'assets', 'JustAnotherHand.ttf')
-TEX = os.path.join(HERE, 'tex', 'dock_planks_512.jpg'); TILE = 1.5
+OLD_WOOD = np.array([0.5225, 0.3888, 0.2584])   # sRGB factor = the old plank photo's mean (tex/dock_planks_512.jpg), kept so the docks keep their tone
 # ---- plazaTown.js numbers ----
 Y_QUAY, Y_DECK = 2.6, 2.95; STREET_Y = Y_QUAY + 0.13
 BW = dict(lx0=-176, lxS=-55, lx1=100, lz0=0, lz1=8, yW=Y_DECK, yE=STREET_Y + 0.02)
@@ -28,25 +29,29 @@ SEA = 0.0                                  # waterline (the harbor sea plane)
 WOOD, WOOD_D, WOOD_L, IRON, ROPE, GOLD, STONE = 0xffffff, 0x5a3a1e, 0xc48a50, 0x2b2b30, 0xc9a96a, 0xffc93c, 0xb8ad98
 rng = random.Random(7)
 
-class DB(Builder):                         # Builder + per-corner UVs (box / piling planar maps in metres / TILE)
-    def __init__(self): super().__init__(); self.uvs = {0: [], 1: [], 2: []}
-    def _add(self, V, F, col, mat=0, smooth=False, corner_cols=None, m=None, uv=None):
-        W = super()._add(V, F, col, mat, smooth, corner_cols, m); self.uvs[mat].append(uv if uv is not None else [[(0, 0)] * len(f) for f in F]); return W
+class DB(Builder):                         # Builder + the shared material library (materials.py): deck boards planks_weathered, timber, wet pilings, iron, rope
+    def __init__(self):
+        super().__init__(); self.auto = {IRON: 'iron', 0x3a3a40: 'iron', ROPE: 'rope', STONE: 'stone_trim', 0x3b2414: 'timber', 0x6b4a2a: 'timber'}; self._autoc = None
+    def _add(self, V, F, col, mat=0, smooth=False, corner_cols=None, m=None, uv=None, lib=None, grain=None):
+        if mat == 1 and lib is None and corner_cols is None: lib = self.lib_for(col)   # this file's mat 1 = the plain vertex-colour bucket
+        if mat == 0:   # the old dock_wood bucket multiplied the plank photo (mean OLD_WOOD); the library texture is neutral, so the colour carries it now
+            if corner_cols is not None: corner_cols = [[np.asarray(c, float) * OLD_WOOD for c in f] for f in corner_cols]
+            elif col is not None: col = (hexc(col) if isinstance(col, (int, np.integer)) else np.asarray(col, float)) * OLD_WOOD
+        W = super()._add(V, F, col, mat, smooth, corner_cols, m, lib=lib, grain=grain)
+        if mat == 1 and lib: V_, F_, c_, sm_, cc_, _, sw_ = self.parts[1][-1]; self.parts[1][-1] = (V_, F_, c_, sm_, cc_, lib, sw_)
+        return W
     def wbox(self, sx, sy, sz, x, y, z, grain='x', col=WOOD, rz=0, ry=0, base=False, cc=None):
-        """textured timber box; grain = the local axis the boards / grain run along. base: z = bottom."""
+        """timber box; grain = the local axis the boards / grain run along (the library texture follows it). base: z = bottom.
+        Deck boards (thin, long, flat) = planks_weathered, everything else timber."""
         hx, hy, hz = sx / 2, sy / 2, sz / 2; zc = z + hz if base else z
         V = [(-hx, -hy, -hz), (hx, -hy, -hz), (hx, hy, -hz), (-hx, hy, -hz), (-hx, -hy, hz), (hx, -hy, hz), (hx, hy, hz), (-hx, hy, hz)]
         F = [(3, 2, 1, 0), (5, 6, 7, 4), (1, 5, 4, 0), (2, 6, 5, 1), (3, 7, 6, 2), (0, 4, 7, 3)]   # outward normals
-        ou, ov = rng.random(), rng.random(); AX = [(0, 1), (0, 1), (0, 2), (1, 2), (0, 2), (1, 2)]   # face -> the 2 local axes it spans
-        uv = []
-        for fi, f in enumerate(F):
-            a, b = AX[fi]; g = {'x': 0, 'y': 1, 'z': 2}[grain]
-            if b == g: a, b = b, a                       # u = the grain axis (texture boards run along u)
-            uv.append([((V[i][a] + hx * 0) / TILE + ou, V[i][b] / TILE + ov) for i in f])
-        return self._add(V, F, col, 0, False, cc, T(x, y, zc, 0, ry, rz), uv)
+        rng.random(); rng.random()   # (kept: the old uv offset draws, so every later random tone / placement stays where it was)
+        name = 'planks_weathered' if sz <= 0.12 and max(sx, sy) > 1.0 else 'timber'
+        return self._add(V, F, col, 0, False, cc, T(x, y, zc, 0, ry, rz), lib=name, grain=np.eye(3)[{'x': 0, 'y': 1, 'z': 2}[grain]])
     def piling(self, x, y, z0, z1, r, n=8, lean=0.0):
         """round timber pile, grain vertical, vertex-colour weathering: algae below the sea, a pale barnacle band at the waterline,
-        a wet dark band above it, sun-bleached wood up top"""
+        a wet dark band above it, sun-bleached wood up top; library: piling_wet up to the splash line, timber above"""
         hs = [z0, SEA - 0.3, SEA - 0.02, SEA + 0.05, SEA + 0.55, SEA + 0.62, SEA + 1.1, z1]; hs = sorted(set(h for h in hs if z0 <= h <= z1))
         def col(h):   # weathering band: algae under water, green slime at the waterline, a pale barnacle crust up to the splash line, a wet dark band, then sun-bleached wood
             if h < SEA - 0.25: return hexc(0x2e4434)
@@ -54,16 +59,19 @@ class DB(Builder):                         # Builder + per-corner UVs (box / pil
             if h < SEA + 0.58: return hexc(0xd8d2b8)
             if h < SEA + 1.0: return hexc(0x6e5a46)
             return hexc(0xe8dccb)
-        V, F, CC, UV = [], [], [], []; ou = rng.random()
+        V, F, CC = [], [], []
+        rng.random()   # (kept: the old uv offset draw, so every later random placement stays where it was)
         for k, h in enumerate(hs):
             rr = r * (1.05 if SEA <= h <= SEA + 0.56 else 1.0)  # barnacle crust
             for i in range(n): a = 2 * math.pi * i / n; V.append((math.cos(a) * rr + lean * h, math.sin(a) * rr, h))
         for k in range(len(hs) - 1):
             for i in range(n):
                 q = (k * n + i, k * n + (i + 1) % n, (k + 1) * n + (i + 1) % n, (k + 1) * n + i); F.append(q)
-                CC.append([col(V[j][2]) for j in q]); UV.append([(V[j][2] / TILE + ou, ((j % n) + (1 if (j % n == 0 and q.index(j) in (1, 2) and i == n - 1) else 0)) / n * 0.35) for j in q])
-        top = tuple(range(len(V) - n, len(V))); F.append(top); CC.append([hexc(0x8a7458)] * n); UV.append([(0.5 + 0.1 * math.cos(2 * math.pi * i / n), 0.5) for i in range(n)])
-        self._add(V, F, None, 0, True, CC, T(x, y, 0), UV)
+                CC.append([col(V[j][2]) for j in q])
+        top = tuple(range(len(V) - n, len(V))); F.append(top); CC.append([hexc(0x8a7458)] * n)
+        wet = [k for k, f in enumerate(F) if len(f) == 4 and max(V[j][2] for j in f) <= SEA + 1.1 + 1e-6]
+        for nm, ks in (('piling_wet', wet), ('timber', [k for k in range(len(F)) if k not in set(wet)])):
+            if ks: self._add(V, [F[k] for k in ks], None, 0, True, [CC[k] for k in ks], T(x, y, 0), lib=nm, grain=(0, 0, 1))
     def rope(self, pts, r=0.045, n=5, col=ROPE):
         V, F = [], []
         for k, p in enumerate(pts):
@@ -72,15 +80,7 @@ class DB(Builder):                         # Builder + per-corner UVs (box / pil
             for i in range(n): a = 2 * math.pi * i / n; V.append(tuple(np.add(p, r * math.cos(a) * u + r * math.sin(a) * v)))
         for k in range(len(pts) - 1):
             for i in range(n): F.append((k * n + i, k * n + (i + 1) % n, (k + 1) * n + (i + 1) % n, (k + 1) * n + i))
-        self._add(V, F, col, 1, True)
-    def bake(self, name):
-        me = super().bake(name)
-        if me is None: return None
-        uvl = me.uv_layers.new(name='UVMap'); flat = []
-        for mat in self.parts:
-            for (V, F, *_), U in zip(self.parts[mat], self.uvs[mat]):
-                for fu in U: flat.extend(fu)
-        uvl.data.foreach_set('uv', np.array(flat, float).ravel()); return me
+        self._add(V, F, col, 1, True, lib='rope')
 
 def bollard(b, x, y, z, lod):              # cast-iron bollard (same spot + 0.4 m collider as the blockout)
     n = 12 if lod == 0 else 7
@@ -223,10 +223,8 @@ for j in JETTIES:
 def mat(name, kind):
     m = bpy.data.materials.new(name); m.use_nodes = True; nt = m.node_tree; bs = nt.nodes['Principled BSDF']; bs.inputs['Roughness'].default_value = 0.85
     vc = nt.nodes.new('ShaderNodeVertexColor'); vc.layer_name = 'Col'
-    if kind == 'wood':
-        im = nt.nodes.new('ShaderNodeTexImage'); im.image = bpy.data.images.load(TEX); mx = nt.nodes.new('ShaderNodeMix'); mx.data_type = 'RGBA'; mx.blend_type = 'MULTIPLY'; mx.inputs['Factor'].default_value = 1
-        nt.links.new(im.outputs['Color'], mx.inputs['A']); nt.links.new(vc.outputs['Color'], mx.inputs['B']); nt.links.new(mx.outputs['Result'], bs.inputs['Base Color'])
-    else: nt.links.new(vc.outputs['Color'], bs.inputs['Base Color'])
+    nt.links.new(vc.outputs['Color'], bs.inputs['Base Color'])   # [material library] no image: the game binds the shared library by the LibID uv
+    bs.inputs['Roughness'].default_value = {'wood': 0.85, 'solid': 0.8, 'glow': 0.75}[kind]   # distinct, so the packer's dedup keeps dock_solid (polygon offset) apart
     return m
 MATS = [mat('dock_wood', 'wood'), mat('dock_solid', 'solid'), mat('dock_glow', 'glow')]
 root = bpy.data.objects.new('docks', None); bpy.context.scene.collection.objects.link(root)
@@ -242,6 +240,6 @@ for c in CHUNKS:
 tot = [sum(r['LOD%d' % i] for r in rep.values()) for i in (0, 1)]
 print('docks LOD0', tot[0], 'LOD1', tot[1]); json.dump(dict(chunks=rep, total=tot, decks=dict(segs=SEGS, jetties=JETTIES)), open(os.path.join(OUT, 'docks_report.json'), 'w'), indent=1, default=str)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'docks.blend'))
-kw = dict(filepath=os.path.join(OUT, 'docks_raw.glb'), export_format='GLB', export_extras=True, export_apply=False, export_yup=True, export_image_format='JPEG')
+kw = dict(filepath=os.path.join(OUT, 'docks_raw.glb'), export_format='GLB', export_extras=True, export_apply=False, export_yup=True, export_image_format='NONE')
 try: bpy.ops.export_scene.gltf(**kw, export_vertex_color='MATERIAL')
 except TypeError: bpy.ops.export_scene.gltf(**kw)

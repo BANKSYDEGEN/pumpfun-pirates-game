@@ -8,6 +8,7 @@ import jungle from './jungle.js';
 import route from './route.js';
 import ropeBridge from './ropeBridge.js';
 import fort, { FORT_WALKIN } from './fort.js';
+import { libAreaBuilt } from '../libTex.js';   // [Timothy] shared material library: re-tags a built area's kit pieces (the hilltop fort, the Pirates' Climb) + the gate junction dressing
 export { FORT_WALKIN };
 export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort];
 // terrain edits (applied by foot.js to the height grid at load): pads = flat floors [x0, x1, z0, z1, y], paths = trails (painted + kept clear)
@@ -24,7 +25,7 @@ export function createAreas({ root, MATS, OUT, low, uTime, H }) {
   const LOAD_R = low ? 240 : 380, NEAR_R = low ? 120 : 190, SHOW_R = low ? 300 : 560, DROP_R = LOAD_R + 260;
   const S = AREA_MODS.map(a => ({ a, b: null, d: 1e9 })), stats = { built: 0, buildMs: 0, disposed: 0 };
   const ctx = { MATS, OUT, low, uTime, H };
-  function build(s) { const t0 = performance.now(); s.b = s.a.build(ctx); for (const g of [s.b.near, s.b.far].filter(Boolean)) { g.visible = false; root.add(g); }
+  function build(s) { const t0 = performance.now(); s.b = s.a.build(ctx); libAreaBuilt(s.a.id, s.b, ctx); for (const g of [s.b.near, s.b.far].filter(Boolean)) { g.visible = false; root.add(g); }
     stats.built++; stats.buildMs += Math.round(performance.now() - t0); stats[s.a.id] = Math.round(performance.now() - t0) + ' ms'; }
   function dispose(s) { for (const g of [s.b.near, s.b.far].filter(Boolean)) { root.remove(g); g.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); } s.b = null; stats.disposed++; }
   function update(cam, t, all = false) {

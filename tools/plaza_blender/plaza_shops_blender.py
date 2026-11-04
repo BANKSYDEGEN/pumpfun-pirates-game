@@ -37,6 +37,9 @@ ROOFS = [0xc8552e, 0xb8472a, 0xd2693a, 0xa94428]; SHUT = [0x2a6df4, 0x1f8a5a, 0x
 WOOD, WOOD_D, WOOD_L, IRON, GOLD, BRASS = 0xa86a3a, 0x5e3b20, 0xd9a36b, 0x2b2f36, 0xffc93c, 0xc9a243
 PLASTER, FLOOR_A, FLOOR_B, CREAM = 0xf3e6c8, 0xb07a45, 0x9a6638, 0xfff1d2
 GLOW = 0xffc46b
+# [material library] palette -> shared library layer (materials.py; nearest within 0.1 for the jittered colours); awnings are named where built
+Builder.AUTO = {**{c: 'stone_ashlar' for c in STONES}, QUOIN: 'stone_trim', MORTAR: 'stone_trim', **{c: 'roof_tile' for c in ROOFS},
+                **{c: 'timber' for c in (WOOD, WOOD_D, WOOD_L, *SHUT)}, FLOOR_A: 'planks_weathered', FLOOR_B: 'planks_weathered', IRON: 'iron', PLASTER: 'plaster', CREAM: 'plaster'}
 
 def wall_rects(x0, x1, z0, z1, holes):
     zs = sorted({z0, z1, *[h[2] for h in holes if z0 < h[2] < z1], *[h[3] for h in holes if z0 < h[3] < z1]}); out = []
@@ -59,7 +62,7 @@ def ashlar(b, rects, y, col, rng, rh=0.46):
             while x < x1:
                 bw = r2.uniform(0.7, 1.15); xa, xb = max(x0, x), min(x1, x + bw)
                 if xb - xa > 0.1:
-                    b.box(xb - xa - 0.04, 0.07, zb - za - 0.04, (xa + xb) / 2, y - 0.035, (za + zb) / 2, hexc(col, 0.07, rng))
+                    b.box(xb - xa - 0.04, 0.07, zb - za - 0.04, (xa + xb) / 2, y - 0.035, (za + zb) / 2, hexc(col, 0.07, rng), mat='stone_trim')   # dressed block face
                 x += bw
 
 def roof(b, w, top, v, lod, rng):
@@ -73,7 +76,7 @@ def roof(b, w, top, v, lod, rng):
                 b.box(w + 1.0, 0.48, 0.16, 0, s * d, z + 0.12, hexc(rc, 0.08, rng), rx=-s * pitch)
                 for xi in range(int(w + 1) * 2):
                     if (xi + i) % 2: continue
-                    b.box(0.22, 0.44, 0.06, -w / 2 - 0.5 + 0.25 + xi * 0.5, s * d, z + 0.23, hexc(rc, 0.12, rng), rx=-s * pitch)
+                    b.box(0.22, 0.44, 0.06, -w / 2 - 0.5 + 0.25 + xi * 0.5, s * d, z + 0.23, hexc(rc, 0.12, rng), rx=-s * pitch, mat='stone_trim')   # fired-clay grain on the modelled tiles
         else:
             b.box(w + 1.0, L, 0.3, 0, s * half / 2, top + rise / 2 + 0.1, rc, rx=-s * pitch)
     b.cyl(0.24, 0.24, w + 1.1, -w / 2 - 0.55, 0, top + rise + 0.08, ROOFS[(v + 1) % 4], n=6, ry=math.pi / 2)
@@ -217,9 +220,9 @@ def shopfront(b, sh, lod, rng, ow):
     aw = w * 0.72; ang = math.atan2(0.7, 2.8); L = math.hypot(2.8, 0.7); ns = 8 if lod < 2 else 1
     for i in range(ns):
         x = -aw / 2 + (i + 0.5) * aw / ns
-        b.box(aw / ns + 0.002, L, 0.08, x, FY - 1.4, 3.2, awn if i % 2 == 0 or lod == 2 else 0xf2efe6, rx=ang, tag='awning')
+        b.box(aw / ns + 0.002, L, 0.08, x, FY - 1.4, 3.2, awn if i % 2 == 0 or lod == 2 else 0xf2efe6, rx=ang, tag='awning', mat='awning_cloth')
         if lod < 2:
-            b.prism([(-aw / ns / 2, 0), (aw / ns / 2, 0), (0, -0.4)], 0.04, awn if i % 2 == 0 else 0xf2efe6, T(x, FY - 2.82, 2.86) @ T(s=(1, 1, 0.7)), mat=0)
+            b.prism([(-aw / ns / 2, 0), (aw / ns / 2, 0), (0, -0.4)], 0.04, awn if i % 2 == 0 else 0xf2efe6, T(x, FY - 2.82, 2.86) @ T(s=(1, 1, 0.7)), mat='awning_cloth')
     for s in (-1, 1):
         b.box(0.22, 0.22, 2.95, s * w * 0.33, FY - 2.5, 0, WOOD_D, base=True, tag='awning')
         if lod < 2: b.box(0.3, 0.3, 0.2, s * w * 0.33, FY - 2.5, 0, QUOIN, base=True)
@@ -546,7 +549,7 @@ for sh in SHOPS:
     root = bpy.data.objects.new(sh['id'], None); COLL.objects.link(root); cols = []; rep = {}
     for lod in (0, 1, 2):
         rng = np.random.default_rng(hash(sh['id']) % 1000 + lod); random.seed(1)
-        b = Builder(); bd = []; ow, top, rise = shell(b, sh, lod, rng); bd.append(b.tris())
+        b = Builder(); b.ground = lambda x, y: 0.0; bd = []; ow, top, rise = shell(b, sh, lod, rng); bd.append(b.tris())
         if not sh.get('plain'): shopfront(b, sh, lod, rng, ow)
         bd.append(b.tris())
         if not sh.get('plain'): signs(b, sh, lod, rng)

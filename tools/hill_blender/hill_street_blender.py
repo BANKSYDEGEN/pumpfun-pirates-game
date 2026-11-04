@@ -30,6 +30,11 @@ LEAF = [0x3f8f3a, 0x2f7a32, 0x5aa040]; FLOWERS = [0xd8322f, 0xffd43b, 0xff7ab5, 
 GLOW, FLOOR_A, FLOOR_B, PLASTER_IN = 0xffc46b, 0xb07a45, 0x9a6638, 0xeadcc0
 AWN = [0xd8322f, 0x2a6df4, 0x1f8a5a, 0xffc93c, 0x6a4fb3, 0x8a1c1c]
 WALL, G, U, OPEN_TOP = 0.5, 4.4, 3.3, 3.4
+# [material library] palette -> shared library layer (materials.py: the same stone / brick / plaster / timber / tiles as the plaza, docks, battery
+# and the hilltop fort; nearest within 0.1 for the jittered colours); awnings + modelled block faces are named where built
+Builder.AUTO = {**{c: 'stone_ashlar' for c in STONES + SAND}, **{c: 'brick' for c in BRICK}, QUOIN: 'stone_trim', MORTAR: 'stone_trim',
+                **{c: 'roof_tile' for c in ROOFS}, **{c: 'timber' for c in (WOOD, WOOD_D, WOOD_L, *SHUT)}, IRON: 'iron',
+                **{c: 'plaster' for c in PLASTERS + [PLASTER_IN, 0xe8d8b8]}, **{c: 'planks_weathered' for c in PLANK + [FLOOR_A, FLOOR_B]}}
 
 # ---- the lots (keep in sync with js/island/foot.js buildStreet: STREET, lots, street dressing) ----
 def jh(i, j): s = math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - math.floor(s)
@@ -115,7 +120,7 @@ def ashlar(bd, rects, y, col, rng, rh=0.46):
             r2 = random.Random(k * 7919); x = -40 + (0.45 if k % 2 else 0)
             while x < x1:
                 bw = r2.uniform(0.7, 1.15); xa, xb = max(x0, x), min(x1, x + bw)
-                if xb - xa > 0.1: bd.box(xb - xa - 0.04, 0.07, zb - za - 0.04, (xa + xb) / 2, y - 0.035, (za + zb) / 2, hexc(col, 0.07, rng))
+                if xb - xa > 0.1: bd.box(xb - xa - 0.04, 0.07, zb - za - 0.04, (xa + xb) / 2, y - 0.035, (za + zb) / 2, hexc(col, 0.07, rng), mat='brick' if col in BRICK else 'stone_trim')   # block faces
                 x += bw
 
 def carve(bd, text, cx, cy, cz, wfit, hfit, face, lod, col=GOLD):
@@ -182,7 +187,7 @@ def roof(bd, x0, x1, d, fy, top, b, lod, rng):
                     t = (i + 0.5) / n; dd = half * (1 - t); zz = top + rise * t
                     bd.box(w + 0.6, 0.48, 0.14, cx, yc + s * dd, zz + 0.1, hexc(rc, 0.08, rng), rx=-s * pitch)
                 for k in range(int((w + 0.6) / 0.5)):   # barrel-tile ribs
-                    bd.box(0.16, L, 0.07, x0 - 0.3 + 0.25 + k * 0.5, yc + s * half / 2, top + rise / 2 + 0.24, hexc(rc, 0.12, rng), rx=-s * pitch)
+                    bd.box(0.16, L, 0.07, x0 - 0.3 + 0.25 + k * 0.5, yc + s * half / 2, top + rise / 2 + 0.24, hexc(rc, 0.12, rng), rx=-s * pitch, mat='stone_trim')
             else: bd.box(w + 0.6, L, 0.28, cx, yc + s * half / 2, top + rise / 2 + 0.1, rc, rx=-s * pitch)
         bd.cyl(0.22, 0.22, w + 0.7, x0 - 0.35, yc, top + rise + 0.06, ROOFS[(b['v'] + 1) % 4], n=6, ry=math.pi / 2)
         for sx, xx in ((-1, x0 + 0.02), (1, x1 - 0.32)):   # side gables (seen above the lower neighbours)
@@ -268,8 +273,8 @@ def building(bd, b, lod, rng, cols):
         ang = math.atan2(0.8, 1.6); L = math.hypot(1.6, 0.8); ns = 8 if lod == 0 else 2
         for i in range(ns):
             x = xo - aw / 2 + (i + 0.5) * aw / ns
-            bd.box(aw / ns + 0.002, L, 0.06, x, FY - 0.8, OPEN_TOP + 0.55, awc if i % 2 == 0 else 0xf2efe6, rx=ang)
-            if lod == 0: bd.prism([(-aw / ns / 2, 0), (aw / ns / 2, 0), (0, -0.3)], 0.04, awc if i % 2 == 0 else 0xf2efe6, T(x, FY - 1.62, OPEN_TOP + 0.16), mat=0)
+            bd.box(aw / ns + 0.002, L, 0.06, x, FY - 0.8, OPEN_TOP + 0.55, awc if i % 2 == 0 else 0xf2efe6, rx=ang, mat='awning_cloth')
+            if lod == 0: bd.prism([(-aw / ns / 2, 0), (aw / ns / 2, 0), (0, -0.3)], 0.04, awc if i % 2 == 0 else 0xf2efe6, T(x, FY - 1.62, OPEN_TOP + 0.16), mat='awning_cloth')
         for s in (-1, 1): bd.box(0.05, 1.6, 0.05, xo + s * aw / 2, FY - 0.8, OPEN_TOP + 0.55, IRON, rx=ang); bd.box(0.05, 0.05, 0.9, xo + s * aw / 2, FY - 0.04, OPEN_TOP + 0.4, IRON)
     # wall lanterns beside the arch
     for s in (-1, 1):
@@ -452,7 +457,7 @@ for b in B:
     root = bpy.data.objects.new('hill_' + b['key'], None); coll.objects.link(root); cols = []; b['_props'] = []; rep = {}
     for lod in (0, 1):
         rng = np.random.default_rng(b['n'] * 31 + (b['side'] > 0) * 7 + lod); random.seed(b['n'])
-        bd = Builder(); building(bd, b, lod, rng, cols if lod == 0 else None); R = interior(bd, b, lod, rng, cols if lod == 0 else None)
+        bd = Builder(); bd.ground = (lambda g: (lambda x, y: g * x))(b['g']); building(bd, b, lod, rng, cols if lod == 0 else None); R = interior(bd, b, lod, rng, cols if lod == 0 else None)
         (rent_room if b['kind'] == 'rent' else weapon_room)(bd, b, lod, rng, R); bracket(bd, b)
         bake_obj(bd, f"hill_{b['key']}_LOD{lod}", coll, root); rep[f'LOD{lod}'] = bd.tris()
     cols += b['_props'][:2]
