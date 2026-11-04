@@ -39,7 +39,12 @@ export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagr
 // stays above every real player; a bigger one-off (a 1,680 g holder boss pile) is DELAYED a few syncs, never lost (stepToward
 // clamps, saveProblem's 422 is retried as the allowance grows). Harbor bosses come one at a time every 3-5 min = at most 0.33 / min.
 // valueBase stays 2500 (one boss pile in a single wallet save).
-export const CAPS = { valueBase: 2500, valuePerMin: 3000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15, bossBase: 2, bossPerMin: 0.5 };
+export const CAPS = { valueBase: 2500, valuePerMin: 3000, killsBase: 2, killsPerMin: 8, deathsBase: 2, deathsPerMin: 15, bossBase: 2, bossPerMin: 0.5, batteryBase: 2, batteryPerMin: 10 };
+// [cliff gold] BANKSY: 50 gold per cliff-cannon hit on a ship. Paid hits are counted (stats.batteryHits, never down) at most 1 per
+// 5 s gun reload and 10 / min (client gate), checked here at 2 + 10 / min; each counted hit adds exactly BATTERY_GOLD to the gold allowance.
+export const BATTERY_GOLD = 50;
+export const batteryCap = (m: number) => CAPS.batteryBase + CAPS.batteryPerMin * m;
+export const batteryDelta = (cur: Profile, next: Profile) => Math.max(0, (next.stats.batteryHits ?? 0) - (cur.stats.batteryHits ?? 0));
 
 export const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 export const isWallet = (w: unknown): w is string => {
@@ -57,13 +62,13 @@ export function verifySignature(message: string, signatureB64: string, wallet: s
   } catch { return false; }
 }
 
-export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; gear?: Record<string, string>; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number; prestige?: number }; prestige?: number };
+export type Profile = { gold: number; levels: Record<string, number>; skins: { owned: string[]; equipped: string }; gear?: Record<string, string>; stats: { kills: number; deaths: number; botKills: number; harborKills: number; bossKills: number; batteryHits?: number; prestige?: number }; prestige?: number };
 const n = (x: unknown, hi: number) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
 export function cleanProfile(p: any): Profile {
   const o = p && typeof p === "object" ? p : {};
   const levels: Record<string, number> = {};
   for (const [id, c] of Object.entries(TIER_COSTS)) levels[id] = n(o.levels?.[id], c.length);
-  const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7), harborKills: n(o.stats?.harborKills, 1e7), bossKills: n(o.stats?.bossKills, 1e7) }; // [v98] unlock tracks
+  const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7), harborKills: n(o.stats?.harborKills, 1e7), bossKills: n(o.stats?.bossKills, 1e7), batteryHits: n(o.stats?.batteryHits, 1e7) }; // [v98] unlock tracks; [cliff gold] paid cliff-gun hits
   // [v102] the island shop: owned skins come ONLY from pvp_owned (the handlers fill + check them: fitEquipped); here the
   // equipped id just has to be a known skin
   const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || o.skins.equipped in SKIN_KILLS || o.skins.equipped in UNLOCK_SKINS) ? o.skins.equipped : "classic";
@@ -80,7 +85,9 @@ export function value(p: Profile) {
 // [Emerly boosts] goldFind (0..0.10, the PET gold find from boostsFor) widens the gold pace by the same share (default 0 = unchanged)
 export function saveProblem(cur: Profile, next: Profile, mins: number, goldFind = 0): string | null {
   const m = Math.max(0, Math.min(mins, 60)), gf = 1 + Math.max(0, Math.min(0.10, Number(goldFind) || 0));
-  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m) return "gold gained too fast";
+  const dbh = batteryDelta(cur, next); // a save without it (older client) keeps the stored count (keepCounters)
+  if (dbh > batteryCap(m)) return "too many cliff cannon hits for the time";
+  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m + BATTERY_GOLD * dbh) return "gold gained too fast";
   const dk = next.stats.kills - cur.stats.kills, dd = next.stats.deaths - cur.stats.deaths, db = next.stats.botKills - cur.stats.botKills;
   if (dk < 0 || dd < 0 || db < 0) return "K/D can't go down";
   if (dk > CAPS.killsBase + CAPS.killsPerMin * m || db > CAPS.killsBase + CAPS.killsPerMin * m) return "too many kills for the time";
@@ -96,6 +103,7 @@ export function saveProblem(cur: Profile, next: Profile, mins: number, goldFind 
 export function keepCounters(cur: Profile, next: Profile): Profile {
   next.stats.harborKills = Math.max(cur.stats.harborKills, next.stats.harborKills);
   next.stats.bossKills = Math.max(cur.stats.bossKills, next.stats.bossKills);
+  next.stats.batteryHits = Math.max(cur.stats.batteryHits ?? 0, next.stats.batteryHits ?? 0);
   return cleanProfile(next);
 }
 

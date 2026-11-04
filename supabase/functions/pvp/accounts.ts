@@ -21,7 +21,7 @@ const OWNER_PW_LOGIN = Deno.env.get("OWNER_PASSWORD_LOGIN") === "1";
 const WIN_MS = 15 * 60 * 1000, NAME_FAILS = 8, IP_FAILS = 25, IP_SETS = 12;
 // a real bcrypt hash (of a random string) so an unknown name costs the same time as a wrong password
 const DUMMY_HASH = "$2a$10$5qhnQhRuI4DpBINyxzsxnuxrWrAhxoQYfCuDTxwKA04hKkhh.m4c2";
-const STAT_KEYS = ["kills", "deaths", "botKills", "harborKills", "bossKills"] as const;
+const STAT_KEYS = ["kills", "deaths", "botKills", "harborKills", "bossKills", "batteryHits"] as const; // [cliff gold] + paid cliff-gun hits
 
 type Ctx = {
   db: any; ip: string;
@@ -186,11 +186,11 @@ export async function acctAction(ctx: Ctx, action: string, b: Record<string, unk
         // upgrades: the higher level of each (a level bought on either device counts once)
         for (const k of Object.keys(next.levels)) next.levels[k] = Math.max(cur.levels[k] | 0, R.levels[k] | 0);
         // stats: only what THIS device added since its last sync, at the same pace caps as every save (the rest is dropped)
-        const kc = CAPS.killsBase + CAPS.killsPerMin * m, cap: Record<string, number> = { kills: kc, deaths: CAPS.deathsBase + CAPS.deathsPerMin * m, botKills: kc, harborKills: kc, bossKills: CAPS.bossBase + CAPS.bossPerMin * m };
-        for (const k of STAT_KEYS) next.stats[k] = cur.stats[k] + Math.max(0, Math.min(Math.floor(cap[k]), R.stats[k] - Math.floor(Number(L.stats[k]) || 0)));
+        const kc = CAPS.killsBase + CAPS.killsPerMin * m, cap: Record<string, number> = { kills: kc, deaths: CAPS.deathsBase + CAPS.deathsPerMin * m, botKills: kc, harborKills: kc, bossKills: CAPS.bossBase + CAPS.bossPerMin * m, batteryHits: CAPS.batteryBase + CAPS.batteryPerMin * m };
+        for (const k of STAT_KEYS) next.stats[k] = (cur.stats[k] ?? 0) + Math.max(0, Math.min(Math.floor(cap[k]), (R.stats[k] ?? 0) - Math.floor(Number(L.stats[k]) || 0)));
         // gold: this device's change since its last sync (spends count too). Value gained (gold + new upgrades) above the pace
         // allowance waits (pend): the device keeps it and it lands on a later sync, never lost.
-        const dGold = R.gold - L.gold, allow = CAPS.valueBase + CAPS.valuePerMin * m;
+        const dGold = R.gold - L.gold, allow = CAPS.valueBase + CAPS.valuePerMin * m + 50 * Math.max(0, (next.stats.batteryHits ?? 0) - (cur.stats.batteryHits ?? 0)); // [cliff gold] 50 g per counted cliff-gun hit (lib BATTERY_GOLD)
         if (ctx.upgValue(next.levels) - ctx.upgValue(cur.levels) + Math.min(0, dGold) > allow) next.levels = { ...cur.levels }; // unpaid upgrades don't land
         const gain = dGold + ctx.upgValue(next.levels) - ctx.upgValue(cur.levels);
         const pend = gain > allow ? Math.min(Math.max(0, dGold), Math.ceil(gain - allow)) : 0;

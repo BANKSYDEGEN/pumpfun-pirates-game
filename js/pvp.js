@@ -807,9 +807,18 @@ export function createPvp(K) {
       if (s.prot) { fx.splash(p); return true; }
       const raw = (BALL_DMG[0] + Math.random() * (BALL_DMG[1] - BALL_DMG[0])) * PVP_DMG_MUL;
       if (pid) { flushHits(); hitQueue.g = gun | 0; }   // tagged + sent on its own: the receiver validates the gun, not our (moored) ship's distance
-      applyHit(s, raw, p.clone(), pl); if (pid) flushHits(); return true;
+      applyHit(s, raw, p.clone(), pl); if (pid) flushHits(); payBattery(p); return true;
     }
     return false;
+  }
+  // [cliff gold] BANKSY: +50 gold per cliff-cannon hit on an AI / pirate ship (own + party ships never reach here). Paid at most once per
+  // 5 s gun reload and 10 / min; counted in stats.batteryHits so the pvp function allows exactly 50 g per hit (2 + 10 / min cap there).
+  const BAT_PAY = { gold: 50, gapMs: 5000, perMin: 10 }, batPaid = [];
+  function payBattery(p) {
+    const now = performance.now(); while (batPaid.length && now - batPaid[0] > 60000) batPaid.shift();
+    if ((batPaid.length && now - batPaid[batPaid.length - 1] < BAT_PAY.gapMs) || batPaid.length >= BAT_PAY.perMin) return;
+    batPaid.push(now); game.gold += BAT_PAY.gold; profile.stats.batteryHits = (profile.stats.batteryHits | 0) + 1;
+    sfx.coin?.(); K.popup(p.clone().setY(6), `+${BAT_PAY.gold}`); K.updateHud(); save({});
   }
   function applyHit(target, raw, p, shooter) {
     const pl = P(), sid = shooter === pl ? myId : shooter.net?.id; if (!sid) return;

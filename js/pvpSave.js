@@ -37,7 +37,7 @@ export function cleanProfile(p) {
   const n = (x, hi) => Math.max(0, Math.min(hi, Math.floor(Number(x) || 0)));
   b.gold = n(p.gold, 1e7);
   for (const u of UPGRADES) b.levels[u.id] = n(p.levels?.[u.id], u.tiers.length);
-  const st = p.stats || {}; b.stats = { kills: n(st.kills, 1e7), deaths: n(st.deaths, 1e7), botKills: n(st.botKills, 1e7), harborKills: n(st.harborKills, 1e7), bossKills: n(st.bossKills, 1e7) };
+  const st = p.stats || {}; b.stats = { kills: n(st.kills, 1e7), deaths: n(st.deaths, 1e7), botKills: n(st.botKills, 1e7), harborKills: n(st.harborKills, 1e7), bossKills: n(st.bossKills, 1e7), batteryHits: n(st.batteryHits, 1e7) }; // [cliff gold]
   // [v102] THE ISLAND SHOP: skins are BOUGHT with gold. The owned list is the server's (pvp_owned, cached here by dev_sync / load):
   // shop.skins once the server answered, else whatever this save already had (an older save's kill-tier list = what it could use)
   const known = new Set([...PVP_SKIN_TIERS.map(t => t.id), ...PVP_UNLOCK_SKINS.map(u => u.id)]);
