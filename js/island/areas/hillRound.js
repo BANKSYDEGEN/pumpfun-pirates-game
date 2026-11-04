@@ -15,6 +15,7 @@
 // &roundabout=0 (areas/index.js) = none of this: the old gate, steps and dip path exactly.
 import * as THREE from 'three';
 import { Kit, M, box, cyl, hash, jitter, W, C } from './common.js';
+const C2 = C;   // ([stairs2] buildClimb's C = CLIMB)
 import { _route as RT } from './route.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -23,7 +24,7 @@ import { libMaterial } from '../libTex.js';
 
 // the Blender fountain (tools/roundabout_blender/rb_fountain_blender.py -> assets/island/rb_fountain.glb desktop LOD0, rb_fountain_low.glb phones
 // LOD1: one mesh, one draw call, library stone): OFF by default for the layout pass, &rbglb=1 = try it; a failed load = the kit fountain (same heights, same collider).
-const RBGLB_ON = typeof location !== 'undefined' && /[?&]rbglb=1(&|$)/.test(location.search);   // BANKSY 1:14 PM: three.js kit layout first, Blender pass after he approves it
+const RBGLB_ON = typeof location !== 'undefined' && (/[?&]rbblend=0(&|$)/.test(location.search) ? /[?&]rbglb=1(&|$)/.test(location.search) : !/[?&]rbglb=0(&|$)/.test(location.search));   // [rb-blender] ON with the Blender pass (&rbglb=0 = the kit fountain)   // BANKSY 1:14 PM: three.js kit layout first, Blender pass after he approves it
 let RBG = null;
 function rbFountainGLB(low) {
   if (!RBGLB_ON || typeof window === 'undefined') return Promise.resolve(null);
@@ -36,10 +37,43 @@ function rbFountainGLB(low) {
   return RBG.then(m => m && m.clone());
 }
 
+// [rb-blender] BANKSY 1:33 PM: "make the fountain plaza more symmetrical off of hill street" + "Probably remove the archway too": the plaza, the
+// fountain and the bridge head are centred on Main Street's axis (world z -84 = town-local lx 6 at the gate), the castle to the right (N), the
+// Pirates' Climb to the left (S); the structural stone (deck, borders, retaining walls, parapets, stair flights, castle apron, gate piers, bridge
+// towers + piers) is the Blender model assets/island/rb_plaza(_low).glb (tools/roundabout_blender/rb_plaza_blender.py, shared library).
+// &rbblend=0 = the v214 layout exactly (fountain at z -88, kit stone, the arch).
+export const RBB_ON = !(typeof location !== 'undefined' && /[?&]rbblend=0(&|$)/.test(location.search));
+const AXZ = -84;   // foot.js townToWorld(STREET.x, STREET.z1)[1]
+// [v220] BANKSY 3:51-3:57 PM "Fix the steps, fix the side of castle, remove the archways" + "Also remove the clutter on ground around fountain" +
+// "Also remove arch at waterfall end of rope bridge": with the Blender plaza on, the bridge's two tower-head arches (stone towers + timber lintel +
+// name board) become low lantern newels, the town gate towers go (foot.js GATE_ARCH_OFF), and the paving round the fountain is clear (no benches,
+// planters or signposts on it; the perimeter lamps stay). &rbarch=1 = the arches back (towers, lintels, gate); &rbblend=0 = v214 exactly.
+export const ARCH_OFF = RBB_ON && !(typeof location !== 'undefined' && /[?&]rbarch=1(&|$)/.test(location.search));
+const CLEAN = RBB_ON;
+export const RB_LAYOUT = [];   // the last build's structural pieces { kind, w, h, d, c, e (world Matrix4) } (tools/roundabout_blender/node/export_layout.mjs)
+// the Blender plaza (rb_plaza.glb desktop / rb_plaza_low.glb phones, world coords about RB_ORIGIN): only used when its baked layout matches this
+// build's (same pieces, positions within 2 cm, heights within 0.6 m: a live terrain edit under a wall = the kit stays, no gaps)
+export const RB_ORIGIN = [-425.5, 20.1, -84];
+let RBP = null;
+export function layoutMatch(a, b) { if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) { const p = a[i], q = b[i]; if (p.kind !== q.kind || Math.abs(p.w - q.w) > 0.02 || Math.abs(p.d - q.d) > 0.02 || Math.abs(p.h - q.h) > 0.6) return false;
+    for (const j of [12, 14]) if (Math.abs(p.e[j] - q.e[j]) > 0.02) return false; if (Math.abs(p.e[13] - q.e[13]) > 0.35) return false; } return true; }
+function rbPlazaGLB(low, lay) {
+  if (!RBB_ON || typeof window === 'undefined' || typeof fetch === 'undefined') return Promise.resolve(null);
+  if (!RBP) { const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); solid.name = 'rb_plaza_solid';
+    RBP = fetch('assets/island/rb_plaza_layout.json').then(r => r.json()).then(ref => { if (!layoutMatch(ref.pieces, lay)) { console.warn('[hill_round] rb_plaza layout differs from this build: the kit stone stays'); RB_STATS.plazaMismatch = true; return null; }
+      return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/rb_plaza${low ? '_low' : ''}.glb`).then(gl => {
+        const want = low ? 'rb_plaza_LOD1' : 'rb_plaza_LOD0'; let mesh = null; gl.scene.traverse(o => { if (o.isMesh && (o.name === want || o.parent?.name === want)) mesh = o; });
+        if (!mesh) return null; const m = new THREE.Mesh(mesh.geometry, solid); m.name = 'rb_plaza_glb'; m.position.set(...RB_ORIGIN); m.castShadow = !low; m.receiveShadow = true;
+        RB_STATS.plazaTris = mesh.geometry.index ? mesh.geometry.index.count / 3 : mesh.geometry.attributes.position.count / 3; return m; }); })
+      .catch(e => { console.warn('[hill_round] Blender plaza failed, the kit stone stays', e); return null; }); }
+  return RBP;
+}
 const Y = 20.1;   // >= the natural ground anywhere under the plaza (max 20.05): the deck is never under the grass
 // BANKSY's sketch (12:35 PM, from under the gate arch): one wide paved plaza filling the view, the fountain centred a little way out, a low wall on
 // the far rim with the bridge head in the middle; LEFT = the path down the hill (the Pirates' Climb, its own route), RIGHT = up to the castle
-export const RB2 = { c: [-425.5, -88], y: Y, plaza: [-438, -413, -100, -76], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: -88 };
+export const RB2 = RBB_ON ? { c: [-425.5, AXZ], y: Y, plaza: [-438, -413, AXZ - 12, AXZ + 12], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: AXZ }
+  : { c: [-425.5, -88], y: Y, plaza: [-438, -413, -100, -76], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: -88 };
 const [CX, CZ] = RB2.c, [PX0, PX1, PZ0, PZ1] = RB2.plaza;
 // the fountain (BANKSY's later wishing fountain: a rim spot for the prompt + where a thrown coin splashes), world coords
 export const FOUNTAIN = { x: CX, z: CZ, basinR: 4.2, rimY: Y + 0.75, waterY: Y + 0.62 };
@@ -57,14 +91,56 @@ export function applyWishAnchor(j) { const ok = (p) => p && [p.x, p.y, p.z].ever
 if (WISH_ON && typeof fetch !== 'undefined' && typeof location !== 'undefined') fetch('assets/island/fountain_anchor.json').then(r => r.ok ? r.json() : null).then(applyWishAnchor).catch(() => {});
 // the Pirates' Climb stairs, on the trail's own line (trail A, plaza edge (-428, -100) -> the valley floor (-416, -119.3)): two flights + a landing,
 // 4.6 m wide (the trail width); [id, u0, u1, y0, y1] along that line (y1 null = the ground at the foot, set in register)
-const CL = { x0: -428, z0: -100, x1: -416, z1: -119.3, hw: 2.3 }; CL.L = Math.hypot(CL.x1 - CL.x0, CL.z1 - CL.z0); CL.yaw = Math.atan2(CL.x1 - CL.x0, CL.z1 - CL.z0);
+const CL = { x0: -428, z0: RBB_ON ? PZ0 : -100, x1: -416, z1: -119.3, hw: 2.3 }; CL.L = Math.hypot(CL.x1 - CL.x0, CL.z1 - CL.z0); CL.yaw = Math.atan2(CL.x1 - CL.x0, CL.z1 - CL.z0);
 const clAt = (u) => [CL.x0 + (CL.x1 - CL.x0) * u, CL.z0 + (CL.z1 - CL.z0) * u];
 const ST = [['rb_f1', 0, 0.47, Y, 12.8], ['rb_l1', 0.47, 0.58, 12.8, 12.8], ['rb_f2', 0.58, 1, 12.8, null]].map(([id, u0, u1, y0, y1]) => {
   const [x0, z0] = clAt(u0), [x1, z1] = clAt(u1); return { id, u0, u1, x0, z0, x1, z1, y0, y1, hw: CL.hw, L: Math.hypot(x1 - x0, z1 - z0), yaw: CL.yaw, flat: y0 === y1 }; });
 const ACR = [Math.cos(CL.yaw), -Math.sin(CL.yaw)], cheek = (s, u) => { const [x, z] = clAt(u); return [x + ACR[0] * s * (CL.hw + 0.25), z + ACR[1] * s * (CL.hw + 0.25)]; };
 const uEdge = (s) => { const z = cheek(s, 0)[1]; return z < PZ0 - 0.25 ? 0 : (z - (PZ0 - 0.25)) / (CL.z0 - CL.z1); };   // where each cheek leaves the plaza
+// [stairs2] BANKSY 2:18-2:26 PM "Stair fix is worst redesign the stairs down the hill / trail" + "Make it curve, line it up flush": with the
+// Blender plaza on (RBB_ON) the Pirates' Climb is ONE CURVED FLIGHT. From a paved landing that opens off the plaza's S rim (its SW corner, flush
+// with the paving: same height, no lip), the stair sweeps east under the plaza's south wall and curves round down the hill into the trail
+// (the last metres run ON the trail's own line + direction, the bottom tread = the trail surface). 5 m between the walls (trail 4.6), ~90 even
+// risers of ~15.5 cm on ~33 cm goings (the hill sets the grade: the flight may stand on masonry but never dips under the ground). Walk = one
+// PATH deck (foot.js pathDeckY: the line through every tread centre), low walls + coping follow the curve flush with the treads (colliders = the
+// walls only), lantern piers top + bottom and wall lanterns on the way. The wedge between the plaza's S wall and the stair = a planted bed.
+// (&rbblend=0 = the v214 two-flight stairs below, untouched.)
+export const CLIMB = (() => { const P = [[-428.5, -100], [-414.6, -101.68], [-417.76, -116.58], [-413.49, -123.34]];   // cubic Bezier: P3 = trail A 45 m from the gate (3 m before the ford footbridge), P2 on its tangent
+  const B = (t) => { const m = 1 - t; return [0, 1].map(j => m * m * m * P[0][j] + 3 * m * m * t * P[1][j] + 3 * m * t * t * P[2][j] + t * t * t * P[3][j]); };
+  const raw = [B(0)], rs = [0]; for (let i = 1; i <= 800; i++) { const q = B(i / 800); rs.push(rs[i - 1] + Math.hypot(q[0] - raw[i - 1][0], q[1] - raw[i - 1][1])); raw.push(q); }
+  const L = rs[800], at = (s) => { if (s <= 0) { const [x, z] = raw[0], [x1, z1] = raw[4], n = Math.hypot(x1 - x, z1 - z); return [x + (x1 - x) / n * s, z + (z1 - z) / n * s]; }
+    let i = 1; while (i < 800 && rs[i] < s) i++; const f = (s - rs[i - 1]) / (rs[i] - rs[i - 1] || 1); return [raw[i - 1][0] + (raw[i][0] - raw[i - 1][0]) * f, raw[i - 1][1] + (raw[i][1] - raw[i - 1][1]) * f]; };
+  const yawAt = (s) => { const a = at(Math.max(0, Math.min(L, s) - 0.15)), b = at(Math.min(L, Math.max(0, s) + 0.15)); return Math.atan2(b[0] - a[0], b[1] - a[1]); };
+  return { P, L, at, yawAt, hw: 2.5, wall: 2.75, back: 5.5, y0: Y, rise: 0.155, n: 0, d: 0, yE: 0 }; })();
+CLIMB.side = (s, off) => { const [x, z] = CLIMB.at(s), a = CLIMB.yawAt(s); return [x + Math.cos(a) * off, z - Math.sin(a) * off]; };   // off > 0 = the outer (S / W) side
+CLIMB.walk = (s) => { const C = CLIMB; return Math.max(C.yE, Math.min(C.y0, C.y0 - C.rise * (s / C.d + 0.5))); };   // = every tread's top at its centre
+// the trail falls ~7 cm/m across its width: the last 4 m of treads roll (about the stair's centre line) into that cross-fall, so the bottom tread meets
+// the trail flush edge to edge (no buried corner on the uphill side, no lip on the downhill side)
+CLIMB.roll = (s) => { const C = CLIMB, t = Math.min(1, Math.max(0, (s - (C.L - 4)) / 4)); return C.rE * t * t * (3 - 2 * t); };
+CLIMB.walkO = (s, o) => CLIMB.walk(s) + CLIMB.roll(Math.max(0, s)) * o;   // walk height at offset o (o > 0 outer)
+{ const C = CLIMB, a0 = C.yawAt(0), T = [Math.sin(a0), Math.cos(a0)], A = [Math.cos(a0), -Math.sin(a0)], [x0, z0] = C.at(0), bk = (t, o) => [x0 - T[0] * t + A[0] * o, z0 - T[1] * t + A[1] * o];
+  C.a0 = a0; C.land = { c: bk(C.back / 2, 0), hl: C.back / 2 };   // the landing: a box behind the first tread (+ a strip up to the rim)
+  const bo = bk(C.back + 0.25, C.wall), bi = bk(C.back + 0.25, -0.3), rim = [bi[0] + (bi[0] - bo[0]) / (bi[1] - bo[1]) * (PZ0 - 0.25 - bi[1]), PZ0 - 0.25];
+  C.landRect = [rim[0] + 0.3, C.side(0, -C.wall)[0] - 0.12, bk(0, -C.hw)[1] - 0.25, PZ0 + 0.2];   // x0 x1 z0 z1: the strip between the landing box + the plaza rim
+  C.rimW = rim[0]; C.rimE = C.side(0, -C.wall)[0] - 0.15;   // the opening in the plaza's S parapet
+  const outer = [rim, bo], inner = [[C.rimE, PZ0 - 0.25]];
+  for (let s = 0; s <= C.L + 1e-6; s += 0.75) { outer.push(C.side(Math.min(s, C.L), C.wall)); inner.push(C.side(Math.min(s, C.L), -C.wall)); }
+  if (outer.length && Math.hypot(...[0, 1].map(j => outer[outer.length - 1][j] - C.side(C.L, C.wall)[j])) > 0.05) { outer.push(C.side(C.L, C.wall)); inner.push(C.side(C.L, -C.wall)); }
+  C.walls = { outer, inner };
+  // the wedge between the plaza's S parapet (south face z PZ0 - 0.5) and the Climb's inner wall (north face): a planted bed, 0.5 m strips, closed
+  // by an end wall where it is 4.5 m wide (or at the plaza's SE corner)
+  const zIn = (x) => { for (let i = 2; i < inner.length; i++) { const [ax, az] = inner[i - 1], [bx, bz] = inner[i]; if ((x - ax) * (x - bx) <= 0 && ax !== bx) return az + (bz - az) * (x - ax) / (bx - ax); } return null; };
+  C.bed = []; for (let x = C.rimE + 0.45, i = 0; x < PX1; x += 0.5, i++) { const zw = zIn(x); if (zw === null) break; const z0 = zw + 0.22, z1 = PZ0 - 0.48; if (z1 - z0 > 4.5) break; if (z1 - z0 > 0.05) C.bed.push({ i, x, z0, z1 }); }
+  C.bedEnd = C.bed.length ? C.bed[C.bed.length - 1] : null; }
+// [stairs2] the town-side ramp + its two broad steps only span the hill-street mouth (z -92 .. -76, between the fronts of shops #32 rent_12 and
+// #44 rent_22): they used to run the plaza's full 24 m, ~1 m into both shops
+const WEST_HW = 7.9;
 // parapets / cheek walls (colliders + the low walls you see): polylines just outside the walk edges
-const WALLS = [
+const WALLS = RBB_ON ? [
+  [[-430, PZ1 + 0.25], [PX1 + 0.25, PZ1 + 0.25], [PX1 + 0.25, RB2.az + 2.9]],          // plaza N (east of the castle opening x -438..-430) + E down to the bridge
+  [[PX1 + 0.25, RB2.az - 2.9], [PX1 + 0.25, PZ0 - 0.25], ...CLIMB.walls.inner],      // plaza E (south of the bridge) + S rim -> the Climb's inner wall, one unbroken wall (no slot)
+  [[PX0 - 0.3, PZ0 - 0.25], ...CLIMB.walls.outer],                                    // plaza S rim west of the landing -> round the landing -> the Climb's outer wall
+] : [
   [[-430, PZ1 + 0.25], [PX1 + 0.25, PZ1 + 0.25], [PX1 + 0.25, RB2.az + 2.9]],          // plaza N (east of the castle opening x -438..-430) + E down to the bridge
   [[PX1 + 0.25, RB2.az - 2.9], [PX1 + 0.25, PZ0 - 0.25], [cheek(-1, uEdge(-1))[0], PZ0 - 0.25]],   // plaza E (south of the bridge) + S to the stair head
   [cheek(-1, uEdge(-1)), cheek(-1, 1)], [cheek(1, uEdge(1)), cheek(1, 1)],            // the stair's two cheek walls
@@ -73,14 +149,15 @@ const WALLS = [
   // town-side ramp's foot along the rim and joins the cheek wall (no gap): the only way down is the stairs.
   [[PX0 - 1.6, PZ0 - 0.25], [cheek(1, uEdge(1))[0], PZ0 - 0.25]],
 ];
-const LAMPS = [[PX1 - 1.3, PZ1 - 1.3], [PX1 - 1.3, PZ0 + 1.3], [-429.2, PZ1 - 1.2], [PX0 + 1.5, PZ0 + 1.4]];   // never in an exit (the hill street enters at z -91..-77)
-const BENCHES = [0.45, 2.3, -2.2].map(a => ({ x: CX + Math.sin(a) * 7.4, z: CZ + Math.cos(a) * 7.4, yaw: a }));
-const PLANTERS = [[PX0 + 1.8, -96.6], [-419.5, PZ1 - 1.6], [PX1 - 1.8, -96.4]];
-const SIGNS = [[PX1 - 1.4, RB2.az + 3.6], [-430.4, PZ1 - 3.2]];
+const LAMPS = RBB_ON ? [[PX1 - 1.3, PZ1 - 1.3], [PX1 - 1.3, PZ0 + 1.3], [PX0 + 0.6, CZ - 7.6], [PX0 + 0.6, CZ + 7.6]]   // mirrored about the street axis (the W pair flank the street mouth where the arch was)
+  : [[PX1 - 1.3, PZ1 - 1.3], [PX1 - 1.3, PZ0 + 1.3], [-429.2, PZ1 - 1.2], [PX0 + 1.5, PZ0 + 1.4]];   // never in an exit (the hill street enters at z -91..-77)
+const BENCHES = (CLEAN ? [] : RBB_ON ? [0.62, -0.62 + Math.PI, Math.PI + 0.62, -0.62] : [0.45, 2.3, -2.2]).map(a => ({ x: CX + Math.sin(a) * 7.4, z: CZ + Math.cos(a) * 7.4, yaw: a }));
+const PLANTERS = CLEAN ? [] : RBB_ON ? [[PX1 - 1.8, CZ - 5.6], [PX1 - 1.8, CZ + 5.6]] : [[PX0 + 1.8, -96.6], [-419.5, PZ1 - 1.6], [PX1 - 1.8, -96.4]];
+const SIGNS = CLEAN ? [] : RBB_ON ? [[PX1 - 1.4, RB2.az + 3.6], [-429.6, PZ1 - 1.0]] : [[PX1 - 1.4, RB2.az + 3.6], [-430.4, PZ1 - 3.2]];
 // the fort stair foot (fort.js LEG1 x -434, z -72 .. -46.5, hw 2, parapets at hw + 0.3, 1.0 m over the tread): gate piers with braziers
 // flanking the foot, planters either side of the apron; lanterns + red banners on Post's parapets are visual only (no collider changes there)
 const FORT_FOOT = { x: -434, z0: -72, z1: -46.5, y0: 20.2, y1: 31, hw: 2 }, GPIERS = [[-437.0, -72.7], [-431.0, -72.7]], CPLANT = [[-438.1, -73.6], [-429.4, -73.4]];
-const CASTLE = { x0: -436, x1: -431, z0: PZ1 - 0.1, z1: -71.6 };   // the approach to the fort stair (fort.js fort_stair_1 starts at z -72)
+const CASTLE = { x0: -436, x1: -431, z0: PZ1 - 0.1, z1: Math.max(-71.6, PZ1 + 0.4) };   // the approach to the fort stair (fort.js fort_stair_1 starts at z -72)
 const HB = { ax: PX1 - 0.3, az: RB2.az, bx: 0, bz: 0, L: 0, yaw: 0, ya: Y, yb: Y, half: RB2.half, sag: RB2.sag, piers: RB2.piers, yAt: null };
 HB.yAt = (u) => { u = Math.min(1, Math.max(0, u)); const P = [0, ...HB.piers, 1]; let k = 0; while (k < P.length - 2 && u > P[k + 1]) k++;
   const f = (u - P[k]) / (P[k + 1] - P[k]); return HB.ya + (HB.yb - HB.ya) * u - Math.sin(f * Math.PI) * HB.sag; };
@@ -88,9 +165,54 @@ export const _hb = HB;
 export const RB_STATS = { replaced: [], lamps: [] };
 const OLD_STAIRS = (s) => s.x > -432 && s.x < -414 && s.z > -119 && s.z < -94;   // Post's route_stair_3..9 (the gate -> the ford)
 
+// [v220] BANKSY 3:51 PM "fix the side of castle": the plaza's tall retaining faces (N towards the castle, E under the bridge head, S over the
+// Climb) and the Climb's outer wall were one flat sheet of ashlar. Their OUTER faces (never the walk side) get pilasters every ~3.6 m where the
+// wall stands > 1.7 m over the ground (battered base, cap under the coping, a wall lantern on every other one), a plinth course along the foot
+// and a string course under the deck on the level runs; ivy + shrubs in the bays (kit). Structural pieces go through SB (the Blender bake);
+// colliders = the pilasters (register). Visual + colliders only: walk decks unchanged.
+let CS_SAMP = null;
+const climbS = (x, z) => { const C = CLIMB; if (!CS_SAMP) { CS_SAMP = []; for (let s = -C.back - 1; s <= C.L; s += 0.2) CS_SAMP.push([s, ...C.at(s)]); }
+  let b = 1e18, bs = 0; for (const [s, px, pz] of CS_SAMP) { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < b) { b = d; bs = s; } } return [bs, Math.sqrt(b)]; };
+const walkish = (x, z) => (x >= PX0 - 0.3 && x <= PX1 + 0.3 && z >= PZ0 - 0.3 && z <= PZ1 + 0.3) || climbS(x, z)[1] < CLIMB.wall + 0.6;
+const walkY0 = (x, z) => { if (x >= PX0 - 0.6 && x <= PX1 + 0.6 && z >= PZ0 - 0.6) return Y; const [s] = climbS(x, z); return s <= 0 ? Y : CLIMB.walk(s); };
+let DRESS = null;
+export function wallDress(H) { if (DRESS) return DRESS; const D = DRESS = { pil: [], plinth: [], string: [], bays: [] }; if (!RBB_ON) return D;
+  const gAt = (x, z, nx, nz) => Math.min(H(x + nx * 0.35, z + nz * 0.35), H(x + nx * 0.9, z + nz * 0.9));
+  WALLS.forEach((pl, pi) => { let acc = 1.8;
+    for (let i = 1; i < pl.length; i++) { if (pi === 1 && i >= 3) break;   // (the Climb's inner wall: its far face is the planted bed)
+      const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); if (L < 1e-3) continue; const ux = (bx - ax) / L, uz = (bz - az) / L, yaw = Math.atan2(ux, uz);
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2; let nx = uz, nz = -ux; if (walkish(mx + nx * 1.3, mz + nz * 1.3)) { nx = -nx; nz = -nz; } if (walkish(mx + nx * 1.3, mz + nz * 1.3) || !walkish(mx - nx * 1.0, mz - nz * 1.0)) { acc += L; continue; }
+      // plinth + string course: chunks of <= 1.2 m (plinth follows the ground) / 2.4 m (string, level runs only)
+      const nP = Math.max(1, Math.ceil(L / 1.2)); for (let j = 0; j < nP; j++) { const t = (j + 0.5) / nP, x = ax + (bx - ax) * t, z = az + (bz - az) * t, w = walkY0(x, z), g = gAt(x + nx * 0.25, z + nz * 0.25, nx, nz);
+        if (w - g > 1.0) D.plinth.push({ x: x + nx * 0.36, z: z + nz * 0.36, yaw, l: L / nP + 0.02, g }); }
+      const lvl = Math.abs(walkY0(ax, az) - walkY0(bx, bz)) < 1e-3 && Math.abs(walkY0(ax, az) - Y) < 1e-3, nS = Math.max(1, Math.ceil(L / 2.4));
+      if (lvl) for (let j = 0; j < nS; j++) { const t = (j + 0.5) / nS, x = ax + (bx - ax) * t, z = az + (bz - az) * t, g = gAt(x + nx * 0.25, z + nz * 0.25, nx, nz); if (Y - g > 1.6) D.string.push({ x: x + nx * 0.31, z: z + nz * 0.31, yaw, l: L / nS + 0.02 }); }
+      // pilasters every 3.6 m along the run
+      let d = 3.6 - acc % 3.6; for (; d < L; d += 3.6) { const x = ax + ux * d, z = az + uz * d, w = walkY0(x, z), g = gAt(x + nx * 0.25, z + nz * 0.25, nx, nz);
+        if (w - g < 1.7 || walkish(x + nx * 1.6, z + nz * 1.6) || d < 0.6 || d > L - 0.6) continue;
+        D.pil.push({ x: x + nx * 0.46, z: z + nz * 0.46, fx: x + nx * 0.25, fz: z + nz * 0.25, nx, nz, yaw, g: g - 0.3, top: w + 0.9 - 0.36, i: D.pil.length }); }
+      acc += L; } });
+  for (let i = 1; i < D.pil.length; i++) { const a = D.pil[i - 1], b = D.pil[i]; if (Math.hypot(a.x - b.x, a.z - b.z) < 4.5 && Math.abs(a.yaw - b.yaw) < 0.6) D.bays.push({ x: (a.fx + b.fx) / 2, z: (a.fz + b.fz) / 2, nx: a.nx, nz: a.nz, yaw: a.yaw, top: Math.min(a.top, b.top), g: Math.max(a.g, b.g) + 0.3, i }); }
+  return D; }
+
+// [v220] the castle's side (the knoll's south face, right above the plaza's N parapet: 16 m of bare cut slope between the plaza and the fort's south
+// wall in BANKSY's 3:51 PM shot): two dry-stone terrace walls on the 24 m + 30.5 m contours (coursed, coping, planted beds behind them: shrubs,
+// flowers, ivy over the edge) + ivy curtains down the fort's south wall. Stone through SB (the bake), plants on the kit, colliders = the walls.
+let TERR = null;
+export function castleTerraces(H) { if (TERR) return TERR; TERR = []; if (!RBB_ON) return TERR;
+  for (const [lvl, x0, x1] of [[24, -427, -394], [30.5, -424, -396]]) { const pts = [];
+    for (let x = x0; x <= x1 + 1e-6; x += 1.5) { let zc = null; for (let z = -73.5; z < -55; z += 0.1) if (H(x, z) >= lvl) { zc = z; break; } if (zc !== null && zc > PZ1 + 1.2) pts.push([x, zc]); else if (pts.length) break; }
+    for (let i = 1; i < pts.length; i++) { const [ax, az] = pts[i - 1], [bx, bz] = pts[i], L = Math.hypot(bx - ax, bz - az); if (L > 4) continue;
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2, yaw = Math.atan2(bx - ax, bz - az), g = Math.min(H(mx, mz - 0.8), H(ax, az - 0.8), H(bx, bz - 0.8)) - 0.3;
+      TERR.push({ x: mx, z: mz, yaw, L, g, top: lvl + 0.75, lvl, i: TERR.length }); } }
+  return TERR; }
+
 export default {
   id: 'hill_round', name: 'Fountain plaza + Pirates\' Climb stairs + high rope bridge', rect: [-440, -278, -128, -60],
-  terrain: { pads: [], cuts: [], paths: [] },
+  // [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": the plateau landing -> trail A is a real paved trail
+  // (the loop's cobble splat + kerb stones, 4.6 m: paint only, no height change) instead of loose flags thinning out + rocks; it meets trail A
+  // east of the old cliff drop (foot.js A_DEAD now leaves that unpainted), and trail A runs on along the cutting floor to D3's rope bridge
+  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-287.7, -72.3], [-283.8, -72.0], [-279.5, -69.6], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6]], pave: true }] : [] },
   register(h) {
     const { H, AREA_DECKS = [], collidersOff = null } = h;   // (from foot.js: no import, no module cycle)
     // the plateau end: walk in from the target until the ground stops rising (the cliff top), deck end = that ground
@@ -101,23 +223,37 @@ export default {
     // the plaza + the stairs (walk decks)
     h.addDeck({ id: 'rb_plaza', x: (PX0 + PX1) / 2, z: (PZ0 + PZ1) / 2, hw: (PX1 - PX0) / 2, hl: (PZ1 - PZ0) / 2, yaw: 0, y: Y });
     h.addDeck({ id: 'rb_castle', x: (CASTLE.x0 + CASTLE.x1) / 2, z: (CASTLE.z0 + CASTLE.z1) / 2, hw: (CASTLE.x1 - CASTLE.x0) / 2, hl: (CASTLE.z1 - CASTLE.z0) / 2, yaw: 0, y: Y, y1: Math.max(H(-434, CASTLE.z1), 20.2) });
-    h.addDeck({ id: 'rb_west', x: PX0 - 0.7, z: (PZ0 + PZ1) / 2, hw: (PZ1 - PZ0) / 2, hl: 0.75, yaw: Math.PI / 2, y: H(PX0 - 1.45, -95), y1: Y });   // the town side: a 1.5 m ramp onto the plaza, not a 0.4 m lip
-    const last = ST[ST.length - 1]; last.y1 = H(last.x1, last.z1) + 0.03;
-    for (const s of ST) h.addDeck({ id: s.id, x: (s.x0 + s.x1) / 2, z: (s.z0 + s.z1) / 2, hw: s.hw, hl: s.L / 2 + 0.06, yaw: s.yaw, y: s.y0, ...(s.flat ? {} : { y1: s.y1 }) });
+    h.addDeck({ id: 'rb_west', x: PX0 - 0.7, z: RBB_ON ? CZ : (PZ0 + PZ1) / 2, hw: RBB_ON ? WEST_HW : (PZ1 - PZ0) / 2, hl: 0.75, yaw: Math.PI / 2, y: H(PX0 - 1.45, RBB_ON ? CZ - 7 : -95), y1: Y });   // the town side: a 1.5 m ramp onto the plaza, not a 0.4 m lip
+    if (RBB_ON) { const C = CLIMB, [ex, ez] = C.at(C.L);   // [stairs2] the curved Climb: n even risers from the plaza (Y) to the trail surface at its foot
+      C.yE = H(ex, ez) + 0.03; { const [ox, oz] = C.side(C.L, C.hw - 0.1), [ix, iz] = C.side(C.L, -C.hw + 0.1); C.rE = (H(ox, oz) - H(ix, iz)) / (2 * C.hw - 0.2); } C.n = Math.round((C.y0 - C.yE) / 0.155); C.rise = (C.y0 - C.yE) / C.n; C.d = C.L / C.n;
+      const path = [], ps = []; for (let s = -C.d / 2; s < C.L + 0.1; s += 0.25) { const q = Math.min(s, C.L); path.push(C.at(q)); ps.push(q); if (q === C.L) break; }
+      const xs = path.map(q => q[0]), zs = path.map(q => q[1]), m = C.hw + 0.5;
+      h.addDeck({ id: 'rb_climb', path, ps, hw: C.hw, yAt: C.walk, yAtO: C.walkO, bb: [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...zs) - m, Math.max(...zs) + m], x: C.at(C.L / 2)[0], z: C.at(C.L / 2)[1], y: C.walk(C.L / 2) });
+      const [lx, lz] = C.land.c, T = [Math.sin(C.a0), Math.cos(C.a0)];   // the landing (plaza height) up to half a tread before the first nosing, + the strip to the rim
+      h.addDeck({ id: 'rb_climb_land', x: lx - T[0] * C.d / 2, z: lz - T[1] * C.d / 2, hw: C.hw + 0.05, hl: C.back / 2, yaw: C.a0, y: Y });
+      const [rx0, rx1, rz0, rz1] = C.landRect; h.addDeck({ id: 'rb_climb_rim', x: (rx0 + rx1) / 2, z: (rz0 + rz1) / 2, hw: (rx1 - rx0) / 2, hl: (rz1 - rz0) / 2, yaw: 0, y: Y });
+    } else { const last = ST[ST.length - 1]; last.y1 = H(last.x1, last.z1) + 0.03;
+      for (const s of ST) h.addDeck({ id: s.id, x: (s.x0 + s.x1) / 2, z: (s.z0 + s.z1) / 2, hw: s.hw, hl: s.L / 2 + 0.06, yaw: s.yaw, y: s.y0, ...(s.flat ? {} : { y1: s.y1 }) }); }
     // Post's steps on that stretch: decks off, treads + cheeks sunk out of sight (his edging stays skipped there: the stair entries remain)
     for (const d of AREA_DECKS) if (/^route_stair_/.test(d.id) && OLD_STAIRS(d)) { d.off = true; RB_STATS.replaced.push(d.id); }
     for (const s of RT.stairs || []) if (OLD_STAIRS(s)) { s.prof = s.prof.map(() => -60); s.low = s.low.map(() => -61); }
     { const gone = (RT.walls || []).filter(w => w.x > -433 && w.x < -414 && w.z > -119 && w.z < -94); RT.walls = (RT.walls || []).filter(w => !gone.includes(w));   // his retaining walls there: mesh + collider
       RB_STATS.wallsOff = collidersOff?.((o) => o.t === 1 && gone.some(w => Math.abs(o.x - w.x) < 1e-6 && Math.abs(o.z - w.z) < 1e-6)) ?? 0; }
     { const l = (RT.lamps || []).find(q => q.k === 0); if (l && l.x > PX0 && l.x < PX1 && l.z > PZ0 && l.z < PZ1) { l.y = Y; l.onWall = false; RB_STATS.lamps.push(0); } }   // lamp 0 now stands on the plaza
+    if (RBB_ON) { const l = (RT.lamps || []).find(q => q.k === 1), C = CLIMB, [px, pz] = C.side(C.L, -C.wall);   // [stairs2] lamp 1 stood 0.7 m from the Climb's inner foot pier: 1.4 m on down the trail
+      if (l && Math.hypot(l.x - px, l.z - pz) < 1.3) { const ox = l.x, oz = l.z, ux = Math.sin(l.yaw), uz = Math.cos(l.yaw); collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6);
+        l.x += ux * 1.4; l.z += uz * 1.4; if (!l.onWall) l.y = H(l.x, l.z); h.addCirc(l.x, l.z, 0.3); const it = h.INTERACT.find(q => q.id === 'route_lamp_1'); if (it) { it.x += ux * 1.4; it.z += uz * 1.4; } RB_STATS.lamps.push(1); } }
     { const sg = RT.lm?.sign; if (sg && sg.x > PX0 && sg.x < PX1 && sg.z > PZ0 && sg.z < PZ1) { const ox = sg.x, oz = sg.z;   // the TOWN / FORT / JUNGLE post: off the fountain, to the head of the stairs
-      collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6); Object.assign(sg, { x: -433.2, z: -99.35, y: Y, yaw: CL.yaw }); /* [stairfix] against the new S parapet: no wedge by the stair head */ h.addCirc(sg.x, sg.z, 0.25); RB_STATS.sign = [ox, oz]; } }
+      collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6); Object.assign(sg, CLEAN ? (() => { const s = CLIMB.L - 1.2, [x, z] = CLIMB.side(s, CLIMB.wall + 0.9); return { x, z, y: H(x, z), yaw: CLIMB.yawAt(s) + Math.PI }; })() /* [v220] off the plaza paving: at the foot of the Climb where the trail goes on */ : RBB_ON ? { x: CLIMB.rimW - 1.6, z: PZ0 + 0.75, y: Y, yaw: CLIMB.a0 } /* [stairs2] beside the Climb's opening, not in it */ : { x: -433.2, z: -99.35, y: Y, yaw: CL.yaw } /* [stairfix] (main 714474c) against the new S parapet */); h.addCirc(sg.x, sg.z, 0.25); RB_STATS.sign = [ox, oz]; } }
     // colliders: fountain, parapets / cheek walls, lamps, benches, planters, bridge towers, piers
     h.addCirc(CX, CZ, FOUNTAIN.basinR + 0.15);
     // [wish] the wishing fountain: an E / tap spot on the rim (shown only while the server's 'wish_fountain' flag is on: inventory/ui.js PFP_INV_FLAGS)
     if (WISH_ON) h.INTERACT?.push(WISH_Q = { id: 'wish_fountain', kind: 'wish', area: 'hill_round', x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }
     for (const [x, z] of LAMPS) h.addCirc(x, z, 0.3);
+    for (const p of wallDress(H).pil) h.addBox(p.x, p.z, 0.62, 1.0, p.yaw);   // [v220] the pilasters on the walls' outer faces
+    for (const t of castleTerraces(H)) h.addBox(t.x, t.z, 0.7, t.L + 0.3, t.yaw);   // [v220] the castle-side terrace walls
+    if (RBB_ON && CLIMB.bedEnd) { const b = CLIMB.bedEnd; h.addBox(b.x + 0.25, (b.z0 + b.z1) / 2, 0.5, b.z1 - b.z0 + 0.6, 0); }   // [stairs2] the planted bed's open end: you can't walk into the wedge
     for (const b of BENCHES) h.addBox(b.x, b.z, 2.0, 0.7, b.yaw);
     for (const [x, z] of PLANTERS) h.addBox(x, z, 1.6, 1.6, 0);
     for (const t of [0, 1]) { const [x, z] = along(t), cs = Math.cos(HB.yaw), sn = Math.sin(HB.yaw); for (const s of [-1, 1]) h.addBox(x + cs * s * 3.25 - sn * (t ? -0.6 : 0.6), z - sn * s * 3.25 - cs * (t ? -0.6 : 0.6), 1.5, 1.5, HB.yaw); }
@@ -127,27 +263,30 @@ export default {
     for (const [x, z] of GPIERS) h.addBox(x, z, 0.9, 0.9, 0); for (const [x, z] of CPLANT) h.addBox(x, z, 1.4, 1.4, 0);   // stone piers: solid down in the valley, the deck walks over them
     // foliage kept clear (POIs): the plaza, the stairs, both bridge heads
     h.poi('hill_round', 'Fountain plaza', CX, CZ, { clear: 19 });
-    h.poi('rb_stairs', "Pirates' Climb stairs", ...clAt(0.6), { clear: 9 });
+    if (RBB_ON) for (const f of [0.2, 0.5, 0.8]) h.poi('rb_stairs' + (f === 0.5 ? '' : '_' + f * 10), "Pirates' Climb stairs", ...CLIMB.at(CLIMB.L * f), { clear: 8 });
+    else h.poi('rb_stairs', "Pirates' Climb stairs", ...clAt(0.6), { clear: 9 });
     h.poi('high_bridge', 'High rope bridge to the waterfalls plateau', (HB.ax + HB.bx) / 2, (HB.az + HB.bz) / 2, { clear: 6 });
     h.poi('high_bridge_e', 'High rope bridge: plateau end', HB.bx, HB.bz, { clear: 9 });
   },
   build({ MATS, OUT, low, H }) {
     const k = new Kit(), near = new THREE.Group(), far = new THREE.Group(); near.name = 'area_hill_round'; far.name = 'area_hill_round_far';
+    // [rb-blender] the structural stone goes on its own kit + is recorded (RB_LAYOUT: the Blender script's input); swapped for rb_plaza.glb below
+    const ks = new Kit(), LAY = []; RB_LAYOUT.length = 0; const SB = (kind, g, c, m, o = true) => { const p = g.parameters; LAY.push({ kind, w: p.width, h: p.height, d: p.depth, c, e: Array.from(m.elements) }); W(ks, g, c, m, o); };
     const gmin = (x, z, r = 1.2) => Math.min(H(x, z), H(x + r, z), H(x - r, z), H(x, z + r), H(x, z - r));
     // ---- the plaza terrace: retaining walls down to the ground on the 3 open sides (coursed: band every 1.6 m), cobble deck + border
     const retain = (ax, az, bx, bz, nx, nz, top) => { const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 2.4)), yaw = Math.atan2(bx - ax, bz - az);
       for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, g = gmin(x + nx * 0.6, z + nz * 0.6, 1.4) - 0.4, hh = top - g; if (hh < 0.3) continue;
-        W(k, box(0.8, hh, L / n + 0.03), i % 2 ? 0xb9b2a6 : 0xb0a99c, M(x + nx * 0.4, g + hh / 2, z + nz * 0.4, yaw), true);
-        for (let r = 1.6; r < hh - 0.5; r += 1.6) W(k, box(0.86, 0.12, L / n + 0.05), 0x8a837a, M(x + nx * 0.42, top - r, z + nz * 0.42, yaw), false); } };
-    retain(PX0, PZ1, -430, PZ1, 0, 1, Y); retain(PX1, RB2.az + 2.9, PX1, RB2.az - 2.9, 1, 0, Y); retain(PX0, PZ0, cheek(1, uEdge(1))[0], PZ0, 0, -1, Y);   // the openings (the parapet walls below are the rest)
-    for (const [dx, dy] of [[-1.1, 0.36], [-0.35, 0.18]]) W(k, box(0.8, 0.5, PZ1 - PZ0), 0xd2c9b6, M(PX0 + dx, Y - dy - 0.25, (PZ0 + PZ1) / 2), false);   // the two broad steps on the town side (walk = the ramp)
+        SB('retain', box(0.8, hh, L / n + 0.03), i % 2 ? 0xb9b2a6 : 0xb0a99c, M(x + nx * 0.4, g + hh / 2, z + nz * 0.4, yaw), true);
+        for (let r = 1.6; r < hh - 0.5; r += 1.6) SB('retain_band', box(0.86, 0.12, L / n + 0.05), 0x8a837a, M(x + nx * 0.42, top - r, z + nz * 0.42, yaw), false); } };
+    retain(PX0, PZ1, -430, PZ1, 0, 1, Y); retain(PX1, RB2.az + 2.9, PX1, RB2.az - 2.9, 1, 0, Y); if (!RBB_ON) retain(PX0, PZ0, cheek(1, uEdge(1))[0], PZ0, 0, -1, Y);   // ([stairs2] the S rim: parapets all along + the Climb's landing)   // the openings (the parapet walls below are the rest)
+    for (const [dx, dy] of [[-1.1, 0.36], [-0.35, 0.18]]) SB('step', box(0.8, 0.5, RBB_ON ? WEST_HW * 2 : PZ1 - PZ0), 0xd2c9b6, M(PX0 + dx, Y - dy - 0.25, RBB_ON ? CZ : (PZ0 + PZ1) / 2), false);   // the two broad steps on the town side (walk = the ramp)
     // deck: a slab whose top is the walk height; cobble field (the library's cobble layer), dressed-stone border band, a paved ring round the fountain
-    W(k, box(PX1 - PX0, 0.5, PZ1 - PZ0), 0x9f9585, M(CX, Y - 0.25, (PZ0 + PZ1) / 2), false);
+    SB('deck', box(PX1 - PX0, 0.5, PZ1 - PZ0), 0x9f9585, M(CX, Y - 0.25, (PZ0 + PZ1) / 2), false);
     for (const [x0, x1, z0, z1] of [[PX0, PX1, PZ0, PZ0 + 0.9], [PX0, PX1, PZ1 - 0.9, PZ1], [PX0, PX0 + 0.9, PZ0, PZ1], [PX1 - 0.9, PX1, PZ0, PZ1]])
-      W(k, box(x1 - x0, 0.06, z1 - z0), 0xd2c9b6, M((x0 + x1) / 2, Y + 0.005, (z0 + z1) / 2), false);
-    W(k, new THREE.CylinderGeometry(RB2.r, RB2.r, 0.05, 48), 0xc8bda7, M(CX, Y + 0.01, CZ), false);
-    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; W(k, box(0.06, 0.06, RB2.r - FOUNTAIN.basinR - 0.3), 0x8f8676, M(CX + Math.sin(a) * (RB2.r + FOUNTAIN.basinR) / 2, Y + 0.02, CZ + Math.cos(a) * (RB2.r + FOUNTAIN.basinR) / 2, a), false); }
-    for (let i = 0; i < 48; i++) { const a = (i + 0.5) / 48 * Math.PI * 2; W(k, box(0.42, 0.14, 1.28), 0x8a837a, M(CX + Math.sin(a) * (RB2.r + 0.2), Y + 0.07, CZ + Math.cos(a) * (RB2.r + 0.2), a + Math.PI / 2), false); }
+      SB('border', box(x1 - x0, 0.06, z1 - z0), 0xd2c9b6, M((x0 + x1) / 2, Y + 0.005, (z0 + z1) / 2), false);
+    W(ks, new THREE.CylinderGeometry(RB2.r, RB2.r, 0.05, 48), 0xc8bda7, M(CX, Y + 0.01, CZ), false);
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; W(ks, box(0.06, 0.06, RB2.r - FOUNTAIN.basinR - 0.3), 0x8f8676, M(CX + Math.sin(a) * (RB2.r + FOUNTAIN.basinR) / 2, Y + 0.02, CZ + Math.cos(a) * (RB2.r + FOUNTAIN.basinR) / 2, a), false); }
+    for (let i = 0; i < 48; i++) { const a = (i + 0.5) / 48 * Math.PI * 2; W(ks, box(0.42, 0.14, 1.28), 0x8a837a, M(CX + Math.sin(a) * (RB2.r + 0.2), Y + 0.07, CZ + Math.cos(a) * (RB2.r + 0.2), a + Math.PI / 2), false); }
     const kfo = new Kit();   // the stone fountain on its own kit: swapped for the Blender model (rb_fountain.glb) once that has loaded
     // ---- the fountain: a broad octagonal basin with a thick rim, a carved pedestal, two bowls, a gilded finial
     W(kfo, new THREE.CylinderGeometry(FOUNTAIN.basinR, FOUNTAIN.basinR + 0.25, 0.7, 8), 0xb9b2a6, M(CX, Y + 0.35, CZ, Math.PI / 8));
@@ -171,37 +310,70 @@ export default {
     const walkY = (x, z) => { let y = null; for (const s of ST) { const dx = x - s.x0, dz = z - s.z0, u = (dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw)) / s.L, a = Math.abs(dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw));
       if (u < -0.02 || u > 1.02 || a > s.hw + 0.8) continue; const yy = s.y0 + (s.y1 - s.y0) * Math.min(1, Math.max(0, u)); y = y === null ? yy : Math.max(y, yy); }
       if (x >= PX0 - 0.6 && x <= PX1 + 0.6 && z >= PZ0 - 0.6 && z <= PZ1 + 0.6) y = Math.max(y ?? -1e9, Y); return y ?? H(x, z); };
-    for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 1.0)), yaw = Math.atan2(bx - ax, bz - az);
+    if (!RBB_ON) for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 1.0)), yaw = Math.atan2(bx - ax, bz - az);
       for (let j = 0; j < n; j++) { const t = (j + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, top = walkY(x, z) + 0.9, g = gmin(x, z, 0.8) - 0.3, hh = top - g;
-        W(k, box(0.5, hh, L / n + 0.02), j % 3 ? 0xb9b2a6 : 0xb0a99c, M(x, g + hh / 2, z, yaw), j % 2 === 0); W(k, box(0.66, 0.12, L / n + 0.04), 0xd2c9b6, M(x, top + 0.06, z, yaw), false); } }
+        SB('parapet', box(0.5, hh, L / n + 0.02), j % 3 ? 0xb9b2a6 : 0xb0a99c, M(x, g + hh / 2, z, yaw), j % 2 === 0); SB('parapet', box(0.66, 0.12, L / n + 0.04), 0xd2c9b6, M(x, top + 0.06, z, yaw), false); } }
+    if (RBB_ON) buildClimb({ SB, W, k, H, gmin, lampAt: lamp, low });
+    if (RBB_ON) { const D = wallDress(H);   // [v220] the walls' outer faces: plinth, string course, pilasters (+ caps, lanterns), ivy + shrubs in the bays
+      for (const p of D.plinth) SB('plinth', box(0.22, 0.75, p.l), 0x8a837a, M(p.x, p.g + 0.12, p.z, p.yaw), false);
+      for (const p of D.string) SB('string', box(0.12, 0.16, p.l), 0xd2c9b6, M(p.x, Y - 0.32, p.z, p.yaw), false);
+      for (const p of D.pil) { const hh = p.top - p.g, bh = Math.min(1.4, hh * 0.3);
+        SB('pilaster', box(0.42, hh, 0.86), p.i % 2 ? 0xb0a99c : 0xb9b2a6, M(p.x, p.g + hh / 2, p.z, p.yaw), true);
+        SB('pilaster', box(0.66, bh, 1.08), 0xa9a294, M(p.x + p.nx * 0.12, p.g + bh / 2, p.z + p.nz * 0.12, p.yaw), false);   // battered base
+        SB('pcap', box(0.56, 0.16, 1.0), 0xd2c9b6, M(p.x + p.nx * 0.05, p.top - 0.08, p.z + p.nz * 0.05, p.yaw), false);
+        if (p.i % 2 === 0) { const lx = p.x + p.nx * 0.36, lz = p.z + p.nz * 0.36, ly = p.top - 1.15;   // a wall lantern on an iron bracket
+          W(k, box(0.08, 0.08, 0.42), C.IRON, M(p.x + p.nx * 0.3, ly + 0.42, p.z + p.nz * 0.3, p.yaw + Math.PI / 2), false);
+          W(k, box(0.34, 0.44, 0.34), 0x2b2f36, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw)); W(k, box(0.26, 0.34, 0.36), 0xffd27a, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw), false); W(k, box(0.36, 0.34, 0.26), 0xffd27a, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw), false); } }
+      for (const b of D.bays) { if (low && b.i % 2) continue; const ivy = hash(b.i, 31) < 0.6, drop = Math.min(b.top - b.g - 0.4, 1.4 + hash(b.i, 33) * 1.8);
+        if (ivy) for (let q = 0; q < 6; q++) { const f = q / 5, ax = Math.cos(b.yaw), az = -Math.sin(b.yaw), o = (hash(b.i, q) - 0.5) * 2.2, r = 0.34 - f * 0.12;   // ivy hanging from the coping
+          k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.3, b.i * 9 + q), [0x3f7d2c, 0x4e8a34, 0x5f9a3a][q % 3], { m: M(b.x + ax * o + b.nx * 0.06, b.top - 0.1 - f * drop, b.z + az * o + b.nz * 0.06, b.yaw, 0, 0, [0.45, 1.25, 1.5]), outline: false }); }   // (flat against the face)
+        for (let q = 0; q < 3; q++) { const ax = Math.cos(b.yaw), az = -Math.sin(b.yaw), o = (q - 1) * 0.9 + (hash(q, b.i) - 0.5) * 0.3, x = b.x + ax * o + b.nx * 0.6, z = b.z + az * o + b.nz * 0.6, r = 0.36 + hash(b.i, q + 5) * 0.22;   // shrubs at the foot
+          k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, b.i * 5 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45][(b.i + q) % 3], { m: M(x, H(x, z) + r * 0.55, z, q + b.i), outline: false });
+          if ((b.i + q) % 4 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.14, 0), 0.2, q), [0xd8322f, 0xffc93c, 0xf4efe6][q % 3], { m: M(x, H(x, z) + r * 1.2, z, q), outline: false }); } }
+      for (const t of castleTerraces(H)) { const hh = t.top - t.g, ax = Math.sin(t.yaw), az = Math.cos(t.yaw), nx = az, nz = -ax, bk = nz > 0 ? 1 : -1;   // the castle-side terraces (bk: uphill = +z)
+        SB('terrace', box(0.6, hh, t.L + 0.06), t.i % 2 ? 0xb0a99c : 0xb9b2a6, M(t.x, t.g + hh / 2, t.z, t.yaw), t.i % 2 === 0); SB('tcap', box(0.78, 0.16, t.L + 0.1), 0xd2c9b6, M(t.x, t.top + 0.08, t.z, t.yaw), false);
+        const bx = t.x + nx * bk * 0.95, bz = t.z + nz * bk * 0.95; W(k, box(1.3, 0.3, t.L + 0.05), 0x5a3a22, M(bx, t.top - 0.12, bz, t.yaw), false);   // the bed's soil, just under the coping
+        if (!low || t.i % 2 === 0) for (let q = 0; q < 2; q++) { const o = (q - 0.5) * t.L * 0.5, x = bx + ax * o, z = bz + az * o, r = 0.42 + hash(t.i, q) * 0.3;
+          k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i * 3 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45][(t.i + q) % 3], { m: M(x, t.top + r * 0.5, z, t.i + q), outline: false });
+          if ((t.i + q) % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, q + t.i), [0xd8322f, 0xffc93c, 0xf4efe6][(t.i + q) % 3], { m: M(x + 0.2, t.top + r * 1.05, z, q), outline: false }); }
+        if (t.i % 3 === 1) for (let q = 0; q < 4; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.26, 0), 0.3, t.i * 7 + q), [0x3f7d2c, 0x4e8a34][q % 2], { m: M(t.x - nx * bk * 0.36 + ax * (hash(q, t.i) - 0.5) * t.L * 0.7, t.top - 0.15 - q * 0.33, t.z - nz * bk * 0.36 + az * (hash(q, t.i) - 0.5) * t.L * 0.7, t.yaw, 0, 0, [0.45, 1.2, 1.4]), outline: false }); }   // ivy over the edge
+      { const fz = -57 - 0.85; for (let x = -419, i = 0; x < -396; x += 2.6, i++) { if (low && i % 2) continue; const drop = 1.6 + hash(i, 41) * 2.4;   // ivy curtains down the fort's south wall (outer face z ~ -57.8)
+          for (let q = 0; q < 5; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.34 - q * 0.04, 0), 0.3, i * 11 + q), [0x3f7d2c, 0x4e8a34, 0x5f9a3a][(i + q) % 3], { m: M(x + (hash(i, q) - 0.5) * 1.2, 41.6 - q * drop / 4, fz, 0, 0, 0, [1.4, 1.2, 0.45]), outline: false }); } }
+      // the castle approach: a dressed-flag runner across the paving from the fountain court to the fort stair (flush with the border band)
+      { const ex = -434, ez = PZ1 - 0.9, L0 = Math.hypot(ex - CX, ez - CZ), ux = (ex - CX) / L0, uz = (ez - CZ) / L0, yaw = Math.atan2(ux, uz), ax = Math.cos(yaw), az = -Math.sin(yaw), s0 = RB2.r + 0.45;
+        const n = Math.max(2, Math.floor((L0 - s0) / 0.55)); for (let i = 0; i < n; i++) { const sc = s0 + (i + 0.5) * (L0 - s0) / n; for (let j = -1; j <= 1; j++) { const o = j * 1.1 + (i % 2 ? 0.28 : -0.28) * (j === 0 ? 0 : 1), x = CX + ux * sc + ax * o, z = CZ + uz * sc + az * o;
+          SB('runner', box(1.04, 0.06, (L0 - s0) / n - 0.05), [0xd2c9b6, 0xc8bda7, 0xbfb39c][(i + j + 3) % 3], M(x, Y + 0.005, z, yaw), false); } }
+        for (const sd of [-1, 1]) SB('runner', box(0.16, 0.06, L0 - s0), 0x8a837a, M(CX + ux * (s0 + L0) / 2 + ax * sd * 1.75, Y + 0.006, CZ + uz * (s0 + L0) / 2 + az * sd * 1.75, yaw), false); } }
     // ---- the stairs: one solid stone tread per 0.2 m rise down to the ground (masonry under it), landings = paved slabs; a lamp at each landing
-    for (const s of ST) { const ux = Math.sin(s.yaw), uz = Math.cos(s.yaw), drop = s.y0 - s.y1, n = s.flat ? 1 : Math.max(2, Math.round(drop / 0.2)), d = s.L / n;
+    if (!RBB_ON) for (const s of ST) { const ux = Math.sin(s.yaw), uz = Math.cos(s.yaw), drop = s.y0 - s.y1, n = s.flat ? 1 : Math.max(2, Math.round(drop / 0.2)), d = s.L / n;
       for (let j = 0; j < n; j++) { const u = (j + 0.5) / n, x = s.x0 + (s.x1 - s.x0) * u, z = s.z0 + (s.z1 - s.z0) * u, top = s.flat ? s.y0 : s.y0 - drop * (j + 0.5) / n,
           bot = gmin(x, z, s.hw) - 0.4, hh = Math.max(0.3, top - bot);
-        W(k, box(s.hw * 2, hh, d + 0.03), s.flat ? 0x9f9585 : (j % 2 ? 0xb9b2a6 : 0xb0a99c), M(x, top - hh / 2, z, s.yaw), j % 3 === 0);
-        W(k, box(s.hw * 2 - 0.1, 0.06, d - 0.06), s.flat ? 0xc8bda7 : 0xd2c9b6, M(x - ux * 0, top + 0.03, z, s.yaw), false); } }
-    for (const sd of [-1, 1]) { const [x, z] = cheek(sd, (ST[1].u0 + ST[1].u1) / 2); lamp(x, ST[1].y0 + 0.96, z); }   // a lamp on each cheek wall at the landing
+        SB('tread', box(s.hw * 2, hh, d + 0.03), s.flat ? 0x9f9585 : (j % 2 ? 0xb9b2a6 : 0xb0a99c), M(x, top - hh / 2, z, s.yaw), j % 3 === 0);
+        SB('tread_cap', box(s.hw * 2 - 0.1, 0.06, d - 0.06), s.flat ? 0xc8bda7 : 0xd2c9b6, M(x - ux * 0, top + 0.03, z, s.yaw), false); } }
+    if (!RBB_ON) for (const sd of [-1, 1]) { const [x, z] = cheek(sd, (ST[1].u0 + ST[1].u1) / 2); lamp(x, ST[1].y0 + 0.96, z); }   // a lamp on each cheek wall at the landing
     // ---- the old east trail (the dip) now runs into the plaza's east wall: rubble + scrub at the wall foot, so it reads as the hillside
     for (let i = 0; i < (low ? 6 : 12); i++) { const x = PX1 + 1.2 + hash(i, 3) * 6, z = PZ1 - 3 + hash(i, 5) * 5, g = H(x, z), r = 0.6 + hash(i, 7) * 0.8;
       W(k, jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, i), i % 3 ? 0x9e978a : 0x8a837a, M(x, g + r * 0.25, z, i, 0, 0, [1.3, 0.8, 1.1]), true);
       if (i % 2) k.add(jitter(new THREE.IcosahedronGeometry(r * 0.8, 0), 0.3, i + 1), 0x4e8a34, { m: M(x + 0.8, g + r * 0.35, z - 0.5, i), outline: false }); }
     // ---- RIGHT: the castle approach: a paved apron to the fort stair foot, lanterns, two banners on tall poles flanking the stair
-    { const { x0, x1, z0, z1 } = CASTLE, cx = (x0 + x1) / 2; W(k, box(x1 - x0, 0.3, z1 - z0), 0x9f9585, M(cx, Y - 0.15 + 0.05, (z0 + z1) / 2), false);
-      for (let i = 0, n = 6; i < n; i++) W(k, box(x1 - x0 - 0.2, 0.06, (z1 - z0) / n - 0.06), i % 2 ? 0xc8bda7 : 0xb3a993, M(cx, Y + 0.03 + 0.1 * (i + 0.5) / n, z0 + (z1 - z0) * (i + 0.5) / n), false);
+    { const { x0, x1, z0, z1 } = CASTLE, cx = (x0 + x1) / 2; SB('apron', box(x1 - x0, 0.3, z1 - z0), 0x9f9585, M(cx, Y - 0.15 + 0.05, (z0 + z1) / 2), false);
+      for (let i = 0, n = 6; i < n; i++) SB('apron', box(x1 - x0 - 0.2, 0.06, (z1 - z0) / n - 0.06), i % 2 ? 0xc8bda7 : 0xb3a993, M(cx, Y + 0.03 + 0.1 * (i + 0.5) / n, z0 + (z1 - z0) * (i + 0.5) / n), false);
       lamp(x1 + 0.6, H(x1 + 0.6, z0 + 0.8), z0 + 0.8);
       for (const bx of [-437.4, -430.6]) { const bz = -69.8, g = H(bx, bz); W(k, box(0.6, 0.4, 0.6), 0xb0a99c, M(bx, g + 0.2, bz)); W(k, cyl(0.07, 0.09, 6.2, 6), C.IRON, M(bx, g + 3.3, bz));
         W(k, box(0.06, 0.06, 1.3), C.IRON, M(bx, g + 6.2, bz - 0.65), false); W(k, box(0.08, 2.4, 1.2), 0xd8322f, M(bx, g + 4.9, bz - 0.7), false); W(k, box(0.09, 0.5, 0.5), C.GOLD, M(bx, g + 5.2, bz - 0.7), false);
         W(k, new THREE.ConeGeometry(0.6, 0.6, 3), 0xd8322f, M(bx, g + 3.5, bz - 0.7, 0, 0, Math.PI), false); W(k, new THREE.SphereGeometry(0.12, 8, 6), C.GOLD, M(bx, g + 6.45, bz), false); } }
     // castle stair foot: two gate piers with iron braziers, planters, and up the stair a lantern + a red banner on each parapet every 6 m
     for (const [x, z] of GPIERS) { const g = gmin(x, z, 0.5) - 0.2, top = Y + 2.6;
-      W(k, box(0.9, top - g, 0.9), 0xb9b2a6, M(x, (top + g) / 2, z)); W(k, box(1.1, 0.16, 1.1), 0xd2c9b6, M(x, top + 0.08, z), false);
+      SB('gpier', box(0.9, top - g, 0.9), 0xb9b2a6, M(x, (top + g) / 2, z)); SB('gpier', box(1.1, 0.16, 1.1), 0xd2c9b6, M(x, top + 0.08, z), false);
       W(k, cyl(0.42, 0.22, 0.4, 8), C.IRON, M(x, top + 0.36, z), false); W(k, new THREE.ConeGeometry(0.3, 0.7, 6), 0xffa53a, M(x, top + 0.85, z), false); W(k, new THREE.ConeGeometry(0.16, 0.45, 5), 0xffe08a, M(x, top + 0.8, z), false); }
     for (const [x, z] of CPLANT) planter(x, H(x, z), z, 1.4);
     { const F2 = FORT_FOOT, wy = (z) => Math.max(F2.y0 + (F2.y1 - F2.y0) * (z - F2.z0) / (F2.z1 - F2.z0), H(F2.x, z) + 0.04);
       for (let z = F2.z0 + 6; z < F2.z1 - 1; z += 6) for (const s of [-1, 1]) { const x = F2.x + s * (F2.hw + 0.3), y = wy(z) + 1.0;
         W(k, cyl(0.05, 0.06, 0.7, 5), C.IRON, M(x, y + 0.35, z), false); W(k, box(0.3, 0.36, 0.3), 0x2b2f36, M(x, y + 0.86, z), false); W(k, box(0.22, 0.3, 0.32), 0xffd27a, M(x, y + 0.86, z), false);
         const bx = x + s * 0.3, bz = z + 3; W(k, box(0.08, 0.08, 0.9), C.IRON, M(bx, y - 0.08, bz), false);
-        W(k, box(0.05, 1.5, 0.8), 0xd8322f, M(bx + s * 0.02, y - 0.85, bz), false); W(k, box(0.06, 0.34, 0.34), C.GOLD, M(bx + s * 0.03, y - 0.75, bz), false); } }
+        W(k, box(0.05, 1.5, 0.8), 0xd8322f, M(bx + s * 0.02, y - 0.85, bz), false); W(k, box(0.06, 0.34, 0.34), C.GOLD, M(bx + s * 0.03, y - 0.75, bz), false);
+        if (RBB_ON) { const tz = z - 3, ty = wy(tz) + 1.0; W(k, box(0.42, 0.26, 1.5), 0x8a5a32, M(x, ty + 0.13, tz), false); W(k, box(0.34, 0.06, 1.42), 0x5a3a22, M(x, ty + 0.27, tz), false);   // [v220] flower troughs on the parapets (the castle path)
+          for (let q = 0; q < 4; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.2, 0), 0.25, q + z), q % 2 ? [0xd8322f, 0xffc93c][(q + s + 2) % 2] : 0x4e8a34, { m: M(x, ty + 0.4, tz - 0.55 + q * 0.37, q), outline: false }); } } }
     // ---- the high rope bridge: towers, plank deck (4.6 m walk + rope rails), stringers, hangers, 2 stone piers
     const bk = new Kit(), cs = Math.cos(HB.yaw), sn = Math.sin(HB.yaw), n = Math.round(HB.L / 0.6), RW = HB.half + 0.25;
     for (let i = 0; i <= n; i++) { const t = i / n, [x, z] = along(t), y = HB.yAt(t);
@@ -211,18 +383,24 @@ export default {
       for (let i = 0; i <= 120; i++) { const t = i / 120, [x, z] = along(t); pts.push(new THREE.Vector3(x + cs * s * off, HB.yAt(t) + hgt, z - sn * s * off)); }
       W(bk, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, r, hgt < 0 ? 6 : 5), hgt < 0 ? 0x6b4527 : 0xc9a36b, null, false); } }
     for (const t of HB.piers) { const [x, z] = along(t), top = HB.yAt(t) - 0.3, g = gmin(x, z, 3) - 0.6, hh = top - g;
-      W(k, box(6.0, hh, 4.0), 0xb9b2a6, M(x, g + hh / 2, z, HB.yaw)); W(k, box(6.6, 0.45, 4.6), 0x8a837a, M(x, top - 0.1, z, HB.yaw), false);
-      W(k, box(6.8, 3.2, 4.8), 0xa9a294, M(x, g + 1.6, z, HB.yaw), false);   // footing
-      for (let r = 2.4; r < hh - 1; r += 2.4) W(k, box(6.06, 0.14, 4.06), 0x8a837a, M(x, g + r, z, HB.yaw), false);
+      SB('pier', box(6.0, hh, 4.0), 0xb9b2a6, M(x, g + hh / 2, z, HB.yaw)); SB('pier', box(6.6, 0.45, 4.6), 0x8a837a, M(x, top - 0.1, z, HB.yaw), false);
+      SB('pier', box(6.8, 3.2, 4.8), 0xa9a294, M(x, g + 1.6, z, HB.yaw), false);   // footing
+      for (let r = 2.4; r < hh - 1; r += 2.4) SB('pier_band', box(6.06, 0.14, 4.06), 0x8a837a, M(x, g + r, z, HB.yaw), false);
       for (const s of [-1, 1]) { const px = x + cs * s * 2.75, pz = z - sn * s * 2.75; W(k, cyl(0.2, 0.24, 2.2, 7), 0x6b4527, M(px, top + 1.2, pz)); W(k, box(0.4, 0.46, 0.4), 0xffd27a, M(px, top + 2.5, pz), false); } }
     for (const t of [0, 1]) { const [x, z] = along(t), y = t ? HB.yb : Y, back = t ? 0.6 : -0.6;   // tower heads: two stone pillars + a timber lintel + lanterns
+      if (ARCH_OFF) { for (const s of [-1, 1]) { const px = x + cs * s * 3.25 + sn * back, pz = z - sn * s * 3.25 + cs * back, g = Math.min(y, gmin(px, pz, 0.8)) - 0.3, top = y + 1.55, hh = top - g;   // [v220] no arch: a low lantern newel each side (the rope rails' anchors)
+          SB('tower', box(1.1, hh, 1.1), 0xb9b2a6, M(px, g + hh / 2, pz, HB.yaw)); SB('tower', box(1.36, 0.22, 1.36), 0xd2c9b6, M(px, top + 0.11, pz, HB.yaw), false);
+          for (let r = 1.75; r < hh - 0.8; r += 1.4) SB('tower_band', box(1.16, 0.1, 1.16), 0x8a837a, M(px, top - r, pz, HB.yaw), false);
+          W(k, cyl(0.05, 0.06, 0.3, 5), C.IRON, M(px, top + 0.37, pz), false); W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(px, top + 0.78, pz, HB.yaw)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(px, top + 0.78, pz, HB.yaw), false); W(k, box(0.44, 0.4, 0.3), 0xffd27a, M(px, top + 0.78, pz, HB.yaw), false);
+          W(k, cyl(0.02, 0.33, 0.24, 4), C.IRON, M(px, top + 1.14, pz, HB.yaw + Math.PI / 4), false); }
+        continue; }
       for (const s of [-1, 1]) { const px = x + cs * s * 3.25 + sn * back, pz = z - sn * s * 3.25 + cs * back, g = Math.min(y, gmin(px, pz, 0.8)) - 0.3, hh = y + 5.4 - g;
-        W(k, box(1.4, hh, 1.4), 0xb9b2a6, M(px, g + hh / 2, pz, HB.yaw)); W(k, box(1.7, 0.3, 1.7), 0xd2c9b6, M(px, y + 5.5, pz, HB.yaw), false); W(k, box(1.1, 0.5, 1.1), 0xb0a99c, M(px, y + 5.9, pz, HB.yaw), false);
-        for (let r = 1.2; r < hh - 0.8; r += 1.4) W(k, box(1.46, 0.1, 1.46), 0x8a837a, M(px, y + 5.4 - r, pz, HB.yaw), false);
+        SB('tower', box(1.4, hh, 1.4), 0xb9b2a6, M(px, g + hh / 2, pz, HB.yaw)); SB('tower', box(1.7, 0.3, 1.7), 0xd2c9b6, M(px, y + 5.5, pz, HB.yaw), false); SB('tower', box(1.1, 0.5, 1.1), 0xb0a99c, M(px, y + 5.9, pz, HB.yaw), false);
+        for (let r = 1.2; r < hh - 0.8; r += 1.4) SB('tower_band', box(1.46, 0.1, 1.46), 0x8a837a, M(px, y + 5.4 - r, pz, HB.yaw), false);
         W(k, box(0.4, 0.5, 0.4), 0xffd27a, M(px - cs * s * 0.9, y + 4.2, pz + sn * s * 0.9), false); }
       { const px = x + sn * back, pz = z + cs * back; W(k, box(8.0, 0.55, 0.6), 0x6b4527, M(px, y + 5.0, pz, HB.yaw + Math.PI / 2)); W(k, box(3.2, 0.7, 0.14), 0xd9a36b, M(px, y + 4.25, pz, HB.yaw + Math.PI / 2), false); } }
     // the plateau landing: a flagged path from the deck end round onto trail A (the lagoon path, z ~ -61), edged, thinning out into the trail paint
-    { const PP = [[HB.bx + sn * 0.6, HB.bz + cs * 0.6], [-280, -67.6], [-272.5, -61.4]], seg = []; let tot = 0;
+    if (!RBB_ON) { const PP = [[HB.bx + sn * 0.6, HB.bz + cs * 0.6], [-280, -67.6], [-272.5, -61.4]], seg = []; let tot = 0;   // ([v220] Blender plaza on: the paved terrain path above)
       for (let q = 1; q < PP.length; q++) { const l = Math.hypot(PP[q][0] - PP[q - 1][0], PP[q][1] - PP[q - 1][1]); seg.push([PP[q - 1], PP[q], tot, l]); tot += l; }
       const at = (a) => { for (const [A, B, a0, l] of seg) if (a <= a0 + l || B === PP[PP.length - 1]) { const t = Math.min(1, (a - a0) / l); return [A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, Math.atan2(B[0] - A[0], B[1] - A[1])]; } };
       for (let a = 0, i = 0; a < tot; a += 1.45, i++) { const [x, z, yw] = at(a), f = a / tot, w = 4.6 - f * 1.2; if (f > 0.7 && hash(i, 11) < (f - 0.7) * 2.5) continue;
@@ -235,9 +413,10 @@ export default {
     // exit signposts (W = TOWN at the gate, N = FORT, E = FALLS, S = BEACH / JUNGLE): carved arrow boards on a post
     const sign = (x, z, boards) => { const y = walkY(x, z); W(k, box(0.55, 0.3, 0.55), 0xb0a99c, M(x, y + 0.15, z)); W(k, box(0.24, 2.9, 0.24), 0x5e3b20, M(x, y + 1.6, z));
       boards.forEach(([a, c], i) => W(k, box(1.6, 0.38, 0.1), c, M(x + Math.sin(a) * 0.7, y + 2.6 - i * 0.48, z + Math.cos(a) * 0.7, a + Math.PI / 2))); };
-    sign(...SIGNS[0], [[Math.PI / 2, 0xd9a36b]]);
-    sign(...SIGNS[1], [[Math.PI / 2, 0xc98a4c], [Math.PI, 0xe7c08d]]);
+    if (SIGNS.length) { sign(...SIGNS[0], [[Math.PI / 2, 0xd9a36b]]); sign(...SIGNS[1], [[Math.PI / 2, 0xc98a4c], [Math.PI, 0xe7c08d]]); }
     const fk = kfo.build(MATS, OUT); fk.name = 'rb_fountain_kit'; near.add(fk); rbFountainGLB(low).then(g => { if (!g || !fk.parent) return; near.remove(fk); g.position.set(CX, Y, CZ); near.add(g); RB_STATS.fountainGLB = true; });
+    RB_LAYOUT.push(...LAY); const sk = ks.build(MATS, OUT); sk.name = 'rb_struct_kit'; near.add(sk);
+    rbPlazaGLB(low, LAY).then(g => { if (!g || !sk.parent) return; near.remove(sk); near.add(g); RB_STATS.plazaGLB = true; });
     near.add(k.build(MATS, OUT)); const deck = bk.build(MATS, OUT); const sway = new THREE.Group(); sway.add(deck); near.add(sway);
     // fountain water: basin, two bowls, falling sheets from the bowls, 4 spout arcs + the top jet (animated, cheap: no textures)
     const wm = new THREE.MeshBasicMaterial({ color: 0x3f9fd6, transparent: true, opacity: 0.8, depthWrite: false }), jm = new THREE.MeshBasicMaterial({ color: 0xcdeeff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
@@ -272,6 +451,52 @@ export default {
   activate(q, t, api, b) { if (q.id !== 'wish_fountain' || typeof window === 'undefined') return null;
     window.dispatchEvent(new CustomEvent('pfp-wish', { detail: { toast: (m, ms) => api?.toast?.(m, ms), splash: () => b?.wish?.() } })); return null; },
 };
+// [stairs2] the curved Pirates' Climb (RBB_ON): treads, landing, walls + coping along the curve, the planted bed, lantern piers. Structural stone
+// goes through SB (recorded for the Blender bake: rb_plaza_layout.json), soil / plants / lanterns on the plain kit.
+function buildClimb({ SB, W, k, H, gmin, lampAt, low }) {
+  const C = CLIMB, T0 = [Math.sin(C.a0), Math.cos(C.a0)], A0 = [Math.cos(C.a0), -Math.sin(C.a0)], [x0, z0] = C.at(0);
+  const samp = []; for (let s = -C.back - 1; s <= C.L; s += 0.2) samp.push([s, ...C.at(s)]);
+  const sNear = (x, z) => { let b = 1e18, bs = 0; for (const [s, px, pz] of samp) { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < b) { b = d; bs = s; } } return bs; };
+  const offOf = (x, z, s) => { const [px, pz] = C.at(s), a = C.yawAt(s); return Math.max(-C.wall, Math.min(C.wall, (x - px) * Math.cos(a) - (z - pz) * Math.sin(a))); };
+  const wTop = (x, z) => { if (x >= PX0 - 0.6 && x <= PX1 + 0.6 && z >= PZ0 - 0.6) return Y + 0.9; const s = Math.max(0, sNear(x, z)); return C.walkO(s, offOf(x, z, s)) + 0.9; };
+  const ground = (x, z, r) => gmin(x, z, r) - 0.4;
+  // the landing (plaza height + the border band's 3.5 cm: flush with the paving and kerb you step off) + the strip to the rim
+  { const LY = Y + 0.035, [cx, cz] = C.land.c, hh = Math.max(0.6, LY - Math.min(ground(cx, cz, C.hw), ground(...C.side(-C.back, C.wall), 0.6), ground(...C.side(-C.back, -C.wall), 0.6)));
+    SB('landing', box(C.wall * 2 + 0.5, hh, C.back + 0.02), 0x9f9585, M(cx, LY - hh / 2, cz, C.a0), false);
+    const [rx0, rx1, rz0, rz1] = C.landRect, rh = Math.max(0.6, LY - ground((rx0 + rx1) / 2, (rz0 + rz1) / 2, 2.5));
+    SB('landing', box(rx1 - rx0 + 0.3, rh, rz1 - rz0), 0x9f9585, M((rx0 + rx1) / 2 - 0.15, LY - rh / 2, (rz0 + rz1) / 2), false); }
+  // the treads: one solid stone block per riser (down to the ground: the flight stands on masonry where the hill falls away) + a dressed cap whose
+  // top IS the walk height at the tread centre (CLIMB.walk); blocks run under both walls (no gap at the wall foot) and back under the tread above
+  for (let i = 0; i < C.n; i++) { const sc = (i + 0.5) * C.d, top = C.y0 - C.rise * (i + 1), yaw = C.yawAt(sc), [bx, bz] = C.at(sc - C.d / 4);
+    let g = 1e9; const rl = C.roll(sc), lo = top - Math.abs(rl) * (C.wall + 0.25);
+    for (const o of [-C.wall - 0.25, -C.hw, 0, C.hw, C.wall + 0.25]) g = Math.min(g, H(...C.side(sc, o)) - 0.4); const hh = Math.max(0.3, lo - 0.06 - g);
+    SB('tread', box(C.wall * 2 + 0.5, hh, C.d * 1.5), i % 2 ? 0xb9b2a6 : 0xb0a99c, M(bx, lo - 0.06 - hh / 2, bz, yaw), i % 3 === 0);
+    const [cx, cz] = C.at(sc + 0.015); SB('tread_cap', box(C.hw * 2 + 0.04, 0.06, C.d + 0.03), 0xd2c9b6, M(cx, top - 0.03, cz, yaw, 0, Math.atan(rl)), false);
+    if (rl) SB('tread', box(C.hw * 2 + 0.04, Math.abs(rl) * C.hw * 2 + 0.02, C.d + 0.03), i % 2 ? 0xb9b2a6 : 0xb0a99c, M(cx, top - 0.06 - (Math.abs(rl) * C.hw * 2 + 0.02) / 2, cz, yaw, 0, Math.atan(rl)), false); }   // (the rolled treads: a riser block under the tilted cap)
+  // walls: short upright blocks (top = the lower end's coping line) under a pitched coping that follows the walk line + 0.9 m: one smooth sloping
+  // rail along the curve, its inner face flush with the tread ends (the blocks overlap the treads: no slot)
+  for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); if (L < 1e-3) continue;
+    const flat = Math.abs(wTop(ax, az) - wTop(bx, bz)) < 1e-3 && Math.abs(wTop((ax + bx) / 2, (az + bz) / 2) - wTop(ax, az)) < 1e-3, n = Math.max(1, Math.ceil(L / (flat ? 4 : 0.75))), yaw = Math.atan2(bx - ax, bz - az);   // level runs: 4 m blocks; sloping: 0.75 m
+    for (let j = 0; j < n; j++) { const pa = [ax + (bx - ax) * j / n, az + (bz - az) * j / n], pb = [ax + (bx - ax) * (j + 1) / n, az + (bz - az) * (j + 1) / n], l = L / n,
+        ta = wTop(...pa), tb = wTop(...pb), x = (pa[0] + pb[0]) / 2, z = (pa[1] + pb[1]) / 2, lo = Math.min(ta, tb), g = Math.min(ground(...pa, 0.6), ground(...pb, 0.6)) + 0.1, hh = Math.max(0.3, lo - g);
+      SB('cwall', box(0.5, hh, l + 0.03), (i + j) % 3 ? 0xb9b2a6 : 0xb0a99c, M(x, g + hh / 2, z, yaw), (i + j) % 2 === 0);   // (cwall: plain ashlar in the bake, no drip lips stepping under the pitched coping)
+      SB('coping', box(0.66, 0.42, l + 0.05), 0xd2c9b6, M(x, (ta + tb) / 2 + 0.06 - 0.21, z, yaw, Math.atan2(ta - tb, l)), false); } }
+  // lantern piers flanking the top + the foot of the flight (the lanterns of the old landing), small lanterns on the coping at the thirds
+  const pier = (s, o) => { const [x, z] = C.side(s, o), y = (s <= 0 ? Y : C.walkO(s, o)) + 1.25, g = ground(x, z, 0.6) + 0.1, a = C.yawAt(s);
+    SB('gpier', box(0.86, y - g, 0.86), 0xb9b2a6, M(x, (y + g) / 2, z, a)); SB('gpier', box(1.02, 0.14, 1.02), 0xd2c9b6, M(x, y + 0.07, z, a), false);
+    W(k, cyl(0.05, 0.06, 0.35, 5), C2.IRON, M(x, y + 0.31, z), false); W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(x, y + 0.74, z, a)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(x, y + 0.74, z, a), false); W(k, box(0.44, 0.4, 0.3), 0xffd27a, M(x, y + 0.74, z, a), false);
+    W(k, cyl(0.02, 0.33, 0.24, 4), C2.IRON, M(x, y + 1.1, z, a + Math.PI / 4), false); };
+  for (const o of [-C.wall, C.wall]) { pier(0, o); pier(C.L, o); }
+  for (const f of [1 / 3, 2 / 3]) for (const o of [-C.wall, C.wall]) { const s = C.L * f, [x, z] = C.side(s, o), y = C.walkO(s, o) + 0.96 + 0.06;
+    W(k, box(0.3, 0.36, 0.3), 0x2b2f36, M(x, y + 0.2, z), false); W(k, box(0.22, 0.28, 0.32), 0xffd27a, M(x, y + 0.2, z), false); W(k, box(0.32, 0.28, 0.22), 0xffd27a, M(x, y + 0.2, z), false); }
+  // the planted bed in the wedge between the plaza's S wall and the Climb's inner wall (a raised bank of soil + shrubs just under the stair's coping)
+  for (const b of C.bed) { b.top = Math.min(Y - 0.25, wTop(b.x, b.z0 - 0.3) - 0.14); const g = ground(b.x, (b.z0 + b.z1) / 2, 0.8) + 0.1, hh = Math.max(0.3, b.top - g);
+    SB('retain', box(0.52, hh, b.z1 - b.z0 + 0.04), 0xb0a99c, M(b.x, g + hh / 2, (b.z0 + b.z1) / 2), false);
+    W(k, box(0.5, 0.08, b.z1 - b.z0), 0x5a3a22, M(b.x, b.top + 0.03, (b.z0 + b.z1) / 2), false);
+    if (!low || b.i % 2 === 0) for (let q = 0; q < Math.max(1, Math.round((b.z1 - b.z0) / 1.1)); q++) { const z = b.z0 + (q + 0.5) * (b.z1 - b.z0) / Math.max(1, Math.round((b.z1 - b.z0) / 1.1)), r = 0.32 + hash(b.i, q) * 0.25;
+      k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, b.i * 7 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45, 0x4e8a34][(b.i + q) % 4], { m: M(b.x + (hash(q, b.i) - 0.5) * 0.3, b.top + r * 0.7, z, b.i + q), outline: false });
+      if ((b.i + q) % 5 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.16, 0), 0.2, q), [0xd8322f, 0xffc93c, 0xf4efe6][q % 3], { m: M(b.x, b.top + r * 1.3, z + 0.2, q), outline: false }); } }
+}
 // [wish] off until the server says the fountain is open (inv_state flags); ?wish=1 = show the spot anyway (tests)
 function wishHidden() { if (typeof window === 'undefined') return true; if (/[?&]wish=1(&|$)/.test(location.search)) return false; return !(window.PFP_INV_FLAGS && window.PFP_INV_FLAGS.wish_fountain); }
 const rockfall = (i) => [-294.5 + hash(i, 21) * 6, -66 + hash(i, 23) * 7, 0.8 + hash(i, 25) * 1.1];

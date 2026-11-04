@@ -30,6 +30,10 @@ export const townToWorld = (lx, lz) => [TOWN.x + lx * TC + lz * TS, TOWN.z - lx 
 export const worldToTown = (x, z) => { const dx = x - TOWN.x, dz = z - TOWN.z; return [dx * TC - dz * TS, dx * TS + dz * TC]; };
 // main street: a cobbled road on the land bridge from the town's back gate inland (town-local x = STREET.x, z from z0 to z1)
 export const STREET = { x: 6, z0: -58, z1: -205, half: 7 };
+// [rb-blender] BANKSY 1:33 PM "Probably remove the archway too": the gate lintel + its flag go with the symmetric fountain plaza; [v220] BANKSY 3:51 PM
+// "remove the archways": the two 10 m gate towers (+ battlements + colliders) go too: the hill street opens straight onto the plaza (torches stay)
+// (&rbarch=1 = keep it; &rbblend=0 or &roundabout=0 = the old gate exactly)
+const GATE_ARCH_OFF = typeof location !== 'undefined' && !/[?&](rbblend|roundabout)=0(&|$)/.test(location.search) && !/[?&]rbarch=1(&|$)/.test(location.search);
 // coastline traced from the Nublar-style reference (teardrop: broad north lobe, long tapering south), metres
 const COAST = [[95,60],[150,40],[215,35],[270,45],[330,60],[385,85],[420,110],[430,150],[440,200],[432,250],[418,290],[395,330],[370,365],
   [345,400],[330,430],[318,470],[300,500],[280,520],[262,525],[250,505],[236,470],[220,430],[200,395],[180,365],[160,340],[150,320],[130,300],
@@ -79,6 +83,17 @@ function catmull(pts, closed, step = 3) {
   if (closed) out.push(out[0]); else out.push(pts[n - 1]); return out; }
 const pathLen = (p) => { let L = 0; for (let i = 1; i < p.length; i++) L += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return L; };
 export const TRAILS = { A: catmull(TRAIL_A, true), B: catmull(TRAIL_B, true) };
+// [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": between the north rope-bridge cutting's ends (RAMPS
+// [15, -46] -> [-32, -31.6], an 8 m floor through the ridge) trail A's spline bowed 3-4 m off the floor onto both cutting walls (two 5 m humps
+// in the walk + the paint / kerbs up the rock). With the roundabout on, those trail points sit on the cutting's centre line (eased in / out over
+// 6 m at each end; same point count, so nothing indexed by trail A moves). &roundabout=0 = the old line exactly.
+if (RB_ON) { const ax = 15, az = -46, bx = -32, bz = -31.6, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
+  for (const p of TRAILS.A) { const t = (p[0] - ax) * ux + (p[1] - az) * uz, lat = -(p[0] - ax) * uz + (p[1] - az) * ux; if (t < 1 || t > L - 1 || Math.abs(lat) > 6) continue;
+    const w = Math.min(1, (t - 1) / 6, (L - 1 - t) / 6); p[0] -= -uz * lat * w; p[1] -= ux * lat * w; }
+  // + the turn at the cutting's east end onto D3's north steps (x 16): the spline cut the inside corner over the slot's west wall (a ridge); it
+  // now runs out along the cutting floor to the head of the steps, then straight down them
+  const Q = [[9.9, -44.35], [14.6, -44.2], [16, -45.2], [16, -50.5]], near = (x, z) => { let b = null; for (let i = 1; i < Q.length; i++) { const [ax2, az2] = Q[i - 1], [bx2, bz2] = Q[i], dx = bx2 - ax2, dz = bz2 - az2, t = Math.max(0, Math.min(1, ((x - ax2) * dx + (z - az2) * dz) / (dx * dx + dz * dz))), px = ax2 + dx * t, pz = az2 + dz * t, d = Math.hypot(x - px, z - pz); if (!b || d < b[2]) b = [px, pz, d]; } return b; };
+  for (const p of TRAILS.A) if (p[0] > 9.8 && p[0] < 16.5 && p[1] > -50.6 && p[1] < -43.2) { const [px, pz] = near(p[0], p[1]); const c = Math.hypot(px - 16, pz + 45.2) < 2.85 ? [16, -45.2] : [px, pz]; p[0] = c[0]; p[1] = c[1]; } }   // (the spline point nearest the turn sits ON the turn: the 3 m chords don't cut it)
 const RIVERP = catmull(RIVER, false, 4);
 const STREETP = [townToWorld(STREET.x, STREET.z0), GATE];
 
@@ -134,7 +149,10 @@ stamp(TRAILS.A, 14, TRg); stamp(TRAILS.B, 14, TRg); stamp(STREETP, 30, STg);
 // [stairfix] BANKSY 1:37 PM: trail A's closing leg (the old dip path from the waterfalls plateau back to the gate, x -411..-298) is the stretch the
 // high rope bridge replaced: with the roundabout on it loses its paint (dirt + cobbles), kerb stones and torches. The walk / heights / foliage
 // clearance still use the whole loop (TRg); only the PAINT uses TRp. &roundabout=0 = the old paint exactly.
-const A_DEAD = (p) => RB_ON && p[0] > -411 && p[0] < -298 && p[1] > -96 && p[1] < -56;
+// [stairs2] + the Pirates' Climb stretch (the old trail line from the plaza rim down to the stair foot, x -432..-413.6, z -123.2..-96.4): the
+// curved stairs replace it, so its dirt / cobble paint + kerbs go too (no stray old path beside the new flight; walk + heights unchanged)
+const A_DEAD = (p) => RB_ON && ((p[0] > -411 && p[0] < -298 && p[1] > -96 && p[1] < -56) || (p[0] >= -298 && p[0] < -276.5 && p[1] > -68 && p[1] < -56) ||   // [v220] + the old drop off the plateau cliff beside the bridge landing (x -298 .. -276.5): the landing path joins trail A east of it
+   (p[0] > -432 && p[0] < -413.6 && p[1] > -123.2 && p[1] < -96.4));
 const TRAIL_A_PAINT = (() => { const out = [], A = TRAILS.A; let cur = []; for (const p of A) { if (A_DEAD(p)) { if (cur.length > 1) out.push(cur); cur = []; } else cur.push(p); } if (cur.length > 1) out.push(cur); return out; })();
 const DEAD_A = []; { let cur = []; for (const p of TRAILS.A) { if (A_DEAD(p)) cur.push(p); else if (cur.length) { DEAD_A.push(cur); cur = []; } } if (cur.length > 1) DEAD_A.push(cur); }
 // [bridge-path-fix] BANKSY 6:59 PM "make the path stone paved all the way around island": the red (A) + yellow (B) trail loops get the
@@ -245,6 +263,7 @@ export function pieceBlockers(box, off) { const hit = (x, z) => x >= box.min.x -
   for (const d of AREA_DECKS) if (hit(d.x, d.z) && d.y >= box.min.y - 1 && d.y <= box.max.y + 1) { d.off = off; n++; }
   for (const o of [...CIRC, ...BOXES]) if (hit(o.x, o.z)) { o.off = off; n++; } return n; }
 function rebuild(dirty) { if (CHUNKS) for (const c of CHUNKS) if (dirty.has(c.ci + ',' + c.cj)) { for (const g of Object.values(c.geos)) if (g !== c.mesh.geometry) g.dispose(); const old = c.mesh.geometry; c.geos = {}; if (c.lod >= 0) { c.geos[c.lod] = chunkGeo(c.ci, c.cj, c.lod); c.mesh.geometry = c.geos[c.lod]; old.dispose(); } } }
+let KERB_HOOK = null;   // [stairs2] createFoot: re-lay the kerbs after a terrain edit (debounced)
 export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
   base(q) { return Hb ? Hb[q] : Hg[q]; }, delta: DELTA, cell(x, z) { return [Math.round((x - X0) / G), Math.round((z - Z0) / G)]; },
   // set some cells' deltas (Map / [[q, m]]): rewrites Hg there and rebuilds only the touched chunks (their LOD meshes regenerate lazily)
@@ -253,7 +272,7 @@ export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
     for (const [q, d] of entries) { const v = Math.abs(d) < 0.005 ? 0 : d; if (v) DELTA.set(q, v); else DELTA.delete(q); Hg[q] = Hb[q] + v;
       const i = q % (NX + 1), j = (q - i) / (NX + 1), ci = Math.floor(i / CH), cj = Math.floor(j / CH);
       dirty.add(ci + ',' + cj); if (i % CH === 0 && ci > 0) dirty.add((ci - 1) + ',' + cj); if (j % CH === 0 && cj > 0) dirty.add(ci + ',' + (cj - 1)); if (i % CH === 0 && j % CH === 0 && ci > 0 && cj > 0) dirty.add((ci - 1) + ',' + (cj - 1)); }
-    rebuild(dirty); return dirty.size; },
+    rebuild(dirty); KERB_HOOK?.(); return dirty.size; },   // [stairs2] the kerb stones re-seat on the edited ground (they were laid on the unedited ground at startup)
   paint(entries) { const dirty = new Set(); this.rev++; for (const [q, v] of entries) { if (v && v[1] > 0.01) PAINTM.set(q, v); else PAINTM.delete(q); const i = q % (NX + 1), j = (q - i) / (NX + 1); dirty.add(Math.floor(i / CH) + ',' + Math.floor(j / CH)); } rebuild(dirty); return dirty.size; },
   paintMap: PAINTM, LAYERS: { grass: 2, sand: 0, dirt: 1, rock: 4, path: 6 },
   replacePaint(obj) { const next = new Map(Object.entries(obj || {}).map(([q, v]) => [+q, [Math.floor((v | 0) / 1000), ((v | 0) % 1000) / 100]])); const ch = [];
@@ -554,7 +573,7 @@ function foliageSpots() {
     if (clr) continue;
     if (inView(x, z)) { if (r < 0.1 && TRg[q] > 6) ferns.push([x, h, z, r]); continue; }
     if (Math.hypot(x - SKULL.x, z - SKULL.z - 6) < 34) continue;
-    if (TRg[q] < 10) { if (TRg[q] > 4.5 && r < 0.18) ferns.push([x, h, z, r]); continue; }
+    if (TRg[q] < 10) { const dead = x > -406 && TRP_G[q] > TRg[q] + 1; if ((TRg[q] > 4.5 || dead) && r < (dead ? 0.42 : 0.18)) ferns.push([x, h, z, r]); continue; }   // [v220] the dead leg (under the high bridge): ferns right across the old trail line, blends into the grass
     if (h < 2.6) { if (r < 0.05) rocks.push([x, h, z, r]); continue; }
     if (sl > 0.85 || h > 105) { if (r < 0.1) rocks.push([x, h, z, r]); continue; }
     const jm = fbm(x * 0.01 + 7, z * 0.01, 3);
@@ -578,6 +597,7 @@ function grassGeos() {
 }
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
+  if (RB_ON && x > -440 && x < -405 && z > -130 && z < -60 && areaDeckAt(x, z) !== null) return 0;   // [v220] no grass tufts through the fountain plaza / Climb paving
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
@@ -612,7 +632,14 @@ export const AREA_DECKS = [];
 function profAt(d, u) { const P = d.prof, n = P.length, t = u * n - 0.5; if (t <= 0) { const a = d.ya ?? P[0]; return a + (P[0] - a) * Math.min(1, Math.max(0, u * n * 2)); }
   if (t >= n - 1) { const b = d.yb ?? P[n - 1]; return P[n - 1] + (b - P[n - 1]) * Math.min(1, Math.max(0, (u * n - (n - 0.5)) * 2)); }
   const i = Math.floor(t), f = t - i; return P[i] + (P[i + 1] - P[i]) * f; }
+// [stairs2] a PATH deck (BANKSY 2:26 PM "make it curve"): { path: [[x, z], ...], ps: [arc length at each point], hw, yAt(s), bb: [x0, x1, z0, z1] }:
+// the walk height is yAt(s) at the nearest point of the centre line (s = arc length), anywhere within hw of it; nothing past the two ends
+function pathDeckY(d, x, z) { const b = d.bb; if (x < b[0] || x > b[1] || z < b[2] || z > b[3]) return null; const P = d.path, n = P.length; let best = 1e18, bs = 0, bo = 0, out = false;
+  for (let i = 1; i < n; i++) { const ax = P[i - 1][0], az = P[i - 1][1], ex = P[i][0] - ax, ez = P[i][1] - az, t = ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez), tc = t < 0 ? 0 : t > 1 ? 1 : t,
+      qx = ax + ex * tc - x, qz = az + ez * tc - z, dd = qx * qx + qz * qz; if (dd < best) { best = dd; bs = d.ps[i - 1] + (d.ps[i] - d.ps[i - 1]) * tc; bo = (-qx * ez + qz * ex) / Math.hypot(ex, ez); out = (i === 1 && t < -1e-3) || (i === n - 1 && t > 1 + 1e-3); } }
+  return best <= d.hw * d.hw && !out ? (d.yAtO ? d.yAtO(bs, bo) : d.yAt(bs)) : null; }   // yAtO(s, o): o = signed offset (+ = right of the path's direction)
 export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { if (d.off) continue; const dx = x - d.x, dz = z - d.z;
+  if (d.path) { const v = pathDeckY(d, x, z); if (v !== null) y = Math.max(y ?? -1e9, v); continue; }
   if (d.r) { if (dx * dx + dz * dz <= d.r * d.r) y = Math.max(y ?? -1e9, d.y); continue; }
   const l = dx * d.s + dz * d.c; if (Math.abs(dx * d.c - dz * d.s) > d.hw || Math.abs(l) > d.hl) continue;
   // pad: the footprint runs pad m past both ends as a skirt that falls away 1:1 from the end height, so where two stair decks overlap
@@ -710,13 +737,17 @@ function buildKerbs(MATS, OUT, low) {
   const ok = (cx, cz, mx, mz) => (paveW(mx, mz) > 0.5 || no('unpaved')) && (gridBi(TRP_G, cx, cz) > off - 0.9 || no('trail')) && (gridBi(STg, cx, cz) > STREET.half + 2.5 || no('street'))
     && (waterAt(cx, cz) === null && H(cx, cz) > 0.3 && gridBi(RVg, cx, cz) > 8 || no('water')) /* [path-hotfix] + no kerb stones across a river ford */ && (areaDeckAt(cx, cz) === null && areaDeckAt(mx, mz) === null || no('deck'))
     && (!(Math.abs(cx - ROPE_BRIDGE.c[0]) < 7 && cz > -108 && cz < -59) || no('bridge')) && (!hitCollider(cx, cz, 0.3) || no('collider'));
+  const dSeg = (P, x, z) => { let d = 1e9; for (let i = 1; i < P.length; i++) { const [ax, az] = P[i - 1], [bx, bz] = P[i], ux = bx - ax, uz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1))); d = Math.min(d, Math.hypot(x - ax - ux * t, z - az - uz * t)); } return d; };
   for (const path of [...TRAIL_A_PAINT, TRAILS.B, ...PAVED_PATHS]) { const P = [path[0]]; // resample the spline at the stone length
     for (let i = 1, acc = 0; i < path.length; i++) { const [ax, az] = path[i - 1], [bx, bz] = path[i], L = Math.hypot(bx - ax, bz - az); let t = seg - acc;
       while (t <= L) { P.push([ax + (bx - ax) * t / L, az + (bz - az) * t / L]); t += seg; } acc = L - (t - seg); }
     for (let i = 1; i < P.length; i++) { const [ax, az] = P[i - 1], [bx, bz] = P[i], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 0.3) continue;
       const nx = dz / L, nz = -dx / L, mx = (ax + bx) / 2, mz = (az + bz) / 2;
       for (const sd of [-1, 1]) { const x0 = ax + nx * off * sd, z0 = az + nz * off * sd, x1 = bx + nx * off * sd, z1 = bz + nz * off * sd, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, Ls = Math.hypot(x1 - x0, z1 - z0);
-        if (Ls < 0.4 || !ok(cx, cz, mx, mz)) continue; const y0 = H(x0, z0), y1 = H(x1, z1), yc = H(cx, cz); if (Math.abs(y1 - y0) > Ls * 1.0 || Math.abs(yc - (y0 + y1) / 2) > 0.5) { no('steep'); continue; } R.laid = (R.laid || 0) + 1;
+        if (Ls < 0.4 || !ok(cx, cz, mx, mz)) continue; const y0 = H(x0, z0), y1 = H(x1, z1), yc = H(cx, cz); if (Math.abs(y1 - y0) > Ls * 1.0 || Math.abs(yc - (y0 + y1) / 2) > 0.5) { no('steep'); continue; }
+        if (RB_ON && cx > -295 && cx < -255 && cz > -80 && cz < -52 && PAVED_PATHS.some(Q => Q !== path && dSeg(Q, cx, cz) < off - 0.4)) { no('trail'); continue; }   // [v220] the high bridge's plateau landing path: trail A's kerb doesn't run across it (area paths aren't in TRP_G)
+        if (RB_ON && ((cx > -295 && cx < -270 && cz > -80 && cz < -55) || (cx > -36 && cx < 18 && cz > -50 && cz < -28))) { const ymk = Math.max((y0 + y1) / 2, yc - 0.08) + 0.05;   // [v220] the high bridge's plateau landing + the north cutting: no stone that would hang off a lip / cutting wall
+          if ([[x0, z0], [x1, z1]].some(([px, pz]) => [-0.21, 0.21].some(o => Math.abs(H(px + nx * o, pz + nz * o) - ymk) > 0.45))) { no('steep'); continue; } } R.laid = (R.laid || 0) + 1;
         const ym = Math.max((y0 + y1) / 2, yc - 0.08); // over a crest the middle rides up (never buried mid-stone)
         const key = Math.floor(cx / 250) + '_' + Math.floor(cz / 250), k = tiles[key] = tiles[key] || new Kit();
         W(k, box(0.42, 0.3, Ls - 0.08), (n++ & 1) ? STONE_D : 0x9e978a, 11, M(cx, ym + 0.05, cz, Math.atan2(x1 - x0, z1 - z0), -Math.atan2(y1 - y0, Ls)), false); } } }
@@ -783,9 +814,9 @@ export function buildStreet(A, low, F) {
   for (let i = 0; i < (low ? 10 : 22); i++) { const s = i % 2 ? 1 : -1, z = S.z0 - 8 - i * 6.4, [x, wz] = tw(S.x + s * (S.half - 0.2), z), y = H(x, wz), ry = twy(hash(i, 4) * 6);
     if (i % 3 === 0) barrel(k, M(x, y, wz, ry)); else if (i % 3 === 1) crate(k, M(x, y, wz, ry), 1.1); else sacks(k, M(x, y, wz, ry)); addCirc(x, wz, 0.8); }
   { const z = S.z1 + 4, y = H(...tw(S.x, z)); // town gate
-    for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half + 1.6), z); W(k, box(3.2, 10, 3.2), STONE, 11, M(x, y + 5, wz, twy(0))); for (let c = 0; c < 4; c++) W(k, box(0.8, 0.9, 0.8), STONE, 11, M(x + (c % 2 - 0.5) * 2, y + 10.4, wz + (c > 1 ? 1 : -1) * 1.0, twy(0)), false); addBox(x, wz, 3.4, 3.4, twy(0)); torchPost(k, F, ...tw(S.x + s * (S.half - 0.4), z + 2.5).flatMap((v, i) => i ? [H(...tw(S.x + s * (S.half - 0.4), z + 2.5)), v] : [v])); }
-    const [gx, gz] = tw(S.x, z); W(k, box(S.half * 2 + 6, 2.2, 3.0), STONE_D, 11, M(gx, y + 9.0, gz, twy(0)));
-    k.at(M(gx, y + 9.8, gz, twy(0)), () => { if (A.ppflag) { W(k, cyl(0.08, 0.08, 4, 5), WOOD_D, 2, M(0, 2, 0), false); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, 0.03)); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, -0.03, Math.PI)); } }); }
+    for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half + 1.6), z); if (!GATE_ARCH_OFF) { W(k, box(3.2, 10, 3.2), STONE, 11, M(x, y + 5, wz, twy(0))); for (let c = 0; c < 4; c++) W(k, box(0.8, 0.9, 0.8), STONE, 11, M(x + (c % 2 - 0.5) * 2, y + 10.4, wz + (c > 1 ? 1 : -1) * 1.0, twy(0)), false); addBox(x, wz, 3.4, 3.4, twy(0)); } torchPost(k, F, ...tw(S.x + s * (S.half - 0.4), z + 2.5).flatMap((v, i) => i ? [H(...tw(S.x + s * (S.half - 0.4), z + 2.5)), v] : [v])); }
+    const [gx, gz] = tw(S.x, z); if (!GATE_ARCH_OFF) W(k, box(S.half * 2 + 6, 2.2, 3.0), STONE_D, 11, M(gx, y + 9.0, gz, twy(0)));   // [rb-blender] no lintel: the street opens onto the fountain plaza
+    if (!GATE_ARCH_OFF) k.at(M(gx, y + 9.8, gz, twy(0)), () => { if (A.ppflag) { W(k, cyl(0.08, 0.08, 4, 5), WOOD_D, 2, M(0, 2, 0), false); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, 0.03)); atlasQuad(k, 3.0, 2.0, A.ppflag, M(1.55, 3.0, -0.03, Math.PI)); } }); }
   // fort battery (cannons round the keep) + crates on the land bridge shoulders
   if (!COASTM) for (let i = 0; i < 6; i++) { const a = -0.9 + i * 0.5, r = 12.5, lx = -41 + Math.sin(a + Math.PI * 1.5) * r, lz = -15 + Math.cos(a + Math.PI * 1.5) * r, [x, wz] = tw(lx, lz);
     cannon(k, M(x, groundY(lx, lz) - 0.1, wz, twy(Math.atan2(lx + 41, lz + 15)))); }
@@ -1226,7 +1257,11 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const fm = foliageMat(low, uTime, nat ? nat.cards : null);
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
-  for (const g of buildKerbs(MATS, OUT, low)) root.add(g); // [bridge-path-fix] the paved trails' kerbs (after the POIs: their colliders + area decks are in)
+  const kerbG = buildKerbs(MATS, OUT, low); for (const g of kerbG) root.add(g); // [bridge-path-fix] the paved trails' kerbs (after the POIs: their colliders + area decks are in)
+  // [stairs2] the saved terrain edits (BANKSY's, pvp_terrain) load after this: kerbs laid on the unedited ground floated / sank where he levelled
+  // (up to 7.7 m by the bridge head). Every TERRAIN.set now re-lays them on the edited ground (geometry only; the ground itself is untouched)
+  { let tm = 0; KERB_HOOK = () => { clearTimeout(tm); tm = setTimeout(() => { for (const g of kerbG.splice(0)) { root.remove(g); g.traverse(o => o.geometry?.dispose?.()); }
+    for (const g of buildKerbs(MATS, OUT, low)) { root.add(g); kerbG.push(g); } }, 300); }; }
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
