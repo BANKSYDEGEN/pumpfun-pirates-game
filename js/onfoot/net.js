@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
-import { newBody, placeBody, stepBody, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] remote pirates fall + swim too
+import { newBody, placeBody, stepBody, jumpBody, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] remote pirates fall + swim too
 import { applyGear, cleanWire, gearFromWire, knownGearSkin, EYE_SWATCHES } from '../pirateGear.js';
 import { isNetId } from '../safe.js'; // [security H5] // [Timothy] their shop gear ('gr')
 
@@ -56,7 +56,8 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3 }) {
       const k = Math.min(1, dt * 8); p.x += (p.tx - p.x) * k; p.z += (p.tz - p.z) * k; let d = p.tyaw - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * k;
       p.speed += ((p.tspeed || 0) - p.speed) * k;
       if (!p.body) { p.body = newBody(); placeBody(p.body, world, p.x, p.z); } stepBody(p.body, world, p.x, p.z, dt, p.speed); bodyFX(fx, p.body, p.x, p.z, p.speed, dt); fx?.update();
-      const jh = p.jt && !p.body.swim ? jumpArc((now - p.jt) / 1000) : 0; if (p.jt && now - p.jt > 900) p.jt = 0;
+      if (p.jt && p.jt !== p.jtH) { p.jtH = p.jt; if (p.body.swim) jumpBody(p.body, 0); }   // [Raul swim-anim] they jumped in deep water: the surface kick here too
+      const jh = p.jt && !p.body.swim && !p.body.hop ? jumpArc((now - p.jt) / 1000) : 0; if (p.jt && now - p.jt > 900) p.jt = 0;
       const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.speed, now / 1000, jh); p.pirate.update(dt, p.speed, st);
     }
   }

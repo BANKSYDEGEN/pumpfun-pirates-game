@@ -8,6 +8,7 @@ import { toon } from '../toon.js';
 
 export { PIRATE_GLB } from '../pirateGLB.js'; // [v100] Raul's Blender pirates v4 (js/pirates.js); the procedural deckhand below is the fallback while it loads
 import { pirateFigure } from '../pirates.js';
+import { swimPose } from './swimPose.js'; // [Raul swim-anim] tread / crawl / pull-up / surface kick
 
 const SKINS = [0xd99b6c, 0xf2c9a0, 0xe0a97c, 0xc68a5e, 0x9a6440, 0x6e4528];
 const HAIR = [0x2b1b12, 0x4a2c17, 0x161616, 0x8a5a2b, 0xc9a25a];
@@ -64,9 +65,12 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
   let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, gear, local, bodyFromGear, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
   let ph = 0, blend = 0, t = 0;
   function update(dt, speed = 0, state = 'idle') {
-    if (v4) { // [Raul] state (js/onfoot/physics.js poseBody): swim = the run clip slowed under the swim lean (arm strokes + kick), tread = slow walk, fall = fast run (flailing)
-      const c = state === 'swim' || state === 'fall' ? 'run' : state === 'tread' ? 'walk' : speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
-      if (v4.action) v4.action.setEffectiveTimeScale(state === 'swim' ? 0.5 + speed * 0.1 : state === 'tread' ? 0.45 : state === 'fall' ? 1.7 : c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
+    if (v4) { // [Raul] state (js/onfoot/physics.js poseBody): fall = fast run (flailing). [Raul swim-anim] swim / tread / climb / hop = procedural
+      // bone poses (js/onfoot/swimPose.js) over the idle clip, blended in and out
+      const wet = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop';
+      const own = swimPose(v4, state, dt, speed, root.userData.swimK || 0);
+      const c = wet || own ? 'idle' : state === 'fall' ? 'run' : speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
+      if (v4.action) v4.action.setEffectiveTimeScale(c === 'idle' ? 1 : state === 'fall' ? 1.7 : c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
     t += dt; const run = Math.min(1, Math.max(0, (speed - 4.4) / 2)), walk = Math.min(1, speed / 1.2);
     blend += (walk - blend) * Math.min(1, dt * 10);
     ph += dt * (speed > 0.1 ? 2.2 + speed * 1.15 : 0);

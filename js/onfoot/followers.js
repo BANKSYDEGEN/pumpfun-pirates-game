@@ -9,7 +9,7 @@
 //  - cheap: one v4 Low pirate each (2 draw calls + their gear), hidden beyond 70 m, no per-frame allocation
 import { loadPirate } from './pirate.js';
 import { JUMP } from './walker.js';
-import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] they fall, wade + swim like you
+import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing } from './physics.js'; // [Raul] they fall, wade + swim like you
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { crewGearOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
@@ -90,7 +90,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null }) {
       { const inside = ko(c.x, c.z, i); if (inside) { c.x = inside[0]; c.z = inside[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; } } // never left standing inside one
       const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz), dp = Math.hypot(W.x - c.x, W.z - c.z);
       if (dp > 40 && !wait) { const q0 = trailAt(BACK[i] + 1), q = ko(q0[0], q0[1], i) || q0; c.x = q[0]; c.z = q[1]; placeBody(c.body, world, c.x, c.z); c.y = c.body.y; c.speed = 0; return place(c); } // lost: regroup
-      let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body);
+      let want = d > 5 ? 9.6 : d > 0.9 ? Math.min(4.2, 1.2 + d * 1.6) : 0; if (c.body.swim) want = Math.min(want, d > 5 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] pull-up
       c.speed += (want - c.speed) * Math.min(1, dt * 6);
       if (c.speed > 0.15 && d > 0.05) {
         const got = move(c, dx / d * c.speed * dt, dz / d * c.speed * dt);

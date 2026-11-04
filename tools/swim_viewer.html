@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- [Raul] PUMPFUN PIRATES swim animation viewer (dev only, not shipped): frame sequences of the procedural swim poses
+     (js/onfoot/swimPose.js) driven by the REAL foot physics (js/onfoot/physics.js stepBody / poseBody) on a toy world.
+     tools/swim_viewer.html?lod=hi|lo&sex=m|f&rows=tread,swim,sprint,climb,hop&cols=6   (serve the repo root) -->
+<html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES swim viewer</title>
+<style>html,body{margin:0;background:#1d2833;color:#fff;font:600 13px system-ui;overflow:hidden}#lab{position:fixed;inset:0;pointer-events:none}
+#lab div{position:absolute;text-align:center;text-shadow:0 1px 2px #000}#hd{position:fixed;left:8px;top:4px;font-size:15px;opacity:.9}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three-0.165.0/build/three.module.js","three/addons/":"./vendor/three-0.165.0/examples/jsm/"}}</script>
+</head><body><div id="hd"></div><div id="lab"></div>
+<script type="module">
+import * as THREE from 'three';
+import { loadPirate } from './js/onfoot/pirate.js';
+import { PHYS, newBody, placeBody, jumpBody, stepBody, poseBody, climbing } from './js/onfoot/physics.js';
+const q = new URLSearchParams(location.search), LOW = q.get('lod') === 'lo', FEM = q.get('sex') === 'f';
+const ROWS = (q.get('rows') || 'tread,swim,sprint,climb,hop').split(','), COLS = +(q.get('cols') || 6);
+// each row: world, start x, yaw +X, speed, the times (s) of its frames
+const WATER = { ground: () => -3, water: () => 0 }, LEDGE = 0.6, SHORE = { ground: (x) => (x < 0 ? -3 : LEDGE), water: (x) => (x < 0 ? 0 : null) };
+const R = {
+  tread:  { label: 'TREAD (still)', world: WATER, x: 0, v: 0, t: (i) => 1 + i * 0.16 },
+  swim:   { label: 'CRAWL 2.3 m/s', world: WATER, x: 0, v: PHYS.swim[0], t: (i) => 1.5 + i * (2.2 / PHYS.swim[0]) / COLS },
+  sprint: { label: 'CRAWL 3.6 m/s', world: WATER, x: 0, v: PHYS.swim[1], t: (i) => 1.5 + i * (2.2 / PHYS.swim[1]) / COLS },
+  climb:  { label: 'PULL-UP', world: SHORE, x: -2.2, v: PHYS.swim[0], climb: true, t: (i) => i * (PHYS.climbT + 0.15) / (COLS - 1) },
+  hop:    { label: 'SURFACE KICK', world: WATER, x: 0, v: 1.6, hop: true, t: (i) => i * 0.44 / (COLS - 1) },
+};
+document.getElementById('hd').textContent = `PUMPFUN PIRATES swim · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High (desktop)'}`;
+const renderer = new THREE.WebGLRenderer({ antialias: !LOW, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.autoClear = false; document.body.prepend(renderer.domElement);
+const cells = [];
+ROWS.forEach((rn, r) => { for (let c = 0; c < COLS; c++) {
+  const S = R[rn], s = new THREE.Scene(); s.background = new THREE.Color(0x9fc4d8);
+  s.add(new THREE.HemisphereLight(0xdfefff, 0x4a3a2a, 1.6)); const d = new THREE.DirectionalLight(0xfff1dc, 2.2); d.position.set(3, 6, 4); s.add(d);
+  const wm = new THREE.Mesh(new THREE.PlaneGeometry(S.climb ? 8 : 16, 8), new THREE.MeshLambertMaterial({ color: 0x2a7fa8, transparent: true, opacity: 0.38, depthWrite: false }));
+  wm.rotation.x = -Math.PI / 2; wm.position.set(S.climb ? -4 : 0, 0, 0); wm.renderOrder = 2; if (!q.get('nowater')) s.add(wm);
+  if (S.climb) { const l = new THREE.Mesh(new THREE.BoxGeometry(4, LEDGE + 3, 6), new THREE.MeshLambertMaterial({ color: 0x8a7458 })); l.position.set(2, (LEDGE - 3) / 2, 0); s.add(l); }
+  const p = loadPirate({ look: { skin: (r + c) % 2 ? 0 : 3, hair: 0, female: FEM }, low: LOW }); s.add(p.object);
+  cells.push({ rn, S, s, p, wm, T: S.t(c), r, c });
+  const l = document.createElement('div'); l.textContent = `${S.label} · ${S.t(c).toFixed(2)} s`; document.getElementById('lab').append(l); l.dataset.i = cells.length - 1; } });
+function sim(cell) { // run the real physics + pose to this cell's time at 1/30 s
+  const { S, p, T } = cell, b = newBody(), yaw = Math.PI / 2, dt = 1 / 30; let x = S.x, z = 0, speed = S.v, t = 0, climbT = null, hopAt = S.hop ? 0.6 : null;
+  placeBody(b, S.world, x, z); const v4 = p.object.userData.v4 || p.object.children.find((o) => o.userData?.v4)?.userData.v4;
+  const end = (S.climb || S.hop ? 3 : 0) + T; let hopT0 = null;
+  for (let i = 0; t < end + 1e-6 && i < 400; i++) {
+    if (S.hop && hopAt !== null && t >= hopAt) { jumpBody(b, 1.1); hopT0 = t; hopAt = null; }
+    const want = climbing(b) ? Math.min(S.v, PHYS.climbV) : (S.climb && !b.swim ? 0 : S.v); speed += (want - speed) * Math.min(1, dt * 10);
+    x += speed * dt; stepBody(b, S.world, x, z, dt, speed);
+    if (S.climb && b.climb && climbT === null) climbT = t; // the pull-up started: frames are timed from here
+    const st = poseBody(p.object, b, x, z, yaw, speed, t); p.update(dt, speed, st); v4?.update(dt); t += dt;
+    if (S.climb && climbT !== null && t >= climbT + T) break;
+    if (S.hop && hopT0 !== null && t >= hopT0 + T) break;
+    if (!S.climb && !S.hop && t >= T) break; }
+  if (!S.climb) cell.wm.position.x = x; cell.x = x; cell.y = b.y; cell.st = poseBody(p.object, b, x, z, yaw, speed, t); }
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
+function layout() { const w = innerWidth / COLS, h = (innerHeight - 24) / ROWS.length;
+  document.querySelectorAll('#lab div').forEach((l) => { const i = +l.dataset.i; l.style.left = (i % COLS) * w + 'px'; l.style.width = w + 'px'; l.style.top = (24 + Math.floor(i / COLS) * h + h - 20) + 'px'; }); return { w, h }; }
+function render() { const { w, h } = layout(); renderer.setScissorTest(true); renderer.clear(); cam.aspect = w / h; cam.updateProjectionMatrix();
+  cells.forEach((k, i) => { const x = (i % COLS) * w, y = innerHeight - (24 + (Math.floor(i / COLS) + 1) * h);
+    const Z = +(q.get('zoom') || 1), fx = k.S.climb ? 0.2 : k.x - 0.1, fy = k.S.climb ? 1.0 : 0.0; const V = k.S.climb ? [-2.8, 0.9, 5.6] : { q: [1.2, 2.6, 4.6], side: [1.4, 1.5, 5.2], chase: [-2.6, 2.6, 3.4], top: [-0.6, 5, 1.2], front: [3.6, 1.4, 3.0] }[q.get('view') || 'q'], ly = k.S.climb ? 0 : 0.25;
+    cam.position.set(fx + V[0] / Z, fy + ly + V[1] / Z, V[2] / Z); cam.lookAt(fx, fy + ly, 0);
+    renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.render(k.s, cam); }); }
+const ready = () => cells.every((k) => k.p.object.children.some((o) => o.userData?.v4));
+window.SWIMV = { ready, go() { cells.forEach(sim); render(); return cells.map((k) => [k.rn, k.T, k.st, +k.y.toFixed(3)]); }, cells };
+</script></body></html>

@@ -9,13 +9,16 @@
 import * as THREE from 'three';
 import { FOOT_SWIM } from '../island/coast.js';
 
-export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [2.3, 3.6], wade: 0.45, fallPose: 0.22, ...FOOT_SWIM };
+export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [2.3, 3.6], wade: 0.45, fallPose: 0.22, climbT: 0.6, climbV: 1.2, hop: 0.55, ...FOOT_SWIM }; // [Raul swim-anim] climbT = the pull-up out of the water (s), hop = the surface kick height (m)
 const _f = { gy: 0, surf: null, depth: 0, swim: false, floor: 0 };
 export function floorAt(world, x, z, out = _f) { const gy = world.ground(x, z), s = world.water ? world.water(x, z) : null, d = s === null ? 0 : s - gy;
   out.gy = gy; out.surf = s; out.depth = d > 0 ? d : 0; out.swim = d > PHYS.depth; out.floor = out.swim ? s - PHYS.float : gy; return out; }
-export const newBody = () => ({ y: 0, vy: 0, air: false, airT: 0, off: 0, last: null, swim: false, wade: 0, surf: null, dip: 0, dipV: 0, landT: -9, ev: null, impact: 0 });
-export function placeBody(b, world, x, z) { const f = floorAt(world, x, z); Object.assign(b, { y: f.floor, vy: 0, air: false, off: 0, last: f.floor, swim: f.swim, wade: f.swim ? 0 : f.depth, surf: f.surf, dip: 0, dipV: 0 }); }
-export function jumpBody(b, h) { if (b.air || b.swim) return false; b.air = true; b.airT = 0; b.vy = Math.sqrt(2 * PHYS.g * h); b.off = 0; b.last = null; return true; }
+export const newBody = () => ({ y: 0, vy: 0, air: false, airT: 0, off: 0, last: null, swim: false, wade: 0, surf: null, dip: 0, dipV: 0, landT: -9, ev: null, impact: 0, climb: 0, climbD: 0, hop: false, hopFX: false });
+export function placeBody(b, world, x, z) { const f = floorAt(world, x, z); Object.assign(b, { y: f.floor, vy: 0, air: false, off: 0, last: f.floor, swim: f.swim, wade: f.swim ? 0 : f.depth, surf: f.surf, dip: 0, dipV: 0, climb: 0, climbD: 0, hop: false }); }
+// [Raul swim-anim] in deep water a jump is the surface kick: a small PHYS.hop hop (dolphin kick pose), back in with a splash
+export function jumpBody(b, h) { if (b.air || b.climb) return false; if (b.swim) { h = PHYS.hop; b.hop = true; b.hopFX = true; b.dip = b.dipV = 0; }
+  b.air = true; b.airT = 0; b.vy = Math.sqrt(2 * PHYS.g * h); b.off = 0; b.last = null; return true; }
+export const climbing = (b) => b.climb > 0;   // mid pull-up (callers slow the walk to a shuffle meanwhile)
 // one frame after the horizontal move; speed = horizontal m/s (how fast a slope may rise in one frame). Sets b.ev: 'land' | 'splash' | 'fall' | null
 const EVR = { splash: 3, land: 2, fall: 1 };
 export function stepBody(b, world, x, z, dt, speed = 0) { // fixed <= 1/30 s sub-steps: a slow phone frame never turns a fall into slow motion
@@ -25,13 +28,20 @@ export function stepBody(b, world, x, z, dt, speed = 0) { // fixed <= 1/30 s sub
 function step1(b, world, x, z, dt, speed, fdt) { // fdt = the whole frame (the horizontal move it made: slope vs step)
   const f = floorAt(world, x, z); b.ev = null; b.surf = f.surf;
   if (b.air) { b.airT += dt; b.vy -= PHYS.g * dt; b.y += b.vy * dt;
-    if (b.y <= f.floor) { b.impact = -b.vy; b.air = false; b.vy = 0; b.off = 0; b.last = f.floor;
+    if (b.y <= f.floor) { b.impact = -b.vy; b.air = false; b.hop = false; b.vy = 0; b.off = 0; b.last = f.floor;
       if (f.swim) { b.dipV = -Math.min(5, b.impact * 0.45); b.ev = 'splash'; } else { b.landT = performance.now() / 1000; b.ev = f.depth > 0.25 ? 'splash' : 'land'; }
       b.y = f.floor; } }
   else if (f.floor < b.y - PHYS.step - speed * fdt * 1.25 && !(b.swim && f.swim)) { b.air = true; b.airT = 0; b.vy = 0; b.off = 0; b.last = null; b.ev = 'fall'; } // walked off a ledge
   else { if (b.last === null) b.last = f.floor; const d = f.floor - b.last;
-    if (Math.abs(d) > Math.max(0.05, speed * fdt * PHYS.stepRate)) b.off -= d;   // a step, not a slope: ease it
-    b.last = f.floor; b.off *= Math.exp(-dt * PHYS.stepEase); if (Math.abs(b.off) < 1e-3) b.off = 0; b.y = f.floor + b.off; }
+    // [Raul swim-anim] out of the water onto a ledge (was swimming, now standing, a real rise): a PHYS.climbT pull-up curve instead of
+    // the 0.2 s step ease. Same end height, same place: only the vertical path in between changes
+    if (b.swim && !f.swim && d > 0.3) { b.climb = 1e-4; b.climbD = d - b.off; b.off = 0; }
+    if (b.climb && f.swim) b.climb = 0;   // backed into deep water mid pull-up: the step ease below takes it down from where it is
+    if (b.climb) { b.climb += dt; const k = Math.min(1, b.climb / PHYS.climbT), e = k < 0.15 ? 0 : (k - 0.15) / 0.75, u = Math.min(1, e) ** 2 * (3 - 2 * Math.min(1, e));
+      b.off = -b.climbD * (1 - u); if (k >= 1) { b.climb = 0; b.off = 0; } }
+    else { if (Math.abs(d) > Math.max(0.05, speed * fdt * PHYS.stepRate)) b.off -= d;   // a step, not a slope: ease it
+      b.off *= Math.exp(-dt * PHYS.stepEase); if (Math.abs(b.off) < 1e-3) b.off = 0; }
+    b.last = f.floor; b.y = f.floor + b.off; }
   b.swim = !b.air && f.swim; b.wade = !b.air && !f.swim ? f.depth : 0;
   // dive dip: a spring that pulls you back up to the surface after a big drop into deep water
   if (b.dip || b.dipV) { b.dipV += (-b.dip * 40 - b.dipV * 7) * dt; b.dip += b.dipV * dt; if (Math.abs(b.dip) < 1e-3 && Math.abs(b.dipV) < 1e-2) b.dip = b.dipV = 0; }
@@ -41,12 +51,14 @@ export const wadeFactor = (b) => (b.wade > 0.15 ? 1 - PHYS.wade * Math.min(1, b.
 // visual: swim lean (pivot at the chest), treading bob, falling lean; the clip state for loadPirate().update
 const _o = new THREE.Vector3();
 export function poseBody(obj, b, x, z, yaw, speed, t, jh = 0) {
-  let tilt = 0, y = b.y + jh, st = null;
-  if (b.swim) { const mv = Math.min(1, speed / 1.5); tilt = 0.25 + 0.95 * mv; y += Math.sin(t * 2.4 + x * 0.3) * PHYS.bob + b.dip; st = mv > 0.15 ? 'swim' : 'tread'; }
+  let tilt = 0, y = b.y + jh, st = null, back = 0; // back = visual only: the pull-up starts with the chest at the ledge face, not inside it
+  if (b.swim) { const mv = Math.min(1, speed / 1.5); tilt = 0.25 + 0.95 * mv; y += Math.sin(t * 2.4 + x * 0.3) * PHYS.bob + b.dip + 0.14 * mv; st = mv > 0.15 ? 'swim' : 'tread'; } // [Raul swim-anim] + 0.14 m visual lift while stroking: back + arms break the surface
+  else if (b.hop) { const T = 2 * Math.sqrt(2 * PHYS.hop / PHYS.g), k = Math.min(1, b.airT / T); tilt = 0.35 + 0.95 * Math.min(1, speed / 1.5) * 0.6 + 0.5 * k; st = 'hop'; obj.userData.swimK = k; }   // [Raul swim-anim] surface kick
+  else if (b.climb) { const k = Math.min(1, b.climb / PHYS.climbT); tilt = 0.35 * Math.sin(Math.PI * Math.min(1, k * 1.15)); st = 'climb'; obj.userData.swimK = k; back = 0.4 * (b.climbD > 0 ? -b.off / b.climbD : 0); }   // [Raul swim-anim] pull-up
   else if (b.air && b.vy < -4 && b.airT > PHYS.fallPose) { tilt = -0.18; st = 'fall'; }
   obj.rotation.order = 'YXZ'; obj.rotation.y = yaw; obj.rotation.x = tilt;
   const hc = 1.05, s = Math.sin(yaw), c = Math.cos(yaw), oy = hc * (1 - Math.cos(tilt)), oz = -hc * Math.sin(tilt) * 0.7; // keep the chest where it was
-  _o.set(x + s * oz, y + oy, z + c * oz); obj.position.copy(_o); return st; }
+  _o.set(x + s * (oz - back), y + oy, z + c * (oz - back)); obj.position.copy(_o); return st; }
 
 // ---- water FX: expanding ripple rings + a splash burst (shared per scene, pooled, no per-frame allocation) ----
 const FX = new WeakMap();
@@ -76,7 +88,7 @@ export function waterFX(scene, low) {
 }
 // per-body ripple trail + entry splash (call once per frame after stepBody); b.rt is the body's own ripple timer
 export function bodyFX(fx, b, x, z, speed, dt) {
-  if (!fx) return; if (b.ev === 'splash') fx.splash(x, b.surf ?? b.y, z, b.swim ? b.impact / 7 : 0.6);
+  if (!fx) return; if (b.hopFX) { b.hopFX = false; fx.splash(x, b.surf ?? b.y, z, 0.55); } if (b.ev === 'splash') fx.splash(x, b.surf ?? b.y, z, b.swim ? b.impact / 7 : 0.6);
   if (b.surf === null || b.air || (!b.swim && b.wade < 0.2)) return;
   b.rt = (b.rt ?? 0) - dt; if (b.rt > 0) return; const mv = speed > 0.4;
   b.rt = b.swim ? (mv ? 0.32 : 0.9) : (mv ? 0.42 : 99); if (b.rt < 50) fx.ripple(x, b.surf, z, b.swim ? (mv ? 0.9 : 0.6) : 0.55); }

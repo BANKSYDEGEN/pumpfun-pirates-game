@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v168'; // [v168] no holes in the deck crew or the shop mannequins: crew eyes use their own map, the shared v5 hair rim on the crew bake, the shop figure is the High body on phones too (pirateGLB.js prepV5Body / pirateBodyLod)
+const VERSION = 'pfp-v169'; // [v169] Raul's swim animations (tread / crawl / dolphin kick / pull-up: js/onfoot/swimPose.js) + the home "?" help matches what's live
 const SHELL = [
   "./",
   "./index.html",
@@ -43,6 +43,7 @@ const SHELL = [
   "./js/onfoot/pirate.js",
   "./js/onfoot/walker.js",
   "./js/onfoot/physics.js", // [v154] Raul: falling + swimming
+  "./js/onfoot/swimPose.js", // [Raul swim-anim] tread / crawl / pull-up poses (physics.js, pirate.js)
   "./js/onfoot/battle.js", // [v149] SWORD PIT + MUSKET RANGE
   "./js/onfoot/swords.js",
   "./js/island/battleAreas.js",

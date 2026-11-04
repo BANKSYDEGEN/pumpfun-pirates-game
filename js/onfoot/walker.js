@@ -4,7 +4,7 @@
 // action button (js/onfoot/interact.js). Keys are swallowed while on foot so the ship never steers or fires underneath.
 import * as THREE from 'three';
 import { held, isKey } from '../keybinds.js'; // [v102] sprint = the rebindable 'sprint' key (default hold Shift)
-import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] falls + swimming
+import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing } from './physics.js'; // [Raul] falls + swimming
 
 export const WALK = { walk: 4.2, run: 9.6, fovPush: 6, radius: 0.45, camD: [3.2, 7, 14], pitch: [-0.35, 1.1] };
 // [v106] JUMP (BANKSY): Space (rebindable 'jump') / the phone JUMP button. Snappy ~1.1 m arc (high gravity, ~0.55 s in the air),
@@ -48,7 +48,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     // squash + stretch: crouch into the take-off, stretch in the air, squash on landing (scale only: the v4 clips keep running)
     const tl = performance.now() / 1000 - w.landT, sq = tl < 0.18 ? 1 - 0.14 * Math.sin(tl / 0.18 * Math.PI) : 1, st = w.air ? 1 + 0.06 * Math.min(1, Math.abs(w.vy) / 6) : 1;
     pirate.object.scale.set(2 - sq * st, sq * st, 2 - sq * st); }
-  function jump() { if (!jumpBody(w.body, JUMP.h)) return false; w.jumps++; w.landT = -9; return true; } // no jump while swimming or mid-air
+  function jump() { if (!jumpBody(w.body, JUMP.h)) return false; w.jumps++; w.landT = -9; return true; } // no jump mid-air / mid pull-up; in deep water = the surface kick (PHYS.hop)
   function camPos(out) { const cp = Math.cos(w.pitch); out.set(w.x - Math.sin(w.camYaw) * w.dist * cp, w.y + 1.7 + Math.sin(w.pitch) * w.dist, w.z - Math.cos(w.camYaw) * w.dist * cp);
     const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
@@ -72,6 +72,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     if (mag > 0.01) {
       const n = Math.hypot(f, s), fx = Math.sin(w.camYaw), fz = Math.cos(w.camYaw), dx = (fx * f - fz * s) / n, dz = (fz * f + fx * s) / n;
       want = (w.body.swim ? PHYS.swim[run ? 1 : 0] : (run ? WALK.run : WALK.walk) * wadeFactor(w.body)) * (w.joy.on ? Math.max(0.35, mag) : 1); // [Raul] swim / wade slower
+      if (climbing(w.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] shuffle forward during the 0.6 s pull-up out of the water
       const yawT = Math.atan2(dx, dz); let dy = yawT - w.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); w.yaw += dy * Math.min(1, dt * 12);
       w.speed += (want - w.speed) * Math.min(1, dt * 10);
       const got = step(dx * w.speed * dt, dz * w.speed * dt); if (got < 0.3) w.speed *= 0.5;

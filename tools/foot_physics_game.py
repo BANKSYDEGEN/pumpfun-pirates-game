@@ -13,6 +13,9 @@ S = {
   'swim':   dict(a=(-268, -50), b=(-200, -50), hold=5.0, n=3, cam=(1.2, 0.35, 8), run=False),
   'lake':   dict(foot=True, hold=5.0, n=3, cam=(1.3, 0.3, 8), run=False),
   'climb':  dict(a=(-210, -51.5), b=(-210, -40), hold=3.0, n=4, cam=(1.5, 0.25, 7), run=False),
+  'hop':    dict(a=(-236, -50), b=(-200, -50), hold=0.6, n=5, cam=(1.45, 0.3, 4.5), run=False, hop=True),   # [swim-anim] surface kick (deep end)
+  'swimC':  dict(a=(-240, -56), b=(-200, -56), hold=1.0, n=4, cam=(1.0, 0.5, 4.2), run=False),           # [swim-anim] close-up crawl, then tread (end)
+  'climbC': dict(a=(-210, -51.5), b=(-210, -40), hold=0.75, n=6, cam=(1.9, 0.3, 4.8), run=False, until='climb'),         # [swim-anim] close-up pull-up
   'jump':   dict(a=(-220.5, -46), b=(-240, -46), hold=2.4, n=7, cam=(1.57, 0.12, 9), run=False),
   'cannon': dict(a=(116, 0), b=(140, 0), hold=7.0, n=3, cam=(1.2, 0.35, 9), run=True, then=((180, 12), (166, 30))),
   'edge':   dict(a=(183, 8), b=(200, 8), hold=2.0, n=1, cam=(1.3, 0.4, 9), run=False, then=((176, -1), (176, -9))),
@@ -27,7 +30,7 @@ async def main():
     await ctx.add_init_script("localStorage.setItem('pfp_name','FOOT_QA');localStorage.setItem('pfp_tut_seen','1');localStorage.setItem('pfp_tutorial_v1','1');localStorage.setItem('pfp_gfx_hint','1')")
     pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append('PAGE '+str(e)))
     pg.on('console', lambda m: errs.append(m.type+': '+m.text[:160]) if m.type=='error' and 'Failed to load resource' not in m.text else None); R = {}
-    await pg.goto(f'http://127.0.0.1:18960/{WT}/index.html' + os.environ.get('Q', '')); await pg.wait_for_function('window.PFP && PFP.renderer', timeout=240000); await pg.wait_for_timeout(2000)
+    await pg.goto(f'http://127.0.0.1:{os.environ.get("PORT", "18960")}/{WT}/index.html' + os.environ.get('Q', '')); await pg.wait_for_function('window.PFP && PFP.renderer', timeout=240000); await pg.wait_for_timeout(2000)
     await (pg.tap('#btn-pvp') if mob else pg.evaluate("document.getElementById('btn-pvp').click()"))
     await pg.wait_for_function("PFP.dock && PFP.dock.on", timeout=300000); await pg.evaluate("document.getElementById('pvp-entry-go')?.click()"); await pg.wait_for_timeout(3000)
     await pg.evaluate("(()=>{PFP.game.stormOverride=0;PFP.game.storm=0;const d=PFP.dock; for (const b of d.layout.berths) { d.dockAt(b.id); if (d.docking.mode !== 'sea') break; } })()")
@@ -35,9 +38,11 @@ async def main():
     await pg.evaluate("PFP.dock.goAshore()"); await pg.wait_for_function('PFP.dock.onFoot', timeout=600000); await pg.wait_for_timeout(1500)
     await pg.add_style_tag(content=HUDOFF)
     # deterministic stepping: walker + crew updated at a fixed 1/30 s inside one evaluate (no render), frames rendered between segments
+    if os.environ.get('FREEZE'):   # [swim-anim] the game loop stops moving your pirate + crew: only __sim does (frames are exact sim times)
+      await pg.evaluate("(()=>{ const d = PFP.dock, wk = d.walker, fl = d.followers; wk.__u = wk.update; wk.update = () => {}; if (fl) { fl.__u = fl.update; fl.update = () => {}; } })()")
     await pg.evaluate("""(()=>{ const d = PFP.dock, w = d.walker.w, cam = PFP.camera || null; window.__T = [];
       window.__sim = (sec, jx, jy, yawFn) => { const n = Math.round(sec * 30); for (let i = 0; i < n; i++) { if (yawFn) yawFn(); w.joy.on = jx !== 0 || jy !== 0; w.joy.x = jx; w.joy.y = jy;
-          d.walker.update(1 / 30); d.followers?.update(1 / 30, d.walker.world ? undefined : undefined);
+          (d.walker.__u || d.walker.update)(1 / 30); const fl = d.followers; if (fl) (fl.__u || fl.update)(1 / 30, d.walker.world ? undefined : undefined);
           const W = d.world, B = w.body || {}, g = W.ground(w.x, w.z), s = W.water ? W.water(w.x, w.z) : null;
           const crew = (d.followers?.list || []).filter(c => c.p.object.visible).map(c => c.body ? (c.body.swim ? 'S' : c.body.air ? 'A' : c.body.wade > 0.15 ? 'W' : 'G') : 'G').join('');
           window.__T.push([+w.x.toFixed(2), +w.z.toFixed(2), +w.y.toFixed(3), +g.toFixed(3), s === null ? null : +s.toFixed(2), B.swim ? 1 : 0, B.air ? 1 : 0, w.pose || '', +w.speed.toFixed(2), crew]); }
@@ -51,7 +56,10 @@ async def main():
       await pg.wait_for_timeout(2500)
       off = s['cam'][0]; jx, jy = round(math.sin(off) * mag, 4), round(-math.cos(off) * mag, 4)
       shots = s['n']; seg = s['hold'] / max(1, shots - 1)
+      if s.get('until'):   # [swim-anim] hold W until the pose shows up, then the frames are timed from there
+        await pg.evaluate(f"(()=>{{ for (let k = 0; k < 240; k++) {{ window.__sim(1 / 30, {jx}, {jy}, () => {{ PFP.dock.walker.w.camYaw = window.__yaw + {off}; }}); if (PFP.dock.walker.w.pose === '{s['until']}') break; }} }})()")
       for i in range(shots):
+        if i == 1 and s.get('hop'): await pg.evaluate("window.__sim(1.5, 0, 0); PFP.dock.walker.jump()")
         if i: await pg.evaluate(f"window.__sim({seg}, {jx}, {jy}, () => {{ PFP.dock.walker.w.camYaw = window.__yaw + {off}; }})")
         await pg.wait_for_timeout(400); await pg.screenshot(timeout=120000, path=f'{OUT}/{DEV}_{name}_{i}.png')
       for wp in s.get('then', ()):

@@ -160,6 +160,7 @@ export class PirateGLB {
     scene.traverse((o) => { if (!o.isMesh || !/face/i.test(o.name)) return; for (const m of [o.material].flat()) if (m?.map) irisPatch(m, this._iris, this._irisOn); });
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
+    scene.traverse((o) => { if (o.isBone) o.userData.swRest = o.quaternion.clone(); });   // [Raul] bind pose for the procedural swim poses (js/onfoot/swimPose.js)
     this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, a]));
     this.play('idle');
     return this;
@@ -194,6 +195,6 @@ export class PirateGLB {
     const uv = EXPR_UV[name] || EXPR_UV.neutral;
     for (const m of this.decals) if (m.userData.decal !== 'skull' && m.map) { m.map.offset.set(uv[0], uv[1]); m.map.updateMatrix(); }
   }
-  update(dt) { this.mixer?.update(dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
+  update(dt) { this.mixer?.update(dt); this.post?.(dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
   stats() { let tris = 0, calls = 0; this.root.traverse((o) => { if (!o.isMesh) return; const g = o.geometry; const t = (g.index ? g.index.count : g.attributes.position.count) / 3; tris += t; calls += Array.isArray(o.material) ? g.groups.length || o.material.length : 1; }); return { tris: Math.round(tris), calls }; }
 }
