@@ -270,13 +270,14 @@ function retint(geo, colors) {
 // (js/gearRecolor.js recolorPixels), never the shared original. m.userData.texVerts: ship crews bake vertex colours only, so
 // js/crewV4.js samples this map per vertex for them (their helmet / mask in the same colour).
 const _rcTex = new Map();
+const RC_MAX = (() => { try { return matchMedia('(pointer: coarse)').matches ? 512 : 4096; } catch { return 4096; } })(); // [mobile-perf] phones: each colour copy at most 512 px (was the full map, up to 26 copies)
 function recolorTex(tex, kind, hex) {
   const img = tex?.image; if (!img?.width || !img.height || typeof document === 'undefined') return tex;
   const key = tex.uuid + kind + hex; if (_rcTex.has(key)) return _rcTex.get(key);
   let out = tex;
   try {
-    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const cx = c.getContext('2d', { willReadFrequently: true });
-    cx.drawImage(img, 0, 0); const d = cx.getImageData(0, 0, c.width, c.height); recolorPixels(d.data, kind, hex, c.width); cx.putImageData(d, 0, 0);
+    const k = Math.min(1, RC_MAX / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k)); const cx = c.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0, c.width, c.height); const d = cx.getImageData(0, 0, c.width, c.height); recolorPixels(d.data, kind, hex, c.width); cx.putImageData(d, 0, 0);
     out = tex.clone(); out.source = new THREE.Source(c); out.needsUpdate = true;
   } catch (e) { console.warn('[gear] recolour', kind, e); }
   _rcTex.set(key, out); return out;

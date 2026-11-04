@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v172'; // [v172] Post's bridge + path fix: the rope bridge is reachable from both ends, the red + yellow trail loops are passable end to end and paved in Main Street's cobbles
+const VERSION = 'pfp-v173'; // [v173] phone performance: cached art carried across versions, phones precache only the light art (~32 -> 8 MB), softer adaptive resolution (never below 1.0), WebGL context-loss recovery, 512 px gear recolours on phones
 const SHELL = [
   "./",
   "./index.html",
@@ -328,9 +328,16 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
+    // [mobile-perf] carry the art over from the previous version's cache BEFORE deleting it: every version bump used to re-download
+    // all ~32 MB of GLBs / textures in the background (10 bumps in one day on a phone = 300 MB + storage churn while it plays).
+    // Same-origin fetches stay network-first, so anything a device actually loads is still refreshed on use.
+    const c = await caches.open(VERSION), old = (await caches.keys()).filter(k => k !== VERSION);
+    for (const k of old) { const oc = await caches.open(k); for (const u of ASSETS) { if (await c.match(u)) continue; const hit = await oc.match(u); if (hit) await c.put(u, hit).catch(() => {}); } }
+    for (const k of old) await caches.delete(k);
     await self.clients.claim();
-    caches.open(VERSION).then(c => { for (const u of ASSETS) c.match(u).then(hit => hit || c.add(u).catch(() => {})); }); // [v100] background, best effort
+    // [mobile-perf] phones only precache the light (_lo / _low) art they actually use (the hi copies were ~2/3 of the 32 MB)
+    const phone = new URL(self.location.href).searchParams.get('m') === '1' || /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || ''), heavy = (u) => /_hi\.glb$/.test(u) || (/\/island\/[a-z_]+(\.webp)?\.glb$/.test(u) && !/_low/.test(u)) || /\/kit\/[a-z_]+(?<!_lo)\.(glb|jpg)$/.test(u);
+    (async () => { for (const u of ASSETS) { if (phone && heavy(u)) continue; if (!(await c.match(u))) await c.add(u).catch(() => {}); } })(); // [v100] background, best effort, one at a time
   })());
 });
 

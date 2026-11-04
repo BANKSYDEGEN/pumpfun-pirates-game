@@ -89,6 +89,16 @@ const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high', powerPreference: 'high-performance' });
 renderer.setPixelRatio(ULTRA ? Math.min(2, Math.max(window.devicePixelRatio || 1, 1.5)) : Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2)); // [ultra] supersamples 1x screens
 renderer.setSize(innerWidth, innerHeight);
+// [mobile-perf] BANKSY "...and crashed": a phone under GPU memory pressure drops the WebGL context (black / frozen game). three.js
+// waits for a restore; if none comes within 6 s, reload once per tab session (the save is server-side) instead of a dead screen.
+canvas.addEventListener('webglcontextlost', () => { console.warn('[mobile] WebGL context lost'); setTimeout(() => {
+  if (!renderer.getContext().isContextLost()) return; let n = 0; try { n = +(sessionStorage.getItem('pfp_ctx_reload') || 0); sessionStorage.setItem('pfp_ctx_reload', n + 1); } catch {}
+  const match = game.state === 'playing' && !(dock && dock.on); // [mobile-perf] mid-match (Battle Royale / Storm Hunt, not the harbor): never auto-reload, offer a button
+  if (n < 1 && !match) return location.reload();
+  if (!document.getElementById('pfp-ctx-reload')) { const b = document.createElement('button'); b.id = 'pfp-ctx-reload'; b.textContent = 'GRAPHICS RESET · TAP TO RELOAD';
+    b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#e11d1d;color:#fff;border:3px solid #fbbf24;border-radius:14px';
+    b.onclick = () => location.reload(); document.body.appendChild(b); } }, 6000); }, false);
+canvas.addEventListener('webglcontextrestored', () => console.info('[mobile] WebGL context restored'), false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1194,8 +1204,8 @@ let camShipK = 1; // [Raul] upgrade visuals
 // camera pull-back for a bigger ship: less than the hull growth (so upgrades read BIGGER on screen), but enough for the tallest mast
 function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8 * (ud.frameK || 1)); }
 // [mobile] adaptive resolution: on phones / low quality, if a busy scene averages under ~40 fps for 2 s of
-// play, step the render pixel ratio down (1.25 -> 1.0 -> 0.85). Down only, so it never oscillates.
-const ADAPT = { on: isMobile || quality === 'low', steps: [1, 0.85], t0: 0, n: 0 };
+// play, step the render pixel ratio down (1.25 -> 1.12 -> 1.0). Down only, so it never oscillates.
+const ADAPT = { on: isMobile || quality === 'low', steps: [1.12, 1], t0: 0, n: 0, slow: 0 }; // [mobile-perf] BANKSY "graphics get downgraded really bad": softer steps (1.25 -> 1.12 -> 1.0, never the blurry 0.85) and only after TWO slow windows in a row (a loading hitch no longer costs resolution for good)
 function adaptResolution() {
   if (!ADAPT.on || game.state !== 'playing' || document.hidden) { ADAPT.t0 = 0; return; }
   const now = performance.now();
@@ -1204,7 +1214,8 @@ function adaptResolution() {
   if (now - ADAPT.t0 < 2000) return;
   const fps = ADAPT.n * 1000 / (now - ADAPT.t0); ADAPT.t0 = 0;
   const next = ADAPT.steps.find(r => r < renderer.getPixelRatio() - 0.01);
-  if (fps < 40 && next) { renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); }
+  ADAPT.slow = fps < 38 ? ADAPT.slow + 1 : 0;
+  if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); }
 }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -1404,7 +1415,7 @@ requestAnimationFrame(frame);
 // (skipped on portal CDNs: itch.io's html*.itch.zone (folder URLs 403, itch serves its own copy) and Newgrounds'
 // uploads.ungrounded.net (one origin shared by every NG game), so no offline cache inside those iframes)
 if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname)) {
-  navigator.serviceWorker.register('./sw.js').then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
+  navigator.serviceWorker.register(isMobile ? './sw.js?m=1' : './sw.js') /* [mobile-perf] ?m=1: the sw precaches only the light art */.then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay
