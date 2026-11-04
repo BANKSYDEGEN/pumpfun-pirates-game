@@ -100,7 +100,7 @@ export function createFishing2({ MATS, OUT, near, lakeY, dockY, dock, journal })
     if (st.mode === 'wait' || st.mode === 'nibble') { bob.position.set(tgt.x, lakeY + 0.05 + 0.04 * Math.sin(t * 2.4), tgt.z);
       if (st.mode === 'wait' && t >= st.tn) { st.mode = 'nibble'; st.nibFish = shadows.reduce((a, b) => a.position.distanceTo(bob.position) < b.position.distanceTo(bob.position) ? a : b); st.nib = [0.9, 1.9, 2.6].slice(0, 1 + (Math.random() * 3 | 0)).map(x => t + x); }
       if (st.mode === 'nibble') { for (const n of st.nib) { const a = t - n; if (a > 0 && a < 0.22) { bob.position.y -= 0.09 * Math.sin(a / 0.22 * Math.PI); if (!st.plip?.includes(n)) { (st.plip = st.plip || []).push(n); sfx('nibble'); ripple(tgt.x, tgt.z, 0.6); } } }
-        if (t >= st.tb) { st.mode = 'bite'; st.t0 = t; splash(tgt.x, tgt.z, 9, 2.6); sfx('bite'); ui.flash('!'); } }
+        if (t >= st.tb) { st.mode = 'bite'; st.t0 = t; splash(tgt.x, tgt.z, 9, 2.6); sfx('bite'); st.api?.rumble?.(0.6, 0.5, 220); ui.flash('!'); } }
       setLine(tip, bob.position, 0.6); return; }
     if (st.mode === 'bite') { bob.position.set(tgt.x, lakeY - 0.22 - 0.08 * Math.sin(t * 30), tgt.z); if (((t * 2.2) % 1) < dt * 2.2) ripple(tgt.x, tgt.z, 1);
       setLine(tip, bob.position, 0.05); if (u > BITE_S) { st.mode = 'wait'; st.tn = t + 1 + Math.random() * 2; st.tb = st.tn + 2 + Math.random() * 2; st.plip = []; st.missed = (st.missed || 0) + 1; ui.toast('IT GOT AWAY<br><small>wait for the float to go under, then hook it fast</small>'); } return; }
@@ -137,10 +137,10 @@ export function createFishing2({ MATS, OUT, near, lakeY, dockY, dock, journal })
   function fightTick(t, dt) { const f = st.fight; f.p += f.dir * f.hz * 2 * dt; if (f.p > 1) { f.p = 2 - f.p; f.dir = -1; } if (f.p < 0) { f.p = -f.p; f.dir = 1; }
     if (f.drift) f.zc = Math.min(1 - f.zone / 2, Math.max(f.zone / 2, f.zc + Math.sin(t * 2.3) * dt * 0.35));
     ui.fight(f, st.tier); if (t - f.t0 > FIGHT_S) { lose('IT SHOOK THE HOOK'); } }
-  function pull(t) { const f = st.fight; if (Math.abs(f.p - f.zc) <= f.zone / 2) { f.got++; sfx('reel', f.got / f.need); ripple(bob.position.x, bob.position.z, 1.2);
+  function pull(t) { const f = st.fight; if (Math.abs(f.p - f.zc) <= f.zone / 2) { f.got++; sfx('reel', f.got / f.need); st.api?.rumble?.(0.25, 0.1, 60); ripple(bob.position.x, bob.position.z, 1.2);
       if (f.got >= f.need) { land(t); return null; } f.zc = f.zone / 2 + Math.random() * (1 - f.zone); ui.fight(f, st.tier, 'good'); return null; }
-    f.miss++; sfx('strain', f.miss / STRIKES); ui.fight(f, st.tier, 'bad'); if (f.miss >= STRIKES) lose('SNAP! THE LINE BROKE'); return null; }
-  function lose(why) { sfx('snap'); ui.fight(null); st.api?.emote?.(-1); splash(bob.position.x, bob.position.z, 8, 2.6); reset(); ui.toast(`${why}<br><small>${st.tier === 'common' ? 'tap when the marker is in the green' : 'something big got away… tap in the green'}</small>`); }
+    f.miss++; sfx('strain', f.miss / STRIKES); st.api?.rumble?.(0.1, 0.45, 160); ui.fight(f, st.tier, 'bad'); if (f.miss >= STRIKES) lose('SNAP! THE LINE BROKE'); return null; }
+  function lose(why) { sfx('snap'); st.api?.rumble?.(0.8, 0.8, 300); ui.fight(null); st.api?.emote?.(-1); splash(bob.position.x, bob.position.z, 8, 2.6); reset(); ui.toast(`${why}<br><small>${st.tier === 'common' ? 'tap when the marker is in the green' : 'something big got away… tap in the green'}</small>`); }
   function land(t) { st.mode = 'land'; st.t0 = t; ui.fight(null); sfx('landing'); st.api?.emote?.(-1);
     const wait = st.ticket ? Math.max(0, 1300 - (performance.now() - st.ticketAt)) : 0;
     setTimeout(() => (st.ticket ? call('inv_fish_land', { ticket: st.ticket }) : call('inv_fish', {})).then((r) => { if (st.mode !== 'land') return;
@@ -192,7 +192,7 @@ export function createFishing2({ MATS, OUT, near, lakeY, dockY, dock, journal })
       fight(f, tier, hit) { if (!doc) return; css(); if (!f) { if (bar) bar.style.display = 'none'; return; }
         if (!bar) { bar = doc.createElement('div'); bar.id = 'fs2-bar'; bar.innerHTML = '<div class="h"></div><div class="tr"><div class="z"></div><div class="m"></div></div><div class="pp"></div>'; doc.body.appendChild(bar); }
         bar.style.display = 'block'; const big = tier === 'epic' || tier === 'legendary';
-        if (bar._tier !== tier) { bar._tier = tier; bar.querySelector('.h').innerHTML = `${big ? 'SOMETHING HUGE! ' : tier === 'rare' ? 'A STRONG ONE! ' : ''}TAP IN THE GREEN TO REEL`; }
+        if (bar._tier !== tier) { bar._tier = tier; bar.querySelector('.h').innerHTML = `${big ? 'SOMETHING HUGE! ' : tier === 'rare' ? 'A STRONG ONE! ' : ''}${st.api?.key?.() === 'TAP' || !st.api?.key ? 'TAP' : 'PRESS ' + st.api.key()} IN THE GREEN TO REEL`; }
         const z = bar.querySelector('.z'); z.style.left = ((f.zc - f.zone / 2) * 100) + '%'; z.style.width = (f.zone * 100) + '%'; bar.querySelector('.m').style.left = (f.p * 100) + '%';
         const key = f.got + '/' + f.miss + '/' + f.need + tier; if (bar._k !== key) { bar._k = key; bar.querySelector('.pp').innerHTML = Array.from({ length: f.need }, (_, i) => `<i class="${i < f.got ? 'on' : ''}">🐟</i>`).join('') + ' ' + Array.from({ length: STRIKES }, (_, i) => `<i class="${i < f.miss ? 'on' : ''}">✖</i>`).join(''); }
         if (hit) { bar.classList.remove('good', 'bad'); void bar.offsetWidth; bar.classList.add(hit); } },

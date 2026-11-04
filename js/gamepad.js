@@ -143,6 +143,7 @@ function setActive(v, b = brand) {
 // dock/index.js registers what only it knows (on foot, the walker, the prompt buttons, the battle areas)
 export const padHooks = { dock: null };
 export const registerPadDock = (h) => { padHooks.dock = h; };
+let _rumble = null; export const padRumble = (w, s, ms) => { if (active) _rumble?.(w, s, ms); }; // [fish2] the fishing dock: a bite / a pull / a snap (only while the pad is the input)
 
 // ---------- menus: what is open on top ----------
 // top-most first; the first one that is really on screen is the layer the focus ring walks
@@ -216,6 +217,7 @@ export function initGamepad(opts = {}) {
   const tap = (code) => { key(code, true); key(code, false); };
   function releaseAll() { for (const [, c] of held) if (c) key(c, false); held.clear(); btnHeld.clear(); const D = padHooks.dock; D?.move?.(0, 0, false); D?.ads?.(false); }
   const rumble = (w = 0.25, s = 0.15, ms = 60) => { if (!PAD.rumble || !prefRumble()) return; try { const gp = pickPad(pads(), lastIdx); const va = gp?.vibrationActuator; va?.playEffect?.(va.type || 'dual-rumble', { duration: ms, weakMagnitude: w, strongMagnitude: s }); } catch {} };
+  _rumble = rumble; // [fish2]
   const prefRumble = () => { try { return localStorage.getItem('pfp_pad_rumble') !== '0'; } catch { return true; } };
 
   function mode() {

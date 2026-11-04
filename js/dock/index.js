@@ -20,7 +20,7 @@ import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS li
 import { createInventory } from '../inventory/ui.js'; // [inventory] the INVENTORY grid + plaza shop panels (migration 036)
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
-import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
+import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock, padRumble } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
@@ -213,7 +213,8 @@ export async function createDock(ctx) {
   // [fish2] + your pirate for the fishing dock (js/island/areas/fishing2.js): where you stand / face in the foot frame, turn you, a body pose, its sounds
   const FOOT_YAW = (() => { const a = layout.footToHarbor(0, 0), b = layout.footToHarbor(1, 0); return Math.atan2(-(b[1] - a[1]), b[0] - a[0]); })();
   const areaFish = { me: () => (onFoot ? { y: walker.w.y, yaw: walker.w.yaw - FOOT_YAW } : null), face(yaw) { if (onFoot && Number.isFinite(yaw)) walker.w.yaw = yaw + FOOT_YAW; },
-    camYaw: () => walker.w.camYaw - FOOT_YAW, emote(e) { if (!onFoot) return; if (e < 0) { const m = pirate.object.userData.emote; if (m) m.live = false; } else pirate.emote?.(e); }, sfx: (k, a) => ctx.sfx?.fish?.(k, a) };
+    camYaw: () => walker.w.camYaw - FOOT_YAW, emote(e) { if (!onFoot) return; if (e < 0) { const m = pirate.object.userData.emote; if (m) m.live = false; } else pirate.emote?.(e); }, sfx: (k, a) => ctx.sfx?.fish?.(k, a),
+    rumble: (w, s, ms) => padRumble(w, s, ms), key: () => (padActive() ? padGlyph('A') : touch ? 'TAP' : 'E') }; // [fish2] the reel bar says the button you use
   const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
