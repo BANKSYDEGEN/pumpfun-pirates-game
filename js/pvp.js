@@ -757,7 +757,8 @@ export function createPvp(K) {
     // [v145] near pirates at full voice (linear falloff made a ship 100 m off -4 dB): full to 60 m, then eased out by 280 m
     const pl = P(), d = Math.hypot(p.ship.x - pl.x, p.ship.z - pl.z), u = Math.max(0, Math.min(1, (d - 60) / 220)), vol = 1 - u * u;
     let h = 0; for (const ch of m.i) h = (h * 31 + ch.charCodeAt(0)) | 0;
-    showEmote(p.ship, m.e, { vol, pitch: 0.85 + (Math.abs(h) % 30) / 100, body: p.captain?.gear?.body === 1 ? 'f' : 'm' });
+    const anchor = window.PFP?.dock?.peerEmote?.(m.i, m.e) || null; // [Raul emotes] they walk the island in your copy: their pirate moves + the bubble rides over the head
+    showEmote(p.ship, m.e, { vol, pitch: 0.85 + (Math.abs(h) % 30) / 100, body: p.captain?.gear?.body === 1 ? 'f' : 'm', anchor });
   }
   function ownerObj(id) { return peers.get(id)?.ship || null; }
   const shotOwner = (id) => peers.get(id)?.ship || (where !== 'arena' && bots.get(id)?.remote ? bots.get(id) : null); // [v99] + the host's AI ships

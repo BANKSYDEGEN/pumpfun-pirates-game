@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v174'; // [v174] phones: half-size island atlas + smaller plaza sign canvas (~17 MB less texture memory), island art lost in the fog is not drawn (~25 % fewer draw calls)
+const VERSION = 'pfp-v175'; // [v175] Raul's 8 land body emotes on the quick-chat wheel + crew copies
 const SHELL = [
   "./",
   "./index.html",

@@ -10,12 +10,12 @@
 import * as THREE from 'three';
 
 export const SWIM_STRIDE = 2.2;   // m per full crawl cycle: 2.3 m/s = 1.05 cycles/s, 3.6 m/s (sprint) = 1.64 cycles/s
-const BONES = ['root', 'spine', 'head', 'upperarm.L', 'forearm.L', 'upperarm.R', 'forearm.R', 'thigh.L', 'shin.L', 'thigh.R', 'shin.R'];
+export const BONES = ['root', 'spine', 'head', 'upperarm.L', 'forearm.L', 'upperarm.R', 'forearm.R', 'thigh.L', 'shin.L', 'thigh.R', 'shin.R'];
 const BY = Object.fromEntries(BONES.flatMap((n) => [[n, n], [n.replace(/[^a-zA-Z]/g, ''), n]]));
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _d = new THREE.Vector3();
-const TAU = Math.PI * 2, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export const TAU = Math.PI * 2; export const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-function rig(p) { // bone handles + rest quaternions + each arm's rest direction (to its child), once per body
+export function rig(p) { // bone handles + rest quaternions + each arm's rest direction (to its child), once per body
   if (p._swRig !== undefined) return p._swRig; const B = {}; let ok = true;
   p.scene?.traverse((o) => { if (!o.isBone) return; const n = BY[o.name] || BY[o.name.replace(/[^a-zA-Z]/g, '')]; if (n && !B[n]) B[n] = o; }); // GLTFLoader drops the '.' (upperarm.L -> upperarmL)
   for (const n of BONES) if (!B[n]) ok = false;
@@ -25,11 +25,11 @@ function rig(p) { // bone handles + rest quaternions + each arm's rest direction
   return (p._swRig = { B, R, dir }); }
 
 // per-bone targets (local, written into S then slerped over the mixer's pose by weight w)
-function eul(S, R, n, x, y, z) { _e.set(x, y, z, 'XYZ'); S[n].setFromEuler(_e).multiply(R[n]); }
-function arm(S, R, dir, s, tx, ty, tz, bend) { // s = 'L' | 'R': point the upper arm along (tx, ty, tz) (spine frame, mirrored for R), bend the elbow
+export function eul(S, R, n, x, y, z) { _e.set(x, y, z, 'XYZ'); S[n].setFromEuler(_e).multiply(R[n]); }
+export function arm(S, R, dir, s, tx, ty, tz, bend) { // s = 'L' | 'R': point the upper arm along (tx, ty, tz) (spine frame, mirrored for R), bend the elbow
   const m = s === 'L' ? 1 : -1; _d.set(tx * m, ty, tz).normalize(); _q.setFromUnitVectors(dir[s], _d); S['upperarm.' + s].copy(_q).multiply(R['upperarm.' + s]);
   _e.set(0, -bend * m, 0); S['forearm.' + s].setFromEuler(_e).multiply(R['forearm.' + s]); }
-function leg(S, R, s, thigh, knee, out = 0) { const m = s === 'L' ? 1 : -1; eul(S, R, 'thigh.' + s, thigh, 0, out * m); eul(S, R, 'shin.' + s, knee, 0, 0); }
+export function leg(S, R, s, thigh, knee, out = 0) { const m = s === 'L' ? 1 : -1; eul(S, R, 'thigh.' + s, thigh, 0, out * m); eul(S, R, 'shin.' + s, knee, 0, 0); }
 
 function tread(S, R, dir, t) {
   const a = t * 3.1, sc = Math.sin(a);
@@ -62,7 +62,7 @@ export function swimPose(p, state, dt, speed = 0, k = 0) {
   sw.w = Math.min(1, Math.max(0, sw.w + (on ? 1 : -1) * dt / (state === 'climb' || sw.st === 'climb' ? 0.12 : 0.22)));
   if (on) { sw.st = state; sw.kk = k; } sw.t += dt;
   if (sw.st === 'swim') sw.ph += dt * TAU * Math.max(0.35, speed) / SWIM_STRIDE; else sw.ph += dt * 2; // keep turning slowly so the next stroke starts mid-cycle
-  if (!p.post) p.post = postPose;
+  if (p.addPost) p.addPost('swim', postPose, 0); else if (!p.post) p.post = postPose; // [Raul emotes] shared post hook (PirateGLB.addPost)
   return sw.w > 0; }
 function postPose() { // after mixer.update: pose the bones (PirateGLB.update)
   const sw = this._sw, r = this._swRig; if (!sw || !r || sw.w <= 0) return; const { B, R, dir } = r, S = sw.S;

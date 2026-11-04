@@ -11,6 +11,7 @@ import { createWalker } from '../onfoot/walker.js';
 import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
+import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
 import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
@@ -180,7 +181,8 @@ export async function createDock(ctx) {
       if (!sprintHinted) { sprintHinted = true; toast(touch ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
-    const fin = () => { onFoot = false; walker.exit(); crewF?.exit(); closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
+    const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); // [Raul emotes] no half-played emote next time ashore
+      closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
     if (instant) fin(); else fadeTo(fin);
   }
   function setSail() { if (docking.setSail(P())) { const s = P(); s.anchor = false; s.sail = 1; toast('SET SAIL!'); } }
@@ -276,8 +278,8 @@ export async function createDock(ctx) {
   let bcLink = null;
   if (new URLSearchParams(location.search).has('harborbc')) {
     const ch = new BroadcastChannel('pfp-harbor-test'); let last = 0;
-    ch.onmessage = (ev) => { if (on) handlePeer(ev.data); };
-    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); } };
+    ch.onmessage = (ev) => { if (!on) return; const m = ev.data; if (Number.isInteger(m?.emo)) { const a = api.peerEmote(m.i, m.emo); if (a) showEmote(a, m.emo, { anchor: a, vol: 0 }); return; } handlePeer(m); }; // [Raul emotes] 'emo' on the 2-tab test channel
+    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); }, emo: (e) => ch.postMessage({ i: myId(), emo: e }) };
   }
   function handlePeer(m) { battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m);
     if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
@@ -288,11 +290,19 @@ export async function createDock(ctx) {
       return; }
     if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
+  const CREW_EMOTE = { 0: 0, 1: 100, 2: 100, 4: 4, 6: 6, 7: 7 };
   const api = {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle,
     get on() { return on; }, get onFoot() { return onFoot; },
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : null), followers: crewF,
+    // [Raul emotes] the crew's answer: copy Arr! / Attack! / Yo ho ho!, bow on GG, nod + look on the points (Follow me! / Boss incoming!); none on Need help! / Retreat!
+    // [Raul emotes] quick-chat on land (js/emotes.js sendEmote / js/pvp.js onEmote): body motion (js/onfoot/emotePose.js) on your pirate, your shore
+    // crew answer it (CREW_EMOTE, staggered); returns the pirate to hang the bubble over (null = aboard: the bubble stays on the ship)
+    footEmote(e) { if (!on || !onFoot || !pirate.object.visible) return null; pirate.emote(e);
+      const ce = CREW_EMOTE[e]; if (ce != null) (crewF?.list || []).forEach((c, i) => { if (c.p.object.visible) c.p.emote(ce, 0.12 + i * 0.1); });
+      bcLink?.emo?.(e); return pirate.object; },
+    peerEmote(id, e) { const p = on ? fnet.peers.get(id) : null; if (!p) return null; p.pirate.emote(e); return p.pirate.object; },   // a harbor pirate walking in YOUR copy
     canFire(s) { if (!on) return true; const ok = zone.canFire(s, game.t);
       if (!ok && s === P() && !onFoot && performance.now() - lastShot > 1200) { lastShot = performance.now(); toast(zone.inside(s.x, s.z) ? 'SAFE HARBOR · NO FIRING' : 'NO FIRING · JUST LEFT SAFE HARBOR', 1200); }
       return ok; },

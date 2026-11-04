@@ -195,6 +195,9 @@ export class PirateGLB {
     const uv = EXPR_UV[name] || EXPR_UV.neutral;
     for (const m of this.decals) if (m.userData.decal !== 'skull' && m.map) { m.map.offset.set(uv[0], uv[1]); m.map.updateMatrix(); }
   }
-  update(dt) { this.mixer?.update(dt); this.post?.(dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
+  // [Raul emotes] shared post-mixer pose hook: procedural layers (js/onfoot/swimPose.js order 0, js/onfoot/emotePose.js order 1) run in
+  // order after the clip, each blending its own bones; battle.js still wraps update() so its arm aim lands last
+  addPost(key, fn, order = 0) { const L = this.posts || (this.posts = []); if (L.some((x) => x.key === key)) return; L.push({ key, fn, order }); L.sort((a, b) => a.order - b.order); }
+  update(dt) { this.mixer?.update(dt); if (this.posts) for (const x of this.posts) x.fn.call(this, dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
   stats() { let tris = 0, calls = 0; this.root.traverse((o) => { if (!o.isMesh) return; const g = o.geometry; const t = (g.index ? g.index.count : g.attributes.position.count) / 3; tris += t; calls += Array.isArray(o.material) ? g.groups.length || o.material.length : 1; }); return { tris: Math.round(tris), calls }; }
 }

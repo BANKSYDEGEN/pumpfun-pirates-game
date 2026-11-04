@@ -20,11 +20,11 @@ const bubbles = new Map(); // ship -> { el, until }
 const _v = new THREE.Vector3();
 let K = null, last = -1e9, open = false;
 
-export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = null, crew = null } = {}) {
+export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = null, crew = null, anchor = null } = {}) { // [Raul emotes] anchor = the on-foot pirate (bubble over the head)
   if (!ship || !validEmote(e)) return false;
   let b = bubbles.get(ship);
   if (!b) { const el = document.createElement('div'); el.className = 'emote-bubble'; $('emote-bubbles')?.appendChild(el); b = { el }; bubbles.set(ship, b); }
-  b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000;
+  b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000; b.anchor = anchor;
   b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
   if (vol > 0.03) sfx.emote?.(e, vol, pitch, own, body, crew); // [v101] own = your crew joins in (real recorded voices)
   return true;
@@ -35,7 +35,7 @@ export function sendEmote(e) {
   const pl = K.getPlayer(), now = performance.now();
   if (!K.canEmote() || !pl?.alive) return false;
   if (now - last < EMOTE_GAP) { flashWait(); return false; }
-  last = now; showEmote(pl, e, { own: true, crew: crewVoices(pl) }); K.send?.(e); setWheel(false); return true;
+  last = now; const anchor = K.foot?.(e) || null; showEmote(pl, e, { own: true, crew: crewVoices(pl), anchor }); K.send?.(e); setWheel(false); return true;
 }
 // [v146] the deck crew's voices, seat order (crewV4: each seat's body is male / female from its seat hash): 'm' | 'f' per gunner
 function crewVoices(pl) { try { const m = pl?.mesh, lod = crewLodOf(m?.userData?.body || m); const seats = lod?.userData?.seats;
@@ -52,8 +52,10 @@ export function emoteTick() { // bubbles follow their ships (screen-space, above
   if (!bubbles.size || !K) return;
   const now = performance.now(), cam = K.camera;
   for (const [ship, b] of bubbles) {
-    if (now > b.until || !ship.mesh?.parent || ship.alive === false) { b.el.remove(); bubbles.delete(ship); continue; }
-    _v.set(ship.x ?? ship.mesh.position.x, (ship.mesh.position.y || 0) + 15 * (ship.mesh.scale?.y || 1), ship.z ?? ship.mesh.position.z).project(cam);
+    const a = b.anchor?.parent && b.anchor.visible !== false ? b.anchor : null; // [Raul emotes] on foot: over the pirate's head
+    if (now > b.until || (!a && !ship.mesh?.parent) || ship.alive === false) { b.el.remove(); bubbles.delete(ship); continue; }
+    if (a) { a.getWorldPosition(_v); _v.y += 2.45 * (a.scale?.y || 1); _v.project(cam); }
+    else _v.set(ship.x ?? ship.mesh.position.x, (ship.mesh.position.y || 0) + 15 * (ship.mesh.scale?.y || 1), ship.z ?? ship.mesh.position.z).project(cam);
     const vis = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1;
     b.el.style.display = vis ? 'block' : 'none'; if (!vis) continue;
     b.el.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`; b.el.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight}px`;
@@ -61,7 +63,7 @@ export function emoteTick() { // bubbles follow their ships (screen-space, above
 }
 export function clearEmotes() { for (const [, b] of bubbles) b.el.remove(); bubbles.clear(); setWheel(false); }
 
-// K = { camera, getPlayer, canEmote: () => bool (playing, not spectating), send: (e) => void }
+// K = { camera, getPlayer, canEmote: () => bool (playing, not spectating), send: (e) => void, foot?: (e) => on-foot pirate | null ([Raul emotes]) }
 export function initEmotes(k) {
   K = k;
   const hud = $('hud') || document.body;

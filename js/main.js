@@ -1442,7 +1442,7 @@ initTutorial({ game }); // [tutorial] after initShop so the shop '?' button can 
 devHook('PFP_HEALTH', healthDrops); // [health drops] test hook
 // [v96] quick-chat wheel: T / the 💬 button; arena callouts go over the realtime room (js/pvp.js), Waves + harbor stay local
 initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'playing' && !document.documentElement.classList.contains('pvp-spec'),
-  send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); } });
+  send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); }, foot: (e) => dock?.footEmote?.(e) || null }); // [Raul emotes] on land: body motion + bubble over the head
 // [pvp] what js/pvp.js may touch in the game
 const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
   resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), get shipOpts() { return PLAYER_SHIP; } };
