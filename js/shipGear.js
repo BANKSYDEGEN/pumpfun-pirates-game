@@ -172,6 +172,31 @@ function stemProfile(body, skip, w, ya, yb, NB) {
         if (pts.length >= 4) put(k, pts[0], pts[1], pts[2], pts[3]); else if (pts.length === 2) put(k, pts[0], pts[1], pts[0], pts[1]); } } });
   return Array.from({ length: NB }, (_, i) => { const v = [Z[0][i], Z[1][i], Z[2][i]].sort((a, b) => a - b)[1]; return v > -1e8 ? v : null; });
 }
+// [Raul items redo] the ram's top + the bowsprit's underside along z (for a figure riding a RAM): per z bin over [za, zb], the highest hull point
+// under ysplit (the ram) and the lowest over it (the bowsprit), from the x = 0 / +-w slices (ram: max of the three; ceiling: x = 0, a thin spar)
+function zProfile(body, skip, w, ya, yb, ysplit, za, zb, NB) {
+  const lo = new Float32Array(NB).fill(-1e9), hi = new Float32Array(NB).fill(1e9), X = [-w, 0, w], vis = (o) => { for (let q = o; q && q !== body.parent; q = q.parent) if (!q.visible) return false; return true; };
+  body.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(body.matrixWorld).invert(); _sl.min.set(-w * 1.01, ya, za); _sl.max.set(w * 1.01, yb, zb);
+  const put = (k, y0, z0, y1, z1) => { if (z0 > z1) { [y0, y1] = [y1, y0]; [z0, z1] = [z1, z0]; } const i0 = Math.floor((z0 - za) / (zb - za) * NB), i1 = Math.floor((z1 - za) / (zb - za) * NB);
+    for (let i = Math.max(0, i0); i <= Math.min(NB - 1, i1); i++) { const zc = za + (i + 0.5) * (zb - za) / NB, t = z1 > z0 ? Math.min(1, Math.max(0, (zc - z0) / (z1 - z0))) : 0, y = y0 + (y1 - y0) * t;
+      if (y < ya || y > yb) continue; if (y < ysplit) { if (y > lo[i]) lo[i] = y; } else if (k === 1 && y < hi[i]) hi[i] = y; } };
+  body.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || o === skip || !o.material || Array.isArray(o.material) || o.material.blending === THREE.AdditiveBlending || o.material.depthWrite === false || !vis(o)) return;
+    const g = o.geometry, P = g.attributes.position; if (!P) return; if (!g.boundingBox) g.computeBoundingBox(); _m4.multiplyMatrices(inv, o.matrixWorld);
+    if (!_bx.copy(g.boundingBox).applyMatrix4(_m4).intersectsBox(_sl)) return;
+    const I = g.index, n = I ? I.count : P.count, e = _m4.elements;
+    for (let t = 0; t < n; t += 3) { const ia = I ? I.getX(t) : t, ib = I ? I.getX(t + 1) : t + 1, ic = I ? I.getX(t + 2) : t + 2; if (ia === ib && ib === ic) continue;
+      let xmin = 1e9, xmax = -1e9, zmin = 1e9, zmax = -1e9;
+      for (let j = 0; j < 3; j++) { const q = _p[j], vi = j === 0 ? ia : j === 1 ? ib : ic, x = P.getX(vi), y = P.getY(vi), z = P.getZ(vi);
+        q.set(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14]);
+        xmin = Math.min(xmin, q.x); xmax = Math.max(xmax, q.x); zmin = Math.min(zmin, q.z); zmax = Math.max(zmax, q.z); }
+      if (xmax < -w || xmin > w || zmax < za || zmin > zb) continue;
+      for (let k = 0; k < 3; k++) { const c = X[k]; if (xmax < c || xmin > c) continue; const pts = [];
+        for (let j = 0; j < 3; j++) { const A = _p[j], B = _p[(j + 1) % 3], da = A.x - c, db = B.x - c; if (da === 0) pts.push(A.y, A.z); else if (da * db < 0) { const f = da / (da - db); pts.push(A.y + (B.y - A.y) * f, A.z + (B.z - A.z) * f); } }
+        if (pts.length >= 4) put(k, pts[0], pts[1], pts[2], pts[3]); else if (pts.length === 2) put(k, pts[0], pts[1], pts[0], pts[1]); } } });
+  return { lo: Array.from(lo, (v) => (v > -1e8 ? v : null)), hi: Array.from(hi, (v) => (v < 1e8 ? v : null)) };
+}
+const FIG_H = 1.97, FIG_D = 0.62, RAM_LEAN = 0.28;   // the carved figure's height / depth (frame units), its forward lean when it rides a ram
 const _seats = new Map();   // ship build key -> seat (PvP: one sweep per build, not per ship)
 export function seatFigure(body, m, u) {
   const fi = u.figure, fs = fi ? fi.s : (u.depth || 3) / 3.1 * 1.05, sc = fs * FIG_K, L = u.layout;
@@ -189,7 +214,20 @@ export function seatFigure(body, m, u) {
   if (yp != null && yp > y0 - 0.42 * sc) {   // the ceiling over it: the bowsprit (the first bin above the stem head that reaches well forward)
     const cy0 = bowY - 0.6 * sc, cy1 = bowY + 1.2 * sc, C = stemProfile(body, m, 0.1 * sc, cy0, cy1, 12); let ceil = cy1;
     for (let k = 0; k < 12; k++) if (C[k] != null && C[k] > Q[0][1] + 0.5 * sc) { ceil = cy0 + k * (cy1 - cy0) / 12; break; }
-    const k = Math.max(0.45, Math.min(1, (ceil - 0.03 * sc - yp) / (1.97 * sc))); m.scale.setScalar(sc * k); m.position.y = Math.max(y0, yp + 0.42 * sc * k); }
+    // [Raul items redo] BANKSY via Emerly: on ram builds the figure read at ~half size (squeezed between the ram's root and the bowsprit). The
+    // bowsprit rises as it reaches forward, so walk the figure out along the ram's top to where it fits nearly full size (a small forward
+    // lean under the spar), staying close to the stem; it still stands on the ram and never touches the bowsprit.
+    const zs = Q[Q.length - 1][1], NZ = 16, zz1 = zs + 2.4 * sc, Z = zProfile(body, m, 0.1 * sc, ya, cy1, (yp + ceil) / 2, zs - 0.1 * sc, zz1, NZ), dz = (zz1 - zs + 0.1 * sc) / NZ;
+    const cl = Math.cos(RAM_LEAN), hgt = (FIG_H * cl + FIG_D * Math.sin(RAM_LEAN)) * sc; let best = null;
+    for (let i = 0; i < NZ; i++) { const z0 = zs - 0.1 * sc + i * dz; if (z0 < zs - 0.02 * sc || z0 > zs + 1.3 * sc) continue; let fl = -1e9, ce = 1e9, ok = true;
+      for (let j = i; j < NZ && zs - 0.1 * sc + j * dz <= z0 + FIG_D * sc; j++) { if (Z.lo[j] == null) { if (j === i) ok = false; continue; } fl = Math.max(fl, Z.lo[j]); if (Z.hi[j] != null) ce = Math.min(ce, Z.hi[j]); }
+      if (!ok || fl < -1e8) continue; if (ce > 1e8) ce = cy1;
+      const k = Math.max(0.45, Math.min(1, (ce - 0.04 * sc - fl) / hgt)), score = k - 0.12 * (z0 - zs) / sc;
+      if (!best || score > best.score) best = { score, k, z0, fl }; }
+    const k0 = Math.max(0.45, Math.min(1, (ceil - 0.03 * sc - yp) / (FIG_H * sc)));
+    if (best && best.k > k0 + 0.04) { m.scale.setScalar(sc * best.k); m.rotation.x = RAM_LEAN; m.position.set(0, best.fl + 0.42 * sc * best.k - 0.02 * sc, best.z0 + 0.06 * sc * best.k);
+      m.userData.seat = { ram: true, k: +best.k.toFixed(2), k0: +k0.toFixed(2), dz: +((best.z0 - zs) / sc).toFixed(2) }; if (u.key) _seats.set(key, [m.rotation.x, m.position.z, m.userData.seat, m.position.y, m.scale.x]); return; }
+    m.scale.setScalar(sc * k0); m.position.y = Math.max(y0, yp + 0.42 * sc * k0); }
   const my = Q.reduce((s, p) => s + p[0], 0) / Q.length, mz = Q.reduce((s, p) => s + p[1], 0) / Q.length;
   const sl = Q.length < 2 ? 0 : Math.max(0, Math.min(0.6, Q.reduce((s, p) => s + (p[0] - my) * (p[1] - mz), 0) / Math.max(1e-6, Q.reduce((s, p) => s + (p[0] - my) ** 2, 0))));
   const res = Q.map((p) => p[1] - (mz + sl * (p[0] - my))), keep = res;

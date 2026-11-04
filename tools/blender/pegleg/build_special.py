@@ -25,7 +25,7 @@ def rest_parts(item, lo):
     for u in ((0.4, 0.8) if lo else (0.2, 0.4, 0.6, 0.8)):
       q = T0 + (TIP + np.array([0, 0, 0.03]) - T0) * u; P_.append(torus(q, 0.0255 - 0.004 * u, 0.0042, [0, 0, 1], GL, seg(12), seg(4) if not lo else 4, outline=False))
     # the carved skull on the front, just under the cup, ghost-green eye sockets + carved jaw
-    sk = T0 + (TIP - T0) * 0.16 + np.array([0, -0.026, 0])
+    sk = T0 + (TIP - T0) * 0.3 + np.array([0, -0.026, 0])   # [Raul items redo] clear of the tapered socket
     P_.append(ellipsoid(sk, [0.03, 0.026, 0.032], BN, seg(11), seg(7)))
     P_.append(ellipsoid(sk + np.array([0, -0.006, -0.028]), [0.019, 0.017, 0.011], BND, seg(10) if not lo else 5, seg(5) if not lo else 3, outline=not lo))
     for e2 in (1, -1): P_.append(ellipsoid(sk + np.array([e2 * 0.011, -0.024, 0.005]), [0.0085, 0.004, 0.0085], GL, seg(8) if not lo else 5, seg(5) if not lo else 3, outline=False))
@@ -40,11 +40,11 @@ def rest_parts(item, lo):
     return P_
   # ---- the v178 special pegs (raul_shop_items_2/tools/build.py, seated by refit_special.py: old shaft top = knee - 5 cm)
   seg = (lambda n: max(4, int(round(n * 0.34)))) if lo else (lambda n: max(6, int(round(n))))
-  T0 = np.array([K[0], K[1], kz - 0.05])
+  T0 = np.array([K[0], K[1], F['shaft_top']])   # [Raul items redo] peg polish: seated at the tapered socket's neck (hi + lo both built here now)
   if item == 'peg_gold':
     G1, G2, RUBY = lin('#f2c230'), lin('#c88a16'), lin('#d8162c')
     P = [T0 + (TIP + np.array([0, 0, 0.02]) - T0) * u for u in np.linspace(0, 1, 3 if lo else 7)]; P_.append(tube(P, np.linspace(0.034, 0.02, len(P)), G1, 6 if lo else seg(12)))
-    for u in ((0.18, 0.62) if lo else (0.18, 0.62, 0.92)): q = T0 + (TIP - T0) * u; P_.append(torus(q, 0.034 - 0.014 * u, 0.007, [0, 0, 1], G2, 7 if lo else seg(16), 3 if lo else seg(6), outline=not lo))   # phone: the foot cap stands in for the 3rd band
+    for u in ((0.18, 0.62) if lo else (0.18, 0.62, 0.92)): q = T0 + (TIP - T0) * u; P_.append(torus(q, 0.034 - 0.014 * u, 0.007, [0, 0, 1], G2, 7 if lo else seg(16), 3 if lo else 5, outline=not lo))   # phone: the foot cap stands in for the 3rd band
     sk = T0 + (TIP - T0) * 0.4 + np.array([0, -0.03, 0])
     P_.append(ellipsoid(sk, [0.032, 0.028, 0.034], G1, 7 if lo else seg(14), 4 if lo else seg(9))); P_.append(ellipsoid(sk + np.array([0, -0.008, -0.03]), [0.02, 0.018, 0.012], G2, 5 if lo else seg(10), 3 if lo else seg(6), outline=not lo))
     for e2 in (1, -1): P_.append(ellipsoid(sk + np.array([e2 * 0.012, -0.026, 0.004]), [0.008, 0.004, 0.008], RUBY, 4 if lo else seg(8), 2 if lo else seg(5), outline=False))
@@ -56,9 +56,9 @@ def rest_parts(item, lo):
     for e2 in (1, -1): P_.append(ellipsoid([TIP[0] + e2 * 0.018, TIP[1], TIP[2] + 0.035], [0.022, 0.024, 0.022], BN, 5 if lo else seg(10), 3 if lo else seg(6)))
     nk = 12 if lo else 26; sp = []
     for k in range(nk):
-      u = k / (nk - 1); q = T0 + (TIP - T0) * u; a = u * math.pi * 4.2; sp.append(q + np.array([math.cos(a) * 0.036, math.sin(a) * 0.036, 0]))
+      u = k / (nk - 1); q = T0 + (TIP - T0) * u; a = u * math.pi * 4.2; sp.append(q + np.array([math.cos(a) * 0.031, math.sin(a) * 0.031, 0]))   # [Raul items redo] hugs the bone shaft (was 0.036: a loose coil)
     sp += [TIP + np.array([0.05 * sx, -0.045, 0.02]), TIP + np.array([0.065 * sx, -0.07, 0.05])]
-    rad = np.r_[np.linspace(0.02, 0.012, nk), [0.009, 0.006]]; P_.append(tube(sp, rad, KR, 5 if lo else seg(10)))
+    rad = np.r_[np.linspace(0.0145, 0.009, nk), [0.007, 0.0045]]; P_.append(tube(sp, rad, KR, 5 if lo else seg(10)))
     for k in range(2, nk, 3): u = k / (nk - 1); P_.append(ellipsoid(sp[k] + (sp[k] - (T0 + (TIP - T0) * u)) * 0.42, [0.007, 0.007, 0.007], SUCK, 4 if lo else seg(6), 2 if lo else seg(4), outline=False))
   else: raise SystemExit('unknown special peg ' + item)
   return P_

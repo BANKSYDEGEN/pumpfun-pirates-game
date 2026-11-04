@@ -57,13 +57,17 @@ for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)
 # ================================================================== TEETH
 if who == 'male': MX, MZ0, MZ1 = 0.064, 0.890, 0.929   # = the beards' mouth tunnel (build_beards.py): never under the moustache
 else: MX, MZ0, MZ1 = 0.056, 0.953, 0.992
+# [Raul items redo] BANKSY via Emerly: on HIS phone body the coarse moustache shards hang into the top row (the grills read broken): there the
+# mouth sits a touch lower and further forward (in front of the shards' tips), only male lo
+MLO = who == 'male' and not HI
+if MLO: MZ0, MZ1 = MZ0 - 0.0035, MZ1 - 0.0035
 ZC, HH = (MZ0 + MZ1) / 2, (MZ1 - MZ0) / 2
 F = SKIN[(np.abs(SKIN[:, 0]) < MX + 0.04) & (SKIN[:, 2] > MZ0 - 0.04) & (SKIN[:, 2] < MZ1 + 0.04) & (SKIN[:, 1] < -0.15)]
 fi = LinearNDInterpolator(F[:, [0, 2]], F[:, 1]); fn_ = NearestNDInterpolator(F[:, [0, 2]], F[:, 1])
 def face_y(x, z):
   y = fi(x, z); return np.where(np.isnan(y), fn_(x, z), y)
 def face_pts(U, Vz, off):   # points on the face (front = -y) pushed `off` toward the viewer, along the local face normal (finite differences)
-  off = off + (0.0 if HI else 0.0016)   # the Low face is coarse flat facets that bulge past the vertex-interpolated surface
+  off = off + (0.0 if HI else 0.0016) + (0.0032 if MLO else 0.0)   # the Low face is coarse flat facets that bulge past the vertex-interpolated surface
   y = face_y(U, Vz); e = 0.002; dx = (face_y(U + e, Vz) - face_y(U - e, Vz)) / (2 * e); dz = (face_y(U, Vz + e) - face_y(U, Vz - e)) / (2 * e)
   n = np.stack([dx, -np.ones_like(dx), dz], -1); n /= np.linalg.norm(n, axis=-1, keepdims=True)
   return np.stack([U, y, Vz], -1) + n * off[..., None] if np.ndim(off) else np.stack([U, y, Vz], -1) + n * off
@@ -88,13 +92,13 @@ def teeth(kind):
   C = np.where(rim[:, None], COL('#3a1014'), COL('#22070a')); parts.append(Part(P, Fc, C, False))
   NU = 8; ut = np.sin(np.linspace(-1, 1, NU + 1) * 1.25) / math.sin(1.25) * MX * 0.93   # tooth edges: narrower toward the corners
   NL = 6; lt = np.sin(np.linspace(-1, 1, NL + 1) * 1.2) / math.sin(1.2) * MX * 0.62
-  g = 0.0011 if HI else 0.0014; tn = (4, 4) if HI else (2, 3)
+  g = 0.0011 if HI else 0.0014; tn = (4, 4) if HI else (3, 3)   # [Raul items redo] phone: 3 x 3 per tooth (2 x 3 + the corner rounding drew diamonds: the grill read as broken shards)
   if kind == 'diamond': tn = (5, 5) if HI else (3, 3)
   rows = [(ut, lambda u: lip_top(u) - 0.0012, lambda u: lip_top(u) - 0.56 * (lip_top(u) - lip_bot(u)), 'up'), (lt, lambda u: lip_bot(u) + 0.36 * (lip_top(u) - lip_bot(u)), lambda u: lip_bot(u) + 0.0012, 'dn')]
   for edges, ztop, zbot, rw in rows:
     for k in range(len(edges) - 1):
       u0, u1 = edges[k] + g / 2, edges[k + 1] - g / 2; w = u1 - u0
-      P, Fc, S_, T_ = patch(u0, u1, zbot, ztop, 0.0022, *tn, bulge=0.0012, round_=0.55)
+      P, Fc, S_, T_ = patch(u0, u1, zbot, ztop, 0.0022, *tn, bulge=0.0012, round_=0.55 if HI else 0.25)
       N = vnormals(P, Fc); vv = T_ if rw == 'up' else 1 - T_
       gold = kind == 'grill' or (kind == 'tooth' and rw == 'up' and k == 3)   # the gold tooth: his left front tooth
       if gold:   # gold: the baked environment on a tile (top = sky, bottom = dark) + a glint stripe
@@ -122,8 +126,8 @@ def clear_x(y, z, r):   # outside of everything round (y, z) on the +x side
   m = (np.abs(CLR[:, 1] - y) < r) & (np.abs(CLR[:, 2] - z) < r); return CLR[m][:, 0].max() if m.any() else 0.0
 def hang(Q, thick):   # Q: (n, 3) ring points in the (y, z) plane with x = 0 at the piercing; lean the ring out at the bottom until it clears
   x0 = max(LOBE[0] + 0.002, clear_x(LOBE[1], LOBE[2] + 0.006, 0.006) - 0.004)   # the top sits on the lobe (the ear is soft: a hair of embed)
-  Q = Q[-Q[:, 2] > 0.008]   # below the piercing (the top of the ring goes through the lobe)
-  need = np.array([clear_x(LOBE[1] + q[1], LOBE[2] + q[2], 0.006) + thick + 0.0025 for q in Q]); dz = -Q[:, 2]
+  th = np.broadcast_to(np.asarray(thick, float), (len(Q),)); keep = -Q[:, 2] > 0.008; Q, th = Q[keep], th[keep]   # below the piercing (the top of the ring goes through the lobe)
+  need = np.array([clear_x(LOBE[1] + q[1], LOBE[2] + q[2], 0.006) + t + 0.0025 - q[0] for q, t in zip(Q, th)]); dz = -Q[:, 2]   # [Raul items redo] per point: thickness + its own x in the piece
   k = min(1.2, max(0.0, float(np.max((need - x0) / dz)))) if len(Q) else 0.0
   return k, x0
 def torus(c, R, r, nu, nv, ax_u, ax_v):   # ring centred c, in the plane (ax_u, ax_v)
@@ -144,6 +148,9 @@ def ball(c, r, nu, nv):
 def lean(V, k, x0):   # the piece (built at x = 0) swung out on the piercing by atan(k) (bottom outward), then moved to x0
   a = math.atan(k); ca, sa = math.cos(a), math.sin(a); V = V.copy(); x, zr = V[:, 0].copy(), V[:, 2] - LOBE[2]
   V[:, 0] = x0 + x * ca - zr * sa; V[:, 2] = LOBE[2] + x * sa + zr * ca; return V
+def swing(V, b):   # [Raul items redo] swing the piece back (+y) on the piercing by b (about the x axis through the lobe; V in the piece's frame, z about LOBE[2] or relative)
+  V = np.array(V, float).copy(); rel = abs(V[:, 2]).max() < 0.2; y0, z0 = (0.0, 0.0) if rel else (LOBE[1], LOBE[2]); y, z = V[:, 1] - y0, V[:, 2] - z0
+  cb, sb = math.cos(b), math.sin(b); V[:, 1] = y0 + y * cb - z * sb; V[:, 2] = z0 + y * sb + z * cb; return V
 def both(parts):   # + the mirror (her / his left ear = -x)
   out = []
   for p in parts:
@@ -172,10 +179,21 @@ def ruby(k, x0):
 p, k, x0 = build_hoop([(0.028 * SC, 0.0048 * SC, -0.004 * SC, 0), (0.016 * SC, 0.0038 * SC, 0.012 * SC, 0.002)], ruby); export(f'earring_double_{who}_{lod}', both(p), ink)
 # skull earring: a gold stud + a small ring + a carved bone skull charm, facing out
 def skull_parts():
-  s = SC * 1.55; R0 = 0.007 * s; Q = np.array([[0, R0 * np.cos(a), -R0 + R0 * np.sin(a)] for a in np.linspace(0, 2 * np.pi, 12)] + [[0, 0, -0.012 * s - 0.022 * s], [0, 0.012 * s, -0.024 * s], [0, -0.012 * s, -0.024 * s]])
-  k, x0 = hang(Q, 0.011 * s); parts = []
-  V, F = ball(np.array([0, LOBE[1], LOBE[2] + 0.001]), 0.004 * s, 10 if HI else 6, 6 if HI else 4); V = lean(V, k, x0); parts.append(Part(V, F, metal(vnormals(V, F), 'gold'), True))
-  V, F = torus(np.array([0, LOBE[1], LOBE[2] - R0]), R0, 0.0016 * s, 14 if HI else 8, 6 if HI else 4, [0, 1, 0], [0, 0, 1]); V = lean(V, k, x0); parts.append(Part(V, F, metal(vnormals(V, F), 'gold'), True))
+  # [Raul items redo] the charm hangs FLAT against the jaw, its back just outside the skin (CX: the charm centre off the piercing plane), the
+  # little ring tilted to reach it (RK); the old build held the whole 3 cm charm centred on the lobe plane and leaned it ~50 deg out to clear
+  s = SC * 1.55; R0 = 0.007 * s; CX = 0.0105 * s * 0.8; RK = CX / (2 * R0) * 0.85
+  ringQ = [[R0 * (1 - math.sin(a)) * RK, R0 * math.cos(a), -R0 + R0 * math.sin(a)] for a in np.linspace(0, 2 * np.pi, 12)]
+  chQ = [[CX - 0.0105 * s, yy, -2 * R0 - 0.0135 * s + zz] for yy in (-0.012 * s, 0, 0.012 * s) for zz in (-0.012 * s, 0.0, 0.01 * s)]
+  Q = np.array(ringQ + chQ); TH = np.r_[np.full(len(ringQ), 0.0016 * s), np.zeros(len(chQ))]
+  # [Raul items redo] BANKSY via Emerly: the skull leaned ~50 deg out to clear his sideburn. Let it hang: swing it back on the piercing (behind the
+  # sideburn, toward the neck: how a charm rests) and lean out only what is left; pick the swing + lean with the least visible tilt
+  best = None
+  for b in np.linspace(0, 0.6, 13):
+    kb, xb = hang(swing(Q, b), TH); cost = math.degrees(math.atan(kb)) + 0.45 * math.degrees(b)
+    if best is None or cost < best[0]: best = (cost, b, kb, xb)
+  _, SW, k, x0 = best; print('  skull swing', round(math.degrees(SW), 1), 'lean', round(math.degrees(math.atan(k)), 1)); parts = []
+  V, F = ball(np.array([0, LOBE[1], LOBE[2] + 0.001]), 0.004 * s, 10 if HI else 6, 6 if HI else 4); V = lean(swing(V, SW), k, x0); parts.append(Part(V, F, metal(vnormals(V, F), 'gold'), True))
+  V, F = torus(np.array([0, LOBE[1], LOBE[2] - R0]), R0, 0.0016 * s, 14 if HI else 8, 6 if HI else 4, [0, 1, 0], [0, 0, 1]); V = lean(swing(lean(V, RK, 0.0), SW), k, x0); parts.append(Part(V, F, metal(vnormals(V, F), 'gold'), True))
   # the charm (local: face toward +x), an SDF carve
   st = 0.0011 if HI else 0.0018; c0 = np.array([0.0, LOBE[1], LOBE[2] - 2 * R0 - 0.0135 * s])
   ax = [np.arange(-0.018 * s, 0.018 * s, st) for _ in range(3)]; X, Y, Z = np.meshgrid(*ax, indexing='ij')
@@ -190,5 +208,5 @@ def skull_parts():
   depth = (sd_ellipsoid(V[:, 0] - 0.0105 * s, np.abs(V[:, 1]) - 0.0048 * s, V[:, 2] + 0.0005 * s, 0.0052 * s, 0.0046 * s, 0.0046 * s) < 0) | (np.abs(V[:, 1]) < 0.0022 * s) & (np.abs(V[:, 2] + 0.0055 * s) < 0.0028 * s) & (V[:, 0] > 0.006 * s)
   teethline = (np.abs(V[:, 2] + 0.009 * s) < 0.0009 * s) & (V[:, 0] > 0.004 * s)
   N = vnormals(V, Fc); C = COL('#f1e8d0') * (0.72 + 0.32 * np.clip(N[:, 2] * 0.5 + 0.5, 0, 1))[:, None]; C[depth | teethline] = COL('#1c120c')
-  V = V + c0; V = lean(V, k, x0); parts.append(Part(V, Fc, C, True)); return parts, k, x0
+  V = V + c0 + np.array([CX, 0, 0]); V = lean(swing(V, SW), k, x0); parts.append(Part(V, Fc, C, True)); return parts, k, x0
 p, k, x0 = skull_parts(); export(f'earring_skull_{who}_{lod}', both(p), ink); print('  skull lean', round(k, 3), 'x0', round(x0, 3), 'lobe', LOBE.round(3))

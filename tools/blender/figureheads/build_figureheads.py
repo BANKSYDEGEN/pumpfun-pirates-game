@@ -100,14 +100,18 @@ def lion():
   P.append(('nose', tube([(0, 1.11, 0.47), (0, 0.99, 0.54)], 0.045, 0.055, 4), G1, 0.03))
   P.append(('cheek', mirror(lambda s: ell((s * 0.068, 0.93, 0.5), (0.08, 0.065, 0.07))), G3, 0.03))
   P.append(('jaw', ell((0, 0.8, 0.41), (0.12, 0.07, 0.12)), G1, 0.04))
-  P.append(('chest', smin(ell((0, 0.6, 0.18), (0.2, 0.26, 0.17)), mirror(lambda s: tube([(s * 0.1, 0.78, 0.28), (s * 0.06, 0.46, 0.31)], 0.07, 0.035, 4)), 0.04), G1, 0.06))
-  P.append(('leg', mirror(lambda s: smin(tube([(s * 0.15, 0.58, 0.22), (s * 0.18, 0.4, 0.33), (s * 0.17, 0.3, 0.38)], 0.075, 0.06, 5), ell((s * 0.16, 0.27, 0.43), (0.085, 0.06, 0.095)), 0.03)), G1, 0.04))
-  P.append(('scroll', tube([(0, 0.42, 0.06), (0, 0.12, 0.1), (0, -0.1, 0.2), (0, -0.25, 0.27), (0, -0.33, 0.17), (0, -0.25, 0.08), (0, -0.17, 0.13)], 0.11, 0.035, 14), G2, 0.05))
+  # [Raul items redo] BANKSY via Emerly: the body + legs were too thin next to the mane -> a deep barrel chest, rounded shoulders, a haunch
+  # into the scroll, thick forelegs with big paws (proportions of the mane: a lion bust, not a cub on stilts)
+  P.append(('chest', smin(smin(ell((0, 0.58, 0.2), (0.3, 0.33, 0.24)), mirror(lambda s: ell((s * 0.2, 0.7, 0.24), (0.16, 0.17, 0.16))), 0.06),
+                          mirror(lambda s: tube([(s * 0.12, 0.8, 0.33), (s * 0.08, 0.44, 0.39)], 0.085, 0.05, 4)), 0.05), G1, 0.07))
+  P.append(('haunch', ell((0, 0.3, 0.14), (0.25, 0.2, 0.19)), G1, 0.07))
+  P.append(('leg', mirror(lambda s: smin(tube([(s * 0.17, 0.6, 0.27), (s * 0.2, 0.42, 0.38), (s * 0.19, 0.29, 0.43)], 0.11, 0.085, 5), ell((s * 0.19, 0.25, 0.49), (0.115, 0.075, 0.12)), 0.035)), G1, 0.05))
+  P.append(('scroll', tube([(0, 0.32, 0.06), (0, 0.06, 0.12), (0, -0.12, 0.22), (0, -0.25, 0.29), (0, -0.34, 0.18), (0, -0.25, 0.08), (0, -0.17, 0.13)], 0.14, 0.045, 14), G2, 0.05))
   P.append(('mount', ell((0, 0.6, -0.12), (0.22, 0.6, 0.14)), G2, 0.06))
   D = [('eye', [(s * 0.1, 1.075, 0.465) for s in (1, -1)], (0.052, 0.04, 0.026), RU), ('pupil', [(s * 0.1, 1.075, 0.488) for s in (1, -1)], (0.018, 0.026, 0.01), '#2a0606'), ('nosepad', [(0, 0.985, 0.585)], (0.06, 0.04, 0.03), '#7a4a10'),
        ('mouth', [(0, 0.865, 0.515)], (0.085, 0.045, 0.035), MO)] + ([('fang', [(s * 0.05, 0.85, 0.545) for s in (1, -1)], (0.014, 0.032, 0.012), '#fff6dc')] if HI else [])
   def colfix(name, V, C):
-    if name == 'leg': w = (np.clip((V[:, 2] - 0.49) * 40, 0, 1) * (np.sin(V[:, 0] * 120) > 0.3))[:, None]; C = C * (1 - w) + COL(G2) * w
+    if name == 'leg': w = (np.clip((V[:, 2] - 0.56) * 40, 0, 1) * (np.sin(V[:, 0] * 120) > 0.3))[:, None]; C = C * (1 - w) + COL(G2) * w
     return C
   return P, D, colfix
 # ------------------------------------------------------------------ build one figure

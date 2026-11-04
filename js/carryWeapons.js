@@ -68,32 +68,43 @@ function placeSword(st) {
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), blade); st.swordPlaced = true;
 }
 // the musket on the back: bind space (y up, +z front) -> spine bone space (L = boneInverse * bindMatrix * D), lifted off whatever you wear
-const HAIR = TINTS.indexOf('hair'), HAIR_SQUASH = 0.45;
+const HAIR = TINTS.indexOf('hair'), HAIR_SQUASH = 0.45, HAIR_R2 = 0.03 * 0.03;
+// [Raul items redo] BANKSY via Emerly: the musket stood a hand off big / long hair (hers: ~20 cm off the back at the butt). Now (1) only hair right
+// under the gun counts (3 cm either side of it, was the 5 cm window that caught the middle of a big head of hair), (2) the line is the best fit
+// over all tilts (least total gap, never inside anything) instead of a line through two bins, (3) a big head of hair can lower the sling a
+// little and lay it flatter (up to 4 heights x 2 angles, the muzzle still over the shoulder) when that hugs the back better
+const SLING_DY = [0, -0.05, -0.1, -0.15], SLING_DT = [0, 0.22];
 function placeMusket(st) {
   const body = st.body, m = st.musket, sb = m.parent, sk = body.skeleton, bi = sk.boneInverses[sk.bones.indexOf(sb)]; if (!bi) return;
   const g = body.geometry; if (!g.boundingBox) g.computeBoundingBox(); const H = g.boundingBox.max.y - g.boundingBox.min.y, C = CARRY.musket;
-  const s = C.scale * H / 1.75, len = musketMuzzle(m.userData.id).z * s;
-  const dir = new THREE.Vector3(-Math.sin(C.tilt), Math.cos(C.tilt), 0);   // muzzle up over the right shoulder (-x), butt at the left hip
-  const cy = g.boundingBox.min.y + C.y * H, butt = new THREE.Vector3(0, cy, 0).addScaledVector(dir, -len / 2);
-  // the back's furthest point (min z) in 12 bins along the sling line, over the body + every item / gear mesh it wears (not pets, not the
-  // parrot), then the musket is laid on a straight line just outside all of them (it may tilt: butt on the lower back, muzzle over the hair)
-  const NB = 12, zb = new Array(NB).fill(0), meshes = []; body.parent.traverse((o) => { if (o.isSkinnedMesh && !/^pet/.test(o.name) && !o.userData.carry) meshes.push(o); });
+  const s = C.scale * H / 1.75, len = musketMuzzle(m.userData.id).z * s, NB = 12, meshes = []; body.parent.traverse((o) => { if (o.isSkinnedMesh && !/^pet/.test(o.name) && !o.userData.carry) meshes.push(o); });
   // [capes 2] long / big hair below the shoulders only counts at HAIR_SQUASH of its depth (the gun presses into the hanging hair instead of
-  // floating a hand off it); hair above the shoulders (the head) still counts in full, so the muzzle never cuts into a head of hair
+  // floating a hand off it); hair above the shoulders (the head) counts in full, so the muzzle never cuts into a head of hair
   const ua = sk.bones.findIndex((b) => /upperarm/i.test(b.name)), ySh = ua >= 0 ? _m.copy(sk.boneInverses[ua]).invert().elements[13] : Infinity;
-  for (const o of meshes) { const P = o.geometry.attributes.position, B = o.geometry.attributes.aBird, T = o === body ? o.geometry.attributes._tint : null; if (!P) continue;
-    for (let i = 0; i < P.count; i++) { if (B && B.getX(i) > 0.5) continue; let z = P.getZ(i); if (T && Math.round(T.getX(i)) === HAIR && P.getY(i) < ySh) z *= HAIR_SQUASH; if (z > -0.02) continue;
-      const x = P.getX(i) - butt.x, y = P.getY(i) - butt.y, t = (x * dir.x + y * dir.y) / len; if (t < 0 || t > 1) continue;
-      const dx = x - dir.x * t * len, dy = y - dir.y * t * len; if (dx * dx + dy * dy > 0.0025) continue; const k = Math.min(NB - 1, (t * NB) | 0); if (z < zb[k]) zb[k] = z; } }
-  const need = zb.map((z) => z - C.clear - C.half), tk = need.map((_, k) => (k + 0.5) / NB);
-  let ia = 0, ib = NB - 1; for (let k = 0; k < NB / 2; k++) if (need[k] < need[ia]) ia = k; for (let k = NB / 2; k < NB; k++) if (need[k] < need[ib]) ib = k;
-  let slope = (need[ib] - need[ia]) / (tk[ib] - tk[ia]); slope = Math.max(-C.maxTilt * len, Math.min(C.maxTilt * len, slope));
-  let z0 = need[ia] - slope * tk[ia]; let v = 0; for (let k = 0; k < NB; k++) v = Math.max(v, z0 + slope * tk[k] - need[k]); z0 -= v;
+  const tk = Array.from({ length: NB }, (_, k) => (k + 0.5) / NB);
+  // the back's furthest point (min z) in NB bins along a sling line, over the body + every item / gear mesh it wears (not pets, not the parrot)
+  const measure = (dir, butt) => { const zb = new Array(NB).fill(0);
+    for (const o of meshes) { const P = o.geometry.attributes.position, B = o.geometry.attributes.aBird, T = o === body ? o.geometry.attributes._tint : null; if (!P) continue;
+      for (let i = 0; i < P.count; i++) { if (B && B.getX(i) > 0.5) continue; let z = P.getZ(i); const hr = !!T && Math.round(T.getX(i)) === HAIR; if (hr && P.getY(i) < ySh) z *= HAIR_SQUASH; if (z > -0.02) continue;
+        const x = P.getX(i) - butt.x, y = P.getY(i) - butt.y, t = (x * dir.x + y * dir.y) / len; if (t < 0 || t > 1) continue;
+        const dx = x - dir.x * t * len, dy = y - dir.y * t * len; if (dx * dx + dy * dy > (hr ? HAIR_R2 : 0.0025)) continue; const k = Math.min(NB - 1, (t * NB) | 0); if (z < zb[k]) zb[k] = z; } }
+    const need = zb.map((z) => z - C.clear - C.half); need.hit = zb.map((z) => z < 0); return need; };
+  // the straight line just outside every bin with the least total gap (slopes within maxTilt)
+  const fit = (need) => { let best = null; for (let q = 0; q <= 24; q++) { const sl = (q / 12 - 1) * C.maxTilt * len; let z0 = Infinity; for (let k = 0; k < NB; k++) z0 = Math.min(z0, need[k] - sl * tk[k]);
+    let gap = 0, n = 0; for (let k = 0; k < NB; k++) if (need.hit[k]) { gap += need[k] - (z0 + sl * tk[k]); n++; } gap /= Math.max(1, n); if (!best || gap < best.gap - 1e-9) best = { z0, slope: sl, gap }; } return best; };   // the gap only where something is under the gun (not the air past the shoulder)
+  let pick = null;
+  sling: for (const dt of SLING_DT) for (const dy of SLING_DY) {
+    const tl = C.tilt + dt, dir = new THREE.Vector3(-Math.sin(tl), Math.cos(tl), 0), cy = g.boundingBox.min.y + (C.y + dy) * H, butt = new THREE.Vector3(0, cy, 0).addScaledVector(dir, -len / 2);
+    if ((dt || dy) && cy + dir.y * len / 2 < ySh + 0.06 * H) continue;   // the muzzle stays well over the shoulder
+    const f = fit(measure(dir, butt)), cost = f.gap + 0.006 * (dy ? 1 : 0) + 0.006 * (dt ? 1 : 0);   // the base sling wins unless the other clearly hugs better
+    if (!pick || cost < pick.cost) pick = { ...f, cost, dir, butt, dy, dt };
+    if (!pick.gap || (!dt && !dy && f.gap < 0.03)) break sling; }   // already snug (every bare / short-hair pirate): keep the base sling
+  const { dir, butt, slope, z0 } = pick;
   const zMin = z0, dir3 = new THREE.Vector3(dir.x * len, dir.y * len, slope).normalize();
   const Xg = new THREE.Vector3(0, 0, -1).addScaledVector(dir3, dir3.z).normalize(), Zg = dir3, Yg = new THREE.Vector3().crossVectors(Zg, Xg);
   const D = new THREE.Matrix4().makeBasis(Xg, Yg, Zg).scale(_v.setScalar(s)); D.setPosition(butt.x, butt.y, z0);
   _m.copy(bi).multiply(body.bindMatrix).multiply(D); _m.decompose(m.position, m.quaternion, m.scale);
-  st.zMin = zMin;
+  st.zMin = zMin; st.sling = [+pick.gap.toFixed(3), pick.dy, pick.dt, +slope.toFixed(3)];
 }
 function carryPost(dt) {
   const st = this.carry; if (!st || !st.body) return;

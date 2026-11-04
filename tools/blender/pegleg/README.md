@@ -60,3 +60,15 @@ New peg items need a palette in `pegfit.PAL` (leather, rim, band, buckle, option
     for s in l r; do for w in male female; do
       for l in hi lo; do /opt/blender/blender -b -P build_special.py -- peg_ghost $s $w $l <repo>; done
       for it in peg_gold peg_kraken; do /opt/blender/blender -b -P build_special.py -- $it $s $w lo <repo>; done; done; done
+
+## Raul items redo: peg polish (raul/items-redo)
+- `pegfit.py`: the knee sleeve ends in a **tapered socket** (straight to knee - 3 cm, a full shoulder easing into a cone to knee - 10.5 cm,
+  neck collar) instead of the flat bucket cup; gap 7.5 mm, flare 4 mm. CUT / PEG_CUT unchanged. Desktop gets a stitched seam down the back.
+- Standard peg: lathe-turned oak shaft (iron band at the socket, full upper turning, tapered waist, 2 carved grooves, iron ferrule, rubbed foot),
+  wood grain streaks in the vertex colours; brass buckle.
+- `build_special.py` now builds **all** special pegs, desktop and phone, seated at the socket neck (`shaft_top`). `refit_special.py` is no longer needed.
+  Kraken tentacle hugs the shaft; ghost skull moved clear of the socket.
+- Phone sleeves: 4 + 4 rows (was 7 + 5). Tris: std hi 6,284 / lo 1,952; gilded 6,892 / 1,826; kraken 6,644 / 1,840; ghost 6,782 / 1,868.
+
+    for it in peg_gold peg_kraken peg_ghost; do for s in l r; do for w in male female; do for l in hi lo; do
+      /opt/blender/blender -b -P build_special.py -- $it $s $w $l <repo>; done; done; done; done
