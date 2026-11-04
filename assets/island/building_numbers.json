@@ -1,0 +1,702 @@
+{
+ "note": "stable building numbers (BANKSY 1:23 PM); lx/lz town-local, x/z foot frame; w along lx, d along lz",
+ "buildings": [
+  {
+   "n": 1,
+   "id": "shop_clothes",
+   "lx": -49,
+   "w": 10,
+   "use": "CLOTHES SHOP",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -139
+  },
+  {
+   "n": 2,
+   "id": "shop_pets",
+   "lx": -38.5,
+   "w": 9,
+   "use": "PET STORE",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -128.5
+  },
+  {
+   "n": 3,
+   "id": "hall_w",
+   "lx": -25,
+   "w": 16,
+   "use": "TOKEN HALL 1 ($SUNK $AHOY $PUMP boards)",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -115
+  },
+  {
+   "n": 4,
+   "id": "shop_ships",
+   "lx": -10,
+   "w": 12,
+   "use": "SHIP SHOP (skins)",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -100
+  },
+  {
+   "n": 5,
+   "id": "shop_upgrades",
+   "lx": 20.5,
+   "w": 11,
+   "use": "UPGRADE SHOP",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -69.5
+  },
+  {
+   "n": 6,
+   "id": "shop_crew",
+   "lx": 32,
+   "w": 10,
+   "use": "CREW SHOP",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -58
+  },
+  {
+   "n": 7,
+   "id": "hall_e",
+   "lx": 47,
+   "w": 18,
+   "use": "TOKEN HALL 2 ($HQ $RETARDIO, trending row)",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -43
+  },
+  {
+   "n": 8,
+   "id": "exchange",
+   "lx": 62,
+   "w": 6,
+   "use": "TOKEN EXCHANGE counter",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -28
+  },
+  {
+   "n": 9,
+   "id": "tavern",
+   "lx": 70,
+   "w": 8,
+   "use": "TAVERN (no shop)",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -20
+  },
+  {
+   "n": 10,
+   "id": "house_e",
+   "lx": 77.9,
+   "w": 7,
+   "use": "EMPTY stone house (no shop, no door prompt)",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -12.1
+  },
+  {
+   "n": 11,
+   "id": "tower",
+   "lx": 86,
+   "w": 9,
+   "use": "HARBOR TOWER",
+   "area": "dock plaza",
+   "kind": "building",
+   "lz": -36,
+   "d": 12,
+   "x": -604,
+   "z": -4
+  },
+  {
+   "n": 12,
+   "id": "stall_-50",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": -50,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -140
+  },
+  {
+   "n": 13,
+   "id": "stall_-42",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": -42,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -132
+  },
+  {
+   "n": 14,
+   "id": "stall_-34",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": -34,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -124
+  },
+  {
+   "n": 15,
+   "id": "stall_-26",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": -26,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -116
+  },
+  {
+   "n": 16,
+   "id": "stall_-18",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": -18,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -108
+  },
+  {
+   "n": 17,
+   "id": "stall_26",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": 26,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "EMPTY market stand (decor, no prompt)",
+   "x": -623,
+   "z": -64
+  },
+  {
+   "n": 18,
+   "id": "stall_34",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": 34,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "MARKETPLACE (v212)",
+   "x": -623,
+   "z": -56
+  },
+  {
+   "n": 19,
+   "id": "stall_50",
+   "area": "dock plaza",
+   "kind": "stand",
+   "lx": 50,
+   "lz": -17,
+   "w": 3.4,
+   "d": 2.2,
+   "use": "FISH STAND (v212)",
+   "x": -623,
+   "z": -40
+  },
+  {
+   "n": 20,
+   "id": "rent_1",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L0",
+   "lx": -6.674,
+   "lz": -72.695,
+   "w": 9.349,
+   "d": 10.19,
+   "door": {
+    "lx": -2,
+    "lz": -73.095
+   },
+   "use": "ANTIQUES (v212)",
+   "x": -567.31,
+   "z": -96.67
+  },
+  {
+   "n": 21,
+   "id": "rent_2",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L1",
+   "lx": -6.286,
+   "lz": -83.135,
+   "w": 8.571,
+   "d": 9.89,
+   "door": {
+    "lx": -2,
+    "lz": -83.135
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -556.87,
+   "z": -96.29
+  },
+  {
+   "n": 22,
+   "id": "rent_3",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L2",
+   "lx": -6.851,
+   "lz": -93.897,
+   "w": 9.701,
+   "d": 11.632,
+   "door": {
+    "lx": -2,
+    "lz": -94.297
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -546.1,
+   "z": -96.85
+  },
+  {
+   "n": 23,
+   "id": "rent_4",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L3",
+   "lx": -6.482,
+   "lz": -105.031,
+   "w": 8.964,
+   "d": 10.636,
+   "door": {
+    "lx": -2,
+    "lz": -101.931
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -534.97,
+   "z": -96.48
+  },
+  {
+   "n": 24,
+   "id": "rent_5",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L4",
+   "lx": -6.119,
+   "lz": -114.761,
+   "w": 8.237,
+   "d": 8.824,
+   "door": {
+    "lx": -2,
+    "lz": -114.061
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -525.24,
+   "z": -96.12
+  },
+  {
+   "n": 25,
+   "id": "rent_6",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L5",
+   "lx": -6.598,
+   "lz": -123.688,
+   "w": 9.195,
+   "d": 9.03,
+   "door": {
+    "lx": -2,
+    "lz": -123.688
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -516.31,
+   "z": -96.6
+  },
+  {
+   "n": 26,
+   "id": "sword_shop",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L6",
+   "lx": -6.885,
+   "lz": -133.831,
+   "w": 9.77,
+   "d": 11.256,
+   "door": {
+    "lx": -2,
+    "lz": -135.231
+   },
+   "use": "SWORD SHOP",
+   "x": -506.17,
+   "z": -96.89
+  },
+  {
+   "n": 27,
+   "id": "rent_7",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L7",
+   "lx": -6.047,
+   "lz": -144.365,
+   "w": 8.094,
+   "d": 9.814,
+   "door": {
+    "lx": -2,
+    "lz": -146.065
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -495.63,
+   "z": -96.05
+  },
+  {
+   "n": 28,
+   "id": "rent_8",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L8",
+   "lx": -6.192,
+   "lz": -154.408,
+   "w": 8.385,
+   "d": 10.272,
+   "door": {
+    "lx": -2,
+    "lz": -152.508
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -485.59,
+   "z": -96.19
+  },
+  {
+   "n": 29,
+   "id": "rent_9",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L9",
+   "lx": -6.236,
+   "lz": -165.086,
+   "w": 8.471,
+   "d": 11.082,
+   "door": {
+    "lx": -2,
+    "lz": -165.086
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -474.91,
+   "z": -96.24
+  },
+  {
+   "n": 30,
+   "id": "rent_10",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L10",
+   "lx": -6.194,
+   "lz": -175.884,
+   "w": 8.388,
+   "d": 10.514,
+   "door": {
+    "lx": -2,
+    "lz": -173.984
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -464.12,
+   "z": -96.19
+  },
+  {
+   "n": 31,
+   "id": "rent_11",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L11",
+   "lx": -6.84,
+   "lz": -186.132,
+   "w": 9.68,
+   "d": 9.984,
+   "door": {
+    "lx": -2,
+    "lz": -186.132
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -453.87,
+   "z": -96.84
+  },
+  {
+   "n": 32,
+   "id": "rent_12",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "L12",
+   "lx": -6.086,
+   "lz": -197.412,
+   "w": 8.173,
+   "d": 8.127,
+   "door": {
+    "lx": -2,
+    "lz": -196.686
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -442.59,
+   "z": -96.09
+  },
+  {
+   "n": 33,
+   "id": "rent_big",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R0",
+   "lx": 21,
+   "lz": -75.695,
+   "w": 14,
+   "d": 16.6,
+   "door": {
+    "lx": 14,
+    "lz": -76.695
+   },
+   "use": "SQUAD HALL",
+   "x": -564.31,
+   "z": -69
+  },
+  {
+   "n": 34,
+   "id": "rent_13",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R1",
+   "lx": 18.105,
+   "lz": -83.135,
+   "w": 8.209,
+   "d": 4.035,
+   "door": {
+    "lx": 14,
+    "lz": -86.263
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -556.87,
+   "z": -71.89
+  },
+  {
+   "n": 35,
+   "id": "rent_14",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R2",
+   "lx": 18.483,
+   "lz": -93.897,
+   "w": 8.966,
+   "d": 11.632,
+   "door": {
+    "lx": 14,
+    "lz": -93.897
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -546.1,
+   "z": -71.52
+  },
+  {
+   "n": 36,
+   "id": "rent_15",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R3",
+   "lx": 18.323,
+   "lz": -105.031,
+   "w": 8.645,
+   "d": 9.836,
+   "door": {
+    "lx": 14,
+    "lz": -104.631
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -534.97,
+   "z": -71.68
+  },
+  {
+   "n": 37,
+   "id": "rent_16",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R5",
+   "lx": 18.206,
+   "lz": -123.688,
+   "w": 8.412,
+   "d": 8.23,
+   "door": {
+    "lx": 14,
+    "lz": -126.088
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -516.31,
+   "z": -71.79
+  },
+  {
+   "n": 38,
+   "id": "musket_shop",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R6",
+   "lx": 18.87,
+   "lz": -133.831,
+   "w": 9.74,
+   "d": 11.256,
+   "door": {
+    "lx": 14,
+    "lz": -133.331
+   },
+   "use": "MUSKET SHOP",
+   "x": -506.17,
+   "z": -71.13
+  },
+  {
+   "n": 39,
+   "id": "rent_17",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R7",
+   "lx": 18.804,
+   "lz": -144.365,
+   "w": 9.609,
+   "d": 9.814,
+   "door": {
+    "lx": 14,
+    "lz": -146.065
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -495.63,
+   "z": -71.2
+  },
+  {
+   "n": 40,
+   "id": "rent_18",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R8",
+   "lx": 18.748,
+   "lz": -154.408,
+   "w": 9.495,
+   "d": 10.272,
+   "door": {
+    "lx": 14,
+    "lz": -151.908
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -485.59,
+   "z": -71.25
+  },
+  {
+   "n": 41,
+   "id": "rent_19",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R9",
+   "lx": 18.438,
+   "lz": -165.086,
+   "w": 8.876,
+   "d": 11.082,
+   "door": {
+    "lx": 14,
+    "lz": -165.086
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -474.91,
+   "z": -71.56
+  },
+  {
+   "n": 42,
+   "id": "rent_20",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R10",
+   "lx": 18.488,
+   "lz": -175.884,
+   "w": 8.975,
+   "d": 10.514,
+   "door": {
+    "lx": 14,
+    "lz": -177.884
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -464.12,
+   "z": -71.51
+  },
+  {
+   "n": 43,
+   "id": "rent_21",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R11",
+   "lx": 18.366,
+   "lz": -186.132,
+   "w": 8.732,
+   "d": 9.984,
+   "door": {
+    "lx": 14,
+    "lz": -184.532
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -453.87,
+   "z": -71.63
+  },
+  {
+   "n": 44,
+   "id": "rent_22",
+   "area": "hill street",
+   "kind": "building",
+   "lot": "R12",
+   "lx": 18.39,
+   "lz": -197.412,
+   "w": 8.779,
+   "d": 8.127,
+   "door": {
+    "lx": 14,
+    "lz": -195.186
+   },
+   "use": "EMPTY shop (rentable, no prompt)",
+   "x": -442.59,
+   "z": -71.61
+  }
+ ]
+}

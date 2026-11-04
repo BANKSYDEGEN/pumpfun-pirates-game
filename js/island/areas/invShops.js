@@ -6,7 +6,7 @@
 // = Timothy's anchors, nothing of his is edited). With the file present the placeholders hide (his buildings + colliders stand there;
 // the placeholders add NO colliders either way).
 import * as THREE from 'three';
-import { Kit, M, box, cyl, W, C } from './common.js';
+// [v212] BANKSY 1:21-1:22 PM: Fish Stand = dock-plaza stand #19 (lx 50), Marketplace = stand #18 (lx 34), Antiques = the empty stone shop rent_1 (#20); numbers: assets/island/building_numbers.json
 import { SHOP_IDS, SHOP_NAMES, SHOP_ICON_IDS, FALLBACK, shopSpots } from '../../inventory/shopSpots.js';
 export { SHOP_IDS, SHOP_NAMES, FALLBACK, shopSpots };
 let SPOTS = shopSpots(null); const Q = {};
@@ -15,22 +15,26 @@ const ready = (typeof fetch === 'function' ? fetch(new URL('../../../assets/isla
   .then((j) => { if (!j) return; SPOTS = shopSpots(j); for (const id of SHOP_IDS) if (Q[id]) Object.assign(Q[id], { x: SPOTS[id].trigger.x, z: SPOTS[id].trigger.z, r: SPOTS[id].trigger.radius }); });
 await ready; // top-level: the file (or its 404) is read before the island registers its interact points, so the triggers sit where it says
 export const shopsReady = () => ready;
+// a two-sided carved-look name board (canvas text; null without a DOM, e.g. node tests)
+function signMesh(text, col) {
+  if (typeof document === 'undefined') return null; const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d');
+  x.fillStyle = '#5a3219'; x.fillRect(0, 0, 512, 128); x.strokeStyle = col; x.lineWidth = 12; x.strokeRect(6, 6, 500, 116);
+  x.fillStyle = '#ffcd77'; x.font = "bold 64px 'Just Another Hand', Georgia, serif"; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 256, 68);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+}
 export default {
-  id: 'inv_shops', name: 'Plaza shops', rect: [-475, -435, -135, -100],   // Timothy's Market Square (x -461..-437, z -117.5..-103.4) + the antiques room
+  id: 'inv_shops', name: 'Plaza shops', rect: [-626, -563, -95, -36],   // [v212] the dock-plaza stands (#18, #19) + rent_1 at the bottom of the hill street (#20)
   terrain: { pads: [], paths: [] },
   register(h) { for (const id of SHOP_IDS) { const s = SPOTS[id].trigger;
       h.INTERACT.push(Q[id] = { id: 'invshop_' + id, kind: 'shop', icon: SHOP_ICON_IDS[id], area: 'inv_shops', x: s.x, z: s.z, r: s.radius, label: 'E · ' + SHOP_NAMES[id] }); } },
-  build({ MATS, OUT, H }) {
+  build({ H }) {   // [v212] the shops reuse EXISTING structures (#18 / #19 dock-plaza stands, #20 rent_1 on the hill street): no placeholder stalls, only a name sign each
     const near = new THREE.Group(); near.name = 'area_inv_shops';
-    if (SHOP_IDS.every(id => SPOTS[id].fromFile)) return { near };                 // Timothy's buildings are in: no placeholders
-    if (!INV_STALLS) return { near };   // &invstalls=0 = no placeholder stalls (prompt-only E / tap triggers); Timothy moves them to the dock plaza later
-    const k = new Kit(), COL = { fish: 0x1d7fb8, antiques: 0xb0267a, market: 0xa77a12 };
-    for (const id of SHOP_IDS) { if (SPOTS[id].fromFile) continue; const { x, z } = SPOTS[id].trigger, y = H(x, z) - 0.05, c = COL[id];
-      W(k, box(3.2, 1.0, 1.2), C.WOOD, M(x, y + 0.5, z - 1.4));                           // counter
-      for (const s of [-1, 1]) W(k, cyl(0.08, 0.08, 2.6, 6), C.WOOD_D, M(x + s * 1.5, y + 1.3, z - 1.9));
-      W(k, box(3.6, 0.14, 2.0), c, M(x, y + 2.65, z - 1.5, 0.18));                        // awning in the shop colour
-      W(k, box(1.6, 0.5, 0.08), C.WOOD_L, M(x, y + 3.05, z - 2.4), false); }              // sign board
-    near.add(k.build(MATS, OUT)); return { near };
+    if (!INV_STALLS) return { near };   // &invstalls=0 = no signs (prompt-only E / tap triggers)
+    const COL = { fish: '#1d7fb8', antiques: '#b0267a', market: '#a77a12' };
+    for (const id of SHOP_IDS) { const t = SPOTS[id].trigger, g = SPOTS[id].sign || { x: t.x, y: H(t.x, t.z) + 3.3, z: t.z, rotY: 0 };
+      const m = signMesh(SHOP_NAMES[id], COL[id]); if (!m) continue; m.position.set(g.x, g.y, g.z); m.rotation.y = +g.rotY || 0; near.add(m); }
+    return { near };
   },
   label(q) { return null; },
   activate(q) { const id = q.id.slice(8); if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('pfp-shop', { detail: { shop: id } })); return null; },

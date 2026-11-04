@@ -51,7 +51,7 @@ test('SQL rules (PGlite): sells, clamp, gifts, market escrow / double buy / canc
 });
 test("plaza_shops.json contract: Timothy's file parses, radius read, fallback = his anchors", async () => {
   const S = await import('../js/inventory/shopSpots.js'), f = '/workspace/timothy-plazashops/assets/island/plaza_shops.json';
-  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-442.5, -121.5, 4.5]);
+  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-623, -40, 3.5]);
   if (existsSync(f)) { const j = S.shopSpots(JSON.parse(readFileSync(f, 'utf8'))); const raw = JSON.parse(readFileSync(f, 'utf8')); for (const id of S.SHOP_IDS) { assert.ok(j[id].fromFile, id); assert.ok(Number.isFinite(j[id].trigger.x) && j[id].trigger.radius > 0, id); } }
   const moved = S.shopSpots({ fish: { trigger_fish: { x: -300, y: 5, z: 40, radius: 2.5 } } }); assert.deepEqual([moved.fish.trigger.x, moved.fish.trigger.radius, moved.fish.fromFile], [-300, 2.5, true]); // JSON wins over the fallback
   const p = S.shopSpots({ fish: { trigger_fish: { x: 1, y: 2, z: 3 } } }); assert.equal(p.fish.trigger.radius, 3); assert.ok(!p.antiques.fromFile);
@@ -67,4 +67,18 @@ test('[v209] 038 turns on only weapon_stats + rare_weapon_drops; common weapon s
   const B = fs.readFileSync(new URL('../js/onfoot/battle.js', import.meta.url), 'utf8');
   assert.match(B, /carryArmed\(R\.fig/); assert.match(B, /tps\.shotYaw/); assert.match(B, /S = mine \? myW\('musket'\) : ARENA\.musket/);
   assert.match(B, /export const ARENA = \{\n  hp: 100, sword: \{ dmg: 34, reach: 2\.5, arc: 1\.15, cool: 0\.55/);
+});
+
+test('[v212] plaza_shops.json = FALLBACK; shops sit on numbered existing structures, clear of the shop prompts', () => {
+  const J = JSON.parse(readFileSync(new URL('../assets/island/plaza_shops.json', import.meta.url), 'utf8'));
+  const N = JSON.parse(readFileSync(new URL('../assets/island/building_numbers.json', import.meta.url), 'utf8')).buildings;
+  return import('../js/inventory/shopSpots.js').then((S) => { const f = S.shopSpots(J), fb = S.shopSpots(null);
+    for (const id of S.SHOP_IDS) { assert.deepEqual(f[id].trigger, fb[id].trigger, id); assert.ok(f[id].fromFile); }
+    const t2w = (lx, lz) => [-640 - lz, -90 + lx];
+    const use = { fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' };
+    for (const id of S.SHOP_IDS) { const b = N.find(q => q.use.startsWith(use[id])); assert.ok(b, id); const d = Math.hypot(b.x - f[id].trigger.x, b.z - f[id].trigger.z); assert.ok(d < 8, id + ' on #' + b.n); }
+    // storefront prompts (lz + 3.8) + the squad hall door stay out of reach of the new triggers
+    const prompts = [[-49, -25.5], [-38.5, -25.5], [-10, -25.5], [20.5, -25.5], [32, -25.5], [14, -76.7]].map(([a, c]) => t2w(a, c));
+    for (const id of S.SHOP_IDS) for (const [x, z] of prompts) assert.ok(Math.hypot(x - f[id].trigger.x, z - f[id].trigger.z) > f[id].trigger.radius + 2, id);
+    assert.deepEqual(N.map(b => b.n), N.map((_, i) => i + 1)); assert.equal(new Set(N.map(b => b.id)).size, N.length); });
 });
