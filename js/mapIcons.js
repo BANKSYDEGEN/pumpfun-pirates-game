@@ -12,8 +12,8 @@ export const THEMES = {
   paper: { label: 'PAPER', sea: '#cdbf96', ring: '#3b2410', ringW: 3, nBg: 'rgba(59,36,16,.85)', nFg: '#f3e3b5', badge: 'paper', ink: '#3b2410', me: '#fff8e6', x: '#b5150d',
     paint: (r, g, b) => { const l = (0.3 * r + 0.59 * g + 0.11 * b) / 255; return [128 + 110 * l, 112 + 98 * l, 78 + 72 * l]; } }, // [minimap-themes] plain sepia paper (the chart art moved to TREASURE MAP)
   treasure: { label: 'TREASURE MAP', sea: '#d9c08a', ring: '#5a2d0c', ringW: 4, nBg: 'rgba(90,45,12,.92)', nFg: '#f6e2b0', badge: 'paper', ink: '#3b2410', me: '#fff8e6', x: '#b5150d', paint: null, sheet: true, burn: true }, // BANKSY 11:57: the MAPS parchment chart itself
-  night: { label: 'NIGHT', sea: '#07111d', ring: 'rgba(120,200,255,.6)', ringW: 2, nBg: 'rgba(4,10,20,.85)', nFg: '#9fd8ff', badge: 'night', ink: '#050a12', me: '#e8f6ff', x: '#ff5a4e',
-    paint: (r, g, b) => { const l = 0.3 * r + 0.59 * g + 0.11 * b; return [r * 0.28 + l * 0.06, g * 0.3 + l * 0.08, b * 0.34 + l * 0.16 + 14]; } },
+  night: { label: 'NIGHT', sea: '#050b1f', ring: 'rgba(140,170,255,.6)', ringW: 2, nBg: 'rgba(4,8,24,.88)', nFg: '#a9c4ff', badge: 'night', ink: '#040818', me: '#e8eeff', x: '#ff5a4e',
+    paint: (r, g, b) => { const l = 0.3 * r + 0.59 * g + 0.11 * b; return [l * 0.10 + 6, l * 0.13 + 10, l * 0.30 + 34]; } }, // [minimap-fix] BANKSY: dark NAVY land (was teal: the green channel carried through)
   gold: { label: 'GOLD', sea: '#5b3f14', ring: '#ffcd3c', ringW: 3, nBg: 'rgba(60,34,6,.9)', nFg: '#ffd863', badge: 'gold', ink: '#3a2205', me: '#fff4cf', x: '#c0170e',
     paint: (r, g, b) => { const l = (0.3 * r + 0.59 * g + 0.11 * b) / 255; return [70 + 185 * l, 46 + 160 * l, 12 + 80 * l]; } },
   blueprint: { label: 'BLUEPRINT', sea: '#0b3772', ring: 'rgba(225,240,255,.85)', ringW: 2, nBg: 'rgba(6,30,66,.9)', nFg: '#e6f2ff', badge: 'line', ink: '#e6f2ff', me: '#ffffff', x: '#ffd84a',

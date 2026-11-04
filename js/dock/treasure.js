@@ -21,7 +21,7 @@ const WHY = {
   'too soon': 'THE INK IS STILL WET<br><small>a new map can be dug 30 s after it drops</small>',
   'slow down': 'CATCH YOUR BREATH<br><small>20 s between digs</small>',
   'daily dig limit': '25 DIGS TODAY<br><small>the sand is yours again tomorrow</small>',
-  'wrong spot': 'NOTHING HERE<br><small>this map points somewhere else · tap MAPS</small>',
+  'wrong spot': 'NOTHING HERE<br><small>this map points somewhere else · tap INVENTORY</small>',
   'already dug': 'ALREADY DUG UP', 'not your map': 'THAT MAP IS GONE',
 };
 const SRC = { boss: 'from the Commodore', kill: 'from a battle kill', streak: 'from a 3-kill streak' };
@@ -98,7 +98,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     const pv = pvp(); if (!pv?.maps) { if (q.kind === 'dig') world.activate(q, t); return true; }
     const m = mapFor(q.id);
     if (!m) { if (q.id === 'cave') return false;
-      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · tap MAPS</small>' : 'NO TREASURE MAP<br><small>maps drop from Commodore kills + battle kills</small>', 2400); return true; }
+      toast(maps.length ? 'NO MAP FOR THIS SITE<br><small>your map points somewhere else · tap INVENTORY</small>' : 'NO TREASURE MAP<br><small>maps drop from Commodore kills + battle kills</small>', 2400); return true; }
     if (busy) return true; busy = true; toast('DIGGING…', 1400);
     try { const r = await pv.maps.dig(m.id, q.id);
       if (r && r.ok) {
@@ -115,5 +115,5 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     return true; }
   btn.innerHTML = inventory() ? '🎒 INVENTORY<b>0</b>' : '🗺 MAPS<b>0</b>';
   const openMap = (id) => { pick(id); open(); }; // [inventory] OPEN MAP on a grid slot
-  return { openMap, btn, spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap , chest };
+  return { render: () => renderUi(), openMap, btn, spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap , chest };
 }

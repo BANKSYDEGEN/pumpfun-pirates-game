@@ -70,7 +70,7 @@ export async function createDock(ctx) {
   const fnet = createFootNet({ scene, low: LOW, world, docking });
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
-  const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: () => treasure.map.sheet() }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
+  const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
   function minimapState(st) {
@@ -89,6 +89,7 @@ export async function createDock(ctx) {
   const treasure = createTreasure({ inventory: () => inventory, world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   try { inventory = createInventory({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure }); } catch (e) { console.warn('[inventory]', e); } // [inventory]
+  treasure.render?.(); // [minimap-fix] the HUD button was first drawn before the inventory existed (read 'MAPS 0' until the next server poll)
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
     hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact

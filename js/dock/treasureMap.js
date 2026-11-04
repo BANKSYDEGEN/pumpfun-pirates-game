@@ -58,8 +58,9 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   // ---------------- the chart (baked once) ----------------
   let SH = null; // { cv, x0, z0, k, w, h }
-  function sheet() {
-    if (SH && SH.rev === (FM.TERRAIN?.rev || 0)) return SH; // [minimap-themes] build-mode edits re-ink the chart (next time it's shown)
+  let SHB = null; // [minimap-fix] the BARE chart (no ink labels / shop badges): the TREASURE MAP radar draws its own icons, the names cluttered the small disc
+  function sheet(bare = false) {
+    { const C = bare ? SHB : SH; if (C && C.rev === (FM.TERRAIN?.rev || 0)) return C; } // [minimap-themes] build-mode edits re-ink the chart (next time it's shown)
     const t0 = performance.now(), S = 5, nx = Math.floor((B.x1 - B.x0) / S) + 1, nz = Math.floor((B.z1 - B.z0) / S) + 1, G = new Float32Array(nx * nz);
     let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = B.x0 + i * S, z = B.z0 + j * S, h = FM.H(x, z); G[j * nx + i] = h;
@@ -134,7 +135,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       for (const a of MP.areas || []) { poly(a.pts, lw(a.pave ? 4.4 : 2.6), INK_S + (a.pave ? '0.8)' : '0.6)')); if (a.pave) poly(a.pts, lw(2.6), 'rgba(226,206,160,0.95)'); else poly(a.pts, lw(1.2), 'rgba(236,220,180,0.9)', [lw(4), lw(3)]); } }
     const BR = FM.BRIDGE; if (BR && BR.L) { poly([[BR.ax, BR.az], [BR.bx, BR.bz]], lw(4), INK); poly([[BR.ax, BR.az], [BR.bx, BR.bz]], lw(1.6), '#c48a50'); }
     // labels
-    const label = (txt, x, z, size, color = INK, align = 'center', rot = 0) => { const [a, b] = P(x, z); g.save(); g.translate(a, b); g.rotate(rot); g.font = `${Math.round(lw(size))}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle';
+    const label = (txt, x, z, size, color = INK, align = 'center', rot = 0) => { if (bare) return; const [a, b] = P(x, z); g.save(); g.translate(a, b); g.rotate(rot); g.font = `${Math.round(lw(size))}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle';
       g.lineWidth = lw(size) * 0.16; g.strokeStyle = 'rgba(240,224,182,0.85)'; g.strokeText(txt, 0, 0); g.fillStyle = color; g.fillText(txt, 0, 0); g.restore(); };
     for (const p of FM.FOOT_POIS || []) { const t = LABELS[p.id]; if (!t) continue;
       if (p.id === 'skullpeak') { const [a, b] = P(p.x, p.z); g.font = `${Math.round(lw(42))}px system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK; g.fillText('☠', a, b); label(t, p.x, p.z + 30 / k * lw(1), 42); continue; }
@@ -146,7 +147,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'Big Shop', x: sq.x, z: sq.z });
       const nice = (t) => t.toLowerCase().replace(/(^|[\s·'])([a-z])/g, (m, a, b) => a + b.toUpperCase());
       for (const l of L) { const ic = SHOP_ICONS[l.icon]; if (!ic) continue; const [a, b] = P(l.x, l.z), r = lw(15);
-        drawShopIcon(g, ic, a, b, r, 'paper'); label(nice(l.label), l.x + (r * 1.25) / k, l.z, 30, INK, 'left'); } }
+        if (!bare) drawShopIcon(g, ic, a, b, r, 'paper'); label(nice(l.label), l.x + (r * 1.25) / k, l.z, 30, INK, 'left'); } }
     { const near = decks.map(d => toF(d.x, d.z)); if (near.length) { const cx = near.reduce((s, p) => s + p[0], 0) / near.length, cz = near.reduce((s, p) => s + p[1], 0) / near.length;
         label('Harbor Town', cx + 85, cz - 60, 50, '#5a1a0c'); label('THE HARBOR', cx - 95, cz + 150, 44, 'rgba(30,62,66,.9)', 'center', -Math.PI / 2); } }
     // compass rose (top-left corner of the sea) + title cartouche + scale bar
@@ -182,8 +183,8 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       g.save(); g.globalCompositeOperation = 'destination-in'; path(); g.fillStyle = '#000'; g.fill(); g.restore();
       g.save(); path(); g.clip(); g.shadowColor = 'rgba(70,32,6,0.9)'; g.shadowBlur = lw(18); g.lineWidth = lw(7); g.strokeStyle = 'rgba(70,32,6,0.85)'; path(); g.stroke(); g.restore();
       g.lineWidth = lw(1.4); g.strokeStyle = 'rgba(50,22,4,0.9)'; path(); g.stroke(); }
-    SH = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0), rev: FM.TERRAIN?.rev || 0 };
-    return SH;
+    const out = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0), rev: FM.TERRAIN?.rev || 0 }; if (bare) SHB = out; else SH = out;
+    return out;
   }
 
   // ---------------- dynamic layer: dotted trail, red X, you ----------------

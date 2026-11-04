@@ -135,7 +135,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     if (!done) { bakeRows(low ? 14 : 18); return false; }
     if (!st.me) return false;
     checkRev(); if (again) bakeRows(low ? 6 : 10);
-    const th = theme(), SH = th.sheet && paperSheet ? paperSheet() : null, [mx, mz] = toF(st.me.x, st.me.z);
+    const th = theme(), SH = th.sheet && paperSheet ? paperSheet(true) : null, [mx, mz] = toF(st.me.x, st.me.z);
     { let dn = 1e9; for (const p of P || []) if (p.icon && !p.mark) dn = Math.min(dn, Math.hypot(p.x - mx, p.z - mz)); const want = dn < 45 ? 52 : dn > 90 ? range : 52 + (range - 52) * (dn - 45) / 45; zr += (want - zr) * 0.08; if (Math.abs(want - zr) < 0.05) zr = want; }
     const R = W / 2, k = (R - 2) / zr, rot = heading - Math.PI, c = Math.cos(rot), s = Math.sin(rot);
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh), dx = fx - mx, dz = fz - mz; return [R + k * (dx * c - dz * s), R + k * (dx * s + dz * c)]; };
