@@ -561,7 +561,7 @@ function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
   // [Raul clothes v5] every dressed v5 pirate wears his base outfit mesh (pants, belt, sash, boots, her wrap top); crews keep the baked body
   if (p.v5 && !p.forCrew && !p.raulKeys.base && RAUL_ITEMS.cloth_base) { p.raulKeys.base = 'cloth_base'; jobs.push(raulEquip(p, 'cloth_base').catch((e) => { console.warn('[gear] base outfit', e); p.raulKeys.base = ''; })); }
-  for (const slot of Object.keys(GEAR_DEFAULTS)) { if (slot === 'beard' && p.female && !BEARD_ON_FEMALE) continue; const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }   // [Raul shop2 fixes] no beard on a female body
+  for (const slot of Object.keys(GEAR_DEFAULTS)) { if (slot === 'beard' && p.female && !BEARD_ON_FEMALE) continue; if (slot === 'ears' && gear.hat === 'mask_luchador') continue; const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }   // [Raul shop2 fixes] no beard on a female body; [Raul teeth/ears redo] the hood covers the ears, so no earrings under the luchador mask
   for (const rs of RAUL_SLOTS) {
     const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
     if ((p.raulKeys[rs] || '') === k) continue; p.raulKeys[rs] = k;
