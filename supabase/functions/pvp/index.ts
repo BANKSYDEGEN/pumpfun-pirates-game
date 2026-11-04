@@ -3,7 +3,7 @@
 // POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim" | "acct_set" | "acct_login" | "acct_sync" | "acct_change" | "acct_logout" | "airdrop_nonce" | "waves_score" | "ticket", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
-import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
+import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
@@ -22,10 +22,10 @@ const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", ne
 const b64url = (a: Uint8Array) => btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 const devId = async (b: Record<string, unknown>) => typeof b.dk === "string" && /^[A-Za-z0-9_-]{24,64}$/.test(b.dk) ? `dev:${(await sha256("pfp-dev:" + b.dk)).slice(0, 24)}` : null;
-type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; harbor_kills?: number; boss_kills?: number; updated_at: string; shop_rev?: number; gear?: Record<string, string> };
-const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, gear: r.gear, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills, harborKills: r.harbor_kills ?? 0, bossKills: r.boss_kills ?? 0 } });
+type Row = { id: string; wallet: string; gold: number; upgrades: Record<string, number>; skins: Profile["skins"]; kills: number; deaths: number; bot_kills: number; harbor_kills?: number; boss_kills?: number; battery_hits?: number; updated_at: string; shop_rev?: number; gear?: Record<string, string> };
+const toProfile = (r: Row): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: r.skins, gear: r.gear, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills, harborKills: r.harbor_kills ?? 0, bossKills: r.boss_kills ?? 0, batteryHits: r.battery_hits ?? 0 } });
 async function withOwned(p: Profile, pid: string) { const own = await ownedSet(pid); p.skins.owned = [...own].filter((i) => i.startsWith("skin:")).map((i) => i.slice(5)); (p as any).gearOwned = [...own].filter((i) => i.startsWith("gear:")).map((i) => i.slice(5)); return p; }
-const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: { owned: [], equipped: p.skins.equipped }, gear: cleanGear(p.gear), kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills, harbor_kills: p.stats.harborKills, boss_kills: p.stats.bossKills }); // [v98] migration 020 columns
+const toRow = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skins: { owned: [], equipped: p.skins.equipped }, gear: cleanGear(p.gear), kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills, harbor_kills: p.stats.harborKills, boss_kills: p.stats.bossKills, battery_hits: p.stats.batteryHits ?? 0 }); // [v98]; [cliff gold] migration 032 migration 020 columns
 
 async function getRow(wallet: string): Promise<Row> {
   const id = `wallet:${wallet}`;
@@ -90,9 +90,9 @@ const zeroLevels = () => Object.fromEntries(Object.keys(PRESTIGE_MAX).map((k) =>
 async function boardKD(pid: string) { const { data } = await db.rpc("pvp_kills_me", { p_player: pid }); const r = Array.isArray(data) ? data[0] : data; return { kills: Number(r?.kills ?? 0), deaths: Number(r?.deaths ?? 0) }; }
 async function spendSince(pid: string, rev: number) { const { data } = await db.from("pvp_purchases").select("price").eq("player_id", pid).gt("rev", rev); return (data ?? []).reduce((a: number, r: any) => a + (r.price | 0), 0); }
 // device row <-> Profile
-type DevRow = { id: string; gold: number; gold_pending: number; upgrades: Record<string, number>; skin: string; gear: Record<string, string>; kills: number; deaths: number; bot_kills: number; harbor_kills: number; boss_kills: number; shop_rev: number; updated_at: string };
-const devProfile = (r: DevRow): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: { equipped: r.skin }, gear: r.gear, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills, harborKills: r.harbor_kills, bossKills: r.boss_kills } });
-const devCols = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skin: p.skins.equipped, gear: cleanGear(p.gear), kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills, harbor_kills: p.stats.harborKills, boss_kills: p.stats.bossKills });
+type DevRow = { id: string; gold: number; gold_pending: number; upgrades: Record<string, number>; skin: string; gear: Record<string, string>; kills: number; deaths: number; bot_kills: number; harbor_kills: number; boss_kills: number; battery_hits?: number; shop_rev: number; updated_at: string };
+const devProfile = (r: DevRow): Profile => cleanProfile({ gold: r.gold, levels: r.upgrades, skins: { equipped: r.skin }, gear: r.gear, stats: { kills: r.kills, deaths: r.deaths, botKills: r.bot_kills, harborKills: r.harbor_kills, bossKills: r.boss_kills, batteryHits: r.battery_hits ?? 0 } });
+const devCols = (p: Profile) => ({ gold: p.gold, upgrades: p.levels, skin: p.skins.equipped, gear: cleanGear(p.gear), kills: p.stats.kills, deaths: p.stats.deaths, bot_kills: p.stats.botKills, harbor_kills: p.stats.harborKills, boss_kills: p.stats.bossKills, battery_hits: p.stats.batteryHits ?? 0 });
 const upgValue = (lv: Record<string, number>) => { let v = 0; for (const [id, c] of Object.entries(TIER_COSTS)) for (let i = 0; i < Math.min(lv[id] || 0, c.length); i++) v += pvpTierCost(i); return v; };
 // one sync step: the server copy follows the device save, but never faster than the game can pay / kill (same CAPS as wallet saves).
 // Instead of rejecting a big jump (which could stall forever), it CLAMPS: the copy catches up over the next syncs.
@@ -100,8 +100,8 @@ function stepToward(cur: Profile, rep: Profile, mins: number, goldFind = 0): Pro
   const m = Math.max(0.25, Math.min(mins, 60)), up = (a: number, b: number, cap: number) => Math.max(a, Math.min(b, a + cap));
   const kc = CAPS.killsBase + CAPS.killsPerMin * m;
   const next = cleanProfile({ ...rep, stats: { kills: up(cur.stats.kills, rep.stats.kills, kc), deaths: Math.max(cur.stats.deaths, rep.stats.deaths), botKills: up(cur.stats.botKills, rep.stats.botKills, kc),
-    harborKills: up(cur.stats.harborKills, rep.stats.harborKills, kc), bossKills: up(cur.stats.bossKills, rep.stats.bossKills, CAPS.bossBase + CAPS.bossPerMin * m) } });
-  const allow = CAPS.valuePerMin * (1 + Math.max(0, Math.min(0.10, goldFind))) * m, over = value(next) - value(cur) - allow;
+    harborKills: up(cur.stats.harborKills, rep.stats.harborKills, kc), bossKills: up(cur.stats.bossKills, rep.stats.bossKills, CAPS.bossBase + CAPS.bossPerMin * m), batteryHits: up(cur.stats.batteryHits ?? 0, rep.stats.batteryHits ?? 0, batteryCap(m)) } });
+  const allow = CAPS.valuePerMin * (1 + Math.max(0, Math.min(0.10, goldFind))) * m + BATTERY_GOLD * batteryDelta(cur, next), over = value(next) - value(cur) - allow;
   if (over > 0) { if (over <= next.gold) next.gold -= over; else { next.levels = { ...cur.levels }; next.gold = Math.max(0, Math.min(next.gold, cur.gold + allow - Math.max(0, upgValue(next.levels) - upgValue(cur.levels)))); } }
   return next;
 }
@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
           if (!l) return json(409, { error: "already merged", profile: cur });
           const lv: Record<string, number> = {}; for (const k of Object.keys(cur.levels)) lv[k] = Math.max(cur.levels[k] || 0, next.levels[k] || 0);
           const m = cleanProfile({ gold: Math.max(cur.gold, next.gold), levels: lv, skins: { equipped: next.skins.equipped !== "classic" ? next.skins.equipped : cur.skins.equipped },
-            stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills), harborKills: Math.max(cur.stats.harborKills, next.stats.harborKills), bossKills: Math.max(cur.stats.bossKills, next.stats.bossKills) } });
+            stats: { kills: Math.max(cur.stats.kills, next.stats.kills), deaths: Math.max(cur.stats.deaths, next.stats.deaths), botKills: Math.max(cur.stats.botKills, next.stats.botKills), harborKills: Math.max(cur.stats.harborKills, next.stats.harborKills), bossKills: Math.max(cur.stats.bossKills, next.stats.bossKills), batteryHits: Math.max(cur.stats.batteryHits ?? 0, next.stats.batteryHits ?? 0) } });
           const { data, error } = await db.from("pvp_profiles").update({ ...toRow(m), updated_at: new Date().toISOString() }).eq("id", row.id).select().single();
           if (error) throw error;
           return json(200, { profile: await withOwned(toProfile(data as Row), `wallet:${wallet}`), merged: true, rev: srev, prestige: pres });
