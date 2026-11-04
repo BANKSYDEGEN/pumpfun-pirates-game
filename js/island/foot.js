@@ -229,11 +229,12 @@ export const BUILD_MS = Math.round(performance.now() - t0);
 // bilinear sample (world metres)
 // [terrain-edit] BANKSY's owner terrain editor: a height-delta layer on top of the built grid (cells q -> metres). Every reader (H, Htri,
 // waterAt, the chunk meshes) reads Hg, so applying here moves the drawn ground, the walk / collision height and the followers together.
-let Hb = null, CHUNKS = null; const DELTA = new Map();
+let Hb = null, CHUNKS = null; const DELTA = new Map(), PAINTM = new Map(); // [build-mode] PAINTM: cell -> [splat layer, 0..1]
 // [build-mode] a deleted built-in piece takes its walk decks + colliders with it (those whose centre sits inside its footprint); restore = back on
 export function pieceBlockers(box, off) { const hit = (x, z) => x >= box.min.x - 0.3 && x <= box.max.x + 0.3 && z >= box.min.z - 0.3 && z <= box.max.z + 0.3; let n = 0;
   for (const d of AREA_DECKS) if (hit(d.x, d.z) && d.y >= box.min.y - 1 && d.y <= box.max.y + 1) { d.off = off; n++; }
   for (const o of [...CIRC, ...BOXES]) if (hit(o.x, o.z)) { o.off = off; n++; } return n; }
+function rebuild(dirty) { if (CHUNKS) for (const c of CHUNKS) if (dirty.has(c.ci + ',' + c.cj)) { for (const g of Object.values(c.geos)) if (g !== c.mesh.geometry) g.dispose(); const old = c.mesh.geometry; c.geos = {}; if (c.lod >= 0) { c.geos[c.lod] = chunkGeo(c.ci, c.cj, c.lod); c.mesh.geometry = c.geos[c.lod]; old.dispose(); } } }
 export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
   base(q) { return Hb ? Hb[q] : Hg[q]; }, delta: DELTA, cell(x, z) { return [Math.round((x - X0) / G), Math.round((z - Z0) / G)]; },
   // set some cells' deltas (Map / [[q, m]]): rewrites Hg there and rebuilds only the touched chunks (their LOD meshes regenerate lazily)
@@ -241,8 +242,12 @@ export const TERRAIN = { G, X0, Z0, NX, NZ, get CH() { return CH; }, IDX,
     for (const [q, d] of entries) { const v = Math.abs(d) < 0.005 ? 0 : d; if (v) DELTA.set(q, v); else DELTA.delete(q); Hg[q] = Hb[q] + v;
       const i = q % (NX + 1), j = (q - i) / (NX + 1), ci = Math.floor(i / CH), cj = Math.floor(j / CH);
       dirty.add(ci + ',' + cj); if (i % CH === 0 && ci > 0) dirty.add((ci - 1) + ',' + cj); if (j % CH === 0 && cj > 0) dirty.add(ci + ',' + (cj - 1)); if (i % CH === 0 && j % CH === 0 && ci > 0 && cj > 0) dirty.add((ci - 1) + ',' + (cj - 1)); }
-    if (CHUNKS) for (const c of CHUNKS) if (dirty.has(c.ci + ',' + c.cj)) { for (const g of Object.values(c.geos)) if (g !== c.mesh.geometry) g.dispose(); const old = c.mesh.geometry; c.geos = {}; if (c.lod >= 0) { c.geos[c.lod] = chunkGeo(c.ci, c.cj, c.lod); c.mesh.geometry = c.geos[c.lod]; old.dispose(); } }
-    return dirty.size; },
+    rebuild(dirty); return dirty.size; },
+  paint(entries) { const dirty = new Set(); for (const [q, v] of entries) { if (v && v[1] > 0.01) PAINTM.set(q, v); else PAINTM.delete(q); const i = q % (NX + 1), j = (q - i) / (NX + 1); dirty.add(Math.floor(i / CH) + ',' + Math.floor(j / CH)); } rebuild(dirty); return dirty.size; },
+  paintMap: PAINTM, LAYERS: { grass: 2, sand: 0, dirt: 1, rock: 4, path: 6 },
+  replacePaint(obj) { const next = new Map(Object.entries(obj || {}).map(([q, v]) => [+q, [Math.floor((v | 0) / 1000), ((v | 0) % 1000) / 100]])); const ch = [];
+    for (const q of PAINTM.keys()) if (!next.has(q)) ch.push([q, null]); for (const [q, v] of next) { const o = PAINTM.get(q); if (!o || o[0] !== v[0] || o[1] !== v[1]) ch.push([q, v]); } return ch.length ? this.paint(ch) : 0; },
+  dumpPaint() { const o = {}; for (const [q, [m, w]] of PAINTM) o[q] = m * 1000 + Math.round(w * 100); return o; },
   replace(obj) { const next = new Map(Object.entries(obj || {}).map(([q, cm]) => [+q, (cm | 0) / 100]).filter(([q]) => q >= 0 && q < Hg.length)); const ch = [];
     for (const q of DELTA.keys()) if (!next.has(q)) ch.push([q, 0]); for (const [q, d] of next) if (DELTA.get(q) !== d) ch.push([q, d]); return ch.length ? this.set(ch) : 0; },
   dump() { const o = {}; for (const [q, d] of DELTA) o[q] = Math.round(d * 100); return o; } };
@@ -333,7 +338,7 @@ export function chunkGeo(ci, cj, step) {
   const i0 = ci * CH, j0 = cj * CH, i1 = Math.min(NX, i0 + CH), j1 = Math.min(NZ, j0 + CH), nx = Math.ceil((i1 - i0) / step) + 1, nz = Math.ceil((j1 - j0) / step) + 1;
   const pos = [], col = [], w0 = [], w1 = [], idx = [], at = (a, b) => [Math.min(i1, i0 + a * step), Math.min(j1, j0 + b * step)];
   for (let b = 0; b < nz; b++) for (let a = 0; a < nx; a++) { const [i, j] = at(a, b), x = X0 + i * G, z = Z0 + j * G; pos.push(x, Hg[IDX(i, j)], z);
-    splatAt(i, j, _w8); w0.push(_w8[0], _w8[1], _w8[2], _w8[3]); w1.push(_w8[4], _w8[5], _w8[6], _w8[7]);
+    splatAt(i, j, _w8); { const pv = PAINTM.get(IDX(i, j)); if (pv) { const a = Math.min(1, pv[1]); for (let k = 0; k < 8; k++) _w8[k] *= 1 - a; _w8[pv[0]] += a; } } w0.push(_w8[0], _w8[1], _w8[2], _w8[3]); w1.push(_w8[4], _w8[5], _w8[6], _w8[7]);
     const mm = 0.9 + 0.2 * fbm(x * 0.017 + 3, z * 0.017, 3), gv = fbm(x * 0.03, z * 0.03 + 5, 2); let r = 0, g = 0, bl = 0;
     for (let k = 0; k < 8; k++) { const c = k === 2 ? GRASS_V[gv > 0.55 ? 1 : gv < 0.42 ? 2 : 0] : SPLAT_C[k]; r += c.r * _w8[k]; g += c.g * _w8[k]; bl += c.b * _w8[k]; }
     const deep = sm(-0.5, -6, Hg[IDX(i, j)]); col.push(r * mm * (1 - deep * 0.35), g * mm * (1 - deep * 0.15), bl * mm * (1 - deep * 0.05)); }

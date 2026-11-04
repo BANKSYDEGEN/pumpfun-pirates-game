@@ -456,5 +456,5 @@ window.PFP_PVP_SAVE = { prestigeLevel, checkName, renameEverywhere, loadProfile,
 // [terrain-edit] the island's height deltas (pvp function): load = anyone (+ whether YOU are the owner, decided by the server); put = owner only
 const ident = () => { const s = session(); return s ? { token: s.token } : { dk: deviceKey() }; };
 export async function terrainLoad() { if (!PVP_FN_URL) return null; try { return await api('terrain_get', ident()); } catch { return null; } }
-export async function terrainSave(cells, rev, pieces = {}) { if (!PVP_FN_URL) return { ok: false, error: 'offline' };
-  try { return await api('terrain_put', { ...ident(), cells, pieces, rev }); } catch (e) { return { ok: false, status: e.status, error: e.message, body: e.body }; } }
+export async function terrainSave(cells, rev, pieces = {}, paint = undefined) { if (!PVP_FN_URL) return { ok: false, error: 'offline' };
+  try { return await api('terrain_put', { ...ident(), cells, pieces, rev, ...(paint ? { paint } : {}) }); } catch (e) { return { ok: false, status: e.status, error: e.message, body: e.body }; } }

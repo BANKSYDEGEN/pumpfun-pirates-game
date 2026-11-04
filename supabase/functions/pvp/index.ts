@@ -410,8 +410,8 @@ Deno.serve(async (req) => {
       // [terrain-edit] BANKSY's island terrain deltas: anyone reads them (every client applies them at startup); only the owner writes
       case "terrain_get": {
         const who = (b.token || b.dk) ? await whoAmI(b).catch(() => null) : null;
-        const { data } = await db.from("pvp_terrain").select("cells, pieces, rev").eq("id", "island").maybeSingle();
-        return json(200, { ok: true, cells: data?.cells ?? {}, pieces: data?.pieces ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
+        const { data } = await db.from("pvp_terrain").select("cells, pieces, paint, rev").eq("id", "island").maybeSingle();
+        return json(200, { ok: true, cells: data?.cells ?? {}, pieces: data?.pieces ?? {}, paint: (data as any)?.paint ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
       }
       case "terrain_put": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
@@ -426,11 +426,17 @@ Deno.serve(async (req) => {
         for (const [id, v] of Object.entries(ps)) { if (typeof id !== "string" || id.length > 160 || !v || typeof v !== "object") continue; if (++np > 5000) return json(413, { error: "too many pieces" });
           const f = (x: unknown, lim: number) => Math.max(-lim, Math.min(lim, Math.round((Number(x) || 0) * 100) / 100));
           pieces[id] = v.h ? { h: 1 } : { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; }
-        const { data: cur } = await db.from("pvp_terrain").select("cells, pieces, rev, log").eq("id", "island").maybeSingle();
-        if (cur && Number.isInteger(b.rev) && b.rev !== cur.rev) return json(409, { error: "terrain changed", cells: cur.cells, pieces: cur.pieces, rev: cur.rev });
-        const log = [...(Array.isArray(cur?.log) ? cur.log : []), ...(cur ? [{ at: new Date().toISOString(), rev: cur.rev, cells: cur.cells, pieces: cur.pieces }] : [])].slice(-20);
+        // [034] paint: { cell: layer * 1000 + percent } (layers 0-7); a save WITHOUT paint (v183 / v184 clients) keeps the stored paint
+        let paint: Record<string, number> | null = null;
+        if (b.paint && typeof b.paint === "object" && !Array.isArray(b.paint)) { paint = {}; let nq = 0;
+          for (const [k, v] of Object.entries(b.paint as Record<string, unknown>)) { const q = Number(k), x = Math.round(Number(v));
+            if (!Number.isInteger(q) || q < 0 || q > 400000 || !Number.isFinite(x)) continue; const L = Math.floor(x / 1000), pc = x % 1000;
+            if (L < 0 || L > 7 || pc <= 0 || pc > 100) continue; if (++nq > 60000) return json(413, { error: "too much paint" }); paint[String(q)] = L * 1000 + pc; } }
+        const { data: cur } = await db.from("pvp_terrain").select("cells, pieces, paint, rev, log").eq("id", "island").maybeSingle();
+        if (cur && Number.isInteger(b.rev) && b.rev !== cur.rev) return json(409, { error: "terrain changed", cells: cur.cells, pieces: cur.pieces, paint: (cur as any).paint, rev: cur.rev });
+        const log = [...(Array.isArray(cur?.log) ? cur.log : []), ...(cur ? [{ at: new Date().toISOString(), rev: cur.rev, cells: cur.cells, pieces: cur.pieces, paint: (cur as any).paint }] : [])].slice(-20);
         const rev = (cur?.rev ?? 0) + 1;
-        const { error } = await db.from("pvp_terrain").upsert({ id: "island", cells, pieces, rev, log, updated_at: new Date().toISOString() });
+        const { error } = await db.from("pvp_terrain").upsert({ id: "island", cells, pieces, paint: paint ?? (cur as any)?.paint ?? {}, rev, log, updated_at: new Date().toISOString() });
         if (error) throw error;
         return json(200, { ok: true, rev, n, np });
       }
