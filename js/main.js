@@ -524,10 +524,12 @@ function floatShip(s, dt) {
   const hF = waveHeight(s.x + fx_ * L, s.z + fz * L, t), hA = waveHeight(s.x - fx_ * L, s.z - fz * L, t);
   const hP = waveHeight(s.x + px * B, s.z + pz * B, t), hS = waveHeight(s.x - px * B, s.z - pz * B, t);
   const k = 1 - Math.exp(-dt * 4);
-  const moored = s.anchor && s._safe && !(s.speed > 0.3); // [v176] moored in SAFE HARBOR: half the swell + 0.25 m up, so a berthed hull never dips under the waterline
-  s.y += ((hC + hF + hA) / 3 * (moored ? 0.5 : 1) - 0.6 + (moored ? 0.25 : 0) - s.y) * k;
-  s.pitch += (-Math.atan2(hF - hA, 2 * L) - s.pitch) * k;
-  s.roll += (Math.atan2(hP - hS, 2 * B) * 0.8 + (s.turn || 0) * s.speed * 0.012 - s.roll) * k;
+  const moored = s.anchor && s._safe && !(s.speed > 0.3); // [dock-waterline] moored in SAFE HARBOR: ride the full swell at its highest sample + 0.25 m, half the pitch / roll
+  // (v176 halved the swell, so crests rose past the low sloop gunwale; the water moves fully, so the hull has to as well). Sailing unchanged.
+  const hM = (hC + hF + hA) / 3, rk = moored ? 0.5 : 1;
+  s.y += ((moored ? Math.max(hM, hC, (hP + hS) / 2) + 0.25 : hM) - 0.6 - s.y) * k;
+  s.pitch += (-Math.atan2(hF - hA, 2 * L) * rk - s.pitch) * k;
+  s.roll += (Math.atan2(hP - hS, 2 * B) * 0.8 * rk + (s.turn || 0) * s.speed * 0.012 - s.roll) * k;
   let sinkY = 0, sinkRoll = 0, sinkPitch = 0;
   if (s.sinking > 0) {
     s.sinking += dt;
