@@ -1,13 +1,17 @@
-<!doctype html><meta charset="utf-8"><title>minimap shop icons</title>
+<!doctype html><meta charset="utf-8"><title>minimap icons · every theme</title>
 <body style="margin:0;background:#222;color:#fff;font:14px system-ui">
-<canvas id="c" width="1200" height="520"></canvas>
+<canvas id="c"></canvas>
 <script type="module">
-import { SHOP_ICONS, drawShopIcon } from '../js/mapIcons.js';
-const c = document.getElementById('c').getContext('2d'); const ids = Object.keys(SHOP_ICONS);
-let y = 20;
-for (const [style, bg] of [['colored', '#174f70'], ['paper', '#cfc79d']]) for (const r of [6, 10, 22]) {
-  c.fillStyle = bg; c.fillRect(0, y - 10, 1200, r * 2 + 40);
-  c.fillStyle = style === 'paper' ? '#3b2410' : '#fff'; c.font = 'bold 13px system-ui'; c.fillText(`${style} r=${r}`, 8, y + r + 4);
-  ids.forEach((id, i) => { drawShopIcon(c, SHOP_ICONS[id], 160 + i * 130, y + r + 6, r, style); if (r === 22) { c.fillStyle = style === 'paper' ? '#3b2410' : '#fff'; c.font = '11px system-ui'; c.textAlign = 'center'; c.fillText(SHOP_ICONS[id][4], 160 + i * 130, y + r * 2 + 22); c.textAlign = 'left'; } });
-  y += r * 2 + 44; }
+// [minimap-themes] every map badge in every MINIMAP theme, at radar (phone / desktop) and full-map sizes. ?w=390 = phone width
+import { SHOP_ICONS, THEMES, drawShopIcon } from '../js/mapIcons.js';
+const W = +(new URLSearchParams(location.search).get('w') || 1500), ids = [...new Set(Object.values(SHOP_ICONS))], per = Math.max(1, Math.floor((W - 20) / 92));
+const rows = Math.ceil(ids.length / per), bandH = rows * 96 + 34, cv = document.getElementById('c'); cv.width = W; cv.height = Object.keys(THEMES).length * bandH;
+const c = cv.getContext('2d'); let y = 0;
+for (const [id, th] of Object.entries(THEMES)) {
+  c.fillStyle = th.sea; c.fillRect(0, y, W, bandH); c.fillStyle = th.nFg; c.font = 'bold 15px system-ui'; c.textAlign = 'left'; c.fillText(th.label, 10, y + 20);
+  ids.forEach((ic, i) => { const x = 50 + (i % per) * 92, yy = y + 58 + Math.floor(i / per) * 96;
+    drawShopIcon(c, ic, x - 18, yy, 9, th.badge); drawShopIcon(c, ic, x + 16, yy, 18, th.badge);
+    c.fillStyle = th.nFg; c.font = '10px system-ui'; c.textAlign = 'center'; c.fillText(ic[4], x, yy + 32); });
+  y += bandH; }
+document.title = 'ready';
 </script></body>
