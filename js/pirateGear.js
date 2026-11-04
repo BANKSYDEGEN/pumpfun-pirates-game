@@ -161,14 +161,14 @@ const RAUL5 = {
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'shoulder'];   // [Raul shop items 2] + his new slots
-const _bc = new THREE.Color(), _bl = new THREE.Color();
-// [Raul items redo] BANKSY "the new items are bad": on the default (painted black) hair the beard was black on black and vanished into
-// the male's own beard. Default hair = a honey-brown beard (v5 warm palette); a picked hair colour is followed, the darkest picks lifted
-// a little so the locks still read over his painted beard. Key 2 = the groove shade between the locks.
-export const BEARD_DEFAULT = '#b58132';
+const _bc = new THREE.Color();
+// [Raul items redo] BANKSY (3:14 PM 2026-11-04): every beard colour MATCHES the pirate's hair colour options. The keyed beards take the exact
+// HAIR + BEARD swatch the player picked (DEFAULT = the pirate's own baked hair colour, as the hair shows it; no honey default, no lift) and
+// shade like the hair: the same toon ramp (js/pirateGLB.js gradient) lights both; key 2 (the groove between the locks) = the hair colour at
+// the ramp's shadow step (170 / 255). Blackbeard (not keyed) = the BLACK hair swatch, baked in tools/blender/beards/build_beards.py.
+export const BEARD_SHADOW = 170 / 255;
 export function beardCols(p, g) {
-  const h = g?.hairColor > 0 ? hairHexOf(p, g) : BEARD_DEFAULT; _bc.set(h); const l = 0.2126 * _bc.r + 0.7152 * _bc.g + 0.0722 * _bc.b;
-  if (l < 0.03) _bc.lerp(_bl.set('#5a4a42'), 0.45); const k1 = '#' + _bc.getHexString(); _bc.multiplyScalar(0.62); return { 1: k1, 2: '#' + _bc.getHexString() };
+  _bc.set(hairHexOf(p, g)); const k1 = '#' + _bc.getHexString(); _bc.multiplyScalar(BEARD_SHADOW); return { 1: k1, 2: '#' + _bc.getHexString() };
 }
 const rv = (v, g) => (typeof v === 'function' ? v(g) : v);
 // clothes: which body skin they cover (bind pose, three space: y up, +z front; belt top y 0.49, wrist |x| 0.555)

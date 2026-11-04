@@ -135,12 +135,12 @@ for (const id of Object.keys(BEARD_LO)) test(`${id}: lo budget (phone), hi budge
   for (const who of ['male', 'female']) { const lo = glb(`assets/pirates/items/v5/${id}_${who}_lo.glb`), hi = glb(`assets/pirates/items/v5/${id}_${who}_hi.glb`);
     assert.ok(lo.tris <= BEARD_LO[id], `${who} lo ${lo.tris}`); assert.ok(hi.tris <= 9000, `${who} hi ${hi.tris}`); }
 });
-test('beards: keyed to your beard colour except Blackbeard, hidden on female bodies, honey default reads on the painted black beard', () => {
+test('beards: keyed to your hair colour except Blackbeard (= BLACK hair), hidden on female bodies, beard colour = the hair colour', () => {
   const it = txt('js/pirateItems.js'), g = txt('js/pirateGear.js');
   assert.match(it, /item\('beard_moustache'[^\n]*keyed: true/); assert.match(it, /item\('beard_forked'[^\n]*keyed: true/); assert.doesNotMatch(it.match(/item\('beard_black'[^\n]*/)[0], /keyed: true/);
   assert.match(g, /export const BEARD_ON_FEMALE = false;/); assert.match(g, /slot === 'beard' && p\.female && !BEARD_ON_FEMALE/);
-  const hex = g.match(/BEARD_DEFAULT = '#([0-9a-f]{6})'/)[1], lum = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).reduce((a, b, i) => a + b * [0.299, 0.587, 0.114][i], 0);
-  assert.ok(lum > 70, 'default beard colour is light enough to read on black');
+  // [Raul items redo] BANKSY 3:14 PM: the beard matches the hair (the same swatch, DEFAULT included), no separate beard default
+  assert.match(g, /export function beardCols\(p, g\) \{\n  _bc\.set\(hairHexOf\(p, g\)\);/); assert.doesNotMatch(g, /BEARD_DEFAULT/);
 });
 
 // ------------------------------------------------------------ shop + server wiring

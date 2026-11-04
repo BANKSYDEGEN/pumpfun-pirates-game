@@ -193,13 +193,13 @@ for kind, fld in parts:
     if KEYED: C = np.where(groove[:, None], C2, C1)
     else:
       dk, mid, cr = COL('#0b0b10'), COL('#26252f'), COL('#62708f')
-      if not HI:   # [Raul items redo] BANKSY via Emerly: on the phone the Blackbeard read as a BLUE MASK. The blue-grey crest (#62708f, up to 60 %) lands on
+      if True:   # [Raul items redo] (desktop too since v220, BANKSY: match the phone fix) BANKSY via Emerly: on the phone the Blackbeard read as a BLUE MASK. The blue-grey crest (#62708f, up to 60 %) lands on
         # every front-facing vertex, and the phone file has few locks / grooves (smoother field) + MeshBasic (no toon dark band, light baked to
         # ~1.08) -> one flat slate-blue sheet. Phone: near-black base, a faint cool crest only on the tops, and strand streaks down the locks.
-        dk, mid, cr = COL('#050506'), COL('#17161a'), COL('#3b4150')
+        dk, mid, cr = COL('#080808'), COL('#161616'), COL('#3b4150')   # v220: base = the BLACK hair swatch (#161616, js/pirateGear.js HAIR_SWATCHES), groove = it at the ramp's darkest step
         crest = np.clip(N[:, 2] * 0.8 - N[:, 1] * 0.2, 0, 1) * (1 - groove)
       t = (0.2 + 0.8 * crest)[:, None] * (1 + 0.1 * noise(V)[:, None]); C = np.where(groove[:, None], dk, mid * (1 - t * 0.6) + cr * t * 0.6)
-      if not HI: C = C * (0.62 + 0.38 * (0.5 + 0.5 * np.sin(V[:, 0] * 260 + np.sin(V[:, 2] * 90) * 1.6)))[:, None]   # strands (vertical streaks)
+      if True: C = C * (0.62 + 0.38 * (0.5 + 0.5 * np.sin(V[:, 0] * 260 + np.sin(V[:, 2] * 90) * 1.6)))[:, None]   # strands (vertical streaks)
   geo_parts.append(Part(V, Fc, C, True))
 m = finish(geo_parts, ink=(0.0035 if HI else 0.0055), lowlight=not HI)
 me = bpy.data.meshes.new(f'{item}_{who}_{lod}'); me.from_pydata(m.V.tolist(), [], m.F.tolist()); me.update()
