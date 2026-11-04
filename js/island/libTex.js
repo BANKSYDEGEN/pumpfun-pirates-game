@@ -107,6 +107,7 @@ const ROUTE_RULES = [[0xb9b2a6, 'stone_ashlar'], [0xbdb6a8, 'stone_ashlar'], [0x
   [0xffd75a, null], [0xffd27a, null], [0xffc93c, null], [0xd8322f, null], [0x2f8a3a, null], [0x5f9a3a, null], [0xf4e9c8, null], [0xf4efe6, null]];
 export const LIB_AREA_STATS = {};
 export function libAreaBuilt(id, built, ctx = null) {
+  if (id === 'jungle_ruins') { import('./d2Blender.js').then(m => m.d2Built(built, ctx)).catch(e => console.warn('[d2]', e)); return; }   // [Timothy] D2 JUNGLE RUINS in Blender (&d2glb=0 = Post's kit)
   if (!LIB_ON || !built) return;
   if (id === 'hilltop_fort') LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, FORT_RULES, { floor: { y0: 35.9, y1: 36.4, from: 'stone_ashlar', to: 'cobble' } }), 0);
   else if (/^route_/.test(id)) { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { floor: { from: 'stone_ashlar', to: 'stone_trim' }, wear: true }), 0);

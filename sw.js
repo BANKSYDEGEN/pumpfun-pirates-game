@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v184'; // [v184] Raul's shop items 2 fixes (crew copy none of the captain's shop items); [v183] owner build mode stage 1: terrain LEVEL / FLATTEN / BLEND / RAISE / LOWER + undo / redo (SELECT hidden); [v182] Timothy's big empty shop (rent_big) on the old Squad Hall plot (squad interact kept at its door, &bigshop=0 = old hall), docks wood warmed; [v181] harbor AI boats tougher (x1.75 HP, aim 0.65-0.84; bosses + PvP unchanged); [v180] Raul's peg leg fit (v5: fitted knee sleeve, pant leg / boot hidden under it, bends with the knee, swings with the shin; the special pegs re-seated on it); [v179] map ship: path-hotfix (cobbles on walkable floor only, cutting walls cliff rock, camera boom pull-in, no ford kerbs) + island rework 2 (hilltop fort walk-in, Pirates' Climb, rope bridge approaches, D2 Jungle Ruins retouch, walk test)
+const VERSION = 'pfp-v185'; // [v185] Timothy's D2 JUNGLE RUINS in Blender (shared material library; Post's layout, colliders + walk heights unchanged, &d2glb=0 = Post's kit); [v184] Raul's shop items 2 fixes (crew copy none of the captain's shop items); [v183] owner build mode stage 1: terrain LEVEL / FLATTEN / BLEND / RAISE / LOWER + undo / redo (SELECT hidden); [v182] Timothy's big empty shop (rent_big) on the old Squad Hall plot (squad interact kept at its door, &bigshop=0 = old hall), docks wood warmed; [v181] harbor AI boats tougher (x1.75 HP, aim 0.65-0.84; bosses + PvP unchanged); [v180] Raul's peg leg fit (v5: fitted knee sleeve, pant leg / boot hidden under it, bends with the knee, swings with the shin; the special pegs re-seated on it); [v179] map ship: path-hotfix (cobbles on walkable floor only, cutting walls cliff rock, camera boom pull-in, no ford kerbs) + island rework 2 (hilltop fort walk-in, Pirates' Climb, rope bridge approaches, D2 Jungle Ruins retouch, walk test)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -60,6 +60,7 @@ const SHELL = [
   "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
   "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
+  "./js/island/d2Blender.js", // [v185] D2 Jungle Ruins Blender loader
   "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
   "./js/island/kit.js",
@@ -291,6 +292,7 @@ const ASSETS = [
   "./assets/island/hill_sword_shop_low.glb",
   "./assets/island/hill_musket_shop_low.glb",
   "./assets/island/hill_big_shop_low.glb",
+  "./assets/island/d2_jungle_low.glb",
   "./assets/island/docks.glb",
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",
