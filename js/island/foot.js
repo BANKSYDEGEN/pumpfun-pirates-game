@@ -137,6 +137,10 @@ stamp(TRAILS.A, 14, TRg); stamp(TRAILS.B, 14, TRg); stamp(STREETP, 30, STg);
 const PAVE = { full: 2.6, out: 4.0, kerb: 2.8 }; // cobbles full out to 2.6 m, fade by 4 m (just past the kerb stones); kerbs 2.8 m each side of the centre line
 const PVg = new Float32Array(Hg.length).fill(99); stamp(TRAILS.A, 8, PVg); stamp(TRAILS.B, 8, PVg);
 const PAVE_DIGS = activeDigs().map(d => [d.x, d.z]);
+// [path-hotfix] BANKSY 9:48-9:50 PM (live v175) 'how do i get up here' / 'and this before bridge': the cobbles wrapped up the bridge
+// cuttings' near-vertical walls (stretched, read as a climbable stone terrace). Paving is the walk surface only: none past ~35 deg (grade 0.7),
+// so cutting walls, slot walls and scarps keep the rock / cliff paint and read as cliff.
+const PAVE_FLAT = (g) => 1 - sm(0.55, 0.75, g);
 function paveAt(q, x, z) { const d = PVg[q]; if (d > PAVE.out) return 0; let w = 1 - sm(PAVE.full, PAVE.out, d);
   for (const [dx, dz] of PAVE_DIGS) w *= sm(6, 9, Math.hypot(x - dx, z - dz));
   if (COASTM) { const [lx, lz] = CO.w2t(x, z); if (BA.near(lx, lz)) return 0; w *= sm(CO.SWIM_COVE.bank + 0.1, CO.SWIM_COVE.bank + 0.5, CO.coveQ(lx, lz)); }
@@ -266,7 +270,7 @@ function colorAt(i, j, out) {
   out.lerp(SAND, 1 - sm(2.4, 4.2, h)).lerp(WETS, sm(1.2, 0.2, h) * (sd > -40 ? 1 : 0));
   out.lerp(ROCK, sm(0.85, 1.35, slope)).lerp(ROCK2, sm(85, 120, h) * 0.8);
   if (RVg[q] < 12 && h < RVl[q] + 2) out.lerp(BANK, 0.6);
-  out.lerp(DIRT, 1 - sm(2.4, 4.4, TRg[q])); out.lerp(COBBLE, paveAt(q, x, z));
+  out.lerp(DIRT, (1 - sm(2.4, 4.4, TRg[q])) * (1 - sm(0.75, 1.05, slope))); out.lerp(COBBLE, paveAt(q, x, z) * PAVE_FLAT(slope)); // [path-hotfix] cutting / slot walls keep the rock colour
   out.lerp(COBBLE, 1 - sm(STREET.half - 0.5, STREET.half + 1, STg[q]));
   if (COASTM) out.lerp(COBBLE, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
   return out;
@@ -288,7 +292,7 @@ function splatAt(i, j, w) {
   paint(3, 1 - sm(2.0, 4.3, TRg[q]));
   paint(4, sm(0.7, 1.05, sl) + sm(75, 105, h) * 0.7);
   paint(5, sm(1.05, 1.5, sl));
-  paint(6, paveAt(q, x, z)); // [bridge-path-fix] paved trails: Main Street's cobble layer, laid over the rock / cliff paint like the street's
+  paint(6, paveAt(q, x, z) * PAVE_FLAT(sl)); // [bridge-path-fix] paved trails: Main Street's cobble layer on the walkable floor only
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
   if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 24) paint(4, 1 - sm(14, 24, sk));
@@ -657,7 +661,7 @@ function buildKerbs(MATS, OUT, low) {
   const tiles = {}, seg = low ? 2.4 : 1.6, off = PAVE.kerb; let n = 0;
   const R = KERB_STATS; for (const k in R) delete R[k]; const no = (why) => { R[why] = (R[why] || 0) + 1; return false; };
   const ok = (cx, cz, mx, mz) => (paveW(mx, mz) > 0.5 || no('unpaved')) && (gridBi(TRg, cx, cz) > off - 0.9 || no('trail')) && (gridBi(STg, cx, cz) > STREET.half + 2.5 || no('street'))
-    && (waterAt(cx, cz) === null && H(cx, cz) > 0.3 || no('water')) && (areaDeckAt(cx, cz) === null && areaDeckAt(mx, mz) === null || no('deck'))
+    && (waterAt(cx, cz) === null && H(cx, cz) > 0.3 && gridBi(RVg, cx, cz) > 8 || no('water')) /* [path-hotfix] + no kerb stones across a river ford */ && (areaDeckAt(cx, cz) === null && areaDeckAt(mx, mz) === null || no('deck'))
     && (!(Math.abs(cx - ROPE_BRIDGE.c[0]) < 7 && cz > -108 && cz < -59) || no('bridge')) && (!hitCollider(cx, cz, 0.3) || no('collider'));
   for (const path of [TRAILS.A, TRAILS.B]) { const P = [path[0]]; // resample the spline at the stone length
     for (let i = 1, acc = 0; i < path.length; i++) { const [ax, az] = path[i - 1], [bx, bz] = path[i], L = Math.hypot(bx - ax, bz - az); let t = seg - acc;
