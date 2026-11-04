@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v169'; // [v169] Raul's swim animations (tread / crawl / dolphin kick / pull-up: js/onfoot/swimPose.js) + the home "?" help matches what's live
+const VERSION = 'pfp-v170'; // [v170] Timothy's HILL STREET: Main Street rebuilt in Blender (24 buildings, 22 empty rentable shops, SWORD SHOP L6 + MUSKET SHOP R6 buildings; the old R3 SHOP house is gone)
 const SHELL = [
   "./",
   "./index.html",
@@ -55,6 +55,8 @@ const SHELL = [
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader
+  "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
+  "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
   "./js/island/kit.js",
   "./js/island/look.js",
@@ -280,6 +282,10 @@ const ASSETS = [
   "./assets/island/town_kit_low.webp.glb",
   "./assets/island/plaza_shops.glb",
   "./assets/island/plaza_shops_low.glb",
+  // [Timothy hill street] only the phone (_low) models are precached; the High ones (3.7 MB) are cached on first use (network-first handler)
+  "./assets/island/hill_street_low.glb",
+  "./assets/island/hill_sword_shop_low.glb",
+  "./assets/island/hill_musket_shop_low.glb",
   "./assets/island/docks.glb",
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",

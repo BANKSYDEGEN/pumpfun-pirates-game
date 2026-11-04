@@ -511,7 +511,7 @@ function grassGeos() {
 }
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRg[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
-  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
+  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
 // [island-rework] now read from js/island/digSpots.js (active spots only, BAKED coords = today's beachNear() results, so no X moves)
@@ -651,6 +651,7 @@ export function buildStreet(A, low, F) {
     if (side === 1 && n === 0) continue;                      // Squad Hall plot
     if (n === 4 && side === 1) continue;                      // the square (well)
     const fl = 2 + (hash(n, side) > 0.55 ? 1 : 0), d = 8 + hash(side, n) * 2, lx = S.x + side * (S.half + 1 + d / 2), [x, wz] = tw(lx, z), yaw = twy(side === -1 ? Math.PI / 2 : -Math.PI / 2);
+    if (PV.hillLot && PV.hillLot({ side, n, z, w, d, lx, x, wz, yaw, y: H(x, wz), addBox, addCirc, LOTS_MAP })) continue; // [Timothy] Blender hill street building + its own colliders (js/island/hillStreet.js), else the colonial house
     colonial(k, F, x, H(x, wz), wz, yaw, w, d, fl, n * 2 + (side > 0 ? 1 : 0), low, SIGNS[side + ':' + n] || null, A);
     { const nm = { '1:3': 'SHOP (R3)', '-1:1': 'Tavern (L1)', '-1:4': 'Bounties (L4)' }[side + ':' + n]; LOTS_MAP.push({ lx, z, w, d, side, label: nm || null, col: nm ? '#fbbf24' : 'rgba(240,220,190,0.9)', tc: nm ? '#fde68a' : '#fff', ...({ '1:3': { ldx: 20, ldy: 75 }, '-1:1': { ldx: -10, ldy: -70 }, '-1:4': { ldx: 10, ldy: -70 } }[side + ':' + n] || {}) });
       if (side === 1 && n === 3) { const [sx, sz] = tw(S.x + S.half + 1 - 1.6, z); SHOP_SPOTS.shop = { id: 'shop', x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.4, label: 'E · SHOP' }; } }

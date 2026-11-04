@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
+import { loadHill, buildHill } from './hillStreet.js';   // [Timothy] the Blender hill street (Main Street)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const SHOPS_GLB_ON = !(Q && Q.get('shopsglb') === '0');
@@ -104,14 +105,15 @@ export function plazaShopsReady(low) {
     SHOPS_KIT = { low, shops, url };
     return SHOPS_KIT;
   }).catch(e => { console.warn('[plaza] shop models failed, blockout shells instead', e); SHOPS_KIT = null; return null; });
-  _p = Promise.all([_p, bat]).then(([s]) => s);
+  _p = Promise.all([_p, bat, loadHill(low)]).then(([s]) => s);   // [Timothy] + the hill street (only with the Blender plaza: buildPlazaShops places it)
   return _p;
 }
 
 // one THREE.LOD per storefront placed by SHOP_PLACES (call after buildPlazaV2)
 export function buildPlazaShops() {
-  if ((!SHOPS_KIT || !SHOP_PLACES.length) && !DOCK_PLACES.length) return null;
-  const root = new THREE.Group(); root.name = 'plaza_v2_shops'; const d = SHOPS_KIT.low ? DIST.low : DIST.high; let tris = 0;
+  const hill = buildHill();   // [Timothy] the hill street buildings (null = the colonial houses)
+  if ((!SHOPS_KIT || !SHOP_PLACES.length) && !DOCK_PLACES.length) return hill;
+  const root = new THREE.Group(); root.name = 'plaza_v2_shops'; const d = SHOPS_KIT.low ? DIST.low : DIST.high; let tris = 0; if (hill) root.add(hill);
   for (const { id, m } of SHOPS_KIT ? SHOP_PLACES : []) { const s = SHOPS_KIT.shops[id]; if (!s) continue;
     const lod = new THREE.LOD(); lod.name = 'plaza_' + id; m.decompose(lod.position, lod.quaternion, lod.scale);
     s.lods.forEach((g, i) => { lod.addLevel(g, d[i] ?? d[d.length - 1] + 80 * i); });
