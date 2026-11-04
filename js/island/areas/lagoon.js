@@ -98,7 +98,7 @@ export default {
     if (q.id === 'lagoon_gill') { const s = store.get(), j = s.fish || {}, n = Object.keys(j).length, big = Object.entries(j).sort((a, b) => b[1].cm - a[1].cm)[0], pearls = (s.pearls || []).length;
       return `GRANDPA GILL<br><small>"${n ? 'Not bad, young pirate!' : 'Grab the rod at the end of my dock, cast, and REEL IN when the float dips!'}"<br>FISH JOURNAL ${n}/${FISH.length} · RIVER PEARLS ${pearls}/${PEARLS.length}${big ? `<br>biggest: ${FISH.find(f => f[0] === big[0])[1]} ${big[1].cm} cm` : ''}<br>${AREA_GOLD_ON ? '' : 'the fish market opens soon'}</small>`; }
     if (q.id === 'lagoon_grotto') { const s = store.get(); if ((s.chests || {}).lagoon_grotto === today()) return 'THE CHEST IS EMPTY<br><small>it refills tomorrow</small>';
-      b?.chest.open(t); let pearl = false; store.upd(o => { (o.chests = o.chests || {}).lagoon_grotto = today(); o.pearls = o.pearls || []; if (!o.pearls.includes('p_grotto')) { o.pearls.push('p_grotto'); pearl = true; } });
+      b?.chest.open(t); let pearl = false; store.upd(o => { (o.chests = o.chests || {}).lagoon_grotto = today(); o.pearls = o.pearls || []; if (!o.pearls.includes('p_grotto')) { o.pearls.push('p_grotto'); pearl = true; } }); if (pearl) window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:river_pearl', spot: 'lagoon_p_grotto' } })); // [inventory]
       return `HIDDEN GROTTO CHEST!<br>${pearl ? '<small>you found a RIVER PEARL · ' + store.get().pearls.length + '/' + PEARLS.length + '</small><br>' : ''}${PENDING}`; }
     return null;
   },
@@ -119,7 +119,7 @@ function fish(t) {
   st.mode = 'idle'; let r = Math.random() * FISH.reduce((a, f) => a + f[2], 0), f = FISH[0]; for (const x of FISH) { r -= x[2]; if (r <= 0) { f = x; break; } }
   const cm = Math.round(f[3][0] + Math.random() ** 1.6 * (f[3][1] - f[3][0])); let isNew = false, rec = false, pearl = null;
   store.upd(o => { o.fish = o.fish || {}; const e = o.fish[f[0]]; isNew = !e; rec = !!e && cm > e.cm; if (!e || cm > e.cm) o.fish[f[0]] = { cm, at: today() }; o.caught = (o.caught || 0) + 1;
-    o.pearls = o.pearls || []; if (Math.random() < 0.04) { const p = PEARLS.slice(1).find(id => !o.pearls.includes(id)); if (p) { o.pearls.push(p); pearl = p; } } });
+    o.pearls = o.pearls || []; if (Math.random() < 0.04) { const p = PEARLS.slice(1).find(id => !o.pearls.includes(id)); if (p) { o.pearls.push(p); pearl = p; } } }); window.dispatchEvent?.(new CustomEvent('pfp-catch')); if (pearl) window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:river_pearl', spot: 'lagoon_' + pearl } })); // [inventory] the SERVER rolls the fish that goes in your bag
   const s = store.get(); return `${f[2] <= 3 ? 'WHOA! ' : ''}${f[1].toUpperCase()} · ${cm} cm<br><small>${isNew ? 'NEW in your fish journal · ' : rec ? 'a new record! · ' : ''}journal ${Object.keys(s.fish).length}/${FISH.length}${pearl ? '<br>…and a RIVER PEARL! ' + s.pearls.length + '/' + PEARLS.length : ''}</small>`;
 }
 export const _fishState = st; // tests

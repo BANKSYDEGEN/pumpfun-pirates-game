@@ -264,3 +264,22 @@ export const maxedLevels = (lv: Record<string, number>) => Object.entries(PRESTI
 export const PRESTIGE_SKINS: Record<number, string> = { 1: "skin:golden", 2: "skin:diamond" };
 export const prestigeSkins = (lv: number) => Object.entries(PRESTIGE_SKINS).filter(([n]) => (Number(lv) || 0) >= Number(n)).map(([, it]) => it);
 export const stalePrestige = (sent: number | undefined, server: number) => server > 0 && (Number(sent) || 0) < server;
+// ---------------- [inventory] NPC SALES (Fish Stand + Antiques): ONE payout path ----------------
+// gold = base price (SQL pvp_inv_prices) x qty x sellMultiplier. The multiplier = 1 + boosts.sell from the SERVER's own gear + ownership
+// rows (index.ts boostsOf, the same read map_dig uses), so Raul's pet SELL bonus plugs in by adding `sell` to the boosts; until that lands
+// there is no `sell` field and the multiplier is 1.0. SQL clamps it again to [1.0, 1.40]; the payout itself has NO cap (BANKSY 11:40).
+// The player Marketplace never calls this (no bonus on trades).
+export const SELL_MULT_MIN = 1.0, SELL_MULT_MAX = 1.4;
+export function sellMultiplier(boosts: unknown): number {
+  const s = Number((boosts as Record<string, unknown> | null | undefined)?.sell);
+  if (!Number.isFinite(s) || s <= 0) return 1.0;
+  return Math.min(SELL_MULT_MAX, Math.max(SELL_MULT_MIN, 1 + s));
+}
+type Rpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: any; error: any }> };
+export async function sellItem(db: Rpc, pid: string, item: string, qty: number, shop: "fish" | "antiques", boosts: () => unknown | Promise<unknown>) {
+  let b: unknown = null; try { b = await boosts(); } catch { b = null; }   // no boosts (or an error reading them) = 1.0, never a failed sale
+  const mult = sellMultiplier(b);
+  const { data, error } = await db.rpc("pvp_inv_sell", { p_player: pid, p_item: item, p_qty: qty, p_shop: shop, p_mult: mult });
+  if (error) throw error;
+  return { ...(data || {}), mult_sent: mult };
+}

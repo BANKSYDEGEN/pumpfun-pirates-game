@@ -60,3 +60,23 @@ export function chestDrop(mapId: string, tier: string, owner = false, items = SH
   }
   return { item, slot, id, crew, price, dup_gold: Math.floor(price * CHEST_DUP_SHARE) };
 }
+// ---------------- [inventory] ITEMS-ONLY CHESTS (BANKSY 11:12: "don't get gold from chests only items") ----------------
+// A dig now pays NO gold: the chest holds valuables (gold bars, rubies, diamonds, jewelry) + maybe a weapon (rare+ only from rare /
+// legendary chests, behind rare_weapon_drops) + the 035 cosmetic roll above (already owned -> a 'dup:' item to sell). Same seeded rolls.
+import { CHEST_VALUABLES, CHEST_EXTRA_VALUABLE, CHEST_WEAPON, WEAPON_BASES, dupRarity } from "./invCatalog.ts";
+const pickW = (table: Record<string, number>, roll: number) => { let r = roll; for (const [k, w] of Object.entries(table)) { if (r < w) return k; r -= w; } return Object.keys(table).at(-1)!; };
+export type ChestItem = { item: string; qty: number };
+export function chestItems(mapId: string, tier: string, holder = false, rareWeapons = false): ChestItem[] {
+  const t = (tier in CHEST_VALUABLES ? tier : "common") as keyof typeof CHEST_VALUABLES, out: ChestItem[] = [], q = holder ? 2 : 1; // holders: x2 valuables (was x2 gold)
+  out.push({ item: "val:" + pickW(CHEST_VALUABLES[t], chestRoll("val:" + mapId)), qty: q });
+  if (chestRoll("val2:" + mapId) < CHEST_EXTRA_VALUABLE[t]) out.push({ item: "val:" + pickW(CHEST_VALUABLES[t], chestRoll("val2p:" + mapId)), qty: q });
+  const w = CHEST_WEAPON[t];
+  if (chestRoll("wpn:" + mapId) < w.chance) {
+    let rar = pickW(w.tiers, chestRoll("wpnt:" + mapId)); if (!rareWeapons) rar = "common";
+    const slot = chestRoll("wpns:" + mapId) < 500 ? "sword" : "musket", bases = WEAPON_BASES[slot].filter((b: string) => b !== "rusty" || rar !== "common");
+    out.push({ item: `wpn:${slot}:${bases[chestRoll("wpnb:" + mapId) % bases.length]}:${rar}`, qty: 1 });
+  }
+  const m = new Map<string, number>(); for (const x of out) m.set(x.item, (m.get(x.item) || 0) + x.qty); // same item twice = one stack
+  return [...m].map(([item, qty]) => ({ item, qty }));
+}
+export const dupItem = (drop: ChestDrop) => drop ? `dup:${drop.slot}:${drop.id}:${dupRarity(drop.price)}` : null;

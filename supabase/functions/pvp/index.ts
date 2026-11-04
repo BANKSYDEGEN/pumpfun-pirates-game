@@ -6,7 +6,8 @@ import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.t
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
-import { chestDrop, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked)
+import { chestDrop, chestItems, dupItem, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
+import { inventoryAction, INV_ACTIONS } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -572,7 +573,16 @@ Deno.serve(async (req) => {
         // [v152] CHEST ITEMS: the server picks the chest item from the map id (chest.ts; tier from OUR row, never the client's);
         // migration 035 grants it in the dig's own transaction. 035 not run yet -> the 026 dig (gold only), same as before.
         let drop: ChestDrop = null;
-        if (!who.owner) { const { data: mr } = await db.from("pvp_maps").select("tier").eq("id", id).eq("player_id", who.pid).is("dug_at", null).maybeSingle(); if (mr) drop = chestDrop(id, mr.tier); }
+        const { data: mr } = await db.from("pvp_maps").select("tier").eq("id", id).eq("player_id", who.pid).is("dug_at", null).maybeSingle();
+        if (!who.owner && mr) drop = chestDrop(id, mr.tier);
+        // [inventory] 036: ITEMS ONLY (no chest gold): valuables + maybe a weapon + the cosmetic (owned -> a sellable 'dup:' item)
+        if (mr) { const { data: rf } = await db.from("pvp_flags").select("on_").eq("k", "rare_weapon_drops").maybeSingle();
+          const items = chestItems(id, mr.tier, holder, !!rf?.on_);
+          const { data: iv, error: ie } = await db.rpc("pvp_map_dig_inv", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_items: items, p_cosmetic: drop?.item ?? null, p_crew: !!drop?.crew, p_dup: dupItem(drop) });
+          if (!ie) { if (!iv?.ok) return json(409, { error: iv?.why || "no treasure" });
+            const loot = drop && iv.item ? { item: String(iv.item).slice(5), crew: !!iv.crew, dup: !!iv.dup, dup_gold: 0, dup_item: iv.dup_item ?? null, price: drop.price } : null;
+            return json(200, { ok: true, gold: 0, dig_gold: 0, tier: iv.tier, holder, owner: who.owner, items: iv.items || [], loot }); }
+          if (!/pvp_map_dig_inv|PGRST202|42883/.test(`${ie.code} ${ie.message}`)) throw ie; } // 036 not run yet -> the 035 / 026 dig below, as before
         // [Raul items redo 2] PET SELL BONUS (PROPOSED): a spare item is SOLD for CHEST_DUP_SHARE of its price; the worn pet adds its % (server gear + ownership)
         const sell = drop ? ((await boostsOf(who, b)).sell || 0) : 0;
         let { data, error } = drop
@@ -586,7 +596,9 @@ Deno.serve(async (req) => {
         const loot = drop && data.item ? { item: String(data.item).slice(5), crew: !!data.crew, dup: !!data.dup, dup_gold: data.dup_gold | 0, price: drop.price, sell: data.dup ? sell : 0 } : null; // item = 'slot:id' (the client's gear key)
         return json(200, { ok: true, gold: data.gold, dig_gold: data.dig_gold ?? data.gold, base: data.base, tier: data.tier, holder, owner: who.owner, loot });
       }
-      default: return json(400, { error: "unknown action" });
+      default:
+        if (INV_ACTIONS.includes(String(b.action))) return await inventoryAction({ db, whoAmI, boostsOf, json, mapSpots: MAP_SPOTS }, String(b.action), b); // [inventory]
+        return json(400, { error: "unknown action" });
     }
   } catch (e) { console.error(e); return json(500, { error: "server error" }); }
 });

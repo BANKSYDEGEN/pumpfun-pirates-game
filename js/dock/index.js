@@ -17,6 +17,7 @@ import { createPetFollower } from '../onfoot/pets.js'; // [Raul items redo 2] yo
 import { binds, keyName, isKey } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
+import { createInventory } from '../inventory/ui.js'; // [inventory] the INVENTORY grid + plaza shop panels (migration 036)
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
@@ -83,8 +84,10 @@ export async function createDock(ctx) {
   const radarEl = document.getElementById('radar');
   radarEl?.addEventListener('pointerdown', (e) => { if (!on || !radarEl.classList.contains('isle-tap')) return; e.preventDefault(); e.stopPropagation(); openIsleMap(); });
   // [v145] calm() = the treasure-map reveal may play now (never mid-fight); getPos() = you on foot, else your ship (harbor coords)
-  const treasure = createTreasure({ world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
+  let inventory = null; // [inventory] (made right after the treasure maps: it opens them)
+  const treasure = createTreasure({ inventory: () => inventory, world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
+  try { inventory = createInventory({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure }); } catch (e) { console.warn('[inventory]', e); } // [inventory]
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
     hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact
@@ -317,7 +320,7 @@ export async function createDock(ctx) {
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
     netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}) } : {}), // [Timothy] + 'bc' (your last battery shot) + 'ba' / 'bh' (battle areas)
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
-    dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure,
+    dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, openBoard, closeBoard, treasure, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,

@@ -13,6 +13,7 @@
 import { createTreasureMap } from './treasureMap.js';
 import { validIds } from '../island/digSpots.js'; // [island-rework] the shared dig-spot registry (server lists are generated from it)
 import { createChestReveal, chestItemInfo } from './chestReveal.js'; // [v152] chest items (server-picked)
+import { itemInfo } from '../inventory/catalog.js'; // [inventory]
 const TIER = { common: ['COMMON MAP', '#e8cf95'], rare: ['RARE MAP', '#7fd0ff'], legendary: ['LEGENDARY MAP', '#ffcd3c'] };
 const RANK = { common: 0, rare: 1, legendary: 2 };
 const WHY = {
@@ -32,7 +33,7 @@ const CSS = `
 @keyframes tmBtn{50%{background:#7a4a10;box-shadow:0 0 14px #ffcd3c}}
 @media (max-height:520px){#hud-tr #tm-btn{position:absolute;right:calc(100% + 8px);top:52px;margin:0;white-space:nowrap;font-size:19px;padding:3px 9px 1px}}   /* phone landscape: left of the radar (the chat / emote button sits under it) */
 `;
-export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => true, getPos = () => null, sfx = null, low = false }) {
+export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => true, getPos = () => null, sfx = null, low = false, inventory = () => null }) { // [inventory] inventory() = the INVENTORY grid (js/inventory/ui.js)
   const spots = new Map(world.footInteract.filter(q => q.kind === 'dig' || q.id === 'cave').map(q => [q.id, q]));
   // [island-rework] every id the server accepts must have its X here (tools/check_digspots.py checks the positions too)
   { const miss = validIds().filter(id => !spots.has(id)); if (miss.length) console.warn('[treasure] dig spots missing on this island:', miss.join(', ')); }
@@ -44,7 +45,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; (document.getElementById('hud-tr') || document.body).appendChild(btn);
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) btn.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
-  btn.addEventListener('click', (e) => { e.stopPropagation(); tmap.isOpen ? close() : open(); });
+  btn.addEventListener('click', (e) => { e.stopPropagation(); const iv = inventory(); if (iv) { tmap.isOpen && close(); iv.isOpen ? iv.close() : iv.open('bag'); return; } tmap.isOpen ? close() : open(); }); // [inventory] BANKSY 11:02: the MAPS button is INVENTORY
   // the dig target = the spot itself (harbor coords, for the radar): r = the DIG prompt radius
   function target() { if (!sel) return null; const q = spots.get(sel.spot); if (!q) return null; return { x: q.x, z: q.z, r: q.r || 3 }; }
   const footOf = (q) => { const [x, z] = toF(q.x, q.z); return { x, z }; };
@@ -55,7 +56,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     return { me, target: t, others, label: q ? `${spotName(sel.spot)}${d !== null ? ' · ' + d + ' m' : ''}` : null };
   }
   function renderUi() {
-    btn.innerHTML = `🗺 MAPS<b>${maps.length}</b>`;
+    const iv = inventory(); btn.innerHTML = iv ? `🎒 INVENTORY<b>${Math.max(iv.count, maps.length)}</b>` : `🗺 MAPS<b>${maps.length}</b>`;
     const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
       return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
     const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>${r.loot && r.loot.item && !r.loot.dup ? ` + ${chestItemInfo(r.loot.item, r.loot.crew).label}${r.loot.crew ? ' (crew)' : ''}` : ''}`).join(' ')}` : '';
@@ -84,10 +85,10 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
       if (!warnedNew && (r.maps || []).some(m => !spots.has(m.spot))) { warnedNew = true; toast('A MAP POINTS TO A NEW PART OF THE ISLAND<br><small>reload to update the game</small>', 3200); } // [island-rework] old cached client
       if (sel && !maps.some(m => m.id === sel.id)) sel = null; if (!sel && maps.length) sel = maps[0];
       if ((r.new | 0) > 0) { const fresh = maps.filter(m => !had.has(m.id)).slice(-(r.new | 0)); queueReveal(fresh.length ? fresh : maps.slice(-(r.new | 0))); }
-      renderUi(); } finally { loading = false; } }
+      renderUi(); inventory()?.refresh?.().then?.(renderUi); } finally { loading = false; } }
   function tick() { const o = !!isOn(), now = performance.now();
     if (o && (!wasOn || now - lastAt > 90000)) { lastAt = now; refresh(); }
-    wasOn = o; btn.style.display = o && maps.length ? 'block' : 'none'; if (!o) { close(); tmap.dismiss(true); chest.hide(true); }
+    wasOn = o; btn.style.display = o && (maps.length || inventory()) ? 'block' : 'none'; if (!o) { close(); tmap.dismiss(true); chest.hide(true); }
     if (pending && o && !tmap.isOpen && !tmap.revealing && calm()) playReveal(); }
   const soon = (ms = 6000) => { lastAt = Math.min(lastAt, performance.now() - 90000 + ms); }; // ask the server again in ~ms (after a boss sinks)
   const mapFor = (id) => (sel && sel.spot === id) ? sel : maps.find(m => m.spot === id);
@@ -104,10 +105,14 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
         maps = maps.filter(x => x.id !== m.id); recent = [{ tier: r.tier, gold: r.gold }, ...recent]; if (sel && sel.id === m.id) sel = maps[0] || null;
         recent[0].loot = r.loot || null; renderUi();
         if (r.loot && r.loot.item) chest.show(r); // [v152] the chest held an item: its card (for you / your crew / already yours)
+        else if (r.items && r.items.length) toast(`TREASURE!<br>${r.items.map(x => { const i = itemInfo(x.item); return i ? `${i.icon} ${i.name}${x.qty > 1 ? ' ×' + x.qty : ''}` : x.item; }).join(' · ')}<br><small>in your INVENTORY · sell at the Antiques shop${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3600); // [inventory] items, no chest gold
         else toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200);
+        if (r.items && r.loot && r.loot.item) setTimeout(() => toast(`+ ${r.items.map(x => itemInfo(x.item)?.name || x.item).join(' · ')}<br><small>in your INVENTORY</small>`, 2600), 3400);
+        inventory()?.refresh?.();
       } else { toast(WHY[r?.error] || 'THE DIG FAILED<br><small>check your connection and try again</small>', 2600); if (r?.error === 'already dug' || r?.error === 'not your map') refresh(); }
     } finally { busy = false; }
     return true; }
-  btn.innerHTML = '🗺 MAPS<b>0</b>';
-  return { spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap , chest };
+  btn.innerHTML = inventory() ? '🎒 INVENTORY<b>0</b>' : '🗺 MAPS<b>0</b>';
+  const openMap = (id) => { pick(id); open(); }; // [inventory] OPEN MAP on a grid slot
+  return { openMap, btn, spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap , chest };
 }

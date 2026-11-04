@@ -34,7 +34,7 @@ import { PVP_DEATH_BONUS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, 
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
-import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed } from './pvpSave.js';
+import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed, invApi } from './pvpSave.js'; // [inventory] + invApi
 import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
@@ -219,6 +219,14 @@ export function createPvp(K) {
     canWear(key) { const [slot, id] = String(key).split(':'); return cleanGear({ ...profile.gear, [slot]: id })[slot] === id; }, // [v152] a slot this build knows (weapons: once the WEAPON STORE is in)
     wear(key) { const [slot, id] = String(key).split(':'); const g = cleanGear({ ...profile.gear, [slot]: id }); // [v152] WEAR IT / DRESS CREW on the chest card
       if (g[slot] !== id) return false; profile.gear = g; gearChanged(); save({ now: true, force: true }); sfx.equip?.(); return true; } };
+  // [inventory] migration 036: the server moves items + gold; gold a reply pays (NPC sale, Marketplace buy / proceeds) lands on THIS save
+  // in the same tick, like a dig. The owner's gold goes through his pot (inv_pot), never twice.
+  const inv = { async call(action, body = {}) {
+      const r = await invApi(action, { ...body, mirror: true }); if (!r || !r.ok) return r || { ok: false, error: 'offline' };
+      if (r.owner && (action === 'inv_sell' || action === 'mkt_buy')) { const p = await invApi('inv_pot', { mirror: true }); if (p && p.ok) r.gold_landed = p.gold | 0; }
+      else r.gold_landed = action === 'inv_sell' || action === 'inv_pot' ? (r.gold | 0) : action === 'mkt_buy' ? -(r.price | 0) : 0;
+      if (r.gold_landed) { game.gold = Math.max(0, Math.min(1e7, (game.gold | 0) + r.gold_landed)); save({ now: true, force: true }); K.updateHud(); if (r.gold_landed > 0) sfx.coin?.(); }
+      return r; } };
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }
@@ -1650,7 +1658,7 @@ export function createPvp(K) {
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
