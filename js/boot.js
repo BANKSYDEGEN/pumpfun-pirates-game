@@ -16,13 +16,30 @@ if (/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname
     var p = document.querySelector('#loading .panel'); if (p) { p.innerHTML = '<h1>Ship needs a refresh</h1><p>Could not load the latest version.</p><button class="big" type="button" id="boot-reload">RELOAD</button>';
       var b = document.getElementById('boot-reload'); if (b) b.addEventListener('click', function () { try { sessionStorage.removeItem(KEY); } catch (e) {} location.reload(); }); }
   };
-  // [Emerly gamepad] no WebGL at all (the PlayStation 5's hidden browser, some TV / kiosk browsers): say so instead of the reload loop
-  var noGL = function () { try { var c = document.createElement('canvas'), g = c.getContext('webgl2') || c.getContext('webgl'); if (!g) return true; var x = g.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); return false; } catch (e) { return false; } };
-  if (!/[?&]pad=0(&|$)/.test(location.search) && noGL()) { window.__pfpBootFail = 1; document.addEventListener('DOMContentLoaded', function () {
-    var p = document.querySelector('#loading .panel'), ps = /PlayStation/.test(navigator.userAgent), xb = /\bXbox\b/.test(navigator.userAgent);
-    if (p) p.innerHTML = '<h1>This browser can\'t run the 3D sea</h1><p>' + (ps ? 'The PlayStation browser has no WebGL (3D graphics), so PUMPFUN PIRATES can\'t start here. Play on a PC, Mac, phone or the Xbox Edge browser: your DualSense works there (USB or Bluetooth).'
-      : xb ? 'Turn on hardware acceleration in Edge settings, then reload.' : 'WebGL (3D graphics) is turned off or not supported. Try Chrome, Edge, Firefox or Safari with hardware acceleration on.') + '</p>';
-  }); }
+  // [Emerly gamepad] no WebGL at all (the PlayStation 5's hidden browser, some TV / kiosk browsers): say so instead of the reload loop.
+  // [webgl-card] BANKSY 4:52 PM saw this card on a desktop PC. On a PC, getContext() also returns null for a moment while the GPU process
+  // restarts, and Chrome blocks 3D for a site for the rest of the session after a GPU reset it blames on it. So: try webgl2 then webgl1
+  // (default attributes, never failIfMajorPerformanceCaveat), log the browser's own reason, retry for ~3 s before giving up, and on a
+  // PC offer RELOAD + "restart the browser" instead of a dead card. Only consoles get the console text.
+  var glWhy = '', glTry = function () { var c = document.createElement('canvas'), g = null;
+    c.addEventListener('webglcontextcreationerror', function (e) { glWhy = (e && e.statusMessage) || glWhy; }, false);
+    try { g = c.getContext('webgl2'); } catch (e) { glWhy = String(e && e.message || e); }
+    if (!g) try { g = c.getContext('webgl') || c.getContext('experimental-webgl'); } catch (e) { glWhy = String(e && e.message || e); }
+    if (!g) return false; var x = g.getExtension('WEBGL_lose_context'); if (x) x.loseContext(); return true; };
+  var glCard = function () { window.__pfpBootFail = 1; var show = function () {
+    var p = document.querySelector('#loading .panel'), ua = navigator.userAgent, ps = /PlayStation/.test(ua), xb = /\bXbox\b/.test(ua);
+    console.error('[boot] WebGL could not be created (webgl2 + webgl1 tried, ~3 s of retries):', glWhy || '(the browser gave no reason)', '| UA:', ua);
+    if (!p) return;
+    p.innerHTML = '<h1>This browser can\'t run the 3D sea</h1><p>' + (ps ? 'The PlayStation browser has no WebGL (3D graphics), so PUMPFUN PIRATES can\'t start here. Play on a PC, Mac, phone or the Xbox Edge browser: your DualSense works there (USB or Bluetooth).'
+      : xb ? 'Turn on hardware acceleration in Edge settings, then reload.'
+      : 'The browser would not start 3D graphics (WebGL). If the game ran here before, the graphics driver probably reset and the browser paused 3D for this site: close every browser window and reopen it, then reload. Otherwise turn on hardware acceleration (Chrome / Edge: Settings, System).')
+      + (glWhy ? '</p><p><small>' + String(glWhy).replace(/[<>&]/g, '') + '</small>' : '') + '</p>' + (ps ? '' : '<button class="big" type="button" id="boot-reload">RELOAD</button>');
+    var b = document.getElementById('boot-reload'); if (b) b.addEventListener('click', function () { location.reload(); }); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show(); };
+  if (!/[?&]pad=0(&|$)/.test(location.search) && !glTry()) { window.__pfpBootFail = 1;   // hold the reload failsafe while we retry
+    var tries = 0, again = function () { if (glTry()) { console.warn('[boot] WebGL came back after', tries, 'retries (GPU process restart):', glWhy); try { sessionStorage.removeItem(KEY); } catch (e) {} location.reload(); return; }
+      if (++tries < 6) setTimeout(again, 500); else glCard(); };
+    setTimeout(again, 500); }
   addEventListener('error', function (e) { if (e instanceof ErrorEvent && !booted()) setTimeout(fail, 400); }, true);
   addEventListener('unhandledrejection', function () { if (!booted()) setTimeout(fail, 400); });
   setTimeout(function () { if (!booted()) fail(); }, 30000);
