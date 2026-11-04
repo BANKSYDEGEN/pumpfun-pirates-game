@@ -6,8 +6,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const C = await import('../js/inventory/catalog.js');
 const SQL = readFileSync(new URL('../supabase/migrations/036_inventory.sql', import.meta.url), 'utf8');
-test('migration 036 seeds exactly the catalog prices', () => {
-  const seeded = new Map([...SQL.matchAll(/\('([a-z:_]+)',\s*'(fish|antiques)',\s*(\d+)\)/g)].map(m => [m[1] + '|' + m[2], +m[3]]));
+const SQL37 = readFileSync(new URL('../supabase/migrations/037_fish_prices.sql', import.meta.url), 'utf8'); // [v208] fish prices + sell / market on
+test('migrations 036 + 037 seed exactly the catalog prices', () => {
+  const seeded = new Map([...(SQL + SQL37).matchAll(/\('([a-z:_]+)',\s*'(fish|antiques)',\s*(\d+)\)/g)].map(m => [m[1] + '|' + m[2], +m[3]]));
   const rows = C.priceRows(); assert.equal(seeded.get('map|antiques'), 100); assert.equal(seeded.size, rows.length + 1);
   for (const [k, s, p] of rows) assert.equal(seeded.get(k + '|' + s), p, k);
 });
@@ -15,8 +16,10 @@ test('supabase invCatalog.ts is generated from js/inventory/catalog.js', () => {
   const gen = readFileSync(new URL('../supabase/functions/pvp/invCatalog.ts', import.meta.url), 'utf8');
   assert.equal(gen.slice(gen.indexOf('\n') + 1), readFileSync(new URL('../js/inventory/catalog.js', import.meta.url), 'utf8'), 'run node tools/gen_inv_catalog.mjs');
 });
-test('sell / market / weapon flags default OFF, inventory + gifts on, test kit unlocked (BANKSY 11:18)', () => {
-  const F = C.FLAGS; for (const k of ['FISH_SELL_ON', 'ANTIQUES_SELL_ON', 'MARKET_ON', 'MARKET_FEE_ON', 'WEAPON_STATS_ON', 'RARE_WEAPON_DROPS_ON', 'TEST_ONLY_LOCK']) assert.equal(F[k], false, k);
+test('036 seeds every flag OFF but inventory + gifts; 037 (BANKSY 12:55 PM) turns on fish + antiques selling + the market only', () => {
+  const F = C.FLAGS; assert.ok(F.FISH_SELL_ON && F.ANTIQUES_SELL_ON && F.MARKET_ON);
+  assert.match(SQL37, /where k in \('fish_sell', 'antiques_sell', 'market'\);/); assert.doesNotMatch(SQL37, /market_fee|weapon|test_only/);
+  for (const k of ['MARKET_FEE_ON', 'WEAPON_STATS_ON', 'RARE_WEAPON_DROPS_ON', 'TEST_ONLY_LOCK']) assert.equal(F[k], false, k);
   assert.ok(F.INV_ON && F.GIFT_ON);
   for (const k of ['fish_sell', 'antiques_sell', 'market', 'market_fee', 'weapon_stats', 'rare_weapon_drops', 'test_only_lock']) assert.match(SQL, new RegExp(`\\('${k}', false`), k);
 });

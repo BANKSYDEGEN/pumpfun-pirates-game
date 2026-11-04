@@ -5,10 +5,10 @@
 // already own) · map:<uuid> (a treasure map: one row in pvp_maps, never stacks). Everything sell-related sits behind flags that are OFF.
 export const FLAGS = {
   INV_ON: true,              // the HUD INVENTORY grid (was the MAPS button)
-  FISH_SELL_ON: false,       // Fish Stand pays gold (prices = PROPOSAL, waiting on BANKSY)
-  ANTIQUES_SELL_ON: false,   // Antiques shop pays gold (prices = BANKSY 11:19 AM, approved, still off until he flips it)
+  FISH_SELL_ON: true,        // Fish Stand pays gold (BANKSY 12:55 PM: on, 25-500 by rarity; migration 037)
+  ANTIQUES_SELL_ON: true,    // Antiques shop pays gold (prices = BANKSY 11:19 AM; on 12:55 PM)
   GIFT_ON: true,             // gifting between players (no gold moves)
-  MARKET_ON: false,          // the player Marketplace
+  MARKET_ON: true,           // the player Marketplace (on: BANKSY 12:55 PM)
   MARKET_FEE_ON: false,      // listing fee / sales tax gold sink (BANKSY to decide)
   WEAPON_STATS_ON: false,    // rarity stats on swords / muskets
   RARE_WEAPON_DROPS_ON: false, // rare+ weapons in chests
@@ -18,14 +18,14 @@ export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 export const RARITY_COLOR = { common: '#c9c9c9', uncommon: '#6fd36f', rare: '#4fa8ff', epic: '#c070ff', legendary: '#ffcd3c' };
 // FISH (the lagoon's 8 species, js/island/areas/lagoon.js FISH): Fish Stand PROPOSAL, by rarity of the bite
 export const FISH = {
-  minnow:    { name: 'Lagoon Minnow',    icon: '🐟', rarity: 'common',    fish: 15 },
-  perch:     { name: 'Mossy Perch',      icon: '🐟', rarity: 'common',    fish: 25 },
-  snapper:   { name: 'Rainbow Snapper',  icon: '🐠', rarity: 'uncommon',  fish: 45 },
-  eel:       { name: 'Spotted Eel',      icon: '🐍', rarity: 'uncommon',  fish: 70 },
-  pike:      { name: 'Pirate Pike',      icon: '🐟', rarity: 'rare',      fish: 100 },
-  carp:      { name: 'Golden Carp',      icon: '🐡', rarity: 'rare',      fish: 180 },
+  minnow:    { name: 'Lagoon Minnow',    icon: '🐟', rarity: 'common',    fish: 25 },
+  perch:     { name: 'Mossy Perch',      icon: '🐟', rarity: 'common',    fish: 35 },
+  snapper:   { name: 'Rainbow Snapper',  icon: '🐠', rarity: 'uncommon',  fish: 60 },
+  eel:       { name: 'Spotted Eel',      icon: '🐍', rarity: 'uncommon',  fish: 90 },
+  pike:      { name: 'Pirate Pike',      icon: '🐟', rarity: 'rare',      fish: 140 },
+  carp:      { name: 'Golden Carp',      icon: '🐡', rarity: 'rare',      fish: 200 },
   koi:       { name: 'Ghost Koi',        icon: '🎏', rarity: 'epic',      fish: 300 },
-  leviathan: { name: 'Lagoon Leviathan', icon: '🐋', rarity: 'legendary', fish: 1000 },
+  leviathan: { name: 'Lagoon Leviathan', icon: '🐋', rarity: 'legendary', fish: 500 },
 };
 export const FISH_WEIGHT = { minnow: 30, perch: 24, snapper: 16, eel: 12, pike: 9, carp: 5, koi: 3, leviathan: 1 }; // = lagoon.js weights
 // VALUABLES + island finds: Antiques shop, BANKSY 11:19 AM: "keep item values they find 500-5000" (common ~500 .. legendary 5000)
