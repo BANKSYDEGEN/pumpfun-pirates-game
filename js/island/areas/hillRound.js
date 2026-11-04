@@ -57,6 +57,10 @@ const WALLS = [
   [[-430, PZ1 + 0.25], [PX1 + 0.25, PZ1 + 0.25], [PX1 + 0.25, RB2.az + 2.9]],          // plaza N (east of the castle opening x -438..-430) + E down to the bridge
   [[PX1 + 0.25, RB2.az - 2.9], [PX1 + 0.25, PZ0 - 0.25], [cheek(-1, uEdge(-1))[0], PZ0 - 0.25]],   // plaza E (south of the bridge) + S to the stair head
   [cheek(-1, uEdge(-1)), cheek(-1, 1)], [cheek(1, uEdge(1)), cheek(1, 1)],            // the stair's two cheek walls
+  // [stairfix] BANKSY 1:36 PM "I got stuck down here": the plaza's S rim WEST of the stair head had no parapet (only the retaining wall you
+  // see), so you walked off the 2-8 m drop into the slot between the stair's west cheek wall and the hill. Now a parapet runs from the
+  // town-side ramp's foot along the rim and joins the cheek wall (no gap): the only way down is the stairs.
+  [[PX0 - 1.6, PZ0 - 0.25], [cheek(1, uEdge(1))[0], PZ0 - 0.25]],
 ];
 const LAMPS = [[PX1 - 1.3, PZ1 - 1.3], [PX1 - 1.3, PZ0 + 1.3], [-429.2, PZ1 - 1.2], [PX0 + 1.5, PZ0 + 1.4]];   // never in an exit (the hill street enters at z -91..-77)
 const BENCHES = [0.45, 2.3, -2.2].map(a => ({ x: CX + Math.sin(a) * 7.4, z: CZ + Math.cos(a) * 7.4, yaw: a }));
@@ -96,7 +100,7 @@ export default {
       RB_STATS.wallsOff = collidersOff?.((o) => o.t === 1 && gone.some(w => Math.abs(o.x - w.x) < 1e-6 && Math.abs(o.z - w.z) < 1e-6)) ?? 0; }
     { const l = (RT.lamps || []).find(q => q.k === 0); if (l && l.x > PX0 && l.x < PX1 && l.z > PZ0 && l.z < PZ1) { l.y = Y; l.onWall = false; RB_STATS.lamps.push(0); } }   // lamp 0 now stands on the plaza
     { const sg = RT.lm?.sign; if (sg && sg.x > PX0 && sg.x < PX1 && sg.z > PZ0 && sg.z < PZ1) { const ox = sg.x, oz = sg.z;   // the TOWN / FORT / JUNGLE post: off the fountain, to the head of the stairs
-      collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6); Object.assign(sg, { x: -431.7, z: -98.3, y: Y, yaw: CL.yaw }); h.addCirc(sg.x, sg.z, 0.25); RB_STATS.sign = [ox, oz]; } }
+      collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6); Object.assign(sg, { x: -433.2, z: -99.35, y: Y, yaw: CL.yaw }); /* [stairfix] against the new S parapet: no wedge by the stair head */ h.addCirc(sg.x, sg.z, 0.25); RB_STATS.sign = [ox, oz]; } }
     // colliders: fountain, parapets / cheek walls, lamps, benches, planters, bridge towers, piers
     h.addCirc(CX, CZ, FOUNTAIN.basinR + 0.15);
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }

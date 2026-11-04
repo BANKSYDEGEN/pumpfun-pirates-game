@@ -11,7 +11,7 @@ import { toon } from '../toon.js';
 import { kitMesh, pickHouse, HOUSE_VARIANTS } from './townkit.js';
 import * as CO from './coast.js';
 import { activeDigs } from './digSpots.js';
-import { AREA_TERRAIN, registerAreas, createAreas, FORT_WALKIN } from './areas/index.js'; // [island-rework] the six rework areas (lazy-built, per-area culling) // [island-rework] dig spots: one shared registry (baked coords; server lists generated from it)
+import { AREA_TERRAIN, registerAreas, createAreas, FORT_WALKIN, RB_ON } from './areas/index.js'; // [island-rework] the six rework areas (lazy-built, per-area culling) // [island-rework] dig spots: one shared registry (baked coords; server lists generated from it)
 import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
 import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
@@ -131,13 +131,19 @@ function coveH(lx, lz, h) { const C = CO.SWIM_COVE, q = CO.coveQ(lx, lz); if (q 
 export const SKULL = { x: PEAK.x, z: PEAK.z - 62 }; SKULL.y = rawH(SKULL.x, SKULL.z, coastSD(SKULL.x, SKULL.z)); // treasure-cave floor pad
 const t0 = performance.now();
 stamp(TRAILS.A, 14, TRg); stamp(TRAILS.B, 14, TRg); stamp(STREETP, 30, STg);
+// [stairfix] BANKSY 1:37 PM: trail A's closing leg (the old dip path from the waterfalls plateau back to the gate, x -411..-298) is the stretch the
+// high rope bridge replaced: with the roundabout on it loses its paint (dirt + cobbles), kerb stones and torches. The walk / heights / foliage
+// clearance still use the whole loop (TRg); only the PAINT uses TRp. &roundabout=0 = the old paint exactly.
+const A_DEAD = (p) => RB_ON && p[0] > -411 && p[0] < -298 && p[1] > -96 && p[1] < -56;
+const TRAIL_A_PAINT = (() => { const out = [], A = TRAILS.A; let cur = []; for (const p of A) { if (A_DEAD(p)) { if (cur.length > 1) out.push(cur); cur = []; } else cur.push(p); } if (cur.length > 1) out.push(cur); return out; })();
+const DEAD_A = []; { let cur = []; for (const p of TRAILS.A) { if (A_DEAD(p)) cur.push(p); else if (cur.length) { DEAD_A.push(cur); cur = []; } } if (cur.length > 1) DEAD_A.push(cur); }
 // [bridge-path-fix] BANKSY 6:59 PM "make the path stone paved all the way around island": the red (A) + yellow (B) trail loops get the
 // Main Street cobble splat layer (layer 6 + COBBLE colour, the same shader + material: 0 extra geometry / draw calls, no height change).
 // Not paved: near the dig spots (they stay sand / dirt), Raul's swim cove, the battle areas (Timothy's dirt floors), Main Street (already cobbled).
 const PAVE = { full: 2.6, out: 4.0, kerb: 2.8 }; // cobbles full out to 2.6 m, fade by 4 m (just past the kerb stones); kerbs 2.8 m each side of the centre line
 // [ir2] + area paths flagged pave: true (the cells' connecting paths) get the same cobbles + kerbs as the loop
 const PAVED_PATHS = AREA_TERRAIN.paths.filter(p => p.pave).map(p => catmull(p.pts, false, 3));
-const PVg = new Float32Array(Hg.length).fill(99); stamp(TRAILS.A, 8, PVg); stamp(TRAILS.B, 8, PVg); for (const P of PAVED_PATHS) stamp(P, 8, PVg);
+const PVg = new Float32Array(Hg.length).fill(99); for (const P of TRAIL_A_PAINT) stamp(P, 8, PVg); stamp(TRAILS.B, 8, PVg); for (const P of PAVED_PATHS) stamp(P, 8, PVg);
 const PAVE_DIGS = activeDigs().map(d => [d.x, d.z]);
 // [path-hotfix] BANKSY 9:48-9:50 PM (live v175) 'how do i get up here' / 'and this before bridge': the cobbles wrapped up the bridge
 // cuttings' near-vertical walls (stretched, read as a climbable stone terrace). Paving is the walk surface only: none past ~35 deg (grade 0.7),
@@ -222,6 +228,10 @@ for (const [ax, az, ay, bx, bz, by, hw, soft = 0] of AREA_TERRAIN.cuts || []) { 
       const [d, t] = segD(X0 + i * G, Z0 + j * G, ax, az, bx, bz); if (d > m) continue; const q = IDX(i, j), yl = ay + (by - ay) * t - 0.45;
       Hg[q] = soft ? Math.min(Hg[q], Hg[q] + (yl - Hg[q]) * (1 - sm(hw, m, d))) : Math.min(Hg[q], yl); } }
 for (const p of AREA_TERRAIN.paths) { const path = catmull(p.pts, false, 3); stamp(path, 12, TRg); }
+// [stairfix] the paint distance: = TRg, except near the dead leg of trail A, where only the live trails / area paths count
+const TRP_G = (() => { if (!DEAD_A.length) return TRg; const DG = new Float32Array(Hg.length).fill(99), OG = new Float32Array(Hg.length).fill(99), T = new Float32Array(TRg); for (const P of DEAD_A) stamp(P, 14, DG);
+  for (const P of TRAIL_A_PAINT) stamp(P, 14, OG); stamp(TRAILS.B, 14, OG); for (const p of AREA_TERRAIN.paths) stamp(catmull(p.pts, false, 3), 12, OG);
+  for (let q = 0; q < DG.length; q++) if (DG[q] < 14 && DG[q] <= TRg[q] + 1e-3) T[q] = OG[q]; return T; })();
 // [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
 const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 export const WALK_RULES = { slope: +(QS.get('slope') || 1.25), trees: QS.get('trees') !== '0' };
@@ -298,8 +308,8 @@ function colorAt(i, j, out) {
   out.lerp(SAND, 1 - sm(2.4, 4.2, h)).lerp(WETS, sm(1.2, 0.2, h) * (sd > -40 ? 1 : 0));
   out.lerp(ROCK, sm(0.85, 1.35, slope)).lerp(ROCK2, sm(85, 120, h) * 0.8);
   if (RVg[q] < 12 && h < RVl[q] + 2) out.lerp(BANK, 0.6);
-  out.lerp(ROCK, sm(0.4, 0.7, slope) * (1 - sm(10, 22, TRg[q]))); // [path-hotfix] trail cuttings / bridge slots: grey cliff rock (matches splat layer 5 there)
-  out.lerp(DIRT, (1 - sm(2.4, 4.4, TRg[q])) * (1 - sm(0.75, 1.05, slope))); out.lerp(COBBLE, paveAt(q, x, z) * PAVE_FLAT(slope)); // [path-hotfix] cutting / slot walls keep the rock colour
+  out.lerp(ROCK, sm(0.4, 0.7, slope) * (1 - sm(10, 22, TRP_G[q]))); // [path-hotfix] trail cuttings / bridge slots: grey cliff rock (matches splat layer 5 there)
+  out.lerp(DIRT, (1 - sm(2.4, 4.4, TRP_G[q])) * (1 - sm(0.75, 1.05, slope))); out.lerp(COBBLE, paveAt(q, x, z) * PAVE_FLAT(slope)); // [path-hotfix] cutting / slot walls keep the rock colour
   out.lerp(COBBLE, 1 - sm(STREET.half - 0.5, STREET.half + 1, STg[q]));
   if (COASTM) out.lerp(COBBLE, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
   return out;
@@ -318,9 +328,9 @@ function splatAt(i, j, w) {
   paint(1, sm(1.4, 0.5, h) * sm(-3, -0.6, h));
   if (RVg[q] < 12 && h < RVl[q] + 2.5) paint(1, 0.85 * sm(12, 6, RVg[q]));
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 8) paint(1, 0.8 * sm(LAKE.r + 8, LAKE.r, Math.hypot(x - LAKE.x, z - LAKE.z)));
-  paint(3, 1 - sm(2.0, 4.3, TRg[q]));
+  paint(3, 1 - sm(2.0, 4.3, TRP_G[q]));
   paint(4, sm(0.7, 1.05, sl) + sm(75, 105, h) * 0.7);
-  paint(5, Math.max(sm(1.05, 1.5, sl), sm(0.4, 0.7, sl) * (1 - sm(10, 22, TRg[q])))); // [path-hotfix] trail cuttings / bridge slots: steep walls are fractured cliff rock, not stone blocks
+  paint(5, Math.max(sm(1.05, 1.5, sl), sm(0.4, 0.7, sl) * (1 - sm(10, 22, TRP_G[q])))); // [path-hotfix] trail cuttings / bridge slots: steep walls are fractured cliff rock, not stone blocks
   paint(6, paveAt(q, x, z) * PAVE_FLAT(sl)); // [bridge-path-fix] paved trails: Main Street's cobble layer on the walkable floor only
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
   if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
@@ -567,7 +577,7 @@ function grassGeos() {
   return { grass: g, flower: partsGeo(fl) };
 }
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
-  if (h < 3.2 || TRg[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
+  if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
@@ -697,10 +707,10 @@ export const KERB_STATS = {}; // laid / skipped-by-reason counts (dev)
 function buildKerbs(MATS, OUT, low) {
   const tiles = {}, seg = low ? 2.4 : 1.6, off = PAVE.kerb; let n = 0;
   const R = KERB_STATS; for (const k in R) delete R[k]; const no = (why) => { R[why] = (R[why] || 0) + 1; return false; };
-  const ok = (cx, cz, mx, mz) => (paveW(mx, mz) > 0.5 || no('unpaved')) && (gridBi(TRg, cx, cz) > off - 0.9 || no('trail')) && (gridBi(STg, cx, cz) > STREET.half + 2.5 || no('street'))
+  const ok = (cx, cz, mx, mz) => (paveW(mx, mz) > 0.5 || no('unpaved')) && (gridBi(TRP_G, cx, cz) > off - 0.9 || no('trail')) && (gridBi(STg, cx, cz) > STREET.half + 2.5 || no('street'))
     && (waterAt(cx, cz) === null && H(cx, cz) > 0.3 && gridBi(RVg, cx, cz) > 8 || no('water')) /* [path-hotfix] + no kerb stones across a river ford */ && (areaDeckAt(cx, cz) === null && areaDeckAt(mx, mz) === null || no('deck'))
     && (!(Math.abs(cx - ROPE_BRIDGE.c[0]) < 7 && cz > -108 && cz < -59) || no('bridge')) && (!hitCollider(cx, cz, 0.3) || no('collider'));
-  for (const path of [TRAILS.A, TRAILS.B, ...PAVED_PATHS]) { const P = [path[0]]; // resample the spline at the stone length
+  for (const path of [...TRAIL_A_PAINT, TRAILS.B, ...PAVED_PATHS]) { const P = [path[0]]; // resample the spline at the stone length
     for (let i = 1, acc = 0; i < path.length; i++) { const [ax, az] = path[i - 1], [bx, bz] = path[i], L = Math.hypot(bx - ax, bz - az); let t = seg - acc;
       while (t <= L) { P.push([ax + (bx - ax) * t / L, az + (bz - az) * t / L]); t += seg; } acc = L - (t - seg); }
     for (let i = 1; i < P.length; i++) { const [ax, az] = P[i - 1], [bx, bz] = P[i], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 0.3) continue;
@@ -1177,7 +1187,7 @@ export function buildInland(A, low, F) {
   KPG = 'trail';
   // trail torches every ~45 m (flames + lights)
   for (const path of Object.values(TRAILS)) { let acc = 0; for (let i = 1; i < path.length; i++) { acc += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); if (acc > 45) { acc = 0;
-    const [x, z] = path[i], dx = path[i][0] - path[i - 1][0], dz = path[i][1] - path[i - 1][1], n = Math.hypot(dx, dz) || 1, tx = x + dz / n * 3.2, tz = z - dx / n * 3.2; if (H(tx, tz) > 1 && !(Math.abs(tx - ROPE_BRIDGE.c[0]) < 5 && tz > -106 && tz < -61)) torchPost(k, F, tx, H(tx, tz), tz); } } } // (no torch pole down in the gorge under the bridge)
+    const [x, z] = path[i], dx = path[i][0] - path[i - 1][0], dz = path[i][1] - path[i - 1][1], n = Math.hypot(dx, dz) || 1, tx = x + dz / n * 3.2, tz = z - dx / n * 3.2; if (H(tx, tz) > 1 && !(path === TRAILS.A && A_DEAD([x, z])) && !(Math.abs(tx - ROPE_BRIDGE.c[0]) < 5 && tz > -106 && tz < -61)) torchPost(k, F, tx, H(tx, tz), tz); } } } // (no torch pole down in the gorge under the bridge)
   poi('gate', 'Town gate (trailhead A + B)', GATE[0], GATE[1]);
   registerAreas({ H, poi, addCirc, addBox, addDeck, addHighBridge: (b) => HIGH_BRIDGES.push(b), AREA_DECKS, collidersOff, INTERACT, TRAILS, GATE, STREET, townToWorld }); // [island-rework] eager part of each area (POIs keep the foliage clear)
   for (const [id, ty, up, d0, d1] of [['skullpeak', 14, 2.2, 45, 120], ['gallows', 4, 1.7, 45, 120], ['falls', LAKE.y + 12 - H(-206, -186), 1.7, 60, 150]]) { const q = FOOT_POIS.find(p => p.id === id); q.view = vantage(q, q.y + ty, up, d0, d1); q.ty = q.y + ty; }
