@@ -169,7 +169,7 @@ export const VENDORS = {
   stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg', 'beard', 'ears', 'teeth', 'flag', 'figure'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
   clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape'], awning: '#d8322f' },
-  pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots + pets for your shoulder', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
+  pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots, cats, monkeys + more', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear'], slots: ['crewhat', 'crewoutfit'], awning: '#6a4fb3', crew: true },   // [Timothy] plaza CREW SHOP counter
   weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // [Timothy] window.openWeaponStore(); the SWORD SHOP + MUSKET SHOP doors on Main Street (battleAreas.js MAIN_ST_SHOPS) open it with their own title
   ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')

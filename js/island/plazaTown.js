@@ -68,7 +68,7 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // js/shopCatalog.js VENDORS id the counter opens today (phase 2 gives each its own vendor); crew has none yet.
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · HATS, COATS, EYEWEAR' },
-  { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE · PARROTS' },
+  { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: -10, w: 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'CREW SHOP', vendor: 'crew', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'CREW SHOP · CREW OUTFITS' },

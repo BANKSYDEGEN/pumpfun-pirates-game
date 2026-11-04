@@ -149,6 +149,7 @@ function build() {
     <header class="ishop-head"><div class="ishop-title"><b></b><small></small></div><div class="ishop-purse" aria-live="polite"></div><button class="ishop-x faq-x" type="button" aria-label="Close shop">✕</button></header>
     <nav class="ishop-tabs" role="tablist"></nav><div class="ishop-chips" role="tablist" aria-label="Gear"></div><div class="ishop-bsts" aria-live="polite"></div>
     <div class="ishop-body"><aside class="ishop-detail" aria-live="polite"></aside><div class="ishop-grid"></div></div>
+    <div class="ishop-actbar" aria-live="polite"></div>
     <footer class="ishop-foot"></footer>
     <div class="ishop-confirm hidden" role="alertdialog" aria-modal="true"><div class="ishop-cbox"></div></div></div>`;
   document.body.appendChild(root);
@@ -166,7 +167,7 @@ function render() {
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
   const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
-  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PARROTS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : 'PIRATE GEAR';
+  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : 'PIRATE GEAR';
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; view.sel = null; render(); });
@@ -200,7 +201,7 @@ function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgra
   if (ok) closeShop(); else toast('Upgrades open in the harbor, out of battle');
 }
 function detail(x) {
-  const d = $('.ishop-detail', root); d.innerHTML = ''; if (!x) return;
+  const d = $('.ishop-detail', root); d.innerHTML = ''; if (!x) { $('.ishop-actbar', root).innerHTML = ''; return; }
   const s = statusOf(x);
   d.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it, true));
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
@@ -214,6 +215,8 @@ function detail(x) {
     ${x.it.use === 'once' && s.k !== 'soon' ? `<div class="ishop-gl">One use: marks ${esc(x.it.dig)} on your island map</div>` : ''}
     ${btn}</div>`);
   const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
+  { const bar = $('.ishop-actbar', root), main = $('.ishop-info > .ishop-act', d); bar.innerHTML = ''; // [Emerly] phones: the same EQUIP / BUY button pinned under the detail, always on screen (CSS shows it on phones only)
+    if (main) { const c = main.cloneNode(true); c.insertAdjacentHTML('afterbegin', `<span class="ishop-actn">${esc(x.name)}</span>`); if (a) c.onclick = a.onclick; bar.append(c); } }
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
     ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b>. Pit KOs pay nothing and never count towards goals.</div>'
     : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b>. Range KOs pay nothing and never count towards goals.</div>');

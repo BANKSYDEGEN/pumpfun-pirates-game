@@ -187,3 +187,32 @@
 #pf-boosts .pfb-bar.gold i { background: linear-gradient(90deg, #ffcd77, #ffe9a8); }
 #pf-boosts .pfb-v { color: #7dffa6; white-space: nowrap; } #pf-boosts .pfb-v.capped { color: #ff9a6b; }
 #pf-boosts h4 span { color: #7dffa6; }
+/* [Emerly] SHOP MOBILE UI: phones get a tidy detail strip (preview left, full-width text, swatches on their own row) and a pinned
+   EQUIP / BUY bar so you never scroll to equip. Desktop: the bar stays hidden, the detail pane is unchanged. */
+.ishop-actbar { display: none; }
+@media (orientation: portrait), (orientation: landscape) and (max-height: 520px) {
+  .ishop-actbar { display: flex; flex: 0 0 auto; }
+  .ishop-actbar .ishop-act { flex: 1; margin: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; overflow: hidden; white-space: nowrap; }
+  .ishop-actn { font-size: .7em; opacity: .75; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .ishop-info > .ishop-act { display: none; }
+  .ishop-hatc button { width: 44px; height: 44px; min-width: 44px; font-size: 16px; }
+  .ishop-hatc > div { gap: 8px; } .ishop-side button, .ishop-clothcol { min-height: 44px; }
+  .ishop-tabs button, .ishop-chips button { min-height: 44px; }
+  .ishop-x { min-width: 44px; min-height: 44px; }
+}
+@media (orientation: portrait) {
+  .ishop-panel { height: min(88vh, 820px); }
+  .ishop-detail { display: grid; grid-template-columns: minmax(96px, 30%) 1fr; align-items: start; gap: 6px 10px; max-height: 34vh; }
+  .ishop-detail > .ishop-sw { grid-column: 1; grid-row: 1; flex: none; width: 100%; }
+  .ishop-detail > .ishop-info { grid-column: 2; grid-row: 1; min-width: 0; }
+  .ishop-detail > :not(.ishop-sw):not(.ishop-info) { grid-column: 1 / -1; min-width: 0; }
+  .ishop-info h4 { font-size: 24px; overflow-wrap: anywhere; } .ishop-gl, .ishop-goal { font-size: 15px; line-height: 1.25; }
+  .ishop-hatc { margin-top: 0; }
+  .ishop-grid { min-height: 30vh; }
+  .ishop-foot { font-size: 12px; line-height: 1.3; padding: 0 4px; }
+  .ishop-actbar .ishop-act { font-size: 22px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .ishop-actbar .ishop-act { font-size: 18px; min-height: 44px; }
+  .ishop-hatc button { width: 40px; height: 40px; min-width: 40px; }
+}
