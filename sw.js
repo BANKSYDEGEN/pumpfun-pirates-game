@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v163'; // [v163] Timothy plaza collisions: deck props block, slide-friendly boxes, follower path-around, town-kit cylinders (barrels) wound outward
+const VERSION = 'pfp-v164'; // [v164] HOTFIX: UPGRADE SHOP DOM build was commented out by the v161 merge (shop.js initShop)
 const SHELL = [
   "./",
   "./index.html",

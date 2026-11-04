@@ -280,7 +280,7 @@ export const getRunLevels = () => ({ ...run.levels });
 addEventListener('pfp-boosts', () => { if (!ctx) return; const p = ctx.getPlayer(); if (!p) return; const dead = !(p.hp > 0) || p.alive === false, lost = Math.max(0, (p.maxHp || 0) - (p.hp || 0)); applyStats(p, shipStats(run)); p.hp = dead ? 0 : Math.max(1, Math.min(p.maxHp, p.maxHp - lost)); if (ctx.game.state === 'shop') render(); });
 
 export function initShop(c) {
-  ctx = c; setStatsSource((b) => applyBoosts(modeStats(run, PVP() ? PVP_HULL : null), b)); // [Emerly] boosts: the island shop's '2.20 s → 2.07 s' preview injectCss(); buildDom(); initSkinPreview(c.previewBase || {});
+  ctx = c; setStatsSource((b) => applyBoosts(modeStats(run, PVP() ? PVP_HULL : null), b)); injectCss(); buildDom(); initSkinPreview(c.previewBase || {}); // [Emerly] boosts: the island shop's '2.20 s → 2.07 s' preview. [v164] FIX: v161 had put injectCss / buildDom / initSkinPreview inside this comment (no UPGRADE SHOP DOM)
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     if (isKey('shop', e.code)) toggle();
