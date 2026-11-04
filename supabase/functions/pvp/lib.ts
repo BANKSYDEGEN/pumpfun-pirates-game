@@ -119,7 +119,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   // [prestige] BANKSY: GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (replace the 1,000 / 5,000 kill tiers), GHOST SHIP 100 kills,
   // FLAMING ("FIRE") 200 kills only (no K/D). GOLDEN / DIAMOND are GIVEN free on reaching that prestige (price 0; index.ts adds them to
   // pvp_owned on prestige + ownedSet counts them for anyone at that level). Anyone who already owns one keeps it (pvp_owned).
-  "skin:golden": { price: 0, goal: [{ stat: "prestige", need: 1 }] }, "skin:ghost": { price: 100000, goal: [{ stat: "kills", need: 100 }] }, "skin:admiral": { price: 125000 },
+  "skin:golden": { price: 0, goal: [{ stat: "prestige", need: 1 }] }, "skin:ghost": { price: 100000, goal: [{ stat: "kills", need: 100 }] }, "skin:admiral": { price: 15000 },
   "skin:flaming": { price: 150000, goal: [{ stat: "kills", need: 200 }] },
   "skin:diamond": { price: 0, goal: [{ stat: "prestige", need: 2 }] },
   // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.

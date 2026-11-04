@@ -16,6 +16,7 @@ export const SKIN_ITEMS = [
   { id: 'blood',     name: 'CRIMSON SAILS',   price: 5000 },
   { id: 'seagreen',  name: 'SEA GREEN',       price: 8000 },
   { id: 'midnight',  name: 'BLACK PEARL',     price: 12000 },
+  { id: 'admiral',   name: 'ADMIRAL WHITE',   price: 15000 },   // [admiral-price] BANKSY 10:21 AM: 125,000 -> 15,000
   { id: 'coral',     name: 'CORAL REEF',      price: 18000 },
   { id: 'storm',     name: 'STORM RIDER',     price: 25000 },
   { id: 'kraken',    name: 'KRAKEN INK',      price: 40000 },
@@ -25,7 +26,6 @@ export const SKIN_ITEMS = [
   // Mirror: supabase/functions/pvp/lib.ts SHOP_ITEMS.
   { id: 'golden',    name: 'GOLDEN GALLEON',  price: 0, grant: 'prestige', goal: { tag: 'PRESTIGE 1', all: [{ stat: 'prestige', need: 1, label: 'Prestige', fmt: 'prestige' }] } },
   { id: 'ghost',     name: 'GHOST SHIP',      price: 100000, goal: { all: [{ stat: 'kills', need: 100, label: 'BR kills' }] } },
-  { id: 'admiral',   name: 'ADMIRAL WHITE',   price: 125000 },
   { id: 'flaming',   name: 'FLAMING SHIP',    price: 150000, goal: { tag: 'FIRE', all: [{ stat: 'kills', need: 200, label: 'BR kills' }] } }, // [prestige] BANKSY: 200 PvP kills only (no K/D)
   { id: 'diamond',   name: 'DIAMOND SHIP',    price: 0, grant: 'prestige', goal: { tag: 'PRESTIGE 2', all: [{ stat: 'prestige', need: 2, label: 'Prestige', fmt: 'prestige' }] } },
 ];
