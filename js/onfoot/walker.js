@@ -50,6 +50,12 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     pirate.object.scale.set(2 - sq * st, sq * st, 2 - sq * st); }
   function jump() { if (!jumpBody(w.body, JUMP.h)) return false; w.jumps++; w.landT = -9; return true; } // no jump mid-air / mid pull-up; in deep water = the surface kick (PHYS.hop)
   function camPos(out) { const cp = Math.cos(w.pitch); out.set(w.x - Math.sin(w.camYaw) * w.dist * cp, w.y + 1.7 + Math.sin(w.pitch) * w.dist, w.z - Math.cos(w.camYaw) * w.dist * cp);
+    // [bridge-path-fix] (ported from post/island-rework-2) walls / cliff faces / slot walls (the walk ground jumps > 1.2 m between two samples)
+    // between your head and the camera pull it in in front of them instead of popping it up over the top (the rope-bridge slots); smooth slopes still lift it
+    { const hx = w.x, hy = w.y + 1.5, hz = w.z, N = 10; let pg = world.ground(hx, hz), cut = 1;
+      for (let i = 1; i <= N; i++) { const t = i / N, x = hx + (out.x - hx) * t, z = hz + (out.z - hz) * t, g = world.ground(x, z);
+        if (g - pg > 1.2 && g + 0.3 > hy + (out.y - hy) * t) { cut = Math.max(0.1, t - 1 / N - 0.3 / w.dist); break; } pg = g; }
+      if (cut < 1) out.set(hx + (out.x - hx) * cut, hy + (out.y - hy) * cut, hz + (out.z - hz) * cut); }
     const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
   const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // ?deflect=0 = the old axis-only slide

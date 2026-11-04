@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v171'; // [v171] the cliff cannons fire for real (AI + pirate ships, basic cannon damage) and reach the battle water (~220 m -> ~650 m)
+const VERSION = 'pfp-v172'; // [v172] Post's bridge + path fix: the rope bridge is reachable from both ends, the red + yellow trail loops are passable end to end and paved in Main Street's cobbles
 const SHELL = [
   "./",
   "./index.html",
