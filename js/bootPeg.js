@@ -4,7 +4,7 @@
 // - bootKeep: the boot's index without the peg side's triangles (the whole boot on that side goes: nothing over the peg / knee sleeve)
 // - bootHides: the boot's hide rule (both legs of the body + base outfit below BOOT_CUT), skipped on a peg leg (PEG5 owns that leg)
 // BOOT_CUT: 2.4 cm under each boot's top (v5 bind space, raw), so the pants end inside the shaft; always below the knee sleeve's PEG_CUT.
-export const BOOT_CUT = { boots_buckle: { male: 0.161, female: 0.161 }, boots_cavalier: { male: 0.1662, female: 0.1756 }, boots_gold: { male: 0.154, female: 0.154 } };
+export const BOOT_CUT = { boots_buckle: { male: 0.1702, female: 0.1796 }, boots_cavalier: { male: 0.1662, female: 0.1756 }, boots_gold: { male: 0.1682, female: 0.1776 } };
 export const BOOT5 = (id) => [{ boot5: 1, y: BOOT_CUT[id].male, male: 1 }, { boot5: 1, y: BOOT_CUT[id].female, female: 1 }];
 export const bootSide = (x) => (x > 0 ? 'L' : 'R');
 export function bootKeep(P, I, L, R) {   // P: { getX(i) } (three BufferAttribute or a shim), I: triangle index array

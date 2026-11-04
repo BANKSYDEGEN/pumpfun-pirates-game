@@ -35,9 +35,10 @@ for o in objs:
 PTS = np.array(PTS)
 KNEE = float((arm.matrix_world @ arm.data.bones['shin.L'].head_local).z)   # male 0.214, female 0.224
 # per-style dimensions (metres, bind space; the chibi foot is ~0.17 wide x 0.25 long)
-S = {'buckle': dict(top=0.185, lth=COL('#7a4526'), dk=COL('#4a2716')),
+# [Raul items redo 2] tops sit just under the knee and flare over the baggy pant hem (tucked-in read), never past the knee
+S = {'buckle': dict(top=KNEE - 0.020, lth=COL('#7a4526'), dk=COL('#4a2716')),
      'cavalier': dict(top=KNEE - 0.024, lth=COL('#2a2124'), dk=COL('#151012')),
-     'gold': dict(top=0.178, lth=COL('#231d22'), dk=COL('#110d10'))}[STYLE]
+     'gold': dict(top=KNEE - 0.022, lth=COL('#231d22'), dk=COL('#110d10'))}[STYLE]
 TOP = S['top']; CUT = TOP - 0.024
 STEP = 0.0026 if HI else 0.0042
 NTH, SUB = (32, 2) if HI else (16, 1)
@@ -63,6 +64,17 @@ for sx in (1, -1):
     cen.append(c); RR.append(R)
   cen = np.array(cen); RR = np.array(RR)
   cen = np.array([np.convolve(np.r_[cen[:1, k], cen[:, k], cen[-1:, k]], [1/3]*3, 'valid') for k in (0, 1)]).T
+  if STYLE in ('buckle', 'gold'):   # [Raul items redo 2] tuck: the top opens out to the pant hem's bell just above it, so the hem reads tucked into the boot
+    Qh = P[(P[:, 2] > TOP - 0.004) & (P[:, 2] < TOP + 0.024)]; d = Qh[:, :2] - cen[-1]
+    th = (np.arctan2(d[:, 1], d[:, 0]) % (2 * math.pi)) / (2 * math.pi) * NB; r = np.linalg.norm(d, axis=1); Rh = np.zeros(NB)
+    for b in range(NB):
+      m = (th >= b) & (th < b + 1); Rh[b] = np.percentile(r[m], 92) if m.sum() > 2 else 0
+    good = Rh > 0
+    if good.any() and not good.all(): Rh = np.interp(np.arange(NB), np.where(good)[0], Rh[good], period=NB)
+    Rh = np.convolve(np.r_[Rh[-2:], Rh, Rh[:2]], np.ones(5) / 5, 'valid')
+    for i, z in enumerate(zs):
+      w = float(np.clip((z - (TOP - 0.045)) / 0.045, 0, 1)) ** 1.5
+      RR[i] = RR[i] + w * np.maximum(0, Rh + 0.002 - RR[i])
   # grid
   lo = np.array([min(fx0, fx1) - 0.05, fy0 - 0.06, -0.006]); hi_ = np.array([max(fx0, fx1) + 0.05, fy1 + 0.06, TOP + 0.05])
   gx, gy, gz = [np.arange(lo[k], hi_[k], STEP) for k in range(3)]
@@ -99,8 +111,8 @@ for sx in (1, -1):
   parts.append(mc_part(d_sole, G, 'sole', sx))
   parts.append(mc_part(up, G, 'upper', sx))
   ring_c = cen[-1]; ring_R = RR[-1]
-  def shell(region, out=0.006, inn=0.0015):   # a band / cap laid on the upper (`out` proud; its inside fills into the boot, never seen): smooth edges at any LOD
-    return ndimage.gaussian_filter(smax(up - out, region, 0.004), 0.9 if HI else 0.7)
+  def shell(region, out=0.006, inn=0.0015, k=0.004, blur=None):   # a band / cap laid on the upper (`out` proud; its inside fills into the boot, never seen): smooth edges at any LOD
+    return ndimage.gaussian_filter(smax(up - out, region, k), blur if blur is not None else (0.9 if HI else 0.7))
   if STYLE == 'buckle':
     # rolled top rim + an instep strap with a big gold buckle (front), a back pull tab
     rr_ = 0.0095; prof = [(rr_ * math.cos(a), TOP - 0.004 + rr_ * 0.85 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 6 if HI else 4, endpoint=False)]
@@ -126,15 +138,16 @@ for sx in (1, -1):
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.004, bn, 0.030, 0.026, 0.007, 0.0065), G, 'silver', sx))
   else:
     # polished black leather: gold toe cap + heel cap + gold top band + gold buckle on the side of the band
-    parts.append(mc_part(shell(sd_ellipsoid(X - fcx, Y - (toe - 0.01), Z - 0.03, fhx + 0.03, 0.085, 0.075), 0.0065), G, 'gold', sx))   # rounded gold toe cap
+    # rounded gold toe cap ([Raul items redo 2] phone: a crisper rim = less blur, a tighter blend, its own budget)
+    parts.append(mc_part(shell(sd_ellipsoid(X - fcx, Y - (toe - 0.01), Z - 0.03, fhx + 0.03, 0.085, 0.075), 0.0065, k=0.004 if HI else 0.0015, blur=None if HI else 0.4), G, 'goldtoe', sx))
     parts.append(mc_part(shell(sd_ellipsoid(X - fcx, Y - (heel + 0.01), Z - 0.02, fhx + 0.03, 0.045, 0.045), 0.0055), G, 'gold', sx))   # heel cap
     prof = [(-0.002, TOP - 0.022), (0.006, TOP - 0.021), (0.008, TOP - 0.008), (0.006, TOP + 0.003), (-0.002, TOP + 0.002)]
     parts.append(('gold', sx) + sweep(ring_c, ring_R, ms + 0.004 + 0.001, prof, NTH * 7 // 8, 1))
     bp, bn = on_surface(up, G, fcx, TOP - 0.05, front=True)
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.003, bn, 0.028, 0.024, 0.007, 0.006), G, 'gold', sx))
 # ---- decimate each part to the LOD budget, colour it, skin it
-BUD = {'upper': 1000, 'sole': 240, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'silver': 120} if HI else \
-      {'upper': 280, 'sole': 60, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'silver': 36}
+BUD = {'upper': 1000, 'sole': 240, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
+      {'upper': 280, 'sole': 60, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'goldtoe': 64, 'silver': 36}
 mesh_parts = []
 for kind, sx, V, Fc in parts:
   if len(V): V = V.copy(); V[:, 0] = sx * np.maximum(sx * V[:, 0], 0.0145 + 0.004 * np.clip((sx * V[:, 0] - 0.0145) / 0.02, 0, 1) * 0)
@@ -144,10 +157,10 @@ for kind, sx, V, Fc in parts:
   V, Fc = decimate(V, Fc, int(n))
   mesh_parts.append((kind, sx, V, Fc))
 COLS = dict(upper=S['lth'], sole=COL('#2b1a12'), rim=S['dk'], strap=COL('#3b2216') if STYLE == 'buckle' else COL('#151012'),
-            cuff=COL('#c99a5b'), gold=COL('#e8ad2a'), silver=COL('#c9ced8'))
+            cuff=COL('#c99a5b'), gold=COL('#e8ad2a'), goldtoe=COL('#e8ad2a'), silver=COL('#c9ced8'))
 geo_parts = []
 for kind, sx, V, Fc in mesh_parts:
-  C = shade(kind, V, Fc, COLS[kind], TOP)
+  C = shade('gold' if kind == 'goldtoe' else kind, V, Fc, COLS[kind], TOP)
   geo_parts.append(Part(V, Fc, C, True))
 m = finish(geo_parts, ink=(0.0035 if HI else 0.0055), lowlight=not HI)
 side = np.sign(m.V[:, 0])
