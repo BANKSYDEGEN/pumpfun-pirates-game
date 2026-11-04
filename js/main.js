@@ -87,8 +87,17 @@ addEventListener('pfp-crew', () => { crewGearT = 0; }); addEventListener('pfp-ge
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high', powerPreference: 'high-performance' });
-renderer.setPixelRatio(ULTRA ? Math.min(2, Math.max(window.devicePixelRatio || 1, 1.5)) : Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1.25 : 2)); // [ultra] supersamples 1x screens
+// [perf2] BANKSY "hd sharp and fast": MSAA on every tier except an explicit LOW pick (phones were aliased at 1.0x); phones start at
+// 1.5x on 2x+ screens (was 1.25, often stepped to 1.0 = blurry on a 3x phone), desktop 2x cap. Adaptive steps down only on slow FPS.
+const DPR = window.devicePixelRatio || 1, LOW_PICK = gfxPick === 'low';
+const PR0 = ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high' || !LOW_PICK, powerPreference: 'high-performance' });
+renderer.setPixelRatio(PR0); // [ultra] supersamples 1x screens
+// [perf2] three.js reads every shader's info log after compiling (forces a synchronous wait per program: ~4.8 s of a 15 s desktop
+// harbor entry). Off in production; ?shaderdebug=1 turns the checks back on.
+renderer.debug.checkShaderErrors = /[?&]shaderdebug=1/.test(location.search);
+// [perf2] sharper ground / decks at grazing angles: default anisotropy for every texture made from here on (explicit values stay)
+THREE.Texture.DEFAULT_ANISOTROPY = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, isMobile || quality === 'low' ? 4 : 8);
 renderer.setSize(innerWidth, innerHeight);
 // [mobile-perf] BANKSY "...and crashed": a phone under GPU memory pressure drops the WebGL context (black / frozen game). three.js
 // waits for a restore; if none comes within 6 s, reload once per tab session (the save is server-side) instead of a dead screen.
@@ -183,7 +192,7 @@ if (HIGH) {
       import('three/addons/postprocessing/OutputPass.js'), import('three/addons/shaders/FXAAShader.js'),
     ]);
     // [ultra] 4x MSAA half-float target, stronger bloom so Diamond / Golden / Flaming glow, SMAA, subtle grade
-    composer = ULTRA ? new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 })) : new EffectComposer(renderer);
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 })); // [perf2] HIGH too: 4x MSAA scene target (was FXAA only = soft edges + blurred text-like detail)
     composer.addPass(new RenderPass(scene, camera));
     // [v112] NaN / Inf guard (BANKSY: Ultra went black when a ship sank): one bad pixel in the half-float scene target (a NaN normal, a
     // huge additive burst) gets smeared over the whole frame by the bloom blur mips -> black screen. Clamp every channel to a finite
@@ -210,8 +219,8 @@ if (HIGH) {
       composer.addPass(new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio()));
       composer.userData = { fxaa: null, bloom };
     } else {
-      const fxaa = new ShaderPass(FXAAShader); composer.addPass(fxaa);
-      composer.userData = { fxaa, bloom };
+      composer.userData = { fxaa: null, bloom }; // [perf2] MSAA replaces FXAA on HIGH (FXAA blurred the whole frame); FXAAShader still loads for ?fxaa=1
+      if (/[?&]fxaa=1/.test(location.search)) { const fxaa = new ShaderPass(FXAAShader); composer.addPass(fxaa); composer.userData.fxaa = fxaa; }
     }
   } catch (e) { console.warn('[gfx] post-processing unavailable, rendering directly', e); composer = null; }
 }
@@ -1208,7 +1217,7 @@ let camShipK = 1; // [Raul] upgrade visuals
 function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8 * (ud.frameK || 1)); }
 // [mobile] adaptive resolution: on phones / low quality, if a busy scene averages under ~40 fps for 2 s of
 // play, step the render pixel ratio down (1.25 -> 1.12 -> 1.0). Down only, so it never oscillates.
-const ADAPT = { on: isMobile || quality === 'low', steps: [1.12, 1], t0: 0, n: 0, slow: 0 }; // [mobile-perf] BANKSY "graphics get downgraded really bad": softer steps (1.25 -> 1.12 -> 1.0, never the blurry 0.85) and only after TWO slow windows in a row (a loading hitch no longer costs resolution for good)
+const ADAPT = { on: true, steps: quality === 'low' ? [1.25, 1.12, 1] : [1.5, 1.25], min: quality === 'low' ? 38 : 45, t0: 0, n: 0, slow: 0, fast: 0, warm: 0, downAt: 0 }; // [perf2] every tier adapts (desktop 2 -> 1.5 -> 1.25 only when slow), 8 s warm-up after (re)entering play, steps back up after 20 s of smooth play // [mobile-perf] BANKSY "graphics get downgraded really bad": softer steps (1.25 -> 1.12 -> 1.0, never the blurry 0.85) and only after TWO slow windows in a row (a loading hitch no longer costs resolution for good)
 // [mobile-perf-2] phones: island pieces lost in the fog are not drawn. FogExp2 is >99.5 % fog colour past 2.3 / density (~550 m), so a
 // static island mesh whose whole bounding sphere sits beyond that is invisible anyway: skip it (draw calls + triangles), no visual change.
 // Only the static island art (terrain chunks, trees / palms / rocks / nature, docks, shops, hill street, coast kit), never a LOD's own
@@ -1225,15 +1234,17 @@ function fogCull() {
     if (out && o.visible) { o.visible = false; o.userData.fogHid = true; } else if (!out && o.userData.fogHid) { o.visible = true; o.userData.fogHid = false; } }
 }
 function adaptResolution() {
-  if (!ADAPT.on || game.state !== 'playing' || document.hidden) { ADAPT.t0 = 0; return; }
-  const now = performance.now();
+  if (!ADAPT.on || game.state !== 'playing' || document.hidden || /[?&]adapt=0/.test(location.search)) { ADAPT.t0 = 0; ADAPT.warm = 0; return; }
+  const now = performance.now(); if (!ADAPT.warm) ADAPT.warm = now; if (now - ADAPT.warm < 8000) return; // [perf2] loading / shader-compile hitches right after entering never count
   if (!ADAPT.t0) { ADAPT.t0 = now; ADAPT.n = 0; return; }
   ADAPT.n++;
   if (now - ADAPT.t0 < 2000) return;
   const fps = ADAPT.n * 1000 / (now - ADAPT.t0); ADAPT.t0 = 0;
   const next = ADAPT.steps.find(r => r < renderer.getPixelRatio() - 0.01);
-  ADAPT.slow = fps < 38 ? ADAPT.slow + 1 : 0;
-  if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); }
+  ADAPT.slow = fps < ADAPT.min ? ADAPT.slow + 1 : 0; ADAPT.fast = fps > 57 ? ADAPT.fast + 1 : 0;
+  if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; ADAPT.downAt = now; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); return; }
+  const up = [...ADAPT.steps].reverse().find(r => r > renderer.getPixelRatio() + 0.01 && r <= PR0) || (renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null);
+  if (up && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
 }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -1428,6 +1439,12 @@ initHomeBoard(); // [pvp]
 addEventListener('pfp-renamed', () => { if (!$('title').classList.contains('hidden')) renderBoard($('board-title')); }); // [v74] Waves board too
 document.documentElement.classList.add('pfp-booted'); // [v167] BANKSY: "on refresh it shows the OLD home screen then the NEW one": index.html ships the old home markup and the code above reshapes it (ENTER GAME, no STORM HUNT, portal / account bits) after the GLB awaits; css/style.css keeps #title's panel hidden until here
 $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_retry'); } catch {}
+// [perf2] BANKSY "fast to load": while the title screen is up, warm the harbor's code + art (fetch / parse only, nothing runs) so tapping
+// in doesn't wait on the network: the dock / pvp / island modules (modulepreload; art is NOT prefetched: most kits load later, on foot). ?prefetch=0 = off.
+if (DOCK_ON && !/[?&]prefetch=0/.test(location.search)) setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => {
+  for (const m of ['dock/index.js', 'pvp.js', 'island/foot.js', 'island/coast.js', 'island/areas/index.js', 'onfoot/walker.js', 'onfoot/followers.js']) {
+    const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = new URL('./' + m, import.meta.url).href; document.head.appendChild(l); }
+}, { timeout: 4000 }), 1500);
 requestAnimationFrame(frame);
 
 // PWA: offline cache

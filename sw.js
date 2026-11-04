@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v194'; // [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
+const VERSION = 'pfp-v195'; // [v195] perf2: sharper (MSAA everywhere, phones 1.5x, aniso 8/4, no FXAA blur), faster (no sync shader checks, cached ship flatten colours, one KTX2 pool, minified three.js, title-screen prefetch), adaptive quality both ways; [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -307,7 +307,7 @@ const ASSETS = [
 // below, so a bad copy can never stick; these are only precached for offline play (best effort).
 const VENDOR = './vendor/three-0.165.0/';
 const VENDOR_FILES = [
-  VENDOR + 'build/three.module.js',
+  VENDOR + 'build/three.module.min.js', // [perf2] minified (674 KB, was 1.28 MB)
   VENDOR + 'examples/jsm/controls/OrbitControls.js',
   VENDOR + 'examples/jsm/utils/BufferGeometryUtils.js',
   VENDOR + 'examples/jsm/geometries/RoundedBoxGeometry.js',

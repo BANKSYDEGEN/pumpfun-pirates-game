@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
 import { kitOn, geo as kitGeo, dressMaterial, aoTwin } from './shipKit.js'; // [Timothy] Blender ship art kit (visual only)
+const MEAN_RGB = new WeakMap(); // [perf2] texture image -> its mean RGBA (flatten)
 
 // shared wind clock for the sail vertex ripple (main loop sets value)
 export const wind = { uTime: { value: 0 } };
@@ -389,7 +390,7 @@ class Parts {
   // plain toon, glow), textures baked to their mean colour (the grain is sub-pixel on a phone). `keep` (base hull, mast: skins
   // look those up), sails, double-sided, transparent and emissive materials stay as they are. Adds the merged outlined
   // material to `outlined`. Same colours, far fewer draw calls.
-  flatten(outlined = new Set(), keep = new Set()) {
+  flatten(outlined = new Set(), keep = new Set()) { // MEAN_RGB: module-level cache (below)
     const ok = (m) => !keep.has(m) && !m.transparent && m.side === THREE.FrontSide && !m.customProgramCacheKey?.().startsWith?.('sail') &&
       (m.isMeshToonMaterial ? !(m.emissive && m.emissive.getHex()) : m.isMeshBasicMaterial && !m.map);
     const G = { ol: [], toon: [], basic: [] }; let gm = null;
@@ -397,8 +398,8 @@ class Parts {
       if (!ok(mat)) continue;
       const c = mat.color.clone();
       if (mat.map?.image) try {
-        const cv = document.createElement('canvas'); cv.width = cv.height = 1; const x = cv.getContext('2d');
-        x.drawImage(mat.map.image, 0, 0, 1, 1); const d = x.getImageData(0, 0, 1, 1).data;
+        const im = mat.map.image; let d = MEAN_RGB.get(im); // [perf2] mean colour cached per image: was a full-size draw + GPU readback per material per ship (~3-4 s on phones)
+        if (!d) { const cv = document.createElement('canvas'); cv.width = cv.height = 1; const x = cv.getContext('2d'); x.drawImage(im, 0, 0, 1, 1); d = x.getImageData(0, 0, 1, 1).data; MEAN_RGB.set(im, d); }
         c.multiply(new THREE.Color().setRGB(d[0] / 255, d[1] / 255, d[2] / 255, THREE.SRGBColorSpace));
       } catch (e) { continue; }
       for (const g of list) {

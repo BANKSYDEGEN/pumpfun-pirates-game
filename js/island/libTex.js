@@ -11,7 +11,7 @@
 //     dressed stone 11) are drawn with the library too, so the whole town matches
 // &plazatex=0 = the pre-library look (vertex colour / procedural layers only).
 import * as THREE from 'three';
-import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { sharedKTX2 } from './townkit.js'; // [perf2] (was its own KTX2Loader)
 
 export const LIB = ['stone_ashlar', 'stone_trim', 'brick', 'plaster', 'cobble', 'timber', 'planks_weathered', 'piling_wet', 'roof_tile', 'iron', 'rope', 'awning_cloth'];
 export const LIB_ID = Object.fromEntries(LIB.map((n, i) => [n, i + 1]));
@@ -28,7 +28,7 @@ export function initLib(low, renderer) {
   if (!LIB_ON) return (_p = Promise.resolve(null));
   if (!renderer) return Promise.resolve(null);   // (no cache: a later call with the renderer still loads it)
   const t0 = performance.now(), file = `assets/island/tex/lib${low ? '_lo' : ''}.ktx2`;
-  let ktx; try { ktx = new KTX2Loader().setTranscoderPath(new URL('../../vendor/three-0.165.0/examples/jsm/libs/basis/', import.meta.url).href).detectSupport(renderer); }
+  let ktx; try { ktx = sharedKTX2(renderer); } // [perf2] shared with the town kits (townkit.js)
   catch (e) { console.warn('[lib] no KTX2 support, vertex colour only', e); return (_p = Promise.resolve(null)); }
   _p = ktx.loadAsync(new URL('../../' + file, import.meta.url).href).then(t => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = low ? 2 : 8; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
