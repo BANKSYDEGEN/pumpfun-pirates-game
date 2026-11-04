@@ -66,7 +66,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   const sellOn = () => mode === 'fish' ? !!data.flags.fish_sell : mode === 'antiques' ? !!data.flags.antiques_sell : false;
   // [inventory v209] battle.js reads these: the DB flags + the equipped weapons' rarity (after a reload too, once inv_state is read)
   function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w; }
-  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok ? m.listings : []; } render(); return r; }
+  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? m.listings : []; } render(); return r; }
   function render() {
     const title = { bag: 'INVENTORY', fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
     $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
@@ -112,7 +112,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       else toast(WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>', 2200); } finally { busy = false; } }
   function open(m = 'bag') { mode = m; tab = m === 'market' ? 'browse' : 'mine'; sel = null; el.classList.add('on'); render(); refresh(); }
   function close() { el.classList.remove('on'); }
-  window.addEventListener('pfp-shop', (e) => open(e.detail?.shop || 'bag'));
+  // [shop-crash] 'pfp-shop' is shared: js/islandShop.js (Pet Store / Crew Shop / gear / weapon shops) fires it with { open, vendor } on EVERY
+  // open AND close. Only the plaza shop triggers (js/island/areas/invShops.js) send { shop }; anything else used to pop the INVENTORY over the shop.
+  window.addEventListener('pfp-shop', (e) => { const m = e.detail?.shop; if (m === 'fish' || m === 'antiques' || m === 'market') open(m); });
   // island earnings -> the server (it decides what lands in the bag): a reeled-in fish (server-rolled species), an idol shard / river pearl
   window.addEventListener('pfp-catch', async () => { const r = await pvp()?.inv?.call('inv_fish'); if (r?.ok) { const i = itemInfo(r.item); setTimeout(() => toast(`${i.icon} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2000), 2600); refresh(); } });
   // [fish2] the fishing dock's server calls (js/island/areas/fishing2.js): it shows the fish the SERVER put in the bag (its own catch card, no toast here)
