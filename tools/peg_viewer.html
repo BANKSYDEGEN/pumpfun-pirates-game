@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- [Raul pegleg] peg_viewer = gear_viewer + &time=<s> (clip frozen at that time) + &swim=tread|swim (js/onfoot/swimPose.js). From [Timothy]'s gear viewer (dev only, not shipped): every island-shop gear item on Raul's v4 pirate.
+     tools/gear_viewer.html?lod=hi|lo&clip=idle|walk|run|steer|cannon&sex=m|f&view=front|back|q&skin=<ship skin id>
+     &cells=[[label, gear, colors?], ...]&cols=N&zoom=Z&ly=Y  (serve the repo root) -->
+<html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES gear viewer</title>
+<style>html,body{margin:0;background:#1d2833;color:#fff;font:600 13px system-ui;overflow:hidden}#lab{position:fixed;inset:0;pointer-events:none}
+#lab div{position:absolute;text-align:center;text-shadow:0 1px 2px #000}#hd{position:fixed;left:8px;top:4px;font-size:15px;opacity:.85}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+</head><body><div id="hd"></div><div id="lab"></div>
+<script type="module">
+import * as THREE from 'three';
+import { pirateFigure, tickPirates } from './js/pirates.js';
+import { applyGear } from './js/pirateGear.js';
+import { swimPose } from './js/onfoot/swimPose.js';
+const TIME = q0('time'), SWIM = q0('swim'); function q0(k) { return new URLSearchParams(location.search).get(k); }
+const q = new URLSearchParams(location.search), LOW = q.get('lod') === 'lo', CLIP = q.get('clip') || 'idle', FEM = q.get('sex') === 'f', VIEW = q.get('view') || 'q';
+const CELLS = JSON.parse(q.get('cells') || 'null') || [
+  ['DEFAULT (shirtless)', {}], ['BANDANA', { hat: 'bandana' }], ['TRICORN', { hat: 'tricorn' }], ["CAPTAIN'S HAT", { hat: 'bicorne' }],
+  ['TANK', { outfit: 'tank' }], ['T-SHIRT', { outfit: 'tshirt' }], ['RED COAT', { outfit: 'coat' }], ['EYE PATCH', { eyes: 'eyepatch' }],
+  ['SHADES', { eyes: 'sunglasses' }], ['LASER EYES', { eyes: 'laser' }], ['GREEN PARROT', { parrot: 'parrot_green' }], ['RED MACAW', { parrot: 'parrot_red' }],
+  ['BLUE MACAW', { parrot: 'parrot_blue' }], ['COCKATOO', { parrot: 'parrot_cockatoo' }], ['BLACK PARROT', { parrot: 'parrot_black' }],
+  ['GOLDEN PARROT', { parrot: 'parrot_gold' }], ['DIAMOND PARROT', { parrot: 'parrot_diamond' }], ['IRON HOOK', { hook: 'hook_iron' }], ['GOLD HOOK', { hook: 'hook_gold' }],
+  ['CROWN', { hat: 'crown' }], ['PIRATE SHIRT', { outfit: 'shirt' }], ["CAPTAIN'S COAT", { outfit: 'suit' }], ['PEG LEG · LEFT', { leg: 'peg', legSide: 'L' }], ['PEG LEG · RIGHT', { leg: 'peg' }],
+  ['FULL KIT', { hat: 'tricorn', outfit: 'coat', eyes: 'eyepatch', parrot: 'parrot_red', hook: 'hook_gold', leg: 'peg', legSide: 'L' }]];
+const COLS = +(q.get('cols') || 8), ROWS = Math.ceil(CELLS.length / COLS);
+document.getElementById('hd').textContent = `PUMPFUN PIRATES gear · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High'} · clip ${CLIP}`;
+const renderer = new THREE.WebGLRenderer({ antialias: !LOW, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.autoClear = false; document.body.prepend(renderer.domElement);
+const scenes = [], figs = [];
+const SKIN = q.get('skin');
+CELLS.forEach(([name, gear, colors], i) => {
+  const s = new THREE.Scene(); s.background = new THREE.Color(0x2a3a4a);
+  s.add(new THREE.HemisphereLight(0xdfefff, 0x4a3a2a, 1.6)); const d = new THREE.DirectionalLight(0xfff1dc, 2.2); d.position.set(3, 6, 4); s.add(d);
+  const fl = new THREE.Mesh(new THREE.CircleGeometry(0.9, 32), new THREE.MeshLambertMaterial({ color: 0x8a6a48 })); fl.rotation.x = -Math.PI / 2; s.add(fl);
+  const f = pirateFigure({ look: { skin: i % 3 === 2 ? 3 : 0, hair: 0, female: FEM }, low: LOW, height: 1.75, clip: CLIP, female: FEM });
+  applyGear(f, gear, colors || (SKIN ? { skin: SKIN } : null)); s.add(f); scenes.push(s); figs.push(f);
+  const l = document.createElement('div'); l.textContent = name; document.getElementById('lab').append(l); l.dataset.i = i;
+});
+const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+const VIEWS = { front: [0, 1.05, 4.2], back: [0, 1.4, -4.2], q: [2.3, 1.7, 3.4], side: [4.2, 1.1, 0], pq: [3.4, 1.5, 2.6] };
+function layout() {
+  const w = innerWidth / COLS, h = (innerHeight - 24) / ROWS;
+  document.querySelectorAll('#lab div').forEach((l) => { const i = +l.dataset.i; l.style.left = (i % COLS) * w + 'px'; l.style.width = w + 'px'; l.style.top = (24 + Math.floor(i / COLS) * h + h - 20) + 'px'; });
+  return { w, h };
+}
+let t0 = performance.now(), calls = [];
+function frame(now) {
+  const dt = Math.min(0.05, (now - t0) / 1000); t0 = now;
+  if (TIME != null) { for (const f of figs) { const p = f.userData.v4; if (!p) continue; p.mixer?.setTime(+TIME); if (SWIM) { p._sw && (p._sw.t = +TIME, p._sw.ph = +TIME * 3); swimPose(p, SWIM, 1, 2.3); } p.update(0); } } else { if (SWIM) for (const f of figs) f.userData.v4 && swimPose(f.userData.v4, SWIM, dt, 2.3); tickPirates(q.get('freeze') ? 0 : dt); }
+  const { w, h } = layout(); renderer.setScissorTest(true); renderer.clear(); cam.aspect = w / h; cam.updateProjectionMatrix();
+  const Z = +(q.get('zoom') || 1), LY = +(q.get('ly') || 0.95); const LX = +(q.get('lx') || 0); cam.position.set(LX + VIEWS[VIEW][0] / Z, LY + (VIEWS[VIEW][1] - 0.95) / Z, VIEWS[VIEW][2] / Z); cam.lookAt(LX, LY, 0);
+  calls = scenes.map((s, i) => { const x = (i % COLS) * w, y = innerHeight - (24 + (Math.floor(i / COLS) + 1) * h);
+    renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.info.reset(); renderer.info.autoReset = false; renderer.render(s, cam); return renderer.info.render.calls; });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.GEARV = { calls: () => calls.slice(), ready: () => figs.every((f) => f.userData.v4 && (!f.userData.gear || f.userData.v4.gearKey != null)), figs,
+  tris: () => figs.map((f) => { let t = 0; f.traverse((o) => { if (o.isMesh && o.visible) t += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; }); return Math.round(t); }) };
+addEventListener('resize', () => renderer.setSize(innerWidth, innerHeight));
+</script></body></html>

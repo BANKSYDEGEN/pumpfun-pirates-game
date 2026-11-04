@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v179'; // [v179] map ship: path-hotfix (cobbles on walkable floor only, cutting walls cliff rock, camera boom pull-in, no ford kerbs) + island rework 2 (hilltop fort walk-in, Pirates' Climb, rope bridge approaches, D2 Jungle Ruins retouch, walk test)
+const VERSION = 'pfp-v180'; // [v180] Raul's peg leg fit (v5: fitted knee sleeve, pant leg / boot hidden under it, bends with the knee, swings with the shin; the special pegs re-seated on it); [v179] map ship: path-hotfix (cobbles on walkable floor only, cutting walls cliff rock, camera boom pull-in, no ford kerbs) + island rework 2 (hilltop fort walk-in, Pirates' Climb, rope bridge approaches, D2 Jungle Ruins retouch, walk test)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

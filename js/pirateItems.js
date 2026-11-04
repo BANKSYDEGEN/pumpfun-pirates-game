@@ -21,6 +21,10 @@ const V5DIR = DIR + 'v5/', v5files = (id) => Object.fromEntries(['male', 'female
 const files = (id, perBase) => Object.fromEntries(['male', 'female'].map((b) => [b, Object.fromEntries(['hi', 'lo'].map((l) => [l, `${DIR}item_${id}${perBase ? '_' + b : ''}_${l}.glb`]))]));
 const item = (id, label, slot, price, tint, hide, o = {}) => ({ id, label, slot, price, currency: 'gold', glb: (o.perBase ? files(id, 1) : files(id)).male.hi,
   icon: `${DIR}icons/${id}.png`, tint, files: files(id, o.perBase), hide, ...o });
+// [Raul pegleg] v5 peg fit (tools: brand/v5_models/raul_pegleg): the pant leg + boot on the peg side hide below the knee sleeve's CUT
+// (v5 bind space, raw: knee joint - 1.2 cm, per body), everything round the knee stays and the fitted sleeve covers the cut edge
+export const PEG_CUT = { male: 0.2022, female: 0.2122 };
+const PEG5 = (s) => [{ leg5: s, y: PEG_CUT.male, male: 1 }, { leg5: s, y: PEG_CUT.female, female: 1 }];
 // hide rules (bind space, three units): region (cyl | arm | leg | torso | sph | all) AND optional tint keys ('fixed' = untinted parts)
 export const ITEMS = [
   item('hat_tricorn', 'Pirate Hat', 'head', 250, { hat: '#18181b' }, [{ cyl: [0, -0.005, 0.27], y: [HY + 0.085, 9], tilt: 0.1, tints: ['hair'] }], { v5hide: [], skull: false }),   // [v128] BANKSY "Add this hat back in": the original compact v4 Pirate Hat (gold trim, big skull + crossbones) warped onto v5 (v5Fwd / v5Hat) instead of the wide v5 refit
@@ -41,8 +45,8 @@ export const ITEMS = [
   item('mask_luchador', 'Luchador Mask', 'head', 0, null, [], { v5: v5files('mask_luchador'), v5hide: [{ lucha: 1 }], v5only: true, noFlatten: true, recolor: 'lucha' }),
   item('hook_l', 'Hook Arm (Left)', 'handL', 400, null, [{ arm: 'L', s: 0.29 }], { v5: v5files('hook_l'), v5hide: [{ arm: 'L', s: 0.239, male: 1 }, { arm: 'L', s: 0.27, female: 1 }] }),
   item('hook_r', 'Hook Arm (Right)', 'handR', 400, null, [{ arm: 'R', s: 0.29 }], { v5: v5files('hook_r'), v5hide: [{ arm: 'R', s: 0.245, male: 1 }, { arm: 'R', s: 0.276, female: 1 }] }),
-  item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
-  item('peg_r', 'Peg Leg (Right)', 'legR', 400, { boots: '#221a16' }, [{ leg: 'R', y: 0.225, tints: ['pants'] }, { leg: 'R', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_r'), v5hide: [{ leg: 'R', y: 0.233, tints: ['pants', 'boots', 'fixed'] }] }),
+  item('peg_l', 'Peg Leg (Left)', 'legL', 400, { boots: '#221a16' }, [{ leg: 'L', y: 0.225, tints: ['pants'] }, { leg: 'L', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_l'), v5hide: PEG5('L') }),
+  item('peg_r', 'Peg Leg (Right)', 'legR', 400, { boots: '#221a16' }, [{ leg: 'R', y: 0.225, tints: ['pants'] }, { leg: 'R', y: 0.3, tints: ['boots', 'fixed'] }], { v5: v5files('peg_r'), v5hide: PEG5('R') }),
   // [v123] v5-only: Raul's per-body fits of Timothy's merged-gear pieces (js/pirateGear.js RAUL5); v4 bodies keep the merged pieces
   item('hat_bicorne', 'Bicorne', 'head', 0, null, [], { v5: v5files('hat_bicorne'), v5hide: [], v5only: true, keyed: true, skull: true, skullOpt: { gold: true, scale: 1.1 }, v5dy: 0.035 }),   // [v125] sat low: up 3.5 cm
   item('hat_bandana', 'Bandana', 'head', 0, null, [], { v5: v5files('hat_bandana'), v5hide: [], v5only: true, keyed: true, skull: true, skullOpt: { geometric: true, at: 0.76, scale: 0.85 }, cream: '#f3efe6' }),   // [Raul clothes v5] rebuilt: smooth cap, rolled hem, back knot + tails; cream = the polka dots (texture alpha)
@@ -87,11 +91,11 @@ export const ITEMS = [
   item('pet_monkey', 'Shoulder Monkey', 'shoulder', 0, null, [], { v5: v5files('pet_monkey'), v5hide: [], v5only: true, single: true }),
   item('pet_cat', "Ship's Cat", 'shoulder', 0, null, [], { v5: v5files('pet_cat'), v5hide: [], v5only: true, single: true }),
   item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
-  // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit (knee cup + shaft; same lower-leg hide as the peg)
-  item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
-  item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: [{ leg: 'R', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
-  item('peg_kraken_l', 'Kraken Bone Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_kraken_l'), v5hide: [{ leg: 'L', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
-  item('peg_kraken_r', 'Kraken Bone Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_kraken_r'), v5hide: [{ leg: 'R', y: 0.233, tints: ['pants', 'boots', 'fixed'] }], v5only: true }),
+  // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit; [Raul pegleg] re-seated on the v5 peg fit (knee sleeve, PEG5 hide)
+  item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: PEG5('L'), v5only: true }),
+  item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: PEG5('R'), v5only: true }),
+  item('peg_kraken_l', 'Kraken Bone Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_kraken_l'), v5hide: PEG5('L'), v5only: true }),
+  item('peg_kraken_r', 'Kraken Bone Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_kraken_r'), v5hide: PEG5('R'), v5only: true }),
   item('parrot', 'Parrot', 'shoulder', 1500, null, [],
     { attach: { bone: 'spine', feet: [0.242, 0.916, -0.016], offset: { male: [0, 0, 0], female: [0.05, -0.034, 0.0] }, lean: { male: 0, female: -0.42 } }, clip: 'parrot_idle' }),
 ];
@@ -203,7 +207,9 @@ function applyHide(p) {
     for (let i = 0; i < n; i++) { if (hid[i]) continue; const t = Tt ? Math.round(Tt.getX(i)) : -1, rX = P.getX(i), rY = P.getY(i), rZ = P.getZ(i); let X = rX, Y = rY, Z = rZ; if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
       if (LU && luchaHit(LU, rX, rY, rZ, t, BR[i])) { hid[i] = 1; continue; }
       if (SG && t === TINTS.indexOf('hair') && rY < SG && (p.female || Math.abs(rX) < 0.14) && SB[i] !== 1) { hid[i] = 1; continue; }   // [wrestler v2] hair-tinted pants detail (fly / sash folds) under the fitted singlet legs (never the braid)
-      for (const r of rules) { if (r.lucha) continue; if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
+      for (const r of rules) { if (r.lucha) continue;
+        if (r.leg5) { if ((r.female && !p.female) || (r.male && p.female)) continue; const sx = r.leg5 === 'L' ? 1 : -1; if (sx * rX > 0.002 && sx * rX < 0.3 && rY < r.y) { hid[i] = 1; break; } continue; }   // [Raul pegleg] v5 raw: that leg below the cut (body + base outfit)
+        if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
         if (p.v5 && r.tints?.includes('hair') && !r.raw) continue;
         if (isCloth && (r.raw || r.v5torso)) continue;   // the base outfit only takes the plain region rules (peg leg)   // [v123] Raul: never hide v5 hair under a hat (the AI head is hollow: holes)
         if (p.v5 && r.v5torso) {   // [v124] BANKSY "jacket has holes": hiding the v5 torso opened the hollow body in the coat's open front.

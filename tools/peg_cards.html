@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- [Raul pegleg] dev only: the shop's PEG LEG cards (+ the special pegs' cards at the end) (js/gearThumbs.js, the live renderer) for both sides x both bodies + the pre-baked PNG -->
+<html><head><meta charset="utf-8"><base href="../"><title>peg cards</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
+<style>body{margin:0;background:#0e1a20;color:#fff;font:600 12px system-ui}#g{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:6px}#g div{text-align:center}#g img{width:100%;background:radial-gradient(circle at 50% 40%,#2a3a40,#0e1a20)}</style>
+</head><body><div id="g"></div>
+<script type="module">
+import { gearThumb } from './js/gearThumbs.js';
+const add = (u, t) => { const d = document.createElement('div'); d.innerHTML = `<img src="${u}"><br>${t}`; document.getElementById('g').append(d); };
+add('assets/pirates/thumbs/leg_peg.png?' + Date.now(), 'PRE-BAKED CARD');
+for (const [body, b] of [[0, 'MALE'], [1, 'FEMALE']]) for (const s of ['L', 'R']) add(await gearThumb('leg', 'peg', { skin: 'classic', legSide: s, body }), `${b} · ${s === 'L' ? 'LEFT' : 'RIGHT'}`);
+window.BAKE = {}; for (const id of ['peg', 'peg_gold', 'peg_kraken']) window.BAKE[id] = await gearThumb('leg', id, {});   // = the pre-baked cards (tools/thumbs_v5.py bakes with {})
+for (const id of ['peg_gold', 'peg_kraken']) add(window.BAKE[id], id.toUpperCase());
+window.CARDS_DONE = true;
+</script></body></html>
