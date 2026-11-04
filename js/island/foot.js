@@ -638,7 +638,18 @@ function pathDeckY(d, x, z) { const b = d.bb; if (x < b[0] || x > b[1] || z < b[
   for (let i = 1; i < n; i++) { const ax = P[i - 1][0], az = P[i - 1][1], ex = P[i][0] - ax, ez = P[i][1] - az, t = ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez), tc = t < 0 ? 0 : t > 1 ? 1 : t,
       qx = ax + ex * tc - x, qz = az + ez * tc - z, dd = qx * qx + qz * qz; if (dd < best) { best = dd; bs = d.ps[i - 1] + (d.ps[i] - d.ps[i - 1]) * tc; bo = (-qx * ez + qz * ex) / Math.hypot(ex, ez); out = (i === 1 && t < -1e-3) || (i === n - 1 && t > 1 + 1e-3); } }
   return best <= d.hw * d.hw && !out ? (d.yAtO ? d.yAtO(bs, bo) : d.yAt(bs)) : null; }   // yAtO(s, o): o = signed offset (+ = right of the path's direction)
-export function areaDeckAt(x, z) { let y = null; for (const d of AREA_DECKS) { if (d.off) continue; const dx = x - d.x, dz = z - d.z;
+// [perf-plaza] BANKSY 5:24 PM "walking around plaza is laggy on pc": areaDeckAt ran over all ~140 area decks (5 us) several times per
+// walker sub-step, per follower and per peer. A 6 m grid of each deck's bounds (rebuilt when decks are added) hands it only the decks that
+// can contain the point: the same decks in the same order, so the same height. &deckgrid=0 = the full scan.
+const DECK_GRID_ON = !(typeof location !== 'undefined' && /[?&]deckgrid=0(&|$)/.test(location.search));
+export const DG = { on: DECK_GRID_ON, n: -1, cell: 6, map: new Map() };   // exported for the node equality probe
+function deckBounds(d) { if (d.path && d.bb) return d.bb; const r = d.r ? d.r : Math.hypot(d.hw || 0, d.hl || 0) + 0.01; return [d.x - r, d.x + r, d.z - r, d.z + r]; }
+function decksNear(x, z) { if (!DG.on) return AREA_DECKS;
+  if (DG.n !== AREA_DECKS.length) { DG.n = AREA_DECKS.length; DG.map.clear(); const C = DG.cell;
+    AREA_DECKS.forEach((d) => { const b = deckBounds(d); for (let i = Math.floor(b[0] / C); i <= Math.floor(b[1] / C); i++) for (let j = Math.floor(b[2] / C); j <= Math.floor(b[3] / C); j++) { const k = i * 100003 + j; let L = DG.map.get(k); if (!L) DG.map.set(k, L = []); L.push(d); } }); }
+  return DG.map.get(Math.floor(x / DG.cell) * 100003 + Math.floor(z / DG.cell)) || NO_DECKS; }
+const NO_DECKS = [];
+export function areaDeckAt(x, z) { let y = null; for (const d of decksNear(x, z)) { if (d.off) continue; const dx = x - d.x, dz = z - d.z;
   if (d.path) { const v = pathDeckY(d, x, z); if (v !== null) y = Math.max(y ?? -1e9, v); continue; }
   if (d.r) { if (dx * dx + dz * dz <= d.r * d.r) y = Math.max(y ?? -1e9, d.y); continue; }
   const l = dx * d.s + dz * d.c; if (Math.abs(dx * d.c - dz * d.s) > d.hw || Math.abs(l) > d.hl) continue;
