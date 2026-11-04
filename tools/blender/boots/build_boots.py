@@ -146,7 +146,7 @@ for sx in (1, -1):
     bp, bn = on_surface(up, G, fcx, TOP - 0.05, front=True)
     parts.append(mc_part(sd_buckle_on(X, Y, Z, bp + bn * 0.003, bn, 0.028, 0.024, 0.007, 0.006), G, 'gold', sx))
 # ---- decimate each part to the LOD budget, colour it, skin it
-BUD = {'upper': 1500, 'sole': 300, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
+BUD = {'upper': 1000, 'sole': 240, 'rim': 160, 'strap': 180, 'cuff': 300, 'gold': 150, 'goldtoe': 75, 'silver': 120} if HI else \
       {'upper': 280, 'sole': 60, 'rim': 50, 'strap': 50, 'cuff': 90, 'gold': 44, 'goldtoe': 64, 'silver': 36}
 mesh_parts = []
 for kind, sx, V, Fc in parts:
