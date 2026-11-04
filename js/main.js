@@ -1248,6 +1248,7 @@ function adaptResolution() {
 }
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable')); } // [perf3] deferred loads (music) start now
   adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title' || (game.mode === 'pvp' && (game.state === 'shop' || game.state === 'paused')); // [pvp] the shared sea never pauses
   if (running) game.t += dt;

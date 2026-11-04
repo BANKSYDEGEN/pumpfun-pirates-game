@@ -23,6 +23,7 @@ export const hillClear = (lx, lz) => { for (const r of RECTS) if (lx > r[0] && l
 const FILES = ['hill_street', 'hill_sword_shop', 'hill_musket_shop', 'hill_big_shop'];   // hill_big_shop = rent_big on the old Squad Hall plot (R0)
 const LOD_D = 46;                    // desktop: LOD0 -> LOD1 (m)
 
+const SIGN_MERGE = (() => { try { return !/[?&]signmerge=0/.test(location.search); } catch { return true; } })();
 export function loadHill(low) {
   if (!HILL_GLB_ON) return Promise.resolve(null);
   const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low); solid.name = 'hill_solid';   // shop floors lie 1 cm over the terrain
@@ -79,7 +80,7 @@ function libTurn(geo, m) {
 export function buildHill() {
   const K = HILL_KIT; if (!K || !HILL_PLACES.length) return null;
   const root = new THREE.Group(); root.name = 'hill_street'; let tris = 0;
-  const merge = { solid: [], glow: [] }, pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), mm = new THREE.Matrix4();
+  const merge = { solid: [], glow: [] }, signs = [], signObj = [], pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), mm = new THREE.Matrix4();
   for (const { key, m } of HILL_PLACES) { const L = K.lots[key]; if (!L) continue;
     const g = new THREE.Group(); g.name = 'hill_' + key; m.decompose(g.position, g.quaternion, g.scale); root.add(g);
     if (K.low) { g.updateMatrix(); L.lods[0].traverse(o => { if (!o.isMesh) return; o.updateMatrix(); mm.multiplyMatrices(g.matrix, o.matrix); const geo = o.geometry.clone();
@@ -89,7 +90,11 @@ export function buildHill() {
         geo.applyMatrix4(mm); libTurn(geo, mm); (o.material === K.mats.glow ? merge.glow : merge.solid).push(geo); }); }
     else { const lod = new THREE.LOD(); lod.name = 'hill_lod_' + key; L.lods.forEach((lv, i) => lod.addLevel(lv, i ? LOD_D : 0)); g.add(lod);
       L.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; }); }
-    if (L.sign) g.add(L.sign); if (L.empty) g.add(L.empty); }
+    if (L.sign && SIGN_MERGE && !K.low) { g.updateMatrix(); L.sign.updateMatrix(); const geo = L.sign.geometry.clone(); for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) geo.deleteAttribute(k);
+      geo.applyMatrix4(mm.multiplyMatrices(g.matrix, L.sign.matrix)); signs.push(geo); signObj.push([g, L.sign]); } // [perf3] the sign plates: one mesh, not one draw (+ shadow draw) each
+    else if (L.sign) g.add(L.sign); if (L.empty) g.add(L.empty); }
+  if (signs.length) { let geo = null; try { geo = mergeGeometries(signs, false); } catch (e) { geo = null; } signs.forEach(gg => gg.dispose());
+    if (geo) { geo.computeBoundingSphere(); const mesh = new THREE.Mesh(geo, K.mats.solid); mesh.name = 'hill_signs_merged'; mesh.castShadow = true; root.add(mesh); } else signObj.forEach(([gg, sg]) => gg.add(sg)); }
   if (K.low) for (const [k, list] of Object.entries(merge)) { if (!list.length) continue; const geo = mergeGeometries(list, false); list.forEach(gg => gg.dispose()); if (!geo) continue; geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, K.mats[k]); mesh.name = 'hill_street_merged_' + k; root.add(mesh); tris += geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3; }
   root.userData.tris = tris; void pos; void q; void sc;

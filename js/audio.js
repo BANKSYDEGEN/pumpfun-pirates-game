@@ -198,7 +198,12 @@ async function loadOne(n) {
 }
 function loadSamples() {
   if (_loading || NO_SAMPLES || !ctx) return; _loading = true;
-  (async () => { for (const g of LOAD_ORDER) await Promise.all(g.flatMap(k => SAMPLES[k]).map(loadOne)); })();
+  // [perf3] BANKSY "optimize music": the shanty (largest file) waits until the game is playable ('pfp-playable' from main.js, or 45 s),
+  // then loads when the main thread is idle, so it never competes with the harbor's own downloads. The synth loop covers the gap. ?musicdefer=0 = old order
+  const DEFER = !/[?&]musicdefer=0/.test(location.search), late = DEFER ? ['music_shanty'] : [];
+  (async () => { for (const g of LOAD_ORDER) await Promise.all(g.flatMap(k => SAMPLES[k]).filter(n => !late.includes(n)).map(loadOne));
+    if (!late.length) return; await new Promise(r => { if (window.__pfpPlayable) return r(); addEventListener('pfp-playable', r, { once: true }); setTimeout(r, 45000); });
+    await new Promise(r => (window.requestIdleCallback || ((f) => setTimeout(f, 300)))(r, { timeout: 3000 })); await Promise.all(late.map(loadOne)); })();
 }
 const _last = {};
 function pick(k) { // round-robin-ish: random, never the same file twice in a row

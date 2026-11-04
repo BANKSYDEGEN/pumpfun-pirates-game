@@ -60,8 +60,21 @@ function loader() {
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {
-  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).catch((e) => { _cache.delete(url); throw e; })); // [v112] retry a failed load next time
+  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); throw e; })); // [v112] retry a failed load next time
   return _cache.get(url);
+}
+// [perf3] the v5 pirate atlases are 2048 px (22 MB of GPU memory each with mips, six of them). Cap baked GLB maps at 1024 px:
+// a pirate never covers enough of the screen for 2048 to show. ?pirtex=2048 (or 4096) turns it off.
+const TEX_CAP = (() => { try { const m = /[?&]pirtex=(\d+)/.exec(location.search); return m ? +m[1] : 1024; } catch { return 1024; } })();
+const _capped = new WeakMap();
+function capTex(gl) {
+  if (typeof document === 'undefined') return gl;
+  gl.scene.traverse(o => { for (const m of [].concat(o.material || [])) for (const k of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap']) {
+    const t = m[k], img = t?.image; if (!img?.width || Math.max(img.width, img.height) <= TEX_CAP) continue;
+    try { let c = _capped.get(img); if (!c) { const f = TEX_CAP / Math.max(img.width, img.height); c = document.createElement('canvas'); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+        const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0, c.width, c.height); _capped.set(img, c); }
+      t.image = c; t.needsUpdate = true; } catch (e) { console.warn('[pirate] texture cap', e); } } });
+  return gl;
 }
 let _grad = null;
 export function gradient() {
