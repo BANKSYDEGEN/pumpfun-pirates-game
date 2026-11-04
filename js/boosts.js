@@ -52,6 +52,17 @@ export const BOOSTS = {
   'parrot:parrot_green': { goldFind: 0.02 }, 'parrot:parrot_red': { goldFind: 0.03 }, 'parrot:parrot_blue': { goldFind: 0.04 },
   'parrot:parrot_cockatoo': { goldFind: 0.05, digLuck: 0.05 }, 'parrot:parrot_black': { goldFind: 0.06, digLuck: 0.08 },
   'parrot:parrot_gold': { goldFind: 0.08, digLuck: 0.12 }, 'parrot:parrot_diamond': { goldFind: 0.10, digLuck: 0.15 },
+  // [shop-boosts] BANKSY 10:00 AM "give skill boosts to the new items": Raul's shop items 2 + special pegs, scaled by price within each slot.
+  // beard = repair · earrings = range · gold teeth + pets = gold find · boots = speed · cape = hull HP · ship flag = reload · figurehead = damage · special pegs = turn + speed
+  'beard:beard_moustache': { regen: 0.01 }, 'beard:beard_forked': { regen: 0.02 }, 'beard:beard_black': { regen: 0.03 },
+  'ears:earring_hoop': { range: 0.01 }, 'ears:earring_double': { range: 0.015 }, 'ears:earring_skull': { range: 0.02 },
+  'teeth:tooth_gold': { goldFind: 0.01 }, 'teeth:grill_gold': { goldFind: 0.02 }, 'teeth:grill_diamond': { goldFind: 0.03 },
+  'boots:boots_buckle': { speed: 0.01 }, 'boots:boots_cavalier': { speed: 0.015 }, 'boots:boots_gold': { speed: 0.02 },
+  'cape:cape_tattered': { hp: 0.01 }, 'cape:cape_captain': { hp: 0.02 }, 'cape:cape_royal': { hp: 0.04 },
+  'parrot:pet_cat': { goldFind: 0.025 }, 'parrot:pet_monkey': { goldFind: 0.03 }, 'parrot:pet_cat_black': { goldFind: 0.035 },
+  'flag:flag_cutlass': { reload: 0.01 }, 'flag:flag_red': { reload: 0.02 }, 'flag:flag_gold': { reload: 0.03 },
+  'figure:fig_mermaid': { dmg: 0.02 }, 'figure:fig_kraken': { dmg: 0.03 }, 'figure:fig_lion': { dmg: 0.04 },
+  'leg:peg_gold': { turn: 0.04, speed: 0.01 }, 'leg:peg_kraken': { turn: 0.04, speed: 0.015 }, 'leg:peg_ghost': { turn: 0.04, speed: 0.02 },
   // [BANKSY 5:29 PM "swords and muskets have own hit rate when used in other battle modes"] sword -> SWORD HIT, musket -> MUSKET HIT
   // (on foot only, never ship stats). Ids = js/shopCatalog.js WEAPON_PRICES on emerly/battle-areas (rusty = free, no boost).
   'sword:cutlass': { swordHit: 0.01 }, 'sword:rapier': { swordHit: 0.015 }, 'sword:bone': { swordHit: 0.02 }, 'sword:sabre_gilded': { swordHit: 0.03 }, 'sword:blade_gold': { swordHit: 0.04 },

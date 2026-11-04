@@ -146,7 +146,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 }, "gear:musket:dragoon": { price: 12000 },
   "gear:musket:bone": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
   "gear:musket:blunder_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
-  // [Raul shop items 2] PROPOSED prices (BANKSY OKs them; mirror js/shopCatalog.js). Cosmetic only, no BOOSTS entries.
+  // [Raul shop items 2] PROPOSED prices (BANKSY OKs them; mirror js/shopCatalog.js). [shop-boosts] they now have BOOSTS entries (below).
   "gear:beard:beard_moustache": { price: 400 }, "gear:beard:beard_forked": { price: 900 }, "gear:beard:beard_black": { price: 2500 }, "gear:ears:earring_hoop": { price: 250 }, "gear:ears:earring_double": { price: 600 }, "gear:ears:earring_skull": { price: 1200 }, "gear:teeth:tooth_gold": { price: 300 }, "gear:teeth:grill_gold": { price: 1500 }, "gear:teeth:grill_diamond": { price: 6000 }, "gear:boots:boots_buckle": { price: 350 }, "gear:boots:boots_cavalier": { price: 1000 }, "gear:boots:boots_gold": { price: 3000 }, "gear:cape:cape_tattered": { price: 800 }, "gear:cape:cape_captain": { price: 2000 }, "gear:cape:cape_royal": { price: 8000 }, "gear:parrot:pet_cat": { price: 3000 }, "gear:parrot:pet_monkey": { price: 4000 }, "gear:parrot:pet_cat_black": { price: 6000 }, "gear:leg:peg_gold": { price: 30000 }, "gear:leg:peg_kraken": { price: 45000 }, "gear:leg:peg_ghost": { price: 60000 } /* [Raul pegs 2] PROPOSED, not OK'd yet */, "gear:flag:flag_cutlass": { price: 1000 }, "gear:flag:flag_red": { price: 2500 }, "gear:flag:flag_gold": { price: 7500 }, "gear:figure:fig_mermaid": { price: 5000 }, "gear:figure:fig_kraken": { price: 9000 }, "gear:figure:fig_lion": { price: 15000 },
 };
 export const SHOP_SKINS = Object.keys(SHOP_ITEMS).filter((k) => k.startsWith("skin:")).map((k) => k.slice(5));
@@ -218,6 +218,16 @@ export const BOOSTS: Record<string, Record<string, number>> = {
   "parrot:parrot_green": { goldFind: 0.02 }, "parrot:parrot_red": { goldFind: 0.03 }, "parrot:parrot_blue": { goldFind: 0.04 },
   "parrot:parrot_cockatoo": { goldFind: 0.05, digLuck: 0.05 }, "parrot:parrot_black": { goldFind: 0.06, digLuck: 0.08 },
   "parrot:parrot_gold": { goldFind: 0.08, digLuck: 0.12 }, "parrot:parrot_diamond": { goldFind: 0.10, digLuck: 0.15 },
+  // [shop-boosts] Raul's shop items 2 + special pegs (mirror js/boosts.js)
+  "beard:beard_moustache": { regen: 0.01 }, "beard:beard_forked": { regen: 0.02 }, "beard:beard_black": { regen: 0.03 },
+  "ears:earring_hoop": { range: 0.01 }, "ears:earring_double": { range: 0.015 }, "ears:earring_skull": { range: 0.02 },
+  "teeth:tooth_gold": { goldFind: 0.01 }, "teeth:grill_gold": { goldFind: 0.02 }, "teeth:grill_diamond": { goldFind: 0.03 },
+  "boots:boots_buckle": { speed: 0.01 }, "boots:boots_cavalier": { speed: 0.015 }, "boots:boots_gold": { speed: 0.02 },
+  "cape:cape_tattered": { hp: 0.01 }, "cape:cape_captain": { hp: 0.02 }, "cape:cape_royal": { hp: 0.04 },
+  "parrot:pet_cat": { goldFind: 0.025 }, "parrot:pet_monkey": { goldFind: 0.03 }, "parrot:pet_cat_black": { goldFind: 0.035 },
+  "flag:flag_cutlass": { reload: 0.01 }, "flag:flag_red": { reload: 0.02 }, "flag:flag_gold": { reload: 0.03 },
+  "figure:fig_mermaid": { dmg: 0.02 }, "figure:fig_kraken": { dmg: 0.03 }, "figure:fig_lion": { dmg: 0.04 },
+  "leg:peg_gold": { turn: 0.04, speed: 0.01 }, "leg:peg_kraken": { turn: 0.04, speed: 0.015 }, "leg:peg_ghost": { turn: 0.04, speed: 0.02 },
   // swords + muskets: their OWN on-foot hit rate (BANKSY 5:29 PM), never ship stats. They count once GEAR_SLOTS has sword / musket.
   "sword:cutlass": { swordHit: 0.01 }, "sword:rapier": { swordHit: 0.015 }, "sword:bone": { swordHit: 0.02 }, "sword:sabre_gilded": { swordHit: 0.03 }, "sword:blade_gold": { swordHit: 0.04 },
   "musket:navy": { musketHit: 0.01 }, "musket:blunder": { musketHit: 0.02 }, "musket:dragoon": { musketHit: 0.03 }, "musket:bone": { musketHit: 0.04 }, "musket:blunder_gold": { musketHit: 0.05 },

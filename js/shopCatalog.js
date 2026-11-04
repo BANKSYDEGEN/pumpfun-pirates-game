@@ -81,7 +81,7 @@ export const GEAR_ITEMS = [
   { slot: 'face', id: 'none', label: 'NO PAINT', price: 0, glb: null, tint: null, free: true },
   { slot: 'face', id: 'facepaint_retardio', label: 'RETARDIO FACE PAINT', price: 350, glb: 'raul:facepaint_retardio', tint: null },
   // [Raul shop items 2] BANKSY "Do new shop items" (Nov 3): v5 models (js/pirateItems.js), flag + figurehead = your SHIP (js/shipGear.js).
-  // PRICES ARE PROPOSED (proposed: true): Raul's suggestion, BANKSY OKs them. Cosmetic only: no SKILL BOOSTS (js/boosts.js has none for them). The pets ride the parrot slot (one shoulder pet).
+  // PRICES ARE PROPOSED (proposed: true): Raul's suggestion, BANKSY OKs them. [shop-boosts] SKILL BOOSTS now (js/boosts.js, scaled by price). The pets ride the parrot slot (one shoulder pet).
   { slot: 'beard', id: 'none', label: 'NO BEARD', price: 0, glb: null, tint: null, free: true },
   { slot: 'ears', id: 'none', label: 'NO EARRINGS', price: 0, glb: null, tint: null, free: true },
   { slot: 'teeth', id: 'none', label: 'NO GOLD TEETH', price: 0, glb: null, tint: null, free: true },
@@ -160,10 +160,10 @@ export const PET_RARITY = { none: '', pet_cat: 'UNCOMMON', pet_monkey: 'RARE', p
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {
   shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'flag', 'figure'], awning: null },
-  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'face', 'boots', 'cape'], awning: '#d8322f' },
+  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'face', 'boots', 'cape'], awning: '#d8322f' },   // [shop-boosts] BANKSY: no parrots / pets here (PET STORE, SHOP, BLUE STALL still sell them; owned + equipped ones keep working)
   stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg', 'beard', 'ears', 'teeth', 'flag', 'figure'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
-  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape'], awning: '#d8322f' },
+  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape'], awning: '#d8322f' },
   pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots + pets for your shoulder', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear'], slots: ['crewhat', 'crewoutfit'], awning: '#6a4fb3', crew: true },   // [Timothy] plaza CREW SHOP counter
   weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // [Timothy] window.openWeaponStore(); the SWORD SHOP + MUSKET SHOP doors on Main Street (battleAreas.js MAIN_ST_SHOPS) open it with their own title
