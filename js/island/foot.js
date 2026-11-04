@@ -1385,3 +1385,35 @@ export function drawMap(cv, extraPois = []) {
   st.forEach((s, i) => T(s, -800, 720 + i * 24));
   const [sa, sb] = P(420, 740), [sc2] = P(620, 740); g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.beginPath(); g.moveTo(sa, sb); g.lineTo(sc2, sb); g.stroke(); g.fillStyle = '#fff'; g.fillText('200 m', sa + 70, sb - 14);
 }
+// [build-place] owner BUILD (BANKSY: place houses, walls, fences, crates, lamps, trees, docks, bridges): the catalog reuses the island's own
+// kit builders as plain geometry (KP off: no GLB lists), terrainEdit.js merges each into ONE template and draws every copy of it INSTANCED
+// (one draw call per bucket per type, phones included). col: 'b' box [w, d] | 'c' circle r | 'k' walk deck { hw, hl, y, pad } (+ side rails)
+export const PROP_CAT = [
+  { id: 'house', label: 'HOUSE', ico: '🏠', col: ['b', 10.4, 9.4] }, { id: 'hut', label: 'HUT', ico: '🛖', col: ['b', 7.4, 6.4] },
+  { id: 'wall', label: 'WALL', ico: '🧱', col: ['b', 6, 0.9] }, { id: 'fence', label: 'FENCE', ico: '🚧', col: ['b', 4, 0.3] },
+  { id: 'crate', label: 'CRATE', ico: '📦', col: ['c', 0.9] }, { id: 'barrel', label: 'BARREL', ico: '🛢️', col: ['c', 0.7] },
+  { id: 'lamp', label: 'LAMP', ico: '🏮', col: ['c', 0.25] }, { id: 'tree', label: 'TREE', ico: '🌳', col: ['c', 0.7] },
+  { id: 'palm', label: 'PALM', ico: '🌴', col: ['c', 0.45] }, { id: 'rock', label: 'ROCK', ico: '🪨', col: ['c', 1.3] },
+  { id: 'stall', label: 'STALL', ico: '⛺', col: ['b', 3.3, 1.5] },
+  { id: 'dock', label: 'DOCK', ico: '⚓', water: true, col: ['k', 3, 4, 0.7, 0] }, { id: 'bridge', label: 'BRIDGE', ico: '🌉', water: true, col: ['k', 1.4, 7, 0.9, 2] }];
+export function propKit(id, low = false) { const k = new Kit(), kp0 = KP, F = []; KP = null;
+  try { switch (id) {
+    case 'house': colonial(k, F, 0, 0, 0, 0, 10, 9, 2, 3, low); break;
+    case 'hut': colonial(k, F, 0, 0, 0, 0, 7, 6, 1, 5, low); break;
+    case 'wall': W(k, box(6, 2.4, 0.8), STONE, 11, M(0, 1.2, 0)); W(k, box(6.3, 0.3, 1.0), STONE_D, 11, M(0, 2.5, 0)); for (const x of [-2, 0, 2]) W(k, box(0.9, 0.5, 1.0), STONE_D, 11, M(x, 2.9, 0)); break;
+    case 'fence': for (const x of [-2, 0, 2]) W(k, cyl(0.1, 0.12, 1.4, 6), WOOD_D, 2, M(x, 0.7, 0)); for (const y of [0.5, 1.1]) W(k, box(4.1, 0.14, 0.08), WOOD, 2, M(0, y, 0)); break;
+    case 'crate': crate(k, M()); break; case 'barrel': barrel(k, M()); break; case 'lamp': torchPost(k, F, 0, 0, 0); break;
+    case 'tree': W(k, cyl(0.35, 0.55, 5, low ? 5 : 7), 0x6b4a30, 5, M(0, 2.5, 0)); for (const [x, y, z, r] of [[0, 6.2, 0, 2.6], [1.5, 5.4, 0.6, 1.9], [-1.3, 5.6, -0.6, 2]]) W(k, jitter(new THREE.IcosahedronGeometry(r, 1), 0.16, x + 3), 0x3c9a3e, 6, M(x, y, z)); break;
+    case 'palm': for (let i = 0; i < 5; i++) W(k, cyl(0.24, 0.32, 1.9, 6), i % 2 ? 0x9a6b3e : 0x84592f, 5, M(i * i * 0.07, 0.95 + i * 1.8, 0, 0, 0, -i * 0.05), false); for (let f = 0; f < 7; f++) W(k, box(4.2, 0.08, 1.0), f % 2 ? 0x3fae44 : 0x63c64e, 6, M(1.6 + Math.cos(f / 7 * 6.28) * 2, 9, Math.sin(f / 7 * 6.28) * 2, -f / 7 * 6.28, 0, -0.35), false); break;
+    case 'rock': W(k, jitter(new THREE.IcosahedronGeometry(1.4, 1), 0.22, 4), 0xa59d92, 3, M(0, 0.5, 0, 0, 0, 0, [1, 0.75, 1])); break;
+    case 'stall': stall(k, 0, 0, 0, 0, 0xd8322f); break;
+    case 'dock': W(k, box(6, 0.25, 8), WOOD_L, 2, M(0, 0.58, 0)); for (const x of [-2.7, 2.7]) for (const z of [-3.6, 0, 3.6]) W(k, cyl(0.18, 0.18, 3.4, 6), WOOD_D, 2, M(x, -1.1, z)); for (let z = -3.5; z <= 3.5; z += 1) W(k, box(6.05, 0.05, 0.08), WOOD_D, 2, M(0, 0.71, z), false); break;
+    case 'bridge': W(k, box(2.8, 0.22, 10), WOOD_L, 2, M(0, 0.8, 0)); for (const x of [-1.35, 1.35]) { W(k, box(0.12, 0.12, 10), WOOD_D, 2, M(x, 1.75, 0)); for (const z of [-4.9, -2.45, 0, 2.45, 4.9]) W(k, cyl(0.09, 0.11, 1.9, 6), WOOD_D, 2, M(x, 0.85, z)); } for (const s of [-1, 1]) W(k, box(2.8, 0.2, 2.2), WOOD, 2, M(0, 0.4, s * 5.9, 0, s * 0.35)); break;
+  } } finally { KP = kp0; } return k; }
+// placed-prop colliders / decks (foot frame); returns a handle for propUnblock
+export function propBlock(id, x, y, z, ry) { const c = PROP_CAT.find(p => p.id === id)?.col, out = []; if (!c) return out; const n0 = CIRC.length, b0 = BOXES.length;
+  if (c[0] === 'c') addCirc(x, z, c[1]); else if (c[0] === 'b') addBox(x, z, c[1], c[2], ry);
+  else { const d = { x, z, hw: c[1], hl: c[2] + c[4], yaw: ry, y: y + c[3], pad: c[4] || 0, skirt: c[4] ? ['ground', 'ground'] : null }; addDeck(d); out.push(AREA_DECKS[AREA_DECKS.length - 1]);
+    if (id === 'bridge') for (const s of [-1, 1]) addBox(x + Math.cos(ry) * s * 1.5, z - Math.sin(ry) * s * 1.5, 0.2, 10, ry); }
+  out.push(...CIRC.slice(n0), ...BOXES.slice(b0)); return out; }
+export function propUnblock(h) { for (const o of h || []) o.off = true; }

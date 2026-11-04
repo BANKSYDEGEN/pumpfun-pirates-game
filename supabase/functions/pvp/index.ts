@@ -422,9 +422,11 @@ Deno.serve(async (req) => {
         for (const [k, v] of Object.entries(src)) { const q = Number(k), cm = Math.round(Number(v));
           if (!Number.isInteger(q) || q < 0 || q > 400000 || !Number.isFinite(cm) || cm === 0) continue; if (++n > 60000) return json(413, { error: "too many cells" });
           cells[String(q)] = Math.max(-3000, Math.min(3000, cm)); }
-        const pieces: Record<string, Record<string, number>> = {}; let np = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
+        const pieces: Record<string, Record<string, number>> = {}; let np = 0, npl = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
         for (const [id, v] of Object.entries(ps)) { if (typeof id !== "string" || id.length > 160 || !v || typeof v !== "object") continue; if (++np > 5000) return json(413, { error: "too many pieces" });
           const f = (x: unknown, lim: number) => Math.max(-lim, Math.min(lim, Math.round((Number(x) || 0) * 100) / 100));
+          if (id[0] === "+") { const t = Math.round(Number(v.t)); if (!/^\+[a-z0-9]{4,24}$/.test(id) || !Number.isInteger(t) || t < 0 || t > 63) continue; if (++npl > 2000) return json(413, { error: "too many placed" }); // [build-place] owner-placed prop
+            pieces[id] = { t, x: f(v.x, 1500), y: f(v.y, 300), z: f(v.z, 1500), ry: f(v.ry, 7) }; continue; }
           pieces[id] = v.h ? { h: 1 } : { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; }
         // [034] paint: { cell: layer * 1000 + percent } (layers 0-7); a save WITHOUT paint (v183 / v184 clients) keeps the stored paint
         let paint: Record<string, number> | null = null;
