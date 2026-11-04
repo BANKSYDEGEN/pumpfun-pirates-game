@@ -489,6 +489,31 @@ function birdPost(dt) {   // PirateGLB post hook (this = the pirate)
   U.uBirdP.value.set(f.p[0] - B.seat[0], f.p[1] - B.seat[1], f.p[2] - B.seat[2]);
   _be.set(f.pitch, f.yaw, f.bank, 'YXZ'); _bm.makeRotationFromEuler(_be); U.uBirdR.value.setFromMatrix4(_bm); U.uBirdF.value = f.flap;
 }
+// [parrot feathers] BANKSY 4:03 PM (via the colour swap, Timothy's parrot mesh untouched): h = 0 tail tip .. 1 crest top, f = 0 tail .. 1 beak tip,
+// up / fr = the source normal's up / forward. Body (key 1): lighter chest, darker back, scalloped feather rows; wings (2): covert bands, dark
+// flight-feather tips; tail + wing tips (3): darker toward the tip, banded; beak: dark lower tip, bright upper; eyes: crisp white / black.
+const _fw = new THREE.Color(1, 1, 1), _fk = new THREE.Color(0, 0, 0);
+export function featherBox(src) {
+  let y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (let i = 0; i < src.n; i++) { const y = src.pos[i * 3 + 1], z = src.pos[i * 3 + 2]; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+  return [y0, 1 / Math.max(1e-6, y1 - y0), z0, 1 / Math.max(1e-6, z1 - z0)];
+}
+export function parrotFeather(c, k, h, f, up, fr) {
+  const cl = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+  if (k === 1) {
+    if (h < 0.68) {   // body: scalloped rows, lighter chest, darker back
+      c.multiplyScalar(Math.sin(h * 95) > 0.45 ? 0.9 : 1.0);
+      c.lerp(_fw, 0.16 * cl((c.r + c.g + c.b) * 0.8) * cl(fr) * cl(1 - Math.abs(h - 0.55) / 0.17));   // dark birds stay dark
+      if (fr < -0.25) c.multiplyScalar(0.84);
+    } else c.multiplyScalar(0.96 + 0.1 * cl(up));   // head: lit from above
+  } else if (k === 2) {   // wing: covert bands, the lower half darkens to the flight feathers
+    c.multiplyScalar((Math.sin(h * 72) > 0.35 ? 0.74 : 1.0) * (1 - 0.6 * cl((0.66 - h) / 0.28)) * (0.92 + 0.14 * cl(up)));
+  } else if (k === 3) {   // tail + wing tips: banded, darker toward the tip (the cockatoo crest mesh is not this mesh)
+    if (h < 0.75) c.multiplyScalar((Math.sin(h * 85) > 0.5 ? 0.78 : 1.0) * (1 - 0.6 * cl((0.42 - h) / 0.42)));
+  } else if (!k && f > 0.7 && h > 0.6 && c.r > 0.45 && c.b < 0.75 * c.r) {   // beak (the baked horn colour): bright upper, dark lower tip
+    if (h < 0.73) c.lerp(_fk, 0.55); else c.multiplyScalar(1.12);
+  } else if (!k) { const L = c.r + c.g + c.b; if (L > 2.4) c.setRGB(1, 1, 1); else if (L < 0.2) c.setRGB(0.02, 0.02, 0.03); }   // eyes: crisp
+}
 // ---------- the merged gear mesh ----------
 function buildGearGeometry(p, body, gear, lib, colors) {
   const low = p.lod === 'lo', boneIx = (nm) => Math.max(0, body.skeleton.bones.findIndex((b) => bn(b.name) === bn(nm)));
@@ -505,10 +530,12 @@ function buildGearGeometry(p, body, gear, lib, colors) {
     const pal = pc[2] ? pc[2](gear) : null, fx = pc[3] || {}, bi = boneIx(pc[1]), n = src.n;
     const pf = W5 && slot === 'parrot' ? PARROT5[p.female ? 'female' : 'male'] : null;   // [v140]
     const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
+    const fb = mesh === 'parrot_parrot' ? featherBox(src) : null;   // [parrot feathers] BANKSY 4:03 PM: banding + shading in the colour swap (build time, no shader cost)
     for (let i = 0; i < n; i++) {
       v.fromArray(src.pos, i * 3).applyMatrix4(toBody).toArray(pos, i * 3); v.fromArray(src.nrm, i * 3).applyMatrix3(nm3).normalize().toArray(nrm, i * 3);
       if (W5) { v5Fwd(W5, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], slot === 'hat', _w5); if (slot === 'hat') v5Hat(W5, gear.hat, _w5); if (pf) parrotSeat(pf, _w5); pos.set(_w5, i * 3); }   // [v121] v4-authored piece -> the v5 body
       const k = src.key[i]; if (k && pal?.[k]) c.set(pal[k]); else if (k === 4) c.set(pal?.[1] || '#c8302c'); else if (k) c.set('#c8302c'); else c.fromArray(src.col, i * 3);
+      if (fb) parrotFeather(c, k, (src.pos[i * 3 + 1] - fb[0]) * fb[1], (src.pos[i * 3 + 2] - fb[2]) * fb[3], src.nrm[i * 3 + 1], src.nrm[i * 3 + 2]);
       if (fx.facets && k) {   // DIAMOND: every triangle its own crystal facet, a few flash white (glints)
         const f = Math.floor(i / 3), hsh = Math.abs(Math.sin(f * 12.9898 + 78.233) * 43758.5453) % 1;
         if (hsh > 0.9) c.setRGB(1, 1, 1); else c.multiplyScalar(0.72 + 0.5 * hsh);
