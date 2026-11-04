@@ -6,6 +6,7 @@ import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.t
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
+import { chestDrop, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked)
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -556,19 +557,32 @@ Deno.serve(async (req) => {
         else { const { data: r } = await db.from("pvp_dev_profiles").select("boss_kills").eq("id", who.pid).maybeSingle(); boss = r?.boss_kills | 0; }
         const { data: sync, error: se } = await db.rpc("pvp_maps_sync", { p_player: who.pid, p_boss: boss, p_spots: MAP_SPOTS }); if (se) throw se;
         const { data: rows } = await db.from("pvp_maps").select("id, tier, spot, source, created_at").eq("player_id", who.pid).is("dug_at", null).order("created_at", { ascending: true }).limit(50);
-        const { data: dug } = await db.from("pvp_maps").select("tier, gold, dug_at").eq("player_id", who.pid).not("dug_at", "is", null).order("dug_at", { ascending: false }).limit(5);
-        return json(200, { ok: true, new: sync?.new | 0, maps: rows || [], recent: dug || [] });
+        const { data: dug } = await db.from("pvp_maps").select("id, tier, gold, dug_at").eq("player_id", who.pid).not("dug_at", "is", null).order("dug_at", { ascending: false }).limit(5);
+        // [v152] chest items in "last finds" (035 pvp_map_loot; not run yet = an error here = no items, nothing else changes)
+        const ids = (dug || []).map((d: any) => d.id), { data: loot } = ids.length ? await db.from("pvp_map_loot").select("map_id, item, crew, dup").in("map_id", ids) : { data: [] };
+        const lootOf = new Map((loot || []).map((l: any) => [l.map_id, { item: String(l.item).slice(5), crew: !!l.crew, dup: !!l.dup }]));
+        const recent = (dug || []).map((d: any) => ({ tier: d.tier, gold: d.gold, dug_at: d.dug_at, loot: lootOf.get(d.id) ?? null }));
+        return json(200, { ok: true, new: sync?.new | 0, maps: rows || [], recent });
       }
       case "map_dig": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         const id = String(b.map ?? ""), spot = String(b.spot ?? "");
         if (!/^[0-9a-f-]{36}$/.test(id) || !MAP_SPOTS_ALL.includes(spot)) return json(400, { error: "bad dig" });
         const holder = who.owner || (!!who.wallet && !!(await holderStatus(who.wallet)).holder);
-        const { data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder }); if (error) throw error;
+        // [v152] CHEST ITEMS: the server picks the chest item from the map id (chest.ts; tier from OUR row, never the client's);
+        // migration 035 grants it in the dig's own transaction. 035 not run yet -> the 026 dig (gold only), same as before.
+        let drop: ChestDrop = null;
+        if (!who.owner) { const { data: mr } = await db.from("pvp_maps").select("tier").eq("id", id).eq("player_id", who.pid).is("dug_at", null).maybeSingle(); if (mr) drop = chestDrop(id, mr.tier); }
+        let { data, error } = drop
+          ? await db.rpc("pvp_map_dig_item", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_item: drop.item, p_crew: drop.crew, p_dup: drop.dup_gold })
+          : await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder });
+        if (error && drop && /pvp_map_dig_item|PGRST202|42883/.test(`${error.code} ${error.message}`)) { drop = null; ({ data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder })); }
+        if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no treasure" });
         // [v106] a logged-in device that adds the dig gold to its own save too sends mirror: true (like the Waves payout)
         if (b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0);
-        return json(200, { ok: true, gold: data.gold, base: data.base, tier: data.tier, holder, owner: who.owner });
+        const loot = drop && data.item ? { item: String(data.item).slice(5), crew: !!data.crew, dup: !!data.dup, dup_gold: data.dup_gold | 0, price: drop.price } : null; // item = 'slot:id' (the client's gear key)
+        return json(200, { ok: true, gold: data.gold, dig_gold: data.dig_gold ?? data.gold, base: data.base, tier: data.tier, holder, owner: who.owner, loot });
       }
       default: return json(400, { error: "unknown action" });
     }

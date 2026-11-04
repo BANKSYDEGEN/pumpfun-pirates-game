@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v196'; // [v196] Raul's items redo 1: the three shop BOOTS rebuilt (one boot per foot, fitted + skinned per body / LOD, drop on the peg side); [v195] perf2: sharper (MSAA everywhere, phones 1.5x, aniso 8/4, no FXAA blur), faster (no sync shader checks, cached ship flatten colours, one KTX2 pool, minified three.js, title-screen prefetch), adaptive quality both ways; [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
+const VERSION = 'pfp-v197'; // [v197] chest items: a dug treasure chest can also hold a hat / clothes / accessory / weapon for you or your crew (server-picked, migration 035); [v196] Raul's items redo 1: the three shop BOOTS rebuilt (one boot per foot, fitted + skinned per body / LOD, drop on the peg side); [v195] perf2: sharper (MSAA everywhere, phones 1.5x, aniso 8/4, no FXAA blur), faster (no sync shader checks, cached ship flatten colours, one KTX2 pool, minified three.js, title-screen prefetch), adaptive quality both ways; [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -39,6 +39,7 @@ const SHELL = [
   "./js/dock/plaza.js",
   "./js/dock/treasure.js", // [v145] treasure maps + the parchment chart / drop reveal
   "./js/dock/treasureMap.js",
+  "./js/dock/chestReveal.js",
   "./js/dock/battery.js", // [Timothy] headland battery guns (game side)
   "./js/uiProfile.js",
   "./js/accountUi.js", // [v106] player accounts

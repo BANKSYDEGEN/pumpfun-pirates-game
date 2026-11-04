@@ -173,7 +173,9 @@ export async function mapDig(map, spot, profile) {
   if (ac) await acctSyncNow(profile, 4000); else if (!s && !group && !ownerAll) await devSyncNow(profile, 4000);
   if (ac) acctHold(); // nothing in flight until the caller has added the dig gold to this save (its next save unholds)
   try { const j = await api('map_dig', { ...(s ? { token: s.token } : { dk: deviceKey() }), map: String(map), spot: String(spot), mirror: true });
-    if (ac) acctBoughtFor(-(j.gold | 0)); return j; }
+    if (ac) acctBoughtFor(-(j.gold | 0));
+    if (j && j.loot && j.loot.item && !j.loot.dup && shop.gear) shop.gear = [...new Set([...shop.gear, String(j.loot.item)])]; // [v152] chest item = owned now (server-granted)
+    return j; }
   catch (e) { if (ac) acctUnhold(); return { ok: false, error: e.message, status: e.status }; } }
 export async function shopBuy(item, profile) {
   await ownerReady; const s = session(); const req = reqId(), ac = !s && !group && !ownerAll && acct();

@@ -213,8 +213,12 @@ export function createPvp(K) {
   // [v122] treasure maps (js/dock/treasure.js drives the UI): the dig gold lands on THIS save in the same tick, then saves
   const maps = { state: () => mapsState(snapshot()),
     async dig(id, spot) { const r = await mapDig(id, spot, snapshot());
+      if (r && r.ok && r.loot && r.loot.item && !r.loot.dup) { profile.gearOwned = [...new Set([...(profile.gearOwned || []), r.loot.item])]; } // [v152] a chest item (the server already owns it for you)
       if (r && r.ok && (r.gold | 0) > 0) { game.gold = Math.min(1e7, (game.gold | 0) + (r.gold | 0)); save({ now: true, force: true }); K.updateHud(); sfx.coin?.(); }
-      return r || { ok: false, error: 'offline' }; } };
+      return r || { ok: false, error: 'offline' }; },
+    canWear(key) { const [slot, id] = String(key).split(':'); return cleanGear({ ...profile.gear, [slot]: id })[slot] === id; }, // [v152] a slot this build knows (weapons: once the WEAPON STORE is in)
+    wear(key) { const [slot, id] = String(key).split(':'); const g = cleanGear({ ...profile.gear, [slot]: id }); // [v152] WEAR IT / DRESS CREW on the chest card
+      if (g[slot] !== id) return false; profile.gear = g; gearChanged(); save({ now: true, force: true }); sfx.equip?.(); return true; } };
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }

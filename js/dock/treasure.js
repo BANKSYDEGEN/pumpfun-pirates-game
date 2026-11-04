@@ -12,6 +12,7 @@
 //     the X painted on the sand sat 4.3 m off the mound (js/island/foot.js); both now sit on the spot the DIG prompt + server use.
 import { createTreasureMap } from './treasureMap.js';
 import { validIds } from '../island/digSpots.js'; // [island-rework] the shared dig-spot registry (server lists are generated from it)
+import { createChestReveal, chestItemInfo } from './chestReveal.js'; // [v152] chest items (server-picked)
 const TIER = { common: ['COMMON MAP', '#e8cf95'], rare: ['RARE MAP', '#7fd0ff'], legendary: ['LEGENDARY MAP', '#ffcd3c'] };
 const RANK = { common: 0, rare: 1, legendary: 2 };
 const WHY = {
@@ -39,6 +40,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
   let maps = [], recent = [], sel = null, busy = false, lastAt = 0, wasOn = false, loading = false, pending = null;
   const toF = layout.harborToFoot;
   const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx });
+  const chest = createChestReveal({ sfx, low, onWear: (key) => pvp()?.maps?.wear?.(key), canWear: (key) => !!pvp()?.maps?.canWear?.(key) }); // [v152] what the chest held
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; (document.getElementById('hud-tr') || document.body).appendChild(btn);
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) btn.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
@@ -56,7 +58,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     btn.innerHTML = `🗺 MAPS<b>${maps.length}</b>`;
     const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
       return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
-    const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>`).join(' ')}` : '';
+    const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>${r.loot && r.loot.item && !r.loot.dup ? ` + ${chestItemInfo(r.loot.item, r.loot.crew).label}${r.loot.crew ? ' (crew)' : ''}` : ''}`).join(' ')}` : '';
     const hint = !sel ? 'NO MAPS YET · sink the COMMODORE + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
     const one = maps.length === 1 ? `<span style="color:${(TIER[sel.tier] || TIER.common)[1]}">${(TIER[sel.tier] || TIER.common)[0]}</span> · ${spotName(sel.spot)} · ` : '';
     tmap.setUi(chips, one + hint);
@@ -85,7 +87,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
       renderUi(); } finally { loading = false; } }
   function tick() { const o = !!isOn(), now = performance.now();
     if (o && (!wasOn || now - lastAt > 90000)) { lastAt = now; refresh(); }
-    wasOn = o; btn.style.display = o && maps.length ? 'block' : 'none'; if (!o) { close(); tmap.dismiss(true); }
+    wasOn = o; btn.style.display = o && maps.length ? 'block' : 'none'; if (!o) { close(); tmap.dismiss(true); chest.hide(true); }
     if (pending && o && !tmap.isOpen && !tmap.revealing && calm()) playReveal(); }
   const soon = (ms = 6000) => { lastAt = Math.min(lastAt, performance.now() - 90000 + ms); }; // ask the server again in ~ms (after a boss sinks)
   const mapFor = (id) => (sel && sel.spot === id) ? sel : maps.find(m => m.spot === id);
@@ -100,10 +102,12 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
       if (r && r.ok) {
         if (q.kind === 'dig') { world.activate(q, t); q.used = true; setTimeout(() => world.rearm(q), 9000); }
         maps = maps.filter(x => x.id !== m.id); recent = [{ tier: r.tier, gold: r.gold }, ...recent]; if (sel && sel.id === m.id) sel = maps[0] || null;
-        toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200); renderUi();
+        recent[0].loot = r.loot || null; renderUi();
+        if (r.loot && r.loot.item) chest.show(r); // [v152] the chest held an item: its card (for you / your crew / already yours)
+        else toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200);
       } else { toast(WHY[r?.error] || 'THE DIG FAILED<br><small>check your connection and try again</small>', 2600); if (r?.error === 'already dug' || r?.error === 'not your map') refresh(); }
     } finally { busy = false; }
     return true; }
   btn.innerHTML = '🗺 MAPS<b>0</b>';
-  return { spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap };
+  return { spotIds: () => [...spots.keys()], spotAt: (id) => { const q = spots.get(id); return q ? { x: q.x, z: q.z, r: q.r } : null; }, tick, refresh, soon, dig, label, target, get maps() { return maps; }, get sel() { return sel; }, get pending() { return pending; }, get isOpen() { return tmap.isOpen; }, get revealing() { return tmap.revealing; }, open, close, map: tmap , chest };
 }
