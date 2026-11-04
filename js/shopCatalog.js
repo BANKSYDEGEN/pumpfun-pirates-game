@@ -109,6 +109,7 @@ export const GEAR_ITEMS = [
   { slot: 'parrot', id: 'pet_cat_black', label: 'BLACK CAT', price: 6000, glb: 'raul:pet_cat_black', tint: null, proposed: true },
   { slot: 'leg', id: 'peg_gold', label: 'GILDED SKULL PEG', price: 30000, glb: 'raul:peg_gold', tint: null, proposed: true, side: 'legSide' },
   { slot: 'leg', id: 'peg_kraken', label: 'KRAKEN BONE PEG', price: 45000, glb: 'raul:peg_kraken', tint: null, proposed: true, side: 'legSide' },
+  { slot: 'leg', id: 'peg_ghost', label: 'GHOST BONE PEG', price: 60000, glb: 'raul:peg_ghost', tint: null, proposed: true, side: 'legSide' },   // [Raul pegs 2] price OK'd by BANKSY 12:19 AM "Ghost Bone Peg at 60,000" (top of the peg ladder: 1k / 30k / 45k / 60k)
   { slot: 'flag', id: 'flag_cutlass', label: 'CROSSED CUTLASSES FLAG', price: 1000, glb: null, tint: null, proposed: true, ship: true },
   { slot: 'flag', id: 'flag_red', label: 'BLOOD RED FLAG', price: 2500, glb: null, tint: null, proposed: true, ship: true },
   { slot: 'flag', id: 'flag_gold', label: 'GOLDEN SKULL FLAG', price: 7500, glb: null, tint: null, proposed: true, ship: true },

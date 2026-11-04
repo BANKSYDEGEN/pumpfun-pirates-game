@@ -70,7 +70,9 @@ PAL = {   # sleeve palettes (hex): leather, rim, band (straps), buckle
   'peg':        dict(leather='#5b3520', rim='#7b4a2a', band='#3a2216', buckle='#a8adb3'),
   'peg_gold':   dict(leather='#f2c230', rim='#c88a16', band='#7a1424', buckle='#c88a16', gem='#d8162c'),     # gilded cup colours kept: gold sleeve, crimson velvet strap
   'peg_kraken': dict(leather='#c9b892', rim='#4e2478', band='#7a3fb0', buckle='#efe6cf'),     # bone cup + kraken-purple rim kept
+  'peg_ghost':  dict(leather='#34333c', rim=None, band='#4a4238', buckle='#ece3cc', gem=None),   # [Raul pegs 2] GHOST BONE PEG: black leather, ghost-green glowing rim (GLOW), bone buckle
 }
+GLOW = '#39ff9c'   # [Raul pegs 2] the ghost-green glow colour (js/pirateItems.js GLOW5 lights vertices of this colour in game; lowlight keeps it full bright)
 def sleeve_parts(b, F, pal, res=1.0):
   # the knee sleeve: outer surface grid (angles x heights) round the pant leg + a rolled rim + 2 straps with a buckle on the outside
   sx = 1 if F['side'] == 'l' else -1; c = np.array(F['knee'][:2]); seg = lambda n: max(6, int(round(n * res)))
@@ -99,7 +101,7 @@ def sleeve_parts(b, F, pal, res=1.0):
   Gc = np.concatenate([G, G[:1]], 0)
   parts = [sheet_solid(Gc, 0.008, lin(pal['leather']), outward=[c[0], c[1], (F['top'] + F['cup']) / 2])]
   # rolled rim on the top edge
-  top = Gc[:, 0]; parts.append(tube(top, 0.0085, lin(pal['rim']), seg(8), cap=False))
+  top = Gc[:, 0]; parts.append(tube(top, 0.0085, lin(pal['rim'] or GLOW), seg(8), cap=False, outline=bool(pal['rim'])))
   # two straps
   for zz, hh in ((F['straight'] + 0.006, 0.015),):   # one strap + buckle under the knee (rigid zone: a strap across the bend zig-zags through the leather)
     j = int(np.argmin([abs(z - zz) for z in ZS])); rows = []
@@ -162,6 +164,8 @@ def build(b, F, parts_sleeve, parts_rest, ink):
     if p.outline and ink > 0:
       N = weld_normals(p.V, p.F); out.append(Part(p.V + N * ink, p.F[:, [0, 2, 1]], INK, False)); fl += [rig] * len(p.V)
   m = merge(out); assert np.isfinite(m.V).all(), 'NaN verts'; return m, np.array(fl)
-def lowlight(m):
+def lowlight(m, keep=()):   # keep: colours left full bright (glow trims)
   L = np.array([0.35, -0.5, 0.8]); L /= np.linalg.norm(L); N = weld_normals(m.V, m.F); s = 0.58 + 0.42 * np.clip(N @ L, 0, None) + 0.08 * np.clip(N[:, 2], 0, None)
-  ink = np.abs(m.C - np.array(INK)).sum(1) < 1e-4; m.C = np.where(ink[:, None], m.C, m.C * s[:, None]); return m
+  ink = np.abs(m.C - np.array(INK)).sum(1) < 1e-4
+  for k in keep: ink |= np.abs(m.C - np.array(k)).sum(1) < 1e-4
+  m.C = np.where(ink[:, None], m.C, m.C * s[:, None]); return m

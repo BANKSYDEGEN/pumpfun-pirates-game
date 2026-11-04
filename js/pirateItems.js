@@ -96,6 +96,9 @@ export const ITEMS = [
   item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: PEG5('R'), v5only: true }),
   item('peg_kraken_l', 'Kraken Bone Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_kraken_l'), v5hide: PEG5('L'), v5only: true }),
   item('peg_kraken_r', 'Kraken Bone Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_kraken_r'), v5hide: PEG5('R'), v5only: true }),
+  // [Raul pegs 2] BANKSY (11:47 PM via Emerly): the premium SPECIAL PEG, built natively on the knee-sleeve fit (tools/blender/pegleg/build_special.py); its ghost-green trim glows (glow: GLOW5)
+  item('peg_ghost_l', 'Ghost Bone Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_ghost_l'), v5hide: PEG5('L'), v5only: true, glow: true }),
+  item('peg_ghost_r', 'Ghost Bone Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_ghost_r'), v5hide: PEG5('R'), v5only: true, glow: true }),
   item('parrot', 'Parrot', 'shoulder', 1500, null, [],
     { attach: { bone: 'spine', feet: [0.242, 0.916, -0.016], offset: { male: [0, 0, 0], female: [0.05, -0.034, 0.0] }, lean: { male: 0, female: -0.42 } }, clip: 'parrot_idle' }),
 ];
@@ -279,6 +282,13 @@ function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
       const dx = (P.getX(i) - F.cx) / F.ex, dz = (P.getZ(i) - F.cz) / F.ez; if (dx * dx + dz * dz > 1) continue; P.setY(i, F.y + (y - F.y) * F.k); }
     g.setAttribute('position', P);
   }
+}
+// [Raul pegs 2] glow trims: vertices painted GLOW5 (pegfit.GLOW #39ff9c) stay full bright on desktop (toon light can't darken them; + a soft
+// emissive lift). Phone (MeshBasic, unlit) already shows them full bright (the build skips the baked light on them). One shader variant, no extra draw.
+export const GLOW5 = [0.0409, 1.0, 0.3325];   // linear #39ff9c
+function glowMat(m) {
+  m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n#if defined( USE_COLOR )\n  if (distance(vColor.rgb, vec3(0.0409, 1.0, 0.3325)) < 0.06) totalEmissiveRadiance += vColor.rgb * 0.6;\n#endif'); };
+  m.customProgramCacheKey = () => 'glow5'; return m;
 }
 function itemMaterial(src, low, two = false) { const m = itemMaterial0(src, low); if (two) m.side = THREE.DoubleSide; return m; }   // [v124] v5 hats / eyewear / hooks: solid from inside too (tops have their own lining)
 // [v139] BANKSY "black bits on the male phone shoulder line": the warped coat folds a few cloth triangles over at the shoulder / collar,
@@ -613,6 +623,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)
   const m = new THREE.SkinnedMesh(geo, def.v5cloth && !def.base ? clothMat(itemMaterial(mat || {}, low, true), hex, low, def.cream) : def.keyed && def.cream ? clothMat(itemMaterial(mat || {}, low, true), opts.colors?.[1] || '#c8302c', low, def.cream) : itemMaterial(mat || {}, low, (def.slot !== 'outfit' || !!def.v5cloth) && !/^(hook|peg)_/.test(def.id) && !def.single)); m.name = 'item_' + def.id; m.frustumCulled = false;   // [Timothy] hooks + pegs single-sided: their black ink outline shell drew over the whole item when double-sided (black hook / peg)
   recolorItem(m, def, opts.colors);
+  if (def.glow && !low) glowMat(m.material);   // [Raul pegs 2]
   if (PET_IDLE[def.id] || def.slot === 'cape') { itemLayer(m, g0, def); p.addPost?.('items', itemsPost, 2); }   // [Raul shop2 fixes] pet idle + the cape's swim lift
   if (def.decal) Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });   // [Raul shop items 2] the grin sticker wins over the lips / beard under it
   if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)

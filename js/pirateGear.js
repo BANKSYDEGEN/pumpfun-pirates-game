@@ -27,7 +27,7 @@ export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', e
 export const GEAR_RENDERS = Object.freeze({
   hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['eyepatch', 'sunglasses', 'laser'],
   parrot: ['parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond', 'pet_monkey', 'pet_cat', 'pet_cat_black'], hook: ['hook_iron', 'hook_gold'],   // [Raul shop items 2] + shoulder pets (the parrot slot: one shoulder pet)
-  leg: ['peg', 'peg_gold', 'peg_kraken'],   // [Raul shop items 2] + BANKSY's SPECIAL pegs (same side pick: legSide)   // one PEG LEG item; the side is gear.legSide
+  leg: ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'],   // [Raul pegs 2] + the GHOST BONE PEG;   // [Raul shop items 2] + BANKSY's SPECIAL pegs (same side pick: legSide)   // one PEG LEG item; the side is gear.legSide
   face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
   // [Raul shop items 2] v5 bodies only (v4 bodies draw nothing); flag + figure dress YOUR SHIP (js/shipGear.js), not the pirate
   beard: ['beard_moustache', 'beard_forked', 'beard_black'], ears: ['earring_hoop', 'earring_double', 'earring_skull'], teeth: ['tooth_gold', 'grill_gold', 'grill_diamond'],
@@ -126,6 +126,7 @@ const RAUL = {
   'leg:peg':       [(g) => 'leg' + g.legSide, (g) => 'peg_' + g.legSide.toLowerCase(), null],
   'leg:peg_gold':  [(g) => 'leg' + g.legSide, (g) => 'peg_gold_' + g.legSide.toLowerCase(), null],   // [Raul shop items 2] v5 fits (v4 bodies: Raul's plain peg model is not used for them; they draw nothing)
   'leg:peg_kraken': [(g) => 'leg' + g.legSide, (g) => 'peg_kraken_' + g.legSide.toLowerCase(), null],
+  'leg:peg_ghost':  [(g) => 'leg' + g.legSide, (g) => 'peg_ghost_' + g.legSide.toLowerCase(), null],   // [Raul pegs 2]
   'outfit:shirt':  ['outfit', 'shirt', (g, c) => ({ shirt: outfitColors('shirt', c).cloth })],
   'outfit:suit':   ['outfit', 'suit', (g, c) => { const o = outfitColors('suit', c); return { coat: o.cloth, accent: o.trim }; }],
 };

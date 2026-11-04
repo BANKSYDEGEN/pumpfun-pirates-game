@@ -47,3 +47,16 @@ New peg items need a palette in `pegfit.PAL` (leather, rim, band, buckle, option
 ## Dev pages (not shipped)
 - `tools/peg_viewer.html`: gear_viewer with `&time=` (frozen clip time) and `&swim=tread|swim` (swimPose)
 - `tools/peg_cards.html`: the live PEG LEG cards (both sides × both bodies) and the pre-baked PNG; `window.BAKE` = the card to bake
+
+## Raul pegs 2: the GHOST BONE PEG + the special pegs' phone LODs (raul/pegs-2)
+- `build_special.py` builds a special peg natively on the knee-sleeve fit: the sleeve in `pegfit.PAL[item]` + the item's own shaft / ornaments / tip, rigid on shin.
+- **peg_ghost** (GHOST BONE PEG, new): black leather sleeve with a ghost-green glowing rim, a carved bone vertebra shaft with glowing rune bands,
+  a carved skull with glowing eyes under the cup, bone foot with a glowing ring. Glow colour = `pegfit.GLOW` (#39ff9c): phone files skip the baked
+  light on it (MeshBasic shows it full bright), desktop lights it through `glowMat` (js/pirateItems.js, item flag `glow: true`). Tris hi 6,498 / lo 2,140.
+- **peg_gold / peg_kraken phone files** rebuilt with `build_special.py` (their v178 shafts ported 1:1, seated where refit_special.py put them, fewer
+  segments): gilded lo 2,944 -> 2,098, kraken lo 3,256 -> 2,112. Their desktop files are still the refit_special.py ones (unchanged).
+- Same sleeve and cut: PEG_CUT unchanged. `tests/pegleg.test.mjs` now covers peg_ghost and caps every special peg's phone file at 2,300 tris.
+
+    for s in l r; do for w in male female; do
+      for l in hi lo; do /opt/blender/blender -b -P build_special.py -- peg_ghost $s $w $l <repo>; done
+      for it in peg_gold peg_kraken; do /opt/blender/blender -b -P build_special.py -- $it $s $w lo <repo>; done; done; done

@@ -14,7 +14,7 @@ function glb(path) {   // tiny GLB reader: JSON + BIN chunks, accessor -> typed 
 }
 const src = readFileSync(new URL('js/pirateItems.js', ROOT), 'utf8');
 const CUT = JSON.parse(src.match(/PEG_CUT = (\{[^}]+\})/)[1].replace(/(\w+):/g, '"$1":'));
-for (const id of ['peg', 'peg_gold', 'peg_kraken']) for (const who of ['male', 'female']) for (const lod of ['hi', 'lo']) for (const s of ['l', 'r']) test(`${id} ${s} ${who} ${lod}`, () => {
+for (const id of ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost']) for (const who of ['male', 'female']) for (const lod of ['hi', 'lo']) for (const s of ['l', 'r']) test(`${id} ${s} ${who} ${lod}`, () => {
   const { J, acc } = glb(`assets/pirates/items/v5/${id}_${s}_${who}_${lod}.glb`);
   assert.equal(J.skins?.length, 1, 'skinned'); const prim = J.meshes[0].primitives[0];
   const P = acc(prim.attributes.POSITION).out, Jn = acc(prim.attributes.JOINTS_0).out, W = acc(prim.attributes.WEIGHTS_0).out;
@@ -25,10 +25,10 @@ for (const id of ['peg', 'peg_gold', 'peg_kraken']) for (const who of ['male', '
   assert.ok(y0 > -0.02 && y0 < 0.002, 'tip on the floor ' + y0); assert.ok(y1 < 0.3, 'sleeve top under the thigh ' + y1);
   assert.ok((s === 'l' ? 1 : -1) * xs / n > 0.95, 'on its own side');
   const cut = CUT[who]; assert.ok(cut > 0.15 && cut < y1 - 0.04, `hide line ${cut} under the sleeve top ${y1}`);
-  const tris = (prim.indices != null ? J.accessors[prim.indices].count : n) / 3; assert.ok(tris < (id === 'peg' ? (lod === 'lo' ? 2600 : 6600) : (lod === 'lo' ? 3400 : 7000)), 'tris ' + tris);
+  const tris = (prim.indices != null ? J.accessors[prim.indices].count : n) / 3; assert.ok(tris < (id === 'peg' ? (lod === 'lo' ? 2600 : 6600) : (lod === 'lo' ? 2300 : 7000)), 'tris ' + tris);   // [Raul pegs 2] special pegs' phone files back near the standard peg's 2,200
 });
 test('every peg item hides with the v5 peg fit (PEG5), shop entry unchanged (price, slot, sides)', () => {
-  for (const id of ['peg_l', 'peg_r', 'peg_gold_l', 'peg_gold_r', 'peg_kraken_l', 'peg_kraken_r']) assert.match(src, new RegExp(`item\\('${id}',[^\\n]*v5hide: PEG5\\('${id.slice(-1).toUpperCase()}'\\)`), id);
+  for (const id of ['peg_l', 'peg_r', 'peg_gold_l', 'peg_gold_r', 'peg_kraken_l', 'peg_kraken_r', 'peg_ghost_l', 'peg_ghost_r']) assert.match(src, new RegExp(`item\\('${id}',[^\\n]*v5hide: PEG5\\('${id.slice(-1).toUpperCase()}'\\)`), id);
   const cat = readFileSync(new URL('js/shopCatalog.js', ROOT), 'utf8');
   assert.match(cat, /\{ slot: 'leg', id: 'peg', label: 'PEG LEG', price: 1000, glb: 'raul:peg_l\|peg_r', tint: null, side: 'legSide' \}/);
 });
