@@ -27,6 +27,7 @@ import * as CO from '../island/coast.js';
 import * as BA from '../island/battleAreas.js';
 import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty } from './swords.js';
 import { toon } from '../toon.js';
+import { carryArmed } from '../carryWeapons.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 
@@ -224,6 +225,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     // [Emerly] 2v2: a team-coloured ring under the pirate's feet (RED / BLUE), only in an area
     if (team && zone && !R.ring && R.obj) { R.ring = new THREE.Mesh(ringGeo2, new THREE.MeshBasicMaterial({ color: RING_COL[team], transparent: true, opacity: 0.85, depthWrite: false })); R.ring.position.y = 0.05; R.ring.renderOrder = 2; R.obj.add(R.ring); }
     if (R.ring) { R.ring.visible = !!(team && zone); if (team) R.ring.material.color.setHex(RING_COL[team]); }
+    carryArmed(R.fig, zone === Z_PIT, zone === Z_RANGE);   // [Raul carry] the arena's weapon is in your hands: hide the carried sword / back musket
     if (!R.v4 || !R.bones) return;
     const wantSword = zone === Z_PIT, wantMusket = zone === Z_RANGE;
     if (wantSword && (R.swordId !== swordId || !R.sword)) { R.sword?.removeFromParent(); const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : mat);

@@ -21,6 +21,9 @@ import { birdFlight, birdTick, newBirdState } from './petMotion.js';   // [Raul 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
+import { syncCarry } from './carryWeapons.js';   // [Raul carry] sword in the no-hook hand + musket on the back (on foot)
+import { SWORD_IDS, MUSKET_IDS } from './onfoot/swords.js';
+import { carryPick, carryDigits, carryFromDigits } from './carryRules.js';
 import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped, ITEM_BY_ID as RAUL_ITEMS } from './pirateItems.js'; // [Raul] his item models (not edited)
 
 export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', cape: 'none', flag: 'none', figure: 'none' });   // [Raul shop items 2] + beard, earrings, gold teeth, boots, cape (the pirate) + flag, figurehead (your ship: js/shipGear.js)   // [v145] + face paint (own slot: worn with shades)
@@ -187,6 +190,7 @@ export function normalizeGear(g) {
   o.skinColor = clampIx(s.skinColor, SKIN_SWATCHES.length); o.hairColor = clampIx(s.hairColor, HAIR_SWATCHES.length); o.outfitColor = clampIx(s.outfitColor, CLOTH_SWATCHES.length);
   o.eyeColor = clampIx(s.eyeColor, EYE_SWATCHES.length);
   o.body = s.body === 1 || s.body === '1' || s.body === 'f' || s.body === true ? 1 : 0;
+  o.carrySword = carryPick(s.carrySword, SWORD_IDS); o.carryMusket = carryPick(s.carryMusket, MUSKET_IDS);   // [Raul carry] what you carry on foot
   return o;
 }
 const gearKey = (g) => Object.keys(GEAR_DEFAULTS).map((k) => g[k]).join('|') + '|' + LOOK_KEYS.map((k) => g[k] ?? '').join('|');
@@ -201,10 +205,11 @@ export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gea
 // else (unknown digit, wrong type, too long) is the default for that field, so free-form data never reaches applyGear. A
 // missing field = shirtless/default. The clothes colour comes from the ship skin ('sk', already sent).
 export const WIRE_SLOTS = ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'];
-const WIRE_LEN = WIRE_SLOTS.length + 6 + 7;   // [v145] + the face paint digit; [Raul shop items 2] + one digit per EXTRA_SLOTS slot (older builds read a longer string as the default look)
+const WIRE_LEN = WIRE_SLOTS.length + 6 + 7 + 2;   // [Raul carry] + the carried sword + musket (1 + index in SWORD_IDS / MUSKET_IDS, 0 = none)
+// [v145] + the face paint digit; [Raul shop items 2] + one digit per EXTRA_SLOTS slot (older builds read a longer string as the default look)
 export function gearToWire(gear) {
   const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0) + (g.body ? 4 : 0); // [v112] bit 4 = female body (same digit: no longer string, old clients just see a male)
-  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1)].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
+  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1), ...carryDigits(g, SWORD_IDS, MUSKET_IDS)].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
 }
 export function gearFromWire(w) {
   const g = normalizeGear(null);
@@ -215,6 +220,7 @@ export function gearFromWire(w) {
   g.skinColor = clampIx(d(n + 2), SKIN_SWATCHES.length); g.hairColor = clampIx(d(n + 3), HAIR_SWATCHES.length); g.outfitColor = clampIx(d(n + 4), CLOTH_SWATCHES.length);
   { const v = d(n + 5); if (v > 0 && v <= GEAR_RENDERS.face.length) g.face = GEAR_RENDERS.face[v - 1]; }
   EXTRA_SLOTS.forEach((k, i) => { const v = d(n + 6 + i); if (v > 0 && v <= GEAR_RENDERS[k].length) g[k] = GEAR_RENDERS[k][v - 1]; });   // [Raul shop items 2]
+  { const c = n + 6 + EXTRA_SLOTS.length; Object.assign(g, carryFromDigits(d(c), d(c + 1), SWORD_IDS, MUSKET_IDS)); }   // [Raul carry]
   return g;
 }
 // clean wire string (re-encoded from the decoded gear) or '' : what the receivers store / compare
@@ -225,7 +231,21 @@ export const cleanWire = (w) => gearToWire(gearFromWire(w));
 const KEY = 'pfp_captain_v1';
 function readSave() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } }
 let _mem = null, _skin = 'classic';
-export function getLocalGear() {
+// [Raul carry] WHAT YOU CARRY ON FOOT (sword in the no-hook hand, musket on your back). Default source: your profile's WEAPON STORE pick
+// (gear.sword / gear.musket; the free rusty default is not carried unless CARRY_FREE). INVENTORY HOOK (Post, post/inventory-fish):
+//   setCarriedWeapons({ sword, musket }) -> { sword, musket }   ids from SWORD_IDS / MUSKET_IDS (js/onfoot/swords.js), null / 'none' = nothing.
+// Once an inventory has called it, it owns the pick (the profile no longer overrides it). Re-dresses your pirates; other players see it via 'gr'.
+export const CARRY_FREE = false;
+const _carry = { sword: 'none', musket: 'none', src: 'profile' };
+export function setCarriedWeapons({ sword = null, musket = null } = {}, src = 'inventory') {
+  if (src === 'profile' && _carry.src === 'inventory') return carriedWeapons();
+  const s = carryPick(sword, SWORD_IDS, src === 'profile' ? SWORD_IDS[0] : null, CARRY_FREE), m = carryPick(musket, MUSKET_IDS, src === 'profile' ? MUSKET_IDS[0] : null, CARRY_FREE); _carry.src = src;
+  if (s !== _carry.sword || m !== _carry.musket) { _carry.sword = s; _carry.musket = m; try { redressLocal(); window.dispatchEvent(new CustomEvent('pfp-gear-local', { detail: getLocalGear() })); } catch {} }
+  return carriedWeapons();
+}
+export const carriedWeapons = () => ({ sword: _carry.sword === 'none' ? null : _carry.sword, musket: _carry.musket === 'none' ? null : _carry.musket });
+export function getLocalGear() { const g = localGear0(); g.carrySword = _carry.sword; g.carryMusket = _carry.musket; return g; }
+function localGear0() {
   const c = _mem || (_mem = readSave());
   if (!c || !c.gearV) return normalizeGear(c ? pickLook(c) : null);   // the look (skin / hair / sides) is kept even before any gear
   return normalizeGear({ hat: c.hat, outfit: c.outfit, eyes: c.eyes ?? c.face, parrot: c.parrot, hook: c.hook, leg: c.leg, face: c.facePaint, ...Object.fromEntries(EXTRA_SLOTS.map((k) => [k, c[k]])), ...pickLook(c) });
@@ -240,6 +260,7 @@ function redressLocal() {
 }
 // after shop_equip / a hat colour pick: { hat, outfit, eyes, parrot, hook, hatColor } (missing keys keep what you wear)
 export function setLocalGear(gear) {
+  if (gear && ('sword' in gear || 'musket' in gear)) setCarriedWeapons({ sword: gear.sword, musket: gear.musket }, 'profile');   // [Raul carry] js/pvp.js gearChanged passes the whole profile gear
   const g = normalizeGear({ ...getLocalGear(), ...(gear || {}) }), c = { ...(readSave() || { v: 1 }) };
   c.v = 1; c.gearV = 1; c.hat = g.hat; c.outfit = g.outfit; c.eyes = g.eyes; c.face = g.eyes === 'plain' ? 'plain' : g.eyes; c.parrot = g.parrot; c.hook = g.hook; c.leg = g.leg; c.facePaint = g.face; for (const k of EXTRA_SLOTS) c[k] = g[k]; Object.assign(c, pickLook(g));
   _mem = c; try { localStorage.setItem(KEY, JSON.stringify(c)); } catch { /* memory only */ }
@@ -251,6 +272,7 @@ export function setLocalGear(gear) {
 // it wins over this device's save for the five slots; hatColor (free, not sold) stays on this device.
 function fromProfile(gear) {
   if (!gear || typeof gear !== 'object') return;
+  setCarriedWeapons({ sword: gear.sword, musket: gear.musket }, 'profile');   // [Raul carry] your WEAPON STORE pick
   const cur = getLocalGear(), g = normalizeGear({ ...gear, ...pickLook(cur) });   // the free look stays on this device
   if (gearKey(g) === gearKey(cur) && (_mem?.gearV)) return;
   setLocalGear(g);
@@ -612,6 +634,7 @@ function tankTop(p, hex) {
 }
 function dress(p, gear, colors) {
   const body = bodyOf(p); if (!body) return Promise.resolve(null);
+  try { syncCarry(p, gear, body); } catch (e) { console.warn('[gear] carry', e); }   // [Raul carry]
   const key = gearKey(gear) + '|' + JSON.stringify(colors || {});
   if (p.gearKey === key) return Promise.resolve(p.gearMesh || null);
   try { tankTop(p, null); setBodyLook(p, gear); if (gear.outfit === 'tank') tankTop(p, outfitColors('tank', colors).cloth); } catch (e) { console.warn('[gear] look', e); }   // [v141]
