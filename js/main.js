@@ -50,6 +50,8 @@ import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutor
 import { getMapStyle, setMapStyle, THEMES } from './mapIcons.js'; // [v153] MINIMAP STYLE setting // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
 import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
 import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
+import { touchesGold } from './hullReach.js'; // [big-hitbox]
+
 import { escHtml } from './safe.js'; // [security H5]
 import { createEscorts, ESCORT, escortStep } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
@@ -1302,7 +1304,7 @@ function frame() {
       l.mesh.position.set(l.x, waveHeight(l.x, l.z, t) + 0.1 + Math.sin(t * 2 + l.ph) * 0.1, l.z); l.mesh.rotation.y += dt * 0.8;
       if (Math.random() < 0.3) fx.sparkle(l.mesh.position);
       if (l.pid) { pvp?.lootStep(l); if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); pvp?.piles.delete(l.pid); } continue; } // [pvp] gold piles: host decides who gets each
-      if ((player.alive && Math.hypot(l.x - player.x, l.z - player.z) < 10) || escorts.list.some(e => e.alive && Math.hypot(l.x - e.x, l.z - e.z) < 10)) { // [escort pickups] escorts fish gold for you
+      if ((player.alive && touchesGold(player, l.x, l.z)) || escorts.list.some(e => e.alive && touchesGold(e, l.x, l.z))) { // [big-hitbox] any part of the hull · [escort pickups] escorts fish gold for you
         game.gold += l.value; addScore(l.value); sfx.coin(); popup(l.mesh.position.clone().setY(4), `+${l.value} GOLD`); scene.remove(l.mesh); loot.splice(i, 1); updateHud(); continue;
       }
       if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); }

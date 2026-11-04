@@ -61,6 +61,7 @@ import { setRunLevels, getRunLevels, open as openUpgradesPanel } from './shop.js
 import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet, saveWallet, shortWallet } from './wallet.js';
 import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
+import { touchesGold } from './hullReach.js'; // [big-hitbox]
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -69,7 +70,7 @@ const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100
 const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '');
 const QS = new URLSearchParams(IS_PROD_HOST ? '' : location.search); // [security L] test switches (?pvproom ?sqmin ?pvpcap ?pvpoffer ?pvpafk ?hbcap ?shareddrops) only work off the live domains
 const ROOM_PREFIX = 'pfp-pvp-' + (QS.get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
-const PEER_TIMEOUT = 6000, SAFE_R = 110, PICK_R = 10;
+const PEER_TIMEOUT = 6000, SAFE_R = 110;
 // most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × 4.2 × best SAILS
 // [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
 const PVP_MODE = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, MAXED = modeStats(maxRun(), PVP_MODE);
@@ -990,7 +991,7 @@ export function createPvp(K) {
     if (!piles.has(l.pid)) return;
     { const t = performance.now(); if (t - (l.pulseT || 0) > 3500) { l.pulseT = t + Math.random() * 800; if (Math.hypot(l.x - P().x, l.z - P().z) < 260) fx.ring(new THREE.Vector3(l.x, 0, l.z), 1.5, 7, 1.2); } } // [v105] a soft gold ring every few s: easy to find
     const pl = P(); if (me.dead || !pl.alive) return;
-    if (Math.hypot(l.x - pl.x, l.z - pl.z) > PICK_R) return;
+    if (!touchesGold(pl, l.x, l.z)) return; // [big-hitbox] any part of the hull
     const now = performance.now(); if (l.claimT && now - l.claimT < 1500) return; l.claimT = now;
     if (l.local) { applyGot({ pid: l.pid, to: myId, v: l.value }); return; } // local AI loot
     if (isHost) grant(l.pid, myId); else room?.send('claim', { pid: l.pid, i: myId });
@@ -998,7 +999,7 @@ export function createPvp(K) {
   function grant(pid, to) { // host only: first claimant within reach gets the pile
     const l = piles.get(pid); if (!l || l.taken || typeof to !== 'string') return;
     if (where === 'harbor' && performance.now() - (hb.hostSince || 0) < 1500) return; // [v105] a brand-new host waits out the hand-over (no double grant); the claimer retries every 1.5 s
-    const ship = to === myId ? P() : peers.get(to)?.ship; if (!ship || !ship.alive || Math.hypot(ship.x - l.x, ship.z - l.z) > PICK_R + 18) return;
+    const ship = to === myId ? P() : peers.get(to)?.ship; if (!ship || !ship.alive || !touchesGold(ship, l.x, l.z, 18)) return; // [big-hitbox] same footprint + lag slack
     l.taken = true; earned.set(to, (earned.get(to) || 0) + l.value);
     room?.send('got', { pid, to, v: l.value }); applyGot({ pid, to, v: l.value });
   }
