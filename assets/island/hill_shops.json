@@ -659,6 +659,37 @@
    },
    "sign": "sign_rent_22",
    "empty": "door_rent_22"
+  },
+  {
+   "id": "rent_big",
+   "lot": "R0",
+   "lx": 21,
+   "lz": -75.695,
+   "ly": -1.5708,
+   "w": 16.6,
+   "d": 14.0,
+   "storeys": 3,
+   "door": {
+    "lx": 14.0,
+    "lz": -76.695
+   },
+   "doorY": 5.936,
+   "doorW": 6.0,
+   "facing": -1.5708,
+   "interior": {
+    "lx0": 14.5,
+    "lz0": -83.495,
+    "lx1": 27.5,
+    "lz1": -67.895,
+    "floorY": {
+     "atLz0": 6.684,
+     "atLz1": 4.968
+    },
+    "slope": 0.11
+   },
+   "sign": "sign_rent_big",
+   "empty": "door_rent_big",
+   "size": "large"
   }
  ],
  "MAIN_ST_SHOPS": [

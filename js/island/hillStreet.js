@@ -20,7 +20,7 @@ export let HILL_KIT = null;          // { low, mats, lots: { L3: { lods: [Group]
 export const HILL_PLACES = [];       // [{ key, m: Matrix4 }] (foot-world) filled by hillLot
 const RECTS = [];                    // town-local footprints of the placed buildings (+ the closed alleys): no grass in the shop rooms
 export const hillClear = (lx, lz) => { for (const r of RECTS) if (lx > r[0] && lx < r[1] && lz > r[2] && lz < r[3]) return true; return false; };
-const FILES = ['hill_street', 'hill_sword_shop', 'hill_musket_shop'];
+const FILES = ['hill_street', 'hill_sword_shop', 'hill_musket_shop', 'hill_big_shop'];   // hill_big_shop = rent_big on the old Squad Hall plot (R0)
 const LOD_D = 46;                    // desktop: LOD0 -> LOD1 (m)
 
 export function loadHill(low) {
@@ -55,6 +55,16 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]);
   HILL_PLACES.push({ key, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });
   return true;
+}
+
+// [BANKSY pt203u] foot.js buildStreet, the Squad Hall plot (one guarded line, Raul's file): when hill_big_shop is loaded the old town-kit Squad Hall
+// building, its banners, its sign and its solid footprint box are skipped and the big empty shop (rent_big, R0) stands there with its own colliders.
+// foot.js still pushes the 'SQUAD HALL (R0)' LOTS_MAP entry + the INTERACT 'squadhall' (E · SQUAD HALL) at the middle of the new shopfront, so the
+// Squad Hall board, the map POI, main.js squadSign and battle.js storeDoors keep working unchanged. false = load failed / ?hillglb=0 / &bigshop=0: the old hall.
+export const BIG_SHOP_ON = !(Q && Q.get('bigshop') === '0');   // &bigshop=0 = the old Squad Hall building (before / after shots)
+export function bigShop({ x, y, wz, yaw, lx, z, addBox, addCirc }) {
+  if (!BIG_SHOP_ON) return false;
+  return hillLot({ side: 1, n: 0, z, w: 16.6, d: 14, lx, x, wz, yaw, y, addBox, addCirc });
 }
 
 // [Timothy] material library: the layer is projected in object space; merged into the world frame (phones) a building turned a quarter turn

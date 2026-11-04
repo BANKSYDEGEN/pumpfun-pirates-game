@@ -30,6 +30,7 @@ LEAF = [0x3f8f3a, 0x2f7a32, 0x5aa040]; FLOWERS = [0xd8322f, 0xffd43b, 0xff7ab5, 
 GLOW, FLOOR_A, FLOOR_B, PLASTER_IN = 0xffc46b, 0xb07a45, 0x9a6638, 0xeadcc0
 AWN = [0xd8322f, 0x2a6df4, 0x1f8a5a, 0xffc93c, 0x6a4fb3, 0x8a1c1c]
 WALL, G, U, OPEN_TOP = 0.5, 4.4, 3.3, 3.4
+ARISE = 0.0   # big shop: the arch rise over OPEN_TOP (0 = the flat-arched rent / weapon shops)
 # [material library] palette -> shared library layer (materials.py: the same stone / brick / plaster / timber / tiles as the plaza, docks, battery
 # and the hilltop fort; nearest within 0.1 for the jittered colours); awnings + modelled block faces are named where built
 Builder.AUTO = {**{c: 'stone_ashlar' for c in STONES + SAND}, **{c: 'brick' for c in BRICK}, QUOIN: 'stone_trim', MORTAR: 'stone_trim',
@@ -61,6 +62,27 @@ for side in (-1, 1):
         Gb = 5.4 if kind != 'rent' else [4.6, 5.0, 4.8][(n + (side > 0)) % 3]
         B.append(dict(G=Gb, key=key, side=side, n=n, lz=zc, lx=lx, w=w, d=d, fl=fl, style=style, roof=roof, kind=kind, v=(n * 2 + (side > 0)) % 12))
 _sq = LOTS[0][0] - 3; OBST = [(SX + HALF + 1 + 7 - 7.3, SX + HALF + 1 + 7 + 7.3, _sq - 8.3, _sq + 8.3)] + [(SX + s_ * (HALF + 1.6) - 1.7, SX + s_ * (HALF + 1.6) + 1.7, Z1 + 4 - 1.7, Z1 + 4 + 1.7) for s_ in (-1, 1)]
+def find_door(b, cands=((1.3, 3.6, 1.3), (1.3, 3.2, 1.3), (1.3, 2.8, 1.3), (0.8, 2.8, 1.3), (0.75, 2.4, 1.3), (0.6, 2.4, 1.0))):
+    # doorway: as central as possible, clear of the street barrels / crates (foot.js) so you can always walk in
+    s = b['side']; loc = lambda lz: (b['lz'] - lz) if s < 0 else (lz - b['lz'])
+    cr = [loc(zc) for (cs, zc) in CRATES if cs == s] + [loc(zc) + k for (cs, zc) in POST if cs == s for k in (-0.6, 0.0, 0.6)]; lp = [loc(zz) for zz in LAMPS]
+    best = None
+    for (mg, ow, fmin) in cands:
+        for k in range(0, 80):
+            for sg in (1, -1):
+                xo = (b['x0'] + b['x1']) / 2 + sg * k * 0.1
+                if xo - ow / 2 < b['x0'] + mg or xo + ow / 2 > b['x1'] - mg: continue
+                a0, a1 = xo - ow / 2, xo + ow / 2; segs_ = [(a0, a1)]
+                for c in cr:   # the clear walk-in width left beside each crate (circle r 0.8 + the walker's 0.45)
+                    segs_ = [q for (p0, p1) in segs_ for q in ((p0, min(p1, c - 1.25)), (max(p0, c + 1.25), p1)) if q[1] - q[0] > 0.01]
+                free = max([q[1] - q[0] for q in segs_] or [0])
+                if free < fmin: continue
+                pen = (0 if free >= ow - 0.01 else 1) + sum(1 for c in lp if abs(xo - c) < ow / 2 + 0.2)
+                cand = (pen, abs(xo - (b['x0'] + b['x1']) / 2), -ow, xo, ow)
+                if best is None or cand < best: best = cand
+        if best and best[0] == 0: break
+    if best is None: print('NO CLEAR DOOR', b['key'], b['x0'], b['x1'], cr); best = (9, 0, 0, (b['x0'] + b['x1']) / 2, min(2.4, b['x1'] - b['x0'] - 1.4))
+    b['xo'], b['ow'] = best[3], best[4]
 def neigh(b, dn):
     for o in B:
         if o['side'] == b['side'] and o['n'] == b['n'] + dn: return o
@@ -79,28 +101,16 @@ for b in B:   # close the 1.6 m gaps: each building takes half the gap on a side
         if hi < b['x0'] or lo > b['x1']: continue
         if (lo + hi) / 2 > 0: b['x1'] = min(b['x1'], lo - 0.05)
         else: b['x0'] = max(b['x0'], hi + 0.05)
-    # doorway: as central as possible, clear of the street barrels / crates (foot.js) so you can always walk in
-    s = b['side']; loc = lambda lz: (b['lz'] - lz) if s < 0 else (lz - b['lz'])
-    cr = [loc(zc) for (cs, zc) in CRATES if cs == s] + [loc(zc) + k for (cs, zc) in POST if cs == s for k in (-0.6, 0.0, 0.6)]; lp = [loc(zz) for zz in LAMPS]
-    best = None
-    for (mg, ow, fmin) in [(1.3, 3.6, 1.3), (1.3, 3.2, 1.3), (1.3, 2.8, 1.3), (0.8, 2.8, 1.3), (0.75, 2.4, 1.3), (0.6, 2.4, 1.0)]:
-        for k in range(0, 80):
-            for sg in (1, -1):
-                xo = (b['x0'] + b['x1']) / 2 + sg * k * 0.1
-                if xo - ow / 2 < b['x0'] + mg or xo + ow / 2 > b['x1'] - mg: continue
-                a0, a1 = xo - ow / 2, xo + ow / 2; segs_ = [(a0, a1)]
-                for c in cr:   # the clear walk-in width left beside each crate (circle r 0.8 + the walker's 0.45)
-                    segs_ = [q for (p0, p1) in segs_ for q in ((p0, min(p1, c - 1.25)), (max(p0, c + 1.25), p1)) if q[1] - q[0] > 0.01]
-                free = max([q[1] - q[0] for q in segs_] or [0])
-                if free < fmin: continue
-                pen = (0 if free >= ow - 0.01 else 1) + sum(1 for c in lp if abs(xo - c) < ow / 2 + 0.2)
-                cand = (pen, abs(xo - (b['x0'] + b['x1']) / 2), -ow, xo, ow)
-                if best is None or cand < best: best = cand
-        if best and best[0] == 0: break
-    if best is None: print('NO CLEAR DOOR', b['key'], b['x0'], b['x1'], cr); best = (9, 0, 0, (b['x0'] + b['x1']) / 2, min(2.4, b['x1'] - b['x0'] - 1.4))
-    b['xo'], b['ow'] = best[3], best[4]
+    find_door(b)
 RENT = [b for b in B if b['kind'] == 'rent']
 for i, b in enumerate(RENT): b['rent'] = i + 1
+# [BANKSY pt203u] the Squad Hall building is gone: ONE big empty shop (rent_big) on its plot (R0, the old 16.6 x 14 m footprint, lx 14..28 /
+# lz _sq +-8.3; the R1 neighbour stays clipped to the same rect via OBST). Grand frontage: 6 m arched shopfront, blank facade sign plate, lanterns.
+# The Squad Hall interact (foot.js INTERACT 'squadhall') still stands at the middle of this shopfront.
+BIG = dict(G=6.4, OT=3.8, AR=1.0, key='R0', side=1, n=0, lz=_sq, lx=SX + HALF + 1 + 7, w=16.6, d=14.0, fl=3, style='stone', roof='gable', kind='big', v=3,
+           end0=False, end1=True, g=-0.11, x0=-8.3, x1=8.3, y=gyl(_sq), rent='big')
+find_door(BIG, ((1.3, 6.0, 1.3), (1.3, 5.4, 1.3), (1.3, 4.8, 1.3), (1.3, 4.2, 1.3)))
+B.append(BIG)
 
 def wall_rects(x0, x1, z0, z1, holes):
     zs = sorted({z0, z1, *[h[2] for h in holes if z0 < h[2] < z1], *[h[3] for h in holes if z0 < h[3] < z1]}); out = []
@@ -197,7 +207,7 @@ def roof(bd, x0, x1, d, fy, top, b, lod, rng):
             bd.box(1.6, 1.4, 1.5, dx, dy, dz - 0.2, b['wallc'], base=True); bd.box(1.0, 0.06, 0.9, dx, dy - 0.71, dz + 0.1, GLOW if b['v'] % 3 == 0 else 0x22313d, mat=1 if b['v'] % 3 == 0 else 0, base=True)
             for s in (-1, 1): bd.box(1.0, 1.6, 0.12, dx + s * 0.45, dy - 0.05, dz + 1.45, rc, ry=s * 0.7)
     else:   # front gable: ridge runs back from the street, a carved gable face over the facade
-        pitch = 0.6; half = w / 2 + 0.4; rise = math.tan(pitch) * half; L = half / math.cos(pitch); y0, y1 = fy - 0.7, by + 0.5; yc, dep = (y0 + y1) / 2, y1 - y0
+        pitch = 0.6 if b['kind'] != 'big' else 0.4; half = w / 2 + 0.4; rise = math.tan(pitch) * half; L = half / math.cos(pitch); y0, y1 = fy - 0.7, by + 0.5; yc, dep = (y0 + y1) / 2, y1 - y0
         for s in (-1, 1):
             if lod == 0:
                 n = int(L / 0.42)
@@ -232,7 +242,7 @@ def building(bd, b, lod, rng, cols):
     for xx in (x0 + WALL / 2, x1 - WALL / 2): bd.box(WALL, d, G - zlo, xx, 0, zlo, gcol, base=True)
     bd.box(w, WALL, G - zlo, cx, BY - WALL / 2, zlo, gcol, base=True)
     bd.box(w, d, 0.3, cx, 0, G - 0.3, 0xe8d8b8, base=True)                                                     # ceiling slab
-    holes = [(xo - ow / 2, xo + ow / 2, zlo, OPEN_TOP)]; dwin = []
+    holes = [(xo - ow / 2, xo + ow / 2, zlo, OPEN_TOP + ARISE)]; dwin = []
     for s in (-1, 1):   # display windows beside the opening where the pier is wide enough
         a, c = (x0 + 0.6, xo - ow / 2 - 0.6) if s < 0 else (xo + ow / 2 + 0.6, x1 - 0.6)
         if c - a >= 1.5: xw = (a + c) / 2; holes.append((xw - 0.6, xw + 0.6, max(gz(xw), gz(xw)) + 0.95, OPEN_TOP - 0.3)); dwin.append(xw)
@@ -248,10 +258,22 @@ def building(bd, b, lod, rng, cols):
             tz = max(gz(pa), gz(pc)) + 0.42; bd.box(pc - pa, 0.22, tz - zlo, (pa + pc) / 2, FY - 0.11, zlo, QUOIN, base=True)
             if lod == 0: bd.box(pc - pa + 0.02, 0.28, 0.1, (pa + pc) / 2, FY - 0.13, tz - 0.05, hexc(QUOIN, 0.05, rng))
     # arch over the shop opening: voussoirs + keystone, stone jambs, threshold
-    nv = 9 if lod == 0 else 3
-    for i in range(nv):
-        t = (i + 0.5) / nv; x = xo - ow / 2 - 0.2 + t * (ow + 0.4)
-        bd.box((ow + 0.4) / nv - 0.04, 0.4, 0.5 if i != nv // 2 else 0.68, x, FY - 0.12, OPEN_TOP + 0.24 + (0.06 if i == nv // 2 else 0), hexc(QUOIN if i != nv // 2 else STONES[2], 0.05, rng))
+    if ARISE:   # big shop: a real segmental arch (stepped spandrels inside the opening head + a voussoir ring on the face)
+        ns = 24 if lod == 0 else 8; ra = ow / 2
+        for i in range(ns):
+            xa, xb = xo - ra + i * ow / ns, xo - ra + (i + 1) * ow / ns; u = max(abs(xa - xo), abs(xb - xo)) / ra
+            ha = OPEN_TOP + ARISE * math.sqrt(max(0.0, 1 - u * u))
+            if OPEN_TOP + ARISE - ha > 0.01: bd.box(xb - xa + 0.002, WALL, OPEN_TOP + ARISE - ha, (xa + xb) / 2, FY + WALL / 2, ha, gcol)
+        nv = 15 if lod == 0 else 7
+        for i in range(nv):
+            t = math.pi * (1 - (i + 0.5) / nv); xx = xo + (ra + 0.25) * math.cos(t); zz = OPEN_TOP + (ARISE + 0.25) * math.sin(t)
+            tang = math.atan2((ARISE + 0.25) * math.cos(t), -(ra + 0.25) * math.sin(t)); kst = i == nv // 2
+            bd.box(math.pi * (ra + 0.25) / nv * 0.95, 0.4, 0.5 if not kst else 0.72, xx, FY - 0.12, zz - (0.25 if not kst else 0.3), hexc(QUOIN if not kst else STONES[2], 0.05, rng), ry=tang)
+    else:
+        nv = 9 if lod == 0 else 3
+        for i in range(nv):
+            t = (i + 0.5) / nv; x = xo - ow / 2 - 0.2 + t * (ow + 0.4)
+            bd.box((ow + 0.4) / nv - 0.04, 0.4, 0.5 if i != nv // 2 else 0.68, x, FY - 0.12, OPEN_TOP + 0.24 + (0.06 if i == nv // 2 else 0), hexc(QUOIN if i != nv // 2 else STONES[2], 0.05, rng))
     for s in (-1, 1): xx = xo + s * (ow / 2 + 0.22); bd.box(0.44, 0.4, OPEN_TOP - zlo, xx, FY - 0.1, zlo, QUOIN, base=True)
     bd.box(ow, WALL + 0.3, 0.1, xo, FY + WALL / 2 - 0.15, gz(xo) - 0.044, QUOIN, ry=-math.atan(g))               # threshold, flush with the walk
     for xw in dwin:   # display windows: glass, mullions, sill + a small pent hood
@@ -282,6 +304,12 @@ def building(bd, b, lod, rng, cols):
         bd.box(0.05, 0.4, 0.05, x, FY - 0.45, 3.0 + gz(x) * 0, IRON); bd.box(0.28, 0.28, 0.06, x, FY - 0.6, 2.62, IRON)
         bd.box(0.22, 0.22, 0.32, x, FY - 0.6, 2.8, GLOW, mat=1); bd.box(0.3, 0.3, 0.08, x, FY - 0.6, 3.0, IRON)
         if lod == 0: bd.cyl(0.18, 0.0, 0.2, x, FY - 0.6, 3.04, IRON, n=4)
+    if b['kind'] == 'big':
+        for x in (x0 + 1.1, x1 - 1.1):
+            zt = max(gz(x), 0) + 4.2
+            bd.box(0.06, 0.6, 0.06, x, FY - 0.3, zt + 0.4, IRON); bd.box(0.06, 0.06, 0.7, x, FY - 0.6, zt + 0.05, IRON)
+            bd.box(0.4, 0.4, 0.08, x, FY - 0.6, zt - 0.62, IRON); bd.box(0.32, 0.32, 0.5, x, FY - 0.6, zt - 0.58, GLOW, mat=1); bd.box(0.44, 0.44, 0.1, x, FY - 0.6, zt - 0.08, IRON)
+            if lod == 0: bd.cyl(0.26, 0.0, 0.3, x, FY - 0.6, zt + 0.02, IRON, n=4); bd.sphere(0.06, x, FY - 0.6, zt + 0.34, GOLD, sub=0)
     # ---- upper storeys: stone (like the plaza), timber-framed plaster (jettied) or weathered plank (galleries) ----
     fyu = FY - jet
     for xx in (x0 + WALL / 2, x1 - WALL / 2): bd.box(WALL, BY - fyu, top - G, xx, (BY + fyu) / 2, G, b['wallc'], base=True)
@@ -371,12 +399,21 @@ def interior(bd, b, lod, rng, cols):
     # plaster walls, beams, a hanging lantern
     for xx in (x0 + 0.02, x1 - 0.02): bd.box(0.04, idp, G - 0.3 - zl, xx, (FY + BY) / 2, zl, PLASTER_IN, base=True)
     bd.box(iw, 0.04, G - 0.3 - zl, cx, BY - 0.02, zl, PLASTER_IN, base=True)
-    bd.box(iw, 0.04, G - OPEN_TOP - 0.3, cx, FY + 0.02, OPEN_TOP, PLASTER_IN, base=True)
+    bd.box(iw, 0.04, G - OPEN_TOP - ARISE - 0.3, cx, FY + 0.02, OPEN_TOP + ARISE, PLASTER_IN, base=True)
     if lod == 0:
         for i in range(3): bd.box(iw, 0.22, 0.26, cx, FY + (i + 1) * idp / 4, G - 0.55, WOOD_D, base=True)
         bd.box(0.2, 0.2, G - 0.3 - zl, x0 + 0.12, BY - 0.12, zl, WOOD_D, base=True); bd.box(0.2, 0.2, G - 0.3 - zl, x1 - 0.12, BY - 0.12, zl, WOOD_D, base=True)
-    lx_ = cx; bd.cyl(0.015, 0.015, 0.8, lx_, (FY + BY) / 2, G - 1.1, IRON, n=4); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.5, IRON)
-    bd.box(0.24, 0.24, 0.34, lx_, (FY + BY) / 2, G - 1.3, GLOW, mat=1); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.1, IRON)
+    for lx_ in ((cx,) if b['kind'] != 'big' else (cx - iw / 3, cx, cx + iw / 3)):
+        bd.cyl(0.015, 0.015, 0.8, lx_, (FY + BY) / 2, G - 1.1, IRON, n=4); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.5, IRON)
+        bd.box(0.24, 0.24, 0.34, lx_, (FY + BY) / 2, G - 1.3, GLOW, mat=1); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.1, IRON)
+    if b['kind'] == 'big':   # two long counters across the back, a 1.8 m walk-through gap in the middle
+        cy = BY - 1.4; cw = 4.6
+        for ccx in (cx - 0.9 - cw / 2, cx + 0.9 + cw / 2):
+            bd.box(cw, 0.9, 1.05 + gz(ccx) - zl + 0.3, ccx, cy, zl - 0.3, WOOD, base=True); bd.box(cw + 0.2, 1.1, 0.12, ccx, cy, gz(ccx) + 1.05, WOOD_L, base=True)
+            if lod == 0:
+                for i in range(int(cw / 0.5)): bd.box(0.05, 0.03, 0.9, ccx - cw / 2 + 0.25 + i * 0.5, cy - 0.47, gz(ccx) + 0.1, WOOD_D, base=True)
+            if cols is not None: cols.append(['b', round(ccx, 3), round(-cy, 3), round(cw + 0.3, 3), 1.2])
+        return dict(x0=x0, x1=x1, fy=FY, by=BY, cy=cy, cw=cw * 2 + 1.8, cx=cx, zl=zl)
     # counter across the back (walk-up side towards the door)
     cw = min(4.2, iw * 0.6); cy = BY - 1.4; ccx = cx
     bd.box(cw, 0.9, 1.05 + gz(ccx) - zl + 0.3, ccx, cy, zl - 0.3, WOOD, base=True); bd.box(cw + 0.2, 1.1, 0.12, ccx, cy, gz(ccx) + 1.05, WOOD_L, base=True)
@@ -387,6 +424,20 @@ def interior(bd, b, lod, rng, cols):
 
 def rent_room(bd, b, lod, rng, R):
     gz = lambda x: b['g'] * x; cx = R['cx']; zb = gz(cx)
+    if b['kind'] == 'big':
+        bd.box(3.6, 0.08, 1.4, cx, R['by'] - 0.06, zb + 2.0, 0x5a3219, base=True)
+        for zz in (zb + 2.02, zb + 3.36): bd.box(3.7, 0.12, 0.1, cx, R['by'] - 0.08, zz, WOOD_D)
+        carve(bd, 'TO RENT', cx, R['by'] - 0.11, zb + 2.7, 3.0, 0.9, FRONT, lod, col=0xfff1d2)
+        for s in (-1, 1):   # empty wall racks either side of the board (behind the counters) + the side-wall shelves
+            for (a, c) in ((cx + s * 2.3, cx + s * 4.3), (cx + s * 4.6, cx + s * 6.6)):
+                xa, xc = min(a, c), max(a, c); xm = (xa + xc) / 2
+                bd.box(xc - xa, 0.04, 2.6, xm, R['by'] - 0.03, gz(xm) - 0.2, 0x5a3219, base=True)   # back board: reads as a shelf unit
+                for xx in (xa, xc): bd.box(0.1, 0.42, 2.7, xx, R['by'] - 0.23, gz(xm) - 0.2, WOOD_D, base=True)
+                bd.box(xc - xa + 0.1, 0.44, 0.1, xm, R['by'] - 0.23, gz(xm) + 2.5, WOOD_D)
+                for k in range(4 if lod == 0 else 2): bd.box(xc - xa, 0.42, 0.07, xm, R['by'] - 0.23, gz(xm) + 0.45 + k * (0.65 if lod == 0 else 1.3), WOOD_L)
+            xs = R['x0'] + 0.25 if s < 0 else R['x1'] - 0.25
+            for k in range(3 if lod == 0 else 1): bd.box(0.4, R['by'] - R['fy'] - 3.2, 0.06, xs, (R['fy'] + 1.2 + R['by'] - 2.0) / 2, gz(xs) + 0.9 + k * 0.7, WOOD_L)
+        return
     # TO RENT board on the back wall + empty shelves (fill them in later)
     bd.box(2.4, 0.08, 1.0, cx, R['by'] - 0.06, zb + 2.05, 0x5a3219, base=True)
     for zz in (zb + 2.07, zb + 3.01): bd.box(2.5, 0.12, 0.08, cx, R['by'] - 0.08, zz, WOOD_D)
@@ -427,6 +478,14 @@ def sign_plate(b):   # the blank hanging plate, its own mesh (Emerly: text / tex
     for yy in (FY - 0.38, FY - 1.78): sp.box(0.16, 0.08, 0.88, s, yy, 3.35, WOOD_D)
     return sp
 
+def sign_plate_big(b):   # the big blank sign plate over the arch, fixed on the front of the first-floor gallery (Emerly: text / textures later)
+    sp = Builder(); FY = -b['d'] / 2 - 1.3 - 0.1; xo = b['xo']; pw = b['ow'] + 1.6; z0, z1 = G + 0.02, G + 1.32
+    sp.box(pw, 0.12, z1 - z0, xo, FY, z0, 0x5a3219, base=True)
+    for zz in (z0 - 0.06, z1 - 0.04): sp.box(pw + 0.24, 0.2, 0.1, xo, FY - 0.04, zz, WOOD_D)
+    for xx in (xo - pw / 2 - 0.06, xo + pw / 2 + 0.06): sp.box(0.14, 0.2, z1 - z0 + 0.14, xx, FY - 0.04, z0 - 0.06, WOOD_D, base=True)
+    for xx in (xo - pw / 2 + 0.5, xo + pw / 2 - 0.5): sp.sphere(0.06, xx, FY - 0.08, z1 - 0.2, GOLD, sub=0)
+    return sp
+
 def bracket(bd, b):
     FY = -b['d'] / 2; xo, ow = b['xo'], b['ow']
     left = (xo - ow / 2) - b['x0'] >= b['x1'] - (xo + ow / 2); s = xo - ow / 2 - 0.95 if left else xo + ow / 2 + 0.95; b['ssx'] = s
@@ -449,21 +508,22 @@ def bake_obj(bd, name, coll, parent):
     o = bpy.data.objects.new(name, me); coll.objects.link(o); o.parent = parent; return o
 
 REPORT = {}; DATA = []
-COLLS = {k: bpy.data.collections.new('hill_' + k) for k in ('street', 'sword', 'musket')}
+COLLS = {k: bpy.data.collections.new('hill_' + k) for k in ('street', 'sword', 'musket', 'big')}
 for c in COLLS.values(): bpy.context.scene.collection.children.link(c)
 for b in B:
-    G = b['G']
+    G = b['G']; OPEN_TOP = b.get('OT', 3.4); ARISE = b.get('AR', 0.0)
     coll = COLLS['street' if b['kind'] == 'rent' else b['kind']]
     root = bpy.data.objects.new('hill_' + b['key'], None); coll.objects.link(root); cols = []; b['_props'] = []; rep = {}
     for lod in (0, 1):
         rng = np.random.default_rng(b['n'] * 31 + (b['side'] > 0) * 7 + lod); random.seed(b['n'])
         bd = Builder(); bd.ground = (lambda g: (lambda x, y: g * x))(b['g']); building(bd, b, lod, rng, cols if lod == 0 else None); R = interior(bd, b, lod, rng, cols if lod == 0 else None)
-        (rent_room if b['kind'] == 'rent' else weapon_room)(bd, b, lod, rng, R); bracket(bd, b)
+        (rent_room if b['kind'] in ('rent', 'big') else weapon_room)(bd, b, lod, rng, R)
+        if b['kind'] != 'big': bracket(bd, b)
         bake_obj(bd, f"hill_{b['key']}_LOD{lod}", coll, root); rep[f'LOD{lod}'] = bd.tris()
     cols += b['_props'][:2]
-    sid = 'sign_rent_%d' % b['rent'] if b['kind'] == 'rent' else 'sign_swords' if b['kind'] == 'sword' else 'sign_muskets'
-    eid = 'door_rent_%d' % b['rent'] if b['kind'] == 'rent' else 'door_swords' if b['kind'] == 'sword' else 'door_muskets'
-    sp = sign_plate(b); bake_obj(sp, sid, coll, root)
+    sid = 'sign_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'sign_swords' if b['kind'] == 'sword' else 'sign_muskets'
+    eid = 'door_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'door_swords' if b['kind'] == 'sword' else 'door_muskets'
+    sp = sign_plate(b) if b['kind'] != 'big' else sign_plate_big(b); bake_obj(sp, sid, coll, root)
     e = bpy.data.objects.new(eid, None); coll.objects.link(e); e.parent = root; e.location = (b['xo'], -b['d'] / 2, b['g'] * b['xo']); e.empty_display_size = 0.5
     inner = [round(b['x0'] + WALL, 3), round(-(b['d'] / 2 - WALL), 3), round(b['x1'] - WALL, 3), round(b['d'] / 2 - WALL, 3)]   # three.js building frame x0, z0, x1, z1
     root['colliders'] = json.dumps(cols); root['interior'] = json.dumps(inner); root['door'] = json.dumps([round(b['xo'], 3), round(b['d'] / 2, 3)])
@@ -491,12 +551,13 @@ rent, weap = [], []
 for L in DATA:
     th = math.pi / 2 if L['side'] < 0 else -math.pi / 2; i0, j0, i1, j1 = L['interior']
     cs = [town(L, a, c) for a in (i0, i1) for c in (j0, j1)]
-    e = dict(id=('rent_%d' % L['rent']) if L['kind'] == 'rent' else ('sword_shop' if L['kind'] == 'sword' else 'musket_shop'), lot=L['key'],
+    e = dict(id=('rent_%s' % L['rent']) if L['kind'] in ('rent', 'big') else ('sword_shop' if L['kind'] == 'sword' else 'musket_shop'), lot=L['key'],
              lx=L['lx'], lz=L['lz'], ly=round(th, 4), w=round(L['x1'] - L['x0'], 3), d=L['d'], storeys=L['fl'],
              door=dict(zip(('lx', 'lz'), town(L, L['door'][0], L['door'][1]))), doorY=round(L['y'] + L['g'] * L['door'][0], 3), doorW=L['ow'], facing=round(th, 4),
              interior=dict(lx0=min(c[0] for c in cs), lz0=min(c[1] for c in cs), lx1=max(c[0] for c in cs), lz1=max(c[1] for c in cs), floorY=dict(atLz0=round(gyl(min(c[1] for c in cs)), 3), atLz1=round(gyl(max(c[1] for c in cs)), 3)), slope=0.11),
              sign=L['sign'], empty=L['empty'])
-    (rent if L['kind'] == 'rent' else weap).append(e)
+    if L['kind'] == 'big': e['size'] = 'large'
+    (rent if L['kind'] in ('rent', 'big') else weap).append(e)
 json.dump(dict(RENTABLE_SHOPS=rent, MAIN_ST_SHOPS=weap), open(os.path.join(GAME, 'assets/island/hill_shops.json'), 'w'), indent=1)
 with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
     f.write("// [Timothy] PUMPFUN PIRATES hill street shop data (GENERATED by tools/hill_blender/hill_street_blender.py, do not hand-edit; also assets/island/hill_shops.json).\n")
@@ -505,6 +566,7 @@ with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
     f.write("// interior = the walkable shop room (AABB inside the walls; its floor follows the street slope 0.11 m/m: floorY.atLz0 / atLz1 at its two ends).\n")
     f.write("// sign = the blank hanging sign-plate mesh name, empty = the door Object3D name (both in the scene once the hill GLBs load).\n")
     f.write("// RENTABLE_SHOPS: every hill-street ground floor except the two weapon shops = an EMPTY shop to rent (geometry + data only; no rental gameplay yet).\n")
+    f.write("// The last one, rent_big (size 'large', lot R0 = the old Squad Hall plot, hill_big_shop.glb), is the one big hall; the Squad Hall interact stays at its door.\n")
     f.write("// MAIN_ST_SHOPS: the SWORD SHOP (L6) + MUSKET SHOP (R6) as built (js/island/battleAreas.js MAIN_ST_SHOPS stays the gameplay config).\n")
     f.write('export const RENTABLE_SHOPS = ' + json.dumps(rent) + ';\n')
     f.write('export const MAIN_ST_SHOPS = ' + json.dumps(weap) + ';\n')

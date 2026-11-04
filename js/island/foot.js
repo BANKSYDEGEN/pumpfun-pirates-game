@@ -722,8 +722,9 @@ export function buildStreet(A, low, F) {
   }
   { // SQUAD HALL: wide 3 storeys, stone ground floor, banners, interact at the door
     const [z] = lots[0], lx = S.x + S.half + 1 + 7, [x, wz] = tw(lx, z - 3), yaw = twy(-Math.PI / 2), y = H(x, wz);
-    colonial(k, F, x, y, wz, yaw, 16, 14, 3, 3, low, 'squad', A); addBox(x, wz, 16.6, 14.6, yaw);
-    k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
+    const BS = PV.bigShop && PV.bigShop({ x, y, wz, yaw, lx, z: z - 3, addBox, addCirc }); // [Timothy] BANKSY: the big empty shop (js/island/hillStreet.js) replaces the hall building; the squad interact + map entry below stay
+    if (!BS) colonial(k, F, x, y, wz, yaw, 16, 14, 3, 3, low, 'squad', A), addBox(x, wz, 16.6, 14.6, yaw);
+    if (!BS) k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
       if (KP) atlasQuad(k, 6.6, 1.3, A.squad, M(0, 9.3, 7.5)); // on the Blender hall's facade sign board (2nd floor, reads from the street)
       else { W(k, box(4.2, 0.9, 0.3), WOOD_D, 2, M(0, 4.4, 7.4), false); atlasQuad(k, 4.0, 0.8, A.squad, M(0, 4.4, 7.56)); } });
     LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });

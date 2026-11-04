@@ -15,7 +15,7 @@ from lib import Builder, T, hexc, text_mesh
 OUT = sys.argv[sys.argv.index('--') + 1:][0]; os.makedirs(OUT, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)   # [material library] no default cube in the export
 HERE = os.path.dirname(os.path.abspath(__file__)); FONT = os.path.join(HERE, '..', '..', 'assets', 'JustAnotherHand.ttf')
-OLD_WOOD = np.array([0.5225, 0.3888, 0.2584])   # sRGB factor = the old plank photo's mean (tex/dock_planks_512.jpg), kept so the docks keep their tone
+OLD_WOOD = np.array([0.6147, 0.4497, 0.2806])   # sRGB factor: the old plank photo mean [0.5225, 0.3888, 0.2584] moved 40% to the ships' warm deck wood (js/ships.js deck 0xc08a50) - BANKSY pt203u: docks closer to the ships
 # ---- plazaTown.js numbers ----
 Y_QUAY, Y_DECK = 2.6, 2.95; STREET_Y = Y_QUAY + 0.13
 BW = dict(lx0=-176, lxS=-55, lx1=100, lz0=0, lz1=8, yW=Y_DECK, yE=STREET_Y + 0.02)

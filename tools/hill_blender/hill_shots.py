@@ -14,6 +14,9 @@ SHOTS = {  # name: (cam lx, lz, height over street), (target lx, lz, height over
   'right_r3': ((1.0, -98.5, 2.0), (16.5, -105, 2.6), 60),
   'right_r4_square': ((1.0, -108.5, 2.0), (16.5, -114.8, 2.0), 60),
   'rent_interior': ((6, -94, 1.9), (-8, -94, 1.6), 62),
+  'big_ref': ((1.5, -61.5, 1.9), (16, -78, 3.6), 62),               # framed like BANKSY's pt203u Squad Hall screenshot (R0 from the plaza end)
+  'big_front': ((3.0, -76.5, 1.9), (16, -76.5, 4.5), 70),
+  'big_interior': ((15.2, -68.6, 1.8), (27, -80, 1.4), 72),
   'top_view': ((6, -130, 70), (6, -129.9, 0), 70),
 }
 CAM = """(async([c,t,fov])=>{ const CO = await import('./js/island/coast.js'); const I = ISLAND; const [cx, cz] = CO.t2w(c[0], c[1]), [tx, tz] = CO.t2w(t[0], t[1]);
@@ -35,6 +38,7 @@ async def main():
       c = [c[0], c[1], gy(c[1]) + c[2]]; t = [t[0], t[1], gy(t[1]) + t[2]]
       await pg.evaluate(CAM, [c, t, fov]); await pg.wait_for_timeout(3500)
       await pg.screenshot(timeout=120000, path=f'{OUT}/{PRE}_{DEV}_{name}.png'); print('shot', DEV, name, flush=True)
+    if os.environ.get('PROBE'): out['probe'] = await pg.evaluate(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hill_probe.js')).read())
     out['errors'] = errs[:12]; out['stats'] = await pg.evaluate('window.ISLAND_STATS ? { calls: ISLAND_STATS.calls, tris: ISLAND_STATS.triangles } : null')
     print('RESULT', json.dumps(out)); await b.close()
 asyncio.run(main())
