@@ -63,16 +63,17 @@ export function chestDrop(mapId: string, tier: string, owner = false, items = SH
 // ---------------- [inventory] ITEMS-ONLY CHESTS (BANKSY 11:12: "don't get gold from chests only items") ----------------
 // A dig now pays NO gold: the chest holds valuables (gold bars, rubies, diamonds, jewelry) + maybe a weapon (rare+ only from rare /
 // legendary chests, behind rare_weapon_drops) + the 035 cosmetic roll above (already owned -> a 'dup:' item to sell). Same seeded rolls.
-import { CHEST_VALUABLES, CHEST_EXTRA_VALUABLE, CHEST_WEAPON, WEAPON_BASES, dupRarity } from "./invCatalog.ts";
+import { CHEST_VALUABLES, CHEST_EXTRA_VALUABLE, CHEST_WEAPON, WEAPON_BASES, VALUABLES, dupRarity } from "./invCatalog.ts";
 const pickW = (table: Record<string, number>, roll: number) => { let r = roll; for (const [k, w] of Object.entries(table)) { if (r < w) return k; r -= w; } return Object.keys(table).at(-1)!; };
 export type ChestItem = { item: string; qty: number };
-export function chestItems(mapId: string, tier: string, holder = false, rareWeapons = false): ChestItem[] {
+export function chestItems(mapId: string, tier: string, holder = false, rareWeapons = false, lucky = false): ChestItem[] {
   const t = (tier in CHEST_VALUABLES ? tier : "common") as keyof typeof CHEST_VALUABLES, out: ChestItem[] = [], q = holder ? 2 : 1; // holders: x2 valuables (was x2 gold)
-  out.push({ item: "val:" + pickW(CHEST_VALUABLES[t], chestRoll("val:" + mapId)), qty: q });
-  if (chestRoll("val2:" + mapId) < CHEST_EXTRA_VALUABLE[t]) out.push({ item: "val:" + pickW(CHEST_VALUABLES[t], chestRoll("val2p:" + mapId)), qty: q });
+  const vt = lucky ? luckyTable(CHEST_VALUABLES[t], (k) => (VALUABLES as any)[k]?.rarity) : CHEST_VALUABLES[t];   // [wish] server-only, never sent to a client
+  out.push({ item: "val:" + pickW(vt, chestRoll("val:" + mapId)), qty: q });
+  if (chestRoll("val2:" + mapId) < CHEST_EXTRA_VALUABLE[t] + (lucky && CHEST_EXTRA_VALUABLE[t] ? WISH.extraValuable : 0)) out.push({ item: "val:" + pickW(vt, chestRoll("val2p:" + mapId)), qty: q });
   const w = CHEST_WEAPON[t];
-  if (chestRoll("wpn:" + mapId) < w.chance) {
-    let rar = pickW(w.tiers, chestRoll("wpnt:" + mapId)); if (!rareWeapons) rar = "common";
+  if (chestRoll("wpn:" + mapId) < w.chance + (lucky ? WISH.weaponChance : 0)) {
+    let rar = pickW(lucky ? luckyTable(w.tiers, (k) => k) : w.tiers, chestRoll("wpnt:" + mapId)); if (!rareWeapons) rar = "common";
     const slot = chestRoll("wpns:" + mapId) < 500 ? "sword" : "musket", bases = WEAPON_BASES[slot].filter((b: string) => b !== "rusty" || rar !== "common");
     out.push({ item: `wpn:${slot}:${bases[chestRoll("wpnb:" + mapId) % bases.length]}:${rar}`, qty: 1 });
   }
@@ -80,3 +81,16 @@ export function chestItems(mapId: string, tier: string, holder = false, rareWeap
   return [...m].map(([item, qty]) => ({ item, qty }));
 }
 export const dupItem = (drop: ChestDrop) => drop ? `dup:${drop.slot}:${drop.id}:${dupRarity(drop.price)}` : null;
+// ---------------- [wish] THE WISHING FOUNTAIN (BANKSY: hidden; toss 100 gold at the roundabout fountain = 5 min of quiet luck) ----------------
+// SERVER ONLY: the client never sees these numbers or whether a wish is active (migration 039 pvp_wish_toss / pvp_wish_lucky, flag wish_fountain).
+// A lucky dig: rare+ weights scaled (rare x1.25, epic x1.4, legendary x1.5) then renormalised to 1000 (common / uncommon give up the share),
+// +50 per mille for the 2nd valuable (rare / legendary chests only), +40 per mille for a weapon. Same seeded rolls, just a tilted table.
+export const WISH = { price: 100, minutes: 5, mul: { common: 1, uncommon: 1, rare: 1.25, epic: 1.4, legendary: 1.5 } as Record<string, number>, extraValuable: 50, weaponChance: 40 };
+export function luckyTable(table: Record<string, number>, rarityOf: (k: string) => string | undefined): Record<string, number> {
+  const ks = Object.keys(table), raw = ks.map((k) => table[k] * (WISH.mul[rarityOf(k) ?? "common"] ?? 1)), sum = raw.reduce((a, b) => a + b, 0);
+  if (!(sum > 0)) return table;
+  const out: Record<string, number> = {}; let tot = 0;
+  ks.forEach((k, i) => { out[k] = Math.round(raw[i] * 1000 / sum); tot += out[k]; });
+  out[ks[0]] += 1000 - tot; // exact 1000 (rolls are 0..999)
+  return out;
+}

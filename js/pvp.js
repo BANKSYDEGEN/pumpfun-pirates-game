@@ -34,7 +34,7 @@ import { PVP_DEATH_BONUS, PVP_BR_DEATH_LOSS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RES
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
-import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed, invApi } from './pvpSave.js'; // [inventory] + invApi
+import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed, invApi, wishToss } from './pvpSave.js'; // [inventory] + invApi
 import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
@@ -210,6 +210,15 @@ export function createPvp(K) {
       save({ now: true, force: true }); return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } });
     },
   });
+  // [wish] the roundabout wishing fountain (js/island/areas/hillRound.js fires 'pfp-wish'): 100 gold, a splash, a neutral line. Nothing else.
+  let wishBusy = false, wishLast = 0;
+  addEventListener('pfp-wish', async (e) => { const d = e.detail || {}; if (wishBusy || Date.now() - wishLast < 4000) return; wishBusy = true;
+    try { if ((game.gold | 0) < 100 && !ownerAllSkins()) { d.toast?.('YOU NEED 100 GOLD TO TOSS A COIN', 2200); return; }
+      const r = await wishToss(snapshot());
+      if (!r.ok) { d.toast?.(r.error === 'not enough gold' ? 'YOU NEED 100 GOLD TO TOSS A COIN' : r.error === 'slow down' ? 'THE WATER IS STILL RIPPLING...' : 'THE FOUNTAIN IS QUIET RIGHT NOW', 2200); return; }
+      if (!r.owner && r.price) { game.gold = Math.max(0, (game.gold | 0) - (r.price | 0)); profile.rev = r.rev | 0; save({ now: true, force: true }); K.updateHud(); }
+      wishLast = Date.now(); d.splash?.(); sfx.coin?.(); d.toast?.('YOU TOSS A COIN AND MAKE A WISH...', 2600);
+    } finally { wishBusy = false; } });
   // [v122] treasure maps (js/dock/treasure.js drives the UI): the dig gold lands on THIS save in the same tick, then saves
   const maps = { state: () => mapsState(snapshot()),
     async dig(id, spot) { const r = await mapDig(id, spot, snapshot());

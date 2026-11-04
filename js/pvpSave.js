@@ -192,6 +192,20 @@ export async function shopBuy(item, profile) {
   } catch (e) { if (!e.status && i === 0) continue; acctUnhold(); return { ok: false, error: e.message || 'shop offline', status: e.status }; } // network blip: same req id = never charged twice
   acctUnhold(); return { ok: false, error: 'shop offline' };
 }
+// [wish] the roundabout fountain: 100 gold off the server save (pvp wish_toss, same req / rev handling as shopBuy). Just a wish.
+export async function wishToss(profile) {
+  if (!PVP_FN_URL) return { ok: false, error: 'offline' }; await ownerReady; const s = session(); const req = reqId(), ac = !s && !group && !ownerAll && acct();
+  if (ac) await acctSyncNow(profile); else if (!s && !group && !ownerAll) await devSyncNow(profile);
+  if (ac) acctHold();
+  for (let i = 0; i < 2; i++) try {
+    const j = await api('wish_toss', { ...(s ? { token: s.token } : { dk: deviceKey() }), req });
+    if (j.owner) { acctUnhold(); return { ok: true, owner: true, price: 0 }; }
+    if (ac && !j.retry) acctBoughtFor(j.price); else if (ac) acctUnhold();
+    if (Number.isFinite(j.rev)) shop.rev = j.rev | 0;
+    shopGold = j.gold | 0; return { ok: true, price: j.retry ? 0 : (j.price | 0), gold: j.gold | 0, rev: j.rev };
+  } catch (e) { if (!e.status && i === 0) continue; acctUnhold(); return { ok: false, error: e.message || 'offline', status: e.status }; }
+  acctUnhold(); return { ok: false, error: 'offline' };
+}
 // ---------- [v103] WAVES PAYS GOLD FROM SCORE ----------
 // The server notes when a Waves run starts and, at the end, banks gold from the run's SCORE into your Battle Royale save
 // (the shop's gold): round(2 * sqrt(score)), max 800 a run, x2 holder / owner, one payout per run, checked server-side.

@@ -6,7 +6,7 @@ import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.t
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
-import { chestDrop, chestItems, dupItem, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
+import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
 import { inventoryAction, INV_ACTIONS } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
@@ -87,6 +87,8 @@ async function boostsOf(who: { pid: string; owner: boolean; wallet: string | nul
   } catch { return boostsFor(null, new Set(), false); }
 }
 // [prestige] this pirate's prestige level (migration 031; 0 while it isn't applied or on any read error: nothing locks up)
+// [wish] is a fountain wish still running for this player? (flag on + 039 run; anything missing = no luck, nothing else changes)
+async function wishLucky(pid: string) { try { const { data, error } = await db.rpc("pvp_wish_lucky", { p_player: pid }); return !error && data === true; } catch { return false; } }
 async function prestigeOf(pid: string) { try { const { data, error } = await db.from("pvp_prestige").select("level").eq("player_id", pid).maybeSingle(); return error ? 0 : Math.max(0, Number(data?.level) || 0); } catch { return 0; } }
 const zeroLevels = () => Object.fromEntries(Object.keys(PRESTIGE_MAX).map((k) => [k, 0]));
 async function boardKD(pid: string) { const { data } = await db.rpc("pvp_kills_me", { p_player: pid }); const r = Array.isArray(data) ? data[0] : data; return { kills: Number(r?.kills ?? 0), deaths: Number(r?.deaths ?? 0) }; }
@@ -565,6 +567,17 @@ Deno.serve(async (req) => {
         const recent = (dug || []).map((d: any) => ({ tier: d.tier, gold: d.gold, dug_at: d.dug_at, loot: lootOf.get(d.id) ?? null }));
         return json(200, { ok: true, new: sync?.new | 0, maps: rows || [], recent });
       }
+      // [wish] THE WISHING FOUNTAIN (hidden: the reply says nothing about luck). 100 gold off the SERVER save (039 pvp_wish_toss, same
+      // idempotent req + shop_rev as shop_buy), then 5 min of a lucky chest table (chest.ts WISH). Behind pvp_flags 'wish_fountain'. Owner: free.
+      case "wish_toss": {
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        const req = String(b.req ?? ""); if (!/^[A-Za-z0-9_-]{16,64}$/.test(req)) return json(400, { error: "bad request" });
+        const { data, error } = await db.rpc("pvp_wish_toss", { p_player: who.pid, p_req: req, p_price: WISH.price, p_minutes: WISH.minutes });
+        if (error) { if (/pvp_wish_toss|PGRST202|42883/.test(`${error.code} ${error.message}`)) return json(409, { error: "closed" }); throw error; }
+        if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold });
+        if (!who.wallet && !who.owner && !data.owner && !data.retry) await acctBump(db, who.raw, -WISH.price);
+        return json(200, { ok: true, owner: !!data.owner, price: data.owner ? 0 : WISH.price, gold: data.gold, rev: data.rev, retry: !!data.retry });
+      }
       case "map_dig": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         const id = String(b.map ?? ""), spot = String(b.spot ?? "");
@@ -577,7 +590,7 @@ Deno.serve(async (req) => {
         if (!who.owner && mr) drop = chestDrop(id, mr.tier);
         // [inventory] 036: ITEMS ONLY (no chest gold): valuables + maybe a weapon + the cosmetic (owned -> a sellable 'dup:' item)
         if (mr) { const { data: rf } = await db.from("pvp_flags").select("on_").eq("k", "rare_weapon_drops").maybeSingle();
-          const items = chestItems(id, mr.tier, holder, !!rf?.on_);
+          const items = chestItems(id, mr.tier, holder, !!rf?.on_, await wishLucky(who.pid)); // [wish] a quiet tilt for 5 min after a fountain wish (039)
           const { data: iv, error: ie } = await db.rpc("pvp_map_dig_inv", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_items: items, p_cosmetic: drop?.item ?? null, p_crew: !!drop?.crew, p_dup: dupItem(drop) });
           if (!ie) { if (!iv?.ok) return json(409, { error: iv?.why || "no treasure" });
             const loot = drop && iv.item ? { item: String(iv.item).slice(5), crew: !!iv.crew, dup: !!iv.dup, dup_gold: 0, dup_item: iv.dup_item ?? null, price: drop.price } : null;

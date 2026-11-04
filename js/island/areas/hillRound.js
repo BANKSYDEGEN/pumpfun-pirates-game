@@ -44,6 +44,17 @@ const [CX, CZ] = RB2.c, [PX0, PX1, PZ0, PZ1] = RB2.plaza;
 // the fountain (BANKSY's later wishing fountain: a rim spot for the prompt + where a thrown coin splashes), world coords
 export const FOUNTAIN = { x: CX, z: CZ, basinR: 4.2, rimY: Y + 0.75, waterY: Y + 0.62 };
 export const FOUNTAIN_ANCHORS = { rim: { x: CX - 4.75, y: Y, z: CZ }, coin: { x: CX - 2.6, y: Y + 0.62, z: CZ }, radius: 1.6 };
+// [wish] the wishing spot, read at runtime from assets/island/fountain_anchor.json (rim / coin / radius) so it follows the fountain if it moves
+// (Timothy's rb-blender pass: z -84); missing / bad file = FOUNTAIN_ANCHORS above. &wish=0 = no wishing fountain at all.
+export const WISH_ON = !(typeof location !== 'undefined' && /[?&]wish=0(&|$)/.test(location.search));
+export const WISH_AT = { rim: { ...FOUNTAIN_ANCHORS.rim }, coin: { ...FOUNTAIN_ANCHORS.coin }, radius: FOUNTAIN_ANCHORS.radius };
+let WISH_Q = null;
+export function applyWishAnchor(j) { const ok = (p) => p && [p.x, p.y, p.z].every(Number.isFinite);
+  if (!j || !ok(j.rim) || !ok(j.coin)) return false;
+  Object.assign(WISH_AT.rim, { x: +j.rim.x, y: +j.rim.y, z: +j.rim.z }); Object.assign(WISH_AT.coin, { x: +j.coin.x, y: +j.coin.y, z: +j.coin.z });
+  if (Number.isFinite(+j.radius) && +j.radius > 0) WISH_AT.radius = +j.radius;
+  if (WISH_Q) Object.assign(WISH_Q, { x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4 }); return true; }
+if (WISH_ON && typeof fetch !== 'undefined' && typeof location !== 'undefined') fetch('assets/island/fountain_anchor.json').then(r => r.ok ? r.json() : null).then(applyWishAnchor).catch(() => {});
 // the Pirates' Climb stairs, on the trail's own line (trail A, plaza edge (-428, -100) -> the valley floor (-416, -119.3)): two flights + a landing,
 // 4.6 m wide (the trail width); [id, u0, u1, y0, y1] along that line (y1 null = the ground at the foot, set in register)
 const CL = { x0: -428, z0: -100, x1: -416, z1: -119.3, hw: 2.3 }; CL.L = Math.hypot(CL.x1 - CL.x0, CL.z1 - CL.z0); CL.yaw = Math.atan2(CL.x1 - CL.x0, CL.z1 - CL.z0);
@@ -103,6 +114,8 @@ export default {
       collidersOff?.((o) => o.t === 0 && Math.abs(o.x - ox) < 1e-6 && Math.abs(o.z - oz) < 1e-6); Object.assign(sg, { x: -433.2, z: -99.35, y: Y, yaw: CL.yaw }); /* [stairfix] against the new S parapet: no wedge by the stair head */ h.addCirc(sg.x, sg.z, 0.25); RB_STATS.sign = [ox, oz]; } }
     // colliders: fountain, parapets / cheek walls, lamps, benches, planters, bridge towers, piers
     h.addCirc(CX, CZ, FOUNTAIN.basinR + 0.15);
+    // [wish] the wishing fountain: an E / tap spot on the rim (shown only while the server's 'wish_fountain' flag is on: inventory/ui.js PFP_INV_FLAGS)
+    if (WISH_ON) h.INTERACT?.push(WISH_Q = { id: 'wish_fountain', kind: 'wish', area: 'hill_round', x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }
     for (const [x, z] of LAMPS) h.addCirc(x, z, 0.3);
     for (const b of BENCHES) h.addBox(b.x, b.z, 2.0, 0.7, b.yaw);
@@ -242,9 +255,24 @@ export default {
     for (let i = 0; i < 12; i++) { const t = (i + 0.5) / 12, [x, z] = along(t); W(kf, box(5.2, 0.3, HB.L / 12 + 0.1), 0xa86a3a, M(x, HB.yAt(t) - 0.15, z, HB.yaw), false); }
     for (const t of HB.piers) { const [x, z] = along(t), top = HB.yAt(t), g = H(x, z); W(kf, box(6, top - g, 4), 0xb9b2a6, M(x, (top + g) / 2, z, HB.yaw), false); }
     far.add(kf.build(MATS, OUT));
-    return { near, far, tick(t) { jets.rotation.y = t * 0.5; spout.scale.y = 1 + Math.sin(t * 7) * 0.12; pool.scale.setScalar(1 + Math.sin(t * 3) * 0.004);
+    // [wish] the coin: a little gold disc flips from the rim into the basin, then a ring ripples out (looks only)
+    const coin = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.018, 12), new THREE.MeshStandardMaterial({ color: 0xffcd3c, metalness: 0.8, roughness: 0.3 }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.2, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+    coin.visible = false; ring.rotation.x = -Math.PI / 2; ring.visible = false; near.add(coin, ring); let wishT = -1;
+    const A = WISH_AT, wishAt = (t) => { const k = Math.min(1, t / 0.8);
+      coin.visible = k < 1; coin.position.set(A.rim.x + (A.coin.x - A.rim.x) * k, A.rim.y + 1.3 + 1.2 * k - 1.9 * k * k, A.rim.z + (A.coin.z - A.rim.z) * k); coin.rotation.x = t * 14;
+      const r = Math.max(0, (t - 0.8) / 1.4); ring.visible = r > 0 && r < 1; ring.position.set(A.coin.x, A.coin.y + 0.02, A.coin.z); ring.scale.setScalar(1 + r * 7); ring.material.opacity = 0.7 * (1 - r);
+      return t < 2.2; };
+    return { near, far, wish: () => { wishT = 0; }, tick(t) { if (wishT >= 0) { if (wishT === 0) wishT = t; if (!wishAt(t - wishT)) { wishT = -1; coin.visible = ring.visible = false; } }
+      jets.rotation.y = t * 0.5; spout.scale.y = 1 + Math.sin(t * 7) * 0.12; pool.scale.setScalar(1 + Math.sin(t * 3) * 0.004);
       sway.position.set(cs * Math.sin(t * 0.9) * 0.03, Math.sin(t * 1.3) * 0.01, -sn * Math.sin(t * 0.9) * 0.03); } }; // sway: looks only (walk height = foot.js)
   },
+  // [wish] E / tap at the rim: the toss itself is pvp.js ('pfp-wish': 100 gold on the server, then the splash + a plain line)
+  label(q) { return null; },
+  activate(q, t, api, b) { if (q.id !== 'wish_fountain' || typeof window === 'undefined') return null;
+    window.dispatchEvent(new CustomEvent('pfp-wish', { detail: { toast: (m, ms) => api?.toast?.(m, ms), splash: () => b?.wish?.() } })); return null; },
 };
+// [wish] off until the server says the fountain is open (inv_state flags); ?wish=1 = show the spot anyway (tests)
+function wishHidden() { if (typeof window === 'undefined') return true; if (/[?&]wish=1(&|$)/.test(location.search)) return false; return !(window.PFP_INV_FLAGS && window.PFP_INV_FLAGS.wish_fountain); }
 const rockfall = (i) => [-294.5 + hash(i, 21) * 6, -66 + hash(i, 23) * 7, 0.8 + hash(i, 25) * 1.1];
 function along(t) { return [HB.ax + (HB.bx - HB.ax) * t, HB.az + (HB.bz - HB.az) * t]; }
