@@ -195,8 +195,9 @@ for kind, fld in parts:
       wh = ((part == 1) & (V[:, 1] < -0.175) & (V[:, 2] < 0.215)) | ((part == 0) & (V[:, 1] < -0.09) & (V[:, 2] < 0.14) & (np.abs(V[:, 0]) < 0.04)) | (V[:, 2] < 0.03) | ((part == 2) & (np.linalg.norm(V - X['tail'][-1], axis=1) < 0.035))
       C = np.where(wh[:, None], light * (0.85 + 0.2 * up)[:, None], C)
       st2 = (part == 1) & (V[:, 2] > 0.245) & (np.sin(V[:, 0] * 160) > 0.5) & (V[:, 1] > -0.19); C = np.where(st2[:, None], dark * k[:, None], C)   # forehead M
-    else:   # black cat: blue-grey sheen on the crests
-      sh = np.clip(up * 0.8 + 0.25 * nz, 0, 1); C = C * (1 - 0.5 * sh[:, None]) + COL(P['sheen']) * 0.5 * sh[:, None]
+    else:   # black cat: blue-grey sheen on the crests ([pet textures 2] stronger + combed into strands so the shape reads)
+      kf_ = (66 if HI else 36) / H; st_ = np.sin(V[:, 0] * kf_ + V[:, 1] * kf_ * 0.55 + 1.4 * np.sin(V[:, 2] * 8 / H + 2.2 * nz))
+      sh = np.clip(up * 0.85 + 0.25 * nz + 0.3 * st_ - 0.1, 0, 1); C = C * (1 - 0.62 * sh[:, None]) + COL(P['sheen']) * 0.62 * sh[:, None]
     nose = np.linalg.norm(V - A([0, -0.222, 0.205]), axis=1) < 0.012; C = np.where(nose[:, None], skin, C)
     ear_in = (part == 1) & (ear_d(V) < X['erad'][0] * 1.25) & (N[:, 1] < -0.3) & (V[:, 2] > X['ears'][0][0][2]); C = np.where(ear_in[:, None], skin * 0.95, C)
   elif sp == 'tiger':   # orange coat, black stripes (back, flanks, legs, tail rings, forehead + cheeks), white muzzle / cheeks / belly / paws
@@ -247,7 +248,18 @@ for kind, fld in parts:
       sb = np.clip((-0.02 * hs + V[:, 1]) / (0.1 * hs) + 0.3, 0, 1) * np.clip((V[:, 2] - 0.26 * hs) / (0.1 * hs), 0, 1) * (part == 0)
       sb = np.clip((sb - 0.35 + 0.3 * st) * 2.2, 0, 1) * (1 - under)
       C = C * (1 - sb[:, None]) + COL(P['silver']) * ((0.74 + 0.32 * up) * (0.9 + 0.12 * st))[:, None] * sb[:, None]
-  # rig uv: u = part, v = along the limb
+  if sp != 'gorilla':   # [pet textures 2] BANKSY 3:58 PM: same paint pass as the gorillas: strand fur, lit from above, darker underneath + near the floor, calmer faces
+    kf = (66 if HI else 36) / H; wob = np.sin(V[:, 2] * 8 / H + 2.2 * nz)
+    st = 0.55 * np.sin(V[:, 0] * kf + V[:, 1] * kf * 0.55 + 1.4 * wob) + 0.45 * np.sin(V[:, 0] * kf * 0.6 - V[:, 1] * kf * 0.95 + V[:, 2] * 7 / H + 3 * nz)
+    under = np.clip(-N[:, 2], 0, 1); ao = np.clip(V[:, 2] / (0.22 * H), 0, 1)
+    calm = np.clip(dfa / (0.3 * H), 0.25, 1) if sp != 'cat' and sp != 'tiger' else np.where(part == 1, 0.45, 1.0)   # the face keeps clean colour
+    L = (0.9 + 0.18 * up) * (0.84 + 0.16 * ao) * (1 - 0.2 * under) * (1 + 0.17 * st * calm)
+    C = np.clip(C * L[:, None], 0, 1)
+    if sp == 'chimp':   # the eye meshes sit flush inside the brow (ape template, like the gorillas): paint them into the face
+      for sx in (1, -1):
+        ec = E['c'] * A([sx, 1, 1]); de = np.linalg.norm((V - ec) / A([1.0, 1.6, 1.15]), axis=1) / E['r']; fr = (part == 1) & (N[:, 1] < -0.2)
+        C = np.where((fr & (de < 1.5))[:, None], COL('#0e0b0d'), C); C = np.where((fr & (de < 0.95))[:, None], COL('#6a3c18'), C)
+        C = np.where((fr & (np.linalg.norm(V - (ec + A([sx * 0.35, -0.5, 0.5]) * E['r']), axis=1) < E['r'] * 0.38))[:, None], COL('#ffffff'), C)
   vv = np.zeros(len(V))
   for kk, ch in ((3, X['front'][0]), (4, X['front'][1]), (5, X['back'][0]), (6, X['back'][1])):
     m = part == kk; L = sum(np.linalg.norm(ch[q + 1] - ch[q]) for q in range(2)); vv[m] = np.clip(np.linalg.norm(V[m] - ch[0], axis=1) / L, 0, 1)
