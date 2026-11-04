@@ -79,9 +79,9 @@ PETS = {
   'pet_cat_black': dict(sp='cat', fur='#1f1d25', dark='#0c0b10', light='#2b2a36', sheen='#5a6488', skin='#c76a80', eye='#ffd02a', bud=(1500, 640)),
   'pet_monkey': dict(sp='monkey', fur='#7c4a28', dark='#4e2c15', light='#f3d9b4', skin='#e9bf98', eye='#3a2412', bud=(1650, 700)),
   'pet_chimp': dict(sp='chimp', fur='#2c221d', dark='#140f0c', light='#3c302a', skin='#cfa07c', eye='#3a2412', bud=(1700, 720)),
-  'pet_gorilla': dict(sp='gorilla', fur='#2e2c36', dark='#141319', light='#3a3844', skin='#5a4c56', silver='#bfc3cc', eye='#4a2a14', bud=(1950, 800)),
+  'pet_gorilla': dict(sp='gorilla', fur='#34323d', dark='#121117', light='#75727f', skin='#5a4e56', silver='#c3c7cf', crown='#5e3b2b', eye='#8f5220', bud=(1950, 800)),   # [pet textures] BANKSY 3:30 PM: strand-painted fur, auburn crown, clean silver saddle, leathery face
   'pet_tiger': dict(sp='tiger', fur='#f2861e', dark='#16100e', light='#fff6ea', skin='#e88e8c', eye='#ffc21a', bud=(2000, 820)),
-  'pet_gorilla_white': dict(sp='gorilla', fur='#f2f3f7', dark='#a9b3c8', light='#ffffff', skin='#4b4352', eye='#5cc8ff', gold=True, bud=(1950, 800)),
+  'pet_gorilla_white': dict(sp='gorilla', fur='#f0f2f8', dark='#9eabc6', light='#ffffff', skin='#4b4352', eye='#5cc8ff', gold=True, bud=(1950, 800)),   # [pet textures] icy-blue strand shadows
 }
 GAP = 0.04   # floor gap between the captain's left foot and the pet's side
 def anchor(sp):   # where the bound copy stands: beside the captain's left foot (x = his left), a touch forward
@@ -222,14 +222,31 @@ for kind, fld in parts:
   else:   # apes: bare face / muzzle, chest (gorillas), fingers + soles; gorilla silverback; white gorilla icy fur
     hs = H / 0.78
     face = (part == 1) & (V[:, 1] < -0.215 * hs) & (V[:, 2] < 0.69 * hs) & (V[:, 2] > 0.545 * hs); C = np.where(face[:, None], skin * (0.85 + 0.25 * up)[:, None], C)
-    if sp == 'gorilla':
-      chest = (part == 0) & (V[:, 1] < -0.15) & (np.abs(V[:, 0]) < 0.13) & (V[:, 2] > 0.36) & (V[:, 2] < 0.56); C = np.where(chest[:, None], skin * (0.8 + 0.25 * up)[:, None], C)
+    if sp == 'gorilla':   # [pet textures] BANKSY 3:30 PM "work the pet textures": the fur is strand-painted into the vertex colours (no texture: TEXCOORD_0 is the rig)
+      kf = (88 if HI else 46) / hs; wob = np.sin(V[:, 2] * 22 / hs + 2.2 * nz)
+      st = 0.55 * np.sin(V[:, 0] * kf + V[:, 1] * kf * 0.55 + 1.4 * wob) + 0.45 * np.sin(V[:, 0] * kf * 0.6 - V[:, 1] * kf * 0.95 + V[:, 2] * 18 / hs + 3 * nz)   # hanging strands
+      under = np.clip(-N[:, 2], 0, 1); ao = np.clip(V[:, 2] / (0.22 * hs), 0, 1)
+      sh = (0.62 + 0.42 * up) * (0.8 + 0.2 * ao) * (1 - 0.3 * under) * (1 + 0.05 * nz)   # light from above, darker underside + near the floor
+      C = dark + (fur - dark) * np.clip((sh - 0.32) / 0.62, 0, 1.15)[:, None]
+      C = C + (light - C) * (np.clip(st, 0, 1) * (0.45 + 0.45 * up) * 0.85)[:, None]   # strand tips catch the light
+      C = C + (dark - C) * (np.clip(-st, 0, 1) * 0.6)[:, None]   # the gaps between strands
+      if P.get('crown'):   # auburn crown (lowland gorilla), broken up by the strands
+        cr = np.clip((V[:, 2] - 0.69 * hs) / (0.06 * hs), 0, 1) * (part == 1) * np.clip(0.75 + 0.4 * st, 0, 1); C = C + (COL(P['crown']) * (0.75 + 0.35 * up)[:, None] - C) * cr[:, None]
+      brow = face & (V[:, 2] > 0.648 * hs); muz = face & (V[:, 2] < 0.6 * hs)
+      C = np.where(face[:, None], skin * (0.88 + 0.22 * up)[:, None], C); C = np.where(brow[:, None], skin * 0.62, C); C = np.where(muz[:, None], skin * (1.22 + 0.12 * up)[:, None], C)
+      chest = (part == 0) & (V[:, 1] < -0.15) & (np.abs(V[:, 0]) < 0.13) & (V[:, 2] > 0.36) & (V[:, 2] < 0.56)
+      for sx in (1, -1):   # the eye meshes sit flush inside the brow: paint the eyes into the face too (dark socket, iris, glint) so they read
+        ec = E['c'] * A([sx, 1, 1]); de = np.linalg.norm((V - ec) / A([1.0, 1.6, 1.15]), axis=1) / E['r']; fr = (part == 1) & (N[:, 1] < -0.2)
+        C = np.where((fr & (de < 1.5))[:, None], COL('#0e0b0d'), C); C = np.where((fr & (de < 0.95))[:, None], COL(P['eye']), C)
+        C = np.where((fr & (np.linalg.norm(V - (ec + A([sx * 0.35, -0.5, 0.5]) * E['r']), axis=1) < E['r'] * 0.38))[:, None], COL('#ffffff'), C)
+      C = np.where(chest[:, None], skin * ((0.8 + 0.28 * up) * np.where(np.abs(V[:, 0]) < 0.014, 0.72, 1.0))[:, None], C)   # leathery chest, pec split
     else:
       ears = (part == 1) & (np.abs(V[:, 0]) > 0.085 * hs); C = np.where(ears[:, None], skin * 0.9, C)
     hand = (part >= 3) & (V[:, 2] < 0.06 * hs); C = np.where(hand[:, None], skin * 0.8, C)
-    if P.get('silver'):
-      sb = np.clip((-0.02 * hs + V[:, 1]) / (0.1 * hs) + 0.3, 0, 1) * np.clip((V[:, 2] - 0.3 * hs) / (0.12 * hs), 0, 1) * (part == 0)
-      C = C * (1 - sb[:, None]) + COL(P['silver']) * ((0.8 + 0.3 * up) * (1 + 0.05 * nz))[:, None] * sb[:, None]
+    if P.get('silver'):   # [pet textures] silver saddle: back + rump, a clean edge frayed by the strands, strand-shaded
+      sb = np.clip((-0.02 * hs + V[:, 1]) / (0.1 * hs) + 0.3, 0, 1) * np.clip((V[:, 2] - 0.26 * hs) / (0.1 * hs), 0, 1) * (part == 0)
+      sb = np.clip((sb - 0.35 + 0.3 * st) * 2.2, 0, 1) * (1 - under)
+      C = C * (1 - sb[:, None]) + COL(P['silver']) * ((0.74 + 0.32 * up) * (0.9 + 0.12 * st))[:, None] * sb[:, None]
   # rig uv: u = part, v = along the limb
   vv = np.zeros(len(V))
   for kk, ch in ((3, X['front'][0]), (4, X['front'][1]), (5, X['back'][0]), (6, X['back'][1])):
