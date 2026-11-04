@@ -19,7 +19,8 @@ test('supabase invCatalog.ts is generated from js/inventory/catalog.js', () => {
 test('036 seeds every flag OFF but inventory + gifts; 037 (BANKSY 12:55 PM) turns on fish + antiques selling + the market only', () => {
   const F = C.FLAGS; assert.ok(F.FISH_SELL_ON && F.ANTIQUES_SELL_ON && F.MARKET_ON);
   assert.match(SQL37, /where k in \('fish_sell', 'antiques_sell', 'market'\);/); assert.doesNotMatch(SQL37, /market_fee|weapon|test_only/);
-  for (const k of ['MARKET_FEE_ON', 'WEAPON_STATS_ON', 'RARE_WEAPON_DROPS_ON', 'TEST_ONLY_LOCK']) assert.equal(F[k], false, k);
+  for (const k of ['MARKET_FEE_ON', 'TEST_ONLY_LOCK']) assert.equal(F[k], false, k);
+  for (const k of ['WEAPON_STATS_ON', 'RARE_WEAPON_DROPS_ON']) assert.equal(F[k], true, k); // [v209] BANKSY 1:03 PM
   assert.ok(F.INV_ON && F.GIFT_ON);
   for (const k of ['fish_sell', 'antiques_sell', 'market', 'market_fee', 'weapon_stats', 'rare_weapon_drops', 'test_only_lock']) assert.match(SQL, new RegExp(`\\('${k}', false`), k);
 });
@@ -50,8 +51,20 @@ test('SQL rules (PGlite): sells, clamp, gifts, market escrow / double buy / canc
 });
 test("plaza_shops.json contract: Timothy's file parses, radius read, fallback = his anchors", async () => {
   const S = await import('../js/inventory/shopSpots.js'), f = '/workspace/timothy-plazashops/assets/island/plaza_shops.json';
-  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-442.5, -110, 4.5]);
+  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-442.5, -121.5, 4.5]);
   if (existsSync(f)) { const j = S.shopSpots(JSON.parse(readFileSync(f, 'utf8'))); const raw = JSON.parse(readFileSync(f, 'utf8')); for (const id of S.SHOP_IDS) { assert.ok(j[id].fromFile, id); assert.ok(Number.isFinite(j[id].trigger.x) && j[id].trigger.radius > 0, id); } }
   const moved = S.shopSpots({ fish: { trigger_fish: { x: -300, y: 5, z: 40, radius: 2.5 } } }); assert.deepEqual([moved.fish.trigger.x, moved.fish.trigger.radius, moved.fish.fromFile], [-300, 2.5, true]); // JSON wins over the fallback
   const p = S.shopSpots({ fish: { trigger_fish: { x: 1, y: 2, z: 3 } } }); assert.equal(p.fish.trigger.radius, 3); assert.ok(!p.antiques.fromFile);
+});
+
+test('[v209] 038 turns on only weapon_stats + rare_weapon_drops; common weapon stats = ARENA exactly, rare+ better', async () => {
+  const fs = await import('node:fs'); const S38 = fs.readFileSync(new URL('../supabase/migrations/038_weapon_flags.sql', import.meta.url), 'utf8');
+  assert.match(S38, /k in \('weapon_stats', 'rare_weapon_drops'\)/); assert.doesNotMatch(S38, /market_fee|drop table|delete from/i);
+  const C = await import('../js/inventory/catalog.js'); const { ARENA } = { ARENA: { sword: { dmg: 34, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 }, musket: { dmg: 50, range: 60, wide: 0.55, reload: 2.0, delay: 0.16 } } };
+  for (const s of ['sword', 'musket']) { assert.deepEqual(C.weaponStats(s, 'common', ARENA[s]), ARENA[s]); assert.deepEqual(C.weaponStats(s, 'legendary', ARENA[s], false), ARENA[s]); }
+  const r = C.weaponStats('sword', 'rare', ARENA.sword), l = C.weaponStats('musket', 'legendary', ARENA.musket);
+  assert.ok(r.dmg > 34 && r.cool < 0.55 && r.reach > 2.5); assert.ok(l.dmg > 50 && l.reload < 2 && l.range > 60 && l.wide < 0.55);
+  const B = fs.readFileSync(new URL('../js/onfoot/battle.js', import.meta.url), 'utf8');
+  assert.match(B, /carryArmed\(R\.fig/); assert.match(B, /tps\.shotYaw/); assert.match(B, /S = mine \? myW\('musket'\) : ARENA\.musket/);
+  assert.match(B, /export const ARENA = \{\n  hp: 100, sword: \{ dmg: 34, reach: 2\.5, arc: 1\.15, cool: 0\.55/);
 });

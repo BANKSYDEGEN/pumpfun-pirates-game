@@ -9,8 +9,8 @@ export const FLAGS = {
   GIFT_ON: true,             // gifting between players (no gold moves)
   MARKET_ON: true,           // the player Marketplace (on: BANKSY 12:55 PM)
   MARKET_FEE_ON: false,      // listing fee / sales tax gold sink (BANKSY to decide)
-  WEAPON_STATS_ON: false,    // rarity stats on swords / muskets
-  RARE_WEAPON_DROPS_ON: false, // rare+ weapons in chests
+  WEAPON_STATS_ON: true,     // rarity stats on swords / muskets
+  RARE_WEAPON_DROPS_ON: true,  // rare+ weapons in chests
   TEST_ONLY_LOCK: false,     // owner test-kit copies can't be sold / listed / gifted (BANKSY 11:18: OFF, "it's just for me")
 };
 export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];

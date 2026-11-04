@@ -3,7 +3,7 @@ export const SHOP_IDS = ['fish', 'antiques', 'market'];
 export const SHOP_NAMES = { fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' };
 export const SHOP_ICON_IDS = { fish: 'fish_stand', antiques: 'antiques', market: 'market' }; // js/mapIcons.js badges (post/minimap-themes)
 export const FALLBACK = { // ONLY for a missing/broken plaza_shops.json, never the truth: positions are ALWAYS read from the JSON (Timothy is moving fish + market to the dock plaza)
-  fish:     { trigger: { x: -442.5, y: 19.225, z: -110.0, radius: 3 },   rotY: 0 },
+  fish:     { trigger: { x: -442.5, y: 19.225, z: -121.5, radius: 3 },   rotY: 0 }, // [v209] was z -110 = inside the old Market Square (the coming fountain roundabout): nudged 11.5 m south, clear of it and of the hill street (z ~ -84)
   antiques: { trigger: { x: -453.0, y: 18.07,  z: -126.3, radius: 3 },   rotY: 0 },
   market:   { trigger: { x: -465.4, y: 16.706, z: -114.0, radius: 4.5 }, rotY: 1.571 },
 };

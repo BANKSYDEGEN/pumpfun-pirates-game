@@ -30,13 +30,16 @@ import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
-import { createTps, TPS_ON } from './tps.js'; // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
+import { createTps, TPS_ON } from './tps.js';
+import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 
 export const ARENA = {
   hp: 100, sword: { dmg: 34, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 },
   musket: { dmg: 50, range: 60, wide: 0.55, reload: 2.0, delay: 0.16 }, downS: 3, guardS: 1.5,
 };
 const Z_PIT = 1, Z_RANGE = 2;
+// [inventory v209] MY weapon's numbers: ARENA + the equipped rarity (window.PFP_WEAPON_RARITY from the inventory; DB flag weapon_stats via inv_state, else catalog FLAGS). Peers' replays stay on ARENA.
+const myW = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined); };
 const CSS = `
 #bt-hud{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:8;pointer-events:none;display:none;text-align:center;font:22px 'Just Another Hand',cursive;color:#ffcd77;letter-spacing:.05em}
 #bt-hud b{display:inline-block;background:rgba(22,22,22,.8);border:2px solid #ffcd77;border-radius:999px;padding:2px 16px 0}
@@ -288,13 +291,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function attack() {
     if (!me.zone || me.down > 0 || me.cool > 0 || !walker.active) return false;
     const W = walker.w;
-    if (me.zone === Z_PIT) { me.cool = ARENA.sword.cool; mineR.st.act = { kind: 1, t: 0, hit: false }; me.kind = 1; sfx?.equip?.(); }
-    else { W.yaw = W.camYaw; me.cool = ARENA.musket.reload; me.fireAt = ARENA.musket.delay; me.kind = 2; }
+    if (me.zone === Z_PIT) { me.cool = myW('sword').cool; mineR.st.act = { kind: 1, t: 0, hit: false }; me.kind = 1; sfx?.equip?.(); }
+    else { W.yaw = W.camYaw; me.cool = myW('musket').reload; me.fireAt = ARENA.musket.delay; me.kind = 2; }
     me.seq = (me.seq + 1) % 1000; atk.classList.add('hit'); setTimeout(() => atk.classList.remove('hit'), 120); return true;
   }
   function addDmg(id, life, n) { const d = dealt.get(id); if (!d || d.life !== life) dealt.set(id, { life, n }); else d.n += n; }
   function swordHit() { // my blade at its hit frame: every pirate + dummy in the arc
-    const W = walker.w, f = fwd(W.yaw, _v), S = ARENA.sword; let any = false;
+    const W = walker.w, f = fwd(W.yaw, _v), S = myW('sword'); let any = false;
     for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!r || r.ba[0] !== Z_PIT || r.ba[6] || r.guard > 0 || mate(r)) continue; const dx = p.x - W.x, dz = p.z - W.z, d = Math.hypot(dx, dz);
       if (d > S.reach + 0.45 || d < 0.01) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / d))); if (ang > S.arc) continue;
       addDmg(id, r.ba[2], S.dmg); r.hpShown = Math.max(0, (r.hpShown ?? r.ba[1]) - S.dmg); any = true; spark(p.x, world.ground(p.x, p.z) + 1.1, p.z); }
@@ -306,7 +309,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // a musket ball (yours or a peer's replay): first thing along the line = a pirate (yours only), a target board, cover, or 60 m
   function shoot(R, x, z, yaw, mine) {
     let aim = null; if (mine && tps?.on) { const s = tps.shotYaw(x, z); yaw = s.yaw; aim = s.aim; walker.w.yaw = yaw; } // [Timothy tps] the line through the crosshair's aim point
-    const S = ARENA.musket, f = fwd(yaw, new THREE.Vector3()), mz = muzzleWorld(R, new THREE.Vector3()); if (!mz.lengthSq()) mz.set(x, world.ground(x, z) + 1.3, z);
+    const S = mine ? myW('musket') : ARENA.musket, f = fwd(yaw, new THREE.Vector3()), mz = muzzleWorld(R, new THREE.Vector3()); if (!mz.lengthSq()) mz.set(x, world.ground(x, z) + 1.3, z);
     let best = S.range, hit = null;
     // [Timothy tps] with the crosshair the ball also has a height: muzzle -> aim point (null = the old flat line, peers' replays, &tps=0)
     const aimD = aim ? Math.max(0.1, Math.hypot(aim[0] - x, aim[2] - z)) : 0, slope = aim ? (aim[1] - mz.y) / aimD : null, vOk = (a, y0, y1) => slope === null || (mz.y + slope * a >= y0 && mz.y + slope * a <= y1);

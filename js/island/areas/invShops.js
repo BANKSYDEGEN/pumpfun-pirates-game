@@ -10,7 +10,7 @@ import { Kit, M, box, cyl, W, C } from './common.js';
 import { SHOP_IDS, SHOP_NAMES, SHOP_ICON_IDS, FALLBACK, shopSpots } from '../../inventory/shopSpots.js';
 export { SHOP_IDS, SHOP_NAMES, FALLBACK, shopSpots };
 let SPOTS = shopSpots(null); const Q = {};
-const INV_STALLS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('invstalls') === '1';
+const INV_STALLS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('invstalls') !== '0'; // [v209] BANKSY 1:03 PM "Show the shop stalls now": on by default, &invstalls=0 = kill switch
 const ready = (typeof fetch === 'function' ? fetch(new URL('../../../assets/island/plaza_shops.json', import.meta.url)).then(r => r.ok ? r.json() : null).catch(() => null) : Promise.resolve(null))
   .then((j) => { if (!j) return; SPOTS = shopSpots(j); for (const id of SHOP_IDS) if (Q[id]) Object.assign(Q[id], { x: SPOTS[id].trigger.x, z: SPOTS[id].trigger.z, r: SPOTS[id].trigger.radius }); });
 await ready; // top-level: the file (or its 404) is read before the island registers its interact points, so the triggers sit where it says
@@ -23,7 +23,7 @@ export default {
   build({ MATS, OUT, H }) {
     const near = new THREE.Group(); near.name = 'area_inv_shops';
     if (SHOP_IDS.every(id => SPOTS[id].fromFile)) return { near };                 // Timothy's buildings are in: no placeholders
-    if (!INV_STALLS) return { near };   // [push v207] BANKSY's new fountain plaza goes on the old Market Square: no placeholder stalls there (prompt-only E / tap triggers) until Timothy's dock-plaza anchors land; &invstalls=1 = show them
+    if (!INV_STALLS) return { near };   // &invstalls=0 = no placeholder stalls (prompt-only E / tap triggers); Timothy moves them to the dock plaza later
     const k = new Kit(), COL = { fish: 0x1d7fb8, antiques: 0xb0267a, market: 0xa77a12 };
     for (const id of SHOP_IDS) { if (SPOTS[id].fromFile) continue; const { x, z } = SPOTS[id].trigger, y = H(x, z) - 0.05, c = COL[id];
       W(k, box(3.2, 1.0, 1.2), C.WOOD, M(x, y + 0.5, z - 1.4));                           // counter
