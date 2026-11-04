@@ -11,7 +11,8 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { v5Fwd, v5Inv, v5Hat, loadPirateGLB, gradient, TINTS } from './pirateGLB.js';
-import { recolorPixels } from './gearRecolor.js';   // [Raul gear colours] helmet + mask hat colours
+import { recolorPixels } from './gearRecolor.js';
+import { BOOT_CUT, BOOT5, bootKeep, bootHides } from './bootPeg.js';   // [Raul items redo] boots x peg legs   // [Raul gear colours] helmet + mask hat colours
 
 const DIR = 'assets/pirates/items/', HY = 1.12;
 export const ITEM_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'shoulder', 'eyes', 'face', 'base', 'beard', 'ears', 'teeth', 'boots', 'cape'];   // [Raul shop items 2] + beard / ears / teeth / boots / cape
@@ -25,6 +26,9 @@ const item = (id, label, slot, price, tint, hide, o = {}) => ({ id, label, slot,
 // (v5 bind space, raw: knee joint - 1.2 cm, per body), everything round the knee stays and the fitted sleeve covers the cut edge
 export const PEG_CUT = { male: 0.2022, female: 0.2122 };
 const PEG5 = (s) => [{ leg5: s, y: PEG_CUT.male, male: 1 }, { leg5: s, y: PEG_CUT.female, female: 1 }];
+// [Raul items redo] BANKSY (10:02 AM 2026-11-04) "the boots are real bad" + "boots don't work with peg leg": rebuilt one boot per foot;
+// the hide rule + the peg-side drop live in js/bootPeg.js (pure, node-tested)
+export { BOOT_CUT };
 // hide rules (bind space, three units): region (cyl | arm | leg | torso | sph | all) AND optional tint keys ('fixed' = untinted parts)
 export const ITEMS = [
   item('hat_tricorn', 'Pirate Hat', 'head', 250, { hat: '#18181b' }, [{ cyl: [0, -0.005, 0.27], y: [HY + 0.085, 9], tilt: 0.1, tints: ['hair'] }], { v5hide: [], skull: false }),   // [v128] BANKSY "Add this hat back in": the original compact v4 Pirate Hat (gold trim, big skull + crossbones) warped onto v5 (v5Fwd / v5Hat) instead of the wide v5 refit
@@ -82,9 +86,9 @@ export const ITEMS = [
   item('tooth_gold', 'Gold Tooth', 'teeth', 0, null, [], { v5: v5files('tooth_gold'), v5hide: [], v5only: true, single: true, decal: true }),
   item('grill_gold', 'Gold Grill', 'teeth', 0, null, [], { v5: v5files('grill_gold'), v5hide: [], v5only: true, single: true, decal: true }),
   item('grill_diamond', 'Diamond Grill', 'teeth', 0, null, [], { v5: v5files('grill_diamond'), v5hide: [], v5only: true, single: true, decal: true }),
-  item('boots_buckle', 'Buckle Boots', 'boots', 0, null, [], { v5: v5files('boots_buckle'), v5hide: [], v5only: true, single: true, boots: true }),
-  item('boots_cavalier', 'Cavalier Boots', 'boots', 0, null, [], { v5: v5files('boots_cavalier'), v5hide: [], v5only: true, single: true, boots: true }),
-  item('boots_gold', 'Gold-Toe Boots', 'boots', 0, null, [], { v5: v5files('boots_gold'), v5hide: [], v5only: true, single: true, boots: true }),
+  item('boots_buckle', 'Buckle Boots', 'boots', 0, null, [], { v5: v5files('boots_buckle'), v5hide: BOOT5('boots_buckle'), v5only: true, single: true, boots: true }),
+  item('boots_cavalier', 'Cavalier Boots', 'boots', 0, null, [], { v5: v5files('boots_cavalier'), v5hide: BOOT5('boots_cavalier'), v5only: true, single: true, boots: true }),
+  item('boots_gold', 'Gold-Toe Boots', 'boots', 0, null, [], { v5: v5files('boots_gold'), v5hide: BOOT5('boots_gold'), v5only: true, single: true, boots: true }),
   item('cape_tattered', 'Tattered Cape', 'cape', 0, null, [], { v5: v5files('cape_tattered'), v5hide: [], v5only: true, single: true }),
   item('cape_captain', "Captain's Cape", 'cape', 0, null, [], { v5: v5files('cape_captain'), v5hide: [], v5only: true, single: true, keyed: true }),
   item('cape_royal', 'Royal Cape', 'cape', 0, null, [], { v5: v5files('cape_royal'), v5hide: [], v5only: true, single: true }),
@@ -211,6 +215,7 @@ function applyHide(p) {
       if (LU && luchaHit(LU, rX, rY, rZ, t, BR[i])) { hid[i] = 1; continue; }
       if (SG && t === TINTS.indexOf('hair') && rY < SG && (p.female || Math.abs(rX) < 0.14) && SB[i] !== 1) { hid[i] = 1; continue; }   // [wrestler v2] hair-tinted pants detail (fly / sash folds) under the fitted singlet legs (never the braid)
       for (const r of rules) { if (r.lucha) continue;
+        if (r.boot5) { if (bootHides(r, rX, rY, p.female, p.items.legL, p.items.legR)) { hid[i] = 1; break; } continue; }   // [Raul items redo] both legs under the boots (not a peg leg: PEG5 owns that one)
         if (r.leg5) { if ((r.female && !p.female) || (r.male && p.female)) continue; const sx = r.leg5 === 'L' ? 1 : -1; if (sx * rX > 0.002 && sx * rX < 0.3 && rY < r.y) { hid[i] = 1; break; } continue; }   // [Raul pegleg] v5 raw: that leg below the cut (body + base outfit)
         if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)
         if (p.v5 && r.tints?.includes('hair') && !r.raw) continue;
@@ -246,13 +251,16 @@ function applyHide(p) {
   }
   flattenHair(p); baseTop(p); bootsUnderPeg(p);
 }
-// [Raul shop items 2] boots + a peg leg: the boot on the peg's side goes (its half of the mesh: x sign in bind space)
+// [Raul shop items 2] boots + a peg leg: the boot on the peg's side goes. [Raul items redo] BANKSY "boots don't work with peg leg":
+// each boot is its own closed shell on its own side (bind-space x sign of the whole triangle), so the peg-side boot is dropped whole
+// (nothing left over the peg or its knee sleeve). The full index is kept per geometry in a WeakMap (BufferGeometry.clone() SHARES
+// userData between pirates), the peg key per worn item
+const BOOTIX = new WeakMap();
 function bootsUnderPeg(p) {
-  const b = p.items?.boots, g = b?.obj?.geometry; if (!g) return; g.userData.bootIndex ||= g.index;
+  const b = p.items?.boots, g = b?.obj?.geometry; if (!g) return; if (!BOOTIX.has(g)) BOOTIX.set(g, g.index);
   const L = !!p.items.legL, R = !!p.items.legR, key = (L ? 'L' : '') + (R ? 'R' : ''); if (b.pegKey === key) return; b.pegKey = key;
-  if (!key) { g.setIndex(g.userData.bootIndex); return; }
-  const P = g.attributes.position, I = g.userData.bootIndex.array, out = [];
-  for (let i = 0; i < I.length; i += 3) { const x = P.getX(I[i]); if ((L && x > 0) || (R && x < 0)) continue; out.push(I[i], I[i + 1], I[i + 2]); }
+  const I0 = BOOTIX.get(g); if (!key) { g.setIndex(I0); return; }
+  const P = g.attributes.position, out = bootKeep(P, I0.array, L, R);
   g.setIndex(new THREE.BufferAttribute(P.count > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1));
 }
 // [Raul clothes v5] (v141 tankTop, on the base outfit now) under a worn v5 top her wrap top takes the top's colour: no red rims at the

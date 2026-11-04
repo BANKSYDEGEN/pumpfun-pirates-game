@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v195'; // [v195] perf2: sharper (MSAA everywhere, phones 1.5x, aniso 8/4, no FXAA blur), faster (no sync shader checks, cached ship flatten colours, one KTX2 pool, minified three.js, title-screen prefetch), adaptive quality both ways; [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
+const VERSION = 'pfp-v196'; // [v196] Raul's items redo 1: the three shop BOOTS rebuilt (one boot per foot, fitted + skinned per body / LOD, drop on the peg side); [v195] perf2: sharper (MSAA everywhere, phones 1.5x, aniso 8/4, no FXAA blur), faster (no sync shader checks, cached ship flatten colours, one KTX2 pool, minified three.js, title-screen prefetch), adaptive quality both ways; [v194] $SUNK always first on the title screen + FAQ; [v193] ADMIRAL WHITE skin 125,000 -> 15,000; [v192] the harbor boss is THE COMMODORE (banners, HP bars, death screen, shop goals, treasure maps, help); [v191] skill boosts for Raul's shop items 2 + special pegs; no parrots in the CLOTHES SHOP; [v190] owner BUILD MODE opens from ⚙ SETTINGS (no floating BUILD button on the HUD)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -22,6 +22,7 @@ const SHELL = [
   "./js/gearThumbs.js", // [Timothy] real 3D gear card art (island shop)
   "./js/gearRecolor.js", // [v157] Raul: hat-colour repaint for the helmet + mask maps
   "./js/shipGear.js", // [Raul shop items 2] shop flag + figurehead on ships
+  "./js/bootPeg.js", // [v191] Raul: shop boots x peg legs (boot hide rule + the peg-side drop)
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // [v102] v4 pirates as the ship crew
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)
