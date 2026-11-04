@@ -443,14 +443,15 @@ function parrotSeat(P, q) { const f = P.f, t = P.to, s = P.s; for (let k = 0; k 
 // At sea (ship captains) and in the shop it stays perched. Cost: one cloned material per parrot owner, 3 uniforms per frame.
 const BIRD_GLSL = `if (aBird > 0.5) { vec3 bq = transformed - uBirdC;
     if (aBird > 1.5) { float sd = bq.x >= 0.0 ? 1.0 : -1.0, fa = uBirdF * sd, c = cos(fa), s = sin(fa); vec3 pv = vec3(0.0, 0.012, 0.0); vec3 r = bq - pv; bq = pv + vec3(c * r.x - s * r.y, s * r.x + c * r.y, r.z); }
-    transformed = uBirdC + uBirdP + uBirdR * bq; }`;
+    transformed = uBirdC + uBirdR * bq; }`;   // the turn about its own centre goes through the skin (scales with the perch bone); the flight path is added after it
 function birdLayer(m, c) {
   const U = { uBirdC: { value: new THREE.Vector3(...c) }, uBirdP: { value: new THREE.Vector3() }, uBirdR: { value: new THREE.Matrix3() }, uBirdF: { value: 0 } };
   const mat = m.material.clone(); m.material = mat;
   mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aBird; uniform vec3 uBirdC, uBirdP; uniform mat3 uBirdR; uniform float uBirdF;')
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nif (aBird > 0.5) objectNormal = uBirdR * objectNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + BIRD_GLSL); };
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + BIRD_GLSL)
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>\nif (aBird > 0.5) transformed += uBirdP;'); };   // mesh space: a level loop round you, not bent by the perch bone
   mat.customProgramCacheKey = () => 'pirateBird';
   m.userData.bird = { U, st: newBirdState(Math.random()), f: { p: [0, 0, 0], yaw: 0, bank: 0, pitch: 0, flap: 0 }, seat: c.slice(), t: 0 };
 }
@@ -515,6 +516,11 @@ function buildGearGeometry(p, body, gear, lib, colors) {
     const B = new Float32Array(nv), c = [0, 0, 0]; let o = 0, nb = 0;
     for (const ch of chunks) { const n = ch.pos.length / 3; if (ch.bird) { B.set(ch.bird, o); for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) c[k] += ch.pos[i * 3 + k]; nb += n; } o += n; }
     g.setAttribute('aBird', new THREE.BufferAttribute(B, 1)); g.userData.bird = { c: c.map((v) => v / Math.max(1, nb)) };
+    // one rigid bone for the whole bird (its heaviest): the flight offset must not be bent by the arm / clavicle weights it perched with
+    const si = g.attributes.skinIndex.array, sw = g.attributes.skinWeight.array, tot = new Map();
+    for (let i = 0; i < nv; i++) if (B[i] > 0.5) for (let k = 0; k < 4; k++) tot.set(si[i * 4 + k], (tot.get(si[i * 4 + k]) || 0) + sw[i * 4 + k]);
+    let bone = 0, bw = -1; for (const [j, w] of tot) if (w > bw) { bw = w; bone = j; }
+    for (let i = 0; i < nv; i++) if (B[i] > 0.5) { si[i * 4] = bone; sw[i * 4] = 1; for (let k = 1; k < 4; k++) { si[i * 4 + k] = 0; sw[i * 4 + k] = 0; } }
   }
   return g;
 }
