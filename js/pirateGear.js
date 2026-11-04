@@ -155,8 +155,15 @@ const RAUL5 = {
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
 const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'shoulder'];   // [Raul shop items 2] + his new slots
-const _bc = new THREE.Color();
-function beardCols(p, g) { const h = hairHexOf(p, g); _bc.set(h).multiplyScalar(0.72); return { 1: h, 2: '#' + _bc.getHexString() }; }
+const _bc = new THREE.Color(), _bl = new THREE.Color();
+// [Raul items redo] BANKSY "the new items are bad": on the default (painted black) hair the beard was black on black and vanished into
+// the male's own beard. Default hair = a honey-brown beard (v5 warm palette); a picked hair colour is followed, the darkest picks lifted
+// a little so the locks still read over his painted beard. Key 2 = the groove shade between the locks.
+export const BEARD_DEFAULT = '#a8692f';
+export function beardCols(p, g) {
+  const h = g?.hairColor > 0 ? hairHexOf(p, g) : BEARD_DEFAULT; _bc.set(h); const l = 0.2126 * _bc.r + 0.7152 * _bc.g + 0.0722 * _bc.b;
+  if (l < 0.03) _bc.lerp(_bl.set('#5a4a42'), 0.45); const k1 = '#' + _bc.getHexString(); _bc.multiplyScalar(0.62); return { 1: k1, 2: '#' + _bc.getHexString() };
+}
 const rv = (v, g) => (typeof v === 'function' ? v(g) : v);
 // clothes: which body skin they cover (bind pose, three space: y up, +z front; belt top y 0.49, wrist |x| 0.555)
 const OUTFITS = {

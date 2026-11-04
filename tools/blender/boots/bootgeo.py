@@ -28,7 +28,8 @@ def finish(parts, ink=0.004, lowlight=False):   # + the inverted-hull ink shell 
   m = merge(out)
   if lowlight:
     L = np.array([0.35, -0.5, 0.8]); L /= np.linalg.norm(L); N = weld_normals(m.V, m.F); s = 0.58 + 0.42 * np.clip(N @ L, 0, None) + 0.08 * np.clip(N[:, 2], 0, None)
-    ink_ = np.abs(m.C - INK).sum(1) < 1e-4; m.C = np.where(ink_[:, None], m.C, m.C * s[:, None])
+    ink_ = (np.abs(m.C - INK).sum(1) < 1e-4) | (np.abs(m.C - np.array(KEY1)).sum(1) < 0.05) | (np.abs(m.C - np.array(KEY2)).sum(1) < 0.05)   # keyed markers: lit at runtime (keyColors)
+    m.C = np.where(ink_[:, None], m.C, m.C * s[:, None])
   return m
 # ---------------------------------------------------------------- SDFs (approximate, smoothed after)
 def smin(a, b, k):
@@ -148,3 +149,19 @@ def sd_buckle_on(X, Y, Z, p, n, w, h, t, bar):   # the buckle frame laid flat on
   u = np.array([1.0, 0, 0]) if abs(n[0]) < 0.8 else np.array([0, 1.0, 0]); u = u - n * np.dot(u, n); u /= np.linalg.norm(u); v = np.cross(n, u); c = p + n * (t * 0.5 + 0.002)
   dx = (X - c[0]) * u[0] + (Y - c[1]) * u[1] + (Z - c[2]) * u[2]; dn = (X - c[0]) * n[0] + (Y - c[1]) * n[1] + (Z - c[2]) * n[2]; dv = (X - c[0]) * v[0] + (Y - c[1]) * v[1] + (Z - c[2]) * v[2]
   return sd_buckle(dx, -dn, dv, w, h, t, bar)
+
+def sd_tube(X, Y, Z, pts, rad):   # tapered capsule chain (a hair lock / braid core / tail): min over segments, radius lerped
+  pts = np.asarray(pts, float); rad = np.broadcast_to(np.asarray(rad, float), (len(pts),)); d = np.full(np.shape(X), 9.0)
+  for k in range(len(pts) - 1):
+    a, b = pts[k], pts[k + 1]; ab = b - a; L2 = float(ab @ ab) + 1e-12
+    t = np.clip(((X - a[0]) * ab[0] + (Y - a[1]) * ab[1] + (Z - a[2]) * ab[2]) / L2, 0, 1)
+    q = np.sqrt((X - a[0] - t * ab[0]) ** 2 + (Y - a[1] - t * ab[1]) ** 2 + (Z - a[2] - t * ab[2]) ** 2) - (rad[k] + (rad[k + 1] - rad[k]) * t)
+    d = np.minimum(d, q)
+  return d
+def bezier(P, n=8):
+  P = np.asarray(P, float); out = []
+  for t in np.linspace(0, 1, n):
+    Q = P.copy()
+    while len(Q) > 1: Q = Q[:-1] * (1 - t) + Q[1:] * t
+    out.append(Q[0])
+  return np.array(out)
