@@ -508,7 +508,8 @@ function floatShip(s, dt) {
   const hF = waveHeight(s.x + fx_ * L, s.z + fz * L, t), hA = waveHeight(s.x - fx_ * L, s.z - fz * L, t);
   const hP = waveHeight(s.x + px * B, s.z + pz * B, t), hS = waveHeight(s.x - px * B, s.z - pz * B, t);
   const k = 1 - Math.exp(-dt * 4);
-  s.y += ((hC + hF + hA) / 3 - 0.6 - s.y) * k;
+  const moored = s.anchor && s._safe && !(s.speed > 0.3); // [v176] moored in SAFE HARBOR: half the swell + 0.25 m up, so a berthed hull never dips under the waterline
+  s.y += ((hC + hF + hA) / 3 * (moored ? 0.5 : 1) - 0.6 + (moored ? 0.25 : 0) - s.y) * k;
   s.pitch += (-Math.atan2(hF - hA, 2 * L) - s.pitch) * k;
   s.roll += (Math.atan2(hP - hS, 2 * B) * 0.8 + (s.turn || 0) * s.speed * 0.012 - s.roll) * k;
   let sinkY = 0, sinkRoll = 0, sinkPitch = 0;

@@ -246,7 +246,7 @@ export async function createDock(ctx) {
     // HUD tag
     const g = zone.graceLeft(s, now);
     if (onFoot) safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
-    else if (s._safe) { safeTag.style.display = 'block'; safeTag.className = ''; safeTag.textContent = '⚓ SAFE HARBOR'; }
+    else if (s._safe) safeTag.style.display = 'none'; // [v176] BANKSY: no ⚓ SAFE HARBOR pill (it covered the top hint); the zone itself is unchanged
     else if (g > 0) { safeTag.style.display = 'block'; safeTag.className = 'grace'; safeTag.textContent = `NO FIRING · ${Math.ceil(g)}`; }
     else safeTag.style.display = 'none';
     // prompts

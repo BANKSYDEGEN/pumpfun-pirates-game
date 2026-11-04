@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v175'; // [v175] Raul's 8 land body emotes on the quick-chat wheel + crew copies
+const VERSION = 'pfp-v176'; // [v176] load fix (no cache copy while activating), no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
   "./index.html",
@@ -322,19 +322,20 @@ self.addEventListener('install', (e) => {
     const c = await caches.open(VERSION);
     await c.addAll(SHELL);
     await Promise.all(VENDOR_FILES.map(u => c.add(u).catch(() => {}))); // best effort
+    // [v176] load fix: carry the art over from the previous version's cache HERE (install), not in activate. While a worker is
+    // 'activating' the browser holds every page fetch, so the v173 copy-forward (~300 entries, ~20 MB, one by one) stalled the load
+    // after each update on phones. Install runs while the old worker still serves the page; copies run in parallel.
+    const old = (await caches.keys()).filter(k => k !== VERSION);
+    await Promise.all(ASSETS.map(async (u) => { if (await c.match(u)) return; for (const k of old) { const hit = await (await caches.open(k)).match(u); if (hit) { await c.put(u, hit).catch(() => {}); return; } } }));
     self.skipWaiting();
   })());
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
-    // [mobile-perf] carry the art over from the previous version's cache BEFORE deleting it: every version bump used to re-download
-    // all ~32 MB of GLBs / textures in the background (10 bumps in one day on a phone = 300 MB + storage churn while it plays).
-    // Same-origin fetches stay network-first, so anything a device actually loads is still refreshed on use.
-    const c = await caches.open(VERSION), old = (await caches.keys()).filter(k => k !== VERSION);
-    for (const k of old) { const oc = await caches.open(k); for (const u of ASSETS) { if (await c.match(u)) continue; const hit = await oc.match(u); if (hit) await c.put(u, hit).catch(() => {}); } }
-    for (const k of old) await caches.delete(k);
-    await self.clients.claim();
+    await self.clients.claim(); // [v176] nothing slow before claim: the page's fetches are never held up
+    const c = await caches.open(VERSION);
+    for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
     // [mobile-perf] phones only precache the light (_lo / _low) art they actually use (the hi copies were ~2/3 of the 32 MB)
     const phone = new URL(self.location.href).searchParams.get('m') === '1' || /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || ''), heavy = (u) => /_hi\.glb$/.test(u) || (/\/island\/[a-z_]+(\.webp)?\.glb$/.test(u) && !/_low/.test(u)) || /\/kit\/[a-z_]+(?<!_lo)\.(glb|jpg)$/.test(u);
     (async () => { for (const u of ASSETS) { if (phone && heavy(u)) continue; if (!(await c.match(u))) await c.add(u).catch(() => {}); } })(); // [v100] background, best effort, one at a time
