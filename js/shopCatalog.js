@@ -13,13 +13,13 @@ export const SHOP_VERSION = 4; // [v105] gear on sale, parrot ladder // [v103] B
 // ---------- ship skins (ids = the live BR skin ids; looks unchanged) ----------
 export const SKIN_ITEMS = [
   { id: 'classic',   name: 'DEFAULT',         price: 0 },
-  { id: 'blood',     name: 'CRIMSON SAILS',   price: 5000 },
-  { id: 'seagreen',  name: 'SEA GREEN',       price: 8000 },
-  { id: 'midnight',  name: 'BLACK PEARL',     price: 12000 },
-  { id: 'admiral',   name: 'ADMIRAL WHITE',   price: 15000 },   // [admiral-price] BANKSY 10:21 AM: 125,000 -> 15,000
-  { id: 'coral',     name: 'CORAL REEF',      price: 18000 },
-  { id: 'storm',     name: 'STORM RIDER',     price: 25000 },
-  { id: 'kraken',    name: 'KRAKEN INK',      price: 40000 },
+  { id: 'blood',     name: 'CRIMSON SAILS',   price: 1000 },
+  { id: 'seagreen',  name: 'SEA GREEN',       price: 1600 },
+  { id: 'midnight',  name: 'BLACK PEARL',     price: 2400 },
+  { id: 'admiral',   name: 'ADMIRAL WHITE',   price: 3000 },    // [admiral-price] BANKSY 10:21 AM: 125,000 -> 15,000; [skin-prices] 10:55 AM: every gold skin /10; 11:06 AM: /5
+  { id: 'coral',     name: 'CORAL REEF',      price: 3600 },
+  { id: 'storm',     name: 'STORM RIDER',     price: 5000 },
+  { id: 'kraken',    name: 'KRAKEN INK',      price: 8000 },
   { id: 'commodore', name: 'COMMODORE',       price: 50000, goal: { all: [{ stat: 'bossKills', need: 100, label: 'Commodore kills' }] } },
   // [prestige] BANKSY: GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (were the 1,000 / 5,000 kill tiers), GIVEN FREE on reaching
   // that prestige (grant: 'prestige', price 0; the server adds them to pvp_owned). GHOST SHIP 100 kills, FIRE 200 kills (no K/D).
