@@ -27,6 +27,8 @@ export const FISH = {
   leviathan: { name: 'Lagoon Leviathan', icon: '🐋', rarity: 'legendary', fish: 500 },
 };
 export const FISH_WEIGHT = { minnow: 30, perch: 24, snapper: 16, eel: 12, pike: 9, carp: 5, koi: 3, leviathan: 1 }; // = lagoon.js weights
+// [fish2] length range (cm) per species = js/island/areas/lagoon.js FISH; the server rolls the length with the species (the catch card shows it)
+export const FISH_CM = { minnow: [6, 14], perch: [15, 32], snapper: [20, 45], eel: [40, 110], pike: [45, 95], carp: [30, 70], koi: [35, 80], leviathan: [150, 260] };
 // VALUABLES + island finds: Antiques shop, BANKSY 11:19 AM: "keep item values they find 500-5000" (common ~500 .. legendary 5000)
 export const VALUABLES = {
   silver_ring:    { name: 'Silver Ring',       icon: '💍', rarity: 'common',    antiques: 500 },

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v224'; // [v224] Post's minimap fix: TREASURE MAP radar without the chart's ink names, NIGHT = dark navy, the HUD button reads INVENTORY from the start; prev: [v223] controllers (Gamepad API): any USB / Bluetooth pad + the Xbox Edge browser drive sailing, walking, the sword pit / musket range and every menu (focus ring); prompts say 'A · …'; consoles never get the phone touch sticks; &pad=0 = off; prev: [v222] perf4: island kit pieces merged per area + 200 m cell, one shadow proxy per ship / kit cell, ship mast / iron / dark parts share one atlas (&kitmerge=0, &shipmerge=0)
+const VERSION = 'pfp-v225'; // [v225] fishing round 2 (&fish2=0 = the old prompt): line + bobber + nibbles, the reel fight, the real fish reeled up + held up + a catch card, controller A casts / hooks / reels; prev: [v224] Post's minimap fix: TREASURE MAP radar without the chart's ink names, NIGHT = dark navy, the HUD button reads INVENTORY from the start; prev: [v223] controllers (Gamepad API): any USB / Bluetooth pad + the Xbox Edge browser drive sailing, walking, the sword pit / musket range and every menu (focus ring); prompts say 'A · …'; consoles never get the phone touch sticks; &pad=0 = off; prev: [v222] perf4: island kit pieces merged per area + 200 m cell, one shadow proxy per ship / kit cell, ship mast / iron / dark parts share one atlas (&kitmerge=0, &shipmerge=0)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -60,7 +60,7 @@ const SHELL = [
   "./js/island/bake.js",
   "./js/island/foot.js",
   "./js/island/digSpots.js", // [v149] dig-spot registry (foot.js + dock/treasure.js import it)
-  "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", // [v150] island rework areas (lagoon v150, jungle v151)
+  "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader

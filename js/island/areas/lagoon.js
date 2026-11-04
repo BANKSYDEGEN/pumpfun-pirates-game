@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, jitter, W, C, npc, openChest, store, today, instanced, sm } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
+import { FISH2, createFishing2 } from './fishing2.js'; // [fish2] the new cast / bite / reel fight / catch show (&fish2=0 = the old prompt)
 const LAKE = { x: -205, z: -130, r: 58, y: 20 };                          // = foot.js LAKE (the area reads it, never edits it)
 const DOCK = { x: -205, z0: -63, z1: -97, hw: 1.6 };                       // south shore, out over the water (north = -z)
 const GILL = { x: -199.5, z: -61.5 };
@@ -18,6 +19,7 @@ export const FISH = [ // [id, name, weight, cm range, colour]
 const PEARLS = ['p_grotto', 'p1', 'p2', 'p3', 'p4', 'p5'];
 let STONES = [], DOCK_Y = 21.6, GROTTO_STONE_Y = 20.7;
 const st = { mode: 'idle', t0: 0, tb: 0, bob: null };                       // fishing state (one rod: yours)
+let fs2 = null, _t2 = 0;                                                     // [fish2] the round-2 fishing (fishing2.js) while FISH2
 
 export default {
   id: 'lagoon', name: 'Freshwater Lagoon', rect: [-295, -115, -265, -55],
@@ -87,14 +89,15 @@ export default {
     const bob = new THREE.Group(); { const kb = new Kit(); W(kb, ball(0.16, 8, 5), C.RED, M(0, 0.1, 0), false); W(kb, ball(0.15, 8, 5), C.WHITE, M(0, -0.04, 0), false); W(kb, cyl(0.02, 0.02, 0.3, 3), C.IRON, M(0, 0.32, 0), false); bob.add(kb.build(MATS, OUT)); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })); ring.rotation.x = -Math.PI / 2; bob.add(ring);
     bob.visible = false; near.add(bob); st.bob = bob; st.ring = ring;
+    if (FISH2) fs2 = createFishing2({ MATS, OUT, near, lakeY: LAKE.y, dockY: DOCK_Y, dock: DOCK, journal: JOURNAL }); // [fish2]
     // far impostor: dock deck strip + Gill box + the stones row (one small merged mesh)
     const kf = new Kit(); W(kf, box(DOCK.hw * 2, 0.3, L), C.WOOD, M(DOCK.x, DOCK_Y - 0.15, zc), false); STONES.forEach((s, i) => { if (i % 2 === 0) W(kf, cyl(s.r, s.r, 0.8, 5), C.STONE, M(s.x, s.y - 0.4, s.z), false); });
     W(kf, box(GROTTO.x1 - GROTTO.x0, 7, 1.2), 0x3a3631, M((GROTTO.x0 + GROTTO.x1) / 2, GROTTO.y + 3.4, GROTTO.z0 - 0.4), false); far.add(kf.build(MATS, OUT));
-    return { near, far, chest: ch, tick(t) { ch.tick(t); fishTick(t); } };
+    return { near, far, chest: ch, tick(t) { ch.tick(t); if (fs2) { fs2.tick(t, Math.min(0.1, Math.max(0, t - _t2))); _t2 = t; } else fishTick(t); } };
   },
-  label(q) { if (q.id === 'lagoon_fish') return st.mode === 'bite' ? 'REEL IN!' : st.mode === 'wait' ? 'WAIT FOR THE BITE…' : 'CAST YOUR LINE'; if (q.id === 'lagoon_grotto') return (store.get().chests || {}).lagoon_grotto === today() ? 'GROTTO CHEST · OPENED TODAY' : 'OPEN THE GROTTO CHEST'; return null; },
+  label(q) { if (q.id === 'lagoon_fish' && fs2) return fs2.label(); if (q.id === 'lagoon_fish') return st.mode === 'bite' ? 'REEL IN!' : st.mode === 'wait' ? 'WAIT FOR THE BITE…' : 'CAST YOUR LINE'; if (q.id === 'lagoon_grotto') return (store.get().chests || {}).lagoon_grotto === today() ? 'GROTTO CHEST · OPENED TODAY' : 'OPEN THE GROTTO CHEST'; return null; },
   activate(q, t, api, b) {
-    if (q.id === 'lagoon_fish') return fish(t);
+    if (q.id === 'lagoon_fish') return fs2 ? fs2.press(t) : fish(t);
     if (q.id === 'lagoon_gill') { const s = store.get(), j = s.fish || {}, n = Object.keys(j).length, big = Object.entries(j).sort((a, b) => b[1].cm - a[1].cm)[0], pearls = (s.pearls || []).length;
       return `GRANDPA GILL<br><small>"${n ? 'Not bad, young pirate!' : 'Grab the rod at the end of my dock, cast, and REEL IN when the float dips!'}"<br>FISH JOURNAL ${n}/${FISH.length} · RIVER PEARLS ${pearls}/${PEARLS.length}${big ? `<br>biggest: ${FISH.find(f => f[0] === big[0])[1]} ${big[1].cm} cm` : ''}<br>${AREA_GOLD_ON ? '' : 'the fish market opens soon'}</small>`; }
     if (q.id === 'lagoon_grotto') { const s = store.get(); if ((s.chests || {}).lagoon_grotto === today()) return 'THE CHEST IS EMPTY<br><small>it refills tomorrow</small>';
@@ -102,7 +105,8 @@ export default {
       return `HIDDEN GROTTO CHEST!<br>${pearl ? '<small>you found a RIVER PEARL · ' + store.get().pearls.length + '/' + PEARLS.length + '</small><br>' : ''}${PENDING}`; }
     return null;
   },
-  onPlayer(p) { if (st.mode !== 'idle' && Math.hypot(p[0] - DOCK.x, p[1] - DOCK.z1) > 6) { st.mode = 'idle'; if (st.bob) st.bob.visible = false; } },
+  onPlayer(p, t, api) { if (fs2) { const me = api?.me?.(); fs2.player(me ? { x: p[0], z: p[1], y: me.y, yaw: me.yaw } : { x: p[0], z: p[1], y: DOCK_Y, yaw: Math.PI }, api); if (Math.hypot(p[0] - DOCK.x, p[1] - DOCK.z1) > 6) fs2.leave(); return; }
+    if (st.mode !== 'idle' && Math.hypot(p[0] - DOCK.x, p[1] - DOCK.z1) > 6) { st.mode = 'idle'; if (st.bob) st.bob.visible = false; } },
 };
 let _now = 0;
 function fishTick(t) { _now = t; const b = st.bob; if (!b) return;
@@ -122,4 +126,14 @@ function fish(t) {
     o.pearls = o.pearls || []; if (Math.random() < 0.04) { const p = PEARLS.slice(1).find(id => !o.pearls.includes(id)); if (p) { o.pearls.push(p); pearl = p; } } }); window.dispatchEvent?.(new CustomEvent('pfp-catch')); if (pearl) window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:river_pearl', spot: 'lagoon_' + pearl } })); // [inventory] the SERVER rolls the fish that goes in your bag
   const s = store.get(); return `${f[2] <= 3 ? 'WHOA! ' : ''}${f[1].toUpperCase()} · ${cm} cm<br><small>${isNew ? 'NEW in your fish journal · ' : rec ? 'a new record! · ' : ''}journal ${Object.keys(s.fish).length}/${FISH.length}${pearl ? '<br>…and a RIVER PEARL! ' + s.pearls.length + '/' + PEARLS.length : ''}</small>`;
 }
+// [fish2] the fish journal (local, cosmetic) for a SERVER-rolled catch, + the old 4 % river pearl; localRoll = offline only (not in the bag)
+const JOURNAL = {
+  add(c) { let isNew = false, rec = false, pearl = null; store.upd(o => { o.fish = o.fish || {}; const e = o.fish[c.id]; isNew = !e; rec = !!e && c.cm > e.cm; if (!e || c.cm > e.cm) o.fish[c.id] = { cm: c.cm, at: today() }; o.caught = (o.caught || 0) + 1;
+      o.pearls = o.pearls || []; if (Math.random() < 0.04) { const p = PEARLS.slice(1).find(id => !o.pearls.includes(id)); if (p) { o.pearls.push(p); pearl = p; } } });
+    if (pearl) window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:river_pearl', spot: 'lagoon_' + pearl } }));
+    const s = store.get(); return { isNew, rec, pearl, n: Object.keys(s.fish || {}).length, of: FISH.length }; },
+  localRoll() { let r = Math.random() * FISH.reduce((a, f) => a + f[2], 0), f = FISH[0]; for (const x of FISH) { r -= x[2]; if (r <= 0) { f = x; break; } }
+    return { id: f[0], cm: Math.round(f[3][0] + Math.random() ** 1.6 * (f[3][1] - f[3][0])) }; },
+};
 export const _fishState = st; // tests
+export const _fish2 = () => fs2; // tests / shots

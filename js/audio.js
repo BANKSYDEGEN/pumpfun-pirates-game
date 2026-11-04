@@ -537,6 +537,26 @@ export const sfx = {
   // spyglass tier 3: lookout's bell when a wave spawns
   spawnBell: () => { if (!profile.range.bell || !live() || !voice(2, 2)) return; const t = ctx.currentTime + 0.15; ring({ t, base: 880, dur: 1.6, vol: 0.06 }); ring({ t: t + 0.42, base: 880, dur: 1.6, vol: 0.05 }); },
   coin: () => { if (!live() || !voice(2, 0.6)) return; const t = ctx.currentTime; arp(t, [1319, 1760], 0.07, 0.07, 'square', 0.18); arp(t, [2637, 3520], 0.07, 0.03, 'sine', 0.3); noise({ t: t + 0.02, dur: 0.15, f0: 9000, f1: 5000, vol: 0.05, type: 'highpass' }); },
+  // [fish2] the fishing dock (js/island/areas/fishing2.js): cast whoosh, plop, nibble plips, the bite, reel ratchet, line strain / snap, the landing
+  // splash and a catch jingle by rarity (a = 0 common .. 4 legendary). Synth only, phone-speaker friendly, muted with everything else (voice()).
+  fish: (k, a = 0) => { if (!live() || !voice(k === 'catch' || k === 'bite' ? 2 : 1, k === 'catch' ? 1.6 : 0.6)) return; const t = ctx.currentTime;
+    switch (k) {
+      case 'cast': noise({ t, dur: 0.32, f0: 700, f1: 3200, vol: 0.09, type: 'bandpass', q: 1.2, a: 0.05 }); tone({ t: t + 0.05, dur: 0.5, f0: 2600, f1: 1800, vol: 0.012, type: 'square' }); break;
+      case 'plop': tone({ t, dur: 0.12, f0: 620, f1: 170, vol: 0.16 }); noise({ t, dur: 0.18, f0: 1800, f1: 400, vol: 0.07 }); break;
+      case 'nibble': tone({ t, dur: 0.06, f0: 950, f1: 520, vol: 0.07 }); break;
+      case 'bite': tone({ t, dur: 0.16, f0: 520, f1: 120, vol: 0.2 }); noise({ t, dur: 0.3, f0: 2400, f1: 300, vol: 0.12 }); tone({ t: t + 0.06, dur: 0.18, f0: 1568, vol: 0.06, type: 'triangle' }); tone({ t: t + 0.14, dur: 0.22, f0: 2093, vol: 0.06, type: 'triangle' }); break;
+      case 'hook': noise({ t, dur: 0.12, f0: 5000, f1: 1500, vol: 0.08, type: 'highpass' }); tone({ t, dur: 0.15, f0: 300, f1: 600, vol: 0.08, type: 'sawtooth' }); break;
+      case 'reel': for (let i = 0; i < 5; i++) noise({ t: t + i * 0.035, dur: 0.02, f0: 4200 + a * 1800, f1: 3000, vol: 0.06, type: 'highpass', q: 3 }); tone({ t, dur: 0.12, f0: 440 + a * 440, vol: 0.05, type: 'triangle' }); break;
+      case 'strain': tone({ t, dur: 0.3, f0: 150 + a * 60, f1: 95, vol: 0.07, type: 'sawtooth' }); noise({ t, dur: 0.25, f0: 900, f1: 600, vol: 0.04, type: 'bandpass', q: 6 }); break;
+      case 'snap': noise({ t, dur: 0.08, f0: 7000, f1: 2500, vol: 0.14, type: 'highpass' }); tone({ t, dur: 0.12, f0: 2200, f1: 380, vol: 0.06, type: 'triangle' }); break;
+      case 'reelEmpty': for (let i = 0; i < 8; i++) noise({ t: t + i * 0.05, dur: 0.02, f0: 3800, f1: 2800, vol: 0.035, type: 'highpass', q: 3 }); break;
+      case 'landing': for (let i = 0; i < 10; i++) noise({ t: t + i * 0.045, dur: 0.02, f0: 4600, f1: 3200, vol: 0.05, type: 'highpass', q: 3 }); break;
+      case 'catch': { noise({ t, dur: 0.5, f0: 1800, f1: 260, vol: 0.18 }); tone({ t, dur: 0.2, f0: 380, f1: 110, vol: 0.14 });
+        const notes = [[523, 659], [523, 659, 784], [523, 659, 784, 1047], [587, 740, 880, 1175, 1480], [523, 659, 784, 1047, 1319, 1568]][Math.max(0, Math.min(4, a | 0))];
+        arp(t + 0.18, notes, 0.075, 0.11, 'triangle', 0.32); if (a >= 3) { arp(t + 0.2 + notes.length * 0.075, [2093, 2637, 3136], 0.05, 0.04, 'sine', 0.5); noise({ t: t + 0.3, dur: 0.8, f0: 9000, f1: 3500, vol: 0.07, type: 'highpass', a: 0.05 }); }
+        if (a >= 4) { horn(t + 0.6, [293.7, 370, 440], 0.9, 0.05, 2400); drum(t + 0.6, 0.6); } break; }
+      default: break;
+    } },
   // [health drops] soft rising heal chime (sine arpeggio + shimmer)
   heal: () => { if (!live() || !voice(3, 1)) return; const t = ctx.currentTime; arp(t, [523, 659, 784, 1047], 0.06, 0.14, 'sine', 0.4); arp(t + 0.03, [1047, 1319, 1568], 0.08, 0.04, 'triangle', 0.5); noise({ t: t + 0.1, dur: 0.35, f0: 6000, f1: 3000, vol: 0.07, type: 'highpass' }); },
   // gun crew: reload-ready ratchet, snappier with GUN CREW tiers

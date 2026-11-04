@@ -72,6 +72,24 @@ function nod(S, R, dir, t, k) { // 0.8 s: the crew's answer to a point (Follow m
   const env = sm(0, 0.15, t) * (1 - sm(0.6, 0.8, t)), n = Math.sin(Math.max(0, t - 0.1) / 0.35 * TAU) * env;
   eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', 0.04 * env, 0, 0); eul(S, R, 'head', 0.22 * n, -0.3 * env, 0);
   arm(S, R, dir, 'L', 0.75, -0.75, 0.15, 0.3); arm(S, R, dir, 'R', 0.75, -0.75, 0.15, 0.3); leg(S, R, 'L', 0, 0, 0); leg(S, R, 'R', 0, 0, 0); }
+// [fish2] the fishing dock (js/island/areas/fishing2.js), local only (never sent to the room): 101 hold the catch up, 102 cast, 103 reel
+function fishHold(S, R, dir, t, k) { // 2.6 s: both arms up overhead holding the fish, chest out, a little bounce, head up at it
+  const up = sm(0, 0.25, t) * (1 - sm(2.3, 2.6, t)), b = Math.sin(t * 7) * 0.05 * up;
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -0.12 * up, 0, 0); eul(S, R, 'head', -0.3 * up + b, 0, 0);
+  for (const s of ['L', 'R']) arm(S, R, dir, s, 0.75 - 0.4 * up, -0.75 + 1.75 * up + b, 0.15 + 0.15 * up, 0.3 + 0.35 * up);
+  leg(S, R, 'L', 0, 0, 0); leg(S, R, 'R', 0, 0, 0); }
+function fishCast(S, R, dir, t, k) { // 0.8 s: the rod hand goes back over the shoulder, then whips forward
+  const back = sm(0, 0.22, t) * (1 - sm(0.22, 0.4, t)), fw = sm(0.22, 0.42, t) * (1 - sm(0.6, 0.8, t));
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -0.12 * back + 0.18 * fw, 0.1 * back, 0); eul(S, R, 'head', 0.05 * fw, 0, 0);
+  arm(S, R, dir, 'R', 0.75 - 0.5 * back - 0.5 * fw, -0.75 + 1.7 * back + 1.0 * fw, 0.15 - 0.6 * back + 0.9 * fw, 0.3 + 0.8 * back);
+  arm(S, R, dir, 'L', 0.75 - 0.3 * fw, -0.75 + 0.5 * fw, 0.15 + 0.6 * fw, 0.3 + 0.6 * fw);
+  leg(S, R, 'L', 0, 0, 0); leg(S, R, 'R', 0, 0, 0); }
+function fishReel(S, R, dir, t, k) { // up to 20 s (stopped by the dock): both hands out front on the rod, the right one cranking, leaning back
+  const env = sm(0, 0.2, t), c = t * 9, lean = 0.08 + Math.sin(t * 2.3) * 0.04;
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -lean * env, 0, 0); eul(S, R, 'head', 0.12 * env, 0, 0);
+  arm(S, R, dir, 'L', 0.75 - 0.5 * env, -0.75 + 0.75 * env, 0.15 + 0.85 * env, 0.3 + 0.5 * env);
+  arm(S, R, dir, 'R', 0.75 - (0.45 - 0.12 * Math.cos(c)) * env, -0.75 + (0.6 + 0.15 * Math.sin(c)) * env, 0.15 + 0.7 * env, 0.3 + 0.7 * env);
+  leg(S, R, 'L', 0.15 * env, 0.2 * env, 0); leg(S, R, 'R', -0.15 * env, 0.2 * env, 0); }
 const HEADS = ['spine', 'head'];
 
 export const EMOTE_POSES = {   // id (js/emotes.js EMOTES index) -> motion
@@ -84,6 +102,9 @@ export const EMOTE_POSES = {   // id (js/emotes.js EMOTES index) -> motion
   5: { f: retreat, dur: 1.4, upper: true, walk: 'upper' }, // Retreat!
   6: { f: bow, dur: 1.6, upper: true, walk: 'cancel' },   // GG (the bow stops when you walk)
   100: { f: nod, dur: 0.8, upper: true, walk: 'upper', only: HEADS }, // crew only: nod + look (answers 1 / 2)
+  101: { f: fishHold, dur: 2.6, upper: true, walk: 'upper' }, // [fish2] hold the catch up
+  102: { f: fishCast, dur: 0.8, upper: true, walk: 'upper' }, // [fish2] cast
+  103: { f: fishReel, dur: 20, upper: true, walk: 'upper' },  // [fish2] reel (stopped when the fish lands / gets away)
 };
 export const hasEmotePose = (e) => !!EMOTE_POSES[e];
 

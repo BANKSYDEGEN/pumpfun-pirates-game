@@ -29,3 +29,21 @@ Deno.test("dup items + fish + owner kit keys are valid", () => {
   for (let i = 0; i < 500; i++) assert(KEY_RE.test(rollFish("s" + i)));
   const k = ownerKitItems(); assert(k.length === 8 + 10 + 32); for (const x of k) assert(KEY_RE.test(x), x);
 });
+// [fish2] lengths + reel tickets
+import { rollCm, signFishTicket, readFishTicket, FISH_TICKET_TTL_MS } from "./inventory.ts";
+import { FISH_CM } from "./invCatalog.ts";
+Deno.test("fish2: server lengths stay inside each species' range and are deterministic", () => {
+  for (let i = 0; i < 400; i++) { const f = rollFish("c" + i), [a, b] = (FISH_CM as any)[f.slice(5)], cm = rollCm("c" + i, f); assert(cm >= a && cm <= b, f + " " + cm); assertEquals(cm, rollCm("c" + i, f)); }
+});
+Deno.test("fish2: reel tickets verify, bind to the pirate, expire, and refuse tampering", async () => {
+  const n = "00000000-0000-4000-8000-000000000001", at = 1_000_000, tok = await signFishTicket("s3cret", { p: "dev:a", f: "fish:koi", cm: 50, n, at });
+  assertEquals(await readFishTicket("s3cret", tok, "dev:a", at + 3000), { ok: true, f: "fish:koi", cm: 50, n });
+  assertEquals((await readFishTicket("s3cret", tok, "dev:b", at + 3000)).ok, false);                       // someone else's ticket
+  assertEquals(await readFishTicket("s3cret", tok, "dev:a", at + 200), { ok: false, why: "too fast" });     // no instant landing
+  assertEquals(await readFishTicket("s3cret", tok, "dev:a", at + FISH_TICKET_TTL_MS + 1), { ok: false, why: "it got away" });
+  assertEquals((await readFishTicket("other", tok, "dev:a", at + 3000)).ok, false);                        // wrong key
+  const [body, sig] = tok.split("."), forged = btoa(JSON.stringify({ p: "dev:a", f: "fish:leviathan", cm: 250, n, at })).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+  assertEquals((await readFishTicket("s3cret", forged + "." + sig, "dev:a", at + 3000)).ok, false);        // a swapped fish
+  assertEquals((await readFishTicket("s3cret", body, "dev:a", at + 3000)).ok, false);
+  assertEquals((await readFishTicket("s3cret", 42, "dev:a", at + 3000)).ok, false);
+});

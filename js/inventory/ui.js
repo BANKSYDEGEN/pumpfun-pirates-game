@@ -115,6 +115,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   window.addEventListener('pfp-shop', (e) => open(e.detail?.shop || 'bag'));
   // island earnings -> the server (it decides what lands in the bag): a reeled-in fish (server-rolled species), an idol shard / river pearl
   window.addEventListener('pfp-catch', async () => { const r = await pvp()?.inv?.call('inv_fish'); if (r?.ok) { const i = itemInfo(r.item); setTimeout(() => toast(`${i.icon} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2000), 2600); refresh(); } });
+  // [fish2] the fishing dock's server calls (js/island/areas/fishing2.js): it shows the fish the SERVER put in the bag (its own catch card, no toast here)
+  window.addEventListener('pfp-fish', async (e) => { const d = e.detail || {}; if (!['inv_fish', 'inv_fish_bite', 'inv_fish_land'].includes(d.action)) return d.done?.(null);
+    let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
   return { open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = l; render(); } };
 }

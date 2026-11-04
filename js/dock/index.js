@@ -210,7 +210,11 @@ export async function createDock(ctx) {
   }
   function setSail() { if (docking.setSail(P())) { const s = P(); s.anchor = false; s.sail = 1; toast('SET SAIL!'); } }
   // [island-rework] what an area activity may do to you: a toast, or put you back at a spot (trap runs). Foot-frame coords.
-  const areaApi = { toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
+  // [fish2] + your pirate for the fishing dock (js/island/areas/fishing2.js): where you stand / face in the foot frame, turn you, a body pose, its sounds
+  const FOOT_YAW = (() => { const a = layout.footToHarbor(0, 0), b = layout.footToHarbor(1, 0); return Math.atan2(-(b[1] - a[1]), b[0] - a[0]); })();
+  const areaFish = { me: () => (onFoot ? { y: walker.w.y, yaw: walker.w.yaw - FOOT_YAW } : null), face(yaw) { if (onFoot && Number.isFinite(yaw)) walker.w.yaw = yaw + FOOT_YAW; },
+    camYaw: () => walker.w.camYaw - FOOT_YAW, emote(e) { if (!onFoot) return; if (e < 0) { const m = pirate.object.userData.emote; if (m) m.live = false; } else pirate.emote?.(e); }, sfx: (k, a) => ctx.sfx?.fish?.(k, a) };
+  const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
     if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); if (m) toast(m, 2800); return; } // [island-rework] area activities (cosmetic; gold behind areas/flags.js)
