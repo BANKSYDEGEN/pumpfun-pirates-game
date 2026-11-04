@@ -670,6 +670,7 @@ export function createPvp(K) {
     p.bt = bt;
     p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${bt}</span>` : ''}`;
     p.ship.netState = p.st;
+    if (typeof m.dk === 'string') p.dk = m.dk; p.ship.anchor = p.ship._safe = where === 'harbor' && !!p.dk; // [dock-waterline] a peer moored at a berth rides the moored waterline too
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
