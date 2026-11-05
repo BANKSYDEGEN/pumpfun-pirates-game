@@ -36,7 +36,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   boots:  { c: [0, 0.09, 0.06], d: [0.95, 0.28, 0.75], r: 0.15 },   // [v6-store-clothes] BANKSY 1:52 PM "better previews": side 3/4 close-up of the shoe pair, filling the card
   pants:  { c: [0, 0.5, 0.02], d: [0.35, 0.1, 1], r: 0.44 },     // [v6-store-clothes] hips to ankles (was the outfit torso frame)
   cape:   { c: [0, 0.85, -0.05], d: [0.7, 0.15, -1], r: 0.6 },
-  full:   { c: [0, 0.98, 0], d: [0.35, 0.08, 1], r: 1.12 },   // [v6-store-clothes] CHANGING ROOM: head to feet
+  full:   { c: [0, 0.98, 0], d: [0.2, 0.06, 1], r: 1.12 },   // [v6-store-clothes] CHANGING ROOM: head to feet
   // [Raul items redo 2] the ground pets stand by the captain's left foot (js/petRig.js anchors x 1.25 for the 1.75 m mannequin)
   'parrot:pet_cat': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_cat_black': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_monkey': { c: [0.56, 0.36, 0.05], d: [0.45, -0.05, 1], r: 0.46 },
   'parrot:pet_chimp': { c: [0.64, 0.4, 0.05], d: [0.45, -0.05, 1], r: 0.5 }, 'parrot:pet_gorilla': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_gorilla_white': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_tiger': { c: [0.62, 0.46, 0.05], d: [0.6, 0.0, 1], r: 0.64 },
