@@ -40,14 +40,14 @@ test('sold in the Clothing Store (and the Shop / Red Stall); the free "none" row
 });
 test('models: hi + lo per sex, rigged; pants = the base item (boots / pegs cut it), shoes = one boots slot', () => {
   for (const [id] of [...PANTS, ...SHOES]) for (const s of ['male', 'female']) for (const l of ['hi', 'lo']) assert.ok(existsSync(new URL(`assets/pirates/items/v5/${id}_${s}_${l}.glb`, ROOT)), `${id} ${s} ${l}`);
-  for (const [id] of PANTS) assert.match(gear, new RegExp(`'pants:${id}': \\['base', '${id}', null\\]`));
-  for (const [id] of SHOES) { assert.match(gear, new RegExp(`'boots:${id}': \\['boots', '${id}', null\\]`)); assert.match(items, new RegExp(`item\\('${id}', [^\\n]*'boots'[^\\n]*BOOT5\\('${id}'\\)`)); }
+  for (const [id] of PANTS) assert.match(gear, new RegExp(`'pants:${id}': \\['base', '${id}', PANTS_TINT\\]`));
+  for (const [id] of SHOES) { assert.match(gear, new RegExp(`'boots:${id}': \\['boots', '${id}', SHOE_TINT\\]`)); assert.match(items, new RegExp(`item\\('${id}', [^\\n]*'boots'[^\\n]*BOOT5\\('${id}'\\)`)); }
   assert.match(items, /item\(id, id\.replace\(\/_\/g, ' '\), 'base', [^\n]*v5cloth: true, base: true/);
   assert.match(gear, /p\.v5 && !p\.v6 && !p\.forCrew && !p\.raulKeys\.base/, 'V6: no auto base outfit');
 });
 test('wire: pants ride one digit after the carry digits (older clients see a longer string = default look)', () => {
-  assert.match(gear, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2 \+ 1 \+ 1;/);
-  assert.match(gear, /GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1, g\.capeColor \| 0\]/); assert.match(gear, /const v = d\(c \+ 2\); if \(v > 0 && v <= GEAR_RENDERS\.pants\.length\) g\.pants = GEAR_RENDERS\.pants\[v - 1\]/);
+  assert.match(gear, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2 \+ 1 \+ 1 \+ 2;/);
+  assert.match(gear, /GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1, g\.capeColor \| 0, g\.pantsColor \| 0, g\.bootsColor \| 0\]/); assert.match(gear, /const v = d\(c \+ 2\); if \(v > 0 && v <= GEAR_RENDERS\.pants\.length\) g\.pants = GEAR_RENDERS\.pants\[v - 1\]/);
 });
 test('legacy grant: old saves get + wear classic pants + boots once; new pirates nothing; never overrides a worn item', async () => {
   const { v6Legacy: L, addLegacyOwned, V6_LEGACY } = await import('../js/v6Legacy.js');

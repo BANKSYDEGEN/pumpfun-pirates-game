@@ -47,7 +47,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
 function frameOf(slot, o, id) { if (o?.frame === 'full') return FRAME.full; const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
   return side === 'L' ? { c: [-F.c[0], F.c[1], F.c[2]], d: [-F.d[0], F.d[1], F.d[2]], r: F.r } : F; }
 const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin || 'classic') : '', slot === 'hat' ? (o.hatColor | 0) : '', slot === 'hook' ? (o.hookSide === 'L' ? 'L' : 'R') : '',
-  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0, slot === 'cape' ? (o.capeColor | 0) : '', o.wear ? JSON.stringify(o.wear) + (o.skin || '') : ''].join('|');   // [Timothy] wear = other items worn under it (the Crew Shop's uniform)
+  slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0, slot === 'cape' ? (o.capeColor | 0) : '', slot === 'pants' ? (o.pantsColor | 0) : '', slot === 'boots' ? (o.bootsColor | 0) : '', o.wear ? JSON.stringify(o.wear) + (o.skin || '') : ''].join('|');   // [Timothy] wear = other items worn under it (the Crew Shop's uniform)
 const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}|${o.frame || ''}`;
 const TW = 200, TH = 102;   // the shop card swatch is 150 x 76 (css .ishop-sw), drawn at ~1.33x
 const cache = new Map();   // key -> dataURL
@@ -96,7 +96,7 @@ const dressKey = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}`;
 async function dressFor(slot, id, o) {
   // [v280 crew holes] mannequin is a V6 body: classic pants cover the lo underwear hem gap unless this card IS the pants/boots (or &crewholes=0).
   const cover = (typeof location === 'undefined' || !/[?&]crewholes=0(?:&|$)/.test(location.search)) && slot !== 'pants' && slot !== 'boots' && !o.wear?.pants;
-  await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0, capeColor: o.capeColor | 0, ...(cover ? { pants: 'classic_pants' } : null) }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
+  await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0, capeColor: o.capeColor | 0, pantsColor: o.pantsColor | 0, bootsColor: o.bootsColor | 0, ...(cover ? { pants: 'classic_pants' } : null) }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
   fig.userData.thumbKey = dressKey(slot, id, o);
 }
 async function renderOne(slot, id, o) {

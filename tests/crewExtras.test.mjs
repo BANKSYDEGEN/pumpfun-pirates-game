@@ -26,5 +26,9 @@ test('crew gear + wire round trip; old 2-digit wire still reads', () => {
 test('cape colour: crew wire digit round trips; old wire = default colour', () => {
   const l = { ...CREW_DEFAULT, crewcape: 'cape_royal', crewcapeColor: 4 }; const r = crewFromWire(crewToWire(l));
   assert.equal(r.crewcapeColor, 4); assert.equal(crewGear(r).capeColor, 4); assert.equal(crewFromWire('11').crewcapeColor, undefined);
-  assert.match(lib, /o\.crewcapeColor = cc/); assert.match(save, /o\.crewcapeColor = cc/);
+  assert.match(lib, /'crewcapeColor', 'crewpantsColor', 'crewbootsColor'\]\) \{ const cc/); assert.match(save, /'crewcapeColor', 'crewpantsColor', 'crewbootsColor'\]\) \{ const cc/);
+});
+test('pants + shoes colours: crew wire round trip', () => {
+  const l = { ...CREW_DEFAULT, crewpants: 'canvas_pants', crewboots: 'sandals', crewpantsColor: 3, crewbootsColor: 6 }; const r = crewFromWire(crewToWire(l));
+  assert.equal(r.crewpantsColor, 3); assert.equal(r.crewbootsColor, 6); assert.equal(crewGear(r).pantsColor, 3); assert.equal(crewGear(r).bootsColor, 6);
 });
