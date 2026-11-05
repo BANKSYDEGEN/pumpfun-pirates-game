@@ -13,10 +13,14 @@ import { shopIcon, drawShopIcon, getMapStyle, THEMES, SHOP_ICONS } from './mapIc
 import { mapLandmarks, mapDocks } from './mapLandmarks.js'; // [minimap-themes] castle / fort / battle areas / shops / docks / D2 ruins from the island's own data
 const BAKE_C = new THREE.Color(); // colour scratch for the bake
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // foot frame: the whole on-foot grid (main island + islets)
+const MMICONS_LEGACY = typeof location !== 'undefined' && /[?&]mmicons=0(?:&|$)/.test(location.search); // [minimap-icons] &mmicons=0 = old duplicated pets/crew (+ 10 dock) set
 const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5cff', '#fff', 'SQUAD HALL'], waves: ['W', '#3fc6c9', '#161616', 'STORM HUNT BOARD'], arena: ['A', '#fa0d0d', '#fff', 'ARENA BOARD'],
   spyglass: ['◎', '#e8e2d4', '#161616', 'SPYGLASS'], tavern: ['⚑', '#8a5a2b', '#fff', 'TAVERN'], bounties: ['!', '#e8e2d4', '#161616', 'BOUNTIES'],
   shop_clothes: ['👕', '#d8322f', '#fff', 'CLOTHES SHOP'], shop_ships: ['⛵', '#2a6df4', '#fff', 'SHIP SKINS'], token_AHOY: ['$', '#22c55e', '#161616', 'TOKENS'],
-  cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'] };
+  cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'],
+  fort_flag: ['⚑', '#ffcd00', '#161616', 'DAILY FLAG'], fort_spyglass: ['◎', '#e8e2d4', '#161616', 'CASTLE SPYGLASS'], // [minimap-icons] castle flag + fort spyglass
+  route_board: ['!', '#e8e2d4', '#161616', 'NOTICE BOARD'] }; // [hide-notice] only in interact when &noticeboard=1
+const POI_HIDE = new Set(['wish_fountain']); // wishing fountain stays off the map (hidden feature)
 const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
 const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
 
@@ -25,14 +29,19 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   const N = low ? 512 : 1024, mpp = (B.x1 - B.x0) / N, NZ = Math.round((B.z1 - B.z0) / mpp);
   let cv = null, g = null, img = null, row = 0, done = false, P = null, LB = null; // LB: land bounds (foot frame) + fit circle
   let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
-  const pois = () => [...layout.interact, ...(world.footInteract || [])].filter(q => POI[q.id] || POI[q.kind] || shopIcon(q)).map(q => { const [fx, fz] = toF(q.x, q.z), ic = shopIcon(q); // [v153] shops: a badge per shop id
-    return { x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind]), icon: ic }; })
-    .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id) })))
-    .concat(rockLights())
-    .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon]; return { x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true }; }));
+  const pois = () => { // [minimap-icons] one icon per id; interact/foot first (real walk-up spots), then FOOT_POIS / landmarks / docks. &mmicons=0 skips the id dedupe.
+    const raw = [...layout.interact, ...(world.footInteract || [])].filter(q => !POI_HIDE.has(q.id) && (POI[q.id] || POI[q.kind] || shopIcon(q))).map(q => { const [fx, fz] = toF(q.x, q.z), ic = shopIcon(q); // [v153] shops: a badge per shop id
+      return { id: q.id, x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind]), icon: ic }; })
+      .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ id: p.id, x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id) })))
+      .concat(rockLights())
+      .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon]; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true }; }));
+    if (MMICONS_LEGACY) return raw;
+    const seen = new Set(), out = [];
+    for (const p of raw) { const k = p.id || (p.s && p.s[3]) || `${p.x|0},${p.z|0}`; if (seen.has(k)) continue; seen.add(k); out.push(p); }
+    return out; };
   // [v108] the offshore rock lighthouse(s) (props.js grid rocks) inside the mapped box
   const rockLights = () => { if (!islands?.lighthousesIn) return []; const [hx0, hz0] = toH(B.x0, B.z0), [hx1, hz1] = toH(B.x1, B.z1);
-    return islands.lighthousesIn(Math.min(hx0, hx1), Math.max(hx0, hx1), Math.min(hz0, hz1), Math.max(hz0, hz1)).map(c => { const [x, z] = toF(c.x, c.z); return { x, z, s: LH_S('ROCK LIGHT'), far: true, lh: true }; }); };
+    return islands.lighthousesIn(Math.min(hx0, hx1), Math.max(hx0, hx1), Math.min(hz0, hz1), Math.max(hz0, hz1)).map((c, i) => { const [x, z] = toF(c.x, c.z); return { id: 'rock_lh_' + i, x, z, s: LH_S('ROCK LIGHT'), far: true, lh: true }; }); };
   // [minimap-themes] build mode: the map re-bakes in the background when the ground is edited (TERRAIN.rev), the old one stays up meanwhile
   let rev = FM.TERRAIN?.rev || 0, again = false; const themed = new Map();
   function checkRev() { const r = FM.TERRAIN?.rev || 0; if (r !== rev && done && !again) { rev = r; again = true; row = 0; lx0 = lz0 = 1e9; lx1 = lz1 = -1e9; } }
@@ -234,5 +243,5 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   }
   function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
   function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); }
-  return { draw, drawLocal, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), get isOpen() { return open; }, get ready() { return done; } };
+  return { draw, drawLocal, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; } }; // [minimap-icons] shot / debug: the live icon list
 }

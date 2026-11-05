@@ -106,7 +106,7 @@ export const SHOP_ICONS = {
 };
 SHOP_ICONS.invshop_fish = SHOP_ICONS.fish_stand; SHOP_ICONS.invshop_antiques = SHOP_ICONS.antiques; SHOP_ICONS.invshop_market = SHOP_ICONS.market; // post/inventory-fish triggers (at Timothy's Market Square anchors)
 SHOP_ICONS.shop_swords = SHOP_ICONS.sword_shop; SHOP_ICONS.shop_muskets = SHOP_ICONS.musket_shop; // v153 ids
-export const shopIcon = (q) => q && (SHOP_ICONS[q.id] || (q.kind === 'stall' ? SHOP_ICONS.stall : q.kind === 'shop' || /^shop_/.test(q.id || '') ? SHOP_ICONS.shop : null));
+export const shopIcon = (q) => q && (SHOP_ICONS[q.id] || (q.icon && SHOP_ICONS[q.icon]) || (q.kind === 'stall' ? SHOP_ICONS.stall : q.kind === 'shop' || /^shop_/.test(q.id || '') ? SHOP_ICONS.shop : null));
 // a badge at (x, y), radius r (canvas px). style: a THEMES badge ('colored' | 'paper' | 'night' | 'gold' | 'line') or a theme id
 export function drawShopIcon(c, ic, x, y, r, style = 'colored') {
   const st = THEMES[style] ? THEMES[style].badge : style, [g, col, fg, acc] = ic;
