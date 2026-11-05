@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { M } from './kit.js';
 import * as CO from './coast.js';
-import { COLISEUM_ON } from './coliseum.js';
+import { COLISEUM_ON, FOOT } from './coliseum.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Math.max(R.lz0 - lz, 0, lz - R.lz1));
@@ -12,7 +12,7 @@ function segD(px, pz, ax, az, bx, bz) { const dx = bx - ax, dz = bz - az, t = Ma
 const polyD = (lx, lz, P) => { let d = 1e9; for (let i = 0; i < P.length - 1; i++) d = Math.min(d, segD(lx, lz, ...P[i], ...P[i + 1])); return d; };
 
 const RANGE_OLD = { lx0: -126, lx1: -82, lz0: -164, lz1: -124, y: 13.6, flat: 8, feather: 6, line: -131, targetLz: -157, lanes: [-121, -115, -109], divider: -104, gate: [-98, -124], gateW: 6 };
-const RANGE_COLI = { lx0: 50, lx1: 88, lz0: -176, lz1: -140, y: 14.8, flat: 8, feather: 6, line: -148, targetLz: -170, lanes: [58, 66, 74], divider: 69, gate: [69, -140], gateW: 6 };
+const RANGE_COLI = { lx0: 50, lx1: 88, lz0: -176, lz1: -140, y: FOOT.y, flat: 8, feather: 6, line: -148, targetLz: -170, lanes: [58, 66, 74], divider: 69, gate: [69, -140], gateW: 6 };
 export const RANGE = COLISEUM_ON ? RANGE_COLI : RANGE_OLD;
 
 const PIT_OLD = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
