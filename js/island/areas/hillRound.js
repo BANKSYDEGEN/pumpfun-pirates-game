@@ -16,7 +16,7 @@
 import { COLISEUM_ON, castleSample, CASTLE_RAMP_HW, inFoot } from '../coliseum.js';
 // BANKSY: the old castle stair / coli approach stays bare; &coliseum=0 restores all the dressing.
 const clearColiStair = (x,z) => COLISEUM_ON && (castleSample(z+90,-x-640).d < CASTLE_RAMP_HW+1.4 || inFoot(z+90,-x-640,-8));
-const clearCastleDressing = (x,z) => COLISEUM_ON && x > -443 && x < -424 && z > -79 && z < -36;
+const clearCastleDressing = (x,z) => COLISEUM_ON && x > -443 && x < -418 && z > -79 && z < -36;
 import * as THREE from 'three';
 import { Kit, M, box, cyl, hash, jitter, W, C } from './common.js';
 const C2 = C;   // ([stairs2] buildClimb's C = CLIMB)
@@ -382,10 +382,10 @@ export default {
         SB('pilaster', box(0.42, hh, 0.86), p.i % 2 ? 0xb0a99c : 0xb9b2a6, M(p.x, p.g + hh / 2, p.z, p.yaw), true);
         SB('pilaster', box(0.66, bh, 1.08), 0xa9a294, M(p.x + p.nx * 0.12, p.g + bh / 2, p.z + p.nz * 0.12, p.yaw), false);   // battered base
         SB('pcap', box(0.56, 0.16, 1.0), 0xd2c9b6, M(p.x + p.nx * 0.05, p.top - 0.08, p.z + p.nz * 0.05, p.yaw), false);
-        if (p.i % 2 === 0) { const lx = p.x + p.nx * 0.36, lz = p.z + p.nz * 0.36, ly = p.top - 1.15;   // a wall lantern on an iron bracket
+        if (p.i % 2 === 0 && !clearCastleDressing(p.x,p.z)) { const lx = p.x + p.nx * 0.36, lz = p.z + p.nz * 0.36, ly = p.top - 1.15;   // a wall lantern on an iron bracket
           W(k, box(0.08, 0.08, 0.42), C.IRON, M(p.x + p.nx * 0.3, ly + 0.42, p.z + p.nz * 0.3, p.yaw + Math.PI / 2), false);
           W(k, box(0.34, 0.44, 0.34), 0x2b2f36, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw)); W(k, box(0.26, 0.34, 0.36), 0xffd27a, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw), false); W(k, box(0.36, 0.34, 0.26), 0xffd27a, M(lx + p.nx * 0.08, ly, lz + p.nz * 0.08, p.yaw), false); } }
-      for (const b of D.bays) { if (low && b.i % 2) continue; const ivy = hash(b.i, 31) < 0.6, drop = Math.min(b.top - b.g - 0.4, 1.4 + hash(b.i, 33) * 1.8);
+      for (const b of D.bays) { if(clearCastleDressing(b.x,b.z)) continue; if (low && b.i % 2) continue; const ivy = hash(b.i, 31) < 0.6, drop = Math.min(b.top - b.g - 0.4, 1.4 + hash(b.i, 33) * 1.8);
         if (ivy) for (let q = 0; q < 6; q++) { const f = q / 5, ax = Math.cos(b.yaw), az = -Math.sin(b.yaw), o = (hash(b.i, q) - 0.5) * 2.2, r = 0.34 - f * 0.12;   // ivy hanging from the coping
           k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.3, b.i * 9 + q), [0x3f7d2c, 0x4e8a34, 0x5f9a3a][q % 3], { m: M(b.x + ax * o + b.nx * 0.06, b.top - 0.1 - f * drop, b.z + az * o + b.nz * 0.06, b.yaw, 0, 0, [0.45, 1.25, 1.5]), outline: false }); }   // (flat against the face)
         for (let q = 0; q < 3; q++) { const ax = Math.cos(b.yaw), az = -Math.sin(b.yaw), o = (q - 1) * 0.9 + (hash(q, b.i) - 0.5) * 0.3, x = b.x + ax * o + b.nx * 0.6, z = b.z + az * o + b.nz * 0.6, r = 0.36 + hash(b.i, q + 5) * 0.22;   // shrubs at the foot
@@ -393,7 +393,7 @@ export default {
           if ((b.i + q) % 4 === 0) bloomClump(k, x, H(x, z) + r * 1.2 - 0.084, z, Math.round((q) * 7 + (x) * 3), 0.82, low); } }
       for (const t of castleTerraces(H)) { const hh = t.top - t.g, ax = Math.sin(t.yaw), az = Math.cos(t.yaw), nx = az, nz = -ax, bk = nz > 0 ? 1 : -1;   // the castle-side terraces (bk: uphill = +z)
         SB('terrace', box(0.6, hh, t.L + 0.06), t.i % 2 ? 0xb0a99c : 0xb9b2a6, M(t.x, t.g + hh / 2, t.z, t.yaw), t.i % 2 === 0); SB('tcap', box(0.78, 0.16, t.L + 0.1), 0xd2c9b6, M(t.x, t.top + 0.08, t.z, t.yaw), false);
-        const bx = t.x + nx * bk * 0.95, bz = t.z + nz * bk * 0.95; W(k, box(1.3, 0.3, t.L + 0.05), 0x5a3a22, M(bx, t.top - 0.12, bz, t.yaw), false);   // the bed's soil, just under the coping
+        const bx = t.x + nx * bk * 0.95, bz = t.z + nz * bk * 0.95; if(clearCastleDressing(bx,bz)) continue; W(k, box(1.3, 0.3, t.L + 0.05), 0x5a3a22, M(bx, t.top - 0.12, bz, t.yaw), false);   // the bed's soil, just under the coping
         if (!low || t.i % 2 === 0) for (let q = 0; q < 2; q++) { const o = (q - 0.5) * t.L * 0.5, x = bx + ax * o, z = bz + az * o, r = 0.42 + hash(t.i, q) * 0.3;
           k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i * 3 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45][(t.i + q) % 3], { m: M(x, t.top + r * 0.5, z, t.i + q), outline: false });
           if ((t.i + q) % 3 === 0) bloomClump(k, x + 0.2, t.top + r * 1.05 - 0.102, z, Math.round((q + t.i) * 7 + (x + 0.2) * 3), 1.00, low); }
