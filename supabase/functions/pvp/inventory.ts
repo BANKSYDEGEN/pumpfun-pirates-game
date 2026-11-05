@@ -9,7 +9,7 @@ import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's
 import { squadAction, SQUAD_ACTIONS } from "./squad.ts"; // [squad-hall]
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
-export const INV_ACTIONS = ["inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
+export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
 // every item the owner test kit holds (~3 of each): fish, valuables, weapons at every rarity (maps are added by SQL)
@@ -37,6 +37,24 @@ export async function readFishTicket(secret: string, tok: unknown, pid: string, 
   const age = now - Number(t.at); if (!(age >= FISH_TICKET_MIN_MS)) return { ok: false, why: "too fast" }; if (age > FISH_TICKET_TTL_MS) return { ok: false, why: "it got away" };
   return { ok: true, f: t.f, cm: Math.max(1, Math.min(400, Number(t.cm) | 0)), n: t.n }; }
 const FISH_SECRET = () => (globalThis as any).Deno?.env?.get?.("SUPABASE_SERVICE_ROLE_KEY") || "";
+// [Emerly musket-rank + gunacc] = js/musketUpgrades.js RANK_UP / SALVAGE_PARTS + js/inventory/catalog.js GUN_ITEMS prices (keep in sync)
+export const RANK_UP: Record<string, { gold: number; parts: number }> = { common: { gold: 1500, parts: 3 }, rare: { gold: 4000, parts: 6 }, epic: { gold: 10000, parts: 12 } };
+export const SALVAGE_PARTS: Record<string, number> = { common: 1, rare: 2, epic: 4, legendary: 8 };
+export const ACC_PRICE: Record<string, number> = { "val:acc_stock": 600, "val:acc_bayonet": 800, "val:acc_horn": 1000, "val:acc_scope": 1200 };
+const ACCS = Object.keys(ACC_PRICE);
+// drop rates (per mille, server-rolled): fishing = parts 80 (1 part); chests = parts by tier + one accessory
+export const GUN_DROPS = { fish: { parts: 80, acc: 0 }, common: { parts: 250, acc: 30 }, rare: { parts: 500, acc: 60 }, legendary: { parts: 1000, acc: 120 } };
+const roll = () => crypto.getRandomValues(new Uint32Array(1))[0] % 1000;
+export function gunDrop(kind: "fish" | "common" | "rare" | "legendary") {
+  const t = GUN_DROPS[kind] ?? GUN_DROPS.common, out: { item: string; qty: number }[] = [];
+  if (roll() < t.parts) out.push({ item: "val:musket_parts", qty: kind === "legendary" ? 2 + (roll() % 2) : kind === "rare" ? 1 + (roll() % 2) : 1 });
+  if (t.acc && roll() < t.acc) out.push({ item: ACCS[roll() % ACCS.length], qty: 1 });
+  return out;
+}
+export async function gunDropRpc(db: any, pid: string, ref: string, kind: "fish" | "common" | "rare" | "legendary") { // fails soft (042 not run = nothing)
+  const items = gunDrop(kind); if (!items.length) return [];
+  try { const { data } = await db.rpc("pvp_inv_gun_drop", { p_player: pid, p_ref: ref, p_items: items, p_source: kind === "fish" ? "fish" : "chest" }); return data?.items || []; } catch { return []; }
+}
 export async function inventoryAction(c: Ctx, action: string, b: Record<string, unknown>): Promise<Response> {
   const { db, json } = c; const who = await c.whoAmI(b); if (!who) return json(401, { error: "no identity" });
   const pid = who.pid, rpc = async (fn: string, args: Record<string, unknown>) => { const { data, error } = await db.rpc(fn, args); if (error) throw error; return data; };
@@ -68,7 +86,8 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       return reply(await rpc("pvp_inv_gift", { p_from: pid, p_to: to, p_item: item, p_qty: qty }));
     }
     case "inv_fish": { const seed = pid + ":" + crypto.randomUUID(), f = rollFish(seed), d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: f });
-      return reply(d?.ok ? { ...d, cm: rollCm(seed, f) } : d); } // [fish2] + the length (old clients ignore it)
+      const extra = d?.ok ? await gunDropRpc(db, pid, "f:" + seed.slice(-36), "fish") : []; // [Emerly musket-rank] parts from fishing
+      return reply(d?.ok ? { ...d, cm: rollCm(seed, f), extra } : d); } // [fish2] + the length (old clients ignore it)
     case "inv_fish_bite": case "inv_fish_land": { // [fish2] reel tickets: closed unless pvp_flags fish_reel is on
       const { data: fl } = await db.from("pvp_flags").select("on_").eq("k", "fish_reel").limit(1); if (!fl?.[0]?.on_) return json(409, { error: "reel closed" });
       const secret = FISH_SECRET(); if (!secret) return json(503, { error: "reel closed" });
@@ -77,10 +96,16 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
         return json(200, { ok: true, rarity: (FISH as any)[f.slice(5)].rarity, ticket: await signFishTicket(secret, { p: pid, f, cm, n, at: Date.now() }) }); }
       const t = await readFishTicket(secret, b.ticket, pid, Date.now()); if (!t.ok) return json(409, { error: t.why });
       const { error: dup } = await db.from("pvp_inv_once").insert({ player_id: pid, k: "fishq:" + t.n }); if (dup) return json(409, { error: "used" }); // one landing per ticket
-      const d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: t.f }); return reply(d?.ok ? { ...d, cm: t.cm } : d); }
+      const d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: t.f }); const extra = d?.ok ? await gunDropRpc(db, pid, "f:" + t.n, "fish") : []; return reply(d?.ok ? { ...d, cm: t.cm, extra } : d); }
     case "inv_find": { const item = b.item === "val:river_pearl" ? "val:river_pearl" : b.item === "val:idol_shard" ? "val:idol_shard" : null; const spot = String(b.spot ?? "");
       if (!item || !/^(jungle_shard_\d{1,2}|lagoon_p(_grotto|\d))$/.test(spot)) return json(400, { error: "bad find" });
       return reply(await rpc("pvp_inv_find", { p_player: pid, p_item: item, p_spot: spot })); }
+    case "inv_musk_rank": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic)$/.exec(item); if (!m) return json(400, { error: "bad item" });
+      const c = RANK_UP[m[1]]; return reply(await rpc("pvp_inv_musk_rank", { p_player: pid, p_item: item, p_gold: c.gold, p_parts: c.parts, p_owner: who.owner })); }
+    case "inv_musk_salvage": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic|legendary)$/.exec(item); if (!m) return json(400, { error: "bad item" });
+      return reply(await rpc("pvp_inv_musk_salvage", { p_player: pid, p_item: item, p_parts: SALVAGE_PARTS[m[1]] })); }
+    case "inv_buy_acc": { const item = String(b.item ?? ""); if (!ACC_PRICE[item]) return json(400, { error: "not for sale" });
+      return reply(await rpc("pvp_inv_buy_acc", { p_player: pid, p_item: item, p_price: ACC_PRICE[item], p_owner: who.owner })); }
     case "inv_equip": { // a weapon from the grid: the server checks you hold it, then records the rarity (gear slot = its base)
       const item = String(b.item ?? ""), info = itemInfo(item); if (!info || info.kind !== "weapon") return json(400, { error: "not a weapon" });
       const { data: have } = await db.from("pvp_inv").select("qty").eq("player_id", pid).eq("item", item).limit(1);

@@ -36,6 +36,7 @@ import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
 import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed, invApi, wishToss } from './pvpSave.js'; // [inventory] + invApi
 import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
+import { muskLevels, setMuskLevels } from './musketUpgrades.js'; // [Emerly musket-upgrades]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
@@ -197,13 +198,13 @@ export function createPvp(K) {
   // [Emerly] ITEM SKILL BOOSTS: what you wear ∩ what the server says you own (owner = everything, still capped)
   function boostSrc() { try { setBoostSource({ gear: { ...(profile.gear || {}) }, owned: profile.gearOwned || [], owner: !!ownerAllSkins() }); } catch (e) { console.warn('[boosts]', e); } }
   addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
-    profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
+    profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned); try { setMuskLevels(muskLevels(d.owned.gear || [], !!d.owner || !!ownerAllSkins())); } catch {} // [Emerly musket-upgrades]
     try { setBoostSource({ owned: d.owned.gear, owner: !!d.owner || !!ownerAllSkins(), server: d.boosts || null }); } catch {} // [Emerly] boosts follow the server's owned list
     if (!d.owner && profile.gear) { for (const [sl, ids] of Object.entries(CREW_SLOTS)) if (profile.gear[sl] && profile.gear[sl] !== ids[0] && !d.owned.gear.includes(`${sl}:${profile.gear[sl]}`) && !d.owned.gear.includes(`${CREW_BASE[sl]}:${profile.gear[sl]}`)) profile.gear[sl] = ids[0];   /* [v6-store-clothes] CREW ROOM: owning the item dresses the crew */ setCrewLoadout(profile.gear); } // [Timothy] crew items: owned or the uniform
     if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
     if (active && !$('pvp-menu')?.classList.contains('hidden')) renderMenu(); });
   let shopBehind = 0;
-  const shopStateNow = async () => { const st = await shopState(snapshot()); if (!st) return null;
+  const shopStateNow = async () => { const st = await shopState(snapshot()); if (!st) return null; try { setMuskLevels(muskLevels(st.owned?.gear || [], !!st.owner)); } catch {} // [Emerly musket-upgrades]
     return { source: 'live', owner: !!st.owner, gold: st.owner ? (game.gold | 0) : (st.gold ?? 0) | 0, behind: Math.max(0, (game.gold | 0) - ((st.gold ?? 0) | 0)) > 0 && !st.owner,
       stats: { ...profile.stats, prestige: profile.prestige | 0, ...(st.stats || {}) }, owned: st.owned, equipped: { skin: skinId(), gear: { ...profile.gear } } }; };
   setShopProvider({
@@ -216,6 +217,9 @@ export function createPvp(K) {
       const st = (await shopStateNow()) || { source: 'live', owner: false, gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } };
       return { ok: !!r.ok, error: r.ok ? null : ({ 'goal not reached': 'reach the goal first', 'not enough gold': 'not enough gold', 'already owned': 'already yours' }[r.error] || r.error || 'shop offline'), state: st };
     },
+    async buyAcc(key) { // [Emerly gunacc] a GUN ACCESSORY: the server takes the gold + puts it in the inventory (inventory.ts inv_buy_acc)
+      const r = await inv.call('inv_buy_acc', { item: key }); // inv.call already moved the gold on this save
+      return { ok: !!r?.ok, error: r?.ok ? null : (r?.error || 'shop offline'), state: (await shopStateNow()) || null }; },
     async hatColor(i) { const g = cleanGear({ ...profile.gear, hatColor: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); // [v105] free
       return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
     async crewCapeColor(i, k = 'crewcapeColor') { const g = cleanGear({ ...profile.gear, [k]: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },   // [v6-store-clothes] free, the crew's own cape colour
@@ -251,7 +255,7 @@ export function createPvp(K) {
   const inv = { async call(action, body = {}) {
       const r = await invApi(action, { ...body, mirror: true }); if (!r || !r.ok) return r || { ok: false, error: 'offline' };
       if (r.owner && (action === 'inv_sell' || action === 'mkt_buy')) { const p = await invApi('inv_pot', { mirror: true }); if (p && p.ok) r.gold_landed = p.gold | 0; }
-      else r.gold_landed = action === 'inv_sell' || action === 'inv_pot' ? (r.gold | 0) : action === 'mkt_buy' ? -(r.price | 0) : 0;
+      else r.gold_landed = action === 'inv_sell' || action === 'inv_pot' ? (r.gold | 0) : action === 'mkt_buy' ? -(r.price | 0) : (action === 'inv_musk_rank' || action === 'inv_buy_acc') && !r.owner ? -(r.price | 0) : 0; // [Emerly musket-rank / gunacc] server took the gold
       if (r.gold_landed) { game.gold = Math.max(0, Math.min(1e7, (game.gold | 0) + r.gold_landed)); save({ now: true, force: true }); K.updateHud(); if (r.gold_landed > 0) sfx.coin?.(); }
       return r; } };
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)

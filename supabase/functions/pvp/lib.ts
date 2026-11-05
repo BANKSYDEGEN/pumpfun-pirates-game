@@ -153,6 +153,10 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 }, "gear:musket:dragoon": { price: 12000 },
   "gear:musket:bone": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
   "gear:musket:blunder_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
+  // [Emerly musket-upgrades] MUSKET UPGRADES (BANKSY 2:52 PM "just add it"): 3 tracks x 3 tiers, = js/musketUpgrades.js MUSK_TRACKS. pvp_owned rows, no migration.
+  "gear:muskupg:reload1": { price: 1000 }, "gear:muskupg:reload2": { price: 3000 }, "gear:muskupg:reload3": { price: 8000 },
+  "gear:muskupg:range1": { price: 1000 }, "gear:muskupg:range2": { price: 3000 }, "gear:muskupg:range3": { price: 8000 },
+  "gear:muskupg:acc1": { price: 1000 }, "gear:muskupg:acc2": { price: 3000 }, "gear:muskupg:acc3": { price: 8000 },
   // [Raul shop items 2] PROPOSED prices (BANKSY OKs them; mirror js/shopCatalog.js). [shop-boosts] they now have BOOSTS entries (below).
   "gear:beard:beard_moustache": { price: 400 }, "gear:beard:beard_forked": { price: 900 }, "gear:beard:beard_black": { price: 2500 }, "gear:ears:earring_hoop": { price: 250 }, "gear:ears:earring_double": { price: 600 }, "gear:ears:earring_skull": { price: 1200 }, "gear:teeth:tooth_gold": { price: 300 }, "gear:teeth:grill_gold": { price: 1500 }, "gear:teeth:grill_diamond": { price: 6000 }, "gear:boots:boots_buckle": { price: 350 }, "gear:boots:boots_cavalier": { price: 1000 }, "gear:boots:boots_gold": { price: 3000 },
   // [V6 store] BANKSY-OK'd prices (Nov 4): Clothing Store pants + shoes (mirror js/shopCatalog.js)

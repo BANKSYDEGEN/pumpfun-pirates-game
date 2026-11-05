@@ -97,7 +97,7 @@ export function createTps({ walker, camera, canvas, touch, world, sfx, attack, a
     if (V?.enabled) { u = (u * V.fullWidth - V.offsetX) / V.width; v = (v * V.fullHeight - V.offsetY) / V.height; } // zoomed: the view is a window of the full frame
     camera.updateMatrixWorld(); _v.set(u * 2 - 1, 1 - v * 2, 0.5).unproject(camera).sub(camera.position).normalize(); return [_v.x, _v.y, _v.z]; }
   let viewSet = false;
-  function zoomView() { const z = 1 + (TPS.zoom - 1) * st.ads;
+  function zoomView() { const z = 1 + (TPS.zoom * ((typeof window !== 'undefined' && window.PFP_GUN_ACC?.scope) ? 1.15 : 1) - 1) * st.ads; // [Emerly gunacc] scope: +15% aim zoom
     if (z < 1.002) { if (viewSet) { camera.clearViewOffset(); viewSet = false; } return; }
     const h = canvas.clientHeight || innerHeight, w = h * camera.aspect, r = canvas.getBoundingClientRect(), a = st.anchor || [r.left + r.width / 2, r.top + r.height / 2];
     const ax = (a[0] - r.left) / r.width * w, ay = (a[1] - r.top) / r.height * h;

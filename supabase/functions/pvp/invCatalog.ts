@@ -76,9 +76,20 @@ export const CHEST_WEAPON = { // per mille a weapon drops, then its tier. common
   legendary: { chance: 500, tiers: { rare: 400, epic: 450, legendary: 150 } },
 };
 export const STACKS = (key) => !key.startsWith('map:');             // maps carry their own spot: one slot each
+// [Emerly musket-rank + gunacc] MUSKET PARTS (rank-up material) + the 4 GUN ACCESSORIES (one per sub-slot of the EQUIPPED musket).
+// Keys fit the existing val: pattern (no CHECK change). Not in VALUABLES on purpose: the Antiques shop never buys them (priceRows unchanged).
+// Boosts are MODEST (PvP): see js/musketUpgrades.js GUN_ACC for the numbers. Prices = the MUSKET SHOP (cheapest first).
+export const GUN_ITEMS = {
+  musket_parts: { kind: 'part', name: 'Musket Parts', icon: '🔩', rarity: 'common' },
+  acc_stock:    { kind: 'gunacc', acc: 'stock', name: 'Padded Stock', icon: '🪵', rarity: 'uncommon', price: 600 },
+  acc_bayonet:  { kind: 'gunacc', acc: 'bayonet', name: 'Bayonet', icon: '🔪', rarity: 'uncommon', price: 800 },
+  acc_horn:     { kind: 'gunacc', acc: 'horn', name: 'Powder Horn', icon: '📯', rarity: 'rare', price: 1000 },
+  acc_scope:    { kind: 'gunacc', acc: 'scope', name: 'Brass Scope', icon: '🔭', rarity: 'rare', price: 1200 },
+};
 export function itemInfo(key) {
   const p = String(key).split(':');
   if (p[0] === 'fish' && FISH[p[1]]) return { kind: 'fish', ...FISH[p[1]], antiques: 0 };
+  if (p[0] === 'val' && GUN_ITEMS[p[1]]) return { ...GUN_ITEMS[p[1]], antiques: 0, fish: 0 }; // [Emerly musket-rank / gunacc] not sold to NPCs
   if (p[0] === 'val' && VALUABLES[p[1]]) return { kind: 'valuable', ...VALUABLES[p[1]], fish: 0 };
   if (p[0] === 'wpn' && WEAPON_BASES[p[1]]?.includes(p[2]) && WEAPON_TIERS.includes(p[3])) return { kind: 'weapon', slot: p[1], base: p[2], rarity: p[3], name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} ${p[1]}`, icon: p[1] === 'sword' ? '🗡️' : '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 };
   if (p[0] === 'dup' && p.length === 4) { const r = RARITIES.includes(p[3]) ? p[3] : 'common'; return { kind: 'dup', slot: p[1], id: p[2], rarity: r, name: `Spare ${p[2].replace(/_/g, ' ')}`, icon: '🎩', antiques: RARITY_ANTIQUES[r], fish: 0 }; }

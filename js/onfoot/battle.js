@@ -36,6 +36,8 @@ import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 import { createTps, TPS_ON } from './tps.js';
 import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hints name the pad buttons while a pad is in use
+import { applyMuskUpg, muskLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
+import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 
 export const ARENA = {
@@ -44,7 +46,8 @@ export const ARENA = {
 };
 const Z_PIT = 1, Z_RANGE = 2;
 // [inventory v209] MY weapon's numbers: ARENA + the equipped rarity (window.PFP_WEAPON_RARITY from the inventory; DB flag weapon_stats via inv_state, else catalog FLAGS). Peers' replays stay on ARENA.
-const myW = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined); };
+const myW = (slot) => { const o = myW0(slot); return slot === 'musket' ? (gunAccOn() ? applyGunAcc : (x) => x)(applyMuskUpg(o, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common')) : o; }; // + [gunacc] // [Emerly musket-upgrades] tiers on top, capped by the musket's rank
+const myW0 = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined); };
 const CSS = `
 #bt-hud{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:8;pointer-events:none;display:none;text-align:center;font:22px 'Just Another Hand',cursive;color:#ffcd77;letter-spacing:.05em}
 #bt-hud b{display:inline-block;background:rgba(22,22,22,.8);border:2px solid #ffcd77;border-radius:999px;padding:2px 16px 0}
@@ -92,6 +95,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const shellSword = shellM(0.016), shellMusket = shellM(0.02);
   const goldM = toon(0xffffff, null, { vertexColors: true, emissive: 0x6b4a00, emissiveIntensity: 0.55, key: 'battle-gold-blade' }); // [Emerly] the LEGENDARY GOLD BLADE glows a little
   const weaponMesh = (geo, shell, m0 = mat) => { const m = new THREE.Mesh(geo, m0); if (!low) { const o = new THREE.Mesh(geo, shell); o.userData.outline = true; m.add(o); } return m; };
+  const LOOKM = new Map(), lookMat = (lk) => { if (!lk) return mat; if (!LOOKM.has(lk.id)) LOOKM.set(lk.id, toon(lk.c, null, { vertexColors: true, emissive: lk.e, emissiveIntensity: lk.ei, key: 'battle-musk-' + lk.id })); return LOOKM.get(lk.id); }; // [Emerly musket-rank]
   const withOutline = (geo, k = 1.06) => { const m = new THREE.Mesh(geo, mat); if (!low) { const o = new THREE.Mesh(geo, outM); o.scale.setScalar(k); o.userData.outline = true; m.add(o); } return m; };
 
   // ---------- [Emerly] MAIN STREET WEAPON SHOPS: SWORD SHOP + MUSKET SHOP (config: js/island/battleAreas.js MAIN_ST_SHOPS) ----------
@@ -274,7 +278,8 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (R.sword) R.sword.visible = wantSword;
     // [Emerly musket-arm] parent the musket to the SCALED body root (v4.root), not pirate-v4: pirate-v4's child p.root carries the
     // height scale, so a gun on fig sat in bind metres while the arms lived in scaled metres → grips out of reach → T-pose sleeves.
-    if (wantMusket && (!R.musket || R.musketId !== musketId)) { R.musket?.removeFromParent(); const m = weaponMesh(musketGeo(musketId), shellMusket); m.scale.setScalar(0.7);
+    const acc = R === mineR ? gunAcc() : {}, accSig = Object.keys(acc).sort().join(','); const lk = R === mineR ? muskLook((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common') : null, lkId = lk?.id || ''; // [Emerly musket-rank / gunacc] your rank tint / GILDED skin + accessories (local look)
+    if (wantMusket && (!R.musket || R.musketId !== musketId || R.musketLook !== lkId + '|' + accSig)) { R.musket?.removeFromParent(); R.musketLook = lkId + '|' + accSig; const m = weaponMesh(musketGeo(musketId), shellMusket, lookMat(lk)); accMeshes(m, acc, musketId); m.scale.setScalar(0.7);
       (MUSKET_ARM_ON && R.v4?.root ? R.v4.root : R.fig).add(m); R.musket = m; R.musketId = musketId; }
     if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil;
       if (MUSKET_ARM_ON && R.bones?.spine) {
@@ -365,9 +370,9 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
     tracer(mz, end); puff(mz.clone().addScaledVector(f, 0.1), 0xffd27a, 0.9, 0.09, new THREE.Vector3(), true);
     for (let i = 0; i < 4; i++) puff(mz.clone().addScaledVector(f, 0.3 + i * 0.25), 0xe8e2d4, 0.55 + i * 0.12, 1.2, new THREE.Vector3(f.x * 0.8, 0.5, f.z * 0.8));
-    sfx?.cannon?.(Math.min(0.35, vol(mz) * 0.35)); R.st.recoil = 1;
+    sfx?.cannon?.(Math.min(0.35, vol(mz) * 0.35)); R.st.recoil = S.recoil ?? 1; // [gunacc] stock = less kick
     if (hit?.kind === 'target') { hit.t.flip = 1.4; hit.t.t = 2.2; if (mine) say(hit.off < 0.18 ? 'BULLSEYE!' : hit.off < 0.42 ? 'NICE SHOT' : 'HIT', 900); spark(end.x, end.y, end.z); }
-    else if (hit?.kind === 'pirate') { addDmg(hit.id, hit.r.ba[2], S.dmg); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - S.dmg); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); }
+    else if (hit?.kind === 'pirate') { const dm = S.dmg + (S.bayonet && best <= S.bayonet.reach ? S.bayonet.dmg : 0); /* [gunacc] bayonet point-blank */ addDmg(hit.id, hit.r.ba[2], dm); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - dm); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); }
     else puff(end, 0xb89a6a, 0.7, 0.6);
     if (mine) tps?.onShot(hit); // [Timothy tps] hit marker + sound, recoil kick, bloom
   }

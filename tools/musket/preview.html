@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- [Emerly musket-upgrades] dev-only shot page: ?view=gun | inv | shop (mock data, nothing is spent). Not linked from the game. -->
+<title>musket upgrades preview</title>
+<script type="importmap">{"imports":{"three":"../../vendor/three-0.165.0/build/three.module.min.js"}}</script>
+<style>body{margin:0;background:#1a120a;color:#f4e2bb;font-family:system-ui}#c{width:100vw;height:100vh;display:block}.lb{position:fixed;font:bold 15px system-ui;color:#ffcd77;text-shadow:0 1px 2px #000}</style>
+</head><body>
+<script type="module">
+const P = new URLSearchParams(location.search), view = P.get('view') || 'gun';
+window.SHOT_READY = false;
+if (view === 'gun') {
+  const THREE = await import('three'); const { musketGeo, loadWeaponModels } = await import('../../js/onfoot/swords.js'); const { toon } = await import('../../js/toon.js');
+  const { RANK_LOOK, GILDED_LOOK } = await import('../../js/musketUpgrades.js'); const { accMeshes } = await import('../../js/onfoot/gunAccMesh.js');
+  await loadWeaponModels(false).catch(() => {});
+  const c = document.createElement('canvas'); c.id = 'c'; document.body.appendChild(c);
+  const r = new THREE.WebGLRenderer({ canvas: c, antialias: true }); r.setPixelRatio(devicePixelRatio); r.setSize(innerWidth, innerHeight);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(0x2a1a0c); sc.add(new THREE.HemisphereLight(0xffffff, 0x553311, 1.6)); const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(2, 4, 3); sc.add(dl);
+  const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.01, 50);
+  const id = P.get('id') || 'navy';
+  const rows = (P.get('rows') || 'common,rare,epic,legendary,gilded').split(',');
+  const all = { scope: 1, bayonet: 1, stock: 1, horn: 1 };
+  rows.forEach((k, i) => { const lk = k === 'gilded' ? GILDED_LOOK : RANK_LOOK[k];
+    const mat = lk ? toon(lk.c, null, { vertexColors: true, emissive: lk.e, emissiveIntensity: lk.ei, key: 'pv-' + k }) : toon(0xffffff, null, { vertexColors: true, key: 'pv-base' });
+    const m = new THREE.Mesh(musketGeo(id), mat); if (k === 'gilded' || P.get('acc') === 'all') accMeshes(m, all, id);
+    m.rotation.y = Math.PI / 2; m.position.set(-0.7, (rows.length - 1) / 2 * 0.32 - i * 0.32, 0); sc.add(m);
+    const l = document.createElement('div'); l.className = 'lb'; l.textContent = k === 'gilded' ? 'MAXED · GILDED SKIN + SCOPE · BAYONET · STOCK · HORN' : k.toUpperCase() + ' RANK'; document.body.appendChild(l); l.dataset.i = i; });
+  cam.position.set(0, 0, rows.length * 0.42 + 0.9); cam.lookAt(0, 0, 0); r.render(sc, cam);
+  document.querySelectorAll('.lb').forEach(l => { const v = new THREE.Vector3(-0.72, (rows.length - 1) / 2 * 0.32 - (+l.dataset.i) * 0.32 + 0.09, 0).project(cam); l.style.left = ((v.x + 1) / 2 * innerWidth) + 'px'; l.style.top = ((1 - v.y) / 2 * innerHeight) + 'px'; });
+  setTimeout(() => { r.render(sc, cam); window.SHOT_READY = true; }, 400);
+} else if (view === 'inv') {
+  const { createInventory } = await import('../../js/inventory/ui.js'); const { setGunAcc } = await import('../../js/musketUpgrades.js');
+  if (P.get('acc') !== '0') { localStorage.removeItem('pfp_gunacc_v1:banksydegen'); }
+  if (P.get('fit')) for (const a of P.get('fit').split(',')) setGunAcc('banksydegen', a.replace('acc_', '').replace('horn', 'horn'), 'val:' + a);
+  if (P.get('oldlayout')) localStorage.setItem('pfp_inv_slots_v1:banksydegen', JSON.stringify([{ k: 'wpn:sword:cutlass:rare', n: 2 }, { k: 'fish:perch', n: 3 }, { k: 'wpn:musket:navy:epic', n: 2 }]));
+  const items = [['wpn:sword:cutlass:rare', 2], ['wpn:sword:rapier:common', 1], ['wpn:musket:navy:epic', 2], ['wpn:musket:dragoon:common', 1], ['fish:perch', 3], ['val:ruby', 1], ['val:musket_parts', 7], ['val:acc_scope', 1], ['val:acc_bayonet', 1], ['val:acc_stock', 1], ['val:acc_horn', 1]].map(([item, qty]) => ({ item, qty, tradeable: qty }));
+  const eq = P.get('eq') === 'none' ? {} : JSON.parse(P.get('eq') || '{"sword":"wpn:sword:cutlass:rare","musket":"wpn:musket:navy:epic"}');
+  const calls = []; window.CALLS = calls;
+  const fake = { name: 'BANKSYDEGEN', inv: { call: async (a, b) => { calls.push([a, b]); if (a === 'inv_state') return { ok: true, items, maps: [], equipped: eq, flags: { gift: true, market: true, musket_rank: true }, owner: false };
+    if (a === 'inv_equip') { const p = b.item.split(':'); eq[p[1]] = b.item; return { ok: true, slot: p[1], base: p[2], rarity: p[3] }; } if (a === 'inv_unequip') { delete eq[b.slot]; return { ok: true, slot: b.slot }; } return { ok: true }; } } };
+  const toasts = []; window.TOASTS = toasts;
+  const inv = createInventory({ pvp: () => fake, toast: (t) => toasts.push(t) }); window.INV = inv; inv.open('bag'); await inv.refresh();
+  window.SHOT_READY = true;
+} else {
+  const S = await import('../../js/islandShop.js'); const { MUSK_SHOP_ITEMS } = await import('../../js/musketUpgrades.js');
+  const lvl = P.get('owned') || ''; const gear = ['hat:none', 'outfit:shirtless', ...lvl.split(',').filter(Boolean).map(k => 'muskupg:' + k)];
+  const mp = S.mockProvider({ gold: 12500, owner: P.get('owner') === '1', owned: { skins: ['classic'], gear } });
+  S.setShopProvider({ ...mp, buy: async (kind, id) => { mp.state.owned.gear.push(id); return { ok: true, state: JSON.parse(JSON.stringify(mp.state)) }; }, buyAcc: async () => ({ ok: true, state: JSON.parse(JSON.stringify(mp.state)) }) });
+  await S.openShop({ vendor: 'weapons', tab: P.get('tab') || 'muskupg', slot: 'musket', title: 'MUSKET SHOP' });
+  if (P.get('sel')) document.querySelector(`.ishop-card[data-id="${P.get('sel')}"]`)?.click();
+  window.SHOT_READY = true;
+}
+</script></body></html>

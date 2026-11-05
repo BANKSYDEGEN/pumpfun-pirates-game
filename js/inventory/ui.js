@@ -3,6 +3,7 @@
 // weapon), GIVE (a player + a quantity), and at a plaza shop SELL (Fish Stand / Antiques) or LIST (Marketplace). The server does every
 // move (migration 036); this only shows what it says. Used items leave the grid (a dug / sold / given map, a sold fish...).
 import { itemInfo, RARITY_COLOR, FLAGS, MARKET } from './catalog.js';
+import { wstackOn, muskRankOn, RANK_UP, RANKS, SALVAGE_PARTS, PARTS_KEY, RANK_CAP, GUN_ACC, gunAccOn, loadGunAcc, setGunAcc, gunAcc, pruneGunAcc } from '../musketUpgrades.js'; // [Emerly wstack / eqslots / musket-rank / gunacc]
 import { createGivePick } from './givePick.js'; // [give-dropdown] GIVE: pick an online pirate (or type a name), then confirm
 // [item-icons] real pictures for every item (assets/items/*.webp, 256 px, lazy); a spare cosmetic uses its baked shop render. The emoji stays as the fallback.
 const IMG_DIR = new URL('../../assets/items/', import.meta.url).href, THUMB_DIR = new URL('../../assets/pirates/thumbs/', import.meta.url).href;
@@ -42,6 +43,7 @@ const CSS = `
 #inv-panel .iv-slot b{position:absolute;right:4px;bottom:2px;font:bold 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #inv-panel .iv-slot em{position:absolute;left:4px;top:2px;font:bold 12px system-ui,sans-serif;font-style:normal;color:#ffcd3c}
 #inv-panel .iv-eq{position:absolute;top:2px;left:4px;font-style:normal;font-size:14px;color:#1b1206;background:#7be37b;border-radius:8px;padding:0 4px;z-index:1}
+#inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:84px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-rk{position:absolute;right:4px;top:2px;font:bold 10px system-ui,sans-serif;color:#1b1206;border-radius:6px;padding:0 3px}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
 #inv-panel .iv-act{border-top:2px solid rgba(255,205,119,.35);padding:8px 14px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:21px;min-height:56px}
 #inv-panel .iv-act .t{flex:1 1 100%;font-size:22px}
@@ -78,6 +80,22 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   // Selling / giving / equipping still go through the same server calls with the item key. HOTBAR hook: invSlots() / onSlotsChange().
   const ORDER_V = 'pfp_inv_slots_v1:', MIN_SLOTS = 20; let order = null, orderFor = '', moveFrom = -1, moveAmt = 0, dragged = false, splitAsk = false, splitTo = -1;
   const _slotFns = [];
+  // [Emerly wstack] BANKSY 2:53 PM "make it so weapons can't stack in inventory": every sword / musket = its own slot (n 1). An old saved layout
+  // with 'wpn:...' n>1 is split here into single slots (free slots first, else new slots at the end): only the VIEW changes, the server's
+  // counts are the same, so nothing is ever lost. Non-weapons stack as before. &wstack=0 = the old stacking.
+  const Q = typeof location === 'undefined' ? '' : location.search, WSTACK = wstackOn(Q), isW = (k) => typeof k === 'string' && k.startsWith('wpn:');
+  const single = (k) => WSTACK && isW(k);
+  // [Emerly eqslots] BANKSY 2:58 PM: the equipped sword + musket sit in their own EQUIPPED slots above the bag (drag out = unequip into that
+  // bag slot, drag a matching weapon in = equip / swap, tap-then-tap on phone + pad). One copy of the equipped key leaves the bag view.
+  // The EQUIPPED sword = the Sword Pit primary (same inv_equip / carry path as before). &eqslots=0 = the old ✓ badge in the bag.
+  const EQS = !/[?&]eqslots=0(&|$)/.test(Q), ACC_ON = EQS && gunAccOn(Q), RANK_ON = muskRankOn(Q);
+  const eqKey = (slot) => { const k = data.equipped?.[slot]; return k && slots().some(s => s.key === k) ? k : null; };
+  let selE = '', accFor = ''; // the picked EQUIPPED slot ('sword' / 'musket' / 'acc:<sub>')
+  const accWho = () => { const w = who(); if (accFor !== w) { accFor = w; loadGunAcc(w); } return w; };
+  const RK_BG = { rare: '#4fa8ff', epic: '#c070ff', legendary: '#ffcd3c' };
+  const rk = (info) => RANK_ON && info?.kind === 'weapon' && info.slot === 'musket' && RK_BG[info.rarity] ? `<i class="iv-rk" style="background:${RK_BG[info.rarity]}">${info.rarity[0].toUpperCase()}</i>` : '';
+  const qtyOf = (k) => slots().find(x => x.key === k)?.qty | 0;
+  const freeBag = () => (order || []).findIndex(e => !e);
   const who = () => String(pvp()?.name || 'me').toLowerCase();
   const loadOrder = () => { const w = who(); if (order && orderFor === w) return order; orderFor = w;
     try { const v = JSON.parse(localStorage.getItem(ORDER_V + w) || '[]'); order = Array.isArray(v) ? v.map(e => e && typeof e.k === 'string' ? { k: e.k, n: Math.max(1, e.n | 0) } : null) : []; } catch { order = []; } return order; };
@@ -85,15 +103,19 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   let view = []; // the last layout: slot index -> { s (slot item), n (qty shown in this slot) } | null
   function layout(list) { // the server's totals spread over the saved slots; leftovers go to that item's first slot, else the first empty one
     const o = loadOrder(), by = new Map(list.map(x => [x.key, x])), left = new Map(list.map(x => [x.key, x.qty]));
-    const out = o.map(e => { if (!e || !by.has(e.k)) return null; const r = left.get(e.k), n = Math.min(e.n, r); if (n <= 0) return null; left.set(e.k, r - n); return { s: by.get(e.k), n }; });
-    for (const x of list) { let r = left.get(x.key); if (r <= 0) continue; const f = out.findIndex(v => v && v.s.key === x.key); if (f >= 0) out[f].n += r; else { const e = out.indexOf(null); if (e >= 0) out[e] = { s: x, n: r }; else out.push({ s: x, n: r }); } }
+    if (EQS) for (const sl of ['sword', 'musket']) { const k = eqKey(sl); if (k && left.has(k)) left.set(k, left.get(k) - 1); } // [eqslots] it sits in EQUIPPED
+    if (ACC_ON) { accWho(); for (const k of Object.values(gunAcc())) if (left.has(k)) left.set(k, left.get(k) - 1); } // [gunacc] fitted on the musket
+    const out = o.map(e => { if (!e || !by.has(e.k)) return null; const r = left.get(e.k), n = Math.min(single(e.k) ? 1 : e.n, r); if (n <= 0) return null; left.set(e.k, r - n); return { s: by.get(e.k), n }; });
+    for (const x of list) { let r = left.get(x.key); if (r <= 0) continue;
+      if (single(x.key)) { for (; r > 0; r--) { const e = out.indexOf(null); if (e >= 0) out[e] = { s: x, n: 1 }; else out.push({ s: x, n: 1 }); } continue; } // [wstack] one slot each
+      const f = out.findIndex(v => v && v.s.key === x.key); if (f >= 0) out[f].n += r; else { const e = out.indexOf(null); if (e >= 0) out[e] = { s: x, n: r }; else out.push({ s: x, n: r }); } }
     const n = Math.max(MIN_SLOTS, Math.ceil((out.filter(Boolean).length + 5) / 5) * 5, out.length); while (out.length < n) out.push(null);
     order = out.map(v => v ? { k: v.s.key, n: v.n } : null); view = out; return out;
   }
   // from slot a to slot b: empty = move (amt = split part), same item = stack, other item = swap (whole stacks only)
   function moveSlot(a, b, amt = 0) { if (a === b || !order?.[a]) return false; while (order.length <= b) order.push(null); const A = order[a], B = order[b], part = amt > 0 && amt < A.n ? amt : A.n;
     if (!B) { order[b] = { k: A.k, n: part }; if (part < A.n) A.n -= part; else order[a] = null; }
-    else if (B.k === A.k) { B.n += part; if (part < A.n) A.n -= part; else order[a] = null; }
+    else if (B.k === A.k && !single(A.k)) { B.n += part; if (part < A.n) A.n -= part; else order[a] = null; }
     else { if (part < A.n) return false; order[a] = B; order[b] = A; }
     saveOrder(); return true; }
   const shopTakes = (s) => mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' : true;
@@ -103,7 +125,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w;
     if (!restored && r.ok) { restored = true; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i?.base && (slot === 'sword' || slot === 'musket')) carry(slot, i.base, pvp()); } } } // [rare-equip] after a reload your found weapon is back in hand / on your back, not only its stats
   let restored = false;
-  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
+  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); if (ACC_ON) pruneGunAcc(accWho(), (k) => qtyOf(k) > 0); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
   function render() {
     const title = { bag: 'INVENTORY', fish: 'FISH MARKET', antiques: 'TREASURE TRADER', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
     $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
@@ -119,10 +141,19 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       if (mode === 'bag' && list.length) { el.classList.toggle('iv-moving', moveFrom >= 0); // [inv-arrange]
-        g.innerHTML = layout(list).map((v, i) => { const s = v?.s; return `<div class="iv-slot${s ? '' : ' iv-open'}${s && sel === s.key && selI === i ? ' sel' : ''}${moveFrom === i ? ' iv-from' : ''}"${s ? ` data-k="${s.key}"` : ''} data-i="${i}" style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${i + 1}</u>${s ? `${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${v.n > 1 ? '×' + v.n : ''}</b>` : ''}</div>`; }).join('');
+        const eqCell = (sl) => { const k = eqKey(sl), s = k && slots().find(x => x.key === k);
+          return `<div class="iv-slot iv-eqslot${s ? '' : ' iv-open'}${selE === sl ? ' sel' : ''}" data-e="${sl}"${s ? ` data-k="${k}"` : ''} style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${sl.toUpperCase()}</u>${s ? `${rk(s.info)}${icoHtml(k, s.info)}<span>${shortName(s.info)}</span>` : `<i>${sl === 'sword' ? '🗡️' : '🔫'}</i><span>store ${sl}</span>`}</div>`; };
+        const accCell = (a) => { const k = gunAcc()[a.slot], i = k && itemInfo(k);
+          return `<div class="iv-slot iv-eqslot iv-acc${i ? '' : ' iv-open'}${selE === 'acc:' + a.slot ? ' sel' : ''}" data-acc="${a.slot}"${i ? ` data-k="${k}"` : ''} title="${a.label}: ${a.fx}"><u>${a.label}</u>${i ? `<i>${i.icon}</i>` : '<i style="opacity:.35">＋</i>'}</div>`; };
+        const eqRow = EQS ? `<div class="iv-eqs"><small>EQUIPPED · drag in to equip, out to unequip</small>${eqCell('sword')}${eqCell('musket')}${ACC_ON ? `<div class="iv-accs">${GUN_ACC.map(accCell).join('')}</div>` : ''}</div>` : '';
+        g.innerHTML = eqRow + layout(list).map((v, i) => { const s = v?.s; return `<div class="iv-slot${s ? '' : ' iv-open'}${s && sel === s.key && selI === i ? ' sel' : ''}${moveFrom === i ? ' iv-from' : ''}"${s ? ` data-k="${s.key}"` : ''} data-i="${i}" style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${i + 1}</u>${s ? `${!EQS && s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${rk(s.info)}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${v.n > 1 ? '×' + v.n : ''}</b>` : ''}</div>`; }).join('');
         g.querySelectorAll('[data-i]').forEach(d => d.onclick = () => { if (dragged) { dragged = false; return; } const i = +d.dataset.i;
+          if (moveFrom === -2) { moveFrom = -1; const src = selE; selE = ''; dropOn({ e: src }, { i }); return; } // [eqslots] EQUIPPED -> this bag slot
           if (moveFrom >= 0) { const ok = moveSlot(moveFrom, i, moveAmt); if (!ok && order[i]) toast('SPLIT INTO AN EMPTY SLOT<br><small>or onto the same item</small>', 1800); moveFrom = -1; moveAmt = 0; if (ok) { sel = order[i]?.k || null; selI = i; } render(); return; }
-          if (d.dataset.k) { sel = d.dataset.k; selI = i; render(); } });
+          if (d.dataset.k) { sel = d.dataset.k; selI = i; selE = ''; render(); } });
+        g.querySelectorAll('[data-e],[data-acc]').forEach(d => d.onclick = () => { if (dragged) { dragged = false; return; } const tg = d.dataset.e ? { e: d.dataset.e } : { e: 'acc:' + d.dataset.acc };
+          if (moveFrom >= 0) { const from = moveFrom; moveFrom = -1; moveAmt = 0; dropOn({ i: from }, tg); return; } // tap-then-tap: bag item -> this EQUIPPED slot
+          if (d.dataset.k) { sel = d.dataset.k; selI = -2; selE = tg.e; render(); } });
         g.oncontextmenu = (e) => { const d = e.target.closest?.('[data-k][data-i]'); if (!d) return; e.preventDefault(); itemMenu(+d.dataset.i, e.clientX, e.clientY); };
         dragSetup(g);
       } else { el.classList.remove('iv-moving'); g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); }); }
@@ -135,19 +166,29 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       a.innerHTML = `<div class="t">${i.name}${l.qty > 1 ? ' ×' + l.qty : ''} · <b>${l.price.toLocaleString()} gold</b> · from ${l.seller}</div>` + (l.mine ? '<button data-a="cancel">TAKE BACK</button>' : `<button data-a="buy"${data.flags.market ? '' : ' disabled'}>BUY</button>`);
       bind(a, { buy: () => run('mkt_buy', { listing: l.id }, `BOUGHT ${i.name}`), cancel: () => run('mkt_cancel', { listing: l.id }, 'BACK IN YOUR INVENTORY') }); return; }
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
+    if (mode === 'bag' && EQS && selI === -2 && selE) { // [eqslots] an EQUIPPED slot is picked: move it out (tap a bag slot) or unequip to the first free one
+      a.innerHTML = `<div class="t">${s.info.name} <small>· equipped ${selE.startsWith('acc:') ? 'on your musket' : selE}</small></div><button data-a="eqout">MOVE TO BAG ⇄</button><button data-a="equnq">UNEQUIP</button>`;
+      bind(a, { eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); } }); return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
     let h = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity}${locked ? ' · bought with gold: keep it, it can\'t be resold' : ''}</small></div>`;
     const slotN = mode === 'bag' && selI >= 0 && view[selI]?.s?.key === s.key ? view[selI].n : s.qty; // [inv-arrange] this slot's part of the stack
     if (mode === 'bag' && moveFrom >= 0) { a.innerHTML = `<div class="t">${moveAmt ? `SPLITTING ${moveAmt} × ` : 'MOVING '}${s.info.name} · tap ${moveAmt ? 'an empty slot (or the same item)' : 'a slot: empty = move, item = swap, same item = stack'}</div><button data-a="cancelmove">CANCEL</button>`; bind(a, { cancelmove: () => { moveFrom = -1; moveAmt = 0; render(); } }); return; }
     if (mode === 'bag' && splitAsk) { a.innerHTML = `<div class="t">SPLIT ${s.info.name} · how many of ${slotN}?</div><input class="sp" type="number" min="1" max="${slotN - 1}" value="${Math.max(1, slotN >> 1)}" aria-label="split amount"><button data-a="splitgo">SPLIT · PICK A SLOT</button><button data-a="cancelmove">CANCEL</button>`;
       bind(a, { splitgo: () => { const k = Math.max(1, Math.min(slotN - 1, +(a.querySelector('.sp').value || 1) | 0)); splitAsk = false; if (splitTo >= 0) { moveSlot(selI, splitTo, k); splitTo = -1; render(); return; } moveFrom = selI; moveAmt = k; render(); }, cancelmove: () => { splitAsk = false; splitTo = -1; render(); } }); a.querySelector('.sp')?.focus(); return; }
-    if (mode === 'bag') { h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 ? '<button data-a="split">SPLIT</button>' : ''}`; if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
+    if (mode === 'bag') { h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 && !single(s.key) ? '<button data-a="split">SPLIT</button>' : ''}`;
+      if (ACC_ON && s.info.kind === 'gunacc') h += `<button data-a="fit">FIT ${GUN_ACC.find(x => x.slot === s.info.acc)?.label || ''} ON MUSKET</button><small style="flex:1 1 100%;font-size:16px;color:#cdb68c">${GUN_ACC.find(x => x.slot === s.info.acc)?.fx || ''}</small>`;
+      if (RANK_ON && s.info.kind === 'weapon' && s.info.slot === 'musket') { const up = RANK_UP[s.info.rarity], nx = RANKS[RANKS.indexOf(s.info.rarity) + 1], parts = qtyOf(PARTS_KEY), own = !!data.owner;
+        h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${up.gold.toLocaleString()}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
+        h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button><small style="flex:1 1 100%;font-size:16px;color:#cdb68c">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; } if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
       h += `${n}<button data-a="give"${locked || !data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [give-dropdown] was a typed name box (typing stays, in the picker's search)
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
     bind(a, { move: () => { moveFrom = selI >= 0 && order?.[selI]?.k === s.key ? selI : (order || []).findIndex(e => e?.k === s.key); moveAmt = 0; render(); }, // [inv-arrange] tap-then-tap (phones, controller A)
       split: () => { splitAsk = true; splitTo = -1; render(); },
+      fit: () => dropOn({ i: selI }, { e: 'acc:' + s.info.acc }), // [gunacc] tap-to-equip (phone / pad)
+      rank: () => run('inv_musk_rank', { item: s.key }, (r) => `RANKED UP · ${String(r.item || '').split(':')[3]?.toUpperCase() || ''} MUSKET`), // [musket-rank] server: gold + parts -> the next rarity (this one copy)
+      salvage: () => run('inv_musk_salvage', { item: s.key }, (r) => `SALVAGED · +${r.parts | 0} MUSKET PARTS`),
       open: () => { close(); treasure?.openMap?.(s.map.id); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
       unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
@@ -156,6 +197,22 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
       list: () => run('mkt_list', { item: s.key, qty: q(), price: +(a.querySelector('.pr').value || 0) | 0 }, 'LISTED ON THE MARKETPLACE') });
   }
+  // [eqslots + gunacc] one place for every EQUIPPED move. src/tgt: { i } bag slot | { e: 'sword' | 'musket' | 'acc:<sub>' }
+  function dropOn(src, tgt) {
+    const fromBag = src.i != null && src.i >= 0, k = fromBag ? order?.[src.i]?.k : (src.e?.startsWith('acc:') ? gunAcc()[src.e.slice(4)] : eqKey(src.e)), info = k && itemInfo(k);
+    if (!info) { render(); return; }
+    if (fromBag && tgt.e) { // bag -> an EQUIPPED slot: only the matching type
+      if (tgt.e.startsWith('acc:')) { const sub = tgt.e.slice(4); if (info.kind !== 'gunacc' || info.acc !== sub) { toast(`ONLY A ${(GUN_ACC.find(x => x.slot === sub)?.label || 'MATCHING PART')} FITS THERE`, 1600); render(); return; }
+        setGunAcc(accWho(), sub, k); order[src.i] = null; saveOrder(); sel = null; selI = -1; toast(`${info.name.toUpperCase()} FITTED`, 1400); render(); return; } // the old one (if any) shows back in the bag
+      if (info.kind !== 'weapon' || info.slot !== tgt.e) { toast(`ONLY A ${tgt.e.toUpperCase()} FITS THERE`, 1600); render(); return; }
+      const old = eqKey(tgt.e); order[src.i] = old ? { k: old, n: 1 } : null; saveOrder(); // the old one swaps into the dragged-from slot
+      sel = k; selI = -1; run('inv_equip', { item: k }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + info.name; }); return; }
+    if (!fromBag && tgt.i != null) { // EQUIPPED -> the bag: needs a free bag slot
+      const i = tgt.i >= 0 && !order?.[tgt.i] ? tgt.i : freeBag(); if (i < 0) { toast('BAG FULL<br><small>free a slot first</small>', 1800); render(); return; }
+      order[i] = { k, n: 1 }; saveOrder();
+      if (src.e.startsWith('acc:')) { setGunAcc(accWho(), src.e.slice(4), null); render(); return; }
+      run('inv_unequip', { slot: src.e }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }); return; }
+    render(); }
   const bind = (a, fns) => a.querySelectorAll('[data-a]').forEach(b => b.onclick = () => fns[b.dataset.a]?.());
   const WHY = { 'shop closed': 'THE SHOP ISN\'T BUYING YET', 'not enough': 'YOU DON\'T HAVE THAT MANY', 'slow down': 'SLOW DOWN A MOMENT', 'not to yourself': 'YOU CAN\'T GIVE YOURSELF THINGS', 'no such pirate': 'NO PIRATE BY THAT NAME',
     'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${MARKET.maxPrice.toLocaleString()} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
@@ -167,24 +224,26 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   // a touch hold released without moving = the item menu (the phone's right-click)
   let dr = null, menu = null;
   function dragSetup(g) { if (g._dragOn) return; g._dragOn = true;
-    g.addEventListener('pointerdown', (e) => { const d = e.target.closest?.('[data-k][data-i]'); if (!d || mode !== 'bag' || moveFrom >= 0 || e.button > 0) return; menuClose();
-      dr = { id: e.pointerId, d, i: +d.dataset.i, x: e.clientX, y: e.clientY, on: false, held: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse', t: 0, over: null };
+    g.addEventListener('pointerdown', (e) => { const d = e.target.closest?.('[data-k][data-i], [data-k][data-e], [data-k][data-acc]'); if (!d || mode !== 'bag' || moveFrom >= 0 || e.button > 0) return; menuClose();
+      dr = { id: e.pointerId, d, i: d.dataset.i != null ? +d.dataset.i : -2, e: d.dataset.e || (d.dataset.acc ? 'acc:' + d.dataset.acc : ''), x: e.clientX, y: e.clientY, on: false, held: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse', t: 0, over: null };
       if (dr.touch) dr.t = setTimeout(() => { if (dr) { dr.held = true; d.classList.add('iv-over'); navigator.vibrate?.(15); } }, 300); });
     addEventListener('pointermove', (e) => { if (!dr || e.pointerId !== dr.id) return; const m = Math.hypot(e.clientX - dr.x, e.clientY - dr.y);
       if (!dr.on) { if (dr.touch && !dr.held) { if (m > 10) cancel(); return; } if (m < (dr.touch ? 12 : 6)) return; dr.d.classList.remove('iv-over'); start(e.clientX, e.clientY); }
       move(e.clientX, e.clientY); });
     addEventListener('pointerup', (e) => { if (!dr || e.pointerId !== dr.id) return;
-      if (dr.on) { const to = dr.over ? +dr.over.dataset.i : -1, from = dr.i, sh = dr.shift; dragged = true; setTimeout(() => { dragged = false; }, 0); cancel();
+      if (dr.on) { const ov = dr.over, to = ov?.dataset.i != null ? +ov.dataset.i : -1, from = dr.i, sh = dr.shift, srcE = dr.e, tgE = ov?.dataset.e || (ov?.dataset.acc ? 'acc:' + ov.dataset.acc : ''); dragged = true; setTimeout(() => { dragged = false; }, 0); cancel();
+        if (srcE || tgE) { if (srcE && to >= 0) dropOn({ e: srcE }, { i: to }); else if (!srcE && tgE) dropOn({ i: from }, { e: tgE }); else render(); return; } // [eqslots]
         if (to >= 0 && to !== from) { if (sh && (order[from]?.n || 0) > 1 && (!order[to] || order[to].k === order[from].k)) { sel = order[from].k; selI = from; splitAsk = true; splitTo = to; } // SHIFT-drag: ask how many
           else if (moveSlot(from, to)) { sel = order[to]?.k || null; selI = to; } }
         render(); }
+      else if (dr.held && dr.e) { cancel(); } // [eqslots] a hold on an EQUIPPED slot = nothing (tap picks it)
       else if (dr.held) { const i = dr.i, x = e.clientX, y = e.clientY; dragged = true; setTimeout(() => { dragged = false; }, 0); cancel(); itemMenu(i, x, y); }
       else cancel(); });
     addEventListener('pointercancel', (e) => { if (dr && e.pointerId === dr.id) { cancel(); render(); } });
     g.addEventListener('touchmove', (e) => { if (dr?.held || dr?.on) e.preventDefault(); }, { passive: false }); // no grid scroll while holding / dragging
   }
   function start(x, y) { dr.on = true; const gh = dr.d.cloneNode(true); gh.classList.add('iv-ghost'); gh.classList.remove('sel', 'iv-over'); document.body.appendChild(gh); dr.gh = gh; dr.d.classList.add('iv-from'); move(x, y); }
-  function move(x, y) { dr.gh.style.left = x + 'px'; dr.gh.style.top = y + 'px'; const t = document.elementFromPoint(x, y)?.closest?.('#inv-panel [data-i]') || null;
+  function move(x, y) { dr.gh.style.left = x + 'px'; dr.gh.style.top = y + 'px'; const t = document.elementFromPoint(x, y)?.closest?.('#inv-panel [data-i], #inv-panel [data-e], #inv-panel [data-acc]') || null;
     if (t !== dr.over) { dr.over?.classList.remove('iv-over'); dr.over = t; t?.classList.add('iv-over'); } }
   function cancel() { if (!dr) return; clearTimeout(dr.t); dr.gh?.remove(); dr.over?.classList.remove('iv-over'); dr.d.classList.remove('iv-from', 'iv-over'); dr = null; }
   // the item menu: the same buttons the action bar already has for this item (no new actions)

@@ -7,7 +7,7 @@ import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAP
   OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
-import { inventoryAction, INV_ACTIONS } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
+import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -602,7 +602,8 @@ Deno.serve(async (req) => {
           const { data: iv, error: ie } = await db.rpc("pvp_map_dig_inv", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder, p_items: items, p_cosmetic: drop?.item ?? null, p_crew: !!drop?.crew, p_dup: dupItem(drop) });
           if (!ie) { if (!iv?.ok) return json(409, { error: iv?.why || "no treasure" });
             const loot = drop && iv.item ? { item: String(iv.item).slice(5), crew: !!iv.crew, dup: !!iv.dup, dup_gold: 0, dup_item: iv.dup_item ?? null, price: drop.price } : null;
-            return json(200, { ok: true, gold: 0, dig_gold: 0, tier: iv.tier, holder, owner: who.owner, items: iv.items || [], loot }); }
+            const gun = await gunDropRpc(db, who.pid, "m:" + id, (mr.tier === "rare" || mr.tier === "legendary") ? mr.tier : "common"); // [Emerly musket-rank] parts + accessories (042; off = none)
+            return json(200, { ok: true, gold: 0, dig_gold: 0, tier: iv.tier, holder, owner: who.owner, items: [...(iv.items || []), ...gun], loot }); }
           if (!/pvp_map_dig_inv|PGRST202|42883/.test(`${ie.code} ${ie.message}`)) throw ie; } // 036 not run yet -> the 035 / 026 dig below, as before
         // [Raul items redo 2] PET SELL BONUS (PROPOSED): a spare item is SOLD for CHEST_DUP_SHARE of its price; the worn pet adds its % (server gear + ownership)
         const sell = drop ? ((await boostsOf(who, b)).sell || 0) : 0;

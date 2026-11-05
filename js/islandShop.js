@@ -16,6 +16,8 @@ import { getLocalGear, setLocalGear, CAPE_SWATCHES } from './pirateGear.js';
 import { openGearColorPicker } from './gearColorPicker.js';
 import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
 
+import { MUSK_TRACKS, MUSK_SKIN, muskKey, muskLevels, setMuskLevels, muskUpgOn, gunAccOn, GUN_ACC, RANK_CAP } from './musketUpgrades.js'; // [Emerly musket-upgrades + gunacc]
+import { GUN_ITEMS } from './inventory/catalog.js';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const shopFlag = () => !ON_PORTAL; // [v102] live everywhere except the crypto-free portal builds (itch.io / Newgrounds)
@@ -172,8 +174,8 @@ function render() {
   $('.ishop-title b', root).textContent = view.title || V.name; $('.ishop-title small', root).textContent = V.sub;
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
-  const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
-  const tabName = (t) => t === 'wardrobe' ? 'CHANGING ROOM' : t === 'gear' && V.tabs.includes('wardrobe') ? (V.crew ? 'BUY CREW GEAR' : 'BUY GEAR') : t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : t === 'shoes' ? 'SHOES & PANTS' : 'PIRATE GEAR';   // [V6 store] SHOES & PANTS tab (V.shoeSlots)
+  const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList0 = upg ? [...V.tabs, 'upgrades'] : V.tabs, tabList = V.weapons && (muskUpgOn() || gunAccOn()) ? [...tabList0, 'muskupg'] : tabList0; // [Emerly musket-upgrades] + MUSKET UPGRADES tab
+  const tabName = (t) => t === 'muskupg' ? 'MUSKET UPGRADES' : t === 'wardrobe' ? 'CHANGING ROOM' : t === 'gear' && V.tabs.includes('wardrobe') ? (V.crew ? 'BUY CREW GEAR' : 'BUY GEAR') : t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : t === 'shoes' ? 'SHOES & PANTS' : 'PIRATE GEAR';   // [V6 store] SHOES & PANTS tab (V.shoeSlots)
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; try { localStorage.setItem('pfp_shop_tab_' + view.vendor, view.tab); } catch {} if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; const ss = tabSlots(V, view.tab); if (ss.length && !ss.includes(view.slot)) view.slot = ss[0]; view.sel = null; render(); });
@@ -184,6 +186,7 @@ function render() {
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
   boostBar(V);
+  if (view.tab === 'muskupg') return renderMuskUpg(); // [Emerly musket-upgrades]
   const items = view.tab === 'wardrobe' && !V.dress ? itemsFor().filter(x => statusOf(x).owned) : itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
   const grid = $('.ishop-grid', root); grid.innerHTML = '';
   for (const x of items) {
@@ -202,6 +205,30 @@ function render() {
   detail(items.find(x => x.key === view.sel));
   $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale gold${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some gold is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
+}
+// [Emerly musket-upgrades + gunacc] the WEAPON STORE's MUSKET UPGRADES tab: 3 tracks x 3 tiers (gold, in order), the GILDED skin once all 9
+// are bought, then the 4 GUN ACCESSORIES (bought into your inventory, fitted from the EQUIPPED musket there). Everything cheapest first.
+function renderMuskUpg() {
+  const lv = muskLevels(state.owned.gear || [], !!state.owner); setMuskLevels(lv);
+  const grid = $('.ishop-grid', root), det = $('.ishop-detail', root); grid.innerHTML = '';
+  const cards = [];
+  if (muskUpgOn()) for (const t of MUSK_TRACKS) t.cost.forEach((c, i) => cards.push({ kind: 'upg', t, n: i + 1, price: c, key: muskKey(t.id, i + 1) }));
+  if (gunAccOn()) for (const [id, it] of Object.entries(GUN_ITEMS)) if (it.kind === 'gunacc') cards.push({ kind: 'acc', id, it, price: it.price, key: 'val:' + id });
+  cards.sort((a, b) => a.price - b.price || (a.n || 0) - (b.n || 0)); // cheapest first (BANKSY's shop rule)
+  const st = (x) => x.kind === 'acc' ? (state.gold >= x.price || state.owner ? 'buy' : 'poor') : (lv[x.t.id] >= x.n ? 'owned' : lv[x.t.id] === x.n - 1 ? (state.owner || state.gold >= x.price ? 'buy' : 'poor') : 'locked');
+  for (const x of cards) { const k = st(x), c = document.createElement('button'); c.type = 'button'; c.className = `ishop-card ${k}${view.sel === x.key ? ' sel' : ''}`; c.dataset.id = x.key;
+    const nm = x.kind === 'acc' ? x.it.name : `${x.t.name} ${'I'.repeat(x.n)}`, sub = x.kind === 'acc' ? GUN_ACC.find(a => a.slot === x.it.acc)?.fx : x.t.fmt(x.t.mul[x.n - 1]);
+    c.innerHTML = `<div class="ishop-thumb" style="display:flex;align-items:center;justify-content:center;font-size:44px">${x.kind === 'acc' ? x.it.icon : x.t.icon}</div><b class="ishop-name">${esc(nm)}</b><span class="ishop-badge">${k === 'owned' ? 'OWNED ✓' : k === 'locked' ? `🔒 TIER ${x.n - 1} FIRST` : state.owner ? 'FREE · OWNER' : fmtGold(x.price)}</span><span class="ishop-bst">${esc(sub || '')}</span>`;
+    c.onclick = () => { view.sel = x.key; renderMuskUpg(); }; grid.appendChild(c); }
+  const skinOn = muskUpgOn() && lv.skin;
+  if (muskUpgOn()) { const c = document.createElement('div'); c.className = `ishop-card ${skinOn ? 'owned' : 'locked'}`; c.innerHTML = `<div class="ishop-thumb" style="display:flex;align-items:center;justify-content:center;font-size:44px;filter:${skinOn ? 'none' : 'grayscale(1)'}">✨</div><b class="ishop-name">${MUSK_SKIN.name}</b><span class="ishop-badge">${skinOn ? 'UNLOCKED ✓' : 'BUY ALL 9 TIERS'}</span>`; grid.appendChild(c); }
+  const x = cards.find(c => c.key === view.sel);
+  det.innerHTML = `<h3>MUSKET UPGRADES</h3><p class="muted">Reload ${lv.reload}/3 · Range ${lv.range}/3 · Accuracy ${lv.acc}/3${skinOn ? ' · ✨ GILDED skin on' : ''}</p><p class="muted">Damage never changes (2 hits = KO). Your musket's rank caps the tiers that apply: common ${RANK_CAP.common} · rare ${RANK_CAP.rare} · epic+ ${RANK_CAP.epic}.</p>` +
+    (x ? `<p><b>${esc(x.kind === 'acc' ? x.it.name : x.t.name + ' ' + 'I'.repeat(x.n))}</b> · ${esc(x.kind === 'acc' ? (GUN_ACC.find(a => a.slot === x.it.acc)?.fx || '') + ' · goes in your INVENTORY, fit it on the EQUIPPED musket' : x.t.fmt(x.t.mul[x.n - 1]))}</p>${st(x) === 'buy' ? `<button type="button" class="big" data-mb>${state.owner ? 'GET · FREE' : 'BUY · ' + fmtGold(x.price)}</button>` : ''}` : '<p class="muted">pick an upgrade or accessory</p>');
+  const b = $('[data-mb]', det); if (b) b.onclick = async () => { b.disabled = true; b.textContent = '…';
+    const r = x.kind === 'acc' ? await provider.buyAcc?.(x.key) : await provider.buy('gear', x.key); if (r?.state) state = r.state;
+    if (!r?.ok) toast(String(r?.error || 'could not buy').toUpperCase()); else toast(x.kind === 'acc' ? `${x.it.name} · IN YOUR INVENTORY` : 'UPGRADED'); renderMuskUpg(); };
+  $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent' : 'Paid from your Battle Royale gold · musket upgrades work in the MUSKET RANGE';
 }
 function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgrades panel (js/shop.js, opened in island mode)
   let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES(); } catch (e) { console.warn('[shop] upgrades', e); }
@@ -291,7 +318,7 @@ function boostDetail(x, s, d) {
 }
 function boostBar(V) {
   const el = $('.ishop-bsts', root); if (!el) return;
-  if (view.tab === 'skins' || view.tab === 'upgrades') { el.hidden = true; return; }
+  if (view.tab === 'skins' || view.tab === 'upgrades' || view.tab === 'muskupg') { el.hidden = true; return; }
   const t = totalNow(), chips = boostChips(t);
   el.hidden = false;
   el.innerHTML = `<b class="bst-head">BOOSTS <span>${Math.round(t.combat * 100)} / ${Math.round(COMBAT_CAP * 100)}</span></b><span class="bst-meter" role="img" aria-label="Combat boosts ${Math.round(t.combat * 100)} of ${Math.round(COMBAT_CAP * 100)}"><i style="width:${Math.min(100, t.combat / COMBAT_CAP * 100)}%"></i></span>${chips.length ? `<span class="ishop-bst">${chips.map(c => `<i class="bst bst-${c.k}${t.capped.includes(c.k) ? ' capped' : ''}">${c.icon} ${esc(c.text)}${t.capped.includes(c.k) ? ' · CAPPED' : ''}</i>`).join('')}</span>` : '<span class="bst-none">Wear gear to get skill boosts</span>'}`;
