@@ -37,8 +37,9 @@ export const PATHS = [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -
 // Today they point at Main Street lots L6 / R6 (foot.js buildStreet; the pair facing each other halfway from the square to the gate). Main Street is the
 // same with the default plaza (PV2) and ?plaza=1 (v103); no plaza storefront is used.
 export const MAIN_ST_SHOPS = [
-  { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: -6.88, lz: -133.83, yaw: Math.PI / 2, door: [0, 6.48], w: 9.66, d: 9.77, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords' },
-  { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.87, lz: -133.83, yaw: -Math.PI / 2, door: [0, 6.47], w: 9.66, d: 9.74, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets' },
+  // [v250] door local offset: a few steps INSIDE the shop (was [0, 6.48] on the doorstep); GLB empty still wins via setShopDoor
+  { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: -6.88, lz: -133.83, yaw: Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.77, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords' },
+  { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.87, lz: -133.83, yaw: -Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.74, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets' },
 ];
 export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);   // far side of the pit, facing the gate
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });

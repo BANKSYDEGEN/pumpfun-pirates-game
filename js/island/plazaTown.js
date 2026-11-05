@@ -65,15 +65,16 @@ export const clearOfBerths = (lx, lz, pad = 0) => !(lz > 0 && lx > APPROACH.lx0 
 
 // ---- land side ----
 export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
-// storefronts: counter at the facade, interact 3.8 m in front (js/dock/layout.js adds lz + 3.8). vendor = the existing
-// js/shopCatalog.js VENDORS id the counter opens today (phase 2 gives each its own vendor); crew has none yet.
+// storefronts: Blender GLBs already have open arches + dressed interiors (tools/plaza_blender/plaza_shops_blender.py).
+// [v250] BANKSY 8:33 PM 'Move sword shop and other shop buttons inside the stores': walk-in like FISH MARKET / MARKETPLACE —
+// hollow wall colliders (door gap), prompt on the shop floor (promptLz), not the street. vendor = js/shopCatalog.js VENDORS id.
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · HATS, COATS, EYEWEAR' },
   { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: -10, w: 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'CREW SHOP', vendor: 'crew', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'CREW SHOP · CREW OUTFITS' },
-].map(s => ({ ...s, lz: FACADE_LZ + 0.7 }));
+].map(s => ({ ...s, lz: FACADE_LZ + 0.7, promptLz: FACADE_LZ - 5.5 }));   // [v250] mid-floor prompt (was street lz+3.8)
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
 export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
@@ -110,7 +111,7 @@ export const PLAZA = {
     { id: 'headland_east', lx: 100, lz: -30, y: Y_QUAY, dir: 'east', w: 40, note: 'tower + cliff battery' },
   ],
   ship: SHIP, boardwalk: BOARDWALK, jetty: JETTY, jetties: JETTIES, berths: BERTHS, approach: APPROACH,
-  storefronts: STOREFRONTS, triggers: Object.fromEntries(STOREFRONTS.filter(s => s.trigger).map(s => [s.trigger, { id: s.id, lx: s.lx, lz: s.lz + 3.8 }])), halls: HALLS, tokenSlots: TOKEN_SLOTS, trending: TRENDING, spawn: SPAWN,
+  storefronts: STOREFRONTS, triggers: Object.fromEntries(STOREFRONTS.filter(s => s.trigger).map(s => [s.trigger, { id: s.id, lx: s.lx, lz: s.promptLz ?? (FACADE_LZ - 5.5) }])), halls: HALLS, tokenSlots: TOKEN_SLOTS, trending: TRENDING, spawn: SPAWN,
 };
 
 // v2 ground: the shore behind the sloped boardwalk (lx -176..-55, lz -14..0) is raised to the boardwalk's height, fading into the
@@ -162,7 +163,7 @@ export function buildPlazaV2(h) {
   // ---- stone building (front = local +z = the street): plinth, ashlar storeys + string courses, quoins, stone-framed windows
   // with timber shutters, ground-floor shop arch, timber balcony + beams, tile roof, stone gables + chimney ----
   function stoneHouse(lx, w, fl, v, o = {}) {
-    const [x, z] = T(lx, cz); addBox(x, z, w + 0.6, ROW_D + 0.6, yaw0);
+    const [x, z] = T(lx, cz); if (!o.hollow) addBox(x, z, w + 0.6, ROW_D + 0.6, yaw0);   // [v250] hollow = walk-in (caller adds wall colliders)
     at(lx, cz, 0, () => {
       const d = ROW_D, fh = 3.5, col = STONES[v % 4], sh = C.SHUTTER[(v + 2) % C.SHUTTER.length];
       W(k, box(w + 0.6, 0.7, d + 0.6), QUOIN, TRIM, M(0, 0.15, 0));
@@ -314,15 +315,23 @@ export function buildPlazaV2(h) {
     box2(0, -hd + t / 2, w + 0.6, t + 0.6); for (const sx of [-1, 1]) { box2(sx * (hw - t / 2), 0, t + 0.6, d + 0.6); box2(sx * px, hd - t / 2, pier + 0.3, t + 0.6); }
     box2(0, -hd + 2.3, CL + 0.4, 1.6); box2(0, -hd + t + 0.45, CL + 0.3, 1.0); for (const sx of [-1, 1]) for (const zz of [-1.2, 1.6]) box2(sx * (hw - t - 0.6), zz, 1.0, 1.0);
   }
+  // [v250] walk-in storefront colliders: walls + door gap (match Blender arch ow), no solid footprint — same pattern as fishHall / marketInside
+  function shopWalkInCols(s) {
+    const w = s.w, d = ROW_D, hw = w / 2, hd = d / 2, t = 0.5, DOOR = Math.min(w * 0.66, w - 2.6), pier = hw - DOOR / 2, px = DOOR / 2 + pier / 2;
+    const B = (lx, lz, a, b) => addBox(...T(s.lx + lx, cz + lz), a, b, yaw0);
+    B(0, -hd + t / 2, w + 0.6, t + 0.6); for (const sx of [-1, 1]) { B(sx * (hw - t / 2), 0, t + 0.6, d + 0.6); B(sx * px, hd - t / 2, pier + 0.3, t + 0.6); }
+  }
   SHOP_PLACES.length = 0;
   for (const s of STOREFRONTS) {
     const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
-    if (glb) {   // [Timothy] Blender model: same footprint + counter + awning-post colliders as the blockout, plus its prop colliders
-      { const [x, z] = T(s.lx, cz); addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }
+    if (glb) {   // [v250] Blender model already has open arch + interior; hollow walls + prop / awning-post colliders (no solid footprint)
+      { const [x, z] = T(s.lx, cz); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }
+      shopWalkInCols(s);
       for (const c of glb.colliders) { const [x, z] = T(s.lx + c[1], cz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
       { const [x, z] = T(s.lx, FACADE_LZ + 1.0); addBox(x, z, s.w * 0.6 + 0.4, 1.4, yaw0); } for (const sx of [-1, 1]) addCirc(...T(s.lx + sx * s.w * 0.33, FACADE_LZ + 2.5), 0.25);
       continue; }
-    stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true });
+    stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true, hollow: true });   // [v250] hollow: walls-only colliders (shopWalkInCols), solid mesh fallback when &shopsglb=0
+    shopWalkInCols(s);
     at(s.lx, FACADE_LZ, 0, () => {                                          // walk-up counter + canvas awning on timber posts
       W(k, box(s.w * 0.6, 1.1, 1.0), C.WOOD, TIMBER, M(0, 0.55, 1.0)); W(k, box(s.w * 0.6 + 0.3, 0.14, 1.25), C.WOOD_L, TIMBER, M(0, 1.16, 1.0), false);
       for (const sx of [-1, 1]) W(k, box(0.22, 3.0, 0.22), C.WOOD_D, TIMBER, M(sx * s.w * 0.33, 1.5, 2.5), false);

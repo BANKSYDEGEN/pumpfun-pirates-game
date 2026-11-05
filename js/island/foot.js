@@ -798,15 +798,22 @@ export function buildStreet(A, low, F) {
       if (side === 1 && n === 3) { const [sx, sz] = tw(S.x + S.half + 1 - 1.6, z); SHOP_SPOTS.shop = { id: 'shop', x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.4, label: 'E · SHOP' }; } }
     addBox(x, wz, w + 0.6, d + 0.6, yaw);
   }
-  { // SQUAD HALL: wide 3 storeys, stone ground floor, banners, interact at the door
+  { // SQUAD HALL: wide 3 storeys, stone ground floor, banners; [v250] interact INSIDE the big hall (was at the door)
     const [z] = lots[0], lx = S.x + S.half + 1 + 7, [x, wz] = tw(lx, z - 3), yaw = twy(-Math.PI / 2), y = H(x, wz);
     const BS = PV.bigShop && PV.bigShop({ x, y, wz, yaw, lx, z: z - 3, addBox, addCirc }); // [Timothy] BANKSY: the big empty shop (js/island/hillStreet.js) replaces the hall building; the squad interact + map entry below stay
     if (!BS) colonial(k, F, x, y, wz, yaw, 16, 14, 3, 3, low, 'squad', A), addBox(x, wz, 16.6, 14.6, yaw);
     if (!BS) k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
       if (KP) atlasQuad(k, 6.6, 1.3, A.squad, M(0, 9.3, 7.5)); // on the Blender hall's facade sign board (2nd floor, reads from the street)
       else { W(k, box(4.2, 0.9, 0.3), WOOD_D, 2, M(0, 4.4, 7.4), false); atlasQuad(k, 4.0, 0.8, A.squad, M(0, 4.4, 7.56)); } });
+    // [v250] walk-in dress when the Blender big shop stands: purple squad banners + a mid-hall table (Kit merge, 0 new textures)
+    if (BS) { k.at(M(x, y, wz, yaw), () => {
+      for (const sx of [-5.2, 5.2]) { W(k, box(0.08, 2.4, 1.6), 0x6a4fb3, 12, M(sx, 2.6, 0.4), false); W(k, box(0.1, 0.12, 1.7), 0xffc93c, 0, M(sx, 3.85, 0.4), false); W(k, box(0.1, 0.12, 1.7), 0xffc93c, 0, M(sx, 1.4, 0.4), false); if (A.ppflag) atlasQuad(k, 1.4, 1.0, A.ppflag, M(sx + (sx > 0 ? -0.06 : 0.06), 2.6, 0.4, 0, Math.PI / 2)); }
+      W(k, box(2.4, 0.9, 1.2), WOOD, 2, M(0, 0.45, -1.2)); W(k, box(2.6, 0.1, 1.4), 0x6a4fb3, 12, M(0, 0.95, -1.2), false);
+      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.32, 0.32, 0.5, 8), WOOD_L, 2, M(Math.sin(a) * 1.5, 0.25, -1.2 + Math.cos(a) * 1.5), false);
+    });
+      { const [tx, tz] = tw(lx + 1.2, z - 3); addBox(tx, tz, 2.6, 1.4, yaw); } }   // mid-hall table (local z -1.2 = +lx into the east-side hall)
     LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
-    const [dx, dz] = tw(lx - 7 - 1.6, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' });
+    const [dx, dz] = tw(lx - 7 + 3.5, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' }); // [v250] mid-hall (~3.5 m past the door), was lx-7-1.6 doorstep
   }
   { // the square: a stone well + market stalls + crates
     const [z, w] = lots[4], lx = S.x + S.half + 7, [x, wz] = tw(lx, z), y = H(x, wz);

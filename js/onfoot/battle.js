@@ -117,17 +117,17 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const boardGeo = (() => { const g = new THREE.BoxGeometry(2.9, 1.15, 0.12), c = new Float32Array(g.attributes.position.count * 3); for (let k = 0; k < c.length; k += 3) c.set([0.42, 0.27, 0.15], k); g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; })();
   const shops = SH.map((r, i) => { const tab = r.tab === 'muskets' ? 'muskets' : 'swords', [hx, hz] = H(r.lx, r.lz), wy = yawW(r.yaw), c = Math.cos(wy), sn = Math.sin(wy);
     const dx = hx + c * r.door[0] + sn * r.door[1], dz = hz - sn * r.door[0] + c * r.door[1]; // building frame -> harbor (three.js rotation.y)
-    const q = { id: r.id, kind: 'shop', vendor: r.vendor || 'weapons', slot: tab === 'muskets' ? 'musket' : 'sword', tab, title: r.sign, x: dx, z: dz, r: 2.6, label: r.label }; layout.interact.push(q);
+    const q = { id: r.id, kind: 'shop', vendor: r.vendor || 'weapons', slot: tab === 'muskets' ? 'musket' : 'sword', tab, title: r.sign, x: dx, z: dz, r: 3.2, label: r.label }; layout.interact.push(q); // [v250] r 3.2 like other walk-ins
     const g = new THREE.Group(); g.name = r.id + '_placeholder_sign'; g.position.set(hx, world.ground(hx, hz), hz); g.rotation.y = wy; // foot.js colonial(): the street signs hang at (-w*0.3, 3.3, d/2 + 1.25)
     const at = (m, px, py, pz, ry = 0) => { m.position.set(px, py, pz); m.rotation.y = ry; g.add(m); return m; }, sx = -r.w * 0.3, fz = r.d / 2;
     at(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), ironM), sx, 3.9, fz + 0.7); at(withOutline(boardGeo, 1.03), sx, 3.3, fz + 1.25);
     for (const [ry, pz] of [[0, fz + 1.32], [Math.PI, fz + 1.18]]) { const geo = new THREE.PlaneGeometry(2.7, 0.95), uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, 1 - (i + 1 - uv.getY(k)) / SH.length); at(new THREE.Mesh(geo, shopSignMat), sx, 3.3, pz, ry); }
     root.add(g); const [dlx, dlz] = toTown(dx, dz);
     return { ...r, tab, q, g, glb: null, door: { lx: dlx, lz: dlz, ly: r.yaw, house: { lx: r.lx, lz: r.lz, w: r.w, d: r.d } } }; });
-  // Timothy's GLB door empties: door_swords / door_muskets -> the interact point moves to the empty (+ 1.2 m out of the door), the placeholder sign hides
+  // [v250] BANKSY 8:33 PM walk-in: door_swords / door_muskets -> interact a few steps INSIDE the shop (was +1.2 m out on the street), placeholder sign hides
   const _dv = new THREE.Vector3(), _dq = new THREE.Quaternion(), _df = new THREE.Vector3();
   function setShopDoor(id, obj) { const s = shops.find(s => s.id === id); if (!s || !obj) return false; obj.updateWorldMatrix(true, false); obj.getWorldPosition(_dv); obj.getWorldQuaternion(_dq); _df.set(0, 0, 1).applyQuaternion(_dq);
-    s.q.x = _dv.x + _df.x * 1.2; s.q.z = _dv.z + _df.z * 1.2; s.g.visible = false; s.glb = obj; [s.door.lx, s.door.lz] = toTown(s.q.x, s.q.z); return true; }
+    s.q.x = _dv.x - _df.x * 3.0; s.q.z = _dv.z - _df.z * 3.0; s.q.r = 3.2; s.g.visible = false; s.glb = obj; [s.door.lx, s.door.lz] = toTown(s.q.x, s.q.z); return true; }
   { let tries = 0; const poll = setInterval(() => { for (const s of shops) if (!s.glb && s.empty) { const o = scene.getObjectByName(s.empty); if (o) setShopDoor(s.id, o); }
     if (shops.every(s => s.glb || !s.empty) || ++tries > 60) clearInterval(poll); }, 3000); } // 3 min after load, then only setShopDoor()
   const store = shops[0] || null; // (tests / older callers)
