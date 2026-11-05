@@ -53,8 +53,10 @@ export const SHOW_TAVERN = !!QF && QF.get('tavern') === '1', SHOW_BOUNTY_BOARDS 
 export const SHOW_NOTICE_BOARD = !!QF && QF.get('noticeboard') === '1';
 export const HALL_TOKENS = ['HQ', 'RETARDIO'];   // the hall_e posters (js/island/plazaTown.js TOKEN_SLOTS)
 export const hallTokenHidden = (sym) => !HALL_BOARDS_ON && HALL_TOKENS.includes(sym);
+// [Emerly coli] boards remount to #4/#5 side walls when coliseum is on (&coliseum=0 = quay).
+const _coliBoards = !(typeof location !== 'undefined' && /[?&]coliseum=0(&|$)/.test(location.search));
 export const PLAZA_POIS = [                                                        // town-local
-  { id: 'waves', label: 'STORM HUNT board', lx: -10, lz: -12 }, { id: 'arena', label: 'ARENA board', lx: 22, lz: -12 },
+  { id: 'waves', label: 'STORM HUNT board', lx: _coliBoards ? -4.2 : -10, lz: _coliBoards ? -36 : -12 }, { id: 'arena', label: 'ARENA board', lx: _coliBoards ? 14.8 : 22, lz: _coliBoards ? -36 : -12 },
   { id: 'exchange', label: 'Token exchange', lx: 62, lz: -30 }, { id: 'market', label: 'Harbor market', lx: -36, lz: -32 },
   { id: 'spectate', label: 'Spectate spyglass', lx: SPYGLASS.lx, lz: SPYGLASS.lz }, { id: 'tower', label: 'Harbor tower', lx: 86, lz: -44 },
   { id: 'arrive', label: 'Step ashore (P1 head)', lx: -90, lz: 42 },

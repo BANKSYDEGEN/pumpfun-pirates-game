@@ -15,6 +15,7 @@ import { AREA_TERRAIN, registerAreas, createAreas, FORT_WALKIN, RB_ON } from './
 import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
 import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
+import * as COLI from './coliseum.js'; // [Emerly] intact colosseum (&coliseum=0 = off)
 const PV2 = COAST_ON_PV2();
 function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
@@ -205,6 +206,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     const fd = Math.hypot(lx - CO.FORT.lx, lz - CO.FORT.lz); if (fd < CO.FORT.r * 2.8) h = Math.max(h, CO.FORT.top * (1 - sm(CO.FORT.r, CO.FORT.r * 2.8, fd)));
     h = BT.ground(lx, lz, h); // [Timothy] battery ramp + gun deck
     { const ba = BA.stamp(lx, lz, h); h = ba.h; if (ba.d < TRg[q]) TRg[q] = ba.d; } // [Timothy] battle areas: level pads + dirt floors / paths
+    if (COLI.COLISEUM_ON) { const c = COLI.stamp(lx, lz, h); h = c.h; if (c.d < TRg[q]) TRg[q] = c.d; }
   }
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
@@ -568,7 +570,7 @@ function foliageSpots() {
     const sl = slopeAt(i, j);
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
     const clr = COASTM ? BT.clearAt(lx, lz) : 0; if (clr > 1) continue; // [Timothy] battery: ramp + gun deck clear, no trees round the guns
-    if (COASTM && BA.clearAt(lx, lz)) continue; // [Timothy] battle areas: no trees / rocks on or round the pads + paths
+    if (COASTM && (BA.clearAt(lx, lz) || (COLI.COLISEUM_ON && COLI.clearAt(lx, lz)))) continue; // [Timothy]/[Emerly] battle pads + colosseum
     if (sl > 0.95 && TRg[q] > 9) { if (r < 0.2 && !inView(x, z)) cliffs.push([x, h, z, r]); else if (r < 0.3) rocks.push([x, h, z, r]); continue; }
     if (clr) continue;
     if (inView(x, z)) { if (r < 0.1 && TRg[q] > 6) ferns.push([x, h, z, r]); continue; }
@@ -847,9 +849,11 @@ export function buildStreet(A, low, F) {
     W(k, new THREE.ConeGeometry(2.1, 1.0, 4), ROOFS[0], 4, M(x, y + 3.7, wz, Math.PI / 4));
     addCirc(x, wz, 1.8);
     LOTS_MAP.push({ lx, z, w, d: 12, side: 1, label: 'SQUARE + well, red/blue stalls (R4)', col: 'rgba(201,191,174,0.95)', tc: '#fff', ldx: 50, ldy: 40 });
-    for (const [id, dz] of [['stall_red', 3.5], ['stall_blue', -3.5]]) { const [sx, sz] = tw(lx + 3.2, z + dz); SHOP_SPOTS[id] = { id, x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.6, label: 'E · ' + (id === 'stall_red' ? 'RED' : 'BLUE') + ' STALL' }; }
-    stall(k, ...tw(lx + 3.2, z + 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z + 3.5))]), twy(-Math.PI / 2), 0xd8322f); addCirc(...tw(lx + 3.2, z + 3.5), 1.8);
-    stall(k, ...tw(lx + 3.2, z - 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z - 3.5))]), twy(-Math.PI / 2), 0x2a6df4); addCirc(...tw(lx + 3.2, z - 3.5), 1.8);
+    if (!COLI.COLISEUM_ON) {
+      for (const [id, dz] of [['stall_red', 3.5], ['stall_blue', -3.5]]) { const [sx, sz] = tw(lx + 3.2, z + dz); SHOP_SPOTS[id] = { id, x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.6, label: 'E · ' + (id === 'stall_red' ? 'RED' : 'BLUE') + ' STALL' }; }
+      stall(k, ...tw(lx + 3.2, z + 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z + 3.5))]), twy(-Math.PI / 2), 0xd8322f); addCirc(...tw(lx + 3.2, z + 3.5), 1.8);
+      stall(k, ...tw(lx + 3.2, z - 3.5).flatMap((v, i) => i ? [v] : [v, H(...tw(lx + 3.2, z - 3.5))]), twy(-Math.PI / 2), 0x2a6df4); addCirc(...tw(lx + 3.2, z - 3.5), 1.8);
+    } // [Emerly] coli main entrance: stalls removed when COLISEUM_ON
   }
   // street dressing: lamps (flame + light), crates / barrels / sacks against the walls
   for (let z = S.z0 - 6; z > S.z1; z -= 16) for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half - 0.6), z), y = H(x, wz);
@@ -920,7 +924,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   const P = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
   // [v103] WAVES + ARENA boards are LIVE LEADERBOARDS (BANKSY): a bigger frame; js/dock/plaza.js lays one live canvas screen
   // (both boards in one texture, 1 draw call) on the front at PLAZA_BOARD.face; the painted title sign rides on top + on the back
-  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, 0, () => { const B = PLAZA_BOARD;
+  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, (COLI.COLISEUM_ON ? (id === 'waves' ? Math.PI / 2 : -Math.PI / 2) : 0), () => { const B = PLAZA_BOARD;
     for (const s of [-1, 1]) W(k, box(0.34, B.y + B.h / 2 + 1.3, 0.34), WOOD_D, 2, M(s * (B.w / 2 + 0.25), (B.y + B.h / 2 + 1.3) / 2, 0));
     W(k, box(B.w + 0.4, B.h + 0.4, 0.3), c, 2, M(0, B.y, 0)); W(k, box(B.w + 0.1, B.h + 0.1, 0.05), 0x161616, 0, M(0, B.y, 0.16), false);
     W(k, box(B.w * 0.84, 1.1, 0.2), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.85, 0), false);
@@ -975,6 +979,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   BA.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Timothy] battle areas: range + pit (static art, colliders)
+  COLI.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
   return k;
 }
 // [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and

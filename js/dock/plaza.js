@@ -28,7 +28,7 @@ export function createPlaza({ world, ctx = {} }) {
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   // ---- the two screens: one merged geometry in the foot (town-local -> foot world) frame ----
   const B = PLAZA_BOARD, geos = [];
-  BOARDS.forEach((b, i) => { const q = CO.PLAZA_POIS.find(p => p.id === b.id); if (!q) return; const [x, z] = CO.t2w(q.lx, q.lz), yaw = CO.t2wYaw(0);
+  BOARDS.forEach((b, i) => { const q = CO.PLAZA_POIS.find(p => p.id === b.id); if (!q) return; const [x, z] = CO.t2w(q.lx, q.lz), yaw = CO.t2wYaw(q.lz === -36 ? (q.id === 'waves' ? Math.PI / 2 : -Math.PI / 2) : 0); // [Emerly] side walls when coli
     const pg = new THREE.PlaneGeometry(B.w, B.h), uv = pg.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, (1 - i) * 0.5 + uv.getY(k) * 0.5);
     pg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, CO.QUAY.y + B.y, z).add(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(B.face)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)));
     geos.push(pg); });

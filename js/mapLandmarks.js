@@ -6,6 +6,7 @@
 //   per place, positions from the same sources as the world objects, docks grouped per jetty (B1/B2 → J1, …). &mmicons=0 =
 //   the old list (pets + crew + sword/musket shops duplicated here).
 import { MAIN_ST_SHOPS, PIT, RANGE } from './island/battleAreas.js';
+import { COLISEUM_ON, FOOT } from './island/coliseum.js';
 import { STOREFRONTS } from './island/plazaTown.js';
 import { BATTERY } from './island/battery.js';
 import { FORT } from './island/coast.js';
@@ -21,6 +22,7 @@ const LIST_LEGACY = () => [
   ['battery', 'fort', 'CLIFF BATTERY', 'town', BATTERY.lx, BATTERY.lz, true],
   ['sword_pit', 'battle', 'SWORD PIT', 'town', PIT.lx, PIT.lz, true],
   ['musket_range', 'battle', 'MUSKET RANGE', 'town', (RANGE.lx0 + RANGE.lx1) / 2, (RANGE.lz0 + RANGE.lz1) / 2, true],
+  ...(COLISEUM_ON ? [['coliseum', 'fort', 'COLOSSEUM', 'town', (FOOT.lx0 + FOOT.lx1) / 2, (FOOT.lz0 + FOOT.lz1) / 2, true]] : []),
   ['ruin_steps', 'ruins', 'RUIN STEPS', 'foot', 106, -332, true],
   ['jungle_idols', 'idol', 'IDOLS', 'foot', 69, -357, true],
   ['mossbeard', 'camp', "MOSSBEARD'S CAMP", 'foot', TH.x - 4.5, TH.z + 9.5, true],

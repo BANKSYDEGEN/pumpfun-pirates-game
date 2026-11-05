@@ -1,55 +1,46 @@
-// [Timothy] PUMPFUN PIRATES battle areas (BANKSY, approved 1:40 PM Nov 3): the MUSKET RANGE (west of Main Street) and the SWORD PIT
-// (east, behind the Squad Hall), town-local frame (js/island/coast.js: lx along the waterfront W->E, +lz out to sea, plaza lz -56..0).
-// Pure data + static art. js/island/foot.js calls 3 guarded one-liners (Raul's file, diff in screens/FOOTJS_DIFF_FOR_RAUL.md):
-//   1) coastH:       stamp(lx, lz, h) -> level pads + dirt floors / paths (the trail-distance grid: dirt paint, no grass, no trees)
-//   2) foliageSpots: clearAt(lx, lz)  -> no trees / rocks / ferns on or round the pads
-//   3) buildCoast:   buildArt(...)    -> fences, firing line, backstop, cover, ring fence, benches, gates (merged coast kit, 0 draw calls)
-// The fighting (swords, muskets, targets, dummies, signs, HP, KOs, peers) is js/onfoot/battle.js. Kept clear of the plaza + berths
-// (lz >= 0), the headland battery (160, 36) + its arcs out to sea, the Main Street lots (lx -12..24), the fort and the west beach /
-// swim cove (lx -300..-180). Every walkable floor is the terrain itself (flat, its edges on foot.js's 4 m grid lines: town lx = 2 mod 4,
-// lz = 0 mod 4), so the drawn ground and the walk height agree (feet test: tools/battle/feet_battle.py).
+// [Timothy] PUMPFUN PIRATES battle areas. [Emerly coli] pads relocate into the intact colosseum when COLISEUM_ON
+// (&coliseum=0 = original west-of-street RANGE + east-of-Squad-Hall PIT). Town-local frame (coast.js).
+// Pure data + static art. foot.js: stamp / clearAt / buildArt. Fighting: js/onfoot/battle.js.
 import * as THREE from 'three';
 import { M } from './kit.js';
 import * as CO from './coast.js';
+import { COLISEUM_ON } from './coliseum.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Math.max(R.lz0 - lz, 0, lz - R.lz1));
 function segD(px, pz, ax, az, bx, bz) { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz))); return Math.hypot(px - ax - dx * t, pz - az - dz * t); }
 const polyD = (lx, lz, P) => { let d = 1e9; for (let i = 0; i < P.length - 1; i++) d = Math.min(d, segD(lx, lz, ...P[i], ...P[i + 1])); return d; };
 
-// MUSKET RANGE 44 x 40 m: west half = 3 target lanes (firing line lz -131, boards at lz -157), east half = the duel yard (cover).
-// The town side (lz -124) has the gate; a berm + plank backstop closes the far end.
-export const RANGE = { lx0: -126, lx1: -82, lz0: -164, lz1: -124, y: 13.6, flat: 8, feather: 6, line: -131, targetLz: -157, lanes: [-121, -115, -109], divider: -104, gate: [-98, -124], gateW: 6 };
-// SWORD PIT: pad r16 (benches, torches) with the fighting pit r11 (rope ring, sand) inside; flat out to r22 so every 4 m terrain cell
-// the pad touches is planar. Gate on the lane side (towards the Main Street mouth).
-export const PIT = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
-PIT.gateA = Math.atan2(46 - PIT.lx, -74 - PIT.lz);                       // angle (atan2(dlx, dlz)) of the gate, towards (46, -74)
+const RANGE_OLD = { lx0: -126, lx1: -82, lz0: -164, lz1: -124, y: 13.6, flat: 8, feather: 6, line: -131, targetLz: -157, lanes: [-121, -115, -109], divider: -104, gate: [-98, -124], gateW: 6 };
+const RANGE_COLI = { lx0: 50, lx1: 88, lz0: -176, lz1: -140, y: 14.8, flat: 8, feather: 6, line: -148, targetLz: -170, lanes: [58, 66, 74], divider: 69, gate: [69, -140], gateW: 6 };
+export const RANGE = COLISEUM_ON ? RANGE_COLI : RANGE_OLD;
+
+const PIT_OLD = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
+const PIT_COLI = { lx: 70, lz: -78, pad: 16, r: 11, flat: 22, y: 9.0, feather: 6 };
+export const PIT = Object.assign({}, COLISEUM_ON ? PIT_COLI : PIT_OLD);
+PIT.gateA = COLISEUM_ON ? Math.atan2(28 - PIT.lx, -115 - PIT.lz) : Math.atan2(46 - PIT.lx, -74 - PIT.lz);
 export const pitAt = (a, r) => [PIT.lx + Math.sin(a) * r, PIT.lz + Math.cos(a) * r];
-// walk-in paths (dirt, 3-4 m): plaza west corner -> range gate; Main Street mouth -> pit gate (north of the Squad Hall)
-export const PATHS = [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -125]], [[13, -59], [34, -62], pitAt(PIT.gateA, PIT.r + 4), pitAt(PIT.gateA, PIT.r - 1)]];
-// [Emerly] MAIN STREET WEAPON SHOPS = THIS CONFIG (BANKSY 3:15 PM: two EXISTING Main Street houses past the plaza, toward the town gate).
-// Gameplay hookup only (js/onfoot/battle.js): a door interact point (E / tap -> the shop window on its tab) + a simple placeholder hanging sign.
-// The buildings are NOT modelled here: Timothy rebuilds both exteriors in Blender (shared material library, timothy/plaza-blender).
-//   lx, lz, yaw  town-local centre + facing of the building (yaw: +z of the building = out of its front door; PI/2 = faces +lx, -PI/2 = faces -lx)
-//   door         [x, z] door offset in the building's own frame (x = along the front, z = out of the front), the E / tap spot just outside the door
-//   w, d, sign   placeholder sign only: building width / depth (where the sign hangs) + its text
-//   empty        when Timothy's GLB is in the scene, an Object3D with this name (an empty at the door) replaces lx/lz/yaw + door (and hides the placeholder sign)
-// Today they point at Main Street lots L6 / R6 (foot.js buildStreet; the pair facing each other halfway from the square to the gate). Main Street is the
-// same with the default plaza (PV2) and ?plaza=1 (v103); no plaza storefront is used.
+
+export const PATHS = COLISEUM_ON
+  ? [[[22, -115], [42, -112], [58, -95], [65, -85], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -130], [55, -145], [69, -140]]]
+  : [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -125]], [[13, -59], [34, -62], pitAt(PIT.gateA, PIT.r + 4), pitAt(PIT.gateA, PIT.r - 1)]];
+
 export const MAIN_ST_SHOPS = [
-  // [v250] door local offset: a few steps INSIDE the shop (was [0, 6.48] on the doorstep); GLB empty still wins via setShopDoor
   { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: -6.88, lz: -133.83, yaw: Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.77, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords' },
   { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.87, lz: -133.83, yaw: -Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.74, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets' },
 ];
-export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);   // far side of the pit, facing the gate
+export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });
-export const COVER = [[-97, -140, 'crate'], [-89, -136, 'barrel'], [-93, -148, 'hay'], [-86, -152, 'crate'], [-99, -156, 'barrel'], [-88, -144, 'hay'], [-95, -133, 'barrel']];
-export const near = (lx, lz) => lx > -150 && lx < 100 && lz > -190 && lz < -38;
+export const COVER = COLISEUM_ON
+  ? [[60, -155, 'crate'], [72, -152, 'barrel'], [80, -160, 'hay'], [55, -162, 'crate'], [84, -148, 'barrel'], [66, -158, 'hay'], [76, -145, 'barrel']]
+  : [[-97, -140, 'crate'], [-89, -136, 'barrel'], [-93, -148, 'hay'], [-86, -152, 'crate'], [-99, -156, 'barrel'], [-88, -144, 'hay'], [-95, -133, 'barrel']];
+export const near = (lx, lz) => COLISEUM_ON
+  ? (lx > 20 && lx < 110 && lz > -220 && lz < -30)
+  : (lx > -150 && lx < 100 && lz > -190 && lz < -38);
 export const inRange = (lx, lz, pad = 0) => lx > RANGE.lx0 + pad && lx < RANGE.lx1 - pad && lz > RANGE.lz0 + pad && lz < RANGE.lz1 - pad;
-export const onPath = (lx, lz) => { if (!near(lx, lz)) return 0; let d = 1e9; for (const P of PATHS) d = Math.min(d, polyD(lx, lz, P)); return 1 - sm(3.5, 5.5, d); }; // [Emerly] foot.js groundAt: 1 on the paths = walk on the drawn triangles, 0 elsewhere (smooth hand-over)
+export const onPath = (lx, lz) => { if (!near(lx, lz)) return 0; let d = 1e9; for (const P of PATHS) d = Math.min(d, polyD(lx, lz, P)); return 1 - sm(3.5, 5.5, d); };
 export const inPit = (lx, lz, pad = 0) => Math.hypot(lx - PIT.lx, lz - PIT.lz) < PIT.r - pad;
 
-// (1) terrain: level the two pads (feathered into the hill) + the trail distance for the dirt floors and paths
 export function stamp(lx, lz, h) {
   if (!near(lx, lz)) return { h, d: 99 };
   const dr = rectD(lx, lz, RANGE); if (dr < RANGE.flat + RANGE.feather) { const w = 1 - sm(RANGE.flat, RANGE.flat + RANGE.feather, dr); h = h * (1 - w) + RANGE.y * w; } // [Emerly] flat 8 m past the fence (like the pit's r22): every 4 / 8 m terrain cell the pad touches is planar, so the drawn ground = the walk height
