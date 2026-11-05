@@ -69,8 +69,8 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // [v250] BANKSY 8:33 PM 'Move sword shop and other shop buttons inside the stores': walk-in like FISH MARKET / MARKETPLACE —
 // hollow wall colliders (door gap), prompt on the shop floor (promptLz), not the street. vendor = js/shopCatalog.js VENDORS id.
 // [v254] BANKSY 9:33 PM 'Move the crew shop, upgrade shop, pet shop, clothing store back outside cuz can't go inside those':
-// these four go back to the pre-v250 street prompt (lz + 3.8) + solid footprint; SHIP SHOP stays walk-in.
-export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_upgrades', 'shop_crew']);
+// Clothes / Pets / Upgrade / Crew go back outside (street prompt + solid footprint). [shipshop-fix] Ship too: walk-in was blocked by the GLB counter / awning-post colliders at the door (same as the four).
+export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_ships', 'shop_upgrades', 'shop_crew']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · HATS, COATS, EYEWEAR' },
   { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
