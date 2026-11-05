@@ -18,6 +18,7 @@ import { pirateBodyLod } from './pirateGLB.js';
 import { applyGear, normalizeGear, raulItemOf } from './pirateGear.js';
 
 const LOW = (() => { try { return /quality=low/.test(location.search) || matchMedia('(pointer: coarse)').matches; } catch { return false; } })();
+// [v6-store-clothes] <slot>_<id>.png = male V6, <slot>_<id>_f.png = female V6 (tools: /tmp bake on the live V6 bodies)
 const PNG = (slot, id) => new URL(`../assets/pirates/thumbs/${slot}_${id}.png`, import.meta.url).href;
 export const thumbFallback = PNG;
 // framing per slot (pirate space: y up, +z = the pirate's front, +x = his left; height 1.75 m)
@@ -138,7 +139,7 @@ export const gearThumbCached = (slot, id, opts = {}) => { const v = cache.get(ke
 export function gearThumbEl(slot, id, opts = {}) {
   const img = new Image(); img.className = 'gear-thumb'; img.alt = ''; img.decoding = 'async'; img.draggable = false;
   const rid = raulItemOf(slot, id, opts), icon = rid && new URL(`../assets/pirates/items/icons/${rid}.png`, import.meta.url).href;   // Raul's 256 px icon (the chosen side)
-  img.src = opts.png ? new URL(`../assets/pirates/thumbs/${opts.png}.png`, import.meta.url).href : PNG(slot, id); img.onerror = () => { if (icon && img.src !== icon) { img.src = icon; return; } img.onerror = null; img.style.visibility = 'hidden'; };
+  img.src = opts.png ? new URL(`../assets/pirates/thumbs/${opts.png}.png`, import.meta.url).href : (opts.body | 0) && slot !== 'beard' ? PNG(slot, id + '_f') : PNG(slot, id); img.onerror = () => { if (icon && img.src !== icon) { img.src = icon; return; } img.onerror = null; img.style.visibility = 'hidden'; };
   gearThumb(slot, id, opts).then((u) => { if (u) { img.onerror = null; img.style.visibility = ''; img.src = u; img.classList.add('real'); } });
   return img;
 }
