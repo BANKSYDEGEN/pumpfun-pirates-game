@@ -136,10 +136,10 @@ export function captainExtras(gear, low = false) {
 }
 export const CREW_OWN_EXTRAS = ['beard', 'face', 'cape', 'boots', 'pants'];
 export function crewGearOf(gear) {
-  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
+  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: gear.eyes || 'plain',   /* [v6-store-clothes] crew eyewear */ parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
   for (const k of CREW_EXTRA_SLOTS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [Raul shop2 fixes]
   for (const k of CREW_OWN_EXTRAS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [v6-store-clothes] the crew's OWN Crew Shop extras (not the captain's)
-  return (g.hat === 'none' && g.outfit === 'shirtless' && !CREW_EXTRA_SLOTS.some((k) => g[k]) && !CREW_OWN_EXTRAS.some((k) => g[k])) ? null : g;
+  return (g.hat === 'none' && g.outfit === 'shirtless' && g.eyes === 'plain' && !CREW_EXTRA_SLOTS.some((k) => g[k]) && !CREW_OWN_EXTRAS.some((k) => g[k])) ? null : g;
 }
 // [v280 crew holes] shore followers (V6 bodies) get classic pants under the Crew Shop top so the lo underwear hem gap stays covered. Ship bake stays without pants (V5 seats already have painted pants). &crewholes=0 = bare.
 export function shoreCrewGear(gear) {

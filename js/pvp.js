@@ -54,7 +54,7 @@ import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './c
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
 const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
-import { setCrewLoadout, crewGear, crewToWire, crewFromWire, crewColorToWire, crewColorFromWire, CREW_SLOTS } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew wear their OWN loadout, not yours
+import { setCrewLoadout, crewGear, crewToWire, crewFromWire, crewColorToWire, crewColorFromWire, CREW_SLOTS, CREW_BASE } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew wear their OWN loadout, not yours
 import { skinSwatch, getSkin } from './skins.js';
 import { previewCards, renderPreview, releaseRenderer } from './skinPreview.js';
 import { makeChest } from './props.js';
@@ -199,7 +199,7 @@ export function createPvp(K) {
   addEventListener('pfp-shop-sync', (e) => { const d = e.detail || {}; if (!d.owned) return;
     profile.skins.owned = d.owned.skins.filter(x => x !== 'classic'); profile.gearOwned = d.owned.gear; setOwnedSkins(profile.skins.owned);
     try { setBoostSource({ owned: d.owned.gear, owner: !!d.owner || !!ownerAllSkins(), server: d.boosts || null }); } catch {} // [Emerly] boosts follow the server's owned list
-    if (!d.owner && profile.gear) { for (const [sl, ids] of Object.entries(CREW_SLOTS)) if (profile.gear[sl] && profile.gear[sl] !== ids[0] && !d.owned.gear.includes(`${sl}:${profile.gear[sl]}`)) profile.gear[sl] = ids[0]; setCrewLoadout(profile.gear); } // [Timothy] crew items: owned or the uniform
+    if (!d.owner && profile.gear) { for (const [sl, ids] of Object.entries(CREW_SLOTS)) if (profile.gear[sl] && profile.gear[sl] !== ids[0] && !d.owned.gear.includes(`${sl}:${profile.gear[sl]}`) && !d.owned.gear.includes(`${CREW_BASE[sl]}:${profile.gear[sl]}`)) profile.gear[sl] = ids[0];   /* [v6-store-clothes] CREW ROOM: owning the item dresses the crew */ setCrewLoadout(profile.gear); } // [Timothy] crew items: owned or the uniform
     if (!canUse(skinId())) { profile.skins.equipped = 'classic'; if (active) K.rebuildShip(getRunLevels()); }
     if (active && !$('pvp-menu')?.classList.contains('hidden')) renderMenu(); });
   let shopBehind = 0;

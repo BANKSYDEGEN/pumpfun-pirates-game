@@ -136,10 +136,12 @@ const eqGear = (slot) => state.equipped.gear?.[slot] ?? (slot === 'sword' ? SWOR
 function statusOf(x) {
   const g = goalProgress(liveGoal(x.it), state.stats);
   // [prestige] a prestige grant (GOLDEN P1 / DIAMOND P2) is owned once that prestige is reached; other price-0 items are always free
-  const owned = state.owner || (x.it.price === 0 && (x.it.grant !== 'prestige' || !!g?.done)) || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key);
+  const owned = state.owner || (x.it.price === 0 && (x.it.grant !== 'prestige' || !!g?.done)) || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key)
+    || (x.it.crew && x.it.base && VENDORS.crew.dress && state.owned.gear.includes(`${x.it.base}:${x.it.id}`));   // [v6-store-clothes] CREW ROOM: own it = your crew can wear it
   const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
   if (x.it.soon && !state.owner) return { k: 'soon', owned: false, g: null }; // [v102] not on sale yet: never sold, never equipped ([Timothy] the owner owns + equips everything)
   if (eq) return { k: 'equipped', owned, g }; if (owned) return { k: 'owned', owned, g };
+  if (x.it.crew && VENDORS.crew.dress) return { k: 'needbuy', owned: false, g: null };   // [v6-store-clothes] never sold twice: buy it once in the Clothes Shop
   if (g && !g.done) return { k: 'locked', g }; if (state.gold < x.it.price) return { k: 'poor', g }; return { k: 'buy', g };
 }
 const goalLine = (x, g) => `${g.tag && !g.rows.every(r => r.fmt === 'prestige') ? g.tag + ': ' : ''}${fmtGoal(g)}`; // [prestige] 'PRESTIGE 0/1', not 'PRESTIGE 1: PRESTIGE 0/1'
@@ -182,14 +184,14 @@ function render() {
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
   boostBar(V);
-  const items = view.tab === 'wardrobe' ? itemsFor().filter(x => statusOf(x).owned) : itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
+  const items = view.tab === 'wardrobe' && !V.dress ? itemsFor().filter(x => statusOf(x).owned) : itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
   const grid = $('.ishop-grid', root); grid.innerHTML = '';
   for (const x of items) {
     const s = statusOf(x), c = document.createElement('button'); c.type = 'button'; c.className = `ishop-card ${s.k}${x.key === view.sel ? ' sel' : ''}`; c.dataset.id = x.key; if (x.kind === 'skin') c.dataset.skin = x.key;
     c.append(x.kind === 'skin' ? skinThumb(x.key) : gearThumb(x.it));
     // [Timothy] locked: each goal row as text + bar ('Harbor boss kills 37/100'); goal met: the card turns to BUY · price
     const met = s.g && s.g.done && (s.k === 'buy' || s.k === 'poor');
-    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON' }[s.k];
+    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON', needbuy: '🔒 BUY IN CLOTHES SHOP' }[s.k];
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? (x.it.grant === 'prestige' ? 'UNLOCKED · FREE' : 'FREE') : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
@@ -217,7 +219,7 @@ function detail(x) {
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
   const btn = { equipped: '<button type="button" class="ishop-act ghost" disabled>EQUIPPED ✓</button>', owned: '<button type="button" class="ishop-act big" data-a="equip">EQUIP</button>',
     locked: `<button type="button" class="ishop-act" disabled>${x.it.grant === 'prestige' ? 'PRESTIGE TO UNLOCK · FREE' : 'REACH THE GOAL FIRST'}</button>`, poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
-    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>' }[s.k];
+    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>', needbuy: '<button type="button" class="ishop-act" data-a="goto">🔒 BUY IT IN THE CLOTHES SHOP</button>' }[s.k];
   d.insertAdjacentHTML('beforeend', `<div class="ishop-info"><h4>${esc(x.name)}</h4>
     <div class="ishop-pr">${x.it.price ? fmtGold(x.it.price) : 'FREE'}${s.owned ? ' · <b>OWNED</b>' : ''}${s.k === 'soon' ? ' · <b>COMING SOON</b>' : ''}</div>
     ${s.k === 'soon' ? '<div class="ishop-gl">Goes on sale when it shows on your pirate.</div>' : ''}
@@ -226,7 +228,7 @@ function detail(x) {
     ${btn}</div>`);
   if (view.tab === 'wardrobe' && s.k === 'equipped' && x.kind === 'gear') { const off = itemsFor().find(y => y.it.slot === x.it.slot && y.it.price === 0 && y.it.free && y.key !== x.key);   // [v6-store-clothes] take it off = the slot's free default
     if (off) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ishop-act ghost'; b.textContent = 'TAKE OFF'; b.onclick = () => doEquip(off); $('.ishop-info', d)?.append(b); } }
-  const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
+  const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'goto' ? openShop({ vendor: 'clothes', tab: 'gear', slot: x.it.base, item: `${x.it.base}:${x.it.id}` }) : a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
   { const bar = $('.ishop-actbar', root), main = $('.ishop-info > .ishop-act', d); bar.innerHTML = ''; // [Emerly] phones: the same EQUIP / BUY button pinned under the detail, always on screen (CSS shows it on phones only)
     if (main) { const c = main.cloneNode(true); c.insertAdjacentHTML('afterbegin', `<span class="ishop-actn">${esc(x.name)}</span>`); if (a) c.onclick = a.onclick; bar.append(c); } }
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
@@ -234,7 +236,7 @@ function detail(x) {
     : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b>. Range KOs pay nothing and never count towards goals.</div>');
   if (x.kind === 'gear') boostDetail(x, s, d); // [Emerly] ITEM SKILL BOOSTS
   if (x.it.crew) { // [Timothy] CREW SHOP
-    $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
+    $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${VENDORS.crew.dress ? ' Free in the CREW ROOM for any gear you own.' : x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
   if (x.kind === 'gear' && x.it.maleOnly) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">Male pirates only${getLocalGear().body ? ' · <b>not shown on your female pirate</b>' : ''}</div>`); // [Raul shop2 fixes]
   if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
   if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && x.it.tint?.hatColor && s.owned && provider.hatColor) { // [v109b] not the crown (its velvet = your hair colour) // [v105] free hat colour (equipped hat)
@@ -305,7 +307,7 @@ function confirmBuy(x) {
   $('[data-c="yes"]', cb).onclick = async (e) => { e.target.disabled = true; e.target.textContent = '…';
     const r = await provider.buy(x.kind, x.key); state = r.state;
     if (!r.ok) { $('.ishop-err', cb).textContent = String(r.error || 'could not buy').toUpperCase(); e.target.disabled = false; e.target.textContent = 'CONFIRM'; return; }
-    hideConfirm(); render(); toast(x.it?.crew ? `Your crew can wear ${x.name}` : `${x.name} is yours`); };
+    hideConfirm(); render(); toast(x.it?.crew ? `Your crew can wear ${x.name} (CREW ROOM)` : `${x.name} is yours`); };
 }
 const hideConfirm = () => $('.ishop-confirm', root).classList.add('hidden');
 async function doEquip(x) { state = await provider.equip(x.kind, x.key); render(); }

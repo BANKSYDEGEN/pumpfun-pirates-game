@@ -32,3 +32,10 @@ test('pants + shoes colours: crew wire round trip', () => {
   const l = { ...CREW_DEFAULT, crewpants: 'canvas_pants', crewboots: 'sandals', crewpantsColor: 3, crewbootsColor: 6 }; const r = crewFromWire(crewToWire(l));
   assert.equal(r.crewpantsColor, 3); assert.equal(r.crewbootsColor, 6); assert.equal(crewGear(r).pantsColor, 3); assert.equal(crewGear(r).bootsColor, 6);
 });
+test('CREW ROOM: dress-up only (no crew sales), eyewear slot, server lets owned base items dress the crew', () => {
+  assert.equal(VENDORS.crew.name, 'CREW ROOM'); assert.ok(VENDORS.crew.dress); assert.deepEqual(VENDORS.crew.tabs, ['wardrobe']); assert.ok(VENDORS.crew.slots.includes('creweyes'));
+  assert.deepEqual(CREW_SLOTS.creweyes, ['plain', 'eyepatch', 'sunglasses', 'laser']); assert.deepEqual(slotOf(lib, 'creweyes'), CREW_SLOTS.creweyes); assert.deepEqual(GEAR_SLOTS.creweyes, CREW_SLOTS.creweyes);
+  assert.equal(crewGear({ ...CREW_DEFAULT, creweyes: 'sunglasses' }).eyes, 'sunglasses');
+  assert.match(lib, /CREW_BASE\[s\] && owned\.has\(`gear:\$\{CREW_BASE\[s\]\}:\$\{g\[s\]\}`\)/); assert.match(lib, /creweyes: "eyes"/);
+  const shop = readFileSync(new URL('../js/islandShop.js', import.meta.url), 'utf8'); assert.match(shop, /needbuy/); assert.match(readFileSync(new URL('../js/shopCatalog.js', import.meta.url), 'utf8'), /crewdress=0/);
+});

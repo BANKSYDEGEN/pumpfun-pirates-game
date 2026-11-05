@@ -171,7 +171,7 @@ export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "
   pants: ["none", "classic_pants", "canvas_pants", "sailor_trousers", "leather_breeches"],
   crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit"],
   // [v6-store-clothes] the crew's own beard / face paint / cape / shoes / pants (APPEND-ONLY, js/crewLoadout.js CREW_SLOTS)
-  crewbeard: ["none", "beard_moustache", "beard_forked", "beard_black"], crewface: ["none", "facepaint_retardio"], crewcape: ["none", "cape_tattered", "cape_captain", "cape_royal"], crewboots: ["none", "boots_buckle", "boots_cavalier", "boots_gold", "boots_classic", "sandals", "shoes_buckle", "boots_sea"], crewpants: ["none", "classic_pants", "canvas_pants", "sailor_trousers", "leather_breeches"],
+  crewbeard: ["none", "beard_moustache", "beard_forked", "beard_black"], crewface: ["none", "facepaint_retardio"], crewcape: ["none", "cape_tattered", "cape_captain", "cape_royal"], crewboots: ["none", "boots_buckle", "boots_cavalier", "boots_gold", "boots_classic", "sandals", "shoes_buckle", "boots_sea"], crewpants: ["none", "classic_pants", "canvas_pants", "sailor_trousers", "leather_breeches"], creweyes: ["plain", "eyepatch", "sunglasses", "laser"],
   // [Timothy] WEAPON STORE sword + musket (a row without them = the free rusty cutlass / flintlock). APPEND-ONLY (js/onfoot/swords.js).
   sword: ["rusty", "cutlass", "rapier", "bone", "sabre_gilded", "blade_gold"], musket: ["rusty", "navy", "blunder", "dragoon", "bone", "blunder_gold"] }; // equip validation (owned or free). The OWNER owns every id here automatically (index.ts ownedLists + fitEquipped(owner)).
 // [V6 store] LEGACY GRANT: every pirate whose server row existed before V6 went live (row updated_at < V6_SINCE) owned the v5 painted
@@ -188,9 +188,11 @@ export function cleanGear(g: any): Record<string, any> { const o: Record<string,
   const h = Math.floor(Number(g?.hatColor)); o.hatColor = Number.isFinite(h) && h >= 0 && h <= HAT_COLORS ? h : 0;
   const ch = Math.floor(Number(g?.crewhatColor)); if (Number.isFinite(ch) && ch > 0 && ch <= HAT_COLORS) o.crewhatColor = ch; for (const k of ['crewcapeColor', 'crewpantsColor', 'crewbootsColor']) { const cc = Math.floor(Number(g?.[k])); if (Number.isFinite(cc) && cc > 0 && cc <= 7) o[k] = cc; }   /* [v6-store-clothes] the crew's free cape colour (additive) */ if (g?.v6legacy === 1 || g?.v6legacy === 2) o.v6legacy = g.v6legacy; return o; }   // [V6 store] client legacy-grant marker // [Raul gear colours] the crew's free hat colour (additive: only when picked; js/crewLoadout.js)
 // owned list -> the equipped skin / gear a save may keep (free defaults always ok)
+// [v6-store-clothes] crew slot -> the player item it reuses (CREW ROOM dress-up: owning the item = your crew can wear it, never sold twice)
+export const CREW_BASE: Record<string, string> = { crewhat: "hat", crewoutfit: "outfit", crewbeard: "beard", crewface: "face", crewcape: "cape", crewboots: "boots", crewpants: "pants", creweyes: "eyes" };
 export function fitEquipped(p: Profile, owned: Set<string>, owner: boolean) {
   const eq = p.skins.equipped; p.skins.equipped = eq === "classic" || owner || owned.has("skin:" + eq) ? eq : "classic";
-  const g = cleanGear((p as any).gear); for (const [s, ids] of Object.entries(GEAR_SLOTS)) if (g[s] !== ids[0] && !owner && !owned.has(`gear:${s}:${g[s]}`)) g[s] = ids[0]; // hatColor is free
+  const g = cleanGear((p as any).gear); for (const [s, ids] of Object.entries(GEAR_SLOTS)) if (g[s] !== ids[0] && !owner && !owned.has(`gear:${s}:${g[s]}`) && !(CREW_BASE[s] && owned.has(`gear:${CREW_BASE[s]}:${g[s]}`))) g[s] = ids[0]; // hatColor is free // [v6-store-clothes] CREW ROOM: a crew slot may wear any item you own (or its legacy crew buy)
   (p as any).gear = g; return p;
 }
 
