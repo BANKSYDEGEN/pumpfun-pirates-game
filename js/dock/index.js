@@ -214,6 +214,15 @@ export async function createDock(ctx) {
       closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
     if (instant) fin(); else fadeTo(fin);
   }
+  // [v254] BANKSY 9:38 PM "if spectate from castle they go back to castle when exit": only the fort spyglass sets specFrom; back in the harbor
+  // (after the berth moor) you land on foot at that spot with the same facing. Joining a battle instead drops it. No berth free = the usual harbor spawn.
+  let specFrom = null;
+  function fortReturn() {
+    const r = specFrom; specFrom = null; if (!r || r.src !== 'fort' || docking.mode !== 'docked' || onFoot) return false;
+    onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
+    walker.enter(r.x, r.z, r.yaw); const w = walker.w; w.camYaw = r.camYaw; if (Number.isFinite(r.pitch)) w.pitch = r.pitch; walker.snapCam?.();
+    crewF?.enter(); petF?.enter(walker.w); window.__pfpFortReturn = { x: w.x, z: w.z, yaw: w.yaw, camYaw: w.camYaw }; return true;
+  }
   function setSail() { if (docking.setSail(P())) { const s = P(); s.anchor = false; s.sail = 1; toast('SET SAIL!'); } }
   // [island-rework] what an area activity may do to you: a toast, or put you back at a spot (trap runs). Foot-frame coords.
   // [fish2] + your pirate for the fishing dock (js/island/areas/fishing2.js): where you stand / face in the foot frame, turn you, a body pose, its sounds
@@ -224,7 +233,7 @@ export async function createDock(ctx) {
   const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
-    if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { goAboard(true); pv?.harborSpectate?.(false); return; } // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
+    if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { const W = walker.w; specFrom = { src: 'fort', x: W.x, z: W.z, yaw: W.yaw, camYaw: W.camYaw, pitch: W.pitch }; goAboard(true); pv?.harborSpectate?.(false); return; } // [v254] specFrom tags the castle as the spectate source: EXIT puts you back here on foot (fortReturn) // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
     if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); if (m) toast(m, 2800); return; } // [island-rework] area activities (cosmetic; gold behind areas/flags.js)
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
@@ -232,7 +241,7 @@ export async function createDock(ctx) {
       case 'cannon': battery?.fire(q); break; // [Timothy] headland gun; [v171] live: hits AI + pirate ships (pvp.batteryStep)
       case 'exchange': plaza.openToken('SUNK'); break;
       case 'squadhall': if (pv?.lob?.state === 'harbor' && pv.mode !== 'squads') pv.setMode?.('squads'); if (squadHall) squadHall.open(); else openBoard(); break; // [squad-hall]
-      case 'spyglass': goAboard(true); pv?.harborSpectate?.(); break;
+      case 'spyglass': specFrom = null; goAboard(true); pv?.harborSpectate?.(); break; // [fort-spectate-return] mole/other: clear castle return
       case 'shop': if (q.open === 'upgrades') { let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES?.(); } catch {} if (!ok) toast('THE UPGRADE SHOP IS CLOSED RIGHT NOW<br><small>ship upgrades open from the harbor</small>', 2400); break; } // [v146] the UPGRADE SHOP storefront: straight to the upgrades panel (its own shop: never the skins grid)
         Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.tab || (q.vendor === 'clothes' ? 'gear' : 'skins'), slot: q.slot, title: q.title, from: 'island' }) : false) // [Emerly] q.tab / q.title: SWORD SHOP / MUSKET SHOP
         .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
@@ -269,9 +278,10 @@ export async function createDock(ctx) {
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); } if (view) world.update(camera.position, game.t, game.storm || 0);
     treasure.tick(); squadHall?.tick?.(performance.now());
+    if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
-    if ((!was || (s.alive && !wasAlive)) && s.alive) spawnNow(s); wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
+    if ((!was || (s.alive && !wasAlive)) && s.alive) { spawnNow(s); if (!was) fortReturn(); } wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
     if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
