@@ -1487,7 +1487,12 @@ requestAnimationFrame(frame);
 // (skipped on portal CDNs: itch.io's html*.itch.zone (folder URLs 403, itch serves its own copy) and Newgrounds'
 // uploads.ungrounded.net (one origin shared by every NG game), so no offline cache inside those iframes)
 if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname)) {
-  navigator.serviceWorker.register(isMobile ? './sw.js?m=1' : './sw.js') /* [mobile-perf] ?m=1: the sw precaches only the light art */.then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
+  // [v276 load-perf] BANKSY 12:01 PM "took forever to open": the worker's install (~4.4 MB shell) + art fill used to start mid-boot and fight the
+  // game's own downloads; register only after the page has loaded and gone idle. &loadperf=0 = the old register-at-boot (and the old sw timing).
+  const LP = !/[?&]loadperf=0(&|$)/.test(location.search), swUrl = (isMobile ? './sw.js?m=1' : './sw.js') + (LP ? '' : (isMobile ? '&' : '?') + 'lp=0');
+  const swReg = () => navigator.serviceWorker.register(swUrl) /* [mobile-perf] ?m=1: the sw precaches only the light art */.then(r => console.log('[pwa] service worker ready, scope', r.scope)).catch(e => console.warn('[pwa] sw failed', e));
+  if (!LP || navigator.serviceWorker.controller) swReg(); // returning visitors: the update check is cheap and keeps phones current
+  else { const later = () => setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(swReg, { timeout: 8000 }), 6000); if (document.readyState === 'complete') later(); else addEventListener('load', later, { once: true }); }
 }
 
 // [Raul] ship upgrades: SHOP button (top HUD row) + shipwright overlay

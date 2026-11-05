@@ -62,6 +62,8 @@ export const MAP = {
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud]
   spec: { [BTN.A]: 'specFollow', [BTN.X]: 'specLeader', [BTN.Y]: 'specOverview', [BTN.B]: 'specHud', [BTN.LB]: 'specPrev', [BTN.RB]: 'specNext', [BTN.VIEW]: 'specBoard', [BTN.START]: 'pause' },
   ui: { [BTN.A]: 'click', [BTN.B]: 'back', [BTN.START]: 'back', [BTN.LB]: 'tabPrev', [BTN.RB]: 'tabNext', [BTN.Y]: 'click2', [BTN.X]: 'click3' },
+  // [map-zoom] BANKSY 2:44 PM: while the ISLAND MAP is open — sticks pan/zoom, Y recentre, B close (no sea fire / no menu focus fight)
+  map: { [BTN.B]: 'mapClose', [BTN.START]: 'mapClose', [BTN.Y]: 'mapRecentre', [BTN.A]: 'mapRecentre', [BTN.LB]: 'mapZoomOut', [BTN.RB]: 'mapZoomIn' },
 };
 // readable map for the CONTROLS overlay + the report (glyphs follow the pad brand)
 export const MAP_HELP = {
@@ -70,6 +72,7 @@ export const MAP_HELP = {
   foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'jump'], ['Y', 'island map'],
     ['RT', 'swing the sword / fire the musket (in an area)'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
+  map: [['LEFT STICK', 'pan the island map'], ['RIGHT STICK / LT·RT', 'zoom out / in'], ['LB / RB', 'zoom out / in (tap)'], ['Y / A', 'recentre (fit whole island)'], ['B', 'close map']],
 };
 // the one-line hint (title, pause, the HUD) while a pad is in use
 export function padLine(short = false, b = brand) { const g = (k) => glyphFor(b, k);
@@ -79,7 +82,7 @@ export function padLine(short = false, b = brand) { const g = (k) => glyphFor(b,
 export function padHelpHtml(b = brand) {
   const g = (t) => t.replace(/\b(LT|RT|LB|RB|VIEW|MENU|A|B|X|Y)\b/g, (m) => glyphFor(b, m === 'MENU' ? 'START' : m));
   const sec = (h, rows) => `<h4>${h}</h4><table><tbody>${rows.map(([k, v]) => `<tr><td>${g(k)}</td><td>${v}</td></tr>`).join('')}</tbody></table>`;
-  return `<div id="pad-help"><p class="muted">🎮 CONTROLLER${connected ? '' : ' (plug one in or press a button)'}</p>${sec('SAILING', MAP_HELP.sea)}${sec('ON FOOT', MAP_HELP.foot)}${sec('MENUS', MAP_HELP.ui)}</div>`;
+  return `<div id="pad-help"><p class="muted">🎮 CONTROLLER${connected ? '' : ' (plug one in or press a button)'}</p>${sec('SAILING', MAP_HELP.sea)}${sec('ON FOOT', MAP_HELP.foot)}${sec('ISLAND MAP', MAP_HELP.map)}${sec('MENUS', MAP_HELP.ui)}</div>`;
 }
 // "a|b": a when it applies, else b. Returns the resolved action (pure; ctx = { prompt: [bool, bool], area, tps, docked, harbor })
 export function resolve(action, ctx = {}) {
@@ -224,7 +227,9 @@ export function initGamepad(opts = {}) {
 
   function mode() {
     const g = opts.game?.() || {};
-    if (topLayer() || (g.state && g.state !== 'playing' && !opts.spectating?.())) return 'ui';
+    const top = topLayer();
+    if (top && top.id === 'isle-map') return 'map'; // [map-zoom] sticks pan/zoom the full map (not menu focus)
+    if (top || (g.state && g.state !== 'playing' && !opts.spectating?.())) return 'ui';
     if (doc.classList.contains('pvp-spec') || opts.spectating?.()) return 'spec';
     return padHooks.dock?.onFoot?.() ? 'foot' : 'sea';
   }
@@ -241,6 +246,10 @@ export function initGamepad(opts = {}) {
     if (n === 'invite') { if (down) D?.openInvites?.(); return; } // [invite-discreet] VIEW → expand the under-inventory invite pill
     if (n === 'sprint') { sprint = down; return; }
     if (n === 'jump' && m === 'foot') { if (down) D?.jump?.(); return; }
+    if (n === 'mapClose') { if (down) D?.islandMap?.close?.(); return; } // [map-zoom]
+    if (n === 'mapRecentre') { if (down) D?.islandMap?.resetView?.(); return; }
+    if (n === 'mapZoomIn') { if (down) D?.islandMap?.zoomIn?.(); return; }
+    if (n === 'mapZoomOut') { if (down) D?.islandMap?.zoomOut?.(); return; }
     const code = keyFor(n, opts.binds);
     if (hold) { if (down) { held.set(n, code); key(code, true); } else { key(code, false); held.delete(n); } return; }
     if (down) { tap(code); if (n === 'fireStar' || n === 'firePort' || n === 'attack') rumble(n === 'attack' ? 0.3 : 0.45, n === 'attack' ? 0.1 : 0.3, 90); }
@@ -289,6 +298,12 @@ export function initGamepad(opts = {}) {
     } else if (m === 'spec') {
       for (const [k, on] of [['KeyW', s.ly < -0.4], ['KeyS', s.ly > 0.4], ['KeyA', s.lx < -0.4], ['KeyD', s.lx > 0.4]]) { const was = held.get('pan' + k); if (on && !was) { held.set('pan' + k, k); key(k, true); } else if (!on && was) { held.delete('pan' + k); key(k, false); } }
       if (s.rx || s.ry) orbit(s.rx * PAD.orbit[0] * dt, s.ry * PAD.orbit[1] * dt);
+    } else if (m === 'map') { // [map-zoom] continuous stick pan + trigger/right-stick zoom; edge buttons handled above via MAP.map
+      const pr = (b) => s.b[b] && !p.b[b];
+      D?.islandMap?.padTick?.({
+        lx: s.lx, ly: s.ly, rx: s.rx, ry: s.ry, lt: s.lt, rt: s.rt,
+        recenter: pr(BTN.Y) || pr(BTN.A), close: pr(BTN.B) || pr(BTN.START),
+      });
     }
   }
   function leaveGame() { if (steer) { key(keyFor(steer < 0 ? 'left' : 'right', opts.binds), false); steer = 0; } releaseAll(); sprint = false; }

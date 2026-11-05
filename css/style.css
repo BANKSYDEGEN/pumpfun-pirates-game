@@ -76,12 +76,22 @@ button.icon:hover { border-color: var(--gold); }
 #isle-map .im-head { display: flex; align-items: center; gap: 14px; padding: 10px 16px; font-size: 15px; }
 #isle-map .im-head b { font-family: 'Just Another Hand', cursive; font-size: 34px; color: var(--gold, #ffcd77); letter-spacing: 1px; font-weight: 400; }
 #isle-map .im-head span { opacity: .7; flex: 1; }
-#isle-map .im-x { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,205,119,.5); background: rgba(0,0,0,.4); color: #fff; font-size: 20px; }
+#isle-map .im-x { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,205,119,.5); background: rgba(0,0,0,.4); color: #fff; font-size: 20px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+/* [map-zoom] BANKSY 2:44 PM: big +/- / recentre for phone; pad hints; no page scroll/zoom leak */
+#isle-map .im-zoom { display: flex; gap: 8px; margin-left: auto; }
+#isle-map .im-zbtn { width: 48px; height: 48px; min-width: 48px; min-height: 48px; border-radius: 14px; border: 2px solid rgba(255,205,119,.65); background: rgba(0,0,0,.55); color: #ffcd77; font-size: 26px; line-height: 1; font-family: system-ui, sans-serif; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; padding: 0; }
+#isle-map .im-zbtn:active { transform: scale(.94); background: rgba(255,205,119,.2); }
+#isle-map canvas { touch-action: none; overscroll-behavior: none; cursor: grab; }
+#isle-map canvas:active { cursor: grabbing; }
+#isle-map .im-padhint { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,205,119,.45); background: rgba(0,0,0,.45); color: #ffcd77; font-size: 12px; letter-spacing: .02em; }
+#isle-map .im-padhint[hidden] { display: none !important; }
+html.isle-map-open { overflow: hidden; overscroll-behavior: none; touch-action: none; }
+html.isle-map-open body { overscroll-behavior: none; touch-action: none; }
 #isle-map .im-key { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 16px 12px; font-size: 13px; align-items: center; opacity: .9; }
 #isle-map .im-key i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: -6px; border: 1px solid #161616; }
 #isle-map .im-key i.im-tr { width: 18px; height: 4px; border-radius: 2px; }
 #isle-map .im-key i.im-st { width: 14px; height: 11px; border-radius: 2px; background: repeating-linear-gradient(45deg, #6b5a4a 0 2px, #9a8a70 2px 5px); }
-@media (max-width: 700px) { #isle-map .im-head span { display: none; } #isle-map .im-key { font-size: 11px; } }
+@media (max-width: 700px) { #isle-map .im-head span { display: none; } #isle-map .im-key { font-size: 11px; } #isle-map .im-zbtn { width: 52px; height: 52px; min-width: 52px; min-height: 52px; font-size: 28px; } #isle-map .im-x { width: 52px; height: 52px; } }
 #enemies-left { grid-column: 1 / -1; justify-self: end; font-size: 20px; text-shadow: 0 2px 3px #000; }
 
 #controls { position: absolute; bottom: calc(18px + var(--safe-b)); left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; }

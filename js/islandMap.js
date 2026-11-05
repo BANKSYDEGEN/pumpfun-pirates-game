@@ -6,7 +6,7 @@
 //   - the round radar (top right) shows the WHOLE island, north up, in the harbor at sea AND on foot: you, your ship, other
 //     harbor pirates (green), AI ships (red) + the boss (gold ring), gold drops, and the active treasure-map dig area.
 //   - tap the radar or press M (rebindable 'map'): a full-screen island map with the same markers + labelled points of
-//     interest; tap anywhere / Esc / M closes it. Markers only redraw; the terrain is never rendered again.
+//     interest; Esc / M / ✕ closes it (with &mapzoom=0: tap anywhere). Wheel / pinch / sticks zoom; drag / stick pans. Markers only redraw; the terrain is never rendered again.
 // Harbor frame = foot frame - HC (no rotation), so headings are the same in both.
 import * as THREE from 'three';
 import { shopIcon, drawShopIcon, getMapStyle, THEMES, SHOP_ICONS } from './mapIcons.js'; // [v153] shop badges + MINIMAP STYLE // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
@@ -24,6 +24,7 @@ const POI_HIDE = new Set(['wish_fountain']); // wishing fountain stays off the m
 const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
 const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
 
+const MAPZOOM_ON = typeof location === 'undefined' || !/[?&]mapzoom=0(?:&|$)/.test(location.search); // [map-zoom] BANKSY 2:43 PM; &mapzoom=0 = old tap-anywhere-to-close, no zoom/pan
 export function createIslandMap({ world, layout, low, islands = null, paperSheet = null }) { // paperSheet() = the MAPS parchment chart (js/dock/treasureMap.js sheet())
   const FM = layout.FM, toF = layout.harborToFoot, toH = layout.footToHarbor;
   const N = low ? 512 : 1024, mpp = (B.x1 - B.x0) / N, NZ = Math.round((B.z1 - B.z0) / mpp);
@@ -180,48 +181,168 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     ctx.restore();
   }
   // ---------- full-screen map ----------
+  // [map-zoom] BANKSY 2:43-2:44 PM: wheel / pinch / stick zoom + drag / stick pan on the ISLAND MAP (fit → ~4×), icons stay screen-sized.
   let el = null, fc = null, open = false, getSt = null, raf = 0;
+  let z = 1, panX = 0, panZ = 0; // z = zoom (1 = fit whole map), pan = foot-metre offset of the view centre from LB
+  let vx = 0, vz = 0; // pan velocity (foot m / s) for inertia
+  let fitK = 1; // px-per-metre at z=1 for the current canvas (set each frame)
+  const ZMIN = 1, ZMAX = 4;
+  const clampZ = (v) => Math.max(ZMIN, Math.min(ZMAX, v));
+  function clampPan() { // keep the view centre so the land bounds stay on-screen (with a small margin)
+    if (!LB || fitK <= 0) return;
+    const Wc = fc?.width || 1, Hc = fc?.height || 1, k = fitK * z;
+    const maxX = Math.max(0, LB.r - (Wc / 2) / k + 8), maxZ = Math.max(0, LB.r - (Hc / 2) / k + 8);
+    panX = Math.max(-maxX, Math.min(maxX, panX)); panZ = Math.max(-maxZ, Math.min(maxZ, panZ));
+  }
+  function resetView() { z = 1; panX = panZ = 0; vx = vz = 0; }
+  function zoomAt(factor, sx, sy) { // sx,sy = canvas CSS px relative to canvas top-left (centre of zoom); keep that world point under the cursor
+    if (!MAPZOOM_ON || !LB || !fc) { z = clampZ(z * factor); return; }
+    const dpr = Math.min(2, devicePixelRatio || 1), Wc = fc.width, Hc = fc.height;
+    const cx = (sx == null ? fc.clientWidth / 2 : sx) * dpr, cy = (sy == null ? fc.clientHeight / 2 : sy) * dpr;
+    const k0 = fitK * z, nz = clampZ(z * factor), k1 = fitK * nz;
+    // world foot under cursor before zoom: viewCentre + (screen - canvasCentre) / k
+    const fx = LB.cx + panX + (cx - Wc / 2) / k0, fz = LB.cz + panZ + (cy - Hc / 2) / k0;
+    z = nz; panX = fx - LB.cx - (cx - Wc / 2) / k1; panZ = fz - LB.cz - (cy - Hc / 2) / k1; clampPan(); vx = vz = 0;
+  }
+  function panByPx(dx, dy) { // canvas CSS delta → foot metres (north-up: +y screen = +z foot)
+    if (!MAPZOOM_ON || !fitK) return;
+    const dpr = Math.min(2, devicePixelRatio || 1), k = fitK * z;
+    panX -= dx * dpr / k; panZ -= dy * dpr / k; clampPan();
+  }
   function build() {
     el = document.createElement('div'); el.id = 'isle-map'; el.hidden = true;
-    el.innerHTML = '<div class="im-head"><b>ISLAND MAP</b><span>tap anywhere · M · Esc to close</span><button class="im-x" aria-label="Close">✕</button></div><canvas></canvas>' +
-      '<div class="im-key"><i style="background:#fff"></i>you <i style="background:#ffcd77"></i>your ship <i style="background:#2fd866;box-shadow:0 0 0 2px #fff"></i>pirates <i style="background:#33d6ff;transform:rotate(45deg);border-radius:1px"></i>crew <i style="background:#ffcd00"></i>Commodore <i style="background:#fa0d0d"></i>AI ships <b style="color:#ff3b3b">✕</b> treasure <i class="im-tr" style="background:#fa0d0d"></i>red trail <i class="im-tr" style="background:#ffc93c"></i>yellow trail <i class="im-st"></i>steep (no way up)</div>';
+    const hint = MAPZOOM_ON
+      ? 'scroll / pinch zoom · drag to pan · dbl-click reset · M · Esc'
+      : 'tap anywhere · M · Esc to close';
+    el.innerHTML = `<div class="im-head"><b>ISLAND MAP</b><span>${hint}</span>` +
+      (MAPZOOM_ON ? '<div class="im-zoom" role="group" aria-label="Map zoom"><button type="button" class="im-zbtn" data-z="out" aria-label="Zoom out">−</button><button type="button" class="im-zbtn" data-z="in" aria-label="Zoom in">+</button><button type="button" class="im-zbtn" data-z="reset" aria-label="Recentre"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="display:block;margin:auto" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button></div>' : '') +
+      `<button class="im-x" aria-label="Close">✕</button></div><canvas></canvas>` +
+      '<div class="im-key"><i style="background:#fff"></i>you <i style="background:#ffcd77"></i>your ship <i style="background:#2fd866;box-shadow:0 0 0 2px #fff"></i>pirates <i style="background:#33d6ff;transform:rotate(45deg);border-radius:1px"></i>crew <i style="background:#ffcd00"></i>Commodore <i style="background:#fa0d0d"></i>AI ships <b style="color:#ff3b3b">✕</b> treasure <i class="im-tr" style="background:#fa0d0d"></i>red trail <i class="im-tr" style="background:#ffc93c"></i>yellow trail <i class="im-st"></i>steep (no way up)' +
+      (MAPZOOM_ON ? '<span class="im-padhint" hidden>L-stick pan · LT/RT zoom · Y recentre · B close</span>' : '') + '</div>';
     document.body.appendChild(el); fc = el.querySelector('canvas');
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); setTimeout(close, 0); });
+    el.querySelector('.im-x').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
+    if (!MAPZOOM_ON) {
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); setTimeout(close, 0); });
+    } else wireZoom(el, fc);
+  }
+  function wireZoom(root, canvas) {
+    root.querySelector('.im-zoom')?.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-z]'); if (!b) return; e.preventDefault(); e.stopPropagation();
+      if (b.dataset.z === 'in') zoomAt(1.25); else if (b.dataset.z === 'out') zoomAt(1 / 1.25); else resetView();
+    });
+    // swallow page scroll / browser pinch-zoom while the map is up (canvas handles real zoom)
+    const swallow = (e) => { e.preventDefault(); e.stopPropagation(); };
+    root.addEventListener('wheel', swallow, { passive: false });
+    root.addEventListener('gesturestart', swallow, { passive: false });
+    root.addEventListener('gesturechange', swallow, { passive: false });
+    // ----- desktop wheel (cursor-centred) -----
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const r = canvas.getBoundingClientRect();
+      const f = Math.exp(-e.deltaY * 0.0015); zoomAt(f, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    // ----- pointer drag pan + double-click/tap reset -----
+    let dragging = false, pid = null, lastX = 0, lastY = 0, lastT = 0, moved = 0, lastTap = 0;
+    const pts = new Map(); // pointerId -> {x,y} for pinch
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      canvas.setPointerCapture?.(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) {
+        dragging = true; pid = e.pointerId; lastX = e.clientX; lastY = e.clientY; lastT = performance.now(); moved = 0; vx = vz = 0;
+        const now = performance.now();
+        if (now - lastTap < 320) { resetView(); lastTap = 0; } else lastTap = now;
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      e.preventDefault();
+      const prev = pts.get(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2) { // pinch
+        const [a, b] = [...pts.values()];
+        if (!canvas._pinch) { canvas._pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; dragging = false; return; }
+        const d = Math.hypot(a.x - b.x, a.y - b.y), p = canvas._pinch;
+        if (p.d > 4 && d > 4) {
+          const r = canvas.getBoundingClientRect();
+          zoomAt(d / p.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+        }
+        canvas._pinch = { d, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+        // pan by midpoint motion
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (p.cx != null) panByPx(mx - p.cx, my - p.cy);
+        return;
+      }
+      if (!dragging || e.pointerId !== pid) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY, now = performance.now(), dt = Math.max(1, now - lastT) / 1000;
+      panByPx(dx, dy); moved += Math.abs(dx) + Math.abs(dy);
+      // velocity in foot m/s
+      const dpr = Math.min(2, devicePixelRatio || 1), k = fitK * z || 1;
+      vx = -(dx * dpr / k) / dt; vz = -(dy * dpr / k) / dt;
+      lastX = e.clientX; lastY = e.clientY; lastT = now;
+      if (moved > 8) lastTap = 0; // don't treat a drag as a double-tap
+    });
+    const endPtr = (e) => {
+      pts.delete(e.pointerId);
+      if (pts.size < 2) canvas._pinch = null;
+      if (e.pointerId === pid) { dragging = false; pid = null; }
+      // cancel tiny residual velocity
+      if (Math.hypot(vx, vz) < 2) vx = vz = 0;
+    };
+    canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr); // no pointerleave — capture keeps the drag even if the cursor slips off the canvas
+    // +/- keys while open (desktop)
+    addEventListener('keydown', (e) => {
+      if (!open || !MAPZOOM_ON) return;
+      if (e.code === 'Equal' || e.code === 'NumpadAdd' || e.key === '+') { e.preventDefault(); zoomAt(1.2); }
+      else if (e.code === 'Minus' || e.code === 'NumpadSubtract' || e.key === '-') { e.preventDefault(); zoomAt(1 / 1.2); }
+      else if (e.code === 'Digit0' || e.code === 'Numpad0') { e.preventDefault(); resetView(); }
+    });
+    // show pad hints when a pad is connected
+    const hint = root.querySelector('.im-padhint');
+    if (hint) { const sync = () => { hint.hidden = !document.documentElement.classList.contains('pfp-padc'); }; sync();
+      new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); }
   }
   function frame() {
     if (!open) return; raf = requestAnimationFrame(frame); if (!done) bakeRows(40);
     const dpr = Math.min(2, devicePixelRatio || 1), Wc = Math.floor(el.clientWidth * dpr), Hc = Math.floor((el.clientHeight - el.querySelector('.im-head').offsetHeight - el.querySelector('.im-key').offsetHeight) * dpr);
     if (fc.width !== Wc || fc.height !== Hc) { fc.width = Wc; fc.height = Hc; fc.style.height = `${Hc / dpr}px`; }
     const c = fc.getContext('2d'); c.clearRect(0, 0, Wc, Hc); if (!done) { c.fillStyle = '#ffcd77'; c.font = `${30 * dpr}px "Just Another Hand", cursive`; c.textAlign = 'center'; c.fillText('mapping the island…', Wc / 2, Hc / 2); return; }
-    const k = Math.min(Wc / (2 * LB.r), Hc / (2 * LB.r)), ox = Wc / 2 - (LB.cx - B.x0) * k, oz = Hc / 2 - (LB.cz - B.z0) * k;
+    checkRev(); if (again) bakeRows(40);
+    // inertia
+    if (MAPZOOM_ON && (vx || vz)) { const dt = 1 / 60; panX += vx * dt; panZ += vz * dt; vx *= 0.92; vz *= 0.92; if (Math.hypot(vx, vz) < 0.4) vx = vz = 0; clampPan(); }
+    fitK = Math.min(Wc / (2 * LB.r), Hc / (2 * LB.r));
+    const kBase = fitK, k = MAPZOOM_ON ? kBase * z : kBase;
+    if (MAPZOOM_ON) clampPan();
+    const cx = MAPZOOM_ON ? LB.cx + panX : LB.cx, cz = MAPZOOM_ON ? LB.cz + panZ : LB.cz;
+    const ox = Wc / 2 - (cx - B.x0) * k, oz = Hc / 2 - (cz - B.z0) * k;
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [ox + (fx - B.x0) * k, oz + (fz - B.z0) * k]; };
-    checkRev(); if (again) bakeRows(40); const th = theme(), SH = th.sheet && paperSheet ? paperSheet() : null; // [minimap-themes] the full map follows the MINIMAP theme
+    const th = theme(), SH = th.sheet && paperSheet ? paperSheet() : null;
     const baseAt = (ox2, oz2, kk) => SH ? c.drawImage(SH.cv, ox2 + (SH.x0 - B.x0) * kk, oz2 + (SH.z0 - B.z0) * kk, SH.w / SH.k * kk, SH.h / SH.k * kk) : c.drawImage(base(th), ox2, oz2, N * mpp * kk, NZ * mpp * kk);
     c.fillStyle = SH ? SEA_P : th.sea; c.fillRect(0, 0, Wc, Hc); c.imageSmoothingEnabled = true; baseAt(ox, oz, k);
+    // icons / labels: constant screen size (do not scale with z)
     const sz = 9 * dpr; c.textBaseline = 'middle';
-    for (const p of P || []) { const [a, b] = T(...toH(p.x, p.z)); if (p.town) continue; // town POIs: in the HARBOR TOWN inset
+    for (const p of P || []) { const [a, b] = T(...toH(p.x, p.z)); if (p.town) continue; if (a < -40 || b < -40 || a > Wc + 40 || b > Hc + 40) continue;
       if (p.icon) { drawShopIcon(c, p.icon, a, b, sz * 1.1, th.badge); c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.strokeText(p.s[3], a + sz * 1.1 + 3, b); c.fillStyle = '#fff'; c.fillText(p.s[3], a + sz * 1.1 + 3, b); continue; }
       c.fillStyle = p.s[1]; c.strokeStyle = '#161616'; c.lineWidth = 1.5 * dpr; c.beginPath(); c.arc(a, b, sz, 0, 7); c.fill(); c.stroke();
       c.font = `bold ${Math.round(sz * 1.15)}px system-ui, sans-serif`; c.textAlign = 'center'; c.fillStyle = p.s[2]; c.fillText(p.s[0], a, b + 0.5);
-      if (!p.town || k > 0.9 * dpr) { c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.strokeText(p.s[3], a + sz + 3, b); c.fillStyle = '#fff'; c.fillText(p.s[3], a + sz + 3, b); } }
-    { const tc = T(...toH(...(FM.TRAILS.A[Math.floor(FM.TRAILS.A.length * 0.3)])))
+      if (!p.town || kBase > 0.9 * dpr) { c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.strokeText(p.s[3], a + sz + 3, b); c.fillStyle = '#fff'; c.fillText(p.s[3], a + sz + 3, b); } }
+    { const tc = T(...toH(...(FM.TRAILS.A[Math.floor(FM.TRAILS.A.length * 0.3)])));
       c.font = `bold ${Math.round(12 * dpr)}px system-ui, sans-serif`; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.fillStyle = '#fa0d0d'; c.strokeText('RED TRAIL', tc[0] + 6, tc[1]); c.fillText('RED TRAIL', tc[0] + 6, tc[1]);
       const tb = T(...toH(...(FM.TRAILS.B[Math.floor(FM.TRAILS.B.length * 0.55)]))); c.fillStyle = '#ffc93c'; c.strokeText('YELLOW TRAIL', tb[0] + 6, tb[1]); c.fillText('YELLOW TRAIL', tb[0] + 6, tb[1]); }
     const st = getSt ? getSt() : {}; markers(c, T, k, st, 11 * dpr, null, th);
-    // HARBOR TOWN inset (the plaza shops + boards are a few metres apart): zoomed box, labelled, same markers
+    // HARBOR TOWN inset: only at fit zoom (hidden while zoomed so it doesn't fight the pan)
+    if (!MAPZOOM_ON || z < 1.15) {
     { const all = (P || []).filter(p => !p.far), med = (a) => a.sort((x, y) => x - y)[a.length >> 1] || 0;
-      const mx = med(all.map(p => p.x)), mz = med(all.map(p => p.z)), near = all.filter(p => (p.town = Math.hypot(p.x - mx, p.z - mz) < 90)); // the plaza cluster (not the far cave)
+      const mx = med(all.map(p => p.x)), mz = med(all.map(p => p.z)), near = all.filter(p => (p.town = Math.hypot(p.x - mx, p.z - mz) < 90));
       if (near.length) {
-      let cx = 0, cz = 0; near.forEach(p => { cx += p.x; cz += p.z; }); cx /= near.length; cz /= near.length;
-      let R = 30; near.forEach(p => { R = Math.max(R, Math.abs(p.x - cx) + 14, Math.abs(p.z - cz) + 10); });
-      const margin = (Wc - 2 * LB.r * k) / 2, side = margin > 150 * dpr; // wide screens (phones in landscape): the inset sits in the empty sea on the left
+      let tcx = 0, tcz = 0; near.forEach(p => { tcx += p.x; tcz += p.z; }); tcx /= near.length; tcz /= near.length;
+      let R = 30; near.forEach(p => { R = Math.max(R, Math.abs(p.x - tcx) + 14, Math.abs(p.z - tcz) + 10); });
+      const margin = (Wc - 2 * LB.r * kBase) / 2, side = margin > 150 * dpr;
       const bw = side ? Math.min(margin - 16 * dpr, 330 * dpr) : Math.min(Wc * 0.34, 300 * dpr), bh = side ? Math.min(Hc * 0.62, bw * 0.85) : Math.min(Hc * 0.4, 220 * dpr),
         bx = side ? 8 * dpr : Wc - bw - 10 * dpr, by = side ? Hc - bh - 34 * dpr : Hc - bh - 10 * dpr, kk = Math.min(bw / (2 * R), bh / (2 * R));
-      const T2 = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [bx + bw / 2 + (fx - cx) * kk, by + bh / 2 + (fz - cz) * kk]; };
+      const T2 = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [bx + bw / 2 + (fx - tcx) * kk, by + bh / 2 + (fz - tcz) * kk]; };
       c.save(); c.fillStyle = SH ? SEA_P : th.sea; c.fillRect(bx, by, bw, bh); c.beginPath(); c.rect(bx, by, bw, bh); c.clip();
-      baseAt(bx + bw / 2 - (cx - B.x0) * kk, by + bh / 2 - (cz - B.z0) * kk, kk);
+      baseAt(bx + bw / 2 - (tcx - B.x0) * kk, by + bh / 2 - (tcz - B.z0) * kk, kk);
       const s2 = 9 * dpr; c.textBaseline = 'middle';
-      // [v153] icons first (shrunk when the town is crowded), then labels placed where they don't hit an icon or another label (right, left, below, above; else none)
       const pts = near.map(p => { const [a, b] = T2(...toH(p.x, p.z)); return { p, a, b }; }); let gap = 1e9;
       for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) gap = Math.min(gap, Math.hypot(pts[i].a - pts[j].a, pts[i].b - pts[j].b));
       const si = Math.max(5 * dpr, Math.min(s2 * 1.25, gap * 0.55)), boxes = pts.map(q => [q.a - si, q.b - si, q.a + si, q.b + si]);
@@ -230,18 +351,31 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
         c.font = `bold ${Math.round(si * 0.95)}px system-ui, sans-serif`; c.textAlign = 'center'; c.fillStyle = p.s[2]; c.fillText(p.s[0], a, b + 0.5); }
       c.font = `bold ${Math.round(9.5 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111';
       const hit = (r) => boxes.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]) || r[0] < bx || r[2] > bx + bw || r[1] < by + 16 * dpr || r[3] > by + bh;
-      for (const { p, a, b } of pts) { const tw = c.measureText(p.s[3]).width, th = 11 * dpr, g2 = si + 3 * dpr;
-        for (const [x0, y0] of [[a + g2, b - th / 2], [a - g2 - tw, b - th / 2], [a - tw / 2, b + g2], [a - tw / 2, b - g2 - th]]) { const r = [x0, y0, x0 + tw, y0 + th]; if (hit(r)) continue;
-          boxes.push(r); c.strokeText(p.s[3], x0, y0 + th / 2); c.fillStyle = '#fff'; c.fillText(p.s[3], x0, y0 + th / 2); break; } }
-      markers(c, T2, kk, st, 10 * dpr, null, th); // you / your ship / the X on top of the badges
+      for (const { p, a, b } of pts) { const tw = c.measureText(p.s[3]).width, thh = 11 * dpr, g2 = si + 3 * dpr;
+        for (const [x0, y0] of [[a + g2, b - thh / 2], [a - g2 - tw, b - thh / 2], [a - tw / 2, b + g2], [a - tw / 2, b - g2 - thh]]) { const r = [x0, y0, x0 + tw, y0 + thh]; if (hit(r)) continue;
+          boxes.push(r); c.strokeText(p.s[3], x0, y0 + thh / 2); c.fillStyle = '#fff'; c.fillText(p.s[3], x0, y0 + thh / 2); break; } }
+      markers(c, T2, kk, st, 10 * dpr, null, th);
       c.restore(); c.strokeStyle = '#ffcd77'; c.lineWidth = 2 * dpr; c.strokeRect(bx, by, bw, bh);
       c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.fillStyle = '#ffcd77'; c.fillText('HARBOR TOWN', bx + 6 * dpr, by + 10 * dpr);
-      // box on the main map
-      const [ta, tb] = T(...toH(cx, cz)); c.strokeStyle = 'rgba(255,205,119,.8)'; c.lineWidth = 1.5 * dpr; c.strokeRect(ta - R * k, tb - R * k, 2 * R * k, 2 * R * k); } }
-    // 100 m scale
-    c.strokeStyle = '#fff'; c.lineWidth = 3 * dpr; c.beginPath(); c.moveTo(14 * dpr, Hc - 14 * dpr); c.lineTo(14 * dpr + 100 * k, Hc - 14 * dpr); c.stroke(); c.fillStyle = '#fff'; c.font = `bold ${Math.round(11 * dpr)}px system-ui`; c.textAlign = 'left'; c.fillText('100 m', 14 * dpr, Hc - 24 * dpr);
+      const [ta, tb] = T(...toH(tcx, tcz)); c.strokeStyle = 'rgba(255,205,119,.8)'; c.lineWidth = 1.5 * dpr; c.strokeRect(ta - R * k, tb - R * k, 2 * R * k, 2 * R * k); } }
+    }
+    // scale bar (metres): length tracks zoom
+    const barM = z >= 2.5 ? 25 : z >= 1.5 ? 50 : 100;
+    c.strokeStyle = '#fff'; c.lineWidth = 3 * dpr; c.beginPath(); c.moveTo(14 * dpr, Hc - 14 * dpr); c.lineTo(14 * dpr + barM * k, Hc - 14 * dpr); c.stroke();
+    c.fillStyle = '#fff'; c.font = `bold ${Math.round(11 * dpr)}px system-ui`; c.textAlign = 'left'; c.fillText(barM + ' m', 14 * dpr, Hc - 24 * dpr);
+    if (MAPZOOM_ON && z > 1.02) { c.fillStyle = 'rgba(255,205,119,.85)'; c.font = `bold ${Math.round(12 * dpr)}px system-ui`; c.textAlign = 'right'; c.fillText(z.toFixed(1) + '×', Wc - 14 * dpr, Hc - 14 * dpr); }
   }
-  function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
-  function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); }
-  return { draw, drawLocal, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; } }; // [minimap-icons] shot / debug: the live icon list
+  // controller: left stick pan (foot m/s), LT/RT or right-stick Y zoom, Y recentre, B close — called from gamepad.js map mode
+  function padTick(s) {
+    if (!open || !MAPZOOM_ON || !s) return;
+    const dt = 1 / 60, speed = (LB?.r || 400) * 0.55 / Math.max(z, 1); // ~half the fit radius per second at 1×
+    if (Math.abs(s.lx) > 0.18 || Math.abs(s.ly) > 0.18) { panX += s.lx * speed * dt; panZ += s.ly * speed * dt; clampPan(); vx = vz = 0; }
+    const zoomIn = (s.rt || 0) > 0.15 || s.ry < -0.35, zoomOut = (s.lt || 0) > 0.15 || s.ry > 0.35;
+    if (zoomIn || zoomOut) zoomAt(Math.exp((zoomIn ? 1 : -1) * 1.2 * dt));
+    if (s.recenter) resetView();
+    if (s.close) close();
+  }
+  function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; resetView(); el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
+  function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); vx = vz = 0; }
+  return { draw, drawLocal, bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
 }
