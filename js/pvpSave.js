@@ -9,6 +9,7 @@
 // ship NFT mint ('mint:<mint>'); the server table already has a nullable `mint` column for that.
 import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT, HOLDER_DAILY_GOLD } from './config.js';
 import { UPGRADES } from './upgrades.js';
+import { V6_LEGACY, v6Legacy as v6Legacy0, addLegacyOwned } from './v6Legacy.js';   // [V6 store] legacy pants + boots grant
 import { findProvider, sigBytes } from './pirateAccount.js';
 
 const DEVICE_KEY = 'pfp_pvp_save_v1', SESSION_KEY = 'pfp_pvp_session_v1';
@@ -23,11 +24,12 @@ export const ownerReady = (async () => { try { const k = ls.get('pfp_pvp_dk_v1')
   const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pfp-dev:' + k)))].map(x => x.toString(16).padStart(2, '0')).join('');
   return (ownerAll = OWNER_DEVS.includes('dev:' + h.slice(0, 24)) || !!acct()?.owner); } catch { return false; } })(); // [v106] + the owner's account logged in on another device (the server decides; this only shows it)
 // [v102] pirate gear slots (js/shopCatalog.js ids): the first id of each slot is the free default (shirtless start)
-export const GEAR_SLOTS = { hat: ['none', 'bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['shirtless', 'tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['plain', 'eyepatch', 'sunglasses', 'laser'], parrot: ['none', 'parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond', 'pet_monkey', 'pet_cat', 'pet_cat_black', 'pet_chimp', 'pet_gorilla', 'pet_gorilla_white', 'pet_tiger'], hook: ['none', 'hook_iron', 'hook_gold'], leg: ['none', 'peg', 'peg_gold', 'peg_kraken', 'peg_ghost'], face: ['none', 'facepaint_retardio'], beard: ['none', 'beard_moustache', 'beard_forked', 'beard_black'], ears: ['none', 'earring_hoop', 'earring_double', 'earring_skull'], teeth: ['none', 'tooth_gold', 'grill_gold', 'grill_diamond'], boots: ['none', 'boots_buckle', 'boots_cavalier', 'boots_gold'], cape: ['none', 'cape_tattered', 'cape_captain', 'cape_royal'], flag: ['none', 'flag_cutlass', 'flag_red', 'flag_gold'], figure: ['none', 'fig_mermaid', 'fig_kraken', 'fig_lion'],  // [Raul shop items 2] (lib.ts mirror)
+export const GEAR_SLOTS = { hat: ['none', 'bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['shirtless', 'tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['plain', 'eyepatch', 'sunglasses', 'laser'], parrot: ['none', 'parrot_green', 'parrot_red', 'parrot_gold', 'parrot_blue', 'parrot_cockatoo', 'parrot_black', 'parrot_diamond', 'pet_monkey', 'pet_cat', 'pet_cat_black', 'pet_chimp', 'pet_gorilla', 'pet_gorilla_white', 'pet_tiger'], hook: ['none', 'hook_iron', 'hook_gold'], leg: ['none', 'peg', 'peg_gold', 'peg_kraken', 'peg_ghost'], face: ['none', 'facepaint_retardio'], beard: ['none', 'beard_moustache', 'beard_forked', 'beard_black'], ears: ['none', 'earring_hoop', 'earring_double', 'earring_skull'], teeth: ['none', 'tooth_gold', 'grill_gold', 'grill_diamond'], boots: ['none', 'boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'sandals', 'shoes_buckle', 'boots_sea'], cape: ['none', 'cape_tattered', 'cape_captain', 'cape_royal'], flag: ['none', 'flag_cutlass', 'flag_red', 'flag_gold'], figure: ['none', 'fig_mermaid', 'fig_kraken', 'fig_lion'],  // [Raul shop items 2] (lib.ts mirror)
+  pants: ['none', 'classic_pants', 'canvas_pants', 'sailor_trousers', 'leather_breeches'], // [V6 store] PANTS (APPEND-ONLY; server lib.ts GEAR_SLOTS)
   crewhat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq'], crewoutfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit'], sword: ['rusty', 'cutlass', 'rapier', 'bone', 'sabre_gilded', 'blade_gold'], musket: ['rusty', 'navy', 'blunder', 'dragoon', 'bone', 'blunder_gold'] }; // [Timothy] WEAPON STORE sword + musket (js// [Timothy] CREW SHOP: the crew's own loadout (js/crewLoadout.js CREW_SLOTS, first = the free crew uniform) // [Timothy] + crown, shirt, suit, 4 parrots, leg slot (server lib.ts GEAR_SLOTS must match)
 export function cleanGear(g) { const o = {}; for (const [sl, ids] of Object.entries(GEAR_SLOTS)) o[sl] = ids.includes(g?.[sl]) ? g[sl] : ids[0];
   const h = Math.floor(+g?.hatColor); o.hatColor = Number.isFinite(h) && h >= 0 && h <= 12 ? h : 0;
-  const ch = Math.floor(+g?.crewhatColor); if (Number.isFinite(ch) && ch > 0 && ch <= 12) o.crewhatColor = ch; return o; } // [Raul gear colours] the crew's free hat colour (additive: only when picked) // [v105] free hat colour (HAT_SWATCHES index)
+  const ch = Math.floor(+g?.crewhatColor); if (Number.isFinite(ch) && ch > 0 && ch <= 12) o.crewhatColor = ch; if (g?.v6legacy === 1 || g?.v6legacy === 2) o.v6legacy = g.v6legacy; return o; }   // [V6 store] 1 = checked, 2 = legacy pants + boots granted // [Raul gear colours] the crew's free hat colour (additive: only when picked) // [v105] free hat colour (HAT_SWATCHES index)
 // shop state from the server: { rev, skins: [...], gear: [...] } (null until it answers); the ONE copy of shop_rev on this device
 const shop = { rev: null, skins: null, gear: null };
 let seenPrestige = 0; // [prestige] the highest prestige level the server has told this page (see notePrestige)
@@ -44,6 +46,7 @@ export function cleanProfile(p) {
   b.skins.owned = ownerAll ? [...known].filter(id => id !== 'classic') : (shop.skins || (Array.isArray(p.skins?.owned) ? p.skins.owned : [])).filter(id => known.has(id) && id !== 'classic');
   const eq = p.skins?.equipped; b.skins.equipped = eq === 'classic' || b.skins.owned.includes(eq) ? eq : 'classic';
   b.gear = cleanGear(p.gear); b.gearOwned = ownerAll ? ['*'] : (shop.gear || (Array.isArray(p.gearOwned) ? p.gearOwned : [])).filter(k => typeof k === 'string' && /^[a-z]{2,10}:[a-z0-9_]{2,24}$/.test(k));
+  addLegacyOwned(b.gear, b.gearOwned);   // [V6 store] (also granted by the server)
   for (const [sl, ids] of Object.entries(GEAR_SLOTS)) if (b.gear[sl] !== ids[0] && !ownerAll && !b.gearOwned.includes(`${sl}:${b.gear[sl]}`)) b.gear[sl] = ids[0];
   b.prestige = Math.max(n(p.prestige, 100), seenPrestige); // [prestige] never below what the server last said (a stale copy can't lower it)
   b.rev = Number.isFinite(p.rev) ? Math.max(0, p.rev | 0) : (shop.rev ?? 0); // the rev travels WITH the gold it was taken at (bumped only by a buy)
@@ -237,8 +240,12 @@ export async function wavesScore(e) {
 function readDevice() { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } return cleanProfile(all.profiles?.device); }
 function writeDevice(p) { if (acctFrozen) return; let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = all.profiles || {}; all.profiles.device = { ...p, updated: Date.now() }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
 
+// [V6 store] LEGACY GRANT (js/v6Legacy.js): once, on load, a pre-V6 save gets + wears classic pants + classic boots
+export { V6_LEGACY };
+export const v6Legacy = (p) => v6Legacy0(p, isBlank(p), Object.fromEntries(Object.entries(GEAR_SLOTS).map(([k, v]) => [k, v[0]])));
 // Load: the device save, or (when a wallet is linked) the wallet's save if it has progress. Never throws.
-export async function loadProfile() {
+export async function loadProfile() { const r = await loadProfile0(); if (r?.profile && v6Legacy(r.profile) && r.source !== 'wallet') writeDevice(r.profile); return r; }
+async function loadProfile0() {
   await ownerReady;
   const dev = readDevice(), s = session(); group = null;
   if (!s && ownerAll) { // [v92] owner-only shared save: first sync adds this device's gold once (max of each upgrade)

@@ -26,7 +26,7 @@ import { SWORD_IDS, MUSKET_IDS } from './onfoot/swords.js';
 import { carryPick, carryDigits, carryFromDigits } from './carryRules.js';
 import { equip as raulEquip, unequip as raulUnequip, equipped as raulEquipped, ITEM_BY_ID as RAUL_ITEMS } from './pirateItems.js'; // [Raul] his item models (not edited)
 
-export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', cape: 'none', flag: 'none', figure: 'none' });   // [Raul shop items 2] + beard, earrings, gold teeth, boots, cape (the pirate) + flag, figurehead (your ship: js/shipGear.js)   // [v145] + face paint (own slot: worn with shades)
+export const GEAR_DEFAULTS = Object.freeze({ hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', leg: 'none', face: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', cape: 'none', flag: 'none', figure: 'none', pants: 'none' });   // [Raul shop items 2] + beard, earrings, gold teeth, boots, cape (the pirate) + flag, figurehead (your ship: js/shipGear.js)   // [v145] + face paint (own slot: worn with shades)
 // catalog ids that actually show on the pirate (everything else in a slot draws nothing). APPEND-ONLY: the wire code is the index.
 export const GEAR_RENDERS = Object.freeze({
   hat: ['bandana', 'tricorn', 'bicorne', 'crown', 'crown_imperial', 'helmet_hq', 'mask_luchador'], outfit: ['tank', 'tshirt', 'coat', 'shirt', 'suit', 'singlet'], eyes: ['eyepatch', 'sunglasses', 'laser'],
@@ -35,7 +35,7 @@ export const GEAR_RENDERS = Object.freeze({
   face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
   // [Raul shop items 2] v5 bodies only (v4 bodies draw nothing); flag + figure dress YOUR SHIP (js/shipGear.js), not the pirate
   beard: ['beard_moustache', 'beard_forked', 'beard_black'], ears: ['earring_hoop', 'earring_double', 'earring_skull'], teeth: ['tooth_gold', 'grill_gold', 'grill_diamond'],
-  boots: ['boots_buckle', 'boots_cavalier', 'boots_gold'], cape: ['cape_tattered', 'cape_captain', 'cape_royal'], flag: ['flag_cutlass', 'flag_red', 'flag_gold'], figure: ['fig_mermaid', 'fig_kraken', 'fig_lion'],
+  boots: ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'sandals', 'shoes_buckle', 'boots_sea'], pants: ['classic_pants', 'canvas_pants', 'sailor_trousers', 'leather_breeches'],   // [V6 store] + Clothing Store shoes (appended) + PANTS cape: ['cape_tattered', 'cape_captain', 'cape_royal'], flag: ['flag_cutlass', 'flag_red', 'flag_gold'], figure: ['fig_mermaid', 'fig_kraken', 'fig_lion'],
 });
 export const EXTRA_SLOTS = ['beard', 'ears', 'teeth', 'boots', 'cape', 'flag', 'figure'];   // [Raul shop items 2] wire digits after the face paint, in this order (APPEND-ONLY)
 export const gearRenders = (slot, id) => !!GEAR_RENDERS[slot]?.includes(id);
@@ -158,12 +158,15 @@ const RAUL5 = {
   'ears:earring_hoop': ['ears', 'earring_hoop', null], 'ears:earring_double': ['ears', 'earring_double', null], 'ears:earring_skull': ['ears', 'earring_skull', null],
   'teeth:tooth_gold': ['teeth', 'tooth_gold', null], 'teeth:grill_gold': ['teeth', 'grill_gold', null], 'teeth:grill_diamond': ['teeth', 'grill_diamond', null],
   'boots:boots_buckle': ['boots', 'boots_buckle', null], 'boots:boots_cavalier': ['boots', 'boots_cavalier', null], 'boots:boots_gold': ['boots', 'boots_gold', null],
+  // [V6 store] shoes in the boots slot (one pair at a time), pants = the body's 'base' item (boots cut them at the shaft, pegs at the knee)
+  'boots:boots_classic': ['boots', 'boots_classic', null], 'boots:sandals': ['boots', 'sandals', null], 'boots:shoes_buckle': ['boots', 'shoes_buckle', null], 'boots:boots_sea': ['boots', 'boots_sea', null],
+  'pants:classic_pants': ['base', 'classic_pants', null], 'pants:canvas_pants': ['base', 'canvas_pants', null], 'pants:sailor_trousers': ['base', 'sailor_trousers', null], 'pants:leather_breeches': ['base', 'leather_breeches', null],
   'cape:cape_tattered': ['cape', 'cape_tattered', null], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => { const k = outfitColors('suit', c).cloth; return { 1: k, 2: capeFold(k) }; }], 'cape:cape_royal': ['cape', 'cape_royal', null],
   'parrot:pet_monkey': ['shoulder', 'pet_monkey', null], 'parrot:pet_cat': ['shoulder', 'pet_cat', null], 'parrot:pet_cat_black': ['shoulder', 'pet_cat_black', null], 'parrot:pet_chimp': ['shoulder', 'pet_chimp', null], 'parrot:pet_gorilla': ['shoulder', 'pet_gorilla', null], 'parrot:pet_gorilla_white': ['shoulder', 'pet_gorilla_white', null], 'parrot:pet_tiger': ['shoulder', 'pet_tiger', null],
   'hat:mask_luchador': ['head', 'mask_luchador', (g) => (g.hatColor ? { recolor: hatColorHex('mask_luchador', g.hatColor) } : null)],   // [Raul gear colours] the hat colour = the hood; flames + trim auto-contrast (0 = his gold)
 };
 const raulOf = (p, key) => RAUL[key] || (p?.v5 ? RAUL5[key] : null);
-const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'shoulder'];   // [Raul shop items 2] + his new slots
+const RAUL_SLOTS = ['head', 'handL', 'handR', 'legL', 'legR', 'outfit', 'eyes', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'shoulder', 'base'];   // [V6 store] + 'base' = the pants (V6 bodies only; v5 keeps its auto base outfit)   // [Raul shop items 2] + his new slots
 const _bc = new THREE.Color();
 // [Raul items redo] BANKSY (3:14 PM 2026-11-04): every beard colour MATCHES the pirate's hair colour options. The keyed beards take the exact
 // HAIR + BEARD swatch the player picked (DEFAULT = the pirate's own baked hair colour, as the hair shows it; no honey default, no lift) and
@@ -210,11 +213,11 @@ export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gea
 // else (unknown digit, wrong type, too long) is the default for that field, so free-form data never reaches applyGear. A
 // missing field = shirtless/default. The clothes colour comes from the ship skin ('sk', already sent).
 export const WIRE_SLOTS = ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'];
-const WIRE_LEN = WIRE_SLOTS.length + 6 + 7 + 2;   // [Raul carry] + the carried sword + musket (1 + index in SWORD_IDS / MUSKET_IDS, 0 = none)
+const WIRE_LEN = WIRE_SLOTS.length + 6 + 7 + 2 + 1;   // [V6 store] + the pants digit (after the carry digits)   // [Raul carry] + the carried sword + musket (1 + index in SWORD_IDS / MUSKET_IDS, 0 = none)
 // [v145] + the face paint digit; [Raul shop items 2] + one digit per EXTRA_SLOTS slot (older builds read a longer string as the default look)
 export function gearToWire(gear) {
   const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0) + (g.body ? 4 : 0); // [v112] bit 4 = female body (same digit: no longer string, old clients just see a male)
-  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1), ...carryDigits(g, SWORD_IDS, MUSKET_IDS)].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
+  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1), ...carryDigits(g, SWORD_IDS, MUSKET_IDS), GEAR_RENDERS.pants.indexOf(g.pants) + 1].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
 }
 export function gearFromWire(w) {
   const g = normalizeGear(null);
@@ -225,7 +228,7 @@ export function gearFromWire(w) {
   g.skinColor = clampIx(d(n + 2), SKIN_SWATCHES.length); g.hairColor = clampIx(d(n + 3), HAIR_SWATCHES.length); g.outfitColor = clampIx(d(n + 4), CLOTH_SWATCHES.length);
   { const v = d(n + 5); if (v > 0 && v <= GEAR_RENDERS.face.length) g.face = GEAR_RENDERS.face[v - 1]; }
   EXTRA_SLOTS.forEach((k, i) => { const v = d(n + 6 + i); if (v > 0 && v <= GEAR_RENDERS[k].length) g[k] = GEAR_RENDERS[k][v - 1]; });   // [Raul shop items 2]
-  { const c = n + 6 + EXTRA_SLOTS.length; Object.assign(g, carryFromDigits(d(c), d(c + 1), SWORD_IDS, MUSKET_IDS)); }   // [Raul carry]
+  { const c = n + 6 + EXTRA_SLOTS.length; Object.assign(g, carryFromDigits(d(c), d(c + 1), SWORD_IDS, MUSKET_IDS)); const v = d(c + 2); if (v > 0 && v <= GEAR_RENDERS.pants.length) g.pants = GEAR_RENDERS.pants[v - 1]; }   // [Raul carry] + [V6 store] pants
   return g;
 }
 // clean wire string (re-encoded from the decoded gear) or '' : what the receivers store / compare
@@ -255,7 +258,7 @@ export function getLocalGear() { const g = localGear0(); g.carrySword = _carry.s
 function localGear0() {
   const c = _mem || (_mem = readSave());
   if (!c || !c.gearV) return normalizeGear(c ? pickLook(c) : null);   // the look (skin / hair / sides) is kept even before any gear
-  return normalizeGear({ hat: c.hat, outfit: c.outfit, eyes: c.eyes ?? c.face, parrot: c.parrot, hook: c.hook, leg: c.leg, face: c.facePaint, ...Object.fromEntries(EXTRA_SLOTS.map((k) => [k, c[k]])), ...pickLook(c) });
+  return normalizeGear({ hat: c.hat, outfit: c.outfit, eyes: c.eyes ?? c.face, parrot: c.parrot, hook: c.hook, leg: c.leg, face: c.facePaint, ...Object.fromEntries([...EXTRA_SLOTS, 'pants'].map((k) => [k, c[k]])), ...pickLook(c) });
 }
 export const getLocalColors = () => ({ skin: _skin });
 const LOCAL = new Set();   // your own pirates (on-foot + captain at the wheel), re-dressed by setLocalGear / setLocalSkin
@@ -271,7 +274,7 @@ function redressLocal() {
 export function setLocalGear(gear) {
   if (gear && ('sword' in gear || 'musket' in gear)) setCarriedWeapons({ sword: gear.sword, musket: gear.musket }, 'profile');   // [Raul carry] js/pvp.js gearChanged passes the whole profile gear
   const g = normalizeGear({ ...getLocalGear(), ...(gear || {}) }), c = { ...(readSave() || { v: 1 }) };
-  c.v = 1; c.gearV = 1; c.hat = g.hat; c.outfit = g.outfit; c.eyes = g.eyes; c.face = g.eyes === 'plain' ? 'plain' : g.eyes; c.parrot = g.parrot; c.hook = g.hook; c.leg = g.leg; c.facePaint = g.face; for (const k of EXTRA_SLOTS) c[k] = g[k]; Object.assign(c, pickLook(g));
+  c.v = 1; c.gearV = 1; c.hat = g.hat; c.outfit = g.outfit; c.eyes = g.eyes; c.face = g.eyes === 'plain' ? 'plain' : g.eyes; c.parrot = g.parrot; c.hook = g.hook; c.leg = g.leg; c.facePaint = g.face; for (const k of [...EXTRA_SLOTS, 'pants']) c[k] = g[k]; Object.assign(c, pickLook(g));
   _mem = c; try { localStorage.setItem(KEY, JSON.stringify(c)); } catch { /* memory only */ }
   redressLocal();
   try { window.dispatchEvent(new CustomEvent('pfp-gear-local', { detail: g })); window.dispatchEvent(new CustomEvent('pfp-gear', { detail: g })); } catch {}   // 'pfp-gear' = v106 crew / followers re-bake
@@ -594,9 +597,10 @@ function goldHook(obj) {   // the gold hook = Raul's hook with its steel turned 
 function syncRaul(p, gear, colors, ticket) {
   p.raulKeys ||= {}; const want = {}, jobs = [];
   // [Raul clothes v5] every dressed v5 pirate wears his base outfit mesh (pants, belt, sash, boots, her wrap top); crews keep the baked body
-  if (p.v5 && !p.forCrew && !p.raulKeys.base && RAUL_ITEMS.cloth_base) { p.raulKeys.base = 'cloth_base'; jobs.push(raulEquip(p, 'cloth_base').catch((e) => { console.warn('[gear] base outfit', e); p.raulKeys.base = ''; })); }
+  if (p.v5 && !p.v6 && !p.forCrew && !p.raulKeys.base && RAUL_ITEMS.cloth_base)   // [V6 store] V6: barefoot in the white underwear unless you wear shop pants / shoes
+    { p.raulKeys.base = 'cloth_base'; jobs.push(raulEquip(p, 'cloth_base').catch((e) => { console.warn('[gear] base outfit', e); p.raulKeys.base = ''; })); }
   for (const slot of Object.keys(GEAR_DEFAULTS)) { if (slot === 'beard' && p.female && !BEARD_ON_FEMALE) continue; if (slot === 'ears' && gear.hat === 'mask_luchador') continue; const r = raulOf(p, `${slot}:${gear[slot]}`); if (r) want[rv(r[0], gear)] = r; }   // [Raul shop2 fixes] no beard on a female body; [Raul teeth/ears redo] the hood covers the ears, so no earrings under the luchador mask
-  for (const rs of RAUL_SLOTS) {
+  for (const rs of RAUL_SLOTS) { if (rs === 'base' && !p.v6) continue;   // [V6 store] (v5: the auto base outfit owns that slot)
     const r = want[rs], id = r && rv(r[1], gear), cols = r && r[2] ? r[2](gear, colors, p) : null, k = r ? id + JSON.stringify(cols) + (r[3]?.gold ? 'g' : '') : '';
     if ((p.raulKeys[rs] || '') === k) continue; p.raulKeys[rs] = k;
     if (!r) { try { raulUnequip(p, rs); } catch (e) { console.warn('[gear]', e); } continue; }

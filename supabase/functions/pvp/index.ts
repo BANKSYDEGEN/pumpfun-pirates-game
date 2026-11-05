@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
+  OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
 import { inventoryAction, INV_ACTIONS } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
@@ -72,6 +72,11 @@ async function ownedSet(pid: string) { const { data } = await db.from("pvp_owned
 // [prestige] write the given skins into pvp_owned (source 'grant', price 0). ADD only: an existing row is left as it is, nothing is removed.
 async function grantPrestigeSkins(pid: string, lv: number) { const rows = prestigeSkins(lv).map((item) => ({ player_id: pid, item, source: "grant", price: 0 }));
   if (rows.length) { const { error } = await db.from("pvp_owned").upsert(rows, { onConflict: "player_id,item", ignoreDuplicates: true }); if (error) console.error("prestige grant", error.message); } }
+// [V6 store] the legacy pants + boots (lib.ts V6_LEGACY) for a row that predates V6; idempotent (ignoreDuplicates)
+const V6_SINCE = Deno.env.get("V6_SINCE") || "2026-11-06T05:00:00Z";
+async function grantV6Legacy(pid: string, updatedAt: string | null | undefined) { if (!v6LegacyDue(updatedAt, V6_SINCE)) return;
+  const { error } = await db.from("pvp_owned").upsert(V6_LEGACY.map((item) => ({ player_id: pid, item, source: "v6legacy", price: 0 })), { onConflict: "player_id,item", ignoreDuplicates: true });
+  if (error) console.error("v6 legacy grant", error.message); }
 const ownedLists = (own: Set<string>, owner: boolean) => owner
   ? { skins: ["classic", ...SHOP_SKINS], gear: Object.entries(GEAR_SLOTS).flatMap(([s, ids]) => ids.map((i) => `${s}:${i}`)) }
   : { skins: ["classic", ...[...own].filter((i) => i.startsWith("skin:")).map((i) => i.slice(5))], gear: [...own].filter((i) => i.startsWith("gear:")).map((i) => i.slice(5)) };
@@ -134,6 +139,7 @@ async function devSync(who: { pid: string; owner: boolean }, b: Record<string, u
       }
       return shopView(who, p.gold, p.stats, 0, { seeded: true, equipped: { skin: p.skins.equipped, gear: p.gear } });
     }
+    await grantV6Legacy(who.pid, row.updated_at); // [V6 store] before the owned check below
     const cur = devProfile(row), rep = cleanProfile(rep0);
     if (stalePrestige(rep0.prestige, await prestigeOf(who.pid))) rep.levels = { ...cur.levels }; // [prestige] an old snapshot can't undo the reset
     if (crev < row.shop_rev) rep.gold = Math.max(0, rep.gold - await spendSince(who.pid, crev)); // an older save can't refund a purchase
@@ -219,11 +225,13 @@ Deno.serve(async (req) => {
       }
       case "load": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
-        const lr = await getRow(wallet), lp = await withOwned(toProfile(lr), `wallet:${wallet}`); return json(200, { profile: lp, rev: lr.shop_rev ?? 0, boosts: boostsFor(lp.gear, ownedOfProfile(lp), false), prestige: await prestigeOf((await whoAmI(b))?.pid ?? `wallet:${wallet}`) }); // [Emerly] + boosts
+        const lr0 = await getRow(wallet); await grantV6Legacy(`wallet:${wallet}`, (lr0 as any).updated_at); // [V6 store]
+        const lr = lr0, lp = await withOwned(toProfile(lr), `wallet:${wallet}`); return json(200, { profile: lp, rev: lr.shop_rev ?? 0, boosts: boostsFor(lp.gear, ownedOfProfile(lp), false), prestige: await prestigeOf((await whoAmI(b))?.pid ?? `wallet:${wallet}`) }); // [Emerly] + boosts
       }
       case "save": {
         const wallet = await sessionWallet(b.token); if (!wallet) return json(401, { error: "signed out" });
-        const row = await getRow(wallet), cur = toProfile(row), next = keepCounters(toProfile(row), cleanProfile(b.profile));
+        const row = await getRow(wallet); await grantV6Legacy(`wallet:${wallet}`, (row as any).updated_at); // [V6 store]
+        const cur = toProfile(row), next = keepCounters(toProfile(row), cleanProfile(b.profile));
         const pres = await prestigeOf((await whoAmI(b))?.pid ?? `wallet:${wallet}`);
         if (stalePrestige(cleanProfile(b.profile).prestige, pres)) next.levels = { ...cur.levels }; // [prestige] a pre-prestige save keeps the reset
         // [v102] shop: a save from before a purchase (older shop_rev) can't refund it; equipped must be owned

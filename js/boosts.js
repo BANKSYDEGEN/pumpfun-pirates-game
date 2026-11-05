@@ -61,6 +61,9 @@ export const BOOSTS = {
   'ears:earring_hoop': { range: 0.01 }, 'ears:earring_double': { range: 0.015 }, 'ears:earring_skull': { range: 0.02 },
   'teeth:tooth_gold': { goldFind: 0.01 }, 'teeth:grill_gold': { goldFind: 0.02 }, 'teeth:grill_diamond': { goldFind: 0.03 },
   'boots:boots_buckle': { speed: 0.01 }, 'boots:boots_cavalier': { speed: 0.015 }, 'boots:boots_gold': { speed: 0.02 },
+  // [V6 store] Clothing Store shoes = speed, pants = hull HP (existing stats), scaled by price, all under the cheapest existing boots / cape
+  'boots:sandals': { speed: 0.003 }, 'boots:boots_classic': { speed: 0.004 }, 'boots:shoes_buckle': { speed: 0.006 }, 'boots:boots_sea': { speed: 0.008 },
+  'pants:classic_pants': { hp: 0.004 }, 'pants:canvas_pants': { hp: 0.006 }, 'pants:sailor_trousers': { hp: 0.008 }, 'pants:leather_breeches': { hp: 0.01 },
   'cape:cape_tattered': { hp: 0.01 }, 'cape:cape_captain': { hp: 0.02 }, 'cape:cape_royal': { hp: 0.04 },
   // [Raul items redo 2] BANKSY 11:29 AM "make pets be good boost on sells" (PROPOSED): every ground pet = its own SELL BONUS, up the price
   // ladder (white gorilla biggest); the three pets already sold keep the gold find they shipped with (owners lose nothing). Parrots unchanged.

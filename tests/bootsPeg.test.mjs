@@ -16,7 +16,8 @@ function glb(path) {
   return { J, P: acc(prim.attributes.POSITION), I: prim.indices != null ? acc(prim.indices) : null, Jn: prim.attributes.JOINTS_0 != null ? acc(prim.attributes.JOINTS_0) : null, W: prim.attributes.WEIGHTS_0 != null ? acc(prim.attributes.WEIGHTS_0) : null };
 }
 const shim = (P) => ({ getX: (i) => P[i * 3] });
-const BOOTS = ['boots_buckle', 'boots_cavalier', 'boots_gold'], PEGS = ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'];
+const BOOTS = ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'sandals', 'shoes_buckle', 'boots_sea'],   // [V6 store] + Clothing Store shoes
+  PEGS = ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'];
 const src = readFileSync(new URL('js/pirateItems.js', ROOT), 'utf8'), gear = readFileSync(new URL('js/pirateGear.js', ROOT), 'utf8');
 const PEG_CUT = JSON.parse(src.match(/PEG_CUT = (\{[^}]+\})/)[1].replace(/(\w+):/g, '"$1":'));
 const cache = new Map(), load = (p) => (cache.has(p) ? cache.get(p) : (cache.set(p, glb(p)), cache.get(p)));
@@ -52,13 +53,13 @@ for (const boot of BOOTS) for (const who of ['male', 'female']) for (const lod o
     // the boot hide rule never cuts the peg leg (PEG5 owns it); the real leg still hides under the boot
     const r = BOOT5(boot).find((q) => (who === 'female' ? q.female : q.male)), x = sx * 0.09;
     assert.equal(bootHides(r, x, 0.05, who === 'female', side === 'L', side === 'R'), false, 'peg leg left to PEG5');
-    assert.equal(bootHides(r, -x, 0.05, who === 'female', side === 'L', side === 'R'), true, 'real leg hidden under its boot');
+    assert.equal(bootHides(r, -x, Math.min(0.05, BOOT_CUT[boot][who] - 0.002), who === 'female', side === 'L', side === 'R'), true, 'real leg hidden under its boot');   // [V6 store] (low shoes / sandals: under their cut)
     assert.equal(bootHides(r, -x, BOOT_CUT[boot][who] + 0.01, who === 'female', side === 'L', side === 'R'), false, 'pants above the cut stay');
   });
 }
 test('boots keep their ids, slot, prices; every boot hides with BOOT5; crews copy no captain items', () => {
   for (const b of BOOTS) assert.match(src, new RegExp(`item\\('${b}', [^\\n]*'boots'[^\\n]*v5hide: BOOT5\\('${b}'\\)`), b);
   const cat = readFileSync(new URL('js/shopCatalog.js', ROOT), 'utf8');
-  for (const [id, pr] of [['boots_buckle', 350], ['boots_cavalier', 1000], ['boots_gold', 3000]]) assert.match(cat, new RegExp(`id: '${id}'[^\\n]*price: ${pr}\\b`), id);
+  for (const [id, pr] of [['boots_buckle', 350], ['boots_cavalier', 1000], ['boots_gold', 3000], ['sandals', 120], ['boots_classic', 150], ['shoes_buckle', 250], ['boots_sea', 300]]) assert.match(cat, new RegExp(`id: '${id}'[^\\n]*price: ${pr}\\b`), id);
   const crew = readFileSync(new URL('js/crewV4.js', ROOT), 'utf8'); assert.match(crew, /CREW_EXTRA_SLOTS = \[\], CREW_EXTRA_LOW = \[\]/);
 });

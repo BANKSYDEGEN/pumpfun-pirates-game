@@ -113,7 +113,7 @@ function gearThumb(it, live = false) {
   const img = gearThumbEl(sl, it.id, optsFor(it)); img.addEventListener('load', () => { if (svg) svg.style.display = 'none'; img.style.display = ''; });
   img.style.display = 'none'; d.append(img); return d;
 }
-addEventListener('pfp-gear-local', () => { if (open && view?.tab === 'gear' && !document.querySelector('.pfp-hatcolor')) render(); }); // a new hat colour / side / skin / hair: redraw the cards (cached)
+addEventListener('pfp-gear-local', () => { if (open && (view?.tab === 'gear' || view?.tab === 'shoes') && !document.querySelector('.pfp-hatcolor')) render(); }); // a new hat colour / side / skin / hair: redraw the cards (cached)
 
 // the card's real render (skinPreview) once it exists, else the painted swatch
 function realOr(id) {
@@ -125,10 +125,12 @@ setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; cons
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
 // ---------- item model ----------
-const TAB_SLOT = { swords: 'sword', muskets: 'musket' }; // [Timothy] WEAPON STORE tabs: one gear slot each
+const TAB_SLOT = { swords: 'sword', muskets: 'musket' };
+export const tabSlots = (V, tab) => tab === 'shoes' ? (V.shoeSlots || []) : tab === 'gear' ? V.slots : [];   // [V6 store] the SHOES & PANTS tab's chips
+export const tabForSlot = (V, slot) => V.shoeSlots?.includes(slot) && V.tabs.includes('shoes') ? 'shoes' : null; // [Timothy] WEAPON STORE tabs: one gear slot each
 const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
   : TAB_SLOT[view.tab] ? WEAPON_ITEMS.filter(it => it.slot === TAB_SLOT[view.tab]).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }))
-  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot && !(view.vendor === 'clothes' && (it.slot === 'boots' || STORE_HIDDEN.has(gearKey(it))))).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first; [hide-shoes] Clothes Store hides boots
+  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot && !(view.vendor === 'clothes' && STORE_HIDDEN.has(gearKey(it)))   /* [V6 store] clothes BOOTS tab = the V6 shoes only */).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first; [hide-shoes] Clothes Store hides boots
 const eqGear = (slot) => state.equipped.gear?.[slot] ?? (slot === 'sword' ? SWORD_FREE : slot === 'musket' ? MUSKET_FREE : CREW_DEFAULT[slot]); // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
   const g = goalProgress(liveGoal(x.it), state.stats);
@@ -168,12 +170,12 @@ function render() {
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
   const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList = upg ? [...V.tabs, 'upgrades'] : V.tabs;
-  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : 'PIRATE GEAR';
+  const tabName = (t) => t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : t === 'shoes' ? 'SHOES & PANTS' : 'PIRATE GEAR';   // [V6 store] SHOES & PANTS tab (V.shoeSlots)
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
-  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; view.sel = null; render(); });
-  const chips = $('.ishop-chips', root); chips.hidden = view.tab !== 'gear' || V.slots.length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
-  chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => V.slots.includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; const ss = tabSlots(V, view.tab); if (ss.length && !ss.includes(view.slot)) view.slot = ss[0]; view.sel = null; render(); });
+  const chips = $('.ishop-chips', root); chips.hidden = (view.tab !== 'gear' && view.tab !== 'shoes') || tabSlots(V, view.tab).length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
+  chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => tabSlots(V, view.tab).includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
@@ -298,7 +300,8 @@ export async function openShop(opts = {}) {
   if (ON_PORTAL || !provider) return false; // crypto-free portal builds: no Battle Royale, no shared gold, so no shop
   if (!root) build();
   const v = VENDORS[opts.vendor] ? opts.vendor : 'shop', V = VENDORS[v];
-  view = { vendor: v, tab: V.tabs.includes(opts.tab) ? opts.tab : V.tabs[0], slot: V.slots.includes(opts.slot) ? opts.slot : V.slots[0], sel: opts.item || null, title: typeof opts.title === 'string' ? opts.title : null }; // [Emerly] title: e.g. SWORD SHOP / MUSKET SHOP (vendor 'weapons')
+  const sTab = tabForSlot(V, opts.slot);   // [V6 store] a boots / pants link opens the SHOES & PANTS tab
+  view = { vendor: v, tab: sTab || (V.tabs.includes(opts.tab) ? opts.tab : V.tabs[0]), slot: sTab || V.slots.includes(opts.slot) ? opts.slot : V.slots[0], sel: opts.item || null, title: typeof opts.title === 'string' ? opts.title : null }; // [Emerly] title: e.g. SWORD SHOP / MUSKET SHOP (vendor 'weapons')
   if (!skinMod) try { const [a, b, c] = await Promise.all([import('./skins.js'), import('./pvpSkins.js'), import('./skinPreview.js')]); skinMod = { skinSwatch: a.skinSwatch, pvpSkin: b.pvpSkin, previewCards: c.previewCards }; } catch { skinMod = null; }
   state = await provider.load(); if (!state) return false; // offline: the caller shows a toast
   open = true; root.classList.remove('hidden'); document.documentElement.classList.add('shop-open'); render();

@@ -41,9 +41,9 @@ export const SKIN_ITEMS = [
 // hatColor (0 = the hat's own default, 1..12 = js/pirateGear.js HAT_SWATCHES; picker: js/gearColorPicker.js openGearColorPicker;
 // kept on this device in pfp_captain_v1, sent to other players in 'gr'). Card art: js/gearThumbs.js gearThumb(slot, id).
 // ONE gear system (js/pirateGear.js applyGear): glb 'raul:<id>' = drawn with Raul's model (js/pirateItems.js), the rest with Timothy's.
-export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none', leg: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', cape: 'none', flag: 'none', figure: 'none' };
+export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none', leg: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', pants: 'none', cape: 'none', flag: 'none', figure: 'none' };
 export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS'], ['leg', 'PEG LEGS'], ['face', 'FACE PAINT'],
-  ['beard', 'BEARDS'], ['ears', 'EARRINGS'], ['teeth', 'GOLD TEETH'], ['boots', 'BOOTS'], ['cape', 'CAPES'], ['flag', 'SHIP FLAGS'], ['figure', 'FIGUREHEADS']];   // [Raul shop items 2]
+  ['beard', 'BEARDS'], ['ears', 'EARRINGS'], ['teeth', 'GOLD TEETH'], ['boots', 'BOOTS'], ['pants', 'PANTS'], ['cape', 'CAPES'], ['flag', 'SHIP FLAGS'], ['figure', 'FIGUREHEADS']];   // [Raul shop items 2]
 export const GEAR_ITEMS = [
   // [v105] Timothy's gear renders (js/pirateGear.js GEAR_RENDERS): sold for gold. Clothes take your ship skin's colours; hats get a
   // free colour pick (gear.hatColor, a HAT_SWATCHES index). soon: true = in the catalog, not buyable yet (renders in a later build).
@@ -88,7 +88,8 @@ export const GEAR_ITEMS = [
   { slot: 'beard', id: 'none', label: 'NO BEARD', price: 0, glb: null, tint: null, free: true },
   { slot: 'ears', id: 'none', label: 'NO EARRINGS', price: 0, glb: null, tint: null, free: true },
   { slot: 'teeth', id: 'none', label: 'NO GOLD TEETH', price: 0, glb: null, tint: null, free: true },
-  { slot: 'boots', id: 'none', label: 'BASE BOOTS', price: 0, glb: null, tint: null, free: true },
+  { slot: 'boots', id: 'none', label: 'BAREFOOT', price: 0, glb: null, tint: null, free: true },
+  { slot: 'pants', id: 'none', label: 'NO PANTS', price: 0, glb: null, tint: null, free: true },
   { slot: 'cape', id: 'none', label: 'NO CAPE', price: 0, glb: null, tint: null, free: true },
   { slot: 'flag', id: 'none', label: 'SKIN FLAG', price: 0, glb: null, tint: null, free: true },
   { slot: 'figure', id: 'none', label: 'SKIN FIGUREHEAD', price: 0, glb: null, tint: null, free: true },
@@ -101,6 +102,15 @@ export const GEAR_ITEMS = [
   { slot: 'teeth', id: 'tooth_gold', label: 'GOLD TOOTH', price: 300, glb: 'raul:tooth_gold', tint: null, proposed: true },
   { slot: 'teeth', id: 'grill_gold', label: 'GOLD GRILL', price: 1500, glb: 'raul:grill_gold', tint: null, proposed: true },
   { slot: 'teeth', id: 'grill_diamond', label: 'DIAMOND GRILL', price: 6000, glb: 'raul:grill_diamond', tint: null, proposed: true },
+  // [V6 store] Clothing Store pants + shoes (BANKSY-OK'd prices, Nov 4; boosts js/boosts.js). PROPOSED tag until he OKs the look.
+  { slot: 'boots', id: 'sandals', label: 'SANDALS', price: 120, glb: 'raul:sandals', tint: null, proposed: true },
+  { slot: 'boots', id: 'boots_classic', label: 'CLASSIC BOOTS', price: 150, glb: 'raul:boots_classic', tint: null, proposed: true },
+  { slot: 'boots', id: 'shoes_buckle', label: 'LOW BUCKLE SHOES', price: 250, glb: 'raul:shoes_buckle', tint: null, proposed: true },
+  { slot: 'boots', id: 'boots_sea', label: 'SEA BOOTS', price: 300, glb: 'raul:boots_sea', tint: null, proposed: true },
+  { slot: 'pants', id: 'classic_pants', label: 'CLASSIC PANTS', price: 150, glb: 'raul:classic_pants', tint: null, proposed: true },
+  { slot: 'pants', id: 'canvas_pants', label: 'CANVAS PANTS', price: 250, glb: 'raul:canvas_pants', tint: null, proposed: true },
+  { slot: 'pants', id: 'sailor_trousers', label: 'SAILOR TROUSERS', price: 300, glb: 'raul:sailor_trousers', tint: null, proposed: true },
+  { slot: 'pants', id: 'leather_breeches', label: 'LEATHER BREECHES', price: 400, glb: 'raul:leather_breeches', tint: null, proposed: true },
   { slot: 'boots', id: 'boots_buckle', label: 'BUCKLE BOOTS', price: 350, glb: 'raul:boots_buckle', tint: null, proposed: true },
   { slot: 'boots', id: 'boots_cavalier', label: 'CAVALIER BOOTS', price: 1000, glb: 'raul:boots_cavalier', tint: null, proposed: true },
   { slot: 'boots', id: 'boots_gold', label: 'GOLD-TOE BOOTS', price: 3000, glb: 'raul:boots_gold', tint: null, proposed: true },
@@ -165,16 +175,17 @@ export const WEAPON_ITEMS = [...SWORD_ITEMS, ...MUSKET_ITEMS];
 // ---------- [Timothy] PET STORE: rarity per parrot (display only; prices + goals are the GEAR_ITEMS ones, unchanged)
 export const PET_RARITY = { none: '', pet_cat: 'UNCOMMON', pet_monkey: 'RARE', pet_cat_black: 'RARE', pet_chimp: 'RARE', pet_gorilla: 'EPIC', pet_tiger: 'EPIC', pet_gorilla_white: 'LEGENDARY', parrot_green: 'COMMON', parrot_red: 'UNCOMMON', parrot_blue: 'UNCOMMON', parrot_cockatoo: 'RARE', parrot_black: 'EPIC', parrot_gold: 'LEGENDARY', parrot_diamond: 'MYTHIC' };
 
-// [hide-shoes] Clothing Store UI filter (client only): boots_* stay in the catalog / inventory / equip; just not listed to buy here
+// [hide-shoes] Clothing Store UI filter (client only): boots_* stay in the catalog / inventory / equip; just not listed to buy here ([V6 store] the V6 shoes are)
 export const STORE_HIDDEN = new Set(['boots:boots_buckle', 'boots:boots_cavalier', 'boots:boots_gold']);
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 export const VENDORS = {
-  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'cape', 'flag', 'figure'], awning: null },
-  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'face', 'boots', 'cape'], awning: '#d8322f' },   // [shop-boosts] BANKSY: no parrots / pets here (PET STORE, SHOP, BLUE STALL still sell them; owned + equipped ones keep working)
+  shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'pants', 'cape', 'flag', 'figure'], awning: null },
+  stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear', 'shoes'], slots: ['hat', 'outfit', 'eyes', 'face', 'cape'], shoeSlots: ['boots', 'pants'], awning: '#d8322f' },   // [shop-boosts] BANKSY: no parrots / pets here (PET STORE, SHOP, BLUE STALL still sell them; owned + equipped ones keep working)
   stall_blue: { name: 'BLUE STALL', sub: 'Curios · market square', tabs: ['gear'], slots: ['parrot', 'hook', 'leg', 'beard', 'ears', 'teeth', 'flag', 'figure'], awning: '#2a6df4' },
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
-  // [hide-shoes] BANKSY 10:03 PM: no shoes in the Clothes Store for now (V6 will add a shoe + pants section); boots stay in GEAR_ITEMS / owned / equipped
-  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape'], awning: '#d8322f' },
+  // [hide-shoes] BANKSY 10:03 PM: no old boots in the Clothes Store (STORE_HIDDEN); [V6 store] BANKSY "we will add in shoe and pants section for v6":
+  // shoes + pants are their own SHOES & PANTS tab (shoeSlots), not mixed into the clothing (PIRATE GEAR tab)
+  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear', 'shoes'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape'], shoeSlots: ['boots', 'pants'], awning: '#d8322f' },
   pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots, cats, monkeys + more', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear'], slots: ['crewhat', 'crewoutfit'], awning: '#6a4fb3', crew: true },   // [Timothy] plaza CREW SHOP counter
   weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // [Timothy] window.openWeaponStore(); the SWORD SHOP + MUSKET SHOP doors on Main Street (battleAreas.js MAIN_ST_SHOPS) open it with their own title

@@ -91,6 +91,12 @@ export const ITEMS = [
   item('boots_buckle', 'Buckle Boots', 'boots', 0, null, [], { v5: v5files('boots_buckle'), v5hide: BOOT5('boots_buckle'), v5only: true, single: true, boots: true }),
   item('boots_cavalier', 'Cavalier Boots', 'boots', 0, null, [], { v5: v5files('boots_cavalier'), v5hide: BOOT5('boots_cavalier'), v5only: true, single: true, boots: true }),
   item('boots_gold', 'Gold-Toe Boots', 'boots', 0, null, [], { v5: v5files('boots_gold'), v5hide: BOOT5('boots_gold'), v5only: true, single: true, boots: true }),
+  // [V6 store] Clothing Store shoes (boots slot) + pants ('base' item: the body's underwear under it goes, the boots cut it at the shaft)
+  item('boots_classic', 'Classic Boots', 'boots', 0, null, [], { v5: v5files('boots_classic'), v5hide: BOOT5('boots_classic'), v5only: true, single: true, boots: true }),
+  item('sandals', 'Sandals', 'boots', 0, null, [], { v5: v5files('sandals'), v5hide: BOOT5('sandals'), v5only: true, single: true, boots: true }),
+  item('shoes_buckle', 'Low Buckle Shoes', 'boots', 0, null, [], { v5: v5files('shoes_buckle'), v5hide: BOOT5('shoes_buckle'), v5only: true, single: true, boots: true }),
+  item('boots_sea', 'Sea Boots', 'boots', 0, null, [], { v5: v5files('boots_sea'), v5hide: BOOT5('boots_sea'), v5only: true, single: true, boots: true }),
+  ...['classic_pants', 'canvas_pants', 'sailor_trousers', 'leather_breeches'].map((id) => item(id, id.replace(/_/g, ' '), 'base', 0, null, [], { v5: v5files(id), v5hide: [], v5only: true, v5cloth: true, base: true, pants: true })),
   item('cape_tattered', 'Tattered Cape', 'cape', 0, null, [], { v5: v5files('cape_tattered'), v5hide: [], v5only: true, single: true }),
   item('cape_captain', "Captain's Cape", 'cape', 0, null, [], { v5: v5files('cape_captain'), v5hide: [], v5only: true, single: true, keyed: true }),
   item('cape_royal', 'Royal Cape', 'cape', 0, null, [], { v5: v5files('cape_royal'), v5hide: [], v5only: true, single: true }),
@@ -214,6 +220,7 @@ function applyHide(p) {
     if (isCloth) { const PP = p.items.outfit?.id === 'cloth_singlet' ? legPull(P, LEGPULL[p.female ? 'female' : 'male']) : P; if (g.attributes.position !== PP) g.setAttribute('position', PP); P = PP; }
     if (bIt && !isCloth && Tt) hid.set(baseMask(o, P, Tt, p.female));
     for (const tp of tops) { const cm = coverMask(P, Tt, tp.obj.geometry); for (let i = 0; i < n; i++) if (cm[i]) hid[i] = 1; }
+    if (p.v6 && bIt?.obj?.geometry && !isCloth) { const cm = coverMask(P, Tt, bIt.obj.geometry); for (let i = 0; i < n; i++) if (cm[i]) hid[i] = 1; }   // [V6 store] the legs' skin under the pants
     if (isCloth && (p.items.outfit?.id === 'suit' || p.items.outfit?.id === 'cloth_singlet' || ITEM_BY_ID[p.items.outfit?.id]?.longCoat) && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coats / the singlet
     const LU = p.v5 && !isCloth && rules.some((r) => r.lucha) ? { ...LUCHA[p.female ? 'female' : 'male'], male: !p.female } : null, BR = LU ? braidOf(o) : null;   // [Raul wrestler]
     const SG = p.v5 && !isCloth && p.items.outfit?.id === 'cloth_singlet' ? CLOTH.cut[p.female ? 'female' : 'male'] : 0, SB = SG ? braidOf(o) : null;
