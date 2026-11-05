@@ -135,7 +135,7 @@ for sx in (1, -1):
   if STY == 'classic':
     # riding boot: a turned-down tan cuff (short, even), a back pull strap, the welt stitching / toe-cap seam painted below
     c0 = TOP - 0.040; ct = TOP + 0.010
-    prof = [(0.002, ct - 0.006), (0.005, ct + 0.004), (0.010, ct + 0.005), (0.013, ct - 0.003), (0.016, c0 + 0.003), (0.016, c0 - 0.002), (0.011, c0 - 0.001), (0.005, ct - 0.016)]
+    prof = [(0.001, ct - 0.010), (0.0035, ct + 0.001), (0.0070, ct + 0.0028), (0.0100, ct - 0.0015), (0.0118, ct - 0.012), (0.0125, c0 + 0.003), (0.0118, c0 - 0.002), (0.007, c0 - 0.001), (0.003, ct - 0.020)]   # [V6 quality 2] rounded rolled lip, 12 mm flare (was a 16 mm flat-topped disc)
     inner = lambda th: 0.35 + 0.65 * min(1.0, max(0.0, math.cos(th) * sx + 0.45))
     parts.append(('cuff', sx) + sweep(ring_c, ring_R, ms + 0.006 + 0.002, prof, NTH + 4 if HI else NTH, 1, amp=inner))
     zb = 0.070 + 0.20 * np.clip(Y - (toe + 0.15), -0.2, 0.2)   # ankle strap with a small brass buckle on the outside

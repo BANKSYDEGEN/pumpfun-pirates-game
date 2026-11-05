@@ -15,6 +15,8 @@ for o in g5:
   if o.type=='MESH' and o.parent==arm and o!=b5: bpy.data.objects.remove(o)   # v5 eyes, tattoo out (the v5 body stays as the weight source)
 g6=imp(G+f'v6_{SEX}_generated.glb'); body=[o for o in g6 if o.name.startswith(f'v6_{SEX}')][0]; dec=[o for o in g6 if 'face_eyes' in o.name][0]; bpy.data.objects.remove(dec)
 act(body); bpy.ops.object.transform_apply(location=True,rotation=True,scale=True)
+if os.environ.get('WELD','1')=='1':   # [V6 quality 2] the GLB is split at every UV seam: weld it first so the decimation keeps ONE surface (no cracks / faceted island edges)
+  bm=bmesh.new(); bm.from_mesh(body.data); n0=len(bm.verts); bmesh.ops.remove_doubles(bm,verts=bm.verts,dist=float(os.environ.get('WELDD','2e-5'))); print('welded verts',n0,'->',len(bm.verts),flush=True); bm.to_mesh(body.data); bm.free()
 d=body.modifiers.new('d','DECIMATE'); d.ratio=BUD/ntri(body); d.use_collapse_triangulate=True; bpy.ops.object.modifier_apply(modifier='d')
 bm=bmesh.new(); bm.from_mesh(body.data)   # drop decimation / posing slivers (long thin faces bridging hand <-> hip etc.)
 bad=[]

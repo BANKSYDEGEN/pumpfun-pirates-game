@@ -98,10 +98,11 @@ const tintOf = (m) => m?.userData?.tint || '';
 const kindOf = (m) => (m?.name || '').split('.')[0];
 
 // colors: { skin, hair, coat, accent, ... } (hex / css / THREE.Color); keys not given keep the baked default
+const V6_LIFT = 1.12;   // [V6 quality 2] BANKSY 'both faces darker than V5's clean flat skin': the lit V6 body a touch brighter (V5 toon bands read lighter)
 function toonize(src, colors, low, v6 = false) {
   const k = kindOf(src), key = tintOf(src);
   // [V6] soft glossy vinyl-toy finish (his sheets), not flat toon: the detail atlas already carries the strand / muscle shading + AO
-  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false });
+  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: k === 'pirate_hi' ? new THREE.Color(V6_LIFT, V6_LIFT, V6_LIFT) : 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: k === 'v6face' ? 0.85 : 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false });
     m.userData = { tint: key, decal: '' }; return m; }
   if (k === 'ink') return new THREE.MeshBasicMaterial({ color: 0x0b0b0c, name: 'ink', side: THREE.FrontSide });
   const decal = k === 'face' || k === 'mouth' || k === 'skull';
