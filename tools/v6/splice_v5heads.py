@@ -143,14 +143,25 @@ if FEM:
       nfix += 1
   print('V6 front neck hair->skin', nfix, flush=True)
 dead = []
+# [v277] BANKSY "Fix the shoulders on both": the flat Z6 cut also took the tops of his V6 shoulders / trapezius (above Z6, away from
+# the V5 neck) -> jagged holes beside his neck. V6 faces between Z6 and the jaw that are clear of the V5 neck skin are kept.
+from mathutils.bvhtree import BVHTree as _BVH
+_b5 = bmesh.new(); _b5.from_mesh(b5.data); _t5 = _b5.verts.layers.float.get('_TINT')
+bmesh.ops.delete(_b5, geom=[f for f in _b5.faces if not (all(round(v[_t5]) == 0 for v in f.verts) and f.calc_center_median().z >= Z5 - 0.01)], context='FACES')
+_bvh5s = _BVH.FromBMesh(_b5); _b5.free()
+KEEPD = float(os.environ.get('KEEPD', '0.010')); KEEPZ = float(os.environ.get('KEEPZ', '0.005'))
+nkeep = 0
 for f in bm.faces:
   zs = [v.co.z for v in f.verts]; cz = sum(zs) / len(zs)
   ts = [round(v[tl]) for v in f.verts]
+  if KEEPD > 0 and Z6 <= cz < ZCUT + KEEPZ and not all(t == 1 for t in ts):
+    _loc, _n, _i, _d = _bvh5s.find_nearest(f.calc_center_median(), 1.0)
+    if _loc is None or _d > KEEPD: nkeep += 1; continue
   # both sexes: drop every V6 head face above Z6, and ALL leftover hair/beard (tint 1) —
   # V5 head brings its own hair/beard/braid, so V6 hair below the cut would double up
   if cz >= Z6 or all(t == 1 for t in ts):
     dead.append(f)
-print('V6 faces cut', len(dead), 'of', len(bm.faces), flush=True)
+print('V6 faces cut', len(dead), 'of', len(bm.faces), 'shoulder faces kept above Z6', nkeep, flush=True)
 bmesh.ops.delete(bm, geom=dead, context='FACES')
 bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
 bm.to_mesh(body.data); bm.free(); body.data.update()
