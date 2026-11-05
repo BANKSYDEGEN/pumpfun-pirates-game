@@ -68,7 +68,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.speed, now / 1000, jh); p.pirate.update(dt, p.speed, st);
       if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
-        p.crew = createFollowers({ scene, world, walker: { w: W }, low: true, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }
+        p.crew = createFollowers({ scene, world, walker: { w: W }, low, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }
       p.crew?.update(dt, camera);
       if (p.petId && p.petId !== 'none') (p.pet ||= createPetFollower({ scene, world, low })).update(dt, p, { camera, pirateObj: p.pirate.object, petId: p.petId }); else if (p.pet) { p.pet.dispose(); p.pet = null; }
     }
