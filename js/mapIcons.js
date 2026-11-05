@@ -86,7 +86,7 @@ export const SHOP_ICONS = {
   shop_pets: ['paw', '#1f8a5a', '#fff', '#ffb020', 'PET SHOP'],
   shop_ships: ['ship', '#2a6df4', '#fff', '#fff', 'SHIP SHOP'],
   shop_upgrades: ['upgrade', '#ffc93c', '#161616', '#161616', 'UPGRADES'],
-  shop_crew: ['crewhat', '#6a4fb3', '#fff', '#fff', 'CREW SHOP'],
+  shop_crew: ['crewhat', '#6a4fb3', '#fff', '#fff', 'CREW ROOM'],
   sword_shop: ['swords', '#8b1e1e', '#fff', '#fff', 'SWORD SHOP'],
   musket_shop: ['musket', '#6b4423', '#fff', '#fff', 'MUSKET SHOP'],
   squadhall: ['chest', '#9b5cff', '#fff', '#ffc93c', 'BIG SHOP · SQUAD HALL'],
