@@ -71,10 +71,12 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   }
   function update(dt) {
     if (!w.active) return;
-    if (w.ride) { const r = w.ride(dt), B = w.body; // [Emerly zipline] js/dock/zipline.js owns x / y / z while you ride (no walking, no gravity)
-      if (r === 'done') { placeBody(B, world, w.x, w.z, w.y); w.y = B.y; } else { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; }
-      w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
-      camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
+    if (w.ride) { const r = w.ride(dt), B = w.body; // [Emerly zipline-v2] owns x/y/z while riding; 'drop' falls into air physics below
+      if (r === 'done') { placeBody(B, world, w.x, w.z, w.y); w.y = B.y; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
+        camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
+      if (r !== 'drop') { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
+        camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
+      /* r === 'drop': keep going into normal air / fall with zipVx */ }
     const K = w.keys; let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), s = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
     let mag = Math.min(1, Math.hypot(f, s)), run = held('sprint', K);
     if (w.joy.on && Math.hypot(w.joy.x, w.joy.y) > 0.12) { f = -w.joy.y; s = w.joy.x; mag = Math.min(1, Math.hypot(f, s)); run = mag > 0.88; }
@@ -96,6 +98,9 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     if (w.faceYaw !== undefined && w.faceYaw !== null) w.yaw = w.faceYaw; // [Timothy tps] aiming / just fired: face the crosshair
     // [Raul] vertical: exact ground on slopes (no smoothing lag), eased steps, gravity off ledges + jumps, swim at the surface
     if (w.jumpQ) { w.jumpQ = false; jump(); }
+    if (w.zipVx != null) { // [Emerly zipline-v2] leftover horizontal after a mid-ride drop
+      step(w.zipVx * dt, w.zipVz * dt); w.zipVx *= Math.exp(-dt * 0.5); w.zipVz *= Math.exp(-dt * 0.5);
+      if (!w.body.air || Math.hypot(w.zipVx, w.zipVz) < 0.5) w.zipVx = w.zipVz = null; }
     const B = w.body; stepBody(B, world, w.x, w.z, dt, w.speed); w.y = B.y; w.air = B.air; w.vy = B.vy; w.swim = B.swim; w.wade = B.wade; w.jh = 0;
     if (B.ev === 'land' || B.ev === 'splash') { w.landT = B.landT; w.falls += B.impact > 9 ? 1 : 0; }
     fx ||= waterFX(pirate.object.parent, low); bodyFX(fx, B, w.x, w.z, w.speed, dt); if (fx) fx.update();

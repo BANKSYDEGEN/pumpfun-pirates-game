@@ -76,7 +76,7 @@ export async function createDock(ctx) {
   const fnet = createFootNet({ scene, low: LOW, world, docking, getCamera: () => camera });
   const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map(); // [berth-signs] peer id -> last synced name
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
-  const zip = createZipline({ scene, world, layout, walker, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline] no prompt + no interact mid-ride (walker.w.ride)
+  const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
@@ -151,7 +151,7 @@ export async function createDock(ctx) {
     joy.addEventListener('pointermove', mv);
     const end = (e) => { if (e.pointerId !== id) return; id = null; knob.style.transform = ''; walker.w.joy.on = false; walker.w.joy.x = walker.w.joy.y = 0; };
     joy.addEventListener('pointerup', end); joy.addEventListener('pointercancel', end); joy.addEventListener('lostpointercapture', end); }
-  jumpB.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (on && onFoot) walker.jump(); }); // [v106] phone JUMP (next to the stick)
+  jumpB.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (on && onFoot) { if (zip?.riding) walker.w.jumpQ = true; else walker.jump(); } }); // [v106] phone JUMP; [zipline-v2] JUMP = drop mid-ride
   boardX.onclick = (e) => { e.stopPropagation(); closeBoard(); };
   // [Emerly gamepad] what the pad needs from the dock (js/gamepad.js): the prompts, the walker stick + camera, jump, the musket sights
   { let padJoy = false;
@@ -315,8 +315,11 @@ export async function createDock(ctx) {
       let skinAct = null; // [dock-skin] BANKSY 8:42 PM: E = BOARD SHIP, Q = CHANGE SKIN at your own berth (phone: a 2nd button, pad: X)
       if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) { best = { label: 'BOARD SHIP', fn: () => { skinPick.close(); goAboard(); } }; skinAct = { label: 'CHANGE SKIN', key: 'Q', fn: () => (skinPick.isOpen ? skinPick.close() : skinPick.open()) }; }
       if (FLAG_DAILY) { try { const h = ctx.pvp?.()?.holder; globalThis.__pfpFlagDailyHolder = h ? { on: !!h.on, claimed: !!h.claimed, checked: !!h.checked } : null; } catch { globalThis.__pfpFlagDailyHolder = null; } } // [castle-flag-daily] fort.label reads this
-      if (!best && !zip?.riding) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
-      setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct);
+      if (zip?.riding) { setActs({ label: 'JUMP / E · DROP OFF', key: 'E', primary: true, fn: () => { walker.w.zipDrop = true; } }, null); }
+      else {
+        if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
+        setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct);
+      }
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
       const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL

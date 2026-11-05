@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
 import { newBody, placeBody, stepBody, jumpBody, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] remote pirates fall + swim too
+import { zipGrip } from '../dock/zipline.js'; // [Emerly zipline-v2] peer overhead grip while fy
 import { applyGear, cleanWire, gearFromWire, knownGearSkin, EYE_SWATCHES } from '../pirateGear.js';
 import { createFollowers } from './followers.js'; // [remote-crew] their shore crew walks behind them here too
 import { shoreCrewGear, crewWeaponsOf } from '../crewV4.js';
@@ -67,7 +68,10 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (!p.body) { p.body = newBody(); placeBody(p.body, world, p.x, p.z, world.layer ? 1e4 : null); } /* [roundabout-bridge] first seen on a high bridge's deck strip = up on the deck (the wire has no height; one under it drops down as they walk off the strip) */ stepBody(p.body, world, p.x, p.z, dt, p.speed); bodyFX(fx, p.body, p.x, p.z, p.speed, dt); fx?.update();
       if (p.jt && p.jt !== p.jtH) { p.jtH = p.jt; if (p.body.swim) jumpBody(p.body, 0); }   // [Raul swim-anim] they jumped in deep water: the surface kick here too
       const jh = p.jt && !p.body.swim && !p.body.hop ? jumpArc((now - p.jt) / 1000) : 0; if (p.jt && now - p.jt > 900) p.jt = 0;
-      const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.fy != null ? 0 : p.speed, now / 1000, p.fy != null ? Math.max(0, p.fy - p.body.y) : jh); // [Emerly zipline] hanging from the cable p.pirate.update(dt, p.speed, st);
+      if (p.fy != null) { p.body.y = p.fy; p.body.air = false; p.body.vy = 0; } // [Emerly zipline] pin peer height to the cable
+      const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.fy != null ? 0 : p.speed, now / 1000, p.fy != null ? 0 : jh);
+      zipGrip(p.pirate, p.fy != null, dt); // [Emerly zipline-v2] both arms up on the bar
+      p.pirate.update(dt, p.fy != null ? 0 : p.speed, st);
       if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
         p.crew = createFollowers({ scene, world, walker: { w: W }, low, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }

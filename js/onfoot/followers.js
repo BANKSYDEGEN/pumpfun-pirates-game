@@ -76,6 +76,14 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
     if (W.jumps !== lastJumps) { lastJumps = W.jumps; crew.forEach((c, i) => setTimeout(() => { if (active) jumpBody(c.body, JUMP.h); }, 120 + i * 140)); }
     crew.forEach((c, i) => {
       env.back = BACK[i]; env.side = SIDE[i]; env.i = i;
+      if (c.zip) { // [Emerly zipline-v2] riding the cable: zipline.js owns x/y/z + grip; no trail / no 40 m teleport
+        const far = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far;
+        place(c); if (!far) c.p.update(dt, 0, c.pose); return;
+      }
+      if (c.zipVx != null) { // mid-ride drop: glide with leftover zipline velocity while airborne
+        c.x += c.zipVx * dt; c.z += c.zipVz * dt; c.zipVx *= Math.exp(-dt * 0.55); c.zipVz *= Math.exp(-dt * 0.55);
+        if (!c.body.air || Math.hypot(c.zipVx, c.zipVz) < 0.4) { c.zipVx = c.zipVz = null; }
+      }
       if (followStep(c, W, dt, env) === 'tp') return place(c); // lost (> 40 m behind): regroup on your trail
       stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; bodyFX(fx, c.body, c.x, c.z, c.speed, dt); fx?.update();
       const far = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far;
