@@ -12,17 +12,20 @@ function segD(px, pz, ax, az, bx, bz) { const dx = bx - ax, dz = bz - az, t = Ma
 const polyD = (lx, lz, P) => { let d = 1e9; for (let i = 0; i < P.length - 1; i++) d = Math.min(d, segD(lx, lz, ...P[i], ...P[i + 1])); return d; };
 
 const RANGE_OLD = { lx0: -126, lx1: -82, lz0: -164, lz1: -124, y: 13.6, flat: 8, feather: 6, line: -131, targetLz: -157, lanes: [-121, -115, -109], divider: -104, gate: [-98, -124], gateW: 6 };
-const RANGE_COLI = { lx0: 50, lx1: 88, lz0: -176, lz1: -140, y: FOOT.y, flat: 8, feather: 6, line: -148, targetLz: -170, lanes: [58, 66, 74], divider: 69, gate: [69, -140], gateW: 6 };
+// [Timothy v294] the shell's +lx side came in 8 m (coliseum.js FOOT.lx1 96 -> 88): the range moves 6 m with it and its back stops 4 m
+// short of the podium; BANKSY 4:23 PM "incorporate the musket hall and sword pits into coliseum design, make sure can still be walled
+// around and be spectated" = chest-high dressed-stone walls on the same lines as the old fence / rope ring (same colliders) + benches.
+const RANGE_COLI = { lx0: 44, lx1: 80, lz0: -172, lz1: -140, y: FOOT.y, flat: 8, feather: 6, line: -148, targetLz: -166, lanes: [52, 60, 68], divider: 63, gate: [63, -140], gateW: 6 };
 export const RANGE = COLISEUM_ON ? RANGE_COLI : RANGE_OLD;
 
 const PIT_OLD = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
-const PIT_COLI = { lx: 70, lz: -78, pad: 16, r: 11, flat: 22, y: 9.0, feather: 6 };
+const PIT_COLI = { lx: 61, lz: -84, pad: 16, r: 11, flat: 22, y: 9.0, feather: 6 };   // [v294] centred in the narrower shell, clear of the fish-market gate
 export const PIT = Object.assign({}, COLISEUM_ON ? PIT_COLI : PIT_OLD);
 PIT.gateA = COLISEUM_ON ? Math.atan2(28 - PIT.lx, -115 - PIT.lz) : Math.atan2(46 - PIT.lx, -74 - PIT.lz);
 export const pitAt = (a, r) => [PIT.lx + Math.sin(a) * r, PIT.lz + Math.cos(a) * r];
 
 export const PATHS = COLISEUM_ON
-  ? [[[22, -115], [42, -112], [58, -95], [65, -85], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -130], [55, -145], [69, -140]]]
+  ? [[[22, -115], [40, -110], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -128], [55, -140], [63, -140]]]
   : [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -125]], [[13, -59], [34, -62], pitAt(PIT.gateA, PIT.r + 4), pitAt(PIT.gateA, PIT.r - 1)]];
 
 export const MAIN_ST_SHOPS = [
@@ -32,7 +35,7 @@ export const MAIN_ST_SHOPS = [
 export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });
 export const COVER = COLISEUM_ON
-  ? [[60, -155, 'crate'], [72, -152, 'barrel'], [80, -160, 'hay'], [55, -162, 'crate'], [84, -148, 'barrel'], [66, -158, 'hay'], [76, -145, 'barrel']]
+  ? [[54, -155, 'crate'], [66, -152, 'barrel'], [74, -160, 'hay'], [49, -162, 'crate'], [77, -148, 'barrel'], [60, -158, 'hay'], [70, -145, 'barrel']]
   : [[-97, -140, 'crate'], [-89, -136, 'barrel'], [-93, -148, 'hay'], [-86, -152, 'crate'], [-99, -156, 'barrel'], [-88, -144, 'hay'], [-95, -133, 'barrel']];
 export const near = (lx, lz) => COLISEUM_ON
   ? (lx > 20 && lx < 110 && lz > -220 && lz < -30)
@@ -64,10 +67,21 @@ export function buildArt(o) {
     const [mx, mz] = T((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), wy = CO.t2wYaw(ly);
     for (const ry of [0.45, h - 0.1]) W(k, box(0.1, 0.16, L), WOOD, 2, M(mx, y + ry, mz, wy), false);
     addBox(mx, mz, 0.4, L, wy); };
+  // [v294] coliseum: chest-high dressed-stone wall (1.25 m, coping + piers) on the fence line, same single collider per span:
+  // walled round, and you watch over it. &coliseum=0 keeps the wooden fence.
+  const STN = 0xc4b8a2, STN_L = 0xd3c8b3;
+  const wall = (a, b, y, h = 1.25) => { if (!COLISEUM_ON) return fence(a, b, y, h); const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ly = Math.atan2(b[0] - a[0], b[1] - a[1]);
+    const [mx, mz] = T((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), wy = CO.t2wYaw(ly);
+    W(k, box(0.55, h, L + 0.5), STN, 11, M(mx, y + h / 2 - 0.05, mz, wy)); W(k, box(0.75, 0.16, L + 0.6), STN_L, 11, M(mx, y + h + 0.03, mz, wy), false);
+    const n = Math.max(1, Math.round(L / 4)); for (let i = 0; i <= n; i++) { const [x, z] = T(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n); W(k, box(0.8, h + 0.35, 0.8), STN_L, 11, M(x, y + (h + 0.35) / 2, z, wy)); }
+    addBox(mx, mz, 0.55, L, wy); };
+  const bench = (lx, lz, y, ly) => { const [x, z] = T(lx, lz), wy = CO.t2wYaw(ly);
+    k.at(M(x, y, z, wy), () => { W(k, box(3.0, 0.14, 0.55), WOOD, 2, M(0, 0.5, 0)); for (const s of [-1.2, 1.2]) W(k, box(0.14, 0.5, 0.5), WOOD_D, 2, M(s, 0.25, 0), false); }); addBox(x, z, 3.0, 0.6, wy); };
   // ---------------- MUSKET RANGE ----------------
   { const R = RANGE, y = R.y, g0 = R.gate[0] - R.gateW / 2, g1 = R.gate[0] + R.gateW / 2;
-    fence([R.lx0, R.lz1], [g0, R.lz1], y); fence([g1, R.lz1], [R.lx1, R.lz1], y);                     // town side, gate gap
-    fence([R.lx0, R.lz1], [R.lx0, R.lz0 + 2], y); fence([R.lx1, R.lz1], [R.lx1, R.lz0 + 2], y);      // sides
+    wall([R.lx0, R.lz1], [g0, R.lz1], y); wall([g1, R.lz1], [R.lx1, R.lz1], y);                     // town side, gate gap
+    wall([R.lx0, R.lz1], [R.lx0, R.lz0 + 2], y); wall([R.lx1, R.lz1], [R.lx1, R.lz0 + 2], y);      // sides
+    if (COLISEUM_ON) for (const lx of [R.lx0 + 4, R.lx0 + 9, R.lx1 - 9, R.lx1 - 4]) bench(lx, R.lz1 + 2.6, y, 0);   // [v294] spectator benches facing the lanes over the town-side wall
     // backstop: earth berm + a plank wall with sandbags along the far end (blocks the walk, catches the balls)
     { const [x, z] = T((R.lx0 + R.lx1) / 2, R.lz0 + 1.2), L = R.lx1 - R.lx0; W(k, box(L, 3.2, 1.0), 0x8a5a2b, 2, M(x, y + 1.0, z, yaw0)); W(k, box(L + 0.3, 0.25, 1.2), WOOD_D, 2, M(x, y + 2.7, z, yaw0), false);
       for (let lx = R.lx0 + 1; lx < R.lx1; lx += 2.2) { const [sx, sz] = T(lx, R.lz0 + 2.0); W(k, new THREE.SphereGeometry(0.55, 7, 5).scale(1.6, 0.6, 0.9), 0xd9c39a, 12, M(sx, y + 0.3, sz, yaw0)); }
@@ -98,6 +112,8 @@ export function buildArt(o) {
   { const P = PIT, y = P.y, ga = P.gateA, gap = 0.2;   // gate half-angle (~2.2 m opening at r11)
     // rope ring: posts round the pit, two ropes per span, the gate open; a box collider per span
     const n = 24; for (let i = 0; i < n; i++) { const a0 = ga + gap + (i / n) * (Math.PI * 2 - 2 * gap), a1 = ga + gap + ((i + 1) / n) * (Math.PI * 2 - 2 * gap);
+      if (COLISEUM_ON) { const [ax, az] = pitAt(a0, P.r), [bx, bz] = pitAt(a1, P.r), [mx, mz] = T((ax + bx) / 2, (az + bz) / 2), L = Math.hypot(bx - ax, bz - az), wy = CO.t2wYaw(Math.atan2(bx - ax, bz - az));
+        W(k, box(0.5, 0.95, L + 0.3), STN, 11, M(mx, y + 0.42, mz, wy)); W(k, box(0.68, 0.14, L + 0.35), STN_L, 11, M(mx, y + 0.95, mz, wy), false); }   // [v294] stone ring wall under the ropes
       const [px, pz] = T(...pitAt(a0, P.r)); W(k, cyl(0.13, 0.15, 1.5, 6), WOOD_D, 2, M(px, y + 0.75, pz)); W(k, new THREE.SphereGeometry(0.16, 6, 4), WOOD, 2, M(px, y + 1.52, pz), false); addCirc(px, pz, 0.22);
       if (i === n - 1) { const [qx, qz] = T(...pitAt(a1, P.r)); W(k, cyl(0.13, 0.15, 1.5, 6), WOOD_D, 2, M(qx, y + 0.75, qz)); addCirc(qx, qz, 0.22); }
       const [ax, az] = pitAt(a0, P.r), [bx, bz] = pitAt(a1, P.r), [mx, mz] = T((ax + bx) / 2, (az + bz) / 2), L = Math.hypot(bx - ax, bz - az), wy = CO.t2wYaw(Math.atan2(bx - ax, bz - az));

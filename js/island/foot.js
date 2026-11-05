@@ -333,6 +333,7 @@ function colorAt(i, j, out) {
   out.lerp(DIRT, (1 - sm(2.4, 4.4, TRP_G[q])) * (1 - sm(0.75, 1.05, slope))); out.lerp(COBBLE, paveAt(q, x, z) * PAVE_FLAT(slope)); // [path-hotfix] cutting / slot walls keep the rock colour
   out.lerp(COBBLE, 1 - sm(STREET.half - 0.5, STREET.half + 1, STg[q]));
   if (COASTM) out.lerp(COBBLE, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
+  if (COASTM && COLI.COLISEUM_ON) out.lerp(COBBLE, COLI.pave(...worldToTown(x, z))); // [Timothy v294] coliseum fish-market approach
   return out;
 }
 
@@ -355,6 +356,7 @@ function splatAt(i, j, w) {
   paint(6, paveAt(q, x, z) * PAVE_FLAT(sl)); // [bridge-path-fix] paved trails: Main Street's cobble layer on the walkable floor only
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
   if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
+  if (COASTM && COLI.COLISEUM_ON) paint(6, COLI.pave(...worldToTown(x, z))); // [Timothy v294] coliseum fish-market approach
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 24) paint(4, 1 - sm(14, 24, sk));
   return w;
 }
