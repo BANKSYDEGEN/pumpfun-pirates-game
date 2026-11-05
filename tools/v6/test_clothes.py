@@ -17,7 +17,8 @@ def views(j,b):
 
 changed=subprocess.check_output(['git','diff',BASE,'--name-only'],text=True).splitlines()
 assets=[Path(p) for p in changed if p.endswith('.glb')]
-assert len(assets)==32, (len(assets),assets)
+expected={f'{item}_{sex}_{lod}.glb' for item in (*IDS, 'cloth_shirt', 'cloth_tshirt', 'cloth_coat', 'cloth_suit', 'cloth_tank', 'cloth_singlet', 'cloth_base') for sex in ('male','female') for lod in ('hi','lo')}
+assert {p.name for p in assets}==expected, (len(assets),assets)
 assert not any('pirate_' in p.name or any(k in p.name for k in ('boots','shoes','sandals')) for p in assets)
 for path in assets:
     oldj,oldb=parse(subprocess.check_output(['git','show',f'{BASE}:{path}']))
@@ -54,4 +55,4 @@ for path in assets:
     print('PASS',path.name)
 assert subprocess.check_output(['git','show',f'{BASE}:sw.js'])==Path('sw.js').read_bytes()
 assert subprocess.check_output(['git','show',f'{BASE}:js/shopCatalog.js'])==Path('js/shopCatalog.js').read_bytes()
-print('PASS 32 item GLBs; untouched rigs/weights/UVs/tints/normal maps/alpha masks/catalog/SW; breeches overlap both sea cuffs by 12mm')
+print(f'PASS {len(assets)} item GLBs; untouched rigs/weights/UVs/tints/normal maps/alpha masks/catalog/SW; breeches overlap both sea cuffs by 12mm')

@@ -25,3 +25,10 @@ No push, merge, deployment, service-worker bump, catalog/economy/save edits.
 ## Coordination
 - Timothy: breeches now overlap the cuff at both genders/LODs; reviewed read-only against `/workspace/timothy-v6-shoes/assets/pirates/items/v5/boots_sea_*.glb`.
 - Raul/Emerly: body underwear, crotch/chest/skin/eyes remain yours. Existing tattered belt/sash paint/silhouette mostly retained; this is a hem/edge pass, not a full analytical pant rebuild. Please review actual equipped body/cover masks and phone before shipping. No approval to ship asserted here.
+
+## Pass 2: remaining upper-cloth albedos
+- Applied `sharpen_cloth.py --keep-size` once to `cloth_{tank,singlet,base}_{male,female}_{hi,lo}.glb` (12 assets). All three families have embedded albedos.
+- Same bounded unsharp pass as pass 1. Dimensions retained (hi 1024/2048, lo 512); normal maps, exact alpha tint masks, geometry/rig/UVs/materials unchanged. Total asset download: 1.96 -> 2.35 MiB; no GPU texture-size growth.
+- Extended regression inventory to all 44 changed GLBs; `python3 tools/v6/test_clothes.py` passes. Pants were NOT processed again. Bodies, shoes, catalog and service worker untouched.
+- Review: `/workspace/brand/v6_characters/shots/post-clothes/pass2/cloth_{tank,singlet,base}_atlas_sheet.jpg`, `validation.txt`, `texture_metrics.txt`. Sheets show underlying albedo RGB, not alpha transparency (alpha is a game tint mask).
+- These are before/after atlas sheets, NOT equipped-body or in-game shots. Blender executable unavailable; no browser launched. Raul/Emerly still need equipped-body and phone review. No push or shipping approval asserted.
