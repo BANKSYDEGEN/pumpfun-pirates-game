@@ -30,10 +30,11 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
   function netState(me, fast = false) { // fields merged into YOUR outgoing room state; the walk pose refreshes at most ~3 Hz (FT_MS), so the
     // transport (which only sends changed fields) adds ~3 small messages / s while you walk and nothing while you stand still
     const now = performance.now();
+    if (me.active && me.w.ride) fast = true; // [Emerly zipline] sliding: send the pose at the fast rate
     if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= (fast ? 90 : FT_MS)) { ftAt = now; const q = fast ? 10 : 2; ftLast = [Math.round(me.w.x * q) / q, Math.round(me.w.z * q) / q, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
     // [v106] fj: your jump counter (changes once per jump; the transport only sends changed fields, older clients ignore it)
     return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ds: docking.fresh?.() ? 1 : 0, ft: ftLast,   // [v152] ds = 1 for a few s after the join spawn moored you (older clients ignore it)
-      ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}) };
+      ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}), ...(me.active && (me.w.ride || me.w.zipSent) ? { fy: (me.w.zipSent = !!me.w.ride) ? Math.round(me.w.y * 10) : 0 } : {}) }; // [Emerly zipline] fy = your height x10 while riding (0 = back on the ground)
   }
   function onPeerState(m) { // a peer's state (any transport); m.i = id, m.n = name
     if (!m || !isNetId(m.i)) return null;
@@ -46,6 +47,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (Number.isFinite(m.fj) && m.fj !== p.fj) { if (p.fj !== undefined) p.jt = performance.now(); p.fj = m.fj; } // [v106] they jumped: play the arc here
       const gw = cleanWire(m.gr), sk = knownGearSkin(m.sk) ? m.sk : 'classic', ec = Number.isInteger(m.ec) && m.ec > 0 && m.ec <= EYE_SWATCHES.length ? m.ec : 0, gk = gw + '|' + sk + '|' + ec; if (gk !== p.gw) { p.gw = gk; const g = gearFromWire(gw); p.petId = g.parrot; p.capG = g; p.ck = null; /* [crew-weapons] their crew re-reads the captain's weapons */ applyGear(p.pirate, { ...g, eyeColor: ec }, { skin: sk }); } // [v115] + eye colour ('ec') // validated; missing = shirtless; clothes = their ship skin ('sk')
       { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = shoreCrewGear({ ...crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), ...crewWeaponsOf(p.capG) }); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
+      p.fy = Number.isFinite(m.fy) && m.fy !== 0 ? m.fy / 10 : null; // [Emerly zipline] riding a zipline: their height
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
       const name = String(m.n ?? p.name ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
       if (name !== p.name) { p.name = name; if (p.tag) { p.tag.material.map.dispose(); p.tag.removeFromParent(); } p.tag = nameTag(name); p.pirate.object.add(p.tag); p.tag.position.y = 2.75; }
@@ -65,7 +67,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (!p.body) { p.body = newBody(); placeBody(p.body, world, p.x, p.z, world.layer ? 1e4 : null); } /* [roundabout-bridge] first seen on a high bridge's deck strip = up on the deck (the wire has no height; one under it drops down as they walk off the strip) */ stepBody(p.body, world, p.x, p.z, dt, p.speed); bodyFX(fx, p.body, p.x, p.z, p.speed, dt); fx?.update();
       if (p.jt && p.jt !== p.jtH) { p.jtH = p.jt; if (p.body.swim) jumpBody(p.body, 0); }   // [Raul swim-anim] they jumped in deep water: the surface kick here too
       const jh = p.jt && !p.body.swim && !p.body.hop ? jumpArc((now - p.jt) / 1000) : 0; if (p.jt && now - p.jt > 900) p.jt = 0;
-      const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.speed, now / 1000, jh); p.pirate.update(dt, p.speed, st);
+      const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.fy != null ? 0 : p.speed, now / 1000, p.fy != null ? Math.max(0, p.fy - p.body.y) : jh); // [Emerly zipline] hanging from the cable p.pirate.update(dt, p.speed, st);
       if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
         p.crew = createFollowers({ scene, world, walker: { w: W }, low, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }

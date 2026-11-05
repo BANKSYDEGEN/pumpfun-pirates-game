@@ -71,6 +71,10 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   }
   function update(dt) {
     if (!w.active) return;
+    if (w.ride) { const r = w.ride(dt), B = w.body; // [Emerly zipline] js/dock/zipline.js owns x / y / z while you ride (no walking, no gravity)
+      if (r === 'done') { placeBody(B, world, w.x, w.z, w.y); w.y = B.y; } else { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; }
+      w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
+      camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
     const K = w.keys; let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), s = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
     let mag = Math.min(1, Math.hypot(f, s)), run = held('sprint', K);
     if (w.joy.on && Math.hypot(w.joy.x, w.joy.y) > 0.12) { f = -w.joy.y; s = w.joy.x; mag = Math.min(1, Math.hypot(f, s)); run = mag > 0.88; }
