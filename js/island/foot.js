@@ -927,8 +927,9 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   if (PV2) PLAZA_V2_SIGNS = PV.buildPlazaV2({ k, W, box, cyl, M, at, colonial, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, H, F, A, low, Y0, yaw0, deckY: PY + 0.15,
     C: { WOOD, WOOD_D, WOOD_L, IRON, STONE, STONE_D, ROOF: ROOFS[1], ROOFS, SHUTTER, BARK: 0xa96a38, GOLD, CREAM } });   // [Timothy] harbor town blockout
   if (!PV2) for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
+  if (!(PV2 && PV.FISH_HALL)) { // [v247] the harbor tower (#11) made room for the FISH MARKET on the plaza-v2 row
   at(P.tower.lx, P.tower.lz, 0, () => { W(k, box(9, 24, 9), STONE, 11, M(0, 12, 0)); W(k, box(10, 1, 10), STONE_D, 11, M(0, 24.3, 0), false); W(k, new THREE.ConeGeometry(7.4, 7, 4), ROOFS[1], 4, M(0, 28.3, 0, Math.PI / 4));
-    for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); }
+    for (const y of [8, 15, 20]) W(k, box(1.4, 2.2, 0.3), 0x2b3d4a, 0, M(0, y, 4.6), false); }, Y0); { const [x, z] = T(P.tower.lx, P.tower.lz); addBox(x, z, 9.4, 9.4, yaw0); } }
   if (!PV2) for (const lx of [-50, -20, 10, 40, 70]) { const [x, z] = T(lx, -3); torchPost(k, F, x, Y0, z); } // [Timothy] v2 lights its own jetty roots
   // spectate spyglass on the mole deck (CO.SPYGLASS, walkable; the interact point is the same spot)
   at(CO.SPYGLASS.lx, CO.SPYGLASS.lz, 0, () => { W(k, cyl(0.12, 0.16, 1.4, 6), IRON, 0, M(0, 0.7, 0)); W(k, cyl(0.12, 0.2, 1.6, 8), GOLD, 0, M(0, 1.55, 0.3, 0, Math.PI / 2 - 0.2), false); }, CO.SPYGLASS.y);

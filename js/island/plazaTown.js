@@ -80,18 +80,19 @@ export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', l
 export const TOKEN_SLOTS = { SUNK: -30.5, AHOY: -25, PUMP: -19.5, HQ: 42.5, RETARDIO: 51.5 };
 export const TRENDING = { lx0: 39.5, lx1: 54.5, y: 6.6, n: 5 };   // upstairs row on hall_e: room for the coming trending boards
 export const HOUSES = [{ lx: 70, w: 8, fl: 3, v: 2, tavern: true },
-  // [Timothy] the gap between the tavern (66-74) and the harbor tower (81.5-90.5): a plain stone house (Blender 'house_e', no shop, no
-  // trigger; the WEAPON STORE moved up the hill to Emerly's shops). Footprint box = the storefront rule (w + 0.6 x ROW_D + 0.6).
-  { lx: 77.9, w: 7, fl: 3, v: 2, glb: 'house_e' }];
+  // [v247] house_e (#10, lx 77.9) is gone: the FISH MARKET (FISH_MARKET below) fills it + the harbor tower's spot (#11)
+  ];
 // [v240] lx 50 (#19) removed: it stood in front of the MARKETPLACE door
 export const STALLS = [-50, -42, -34, -26, -18, 26, 34].map((lx, i) => ({ lx, lz: STALL_LZ, c: [0xf2efe6, 0xd8322f, 0xe9dcc0, 0x2a6df4, 0xf2efe6][i % 5] }));
-export const CARTS = [[-30, -22.5], [40, -22]], TAVERN_TABLES = [];   // [v240] the tavern tables made room for the FISH MARKET
-// [v240] BANKSY 6:19 PM: the FISH MARKET on the old Token Exchange kiosk spot (lx 62) + the tavern tables (lx 64-76), an open timber
-// market shed on the street in front of the tavern + the gap west of it. Town-local centre / size; the prompt is 1.2 m in front of the counter.
-export const FISH_MARKET = { lx: 64.25, lz: -25.6, w: 15.5, d: 7.2, promptLz: -21.2 };
+export const CARTS = [[-30, -22.5], [40, -22]], TAVERN_TABLES = [[61.5, -24.5], [66.5, -22.5], [71.5, -24.5]];   // [v247] back in front of the tavern (the FISH MARKET moved to #10 / #11)   // [v240] the tavern tables made room for the FISH MARKET
+// [v247] BANKSY 7:44 PM: the FISH MARKET is a walk-in shop on the row where #10 house_e (lx 74.4-81.4) + #11 the harbor tower (81.5-90.5) stood:
+// lx 74.5-89.5 (0.5 m clear of the tavern), front on FACADE_LZ, ROW_D deep. The SELL FISH prompt is on the shop floor (lz -35.5, r 3).
+// (v240: an open shed on the old Token Exchange + tavern-table spot, lx 64.25 lz -25.6; that spot has the tavern tables back)
+export const FISH_MARKET = { lx: 82, lz: FACADE_LZ - ROW_D / 2, w: 15, d: ROW_D, promptLz: -35.5 };
+export const FISH_HALL = true;   // foot.js: no harbor tower
 export const MARKET_DOOR = { lx: 47, lz: FACADE_LZ + 2.6 };   // [v240] the MARKETPLACE prompt at the hall_e entrance
 export const PALMS = [[-56, -12], [-24, -9], [-3, -9], [15, -9], [44, -9], [76, -8], [92, -14], [-68, -10]];
-export const LAMPS = [-54, -42, -30, -18, -4, 16, 28, 40, 52, 80].map(lx => [lx, -20.4]);   // [v240] lx 64 dropped: it stood in front of the FISH MARKET sign
+export const LAMPS = [-54, -42, -30, -18, -4, 16, 28, 40, 52, 64, 93].map(lx => [lx, -20.4]);   // [v247] lx 64 back (the old fish shed spot), lx 80 -> 93 (clear of the FISH MARKET door)   // [v240] lx 64 dropped: it stood in front of the FISH MARKET sign
 export const CARGO = [[-34, -3.5], [-28, -4], [-20, -3.5], [-14, -4.5], [20, -3.5], [26, -4], [34, -3.5], [74, -4.5], [82, -3.5]];
 export const CRANE = { lx: 40, lz: -2.2 };
 export const DOCK = { deckEnd: BOARDWALK.lx0 };   // the v103 boardwalk stops where the v2 one starts (flush, same 2.95)
@@ -224,51 +225,66 @@ export function buildPlazaV2(h) {
     hanging('market', hl.lx, hl.w);
     for (const sx of [-1, 1]) addBox(...T(hl.lx + sx * 4.7, FACADE_LZ + 2.1), 3.7, 1.6, yaw0);
   }
-  // [v240] THE FISH MARKET: an open timber shed (blue + white striped canvas) with a long counter: fish laid on crushed ice, a hanging
-  // brass scale, price slates, crates of iced fish and salt barrels at the ends, and a big FISH MARKET board over the front beam.
-  function fishMarket() {
-    const F0 = FISH_MARKET, hw = F0.w / 2, hd = F0.d / 2, BLUE = 0x1d7fb8, WHITE = 0xf2efe6, ICE = [0xdff1fa, 0xc6e4f2, 0xf4fbff], BRASS = 0xc9a03a;
-    const FISHC = [0xb8c4cc, 0x6f8fa8, 0xe8795a, 0xe8b13a, 0xd8433a, 0x7f9f5a, 0x9aa9b4];
-    const rx = Math.atan2(0.8, F0.d), rl = Math.hypot(F0.d + 1.0, 0.8);
-    at(F0.lx, F0.lz, 0, () => {
-      W(k, box(F0.w + 0.4, 0.12, F0.d + 0.4), 0xb9b2a6, TRIM, M(0, 0.06, 0));                                  // flagstone floor
-      for (const sz of [-1, 1]) for (let i = 0; i <= 4; i++) { const h = sz > 0 ? 3.0 : 3.8; W(k, box(0.26, h, 0.26), C.WOOD_D, TIMBER, M(-hw + i * F0.w / 4, h / 2, sz * (hd - 0.2))); }
-      W(k, box(F0.w + 0.4, 0.26, 0.3), C.WOOD_D, TIMBER, M(0, 3.0, hd - 0.2)); W(k, box(F0.w + 0.4, 0.26, 0.3), C.WOOD_D, TIMBER, M(0, 3.8, -hd + 0.2));
-      for (let i = 0; i < 7; i++) W(k, box(F0.w / 7 + 0.02, 0.1, rl), i % 2 ? WHITE : BLUE, CLOTH, M(-hw + (i + 0.5) * F0.w / 7, 3.52, 0.1, 0, rx));   // striped canvas roof
-      for (let i = 0; i < 14; i++) W(k, box(F0.w / 14 - 0.04, 0.45, 0.06), i % 2 ? WHITE : BLUE, CLOTH, M(-hw + (i + 0.5) * F0.w / 14, 2.82, hd + 0.33), false);   // valance
-      // the counter + the ice bed (tilted to the street) + the catch on it
-      W(k, box(13.0, 1.0, 1.3), C.WOOD, TIMBER, M(0, 0.5, hd - 1.2)); W(k, box(13.3, 0.12, 1.5), C.WOOD_L, TIMBER, M(0, 1.06, hd - 1.2), false);
-      W(k, box(12.7, 0.2, 1.25), ICE[1], 0, M(0, 1.24, hd - 1.2, 0, 0.18), false);
-      const nIce = low ? 26 : 60; for (let i = 0; i < nIce; i++) { const t = (i * 0.6180339) % 1, u = (i * 0.3819660 + 0.17) % 1;
-        W(k, new THREE.IcosahedronGeometry(0.09 + (i % 3) * 0.03, 0), ICE[i % 3], 0, M(-6.2 + t * 12.4, 1.36 - (u - 0.5) * 0.22, hd - 1.75 + u * 1.1, i), false); }
-      const step = low ? 0.75 : 0.52; let n = 0; for (let x = -6.0; x <= 6.0; x += step) for (const row of [0, 1]) { const c = FISHC[(n++ * 3 + row) % FISHC.length], L = 0.34 + ((n * 7) % 5) * 0.04;
-        const zz = hd - 1.55 + row * 0.62, yy = 1.43 - (row - 0.5) * 0.12 + 0.02, rot = (row ? 0.25 : -0.2) + ((n % 3) - 1) * 0.12;
-        k.at(M(x + row * 0.2, yy, zz, rot, 0.18), () => { W(k, new THREE.SphereGeometry(1, 10, 6), c, 0, M(0, 0, 0, 0, 0, 0, [L, L * 0.3, L * 0.36]), false);   // body
-          W(k, new THREE.ConeGeometry(0.15, 0.24, 4), c, 0, M(-L - 0.08, 0, 0, 0, 0, Math.PI / 2, [1, 1, 0.35]), false);                                // tail
-          W(k, new THREE.SphereGeometry(0.035, 5, 4), 0x161616, 0, M(L * 0.7, 0.03, L * 0.3), false); }); }                                          // eye
-      for (const x of [-4.6, -0.6, 3.4]) { W(k, box(0.05, 0.5, 0.05), C.WOOD_D, TIMBER, M(x, 1.55, hd - 0.52), false); W(k, box(0.62, 0.4, 0.05), 0x2b2b2b, 0, M(x, 1.9, hd - 0.5), false);
-        W(k, box(0.66, 0.05, 0.06), C.WOOD_L, TIMBER, M(x, 2.12, hd - 0.5), false); }                                                                 // price slates
-      // the hanging scale off the front beam: chain, brass beam, two pans (one with a fish)
-      { const sx = 1.6, sz = hd - 0.35; W(k, cyl(0.025, 0.025, 0.8, 4), C.IRON, 0, M(sx, 2.5, sz), false); W(k, box(1.0, 0.07, 0.07), BRASS, 0, M(sx, 2.1, sz), false);
-        W(k, cyl(0.07, 0.07, 0.12, 8), BRASS, 0, M(sx, 2.18, sz), false); for (const px of [-0.45, 0.45]) { W(k, cyl(0.012, 0.012, 0.42, 3), C.IRON, 0, M(sx + px, 1.88, sz), false); W(k, cyl(0.24, 0.17, 0.07, 12), BRASS, 0, M(sx + px, 1.66, sz), false); }
-        W(k, new THREE.SphereGeometry(1, 10, 6), FISHC[3], 0, M(sx - 0.45, 1.76, sz, 0.3, 0, 0, [0.22, 0.07, 0.08]), false); }
-      // back bench: nets, buckets, a cleaning table
-      W(k, box(11.0, 0.9, 0.9), C.WOOD_D, TIMBER, M(0, 0.45, -hd + 0.8)); W(k, box(11.2, 0.1, 1.0), C.WOOD_L, TIMBER, M(0, 0.95, -hd + 0.8), false);
-      for (const x of [-4.5, -1.5, 2.0, 4.8]) W(k, cyl(0.26, 0.22, 0.42, 10), C.WOOD_L, TIMBER, M(x, 1.21, -hd + 0.8), false);
-      W(k, box(5.0, 1.4, 0.05), 0xd9c39a, ROPE, M(-2.5, 2.4, -hd + 0.33), false); W(k, box(4.0, 1.2, 0.05), 0xc9b38a, ROPE, M(3.2, 2.5, -hd + 0.33), false);   // drying nets
-      // the FISH MARKET board, on two posts above the front beam (sign both faces)
-      for (const sx of [-1, 1]) W(k, box(0.2, 2.4, 0.2), C.WOOD_D, TIMBER, M(sx * 3.9, 4.0, hd - 0.2), false);
-      W(k, box(8.7, 2.45, 0.2), C.WOOD_D, TIMBER, M(0, 4.55, hd - 0.2)); W(k, box(8.9, 0.16, 0.28), BLUE, 0, M(0, 5.8, hd - 0.2), false); W(k, box(8.9, 0.16, 0.28), BLUE, 0, M(0, 3.3, hd - 0.2), false);
+  // [v247] THE FISH MARKET (BANKSY 7:44 PM "replace building 10 and 11 with fish market, keep in line with the other shops"): one walk-in
+  // stone shop on the shop row where #10 (house_e) + #11 (the harbor tower) stood. Same frontage (FACADE_LZ), depth (ROW_D) and style as
+  // the row (plinth, ashlar, quoins, string course, balcony, tile roof + gables), a wide open door under a blue + white awning, the big
+  // FISH MARKET board upstairs + a hanging bracket sign; inside: the fish counter on crushed ice along the back, a brass scale, price
+  // slates, a back bench with nets, iced crates by the walls. The SELL FISH prompt is on the shop floor (walk in, then sell).
+  function fishHall() {
+    const F0 = FISH_MARKET, w = F0.w, d = ROW_D, hw = w / 2, hd = d / 2, G = 4.6, fh = 3.5, top = G + fh, col = STONES[1], DOOR = 4.4, t = 0.5;
+    const BLUE = 0x1d7fb8, WHITE = 0xf2efe6, ICE = [0xdff1fa, 0xc6e4f2, 0xf4fbff], BRASS = 0xc9a03a, FISHC = [0xb8c4cc, 0x6f8fa8, 0xe8795a, 0xe8b13a, 0xd8433a, 0x7f9f5a, 0x9aa9b4];
+    const pier = (hw - DOOR / 2), px = DOOR / 2 + pier / 2;
+    at(F0.lx, cz, 0, () => {
+      W(k, box(w - 0.4, 0.06, d - 0.4), 0xb9b2a6, TRIM, M(0, 0.03, 0));                                                     // flagstone floor (walk height = street)
+      W(k, box(w + 0.6, 0.7, t + 0.6), QUOIN, TRIM, M(0, 0.15, -hd + t / 2)); for (const sx of [-1, 1]) W(k, box(t + 0.6, 0.7, d + 0.6), QUOIN, TRIM, M(sx * (hw - t / 2), 0.15, 0));   // plinth under the walls
+      for (const sx of [-1, 1]) W(k, box(pier + 0.3, 0.7, t + 0.6), QUOIN, TRIM, M(sx * px, 0.15, hd - t / 2));
+      W(k, box(w, G, t), col, MASON, M(0, G / 2, -hd + t / 2)); for (const sx of [-1, 1]) W(k, box(t, G, d), col, MASON, M(sx * (hw - t / 2), G / 2, 0));        // ground-floor shell
+      for (const sx of [-1, 1]) W(k, box(pier, G, t), col, MASON, M(sx * px, G / 2, hd - t / 2));
+      W(k, box(DOOR, G - 3.6, t), col, MASON, M(0, 3.6 + (G - 3.6) / 2, hd - t / 2));
+      W(k, box(DOOR + 0.8, 0.5, 0.4), QUOIN, TRIM, M(0, 3.75, hd + 0.15), false); for (const sx of [-1, 1]) W(k, box(0.5, 3.6, 0.4), QUOIN, TRIM, M(sx * (DOOR / 2 + 0.2), 1.8, hd + 0.15), false);   // door frame
+      for (const sx of [-1, 1]) { const wx = sx * px; W(k, box(2.4, 1.7, 0.12), 0x2b3d4a, 0, M(wx, 2.2, hd + 0.02), false); W(k, box(2.9, 0.32, 0.3), QUOIN, TRIM, M(wx, 3.2, hd + 0.1), false); W(k, box(2.8, 0.18, 0.4), QUOIN, TRIM, M(wx, 1.3, hd + 0.15), false); }   // shop windows
+      W(k, box(w + 0.36, 0.3, d + 0.36), QUOIN, TRIM, M(0, G, 0), false);                                                    // string course
+      W(k, box(w, fh, d), col, MASON, M(0, G + fh / 2, 0)); W(k, box(w - 0.6, 0.1, d - 0.6), C.WOOD_D, TIMBER, M(0, G - 0.06, 0), false);   // upper storey (its underside = the shop ceiling, timber)
+      for (const sx of [-1, 1]) for (let q = 0; q < (low ? 2 : 6); q++) W(k, box(0.8, low ? 3.8 : 0.9, 0.8), QUOIN, TRIM, M(sx * (hw - 0.3), low ? 1.9 + q * 4 : 0.55 + q * 1.3, hd - 0.3), false);   // quoins
+      for (const wx of [-5.2, 5.2]) { W(k, box(1.1, 1.6, 0.12), 0x2b3d4a, 0, M(wx, G + 1.9, hd + 0.02), false); W(k, box(1.6, 0.32, 0.3), QUOIN, TRIM, M(wx, G + 2.85, hd + 0.1), false);
+        for (const s of [-1, 1]) W(k, box(0.58, 1.6, 0.08), C.SHUTTER[1], TIMBER, M(wx + s * 0.88, G + 1.9, hd + 0.22, s * 0.45), false); }
+      W(k, box(8.8, 2.5, 0.22), C.WOOD_D, TIMBER, M(0, G + 1.75, hd + 0.12)); W(k, box(9.0, 0.16, 0.3), BLUE, 0, M(0, G + 3.02, hd + 0.14), false); W(k, box(9.0, 0.16, 0.3), BLUE, 0, M(0, G + 0.48, hd + 0.14), false);   // the big board
+      W(k, box(w + 0.2, 0.3, 0.3), C.WOOD_D, TIMBER, M(0, top - 0.2, hd + 0.25), false);                                    // eave beam
+      const pitch = 0.55, half = hd + 0.8, slab = half / Math.cos(pitch), rise = Math.tan(pitch) * half;
+      for (const s of [-1, 1]) W(k, box(w + 1.0, 0.32, slab), C.ROOFS[2], 4, M(0, top + rise / 2, s * half / 2, 0, s * pitch));
+      W(k, cyl(0.26, 0.26, w + 1.1, 6), C.ROOFS[3], 4, M(0, top + rise + 0.05, 0, 0, 0, Math.PI / 2), false);
+      const gable = new THREE.BufferGeometry(); gable.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -hd, 0, 0, hd, 0, rise - 0.15, 0], 3)); gable.computeVertexNormals();
+      for (const sx of [-1, 1]) { const g = gable.clone(); if (sx < 0) g.scale(-1, 1, 1); W(k, g, col, MASON, M(sx * (hw + 0.01), top, 0, sx > 0 ? 0 : Math.PI), false); }
+      W(k, box(1.0, 2.6, 1.0), QUOIN, TRIM, M(w * 0.3, top + rise * 0.6 + 1.0, -d * 0.2));                                  // chimney
+      // the blue + white awning over the door + the shop windows
+      W(k, box(w * 0.8, 0.1, 2.2), BLUE, CLOTH, M(0, 4.05, hd + 1.0, 0, 0.26)); for (let i = 0; i < 10; i++) W(k, box(w * 0.08 - 0.04, 0.42, 0.06), i % 2 ? WHITE : BLUE, CLOTH, M(-w * 0.4 + (i + 0.5) * w * 0.08, 3.62, hd + 2.08), false);
+      // inside: the counter + the ice bed (tilted to the door) + the catch
+      const cz2 = -hd + 2.3;
+      W(k, box(11.0, 1.0, 1.3), C.WOOD, TIMBER, M(0, 0.5, cz2)); W(k, box(11.3, 0.12, 1.5), C.WOOD_L, TIMBER, M(0, 1.06, cz2), false);
+      W(k, box(10.7, 0.2, 1.25), ICE[1], 0, M(0, 1.24, cz2, 0, 0.18), false);
+      const nIce = low ? 22 : 50; for (let i = 0; i < nIce; i++) { const tt = (i * 0.6180339) % 1, u = (i * 0.3819660 + 0.17) % 1;
+        W(k, new THREE.IcosahedronGeometry(0.09 + (i % 3) * 0.03, 0), ICE[i % 3], 0, M(-5.2 + tt * 10.4, 1.36 - (u - 0.5) * 0.22, cz2 - 0.55 + u * 1.1, i), false); }
+      const step = low ? 0.75 : 0.52; let n = 0; for (let x = -5.0; x <= 5.0; x += step) for (const row of [0, 1]) { const c = FISHC[(n++ * 3 + row) % FISHC.length], L = 0.34 + ((n * 7) % 5) * 0.04;
+        const zz = cz2 - 0.35 + row * 0.62, yy = 1.43 - (row - 0.5) * 0.12 + 0.02, rot = (row ? 0.25 : -0.2) + ((n % 3) - 1) * 0.12;
+        k.at(M(x + row * 0.2, yy, zz, rot, 0.18), () => { W(k, new THREE.SphereGeometry(1, 10, 6), c, 0, M(0, 0, 0, 0, 0, 0, [L, L * 0.3, L * 0.36]), false);
+          W(k, new THREE.ConeGeometry(0.15, 0.24, 4), c, 0, M(-L - 0.08, 0, 0, 0, 0, Math.PI / 2, [1, 1, 0.35]), false);
+          W(k, new THREE.SphereGeometry(0.035, 5, 4), 0x161616, 0, M(L * 0.7, 0.03, L * 0.3), false); }); }
+      for (const x of [-3.8, 0, 3.8]) { W(k, box(0.05, 0.5, 0.05), C.WOOD_D, TIMBER, M(x, 1.55, cz2 + 0.68), false); W(k, box(0.62, 0.4, 0.05), 0x2b2b2b, 0, M(x, 1.9, cz2 + 0.7), false); W(k, box(0.66, 0.05, 0.06), C.WOOD_L, TIMBER, M(x, 2.12, cz2 + 0.7), false); }   // price slates
+      { const sx = 1.9, sz = cz2 + 0.2; W(k, cyl(0.025, 0.025, 1.6, 4), C.IRON, 0, M(sx, G - 0.85, sz), false); W(k, box(1.0, 0.07, 0.07), BRASS, 0, M(sx, 2.75, sz), false);   // the hanging scale off the ceiling
+        for (const p of [-0.45, 0.45]) { W(k, cyl(0.012, 0.012, 0.42, 3), C.IRON, 0, M(sx + p, 2.53, sz), false); W(k, cyl(0.24, 0.17, 0.07, 12), BRASS, 0, M(sx + p, 2.31, sz), false); }
+        W(k, new THREE.SphereGeometry(1, 10, 6), FISHC[3], 0, M(sx - 0.45, 2.41, sz, 0.3, 0, 0, [0.22, 0.07, 0.08]), false); }
+      W(k, box(11.0, 0.9, 0.8), C.WOOD_D, TIMBER, M(0, 0.45, -hd + t + 0.45)); W(k, box(11.2, 0.1, 0.9), C.WOOD_L, TIMBER, M(0, 0.95, -hd + t + 0.45), false);   // back bench
+      for (const x of [-4.5, -1.5, 2.0, 4.8]) W(k, cyl(0.26, 0.22, 0.42, 10), C.WOOD_L, TIMBER, M(x, 1.21, -hd + t + 0.45), false);
+      W(k, box(5.0, 1.4, 0.05), 0xd9c39a, ROPE, M(-2.8, 2.6, -hd + t + 0.03), false); W(k, box(4.0, 1.2, 0.05), 0xc9b38a, ROPE, M(3.4, 2.7, -hd + t + 0.03), false);   // nets on the back wall
+      for (const sx of [-1, 1]) for (const zz of [-1.2, 1.6]) { W(k, box(0.9, 0.8, 0.9), C.WOOD, TIMBER, M(sx * (hw - t - 0.6), 0.4, zz)); W(k, box(0.82, 0.08, 0.82), ICE[0], 0, M(sx * (hw - t - 0.6), 0.84, zz), false);   // iced crates by the walls
+        for (let f = 0; f < 3; f++) W(k, new THREE.SphereGeometry(1, 8, 5), FISHC[(f + zz > 0) % FISHC.length], 0, M(sx * (hw - t - 0.6) - 0.22 + f * 0.22, 0.92, zz, 1.4 + f * 0.2, 0, 0, [0.3, 0.07, 0.09]), false); }
+      for (const sx of [-1, 1]) { W(k, box(0.3, 0.42, 0.3), 0xffd27a, 0, M(sx * (hw - t - 0.2), 3.0, -0.5), false); W(k, box(0.38, 0.08, 0.38), C.IRON, 0, M(sx * (hw - t - 0.2), 3.25, -0.5), false); }   // wall lanterns
     }, Y0);
-    sign('fishmarket', 8.2, 2.1, F0.lx, Y0 + 4.55, F0.lz + hd - 0.09); sign('fishmarket', 8.2, 2.1, F0.lx, Y0 + 4.55, F0.lz + hd - 0.31, Math.PI);
-    // crates of iced fish + salt barrels at both ends (outside the shed footprint, on the street)
-    for (const [dx, dz, i] of [[-hw - 1.0, 1.4, 0], [-hw - 1.0, -0.4, 1], [hw + 1.0, 1.2, 2]]) { const [x, z] = T(F0.lx + dx, F0.lz + dz); crate(k, M(x, Y0, z, yaw0 + i * 0.3), 1.0);
-      at(F0.lx + dx, F0.lz + dz, i * 0.3, () => { W(k, box(0.86, 0.1, 0.86), ICE[0], 0, M(0, 1.02, 0), false); for (let f = 0; f < 3; f++) W(k, new THREE.SphereGeometry(1, 8, 5), FISHC[(f + i) % FISHC.length], 0, M(-0.22 + f * 0.22, 1.1, 0, 1.4 + f * 0.2, 0, 0, [0.3, 0.07, 0.09]), false); }, Y0);
-      addCirc(x, z, 0.75); }
-    { const [x, z] = T(F0.lx + hw + 1.0, F0.lz - 0.8); barrel(k, M(x, Y0, z, 1)); addCirc(x, z, 0.7); }
-    { const [x, z] = T(F0.lx + hw + 1.1, F0.lz - 2.4); sacks(k, M(x, Y0, z, yaw0 + Math.PI / 2)); addCirc(x, z, 1.0); }
-    addBox(...T(F0.lx, F0.lz + hd - 1.2), 13.4, 1.6, yaw0); addBox(...T(F0.lx, F0.lz - hd + 0.8), 11.3, 1.1, yaw0);   // counter + back bench
-    for (const sz of [-1, 1]) for (let i = 0; i <= 4; i++) addCirc(...T(F0.lx - hw + i * F0.w / 4, F0.lz + sz * (hd - 0.2)), 0.25);
+    sign('fishmarket', 8.3, 2.1, F0.lx, Y0 + G + 1.75, FACADE_LZ + 0.24); hanging('fishmarket', F0.lx, w);
+    // colliders: the walls (door gap 4.4 m), the counter, the back bench, the crates
+    const box2 = (lx, lz, a, b) => addBox(...T(F0.lx + lx, cz + lz), a, b, yaw0);
+    box2(0, -hd + t / 2, w + 0.6, t + 0.6); for (const sx of [-1, 1]) { box2(sx * (hw - t / 2), 0, t + 0.6, d + 0.6); box2(sx * px, hd - t / 2, pier + 0.3, t + 0.6); }
+    box2(0, -hd + 2.3, 11.4, 1.6); box2(0, -hd + t + 0.45, 11.3, 1.0); for (const sx of [-1, 1]) for (const zz of [-1.2, 1.6]) box2(sx * (hw - t - 0.6), zz, 1.0, 1.0);
   }
   SHOP_PLACES.length = 0;
   for (const s of STOREFRONTS) {
@@ -308,7 +324,7 @@ export function buildPlazaV2(h) {
   for (const hs of HOUSES) { const glb = hs.glb && SHOPS_KIT && SHOPS_KIT.shops[hs.glb];
     if (glb) { const [x, z] = T(hs.lx, cz); addBox(x, z, hs.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: hs.glb, m: M(x, Y0, z, yaw0) }); continue; }
     stoneHouse(hs.lx, hs.w, hs.fl, hs.v); if (hs.tavern) hanging('tavern', hs.lx, hs.w); }
-  fishMarket();   // [v240]
+  fishHall();   // [v247] the walk-in FISH MARKET on the shop row (#10 + #11)
   // ---- market street + stalls + tavern tables + carts ----
   for (const [lx, lz] of LAMPS) { const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
   for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); { const [bx, bz] = T(s.lx, s.lz - 0.2); addBox(bx, bz, 4.3, 3.0, yaw0); }   // [collisions] counter + the 4 awning posts (the r 1.8 circle let you walk through the corner posts)

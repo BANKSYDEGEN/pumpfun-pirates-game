@@ -25,7 +25,7 @@ function signMesh(text, col) {
   return new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
 }
 export default {
-  id: 'inv_shops', name: 'Plaza shops', rect: [-626, -560, -102, -20],   // [v241] + the TREASURE TRADER storefront (z to -101.5)   // [v240] + the FISH MARKET (z -25.75)   // [v212] the dock-plaza stands (#18, #19) + rent_1 at the bottom of the hill street (#20)
+  id: 'inv_shops', name: 'Plaza shops', rect: [-626, -560, -102, -2],   // [v247] + the FISH MARKET on the row (#10, z -8)   // [v241] + the TREASURE TRADER storefront (z to -101.5)   // [v240] + the FISH MARKET (z -25.75)   // [v212] the dock-plaza stands (#18, #19) + rent_1 at the bottom of the hill street (#20)
   terrain: { pads: [], paths: [] },
   register(h) { ttColliders(h.addBox); for (const id of SHOP_IDS) { const s = SPOTS[id].trigger;
       h.INTERACT.push(Q[id] = { id: 'invshop_' + id, kind: 'shop', icon: SHOP_ICON_IDS[id], area: 'inv_shops', x: s.x, z: s.z, r: s.radius, label: 'E · ' + SHOP_PROMPTS[id] }); } },
