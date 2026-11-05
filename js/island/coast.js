@@ -40,6 +40,13 @@ export const HEADLAND = { lx: 160, lz: 36, r: 36, top: 21 };                    
 export const FORT = { lx: 46, lz: -232, r: 15, top: 36 };                          // keep + towers at the top of Main Street
 export const ISLET = { lx: -345, lz: 105, r: 22 };                                 // sandbar with palms
 export const PLAZA = { lx0: -55, lx1: 100, lz0: -56, lz1: 0 };
+// [v240] BANKSY 6:20 PM: the plaza Token Exchange kiosk + its prompt are hidden (the FISH MARKET takes its spot + the tavern tables);
+// &tokenx=1 brings the kiosk back. The $HQ / $RETARDIO posters + the TRENDING #1-5 row on the Harbor Exchange Hall (now the
+// MARKETPLACE) are hidden too, and their DexScreener polling is skipped; &hallboards=1 brings them back. Client-only: no server change.
+const QF = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+export const TOKENX_ON = !!QF && QF.get('tokenx') === '1', HALL_BOARDS_ON = !!QF && QF.get('hallboards') === '1';
+export const HALL_TOKENS = ['HQ', 'RETARDIO'];   // the hall_e posters (js/island/plazaTown.js TOKEN_SLOTS)
+export const hallTokenHidden = (sym) => !HALL_BOARDS_ON && HALL_TOKENS.includes(sym);
 export const PLAZA_POIS = [                                                        // town-local
   { id: 'waves', label: 'STORM HUNT board', lx: -10, lz: -12 }, { id: 'arena', label: 'ARENA board', lx: 22, lz: -12 },
   { id: 'exchange', label: 'Token exchange', lx: 62, lz: -30 }, { id: 'market', label: 'Harbor market', lx: -36, lz: -32 },

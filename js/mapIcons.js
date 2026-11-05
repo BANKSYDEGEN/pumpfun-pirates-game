@@ -90,7 +90,7 @@ export const SHOP_ICONS = {
   sword_shop: ['swords', '#8b1e1e', '#fff', '#fff', 'SWORD SHOP'],
   musket_shop: ['musket', '#6b4423', '#fff', '#fff', 'MUSKET SHOP'],
   squadhall: ['chest', '#9b5cff', '#fff', '#ffc93c', 'BIG SHOP · SQUAD HALL'],
-  fish_stand: ['fish', '#1d7fb8', '#fff', '#fff', 'FISH STAND'],   // the coming plaza shops (post/inventory-fish)
+  fish_stand: ['fish', '#1d7fb8', '#fff', '#fff', 'FISH MARKET'],   // the coming plaza shops (post/inventory-fish)
   antiques: ['gem', '#b0267a', '#fff', '#fff', 'ANTIQUES'],
   market: ['scales', '#a77a12', '#fff', '#fff', 'MARKETPLACE'],
   stall: ['stall', '#e0662b', '#fff', '#fff', 'STALL'],

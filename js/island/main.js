@@ -5,6 +5,7 @@
 // &walk=1 (get off at a pier as a pirate: WASD / arrows or tap-to-walk, drag to look; 4.2 m/s, Shift to run)
 // &foot=1 (PHASE 1 blockout: the dock town becomes the tip of a massive on-foot island, js/island/foot.js, loaded only here)
 //   &view=footMap|street|bridge|skull|cove|gallows|falls  &map=1 (2D review map)  &at=street (walker starts on the main street)
+import { hallTokenHidden } from './coast.js'; // [v240]
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toon } from '../toon.js';
@@ -401,7 +402,7 @@ if (WALK) {
 }
 // ---------- TOKEN EXCHANGE: live boards ($SUNK / $AHOY / $PUMP; main pair = the highest-liquidity Solana pair from the
 // DexScreener tokens API, refreshed every 60 s) + a chart panel opened from the walk-mode interact prompt (or &token=SYM)
-const TOK = ISLAND_TOKENS.map(t => ({ ...t, chart: t.dex || t.site, pair: null }));
+const TOK = ISLAND_TOKENS.filter(t => !hallTokenHidden(t.sym)).map(t => ({ ...t, chart: t.dex || t.site, pair: null }));   // [v240] hidden hall posters: not polled
 const fmtP = (v) => { v = +v; if (!isFinite(v) || v <= 0) return '—'; if (v >= 1) return '$' + v.toFixed(3); return '$' + v.toFixed(Math.min(10, 3 - Math.floor(Math.log10(v)))); };
 const fmtUsd = (v) => v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v || 0);
 const statLine = (t) => { const p = t.pair; if (!p) return 'live price loading…'; const ch = +(p.priceChange?.h24 ?? 0); return `${fmtP(p.priceUsd)} · 24h ${ch >= 0 ? '+' : ''}${ch.toFixed(1)}% · liq ${fmtUsd(p.liquidity?.usd)} · vol ${fmtUsd(p.volume?.h24)}`; };

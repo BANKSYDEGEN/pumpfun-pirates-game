@@ -74,9 +74,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w;
     if (!restored && r.ok) { restored = true; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i?.base && (slot === 'sword' || slot === 'musket')) carry(slot, i.base, pvp()); } } } // [rare-equip] after a reload your found weapon is back in hand / on your back, not only its stats
   let restored = false;
-  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? m.listings : []; } render(); return r; }
+  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
   function render() {
-    const title = { bag: 'INVENTORY', fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
+    const title = { bag: 'INVENTORY', fish: 'FISH MARKET', antiques: 'ANTIQUES', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
     $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
     $('.iv-tabs').innerHTML = mode === 'market' ? `<button data-t="browse" class="${tab === 'browse' ? 'on' : ''}">FOR SALE</button><button data-t="mine" class="${tab === 'mine' ? 'on' : ''}">SELL YOURS</button>` : '';
     $('.iv-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.t; sel = null; render(); });
@@ -86,7 +86,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
         return `<div class="iv-slot${sel === 'L' + l.id ? ' sel' : ''}" data-l="${l.id}" style="border-color:${RARITY_COLOR[i.rarity] || '#6b4a24'}"><em>${l.price.toLocaleString()}g</em>${icoHtml(l.item, i)}<span>${i.kind ? shortName(i) : i.name}</span><b>${l.qty > 1 ? '×' + l.qty : ''}</b></div>`; }).join('') : '<div class="iv-empty">nothing for sale yet</div>';
       g.querySelectorAll('[data-l]').forEach(d => d.onclick = () => { sel = 'L' + d.dataset.l; render(); });
     } else {
-      const list = slots().filter(shopTakes);
+      const list = slots().filter(shopTakes); if (mode === 'fish' || mode === 'antiques') list.sort((a, b) => (price(a) - price(b)) || shortName(a.info).localeCompare(shortName(b.info))); // [v240] cheapest first (BANKSY's shop rule)
       g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); });
@@ -131,6 +131,8 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   window.addEventListener('pfp-fish', async (e) => { const d = e.detail || {}; if (!['inv_fish', 'inv_fish_bite', 'inv_fish_land'].includes(d.action)) return d.done?.(null);
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
-  return { open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = l; render(); } };
+  return { open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
 }
 export const INV_FLAGS = FLAGS;
+// [v240] every shop list cheapest first: the Marketplace FOR SALE grid by price, then oldest listing first (the server sent newest first)
+export const sortListings = (l) => [...l].sort((a, b) => ((+a.price || 0) - (+b.price || 0)) || ((+a.id || 0) - (+b.id || 0)));

@@ -92,7 +92,7 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     case "inv_online": return reply(await onlineAction(db, pid)); // [give-dropdown] display names online now (harbor + arenas), giftable only
     case "inv_pot": { const g = Number(await rpc("pvp_inv_pot_take", { p_player: pid })) || 0; // Marketplace proceeds (+ the owner's sales / buys) -> this save
       if (g && b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, g); return json(200, { ok: true, gold: g }); }
-    case "mkt_browse": { const { data } = await db.from("pvp_mkt_listings").select("id, seller_id, item, qty, price, created_at").eq("status", "open").order("created_at", { ascending: false }).limit(100);
+    case "mkt_browse": { const { data } = await db.from("pvp_mkt_listings").select("id, seller_id, item, qty, price, created_at").eq("status", "open").order("price", { ascending: true }).order("created_at", { ascending: true }).limit(100); // [v240] cheapest first (was newest first)
       const { data: names } = await db.from("pvp_players").select("id, name").in("id", [...new Set((data || []).map((l: any) => l.seller_id))]);
       const nm = new Map((names || []).map((n: any) => [n.id, n.name]));
       return json(200, { ok: true, listings: (data || []).map((l: any) => ({ id: l.id, item: l.item, qty: l.qty, price: l.price, seller: nm.get(l.seller_id) || "PIRATE", mine: l.seller_id === pid })), limits: MARKET }); }

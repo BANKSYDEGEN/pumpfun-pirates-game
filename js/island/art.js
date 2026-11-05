@@ -6,6 +6,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { rng } from '../toon.js';
 import { Kit, M } from './kit.js';
 import { ISLAND_TOKENS } from '../config.js';
+import { hallTokenHidden } from './coast.js'; // [v240] hidden hall posters skip their logo load
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 
 // ---------- layout (world units, 1:1 with the game: a ship is 17-20.4 long, a pirate 1.8 tall) ----------
@@ -527,7 +528,7 @@ export function makeAtlas(skull) {
     fit(t.title, y + 62, 78, t.color);
     const lx = x + w / 2, ly = y + 146, lr = 50;
     g.fillStyle = t.color; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.stroke();
-    if (t.logo) { const im = new Image(); im.onload = () => { const k = Math.min(im.width, im.height), sx = (im.width - k) / 2, sy = (im.height - k) / 2; // centred square crop, proportional
+    if (t.logo && !hallTokenHidden(t.sym)) { const im = new Image(); im.onload = () => { const k = Math.min(im.width, im.height), sx = (im.width - k) / 2, sy = (im.height - k) / 2; // centred square crop, proportional
         g.save(); g.beginPath(); g.arc(lx, ly, lr - 3, 0, 7); g.clip(); g.drawImage(im, sx, sy, k, k, lx - lr + 3, ly - lr + 3, 2 * (lr - 3), 2 * (lr - 3)); g.restore();
         g.lineWidth = 5; g.strokeStyle = '#ffcd77'; g.beginPath(); g.arc(lx, ly, lr, 0, 7); g.stroke(); if (atlasTex) atlasTex.needsUpdate = true; }; im.src = t.logo; }
     else if (skull) { const k = Math.min(72 / skull.width, 72 / skull.height); g.drawImage(skull, lx - skull.width * k / 2, ly - skull.height * k / 2, skull.width * k, skull.height * k); }

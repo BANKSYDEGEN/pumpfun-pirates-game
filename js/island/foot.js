@@ -781,7 +781,7 @@ export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP',
 export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 },
   { sym: 'HQ', lx: 45, lz: -36 }, { sym: 'RETARDIO', lx: 51, lz: -36 }];   // [v144] the other side of the plaza (the first three mirrored across the leaderboards)
 // [Timothy] ?plaza=2: the shops + billboards the plaza actually shows (js/dock/layout.js uses these too)
-export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS;
+export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = (PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS).filter(t => !CO.hallTokenHidden(t.sym)); // [v240] $HQ / $RETARDIO hidden (&hallboards=1)
 export let PLAZA_V2_SIGNS = null; export const PV_DOCK = PV.DOCK; export { PV };
 export const INTERACT = []; // { id, x, z, r, label }
 export function buildStreet(A, low, F) {
@@ -896,8 +896,8 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
       atlasQuad(k, B.w * 0.9, 1.1, A[sg], M(0, B.y, -0.17, Math.PI)); }
     W(k, box(B.w + 0.6, 0.3, 0.5), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.2, 0), false); }, Y0);
   for (const id of ['waves', 'arena']) { const [x, z] = T(P[id].lx, P[id].lz); addBox(x, z, PLAZA_BOARD.w + 1, 0.6, yaw0); }
-  at(P.exchange.lx, P.exchange.lz, 0, () => { W(k, box(6, 3.4, 4.5), CREAM, 7, M(0, 1.7, 0)); W(k, new THREE.ConeGeometry(5.0, 2.2, 4), GOLD, 4, M(0, 4.5, 0, Math.PI / 4)); W(k, box(4.5, 1.1, 0.8), WOOD, 2, M(0, 0.55, 2.6));
-    if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }
+  if (CO.TOKENX_ON) at(P.exchange.lx, P.exchange.lz, 0, () => { W(k, box(6, 3.4, 4.5), CREAM, 7, M(0, 1.7, 0)); W(k, new THREE.ConeGeometry(5.0, 2.2, 4), GOLD, 4, M(0, 4.5, 0, Math.PI / 4)); W(k, box(4.5, 1.1, 0.8), WOOD, 2, M(0, 0.55, 2.6));
+    if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); if (CO.TOKENX_ON) { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }   // [v240] the kiosk is hidden unless &tokenx=1 (the FISH MARKET stands there)
   // [v103] the HARBOR MARKET stalls are now two proper shops (BANKSY): CLOTHES SHOP + SHIP SKINS / UPGRADES, and between them
   // three token billboards ($SUNK / $AHOY / $PUMP). All static + atlas signage, merged into the street mesh (0 extra draw calls).
   if (!PV2) for (const sp of PLAZA_SHOPS) at(sp.lx, sp.lz, 0, () => { const w = 7.2, d = 4.4;

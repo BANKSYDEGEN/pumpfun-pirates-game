@@ -51,7 +51,7 @@ test('SQL rules (PGlite): sells, clamp, gifts, market escrow / double buy / canc
 });
 test("plaza_shops.json contract: Timothy's file parses, radius read, fallback = his anchors", async () => {
   const S = await import('../js/inventory/shopSpots.js'), f = '/workspace/timothy-plazashops/assets/island/plaza_shops.json';
-  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-623, -40, 3.5]);
+  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-618.8, -25.75, 3.5]); // [v240] FISH MARKET #8
   if (existsSync(f)) { const j = S.shopSpots(JSON.parse(readFileSync(f, 'utf8'))); const raw = JSON.parse(readFileSync(f, 'utf8')); for (const id of S.SHOP_IDS) { assert.ok(j[id].fromFile, id); assert.ok(Number.isFinite(j[id].trigger.x) && j[id].trigger.radius > 0, id); } }
   const moved = S.shopSpots({ fish: { trigger_fish: { x: -300, y: 5, z: 40, radius: 2.5 } } }); assert.deepEqual([moved.fish.trigger.x, moved.fish.trigger.radius, moved.fish.fromFile], [-300, 2.5, true]); // JSON wins over the fallback
   const p = S.shopSpots({ fish: { trigger_fish: { x: 1, y: 2, z: 3 } } }); assert.equal(p.fish.trigger.radius, 3); assert.ok(!p.antiques.fromFile);
@@ -75,10 +75,21 @@ test('[v212] plaza_shops.json = FALLBACK; shops sit on numbered existing structu
   return import('../js/inventory/shopSpots.js').then((S) => { const f = S.shopSpots(J), fb = S.shopSpots(null);
     for (const id of S.SHOP_IDS) { assert.deepEqual(f[id].trigger, fb[id].trigger, id); assert.ok(f[id].fromFile); }
     const t2w = (lx, lz) => [-640 - lz, -90 + lx];
-    const use = { fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' };
-    for (const id of S.SHOP_IDS) { const b = N.find(q => q.use.startsWith(use[id])); assert.ok(b, id); const d = Math.hypot(b.x - f[id].trigger.x, b.z - f[id].trigger.z); assert.ok(d < 8, id + ' on #' + b.n); }
+    const use = { fish: 'FISH MARKET', antiques: 'ANTIQUES', market: 'MARKETPLACE' };   // [v240] FISH MARKET #8, MARKETPLACE #7 (the hall: its centre is 6 m behind the door)
+    for (const id of S.SHOP_IDS) { const hits = N.filter(q => q.use.startsWith(use[id])); assert.equal(hits.length, 1, id + ': exactly one'); const b = hits[0]; const d = Math.hypot(b.x - f[id].trigger.x, b.z - f[id].trigger.z); assert.ok(d < 10, id + ' on #' + b.n); }
+    for (const n of [18, 19]) assert.match(N.find(q => q.n === n).use, /^EMPTY /, '#' + n + ' retired (decor / removed)');
+    assert.equal(f.fish.sign, false); assert.equal(f.market.sign, false);   // painted on their buildings, no floating boards
     // storefront prompts (lz + 3.8) + the squad hall door stay out of reach of the new triggers
     const prompts = [[-49, -25.5], [-38.5, -25.5], [-10, -25.5], [20.5, -25.5], [32, -25.5], [14, -76.7]].map(([a, c]) => t2w(a, c));
     for (const id of S.SHOP_IDS) for (const [x, z] of prompts) assert.ok(Math.hypot(x - f[id].trigger.x, z - f[id].trigger.z) > f[id].trigger.radius + 2, id);
     assert.deepEqual(N.map(b => b.n), N.map((_, i) => i + 1)); assert.equal(new Set(N.map(b => b.id)).size, N.length); });
+});
+
+test('[v240] shop lists cheapest first + the plaza kill switches default OFF', async () => {
+  const U = await import('../js/inventory/ui.js').catch(() => null);
+  if (U?.sortListings) assert.deepEqual(U.sortListings([{ id: 3, price: 1800 }, { id: 1, price: 320 }, { id: 4, price: 320 }, { id: 2, price: 950 }]).map(l => l.id), [1, 4, 2, 3]);
+  const CO = await import('../js/island/coast.js'); assert.equal(CO.TOKENX_ON, false); assert.equal(CO.HALL_BOARDS_ON, false);
+  assert.ok(CO.hallTokenHidden('HQ') && CO.hallTokenHidden('RETARDIO') && !CO.hallTokenHidden('SUNK') && !CO.hallTokenHidden('AHOY') && !CO.hallTokenHidden('PUMP'));
+  const src = readFileSync(new URL('../supabase/functions/pvp/inventory.ts', import.meta.url), 'utf8');
+  assert.match(src, /case "mkt_browse".*order\("price", \{ ascending: true \}\)/);
 });

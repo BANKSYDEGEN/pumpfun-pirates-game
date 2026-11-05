@@ -57,8 +57,9 @@ export function createPlaza({ world, ctx = {} }) {
     await Promise.all(BOARDS.map(async (b, i) => { let rows = [], err = false; try { rows = await rowsFor(b.id, 10); } catch (e) { err = true; console.warn('[plaza board]', b.id, e.message); } draw(i, b, rows, err); }));
     tex.needsUpdate = true; busyB = false; }
   BOARDS.forEach((b, i) => draw(i, b, [], false)); tex.needsUpdate = true;
+  // [v240] the hidden $HQ / $RETARDIO hall posters (coast.js hallTokenHidden, &hallboards=1 = back) are not fetched
   // ---- token prices on the billboards' live strip (shared atlas), DexScreener tokens API, every 2 min ----
-  const TOK = ISLAND_TOKENS.map(t => ({ ...t, chart: t.dex, pair: null }));
+  const TOK = ISLAND_TOKENS.filter(t => !CO.hallTokenHidden(t.sym)).map(t => ({ ...t, chart: t.dex, pair: null }));
   const fmtP = (v) => { const n = +v; if (!n) return '—'; return n >= 1 ? '$' + n.toFixed(2) : n >= 0.01 ? '$' + n.toFixed(4) : '$' + n.toPrecision(3); };
   // [v112] BANKSY: "on token boards show mc not price": DexScreener marketCap (fdv when missing), short: MC $123.4K / MC $1.2M
   const fmtMC = (p) => { const n = +(p?.marketCap || p?.fdv || 0); if (!(n > 0)) return 'MC —'; const [d, u] = n >= 1e9 ? [1e9, 'B'] : n >= 1e6 ? [1e6, 'M'] : n >= 1e3 ? [1e3, 'K'] : [1, '']; const v = n / d; return 'MC $' + (u ? (v >= 100 ? v.toFixed(0) : v.toFixed(1)) : v.toFixed(0)) + u; };
