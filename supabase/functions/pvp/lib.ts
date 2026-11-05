@@ -29,6 +29,10 @@ export async function tokenBalance(rpc: string, owner: string, mint: string): Pr
 // [v98] harbor-unlock skins (must match PVP_UNLOCK_SKINS in js/config.js): COMMODORE = 100 harbor boss kills
 export const UNLOCK_SKINS: Record<string, { stat: "harborKills" | "bossKills"; need: number }> = { commodore: { stat: "bossKills", need: 100 } };
 export const SKIN_KILLS: Record<string, number> = { classic: 0, blood: 10, seagreen: 25, midnight: 50, coral: 150, storm: 300, kraken: 600, golden: 1000, ghost: 1500, admiral: 2000, flaming: 2500, diamond: 5000 };
+// [Emerly] BANKSY 8:37 PM "Just make them prestige 3 on": the five new hulls, GIVEN FREE at that prestige (PRESTIGE_SKINS below, pvp_owned
+// grant like P1 GOLDEN / P2 DIAMOND). ONE table: mirror of js/newShipsTable.js (tests/newShips.test.mjs checks they match). NOT in
+// SKIN_KILLS (that legacy seed table stays frozen: it would hand them out by kills).
+export const NEW_SHIP_PRESTIGE: Record<string, number> = { opal: 3, leviathan: 4, celestial: 5, sunking: 6, poseidon: 7 };
 // plausibility caps per save (anti-cheat is modest: the client is trusted for its own ship in v1)
 // a rejected save does NOT move updated_at, so a big legit pickup goes through a few seconds later as the allowance grows
 // [v92] valuePerMin 2500 -> 10000: harbor pay ×2 and holder gold ×2 (up to ×4 for a holder), same headroom as before
@@ -71,7 +75,7 @@ export function cleanProfile(p: any): Profile {
   const stats = { kills: n(o.stats?.kills, 1e7), deaths: n(o.stats?.deaths, 1e7), botKills: n(o.stats?.botKills, 1e7), harborKills: n(o.stats?.harborKills, 1e7), bossKills: n(o.stats?.bossKills, 1e7), batteryHits: n(o.stats?.batteryHits, 1e7) }; // [v98] unlock tracks; [cliff gold] paid cliff-gun hits
   // [v102] the island shop: owned skins come ONLY from pvp_owned (the handlers fill + check them: fitEquipped); here the
   // equipped id just has to be a known skin
-  const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || o.skins.equipped in SKIN_KILLS || o.skins.equipped in UNLOCK_SKINS) ? o.skins.equipped : "classic";
+  const eq = typeof o.skins?.equipped === "string" && (o.skins.equipped === "classic" || o.skins.equipped in SKIN_KILLS || o.skins.equipped in UNLOCK_SKINS || o.skins.equipped in NEW_SHIP_PRESTIGE) ? o.skins.equipped : "classic";
   // [prestige] the prestige level the client last saw (the server's pvp_prestige row decides; see stalePrestige)
   return { gold: n(o.gold, 10_000_000), levels, skins: { owned: [], equipped: eq }, stats, gear: cleanGear(o.gear), prestige: n(o.prestige, 100) } as Profile;
 }
@@ -122,6 +126,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "skin:golden": { price: 0, goal: [{ stat: "prestige", need: 1 }] }, "skin:ghost": { price: 100000, goal: [{ stat: "kills", need: 100 }] }, "skin:admiral": { price: 3000 },
   "skin:flaming": { price: 150000, goal: [{ stat: "kills", need: 200 }] },
   "skin:diamond": { price: 0, goal: [{ stat: "prestige", need: 2 }] },
+  ...Object.fromEntries(Object.entries(NEW_SHIP_PRESTIGE).map(([id, lv]) => [`skin:${id}`, { price: 0, goal: [{ stat: "prestige", need: lv }] }])), // [Emerly] P3..P7 new hulls (given free)
   // [v108] pirate gear (Timothy's js/pirateGear.js + Raul's de13179 items). Goals checked server-side like COMMODORE.
   "gear:hat:bandana": { price: 150 }, "gear:hat:tricorn": { price: 400 }, "gear:hat:bicorne": { price: 1200 }, "gear:hat:crown": { price: 15000 }, "gear:hat:crown_imperial": { price: 25000 }, "gear:hat:helmet_hq": { price: 800 }, "gear:hat:mask_luchador": { price: 1500 },
   "gear:outfit:tank": { price: 150 }, "gear:outfit:tshirt": { price: 300 }, "gear:outfit:coat": { price: 1000 },
@@ -261,7 +266,7 @@ export const maxedLevels = (lv: Record<string, number>) => Object.entries(PRESTI
 // a save from a device that has not seen the latest prestige (its `prestige` is lower than the server's) may not bring its old
 // upgrade levels back: true = ignore that save's levels (keep the server's). Older clients send no prestige (= 0): fine at 0.
 // [prestige] BANKSY: the skins a prestige level GIVES (mirror: js/prestige.js PRESTIGE_REWARDS). Only ever ADDED to pvp_owned.
-export const PRESTIGE_SKINS: Record<number, string> = { 1: "skin:golden", 2: "skin:diamond" };
+export const PRESTIGE_SKINS: Record<number, string> = { 1: "skin:golden", 2: "skin:diamond", ...Object.fromEntries(Object.entries(NEW_SHIP_PRESTIGE).map(([id, lv]) => [lv, `skin:${id}`])) }; // [Emerly] + P3..P7 the new hulls
 export const prestigeSkins = (lv: number) => Object.entries(PRESTIGE_SKINS).filter(([n]) => (Number(lv) || 0) >= Number(n)).map(([, it]) => it);
 export const stalePrestige = (sent: number | undefined, server: number) => server > 0 && (Number(sent) || 0) < server;
 // ---------------- [inventory] NPC SALES (Fish Stand + Antiques): ONE payout path ----------------

@@ -8,6 +8,7 @@
 // Goals make an item PURCHASABLE, never free. goal = { all: [ { stat, need, label, fmt? } ] }, stat names = profile.stats
 // keys, plus 'kd' (kills / max(1, deaths)). proposed: true = a goal Timothy proposes; BANKSY has not picked it yet.
 
+import { NEW_SHIP_TABLE } from './newShipsTable.js'; // [Emerly] the five new hulls (P3..P7)
 export const SHOP_VERSION = 4; // [v105] gear on sale, parrot ladder // [v103] BANKSY: skin prices raised ("they will have to work for them")
 
 // ---------- ship skins (ids = the live BR skin ids; looks unchanged) ----------
@@ -28,6 +29,8 @@ export const SKIN_ITEMS = [
   { id: 'ghost',     name: 'GHOST SHIP',      price: 100000, goal: { all: [{ stat: 'kills', need: 100, label: 'BR kills' }] } },
   { id: 'flaming',   name: 'FLAMING SHIP',    price: 150000, goal: { tag: 'FIRE', all: [{ stat: 'kills', need: 200, label: 'BR kills' }] } }, // [prestige] BANKSY: 200 PvP kills only (no K/D)
   { id: 'diamond',   name: 'DIAMOND SHIP',    price: 0, grant: 'prestige', goal: { tag: 'PRESTIGE 2', all: [{ stat: 'prestige', need: 2, label: 'Prestige', fmt: 'prestige' }] } },
+  // [Emerly] BANKSY 8:37 PM "Just make them prestige 3 on": the five new hulls, GIVEN FREE at their prestige (one table: js/newShipsTable.js)
+  ...NEW_SHIP_TABLE.map(({ id, name, prestige }) => ({ id, name, price: 0, grant: 'prestige', goal: { tag: `PRESTIGE ${prestige}`, all: [{ stat: 'prestige', need: prestige, label: 'Prestige', fmt: 'prestige' }] } })),
 ];
 
 // ---------- pirate gear (pfp_captain_v1 parts: { id, label, glb, tint }). PROVISIONAL ids: Raul's GLBs wait on BANKSY approving

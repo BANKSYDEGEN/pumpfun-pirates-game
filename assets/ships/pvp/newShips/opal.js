@@ -29,8 +29,8 @@ void shipFx(inout vec3 base, inout vec3 emit, vec3 P, vec3 W, vec3 N, vec3 Nf, v
   if (NS_ROLE == 6.0) { base = mix(base, pearl, 0.6) * 0.95; emit += fire * fres * 0.6; return; }  // pearl masts
   if (NS_ROLE == 4.0) { base = mix(base, pearl * 0.8, 0.35); emit += fire * fres * 0.25; return; } // cabins: pale wood
   float d = NS_ROLE == 2.0 ? 0.5 : 0.62;
-  base = mix(pearl * (0.72 + 0.38 * lum), mix(pearl, fire, 0.75), d);
-  emit += fire * (0.16 + fres * 0.95) + vec3(1.0) * flash * 1.6 + mix(vec3(1.0), fire, 0.5) * pow(max(dot(Rw, normalize(vec3(0.45, 0.75, 0.48))), 0.0), 30.0) * 0.8;
+  base = mix(pearl * (0.72 + 0.38 * lum), mix(pearl, fire, 0.75), d) * (NS_ROLE == 2.0 ? 0.84 : 1.0);
+  emit += fire * ((NS_ROLE == 2.0 ? 0.05 : 0.16) + fres * (NS_ROLE == 2.0 ? 0.6 : 0.95)) + vec3(1.0) * flash * 1.6 + mix(vec3(1.0), fire, 0.5) * pow(max(dot(Rw, normalize(vec3(0.45, 0.75, 0.48))), 0.0), 30.0) * 0.8;
   if (NS_ROLE == 2.0) emit += fire * 0.12 * (1.0 - smoothstep(0.0, 0.06, min(fract(uv.x * 5.0 + floor(uv.y * 4.0) * 0.5), fract(uv.y * 4.0)))); // panel seams glint
 }`;
 const S = { id: 'opal', glsl: GLSL };

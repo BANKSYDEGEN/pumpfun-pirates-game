@@ -4,7 +4,9 @@
 // back to base. Gold, skins, gear, kills and the boards are kept. The level lives on the server (supabase/functions/pvp `prestige`,
 // migration 031); PRESTIGE 1 GIVES the GOLDEN GALLEON free, PRESTIGE 2 the DIAMOND SHIP (js/shopCatalog.js goals, server pvp_owned grant).
 // This file = the look only: the emblem (P1 gold, P2 diamond, P3+ diamond with a gold rim + the number) and the reward text.
-export const PRESTIGE_REWARDS = { 1: { skin: 'golden', name: 'GOLDEN GALLEON' }, 2: { skin: 'diamond', name: 'DIAMOND SHIP' } };
+import { NEW_SHIP_TABLE } from './newShipsTable.js'; // [Emerly] P3..P7: the five new hulls (BANKSY 8:37 PM "Just make them prestige 3 on")
+export const PRESTIGE_REWARDS = { 1: { skin: 'golden', name: 'GOLDEN GALLEON' }, 2: { skin: 'diamond', name: 'DIAMOND SHIP' },
+  ...Object.fromEntries(NEW_SHIP_TABLE.map(r => [r.prestige, { skin: r.id, name: r.name }])) };
 // [prestige] BANKSY: the reward skin is GIVEN free (owned from that level on). Mirror: supabase/functions/pvp/lib.ts PRESTIGE_SKINS
 export const PRESTIGE_GRANT_LV = Object.fromEntries(Object.entries(PRESTIGE_REWARDS).map(([lv, r]) => [r.skin, +lv]));
 export const rewardFor = (lv) => PRESTIGE_REWARDS[lv] || null;

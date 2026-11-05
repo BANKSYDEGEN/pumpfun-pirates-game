@@ -8,6 +8,7 @@
 // Game portals (itch.io html*.itch.zone, Newgrounds uploads.ungrounded.net, CrazyGames *.game-files.crazygames.com / *.crazygames.com): the game runs fully offline and crypto-free there:
 // no Supabase requests at all (this-device scores only), no wallet sign-in, no token/social links (see js/portal.js).
 import { IS_PROD_HOST } from './env.js';
+import { NEW_SHIP_TABLE } from './newShipsTable.js'; // [Emerly] the five new hulls (P3..P7)
 export const ON_PORTAL = typeof location !== 'undefined' && /(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname);
 export const SUPABASE_URL = ON_PORTAL ? '' : 'https://qhandcjwlkmovjzwzqfk.supabase.co';        // e.g. 'https://abcd1234.supabase.co'
 export const SUPABASE_ANON_KEY = 'sb_publishable_yKPJooRyGC0oSIOjKcmLtw_nB7TAD81';   // the project's "anon public" key
@@ -103,6 +104,7 @@ export const PVP_SKIN_TIERS = [
   { id: 'admiral', name: 'ADMIRAL WHITE', kills: 2000 }, // mobile app
   { id: 'flaming', name: 'FLAMING SHIP', kills: 200 },     // [prestige] was 2,500 (the FIRE goal: 200 PvP kills only)
   { id: 'diamond', name: 'DIAMOND SHIP', prestige: 2 },  // Raul's diamond.js · [prestige] was 5,000 kills
+  ...NEW_SHIP_TABLE.map(({ id, name, prestige }) => ({ id, name, prestige })), // [Emerly] BANKSY 8:37 PM "Just make them prestige 3 on": OPAL P3 .. POSEIDON P7 (js/newShipsTable.js)
 ];
 // [Timothy] PvP skin(s) unlocked by HARBOR kills, not player kills (looks: assets/ships/pvp/unlockSkins.js). Locked by default;
 // the counters / progress bars that clear `locked` are Emerly's. Kept out of PVP_SKIN_TIERS so the kill-tier unlock,

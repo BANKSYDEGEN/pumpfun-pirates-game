@@ -156,6 +156,7 @@ const SHELL = [
   "./assets/ships/pvp/flaming.js",
   "./assets/ships/pvp/tierLooks.js",
   "./assets/ships/pvp/flamingRedesign.js",
+  "./js/newShipsTable.js", // [Emerly] the one table: which prestige gives each new hull
   "./js/newShips.js", // [Emerly] the five new hulls (pvpSkins.js + pvp.js import it)
   "./assets/ships/pvp/newShips/kit.js",
   "./assets/ships/pvp/newShips/opal.js",

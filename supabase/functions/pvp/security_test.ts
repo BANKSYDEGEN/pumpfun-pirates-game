@@ -113,7 +113,10 @@ Deno.test("prestige: skin goals + the maxed check + stale saves", () => {
   assertFalse(goalMet(g("skin:ghost"), st({ kills: 99 }))); assert(goalMet(g("skin:ghost"), st({ kills: 100 })));
   assertFalse(goalMet(g("skin:flaming"), st({ kills: 199 }))); assert(goalMet(g("skin:flaming"), st({ kills: 200, deaths: 500 }))); // no K/D any more
   assertEquals([SHOP_ITEMS["skin:golden"].price, SHOP_ITEMS["skin:ghost"].price, SHOP_ITEMS["skin:flaming"].price, SHOP_ITEMS["skin:diamond"].price], [0, 100000, 150000, 0]);
-  assertEquals(prestigeSkins(0), []); assertEquals(prestigeSkins(1), ["skin:golden"]); assertEquals(prestigeSkins(2), ["skin:golden", "skin:diamond"]); assertEquals(prestigeSkins(7), ["skin:golden", "skin:diamond"]);
+  assertEquals(prestigeSkins(0), []); assertEquals(prestigeSkins(1), ["skin:golden"]); assertEquals(prestigeSkins(2), ["skin:golden", "skin:diamond"]); assertEquals(prestigeSkins(3), ["skin:golden", "skin:diamond", "skin:opal"]); // [Emerly] P3..P7 new hulls
+  assertEquals(prestigeSkins(7), ["skin:golden", "skin:diamond", "skin:opal", "skin:leviathan", "skin:celestial", "skin:sunking", "skin:poseidon"]); assertEquals(prestigeSkins(99).length, 7);
+  assertFalse(goalMet(g("skin:poseidon"), st({ prestige: 6, kills: 99999 }))); assert(goalMet(g("skin:poseidon"), st({ prestige: 7 }))); assertEquals(SHOP_ITEMS["skin:opal"].price, 0);
+  assertEquals(cleanProfile({ skins: { equipped: "sunking" } }).skins.equipped, "sunking"); assertEquals(SKIN_KILLS.opal, undefined); // equippable id, never a legacy kill seed
   assertEquals(SKIN_KILLS.ghost, 1500); assertEquals(SKIN_KILLS.flaming, 2500); // legacy seed table stays frozen (no free skins)
   assertEquals(PRESTIGE_MAX, { hull: 6, armor: 6, sails: 6, rudder: 6, cannons: 8, reload: 6, range: 6 });
   assert(maxedLevels(PRESTIGE_MAX)); assertFalse(maxedLevels({ ...PRESTIGE_MAX, cannons: 7 })); assertFalse(maxedLevels({}));

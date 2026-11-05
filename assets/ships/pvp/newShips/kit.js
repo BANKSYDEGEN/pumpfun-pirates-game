@@ -40,6 +40,28 @@ vec3 nsEnv(vec3 Rw, vec3 tint){ float e = smoothstep(-0.35, 0.65, Rw.y); e = flo
 // roles a ship's shipFx() gets (ROLE constant in the program)
 export const ROLE = { hull: 0, upper: 1, sail: 2, gold: 3, wood: 4, parts: 5, mast: 6, accent: 7 };
 
+// ---------- build-quality finish (every new ship, after its shipFx) ----------
+// Keeps the base galleon's hand-painted detail (planks, gun-port frames, mouldings, sail seams + emblem) under the ship's look, and
+// shades the glow with the sun so curved sails / hull sides keep their form instead of reading as flat glowing slabs (the GOLDEN /
+// DIAMOND builds keep the toon shading; a flat emissive flood was what made the first pass look blocky).
+//   detail: high-pass of the original texel (its luminance over a blurred mip of the same map: one extra texture read, no new texture)
+//   form:   the emissive is scaled by a soft sun term on the world normal, and soft-clipped so only real highlights bloom
+function finishGlsl(role, F = {}, parts) {
+  const d = F.detail ?? (role === ROLE.sail ? 0.7 : role === ROLE.gold || role === ROLE.accent ? 0.6 : 1.0);
+  const sh = F.shade ?? (role === ROLE.gold || role === ROLE.accent ? 0.35 : 0.6), clip = F.clip ?? 0.45;
+  return `void nsFinish(inout vec3 base, inout vec3 emit, vec3 N, vec2 uv, float on){
+  if (on < 0.5) return;
+#ifdef USE_MAP
+  { float l = dot(texture2D(map, uv).rgb, vec3(0.3, 0.59, 0.11)), lb = dot(texture2D(map, uv, 5.0).rgb, vec3(0.3, 0.59, 0.11));
+    float hp = clamp((l + 0.04) / (lb + 0.04), 0.45, 1.5); hp = mix(1.0, hp, ${d.toFixed(2)});
+    base *= hp; emit *= mix(1.0, hp, 0.7); }
+#endif
+  float sun = clamp(dot(N, normalize(vec3(0.45, 0.75, 0.48))) * 0.7 + 0.45, 0.0, 1.0);
+  emit *= mix(1.0, 0.35 + 0.85 * sun, ${sh.toFixed(2)});
+  emit = emit / (1.0 + ${clip.toFixed(2)} * emit);
+}`;
+}
+
 // ---------- one material per (kit material, skin, quality): the ship's look injected ----------
 // S = { id, glsl, uniforms? }. glsl defines: void shipFx(inout vec3 base, inout vec3 emit, vec3 P, vec3 W, vec3 N, vec3 Nf, vec3 Rw, float fres, float lum, vec2 uv)
 //   P = object-space position (body frame: +z bow, +y up), W = world position, N = world normal, Nf = flat (facet) world normal,
@@ -64,7 +86,7 @@ export function shipMat(src, S, role, quality, extra = {}) {
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvNW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     s.fragmentShader = s.fragmentShader
       .replace('#include <common>', `#include <common>\n${head}\nuniform float uNT;\n${(S.uniformDecl || '')}`)
-      .replace('void main() {', `${NS_LIB}\n${S.glsl}\nvoid main() {`)
+      .replace('void main() {', `${NS_LIB}\n${S.glsl}\n${finishGlsl(role, S.finish, parts)}\nvoid main() {`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 { vec3 Nv = normalize(normal); vec3 Vv = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(vViewPosition);
   vec3 N = normalize((vec4(Nv, 0.0) * viewMatrix).xyz); vec3 Rw = normalize((vec4(reflect(-Vv, Nv), 0.0) * viewMatrix).xyz);
@@ -76,6 +98,7 @@ export function shipMat(src, S, role, quality, extra = {}) {
   ${parts ? `if (vFx > 2.5) shipFx(base, emit, vNP, vNW, N, Nf, Rw, fres, lum, nsUv);
   else if (vFx > 1.5) emit += base * (1.3 + 0.5 * sin(uNT * 3.0 + vNP.z * 0.7));
   else if (vFx > 0.5) { emit += base * base * nsEnv(Rw, base) * 0.75 + base * fres * 0.5; base *= 0.45; }` : 'shipFx(base, emit, vNP, vNW, N, Nf, Rw, fres, lum, nsUv);'}
+  nsFinish(base, emit, N, nsUv, ${parts ? 'vFx > 2.5 ? 1.0 : 0.0' : '1.0'});
   diffuseColor.rgb = base; totalEmissiveRadiance = emit; }`);
   };
   n.customProgramCacheKey = () => `${prevKey}|ns-${S.id}-${role}-${quality}`;
