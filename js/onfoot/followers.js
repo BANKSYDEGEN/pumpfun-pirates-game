@@ -9,7 +9,7 @@
 //  - cheap: one v4 Low pirate each (2 draw calls + their gear), hidden beyond 70 m, no per-frame allocation
 import { loadPirate } from './pirate.js';
 import { JUMP } from './walker.js';
-import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing } from './physics.js'; // [Raul] they fall, wade + swim like you
+import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing, SWIM_SURGE } from './physics.js'; // [Raul] they fall, wade + swim like you
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
 import { shoreCrewGear, crewWeaponsOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
@@ -64,7 +64,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   const mv0 = makeMover(blocked, DEFLECT), move = (c, dx, dz) => { world.layer?.(c.y); const g = mv0(c, dx, dz); world.layer?.(null); return g; }; // [path-fix2] high bridges: this follower's height; slide along walls like the walker, ≤0.3 m sub-steps; [Timothy collisions] walk round a post / barrel / lamp
   const free = (x, z, fx, fz) => !world.blocked(x, z, fx, fz);
   const snap = (c) => { placeBody(c.body, world, c.x, c.z, walker.w.y); c.y = c.body.y; }; // [path-fix2] regroup onto a high bridge when you're on it
-  const cap = (c, want) => { if (c.body.swim) want = Math.min(want, want > 4.2 ? PHYS.swim[1] * 1.1 : PHYS.swim[0]); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); return want; }; // [Raul swim-anim] pull-up
+  const cap = (c, want) => { if (c.body.swim) want = Math.min(want, want > 4.2 ? PHYS.swim[1] * 1.1 * Math.max(1, SWIM_SURGE.live) : PHYS.swim[0] * Math.max(1, SWIM_SURGE.live)); else want *= wadeFactor(c.body); if (climbing(c.body)) want = Math.min(want, PHYS.climbV); return want; }; // [Raul swim-anim] pull-up
   const env = { trail: TR, move, ko, free, cap, place: snap, deflect: !!DEFLECT, back: 0, side: 0, i: 0 };
   const fx = waterFX(scene, low);
   function update(dt, camera) {
