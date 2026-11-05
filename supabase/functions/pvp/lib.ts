@@ -174,6 +174,9 @@ export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "
 // pants + boots, so they get CLASSIC PANTS + CLASSIC BOOTS (pvp_owned source 'v6legacy', price 0). ADD-only upsert = idempotent.
 // Set the V6_SINCE env var to the V6 release time when deploying (fallback below). The client equips them once (js/pvpSave.js v6Legacy).
 export const V6_LEGACY = ["gear:pants:classic_pants", "gear:boots:boots_classic"];
+// [V6 default look] the same two are every pirate's free starter pair (index.ts ownedSet + the first-sync seed), so a NEW pirate's
+// default classic pants + boots survive the owned check too (the dated pvp_owned grant above stays as the record for old rows).
+export const V6_STARTER = V6_LEGACY;
 export const v6LegacyDue = (updatedAt: string | null | undefined, since: string) => !!updatedAt && Date.parse(updatedAt) < Date.parse(since);
 export const SEED_GOLD_CAP = 5000; // [security H3] was 25000. First server copy of a device save: gold above this is released at the normal earning pace (stepToward)
 const statOf = (st: Profile["stats"], k: string) => k === "kd" ? st.kills / Math.max(1, st.deaths) : Math.max(0, Number((st as any)[k]) || 0);

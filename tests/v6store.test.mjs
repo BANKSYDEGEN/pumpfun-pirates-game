@@ -49,7 +49,7 @@ test('wire: pants ride one digit after the carry digits (older clients see a lon
   assert.match(gear, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2 \+ 1;/);
   assert.match(gear, /GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1\]/); assert.match(gear, /const v = d\(c \+ 2\); if \(v > 0 && v <= GEAR_RENDERS\.pants\.length\) g\.pants = GEAR_RENDERS\.pants\[v - 1\]/);
 });
-test('legacy grant: old saves get + wear classic pants + boots once; new pirates nothing; never overrides a worn item', async () => {
+test('legacy grant: every save (old or new) gets + wears classic pants + boots once (V6 default look); never overrides a worn item', async () => {
   const { v6Legacy: L, addLegacyOwned, V6_LEGACY } = await import('../js/v6Legacy.js');
   const EMPTY = { pants: 'none', boots: 'none' }, blankProfile = () => ({ gold: 0, gear: { pants: 'none', boots: 'none' }, gearOwned: [] });
   const cleanProfile = (p) => { const q = JSON.parse(JSON.stringify(p)); addLegacyOwned(q.gear, q.gearOwned); return q; }, v6Legacy = (p) => L(p, !p.gold, EMPTY);
@@ -59,7 +59,9 @@ test('legacy grant: old saves get + wear classic pants + boots once; new pirates
   for (const k of V6_LEGACY) assert.ok(old.gearOwned.includes(k));
   const again = cleanProfile(JSON.parse(JSON.stringify(old))); assert.equal(v6Legacy(again), false); assert.equal(again.gear.pants, 'classic_pants', 'survives a reload'); assert.equal(again.gearOwned.filter((k) => k === 'pants:classic_pants').length, 1);
   again.gear.pants = 'none'; assert.equal(v6Legacy(again), false, 'taking them off sticks');
-  const nu = blankProfile(); assert.equal(v6Legacy(nu), true); assert.equal(nu.gear.pants, 'none'); assert.equal(nu.gear.v6legacy, 1); assert.deepEqual(nu.gearOwned, []);
+  const nu = blankProfile(); assert.equal(v6Legacy(nu), true); assert.equal(nu.gear.pants, 'classic_pants'); assert.equal(nu.gear.boots, 'boots_classic'); assert.equal(nu.gear.v6legacy, 2); for (const k of V6_LEGACY) assert.ok(nu.gearOwned.includes(k));
+  const m1 = { ...blankProfile(), gear: { pants: 'none', boots: 'none', v6legacy: 1 } }; assert.equal(v6Legacy(m1), true, 'old new-pirate marker upgraded'); assert.equal(m1.gear.pants, 'classic_pants');
+  assert.match(idx, /for \(const it of V6_STARTER\) own\.add\(it\);/); assert.match(idx, /fitEquipped\(p, new Set\(V6_STARTER\), false\);/);
   const worn = cleanProfile({ ...blankProfile(), gold: 9, gear: { pants: 'none', boots: 'boots_gold' }, gearOwned: ['boots:boots_gold'] }); v6Legacy(worn); assert.equal(worn.gear.boots, 'boots_gold');
   // server: same two items, ADD-only + ignoreDuplicates, only rows from before V6, in devSync + wallet load + save
   assert.match(lib, /export const V6_LEGACY = \["gear:pants:classic_pants", "gear:boots:boots_classic"\];/);
