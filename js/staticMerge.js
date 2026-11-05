@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const qs = (() => { try { return location.search; } catch { return ''; } })();
 export const KIT_MERGE = !/[?&]kitmerge=0/.test(qs), SHIP_MERGE = !/[?&]shipmerge=0/.test(qs);
+export const SMALL_CASTERS_OFF = !/[?&]plazashadow=1/.test(qs); // [perf5] &plazashadow=1 = every static island prop casts again (the v239 behaviour)
 const _inv = new THREE.Matrix4(), _m = new THREE.Matrix4(), _c = new THREE.Vector3();
 const sig = (g) => (g.index ? 'i' : 'n') + Object.keys(g.attributes).sort().map(k => { const a = g.attributes[k]; return k + a.itemSize + (a.normalized ? 'N' : '') + a.array.constructor.name; }).join(',');
 
@@ -54,6 +55,19 @@ export function mergeIslandKits(scene) {
       for (const cl of byCell.values()) saved += shadowProxy(h, cl); }
   }
   return saved;
+}
+
+// [perf5] BANKSY 6:25 PM "only fix the lagging": desktop shadow pass, on foot. Small STATIC island props (world radius < 2.5 m: crates,
+// barrels, lamps, signs, rocks) stop casting (they still receive); buildings, walls, the plaza, trees (instanced = one big sphere) and every
+// pirate / ship / pet keep their shadows. Phones never had a shadow map. Only under the on-foot world roots below.
+const STATIC_ROOT = /^(foot|hill_street|battle_areas)$/, _sp = new THREE.Sphere();
+export function trimSmallCasters(scene) {
+  if (!SMALL_CASTERS_OFF) return 0; let n = 0;
+  scene.traverse(o => { if (!o.isMesh || !o.castShadow || o.isSkinnedMesh || o.isInstancedMesh || o.userData.shadowProxy || o.userData.keepShadow) return;
+    let ok = false; for (let p = o.parent; p; p = p.parent) { if (p.userData?.isShip || /pirate|pet|crew|follower/i.test(p.name || '')) return; if (STATIC_ROOT.test(p.name || '')) ok = true; }
+    if (!ok) return; const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); _sp.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+    if (_sp.radius < 2.5) { o.castShadow = false; n++; } });
+  return n;
 }
 
 // ship body: the direct mesh children of the body group with the same material (hull-dress / hull-legacy groups merge inside themselves,

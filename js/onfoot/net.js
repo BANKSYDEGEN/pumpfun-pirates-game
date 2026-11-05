@@ -55,6 +55,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
   }
   function drop(id) { const p = peers.get(id); if (!p) return; p.pet?.dispose(); p.crew?.dispose(); p.pirate.dispose(); if (p.tag) p.tag.material.map.dispose(); peers.delete(id); }
   const fx = waterFX(scene, low);
+  function crewCount() { let n = 0; for (const q of peers.values()) if (q.crew) n++; return n; }
   function tick(dt) {
     const now = performance.now(), camera = getCamera ? getCamera() : null;
     for (const [id, p] of peers) {
@@ -65,7 +66,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (p.jt && p.jt !== p.jtH) { p.jtH = p.jt; if (p.body.swim) jumpBody(p.body, 0); }   // [Raul swim-anim] they jumped in deep water: the surface kick here too
       const jh = p.jt && !p.body.swim && !p.body.hop ? jumpArc((now - p.jt) / 1000) : 0; if (p.jt && now - p.jt > 900) p.jt = 0;
       const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.speed, now / 1000, jh); p.pirate.update(dt, p.speed, st);
-      if (CREW_N && !p.crew && p.body && [...peers.values()].filter(q => q.crew).length < CREW_PEERS) { // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
+      if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
         p.crew = createFollowers({ scene, world, walker: { w: W }, low: true, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }
       p.crew?.update(dt, camera);
