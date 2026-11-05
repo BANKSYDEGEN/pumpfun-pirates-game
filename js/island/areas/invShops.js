@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { buildTreasureTrader, ttColliders } from './treasureTrader.js';   // [v241] the TREASURE TRADER storefront on hill shop #20
 // [v212] BANKSY 1:21-1:22 PM: Fish Stand = dock-plaza stand #19 (lx 50), Marketplace = stand #18 (lx 34), Antiques = the empty stone shop rent_1 (#20); numbers: assets/island/building_numbers.json
-import { SHOP_IDS, SHOP_NAMES, SHOP_ICON_IDS, FALLBACK, shopSpots } from '../../inventory/shopSpots.js';
+import { SHOP_IDS, SHOP_NAMES, SHOP_PROMPTS, SHOP_ICON_IDS, FALLBACK, shopSpots } from '../../inventory/shopSpots.js';
 export { SHOP_IDS, SHOP_NAMES, FALLBACK, shopSpots };
 let SPOTS = shopSpots(null); const Q = {};
 const INV_STALLS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('invstalls') !== '0'; // [v209] BANKSY 1:03 PM "Show the shop stalls now": on by default, &invstalls=0 = kill switch
@@ -28,7 +28,7 @@ export default {
   id: 'inv_shops', name: 'Plaza shops', rect: [-626, -560, -102, -20],   // [v241] + the TREASURE TRADER storefront (z to -101.5)   // [v240] + the FISH MARKET (z -25.75)   // [v212] the dock-plaza stands (#18, #19) + rent_1 at the bottom of the hill street (#20)
   terrain: { pads: [], paths: [] },
   register(h) { ttColliders(h.addBox); for (const id of SHOP_IDS) { const s = SPOTS[id].trigger;
-      h.INTERACT.push(Q[id] = { id: 'invshop_' + id, kind: 'shop', icon: SHOP_ICON_IDS[id], area: 'inv_shops', x: s.x, z: s.z, r: s.radius, label: 'E · ' + SHOP_NAMES[id] }); } },
+      h.INTERACT.push(Q[id] = { id: 'invshop_' + id, kind: 'shop', icon: SHOP_ICON_IDS[id], area: 'inv_shops', x: s.x, z: s.z, r: s.radius, label: 'E · ' + SHOP_PROMPTS[id] }); } },
   build({ MATS, OUT, low, H }) {   // [v212] the shops reuse EXISTING structures (#18 / #19 dock-plaza stands, #20 rent_1 on the hill street): no placeholder stalls, only a name sign each
     const near = new THREE.Group(); near.name = 'area_inv_shops';
     if (!INV_STALLS) return { near };   // &invstalls=0 = no signs (prompt-only E / tap triggers)

@@ -61,7 +61,9 @@ export function buildTreasureTrader({ MATS, OUT, low, H }) {
       signs.push([8.7, 2.17, new THREE.Matrix4().compose(new THREE.Vector3(x + 0.29, 15.6, cz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1))]); }
     // ---- 3. the corner turret (plaza / street corner), gold cone roof + pennant ----
     { const tx = -1.35, tz = -67.45, r = 1.35;
-      W(k, new THREE.CylinderGeometry(r, 0.35, 1.4, 12), TRIM, M(tx, 10.4, tz)); W(k, cyl(r, r, 10.0, 12), STONE, M(tx, 16.1, tz));
+      // [v245] the base: a short stepped corbel collar + 8 stone brackets (was one 1.4 m cone tapering to 0.35 m = read as an upside-down cone)
+      W(k, cyl(r + 0.08, r - 0.12, 0.34, 12), TRIM, M(tx, 10.93, tz)); W(k, cyl(r - 0.12, r - 0.38, 0.3, 12), TRIM, M(tx, 10.61, tz), false);
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; W(k, box(0.26, 0.62, 0.34), TRIM, M(tx + Math.sin(a) * (r - 0.3), 10.45, tz + Math.cos(a) * (r - 0.3), a), false); } W(k, cyl(r, r, 10.0, 12), STONE, M(tx, 16.1, tz));
       for (const y of [11.2, 15.4, 21.1]) W(k, cyl(r + 0.12, r + 0.12, 0.26, 12), y === 21.1 ? TRIM : GOLD_D, M(tx, y, tz), false);
       if (!low) for (let i = 0; i < 4; i++) { const a = Math.PI / 4 + i * Math.PI / 2; W(k, box(0.36, 1.1, 0.12), 0x24170e, M(tx + Math.sin(a) * (r + 0.01), 18.3, tz + Math.cos(a) * (r + 0.01), a), false); }
       W(k, new THREE.ConeGeometry(r + 0.35, 2.8, 12), GOLD, M(tx, 22.6, tz)); W(k, new THREE.SphereGeometry(0.22, 8, 6), GOLD_D, M(tx, 24.1, tz), false);
@@ -72,6 +74,11 @@ export function buildTreasureTrader({ MATS, OUT, low, H }) {
       for (const s of [-1, 1]) signs.push([2.05, 0.82, new THREE.Matrix4().compose(new THREE.Vector3(-1.1, y, z + s * 0.08), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s > 0 ? 0 : Math.PI), new THREE.Vector3(1, 1, 1))]); }
     for (const dz of [-2.2, 2.2]) { const z = TT.door.lz + dz, y = gy(-1.8, z) + 2.9; W(k, box(0.5, 0.08, 0.08), IRON, M(-1.95, y + 0.45, z), false);
       W(k, box(0.32, 0.46, 0.32), 0xffd27a, M(-1.7, y, z), false); W(k, box(0.42, 0.08, 0.42), IRON, M(-1.7, y + 0.27, z), false); W(k, box(0.42, 0.06, 0.42), IRON, M(-1.7, y - 0.25, z), false); lamps.push([-1.7, y, z, 1.8]); }
+    { const y = gy(-1.8, TT.door.lz) + 3.15;   // [v245] a TREASURE TRADER board over the shop door (covers the Blender lot's old TO RENT board), marks the walk-up spot
+      W(k, box(0.12, 0.78, 2.7), WOOD_D, M(-1.84, y, TT.door.lz)); W(k, box(0.14, 0.08, 2.8), GOLD, M(-1.82, y + 0.42, TT.door.lz), false); W(k, box(0.14, 0.08, 2.8), GOLD, M(-1.82, y - 0.42, TT.door.lz), false);
+      signs.push([2.55, 0.64, new THREE.Matrix4().compose(new THREE.Vector3(-1.76, y, TT.door.lz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1))]); }
+    { const y = gy(-6.2, TT.door.lz) + 2.45, x = -10.62;   // [v246] inside: a TREASURE TRADER board on the back wall over the counter (covers the lot's TO RENT board)
+      W(k, box(0.1, 1.15, 3.1), WOOD_D, M(x, y, TT.door.lz)); signs.push([2.9, 0.78, new THREE.Matrix4().compose(new THREE.Vector3(x + 0.07, y, TT.door.lz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1))]); }
     // ---- 5. the treasure tables: chests of gold, gems, gold bars, maps, pearls ----
     TT.tables.forEach((t, ti) => { const y0 = gy(t.lx, t.lz), top = y0 + 0.9, { w, d } = TT.table;
       W(k, box(w, 0.9, d), WOOD, M(t.lx, y0 + 0.45, t.lz)); W(k, box(w + 0.16, 0.1, d + 0.16), RED, M(t.lx, top + 0.02, t.lz), false);

@@ -1,6 +1,6 @@
 {
  "note": "[v240] BANKSY 6:19 PM: FISH MARKET = #8 (old Token Exchange spot + tavern tables), MARKETPLACE = #7 the Harbor Exchange Hall entrance; their signs are painted on the buildings (js/island/plazaTown.js), sign_<id>: false = no floating board. Antiques unchanged (#20 rent_1). FOOT frame x / z (town-local in lx/lz).",
  "fish": {"reuse": "#8 fish_market (js/island/plazaTown.js FISH_MARKET)", "lx": 64.25, "lz": -21.2, "trigger_fish": {"x": -618.8, "y": 2.73, "z": -25.75, "radius": 3.5}, "sign_fish": false, "door_fish": {"x": -618.8, "y": 2.73, "z": -25.75, "rotY": 0}},
- "antiques": {"reuse": "#20 rent_1 TREASURE TRADER (hill street L0; storefront js/island/areas/treasureTrader.js)", "lx": 0, "lz": -73.1, "trigger_antiques": {"x": -566.9, "y": 5.54, "z": -90, "radius": 2.6}, "sign_antiques": false, "door_antiques": {"x": -566.9, "y": 5.54, "z": -92, "rotY": 1.571}},
+ "antiques": {"reuse": "#20 rent_1 TREASURE TRADER (hill street L0; storefront js/island/areas/treasureTrader.js)", "lx": 0, "lz": -73.1, "trigger_antiques": {"x": -566.9, "y": 5.8, "z": -96.2, "radius": 3.2}, "sign_antiques": false, "door_antiques": {"x": -566.9, "y": 5.54, "z": -92, "rotY": 1.571}},
  "market": {"reuse": "#7 hall_e (Harbor Exchange Hall = MARKETPLACE, js/island/plazaTown.js MARKET_DOOR)", "lx": 47, "lz": -27.4, "trigger_market": {"x": -612.6, "y": 2.73, "z": -43, "radius": 3.5}, "sign_market": false, "door_market": {"x": -612.6, "y": 2.73, "z": -43, "rotY": 0}}
 }
