@@ -44,10 +44,10 @@ S0 = {'buckle': dict(top=KNEE - 0.020, lth=COL('#86482a'), dk=COL('#4a2716')),  
 # strap + iron buckle, thick sole), low buckle shoe (polished dark brown, big brass buckle, block heel), sandal (wooden sole, leather straps)
 S = {'classic': dict(top=KNEE - 0.020, lth=COL('#7b4423'), dk=COL('#3d200f')),
      'sea': dict(top=KNEE - 0.016, lth=COL('#26332c'), dk=COL('#121a16')),
-     'shoe': dict(top=0.104, lth=COL('#3b2317'), dk=COL('#1c100a')),
+     'shoe': dict(top=0.116, lth=COL('#3b2317'), dk=COL('#1c100a')),   # [v6 shoes polish3fix] top clears BOOT_CUT 0.092 + 0.02 (bootsPeg) with margin
      'sandal': dict(top=0.080, lth=COL('#6b3a1e'), dk=COL('#3a1f10'))}[STY]
 _k = ~np.array(ISC); PTS = PTS[_k]; WTS = [w for w, k in zip(WTS, _k) if k]   # [V6 store] fitted to the bare V6 leg (pants above the cut blouse over the top)
-TOP = S['top']; CUT = {'classic': TOP - 0.024, 'sea': TOP - 0.024, 'shoe': 0.092, 'sandal': 0.010}[STY]   # [v6 shoes T] shoe hides the foot to 1.2 cm under its top (no ankle skin through the upper)
+TOP = S['top']; CUT = {'classic': TOP - 0.024, 'sea': TOP - 0.024, 'shoe': 0.092, 'sandal': 0.010}[STY]   # [v6 shoes polish3fix] shoe CUT stays 0.092 (ankle hide); TOP 0.116 clears cut+0.02
 STEP = 0.0026 if HI else 0.0042
 NTH, SUB = (32, 2) if HI else (16, 1)
 parts = []; side_pts = {}; FOOT = {}
