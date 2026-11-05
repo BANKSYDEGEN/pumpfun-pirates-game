@@ -136,7 +136,7 @@ const SHELL = [
   "./js/pvpSkins.js",
   "./js/islandShop.js",
   "./js/shopCatalog.js",
-  "./js/dock/zipline.js", // [v294] Emerly zipline
+  "./js/dock/zipline.js", // [v296] Emerly zipline
   "./js/boosts.js", // [Emerly] ITEM SKILL BOOSTS (shop.js, pvp.js, islandShop.js import it)
   "./js/shopGoals.js", // [Timothy] shop goal progress (islandShop.js imports it)
   "./js/prestige.js", // [prestige] emblem + reward text (pvp.js, shop.js, uiProfile.js)
