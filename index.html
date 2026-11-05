@@ -52,22 +52,24 @@
 <div id="hud" class="hidden">
   <div id="hud-tl">
     <img id="hud-logo" src="assets/pumpfun_pirates_wordmark.png" alt="PUMPFUN PIRATES">
-    <div id="captain">
-      <img id="captain-img" src="" alt="captain">
-      <div class="cap-info">
-        <div id="captain-name">CAPT. #000</div>
-        <div class="bar"><div id="player-hp" class="fill red"></div></div>
-        <div id="wallet-short" class="muted"></div>
+    <div class="hud-tl-stack"><!-- [gold-hud] captain + stats share a column so GOLD aligns to the card's left edge -->
+      <div id="captain">
+        <img id="captain-img" src="" alt="captain">
+        <div class="cap-info">
+          <div id="captain-name">CAPT. #000</div>
+          <div class="bar"><div id="player-hp" class="fill red"></div></div>
+          <div id="wallet-short" class="muted"></div>
+        </div>
+      </div>
+      <div id="hud-top">
+        <div><span class="label">SCORE</span> <span id="score">0</span></div>
+        <div><span class="label">WAVE</span> <span id="wave">1</span></div>
+        <div><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
+        <div><span class="label">SUNK</span> <span id="sunk">0</span></div>
       </div>
     </div>
   </div>
-
-  <div id="hud-top">
-    <div><span class="label">SCORE</span> <span id="score">0</span></div>
-    <div><span class="label">WAVE</span> <span id="wave">1</span></div>
-    <div><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
-    <div><span class="label">SUNK</span> <span id="sunk">0</span></div>
-  </div>
+  <button type="button" id="btn-showhud" class="hidden" title="Show HUD (H)" aria-label="Show HUD">👁 HUD</button>
 
   <div id="hud-tr">
     <div id="hud-icons"><!-- [hud v71] one icon row: (shop) · sound · camera · ⚙ settings · fullscreen · (🏴 PvP) -->
@@ -266,6 +268,7 @@
     </div>
     <div class="gfx-box" id="gfx-pause"></div>
     <div class="gfx-box" id="map-style-pause"></div><!-- [v153] MINIMAP STYLE: COLORED (default) / PAPER -->
+    <div class="gfx-box" id="hud-hide-pause"><!-- [gold-hud] Hide HUD --></div>
     <button id="btn-resume" class="big">RESUME</button>
     <button id="btn-quit" class="ghost">MAIN MENU</button><button id="btn-set-harbor" class="ghost pvp-set pvp-set-inline" type="button" title="Keep your gold · needs 10 s without combat">⚓ HARBOR</button>
   </div>

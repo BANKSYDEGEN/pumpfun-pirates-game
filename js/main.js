@@ -48,6 +48,7 @@ import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, 
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { getMapStyle, setMapStyle, THEMES } from './mapIcons.js'; // [v153] MINIMAP STYLE setting // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
+import { wireHudHide } from './hudHide.js'; // [gold-hud] stats under captain + Hide HUD (H) · &goldhud=0
 import { compileShip, setRenderContext, prebuildNext, prebuildSkin } from './upgradeVisuals.js';
 import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
@@ -1527,6 +1528,7 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer
       b.classList.toggle('on', id === cur); b.setAttribute('aria-checked', id === cur);
       b.onclick = () => { setMapStyle(id); seg.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); };
       seg.appendChild(b); } } }
+  try { wireHudHide({ isSpectating: () => !!pvp?.spectating, isTyping: () => document.documentElement.classList.contains('pfp-chat-open') }); } catch (e) { console.warn('[hud]', e); } // [gold-hud]
   // suggest ULTRA (never auto-pick it): desktop + high-end GPU string + a smooth HIGH title screen
   if (!isMobile && quality === 'high' && !ULTRA && !qp && !localStorage.getItem('pfp_gfx_hint')) setTimeout(() => {
     let gpu = ''; try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''; } catch {}

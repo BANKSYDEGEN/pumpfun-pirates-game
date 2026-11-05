@@ -27,6 +27,7 @@ export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8
 export function consoleKind(ua = '') { ua = String(ua); return /\bXbox\b/i.test(ua) ? 'xbox' : /PlayStation|PLAYSTATION/.test(ua) ? 'ps' : /Nintendo (Switch|WiiU)/i.test(ua) ? 'switch' : ''; }
 const NAV = typeof navigator !== 'undefined' ? navigator : null;
 const LOC = (() => { try { return typeof location !== 'undefined' ? location.search : ''; } catch { return ''; } })(); // (deno: no location)
+import { toggleHudHidden } from './hudHide.js'; // [gold-hud]
 export const PAD_ENABLED = padOn(LOC);
 export const CONSOLE = PAD_ENABLED ? consoleKind(NAV?.userAgent || '') : '';
 
@@ -56,18 +57,18 @@ export const anyInput = (s) => !!s && (s.b.some(Boolean) || Math.hypot(s.lx, s.l
 // spec = spectating a battle; ui = any menu / shop / inventory / pop-up on top (focus navigation).
 export const MAP = {
   sea: { [BTN.A]: 'promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
-    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory' }, // [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
+    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud] GUIDE/PS button toggles Hide HUD · [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
   foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|jump', [BTN.Y]: 'map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
-    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory' },
+    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud]
   spec: { [BTN.A]: 'specFollow', [BTN.X]: 'specLeader', [BTN.Y]: 'specOverview', [BTN.B]: 'specHud', [BTN.LB]: 'specPrev', [BTN.RB]: 'specNext', [BTN.VIEW]: 'specBoard', [BTN.START]: 'pause' },
   ui: { [BTN.A]: 'click', [BTN.B]: 'back', [BTN.START]: 'back', [BTN.LB]: 'tabPrev', [BTN.RB]: 'tabNext', [BTN.Y]: 'click2', [BTN.X]: 'click3' },
 };
 // readable map for the CONTROLS overlay + the report (glyphs follow the pad brand)
 export const MAP_HELP = {
   sea: [['LEFT STICK', 'steer · push up / down = more / less sail'], ['RIGHT STICK', 'look around (R3 = reset camera)'], ['RT / RB', 'fire starboard (right)'], ['LT / LB', 'fire port (left)'],
-    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'island map (harbor)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause']],
+    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'island map (harbor)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'jump'], ['Y', 'island map'],
-    ['RT', 'swing the sword / fire the musket (in an area)'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause']],
+    ['RT', 'swing the sword / fire the musket (in an area)'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
 };
 // the one-line hint (title, pause, the HUD) while a pad is in use
@@ -236,6 +237,7 @@ export function initGamepad(opts = {}) {
     if (n === 'swap') { if (down) D?.tps?.()?.swap?.(); return; }
     if (n === 'camBehind') { if (down) D?.camBehind?.(); return; }
     if (n === 'inventory') { if (down) document.getElementById('tm-btn')?.click(); return; }
+    if (n === 'hideHud') { if (down) toggleHudHidden(); return; } // [gold-hud]
     if (n === 'invite') { if (down) D?.openInvites?.(); return; } // [invite-discreet] VIEW → expand the under-inventory invite pill
     if (n === 'sprint') { sprint = down; return; }
     if (n === 'jump' && m === 'foot') { if (down) D?.jump?.(); return; }
