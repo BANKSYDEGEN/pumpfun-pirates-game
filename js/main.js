@@ -48,7 +48,7 @@ import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, 
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
 import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutorial.js'; // [tutorial]
 import { getMapStyle, setMapStyle, THEMES } from './mapIcons.js'; // [v153] MINIMAP STYLE setting // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
-import { compileShip, setRenderContext, prebuildNext } from './upgradeVisuals.js';
+import { compileShip, setRenderContext, prebuildNext, prebuildSkin } from './upgradeVisuals.js';
 import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
 
@@ -264,12 +264,27 @@ addEventListener('pfp-gear', () => { try { applyShipGear(player?.mesh, getLocalG
 const PHONE_MQ = matchMedia('(max-width: 600px) and (orientation: portrait), (max-height: 520px) and (orientation: landscape)');
 const PHONE_MQ_LAND = matchMedia('(orientation: landscape)');
 let camLow = false;
-function rebuildPlayerShip(levels) {
-  const old = player.mesh, mesh = compileShip(levels, shipOpts());
+function buildPlayerShip(levels) { const mesh = compileShip(levels, shipOpts()); attachCaptain(mesh, localCaptain()); applyShipGear(mesh, getLocalGear()); return mesh; } // [Raul shop items 2]
+function swapPlayerShip(mesh) {
+  const old = player.mesh;
   mesh.position.copy(old.position); mesh.rotation.copy(old.rotation); mesh.userData.body.rotation.copy(old.userData.body.rotation);
   mesh.userData.sails.forEach((sl, i) => { const o = old.userData.sails[i]; if (o) { sl.scale.y = o.scale.y; sl.scale.z = o.scale.z; } });
-  attachCaptain(mesh, localCaptain()); applyShipGear(mesh, getLocalGear()); // [Raul shop items 2]
   scene.remove(old); disposeShip(old); scene.add(mesh); player.mesh = mesh;
+  return mesh;
+}
+function rebuildPlayerShip(levels) { _swapTok++; return swapPlayerShip(buildPlayerShip(levels)); }
+// [skin-swap-perf] BANKSY 10:27 PM "optimize the ship skin change it gets very slow": a new skin's materials meant ~15-20 new shader
+// programs compiled synchronously on the next frame (1-10 s frozen on desktop, swiftshader). Skin swaps now compile the new ship with
+// renderer.compileAsync (KHR_parallel_shader_compile where the GPU has it) while the old ship stays on screen, then swap in one frame.
+// A newer swap (or any normal rebuild) wins; &skinasync=0 = the old synchronous swap.
+const SKIN_ASYNC = !/[?&]skinasync=0(&|$)/.test(location.search);
+let _swapTok = 0;
+function rebuildPlayerShipSkin(levels) {
+  if (!SKIN_ASYNC || typeof renderer.compileAsync !== 'function') return rebuildPlayerShip(levels);
+  const tok = ++_swapTok, mesh = buildPlayerShip(levels), t0 = performance.now();
+  const done = () => { if (tok !== _swapTok) { disposeShip(mesh); return; } swapPlayerShip(mesh); rebuildPlayerShipSkin.lastMs = performance.now() - t0; };
+  let p; try { p = renderer.compileAsync(mesh, camera, scene); } catch (e) { p = null; }
+  if (p?.then) p.then(done, done); else done();
   return mesh;
 }
 // [Raul] pre-compile likely next purchases + warm shaders, only while not actively sailing (title / shop / pause)
@@ -1481,7 +1496,7 @@ initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'pl
   send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); }, foot: (e) => dock?.footEmote?.(e) || null }); // [Raul emotes] on land: body motion + bubble over the head
 // [pvp] what js/pvp.js may touch in the game
 const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
-  resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), get shipOpts() { return PLAYER_SHIP; } };
+  resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), rebuildShipSkin: (lv) => rebuildPlayerShipSkin(lv), prebuildSkin: (lv, skin) => prebuildSkin(lv, { ...shipOpts(), skin }, skin), get shipOpts() { return PLAYER_SHIP; } };
 // [ultra] graphics menu (start page + pause): AUTO / LOW / HIGH / ULTRA (desktop only), saved on this device; a reload applies it
 {
   const cur = ['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : 'auto';

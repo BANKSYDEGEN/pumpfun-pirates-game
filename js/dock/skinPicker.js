@@ -46,10 +46,12 @@ export function createSkinPicker({ current, onClose }) {
       c.appendChild(skinSwatch(pvpSkin(s.id), 96, 48));
       c.insertAdjacentHTML('beforeend', `<b>${s.name}</b><small>${s.id === cur ? '✓ EQUIPPED' : 'TAP TO USE'}</small>`);
       c.onclick = (e) => { e.stopPropagation(); pick(s.id); };
+      c.onpointerenter = c.onfocus = () => getShopProvider()?.prewarm?.('skin', s.id); // [skin-swap-perf] hover / pad focus = likely pick
       grid.appendChild(c);
     }
     grid.querySelector('.on, .ds-card')?.focus?.({ preventScroll: true });
     const list = [...grid.querySelectorAll('.ds-card')].map(c => ({ id: c.dataset.skin, skin: pvpSkin(c.dataset.skin) }));
+    { const P = getShopProvider(), N = matchMedia('(pointer: coarse)').matches ? 2 : 4; skinList().filter(s => s.id !== cur).slice(0, N).forEach(s => P?.prewarm?.('skin', s.id)); } // [skin-swap-perf] the first few cards
     loadPrev().then(m => { if (m && root.classList.contains('on')) try { m.previewCards(grid, list, {}, { pvp: true }); } catch (e) { console.warn('[dock-skin] preview', e); } });
   }
   async function pick(id) {

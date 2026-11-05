@@ -206,8 +206,9 @@ export function createPvp(K) {
       return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
     async crewHatColor(i) { const g = cleanGear({ ...profile.gear, crewhatColor: i }); profile.gear = g; gearChanged(); save({ now: true, force: true }); // [Raul gear colours] free, the crew's own hat colour
       return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: profile.gearOwned || [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } }); },
+    prewarm(kind, key) { if (kind === 'skin' && active && canUse(key) && key !== skinId()) K.prebuildSkin?.(getRunLevels(), pvpSkin(key)); }, // [skin-swap-perf] the picker / SKINS tab: build + compile it before the pick
     async equip(kind, key) {
-      if (kind === 'skin') { if (canUse(key)) { profile.skins.equipped = key; if (active) K.rebuildShip(getRunLevels()); sfx.equip?.(); } }
+      if (kind === 'skin') { if (canUse(key)) { profile.skins.equipped = key; if (active) (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); sfx.equip?.(); } }
       else { const [slot, id] = key.split(':'); const g = cleanGear({ ...profile.gear, [slot]: id }); if (g[slot] === id) { profile.gear = g; gearChanged(); } }
       save({ now: true, force: true }); return shopStateNow().then(st => st || { source: 'live', gold: 0, stats: profile.stats, owned: { skins: ['classic', ...profile.skins.owned], gear: [] }, equipped: { skin: skinId(), gear: { ...profile.gear } } });
     },
@@ -1316,7 +1317,7 @@ export function createPvp(K) {
   }
   function pickSkin(id) {
     if (!canUse(id)) return;
-    profile.skins.equipped = id; K.rebuildShip(getRunLevels()); sfx.equip?.(); save({ now: true }); renderMenu();
+    profile.skins.equipped = id; (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); sfx.equip?.(); save({ now: true }); renderMenu();
   }
   function skinToast(t) {
     document.getElementById('skin-toast')?.remove();
@@ -1689,7 +1690,7 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
-    _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
+    _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;

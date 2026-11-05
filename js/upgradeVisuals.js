@@ -712,7 +712,7 @@ let R = null; // { renderer, scene, camera, canWork }
 const _ready = new Map(); let _queue = [], _pump = 0;
 const MAX_READY = 8, PREBUILD_N = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 2 : 4; // phones: the 2 cheapest affordable next buys
 export function setRenderContext(ctx) { R = ctx; warmUp(); }
-function warm(obj) { if (!R?.renderer) return; try { R.renderer.compile(obj, R.camera, R.scene); } catch { /* older three: skipped */ } }
+function warm(obj) { if (!R?.renderer) return; try { if (SKIN_PREWARM && R.renderer.compileAsync) R.renderer.compileAsync(obj, R.camera, R.scene).catch(() => {}); else R.renderer.compile(obj, R.camera, R.scene); } catch { /* older three: skipped */ } } // [skin-swap-perf] async (parallel compile) where the GPU has it
 // compile shader programs for every material the trait parts / purchase effect can use (once per skin + quality)
 const _warmed = new Set();
 export function warmUp(skin = equippedSkin()) {
@@ -744,13 +744,22 @@ export function prebuildNext(levels = {}, { gold = Infinity } = {}) {
   for (const [k, sh] of [..._ready]) if (!want.has(k)) { _ready.delete(k); disposeShip(sh); } // free stale pre-builds
   pump();
 }
+// [skin-swap-perf] BANKSY 10:27 PM "ship skin change gets very slow": every skin look is its own shader set (assets/ships/pvp/tierLooks.js etc.,
+// ~15-30 programs) plus a 0.3-2 s ship build, all on the frame you pick it. While the dock skin picker / SKINS tab is open the likeliest picks
+// are pre-built + their shaders compiled (one per idle slot, even on foot), so the pick itself pops a ready ship. &skinwarm=0 = off.
+const SKIN_PREWARM = !(typeof location !== 'undefined' && /[?&]skinwarm=0(&|$)/.test(location.search));
+export function prebuildSkin(levels, opts, skin) {
+  if (!SKIN_PREWARM || !skin) return false; const lv = normLevels(levels), key = shipKey(lv, skin, opts.quality, opts.shadows, opts.pvp);
+  if (_ready.has(key) || _queue.some(q => q.key === key)) return true;
+  _queue.unshift({ key, lv, skin, opts, force: true }); pump(); return true;
+}
 export function dropPrebuilt() { for (const s of _ready.values()) disposeShip(s); _ready.clear(); _queue = []; }
 function pump() {
   if (_pump || !_queue.length) return;
   const idle = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 60));
   _pump = idle(() => {
     _pump = 0;
-    if (R?.canWork && !R.canWork()) { setTimeout(pump, 400); return; } // never during active sailing
+    if (R?.canWork && !R.canWork() && !_queue[0]?.force) { setTimeout(pump, 400); return; } // never during active sailing (a skin the picker asked for: yes, it is a menu)
     const job = _queue.shift();
     if (job && !_ready.has(job.key)) {
       const ship = buildCompiled(job.lv, job.opts, job.skin);

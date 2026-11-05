@@ -190,7 +190,7 @@ function render() {
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? (x.it.grant === 'prestige' ? 'UNLOCKED · FREE' : 'FREE') : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
     if (x.kind === 'gear') { const b = boostOf(x.it.slot, x.it.id); if (b && boostChips(b).length) c.insertAdjacentHTML('beforeend', `<span class="ishop-bst">${boostChipHtml(b, esc)}</span>`); } // [Emerly] '+4% RELOAD'
-    c.onclick = () => { view.sel = x.key; render(); };
+    c.onclick = () => { view.sel = x.key; if (x.kind === 'skin') provider?.prewarm?.('skin', x.key); render(); }; // [skin-swap-perf] selected = built + compiled before EQUIP
     grid.appendChild(c);
   }
   detail(items.find(x => x.key === view.sel));
