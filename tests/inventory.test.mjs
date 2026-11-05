@@ -75,10 +75,10 @@ test('[v212] plaza_shops.json = FALLBACK; shops sit on numbered existing structu
   return import('../js/inventory/shopSpots.js').then((S) => { const f = S.shopSpots(J), fb = S.shopSpots(null);
     for (const id of S.SHOP_IDS) { assert.deepEqual(f[id].trigger, fb[id].trigger, id); assert.ok(f[id].fromFile); }
     const t2w = (lx, lz) => [-640 - lz, -90 + lx];
-    const use = { fish: 'FISH MARKET', antiques: 'ANTIQUES', market: 'MARKETPLACE' };   // [v240] FISH MARKET #8, MARKETPLACE #7 (the hall: its centre is 6 m behind the door)
+    const use = { fish: 'FISH MARKET', antiques: 'TREASURE TRADER', market: 'MARKETPLACE' };   // [v240] FISH MARKET #8, MARKETPLACE #7 (the hall: its centre is 6 m behind the door)
     for (const id of S.SHOP_IDS) { const hits = N.filter(q => q.use.startsWith(use[id])); assert.equal(hits.length, 1, id + ': exactly one'); const b = hits[0]; const d = Math.hypot(b.x - f[id].trigger.x, b.z - f[id].trigger.z); assert.ok(d < 10, id + ' on #' + b.n); }
     for (const n of [18, 19]) assert.match(N.find(q => q.n === n).use, /^EMPTY /, '#' + n + ' retired (decor / removed)');
-    assert.equal(f.fish.sign, false); assert.equal(f.market.sign, false);   // painted on their buildings, no floating boards
+    assert.equal(f.fish.sign, false); assert.equal(f.market.sign, false); assert.equal(f.antiques.sign, false); assert.equal(S.SHOP_NAMES.antiques, 'TREASURE TRADER');   // painted on their buildings, no floating boards
     // storefront prompts (lz + 3.8) + the squad hall door stay out of reach of the new triggers
     const prompts = [[-49, -25.5], [-38.5, -25.5], [-10, -25.5], [20.5, -25.5], [32, -25.5], [14, -76.7]].map(([a, c]) => t2w(a, c));
     for (const id of S.SHOP_IDS) for (const [x, z] of prompts) assert.ok(Math.hypot(x - f[id].trigger.x, z - f[id].trigger.z) > f[id].trigger.radius + 2, id);

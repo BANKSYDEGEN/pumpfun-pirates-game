@@ -91,7 +91,7 @@ export const SHOP_ICONS = {
   musket_shop: ['musket', '#6b4423', '#fff', '#fff', 'MUSKET SHOP'],
   squadhall: ['chest', '#9b5cff', '#fff', '#ffc93c', 'BIG SHOP · SQUAD HALL'],
   fish_stand: ['fish', '#1d7fb8', '#fff', '#fff', 'FISH MARKET'],   // the coming plaza shops (post/inventory-fish)
-  antiques: ['gem', '#b0267a', '#fff', '#fff', 'ANTIQUES'],
+  antiques: ['chest', '#d4a017', '#3a1f0a', '#d8322f', 'TREASURE TRADER'],   // [v241] gold chest badge (was a magenta gem)
   market: ['scales', '#a77a12', '#fff', '#fff', 'MARKETPLACE'],
   stall: ['stall', '#e0662b', '#fff', '#fff', 'STALL'],
   shop: ['coin', '#ffc93c', '#161616', '#161616', 'SHOP'],

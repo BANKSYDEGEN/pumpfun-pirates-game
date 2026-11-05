@@ -117,6 +117,7 @@ export function libAreaBuilt(id, built, ctx = null) {
   if (!LIB_ON || !built) return;
   if (id === 'hill_round') { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, RB_RULES, { floor: [{ y0: 20.0, y1: 20.35, from: 'stone_ashlar', to: 'cobble' }, { from: 'stone_ashlar', to: 'stone_trim' }], wear: true }), 0); return; }
   if (id === 'hilltop_fort') LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, FORT_RULES, { floor: { y0: 35.9, y1: 36.4, from: 'stone_ashlar', to: 'cobble' } }), 0);
+  else if (id === 'inv_shops') LIB_AREA_STATS[id] = [built.near].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { wear: true }), 0);   // [v241] the TREASURE TRADER dressing (stone / timber / iron)
   else if (/^route_/.test(id)) { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { floor: { from: 'stone_ashlar', to: 'stone_trim' }, wear: true }), 0);
     if (id === 'route_low' && ctx) import('./gateJunction.js').then(({ buildGateJunction, mergeInto, GATEJX }) => {   // the hill street's top end (BANKSY 9:55 PM); lazy: keeps look.js's imports light
       const g = buildGateJunction(ctx, { LIB_ID }); const merged = mergeInto(built.near, g); LIB_AREA_STATS.gate_junction = { ...(GATEJX.stats || {}), merged, hidden: GATEJX.hidden }; }).catch(e => console.warn('[gate junction]', e)); }
