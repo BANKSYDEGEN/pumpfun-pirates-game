@@ -38,6 +38,7 @@ const CSS = `
 #inv-panel .iv-slot span{font-size:13px;line-height:.95;color:#e8d3a6;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:1.9em}
 #inv-panel .iv-slot b{position:absolute;right:4px;bottom:2px;font:bold 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #inv-panel .iv-slot em{position:absolute;left:4px;top:2px;font:bold 12px system-ui,sans-serif;font-style:normal;color:#ffcd3c}
+#inv-panel .iv-eq{position:absolute;top:2px;left:4px;font-style:normal;font-size:14px;color:#1b1206;background:#7be37b;border-radius:8px;padding:0 4px;z-index:1}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
 #inv-panel .iv-act{border-top:2px solid rgba(255,205,119,.35);padding:8px 14px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:21px;min-height:56px}
 #inv-panel .iv-act .t{flex:1 1 100%;font-size:22px}
@@ -53,6 +54,9 @@ async function carry(slot, base, pv) {
   try { const G = await import('../pirateGear.js'); if (typeof G.setCarriedWeapons === 'function') { const cur = (typeof G.carriedWeapons === 'function' && G.carriedWeapons()) || {}; G.setCarriedWeapons({ sword: cur.sword ?? null, musket: cur.musket ?? null, [slot]: base }, 'inventory'); return; } } catch {}
   try { pv?.maps?.wear?.(`${slot}:${base}`); } catch {}
 }
+async function uncarry(slot, eq) { // [rare-equip] back to your WEAPON STORE pick (or the free default) for this slot
+  try { const G = await import('../pirateGear.js'); if (typeof G.setCarriedWeapons !== 'function') return; const cur = G.carriedWeapons?.() || {}, st = G.storeWeapons?.() || {}, other = slot === 'sword' ? 'musket' : 'sword';
+    G.setCarriedWeapons({ ...cur, [slot]: st[slot] ?? null }, eq[other] ? 'inventory' : 'profile'); } catch {} }
 export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = () => [] }) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'inv-panel'; el.innerHTML = '<div class="iv-box"><div class="iv-head">🎒 <span class="iv-title">INVENTORY</span><small></small><button class="iv-x" aria-label="Close">✕</button></div><div class="iv-tabs"></div><div class="iv-grid"></div><div class="iv-act"></div></div>';
@@ -67,7 +71,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   const price = (s) => mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
   const sellOn = () => mode === 'fish' ? !!data.flags.fish_sell : mode === 'antiques' ? !!data.flags.antiques_sell : false;
   // [inventory v209] battle.js reads these: the DB flags + the equipped weapons' rarity (after a reload too, once inv_state is read)
-  function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w; }
+  function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w;
+    if (!restored && r.ok) { restored = true; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i?.base && (slot === 'sword' || slot === 'musket')) carry(slot, i.base, pvp()); } } } // [rare-equip] after a reload your found weapon is back in hand / on your back, not only its stats
+  let restored = false;
   async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? m.listings : []; } render(); return r; }
   function render() {
     const title = { bag: 'INVENTORY', fish: 'FISH STAND', antiques: 'ANTIQUES', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
@@ -81,7 +87,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       g.querySelectorAll('[data-l]').forEach(d => d.onclick = () => { sel = 'L' + d.dataset.l; render(); });
     } else {
       const list = slots().filter(shopTakes);
-      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
+      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); });
     }
@@ -95,13 +101,14 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
     let h = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity}${locked ? ' · bought with gold: keep it, it can\'t be resold' : ''}</small></div>`;
-    if (mode === 'bag') { if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += `<button data-a="equip">${data.equipped[s.info.slot] === s.key ? 'EQUIPPED' : 'EQUIP'}</button>`;
+    if (mode === 'bag') { if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
       h += `${n}<button data-a="give"${locked || !data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [give-dropdown] was a typed name box (typing stays, in the picker's search)
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
     bind(a, { open: () => { close(); treasure?.openMap?.(s.map.id); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
+      unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
       give: () => { const k = q(); picker.open({ name: s.info.name, qty: k, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
         give: (to) => run('inv_gift', { item: s.key, qty: k, to }, `SENT ${k} × ${s.info.name} TO ${to.toUpperCase()}`) }); },
       sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),

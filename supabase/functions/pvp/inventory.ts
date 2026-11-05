@@ -8,7 +8,7 @@ import { acctBump } from "./accounts.ts";
 import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's online list
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
-export const INV_ACTIONS = ["inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_pot", "inv_online", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel"];
+export const INV_ACTIONS = ["inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel"];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
 // every item the owner test kit holds (~3 of each): fish, valuables, weapons at every rarity (maps are added by SQL)
@@ -50,7 +50,7 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       const { data: flags } = await db.from("pvp_flags").select("k, on_");
       const stack = new Map<string, { item: string; qty: number; tradeable: number; kit: number }>();
       for (const r of rows || []) { const s = stack.get(r.item) || { item: r.item, qty: 0, tradeable: 0, kit: 0 }; s.qty += r.qty; if (r.source !== "carry_buy") s.tradeable += r.qty; if (r.source === "kit") s.kit += r.qty; stack.set(r.item, s); }
-      return json(200, { ok: true, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).map((e: any) => [e.slot, e.item])), flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
+      return json(200, { ok: true, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).filter((e: any) => who.owner || stack.has(e.item)).map((e: any) => [e.slot, e.item])) /* [rare-equip] a given / sold weapon stops counting */, flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
     }
     case "inv_sell": {
       const item = b.item, qty = qtyOf(b.qty), shop = b.shop === "fish" ? "fish" : b.shop === "antiques" ? "antiques" : null;
@@ -85,6 +85,10 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       if (!who.owner && !(have && have.length)) return json(409, { error: "not yours" });
       const { error } = await db.from("pvp_inv_equip").upsert({ player_id: pid, slot: info.slot, item }); if (error) throw error;
       return json(200, { ok: true, slot: info.slot, base: info.base, rarity: info.rarity }); }
+    case "inv_unequip": { // [rare-equip] back to your WEAPON STORE / default weapon: the found weapon's rarity stops applying (it stays in the bag)
+      const slot = b.slot === "sword" ? "sword" : b.slot === "musket" ? "musket" : null; if (!slot) return json(400, { error: "bad slot" });
+      const { error } = await db.from("pvp_inv_equip").delete().eq("player_id", pid).eq("slot", slot); if (error) throw error;
+      return json(200, { ok: true, slot }); }
     case "inv_online": return reply(await onlineAction(db, pid)); // [give-dropdown] display names online now (harbor + arenas), giftable only
     case "inv_pot": { const g = Number(await rpc("pvp_inv_pot_take", { p_player: pid })) || 0; // Marketplace proceeds (+ the owner's sales / buys) -> this save
       if (g && b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, g); return json(200, { ok: true, gold: g }); }

@@ -238,13 +238,15 @@ let _mem = null, _skin = 'classic';
 //   setCarriedWeapons({ sword, musket }) -> { sword, musket }   ids from SWORD_IDS / MUSKET_IDS (js/onfoot/swords.js), null / 'none' = nothing.
 // Once an inventory has called it, it owns the pick (the profile no longer overrides it). Re-dresses your pirates; other players see it via 'gr'.
 export const CARRY_FREE = false;
-const _carry = { sword: 'none', musket: 'none', src: 'profile' };
+const _carry = { sword: 'none', musket: 'none', src: 'profile', prof: { sword: null, musket: null } }; // [rare-equip] prof = your last WEAPON STORE pick (the USE STORE WEAPON target)
 export function setCarriedWeapons({ sword = null, musket = null } = {}, src = 'inventory') {
+  if (src === 'profile') _carry.prof = { sword, musket };
   if (src === 'profile' && _carry.src === 'inventory') return carriedWeapons();
   const s = carryPick(sword, SWORD_IDS, src === 'profile' ? SWORD_IDS[0] : null, CARRY_FREE), m = carryPick(musket, MUSKET_IDS, src === 'profile' ? MUSKET_IDS[0] : null, CARRY_FREE); _carry.src = src;
   if (s !== _carry.sword || m !== _carry.musket) { _carry.sword = s; _carry.musket = m; try { redressLocal(); window.dispatchEvent(new CustomEvent('pfp-gear-local', { detail: getLocalGear() })); } catch {} }
   return carriedWeapons();
 }
+export const storeWeapons = () => ({ ..._carry.prof }); // [rare-equip]
 export const carriedWeapons = () => ({ sword: _carry.sword === 'none' ? null : _carry.sword, musket: _carry.musket === 'none' ? null : _carry.musket });
 export function getLocalGear() { const g = localGear0(); g.carrySword = _carry.sword; g.carryMusket = _carry.musket; return g; }
 function localGear0() {
