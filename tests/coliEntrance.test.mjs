@@ -25,3 +25,15 @@ test('musket range + sword pit: stone walls on the coliseum, fence / ropes when 
   assert.equal(ON.inRange,true);
 });
 test('&coliseum=0 has no fish approach deck or paint',()=>{ const OFF=run('?coast=1&coliseum=0'); assert.equal(OFF.on,false); assert.equal(OFF.fish.length,undefined); });
+// [Timothy v300] BANKSY 5:52 PM "rework the inside of coliseum can make the things fit better inside inner circle"
+test('musket range + sword pit sit wholly inside the inner kerb (1.2 m inset), centred on the arena axis, ring walk clear all round',()=>{
+  const w=ON.wings; assert.ok(w.n>60,`props checked ${w.n}`); assert.deepEqual(w.out,[]); assert.deepEqual(w.ring,[]);
+  assert.equal((ON.range.lx0+ON.range.lx1)/2,ON.ell.cx); assert.equal(ON.pit.lx,ON.ell.cx); assert.equal(ON.pit.y,ON.footY);
+  assert.ok(ON.range.lz1<ON.pit.lz-ON.pit.pad-12,'central concourse between the wings');
+});
+test('wing spawns + gates are clear; floor pads match the wings',()=>{
+  assert.deepEqual(ON.wings.spawnHits,[]); assert.deepEqual(ON.wings.gateHits,[]); assert.ok(ON.wings.spawns>40);
+  const s=src('js/island/coliseum.js'),R=ON.range,P=ON.pit;
+  assert.ok(s.includes(`T(${(R.lx0+R.lx1)/2}, ${(R.lz0+R.lz1)/2}); W(k, box(${R.lx1-R.lx0-1}, 0.08, ${R.lz1-R.lz0-1})`),'yellow pad = RANGE inset 0.5');
+  assert.ok(s.includes(`T(${P.lx}, ${P.lz}); W(k, new THREE.CylinderGeometry(${+(P.r+0.6).toFixed(1)}, ${+(P.r+0.6).toFixed(1)}`),'purple pad = PIT r + 0.6');
+});

@@ -170,8 +170,9 @@ export function buildArt(o) {
 
   // plan colors: soft yellow musket pad (castle end) + purple sword pad (dock end) on the sand
   { const YEL = 0xbca779, PUR = 0xb5a48b;
-    const [mx, mz] = T(62, -156); W(k, box(32, 0.08, 28), YEL, SA, M(mx, y0 + 0.1, mz, Y0W), false);   // [v294] follows battleAreas RANGE / PIT
-    const [px, pz] = T(61, -84); W(k, new THREE.CylinderGeometry(12, 12, 0.08, 28), PUR, SA, M(px, y0 + 0.1, pz), false); }
+    // [v300] = battleAreas RANGE_COLI (lx 47-75, lz -164..-136, inset 0.5) / PIT_COLI (61, -92, r 9.5 + 0.6); tests/coliEntrance checks they match
+    const [mx, mz] = T(61, -150); W(k, box(27, 0.08, 27), YEL, SA, M(mx, y0 + 0.1, mz, Y0W), false);
+    const [px, pz] = T(61, -92); W(k, new THREE.CylinderGeometry(10.1, 10.1, 0.08, 32), PUR, SA, M(px, y0 + 0.1, pz), false); }
 
   // Worn flag patches break up the gritty earth at human scale (all look-layer, no floor colliders).
   for(let row=0;row<45;row++) for(let col=0;col<15;col++) {
@@ -270,10 +271,10 @@ export function buildArt(o) {
   }
 
   // Main portal: facade flush with #36/#37; parallel return walls fill the alley to the ellipse.
-  { const g=MAIN_GATE, D=g.d, ph=10.8, th=1.4;
-    for(const sd of [-1,1]) { const lz=g.lz+sd*(g.w/2-th/2), [x,z]=T(g.lx+D/2,lz);
-      W(k,box(D,ph,th),ST,DS,M(x,y0+ph/2,z,Y0W),false); addBox(x,z,D,th,Y0W);
-      W(k,box(D,0.3,th+0.2),ST_D,DS,M(x,y0+ph+0.15,z,Y0W),false); }
+  { const g=MAIN_GATE, D=g.d, ph=10.8, th=1.4, DW=g.shellLx+1.4-g.lx;   // [v300] return walls stop at the shell's inner face (they ran 6 m on across the pink ring walk)
+    for(const sd of [-1,1]) { const lz=g.lz+sd*(g.w/2-th/2), [x,z]=T(g.lx+DW/2,lz);
+      W(k,box(DW,ph,th),ST,DS,M(x,y0+ph/2,z,Y0W),false); addBox(x,z,DW,th,Y0W);
+      W(k,box(DW,0.3,th+0.2),ST_D,DS,M(x,y0+ph+0.15,z,Y0W),false); }
     // A proper arched face inside the full-width bay; no geometry sticks west of the shopfront plane.
     const [x,z]=T(g.lx+0.9,g.lz), yaw=CO.t2wYaw(Math.PI/2), r=g.opening/2;
     arch(x,y0+4.8,z,yaw,r,0.28,1.8);

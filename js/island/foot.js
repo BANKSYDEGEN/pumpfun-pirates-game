@@ -667,6 +667,7 @@ export function areaDeckAt(x, z) { let y = null; for (const d of decksNear(x, z)
   if (sk === 'join') yy -= out * 3; else if (sk === 'ground') { const t = out / d.pad, e = t * t * (3 - 2 * t); yy += (H(x, z) - yy) * e; }
   y = Math.max(y ?? -1e9, yy); } return y; }
 const addDeck = (d) => { AREA_DECKS.push({ ...d, c: Math.cos(d.yaw || 0), s: Math.sin(d.yaw || 0) }); };
+export const MAP_CIRCS = () => CIRC; // [v300] coli_check: wing props inside the kerb
 export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
 export function hitCollider(x, z, rad = 0.45) {
   const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)); if (!list) return false;

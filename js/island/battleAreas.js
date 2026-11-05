@@ -15,17 +15,20 @@ const RANGE_OLD = { lx0: -126, lx1: -82, lz0: -164, lz1: -124, y: 13.6, flat: 8,
 // [Timothy v294] the shell's +lx side came in 8 m (coliseum.js FOOT.lx1 96 -> 88): the range moves 6 m with it and its back stops 4 m
 // short of the podium; BANKSY 4:23 PM "incorporate the musket hall and sword pits into coliseum design, make sure can still be walled
 // around and be spectated" = chest-high dressed-stone walls on the same lines as the old fence / rope ring (same colliders) + benches.
-const RANGE_COLI = { lx0: 44, lx1: 80, lz0: -172, lz1: -140, y: FOOT.y, flat: 8, feather: 6, line: -148, targetLz: -166, lanes: [52, 60, 68], divider: 63, gate: [63, -140], gateW: 6 };
+// [Timothy v300] BANKSY 5:52 PM "rework the inside of coliseum can make the things fit better inside inner circle": both wings sit wholly on
+// the sand inside the stone kerb (inner ellipse rx 18.8 / rz 73.8 round cx 61, cz -126) with >= 1.5 m of sand to spare, centred on lx 61,
+// and the pink ring walk is never crossed. Range 28 x 28: 3 lanes west of the divider, the duel yard east of it.
+const RANGE_COLI = { lx0: 47, lx1: 75, lz0: -164, lz1: -136, y: FOOT.y, flat: 8, feather: 6, line: -143, targetLz: -159, lanes: [50.5, 55, 59.5], railW: 3.0, divider: 62, gate: [62, -136], gateW: 6 };
 export const RANGE = COLISEUM_ON ? RANGE_COLI : RANGE_OLD;
 
 const PIT_OLD = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
-const PIT_COLI = { lx: 61, lz: -84, pad: 16, r: 11, flat: 22, y: 9.0, feather: 6 };   // [v294] centred in the narrower shell, clear of the fish-market gate
+const PIT_COLI = { lx: 61, lz: -92, pad: 12.2, r: 9.5, flat: 14, y: FOOT.y, feather: 6 };   // [v300] r 9.5 ring + benches / torches / pennants within 12.3 m, flush with the arena sand (no 0.2 m dip across the ring walk); 18 m concourse to the range
 export const PIT = Object.assign({}, COLISEUM_ON ? PIT_COLI : PIT_OLD);
-PIT.gateA = COLISEUM_ON ? Math.atan2(28 - PIT.lx, -115 - PIT.lz) : Math.atan2(46 - PIT.lx, -74 - PIT.lz);
+PIT.gateA = COLISEUM_ON ? Math.PI : Math.atan2(46 - PIT.lx, -74 - PIT.lz);   // [v300] coli: the pit gate faces the central concourse (main + battery gates)
 export const pitAt = (a, r) => [PIT.lx + Math.sin(a) * r, PIT.lz + Math.cos(a) * r];
 
 export const PATHS = COLISEUM_ON
-  ? [[[22, -115], [40, -110], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -128], [55, -140], [63, -140]]]
+  ? [[[22, -115], [40, -112], [55, -108], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -122], [55, -131], [62, -133]]]
   : [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -125]], [[13, -59], [34, -62], pitAt(PIT.gateA, PIT.r + 4), pitAt(PIT.gateA, PIT.r - 1)]];
 
 export const MAIN_ST_SHOPS = [
@@ -35,7 +38,7 @@ export const MAIN_ST_SHOPS = [
 export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });
 export const COVER = COLISEUM_ON
-  ? [[54, -155, 'crate'], [66, -152, 'barrel'], [74, -160, 'hay'], [49, -162, 'crate'], [77, -148, 'barrel'], [60, -158, 'hay'], [70, -145, 'barrel']]
+  ? [[65, -146, 'crate'], [71.5, -143.5, 'barrel'], [67.5, -151.5, 'hay'], [72, -150, 'crate'], [64.5, -156.5, 'barrel'], [72.5, -155.5, 'hay'], [68.5, -146.5, 'barrel']]   // [v300] duel yard 63.5-73.5 x -160..-141: lanes, gate + both team spawns clear
   : [[-97, -140, 'crate'], [-89, -136, 'barrel'], [-93, -148, 'hay'], [-86, -152, 'crate'], [-99, -156, 'barrel'], [-88, -144, 'hay'], [-95, -133, 'barrel']];
 export const near = (lx, lz) => COLISEUM_ON
   ? (lx > 20 && lx < 110 && lz > -220 && lz < -30)
@@ -81,14 +84,15 @@ export function buildArt(o) {
   { const R = RANGE, y = R.y, g0 = R.gate[0] - R.gateW / 2, g1 = R.gate[0] + R.gateW / 2;
     wall([R.lx0, R.lz1], [g0, R.lz1], y); wall([g1, R.lz1], [R.lx1, R.lz1], y);                     // town side, gate gap
     wall([R.lx0, R.lz1], [R.lx0, R.lz0 + 2], y); wall([R.lx1, R.lz1], [R.lx1, R.lz0 + 2], y);      // sides
-    if (COLISEUM_ON) for (const lx of [R.lx0 + 4, R.lx0 + 9, R.lx1 - 9, R.lx1 - 4]) bench(lx, R.lz1 + 2.6, y, 0);   // [v294] spectator benches facing the lanes over the town-side wall
+    if (COLISEUM_ON) for (const lx of [51, 55, 68.5, 72]) bench(lx, R.lz1 + 2.2, y, 0);   // [v294] spectator benches facing the lanes over the town-side wall
     // backstop: earth berm + a plank wall with sandbags along the far end (blocks the walk, catches the balls)
     { const [x, z] = T((R.lx0 + R.lx1) / 2, R.lz0 + 1.2), L = R.lx1 - R.lx0; W(k, box(L, 3.2, 1.0), 0x8a5a2b, 2, M(x, y + 1.0, z, yaw0)); W(k, box(L + 0.3, 0.25, 1.2), WOOD_D, 2, M(x, y + 2.7, z, yaw0), false);
       for (let lx = R.lx0 + 1; lx < R.lx1; lx += 2.2) { const [sx, sz] = T(lx, R.lz0 + 2.0); W(k, new THREE.SphereGeometry(0.55, 7, 5).scale(1.6, 0.6, 0.9), 0xd9c39a, 12, M(sx, y + 0.3, sz, yaw0)); }
       addBox(x, z, L, 2.4, yaw0); }
     // firing line: a waist-high shooting rail in front of each lane (gaps between, you walk through to the yard)
-    for (const lx of R.lanes) { const [x, z] = T(lx, R.line); W(k, box(4.2, 0.14, 0.5), WOOD, 2, M(x, y + 1.05, z, yaw0)); for (const s of [-1.9, 1.9]) { const [px, pz] = T(lx + s, R.line); W(k, cyl(0.1, 0.12, 1.05, 6), WOOD_D, 2, M(px, y + 0.52, pz), false); addCirc(px, pz, 0.2); }
-      const [mx, mz] = T(lx, R.line + 0.05); addBox(mx, mz, 3.6, 0.45, yaw0);
+    const RW = R.railW || 4.2;   // [v300] coli lanes are 4.5 m apart: 3 m rails, walk-through gaps between
+    for (const lx of R.lanes) { const [x, z] = T(lx, R.line); W(k, box(RW, 0.14, 0.5), WOOD, 2, M(x, y + 1.05, z, yaw0)); for (const s of [-(RW / 2 - 0.2), RW / 2 - 0.2]) { const [px, pz] = T(lx + s, R.line); W(k, cyl(0.1, 0.12, 1.05, 6), WOOD_D, 2, M(px, y + 0.52, pz), false); addCirc(px, pz, 0.2); }
+      const [mx, mz] = T(lx, R.line + 0.05); addBox(mx, mz, RW - 0.6, 0.45, yaw0);
       // target stand: two posts + a cross beam (the board itself hangs from it: js/onfoot/battle.js, it flips when hit)
       for (const s of [-0.95, 0.95]) { const [px, pz] = T(lx + s, R.targetLz - 0.2); W(k, cyl(0.09, 0.1, 2.5, 6), WOOD_D, 2, M(px, y + 1.25, pz)); addCirc(px, pz, 0.18); }
       { const [bx, bz] = T(lx, R.targetLz - 0.2); W(k, box(2.2, 0.14, 0.14), WOOD_D, 2, M(bx, y + 2.45, bz, yaw0), false); }
@@ -106,7 +110,7 @@ export function buildArt(o) {
       const [tx, tz] = T(R.gate[0] + s * (R.gateW / 2 + 1.4), R.lz1 + 1.2); torchPost(k, F, tx, y, tz); addCirc(tx, tz, 0.2); }
     { const [bx, bz] = T(R.gate[0], R.lz1); W(k, box(R.gateW + 1.4, 0.3, 0.3), WOOD_D, 2, M(bx, y + 4.2, bz, yaw0)); }
     for (const [lx, lz] of [[R.lx0 + 1, R.lz0 + 4], [R.lx1 - 1, R.lz0 + 4], [R.divider, R.line - 1.5]]) { const [x, z] = T(lx, lz); torchPost(k, F, x, y, z); addCirc(x, z, 0.2); }
-    { const [x, z] = T(R.gate[0] + 6, R.lz1 - 2.2); W(k, box(2.2, 0.12, 0.5), WOOD, 2, M(x, y + 0.5, z, yaw0)); W(k, box(2.2, 0.12, 0.5), WOOD, 2, M(x, y + 1.3, z, yaw0)); for (const s of [-1, 1]) { const [px, pz] = T(R.gate[0] + 6 + s, R.lz1 - 2.2); W(k, box(0.12, 1.5, 0.5), WOOD_D, 2, M(px, y + 0.75, pz, yaw0), false); } addBox(x, z, 2.3, 0.6, yaw0); }
+    { const MS = COLISEUM_ON ? R.lx1 - 2.5 : R.gate[0] + 6, [x, z] = T(MS, R.lz1 - 2.2); /* [v300] coli: musket stand in the yard corner, clear of the team spawn */ W(k, box(2.2, 0.12, 0.5), WOOD, 2, M(x, y + 0.5, z, yaw0)); W(k, box(2.2, 0.12, 0.5), WOOD, 2, M(x, y + 1.3, z, yaw0)); for (const s of [-1, 1]) { const [px, pz] = T(MS + s, R.lz1 - 2.2); W(k, box(0.12, 1.5, 0.5), WOOD_D, 2, M(px, y + 0.75, pz, yaw0), false); } addBox(x, z, 2.3, 0.6, yaw0); }
   }
   // ---------------- SWORD PIT ----------------
   { const P = PIT, y = P.y, ga = P.gateA, gap = 0.2;   // gate half-angle (~2.2 m opening at r11)
@@ -124,11 +128,11 @@ export function buildArt(o) {
     { const [mx, mz] = T(...pitAt(ga, P.r + 0.2)); W(k, box(3.6, 0.3, 0.3), WOOD_D, 2, M(mx, y + 4.05, mz, CO.t2wYaw(ga))); }
     for (let i = 0; i < 4; i++) { const [x, z] = T(...pitAt(ga + Math.PI / 4 + i * Math.PI / 2, P.pad - 1.2)); torchPost(k, F, x, y, z); addCirc(x, z, 0.2); }
     // benches on the pad (spectators), skipping the gate side
-    for (const a of [ga + 1.15, ga + 1.85, ga + Math.PI - 0.35, ga + Math.PI + 0.35, ga - 1.85, ga - 1.15]) { const [x, z] = T(...pitAt(a, P.r + 2.4)), wy = CO.t2wYaw(a);
+    for (const a of [ga + 1.15, ga + 1.85, ga + Math.PI - 0.35, ga + Math.PI + 0.35, ga - 1.85, ga - 1.15]) { const [x, z] = T(...pitAt(a, P.r + (COLISEUM_ON ? 2.0 : 2.4))), wy = CO.t2wYaw(a);
       k.at(M(x, y, z, wy), () => { W(k, box(3.0, 0.14, 0.55), WOOD, 2, M(0, 0.5, 0)); for (const s of [-1.2, 1.2]) W(k, box(0.14, 0.5, 0.5), WOOD_D, 2, M(s, 0.25, 0), false); }); addBox(x, z, 3.0, 0.6, wy); }
     // training dummies: post + cross arm (the straw body wobbles: js/onfoot/battle.js), solid
     for (const d of DUMMIES) { const [x, z] = T(d.lx, d.lz); W(k, cyl(0.1, 0.12, 2.0, 6), WOOD_D, 2, M(x, y + 1.0, z)); W(k, box(0.3, 0.12, 0.3), WOOD_D, 2, M(x, y + 0.06, z), false); addCirc(x, z, 0.45); }
     // pennant poles at the pad edge
-    for (const a of [ga + 0.75, ga - 0.75, ga + Math.PI]) { const [x, z] = T(...pitAt(a, P.pad - 0.6)); W(k, cyl(0.07, 0.09, 6, 6), WOOD_D, 2, M(x, y + 3, z)); W(k, box(0.04, 0.9, 1.4), 0xd8322f, 0, M(x, y + 5.4, z + 0.7, yaw0), false); addCirc(x, z, 0.15); }
+    for (const a of (COLISEUM_ON ? [ga + 1.5, ga - 1.5, ga + Math.PI] : [ga + 0.75, ga - 0.75, ga + Math.PI])) { const [x, z] = T(...pitAt(a, P.pad - 0.6)); W(k, cyl(0.07, 0.09, 6, 6), WOOD_D, 2, M(x, y + 3, z)); W(k, box(0.04, 0.9, 1.4), 0xd8322f, 0, M(x, y + 5.4, z + 0.7, yaw0), false); addCirc(x, z, 0.15); }
   }
 }

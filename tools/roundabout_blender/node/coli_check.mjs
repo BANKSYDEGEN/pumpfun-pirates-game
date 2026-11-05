@@ -35,6 +35,16 @@ const fish={on:!!C.FISH_STAIR};if(C.FISH_STAIR&&C.COLISEUM_ON){const FS=C.FISH_S
   const a=C.fishAt(s-.05),b=C.fishAt(s+.05),l=Math.hypot(b[0]-a[0],b[1]-a[1]);for(const off of [-2.6,2.6]){const [ex,ez]=CO.t2w(lx-(b[1]-a[1])/l*off,lz+(b[0]-a[0])/l*off);if(F.hitCollider(ex,ez,.45))fe.push({s:+s.toFixed(1),off});}}
  const [sx,sz]=CO.t2w(...C.fishAt(0)),[ex,ez]=CO.t2w(...C.fishAt(FS.length));
  Object.assign(fish,{length:FS.length,maxErr:mE,maxStep:mS,poke,hits:fh.slice(0,8),edgeHits:fe.slice(0,8),startY:ga(sx,sz),endY:ga(ex,ez),gate:C.FISH_GATE});}
-const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,interiors,exteriorSummary,exterior,samples};
+// [v300] wings inside the inner circle: every collider (walls, piers, backstop, rails, targets, cover, benches, torches, pennants, dummies)
+// near the range / pit lies inside the kerb ellipse shrunk 1.2 m (rx 17.6, rz 72.5); and a 96-point sweep of the pink ring walk (offset 5.6) is clear.
+const wings={n:0,out:[],ring:[]};if(C.COLISEUM_ON){const K=(lx,lz)=>((lx-E.cx)/17.6)**2+((lz-E.cz)/72.5)**2;const R0=BA.RANGE,P0=BA.PIT;
+ const near=(lx,lz)=>(lx>R0.lx0-4&&lx<R0.lx1+4&&lz>R0.lz0-4&&lz<R0.lz1+4)||Math.hypot(lx-P0.lx,lz-P0.lz)<P0.pad+2;
+ for(const o of F.MAP_BOXES()){const [lx,lz]=CO.w2t(o.x,o.z);if(!near(lx,lz))continue;wings.n++;for(const [u,v] of [[1,1],[1,-1],[-1,1],[-1,-1]]){const dx=u*o.hx,dz=v*o.hz,x=o.x+dx*o.c+dz*o.s,z=o.z-dx*o.s+dz*o.c,[a,b]=CO.w2t(x,z);if(K(a,b)>1){wings.out.push({t:'box',lx:+lx.toFixed(2),lz:+lz.toFixed(2),k:+K(a,b).toFixed(3)});break;}}}
+ for(const o of F.MAP_CIRCS()){const [lx,lz]=CO.w2t(o.x,o.z);if(!near(lx,lz))continue;wings.n++;const r=o.r,k=Math.max(K(lx+r,lz),K(lx-r,lz),K(lx,lz+r),K(lx,lz-r));if(k>1)wings.out.push({t:'circ',lx:+lx.toFixed(2),lz:+lz.toFixed(2),k:+k.toFixed(3)});}
+ wings.spawnHits=[];const sp=[];for(let t=-1;t<=1;t+=.25){sp.push([R0.lx1-5+t*1.5,R0.lz0+5],[R0.divider+4+t*2,R0.lz1-2.5],[R0.gate[0]+t*2,R0.lz1-2.5]);for(const b of [0,Math.PI/2,-Math.PI/2])sp.push(BA.pitAt(P0.gateA+b+t*0.3,P0.r-2.2));}
+ wings.gateHits=[];for(let t=-3;t<=3;t+=.25){for(const [lx,lz] of [[R0.gate[0],R0.lz1+t],BA.pitAt(P0.gateA,P0.r+t)])if(F.hitCollider(...CO.t2w(lx,lz),.45))wings.gateHits.push([+lx.toFixed(2),+lz.toFixed(2)]);}
+ for(const [lx,lz] of sp)if(F.hitCollider(...CO.t2w(lx,lz),.45))wings.spawnHits.push([+lx.toFixed(2),+lz.toFixed(2)]);wings.spawns=sp.length;
+ for(let i=0;i<96;i++){const a=i/96*2*Math.PI,lx=E.cx+Math.cos(a)*(E.rx-5.6),lz=E.cz+Math.sin(a)*(E.rz-5.6);if(F.hitCollider(...CO.t2w(lx,lz),.45))wings.ring.push({i,lx:+lx.toFixed(1),lz:+lz.toFixed(1)});}}
+const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,wings,range:BA.RANGE,pit:BA.PIT,interiors,exteriorSummary,exterior,samples};
 if(process.env.COLI_REPORT) writeFileSync(process.env.COLI_REPORT,JSON.stringify(result,null,2));
 console.log(JSON.stringify({...result,samples:undefined,exterior:undefined,hits:hits.slice(0,8)}));
