@@ -15,9 +15,9 @@ export const FOOT = { lx0: 34, lx1: 96, lz0: -208, lz1: -44, y: 9.2, feather: 8,
 // Main entrance (remove stall_red/blue): between #36/#37 on east Hill Street
 export const MAIN_GATE = { lx: 34, lz: -115, w: 9, d: 12 };
 // Castle exit: arched gate → ≥4 m near-level stone ramp to castle approach (avoids LEG1 x=-434 / fort wall)
-export const CASTLE_GATE = { lx: 38, lz: -205, w: 4.5 };
+export const CASTLE_GATE = { lx: 51.6, lz: -200, w: 6 }; // [Timothy v273] on the shell ring (was lx 38 lz -205: off the ring, no opening)
 export const CASTLE_JOIN = { lx: 46, lz: -210 }; // joins approach below castle
-export const CASTLE_RAMP_HW = 2.25;
+export const CASTLE_RAMP_HW = 3.2; // [Timothy v273] wide stone stair (BANKSY: clean wide stair)
 // Cannon Hill / Cliff Battery exit (seaward-east)
 export const BATTERY_GATE = { lx: 94, lz: -120, w: 4.5 };
 // Empty rentable stores (next free numbers #45 / #46). #45 south of #20 = 1 storey, roof ≤ 2.8 m.
@@ -74,129 +74,104 @@ export function clearAt(lx, lz) {
   return 0;
 }
 
-// Intact Roman-style shell: elliptical ring of arches, 3 tiers, full walls, clean stone. Merged into coast kit.
+// [Timothy v273] plaza-quality art pass: intact Roman shell in dressed stone (look layer 11, same as the plaza / fort), true round
+// arches on every tier, attic + crenellated parapet, continuous cobbled ring walk, stepped seating podium, sand arena floor,
+// arched gates, a wide stepped stair to the castle. Colliders: outer wall + podium + gate piers only (arena floor / stair / ring walk open).
 export function buildArt(o) {
   if (!COLISEUM_ON) return;
   const { k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o;
-  const STONE = C.STONE || 0xb9a990, STONE_D = C.STONE_D || 0x8a7a66, WOOD = C.WOOD || 0xb06a36, WOOD_D = C.WOOD_D || 0x7b4524;
+  const ST = 0xc4b8a2, ST_L = 0xd3c8b3, ST_D = 0x8f8474, SAND = 0xd4bc8c, COB = 0xa79c8a, WOOD_D = C.WOOD_D || 0x6b4527;
+  const DS = 11, CB = 10, SA = 0; // look layers: dressed stone, cobbles, sand
   const F0 = FOOT, cx = (F0.lx0 + F0.lx1) / 2, cz = (F0.lz0 + F0.lz1) / 2;
   const rx = (F0.lx1 - F0.lx0) / 2, rz = (F0.lz1 - F0.lz0) / 2;
-  const y0 = F0.y, wallH = 11.5, tierH = 3.6, archN = 48;
+  const y0 = F0.y, tierH = 3.6, N = 48, wt = 1.6, Y0W = CO.t2wYaw(0);
+  const P = (a, off = 0) => T(cx + Math.cos(a) * (rx - off), cz + Math.sin(a) * (rz - off));
+  const seg = (i, off = 0) => { const a0 = i / N * 2 * Math.PI, a1 = (i + 1) / N * 2 * Math.PI, am = (a0 + a1) / 2;
+    const [x0, z0] = P(a0, off), [x1, z1] = P(a1, off), [xm, zm] = P(am, off);
+    return { a0, am, x0, z0, xm, zm, span: Math.hypot(x1 - x0, z1 - z0), yaw: Math.atan2(-(z1 - z0), x1 - x0) }; };
+  const gateHit = (i) => { const am = (i + 0.5) / N * 2 * Math.PI, lx = cx + Math.cos(am) * rx, lz = cz + Math.sin(am) * rz;
+    for (const g of [MAIN_GATE, CASTLE_GATE, BATTERY_GATE]) if (Math.hypot(lx - g.lx, lz - g.lz) < Math.max(g.w, 5.5)) return g; return null; };
+  const archG = (r, tube) => new THREE.TorusGeometry(r, tube, 4, 10, Math.PI);
+  const arch = (x, y, z, yaw, r, tube = 0.28, depth = 1) => { // archivolt ring + keystone, standing in the wall plane
+    const g = archG(r, tube); g.scale(1, 1, depth / tube / 2); W(k, g, ST_L, DS, M(x, y, z, yaw), false);
+    W(k, box(0.5, 0.7, depth + 0.1), ST_L, DS, M(x, y + r + 0.15, z, yaw), false); };
 
-  // Arena floor pad (sand)
-  {
-    const [x, z] = T(cx, cz), y = H(x, z);
-    W(k, new THREE.CylinderGeometry(Math.min(rx, rz) - F0.wall - F0.walk - 1, Math.min(rx, rz) - F0.wall - F0.walk - 1, 0.35, 32), 0xc2a87a, 3, M(x, y + 0.1, z), false);
-    addCirc(x, z, Math.min(rx, rz) - F0.wall - F0.walk);
+  // sand arena floor (ellipse, open) + low kerb where the ring walk meets it
+  { const [x, z] = T(cx, cz), g = new THREE.CylinderGeometry(1, 1, 0.2, 40); g.scale(rx - 8.2, 1, rz - 8.2);
+    W(k, g, SAND, SA, M(x, y0 + 0.06, z, Y0W), false); }
+  for (let i = 0; i < N; i++) { const s = seg(i, 8.1); W(k, box(s.span * 1.04, 0.22, 0.5), ST_D, DS, M(s.xm, y0 + 0.1, s.zm, s.yaw), false); }
+
+  // continuous cobbled ring walk (pink) between the podium and the arena
+  for (let i = 0; i < N; i++) { const s = seg(i, 5.6); W(k, box(s.span * 1.06, 0.16, 4.6), COB, CB, M(s.xm, y0 + 0.07, s.zm, s.yaw), false); }
+
+  // seating podium + stepped cavea against the shell (solid stone, colliding front)
+  for (let i = 0; i < N; i++) {
+    if (gateHit(i)) continue;
+    for (let r = 0; r < 4; r++) { const s = seg(i, 3.3 - r * 0.6), h = 1.2 + r * 1.1;
+      W(k, box(s.span * 1.05, h, 0.7), r % 2 ? ST : ST_L, DS, M(s.xm, y0 + h / 2, s.zm, s.yaw), r === 0); }
+    const s = seg(i, 3.1); addBox(s.xm, s.zm, s.span * 1.02, 1.0, s.yaw);
+    if (i % 3 === 0) { const t = seg(i, 3.9); torchPost?.(k, F, t.xm, y0, t.zm); addCirc(t.xm, t.zm, 0.25); }
   }
 
-  // Outer wall + tiered arcades (instanced arch rhythm via repeated kit pieces → merged)
-  for (let ti = 0; ti < F0.tiers; ti++) {
-    const ty = y0 + ti * tierH;
-    for (let i = 0; i < archN; i++) {
-      const a0 = (i / archN) * Math.PI * 2, a1 = ((i + 1) / archN) * Math.PI * 2;
-      const am = (a0 + a1) / 2;
-      const lx0 = cx + Math.cos(a0) * rx, lz0 = cz + Math.sin(a0) * rz;
-      const lx1 = cx + Math.cos(a1) * rx, lz1 = cz + Math.sin(a1) * rz;
-      const lxm = cx + Math.cos(am) * rx, lzm = cz + Math.sin(am) * rz;
-      // skip main / castle / battery gate openings on ground tier
-      const skipMain = ti === 0 && Math.hypot(lxm - MAIN_GATE.lx, lzm - MAIN_GATE.lz) < MAIN_GATE.w * 0.85;
-      const skipCastle = ti === 0 && Math.hypot(lxm - CASTLE_GATE.lx, lzm - CASTLE_GATE.lz) < CASTLE_GATE.w;
-      const skipBat = ti === 0 && Math.hypot(lxm - BATTERY_GATE.lx, lzm - BATTERY_GATE.lz) < BATTERY_GATE.w;
-      if (skipMain || skipCastle || skipBat) continue;
-      const [x0, z0] = T(lx0, lz0), [x1, z1] = T(lx1, lz1), [xm, zm] = T(lxm, lzm);
-      const yaw = Math.atan2(x1 - x0, z1 - z0);
-      const span = Math.hypot(x1 - x0, z1 - z0);
-      // pier
-      W(k, box(1.6, tierH - 0.1, 1.6), STONE_D, 3, M(x0, ty + tierH / 2, z0));
-      addBox(x0, z0, 1.7, 1.7, yaw);
-      // arch lintel / vault hint
-      W(k, box(span * 0.92, 0.45, 1.0), STONE, 3, M(xm, ty + tierH - 0.35, zm, yaw), false);
-      if (ti === 0) {
-        // solid lower wall between piers (intact, not ruined)
-        W(k, box(span * 0.85, 3.2, 1.15), STONE, 3, M(xm, ty + 1.65, zm, yaw));
-        addBox(xm, zm, 1.2, span * 0.85, yaw);
-      } else {
-        // open arcade arch (clean stone)
-        W(k, box(0.35, tierH - 0.8, 0.85), STONE, 3, M(xm - Math.sin(yaw) * span * 0.28, ty + (tierH - 0.8) / 2 + 0.3, zm - Math.cos(yaw) * span * 0.28, yaw), false);
-        W(k, box(0.35, tierH - 0.8, 0.85), STONE, 3, M(xm + Math.sin(yaw) * span * 0.28, ty + (tierH - 0.8) / 2 + 0.3, zm + Math.cos(yaw) * span * 0.28, yaw), false);
+  // outer shell: 3 arcaded tiers + attic + parapet with merlons
+  for (let i = 0; i < N; i++) {
+    const s = seg(i), g = gateHit(i), [px, pz] = [s.x0, s.z0];
+    const totH = F0.tiers * tierH + 2.6;
+    // pier (full height, engaged half-column face)
+    W(k, box(1.5, totH, wt + 0.3), ST, DS, M(px, y0 + totH / 2, pz, s.yaw));
+    { const [wx, wz] = T(cx, cz), dx = px - wx, dz = pz - wz, dl = Math.hypot(dx, dz) || 1; W(k, cyl(0.42, 0.46, totH - 0.4, 8), ST_L, DS, M(px + dx / dl * 0.95, y0 + totH / 2, pz + dz / dl * 0.95), false); }
+    addBox(px, pz, 1.6, wt + 0.4, s.yaw);
+    const open = s.span - 1.5, r = Math.min(open / 2, 1.5);
+    for (let ti = 0; ti < F0.tiers; ti++) {
+      const ty = y0 + ti * tierH, spring = ty + tierH - 0.75 - r;
+      if (ti === 0 && g) continue; // gate bay handled below
+      // spandrel above the arch + string course
+      W(k, box(open, tierH - (spring - ty) - r, wt), ST, DS, M(s.xm, (spring + r + ty + tierH) / 2, s.zm, s.yaw), false);
+      W(k, box(s.span * 1.02, 0.32, wt + 0.5), ST_D, DS, M(s.xm, ty + tierH - 0.1, s.zm, s.yaw), false);
+      arch(s.xm, spring, s.zm, s.yaw, r, 0.22, wt + 0.1);
+      if (ti === 0) { // intact ground storey: recessed infill wall behind the arch (blocks), dark doorway reads as an arch
+        W(k, box(open, spring + r - ty, 0.5), ST_D, DS, M(s.xm + Math.cos(s.am) * -0.0, (ty + spring + r) / 2, s.zm, s.yaw), false);
+        addBox(s.xm, s.zm, s.span, wt, s.yaw);
       }
     }
-  }
-  // Cornice / top rail all the way round (intact crown)
-  for (let i = 0; i < archN; i++) {
-    const a0 = (i / archN) * Math.PI * 2, a1 = ((i + 1) / archN) * Math.PI * 2, am = (a0 + a1) / 2;
-    const lxm = cx + Math.cos(am) * (rx + 0.2), lzm = cz + Math.sin(am) * (rz + 0.2);
-    const [xm, zm] = T(lxm, lzm);
-    const yaw = am + Math.PI / 2;
-    const span = Math.hypot(Math.cos(a1) * rx - Math.cos(a0) * rx, Math.sin(a1) * rz - Math.sin(a0) * rz);
-    W(k, box(span * 0.98, 0.55, 1.35), STONE_D, 3, M(xm, y0 + F0.tiers * tierH + 0.2, zm, yaw), false);
+    // attic (solid) + cornice + merlons
+    const ay = y0 + F0.tiers * tierH;
+    W(k, box(s.span * 1.02, 2.2, wt), ST, DS, M(s.xm, ay + 1.1, s.zm, s.yaw), false);
+    W(k, box(s.span * 1.04, 0.4, wt + 0.7), ST_D, DS, M(s.xm, ay + 2.3, s.zm, s.yaw), false);
+    for (const f of [-0.25, 0.25]) W(k, box(s.span * 0.28, 0.9, wt), ST_L, DS, M(s.xm + Math.cos(s.yaw) * s.span * f, ay + 2.95, s.zm - Math.sin(s.yaw) * s.span * f, s.yaw), false);
   }
 
-  // Inner walkway ring (concourse)
-  const walkR = Math.min(rx, rz) - F0.wall - F0.walk / 2;
-  for (let i = 0; i < archN; i++) {
-    const a = (i / archN) * Math.PI * 2;
-    const lx = cx + Math.cos(a) * walkR, lz = cz + Math.sin(a) * walkR;
-    const [x, z] = T(lx, lz), y = H(x, z);
-    W(k, box(F0.walk, 0.25, 3.2), 0xa89878, 3, M(x, y + 0.05, z, a), false);
-    if (i % 2 === 0) { torchPost?.(k, F, x, y, z); addCirc(x, z, 0.25); }
+  // arched gate bays (wide, clean) on the ring: main (Hill Street), castle, battery
+  const gateArt = (g, label) => {
+    const lx = g.lx, lz = g.lz, a = Math.atan2((lz - cz) / rz, (lx - cx) / rx);
+    const [x, z] = P(a), [x2, z2] = P(a + 0.01), yaw = Math.atan2(-(z2 - z), x2 - x), w = g.w, ca = Math.cos(yaw), sa = Math.sin(yaw);
+    const gh = 5.2;
+    for (const sd of [-1, 1]) { const px = x + ca * sd * (w / 2 + 0.9), pz = z - sa * sd * (w / 2 + 0.9);
+      W(k, box(1.8, gh, wt + 0.8), ST, DS, M(px, y0 + gh / 2, pz, yaw)); addBox(px, pz, 1.8, wt + 0.8, yaw); }
+    arch(x, y0 + gh, z, yaw, w / 2 + 0.2, 0.4, wt + 0.8);
+    W(k, box(w + 3.6, F0.tiers * tierH - gh - w / 2 - 0.4, wt), ST, DS, M(x, (y0 + gh + w / 2 + 0.4 + y0 + F0.tiers * tierH) / 2, z, yaw), false);
+    if (label) W(k, box(Math.min(w, 5), 0.9, 0.2), WOOD_D, 2, M(x - Math.cos(a) * 0, y0 + F0.tiers * tierH - 1.2, z, yaw), false);
+  };
+  gateArt(MAIN_GATE, true); gateArt(CASTLE_GATE, false); gateArt(BATTERY_GATE, false);
+
+  // castle exit: wide stepped stair gate → approach, cheek walls each side (stair itself open)
+  { const g = CASTLE_GATE, j = CASTLE_JOIN, [gx, gz] = T(g.lx, g.lz), [jx, jz] = T(j.lx, j.lz);
+    const L = Math.hypot(jx - gx, jz - gz), yaw = Math.atan2(-(jz - gz), jx - gx), dirx = (jx - gx) / L, dirz = (jz - gz) / L;
+    const n = Math.max(6, Math.round(L / 0.9)), hw = CASTLE_RAMP_HW;
+    for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = gx + (jx - gx) * t, z = gz + (jz - gz) * t, y = H(x, z);
+      W(k, box(L / n + 0.05, 0.9, hw * 2), i % 2 ? ST : ST_L, DS, M(x, y - 0.4, z, yaw + Math.PI / 2 - Math.PI / 2 + 0), false); }
+    for (const sd of [-1, 1]) for (let i = 0; i < n; i++) { const t = (i + 0.5) / n;
+      const x = gx + (jx - gx) * t - dirz * sd * (hw + 0.4), z = gz + (jz - gz) * t + dirx * sd * (hw + 0.4), y = H(x, z);
+      W(k, box(L / n + 0.06, 1.3, 0.6), ST_D, DS, M(x, y + 0.2, z, yaw), false); addBox(x, z, L / n, 0.6, yaw); }
   }
 
-  // Main gate throat (Hill Street)
-  {
-    const g = MAIN_GATE, [x, z] = T(g.lx, g.lz), y = H(x, z), yaw = CO.t2wYaw(0);
-    for (const s of [-1, 1]) {
-      const [px, pz] = T(g.lx + s * (g.w / 2 + 0.8), g.lz);
-      W(k, box(2.2, 7.5, 2.2), STONE_D, 3, M(px, y + 3.7, pz));
-      addBox(px, pz, 2.4, 2.4, yaw);
-    }
-    W(k, box(g.w + 2.5, 1.4, 2.0), STONE, 3, M(x, y + 7.2, z, yaw));
-    // signboard
-    W(k, box(4.5, 1.0, 0.2), WOOD_D, 2, M(x, y + 5.6, z + 1.3, yaw), false);
-  }
-
-  // Castle exit arched gate + ramp deck
-  {
-    const g = CASTLE_GATE, j = CASTLE_JOIN;
-    const [gx, gz] = T(g.lx, g.lz), gy = H(gx, gz);
-    for (const s of [-1, 1]) {
-      const [px, pz] = T(g.lx + s * (g.w / 2 + 0.7), g.lz);
-      W(k, box(1.8, 6.5, 1.8), STONE_D, 3, M(px, gy + 3.2, pz));
-      addBox(px, pz, 2.0, 2.0, 0);
-    }
-    W(k, box(g.w + 1.6, 1.2, 1.6), STONE, 3, M(gx, gy + 6.2, gz));
-    // ramp slabs toward join
-    const steps = 6;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const lx = g.lx + (j.lx - g.lx) * t, lz = g.lz + (j.lz - g.lz) * t;
-      const [x, z] = T(lx, lz), y = H(x, z);
-      W(k, box(CASTLE_RAMP_HW * 2, 0.3, 2.4), STONE, 3, M(x, y + 0.08, z, Math.atan2(j.lx - g.lx, j.lz - g.lz)), false);
-      addBox(x, z, CASTLE_RAMP_HW * 2, 2.2, Math.atan2(j.lx - g.lx, j.lz - g.lz));
-    }
-  }
-
-  // Cannon Hill / battery exit
-  {
-    const g = BATTERY_GATE, [x, z] = T(g.lx, g.lz), y = H(x, z);
-    for (const s of [-1, 1]) {
-      const [px, pz] = T(g.lx, g.lz + s * (g.w / 2 + 0.7));
-      W(k, box(1.8, 5.5, 1.8), STONE_D, 3, M(px, y + 2.7, pz));
-      addBox(px, pz, 2.0, 2.0, 0);
-    }
-    W(k, box(1.6, 1.0, g.w + 1.6), STONE, 3, M(x, y + 5.2, z));
-  }
-
-  // New empty store shells
+  // new empty store shells (dressed stone, cornice); #45 stays one storey under 2.8 m so the Treasure sign reads
   for (const s of NEW_STORES) {
     const [x, z] = T(s.lx, s.lz), y = H(x, z), yaw = CO.t2wYaw(s.yaw);
     const h = s.storeys === 1 ? Math.min(2.75, s.maxRoof || 2.8) : 6.2;
-    W(k, box(s.w, h, s.d), STONE, 3, M(x, y + h / 2, z, yaw));
-    W(k, box(s.w + 0.4, 0.35, s.d + 0.4), STONE_D, 3, M(x, y + h + 0.1, z, yaw), false); // roof slab (treasure-side stays under 2.8)
-    // open door gap collider: solid footprint with a throat
+    W(k, box(s.w, h - 0.3, s.d), ST, DS, M(x, y + (h - 0.3) / 2, z, yaw));
+    W(k, box(s.w + 0.5, 0.3, s.d + 0.5), ST_D, DS, M(x, y + h - 0.15, z, yaw), false);
+    W(k, box(s.w + 0.2, 0.5, s.d + 0.2), ST_D, DS, M(x, y + 0.25, z, yaw), false);
     addBox(x, z, s.w + 0.4, s.d + 0.4, yaw);
-    const [dx, dz] = T(s.lx + Math.sin(s.yaw) * (s.d / 2 + 0.6), s.lz + Math.cos(s.yaw) * (s.d / 2 + 0.6));
-    // interact left for future rental; no shop content yet
   }
 }
