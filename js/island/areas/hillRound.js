@@ -254,7 +254,7 @@ const MC = [-408, -44];
 // [castle-access] BANKSY 10:41 PM "cant get to castle": the skip only covered leg 1 (x < -427); the 33.4 m ring ran straight across
 // leg 2 (z -44, x -431.5 -> the gate at -421) just below the gate mouth, an invisible wall. Leg 2 + the gate mouth are skipped too.
 // BANKSY castle last-step: 2D mound rings below the fort blocked its y=42 wall-walk.
-const moundSkip = (x, z) => (x > -440 && x < -427 && z < -38) || (x > -440 && x < -418 && Math.abs(z + 44) < 4.5) || (z < PZ1 + 2 && x < PX1 + 3) || (x > -422 && x < -394 && z > -58 && z < -29);
+const moundSkip = (x, z) => (x > -440 && x < -427 && z < -38) || (x > -440 && x < -418 && Math.abs(z + 44) < 4.5) || (z < PZ1 + 2 && x < PX1 + 3) || (x > -426 && x < -390 && z > -62 && z < -26); // [fort-upper] full fort + gatehouse + 4 bastions
 export function moundRings(H) { if (MOUND) return MOUND; MOUND = []; if (!RBB_ON) return MOUND;
   for (const lvl of [21, 27.2, 33.4]) { let prev = null, first = null;
     for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2, ux = Math.cos(a), uz = Math.sin(a); let pt = null;
