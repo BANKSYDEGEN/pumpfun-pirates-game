@@ -15,13 +15,17 @@ export function createBerthSigns({ scene, berths, low }) {
   }
   // the berth's post: plazaTown puts it at (ashore lx, berth lz - 18); bollards sit at lz -16 / +16 on the same line
   function post(b) { const [p, q] = b.bollards || [], ax = b.ashore.x - b.x, az = b.ashore.z - b.z, n = Math.hypot(ax, az) || 1;
-    if (!p || !q || !/^B\d+$/.test(b.id)) return null; return { x: p[0] + (p[0] - q[0]) / 16, z: p[1] + (p[1] - q[1]) / 16, y: (b.ashore.y ?? 0) + 1.9, nx: ax / n, nz: az / n }; }
+    if (!p || !q || !/^B\d+$/.test(b.id)) return null;
+    // [v243] the baked board (plazaTown) faces ACROSS the jetty (side * PI/2), i.e. perpendicular to the bollard line; the v238 faces
+    // faced along the line (berth -> ashore), so they sat edge-on inside the board and the name never showed
+    const dx = p[0] - q[0], dz = p[1] - q[1], dl = Math.hypot(dx, dz) || 1; let nx = -dz / dl, nz = dx / dl; if (nx * ax + nz * az < 0) { nx = -nx; nz = -nz; }
+    return { x: p[0] + dx / 16, z: p[1] + dz / 16, y: (b.ashore.y ?? 0) + 1.9, nx, nz }; }
   function make(b) {
     const P = post(b); if (!P) return null;
     const c = document.createElement('canvas'); c.width = low ? 256 : 512; c.height = c.width / 2;
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; const mat = new THREE.MeshBasicMaterial({ map: tex, fog: false, toneMapped: false });
     const m = new THREE.Group(); m.name = 'berth_sign_' + b.id; m.position.set(P.x, P.y, P.z); m.rotation.y = Math.atan2(P.nx, P.nz);
-    for (const s of [1, -1]) { const f = new THREE.Mesh(geo, mat); f.position.z = s * 0.08; if (s < 0) f.rotation.y = Math.PI; m.add(f); } // a face just proud of each side of the board
+    for (const s of [1, -1]) { const f = new THREE.Mesh(geo, mat); f.position.z = s * 0.11; if (s < 0) f.rotation.y = Math.PI; m.add(f); } // a face just proud of each side of the board
     scene.add(m); return { m, mat, c, tex, name: '' };
   }
   function drop(id) { const sg = signs.get(id); if (!sg) return; sg.m.removeFromParent(); sg.mat.dispose(); sg.tex.dispose(); signs.delete(id); }
