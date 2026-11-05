@@ -17,7 +17,7 @@ test('fish gate opens the plaza-end wall, east of the FISH MARKET, on the shell'
   const g=ON.fish.gate; assert.ok(g.lz>-70 && g.lz<-55); assert.ok(g.w>=7);
 });
 test('south (+lx) end pulled in: shell edge at lx 88, battery gate on it, wall still solid',()=>{
-  assert.equal(ON.ell.cx+ON.ell.rx,88); assert.ok(Math.abs(ON.battery.lx-87.93)<0.05,`battery ${ON.battery.lx}`);
+  assert.equal(ON.ell.cx+ON.ell.rx,88); assert.ok(Math.abs(ON.battery.lx-87.99)<0.05,`battery ${ON.battery.lx}`);
   assert.equal(ON.wallSolid,true); assert.deepEqual(ON.batteryHits,[]); assert.equal(ON.exteriorSummary.unexplained,0);
 });
 test('musket range + sword pit: stone walls on the coliseum, fence / ropes when &coliseum=0; benches for spectators',()=>{
@@ -36,4 +36,23 @@ test('wing spawns + gates are clear; floor pads match the wings',()=>{
   const s=src('js/island/coliseum.js'),R=ON.range,P=ON.pit;
   assert.ok(s.includes(`T(${(R.lx0+R.lx1)/2}, ${(R.lz0+R.lz1)/2}); W(k, box(${R.lx1-R.lx0-1}, 0.08, ${R.lz1-R.lz0-1})`),'yellow pad = RANGE inset 0.5');
   assert.ok(s.includes(`T(${P.lx}, ${P.lz}); W(k, new THREE.CylinderGeometry(${+(P.r+0.6).toFixed(1)}, ${+(P.r+0.6).toFixed(1)}`),'purple pad = PIT r + 0.6');
+});
+// [Timothy v305] BANKSY coli-round: rounded-oval ends + vaulted MAIN_GATE vomitorium
+test('rounded oval: tips pulled off Fish Market / castle, p>2, wings still inside kerb, ring walk clear', () => {
+  assert.equal(ON.ell.p, 2.7); assert.equal(ON.ell.rx, 27); assert.equal(ON.ell.rz, 74);
+  assert.equal(ON.tips.south, -52); assert.equal(ON.tips.north, -200);
+  assert.ok(ON.tips.fishClear >= 8, `fish clearance ${ON.tips.fishClear}`);
+  const w = ON.wings; assert.deepEqual(w.out, []); assert.deepEqual(w.ring, []);
+});
+test('all four entrances walk clear end-to-end (stuck=0, hits=0)', () => {
+  for (const id of ['main', 'fish', 'castle', 'battery']) {
+    const w = ON.walks[id]; assert.ok(w, id); assert.deepEqual(w.hits, [], `${id} hits`); assert.equal(w.stuck, 0, `${id} stuck`); assert.ok(w.n > 10, id);
+  }
+});
+test('MAIN_GATE gallery is vaulted / pilastered (vomitorium art present in source)', () => {
+  const s = src('js/island/coliseum.js');
+  assert.match(s, /vomitorium|triumphal entrance gallery/i);
+  assert.match(s, /transverse Roman rib arch|coffered vault/i);
+  assert.match(s, /blind arch|pilaster/i);
+  assert.match(s, /contourAt|ellF|baySeg/);
 });
