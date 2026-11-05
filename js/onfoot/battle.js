@@ -200,23 +200,37 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // st: { zone, sword, act: { kind, t }, down, recoil }  (one per pirate: you + each peer)
   function rig(pirateObj) { const fig = pirateObj.children.find(c => c.name === 'pirate-v4'); return { fig, v4: null, bones: null, sword: null, swordId: null, musket: null, musketId: null, st: { zone: 0, w: 0, act: null, down: 0, recoil: 0 } }; }
   const _dir = new THREE.Vector3(), _dir2 = new THREE.Vector3(), _blade = new THREE.Vector3(), _rootQ = new THREE.Quaternion();
-  function hookBody(R) { // (re)attach to the pirate's current v5 body: wrap its clip update so our arm pose runs right after the clip
+  // [Emerly musket-arm] bone names: GLTFLoader strips '.' (upperarm.R -> upperarmR); also accept dotted / any punctuation (same as swimPose).
+  // &musketarm=0 restores the original lookup, attachment and arm pose.
+  const MUSKET_ARM_ON = typeof location === 'undefined' || !/[?&]musketarm=0(&|$)/.test(location.search || '');
+  function boneByName(sc, want) {
+    const w = want.replace(/[^a-zA-Z]/g, ''); let hit = sc.getObjectByName(want) || sc.getObjectByName(want.replace(/([LR])$/, '.$1'));
+    if (hit) return hit;
+    sc.traverse((o) => { if (!hit && o.isBone && o.name.replace(/[^a-zA-Z]/g, '') === w) hit = o; });
+    return hit;
+  }
+  function hookBody(R) { // (re)attach to the pirate's current v5/v6 body: wrap its clip update so our arm pose runs right after the clip
     if (!R.fig && R.obj) R.fig = R.obj.children.find(c => c.name === 'pirate-v4'); // a peer's body can still be loading
     const v4 = R.fig?.userData?.v4; if (!v4 || v4 === R.v4) return !!v4;
-    R.v4 = v4; const sc = v4.scene, b = (n) => sc.getObjectByName(n); R.bones = { uR: b('upperarmR'), fR: b('forearmR'), uL: b('upperarmL'), fL: b('forearmL'), spine: b('spine') };
+    R.v4 = v4; const sc = v4.scene, b = MUSKET_ARM_ON ? (n) => boneByName(sc, n) : (n) => sc.getObjectByName(n);
+    R.bones = { uR: b('upperarmR'), fR: b('forearmR'), uL: b('upperarmL'), fL: b('forearmL'), spine: b('spine') };
     R.sword?.removeFromParent(); R.sword = null; R.swordId = null; R.musket?.removeFromParent(); R.musket = null;
     if (!v4.__btWrapped) { const u = v4.update.bind(v4); v4.update = (dt) => { u(dt); const f = v4.__btPose; if (f) try { f(); } catch (e) { if (!v4.__btErr) { v4.__btErr = 1; console.warn('[battle] pose', e); } } }; v4.__btWrapped = true; } // never break the clip
     v4.__btPose = () => pose(R); return true;
   }
   // [Emerly] 2-bone reach: upper arm + forearm (elbow out to the side + down) so the forearm's far end (hand) lands on a world point
-  const _gT = new THREE.Vector3(), _gS = new THREE.Vector3(), _gE = new THREE.Vector3(), _gD = new THREE.Vector3(), _gP = new THREE.Vector3(), _gA = new THREE.Vector3(), _gU = new THREE.Vector3(), _gF = new THREE.Vector3(), _gQ = new THREE.Quaternion();
-  function reachArm(uB, fB, target, side, k, roll) { if (!uB || !fB) return;
+  const _gT = new THREE.Vector3(), _gS = new THREE.Vector3(), _gE = new THREE.Vector3(), _gD = new THREE.Vector3(), _gP = new THREE.Vector3(), _gA = new THREE.Vector3(), _gU = new THREE.Vector3(), _gF = new THREE.Vector3(), _gQ = new THREE.Quaternion(), _mArm = new THREE.Matrix4();
+  function reachArm(uB, fB, target, side, k, roll) { if (!uB || !fB) return false;
     uB.updateWorldMatrix(true, false); fB.updateWorldMatrix(true, false); uB.getWorldPosition(_gS); fB.getWorldPosition(_gE);
-    const a = Math.max(0.05, _gS.distanceTo(_gE)), b = a * 1.12; _gD.copy(target).sub(_gS); const d0 = _gD.length(); if (d0 < 1e-4) return; _gD.divideScalar(d0); const d = Math.min(d0, (a + b) * 0.999);
+    const a = Math.max(0.05, _gS.distanceTo(_gE)), b = a * 1.12; _gD.copy(target).sub(_gS); const d0 = _gD.length(); if (d0 < 1e-4) return false; _gD.divideScalar(d0);
+    // [Emerly musket-arm] skip IK when the grip is far past the arm's reach (old parent/scale mismatch left grips ~0.35 m out on a ~0.25 m arm)
+    if (MUSKET_ARM_ON && d0 > (a + b) * 1.15) return false;
+    const d = Math.min(d0, (a + b) * 0.999);
     const A = Math.acos(Math.max(-1, Math.min(1, (a * a + d * d - b * b) / (2 * a * d))));
-    _gP.set(side * 0.6, -1, -0.2).applyQuaternion(_rootQ); _gA.crossVectors(_gD, _gP); if (_gA.lengthSq() < 1e-6) return; _gA.normalize();
+    _gP.set(side * 0.6, -1, -0.2).applyQuaternion(_rootQ); _gA.crossVectors(_gD, _gP); if (_gA.lengthSq() < 1e-6) return false; _gA.normalize();
     _gU.copy(_gD).applyAxisAngle(_gA, A); _gF.copy(_gS).addScaledVector(_gD, d).sub(_gE.copy(_gS).addScaledVector(_gU, a)).normalize();
-    _gQ.copy(_rootQ).invert(); aimBone(uB, _gU.applyQuaternion(_gQ), k, _rootQ); aimBone(fB, _gF.applyQuaternion(_gQ), k, _rootQ, roll); }
+    _gQ.copy(_rootQ).invert(); const axis = MUSKET_ARM_ON ? side : -1;
+    aimBone(uB, _gU.applyQuaternion(_gQ), k, _rootQ, null, axis); aimBone(fB, _gF.applyQuaternion(_gQ), k, _rootQ, roll, axis); return true; }
   function pose(R) {
     const st = R.st, B = R.bones; if (!B || st.w <= 0.001) return;
     R.fig.updateWorldMatrix(true, false); R.fig.getWorldQuaternion(_rootQ); const k = st.w;
@@ -232,11 +246,17 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       aimBone(L ? B.fL : B.fR, _dir2, k, _rootQ, _blade, ax);
     } else if (st.zone === Z_RANGE) {
       const gr = R.musket && weaponEmpty('musket', R.musketId, 'grip_r'), gl = R.musket && weaponEmpty('musket', R.musketId, 'grip_l');
-      if (gr && gl) { R.musket.updateWorldMatrix(true, false); // [Emerly] both hands on the model's grip_r / grip_l empties (2-bone reach)
-        reachArm(B.uR, B.fR, _gT.copy(gr).applyMatrix4(R.musket.matrixWorld), -1, k, v3(0, 1, 0)); reachArm(B.uL, B.fL, _gT.copy(gl).applyMatrix4(R.musket.matrixWorld), 1, k, null); }
-      else { const rc = st.recoil; _dir.copy(P_MUSKET.uR); _dir.y += rc * 0.25; _dir.normalize();
+      // Establish a safe shoulder pose before reachable grips refine it. Left bones point along +X, right bones along -X.
+      // With the fix disabled, retain the original grip-only path (including its early returns).
+      if (MUSKET_ARM_ON || !(gr && gl)) {
+        const rc = st.recoil; _dir.copy(P_MUSKET.uR); _dir.y += rc * 0.25; _dir.normalize();
         aimBone(B.uR, _dir, k, _rootQ); aimBone(B.fR, P_MUSKET.fR, k, _rootQ, v3(0, 1, 0));
-        aimBone(B.uL, P_MUSKET.uL, k, _rootQ); aimBone(B.fL, P_MUSKET.fL, k, _rootQ); }
+        const axis = MUSKET_ARM_ON ? 1 : -1;
+        aimBone(B.uL, P_MUSKET.uL, k, _rootQ, null, axis); aimBone(B.fL, P_MUSKET.fL, k, _rootQ, null, axis);
+      }
+      if (gr && gl) { R.musket.updateWorldMatrix(true, false);
+        reachArm(B.uR, B.fR, _gT.copy(gr).applyMatrix4(R.musket.matrixWorld), -1, k, v3(0, 1, 0));
+        reachArm(B.uL, B.fL, _gT.copy(gl).applyMatrix4(R.musket.matrixWorld), 1, k, null); }
     }
   }
   const ringGeo2 = new THREE.RingGeometry(0.62, 0.8, 28).rotateX(-Math.PI / 2), RING_COL = [0, 0xff3b30, 0x2f7bff];
@@ -252,8 +272,19 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       const fr = hd === 'L' ? R.bones.fL : R.bones.fR; fr.updateWorldMatrix(true, false); fr.getWorldScale(_s); const sc = 0.85 / Math.max(1e-3, _s.x);
       s.scale.setScalar(sc); s.position.set(handAxis(hd) * 0.15 / Math.max(1e-3, _s.x), 0, 0); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), BONE_PERP); fr.add(s); R.sword = s; R.swordId = swordId; }
     if (R.sword) R.sword.visible = wantSword;
-    if (wantMusket && (!R.musket || R.musketId !== musketId)) { R.musket?.removeFromParent(); const m = weaponMesh(musketGeo(musketId), shellMusket); m.scale.setScalar(0.7); R.fig.add(m); R.musket = m; R.musketId = musketId; }
-    if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil; R.musket.position.set(-0.13, 0.9 + rc * 0.04, 0.1 - rc * 0.07); R.musket.rotation.set(-0.04 - rc * 0.22, 0.04, 0); }
+    // [Emerly musket-arm] parent the musket to the SCALED body root (v4.root), not pirate-v4: pirate-v4's child p.root carries the
+    // height scale, so a gun on fig sat in bind metres while the arms lived in scaled metres → grips out of reach → T-pose sleeves.
+    if (wantMusket && (!R.musket || R.musketId !== musketId)) { R.musket?.removeFromParent(); const m = weaponMesh(musketGeo(musketId), shellMusket); m.scale.setScalar(0.7);
+      (MUSKET_ARM_ON && R.v4?.root ? R.v4.root : R.fig).add(m); R.musket = m; R.musketId = musketId; }
+    if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil;
+      if (MUSKET_ARM_ON && R.bones?.spine) {
+        // seat the stock at the right shoulder in the body root's local space (bind units, same as the scaled skeleton)
+        const sh = R.bones.uR; sh?.updateWorldMatrix(true, false);
+        const root = R.musket.parent; root.updateWorldMatrix(true, false); const inv = _mArm.copy(root.matrixWorld).invert();
+        if (sh) { sh.getWorldPosition(_gS); _gS.applyMatrix4(inv); R.musket.position.set(_gS.x * 0.55, _gS.y + 0.02 + rc * 0.04, Math.max(0.08, _gS.z + 0.12) - rc * 0.07); }
+        else R.musket.position.set(-0.13, 0.9 + rc * 0.04, 0.1 - rc * 0.07);
+        R.musket.rotation.set(-0.04 - rc * 0.22, 0.04, 0);
+      } else { R.musket.position.set(-0.13, 0.9 + rc * 0.04, 0.1 - rc * 0.07); R.musket.rotation.set(-0.04 - rc * 0.22, 0.04, 0); } }
   }
   function muzzleWorld(R, out) { if (!R.musket) return out.set(0, 0, 0); R.musket.updateWorldMatrix(true, false); return out.copy(musketMuzzle(R.musketId)).applyMatrix4(R.musket.matrixWorld); }
   function bladeTip(R, out) { if (!R.sword) return null; R.sword.updateWorldMatrix(true, false); const e = weaponEmpty('sword', R.swordId, 'tip'); return (e ? out.copy(e) : out.set(0, 0.8, 0)).applyMatrix4(R.sword.matrixWorld); } // [Emerly] the model's tip empty (rapier ~1.0 m)
