@@ -161,7 +161,8 @@ export async function createDock(ctx) {
       move: (x, y, act) => { const j = walker.w.joy; if (act && on && onFoot) { j.on = true; j.x = x; j.y = y; padJoy = true; } else if (padJoy) { padJoy = false; j.on = false; j.x = j.y = 0; } },
       look: (rx, ry, dt) => { if (!on || !onFoot) return; const t = battle?.tps; if (t?.on && t.padLook) { t.padLook(rx * PAD.aim * dt, ry * PAD.aim * dt); return; }
         const w = walker.w; w.camYaw -= rx * PAD.look[0] * dt; w.pitch = Math.min(1.1, Math.max(-0.35, w.pitch + ry * PAD.look[1] * dt)); w.look = performance.now(); },
-      camBehind: () => { if (on && onFoot) { walker.w.camYaw = walker.w.yaw; walker.w.look = 0; } } }); }
+      camBehind: () => { if (on && onFoot) { walker.w.camYaw = walker.w.yaw; walker.w.look = 0; } },
+      hasInvites: () => !!squadHall?.hasInvites?.(), openInvites: () => squadHall?.openInvites?.() }); } // [invite-discreet] VIEW → invite pill
   function openBoard() { document.documentElement.classList.add('dk-board'); ctx.pvp()?.harborUi?.(); }
   function closeBoard() { document.documentElement.classList.remove('dk-board'); }
 

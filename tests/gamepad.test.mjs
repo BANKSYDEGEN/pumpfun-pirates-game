@@ -61,7 +61,7 @@ test('the map: every mode has the standard layout BANKSY asked for', () => {
   assert.equal(MAP.foot[BTN.RT], 'attack'); assert.equal(MAP.foot[BTN.LT], '+ads'); assert.equal(MAP.foot[BTN.A], 'promptA|jump');
   assert.equal(MAP.ui[BTN.A], 'click'); assert.equal(MAP.ui[BTN.B], 'back'); assert.equal(MAP.ui[BTN.LB], 'tabPrev'); assert.equal(MAP.ui[BTN.RB], 'tabNext');
   assert.equal(MAP.spec[BTN.LB], 'specPrev'); assert.equal(MAP.spec[BTN.RB], 'specNext');
-  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump']);
+  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite']); // [invite-discreet] VIEW → openInvites (no key)
   for (const m of ['sea', 'foot', 'spec']) for (const a of Object.values(MAP[m])) for (const n of a.split('|').map(x => x.replace(/^\+/, '')))
     assert.ok(special.has(n) || keyFor(n, binds), `${m}: ${n} sends nothing`);
 });
@@ -71,7 +71,29 @@ test('resolve: the prompt wins only when one is up; area / musket / harbor actio
   assert.equal(resolve('attack', { area: false }), null); assert.equal(resolve('attack', { area: true }), 'attack');
   assert.equal(resolve('+ads', { tps: true }), '+ads'); assert.equal(resolve('+ads', {}), null);
   assert.equal(resolve('swap|camBehind', { tps: false }), 'camBehind'); assert.equal(resolve('map', { harbor: false }), null); assert.equal(resolve('inventory', { harbor: true }), 'inventory');
+  // [invite-discreet] VIEW = invite when a pill is pending, else the BR menu — never while a shop/menu has focus (ui mode skips the map)
+  assert.equal(MAP.sea[BTN.VIEW], 'invite|menu'); assert.equal(MAP.foot[BTN.VIEW], 'invite|menu');
+  assert.equal(resolve('invite|menu', { invites: true }), 'invite'); assert.equal(resolve('invite|menu', { invites: false }), 'menu'); assert.equal(resolve('invite|menu', {}), 'menu');
 });
+
+test('invite-discreet: VIEW binding, layers, dock hooks, no clash with A/B/Start', () => {
+  const g = src('js/gamepad.js'), d = src('js/dock/index.js'), h = src('js/dock/squadHall.js');
+  assert.match(g, /\[BTN\.VIEW\]: 'invite\|menu'/);
+  assert.match(g, /n === 'invite' && !ctx\.invites/);
+  assert.match(g, /n === 'invite'.*openInvites/);
+  assert.match(g, /#sq-note\.open/);
+  assert.match(g, /#sq-hall/);
+  assert.match(d, /hasInvites:.*squadHall/);
+  assert.match(d, /openInvites:.*squadHall/);
+  assert.match(h, /id = 'sq-note'|#sq-note\b/);
+  assert.match(h, /openInvites/);
+  assert.match(h, /hasInvites/);
+  assert.match(h, /data-gly/);
+  assert.match(h, /pfp-padc/);
+  // A / B stay click / back in ui (accept / decline via focus); VIEW unused in ui so shops block the shortcut
+  assert.equal(MAP.ui[BTN.A], 'click'); assert.equal(MAP.ui[BTN.B], 'back'); assert.equal(MAP.ui[BTN.VIEW], undefined);
+});
+
 test('keyFor: the live binds; broadsides never use E (the dock prompt key), sails never a mouse button', () => {
   assert.equal(keyFor('fireStar', binds), 'MouseR', 'default E / MOUSE R -> MOUSE R'); assert.equal(keyFor('firePort', binds), 'KeyQ');
   assert.equal(keyFor('left', binds), 'KeyA'); assert.equal(keyFor('sailUp', binds), 'KeyW'); assert.equal(keyFor('anchor', binds), 'Space'); assert.equal(keyFor('pause', binds), 'Escape');
@@ -164,3 +186,4 @@ test('padLine: the hint line names the pad buttons for each brand', () => {
   const x = padLine(false, 'xbox'), p = padLine(true, 'ps');
   assert.ok(x.includes('RT') && x.includes('A') && x.includes('left stick')); assert.ok(p.includes('R2') && p.includes('○') === false && p.includes('□'));
 });
+

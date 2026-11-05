@@ -37,6 +37,24 @@ describe('squad hall panel', () => {
     assert.match(hall, /ACCEPT/);
     assert.match(hall, /DECLINE/);
   });
+  it('invite-discreet: under-inventory pill + pad VIEW glyph, not a centred toast', () => {
+    assert.match(hall, /id = 'sq-note'|id="sq-note"|#sq-note\b/);
+    assert.match(hall, /sq-note-panel/);
+    assert.match(hall, /hud-tr/);
+    assert.doesNotMatch(hall, /id="sq-invite"/);
+    assert.match(hall, /openInvites/);
+    assert.match(hall, /hasInvites/);
+    assert.match(hall, /data-gly/);
+    assert.match(hall, /pfp-padc/);
+    assert.match(hall, /VIEW|CREATE/);
+  });
+
+  it('invite pill: no per-frame syncGlyph / partyBar from tick', () => {
+    assert.match(hall, /MutationObserver/);
+    assert.match(hall, /never from the per-frame dock tick|no per-frame DOM/);
+    assert.doesNotMatch(hall, /function tick\(now\)[\s\S]*syncGlyph\(\);\s*\n\s*\}/);
+  });
+
   it('is opened from the Squad Hall interact', () => {
     assert.match(dock, /createSquadHall/);
     assert.match(dock, /squadHall\.open/);

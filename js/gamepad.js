@@ -56,18 +56,18 @@ export const anyInput = (s) => !!s && (s.b.some(Boolean) || Math.hypot(s.lx, s.l
 // spec = spectating a battle; ui = any menu / shop / inventory / pop-up on top (focus navigation).
 export const MAP = {
   sea: { [BTN.A]: 'promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
-    [BTN.VIEW]: 'menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory' },
+    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory' }, // [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
   foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|jump', [BTN.Y]: 'map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
-    [BTN.VIEW]: 'menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory' },
+    [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory' },
   spec: { [BTN.A]: 'specFollow', [BTN.X]: 'specLeader', [BTN.Y]: 'specOverview', [BTN.B]: 'specHud', [BTN.LB]: 'specPrev', [BTN.RB]: 'specNext', [BTN.VIEW]: 'specBoard', [BTN.START]: 'pause' },
   ui: { [BTN.A]: 'click', [BTN.B]: 'back', [BTN.START]: 'back', [BTN.LB]: 'tabPrev', [BTN.RB]: 'tabNext', [BTN.Y]: 'click2', [BTN.X]: 'click3' },
 };
 // readable map for the CONTROLS overlay + the report (glyphs follow the pad brand)
 export const MAP_HELP = {
   sea: [['LEFT STICK', 'steer · push up / down = more / less sail'], ['RIGHT STICK', 'look around (R3 = reset camera)'], ['RT / RB', 'fire starboard (right)'], ['LT / LB', 'fire port (left)'],
-    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'island map (harbor)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'Battle Royale menu'], ['MENU', 'settings / pause']],
+    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'island map (harbor)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause']],
   foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'jump'], ['Y', 'island map'],
-    ['RT', 'swing the sword / fire the musket (in an area)'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['MENU', 'settings / pause']],
+    ['RT', 'swing the sword / fire the musket (in an area)'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
 };
 // the one-line hint (title, pause, the HUD) while a pad is in use
@@ -90,6 +90,7 @@ export function resolve(action, ctx = {}) {
     if ((n === 'attack' || n === 'team') && !ctx.area) continue;
     if ((n === 'ads' || n === 'swap') && !ctx.tps) continue;
     if ((n === 'map' || n === 'inventory') && !ctx.harbor) continue;
+    if (n === 'invite' && !ctx.invites) continue; // [invite-discreet] VIEW only steals the invite when a pill is up
     return a;
   }
   return null;
@@ -148,7 +149,7 @@ let _rumble = null; export const padRumble = (w, s, ms) => { if (active) _rumble
 // ---------- menus: what is open on top ----------
 // top-most first; the first one that is really on screen is the layer the focus ring walks
 const LAYERS = ['#ctl-ov', '.pfp-hatcolor', '#prest-confirm', '.ishop-confirm', '#pfp-share', '#acct-login', '#ch-reveal', '#tm-reveal', '#tm-map', '#isle-map', '#emote-wheel',
-  '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title'];
+  '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#sq-hall', '#sq-note.open', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title']; // [invite-discreet] #sq-note.open = expanded invite panel (pill alone stays non-blocking)
 const FOCUSABLE = 'button, a[href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"]), [role=button], [role=menuitem], [role=tab], [role=radio], .ew-opt, .iv-slot, [data-id], [data-skin], tr[data-id]'; // + the inventory / shop card grids (divs with a click handler)
 function shown(el) {
   if (!el || el.hidden || !el.isConnected) return false; const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false;
@@ -226,7 +227,7 @@ export function initGamepad(opts = {}) {
     if (doc.classList.contains('pvp-spec') || opts.spectating?.()) return 'spec';
     return padHooks.dock?.onFoot?.() ? 'foot' : 'sea';
   }
-  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.() }; }
+  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.(), invites: !!D?.hasInvites?.() }; }
 
   function doAction(a, down, m) {
     const hold = a.startsWith('+'), n = hold ? a.slice(1) : a, D = padHooks.dock;
@@ -235,6 +236,7 @@ export function initGamepad(opts = {}) {
     if (n === 'swap') { if (down) D?.tps?.()?.swap?.(); return; }
     if (n === 'camBehind') { if (down) D?.camBehind?.(); return; }
     if (n === 'inventory') { if (down) document.getElementById('tm-btn')?.click(); return; }
+    if (n === 'invite') { if (down) D?.openInvites?.(); return; } // [invite-discreet] VIEW → expand the under-inventory invite pill
     if (n === 'sprint') { sprint = down; return; }
     if (n === 'jump' && m === 'foot') { if (down) D?.jump?.(); return; }
     const code = keyFor(n, opts.binds);

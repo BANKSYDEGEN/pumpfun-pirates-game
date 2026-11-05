@@ -1,4 +1,5 @@
 // [squad-hall] BANKSY 9:35 PM: Squad Hall panel — every online pirate across harbor copies + arenas, INVITE TO SQUAD + JOIN WORLD.
+// [invite-discreet] BANKSY 10:06/10:07 PM: invites = a small pill under INVENTORY (expand for Accept/Decline), pad VIEW when invites pending.
 // Reuses the existing party system (js/pvp.js partyJoin / partyLeave) and the give-dropdown's inv_online presence list (enriched with world).
 const CSS = `
 #sq-hall{position:fixed;inset:0;z-index:63;display:flex;align-items:center;justify-content:center;background:rgba(10,7,4,.62);font-family:'Just Another Hand',cursive;color:#f4e2bb;
@@ -26,15 +27,27 @@ const CSS = `
 .sq-empty{text-align:center;padding:28px 12px;font-size:24px;opacity:.85}.sq-empty small{display:block;font-size:16px;opacity:.7;margin-top:6px}
 .sq-sk{height:52px;border-radius:12px;background:linear-gradient(90deg,#2a1840,#3a2458,#2a1840);background-size:200% 100%;animation:sqsh 1.1s linear infinite;flex:none}
 @keyframes sqsh{to{background-position:-200% 0}}
-#sq-invite{position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 120px);transform:translateX(-50%);z-index:64;display:none;max-width:min(420px,94vw);
- background:linear-gradient(#2a1840,#1a0f28);border:3px solid #ffcd77;border-radius:14px;padding:10px 14px;box-shadow:0 8px 28px #000;font-family:'Just Another Hand',cursive;color:#f4e2bb;text-align:center}
-#sq-invite.on{display:block}
-#sq-invite .t{font-size:26px;color:#ffcd77;margin-bottom:2px}
-#sq-invite .m{font-size:20px;margin-bottom:8px}
-#sq-invite .row{display:flex;gap:8px;justify-content:center}
-#sq-invite button{font:20px 'Just Another Hand',cursive;padding:6px 14px 4px;border-radius:10px;border:2px solid #ffcd77;cursor:pointer}
-#sq-invite .ok{background:#fa0d0d;color:#fff}#sq-invite .no{background:#1a0f07;color:#ffcd77}
-@media (max-width:600px){.sq-row{flex-wrap:wrap}.sq-row .acts{width:100%;justify-content:stretch}.sq-row .acts button{flex:1}}
+/* [invite-discreet] BANKSY 10:06 PM: small non-blocking pill under INVENTORY (not a centred toast) */
+#sq-note{display:none;align-self:flex-end;margin-top:4px;pointer-events:auto;z-index:9;position:relative;font-family:'Just Another Hand',cursive}
+#sq-note.on{display:block}
+#sq-note .sq-pill{display:flex;align-items:center;gap:6px;max-width:min(220px,46vw);padding:4px 10px 2px;border-radius:999px;border:2px solid #ffcd77;background:rgba(42,24,64,.92);color:#ffcd77;cursor:pointer;font-size:18px;letter-spacing:.03em;white-space:nowrap;box-shadow:0 2px 8px #000;touch-action:manipulation}
+#sq-note .sq-pill .ic{font-size:16px;line-height:1}
+#sq-note .sq-pill .nm{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;color:#f4e2bb}
+#sq-note .sq-pill .n{min-width:1.2em;padding:0 5px;border-radius:999px;background:#fa0d0d;color:#fff;font:bold 13px system-ui,sans-serif;text-align:center}
+#sq-note .sq-pill .gly{display:none;font:12px system-ui,sans-serif;opacity:.85;border:1px solid rgba(255,205,119,.55);border-radius:6px;padding:0 4px;color:#ffcd77}
+html.pfp-padc #sq-note .sq-pill .gly{display:inline-block}
+#sq-note.pulse .sq-pill{animation:sqPulse 1s ease-in-out 3}
+@keyframes sqPulse{50%{background:#6a4fb3;box-shadow:0 0 12px #ffcd77}}
+#sq-note-panel{display:none;position:absolute;right:0;top:calc(100% + 6px);width:min(260px,72vw);padding:8px;border-radius:12px;border:2px solid #ffcd77;background:linear-gradient(#2a1840,#1a0f28);box-shadow:0 8px 22px #000;z-index:10;touch-action:manipulation}
+#sq-note.open #sq-note-panel{display:block}
+#sq-note-panel .sq-ir{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:10px;border:2px solid #6a4fb3;background:#1e1230;margin-bottom:5px;font-size:18px;color:#f4e2bb}
+#sq-note-panel .sq-ir:last-child{margin-bottom:0}
+#sq-note-panel .sq-ir b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:normal}
+#sq-note-panel .sq-ir small{display:block;font-size:13px;color:#cdb68c;line-height:1}
+#sq-note-panel .sq-ir button{font:15px 'Just Another Hand',cursive;padding:3px 8px 1px;border-radius:8px;border:2px solid #ffcd77;cursor:pointer;flex:none}
+#sq-note-panel .sq-ir .ok{background:#fa0d0d;color:#fff}#sq-note-panel .sq-ir .no{background:#1a0f07;color:#ffcd77}
+@media (max-height:520px){#hud-tr #sq-note{position:absolute;right:calc(100% + 8px);top:90px;margin:0}#sq-note-panel{right:0;left:auto;top:calc(100% + 4px)}}
+@media (max-width:600px){.sq-row{flex-wrap:wrap}.sq-row .acts{width:100%;justify-content:stretch}.sq-row .acts button{flex:1}#sq-note .sq-pill{font-size:16px;padding:3px 8px 1px;max-width:min(180px,42vw)}}
 `;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -60,10 +73,13 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
     <div class="sq-list" role="listbox"></div>
   </div>`;
   document.body.appendChild(el);
-  const inv = document.createElement('div'); inv.id = 'sq-invite'; inv.innerHTML = `<div class="t">SQUAD INVITE</div><div class="m"></div><div class="row"><button type="button" class="ok">ACCEPT</button><button type="button" class="no">DECLINE</button></div>`;
-  document.body.appendChild(inv);
+  // [invite-discreet] pill under #tm-btn (INVENTORY) in the top-right HUD column
+  const note = document.createElement('div'); note.id = 'sq-note'; note.innerHTML = `<button type="button" class="sq-pill" aria-label="Squad invites"><span class="ic" aria-hidden="true">🔔</span><span class="nm"></span><span class="n" hidden>1</span><kbd class="gly" data-gly></kbd></button><div id="sq-note-panel" role="dialog" aria-label="Squad invites"></div>`;
+  const host = document.getElementById('hud-tr') || document.body; host.appendChild(note);
+  const pill = note.querySelector('.sq-pill'), panel = note.querySelector('#sq-note-panel');
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) note.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
 
-  let online = null, loading = false, reqId = 0, busy = '', pollT = 0, inviteT = 0, seenInvite = '';
+  let online = null, loading = false, reqId = 0, busy = '', pollT = 0, inviteT = 0, invites = [], noteOpen = false, lastPulse = '';
   const $ = (sel, root = el) => root.querySelector(sel);
   const me = () => { try { return cleanName(pvp()?.name || ''); } catch { return ''; } };
   const party = () => { try { return pvp()?.partyInfo?.() || { code: '', mate: null, msg: '' }; } catch { return { code: '', mate: null, msg: '' }; } };
@@ -143,48 +159,89 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
     } finally { busy = ''; draw(); }
   }
 
+  function setNoteOpen(v) { noteOpen = !!v; note.classList.toggle('open', noteOpen); if (noteOpen) drawNotePanel(); }
+  function drawNote() {
+    if (!invites.length) { if (note.classList.contains('on')) { note.classList.remove('on', 'open', 'pulse'); noteOpen = false; panel.innerHTML = ''; } lastPulse = ''; return; }
+    const key = invites.map(i => i.from + '|' + i.code).join(',');
+    const first = invites[0], nm = first.from || 'INVITE', count = invites.length > 1 ? String(invites.length) : '';
+    if (!note.classList.contains('on')) note.classList.add('on');
+    const nmEl = pill.querySelector('.nm'), n = pill.querySelector('.n');
+    if (nmEl.textContent !== nm) nmEl.textContent = nm;
+    if (count) { if (n.hidden || n.textContent !== count) { n.hidden = false; n.textContent = count; } }
+    else if (!n.hidden) n.hidden = true;
+    if (key !== lastPulse) { lastPulse = key; note.classList.remove('pulse'); void note.offsetWidth; note.classList.add('pulse'); if (noteOpen) drawNotePanel(); }
+    else if (noteOpen && !panel.childElementCount) drawNotePanel();
+    syncGlyph();
+  }
+  function drawNotePanel() {
+    panel.innerHTML = invites.map((i, idx) => `<div class="sq-ir" data-i="${idx}"><span><b>${esc(i.from)}</b>${i.world ? `<small>${esc(i.world)}</small>` : `<small>party ${esc(i.code)}</small>`}</span>
+      <button type="button" class="ok" data-a="1">ACCEPT</button><button type="button" class="no" data-a="0">DECLINE</button></div>`).join('');
+    panel.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); const row = b.closest('.sq-ir'); ack(invites[+row.dataset.i], b.dataset.a === '1'); });
+  }
+  async function ack(i, ok) {
+    if (!i) return;
+    invites = invites.filter(x => !(x.from === i.from && x.code === i.code));
+    drawNote();
+    try { await pvp()?.inv?.call('squad_invite_ack', { from: i.from, code: i.code, ok: !!ok }); } catch {}
+    if (ok) { pvp()?.partyJoin?.(i.code); toast?.(`JOINED ${esc(i.from)}'S PARTY`, 2200); if (el.classList.contains('on')) draw(); }
+    if (!invites.length) setNoteOpen(false);
+  }
+  // [invite-discreet] glyph + pill DOM only on invite / pad-mode changes — never from the per-frame dock tick
+  let glyTxt = null, partySig = '';
+  function syncGlyph() {
+    const g = pill.querySelector('[data-gly]');
+    let next = '';
+    try {
+      if (document.documentElement.classList.contains('pfp-padc'))
+        next = document.documentElement.classList.contains('pfp-pad-ps') ? 'CREATE' : 'VIEW';
+    } catch { next = 'VIEW'; }
+    if (next === glyTxt) return; glyTxt = next; g.textContent = next;
+  }
+  // pad brand / connect flips html.pfp-padc (js/gamepad.js) — one observer, not a per-frame check
+  try { new MutationObserver(() => syncGlyph()).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); } catch {}
+  pill.onclick = (e) => { e.stopPropagation(); if (!invites.length) return; setNoteOpen(!noteOpen); };
+  addEventListener('pointerdown', (e) => { if (noteOpen && !note.contains(e.target)) setNoteOpen(false); }, true);
+
   async function pollInvites() {
-    if (!el.classList.contains('on') && !inv.classList.contains('on')) return;
     let r = null;
     try { r = await pvp()?.inv?.call('squad_invites'); } catch { r = null; }
-    if (!r?.ok || !Array.isArray(r.invites) || !r.invites.length) return;
-    const i = r.invites[0], key = `${i.from}|${i.code}`;
-    if (key === seenInvite && inv.classList.contains('on')) return;
-    seenInvite = key;
-    inv.querySelector('.m').innerHTML = `<b>${esc(i.from)}</b> invites you to party <b>${esc(i.code)}</b>${i.world ? `<br><small>${esc(i.world)}</small>` : ''}`;
-    inv.classList.add('on');
-    inv.querySelector('.ok').onclick = async () => {
-      inv.classList.remove('on');
-      await pvp()?.inv?.call('squad_invite_ack', { from: i.from, code: i.code, ok: true });
-      pvp()?.partyJoin?.(i.code);
-      toast?.(`JOINED ${esc(i.from)}'S PARTY`, 2200);
-      if (el.classList.contains('on')) draw();
-    };
-    inv.querySelector('.no').onclick = async () => {
-      inv.classList.remove('on');
-      await pvp()?.inv?.call('squad_invite_ack', { from: i.from, code: i.code, ok: false });
-    };
+    const list = r?.ok && Array.isArray(r.invites) ? r.invites.filter(i => i && i.from && i.code).slice(0, 8) : [];
+    invites = list; // server already drops expired (TTL); empty = clear the pill
+    drawNote();
   }
 
   function tick(now) {
-    if (!el.classList.contains('on') && !inv.classList.contains('on')) return;
-    if (el.classList.contains('on') && now - pollT > 8000) { pollT = now; load(); }
+    // invites: poll every 4 s (event-driven drawNote); no per-frame DOM / allocations for #sq-note
     if (now - inviteT > 4000) { inviteT = now; pollInvites(); }
-    if (el.classList.contains('on')) partyBar();
+    if (el.classList.contains('on')) {
+      if (now - pollT > 8000) { pollT = now; load(); }
+      else if (now - pollT > 500) { // party bar only when the hall is open, and only if the party text changed
+        const p = party(), sig = (p.code || '') + '|' + (p.mate?.n || '') + '|' + (p.msg || '');
+        if (sig !== partySig) { partySig = sig; partyBar(); }
+      }
+    }
   }
 
-  const onKey = (e) => { if (e.key !== 'Escape' && e.code !== 'Escape') return; e.preventDefault(); e.stopImmediatePropagation(); close(); };
+  const onKey = (e) => {
+    if (e.key !== 'Escape' && e.code !== 'Escape') return;
+    if (noteOpen) { e.preventDefault(); e.stopImmediatePropagation(); setNoteOpen(false); return; }
+    if (!el.classList.contains('on')) return;
+    e.preventDefault(); e.stopImmediatePropagation(); close();
+  };
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); });
   $('.sq-x').onclick = () => close();
+  document.addEventListener('keydown', onKey, true);
 
   function open() {
-    el.classList.add('on'); document.addEventListener('keydown', onKey, true);
+    el.classList.add('on');
     pollT = 0; inviteT = 0; load(); pollInvites();
   }
   function close() {
-    reqId++; loading = false; el.classList.remove('on'); document.removeEventListener('keydown', onKey, true);
+    reqId++; loading = false; el.classList.remove('on');
   }
+  function openInvites() { if (!invites.length) { pollInvites().then(() => { if (invites.length) setNoteOpen(true); }); return; } setNoteOpen(true); }
+  function hasInvites() { return invites.length > 0; }
 
-  // background invite toast even when the hall is closed (harbor tick calls tick)
-  return { open, close, tick, pollInvites, get isOpen() { return el.classList.contains('on'); }, _setOnline(o) { online = o; loading = false; draw(); }, _draw: draw };
+  // background invite pill (harbor tick calls tick); openInvites / hasInvites for the pad VIEW binding
+  return { open, close, tick, pollInvites, openInvites, hasInvites, get isOpen() { return el.classList.contains('on'); }, get noteOpen() { return noteOpen; }, _setOnline(o) { online = o; loading = false; draw(); }, _draw: draw, _setInvites(list) { invites = list || []; drawNote(); } };
 }
