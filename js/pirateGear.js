@@ -35,7 +35,8 @@ export const GEAR_RENDERS = Object.freeze({
   face: ['facepaint_retardio'],   // [v145] Raul's Retardio face paint (v5 bodies only)
   // [Raul shop items 2] v5 bodies only (v4 bodies draw nothing); flag + figure dress YOUR SHIP (js/shipGear.js), not the pirate
   beard: ['beard_moustache', 'beard_forked', 'beard_black'], ears: ['earring_hoop', 'earring_double', 'earring_skull'], teeth: ['tooth_gold', 'grill_gold', 'grill_diamond'],
-  boots: ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'sandals', 'shoes_buckle', 'boots_sea'], pants: ['classic_pants', 'canvas_pants', 'sailor_trousers', 'leather_breeches'],   // [V6 store] + Clothing Store shoes (appended) + PANTS cape: ['cape_tattered', 'cape_captain', 'cape_royal'], flag: ['flag_cutlass', 'flag_red', 'flag_gold'], figure: ['fig_mermaid', 'fig_kraken', 'fig_lion'],
+  boots: ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'sandals', 'shoes_buckle', 'boots_sea'], pants: ['classic_pants', 'canvas_pants', 'sailor_trousers', 'leather_breeches'],   // [V6 store] + Clothing Store shoes (appended) + PANTS
+  cape: ['cape_tattered', 'cape_captain', 'cape_royal'], flag: ['flag_cutlass', 'flag_red', 'flag_gold'], figure: ['fig_mermaid', 'fig_kraken', 'fig_lion'],
 });
 export const EXTRA_SLOTS = ['beard', 'ears', 'teeth', 'boots', 'cape', 'flag', 'figure'];   // [Raul shop items 2] wire digits after the face paint, in this order (APPEND-ONLY)
 export const gearRenders = (slot, id) => !!GEAR_RENDERS[slot]?.includes(id);
