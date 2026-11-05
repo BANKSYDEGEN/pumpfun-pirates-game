@@ -22,6 +22,7 @@ import { createInventory } from '../inventory/ui.js'; // [inventory] the INVENTO
 import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token billboards on the harbor plaza
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
 import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock, padRumble } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
+import { createSkinPicker } from './skinPicker.js'; // [dock-skin] Q / CHANGE SKIN at your own berth
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
@@ -62,6 +63,7 @@ export async function createDock(ctx) {
   const world = await buildWorld({ layout, scene, quality, ocean, renderer, uTime });
   const zone = createSafeZone(layout.safe, layout.graceS);
   const myId = () => ctx.pvp()?.myId || 'me';
+  const skinPick = createSkinPicker({ current: () => ctx.pvp()?.profile?.skins?.equipped || 'classic' }); // [dock-skin]
   const docking = createDocking({ berths: layout.berths, myId }); // [v152] a getter: the room id can arrive later
   const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate.object.visible = false; scene.add(pirate.object); // [Timothy] + your shop gear
   const walker = createWalker({ camera, canvas, world, pirate, touch, low: LOW });
@@ -179,7 +181,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); battle?.clear(); }
+    if (!v) { skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); battery?.clear(); battle?.clear(); }
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -247,6 +249,8 @@ export async function createDock(ctx) {
     if (e.code === 'Escape' && document.documentElement.classList.contains('dk-board')) { closeBoard(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (game.state !== 'playing') return;
     let used = false;
+    if (skinPick.isOpen) { if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyQ')) skinPick.close(); e.stopImmediatePropagation(); e.preventDefault(); return; } // [dock-skin] no walking while the shipyard panel is up
+    if (e.code === 'KeyQ' && !e.repeat && onFoot && actB?.key === 'Q') { press(actB); used = true; } else
     if (e.code === 'KeyE' && !e.repeat) { if (actA && actA.key === 'E') { press(actA); used = true; } else if (onFoot) used = true; }
     else if ((e.code === 'KeyW' || e.code === 'ArrowUp') && !onFoot && docking.mode === 'docked') { setSail(); used = true; }
     else if (onFoot && walker.onKey(e, true)) used = true;
@@ -286,9 +290,10 @@ export async function createDock(ctx) {
       world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
-      if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) best = { label: 'BOARD SHIP', fn: () => goAboard() };
+      let skinAct = null; // [dock-skin] BANKSY 8:42 PM: E = BOARD SHIP, Q = CHANGE SKIN at your own berth (phone: a 2nd button, pad: X)
+      if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) { best = { label: 'BOARD SHIP', fn: () => { skinPick.close(); goAboard(); } }; skinAct = { label: 'CHANGE SKIN', key: 'Q', fn: () => (skinPick.isOpen ? skinPick.close() : skinPick.open()) }; }
       if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
-      setActs(best ? { ...best, key: 'E', primary: true } : null, null);
+      setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct);
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
       const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL

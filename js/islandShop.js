@@ -53,6 +53,7 @@ export function mockProvider(seed = {}) {
 
 let provider = null, state = null, open = false, view = { vendor: 'shop', tab: 'skins', slot: 'hat', sel: null }, root = null, skinMod = null;
 export const setShopProvider = (p) => { provider = p; state = null; };
+export const getShopProvider = () => provider; // [dock-skin] the berth skin picker equips through the same provider
 export const isShopOpen = () => open;
 // [Timothy] the Solo / Squads split for DIAMOND: the provider's state.modes if it has one, else js/shopGoals.js (the server's
 // shop view once it carries `modes`, else this device's display-only counter). Re-draw when a server view lands while open.
