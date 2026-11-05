@@ -80,7 +80,7 @@ export function clearAt(lx, lz) {
 export function buildArt(o) {
   if (!COLISEUM_ON) return;
   const { k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o;
-  const ST = 0xc4b8a2, ST_L = 0xd3c8b3, ST_D = 0x8f8474, SAND = 0xd4bc8c, COB = 0xa79c8a, WOOD_D = C.WOOD_D || 0x6b4527;
+  const ST = 0xc4b8a2, ST_L = 0xd3c8b3, ST_D = 0x8f8474, SAND = 0xd4bc8c, COB = 0xc9a090, WOOD_D = C.WOOD_D || 0x6b4527;
   const DS = 11, CB = 10, SA = 0; // look layers: dressed stone, cobbles, sand
   const F0 = FOOT, cx = (F0.lx0 + F0.lx1) / 2, cz = (F0.lz0 + F0.lz1) / 2;
   const rx = (F0.lx1 - F0.lx0) / 2, rz = (F0.lz1 - F0.lz0) / 2;
@@ -100,6 +100,11 @@ export function buildArt(o) {
   { const [x, z] = T(cx, cz), g = new THREE.CylinderGeometry(1, 1, 0.2, 40); g.scale(rx - 8.2, 1, rz - 8.2);
     W(k, g, SAND, SA, M(x, y0 + 0.06, z, Y0W), false); }
   for (let i = 0; i < N; i++) { const s = seg(i, 8.1); W(k, box(s.span * 1.04, 0.22, 0.5), ST_D, DS, M(s.xm, y0 + 0.1, s.zm, s.yaw), false); }
+
+  // plan colors: soft yellow musket pad (castle end) + purple sword pad (dock end) on the sand
+  { const YEL = 0xd4b85a, PUR = 0x8a6aad;
+    const [mx, mz] = T(69, -158); W(k, box(34, 0.08, 30), YEL, SA, M(mx, y0 + 0.1, mz, Y0W), false);
+    const [px, pz] = T(70, -78); W(k, new THREE.CylinderGeometry(12, 12, 0.08, 28), PUR, SA, M(px, y0 + 0.1, pz), false); }
 
   // continuous cobbled ring walk (pink) between the podium and the arena
   for (let i = 0; i < N; i++) { const s = seg(i, 5.6); W(k, box(s.span * 1.06, 0.16, 4.6), COB, CB, M(s.xm, y0 + 0.07, s.zm, s.yaw), false); }
@@ -139,8 +144,8 @@ export function buildArt(o) {
       W(k, box(open, tierH - (spring - ty) - r, wt), ST, DS, M(s.xm, (spring + r + ty + tierH) / 2, s.zm, s.yaw), false);
       W(k, box(s.span * 1.02, 0.32, wt + 0.5), ST_D, DS, M(s.xm, ty + tierH - 0.1, s.zm, s.yaw), false);
       arch(s.xm, spring, s.zm, s.yaw, r, 0.22, wt + 0.1);
-      if (ti === 0) { // intact ground storey: recessed infill wall behind the arch (blocks), dark doorway reads as an arch
-        W(k, box(open, spring + r - ty, 0.5), ST_D, DS, M(s.xm + Math.cos(s.am) * -0.0, (ty + spring + r) / 2, s.zm, s.yaw), false);
+      if (ti === 0) { // intact ground storey: solid infill behind the archivolt (no see-through), arch reads as relief
+        W(k, box(open, Math.max(0.4, spring + r - ty), wt * 0.85), ST_D, DS, M(s.xm, (ty + spring + r) / 2, s.zm, s.yaw), false);
         addBox(s.xm, s.zm, s.span, wt, s.yaw);
       }
     }
