@@ -92,7 +92,12 @@ export default {
     // [v267b] BANKSY 10:55/10:56 AM stone upper level: landing fills the L into the north wall-walk (no yard visible through the junction).
     h.addDeck({ id: 'fort_rampart_land', x: NSTAIR.x1 + 2.5, z: (NSTAIR.z + (F.z + wc)) / 2, hw: (F.z + wc + wd / 2 - (NSTAIR.z - NSTAIR.hw)) / 2 + 0.6, hl: 4.0, yaw: Math.PI / 2, y: WT });
     // [v267] rampart stair cheek colliders (visual cheeks had no footprint — jump sideways = 6 m drop to the yard)
-    for (const s of [-1, 1]) h.addBox((NSTAIR.x0 + NSTAIR.x1) / 2, NSTAIR.z + s * (NSTAIR.hw + 0.25), NSTAIR.x1 - NSTAIR.x0, 0.4, 0);
+    // [v276] BANKSY 12:02 PM "can't climb up to spy glass at all": full-span cheeks sealed the yard→stair mouth (south)
+    // and pinched the top north step onto the landing. Leave ~4.5 m open at the bottom (entry) and ~2.0 m at the top
+    // (stair → landing / wall-walk); cheeks only cover the fall-off mid-run.
+    { const openBot = 4.5, openTop = 2.0, len = (NSTAIR.x1 - NSTAIR.x0) - openBot - openTop;
+      const cx = NSTAIR.x0 + openBot + len / 2;
+      for (const s of [-1, 1]) h.addBox(cx, NSTAIR.z + s * (NSTAIR.hw + 0.35), len, 0.4, 0); }
     // the keep: its walls are decks at the keep top (door gap on the west face); roofless war room inside
     const K = F.keep, kw = K.wall, kt = F.y + K.h;
     h.addDeck({ id: 'fort_keep_n', x: K.x, z: K.z + K.half - kw / 2, hw: K.half, hl: kw / 2, yaw: 0, y: kt });
@@ -245,21 +250,30 @@ export default {
       W(k, box(K.half * 2, K.h + 1.4, kw), C.STONE_D, M(K.x, Y + (K.h - 0.6) / 2, K.z + K.half - kw / 2)); W(k, box(K.half * 2, K.h + 1.4, kw), C.STONE_D, M(K.x, Y + (K.h - 0.6) / 2, K.z - K.half + kw / 2));
       W(k, box(kw, K.h + 1.4, K.half * 2), C.STONE_D, M(K.x + K.half - kw / 2, Y + (K.h - 0.6) / 2, K.z));
       for (const s of [-1, 1]) W(k, box(kw, K.h + 1.4, kg), C.STONE_D, M(K.x - K.half + kw / 2, Y + (K.h - 0.6) / 2, K.z + s * (K.doorHW + kg / 2)));
-      W(k, box(kw + 0.15, K.h - 2.6, K.doorHW * 2 + 0.4), C.STONE_D, M(K.x - K.half + kw / 2, Y + 2.6 + (K.h - 2.6) / 2, K.z)); // over the door
+      // [v276] raise door clear to ~4.0 m (was 2.6) so war-room camera / headroom at the table isn't soffit-clipped
+      W(k, box(kw + 0.15, K.h - 4.0, K.doorHW * 2 + 0.4), C.STONE_D, M(K.x - K.half + kw / 2, Y + 4.0 + (K.h - 4.0) / 2, K.z)); // over the door
       // quoins + cornice + banding
       for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) W(k, box(0.4, K.h + 1.4, 0.4), TRIM, M(K.x + sx * (K.half - 0.15), Y + (K.h - 0.6) / 2, K.z + sz * (K.half - 0.15)), false);
-      for (const yy of [Y + 2.2, Y + 5.0, kt - 0.4]) W(k, box(K.half * 2 + 0.15, 0.2, K.half * 2 + 0.15), yy > kt - 1 ? GOLD_D : C.STONE, M(K.x, yy, K.z), false);
+      // [v276] BANKSY 12:03 PM "war room table … low ceiling": banding was a SOLID full-footprint slab
+      // (Y+2.2 / Y+5.0 / kt-0.4) so the war room read as a low ceiling over the map table. Exterior face strips only;
+      // west face leaves the door gap open (a full-span west strip sat at Y+2.2 across the doorway = the low lintel).
+      for (const yy of [Y + 5.0, kt - 0.4]) { // [v276] drop Y+2.2 belt (sat at door-head height)
+        const col = yy > kt - 1 ? GOLD_D : C.STONE, t = 0.22;
+        W(k, box(K.half * 2 + 0.2, 0.2, t), col, M(K.x, yy, K.z + K.half + 0.02), false);
+        W(k, box(K.half * 2 + 0.2, 0.2, t), col, M(K.x, yy, K.z - K.half - 0.02), false);
+        W(k, box(t, 0.2, K.half * 2 + 0.2), col, M(K.x + K.half + 0.02, yy, K.z), false);
+        for (const s of [-1, 1]) W(k, box(t, 0.2, kg), col, M(K.x - K.half - 0.02, yy, K.z + s * (K.doorHW + kg / 2)), false); }
       // windows (N/S/E)
       if (hi) for (const [dx, dz, yaw] of [[0, K.half + 0.05, 0], [0, -K.half - 0.05, 0], [K.half + 0.05, 0, Math.PI / 2]]) for (const yy of [Y + 3.4, Y + 6.2]) {
         W(k, box(dx ? 0.18 : 0.7, 1.15, dz ? 0.18 : 0.7), 0x1b1d22, M(K.x + dx, yy, K.z + dz, yaw), false); W(k, box(dx ? 0.22 : 0.85, 0.12, dz ? 0.22 : 0.85), TRIM, M(K.x + dx, yy + 0.65, K.z + dz, yaw), false); }
       // door frame (open) + studded leaves parked inside
       // [hilltop] BANKSY 10:11 PM "the door has been closed": the frame was one solid 3.3 m board across the doorway; now two jambs + a lintel, the doorway open
-      for (const s of [-1, 1]) W(k, box(0.3, 3.2, 0.32), C.WOOD_D, M(K.x - K.half - 0.08, Y + 1.6, K.z + s * (K.doorHW + 0.12)), false);
-      W(k, box(0.3, 0.34, K.doorHW * 2 + 0.7), C.WOOD_D, M(K.x - K.half - 0.08, Y + 3.05, K.z), false);
+      for (const s of [-1, 1]) W(k, box(0.3, 4.0, 0.32), C.WOOD_D, M(K.x - K.half - 0.08, Y + 2.0, K.z + s * (K.doorHW + 0.12)), false);
+      W(k, box(0.3, 0.34, K.doorHW * 2 + 0.7), C.WOOD_D, M(K.x - K.half - 0.08, Y + 4.05, K.z), false);
       for (const s of [-1, 1]) { W(k, box(0.16, 2.9, 1.15), C.WOOD, M(K.x - K.half + 0.55, Y + 1.45, K.z + s * 1.35), false); for (const yy of [0.6, 1.45, 2.3]) W(k, box(0.2, 0.12, 1.2), C.IRON, M(K.x - K.half + 0.55, Y + yy, K.z + s * 1.35), false); }
-      // WAR ROOM board over the door
-      W(k, box(0.12, 0.7, 2.6), C.WOOD_D, M(K.x - K.half - 0.2, Y + 4.0, K.z)); W(k, box(0.14, 0.1, 2.7), C.GOLD, M(K.x - K.half - 0.18, Y + 4.4, K.z), false);
-      signs.push([2.4, 0.5, new THREE.Matrix4().compose(new THREE.Vector3(K.x - K.half - 0.28, Y + 4.0, K.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2), new THREE.Vector3(1, 1, 1)), 'war']);
+      // WAR ROOM board over the raised door
+      W(k, box(0.12, 0.7, 2.6), C.WOOD_D, M(K.x - K.half - 0.2, Y + 5.0, K.z)); W(k, box(0.14, 0.1, 2.7), C.GOLD, M(K.x - K.half - 0.18, Y + 5.4, K.z), false);
+      signs.push([2.4, 0.5, new THREE.Matrix4().compose(new THREE.Vector3(K.x - K.half - 0.28, Y + 5.0, K.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2), new THREE.Vector3(1, 1, 1)), 'war']);
       // roof beams + merlons on the keep top
       for (let i = 0; i < 4; i++) W(k, box(K.half * 2 - 1, 0.35, 0.35), C.WOOD_D, M(K.x, kt - 0.6, K.z - K.half + 1.6 + i * 2.3), false);
       for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { W(k, box(0.85, 0.95, 0.85), C.STONE, M(K.x + s * (K.half - 0.4), kt + 1.0, K.z - K.half + 0.8 + i * 2.8), false); W(k, box(0.95, 0.14, 0.95), TRIM, M(K.x + s * (K.half - 0.4), kt + 1.55, K.z - K.half + 0.8 + i * 2.8), false); }

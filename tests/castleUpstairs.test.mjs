@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../js/island/areas/fort.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-test('sw is at or past pfp-v267', () => { const v = +(sw.match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 267, 'sw ' + v); }); // [v268] holster lands after castle
+test('sw is at or past pfp-v273', () => { const v = +(sw.match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 273, 'sw ' + v); }); // [v273] spyglass climb + war-room
 test('fort_rampart_land: spans stair→wall-walk L (hl along x under yaw π/2, not the swapped 1.45 m hole)', () => {
   assert.match(src, /id:\s*'fort_rampart_land'[\s\S]{0,200}hl:\s*4\.0,\s*yaw:\s*Math\.PI\s*\/\s*2/);
   assert.doesNotMatch(src, /fort_rampart_land[\s\S]{0,80}hw:\s*2\.5,\s*hl:\s*NSTAIR\.hw/);
@@ -14,8 +14,13 @@ test('spy pad + larger interact + tower deck solid', () => {
   assert.match(src, /id:\s*'fort_spyglass'[\s\S]{0,80}r:\s*2\.2/);
   assert.match(src, /fort_tower_[\s\S]{0,60}r:\s*3\.6/);
 });
-test('rampart stair cheek colliders present', () => {
-  assert.match(src, /NSTAIR\.z\s*\+\s*s\s*\*\s*\(NSTAIR\.hw\s*\+\s*0\.25\)/);
+test('rampart stair cheek colliders present with open ends (v273 climb)', () => {
+  assert.match(src, /NSTAIR\.z\s*\+\s*s\s*\*\s*\(NSTAIR\.hw\s*\+\s*0\.(?:25|35)\)/);
+  assert.match(src, /openBot|leave ~4\.5 m open|leave ~2\.4 m open|yard→stair/);
+});
+test('war room banding is exterior strips not full-slab ceiling (v273)', () => {
+  assert.match(src, /Exterior face strips only|exterior strips only|low ceiling/);
+  assert.doesNotMatch(src, /for \(const yy of \[Y \+ 2\.2, Y \+ 5\.0, kt - 0\.4\]\) W\(k, box\(K\.half \* 2/);
 });
 test('keeps v261 moundSkip gate + v257 fort EXIT return untouched here', () => {
   const hill = readFileSync(new URL('../js/island/areas/hillRound.js', import.meta.url), 'utf8');
