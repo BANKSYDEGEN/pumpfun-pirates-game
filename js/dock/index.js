@@ -220,6 +220,7 @@ export async function createDock(ctx) {
   const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
+    if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { goAboard(true); pv?.harborSpectate?.(false); return; } // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
     if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); if (m) toast(m, 2800); return; } // [island-rework] area activities (cosmetic; gold behind areas/flags.js)
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel

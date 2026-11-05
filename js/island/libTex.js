@@ -99,7 +99,9 @@ function libRetag(group, rules, { tol = 0.03, floor = null, wear = false } = {})
 // js/island/areas/index.js calls this once per area build: the HILLTOP FORT (the "castle", fort.js) gets the library stone / timber / roof /
 // iron; the courtyard floor + flagstones (top faces at the yard level) the cobbles
 const FORT_RULES = [[0xb9b2a6, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0xcfc8bb, 'stone_ashlar'], [0xb3a58c, 'stone_ashlar'], [0xa89c86, 'stone_ashlar'], [0xc4b9a4, 'stone_ashlar'],
-  [0xa86a3a, 'timber'], [0x6b4527, 'timber'], [0xd9a36b, 'timber'], [0x2b2f36, 'iron'], [0x9a3a2a, 'roof_tile'], [0xe8d6a8, null], [0xd8322f, null], [0xffc93c, null], [0x1a1a1a, null], [0x2b5d6a, null], [0xffd27a, null]];
+  [0xa39c8e, 'stone_ashlar'], [0xd8d0bf, 'stone_ashlar'], [0x9e978a, 'stone_ashlar'], [0xbdb6a8, 'stone_ashlar'],
+  [0xa86a3a, 'timber'], [0x6b4527, 'timber'], [0xd9a36b, 'timber'], [0x2b2f36, 'iron'], [0x9a3a2a, 'roof_tile'], [0x7a2a1a, 'roof_tile'],
+  [0xe8d6a8, null], [0xd8322f, null], [0xffc93c, null], [0xd9a020, null], [0x1a1a1a, null], [0x2b5d6a, null], [0xffd27a, null], [0xf4efe6, null], [0x9b2335, null]];
 // Post's PIRATES' CLIMB (areas/route.js: Main Street kerbs / bands, the trail steps + cheek walls, retaining walls, edging, lamps, landmarks):
 // stone sides -> ashlar with a worn arris, every top face (treads, kerbs, copings) -> dressed sandstone, timber, iron, rope
 const ROUTE_RULES = [[0xb9b2a6, 'stone_ashlar'], [0xbdb6a8, 'stone_ashlar'], [0xa9a294, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0x9e978a, 'stone_ashlar'], [0xd8d0bf, 'stone_ashlar'],
