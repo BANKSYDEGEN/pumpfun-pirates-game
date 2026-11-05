@@ -1240,6 +1240,7 @@ export function createPvp(K) {
   function stateMsg() { // the transport asks for this once per tick
     const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
     if ((where !== 'arena' && !shared) || spec.on) return null;
+    if (where === 'harbor' && document.documentElement.classList.contains('pfp-spawn-pending')) return null; // [spawn-snap] still at the sea spawn behind the dock cover: send nothing until moored
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };

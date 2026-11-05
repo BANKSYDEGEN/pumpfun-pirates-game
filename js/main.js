@@ -179,7 +179,11 @@ function dockCoverTick() {
     dockCover.style.cssText = 'position:fixed;inset:0;z-index:29;background:radial-gradient(circle at 50% 40%,#10202c,#05080c);pointer-events:none;display:flex;align-items:flex-end;justify-content:center;padding-bottom:12vh;color:#f5c542;font:700 18px/1.2 system-ui,sans-serif;letter-spacing:.12em';
     dockCover.textContent = 'ROWING INTO THE HARBOR…'; const en = document.getElementById('pvp-entry'); if (en?.parentNode) en.parentNode.insertBefore(dockCover, en); else document.body.appendChild(dockCover); } // under the name card (same stacking context, z 29 < 30)
   if (dockCover) dockCover.style.display = want ? 'flex' : 'none';
+  // [spawn-snap] BANKSY 4:18 PM "Why do they spawn at sea then jump to dock": while this cover is up you still sit at the sea spawn,
+  // so js/pvp.js holds your harbor state until the dock has moored you (peers never see the sea spawn). &spawnsnap=0 = old.
+  if (SPAWN_SNAP) document.documentElement.classList.toggle('pfp-spawn-pending', want);
 }
+const SPAWN_SNAP = !/[?&]spawnsnap=0(?:&|$)/.test(location.search);
 function harborIslandTick(t) {
   if (DOCK_ON) { if (game.mode === 'pvp' && !!pvp && (pvp.where === 'harbor' || pvp.specHarbor)) dockLoad(); return; } // [v105] + harbor spectate (the whole coast island, no holes) // [Emerly] the dock world replaces Dock Town
   const want = HARBOR_ISLAND_ON && game.mode === 'pvp' && !!pvp && pvp.where === 'harbor';
