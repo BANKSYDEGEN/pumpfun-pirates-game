@@ -63,7 +63,8 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     case "inv_gift": {
       const item = b.item, qty = qtyOf(b.qty); let to = typeof b.to === "string" ? b.to : "";
       if (!okKey(item) || !qty || !to) return json(400, { error: "bad gift" });
-      if (!/^(wallet:|dev:)/.test(to)) { const { data: hits } = await db.from("pvp_players").select("id").eq("name", to.slice(0, 20)).limit(2); if (!hits || hits.length !== 1) return json(409, { error: hits?.length ? "name not unique" : "no such pirate" }); to = hits[0].id; }
+      if (!/^(wallet:|dev:)/.test(to)) { const { data: hits } = await db.from("pvp_players").select("id").eq("name", to.slice(0, 20)).limit(2); if (hits && hits.length > 1) return json(409, { error: "name not unique" });
+        if (hits?.length === 1) to = hits[0].id; else { const r = await nameFallback(db, to); if (!r) return json(409, { error: "no such pirate" }); to = r; } }
       return reply(await rpc("pvp_inv_gift", { p_from: pid, p_to: to, p_item: item, p_qty: qty }));
     }
     case "inv_fish": { const seed = pid + ":" + crypto.randomUUID(), f = rollFish(seed), d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: f });
@@ -110,3 +111,17 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
   return json(400, { error: "unknown action" });
 }
 export { OWNER_MAIN };
+
+// [gift-fix] additive: the name a player sees in the harbor is the save's display name, but 015 unique names can register it shortened
+// with a suffix ("Trav The Tracker" -> "Trav The Track #1545"). Exact lookup misses -> ONE registered name whose base (without " #n")
+// starts the typed name is the pirate, and only a name 015 CUT to fit (suffixed, 19-20 chars: "Bobby" never lands on "Bob #12"); none or several = no match (never a guess).
+export const nameBase = (n: string) => String(n).replace(/\s*#\d+$/, "").toLowerCase();
+export function pickByBase(typed: string, rows: { id: string; name: string }[]) {
+  const l = String(typed).toLowerCase(), m = (rows || []).filter((r) => { const n = String(r.name); if (!/\s#\d+$/.test(n) || n.length < 19) return false; const b = nameBase(n); return b.length >= 3 && l.startsWith(b); }); // only a name 015 cut short + suffixed
+  return m.length === 1 ? m[0].id : null;
+}
+async function nameFallback(db: any, typed: string) {
+  const head = typed.slice(0, 3).replace(/[\\%_]/g, (c) => "\\" + c); if (head.length < 3) return null;
+  const { data } = await db.from("pvp_players").select("id, name").ilike("name", head + "%").limit(500);
+  return pickByBase(typed, data || []);
+}
