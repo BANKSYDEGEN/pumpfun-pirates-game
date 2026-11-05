@@ -79,6 +79,18 @@ export function buildTreasureTrader({ MATS, OUT, low, H }) {
       signs.push([2.55, 0.64, new THREE.Matrix4().compose(new THREE.Vector3(-1.76, y, TT.door.lz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1))]); }
     { const y = gy(-6.2, TT.door.lz) + 2.45, x = -10.62;   // [v246] inside: a TREASURE TRADER board on the back wall over the counter (covers the lot's TO RENT board)
       W(k, box(0.1, 1.15, 3.1), WOOD_D, M(x, y, TT.door.lz)); signs.push([2.9, 0.78, new THREE.Matrix4().compose(new THREE.Vector3(x + 0.07, y, TT.door.lz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1))]); }
+    // [v249] BANKSY 8:09 PM 'fill the shelves': the lot's empty side-wall shelves (tools/hill_blender: 3 boards per side at floor + 0.9 / 1.6 /
+    // 2.3, 1 board on phones) get gold bar stacks, coin heaps, small chests, gem clusters, pearls and rolled maps. All in this Kit (merged per
+    // material, 0 new draw calls / textures); phones fill only their one board with every other item.
+    { const fy = (lz) => 6.046 + (lz + 77.69) * (5.035 - 6.046) / 9.19, rows = low ? [0.9] : [0.9, 1.6, 2.3], step = low ? 1.1 : 0.62;
+      for (const [wz, sz] of [[-77.44, 1], [-68.75, -1]]) rows.forEach((ry, ri) => { let i = ri * 2 + (sz > 0 ? 0 : 1);
+        for (let lx = -9.1; lx <= -3.9; lx += step, i++) { const y = fy(wz) + ry + 0.03, z = wz, kind = i % 6;
+          if (kind === 0) { for (const [bx, by, n] of [[0, 0, 2], [0, 1, 1]]) for (let j = 0; j < n; j++) W(k, box(0.26, 0.08, 0.12), GOLD, M(lx - (n - 1) * 0.07 + j * 0.14, y + 0.04 + by * 0.08, z), false); }   // gold bars
+          else if (kind === 1) { W(k, new THREE.ConeGeometry(0.17, 0.16, 8), GOLD, M(lx, y + 0.08, z), false); if (!low) for (let j = 0; j < 3; j++) W(k, cyl(0.045, 0.045, 0.015, 8), GOLD, M(lx + 0.16 + j * 0.03, y + 0.01 + j * 0.016, z + 0.05), false); }   // coin heap
+          else if (kind === 2) { W(k, box(0.34, 0.2, 0.24), WOOD_D, M(lx, y + 0.1, z)); W(k, box(0.36, 0.04, 0.26), GOLD_D, M(lx, y + 0.21, z), false); W(k, new THREE.ConeGeometry(0.13, 0.08, 8), GOLD, M(lx, y + 0.25, z), false); }   // small chest + gold
+          else if (kind === 3) { for (let j = 0; j < (low ? 2 : 5); j++) W(k, new THREE.IcosahedronGeometry(0.05 + (j % 2) * 0.02, 0), GEMS[(i + j) % GEMS.length], M(lx - 0.1 + (j % 3) * 0.1, y + 0.05 + (j > 2 ? 0.05 : 0), z + (j % 2 ? 0.05 : -0.05)), false); }   // gems
+          else if (kind === 4) { if (!low) W(k, cyl(0.12, 0.1, 0.05, 10), GOLD_D, M(lx, y + 0.025, z), false); for (let j = 0; j < (low ? 1 : 3); j++) W(k, new THREE.SphereGeometry(0.05, 6, 4), 0xf4efe6, M(lx - 0.05 + j * 0.05, y + 0.08, z), false); }   // pearls in a dish
+          else { W(k, cyl(0.05, 0.05, 0.36, 6), PARCH, M(lx, y + 0.05, z, 0, 0, Math.PI / 2), false); W(k, cyl(0.055, 0.055, 0.04, 6), RED, M(lx, y + 0.05, z, 0, 0, Math.PI / 2), false); } } }); }   // rolled map
     // ---- 5. the treasure tables: chests of gold, gems, gold bars, maps, pearls ----
     TT.tables.forEach((t, ti) => { const y0 = gy(t.lx, t.lz), top = y0 + 0.9, { w, d } = TT.table;
       W(k, box(w, 0.9, d), WOOD, M(t.lx, y0 + 0.45, t.lz)); W(k, box(w + 0.16, 0.1, d + 0.16), RED, M(t.lx, top + 0.02, t.lz), false);
