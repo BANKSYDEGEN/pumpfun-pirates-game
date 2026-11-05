@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v284'; // [v284] HUD: no PUMPFUN PIRATES wordmark in game, captain card top-left (&hudtitle=1 = old); prev: [v283] coliseum polish
+const VERSION = 'pfp-v285'; // [v285] CREW ROOM (free dress-up with gear you own, never sold twice, &crewdress=0, crew eyewear) + Clothes Shop / Red Stall BUY GEAR + CHANGING ROOM (full-body V6 preview), tidy layout, V6 baked previews (male + female), DEFAULT BEARD, cape / pants / shoes colours (player + crew); prev: [v284] HUD: no PUMPFUN PIRATES wordmark in game, captain card top-left (&hudtitle=1 = old); prev: [v283] coliseum polish
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
