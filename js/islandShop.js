@@ -252,7 +252,7 @@ function detail(x) {
     $('.ishop-info', d)?.append(w); }
 }
 // ---------- [Emerly] ITEM SKILL BOOSTS (js/boosts.js): card chips, the detail pane, the totals bar ----------
-const eqState = () => { const g = { ...(state?.equipped?.gear || {}) }; for (const k of ['crewhat', 'crewoutfit']) g[k] = eqGear(k); return g; };
+const eqState = () => { const g = { ...(state?.equipped?.gear || {}) }; for (const k of Object.keys(CREW_DEFAULT)) g[k] = eqGear(k); return g; };
 const ownedState = () => state?.owned?.gear || [];
 const totalNow = (gear = eqState()) => boostsFor(gear, ownedState(), !!state?.owner);
 function boostLine(x) { const b = boostOf(x.it.slot, x.it.id), c = boostChips(b); return c.length ? `Gives ${c.map(c => c.text + (BOOST_STATS[c.k]?.hint ? ` (${BOOST_STATS[c.k].hint})` : '')).join(' + ')} while worn` : 'Cosmetic only'; }   // [Raul items redo 2] + what a SELL BONUS pays on

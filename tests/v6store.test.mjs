@@ -22,7 +22,7 @@ test('ids are appended (old order kept), the same on client + server', async () 
 });
 test('prices: shop == server, cheapest first, flagged proposed; boosts: server == client, scaled by price, under the old boots', () => {
   for (const [slot, L] of [['pants', PANTS], ['boots', SHOES]]) { let last = 0;
-    for (const [id, pr, b] of L) { const it = GEAR_ITEMS.find((i) => i.slot === slot && i.id === id); assert.ok(it && it.price === pr && it.proposed, id);
+    for (const [id, pr, b] of L) { const it = GEAR_ITEMS.find((i) => i.slot === slot && i.id === id); assert.ok(it && it.price === pr && !it.proposed, id);   // [v6-store-clothes] BANKSY 1:36 PM OK'd them for sale
       assert.ok(pr >= last); last = pr; assert.match(lib, new RegExp(`"gear:${slot}:${id}": \\{ price: ${pr} \\}`), id);
       assert.deepEqual(BOOSTS[`${slot}:${id}`], b, id); assert.match(lib, new RegExp(`"${slot}:${id}": \\{ ${Object.keys(b)[0]}: ${Object.values(b)[0]} \\}`)); } }
   const sh = GEAR_ITEMS.filter((i) => i.slot === 'pants'); assert.ok(sh.indexOf(sh.find((i) => i.id === 'classic_pants')) < sh.indexOf(sh.find((i) => i.id === 'leather_breeches')));
@@ -31,10 +31,10 @@ test('prices: shop == server, cheapest first, flagged proposed; boosts: server =
 });
 test('sold in the Clothing Store (and the Shop / Red Stall); the free "none" rows', () => {
   assert.ok(SHOP_SLOTS.some(([s]) => s === 'pants')); assert.ok(VENDORS.shop.slots.includes('pants') && VENDORS.shop.slots.includes('boots'));
-  for (const v of ['clothes', 'stall_red']) {   // BANKSY: shoes + pants in their own SHOES & PANTS tab, not mixed into the clothing
-    assert.ok(VENDORS[v].tabs.includes('shoes'), v); assert.deepEqual(VENDORS[v].shoeSlots, ['boots', 'pants'], v);
-    assert.ok(!VENDORS[v].slots.includes('pants') && !VENDORS[v].slots.includes('boots'), v);
+  for (const v of ['clothes', 'stall_red']) {   // [v6-store-clothes] BANKSY 1:40 PM: SHOES + PANTS = more tabs under PIRATE GEAR
+    assert.deepEqual(VENDORS[v].tabs, ['gear'], v); assert.deepEqual(VENDORS[v].slots.slice(-2), ['boots', 'pants'], v);
   }
+  assert.ok(SHOP_SLOTS.some(([s, l]) => s === 'boots' && l === 'SHOES'));
   const ish = txt('js/islandShop.js'); assert.match(ish, /'SHOES & PANTS'/); assert.match(ish, /tabForSlot/);
   assert.ok(GEAR_ITEMS.find((i) => i.slot === 'pants' && i.id === 'none' && i.free));
 });
