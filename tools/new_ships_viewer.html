@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- [Emerly] PUMPFUN PIRATES NEW SHIPS viewer (dev tool): the five new hulls (js/newShips.js) on the GAME's own sea + sky + bloom, built by
+     the real ship compiler. Serve the repo root and open /tools/new_ships_viewer.html?quality=high|low&bloom=1
+     window.V.show({ skin, levels, quality }) · V.lineup([skins], gap) · V.frame(yaw, pitch, dist, look) · V.step(dt) · V.cost() -->
+<html><head><meta charset="utf-8"><base href="../"><title>PUMPFUN PIRATES new ships viewer</title>
+<style>html,body{margin:0;height:100%;background:#0d1a22;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three-0.165.0/build/three.module.min.js","three/addons/":"./vendor/three-0.165.0/examples/jsm/"}}</script>
+</head><body><canvas id="c"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { makeSkullTexture, animateShip, wind, setShipDetail } from './js/ships.js';
+import { compilePreview } from './js/upgradeVisuals.js';
+import { getSkin } from './js/skins.js';
+import { shipTick } from './js/pvpSkins.js';
+import { createOcean, createSky, FOG_COLOR } from './js/ocean.js';
+const q = new URLSearchParams(location.search), quality = q.get('quality') || 'high', LOW = quality === 'low';
+setShipDetail(LOW);
+if (q.get('kit') !== '0') { const { initKit } = await import('./js/shipKit.js'); await initKit(LOW); }
+if (q.get('crew') !== 'old') { const { initCrewV4 } = await import('./js/crewV4.js'); await initCrewV4(); }
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(+q.get('dpr') || 1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = FOG_COLOR.clone(); scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0042);
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.5, 3000);
+scene.add(new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9));
+const sun = new THREE.DirectionalLight(0xffe2c4, 2.1); sun.position.set(-40, 50, 80); scene.add(sun);
+const ocean = createOcean(quality); ocean.mesh.renderOrder = 2; scene.add(ocean.mesh);
+const sky = createSky(); scene.add(sky.mesh);
+let composer = null;
+if (!LOW && q.get('bloom') !== '0') {
+  const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([import('three/addons/postprocessing/EffectComposer.js'), import('three/addons/postprocessing/RenderPass.js'), import('three/addons/postprocessing/UnrealBloomPass.js'), import('three/addons/postprocessing/OutputPass.js')]);
+  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 }));
+  composer.addPass(new RenderPass(scene, camera)); composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.92)); composer.addPass(new OutputPass());
+}
+const skull = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = './assets/skull_transparent.png'; });
+const flagTex = makeSkullTexture(skull, { w: 512, h: 340, pad: 0.1 }), sailTex = makeSkullTexture(skull, { w: 512, h: 400, bg: '#121212', pad: 0.14 });
+let ships = [], ship = null;
+const build = (c) => compilePreview(c.levels || {}, { mainSailMap: sailTex, flagMap: flagTex, light: false, shadows: false, quality: c.quality || quality, skin: getSkin(c.skin || 'classic'), pvp: true });
+function clear() { for (const s of ships) scene.remove(s); ships = []; }
+function place(s, x, z, yaw) { s.position.set(x, 0.17 * (s.userData.depth || 3), z); s.rotation.y = yaw; s.userData.base = [x, z]; scene.add(s); ships.push(s); return s; }
+function show(c = {}) { clear(); ship = place(build(c), 0, 0, c.yaw || 0); return { len: ship.userData.len, beam: ship.userData.beam, depth: ship.userData.depth }; }
+function lineup(skins, gap = 15) { clear(); skins.forEach((sk, i) => place(build({ skin: sk }), (i - (skins.length - 1) / 2) * gap, 0, 0)); ship = ships[Math.floor(ships.length / 2)]; return ships.length; }
+function frame(yaw = 0.8, pitch = 0.15, dist = 1, lookY = 0.3) {
+  const box = new THREE.Box3(); for (const s of ships) box.expandByObject(s); const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const R = Math.max(sz.x, sz.y, sz.z) * 1.55 * dist; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  camera.position.set(c.x + Math.sin(yaw) * Math.cos(pitch) * R, Math.max(2, c.y + Math.sin(pitch) * R), c.z + Math.cos(yaw) * Math.cos(pitch) * R);
+  camera.lookAt(c.x, c.y - sz.y * (0.5 - lookY) * 0.4, c.z);
+}
+function cam(p, t, fov = 32) { camera.fov = fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); camera.position.set(...p); camera.lookAt(...t); }
+let t = 0;
+function step(dt = 1 / 30) { t += dt; wind.uTime.value = t; ocean.uniforms.uTime.value = t; sky.uniforms.uTime.value = t;
+  for (const s of ships) { animateShip(s, t, 1); try { shipTick(s, { speed: 6, alive: true, dt, t }); } catch {} }
+  if (composer) composer.render(); else renderer.render(scene, camera); }
+// cost of ONE ship (draws / triangles of its visible renderables), like tools/ship_tests/cost2.py
+function cost(c) { show(c); frame(0.9, 0.2, 2.5); step(); let draws = 0, tris = 0, pts = 0;
+  ship.traverse(o => { if (!(o.isMesh || o.isPoints || o.isLine) || !visibleUp(o)) return; draws++; const g = o.geometry; if (o.isPoints) pts += g.attributes.position.count; else if (o.isMesh) tris += (g.index ? g.index.count : g.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); });
+  renderer.info.autoReset = true; renderer.render(scene, camera); return { draws, tris: Math.round(tris), particles: pts, calls: renderer.info.render.calls, frameTris: renderer.info.render.triangles }; }
+function visibleUp(o) { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; }
+function resize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); composer?.setSize(w, h); }
+const errors = []; addEventListener('error', e => errors.push(String(e.message)));
+window.V = { cam, show, lineup, frame, step, cost, resize, errors, THREE, scene, camera, get ship() { return ship; }, get ships() { return ships; }, renderer };
+show({}); frame(); step();
+window.V_READY = true;
+</script></body></html>

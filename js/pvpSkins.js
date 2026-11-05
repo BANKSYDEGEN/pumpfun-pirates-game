@@ -20,11 +20,12 @@ import { FLAMING_REDESIGN, flamingRedesignTick } from '../assets/ships/pvp/flami
 Object.assign(FLAMING, FLAMING_REDESIGN);
 import { applyTierLooks, tierTick } from '../assets/ships/pvp/tierLooks.js';  // [Timothy] crimson, sea green, black pearl, coral, storm, admiral
 import { UNLOCK_SKINS } from '../assets/ships/pvp/unlockSkins.js'; // [Timothy] COMMODORE (100 harbor boss kills)
+import { NEW_SHIPS, newShipOf } from './newShips.js'; // [Emerly] the five new top-tier hulls (not unlockable yet: js/newShips.js)
 
 getSkin('golden').partsOverride = GOLDEN_PVP.partsOverride;
 getSkin('ghost').partsOverride = GHOST_PVP.partsOverride;
 MOBILE_SKINS.find(s => s.id === 'kraken').partsOverride = KRAKEN_PVP.partsOverride;
-for (const s of [...MOBILE_SKINS, FLAMING, DIAMOND, ...UNLOCK_SKINS]) registerSkin(s);
+for (const s of [...MOBILE_SKINS, FLAMING, DIAMOND, ...UNLOCK_SKINS, ...NEW_SHIPS.map(n => n.skin)]) registerSkin(s);
 applyTierLooks([...SKINS, ...MOBILE_SKINS]);
 
 // Per-ship tick contract: tick(mesh, { speed (world units/s), alive, dt, t }) runs every frame for every PvP ship
@@ -48,9 +49,9 @@ export const canUse = (id) => ownerAllSkins() || id === 'classic' || OWNED.has(i
 // unlockedSkins() stay kill-tier only until the harbor counters are wired (Emerly)
 export const UNLOCKS = PVP_UNLOCK_SKINS;
 export const unlockOf = (id) => UNLOCKS.find(u => u.id === id) || null;
-export const pvpSkin = (id) => getSkin(tierOf(id) || unlockOf(id) ? id : 'classic');
-export const knownSkin = (id) => !!(tierOf(id) || unlockOf(id)); // remote ships: any kill-tier OR unlock skin id renders as itself
-export const skinName = (id) => (tierOf(id) || unlockOf(id))?.name || 'CLASSIC';
+export const pvpSkin = (id) => getSkin(tierOf(id) || unlockOf(id) || newShipOf(id) ? id : 'classic'); // [Emerly] + the new hulls (renderable by id; nothing sells / unlocks them yet)
+export const knownSkin = (id) => !!(tierOf(id) || unlockOf(id) || newShipOf(id)); // remote ships: any kill-tier OR unlock skin id renders as itself ([Emerly] + the new hulls)
+export const skinName = (id) => (tierOf(id) || unlockOf(id) || newShipOf(id))?.name || 'CLASSIC';
 // [v98] progress toward an unlock skin: { have, need, stat } (null for kill-tier skins)
 export function unlockProgress(id, stats) { const u = unlockOf(id), k = u && UNLOCK_STAT[u.unlock?.type]; if (!k) return null; return { have: Math.max(0, Math.floor(stats?.[k] || 0)), need: u.unlock.count, stat: k }; }
 // [v98] for the later shared PvE harbor: COMMODORE captains can sail with the AI / boss side

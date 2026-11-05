@@ -39,6 +39,7 @@ import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
+import { previewShipId } from './newShips.js'; // [Emerly] the new hulls' preview flag
 import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
 import { isNetId, escHtml, num } from './safe.js';
@@ -173,7 +174,7 @@ export function createPvp(K) {
     setRunLevels(profile.levels); game.gold = profile.gold;
   }
   const skinId = () => profile.skins.equipped || 'classic';
-  const skinObj = () => pvpSkin(skinId());
+  const skinObj = () => pvpSkin(previewShipId() || skinId()); // [Emerly] ?newship=<id>: preview a new hull on YOUR ship only (look only: never saved or sent; js/newShips.js)
   function snapshot() { return cleanProfile({ gold: game.gold, levels: getRunLevels(), skins: { equipped: skinId(), owned: profile.skins.owned }, gear: profile.gear, gearOwned: profile.gearOwned, rev: profile.rev, prestige: profile.prestige | 0, stats: profile.stats }); }
   // ---------------- [v102] THE ISLAND SHOP (js/islandShop.js panel, server-checked buys via js/pvpSave.js) ----------------
   // Your pirate's equipped gear goes on the on-foot pirate + your captain through window.applyPirateGear (Timothy's gear meshes
