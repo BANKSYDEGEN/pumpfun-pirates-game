@@ -4,6 +4,8 @@
 //   controls / hotbar / stick. Shops, prompts, dialogs, kill / death screens and alerts stay. Choice in localStorage.
 const LS = 'pfp_hud_hide';
 const GOLDHUD_LEGACY = typeof location !== 'undefined' && /[?&]goldhud=0(?:&|$)/.test(location.search);
+// [hud-no-title] BANKSY 3:14 PM: no PUMPFUN PIRATES wordmark in the in-game HUD, captain card flush top-left; &hudtitle=1 = old title
+if (typeof document !== 'undefined' && !/[?&]hudtitle=1(?:&|$)/.test(location.search)) document.documentElement.classList.add('hud-notitle');
 export const goldhudLegacy = () => GOLDHUD_LEGACY;
 export function hudHidden() { try { return localStorage.getItem(LS) === '1'; } catch { return false; } }
 export function setHudHidden(on) {

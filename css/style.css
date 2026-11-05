@@ -1044,3 +1044,9 @@ html.pvp-spec #cap-prest { display: none; }
 .pvp-prest { color: var(--gold); white-space: nowrap; } .pvp-prest svg { vertical-align: -3px; }
 .prest-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--gold); white-space: nowrap; } .prest-badge.p2, .prest-badge.p3 { color: #bfe8ff; }
 #profile #pf-prest { display: block; margin-top: 3px; } #profile #pf-prest .prest-badge b { display: inline; font-size: 18px; line-height: 1; } /* [prestige] */
+
+/* [hud-no-title] BANKSY 3:14 PM: in-game wordmark off, captain card flush top-left, mode panel tucked under it (&hudtitle=1 = old) */
+html.hud-notitle #hud #hud-logo { display: none !important; }
+html.hud-notitle #pvp-harbor { top: calc(138px + var(--safe-t, 0px)); }
+@media (max-height: 480px) and (orientation: landscape) { html.hud-notitle #pvp-harbor { top: calc(104px + var(--safe-t, 0px)); } }
+@media (orientation: portrait) { html.hud-notitle #pvp-harbor { top: auto; } }
