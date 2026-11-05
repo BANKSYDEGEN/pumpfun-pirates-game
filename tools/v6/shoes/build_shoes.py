@@ -96,19 +96,19 @@ for sx in (1, -1):
   T = np.clip((heel - Y) / Lf, -0.05, 1.05)                                       # 0 heel .. 1 toe tip
   # [v6 shoes polish3] kill leftover Mickey toes: sharper tip + mid-forefoot taper on classic/sea/buckle; sandals keep a bit more sole width
   if STY == 'shoe':
-    _w = [0.32, 0.40, 0.43, 0.44, 0.48, 0.36, 0.18, 0.06, 0.022]
+    _w = [0.32, 0.40, 0.43, 0.44, 0.47, 0.34, 0.15, 0.045, 0.014]
   elif STY == 'sandal':
-    _w = [0.34, 0.42, 0.45, 0.46, 0.52, 0.42, 0.26, 0.10, 0.040]
+    _w = [0.34, 0.42, 0.45, 0.46, 0.52, 0.41, 0.24, 0.085, 0.032]
   elif STY == 'sea':
-    _w = [0.34, 0.42, 0.45, 0.46, 0.51, 0.42, 0.24, 0.09, 0.032]
+    _w = [0.34, 0.42, 0.45, 0.46, 0.50, 0.40, 0.21, 0.07, 0.022]
   else:
-    _w = [0.34, 0.42, 0.45, 0.46, 0.50, 0.40, 0.22, 0.08, 0.028]
+    _w = [0.34, 0.42, 0.45, 0.46, 0.49, 0.38, 0.19, 0.06, 0.018]
   W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], _w)
   ZB = np.interp(T, [0.0, 0.24, 0.55, 0.9, 1.0], [HH, HH, 0.013, 0.013, 0.022])   # the upper's underside = the sole's top (toe spring)
   _zt = [0.056, 0.084, 0.102, 0.090, 0.060, 0.042, 0.032, 0.024, 0.020] if STY == 'sea' else [0.056, 0.084, 0.102, 0.090, 0.060, 0.042, 0.030, 0.022, 0.018]
   ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], _zt)   # [v6 shoes polish3] flatter lasted tip; sea slightly less ski
   zc = (ZB + ZT) / 2; hz = np.maximum((ZT - ZB) / 2, 0.006)
-  q = (np.abs(X - fcx) / W) ** 2.9 + (np.abs(Z - zc) / hz) ** 2.5   # [v6 shoes polish3] harder last (less round Mickey tip)
+  q = (np.abs(X - fcx) / W) ** 3.3 + (np.abs(Z - zc) / hz) ** 2.6   # [v6 shoes polish4] harder last; harder last (less round Mickey tip)
   d_foot = (q ** (1 / 2.7) - 1) * np.minimum(W, hz)
   d_foot = np.maximum(d_foot, np.maximum(Y - heel, toe - Y))
   fhx = bfx * 0.64   # the ball half width (straps / caps below)
@@ -117,7 +117,7 @@ for sx in (1, -1):
   # [v6 shoes polish3] female classic: fuller mid-calf (cuff wrap) + slightly tighter ankle; sea/male keep polish2-ish fit
   if STY in ('classic', 'sea'):
     kz = np.interp(zs, [0.05, 0.095, CUT - 0.035, CUT - 0.005],
-                   ([0.54, 0.78, 1.00, 1.0] if (F and STY == 'classic') else
+                   ([0.54, 0.80, 1.05, 1.03] if (F and STY == 'classic') else
                     [0.52, 0.58, 0.90, 1.0] if F else
                     [0.48, 0.52, 0.86, 1.0]))[:, None]
   else:
@@ -158,13 +158,13 @@ for sx in (1, -1):
     cuff_c = cen[zi]; cuff_R = RRs[zi]   # shaft radius (not raw knee/leg) so the cuff wraps under the calf
     if F:
       # thinner rolled lip hugging shaft — wrap under calf, not a floating ring
-      prof = [(0.0002, ct - 0.004), (0.0012, ct + 0.0003), (0.0024, ct + 0.0008), (0.0034, ct - 0.003), (0.0038, ct - 0.011), (0.0036, c0 + 0.003), (0.0026, c0 - 0.0005), (0.0014, c0), (0.0006, ct - 0.012)]
-      cuff_base = 0.0008
+      prof = [(0.0002, ct - 0.004), (0.0010, ct + 0.0003), (0.0020, ct + 0.0007), (0.0028, ct - 0.003), (0.0031, ct - 0.011), (0.0030, c0 + 0.003), (0.0021, c0 - 0.0005), (0.0011, c0), (0.0005, ct - 0.012)]   # [v6 shoes polish4] thinner
+      cuff_base = 0.0003   # [v6 shoes polish4] hug shaft, no ring gap
       inner = lambda th: 0.90 + 0.10 * min(1.0, max(0.0, math.cos(th) * sx + 0.15))
     else:
       prof = [(0.0008, ct - 0.007), (0.0024, ct + 0.0004), (0.0044, ct + 0.0014), (0.0060, ct - 0.002), (0.0070, ct - 0.011), (0.0072, c0 + 0.002), (0.0060, c0 - 0.001), (0.0036, c0), (0.0018, ct - 0.014)]
       cuff_base = ms + 0.001
-      inner = lambda th: 0.65 + 0.35 * min(1.0, max(0.0, math.cos(th) * sx + 0.30))
+      inner = lambda th: 0.60 + 0.30 * min(1.0, max(0.0, math.cos(th) * sx + 0.30))   # [v6 shoes polish4] male cuff tighter
     parts.append(('cuff', sx) + sweep(cuff_c, cuff_R, cuff_base, prof, NTH + 4 if HI else NTH, 1, amp=inner))
     zb = 0.070 + 0.20 * np.clip(Y - (toe + 0.15), -0.2, 0.2)   # ankle strap with a small brass buckle on the outside
     parts.append(mc_part(shell(np.abs(Z - zb) - 0.008, 0.0065), G, 'strap', sx))
