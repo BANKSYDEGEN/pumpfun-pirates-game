@@ -89,6 +89,9 @@ export const NEW_STORES = [
   { id: 'coli_store_45', n: 45, lx: -10.0, lz: -56.5, w: 16, d: 21, storeys: 1, maxRoof: 2.8, yaw: Math.PI / 2, label: 'EMPTY SHOP' },
   { id: 'coli_store_46', n: 46, lx: 22.0, lz: -56.5, w: 16, d: 21, storeys: 2, maxRoof: 0, yaw: -Math.PI / 2, label: 'EMPTY SHOP' },
 ];
+// [Emerly] BANKSY 5:16 PM Nov 5: "fully remove those 2 new rentals for now just leave that area blank don't add the stone blocks back":
+// no building, stone box, collider or sign at #45 / #46 (clearAt still keeps the plot free of decor). &colirent=1 = the v292 rent shops back.
+export const COLI_STORES_ON = typeof location !== 'undefined' && /[?&]colirent=1(&|$)/.test(location.search || '');
 // Same anchors as the rendered frames, live screens and walk-up prompts (scores untouched).
 export const BOARD_POIS = CO.PLAZA_POIS.filter(q => q.id === 'waves' || q.id === 'arena');
 
@@ -301,7 +304,7 @@ export function buildArt(o) {
   }
 
   // new empty store shells (dressed stone, cornice); #45 stays one storey under 2.8 m so the Treasure sign reads
-  for (const s of NEW_STORES) {
+  for (const s of COLI_STORES_ON ? NEW_STORES : []) {   // [Emerly] BANKSY 5:16 PM: #45 / #46 removed, the ground left blank (&colirent=1 = the v292 rent shops)
     { const f = s.yaw > 0 ? 1 : -1, clx = s.lx + f * (s.d / 2 - 7), [rx, rz] = T(clx, s.lz);   // [Emerly] BANKSY: rentable like the hill street shops (front kept on the street line)
       if (o.rentLot && o.rentLot({ id: s.id, x: rx, y: H(rx, rz), wz: rz, yaw: CO.t2wYaw(s.yaw), addBox, addCirc })) continue; }
     const [x, z] = T(s.lx, s.lz), y = H(x, z), yaw = CO.t2wYaw(s.yaw);
