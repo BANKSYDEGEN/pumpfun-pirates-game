@@ -66,8 +66,10 @@ export async function coastLayout() {
   // ---- interact points ----
   const interact = [], PP = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
   const P = (id, kind, lx, lz, label, r = 3.2) => { const [x, z] = L(lx, lz); interact.push({ id, kind, x, z, r, label }); };
-  P('waves', 'waves', PP.waves.lx + (PP.waves.lz === -36 ? 2.4 : 0), PP.waves.lz + (PP.waves.lz === -36 ? 0 : 2.6), 'STORM HUNT LEADERBOARD · START STORM HUNT', 3.6);
-  P('arena', 'arena', PP.arena.lx - (PP.arena.lz === -36 ? 2.4 : 0), PP.arena.lz + (PP.arena.lz === -36 ? 0 : 2.6), 'BATTLE ROYALE LEADERBOARD · JOIN', 3.6);
+  for (const id of ['waves', 'arena']) {
+    const q = CO.boardApproach(PP[id]);
+    P(id, id, q.lx, q.lz, id === 'waves' ? 'STORM HUNT LEADERBOARD · START STORM HUNT' : 'BATTLE ROYALE LEADERBOARD · JOIN BATTLE', 3.6);
+  }
   P('spyglass', 'spyglass', CO.SPYGLASS.lx, CO.SPYGLASS.lz, 'SPYGLASS · SPECTATE', CO.SPYGLASS.r); // Raul's spyglass prop (coast.js SPYGLASS, single source of truth)
   if (CO.TOKENX_ON) P('exchange', 'exchange', PP.exchange.lx, PP.exchange.lz + 4.2, 'TOKEN EXCHANGE'); // [v240] kiosk + prompt hidden unless &tokenx=1 (dock/index.js 'exchange' case kept)
   // [v103] the old HARBOR MARKET: CLOTHES SHOP + SHIP SKINS / UPGRADES shops and the three token billboards (foot.js PLAZA_*)

@@ -53,14 +53,16 @@ export const SHOW_TAVERN = !!QF && QF.get('tavern') === '1', SHOW_BOUNTY_BOARDS 
 export const SHOW_NOTICE_BOARD = !!QF && QF.get('noticeboard') === '1';
 export const HALL_TOKENS = ['HQ', 'RETARDIO'];   // the hall_e posters (js/island/plazaTown.js TOKEN_SLOTS)
 export const hallTokenHidden = (sym) => !HALL_BOARDS_ON && HALL_TOKENS.includes(sym);
-// [Emerly coli] boards remount to #4/#5 side walls when coliseum is on (&coliseum=0 = quay).
+// Boards face the Hill Street mouth, clear of #4/#5 walls + plinths. Shared by art, screens, colliders and prompts.
+// The old lx -4.2 / 14.8 anchors buried the backing in the solid shop footprint; &coliseum=0 restores the quay.
 const _coliBoards = !(typeof location !== 'undefined' && /[?&]coliseum=0(&|$)/.test(location.search));
 export const PLAZA_POIS = [                                                        // town-local
-  { id: 'waves', label: 'STORM HUNT board', lx: _coliBoards ? -4.2 : -10, lz: _coliBoards ? -36 : -12 }, { id: 'arena', label: 'ARENA board', lx: _coliBoards ? 14.8 : 22, lz: _coliBoards ? -36 : -12 },
+  { id: 'waves', label: 'STORM HUNT board', lx: _coliBoards ? -2.6 : -10, lz: _coliBoards ? -36 : -12, yaw: _coliBoards ? Math.PI / 2 : 0 }, { id: 'arena', label: 'ARENA board', lx: _coliBoards ? 13.4 : 22, lz: _coliBoards ? -36 : -12, yaw: _coliBoards ? -Math.PI / 2 : 0 },
   { id: 'exchange', label: 'Token exchange', lx: 62, lz: -30 }, { id: 'market', label: 'Harbor market', lx: -36, lz: -32 },
   { id: 'spectate', label: 'Spectate spyglass', lx: SPYGLASS.lx, lz: SPYGLASS.lz }, { id: 'tower', label: 'Harbor tower', lx: 86, lz: -44 },
   { id: 'arrive', label: 'Step ashore (P1 head)', lx: -90, lz: 42 },
 ];
+export const boardApproach = (q, distance = 2.6) => ({ lx: q.lx + Math.sin(q.yaw) * distance, lz: q.lz + Math.cos(q.yaw) * distance });
 // no-fire safe harbor (town-local polygon): berths + 22 m, the quay front and the mole
 // [v124] BANKSY "make the harbor battle zone farther away from dock, I get shot right away": the no-fire zone runs ~105 m past the pier
 // heads (was 26 m) and 60 m past the outer pier; leaving it you still cannot fire for layout.graceS (4 s)

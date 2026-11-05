@@ -55,11 +55,8 @@ export const NEW_STORES = [
   { id: 'coli_store_45', n: 45, lx: -10.0, lz: -56.5, w: 16, d: 21, storeys: 1, maxRoof: 2.8, yaw: Math.PI / 2, label: 'EMPTY SHOP' },
   { id: 'coli_store_46', n: 46, lx: 22.0, lz: -56.5, w: 16, d: 21, storeys: 2, maxRoof: 0, yaw: -Math.PI / 2, label: 'EMPTY SHOP' },
 ];
-// Leaderboards remounted on plaza side walls facing Hill Street mouth (boards only; scores untouched)
-export const BOARD_POIS = [
-  { id: 'waves', label: 'STORM HUNT board', lx: -4.2, lz: -36, yaw: Math.PI / 2 },   // #4 SHIPS east wall
-  { id: 'arena', label: 'ARENA board', lx: 14.8, lz: -36, yaw: -Math.PI / 2 },       // #5 UPGRADES west wall
-];
+// Same anchors as the rendered frames, live screens and walk-up prompts (scores untouched).
+export const BOARD_POIS = CO.PLAZA_POIS.filter(q => q.id === 'waves' || q.id === 'arena');
 
 export const near = (lx, lz) => COLISEUM_ON && ((lx > FOOT.lx0 - 12 && lx < FOOT.lx1 + 8 && lz > FOOT.lz0 - 12 && lz < FOOT.lz1 + 8) || inMainAlley(lx,lz,3) || castleSample(lx,lz).d < CASTLE_RAMP_HW+2);
 

@@ -925,14 +925,14 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   const P = Object.fromEntries(CO.PLAZA_POIS.map(q => [q.id, q]));
   // [v103] WAVES + ARENA boards are LIVE LEADERBOARDS (BANKSY): a bigger frame; js/dock/plaza.js lays one live canvas screen
   // (both boards in one texture, 1 draw call) on the front at PLAZA_BOARD.face; the painted title sign rides on top + on the back
-  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, (COLI.COLISEUM_ON ? (id === 'waves' ? Math.PI / 2 : -Math.PI / 2) : 0), () => { const B = PLAZA_BOARD;
+  for (const [id, sg, c] of [['waves', 'waves', 0xd8322f], ['arena', 'arena', 0x2a6df4]]) at(P[id].lx, P[id].lz, P[id].yaw, () => { const B = PLAZA_BOARD;
     for (const s of [-1, 1]) W(k, box(0.34, B.y + B.h / 2 + 1.3, 0.34), WOOD_D, 2, M(s * (B.w / 2 + 0.25), (B.y + B.h / 2 + 1.3) / 2, 0));
     W(k, box(B.w + 0.4, B.h + 0.4, 0.3), c, 2, M(0, B.y, 0)); W(k, box(B.w + 0.1, B.h + 0.1, 0.05), 0x161616, 0, M(0, B.y, 0.16), false);
     W(k, box(B.w * 0.84, 1.1, 0.2), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.85, 0), false);
     if (A[sg]) { atlasQuad(k, B.w * 0.8, 0.95, A[sg], M(0, B.y + B.h / 2 + 0.85, 0.11)); atlasQuad(k, B.w * 0.8, 0.95, A[sg], M(0, B.y + B.h / 2 + 0.85, -0.11, Math.PI));
       atlasQuad(k, B.w * 0.9, 1.1, A[sg], M(0, B.y, -0.17, Math.PI)); }
     W(k, box(B.w + 0.6, 0.3, 0.5), WOOD_D, 2, M(0, B.y + B.h / 2 + 0.2, 0), false); }, Y0);
-  for (const id of ['waves', 'arena']) { const [x, z] = T(P[id].lx, P[id].lz); addBox(x, z, PLAZA_BOARD.w + 1, 0.6, yaw0); }
+  for (const id of ['waves', 'arena']) { const [x, z] = T(P[id].lx, P[id].lz); addBox(x, z, PLAZA_BOARD.w + 1, 0.6, CO.t2wYaw(P[id].yaw)); }
   if (CO.TOKENX_ON) at(P.exchange.lx, P.exchange.lz, 0, () => { W(k, box(6, 3.4, 4.5), CREAM, 7, M(0, 1.7, 0)); W(k, new THREE.ConeGeometry(5.0, 2.2, 4), GOLD, 4, M(0, 4.5, 0, Math.PI / 4)); W(k, box(4.5, 1.1, 0.8), WOOD, 2, M(0, 0.55, 2.6));
     if (A.exchange) atlasQuad(k, 3.4, 0.9, A.exchange, M(0, 2.9, 2.27)); }, Y0); if (CO.TOKENX_ON) { const [x, z] = T(P.exchange.lx, P.exchange.lz); addBox(x, z, 6.4, 5, yaw0); }   // [v240] the kiosk is hidden unless &tokenx=1 (the FISH MARKET stands there)
   // [v103] the HARBOR MARKET stalls are now two proper shops (BANKSY): CLOTHES SHOP + SHIP SKINS / UPGRADES, and between them
