@@ -216,3 +216,15 @@
   .ishop-actbar .ishop-act { font-size: 18px; min-height: 44px; }
   .ishop-hatc button { width: 40px; height: 40px; min-width: 40px; }
 }
+/* [v6-store-clothes] BANKSY 2:05 PM "Clean up clothing store": one compact boosts row, item tabs that fit, cards clear of the scrollbar */
+.ishop-bsts { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; white-space: nowrap; }
+.ishop-bsts > * { flex: 0 0 auto; }
+.ishop-chips button { flex: 1 1 auto; text-align: center; }
+.ishop-chips .ishop-look { flex: 1 1 auto; margin-left: 0; }
+.ishop-grid { scrollbar-gutter: stable; padding-right: 8px; }
+@media (max-width: 760px), (max-height: 520px) {
+  .ishop-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .ishop-chips button { flex: 0 0 auto; }
+}
+/* [v6-store-clothes] CHANGING ROOM: owned items only, no prices / buying */
+.ishop.wardrobe .ishop-pr, .ishop.wardrobe .ishop-bst { display: none; }

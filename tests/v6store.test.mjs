@@ -32,7 +32,7 @@ test('prices: shop == server, cheapest first, flagged proposed; boosts: server =
 test('sold in the Clothing Store (and the Shop / Red Stall); the free "none" rows', () => {
   assert.ok(SHOP_SLOTS.some(([s]) => s === 'pants')); assert.ok(VENDORS.shop.slots.includes('pants') && VENDORS.shop.slots.includes('boots'));
   for (const v of ['clothes', 'stall_red']) {   // [v6-store-clothes] BANKSY 1:40 PM: SHOES + PANTS = more tabs under PIRATE GEAR
-    assert.deepEqual(VENDORS[v].tabs, ['gear'], v); assert.deepEqual(VENDORS[v].slots.slice(-2), ['boots', 'pants'], v);
+    assert.deepEqual(VENDORS[v].tabs, ['gear', 'wardrobe'], v);   // BUY GEAR + CHANGING ROOM (BANKSY 2:05 PM) assert.deepEqual(VENDORS[v].slots.slice(-2), ['boots', 'pants'], v);
   }
   assert.ok(SHOP_SLOTS.some(([s, l]) => s === 'boots' && l === 'SHOES'));
   const ish = txt('js/islandShop.js'); assert.match(ish, /'SHOES & PANTS'/); assert.match(ish, /tabForSlot/);

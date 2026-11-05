@@ -36,6 +36,7 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   boots:  { c: [0, 0.09, 0.06], d: [0.95, 0.28, 0.75], r: 0.15 },   // [v6-store-clothes] BANKSY 1:52 PM "better previews": side 3/4 close-up of the shoe pair, filling the card
   pants:  { c: [0, 0.5, 0.02], d: [0.35, 0.1, 1], r: 0.44 },     // [v6-store-clothes] hips to ankles (was the outfit torso frame)
   cape:   { c: [0, 0.85, -0.05], d: [0.7, 0.15, -1], r: 0.6 },
+  full:   { c: [0, 0.98, 0], d: [0.35, 0.08, 1], r: 1.12 },   // [v6-store-clothes] CHANGING ROOM: head to feet
   // [Raul items redo 2] the ground pets stand by the captain's left foot (js/petRig.js anchors x 1.25 for the 1.75 m mannequin)
   'parrot:pet_cat': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_cat_black': { c: [0.47, 0.2, 0.05], d: [0.75, 0.22, 1], r: 0.27 }, 'parrot:pet_monkey': { c: [0.56, 0.36, 0.05], d: [0.45, -0.05, 1], r: 0.46 },
   'parrot:pet_chimp': { c: [0.64, 0.4, 0.05], d: [0.45, -0.05, 1], r: 0.5 }, 'parrot:pet_gorilla': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_gorilla_white': { c: [0.85, 0.5, 0.05], d: [0.75, 0.22, 1], r: 0.62 }, 'parrot:pet_tiger': { c: [0.62, 0.46, 0.05], d: [0.6, 0.0, 1], r: 0.64 },
@@ -43,11 +44,11 @@ const FRAME = {   // measured from the skinned item bounds in the idle pose (big
   'hat:mask_luchador': { c: [0, 1.4, 0.05], d: [0.3, 0.12, 1], r: 0.36 },   // [Raul wrestler] the full-head mask: brow skull to the open chin   // [v143] the tall Imperial Crown (cross ~2.2 m) with the face under it
 };
 // the frame for this slot, mirrored to the pirate's LEFT (+x) for a left hook / peg
-function frameOf(slot, o, id) { const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
+function frameOf(slot, o, id) { if (o?.frame === 'full') return FRAME.full; const F = FRAME[slot + ':' + id] || FRAME[slot] || FRAME.outfit, side = slot === 'hook' ? o.hookSide : slot === 'leg' ? o.legSide : 'R';
   return side === 'L' ? { c: [-F.c[0], F.c[1], F.c[2]], d: [-F.d[0], F.d[1], F.d[2]], r: F.r } : F; }
 const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin || 'classic') : '', slot === 'hat' ? (o.hatColor | 0) : '', slot === 'hook' ? (o.hookSide === 'L' ? 'L' : 'R') : '',
   slot === 'leg' ? (o.legSide === 'L' ? 'L' : 'R') : '', o.skinColor | 0, o.hairColor | 0, o.body | 0, o.eyeColor | 0, slot === 'cape' ? (o.capeColor | 0) : '', o.wear ? JSON.stringify(o.wear) + (o.skin || '') : ''].join('|');   // [Timothy] wear = other items worn under it (the Crew Shop's uniform)
-const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}`;
+const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}|${o.frame || ''}`;
 const TW = 200, TH = 102;   // the shop card swatch is 150 x 76 (css .ishop-sw), drawn at ~1.33x
 const cache = new Map();   // key -> dataURL
 let R = null, scene = null, cam = null, fig = null, figP = null, scroll = null, idleT = 0;
