@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v282'; // [v282] coliseum musket range on the arena floor (Timothy d4b3ee7, y 14.8 to FOOT.y 9.2); [v281] musket support arm (&musketarm=0); prev: [v280] coliseum
+const VERSION = 'pfp-v283'; // [v283] coliseum polish (Timothy 774efdf): fountain back stairs, clear fish market + marketplace interiors, matching colliders, gate, well, arena texture, plaza GLB rebake; prev: [v282] musket range floor + musket arm
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
