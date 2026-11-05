@@ -453,24 +453,28 @@ if not FEM and E_('TAT', 1):
     for li in p.loop_indices: uvl.data[li].uv = uvs[tm.loops[li].vertex_index]
   for p in tm.polygons: p.use_smooth = True
   to = bpy.data.objects.new('v5_tattoo', tm); bpy.context.scene.collection.objects.link(to); to.parent = arm
-  # texture: Pump.fun pill (capsule, tilted, green top-right half / white half, ink outline + highlight)
+  # BANKSY NFT/sketch pill: mint upper half, white lower half; NO opaque backing.
+  # A PNG + glTF MASK keeps alpha intact in both GLTFLoader and toon alphaTest.
   TW, TH = (512, 348) if not LO else (256, 174)
   yy, xx = np.mgrid[0:TH, 0:TW].astype(np.float32); X = (xx + 0.5) / TW * L - L / 2; Y = (yy + 0.5) / TH * Hh - Hh / 2
-  ang = np.radians(E_('TATANG', 32.0)); ca_, sa = np.cos(ang), np.sin(ang); U = X * ca_ + Y * sa; V = -X * sa + Y * ca_
-  R = E_('TATR', 0.0135); HL = E_('TATHL', 0.0155); OL = R * 0.20
+  ang = np.radians(E_('TATANG', 48.0)); ca_, sa = np.cos(ang), np.sin(ang); U = X * ca_ + Y * sa; V = -X * sa + Y * ca_
+  R = E_('TATR', 0.0105); HL = E_('TATHL', 0.0140); OL = R * 0.10
   Uc = np.clip(U, -HL, HL); dist = np.sqrt((U - Uc) ** 2 + V ** 2)
   RGBA = np.zeros((TH, TW, 4), np.float32)
-  ink = np.array([0.06, 0.13, 0.11]); grn = np.array([0.33, 0.83, 0.55]); wht = np.array([0.96, 0.97, 0.95])
+  ink = np.array([0.19, 0.25, 0.23]); grn = np.array([0.25, 0.69, 0.60]); wht = np.array([0.98, 0.98, 0.95])
   inside = dist < R - OL; edge = (dist < R) & ~inside
-  RGBA[inside, :3] = np.where((U[inside] > 0)[:, None], grn, wht); RGBA[inside | edge, 3] = 1
-  RGBA[edge, :3] = ink; div = inside & (np.abs(U) < OL * 0.45); RGBA[div, :3] = ink
-  hl = inside & (np.abs(V - R * 0.45) < R * 0.10) & (np.abs(U - HL * 0.15) < HL * 0.55); RGBA[hl, :3] = np.minimum(1, RGBA[hl, :3] * 0.6 + 0.4)
-  # antialias the alpha edge a touch
-  RGBA[..., 3] = np.clip((R - dist) / (R * 0.05) + 0.5, 0, 1)
-  im = bpy.data.images.new('pill_tattoo', TW, TH, alpha=True); im.pixels.foreach_set(RGBA.ravel()); im.pack()
+  RGBA[inside, :3] = np.where((U[inside] > 0)[:, None], grn, wht)
+  RGBA[edge, :3] = ink; div = inside & (np.abs(U) < OL * 0.5); RGBA[div, :3] = ink
+  # Strictly zero outside the capsule (including corners); no invented gloss stripe.
+  RGBA[..., 3] = (dist < R).astype(np.float32)
+  im = bpy.data.images.new('pill_tattoo', TW, TH, alpha=True); im.alpha_mode = 'STRAIGHT'
+  im.pixels.foreach_set(RGBA.ravel()); im.update(); im.file_format = 'PNG'; im.pack()
   tmat = bpy.data.materials.new('skull.tattoo'); tmat.use_nodes = True; nt = tmat.node_tree; bs = nt.nodes['Principled BSDF']
-  tx = nt.nodes.new('ShaderNodeTexImage'); tx.image = im; nt.links.new(tx.outputs['Color'], bs.inputs['Base Color']); nt.links.new(tx.outputs['Alpha'], bs.inputs['Alpha'])
-  bs.inputs['Roughness'].default_value = 0.8; tmat.blend_method = 'BLEND'
+  tx = nt.nodes.new('ShaderNodeTexImage'); tx.image = im; tx.extension = 'CLIP'
+  nt.links.new(tx.outputs['Color'], bs.inputs['Base Color'])
+  cut = nt.nodes.new('ShaderNodeMath'); cut.operation = 'GREATER_THAN'; cut.inputs[1].default_value = 0.5
+  nt.links.new(tx.outputs['Alpha'], cut.inputs[0]); nt.links.new(cut.outputs[0], bs.inputs['Alpha'])
+  bs.inputs['Roughness'].default_value = 0.8; tmat.blend_method = 'CLIP'; tmat.alpha_threshold = 0.5
   tm.materials.append(tmat)
   for vg in body.vertex_groups: to.vertex_groups.new(name=vg.name)
   dt = to.modifiers.new('dt', 'DATA_TRANSFER'); dt.object = body; dt.use_vert_data = True; dt.data_types_verts = {'VGROUP_WEIGHTS'}
