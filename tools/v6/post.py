@@ -4,7 +4,8 @@
 #    skin shards in the hair / hair shards on the skin narrower than the smoothing go with it.
 # 2) flat clean face: the face-front normals (nose / mouth / cheeks) blended to a heavily smoothed normal field (V5's flat toon face),
 #    shape unchanged (v5 items keep fitting).
-# 3) texels whose class changed get that class's flat albedo. Rig, weights, clips, extras, decal: untouched.
+# 3) texels whose class changed get that class's flat albedo. Rig, weights, clips, extras: untouched.
+# 4) [V6 quality 4] her eyes decal crisp (paint.crisp_eyes, hi); his beard's bottom shards rounded (paint.beard_tips).
 import bpy, bmesh, sys, os, numpy as np, mathutils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); sys.path.insert(0, '/workspace/raul_items_redo_work/py311')
 import paint
@@ -18,7 +19,7 @@ img = [n for n in mat.node_tree.nodes if n.type == 'TEX_IMAGE'][0].image
 CL = np.array([-1, 0, 1])
 # face centre / eye spacing from the decal's iris texels (as paint.decal_face, read-only)
 dimg = [n for n in dec.data.materials[0].node_tree.nodes if n.type == 'TEX_IMAGE'][0].image
-W, H = dimg.size; A = np.array(dimg.pixels[:], dtype=np.float32).reshape(H, W, 4); FI, P3 = paint.raster(dec.data, W, H)
+W, H = dimg.size; A = np.array(dimg.pixels[:], dtype=np.float32).reshape(H, W, 4); FI, P3 = paint.raster(dec.data, W, H); DFI, DP3 = FI, P3
 blue = (FI >= 0) & (A[..., 3] > 0.5) & (A[..., 2] > A[..., 0] + 0.15) & (A[..., 2] > 0.35); Q = P3[blue]
 L_ = Q[Q[:, 0] > np.median(Q[:, 0])].mean(0); R_ = Q[Q[:, 0] <= np.median(Q[:, 0])].mean(0); SEP = abs(L_[0] - R_[0]); EYE = (L_ + R_) / 2
 print('eyes', np.round(EYE, 3), 'sep', round(SEP, 4), flush=True)
@@ -143,6 +144,10 @@ if E_('BANGS', 1):
     if r < 1 and c.y < y0: wv = min(1.0, 1.6 * (1 - r)); c.y = c.y + (y0 - c.y) * wv; nb_ += 1
   print('bangs verts pushed behind the eyes', nb_, flush=True)
 bm.to_mesh(me); bm.free(); me.update()
+if not FEM and E_('BEARDTIP', 1):   # [V6 quality 4] his beard's bottom strand shards rounded (beard detail above kept)
+  PP = np.zeros(len(me.vertices) * 3); me.vertices.foreach_get('co', PP); PP = PP.reshape(-1, 3)
+  Fq = np.array([p.vertices[:] for p in me.polygons]); Tq = np.array([VC.get(i, 0) for i in range(len(me.vertices))])
+  me.vertices.foreach_set('co', paint.beard_tips(PP, Fq, Tq, EYE, SEP).ravel()); me.update()
 for a in ('sharp_face', 'sharp_edge'):
   if a in me.attributes: me.attributes.remove(me.attributes[a])
 nv2 = len(me.vertices); T2 = np.array([VC.get(i, 0) for i in range(nv2)], float); me.attributes['_TINT'].data.foreach_set('value', T2)
@@ -181,6 +186,8 @@ if FEET:   # the toe lines painted (both LODs; the lo has no groove geometry)
   _, P3 = paint.raster(me, W, H); Gt = toe_groove(P3.reshape(-1, 3), FEET).reshape(H, W) * (FI1 >= 0) * (K1 == 0)
   A[..., :3] *= (1 - E_('TOEP', 0.30 if LO else 0.18) * Gt)[..., None]
 img.pixels.foreach_set(A.ravel()); img.update(); print('texels re-classed', int(ch.sum()), flush=True)
+if FEM and E_('EYES', 1) and dimg.size[0] >= 2048:   # [V6 quality 4] her eyes decal crisp: binary alpha, flat ink lid line, no smudge above (hi decal only)
+  DA = paint.crisp_eyes(np.array(dimg.pixels[:], dtype=np.float32).reshape(dimg.size[1], dimg.size[0], 4), DFI, DP3); dimg.pixels.foreach_set(DA.ravel()); dimg.update()
 arm = [o for o in bpy.data.objects if o.type == 'ARMATURE'][0]; arm.data.pose_position = 'POSE'
 for o in list(bpy.data.objects):
   if o.type == 'MESH' and o not in (body, dec) and not o.name.startswith('Icosphere'): bpy.data.objects.remove(o)

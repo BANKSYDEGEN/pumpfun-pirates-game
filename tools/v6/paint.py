@@ -3,7 +3,7 @@
 # 2) the mesh is split along class borders so no triangle blends two tints (the game retints COLOR_0 per vertex from _TINT)
 # 3) the albedo is rebuilt per texel from its face class: class colour x the original's own shading (luminance ratio, clamped, lightly
 #    denoised): no gold / teal / skin flecks on the wrong class; the tattoo (teal) stays where it is painted on skin.
-import bpy, bmesh, numpy as np
+import bpy, bmesh, os, numpy as np
 def clean(me, img, log=print, force_skin=None, head_z=None, face=None):
   W0,H0=img.size; A0=np.array(img.pixels[:],dtype=np.float32).reshape(H0,W0,4)[...,:3]
   nv=len(me.vertices); T=np.zeros(nv); me.attributes['_TINT'].data.foreach_get('value',T); T=np.round(T).astype(int)
@@ -296,3 +296,83 @@ def body_smile(me, img, MC, sep, female, log=print):
   line=m&(np.abs(x)<hw)&(np.abs(P3[...,2]-zc)<th)&(P3[...,1]<MC[1]+0.035)
   A[...,:3]=np.where(line[...,None],A[...,:3]*np.array([0.42,0.30,0.28],np.float32),A[...,:3])
   img.pixels.foreach_set(A.ravel()); img.update(); log(f'body smile texels {int(line.sum())}',flush=True)
+
+# [V6 quality 4] her eyes decal made crisp (V5 toon eyes): binary alpha, flat ink lashes/lids, no smudge above the lid
+def crisp_eyes(A, FI, P3, log=print):
+  E_=lambda k,d: type(d)(os.environ.get(k,d))
+  m=FI>=0; rgb=A[...,:3]; al=A[...,3]; lum=rgb@np.array([0.3,0.59,0.11],np.float32)
+  sat=rgb.max(-1)-rgb.min(-1)
+  blue=m&(al>0.5)&(rgb[...,2]>rgb[...,0]+0.15)&(rgb[...,2]>0.35)
+  Q=P3[blue]; xm=np.median(Q[:,0]); out=A.copy(); stats=[]; boxes=[]; zls=[]
+  for side in (1,-1):
+    sel=blue&((P3[...,0]-xm)*side>0); q=P3[sel]
+    cx=np.median(q[:,0]); x0,x1=np.percentile(q[:,0],[1,99]); hw=(x1-x0)/2; cz=np.median(q[:,2]); z0,z1=np.percentile(q[:,2],[1,99])
+    # the eye's own ink + white + iris (opaque): its upper outline per x = the lid line
+    eye=m&(al>0.5)&(np.abs(P3[...,0]-cx)<hw*1.35)&(P3[...,2]>z0-0.6*hw)&(P3[...,2]<z1+0.9*hw)
+    core=eye&(blue|(lum<0.16)|((lum>0.70)&(sat<0.25)))
+    nb=32; xs=np.linspace(cx-1.30*hw,cx+1.30*hw,nb+1); top=np.full(nb,np.nan)
+    X=P3[...,0]; Z=P3[...,2]
+    for i in range(nb):
+      s=core&(X>=xs[i])&(X<xs[i+1])&(Z<z1+E_('LIDUP',0.6)*hw)   # the lid sits on the eye's own top (its dark upper part kept, not the smudge above)
+      if s.sum()>8: top[i]=np.percentile(Z[s],E_('LIDP',99.0))
+    ok=~np.isnan(top); xc=(xs[:-1]+xs[1:])/2
+    # a smooth lid arc: quadratic fit on the bins (V5's clean curve)
+    cf=np.polyfit(xc[ok],top[ok],2); xa=xc[ok]; xl,xr=xa.min(),xa.max()
+    def lid(x): return np.polyval(cf,np.clip(x,xl,xr))
+    th=E_('LASH',0.16)*hw; u=np.clip((X-cx)/(0.5*(xr-xl)),-1,1)
+    outer=np.clip(u*side*(-1),0,1)   # outer corner (away from the nose): thicker lash flick
+    t=th*(1-0.55*np.abs(u)**3)+0.10*hw*outer**4
+    zl=lid(X); inx=(X>xl-0.02*hw)&(X<xr+0.02*hw)&m
+    band=inx&(Z>zl-0.35*t)&(Z<zl+0.65*t)
+    above=m&(np.abs(X-cx)<hw*1.6)&(Z>zl+0.65*t)&(Z<zl+1.6*hw)
+    below=m&inx&(Z<=zl-0.35*t)
+    ink=np.array(E_('LASHC','0.05,0.035,0.035').split(','),np.float32).astype(np.float32)
+    o=out
+    o[...,3]=np.where(above,0.0,o[...,3])   # no smudge above the lid
+    o[...,:3]=np.where(band[...,None],ink,o[...,:3]); o[...,3]=np.where(band,1.0,o[...,3])
+    # under the lid: only iris / pupil / white / dark ink kept, opaque; the brown blur + skin-ish soft texels go clear
+    hz=(z1-z0)/2; ell=((X-cx)/(1.02*hw))**2+((Z-cz)/(1.02*hz))**2<1   # inside the iris: everything opaque kept (no holes)
+    keep=below&(al>0.45)&(ell|blue|(lum<0.20)|((lum>0.62)&(sat<0.30)))
+    drop=below&~keep; o[...,3]=np.where(drop,0.0,o[...,3]); o[...,3]=np.where(keep,1.0,o[...,3])
+    dk=keep&(lum<0.20)&~blue; o[...,:3]=np.where(dk[...,None],np.minimum(o[...,:3],0.10),o[...,:3])   # dark = flat ink
+    wh=keep&(lum>0.62)&(sat<0.30)&~blue; o[...,:3]=np.where(wh[...,None],np.array([0.97,0.97,0.98],np.float32),o[...,:3])
+    # side margins beyond the lid ends (outer smudge)
+    side_m=m&(np.abs(X-cx)>=(xr-xl)/2+0.12*hw)&(np.abs(X-cx)<hw*1.6)&(Z>z0-0.6*hw)&(Z<zl+1.6*hw); o[...,3]=np.where(side_m,0.0,o[...,3])
+    boxes.append((xl-0.10*hw,xr+0.10*hw,z0-0.6*hw)); zls.append(zl+0.65*t)
+    stats.append((round(float(cx),3),round(float(hw),4),int(band.sum()),int(above.sum()),int(drop.sum())))
+  X=P3[...,0]; Z=P3[...,2]; inb=np.zeros_like(m)   # eye level and up, outside both eye boxes (stray brow / bang / skin bits): clear; the smile below stays
+  for (a,b,c),zt in zip(boxes,zls): inb|=(X>a)&(X<b)&(Z>c)&(Z<zt)
+  zlow=min(c for a,b,c in boxes); stray=m&(Z>zlow)&~inb; out[...,3]=np.where(stray,0.0,out[...,3])
+  # anything else: binary alpha
+  out[...,3]=np.where(out[...,3]>=0.5,1.0,0.0)
+  log(f'crisp eyes: (cx, hw, lash texels, cleared above, cleared under) {stats}',flush=True); return out
+
+# [V6 quality 4] his beard's bottom strand shards rounded: upward-only Laplacian (a tip below its neighbours' mean rises to it), capped, beard fringe only
+def beard_tips(PP, F, T2, EYE, SEP, log=print):
+  """[V6 quality 4] his beard's bottom strand shards rounded, its length kept: the beard's underside as a height field over the
+  ground plane (lowest z per 4 mm cell) is Gaussian-smoothed, and the fringe verts near the bottom follow it (tips rise, the notches
+  between them drop) -> a round scalloped edge; thin strand slivers folded into their ring. Hair-only verts (the hair | chest border stays)."""
+  E_=lambda k,d: type(d)(os.environ.get(k,d))
+  from scipy import ndimage
+  key=np.round(PP/1e-5).astype(np.int64); _,inv=np.unique(key,axis=0,return_inverse=True); inv=inv.ravel(); nw=inv.max()+1
+  QW=np.zeros((nw,3)); np.add.at(QW,inv,PP); QW/=np.bincount(inv)[:,None]
+  HW=np.zeros(nw); np.add.at(HW,inv,(T2==1).astype(float)); HW=HW/np.bincount(inv)>0.99
+  EW=np.concatenate([F[:,[0,1]],F[:,[1,2]],F[:,[2,0]]]); EW=inv[EW]; EW=EW[EW[:,0]!=EW[:,1]]; EW=np.unique(np.sort(EW,1),axis=0)
+  zc=EYE[2]-E_('BTZ',0.80)*SEP
+  zone=HW&(QW[:,2]<zc)&(np.abs(QW[:,0]-EYE[0])<1.7*SEP)&(QW[:,1]<EYE[1]+0.14)
+  if not zone.any(): log('beard tips: none'); return PP
+  cs=E_('BTCELL',0.004); zi=np.nonzero(zone)[0]; X=QW[zi,0]; Y=QW[zi,1]; Z=QW[zi,2]
+  gx=((X-X.min())/cs).astype(int); gy=((Y-Y.min())/cs).astype(int); G=np.full((gy.max()+1,gx.max()+1),np.inf)
+  np.minimum.at(G,(gy,gx),Z); M=np.isfinite(G); G0=np.where(M,G,0)
+  sg=E_('BTSIG',0.012)/cs; S=ndimage.gaussian_filter(G0,sg)/np.maximum(ndimage.gaussian_filter(M.astype(float),sg),1e-9)
+  zmin=G[gy,gx]; dz=np.clip(S[gy,gx]-zmin,-E_('BTDN',0.012),E_('BTUP',0.025))
+  fr=E_('BTFR',0.03); w=np.clip(1-(Z-zmin)/fr,0,1)**1.5
+  Q=QW.copy(); Q[zi,2]+=dz*w
+  cnt=np.zeros(nw); np.add.at(cnt,EW[:,0],1); np.add.at(cnt,EW[:,1],1); wz=np.zeros(nw); wz[zi]=w
+  for it in range(E_('BTIT',6)):   # relax the moved fringe a touch (no creases)
+    Mn=np.zeros_like(Q); np.add.at(Mn,EW[:,0],Q[EW[:,1]]); np.add.at(Mn,EW[:,1],Q[EW[:,0]]); Mn/=np.maximum(cnt,1)[:,None]
+    Q=np.where(zone[:,None],Q+(Mn-Q)*(0.4*wz)[:,None],Q)
+    Q=np.where((zone&(cnt<=4))[:,None],Mn,Q)   # thin strand slivers (valence <= 4): folded into their ring
+  mv=np.linalg.norm(Q-QW,axis=1)
+  log(f'beard tips: zone verts {int(zone.sum())}, bottom z {QW[zone,2].min():.3f} -> {Q[zone,2].min():.3f}, moved >1mm {int((mv>1e-3).sum())}, max {mv.max()*1000:.1f} mm',flush=True)
+  return PP+(Q-QW)[inv]
