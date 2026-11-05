@@ -13,6 +13,7 @@
 // Walls / towers / keep are WALK DECKS at their top height, not colliders: from the yard or the knoll they are > 0.6 m up, so the
 // walker can't step into them (same rule as any deck), and the wall-walk on top is the same deck. Only the outer parapet strips
 // + the stair parapets + props are colliders. Cosmetic only: nothing pays gold (flags.js).
+import { COLISEUM_ON } from '../coliseum.js';
 import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, W, C, store, today } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
@@ -21,7 +22,7 @@ import { FLAG_DAILY, HOLDER_DAILY_GOLD } from '../../config.js';
 export const FORT_WALKIN = true;
 export const FORT = { x: -408, z: -44, y: 36, half: 13, wall: 1.6, wallTop: 42, gateHW: 2.0, keep: { x: -403, z: -44, half: 5, wall: 0.8, h: 9, doorHW: 1.3 } };
 const F = FORT, X0 = F.x - F.half, X1 = F.x + F.half, Z0 = F.z - F.half, Z1 = F.z + F.half, WT = F.wallTop;
-const LEG1 = { x: -434, z0: -72, z1: -46.5, hw: 2.0, y1: 31 }, LAND = { x: -434, z: -44, hw: 2.5 }, LEG2 = { z: -44, x0: -431.5, x1: X0 + 2.5, hw: F.gateHW }; // runs on through the gate arch onto the yard (covers the cut edge)
+const LEG1 = { x: -434, z0: COLISEUM_ON ? -64 : -72, z1: -46.5, hw: 2.0, y1: 31 }, LAND = { x: -434, z: -44, hw: 2.5 }, LEG2 = { z: -44, x0: -431.5, x1: X0 + 2.5, hw: F.gateHW }; // runs on through the gate arch onto the yard (covers the cut edge)
 const NSTAIR = { z: Z1 - F.wall - 1.1 - 1.05, x0: -416, x1: -404, hw: 1.1 };   // inside the north wall, yard (36) -> wall-walk (42)
 const RAMP = 1.1;                                                              // wall-walk inner ramp width (stone floor covers wall+ramp)
 const SPY = { x: X1 - 1.6, z: Z1 - 1.6 }, TABLE = { x: F.keep.x, z: F.keep.z }, MAST = { x: F.x - 6, z: F.z - 6 };
@@ -64,9 +65,9 @@ export function markFortFlagRaised() { store.upd(o => { o.fortFlag = indyDay(); 
 export function fortFlagIsUp() { return store.get().fortFlag === indyDay() || store.get().fortFlag === today(); }
 export default {
   id: 'hilltop_fort', name: 'Hilltop Fort', rect: [-437, X1, -73, Z1],
-  terrain: { pads: [[X0, X1, Z0, Z1, F.y]], paths: [], cuts: [[LEG2.x0 - 1, LEG2.z, LEG1.y1, -427, LEG2.z, LEG1.y1 + (F.y - LEG1.y1) * 4.5 / (LEG2.x1 - LEG2.x0), LEG2.hw]] }, // leg 2 cut into the knoll: one even grade (0.45), no steep last metres
+  terrain: { pads: [[X0, X1, Z0, Z1, F.y]], paths: [], cuts: [...(COLISEUM_ON ? [[-434,-77,20.1,-434,-64,20.1,4],[-434,-64,20.1,-434,-46.5,31,2.4]] : []), [LEG2.x0 - 1, LEG2.z, LEG1.y1, -427, LEG2.z, LEG1.y1 + (F.y - LEG1.y1) * 4.5 / (LEG2.x1 - LEG2.x0), LEG2.hw]] }, // leg 2 cut into the knoll: one even grade (0.45), no steep last metres
   register(h) {
-    const { H } = h; Y20 = H(LEG1.x, LEG1.z0);
+    const { H } = h; Y20 = COLISEUM_ON ? 20.1 : H(LEG1.x, LEG1.z0);
     // the fort stair (2 legs + landing): treads of ~0.2 m
     const L1 = LEG1.z1 - LEG1.z0; P1 = stepProf(H, LEG1.x, LEG1.z0, LEG1.x, LEG1.z1, Y20, LEG1.y1, Math.ceil((LEG1.y1 - Y20) / 0.21));
     h.addDeck({ id: 'fort_stair_1', x: LEG1.x, z: (LEG1.z0 + LEG1.z1) / 2, hw: LEG1.hw, hl: L1 / 2, yaw: 0, y: P1[0], prof: P1, ya: Y20, yb: LEG1.y1 });
@@ -142,7 +143,7 @@ export default {
       for (const s of [-1, 1]) for (let i = 3; i < n; i += 2) { const z = LEG1.z0 + (i + 0.5) * L / n, y = P1[i]; W(k, box(0.5, 1.0, L / n * 2 + 0.05), C.STONE_D, M(LEG1.x + s * (LEG1.hw + 0.3), y + 0.5, z), i % 6 === 3); } }
     { const y = P1[P1.length - 1]; tread(LAND.x, LAND.z, LAND.hw * 2, LAND.hw * 2, y); W(k, box(0.5, 1.0, LAND.hw * 2 + 0.6), C.STONE_D, M(LAND.x - LAND.hw - 0.3, y + 0.5, LAND.z)); W(k, box(LAND.hw * 2 + 0.6, 1.0, 0.5), C.STONE_D, M(LAND.x, y + 0.5, LAND.z + LAND.hw + 0.3));
       // a lamp on the landing + a TO THE FORT fingerboard
-      W(k, cyl(0.1, 0.13, 3.2, 6), C.IRON, M(LAND.x - LAND.hw - 0.3, y + 2.6, LAND.z + LAND.hw + 0.3)); W(k, box(0.5, 0.6, 0.5), 0xffd27a, M(LAND.x - LAND.hw - 0.3, y + 4.3, LAND.z + LAND.hw + 0.3), false);
+      if(!COLISEUM_ON) { W(k, cyl(0.1, 0.13, 3.2, 6), C.IRON, M(LAND.x - LAND.hw - 0.3, y + 2.6, LAND.z + LAND.hw + 0.3)); W(k, box(0.5, 0.6, 0.5), 0xffd27a, M(LAND.x - LAND.hw - 0.3, y + 4.3, LAND.z + LAND.hw + 0.3), false); }
       W(k, cyl(0.08, 0.1, 2.4, 5), C.WOOD_D, M(LAND.x + 1.6, y + 1.2, LAND.z - 1.6)); W(k, box(1.6, 0.5, 0.08), C.WOOD, M(LAND.x + 2.3, y + 2.2, LAND.z - 1.6), false);
       if (hi) signs.push([1.45, 0.38, new THREE.Matrix4().compose(new THREE.Vector3(LAND.x + 2.3, y + 2.2, LAND.z - 1.55), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1))]); }
     { const L = LEG2.x1 - LEG2.x0, n = P2.length; for (let i = 0; i < n; i++) tread(LEG2.x0 + (i + 0.5) * L / n, LEG2.z, L / n + 0.02, LEG2.hw * 2, P2[i]);

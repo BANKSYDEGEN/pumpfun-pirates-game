@@ -842,7 +842,7 @@ export function buildStreet(A, low, F) {
     LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
     const [dx, dz] = tw(lx - 7 + 3.5, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' }); // [v250] mid-hall (~3.5 m past the door), was lx-7-1.6 doorstep
   }
-  { // the square: a stone well + market stalls + crates
+  if (!COLI.COLISEUM_ON) { // old square restored ONLY by &coliseum=0 (well + stalls + colliders)
     const [z, w] = lots[4], lx = S.x + S.half + 7, [x, wz] = tw(lx, z), y = H(x, wz);
     W(k, cyl(1.6, 1.7, 1.0, 14), STONE, 11, M(x, y + 0.5, wz)); W(k, cyl(1.25, 1.25, 0.2, 14), 0x2b5d6a, 0, M(x, y + 0.92, wz), false);
     for (const s of [-1, 1]) W(k, box(0.2, 2.6, 0.2), WOOD_D, 2, M(x + s * 1.3, y + 1.8, wz), false); W(k, box(3.0, 0.2, 0.25), WOOD_D, 2, M(x, y + 3.1, wz), false);
@@ -856,9 +856,10 @@ export function buildStreet(A, low, F) {
     } // [Emerly] coli main entrance: stalls removed when COLISEUM_ON
   }
   // street dressing: lamps (flame + light), crates / barrels / sacks against the walls
-  for (let z = S.z0 - 6; z > S.z1; z -= 16) for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half - 0.6), z), y = H(x, wz);
+  for (let z = S.z0 - 6; z > S.z1; z -= 16) for (const s of [-1, 1]) { if (s === 1 && COLI.inMainAlley(S.x + S.half - 0.6,z,1)) continue; const [x, wz] = tw(S.x + s * (S.half - 0.6), z), y = H(x, wz);
     if (KP) kp(k, 'lamp', M(x, y, wz)); else { W(k, cyl(0.09, 0.12, 3.6, 6), IRON, 0, M(x, y + 1.8, wz)); W(k, box(0.5, 0.6, 0.5), IRON, 0, M(x, y + 3.7, wz), false); k.add(new THREE.SphereGeometry(0.2, 6, 4), 0xffd36b, { bucket: 'glow', m: M(x, y + 3.65, wz), outline: false }); } F.push({ x, y: y + 3.95, z: wz, lamp: true }); addCirc(x, wz, 0.3); }
   for (let i = 0; i < (low ? 10 : 22); i++) { const s = i % 2 ? 1 : -1, z = S.z0 - 8 - i * 6.4, [x, wz] = tw(S.x + s * (S.half - 0.2), z), y = H(x, wz), ry = twy(hash(i, 4) * 6);
+    if (s === 1 && COLI.inMainAlley(S.x + S.half - 0.2,z,1)) continue;
     if (i % 3 === 0) barrel(k, M(x, y, wz, ry)); else if (i % 3 === 1) crate(k, M(x, y, wz, ry), 1.1); else sacks(k, M(x, y, wz, ry)); addCirc(x, wz, 0.8); }
   { const z = S.z1 + 4, y = H(...tw(S.x, z)); // town gate
     for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half + 1.6), z); if (!GATE_ARCH_OFF) { W(k, box(3.2, 10, 3.2), STONE, 11, M(x, y + 5, wz, twy(0))); for (let c = 0; c < 4; c++) W(k, box(0.8, 0.9, 0.8), STONE, 11, M(x + (c % 2 - 0.5) * 2, y + 10.4, wz + (c > 1 ? 1 : -1) * 1.0, twy(0)), false); addBox(x, wz, 3.4, 3.4, twy(0)); } torchPost(k, F, ...tw(S.x + s * (S.half - 0.4), z + 2.5).flatMap((v, i) => i ? [H(...tw(S.x + s * (S.half - 0.4), z + 2.5)), v] : [v])); }
@@ -979,7 +980,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   BA.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Timothy] battle areas: range + pit (static art, colliders)
-  COLI.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
+  COLI.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
   return k;
 }
 // [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and

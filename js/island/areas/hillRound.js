@@ -13,6 +13,10 @@
 //     width), even grade, stone tower heads at both ends. Walkable ONLY for whoever is up at deck height (foot.js HIGH_BRIDGES + setLayer): the
 //     valley trail below keeps 12+ m of headroom and still runs to the beach. D3's gorge bridge is untouched.
 // &roundabout=0 (areas/index.js) = none of this: the old gate, steps and dip path exactly.
+import { COLISEUM_ON, castleSample, CASTLE_RAMP_HW, inFoot } from '../coliseum.js';
+// BANKSY: the old castle stair / coli approach stays bare; &coliseum=0 restores all the dressing.
+const clearColiStair = (x,z) => COLISEUM_ON && (castleSample(z+90,-x-640).d < CASTLE_RAMP_HW+1.4 || inFoot(z+90,-x-640,-8));
+const clearCastleDressing = (x,z) => COLISEUM_ON && x > -443 && x < -424 && z > -79 && z < -36;
 import * as THREE from 'three';
 import { Kit, M, box, cyl, hash, jitter, W, C } from './common.js';
 const C2 = C;   // ([stairs2] buildClimb's C = CLIMB)
@@ -192,7 +196,7 @@ const SIGNS = CLEAN ? [] : RBB_ON ? [[PX1 - 1.4, RB2.az + 3.6], [-429.6, PZ1 - 1
 // the fort stair foot (fort.js LEG1 x -434, z -72 .. -46.5, hw 2, parapets at hw + 0.3, 1.0 m over the tread): gate piers with braziers
 // flanking the foot, planters either side of the apron; lanterns + red banners on Post's parapets are visual only (no collider changes there)
 const FORT_FOOT = { x: -434, z0: -72, z1: -46.5, y0: 20.2, y1: 31, hw: 2 }, GPIERS = [[-437.0, -72.7], [-431.0, -72.7]], CPLANT = [[-438.1, -73.6], [-429.4, -73.4]];
-const CASTLE = { x0: -436, x1: -431, z0: PZ1 - 0.1, z1: Math.max(-71.6, PZ1 + 0.4) };   // the approach to the fort stair (fort.js fort_stair_1 starts at z -72)
+const CASTLE = { x0: -436, x1: -431, z0: PZ1 - 0.1, z1: COLISEUM_ON ? -63.6 : Math.max(-71.6, PZ1 + 0.4) };   // the approach to the fort stair (fort.js fort_stair_1 starts at z -72)
 const HB = { ax: PX1 - 0.3, az: RB2.az, bx: 0, bz: 0, L: 0, yaw: 0, ya: Y, yb: Y, half: RB2.half, sag: RB2.sag, piers: RB2.piers, yAt: null };
 HB.yAt = (u) => { u = Math.min(1, Math.max(0, u)); const P = [0, ...HB.piers, 1]; let k = 0; while (k < P.length - 2 && u > P[k + 1]) k++;
   const f = (u - P[k]) / (P[k + 1] - P[k]); return HB.ya + (HB.yb - HB.ya) * u - Math.sin(f * Math.PI) * HB.sag; };
@@ -276,7 +280,7 @@ export default {
     h.addHighBridge?.(HB);
     // the plaza + the stairs (walk decks)
     h.addDeck({ id: 'rb_plaza', x: (PX0 + PX1) / 2, z: (PZ0 + PZ1) / 2, hw: (PX1 - PX0) / 2, hl: (PZ1 - PZ0) / 2, yaw: 0, y: Y });
-    h.addDeck({ id: 'rb_castle', x: (CASTLE.x0 + CASTLE.x1) / 2, z: (CASTLE.z0 + CASTLE.z1) / 2, hw: (CASTLE.x1 - CASTLE.x0) / 2, hl: (CASTLE.z1 - CASTLE.z0) / 2, yaw: 0, y: Y, y1: Math.max(H(-434, CASTLE.z1), 20.2) });
+    h.addDeck({ id: 'rb_castle', x: (CASTLE.x0 + CASTLE.x1) / 2, z: (CASTLE.z0 + CASTLE.z1) / 2, hw: (CASTLE.x1 - CASTLE.x0) / 2, hl: (CASTLE.z1 - CASTLE.z0) / 2, yaw: 0, y: Y, y1: COLISEUM_ON ? Y : Math.max(H(-434, CASTLE.z1), 20.2) });
     h.addDeck({ id: 'rb_west', x: PX0 - 0.7, z: RBB_ON ? CZ : (PZ0 + PZ1) / 2, hw: RBB_ON ? WEST_HW : (PZ1 - PZ0) / 2, hl: 0.75, yaw: Math.PI / 2, y: H(PX0 - 1.45, RBB_ON ? CZ - 7 : -95), y1: Y });   // the town side: a 1.5 m ramp onto the plaza, not a 0.4 m lip
     if (RBB_ON) { const C = CLIMB, [ex, ez] = C.at(C.L);   // [stairs2] the curved Climb: n even risers from the plaza (Y) to the trail surface at its foot
       C.yE = H(ex, ez) + 0.03; { const [ox, oz] = C.side(C.L, C.hw - 0.1), [ix, iz] = C.side(C.L, -C.hw + 0.1); C.rE = (H(ox, oz) - H(ix, iz)) / (2 * C.hw - 0.2); } C.n = Math.round((C.y0 - C.yE) / 0.155); C.rise = (C.y0 - C.yE) / C.n; C.d = C.L / C.n;
@@ -304,10 +308,10 @@ export default {
     // [wish] the wishing fountain: an E / tap spot on the rim (shown only while the server's 'wish_fountain' flag is on: inventory/ui.js PFP_INV_FLAGS)
     if (WISH_ON) h.INTERACT?.push(WISH_Q = { id: 'wish_fountain', kind: 'wish', area: 'hill_round', x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }
-    for (const [x, z] of LAMPS) h.addCirc(x, z, 0.3);
+    for (const [x, z] of LAMPS) if(!clearCastleDressing(x,z)) h.addCirc(x, z, 0.3);
     for (const p of wallDress(H).pil) h.addBox(p.x, p.z, 0.62, 1.0, p.yaw);   // [v220] the pilasters on the walls' outer faces
     for (const t of castleTerraces(H)) h.addBox(t.x, t.z, 0.7, t.L + 0.3, t.yaw);
-    for (const t of moundRings(H)) h.addBox(t.x, t.z, 0.8, t.L + 0.3, t.yaw);   // [hilltop] the mound's ring walls   // [v220] the castle-side terrace walls
+    for (const t of moundRings(H)) if(!clearColiStair(t.x,t.z)) h.addBox(t.x, t.z, 0.8, t.L + 0.3, t.yaw);   // [hilltop] the mound's ring walls   // [v220] the castle-side terrace walls
     if (RBB_ON && CLIMB.bedEnd) { const b = CLIMB.bedEnd; h.addBox(b.x + 0.25, (b.z0 + b.z1) / 2, 0.5, b.z1 - b.z0 + 0.6, 0); }   // [stairs2] the planted bed's open end: you can't walk into the wedge
     for (const b of BENCHES) h.addBox(b.x, b.z, 2.0, 0.7, b.yaw);
     for (const [x, z] of PLANTERS) h.addBox(x, z, 1.6, 1.6, 0);
@@ -315,7 +319,7 @@ export default {
     for (const t of HB.piers) { const [x, z] = along(t); h.addBox(x, z, 6.4, 4.4, HB.yaw); }
     for (const [x, z] of SIGNS) h.addCirc(x, z, 0.25);
     for (let i = 0; i < 14; i++) { const [x, z, r] = rockfall(i); h.addCirc(x, z, r * 0.9); }
-    for (const [x, z] of GPIERS) h.addBox(x, z, 0.9, 0.9, 0); for (const [x, z] of CPLANT) h.addBox(x, z, 1.4, 1.4, 0);   // stone piers: solid down in the valley, the deck walks over them
+    for (const [x, z] of GPIERS) h.addBox(x, z, 0.9, 0.9, 0); for (const [x, z] of CPLANT) if (!clearCastleDressing(x,z)) h.addBox(x, z, 1.4, 1.4, 0);   // stone piers: solid down in the valley, the deck walks over them
     // foliage kept clear (POIs): the plaza, the stairs, both bridge heads
     h.poi('hill_round', 'Fountain plaza', CX, CZ, { clear: 19 });
     if (RBB_ON) for (const f of [0.2, 0.5, 0.8]) h.poi('rb_stairs' + (f === 0.5 ? '' : '_' + f * 10), "Pirates' Climb stairs", ...CLIMB.at(CLIMB.L * f), { clear: 8 });
@@ -353,7 +357,7 @@ export default {
     W(kfo, cyl(0.14, 0.22, 0.6, 8), 0x8a837a, M(CX, Y + 5.25, CZ)); W(kfo, new THREE.SphereGeometry(0.28, 10, 8), C.GOLD, M(CX, Y + 5.7, CZ), false);
     for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; W(kfo, box(0.36, 0.42, 0.5), 0xb0a99c, M(CX + Math.sin(a) * 0.62, Y + 2.55, CZ + Math.cos(a) * 0.62, a)); }   // spout heads
     // ---- lamps (iron post on a stone plinth), benches, planters with flowers
-    const lamp = (x, y, z) => { W(k, box(0.55, 0.45, 0.55), 0xb0a99c, M(x, y + 0.22, z)); W(k, cyl(0.08, 0.11, 3.4, 6), C.IRON, M(x, y + 2.1, z)); W(k, box(0.5, 0.6, 0.5), 0x2b2f36, M(x, y + 3.95, z));
+    const lamp = (x, y, z) => { if(clearCastleDressing(x,z)) return; W(k, box(0.55, 0.45, 0.55), 0xb0a99c, M(x, y + 0.22, z)); W(k, cyl(0.08, 0.11, 3.4, 6), C.IRON, M(x, y + 2.1, z)); W(k, box(0.5, 0.6, 0.5), 0x2b2f36, M(x, y + 3.95, z));
       W(k, box(0.38, 0.46, 0.52), 0xffd27a, M(x, y + 3.95, z), false); W(k, box(0.52, 0.46, 0.38), 0xffd27a, M(x, y + 3.95, z), false); W(k, cyl(0.02, 0.42, 0.3, 4), C.IRON, M(x, y + 4.4, z, Math.PI / 4), false); };
     for (const [x, z] of LAMPS) lamp(x, Y, z);
     for (const b of BENCHES) { const cs = Math.cos(b.yaw), sn = Math.sin(b.yaw); W(k, box(2.0, 0.12, 0.6), 0xd9a36b, M(b.x, Y + 0.48, b.z, b.yaw + Math.PI / 2)); W(k, box(2.0, 0.5, 0.1), 0xa86a3a, M(b.x + sn * 0.3, Y + 0.8, b.z + cs * 0.3, b.yaw + Math.PI / 2), false);
@@ -423,9 +427,9 @@ export default {
     for (const [x, z] of GPIERS) { const g = gmin(x, z, 0.5) - 0.2, top = Y + 2.6;
       SB('gpier', box(0.9, top - g, 0.9), 0xb9b2a6, M(x, (top + g) / 2, z)); SB('gpier', box(1.1, 0.16, 1.1), 0xd2c9b6, M(x, top + 0.08, z), false);
       W(k, cyl(0.42, 0.22, 0.4, 8), C.IRON, M(x, top + 0.36, z), false); W(k, new THREE.ConeGeometry(0.3, 0.7, 6), 0xffa53a, M(x, top + 0.85, z), false); W(k, new THREE.ConeGeometry(0.16, 0.45, 5), 0xffe08a, M(x, top + 0.8, z), false); }
-    for (const [x, z] of CPLANT) planter(x, H(x, z), z, 1.4);
+    for (const [x, z] of CPLANT) if(!clearCastleDressing(x,z)) planter(x, H(x, z), z, 1.4);
     { const F2 = FORT_FOOT, wy = (z) => Math.max(F2.y0 + (F2.y1 - F2.y0) * (z - F2.z0) / (F2.z1 - F2.z0), H(F2.x, z) + 0.04);
-      for (let z = F2.z0 + 6; z < F2.z1 - 1; z += 6) for (const s of [-1, 1]) { const x = F2.x + s * (F2.hw + 0.3), y = wy(z) + 1.0;
+      for (let z = F2.z0 + 6; z < F2.z1 - 1; z += 6) for (const s of [-1, 1]) { const x = F2.x + s * (F2.hw + 0.3), y = wy(z) + 1.0; if(clearCastleDressing(x,z)) continue;
         W(k, cyl(0.05, 0.06, 0.7, 5), C.IRON, M(x, y + 0.35, z), false); W(k, box(0.3, 0.36, 0.3), 0x2b2f36, M(x, y + 0.86, z), false); W(k, box(0.22, 0.3, 0.32), 0xffd27a, M(x, y + 0.86, z), false);
         const bx = x + s * 0.3, bz = z + 3; W(k, box(0.08, 0.08, 0.9), C.IRON, M(bx, y - 0.08, bz), false);
         W(k, box(0.05, 1.5, 0.8), 0xd8322f, M(bx + s * 0.02, y - 0.85, bz), false); W(k, box(0.06, 0.34, 0.34), C.GOLD, M(bx + s * 0.03, y - 0.75, bz), false);
@@ -472,11 +476,11 @@ export default {
       boards.forEach(([a, c], i) => W(k, box(1.6, 0.38, 0.1), c, M(x + Math.sin(a) * 0.7, y + 2.6 - i * 0.48, z + Math.cos(a) * 0.7, a + Math.PI / 2))); };
     if (SIGNS.length) { sign(...SIGNS[0], [[Math.PI / 2, 0xd9a36b]]); sign(...SIGNS[1], [[Math.PI / 2, 0xc98a4c], [Math.PI, 0xe7c08d]]); }
     if (RBB_ON) {   // [hilltop] the whole hill top
-      for (const t of moundRings(H)) { const hh = t.top - t.g, ox = t.nx * 0.2, oz = t.nz * 0.2;
+      for (const t of moundRings(H)) { if(clearColiStair(t.x,t.z)) continue; const hh = t.top - t.g, ox = t.nx * 0.2, oz = t.nz * 0.2;
         W(k, box(0.9, hh, t.L + 0.08), t.i % 2 ? 0xb0a99c : 0xbab3a5, M(t.x + ox, t.g + hh / 2, t.z + oz, t.yaw), t.i % 3 === 0);
         W(k, box(1.1, 0.2, t.L + 0.14), 0xd2c9b6, M(t.x + ox, t.top + 0.1, t.z + oz, t.yaw), false);
         for (let r = 1.3; r < hh - 0.4; r += 1.3) W(k, box(0.96, 0.1, t.L + 0.1), 0x8a837a, M(t.x + ox, t.top - r, t.z + oz, t.yaw), false);
-        const bx = t.x - t.nx * 1.0, bz = t.z - t.nz * 1.0; W(k, box(1.4, 0.3, t.L + 0.05), 0x4e7a2e, M(bx, t.top - 0.05, bz, t.yaw), false);
+        const bx = t.x - t.nx * 1.0, bz = t.z - t.nz * 1.0; if(clearCastleDressing(bx,bz)) continue; W(k, box(1.4, 0.3, t.L + 0.05), 0x4e7a2e, M(bx, t.top - 0.05, bz, t.yaw), false);
         if (!low || t.i % 2 === 0) { const r = 0.45 + hash(t.i, 7) * 0.35; k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i), [0x4e8a34, 0x5f9a3a, 0x3f7d2c][t.i % 3], { m: M(bx, t.top + r * 0.5, bz, t.i), outline: false });
           if (t.i % 3 === 0) bloomClump(k, bx + 0.3, t.top + r * 1.1 - 0.108, bz, Math.round((t.i) * 7 + (bx + 0.3) * 3), 1.06, low); }
         if (t.i % 4 === 1) for (let q = 0; q < 3; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.3, 0), 0.3, t.i * 3 + q), 0x3f7d2c, { m: M(t.x + t.nx * 0.7, t.top - 0.3 - q * 0.45, t.z + t.nz * 0.7, t.yaw, 0, 0, [0.5, 1.2, 1.4]), outline: false });
@@ -484,10 +488,10 @@ export default {
       // tall pennants on the four fort towers + gatehouse: the silhouette reads from the street
       for (const [x, z, c] of [[-421, -57, 0xd8322f], [-395, -57, 0x111111], [-421, -31, 0x111111], [-395, -31, 0xd8322f]]) { W(k, cyl(0.06, 0.07, 5, 5), 0x5e3b20, M(x, 49.5 + 2.5, z), false); { const fm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.7), pfpFlagMaterial()); fm.position.set(x, 53.1, z + 1.3); fm.rotation.y = Math.PI / 2; near.add(fm); } /* [hilltop] Pumpfun Pirates flags */ W(k, new THREE.SphereGeometry(0.18, 6, 4), C.GOLD, M(x, 54.6, z), false); }
       // the castle approach: hedge + flower borders down both sides of the fort stair (outside its parapets) and topiary at the foot
-      for (let z = -70; z < -47; z += 2.2) for (const s of [-1, 1]) { const x = -434 + s * 3.4, g = H(x, z), r = 0.55 + hash(z, s) * 0.15;
+      for (let z = -70; z < -47; z += 2.2) for (const s of [-1, 1]) { const x = -434 + s * 3.4; if(clearCastleDressing(x,z)) continue; const g = H(x, z), r = 0.55 + hash(z, s) * 0.15;
         k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.15, z * s), 0x3f7d2c, { m: M(x, g + r * 0.7, z, 0, 0, 0, [1, 0.85, 1.5]), outline: false });
         if (Math.round(z) % 3 === 0) bloomClump(k, x, g + r * 1.35 - 0.102, z, Math.round((z) * 7 + (x) * 3), 1.00, low); }
-      for (const [x, z] of [[-439, -71.5], [-429, -71.5]]) { const g = H(x, z); W(k, cyl(0.55, 0.65, 0.7, 8), 0xb0a99c, M(x, g + 0.35, z)); k.add(new THREE.SphereGeometry(0.85, 10, 8), 0x3f7d2c, { m: M(x, g + 1.5, z), outline: false }); k.add(new THREE.SphereGeometry(0.55, 10, 8), 0x4e8a34, { m: M(x, g + 2.6, z), outline: false }); }
+      for (const [x, z] of [[-439, -71.5], [-429, -71.5]]) { if(clearCastleDressing(x,z)) continue; const g = H(x, z); W(k, cyl(0.55, 0.65, 0.7, 8), 0xb0a99c, M(x, g + 0.35, z)); k.add(new THREE.SphereGeometry(0.85, 10, 8), 0x3f7d2c, { m: M(x, g + 1.5, z), outline: false }); k.add(new THREE.SphereGeometry(0.55, 10, 8), 0x4e8a34, { m: M(x, g + 2.6, z), outline: false }); }
       // the plaza: a paved compass rose in the fountain ring's apron (flush inlay) + four tall twin-lantern standards on the corners
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, L = i % 2 ? 2.2 : 3.6, r0 = RB2.r + 0.6;
         W(k, box(i % 2 ? 0.45 : 0.7, 0.04, L), i % 2 ? 0xd2c9b6 : 0x8f6a3a, M(CX + Math.sin(a) * (r0 + L / 2), Y + 0.04, CZ + Math.cos(a) * (r0 + L / 2), a), false); }
