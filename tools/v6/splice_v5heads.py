@@ -16,6 +16,10 @@ OVER = float(os.environ.get('OVER', '0.055'))   # V5 neck skirt overlaps V6 tors
 SEAM = float(os.environ.get('SEAM', '0.008'))
 BANG = float(os.environ.get('BANG', '0'))
 GUT = 4  # atlas gutter px
+HIPZ = float(os.environ.get('HIPZ', '0.68'))
+NECKX = float(os.environ.get('NECKX', '0.10'))
+NECKZ = float(os.environ.get('NECKZ', '0.06'))
+KEEPHAIR = os.environ.get('KEEPHAIR', '1') == '1'
 
 def objs(): return set(bpy.data.objects)
 def imp(f):
@@ -53,6 +57,9 @@ for nm in ('v5arm', 'v5tat', 'v5ico'):
 
 ZCUT = float((arm.matrix_world @ arm.data.bones['head'].head_local).z) - NECKD
 Z6 = ZCUT - OVER * 0.35
+# her V5 neck front was under the V5 red top collar (tint 7, up to ~ZCUT+0.01): no V5 neck skin there,
+# so the V6 neck runs up under the V5 jaw (hidden inside the V5 head) to close the dark gap under her chin
+if FEM: Z6 = ZCUT + float(os.environ.get('Z6UP', '0.05'))
 Z5 = ZCUT - OVER
 print('ZCUT', round(ZCUT, 4), 'Z6', round(Z6, 4), 'Z5', round(Z5, 4), flush=True)
 
@@ -99,6 +106,18 @@ img = bpy.data.images.new(IM6.name + '_v5head', WN, H, alpha=True)
 img.pixels.foreach_set(NEW.ravel()); img.pack(); img.colorspace_settings.name = 'sRGB'
 tex6.image = img
 
+# her V6 neck is narrower than the V5 jaw -> the dark back hair showed through under her chin: widen it (ramped)
+NECKW = float(os.environ.get('NECKW', '1.3' if FEM else '1.0'))
+if NECKW != 1.0:
+  _P = V(body); _T = tint_of(body.data)
+  _m = (_P[:, 2] > Z5 - 0.07) & (_P[:, 2] < Z6 + 0.01) & (np.abs(_P[:, 0]) < 0.12) & (_T != 1)
+  _c = np.median(_P[_m & (_P[:, 2] > Z5 - 0.02)][:, :2], 0)
+  _w = np.clip((_P[:, 2] - (Z5 - 0.07)) / 0.06, 0, 1)
+  _k = 1 + (NECKW - 1) * _w
+  _P[_m, 0] = _c[0] + (_P[_m, 0] - _c[0]) * _k[_m]; _P[_m, 1] = _c[1] + (_P[_m, 1] - _c[1]) * _k[_m]
+  body.data.vertices.foreach_set('co', _P.ravel()); body.data.update()
+  print('neck widened', int(_m.sum()), 'x', NECKW, flush=True)
+
 # remap V6 UVs into left half
 for l in body.data.uv_layers[0].data:
   u, v = l.uv; l.uv = (u * (W / WN), v)
@@ -106,6 +125,23 @@ for l in body.data.uv_layers[0].data:
 # ---- cut V6 body ----
 bm = bmesh.new(); bm.from_mesh(body.data); bm.faces.ensure_lookup_table()
 tl = bm.verts.layers.float.get('_TINT')
+# her V6 front neck (under the chin) was classed as HAIR in the V6 paint -> deleting V6 hair left a hole there
+# (dark band under her chin = the inside of her back hair). Re-class it as flat skin before the cut.
+if FEM:
+  uvl6 = bm.loops.layers.uv.active; cl6 = bm.loops.layers.float_color.get('Color') or bm.loops.layers.color.get('Color')
+  sk = [f for f in bm.faces if all(round(v[tl]) == 0 for v in f.verts) and Z5 - 0.1 < f.calc_center_median().z < Z5]
+  suv = np.median([l[uvl6].uv[:] for f in sk for l in f.loops], 0)
+  scol = np.median([l[cl6][:] for f in sk for l in f.loops], 0) if cl6 else None
+  nfix = 0
+  for f in bm.faces:
+    c = f.calc_center_median()
+    if any(round(v[tl]) == 1 for v in f.verts) and abs(c.x) < 0.11 and c.y < -0.02 and Z5 - 0.08 < c.z < Z6 + 0.015:
+      for v in f.verts: v[tl] = 0.0
+      for l in f.loops:
+        l[uvl6].uv = (float(suv[0]), float(suv[1]))
+        if cl6: l[cl6] = tuple(float(x) for x in scol)
+      nfix += 1
+  print('V6 front neck hair->skin', nfix, flush=True)
 dead = []
 for f in bm.faces:
   zs = [v.co.z for v in f.verts]; cz = sum(zs) / len(zs)
@@ -124,13 +160,68 @@ print('V6 body kept tris', ntri(body), flush=True)
 bm = bmesh.new(); bm.from_mesh(b5.data); bm.faces.ensure_lookup_table()
 tl = bm.verts.layers.float.get('_TINT')
 dead = []
+# V5 hair hidden INSIDE the V5 clothes/body (tips tucked under her red top / belt): it was never seen on V5,
+# but would show as dark shards over the slimmer V6 top/shorts -> drop it (below the neck only).
+from mathutils.bvhtree import BVHTree
+_bv = bmesh.new(); _bv.from_mesh(b5.data); _tl = _bv.verts.layers.float.get('_TINT')
+bmesh.ops.delete(_bv, geom=[f for f in _bv.faces if any(round(v[_tl]) == 1 for v in f.verts)], context='FACES')
+bvh5 = BVHTree.FromBMesh(_bv)
+HIDE = float(os.environ.get('HIDE', '0.001'))
+def hidden(f):
+  c = f.calc_center_median(); loc, n, i, d = bvh5.find_nearest(c)
+  return loc is not None and d < 0.05 and (c - loc).dot(n) < HIDE
+# position-welded hair islands: the main hair (+ braid) is one island; small loose islands that sit wholly
+# below the neck are V5 hair tips tucked under her red top / belt -> stray shards on V6 -> dropped.
+_hf = [f for f in bm.faces if all(round(v[tl]) == 1 for v in f.verts)]
+HWELD = float(os.environ.get('HWELD', '0.003' if LOD == 'hi' else '0.006'))
+_hv = sorted({v.index for f in _hf for v in f.verts}); bm.verts.ensure_lookup_table()
+_kd = KDTree(len(_hv))
+for i, vi in enumerate(_hv): _kd.insert(bm.verts[vi].co, vi)
+_kd.balance()
+_par = {}
+def _fd(a):
+  while _par.setdefault(a, a) != a: _par[a] = _par[_par[a]]; a = _par[a]
+  return a
+for vi in _hv:
+  for co, j, d in _kd.find_range(bm.verts[vi].co, HWELD): _par[_fd(j)] = _fd(vi)
+for f in _hf:
+  r = _fd(f.verts[0].index)
+  for v in f.verts[1:]: _par[_fd(v.index)] = r
+_C = {}
+for f in _hf: _C.setdefault(_fd(f.verts[0].index), []).append(f)
+_cs = sorted(_C.values(), key=len, reverse=True)
+stray = set()
+for c in (_cs[1:] if FEM else []):
+  if max(v.co.z for f in c for v in f.verts) >= ZCUT: continue
+  # her front braid (hangs front-right of her, -x / front) can split into islands on lo: keep it
+  cx = sum(v.co.x for f in c for v in f.verts) / (3 * len(c)); cy = sum(v.co.y for f in c for v in f.verts) / (3 * len(c))
+  if cx < -0.06 and cy < -0.06: continue
+  stray.update(f.index for f in c)
+for c in _cs[:8]:
+  zz = [v.co.z for f in c for v in f.verts]; xx = [v.co.x for f in c for v in f.verts]; yy = [v.co.y for f in c for v in f.verts]
+  print('  island', len(c), 'x', round(min(xx), 2), round(max(xx), 2), 'y', round(min(yy), 2), round(max(yy), 2), 'z', round(min(zz), 2), round(max(zz), 2), flush=True)
+print('hair islands', len(_cs), 'main', len(_cs[0]) if _cs else 0, 'stray faces', len(stray), flush=True)
+nhid = 0
 for f in bm.faces:
   zs = [v.co.z for v in f.verts]; cz = sum(zs) / len(zs)
   ts = [round(v[tl]) for v in f.verts]
   # keep V5 skin (0) + hair/beard (1) + tint7; DROP cloth (tint -1) — those are V5 wrap-top/sash shreds that z-fight the V6 body
+  # V5 hair/beard (tint 1) is kept WHOLE at any height: her braid hangs to the waist, his beard to the chest
+  # (v266 cut it at Z5 -> "the girls hair is gone"). Tint 7 = her V5 red wrap top -> dropped (clothing).
+  if all(t == 1 for t in ts):
+    if f.index in stray: dead.append(f); nhid += 1; continue
+    # her V5 hair tips tucked under the belt on the front-left hip (+x, front): hidden on V5, shards on V6
+    if FEM and cz < HIPZ:
+      c = f.calc_center_median()
+      if c.x > 0.05 and c.y < 0.0: dead.append(f); nhid += 1; continue
+    # front of her neck / collar: V5 hair pieces tucked behind the chin + under her top -> dark smudge on V6
+    if FEM and Z5 - 0.06 < cz < ZCUT + NECKZ:
+      c = f.calc_center_median()
+      if abs(c.x) < NECKX and c.y < -0.03: dead.append(f); nhid += 1; continue
+    if KEEPHAIR: continue
   if cz < Z5: dead.append(f); continue
-  if all(t == -1 for t in ts): dead.append(f)
-print('V5 faces cut', len(dead), 'of', len(bm.faces), flush=True)
+  if all(t == -1 for t in ts) or any(t == 7 for t in ts): dead.append(f)
+print('V5 faces cut', len(dead), 'of', len(bm.faces), 'hidden hair', nhid, flush=True)
 bmesh.ops.delete(bm, geom=dead, context='FACES')
 bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
 bm.to_mesh(b5.data); bm.free(); b5.data.update()
@@ -180,9 +271,17 @@ print('after weld tris', ntri(body), 'verts', len(body.data.vertices), flush=Tru
 bm = bmesh.new(); bm.from_mesh(body.data); bm.faces.ensure_lookup_table(); bm.verts.ensure_lookup_table()
 uvl = bm.loops.layers.uv.active; tl = bm.verts.layers.float.get('_TINT')
 dead = []
+# only where the V5 neck skin really covers it: under her V5 red top (tint 7, dropped) there is no V5 neck,
+# so the V6 neck stays there (v266 left a hole -> dark collar band under her chin)
+_v5s = [l.vert.co.copy() for f in bm.faces for l in f.loops if uvl and l[uvl].uv[0] > 0.52 and (tl is None or round(l.vert[tl]) == 0)]
+_kd5 = KDTree(max(1, len(_v5s)))
+for i, co in enumerate(_v5s): _kd5.insert(co, i)
+_kd5.balance()
+COVER = float(os.environ.get('COVER', '0.012'))
 for f in bm.faces:
   zs = [v.co.z for v in f.verts]; cz = sum(zs)/len(zs)
   if not (Z5 - 0.005 <= cz <= ZCUT + 0.01): continue
+  if _v5s and _kd5.find(f.calc_center_median())[2] > COVER: continue
   if tl is not None and any(round(v[tl]) == 1 for v in f.verts): continue  # keep hair
   # V6 half of the side-by-side atlas
   if uvl and all((l[uvl].uv[0] < 0.48) for l in f.loops):
@@ -247,7 +346,8 @@ if 'Color' in body.data.color_attributes:
 T = tint_of(body.data)
 vh = body.vertex_groups.get('head')
 nfix = 0
-if vh is not None:
+# V5 hair keeps its own V5 weights (braid bone swing, beard on spine) = exact V5; HAIRHEAD=1 = old v266 rigid-to-head
+if vh is not None and os.environ.get('HAIRHEAD', '0') == '1':
   for vi in np.where(T == 1)[0]:
     for g in list(body.data.vertices[int(vi)].groups):
       body.vertex_groups[g.group].remove([int(vi)])
