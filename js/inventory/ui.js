@@ -33,6 +33,9 @@ const CSS = `
 #inv-panel .iv-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;padding:8px 14px 12px}
 #inv-panel .iv-slot{position:relative;aspect-ratio:1;min-height:64px;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
 #inv-panel .iv-slot.sel{outline:3px solid #fff;outline-offset:1px}
+#inv-panel .iv-slot.iv-open{border-style:dashed;border-color:#4a3420;background:rgba(36,22,10,.55)}#inv-panel .iv-slot.iv-from{opacity:.35}#inv-panel .iv-slot.iv-over{outline:3px dashed #ffcd3c;outline-offset:1px}#inv-panel.iv-moving .iv-slot{cursor:copy}#inv-panel .iv-slot u{position:absolute;left:5px;top:2px;font:bold 11px system-ui,sans-serif;text-decoration:none;color:rgba(232,211,166,.55)}
+.iv-menu{position:fixed;z-index:99999;min-width:150px;background:#24160a;border:2px solid #d9a441;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.6)}.iv-menu .iv-mt{font-size:13px;color:#ffcd3c;padding:2px 4px 4px}.iv-menu button{background:#3d2a1c;color:#fff1d2;border:1px solid #6b4a24;border-radius:7px;padding:7px 10px;text-align:left;font:inherit;cursor:pointer}.iv-menu button:disabled{opacity:.45}
+.iv-ghost{position:fixed;z-index:99999;pointer-events:none;width:72px;height:72px;transform:translate(-50%,-60%) scale(1.08);opacity:.9;box-shadow:0 8px 20px rgba(0,0,0,.6)}.iv-ghost{border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;align-items:center;justify-content:center;overflow:hidden}.iv-ghost i{font-style:normal;font-size:30px;width:70%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}.iv-ghost img{width:100%;height:100%;object-fit:contain}.iv-ghost span,.iv-ghost u{display:none}.iv-ghost b{position:absolute;right:4px;bottom:2px;font:bold 13px system-ui,sans-serif;color:#fff}
 #inv-panel .iv-slot i{font-style:normal;font-size:32px;line-height:1;display:flex;align-items:center;justify-content:center;width:60%;aspect-ratio:1;flex:none}
 #inv-panel .iv-slot i img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.55));pointer-events:none}
 #inv-panel .iv-slot span{font-size:13px;line-height:.95;color:#e8d3a6;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:1.9em}
@@ -61,12 +64,38 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'inv-panel'; el.innerHTML = '<div class="iv-box"><div class="iv-head">🎒 <span class="iv-title">INVENTORY</span><small></small><button class="iv-x" aria-label="Close">✕</button></div><div class="iv-tabs"></div><div class="iv-grid"></div><div class="iv-act"></div></div>';
   document.body.appendChild(el); for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'keydown']) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== 'keydown' });
-  const $ = (s) => el.querySelector(s); let data = { items: [], maps: [], flags: {}, equipped: {} }, mode = 'bag', tab = 'mine', sel = null, listings = [], busy = false;
+  const $ = (s) => el.querySelector(s); let data = { items: [], maps: [], flags: {}, equipped: {} }, mode = 'bag', tab = 'mine', sel = null, selI = -1, listings = [], busy = false;
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); }); $('.iv-x').onclick = () => close();
   const picker = createGivePick({ pvp, nearby: nearbyPlayers, toast }); // [give-dropdown]
   const slots = () => [...data.items.map(s => ({ key: s.item, qty: s.qty, tradeable: s.tradeable, info: itemInfo(s.item) })).filter(s => s.info),
     ...data.maps.map(m => ({ key: 'map:' + m.id, qty: 1, tradeable: 1, map: m, info: { ...itemInfo('map:' + m.id), rarity: m.tier, name: `${m.tier.toUpperCase()} MAP` } }))];
   const count = () => slots().reduce((a, s) => a + s.qty, 0);
+  // [inv-arrange] BANKSY 9:40 PM "on inventory let them rearrange spots", modelled on QBCore qb-inventory (9:41 PM): fixed numbered
+  // slots, drag onto an empty slot = move, onto another item = swap, onto the same item = stack, SHIFT-drag / the item menu's SPLIT =
+  // split a stack into an empty slot, right-click / long-press = item menu (USE / EQUIP, SPLIT, GIVE: only actions the game already has).
+  // No weight (BANKSY 9:42 PM: slots only). The server still owns every count: the slot layout is a per-pirate view saved on this
+  // device (localStorage) that only splits the server's total of each item across slots, so no move can create or lose an item.
+  // Selling / giving / equipping still go through the same server calls with the item key. HOTBAR hook: invSlots() / onSlotsChange().
+  const ORDER_V = 'pfp_inv_slots_v1:', MIN_SLOTS = 20; let order = null, orderFor = '', moveFrom = -1, moveAmt = 0, dragged = false, splitAsk = false, splitTo = -1;
+  const _slotFns = [];
+  const who = () => String(pvp()?.name || 'me').toLowerCase();
+  const loadOrder = () => { const w = who(); if (order && orderFor === w) return order; orderFor = w;
+    try { const v = JSON.parse(localStorage.getItem(ORDER_V + w) || '[]'); order = Array.isArray(v) ? v.map(e => e && typeof e.k === 'string' ? { k: e.k, n: Math.max(1, e.n | 0) } : null) : []; } catch { order = []; } return order; };
+  const saveOrder = () => { try { let n = order.length; while (n && !order[n - 1]) n--; localStorage.setItem(ORDER_V + orderFor, JSON.stringify(order.slice(0, n))); } catch { /* private mode */ } for (const f of _slotFns) try { f(order.slice()); } catch {} };
+  let view = []; // the last layout: slot index -> { s (slot item), n (qty shown in this slot) } | null
+  function layout(list) { // the server's totals spread over the saved slots; leftovers go to that item's first slot, else the first empty one
+    const o = loadOrder(), by = new Map(list.map(x => [x.key, x])), left = new Map(list.map(x => [x.key, x.qty]));
+    const out = o.map(e => { if (!e || !by.has(e.k)) return null; const r = left.get(e.k), n = Math.min(e.n, r); if (n <= 0) return null; left.set(e.k, r - n); return { s: by.get(e.k), n }; });
+    for (const x of list) { let r = left.get(x.key); if (r <= 0) continue; const f = out.findIndex(v => v && v.s.key === x.key); if (f >= 0) out[f].n += r; else { const e = out.indexOf(null); if (e >= 0) out[e] = { s: x, n: r }; else out.push({ s: x, n: r }); } }
+    const n = Math.max(MIN_SLOTS, Math.ceil((out.filter(Boolean).length + 5) / 5) * 5, out.length); while (out.length < n) out.push(null);
+    order = out.map(v => v ? { k: v.s.key, n: v.n } : null); view = out; return out;
+  }
+  // from slot a to slot b: empty = move (amt = split part), same item = stack, other item = swap (whole stacks only)
+  function moveSlot(a, b, amt = 0) { if (a === b || !order?.[a]) return false; while (order.length <= b) order.push(null); const A = order[a], B = order[b], part = amt > 0 && amt < A.n ? amt : A.n;
+    if (!B) { order[b] = { k: A.k, n: part }; if (part < A.n) A.n -= part; else order[a] = null; }
+    else if (B.k === A.k) { B.n += part; if (part < A.n) A.n -= part; else order[a] = null; }
+    else { if (part < A.n) return false; order[a] = B; order[b] = A; }
+    saveOrder(); return true; }
   const shopTakes = (s) => mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' : true;
   const price = (s) => mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
   const sellOn = () => mode === 'fish' ? !!data.flags.fish_sell : mode === 'antiques' ? !!data.flags.antiques_sell : false;
@@ -89,7 +118,14 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       const list = slots().filter(shopTakes); if (mode === 'fish' || mode === 'antiques') list.sort((a, b) => (price(a) - price(b)) || shortName(a.info).localeCompare(shortName(b.info))); // [v240] cheapest first (BANKSY's shop rule)
       g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
-      g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); });
+      if (mode === 'bag' && list.length) { el.classList.toggle('iv-moving', moveFrom >= 0); // [inv-arrange]
+        g.innerHTML = layout(list).map((v, i) => { const s = v?.s; return `<div class="iv-slot${s ? '' : ' iv-open'}${s && sel === s.key && selI === i ? ' sel' : ''}${moveFrom === i ? ' iv-from' : ''}"${s ? ` data-k="${s.key}"` : ''} data-i="${i}" style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${i + 1}</u>${s ? `${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${v.n > 1 ? '×' + v.n : ''}</b>` : ''}</div>`; }).join('');
+        g.querySelectorAll('[data-i]').forEach(d => d.onclick = () => { if (dragged) { dragged = false; return; } const i = +d.dataset.i;
+          if (moveFrom >= 0) { const ok = moveSlot(moveFrom, i, moveAmt); if (!ok && order[i]) toast('SPLIT INTO AN EMPTY SLOT<br><small>or onto the same item</small>', 1800); moveFrom = -1; moveAmt = 0; if (ok) { sel = order[i]?.k || null; selI = i; } render(); return; }
+          if (d.dataset.k) { sel = d.dataset.k; selI = i; render(); } });
+        g.oncontextmenu = (e) => { const d = e.target.closest?.('[data-k][data-i]'); if (!d) return; e.preventDefault(); itemMenu(+d.dataset.i, e.clientX, e.clientY); };
+        dragSetup(g);
+      } else { el.classList.remove('iv-moving'); g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); }); }
     }
     actions();
   }
@@ -101,12 +137,18 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
     let h = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity}${locked ? ' · bought with gold: keep it, it can\'t be resold' : ''}</small></div>`;
-    if (mode === 'bag') { if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
+    const slotN = mode === 'bag' && selI >= 0 && view[selI]?.s?.key === s.key ? view[selI].n : s.qty; // [inv-arrange] this slot's part of the stack
+    if (mode === 'bag' && moveFrom >= 0) { a.innerHTML = `<div class="t">${moveAmt ? `SPLITTING ${moveAmt} × ` : 'MOVING '}${s.info.name} · tap ${moveAmt ? 'an empty slot (or the same item)' : 'a slot: empty = move, item = swap, same item = stack'}</div><button data-a="cancelmove">CANCEL</button>`; bind(a, { cancelmove: () => { moveFrom = -1; moveAmt = 0; render(); } }); return; }
+    if (mode === 'bag' && splitAsk) { a.innerHTML = `<div class="t">SPLIT ${s.info.name} · how many of ${slotN}?</div><input class="sp" type="number" min="1" max="${slotN - 1}" value="${Math.max(1, slotN >> 1)}" aria-label="split amount"><button data-a="splitgo">SPLIT · PICK A SLOT</button><button data-a="cancelmove">CANCEL</button>`;
+      bind(a, { splitgo: () => { const k = Math.max(1, Math.min(slotN - 1, +(a.querySelector('.sp').value || 1) | 0)); splitAsk = false; if (splitTo >= 0) { moveSlot(selI, splitTo, k); splitTo = -1; render(); return; } moveFrom = selI; moveAmt = k; render(); }, cancelmove: () => { splitAsk = false; splitTo = -1; render(); } }); a.querySelector('.sp')?.focus(); return; }
+    if (mode === 'bag') { h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 ? '<button data-a="split">SPLIT</button>' : ''}`; if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
       h += `${n}<button data-a="give"${locked || !data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [give-dropdown] was a typed name box (typing stays, in the picker's search)
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
-    bind(a, { open: () => { close(); treasure?.openMap?.(s.map.id); },
+    bind(a, { move: () => { moveFrom = selI >= 0 && order?.[selI]?.k === s.key ? selI : (order || []).findIndex(e => e?.k === s.key); moveAmt = 0; render(); }, // [inv-arrange] tap-then-tap (phones, controller A)
+      split: () => { splitAsk = true; splitTo = -1; render(); },
+      open: () => { close(); treasure?.openMap?.(s.map.id); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
       unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
       give: () => { const k = q(); picker.open({ name: s.info.name, qty: k, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
@@ -120,8 +162,41 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   async function run(action, body, okMsg) { if (busy) return false; busy = true; // true = done ([give-dropdown] the picker closes on it)
     try { const r = await pvp()?.inv?.call(action, body); if (r && r.ok) { toast(typeof okMsg === 'function' ? okMsg(r) : okMsg, 2400); sel = null; await refresh(); if (action !== 'inv_equip') treasure?.refresh?.(); return true; }
       else toast(WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>', 2200); return false; } finally { busy = false; } }
-  function open(m = 'bag') { mode = m; tab = m === 'market' ? 'browse' : 'mine'; sel = null; el.classList.add('on'); render(); refresh(); }
-  function close() { picker.close(); el.classList.remove('on'); }
+  // [inv-arrange] drag: mouse after 6 px (SHIFT held = split into an empty slot), touch after a 300 ms hold (a quick swipe still scrolls);
+  // a touch hold released without moving = the item menu (the phone's right-click)
+  let dr = null, menu = null;
+  function dragSetup(g) { if (g._dragOn) return; g._dragOn = true;
+    g.addEventListener('pointerdown', (e) => { const d = e.target.closest?.('[data-k][data-i]'); if (!d || mode !== 'bag' || moveFrom >= 0 || e.button > 0) return; menuClose();
+      dr = { id: e.pointerId, d, i: +d.dataset.i, x: e.clientX, y: e.clientY, on: false, held: false, shift: e.shiftKey, touch: e.pointerType !== 'mouse', t: 0, over: null };
+      if (dr.touch) dr.t = setTimeout(() => { if (dr) { dr.held = true; d.classList.add('iv-over'); navigator.vibrate?.(15); } }, 300); });
+    addEventListener('pointermove', (e) => { if (!dr || e.pointerId !== dr.id) return; const m = Math.hypot(e.clientX - dr.x, e.clientY - dr.y);
+      if (!dr.on) { if (dr.touch && !dr.held) { if (m > 10) cancel(); return; } if (m < (dr.touch ? 12 : 6)) return; dr.d.classList.remove('iv-over'); start(e.clientX, e.clientY); }
+      move(e.clientX, e.clientY); });
+    addEventListener('pointerup', (e) => { if (!dr || e.pointerId !== dr.id) return;
+      if (dr.on) { const to = dr.over ? +dr.over.dataset.i : -1, from = dr.i, sh = dr.shift; dragged = true; setTimeout(() => { dragged = false; }, 0); cancel();
+        if (to >= 0 && to !== from) { if (sh && (order[from]?.n || 0) > 1 && (!order[to] || order[to].k === order[from].k)) { sel = order[from].k; selI = from; splitAsk = true; splitTo = to; } // SHIFT-drag: ask how many
+          else if (moveSlot(from, to)) { sel = order[to]?.k || null; selI = to; } }
+        render(); }
+      else if (dr.held) { const i = dr.i, x = e.clientX, y = e.clientY; dragged = true; setTimeout(() => { dragged = false; }, 0); cancel(); itemMenu(i, x, y); }
+      else cancel(); });
+    addEventListener('pointercancel', (e) => { if (dr && e.pointerId === dr.id) { cancel(); render(); } });
+    g.addEventListener('touchmove', (e) => { if (dr?.held || dr?.on) e.preventDefault(); }, { passive: false }); // no grid scroll while holding / dragging
+  }
+  function start(x, y) { dr.on = true; const gh = dr.d.cloneNode(true); gh.classList.add('iv-ghost'); gh.classList.remove('sel', 'iv-over'); document.body.appendChild(gh); dr.gh = gh; dr.d.classList.add('iv-from'); move(x, y); }
+  function move(x, y) { dr.gh.style.left = x + 'px'; dr.gh.style.top = y + 'px'; const t = document.elementFromPoint(x, y)?.closest?.('#inv-panel [data-i]') || null;
+    if (t !== dr.over) { dr.over?.classList.remove('iv-over'); dr.over = t; t?.classList.add('iv-over'); } }
+  function cancel() { if (!dr) return; clearTimeout(dr.t); dr.gh?.remove(); dr.over?.classList.remove('iv-over'); dr.d.classList.remove('iv-from', 'iv-over'); dr = null; }
+  // the item menu: the same buttons the action bar already has for this item (no new actions)
+  function itemMenu(i, x, y) { const v = view[i]; if (!v) return; sel = v.s.key; selI = i; splitAsk = false; render(); menuClose();
+    const acts = [...$('.iv-act').querySelectorAll('button[data-a]')].filter(b => b.dataset.a !== 'move'); if (!acts.length) return;
+    const LBL = { open: 'USE · OPEN MAP', equip: 'EQUIP', unequip: 'UNEQUIP', split: 'SPLIT', give: 'GIVE…' };
+    menu = document.createElement('div'); menu.className = 'iv-menu'; menu.innerHTML = `<div class="iv-mt">${v.s.info.name}${v.n > 1 ? ' ×' + v.n : ''}</div>` + acts.map((b, k) => `<button data-m="${k}"${b.disabled ? ' disabled' : ''}>${LBL[b.dataset.a] || b.textContent}</button>`).join('');
+    document.body.appendChild(menu); const r = menu.getBoundingClientRect(); menu.style.left = Math.max(6, Math.min(innerWidth - r.width - 6, x)) + 'px'; menu.style.top = Math.max(6, Math.min(innerHeight - r.height - 6, y)) + 'px';
+    menu.querySelectorAll('[data-m]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const t = acts[+b.dataset.m]; menuClose(); t?.click(); });
+    menu.addEventListener('pointerdown', (e) => e.stopPropagation()); setTimeout(() => addEventListener('pointerdown', menuClose, { once: true }), 0); }
+  function menuClose() { menu?.remove(); menu = null; }
+  function open(m = 'bag') { mode = m; tab = m === 'market' ? 'browse' : 'mine'; sel = null; selI = -1; moveFrom = -1; moveAmt = 0; splitAsk = false; menuClose(); el.classList.add('on'); render(); refresh(); }
+  function close() { picker.close(); cancel(); menuClose(); moveFrom = -1; splitAsk = false; el.classList.remove('on'); }
   // [shop-crash] 'pfp-shop' is shared: js/islandShop.js (Pet Store / Crew Shop / gear / weapon shops) fires it with { open, vendor } on EVERY
   // open AND close. Only the plaza shop triggers (js/island/areas/invShops.js) send { shop }; anything else used to pop the INVENTORY over the shop.
   window.addEventListener('pfp-shop', (e) => { const m = e.detail?.shop; if (m === 'fish' || m === 'antiques' || m === 'market') open(m); });
@@ -131,7 +206,8 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   window.addEventListener('pfp-fish', async (e) => { const d = e.detail || {}; if (!['inv_fish', 'inv_fish_bite', 'inv_fish_land'].includes(d.action)) return d.done?.(null);
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
-  return { open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
+  return { invSlots: () => (view || []).map(v => v ? { key: v.s.key, qty: v.n } : null), onSlotsChange: (f) => { _slotFns.push(f); }, // [inv-arrange] HOTBAR hook (not built): slot i -> item; fires on every move
+    open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
 }
 export const INV_FLAGS = FLAGS;
 // [v240] every shop list cheapest first: the Marketplace FOR SALE grid by price, then oldest listing first (the server sent newest first)
