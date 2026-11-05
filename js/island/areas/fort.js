@@ -24,7 +24,7 @@ export const FORT = { x: -408, z: -44, y: 36, half: 13, wall: 1.6, wallTop: 42, 
 const F = FORT, X0 = F.x - F.half, X1 = F.x + F.half, Z0 = F.z - F.half, Z1 = F.z + F.half, WT = F.wallTop;
 const LEG1 = { x: -434, z0: COLISEUM_ON ? -64 : -72, z1: -46.5, hw: 2.0, y1: 31 }, LAND = { x: -434, z: -44, hw: 2.5 }, LEG2 = { z: -44, x0: -431.5, x1: X0 + 2.5, hw: F.gateHW }; // runs on through the gate arch onto the yard (covers the cut edge)
 const RAMP = 1.5;                                                              // [fort-upper] WW = wall+RAMP = 3.1 m generous walkway
-const NSTAIR = { z: Z1 - (F.wall + RAMP) - 1.35, x0: -416, x1: -404, hw: 1.1 }; // [fort-upper] fully in courtyard south of walk inner edge (z≈-35.45)
+const NSTAIR = { z: Z1 - (F.wall + RAMP) - 1.1 - 0.05, x0: -416, x1: -404, hw: 1.1 }; // [fort-upper] z=-35.25 alongside hz1=-34.1; top tread reaches WT
 const SPY = { x: X1 + 0.3, z: Z1 + 0.3 }, TABLE = { x: F.keep.x, z: F.keep.z }, MAST = { x: F.x - 6, z: F.z - 6 }; // [fort-upper] spyglass centred on NE bastion
 const GOLD_D = 0xd9a020, TRIM = 0xcfc8bb, ROOF = 0x9a3a2a, ROOF_D = 0x7a2a1a, RED_B = 0x9b2335, PARCH = 0xe8d6a8;
 let P1 = [], P2 = [], Y20 = 20;
@@ -79,7 +79,7 @@ export default {
     h.addBox(LAND.x - LAND.hw - 0.3, LAND.z, 0.5, LAND.hw * 2 + 0.6, 0); h.addBox(LAND.x, LAND.z + LAND.hw + 0.3, LAND.hw * 2 + 0.6, 0.5, 0);
     for (const s of [-1, 1]) h.addBox((LEG2.x0 + X0) / 2, LEG2.z + s * (LEG2.hw + 0.3), X0 - LEG2.x0, 0.5, 0);
     // [fort-upper] continuous wall-walk decks all 4 sides (west spans the gatehouse arch at WT); WW = 3.1 m
-    const wd = F.wall + RAMP, wc = F.half - wd / 2, TOWER_CLEAR = 3.6, paraSpan = F.half * 2 - 2 * TOWER_CLEAR;
+    const wd = F.wall + RAMP, wc = F.half - wd / 2, TOWER_CLEAR = 5.0, paraSpan = F.half * 2 - 2 * TOWER_CLEAR;
     h.addDeck({ id: 'fort_wall_n', x: F.x, z: F.z + wc, hw: F.half, hl: wd / 2, yaw: 0, y: WT });
     h.addDeck({ id: 'fort_wall_s', x: F.x, z: F.z - wc, hw: F.half, hl: wd / 2, yaw: 0, y: WT });
     h.addDeck({ id: 'fort_wall_e', x: F.x + wc, z: F.z, hw: wd / 2, hl: F.half, yaw: 0, y: WT });
@@ -100,14 +100,14 @@ export default {
       }
     }
     // the north-wall stair (yard -> wall-walk)
-    h.addDeck({ id: 'fort_rampart_stair', x: (NSTAIR.x0 + NSTAIR.x1) / 2, z: NSTAIR.z, hw: NSTAIR.hw, hl: (NSTAIR.x1 - NSTAIR.x0) / 2, yaw: Math.PI / 2, y: F.y, prof: Array.from({ length: 28 }, (_, k) => F.y + (WT - F.y) * (k + 0.5) / 28), ya: F.y, yb: WT });
+    h.addDeck({ id: 'fort_rampart_stair', x: (NSTAIR.x0 + NSTAIR.x1) / 2, z: NSTAIR.z, hw: NSTAIR.hw, hl: (NSTAIR.x1 - NSTAIR.x0) / 2, yaw: Math.PI / 2, y: F.y, prof: Array.from({ length: 28 }, (_, k) => F.y + (WT - F.y) * (k + 1) / 28), ya: F.y, yb: WT });
     // [hilltop] BANKSY 10:11 PM "steps up to the spyglass must connect": the rampart stair ended in mid-air at x -404 (a 6 m drop to the yard
     // beyond the top tread, the wall-walk only reachable by a sideways step through the cheek wall); a level landing runs on at the top into the
     // north wall-walk, which leads east to the NE tower (the spyglass): one continuous walk
     // [v267] BANKSY 10:47 AM falls through at top of stairs: hw/hl were SWAPPED under yaw π/2 (hl along x was only 1.45 m, so a ~1 m VOID
     // sat between the top tread at x -404 and the landing). Overlap the stair by 0.5 m for jump spam.
     // [v267b] BANKSY 10:55/10:56 AM stone upper level: landing fills the L into the north wall-walk (no yard visible through the junction).
-    h.addDeck({ id: 'fort_rampart_land', x: NSTAIR.x1 + 2.5, z: (NSTAIR.z + (F.z + wc)) / 2, hw: (F.z + wc + wd / 2 - (NSTAIR.z - NSTAIR.hw)) / 2 + 0.6, hl: 4.0, yaw: Math.PI / 2, y: WT });
+    h.addDeck({ id: 'fort_rampart_land', x: -401.6, z: ((NSTAIR.z - NSTAIR.hw - 0.1) + Z1) / 2, hw: (Z1 - (NSTAIR.z - NSTAIR.hw - 0.1)) / 2, hl: 2.6, yaw: Math.PI / 2, y: WT }); // [fort-upper] overlap NSTAIR.x1 by 0.20 m only
     // [v267] rampart stair cheek colliders (visual cheeks had no footprint — jump sideways = 6 m drop to the yard)
     // [v276] BANKSY 12:02 PM "can't climb up to spy glass at all": full-span cheeks sealed the yard→stair mouth (south)
     // and pinched the top north step onto the landing. Leave ~4.5 m open at the bottom (entry) and ~2.0 m at the top
@@ -155,7 +155,7 @@ export default {
     { const L = LEG2.x1 - LEG2.x0, n = P2.length; for (let i = 0; i < n; i++) tread(LEG2.x0 + (i + 0.5) * L / n, LEG2.z, L / n + 0.02, LEG2.hw * 2, P2[i]);
       for (const s of [-1, 1]) for (let i = 0; i < n; i += 2) { const x = LEG2.x0 + (i + 0.5) * L / n, y = P2[i]; W(k, box(L / n * 2 + 0.05, 1.0, 0.5), C.STONE_D, M(x, y + 0.5, LEG2.z + s * (LEG2.hw + 0.3)), i % 6 === 0); } }
     // curtain walls: body tops at WT - walkH so the monolithic walk floor sits flush (no z-fight). [fort-upper]
-    const walkH = 0.36, WW = F.wall + RAMP, TOWER_CLEAR = 3.6, paraSpan = F.half * 2 - 2 * TOWER_CLEAR;
+    const walkH = 0.36, WW = F.wall + RAMP, TOWER_CLEAR = 5.0, paraSpan = F.half * 2 - 2 * TOWER_CLEAR;
     const wall = (x, z, w, d) => { W(k, box(w, ((WT - walkH) - base), d), C.STONE, M(x, ((WT - walkH) + base) / 2, z)); };
     const wd = F.wall, gs = (F.half * 2 - F.gateHW * 2) / 2;
     wall(F.x, Z1 - wd / 2, F.half * 2, wd); wall(F.x, Z0 + wd / 2, F.half * 2, wd); wall(X1 - wd / 2, F.z, wd, F.half * 2);
@@ -190,30 +190,32 @@ export default {
     sf(F.x + (F.half - WW / 2), F.z, WW, walkSpan); // E
     sf(F.x - (F.half - WW / 2), F.z, WW, walkSpan); // W continuous over gate
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) W(k, cyl(3.55, 3.55, walkH, 20), C.STONE, M(F.x + sx * F.half, WT - walkH / 2, F.z + sz * F.half), false);
-    sf(NSTAIR.x1 + 2.2, (NSTAIR.z + (Z1 - WW / 2)) / 2, 7.2, (Z1 - WW / 2) - NSTAIR.z + 0.8); // landing apron (no overlap into towers)
+    // [fort-upper] landing notch ONLY (NSTAIR x=-416..-404 stays open to sky — no stone ceiling over the stair)
+    const hx0 = X0 + WW, hx1 = X1 - WW, hz0 = Z0 + WW, hz1 = Z1 - WW;
+    const sx0 = -404.05, sx1 = -399.1, szS = NSTAIR.z - NSTAIR.hw - 0.25;
+    sf((sx0 + sx1) / 2, (szS + hz1) / 2, sx1 - sx0, hz1 - szS); // landing support under the notch only
     let walkTopGeo = null;
     { const TR = 3.7, sh = new THREE.Shape();
       sh.moveTo(X0 + TR, Z1); sh.lineTo(X1 - TR, Z1); sh.absarc(X1, Z1, TR, Math.PI / 2, 0, true);
       sh.lineTo(X1, Z0 + TR); sh.absarc(X1, Z0, TR, 0, -Math.PI / 2, true);
       sh.lineTo(X0 + TR, Z0); sh.absarc(X0, Z0, TR, -Math.PI / 2, Math.PI, true);
       sh.lineTo(X0, Z1 - TR); sh.absarc(X0, Z1, TR, Math.PI, Math.PI / 2, true);
-      const hx0 = X0 + WW, hx1 = X1 - WW, hz0 = Z0 + WW, hz1 = Z1 - WW;
       const hole = new THREE.Path();
-      const sx0 = NSTAIR.x0 - 0.4, sx1 = NSTAIR.x1 + 4.2, szS = NSTAIR.z - NSTAIR.hw - 0.25;
       hole.moveTo(hx0, hz0); hole.lineTo(hx0, hz1); hole.lineTo(sx0, hz1); hole.lineTo(sx0, szS);
       hole.lineTo(sx1, szS); hole.lineTo(sx1, hz1); hole.lineTo(hx1, hz1); hole.lineTo(hx1, hz0); hole.lineTo(hx0, hz0);
       sh.holes.push(hole);
       walkTopGeo = new THREE.ShapeGeometry(sh, 48);
       walkTopGeo.rotateX(Math.PI / 2); walkTopGeo.translate(0, WT + 0.02, 0);
     }
-    // inner stone kerb (0.42 m) along courtyard edge of all 4 walls + south edge of stair landing — NEVER across wall-walk / towers / NSTAIR exit
+    // inner stone kerb (0.42 m) along courtyard edge of all 4 walls + landing drop-off — NEVER across wall-walk / towers / NSTAIR
     const kerb = (x, z, w, d) => { W(k, box(w, 0.42, d), C.STONE_D, M(x, WT + 0.16, z), false); W(k, box(w + 0.04, 0.07, d + 0.04), TRIM, M(x, WT + 0.40, z), false); };
     const ki = F.half - WW, kx0 = X0 + WW + 0.15, kx1 = X1 - WW - 0.15, kz0 = Z0 + WW + 0.15, kz1 = Z1 - WW - 0.15;
-    // north kerb split around stair mouth
-    { const gap0 = NSTAIR.x0 - 0.5, gap1 = NSTAIR.x1 + 4.2;
-      kerb((kx0 + gap0) / 2, kz1, Math.max(0.5, gap0 - kx0), 0.32);
-      kerb((gap1 + kx1) / 2, kz1, Math.max(0.5, kx1 - gap1), 0.32);
-      kerb((gap0 + gap1) / 2, NSTAIR.z - NSTAIR.hw - 0.2, gap1 - gap0, 0.32); // south edge of landing only
+    // north kerb split around landing mouth (stair itself stays clear)
+    { const g0 = sx0 - 0.1, g1 = sx1 + 0.1;
+      kerb((kx0 + g0) / 2, kz1, Math.max(0.5, g0 - kx0), 0.32);
+      kerb((g1 + kx1) / 2, kz1, Math.max(0.5, kx1 - g1), 0.32);
+      kerb((sx0 + sx1) / 2, szS + 0.16, sx1 - sx0, 0.32); // south edge of landing drop-off
+      kerb(sx1 - 0.16, (szS + kz1) / 2, 0.32, Math.max(0.5, kz1 - szS)); // east edge of landing
     }
     kerb(F.x, kz0, kx1 - kx0, 0.32); // south
     kerb(kx1, F.z, 0.32, kz1 - kz0); // east
@@ -248,15 +250,15 @@ export default {
       // wall lantern
       W(k, box(0.08, 0.08, 0.55), C.IRON, M(X0 - 0.9, WT - 0.2, z + s * 0.2), false); W(k, box(0.32, 0.42, 0.32), 0xffd27a, M(X0 - 1.15, WT - 0.5, z + s * 0.2), false); W(k, box(0.4, 0.08, 0.4), C.IRON, M(X0 - 1.15, WT - 0.25, z + s * 0.2), false); }
     // arch lintel + voussoirs + raised portcullis
-    W(k, box(3.6, 2.6, F.gateHW * 2 + 0.4), C.STONE_D, M(X0 + 0.6, 40.7 + 1.3, F.z)); W(k, box(0.7, 0.7, F.gateHW * 2 + 0.2), TRIM, M(X0 - 1.05, 40.7 - 0.35, F.z), false); // soffit at 40.7; walk above at WT=42
+    W(k, box(1.6, 1.14, F.gateHW * 2 + 0.4), C.STONE_D, M(X0 + 0.8, 41.07, F.z)); W(k, box(0.7, 0.7, F.gateHW * 2 + 0.2), TRIM, M(X0 - 1.05, 40.7 - 0.35, F.z), false); // lintel top = WT-walkH=41.64; soffit ~40.5; flush inside curtain
     if (hi) for (let i = -2; i <= 2; i++) W(k, box(0.55, 0.55, 0.45), TRIM, M(X0 - 0.55, WT - 0.55, F.z + i * 0.75), false); // voussoir row
     for (let i = 0; i < 6; i++) W(k, box(0.12, 1.7, 0.12), C.IRON, M(X0 - 0.2, WT - 2.2, F.z - F.gateHW + 0.3 + i * (F.gateHW * 2 - 0.6) / 5), false);
     W(k, box(0.12, 0.12, F.gateHW * 2 - 0.4), C.IRON, M(X0 - 0.2, WT - 3.0, F.z), false);
     // chains holding the portcullis
     for (const s of [-1, 1]) for (let i = 0; i < 5; i++) W(k, cyl(0.04, 0.04, 0.22, 5), C.IRON, M(X0 - 0.55, WT - 0.4 - i * 0.28, F.z + s * (F.gateHW - 0.3)), false);
-    // HILLTOP FORT board over the arch
-    W(k, box(0.14, 1.1, 4.4), C.WOOD_D, M(X0 - 1.35, WT + 1.6, F.z)); W(k, box(0.16, 0.12, 4.55), C.GOLD, M(X0 - 1.33, WT + 2.2, F.z), false); W(k, box(0.16, 0.12, 4.55), C.GOLD, M(X0 - 1.33, WT + 1.0, F.z), false);
-    signs.push([4.15, 0.85, new THREE.Matrix4().compose(new THREE.Vector3(X0 - 1.42, WT + 1.6, F.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2), new THREE.Vector3(1, 1, 1))]);
+    // HILLTOP FORT board on outer west face (flush under parapet — never onto the wall-walk)
+    W(k, box(0.14, 1.1, 4.4), C.WOOD_D, M(X0 - 0.35, WT - 0.55, F.z)); W(k, box(0.16, 0.12, 4.55), C.GOLD, M(X0 - 0.33, WT + 0.05, F.z), false); W(k, box(0.16, 0.12, 4.55), C.GOLD, M(X0 - 0.33, WT - 1.15, F.z), false);
+    signs.push([4.15, 0.85, new THREE.Matrix4().compose(new THREE.Vector3(X0 - 0.42, WT - 0.55, F.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2), new THREE.Vector3(1, 1, 1))]);
     // wooden gate leaves (concept B3): plank doors with iron straps + studs, swung open into the yard
     for (const s of [-1, 1]) { const z = F.z + s * (F.gateHW + 0.08);
       W(k, box(2.15, 4.6, 0.2), C.WOOD_D, M(X0 + 2.85, Y + 2.3, z)); for (const yy of [0.7, 2.3, 3.9]) W(k, box(2.2, 0.18, 0.26), C.IRON, M(X0 + 2.85, Y + yy, z), false);
@@ -273,11 +275,10 @@ export default {
     { const n = 28, L = NSTAIR.x1 - NSTAIR.x0; for (let i = 0; i < n; i++) { const top = Y + (WT - Y) * (i + 1) / n; W(k, box(L / n + 0.02, top - Y + 0.1, NSTAIR.hw * 2), C.STONE, M(NSTAIR.x0 + (i + 0.5) * L / n, (top + Y - 0.1) / 2, NSTAIR.z), false); }
       for (const s of [-1, 1]) for (let i = 0; i < n; i += (hi ? 2 : 3)) { if (s > 0 && i > n - 9) continue; const top = Y + (WT - Y) * (i + 1) / n; W(k, box(L / n * 2 + 0.04, 0.85, 0.35), C.STONE_D, M(NSTAIR.x0 + (i + 0.5) * L / n, top + 0.4, NSTAIR.z + s * (NSTAIR.hw + 0.2)), false); }
       W(k, cyl(0.08, 0.1, 2.6, 5), C.IRON, M(NSTAIR.x0 + 0.4, Y + 1.3, NSTAIR.z - NSTAIR.hw - 0.4)); W(k, box(0.4, 0.5, 0.4), 0xffd27a, M(NSTAIR.x0 + 0.4, Y + 2.7, NSTAIR.z - NSTAIR.hw - 0.4), false);
-      // [fort-upper] stair-top apron is part of the monolithic ShapeGeometry walk; cheek masonry under the landing only
-      { const lx = NSTAIR.x1 + 2.5, z0 = NSTAIR.z - NSTAIR.hw - 0.15, z1 = Z1 - WW, lz = (z0 + z1) / 2, ld = Math.max(0.8, z1 - z0);
-        W(k, box(7.5, WT - Y - 0.15, 0.7), C.STONE_D, M(lx, (WT + Y) / 2 - 0.05, z0 + 0.2), false);
-        W(k, box(0.7, WT - Y - 0.15, ld), C.STONE_D, M(lx - 3.6, (WT + Y) / 2 - 0.05, lz), false);
-        W(k, box(0.7, WT - Y - 0.15, ld), C.STONE_D, M(lx + 3.6, (WT + Y) / 2 - 0.05, lz), false); }
+      // [fort-upper] landing under-masonry: south face + east face only (NO west wall — stairs come up at sx0)
+      { const z0 = szS + 0.25, z1 = hz1, lx = (sx0 + sx1) / 2, lw = sx1 - sx0, lz = (z0 + z1) / 2, ld = Math.max(0.8, z1 - z0);
+        W(k, box(lw, WT - Y - 0.15, 0.7), C.STONE_D, M(lx, (WT + Y) / 2 - 0.05, z0), false); // south face
+        W(k, box(0.7, WT - Y - 0.15, ld), C.STONE_D, M(sx1 - 0.25, (WT + Y) / 2 - 0.05, lz), false); } // east face
     }
     // the keep: taller dress, quoins, windows, WAR ROOM door, beams, map table, corner lookout turret (concept round tower)
     { const K = F.keep, kw = K.wall, kt = Y + K.h, kg = (K.half * 2 - K.doorHW * 2) / 2;

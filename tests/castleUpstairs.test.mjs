@@ -6,8 +6,8 @@ import { runInNewContext } from 'node:vm';
 const src = readFileSync(new URL('../js/island/areas/fort.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 test('sw is at or past pfp-v273', () => { const v = +(sw.match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 273, 'sw ' + v); });
-test('fort_rampart_land: spans stair→wall-walk L (hl along x under yaw π/2)', () => {
-  assert.match(src, /id:\s*'fort_rampart_land'[\s\S]{0,200}hl:\s*4\.0,\s*yaw:\s*Math\.PI\s*\/\s*2/);
+test('fort_rampart_land: overlaps NSTAIR.x1 by ~0.20 m only (hl=2.6 under yaw π/2)', () => {
+  assert.match(src, /id:\s*'fort_rampart_land'[\s\S]{0,220}x:\s*-401\.6[\s\S]{0,160}hl:\s*2\.6,\s*yaw:\s*Math\.PI\s*\/\s*2/);
 });
 test('spy pad centred on NE bastion with r>=2.6 + tower decks solid', () => {
   assert.match(src, /id:\s*'fort_spy_pad'/);
@@ -43,7 +43,8 @@ test('wall-walk WW=3.1, continuous west deck, gatehouse west of curtain, keep nu
   assert.match(src, /id:\s*'fort_wall_w'/);
   assert.match(src, /X0\s*-\s*1\.9/);
   assert.match(src, /keep:\s*\{\s*x:\s*-404\.6/);
-  assert.match(src, /paraSpan|TOWER_CLEAR\s*=\s*3\.6/);
+  assert.match(src, /TOWER_CLEAR\s*=\s*5\.0/);
+  assert.match(src, /paraSpan/);
 });
 test('mound rings leave the full fort footprint clear', () => {
   const hill = readFileSync(new URL('../js/island/areas/hillRound.js', import.meta.url), 'utf8');
@@ -65,4 +66,16 @@ test('mound rings leave the full fort footprint clear', () => {
 test('no waist-high kerb across north wall-walk / NSTAIR exit', () => {
   assert.doesNotMatch(src, /kerb\(F\.x,\s*F\.z\s*\+\s*ki,\s*F\.half \* 2/);
   assert.match(src, /NEVER across wall-walk|south edge of landing only/);
+});
+
+test('gatehouse lintel stays under wall-walk + sign on outer west face', () => {
+  assert.match(src, /box\(1\.6,\s*1\.14/);
+  assert.match(src, /X0\s*\+\s*0\.8,\s*41\.07/);
+  assert.doesNotMatch(src, /box\(3\.6,\s*2\.6,\s*F\.gateHW/);
+  assert.match(src, /X0\s*-\s*0\.35,\s*WT\s*-\s*0\.55/);
+});
+test('ShapeGeometry hole notches landing only — NSTAIR stays open to sky', () => {
+  assert.match(src, /sx0\s*=\s*-404\.05/);
+  assert.match(src, /NSTAIR x=-416\.\.-404 stays open to sky/);
+  assert.doesNotMatch(src, /sx0\s*=\s*NSTAIR\.x0\s*-\s*0\.4/);
 });
