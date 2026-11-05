@@ -1365,6 +1365,11 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const m = new THREE.InstancedMesh(geom, fm, cap); m.count = 0; m.frustumCulled = false; m.castShadow = !low && !!sh; m.receiveShadow = !low; m.name = 'foot_' + kinds[0] + '_' + (typeof g === 'string' ? g : i);
     if (fm.userData.depth) m.customDepthMaterial = fm.userData.depth; root.add(m); IM[m.name] = m; return { kinds, v, r0, r1, cap, m, n: 0 }; });
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  if (PV.PALM_SPOTS && PV.PALM_SPOTS.length) { const pv = nat ? [0, 1, 2].map(v => low ? nat.get('palm1', 1) : nat.get('palm' + v, 0)) : null, fb = pv && pv.every(Boolean) ? null : treeGeos(low).palm;   // [Emerly] the plaza palms: the nature kit palms (rope bridge ones)
+    for (const v of [0, 1, 2]) { const list = PV.PALM_SPOTS.filter(t => t[4] === v), geom = fb || pv[v]; if (!list.length || !geom) continue; safeNormals(geom);
+      const m = new THREE.InstancedMesh(geom, fm, list.length); m.name = 'foot_plaza_palm' + v; m.castShadow = !low; m.receiveShadow = !low; if (fm.userData.depth) m.customDepthMaterial = fm.userData.depth;
+      list.forEach((t, i) => { const s = 1.05; _q.setFromAxisAngle(_up, t[3]); _s.set(s, s * 1.1, s); _p.set(t[0], t[1] - 0.3, t[2]); _m.compose(_p, _q, _s); m.setMatrixAt(i, _m); });
+      m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); root.add(m); } }
   const SC = nat ? { trees: [0.75, 0.55], palms: [0.85, 0.4], ferns: [0.8, 0.9], rocks: [0.7, 2.4], cliffs: [3.2, 4.2] } : { trees: [0.8, 1.6], palms: [0.85, 0.5], ferns: [0.8, 0.9], rocks: [0.8, 2.8], cliffs: [2.0, 3.0] };
   const KINDS = ['trees', 'palms', 'ferns', 'rocks', 'cliffs'], RMAX = Object.fromEntries(KINDS.map(k => [k, Math.max(0, ...BUCKETS.filter(b => b.kinds.includes(k)).map(b => b.r1))]));
   const FARTREE = !(typeof location !== 'undefined' && /[?&]fartree=0(&|$)/.test(location.search));

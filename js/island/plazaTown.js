@@ -95,6 +95,8 @@ export const CARTS = [[-30, -22.5], [40, -22]], TAVERN_TABLES = [];   // [v248] 
 export const FISH_MARKET = { lx: 73.2, lz: FACADE_LZ - ROW_D / 2, w: 32.6, d: ROW_D, promptLz: -35.5 };   // [v248] BANKSY 7:57 PM 'fill the gap': lx 56.9-89.5, from the MARKETPLACE (hall_e ends 56, plinth 56.3) to the v247 far end; absorbs the gap + the plaza tavern house (decor, #9)
 export const FISH_HALL = true;   // foot.js: no harbor tower
 export const MARKET_DOOR = { lx: 47, lz: FACADE_LZ - 5.5 };   // [v248] the TRADE prompt inside the hall, mid-floor (walk in)   // [v240] the MARKETPLACE prompt at the hall_e entrance
+export const PLAZA_PALM_ON = !(typeof location !== 'undefined' && /[?&]plazapalm=0(&|$)/.test(location.search));   // [Emerly] &plazapalm=0 = the old blockout palms
+export const PALM_SPOTS = [];   // [Emerly] [x, y, z, yaw, variant] world, filled by buildPlazaV2
 export const PALMS = [[-56, -12], [-24, -9], [-3, -9], [15, -9], [44, -9], [76, -8], [92, -14], [-68, -10]];
 export const LAMPS = [-54, -42, -30, -18, -4, 16, 28, 40, 52, 60, 93].map(lx => [lx, -20.4]);   // [v248] lx 64 -> 60 (clear of the wider FISH MARKET door at 73.2; on the street line like the others)   // [v247] lx 64 back (the old fish shed spot), lx 80 -> 93 (clear of the FISH MARKET door)   // [v240] lx 64 dropped: it stood in front of the FISH MARKET sign
 export const CARGO = [[-34, -3.5], [-28, -4], [-20, -3.5], [-14, -4.5], [20, -3.5], [26, -4], [34, -3.5], [74, -4.5], [82, -3.5]];
@@ -379,7 +381,9 @@ export function buildPlazaV2(h) {
       for (const a of [0, 2.1, 4.2]) W(k, cyl(0.35, 0.35, 0.55, 8), C.WOOD_L, TIMBER, M(Math.sin(a) * 1.3, 0.28, Math.cos(a) * 1.3), false); }, Y0); const [x, z] = T(lx, lz); addCirc(x, z, 1.0);
     addCirc(x, z, 1.72); }   // [collisions] table + its 3 stools as one round footprint (the stools were walk-through; separate circles left pockets)
   // ---- palms (blockout: chunky trunk + fronds; phase 2 = the nature kit palm) ----
-  for (const [i, [lx, lz]] of PALMS.entries()) at(lx, lz, i * 1.3, () => { for (let s = 0; s < 4; s++) W(k, cyl(0.32 - s * 0.04, 0.36 - s * 0.04, 2.0, 7), C.BARK, 5, M(s * 0.18, 1 + s * 1.9, 0, 0, 0, -0.06 * s));
+  // [Emerly] BANKSY: the plaza palms = the nature kit palms (palm0-2, the ones under the rope bridge), instanced in foot.js createFoot from PALM_SPOTS; &plazapalm=0 = the blockout palms
+  if (PLAZA_PALM_ON) for (const [i, [lx, lz]] of PALMS.entries()) { const [x, z] = T(lx, lz); PALM_SPOTS.push([x, Y0, z, i * 1.3, i % 3]); addCirc(x, z, 0.5); }
+  else for (const [i, [lx, lz]] of PALMS.entries()) at(lx, lz, i * 1.3, () => { for (let s = 0; s < 4; s++) W(k, cyl(0.32 - s * 0.04, 0.36 - s * 0.04, 2.0, 7), C.BARK, 5, M(s * 0.18, 1 + s * 1.9, 0, 0, 0, -0.06 * s));
       for (let f = 0; f < 6; f++) W(k, box(0.9, 0.14, 3.6), 0x3fca45, 6, M(0.7 + Math.sin(f * 1.05) * 1.5, 7.6, Math.cos(f * 1.05) * 1.5, f * 1.05, 0.38)); addCirc(...T(lx, lz), 0.5); }, Y0);
   // ---- cargo between the jetty roots (never on a jetty root or berth lane), rope coils, crane ----
   for (const [i, [lx, lz]] of CARGO.entries()) { if (!clearOfJetties(lx, 3)) continue; const [x, z] = T(lx, lz), y = lx < BOARDWALK.lxS ? bwY(lx) - 0.02 : Y0;
