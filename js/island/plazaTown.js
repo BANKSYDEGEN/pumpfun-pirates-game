@@ -68,13 +68,16 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // storefronts: Blender GLBs already have open arches + dressed interiors (tools/plaza_blender/plaza_shops_blender.py).
 // [v250] BANKSY 8:33 PM 'Move sword shop and other shop buttons inside the stores': walk-in like FISH MARKET / MARKETPLACE —
 // hollow wall colliders (door gap), prompt on the shop floor (promptLz), not the street. vendor = js/shopCatalog.js VENDORS id.
+// [v254] BANKSY 9:33 PM 'Move the crew shop, upgrade shop, pet shop, clothing store back outside cuz can't go inside those':
+// these four go back to the pre-v250 street prompt (lz + 3.8) + solid footprint; SHIP SHOP stays walk-in.
+export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_upgrades', 'shop_crew']);
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · HATS, COATS, EYEWEAR' },
   { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: -10, w: 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'CREW SHOP', vendor: 'crew', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'CREW SHOP · CREW OUTFITS' },
-].map(s => ({ ...s, lz: FACADE_LZ + 0.7, promptLz: FACADE_LZ - 5.5 }));   // [v250] mid-floor prompt (was street lz+3.8)
+].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: FACADE_LZ - 5.5 }) }));   // [v250] mid-floor prompt; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
 export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
@@ -325,13 +328,13 @@ export function buildPlazaV2(h) {
   for (const s of STOREFRONTS) {
     const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
     if (glb) {   // [v250] Blender model already has open arch + interior; hollow walls + prop / awning-post colliders (no solid footprint)
-      { const [x, z] = T(s.lx, cz); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }
-      shopWalkInCols(s);
+      { const [x, z] = T(s.lx, cz); if (!s.walkIn) addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }   // [v254] outside shops: solid footprint again
+      if (s.walkIn) shopWalkInCols(s);
       for (const c of glb.colliders) { const [x, z] = T(s.lx + c[1], cz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
       { const [x, z] = T(s.lx, FACADE_LZ + 1.0); addBox(x, z, s.w * 0.6 + 0.4, 1.4, yaw0); } for (const sx of [-1, 1]) addCirc(...T(s.lx + sx * s.w * 0.33, FACADE_LZ + 2.5), 0.25);
       continue; }
-    stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true, hollow: true });   // [v250] hollow: walls-only colliders (shopWalkInCols), solid mesh fallback when &shopsglb=0
-    shopWalkInCols(s);
+    stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true, hollow: !!s.walkIn });   // [v250] hollow: walls-only colliders (shopWalkInCols); [v254] outside shops solid
+    if (s.walkIn) shopWalkInCols(s);
     at(s.lx, FACADE_LZ, 0, () => {                                          // walk-up counter + canvas awning on timber posts
       W(k, box(s.w * 0.6, 1.1, 1.0), C.WOOD, TIMBER, M(0, 0.55, 1.0)); W(k, box(s.w * 0.6 + 0.3, 0.14, 1.25), C.WOOD_L, TIMBER, M(0, 1.16, 1.0), false);
       for (const sx of [-1, 1]) W(k, box(0.22, 3.0, 0.22), C.WOOD_D, TIMBER, M(sx * s.w * 0.33, 1.5, 2.5), false);
