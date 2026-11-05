@@ -3,6 +3,7 @@ blender -b -noaudio -P tools/v6/clothes_review.py -- OUTDIR item.glb ...
 Uses CPU Cycles so review also works on a headless machine.
 """
 import bpy, sys, os, math
+from mathutils.kdtree import KDTree
 from mathutils import Vector
 args = sys.argv[sys.argv.index('--')+1:]; out, files = args[0], args[1:]
 os.makedirs(out, exist_ok=True)
@@ -10,6 +11,40 @@ for path in files:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=os.path.abspath(path))
     sc=bpy.context.scene
+    if os.environ.get('REVIEW_EQUIPPED'):
+        # Read-only V6 fit preview. This reproduces the nearest-vertex cover
+        # mask in bind pose, not every runtime hair/boot/pose correction.
+        sex,lod=os.path.basename(path).replace('.glb','').rsplit('_',2)[-2:]
+        item_name=os.path.basename(path).rsplit('_',2)[0]
+        if item_name.startswith('cloth_') and item_name!='cloth_base':
+            bpy.ops.import_scene.gltf(filepath=os.path.abspath(f'assets/pirates/items/v5/classic_pants_{sex}_{lod}.glb'))
+        item_meshes=[o for o in sc.objects if o.type=='MESH' and not o.name.startswith('Ico')]
+        before=set(sc.objects)
+        bpy.ops.import_scene.gltf(filepath=os.path.join(os.environ.get('REVIEW_BODY_ROOT','assets/pirates'),f'pirate_{sex}_v6_{lod}.glb'))
+        body=[o for o in sc.objects if o not in before]
+        import bmesh
+        covers=[]
+        for o in item_meshes:
+            kd=KDTree(len(o.data.vertices))
+            for v in o.data.vertices: kd.insert(v.co,v.index)
+            kd.balance();covers.append((o.data,kd))
+        for o in body:
+            if o.type!='MESH' or o.name.startswith('Ico'): continue
+            me=o.data; tint=me.attributes.get('_TINT'); covered=set()
+            for v in me.vertices:
+                t=round(tint.data[v.index].value) if tint else -99
+                if t==1: continue  # hair/braid is never part of the cover mask
+                # Pants replace the fixed-colour underwear, as baseMask does.
+                hide=t in (-1,7) and v.co.z < (.66 if sex=='female' else .615)
+                for cm,kd in covers:
+                    near,idx,dist=kd.find(v.co)
+                    hem=cm.attributes.get('_HEM')
+                    if dist<.024 and (not hem or hem.data[idx].value>=.016):
+                        if hem or (near-v.co).dot(cm.vertices[idx].normal)>-.004: hide=True
+                if hide: covered.add(v.index)
+            bm=bmesh.new();bm.from_mesh(me)
+            remove=[f for f in bm.faces if all(v.index in covered for v in f.verts)]
+            bmesh.ops.delete(bm,geom=remove,context='FACES');bm.to_mesh(me);bm.free()
     if os.environ.get('REVIEW_BOOT_ROOT'):
         sex,lod=os.path.basename(path).replace('.glb','').rsplit('_',2)[-2:]
         bpy.ops.import_scene.gltf(filepath=os.path.join(os.environ['REVIEW_BOOT_ROOT'],f'boots_sea_{sex}_{lod}.glb'))
@@ -32,14 +67,17 @@ for path in files:
             links.new(emission.outputs[0],output.inputs['Surface'])
     if os.environ.get('REVIEW_WALK'):
         # Read the animation source only; render item rigs in that shared walk pose.
-        before=set(sc.objects)
-        sex,lod=os.path.basename(path).replace('.glb','').rsplit('_',2)[-2:]
-        root=os.environ.get('REVIEW_BODY_ROOT','assets/pirates')
-        bpy.ops.import_scene.gltf(filepath=os.path.join(root,f'pirate_{sex}_v6_{lod}.glb'))
-        added=[o for o in sc.objects if o not in before]
-        rig=next(o for o in added if o.type=='ARMATURE')
-        for o in added:
-            if o.type=='MESH': o.hide_render=True
+        if os.environ.get('REVIEW_EQUIPPED'):
+            rig=next(o for o in body if o.type=='ARMATURE')
+        else:
+            before=set(sc.objects)
+            sex,lod=os.path.basename(path).replace('.glb','').rsplit('_',2)[-2:]
+            root=os.environ.get('REVIEW_BODY_ROOT','assets/pirates')
+            bpy.ops.import_scene.gltf(filepath=os.path.join(root,f'pirate_{sex}_v6_{lod}.glb'))
+            added=[o for o in sc.objects if o not in before]
+            rig=next(o for o in added if o.type=='ARMATURE')
+            for o in added:
+                if o.type=='MESH': o.hide_render=True
         for o in meshes:
             for modifier in o.modifiers:
                 if modifier.type=='ARMATURE': modifier.object=rig

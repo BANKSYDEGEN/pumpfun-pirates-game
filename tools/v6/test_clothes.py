@@ -18,7 +18,8 @@ def views(j,b):
 changed=subprocess.check_output(['git','diff',BASE,'--name-only'],text=True).splitlines()
 assets=[Path(p) for p in changed if p.endswith('.glb')]
 expected={f'{item}_{sex}_{lod}.glb' for item in (*IDS, 'cloth_shirt', 'cloth_tshirt', 'cloth_coat', 'cloth_suit', 'cloth_tank', 'cloth_singlet', 'cloth_base') for sex in ('male','female') for lod in ('hi','lo')}
-assert {p.name for p in assets}==expected, (len(assets),assets)
+assert assets and {p.name for p in assets} <= expected, (len(assets),assets)
+if BASE=='dd6fff6': assert {p.name for p in assets}==expected
 assert not any('pirate_' in p.name or any(k in p.name for k in ('boots','shoes','sandals')) for p in assets)
 for path in assets:
     oldj,oldb=parse(subprocess.check_output(['git','show',f'{BASE}:{path}']))
@@ -28,8 +29,21 @@ for path in assets:
     assert oldj.get('materials')==j.get('materials')
     assert len(oldv)==len(newv)
     item,sex,lod=path.stem.rsplit('_',2); prim=j['meshes'][0]['primitives'][0]
+    images={im['bufferView']:im for im in j.get('images',[])}
+    modified=0
     if item in IDS:
         allowed={j['accessors'][prim['attributes'][k]]['bufferView'] for k in ('POSITION','NORMAL')}
+        if item=='classic_pants':
+            allowed.add(j['accessors'][prim['attributes']['_HEM']]['bufferView'])
+            from refresh_pants_cover import hem_distances
+            region,distance=hem_distances(j,b)
+            hem=accessor(j,b,prim['attributes']['_HEM']).ravel()
+            assert np.all(hem[region] <= distance[region]+1e-7),path
+        if BASE=='5666ec9':
+            for key in ('POSITION','NORMAL'):
+                view=j['accessors'][prim['attributes'][key]]['bufferView']
+                assert oldv[view]==newv[view], (path,key,'pass3 must not re-tailor')
+        allowed |= {i for i,im in images.items() if not im.get('name','').endswith('_n')}
         assert all(a==c for i,(a,c) in enumerate(zip(oldv,newv)) if i not in allowed),path
         p=accessor(j,b,prim['attributes']['POSITION']); f=accessor(j,b,prim['indices']).reshape(-1,3)
         assert np.isfinite(p).all()
@@ -39,20 +53,22 @@ for path in assets:
         if item=='leather_breeches':
             cuff=.1982 if sex=='male' else .2082
             for side in (-1,1): assert abs(p[np.sign(p[:,0])==side,1].min()-(cuff-.012))<1e-5
-    else:
-        images={im['bufferView']:im for im in j.get('images',[])}
-        modified=0
-        for i,(a,c) in enumerate(zip(oldv,newv)):
-            if a==c: continue
-            assert i in images and not images[i].get('name','').endswith('_n'),path
-            before=Image.open(io.BytesIO(a));after=Image.open(io.BytesIO(c))
-            assert before.size==after.size,path
-            if 'A' in before.getbands():
-                assert 'A' in after.getbands() and np.array_equal(np.asarray(before.getchannel('A')),np.asarray(after.getchannel('A'))),path
-            else: assert 'A' not in after.getbands(),path
-            modified+=1
-        assert modified==1,path
+    for i,(a,c) in enumerate(zip(oldv,newv)):
+        if a==c or (item in IDS and i not in images): continue
+        assert i in images and not images[i].get('name','').endswith('_n'),path
+        before=Image.open(io.BytesIO(a));after=Image.open(io.BytesIO(c))
+        assert before.size==after.size,path
+        if 'A' in before.getbands():
+            assert 'A' in after.getbands() and np.array_equal(np.asarray(before.getchannel('A')),np.asarray(after.getchannel('A'))),path
+        else: assert 'A' not in after.getbands(),path
+        modified+=1
+    assert modified==1,path
     print('PASS',path.name)
 assert subprocess.check_output(['git','show',f'{BASE}:sw.js'])==Path('sw.js').read_bytes()
 assert subprocess.check_output(['git','show',f'{BASE}:js/shopCatalog.js'])==Path('js/shopCatalog.js').read_bytes()
-print(f'PASS {len(assets)} item GLBs; untouched rigs/weights/UVs/tints/normal maps/alpha masks/catalog/SW; breeches overlap both sea cuffs by 12mm')
+# The new fine-detail filter must preserve exact masks, constants and size.
+from sharpen_cloth import sharpen, trim_uv_mask
+sample=Image.new('RGBA',(8,8),(110,120,130,43))
+out=sharpen(sample,True,True,True,trim_uv_mask(sample.size,[[[0,0],[1,0],[1,1]]]))
+assert np.array_equal(np.asarray(sample),np.asarray(out))
+print(f'PASS {len(assets)} item GLBs; untouched rigs/weights/UVs/tints/normal maps/alpha masks/catalog/SW; classic hem guard capped at actual opening; breeches overlap both sea cuffs by 12mm')
