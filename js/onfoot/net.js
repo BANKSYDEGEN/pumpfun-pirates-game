@@ -9,7 +9,7 @@ import { jumpArc } from './walker.js';
 import { newBody, placeBody, stepBody, jumpBody, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] remote pirates fall + swim too
 import { applyGear, cleanWire, gearFromWire, knownGearSkin, EYE_SWATCHES } from '../pirateGear.js';
 import { createFollowers } from './followers.js'; // [remote-crew] their shore crew walks behind them here too
-import { crewGearOf } from '../crewV4.js';
+import { shoreCrewGear } from '../crewV4.js';
 import { crewGear, crewFromWire, crewColorFromWire } from '../crewLoadout.js';
 import { createPetFollower } from './pets.js'; // [Raul items redo 2] their ground pet follows them here too (from 'gr', no new message)
 import { isNetId } from '../safe.js'; // [security H5] // [Timothy] their shop gear ('gr')
@@ -45,7 +45,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
         const pirate = loadPirate({ look, low, bodyFromGear: true }); /* [v112] their BODY pick rides in 'gr' */ scene.add(pirate.object); p = { id: m.i, pirate, gw: null, tag: null, x: ft[0], z: ft[1], yaw: ft[2] / 100, tx: ft[0], tz: ft[1], tyaw: ft[2] / 100, speed: 0, heard: 0, name: '' }; peers.set(m.i, p); }
       if (Number.isFinite(m.fj) && m.fj !== p.fj) { if (p.fj !== undefined) p.jt = performance.now(); p.fj = m.fj; } // [v106] they jumped: play the arc here
       const gw = cleanWire(m.gr), sk = knownGearSkin(m.sk) ? m.sk : 'classic', ec = Number.isInteger(m.ec) && m.ec > 0 && m.ec <= EYE_SWATCHES.length ? m.ec : 0, gk = gw + '|' + sk + '|' + ec; if (gk !== p.gw) { p.gw = gk; const g = gearFromWire(gw); p.petId = g.parrot; applyGear(p.pirate, { ...g, eyeColor: ec }, { skin: sk }); } // [v115] + eye colour ('ec') // validated; missing = shirtless; clothes = their ship skin ('sk')
-      { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = crewGearOf(crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) })); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
+      { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = shoreCrewGear(crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) })); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
       const name = String(m.n ?? p.name ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
       if (name !== p.name) { p.name = name; if (p.tag) { p.tag.material.map.dispose(); p.tag.removeFromParent(); } p.tag = nameTag(name); p.pirate.object.add(p.tag); p.tag.position.y = 2.75; }

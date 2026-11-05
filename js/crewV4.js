@@ -122,7 +122,8 @@ const gearMod = () => (_gearMod ||= import('./pirateGear.js'));
 async function gearPirate(sex) {
   if (_gp[sex]) return _gp[sex];
   const { PirateGLB } = await import('./pirateGLB.js');
-  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo' }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
+  // [v280 crew holes] bake clothes on the V5 Low body (painted pants), not live V6 (bare underwear + neck splice gaps). Body seats stay V5.
+  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo', body: 'v5' }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
 }
 export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
 // [Raul shop2 fixes] BANKSY via Emerly "deck crew wear the new items": the crew keep THEIR OWN hat + outfit (Crew Shop, js/crewLoadout.js) and
@@ -137,6 +138,13 @@ export function crewGearOf(gear) {
   if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
   for (const k of CREW_EXTRA_SLOTS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [Raul shop2 fixes]
   return (g.hat === 'none' && g.outfit === 'shirtless' && !CREW_EXTRA_SLOTS.some((k) => g[k])) ? null : g;
+}
+// [v280 crew holes] shore followers (V6 bodies) get classic pants under the Crew Shop top so the lo underwear hem gap stays covered. Ship bake stays without pants (V5 seats already have painted pants). &crewholes=0 = bare.
+export function shoreCrewGear(gear) {
+  const g = crewGearOf(gear); if (!g) return g;
+  if (typeof location !== 'undefined' && /[?&]crewholes=0(?:&|$)/.test(location.search)) return g;
+  if (!g.pants || g.pants === 'none') return { ...g, pants: 'classic_pants' };
+  return g;
 }
 const _gc = new Map();
 export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, cannon }, f: {...} } | null>

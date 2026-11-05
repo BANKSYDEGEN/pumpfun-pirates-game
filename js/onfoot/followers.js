@@ -11,7 +11,7 @@ import { loadPirate } from './pirate.js';
 import { JUMP } from './walker.js';
 import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing } from './physics.js'; // [Raul] they fall, wade + swim like you
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
-import { crewGearOf } from '../crewV4.js';
+import { shoreCrewGear } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
 import { makeTrail, makeMover, followStep } from './followPath.js'; // [Raul items redo 2] the pathing below, shared with the ground pets (js/onfoot/pets.js)
 
@@ -29,7 +29,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
   const NAKED = { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
   // [Timothy] the crew's OWN loadout (Crew Shop, js/crewLoadout.js), not your hat + clothes
-  const want = () => { const g = (gearOf ? gearOf() : crewGearOf(crewGear())) || NAKED, c = colorsOf ? colorsOf() : getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; };
+  const want = () => { const g = (gearOf ? gearOf() : shoreCrewGear(crewGear())) || NAKED, c = colorsOf ? colorsOf() : getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; }; // [v280] shoreCrewGear = crew + classic pants cover
   let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality

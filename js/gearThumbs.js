@@ -92,7 +92,9 @@ function mapScroll() {
 
 const dressKey = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}`;
 async function dressFor(slot, id, o) {
-  await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0 }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
+  // [v280 crew holes] mannequin is a V6 body: classic pants cover the lo underwear hem gap unless this card IS the pants/boots (or &crewholes=0).
+  const cover = (typeof location === 'undefined' || !/[?&]crewholes=0(?:&|$)/.test(location.search)) && slot !== 'pants' && slot !== 'boots' && !o.wear?.pants;
+  await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0, ...(cover ? { pants: 'classic_pants' } : null) }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
   fig.userData.thumbKey = dressKey(slot, id, o);
 }
 async function renderOne(slot, id, o) {

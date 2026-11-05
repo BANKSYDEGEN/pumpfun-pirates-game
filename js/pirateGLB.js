@@ -102,8 +102,8 @@ const V6_LIFT = 1.12;   // [V6 quality 2] BANKSY 'both faces darker than V5's cl
 function toonize(src, colors, low, v6 = false) {
   const k = kindOf(src), key = tintOf(src);
   // [V6] soft glossy vinyl-toy finish (his sheets), not flat toon: the detail atlas already carries the strand / muscle shading + AO
-  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: k === 'pirate_hi' ? new THREE.Color(V6_LIFT, V6_LIFT, V6_LIFT) : 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: k === 'v6face' ? 0.85 : 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false });
-    m.userData = { tint: key, decal: '' }; return m; }
+  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: k === 'pirate_hi' ? new THREE.Color(V6_LIFT, V6_LIFT, V6_LIFT) : 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: k === 'v6face' ? 0.85 : 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false, side: k === 'v6face' ? THREE.FrontSide : THREE.DoubleSide }); // [v280] body DoubleSide (hollow if front-only); eyes stay front-only (no hair-back blue)
+    m.userData = { tint: key, decal: k === 'v6face' ? 'face' : '' }; return m; }
   if (k === 'ink') return new THREE.MeshBasicMaterial({ color: 0x0b0b0c, name: 'ink', side: THREE.FrontSide });
   const decal = k === 'face' || k === 'mouth' || k === 'skull';
   const atlas = k === 'pirate_hi';   // merged High: ONE greyscale detail + AO atlas x COLOR_0 (tint colours), normal atlas
@@ -141,7 +141,13 @@ function irisPatch(m, uIris, uOn) {
 const _rim = new WeakSet();
 // [crew holes] ONE place for the v5 body fixes every render path needs (walking crew / captain / shop figure via PirateGLB, the deck crew
 // bake in js/crewV4.js): the hair rim (skin-tinted verts round the hair -> hair, no skin specks / torn hair). Idempotent per geometry.
-export function prepV5Body(root, lod = 'hi') { root.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?._tint && !o.userData?.v6) hairRim(o.geometry, lod === 'lo' ? 5 : 2); }); }
+// [v280 crew holes] V6 bodies carry the spliced V5 head/hair on the SAME atlas mesh (userData.v6=1): skipping hairRim left
+// skin/orange fringe through the hair on followers + mannequins (the player often covers it with a hat). Hair rim only
+// retints fixed (-1) verts that share a face with hair (head/neck); underwear at the waist is untouched. &crewholes=0 = old skip.
+export function prepV5Body(root, lod = 'hi') {
+  const skipV6 = typeof location !== 'undefined' && /[?&]crewholes=0(?:&|$)/.test(location.search);
+  root.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?._tint && !(skipV6 && o.userData?.v6)) hairRim(o.geometry, lod === 'lo' ? 5 : 2); });
+}
 // [crew holes] which v5 body a render path uses (the v128 holes fix: the decimated Low body only where the GPU budget needs it).
 // many = a path that draws a dozen+ bodies at once (the deck crew bake): High only on HIGH quality desktops.
 export const pirateBodyLod = ({ low = false, many = false, quality = 'high' } = {}) => (low || (many && quality !== 'high') ? 'lo' : 'hi');
@@ -162,10 +168,12 @@ function hairRim(g, rings = 2) {
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
-  constructor({ female = false, lod = 'hi', colors = null, v4 = false } = {}) {
+  constructor({ female = false, lod = 'hi', colors = null, v4 = false, body = null } = {}) {
     this.female = female; this.lod = lod; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
     this.decals = []; this.tinted = []; this.action = null; this.clip = null;
-    this._url = (v4 ? PIRATE_GLB_V4 : globalThis.__PIRATE_BODY_V5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
+    // body: 'v5' | 'v6' | null (null = __PIRATE_BODY_V5 ? v5 : live PIRATE_GLB). Ship crew gear bake forces v5 (painted outfits).
+    const useV5 = body === 'v5' || (!body && !v4 && !!globalThis.__PIRATE_BODY_V5);
+    this._url = (v4 ? PIRATE_GLB_V4 : useV5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
     this.ready = loadPirateGLB(this._url).then((g) => this._init(g, colors));
   }
   _init(gltf, colors) {
