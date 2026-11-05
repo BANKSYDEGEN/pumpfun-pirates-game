@@ -8,7 +8,7 @@
 // Textures (body atlas + face decal, male + female) ride in the same material: uv.x carries a texture slot offset.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
+import { loadPirateGLB, PIRATE_GLB_V5 as PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [V6] crews stay on v5 Low (painted outfits) // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
 import { skullTexture, ITEM_BY_ID } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship

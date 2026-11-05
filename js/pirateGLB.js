@@ -13,7 +13,19 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 // [v121] BANKSY "Push them in game for now": the v5 bases (turnaround-sheet look, painted anime eyes, pill tattoo) on the SAME v4
 // armature + clips, same layout ('pirate_{hi,lo}_body' atlas x COLOR_0 + _TINT; skin / hair / shirt tint keys), plus 'v5_face_eyes'
 // (iris tint, setIris) and 'v5_tattoo' (alpha decal). Players (on foot, captain, remote, shop thumbs) use v5; the baked ship crew keeps v4.
+// [V6] BANKSY "Do v6 characters": the V6 bases (whole AI-generated character from his exact turnaround sheets: sculpted hair, bare
+// hands + feet, white underwear) REPLACE the v5 bodies for every player path. Same v5 armature / bone names / pivots / clips / origin /
+// scale / 'v5warp' extras, same layout ('pirate_{hi,lo}_body' detail atlas x COLOR_0 + _TINT skin / hair, -1 = fixed underwear /
+// tattoo) and 'v5_face_eyes' (= the V6 eyes / brows / lips alpha decal, iris tint via setIris). Body extras { v6: 1 }.
+// hi ~19k / lo ~3.5k tris. Tools: tools/v6 (rig.py + morph.py + paint.py). BANKSY "V5 is fine tuned ... should be same shape": each V6 body (hi + lo)
+// is CONFORMED to the v5 body shape (v5 skeleton + weights, the V6 paint / face / hair kept), so every v5 item GLB (items/v5) is worn UNCHANGED;
+// the legacy base outfit (cloth_base: pants, belt, sash, boots, her wrap top) is still auto-worn, so nobody shows up barefoot / pantless. The ship crew bake keeps the v5 Low bodies
+// (their painted outfits = the captain's clothes; V6 crews would all be in underwear).
 export const PIRATE_GLB = {
+  male: { hi: 'assets/pirates/pirate_male_v6_hi.glb', lo: 'assets/pirates/pirate_male_v6_lo.glb' },
+  female: { hi: 'assets/pirates/pirate_female_v6_hi.glb', lo: 'assets/pirates/pirate_female_v6_lo.glb' },
+};
+export const PIRATE_GLB_V5 = {
   male: { hi: 'assets/pirates/pirate_male_v5_hi.glb', lo: 'assets/pirates/pirate_male_v5_lo.glb' },
   female: { hi: 'assets/pirates/pirate_female_v5_hi.glb', lo: 'assets/pirates/pirate_female_v5_lo.glb' },
 };
@@ -86,8 +98,11 @@ const tintOf = (m) => m?.userData?.tint || '';
 const kindOf = (m) => (m?.name || '').split('.')[0];
 
 // colors: { skin, hair, coat, accent, ... } (hex / css / THREE.Color); keys not given keep the baked default
-function toonize(src, colors, low) {
+function toonize(src, colors, low, v6 = false) {
   const k = kindOf(src), key = tintOf(src);
+  // [V6] soft glossy vinyl-toy finish (his sheets), not flat toon: the detail atlas already carries the strand / muscle shading + AO
+  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false });
+    m.userData = { tint: key, decal: '' }; return m; }
   if (k === 'ink') return new THREE.MeshBasicMaterial({ color: 0x0b0b0c, name: 'ink', side: THREE.FrontSide });
   const decal = k === 'face' || k === 'mouth' || k === 'skull';
   const atlas = k === 'pirate_hi';   // merged High: ONE greyscale detail + AO atlas x COLOR_0 (tint colours), normal atlas
@@ -125,7 +140,7 @@ function irisPatch(m, uIris, uOn) {
 const _rim = new WeakSet();
 // [crew holes] ONE place for the v5 body fixes every render path needs (walking crew / captain / shop figure via PirateGLB, the deck crew
 // bake in js/crewV4.js): the hair rim (skin-tinted verts round the hair -> hair, no skin specks / torn hair). Idempotent per geometry.
-export function prepV5Body(root, lod = 'hi') { root.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?._tint) hairRim(o.geometry, lod === 'lo' ? 5 : 2); }); }
+export function prepV5Body(root, lod = 'hi') { root.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?._tint && !o.userData?.v6) hairRim(o.geometry, lod === 'lo' ? 5 : 2); }); }
 // [crew holes] which v5 body a render path uses (the v128 holes fix: the decimated Low body only where the GPU budget needs it).
 // many = a path that draws a dozen+ bodies at once (the deck crew bake): High only on HIGH quality desktops.
 export const pirateBodyLod = ({ low = false, many = false, quality = 'high' } = {}) => (low || (many && quality !== 'high') ? 'lo' : 'hi');
@@ -149,14 +164,15 @@ export class PirateGLB {
   constructor({ female = false, lod = 'hi', colors = null, v4 = false } = {}) {
     this.female = female; this.lod = lod; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
     this.decals = []; this.tinted = []; this.action = null; this.clip = null;
-    this._url = (v4 ? PIRATE_GLB_V4 : PIRATE_GLB)[female ? 'female' : 'male'][lod];
+    this._url = (v4 ? PIRATE_GLB_V4 : globalThis.__PIRATE_BODY_V5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
     this.ready = loadPirateGLB(this._url).then((g) => this._init(g, colors));
   }
   _init(gltf, colors) {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
+    this.v6 = false; scene.traverse((o) => { if (o.userData?.v6) this.v6 = true; });   // [V6] (no hair rim, glossy material)
     scene.traverse((o) => {
       if (!o.isMesh) return;
-      o.material = Array.isArray(o.material) ? o.material.map((m) => toonize(m, colors, low)) : toonize(o.material, colors, low);
+      o.material = Array.isArray(o.material) ? o.material.map((m) => toonize(m, colors, low, this.v6)) : toonize(o.material, colors, low, this.v6);
       for (const m of [o.material].flat()) { if (m.userData?.decal) this.decals.push(m); else if (m.userData?.tint) this.tinted.push(m); }
     });
     this.atlasMeshes = []; scene.traverse((o) => { if (o.isSkinnedMesh && o.geometry.attributes._tint) this.atlasMeshes.push(o); });
@@ -183,7 +199,7 @@ export class PirateGLB {
   _mergeLow(scene) {
     scene.traverse((o) => {
       if (!o.isSkinnedMesh) return;
-      const at = o.material.alphaTest || 0; o.material = this.v5 && o.geometry.attributes._tint ? Object.assign(new THREE.MeshLambertMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', side: THREE.DoubleSide }), { color: new THREE.Color(1.22, 1.22, 1.22) }) /* [v128] v5 Low has no baked light in its atlas: lit (Lambert, cheap) so arms / skin aren't flat pale patches */ : new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', alphaTest: at, side: THREE.DoubleSide }); /* [remote-crew-solid] BANKSY 7:14 PM: the Low body drawn front-only = hollow crew (same as v123) */ o.frustumCulled = false; if (o.geometry.attributes._tint) this.lowMesh = o; // [v121] v5: + eyes / tattoo meshes (tattoo keeps its alpha cut-out)
+      const at = o.material.alphaTest || 0; o.material = this.v5 && o.geometry.attributes._tint ? Object.assign(new THREE.MeshLambertMaterial({ map: o.material.map || null, vertexColors: true, name: 'pirate_lo', side: THREE.DoubleSide }), { color: new THREE.Color(...(this.v6 ? [1.08, 1.08, 1.08] : [1.22, 1.22, 1.22])) }) /* [v128] v5 Low has no baked light in its atlas: lit (Lambert, cheap) so arms / skin aren't flat pale patches */ : new THREE.MeshBasicMaterial({ map: o.material.map || null, vertexColors: !!o.geometry.attributes.color, name: 'pirate_lo', alphaTest: at, side: THREE.DoubleSide }); /* [V6] the V6 eyes decal has no COLOR_0: vertexColors on it drew the Low eyes black */ /* [remote-crew-solid] BANKSY 7:14 PM: the Low body drawn front-only = hollow crew (same as v123) */ o.frustumCulled = false; if (o.geometry.attributes._tint) this.lowMesh = o; // [v121] v5: + eyes / tattoo meshes (tattoo keeps its alpha cut-out)
     });
   }
   // retint by ship skin / creator colours: { coat, accent, skin, hair, ... }

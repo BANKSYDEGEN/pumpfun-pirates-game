@@ -7,6 +7,7 @@
 #lab div{position:absolute;text-align:center;text-shadow:0 1px 2px #000}#hd{position:fixed;left:8px;top:4px;font-size:15px;opacity:.85}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
 </head><body><div id="hd"></div><div id="lab"></div>
+<script>globalThis.__PIRATE_BODY_V5 = new URLSearchParams(location.search).get('body') === 'v5';</script>
 <script type="module">
 import * as THREE from 'three';
 import { pirateFigure, tickPirates } from './js/pirates.js';
@@ -21,7 +22,7 @@ const CELLS = JSON.parse(q.get('cells') || 'null') || [
   ['CROWN', { hat: 'crown' }], ['PIRATE SHIRT', { outfit: 'shirt' }], ["CAPTAIN'S COAT", { outfit: 'suit' }], ['PEG LEG · LEFT', { leg: 'peg', legSide: 'L' }], ['PEG LEG · RIGHT', { leg: 'peg' }],
   ['FULL KIT', { hat: 'tricorn', outfit: 'coat', eyes: 'eyepatch', parrot: 'parrot_red', hook: 'hook_gold', leg: 'peg', legSide: 'L' }]];
 const COLS = +(q.get('cols') || 8), ROWS = Math.ceil(CELLS.length / COLS);
-document.getElementById('hd').textContent = `PUMPFUN PIRATES gear · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High'} · clip ${CLIP}`;
+document.getElementById('hd').textContent = `PUMPFUN PIRATES gear · ${globalThis.__PIRATE_BODY_V5 ? 'V5' : 'V6'} · ${FEM ? 'female' : 'male'} · ${LOW ? 'Low (phone)' : 'High'} · clip ${CLIP}`;
 const renderer = new THREE.WebGLRenderer({ antialias: !LOW, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.autoClear = false; document.body.prepend(renderer.domElement);
 const scenes = [], figs = [];
