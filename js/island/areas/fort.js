@@ -38,6 +38,15 @@ function fortSignTex(title, sub) {
   if (sub) { g.font = '42px "Just Another Hand", Georgia, serif'; g.fillStyle = '#c9a36b'; g.fillText(sub, 512, 178); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
+// [hilltop] BANKSY 10:11 PM "Flag must be the PUMPFUN PIRATES flag": the project's Jolly Roger (assets/skull_transparent.png on black, the
+// same art as the ships' flags), one shared material; a plain black cloth until the image loads (and in node tests)
+let PFP_FLAG = null;
+export function pfpFlagMaterial() { if (PFP_FLAG) return PFP_FLAG;
+  PFP_FLAG = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide });
+  if (typeof document !== 'undefined' && typeof Image !== 'undefined') { const img = new Image(); img.onload = () => { const c = document.createElement('canvas'); c.width = 512; c.height = 340; const g = c.getContext('2d');
+    g.fillStyle = '#0b0b0b'; g.fillRect(0, 0, 512, 340); const sc = Math.min(512 * 0.8 / img.width, 340 * 0.8 / img.height), w = img.width * sc, hh = img.height * sc; g.drawImage(img, (512 - w) / 2, (340 - hh) / 2, w, hh);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; PFP_FLAG.map = t; PFP_FLAG.color.set(0xffffff); PFP_FLAG.needsUpdate = true; }; img.src = 'assets/skull_transparent.png'; }
+  return PFP_FLAG; }
 export default {
   id: 'hilltop_fort', name: 'Hilltop Fort', rect: [-437, X1, -73, Z1],
   terrain: { pads: [[X0, X1, Z0, Z1, F.y]], paths: [], cuts: [[LEG2.x0 - 1, LEG2.z, LEG1.y1, -427, LEG2.z, LEG1.y1 + (F.y - LEG1.y1) * 4.5 / (LEG2.x1 - LEG2.x0), LEG2.hw]] }, // leg 2 cut into the knoll: one even grade (0.45), no steep last metres
@@ -66,6 +75,10 @@ export default {
     for (const s of [-1, 1]) h.addBox(X0 + 0.25, F.z + s * (F.gateHW + gs / 2), 0.5, gs, 0);
     // the north-wall stair (yard -> wall-walk)
     h.addDeck({ id: 'fort_rampart_stair', x: (NSTAIR.x0 + NSTAIR.x1) / 2, z: NSTAIR.z, hw: NSTAIR.hw, hl: (NSTAIR.x1 - NSTAIR.x0) / 2, yaw: Math.PI / 2, y: F.y, prof: Array.from({ length: 28 }, (_, k) => F.y + (WT - F.y) * (k + 0.5) / 28), ya: F.y, yb: WT });
+    // [hilltop] BANKSY 10:11 PM "steps up to the spyglass must connect": the rampart stair ended in mid-air at x -404 (a 6 m drop to the yard
+    // beyond the top tread, the wall-walk only reachable by a sideways step through the cheek wall); a level landing runs on at the top into the
+    // north wall-walk, which leads east to the NE tower (the spyglass): one continuous walk
+    h.addDeck({ id: 'fort_rampart_land', x: NSTAIR.x1 + 2.5, z: NSTAIR.z + 0.25, hw: 2.5, hl: NSTAIR.hw + 0.35, yaw: Math.PI / 2, y: WT });
     // the keep: its walls are decks at the keep top (door gap on the west face); roofless war room inside
     const K = F.keep, kw = K.wall, kt = F.y + K.h;
     h.addDeck({ id: 'fort_keep_n', x: K.x, z: K.z + K.half - kw / 2, hw: K.half, hl: kw / 2, yaw: 0, y: kt });
@@ -132,7 +145,7 @@ export default {
       W(k, cyl(3.4, 3.8, WT - base, 12), C.STONE, M(x, (WT + base) / 2, z)); W(k, cyl(3.55, 3.55, 0.28, 12), TRIM, M(x, WT - 0.05, z), false);
       for (const yy of [Y + 1.8, Y + 4.2]) W(k, cyl(3.55, 3.55, 0.22, 12), C.STONE_D, M(x, yy, z), false);
       if (hi) for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; W(k, box(0.5, 1.15, 0.18), 0x1b1d22, M(x + Math.cos(a) * 3.45, Y + 2.9, z + Math.sin(a) * 3.45, -a), false); }
-      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; W(k, box(0.95, 1.05, 0.65), C.STONE_D, M(x + Math.cos(a) * 3.2, WT + 0.55, z + Math.sin(a) * 3.2, -a), false); W(k, box(1.05, 0.14, 0.75), TRIM, M(x + Math.cos(a) * 3.2, WT + 1.12, z + Math.sin(a) * 3.2, -a), false); }
+      for (let i = 0; i < 8; i++) { if (i === (sx > 0 ? 4 : 0) || i === (sz > 0 ? 6 : 2)) continue; /* [hilltop] open where the wall-walks come in */ const a = i / 8 * Math.PI * 2; W(k, box(0.95, 1.05, 0.65), C.STONE_D, M(x + Math.cos(a) * 3.2, WT + 0.55, z + Math.sin(a) * 3.2, -a), false); W(k, box(1.05, 0.14, 0.75), TRIM, M(x + Math.cos(a) * 3.2, WT + 1.12, z + Math.sin(a) * 3.2, -a), false); }
       for (const a of [0.8, 2.4, 3.9, 5.5]) W(k, cyl(0.12, 0.12, 3.6, 5), C.WOOD_D, M(x + Math.cos(a) * 2.6, WT + 1.8, z + Math.sin(a) * 2.6), false);
       W(k, new THREE.ConeGeometry(3.95, 3.4, 12), ROOF, M(x, WT + 5.3, z)); W(k, new THREE.ConeGeometry(3.6, 0.5, 12), ROOF_D, M(x, WT + 3.7, z), false);
       W(k, ball(0.28, 8, 6), C.GOLD, M(x, WT + 7.15, z), false); W(k, cyl(0.04, 0.04, 0.9, 4), C.IRON, M(x, WT + 7.6, z), false); W(k, box(0.04, 0.45, 0.7), RED_B, M(x, WT + 7.9, z + 0.3), false); }
@@ -176,8 +189,10 @@ export default {
     for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; W(k, box(0.35, 0.28, 0.5), C.STONE, M(MAST.x + Math.cos(a) * 2.15, Y + 0.2, MAST.z + Math.sin(a) * 2.15, -a), false); }
     // the north-wall stair (with cheek walls + lamp at the top)
     { const n = 28, L = NSTAIR.x1 - NSTAIR.x0; for (let i = 0; i < n; i++) { const top = Y + (WT - Y) * (i + 1) / n; W(k, box(L / n + 0.02, top - Y + 0.1, NSTAIR.hw * 2), C.STONE, M(NSTAIR.x0 + (i + 0.5) * L / n, (top + Y - 0.1) / 2, NSTAIR.z), false); }
-      for (const s of [-1, 1]) for (let i = 0; i < n; i += (hi ? 2 : 3)) { const top = Y + (WT - Y) * (i + 1) / n; W(k, box(L / n * 2 + 0.04, 0.85, 0.35), C.STONE_D, M(NSTAIR.x0 + (i + 0.5) * L / n, top + 0.4, NSTAIR.z + s * (NSTAIR.hw + 0.2)), false); }
-      W(k, cyl(0.08, 0.1, 2.6, 5), C.IRON, M(NSTAIR.x1 - 0.4, WT + 1.3, NSTAIR.z + NSTAIR.hw + 0.4)); W(k, box(0.4, 0.5, 0.4), 0xffd27a, M(NSTAIR.x1 - 0.4, WT + 2.7, NSTAIR.z + NSTAIR.hw + 0.4), false); }
+      for (const s of [-1, 1]) for (let i = 0; i < n; i += (hi ? 2 : 3)) { if (s > 0 && i > n - 9) continue; const top = Y + (WT - Y) * (i + 1) / n; W(k, box(L / n * 2 + 0.04, 0.85, 0.35), C.STONE_D, M(NSTAIR.x0 + (i + 0.5) * L / n, top + 0.4, NSTAIR.z + s * (NSTAIR.hw + 0.2)), false); }
+      W(k, cyl(0.08, 0.1, 2.6, 5), C.IRON, M(NSTAIR.x0 + 0.4, Y + 1.3, NSTAIR.z - NSTAIR.hw - 0.4)); W(k, box(0.4, 0.5, 0.4), 0xffd27a, M(NSTAIR.x0 + 0.4, Y + 2.7, NSTAIR.z - NSTAIR.hw - 0.4), false);
+      W(k, box(5.0, 0.22, NSTAIR.hw * 2 + 0.7), C.WOOD, M(NSTAIR.x1 + 2.5, WT - 0.11, NSTAIR.z + 0.25)); for (const dx of [0.6, 2.5, 4.4]) W(k, box(0.3, WT - Y - 0.2, 0.3), C.WOOD_D, M(NSTAIR.x1 + dx, (WT + Y) / 2 - 0.1, NSTAIR.z - NSTAIR.hw + 0.1), false);   // [hilltop] the top landing on timber posts
+      W(k, box(5.0, 0.08, 0.08), C.WOOD_D, M(NSTAIR.x1 + 2.5, WT + 0.9, NSTAIR.z - NSTAIR.hw - 0.05), false); }
     // the keep: taller dress, quoins, windows, WAR ROOM door, beams, map table, corner lookout turret (concept round tower)
     { const K = F.keep, kw = K.wall, kt = Y + K.h, kg = (K.half * 2 - K.doorHW * 2) / 2;
       W(k, box(K.half * 2, K.h + 1.4, kw), C.STONE_D, M(K.x, Y + (K.h - 0.6) / 2, K.z + K.half - kw / 2)); W(k, box(K.half * 2, K.h + 1.4, kw), C.STONE_D, M(K.x, Y + (K.h - 0.6) / 2, K.z - K.half + kw / 2));
@@ -191,7 +206,9 @@ export default {
       if (hi) for (const [dx, dz, yaw] of [[0, K.half + 0.05, 0], [0, -K.half - 0.05, 0], [K.half + 0.05, 0, Math.PI / 2]]) for (const yy of [Y + 3.4, Y + 6.2]) {
         W(k, box(dx ? 0.18 : 0.7, 1.15, dz ? 0.18 : 0.7), 0x1b1d22, M(K.x + dx, yy, K.z + dz, yaw), false); W(k, box(dx ? 0.22 : 0.85, 0.12, dz ? 0.22 : 0.85), TRIM, M(K.x + dx, yy + 0.65, K.z + dz, yaw), false); }
       // door frame (open) + studded leaves parked inside
-      W(k, box(0.28, 3.2, K.doorHW * 2 + 0.7), C.WOOD_D, M(K.x - K.half - 0.08, Y + 1.6, K.z), false);
+      // [hilltop] BANKSY 10:11 PM "the door has been closed": the frame was one solid 3.3 m board across the doorway; now two jambs + a lintel, the doorway open
+      for (const s of [-1, 1]) W(k, box(0.3, 3.2, 0.32), C.WOOD_D, M(K.x - K.half - 0.08, Y + 1.6, K.z + s * (K.doorHW + 0.12)), false);
+      W(k, box(0.3, 0.34, K.doorHW * 2 + 0.7), C.WOOD_D, M(K.x - K.half - 0.08, Y + 3.05, K.z), false);
       for (const s of [-1, 1]) { W(k, box(0.16, 2.9, 1.15), C.WOOD, M(K.x - K.half + 0.55, Y + 1.45, K.z + s * 1.35), false); for (const yy of [0.6, 1.45, 2.3]) W(k, box(0.2, 0.12, 1.2), C.IRON, M(K.x - K.half + 0.55, Y + yy, K.z + s * 1.35), false); }
       // WAR ROOM board over the door
       W(k, box(0.12, 0.7, 2.6), C.WOOD_D, M(K.x - K.half - 0.2, Y + 4.0, K.z)); W(k, box(0.14, 0.1, 2.7), C.GOLD, M(K.x - K.half - 0.18, Y + 4.4, K.z), false);
@@ -251,8 +268,7 @@ export default {
         document.fonts?.load?.('120px "Just Another Hand"').then(() => { const t2 = fortSignTex(title, sub); sm.material.map = t2; sm.material.needsUpdate = true; tex.dispose(); }).catch(() => {}); } }
     // the flag mast: the pirate flag goes up when you RAISE THE COLOURS (today, local)
     const mast = new Kit(); W(mast, cyl(0.14, 0.18, 13, 6), C.WOOD_D, M(MAST.x, Y + 6.5, MAST.z)); W(mast, ball(0.28, 6, 4), C.GOLD, M(MAST.x, Y + 13.2, MAST.z), false); near.add(mast.build(MATS, OUT));
-    const flag = new THREE.Group(); { const kf = new Kit(); W(kf, box(2.8, 1.85, 0.05), 0x111111, M(1.45, 0, 0), false); W(kf, ball(0.42, 8, 6), C.WHITE, M(1.4, 0.15, 0.05, 0, 0, 0, [1, 1, 0.3]), false);
-      for (const s of [-1, 1]) W(kf, box(1.3, 0.14, 0.06), C.WHITE, M(1.4, -0.42, 0.05, 0, 0, s * 0.6), false); flag.add(kf.build(MATS, OUT)); }
+    const flag = new THREE.Group(); { const fm = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.85), pfpFlagMaterial()); fm.position.set(1.45, 0, 0); fm.name = 'fort_pfp_flag'; flag.add(fm); }   // [hilltop] the Pumpfun Pirates flag
     flag.position.set(MAST.x, Y + 3.4, MAST.z); near.add(flag);
     const up = () => store.get().fortFlag === today(); let fy = up() ? 11.5 : 3.4, fyT = fy; flag.position.y = Y + fy;
     // far impostor: walls with a west gate notch, towers + cones, keep + turret, the stair — still reads as a fort

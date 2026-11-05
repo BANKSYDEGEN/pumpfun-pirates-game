@@ -17,6 +17,6 @@ const overlap = shops.filter(s => s.x1 > PX0 - 0.5 && s.x0 < PX1 + 0.5 && s.z1 >
 const deckIn = shops.filter(s => { for (let x = s.x0 + 0.05; x < s.x1; x += 0.25) for (let z = s.z0 + 0.05; z < s.z1; z += 0.25) { const y = F.areaDeckAt(x, z); if (y !== null && F.AREA_DECKS.some(d => !d.off && /^rb_/.test(d.id) && !d.path && Math.abs((x - d.x) * d.c - (z - d.z) * d.s) <= d.hw && Math.abs((x - d.x) * d.s + (z - d.z) * d.c) <= d.hl)) return true; } return false; }).map(s => s.n);   // [stairs2] the plaza's walk decks never reach into a shop (the town-side ramp ran 1 m into #32 + #44)
 const AX = F.townToWorld(F.STREET.x, F.STREET.z1)[1];
 console.log(JSON.stringify({ axisZ: AX, RB2: HR.RB2, FOUNTAIN: HR.FOUNTAIN, anchors: HR.FOUNTAIN_ANCHORS, hb: { ax: HR._hb.ax, az: HR._hb.az, L: HR._hb.L },
-  layoutMatch: HR.layoutMatch(ref.pieces, HR.RB_LAYOUT), pieces: HR.RB_LAYOUT.length, overlap, deckIn, n20: shops.find(s => s.n === 20),
+  layoutMatch: HR.layoutMatch(ref.pieces, HR.RB_LAYOUT), hilltopKit: HR.HILLTOP_KIT, pieces: HR.RB_LAYOUT.length, overlap, deckIn, n20: shops.find(s => s.n === 20),
   walks: { street: step([[-450, AX], [-431, AX]]), stairs: step([[(HR.CLIMB.rimW + HR.CLIMB.rimE) / 2, PZ0 + 2], ...Array.from({ length: 72 }, (_, i) => HR.CLIMB.side(-HR.CLIMB.back + 0.8 + (HR.CLIMB.L + HR.CLIMB.back + 1.2) * i / 71, 0))]), castle: step([[-433.5, PZ1 - 4], [-434, -72], [-434, -60]]),
     under: step([[-360, -112], [-360, -84], [-360, -40]]) } }));

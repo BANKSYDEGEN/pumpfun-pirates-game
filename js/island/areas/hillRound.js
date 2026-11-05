@@ -21,6 +21,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { softRamp } from '../look.js';
 import { libMaterial } from '../libTex.js';
+import { pfpFlagMaterial } from './fort.js';
 
 // the Blender fountain (tools/roundabout_blender/rb_fountain_blender.py -> assets/island/rb_fountain.glb desktop LOD0, rb_fountain_low.glb phones
 // LOD1: one mesh, one draw call, library stone): OFF by default for the layout pass, &rbglb=1 = try it; a failed load = the kit fountain (same heights, same collider).
@@ -73,7 +74,7 @@ export function layoutMatch(a, b) { if (!a || !b || a.length !== b.length) retur
   for (let i = 0; i < a.length; i++) { const p = a[i], q = b[i]; if (p.kind !== q.kind || Math.abs(p.w - q.w) > 0.02 || Math.abs(p.d - q.d) > 0.02 || Math.abs(p.h - q.h) > 0.6) return false;
     for (const j of [12, 14]) if (Math.abs(p.e[j] - q.e[j]) > 0.02) return false; if (Math.abs(p.e[13] - q.e[13]) > 0.35) return false; } return true; }
 function rbPlazaGLB(low, lay) {
-  if (!RBB_ON || typeof window === 'undefined' || typeof fetch === 'undefined') return Promise.resolve(null);
+  if (!RBB_ON || HILLTOP_KIT || typeof window === 'undefined' || typeof fetch === 'undefined') return Promise.resolve(null);
   if (!RBP) { const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low); solid.name = 'rb_plaza_solid';
     RBP = fetch('assets/island/rb_plaza_layout.json').then(r => r.json()).then(ref => { if (!layoutMatch(ref.pieces, lay)) { console.warn('[hill_round] rb_plaza layout differs from this build: the kit stone stays'); RB_STATS.plazaMismatch = true; return null; }
       return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/rb_plaza${low ? '_low' : ''}.glb`).then(gl => {
@@ -86,12 +87,18 @@ function rbPlazaGLB(low, lay) {
 const Y = 20.1;   // >= the natural ground anywhere under the plaza (max 20.05): the deck is never under the grass
 // BANKSY's sketch (12:35 PM, from under the gate arch): one wide paved plaza filling the view, the fountain centred a little way out, a low wall on
 // the far rim with the bridge head in the middle; LEFT = the path down the hill (the Pirates' Climb, its own route), RIGHT = up to the castle
-export const RB2 = RBB_ON ? { c: [-425.5, AXZ], y: Y, plaza: [-438, -413, AXZ - 12, AXZ + 12], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: AXZ }
+// [hilltop] BANKSY 9:31 PM "Want that entire hill fixed": the plaza grows 10 m east (35 x 24 m: a proper roundabout, fountain centred on the
+// new court, paved ring r 12.5 + an outer kerb ring), so the Blender rb_plaza.glb (baked for the 25 m plaza) no longer matches: HILLTOP_KIT = the
+// kit stone for this preview (&rbplazaglb=1 = try the old bake anyway; the layout guard then keeps the kit). Re-bake after BANKSY OKs the layout.
+export const HILLTOP_KIT = RBB_ON && !(typeof location !== 'undefined' && /[?&]rbplazaglb=1(&|$)/.test(location.search));
+export const RB2 = RBB_ON ? { c: [-420.5, AXZ], y: Y, plaza: [-438, -403, AXZ - 12, AXZ + 12], r: 11.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: AXZ }
   : { c: [-425.5, -88], y: Y, plaza: [-438, -413, -100, -76], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: -88 };
 const [CX, CZ] = RB2.c, [PX0, PX1, PZ0, PZ1] = RB2.plaza;
 // the fountain (BANKSY's later wishing fountain: a rim spot for the prompt + where a thrown coin splashes), world coords
-export const FOUNTAIN = { x: CX, z: CZ, basinR: 4.2, rimY: Y + 0.75, waterY: Y + 0.62 };
-export const FOUNTAIN_ANCHORS = { rim: { x: CX - 4.75, y: Y, z: CZ }, coin: { x: CX - 2.6, y: Y + 0.62, z: CZ }, radius: 1.6 };
+// [hilltop] the fountain scaled x1.4 about its centre (FS) to suit the bigger roundabout (collider + wishing spot scale with it)
+const FS = RBB_ON ? 1.4 : 1, BR0 = 4.2;
+export const FOUNTAIN = { x: CX, z: CZ, basinR: BR0 * FS, rimY: Y + 0.75 * FS, waterY: Y + 0.62 * FS };
+export const FOUNTAIN_ANCHORS = { rim: { x: CX - 4.75 * FS, y: Y, z: CZ }, coin: { x: CX - 2.6 * FS, y: Y + 0.62 * FS, z: CZ }, radius: 1.6 };
 // [wish] the wishing spot, read at runtime from assets/island/fountain_anchor.json (rim / coin / radius) so it follows the fountain if it moves
 // (Timothy's rb-blender pass: z -84); missing / bad file = FOUNTAIN_ANCHORS above. &wish=0 = no wishing fountain at all.
 export const WISH_ON = !(typeof location !== 'undefined' && /[?&]wish=0(&|$)/.test(location.search));
@@ -221,6 +228,23 @@ export function castleTerraces(H) { if (TERR) return TERR; TERR = []; if (!RBB_O
       TERR.push({ x: mx, z: mz, yaw, L, g, top: lvl + 0.75, lvl, i: TERR.length }); } }
   return TERR; }
 
+// [hilltop] BANKSY 9:31 PM "Want that entire hill fixed": the fort knoll read as a bare grey/green cone. Dressed retaining rings all round
+// the mound on the 27 m + 33 m contours (coursed ashlar, coping, planted beds, ivy), skipping the fort stair corridor + the plaza. Visual stone
+// on the plain kit (NOT the Blender bake: rb_plaza_layout.json unchanged), colliders = the ring walls (like the v220 terraces).
+let MOUND = null;
+const MC = [-408, -44];
+const moundSkip = (x, z) => (x > -440 && x < -427 && z < -38) || (z < PZ1 + 2 && x < PX1 + 3);
+export function moundRings(H) { if (MOUND) return MOUND; MOUND = []; if (!RBB_ON) return MOUND;
+  for (const lvl of [21, 27.2, 33.4]) { let prev = null, first = null;
+    for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2, ux = Math.cos(a), uz = Math.sin(a); let pt = null;
+      for (let r = 14; r < 46; r += 0.25) { const x = MC[0] + ux * r, z = MC[1] + uz * r; if (H(x, z) < lvl) { pt = [x, z]; break; } }
+      if (pt && moundSkip(pt[0], pt[1])) pt = null;
+      if (pt && prev) { const L = Math.hypot(pt[0] - prev[0], pt[1] - prev[1]); if (L < 5.5) { const mx = (pt[0] + prev[0]) / 2, mz = (pt[1] + prev[1]) / 2;
+        MOUND.push({ x: mx, z: mz, L, yaw: Math.atan2(pt[0] - prev[0], pt[1] - prev[1]), g: 0, top: lvl + 1.6, nx: (mx - MC[0]), nz: (mz - MC[1]), i: MOUND.length }); } }
+      prev = pt; } }
+  for (const m of MOUND) { const n = Math.hypot(m.nx, m.nz) || 1; m.nx /= n; m.nz /= n; m.g = Math.min(H(m.x, m.z), H(m.x + m.nx * 1.5, m.z + m.nz * 1.5)) - 0.4; }
+  return MOUND; }
+
 export default {
   id: 'hill_round', name: 'Fountain plaza + Pirates\' Climb stairs + high rope bridge', rect: [-440, -278, -128, -60],
   // [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": the plateau landing -> trail A is a real paved trail
@@ -266,7 +290,8 @@ export default {
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }
     for (const [x, z] of LAMPS) h.addCirc(x, z, 0.3);
     for (const p of wallDress(H).pil) h.addBox(p.x, p.z, 0.62, 1.0, p.yaw);   // [v220] the pilasters on the walls' outer faces
-    for (const t of castleTerraces(H)) h.addBox(t.x, t.z, 0.7, t.L + 0.3, t.yaw);   // [v220] the castle-side terrace walls
+    for (const t of castleTerraces(H)) h.addBox(t.x, t.z, 0.7, t.L + 0.3, t.yaw);
+    for (const t of moundRings(H)) h.addBox(t.x, t.z, 0.8, t.L + 0.3, t.yaw);   // [hilltop] the mound's ring walls   // [v220] the castle-side terrace walls
     if (RBB_ON && CLIMB.bedEnd) { const b = CLIMB.bedEnd; h.addBox(b.x + 0.25, (b.z0 + b.z1) / 2, 0.5, b.z1 - b.z0 + 0.6, 0); }   // [stairs2] the planted bed's open end: you can't walk into the wedge
     for (const b of BENCHES) h.addBox(b.x, b.z, 2.0, 0.7, b.yaw);
     for (const [x, z] of PLANTERS) h.addBox(x, z, 1.6, 1.6, 0);
@@ -303,9 +328,9 @@ export default {
     for (let i = 0; i < 48; i++) { const a = (i + 0.5) / 48 * Math.PI * 2; W(ks, box(0.42, 0.14, 1.28), 0x8a837a, M(CX + Math.sin(a) * (RB2.r + 0.2), Y + 0.07, CZ + Math.cos(a) * (RB2.r + 0.2), a + Math.PI / 2), false); }
     const kfo = new Kit();   // the stone fountain on its own kit: swapped for the Blender model (rb_fountain.glb) once that has loaded
     // ---- the fountain: a broad octagonal basin with a thick rim, a carved pedestal, two bowls, a gilded finial
-    W(kfo, new THREE.CylinderGeometry(FOUNTAIN.basinR, FOUNTAIN.basinR + 0.25, 0.7, 8), 0xb9b2a6, M(CX, Y + 0.35, CZ, Math.PI / 8));
-    W(kfo, new THREE.CylinderGeometry(FOUNTAIN.basinR + 0.15, FOUNTAIN.basinR + 0.15, 0.16, 8), 0xd2c9b6, M(CX, Y + 0.76, CZ, Math.PI / 8), false);
-    for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2 + Math.PI / 8, r = FOUNTAIN.basinR + 0.12; W(kfo, box(0.5, 0.86, 0.5), 0x8a837a, M(CX + Math.sin(a) * r, Y + 0.43, CZ + Math.cos(a) * r, a), false); }
+    W(kfo, new THREE.CylinderGeometry(BR0, BR0 + 0.25, 0.7, 8), 0xb9b2a6, M(CX, Y + 0.35, CZ, Math.PI / 8));
+    W(kfo, new THREE.CylinderGeometry(BR0 + 0.15, BR0 + 0.15, 0.16, 8), 0xd2c9b6, M(CX, Y + 0.76, CZ, Math.PI / 8), false);
+    for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2 + Math.PI / 8, r = BR0 + 0.12; W(kfo, box(0.5, 0.86, 0.5), 0x8a837a, M(CX + Math.sin(a) * r, Y + 0.43, CZ + Math.cos(a) * r, a), false); }
     W(kfo, cyl(0.9, 1.25, 0.6, 8), 0xb9b2a6, M(CX, Y + 0.9, CZ)); W(kfo, cyl(0.55, 0.8, 1.6, 8), 0xb0a99c, M(CX, Y + 2.0, CZ));
     W(kfo, cyl(2.1, 0.7, 0.55, 12), 0xb9b2a6, M(CX, Y + 3.05, CZ)); W(kfo, cyl(2.2, 2.2, 0.1, 12), 0xd2c9b6, M(CX, Y + 3.35, CZ), false);
     W(kfo, cyl(0.32, 0.45, 1.3, 8), 0xb0a99c, M(CX, Y + 4.0, CZ)); W(kfo, cyl(1.1, 0.35, 0.36, 10), 0xb9b2a6, M(CX, Y + 4.75, CZ)); W(kfo, cyl(1.15, 1.15, 0.08, 10), 0xd2c9b6, M(CX, Y + 4.95, CZ), false);
@@ -428,13 +453,65 @@ export default {
     const sign = (x, z, boards) => { const y = walkY(x, z); W(k, box(0.55, 0.3, 0.55), 0xb0a99c, M(x, y + 0.15, z)); W(k, box(0.24, 2.9, 0.24), 0x5e3b20, M(x, y + 1.6, z));
       boards.forEach(([a, c], i) => W(k, box(1.6, 0.38, 0.1), c, M(x + Math.sin(a) * 0.7, y + 2.6 - i * 0.48, z + Math.cos(a) * 0.7, a + Math.PI / 2))); };
     if (SIGNS.length) { sign(...SIGNS[0], [[Math.PI / 2, 0xd9a36b]]); sign(...SIGNS[1], [[Math.PI / 2, 0xc98a4c], [Math.PI, 0xe7c08d]]); }
-    const fk = kfo.build(MATS, OUT); fk.name = 'rb_fountain_kit'; near.add(fk); rbFountainGLB(low).then(g => { if (!g || !fk.parent) return; near.remove(fk); g.position.set(CX, Y, CZ); near.add(g); RB_STATS.fountainGLB = true; });
+    if (RBB_ON) {   // [hilltop] the whole hill top
+      for (const t of moundRings(H)) { const hh = t.top - t.g, ox = t.nx * 0.2, oz = t.nz * 0.2;
+        W(k, box(0.9, hh, t.L + 0.08), t.i % 2 ? 0xb0a99c : 0xbab3a5, M(t.x + ox, t.g + hh / 2, t.z + oz, t.yaw), t.i % 3 === 0);
+        W(k, box(1.1, 0.2, t.L + 0.14), 0xd2c9b6, M(t.x + ox, t.top + 0.1, t.z + oz, t.yaw), false);
+        for (let r = 1.3; r < hh - 0.4; r += 1.3) W(k, box(0.96, 0.1, t.L + 0.1), 0x8a837a, M(t.x + ox, t.top - r, t.z + oz, t.yaw), false);
+        const bx = t.x - t.nx * 1.0, bz = t.z - t.nz * 1.0; W(k, box(1.4, 0.3, t.L + 0.05), 0x4e7a2e, M(bx, t.top - 0.05, bz, t.yaw), false);
+        if (!low || t.i % 2 === 0) { const r = 0.45 + hash(t.i, 7) * 0.35; k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i), [0x4e8a34, 0x5f9a3a, 0x3f7d2c][t.i % 3], { m: M(bx, t.top + r * 0.5, bz, t.i), outline: false });
+          if (t.i % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.18, 0), 0.2, t.i), [0xd8322f, 0xffc93c, 0xf4efe6][t.i % 3], { m: M(bx + 0.3, t.top + r * 1.1, bz, t.i), outline: false }); }
+        if (t.i % 4 === 1) for (let q = 0; q < 3; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.3, 0), 0.3, t.i * 3 + q), 0x3f7d2c, { m: M(t.x + t.nx * 0.7, t.top - 0.3 - q * 0.45, t.z + t.nz * 0.7, t.yaw, 0, 0, [0.5, 1.2, 1.4]), outline: false });
+        if (t.i % 6 === 0) { const lx = t.x + t.nx * 0.75, lz = t.z + t.nz * 0.75; W(k, box(0.34, 0.44, 0.34), 0x2b2f36, M(lx, t.top - 0.9, lz, t.yaw)); W(k, box(0.26, 0.34, 0.36), 0xffd27a, M(lx, t.top - 0.9, lz, t.yaw), false); } }
+      // tall pennants on the four fort towers + gatehouse: the silhouette reads from the street
+      for (const [x, z, c] of [[-421, -57, 0xd8322f], [-395, -57, 0x111111], [-421, -31, 0x111111], [-395, -31, 0xd8322f]]) { W(k, cyl(0.06, 0.07, 5, 5), 0x5e3b20, M(x, 49.5 + 2.5, z), false); { const fm = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.7), pfpFlagMaterial()); fm.position.set(x, 53.1, z + 1.3); fm.rotation.y = Math.PI / 2; near.add(fm); } /* [hilltop] Pumpfun Pirates flags */ W(k, new THREE.SphereGeometry(0.18, 6, 4), C.GOLD, M(x, 54.6, z), false); }
+      // the castle approach: hedge + flower borders down both sides of the fort stair (outside its parapets) and topiary at the foot
+      for (let z = -70; z < -47; z += 2.2) for (const s of [-1, 1]) { const x = -434 + s * 3.4, g = H(x, z), r = 0.55 + hash(z, s) * 0.15;
+        k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.15, z * s), 0x3f7d2c, { m: M(x, g + r * 0.7, z, 0, 0, 0, [1, 0.85, 1.5]), outline: false });
+        if (Math.round(z) % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, z), [0xd8322f, 0xffc93c][(s + 1) / 2], { m: M(x, g + r * 1.35, z, 0), outline: false }); }
+      for (const [x, z] of [[-439, -71.5], [-429, -71.5]]) { const g = H(x, z); W(k, cyl(0.55, 0.65, 0.7, 8), 0xb0a99c, M(x, g + 0.35, z)); k.add(new THREE.SphereGeometry(0.85, 10, 8), 0x3f7d2c, { m: M(x, g + 1.5, z), outline: false }); k.add(new THREE.SphereGeometry(0.55, 10, 8), 0x4e8a34, { m: M(x, g + 2.6, z), outline: false }); }
+      // the plaza: a paved compass rose in the fountain ring's apron (flush inlay) + four tall twin-lantern standards on the corners
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, L = i % 2 ? 2.2 : 3.6, r0 = RB2.r + 0.6;
+        W(k, box(i % 2 ? 0.45 : 0.7, 0.04, L), i % 2 ? 0xd2c9b6 : 0x8f6a3a, M(CX + Math.sin(a) * (r0 + L / 2), Y + 0.04, CZ + Math.cos(a) * (r0 + L / 2), a), false); }
+      // [hilltop] the roundabout: an outer kerb ring + a second paved band (r 11.5 -> 14), 8 dark radial setts: reads as a roundabout from the street
+      W(k, new THREE.CylinderGeometry(14, 14, 0.04, 56), 0xb9ab92, M(CX, Y + 0.012, CZ), false);
+      for (let i = 0; i < 64; i++) { const a = (i + 0.5) / 64 * Math.PI * 2; W(k, box(0.5, 0.16, 1.45), 0x7d766c, M(CX + Math.sin(a) * 14.1, Y + 0.08, CZ + Math.cos(a) * 14.1, a + Math.PI / 2), false); }
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; W(k, box(0.22, 0.05, 2.3), 0x8a837a, M(CX + Math.sin(a) * 12.75, Y + 0.03, CZ + Math.cos(a) * 12.75, a), false); }
+      // the path down (S): a paved trail-head apron at the Climb's foot (9 x 7 m flags on the ground), then 36 m of kerbed flag trail at trail
+      // width with lantern posts + shrub borders: a real trail exit (paint-level: no height change, the walk stays the terrain)
+      { const [ex, ez] = CLIMB.at(CLIMB.L), a = CLIMB.yawAt(CLIMB.L), ux = Math.sin(a), uz = Math.cos(a), cx = Math.cos(a), cz = -Math.sin(a);
+        for (let d = -1; d < 6; d += 1.2) for (let o = -4.2; o <= 4.21; o += 1.2) { const x = ex + ux * d + cx * o, z = ez + uz * d + cz * o; W(k, box(1.12, 0.1, 1.12), (Math.round(d * 5 + o * 3) % 3) ? 0xc8bda7 : 0xb3a993, M(x, H(x, z) + 0.04, z, a), false); }
+        for (const s of [-1, 1]) { const x = ex + ux * 5.6 + cx * s * 4.9, z = ez + uz * 5.6 + cz * s * 4.9, g = H(x, z); W(k, box(0.9, 1.6, 0.9), 0xb9b2a6, M(x, g + 0.8, z)); W(k, box(1.06, 0.14, 1.06), 0xd2c9b6, M(x, g + 1.67, z), false);
+          W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(x, g + 2.05, z)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(x, g + 2.05, z), false); }
+        for (let d = 6; d < 42; d += 1.3) { const x0 = ex + ux * d, z0 = ez + uz * d; for (let o = -1.7; o <= 1.71; o += 1.15) { const x = x0 + cx * o, z = z0 + cz * o; W(k, box(1.08, 0.08, 1.2), (Math.round(d) + Math.round(o * 2)) % 3 ? 0xc8bda7 : 0xb3a993, M(x, H(x, z) + 0.03, z, a + (hash(d, o) - 0.5) * 0.08), false); }
+          for (const s of [-1, 1]) { const x = x0 + cx * s * 2.5, z = z0 + cz * s * 2.5; W(k, box(0.3, 0.2, 1.25), 0x8a837a, M(x, H(x, z) + 0.06, z, a), false);
+            if (Math.round(d / 1.3) % 3 === 0) { const sx = x0 + cx * s * 3.4, sz = z0 + cz * s * 3.4, r = 0.5 + hash(d, s) * 0.3; k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, d * s), [0x4e8a34, 0x5f9a3a, 0x3f7d2c][Math.round(d) % 3], { m: M(sx, H(sx, sz) + r * 0.6, sz, d), outline: false });
+              if (Math.round(d) % 4 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, d), [0xd8322f, 0xffc93c][(s + 1) / 2], { m: M(sx, H(sx, sz) + r * 1.3, sz, d), outline: false }); } }
+          if (Math.round(d / 1.3) % 8 === 4) { const s = Math.round(d / 1.3) % 16 === 4 ? 1 : -1, x = x0 + cx * s * 3.0, z = z0 + cz * s * 3.0, g = H(x, z); W(k, box(0.5, 0.4, 0.5), 0xb0a99c, M(x, g + 0.2, z)); W(k, cyl(0.06, 0.08, 2.6, 5), C.IRON, M(x, g + 1.6, z)); W(k, box(0.4, 0.5, 0.4), 0x2b2f36, M(x, g + 3.05, z)); W(k, box(0.3, 0.38, 0.44), 0xffd27a, M(x, g + 3.05, z), false); } } }
+      // the bridge (E): a suspension-rope look: tall timber masts at each end + each pier (both sides), main cables sagging between them and
+      // hangers down to the hand rail; a broad paved landing at the plateau end (10 x 7 m) with lantern newels; heavier pier caps + cutwaters
+      { const c0 = cs0(), s0 = sn0(), stations = [0, ...HB.piers, 1], top = (t) => (t === 0 ? Y : t === 1 ? HB.yb : HB.yAt(t)) + 6.2, off = HB.half + 0.55;
+        for (const t of stations) { const [x, z] = along(t), y0 = t === 0 ? Y : t === 1 ? HB.yb : HB.yAt(t) - 0.3;
+          for (const s of [-1, 1]) { const px = x + c0 * s * off, pz = z - s0 * s * off; W(k, box(0.42, top(t) - y0 + 0.3, 0.42), 0x6b4527, M(px, (top(t) + y0) / 2, pz, HB.yaw)); W(k, box(0.6, 0.3, 0.6), 0x4a2e18, M(px, top(t) + 0.15, pz, HB.yaw), false); W(k, new THREE.SphereGeometry(0.16, 6, 4), C.GOLD, M(px, top(t) + 0.45, pz), false); } }
+        for (let q = 1; q < stations.length; q++) { const ta = stations[q - 1], tb = stations[q];
+          for (const s of [-1, 1]) { const pts = []; for (let i = 0; i <= 24; i++) { const f = i / 24, t = ta + (tb - ta) * f, [x, z] = along(t); pts.push(new THREE.Vector3(x + c0 * s * off, top(ta) + (top(tb) - top(ta)) * f - Math.sin(f * Math.PI) * 4.4, z - s0 * s * off)); }
+            W(k, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.09, 5), 0x8a6a3e, null, false);
+            const nh = Math.floor((tb - ta) * HB.L / (low ? 3.6 : 1.8)); for (let i = 1; i < nh; i++) { const f = i / nh, t = ta + (tb - ta) * f, [x, z] = along(t), yc = top(ta) + (top(tb) - top(ta)) * f - Math.sin(f * Math.PI) * 4.4, yd = HB.yAt(t) + 1.15;
+              if (yc - yd > 0.2) W(k, box(0.04, yc - yd, 0.04), 0xc9a36b, M(x + c0 * s * (off - 0.2), (yc + yd) / 2, z - s0 * s * (off - 0.2), HB.yaw), false); } } }
+        for (const t of HB.piers) { const [x, z] = along(t), y = HB.yAt(t) - 0.3, g = gmin(x, z, 3) - 0.6; W(k, box(7.6, 0.5, 5.4), 0xd2c9b6, M(x, y + 0.05, z, HB.yaw), false);
+          for (const s of [-1, 1]) { const px = x - s0 * s * 2.6, pz = z - c0 * s * 2.6; W(k, new THREE.CylinderGeometry(0.01, 2.6, Math.max(2, (y - g) * 0.85), 4), 0xa9a294, M(px, g + Math.max(2, (y - g) * 0.85) / 2, pz, HB.yaw + Math.PI / 4), false); } }
+        { const ux = Math.sin(HB.yaw), uz = Math.cos(HB.yaw); for (let d = 0.3; d < 7.3; d += 1.2) for (let o = -4.8; o <= 4.81; o += 1.2) { const x = HB.bx + ux * d + c0 * o, z = HB.bz + uz * d - s0 * o; W(k, box(1.12, 0.12, 1.12), (Math.round(d * 3 + o)) % 3 ? 0xc8bda7 : 0xb3a993, M(x, Math.max(H(x, z), HB.yb - 0.1) + 0.04, z, HB.yaw), false); }
+          for (const s of [-1, 1]) { const x = HB.bx + ux * 7 + c0 * s * 5.3, z = HB.bz + uz * 7 - s0 * s * 5.3, g = H(x, z); W(k, box(0.9, 1.6, 0.9), 0xb9b2a6, M(x, g + 0.8, z)); W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(x, g + 1.9, z)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(x, g + 1.9, z), false); } }
+        for (const t of HB.piers) { const [x, z] = along(t), tp = HB.yAt(t); for (const s of [-1, 1]) { const px = x + c0 * s * off, pz = z - s0 * s * off; { const fm = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), pfpFlagMaterial()); fm.position.set(px, top(t) - 0.9, pz + 0.95); fm.rotation.y = Math.PI / 2; near.add(fm); } } }
+      }
+    }
+    const fk = kfo.build(MATS, OUT); fk.name = 'rb_fountain_kit'; near.add(fk); rbFountainGLB(low).then(g => { if (!g || !fk.parent) return; const pp = fk.parent; pp.remove(fk); g.position.set(CX, Y, CZ); pp.add(g); RB_STATS.fountainGLB = true; });
     RB_LAYOUT.push(...LAY); const sk = ks.build(MATS, OUT); sk.name = 'rb_struct_kit'; near.add(sk);
     rbPlazaGLB(low, LAY).then(g => { if (!g || !sk.parent) return; near.remove(sk); near.add(g); RB_STATS.plazaGLB = true; });
     near.add(k.build(MATS, OUT)); const deck = bk.build(MATS, OUT); const sway = new THREE.Group(); sway.add(deck); near.add(sway);
     // fountain water: basin, two bowls, falling sheets from the bowls, 4 spout arcs + the top jet (animated, cheap: no textures)
     const wm = new THREE.MeshBasicMaterial({ color: 0x3f9fd6, transparent: true, opacity: 0.8, depthWrite: false }), jm = new THREE.MeshBasicMaterial({ color: 0xcdeeff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
-    const pool = new THREE.Mesh(new THREE.CylinderGeometry(FOUNTAIN.basinR - 0.15, FOUNTAIN.basinR - 0.15, 0.04, 8), wm); pool.position.set(CX, FOUNTAIN.waterY, CZ); pool.rotation.y = Math.PI / 8;
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(BR0 - 0.15, BR0 - 0.15, 0.04, 8), wm); pool.position.set(CX, Y + 0.62, CZ); pool.rotation.y = Math.PI / 8;
     const b1 = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 0.04, 12), wm); b1.position.set(CX, Y + 3.32, CZ);
     const b2 = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.04, 10), wm); b2.position.set(CX, Y + 4.92, CZ);
     const jets = new THREE.Group(); jets.position.set(CX, Y, CZ);
@@ -442,7 +519,8 @@ export default {
     for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2, pts = []; for (let j = 0; j <= 8; j++) { const u = j / 8; pts.push(new THREE.Vector3(Math.sin(a) * (0.85 + u * 2.4), 2.55 - u * u * 1.9 + u * 0.2, Math.cos(a) * (0.85 + u * 2.4))); }
       jets.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.07, 4), jm)); }
     const spout = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.1, 6, 1, true), jm); spout.position.set(0, 6.3, 0); jets.add(spout);
-    near.add(pool, b1, b2, jets);
+    const fsg = new THREE.Group(); fsg.name = 'rb_fountain_scale'; fsg.position.set(CX * (1 - FS), Y * (1 - FS), CZ * (1 - FS)); fsg.scale.setScalar(FS); fsg.add(pool, b1, b2, jets); near.add(fsg);
+    near.remove(fk); fsg.add(fk);
     // far: the plaza slab, the fountain block, the bridge as one deck strip + piers
     const kf = new Kit(); W(kf, box(PX1 - PX0, 0.6, PZ1 - PZ0), 0xc8bda7, M(CX, Y - 0.3, (PZ0 + PZ1) / 2), false); W(kf, cyl(FOUNTAIN.basinR, FOUNTAIN.basinR, 1, 8), 0xb9b2a6, M(CX, Y + 0.5, CZ), false);
     for (let i = 0; i < 12; i++) { const t = (i + 0.5) / 12, [x, z] = along(t); W(kf, box(5.2, 0.3, HB.L / 12 + 0.1), 0xa86a3a, M(x, HB.yAt(t) - 0.15, z, HB.yaw), false); }
@@ -514,4 +592,5 @@ function buildClimb({ SB, W, k, H, gmin, lampAt, low }) {
 // [wish] off until the server says the fountain is open (inv_state flags); ?wish=1 = show the spot anyway (tests)
 function wishHidden() { if (typeof window === 'undefined') return true; if (/[?&]wish=1(&|$)/.test(location.search)) return false; return !(window.PFP_INV_FLAGS && window.PFP_INV_FLAGS.wish_fountain); }
 const rockfall = (i) => [-294.5 + hash(i, 21) * 6, -66 + hash(i, 23) * 7, 0.8 + hash(i, 25) * 1.1];
+function cs0() { return Math.cos(HB.yaw); } function sn0() { return Math.sin(HB.yaw); }
 function along(t) { return [HB.ax + (HB.bx - HB.ax) * t, HB.az + (HB.bz - HB.az) * t]; }

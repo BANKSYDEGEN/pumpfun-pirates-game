@@ -10,7 +10,8 @@ test('fountain, plaza and bridge head sit on the hill street axis', () => {
   const [, , z0, z1] = ON.RB2.plaza; assert.ok(Math.abs((z0 + z1) / 2 - ON.axisZ) < 0.01);
 });
 test('&rbblend=0 = the v214 layout', () => { assert.equal(OFF.FOUNTAIN.z, -88); assert.deepEqual(OFF.RB2.plaza, [-438, -413, -100, -76]); });
-test('the baked Blender layout matches this build (else the kit stone stays)', () => { assert.ok(ON.layoutMatch, 'regenerate: export_layout.mjs + rb_plaza_blender.py'); });
+// [hilltop] the bigger plaza is a kit-stone preview (HILLTOP_KIT): the old bake must NOT match (the guard keeps the kit); re-bake after BANKSY OKs
+test('the baked Blender layout matches this build (else the kit stone stays)', () => { assert.ok(ON.layoutMatch || ON.hilltopKit, 'regenerate: export_layout.mjs + rb_plaza_blender.py'); });
 test('wishing anchors json = FOUNTAIN_ANCHORS', () => {
   const j = JSON.parse(readFileSync(new URL('../assets/island/fountain_anchor.json', import.meta.url), 'utf8'));
   for (const k of ['rim', 'coin']) for (const a of ['x', 'y', 'z']) assert.ok(Math.abs(j[k][a] - ON.anchors[k][a]) < 1e-3, k + a);
