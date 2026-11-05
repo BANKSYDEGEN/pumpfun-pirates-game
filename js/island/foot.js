@@ -1328,6 +1328,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
   const SC = nat ? { trees: [0.75, 0.55], palms: [0.85, 0.4], ferns: [0.8, 0.9], rocks: [0.7, 2.4], cliffs: [3.2, 4.2] } : { trees: [0.8, 1.6], palms: [0.85, 0.5], ferns: [0.8, 0.9], rocks: [0.8, 2.8], cliffs: [2.0, 3.0] };
   const KINDS = ['trees', 'palms', 'ferns', 'rocks', 'cliffs'], RMAX = Object.fromEntries(KINDS.map(k => [k, Math.max(0, ...BUCKETS.filter(b => b.kinds.includes(k)).map(b => b.r1))]));
+  const FARTREE = !(typeof location !== 'undefined' && /[?&]fartree=0(&|$)/.test(location.search));
   function fill(cx, cz, all = false) {
     for (const b of BUCKETS) b.n = 0;
     for (const k of KINDS) { const R = all ? 5000 : RMAX[k], near = [];
@@ -1335,7 +1336,8 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
       near.sort((a, b) => a[0] - b[0]);
       const bl = BUCKETS.filter(b => b.kinds.includes(k));
       for (const [d, t] of near) { const v = Math.floor(t[3] * 37) % 3, b = all ? bl[bl.length - 1] : bl.find(b => d >= b.r0 && d < b.r1 && (b.v < 0 || b.v === v) && b.n < b.cap); if (!b || b.n >= b.cap) continue;
-        const s = SC[k][0] + t[3] * SC[k][1], tall = k === 'cliffs' ? 1.0 + t[3] * 0.6 : k === 'trees' ? 0.9 + t[3] * 0.3 : 0.9 + t[3] * 0.4;
+        const thin = FARTREE && !all && k === 'trees' && d > 165; if (thin && Math.floor(t[3] * 9973) % 2) continue;   // [perf6] &fartree=0: past 165 m every other tree (the kept ones 20% bigger), the far tree mesh was 115k tris
+        const s = (SC[k][0] + t[3] * SC[k][1]) * (thin ? 1.2 : 1), tall = k === 'cliffs' ? 1.0 + t[3] * 0.6 : k === 'trees' ? 0.9 + t[3] * 0.3 : 0.9 + t[3] * 0.4;
         _q.setFromAxisAngle(_up, t[3] * 40); _s.set(s, s * tall, s); _p.set(t[0], t[1] - (k === 'rocks' ? 0.45 * s : k === 'cliffs' ? 0.9 * s : 0.3), t[2]); _m.compose(_p, _q, _s); b.m.setMatrixAt(b.n++, _m); } }
     for (const b of BUCKETS) { b.m.count = b.n; b.m.instanceMatrix.needsUpdate = true; } }
   // grass + flowers (instanced, a ring round the camera)
