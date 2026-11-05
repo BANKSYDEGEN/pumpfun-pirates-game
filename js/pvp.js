@@ -122,7 +122,7 @@ export function createPvp(K) {
   // [v99] SHARED HARBOR copies: live 'pfp-harbor' (rooms pfp-harbor-1, -2, ...); ?pvproom=X tests use 'pfp-harbor-X'. ?hbcap=N: smaller test copies
   const HB_PREFIX = 'pfp-harbor' + (QS.get('pvproom') ? '-' + ROOM_PREFIX.slice(8) : '');
   const hbNet = createHarborNet({ prefix: HB_PREFIX, myId, ticket: rtTicket }), HB_CAP = +QS.get('hbcap') || null;
-  const hb = { copy: 0, n: 0, s: 0, pirates: 0, copies: [], cap: HARBOR_NET.cap, beatAt: 0, busy: false, hj: 0, listenUntil: 0, gen: 0, specCopy: 0, specEmptyT: 0, specBeatAt: 0 };
+  const hb = { copy: 0, n: 0, s: 0, pirates: 0, copies: [], cap: HARBOR_NET.cap, beatAt: 0, busy: false, hj: 0, listenUntil: 0, gen: 0, specCopy: 0, specEmptyT: 0, specBeatAt: 0, wantCopy: 0 };
   const curPrefix = () => mode === 'squads' ? SQ_PREFIX : ROOM_PREFIX;
   const isSq = () => mode === 'squads' && (where === 'arena' || where === 'spec'); // in the squads arena (playing or watching)
   const seatId = myId + Math.random().toString(36).slice(2, 10);
@@ -472,11 +472,11 @@ export function createPvp(K) {
     if (document.hidden || now - Math.max(me.lastInput || 0, hb.moveAt || 0) > HARBOR_NET.afk * 1000) { if (room || hb.copy) hbLeave(); return; } // (a held joystick / mouse steering counts as here)
     if (hb.busy || now - hb.beatAt < HARBOR_NET.beat * 1000) return;
     hb.beatAt = now; hb.busy = true; const g = hb.gen;
-    hbNet.call('beat', { seat: seatId, name, cap: HB_CAP }).then(async (r) => {
+    hbNet.call('beat', { seat: seatId, name, cap: HB_CAP, wantCopy: hb.wantCopy || null }).then(async (r) => {
       try {
         if (!active || g !== hb.gen || where !== 'harbor' || spec.on) return;
         if (r?.state !== 'play') { hb.copy = 0; hb.n = 0; if (room) hbDisconnect(); return; }
-        Object.assign(hb, { copy: r.copy | 0, n: r.n | 0, s: r.s | 0, pirates: r.pirates | 0, copies: Array.isArray(r.copies) ? r.copies : [], cap: r.cap || hb.cap });
+        Object.assign(hb, { copy: r.copy | 0, n: r.n | 0, s: r.s | 0, pirates: r.pirates | 0, copies: Array.isArray(r.copies) ? r.copies : [], cap: r.cap || hb.cap, wantCopy: 0 });
         const want = hb.n + hb.s >= 2;
         if (room && (!want || room.hbCopy !== hb.copy)) hbDisconnect(); // alone again, or moved to another copy (budget)
         if (want && !room) await hbConnect(hb.copy, g);
@@ -1057,6 +1057,23 @@ export function createPvp(K) {
     if (!made) party.msg = 'waiting for your mate…'; partyBeat(); harborUi();
   }
   function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; if (!silent) harborUi(); }
+  function partyMake() { const c = newPartyCode(); partyJoin(c, true); return c; } // [squad-hall]
+  function partyInfo() { const m = partyMate(); return { code: party.code || '', mate: m ? { id: m.id, n: m.n, st: m.st } : null, msg: party.msg || '' }; }
+  async function joinWorld({ name, w, copy, mode } = {}) { // [squad-hall] travel to another pirate's harbor copy, or queue their arena mode
+    if (!active || where !== 'harbor' || spec.on) return { ok: false, why: 'leave the arena / spectate first' };
+    if (lob.state !== 'harbor') return { ok: false, why: 'leave the queue first' };
+    if (w === 'arena' || w === 'queue') {
+      if (mode === 'squads') setMode('squads'); else setMode('solo');
+      joinBattle(false); return { ok: true, msg: `QUEUED FOR ${mode === 'squads' ? 'SQUADS' : 'SOLO'}` };
+    }
+    if (w === 'spec') return { ok: false, why: 'they are spectating · invite them instead' };
+    const want = Math.max(0, copy | 0);
+    if (!want) return { ok: false, why: 'their harbor copy is unknown · invite them instead' };
+    if (hb.copy === want) return { ok: true, msg: 'ALREADY IN THEIR HARBOR' };
+    hbLeave(true); hb.wantCopy = want; hb.beatAt = 0;
+    return { ok: true, msg: want > 1 ? `SAILING TO HARBOR ${want}…` : 'SAILING TO THEIR HARBOR…' };
+  }
+
   function partyBeat() { party.room?.send('p', { i: myId, n: name, t: party.t, st: where === 'harbor' ? lob.state : where }); }
   function onPartyBeat(m) {
     if (!m || !isNetId(m.i) || m.i === myId) return; // [security H5]
@@ -1670,7 +1687,7 @@ export function createPvp(K) {
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, sq, party, partyJoin, partyLeave, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; K.rebuildShip(getRunLevels()); }, damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game

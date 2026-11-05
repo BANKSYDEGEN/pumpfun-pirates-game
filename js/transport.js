@@ -104,7 +104,7 @@ export function createHarborNet({ prefix, myId, ticket }) {
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', keepalive: !!o.keepalive,
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ p_seat: o.seat, p_prefix: prefix, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null }) });
+        body: JSON.stringify({ p_seat: o.seat, p_prefix: prefix, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_want_copy: o.wantCopy ?? null }) });
       if (!r.ok) return { state: 'error', status: r.status };
       return await r.json();
     } catch { return { state: 'error' }; }

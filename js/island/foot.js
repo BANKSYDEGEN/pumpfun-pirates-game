@@ -805,13 +805,38 @@ export function buildStreet(A, low, F) {
     if (!BS) k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
       if (KP) atlasQuad(k, 6.6, 1.3, A.squad, M(0, 9.3, 7.5)); // on the Blender hall's facade sign board (2nd floor, reads from the street)
       else { W(k, box(4.2, 0.9, 0.3), WOOD_D, 2, M(0, 4.4, 7.4), false); atlasQuad(k, 4.0, 0.8, A.squad, M(0, 4.4, 7.56)); } });
-    // [v250] walk-in dress when the Blender big shop stands: purple squad banners + a mid-hall table (Kit merge, 0 new textures)
+    // [squad-hall] BANKSY 9:35 PM: proper pirate squad hall (war table + map, banners, crew board, lanterns, benches). Kit merge only, 0 new textures; phones skip extra trim.
     if (BS) { k.at(M(x, y, wz, yaw), () => {
-      for (const sx of [-5.2, 5.2]) { W(k, box(0.08, 2.4, 1.6), 0x6a4fb3, 12, M(sx, 2.6, 0.4), false); W(k, box(0.1, 0.12, 1.7), 0xffc93c, 0, M(sx, 3.85, 0.4), false); W(k, box(0.1, 0.12, 1.7), 0xffc93c, 0, M(sx, 1.4, 0.4), false); if (A.ppflag) atlasQuad(k, 1.4, 1.0, A.ppflag, M(sx + (sx > 0 ? -0.06 : 0.06), 2.6, 0.4, 0, Math.PI / 2)); }
-      W(k, box(2.4, 0.9, 1.2), WOOD, 2, M(0, 0.45, -1.2)); W(k, box(2.6, 0.1, 1.4), 0x6a4fb3, 12, M(0, 0.95, -1.2), false);
-      for (const a of [0, 2.1, 4.2]) W(k, cyl(0.32, 0.32, 0.5, 8), WOOD_L, 2, M(Math.sin(a) * 1.5, 0.25, -1.2 + Math.cos(a) * 1.5), false);
+      const PURP = 0x6a4fb3, GOLD = 0xffc93c, MAP = 0xc9a66b, SEA = 0x2b6b7a, LAND = 0x4a7a3a;
+      // side banners (cloth + gold rails); phones keep one pair
+      for (const sx of [-5.2, 5.2]) {
+        W(k, box(0.08, 2.8, 1.8), PURP, 12, M(sx, 2.7, 0.2), false); W(k, box(0.1, 0.12, 1.9), GOLD, 0, M(sx, 4.15, 0.2), false); W(k, box(0.1, 0.12, 1.9), GOLD, 0, M(sx, 1.3, 0.2), false);
+        if (A.ppflag) atlasQuad(k, 1.5, 1.1, A.ppflag, M(sx + (sx > 0 ? -0.06 : 0.06), 2.7, 0.2, 0, Math.PI / 2));
+        if (!low) { W(k, box(0.08, 2.2, 1.4), PURP, 12, M(sx, 2.5, -3.2), false); W(k, box(0.1, 0.1, 1.5), GOLD, 0, M(sx, 3.65, -3.2), false); W(k, box(0.1, 0.1, 1.5), GOLD, 0, M(sx, 1.4, -3.2), false); }
+      }
+      // war table (centre): heavy timber + parchment map with island dots + sea paint
+      W(k, box(3.6, 0.95, 2.0), WOOD, 2, M(0, 0.48, -1.2)); W(k, box(3.8, 0.1, 2.2), MAP, 12, M(0, 1.0, -1.2), false);
+      W(k, box(3.2, 0.04, 1.6), SEA, 0, M(0, 1.06, -1.2), false);
+      for (const [mx, mz, s] of [[-0.8, -0.35, 0.55], [0.6, 0.25, 0.7], [0.1, -0.55, 0.4], [-0.3, 0.4, 0.35]]) W(k, cyl(s * 0.5, s * 0.55, 0.06, 8), LAND, 6, M(mx, 1.1, -1.2 + mz), false);
+      W(k, cyl(0.08, 0.08, 0.18, 6), GOLD, 0, M(0.9, 1.14, -0.7), false); // compass rose pin
+      for (const a of [0.4, 1.7, 2.9, 4.3]) W(k, cyl(0.28, 0.32, 0.55, 8), WOOD_L, 2, M(Math.sin(a) * 1.7, 0.28, -1.2 + Math.cos(a) * 1.35), false); // stools
+      // crew board on the back wall (local -z deeper into hall)
+      W(k, box(3.2, 2.2, 0.12), WOOD_D, 2, M(0, 2.4, -5.4)); W(k, box(3.0, 1.9, 0.04), 0x2a1a0c, 0, M(0, 2.4, -5.32), false);
+      for (let i = 0; i < (low ? 3 : 5); i++) { const yy = 3.05 - i * 0.32; W(k, box(2.6, 0.08, 0.02), i % 2 ? GOLD : 0xe9d5ff, 0, M(0, yy, -5.28), false); }
+      if (A.squad) atlasQuad(k, 2.4, 0.55, A.squad, M(0, 3.55, -5.28));
+      // wall lanterns + benches along the sides
+      for (const sx of [-1, 1]) {
+        W(k, box(0.28, 0.38, 0.28), 0xffd27a, 0, M(sx * 4.4, 2.9, -2.0), false); W(k, box(0.34, 0.08, 0.34), IRON, 0, M(sx * 4.4, 3.12, -2.0), false);
+        if (!low) { W(k, box(0.28, 0.38, 0.28), 0xffd27a, 0, M(sx * 4.4, 2.9, -4.2), false); W(k, box(0.34, 0.08, 0.34), IRON, 0, M(sx * 4.4, 3.12, -4.2), false); }
+        W(k, box(0.7, 0.55, 2.4), WOOD, 2, M(sx * 4.0, 0.35, -2.6)); W(k, box(0.12, 0.7, 2.4), WOOD_D, 2, M(sx * 4.35, 0.7, -2.6), false); // bench + back
+      }
+      if (!low) { // corner barrels / crates (phones skip)
+        barrel(k, M(-4.6, 0, -4.8, 0.4)); barrel(k, M(4.5, 0, -0.6, -0.3)); crate(k, M(4.4, 0, -5.0, 0.5), 1.05); crate(k, M(-4.5, 0, -0.4, -0.2), 1.0);
+      }
     });
-      { const [tx, tz] = tw(lx + 1.2, z - 3); addBox(tx, tz, 2.6, 1.4, yaw); } }   // mid-hall table (local z -1.2 = +lx into the east-side hall)
+      { const [tx, tz] = tw(lx + 1.2, z - 3); addBox(tx, tz, 4.0, 2.4, yaw); } // war table footprint
+      for (const [olx, olz] of [[lx + 2.6, z - 3 - 1.4], [lx + 2.6, z - 3 + 1.4]]) { const [bx, bz] = tw(olx, olz); addBox(bx, bz, 1.0, 2.6, yaw); } // side benches
+    }
     LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
     const [dx, dz] = tw(lx - 7 + 3.5, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' }); // [v250] mid-hall (~3.5 m past the door), was lx-7-1.6 doorstep
   }
