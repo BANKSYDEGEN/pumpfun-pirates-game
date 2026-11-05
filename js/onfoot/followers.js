@@ -14,6 +14,7 @@ import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirat
 import { shoreCrewGear, crewWeaponsOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
 import { makeTrail, makeMover, followStep } from './followPath.js'; // [Raul items redo 2] the pathing below, shared with the ground pets (js/onfoot/pets.js)
+import { trimAccessoryShadows } from '../opt.js'; // [Emerly perf-v304]
 
 const LOOKS = [{ skin: 2, hair: 1 }, { skin: 4, hair: 2, female: true }, { skin: 0, hair: 4 }];
 const BACK = [2.4, 4.0, 5.6], SIDE = [-1.1, 1.1, 0], STEP = 0.8, TRAIL_N = 64;
@@ -34,7 +35,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   for (let i = 0; i < n; i++) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality
     // [v130] BANKSY "no crew walking with me": v128 put that note at the end of this line and commented out applyGear / scene.add
-    const p = loadPirate({ look: LOOKS[i], low, outline: false }); applyGear(p.object, gear, cur.c); p.object.visible = false; scene.add(p.object);
+    const p = loadPirate({ look: LOOKS[i], low, outline: false }); applyGear(p.object, gear, cur.c); trimAccessoryShadows(p.object); p.object.visible = false; scene.add(p.object);
     crew.push({ p, body: newBody(), x: 0, z: 0, y: 0, yaw: 0, speed: 0, jt: 0, idleT: 0, look: 0, stuck: 0 });
   }
   // [v112] BANKSY "why are my crew members shirtless": a dress that failed once (gear library / item load error, or a dress started
@@ -44,7 +45,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   function redress(force = false) { const w = want(), changed = w.k !== cur.k; cur = w; gear = w.g;
     for (const c of crew) { const r = c.p.object, v = r.userData?.v4 || null; let fig = v; if (!fig) r.traverse((o) => { if (!fig && o.userData?.v4) fig = o.userData.v4; });
       const off = gk(r.userData?.gear) !== gk(normalizeGear(w.g)) || (fig && !fig.gearKey && w.g !== NAKED);
-      if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); } } }
+      if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); trimAccessoryShadows(r); } } }
   if (!gearOf) { addEventListener('pfp-gear-local', () => setTimeout(redress, 0)); /* [crew-weapons] a weapon swap */ addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); } // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {

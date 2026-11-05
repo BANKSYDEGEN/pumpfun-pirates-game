@@ -1,5 +1,6 @@
 // PUMPFUN PIRATES · Storm Hunt — main game
 import { mergeIslandKits, installShadowProxies, trimSmallCasters } from './staticMerge.js';
+import { OPT_ON, freezeStaticWorlds } from './opt.js'; // [Emerly perf-v304] &opt=0 — only foot/hill_street/battle_areas
 import { DEV, devHook } from './env.js'; // [security L] console/test hooks exist on local dev servers only
 import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
@@ -1282,7 +1283,7 @@ function adaptResolution() {
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   try { pad.tick(dt); } catch (e) { console.warn('[pad]', e); } // [Emerly gamepad] poll the pads first: keys / sticks land before the ship + walker read them this frame
-  if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable'));  { let n = 0; const iv = setInterval(() => { window.__pfpKitMerged = (window.__pfpKitMerged || 0) + mergeIslandKits(scene); if (HIGH) window.__pfpCastTrim = (window.__pfpCastTrim || 0) + trimSmallCasters(scene); if (++n >= 45) clearInterval(iv); }, 4000); } } // [perf4] the on-foot world is built on harbor entry: merge whenever its kit meshes appear // [perf3] deferred loads (music) start now
+  if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable'));  { let n = 0; const iv = setInterval(() => { window.__pfpKitMerged = (window.__pfpKitMerged || 0) + mergeIslandKits(scene); if (HIGH) window.__pfpCastTrim = (window.__pfpCastTrim || 0) + trimSmallCasters(scene); if (OPT_ON) window.__pfpFrozen = (window.__pfpFrozen || 0) + freezeStaticWorlds(scene); if (++n >= 45) clearInterval(iv); }, 4000); } } // [perf4] the on-foot world is built on harbor entry: merge whenever its kit meshes appear // [perf3] deferred loads (music) start now
   adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title' || (game.mode === 'pvp' && (game.state === 'shop' || game.state === 'paused')); // [pvp] the shared sea never pauses
   if (running) game.t += dt;
@@ -1403,7 +1404,7 @@ function frame() {
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot; } // [v100] you are either at the wheel or ashore, never both
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
-  tickPirates(dt); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
+  tickPirates(dt, camera); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
   if (composer) composer.render(); else renderer.render(scene, camera);
   requestAnimationFrame(frame);

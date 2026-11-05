@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { toon } from '../toon.js';
 import { rig, arm, eul, BONES } from '../onfoot/swimPose.js';
+import { OPT_ON, freezeStatic, mergeStaticGroup } from '../opt.js'; // [Emerly perf-v304]
 
 export const ZIP_ON = !(typeof location !== 'undefined' && /[?&]zipline=0(&|$)/.test(location.search));
 // chibi pirate ~1.75 m; arms-up reach ~2.15 m. Compact gantry: cable only ~2.85 m above deck planks.
@@ -46,26 +47,42 @@ export function zipLine(FM) {
     }
     return best;
   })();
-  // nudge one more step toward the drop so the deck sits right on the lip
+  // nudge Waterfall end one more step toward the drop so the deck sits right on the lip
   { const dx = B[0] - A[0], dz = B[1] - A[1], n = Math.hypot(dx, dz) || 1;
     const tip = (P, s) => { const x = P[0] + dx / n * s, z = P[1] + dz / n * s; return H(x, z) > H(...P) - 2.5 ? [x, z] : P; };
-    A = tip(A, 2); B = tip(B, -2);
+    A = tip(A, 2);
+  }
+  // [Emerly] BANKSY 6:24 PM "on skull size move zipline stand to here": old Skull stand sat by the mouth so the cable scraped the
+  // stone-path brow at chest height. Outer brow is ~52 m toward A (past the 30 m knoll hump) — search d=44..60, fallback 52.
+  { const dx = A[0] - B[0], dz = A[1] - B[1], n = Math.hypot(dx, dz) || 1;
+    let best = null, bs = -1e9;
+    for (let d = 44; d <= 60; d += 1) {
+      const x = B[0] + dx / n * d, z = B[1] + dz / n * d, h = H(x, z);
+      if (h < 98) continue;
+      const ahead = H(x + dx / n * 10, z + dz / n * 10), drop = h - ahead;
+      if (drop < 4.0) continue;
+      const flat = Math.abs(H(x + 1.2, z) - H(x - 1.2, z)) + Math.abs(H(x, z + 1.2) - H(x, z - 1.2));
+      const sc = drop * 3.0 + h * 0.04 - flat * 1.2 - Math.abs(d - 52) * 0.35;
+      if (sc > bs) { bs = sc; best = [x, z]; }
+    }
+    B = best || [B[0] + dx / n * 52, B[1] + dz / n * 52];
   }
   const gA = H(...A), gB = H(...B), L = Math.hypot(B[0] - A[0], B[1] - A[1]);
-  // compact chibi gantries — Skull side kept low (boarding overhead only)
-  let hA = ZIP.gantry, hB = Math.min(ZIP.gantry, 2.7);
+  // compact chibi gantries — Skull side kept low (boarding overhead only); never tall towers
+  let hA = ZIP.gantry, hB = Math.min(ZIP.gantry, 2.75);
   const sag = L * ZIP.sag;
   const cy = (t, a = hA, b = hB) => (gA + a) * (1 - t) + (gB + b) * t - sag * 4 * t * (1 - t);
-  // raise ONLY the Waterfall end a little if needed; never turn Skull into a skyscraper (trees cleared under the cable instead)
+  // raise only for mid-valley tree clearance (trees cleared near stands); keep gantries short
   for (let it = 0; it < 5; it++) {
     let need = 0, at = 0.5;
     for (let i = 1; i < 160; i++) {
-      const t = i / 160, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t;
+      const t = i / 160; if (t < 0.08 || t > 0.86) continue;
+      const x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t;
       const d = H(x, z) + ZIP.treeClear - cy(t); if (d > need) { need = d; at = t; }
     }
     if (need <= 0) break;
-    hA = Math.min(4.2, hA + need * (1 - at) * 1.1 + 0.15);
-    hB = Math.min(3.2, hB + need * at * 0.35);
+    hA = Math.min(3.6, hA + need * (1 - at) * 1.1 + 0.15);
+    hB = Math.min(2.95, hB + need * at * 0.35);
   }
   let minClr = 1e9; for (let i = 1; i < 220; i++) {
     const t = i / 220, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t;
@@ -134,7 +151,7 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
   const yawAB = Math.atan2(bx - ax, bz - az);
 
   function makeTrolley() {
-    const h = new THREE.Group();
+    const h = new THREE.Group(); h.name = 'zip-handle'; h.userData.live = true;
     const pul = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 12).rotateZ(Math.PI / 2), brass); h.add(pul);
     const hous = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.22), iron); hous.position.y = -0.06; h.add(hous);
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6), steel); rod.position.y = -0.38; h.add(rod);
@@ -155,7 +172,7 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
     for (const [px, pz] of [[-1.5, -1.2], [1.5, -1.2], [-1.5, 1.1], [1.5, 1.1], [0, -1.5], [0, 1.3]]) {
       const wx = x + Math.sin(yaw) * pz + Math.cos(yaw) * px, wz = z + Math.cos(yaw) * pz - Math.sin(yaw) * px;
       const gHere = world.ground ? world.ground(wx, wz) : gy;
-      const len = Math.max(1.2, gy + 0.2 - (gHere - 0.8));
+      const len = Math.max(1.8, gy + 0.2 - (gHere - 1.4));   // [Emerly] longer posts into the Skull brow slope so the deck never floats
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, len, 6), dark);
       post.position.set(px, 0.2 - len / 2, pz); t.add(post);
       // angled strut
@@ -216,6 +233,10 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
   const handle = makeTrolley(); handle.rotation.y = yawAB; handle.position.copy(P(0)); g.add(handle);
   const crewHandles = [];
   scene.add(g);
+  if (OPT_ON) { // merge timber station parts + freeze static matrices (handles stay live)
+    for (const ch of g.children) if (ch.isGroup && ch !== handle && !ch.userData?.live) { mergeStaticGroup(ch); freezeStatic(ch); }
+    freezeStatic(g); handle.matrixAutoUpdate = true; handle.userData.live = true;
+  }
 
   const spots = [];
   const okA = Z.both || Z.from === 'A', okB = Z.both || Z.from === 'B';
@@ -236,7 +257,7 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
     crewHandles.length = 0;
     list.forEach((c, i) => {
       if (!c.p?.object?.visible) return;
-      const h = makeTrolley(); h.rotation.y = yawAB; h.visible = false; g.add(h); crewHandles.push(h);
+      const h = makeTrolley(); h.rotation.y = yawAB; h.visible = false; h.matrixAutoUpdate = true; g.add(h); crewHandles.push(h);
       c.zip = { dir, t: t0, v: 0, ph: 'wait', k: 0, delay: ZIP.crewGap + i * (ZIP.crewGap + 0.05), handle: h, x0: c.x, y0: c.y, z0: c.z };
     });
   }

@@ -6,6 +6,7 @@ import { makeAtlas } from '../island/art.js';
 import { islandSurface, grassMaterial } from '../island/look.js';
 import { Kit, M, outlineMaterial } from '../island/kit.js';
 import { loadTownKit, loadNatureKit } from '../island/townkit.js';
+import { freezeStatic } from '../opt.js'; // [Emerly perf-v304]
 
 const GOLD = 0xffc93c;
 
@@ -54,6 +55,9 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
       k.add(new THREE.CylinderGeometry(0.4, 0.4, 0.12, 8), 0x3a3a40, { m: M(bx, y + 0.66, bz, 0), mat: 0 }); }
     for (const s of [-1, 1]) k.add(new THREE.BoxGeometry(0.14, 0.05, 2.2), 0xffffff, { m: M(b.x + fx * s * b.len / 2, 0.35, b.z + fz * s * b.len / 2, b.yaw + Math.PI / 2), mat: 0, outline: false }); }
   const quay = k.build(MATS, OUT); quay.name = 'onfoot_berths'; root.add(quay);
+  // [Emerly perf-v304] freeze the foot island root (named 'foot' by createFoot) + static berth markers; never the whole scene
+  if (foot?.root) freezeStatic(foot.root);
+  freezeStatic(quay);
   // ---- walk API (harbor coords) ----
   const decks = layout.decks.map(d => ({ ...d, c: Math.cos(d.yaw), s: Math.sin(d.yaw) }));
   const DECK_COLL = !(typeof location !== 'undefined' && /[?&]deckcoll=0/.test(location.search));

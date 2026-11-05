@@ -4,6 +4,7 @@
 // (or if it fails) the caller's fallback stays visible. Every live pirate's mixer is ticked from tickPirates(dt).
 import * as THREE from 'three';
 import { PirateGLB } from './pirateGLB.js';
+import { setOptCamera } from './opt.js'; // [Emerly perf-v304]
 import { gearOnReady, getLocalGear, getLocalColors, markLocal, unmarkLocal, normalizeGear } from './pirateGear.js'; // [Timothy] island-shop gear
 
 const LIVE = new Set();
@@ -43,7 +44,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
   return root;
 }
 const inScene = (o) => { while (o.parent) o = o.parent; return !!o.isScene; };
-export function tickPirates(dt) { for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); } }
+export function tickPirates(dt, camera) { if (camera) setOptCamera(camera); for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); } }
 // captainSlot builder: captain JSON -> a ~2.1-unit figure (captainSlot scales it to the deck crew height) on the 'steer' clip
 // gear: captain.gear ({ hat, outfit, eyes, parrot, hook, hatColor }), captain.skin = their ship skin (clothes colours); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
 // captain.remote = another player's captain (Low LOD everywhere: 2 draw calls + 1 for the gear)

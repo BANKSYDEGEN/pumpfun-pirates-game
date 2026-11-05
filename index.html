@@ -44,6 +44,8 @@
 <!-- [load-speed] after the import map (a module preload before it would switch the map off) -->
 <link rel="modulepreload" href="./vendor/three-0.165.0/build/three.module.min.js"><!-- [load-speed] three.js (660 KB) starts with main.js instead of after it -->
 <link rel="modulepreload" href="./js/main.js">
+<link rel="modulepreload" href="./js/opt.js"><!-- [perf-v304] early opt helpers -->
+<link rel="modulepreload" href="./js/staticMerge.js"><!-- [perf-v304] -->
 </head>
 <body>
 <canvas id="game"></canvas>

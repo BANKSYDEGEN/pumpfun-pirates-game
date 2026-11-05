@@ -6,6 +6,7 @@
 // material (3 draw calls with the face). Low ('pirate_lo_body'): unlit baked-light atlas (2 draw calls with the face).
 // Milestone 1 (starter bases only): shirtless male / wrap-top female, plain pants, basic boots, hair + face. Shop items: js/pirateItems.js.
 import * as THREE from 'three';
+import { OPT_ON, animStep } from './opt.js'; // [Emerly perf-v304] &opt=0 = full-rate mixers
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -236,6 +237,11 @@ export class PirateGLB {
   // [Raul emotes] shared post-mixer pose hook: procedural layers (js/onfoot/swimPose.js order 0, js/onfoot/emotePose.js order 1) run in
   // order after the clip, each blending its own bones; battle.js still wraps update() so its arm aim lands last
   addPost(key, fn, order = 0) { const L = this.posts || (this.posts = []); if (L.some((x) => x.key === key)) return; L.push({ key, fn, order }); L.sort((a, b) => a.order - b.order); }
-  update(dt) { this.mixer?.update(dt); if (this.posts) for (const x of this.posts) x.fn.call(this, dt); for (const k in this.items || {}) this.items[k]?.mixer?.update(dt); }   // items: js/pirateItems.js (parrot idle)
+  update(dt) { // [Emerly perf-v304] distance LOD on the mixer (posts still run when near / mid so swim + zipline grips stay live)
+    const step = OPT_ON ? animStep(this, dt) : dt;
+    if (step > 0) { this.mixer?.update(step); for (const k in this.items || {}) this.items[k]?.mixer?.update(step); }
+    else if (this._zip?.w > 0 || this._sw?.w > 0) { /* keep procedural grips / swim when layered even if mixer skipped */ }
+    if (this.posts && (step > 0 || this._zip?.w > 0 || this._sw?.w > 0 || (this.root?.userData?.emote))) for (const x of this.posts) x.fn.call(this, dt);
+  }   // items: js/pirateItems.js (parrot idle)
   stats() { let tris = 0, calls = 0; this.root.traverse((o) => { if (!o.isMesh) return; const g = o.geometry; const t = (g.index ? g.index.count : g.attributes.position.count) / 3; tris += t; calls += Array.isArray(o.material) ? g.groups.length || o.material.length : 1; }); return { tris: Math.round(tris), calls }; }
 }
