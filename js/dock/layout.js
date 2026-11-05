@@ -79,8 +79,10 @@ export async function coastLayout() {
   // calls this right after
   const shopInteract = () => Object.values(FM.SHOP_SPOTS).map(s => { const [x, z] = footToHarbor(s.x, s.z);
     return { id: s.id, kind: s.id === 'shop' ? 'shop' : 'stall', x, z, r: s.r + 0.6, label: s.id === 'shop' ? 'SHOP · SKINS + GEAR' : s.label.replace(/^E · /, '') }; });
-  { const S = FM.STREET, lots = streetLots(S), sign = { tavern: [-1, 1], bounties: [-1, 4] };
-    for (const [kind, [side, n]] of Object.entries(sign)) { const lot = lots[n]; if (!lot) continue;
+  { const S = FM.STREET, lots = streetLots(S), sign = { tavern: [-1, 1], bounties: [-1, 4] }; // [hide-tavern] gated by CO.SHOW_*
+    for (const [kind, [side, n]] of Object.entries(sign)) {
+      if (kind === 'tavern' && !CO.SHOW_TAVERN) continue; if (kind === 'bounties' && !CO.SHOW_BOUNTY_BOARDS) continue;
+      const lot = lots[n]; if (!lot) continue;
       const [x, z] = footToHarbor(...FM.townToWorld(S.x + side * (S.half - 0.5), lot[0])); interact.push({ id: kind, kind, x, z, r: 3.4, label: kind === 'tavern' ? 'TAVERN' : 'BOUNTY BOARD' }); } }
   // ---- SAFE HARBOR: Raul's town-local polygon (berths + 22 m, quay front, mole) ----
   const safe = { kind: 'poly', pts: CO.SAFE.map(([lx, lz]) => L(lx, lz)), exit: { x: 0, z: 0 } };

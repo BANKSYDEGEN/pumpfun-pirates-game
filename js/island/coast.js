@@ -45,6 +45,9 @@ export const PLAZA = { lx0: -55, lx1: 100, lz0: -56, lz1: 0 };
 // MARKETPLACE) are hidden too, and their DexScreener polling is skipped; &hallboards=1 brings them back. Client-only: no server change.
 const QF = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const TOKENX_ON = !!QF && QF.get('tokenx') === '1', HALL_BOARDS_ON = !!QF && QF.get('hallboards') === '1';
+// [hide-tavern] BANKSY 10:49 AM "Remove tavern and bounty boards for now" + 10:50 AM: pop-up prompts at empty rental lots (not buildings).
+// Off by default; &tavern=1 / &bounty=1 bring the TAVERN / BOUNTY BOARD walk-near buttons (+ toast panels) back. Client-only.
+export const SHOW_TAVERN = !!QF && QF.get('tavern') === '1', SHOW_BOUNTY_BOARDS = !!QF && QF.get('bounty') === '1';
 export const HALL_TOKENS = ['HQ', 'RETARDIO'];   // the hall_e posters (js/island/plazaTown.js TOKEN_SLOTS)
 export const hallTokenHidden = (sym) => !HALL_BOARDS_ON && HALL_TOKENS.includes(sym);
 export const PLAZA_POIS = [                                                        // town-local

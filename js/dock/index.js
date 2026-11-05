@@ -246,8 +246,8 @@ export async function createDock(ctx) {
       case 'shop': if (q.open === 'upgrades') { let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES?.(); } catch {} if (!ok) toast('THE UPGRADE SHOP IS CLOSED RIGHT NOW<br><small>ship upgrades open from the harbor</small>', 2400); break; } // [v146] the UPGRADE SHOP storefront: straight to the upgrades panel (its own shop: never the skins grid)
         Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.tab || (q.vendor === 'clothes' ? 'gear' : 'skins'), slot: q.slot, title: q.title, from: 'island' }) : false) // [Emerly] q.tab / q.title: SWORD SHOP / MUSKET SHOP
         .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
-      case 'tavern': toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break;
-      case 'bounties': toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break;
+      case 'tavern': if (layout.CO?.SHOW_TAVERN) toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break; // [hide-tavern]
+      case 'bounties': if (layout.CO?.SHOW_BOUNTY_BOARDS) toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break; // [hide-tavern]
       case 'stall': toast(`${q.id === 'stall_red' ? 'THE TAILOR' : 'CURIOS'} · COMING SOON<br><small>${q.id === 'stall_red' ? 'hats, clothes + eye patches' : 'parrots, hooks + treasure maps'} for gold</small>`, 2400); break; // [v102] gear: no model on the pirate yet
       case 'dig': case 'cave': treasure.dig(q, t).then(h => { if (!h) toast(q.label); }); break; // [v122] server digs (the cave needs a legendary map)
       default: toast(q.label);
