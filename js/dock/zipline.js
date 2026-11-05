@@ -23,7 +23,8 @@ export function zipLine(FM) { // pure: the line in FOOT coords (exported for sho
   for (let it = 0; it < 6; it++) { let need = 0, at = 0.5; for (let i = 1; i < 120; i++) { const t = i / 120, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t, d = H(x, z) + ZIP.treeClear - cy(t); if (d > need) { need = d; at = t; } }
     if (need <= 0) break; hA += need * (1 - at) * 1.6 + 0.5; hB += need * at * 1.6 + 0.5; }
   let minClr = 1e9; for (let i = 1; i < 200; i++) { const t = i / 200, x = A[0] + (B[0] - A[0]) * t, z = A[1] + (B[1] - A[1]) * t; minClr = Math.min(minClr, cy(t) - H(x, z)); }
-  const both = Math.abs(gA - gB) < 3, from = gA >= gB ? 'A' : 'B';
+  // BANKSY: one-way downhill only if the Skull end is LOWER than the hill; otherwise ride both ways
+  const both = !(gB < gA - 3), from = gA >= gB ? 'A' : 'B';
   return { A, B, gA, gB, hA, hB, L, sag, both, from, minClr, y: (t) => cy(t) };
 }
 export function createZipline({ scene, world, layout, walker, toast = () => {}, low = false }) {
