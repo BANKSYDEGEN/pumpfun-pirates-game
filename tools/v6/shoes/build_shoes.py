@@ -94,28 +94,37 @@ for sx in (1, -1):
   toe = fy0 - (0.030 if STY != 'sandal' else 0.022); heel = fy1 + 0.004; Lf = heel - toe   # [v6 shoes T] longer lasted toe
   HH = {'classic': 0.040, 'sea': 0.030, 'shoe': 0.032, 'sandal': 0.016}[STY]   # stacked heel height
   T = np.clip((heel - Y) / Lf, -0.05, 1.05)                                       # 0 heel .. 1 toe tip
-  _w = [0.34, 0.42, 0.45, 0.46, 0.52, 0.42, 0.24, 0.09, 0.035] if STY == 'shoe' else [0.36, 0.44, 0.47, 0.48, 0.54, 0.45, 0.28, 0.11, 0.045]
-  W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], _w)   # [v6 shoes polish2b] shoe tip even sharper; boots keep polish2 taper
+  # [v6 shoes polish3] kill leftover Mickey toes: sharper tip + mid-forefoot taper on classic/sea/buckle; sandals keep a bit more sole width
+  if STY == 'shoe':
+    _w = [0.32, 0.40, 0.43, 0.44, 0.48, 0.36, 0.18, 0.06, 0.022]
+  elif STY == 'sandal':
+    _w = [0.34, 0.42, 0.45, 0.46, 0.52, 0.42, 0.26, 0.10, 0.040]
+  elif STY == 'sea':
+    _w = [0.34, 0.42, 0.45, 0.46, 0.51, 0.42, 0.24, 0.09, 0.032]
+  else:
+    _w = [0.34, 0.42, 0.45, 0.46, 0.50, 0.40, 0.22, 0.08, 0.028]
+  W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], _w)
   ZB = np.interp(T, [0.0, 0.24, 0.55, 0.9, 1.0], [HH, HH, 0.013, 0.013, 0.022])   # the upper's underside = the sole's top (toe spring)
-  ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], [0.058, 0.086, 0.106, 0.094, 0.064, 0.046, 0.036, 0.026, 0.022])   # [v6 shoes polish2] lower toe box tip   # heel counter, instep, low toe
+  _zt = [0.056, 0.084, 0.102, 0.090, 0.060, 0.042, 0.032, 0.024, 0.020] if STY == 'sea' else [0.056, 0.084, 0.102, 0.090, 0.060, 0.042, 0.030, 0.022, 0.018]
+  ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], _zt)   # [v6 shoes polish3] flatter lasted tip; sea slightly less ski
   zc = (ZB + ZT) / 2; hz = np.maximum((ZT - ZB) / 2, 0.006)
-  q = (np.abs(X - fcx) / W) ** 2.6 + (np.abs(Z - zc) / hz) ** 2.2
-  d_foot = (q ** (1 / 2.4) - 1) * np.minimum(W, hz)
+  q = (np.abs(X - fcx) / W) ** 2.9 + (np.abs(Z - zc) / hz) ** 2.5   # [v6 shoes polish3] harder last (less round Mickey tip)
+  d_foot = (q ** (1 / 2.7) - 1) * np.minimum(W, hz)
   d_foot = np.maximum(d_foot, np.maximum(Y - heel, toe - Y))
   fhx = bfx * 0.64   # the ball half width (straps / caps below)
   # shaft: the leg envelope, kept above the cut (wraps the leg + pant hem), narrowing to a slim ankle below it, a fitted calf between
   ms = 0.011 if STYLE != 'cavalier' else 0.013
-  # [v6 shoes polish2] female classic cuff was narrow under calf / too tucked — keep her shaft closer to the leg through mid-calf so the cuff reads on her calf
+  # [v6 shoes polish3] female classic: fuller mid-calf (cuff wrap) + slightly tighter ankle; sea/male keep polish2-ish fit
   if STY in ('classic', 'sea'):
     kz = np.interp(zs, [0.05, 0.095, CUT - 0.035, CUT - 0.005],
-                   ([0.60, 0.68, 0.97, 1.0] if (F and STY == 'classic') else
-                    [0.54, 0.58, 0.90, 1.0] if F else
-                    [0.50, 0.52, 0.84, 1.0]))[:, None]
+                   ([0.54, 0.78, 1.00, 1.0] if (F and STY == 'classic') else
+                    [0.52, 0.58, 0.90, 1.0] if F else
+                    [0.48, 0.52, 0.86, 1.0]))[:, None]
   else:
-    kz = np.interp(zs, [0.05, TOP], [0.70, 1.0])[:, None]
-  flare = (0.012 if (STY == 'classic' and F) else 0.008 if STY == 'classic' else 0.004)
+    kz = np.interp(zs, [0.05, TOP], [0.66, 1.0])[:, None]   # [v6 shoes polish3] shoe/sandal ankle a bit tighter (less gap at collar)
+  flare = (0.005 if (STY == 'classic' and F) else 0.006 if STY == 'classic' else 0.004)
   RRs = RR * kz; d_shaft = sd_polar(X, Y, Z, zs, cen, RRs, ms * (np.interp(Z, [0.05, CUT - 0.01], [0.2, 1.0]) if STY in ('classic', 'sea') else 0.7), 0.05, TOP, flare=flare)
-  up = smin(d_foot, d_shaft, 0.022)
+  up = smin(d_foot, d_shaft, 0.016)   # [v6 shoes polish3] less soft-union blob at toe/ankle join
   # catch-all only above the cut (below it the leg is hidden): anything of the leg there the shaft misses gets covered
   Pk = Pl[Pl[:, 2] > CUT - 0.006]
   if len(Pk):
@@ -143,21 +152,20 @@ for sx in (1, -1):
     return ndimage.gaussian_filter(smax(up - out, region, k), blur if blur is not None else (0.9 if HI else 0.7))
   if STY == 'classic':
     # riding boot: a turned-down tan cuff (short, even), a back pull strap, the welt stitching / toe-cap seam painted below
-    # [v6 shoes polish2] female: cuff sits lower on calf + milder outer flare so it wraps her (widened) shaft instead of a skinny tuck + floating ring
+    # [v6 shoes polish3] cuff rides the (widened) shaft at mid-calf with a thinner turn-down — kills the floating ring + calf gap
+    c0 = TOP - (0.056 if F else 0.044); ct = TOP + (0.002 if F else 0.008)
+    zi = int(np.clip(np.searchsorted(zs, (c0 + ct) / 2), 0, len(zs) - 1))
+    cuff_c = cen[zi]; cuff_R = RRs[zi]   # shaft radius (not raw knee/leg) so the cuff wraps under the calf
     if F:
-      c0 = TOP - 0.052; ct = TOP + 0.004
-      # [v6 shoes polish2b] cuff radius from mid-calf slice (not knee) so the turn-down wraps her calf instead of floating as a wide ring
-      zi = int(np.clip(np.searchsorted(zs, (c0 + ct) / 2), 0, len(zs) - 1))
-      cuff_c = cen[zi]; cuff_R = RR[zi] * 0.98
-      prof = [(0.0005, ct - 0.006), (0.0025, ct + 0.001), (0.0050, ct + 0.0020), (0.0070, ct - 0.002), (0.0085, ct - 0.012), (0.0090, c0 + 0.005), (0.0080, c0 - 0.001), (0.0045, c0), (0.0020, ct - 0.016)]
-      cuff_base = ms + 0.003
-      inner = lambda th: 0.70 + 0.30 * min(1.0, max(0.0, math.cos(th) * sx + 0.25))
-      parts.append(('cuff', sx) + sweep(cuff_c, cuff_R, cuff_base, prof, NTH + 4 if HI else NTH, 1, amp=inner))
+      # thinner rolled lip hugging shaft — wrap under calf, not a floating ring
+      prof = [(0.0002, ct - 0.004), (0.0012, ct + 0.0003), (0.0024, ct + 0.0008), (0.0034, ct - 0.003), (0.0038, ct - 0.011), (0.0036, c0 + 0.003), (0.0026, c0 - 0.0005), (0.0014, c0), (0.0006, ct - 0.012)]
+      cuff_base = 0.0008
+      inner = lambda th: 0.90 + 0.10 * min(1.0, max(0.0, math.cos(th) * sx + 0.15))
     else:
-      c0 = TOP - 0.040; ct = TOP + 0.010
-      prof = [(0.001, ct - 0.010), (0.0035, ct + 0.001), (0.0070, ct + 0.0028), (0.0100, ct - 0.0015), (0.0118, ct - 0.012), (0.0125, c0 + 0.003), (0.0118, c0 - 0.002), (0.007, c0 - 0.001), (0.003, ct - 0.020)]   # [V6 quality 2] rounded rolled lip, 12 mm flare (was a 16 mm flat-topped disc)
-      inner = lambda th: 0.35 + 0.65 * min(1.0, max(0.0, math.cos(th) * sx + 0.45))
-      parts.append(('cuff', sx) + sweep(ring_c, ring_R, ms + 0.006 + 0.002, prof, NTH + 4 if HI else NTH, 1, amp=inner))
+      prof = [(0.0008, ct - 0.007), (0.0024, ct + 0.0004), (0.0044, ct + 0.0014), (0.0060, ct - 0.002), (0.0070, ct - 0.011), (0.0072, c0 + 0.002), (0.0060, c0 - 0.001), (0.0036, c0), (0.0018, ct - 0.014)]
+      cuff_base = ms + 0.001
+      inner = lambda th: 0.65 + 0.35 * min(1.0, max(0.0, math.cos(th) * sx + 0.30))
+    parts.append(('cuff', sx) + sweep(cuff_c, cuff_R, cuff_base, prof, NTH + 4 if HI else NTH, 1, amp=inner))
     zb = 0.070 + 0.20 * np.clip(Y - (toe + 0.15), -0.2, 0.2)   # ankle strap with a small brass buckle on the outside
     parts.append(mc_part(shell(np.abs(Z - zb) - 0.008, 0.0065), G, 'strap', sx))
     yy = toe + 0.17; bz = 0.070 + 0.20 * (yy - (toe + 0.15)); row = up[:, int(round((yy - lo[1]) / STEP)), int(round((bz - lo[2]) / STEP))]; ins = np.where(row < 0)[0]
@@ -204,7 +212,7 @@ for sx in (1, -1):
       V_, F_, _ = band(c, ex, ez, ey, Q, w, NTH)
       V_[:, 2] = np.maximum(V_[:, 2], 0.004)   # the ring's underside flattens into the footbed (nothing under the floor)
       parts.append(('strap', sx, V_, F_))
-    za = 0.080 if F else 0.086; Q = Pf[np.abs(Pf[:, 2] - za) < 0.007]   # [v6 shoes polish2] ankle strap sits on the ankle, not floating above
+    za = 0.078 if F else 0.084; Q = Pf[np.abs(Pf[:, 2] - za) < 0.007]   # [v6 shoes polish3] ankle strap a hair lower / tighter on the ankle
     c = np.array([(Q[:, 0].min() + Q[:, 0].max()) / 2, (Q[:, 1].min() + Q[:, 1].max()) / 2, za])
     V_, F_, R = band(c, ex, ey, ez, Q, 0.011, NTH); parts.append(('strap', sx, V_, F_))
     k = 0 if sx > 0 else 12; ro = R[k] + 0.0045; bp = c + np.array([sx * ro, 0, 0]); bn = np.array([sx, 0.0, 0.0])
