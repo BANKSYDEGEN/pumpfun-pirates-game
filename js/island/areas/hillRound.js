@@ -253,7 +253,8 @@ let MOUND = null;
 const MC = [-408, -44];
 // [castle-access] BANKSY 10:41 PM "cant get to castle": the skip only covered leg 1 (x < -427); the 33.4 m ring ran straight across
 // leg 2 (z -44, x -431.5 -> the gate at -421) just below the gate mouth, an invisible wall. Leg 2 + the gate mouth are skipped too.
-const moundSkip = (x, z) => (x > -440 && x < -427 && z < -38) || (x > -440 && x < -418 && Math.abs(z + 44) < 4.5) || (z < PZ1 + 2 && x < PX1 + 3);
+// BANKSY castle last-step: 2D mound rings below the fort blocked its y=42 wall-walk.
+const moundSkip = (x, z) => (x > -440 && x < -427 && z < -38) || (x > -440 && x < -418 && Math.abs(z + 44) < 4.5) || (z < PZ1 + 2 && x < PX1 + 3) || (x > -422 && x < -394 && z > -58 && z < -29);
 export function moundRings(H) { if (MOUND) return MOUND; MOUND = []; if (!RBB_ON) return MOUND;
   for (const lvl of [21, 27.2, 33.4]) { let prev = null, first = null;
     for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2, ux = Math.cos(a), uz = Math.sin(a); let pt = null;
@@ -311,7 +312,7 @@ export default {
     for (const [x, z] of LAMPS) if(!clearCastleDressing(x,z)) h.addCirc(x, z, 0.3);
     for (const p of wallDress(H).pil) h.addBox(p.x, p.z, 0.62, 1.0, p.yaw);   // [v220] the pilasters on the walls' outer faces
     for (const t of castleTerraces(H)) h.addBox(t.x, t.z, 0.7, t.L + 0.3, t.yaw);
-    for (const t of moundRings(H)) if(!clearColiStair(t.x,t.z)) h.addBox(t.x, t.z, 0.8, t.L + 0.3, t.yaw);   // [hilltop] the mound's ring walls   // [v220] the castle-side terrace walls
+    for (const t of moundRings(H)) if(!clearColiStair(t.x,t.z) && !moundSkip(t.x,t.z)) h.addBox(t.x, t.z, 0.8, t.L + 0.3, t.yaw);   // [hilltop] the mound's ring walls   // [v220] the castle-side terrace walls
     if (RBB_ON && CLIMB.bedEnd) { const b = CLIMB.bedEnd; h.addBox(b.x + 0.25, (b.z0 + b.z1) / 2, 0.5, b.z1 - b.z0 + 0.6, 0); }   // [stairs2] the planted bed's open end: you can't walk into the wedge
     for (const b of BENCHES) h.addBox(b.x, b.z, 2.0, 0.7, b.yaw);
     for (const [x, z] of PLANTERS) h.addBox(x, z, 1.6, 1.6, 0);

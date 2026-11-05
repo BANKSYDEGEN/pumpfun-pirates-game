@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 const src = readFileSync(new URL('../js/island/areas/fort.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 test('sw is at or past pfp-v273', () => { const v = +(sw.match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 273, 'sw ' + v); }); // [v273] spyglass climb + war-room
@@ -37,3 +38,21 @@ test('upper level floors are castle stone (no timber wall-walk / landing)', () =
   assert.doesNotMatch(src, /top landing on timber posts/);
 });
 
+// BANKSY castle last-step: mound rings are 2D blockers even below the y=42 wall-walk.
+test('mound rings leave the fort footprint clear without removing the hillside rings', () => {
+  const hill = readFileSync(new URL('../js/island/areas/hillRound.js', import.meta.url), 'utf8');
+  const skip = hill.match(/const moundSkip = [^;]+;/)[0];
+  const rings = hill.slice(hill.indexOf('export function moundRings'), hill.indexOf('export default')).replace('export function', 'function');
+  const { inside, outside, walls } = runInNewContext(`
+    const PZ1=-80, PX1=-403, MC=[-408,-44], RBB_ON=true; let MOUND=null;
+    ${skip}
+    ${rings}
+    ({inside:[[-421,-57],[-405,-32.4],[-401,-32.4],[-396.6,-32.4]].map(([x,z])=>moundSkip(x,z)),
+      outside:moundSkip(-390,-44),
+      walls:moundRings((x,z)=>65-Math.hypot(x+408,z+44)*2)})
+  `);
+  assert.ok(inside.every(Boolean), 'the castle footprint must not generate mound rings');
+  assert.equal(outside, false, 'retain the eastern hillside');
+  assert.ok(walls.length > 0, 'do not disable the mound dressing everywhere');
+  assert.ok(walls.every(t => !(t.x > -422 && t.x < -394 && t.z > -58 && t.z < -29)), 'no ring segment centers beneath the fort');
+});
