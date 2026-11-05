@@ -23,3 +23,8 @@ test('crew gear + wire round trip; old 2-digit wire still reads', () => {
   const g = crewGear(l); assert.equal(g.beard, 'beard_forked'); assert.equal(g.cape, 'cape_royal'); assert.equal(g.pants, 'canvas_pants');
   assert.equal(crewFromWire('11').crewhat, 'tricorn'); assert.equal(crewToWire(CREW_DEFAULT), '');
 });
+test('cape colour: crew wire digit round trips; old wire = default colour', () => {
+  const l = { ...CREW_DEFAULT, crewcape: 'cape_royal', crewcapeColor: 4 }; const r = crewFromWire(crewToWire(l));
+  assert.equal(r.crewcapeColor, 4); assert.equal(crewGear(r).capeColor, 4); assert.equal(crewFromWire('11').crewcapeColor, undefined);
+  assert.match(lib, /o\.crewcapeColor = cc/); assert.match(save, /o\.crewcapeColor = cc/);
+});

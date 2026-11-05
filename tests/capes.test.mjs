@@ -8,7 +8,7 @@ test('capes: 12 GLBs, one mesh each, within the budget', () => {
 });
 test('capes: captain keyed (cloth + fold shade), boosts unchanged, builder present', () => {
   const g = readFileSync('js/pirateGear.js', 'utf8'), b = readFileSync('js/boosts.js', 'utf8');
-  assert.match(g, /'cape:cape_captain': \['cape', 'cape_captain', \(g, c\) => \{ const k = outfitColors\('suit', c\)\.cloth; return \{ 1: k, 2: capeFold\(k\) \}/);
+  assert.match(g, /'cape:cape_captain': \['cape', 'cape_captain', \(g, c\) => \{ const k = capeHex\(g\.capeColor\) \|\| outfitColors\('suit', c\)\.cloth; return \{ 1: k, 2: capeFold\(k\) \}/);
   assert.match(b, /'cape:cape_tattered': \{ hp: 0\.01 \}, 'cape:cape_captain': \{ hp: 0\.02 \}, 'cape:cape_royal': \{ hp: 0\.04 \}/);
   assert.ok(existsSync('tools/blender/capes/build_capes.py'));
 });

@@ -77,7 +77,10 @@ export const CLOTH_SWATCHES = Object.freeze([
   ['PURPLE', '#7a3fb0'], ['PINK', '#ff5fa2'], ['ORANGE', '#ff7a1a'], ['GOLD', '#e9b949'], ['WHITE', '#f4f1e8'], ['BLACK', '#1c1c20'],
 ]);
 // the free, per-player look that rides with the gear (not sold, not in the server profile): hat colour, hook / peg side, skin, hair
-export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor', 'body', 'eyeColor']; // [v115] eyeColor: 0 = DEFAULT, 1.. = EYE_SWATCHES // [v112] body: 0 = male (default, every old save), 1 = female
+// [v6-store-clothes] BANKSY 2:03 PM "Also add color options to cape": free cape colour, 0 = the cape's own colours (every old save), 1..7 = these (APPEND-ONLY)
+export const CAPE_SWATCHES = Object.freeze([['RED', '#b3202a'], ['BLACK', '#1c1c22'], ['NAVY', '#1b2f6b'], ['EMERALD', '#1f8a5a'], ['PURPLE', '#5b2a86'], ['GOLD', '#d9a62e'], ['WHITE', '#ecebe4']]);
+export const capeHex = (i) => (i > 0 && CAPE_SWATCHES[i - 1] ? CAPE_SWATCHES[i - 1][1] : null);
+export const LOOK_KEYS = ['hatColor', 'hookSide', 'legSide', 'skinColor', 'hairColor', 'outfitColor', 'body', 'eyeColor', 'capeColor']; // [v115] eyeColor: 0 = DEFAULT, 1.. = EYE_SWATCHES // [v112] body: 0 = male (default, every old save), 1 = female
 // the clothes colours for this gear: the ship skin's (colors.skin) unless the player picked a clothes colour (trim stays the skin's)
 export const clothColors = (gear, colors) => (gear?.outfitColor > 0 && CLOTH_SWATCHES[gear.outfitColor - 1] ? { ...(colors || {}), cloth: CLOTH_SWATCHES[gear.outfitColor - 1][1] } : colors);
 const pickLook = (g) => Object.fromEntries(LOOK_KEYS.map((k) => [k, g[k]]));
@@ -162,7 +165,7 @@ const RAUL5 = {
   // [V6 store] shoes in the boots slot (one pair at a time), pants = the body's 'base' item (boots cut them at the shaft, pegs at the knee)
   'boots:boots_classic': ['boots', 'boots_classic', null], 'boots:sandals': ['boots', 'sandals', null], 'boots:shoes_buckle': ['boots', 'shoes_buckle', null], 'boots:boots_sea': ['boots', 'boots_sea', null],
   'pants:classic_pants': ['base', 'classic_pants', null], 'pants:canvas_pants': ['base', 'canvas_pants', null], 'pants:sailor_trousers': ['base', 'sailor_trousers', null], 'pants:leather_breeches': ['base', 'leather_breeches', null],
-  'cape:cape_tattered': ['cape', 'cape_tattered', null], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => { const k = outfitColors('suit', c).cloth; return { 1: k, 2: capeFold(k) }; }], 'cape:cape_royal': ['cape', 'cape_royal', null],
+  'cape:cape_tattered': ['cape', 'cape_tattered', (g) => (g.capeColor ? { recolor: capeHex(g.capeColor) } : null)], 'cape:cape_captain': ['cape', 'cape_captain', (g, c) => { const k = capeHex(g.capeColor) || outfitColors('suit', c).cloth; return { 1: k, 2: capeFold(k) }; }], 'cape:cape_royal': ['cape', 'cape_royal', (g) => (g.capeColor ? { recolor: capeHex(g.capeColor) } : null)],   // [v6-store-clothes] cape colour
   'parrot:pet_monkey': ['shoulder', 'pet_monkey', null], 'parrot:pet_cat': ['shoulder', 'pet_cat', null], 'parrot:pet_cat_black': ['shoulder', 'pet_cat_black', null], 'parrot:pet_chimp': ['shoulder', 'pet_chimp', null], 'parrot:pet_gorilla': ['shoulder', 'pet_gorilla', null], 'parrot:pet_gorilla_white': ['shoulder', 'pet_gorilla_white', null], 'parrot:pet_tiger': ['shoulder', 'pet_tiger', null],
   'hat:mask_luchador': ['head', 'mask_luchador', (g) => (g.hatColor ? { recolor: hatColorHex('mask_luchador', g.hatColor) } : null)],   // [Raul gear colours] the hat colour = the hood; flames + trim auto-contrast (0 = his gold)
 };
@@ -187,7 +190,7 @@ const OUTFITS = {
 
 const clampIx = (v, n) => { const i = Math.floor(+v); return Number.isFinite(i) && i >= 0 && i <= n ? i : 0; };
 export function normalizeGear(g) {
-  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0, eyeColor: 0 };
+  const s = (g && typeof g === 'object') ? g : {}, o = { ...GEAR_DEFAULTS, hatColor: 0, hookSide: 'R', legSide: 'R', skinColor: 0, hairColor: 0, outfitColor: 0, body: 0, eyeColor: 0, capeColor: 0 };
   for (const k of Object.keys(GEAR_DEFAULTS)) if (typeof s[k] === 'string' && s[k]) o[k] = s[k];
   if (s.eyes == null && typeof s.face === 'string' && s.face !== 'plain' && !GEAR_RENDERS.face.includes(s.face)) o.eyes = s.face;     // creator 'face' = shop 'eyes'
   if (!GEAR_RENDERS.face.includes(o.face)) o.face = 'none';   // [v145] old saves' 'face' is the eyewear
@@ -197,7 +200,7 @@ export function normalizeGear(g) {
   o.hatColor = clampIx(s.hatColor, HAT_SWATCHES.length);
   if (s.hookSide === 'L' || s.hookSide === 'R') o.hookSide = s.hookSide; if (s.legSide === 'L' || s.legSide === 'R') o.legSide = s.legSide;   // old saves: R
   o.skinColor = clampIx(s.skinColor, SKIN_SWATCHES.length); o.hairColor = clampIx(s.hairColor, HAIR_SWATCHES.length); o.outfitColor = clampIx(s.outfitColor, CLOTH_SWATCHES.length);
-  o.eyeColor = clampIx(s.eyeColor, EYE_SWATCHES.length);
+  o.eyeColor = clampIx(s.eyeColor, EYE_SWATCHES.length); o.capeColor = clampIx(s.capeColor, CAPE_SWATCHES.length);   // [v6-store-clothes]
   o.body = s.body === 1 || s.body === '1' || s.body === 'f' || s.body === true ? 1 : 0;
   o.carrySword = carryPick(s.carrySword, SWORD_IDS); o.carryMusket = carryPick(s.carryMusket, MUSKET_IDS);   // [Raul carry] what you carry on foot
   return o;
@@ -214,11 +217,11 @@ export const isDefaultGear = (g) => Object.keys(GEAR_DEFAULTS).every((k) => !gea
 // else (unknown digit, wrong type, too long) is the default for that field, so free-form data never reaches applyGear. A
 // missing field = shirtless/default. The clothes colour comes from the ship skin ('sk', already sent).
 export const WIRE_SLOTS = ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg'];
-const WIRE_LEN = WIRE_SLOTS.length + 6 + 7 + 2 + 1;   // [V6 store] + the pants digit (after the carry digits)   // [Raul carry] + the carried sword + musket (1 + index in SWORD_IDS / MUSKET_IDS, 0 = none)
+const WIRE_LEN = WIRE_SLOTS.length + 6 + 7 + 2 + 1 + 1;   // [v6-store-clothes] + the cape colour digit (after pants)   // [V6 store] + the pants digit (after the carry digits)   // [Raul carry] + the carried sword + musket (1 + index in SWORD_IDS / MUSKET_IDS, 0 = none)
 // [v145] + the face paint digit; [Raul shop items 2] + one digit per EXTRA_SLOTS slot (older builds read a longer string as the default look)
 export function gearToWire(gear) {
   const g = normalizeGear(gear), sides = (g.hookSide === 'L' ? 1 : 0) + (g.legSide === 'L' ? 2 : 0) + (g.body ? 4 : 0); // [v112] bit 4 = female body (same digit: no longer string, old clients just see a male)
-  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1), ...carryDigits(g, SWORD_IDS, MUSKET_IDS), GEAR_RENDERS.pants.indexOf(g.pants) + 1].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
+  return (WIRE_SLOTS.map((k) => (GEAR_RENDERS[k].indexOf(g[k]) + 1).toString(36)).join('') + [g.hatColor, sides, g.skinColor, g.hairColor, g.outfitColor, GEAR_RENDERS.face.indexOf(g.face) + 1, ...EXTRA_SLOTS.map((k) => GEAR_RENDERS[k].indexOf(g[k]) + 1), ...carryDigits(g, SWORD_IDS, MUSKET_IDS), GEAR_RENDERS.pants.indexOf(g.pants) + 1, g.capeColor | 0].map((n) => n.toString(36)).join('')).replace(/0+$/, '');
 }
 export function gearFromWire(w) {
   const g = normalizeGear(null);
@@ -229,7 +232,7 @@ export function gearFromWire(w) {
   g.skinColor = clampIx(d(n + 2), SKIN_SWATCHES.length); g.hairColor = clampIx(d(n + 3), HAIR_SWATCHES.length); g.outfitColor = clampIx(d(n + 4), CLOTH_SWATCHES.length);
   { const v = d(n + 5); if (v > 0 && v <= GEAR_RENDERS.face.length) g.face = GEAR_RENDERS.face[v - 1]; }
   EXTRA_SLOTS.forEach((k, i) => { const v = d(n + 6 + i); if (v > 0 && v <= GEAR_RENDERS[k].length) g[k] = GEAR_RENDERS[k][v - 1]; });   // [Raul shop items 2]
-  { const c = n + 6 + EXTRA_SLOTS.length; Object.assign(g, carryFromDigits(d(c), d(c + 1), SWORD_IDS, MUSKET_IDS)); const v = d(c + 2); if (v > 0 && v <= GEAR_RENDERS.pants.length) g.pants = GEAR_RENDERS.pants[v - 1]; }   // [Raul carry] + [V6 store] pants
+  { const c = n + 6 + EXTRA_SLOTS.length; Object.assign(g, carryFromDigits(d(c), d(c + 1), SWORD_IDS, MUSKET_IDS)); const v = d(c + 2); if (v > 0 && v <= GEAR_RENDERS.pants.length) g.pants = GEAR_RENDERS.pants[v - 1]; g.capeColor = clampIx(d(c + 3), CAPE_SWATCHES.length); }   // [Raul carry] + [V6 store] pants
   return g;
 }
 // clean wire string (re-encoded from the decoded gear) or '' : what the receivers store / compare

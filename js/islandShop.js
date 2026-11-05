@@ -8,11 +8,11 @@
 //                          and the SERVER decides every purchase (price, goal, gold, owned): see shop/PLAN.md.
 // Events: 'pfp-shop' { open: true|false, vendor } on window. Off on the crypto-free portal builds (itch.io / Newgrounds).
 import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, STORE_HIDDEN, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, WEAPON_ITEMS, SWORD_FREE, MUSKET_FREE, sortByPrice } from './shopCatalog.js';
-import { CREW_LOOK, CREW_DEFAULT } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
+import { CREW_LOOK, CREW_DEFAULT, setCrewLoadout, getCrewLoadout } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
 import { gearThumbEl, gearLive } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
-import { getLocalGear, setLocalGear } from './pirateGear.js';
+import { getLocalGear, setLocalGear, CAPE_SWATCHES } from './pirateGear.js';
 import { openGearColorPicker } from './gearColorPicker.js';
 import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
 
@@ -34,6 +34,7 @@ export function mockProvider(seed = {}) {
   return {
     state: st,
     load: async () => clone(),
+    async crewCapeColor(i) { st.equipped.gear.crewcapeColor = i | 0; return clone(); },   // [v6-store-clothes]
     async buy(kind, id) {
       const it = find(kind, id), list = kind === 'skin' ? st.owned.skins : st.owned.gear;
       if (!it) return { ok: false, error: 'unknown item', state: clone() };
@@ -98,10 +99,10 @@ function svgThumb(it) { // the painted fallback (only shown until the real rende
 // [Timothy] BANKSY: "Make sure in clothes shop all items render as real items": every gear card is the REAL item on Raul's v4
 // pirate (js/gearThumbs.js: offscreen render, cached, one per frame), hats in your hat colour, clothes in your ship skin's colours.
 // The pre-baked PNG shows while it renders; the painted SVG only if both fail. The detail pane turns it slowly (live preview).
-const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0 }; };
+const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0, capeColor: g.capeColor | 0 }; };
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
 // a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
-const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0,   // [Raul gear colours] crew hats in the crew's hat colour
+const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0, capeColor: it.slot === 'crewcape' ? state?.equipped?.gear?.crewcapeColor | 0 : 0,   // [Raul gear colours] crew hats in the crew's hat colour
   wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
 function gearThumb(it, live = false) {
   if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
@@ -176,6 +177,7 @@ function render() {
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; const ss = tabSlots(V, view.tab); if (ss.length && !ss.includes(view.slot)) view.slot = ss[0]; view.sel = null; render(); });
   const chips = $('.ishop-chips', root); chips.hidden = (view.tab !== 'gear' && view.tab !== 'shoes') || tabSlots(V, view.tab).length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
   chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => tabSlots(V, view.tab).includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
+  { const on = chips.querySelector('button.on'); if (on && !chips.hidden) requestAnimationFrame(() => { const l = on.offsetLeft - chips.offsetLeft, w = on.offsetWidth; if (l < chips.scrollLeft || l + w > chips.scrollLeft + chips.clientWidth) chips.scrollLeft = Math.max(0, l - (chips.clientWidth - w) / 2); }); }   // [v6-store-clothes] phone: the picked chip (SHOES / PANTS) scrolled into view
   if (V.slots.includes('outfit')) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
   chips.querySelectorAll('button[data-slot]').forEach(b => b.onclick = () => { view.slot = b.dataset.slot; view.sel = null; render(); });
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
@@ -239,6 +241,12 @@ function detail(x) {
     d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>CREW HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>
       `<button type="button" data-chc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);
     d.querySelectorAll('[data-chc]').forEach(b => b.onclick = async () => { state = await provider.crewHatColor(+b.dataset.chc); render(); });
+  }
+  if (x.kind === 'gear' && (x.it.slot === 'cape' || x.it.slot === 'crewcape') && x.it.id !== 'none' && s.owned) { // [v6-store-clothes] BANKSY 2:03 PM: free cape colour (yours, or the crew's)
+    const crew = x.it.slot === 'crewcape', cg = state.equipped?.gear || {}, cur = crew ? cg.crewcapeColor | 0 : getLocalGear().capeColor | 0, eq = eqGear(x.it.slot) === x.it.id;
+    d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>${crew ? 'CREW ' : ''}CAPE COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...CAPE_SWATCHES].map(([n, c], i) =>
+      `<button type="button" data-cpc="${i}" class="${i === cur ? 'on' : ''}" title="${n}" aria-label="${n}" ${eq ? '' : 'disabled'} style="${c ? `background:${c}` : ''}">${c ? '' : '✕'}</button>`).join('')}</div></div>`);
+    d.querySelectorAll('[data-cpc]').forEach(b => b.onclick = async () => { const i = +b.dataset.cpc; if (crew) { if (provider.crewCapeColor) state = await provider.crewCapeColor(i); setCrewLoadout({ ...getCrewLoadout(), crewcapeColor: i }); } else setLocalGear({ capeColor: i }); render(); });
   }
   if (x.kind === 'gear' && x.it.slot === 'outfit' && x.it.id !== 'shirtless') { // [Timothy] clothes: your ship skin's colours, or a free clothes colour
     const oc = getLocalGear().outfitColor | 0;

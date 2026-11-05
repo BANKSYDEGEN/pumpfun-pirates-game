@@ -85,7 +85,7 @@ export const GEAR_ITEMS = [
   { slot: 'face', id: 'facepaint_retardio', label: 'RETARDIO FACE PAINT', price: 350, glb: 'raul:facepaint_retardio', tint: null },
   // [Raul shop items 2] BANKSY "Do new shop items" (Nov 3): v5 models (js/pirateItems.js), flag + figurehead = your SHIP (js/shipGear.js).
   // PRICES ARE PROPOSED (proposed: true): Raul's suggestion, BANKSY OKs them. [shop-boosts] SKILL BOOSTS now (js/boosts.js, scaled by price). The pets ride the parrot slot (one shoulder pet).
-  { slot: 'beard', id: 'none', label: 'NO BEARD', price: 0, glb: null, tint: null, free: true },
+  { slot: 'beard', id: 'none', label: 'DEFAULT BEARD', price: 0, glb: null, tint: null, free: true },   // [v6-store-clothes] BANKSY 1:52 PM: the V5 male head keeps its own beard, so the free pick is the DEFAULT BEARD (id stays 'none')
   { slot: 'ears', id: 'none', label: 'NO EARRINGS', price: 0, glb: null, tint: null, free: true },
   { slot: 'teeth', id: 'none', label: 'NO GOLD TEETH', price: 0, glb: null, tint: null, free: true },
   { slot: 'boots', id: 'none', label: 'BAREFOOT', price: 0, glb: null, tint: null, free: true },

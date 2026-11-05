@@ -26,7 +26,7 @@ test('carry: on foot only, sword away while swimming, the arena copy hides the c
 });
 test('carry: wired into gear + wire + battle, crews never carry, phones light', () => {
   const g = src('js/pirateGear.js'), w = src('js/carryWeapons.js'), b = src('js/onfoot/battle.js'), c = src('js/crewV4.js');
-  assert.match(g, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2( \+ 1)?;/); assert.match(g, /\.\.\.carryDigits\(g, SWORD_IDS, MUSKET_IDS\)(, GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1)?\]/); assert.match(g, /carryFromDigits\(d\(c\), d\(c \+ 1\), SWORD_IDS, MUSKET_IDS\)/);
+  assert.match(g, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2( \+ 1)*;/); assert.match(g, /\.\.\.carryDigits\(g, SWORD_IDS, MUSKET_IDS\)(, GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1)?(, g\.capeColor \| 0)?\]/); assert.match(g, /carryFromDigits\(d\(c\), d\(c \+ 1\), SWORD_IDS, MUSKET_IDS\)/);
   assert.match(g, /export function setCarriedWeapons\(\{ sword = null, musket = null \} = \{\}, src = 'inventory'\)/); assert.match(g, /syncCarry\(p, gear, body\)/);
   assert.match(g, /setCarriedWeapons\(\{ sword: gear\.sword, musket: gear\.musket \}, 'profile'\)/);
   assert.match(w, /if \(!p\?\.v5 \|\| p\.forCrew/); assert.match(w, /if \(!low\) \{ const o = new THREE\.Mesh\(geo, M\.s\)/); assert.match(w, /m\.castShadow = !low/);
