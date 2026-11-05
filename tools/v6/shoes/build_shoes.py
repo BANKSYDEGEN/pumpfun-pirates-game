@@ -47,7 +47,7 @@ S = {'classic': dict(top=KNEE - 0.020, lth=COL('#7b4423'), dk=COL('#3d200f')),
      'shoe': dict(top=0.104, lth=COL('#3b2317'), dk=COL('#1c100a')),
      'sandal': dict(top=0.080, lth=COL('#6b3a1e'), dk=COL('#3a1f10'))}[STY]
 _k = ~np.array(ISC); PTS = PTS[_k]; WTS = [w for w, k in zip(WTS, _k) if k]   # [V6 store] fitted to the bare V6 leg (pants above the cut blouse over the top)
-TOP = S['top']; CUT = {'classic': TOP - 0.024, 'sea': TOP - 0.024, 'shoe': 0.066, 'sandal': 0.010}[STY]
+TOP = S['top']; CUT = {'classic': TOP - 0.024, 'sea': TOP - 0.024, 'shoe': 0.092, 'sandal': 0.010}[STY]   # [v6 shoes T] shoe hides the foot to 1.2 cm under its top (no ankle skin through the upper)
 STEP = 0.0026 if HI else 0.0042
 NTH, SUB = (32, 2) if HI else (16, 1)
 parts = []; side_pts = {}; FOOT = {}
@@ -91,12 +91,12 @@ for sx in (1, -1):
   # below BOOT_CUT are hidden under the boot, so under the cut the boot no longer has to swallow the chibi foot: slim tapered toe,
   # arch + instep, stacked heel, the shaft narrows to the ankle and fits the calf; above the cut it still wraps the leg / pant hem.
   bfx = abs(fx1 - fx0) / 2; fcx = (fx0 + fx1) / 2
-  toe = fy0 - 0.022; heel = fy1 + 0.004; Lf = heel - toe
+  toe = fy0 - (0.030 if STY != 'sandal' else 0.022); heel = fy1 + 0.004; Lf = heel - toe   # [v6 shoes T] longer lasted toe
   HH = {'classic': 0.040, 'sea': 0.030, 'shoe': 0.032, 'sandal': 0.016}[STY]   # stacked heel height
   T = np.clip((heel - Y) / Lf, -0.05, 1.05)                                       # 0 heel .. 1 toe tip
-  W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], [0.40, 0.50, 0.55, 0.56, 0.64, 0.58, 0.44, 0.22, 0.12])   # half width: heel, waist, ball, taper
+  W = bfx * np.interp(T, [-0.05, 0.0, 0.15, 0.45, 0.66, 0.82, 0.93, 1.0, 1.05], [0.38, 0.46, 0.49, 0.50, 0.57, 0.50, 0.36, 0.16, 0.08])   # [v6 shoes T] slimmer heel/waist/ball, sharper taper   # half width: heel, waist, ball, taper
   ZB = np.interp(T, [0.0, 0.24, 0.55, 0.9, 1.0], [HH, HH, 0.013, 0.013, 0.022])   # the upper's underside = the sole's top (toe spring)
-  ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], [0.06, 0.088, 0.112, 0.104, 0.075, 0.058, 0.048, 0.036, 0.03])   # heel counter, instep, low toe
+  ZT = np.interp(T, [-0.05, 0.0, 0.2, 0.42, 0.62, 0.8, 0.92, 1.0, 1.05], [0.06, 0.088, 0.110, 0.098, 0.068, 0.050, 0.040, 0.030, 0.026])   # [v6 shoes T] lower, sleeker toe box   # heel counter, instep, low toe
   zc = (ZB + ZT) / 2; hz = np.maximum((ZT - ZB) / 2, 0.006)
   q = (np.abs(X - fcx) / W) ** 2.6 + (np.abs(Z - zc) / hz) ** 2.2
   d_foot = (q ** (1 / 2.4) - 1) * np.minimum(W, hz)
@@ -104,7 +104,7 @@ for sx in (1, -1):
   fhx = bfx * 0.64   # the ball half width (straps / caps below)
   # shaft: the leg envelope, kept above the cut (wraps the leg + pant hem), narrowing to a slim ankle below it, a fitted calf between
   ms = 0.011 if STYLE != 'cavalier' else 0.013
-  kz = (np.interp(zs, [0.05, 0.095, CUT - 0.035, CUT - 0.005], [0.56, 0.58, 0.88, 1.0]) if STY in ('classic', 'sea') else np.interp(zs, [0.05, TOP], [0.70, 1.0]))[:, None]
+  kz = (np.interp(zs, [0.05, 0.095, CUT - 0.035, CUT - 0.005], [0.50, 0.52, 0.84, 1.0]) if STY in ('classic', 'sea') else np.interp(zs, [0.05, TOP], [0.70, 1.0]))[:, None]
   RRs = RR * kz; d_shaft = sd_polar(X, Y, Z, zs, cen, RRs, ms * (np.interp(Z, [0.05, CUT - 0.01], [0.2, 1.0]) if STY in ('classic', 'sea') else 0.7), 0.05, TOP, flare=(0.006 if STY == 'classic' else 0.004))
   up = smin(d_foot, d_shaft, 0.022)
   # catch-all only above the cut (below it the leg is hidden): anything of the leg there the shaft misses gets covered
