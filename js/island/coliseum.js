@@ -84,7 +84,7 @@ export function buildArt(o) {
   const DS = 11, CB = 10, SA = 0; // look layers: dressed stone, cobbles, sand
   const F0 = FOOT, cx = (F0.lx0 + F0.lx1) / 2, cz = (F0.lz0 + F0.lz1) / 2;
   const rx = (F0.lx1 - F0.lx0) / 2, rz = (F0.lz1 - F0.lz0) / 2;
-  const y0 = F0.y, tierH = 3.6, N = 48, wt = 1.6, Y0W = CO.t2wYaw(0);
+  const y0 = F0.y, tierH = 3.6, N = 48, wt = 1.85, Y0W = CO.t2wYaw(0);
   const P = (a, off = 0) => T(cx + Math.cos(a) * (rx - off), cz + Math.sin(a) * (rz - off));
   const seg = (i, off = 0) => { const a0 = i / N * 2 * Math.PI, a1 = (i + 1) / N * 2 * Math.PI, am = (a0 + a1) / 2;
     const [x0, z0] = P(a0, off), [x1, z1] = P(a1, off), [xm, zm] = P(am, off);
@@ -117,14 +117,24 @@ export function buildArt(o) {
   for (let i = 0; i < N; i++) {
     const s = seg(i), g = gateHit(i), [px, pz] = [s.x0, s.z0];
     const totH = F0.tiers * tierH + 2.6;
-    // pier (full height, engaged half-column face)
-    W(k, box(1.5, totH, wt + 0.3), ST, DS, M(px, y0 + totH / 2, pz, s.yaw));
-    { const [wx, wz] = T(cx, cz), dx = px - wx, dz = pz - wz, dl = Math.hypot(dx, dz) || 1; W(k, cyl(0.42, 0.46, totH - 0.4, 8), ST_L, DS, M(px + dx / dl * 0.95, y0 + totH / 2, pz + dz / dl * 0.95), false); }
-    addBox(px, pz, 1.6, wt + 0.4, s.yaw);
+    // pier + engaged half-column — skip if the pier sits inside a gate opening (gateArt owns those piers)
+    const pierInGate = (() => { const lx = cx + Math.cos(s.a0) * rx, lz = cz + Math.sin(s.a0) * rz;
+      for (const gg of [MAIN_GATE, CASTLE_GATE, BATTERY_GATE]) if (Math.hypot(lx - gg.lx, lz - gg.lz) < gg.w * 0.55) return true; return false; })();
+    if (!pierInGate) {
+      W(k, box(1.5, totH, wt + 0.3), ST, DS, M(px, y0 + totH / 2, pz, s.yaw));
+      { const [wx, wz] = T(cx, cz), dx = px - wx, dz = pz - wz, dl = Math.hypot(dx, dz) || 1; W(k, cyl(0.42, 0.46, totH - 0.4, 8), ST_L, DS, M(px + dx / dl * 0.95, y0 + totH / 2, pz + dz / dl * 0.95), false); }
+      addBox(px, pz, 1.6, wt + 0.4, s.yaw);
+    }
+    if (g) { // attic/cornice/merlons still crown the gate bay; arches/fill come from gateArt
+      const ay = y0 + F0.tiers * tierH;
+      W(k, box(s.span * 1.02, 2.2, wt), ST, DS, M(s.xm, ay + 1.1, s.zm, s.yaw), false);
+      W(k, box(s.span * 1.04, 0.4, wt + 0.7), ST_D, DS, M(s.xm, ay + 2.3, s.zm, s.yaw), false);
+      for (const f of [-0.25, 0.25]) W(k, box(s.span * 0.28, 0.9, wt), ST_L, DS, M(s.xm + Math.cos(s.yaw) * s.span * f, ay + 2.95, s.zm - Math.sin(s.yaw) * s.span * f, s.yaw), false);
+      continue;
+    }
     const open = s.span - 1.5, r = Math.min(open / 2, 1.5);
     for (let ti = 0; ti < F0.tiers; ti++) {
       const ty = y0 + ti * tierH, spring = ty + tierH - 0.75 - r;
-      if (ti === 0 && g) continue; // gate bay handled below
       // spandrel above the arch + string course
       W(k, box(open, tierH - (spring - ty) - r, wt), ST, DS, M(s.xm, (spring + r + ty + tierH) / 2, s.zm, s.yaw), false);
       W(k, box(s.span * 1.02, 0.32, wt + 0.5), ST_D, DS, M(s.xm, ty + tierH - 0.1, s.zm, s.yaw), false);
@@ -159,7 +169,8 @@ export function buildArt(o) {
     const L = Math.hypot(jx - gx, jz - gz), yaw = Math.atan2(-(jz - gz), jx - gx), dirx = (jx - gx) / L, dirz = (jz - gz) / L;
     const n = Math.max(6, Math.round(L / 0.9)), hw = CASTLE_RAMP_HW;
     for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, x = gx + (jx - gx) * t, z = gz + (jz - gz) * t, y = H(x, z);
-      W(k, box(L / n + 0.05, 0.9, hw * 2), i % 2 ? ST : ST_L, DS, M(x, y - 0.4, z, yaw + Math.PI / 2 - Math.PI / 2 + 0), false); }
+      // tread: short along ramp (box.x), wide across (box.z); yaw faces along ramp so cheeks sit on the long edges
+      W(k, box(L / n + 0.08, 0.55, hw * 2), i % 2 ? ST : ST_L, DS, M(x, y - 0.15, z, yaw), false); }
     for (const sd of [-1, 1]) for (let i = 0; i < n; i++) { const t = (i + 0.5) / n;
       const x = gx + (jx - gx) * t - dirz * sd * (hw + 0.4), z = gz + (jz - gz) * t + dirx * sd * (hw + 0.4), y = H(x, z);
       W(k, box(L / n + 0.06, 1.3, 0.6), ST_D, DS, M(x, y + 0.2, z, yaw), false); addBox(x, z, L / n, 0.6, yaw); }
