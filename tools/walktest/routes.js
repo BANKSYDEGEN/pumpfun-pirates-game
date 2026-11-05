@@ -11,6 +11,7 @@ export function routes(set, ctx) {
   if (set === 'batch' || set === 'island') {
     R.push({ id: 'plaza_to_gate', pts: [PLAZA, FM.townToWorld(FM.STREET.x, FM.STREET.z0), GATE] });
     R.push({ id: 'gate_to_fort_ramparts', pts: [GATE, [-434, -76], [-434, -72], [-434, -44], [-431.5, -44], [-420, -44], [-414, -44], [-417.5, -34.75], [-416.5, -34.75], [-404, -34.75], [-404, -32.4], [-410, -32.4], [-418, -32.4]] });
+    R.push({ id: 'fort_wallwalk_to_spyglass', pts: [[-404, -32.4], [-400, -32.4], [-397.6, -32.4]] }); // [castle-access] rampart landing -> NE tower spyglass (E prompt r 1.4 round SPY -396.6, -32.6)
     R.push({ id: 'fort_yard_to_keep', pts: [[-414, -44], [-409, -44], [-405, -44]] });
     R.push({ id: 'pirates_climb_gate_to_trailhead', pts: ctx.ROUTE_PTS }); // the designed route (route.js: trail A + the straight gate lead-in)
     for (const o of [-1.6, 1.6]) R.push({ id: 'pirates_climb_edge_' + (o < 0 ? 'l' : 'r'), pts: offset(ctx.ROUTE_PTS, o) }); // both edges of the 4.6 m tread (turn wedges, cross-slope)
