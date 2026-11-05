@@ -158,6 +158,9 @@ export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKi
 export const HOLDER_ENABLED = !ON_PORTAL;
 export const HOLDER_MIN_TOKENS = 1, HOLDER_GOLD_MUL = 2, HOLDER_DAILY_GOLD = 100; // [v92] BANKSY: holder boost ×2 (was 1.05)
 export const HOLDER_MINTS = { SUNK: 'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump', AHOY: '39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump' };
+// [castle-flag-daily] BANKSY 11:39 AM: claim the holder daily gold by raising the fort flag (courtyard mast).
+// On by default; &flagdaily=0 restores the HUD "Claim daily gold" button. Client trigger only — server holder_claim unchanged.
+export const FLAG_DAILY = typeof location === 'undefined' || new URLSearchParams(location.search).get('flagdaily') !== '0';
 export const PVP_BOUNTY = { perKill: 25, cap: 500, announce: 200, pairWindow: 120 };
 export const PVP_REPAIR_COST = 40;    // repairs stay cheap in PvP (+50 HP, same as solo)
 

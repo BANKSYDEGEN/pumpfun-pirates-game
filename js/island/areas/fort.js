@@ -16,6 +16,8 @@
 import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, W, C, store, today } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
+import { FLAG_DAILY, HOLDER_DAILY_GOLD } from '../../config.js';
+
 export const FORT_WALKIN = true;
 export const FORT = { x: -408, z: -44, y: 36, half: 13, wall: 1.6, wallTop: 42, gateHW: 2.0, keep: { x: -403, z: -44, half: 5, wall: 0.8, h: 9, doorHW: 1.3 } };
 const F = FORT, X0 = F.x - F.half, X1 = F.x + F.half, Z0 = F.z - F.half, Z1 = F.z + F.half, WT = F.wallTop;
@@ -47,6 +49,19 @@ export function pfpFlagMaterial() { if (PFP_FLAG) return PFP_FLAG;
     g.fillStyle = '#0b0b0b'; g.fillRect(0, 0, 512, 340); const sc = Math.min(512 * 0.8 / img.width, 340 * 0.8 / img.height), w = img.width * sc, hh = img.height * sc; g.drawImage(img, (512 - w) / 2, (340 - hh) / 2, w, hh);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; PFP_FLAG.map = t; PFP_FLAG.color.set(0xffffff); PFP_FLAG.needsUpdate = true; }; img.src = 'assets/skull_transparent.png'; }
   return PFP_FLAG; }
+
+// [castle-flag-daily] holder claim day = America/Indiana/Indianapolis (matches pvp_holder_claim / pvpSave.indyDay)
+export const indyDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Indiana/Indianapolis' }).format(new Date());
+export function untilIndyMidnight(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Indiana/Indianapolis', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date(now));
+  const g = (t) => +parts.find(p => p.type === t).value;
+  let h = g('hour'); if (h === 24) h = 0; // some engines report 24:00
+  const leftMin = Math.max(0, (23 - h) * 60 + (59 - g('minute')));
+  const hh = Math.floor(leftMin / 60), mm = leftMin % 60;
+  return hh > 0 ? `${hh}h ${mm}m` : `${mm}m`;
+}
+export function markFortFlagRaised() { store.upd(o => { o.fortFlag = indyDay(); }); }
+export function fortFlagIsUp() { return store.get().fortFlag === indyDay() || store.get().fortFlag === today(); }
 export default {
   id: 'hilltop_fort', name: 'Hilltop Fort', rect: [-437, X1, -73, Z1],
   terrain: { pads: [[X0, X1, Z0, Z1, F.y]], paths: [], cuts: [[LEG2.x0 - 1, LEG2.z, LEG1.y1, -427, LEG2.z, LEG1.y1 + (F.y - LEG1.y1) * 4.5 / (LEG2.x1 - LEG2.x0), LEG2.hw]] }, // leg 2 cut into the knoll: one even grade (0.45), no steep last metres
@@ -331,7 +346,7 @@ export default {
     const mast = new Kit(); W(mast, cyl(0.14, 0.18, 13, 6), C.WOOD_D, M(MAST.x, Y + 6.5, MAST.z)); W(mast, ball(0.28, 6, 4), C.GOLD, M(MAST.x, Y + 13.2, MAST.z), false); near.add(mast.build(MATS, OUT));
     const flag = new THREE.Group(); { const fm = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.85), pfpFlagMaterial()); fm.position.set(1.45, 0, 0); fm.name = 'fort_pfp_flag'; flag.add(fm); }   // [hilltop] the Pumpfun Pirates flag
     flag.position.set(MAST.x, Y + 3.4, MAST.z); near.add(flag);
-    const up = () => store.get().fortFlag === today(); let fy = up() ? 11.5 : 3.4, fyT = fy; flag.position.y = Y + fy;
+    const up = () => fortFlagIsUp(); let fy = up() ? 11.5 : 3.4, fyT = fy; flag.position.y = Y + fy;
     // far impostor: walls with a west gate notch, towers + cones, keep + turret, the stair — still reads as a fort
     const kf = new Kit();
     W(kf, box(F.half * 2, wh + 6, F.half * 2 - 1.5), C.STONE, M(F.x + 0.4, (WT + 1.2 + base) / 2, F.z), false); // slight east bias so the gate face reads open from the west
@@ -340,12 +355,23 @@ export default {
     W(kf, box(F.keep.half * 2, F.keep.h + 1.4, F.keep.half * 2), C.STONE_D, M(F.keep.x, Y + (F.keep.h - 0.6) / 2, F.keep.z), false);
     W(kf, cyl(1.6, 1.7, 6.5, 8), C.STONE, M(F.keep.x + F.keep.half, Y + F.keep.h + 2.0, F.keep.z - F.keep.half), false); W(kf, new THREE.ConeGeometry(1.9, 2.4, 8), ROOF, M(F.keep.x + F.keep.half, Y + F.keep.h + 7.0, F.keep.z - F.keep.half), false);
     W(kf, box(LEG1.hw * 2, 6, LEG1.z1 - LEG1.z0), C.STONE, M(LEG1.x, (Y20 + LEG1.y1) / 2 - 2, (LEG1.z0 + LEG1.z1) / 2), false); far.add(kf.build(MATS, OUT));
-    return { near, far, flag, raise() { fyT = 11.5; }, tick(t) { const dt = 1 / 60; if (Math.abs(fyT - fy) > 0.01) { fy += Math.sign(fyT - fy) * Math.min(Math.abs(fyT - fy), 3 * dt); flag.position.y = Y + fy; } flag.rotation.y = Math.sin(t * 1.3) * 0.15; } };
+    return { near, far, flag, raise() { fyT = 11.5; }, lower() { fy = fyT = 3.4; flag.position.y = Y + fy; }, snapUp() { fy = fyT = 11.5; flag.position.y = Y + fy; }, tick(t) { if (fortFlagIsUp()) fyT = 11.5; /* [castle-flag-daily] claimed today → climb / stay up */ const dt = 1 / 60; if (Math.abs(fyT - fy) > 0.01) { fy += Math.sign(fyT - fy) * Math.min(Math.abs(fyT - fy), 3 * dt); flag.position.y = Y + fy; } flag.rotation.y = Math.sin(t * 1.3) * 0.15; } };
   },
-  label(q) { if (q.id === 'fort_flag') return store.get().fortFlag === today() ? 'THE COLOURS ARE FLYING' : 'RAISE THE COLOURS'; return null; },
+  label(q) {
+    if (q.id !== 'fort_flag') return null;
+    if (!FLAG_DAILY) return fortFlagIsUp() ? 'THE COLOURS ARE FLYING' : 'RAISE THE COLOURS';
+    // [castle-flag-daily] holder status comes from dock areaApi.holder() (set each frame / on interact)
+    const h = (typeof globalThis !== 'undefined' && globalThis.__pfpFlagDailyHolder) || null;
+    if (h && h.on && h.claimed) return `COME BACK TOMORROW · ${untilIndyMidnight()}`;
+    if (h && h.on && !h.claimed) return `RAISE THE COLOURS · +${HOLDER_DAILY_GOLD} GOLD`;
+    return fortFlagIsUp() ? 'THE COLOURS ARE FLYING' : 'RAISE THE COLOURS';
+  },
   activate(q, t, api, b) {
-    if (q.id === 'fort_flag') { const first = store.get().fortFlag !== today(); store.upd(o => { o.fortFlag = today(); o.fortFlags = (o.fortFlags || 0) + (first ? 1 : 0); }); b?.raise();
-      return first ? `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>raised ${store.get().fortFlags} day${store.get().fortFlags > 1 ? 's' : ''} · come back tomorrow</small>` : 'THE COLOURS ARE ALREADY FLYING<br><small>come back tomorrow</small>'; }
+    if (q.id === 'fort_flag') {
+      if (FLAG_DAILY) return flagDailyActivate(api, b);
+      const first = !fortFlagIsUp(); store.upd(o => { o.fortFlag = indyDay(); o.fortFlags = (o.fortFlags || 0) + (first ? 1 : 0); }); b?.raise();
+      return first ? `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>raised ${store.get().fortFlags} day${store.get().fortFlags > 1 ? 's' : ''} · come back tomorrow</small>` : 'THE COLOURS ARE ALREADY FLYING<br><small>come back tomorrow</small>';
+    }
     if (q.id === 'fort_table') { const m = api?.mapSpot?.() || null;
       return `THE WAR-ROOM TABLE<br><small>${m ? 'your treasure map: X marks ' + m : 'an old chart of the island: the cove, the lagoon falls, the jungle temple…'}<br>"Held by the Brethren since the Siege of the Skull: the guns face the bay, the stair faces the town."${AREA_GOLD_ON ? '' : ''}</small>`; }
     if (q.id === 'fort_spyglass') return null; // [v252] handled in dock/index.js interact() (arena spectate)
@@ -353,3 +379,30 @@ export default {
   },
 };
 export const _fortPending = PENDING;
+
+// [castle-flag-daily] raise the mast + call the existing holder_claim (server unchanged). Returns a toast string or a Promise of one.
+function flagDailyActivate(api, b) {
+  const h = api?.holder?.() || (typeof globalThis !== 'undefined' && globalThis.__pfpFlagDailyHolder) || null;
+  const left = untilIndyMidnight();
+  // already claimed today → flag stays / goes up, no second payout
+  if (h && h.on && h.claimed) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>daily gold already claimed · resets in ${left}</small>`; }
+  // holder, not claimed → raise + server claim
+  if (h && h.on && !h.claimed && api?.claimDaily) {
+    b?.raise(); markFortFlagRaised();
+    const pending = api.claimDaily();
+    return Promise.resolve(pending).then((r) => {
+      const g = (r && r.gold) | 0;
+      store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; });
+      return `THE JOLLY ROGER FLIES · +${g || HOLDER_DAILY_GOLD} DAILY GOLD!<br><small>come back tomorrow · resets in ${untilIndyMidnight()}</small>`;
+    }).catch((e) => {
+      if (e?.status === 409) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>already claimed · resets in ${untilIndyMidnight()}</small>`; }
+      if (e?.status === 403) return 'HOLDER YOUR WALLET<br><small>hold $SUNK or $AHOY to claim daily gold</small>';
+      return `COULD NOT CLAIM<br><small>${String(e?.message || e).slice(0, 80)}</small>`;
+    });
+  }
+  // not a holder (or holder status not ready): cosmetic raise only, point them at the perk
+  const first = !fortFlagIsUp(); markFortFlagRaised(); if (first) store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; }); b?.raise();
+  if (!h || !h.on) return `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>holders of $SUNK / $AHOY claim +${HOLDER_DAILY_GOLD} gold here once a day</small>`;
+  return first ? `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>come back tomorrow</small>` : `COME BACK TOMORROW<br><small>resets in ${left}</small>`;
+}
+

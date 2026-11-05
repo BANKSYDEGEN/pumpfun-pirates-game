@@ -4,6 +4,7 @@
 // canFire(s), invuln(s), isSafe(s), aiSteer(e, desired), and pvp.js (harbor room) through netState() / onPeerState(m).
 import * as THREE from 'three';
 import { coastLayout } from './layout.js';
+import { FLAG_DAILY } from '../config.js'; // [castle-flag-daily]
 import { buildWorld, colliderSets } from './world.js';
 import { createSafeZone } from './safe.js';
 import { createDocking } from './docking.js';
@@ -231,11 +232,14 @@ export async function createDock(ctx) {
   const areaFish = { me: () => (onFoot ? { y: walker.w.y, yaw: walker.w.yaw - FOOT_YAW } : null), face(yaw) { if (onFoot && Number.isFinite(yaw)) walker.w.yaw = yaw + FOOT_YAW; },
     camYaw: () => walker.w.camYaw - FOOT_YAW, emote(e) { if (!onFoot) return; if (e < 0) { const m = pirate.object.userData.emote; if (m) m.live = false; } else pirate.emote?.(e); }, sfx: (k, a) => ctx.sfx?.fish?.(k, a),
     rumble: (w, s, ms) => padRumble(w, s, ms), key: () => (padActive() ? padGlyph('A') : touch ? 'TAP' : 'E') }; // [fish2] the reel bar says the button you use
-  const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); } };
+  const areaApi = { ...areaFish, toast: (m, ms) => toast(m, ms), teleport(fx, fz, yaw) { const [x, z] = layout.footToHarbor(fx, fz), w = walker.w; w.x = x; w.z = z; if (yaw !== undefined) { w.yaw = yaw; w.camYaw = yaw; } w.y = world.ground(x, z); walker.snapCam?.(); },
+    // [castle-flag-daily] fort mast claims holder daily gold (server holder_claim unchanged)
+    holder: () => { const h = ctx.pvp?.()?.holder; return h ? { on: !!h.on, claimed: !!h.claimed, checked: !!h.checked } : null; },
+    claimDaily: () => { const pv = ctx.pvp?.(); if (!pv?.claimHolderGold) return Promise.reject(new Error('pvp offline')); return pv.claimHolderGold({ fromFlag: true, quiet: true }); } };
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
     if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { const W = walker.w; specFrom = { src: 'fort', x: W.x, z: W.z, yaw: W.yaw, camYaw: W.camYaw, pitch: W.pitch }; goAboard(true); pv?.harborSpectate?.(false); return; } // [v254] specFrom tags the castle as the spectate source: EXIT puts you back here on foot (fortReturn) // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
-    if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); if (m) toast(m, 2800); return; } // [island-rework] area activities (cosmetic; gold behind areas/flags.js)
+    if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); Promise.resolve(m).then(msg => { if (msg) toast(msg, 3200); }).catch(() => {}); return; } // [island-rework] area activities (+ [castle-flag-daily] async holder claim at fort_flag)
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
       case 'token': plaza.openToken(q.sym); break;
@@ -306,6 +310,7 @@ export async function createDock(ctx) {
       let best = null, bd = 1e9;
       let skinAct = null; // [dock-skin] BANKSY 8:42 PM: E = BOARD SHIP, Q = CHANGE SKIN at your own berth (phone: a 2nd button, pad: X)
       if (b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) { best = { label: 'BOARD SHIP', fn: () => { skinPick.close(); goAboard(); } }; skinAct = { label: 'CHANGE SKIN', key: 'Q', fn: () => (skinPick.isOpen ? skinPick.close() : skinPick.open()) }; }
+      if (FLAG_DAILY) { try { const h = ctx.pvp?.()?.holder; globalThis.__pfpFlagDailyHolder = h ? { on: !!h.on, claimed: !!h.claimed, checked: !!h.checked } : null; } catch { globalThis.__pfpFlagDailyHolder = null; } } // [castle-flag-daily] fort.label reads this
       if (!best) for (const q of [...layout.interact, ...world.footInteract]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
       setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct);
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });

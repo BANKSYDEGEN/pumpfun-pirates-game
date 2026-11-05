@@ -26,7 +26,7 @@ import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.j
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-chat
 import { PVP_HARBOR_DEATH_LOSS, PVP_HARBOR_RESPAWN, PVP_HARBOR_PROTECT } from './config.js';
-import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD } from './config.js';
+import { PVP_BOUNTY, HOLDER_ENABLED, HOLDER_GOLD_MUL, HOLDER_DAILY_GOLD, FLAG_DAILY } from './config.js';
 import { PVP_PILE_CAP, PVP_PILE_MAX } from './config.js';
 import { COAST_ON, fromHarbor as coastFromHarbor, w2t as coastW2t, inPoly as coastInPoly, APRON as COAST_APRON, ISLET as COAST_ISLET, HEADLAND as COAST_HEADLAND, SAFE as COAST_SAFE } from './island/coast.js'; // [Emerly] Raul's coast harbor flag
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
@@ -150,17 +150,31 @@ export function createPvp(K) {
   async function refreshHolder() {
     if (!HOLDER_ENABLED || (!wallet && !ownerAllSkins())) { /* [v85] owner-only: BANKSYDEGEN devices */ Object.assign(holder, { on: false, claimed: true, checked: true }); holderUi(); return; }
     const h = await holderStatus(); Object.assign(holder, { on: !!h.holder, claimed: h.claimed !== false, checked: true }); holderUi();
+    // [castle-flag-daily] already claimed today → courtyard flag starts raised for this player
+    if (FLAG_DAILY && holder.on && holder.claimed) { try { const { markFortFlagRaised } = await import('./island/areas/fort.js'); markFortFlagRaised(); } catch {} }
   }
   function holderUi() {
     const b = $('pvp-holder'), c = $('pvp-holder-claim'); if (!b || !c) return;
-    b.hidden = !(HOLDER_ENABLED && holder.on); c.hidden = !(HOLDER_ENABLED && holder.on && !holder.claimed);
+    b.hidden = !(HOLDER_ENABLED && holder.on);
+    // [castle-flag-daily] default: claim at the fort flag; &flagdaily=0 keeps the HUD button
+    c.hidden = !(HOLDER_ENABLED && holder.on && !holder.claimed && !FLAG_DAILY);
     c.textContent = `Claim daily gold (+${HOLDER_DAILY_GOLD})`;
   }
-  async function claimHolderGold() {
-    const c = $('pvp-holder-claim'); if (!c || c.disabled) return; c.disabled = true;
-    try { const r = await holderClaim(); game.gold += r.gold | 0; holder.claimed = true; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${r.gold} DAILY GOLD`); K.updateHud(); save({ now: true }); }
-    catch (e) { holder.claimed = e?.status === 409 ? true : holder.claimed; if (e?.status === 403) holder.on = false; $('pvp-wallet-state').textContent = String(e?.message || e).slice(0, 80); }
-    finally { c.disabled = false; holderUi(); }
+  async function claimHolderGold(opts = {}) {
+    // [castle-flag-daily] opts.fromFlag: skip the HUD button disable (flag path has no button); still server-gated
+    const c = $('pvp-holder-claim'); if (!opts.fromFlag && (!c || c.disabled)) return null; if (c && !opts.fromFlag) c.disabled = true;
+    try {
+      const r = await holderClaim(); game.gold += r.gold | 0; holder.claimed = true; sfx.coin();
+      if (!opts.quiet) K.popup(new THREE.Vector3(P().x, 6, P().z), `+${r.gold} DAILY GOLD`);
+      K.updateHud(); save({ now: true });
+      // keep the courtyard mast raised for this Indy day (visual only; claim is server-side)
+      try { const { markFortFlagRaised } = await import('./island/areas/fort.js'); markFortFlagRaised(); } catch {}
+      return r;
+    } catch (e) {
+      holder.claimed = e?.status === 409 ? true : holder.claimed; if (e?.status === 403) holder.on = false;
+      if (!opts.fromFlag) $('pvp-wallet-state').textContent = String(e?.message || e).slice(0, 80);
+      throw e;
+    } finally { if (c) c.disabled = false; holderUi(); }
   }
   const holderMul = (earned) => HOLDER_ENABLED && holder.on && earned > 0 ? Math.round(earned * (HOLDER_GOLD_MUL - 1)) : 0;
   addEventListener('pfp-group-sync', (e) => { const { drift, levels, stats } = e.detail || {}; // [v92] owner shared save / [v106] account: the other device's gold / upgrades / stats
@@ -1698,7 +1712,7 @@ export function createPvp(K) {
   const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     _test: { SPAWNS_COAST, coastOk: coastSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
