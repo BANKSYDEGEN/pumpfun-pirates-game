@@ -20,7 +20,7 @@ import { isKey } from './keybinds.js';
 // v1 is NOT cheat-proof: a modified client can lie about its own ship. See README "PvP".
 import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
-import { crewFire, crewHit } from './crew.js'; // [Raul] remote broadsides animate their gun crews
+import { crewFire, crewHit, crewLodOf } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet, createHarborNet } from './transport.js';
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
@@ -624,8 +624,18 @@ export function createPvp(K) {
     bar.innerHTML = `<div class="name pvp-name"></div><div class="bar"><div class="fill"></div></div>`;
     $('bars').appendChild(bar); obj.bar = bar; obj.fill = bar.querySelector('.fill'); obj.nameEl = bar.querySelector('.name'); obj.nameEl.textContent = label;
   }
+  // [dock-lag] BANKSY 10:40 PM "running and jumping by ships at dock is laggy": every other pirate's ship (own skin = own shader set, own crew)
+  // was built and drawn on the frame its first state arrived, so its ~15-30 shader programs compiled synchronously mid-run. Now a new remote
+  // ship compiles with compileAsync and only shows once it is ready (&shipwarm=0 = the old instant show); far away, its crew + captain
+  // figure are hidden (&shiplod=0 = always drawn): desktop past 90 m, phones past 55 m.
+  const DQS = typeof location !== 'undefined' ? location.search : '', SHIP_WARM = !/[?&]shipwarm=0(&|$)/.test(DQS), SHIP_LOD = !/[?&]shiplod=0(&|$)/.test(DQS);
+  const FAR_R2 = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 55 : 90) ** 2;
+  function farCrew(e) { const c = K.camera; if (!SHIP_LOD || !c || !e.mesh) return; const far = e.mesh.position.distanceToSquared(c.position) > FAR_R2;
+    if (far === e._far && e._farMesh === e.mesh) return; e._far = far; e._farMesh = e.mesh;
+    const lod = crewLodOf(e.mesh.userData.body); if (lod) lod.visible = !far; const cap = e.mesh.userData.captainMesh; if (cap) cap.visible = !far; }
   function buildRemoteMesh(p, lv, sk) {
     const mesh = compilePreview(lv, shipOptsFor(sk)); scene.add(mesh);
+    if (SHIP_WARM && K.warmShip) { mesh.visible = false; K.warmShip(mesh).then(() => { mesh.visible = true; }); }
     applyShipGear(mesh, p.captain?.gear); // [Raul shop items 2]
     if (p.captain) attachCaptain(mesh, p.captain); // [Timothy v2] remote player's captain JSON (pfp_captain_v1) when the netcode sends it
     if (p.ship?.mesh) { mesh.position.copy(p.ship.mesh.position); scene.remove(p.ship.mesh); K.disposeShip(p.ship.mesh); p.ship.mesh = mesh; }
@@ -694,7 +704,7 @@ export function createPvp(K) {
       } else e.speed *= 0.98;
       e.hp = st.h; e.maxHp = st.m; e.prot = st.p;
     }
-    K.floatShip(e, dt);
+    K.floatShip(e, dt); farCrew(e);
     shield(e, e.alive && e.prot);
     if (e.net?.kind === 'player') skinFx(e, dt);
   }

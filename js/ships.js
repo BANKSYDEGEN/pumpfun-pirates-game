@@ -873,6 +873,7 @@ export function buildShip(opts) {
   if (SHIP_MERGE) { const mark = (v, d = 0) => { if (!v || d > 3) return; if (v.isObject3D) { v.traverse(o => { o.userData.noMerge = true; }); return; } if (Array.isArray(v)) v.forEach(x => mark(x, d + 1)); else if (typeof v === 'object' && !v.isMaterial && !v.isTexture && !v.isBufferGeometry) Object.values(v).forEach(x => mark(x, d + 1)); };
     for (const [k, v] of Object.entries(ship.userData)) if (k !== 'body') mark(v);
     ship.userData.merged = mergeShipBody(body); } // [perf4] same-material body parts -> one mesh (&shipmerge=0)
+  ship.userData.isShip = true; // [dock-lag] ships are tagged (js/staticMerge.js + pvp.js remote-ship warm / far crew rely on it)
   return ship;
 }
 

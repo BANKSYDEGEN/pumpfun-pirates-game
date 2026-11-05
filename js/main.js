@@ -1496,7 +1496,7 @@ initEmotes({ camera, getPlayer: () => player, canEmote: () => game.state === 'pl
   send: (e) => { if (game.mode === 'pvp') pvp?.emote?.(e); }, foot: (e) => dock?.footEmote?.(e) || null }); // [Raul emotes] on land: body motion + bubble over the head
 // [pvp] what js/pvp.js may touch in the game
 const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, getPlayer: () => player, spawnEnemy, refitGuns, damage, floatShip, moveShip, getBall, freeBall, disposeShip, toLocal, popup, banner, updateHud,
-  resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), rebuildShipSkin: (lv) => rebuildPlayerShipSkin(lv), prebuildSkin: (lv, skin) => prebuildSkin(lv, { ...shipOpts(), skin }, skin), get shipOpts() { return PLAYER_SHIP; } };
+  resetCamera, camera, controls, islands, joinBattle: () => { toTitle(); startPvp(); }, toTitle: () => toTitle(), rebuildShip: (lv) => rebuildPlayerShip(lv), rebuildShipSkin: (lv) => rebuildPlayerShipSkin(lv), prebuildSkin: (lv, skin) => prebuildSkin(lv, { ...shipOpts(), skin }, skin), warmShip: (o) => (typeof renderer.compileAsync === 'function' ? renderer.compileAsync(o, camera, scene).catch(() => {}) : Promise.resolve()), get shipOpts() { return PLAYER_SHIP; } };
 // [ultra] graphics menu (start page + pause): AUTO / LOW / HIGH / ULTRA (desktop only), saved on this device; a reload applies it
 {
   const cur = ['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : 'auto';
