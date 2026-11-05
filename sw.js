@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v252'; // [v252] Hilltop Fort redo (BANKSY 8:28 PM): richer keep / gatehouse / walls / towers / courtyard + fort spyglass arena spectate; prev: [v251] NEW SHIPS prestige P3-P7 (Opal/Leviathan/Celestial/Sun King/Poseidon); prev: [v250] Walk-in shops
+const VERSION = 'pfp-v253'; // [v253] dock skin picker with live ship previews (BOARD SHIP / CHANGE SKIN at your berth); prev: [v252] Hilltop Fort redo (BANKSY 8:28 PM): richer keep / gatehouse / walls / towers / courtyard + fort spyglass arena spectate; prev: [v251] NEW SHIPS prestige P3-P7 (Opal/Leviathan/Celestial/Sun King/Poseidon); prev: [v250] Walk-in shops
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
