@@ -13,7 +13,7 @@ const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Mat
 // Outer footprint (town-local): east of Hill Street, dock end at plaza shop backs (lz -44), castle end near roundabout.
 export const FOOT = { lx0: 34, lx1: 96, lz0: -208, lz1: -44, y: 9.2, feather: 8, wall: 3.2, walk: 4.5, tiers: 3 };
 // Main entrance (remove stall_red/blue): between #36/#37 on east Hill Street
-export const MAIN_GATE = { lx: 28, lz: -115, w: 8, d: 10 };
+export const MAIN_GATE = { lx: 34, lz: -115, w: 9, d: 12 };
 // Castle exit: arched gate → ≥4 m near-level stone ramp to castle approach (avoids LEG1 x=-434 / fort wall)
 export const CASTLE_GATE = { lx: 38, lz: -205, w: 4.5 };
 export const CASTLE_JOIN = { lx: 46, lz: -210 }; // joins approach below castle
@@ -81,7 +81,7 @@ export function buildArt(o) {
   const STONE = C.STONE || 0xb9a990, STONE_D = C.STONE_D || 0x8a7a66, WOOD = C.WOOD || 0xb06a36, WOOD_D = C.WOOD_D || 0x7b4524;
   const F0 = FOOT, cx = (F0.lx0 + F0.lx1) / 2, cz = (F0.lz0 + F0.lz1) / 2;
   const rx = (F0.lx1 - F0.lx0) / 2, rz = (F0.lz1 - F0.lz0) / 2;
-  const y0 = F0.y, wallH = 11.5, tierH = 3.6, archN = 28;
+  const y0 = F0.y, wallH = 11.5, tierH = 3.6, archN = 48;
 
   // Arena floor pad (sand)
   {
@@ -108,14 +108,14 @@ export function buildArt(o) {
       const yaw = Math.atan2(x1 - x0, z1 - z0);
       const span = Math.hypot(x1 - x0, z1 - z0);
       // pier
-      W(k, box(1.1, tierH - 0.15, 1.1), STONE_D, 3, M(x0, ty + tierH / 2, z0));
-      addBox(x0, z0, 1.2, 1.2, yaw);
+      W(k, box(1.6, tierH - 0.1, 1.6), STONE_D, 3, M(x0, ty + tierH / 2, z0));
+      addBox(x0, z0, 1.7, 1.7, yaw);
       // arch lintel / vault hint
       W(k, box(span * 0.92, 0.45, 1.0), STONE, 3, M(xm, ty + tierH - 0.35, zm, yaw), false);
       if (ti === 0) {
         // solid lower wall between piers (intact, not ruined)
-        W(k, box(span * 0.7, 2.2, 0.85), STONE, 3, M(xm, ty + 1.15, zm, yaw));
-        addBox(xm, zm, 0.9, span * 0.7, yaw);
+        W(k, box(span * 0.85, 3.2, 1.15), STONE, 3, M(xm, ty + 1.65, zm, yaw));
+        addBox(xm, zm, 1.2, span * 0.85, yaw);
       } else {
         // open arcade arch (clean stone)
         W(k, box(0.35, tierH - 0.8, 0.85), STONE, 3, M(xm - Math.sin(yaw) * span * 0.28, ty + (tierH - 0.8) / 2 + 0.3, zm - Math.cos(yaw) * span * 0.28, yaw), false);
