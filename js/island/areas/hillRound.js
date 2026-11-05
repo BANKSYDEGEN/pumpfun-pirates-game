@@ -57,6 +57,19 @@ function rbFountainGLB(low) {
 // Pirates' Climb to the left (S); the structural stone (deck, borders, retaining walls, parapets, stair flights, castle apron, gate piers, bridge
 // towers + piers) is the Blender model assets/island/rb_plaza(_low).glb (tools/roundabout_blender/rb_plaza_blender.py, shared library).
 // &rbblend=0 = the v214 layout exactly (fountain at z -88, kit stone, the arch).
+// [plaza-bake] BANKSY 10:30 PM "the flowers rn they look like stop lights": a real flower clump instead of a red/yellow ball. A few stems with
+// leaves, each topped by a five-petal bloom (a shallow 5-sided cup) round a little gold heart, soft mixed palette per clump. All on the kit
+// (merged per material = no extra draw calls); phones get 2 blooms + 1 leaf per clump (~50 tris), desktop 3-4 blooms (~110 tris).
+const FL_PAL = [0xf2a7c3, 0xe98aa8, 0xb99ae0, 0xf6ecd0, 0xf3c6a5, 0xf08a6e, 0xf5d97a, 0xfbf7ee, 0xc9b3f0];
+const FL_PETAL = new THREE.CylinderGeometry(0.12, 0.035, 0.05, 5), FL_HEART = new THREE.OctahedronGeometry(0.035, 0), FL_LEAF = new THREE.OctahedronGeometry(0.1, 0);
+function bloomClump(k, x, y, z, seed, s = 1, low = false) {
+  const n = low ? 2 : 3 + (hash(seed, 7.3) > 0.5 ? 1 : 0), c0 = Math.floor(hash(seed, 1.7) * FL_PAL.length);
+  for (let i = 0; i < n; i++) { const a = seed * 2.1 + i * 2.4, r = (0.06 + 0.1 * hash(seed, i)) * s, h = (0.22 + 0.2 * hash(i, seed + 3)) * s;
+    const bx = x + Math.cos(a) * r, bz = z + Math.sin(a) * r, tilt = 0.25 * (hash(seed + i, 5) - 0.5);
+    W(k, box(0.018 * s, h, 0.018 * s), 0x4f7f2e, M(bx, y + h / 2, bz, a, tilt, 0), false);   // stem
+    const col = FL_PAL[(c0 + (i % 2) * (1 + (seed % 2))) % FL_PAL.length];   // one or two related tints per clump, never a R/Y/G stack
+    W(k, FL_PETAL, col, M(bx, y + h + 0.02 * s, bz, a, tilt, 0, [s, s, s]), false); W(k, FL_HEART, 0xe8b23a, M(bx, y + h + 0.05 * s, bz, 0, 0, 0, [s, s, s]), false);
+    if (!low || i === 0) W(k, FL_LEAF, i % 2 ? 0x5f9a3a : 0x6fae45, M(bx + Math.cos(a + 1.6) * 0.07 * s, y + h * 0.45, bz + Math.sin(a + 1.6) * 0.07 * s, a, 0, 0.9, [1.4 * s, 0.25 * s, 0.6 * s]), false); } }
 export const RBB_ON = !(typeof location !== 'undefined' && /[?&]rbblend=0(&|$)/.test(location.search));
 const AXZ = -84;   // foot.js townToWorld(STREET.x, STREET.z1)[1]
 // [v220] BANKSY 3:51-3:57 PM "Fix the steps, fix the side of castle, remove the archways" + "Also remove the clutter on ground around fountain" +
@@ -90,7 +103,8 @@ const Y = 20.1;   // >= the natural ground anywhere under the plaza (max 20.05):
 // [hilltop] BANKSY 9:31 PM "Want that entire hill fixed": the plaza grows 10 m east (35 x 24 m: a proper roundabout, fountain centred on the
 // new court, paved ring r 12.5 + an outer kerb ring), so the Blender rb_plaza.glb (baked for the 25 m plaza) no longer matches: HILLTOP_KIT = the
 // kit stone for this preview (&rbplazaglb=1 = try the old bake anyway; the layout guard then keeps the kit). Re-bake after BANKSY OKs the layout.
-export const HILLTOP_KIT = RBB_ON && !(typeof location !== 'undefined' && /[?&]rbplazaglb=1(&|$)/.test(location.search));
+// [plaza-bake] BANKSY OK'd the layout (10:29 PM): rb_plaza(_low).glb re-baked for the 35 x 24 m plaza -> the Blender stone is back; &rbplazaglb=0 = the kit stone
+export const HILLTOP_KIT = RBB_ON && typeof location !== 'undefined' && /[?&]rbplazaglb=0(&|$)/.test(location.search);
 export const RB2 = RBB_ON ? { c: [-420.5, AXZ], y: Y, plaza: [-438, -403, AXZ - 12, AXZ + 12], r: 11.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: AXZ }
   : { c: [-425.5, -88], y: Y, plaza: [-438, -413, -100, -76], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: -88 };
 const [CX, CZ] = RB2.c, [PX0, PX1, PZ0, PZ1] = RB2.plaza;
@@ -345,7 +359,9 @@ export default {
     for (const b of BENCHES) { const cs = Math.cos(b.yaw), sn = Math.sin(b.yaw); W(k, box(2.0, 0.12, 0.6), 0xd9a36b, M(b.x, Y + 0.48, b.z, b.yaw + Math.PI / 2)); W(k, box(2.0, 0.5, 0.1), 0xa86a3a, M(b.x + sn * 0.3, Y + 0.8, b.z + cs * 0.3, b.yaw + Math.PI / 2), false);
       for (const s of [-0.8, 0.8]) W(k, box(0.5, 0.45, 0.14), 0x8a837a, M(b.x + cs * s, Y + 0.22, b.z - sn * s, b.yaw + Math.PI / 2), false); }
     const planter = (x, y, z, s = 1.6) => { W(k, box(s, 0.6, s), 0xb0a99c, M(x, y + 0.3, z)); W(k, box(s + 0.14, 0.1, s + 0.14), 0xd2c9b6, M(x, y + 0.62, z), false); W(k, box(s - 0.2, 0.08, s - 0.2), 0x5a3a22, M(x, y + 0.64, z), false);
-      for (let i = 0; i < 7; i++) { const a = i * 0.9 + x, r = (i % 3) * 0.22; k.add(jitter(new THREE.IcosahedronGeometry(0.26 + hash(i, x) * 0.12, 0), 0.2, i + z), [0x5f9a3a, 0x4e8a34, 0x6fae45, 0xd8322f, 0xffc93c, 0x5f9a3a, 0xf4efe6][i], { m: M(x + Math.cos(a) * r, y + 0.85 + (i % 2) * 0.12, z + Math.sin(a) * r, a), outline: false }); } };
+      for (let i = 0; i < 7; i++) { const a = i * 0.9 + x, r = (i % 3) * 0.22, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;   // [plaza-bake] leafy mound + flower clumps (no red/yellow balls)
+        if (i === 3 || i === 4 || i === 6) bloomClump(k, px, y + 0.82, pz, Math.round(i * 13 + x * 3 + z), 1.2, low);
+        else k.add(jitter(new THREE.IcosahedronGeometry(0.26 + hash(i, x) * 0.12, 0), 0.2, i + z), [0x5f9a3a, 0x4e8a34, 0x6fae45, 0, 0, 0x5f9a3a][i], { m: M(px, y + 0.8 + (i % 2) * 0.08, pz, a, 0, 0, [1, 0.7, 1]), outline: false }); } };
     for (const [x, z] of PLANTERS) planter(x, Y, z);
     // ---- parapets + cheek walls: a low wall (0.9 m over the walk) with a dressed coping, following the walk height under it
     const walkY = (x, z) => { let y = null; for (const s of ST) { const dx = x - s.x0, dz = z - s.z0, u = (dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw)) / s.L, a = Math.abs(dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw));
@@ -370,13 +386,13 @@ export default {
           k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.3, b.i * 9 + q), [0x3f7d2c, 0x4e8a34, 0x5f9a3a][q % 3], { m: M(b.x + ax * o + b.nx * 0.06, b.top - 0.1 - f * drop, b.z + az * o + b.nz * 0.06, b.yaw, 0, 0, [0.45, 1.25, 1.5]), outline: false }); }   // (flat against the face)
         for (let q = 0; q < 3; q++) { const ax = Math.cos(b.yaw), az = -Math.sin(b.yaw), o = (q - 1) * 0.9 + (hash(q, b.i) - 0.5) * 0.3, x = b.x + ax * o + b.nx * 0.6, z = b.z + az * o + b.nz * 0.6, r = 0.36 + hash(b.i, q + 5) * 0.22;   // shrubs at the foot
           k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, b.i * 5 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45][(b.i + q) % 3], { m: M(x, H(x, z) + r * 0.55, z, q + b.i), outline: false });
-          if ((b.i + q) % 4 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.14, 0), 0.2, q), [0xd8322f, 0xffc93c, 0xf4efe6][q % 3], { m: M(x, H(x, z) + r * 1.2, z, q), outline: false }); } }
+          if ((b.i + q) % 4 === 0) bloomClump(k, x, H(x, z) + r * 1.2 - 0.084, z, Math.round((q) * 7 + (x) * 3), 0.82, low); } }
       for (const t of castleTerraces(H)) { const hh = t.top - t.g, ax = Math.sin(t.yaw), az = Math.cos(t.yaw), nx = az, nz = -ax, bk = nz > 0 ? 1 : -1;   // the castle-side terraces (bk: uphill = +z)
         SB('terrace', box(0.6, hh, t.L + 0.06), t.i % 2 ? 0xb0a99c : 0xb9b2a6, M(t.x, t.g + hh / 2, t.z, t.yaw), t.i % 2 === 0); SB('tcap', box(0.78, 0.16, t.L + 0.1), 0xd2c9b6, M(t.x, t.top + 0.08, t.z, t.yaw), false);
         const bx = t.x + nx * bk * 0.95, bz = t.z + nz * bk * 0.95; W(k, box(1.3, 0.3, t.L + 0.05), 0x5a3a22, M(bx, t.top - 0.12, bz, t.yaw), false);   // the bed's soil, just under the coping
         if (!low || t.i % 2 === 0) for (let q = 0; q < 2; q++) { const o = (q - 0.5) * t.L * 0.5, x = bx + ax * o, z = bz + az * o, r = 0.42 + hash(t.i, q) * 0.3;
           k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i * 3 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45][(t.i + q) % 3], { m: M(x, t.top + r * 0.5, z, t.i + q), outline: false });
-          if ((t.i + q) % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, q + t.i), [0xd8322f, 0xffc93c, 0xf4efe6][(t.i + q) % 3], { m: M(x + 0.2, t.top + r * 1.05, z, q), outline: false }); }
+          if ((t.i + q) % 3 === 0) bloomClump(k, x + 0.2, t.top + r * 1.05 - 0.102, z, Math.round((q + t.i) * 7 + (x + 0.2) * 3), 1.00, low); }
         if (t.i % 3 === 1) for (let q = 0; q < 4; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.26, 0), 0.3, t.i * 7 + q), [0x3f7d2c, 0x4e8a34][q % 2], { m: M(t.x - nx * bk * 0.36 + ax * (hash(q, t.i) - 0.5) * t.L * 0.7, t.top - 0.15 - q * 0.33, t.z - nz * bk * 0.36 + az * (hash(q, t.i) - 0.5) * t.L * 0.7, t.yaw, 0, 0, [0.45, 1.2, 1.4]), outline: false }); }   // ivy over the edge
       { const fz = -57 - 0.85; for (let x = -419, i = 0; x < -396; x += 2.6, i++) { if (low && i % 2) continue; const drop = 1.6 + hash(i, 41) * 2.4;   // ivy curtains down the fort's south wall (outer face z ~ -57.8)
           for (let q = 0; q < 5; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.34 - q * 0.04, 0), 0.3, i * 11 + q), [0x3f7d2c, 0x4e8a34, 0x5f9a3a][(i + q) % 3], { m: M(x + (hash(i, q) - 0.5) * 1.2, 41.6 - q * drop / 4, fz, 0, 0, 0, [1.4, 1.2, 0.45]), outline: false }); } }
@@ -414,7 +430,7 @@ export default {
         const bx = x + s * 0.3, bz = z + 3; W(k, box(0.08, 0.08, 0.9), C.IRON, M(bx, y - 0.08, bz), false);
         W(k, box(0.05, 1.5, 0.8), 0xd8322f, M(bx + s * 0.02, y - 0.85, bz), false); W(k, box(0.06, 0.34, 0.34), C.GOLD, M(bx + s * 0.03, y - 0.75, bz), false);
         if (RBB_ON) { const tz = z - 3, ty = wy(tz) + 1.0; W(k, box(0.42, 0.26, 1.5), 0x8a5a32, M(x, ty + 0.13, tz), false); W(k, box(0.34, 0.06, 1.42), 0x5a3a22, M(x, ty + 0.27, tz), false);   // [v220] flower troughs on the parapets (the castle path)
-          for (let q = 0; q < 4; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.2, 0), 0.25, q + z), q % 2 ? [0xd8322f, 0xffc93c][(q + s + 2) % 2] : 0x4e8a34, { m: M(x, ty + 0.4, tz - 0.55 + q * 0.37, q), outline: false }); } } }
+          for (let q = 0; q < 4; q++) bloomClump(k, x, ty + 0.4 - 0.12, tz - 0.55 + q * 0.37, Math.round((q + z) * 7 + (x) * 3), 1.18, low); } } }
     // ---- the high rope bridge: towers, plank deck (4.6 m walk + rope rails), stringers, hangers, 2 stone piers
     const bk = new Kit(), cs = Math.cos(HB.yaw), sn = Math.sin(HB.yaw), n = Math.round(HB.L / 0.6), RW = HB.half + 0.25;
     for (let i = 0; i <= n; i++) { const t = i / n, [x, z] = along(t), y = HB.yAt(t);
@@ -462,7 +478,7 @@ export default {
         for (let r = 1.3; r < hh - 0.4; r += 1.3) W(k, box(0.96, 0.1, t.L + 0.1), 0x8a837a, M(t.x + ox, t.top - r, t.z + oz, t.yaw), false);
         const bx = t.x - t.nx * 1.0, bz = t.z - t.nz * 1.0; W(k, box(1.4, 0.3, t.L + 0.05), 0x4e7a2e, M(bx, t.top - 0.05, bz, t.yaw), false);
         if (!low || t.i % 2 === 0) { const r = 0.45 + hash(t.i, 7) * 0.35; k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, t.i), [0x4e8a34, 0x5f9a3a, 0x3f7d2c][t.i % 3], { m: M(bx, t.top + r * 0.5, bz, t.i), outline: false });
-          if (t.i % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.18, 0), 0.2, t.i), [0xd8322f, 0xffc93c, 0xf4efe6][t.i % 3], { m: M(bx + 0.3, t.top + r * 1.1, bz, t.i), outline: false }); }
+          if (t.i % 3 === 0) bloomClump(k, bx + 0.3, t.top + r * 1.1 - 0.108, bz, Math.round((t.i) * 7 + (bx + 0.3) * 3), 1.06, low); }
         if (t.i % 4 === 1) for (let q = 0; q < 3; q++) k.add(jitter(new THREE.IcosahedronGeometry(0.3, 0), 0.3, t.i * 3 + q), 0x3f7d2c, { m: M(t.x + t.nx * 0.7, t.top - 0.3 - q * 0.45, t.z + t.nz * 0.7, t.yaw, 0, 0, [0.5, 1.2, 1.4]), outline: false });
         if (t.i % 6 === 0) { const lx = t.x + t.nx * 0.75, lz = t.z + t.nz * 0.75; W(k, box(0.34, 0.44, 0.34), 0x2b2f36, M(lx, t.top - 0.9, lz, t.yaw)); W(k, box(0.26, 0.34, 0.36), 0xffd27a, M(lx, t.top - 0.9, lz, t.yaw), false); } }
       // tall pennants on the four fort towers + gatehouse: the silhouette reads from the street
@@ -470,7 +486,7 @@ export default {
       // the castle approach: hedge + flower borders down both sides of the fort stair (outside its parapets) and topiary at the foot
       for (let z = -70; z < -47; z += 2.2) for (const s of [-1, 1]) { const x = -434 + s * 3.4, g = H(x, z), r = 0.55 + hash(z, s) * 0.15;
         k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.15, z * s), 0x3f7d2c, { m: M(x, g + r * 0.7, z, 0, 0, 0, [1, 0.85, 1.5]), outline: false });
-        if (Math.round(z) % 3 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, z), [0xd8322f, 0xffc93c][(s + 1) / 2], { m: M(x, g + r * 1.35, z, 0), outline: false }); }
+        if (Math.round(z) % 3 === 0) bloomClump(k, x, g + r * 1.35 - 0.102, z, Math.round((z) * 7 + (x) * 3), 1.00, low); }
       for (const [x, z] of [[-439, -71.5], [-429, -71.5]]) { const g = H(x, z); W(k, cyl(0.55, 0.65, 0.7, 8), 0xb0a99c, M(x, g + 0.35, z)); k.add(new THREE.SphereGeometry(0.85, 10, 8), 0x3f7d2c, { m: M(x, g + 1.5, z), outline: false }); k.add(new THREE.SphereGeometry(0.55, 10, 8), 0x4e8a34, { m: M(x, g + 2.6, z), outline: false }); }
       // the plaza: a paved compass rose in the fountain ring's apron (flush inlay) + four tall twin-lantern standards on the corners
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, L = i % 2 ? 2.2 : 3.6, r0 = RB2.r + 0.6;
@@ -488,7 +504,7 @@ export default {
         for (let d = 6; d < 42; d += 1.3) { const x0 = ex + ux * d, z0 = ez + uz * d; for (let o = -1.7; o <= 1.71; o += 1.15) { const x = x0 + cx * o, z = z0 + cz * o; W(k, box(1.08, 0.08, 1.2), (Math.round(d) + Math.round(o * 2)) % 3 ? 0xc8bda7 : 0xb3a993, M(x, H(x, z) + 0.03, z, a + (hash(d, o) - 0.5) * 0.08), false); }
           for (const s of [-1, 1]) { const x = x0 + cx * s * 2.5, z = z0 + cz * s * 2.5; W(k, box(0.3, 0.2, 1.25), 0x8a837a, M(x, H(x, z) + 0.06, z, a), false);
             if (Math.round(d / 1.3) % 3 === 0) { const sx = x0 + cx * s * 3.4, sz = z0 + cz * s * 3.4, r = 0.5 + hash(d, s) * 0.3; k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, d * s), [0x4e8a34, 0x5f9a3a, 0x3f7d2c][Math.round(d) % 3], { m: M(sx, H(sx, sz) + r * 0.6, sz, d), outline: false });
-              if (Math.round(d) % 4 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.17, 0), 0.2, d), [0xd8322f, 0xffc93c][(s + 1) / 2], { m: M(sx, H(sx, sz) + r * 1.3, sz, d), outline: false }); } }
+              if (Math.round(d) % 4 === 0) bloomClump(k, sx, H(sx, sz) + r * 1.3 - 0.102, sz, Math.round((d) * 7 + (sx) * 3), 1.00, low); } }
           if (Math.round(d / 1.3) % 8 === 4) { const s = Math.round(d / 1.3) % 16 === 4 ? 1 : -1, x = x0 + cx * s * 3.0, z = z0 + cz * s * 3.0, g = H(x, z); W(k, box(0.5, 0.4, 0.5), 0xb0a99c, M(x, g + 0.2, z)); W(k, cyl(0.06, 0.08, 2.6, 5), C.IRON, M(x, g + 1.6, z)); W(k, box(0.4, 0.5, 0.4), 0x2b2f36, M(x, g + 3.05, z)); W(k, box(0.3, 0.38, 0.44), 0xffd27a, M(x, g + 3.05, z), false); } } }
       // the bridge (E): a suspension-rope look: tall timber masts at each end + each pier (both sides), main cables sagging between them and
       // hangers down to the hand rail; a broad paved landing at the plateau end (10 x 7 m) with lantern newels; heavier pier caps + cutwaters
@@ -589,7 +605,7 @@ function buildClimb({ SB, W, k, H, gmin, lampAt, low }) {
     W(k, box(0.5, 0.08, b.z1 - b.z0), 0x5a3a22, M(b.x, b.top + 0.03, (b.z0 + b.z1) / 2), false);
     if (!low || b.i % 2 === 0) for (let q = 0; q < Math.max(1, Math.round((b.z1 - b.z0) / 1.1)); q++) { const z = b.z0 + (q + 0.5) * (b.z1 - b.z0) / Math.max(1, Math.round((b.z1 - b.z0) / 1.1)), r = 0.32 + hash(b.i, q) * 0.25;
       k.add(jitter(new THREE.IcosahedronGeometry(r, 0), 0.25, b.i * 7 + q), [0x4e8a34, 0x5f9a3a, 0x6fae45, 0x4e8a34][(b.i + q) % 4], { m: M(b.x + (hash(q, b.i) - 0.5) * 0.3, b.top + r * 0.7, z, b.i + q), outline: false });
-      if ((b.i + q) % 5 === 0) k.add(jitter(new THREE.IcosahedronGeometry(0.16, 0), 0.2, q), [0xd8322f, 0xffc93c, 0xf4efe6][q % 3], { m: M(b.x, b.top + r * 1.3, z + 0.2, q), outline: false }); } }
+      if ((b.i + q) % 5 === 0) bloomClump(k, b.x, b.top + r * 1.3 - 0.096, z + 0.2, Math.round((q) * 7 + (b.x) * 3), 0.94, low); } }
 }
 // [wish] off until the server says the fountain is open (inv_state flags); ?wish=1 = show the spot anyway (tests)
 function wishHidden() { if (typeof window === 'undefined') return true; if (/[?&]wish=1(&|$)/.test(location.search)) return false; return !(window.PFP_INV_FLAGS && window.PFP_INV_FLAGS.wish_fountain); }

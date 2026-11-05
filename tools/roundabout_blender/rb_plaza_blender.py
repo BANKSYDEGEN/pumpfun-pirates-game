@@ -14,6 +14,9 @@ from lib import Builder
 argv = sys.argv[sys.argv.index('--') + 1:]; OUT = argv[0]; os.makedirs(OUT, exist_ok=True)
 LAY = json.load(open(os.path.join(HERE, '..', '..', 'assets', 'island', 'rb_plaza_layout.json')))
 OX, OY, OZ = LAY['origin']
+# [plaza-bake] the fountain court comes from the layout (v260 hilltop: 35 x 24 m plaza, fountain x1.4 at x -420.5 = 5 m east of the origin)
+CT = LAY.get('court') or {'x': OX, 'z': OZ, 'basinR': 4.2, 'r': 9.5}
+FCX, FCZ, FBR, FRR = CT['x'] - OX, CT['z'] - OZ, CT['basinR'], CT['r']
 bpy.ops.wm.read_factory_settings(use_empty=True)
 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))   # three (x, y, z) -> Blender (x, -z, y)
 TRIM, ASH, DARK, COB = 0xd2c9b6, 0xb9b2a6, 0x8a837a, 0x9f9585
@@ -49,13 +52,16 @@ def build(b, hi):
                         c = tone(0xc8bda7, (hsh(i, side + band * 4) - 0.5) * 0.12)
                         if side < 2: b.bx(span / nfl - 0.05, 0.05, 0.5, m @ T3(u, h / 2 + 0.02, (d / 2 - inset) * (1 if side else -1)), c, 'stone_trim')
                         else: b.bx(0.5, 0.05, span / nfl - 0.05, m @ T3((w / 2 - inset) * (1 if side == 3 else -1), h / 2 + 0.02, u), c, 'stone_trim')
-            for ring, (r0, r1, nseg) in enumerate(((4.75, 6.3, 40), (6.3, 8.0, 56), (8.0, 9.4, 64))):
+            ra, rb = FBR + 0.55, FRR - 0.1; q = (rb - ra) / 3   # three radial-flag bands from the basin out to the ring edge
+            for ring in range(3):
+                r0, r1 = ra + ring * q, ra + (ring + 1) * q; r = (r0 + r1) / 2; nseg = int(2 * math.pi * r / 1.05)
                 for i in range(nseg):
-                    a = (i + 0.5 * (ring % 2)) / nseg * 2 * math.pi; r = (r0 + r1) / 2; ww = 2 * math.pi * r / nseg - 0.05
+                    a = (i + 0.5 * (ring % 2)) / nseg * 2 * math.pi; ww = 2 * math.pi * r / nseg - 0.05
                     c = tone(0xd2c9b6 if ring != 1 else 0xc0b59f, (hsh(i, ring + 9) - 0.5) * 0.12)
-                    b.bx(ww, 0.05, r1 - r0 - 0.06, T3(math.sin(a) * r, 0.045, math.cos(a) * r) @ Matrix.Rotation(a, 4, 'Y'), c, 'stone_trim')
-            for i in range(72):   # a dark kerb ring framing the fountain court
-                a = (i + 0.5) / 72 * 2 * math.pi; b.bx(0.86, 0.12, 0.34, T3(math.sin(a) * 9.6, 0.06, math.cos(a) * 9.6) @ Matrix.Rotation(a, 4, 'Y'), DARK, 'stone_ashlar')
+                    b.bx(ww, 0.05, r1 - r0 - 0.06, T3(FCX + math.sin(a) * r, 0.045, FCZ + math.cos(a) * r) @ Matrix.Rotation(a, 4, 'Y'), c, 'stone_trim')
+            nk = int(2 * math.pi * (FRR + 0.2) / 0.84)
+            for i in range(nk):   # a dark kerb ring framing the fountain court (= the kit's r + 0.2 kerb)
+                a = (i + 0.5) / nk * 2 * math.pi; b.bx(0.86, 0.14, 0.42, T3(FCX + math.sin(a) * (FRR + 0.2), 0.07, FCZ + math.cos(a) * (FRR + 0.2)) @ Matrix.Rotation(a, 4, 'Y'), DARK, 'stone_ashlar')
             continue
         b.bx(w, h, d, m, p['c'], lib)
         if not hi: continue
