@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v280'; // [v280] COLISEUM (Timothy ee5a86d): intact colosseum shell + gates + arenas inside, Sword Pit / musket range in the coli (&coliseum=0 = old); prev: [v279] minimap icons, gold HUD, male tattoo
+const VERSION = 'pfp-v281'; // [v281] musket support arm on the musket (Post 38b9af8, &musketarm=0 = old); prev: [v280] coliseum
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
