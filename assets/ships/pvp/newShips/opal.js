@@ -7,7 +7,7 @@ import { THREE, Parts, partsMat, addParts, glows, dressShip, frame, cached, dimL
 import { liftRig, signatureWake } from '../pvpKit.js';
 
 export const OPAL = {
-  id: 'opal', name: 'OPAL EMPEROR', price: 0, premium: 'pvp', crewOutfit: 'diamond',
+  id: 'opal', name: 'OPAL EMPEROR', price: 0, premium: 'pvp', crewOutfit: 'opal', // [Emerly prestige outfits] own crew palette (js/crew.js OUTFIT.opal; was 'diamond')
   blurb: 'Living opal. Every facet burns with shifting rainbow fire. A crowned emperor of the sea.',
   palette: { seed: 211, wood: 0xe8e4f4, artBody: 0xd8d2ee, band: 0xf4f0ff, stripe: 0xffd98a, band2: 0xc8bfe8, tar: 0x8a84b0, trim: 0xffe2a0, artTrim: 0xffd27a, sail: 0xf2eeff, patch: [0xe6e0ff, 0xfff4fb], hem: 0xd8cff8, lantern: 0xfff2ff, window: 0xfff0ff, stripes: 0xe0d8ff },
   sail: { bg: '#ece8ff', badge: '#7a6ab8', lines: 'rgba(180,160,255,0.12)', border: '#ffd27a' },

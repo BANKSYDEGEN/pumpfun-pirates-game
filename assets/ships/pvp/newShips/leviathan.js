@@ -7,7 +7,7 @@ import { THREE, Parts, partsMat, addParts, glows, dressShip, frame, cached, dimL
 import { liftRig, signatureWake } from '../pvpKit.js';
 
 export const LEVIATHAN = {
-  id: 'leviathan', name: 'LEVIATHAN', price: 0, premium: 'pvp', crewOutfit: 'kraken',
+  id: 'leviathan', name: 'LEVIATHAN', price: 0, premium: 'pvp', crewOutfit: 'leviathan', // [Emerly prestige outfits] own crew palette (js/crew.js OUTFIT.leviathan; was 'kraken')
   blurb: 'A living sea monster. Scaled hide, glowing spots, fangs and tentacles that never stop moving.',
   palette: { seed: 233, wood: 0x2a4a44, artBody: 0x0f2a28, band: 0x0a1c1a, stripe: 0x3fe0c0, band2: 0x1a3a36, tar: 0x061210, trim: 0x8ac8b0, artTrim: 0x6aa898, sail: 0x1f8a7c, patch: [0x1a7a6c, 0x26a090], hem: 0x0f4a42, lantern: 0x7affe0, window: 0x6affd8, stripes: 0x2ab8a0, artWindow: 0x5affd8 },
   sail: { bg: '#1f8a7c', badge: '#062420', lines: 'rgba(120,255,220,0.12)', border: '#5affd8' },

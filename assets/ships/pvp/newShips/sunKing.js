@@ -8,7 +8,7 @@ import { THREE, Parts, partsMat, addParts, glows, dressShip, frame, cached, dimL
 import { liftRig, signatureWake } from '../pvpKit.js';
 
 export const SUNKING = {
-  id: 'sunking', name: 'SUN KING', price: 0, premium: 'pvp', crewOutfit: 'golden',
+  id: 'sunking', name: 'SUN KING', price: 0, premium: 'pvp', crewOutfit: 'sunking', // [Emerly prestige outfits] own crew palette (js/crew.js OUTFIT.sunking; was 'golden')
   blurb: 'The royal flagship of the sun. Molten gold, blazing sails and a radiant sun crown that outshines every ship afloat.',
   palette: { seed: 277, wood: 0xf2e8d0, artBody: 0xe8dcc0, band: 0xffc23a, stripe: 0xffe08a, band2: 0xd89a20, tar: 0x5a3a10, trim: 0xffcd5a, artTrim: 0xffc23a, sail: 0xfaf2de, patch: [0xf2e8cc, 0xfff8ea], hem: 0xe8b84a, lantern: 0xffe080, window: 0xffd060, stripes: 0xf0e0b8, artWindow: 0xffc850 },
   sail: { bg: '#f8efd8', badge: '#e0a020', lines: 'rgba(200,150,40,0.10)', border: '#e8b84a' },

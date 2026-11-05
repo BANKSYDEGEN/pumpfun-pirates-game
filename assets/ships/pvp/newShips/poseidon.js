@@ -8,7 +8,7 @@ import { THREE, Parts, partsMat, addParts, glows, dressShip, frame, cached, dimL
 import { liftRig, signatureWake } from '../pvpKit.js';
 
 export const POSEIDON = {
-  id: 'poseidon', name: "POSEIDON'S THRONE", price: 0, premium: 'pvp', crewOutfit: 'seagreen',
+  id: 'poseidon', name: "POSEIDON'S THRONE", price: 0, premium: 'pvp', crewOutfit: 'poseidon', // [Emerly prestige outfits] own crew palette (js/crew.js OUTFIT.poseidon; was 'seagreen')
   blurb: "The sea god's throne. A hull of living water, a lightning trident and the ocean itself swirling round it.",
   palette: { seed: 301, wood: 0x1a5a9a, artBody: 0x0f3a6a, band: 0x0a2a4a, stripe: 0xffcd5a, band2: 0x1a6aa8, tar: 0x06182a, trim: 0xffcd5a, artTrim: 0xffc23a, sail: 0x5ad0f0, patch: [0x4ac0e8, 0x7ae0ff], hem: 0xbff4ff, lantern: 0xbff8ff, window: 0x9ff0ff, stripes: 0x8ae8ff, artWindow: 0x9ff0ff },
   sail: { bg: '#5ad0f0', badge: '#0a3a5a', lines: 'rgba(220,255,255,0.12)', border: '#ffd27a' },

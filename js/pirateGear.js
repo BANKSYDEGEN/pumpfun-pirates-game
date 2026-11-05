@@ -89,6 +89,9 @@ const SKIN_CLOTH = {
   golden: ['#ffc94a', '#ffe6a8', '#fff1b8'], seagreen: ['#2ec4a0', '#9ff0d8', '#5cf2c4'], kraken: ['#5a2a8a', '#3fb59a', '#3fb59a'],
   storm: ['#5a6470', '#e8eef5', '#8fd4ff'], coral: ['#ff7a5c', '#ffc2a8', '#ffd2a0'], admiral: ['#14234f', '#ffffff', '#ffcd77'],
   flaming: ['#ff5a14', '#ffb03a', '#ffd23a'], diamond: ['#bfe8ff', '#eefaff', '#ffffff'], commodore: ['#14234f', '#efe6cf', '#ffcd77'],
+  // [Emerly prestige outfits] BANKSY 11:12 PM "Also do outfit colors for the new ships": picked from each hull's palette (assets/ships/pvp/newShips/*.js)
+  opal: ['#c8bfe8', '#f2eeff', '#ffd27a'], leviathan: ['#1f8a7c', '#b8fff0', '#3fe0c0'], celestial: ['#3a2a8a', '#e8eeff', '#ffcd77'],
+  sunking: ['#faf2de', '#fff8ea', '#ffc23a'], poseidon: ['#1a6aa8', '#bff4ff', '#ffc23a'],
 };
 export const knownGearSkin = (id) => id === 'classic' || !!SKIN_CLOTH[id];
 // colors: { skin } (ship skin id) and / or explicit { cloth, trim } overrides

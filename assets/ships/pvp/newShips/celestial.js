@@ -8,7 +8,7 @@ import { THREE, Parts, partsMat, addParts, glows, dressShip, frame, cached, dimL
 import { liftRig, signatureWake } from '../pvpKit.js';
 
 export const CELESTIAL = {
-  id: 'celestial', name: 'CELESTIAL GALLEON', price: 0, premium: 'pvp', crewOutfit: 'admiral',
+  id: 'celestial', name: 'CELESTIAL GALLEON', price: 0, premium: 'pvp', crewOutfit: 'celestial', // [Emerly prestige outfits] own crew palette (js/crew.js OUTFIT.celestial; was 'admiral')
   blurb: 'Sails woven from the night sky. Nebulae drift through the hull, constellations shine and planets orbit the masts.',
   palette: { seed: 257, wood: 0x2a2a6a, artBody: 0x10123a, band: 0x0a0c2a, stripe: 0xffcd77, band2: 0x2a1a5a, tar: 0x05061a, trim: 0xffcd77, artTrim: 0xffcd77, sail: 0x3a2a8a, patch: [0x2a2a7a, 0x5a3aa0], hem: 0xffcd77, lantern: 0xffe8b0, window: 0xffe0a0, stripes: 0x4a3a9a },
   sail: { bg: '#2e2478', badge: '#0a0a2a', lines: 'rgba(255,220,150,0.10)', border: '#ffcd77' },

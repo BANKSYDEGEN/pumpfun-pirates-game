@@ -359,6 +359,12 @@ const OUTFIT = {
   admiral:   { coat: [0x14234f, 0xf4f4f4, 0xffffff], hat: [0x14234f, 0xf4f4f4], pants: 0xf2f2f2, accent: 0xffcd77 },
   flaming:   { coat: [0xff5a14, 0x2a0a04, 0xffb03a], hat: [0xd8360a, 0x1a0804], pants: 0x3a1206, accent: 0xffd23a },
   diamond:   { coat: [0xbfe8ff, 0x6ab8e0, 0xeefaff], hat: [0x8fd0f2, 0x4a7a9a], pants: 0x3a5a7a, accent: 0xffffff },
+  // [Emerly prestige outfits] the five prestige hulls (P3..P7), colours from their own materials (assets/ships/pvp/newShips/*.js)
+  opal:      { coat: [0xd8d2ee, 0x6a6490, 0xf4f0ff], hat: [0x9a6ad8, 0x3a2a6a], pants: 0x6a6490, accent: 0xffd27a },
+  leviathan: { coat: [0x1f8a7c, 0x0f2a28, 0x8ac8b0], hat: [0x0f4a42, 0x0a1c1a], pants: 0x0f2a28, accent: 0x6affd8 },
+  celestial: { coat: [0x3a2a8a, 0x10123a, 0xe8eeff], hat: [0x2a2a6a, 0x0a0c2a], pants: 0x10123a, accent: 0xffcd77 },
+  sunking:   { coat: [0xfaf2de, 0xd89a20, 0xfff8ea], hat: [0xffc23a, 0x8a4a08], pants: 0x8a6a2a, accent: 0xffa010 },
+  poseidon:  { coat: [0x1a6aa8, 0x0a2a4a, 0xbff4ff], hat: [0x0f3a6a, 0x06182a], pants: 0x0a2a4a, accent: 0xffc23a },
 };
 // [v87] HATS per skin: [crown, brim, band] for the black-hat and brown-hat variants + the skull badge colour.
 // (The crew shader now ends with <colorspace_fragment>: without it, phones / Low / Medium (no post-processing OutputPass)
@@ -379,6 +385,11 @@ const HATS = {
   admiral:   { a: [0x22387e, 0x182a62, 0xffcc33], b: [0x1a2c66, 0x122050, 0xffd700], skull: 0xffffff },
   flaming:   { a: [0xff6a1a, 0xffb020, 0x8a1a04], b: [0xff4410, 0xff8c14, 0xffd23a], skull: 0xfff2c0 },
   diamond:   { a: [0xdaf6ff, 0xaee4ff, 0x4aa8e0], b: [0xa2dcfa, 0x82c8f0, 0xffffff], skull: 0x2a5a7a },
+  opal:      { a: [0xe6e0ff, 0xc8bfe8, 0xffd27a], b: [0x9a6ad8, 0x7a4ab8, 0x8ae6ff], skull: 0x3a2a6a },
+  leviathan: { a: [0x1f6a60, 0x0f4a42, 0x3fe0c0], b: [0x0f2a28, 0x0a1c1a, 0x6aa898], skull: 0x9affe8 },
+  celestial: { a: [0x4a3a9a, 0x34347a, 0xffcd77], b: [0x1a1a5a, 0x10123a, 0xffe8b0], skull: 0xfff0b0 },
+  sunking:   { a: [0xfff2c0, 0xe8dcc0, 0xffc23a], b: [0xffc23a, 0xd89a20, 0xfff2c0], skull: 0x8a4a08 },
+  poseidon:  { a: [0x2a6aa8, 0x1a5a9a, 0xffc23a], b: [0x0f3a6a, 0x0a2a4a, 0x30c8ff], skull: 0xffffff },
 };
 const _key = (r, g, b) => `${Math.round(r * 4095)},${Math.round(g * 4095)},${Math.round(b * 4095)}`;
 const _maps = new Map();
