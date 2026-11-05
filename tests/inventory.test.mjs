@@ -51,7 +51,7 @@ test('SQL rules (PGlite): sells, clamp, gifts, market escrow / double buy / canc
 });
 test("plaza_shops.json contract: Timothy's file parses, radius read, fallback = his anchors", async () => {
   const S = await import('../js/inventory/shopSpots.js'), f = '/workspace/timothy-plazashops/assets/island/plaza_shops.json';
-  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-604.5, -8.0, 3.5]); // [v247] FISH MARKET #10 (walk-in, sell inside)   // [v240] #8
+  const fb = S.shopSpots(null); assert.deepEqual([fb.fish.trigger.x, fb.fish.trigger.z, fb.market.trigger.radius], [-604.5, -16.8, 3.5]); // [v248] centred in the wider shop   // [v247] FISH MARKET #10 (walk-in, sell inside)   // [v240] #8
   if (existsSync(f)) { const j = S.shopSpots(JSON.parse(readFileSync(f, 'utf8'))); const raw = JSON.parse(readFileSync(f, 'utf8')); for (const id of S.SHOP_IDS) { assert.ok(j[id].fromFile, id); assert.ok(Number.isFinite(j[id].trigger.x) && j[id].trigger.radius > 0, id); } }
   const moved = S.shopSpots({ fish: { trigger_fish: { x: -300, y: 5, z: 40, radius: 2.5 } } }); assert.deepEqual([moved.fish.trigger.x, moved.fish.trigger.radius, moved.fish.fromFile], [-300, 2.5, true]); // JSON wins over the fallback
   const p = S.shopSpots({ fish: { trigger_fish: { x: 1, y: 2, z: 3 } } }); assert.equal(p.fish.trigger.radius, 3); assert.ok(!p.antiques.fromFile);
