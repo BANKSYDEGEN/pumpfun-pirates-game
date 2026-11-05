@@ -1,21 +1,20 @@
-# [v277 shoulders + underwear] BANKSY 12:40-12:43 PM "Fix the shoulders on both" / "Also fix the girls underwear" / "Fix guy underwear too" /
-# "Also work on the pumpfun pill tattoo on shoulder". Post pass on a SPLICED V6 GLB (splice_v5heads.py output, side-by-side atlas:
-# V6 body = left half, V5 head = right half): blender -b -noaudio -P garments.py -- IN.glb OUT.glb
-# 1) the white underwear re-cut along clean analytic hems (per-vertex signed field; edges split at the exact zero crossing, so the
-#    hems are straight lines, not painted triangle shards): his shorts, her shorts + bandeau top. Tint -1 (fixed white) / 0 (skin).
-# 2) V6 albedo: underwear texels flat white (+ a thin waistband line), skin texels off the skin colour (teal tattoo blotch, white /
-#    dark specks left by the old paint) back to flat skin; uncovered texels next to the islands dilated (no mip bleed).
-# 3) V5 hair below the head (her hair over the shoulders + braid, his nape / beard) pushed OUT of the V6 body to a small gap
-#    (no dark tips poking through the shoulders, no skin poking through the hair); hair buried deep inside the body dropped.
-# 4) male: a clean Pump.fun pill tattoo decal ('v5_tattoo', material 'skull.tattoo' = the V5 alpha-decal path in js/pirateGLB.js)
-#    on his right upper arm (the V5 / sheet spot), conformed to the V6 arm, weights from the body.
-# V5 head mesh / face / eyes / textures (right atlas half) untouched; rig, clips, extras, limbs untouched.
+# [v277 polish2 female] BANKSY 1:28-1:31 PM fine-tune (Raul lane = female only): braid/back gaps, crotch flaps,
+# collar/shoulders, chest/skin albedo, underwear hems, soft eye-decal cleanup. Male GLBs untouched (Emerly). Shoes = Timothy.
+# [v277 shoulders + underwear] BANKSY 12:40-12:43 PM. Post pass on SPLICED V6 GLB:
+# blender -b -noaudio -P garments.py -- IN.glb OUT.glb
+# Female polish2 extras (FEM only):
+#  - V5 hair thickened + gap-closed on the back/braid so white shorts don't peek through strand gaps
+#  - collar/shoulder V6 skin laplacian + shard drop; bandeau + shorts hem flaps ironed (crotch + top)
+#  - V6 atlas chest/skin blotches flattened; cloth flat white; soft cleanup on v5_face_eyes alpha edge
+# Male tattoo / male neck code = unchanged from live v276 garments.
+# V5 head mesh / face / hair topology kept; rig, clips, extras, limbs untouched.
 import bpy, bmesh, sys, os, numpy as np
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); sys.path.insert(0, '/workspace/raul_items_redo_work/py311')
 import paint
+from scipy import ndimage
 IN, OUT = sys.argv[sys.argv.index('--') + 1:][:2]
 E_ = lambda k, d: type(d)(os.environ.get(k, d))
 FEM = 'female' in os.path.basename(IN); LO = '_lo' in os.path.basename(IN)
@@ -83,11 +82,16 @@ bmesh.ops.delete(bv, geom=[f for f in bv.faces if not all(v[_l6] > 0.5 and round
 bvh = BVHTree.FromBMesh(bv); bv.free()
 GAP = E_('GAP', 0.004 if LO else 0.003); DEEP = E_('DEEP', 0.03); ZH = ZHEAD + E_('HAIRZ', 0.0)
 npush = 0; deep = set()
-_gb = body.vertex_groups.get('braid'); BW = {}
+_gb = body.vertex_groups.get('braid'); _gi_braid = _gb.index if _gb is not None else None
+BW = {}
 if _gb is not None:
   for vv in me.vertices:
     for g in vv.groups:
       if g.group == _gb.index: BW[vv.index] = g.weight
+def braid_w(v):
+  if _gi_braid is None or dl is None: return 0.0
+  try: return float(v[dl].get(_gi_braid, 0.0))
+  except Exception: return BW.get(v.index, 0.0)
 for v in bm.verts:
   if v[l6] > 0.5 or round(v[lt]) != 1 or v.co.z > ZH: continue
   loc, n, i, d = bvh.find_nearest(v.co, 0.08)
@@ -99,7 +103,7 @@ for v in bm.verts:
   if s < -DEEP: deep.add(v); continue
   # his V5 hair hidden by V5's own (bigger) shoulders / nape: off the beard (centre front) it is dropped, not pushed out on show
   # her V5 back-hair tips that V5's red top hid (lying on her lower back / shorts): dropped; the braid (braid bone) + free hair stay
-  if FEM and v.co.z < E_('FHIDEZ', 0.72) and v.co.y > E_('FHIDEY', -0.02) and BW.get(v.index, 0) < 0.5 and s < E_('FHIDE', 0.012): deep.add(v); continue
+  if FEM and v.co.z < E_('FHIDEZ', 0.62) and v.co.y > E_('FHIDEY', 0.04) and braid_w(v) < 0.35 and s < E_('FHIDE', 0.006): deep.add(v); continue  # polish2: keep more covering back-hair
   if not FEM and v.co.z < ZHEAD - E_('NAPEZ', 0.035) and (abs(v.co.x) > E_('BEARDX', 0.10) or v.co.y > 0) and s < E_('MHIDE', 0.012): deep.add(v); continue
   if s < GAP: v.co = loc + n * GAP + (v.co - loc - n * s) * 0.0; npush += 1
 dead = [f for f in bm.faces if all(v in deep for v in f.verts)]
@@ -125,10 +129,93 @@ if not FEM:
 bmesh.ops.delete(bm, geom=dead, context='FACES'); bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
 print('hair pushed out', npush, 'deep faces dropped', len(dead), flush=True)
 
+# ---- polish2 FEM: safer hair gap-close (body-normal only — hair-face normals shred thin strands)
+if FEM and E_('HAIRTHK', 1):
+  bm.verts.ensure_lookup_table(); bm.faces.ensure_lookup_table()
+  HVS = [v for v in bm.verts if v[l6] < 0.5 and round(v[lt]) == 1 and v.co.z < ZH]
+  from mathutils.kdtree import KDTree as _KD
+  kd = _KD(len(HVS))
+  for i, v in enumerate(HVS): kd.insert(v.co, i)
+  kd.balance()
+  GAP2 = E_('HAIRGAP', 0.0075 if not LO else 0.009); nth = 0; nlat = 0
+  # 1) sit hair a clean gap outside the V6 body (body normal only)
+  for v in HVS:
+    loc, hn, i, d = bvh.find_nearest(v.co, 0.12)
+    if loc is None or hn is None or hn.length < 1e-8: continue
+    hn = hn.normalized()
+    if hn.dot(v.co - loc) < 0: hn = -hn
+    s = (v.co - loc).dot(hn)
+    # braid core: smaller gap so braid stays tight; free strands: larger gap to hide underwear
+    bw = braid_w(v); g = GAP2 * (0.70 + 0.55 * (1.0 - min(1.0, bw)))
+    if s < g:
+      tang = v.co - loc - hn * s
+      v.co = loc + hn * g + tang; nth += 1
+  # 2) lateral gap-close (2 passes): pull sparse neighbouring hair strands together (closes white peek)
+  for _pass in range(E_('LATPASS', 1 if LO else 2)):
+    kd2 = _KD(len(HVS))
+    for i, v in enumerate(HVS): kd2.insert(v.co, i)
+    kd2.balance()
+    for v in HVS:
+      if braid_w(v) > E_('BRAIDKEEP', 0.75): continue  # keep braid braid-shaped
+      near = [(co, idx, dist) for (co, idx, dist) in kd2.find_n(v.co, 7) if dist > 1e-6]
+      if len(near) < 2: continue
+      dists = [dist for _,_,dist in near]
+      if sorted(dists)[min(2, len(dists)-1)] > E_('LATR', 0.011):
+        mean = sum((Vector(co) for co,_,_ in near[:4]), Vector((0,0,0))) / min(4, len(near))
+        v.co = v.co.lerp(mean, E_('LATA', 0.28 if LO else 0.42)); nlat += 1
+  # 3) very mild laplacian on free strands only (messy tips) — 2 iters
+  HIT_H = E_('HAIRSIT', 2)
+  hv = [v for v in HVS if braid_w(v) < E_('BRAIDKEEP', 0.70)]
+  for it in range(HIT_H):
+    M = {}
+    for v in hv:
+      nbr = [e.other_vert(v) for e in v.link_edges if round(e.other_vert(v)[lt]) == 1]
+      if nbr: M[v] = sum((u.co for u in nbr), Vector((0, 0, 0))) / len(nbr)
+    for v, m in M.items(): v.co = v.co.lerp(m, E_('HAIRSMA', 0.22))
+  # 2b) front-braid fill: free hair hanging over the chest/shoulder (y front = -Y) pulled toward braid core
+  braid_pts = [v.co.copy() for v in HVS if braid_w(v) >= 0.5]
+  nfront = 0
+  if braid_pts:
+    kd_b = _KD(len(braid_pts))
+    for i, co in enumerate(braid_pts): kd_b.insert(co, i)
+    kd_b.balance()
+    for v in HVS:
+      if braid_w(v) >= 0.45: continue
+      if v.co.y > E_('FRONTY', 0.02): continue  # back hair already handled
+      if v.co.z > E_('FRONTZ', 0.92): continue
+      co, idx, dist = kd_b.find(v.co)
+      if dist < E_('FRONTD', 0.055) and dist > 1e-6:
+        v.co = v.co.lerp(Vector(co), E_('FRONTA', 0.12 if LO else 0.22)); nfront += 1
+  print('hair body-gap', nth, 'lateral-close', nlat, 'front-braid', nfront, 'smooth iters', HIT_H, flush=True)
+
+if FEM and E_('COLLARSM', 1):
+  # V6 skin collar / shoulders: Taubin-ish smooth (no shrink spikes); skip verts that neighbour hair
+  bm.verts.ensure_lookup_table()
+  z0 = ZHEAD - E_('COLZ0', 0.12); z1 = ZHEAD + E_('COLZ1', 0.01)
+  cv = []
+  for v in bm.verts:
+    if not (v[l6] > 0.5 and round(v[lt]) == 0 and z0 <= v.co.z <= z1): continue
+    if any(round(e.other_vert(v)[lt]) == 1 for e in v.link_edges): continue  # keep skin/hair boundary crisp
+    cv.append(v)
+  for it in range(E_('COLIT', 6 if not LO else 8)):
+    M = {}
+    for v in cv:
+      nbr = [e.other_vert(v) for e in v.link_edges if e.other_vert(v)[l6] > 0.5 and round(e.other_vert(v)[lt]) == 0]
+      if len(nbr) >= 3: M[v] = sum((u.co for u in nbr), Vector((0, 0, 0))) / len(nbr)
+    # Taubin: inflate then deflate
+    a_inf, a_def = E_('COLA', 0.33), E_('COLA', 0.33) + 0.02
+    for v, m in M.items(): v.co = v.co + (m - v.co) * a_inf
+    M = {}
+    for v in cv:
+      nbr = [e.other_vert(v) for e in v.link_edges if e.other_vert(v)[l6] > 0.5 and round(e.other_vert(v)[lt]) == 0]
+      if len(nbr) >= 3: M[v] = sum((u.co for u in nbr), Vector((0, 0, 0))) / len(nbr)
+    for v, m in M.items(): v.co = v.co + (m - v.co) * (-a_def)
+  print('female collar smoothed verts', len(cv), flush=True)
+
 # ---- 1) underwear re-cut (V6 non-hair faces only)
 bm.verts.ensure_lookup_table(); bm.edges.ensure_lookup_table()
 # frayed V6 hem flaps (thin spikes of the old shorts / top hem) in a band round the new hems: welded Laplacian smoothing
-HB = E_('HEMBAND', 0.022); HIT = E_('HEMIT', 8)
+HB = E_('HEMBAND', 0.028 if FEM else 0.022); HIT = E_('HEMIT', 12 if FEM else 8)
 if HB > 0 and HIT > 0:
   vs6 = [v for v in bm.verts if v[l6] > 0.5 and round(v[lt]) != 1]
   key = {}; wid = {}
@@ -145,7 +232,7 @@ if HB > 0 and HIT > 0:
     Q = np.where(band[:, None], 0.5 * Q + 0.5 * M, Q)
   # de-spike the torso / hips (thin frayed flaps sticking out of the hems, crotch, shoulder tops): a vertex far from its
   # neighbours' mean goes to it (iterated); smooth surface is untouched
-  SPK = E_('SPIKE', 0.008 if LO else 0.0045)
+  SPK = E_('SPIKE', (0.006 if LO else 0.0035) if FEM else (0.008 if LO else 0.0045))
   reg = (Q[:, 2] > E_('SPKZ0', 0.30)) & (Q[:, 2] < ZHEAD - 0.01) & (np.abs(Q[:, 0]) < E_('SPKX', 0.24))
   nsp = np.zeros(nw, bool)
   for it in range(E_('SPKIT', 12)):
@@ -155,6 +242,25 @@ if HB > 0 and HIT > 0:
   for v in vs6:
     if band[wid[v]] or nsp[wid[v]]: v.co = Vector(Q[wid[v]])
   print('hem band smoothed verts', int(band.sum()), 'spike verts', int(nsp.sum()), flush=True)
+  # polish2 FEM: crotch gusset + bandeau hem flaps — aggressive iron
+  if FEM and E_('CROTCHFIX', 1):
+    cw = SH.get('cw', 0.075); zl0 = SH['lo']
+    band2 = np.zeros(nw, bool)
+    for v in vs6:
+      x, y, z = v.co; f = abs(field(v.co, v[lw]))
+      crotch = abs(x) < cw * E_('CROTCHX', 1.7) and z < zl0 + E_('CROTCHZ', 0.06) and z > zl0 - E_('CROTCHZLO', 0.09) and f < E_('CROTCHB', 0.04)
+      tophem = TOP and (abs(z - TOP['lo']) < 0.028 or abs(z - TOP['hi']) < 0.028) and abs(x) < TOP['x'] + 0.02 and f < 0.03
+      if crotch or tophem: band2[wid[v]] = True
+    SPK2 = E_('SPIKE2', 0.0028 if LO else 0.0022)
+    nsp2 = np.zeros(nw, bool); Q2 = Q.copy()
+    for it in range(E_('SPKIT2', 22)):
+      M = np.zeros_like(Q2); np.add.at(M, E[:, 0], Q2[E[:, 1]]); np.add.at(M, E[:, 1], Q2[E[:, 0]]); M /= np.maximum(cnt, 1)[:, None]
+      sp = band2 & (np.linalg.norm(Q2 - M, axis=1) > SPK2) & (cnt > 0); nsp2 |= sp
+      Q2 = np.where(sp[:, None], M, Q2)
+      Q2 = np.where(band2[:, None], 0.50 * Q2 + 0.50 * M, Q2)
+    for v in vs6:
+      if band2[wid[v]]: v.co = Vector(Q2[wid[v]])
+    print('fem hem-flap band verts', int(band2.sum()), 'spikes', int(nsp2.sum()), flush=True)
   # tiny loose V6 shards (1..20-face islands: the jagged bits on her shoulder tops) -> dropped
   par = list(range(nw))
   def fd(a):
@@ -212,7 +318,7 @@ _vf = {}
 for f in bm.faces:
   if f[fl] in (-1, 0):
     for v in f.verts: _vf.setdefault(_w[v], []).append(f)
-NIS = E_('CLSISL', 6 if LO else 14); seen = set(); nfl = 0
+NIS = E_('CLSISL', 10 if LO else (28 if FEM else 14)); seen = set(); nfl = 0  # polish2 fem: flip tiny white flap islands
 for f0 in bm.faces:
   if f0[fl] not in (-1, 0) or f0 in seen: continue
   k = f0[fl]; comp = [f0]; seen.add(f0); st = [f0]
@@ -230,9 +336,45 @@ bmesh.ops.split_edges(bm, edges=edges)
 for f in bm.faces:
   if f[fl] in (-1, 0):
     for v in f.verts: v[lt] = float(f[fl])
+# polish2 FEM safety: no cloth class below the shorts (stray foot/leg verts → skin; kills origin-ish spikes)
+if FEM:
+  zmin_c = SH['lo'] - E_('CLOTHZMIN', 0.08)
+  nfix = 0
+  for f in bm.faces:
+    if f[fl] != -1: continue
+    if min(v.co.z for v in f.verts) < zmin_c:
+      f[fl] = 0; nfix += 1
+      for v in f.verts: v[lt] = 0.0
+  # also any lone cloth vert below the band
+  for v in bm.verts:
+    if round(v[lt]) == -1 and v.co.z < zmin_c:
+      v[lt] = 0.0; nfix += 1
+  print('low cloth reclassed', nfix, 'zmin', round(zmin_c, 3), flush=True)
 bm.verts.index_update(); bm.faces.index_update()
+# polish2: kill origin-spike verts / zero-area faces (stretch into black shards in-game)
+bad_v = [v for v in bm.verts if (not v.link_faces) or (Vector(v.co).length < 1e-5)]
+if bad_v:
+  bmesh.ops.delete(bm, geom=bad_v, context='VERTS'); print('origin/loose verts dropped', len(bad_v), flush=True)
+bad_f = [f for f in bm.faces if f.calc_area() < 1e-10]
+if bad_f:
+  bmesh.ops.delete(bm, geom=bad_f, context='FACES'); print('zero-area faces dropped', len(bad_f), flush=True)
+bm.verts.index_update(); bm.faces.index_update(); bm.faces.ensure_lookup_table()
 FCL = np.array([f[fl] for f in bm.faces]); bm.faces.layers.int.remove(fl)
 bm.to_mesh(me); bm.free(); me.update()
+# safety: any remaining origin verts on the mesh (shouldn't) → snap to nearest same-tint neighbour
+Psafe = np.zeros(len(me.vertices) * 3); me.vertices.foreach_get('co', Psafe); Psafe = Psafe.reshape(-1, 3)
+Tsafe = np.zeros(len(me.vertices)); me.attributes['_TINT'].data.foreach_get('value', Tsafe); Tsafe = np.round(Tsafe).astype(int)
+orig = np.linalg.norm(Psafe, axis=1) < 1e-5
+if orig.any():
+  from scipy.spatial import cKDTree
+  for k in (-1, 0, 1):
+    good = (~orig) & (Tsafe == k)
+    bad = orig & (Tsafe == k)
+    if bad.any() and good.any():
+      kd = cKDTree(Psafe[good]); _, nn = kd.query(Psafe[bad], k=1)
+      Psafe[bad] = Psafe[good][nn]
+  me.vertices.foreach_set('co', Psafe.ravel()); me.update()
+  print('mesh origin verts snapped', int(orig.sum()), flush=True)
 print('classes', dict(zip(*np.unique(FCL, return_counts=True))), flush=True)
 
 # ---- tints + colours + normals
@@ -266,11 +408,18 @@ if SH:   # waistband line
   zb = SH['hi'] - E_('BANDZ', 0.016); band = cl & (np.abs(P3[..., 2] - zb) < E_('BANDW', 0.0016 if not LO else 0.0024))
   A[..., :3][band] = CLOTH * E_('BANDK', 0.84)
 d = np.linalg.norm(A[..., :3] - SKIN, axis=2)
-fix = sk & ((K0 != 0) | ((d > E_('SKOUT', 0.16)) & (P3[..., 2] > 0.09)))
+fix = sk & ((K0 != 0) | ((d > E_('SKOUT', 0.12 if FEM else 0.16)) & (P3[..., 2] > 0.09)))
 A[..., :3][fix] = SKIN
+# polish2 FEM: flatten chest / midriff / shoulder skin blotches (teal, dark spikes) to median skin
+if FEM:
+  chest = sk & (P3[..., 2] > E_('CHZ0', 0.55)) & (P3[..., 2] < E_('CHZ1', 0.86)) & (np.abs(P3[..., 0]) < E_('CHX', 0.22))
+  blot = chest & (d > E_('CHOUT', 0.06))
+  A[..., :3][blot] = SKIN; fix = fix | blot
+  # cloth crumbs on skin next to bandeau / shorts
+  near_cloth = sk & (ndimage.binary_dilation(cl, iterations=1)) & (d > 0.07)
+  A[..., :3][near_cloth] = SKIN; fix = fix | near_cloth
 print('texels: cloth', int(cl.sum()), 'skin fixed', int(fix.sum()), flush=True)
 # dilate the left half's classes into uncovered texels (mip bleed)
-from scipy import ndimage
 cov = has & (K1 != 9); left = np.zeros((H, W), bool); left[:, :int(W * HALF)] = True
 _, (iy, ix) = ndimage.distance_transform_edt(~cov, return_indices=True)
 dd = ndimage.distance_transform_edt(~cov); pad = (~has) & left & (dd <= 4) & (dd > 0)
@@ -329,6 +478,25 @@ if not FEM and E_('TAT', 1):
   bpy.ops.object.select_all(action='DESELECT'); to.select_set(True); bpy.context.view_layer.objects.active = to; bpy.ops.object.modifier_apply(modifier='dt')
   to.modifiers.new('Armature', 'ARMATURE').object = arm
   print('tattoo verts', len(tm.vertices), flush=True)
+
+# ---- polish2 FEM: soft-clean v5_face_eyes alpha fringe (keep V5 art, just less jagged lids)
+if FEM and E_('EYEFIX', 1):
+  try:
+    em = dec.data.materials[0]; eimg = [n for n in em.node_tree.nodes if n.type == 'TEX_IMAGE'][0].image
+    EA = np.array(eimg.pixels[:], dtype=np.float32).reshape(eimg.size[1], eimg.size[0], 4)
+    a = EA[..., 3]
+    # V5 eyes are hard-cut alpha: build a 1px morphological fringe and gaussian-soften only there
+    hard = a > 0.5
+    dil = ndimage.binary_dilation(hard, iterations=E_('EYEDIT', 1))
+    ero = ndimage.binary_erosion(hard, iterations=E_('EYEDIT', 1))
+    fringe = dil ^ ero
+    soft = ndimage.gaussian_filter(a.astype(np.float32), E_('EYEBLUR', 0.85 if not LO else 0.65))
+    EA[..., 3] = np.where(fringe, soft, a)
+    # slightly darken soft fringe RGB so jagged bright lid sparks calm down
+    EA[..., :3] = np.where(fringe[..., None], EA[..., :3] * 0.92, EA[..., :3])
+    eimg.pixels.foreach_set(EA.ravel()); eimg.update(); print('eye decal fringe softened', int(fringe.sum()), flush=True)
+  except Exception as e:
+    print('eye fix skipped', e, flush=True)
 
 arm.data.pose_position = 'POSE'
 me.color_attributes.active_color = me.color_attributes['Color']
