@@ -9,7 +9,8 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadPirateGLB, PIRATE_GLB_V5 as PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [V6] crews stay on v5 Low (painted outfits) // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
-import { skullTexture, ITEM_BY_ID } from './pirateItems.js'; // [v123] the hat skull decal texture (crew slot tF0)
+import { skullTexture, ITEM_BY_ID } from './pirateItems.js';
+import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons] // [v123] the hat skull decal texture (crew slot tF0)
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -135,11 +136,17 @@ export function captainExtras(gear, low = false) {
   const o = {}; for (const k of low ? CREW_EXTRA_LOW : CREW_EXTRA_SLOTS) if (gear?.[k] && gear[k] !== 'none') o[k] = gear[k]; return o;
 }
 export const CREW_OWN_EXTRAS = ['beard', 'face', 'cape', 'boots', 'pants'];
+// [crew-weapons] BANKSY 4:42 PM Nov 5: "Just make them all have what you have": every crew pirate (deck, ashore, followers) carries the
+// captain's CURRENT sword (on the hip, at the side the captain's hook leaves free: a right-hook captain's crew wear it for the LEFT hand) and
+// musket (slung on the back), same ids = same model / rarity look. Client only (the ids already ride the wire). &crewweap=0 = none.
+export { crewWeapOn, crewWeaponsOf };   // [crew-weapons] pure, in js/carryRules.js (node tests)
+
 export function crewGearOf(gear) {
   if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: gear.eyes || 'plain',   /* [v6-store-clothes] crew eyewear */ parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
   for (const k of CREW_EXTRA_SLOTS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [Raul shop2 fixes]
   for (const k of CREW_OWN_EXTRAS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [v6-store-clothes] the crew's OWN Crew Shop extras (not the captain's)
-  return (g.hat === 'none' && g.outfit === 'shirtless' && g.eyes === 'plain' && !CREW_EXTRA_SLOTS.some((k) => g[k]) && !CREW_OWN_EXTRAS.some((k) => g[k])) ? null : g;
+  if (gear.carryCrew === 1) { g.carryCrew = 1; g.carrySword = gear.carrySword || 'none'; g.carryMusket = gear.carryMusket || 'none'; g.carryHand = gear.carryHand || 'R'; }   // [crew-weapons]
+  return (g.hat === 'none' && !g.carryCrew && g.outfit === 'shirtless' && g.eyes === 'plain' && !CREW_EXTRA_SLOTS.some((k) => g[k]) && !CREW_OWN_EXTRAS.some((k) => g[k])) ? null : g;
 }
 // [v280 crew holes] shore followers (V6 bodies) get classic pants under the Crew Shop top so the lo underwear hem gap stays covered. Ship bake stays without pants (V5 seats already have painted pants). &crewholes=0 = bare.
 export function shoreCrewGear(gear) {
@@ -154,21 +161,39 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
   const key = JSON.stringify([g, colors]); if (_gc.has(key)) return _gc.get(key);
   const pr = (async () => {
     const PG = await gearMod(), out = {};
+    if (g.carryCrew) { try { await (await import('./onfoot/swords.js')).loadWeaponModels(true); } catch {} }   // [crew-weapons] the real weapon models before the bake
     for (const sex of ['m', 'f']) {
       const p = await gearPirate(sex); await PG.applyGear(p, g, colors);
       // [Timothy] ONE gear system: Timothy's merged gear mesh + Raul's skinned items (tricorn, crown, pirate shirt, captain's coat; js/pirateItems.js)
       const items = Object.values(p.items || {}).map((it) => it.obj).filter((o) => o?.isSkinnedMesh && o.parent), meshes = [...(p.gearMesh ? [p.gearMesh] : []), ...items];
-      if (!meshes.length) return null;
+      const carry = g.carryCrew ? (await import('./carryWeapons.js')).placeCarryNow : null;   // [crew-weapons] the captain's sword + musket, baked rigid
+      if (!meshes.length && !(g.carryCrew && p.carry && (p.carry.sword || p.carry.musket))) return null;
       out[sex] = {}; out[sex].top = g.outfit !== 'shirtless';   // [v128] the seat body is pulled in under tops (as the player since v124)
       const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
       const decals = Object.values(p.items || {}).map((it) => it.decal).filter((o) => o?.isSkinnedMesh && o.parent); // [v123] the PUMPFUN skull on the hat (crew slot tF0)
       const hairy = new Set(Object.values(p.items || {}).filter((it) => /^beard_(moustache|forked)$/.test(it.id)).map((it) => it.obj));   // [Raul shop2 fixes] beards in each seat's hair colour
       const raul2 = new Set(Object.values(p.items || {}).filter((it) => it.obj && ITEM_BY_ID[it.id]?.single).map((it) => it.obj));   // shop items 2: drop their ink shells (the crew shader inks its own rim)
-      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown ? 1 : hairy.has(m) ? 2 : 0, false, raul2.has(m))), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
+      for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...(carry ? bakeCarry(p, pose, V4.tpl[sex], carry) : []), ...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown ? 1 : hairy.has(m) ? 2 : 0, false, raul2.has(m))), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
     }
     return out;
   })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
   _gc.set(key, pr); return pr;
+}
+// [crew-weapons] the carried sword / musket (plain meshes on the hip + spine bones) in this pose -> a crew chunk (vertex colour, no stripe uv)
+function bakeCarry(p, pose, T, placeNow) {
+  const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
+  if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
+  p.scene.updateMatrixWorld(true); const out = [];
+  for (const m of placeNow(p)) { m.updateWorldMatrix(true, false); const g = m.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, idx = g.index ? g.index.array : null, n = idx ? idx.length : P.count;
+    const part = PARTN[bn(m.parent?.name)] || 0, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = new Float32Array(n * 2), pt = new Float32Array(n).fill(part), vel = new Float32Array(n);
+    _n3.getNormalMatrix(m.matrixWorld); const gold = m.material?.emissive && m.material.emissive.r > 0.1;
+    for (let q = 0; q < n; q++) { const i = idx ? idx[q] : q; _v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld);
+      pos[q * 3] = _v.x * T.k; pos[q * 3 + 1] = (_v.y - T.y0) * T.k; pos[q * 3 + 2] = _v.z * T.k;
+      if (N) { _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); nrm[q * 3] = _n.x; nrm[q * 3 + 1] = _n.y; nrm[q * 3 + 2] = _n.z; } else nrm[q * 3 + 1] = 1;
+      const k = gold ? 1.35 : 1; col[q * 3] = (C ? C.getX(i) : 0.6) * k; col[q * 3 + 1] = (C ? C.getY(i) : 0.6) * k; col[q * 3 + 2] = (C ? C.getZ(i) : 0.6) * (gold ? 0.8 : 1);
+      uv[q * 2] = 8.75; }
+    out.push({ pos, nrm, col, uv, part: pt, vel }); }
+  return out;
 }
 function joinChunks(cs) { // [Timothy] several baked chunks -> one (same layout)
   if (cs.length === 1) return cs[0]; const o = {};

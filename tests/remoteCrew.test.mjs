@@ -8,6 +8,6 @@ test('remote pirates get shore crew from their crew wire, capped, disposed on dr
   assert.match(net, /crewFromWire\(m\.cr\)/); assert.match(net, /low \? 1 : 2, CREW_PEERS = low \? 2 : 3/); assert.match(net, /p\.crew\?\.dispose\(\)/);
 });
 test('followers: remote sets skip the local gear events and can be disposed', () => {
-  assert.match(fol, /if \(!gearOf\) \{ addEventListener\('pfp-gear'/); assert.match(fol, /function dispose\(\)/);
+  assert.match(fol, /if \(!gearOf\) \{ addEventListener\('pfp-gear-local'/); assert.match(fol, /function dispose\(\)/);
 });
 test('the crew never copies captain shop items', () => { assert.match(crewV4, /export const CREW_EXTRA_SLOTS = \[\]/); });

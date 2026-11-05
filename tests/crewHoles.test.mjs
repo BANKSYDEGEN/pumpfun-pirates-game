@@ -21,8 +21,8 @@ test('shore crew get classic pants cover; CREW_EXTRA_SLOTS stays empty', () => {
   assert.match(crew, /export function shoreCrewGear/);
   assert.match(crew, /pants: 'classic_pants'/);
   assert.match(crew, /export const CREW_EXTRA_SLOTS = \[\]/);
-  assert.match(fol, /shoreCrewGear\(crewGear\(\)\)/);
-  assert.match(net, /shoreCrewGear\(crewGear\(/);
+  assert.match(fol, /shoreCrewGear\(\{ \.\.\.crewGear\(\), \.\.\.crewWeaponsOf\(getLocalGear\(\)\) \}\)/);   // [crew-weapons] + the captain's weapons
+  assert.match(net, /shoreCrewGear\(\{ \.\.\.crewGear\(/);
 });
 test('mannequin covers waist with classic pants unless pants/boots card', () => {
   assert.match(thumbs, /pants: 'classic_pants'/);

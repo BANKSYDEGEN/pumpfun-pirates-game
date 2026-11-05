@@ -29,10 +29,10 @@ test('carry: wired into gear + wire + battle, crews never carry, phones light', 
   assert.match(g, /const WIRE_LEN = WIRE_SLOTS\.length \+ 6 \+ 7 \+ 2( \+ [12])*;/); assert.match(g, /\.\.\.carryDigits\(g, SWORD_IDS, MUSKET_IDS\)(, GEAR_RENDERS\.pants\.indexOf\(g\.pants\) \+ 1)?(, g\.capeColor \| 0, g\.pantsColor \| 0, g\.bootsColor \| 0)?\]/); assert.match(g, /carryFromDigits\(d\(c\), d\(c \+ 1\), SWORD_IDS, MUSKET_IDS\)/);
   assert.match(g, /export function setCarriedWeapons\(\{ sword = null, musket = null \} = \{\}, src = 'inventory'\)/); assert.match(g, /syncCarry\(p, gear, body\)/);
   assert.match(g, /setCarriedWeapons\(\{ sword: gear\.sword, musket: gear\.musket \}, 'profile'\)/);
-  assert.match(w, /if \(!p\?\.v5 \|\| p\.forCrew/); assert.match(w, /if \(!low\) \{ const o = new THREE\.Mesh\(geo, M\.s\)/); assert.match(w, /m\.castShadow = !low/);
+  assert.match(w, /if \(!p\?\.v5 \|\| \(p\.forCrew && gear\?\.carryCrew !== 1\)/); assert.match(w, /if \(!low\) \{ const o = new THREE\.Mesh\(geo, M\.s\)/); assert.match(w, /m\.castShadow = !low/);
   assert.match(w, /onFoot: this\.footSpeed !== undefined/);   // ships never set footSpeed: ship perf unchanged
   assert.match(w, /isSkinnedMesh && !\/\^pet\/\.test\(o\.name\)/);   // the musket's lift is measured over every worn mesh (coats, capes)
   assert.match(b, /carryArmed\(R\.fig, zone === Z_PIT, zone === Z_RANGE\)/);
-  assert.match(c, /export const CREW_EXTRA_SLOTS = \[\]/); assert.doesNotMatch(c, /carry/);
+  assert.match(c, /export const CREW_EXTRA_SLOTS = \[\]/); assert.match(c, /carryCrew/);   // [crew-weapons] crews now carry ONLY the captain's copy (was: never)
   { const v = +(src('sw.js').match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 202, 'sw at or past v202 (carried weapons): ' + v); }
 });

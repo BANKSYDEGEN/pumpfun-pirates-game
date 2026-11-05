@@ -47,10 +47,10 @@ export function carryArmed(obj, sword, musket) {
 
 // called by js/pirateGear.js dress() for every dress of a PirateGLB p (cheap when nothing changed)
 export function syncCarry(p, gear, body) {
-  if (!p?.v5 || p.forCrew || !body?.skeleton) return;
+  if (!p?.v5 || (p.forCrew && gear?.carryCrew !== 1) || !body?.skeleton) return;   // [crew-weapons] the deck bake pirate carries only crew weapons
   const sw = SWORD_IDS.includes(gear?.carrySword) ? gear.carrySword : null, mu = MUSKET_IDS.includes(gear?.carryMusket) ? gear.carryMusket : null;
-  const hand = carryHand(gear);   // the hand WITHOUT the hook (no hook: right)
-  const key = [sw, mu, hand].join('|'); const st = p.carry || (p.carry = { key: '', sword: null, musket: null, armedSword: false, armedMusket: false, sig: '', t: 0 });
+  const hand = gear?.carryCrew === 1 && (gear.carryHand === 'L' || gear.carryHand === 'R') ? gear.carryHand : carryHand(gear);   // the hand WITHOUT the hook (no hook: right); crew: the CAPTAIN's
+  const crew = gear?.carryCrew === 1, key = [sw, mu, hand, crew].join('|'); const st = p.carry || (p.carry = { key: '', sword: null, musket: null, armedSword: false, armedMusket: false, sig: '', t: 0 });
   body.userData.carryState = st; if (p.scene) p.scene.userData.carryState = st;
   if (st.key === key) return; st.key = key; const low = p.lod === 'lo';
   if (sw || mu) loadWeaponModels(low);
@@ -58,8 +58,13 @@ export function syncCarry(p, gear, body) {
   if (st.musket) { st.musket.removeFromParent(); st.musket = null; }
   if (sw) { const fb = boneOf(body, 'forearm' + hand); if (fb) { const m = weaponMesh(swordGeo(sw), low, sw === 'blade_gold'); m.visible = false; m.userData.side = hand; fb.add(m); st.sword = m; st.swordPlaced = false; st.hand = fb; st.hip = boneOf(body, 'root'); st.holstered = false; st.holsterT = null; st.handT = null; } }
   if (mu) { const sb = boneOf(body, 'spine'); if (sb) { const m = weaponMesh(musketGeo(mu), low, false); m.visible = false; m.userData.id = mu; sb.add(m); st.musket = m; st.sig = ''; } }
-  st.body = body; p.addPost?.('carry', carryPost, 4);
+  st.body = body; st.crew = crew; p.addPost?.('carry', carryPost, 4);
 }
+// [crew-weapons] the deck crew bake (js/crewV4.js): put the carried copies where they ride (sword on the hip, musket slung) right now
+export function placeCarryNow(p) { const st = p?.carry; if (!st?.body) return [];
+  if (st.sword) { if (!st.swordPlaced) placeSword(st); setSwordSpot(st, true); st.sword.visible = true; }
+  if (st.musket) { placeMusket(st); st.musket.visible = true; }
+  return [st.sword, st.musket].filter(Boolean); }
 
 // the sword in the hand: the SWORD PIT's grip frame (forearm -X = towards the hand), the blade turned down + forward
 function placeSword(st) {
@@ -130,7 +135,7 @@ function placeMusket(st) {
 function carryPost(dt) {
   const st = this.carry; if (!st || !st.body) return;
   const show = carryShows({ onFoot: this.footSpeed !== undefined, state: this.footState, armedSword: st.armedSword, armedMusket: st.armedMusket });   // footSpeed: set by js/onfoot/pirate.js each frame (ships never)
-  if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
+  if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = st.crew || swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); /* [crew-weapons] crew: always on the hip */ if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
   if (st.musket) {
     if ((st.t -= dt) <= 0) { st.t = 0.5; let sig = ''; st.body.parent.traverse((o) => { if (o.isSkinnedMesh && !o.userData.carry) sig += o.id + ','; }); if (sig !== st.sig) { st.sig = sig; placeMusket(st); } }
     st.musket.visible = show.musket;

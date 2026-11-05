@@ -24,3 +24,11 @@ export const pitWeaponId = (ids, def, carryId, storeId, on = true) => {
   if (typeof storeId === 'string' && ids.includes(storeId)) return storeId;
   return def;
 };
+// [crew-weapons] BANKSY 4:42 PM Nov 5: "Just make them all have what you have" (crew mirror the captain's sword + musket)
+export const crewWeapOn = (search = typeof location !== 'undefined' ? location.search : '') => !/[?&]crewweap=0(&|$)/.test(search || '');
+export function crewWeaponsOf(captain, on = crewWeapOn()) {
+  const s = captain?.carrySword, m = captain?.carryMusket, has = (v) => typeof v === 'string' && v && v !== 'none';
+  if (!on || !captain || (!has(s) && !has(m))) return {};
+  const hand = carryHand(captain);
+  return { carryCrew: 1, carrySword: has(s) ? s : 'none', carryMusket: has(m) ? m : 'none', carryHand: hand };
+}

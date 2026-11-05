@@ -11,7 +11,7 @@ import { loadPirate } from './pirate.js';
 import { JUMP } from './walker.js';
 import { PHYS, newBody, placeBody, jumpBody, stepBody, wadeFactor, poseBody, waterFX, bodyFX, climbing } from './physics.js'; // [Raul] they fall, wade + swim like you
 import { applyGear, getLocalGear, getLocalColors, normalizeGear } from '../pirateGear.js';
-import { shoreCrewGear } from '../crewV4.js';
+import { shoreCrewGear, crewWeaponsOf } from '../crewV4.js';
 import { crewGear } from '../crewLoadout.js';
 import { makeTrail, makeMover, followStep } from './followPath.js'; // [Raul items redo 2] the pathing below, shared with the ground pets (js/onfoot/pets.js)
 
@@ -29,7 +29,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   // has no free colours), and re-dress when the gear, the colour or the ship skin changes.
   const NAKED = { hat: 'none', outfit: 'shirtless', eyes: 'plain', parrot: 'none', hook: 'none' };
   // [Timothy] the crew's OWN loadout (Crew Shop, js/crewLoadout.js), not your hat + clothes
-  const want = () => { const g = (gearOf ? gearOf() : shoreCrewGear(crewGear())) || NAKED, c = colorsOf ? colorsOf() : getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; }; // [v280] shoreCrewGear = crew + classic pants cover
+  const want = () => { const g = (gearOf ? gearOf() : shoreCrewGear({ ...crewGear(), ...crewWeaponsOf(getLocalGear()) })) || NAKED, c = colorsOf ? colorsOf() : getLocalColors(); return { g, c, k: JSON.stringify([g, c]) }; }; // [v280] shoreCrewGear = crew + classic pants cover
   let cur = want(), gear = cur.g, chkT = 0;
   for (let i = 0; i < n; i++) {
     // [v128] BANKSY "THE GIRLS too": the Low body (flat unlit skin chunks, jagged hair) right next to you on desktop; Low only on Low quality
@@ -40,12 +40,12 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   // [v112] BANKSY "why are my crew members shirtless": a dress that failed once (gear library / item load error, or a dress started
   // before the pirate GLB arrived and lost) was never retried, because the wanted gear key hadn't changed. Now every check also looks
   // at what each follower ACTUALLY wears and re-dresses the ones that are off (failed = gearKey null, or holding other gear).
-  const gk = (g) => JSON.stringify(g && [g.hat, g.outfit, g.hatColor | 0, g.outfitColor | 0]);
+  const gk = (g) => JSON.stringify(g && [g.hat, g.outfit, g.hatColor | 0, g.outfitColor | 0, g.carrySword || 'none', g.carryMusket || 'none', g.carryHand || '']);   // [crew-weapons]
   function redress(force = false) { const w = want(), changed = w.k !== cur.k; cur = w; gear = w.g;
     for (const c of crew) { const r = c.p.object, v = r.userData?.v4 || null; let fig = v; if (!fig) r.traverse((o) => { if (!fig && o.userData?.v4) fig = o.userData.v4; });
       const off = gk(r.userData?.gear) !== gk(normalizeGear(w.g)) || (fig && !fig.gearKey && w.g !== NAKED);
       if (changed || force || off) { if (fig && off) fig.gearKey = null; applyGear(r, w.g, w.c); } } }
-  if (!gearOf) { addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); } // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
+  if (!gearOf) { addEventListener('pfp-gear-local', () => setTimeout(redress, 0)); /* [crew-weapons] a weapon swap */ addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); } // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
     redress(true); // [v112] going ashore always re-dresses the crew in your current gear

@@ -205,6 +205,7 @@ export function normalizeGear(g) {
   o.eyeColor = clampIx(s.eyeColor, EYE_SWATCHES.length); o.capeColor = clampIx(s.capeColor, CAPE_SWATCHES.length); o.pantsColor = clampIx(s.pantsColor, CAPE_SWATCHES.length); o.bootsColor = clampIx(s.bootsColor, CAPE_SWATCHES.length);   // [v6-store-clothes]
   o.body = s.body === 1 || s.body === '1' || s.body === 'f' || s.body === true ? 1 : 0;
   o.carrySword = carryPick(s.carrySword, SWORD_IDS); o.carryMusket = carryPick(s.carryMusket, MUSKET_IDS);   // [Raul carry] what you carry on foot
+  if (s.carryCrew === 1) { o.carryCrew = 1; if (s.carryHand === 'L' || s.carryHand === 'R') o.carryHand = s.carryHand; }   // [crew-weapons] a crew member: hand from the captain's hook, sword on the hip
   return o;
 }
 const gearKey = (g) => Object.keys(GEAR_DEFAULTS).map((k) => g[k]).join('|') + '|' + LOOK_KEYS.map((k) => g[k] ?? '').join('|');
