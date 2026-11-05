@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, V6_LEGACY, V6_STARTER, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
+  OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
 import { inventoryAction, INV_ACTIONS } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
@@ -67,7 +67,6 @@ async function whoAmI(b: Record<string, unknown>) {
   return { raw, pid, wallet: sw, owner: pid === OWNER_MAIN };
 }
 async function ownedSet(pid: string) { const { data } = await db.from("pvp_owned").select("item").eq("player_id", pid); const own = new Set((data ?? []).map((r: any) => r.item as string));
-  for (const it of V6_STARTER) own.add(it); // [V6 default look] classic pants + boots: everyone's free starter pair
   for (const it of prestigeSkins(await prestigeOf(pid))) own.add(it); // [prestige] BANKSY: P1 GOLDEN / P2 DIAMOND are GIVEN (also counts for anyone already at that level)
   return own; }
 // [prestige] write the given skins into pvp_owned (source 'grant', price 0). ADD only: an existing row is left as it is, nothing is removed.
@@ -130,7 +129,7 @@ async function devSync(who: { pid: string; owner: boolean }, b: Record<string, u
       const p = cleanProfile(rep0); p.gold = Math.min(p.gold, SEED_GOLD_CAP);
       p.stats.kills = Math.max(bd.kills, Math.min(p.stats.kills, Math.floor(bd.kills * 1.5) + 25)); p.stats.deaths = Math.max(p.stats.deaths, bd.deaths);
       if (!known) p.stats.bossKills = Math.min(p.stats.bossKills, 10);
-      fitEquipped(p, new Set(V6_STARTER), false); // [V6 default look] the starter pants + boots stay worn
+      fitEquipped(p, new Set(), false);
       const { error } = await db.from("pvp_dev_profiles").insert({ id: who.pid, ...devCols(p) });
       if (error) { if ((error as any).code === "23505") continue; throw error; }
       if (known) { // LEGACY: skins this pirate could already use before the shop (kill tiers + the v98 COMMODORE unlock)
