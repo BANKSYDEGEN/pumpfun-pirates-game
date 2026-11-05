@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v277'; // [v277] V6 polish2 female (raul/v6-characters, not pushed): braid/back hair gap-close (body-normal + lateral + front-braid fill), collar/shoulder Taubin smooth, crotch+bandeau hem flap iron, chest/skin blotch cleanup, eye-decal fringe soften (tools/v6/garments.py FEM-only); male GLBs unchanged (Emerly); shoes=Timothy; prev: [v276] V6 characters LIVE
+const VERSION = 'pfp-v277'; // [v277] V6 polish fold: female body polish2 (Raul), male neck/eyes/skin polish (Emerly), pant hems + sharper cloth albedos (Post); prev: [v276] V6 characters LIVE
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
