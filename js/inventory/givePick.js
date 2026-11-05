@@ -42,6 +42,7 @@ html.pfp-pad #iv-pick .gp-row.pad-focus,#iv-pick .gp-row.pad-focus{outline:3px s
 .gp-ok .big i img{width:84%;height:84%;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.6))}
 .gp-ok .what{font-size:30px;color:#fff;line-height:1}.gp-ok .to{font-size:24px;color:#cdb68c}.gp-ok .to b{font-weight:normal;color:#ffcd77;font-size:32px}
 .gp-ok .note{font-size:18px;color:#cdb68c;opacity:.85}
+.gp-ok .err{font-size:22px;color:#ff8a7a;min-height:0}.gp-ok .err small{display:block;font-size:17px;color:#cdb68c}
 .gp-btns{display:flex;gap:10px;padding:0 18px}
 .gp-btns button{flex:1;font:26px 'Just Another Hand',cursive;min-height:52px;border-radius:12px;border:2px solid #ffcd77;background:#1a0f07;color:#f4e2bb;cursor:pointer}
 .gp-btns button.primary{background:linear-gradient(#a0661a,#7a4a10);color:#fff;box-shadow:0 3px 0 #3b2410}
@@ -53,7 +54,11 @@ const cleanName = (n) => String(n ?? '').replace(/[<>&"'`\\\u0000-\u001f]/g, '')
 // the list the sheet shows: your harbor copy (local peers) first, then everyone else online, each A-Z; you are never in it; q filters
 export function pickList({ online = [], harbor = [], me = '', q = '' }) {
   const mine = String(me || '').toLowerCase(), seen = new Map();
-  for (const n of harbor) { const c = cleanName(n); if (c && c.toUpperCase() !== 'PIRATE' && c.toLowerCase() !== mine) seen.set(c.toLowerCase(), { n: c, here: true }); }
+  // [gift-fix] a harbor peer's on-screen name can differ from the unique registered name the server gifts to (015 unique names:
+  // "Trav The Tracker" is registered as "Trav The Track #1545"). Map it to the ONE online registered name it starts with; else as is.
+  const base = (n) => n.replace(/\s*#\d+$/, '').toLowerCase(), reg = (online || []).map((p) => cleanName(p?.n)).filter(Boolean);
+  const regOf = (c) => { const l = c.toLowerCase(); if (reg.some((r) => r.toLowerCase() === l)) return c; const m = reg.filter((r) => base(r).length >= 3 && l.startsWith(base(r))); return m.length === 1 ? m[0] : c; };
+  for (const n of harbor) { const c = cleanName(n); if (c && c.toUpperCase() !== 'PIRATE' && c.toLowerCase() !== mine) { const to = regOf(c); seen.set(to.toLowerCase(), { n: c, here: true, ...(to !== c ? { to } : {}) }); } }
   for (const p of online) { const c = cleanName(p?.n); if (!c || c.toLowerCase() === mine) continue; const k = c.toLowerCase(); if (!seen.has(k)) seen.set(k, { n: c, here: false, w: p.w === 'arena' ? 'arena' : 'harbor' }); }
   const f = String(q || '').trim().toLowerCase(), by = (a, b) => a.n.localeCompare(b.n, 'en', { sensitivity: 'base' });
   const all = [...seen.values()].filter((p) => !f || p.n.toLowerCase().includes(f));
@@ -81,7 +86,7 @@ export function createGivePick({ pvp, nearby = () => [], toast = () => {} }) {
     if (e.key === 'ArrowDown') { e.preventDefault(); rows[Math.min(rows.length - 1, i + 1)].focus(); } else if (e.key === 'ArrowUp') { e.preventDefault(); (i ? rows[i - 1] : q).focus(); } });
   const onKey = (e) => { if (e.key !== 'Escape' && e.code !== 'Escape') return; e.preventDefault(); e.stopImmediatePropagation(); if (ok.classList.contains('on')) back(); else close(); };
   const me = () => { try { return pvp()?.name || ''; } catch { return ''; } };
-  const row = (p, i) => `<button class="gp-row" role="option" data-n="${esc(p.n)}"${i === 0 ? ' autofocus' : ''}><span class="av">${esc(p.n[0].toUpperCase())}</span><b>${esc(p.n)}</b>${p.here ? '<em class="h">YOUR HARBOR</em>' : `<em class="a">${p.w === 'arena' ? 'IN BATTLE' : 'ONLINE'}</em>`}</button>`;
+  const row = (p, i) => `<button class="gp-row" role="option" data-n="${esc(p.n)}" data-to="${esc(p.to || p.n)}"${i === 0 ? ' autofocus' : ''}><span class="av">${esc(p.n[0].toUpperCase())}</span><b>${esc(p.n)}</b>${p.here ? '<em class="h">YOUR HARBOR</em>' : `<em class="a">${p.w === 'arena' ? 'IN BATTLE' : 'ONLINE'}</em>`}</button>`;
   function draw() {
     const typed = cleanName(q.value), rows = online ? pickList({ online, harbor: nearby(), me: me(), q: typed }) : pickList({ harbor: nearby(), me: me(), q: typed });
     const exact = rows.some((p) => p.n.toLowerCase() === typed.toLowerCase()), here = rows.filter((p) => p.here), rest = rows.filter((p) => !p.here);
@@ -95,7 +100,7 @@ export function createGivePick({ pvp, nearby = () => [], toast = () => {} }) {
     else if (!rows.length) h += `<div class="gp-empty">No pirate online called “${esc(typed)}”<small>tap the typed name above to try it anyway</small></div>`;
     list.innerHTML = h;
     $('.gp-sub').textContent = loading && !online ? 'checking who\'s aboard…' : online ? `${rows.length} pirate${rows.length === 1 ? '' : 's'} ${typed ? 'match' + (rows.length === 1 ? 'es' : '') : 'online'}` : 'pirates near you · the full list is offline';
-    list.querySelectorAll('.gp-row').forEach((b) => b.onclick = () => confirm(b.dataset.n, b.dataset.typed === '1'));
+    list.querySelectorAll('.gp-row').forEach((b) => b.onclick = () => confirm(b.dataset.n, b.dataset.typed === '1', b.dataset.to));
   }
   async function load() { const id = ++reqId; loading = true; draw();
     let r = null; try { r = await Promise.race([pvp()?.inv?.call('inv_online'), new Promise((res) => setTimeout(() => res(null), 6000))]); } catch { r = null; }
@@ -104,12 +109,15 @@ export function createGivePick({ pvp, nearby = () => [], toast = () => {} }) {
     $('.gp-item').innerHTML = `${item.ico || ''}<span>${esc(item.name)}${item.qty > 1 ? ` <small>×${item.qty}</small>` : ''}</span>`;
     el.classList.add('on'); ok.classList.remove('on'); document.addEventListener('keydown', onKey, true); load();
     if (!matchMedia('(pointer: coarse)').matches && !document.documentElement.classList.contains('pfp-pad')) setTimeout(() => q.focus({ preventScroll: true }), 60); } // desktop: type straight away (phones: no keyboard pop-up)
-  function confirm(name, typed) { if (!cur || !name) return; ok.dataset.to = name;
-    ok.querySelector('.big').innerHTML = `<i style="--rc:${cur.color || '#6b4a24'}">${cur.ico || '🎁'}</i><div class="what">${cur.qty > 1 ? cur.qty + ' × ' : ''}${esc(cur.name)}</div><div class="to">to <b>${esc(name)}</b></div>${typed ? '<div class="note">typed name · it only arrives if a pirate has exactly this name</div>' : '<div class="note">gifts can\'t be taken back</div>'}`;
+  function confirm(name, typed, to) { if (!cur || !name) return; ok.dataset.to = to || name;
+    ok.querySelector('.big').innerHTML = `<i style="--rc:${cur.color || '#6b4a24'}">${cur.ico || '🎁'}</i><div class="what">${cur.qty > 1 ? cur.qty + ' × ' : ''}${esc(cur.name)}</div><div class="to">to <b>${esc(name)}</b>${to && to !== name ? ` <small>(${esc(to)})</small>` : ''}</div>${typed ? '<div class="note">typed name · it only arrives if a pirate has exactly this name</div>' : '<div class="note">gifts can\'t be taken back</div>'}<div class="err" role="alert"></div>`;
     ok.querySelector('[data-b="give"]').disabled = false; ok.classList.add('on'); setTimeout(() => ok.querySelector('[data-b="give"]').focus({ preventScroll: true }), 30); }
   function back() { ok.classList.remove('on'); }
   async function send() { if (sending || !cur) return; sending = true; ok.querySelector('[data-b="give"]').disabled = true; const to = ok.dataset.to;
-    try { const done = await cur.give(to); if (done) close(); else { sending = false; ok.querySelector('[data-b="give"]').disabled = false; } } catch { sending = false; ok.querySelector('[data-b="give"]').disabled = false; } }
+    const btn = ok.querySelector('[data-b="give"]'), err = ok.querySelector('.err'), fail = (m) => { sending = false; btn.disabled = false; btn.textContent = 'GIVE IT ⚓'; if (err) err.innerHTML = m; };
+    btn.textContent = 'SENDING…'; if (err) err.textContent = ''; // [gift-fix] visible progress + the reason it failed, in the panel (the dock toast sits under it)
+    try { const done = await cur.give(to); if (done === true) { btn.textContent = 'GIVE IT ⚓'; close(); } else fail(typeof done === 'string' ? done : 'THAT DIDN\'T GO THROUGH'); }
+    catch (e) { console.warn('[gift]', e); fail('THAT DIDN\'T WORK<br><small>check your connection</small>'); toast('THAT DIDN\'T WORK', 2200); } }
   function close() { reqId++; loading = false; el.classList.remove('on'); ok.classList.remove('on'); document.removeEventListener('keydown', onKey, true); cur = null; }
   return { open, close, get isOpen() { return el.classList.contains('on'); }, _draw: draw, _setOnline(o) { online = o; loading = false; draw(); } };
 }

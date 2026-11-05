@@ -51,7 +51,7 @@ html.dk-touch.pfp-onfoot #dk-acts{left:auto;right:calc(var(--safe-r,0px) + 22px)
 html.dk-touch.pfp-onfoot #dk-acts button{font-size:24px;padding:14px 18px 10px}
 html.dk-touch.pfp-onfoot #dk-acts{max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 24px)} html.dk-touch.pfp-onfoot #dk-acts button{white-space:normal;text-align:center;max-width:100%} /* [v166] long shop labels wrap instead of running under the stick */
 #dk-fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .28s}
-#dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
+#dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:70;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
 @media (max-height:480px){#dk-acts{bottom:calc(var(--safe-b,0px) + 104px)} #dk-acts button{font-size:22px;padding:8px 14px 5px} #dk-safe{top:calc(var(--safe-t,0px) + 46px);font-size:18px}}
 @media (max-width:600px){#dk-acts{bottom:calc(var(--safe-b,0px) + 200px)} #dk-safe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
 `;

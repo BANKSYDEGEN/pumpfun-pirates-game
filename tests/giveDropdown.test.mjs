@@ -22,3 +22,12 @@ test('controller: the picker + its confirm are focus layers above the inventory'
   const g = src('js/gamepad.js'), i = (s) => g.indexOf(`'${s}'`);
   assert.ok(i('#iv-pick-ok') > 0 && i('#iv-pick-ok') < i('#iv-pick') && i('#iv-pick') < i('#inv-panel'));
 });
+
+test('[gift-fix] a harbor name maps to its one unique registered online name', async () => {
+  const { pickList } = await import('../js/inventory/givePick.js');
+  const r = pickList({ harbor: ['Trav The Tracker', 'Bob'], online: [{ n: 'Trav The Track #1545', w: 'harbor' }, { n: 'Bob', w: 'harbor' }], me: 'me' });
+  const t = r.find((p) => p.n === 'Trav The Tracker'); if (!t || t.to !== 'Trav The Track #1545' || !t.here) throw new Error(JSON.stringify(r));
+  if (r.length !== 2 || r.find((p) => p.n === 'Bob').to) throw new Error('dup / bob ' + JSON.stringify(r));
+  const amb = pickList({ harbor: ['Trav The Tracker'], online: [{ n: 'Trav The Track #1' }, { n: 'Trav The Track #2' }] });
+  if (amb[0].to) throw new Error('ambiguous must not map');
+});

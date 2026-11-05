@@ -161,7 +161,8 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${MARKET.maxPrice.toLocaleString()} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
   async function run(action, body, okMsg) { if (busy) return false; busy = true; // true = done ([give-dropdown] the picker closes on it)
     try { const r = await pvp()?.inv?.call(action, body); if (r && r.ok) { toast(typeof okMsg === 'function' ? okMsg(r) : okMsg, 2400); sel = null; await refresh(); if (action !== 'inv_equip') treasure?.refresh?.(); return true; }
-      else toast(WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>', 2200); return false; } finally { busy = false; } }
+      const why = WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>'; toast(why, 2200); return action === 'inv_gift' ? why : false; } // [gift-fix] the picker shows the reason (truthy string = failed)
+    catch (e) { console.warn('[inv]', action, e); toast('THAT DIDN\'T WORK<br><small>check your connection</small>', 2200); return false; } finally { busy = false; } }
   // [inv-arrange] drag: mouse after 6 px (SHIFT held = split into an empty slot), touch after a 300 ms hold (a quick swipe still scrolls);
   // a touch hold released without moving = the item menu (the phone's right-click)
   let dr = null, menu = null;
