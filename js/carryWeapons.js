@@ -13,13 +13,15 @@
 import * as THREE from 'three';
 import { swordGeo, musketGeo, musketMuzzle, loadWeaponModels, SWORD_IDS, MUSKET_IDS } from './onfoot/swords.js';
 import { toon } from './toon.js';
-import { carryHand, carryShows } from './carryRules.js';
+import { carryHand, carryShows, holsterOn, holsterSide, swordHolstered } from './carryRules.js';
 import { TINTS } from './pirateGLB.js';
 
 export const CARRY = {
+  holster: { x: 0.18, y: 0.47, z: -0.03, tilt: 0.5, out: 0.14 },   // [musket-holster] hip point (of the bind width / height), blade back + out from straight down
   sword: { at: 0.15, scale: 0.8, down: 0.95, out: 0.25 },       // grip along the forearm (world m), blade length scale, blade tilt down (rad) from the forearm's normal, and outwards
   musket: { scale: 0.55, tilt: 0.85, y: 0.64, clear: 0.012, half: 0.028, maxTilt: 0.7 },   // world scale, sling angle from vertical (rad), centre height (of the bind height), clearance + half thickness (bind m)
 };
+const HOLSTER_ON = holsterOn(typeof location !== 'undefined' ? location.search : '');   // &holster=0 = kill switch
 export const carryIds = { sword: SWORD_IDS, musket: MUSKET_IDS };
 const _mat = { m: null, g: null, s: null };
 function mats() {
@@ -54,7 +56,7 @@ export function syncCarry(p, gear, body) {
   if (sw || mu) loadWeaponModels(low);
   if (st.sword) { st.sword.removeFromParent(); st.sword = null; }
   if (st.musket) { st.musket.removeFromParent(); st.musket = null; }
-  if (sw) { const fb = boneOf(body, 'forearm' + hand); if (fb) { const m = weaponMesh(swordGeo(sw), low, sw === 'blade_gold'); m.visible = false; m.userData.side = hand; fb.add(m); st.sword = m; st.swordPlaced = false; } }
+  if (sw) { const fb = boneOf(body, 'forearm' + hand); if (fb) { const m = weaponMesh(swordGeo(sw), low, sw === 'blade_gold'); m.visible = false; m.userData.side = hand; fb.add(m); st.sword = m; st.swordPlaced = false; st.hand = fb; st.hip = boneOf(body, 'root'); st.holstered = false; st.holsterT = null; st.handT = null; } }
   if (mu) { const sb = boneOf(body, 'spine'); if (sb) { const m = weaponMesh(musketGeo(mu), low, false); m.visible = false; m.userData.id = mu; sb.add(m); st.musket = m; st.sig = ''; } }
   st.body = body; p.addPost?.('carry', carryPost, 4);
 }
@@ -66,6 +68,25 @@ function placeSword(st) {
   m.scale.setScalar(C.scale * k); m.position.set(sx * C.at * k, 0, 0);
   const blade = new THREE.Vector3(sx * Math.sin(C.down), C.out, Math.cos(C.down)).normalize();
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), blade); st.swordPlaced = true;
+}
+// [musket-holster] the sword sheathed at the hip opposite its hand: bind space -> root bone space (like placeMusket), hilt up at the belt,
+// blade down + back + a little out so the held musket (right side, chest high) and the legs never cut it. Computed once per dress.
+function holsterXform(st) {
+  const body = st.body, sk = body.skeleton, hb = st.hip, bi = hb && sk.boneInverses[sk.bones.indexOf(hb)]; if (!bi) return null;
+  const g = body.geometry; if (!g.boundingBox) g.computeBoundingBox(); const bb = g.boundingBox, H = bb.max.y - bb.min.y, C = CARRY.holster;
+  const sx = holsterSide(st.sword.userData.side) === 'L' ? 1 : -1;   // bind space: +x = the pirate's left
+  const blade = new THREE.Vector3(sx * Math.sin(C.out), -Math.cos(C.tilt), -Math.sin(C.tilt)).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), blade), s = CARRY.sword.scale * H / 1.75;
+  const D = new THREE.Matrix4().compose(new THREE.Vector3(sx * C.x * H / 1.75, bb.min.y + C.y * H, C.z * H / 1.75), q, _v.setScalar(s));
+  const M = new THREE.Matrix4().copy(bi).multiply(body.bindMatrix).multiply(D), t = { p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() };
+  M.decompose(t.p, t.q, t.s); return t;
+}
+function setSwordSpot(st, hol) {   // only when it changes (no per-frame work / allocation)
+  const m = st.sword; st.holstered = hol;
+  if (hol) { if (!st.holsterT) st.holsterT = holsterXform(st); const t = st.holsterT; if (!t) { st.holstered = false; return; }
+    if (!st.handT) st.handT = { p: m.position.clone(), q: m.quaternion.clone(), s: m.scale.clone() };
+    st.hip.add(m); m.position.copy(t.p); m.quaternion.copy(t.q); m.scale.copy(t.s); }
+  else if (st.handT) { st.hand.add(m); m.position.copy(st.handT.p); m.quaternion.copy(st.handT.q); m.scale.copy(st.handT.s); }
 }
 // the musket on the back: bind space (y up, +z front) -> spine bone space (L = boneInverse * bindMatrix * D), lifted off whatever you wear
 const HAIR = TINTS.indexOf('hair'), HAIR_SQUASH = 0.45, HAIR_R2 = 0.03 * 0.03;
@@ -109,7 +130,7 @@ function placeMusket(st) {
 function carryPost(dt) {
   const st = this.carry; if (!st || !st.body) return;
   const show = carryShows({ onFoot: this.footSpeed !== undefined, state: this.footState, armedSword: st.armedSword, armedMusket: st.armedMusket });   // footSpeed: set by js/onfoot/pirate.js each frame (ships never)
-  if (st.sword) { if (!st.swordPlaced) placeSword(st); st.sword.visible = show.sword; }
+  if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
   if (st.musket) {
     if ((st.t -= dt) <= 0) { st.t = 0.5; let sig = ''; st.body.parent.traverse((o) => { if (o.isSkinnedMesh && !o.userData.carry) sig += o.id + ','; }); if (sig !== st.sig) { st.sig = sig; placeMusket(st); } }
     st.musket.visible = show.musket;

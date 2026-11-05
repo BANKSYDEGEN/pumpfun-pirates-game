@@ -9,3 +9,9 @@ export const carryFromDigits = (a, b, swordIds, musketIds) => ({ carrySword: a >
 // battle / swim visibility: on foot, not swimming (sword), not holding the arena's own copy
 export const SWORD_AWAY = ['swim', 'tread', 'climb', 'hop'];
 export const carryShows = ({ onFoot, state, armedSword, armedMusket }) => ({ sword: !!onFoot && !armedSword && !SWORD_AWAY.includes(state), musket: !!onFoot && !armedMusket });
+// [Emerly musket-holster] BANKSY 11:00 AM Nov 5: "Make it so when using musket the sword gets holstered". While the musket is in your hands
+// (armedMusket) the carried sword sits sheathed at the hip OPPOSITE its hand (cross-draw: right-hand sword -> left hip; a right-hook pirate's
+// left-hand sword -> right hip) and goes back to that hand after. &holster=0 = the old look (sword stays in the hand).
+export const holsterOn = (search = '') => !/[?&]holster=0(&|$)/.test(search || '');
+export const holsterSide = (hand) => (hand === 'L' ? 'R' : 'L');
+export const swordHolstered = ({ on = true, armedMusket } = {}) => !!on && !!armedMusket;

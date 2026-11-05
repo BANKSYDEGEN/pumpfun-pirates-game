@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../js/island/areas/fort.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-test('sw is pfp-v267', () => { assert.match(sw, /const VERSION = 'pfp-v267'/); });
+test('sw is at or past pfp-v267', () => { const v = +(sw.match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]; assert.ok(v >= 267, 'sw ' + v); }); // [v268] holster lands after castle
 test('fort_rampart_land: spans stair→wall-walk L (hl along x under yaw π/2, not the swapped 1.45 m hole)', () => {
   assert.match(src, /id:\s*'fort_rampart_land'[\s\S]{0,200}hl:\s*4\.0,\s*yaw:\s*Math\.PI\s*\/\s*2/);
   assert.doesNotMatch(src, /fort_rampart_land[\s\S]{0,80}hw:\s*2\.5,\s*hl:\s*NSTAIR\.hw/);
