@@ -48,7 +48,7 @@ export const EXCLUDE = [
   { id: 'sword_pit', owner: 'Emerly', rect: T(44, 76, -102, -70), known: true, provisional: true, y: 6.4, note: 'old pad; live pads follow battleAreas.js' },
   { id: 'coli_range', owner: 'Emerly', rect: T(50, 88, -176, -140), known: true, provisional: true, note: 'coliseum musket range (yellow)' },
   { id: 'coli_pit', owner: 'Emerly', rect: T(54, 86, -100, -56), known: true, provisional: true, note: 'coliseum sword pit (purple)' },
-  { id: 'coliseum', owner: 'Emerly', rect: T(34, 96, -208, -44), known: true, note: 'intact colosseum footprint' },
+  { id: 'coliseum', owner: 'Emerly', rect: T(34, 96, -208, -44), known: true, allow: ['hilltop_fort'], note: 'intact colosseum footprint; castle stair joins fort (BANKSY coli)' },
   { id: 'cliff_battery', owner: 'Timothy', rect: T(124, 196, 0, 72), known: true, note: 'HEADLAND lx 160, lz 36, r 36 + fort' },
   { id: 'swim_cove', owner: 'Raul', rect: T(-300, -180, -40, 130), known: false, note: 'west beach lx -300..-180 (lz span assumed)' },
   { id: 'main_street', owner: 'town', rect: T(-4, 16, -210, -56), known: true, allow: ['route_street', 'route_low', 'hilltop_fort'], note: 'dig spots stay off it; the Pirates\' Climb + the fort ramp rebuild it (BANKSY 2:46 PM)' },
