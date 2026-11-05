@@ -61,7 +61,7 @@ test('the map: every mode has the standard layout BANKSY asked for', () => {
   assert.equal(MAP.foot[BTN.RT], 'attack'); assert.equal(MAP.foot[BTN.LT], '+ads'); assert.equal(MAP.foot[BTN.A], 'promptA|jump');
   assert.equal(MAP.ui[BTN.A], 'click'); assert.equal(MAP.ui[BTN.B], 'back'); assert.equal(MAP.ui[BTN.LB], 'tabPrev'); assert.equal(MAP.ui[BTN.RB], 'tabNext');
   assert.equal(MAP.spec[BTN.LB], 'specPrev'); assert.equal(MAP.spec[BTN.RB], 'specNext');
-  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite']); // [invite-discreet] VIEW → openInvites (no key)
+  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite', 'hideHud']); // [gold-hud] HOME → toggleHudHidden (no key) // [invite-discreet] VIEW → openInvites (no key)
   for (const m of ['sea', 'foot', 'spec']) for (const a of Object.values(MAP[m])) for (const n of a.split('|').map(x => x.replace(/^\+/, '')))
     assert.ok(special.has(n) || keyFor(n, binds), `${m}: ${n} sends nothing`);
 });
