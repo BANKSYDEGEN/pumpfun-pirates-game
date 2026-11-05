@@ -76,13 +76,25 @@ function libTurn(geo, m) {
   for (let i = 0; i < U.count; i++) { const ny = Math.abs(N.getY(i)); if (ny < Math.abs(N.getX(i)) || ny < Math.abs(N.getZ(i))) continue;
     const c = Math.floor(U.getX(i) * 32); if (c < 2) continue; U.setX(i, ((c ^ 1) + 0.5) / 32); }
 }
+// [Emerly] BANKSY: the coliseum entrance shops (#45 / #46, js/island/coliseum.js NEW_STORES) = the same empty rent shop as the hill street
+// (the R0 big shop model: door, interior, colliders, blank rent sign plate), placed again (cloned in buildHill). &colirent=0 = the old stone boxes.
+export const COLI_RENT_ON = BIG_SHOP_ON && !(Q && Q.get('colirent') === '0');
+export function rentLot({ id, x, y, wz, yaw, addBox, addCirc }) {
+  const L = COLI_RENT_ON && HILL_KIT && HILL_KIT.lots.R0; if (!L || !L.lods.length) return false;
+  const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
+  for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
+  HILL_PLACES.push({ key: 'R0', id, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });
+  return true;
+}
 // the placed street (call after foot.js buildStreet): desktop one THREE.LOD per building; phones all LOD1 buildings merged (2 draw calls)
 export function buildHill() {
   const K = HILL_KIT; if (!K || !HILL_PLACES.length) return null;
   const root = new THREE.Group(); root.name = 'hill_street'; let tris = 0;
   const merge = { solid: [], glow: [] }, signs = [], signObj = [], pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), mm = new THREE.Matrix4();
-  for (const { key, m } of HILL_PLACES) { const L = K.lots[key]; if (!L) continue;
-    const g = new THREE.Group(); g.name = 'hill_' + key; m.decompose(g.position, g.quaternion, g.scale); root.add(g);
+  const used = new Set();
+  for (const { key, m, id } of HILL_PLACES) { let L = K.lots[key]; if (!L) continue;
+    if (used.has(key)) { const sg = L.sign && L.sign.clone(), em = L.empty && L.empty.clone(); if (sg) sg.name = 'sign_' + (id || key); if (em) em.name = 'door_' + (id || key); L = { ...L, lods: L.lods.map(lv => lv.clone(true)), sign: sg, empty: em }; } used.add(key);   // [Emerly] a second placement of one model (coliseum rent shops)
+    const g = new THREE.Group(); g.name = 'hill_' + (id || key); m.decompose(g.position, g.quaternion, g.scale); root.add(g);
     if (K.low) { g.updateMatrix(); L.lods[0].traverse(o => { if (!o.isMesh) return; o.updateMatrix(); mm.multiplyMatrices(g.matrix, o.matrix); const geo = o.geometry.clone();
         for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) geo.deleteAttribute(k);
         for (const k of ['position', 'normal', 'color', 'uv']) { const a = geo.attributes[k]; if (a && (a.normalized || !(a.array instanceof Float32Array))) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); geo.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }

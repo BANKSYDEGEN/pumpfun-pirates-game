@@ -235,6 +235,8 @@ export function buildArt(o) {
 
   // new empty store shells (dressed stone, cornice); #45 stays one storey under 2.8 m so the Treasure sign reads
   for (const s of NEW_STORES) {
+    { const f = s.yaw > 0 ? 1 : -1, clx = s.lx + f * (s.d / 2 - 7), [rx, rz] = T(clx, s.lz);   // [Emerly] BANKSY: rentable like the hill street shops (front kept on the street line)
+      if (o.rentLot && o.rentLot({ id: s.id, x: rx, y: H(rx, rz), wz: rz, yaw: CO.t2wYaw(s.yaw), addBox, addCirc })) continue; }
     const [x, z] = T(s.lx, s.lz), y = H(x, z), yaw = CO.t2wYaw(s.yaw);
     const h = s.storeys === 1 ? Math.min(2.75, s.maxRoof || 2.8) : 6.2;
     W(k, box(s.w, h - 0.3, s.d), ST, DS, M(x, y + (h - 0.3) / 2, z, yaw));

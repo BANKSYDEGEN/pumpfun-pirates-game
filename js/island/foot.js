@@ -980,7 +980,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   BA.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Timothy] battle areas: range + pit (static art, colliders)
-  COLI.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
+  COLI.buildArt({ rentLot: PV.rentLot, k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
   return k;
 }
 // [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and
