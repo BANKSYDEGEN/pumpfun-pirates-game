@@ -15,3 +15,12 @@ export const carryShows = ({ onFoot, state, armedSword, armedMusket }) => ({ swo
 export const holsterOn = (search = '') => !/[?&]holster=0(&|$)/.test(search || '');
 export const holsterSide = (hand) => (hand === 'L' ? 'R' : 'L');
 export const swordHolstered = ({ on = true, armedMusket } = {}) => !!on && !!armedMusket;
+// [Emerly pitsword] BANKSY 12:05 PM Nov 5: "Also in sword pit why can't I use my rare sword". Inventory rare-equip
+// (USE AS PRIMARY) owns the carried pick via setCarriedWeapons; the Sword Pit / Musket Range must draw THAT look (and peers see
+// its ba index), not only the WEAPON STORE gear.sword / gear.musket. &pitsword=0 = old store-only behaviour.
+export const pitSwordOn = (search = '') => !/[?&]pitsword=0(&|$)/.test(search || '');
+export const pitWeaponId = (ids, def, carryId, storeId, on = true) => {
+  if (on && typeof carryId === 'string' && carryId !== 'none' && ids.includes(carryId)) return carryId;
+  if (typeof storeId === 'string' && ids.includes(storeId)) return storeId;
+  return def;
+};

@@ -10,8 +10,9 @@
 //    room's 4 pirates. Practice alone: 2 straw dummies in the pit, 3 flip targets on the range lanes.
 //  - COSMETIC + NO REWARDS (BANKSY): arena KOs are NEVER sent to pvp_claim_kill, never count towards a kill goal, pay no gold and
 //    touch no stat, save or ship HP. The only thing a KO changes is this little HUD tally (this session, this device).
-//  - weapons: the sword + musket you equip at the WEAPON STORE (gear.sword / gear.musket, js/shopCatalog.js SWORD_ITEMS / MUSKET_ITEMS;
-//    rusty cutlass + rusty flintlock free). Cosmetic only: every sword / musket does the same damage.
+//  - weapons: the sword + musket you USE AS PRIMARY (inventory rare-equip -> carriedWeapons) or, if none, the WEAPON STORE pick
+//    (gear.sword / gear.musket). Look = the base id (SWORD_IDS / MUSKET_IDS); rarity stats via PFP_WEAPON_RARITY (my swings only).
+//    &pitsword=0 = store pick only (old). Peers see the look index in ba[5] / ba[7].
 //  - animation: the v5 clips are idle / walk / run / cannon / steer only, so the sword swing and the musket aim / fire are
 //    procedural: after the clip each frame the right (and for the musket, left) upper arm + forearm are aimed at key directions
 //    in the pirate's own space (+ a little spine twist), the legs keep their walk / run clip.
@@ -28,6 +29,8 @@ import * as BA from '../island/battleAreas.js';
 import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty } from './swords.js';
 import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
+import { pitSwordOn, pitWeaponId } from '../carryRules.js'; // [Emerly pitsword]
+import { carriedWeapons } from '../pirateGear.js'; // [Emerly pitsword] inventory USE AS PRIMARY
 import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
 import { isNetId } from '../safe.js';
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
@@ -263,8 +266,11 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const seenHit = new Map();   // attackerId -> { life, n } (what we already applied of their bh[myId])
   const peerR = new Map();     // peerId -> rig + their ba
   let swordId = SWORD_DEFAULT, musketId = MUSKET_DEFAULT;
-  function readSword() { let g = null; try { g = window.PFP_PVP?.profile?.gear; } catch {} swordId = SWORD_IDS.includes(g?.sword) ? g.sword : SWORD_DEFAULT; musketId = MUSKET_IDS.includes(g?.musket) ? g.musket : MUSKET_DEFAULT; }
-  readSword(); addEventListener('pfp-gear', readSword); addEventListener('pfp-shop', (e) => { if (!e.detail?.open) readSword(); });
+  // [Emerly pitsword] prefer inventory carry (rare USE AS PRIMARY) over store gear.sword; &pitsword=0 = store only
+  const PIT_SWORD_ON = typeof location === 'undefined' || pitSwordOn(location.search || '');
+  function readSword() { let g = null; try { g = window.PFP_PVP?.profile?.gear; } catch {} const c = PIT_SWORD_ON ? (carriedWeapons() || {}) : {};
+    swordId = pitWeaponId(SWORD_IDS, SWORD_DEFAULT, c.sword, g?.sword, PIT_SWORD_ON); musketId = pitWeaponId(MUSKET_IDS, MUSKET_DEFAULT, c.musket, g?.musket, PIT_SWORD_ON); }
+  readSword(); addEventListener('pfp-gear', readSword); addEventListener('pfp-gear-local', readSword); addEventListener('pfp-shop', (e) => { if (!e.detail?.open) readSword(); });
 
   // ---------- UI ----------
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
