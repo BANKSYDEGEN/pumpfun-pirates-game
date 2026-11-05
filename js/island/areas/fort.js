@@ -78,18 +78,22 @@ export default {
     h.addBox(LEG1.x - LEG1.hw - 0.3, (LEG1.z0 + 3 + LEG1.z1) / 2, 0.5, L1 - 3, 0); h.addBox(LEG1.x + LEG1.hw + 0.3, (LEG1.z0 + 3 + LEG1.z1) / 2, 0.5, L1 - 3, 0);
     h.addBox(LAND.x - LAND.hw - 0.3, LAND.z, 0.5, LAND.hw * 2 + 0.6, 0); h.addBox(LAND.x, LAND.z + LAND.hw + 0.3, LAND.hw * 2 + 0.6, 0.5, 0);
     for (const s of [-1, 1]) h.addBox((LEG2.x0 + X0) / 2, LEG2.z + s * (LEG2.hw + 0.3), X0 - LEG2.x0, 0.5, 0);
-    // [fort-upper] continuous wall-walk decks all 4 sides (west spans the gatehouse arch at WT); WW = 3.1 m
+    // [fort-upper/v304] N/E/S wall-walk decks at WT; WEST split around the gate so y=36 LEG2 entry stays open.
+    // Gate span uses HIGH_BRIDGES (setLayer) so y≈42 walkers get a continuous bridge while y=36 walkers see the yard floor.
     const wd = F.wall + RAMP, wc = F.half - wd / 2, TOWER_CLEAR = 5.0, paraSpan = F.half * 2 - 2 * TOWER_CLEAR;
+    const gs = (F.half * 2 - F.gateHW * 2) / 2; // west curtain length each side of the gate
     h.addDeck({ id: 'fort_wall_n', x: F.x, z: F.z + wc, hw: F.half, hl: wd / 2, yaw: 0, y: WT });
     h.addDeck({ id: 'fort_wall_s', x: F.x, z: F.z - wc, hw: F.half, hl: wd / 2, yaw: 0, y: WT });
     h.addDeck({ id: 'fort_wall_e', x: F.x + wc, z: F.z, hw: wd / 2, hl: F.half, yaw: 0, y: WT });
-    h.addDeck({ id: 'fort_wall_w', x: F.x - wc, z: F.z, hw: wd / 2, hl: F.half, yaw: 0, y: WT }); // continuous over the gate
+    for (const s of [-1, 1]) h.addDeck({ id: 'fort_wall_w' + (s < 0 ? 's' : 'n'), x: F.x - wc, z: F.z + s * (F.gateHW + gs / 2), hw: wd / 2, hl: gs / 2, yaw: 0, y: WT });
+    { const wx = F.x - wc, gz0 = F.z - F.gateHW, gz1 = F.z + F.gateHW;
+      h.addHighBridge?.({ id: 'fort_gate_bridge', ax: wx, az: gz0, bx: wx, bz: gz1, L: F.gateHW * 2, yaw: 0, half: wd / 2 - 0.15, yAt: () => WT }); }
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) h.addDeck({ id: 'fort_tower_' + sx + sz, x: F.x + sx * F.half, z: F.z + sz * F.half, r: 3.6, y: WT });
-    // outer parapet colliders stop 3.6 m short of every corner tower (none cut across bastions)
+    // outer parapet colliders: N/S/E stop short of corner towers; WEST split around the gate (arch open at y=36)
     h.addBox(F.x, Z1 - 0.25, paraSpan, 0.5, 0);
     h.addBox(F.x, Z0 + 0.25, paraSpan, 0.5, 0);
     h.addBox(X1 - 0.25, F.z, 0.5, paraSpan, 0);
-    h.addBox(X0 + 0.25, F.z, 0.5, paraSpan, 0); // west continuous over gate
+    for (const s of [-1, 1]) h.addBox(X0 + 0.25, F.z + s * (F.gateHW + gs / 2), 0.5, gs, 0);
     // all 4 corner towers: outer ~210° rim colliders only; inner ~150° into the two wall-walks stays open
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const tx = F.x + sx * F.half, tz = F.z + sz * F.half, inward = Math.atan2(-sz, -sx);
@@ -114,10 +118,10 @@ export default {
     // (stair → landing / wall-walk); cheeks only cover the fall-off mid-run.
     { const openBot = 4.5, openTop = 2.0, len = (NSTAIR.x1 - NSTAIR.x0) - openBot - openTop;
       const cx = NSTAIR.x0 + openBot + len / 2;
-      // south cheek: mid-run fall-off into the yard; north cheek: only the LOWER run (must not enter the wall-walk)
-      h.addBox(cx, NSTAIR.z - (NSTAIR.hw + 0.35), len, 0.4, 0);
-      { const nLen = len * 0.55, ncx = NSTAIR.x0 + openBot + nLen / 2;
-        h.addBox(ncx, NSTAIR.z + (NSTAIR.hw + 0.35), nLen, 0.4, 0); } }
+      // [v304] SOUTH cheek only (yard fall-off). North cheek removed: it sat at z≈-33.8 and with r=0.45
+      // blocked the north-hug lane (z≈-34.4) — Attachment 1 stuck ~2-3 treads from the top when hugging the north wall.
+      // NSTAIR sits fully in the courtyard south of fort_wall_n; no north fall-off collider needed.
+      h.addBox(cx, NSTAIR.z - (NSTAIR.hw + 0.35), len, 0.4, 0); }
     // the keep: its walls are decks at the keep top (door gap on the west face); roofless war room inside
     const K = F.keep, kw = K.wall, kt = F.y + K.h;
     h.addDeck({ id: 'fort_keep_n', x: K.x, z: K.z + K.half - kw / 2, hw: K.half, hl: kw / 2, yaw: 0, y: kt });
@@ -165,21 +169,25 @@ export default {
     // outer parapet + merlons stop short of all 4 corner towers
     const para = (x, z, w, d) => { W(k, box(w, 1.25, d), C.STONE_D, M(x, WT + 0.62, z)); };
     para(F.x, Z1 - 0.28, paraSpan, 0.55); para(F.x, Z0 + 0.28, paraSpan, 0.55);
-    para(X1 - 0.28, F.z, 0.55, paraSpan); para(X0 + 0.28, F.z, 0.55, paraSpan); // west continuous over gate
-    // horizontal banding + arrow slits (outer faces)
+    para(X1 - 0.28, F.z, 0.55, paraSpan);
+    // [v304] west outer parapet + TRIM + arrow slits SPLIT around the gate — never float bars across the arch (Attachment 2)
+    for (const s of [-1, 1]) para(X0 + 0.28, F.z + s * (F.gateHW + gs / 2), 0.55, gs);
+    // horizontal banding + arrow slots (outer faces); west uses gs strips either side of the gate
     for (const yy of [Y + 1.6, Y + 3.8]) {
       W(k, box(paraSpan + 0.08, 0.22, 0.18), TRIM, M(F.x, yy, Z1 + 0.05), false); W(k, box(paraSpan + 0.08, 0.22, 0.18), TRIM, M(F.x, yy, Z0 - 0.05), false);
       W(k, box(0.18, 0.22, paraSpan + 0.08), TRIM, M(X1 + 0.05, yy, F.z), false);
-      W(k, box(0.18, 0.22, paraSpan + 0.08), TRIM, M(X0 - 0.05, yy, F.z), false);
+      for (const s of [-1, 1]) W(k, box(0.18, 0.22, gs + 0.08), TRIM, M(X0 - 0.05, yy, F.z + s * (F.gateHW + gs / 2)), false);
     }
     if (hi) {
-      for (let i = 0; i < 5; i++) { const u = -paraSpan / 2 + 1.2 + i * (paraSpan - 2.4) / 4; W(k, box(0.45, 1.1, 0.18), 0x1b1d22, M(F.x + u, Y + 2.7, Z1 + 0.08), false); W(k, box(0.45, 1.1, 0.18), 0x1b1d22, M(F.x + u, Y + 2.7, Z0 - 0.08), false); W(k, box(0.18, 1.1, 0.45), 0x1b1d22, M(X1 + 0.08, Y + 2.7, F.z + u), false); W(k, box(0.18, 1.1, 0.45), 0x1b1d22, M(X0 - 0.08, Y + 2.7, F.z + u), false); }
+      for (let i = 0; i < 5; i++) { const u = -paraSpan / 2 + 1.2 + i * (paraSpan - 2.4) / 4; W(k, box(0.45, 1.1, 0.18), 0x1b1d22, M(F.x + u, Y + 2.7, Z1 + 0.08), false); W(k, box(0.45, 1.1, 0.18), 0x1b1d22, M(F.x + u, Y + 2.7, Z0 - 0.08), false); W(k, box(0.18, 1.1, 0.45), 0x1b1d22, M(X1 + 0.08, Y + 2.7, F.z + u), false); }
+      for (const s of [-1, 1]) for (let i = 0; i < 2; i++) W(k, box(0.18, 1.1, 0.45), 0x1b1d22, M(X0 - 0.08, Y + 2.7, F.z + s * (F.gateHW + 2.2 + i * 3.2)), false);
     }
-    // merlons with coping caps — stop short of corner towers
+    // merlons with coping caps — stop short of corner towers; west stops at the gate mouth
     const cren = (ax, az, bx, bz) => { const L = Math.hypot(bx - ax, bz - az), n = Math.floor(L / 1.55); for (let i = 0; i < n; i += 2) { const u = (i + 0.5) / n, x = ax + (bx - ax) * u, z = az + (bz - az) * u;
       W(k, box(0.85, 1.05, 0.85), C.STONE_D, M(x, WT + 1.7, z), false); W(k, box(0.95, 0.16, 0.95), TRIM, M(x, WT + 2.28, z), false); } };
     cren(X0 + TOWER_CLEAR, Z1 - 0.25, X1 - TOWER_CLEAR, Z1 - 0.25); cren(X0 + TOWER_CLEAR, Z0 + 0.25, X1 - TOWER_CLEAR, Z0 + 0.25);
-    cren(X1 - 0.25, Z0 + TOWER_CLEAR, X1 - 0.25, Z1 - TOWER_CLEAR); cren(X0 + 0.25, Z0 + TOWER_CLEAR, X0 + 0.25, Z1 - TOWER_CLEAR);
+    cren(X1 - 0.25, Z0 + TOWER_CLEAR, X1 - 0.25, Z1 - TOWER_CLEAR);
+    for (const s of [-1, 1]) cren(X0 + 0.25, F.z + s * F.gateHW, X0 + 0.25, F.z + s * (F.half - TOWER_CLEAR));
     // [fort-upper] BANKSY: ENTIRE upper level = ONE seamless castle STONE ShapeGeometry (added AFTER Kit merge — Kit merge NaNs Shape/Extrude).
     // Outer contour = 26×26 curtain with r=3.7 arcs at all 4 corner towers; inner hole = courtyard notched south around NSTAIR landing.
     // Support slabs (outline OFF, non-overlapping) sit under the seamless top so phones/low still read thickness.

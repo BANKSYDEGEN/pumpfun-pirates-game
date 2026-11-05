@@ -15,10 +15,10 @@ test('spy pad centred on NE bastion with r>=2.6 + tower decks solid', () => {
   assert.match(src, /SPY\s*=\s*\{\s*x:\s*X1\s*\+\s*0\.3,\s*z:\s*Z1\s*\+\s*0\.3/);
   assert.match(src, /fort_tower_[\s\S]{0,60}r:\s*3\.6/);
 });
-test('rampart stair cheek colliders present with open ends', () => {
+test('rampart stair south cheek only (north cheek removed for north-hug lane)', () => {
   assert.match(src, /NSTAIR\.z\s*-\s*\(NSTAIR\.hw\s*\+\s*0\.35\)/);
-  assert.match(src, /NSTAIR\.z\s*\+\s*\(NSTAIR\.hw\s*\+\s*0\.35\)/);
-  assert.match(src, /openBot|must not enter the wall-walk/);
+  assert.match(src, /SOUTH cheek only/);
+  assert.doesNotMatch(src, /h\.addBox\([^\n]*NSTAIR\.z\s*\+\s*\(NSTAIR\.hw\s*\+\s*0\.35\)/);
 });
 test('war room banding is exterior strips not full-slab ceiling', () => {
   assert.match(src, /Exterior face strips only|exterior strips only|low ceiling/);
@@ -38,9 +38,11 @@ test('upper floor is one seamless ExtrudeGeometry stone (no overlapping stoneFlo
   assert.doesNotMatch(src, /const stoneFloor\s*=/);
   assert.doesNotMatch(src, /const ledge = .*C\.WOOD/);
 });
-test('wall-walk WW=3.1, continuous west deck, gatehouse west of curtain, keep nudged', () => {
+test('wall-walk WW=3.1, west split + gate highBridge, gatehouse west of curtain, keep nudged', () => {
   assert.match(src, /RAMP\s*=\s*1\.5/);
-  assert.match(src, /id:\s*'fort_wall_w'/);
+  assert.match(src, /fort_wall_w'\s*\+\s*\(s\s*<\s*0\s*\?\s*'s'\s*:\s*'n'\)/);
+  assert.match(src, /fort_gate_bridge/);
+  assert.match(src, /addHighBridge/);
   assert.match(src, /X0\s*-\s*1\.9/);
   assert.match(src, /keep:\s*\{\s*x:\s*-404\.6/);
   assert.match(src, /TOWER_CLEAR\s*=\s*5\.0/);
@@ -78,4 +80,12 @@ test('ShapeGeometry hole notches landing only — NSTAIR stays open to sky', () 
   assert.match(src, /sx0\s*=\s*-404\.05/);
   assert.match(src, /NSTAIR x=-416\.\.-404 stays open to sky/);
   assert.doesNotMatch(src, /sx0\s*=\s*NSTAIR\.x0\s*-\s*0\.4/);
+});
+
+test('west gate: no continuous west parapet/deck/trim across arch; highBridge for y=42', () => {
+  assert.doesNotMatch(src, /h\.addDeck\(\{\s*id:\s*'fort_wall_w'\s*,/);
+  assert.doesNotMatch(src, /h\.addBox\(X0\s*\+\s*0\.25,\s*F\.z,\s*0\.5,\s*paraSpan/);
+  assert.doesNotMatch(src, /TRIM,\s*M\(X0\s*-\s*0\.05,\s*yy,\s*F\.z\)/);
+  assert.match(src, /fort_gate_bridge/);
+  assert.match(src, /for \(const s of \[-1, 1\]\) h\.addBox\(X0\s*\+\s*0\.25,\s*F\.z\s*\+\s*s\s*\*\s*\(F\.gateHW/);
 });
