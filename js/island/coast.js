@@ -48,6 +48,9 @@ export const TOKENX_ON = !!QF && QF.get('tokenx') === '1', HALL_BOARDS_ON = !!QF
 // [hide-tavern] BANKSY 10:49 AM "Remove tavern and bounty boards for now" + 10:50 AM: pop-up prompts at empty rental lots (not buildings).
 // Off by default; &tavern=1 / &bounty=1 bring the TAVERN / BOUNTY BOARD walk-near buttons (+ toast panels) back. Client-only.
 export const SHOW_TAVERN = !!QF && QF.get('tavern') === '1', SHOW_BOUNTY_BOARDS = !!QF && QF.get('bounty') === '1';
+// [hide-notice] BANKSY 11:42 AM "also remove the notion board on hill street" (NOTICE BOARD on Main Street / Pirates' Climb).
+// Off by default; &noticeboard=1 brings the board + prompt back. Client-only.
+export const SHOW_NOTICE_BOARD = !!QF && QF.get('noticeboard') === '1';
 export const HALL_TOKENS = ['HQ', 'RETARDIO'];   // the hall_e posters (js/island/plazaTown.js TOKEN_SLOTS)
 export const hallTokenHidden = (sym) => !HALL_BOARDS_ON && HALL_TOKENS.includes(sym);
 export const PLAZA_POIS = [                                                        // town-local

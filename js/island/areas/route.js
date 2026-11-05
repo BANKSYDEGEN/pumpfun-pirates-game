@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { Kit, M, box, cyl, hash, jitter, W, C, store } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
 import { JUNGLE_TRAILHEAD as TH } from '../digSpots.js';
+import { SHOW_NOTICE_BOARD } from '../coast.js'; // [hide-notice] &noticeboard=1 restores the Main Street NOTICE BOARD
 // [plaza-bake] the L1 log footbridge at the dry ford below the Pirates' Climb: removed (BANKSY 10:31 PM); &fordbridge=1 = back
 const FORD_BRIDGE = typeof location !== 'undefined' && /[?&]fordbridge=1(&|$)/.test(location.search);
 
@@ -92,8 +93,10 @@ function prep(h) {
   { const [x0, z0] = h.townToWorld(h.STREET.x, ROUTE.streetLz0), [x1, z1] = h.GATE, L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L;
     RT.street = { x0, z0, x1, z1, L, ux, uz, half: h.STREET.half, yaw: Math.atan2(ux, uz) };
     const bench = (f, s) => { const x = x0 + ux * f + uz * (h.STREET.half - 1.4) * s, z = z0 + uz * f - ux * (h.STREET.half - 1.4) * s; h.addBox(x, z, 0.7, 2.2, RT.street.yaw); return { x, z, s }; };
-    RT.street.benches = [bench(L * 0.33, 1), bench(L * 0.66, -1)]; const nb = bench(L * 0.5, 1); RT.street.board = { x: nb.x, z: nb.z };
-    h.INTERACT.push({ id: 'route_board', area: 'route_street', x: nb.x - uz * 1.4, z: nb.z + ux * 1.4, r: 2.2, label: 'E · NOTICE BOARD' }); }
+    RT.street.benches = [bench(L * 0.33, 1), bench(L * 0.66, -1)];
+    if (SHOW_NOTICE_BOARD) { const nb = bench(L * 0.5, 1); RT.street.board = { x: nb.x, z: nb.z, s: nb.s }; // [hide-notice] collider + interact only when restored
+      h.INTERACT.push({ id: 'route_board', area: 'route_street', x: nb.x - uz * 1.4, z: nb.z + ux * 1.4, r: 2.2, label: 'E · NOTICE BOARD' }); }
+    else RT.street.board = null; }
   const bb = (list) => { let a = [1e9, -1e9, 1e9, -1e9]; for (const [x, z] of list) a = [Math.min(a[0], x - 8), Math.max(a[1], x + 8), Math.min(a[2], z - 8), Math.max(a[3], z + 8)]; return a.map(v => Math.round(v)); };
   MODS[0].rect = bb([[RT.street.x0, RT.street.z0], [RT.street.x1, RT.street.z1]]);
   MODS[1].rect = bb(RT.pts.filter((_, i) => RT.acc[i] <= ROUTE.split + 3)); MODS[2].rect = bb(RT.pts.filter((_, i) => RT.acc[i] >= ROUTE.split - 3));
@@ -164,8 +167,8 @@ function buildStreet({ MATS, OUT, H }) {
   for (let f = 12; f < s.L - 4; f += 12) { const x = s.x0 + s.ux * f, z = s.z0 + s.uz * f, g = (gy(x + s.ux, z + s.uz) - gy(x - s.ux, z - s.uz)) / 2; // landing bands (flush, tilted to the street)
     W(k, box(s.half * 2, 0.08, 1.1), 0xd8d0bf, M(x, gy(x, z) + 0.03, z, s.yaw, -Math.atan(g), 0), false); }
   for (const b of [...s.benches]) { const y = gy(b.x, b.z); W(k, box(0.6, 0.12, 2.0), C.WOOD, M(b.x, y + 0.5, b.z, s.yaw)); for (const e of [-0.8, 0.8]) W(k, box(0.5, 0.45, 0.16), C.STONE_D, M(b.x + s.ux * e, y + 0.22, b.z + s.uz * e, s.yaw), false); }
-  { const b = s.board, y = gy(b.x, b.z); for (const e of [-0.9, 0.9]) W(k, box(0.14, 2.2, 0.14), C.WOOD_D, M(b.x + s.ux * e, y + 1.1, b.z + s.uz * e, s.yaw)); W(k, box(0.12, 1.1, 2.1), C.WOOD, M(b.x, y + 1.6, b.z, s.yaw));
-    for (let i = 0; i < 4; i++) W(k, box(0.03, 0.4, 0.34), [0xf4e9c8, C.WHITE, 0xf4e9c8, C.RED][i], M(b.x - s.uz * 0.07 * (b.s > 0 ? 1 : -1), y + 1.4 + (i % 2) * 0.45, b.z + s.ux * 0.07 + (i - 1.5) * 0.45, s.yaw), false); }
+  if (s.board) { const b = s.board, y = gy(b.x, b.z); for (const e of [-0.9, 0.9]) W(k, box(0.14, 2.2, 0.14), C.WOOD_D, M(b.x + s.ux * e, y + 1.1, b.z + s.uz * e, s.yaw)); W(k, box(0.12, 1.1, 2.1), C.WOOD, M(b.x, y + 1.6, b.z, s.yaw)); // [hide-notice]
+    for (let i = 0; i < 4; i++) W(k, box(0.03, 0.4, 0.34), [0xf4e9c8, C.WHITE, 0xf4e9c8, C.RED][i], M(b.x - s.uz * 0.07 * ((b.s || 1) > 0 ? 1 : -1), y + 1.4 + (i % 2) * 0.45, b.z + s.ux * 0.07 + (i - 1.5) * 0.45, s.yaw), false); }
   for (const sd of [-1, 1]) { const f = s.L - 3, x = s.x0 + s.ux * f + s.uz * (s.half - 0.9) * sd, z = s.z0 + s.uz * f - s.ux * (s.half - 0.9) * sd, y = gy(x, z); // planters at the gate
     W(k, box(1.2, 0.6, 1.2), C.STONE_D, M(x, y + 0.3, z, s.yaw)); for (let i = 0; i < 3; i++) W(k, new THREE.IcosahedronGeometry(0.35, 0), [C.RED, 0xffc93c, 0x5f9a3a][i], M(x + (i - 1) * 0.3, y + 0.75, z, i), false); }
   near.add(k.build(MATS, OUT)); return { near, far: null };
