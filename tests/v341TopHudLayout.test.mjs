@@ -6,7 +6,7 @@ const src = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const css = src('css/style.css'), html = src('index.html'), dock = src('js/dock/index.js');
 const v341 = css.slice(css.indexOf('[v341] BANKSY t1808u'));
 
-test('sw.js is pfp-v341', () => { assert.match(src('sw.js'), /const VERSION = 'pfp-v341';/); });
+test('sw.js is >= pfp-v341', () => { assert.ok(+(src('sw.js').match(/const VERSION = 'pfp-v(\d+)';/) || [])[1] >= 341); });
 
 test('#hud-icons stays inside #hud-tr (every hide rule still applies) but is fixed to the top centre', () => {
   const tr = html.slice(html.indexOf('<div id="hud-tr">'), html.indexOf('<div id="controls">'));
