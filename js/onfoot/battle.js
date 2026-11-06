@@ -42,7 +42,7 @@ import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on t
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
 
-import { STANCES_ON, STANCE_LABEL, stanceForKey, stanceTap, holsterToggle, peerReach, openHitOk, footRegenStep } from './stances.js'; // [backpack-pvp] t1710u UNARMED / SWORD / GUN anywhere on foot
+import { STANCES_ON, STANCE_LABEL, STANCE_ICON, stanceForKey, stanceTap, holsterToggle, nextStance, peerReach, openHitOk, footRegenStep } from './stances.js'; // [backpack-pvp] t1710u UNARMED / SWORD / GUN anywhere on foot
 
 // [backpack-pvp] BANKSY t1711u "Make players take 5-6 shots to kill": 100 HP, sword + musket 19 dmg (common 6 hits; rare / epic 20 and
 // legendary 21 = 5 hits; + bayonet 3 point-blank still 5). Musket reload 1.25 s (was 2.0) so a 5-6 shot firefight stays snappy.
@@ -74,14 +74,18 @@ html.dk-touch.bt-on #bt-atk{display:block}
 #bt-msg{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;font:40px 'Just Another Hand',cursive;color:#fff;text-shadow:0 3px 6px #000;opacity:0;transition:opacity .25s;text-align:center;white-space:nowrap}
 #bt-msg small{display:block;font-size:22px;color:#ffcd77}
 @media (max-width:600px){#bt-hud{top:calc(var(--safe-t,0px) + 112px)}}
-#bt-stance{position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 14px);transform:translateX(-50%);z-index:8;display:none;gap:6px;padding:5px;border-radius:999px;background:rgba(14,10,6,.86);border:2px solid #ffcd77;box-shadow:0 4px 12px rgba(0,0,0,.55)}
+/* [t1730u] compact circular weapon switch directly ABOVE #btn-emote (💬) — cycles Unarmed→Musket→Sword */
+#bt-stance{position:fixed;right:calc(18px + var(--safe-r, 0px));bottom:calc(84px + var(--safe-b, 0px));width:52px;height:52px;border-radius:50%;z-index:18;display:none;align-items:center;justify-content:center;padding:0;margin:0;border:2px solid var(--gold, #f5c542);background:rgba(10,10,10,0.72);color:#fff;box-shadow:0 3px 0 #000;cursor:pointer;touch-action:manipulation;font-size:24px;line-height:1}
 #bt-stance.on{display:flex}
-#bt-stance button{font:bold 14px system-ui,sans-serif;letter-spacing:.03em;color:#ffcd77;background:#24180c;border:2px solid rgba(255,205,119,.35);border-radius:999px;padding:6px 12px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
-#bt-stance button i{font-style:normal;display:inline-block;min-width:16px;margin-right:5px;border-radius:4px;background:#ffcd77;color:#161616;font-size:11px;padding:0 3px}
-#bt-stance button.sel{background:linear-gradient(#ffd98a,#d99a2b);color:#161616;border-color:#fff3c4;box-shadow:0 0 10px rgba(255,205,119,.7)}
-#bt-stance button.sel i{background:#161616;color:#ffcd77}
-#bt-stance button[disabled]{opacity:.45}
-html.dk-touch #bt-stance{bottom:calc(var(--safe-b,0px) + 250px);left:auto;right:calc(var(--safe-r,0px) + 14px);transform:none;flex-direction:column}
+#bt-stance .bt-ico{pointer-events:none;font-size:24px;line-height:1}
+#bt-stance .bt-tab{pointer-events:none;position:absolute;right:-4px;top:-4px;font:bold 9px system-ui,sans-serif;letter-spacing:.04em;color:#161616;background:linear-gradient(#ffd98a,#d99a2b);border:1px solid #fff3c4;border-radius:4px;padding:1px 3px;box-shadow:0 1px 0 #000}
+#bt-stance.safe-locked{border-color:#2ee88a;box-shadow:0 0 10px rgba(46,232,138,.45),0 3px 0 #000}
+#bt-stance.safe-locked .bt-tab{display:none}
+#bt-stance .bt-safe{display:none;position:absolute;left:-4px;bottom:-4px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 0 #000)}
+#bt-stance.safe-locked .bt-safe{display:block}
+html.dk-touch #bt-stance .bt-tab{display:none}
+@media (orientation: portrait){#bt-stance{right:calc(10px + var(--safe-r, 0px));bottom:calc(316px + var(--safe-b, 0px));width:46px;height:46px;font-size:22px}#bt-stance .bt-ico{font-size:22px}}
+@media (orientation: landscape) and (max-height: 520px), (orientation: landscape) and (max-width: 760px){#bt-stance{right:calc(10px + var(--safe-r, 0px));bottom:auto;top:calc(44% - 54px);width:44px;height:44px;font-size:20px}#bt-stance .bt-ico{font-size:20px}}
 `;
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
 // arm key directions in the pirate's own space (+Z front, +X his LEFT, +Y up). u = upper arm, f = forearm, b = where the blade points
@@ -362,27 +366,52 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const hud = el('div', 'bt-hud', '<b></b><button type="button" class="tm"></button><span class="sc"></span><small></small>'), atk = el('button', 'bt-atk', 'SWING'), flash = el('div', 'bt-flash'), msg = el('div', 'bt-msg');
-  const stanceBar = el('div', 'bt-stance', STANCE_LABEL.map((l, i) => `<button type="button" data-s="${i}"><i>${i + 1}</i>${l}</button>`).join(''));
+  const stanceBar = el('button', 'bt-stance', '<span class="bt-ico">🤚</span><span class="bt-tab">TAB</span><span class="bt-safe">🛡️</span>');
+  stanceBar.type = 'button'; stanceBar.title = 'Tab · cycle Unarmed → Musket → Sword';
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) stanceBar.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
-  stanceBar.addEventListener('click', (e) => { const b = e.target.closest('button[data-s]'); if (!b) return; e.preventDefault(); e.stopPropagation(); setStance(stanceTap(me.stance, +b.dataset.s)); });
+  stanceBar.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cycleStance(); });
   let stanceSig = '';
-  function drawStance(show) { const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}` : ''; if (sig === stanceSig) return; stanceSig = sig;
+  function drawStance(show) {
+    const safeLock = !!(isleSafe._isleSafe && !me.arena);
+    const pd = padActive();
+    const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}|${safeLock ? 1 : 0}|${pd ? padGlyph('X') : 'TAB'}` : '';
+    if (sig === stanceSig) return; stanceSig = sig;
     stanceBar.classList.toggle('on', !!show); if (!show) return;
-    stanceBar.querySelectorAll('button').forEach((b) => { const i = +b.dataset.s; b.classList.toggle('sel', i === me.stance); b.disabled = me.down > 0 || (me.arena === Z_PIT && i === 2); }); }
+    stanceBar.classList.toggle('safe-locked', safeLock);
+    stanceBar.querySelector('.bt-ico').textContent = STANCE_ICON[me.stance] || '🤚';
+    const tab = stanceBar.querySelector('.bt-tab');
+    if (tab) tab.textContent = pd ? padGlyph('X') : 'TAB'; // [t1734u] □ / X while a pad is in use
+    stanceBar.disabled = me.down > 0;
+  }
   function setStance(s, auto = false) {
     if (!STANCES_ON) return false; s = s | 0; if (s < 0 || s > 2 || me.down > 0) return false;
     if (s && inHouse?.()) return false;
     if (me.arena === Z_PIT && s === 2) { if (!auto) say('⚔ SWORD PIT<small>swords only in the pit</small>', 1200); s = 1; }
+    // [t1729u] Safe Zone: weapons stay holstered (arena pads exempt)
+    if (s !== 0 && isleSafe._isleSafe && !me.arena) {
+      if (me.stance !== 0) { me.stance = 0; stanceSig = ''; hudSig = ''; }
+      if (!auto) { say('🛡️ SAFE ZONE<small>weapons stay holstered in Safe Zones</small>', 1100); stanceSig = ''; drawStance(true); }
+      return false;
+    }
     if (s === me.stance) return true;
     me.stance = s; if (s) { me.drawn = s; readSword(); sfx?.equip?.(); }
     stanceSig = ''; hudSig = '';
-    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · X = holster</small>` : '🤚 UNARMED<small>weapons holstered · 2 sword · 3 gun</small>', 1100);
+    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · Tab = switch · X = holster</small>` : '🤚 UNARMED<small>weapons holstered · Tab = Musket</small>', 1100);
     return true;
   }
-  // keys 1 / 2 / 3 + X (bubble phase: the emote wheel's capture handler owns 1..8 while it is open)
-  addEventListener('keydown', (e) => { if (!STANCES_ON || !me.onFoot || !walker.active || e.repeat) return; const tg = e.target?.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA' || e.target?.isContentEditable) return;
+  function cycleStance() { return setStance(nextStance(me.stance)); }
+  // keys 1 / 2 / 3 + X + Tab (bubble phase: the emote wheel's capture handler owns 1..8 while it is open)
+  addEventListener('keydown', (e) => {
+    if (!STANCES_ON || !me.onFoot || !walker.active || e.repeat) return;
+    const tg = e.target?.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA' || e.target?.isContentEditable) return;
+    // ignore when a modal / map / shop is up
+    if (document.documentElement.classList.contains('isle-map-open')) return;
+    const shop = document.getElementById('shop'); if (shop && shop.style.display !== 'none' && !shop.hidden && shop.offsetParent) return;
+    const ew = document.getElementById('emote-wheel'); if (ew && !ew.classList.contains('hidden') && ew.style.display !== 'none' && ew.offsetParent) return;
+    if (e.code === 'Tab') { e.preventDefault(); e.stopPropagation(); cycleStance(); return; }
     const k = stanceForKey(e.code); if (k !== null) { setStance(k); e.preventDefault(); return; }
-    if (e.code === 'KeyX') { setStance(holsterToggle(me.stance, me.drawn)); e.preventDefault(); } });
+    if (e.code === 'KeyX') { setStance(holsterToggle(me.stance, me.drawn)); e.preventDefault(); }
+  });
   let msgT = 0; function say(html, ms = 1500) { msg.innerHTML = html; msg.style.opacity = 1; clearTimeout(msgT); msgT = setTimeout(() => { msg.style.opacity = 0; }, ms); }
   atk.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); attack(); });
   // [Emerly] 2v2: the team chip (tap / click; desktop G) cycles FFA -> RED -> BLUE. Your team rides in ba[8]; teammates can't hurt each other.
@@ -542,6 +571,8 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       me.onFoot = true; if (me.stance && inHouse?.()) setStance(0, true);
       const ar = me.down > 0 ? me.arena : zoneAt(W.x, W.z);
       if (ar !== me.arena) { me.arena = ar; if (ar) { readSword(); me.lastZone = ar; setStance(ar === Z_PIT ? 1 : 2, true); say(ar === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } }
+      // [t1729u] auto-holster to Unarmed inside Island Safe Zone (arena pads exempt)
+      if (isleSafe._isleSafe && !me.arena && me.stance !== 0) setStance(0, true);
       const held = me.down > 0 ? me.zone : me.stance;
       if (held !== me.zone) { me.zone = held; me.cool = 0; mineR.st.act = null; me.fireAt = -1; if (held !== Z_RANGE) tps?.off(); }
       footRegen(dt); // [t1724u] the ship rule: 20 s without a hit -> +5% every 4 s
@@ -589,5 +620,5 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function preview(obj, zone, id, act = null) { const R = { ...rig(obj), obj }; if (!hookBody(R)) return null; R.st.zone = zone; R.st.w = 1; R.st.act = act;
     dress(R, zone, zone === Z_PIT ? id : SWORD_DEFAULT, zone === Z_RANGE ? id : MUSKET_DEFAULT); return R; }
   return { hpState: () => ({ hp: me.hp, maxHp: ARENA.hp, repairing: !!me.repairing, onFoot: !!me.onFoot, down: me.down > 0 }), // [t1724u] main.js drives the captain-card #player-hp from this on foot
-    muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, setStance, get stance() { return me.stance; }, get arena() { return me.arena; }, harborRespawn, openHitOk, takeHit, respawn, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps, padHud: () => { hudSig = ''; drawHud(); }, isleSafe, graceLeft: (now) => graceLeft(isleSafe, now, SAFE_GRACE_S) };
+    muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, setStance, cycleStance, get stance() { return me.stance; }, get arena() { return me.arena; }, harborRespawn, openHitOk, takeHit, respawn, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps, padHud: () => { hudSig = ''; stanceSig = ''; drawHud(); drawStance(stanceBar.classList.contains('on')); }, isleSafe, graceLeft: (now) => graceLeft(isleSafe, now, SAFE_GRACE_S) };
 }

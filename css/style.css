@@ -64,7 +64,7 @@ html.goldhud-legacy #hud-top .label { font-size: 0.85em; margin-right: 4px; }
 #btn-showhud.hidden { display: none !important; }
 html.hud-hide #hud-tl, html.hud-hide #hud-tr, html.hud-hide #hud-icons, html.hud-hide #radar, html.hud-hide #enemies-left,
 html.hud-hide #tm-btn, html.hud-hide #btn-emote, html.hud-hide #controls, html.hud-hide #dk-joy, html.hud-hide #dk-jump,
-html.hud-hide #dk-acts, html.hud-hide #dk-safe, html.hud-hide #bt-atk, html.hud-hide #squad-invites,
+html.hud-hide #dk-acts, html.hud-hide #dk-safe, html.hud-hide #bt-atk, html.hud-hide #bt-stance, html.hud-hide #squad-invites,
 html.hud-hide #hud-top, html.hud-hide #hud-gold { visibility: hidden !important; pointer-events: none !important; }
 html.hud-hide #btn-showhud { display: block !important; visibility: visible !important; pointer-events: auto !important; }
 html.hud-hide.goldhud-legacy #hud-top { visibility: hidden !important; }

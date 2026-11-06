@@ -1,4 +1,4 @@
-// [backpack-pvp] Emerald-gold ward lanterns along the OUTER edge of the Island Safe Zones (the one Cottages-to-Dock corridor + Swim Cove),
+// [backpack-pvp] Emerald-gold ward lanterns along the OUTER edge of the unified Island Safe Zone (BANKSY t1727u outline),
 // each on a soft emerald ground disc. Never inside / on the Coliseum (safeZones.wardPosts skips it). Instanced: 4 draw calls total.
 // Posts are authored in FOOT coords and placed in the scene's HARBOR frame (layout.footToHarbor); posts over water are skipped.
 import * as THREE from 'three';
@@ -9,7 +9,7 @@ export function buildSafeZoneMarks(scene, world, layout) {
   const toH = layout.footToHarbor, H = layout.FM?.H;
   const posts = [];
   for (const [fx, fz] of wardPosts(14)) {
-    if (H && H(fx, fz) < 0.4) continue;                              // in the sea / on a jetty edge: no post
+    if (H && H(fx, fz) < 1.2) continue;                              // [t1727u] dry land only — never harbor water / swim cove / lake
     const [x, z] = toH(fx, fz); const y = world?.ground?.(x, z) ?? 0; if (!Number.isFinite(y)) continue;
     posts.push([x, y, z]);
   }

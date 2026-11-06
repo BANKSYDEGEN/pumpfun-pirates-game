@@ -17,6 +17,7 @@ import {
   SAFE_PARTS, EXTRA_ZONES, zoneAt, inIslandSafeZone, canFightOnFoot, tickIsleSafe, graceLeft,
   SAFE_GRACE_S, cottageDoorstep, mapSafeZoneRings, SAFEZONES_ON, isInsideColiseum, COLI, TRAIL_A_LINK,
   CORRIDOR_ID, CORRIDOR_NAME, zoneAtH, isInsideColiseumH, footToHarbor, wardPosts, coliseumExclusion, safeShapes,
+  SAFE_POLY, SAFE_CTRL, pointInPoly,
 } from '../js/island/safeZones.js';
 import { t2w } from '../js/island/coast.js';
 import {
@@ -129,9 +130,12 @@ test('server loot.ts exports countSlots / splitForCap / BACKPACK_CAP / LOOT_TTL_
   ], eq), 2);
 });
 
-test('Island Safe Zones: cottages, harbor, hill, swim inside; coli + digs outside', () => {
+test('Island Safe Zones t1727u: unified polygon covers harbor/coli/fort/lagoon; sandbar+bridge outside', () => {
   assert.ok(SAFEZONES_ON);
-  assert.ok(SAFE_PARTS.length >= 6 && EXTRA_ZONES.length >= 1);
+  assert.ok(SAFE_POLY.length > 64, 'Chaikin-smoothed polygon');
+  assert.ok(SAFE_CTRL.length >= 20);
+  assert.equal(SAFE_PARTS.length, 1);
+  assert.equal(EXTRA_ZONES.length, 0, 'cove + lagoon folded into the one polygon');
   for (const c of COTTAGES) {
     const d = cottageDoorstep(c);
     assert.ok(inIslandSafeZone(d.x, d.z), c.id + ' doorstep safe');
@@ -141,31 +145,31 @@ test('Island Safe Zones: cottages, harbor, hill, swim inside; coli + digs outsid
   assert.ok(inIslandSafeZone(-690, -180), 'harbor dock spawn');
   assert.ok(inIslandSafeZone(-555, -76), 'hill shops / squad');
   assert.ok(inIslandSafeZone(-592, -334), 'swim cove');
-  // Coliseum arena center (town lx 61 lz -136 → foot)
-  assert.equal(zoneAt(-504, -29), null, 'coli center outside');
-  // Active dig spots outside
-  for (const d of DIG_SPOTS.filter((x) => x.active)) {
-    assert.equal(zoneAt(d.x, d.z), null, `dig ${d.id} must be outside Safe Zones`);
-  }
+  assert.ok(inIslandSafeZone(-504, -29), 'coli center INSIDE sanctuary (t1727u)');
+  assert.ok(inIslandSafeZone(-408, -44), 'hilltop fort');
+  assert.ok(inIslandSafeZone(-205, -130), 'fishing lagoon');
+  assert.ok(inIslandSafeZone(-758, 18), 'lighthouse');
+  assert.ok(inIslandSafeZone(-682, 70), 'cliff battery');
+  assert.equal(zoneAt(-745, -435), null, 'sandbar light OUTSIDE');
+  assert.equal(zoneAt(16, -82), null, 'rope / hangman bridge OUTSIDE');
   const rings = mapSafeZoneRings();
-  assert.ok(rings.some((r) => /Harbor/i.test(r.name)));
-  assert.ok(rings.some((r) => /Cottage/i.test(r.name)));
+  assert.ok(rings.some((r) => /Safe Zone|Sanctuary|Harbor/i.test(r.name)));
 });
 
-test('canFightOnFoot blocks inside Safe Zone + 3s exit grace + inHouse', () => {
+test('canFightOnFoot blocks inside Safe Zone + 3s exit grace + inHouse (coli now safe too)', () => {
   const st = {};
   assert.equal(canFightOnFoot(st, -612, -70, 0), false);
-  assert.equal(canFightOnFoot(st, -504, -29, 0), true); // coli
+  assert.equal(canFightOnFoot(st, -504, -29, 0), false, 'coli inside unified sanctuary = no open-world PvP');
   assert.equal(canFightOnFoot(st, -504, -29, 0, { inHouse: true }), false);
   tickIsleSafe(st, -612, -70, 10);
   assert.equal(st._isleSafe, true);
-  const out = DIG_SPOTS.find((d) => d.active && !isInsideColiseum(d.x, d.z)); // open island (not the Coliseum: no grace lock there, t1695u)
+  const out = DIG_SPOTS.find((d) => d.active && !zoneAt(d.x, d.z)); // contested open island
+  assert.ok(out, 'need a dig outside the sanctuary');
   tickIsleSafe(st, out.x, out.z, 11); // leave
   assert.equal(st._isleSafe, false);
   assert.ok(graceLeft(st, 12, SAFE_GRACE_S) > 0);
   assert.equal(canFightOnFoot(st, out.x, out.z, 12), false); // still in grace
   assert.equal(canFightOnFoot(st, out.x, out.z, 15), true); // grace over
-  assert.equal(canFightOnFoot(st, -504, -29, 12), true); // the Coliseum: never locked
 });
 
 test('migration 044 + edge loot/houses/inventory wiring contracts', () => {
@@ -209,7 +213,7 @@ test('client UI wires slot meter + loot bag prompt + safe HUD', () => {
   const battle = read('js/onfoot/battle.js');
   assert.match(battle, /canFightOnFoot|dropHaul|SAFE ZONE/);
   const map = read('js/islandMap.js');
-  assert.match(map, /drawSafeZoneRings|rgba\(52, 211, 153/);
+  assert.match(map, /drawSafeZoneRings|SAFE_POLY|2ee88a/);
   const bags = read('js/dock/lootBags.js');
   assert.match(bags, /LOOT PLUNDER|buildLootBagMesh|escHtml/);
   assert.match(bags, /PUMPFUN PIRATES|plunder/i);
@@ -238,27 +242,28 @@ test('t1695u corridor: Cottage Village -> Trail A -> Main Street -> Harbor Plaza
   assert.ok(zoneAtH(...footToHarbor(-690, -84)), 'spawn berth (harbor frame)');
 });
 
-test('t1695u Coliseum exclusion: every metre of the Coliseum (+ gate gallery + battle pads) is never safe', () => {
+test('t1727u Coliseum is INSIDE the unified Safe Zone (no carve-out, no open-world PvP)', () => {
   let n = 0;
   for (let lx = COLI.lx0 - 6; lx <= COLI.lx1 + 6; lx += 1) for (let lz = COLI.lz0 - 6; lz <= COLI.lz1 + 6; lz += 1) {
     const [x, z] = t2w(lx, lz);
     if (!isInsideColiseum(x, z)) continue; n++;
-    assert.equal(zoneAt(x, z), null, `coli town (${lx}, ${lz}) must not be safe`);
-    assert.equal(canFightOnFoot({}, x, z, 0), true);
+    assert.ok(zoneAt(x, z), `coli town (${lx}, ${lz}) must be safe`);
+    assert.equal(canFightOnFoot({}, x, z, 0), false);
   }
   assert.ok(n > 5000, 'whole shell sampled');
-  // gate gallery + pit + range centres
-  for (const [lx, lz] of [[20, -114.761], [40, -114.761], [61, -101], [61, -150]]) { const [x, z] = t2w(lx, lz); assert.ok(isInsideColiseum(x, z)); assert.equal(zoneAt(x, z), null); }
-  // no 3 s grace lock when you walk from the plaza straight into the Coliseum
+  for (const [lx, lz] of [[20, -114.761], [40, -114.761], [61, -101], [61, -150]]) {
+    const [x, z] = t2w(lx, lz); assert.ok(isInsideColiseum(x, z)); assert.ok(zoneAt(x, z));
+  }
+  // staying inside sanctuary: no exit grace fired when walking plaza → coli
   const st = {}; tickIsleSafe(st, -555, -76, 10); assert.equal(st._isleSafe, true);
   const [cx, cz] = t2w(61, -136); tickIsleSafe(st, cx, cz, 10.5);
-  assert.equal(graceLeft(st, 10.6), 0); assert.equal(canFightOnFoot(st, cx, cz, 10.6), true);
+  assert.equal(st._isleSafe, true); assert.equal(graceLeft(st, 10.6), 0);
+  assert.equal(canFightOnFoot(st, cx, cz, 10.6), false);
   assert.equal(isInsideColiseumH(...footToHarbor(cx, cz)), true);
-  // map helpers carve it + lantern posts never in it
   const ex = coliseumExclusion(); assert.ok(ex.shell.length >= 48 && ex.gallery.length === 4);
-  const posts = wardPosts(14); assert.ok(posts.length > 40);
-  for (const [x, z] of posts) assert.equal(isInsideColiseum(x, z), false);
-  assert.ok(safeShapes().length >= 8);
+  const posts = wardPosts(14); assert.ok(posts.length > 20);
+  assert.equal(safeShapes().length, 1, 'single sanctuary polygon');
+  assert.ok(pointInPoly(cx, cz, SAFE_POLY));
 });
 
 test('t1695u Coliseum constants mirror js/island/coliseum.js FOOT / p / MAIN_GATE', () => {
@@ -266,12 +271,16 @@ test('t1695u Coliseum constants mirror js/island/coliseum.js FOOT / p / MAIN_GAT
   assert.match(src, /export const FOOT = \{ lx0: 34, lx1: 88, lz0: -200, lz1: -72/);
   assert.match(src, /p: 2\.7/);
   assert.deepEqual([COLI.lx0, COLI.lx1, COLI.lz0, COLI.lz1, COLI.p], [34, 88, -200, -72, 2.7]);
-  assert.match(read('js/islandMap.js'), /coliseumExclusion|destination-out/);
-  assert.match(read('js/islandMap.js'), /COLISEUM · PvP ON/);
+  // t1727u: NO coli carve-out label on the map
+  assert.doesNotMatch(read('js/islandMap.js'), /COLISEUM · PvP ON/);
+  assert.match(read('js/islandMap.js'), /SAFE_POLY/);
 });
 
-test('t1695u active dig spots stay outside + no safe HUD banner inside a cottage', () => {
-  for (const d of DIG_SPOTS.filter((x) => x.active)) for (const [ox, oz] of [[0, 0], [3, 0], [0, -3], [-3, 2]]) assert.equal(zoneAt(d.x + ox, d.z + oz), null, d.id);
+test('t1727u dig spots outside sanctuary stay contested + no safe HUD banner inside a cottage', () => {
+  // digs far from the sanctuary stay contested; digs that fall inside the unified polygon are protected (no DIG_CARVE)
+  for (const d of DIG_SPOTS.filter((x) => x.active && !zoneAt(x.x, x.z))) {
+    for (const [ox, oz] of [[0, 0], [3, 0], [0, -3], [-3, 2]]) assert.equal(zoneAt(d.x + ox, d.z + oz), null, d.id);
+  }
   const dock = read('js/dock/index.js');
   assert.match(dock, /houses\?\.inHouse|houses\.inHouse/);
   assert.match(dock, /harborToFoot\(W\.x, W\.z\)/, 'HUD converts the harbor walker to the foot frame');
@@ -342,47 +351,58 @@ test('t1698u Option B: kill switch, unmanned ship shield, harbor sink credits + 
 });
 
 // ---------------- t1710u: Safe Zone on EVERY map surface + UNARMED / SWORD / GUN stances ----------------
-import { STANCE, STANCE_LABEL, stanceForKey, stanceTap, holsterToggle, peerReach, openHitOk, hitsToKill, STANCES_ON } from '../js/onfoot/stances.js';
+import { STANCE, STANCE_LABEL, STANCE_ICON, stanceForKey, stanceTap, holsterToggle, nextStance, peerReach, openHitOk, hitsToKill, STANCES_ON } from '../js/onfoot/stances.js';
 import { weaponStats } from '../js/inventory/catalog.js';
 
-test('t1710u/t1726u Safe Zone on full map + on-foot minimap (NOT ship/island radar draw)', () => {
+test('t1726u/t1727u Safe Zone vector on full map + on-foot minimap; ZERO on ship radar', () => {
   const map = read('js/islandMap.js');
-  assert.match(map, /function safeCanvas\(\)/);
-  assert.match(map, /insideSafeZone\(B\.x0 \+ \(i \+ 0\.5\) \* SZ_CELL/, 'baked from the true union insideSafeZone');
-  assert.match(map, /SZ_FILL = \[46, 232, 138, 51\], SZ_EDGE = \[46, 232, 138, 235\]/);
-  assert.match(map, /function drawSafeOverlay\(ctx, T\)/);
+  assert.match(map, /SAFE_POLY/);
+  assert.match(map, /function drawSafeOverlay\(ctx, T/);
+  assert.match(map, /rgba\(46, 232, 138, 0\.16\)|rgba\(28, 185, 105, 0\.18\)/);
+  assert.match(map, /#2ee88a/);
   const fn = (name) => { const a = map.indexOf(`function ${name}(`); const b = map.indexOf('\n  }\n', a); return map.slice(a, b); };
   assert.match(fn('drawLocal'), /drawSafeZoneRings\(ctx, T, k, 1, \{ labels: false \}\)/, 'rotating corner minimap');
   assert.match(fn('drawLocal'), /🛡️ SAFE' : '⚔️ PVP'/, 'rim pill');
   assert.doesNotMatch(fn('draw'), /drawSafeZoneRings/, 't1726u: NO Safe Zone on ship/island radar draw()');
-  assert.match(fn('frame'), /drawSafeZoneRings\(c, T, k, dpr\)/, 'full-screen map');
+  assert.match(fn('frame'), /drawSafeZoneRings\(c, T, k, dpr/, 'full-screen map');
   assert.match(fn('frame'), /drawSafeZoneRings\(c, T2, kk, dpr, \{ small: true \}\)/, 'HARBOR TOWN inset');
   assert.match(map, /<i style="background:rgba\(46,232,138,\.45\);border:1\.5px solid #2ee88a"><\/i>safe zone/, '.im-key legend');
   assert.match(map, /'🛡️ SAFE ZONE'/);
-  assert.match(read('js/main.js'), /dock\.radarZones\?\.\(rctx, W,/, 'at-sea ship radar');
+  assert.doesNotMatch(map, /COLISEUM · PvP ON/);
+  assert.match(read('js/main.js'), /t1726u.*no Safe Zone overlay/, 'at-sea ship radar call removed');
   const dock = read('js/dock/index.js');
-  assert.match(dock, /radarZones: \(ctx, W, T, s\) =>/); assert.match(dock, /SAFE HARBOR/); assert.match(dock, /SEA PVP/);
+  assert.match(dock, /radarZones: \(\) => false/);
 });
 
-test('t1710u stances: 0 UNARMED / 1 SWORD / 2 GUN, keys 1 / 2 / 3, tap-again + X holster', () => {
+test('t1710u/t1731u stances: Tab cycles Unarmed→Musket→Sword; compact #bt-stance above emotes; Safe Zone auto-unarmed', () => {
   assert.ok(STANCES_ON);
   assert.deepEqual(STANCE, { unarmed: 0, sword: 1, gun: 2 });
   assert.deepEqual([...STANCE_LABEL], ['🤚 UNARMED', '⚔️ SWORD', '🔫 GUN']);
+  assert.deepEqual([...STANCE_ICON], ['🤚', '⚔️', '🔫']);
   assert.deepEqual(['Digit1', 'Digit2', 'Digit3', 'Numpad2', 'KeyQ'].map(stanceForKey), [0, 1, 2, 1, null]);
   assert.equal(stanceTap(0, 1), 1); assert.equal(stanceTap(1, 1), 0, 'tap the drawn weapon again = holster'); assert.equal(stanceTap(1, 2), 2); assert.equal(stanceTap(2, 0), 0);
   assert.equal(holsterToggle(1, 1), 0); assert.equal(holsterToggle(0, 2), 2); assert.equal(holsterToggle(0, 1), 1); assert.equal(holsterToggle(0, 0), 1);
+  assert.equal(nextStance(0), 2, 'Unarmed → Musket');
+  assert.equal(nextStance(2), 1, 'Musket → Sword');
+  assert.equal(nextStance(1), 0, 'Sword → Unarmed');
   const B = read('js/onfoot/battle.js');
   assert.match(B, /function setStance\(s, auto = false\)/);
   assert.match(B, /id="bt-stance"|'bt-stance'/);
+  assert.match(B, /nextStance|cycleStance/);
+  assert.match(B, /e\.code === 'Tab'/);
+  assert.match(B, /safe-locked|SAFE ZONE<small>weapons stay holstered/);
+  assert.match(B, /isleSafe\._isleSafe && !me\.arena && me\.stance !== 0/);
+  assert.match(B, /bottom:calc\(84px \+ var\(--safe-b/);
   assert.match(B, /setStance\(ar === Z_PIT \? 1 : 2, true\)/, 'pit auto-sword, range auto-gun');
   assert.match(B, /swords only in the pit/);
   assert.match(B, /e\.code === 'KeyX'/);
   assert.match(B, /STANCES_ON \? !me\.onFoot : !me\.zone\) return \{ ba: 0/, 'ba rides whenever on foot');
   assert.match(read('js/onfoot/stances.js'), /stances=0/);
+  assert.match(read('css/style.css'), /html\.hud-hide #bt-stance/);
 });
 
 test('t1710u open-island cross-stance hits + Safe-Zone sniper protection', () => {
-  const plaza = t2w(0, 0), open = DIG_SPOTS.find((d) => d.active && !isInsideColiseum(d.x, d.z)), A = [open.x, open.z], V = [open.x + 20, open.z];
+  const plaza = t2w(0, 0), open = DIG_SPOTS.find((d) => d.active && !zoneAt(d.x, d.z)), A = [open.x, open.z], V = [open.x + 20, open.z];
   assert.equal(zoneAt(...V), null);
   // the rule ignores what the victim holds: gun -> sword / unarmed, sword -> gun / unarmed all land on the open island
   for (const held of [0, 1, 2]) assert.equal(openHitOk(A, V, { now: 100 }), true, `victim holding ${STANCE_LABEL[held]}`);
@@ -390,7 +410,7 @@ test('t1710u open-island cross-stance hits + Safe-Zone sniper protection', () =>
   assert.equal(openHitOk(A, plaza, { now: 100 }), false, 'cannot snipe INTO a Safe Zone');
   assert.equal(openHitOk(plaza, A, { now: 100 }), false, 'cannot fire OUT of a Safe Zone');
   assert.equal(openHitOk(A, V, { inHouse: true }), false);
-  const [cx, cz] = t2w(61, -136); assert.equal(openHitOk([cx, cz], [cx + 2, cz], {}), true, 'Coliseum fights untouched');
+  const [cx, cz] = t2w(61, -136); assert.equal(openHitOk([cx, cz], [cx + 2, cz], {}), false, 'coli inside sanctuary = no open-world PvP');
   const B = read('js/onfoot/battle.js');
   assert.match(B, /const canHitPeer = \(r, p, need\) => .*STANCES_ON \? \(me\.pvpOk && victimOpen\(p\)\) : r\.ba\[0\] === need/);
   assert.match(B, /if \(!canHitPeer\(r, p, Z_PIT\)\) continue;/); assert.match(B, /if \(!canHitPeer\(r, p, Z_RANGE\)\) continue;/);

@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { shopIcon, drawShopIcon, getMapStyle, THEMES, SHOP_ICONS } from './mapIcons.js'; // [v153] shop badges + MINIMAP STYLE // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
 import { mapLandmarks, mapDocks } from './mapLandmarks.js'; // [minimap-themes] castle / fort / battle areas / shops / docks / D2 ruins from the island's own data
-import { mapSafeZoneRings, SAFEZONES_ON, coliseumExclusion, insideSafeZone, TRAIL_A_LINK } from './island/safeZones.js'; // [backpack-pvp]
+import { mapSafeZoneRings, SAFEZONES_ON, insideSafeZone, SAFE_POLY } from './island/safeZones.js'; // [backpack-pvp] t1727u unified polygon
 import { GEO_LABELS, ISLAND_STREETS, locatePoint, streetLabelPose } from './islandGeography.js'; // [map-streets]
 const BAKE_C = new THREE.Color(); // colour scratch for the bake
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // foot frame: the whole on-foot grid (main island + islets)
@@ -30,53 +30,36 @@ const GEO_POI = new Set(['skullpeak','falls','gallows','bridge','gate','cove','f
 const MAPZOOM_ON = typeof location === 'undefined' || !/[?&]mapzoom=0(?:&|$)/.test(location.search); // [map-zoom] BANKSY 2:43 PM; &mapzoom=0 = old tap-anywhere-to-close, no zoom/pan
 export function createIslandMap({ world, layout, low, islands = null, paperSheet = null }) { // paperSheet() = the MAPS parchment chart (js/dock/treasureMap.js sheet())
   const FM = layout.FM, toF = layout.harborToFoot, toH = layout.footToHarbor;
-  // [backpack-pvp] t1695u + t1710u: the TRUE union Safe Zone (insideSafeZone: the one Cottages -> Trail A -> Main Street ->
-  // Harbor Plaza -> Dock corridor + Swim Cove, the Coliseum + active digs carved out) baked ONCE into a small foot-frame
-  // grid canvas (szCv, SZ_CELL m / px): soft emerald tint inside + a crisp glowing emerald border where a safe cell touches a
-  // PvP cell. Drawn with one affine drawImage on EVERY surface: full Island Map, HARBOR TOWN inset, the on-foot rotating
-  // minimap (drawLocal), the island radar (draw) and the at-sea ship radar (main.js via dock.radarZones).
-  const SZ_CELL = 2, SZ_FILL = [46, 232, 138, 51], SZ_EDGE = [46, 232, 138, 235];
-  let szCv = null;
-  function safeCanvas() {
-    if (szCv || !SAFEZONES_ON || typeof document === 'undefined') return szCv;
-    const nx = Math.ceil((B.x1 - B.x0) / SZ_CELL), nz = Math.ceil((B.z1 - B.z0) / SZ_CELL), inn = new Uint8Array(nx * nz);
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) inn[j * nx + i] = insideSafeZone(B.x0 + (i + 0.5) * SZ_CELL, B.z0 + (j + 0.5) * SZ_CELL) ? 1 : 0;
-    const mk = () => { const c = document.createElement('canvas'); c.width = nx; c.height = nz; return c; };
-    const cv = mk(), ev = mk(), g = cv.getContext('2d'), ge = ev.getContext('2d'), im = g.createImageData(nx, nz), ie = ge.createImageData(nx, nz), d = im.data, de = ie.data;
-    const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= nz ? 0 : inn[j * nx + i]);
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-      const v = inn[j * nx + i], o = (j * nx + i) * 4;
-      if (v) { d[o] = SZ_FILL[0]; d[o + 1] = SZ_FILL[1]; d[o + 2] = SZ_FILL[2]; d[o + 3] = SZ_FILL[3]; }
-      if (v && !(at(i - 1, j) && at(i + 1, j) && at(i, j - 1) && at(i, j + 1))) { de[o] = SZ_EDGE[0]; de[o + 1] = SZ_EDGE[1]; de[o + 2] = SZ_EDGE[2]; de[o + 3] = SZ_EDGE[3]; } // the perimeter (incl. the Coliseum cut-out)
-    }
-    g.putImageData(im, 0, 0); ge.putImageData(ie, 0, 0); szCv = cv; szCv.edge = ev; szCv.nx = nx; szCv.nz = nz; szCv.safeCells = inn.reduce((a, v) => a + v, 0);
-    return szCv;
-  }
-  /** Draw the baked Safe Zone overlay through any harbor->screen map T (affine: full map / inset / rotating minimap / ship radar). */
-  function drawSafeOverlay(ctx, T) {
-    const cv = safeCanvas(); if (!cv) return false;
-    const P0 = T(...toH(B.x0, B.z0)), PX = T(...toH(B.x0 + 100, B.z0)), PZ = T(...toH(B.x0, B.z0 + 100)), g = SZ_CELL / 100;
-    const a = (PX[0] - P0[0]) * g, b = (PX[1] - P0[1]) * g, c = (PZ[0] - P0[0]) * g, d = (PZ[1] - P0[1]) * g, px = Math.hypot(a, b); // screen px per cell
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.transform(a, b, c, d, P0[0], P0[1]); ctx.drawImage(cv, 0, 0); ctx.restore();
-    // crisp ~2 px glowing border at any zoom: the 1-cell perimeter, dilated by screen-pixel offsets when a cell is under 2 px
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.shadowColor = 'rgba(46, 232, 138, 0.9)'; ctx.shadowBlur = 4;
-    const offs = px < 2 ? [[0, 0], [1, 0], [0, 1], [1, 1]] : [[0, 0]];
-    for (const [ox, oy] of offs) { ctx.save(); ctx.translate(ox, oy); ctx.transform(a, b, c, d, P0[0], P0[1]); ctx.drawImage(cv.edge, 0, 0); ctx.restore(); }
+  // [backpack-pvp] t1727u: ONE smooth vector Safe Zone polygon (BANKSY pink+blue outline). Drawn ONLY on
+  // Full Island Map (M) + on-foot drawLocal — NEVER on the at-sea ship radar `draw()` / dock.radarZones.
+  function drawSafeOverlay(ctx, T, o = {}) {
+    if (!SAFEZONES_ON || !SAFE_POLY?.length) return false;
+    const paper = !!o.paper;
+    ctx.save();
+    ctx.beginPath();
+    SAFE_POLY.forEach(([fx, fz], i) => { const [a, b] = T(...toH(fx, fz)); i ? ctx.lineTo(a, b) : ctx.moveTo(a, b); });
+    ctx.closePath();
+    ctx.fillStyle = paper ? 'rgba(28, 185, 105, 0.18)' : 'rgba(46, 232, 138, 0.16)';
+    ctx.fill();
+    // crisp double-stroke emerald border (dark outer halo + bright inner)
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(6, 40, 24, 0.85)'; ctx.lineWidth = Math.max(3.5, (o.lw || 2.4) * 1.7); ctx.stroke();
+    ctx.strokeStyle = '#2ee88a'; ctx.lineWidth = o.lw || 2.4; ctx.stroke();
     ctx.restore();
     return true;
   }
-  // labels: 🛡️ SAFE ZONE along the corridor (cottages, trail, plaza) + ⚔ COLISEUM · PvP ON on the full map
   function drawSafeZoneRings(ctx, T, k, dpr = 1, o = {}) {
     if (!SAFEZONES_ON) return;
-    drawSafeOverlay(ctx, T);
+    drawSafeOverlay(ctx, T, { paper: !!o.paper, lw: (o.small ? 1.8 : 2.6) * dpr });
     if (o.labels === false) return;
-    ctx.save(); ctx.font = `bold ${Math.round((o.small ? 8.5 : 10.5) * dpr)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3 * dpr;
-    const lab = (txt, fx, fz, col) => { const [a, b] = T(...toH(fx, fz)); ctx.strokeStyle = '#06140d'; ctx.strokeText(txt, a, b); ctx.fillStyle = col; ctx.fillText(txt, a, b); };
-    const plaza = mapSafeZoneRings().find((z) => z.id === 'harbor_plaza');
-    for (const [fx, fz] of o.small ? [[plaza.x, plaza.z]] : [[plaza.x, plaza.z], TRAIL_A_LINK[3], [-380, -134]]) lab('🛡️ SAFE ZONE', fx, fz, '#b7ffd8');
-    if (!o.small) { const ex = coliseumExclusion(8); lab('⚔ COLISEUM · PvP ON', ex.centre[0], ex.centre[1], '#ffd0d0'); }
+    // at most ONE clean 🛡️ SAFE ZONE badge (Harbor Plaza) — never 3 stamps, never a Coliseum PvP-on stamp
+    ctx.save(); ctx.font = `bold ${Math.round((o.small ? 9 : 11) * dpr)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3 * dpr;
+    const plaza = mapSafeZoneRings().find((z) => z.id === 'harbor_plaza') || { x: -620, z: -130 };
+    const [a, b] = T(...toH(plaza.x, plaza.z));
+    ctx.strokeStyle = '#06140d'; ctx.strokeText('🛡️ SAFE ZONE', a, b); ctx.fillStyle = '#b7ffd8'; ctx.fillText('🛡️ SAFE ZONE', a, b);
     ctx.restore();
   }
+  function safeCanvas() { return null; } // legacy no-op (vector path replaced the grid bake)
   const N = low ? 512 : 1024, mpp = (B.x1 - B.x0) / N, NZ = Math.round((B.z1 - B.z0) / mpp);
   let cv = null, g = null, img = null, row = 0, done = false, P = null, LB = null; // LB: land bounds (foot frame) + fit circle
   let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
@@ -447,7 +430,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       const px = Math.max(10, (st.primary ? 12 : 10.5) * dpr);
       inkLabel(st.name, a, b, px, col, 'center', ang);
     }
-    drawSafeZoneRings(c, T, k, dpr); // [backpack-pvp] Safe Zone overlay under labels
+    drawSafeZoneRings(c, T, k, dpr, { paper: th === THEMES.paper || th?.badge === 'paper' }); // [backpack-pvp] t1727u vector sanctuary
     const st = getSt ? getSt() : {}; markers(c, T, k, st, 11 * dpr, null, th);
     // HARBOR TOWN inset: only at fit zoom (hidden while zoomed so it doesn't fight the pan)
     if (!MAPZOOM_ON || z < 1.15) {

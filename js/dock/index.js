@@ -232,7 +232,9 @@ export async function createDock(ctx) {
     const inCanoe = () => on && canoe?.mode === 'canoe'; // [v314] the canoe paddles on the walker stick + looks on the right stick
     registerPadDock({ on: () => on, onFoot: () => on && (onFoot || inCanoe()),
       prompts: () => [!!(actA && !actA.disabled && actA.fn), !!(actB && !actB.disabled && actB.fn)], press: (i) => { if (game.state === 'playing') press(i ? actB : actA); },
-      zone: () => !!battle?.zone, tps: () => battle?.tps || null,
+      zone: () => !!battle?.zone, armed: () => (battle?.stance || 0) > 0, // [t1734u] RT attack outside pit/range when a weapon is drawn
+      cycleWeapon: () => battle?.cycleStance?.(), // [t1734u] Square / X cycles Unarmed → Musket → Sword
+      tps: () => battle?.tps || null,
       ads: (v) => { const t = battle?.tps; if (t?.st) t.st.adsHeld = !!v && t.on; },
       jump: () => { if (on && onFoot && game.state === 'playing') walker.jump(); },
       move: (x, y, act) => { const j = walker.w.joy; if (act && on && (onFoot || inCanoe())) { j.on = true; j.x = x; j.y = y; padJoy = true; } else if (padJoy) { padJoy = false; j.on = false; j.x = j.y = 0; } },
@@ -501,22 +503,8 @@ export async function createDock(ctx) {
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); updateMapLocHud(); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,
-    // [backpack-pvp] t1710u the at-sea ship radar (main.js): Safe Harbor sea zone (no ship PvP inside) + the island Safe Zone overlay
-    radarZones: (ctx, W, T, s) => {
-      if (!on || onFoot) return false; const R = W / 2, inSafe = !!(s && zone.inside(s.x, s.z));
-      ctx.save(); ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.clip();
-      imap.drawSafeOverlay?.(ctx, T);
-      const pts = layout.safe?.pts || [];
-      if (pts.length > 2) { ctx.beginPath(); pts.forEach(([x, z], i) => { const [a, b] = T(x, z); i ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }); ctx.closePath();
-        ctx.fillStyle = 'rgba(46, 232, 138, 0.10)'; ctx.fill(); ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(46, 232, 138, 0.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); }
-      ctx.restore();
-      const fs = Math.max(9, Math.round(W / 13)), t = inSafe ? '🛡️ SAFE HARBOR' : '⚔️ SEA PVP';
-      ctx.save(); ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const tw = ctx.measureText(t).width + fs, py = W - fs * 0.95;
-      ctx.fillStyle = inSafe ? 'rgba(6,40,24,.92)' : 'rgba(60,10,10,.92)'; ctx.strokeStyle = inSafe ? '#2ee88a' : '#ff5a4a'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(R - tw / 2, py - fs * 0.7, tw, fs * 1.4, fs * 0.7); else ctx.rect(R - tw / 2, py - fs * 0.7, tw, fs * 1.4); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = inSafe ? '#b7ffd8' : '#ffd0c8'; ctx.fillText(t, R, py + 1); ctx.restore();
-      return true;
-    },
+    // [t1726u] ZERO Safe Zone / Safe Harbor visuals on the at-sea ship radar
+    radarZones: () => false,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
   return api;

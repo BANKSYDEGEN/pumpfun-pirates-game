@@ -59,9 +59,10 @@ test('pickPad: the pad last used, else the first connected one; null slots skipp
 test('the map: every mode has the standard layout BANKSY asked for', () => {
   assert.equal(MAP.sea[BTN.RT], 'fireStar'); assert.equal(MAP.sea[BTN.LT], 'firePort'); assert.equal(MAP.sea[BTN.A], 'promptA'); assert.equal(MAP.sea[BTN.START], 'pause');
   assert.equal(MAP.foot[BTN.RT], 'attack'); assert.equal(MAP.foot[BTN.LT], '+ads'); assert.equal(MAP.foot[BTN.A], 'promptA|jump');
+  assert.equal(MAP.foot[BTN.X], 'promptB|weapon', 'Square / X cycles weapons (BANKSY t1734u)');
   assert.equal(MAP.ui[BTN.A], 'click'); assert.equal(MAP.ui[BTN.B], 'back'); assert.equal(MAP.ui[BTN.LB], 'tabPrev'); assert.equal(MAP.ui[BTN.RB], 'tabNext');
   assert.equal(MAP.spec[BTN.LB], 'specPrev'); assert.equal(MAP.spec[BTN.RB], 'specNext');
-  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite', 'hideHud']); // [gold-hud] HOME → toggleHudHidden (no key) // [invite-discreet] VIEW → openInvites (no key)
+  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite', 'hideHud', 'weapon']); // [t1734u] weapon → dock.cycleWeapon // [gold-hud] HOME → toggleHudHidden // [invite-discreet] VIEW → openInvites
   for (const m of ['sea', 'foot', 'spec']) for (const a of Object.values(MAP[m])) for (const n of a.split('|').map(x => x.replace(/^\+/, '')))
     assert.ok(special.has(n) || keyFor(n, binds), `${m}: ${n} sends nothing`);
 });
@@ -69,6 +70,9 @@ test('resolve: the prompt wins only when one is up; area / musket / harbor actio
   assert.equal(resolve('promptA|jump', { prompt: [true, false] }), 'promptA'); assert.equal(resolve('promptA|jump', { prompt: [false, false] }), 'jump');
   assert.equal(resolve('promptB|anchor', { prompt: [true, true] }), 'promptB'); assert.equal(resolve('promptB|anchor', {}), 'anchor');
   assert.equal(resolve('attack', { area: false }), null); assert.equal(resolve('attack', { area: true }), 'attack');
+  assert.equal(resolve('attack', { area: false, armed: true }), 'attack', 't1734u: RT fires with a drawn weapon outside pit/range');
+  assert.equal(resolve('promptB|weapon', { prompt: [false, false] }), 'weapon');
+  assert.equal(resolve('promptB|weapon', { prompt: [true, true] }), 'promptB');
   assert.equal(resolve('+ads', { tps: true }), '+ads'); assert.equal(resolve('+ads', {}), null);
   assert.equal(resolve('swap|camBehind', { tps: false }), 'camBehind'); assert.equal(resolve('map', { harbor: false }), null); assert.equal(resolve('inventory', { harbor: true }), 'inventory');
   // [invite-discreet] VIEW = invite when a pill is pending, else the BR menu — never while a shop/menu has focus (ui mode skips the map)
@@ -98,7 +102,7 @@ test('keyFor: the live binds; broadsides never use E (the dock prompt key), sail
   assert.equal(keyFor('fireStar', binds), 'MouseR', 'default E / MOUSE R -> MOUSE R'); assert.equal(keyFor('firePort', binds), 'KeyQ');
   assert.equal(keyFor('left', binds), 'KeyA'); assert.equal(keyFor('sailUp', binds), 'KeyW'); assert.equal(keyFor('anchor', binds), 'Space'); assert.equal(keyFor('pause', binds), 'Escape');
   assert.equal(keyFor('fireStar', () => ['KeyE', '']), 'KeyE', 'only E bound: E'); assert.equal(keyFor('sailUp', () => ['MouseR', 'KeyI']), 'KeyI');
-  assert.equal(keyFor('attack'), 'KeyR'); assert.equal(keyFor('team'), 'KeyG'); assert.equal(keyFor('emote'), 'KeyT'); assert.equal(keyFor('nope'), '');
+  assert.equal(keyFor('attack'), 'KeyR'); assert.equal(keyFor('team'), 'KeyG'); assert.equal(keyFor('emote'), 'KeyT'); assert.equal(keyFor('weapon'), 'Tab'); assert.equal(keyFor('nope'), '');
 });
 test('spatialPick: a 3x2 grid (inventory / shop cards)', () => {
   const R = (x, y) => ({ left: x * 100, top: y * 100, right: x * 100 + 80, bottom: y * 100 + 80, width: 80, height: 80 });
@@ -148,18 +152,23 @@ test('driver at sea: hot-plug, RT fires starboard (MOUSE R), stick steers (A key
     unplug(0); drv.tick(0.016); assert.ok(D.sent.includes('-KeyA'), 'unplugging releases held keys'); assert.equal(G.padActive(), false);
   });
 });
-test('driver on foot: left stick -> walker joystick, right stick -> look, A = the prompt (else jump), RT only in an area', async () => {
+test('driver on foot: stick walk/look, A prompt|jump, Square cycles weapon, RT attacks when armed or in area', async () => {
   await withDriver(async ({ G, D, drv, plug, mk }) => {
-    const log = []; let prompt = [false, false], area = false;
-    G.registerPadDock({ on: () => true, onFoot: () => true, prompts: () => prompt, press: (i) => log.push('press' + i), zone: () => area, tps: () => null, harbor: true,
+    const log = []; let prompt = [false, false], area = false, armed = false;
+    G.registerPadDock({ on: () => true, onFoot: () => true, prompts: () => prompt, press: (i) => log.push('press' + i), zone: () => area, armed: () => armed, tps: () => null, harbor: true,
+      cycleWeapon: () => log.push('weapon'),
       move: (x, y, a) => log.push(['move', +x.toFixed(2), +y.toFixed(2), a]), look: (rx, ry) => log.push(['look', +rx.toFixed(2), +ry.toFixed(2)]), jump: () => log.push('jump'), ads: () => {} });
     plug(mk({ axes: [0, -1, 0.5, 0] })); drv.tick(0.016);
     assert.deepEqual(log.find(e => e[0] === 'move'), ['move', 0, -1, true]); assert.ok(log.find(e => e[0] === 'look')[1] > 0);
     log.length = 0; plug(mk({ press: [BTN.A] })); drv.tick(0.016); assert.ok(log.includes('jump') && !log.includes('press0'), 'no prompt: A jumps');
     plug(mk()); drv.tick(0.016); prompt = [true, false]; log.length = 0; plug(mk({ press: [BTN.A] })); drv.tick(0.016); assert.ok(log.includes('press0') && !log.includes('jump'), 'prompt up: A = the prompt (E)');
     assert.equal(G.promptKey('E', 0), 'A'); assert.equal(G.promptKey('W', 1), 'X');
-    D.sent.length = 0; plug(mk({ rt: 1 })); drv.tick(0.016); assert.deepEqual(D.sent.splice(0), [], 'RT outside the sword pit / range: nothing');
-    plug(mk()); drv.tick(0.016); area = true; plug(mk({ rt: 1 })); drv.tick(0.016); assert.deepEqual(D.sent.splice(0), ['+KeyR', '-KeyR'], 'in an area: RT = R (swing / fire)');
+    // [t1734u] Square / X = cycle weapon (not jump)
+    log.length = 0; plug(mk()); drv.tick(0.016); plug(mk({ press: [BTN.X] })); drv.tick(0.016);
+    assert.ok(log.includes('weapon') && !log.includes('jump'), 'Square cycles Unarmed → Musket → Sword');
+    D.sent.length = 0; plug(mk({ rt: 1 })); drv.tick(0.016); assert.deepEqual(D.sent.splice(0), [], 'RT unarmed outside area: nothing');
+    plug(mk()); drv.tick(0.016); armed = true; plug(mk({ rt: 1 })); drv.tick(0.016); assert.deepEqual(D.sent.splice(0), ['+KeyR', '-KeyR'], 'armed open-world: RT = R');
+    plug(mk()); drv.tick(0.016); armed = false; area = true; plug(mk({ rt: 1 })); drv.tick(0.016); assert.deepEqual(D.sent.splice(0), ['+KeyR', '-KeyR'], 'in an area: RT = R (swing / fire)');
     plug(mk()); drv.tick(0.016); assert.deepEqual(log.filter(e => e[0] === 'move').pop(), ['move', 0, 0, false], 'stick back to centre lets the joystick go');
   });
 });
@@ -171,6 +180,18 @@ test('driver: a real key press switches prompts back to the keyboard; our own sy
     assert.ok(src('js/gamepad.js').includes("const human = (e) => { if (!e.isTrusted || !active) return; if (performance.now() - lastPadT < 250) return; setActive(false); };"));
   });
 });
+test('t1734u Square weapon cycle + armed RT: MAP_HELP, resolve, dock hooks, battle badge', () => {
+  const g = src('js/gamepad.js'), d = src('js/dock/index.js'), b = src('js/onfoot/battle.js');
+  assert.match(g, /\[BTN\.X\]: 'promptB\|weapon'/);
+  assert.match(g, /change weapon \(Unarmed → Musket → Sword\)/);
+  assert.match(g, /n === 'attack' && !\(ctx\.area \|\| ctx\.armed\)/);
+  assert.match(g, /n === 'weapon'/);
+  assert.match(d, /armed: \(\) => \(battle\?\.stance \|\| 0\) > 0/);
+  assert.match(d, /cycleWeapon: \(\) => battle\?\.cycleStance/);
+  assert.match(b, /cycleStance/);
+  assert.match(b, /padGlyph\('X'\)/);
+});
+
 test('wiring: main.js polls in frame(), consoles are never phones, touch sticks off on consoles, sw precaches + bumps, crew untouched', () => {
   const main = src('js/main.js'), dock = src('js/dock/index.js'), sw = src('sw.js'), tps = src('js/onfoot/tps.js'), crew = src('js/crewV4.js');
   assert.ok(/function frame\(\) \{\n  const dt = [^\n]+\n  try \{ pad\.tick\(dt\); \}/.test(main), 'pad.tick at the top of frame()');

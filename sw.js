@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v326'; // [v326] waterfall AAA reverted (44eac37) + map streets pending fold into v327; prev: [v325] backpack PvP;
+const VERSION = 'pfp-v327'; // [v327] unified BANKSY Safe Zone polygon (Harbor+cottages+coli+fort+battery+lagoon; off ship radar) + Tab/Square weapon cycle (Unarmed→Musket→Sword) + pad RT armed open-world attack + Safe Zone auto-unarmed + dock auto-climb ladders + 360° BOARD SHIP + map streets + cabin AAA + unified #player-hp 20s regen; prev: [v326] revert bad waterfall AAA 44eac37;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -33,7 +33,7 @@ const SHELL = [
   "./js/lighthouseKit.js", // [v108] shared lighthouse kit
   "./assets/tokens/sunk.png", "./assets/tokens/pump.png", "./assets/tokens/ahoy.png", "./assets/tokens/hq.png", "./assets/tokens/retardio.png", // [v108] token billboard logos ([v144] + $HQ / $RETARDIO)
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
-  "./js/dock/index.js",
+  "./js/dock/index.js", "./js/dock/ladders.js", "./js/hullReach.js",
   "./js/dock/houses.js",
   "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
