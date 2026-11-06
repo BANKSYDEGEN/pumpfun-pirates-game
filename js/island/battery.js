@@ -19,6 +19,17 @@ export const FOOT = { lx0: 110, lx1: 122, lz0: -4, lz1: 4 };                    
 export const LANDING = { lx0: 174, lx1: 186, lz0: -4, lz1: 20 };                // flat at BATTERY.y, joins the gun deck
 export const GUNS = Array.from({ length: 6 }, (_, i) => { const a = -0.75 + i * 0.3, B = BATTERY;
   return { i, a, lx: B.lx + Math.sin(a) * B.ring, lz: B.lz + Math.cos(a) * B.ring, slx: B.lx + Math.sin(a) * (B.ring - 3.1), slz: B.lz + Math.cos(a) * (B.ring - 3.1) }; });
+// [cannon-hill] BANKSY "upgrade cannon hill, make the flag real pumpfun pirate flag" (= tools/plaza_blender/battery_blender.py MAST / GATE / MAG):
+//   MAST  the signal mast at the deck centre (compass-rose medallion, octagonal plinth, yard + lanterns) flying the REAL PUMPFUN PIRATES flag
+//         (assets/skull_transparent.png on black, the ships' / Hilltop Fort's art) as an animated cloth; fly = town direction the cloth streams
+//   GATE  arched battery gate over the ramp head (piers on the parapet lines: the 8 m walk width is untouched)
+//   MAG   stone powder magazine on the deck's harbour side, door facing in (props strip + sea-chart table in front)
+export const MAST = { lx: 160, lz: 42, r: 1.8, top: 17.0, flag: [6.4, 4.2], fly: [-0.76, 0.65] };
+export const GATE = { lx: 172.5, hw: 4.2, pw: 1.8, pd: 1.4 };
+export const MAG = { a: -1.95, r: 16.5, w: 6.2, d: 4.6 };
+const magAt = (x, y) => { const a = MAG.a, lx0 = BATTERY.lx + Math.sin(a) * MAG.r, lz0 = BATTERY.lz + Math.cos(a) * MAG.r;   // magazine-local (x along the arc, y in) -> town
+  return [lx0 + x * Math.cos(a) - y * Math.sin(a), lz0 - x * Math.sin(a) - y * Math.cos(a)]; };
+export const MAG_COLLIDERS = [{ box: magAt(0, 0), w: MAG.w + 0.5, d: MAG.d + 0.5 }, { box: magAt(0, MAG.d / 2 + 0.85), w: MAG.w + 0.1, d: 1.7 }, { circ: magAt(2.0, MAG.d / 2 + 2.05), r: 0.95 }];
 export const AIM = { yaw: 0.5, pitch: [0.03, 0.45], rest: 0.1, reload: 5 };    // [v171] live shots: up to 0.45 rad (long range), 5 s reload    // radians either side of the embrasure; elevation range
 
 const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Math.max(R.lz0 - lz, 0, lz - R.lz1));
@@ -51,7 +62,12 @@ export function clearAt(lx, lz) {
 export function buildArt(o) {
   const { k, box, cyl, T, H, addBox, addCirc, torchPost, F, C } = o, yaw0 = CO.t2wYaw(0), B = BATTERY;
   const KB = BATTERY_KIT, W = KB ? () => {} : o.W;   // [Timothy] Blender art loaded: draw nothing procedural, keep every collider + the lamps
-  if (KB && KB.flag) { const [x, z] = T(KB.flag[0], KB.flag[1]); addCirc(x, z, 0.7); }   // the flagpole plinth
+  { const [x, z] = T(MAST.lx, MAST.lz); addCirc(x, z, MAST.r); W(k, cyl(1.6, 1.7, 0.9, 8), C.STONE_D, 11, M(x, B.y + 0.45, z)); }   // [cannon-hill] signal-mast plinth (mast + flag: createGuns)
+  // [cannon-hill] gatehouse piers (on the ramp parapet lines) + powder magazine, its props strip and chart table; ramp-foot bollards
+  for (const s of [-1, 1]) { const [x, z] = T(GATE.lx, s * (GATE.hw + GATE.pd / 2)); addBox(x, z, GATE.pw, GATE.pd, yaw0); W(k, box(GATE.pw, 7, GATE.pd), C.STONE, 11, M(x, rampY(GATE.lx) + 1.5, z, yaw0)); }
+  for (const c of MAG_COLLIDERS) { const [x, z] = T(...(c.box || c.circ)); if (c.box) addBox(x, z, c.w, c.d, CO.t2wYaw(MAG.a)); else addCirc(x, z, c.r); }
+  { const [x, z] = T(...magAt(0, 0)); W(k, box(MAG.w, 3.2, MAG.d), C.STONE, 11, M(x, B.y + 1.6, z, CO.t2wYaw(MAG.a))); }
+  for (const s of [-1, 1]) addCirc(...T(FOOT.lx0 + 0.5, s * 4.6), 0.4);
   if (KB && KB.rocks) for (const [lx, lz, r] of KB.rocks) addCirc(...T(lx, lz), r);   // [collisions] the Blender boulders (were walk-through)
   // a wall piece centred on (lx, lz), long axis along town lx (len) or lz (alongZ), top at y, 7 m deep into the ground
   const wall = (lx, lz, len, top, alongZ = false, th = 0.8, col = C.STONE) => { const [x, z] = T(lx, lz), hgt = 8;
@@ -78,9 +94,9 @@ export function buildArt(o) {
     // [collisions] one rounded footprint per gun station (gun -> shot pile -> keg): the gaps between them were narrower than you
     // (V-notches you stuck in); bridge circles close them so you slide round the whole group
     addCirc((gx + bx) / 2, (gz + bz) / 2, 0.75); addCirc((bx + kx) / 2, (bz + kz) / 2, 0.5); }
-  // lamps
+  // lamps ([cannon-hill] + 2 more along the ramp's north parapet)
   for (const [lx, lz, y] of [[RAMP.lx0 - 0.6, RAMP.lz0 - 0.4, RAMP.y0], [RAMP.lx0 - 0.6, RAMP.lz1 + 0.4, RAMP.y0], [(RAMP.lx0 + RAMP.lx1) / 2, RAMP.lz0 - 0.4, rampY((RAMP.lx0 + RAMP.lx1) / 2) + 1.1],
-    [LANDING.lx0 + 1, LANDING.lz0 - 0.4, B.y + 1.1], [B.lx, B.lz - 14, B.y]]) { const [x, z] = T(lx, lz); torchPost(k, F, x, y === null ? H(x, z) : y, z); }
+    [LANDING.lx0 + 1, LANDING.lz0 - 0.4, B.y + 1.1], [B.lx, B.lz - 14, B.y], [135.5, RAMP.lz1 + 0.4, rampY(135.5) + 1.1], [161.5, RAMP.lz1 + 0.4, rampY(161.5) + 1.1]]) { const [x, z] = T(lx, lz); torchPost(k, F, x, y === null ? H(x, z) : y, z); }
 }
 
 // the 6 guns: carriage + barrel, each ONE instanced mesh + its outline (4 draw calls in all), aim + recoil per gun.
@@ -100,6 +116,7 @@ export function createGuns(root, MATS, OUT, low, H) {
   const KB = BATTERY_KIT; let [cG2, bG2, cO2, bO2, mat2] = [cG, bG, cO, bO, MATS.toon];
   if (KB && KB.carriage && KB.barrel) { [cG2, bG2, cO2, bO2, mat2] = [KB.carriage, KB.barrel, null, null, KB.mat];   // same frames: carriage on the deck, barrel origin = PIV
     const st = buildBatteryStatic(new THREE.Vector3(...((p) => [p[0], 0, p[1]])(CO.t2w(BATTERY.lx, BATTERY.lz))), CO.t2wYaw(0)); if (st) root.add(st); }
+  root.add(buildPfpFlag(low, !(KB && KB.carriage && KB.barrel)));   // [cannon-hill] the REAL PUMPFUN PIRATES flag on the signal mast (+ the gate's skull plaques)
   const mk = (g, mat, name, sh) => { const m = new THREE.InstancedMesh(g, mat, GUNS.length); m.name = name; m.frustumCulled = false; m.castShadow = sh && !low; m.receiveShadow = !low; root.add(m); return m; };
   const meshes = [[mk(cG2, mat2, 'battery_carriage', true), 'c'], [mk(bG2, mat2, 'battery_barrel', true), 'b']];
   if (cO2) { const o = mk(cO2, OUT.plain, 'battery_carriage_outline', false); o.userData.outline = true; meshes.push([o, 'c']); }
@@ -123,4 +140,51 @@ export function createGuns(root, MATS, OUT, low, H) {
     g.yaw += dy * k; g.pitch += (g.tp - g.pitch) * k; g.cool = Math.max(0, g.cool - dt);
     if (r0 !== g.recoil || Math.abs(oy - g.yaw) > 1e-5 || Math.abs(op - g.pitch) > 1e-5) pose(g); } }
   return { guns, meshes: meshes.map(m => m[0]), update, muzzle, pose };
+}
+
+// ---- [cannon-hill] the REAL PUMPFUN PIRATES flag (BANKSY "make the flag real pumpfun pirate flag"): the project's Jolly Roger
+// (assets/skull_transparent.png composited on pirate black, the same art as the ships' flags + Hilltop Fort's pfpFlagMaterial) as a waving
+// cloth. Two single-sided meshes on one geometry: the back face samples the texture u-flipped, so the skull reads upright and un-mirrored
+// from both sides. A plain black cloth until the image loads (and in node, where there is no Image / document).
+export const PFP_FLAG_SRC = 'assets/skull_transparent.png';
+let FLAG_MATS = null;
+export function pfpFlagMats() {
+  if (FLAG_MATS) return FLAG_MATS;
+  const front = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.FrontSide }); front.name = 'battery_pfp_flag';
+  const back = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.BackSide }); back.name = 'battery_pfp_flag_back';
+  FLAG_MATS = { front, back, ready: false };
+  if (typeof document !== 'undefined' && typeof Image !== 'undefined' && typeof document.createElement === 'function') {
+    const img = new Image(); img.onload = () => { const c = document.createElement('canvas'); c.width = 1024; c.height = 672; const g = c.getContext && c.getContext('2d'); if (!g) return;
+      g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, 1024, 672);
+      g.globalAlpha = 0.06; g.fillStyle = '#ffffff'; for (let y = 0; y < 672; y += 6) g.fillRect(0, y, 1024, 2); g.globalAlpha = 1;   // faint weave
+      g.fillStyle = '#1c1c1c'; g.fillRect(0, 0, 40, 672);   // hoist tape
+      const sc = Math.min(1024 * 0.78 / img.width, 672 * 0.86 / img.height), w = img.width * sc, h = img.height * sc; g.drawImage(img, 20 + (1024 - w) / 2, (672 - h) / 2, w, h);
+      const tf = new THREE.CanvasTexture(c); tf.colorSpace = THREE.SRGBColorSpace; tf.anisotropy = 8;
+      const tb = tf.clone(); tb.wrapS = THREE.RepeatWrapping; tb.repeat.x = -1; tb.offset.x = 1; tb.needsUpdate = true;
+      front.map = tf; back.map = tb; for (const m of [front, back]) { m.color.set(0xffffff); m.needsUpdate = true; } FLAG_MATS.ready = true; };
+    img.src = PFP_FLAG_SRC; }
+  return FLAG_MATS;
+}
+// the mast flag (cloth waves in onBeforeRender: only while drawn) + a skull plaque on each face of the gate's keystone
+export function buildPfpFlag(low, withPole = false) {
+  const g = new THREE.Group(); g.name = 'battery_pfp_flag'; const F = pfpFlagMats(), [FW, FH] = MAST.flag, B = BATTERY;
+  const geo = new THREE.PlaneGeometry(FW, FH, low ? 12 : 24, low ? 6 : 12); geo.translate(FW / 2, 0, 0);
+  const base = Float32Array.from(geo.attributes.position.array); geo.computeBoundingSphere(); geo.boundingSphere.radius += 1.2;
+  const cloth = new THREE.Group(); cloth.name = 'battery_pfp_flag_cloth';
+  const [mx, mz] = CO.t2w(MAST.lx, MAST.lz), [ax, az] = CO.t2w(MAST.lx + MAST.fly[0], MAST.lz + MAST.fly[1]), yaw = Math.atan2(-(az - mz), ax - mx);
+  cloth.position.set(mx, B.y + MAST.top - 0.4 - FH / 2, mz); cloth.rotation.y = yaw;
+  const fm = new THREE.Mesh(geo, F.front), bm = new THREE.Mesh(geo, F.back); fm.name = 'battery_pfp_flag_front'; bm.name = 'battery_pfp_flag_back';
+  fm.position.x = bm.position.x = 0.22; fm.castShadow = bm.castShadow = !low; cloth.add(fm, bm);
+  const pos = geo.attributes.position; let last = -1;
+  const wave = (t) => { for (let i = 0; i < pos.count; i++) { const x = base[i * 3], y = base[i * 3 + 1], u = Math.max(0, x / FW);
+      pos.array[i * 3 + 2] = (Math.sin(u * 7.0 - t * 5.2 + y * 0.35) * 0.34 + Math.sin(u * 13.0 - t * 8.1) * 0.07) * Math.pow(u, 1.15);
+      pos.array[i * 3 + 1] = y - 0.18 * u * u + Math.sin(u * 5.0 - t * 4.0) * 0.05 * u; }
+    pos.needsUpdate = true; cloth.rotation.y = yaw + Math.sin(t * 0.7) * 0.08; };
+  fm.onBeforeRender = () => { const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000; if (t === last) return; last = t; wave(t); };
+  g.userData.wave = wave; wave(0); g.add(cloth);
+  if (withPole) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.24, MAST.top, 10), new THREE.MeshLambertMaterial({ color: 0x5e3b20 })); pole.position.set(mx, B.y + MAST.top / 2, mz); g.add(pole); }   // procedural fallback
+  const pg = new THREE.PlaneGeometry(1.5, 1.0), yG = rampY(GATE.lx) + 5.36;
+  for (const s of [-1, 1]) { const [px, pz] = CO.t2w(GATE.lx + s * 0.93, 0), [qx, qz] = CO.t2w(GATE.lx + s * 1.93, 0), p = new THREE.Mesh(pg, F.front);
+    p.name = 'battery_gate_plaque'; p.position.set(px, yG, pz); p.rotation.y = Math.atan2(qx - px, qz - pz); g.add(p); }
+  return g;
 }

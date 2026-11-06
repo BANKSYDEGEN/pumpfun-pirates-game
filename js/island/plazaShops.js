@@ -32,25 +32,29 @@ function deq(src, m) {   // quantized glTF attributes -> float geometry in the p
     for (let i = 0; i < a.count; i++) { out[i * n] = a.getX(i); out[i * n + 1] = a.getY(i); if (n > 2) out[i * n + 2] = a.getZ(i); } g.setAttribute(k, new THREE.BufferAttribute(out, n)); }
   if (src.index) g.setIndex(Array.from(src.index.array)); g.applyMatrix4(m); return g;
 }
-function loadBattery(low) {
+export function loadBattery(low) {   // [cannon-hill] exported for tests/cannonHillUpgrade.test.mjs
   if (!BATTERY_GLB_ON) return Promise.resolve(null);
   return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`assets/island/battery${low ? '_low' : ''}.glb`).then(gl => {
     gl.scene.updateMatrixWorld(true); const root = gl.scene.getObjectByName('battery'), inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), rel = new THREE.Matrix4();
     const solid = libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low); solid.name = 'battery_solid';   // paving lies 3-7 mm over the terrain
-    const merged = (name) => { const node = gl.scene.getObjectByName(name); if (!node) return null; const parts = [];
-      node.traverse(mm => { if (mm.isMesh) { rel.multiplyMatrices(inv, mm.matrixWorld); parts.push(deq(mm.geometry, rel)); } }); if (!parts.length) return null;
+    const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }); glow.name = 'battery_glow';   // [cannon-hill] braziers / lanterns
+    const merged = (name, want = 'solid') => { const node = gl.scene.getObjectByName(name); if (!node) return null; const parts = [];
+      node.traverse(mm => { if (mm.isMesh && (/glow/.test(mm.material?.name || '') ? 'glow' : 'solid') === want) { rel.multiplyMatrices(inv, mm.matrixWorld); parts.push(deq(mm.geometry, rel)); } }); if (!parts.length) return null;
       const g = parts.length > 1 ? mergeGeometries(parts, false) : parts[0]; g.computeBoundingSphere(); return g; };
-    const lods = [0, 1].map(i => merged('battery_LOD' + i)).filter(Boolean);
+    const lv = [0, 1].map(i => ({ s: merged('battery_LOD' + i), g: merged('battery_LOD' + i, 'glow') })).filter(l => l.s);
+    const lods = lv.map(l => l.s), glows = lv.map(l => l.g);
     let flag = null, rocks = []; try { flag = JSON.parse(root.userData.flag); } catch (e) { /* none */ }
     try { rocks = JSON.parse(root.userData.rocks || '[]'); } catch (e) { /* none */ }   // [collisions] [lx, lz, r] per Blender boulder
-    BATTERY_KIT = { low, mat: solid, lods, carriage: merged('gun_carriage'), barrel: merged('gun_barrel'), flag, rocks };
+    BATTERY_KIT = { low, mat: solid, glow, lods, glows, carriage: merged('gun_carriage'), barrel: merged('gun_barrel'), flag, rocks };
     return BATTERY_KIT; }).catch(e => { console.warn('[battery] Blender models failed, procedural art instead', e); return null; });
 }
 // the static battery art as one LOD (Low: LOD1 only), placed in foot-world by the caller
 export function buildBatteryStatic(pos, yaw) {
   const K = BATTERY_KIT; if (!K || !K.lods.length) return null;
   const lod = new THREE.LOD(); lod.name = 'battery_blender'; lod.position.copy(pos); lod.rotation.y = yaw;
-  K.lods.forEach((g, i) => { const m = new THREE.Mesh(g, K.mat); m.name = 'battery_static_lod' + i; m.castShadow = !K.low; m.receiveShadow = !K.low; lod.addLevel(m, i === 0 ? 0 : 90); });
+  K.lods.forEach((g, i) => { const m = new THREE.Mesh(g, K.mat); m.name = 'battery_static_lod' + i; m.castShadow = !K.low; m.receiveShadow = !K.low;
+    if (K.glows && K.glows[i]) { const gm = new THREE.Mesh(K.glows[i], K.glow); gm.name = 'battery_glow_lod' + i; m.add(gm); }   // [cannon-hill] brazier coals + lanterns
+    lod.addLevel(m, i === 0 ? 0 : 90); });
   return lod;
 }
 
