@@ -33,6 +33,7 @@ import { pitSwordOn, pitWeaponId } from '../carryRules.js'; // [Emerly pitsword]
 import { carriedWeapons } from '../pirateGear.js'; // [Emerly pitsword] inventory USE AS PRIMARY
 import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
 import { isNetId } from '../safe.js';
+import { ADM } from '../adminState.js'; // [admin-menu] GOD MODE / FREEZE
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 import { createTps, TPS_ON } from './tps.js';
 import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hints name the pad buttons while a pad is in use
@@ -337,6 +338,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // ---------- attacking ----------
   const fwd = (yaw, out) => out.set(Math.sin(yaw), 0, Math.cos(yaw));
   function attack() {
+    if (ADM.frozen) return false; // [admin-menu] frozen by the owner (server-checked)
     if (!me.zone || me.down > 0 || me.cool > 0 || !walker.active) return false;
     const W = walker.w;
     if (me.zone === Z_PIT) { me.cool = myW('sword').cool; mineR.st.act = { kind: 1, t: 0, hit: false }; me.kind = 1; sfx?.equip?.(); }
@@ -382,7 +384,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (zone === Z_PIT) { const a = BA.PIT.gateA + (tm ? (tm === 1 ? 1 : -1) * Math.PI / 2 : 0) + (Math.random() - 0.5) * 0.6, [lx, lz] = BA.pitAt(a, BA.PIT.r - 2.2); return [...H(lx, lz), a + Math.PI]; }
     const R = BA.RANGE; if (tm === 2) return [...H(R.lx1 - 5 + (Math.random() - 0.5) * 3, R.lz0 + 5), 0];
     return [...H((tm === 1 ? R.divider + 4 : R.gate[0]) + (Math.random() - 0.5) * 4, R.lz1 - 2.5), Math.PI]; }
-  function takeHit(n, by) { if (me.down > 0 || me.guard > 0 || !me.zone) return; me.hp = Math.max(0, me.hp - n); me.lastBy = by; sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
+  function takeHit(n, by) { if (ADM.god) { me.hp = ARENA.hp; return; } /* [admin-menu] GOD MODE */ if (me.down > 0 || me.guard > 0 || !me.zone) return; me.hp = Math.max(0, me.hp - n); me.lastBy = by; sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
     if (me.hp <= 0) { me.down = ARENA.downS; me.downs++; if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; mineR.st.act = null; say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · no gold lost, no stats changed</small>`, 2400); } }
   const esc = (s) => String(s).replace(/[<>&"'`\\]/g, '').slice(0, 20);
   function respawn() { const W = walker.w, [x, z, ly] = spawnPoint(me.zone || me.lastZone); me.hp = ARENA.hp; me.down = 0; me.guard = ARENA.guardS; me.life = (me.life + 1) % 50000;

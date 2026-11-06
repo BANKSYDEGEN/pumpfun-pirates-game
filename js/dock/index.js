@@ -28,6 +28,7 @@ import { createSquadHall } from './squadHall.js'; // [squad-hall] BANKSY: all-wo
 import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill -> Skull Peak (&zipline=0 = none)
 import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
 import { createHouses, HOUSES_ON } from './houses.js'; // [Emerly storage-houses] buyable cottages + instanced storage (&houses=0)
+import { ADM } from '../adminState.js'; // [admin-menu] frozen = no interact
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
@@ -279,7 +280,7 @@ export async function createDock(ctx) {
   }
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
-    if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen) return; // [v145] the treasure map closes on its own keys (Esc / M)
+    if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen || ADM.frozen) return; // [admin-menu] frozen: no E / Q // [v145] the treasure map closes on its own keys (Esc / M)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && squadHall?.isOpen) { squadHall.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }

@@ -45,6 +45,7 @@ import { previewShipId } from './newShips.js'; // [Emerly] the new hulls' previe
 import { SQUADS, HARBOR_NET } from './config.js';
 import { Room } from './net.js';
 import { isNetId, escHtml, num } from './safe.js';
+import { ADM } from './adminState.js'; // [admin-menu] owner GOD / INVISIBLE / NOCLIP, server FREEZE (js/adminMenu.js)
 import { IS_PROD_HOST } from './env.js'; // [security H5] peer ids whitelisted, attribute values escaped
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
@@ -693,7 +694,8 @@ export function createPvp(K) {
     r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
-      .on('bye', (m) => { const p = peers.get(m.i); if (p) p.heard = 0; })
+      .on('bye', (m) => { const p = peers.get(m?.i); if (p) p.heard = 0; if (isNetId(m?.i)) K.dock?.fnet?.drop?.(m.i); }) // [admin-menu] their on-foot pirate goes at once too (INVISIBLE / left)
+      .on('adm', (m, from) => { try { ADM.onPoke?.(m, from); } catch {} }) // [admin-menu] zero-trust poke: the target only re-asks the SERVER (admin_my_state / inventory)
       .on('emo', onEmote) // [v96] quick-chat callouts (preset ids only)
       .on('sq', onSq) // [v98] squads round state (host)
       .on('bh', onBotHit).on('bs', (m) => onBotSunkNet(m)); // [v99] shared harbor: hits on the host's AI ships, an AI ship sunk (kill + gold shares)
@@ -739,6 +741,7 @@ export function createPvp(K) {
     const now = performance.now();
     if (!p) { p = { id: m.i, heard: now, st: null, ship: null, key: '' }; peers.set(m.i, p); }
     const lv = lvFrom(m.lv), sk = knownSkin(m.sk) ? m.sk : 'classic', key = JSON.stringify(lv) + sk; // [v98] + unlock skins (COMMODORE)
+    p.fz = m.fz === 1; // [admin-menu] frozen by the owner (icy tint)
     p.pc = typeof m.pc === 'string' ? m.pc.slice(0, 8) : ''; p.hj = +m.hj || 0; // [v99] harbor host order
     p.name = esc(m.n).slice(0, 20) || 'PIRATE'; p.k = m.k | 0; p.d = m.d | 0; p.g = m.g | 0; p.K = m.K | 0; p.D = m.D | 0; p.bK = m.bK == null ? null : Math.max(0, m.bK | 0); p.bD = m.bD == null ? null : Math.max(0, m.bD | 0); /* [v81] board totals */ p.lv = lv; p.sk = sk;
     const prevHeard = p.heard; p.heard = now;
@@ -859,7 +862,7 @@ export function createPvp(K) {
     // harbor AI hunts the nearest pirate within 220 m (alone: only ever YOU), never other AI ships, never a protected / unmanned offshore-anchored ship
     const unmanned = (s) => !!(s && (s._offshore || s._canoeAway || (K.dock?.onFoot && s.anchor) || (K.dock?.canoeing && s.anchor)));
     const pl = P(); let best = NO_TARGET, bd = e.islandPatrol ? 280 : 220;
-    if (pl.alive && !me.dead && me.protect <= 0 && !unmanned(pl)) { const d = Math.hypot(pl.x - e.x, pl.z - e.z); if (d < bd) { bd = d; best = pl; } }
+    if (!ADM.invisible && pl.alive && !me.dead && me.protect <= 0 && !unmanned(pl)) { const d = Math.hypot(pl.x - e.x, pl.z - e.z); if (d < bd) { bd = d; best = pl; } }
     if (room && where === 'harbor') for (const p of livePeers()) { const s = p.ship; if (!s?.alive || s.prot || !p.st?.a || unmanned(s)) continue; const d = Math.hypot(s.x - e.x, s.z - e.z); if (d < bd) { bd = d; best = s; } }
     return best;
   }
@@ -979,6 +982,7 @@ export function createPvp(K) {
   }
   function flushHits() { if (hitQueue.length && room) room.send('hit', { s: hitQueue.sid, h: hitQueue.slice(0, 12), ...(hitQueue.g != null ? { g: hitQueue.g } : {}) }); hitQueue = []; hitQueue.sid = null; hitQueue.g = null; }
   function localDamage(raw, by, p, shooterObj = null) {
+    if (ADM.god) { const g = P(); g.hp = g.maxHp; return; } // [admin-menu] GOD MODE
     const pl = P(); if (me.dead || !pl.alive || me.protect > 0) return;
     const amt = Math.max(1, Math.round(raw * (1 - (pl.armor || 0))));
     me.lastDamageAt = performance.now(); me.lastBy = by;
@@ -1335,12 +1339,14 @@ export function createPvp(K) {
   function stateMsg() { // the transport asks for this once per tick
     const shared = where === 'harbor' && !!room; // [v99] a shared harbor copy
     if ((where !== 'arena' && !shared) || spec.on) return null;
+    if (ADM.invisible) return null; // [admin-menu] INVISIBLE: nothing about you leaves this device (a 'bye' already went out)
     if (where === 'harbor' && document.documentElement.classList.contains('pfp-spawn-pending')) return null; // [spawn-snap] still at the sea spawn behind the dock cover: send nothing until moored
     const pl = P(), lv = getRunLevels();
     const m = { i: myId, l: me.life, x: r1(pl.x), z: r1(pl.z), y: r2(pl.yaw), v: r1(pl.speed), t: r2(pl.turn || 0), h: Math.round(pl.hp), m: pl.maxHp, a: me.dead || !pl.alive ? 0 : 1, p: me.protect > 0 ? 1 : 0,
       bt: me.bounty, n: name, lv: UPGRADES.map(u => lv[u.id] || 0), sk: skinId(), pc: myPc(), k: me.kills, d: me.deaths, g: me.gold, K: lifeK(), D: lifeD(), bK: boardK(), bD: boardD() };
     const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; { const cw = crewToWire(); if (cw || sentCrew) { m.cr = cw; sentCrew = true; } } { const cc = crewColorToWire(); if (cc || sentCC) { m.cc = cc; sentCC = true; } } // [Timothy] cr = your crew's loadout (js/crewLoadout.js) // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
+    if (ADM.frozen) m.fz = 1; // [admin-menu] everyone tints you icy (cosmetic; the freeze itself is server-side)
     if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;
   }

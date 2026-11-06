@@ -77,6 +77,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
       if (r !== 'drop') { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
         camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
       /* r === 'drop': keep going into normal air / fall with zipVx */ }
+    if (w.adminHook && w.adminHook(dt, { place, camPos, cam, tgt, pirate, camera, fovPush })) return; // [admin-menu] js/adminMenu.js: NOCLIP fly / server FREEZE own this frame
     const K = w.keys; let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0), s = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
     let mag = Math.min(1, Math.hypot(f, s)), run = held('sprint', K);
     if (w.joy.on && Math.hypot(w.joy.x, w.joy.y) > 0.12) { f = -w.joy.y; s = w.joy.x; mag = Math.min(1, Math.hypot(f, s)); run = mag > 0.88; }

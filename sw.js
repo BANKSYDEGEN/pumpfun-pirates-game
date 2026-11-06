@@ -35,6 +35,8 @@ const SHELL = [
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
   "./js/dock/houses.js",
+  "./js/adminState.js",
+  "./js/adminMenu.js",
   "./js/dock/docking.js",
   "./js/dock/layout.js",
   "./js/dock/safe.js",

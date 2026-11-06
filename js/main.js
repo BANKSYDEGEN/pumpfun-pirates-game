@@ -55,6 +55,7 @@ import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN 
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
 
 import { escHtml } from './safe.js'; // [security H5]
+import { ADM } from './adminState.js'; // [admin-menu] owner GOD / NOCLIP at sea, server FREEZE (js/adminMenu.js)
 import { createEscorts, ESCORT, escortStep } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
 const $ = (id) => document.getElementById(id);
@@ -471,6 +472,7 @@ function playerFire(side) {
 function damage(s, amt, p, src = null) {
   if (!s.alive) return;
   if (dock?.invuln(s)) return; // [Emerly] SAFE HARBOR: moored / parked ships can't be hurt
+  if (s === player && ADM.god) { s.hp = s.maxHp; return; } // [admin-menu] GOD MODE: AI boats, the Commodore, cliff guns, players
   s.hp -= amt;
   crewHit(s.mesh, amt / Math.max(1, s.maxHp || 100) * 6); // [v87] the crew stagger (visual only)
   fx.hit(p); sfx.impact({ dmg: amt, maxHp: s.maxHp, kill: s.hp <= 0, onPlayer: s === player, boss: s.type === 'boss' || src?.type === 'boss', armor: s === player ? 0 : (ARMORED[s.type] || 0), v: s === player ? 1 : clamp(1 - Math.hypot(s.x - player.x, s.z - player.z) / 200, 0.15, 1) }); // [Raul] damage sounds: tier from damage dealt (soundProfile.js)
@@ -576,7 +578,7 @@ function moveShip(s, dt, targetSpeed, turnInput) {
   s.turn += (turnInput - s.turn) * Math.min(1, dt * 5);
   s.yaw += s.turn * turnRate * dt;
   s.x += Math.sin(s.yaw) * s.speed * dt; s.z += Math.cos(s.yaw) * s.speed * dt;
-  islands.collide(s, dt); // [solid rocks] same solid rocks for the player, every enemy type, bosses, escorts and PvP AI
+  if (!(s === player && ADM.noclip)) islands.collide(s, dt); // [admin-menu] NOCLIP glides through rocks / islands // [solid rocks] same solid rocks for the player, every enemy type, bosses, escorts and PvP AI
   // [aaa water] bow spray (the wake itself is the trail ribbon in wake.js): grows with speed, bursts when the bow plunges
   const sN = s.speed / 13;
   if (sN > 0.08 && s.alive !== false) {
@@ -712,7 +714,7 @@ function updateBalls(dt) {
 // ---------- input ----------
 const keys = {};
 const held = { left: false, right: false };
-const shipLocked = () => !!(dock?.onFoot || dock?.canoeing); // [v314] the canoe / walker own the input (anchored aboard: ⚓ / W still work)
+const shipLocked = () => !!(dock?.onFoot || dock?.canoeing || ADM.frozen); // [admin-menu] + frozen by the owner // [v314] the canoe / walker own the input (anchored aboard: ⚓ / W still work)
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
@@ -1300,7 +1302,7 @@ function frame() {
     if (game.state === 'playing' && player.alive) {
       const helmOff = shipLocked(); // [v314] never steer / sail the big ship from the canoe or the beach
       const turn = helmOff ? 0 : ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
-      moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
+      moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * 4.2 * (player.speedMul || 1) * (ADM.noclip ? 1.6 * ADM.noclipMul : 1), turn); // [admin-menu] NOCLIP: boosted glide // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
       updatePlayerRepair(dt); // [repair] game time only: pause / shop / tutorial don't count
@@ -1564,3 +1566,6 @@ try { initHarborCard(); } catch (e) { console.warn('[harbor card]', e); }
 const pfpFacade = () => Object.freeze({ get dock() { return dock; }, get pvp() { return pvp ? pvp.publicApi || null : null; },
   game: Object.freeze({ get mode() { return game.mode; }, get state() { return game.state; }, set state(v) { if (v === 'playing' && game.state === 'paused') game.state = v; }, get wallet() { return game.wallet; }, set wallet(v) { if (typeof v === 'string' && v.length <= 44) game.wallet = v; } }) });
 window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, rebuildShip: (lv) => rebuildPlayerShip(lv) } : pfpFacade(); // [v112] + rebuildShip (ship tests: hull x CANNONS tiers in game) // [Raul] + renderer/scene for perf tests
+// [admin-menu] the owner Admin Menu (⚙ SETTINGS > 👑 ADMIN MENU, F8). Every player loads the tiny client half (server FREEZE / pocket refresh pokes);
+// the panel itself only mounts when the SERVER says owner (admin_status). &admin=0 = off.
+if (!/[?&]admin=0(&|$)/.test(location.search)) import('./adminMenu.js').then(m => m.initAdminMenu({ dock: () => dock, pvp: () => pvp, player: () => player, game, scene, camera })).catch(e => console.warn('[admin-menu]', e));
