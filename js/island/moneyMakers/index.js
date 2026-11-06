@@ -250,7 +250,7 @@ export function createMoneyMakers(ctx) {
   // ======================= 4. DIVING / CRAB POTS / MINING =======================
   const dive = { on: false, d: null, o2: 100, pry: 0, need: 3 };
   function startDive(d) {
-    const w = W(); if (!(w.swim || w.body?.swim)) { say('🤿 SWIM OUT OVER THE BUBBLES FIRST<small>then dive</small>'); return; }
+    const w = W(), wy = world.water(w.x, w.z); if (!(w.swim || w.body?.swim || (wy != null && wy - G(w.x, w.z) > 1.4 && w.y < wy + 0.4))) { say('🤿 SWIM OUT OVER THE BUBBLES FIRST<small>then dive</small>'); return; }
     Object.assign(dive, { on: true, d, o2: C.DIVE.o2, pry: 0, need: C.DIVE.pry[d.kind] || 3 }); ui.o2.show(true); ui.o2.set(100, 0, d.kind === 'chest' ? 'PRY THE CHEST' : 'PRY THE CLAM'); say('🤿 HOLD YOUR BREATH!<small>' + (touch ? 'tap PRY' : 'tap E / PRY') + ' fast before your O₂ runs out</small>', 1800);
   }
   function pryTap() { if (!dive.on) return; dive.pry = Math.min(1, dive.pry + 0.42 / dive.need); }
@@ -361,7 +361,7 @@ export function createMoneyMakers(ctx) {
   }
   addEventListener('keydown', (e) => { if (e.code === 'Escape' && ui.isOpen) { ui.close(); e.preventDefault(); } });
   // ---------------- test / QA hooks (window.PFP_MM.t) ----------------
-  globalThis.PFP_MM.t = { api, ui, SITES, ROUTES, spots, houses, pve, horde, duel, get carry() { return carry; }, dive, openBoard, openColiseum, openRum: () => ui.open(rumView()), openCrates: (f) => ui.open(crateView(f)), openStill: (cid) => ui.open(stillView(cid)),
+  globalThis.PFP_MM.t = { api, ui, SITES, ROUTES, spots, houses, get still() { return stillMesh; }, pve, horde, duel, get carry() { return carry; }, dive, openBoard, openColiseum, openRum: () => ui.open(rumView()), openCrates: (f) => ui.open(crateView(f)), openStill: (cid) => ui.open(stillView(cid)),
     takeCrate: (id) => takeCrate(ROUTES.find(r => r.id === id)), dropCrate, deliver, startHorde, endHorde, startDive, pryTap, usePot, usePlot, mineAt, interact, sell,
     setBoard(b) { board = { wanted: b.wanted || [], duels: b.duels || [], claims: b.claims || [] }; wanted.userData.setPosters(board.wanted.slice(0, 3)); },
     ff(sec) { for (const t of Object.values(api.st.timers)) t.t0 -= sec * 1000; api.save(); labels(); }, labels };
