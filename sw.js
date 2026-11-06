@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v332'; // [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
+const VERSION = 'pfp-v333'; // [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -36,6 +36,7 @@ const SHELL = [
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js", "./js/dock/ladders.js", "./js/hullReach.js",
   "./js/dock/houses.js",
+  "./js/dock/shipHull.js",
   "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
   "./js/adminMenu.js",

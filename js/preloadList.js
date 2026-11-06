@@ -16,6 +16,7 @@ export const HARBOR_MODULES = [
   "js/dock/plaza.js",
   "js/dock/safe.js",
   "js/dock/safeZoneMarks.js",
+  "js/dock/shipHull.js",
   "js/dock/skinPicker.js",
   "js/dock/squadHall.js",
   "js/dock/streetSigns.js",

@@ -136,5 +136,5 @@ test('v332: legendary look + thumbs + battle wiring', () => {
   const b = src('js/onfoot/battle.js');
   assert.match(b, /swordLook/);
   assert.match(b, /applyLegendaryOrnament/);
-  assert.match(src('sw.js'), /VERSION = 'pfp-v332'/);
+  assert.ok(+(src('sw.js').match(/VERSION = 'pfp-v(\d+)'/) || [])[1] >= 332, 'sw VERSION >= v332');
 });

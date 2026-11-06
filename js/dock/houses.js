@@ -1782,7 +1782,7 @@ export function createHouses({
     const chestH = panel.querySelector('[data-pane="chest"] h4');
     const leaveB = panel.querySelector('[data-a="leave"]');
     if (activeId === SHIP_QUARTERS_ID) {
-      if (head) head.textContent = "⚓ CAPTAIN'S CHEST";
+      if (head) head.textContent = "⚓ CAPTAIN'S QUARTERS · SHIP STORAGE";
       if (chestH) chestH.innerHTML = '🧰 SHIP CARGO <span class="hs-cap" data-cap></span>';
       if (leaveB) leaveB.textContent = 'LEAVE HULL';
     } else {
@@ -1836,7 +1836,7 @@ export function createHouses({
     const allChest = ch.items || [];
     const chestItems = allChest.filter((s) => filterCat(s.item, filter));
     const used = allChest.length;
-    const name = (cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE';
+    const name = activeId === SHIP_QUARTERS_ID ? "CAPTAIN'S QUARTERS" : ((cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE');
     panel.querySelector('[data-sub]').textContent = `${name} · drag to move · weapons never stack · ✂️ splits loot`;
     panel.querySelector('[data-cap]').textContent = `${used} / ${ch.slots} slots`;
     panel.querySelector('[data-bag-cap]').textContent = `${bag.length} item${bag.length === 1 ? '' : 's'}`;

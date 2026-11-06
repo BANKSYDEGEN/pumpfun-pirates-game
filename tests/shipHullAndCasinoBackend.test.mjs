@@ -114,11 +114,10 @@ test('casino.ts: all 4 games, gold-only, cryptographic RNG, atomic accounting', 
   assert.match(HTS, /landOwned/);
 });
 
-test('sw.js untouched on this branch (rebase-friendly)', () => {
-  // Branch must not bump VERSION — leave as whatever origin/main had
+test('sw.js bumped to pfp-v333 with shipHull.js in SHELL', () => {
   assert.ok(existsSync(new URL('../sw.js', import.meta.url)));
-  // Ensure our commit intent: shipHull / casino files don't appear in sw VERSION bump comments from this work
-  assert.ok(!DOCK.includes("VERSION = 'pfp-v333'") && !HULL.includes("pfp-v333'"));
+  assert.match(SW, /VERSION = 'pfp-v333'/);
+  assert.match(SW, /shipHull\.js/);
 });
 
 test('pure casino math helpers (roulette / dice / slots / blackjack)', async () => {
