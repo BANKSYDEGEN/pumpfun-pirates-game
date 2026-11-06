@@ -86,7 +86,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     let mag = Math.min(1, Math.hypot(f, s)), run = held('sprint', K);
     if (w.joy.on && Math.hypot(w.joy.x, w.joy.y) > 0.12) { f = -w.joy.y; s = w.joy.x; mag = Math.min(1, Math.hypot(f, s)); run = mag > 0.88; }
     { const B0 = w.body, on = SWIM_SURGE.on && B0.swim; if (on && held('jump', K)) w.surge = Math.max(w.surge || 0, 0.3); w.surge = Math.max(0, (w.surge || 0) - dt);   // [Emerly] swim surge (held jump on keys keeps it)
-      const tk = on && w.surge > 0 ? SWIM_SURGE.k : 1; w.sk = (w.sk || 1) + (tk - (w.sk || 1)) * Math.min(1, dt * (tk > (w.sk || 1) ? 5 : 2.5)); SWIM_SURGE.live = B0.swim ? w.sk : 1; }
+      const tk = on && w.surge > 0 ? SWIM_SURGE.kOf(run && !w.moveK) : 1; /* [v348] exact old jump-swim speeds */ w.sk = (w.sk || 1) + (tk - (w.sk || 1)) * Math.min(1, dt * (tk > (w.sk || 1) ? 5 : 2.5)); SWIM_SURGE.live = B0.swim ? w.sk : 1; }
     if (w.moveK) run = false; // [Timothy tps] aiming down the sights (js/onfoot/tps.js): no sprint
     let want = 0;
     if (mag > 0.01) {

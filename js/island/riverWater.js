@@ -5,6 +5,13 @@ import * as THREE from 'three';
 
 export const RIVER_FX = typeof location === 'undefined' || new URLSearchParams(location.search).get('riverfx') !== '0';
 
+// [v348] t1829u/t1830u: where the river mouth runs out over the sea floor (ground h < -0.2) its ribbon eases down to MOUTH_SINK, below the
+// deepest ocean trough (sum of the 4 swells ~2.2 m), so only the ONE ocean surface shows there. mouthSink(y, h) = that ribbon height
+// (js/dock/world.js uses it too: a swimmer leaving the river mouth rides the higher of the ribbon and the live swell).
+export const MOUTH_SINK = -2.6;
+export const mouthSea = (h) => isFinite(h) ? Math.min(1, Math.max(0, (-0.2 - h) / 1.0)) : 0;
+export function mouthSink(y, h) { const sea = mouthSea(h); return sea > 0 ? Math.min(y, y + (MOUTH_SINK - y) * sea * sea * (3 - 2 * sea)) : y; }
+
 const LAKE_FALLS = (LAKE) => ({ x: LAKE.x - 1, z: LAKE.z - LAKE.r + 4.8 }); // ≈ (-206, -183.2)
 
 // Dense Catmull-Rom strip (≈120 × 8) + polar lagoon disc. River half-width 11.5 m covers the ~20 m bed.
@@ -44,8 +51,10 @@ export function riverGeometry({ H, LAKE, RIVERP, low, w = 11.5, discR = LAKE.r +
     const e = mt * mt * (3 - 2 * mt), y = mt > 0 ? Math.min(y0 + 0.3, e * -0.35 + (1 - e) * y0) : y0;
     for (let k = 0; k <= NA; k++) {
       const c = -1 + 2 * k / NA, x = dens[i][0] + nx * c * w, z = dens[i][1] + nz * c * w;
-      pos.push(x, y, z); flow.push(sRaw, c, 0); dir.push(tx, tz);
-      const h = H(x, z); dep.push(isFinite(h) ? Math.max(0, y - h) : 3);
+      const h = H(x, z); // [v348] t1829u/t1830u: the mouth over the sea floor
+      const yv = mt > 0 ? mouthSink(y, h) : y;   // sinks under the ocean's troughs: no flat river tongue on the sea
+      pos.push(x, yv, z); flow.push(sRaw, c, 0); dir.push(tx, tz);
+      dep.push(isFinite(h) ? Math.max(0, yv - h) : 3);
     }
   }
   const nRows = n - i0;

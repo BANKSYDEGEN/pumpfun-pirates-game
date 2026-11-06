@@ -969,6 +969,7 @@ export function createPvp(K) {
   const shotOwner = (id) => peers.get(id)?.ship || (where !== 'arena' && bots.get(id)?.remote ? bots.get(id) : null); // [v99] + the host's AI ships
   function onShot(m) {
     const owner = shotOwner(m.o); if (!owner || !Array.isArray(m.b)) return; const aiBall = owner.net?.kind === 'bot'; // [v99] an AI ball is real on the pirate it hits
+    if (owner.mesh) owner.mesh.updateMatrixWorld(true); // [v348] t1827u: same live barrel frame as fire()/launchBall (gunList picks the matching tip; gi indexes gunList, not raw muzzles)
     for (const b of m.b.slice(0, 14)) { // [v95] up to 12 guns a side; launched from the RENDERED ship's own muzzle (v95 senders)
       const mesh = K.getBall(); mesh.position.set(b[0], b[1], b[2]); mesh.visible = false;
       const side = b[7] === 1 ? 'star' : 'port', ms = b[7] != null && owner.mesh ? gunList(owner, side) : null, muzzle = ms && ms.length ? ms[(b[8] | 0) % ms.length] : null;

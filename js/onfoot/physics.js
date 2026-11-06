@@ -9,10 +9,13 @@
 import * as THREE from 'three';
 import { FOOT_SWIM } from '../island/coast.js';
 
-export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [8.5, 13.0], wade: 0.45, fallPose: 0.22, climbT: 0.6, climbV: 1.2, hop: 0.55, ...FOOT_SWIM }; // [Raul swim-anim] climbT = the pull-up out of the water (s), hop = the surface kick height (m)
+export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [7.4, 11.3], rideMax: 0.6, wade: 0.45, fallPose: 0.22, climbT: 0.6, climbV: 1.2, hop: 0.55, ...FOOT_SWIM }; // [Raul swim-anim] climbT = the pull-up out of the water (s), hop = the surface kick height (m)
 // [Emerly] BANKSY: jump while swimming = a dolphin-kick surge (k x swim speed, eased in / out over t s; holding jump keeps it going). live = the
 // leader's current factor (walker.js) so the crew can keep up (followers.js). Only in deep water: the hop height is unchanged. &swimjump=0 = old.
-export const SWIM_SURGE = { on: !(typeof location !== 'undefined' && /[?&]swimjump=0(&|$)/.test(location.search)), k: 1.35, t: 1.1, live: 1 };
+// [v348] t1833u BANKSY "slow down swimming a tiny bit, keep jump swimming same speed tho": PHYS.swim was [8.5, 13.0] (now ~13% slower);
+// the surge now targets the EXACT old jump-swim top speeds (8.5 x 1.35, 13.0 x 1.35) instead of a fixed factor. k = the stroke-speed surge.
+export const SWIM_SURGE = { on: !(typeof location !== 'undefined' && /[?&]swimjump=0(&|$)/.test(location.search)), speed: [8.5 * 1.35, 13.0 * 1.35], t: 1.1, live: 1,
+  get k() { return this.speed[0] / PHYS.swim[0]; }, kOf(run) { return this.speed[run ? 1 : 0] / PHYS.swim[run ? 1 : 0]; } };
 const _f = { gy: 0, surf: null, depth: 0, swim: false, floor: 0 };
 export function floorAt(world, x, z, out = _f) { const gy = world.ground(x, z), s = world.water ? world.water(x, z) : null, d = s === null ? 0 : s - gy;
   out.gy = gy; out.surf = s; out.depth = d > 0 ? d : 0; out.swim = d > PHYS.depth; out.floor = out.swim ? s - PHYS.float : gy; return out; }
@@ -35,7 +38,9 @@ function step1(b, world, x, z, dt, speed, fdt) { // fdt = the whole frame (the h
     if (b.y <= f.floor) { b.impact = -b.vy; b.air = false; b.hop = false; b.vy = 0; b.off = 0; b.last = f.floor;
       if (f.swim) { b.dipV = -Math.min(5, b.impact * 0.45); b.ev = 'splash'; } else { b.landT = performance.now() / 1000; b.ev = f.depth > 0.25 ? 'splash' : 'land'; }
       b.y = f.floor; } }
-  else if (f.floor < b.y - PHYS.step - speed * fdt * 1.25 && !(b.swim && f.swim)) { b.air = true; b.airT = 0; b.vy = 0; b.off = 0; b.last = null; b.ev = 'fall'; } // walked off a ledge
+  // [v348] t1833u: was !(b.swim && f.swim) — a receding sea swell that briefly drops chest-deep water into wading (b.swim, !f.swim) falsely cliff-fell.
+  // Skip the ledge fall whenever we WERE swimming; cliffs into water still fall (b.swim is false on the rock). Hop landings use the air branch onto the live f.floor.
+  else if (f.floor < b.y - PHYS.step - speed * fdt * 1.25 && !b.swim) { b.air = true; b.airT = 0; b.vy = 0; b.off = 0; b.last = null; b.ev = 'fall'; } // walked off a ledge
   else { if (b.last === null) b.last = f.floor; const d = f.floor - b.last;
     // [Raul swim-anim] out of the water onto a ledge (was swimming, now standing, a real rise): a PHYS.climbT pull-up curve instead of
     // the 0.2 s step ease. Same end height, same place: only the vertical path in between changes
@@ -43,7 +48,10 @@ function step1(b, world, x, z, dt, speed, fdt) { // fdt = the whole frame (the h
     if (b.climb && f.swim) b.climb = 0;   // backed into deep water mid pull-up: the step ease below takes it down from where it is
     if (b.climb) { b.climb += dt; const k = Math.min(1, b.climb / PHYS.climbT), e = k < 0.15 ? 0 : (k - 0.15) / 0.75, u = Math.min(1, e) ** 2 * (3 - 2 * Math.min(1, e));
       b.off = -b.climbD * (1 - u); if (k >= 1) { b.climb = 0; b.off = 0; } }
-    else { if (Math.abs(d) > Math.max(0.05, speed * fdt * PHYS.stepRate)) b.off -= d;   // a step, not a slope: ease it
+    // [v348] t1833u: swimming on the live sea swell (js/dock/world.js water()) the surface moves up to ~3 m/s: ride it exactly (no step ease
+    // lagging under a crest / hanging over a trough). Real jumps in the water surface (> PHYS.rideMax, e.g. cove <-> sea) still ease.
+    else { const ride = b.swim && f.swim && Math.abs(d) < PHYS.rideMax;
+      if (!ride && Math.abs(d) > Math.max(0.05, speed * fdt * PHYS.stepRate)) b.off -= d;   // a step, not a slope: ease it
       b.off *= Math.exp(-dt * PHYS.stepEase); if (Math.abs(b.off) < 1e-3) b.off = 0; }
     b.last = f.floor; b.y = f.floor + b.off; }
   b.swim = !b.air && f.swim; b.wade = !b.air && !f.swim ? f.depth : 0;

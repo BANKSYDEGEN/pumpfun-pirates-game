@@ -28,13 +28,23 @@ export const MAX_HULLS = 12;
 // sun glints that follow uSun, soft crest foam that builds on wave tops and dissolves slowly after the crest passes,
 // foam collars + bow waves around hulls, lingering foam where cannonballs land, and a 0..1 storm mood (uStorm).
 // The ship wakes are separate trail ribbons (wake.js). Same wave field as the CPU buoyancy above.
+// [v348] BANKSY t1828u "increase the distance see the sea rn it just cuts off": ONE continuous grid (1 draw call, 0 seams, 0 overlap).
+// The inner size x size m keeps its exact seg x seg spacing (waves, crest foam, splashes, uHullPad unchanged); `extra` more rows a side
+// are pushed out with a separable cubic warp (slope 1 at the seam = no crease) so the sea reaches SEA_REACH m in every direction.
+export const SEA_REACH = 5600;
+export function seaGeometry(size, seg, extra, reach = SEA_REACH) {
+  const step = size / seg, hi = size / 2, band = extra * step, n = seg + 2 * extra, tot = size + 2 * band;
+  const geo = new THREE.PlaneGeometry(tot, tot, n, n); geo.rotateX(-Math.PI / 2);
+  const warp = (u) => { const a = Math.abs(u); if (a <= hi + 1e-6) return u; const q = (a - hi) / band; return Math.sign(u) * (a + (reach - hi - band) * q * q * q); };
+  const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setXYZ(i, warp(P.getX(i)), 0, warp(P.getZ(i)));
+  P.needsUpdate = true; geo.computeBoundingSphere(); geo.userData = { step, inner: hi, reach }; return geo;
+}
 export function createOcean(quality) {
   const low = quality === 'low', ultra = quality === 'ultra'; // [ultra] bigger, denser sea + sharper sun glints
   const size = low ? 700 : ultra ? 1200 : 900;
   const seg = low ? 140 : ultra ? 440 : 260;
   const NS = low ? 6 : 10; // lingering splash foam spots
-  const geo = new THREE.PlaneGeometry(size, size, seg, seg);
-  geo.rotateX(-Math.PI / 2);
+  const geo = seaGeometry(size, seg, low ? 22 : 34); // [v348] t1828u/t1833u: denser skirt so mid-range (past inner ~450 m) stays smooth out past the SAIL arena (~1250 m)
   const uniforms = {
     uTime: { value: 0 },
     uWaves: { value: W.map(v => new THREE.Vector4(v.dx, v.dz, v.a, v.k)) },
@@ -64,8 +74,14 @@ export function createOcean(quality) {
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
         float h = 0.0; vec2 g = vec2(0.0);
+        // [v348] t1833u: damp each swell only once the skirt is too coarse for its wavelength. Playable SAIL arena is ~1250 m
+        // from the camera (ocean mesh follows the player): the old farA(700,2200) flattened water under ships across the map
+        // while floatShip still used full waveHeight (boats dipped under / floated above the rendered sea).
+        float rFar = length(position.xz);
+        float farBig = 1.0 - smoothstep(1350.0, 2600.0, rFar); // 46 m + 27 m swells: full amp across the SAIL arena (~1250 m)
+        float farTiny = 1.0 - smoothstep(1250.0, 2200.0, rFar); // 15 m + 9 m ripples: full amp to the arena edge, then fade (keeps |GPU-CPU| < 0.15 m in-play)
         for (int i = 0; i < 4; i++) {
-          vec2 d = uWaves[i].xy; float a = uWaves[i].z; float k = uWaves[i].w;
+          vec2 d = uWaves[i].xy; float a = uWaves[i].z * (i < 2 ? farBig : farTiny); float k = uWaves[i].w;
           float ph = k * dot(d, wp.xz) - sqrt(9.8 * k) * uTime;
           h += a * sin(ph); g += a * k * cos(ph) * d;
         }
@@ -198,7 +214,10 @@ export function createOcean(quality) {
         col = mix(col, foamCol, clamp(foam, 0.0, 1.0));
         col += uFlash * vec3(0.35, 0.45, 0.55) * (0.35 + fres + foam * 0.6);
         float fog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-        gl_FragColor = vec4(mix(col, uFogColor * (1.0 + uFlash * 1.5), fog), 1.0);
+        vec3 seaC = mix(col, uFogColor * (1.0 + uFlash * 1.5), fog);
+        // [v348] t1828u: the far sea melts into the sky dome's horizon colour (fair: uSkyHorizon, storm: uFogColor) - no edge, ever
+        float hz = smoothstep(2400.0, 5200.0, length(vWorld.xz - cameraPosition.xz));
+        gl_FragColor = vec4(mix(seaC, mix(uSkyHorizon, uFogColor, st) * (1.0 + uFlash * 1.5), hz), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -215,8 +234,9 @@ export function createOcean(quality) {
 
 // [v343] AAA Caribbean sky: sunny day + sunrise/sunset Mie glow + starry night + moon, storm-blended.
 // Procedural FBM clouds + star cells in ONE dome shader (zero textures, zero extra draws). Driven by js/skyCycle.js.
+export const SKY_R = 6500;
 export function createSky() {
-  const geo = new THREE.SphereGeometry(1000, 48, 24);
+  const geo = new THREE.SphereGeometry(SKY_R, 48, 24); // [v348] 1000 -> 6500 m: well past the sea's horizon skirt (camera.far 9000)
   const uniforms = {
     uTime: { value: 0 }, uFlash: { value: 0 }, uFogColor: { value: FOG_COLOR.clone() },
     uBolt: { value: new THREE.Vector3(0, 0, 1) }, uStorm: { value: 0 },

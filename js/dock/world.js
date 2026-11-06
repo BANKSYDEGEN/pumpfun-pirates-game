@@ -1,13 +1,14 @@
 // [Emerly] PUMPFUN PIRATES: builds the walkable harbor world for a layout (js/dock/layout.js) inside the GAME scene:
 // the main island with Raul's coast town (js/island/foot.js coast mode, placed by the layout's frame) plus berth markers. Exposes the walk API in harbor coordinates (ground / blocked / interact).
 import * as THREE from 'three';
+import { waveHeight } from '../ocean.js'; // [v348] t1833u: swimmers ride the live swell
 import { toon } from '../toon.js';
 import { makeAtlas } from '../island/art.js';
 import { islandSurface, grassMaterial } from '../island/look.js';
 import { Kit, M, outlineMaterial } from '../island/kit.js';
 import { loadTownKit, loadNatureKit } from '../island/townkit.js';
 import { freezeStatic } from '../opt.js'; // [Emerly perf-v304]
-import { upgradeRiver } from '../island/riverWater.js'; // [clean-water] AAA river/lagoon/falls (&riverfx=0 = old)
+import { upgradeRiver, mouthSink, mouthSea } from '../island/riverWater.js'; // [clean-water] AAA river/lagoon/falls (&riverfx=0 = old)
 
 const GOLD = 0xffc93c;
 
@@ -72,13 +73,22 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   freezeStatic(quay);
   // ---- walk API (harbor coords) ----
   const decks = layout.decks.map(d => ({ ...d, c: Math.cos(d.yaw), s: Math.sin(d.yaw) }));
+  const SEA_SWELL = !(typeof location !== 'undefined' && /[?&]seaswell=0(&|$)/.test(location.search));
   const DECK_COLL = !(typeof location !== 'undefined' && /[?&]deckcoll=0/.test(location.search));
   function deckAt(x, z) { let y = null; for (const d of decks) { const dx = x - d.x, dz = z - d.z, along = dx * d.s + dz * d.c, across = dx * d.c - dz * d.s;
     if (Math.abs(along) <= d.hl && Math.abs(across) <= d.hw - 0.35) y = Math.max(y ?? -1e9, d.y); } return y; }
   const toF = layout.harborToFoot;
   function ground(x, z) { const d = deckAt(x, z), [fx, fz] = toF(x, z), g = foot.groundAt(fx, fz); return d !== null ? Math.max(d, g) : g; }
   // [Raul] still-water surface (null = dry) and where you stand: swimming = feet FOOT_SWIM.float under it, else the ground / deck
-  function water(x, z) { if (deckAt(x, z) !== null || !foot.waterAt) return null; const [fx, fz] = toF(x, z); return foot.waterAt(fx, fz); }
+  // [v348] t1833u BANKSY "make sure ... don't go under water or fly with Water update, same with swimming": with foot_shallows gone the ONE
+  // ocean (js/ocean.js, same waveHeight on CPU + GPU) is the sea you see, so a sea swimmer floats on the LIVE swell at (x, z, t) instead of a
+  // flat y = 0.05 (under the crests / over the troughs). The sunk river mouth = the higher of its ribbon and the swell (no step swimming out);
+  // the cove, the lagoon and the inland river keep their exact still / river heights. &seaswell=0 = the old flat sea.
+  function water(x, z) { if (deckAt(x, z) !== null || !foot.waterAt) return null; const [fx, fz] = toF(x, z), s = foot.waterAt(fx, fz);
+    if (s === null || !SEA_SWELL) return s; const W = FM.WATER_KIND, k = W?.k;
+    if (k === 'sea') return FM.FOOT_SWIM.seaY + waveHeight(x, z, uTime?.value || 0);
+    if (k === 'river' && mouthSea(W.h) > 0) return Math.max(mouthSink(s, W.h), FM.FOOT_SWIM.seaY + waveHeight(x, z, uTime?.value || 0));
+    return s; }
   function stand(x, z) { const g = ground(x, z), s = water(x, z); return s !== null && s - g > FM.FOOT_SWIM.depth ? s - FM.FOOT_SWIM.float : g; }
   function blocked(x, z, px, pz) {
     if (FM.ADMIN_COL?.nocs.length && FM.nocAt(...toF(x, z))) return false; // [v346] owner PASS ZONE: the harbor decks' step rule too

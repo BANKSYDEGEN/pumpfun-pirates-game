@@ -291,6 +291,7 @@ const TRP_G = (() => { if (!DEAD_A.length) return TRg; const DG = new Float32Arr
   for (let q = 0; q < DG.length; q++) if (DG[q] < 14 && DG[q] <= TRg[q] + 1e-3) T[q] = OG[q]; return T; })();
 // [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
 const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
+export const SHALLOWS_ON = QS.get('shallows') === '1'; // [v348] t1829u: the old overlapping foot_shallows sea, opt-in only
 export const WALK_RULES = { slope: +(QS.get('slope') || 1.25), trees: QS.get('trees') !== '0' };
 export const BUILD_MS = Math.round(performance.now() - t0);
 // bilinear sample (world metres)
@@ -327,12 +328,15 @@ export function H(x, z) {
 // [Raul] water + the swim cove's walkable jetty (foot world). waterAt = the still-water surface over (x, z) or null (dry): the lake,
 // the river ribbon, the sea (CO.FOOT_SWIM.seaY). seaLimit = sea you may not swim in (open water, the dredged berths).
 export const FOOT_SWIM = CO.FOOT_SWIM;
-export function waterAt(x, z) { const h = H(x, z);
-  if (COASTM) { const [lx, lz] = worldToTown(x, z); if (CO.coveQ(lx, lz) < 1.02) return h < CO.SWIM_COVE.y ? CO.SWIM_COVE.y : null; }   // the swim cove
-  if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2.5) return h < LAKE.y + 0.05 ? LAKE.y + 0.05 : null;
+// [v348] t1833u: WATER_KIND.k = which water the last waterAt() hit ('cove' | 'lake' | 'river' | 'sea' | null), WATER_KIND.h = the ground there.
+// The harbor (js/dock/world.js) turns 'sea' (and the sunk river mouth) into the LIVE ocean swell; the still waters keep their exact heights.
+export const WATER_KIND = { k: null, h: 0 };
+export function waterAt(x, z) { const h = H(x, z), W = WATER_KIND; W.h = h; W.k = null;
+  if (COASTM) { const [lx, lz] = worldToTown(x, z); if (CO.coveQ(lx, lz) < 1.02) { if (h < CO.SWIM_COVE.y) { W.k = 'cove'; return CO.SWIM_COVE.y; } return null; } }   // the swim cove
+  if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2.5) { if (h < LAKE.y + 0.05) { W.k = 'lake'; return LAKE.y + 0.05; } return null; }
   const q = IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))));
-  if (RVg[q] < 10.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) return RVl[q] + 0.2;
-  return h < FOOT_SWIM.seaY ? FOOT_SWIM.seaY : null; }
+  if (RVg[q] < 10.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) { W.k = 'river'; return RVl[q] + 0.2; }
+  if (h < FOOT_SWIM.seaY) { W.k = 'sea'; return FOOT_SWIM.seaY; } return null; }
 const SAIL_ALL_FOOT = !(typeof location !== 'undefined' && /[?&]sailall=0(?:&|$)/.test(location.search || '')); // [Emerly sail-around]
 function seaLimit(x, z, h, surf) { if (surf !== FOOT_SWIM.seaY) return false;
   if (SAIL_ALL_FOOT) return false; // free swim to canoe / ship / islets
@@ -1453,8 +1457,10 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const kitM = groups[0] || null; KP = null; NP = null;
   for (const g of [street, inland, coast].filter(Boolean)) g.traverse(o => { if (o.isMesh && !o.userData.outline && o.userData.bucket !== 'glow') { o.castShadow = !low; o.receiveShadow = !low; } });
   // water: shoreline shallows + foam, river + lake flow, waterfall + mist
-  const hTex = heightTexture();
-  const sea = shallows(uTime, uWaves, low, hTex); root.add(sea);
+  // [v348] BANKSY t1829u "there is 2 water types overlapping": foot_shallows (a second, unlit sea sampled in the rotated foot frame on a
+  // ~10 m grid) poked flat cyan blotches up through the real ocean's troughs all round the coast. Off by default (&shallows=1 = old look);
+  // the game ocean (js/ocean.js) is the ONE sea. River, lagoon lake, waterfall + mist and the swim cove below stay.
+  if (SHALLOWS_ON) root.add(shallows(uTime, uWaves, low, heightTexture()));
   const fresh = freshWater(uTime, low); root.add(fresh);
   if (COASTM) root.add(coveWater(uTime, low));                                                     // [Raul] swim cove water
   let top = H(FALLS_CLIFF.x + 6, LAKE.z - LAKE.r - 10); if (!isFinite(top)) top = LAKE.y + 30; const [fall, mist] = waterfall(uTime, Math.max(top, LAKE.y + 20), low); root.add(fall); if (!low) root.add(mist);
@@ -1590,7 +1596,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   function rearm(id) { const d = digs.find(d => d.id === id); if (d) { d.t = -1; d.mound.scale.setScalar(1); d.mound.visible = true; d.cg.position.y = -1.6; d.lid.rotation.x = 0; }
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
-  const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
+  const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: 0 }; // [v348] no foot_shallows height texture by default
   return { areas, root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, setLayer, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups, areaDeckAt, AREA_DECKS, townToWorld, worldToTown, streetGravel };
 }
 // ---------- 2D review map (canvas) ----------

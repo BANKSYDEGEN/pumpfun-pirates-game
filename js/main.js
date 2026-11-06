@@ -141,7 +141,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0042);
 const FOG_K = ULTRA ? 0.74 : 1; // [ultra] lighter fog, longer draw distance
 scene.background = FOG_COLOR.clone();
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 2500);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 9000); // [v348] t1828u: 2500 -> 9000 (sea to the horizon, sky dome 6500)
 camera.position.set(0, 16, -34);
 
 const controls = new OrbitControls(camera, canvas);
@@ -445,14 +445,18 @@ function fire(shooter, side, target = null, accuracy = 1) {
     const err = (1 - accuracy) * 14;
     aimPt.x += rnd(-err, err); aimPt.z += rnd(-err, err);
     if (Number.isFinite(target.footY)) aimY = target.footY + 0.6; // [v347] t1821u: an AI bombarding a pirate on the coast ranges onto the beach
-    line = BA.fireLine(dir, shooter.x, shooter.z, aimPt.x, aimPt.z, shooter === player ? BA.AIM.maxDev : BA.AIM.aiMaxDev);
+    // [v348] t1827u: the ball keeps the ship's own way (like the unaimed shot), so it leaves straight out of the moving barrel instead of
+    // sliding astern of it; the aim point is pulled back by that drift so the shot still lands where it was aimed
+    const tf = Math.hypot(aimPt.x - shooter.x, aimPt.z - shooter.z) / H;
+    line = BA.fireLine(dir, shooter.x, shooter.z, aimPt.x - vel0.x * tf, aimPt.z - vel0.z * tf, shooter === player ? BA.AIM.maxDev : BA.AIM.aiMaxDev);
     if (line.d < 4) line = null;
   }
   const gap = Math.min(0.07, 0.5 / Math.max(1, muzzles.length)); // [v95] ripple fire: up to 12 guns a side still fire within ~0.5 s
+  shooter.mesh?.updateMatrixWorld(true); // [v348] t1827u: a keydown between frames reads the barrels where they are NOW
   muzzles.forEach((m, i) => {
     const p = new THREE.Vector3(); m.getWorldPosition(p);
     let v;
-    if (line) { const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H); v = new THREE.Vector3(g.x, g.y, g.z); range = line.d; } // parallel, no aim-point convergence
+    if (line) { const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H); v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z); range = line.d; } // parallel, no aim-point convergence, + the ship's own way [v348]
     if (!v) { const t = range / H; v = dir.clone().multiplyScalar(H).add(vel0); v.y = 0.5 * 20 * t + rnd(-0.6, 0.6); v.x += rnd(-1, 1); v.z += rnd(-1, 1); }
     // [v95] the ball is LAUNCHED from its muzzle when its turn in the ripple comes (updateBalls, after this frame's ship moves):
     // spawning it here left delayed balls hanging where the gun WAS (up to ~8 m behind a ship at full speed) and a frame stale
@@ -560,11 +564,14 @@ function floatShip(s, dt) {
   const hC = waveHeight(s.x, s.z, t);
   const hF = waveHeight(s.x + fx_ * L, s.z + fz * L, t), hA = waveHeight(s.x - fx_ * L, s.z - fz * L, t);
   const hP = waveHeight(s.x + px * B, s.z + pz * B, t), hS = waveHeight(s.x - px * B, s.z - pz * B, t);
-  const k = 1 - Math.exp(-dt * 4);
+  // [v348] t1833u: was dt*4 (τ≈0.25 s) — steep 27 m / 15 m crests left small boats + galleons up to ~0.5 m under / over the waterline.
+  // dt*8 (τ≈0.125 s) + a crest floor (same idea as the canoe) keeps every hull (starter sloop, upgraded galleon, prestige liftRig) on the swell.
+  const k = 1 - Math.exp(-dt * 8);
   const moored = s.anchor && s._safe && !(s.speed > 0.3); // [dock-waterline] moored in SAFE HARBOR: ride the full swell at its highest sample + 0.25 m, half the pitch / roll
   // (v176 halved the swell, so crests rose past the low sloop gunwale; the water moves fully, so the hull has to as well). Sailing unchanged.
   const hM = (hC + hF + hA) / 3, rk = moored ? 0.5 : 1;
-  s.y += ((moored ? Math.max(hM, hC, (hP + hS) / 2) + 0.25 : hM) - 0.6 - s.y) * k;
+  const ty = (moored ? Math.max(hM, hC, (hP + hS) / 2) + 0.25 : hM) - 0.6;
+  s.y += (ty - s.y) * k; if (s.y < ty - 0.08) s.y = ty - 0.08; // never lag under a rising crest
   s.pitch += (-Math.atan2(hF - hA, 2 * L) * rk - s.pitch) * k;
   s.roll += (Math.atan2(hP - hS, 2 * B) * 0.8 * rk + (s.turn || 0) * s.speed * 0.012 - s.roll) * k;
   let sinkY = 0, sinkRoll = 0, sinkPitch = 0;
@@ -674,7 +681,9 @@ function launchBall(b) {
   let m = b.muzzle; b.muzzle = null;
   const live = (o) => { while (o.parent) o = o.parent; return o === scene; };
   if (!live(m) && b.owner?.mesh) { const L = gunList(b.owner, b.side || 'port'); if (L.length) m = L[(b.gi | 0) % L.length]; } // ship rebuilt (skin / upgrade) mid-ripple: use the new barrel
-  if (m.parent && b.owner?.mesh?.parent) { m.getWorldPosition(_mp); b.mesh.position.copy(_mp); }
+  // [v348] t1827u: the LIVE barrel tip: this frame's moveShip / floatShip / remote interpolation already ran (updateBalls is after them),
+  // and the ship's world matrix is refreshed before the read (three.js only does that at render time otherwise)
+  if (m.parent && b.owner?.mesh?.parent) { b.owner.mesh.updateMatrixWorld(true); m.getWorldPosition(_mp); b.mesh.position.copy(_mp); }
   b.mesh.visible = true; b.spawnAt = b.mesh.position.clone();
   // [v347] t1824u: the ball leaves its muzzle on its TRUE parabola and never bends mid-air (the v97.1 b.ex / b.tp sideways ease and the
   // ripple-delay re-aim onto a fixed point are gone: those were what made broadsides look like heat-seeking missiles)
