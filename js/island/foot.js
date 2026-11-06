@@ -16,6 +16,7 @@ import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout
 import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
 import * as COLI from './coliseum.js'; // [Emerly] intact colosseum (&coliseum=0 = off)
+import { clearAt as cottageClearAt, indoorOrPadAt as cottagePadAt, COTTAGES_ON } from './areas/cottages.js'; // [post/cottages] no trees/grass in cottages / well
 const PV2 = COAST_ON_PV2();
 function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
@@ -576,6 +577,7 @@ function foliageSpots() {
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
     const clr = COASTM ? BT.clearAt(lx, lz) : 0; if (clr > 1) continue; // [Timothy] battery: ramp + gun deck clear, no trees round the guns
     if (COASTM && (BA.clearAt(lx, lz) || (COLI.COLISEUM_ON && COLI.clearAt(lx, lz)))) continue; // [Timothy]/[Emerly] battle pads + colosseum
+    if (COTTAGES_ON && cottageClearAt(x, z)) continue; // [post/cottages] no trees/palms/rocks/cliffs in cottages / porches / well
     if (sl > 0.95 && TRg[q] > 9) { if (r < 0.2 && !inView(x, z)) cliffs.push([x, h, z, r]); else if (r < 0.3) rocks.push([x, h, z, r]); continue; }
     if (clr) continue;
     if (inView(x, z)) { if (r < 0.1 && TRg[q] > 6) ferns.push([x, h, z, r]); continue; }
@@ -585,7 +587,7 @@ function foliageSpots() {
     if (sl > 0.85 || h > 105) { if (r < 0.1) rocks.push([x, h, z, r]); continue; }
     const jm = fbm(x * 0.01 + 7, z * 0.01, 3);
     if (h < 6.5 && SDg[q] > -70) { if (r < 0.45) palms.push([x, h, z, r]); else if (r < 0.52) rocks.push([x, h, z, r]); }
-    else if (r < 0.15 + 0.8 * sm(0.36, 0.56, jm)) { trees.push([x, h, z, r]); if (hash(i, j * 2.3) < 0.8) ferns.push([x + 3 * (hash(i, 7) - 0.5) * 2, H(x + 2, z + 2), z + 3, hash(j, 5)]); }
+    else if (r < 0.15 + 0.8 * sm(0.36, 0.56, jm)) { trees.push([x, h, z, r]); if (hash(i, j * 2.3) < 0.8) { const fx = x + 3 * (hash(i, 7) - 0.5) * 2, fz = z + 3; const fq = IDX(Math.round(Math.min(NX, Math.max(0, (fx - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (fz - Z0) / G)))); if (!(COTTAGES_ON && cottageClearAt(fx, fz)) && TRg[fq] > 4 && PVg[fq] > 2.5) ferns.push([fx, H(fx, fz), fz, hash(j, 5)]); } }
     else if (r < 0.5) ferns.push([x, h, z, r]);
   }
   return { trees, palms, ferns, rocks, cliffs };
@@ -605,6 +607,7 @@ function grassGeos() {
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   if (RB_ON && x > -440 && x < -405 && z > -130 && z < -60 && areaDeckAt(x, z) !== null) return 0;   // [v220] no grass tufts through the fountain plaza / Climb paving
+  if (COTTAGES_ON && cottagePadAt(x, z)) return 0; // [post/cottages] no grass through cottage floors / porches / aprons / well pad
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)

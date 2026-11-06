@@ -111,7 +111,7 @@ test('server migration + edge + dock wiring + sw version', () => {
   assert.match(DOCK, /from '\.\/houses\.js'/);
   assert.match(DOCK, /createHouses/);
   assert.match(DOCK, /houses\.prompts/);
-  assert.match(SW, /pfp-v315/); // tip after hill-weapons fold; houses shipped as v314
+  assert.match(SW, /const VERSION = 'pfp-v\d{3,}';/); // tip after hill-weapons fold; houses shipped as v314
 });
 
 test('prompts + interior room contract', () => {

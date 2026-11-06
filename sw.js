@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v315'; // [v315] Hill Street weapons: MUSKET #34+#35 / SWORD #36 by coli MAIN_GATE; prev: [v314] storage-houses;
+const VERSION = 'pfp-v316'; // [v316] Cottage village + wishing well + tree clear; prev: [v315] Hill Street weapons: MUSKET #34+#35 / SWORD #36 by coli MAIN_GATE; prev: [v314] storage-houses;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -34,6 +34,7 @@ const SHELL = [
   "./assets/tokens/sunk.png", "./assets/tokens/pump.png", "./assets/tokens/ahoy.png", "./assets/tokens/hq.png", "./assets/tokens/retardio.png", // [v108] token billboard logos ([v144] + $HQ / $RETARDIO)
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
+  "./js/dock/houses.js",
   "./js/dock/docking.js",
   "./js/dock/layout.js",
   "./js/dock/safe.js",
@@ -60,7 +61,7 @@ const SHELL = [
   "./js/island/bake.js",
   "./js/island/foot.js",
   "./js/island/digSpots.js", // [v149] dig-spot registry (foot.js + dock/treasure.js import it)
-  "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", // [v150] island rework areas (lagoon v150, jungle v151)
+  "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", "./js/island/areas/cottages.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
   "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader

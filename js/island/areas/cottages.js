@@ -223,7 +223,7 @@ function buildGarden(k, tint, shut) {
 }
 
 const BUILDERS = { balcony: buildBalcony, dormer: buildDormer, gabled: buildGabled, garden: buildGarden };
-const COL_SIZES = { balcony: [9.8, 8.8], dormer: [9.2, 8.2], gabled: [9.6, 9.0], garden: [8.0, 7.0] };
+export const COL_SIZES = { balcony: [9.8, 8.8], dormer: [9.2, 8.2], gabled: [9.6, 9.0], garden: [8.0, 7.0] };
 
 // Trail-A-matching lantern (torchPost style: dark wood post + iron cap + glow)
 function lanternPost(k, x, y, z) {
@@ -295,6 +295,48 @@ function foundationSkirt(k, c, H) {
   W(k, box(bw + 0.6, depth, bd + 0.6), C.STONE_D, M(c.x, cy - depth / 2 + 0.15, c.z, c.ry), false);
 }
 
+// ---- foliage / grass clearance (foot.js foliageSpots + grassOK) ----
+// Oriented AABB in cottage local space: walls + 3.5 m margin (porch / apron / eaves).
+export function clearAt(x, z) {
+  if (!COTTAGES_ON) return false;
+  if (Math.hypot(x - WELL.x, z - WELL.z) < 4.0) return true;
+  for (const c of COTTAGES) {
+    const [bw, bd] = COL_SIZES[c.kind] || [8, 7];
+    const dx = x - c.x, dz = z - c.z;
+    const lx = dx * Math.cos(c.ry) - dz * Math.sin(c.ry);
+    const lz = dx * Math.sin(c.ry) + dz * Math.cos(c.ry);
+    // Extra +Z margin covers the front porch + stone apron beyond the footprint
+    const mx = bw / 2 + 3.5, mzBack = bd / 2 + 3.5, mzFront = Math.max(bd / 2, c.frontZ || 4.5) + 3.5;
+    if (Math.abs(lx) <= mx && lz >= -mzBack && lz <= mzFront) return true;
+  }
+  return false;
+}
+// Tighter pad check for grass tufts (floors / porch / apron / well rim) — no blades through stone.
+export function indoorOrPadAt(x, z) {
+  if (!COTTAGES_ON) return false;
+  if (Math.hypot(x - WELL.x, z - WELL.z) < 2.2) return true; // well stone rim pad
+  for (const c of COTTAGES) {
+    const [bw, bd] = COL_SIZES[c.kind] || [8, 7];
+    const dx = x - c.x, dz = z - c.z;
+    const lx = dx * Math.cos(c.ry) - dz * Math.sin(c.ry);
+    const lz = dx * Math.sin(c.ry) + dz * Math.cos(c.ry);
+    const mx = bw / 2 + 0.6, mzBack = bd / 2 + 0.6, mzFront = Math.max(bd / 2, c.frontZ || 4.5) + 1.8;
+    if (Math.abs(lx) <= mx && lz >= -mzBack && lz <= mzFront) return true;
+  }
+  return false;
+}
+
+// [wish] same kill / reveal rules as the plaza fountain (hillRound.js)
+export const WISH_ON = !(typeof location !== 'undefined' && /[?&]wish=0(&|$)/.test(location.search));
+function wishHidden() {
+  if (typeof window === 'undefined') return true;
+  if (/[?&]wish=1(&|$)/.test(location.search)) return false;
+  return !(window.PFP_INV_FLAGS && window.PFP_INV_FLAGS.wish_fountain);
+}
+// Approachable rim on the SE side of the well (toward cottage_lane / green open), outside the 1.5 m collider.
+export const WELL_RIM = { x: WELL.x + 1.45, z: WELL.z + 0.85 };
+
+
 const area = {
   id: 'cottages',
   name: 'Cottage Neighborhood',
@@ -308,7 +350,8 @@ const area = {
   },
   register(h) {
     if (!COTTAGES_ON) return;
-    h.poi('cottage_green', 'Cottage neighborhood', GREEN.x, GREEN.z, { clear: 16 });
+    // Single POI (map draws one label): clear 38 m covers all 4 outer-arc cottages + well + lane
+    h.poi('cottage_green', 'Cottage neighborhood', -380, -135, { clear: 38 });
     for (const c of COTTAGES) {
       const [bw, bd] = COL_SIZES[c.kind] || [8, 7];
       h.addBox(c.x, c.z, bw, bd, c.ry);
@@ -317,6 +360,8 @@ const area = {
     // bench colliders on the green
     h.addCirc(WELL.x - 3.2, WELL.z + 2.0, 0.55);
     h.addCirc(WELL.x + 3.0, WELL.z - 1.8, 0.55);
+    // [wish] E / tap at the well rim (same flag as plaza fountain). r=2.8 reaches a player outside the 1.5 m well collider.
+    if (WISH_ON) h.INTERACT?.push({ id: 'cottage_well', kind: 'wish', area: 'cottages', x: WELL_RIM.x, z: WELL_RIM.z, r: 2.8, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
   },
   build({ MATS, OUT, low, H }) {
     if (!COTTAGES_ON) {
@@ -379,9 +424,54 @@ const area = {
     const fg = kf.build(MATS, OUT);
     fg.traverse(o => { if (o.isMesh) { o.matrixAutoUpdate = false; o.updateMatrix(); } });
     far.add(fg);
-    return { near, far };
+
+    // [wish] gold coin flips from the rim into the well water, then a white ripple (identical feel to plaza fountain)
+    const waterY = H(WELL.x, WELL.z) + 1.06;
+    const rimY = H(WELL_RIM.x, WELL_RIM.z) + 1.15;
+    const coin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.018, 12),
+      new THREE.MeshStandardMaterial({ color: 0xffcd3c, metalness: 0.8, roughness: 0.3 }),
+    );
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.12, 0.2, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }),
+    );
+    coin.visible = false; ring.rotation.x = -Math.PI / 2; ring.visible = false; near.add(coin, ring);
+    let wishT = -1;
+    const coinTarget = { x: WELL.x, y: waterY, z: WELL.z };
+    const wishAt = (dt) => {
+      const k = Math.min(1, dt / 0.8);
+      coin.visible = k < 1;
+      coin.position.set(
+        WELL_RIM.x + (coinTarget.x - WELL_RIM.x) * k,
+        rimY + 1.3 + 1.2 * k - 1.9 * k * k,
+        WELL_RIM.z + (coinTarget.z - WELL_RIM.z) * k,
+      );
+      coin.rotation.x = dt * 14;
+      const r = Math.max(0, (dt - 0.8) / 1.4);
+      ring.visible = r > 0 && r < 1;
+      ring.position.set(coinTarget.x, coinTarget.y + 0.02, coinTarget.z);
+      ring.scale.setScalar(1 + r * 7);
+      ring.material.opacity = 0.7 * (1 - r);
+      return dt < 2.2;
+    };
+    return {
+      near, far,
+      wish: () => { wishT = 0; },
+      tick(t) {
+        if (wishT >= 0) {
+          if (wishT === 0) wishT = t;
+          if (!wishAt(t - wishT)) { wishT = -1; coin.visible = ring.visible = false; }
+        }
+      },
+    };
   },
-  activate() { return null; },
+  // [wish] E / tap at the rim → pvp.js 'pfp-wish' (100 gold + lucky buff); splash runs our coin/ripple
+  activate(q, t, api, b) {
+    if (q?.id !== 'cottage_well' || typeof window === 'undefined') return null;
+    window.dispatchEvent(new CustomEvent('pfp-wish', { detail: { toast: (m, ms) => api?.toast?.(m, ms), splash: () => b?.wish?.() } }));
+    return null;
+  },
   label() { return null; },
 };
 
