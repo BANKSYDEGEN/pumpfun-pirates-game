@@ -56,7 +56,7 @@ export const anyInput = (s) => !!s && (s.b.some(Boolean) || Math.hypot(s.lx, s.l
 // sea = sailing your ship (Waves, Battle Royale SOLO / SQUADS, the harbor); foot = walking the island (+ the sword pit / musket range);
 // spec = spectating a battle; ui = any menu / shop / inventory / pop-up on top (focus navigation).
 export const MAP = {
-  sea: { [BTN.A]: 'promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
+  sea: { [BTN.A]: 'promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'enterHull|map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud] GUIDE/PS button toggles Hide HUD · [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
   foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|weapon', [BTN.Y]: 'map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud]
@@ -68,7 +68,7 @@ export const MAP = {
 // readable map for the CONTROLS overlay + the report (glyphs follow the pad brand)
 export const MAP_HELP = {
   sea: [['LEFT STICK', 'steer · push up / down = more / less sail'], ['RIGHT STICK', 'look around (R3 = reset camera)'], ['RT / RB', 'fire starboard (right)'], ['LT / LB', 'fire port (left)'],
-    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'island map (harbor)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
+    ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'enter hull (when moored / anchored) · island map (underway)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'change weapon (Unarmed → Musket → Sword)'], ['Y', 'island map'],
     ['RT', 'swing sword / fire musket'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
@@ -77,7 +77,7 @@ export const MAP_HELP = {
 // the one-line hint (title, pause, the HUD) while a pad is in use
 export function padLine(short = false, b = brand) { const g = (k) => glyphFor(b, k);
   return short ? `left stick steer · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides · ${g('X')} anchor · right stick look`
-    : `left stick steer / walk · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides (on foot ${g('RT')} swing / fire) · ${g('A')} dock / interact · ${g('X')} anchor / change weapon · ${g('Y')} island map · ${g('B')} inventory / back · right stick look · ${g('START')} settings`; }
+    : `left stick steer / walk · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides (on foot ${g('RT')} swing / fire) · ${g('A')} dock / interact · ${g('X')} anchor / change weapon · ${g('Y')} enter hull / island map · ${g('B')} inventory / back · right stick look · ${g('START')} settings`; }
 // the CONTROLS overlay's controller section (button names follow the pad in use: Xbox A/B/X/Y, PlayStation ✕/○/□/△)
 export function padHelpHtml(b = brand) {
   const g = (t) => t.replace(/\b(LT|RT|LB|RB|VIEW|MENU|A|B|X|Y)\b/g, (m) => glyphFor(b, m === 'MENU' ? 'START' : m));
@@ -94,6 +94,7 @@ export function resolve(action, ctx = {}) {
     if (n === 'attack' && !(ctx.area || ctx.armed)) continue; // [t1734u] RT swings/fires with a drawn weapon in open-world PvP too
     if (n === 'team' && !ctx.area) continue;
     if ((n === 'ads' || n === 'swap') && !ctx.tps) continue;
+    if (n === 'enterHull' && !ctx.canEnterHull) continue; // [v349] Triangle / Y = ENTER HULL when moored or anchored
     if ((n === 'map' || n === 'inventory') && !ctx.harbor) continue;
     if (n === 'invite' && !ctx.invites) continue; // [invite-discreet] VIEW only steals the invite when a pill is up
     return a;
@@ -138,7 +139,13 @@ export const padConnected = () => connected > 0;
 export const padGlyph = (b) => glyphFor(brand, b);
 export const onPadMode = (f) => { subs.add(f); return () => subs.delete(f); };
 // prompt key label: the pad button while a pad is in use, else the keyboard key (slot 0 = the main prompt (A), 1 = the second one (X))
-export const promptKey = (key, slot = 0) => active ? padGlyph(slot ? 'X' : 'A') : key;
+export const promptKey = (key, slot = 0, padBtn = null) => {
+  if (!active) return key;
+  if (padBtn) return padGlyph(padBtn); // [v349] ENTER HULL → Y / △ regardless of which #dk-acts slot it sits in
+  if (slot === 0) return padGlyph('A');
+  if (slot === 1) return padGlyph('X');
+  return key; // slot 2+ has no default face button (WEIGH ANCHOR keeps its keyboard letter when pad has no free face btn)
+};
 function setActive(v, b = brand) {
   v = !!v; if (v === active && b === brand) return; active = v; brand = b;
   const d = typeof document !== 'undefined' ? document.documentElement : null;
@@ -234,11 +241,12 @@ export function initGamepad(opts = {}) {
     if (doc.classList.contains('pvp-spec') || opts.spectating?.()) return 'spec';
     return padHooks.dock?.onFoot?.() ? 'foot' : 'sea';
   }
-  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), armed: !!D?.armed?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.(), invites: !!D?.hasInvites?.() }; }
+  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), armed: !!D?.armed?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.(), invites: !!D?.hasInvites?.(), canEnterHull: !!D?.canEnterHull?.() }; }
 
   function doAction(a, down, m) {
     const hold = a.startsWith('+'), n = hold ? a.slice(1) : a, D = padHooks.dock;
     if (n === 'promptA' || n === 'promptB') { if (down) { D?.press?.(n === 'promptA' ? 0 : 1); rumble(0.15, 0, 40); } return; }
+    if (n === 'enterHull') { if (down) { D?.enterHull?.(); rumble(0.15, 0, 40); } return; } // [v349] Triangle / Y
     if (n === 'weapon') { if (down) { if (D?.cycleWeapon) D.cycleWeapon(); else tap('Tab'); rumble(0.12, 0, 30); } return; }
     if (n === 'ads') { D?.ads?.(down); return; }
     if (n === 'swap') { if (down) D?.tps?.()?.swap?.(); return; }

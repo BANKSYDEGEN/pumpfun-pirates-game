@@ -212,10 +212,15 @@ export async function createDock(ctx) {
   const joy = el('div', 'dk-joy', '<i></i>'), jumpB = el('button', 'dk-jump', 'JUMP'), boardX = el('button', 'dk-board-x', '✕ BACK');
   const bA = document.createElement('button'), bB = document.createElement('button'), bC = document.createElement('button'); acts.append(bA, bB, bC);
   let actA = null, actB = null, actC = null, uiSig = '';
-  function setActs(a, b, c = null) { // a / b / c: { label, key, fn, primary, disabled } | null  ([v333] 3rd = ENTER HULL / WEIGH ANCHOR)
-    actA = a; actB = b; actC = c; const pd = padActive(), sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary], b && [b.label, b.key], c && [c.label, c.key], pd && padGlyph('A')]); if (sig === uiSig) return; uiSig = sig;
+  function setActs(a, b, c = null) { // a / b / c: { label, key, fn, primary, disabled, pad } | null  ([v333] 3rd = ENTER HULL / WEIGH ANCHOR · [v349] pad = face btn glyph e.g. 'Y')
+    actA = a; actB = b; actC = c; const pd = padActive(), sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary, a.pad], b && [b.label, b.key, b.pad], c && [c.label, c.key, c.pad], pd && padGlyph('A')]); if (sig === uiSig) return; uiSig = sig;
     acts.style.display = a || b || c ? 'flex' : 'none';
-    for (const [btn, s, i] of [[bA, a, 0], [bB, b, 1], [bC, c, 2]]) { btn.hidden = !s; if (!s) continue; btn.innerHTML = ((s.key || (pd && s.fn)) && (!touch || pd) ? `<kbd>${s.key && !pd ? s.key : promptKey(s.key || 'E', i)}</kbd>` : '') + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary); }
+    for (const [btn, s, i] of [[bA, a, 0], [bB, b, 1], [bC, c, 2]]) {
+      btn.hidden = !s; if (!s) continue;
+      const showKbd = (s.key || (pd && s.fn)) && (!touch || pd);
+      const kbd = !showKbd ? '' : `<kbd>${s.key && !pd ? s.key : promptKey(s.key || 'E', i, s.pad || (s.label === 'ENTER HULL' ? 'Y' : null))}</kbd>`; // [v349] ENTER HULL → △ / Y on pad
+      btn.innerHTML = kbd + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary);
+    }
     placeActs();
   }
   // [v166] BANKSY: the on-foot prompt (shops, weapon shops, battle areas, the dock) sat under the joystick + JUMP on phones. Touch only
@@ -299,6 +304,9 @@ export async function createDock(ctx) {
     const inCanoe = () => on && canoe?.mode === 'canoe'; // [v314] the canoe paddles on the walker stick + looks on the right stick
     registerPadDock({ on: () => on, onFoot: () => on && (onFoot || inCanoe()),
       prompts: () => [!!(actA && !actA.disabled && actA.fn), !!(actB && !actB.disabled && actB.fn), !!(actC && !actC.disabled && actC.fn)], press: (i) => { if (game.state === 'playing') press(i === 2 ? actC : i ? actB : actA); },
+      // [v349] Triangle / Y = ENTER HULL while moored at a berth OR anchored at sea (not on foot / canoe / already inside)
+      canEnterHull: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && (docking.mode === 'docked' || (docking.mode === 'sea' && !!P()?.anchor))),
+      enterHull: () => { if (game.state === 'playing') enterHull(); },
       zone: () => !!battle?.zone, armed: () => (battle?.stance || 0) > 0, // [t1734u] RT attack outside pit/range when a weapon is drawn
       cycleWeapon: () => battle?.cycleStance?.(), // [t1734u] Square / X cycles Unarmed → Musket → Sword
       tps: () => battle?.tps || null,
@@ -592,7 +600,7 @@ export async function createDock(ctx) {
             setActs({ label: cp.a.label, key: 'E', primary: true, fn: () => run(cp.a.tag) }, skinAct);
           } else setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct); }
       }
-    } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', fn: enterHull });
+    } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', pad: 'Y', fn: enterHull }); // [v349] pad Triangle / Y
     else if (canoe?.mode === 'canoe') { // [v314] before the ship prompts: GO TO ISLAND (E) + BOARD SHIP (Q) can both show
       const cp = canoe.prompts({ s, onFoot: false, W: walker.w, docking });
       const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walker });
@@ -612,12 +620,12 @@ export async function createDock(ctx) {
         // [v333] BANKSY t1768u: anchored at sea → ENTER HULL / LAUNCH CANOE / WEIGH ANCHOR
         const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
         const canoeAct = cp.a.disabled ? cp.a : { label: (cp.a.tag === 'launchCanoe' ? 'LAUNCH CANOE' : cp.a.label), key: 'Q', primary: false, fn: () => run(cp.a.tag) };
-        setActs({ label: 'ENTER HULL', key: 'E', primary: true, fn: enterHull }, canoeAct, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor });
+        setActs({ label: 'ENTER HULL', key: 'E', pad: 'Y', primary: true, fn: enterHull }, canoeAct, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor }); // [v349] pad Triangle / Y = ENTER HULL (LAUNCH CANOE stays X / □, WEIGH ANCHOR keeps W)
       } else if (cp?.a) {
         const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
         setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: cp.a.key || 'E', primary: !!cp.a.primary, fn: () => run(cp.a.tag) }, null);
       } else if (s.anchor) {
-        setActs({ label: 'ENTER HULL', key: 'E', primary: true, fn: enterHull }, null, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor });
+        setActs({ label: 'ENTER HULL', key: 'E', pad: 'Y', primary: true, fn: enterHull }, null, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor }); // [v349] pad Triangle / Y
       } else setActs(null, null);
     } else setActs(null, null);
     battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
