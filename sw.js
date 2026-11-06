@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v318'; // [v318] Squad Hall upgrade: R0 (#33) rebuilt in Blender as a 24 x 14.5 m 3-storey guildhall (5 m arch, gallery, cupola) + walk-in war room (war table, armory + lounge wings, roster board; &bigshop=0 = old hall); prev: [v317] canoe/waves/outer-island AI/random Commodore;
+const VERSION = 'pfp-v319'; // [v319] indoor cottage walk/exit fix (dry pocket + dual E/Q prompts, no HUD badge); prev: [v318];
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

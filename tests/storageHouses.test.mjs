@@ -92,7 +92,7 @@ test('buy + storage deposit/withdraw invariants (stacks, unique weapons, capacit
 
 test('inHouse keeps main-server spot reserved via ih:1 (no lobby drop)', () => {
   assert.match(SRC, /ih:\s*1/);
-  assert.match(SRC, /SERVER SPOT RESERVED/);
+  assert.doesNotMatch(SRC, /hs-badge|SERVER SPOT RESERVED|INSIDE COTTAGE/); // silent ih:1, no indoor HUD badge
   assert.match(SRC, /ft:\s*\[/);
   assert.match(SRC, /pirate\.object\.visible = false/);
   assert.match(DOCK, /houses\?\.netState/);
@@ -131,8 +131,31 @@ test('fallback exteriors + shaded interior polish', () => {
   assert.match(SRC, /wainscot|Wainscot/);
   assert.match(SRC, /4\.2, 0\.055, 3\.0/); // crimson rug size
   assert.match(SRC, /hs-ember/);
-  assert.match(SRC, /dist = 4\.5/);
+  assert.match(SRC, /dist = 4\.[48]|w\.dist = 4\.[48]/);
   // MeshBasicMaterial reserved for glow panes / embers / lanterns
   assert.match(SRC, /matGlow/);
   assert.ok(SRC.indexOf('MeshLambertMaterial') < SRC.indexOf('buildInteriorRoom') || SRC.includes('matL('));
+});
+
+test('indoor pocket world.ground/water/blocked + dual exit/chest prompts + no HUD badge', () => {
+  assert.match(SRC, /inPocket/);
+  assert.match(SRC, /world\.ground =/);
+  assert.match(SRC, /world\.water =/);
+  assert.match(SRC, /world\.blocked =/);
+  assert.match(SRC, /roomOrigin\.y \+ 0\.14/);
+  assert.match(SRC, /inPocket\(x, z\) \? null/);
+  assert.match(SRC, /hitFurn/);
+  assert.match(SRC, /LEAVE COTTAGE/);
+  assert.doesNotMatch(SRC, /hs-badge/);
+  assert.match(SRC, /OPEN STORAGE[\s\S]*EXIT TO ISLAND|a = nearChest/);
+  assert.match(SRC, /tag: 'chest'/);
+  assert.match(SRC, /tag: 'exit'/);
+  assert.match(SRC, /ih:\s*1/); // silent reservation still on the wire
+  assert.match(SRC, /spots\.chest/);
+  assert.match(SRC, /spots\.exit/);
+  assert.match(SRC, /userData = \{ W, D, H, tier, colliders, spots/);
+  // Crew/pets parked on enter, restored on exit
+  assert.match(SRC, /crewF\?\.exit/);
+  assert.match(SRC, /petF\?\.exit/);
+  assert.match(SRC, /crewF\?\.enter/);
 });

@@ -64,7 +64,6 @@ function reqId() {
 }
 
 const CSS = `
-#hs-badge{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 92px);transform:translateX(-50%);z-index:9;pointer-events:none;font:20px 'Just Another Hand',cursive;letter-spacing:.04em;color:#ffcd77;background:rgba(22,14,8,.82);border:2px solid #ffcd77;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none;box-shadow:0 2px 10px #000}
 #hs-panel{position:fixed;inset:0;z-index:64;display:none;align-items:center;justify-content:center;background:rgba(10,7,4,.72);font-family:'Just Another Hand',cursive;color:#f4e2bb;touch-action:manipulation}
 #hs-panel.on{display:flex}
 #hs-panel .hs-box{width:min(860px,96vw);max-height:min(92vh,720px);display:flex;flex-direction:column;background:linear-gradient(#2a1a0c,#1a1008);border:3px solid #ffcd77;border-radius:16px;box-shadow:0 12px 40px #000}
@@ -296,15 +295,15 @@ export function buildInteriorRoom({ tier = 'cozy', low = false } = {}) {
   add(new THREE.CylinderGeometry(0.1, 0.12, 0.38, 8), matL(0x3a1a10, 'hs-bottle'), W / 2 - 1.45, 1.12, 0.0);
   add(new THREE.CylinderGeometry(0.12, 0.1, 0.22, 8), matL(0x6b4527, 'hs-mug'), W / 2 - 1.55, 1.05, 0.55);
 
-  // Weapon rack
-  add(new THREE.BoxGeometry(0.2, 2.2, 1.7), woodD, -W / 2 + 0.35, 1.4, -0.15);
-  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.08, 1.45, 0.08), iron, -W / 2 + 0.55, 1.5, -0.7 + i * 0.5, 0.28);
+  // Weapon rack (clear of the west chest)
+  add(new THREE.BoxGeometry(0.2, 2.2, 1.7), woodD, -W / 2 + 0.25, 1.4, -2.1);
+  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.08, 1.45, 0.08), iron, -W / 2 + 0.45, 1.5, -2.65 + i * 0.5, 0.28);
 
   // Corner barrel + crate
   add(new THREE.CylinderGeometry(0.42, 0.46, 0.95, 10), wood, W / 2 - 0.7, 0.55, -D / 2 + 1.2);
   add(new THREE.BoxGeometry(0.7, 0.55, 0.7), woodD, W / 2 - 0.7, 0.35, -D / 2 + 2.1);
 
-  // Brass-banded oak chest with beveled lid
+  // Brass-banded oak chest — west wall, clear of the front doorway path
   const chest = new THREE.Group(); chest.name = 'house_chest';
   const cBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.72, 0.95), wood); cBase.position.y = 0.36; chest.add(cBase);
   for (const sx of [-0.52, 0, 0.52]) {
@@ -313,7 +312,7 @@ export function buildInteriorRoom({ tier = 'cozy', low = false } = {}) {
   const lid = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.22, 0.96), woodD); lid.position.set(0, 0.86, 0); chest.add(lid);
   const bevel = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 0.86), wood); bevel.position.set(0, 1.0, 0); chest.add(bevel);
   const lock = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.12), gold); lock.position.set(0, 0.58, 0.5); chest.add(lock);
-  chest.position.set(0.15, 0.14, D / 2 - 2.25); g.add(chest);
+  chest.position.set(-W / 2 + 1.15, 0.14, -0.55); chest.rotation.y = Math.PI / 2; g.add(chest);
 
   // Exit door (+Z)
   const door = new THREE.Group(); door.name = 'house_exit';
@@ -323,18 +322,18 @@ export function buildInteriorRoom({ tier = 'cozy', low = false } = {}) {
   door.position.set(0, 0.14, D / 2 - 0.08); g.add(door);
   add(new THREE.SphereGeometry(0.15, 8, 6), glow, 1.25, 2.55, D / 2 - 0.35);
 
+  // Furniture AABBs only (room walls handled by world.blocked pocket halfW/halfD)
   const colliders = [
-    { x: 0, z: -D / 2, w: W + 1, d: 0.5 }, { x: 0, z: D / 2, w: W + 1, d: 0.5 },
-    { x: -W / 2, z: 0, w: 0.5, d: D }, { x: W / 2, z: 0, w: 0.5, d: D },
-    { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },
-    { x: -W / 2 + 1.7, z: D / 2 - 1.5, w: 2.6, d: 1.5 },
-    { x: W / 2 - 2.1, z: 0.35, w: 2.1, d: 1.4 },
-    { x: 0.15, z: D / 2 - 2.25, w: 1.6, d: 1.15 },
-    { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },
+    { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },                 // hearth
+    { x: -W / 2 + 1.7, z: D / 2 - 1.5, w: 2.6, d: 1.5 },       // bunk
+    { x: W / 2 - 2.1, z: 0.35, w: 2.1, d: 1.4 },               // table
+    { x: -W / 2 + 1.15, z: -0.55, w: 1.05, d: 1.55 },          // chest (west)
+    { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },       // barrel + crate
+    { x: -W / 2 + 0.25, z: -2.1, w: 0.7, d: 1.9 },             // weapon rack
   ];
   const spots = {
-    chest: { x: 0.15, z: D / 2 - 2.25 - 1.45, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
-    exit: { x: 0, z: D / 2 - 1.65, r: 2.0, kind: 'house_exit', label: 'EXIT TO ISLAND' },
+    chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
+    exit: { x: 0, z: D / 2 - 1.35, r: 2.2, kind: 'house_exit', label: 'EXIT TO ISLAND' },
   };
   g.userData = { W, D, H, tier, colliders, spots, chest, door };
   return g;
@@ -353,9 +352,7 @@ export function createHouses({
   if (!document.getElementById('hs-css')) {
     const s = document.createElement('style'); s.id = 'hs-css'; s.textContent = CSS; document.head.appendChild(s);
   }
-  const badge = document.createElement('div'); badge.id = 'hs-badge'; badge.textContent = '🏠 INSIDE COTTAGE · SERVER SPOT RESERVED';
-  document.body.appendChild(badge);
-
+  // No indoor HUD badge — spot reservation (ih:1) stays silent on the wire.
   const panel = document.createElement('div'); panel.id = 'hs-panel';
   panel.innerHTML = `<div class="hs-box" role="dialog" aria-label="Cottage Storage">
     <div class="hs-head"><span>🏠 COTTAGE STORAGE</span><small data-sub></small><button type="button" class="hs-x" aria-label="Close">✕</button></div>
@@ -365,12 +362,14 @@ export function createHouses({
     </div>
     <div class="hs-foot">
       <button type="button" data-a="upgrade">UPGRADE CHEST +${UPGRADE_SLOTS} SLOTS · ${UPGRADE_PRICE.toLocaleString()}g</button>
+      <button type="button" class="ghost" data-a="leave">LEAVE COTTAGE</button>
       <button type="button" class="ghost" data-a="close">CLOSE</button>
     </div>
   </div>`;
   document.body.appendChild(panel);
   panel.querySelector('.hs-x').onclick = () => closeStorage();
   panel.querySelector('[data-a="close"]').onclick = () => closeStorage();
+  panel.querySelector('[data-a="leave"]').onclick = () => { closeStorage(); exitHouse(); };
   panel.querySelector('[data-a="upgrade"]').onclick = () => upgradeChest();
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) panel.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
 
@@ -383,6 +382,56 @@ export function createHouses({
   let fallbackExteriors = null; // low-poly cottages when Post's area_cottages is absent
   const plaques = new THREE.Group(); plaques.name = 'house_plaques'; scene.add(plaques);
   const hiddenPeers = new Set();
+
+  // ---- Indoor pocket: override foot terrain queries so (2800,2800) is dry oak floor, not ocean ----
+  const _ground = world.ground?.bind(world);
+  const _water = world.water?.bind(world);
+  const _stand = world.stand?.bind(world);
+  const _blocked = world.blocked?.bind(world);
+  const inPocket = (x, z) => !!(inHouse && interior && roomOrigin
+    && Math.abs(x - roomOrigin.x) < 60 && Math.abs(z - roomOrigin.z) < 60);
+  const hitFurn = (lx, lz, pad = 0.34) => {
+    const cols = interior?.userData?.colliders || [];
+    for (const c of cols) {
+      if (Math.abs(lx - c.x) <= c.w / 2 + pad && Math.abs(lz - c.z) <= c.d / 2 + pad) return c;
+    }
+    return null;
+  };
+  if (typeof world.ground === 'function') {
+    world.ground = (x, z) => (inPocket(x, z) ? roomOrigin.y + 0.14 : _ground(x, z));
+  }
+  if (typeof world.water === 'function') {
+    world.water = (x, z) => (inPocket(x, z) ? null : _water(x, z));
+  }
+  if (typeof world.stand === 'function') {
+    world.stand = (x, z) => (inPocket(x, z) ? roomOrigin.y + 0.14 : _stand(x, z));
+  }
+  if (typeof world.blocked === 'function') {
+    world.blocked = (x, z, px, pz) => {
+      if (!inPocket(x, z)) return _blocked(x, z, px, pz);
+      const lx = x - roomOrigin.x, lz = z - roomOrigin.z;
+      const halfW = interior.userData.W / 2 - 0.52, halfD = interior.userData.D / 2 - 0.52;
+      const outside = Math.abs(lx) > halfW || Math.abs(lz) > halfD;
+      if (outside) {
+        // Allow inward steps from a wall-stuck spawn so nobody freezes in a wall
+        if (px !== undefined && pz !== undefined) {
+          const plx = px - roomOrigin.x, plz = pz - roomOrigin.z;
+          const inward = Math.abs(lx) < Math.abs(plx) || Math.abs(lz) < Math.abs(plz)
+            || (Math.abs(lx) <= halfW && Math.abs(lz) <= halfD);
+          if (inward && Math.abs(lx) <= halfW + 0.6 && Math.abs(lz) <= halfD + 0.6) {
+            /* fall through to furniture check */
+          } else return true;
+        } else return true;
+      }
+      const hit = hitFurn(lx, lz, 0.34);
+      if (!hit) return false;
+      if (px === undefined || pz === undefined) return true;
+      // Already overlapping this AABB (spawned inside / sliding along): don't re-block same overlap
+      const plx = px - roomOrigin.x, plz = pz - roomOrigin.z;
+      if (Math.abs(plx - hit.x) <= hit.w / 2 + 0.34 && Math.abs(plz - hit.z) <= hit.d / 2 + 0.34) return false;
+      return true;
+    };
+  }
 
   function ensureFallbackExteriors() {
     if (postReady || fallbackExteriors) return;
@@ -526,14 +575,19 @@ export function createHouses({
   function applyIndoorCam() {
     if (!camera || !interior || !roomOrigin || !walker?.w) return;
     const w = walker.w;
-    const yaw = w.camYaw || w.yaw;
-    const dist = Math.min(4.8, Math.max(4.2, w.dist || 4.5));
-    let cx = w.x - Math.sin(yaw) * dist;
-    let cz = w.z - Math.cos(yaw) * dist;
-    const camHalfW = interior.userData.W / 2 - 0.25, camHalfD = interior.userData.D / 2 - 0.25;
+    const yaw = Number.isFinite(w.camYaw) ? w.camYaw : w.yaw;
+    const pitch = Math.max(-0.2, Math.min(0.65, w.pitch ?? 0.16));
+    const dist = Math.min(4.8, Math.max(4.2, w.dist || 4.4));
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    let cx = w.x - Math.sin(yaw) * dist * cp;
+    let cy = w.y + 1.7 + sp * dist;
+    let cz = w.z - Math.cos(yaw) * dist * cp;
+    const camHalfW = interior.userData.W / 2 - 0.3, camHalfD = interior.userData.D / 2 - 0.3;
+    const yLo = roomOrigin.y + 0.9, yHi = roomOrigin.y + interior.userData.H - 0.35;
     cx = roomOrigin.x + Math.max(-camHalfW, Math.min(camHalfW, cx - roomOrigin.x));
     cz = roomOrigin.z + Math.max(-camHalfD, Math.min(camHalfD, cz - roomOrigin.z));
-    camera.position.set(cx, w.y + 2.55, cz);
+    cy = Math.max(yLo, Math.min(yHi, cy));
+    camera.position.set(cx, cy, cz);
     camera.lookAt(w.x, w.y + 1.35, w.z);
     camera.updateMatrixWorld?.(true);
   }
@@ -543,20 +597,33 @@ export function createHouses({
     fadeTo(() => {
       doorHold = { x: d.x, z: d.z, yaw: d.yaw, id: d.id, fx: d.fx, fz: d.fz, fyaw: d.fyaw };
       const { ox, oy, oz } = placeInterior(d);
+      // Flag indoor BEFORE placing walker so world.ground/blocked already see the pocket
+      inHouse = true; activeId = d.id;
       const w = walker.w;
-      w.x = ox + 0.4; w.z = oz + 0.15; w.y = oy + 0.2; w.yaw = Math.PI; w.camYaw = Math.PI; w.pitch = 0.06;
-      w.vy = 0; w.speed = 0; w.dist = 4.5;
-      // Soft floor override while indoors
-      w._hsY = oy + 0.14;
-      // Own the walker camera boom so outdoor camPos / world.ground pull-in never collapses the 4.5 m shot
+      const lz = interior.userData.D / 2 - 1.45;
+      w.x = ox; w.z = oz + lz; w.y = oy + 0.14;
+      w.yaw = Math.PI; w.camYaw = Math.PI; w.pitch = 0.16; w.dist = 4.4;
+      w.vy = 0; w.speed = 0; w.air = false; w.swim = false; w.wade = 0;
+      w._hsY = null; // let world.ground (pocket) drive floor physics + jumps
+      if (w.body) {
+        Object.assign(w.body, {
+          y: oy + 0.14, last: oy + 0.14, vy: 0, air: false, airT: 0, off: 0,
+          swim: false, wade: 0, surf: null, dip: 0, dipV: 0, climb: 0, climbD: 0, hop: false,
+        });
+      }
+      // Own the walker camera boom indoors (360° look via pitch + camYaw)
       w._hsCamPrev = w.camHook;
-      w.camHook = () => { if (w._hsY != null) w.y = w._hsY; applyIndoorCam(); };
+      w.camHook = () => { applyIndoorCam(); };
       pirate.object.visible = true;
-      try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.y = w.yaw; } catch {}
-      crewF?.enter?.(); petF?.enter?.(w);
-      // Hide outdoor foot peers while inside
+      try {
+        pirate.object.position.set(w.x, w.y, w.z);
+        pirate.object.rotation.y = w.yaw;
+        pirate.object.rotation.x = 0;
+      } catch {}
+      // Park crew/pets outside so they don't crowd the cabin or block the cam
+      try { crewF?.exit?.(); } catch {}
+      try { petF?.exit?.(); } catch {}
       for (const [id, p] of fnet.peers) { if (p.pirate?.object) { p.pirate.object.visible = false; hiddenPeers.add(id); } }
-      // Hide outdoor island / ocean / sky so the enclosed room reads cleanly (spot still reserved on the wire)
       try { if (world?.root) { world.root.userData._hsVis = world.root.visible; world.root.visible = false; } } catch {}
       try { if (ocean?.mesh) { ocean.mesh.userData._hsVis = ocean.mesh.visible; ocean.mesh.visible = false; } } catch {}
       try { if (islands?.group) { islands.group.userData._hsVis = islands.group.visible; islands.group.visible = false; } } catch {}
@@ -566,9 +633,8 @@ export function createHouses({
         if (scene.fog) { scene.userData._hsFogDens = scene.fog.density; scene.fog.density = 0; }
         scene.userData._hsBg = scene.background; scene.background = new THREE.Color(0x1a1008);
       } catch {}
-      inHouse = true; activeId = d.id; badge.style.display = 'block';
       document.documentElement.classList.add('pfp-inhouse');
-      toast('WELCOME HOME<br><small>server spot reserved</small>', 2200);
+      toast('WELCOME HOME', 1800);
     });
   }
 
@@ -579,9 +645,20 @@ export function createHouses({
       closeStorage();
       if (interior) { scene.remove(interior); interior = null; }
       const w = walker.w;
-      w.x = hold.x; w.z = hold.z; w.y = world.ground?.(hold.x, hold.z) || 2; w.yaw = hold.yaw; w.camYaw = hold.yaw; w.pitch = 0.12;
-      w._hsY = null; w.vy = 0; w.speed = 0;
+      // Clear indoor flag BEFORE outdoor ground/blocked queries
+      inHouse = false; activeId = null; roomOrigin = null;
+      w.x = hold.x; w.z = hold.z;
+      w.y = world.ground?.(hold.x, hold.z) || 2;
+      w.yaw = hold.yaw; w.camYaw = hold.yaw; w.pitch = 0.12;
+      w._hsY = null; w.vy = 0; w.speed = 0; w.air = false; w.swim = false; w.wade = 0;
+      if (w.body) {
+        Object.assign(w.body, {
+          y: w.y, last: w.y, vy: 0, air: false, airT: 0, off: 0,
+          swim: false, wade: 0, surf: null, dip: 0, dipV: 0, climb: 0, climbD: 0, hop: false,
+        });
+      }
       w.camHook = w._hsCamPrev || null; w._hsCamPrev = null;
+      doorHold = null;
       for (const id of hiddenPeers) { const p = fnet.peers.get(id); if (p?.pirate?.object) p.pirate.object.visible = true; }
       hiddenPeers.clear();
       try { if (world?.root) world.root.visible = world.root.userData._hsVis !== false; } catch {}
@@ -590,7 +667,8 @@ export function createHouses({
       try { plaques.visible = true; } catch {}
       try { if (fallbackExteriors) fallbackExteriors.visible = true; } catch {}
       try { if (scene.fog && '_hsFogDens' in scene.userData) scene.fog.density = scene.userData._hsFogDens; if ('_hsBg' in scene.userData) scene.background = scene.userData._hsBg; } catch {}
-      inHouse = false; activeId = null; doorHold = null; roomOrigin = null; badge.style.display = 'none';
+      try { crewF?.enter?.(); } catch {}
+      try { petF?.enter?.(w); } catch {}
       document.documentElement.classList.remove('pfp-inhouse');
       toast('BACK ON THE ISLAND', 1600);
     });
@@ -782,14 +860,17 @@ export function createHouses({
     if (inHouse && interior && roomOrigin) {
       const lx = W.x - roomOrigin.x, lz = W.z - roomOrigin.z;
       const spots = interior.userData.spots;
-      let best = null, bd = 1e9;
-      for (const s of Object.values(spots)) {
-        const dist = Math.hypot(s.x - lx, s.z - lz);
-        if (dist < s.r && dist < bd) { bd = dist; best = s; }
-      }
-      if (best?.kind === 'house_chest') return { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' };
-      if (best?.kind === 'house_exit') return { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
-      return { label: 'EXIT TO ISLAND', key: 'E', primary: false, tag: 'exit' };
+      const dChest = Math.hypot(spots.chest.x - lx, spots.chest.z - lz);
+      const dExit = Math.hypot(spots.exit.x - lx, spots.exit.z - lz);
+      const nearChest = dChest < spots.chest.r && dChest <= dExit;
+      const a = nearChest
+        ? { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }
+        : { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
+      const b = nearChest
+        ? { label: 'EXIT TO ISLAND', key: 'Q', primary: false, tag: 'exit' }
+        : { label: 'OPEN STORAGE', key: 'Q', primary: false, tag: 'chest' };
+      // Backward-compat flat fields + dual a/b for setActs
+      return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a, b };
     }
     const d = nearestDoor(W); if (!d) return null;
     if (isOwned(d.id)) return { label: 'ENTER COTTAGE', key: 'E', primary: true, tag: 'enter', door: d };
@@ -832,14 +913,17 @@ export function createHouses({
     }
     if (!inHouse || !interior || !roomOrigin) return;
     const w = walker.w;
-    // Pin Y to interior floor; soft AABB against room walls
-    if (w._hsY != null) w.y = w._hsY;
+    // Ceiling clamp (world.ground/water pocket handles floor + dry standing; world.blocked handles walls/furniture)
+    const ceilY = roomOrigin.y + interior.userData.H - 1.75;
+    if (w.y > ceilY) {
+      w.y = ceilY;
+      if (w.body) { w.body.y = w.y; if (w.body.vy > 0) w.body.vy = 0; }
+    }
     const lx = w.x - roomOrigin.x, lz = w.z - roomOrigin.z;
     const halfW = interior.userData.W / 2 - 0.55, halfD = interior.userData.D / 2 - 0.55;
     w.x = roomOrigin.x + Math.max(-halfW, Math.min(halfW, lx));
     w.z = roomOrigin.z + Math.max(-halfD, Math.min(halfD, lz));
-    // Keep pirate mesh glued to the indoor walker (walker.place may skip while camHook owns the cam)
-    try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.y = w.yaw; pirate.object.visible = true; } catch {}
+    try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.y = w.yaw; pirate.object.rotation.x = 0; pirate.object.visible = true; } catch {}
     applyIndoorCam();
     // Keep outdoor peers hidden
     for (const [id, p] of fnet.peers) {
@@ -886,7 +970,7 @@ export function createHouses({
       try { if (fallbackExteriors) fallbackExteriors.visible = true; } catch {}
       try { if (scene.fog && '_hsFogDens' in scene.userData) scene.fog.density = scene.userData._hsFogDens; if ('_hsBg' in scene.userData) scene.background = scene.userData._hsBg; } catch {}
       inHouse = false; activeId = null; doorHold = null; roomOrigin = null;
-      badge.style.display = 'none'; document.documentElement.classList.remove('pfp-inhouse');
+      document.documentElement.classList.remove('pfp-inhouse');
     }
     for (const id of hiddenPeers) { const p = fnet.peers.get(id); if (p?.pirate?.object) p.pirate.object.visible = true; }
     hiddenPeers.clear();
