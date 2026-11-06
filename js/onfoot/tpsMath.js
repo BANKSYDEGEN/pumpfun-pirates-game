@@ -2,7 +2,8 @@
 // js/onfoot/tps.js does the camera, input + HUD; this file only holds the tuning and the maths it uses.
 export const TPS = {
   side: 0.95, up: 0.5, dist: 3.4, distAds: 2.5, head: 1.55,        // phone over-the-shoulder camera (m): right of / above the head, behind it
-  zoom: 1.5,                                                            // ADS 1.5x (phone: camera.zoom, PC: a view offset toward the cursor; the FOV untouched for main.js resize + the sprint push)
+  zoom: 1.5,                                                            // ADS 1.5x without a scope (phone: camera.zoom, PC: a view offset toward the cursor; the FOV untouched for main.js resize + the sprint push)
+  scopeZoom: 3,                                                         // [v351] Brass Scope ADS zoom (PC / phone / controller): clearly noticeable vs 1.5x
   adsMove: 0.5,                                                         // ADS: half walk speed, no sprint
   pitch: [-1.05, 1.0],                                                  // look down / up (rad)
   sensTouch: 0.0062, adsSens: 0.62,                                     // phone look: rad per px at 100 %, x0.62 while aiming
@@ -46,3 +47,17 @@ export function rayCyl(o, d, cx, cz, r, y0, y1) { const ox = o[0] - cx, oz = o[2
 export function spreadPx(deg, fovDeg, zoom, viewH) { const half = Math.atan(Math.tan(fovDeg * Math.PI / 360) / Math.max(0.01, zoom)); return Math.tan(deg * Math.PI / 180) / Math.tan(half) * viewH / 2; }
 // PC zoom toward the cursor: the window [x, y, w, h] of a full W x H frame, zoomed z x, that keeps the anchor (ax, ay) on the same screen spot
 export const zoomWindow = (ax, ay, W, H, z) => [ax - ax / z, ay - ay / z, W / z, H / z];
+
+// [v351] Brass Scope: shared ADS zoom for PC / phone / controller. acc = PFP_GUN_ACC (or { scope }) from the ACTIVE equipped musket; no scope / pistol-without-scope = base TPS.zoom.
+export const hasScope = (acc) => !!(acc && acc.scope);
+export const adsZoom = (acc) => (hasScope(acc) ? TPS.scopeZoom : TPS.zoom);
+// eased absolute zoom at the current ADS blend (1 at hip -> adsZoom at full ADS)
+export const adsZoomAt = (ads, acc) => 1 + (adsZoom(acc) - 1) * clamp(ads, 0, 1);
+// look sensitivity scale: keep adsSens at unscoped ADS; when scoped, reduce proportionally to zoom so 3x is not twitchy (mouse / touch / pad)
+export function adsLookScale(ads, acc) {
+  const a = clamp(ads, 0, 1);
+  let s = a > 0.5 ? TPS.adsSens : 1;
+  const z = adsZoomAt(a, acc);
+  if (z > 1.001) s *= TPS.zoom / z; // unscoped full ADS (z=1.5): ×1; scoped full ADS (z=3): ×0.5
+  return s;
+}

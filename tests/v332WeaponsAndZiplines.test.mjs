@@ -89,7 +89,7 @@ test('v332: applyGunAcc effects unchanged', () => {
   assert.equal(o.reload, 0.95);
   assert.ok(o.wide < 1);
   assert.equal(o.recoil, 0.7);
-  assert.equal(o.zoom, 1.15);
+  assert.equal(o.zoom, 3); // [v351] Brass Scope 3x ADS
   assert.equal(o.bayonet.dmg, 3);
 });
 

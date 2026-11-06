@@ -36,7 +36,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   addEventListener('pointermove', (e) => { if (!w.active) return; const d = w.drags.get(e.pointerId); if (!d) return;
     if (w.drags.size >= 2) { const [a, b] = [...w.drags.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y); d.x = e.clientX; d.y = e.clientY; const d1 = Math.hypot(a.x - b.x, a.y - b.y);
       w.dist = Math.min(WALK.camD[2], Math.max(WALK.camD[0], w.dist * (d0 / Math.max(1, d1)))); return; }
-    const k = touch ? 0.0075 : 0.0055; w.camYaw -= (e.clientX - d.x) * k; w.pitch = Math.min(WALK.pitch[1], Math.max(WALK.pitch[0], w.pitch + (e.clientY - d.y) * k * 0.8));
+    const k = (touch ? 0.0075 : 0.0055) * (w.lookK ?? 1); w.camYaw -= (e.clientX - d.x) * k; w.pitch = Math.min(WALK.pitch[1], Math.max(WALK.pitch[0], w.pitch + (e.clientY - d.y) * k * 0.8)); // [v351] lookK from tps ADS / scope
     d.x = e.clientX; d.y = e.clientY; w.look = performance.now(); });
   const up = (e) => w.drags.delete(e.pointerId); addEventListener('pointerup', up); addEventListener('pointercancel', up);
   canvas.addEventListener('wheel', (e) => { if (!w.active) return; w.dist = Math.min(WALK.camD[2], Math.max(WALK.camD[0], w.dist * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: true });
