@@ -22,3 +22,13 @@ export function openHitOk(attacker, victim, { state = {}, now = 0, inHouse = fal
 
 /** BANKSY t1711u "Make players take 5-6 shots to kill": hits to drop a full-HP pirate */
 export const hitsToKill = (dmg, hp = 100) => Math.ceil(hp / Math.max(1, dmg));
+// [t1724u] BANKSY "For PvP use same health bar, do the same if don't get hit for 20 seconds regain health": on-foot PvP heals like
+// your ship (js/main.js PLAYER_REPAIR): 20 s without a hit -> +5% max HP right away, then +5% every 4 s, up to full. Any hit resets it.
+export const FOOT_REGEN = Object.freeze({ wait: 20, every: 4, pct: 0.05 });
+export function footRegenStep(st, dt, t, maxHp = 100, R = FOOT_REGEN) {
+  const on = !(st.down > 0) && st.hp > 0 && st.hp < maxHp && t - (st.lastHitT ?? -1e9) >= R.wait;
+  if (!on) { st.repT = 0; st.repairing = false; return st; }
+  if (!st.repairing) { st.repairing = true; st.repT = R.every; } else st.repT = (st.repT || 0) + dt;
+  while (st.repT >= R.every && st.hp < maxHp) { st.repT -= R.every; st.hp = Math.min(maxHp, st.hp + Math.round(maxHp * R.pct)); }
+  return st;
+}

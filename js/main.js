@@ -821,16 +821,26 @@ function updatePlayerRepair(dt) {
   player.calm = (player.calm || 0) + dt;
   const on = player.calm >= (player.regenWait ?? PLAYER_REPAIR.wait) && // [Raul] upgrade buffs: HULL PLANKS shorten the wait
     player.hp < player.maxHp;
-  $('player-hp').parentElement.classList.toggle('repairing', on);
+  player._repOn = on; syncHpBar(); // [t1724u] on foot the bar shows your pirate, never this ship tick
   if (!on) { player.repT = 0; return; }
   player.repT = (player.repT || 0) + dt;
   if (player.repT < PLAYER_REPAIR.every) return;
   player.repT -= PLAYER_REPAIR.every;
   player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * (player.regenPct ?? PLAYER_REPAIR.pct))); updateHud();
 }
+// [t1724u] BANKSY "For PvP use same health bar": ONE HP bar (the captain card #player-hp). On foot (ashore / in a cottage) it shows
+// your pirate's on-foot PvP HP + the green .repairing pulse from js/onfoot/battle.js; the moment you board it is your ship again.
+function footHp() { const d = dock; if (!d?.on || !d.onFoot) return null; const f = d.battle?.hpState?.(); return f && f.maxHp > 0 ? f : null; }
+function syncHpBar() {
+  const bar = $('player-hp'); if (!bar) return; const f = footHp();
+  const pct = f ? f.hp / f.maxHp : player.hp / Math.max(1, player.maxHp), w = `${Math.max(0, Math.min(100, pct * 100))}%`;
+  if (bar.style.width !== w) bar.style.width = w;
+  bar.parentElement.classList.toggle('repairing', f ? !!f.repairing : !!player._repOn);
+  document.documentElement.classList.toggle('pfp-foothp', !!f);
+}
 function updateHud() {
   $('score').textContent = game.score; $('wave').textContent = game.wave; $('gold').textContent = game.gold; $('sunk').textContent = game.sunk;
-  $('player-hp').style.width = `${(player.hp / player.maxHp) * 100}%`;
+  syncHpBar(); // [t1724u] ship HP at sea, your pirate's HP on foot
   $('sail-level').textContent = player.sail;
   $('anchor').classList.toggle('on', player.anchor);
   const alive = enemies.filter(e => e.alive).length;
@@ -1302,6 +1312,7 @@ function frame() {
   if (running) game.t += dt;
   const t = game.t;
 
+  if (dock?.on && (dock.onFoot || document.documentElement.classList.contains('pfp-foothp'))) syncHpBar(); // [t1724u] on-foot HP every frame + snap back to the ship on boarding
   if (running) {
     // player
     if (game.state === 'playing' && player.alive) {
