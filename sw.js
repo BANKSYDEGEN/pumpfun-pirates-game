@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v322'; // [v322] BANKSY owner-only Admin Menu (⚙ SETTINGS > 👑 ADMIN MENU / F8: noclip, god, invisible, ESP, TP, server freeze, pockets; migration 045 + pvp admin.ts); prev: [v321] Post rich pirate-captain cottage interior (vaulted timber cabin, ship-wheel chandelier, roaring hearth, shutter-matched accents, side chest + walk-to-door exit); prev: [v320] upright pirate + pet after the canoe (YXZ seat pose, zero roll on foot) + cottage side-chest / walk-to-door exit prompts, step out facing the lane; prev: [v319] indoor cottage walk/exit fix (dry pocket + dual E/Q prompts, no HUD badge); prev: [v318];
+const VERSION = 'pfp-v323'; // [v323] waterfall AAA: rope-bridge→fishing graded path + multi-tier falls + Waterfall Hill trail to ziplines (falls.glb / fallsBlender.js, &falls=0); prev: [v322] BANKSY owner-only Admin Menu;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -71,6 +71,8 @@ const SHELL = [
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
   "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
   "./js/island/d2Blender.js", // [v185] D2 Jungle Ruins Blender loader
+  "./js/island/fallsBlender.js", // [v323] fishing bridge + waterfall + high rope bridge Blender (&falls=0)
+  "./js/island/areas/waterfallCorridor.js", // [v323] graded fishing approach + Waterfall Hill trail
   "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
   "./js/island/kit.js",
@@ -323,6 +325,9 @@ const ASSETS = [
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",
   "./assets/island/battery_low.glb",
+  "./assets/island/falls.glb",
+  "./assets/island/falls_low.glb",
+  "./assets/island/falls_layout.json",
   "./assets/island/tex/lib_lo.ktx2",   // [Timothy] material library, phone set (the desktop lib.ktx2 is cached on first use)
   "./assets/island/nature_kit.glb",
   "./assets/island/nature_kit.webp.glb",

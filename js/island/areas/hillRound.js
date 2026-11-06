@@ -271,7 +271,7 @@ export default {
   // [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": the plateau landing -> trail A is a real paved trail
   // (the loop's cobble splat + kerb stones, 4.6 m: paint only, no height change) instead of loose flags thinning out + rocks; it meets trail A
   // east of the old cliff drop (foot.js A_DEAD now leaves that unpainted), and trail A runs on along the cutting floor to D3's rope bridge
-  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-287.7, -72.3], [-283.8, -72.0], [-279.5, -69.6], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6]], pave: true }] : [] },
+  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-287.7, -72.3], [-283.8, -72.0], [-279.5, -69.6], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6], [-254, -59.0]], pave: true }] : [] }, // [waterfall-aaa] handoff → fish_approach (waterfallCorridor.js) → Grandpa Gill
   register(h) {
     const { H, AREA_DECKS = [], collidersOff = null } = h;   // (from foot.js: no import, no module cycle)
     // the plateau end: walk in from the target until the ground stops rising (the cliff top), deck end = that ground
@@ -327,6 +327,12 @@ export default {
     else h.poi('rb_stairs', "Pirates' Climb stairs", ...clAt(0.6), { clear: 9 });
     h.poi('high_bridge', 'High rope bridge to the waterfalls plateau', (HB.ax + HB.bx) / 2, (HB.az + HB.bz) / 2, { clear: 6 });
     h.poi('high_bridge_e', 'High rope bridge: plateau end', HB.bx, HB.bz, { clear: 9 });
+    // [waterfall-aaa] cliffhead timber-and-ashlar belvedere at the east landing (visuals + clear; path → fishing)
+    { const bx = HB.bx, bz = HB.bz, cs = Math.cos(HB.yaw), sn = Math.sin(HB.yaw);
+      h.addCirc(bx + cs * 2.4 - sn * 1.2, bz - sn * 2.4 - cs * 1.2, 0.45);
+      h.addCirc(bx - cs * 2.4 - sn * 1.2, bz + sn * 2.4 - cs * 1.2, 0.45);
+      h.addCirc(bx - sn * 3.2, bz - cs * 3.2, 0.35); // directional signpost
+      h.poi('hb_belvedere', 'Plateau belvedere · fishing lagoon', bx - sn * 2.0, bz - cs * 2.0, { clear: 10 }); }
   },
   build({ MATS, OUT, low, H }) {
     const k = new Kit(), near = new THREE.Group(), far = new THREE.Group(); near.name = 'area_hill_round'; far.name = 'area_hill_round_far';

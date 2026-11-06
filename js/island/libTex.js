@@ -117,7 +117,9 @@ export const LIB_AREA_STATS = {};
 export function libAreaBuilt(id, built, ctx = null) {
   if (id === 'jungle_ruins') { import('./d2Blender.js').then(m => m.d2Built(built, ctx)).catch(e => console.warn('[d2]', e)); return; }   // [Timothy] D2 JUNGLE RUINS in Blender (&d2glb=0 = Post's kit)
   if (!LIB_ON || !built) return;
-  if (id === 'hill_round') { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, RB_RULES, { floor: [{ y0: 20.0, y1: 20.35, from: 'stone_ashlar', to: 'cobble' }, { from: 'stone_ashlar', to: 'stone_trim' }], wear: true }), 0); return; }
+  if (id === 'hill_round') { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, RB_RULES, { floor: [{ y0: 20.0, y1: 20.35, from: 'stone_ashlar', to: 'cobble' }, { from: 'stone_ashlar', to: 'stone_trim' }], wear: true }), 0);
+    import('./fallsBlender.js').then(m => m.hbBuilt(built, ctx)).catch(e => console.warn('[falls]', e)); // [waterfall-aaa] high rope bridge deck in Blender
+    return; }
   if (id === 'hilltop_fort') LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, FORT_RULES, { floor: { y0: 35.9, y1: 36.4, from: 'stone_ashlar', to: 'cobble' } }), 0);
   else if (id === 'inv_shops') LIB_AREA_STATS[id] = [built.near].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { wear: true }), 0);   // [v241] the TREASURE TRADER dressing (stone / timber / iron)
   else if (id === 'cottages') {   // [post/cottages] BANKSY cottage village: ashlar / trim / plaster / timber / planks / roof tile / iron
