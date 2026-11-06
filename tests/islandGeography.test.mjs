@@ -76,11 +76,10 @@ describe('GEO_LABELS + signs', () => {
       assert.ok(!/ROPE BRIDGE|RED TRAIL|YELLOW TRAIL|HILLTOP FORT|CLIFF BATTERY/.test(g.name), g.name);
     }
   });
-  it('street sign spots are finite and on dry-ish land coords', () => {
-    assert.ok(STREET_SIGN_SPOTS.length >= 7);
-    for (const s of STREET_SIGN_SPOTS) {
-      assert.ok(finite(s.x) && finite(s.z) && Array.isArray(s.blades) && s.blades.length >= 2, s.id);
-    }
+  it('[v335] 3D street signs removed: STREET_SIGN_SPOTS is empty, 2D streets + districts intact', () => {
+    assert.ok(Array.isArray(STREET_SIGN_SPOTS));
+    assert.equal(STREET_SIGN_SPOTS.length, 0);
+    assert.ok(ISLAND_STREETS.length >= 7 && ISLAND_DISTRICTS.length >= 5);
   });
 });
 
@@ -106,12 +105,14 @@ describe('source wiring', () => {
     assert.match(t, /HANGMAN'S BRIDGE/);
     assert.doesNotMatch(t, /Rope Bridge/);
   });
-  it('dock HUD + street signs wired', () => {
+  it('dock HUD location stays wired, 3D street signs removed (v335)', () => {
     const d = src('js/dock/index.js');
-    assert.match(d, /createStreetSigns/);
+    assert.doesNotMatch(d, /createStreetSigns|streetSigns\.js/);
     assert.match(d, /map-loc-hud/);
     assert.match(d, /locatePoint/);
-    assert.match(src('js/dock/streetSigns.js'), /STREET_SIGN_SPOTS/);
+    const ss = src('js/dock/streetSigns.js');
+    assert.doesNotMatch(ss, /STREET_SIGN_SPOTS|THREE|Mesh/);
+    assert.match(ss, /export function createStreetSigns\(\) \{ return \{ root: null, clear\(\) \{\}, tick\(\) \{\} \}; \}/);
     assert.match(src('css/style.css'), /#map-loc-hud/);
     assert.match(src('index.html'), /map-loc-hud/);
   });

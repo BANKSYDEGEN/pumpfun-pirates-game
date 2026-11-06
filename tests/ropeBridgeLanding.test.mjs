@@ -138,20 +138,11 @@ test('D3 Rope Bridge approaches clear both ways (signposts off stairs)', () => {
   }
 });
 
-test('no STREET_SIGN_SPOTS in wet gorge / bridge mouth / trail centerline', () => {
-  for (const s of STREET_SIGN_SPOTS) {
-    assert.equal(waterAt(s.x, s.z), null, `${s.id} must be dry (got water at ${s.x},${s.z} H=${H(s.x, s.z).toFixed(2)})`);
-    assert.ok(H(s.x, s.z) > 2, `${s.id} above sea`);
-  }
-  const hang = STREET_SIGN_SPOTS.find(s => s.id === 'hangman_bridge');
-  assert.ok(hang);
-  assert.ok(Math.hypot(hang.x - 16, hang.z + 82) > 8, 'hangman not mid-gorge under D3');
-  assert.match(GEO, /x:\s*20\.5,\s*z:\s*-56/);
-  // High bridge mouth (HB.bx, HB.bz) clear of any street sign
-  for (const s of STREET_SIGN_SPOTS) {
-    assert.ok(Math.hypot(s.x - HB.bx, s.z - HB.bz) > 6, `${s.id} clear of HB east mouth`);
-    assert.ok(Math.hypot(s.x - HB.ax, s.z - HB.az) > 6, `${s.id} clear of HB west mouth`);
-  }
+test('[v335] the added 3D street signs are removed (STREET_SIGN_SPOTS empty, none at the bridge mouths)', () => {
+  assert.equal(STREET_SIGN_SPOTS.length, 0);
+  assert.doesNotMatch(GEO, /hangman_bridge|boardwalk_market|blades:/);
+  for (const s of STREET_SIGN_SPOTS) assert.fail('unexpected street sign ' + s.id);
+  void HB;
 });
 
 test('cliff-edge samples that previously sank 10+ m now ride the landing deck', () => {

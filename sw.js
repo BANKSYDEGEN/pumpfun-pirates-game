@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v334'; // [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
+const VERSION = 'pfp-v335'; // [v335] build mode unlocked (Plaza / Hill Street / GLB units) + owner-only multi-color REWORK flags + weapon gifting + 3D street signs removed (BANKSY t1777-85u); prev: [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -153,7 +153,7 @@ const SHELL = [
   "./js/modeKills.js", // [Timothy] pvp.js imports it (BR kills by mode, display only)
   "./js/islandMap.js",
   "./js/islandGeography.js",
-  "./js/dock/streetSigns.js",
+  "./js/dock/streetSigns.js", // [v335] no-op stub (3D street signs removed)
   "./js/mapIcons.js",
   "./js/mapLandmarks.js",
   "./js/pvpBoard.js",

@@ -213,6 +213,15 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     }
     actions();
   }
+  // [v335] BANKSY t1780u / t1783u / t1784u: GIVE TO A PIRATE for any item, weapons included (one copy; a musket's gid carries its fitted
+  // attachments across, migration 049). Giving the last copy of your equipped weapon puts your store weapon back in your hands.
+  function giveTo(s, k, gInst = null) {
+    const wpn = s.info.kind === 'weapon';
+    picker.open({ name: s.info.name, qty: k, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
+      give: (to) => run('inv_gift', { item: s.key, qty: k, to, ...(gInst?.gid ? { gid: gInst.gid } : {}) }, (r) => {
+        if (wpn && (r.left | 0) === 0 && data.equipped?.[s.info.slot] === s.key) { const eq = { ...data.equipped }; delete eq[s.info.slot]; uncarry(s.info.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [s.info.slot]: 'common' }; }
+        const mods = gInst?.acc ? Object.values(gInst.acc).filter(Boolean).length : 0;
+        return `SENT ${k > 1 ? k + ' × ' : ''}${s.info.name}${mods ? ` (+${mods} MOD${mods > 1 ? 'S' : ''})` : ''} TO ${to.toUpperCase()}`; }) }); }
   function actions() {
     const a = $('.iv-act');
     if (sel && sel.startsWith('L')) { const l = listings.find(x => 'L' + x.id === sel); if (!l) { a.innerHTML = ''; return; } const i = itemInfo(l.item) || { name: l.item };
@@ -220,10 +229,11 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       bind(a, { buy: () => run('mkt_buy', { listing: l.id }, `BOUGHT ${i.name}`), cancel: () => run('mkt_cancel', { listing: l.id }, 'BACK IN YOUR INVENTORY') }); return; }
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
     if (mode === 'bag' && EQS && selI === -2 && selE) { // [eqslots] an EQUIPPED slot is picked: move it out (tap a bag slot) or unequip to the first free one
-      a.innerHTML = `<div class="t">${s.info.name} <small>· equipped ${selE.startsWith('acc:') ? 'on your musket' : selE}</small></div><button data-a="eqout">MOVE TO BAG ⇄</button><button data-a="equnq">UNEQUIP</button>`;
-      bind(a, { eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); } }); return; }
+      const wq = selE === 'sword' || selE === 'musket'; // [v335] t1783u: an equipped sword / musket can be given straight from here
+      a.innerHTML = `<div class="t">${s.info.name} <small>· equipped ${selE.startsWith('acc:') ? 'on your musket' : selE}</small></div><button data-a="eqout">MOVE TO BAG ⇄</button><button data-a="equnq">UNEQUIP</button>${wq ? `<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>` : ''}`;
+      bind(a, { eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); }, give: () => giveTo(s, 1, selE === 'musket' ? eqGun() : null) }); return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
-    let h = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity}${locked ? ' · bought with gold: keep it, it can\'t be resold' : ''}</small></div>`;
+    let h = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity}${locked ? (s.info.kind === 'weapon' ? ' · bought with gold · can give to pirates (not for market / salvage)' : ' · bought with gold: keep it, it can\'t be resold') : ''}</small></div>`;
     const slotN = mode === 'bag' && selI >= 0 && view[selI]?.s?.key === s.key ? view[selI].n : s.qty; // [inv-arrange] this slot's part of the stack
     if (mode === 'bag' && moveFrom >= 0) { a.innerHTML = `<div class="t">${moveAmt ? `SPLITTING ${moveAmt} × ` : 'MOVING '}${s.info.name} · tap ${moveAmt ? 'an empty slot (or the same item)' : 'a slot: empty = move, item = swap, same item = stack'}</div><button data-a="cancelmove">CANCEL</button>`; bind(a, { cancelmove: () => { moveFrom = -1; moveAmt = 0; render(); } }); return; }
     if (mode === 'bag' && splitAsk) { a.innerHTML = `<div class="t">SPLIT ${s.info.name} · how many of ${slotN}?</div><input class="sp" type="number" min="1" max="${slotN - 1}" value="${Math.max(1, slotN >> 1)}" aria-label="split amount"><button data-a="splitgo">SPLIT · PICK A SLOT</button><button data-a="cancelmove">CANCEL</button>`;
@@ -233,7 +243,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       if (RANK_ON && s.info.kind === 'weapon' && s.info.slot === 'musket') { const up = RANK_UP[s.info.rarity], nx = RANKS[RANKS.indexOf(s.info.rarity) + 1], parts = qtyOf(PARTS_KEY), own = !!data.owner;
         h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${up.gold.toLocaleString()}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
         h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button><small style="flex:1 1 100%;font-size:16px;color:#cdb68c">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; } if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
-      h += `${n}<button data-a="give"${locked || !data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [give-dropdown] was a typed name box (typing stays, in the picker's search)
+      h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [v335] t1783u: weapons (shop-bought too) give like a fish; only the gift flag closes it // [give-dropdown] was a typed name box (typing stays, in the picker's search)
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
@@ -245,8 +255,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       open: () => { close(); treasure?.openMap?.(s.map.id); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
       unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
-      give: () => { const k = q(); picker.open({ name: s.info.name, qty: k, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
-        give: (to) => run('inv_gift', { item: s.key, qty: k, to }, `SENT ${k} × ${s.info.name} TO ${to.toUpperCase()}`) }); },
+      give: () => { const wpn = s.info.kind === 'weapon'; giveTo(s, wpn ? 1 : q(), wpn && s.info.slot === 'musket' ? (selI >= 0 ? gunOfBag(selI) : null) : null); },
       sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
       list: () => run('mkt_list', { item: s.key, qty: q(), price: +(a.querySelector('.pr').value || 0) | 0 }, 'LISTED ON THE MARKETPLACE') });
   }
@@ -272,7 +281,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       run('inv_unequip', { slot: src.e }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }); return; }
     render(); }
   const bind = (a, fns) => a.querySelectorAll('[data-a]').forEach(b => b.onclick = () => fns[b.dataset.a]?.());
-  const WHY = { 'shop closed': 'THE SHOP ISN\'T BUYING YET', 'not enough': 'YOU DON\'T HAVE THAT MANY', 'slow down': 'SLOW DOWN A MOMENT', 'not to yourself': 'YOU CAN\'T GIVE YOURSELF THINGS', 'no such pirate': 'NO PIRATE BY THAT NAME',
+  const WHY = { 'one weapon at a time': 'GIVE ONE WEAPON AT A TIME', 'shop closed': 'THE SHOP ISN\'T BUYING YET', 'not enough': 'YOU DON\'T HAVE THAT MANY', 'slow down': 'SLOW DOWN A MOMENT', 'not to yourself': 'YOU CAN\'T GIVE YOURSELF THINGS', 'no such pirate': 'NO PIRATE BY THAT NAME',
     'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${MARKET.maxPrice.toLocaleString()} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
   async function run(action, body, okMsg) { if (busy) return false; busy = true; // true = done ([give-dropdown] the picker closes on it)
     try { const r = await pvp()?.inv?.call(action, body); if (r && r.ok) { toast(typeof okMsg === 'function' ? okMsg(r) : okMsg, 2400); sel = null; await refresh(); if (action !== 'inv_equip') treasure?.refresh?.(); return true; }

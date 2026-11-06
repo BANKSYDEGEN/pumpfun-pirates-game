@@ -208,17 +208,9 @@ export function streetLabelPose(street) { return along(street.pts, street.labelU
 export function districtAt(id) { return ISLAND_DISTRICTS.find((d) => d.id === id) || null; }
 export function streetAt(id) { return ISLAND_STREETS.find((s) => s.id === id) || null; }
 
-/** Junction posts for 3D wooden signs (foot frame, roadside — not mid-road). */
-export const STREET_SIGN_SPOTS = [
-  { id: 'boardwalk_market', x: -618, z: -96, yaw: 0, blades: [['N', 'MARKET ROW'], ['S', 'BOARDWALK'], ['W', 'HARBOR QUAY']] },
-  { id: 'market_highgate', x: -586, z: -90, yaw: Math.PI / 2, blades: [['N', 'HIGHGATE ROAD'], ['E', 'MARKET ROW'], ['W', 'BOARDWALK']] },
-  { id: 'highgate_lantern', x: -448, z: -108, yaw: 0.2, blades: [['W', 'LANTERN LANE'], ['E', 'HIGHGATE ROAD'], ['N', 'CRIMSON TRAIL']] },
-  { id: 'gunpowder_armory', x: -552, z: -78, yaw: -Math.PI / 2, blades: [['N', 'GUNPOWDER ROW'], ['E', 'GLADIATOR WAY'], ['S', 'HIGHGATE ROAD']] },
-  { id: 'gunpowder_gladiator', x: -530, z: -82, yaw: 0, blades: [['E', 'GLADIATOR WAY'], ['W', 'GUNPOWDER ROW'], ['N', 'BLOODSTONE']] },
-  { id: 'crimson_gill', x: -158, z: -50, yaw: 0.4, blades: [['W', "ANGLER'S PATH"], ['E', 'CRIMSON TRAIL'], ['N', "GILL'S LAGOON"]] },
-  { id: 'doubloon_idol', x: 8, z: -392, yaw: -0.3, blades: [['N', 'IDOL TRAIL'], ['S', 'CRIMSON TRAIL'], ['E', 'TEMPLE JUNGLE']] },
-  { id: 'hangman_bridge', x: 20.5, z: -56, yaw: Math.PI / 2, blades: [['N', "HANGMAN'S BRIDGE"], ['S', 'CRIMSON TRAIL']] },  // [v328] was (24,-86) down in the wet gorge under D3; roadside at N approach
-];
+/** [v335] BANKSY t1785u: "remove all the street signs that got added" — the 8 3D junction posts are gone (2D map districts / streets stay).
+ *  Kept as an empty export so any old import still works. */
+export const STREET_SIGN_SPOTS = [];
 
 export const ISLAND_BOUNDS = { x0: -940, x1: 700, z0: -820, z1: 780 };
 

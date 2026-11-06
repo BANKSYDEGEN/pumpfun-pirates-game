@@ -85,7 +85,10 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       if (!okKey(item) || !qty || !to) return json(400, { error: "bad gift" });
       if (!/^(wallet:|dev:)/.test(to)) { const { data: hits } = await db.from("pvp_players").select("id").eq("name", to.slice(0, 20)).limit(2); if (hits && hits.length > 1) return json(409, { error: "name not unique" });
         if (hits?.length === 1) to = hits[0].id; else { const r = await nameFallback(db, to); if (!r) return json(409, { error: "no such pirate" }); to = r; } }
-      return reply(await rpc("pvp_inv_gift", { p_from: pid, p_to: to, p_item: item, p_qty: qty }));
+      // [v335] weapons too (049): one copy at a time; a musket's fitted attachments travel with its gid
+      const gid = typeof b.gid === "string" && /^[0-9a-f-]{36}$/i.test(b.gid) ? b.gid : null;
+      if (/^wpn:/.test(item as string) && qty !== 1) return json(400, { error: "one weapon at a time" });
+      return reply(await rpc("pvp_inv_gift", { p_from: pid, p_to: to, p_item: item, p_qty: qty, p_gid: gid }));
     }
     case "inv_fish": { const seed = pid + ":" + crypto.randomUUID(), f = rollFish(seed), d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: f });
       const extra = d?.ok ? await gunDropRpc(db, pid, "f:" + seed.slice(-36), "fish") : []; // [Emerly musket-rank] parts from fishing

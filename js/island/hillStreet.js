@@ -107,29 +107,34 @@ export function rentLot({ id, x, y, wz, yaw, addBox, addCirc }) {
   HILL_PLACES.push({ key: 'R0', id, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });
   return true;
 }
+// [v335] meshopt-quantized attributes (normalized Int16 / Uint8) -> Float32 before baking a world matrix into them: the merged sign plates
+// used to clamp to +-1 m at the frame origin (a merged mesh can't keep the node's dequantize scale)
+function floatify(geo) {
+  for (const k of ['position', 'normal', 'color', 'uv']) { const a = geo.attributes[k]; if (a && (a.normalized || !(a.array instanceof Float32Array) || a.isInterleavedBufferAttribute)) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); geo.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }
+  if (geo.attributes.color && geo.attributes.color.itemSize === 4) { const a = geo.attributes.color, f = new Float32Array(a.count * 3); for (let i = 0; i < a.count; i++) { f[i * 3] = a.getX(i); f[i * 3 + 1] = a.getY(i); f[i * 3 + 2] = a.getZ(i); } geo.setAttribute('color', new THREE.BufferAttribute(f, 3)); }
+  return geo; }
 // the placed street (call after foot.js buildStreet): desktop one THREE.LOD per building; phones all LOD1 buildings merged (2 draw calls)
 export function buildHill() {
   const K = HILL_KIT; if (!K || !HILL_PLACES.length) return null;
   const root = new THREE.Group(); root.name = 'hill_street'; let tris = 0;
   const merge = { solid: [], glow: [] }, signs = [], signObj = [], pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), mm = new THREE.Matrix4();
-  const used = new Set();
+  const used = new Set(), owner = new Map();   // [v335] geo -> 'hill_<id>': BUILD MODE moves / deletes each building's vertices (+ its sign) inside the merged meshes
   for (const { key, m, id } of HILL_PLACES) { let L = K.lots[key]; if (!L) continue;
     if (used.has(key)) { const sg = L.sign && L.sign.clone(), em = L.empty && L.empty.clone(); if (sg) sg.name = 'sign_' + (id || key); if (em) em.name = 'door_' + (id || key); L = { ...L, lods: L.lods.map(lv => lv.clone(true)), sign: sg, empty: em }; } used.add(key);   // [Emerly] a second placement of one model (coliseum rent shops)
     const g = new THREE.Group(); g.name = 'hill_' + (id || key); m.decompose(g.position, g.quaternion, g.scale); root.add(g);
     if (K.low) { g.updateMatrix(); L.lods[0].traverse(o => { if (!o.isMesh) return; o.updateMatrix(); mm.multiplyMatrices(g.matrix, o.matrix); const geo = o.geometry.clone();
         for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) geo.deleteAttribute(k);
-        for (const k of ['position', 'normal', 'color', 'uv']) { const a = geo.attributes[k]; if (a && (a.normalized || !(a.array instanceof Float32Array))) { const f = new Float32Array(a.count * a.itemSize); for (let i = 0; i < a.count; i++) for (let j = 0; j < a.itemSize; j++) f[i * a.itemSize + j] = a.getComponent(i, j); geo.setAttribute(k, new THREE.BufferAttribute(f, a.itemSize)); } }
-        if (geo.attributes.color && geo.attributes.color.itemSize === 4) { const a = geo.attributes.color, f = new Float32Array(a.count * 3); for (let i = 0; i < a.count; i++) { f[i * 3] = a.getX(i); f[i * 3 + 1] = a.getY(i); f[i * 3 + 2] = a.getZ(i); } geo.setAttribute('color', new THREE.BufferAttribute(f, 3)); }
-        geo.applyMatrix4(mm); libTurn(geo, mm); (o.material === K.mats.glow ? merge.glow : merge.solid).push(geo); }); }
+        floatify(geo); geo.applyMatrix4(mm); libTurn(geo, mm); owner.set(geo, g.name); (o.material === K.mats.glow ? merge.glow : merge.solid).push(geo); }); }
     else { const lod = new THREE.LOD(); lod.name = 'hill_lod_' + key; L.lods.forEach((lv, i) => lod.addLevel(lv, i ? LOD_D : 0)); g.add(lod);
       L.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; }); }
     if (L.sign && SIGN_MERGE && !K.low) { g.updateMatrix(); L.sign.updateMatrix(); const geo = L.sign.geometry.clone(); for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color', 'uv'].includes(k)) geo.deleteAttribute(k);
-      geo.applyMatrix4(mm.multiplyMatrices(g.matrix, L.sign.matrix)); signs.push(geo); signObj.push([g, L.sign]); } // [perf3] the sign plates: one mesh, not one draw (+ shadow draw) each
+      floatify(geo); geo.applyMatrix4(mm.multiplyMatrices(g.matrix, L.sign.matrix)); signs.push(geo); owner.set(geo, g.name); signObj.push([g, L.sign]); } // [perf3] the sign plates: one mesh, not one draw (+ shadow draw) each
     else if (L.sign) g.add(L.sign); if (L.empty) g.add(L.empty); }
-  if (signs.length) { let geo = null; try { geo = mergeGeometries(signs, false); } catch (e) { geo = null; } signs.forEach(gg => gg.dispose());
+  const ranges = {}, track = (list, name) => { let a = 0; for (const gg of list) { const n = gg.attributes.position.count, u = owner.get(gg); if (u) (ranges[u] ||= []).push([name, a, n]); a += n; } };
+  if (signs.length) { let geo = null; try { geo = mergeGeometries(signs, false); } catch (e) { geo = null; } if (geo) track(signs, 'hill_signs_merged'); signs.forEach(gg => gg.dispose());
     if (geo) { geo.computeBoundingSphere(); const mesh = new THREE.Mesh(geo, K.mats.solid); mesh.name = 'hill_signs_merged'; mesh.castShadow = true; root.add(mesh); } else signObj.forEach(([gg, sg]) => gg.add(sg)); }
-  if (K.low) for (const [k, list] of Object.entries(merge)) { if (!list.length) continue; const geo = mergeGeometries(list, false); list.forEach(gg => gg.dispose()); if (!geo) continue; geo.computeBoundingSphere();
+  if (K.low) for (const [k, list] of Object.entries(merge)) { if (!list.length) continue; const geo = mergeGeometries(list, false); if (geo) track(list, 'hill_street_merged_' + k); list.forEach(gg => gg.dispose()); if (!geo) continue; geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, K.mats[k]); mesh.name = 'hill_street_merged_' + k; root.add(mesh); tris += geo.index ? geo.index.count / 3 : geo.attributes.position.count / 3; }
-  root.userData.tris = tris; void pos; void q; void sc;
+  root.userData.tris = tris; root.userData.editRanges = ranges; void pos; void q; void sc;
   return root;
 }

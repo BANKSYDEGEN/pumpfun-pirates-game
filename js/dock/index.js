@@ -14,7 +14,6 @@ import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
 import { createBerthSigns } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
-import { createStreetSigns } from './streetSigns.js'; // [map-streets] wooden district / street posts
 import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
@@ -97,7 +96,7 @@ export async function createDock(ctx) {
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking, getCamera: () => camera });
   const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map(); // [berth-signs] peer id -> last synced name
-  let streetSigns = null; try { streetSigns = createStreetSigns({ scene, world, layout, low: LOW }); } catch (e) { console.warn('[street-signs]', e); }
+  // [v335] BANKSY t1785u: the 3D street signs are removed (the 8 junction posts are gone)
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
@@ -308,7 +307,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); streetSigns?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
     harborExtras(v || viewing); // [v330] t1754u
   }
   // ---------- actions ----------

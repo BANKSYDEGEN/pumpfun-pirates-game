@@ -19,7 +19,6 @@ export const HARBOR_MODULES = [
   "js/dock/shipHull.js",
   "js/dock/skinPicker.js",
   "js/dock/squadHall.js",
-  "js/dock/streetSigns.js",
   "js/dock/treasure.js",
   "js/dock/treasureMap.js",
   "js/dock/world.js",

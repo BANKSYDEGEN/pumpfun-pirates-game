@@ -2,6 +2,7 @@
 // Deploy: supabase functions deploy pvp --no-verify-jwt   (tables: migrations/005_pvp.sql)
 // POST JSON { action: "nonce" | "verify" | "load" | "save" | "logout" | "kill" | "top" | "me" | "holder" | "holder_claim" | "airdrop" | "rename" | "group_sync" | "dev_sync" | "shop_state" | "shop_buy" | "waves_start" | "waves_claim" | "acct_set" | "acct_login" | "acct_sync" | "acct_change" | "acct_logout" | "airdrop_nonce" | "waves_score" | "ticket", ... }. The wallet only ever SIGNS A MESSAGE.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L] exact version (was @2 = whatever is newest at deploy time)
+import { cleanRework, isReworkId, stripRework, RW_MAX_FLAGS } from "./rework.ts"; // [v335] owner-only 🚩 rework flags
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
   OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
@@ -427,7 +428,8 @@ Deno.serve(async (req) => {
       case "terrain_get": {
         const who = (b.token || b.dk) ? await whoAmI(b).catch(() => null) : null;
         const { data } = await db.from("pvp_terrain").select("cells, pieces, paint, rev").eq("id", "island").maybeSingle();
-        return json(200, { ok: true, cells: data?.cells ?? {}, pieces: data?.pieces ?? {}, paint: (data as any)?.paint ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
+        const pieces = who?.owner ? (data?.pieces ?? {}) : stripRework(data?.pieces as Record<string, any>); // [v335] 🚩 rework flags: the owner's eyes only
+        return json(200, { ok: true, cells: data?.cells ?? {}, pieces, paint: (data as any)?.paint ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
       }
       case "terrain_put": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
@@ -438,9 +440,10 @@ Deno.serve(async (req) => {
         for (const [k, v] of Object.entries(src)) { const q = Number(k), cm = Math.round(Number(v));
           if (!Number.isInteger(q) || q < 0 || q > 400000 || !Number.isFinite(cm) || cm === 0) continue; if (++n > 60000) return json(413, { error: "too many cells" });
           cells[String(q)] = Math.max(-3000, Math.min(3000, cm)); }
-        const pieces: Record<string, Record<string, number>> = {}; let np = 0, npl = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
+        const pieces: Record<string, Record<string, number | string>> = {}; let np = 0, npl = 0, nrw = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
         for (const [id, v] of Object.entries(ps)) { if (typeof id !== "string" || id.length > 160 || !v || typeof v !== "object") continue; if (++np > 5000) return json(413, { error: "too many pieces" });
           const f = (x: unknown, lim: number) => Math.max(-lim, Math.min(lim, Math.round((Number(x) || 0) * 100) / 100));
+          if (isReworkId(id)) { const rw = cleanRework(id, v); if (!rw) continue; if (++nrw > RW_MAX_FLAGS) return json(413, { error: "too many flags" }); pieces[id] = rw; continue; } // [v335] 🚩 owner rework flag (strings kept)
           if (id[0] === "+") { const t = Math.round(Number(v.t)); if (!/^\+[a-z0-9]{4,24}$/.test(id) || !Number.isInteger(t) || t < 0 || t > 63) continue; if (++npl > 2000) return json(413, { error: "too many placed" }); // [build-place] owner-placed prop
             pieces[id] = { t, x: f(v.x, 1500), y: f(v.y, 300), z: f(v.z, 1500), ry: f(v.ry, 7) }; continue; }
           pieces[id] = v.h ? { h: 1 } : { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; }
