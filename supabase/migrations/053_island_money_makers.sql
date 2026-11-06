@@ -8,6 +8,10 @@
 -- and every reply carries gold (+ rev + owner) so the client re-bases (js/pvp.js serverGold) and no later save overwrites it.
 -- Security: definer functions, service role only (revoked from public / anon / authenticated), flag 'island_gold', (req) idempotency on
 -- every gold move, per-day caps (America/Indiana/Indianapolis), rate limits (pvp_rl_hit), server-rolled loot, server timers.
+-- [review fixes, Emerly pre-push] 1 a req id is bound to player + kind + ref + delta (pvp_isl_replay), a duel accept retry never re-opens a fight;
+-- 2 every RPC takes the pirate's lock FIRST (pvp_isl_lock) and one-time payouts are backed by unique indexes; 3 a prize fight is decided only by
+-- the loser's own client conceding or a both-sides-confirmed pvp_kills row (pvp_claim_kill), else it refunds when it expires;
+-- 4 a bounty is paid only against a confirmed pvp_kills row of that pirate, consumed once (pvp_isl_kill_used).
 begin;
 
 insert into public.pvp_flags (k, on_, note) values ('island_gold', true, 'island money-makers: bounties, coliseum, crates, gathering, cottage rum (053)')
@@ -30,6 +34,40 @@ create index if not exists pvp_isl_ledger_pkd_idx on public.pvp_isl_ledger (play
 create index if not exists pvp_isl_ledger_ref_idx on public.pvp_isl_ledger (player_id, kind, ref);
 
 create or replace function public.pvp_isl_today() returns date language sql stable as $$ select (now() at time zone 'America/Indiana/Indianapolis')::date $$;
+-- [review fix 2] one-time payouts are unique in the table itself (a second insert fails even if a check were ever skipped)
+create unique index if not exists pvp_isl_ledger_once_idx on public.pvp_isl_ledger (player_id, kind, ref)
+  where kind in ('horde', 'crate', 'duel_stake', 'duel_win', 'duel_refund', 'bet', 'bet_win', 'bet_refund');
+create unique index if not exists pvp_isl_ledger_contract_idx on public.pvp_isl_ledger (player_id, ref, day) where kind = 'contract';
+-- [review fix 4] a confirmed kill (pvp_kills.id) pays at most one bounty
+create table if not exists public.pvp_isl_kill_used (
+  kill_id    bigint primary key,
+  player_id  text not null,
+  req        text not null,
+  used_for   text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.pvp_isl_kill_used enable row level security;
+revoke all on public.pvp_isl_kill_used from public, anon, authenticated;
+
+-- [review fix 2] ONE lock per pirate, taken FIRST by every island RPC: daily caps, one-time checks and the balance are all read under it,
+-- so two concurrent calls for the same pirate run one after the other and the second sees the first's ledger row.
+create or replace function public.pvp_isl_lock(p_pid text) returns void language plpgsql security definer set search_path = public as $$
+begin perform pg_advisory_xact_lock(hashtextextended('pvp_isl:' || coalesce(p_pid, ''), 0)); end $$;
+revoke all on function public.pvp_isl_lock(text) from public, anon, authenticated;
+
+-- [review fix 1] a request id is bound to ONE operation: the same pirate + kind + ref (+ delta whenever the caller can compute it).
+-- null = a new request; ok + retry = the first reply again; anything else = 'request id reused' (never a second operation on an old req).
+create or replace function public.pvp_isl_replay(p_pid text, p_req text, p_kind text, p_ref text, p_delta integer default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare prev pvp_isl_ledger;
+begin
+  select * into prev from pvp_isl_ledger where req = p_req;
+  if not found then return null; end if;
+  if prev.player_id <> p_pid or prev.kind <> p_kind or prev.ref is distinct from p_ref or (p_delta is not null and prev.delta <> p_delta) then
+    return jsonb_build_object('ok', false, 'why', 'request id reused'); end if;
+  return jsonb_build_object('ok', true, 'gold', prev.gold_after, 'delta', prev.delta, 'rev', prev.rev, 'owner', p_pid = public.pvp_inv_owner(), 'retry', true);
+end $$;
+revoke all on function public.pvp_isl_replay(text, text, text, text, integer) from public, anon, authenticated;
 
 -- the owner's shared pot also keeps a save jsonb on some deployments: keep save.gold == gold (052 rule) whenever that column exists
 create or replace function public.pvp_isl_save_sync(p_main text, p_gold integer) returns void language plpgsql security definer set search_path = public as $$
@@ -43,20 +81,19 @@ revoke all on function public.pvp_isl_save_sync(text, integer) from public, anon
 -- THE gold move. p_delta > 0 = credit (p_cap = this kind's gold cap today, null = none), < 0 = debit (never below 0).
 create or replace function public.pvp_isl_move(p_player text, p_delta integer, p_req text, p_kind text, p_ref text default null, p_cap integer default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); g integer; rv integer := 0; prev pvp_isl_ledger; used integer;
+declare pid text := public.pvp_main(p_player); g integer; rv integer := 0; rp jsonb; used integer;
   is_wallet boolean := pid like 'wallet:%'; is_owner boolean := pid = public.pvp_inv_owner();
   d integer := greatest(-10000000, least(10000000, coalesce(p_delta, 0)));
 begin
   if p_req is null or char_length(p_req) not between 8 and 80 or p_kind is null then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
-  select * into prev from pvp_isl_ledger where req = p_req;
-  if found then
-    if prev.player_id <> pid then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
-    return jsonb_build_object('ok', true, 'gold', prev.gold_after, 'delta', prev.delta, 'rev', prev.rev, 'owner', is_owner, 'retry', true);
-  end if;
+  perform public.pvp_isl_lock(pid);                                   -- [review fix 2] lock first, then replay / cap / balance
+  rp := public.pvp_isl_replay(pid, p_req, p_kind, p_ref, d);          -- [review fix 1] same pirate + kind + ref + delta, else rejected
+  if rp is not null then return rp; end if;
   if d > 0 and p_cap is not null then
     select coalesce(sum(delta), 0) into used from pvp_isl_ledger where player_id = pid and kind = p_kind and day = pvp_isl_today() and delta > 0;
     if used + d > p_cap then return jsonb_build_object('ok', false, 'why', 'daily cap', 'cap', p_cap, 'used', used); end if;
   end if;
+  begin   -- [review fix 2] a unique one-time row that already exists rolls this whole move back (savepoint), never a double pay
   if is_owner then
     insert into pvp_group_saves (main) values (pid) on conflict (main) do nothing;
     select gold into g from pvp_group_saves where main = pid for update;
@@ -77,6 +114,8 @@ begin
     else update pvp_dev_profiles set gold = g, shop_rev = rv where id = pid; end if;
   end if;
   insert into pvp_isl_ledger (player_id, req, kind, ref, delta, gold_after, rev) values (pid, p_req, p_kind, p_ref, d, g, rv);
+  exception when unique_violation then return jsonb_build_object('ok', false, 'why', 'already paid');
+  end;
   return jsonb_build_object('ok', true, 'gold', g, 'delta', d, 'rev', rv, 'owner', is_owner);
 end $$;
 revoke all on function public.pvp_isl_move(text, integer, text, text, text, integer) from public, anon, authenticated;
@@ -101,11 +140,13 @@ create or replace function public.pvp_isl_key(p_name text) returns text language
 -- daily contracts: server payout table, one claim per contract per day
 create or replace function public.pvp_isl_contract(p_player text, p_contract text, p_req text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); pay integer;
+declare pid text := public.pvp_main(p_player); pay integer; rp jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   pay := case p_contract when 'cave_raiders' then 150 when 'jungle_stalkers' then 120 when 'cursed_captains' then 250 when 'salvage_patrol' then 100 else 0 end;
   if pay = 0 then return jsonb_build_object('ok', false, 'why', 'bad contract'); end if;
+  rp := public.pvp_isl_replay(pid, p_req, 'contract', p_contract, pay); if rp is not null then return rp || jsonb_build_object('contract', p_contract, 'paid', pay); end if;
   if exists (select 1 from pvp_isl_ledger where player_id = pid and kind = 'contract' and ref = p_contract and day = pvp_isl_today() and req <> p_req) then
     return jsonb_build_object('ok', false, 'why', 'claimed today'); end if;
   if not pvp_rl_hit('islc:' || pid, 60, 10) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
@@ -118,6 +159,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); tk text := public.pvp_isl_key(p_target); amt integer := coalesce(p_amount, 0); cur integer; mv jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if tk = '' or tk = public.pvp_isl_key(p_name) then return jsonb_build_object('ok', false, 'why', 'pick another pirate'); end if;
   if amt < 100 or amt > 5000 then return jsonb_build_object('ok', false, 'why', 'stake 100 to 5000'); end if;
   if not pvp_rl_hit('islbp:' || pid, 60, 8) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
@@ -136,20 +178,29 @@ revoke all on function public.pvp_isl_bounty_post(text, text, text, integer, tex
 -- the killer claims the whole pot on that name (never on himself; the Edge Function also drops squadmates + Safe Zone KOs client-side)
 create or replace function public.pvp_isl_bounty_claim(p_player text, p_name text, p_target text, p_req text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); tk text := public.pvp_isl_key(p_target); b pvp_isl_bounties; mv jsonb; prev pvp_isl_ledger;
+declare pid text := public.pvp_main(p_player); tk text := public.pvp_isl_key(p_target); b pvp_isl_bounties; mv jsonb; rp jsonb; kid bigint;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
-  select * into prev from pvp_isl_ledger where req = p_req;
-  if found then return public.pvp_isl_move(p_player, 0, p_req, 'bounty_claim', tk); end if;   -- retry: the first reply again
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
+  rp := public.pvp_isl_replay(pid, p_req, 'bounty_claim', tk);           -- [review fix 1] retry = the first reply; another op on this req = rejected
+  if rp is not null then return rp || jsonb_build_object('claimed', 0, 'target', tk); end if;
   if tk = '' or tk = public.pvp_isl_key(p_name) then return jsonb_build_object('ok', false, 'why', 'not on yourself'); end if;
-  if not pvp_rl_hit('islbc:' || pid, 3600, 6) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
+  if not pvp_rl_hit('islbc:' || pid, 3600, 60) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
   select * into b from pvp_isl_bounties where target_key = tk for update;
   if not found or b.pot <= 0 then return jsonb_build_object('ok', false, 'why', 'no bounty'); end if;
+  -- [review fix 4] only a CONFIRMED kill pays: a pvp_kills row (both pirates reported it and pvp_claim_kill checked seats, networks, links and
+  -- rate limits) where YOU are the killer and the victim goes by the wanted name, from the last 15 minutes, never used for a bounty before.
+  select k.id into kid from pvp_kills k join pvp_players pl on pl.id = k.victim_id
+    where k.killer_id = pid and k.victim_id <> pid and k.created_at > now() - interval '15 minutes' and public.pvp_isl_key(pl.name) = tk
+      and not exists (select 1 from pvp_isl_kill_used u where u.kill_id = k.id)
+    order by k.id desc limit 1;
+  if kid is null then return jsonb_build_object('ok', false, 'why', 'no confirmed kill', 'pending', true); end if;
+  insert into pvp_isl_kill_used (kill_id, player_id, req, used_for) values (kid, pid, p_req, 'bounty:' || tk);   -- consumed once (primary key)
   mv := public.pvp_isl_move(p_player, b.pot, p_req, 'bounty_claim', tk);
-  if not coalesce((mv->>'ok')::boolean, false) then return mv; end if;
+  if not coalesce((mv->>'ok')::boolean, false) then delete from pvp_isl_kill_used where kill_id = kid; return mv; end if;
   delete from pvp_isl_bounties where target_key = tk;
   insert into pvp_isl_bounty_log (target_key, actor_id, actor_name, amount, kind) values (tk, pid, left(coalesce(p_name, ''), 20), b.pot, 'claim');
-  return mv || jsonb_build_object('claimed', b.pot, 'target', b.target_name);
+  return mv || jsonb_build_object('claimed', b.pot, 'target', b.target_name, 'kill', kid);
 end $$;
 revoke all on function public.pvp_isl_bounty_claim(text, text, text, text) from public, anon, authenticated;
 
@@ -161,6 +212,7 @@ create table if not exists public.pvp_isl_duels (
   stake      integer not null check (stake in (100, 250, 500, 1000)),
   status     text not null default 'open' check (status in ('open', 'live', 'done', 'cancelled')),
   winner     char(1) check (winner in ('r', 'b')),
+  win_claim  char(1) check (win_claim in ('r', 'b')), win_claim_at timestamptz,   -- [review fix 3] an unconfirmed 'won' report (never pays by itself)
   created_at timestamptz not null default now(), started_at timestamptz, settled_at timestamptz
 );
 create index if not exists pvp_isl_duels_status_idx on public.pvp_isl_duels (status, created_at);
@@ -177,17 +229,26 @@ create table if not exists public.pvp_isl_bets (
 
 create or replace function public.pvp_isl_duel_post(p_player text, p_name text, p_stake integer, p_req text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); mv jsonb; did uuid;
+declare pid text := public.pvp_main(p_player); mv jsonb; did uuid; pref text;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if p_stake is null or p_stake not in (100, 250, 500, 1000) then return jsonb_build_object('ok', false, 'why', 'bad stake'); end if;
+  -- [review fix 1] a retry of THIS post (same pirate, same stake, its own fight) = the first reply; any other reuse of the req is rejected
+  select ref into pref from pvp_isl_ledger where req = p_req;
+  if found then
+    mv := public.pvp_isl_replay(pid, p_req, 'duel_stake', pref, -p_stake);
+    if coalesce((mv->>'ok')::boolean, false) and exists (select 1 from pvp_isl_duels where id::text = pref and red_id = pid) then
+      return mv || jsonb_build_object('duel', pref, 'side', 'r', 'stake', p_stake); end if;
+    return jsonb_build_object('ok', false, 'why', 'request id reused');
+  end if;
   if exists (select 1 from pvp_isl_duels where (red_id = pid or blue_id = pid) and status in ('open', 'live') and created_at > now() - interval '15 minutes') then
     return jsonb_build_object('ok', false, 'why', 'you already have a fight posted'); end if;
   if not pvp_rl_hit('isld:' || pid, 60, 6) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
   did := gen_random_uuid();
   mv := public.pvp_isl_move(p_player, -p_stake, p_req, 'duel_stake', did::text);
   if not coalesce((mv->>'ok')::boolean, false) then return mv; end if;
-  if coalesce((mv->>'retry')::boolean, false) then return mv; end if;
+  if coalesce((mv->>'retry')::boolean, false) then return jsonb_build_object('ok', false, 'why', 'request id reused'); end if;
   insert into pvp_isl_duels (id, red_id, red_name, stake) values (did, pid, left(coalesce(nullif(btrim(p_name), ''), 'PIRATE'), 20), p_stake);
   return mv || jsonb_build_object('duel', did, 'side', 'r', 'stake', p_stake);
 end $$;
@@ -198,12 +259,22 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); d pvp_isl_duels; mv jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   select * into d from pvp_isl_duels where id = p_duel for update;
-  if not found or d.status <> 'open' or d.created_at < now() - interval '5 minutes' then return jsonb_build_object('ok', false, 'why', 'that fight is gone'); end if;
+  if not found then return jsonb_build_object('ok', false, 'why', 'that fight is gone'); end if;
+  -- [review fix 1] a retry only answers again when THIS pirate's stake for THIS fight is on the ledger AND he is its blue corner; it never
+  -- changes the fight (no second 'live', no stake-free accept). Any other reuse of the req is rejected.
+  mv := public.pvp_isl_replay(pid, p_req, 'duel_stake', d.id::text, -d.stake);
+  if mv is not null then
+    if coalesce((mv->>'ok')::boolean, false) and d.blue_id = pid then return mv || jsonb_build_object('duel', d.id, 'side', 'b', 'stake', d.stake, 'red', d.red_name); end if;
+    return jsonb_build_object('ok', false, 'why', 'request id reused');
+  end if;
+  if d.status <> 'open' or d.created_at < now() - interval '5 minutes' then return jsonb_build_object('ok', false, 'why', 'that fight is gone'); end if;
   if d.red_id = pid then return jsonb_build_object('ok', false, 'why', 'not against yourself'); end if;
   if exists (select 1 from pvp_isl_bets where duel_id = d.id and player_id = pid) then return jsonb_build_object('ok', false, 'why', 'you bet on this fight'); end if;
   mv := public.pvp_isl_move(p_player, -d.stake, p_req, 'duel_stake', d.id::text);
   if not coalesce((mv->>'ok')::boolean, false) then return mv; end if;
+  if coalesce((mv->>'retry')::boolean, false) then return jsonb_build_object('ok', false, 'why', 'request id reused'); end if;   -- never live without a fresh stake
   update pvp_isl_duels set blue_id = pid, blue_name = left(coalesce(nullif(btrim(p_name), ''), 'PIRATE'), 20), status = 'live', started_at = now() where id = d.id;
   return mv || jsonb_build_object('duel', d.id, 'side', 'b', 'stake', d.stake, 'red', d.red_name);
 end $$;
@@ -215,7 +286,10 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); d pvp_isl_duels; mv jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if p_side not in ('r', 'b') or p_amount is null or p_amount < 50 or p_amount > 500 then return jsonb_build_object('ok', false, 'why', 'bet 50 to 500'); end if;
+  mv := public.pvp_isl_replay(pid, p_req, 'bet', p_duel::text, -p_amount);   -- [review fix 1] retry of this exact bet = first reply, else rejected
+  if mv is not null then return mv || jsonb_build_object('duel', p_duel, 'side', p_side, 'amount', p_amount); end if;
   select * into d from pvp_isl_duels where id = p_duel for update;
   if not found or not (d.status = 'open' or (d.status = 'live' and d.started_at > now() - interval '25 seconds')) then return jsonb_build_object('ok', false, 'why', 'bets are locked'); end if;
   if pid = d.red_id or pid = d.blue_id then return jsonb_build_object('ok', false, 'why', 'fighters cannot bet'); end if;
@@ -236,6 +310,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); d pvp_isl_duels; w char(1); wid text; wtot integer; ltot integer; bt pvp_isl_bets; pay integer; me jsonb; mv jsonb; expired boolean;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   select * into d from pvp_isl_duels where id = p_duel for update;
   if not found then return jsonb_build_object('ok', false, 'why', 'no such fight'); end if;
   if d.status in ('done', 'cancelled') then return jsonb_build_object('ok', true, 'status', d.status, 'winner', d.winner, 'settled', true); end if;
@@ -252,8 +327,19 @@ begin
   end if;
   if d.status <> 'live' then return jsonb_build_object('ok', false, 'why', 'nobody accepted yet'); end if;
   if pid <> d.red_id and pid <> d.blue_id then return jsonb_build_object('ok', false, 'why', 'not your fight'); end if;
-  if p_result = 'won' then w := case when pid = d.red_id then 'r' else 'b' end;
-  elsif p_result = 'lost' then w := case when pid = d.red_id then 'b' else 'r' end;
+  -- [review fix 3] who won is never one fighter's word for himself:
+  --   'lost' = the LOSER's own authenticated client concedes (its battle saw its own KO by this opponent) -> the other corner wins;
+  --   'won'  = pays only on a both-sides-confirmed kill on the board (pvp_kills via pvp_claim_kill: killer = you, victim = your opponent,
+  --            after the fight started). Without one the claim is noted and the fight waits for the loser's concession, else it expires
+  --            (live 10 min) and 'cancel' refunds both stakes + every bet.
+  if p_result = 'lost' then w := case when pid = d.red_id then 'b' else 'r' end;
+  elsif p_result = 'won' then
+    w := case when pid = d.red_id then 'r' else 'b' end;
+    if not exists (select 1 from pvp_kills k where k.killer_id = pid and k.victim_id = (case when w = 'r' then d.blue_id else d.red_id end)
+                   and k.created_at >= d.started_at - interval '5 seconds') then
+      update pvp_isl_duels set win_claim = w, win_claim_at = now() where id = d.id;
+      return jsonb_build_object('ok', false, 'why', 'waiting for the knockout to confirm', 'pending', true);
+    end if;
   else return jsonb_build_object('ok', false, 'why', 'bad result'); end if;
   wid := case when w = 'r' then d.red_id else d.blue_id end;
   mv := public.pvp_isl_move(wid, d.stake * 2, 'duelwin:' || d.id, 'duel_win', d.id::text);
@@ -272,16 +358,18 @@ revoke all on function public.pvp_isl_duel_settle(text, uuid, text) from public,
 -- Skeleton Horde: waves in order, once per run, >= 12 s apart, 2 paid runs a day (1900 gold)
 create or replace function public.pvp_isl_horde(p_player text, p_run text, p_wave integer, p_req text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); pay integer; v_ref text := left(coalesce(p_run, ''), 40) || ':' || coalesce(p_wave, 0);
+declare pid text := public.pvp_main(p_player); pay integer; v_ref text := left(coalesce(p_run, ''), 40) || ':' || coalesce(p_wave, 0); rp jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if p_run is null or p_run !~ '^[A-Za-z0-9_-]{8,40}$' or p_wave is null or p_wave < 1 or p_wave > 5 then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
+  pay := (array[60, 90, 120, 160, 220])[p_wave] + case when p_wave = 5 then 300 else 0 end;
+  rp := public.pvp_isl_replay(pid, p_req, 'horde', v_ref, pay); if rp is not null then return rp || jsonb_build_object('wave', p_wave, 'paid', pay); end if;   -- [review fix 1]
   if exists (select 1 from pvp_isl_ledger where player_id = pid and kind = 'horde' and ref = v_ref and req <> p_req) then return jsonb_build_object('ok', false, 'why', 'wave already paid'); end if;
   if p_wave > 1 and not exists (select 1 from pvp_isl_ledger where player_id = pid and kind = 'horde' and ref = left(p_run, 40) || ':' || (p_wave - 1)) then
     return jsonb_build_object('ok', false, 'why', 'clear the waves in order'); end if;
   if exists (select 1 from pvp_isl_ledger where player_id = pid and kind = 'horde' and created_at > now() - interval '12 seconds' and req <> p_req) then
     return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
-  pay := (array[60, 90, 120, 160, 220])[p_wave] + case when p_wave = 5 then 300 else 0 end;
   return public.pvp_isl_move(p_player, pay, p_req, 'horde', v_ref, 1900) || jsonb_build_object('wave', p_wave, 'paid', pay);
 end $$;
 revoke all on function public.pvp_isl_horde(text, text, integer, text) from public, anon, authenticated;
@@ -289,11 +377,13 @@ revoke all on function public.pvp_isl_horde(text, text, integer, text) from publ
 -- ---------- 3. SMUGGLER CRATE RUNS ----------
 create or replace function public.pvp_isl_crate(p_player text, p_tier text, p_run text, p_req text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare pid text := public.pvp_main(p_player); pay integer; n integer;
+declare pid text := public.pvp_main(p_player); pay integer; n integer; rp jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   pay := case p_tier when 'standard' then 100 when 'cutthroat' then 220 else 0 end;
   if pay = 0 or p_run is null or p_run !~ '^[A-Za-z0-9_-]{8,40}$' then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
+  rp := public.pvp_isl_replay(pid, p_req, 'crate', p_run, pay); if rp is not null then return rp || jsonb_build_object('tier', p_tier, 'paid', pay); end if;   -- [review fix 1]
   if exists (select 1 from pvp_isl_ledger where player_id = pid and kind = 'crate' and ref = p_run and req <> p_req) then return jsonb_build_object('ok', false, 'why', 'crate already delivered'); end if;
   select count(*) into n from pvp_isl_ledger where player_id = pid and kind = 'crate' and day = pvp_isl_today();
   if n >= 12 then return jsonb_build_object('ok', false, 'why', 'daily cap'); end if;
@@ -396,6 +486,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); t pvp_isl_timers; r double precision := random(); items jsonb; n integer; g jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if p_src not in ('dive', 'mine') or p_spot is null or p_spot !~ '^[a-z0-9_]{2,24}$' then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
   if exists (select 1 from pvp_isl_goods_log where req = p_req) then return jsonb_build_object('ok', true, 'retry', true, 'goods', pvp_isl_goods_json(pid)); end if;
   if not pvp_rl_hit('islg:' || pid, 60, 30) then return jsonb_build_object('ok', false, 'why', 'slow down'); end if;
@@ -426,6 +517,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); mv jsonb := '{}'::jsonb; c integer; s integer;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if p_kind not in ('crab', 'plot', 'still') or p_slot is null or p_slot !~ '^[a-z0-9_]{2,24}$' then return jsonb_build_object('ok', false, 'why', 'bad request'); end if;
   if exists (select 1 from pvp_isl_timers where player_id = pid and kind = p_kind and slot = p_slot) then return jsonb_build_object('ok', false, 'why', 'already set'); end if;
   if p_kind = 'crab' and (select count(*) from pvp_isl_timers where player_id = pid and kind = 'crab') >= 3 then return jsonb_build_object('ok', false, 'why', 'three pots max'); end if;
@@ -455,6 +547,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); t pvp_isl_timers; need integer; items jsonb := '{}'::jsonb; i integer; r double precision; v_id text; n integer; g jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if exists (select 1 from pvp_isl_goods_log where req = p_req) then return jsonb_build_object('ok', true, 'retry', true, 'goods', pvp_isl_goods_json(pid)); end if;
   select * into t from pvp_isl_timers where player_id = pid and kind = p_kind and slot = p_slot for update;
   if not found then return jsonb_build_object('ok', false, 'why', 'nothing set here'); end if;
@@ -481,10 +574,12 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare pid text := public.pvp_main(p_player); pr integer; have integer; q integer := coalesce(p_qty, 0); mv jsonb;
 begin
   if not pvp_flag('island_gold') then return jsonb_build_object('ok', false, 'why', 'closed'); end if;
-  if exists (select 1 from pvp_isl_ledger where req = p_req) then return public.pvp_isl_move(p_player, 0, p_req, 'sell', p_item) || jsonb_build_object('goods', pvp_isl_goods_json(pid)); end if;
+  perform public.pvp_isl_lock(pid);   -- [review fix 2] this pirate's lock FIRST: caps, one-time checks + balance below run under it
   if q < 1 or q > 999 then return jsonb_build_object('ok', false, 'why', 'bad qty'); end if;
   select price into pr from pvp_isl_prices where item = p_item and shop = p_shop;
   if pr is null then return jsonb_build_object('ok', false, 'why', 'this shop does not buy that'); end if;
+  mv := public.pvp_isl_replay(pid, p_req, 'sell', p_item, pr * q);   -- [review fix 1] same item + same total, else rejected
+  if mv is not null then return mv || jsonb_build_object('goods', pvp_isl_goods_json(pid)); end if;
   select qty into have from pvp_isl_goods where player_id = pid and item = p_item for update;
   if coalesce(have, 0) < q then return jsonb_build_object('ok', false, 'why', 'not enough', 'have', coalesce(have, 0)); end if;
   mv := public.pvp_isl_move(p_player, pr * q, p_req, 'sell', p_item);

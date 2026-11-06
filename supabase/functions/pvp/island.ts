@@ -53,7 +53,7 @@ async function rpc(c: Ctx, fn: string, args: Record<string, unknown>) {
 }
 // the reply, plus the account mirror for a logged-in device (same as the casino: a wallet / the owner never)
 async function goldReply(c: Ctx, who: any, data: any) {
-  if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold, cap: data?.cap, left_s: data?.left_s });
+  if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold, cap: data?.cap, left_s: data?.left_s, pending: data?.pending || undefined });
   const d = Number(data.delta) || 0;
   if (d && !who.wallet && !who.owner && !data.owner && !data.retry) await c.acctBump?.(c.db, who.raw, d);
   return c.json(200, { ...data, ok: true, owner: !!(data.owner ?? who.owner) });
@@ -77,7 +77,7 @@ export async function islandAction(c: Ctx, action: string, b: Record<string, unk
         if (!target || amt < BOUNTY_MIN || amt > BOUNTY_MAX) return c.json(400, { error: "stake 100 to 5000" }); if (!req) return needReq()!;
         return goldReply(c, who, await rpc(c, "pvp_isl_bounty_post", { p_player: pid, p_name: name, p_target: target, p_amount: amt, p_req: req }));
       }
-      case "isl_bounty_claim": {
+      case "isl_bounty_claim": { // [review fix 4] the SQL pays only against a confirmed pvp_kills row of that pirate (claimKill flow), consumed once
         const target = nameOf(b.target); if (!target) return c.json(400, { error: "bad target" }); if (!req) return needReq()!;
         return goldReply(c, who, await rpc(c, "pvp_isl_bounty_claim", { p_player: pid, p_name: name, p_target: target, p_req: req }));
       }
@@ -92,7 +92,8 @@ export async function islandAction(c: Ctx, action: string, b: Record<string, unk
       case "isl_duel_settle": {
         const duel = uuidOf(b.duel), result = String(b.result || ""); if (!duel || !["won", "lost", "cancel"].includes(result)) return c.json(400, { error: "bad request" });
         const data = await rpc(c, "pvp_isl_duel_settle", { p_player: pid, p_duel: duel, p_result: result });
-        if (!data?.ok) return c.json(409, { error: data?.why || "could not" });
+        // [review fix 3] 'won' only pays on a both-sides-confirmed KO (pvp_kills); else pending until the loser's own client concedes or it expires + refunds
+        if (!data?.ok) return c.json(409, { error: data?.why || "could not", pending: data?.pending || undefined });
         return goldReply(c, who, data.gold == null ? { ...data, delta: 0 } : data);
       }
       case "isl_bet": {

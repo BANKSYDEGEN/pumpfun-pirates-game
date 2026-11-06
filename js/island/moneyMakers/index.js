@@ -134,7 +134,11 @@ export function createMoneyMakers(ctx) {
     if (duel.id && duel.status === 'live' && C.nameKey(n) === C.nameKey(duel.opp)) settleDuel('won');
     if (api.live === false) return; await pullBoard(false); const w = board.wanted.find(x => C.nameKey(x.name) === C.nameKey(n)); if (!w) return;
     if (ctx.insideSafe?.(W().x, W().z)) return;
-    const r = await api.call('isl_bounty_claim', { target: n, name: myName() }); if (r?.ok && (r.claimed | 0) > 0) say(`🪙 BOUNTY CLAIMED · +${gfmt(r.claimed)}<small>${esc(n)} is no longer wanted</small>`, 3000); pullBoard(true); });
+    // the server pays only once the KO is confirmed by both sides on the kill board (claimKill), so wait for it: now, +4 s, +10 s, +20 s
+    for (const wait of [1500, 4000, 6000, 10000]) { await new Promise(res => setTimeout(res, wait)); const r = await api.call('isl_bounty_claim', { target: n, name: myName() });
+      if (r?.ok) { if ((r.claimed | 0) > 0) say(`🪙 BOUNTY CLAIMED · +${gfmt(r.claimed)}<small>${esc(n)} is no longer wanted</small>`, 3000); break; }
+      if (r?.error !== 'no confirmed kill') break; }
+    pullBoard(true); });
   addEventListener('pfp-pvp-down', (e) => { const by = e.detail?.by; if (carry) dropCrate('ko'); if (duel.id && duel.status === 'live' && by && C.nameKey(by) === C.nameKey(duel.opp)) settleDuel('lost'); });
 
   // ======================= 2. COLISEUM: prize fights, ringside bets, Skeleton Horde =======================
@@ -173,12 +177,14 @@ export function createMoneyMakers(ctx) {
   function openColiseum() { cTab = 'fights'; ui.open(coliView()); pullBoard(true).then(() => ui.view && ui.draw()); }
   function toPit() { try { const w = W(), x = 351 + (duel.side === 'r' ? -6 : 6), z = 121; w.x = x; w.z = z; w.y = G(x, z); w.yaw = w.camYaw = duel.side === 'r' ? Math.PI / 2 : -Math.PI / 2; walker.snapCam?.(); } catch {} }
   async function settleDuel(result) { if (!duel.id || duel.settling) return; duel.settling = true; const r = await api.call('isl_duel_settle', { duel: duel.id, result }); duel.settling = false;
+    if (!r?.ok && /confirm/.test(String(r?.error || ''))) { say(`⚔ KO!<small>waiting for ${esc(duel.opp)}'s side to confirm · unconfirmed fights refund after 10 min</small>`, 2600); return; } // [review fix 3]
     if (r?.ok) { const won = r.you_won ?? result === 'won'; say(won ? `🏆 PRIZE FIGHT WON · +${gfmt(r.pot || C.duelPot(duel.stake))}` : '💀 PRIZE FIGHT LOST<small>better luck in the pit</small>', 3000); duel.id = null; duel.status = ''; pullBoard(true); } }
   let creditSince = 0;
   async function pollDuel() { // the challenger arrived / your bets + wins landed (credits since last poll)
     if (api.live !== true) return; await pullBoard(true);
     if (duel.id) { const d = board.duels.find(x => x.id === duel.id); if (d && d.status === 'live' && duel.status !== 'live') { duel.status = 'live'; duel.opp = duel.side === 'r' ? d.blue : d.red; toPit(); say(`⚔ ${esc(duel.opp)} ACCEPTED YOUR FIGHT<small>pot ${gfmt(C.duelPot(duel.stake))} · KO them in the pit!</small>`, 3000); }
-      if (d && d.status === 'done') { duel.id = null; duel.status = ''; } if (!d && performance.now() - duel.t > 15 * 60e3) duel.id = null; }
+      if (d && d.status === 'done') { duel.id = null; duel.status = ''; }
+      else if (d && d.status === 'live' && (d.live_s | 0) > 605) { const r = await api.call('isl_duel_settle', { duel: d.id, result: 'cancel' }); if (r?.ok) { say('⚔ FIGHT EXPIRED · STAKES REFUNDED', 2400); duel.id = null; duel.status = ''; } } // [review fix 3] timeout refund if (!d && performance.now() - duel.t > 15 * 60e3) duel.id = null; }
     const st = await api.call('isl_state', { since: creditSince }); if (!st?.ok || st.practice) return;
     const cr = (st.credits || []).filter(c => c.delta > 0); if (creditSince) for (const c of cr) say(`🪙 +${gfmt(c.delta)} · ${String(c.kind).replace('_', ' ').toUpperCase()}`, 2400);
     if (creditSince && cr.length && st.gold != null) { try { ctx.pvp?.()?.serverGold?.(st.gold, { rev: st.rev, owner: !!st.owner }); } catch {} } // a duel / bet win landed on the server: re-base

@@ -85,6 +85,68 @@ test('migration 053: additive, flagged, RLS, every function revoked, server-auth
   assert.match(MIG, /pvp_isl_move\(p_player, pay, p_req, 'contract', p_contract, 620\)/); assert.match(MIG, /'horde', p_run, 1900\)|1900/); assert.match(MIG, /'crate', p_run, 2640\)/);
   assert.match(MIG, /America\/Indiana\/Indianapolis/);
 });
+// ---------- Emerly's pre-push security review (fixes 1-4) ----------
+const fnBody = (name) => { const i = MIG.indexOf(`create or replace function public.${name}(`); assert.ok(i >= 0, name); return noComments(MIG.slice(i, MIG.indexOf('end $$;', i))); };
+test('[fix 1] replay: a req id is bound to player + kind + ref + delta; a duel accept retry never re-opens a fight', () => {
+  const rp = fnBody('pvp_isl_replay');
+  assert.match(rp, /prev\.player_id <> p_pid or prev\.kind <> p_kind or prev\.ref is distinct from p_ref or \(p_delta is not null and prev\.delta <> p_delta\)/);
+  assert.match(rp, /'request id reused'/);
+  const mv = fnBody('pvp_isl_move');
+  assert.match(mv, /rp := public\.pvp_isl_replay\(pid, p_req, p_kind, p_ref, d\);\s*if rp is not null then return rp; end if;/, 'move replays only an identical op');
+  assert.doesNotMatch(mv, /select \* into prev from pvp_isl_ledger where req = p_req;\s*if found then\s*if prev\.player_id <> pid/, 'the old player-only check is gone');
+  const acc = fnBody('pvp_isl_duel_accept');
+  assert.match(acc, /pvp_isl_replay\(pid, p_req, 'duel_stake', d\.id::text, -d\.stake\)/, 'accept retry = this stake for this fight');
+  assert.match(acc, /d\.blue_id = pid then return mv/, 'retry answers only the blue corner who paid');
+  const iRetry = acc.indexOf("if coalesce((mv->>'retry')::boolean, false) then return jsonb_build_object('ok', false, 'why', 'request id reused')"), iLive = acc.indexOf("status = 'live'");
+  assert.ok(iRetry > 0 && iLive > iRetry, 'a retry returns before the fight can go live');
+  for (const [f, k] of [['pvp_isl_contract', "'contract'"], ['pvp_isl_horde', "'horde'"], ['pvp_isl_crate', "'crate'"], ['pvp_isl_bet', "'bet'"], ['pvp_isl_sell', "'sell'"], ['pvp_isl_bounty_claim', "'bounty_claim'"]])
+    assert.match(fnBody(f), new RegExp(`pvp_isl_replay\\(pid, p_req, ${k}`), `${f} binds its req`);
+  assert.doesNotMatch(MIG, /pvp_isl_move\(p_player, 0, p_req/, 'no zero-delta replays that skip the binding');
+});
+test('[fix 2] every island RPC takes the pirate lock FIRST; one-time payouts are unique in the table', () => {
+  assert.match(fnBody('pvp_isl_lock'), /pg_advisory_xact_lock\(hashtextextended\('pvp_isl:'/);
+  const flagged = [...MIG.matchAll(/create or replace function public\.(pvp_isl_\w+)\(/g)].map(m => m[1]).filter(f => /pvp_flag\('island_gold'\)/.test(fnBody(f)));
+  assert.ok(flagged.length >= 13, flagged.join());
+  for (const f of flagged) { const b = fnBody(f), iLock = b.indexOf('perform public.pvp_isl_lock(pid)');
+    assert.ok(iLock > 0, `${f} locks`);
+    for (const re of [/pvp_isl_ledger/, /pvp_rl_hit\(/, /pvp_isl_replay\(/, /for update/, /pvp_isl_move\(/, /pvp_kills/]) { const m = b.slice(b.indexOf('begin')).match(re); if (m) assert.ok(b.indexOf('begin') + m.index > iLock, `${f}: lock before ${re}`); } }
+  const mv = fnBody('pvp_isl_move'); const iL = mv.indexOf('pvp_isl_lock(pid)');
+  assert.ok(iL > 0 && iL < mv.indexOf('pvp_isl_replay(') && iL < mv.indexOf('sum(delta)') && iL < mv.indexOf('for update'), 'move: lock -> replay -> cap -> balance');
+  assert.match(mv, /exception when unique_violation then return jsonb_build_object\('ok', false, 'why', 'already paid'\)/);
+  assert.match(MIG, /create unique index if not exists pvp_isl_ledger_once_idx on public\.pvp_isl_ledger \(player_id, kind, ref\)\s*where kind in \('horde', 'crate', 'duel_stake', 'duel_win', 'duel_refund', 'bet', 'bet_win', 'bet_refund'\)/);
+  assert.match(MIG, /create unique index if not exists pvp_isl_ledger_contract_idx on public\.pvp_isl_ledger \(player_id, ref, day\) where kind = 'contract'/);
+});
+test('[fix 3] a prize fight is never paid on a fighter\'s own word: loser concedes, or a confirmed pvp_kills KO; else timeout refund', () => {
+  const st = fnBody('pvp_isl_duel_settle');
+  assert.match(st, /if p_result = 'lost' then w := case when pid = d\.red_id then 'b' else 'r' end;/, "'lost' = the loser's own client concedes");
+  const won = st.slice(st.indexOf("elsif p_result = 'won'"), st.indexOf("else return jsonb_build_object('ok', false, 'why', 'bad result')"));
+  assert.match(won, /not exists \(select 1 from pvp_kills k where k\.killer_id = pid and k\.victim_id = \(case when w = 'r' then d\.blue_id else d\.red_id end\)\s*and k\.created_at >= d\.started_at/);
+  assert.match(won, /'pending', true/); assert.doesNotMatch(won, /pvp_isl_move/);
+  assert.match(st, /d\.status = 'live' and d\.started_at < now\(\) - interval '10 minutes'/, 'live fights expire');
+  assert.match(st, /'duel_refund'/); assert.match(st, /'bet_refund'/);
+  assert.match(EDGE, /pending: data\?\.pending/);
+  const IDX = src('js/island/moneyMakers/index.js');
+  assert.match(IDX, /\/confirm\/\.test/, 'client waits on an unconfirmed win'); assert.match(IDX, /live_s \| 0\) > 605\) \{ const r = await api\.call\('isl_duel_settle', \{ duel: d\.id, result: 'cancel' \}\)/, 'client cancels an expired fight');
+});
+test('[fix 4] a bounty pays only against a confirmed kill of that pirate, consumed once', () => {
+  const bc = fnBody('pvp_isl_bounty_claim');
+  assert.match(bc, /from pvp_kills k join pvp_players pl on pl\.id = k\.victim_id\s*where k\.killer_id = pid and k\.victim_id <> pid and k\.created_at > now\(\) - interval '15 minutes' and public\.pvp_isl_key\(pl\.name\) = tk\s*and not exists \(select 1 from pvp_isl_kill_used u where u\.kill_id = k\.id\)/);
+  assert.match(bc, /if kid is null then return jsonb_build_object\('ok', false, 'why', 'no confirmed kill', 'pending', true\)/);
+  assert.ok(bc.indexOf('insert into pvp_isl_kill_used') > 0 && bc.indexOf('insert into pvp_isl_kill_used') < bc.indexOf('pvp_isl_move('), 'kill consumed before the pay');
+  assert.match(MIG, /create table if not exists public\.pvp_isl_kill_used \(\s*kill_id\s+bigint primary key/);
+  assert.match(src('js/island/moneyMakers/index.js'), /r\?\.error !== 'no confirmed kill'/, 'client retries while the kill confirms');
+});
+// the functional SQL checks (fake duel win, fake bounty, replays, unique double pay) + the two-connection race need Postgres packages this repo
+// does not ship: they run here when pointed at them (PFP_PGLITE / PFP_NODE_MODULES), see tests/sql/*.mjs
+import { spawnSync } from 'node:child_process';
+const runSql = (file, env) => spawnSync(process.execPath, [new URL('./sql/' + file, import.meta.url).pathname], { env: { ...process.env, ...env }, encoding: 'utf8', timeout: 240000 });
+test('[fixes 1-4] PGlite: migration 053 functional checks (with and without a save column)', { skip: !process.env.PFP_PGLITE && 'set PFP_PGLITE to @electric-sql/pglite/dist/index.js' }, () => {
+  for (const env of [{}, { NOSAVE: '1' }]) { const r = runSql('053_island_check.mjs', env); assert.match(r.stdout, /ALL SQL CHECKS PASSED/, r.stdout.split('\n').filter(l => l.startsWith('FAIL')).join('\n') + r.stderr); }
+});
+test('[fix 2] real Postgres, two connections: no concurrent double pay / cap / overdraft', { skip: !process.env.PFP_NODE_MODULES && 'set PFP_NODE_MODULES to a node_modules with embedded-postgres + pg' }, () => {
+  const r = runSql('053_island_concurrency.mjs', {}); assert.match(r.stdout, /ALL CONCURRENCY CHECKS PASSED/, r.stdout + r.stderr);
+});
+
 test('island.ts: 15 actions, dispatched from index.ts, missing 053 = 409 closed, casino-style account mirror', () => {
   const m = EDGE.match(/export const ISLAND_ACTIONS = \[([^\]]+)\]/); assert.ok(m); const acts = [...m[1].matchAll(/"(isl_\w+)"/g)].map(x => x[1]);
   assert.equal(acts.length, 15); for (const a of acts) assert.match(EDGE, new RegExp(`case "${a}"|action === "${a}"`));
