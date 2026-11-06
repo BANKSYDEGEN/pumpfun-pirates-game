@@ -114,9 +114,9 @@ test('casino.ts: all 4 games, gold-only, cryptographic RNG, atomic accounting', 
   assert.match(HTS, /landOwned/);
 });
 
-test('sw.js bumped to pfp-v333 with shipHull.js in SHELL', () => {
+test('sw.js bumped to pfp-v333+ with shipHull.js in SHELL', () => {
   assert.ok(existsSync(new URL('../sw.js', import.meta.url)));
-  assert.match(SW, /VERSION = 'pfp-v333'/);
+  assert.ok(+(SW.match(/VERSION = 'pfp-v(\d+)'/) || [])[1] >= 333, 'sw VERSION >= v333');
   assert.match(SW, /shipHull\.js/);
 });
 
