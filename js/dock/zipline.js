@@ -3,6 +3,7 @@
 //   "Move the 2 waterfall hill zip lines to top of hill"
 //   "Give them room that can get off and on, also make it so they can change direction while on zip line if want to return"
 // CLIENT ONLY; &zipline=0 = none. Builds TWO lines: waterfall↔skull + castle↔waterfall.
+// [zipline-shoot] BANKSY t491u: aim + shoot mid-ride (one hand on the trolley, free-look ADS, GUN stance).
 import * as THREE from 'three';
 import { toon } from '../toon.js';
 import { rig, arm, eul, BONES } from '../onfoot/swimPose.js';
@@ -168,15 +169,21 @@ function figOf(pirate) {
 }
 function zipPost() {
   const zp = this._zip, r = this._swRig || rig(this); if (!zp || !r || zp.w <= 0) return;
-  const { B, R, dir } = r, S = zp.S;
+  const { B, R, dir } = r, S = zp.S, free = zp.free; // [zipline-shoot] free = 'R'|'L' leaves that arm for musket/sword aim
   eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -0.08, 0, 0); eul(S, R, 'head', -0.12, 0, 0);
-  for (const s of ['L', 'R']) arm(S, R, dir, s, 0.12, 1.55, 0.08, 0.28);
-  const w = zp.w * zp.w * (3 - 2 * zp.w); for (const n of BONES) B[n].quaternion.slerp(S[n], w);
+  for (const s of ['L', 'R']) { if (free === s) continue; arm(S, R, dir, s, 0.12, 1.55, 0.08, 0.28); }
+  const w = zp.w * zp.w * (3 - 2 * zp.w); for (const n of BONES) {
+    if (free && (n === 'upperarm.' + free || n === 'forearm.' + free)) continue; // leave weapon arm for battle pose
+    B[n].quaternion.slerp(S[n], w);
+  }
 }
-export function zipGrip(pirate, on, dt) {
+/** @param {{ free?: 'L'|'R'|null }} [opts] free = weapon hand while the other grips the trolley bar */
+export function zipGrip(pirate, on, dt, opts) {
   const fig = figOf(pirate); if (!fig) return;
-  const zp = fig._zip || (fig._zip = { w: 0, S: Object.fromEntries(BONES.map((n) => [n, new THREE.Quaternion()])) });
+  const zp = fig._zip || (fig._zip = { w: 0, free: null, S: Object.fromEntries(BONES.map((n) => [n, new THREE.Quaternion()])) });
   zp.w = Math.min(1, Math.max(0, zp.w + (on ? 1 : -1) * dt / (on ? 0.14 : 0.18)));
+  if (opts && 'free' in opts) zp.free = on ? (opts.free || null) : null;
+  else if (!on) zp.free = null;
   if (fig.addPost) fig.addPost('zip', zipPost, 2); else if (!fig.post) fig.post = zipPost;
 }
 
@@ -610,10 +617,20 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
         toast(done.dir > 0 ? line.labelA : line.labelB, 1400); return 'done';
       }
     }
-    W.yaw = yaw; W.speed = 0;
-    { let c = yaw - W.camYaw; c = Math.atan2(Math.sin(c), Math.cos(c)); if (!W.drags.size) W.camYaw += c * Math.min(1, dt * 1.35); }
+    // [zipline-shoot] free-look + aim: keep cable yaw only when not aiming / not looking around
+    W.speed = 0;
+    const aiming = W.faceYaw != null || W.zipAim;
+    if (aiming && W.faceYaw != null) W.yaw = W.faceYaw;
+    else if (!aiming) W.yaw = yaw;
+    {
+      const lookRecent = W.drags.size || (performance.now() - (W.look || 0) < 1200);
+      if (!aiming && !lookRecent) {
+        let c = yaw - W.camYaw; c = Math.atan2(Math.sin(c), Math.cos(c)); W.camYaw += c * Math.min(1, dt * 1.35);
+      }
+    }
     line.handle.position.set(W.x, W.y + ZIP.hang, W.z);
-    zipGrip(pirate, R.ph === 'slide' || (R.ph === 'lift' && R.k > 0.35) || (R.ph === 'lower' && R.k < 0.45), dt);
+    const gripOn = R.ph === 'slide' || (R.ph === 'lift' && R.k > 0.35) || (R.ph === 'lower' && R.k < 0.45);
+    zipGrip(pirate, gripOn, dt); // battle.js sets _zip.free = 'R' while GUN stance aims/fires
     rideCrew(dt);
     return 'ride';
   }

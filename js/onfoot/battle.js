@@ -41,6 +41,7 @@ import { applyMuskUpg, muskLook, swordLook, applyGunAcc, gunAccOn, gunAcc } from
 import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
+import { zipGrip } from '../dock/zipline.js'; // [zipline-shoot] one-hand trolley grip while GUN is drawn mid-ride
 
 import { STANCES_ON, STANCE_LABEL, STANCE_ICON, stanceForKey, stanceTap, holsterToggle, nextStance, peerReach, openHitOk, footRegenStep } from './stances.js'; // [backpack-pvp] t1710u UNARMED / SWORD / GUN anywhere on foot
 
@@ -222,12 +223,14 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // cover (blocks musket balls) in harbor coords
   const cover = BA.COVER.map(([lx, lz, k]) => { const [x, z] = H(lx, lz); return { x, z, r: k === 'hay' ? 1.25 : 0.85 }; });
   // [Timothy tps] the third-person musket camera / crosshair / sights (js/onfoot/tps.js): what the crosshair ray can land on
+  const peerFeetY = (p) => (p.fy != null ? p.fy : (p.body?.y ?? world.ground(p.x, p.z))); // [zipline-shoot] cable height, not ground under the line
+  const zipState = (R) => R?.v4?._zip || null; // [zipline-shoot] _zip lives on PirateGLB (v4), not pirate-v4 mesh
   const rangeMen = () => [...fnet.peers].filter(([id]) => { const r = peerR.get(id); return r && r.ba[0] === Z_RANGE && !r.ba[6]; }).map(([, p]) => p);
   const tps = TPS_ON ? createTps({ walker, camera, canvas, touch, world, sfx, attack: () => attack(),
     aimables: () => { const sp = [], cy = []; for (const t of targets) if (t.flip <= 0.2) sp.push([t.cx, t.cy, t.cz, 0.75, 'target']);
-      for (const p of rangeMen()) { const g = world.ground(p.x, p.z); cy.push([p.x, p.z, 0.5, g - 0.2, g + 1.95, 'pirate']); }
+      for (const p of rangeMen()) { const g = peerFeetY(p); cy.push([p.x, p.z, 0.5, g - 0.2, g + 1.95, 'pirate']); }
       for (const c of cover) { const g = world.ground(c.x, c.z); cy.push([c.x, c.z, c.r, g - 0.5, g + 1.4, 'cover']); } return { spheres: sp, cyls: cy }; },
-    pointers: () => [...targets.filter(t => t.flip <= 0.2).map(t => [t.cx, t.cy, t.cz]), ...rangeMen().map(p => [p.x, world.ground(p.x, p.z) + 1.2, p.z])] }) : null;
+    pointers: () => [...targets.filter(t => t.flip <= 0.2).map(t => [t.cx, t.cy, t.cz]), ...rangeMen().map(p => [p.x, peerFeetY(p) + 1.2, p.z])] }) : null;
 
   // ---------- small FX pool: muzzle flash, smoke, sparks, tracers ----------
   const fxs = [], dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t; })();
@@ -303,17 +306,22 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       aimBone(L ? B.fL : B.fR, _dir2, k, _rootQ, _blade, ax);
     } else if (st.zone === Z_RANGE) {
       const gr = R.musket && weaponEmpty('musket', R.musketId, 'grip_r'), gl = R.musket && weaponEmpty('musket', R.musketId, 'grip_l');
+      const zp = R?.v4?._zip || null, zipOne = !!(zp && zp.w > 0.2 && zp.free === 'R'); // [zipline-shoot] left hand keeps the trolley bar (_zip on PirateGLB)
       // Establish a safe shoulder pose before reachable grips refine it. Left bones point along +X, right bones along -X.
       // With the fix disabled, retain the original grip-only path (including its early returns).
-      if (MUSKET_ARM_ON || !(gr && gl)) {
+      if (MUSKET_ARM_ON || !(gr && gl) || zipOne) {
         const rc = st.recoil; _dir.copy(P_MUSKET.uR); _dir.y += rc * 0.25; _dir.normalize();
         aimBone(B.uR, _dir, k, _rootQ); aimBone(B.fR, P_MUSKET.fR, k, _rootQ, v3(0, 1, 0));
-        const axis = MUSKET_ARM_ON ? 1 : -1;
-        aimBone(B.uL, P_MUSKET.uL, k, _rootQ, null, axis); aimBone(B.fL, P_MUSKET.fL, k, _rootQ, null, axis);
+        if (!zipOne) {
+          const axis = MUSKET_ARM_ON ? 1 : -1;
+          aimBone(B.uL, P_MUSKET.uL, k, _rootQ, null, axis); aimBone(B.fL, P_MUSKET.fL, k, _rootQ, null, axis);
+        }
       }
-      if (gr && gl) { R.musket.updateWorldMatrix(true, false);
+      if (gr && gl && !zipOne) { R.musket.updateWorldMatrix(true, false);
         reachArm(B.uR, B.fR, _gT.copy(gr).applyMatrix4(R.musket.matrixWorld), -1, k, v3(0, 1, 0));
         reachArm(B.uL, B.fL, _gT.copy(gl).applyMatrix4(R.musket.matrixWorld), 1, k, null); }
+      else if (gr && zipOne) { R.musket.updateWorldMatrix(true, false);
+        reachArm(B.uR, B.fR, _gT.copy(gr).applyMatrix4(R.musket.matrixWorld), -1, k, v3(0, 1, 0)); }
     }
   }
   const ringGeo2 = new THREE.RingGeometry(0.62, 0.8, 28).rotateX(-Math.PI / 2), RING_COL = [0, 0xff3b30, 0x2f7bff];
@@ -476,7 +484,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const along = (px, pz, r) => { const dx = px - x, dz = pz - z, a = dx * f.x + dz * f.z; if (a < 0.3 || a > best) return -1; const side = Math.abs(dx * f.z - dz * f.x); return side <= r ? a : -1; };
     for (const c of cover) { const a = along(c.x, c.z, c.r); if (a > 0 && vOk(a, -1e9, world.ground(c.x, c.z) + 1.4)) { best = a; hit = { kind: 'cover' }; } }
     for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0 && vOk(a, t.cy - 0.85, t.cy + 0.85)) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
-    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE, id)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
+    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE, id)) continue; const a = along(p.x, p.z, S.wide); const py = peerFeetY(p); if (a > 0 && vOk(a, py - 0.2, py + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
     if (aim && slope < 0 && !hit) { const g = mz.y + slope * best; if (g < world.ground(x + f.x * best, z + f.z * best)) best = Math.min(best, aimD); } // [Timothy tps] aimed at the ground: the ball lands there
     { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
@@ -599,8 +607,12 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const st = mineR.st; st.zone = me.zone; st.w += ((me.zone ? 1 : 0) - st.w) * Math.min(1, dt * 8); st.recoil = Math.max(0, st.recoil - dt * 5);
     if (st.act) { const a = st.act; a.t += dt; if (!a.hit && a.t >= ARENA.sword.hitAt) { a.hit = true; swordHit(); } if (a.t >= ARENA.sword.dur) st.act = null; }
     if (me.fireAt >= 0) { me.fireAt -= dt; if (me.fireAt < 0) shoot(mineR, W.x, W.z, W.yaw, true); }
-    tps?.tick(dt, me.zone === Z_RANGE); // [Timothy tps] over-the-shoulder camera while you hold a musket
-    if (me.zone === Z_RANGE && !st.act && !tps?.on) { let dy = W.camYaw - W.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); if (W.speed < 0.3) W.yaw += dy * Math.min(1, dt * 6); }   // standing at the range you face where you aim
+    // [zipline-shoot] one hand on the trolley while GUN is drawn mid-ride; free-look ADS works on the cable
+    const onZip = !!W.ride; W.zipAim = onZip && me.zone === Z_RANGE;
+    if (onZip) zipGrip(pirate, true, 0, { free: me.zone === Z_RANGE ? 'R' : null });
+    else { const zp = zipState(mineR); if (zp) zp.free = null; }
+    tps?.tick(dt, me.zone === Z_RANGE); // [Timothy tps] over-the-shoulder camera while you hold a musket (also on zipline)
+    if (me.zone === Z_RANGE && !st.act && !tps?.on && !onZip) { let dy = W.camYaw - W.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); if (W.speed < 0.3) W.yaw += dy * Math.min(1, dt * 6); }   // standing at the range you face where you aim
     dress(mineR, me.zone, swordId, musketId, me.team); knock(mineR, me.down > 0 ? Math.min(1, (ARENA.downS - me.down) * 4) : 0);
     if (me.guard > 0 && mineR.fig) mineR.fig.visible = Math.floor(t * 12) % 2 === 0; else if (mineR.fig) mineR.fig.visible = true;
     // peers
@@ -608,10 +620,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       hookBody(r); const s = r.st; s.zone = r.ba[0]; s.w += ((s.zone ? 1 : 0) - s.w) * Math.min(1, dt * 8); s.recoil = Math.max(0, s.recoil - dt * 5); r.guard = Math.max(0, r.guard - dt);
       if (s.act) { s.act.t += dt; if (s.act.t >= ARENA.sword.dur) s.act = null; }
       if (r.fireAt >= 0) { r.fireAt -= dt; if (r.fireAt < 0) shoot(r, p.x, p.z, p.yaw, false); }
+      // [zipline-shoot] peer on a cable with musket drawn: left hand grips, right aims (matches local)
+      if (p.fy != null) { zipGrip(p.pirate, true, 0, { free: s.zone === Z_RANGE ? 'R' : null }); }
+      else { const zp = zipState(r); if (zp) zp.free = null; }
       dress(r, s.zone, r.swordId || SWORD_DEFAULT, r.musketId || MUSKET_DEFAULT, r.team || 0); knock(r, r.ba[6] ? 1 : 0); hpBar(r); }
     drawHud();
   }
-  function leave() { tps?.off(); me.zone = 0; me.stance = 0; me.arena = 0; me.onFoot = false; me.downArena = 0; me.hp = ARENA.hp; me.repT = 0; me.repairing = false; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) mineR.fig.visible = true; } drawHud(); }
+  function leave() { tps?.off(); me.zone = 0; me.stance = 0; me.arena = 0; me.onFoot = false; me.downArena = 0; me.hp = ARENA.hp; me.repT = 0; me.repairing = false; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (walker?.w) walker.w.zipAim = false; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) { mineR.fig.visible = true; const zp = zipState(mineR); if (zp) zp.free = null; } } drawHud(); }
   function netState() {
     const cw = crewFight?.wire?.('me') || { cm: 0, ct: '' }; // [backpack-pvp] cm 1 gun | 2 sword, ct = the pirate whose crew yours fights
     if (STANCES_ON ? !me.onFoot : !me.zone) return { ba: 0, cm: cw.cm, ct: cw.ct }; // [backpack-pvp] stances: ba rides whenever you are on foot (ba[0] = held: 0 unarmed)
