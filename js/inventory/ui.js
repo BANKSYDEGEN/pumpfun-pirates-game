@@ -263,6 +263,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       } else { el.classList.remove('iv-moving'); g.querySelectorAll('[data-k]').forEach(d => d.onclick = () => { sel = d.dataset.k; render(); }); }
     }
     actions();
+    try { dispatchEvent(new CustomEvent('pfp-inv-render', { detail: { el, mode } })); } catch {} // [v349 money-makers] ISLAND GOODS strip + SELL
   }
   // [v335] BANKSY t1780u / t1783u / t1784u: GIVE TO A PIRATE for any item, weapons included (one copy; a musket's gid carries its fitted
   // attachments across, migration 049). Giving the last copy of your equipped weapon puts your store weapon back in your hands.

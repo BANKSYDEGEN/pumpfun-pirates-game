@@ -490,6 +490,7 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
 
   function start(q) {
     if (R || !walker.w.active) return false;
+    if (walker.w.noZipline) { toast?.('Too heavy for the zipline! Haul the crate on foot.', 1800); return false; } // [v349 money-makers] smuggler crate
     if (performance.now() / 1000 < coolUntil) return false;
     const line = findLine(q.lineId);
     const dir = q.end === 'A' ? 1 : -1, t0 = dir > 0 ? 0 : 1, W = walker.w;

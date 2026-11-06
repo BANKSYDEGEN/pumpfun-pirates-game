@@ -14,6 +14,7 @@ import { casinoAction, CASINO_ACTIONS } from "./casino.ts"; // [v333] pure-gold 
 import { adminAction, ADMIN_ACTIONS } from "./admin.ts";
 import { isWorldId } from "./adminWorld.ts"; // [v346] owner world overrides: terrain_put keeps the stored ones (only admin_world_put writes them) // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
+import { islandAction, ISLAND_ACTIONS } from "./island.ts"; // [v349 money-makers] migration 053: bounties, coliseum, crates, gathering, cottage rum
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -634,6 +635,7 @@ Deno.serve(async (req) => {
         if (CASINO_ACTIONS.includes(String(b.action) as any)) return await casinoAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [v333] casino
         if (ADMIN_ACTIONS.includes(String(b.action) as any)) return await adminAction({ db, whoAmI, json }, String(b.action), b); // [admin-menu] who.owner checked inside
         if (LOOT_ACTIONS.includes(String(b.action) as any)) return await lootAction({ db, whoAmI, json }, String(b.action), b); // [backpack-pvp]
+        if (ISLAND_ACTIONS.includes(String(b.action) as any)) return await islandAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [v349 money-makers]
         return json(400, { error: "unknown action" });
     }
   } catch (e) { console.error(e); return json(500, { error: "server error" }); }

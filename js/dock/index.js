@@ -278,6 +278,7 @@ export async function createDock(ctx) {
     saveGold: () => { try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} },
     inventory: () => inventory, pvp: () => ctx.pvp(), low: LOW, game, ocean, islands,
   }); } catch (e) { console.warn('[storage-houses]', e); } // [Emerly storage-houses]
+  let mm = null; import('../island/moneyMakers/index.js').then(m => m.createMoneyMakers({ scene, world, layout, walker, pirate, battle, houses, fnet, game, touch, low: LOW, pvp: () => ctx.pvp(), sfx: ctx.sfx, updateHud: () => ctx.updateHud?.(), toast: (m2, ms) => toast(m2, ms), inventory: () => inventory, insideSafe: (x, z) => insideSafeZoneH(x, z), onFoot: () => on && onFoot })).then(x => { mm = x || null; try { api.mm = mm; } catch {} }).catch(e => console.warn('[money-makers]', e)); // [v349 money-makers] BANKSY t204u: bounties, coliseum, crates, diving / pots / mining, cottage rum
   let shipHull = null; try {
     shipHull = createShipHull({
       scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
@@ -482,6 +483,7 @@ export async function createDock(ctx) {
   }
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
+    if (q.mm) { mm?.interact(q); return; } // [v349 money-makers]
     const casinoGame = casinoInteract(q.src || q.kind); if (casinoGame) { openCasino(casinoGame); return; }
     if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { const W = walker.w; specFrom = { src: 'fort', x: W.x, z: W.z, yaw: W.yaw, camYaw: W.camYaw, pitch: W.pitch }; goAboard(true); pv?.harborSpectate?.(false); return; } // [v254] specFrom tags the castle as the spectate source: EXIT puts you back here on foot (fortReturn) // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
     if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); Promise.resolve(m).then(msg => { if (msg) toast(msg, 3200); }).catch(() => {}); return; } // [island-rework] area activities (+ [castle-flag-daily] async holder claim at fort_flag)
@@ -497,7 +499,7 @@ export async function createDock(ctx) {
         Promise.resolve(window.openShop ? window.openShop({ vendor: q.vendor || 'shop', tab: q.tab || (q.vendor === 'clothes' ? 'gear' : 'skins'), slot: q.slot, title: q.title, from: 'island' }) : false) // [Emerly] q.tab / q.title: SWORD SHOP / MUSKET SHOP
         .then(ok => { if (!ok) toast('THE SHOP IS CLOSED RIGHT NOW<br><small>check your connection and try again</small>', 2400); }); break;
       case 'tavern': if (layout.CO?.SHOW_TAVERN) toast('THE TAVERN<br><small>daily claim moves here soon</small>', 2200); break; // [hide-tavern]
-      case 'bounties': if (layout.CO?.SHOW_BOUNTY_BOARDS) toast('BOUNTY BOARD<br><small>bounties coming soon</small>', 2200); break; // [hide-tavern]
+      case 'bounties': if (mm) mm.openBoard(); else if (layout.CO?.SHOW_BOUNTY_BOARDS) toast('BOUNTY BOARD<br><small>opening soon</small>', 2200); break; // [v349 money-makers] the WANTED board (contracts + live bounties)
       case 'stall': toast(`${q.id === 'stall_red' ? 'THE TAILOR' : 'CURIOS'} · COMING SOON<br><small>${q.id === 'stall_red' ? 'hats, clothes + eye patches' : 'parrots, hooks + treasure maps'} for gold</small>`, 2400); break; // [v102] gear: no model on the pirate yet
       case 'dig': case 'cave': treasure.dig(q, t).then(h => { if (!h) toast(q.label); }); break; // [v122] server digs (the cave needs a legendary map)
       default: toast(q.label);
@@ -656,6 +658,7 @@ export async function createDock(ctx) {
       } else setActs(null, null);
     } else setActs(null, null);
     battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
+    mm?.tick(dt, onFoot && !shipHull?.inHull); // [v349 money-makers]
     if (onFoot) lootBags?.tick?.(dt, { walker: walker.w }); // [backpack-pvp]
     fnet.tick(dt);
     if (onFoot) crewFight.tick(dt); else if (crewFight.active) crewFight.clear(); // [backpack-pvp] after every crew moved
@@ -673,7 +676,7 @@ export async function createDock(ctx) {
     ch.onmessage = (ev) => { if (!on) return; const m = ev.data; if (Number.isInteger(m?.emo)) { const a = api.peerEmote(m.i, m.emo); if (a) showEmote(a, m.emo, { anchor: a, vol: 0 }); return; } handlePeer(m); }; // [Raul emotes] 'emo' on the 2-tab test channel
     bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); }, emo: (e) => ch.postMessage({ i: myId(), emo: e }) };
   }
-  function handlePeer(m) { if (m && typeof m.n === 'string') peerNames.set(m.i, m.n); battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m); houses?.onPeerState?.(m);
+  function handlePeer(m) { if (m && typeof m.n === 'string') peerNames.set(m.i, m.n); battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m); houses?.onPeerState?.(m); mm?.onPeer?.(m); /* [v349] */
     if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
       const go = () => { if (!on || onFoot || !docking.fresh()) return;
         if (b) { docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`BERTH TAKEN · MOORED AT ${b.id}`); }
@@ -703,7 +706,7 @@ export async function createDock(ctx) {
     invuln: (s) => on && (zone.inside(s.x, s.z) || !!shipHull?.inHull),
     isSafe: (s) => on && !!s && zone.inside(s.x, s.z),
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
-    netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}) } : {}), // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
+    netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}), ...(mm?.netState?.() || {}) } : {}), // [v349] + mc (smuggler crate) // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     // [v339] Harbor session auto-resume helpers (js/main.js pfp_harbor_resume_v1)
     resumeState: () => { const W = walker?.w, s = P?.(); return { onFoot: !!onFoot && !shipHull?.inHull && canoe?.mode !== 'canoe', inHull: !!shipHull?.inHull, moored: docking.mode === 'docked', x: +(onFoot ? W?.x : s?.x) || 0, z: +(onFoot ? W?.z : s?.z) || 0, yaw: +(onFoot ? W?.yaw : s?.yaw) || 0 }; },

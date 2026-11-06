@@ -483,6 +483,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       addDmg(id, r.ba[2], S.dmg); r.hpShown = Math.max(0, (r.hpShown ?? r.ba[1]) - S.dmg); any = true; spark(p.x, world.ground(p.x, p.z) + 1.1, p.z); try { crewFight?.engage('me', 'sword', id); } catch {} } // [backpack-pvp] your blade on a pirate: your crew rush THEIR crew
     for (const d of dummies) { const dx = d.x - W.x, dz = d.z - W.z, dd = Math.hypot(dx, dz); if (dd > S.reach + 0.6) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / Math.max(0.01, dd)))); if (ang > S.arc) continue;
       d.wv += 6 * (((dx * f.z - dz * f.x) > 0) ? 1 : -1); any = true; spark(d.x, BA.PIT.y + 1.6, d.z); }
+    try { if (globalThis.PFP_PVE?.sword?.(W, f, S)) any = true; } catch {} // [v349 money-makers] skeletons / stalkers
     if (any) sfx?.hit?.(0.8);
   }
   function spark(x, y, z) { const p = new THREE.Vector3(x, y, z); for (let i = 0; i < 6; i++) puff(p, 0xfff1b0, 0.25, 0.25, new THREE.Vector3((Math.random() - 0.5) * 5, Math.random() * 4, (Math.random() - 0.5) * 5), true); puff(p, 0xffffff, 0.8, 0.12, new THREE.Vector3(), true); }
@@ -506,6 +507,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
         if (clear) { const [, lz] = toTown(x + f.x * h.a, z + f.z * h.a), [, bz] = toTown(x, z); if (zoneAt(x, z) === Z_RANGE && lz < BA.RANGE.lz0 + 1.8 && bz >= BA.RANGE.lz0 + 1.8) clear = false; } // from the range: its back wall
         if (clear) { best = h.a; hit = { kind: h.kind, ship: h }; } } }
     if (!hit?.ship) { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
+    if (mine && !hit?.ship) { try { const pv = globalThis.PFP_PVE?.shot?.(x, z, f, best, S.dmg); if (pv) { best = pv.a; hit = { kind: 'pve' }; sfx?.hit?.(0.6); } } catch {} } // [v349 money-makers] skeletons / stalkers
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
     tracer(mz, end); puff(mz.clone().addScaledVector(f, 0.1), 0xffd27a, 0.9, 0.09, new THREE.Vector3(), true);
     for (let i = 0; i < 4; i++) puff(mz.clone().addScaledVector(f, 0.3 + i * 0.25), 0xe8e2d4, 0.55 + i * 0.12, 1.2, new THREE.Vector3(f.x * 0.8, 0.5, f.z * 0.8));
@@ -533,7 +535,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     }
     me.hp = Math.max(0, me.hp - n); me.lastBy = by; me.lastHitT = t; me.repT = 0; me.repairing = false; /* [t1724u] a hit restarts the 20 s wait */ sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
     if (me.hp <= 0) {
-      me.down = ARENA.downS; me.downs++; try { kd?.('d', `me:${me.life}`); } catch {} if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
+      me.down = ARENA.downS; me.downs++; try { kd?.('d', `me:${me.life}`); } catch {} try { dispatchEvent(new CustomEvent('pfp-pvp-down', { detail: { by: String(by || '') } })); } catch {} /* [v349] crate drop + prize fights */ if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
       const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);
       say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawning on your ship'}</small>`, 2400);
       // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
@@ -579,7 +581,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const prevLife = r.ba[2], prevHp = r.ba[1]; r.name = String(m.n ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
     if (ba[3] !== r.lastSeq) { r.lastSeq = ba[3]; if (ba[4] === 1 && ba[0] === Z_PIT) r.st.act = { kind: 1, t: 0 }; else if (ba[4] === 2 && ba[0] === Z_RANGE) r.fireAt = ARENA.musket.delay; }
     r.team = ba[8] === 1 || ba[8] === 2 ? ba[8] : 0;
-    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) { me.kos++; try { kd?.('k', `${m.i}:${ba[2]}`); } catch {} say(`KO! <small>${esc(r.name)} is down · just for fun</small>`, 1600); } }
+    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) { me.kos++; try { kd?.('k', `${m.i}:${ba[2]}`); } catch {} try { dispatchEvent(new CustomEvent('pfp-pvp-kill', { detail: { id: m.i, name: r.name } })); } catch {} /* [v349] bounties + prize fights */ say(`KO! <small>${esc(r.name)} is down · just for fun</small>`, 1600); } }
     if (!ba[6] && r.lastDown) r.guard = ARENA.guardS;
     r.lastDown = ba[6]; if (ba[2] !== prevLife || ba[1] > prevHp) r.hpShown = ba[1]; else r.hpShown = Math.min(r.hpShown ?? ba[1], ba[1]);
     r.ba = ba; r.st.zone = ba[0]; r.swordId = SWORD_IDS[ba[5]] || SWORD_DEFAULT; r.musketId = MUSKET_IDS[ba[7] | 0] || MUSKET_DEFAULT;

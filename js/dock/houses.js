@@ -1630,6 +1630,7 @@ export function createHouses({
     roomOrigin = { x: ox, y: oy, z: oz };
     interior.position.set(ox, oy, oz);
     scene.add(interior);
+    try { globalThis.PFP_MM?.houseRoom?.(interior, d); } catch {} // [v349 money-makers] the copper rum still
     return { ox, oy, oz, tier };
   }
 
@@ -2260,6 +2261,7 @@ export function createHouses({
         const a = { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' };
         return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null };
       }
+      if (spots.still && Math.hypot(spots.still.x - lx, spots.still.z - lz) < spots.still.r && dExit > 1.2) { const a = globalThis.PFP_MM?.stillPrompt?.(activeId); if (a) return { ...a, a: { ...a }, b: null }; } // [v349 money-makers]
       if (dExit < (spots.exit.r || 2.4)) {
         const a = { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
         return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null };
@@ -2276,6 +2278,7 @@ export function createHouses({
     if (tag === 'enter' && ctx?.door) return enterHouse(ctx.door);
     if (tag === 'exit') return exitHouse();
     if (tag === 'chest') return openStorage();
+    if (tag === 'still') return globalThis.PFP_MM?.stillAct?.(activeId); // [v349 money-makers]
   }
 
   function softPushAABB(w, col) {
