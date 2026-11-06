@@ -68,7 +68,7 @@ export async function coastLayout() {
   const P = (id, kind, lx, lz, label, r = 3.2) => { const [x, z] = L(lx, lz); interact.push({ id, kind, x, z, r, label }); };
   for (const id of ['waves', 'arena']) {
     const q = CO.boardApproach(PP[id]);
-    P(id, id, q.lx, q.lz, id === 'waves' ? 'STORM HUNT LEADERBOARD · START STORM HUNT' : 'BATTLE ROYALE LEADERBOARD · JOIN BATTLE', 3.6);
+    P(id, id, q.lx, q.lz, id === 'waves' ? 'STORM HUNT LEADERBOARD · START STORM HUNT' : 'KING OF THE HILL LEADERBOARD · JOIN BATTLE', 3.6);
   }
   P('spyglass', 'spyglass', CO.SPYGLASS.lx, CO.SPYGLASS.lz, 'SPYGLASS · SPECTATE', CO.SPYGLASS.r); // Raul's spyglass prop (coast.js SPYGLASS, single source of truth)
   if (CO.TOKENX_ON) P('exchange', 'exchange', PP.exchange.lx, PP.exchange.lz + 4.2, 'TOKEN EXCHANGE'); // [v240] kiosk + prompt hidden unless &tokenx=1 (dock/index.js 'exchange' case kept)

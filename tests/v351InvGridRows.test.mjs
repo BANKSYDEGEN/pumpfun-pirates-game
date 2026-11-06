@@ -41,5 +41,5 @@ test('v351: Brass Scope zoom helpers still present (same release)', () => {
   assert.match(math, /scopeZoom:\s*3/);
   assert.match(math, /export const adsZoom/);
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /VERSION = 'pfp-v351'/);
+  assert.ok(+((sw.match(/VERSION = 'pfp-v(\d+)'/) || [])[1]) >= 351);
 });

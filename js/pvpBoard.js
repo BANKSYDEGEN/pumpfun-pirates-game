@@ -1,7 +1,7 @@
-// PUMPFUN PIRATES · PvP KILLS leaderboard UI (ALL TIME / MONTHLY / DAILY, ranked by confirmed real-player kills, with K/D).
+// PUMPFUN PIRATES · KING OF THE HILL leaderboard UI (ALL TIME / MONTHLY / DAILY, ranked by confirmed Harbor+Arena player kills — gun, sword & boat sinks — with K/D).
 import { IS_PROD_HOST, devHook } from './env.js'; // [security] ?pvproom only off the live domains; console hooks only on dev servers
 // Periods use America/Indianapolis calendar days / months (server side, migration 006). Read-only; never touches the
-// solo Top Pirates board. Home screen: a WAVES / BATTLE ROYALE switch, remembered on this device.
+// solo Top Pirates board. Home screen: a WAVES / KING OF THE HILL switch, remembered on this device.
 import { fetchKillsTop, kd, clearKillsTopCache } from './pvpSave.js';
 import { PVP_ENABLED, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
@@ -24,13 +24,13 @@ export function mountKillsBoard(wrap) {
   if (!wrap || boards.has(wrap)) return; boards.add(wrap);
   const tabs = wrap.querySelector('.pk-tabs'); tabs.innerHTML = '';
   for (const p of KILL_PERIODS) {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = p.label; b.dataset.period = p.id; b.title = `PvP kills ${p.desc}`; b.setAttribute('role', 'tab');
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = p.label; b.dataset.period = p.id; b.title = `King of the Hill ${p.desc}`; b.setAttribute('role', 'tab');
     b.onclick = () => { period = p.id; set(PK_KEY, p.id); syncPeriodTabs(); refreshKillsBoards(); };
     tabs.appendChild(b);
   }
   syncPeriodTabs();
 }
-// [board refresh] visible boards re-read the server every 30 s (home BATTLE ROYALE tab, PvP menu); a recorded kill refreshes at once
+// [board refresh] visible boards re-read the server every 30 s (home KING OF THE HILL tab, PvP menu); a recorded kill refreshes at once
 setInterval(() => { if (document.visibilityState === 'visible' && [...boards].some(w => w.offsetParent !== null)) { clearKillsTopCache(); refreshKillsBoards(); } }, 30000);
 addEventListener('pfp-renamed', () => { clearKillsTopCache(); refreshKillsBoards(); }); // [v74] board shows the new name right away
 export function refreshKillsBoards() { for (const w of boards) if (w.offsetParent !== null || w.closest('.lb-br:not(.hidden)')) renderKills(w); }
@@ -43,7 +43,7 @@ export async function renderKills(wrap) {
   if (tokens.get(wrap) !== token) return;
   if (mode) mode.textContent = ok ? `(${pd.desc})` : '(offline)';
   ol.innerHTML = ''; ol.scrollTop = 0;
-  if (!rows.length) { ol.innerHTML = `<li class="empty">${ok ? `No PvP kills ${period === 'all' ? 'yet' : pd.desc}. Sail into the arena and take the top spot!` : 'Board offline, try again soon.'}</li>`; return; }
+  if (!rows.length) { ol.innerHTML = `<li class="empty">${ok ? `No King of the Hill kills ${period === 'all' ? 'yet' : pd.desc}. Sink ships or win ground fights and take the top spot!` : 'Board offline, try again soon.'}</li>`; return; }
   rows.forEach((r, i) => {
     const li = document.createElement('li');
     const rk = document.createElement('i'); rk.textContent = `${i + 1}.`;
@@ -51,12 +51,12 @@ export async function renderKills(wrap) {
     if (r.wallet) { const w = document.createElement('span'); w.className = 'pk-wallet'; w.textContent = ` · ${r.wallet}`; nm.appendChild(w); } // [v75] short saved wallet, Waves style (never the full address)
     else { const tag = document.createElement('small'); tag.className = 'pk-id'; tag.textContent = ` ${r.player || ''}`; nm.appendChild(tag); }
     const b = document.createElement('b'); b.textContent = r.kills;
-    const k = document.createElement('small'); k.className = 'pk-kd'; k.textContent = ` K/D ${kd(+r.kills || 0, +r.deaths || 0)}`; k.title = `${r.kills} kills · ${r.deaths} deaths (confirmed PvP kills only)`;
+    const k = document.createElement('small'); k.className = 'pk-kd'; k.textContent = ` K/D ${kd(+r.kills || 0, +r.deaths || 0)}`; k.title = `${r.kills} kills · ${r.deaths} deaths (confirmed Harbor + Arena · gun, sword & boat sinks)`;
     li.append(rk, nm, b, k); ol.appendChild(li);
   });
 }
 
-// home screen: WAVES (solo Top Pirates, unchanged) / BATTLE ROYALE (PvP kills) switch
+// home screen: WAVES (solo Top Pirates, unchanged) / KING OF THE HILL (Harbor+Arena kills) switch
 let homeApply = null;
 export function initHomeBoard() {
   if (homeApply) return homeApply(); // already wired: just refresh

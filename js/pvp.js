@@ -212,9 +212,14 @@ export function createPvp(K) {
   const me = { life: 0, protect: 0, dead: false, respawn: 0, lastDamageAt: 0, lastBy: null, kills: 0, deaths: 0, gold: 0, killedBy: '', dropped: 0, streak: 0, bounty: 0, pairs: new Map() };
   // [backpack-pvp] t1703u: ONE K/D = player ships sunk (arena + harbor open water) + on-foot ground fights; deduped per victim life
   const kdT = createKdTally({ stats: () => profile?.stats, onChange: () => { try { K.updateHud?.(); hud(); save({}); } catch {} } });
-  function groundKd(side, key) { // js/onfoot/battle.js: you KO'd a pirate ('k') / got KO'd ('d') in the SWORD PIT / MUSKET RANGE
-    const ok = side === 'k' ? kdT.kill('ground', key) : side === 'd' ? kdT.death('ground', key) : false;
+  // [v352 KOTH] open-island gun/sword (and bomb) KOs: local tally + claimKill (both sides). Coliseum pit/range stay cosmetic
+  // (meta.board falsy → kdT.extra only, never claimKill). meta: { board, k, v, life } when the kill feeds KING OF THE HILL.
+  function groundKd(side, key, meta = null) {
+    const onBoard = !!(meta && meta.board && meta.k && meta.v != null && Number.isFinite(+meta.life));
+    const ok = side === 'k' ? kdT.kill('ground', key, onBoard ? { board: true } : undefined)
+      : side === 'd' ? kdT.death('ground', key, onBoard ? { board: true } : undefined) : false;
     if (ok) { if (side === 'k') me.kills++; else me.deaths++; if (!active) { try { save({}); } catch {} } }
+    if (ok && onBoard) boardClaim(side, meta.k, meta.v, meta.life | 0);
     return ok;
   }
   let profile = blankProfile(), wallet = walletSession()?.wallet || '', name = getSavedName() || '';
@@ -1093,7 +1098,7 @@ export function createPvp(K) {
     const W = d.walker.w; if (!SC.blastHits(p, { x: W.x, y: W.y ?? 0, z: W.z }, impact)) return false;
     if (sid && (sid === myId || isSquadMate(sid))) return false; // no friendly fire
     if (owner && owner !== P() && Math.hypot(owner.x - W.x, owner.z - W.z) > 320) return false;
-    const k0 = B.me.life; B.takeHit(SC.BOMB_DMG, by); // takeHit: GOD MODE, Island Safe Zones (+ grace), houses, KO guard -> no damage
+    const k0 = B.me.life; B.takeHit(SC.BOMB_DMG, by, sid); // takeHit + sid → open-island KOTH victim claimKill via groundKd meta.board
     if (!(B.me.down > 0)) return false;
     d.toast?.(`💣 KILLED BY ${esc(String(by).toUpperCase())}${sid ? "'S" : ''} CANNON`, 2600); fx.hit(new THREE.Vector3(p.x, p.y, p.z));
     if (sid && room && peers.has(sid)) room.send('bk', { s: myId, k: sid, l: k0 }, { now: true });
@@ -1112,7 +1117,8 @@ export function createPvp(K) {
     if (!m || !isNetId(m.s) || m.s !== from || m.k !== myId || !peers.has(m.s)) return;
     const key = `${m.s}:${m.l | 0}`; if (bombSeen.has(key)) return; bombSeen.set(key, 1); if (bombSeen.size > 200) bombSeen.clear();
     if (performance.now() - (me.lastFireAt || 0) > 12000) return; // only right after one of MY broadsides
-    try { kdT.kill('ground', `bomb:${key}`); } catch {}
+    // [v352 KOTH] cannon → on-foot pirate counts (killer side); groundKd board:true → claimKill + no extra double-count
+    try { groundKd('k', `bomb:${key}`, { board: true, k: myId, v: m.s, life: m.l | 0 }); } catch {}
     K.banner(`💥 BOMBED ${nameOf(m.s).toUpperCase()}!`, 'one cannonball, one pirate'); sfx.impact?.({ dmg: 100, maxHp: 100, kill: true, onPlayer: false, armor: 0, v: 0.9 });
   }
   // AI: a pirate exposed on the coast (out of Safe Zones) who shot this ship is worth a broadside (main.js enemyTarget)
@@ -1264,11 +1270,15 @@ export function createPvp(K) {
     if (isBoss) goalToast({ ...st, bossKills: st.bossKills - 1 }, st);
     save(isBoss ? { now: true } : {});
   }
-  // PvP KILLS leaderboard: both the killer and the victim report each player kill; the server records it when they match
+  // KING OF THE HILL board: both sides report each player kill (gun / sword / boat sink, harbor OR arena); server records when they match
+  function claimRoomId() { // harbor copies → pfp-harbor-N; BR solo/squads → pfp-pvp-v1[-sq]-N (top sums every room)
+    return where === 'harbor' ? `${HB_PREFIX}-${roomIdx || 0}` : `${curPrefix()}-${roomIdx}`;
+  }
   function boardClaim(side, k, v, life, keepalive = false) {
     if (!room || typeof k !== 'string' || typeof v !== 'string') return;
+    if (where === 'harbor' && codeOfPrefix(hbNet?.prefix)) return; // own / private harbor servers never feed KOTH
     const ent = { side, t1: 0 }; if (!keepalive) unsynced.push(ent);
-    claimKill({ side, room: `${curPrefix()}-${roomIdx}`, k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r;
+    claimKill({ side, room: claimRoomId(), k, v, life, name, keepalive }).then(r => { if (r) lastClaim = r;
       ent.t1 = performance.now(); if (!(r === 'recorded' || r === 'pending')) { const i = unsynced.indexOf(ent); if (i >= 0) unsynced.splice(i, 1); } // not counted by the server if (r === 'recorded' && !keepalive) { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }
       else if (r === 'pending' && !keepalive) for (const ms of [3000, 9000]) setTimeout(() => { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }, ms); }); // [v77] the other side's claim lands after mine: re-read my rank / the board (a first death now ranks me)
   }

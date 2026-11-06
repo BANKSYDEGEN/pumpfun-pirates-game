@@ -51,7 +51,7 @@ test('t1703u wiring: pvp.js unified tally (HUD + pvpSave), battle.js KO hooks, d
   assert.doesNotMatch(pvp, /profile\.stats\.kills\+\+|profile\.stats\.deaths\+\+/, 'every K/D goes through the deduped tally');
   const battle = read('js/onfoot/battle.js');
   assert.match(battle, /kd\?\.\('k'/); assert.match(battle, /kd\?\.\('d'/);
-  assert.match(read('js/dock/index.js'), /groundKd\?\.\(side, key\)/);
+  assert.match(read('js/dock/index.js'), /groundKd\?\.\(side, key, meta\)/);
 });
 
 // ---------------- t1706u crews ----------------
