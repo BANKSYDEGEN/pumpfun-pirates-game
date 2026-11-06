@@ -30,10 +30,18 @@ import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offs
 import { createHouses, HOUSES_ON } from './houses.js'; // [Emerly storage-houses] buyable cottages + instanced storage (&houses=0)
 import { ADM } from '../adminState.js'; // [admin-menu] frozen = no interact
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
+import { createLootBags } from './lootBags.js'; // [backpack-pvp] PvP plunder bags
+import { buildSafeZoneMarks } from './safeZoneMarks.js'; // [backpack-pvp] sanctuary lanterns
+import { tickIsleSafe, graceLeft, SAFEZONES_ON, SAFE_GRACE_S, insideSafeZoneH, zoneAtH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
+import { createCrewFight } from '../onfoot/crewFight.js'; // [backpack-pvp] t1706u crew mirror your attack on THEIR crew
+import { ownerAllSkins, shopCache, accountInfo } from '../pvpSave.js'; // [backpack-pvp] BANKSY unlimited
 
 const CSS = `
 #dk-safe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#7cff6b;background:rgba(22,22,22,.72);border:2px solid #7cff6b;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
 #dk-safe.grace{color:#ffcd77;border-color:#ffcd77}
+#dk-islesafe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#34d399;background:rgba(22,22,22,.72);border:2px solid #34d399;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
+#dk-islesafe.grace{color:#ffcd77;border-color:#ffcd77}
+@media (max-width:600px){#dk-islesafe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
 #dk-acts{position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 168px);transform:translateX(-50%);z-index:8;display:none;gap:10px;align-items:center;pointer-events:none}
 #dk-acts button[hidden]{display:none!important}
 #dk-acts button{pointer-events:auto;font:26px 'Just Another Hand',cursive;letter-spacing:.05em;line-height:1;padding:10px 20px 7px;border-radius:14px;border:3px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer;white-space:nowrap;touch-action:none}
@@ -106,7 +114,17 @@ export async function createDock(ctx) {
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, toast: (m, ms) => toast(m, ms), myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
     hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact // [lh-hit] toast on lighthouse strike
-  const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW }); // [Timothy] adds the WEAPON STORE point to layout.interact (window.openWeaponStore)
+  let lootBags = null; // [backpack-pvp] filled after houses so inHouse can close over it
+  const isleSafeHud = { _isleSafe: false, _isleSafeOut: 0, _isleSafeZone: null };
+  const crewFight = createCrewFight({ THREE, scene, sfx: ctx.sfx, ground: (x, z) => world.ground(x, z), inSafe: (x, z) => insideSafeZoneH(x, z),
+    crewOf: (id) => (id === 'me' ? (onFoot && crewF?.active ? crewF.list.filter((c) => c.p.object.visible || c.fight) : []) : (fnet.peers.get(id)?.crew?.list || [])),
+    captainOf: (id) => (id === 'me' ? (onFoot ? walker.w : null) : (fnet.peers.get(id) || null)) });
+  const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW,
+    lootBags: { dropHaul: (...a) => lootBags?.dropHaul?.(...a) },
+    inHouse: () => !!houses?.inHouse,
+    inventory: () => inventory, crewFight,
+    kd: (side, key) => { try { return ctx.pvp?.()?.groundKd?.(side, key); } catch { return false; } },
+  }); // [Timothy] + [backpack-pvp] safe-zone / loot hooks · crew fights · unified K/D
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
 
@@ -114,7 +132,7 @@ export async function createDock(ctx) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   if (touch) document.documentElement.classList.add('dk-touch');
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
-  const safeTag = el('div', 'dk-safe', '⚓ SAFE HARBOR'), acts = el('div', 'dk-acts'), fade = el('div', 'dk-fade'), toastEl = el('div', 'dk-toast');
+  const safeTag = el('div', 'dk-safe', '⚓ SAFE HARBOR'), isleSafeTag = el('div', 'dk-islesafe', '🛡️ SAFE ZONE'), acts = el('div', 'dk-acts'), fade = el('div', 'dk-fade'), toastEl = el('div', 'dk-toast');
   const joy = el('div', 'dk-joy', '<i></i>'), jumpB = el('button', 'dk-jump', 'JUMP'), boardX = el('button', 'dk-board-x', '✕ BACK');
   const bA = document.createElement('button'), bB = document.createElement('button'); acts.append(bA, bB);
   let actA = null, actB = null, uiSig = '';
@@ -156,6 +174,21 @@ export async function createDock(ctx) {
     saveGold: () => { try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} },
     inventory: () => inventory, pvp: () => ctx.pvp(), low: LOW, game, ocean, islands,
   }); } catch (e) { console.warn('[storage-houses]', e); } // [Emerly storage-houses]
+  let safeMarks = null; try { safeMarks = buildSafeZoneMarks(scene, world, layout); } catch (e) { console.warn('[safe-marks]', e); }
+  try {
+    lootBags = createLootBags({
+      scene, world, walker, toast: (m, ms) => toast(m, ms), sfx: ctx.sfx,
+      invApi: async (action, body = {}) => {
+        try { return await ctx.pvp?.()?.inv?.call?.(action, body); } catch { return null; }
+      },
+      inventory: () => inventory,
+      myId: () => { const v = typeof myId === 'function' ? myId() : myId; return v || 'local'; },
+      myName: () => ctx.pvp?.()?.name || 'PIRATE',
+      isOwner: () => !!(ownerAllSkins?.() || shopCache?.()?.owner || accountInfo?.()?.owner || (typeof location !== 'undefined' && /[?&]banksy=1(&|$)/.test(location.search || ''))),
+      inHouse: () => !!houses?.inHouse, inSafe: (x, z) => insideSafeZoneH(x, z), now: () => game.t || 0, waveHeight: ctx.waveHeight,
+      broadcast: (msg) => { try { return ctx.pvp?.()?.lootNet?.(msg); } catch { return false; } },
+    });
+  } catch (e) { console.warn('[loot-bags]', e); }
   // joystick
   { let id = null, cx = 0, cy = 0; const knob = joy.querySelector('i'), R = 52;
     joy.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); id = e.pointerId; const r = joy.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; walker.w.joy.on = true; mv(e); try { joy.setPointerCapture(e.pointerId); } catch {} });
@@ -201,7 +234,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { canoe?.clearAll?.(P()); houses?.clear?.(); skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { canoe?.clearAll?.(P()); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -324,10 +357,23 @@ export async function createDock(ctx) {
     battery?.tick(dt, walker, onFoot); // [Timothy] aim the gun you stand at, fly the cosmetic balls
     // HUD tag
     const g = zone.graceLeft(s, now);
-    if (onFoot) safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
-    else if (s._safe) safeTag.style.display = 'none'; // [v176] BANKSY: no ⚓ SAFE HARBOR pill (it covered the top hint); the zone itself is unchanged
-    else if (g > 0) { safeTag.style.display = 'block'; safeTag.className = 'grace'; safeTag.textContent = `NO FIRING · ${Math.ceil(g)}`; }
-    else safeTag.style.display = 'none';
+    if (onFoot) {
+      safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
+      // [backpack-pvp] Island Safe Zone pill (never while inside a cottage — BANKSY)
+      if (SAFEZONES_ON && !houses?.inHouse) {
+        const W = walker.w, tnow = now;
+        const zn = tickIsleSafe(isleSafeHud, ...layout.harborToFoot(W.x, W.z), tnow); // walker = harbor frame
+        const gl = graceLeft(isleSafeHud, tnow, SAFE_GRACE_S);
+        if (zn) { isleSafeTag.style.display = 'block'; isleSafeTag.className = ''; isleSafeTag.textContent = `🛡️ SAFE ZONE · ${zn.name}`; }
+        else if (gl > 0) { isleSafeTag.style.display = 'block'; isleSafeTag.className = 'grace'; isleSafeTag.textContent = `NO FIRING · ${Math.ceil(gl)}s`; }
+        else isleSafeTag.style.display = 'none';
+      } else isleSafeTag.style.display = 'none';
+    } else {
+      isleSafeTag.style.display = 'none';
+      if (s._safe) safeTag.style.display = 'none'; // [v176] BANKSY: no ⚓ SAFE HARBOR pill (it covered the top hint); the zone itself is unchanged
+      else if (g > 0) { safeTag.style.display = 'block'; safeTag.className = 'grace'; safeTag.textContent = `NO FIRING · ${Math.ceil(g)}`; }
+      else safeTag.style.display = 'none';
+    }
     // prompts
     if (onFoot) {
       walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
@@ -341,6 +387,7 @@ export async function createDock(ctx) {
       else if (houses?.inHouse) { const hp = houses.prompts({ onFoot: true, W }); const a = hp?.a || (hp && { label: hp.label, key: hp.key || 'E', primary: !!hp.primary, tag: hp.tag }); const b = hp?.b || null; setActs(a ? { label: a.label, key: a.key || 'E', primary: !!a.primary, fn: () => houses.act(a.tag, { door: hp.door }) } : null, b ? { label: b.label, key: b.key || 'Q', primary: !!b.primary, fn: () => houses.act(b.tag) } : null); skinPick.close(); }
       else {
         if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
+        if (!best && lootBags?.on) { const lp = lootBags.prompts({ onFoot: true, W }); if (lp) best = { label: lp.label, primary: true, key: 'E', fn: () => lootBags.act() }; }
         if (!best && houses?.on) { const hp = houses.prompts({ onFoot: true, W }); if (hp) best = { label: hp.label, primary: !!hp.primary, key: hp.key || 'E', fn: () => houses.act(hp.tag, { door: hp.door }) }; }
         { const cp = canoe?.prompts({ s, onFoot: true, W, docking });
           if (cp?.a && !best) {
@@ -370,7 +417,10 @@ export async function createDock(ctx) {
       } else setActs(null, null);
     } else setActs(null, null);
     battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
+    if (onFoot) lootBags?.tick?.(dt, { walker: walker.w }); // [backpack-pvp]
     fnet.tick(dt);
+    if (onFoot) crewFight.tick(dt); else if (crewFight.active) crewFight.clear(); // [backpack-pvp] after every crew moved
+    if (!onFoot) lootBags?.tick?.(dt, { ship: P(), sailing: !canoe || canoe.mode !== 'canoe', canoe: canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null }); // sea crates bob + scoop while sailing
     signs.tick(dt, (b) => docking.berth === b && docking.mode === 'docked' ? (ctx.pvp()?.name || 'PIRATE') : (docking.takenBy(b.id) ? peerNames.get(docking.takenBy(b.id)) || 'PIRATE' : ''));
     if (bcLink) bcLink.tick();
   }
@@ -395,7 +445,7 @@ export async function createDock(ctx) {
 
   const CREW_EMOTE = { 0: 0, 1: 100, 2: 100, 4: 4, 6: 6, 7: 7 };
   const api = {
-    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle,
+    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle, crewFight, get lootBags() { return lootBags; }, safeZone: { inside: (x, z) => insideSafeZoneH(x, z), zoneAt: (x, z) => zoneAtH(x, z), coliseum: (x, z) => isInsideColiseumH(x, z), hud: isleSafeHud },
     get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, canoe, pet: petF, pirate, goAshoreAt,
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : on && canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null), followers: crewF, // [v314] the sea follows the canoe
@@ -419,6 +469,22 @@ export async function createDock(ctx) {
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,
+    // [backpack-pvp] t1710u the at-sea ship radar (main.js): Safe Harbor sea zone (no ship PvP inside) + the island Safe Zone overlay
+    radarZones: (ctx, W, T, s) => {
+      if (!on || onFoot) return false; const R = W / 2, inSafe = !!(s && zone.inside(s.x, s.z));
+      ctx.save(); ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.clip();
+      imap.drawSafeOverlay?.(ctx, T);
+      const pts = layout.safe?.pts || [];
+      if (pts.length > 2) { ctx.beginPath(); pts.forEach(([x, z], i) => { const [a, b] = T(x, z); i ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }); ctx.closePath();
+        ctx.fillStyle = 'rgba(46, 232, 138, 0.10)'; ctx.fill(); ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(46, 232, 138, 0.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); }
+      ctx.restore();
+      const fs = Math.max(9, Math.round(W / 13)), t = inSafe ? '🛡️ SAFE HARBOR' : '⚔️ SEA PVP';
+      ctx.save(); ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const tw = ctx.measureText(t).width + fs, py = W - fs * 0.95;
+      ctx.fillStyle = inSafe ? 'rgba(6,40,24,.92)' : 'rgba(60,10,10,.92)'; ctx.strokeStyle = inSafe ? '#2ee88a' : '#ff5a4a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(R - tw / 2, py - fs * 0.7, tw, fs * 1.4, fs * 0.7); else ctx.rect(R - tw / 2, py - fs * 0.7, tw, fs * 1.4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = inSafe ? '#b7ffd8' : '#ffd0c8'; ctx.fillText(t, R, py + 1); ctx.restore();
+      return true;
+    },
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
   return api;

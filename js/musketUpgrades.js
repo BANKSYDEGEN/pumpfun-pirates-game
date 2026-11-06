@@ -1,7 +1,7 @@
 // [Emerly musket-upgrades] BANKSY 2:52 PM Nov 5: "No just add it we can always change it". Gold-bought MUSKET UPGRADES (3 tracks x 3 tiers)
 // + a cosmetic GILDED barrel / stock skin once all 9 are bought. Bought through the island shop's normal shop_buy as 'gear:muskupg:<id>'
 // rows (pvp_owned, no migration; lib.ts SHOP_ITEMS has the same prices). The owner (BANKSYDEGEN) owns every tier free.
-// MODEST on purpose: damage never changes (a musket hit is still 50, 2 hits = KO), max tier = reload -9%, range +12%, spread -11%.
+// MODEST on purpose: damage never changes (a musket hit is still ARENA 19, 5-6 hits = KO · t1711u), max tier = reload -9%, range +12%, spread -11%.
 // [Emerly musket-rank] BANKSY 2:56 PM: a found musket ranks up one rarity (common -> rare -> epic -> legendary) for gold + MUSKET PARTS;
 // each rank raises the upgrade-tier cap and tints the musket. Kill switches: &muskupg=0 (no upgrades, old stats), &muskrank=0 (no rank-up,
 // no cap), &wstack=0 (weapons stack in the inventory again, js/inventory/ui.js).
@@ -48,12 +48,12 @@ export function muskLook(rarity = 'common', lv = LV) {
   if (!muskRankOn()) return null; const l = RANK_LOOK[rarity]; return l ? { id: rarity, ...l } : null;
 }
 // [Emerly gunacc] BANKSY 2:58 PM "add gun accessories to that slot": 4 sub-slots on the EQUIPPED musket. Kept on the SLOT (swapping muskets
-// keeps them). Modest: scope -5% spread + 15% aim zoom, bayonet +10 dmg point-blank (<= 2.2 m, still 50+10 < 100 = 2 hits), stock -3%
+// keeps them). Modest: scope -5% spread + 15% aim zoom, bayonet +3 dmg point-blank (<= 2.2 m, still 5+ hits: 21+3 = 24 x 4 < 100), stock -3%
 // spread + 30% less recoil kick, powder horn -5% reload. &gunacc=0 = no sub-slots, no effects.
 export const gunAccOn = (s = q()) => !/[?&]gunacc=0(&|$)/.test(s || '');
 export const GUN_ACC = [ // sub-slot order on the card
   { slot: 'scope', key: 'val:acc_scope', label: 'SCOPE', fx: 'aim zoom +15% · spread -5%' },
-  { slot: 'bayonet', key: 'val:acc_bayonet', label: 'BAYONET', fx: '+10 dmg point-blank (2.2 m)' },
+  { slot: 'bayonet', key: 'val:acc_bayonet', label: 'BAYONET', fx: '+3 dmg point-blank (2.2 m)' },
   { slot: 'stock', key: 'val:acc_stock', label: 'STOCK', fx: 'recoil -30% · spread -3%' },
   { slot: 'horn', key: 'val:acc_horn', label: 'POWDER HORN', fx: 'reload -5%' },
 ];
@@ -69,6 +69,6 @@ export function applyGunAcc(o, acc = gunAcc()) {
   const r = { ...o };
   if (acc.horn && 'reload' in r) r.reload = +(r.reload * 0.95).toFixed(3);
   if ('wide' in r) { let w = r.wide; if (acc.scope) w *= 0.95; if (acc.stock) w *= 0.97; r.wide = +w.toFixed(3); }
-  r.recoil = acc.stock ? 0.7 : 1; r.zoom = acc.scope ? 1.15 : 1; r.bayonet = acc.bayonet ? { dmg: 10, reach: 2.2 } : null;
+  r.recoil = acc.stock ? 0.7 : 1; r.zoom = acc.scope ? 1.15 : 1; r.bayonet = acc.bayonet ? { dmg: 3, reach: 2.2 } : null; // [backpack-pvp] t1711u: 21 + 3 = 24 x 4 = 96 < 100 = still 5 shots at legendary
   return r;
 }

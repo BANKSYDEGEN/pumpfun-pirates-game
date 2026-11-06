@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v324'; // [v324] Waves wear Harbor skin only (no mid-run unlocks/changes) + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v323] waterfall AAA (falls.glb / fallsBlender.js); prev: [v322] BANKSY owner-only Admin Menu;
+const VERSION = 'pfp-v325'; // [v325] backpack 16-slot cap (BANKSY ∞) + PvP loot bags (migration 044 + pvp loot.ts) + one Cottages-to-Dock Safe Zone (Coliseum excluded) + fishing lagoon safe zone + safe zones on map / minimap / radars + UNARMED / SWORD / GUN stances + 5-6 shot TTK + ⚓ server picker + harbor sea PvP / floating loot crates + unified K/D + crew-vs-crew fights; prev: [v324] Waves wear Harbor skin only (no mid-run unlocks/changes) + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v323] waterfall AAA (falls.glb / fallsBlender.js); prev: [v322] BANKSY owner-only Admin Menu;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -38,6 +38,8 @@ const SHELL = [
   "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
   "./js/adminMenu.js",
+  "./js/inventory/backpackCap.js", "./js/island/safeZones.js", "./js/dock/lootBags.js", "./js/dock/safeZoneMarks.js", // [backpack-pvp]
+  "./js/serverPicker.js", "./js/kdCounter.js", "./js/onfoot/crewFight.js", "./js/onfoot/stances.js", // [backpack-pvp] server picker · unified K/D · crew-vs-crew fights
   "./js/dock/docking.js",
   "./js/dock/layout.js",
   "./js/dock/safe.js",

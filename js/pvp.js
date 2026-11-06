@@ -66,6 +66,8 @@ import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet,
 import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
+import { createServerPicker, SERVER_PICKER_ON, serverLabel, codeOfPrefix, ownPrefix } from './serverPicker.js'; // [backpack-pvp] t1694u CHOOSE SERVER
+import { createKdTally } from './kdCounter.js'; // [backpack-pvp] t1703u K/D = sunk ships + ground fights
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -186,6 +188,10 @@ export function createPvp(K) {
   // [v99] SHARED HARBOR copies: live 'pfp-harbor' (rooms pfp-harbor-1, -2, ...); ?pvproom=X tests use 'pfp-harbor-X'. ?hbcap=N: smaller test copies
   const HB_PREFIX = 'pfp-harbor' + (QS.get('pvproom') ? '-' + ROOM_PREFIX.slice(8) : '');
   const hbNet = createHarborNet({ prefix: HB_PREFIX, myId, ticket: rtTicket }), HB_CAP = +QS.get('hbcap') || null;
+  // [backpack-pvp] BANKSY t1698u "Try B": open-water ship PvP in the shared harbor OUTSIDE Safe Harbor (+ its 4 s exit grace); anchored
+  // UNMANNED ships (moored, or anchored while you are ashore / in the canoe) are shielded; sunk by a pirate = your unequipped haul floats
+  // in a sea loot crate. &hbpvp=0 = the old PvE-only harbor (balls pass through pirates).
+  const HB_PVP_ON = QS.get('hbpvp') !== '0'; // (= !/[?&]hbpvp=0(&|$)/)
   const hb = { copy: 0, n: 0, s: 0, pirates: 0, copies: [], cap: HARBOR_NET.cap, beatAt: 0, busy: false, hj: 0, listenUntil: 0, gen: 0, specCopy: 0, specEmptyT: 0, specBeatAt: 0, wantCopy: 0 };
   const curPrefix = () => mode === 'squads' ? SQ_PREFIX : ROOM_PREFIX;
   const isSq = () => mode === 'squads' && (where === 'arena' || where === 'spec'); // in the squads arena (playing or watching)
@@ -202,6 +208,13 @@ export function createPvp(K) {
   const feed = [];
   let hitQueue = [], hitT = 0;
   const me = { life: 0, protect: 0, dead: false, respawn: 0, lastDamageAt: 0, lastBy: null, kills: 0, deaths: 0, gold: 0, killedBy: '', dropped: 0, streak: 0, bounty: 0, pairs: new Map() };
+  // [backpack-pvp] t1703u: ONE K/D = player ships sunk (arena + harbor open water) + on-foot ground fights; deduped per victim life
+  const kdT = createKdTally({ stats: () => profile?.stats, onChange: () => { try { K.updateHud?.(); hud(); save({}); } catch {} } });
+  function groundKd(side, key) { // js/onfoot/battle.js: you KO'd a pirate ('k') / got KO'd ('d') in the SWORD PIT / MUSKET RANGE
+    const ok = side === 'k' ? kdT.kill('ground', key) : side === 'd' ? kdT.death('ground', key) : false;
+    if (ok) { if (side === 'k') me.kills++; else me.deaths++; if (!active) { try { save({}); } catch {} } }
+    return ok;
+  }
   let profile = blankProfile(), wallet = walletSession()?.wallet || '', name = getSavedName() || '';
   if (!name) name = pirateName(); // not saved: Waves keeps its own (empty) name until you type one
 
@@ -401,6 +414,7 @@ export function createPvp(K) {
     respawnHarbor(); hb.beatAt = 0; harborUi(); K.banner(title, sub); // [v99] back into a shared harbor copy at the next heartbeat
   }
   function respawnHarbor(afterDeath = false) {
+    if (afterDeath && me.harborPvp) { me.life++; me.harborPvp = false; } // [backpack-pvp] a new life after an Option B sink (its 'sunk' key)
     const pl = P(); me.dead = false; me.protect = afterDeath ? PVP_HARBOR_PROTECT : 0; me.lastBy = null; me.lastDamageAt = 0; showDead(false); pl.mesh.visible = true;
     let x = 0, z = 0, yaw = 0;
     if (!afterDeath && hbNet) { const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 26; x = Math.cos(a) * r; z = Math.sin(a) * r; } // [v104 shared harbor] pirates sharing a copy don't all appear on the same spot
@@ -590,6 +604,26 @@ export function createPvp(K) {
     if (boss.e && !bots.has(boss.e.net.id)) boss.e = null;
     isHost = false; hostId = null; hb.listenUntil = 0;
   }
+  // [backpack-pvp] t1694u CHOOSE SERVER: public copy / + NEW (lowest empty copy) / OWN code (own prefix) / AUTO
+  async function switchServer(plan) {
+    if (!hbNet) return { ok: false, why: 'shared harbors are off right now' };
+    if (!plan?.ok) return { ok: false, why: plan?.why || 'bad server' };
+    if (!active || where !== 'harbor' || spec.on) return { ok: false, why: 'leave the arena / spectate first' };
+    if (lob.state !== 'harbor') return { ok: false, why: 'leave the queue first' };
+    try { if (K.dock?.houses?.inHouse) K.dock.houses.exitHouse(); } catch {}
+    hbLeave(true);
+    hbNet.setPrefix(plan.prefix); hb.wantCopy = plan.wantCopy || 0; hb.copies = []; hb.copy = 0; hb.beatAt = 0;
+    try { localStorage.setItem('pfp_hb_server', plan.code || ''); } catch {}
+    markInput(); hbTick(performance.now()); // reconnect now, not at the next heartbeat
+    harborUi(); hud();
+    const msg = `⚓ Switched to ${plan.label}`; K.banner?.('⚓ SERVER', esc(msg).slice(0, 60));
+    return { ok: true, msg, prefix: hbNet.prefix, wantCopy: plan.wantCopy || 0, code: plan.code || '' };
+  }
+  const serverPicker = hbNet && SERVER_PICKER_ON ? createServerPicker({
+    info: () => ({ prefix: hbNet.prefix, copy: hb.copy | 0, copies: hb.copies, cap: hb.cap || 4, wantCopy: hb.wantCopy | 0, n: hb.n | 0, pirates: hb.pirates | 0 }),
+    switchTo: switchServer, toast: (m) => K.banner?.('⚓ SERVER', String(m).slice(0, 60)),
+  }) : null;
+  try { const op = ownPrefix(localStorage.getItem('pfp_hb_server') || ''); if (hbNet && op && !QS.get('pvproom')) hbNet.setPrefix(op); } catch {} // your OWN server sticks until AUTO PUBLIC
   function hbLeave(keepalive = false) { hb.gen++; if (where !== 'spec') hbDisconnect(); if (hbNet && (hb.copy || keepalive)) hbNet.call('leave', { seat: seatId, keepalive }); hb.copy = 0; hb.n = 0; hb.beatAt = 0; hb.busy = false; }
   // host order in a copy: who joined it first (hj, their own clock: everyone compares the same numbers), then the lowest id
   function electHarborHost() {
@@ -691,6 +725,7 @@ export function createPvp(K) {
     if (m.k === myId && !spec.on) countBotKill(isBoss);
   }
   function wire(r) {
+    r.on('lb', onLootNet); // [backpack-pvp] plunder bags / sea crates in this copy
     r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
@@ -775,7 +810,8 @@ export function createPvp(K) {
     p.bt = bt;
     p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${bt}</span>` : ''}`;
     p.ship.netState = p.st;
-    if (typeof m.dk === 'string') p.dk = m.dk; p.ship.anchor = p.ship._safe = where === 'harbor' && !!p.dk; // [dock-waterline] a peer moored at a berth rides the moored waterline too
+    if (typeof m.dk === 'string') p.dk = m.dk; p.ship.anchor = p.ship._safe = where === 'harbor' && !!p.dk;
+    p.um = !!m.um; p.ship._unmanned = where === 'harbor' && (p.um || !!p.dk); // [backpack-pvp] Option B: their parked / unmanned ship is shielded // [dock-waterline] a peer moored at a berth rides the moored waterline too
     const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
     p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
@@ -798,7 +834,7 @@ export function createPvp(K) {
       e.hp = st.h; e.maxHp = st.m; e.prot = st.p;
     }
     K.floatShip(e, dt); farCrew(e);
-    shield(e, e.alive && e.prot);
+    shield(e, e.alive && (e.prot || (HB_PVP_ON && where === 'harbor' && e._unmanned))); // [backpack-pvp] rivals SEE the unmanned-ship bubble
     if (e.net?.kind === 'player') skinFx(e, dt);
   }
   // per-ship skin hook: skin.tick(mesh, { speed, alive, dt, t }) (+ global shipTick hooks) runs for EVERY PvP ship (yours and remote ones),
@@ -924,13 +960,26 @@ export function createPvp(K) {
     sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), aiBall && !!owner.big);
   }
   const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
+  // [backpack-pvp] Option B helpers
+  const unmannedLocal = () => { const d = K.dock, pl = P(); return !!(d?.on && (d.docking?.mode === 'docked' || (pl?.anchor && (d.onFoot || d.canoeing)) || pl?._offshore || pl?._canoeAway)); };
+  function shipProtectedHarbor(s) {
+    if (!s || !s.alive) return true;
+    if (s.prot) return true;
+    if (s === P() ? (me.protect > 0 || unmannedLocal()) : !!s._unmanned) return true;
+    try { if (K.dock?.invuln?.(s)) return true; } catch {}
+    return false;
+  }
+  const harborPvpCanHit = (shooter, target) => HB_PVP_ON && where === 'harbor' && !spec.on && !!shooter && !!target
+    && !party.mates?.has?.(shipIdOf(target)) && !party.mates?.has?.(shipIdOf(shooter))
+    && !shipProtectedHarbor(shooter) && !shipProtectedHarbor(target)
+    && !(K.dock?.canFire && shooter === P() && !K.dock.canFire(shooter)) && !(shooter !== P() && K.dock?.zone?.inside?.(shooter.x, shooter.z));
   function ballStep(b, p) { // returns true when the ball is spent
     const pl = P(), hbm = where === 'harbor' || (spec.on && spec.harbor), ownerBot = b.owner?.net?.kind === 'bot';
     const ships = [pl, ...enemies];
     for (const s of ships) {
       if (s === b.owner || !s.alive || (s === pl && me.dead)) continue;
       if (ownerBot && s !== pl) { if (hbm && s.net?.kind === 'player' && inside(s, p)) { fx.hit(p.clone()); return true; } continue; } // AI balls only hurt you (another pirate's client applies its own hits), never AI ships
-      if (hbm && !ownerBot && (s === pl || s.net?.kind === 'player')) continue; // [v99] shared harbor is PvE: balls pass through pirates
+      if (hbm && !ownerBot && (s === pl || s.net?.kind === 'player') && !harborPvpCanHit(b.owner, s)) continue; // [v99] PvE harbor: balls pass through pirates · [backpack-pvp] Option B: open water outside Safe Harbor = live
       if (isSq() && !sqCanHit(shipIdOf(b.owner), shipIdOf(s))) continue; // [v98] squads: balls pass through teammates; no damage between rounds
       if (!inside(s, p)) continue;
       if (b.visual) { fx.hit(p.clone()); return true; }
@@ -1005,7 +1054,9 @@ export function createPvp(K) {
       if (t !== myId) { const o = ownerObj(t); if (o?.mesh) crewHit(o.mesh, dmg / Math.max(1, o.maxHp || 100) * 6); continue; } // [v87] another pirate got hit: their crew stagger (visual)
       if (t === myId) { const pl = P();
         if (bat) { const g = BATTERY_GUNS[bat.g]; if (!g || Math.hypot(g.x - pl.x, g.z - pl.z) > BATTERY_RANGE || dmg > bat.cap) continue; localDamage(dmg, m.s, null, shooter); continue; } // [v171] cliff gun: gun -> you range
-        if (Math.hypot(shooter.x - pl.x, shooter.z - pl.z) > 230) continue; localDamage(dmg, m.s, null, shooter); }
+        if (Math.hypot(shooter.x - pl.x, shooter.z - pl.z) > 230) continue;
+        if (where === 'harbor' && !bots.has(m.s) && !harborPvpCanHit(shooter, pl)) continue; // [backpack-pvp] Option B: never in / just out of Safe Harbor, never an unmanned / shielded ship, never a party mate (&hbpvp=0: no ship PvP)
+        localDamage(dmg, m.s, null, shooter); }
     }
   }
 
@@ -1019,6 +1070,7 @@ export function createPvp(K) {
     const pl = P(), recent = performance.now() - me.lastDamageAt < 15000;
     let by = recent ? me.lastBy : null;
     const byAi = !!by && (bots.has(by) || String(by).startsWith('b'));
+    if (where === 'harbor' && HB_PVP_ON && !byAi && by && peers.has(by)) { harborPvpSunk(pl, by); return; } // [backpack-pvp] Option B
     if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
       const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
       me.dead = true; me.respawn = where === 'harbor' ? PVP_HARBOR_RESPAWN : PVP_RESPAWN; me.respawnAt = where === 'harbor' ? performance.now() + PVP_HARBOR_RESPAWN * 1000 : 0; me.killedBy = bots.get(by)?.harborBoss ? 'the COMMODORE' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
@@ -1029,7 +1081,7 @@ export function createPvp(K) {
     // [br-death] BANKSY: a sunk pirate loses only min(PVP_BR_DEATH_LOSS, gold) (keeps the rest) + the +100 bonus on top, then goes back to the harbor
     const carried = brLoss(game.gold), afk = idleMs() >= AFK_FARM; // idle ≥ PVP_AFK.farm s: no +100 bonus, no kill credit (anti-farming)
     me.dead = true; me.respawn = PVP_RESPAWN; me.killedBy = by ? nameOf(by) : 'the sea'; me.dropped = carried + (afk ? 0 : PVP_DEATH_BONUS); me.afkDeath = afk; me.lostGold = carried;
-    if (!afk) { me.deaths++; profile.stats.deaths++; }
+    if (!afk) { me.deaths++; kdT.death('ship', `me:${me.life}`); } // [backpack-pvp] t1703u unified K/D tally (deduped)
     game.gold = Math.max(0, (game.gold | 0) - carried); save({ now: true });
     const bounty = me.bounty; me.dropped += bounty; me.lostBounty = bounty; resetBounty();
     room?.send('sunk', { v: myId, by, l: me.life, x: r1(pl.x), z: r1(pl.z), g: carried, b: bounty, ...(afk ? { af: 1 } : {}) });
@@ -1039,6 +1091,42 @@ export function createPvp(K) {
     addFeed(`<b>${esc(me.killedBy)}</b> sank <b class="me">${esc(name)}</b>`);
     if (isSq()) { sq.sunk.add(myId); me.respawn = Infinity; me.deadAt = performance.now(); showDead(true); K.updateHud(); return; } // [v98] squads: out until the round ends, watching your teammate
     showDead(true); K.updateHud();
+  }
+  // [backpack-pvp] Option B: sunk by a rival pirate in the open harbor water. K/D counts (unified tally), you lose the harbor loss
+  // (min(100, gold)) as a floating gold pile + your UNEQUIPPED backpack haul as a sea loot crate; ship, skins, upgrades, cosmetics, pets,
+  // maps, equipped sword / musket and cottage storage stay. You respawn in the harbor (never kicked to the Battle Royale queue).
+  function harborPvpSunk(pl, by) {
+    const lost = Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)), afk = idleMs() >= AFK_FARM;
+    me.dead = true; me.respawn = PVP_HARBOR_RESPAWN; me.respawnAt = performance.now() + PVP_HARBOR_RESPAWN * 1000; me.killedBy = nameOf(by);
+    me.aiDeath = false; me.harborPvp = true; me.dropped = lost; me.lostGold = lost; me.harborLoss = lost; me.afkDeath = afk; me.lostBounty = 0;
+    if (!afk) { me.deaths++; kdT.death('ship', `me:${me.life}`); }
+    if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); }
+    save({ now: true });
+    room?.send('sunk', { v: myId, by, l: me.life, x: r1(pl.x), z: r1(pl.z), g: lost, b: 0, hb: 1, ...(afk ? { af: 1 } : {}) }, { now: true });
+    if (!afk && !codeOfPrefix(hbNet?.prefix)) boardClaim('v', by, myId, me.life); // own / private servers never feed the kills board
+    if (isHost && lost) spawnPile(myId, pl.x, pl.z, Math.min(lost, earned.get(myId) ?? PVP_MAX_CARRY), false, 0);
+    earned.delete(myId);
+    addFeed(`☠ <b>${esc(me.killedBy)}</b> sank <b class="me">${esc(name)}</b> at sea!`);
+    try { K.dock?.lootBags?.dropLocalHaul?.({ sea: true, hx: pl.x, hz: pl.z, killerId: by }); } catch (e) { console.warn('[sea crate]', e); }
+    showDead(true); K.updateHud(); hud();
+  }
+  // [backpack-pvp] share a dropped plunder bag / sea crate (and its claims) with the pirates in this harbor copy
+  const LOOT_KEY_RE = /^[a-z0-9:_.-]{1,64}$/i, BAG_ID_RE = /^[a-zA-Z0-9_-]{4,64}$/;
+  function lootNet(msg) {
+    if (!room || where !== 'harbor' || !msg || typeof msg !== 'object') return false;
+    const b = msg.bag; const out = { t: msg.type === 'loot_claim' ? 'c' : 's', id: String(msg.bag_id || b?.id || '').slice(0, 64) };
+    if (b) out.b = { id: String(b.id).slice(0, 64), x: r1(+b.x || 0), y: r1(+b.y || 0), z: r1(+b.z || 0), sea: b.sea ? 1 : 0, n: String(b.victim_name || 'PIRATE').slice(0, 24),
+      it: (b.items || []).slice(0, 40).map((i) => [String(i.item).slice(0, 64), Math.max(0, Math.min(9999, i.qty | 0))]), ex: Math.max(0, Math.min(600, Math.round(((+b.expires_at || 0) - Date.now()) / 1000))) };
+    room.send('lb', { i: myId, ...out }); return true;
+  }
+  function onLootNet(m) {
+    if (!m || !isNetId(m.i) || m.i === myId || !peers.has(m.i) || !BAG_ID_RE.test(String(m.id || ''))) return;
+    const lb = K.dock?.lootBags; if (!lb?.onNet) return;
+    if (m.t === 'c' && !m.b) { lb.onNet({ type: 'loot_claim', bag_id: m.id }); return; }
+    const b = m.b; if (!b || !Array.isArray(b.it)) return;
+    const items = b.it.filter((r) => Array.isArray(r) && LOOT_KEY_RE.test(String(r[0])) && (r[1] | 0) > 0).map((r) => ({ item: String(r[0]), qty: Math.min(9999, r[1] | 0) }));
+    const [x, z] = clampXZ(b.x, b.z);
+    lb.onNet({ type: m.t === 'c' ? 'loot_claim' : 'loot_spawn', bag_id: m.id, bag: { id: m.id, x, z, y: clamp(+b.y || 0, -5, 80), sea: !!b.sea, victim_name: esc(b.n).slice(0, 24) || 'PIRATE', items, expires_at: Date.now() + clamp(b.ex | 0, 5, 600) * 1000 } });
   }
   function onBotSunk(e, src) { // one of our AI ships went down (local harbor, or we host the shared copy)
     if (e.remote) return;
@@ -1063,13 +1151,13 @@ export function createPvp(K) {
       else if (r === 'pending' && !keepalive) for (const ms of [3000, 9000]) setTimeout(() => { refreshRank(true); clearKillsTopCache(); refreshKillsBoards(); }, ms); }); // [v77] the other side's claim lands after mine: re-read my rank / the board (a first death now ranks me)
   }
   function resetBounty() { me.streak = 0; me.bounty = 0; }
-  function creditKill(by, victim) {
+  function creditKill(by, victim, key = null) {
     if (by !== myId) return;
     // streak bounty: only kills that count (the caller already skips idle victims); the same victim again inside the
     // anti-farm window gives no bounty (the PvP KILLS board drops it too)
     const tn = performance.now(), last = me.pairs.get(victim) || -1e9; me.pairs.set(victim, tn);
     if (tn - last > PVP_BOUNTY.pairWindow * 1000) { me.streak++; const before = me.bounty; me.bounty = Math.min(PVP_BOUNTY.cap, me.streak * PVP_BOUNTY.perKill); if (me.bounty > before && me.bounty >= PVP_BOUNTY.announce && before < PVP_BOUNTY.announce) addFeed(`☠ <b class="me">${esc(name)}</b> has a <b>${me.bounty}g</b> bounty!`); }
-    me.kills++; const before = { ...profile.stats }; profile.stats.kills++; bumpModeKill(mode); // [Timothy] Solo / Squads split (display only)
+    const before = { ...profile.stats }; if (!kdT.kill('ship', key || `${victim}:${Math.round(tn)}`)) return; me.kills++; bumpModeKill(mode); // [Timothy] Solo / Squads split (display only)
     goalToast(before, profile.stats);
     sfx.coin(); save({ now: true });
   }
@@ -1085,14 +1173,16 @@ export function createPvp(K) {
     const by = typeof m.by === 'string' ? m.by : null;
     const afk = !!m.af; // the victim had been idle: no kill credit, no +100
     addFeed(`<b class="${by === myId ? 'me' : ''}">${esc(by ? nameOf(by) : 'the sea')}</b> sank <b>${esc(nameOf(m.v))}</b>${afk ? ' <i class="muted">(idle · no credit)</i>' : ''}`);
-    if (!afk) creditKill(by, m.v);
+    const hbSink = where === 'harbor' && !!m.hb; // [backpack-pvp] Option B sink: no +100 bonus gold out of thin air
+    if (!afk) creditKill(by, m.v, `${m.v}:${m.l | 0}`);
     const vb = clamp(m.b | 0, 0, Math.min(PVP_BOUNTY.cap, peers.get(m.v)?.bt ?? 0)); // never more than the bounty they showed
     if (vb >= PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(by ? nameOf(by) : 'the sea')}</b> claimed <b>${esc(nameOf(m.v))}</b>'s <b>${vb}g</b> bounty`);
-    if (!afk && by === myId && peers.has(m.v)) boardClaim('k', myId, m.v, m.l | 0);
+    if (!afk && by === myId && peers.has(m.v) && !(hbSink && codeOfPrefix(hbNet?.prefix))) boardClaim('k', myId, m.v, m.l | 0);
     if (isHost) {
       const [x, z] = clampXZ(m.x, m.z);
       const g = clamp(Math.floor(+m.g || 0), 0, Math.min(PVP_BR_DEATH_LOSS, earned.has(m.v) ? earned.get(m.v) : PVP_MAX_CARRY)); // [br-death] never more than the flat loss (old clients still report all carried)
-      spawnPile(m.v, x, z, g + (afk ? 0 : PVP_DEATH_BONUS) + vb, false, afk ? 0 : PVP_DEATH_BONUS); earned.delete(m.v);
+      if (hbSink) { const hg = clamp(Math.floor(+m.g || 0), 0, PVP_HARBOR_DEATH_LOSS); if (hg) spawnPile(m.v, x, z, hg, false, 0); earned.delete(m.v); }
+      else { spawnPile(m.v, x, z, g + (afk ? 0 : PVP_DEATH_BONUS) + vb, false, afk ? 0 : PVP_DEATH_BONUS); earned.delete(m.v); }
     }
   }
   function dropSpot(x, z) { // [v105] a drop always floats in open water you can sail to (never on the shore or inside a rock)
@@ -1347,7 +1437,7 @@ export function createPvp(K) {
     const lg = getLocalGear(), gw = gearToWire(lg); if (gw || sentGear || lg.eyeColor) { m.gr = gw; if (gw || lg.eyeColor) sentGear = true; } if (lg.eyeColor || sentGear) m.ec = lg.eyeColor | 0; { const cw = crewToWire(); if (cw || sentCrew) { m.cr = cw; sentCrew = true; } } { const cc = crewColorToWire(); if (cc || sentCC) { m.cc = cc; sentCC = true; } } // [Timothy] cr = your crew's loadout (js/crewLoadout.js) // [v115] ec = eye colour (own static field: 'gr' unchanged for old builds) // [Timothy] shop gear: only once you wear some (then kept, so taking it off reaches everyone)
     const dk = window.PFP?.dock; if (dk?.on) Object.assign(m, dk.netState()); // [Emerly] harbor room: dk = moored berth, ft = on-foot pose (nothing outside the harbor)
     if (ADM.frozen) m.fz = 1; // [admin-menu] everyone tints you icy (cosmetic; the freeze itself is server-side)
-    if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; } // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
+    if (shared) { m.hj = hb.hj; m.ai = isHost && performance.now() >= hb.listenUntil ? aiRows() : 0; m.um = unmannedLocal() ? 1 : 0; } // [backpack-pvp] um: my ship is parked / unmanned (shielded) // [v99] host order + the host's AI ships (0 = none: overwrites a stale list)
     return m;
   }
 
@@ -1361,7 +1451,7 @@ export function createPvp(K) {
   const unsynced = [];
   const boardK = () => rk.got ? rk.kills + unsynced.filter(e => e.side === 'k').length : lifeK();
   const boardD = () => rk.got ? rk.deaths + unsynced.filter(e => e.side === 'v').length : lifeD();
-  const lifeK = () => Math.max(profile.stats.kills, rk.kills), lifeD = () => Math.max(profile.stats.deaths, rk.deaths);
+  const lifeK = () => Math.max(profile.stats.kills, rk.kills + kdT.extra.k), lifeD = () => Math.max(profile.stats.deaths, rk.deaths + kdT.extra.d); // [backpack-pvp] + ground fights (never on the BR board)
   const rankTxt = () => rk.rank ? String(rk.rank) : '—';
   function showRank() { // name ellipsizes on narrow phones, the rank never does
     const hn = $('captain-name'); if (!hn || spec.on) return;
@@ -1414,7 +1504,7 @@ export function createPvp(K) {
     else if (where === 'arena' && !me.aiDeath && re) re.firstChild.textContent = 'Back to the harbor in '; // [br-death] SOLO
     el.classList.toggle('pd-harbor', where === 'harbor'); // [v95] harbor: big centred 5-4-3-2-1, respawn right here
     if (where === 'harbor' && re) re.firstChild.textContent = 'Back at sea in the harbor in ';
-    el.querySelector('.pd-drop').textContent = me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
+    el.querySelector('.pd-drop').textContent = me.harborPvp ? `Sunk at sea by ${me.killedBy}: -${me.harborLoss | 0} gold + your unequipped haul floats in a sea loot crate. Equipped gear, ship, skins + cottage storage kept. Counts for K/D.` : me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
       : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D. You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}` : `You dropped ${me.dropped} gold (${me.lostGold | 0} + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}`;
     el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
   }
@@ -1543,6 +1633,7 @@ export function createPvp(K) {
   function harborUi() {
     const h = $('pvp-harbor'); if (!h) return;
     const show = active && where === 'harbor' && !spec.on; h.classList.toggle('hidden', !show); if (!show) return;
+    serverPicker?.mountButton(); { const sb = document.getElementById('srv-btn'); if (sb && hbNet) sb.title = serverLabel({ prefix: hbNet.prefix, copy: hb.copy }); } // [backpack-pvp] ⚓ SERVER
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${num(lob.pos)}</b> of ${num(lob.queue)} · arena ${num(lob.players)}/${num(lob.cap)}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
@@ -1787,7 +1878,7 @@ export function createPvp(K) {
   // quit-to-dodge / AFK in a fight: leaving the arena within 10 s of taking PvP damage counts as a death (gold drops for the others)
   function combatLog(unloading) {
     const pl = P(), by = me.lastBy && !String(me.lastBy).startsWith('b') ? me.lastBy : null; if (!by) return; // AI damage never counts
-    const carried = brLoss(game.gold), bounty = me.bounty; profile.stats.deaths++; me.deaths++; game.gold = Math.max(0, (game.gold | 0) - carried); resetBounty(); // [br-death] flat loss here too
+    const carried = brLoss(game.gold), bounty = me.bounty; kdT.death('ship', `me:${me.life}`); me.deaths++; game.gold = Math.max(0, (game.gold | 0) - carried); resetBounty(); // [br-death] flat loss here too
     room?.send('sunk', { v: myId, by, l: me.life, x: r1(pl.x), z: r1(pl.z), g: carried, b: bounty }, { now: true });
     if (peers.has(by)) boardClaim('v', by, myId, me.life, unloading);
     if (isHost) spawnPile(myId, pl.x, pl.z, carried + PVP_DEATH_BONUS + bounty, false, PVP_DEATH_BONUS);
@@ -1818,8 +1909,9 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
+    serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
     _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
-  api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;
 }

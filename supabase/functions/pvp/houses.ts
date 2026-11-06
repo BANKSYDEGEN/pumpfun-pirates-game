@@ -1,6 +1,7 @@
 // [storage-houses] Buyable cottages + house chest storage (migration 043). Wired from index.ts.
 // Actions: house_state, house_buy, house_store, house_take, house_upgrade. Offline clients fall back to localStorage.
 import { KEY_RE } from "./invCatalog.ts";
+import { BACKPACK_CAP, countSlots, needsNewSlot } from "./loot.ts"; // [backpack-pvp]
 
 export const HOUSE_ACTIONS = ["house_state", "house_buy", "house_store", "house_take", "house_upgrade"] as const;
 export type HouseAction = (typeof HOUSE_ACTIONS)[number];
@@ -73,13 +74,34 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
       case "house_take": {
         const cottage = String(b.cottage ?? ""), slot = Math.floor(Number(b.slot)), qty = qtyOf(b.qty) || 1;
         if (!okCottage(cottage) || !Number.isFinite(slot) || slot < 0 || slot > 119) return c.json(400, { error: "bad take" });
-        const { data, error } = await db.rpc("pvp_house_take", { p_player: pid, p_cottage: cottage, p_slot: slot, p_qty: qty });
+        // [backpack-pvp] enforce 16-slot backpack cap (owner unlimited; stacking onto existing stackable OK)
+        if (!who.owner) {
+          const { data: invRows } = await db.from("pvp_inv").select("item, qty").eq("player_id", pid);
+          const { data: eqRows } = await db.from("pvp_inv_equip").select("slot, item").eq("player_id", pid);
+          const stack = new Map<string, number>();
+          for (const r of invRows || []) stack.set(r.item, (stack.get(r.item) || 0) + (r.qty | 0));
+          const inv = [...stack.entries()].map(([item, q]) => ({ item, qty: q }));
+          const equipped = Object.fromEntries((eqRows || []).map((e: any) => [e.slot, e.item]));
+          const { data: chestRow } = await db.from("pvp_house_storage").select("item, qty").eq("player_id", pid).eq("cottage_id", cottage).eq("slot", slot).maybeSingle();
+          if (chestRow?.item) {
+            const used = countSlots(inv, equipped);
+            if (needsNewSlot(inv, chestRow.item, equipped) && used >= BACKPACK_CAP) {
+              return c.json(409, { error: "Backpack full (16/16) — stash or sell items first!", full: true, used, cap: BACKPACK_CAP });
+            }
+          }
+        }
+        // Prefer capped RPC when migration 044 is live; fall back to uncapped take
+        let data: any = null, error: any = null;
+        ({ data, error } = await db.rpc("pvp_house_take_capped", { p_player: pid, p_cottage: cottage, p_slot: slot, p_qty: qty, p_cap: BACKPACK_CAP, p_owner: !!who.owner }));
+        if (error && /pvp_house_take_capped|PGRST202|42883/.test(`${error.code} ${error.message}`)) {
+          ({ data, error } = await db.rpc("pvp_house_take", { p_player: pid, p_cottage: cottage, p_slot: slot, p_qty: qty }));
+        }
         if (error) {
           if (/pvp_house_take|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;
         }
-        if (!data?.ok) return c.json(409, { error: data?.why || "could not" });
-        return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage) });
+        if (!data?.ok) return c.json(409, { error: data?.why || "could not", full: !!data?.full });
+        return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage), owner: !!who.owner });
       }
       case "house_upgrade": {
         const cottage = String(b.cottage ?? ""); if (!okCottage(cottage)) return c.json(400, { error: "bad cottage" });

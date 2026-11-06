@@ -3,7 +3,7 @@
 //  - walk into the pit (inside the rope ring) = your SWORD is drawn; walk into the range (inside the fence) = you shoulder a MUSKET.
 //    Leave and it is put away and you are back to full health. Everywhere else nothing changes.
 //  - attack: F, a left click (a click, not a camera drag) or the phone's round SWING / FIRE button. Sword: 3 hits = KO (arc in
-//    front of you, ~2.5 m). Musket: aim with the camera, 2 hits = KO, 2 s reload; crates / barrels / hay bales stop a ball.
+//    front of you, ~2.5 m). Musket: aim with the camera, 5-6 hits = KO (19 dmg), 1.25 s reload; crates / barrels / hay bales stop a ball.
 //  - KO: you drop for 3 s and get back up at the gate with full health (1.5 s guard). Free-for-all by default (1v1 = two pirates);
 //    [Emerly] 2v2 TEAMS: tap the team chip in the HUD (desktop: G) to cycle FFA -> RED -> BLUE. Teammates can't hurt each other,
 //    respawn on their own side, and the HUD keeps a RED · BLUE KO tally (this device only, no rewards). Up to the harbor
@@ -40,12 +40,18 @@ import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hin
 import { applyMuskUpg, muskLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
 import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
+import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
 
+import { STANCES_ON, STANCE_LABEL, stanceForKey, stanceTap, holsterToggle, peerReach, openHitOk } from './stances.js'; // [backpack-pvp] t1710u UNARMED / SWORD / GUN anywhere on foot
+
+// [backpack-pvp] BANKSY t1711u "Make players take 5-6 shots to kill": 100 HP, sword + musket 19 dmg (common 6 hits; rare / epic 20 and
+// legendary 21 = 5 hits; + bayonet 3 point-blank still 5). Musket reload 1.25 s (was 2.0) so a 5-6 shot firefight stays snappy.
 export const ARENA = {
-  hp: 100, sword: { dmg: 34, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 },
-  musket: { dmg: 50, range: 60, wide: 0.55, reload: 2.0, delay: 0.16 }, downS: 3, guardS: 1.5,
+  hp: 100, sword: { dmg: 19, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 },
+  musket: { dmg: 19, range: 60, wide: 0.55, reload: 1.25, delay: 0.16 }, downS: 3, guardS: 1.5,
 };
-const Z_PIT = 1, Z_RANGE = 2;
+
+const Z_PIT = 1, Z_RANGE = 2; // (also the held stance codes: 1 sword drawn, 2 gun drawn)
 // [inventory v209] MY weapon's numbers: ARENA + the equipped rarity (window.PFP_WEAPON_RARITY from the inventory; DB flag weapon_stats via inv_state, else catalog FLAGS). Peers' replays stay on ARENA.
 const myW = (slot) => { const o = myW0(slot); return slot === 'musket' ? (gunAccOn() ? applyGunAcc : (x) => x)(applyMuskUpg(o, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common')) : o; }; // + [gunacc] // [Emerly musket-upgrades] tiers on top, capped by the musket's rank
 const myW0 = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined); };
@@ -71,6 +77,14 @@ html.dk-touch.bt-on #bt-atk{display:block}
 #bt-msg{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;font:40px 'Just Another Hand',cursive;color:#fff;text-shadow:0 3px 6px #000;opacity:0;transition:opacity .25s;text-align:center;white-space:nowrap}
 #bt-msg small{display:block;font-size:22px;color:#ffcd77}
 @media (max-width:600px){#bt-hud{top:calc(var(--safe-t,0px) + 112px)} #bt-hud .hp{width:170px}}
+#bt-stance{position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 14px);transform:translateX(-50%);z-index:8;display:none;gap:6px;padding:5px;border-radius:999px;background:rgba(14,10,6,.86);border:2px solid #ffcd77;box-shadow:0 4px 12px rgba(0,0,0,.55)}
+#bt-stance.on{display:flex}
+#bt-stance button{font:bold 14px system-ui,sans-serif;letter-spacing:.03em;color:#ffcd77;background:#24180c;border:2px solid rgba(255,205,119,.35);border-radius:999px;padding:6px 12px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
+#bt-stance button i{font-style:normal;display:inline-block;min-width:16px;margin-right:5px;border-radius:4px;background:#ffcd77;color:#161616;font-size:11px;padding:0 3px}
+#bt-stance button.sel{background:linear-gradient(#ffd98a,#d99a2b);color:#161616;border-color:#fff3c4;box-shadow:0 0 10px rgba(255,205,119,.7)}
+#bt-stance button.sel i{background:#161616;color:#ffcd77}
+#bt-stance button[disabled]{opacity:.45}
+html.dk-touch #bt-stance{bottom:calc(var(--safe-b,0px) + 250px);left:auto;right:calc(var(--safe-r,0px) + 14px);transform:none;flex-direction:column}
 `;
 const v3 = (x, y, z) => new THREE.Vector3(x, y, z).normalize();
 // arm key directions in the pirate's own space (+Z front, +X his LEFT, +Y up). u = upper arm, f = forearm, b = where the blade points
@@ -81,7 +95,7 @@ const P_MUSKET = { uR: v3(-0.12, -0.5, 0.86), fR: v3(0.25, 0.12, 0.96), uL: v3(0
 const lerpDir = (a, b, t, out) => out.copy(a).lerp(b, t).normalize();
 const ease = (t) => t * t * (3 - 2 * t);
 
-export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low }) {
+export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null }) { // [backpack-pvp] crewFight: t1706u crew mirror your attack · kd: t1703u unified K/D
   const H = (lx, lz) => layout.footToHarbor(...CO.t2w(lx, lz));            // town-local -> harbor (scene) x, z
   const toTown = (x, z) => CO.w2t(...layout.harborToFoot(x, z));
   const yawW = (ly) => CO.t2wYaw(ly);
@@ -334,7 +348,8 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function knock(R, k) { if (R.fig) { R.fig.rotation.x = -1.45 * k; R.fig.position.y = 0.25 * k; } }
 
   // ---------- your state ----------
-  const me = { zone: 0, hp: ARENA.hp, life: (Date.now() / 1000 | 0) % 50000, seq: 0, kind: 0, down: 0, guard: 0, cool: 0, kos: 0, downs: 0, lastBy: '', fireAt: -1, aim: 0, team: 0, score: [0, 0, 0] }; // [Emerly] team 0 FFA | 1 RED | 2 BLUE; score[team] = KOs that team scored (this device)
+  const me = { stance: 0, drawn: 1, arena: 0, onFoot: false, downArena: 0, lastHitT: -99, pvpOk: true, zone: 0, hp: ARENA.hp, life: (Date.now() / 1000 | 0) % 50000, seq: 0, kind: 0, down: 0, guard: 0, cool: 0, kos: 0, downs: 0, lastBy: '', fireAt: -1, aim: 0, team: 0, score: [0, 0, 0] }; // [Emerly] team 0 FFA | 1 RED | 2 BLUE; score[team] = KOs that team scored (this device)
+  const isleSafe = { _isleSafe: false, _isleSafeOut: 0, _isleSafeZone: null }; // [backpack-pvp]
   let mineR = null;
   const dealt = new Map();     // victimId -> { life, n }
   const seenHit = new Map();   // attackerId -> { life, n } (what we already applied of their bh[myId])
@@ -350,6 +365,27 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const hud = el('div', 'bt-hud', '<b></b><button type="button" class="tm"></button><div class="hp"><i></i></div><span class="sc"></span><small></small>'), atk = el('button', 'bt-atk', 'SWING'), flash = el('div', 'bt-flash'), msg = el('div', 'bt-msg');
+  const stanceBar = el('div', 'bt-stance', STANCE_LABEL.map((l, i) => `<button type="button" data-s="${i}"><i>${i + 1}</i>${l}</button>`).join(''));
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) stanceBar.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  stanceBar.addEventListener('click', (e) => { const b = e.target.closest('button[data-s]'); if (!b) return; e.preventDefault(); e.stopPropagation(); setStance(stanceTap(me.stance, +b.dataset.s)); });
+  let stanceSig = '';
+  function drawStance(show) { const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}` : ''; if (sig === stanceSig) return; stanceSig = sig;
+    stanceBar.classList.toggle('on', !!show); if (!show) return;
+    stanceBar.querySelectorAll('button').forEach((b) => { const i = +b.dataset.s; b.classList.toggle('sel', i === me.stance); b.disabled = me.down > 0 || (me.arena === Z_PIT && i === 2); }); }
+  function setStance(s, auto = false) {
+    if (!STANCES_ON) return false; s = s | 0; if (s < 0 || s > 2 || me.down > 0) return false;
+    if (s && inHouse?.()) return false;
+    if (me.arena === Z_PIT && s === 2) { if (!auto) say('⚔ SWORD PIT<small>swords only in the pit</small>', 1200); s = 1; }
+    if (s === me.stance) return true;
+    me.stance = s; if (s) { me.drawn = s; readSword(); sfx?.equip?.(); }
+    stanceSig = ''; hudSig = '';
+    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · X = holster</small>` : '🤚 UNARMED<small>weapons holstered · 2 sword · 3 gun</small>', 1100);
+    return true;
+  }
+  // keys 1 / 2 / 3 + X (bubble phase: the emote wheel's capture handler owns 1..8 while it is open)
+  addEventListener('keydown', (e) => { if (!STANCES_ON || !me.onFoot || !walker.active || e.repeat) return; const tg = e.target?.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA' || e.target?.isContentEditable) return;
+    const k = stanceForKey(e.code); if (k !== null) { setStance(k); e.preventDefault(); return; }
+    if (e.code === 'KeyX') { setStance(holsterToggle(me.stance, me.drawn)); e.preventDefault(); } });
   let msgT = 0; function say(html, ms = 1500) { msg.innerHTML = html; msg.style.opacity = 1; clearTimeout(msgT); msgT = setTimeout(() => { msg.style.opacity = 0; }, ms); }
   atk.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); attack(); });
   // [Emerly] 2v2: the team chip (tap / click; desktop G) cycles FFA -> RED -> BLUE. Your team rides in ba[8]; teammates can't hurt each other.
@@ -359,13 +395,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   tmBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setTeam(); });
   const mate = (r) => !!me.team && r?.team === me.team;
   let hudSig = '';
-  function drawHud() { const z = me.zone; document.documentElement.classList.toggle('bt-on', !!z); if (!z) { if (hudSig) { hud.style.display = 'none'; hudSig = ''; } return; }
+  function drawHud() { const z = me.zone, showH = STANCES_ON ? !!(z || me.down > 0 || (me.onFoot && me.hp < ARENA.hp)) : !!z; document.documentElement.classList.toggle('bt-on', !!z); if (!showH) { if (hudSig || hud.style.display !== 'none') { hud.style.display = 'none'; hudSig = ''; } return; }
     const reload = z === Z_RANGE && me.cool > 0, teams = me.team || [...peerR.values()].some(r => r.ba[0] === z && r.team), pd = padActive(), sig = [z, me.hp, me.down > 0, me.kos, me.downs, reload ? Math.ceil(me.cool * 2) : 0, me.team, teams, pd && padGlyph('RT'), ...me.score].join('|'); if (sig === hudSig) return; hudSig = sig;
-    hud.style.display = 'block'; hud.querySelector('b').textContent = z === Z_PIT ? '⚔ SWORD PIT' : '🎯 MUSKET RANGE';
+    hud.style.display = 'block'; hud.querySelector('b').textContent = !STANCES_ON ? (z === Z_PIT ? '⚔ SWORD PIT' : '🎯 MUSKET RANGE') : me.arena === Z_PIT ? '⚔ SWORD PIT' : me.arena === Z_RANGE ? '🎯 MUSKET RANGE' : STANCE_LABEL[z] + (z ? ' DRAWN' : '') + (isleSafe._isleSafe ? ' · 🛡️ SAFE' : ' · ⚔ OPEN PvP');
     tmBtn.textContent = (me.team ? 'TEAM ' : '') + TEAM[me.team] + (pd ? ' · ' + padGlyph('LB') : touch ? '' : ' · G'); tmBtn.className = 'tm t' + me.team;
     hud.querySelector('.sc').innerHTML = teams ? `<i>RED ${me.score[1]}</i> · <u>BLUE ${me.score[2]}</u>` : '';
     const hp = hud.querySelector('.hp'); hp.querySelector('i').style.width = Math.max(0, me.hp) + '%'; hp.classList.toggle('low', me.hp <= 34);
-    hud.querySelector('small').textContent = me.down > 0 ? 'KNOCKED OUT · back up in a moment' : `KOs ${me.kos} · DOWNS ${me.downs} · just for fun, no rewards` + (pd ? (z === Z_PIT ? ` · ${padGlyph('RT')} = SWING` : reload ? ' · RELOADING' : ` · ${padGlyph('RT')} = FIRE · ${padGlyph('LT')} = AIM`) : touch ? '' : z === Z_PIT ? ' · R / CLICK = SWING' : reload ? ' · RELOADING' : ' · R / CLICK = FIRE');
+    hud.querySelector('small').textContent = me.down > 0 ? 'KNOCKED OUT · back up in a moment' : `KOs ${me.kos} · DOWNS ${me.downs} · ` + (STANCES_ON && !me.arena ? 'open island · haul drops on KO' : 'just for fun, no rewards') + (pd ? (z === Z_PIT ? ` · ${padGlyph('RT')} = SWING` : reload ? ' · RELOADING' : ` · ${padGlyph('RT')} = FIRE · ${padGlyph('LT')} = AIM`) : touch ? '' : z === Z_PIT ? ' · R / CLICK = SWING' : reload ? ' · RELOADING' : ' · R / CLICK = FIRE');
     atk.textContent = z === Z_PIT ? 'SWING' : reload ? '…' : 'FIRE'; atk.disabled = me.down > 0 || reload; }
   // desktop: R (unbound everywhere; F = fullscreen) or a left click (not a drag) attacks while you are in an area
   addEventListener('keydown', (e) => { if (!me.zone || (e.code !== 'KeyR' && e.code !== 'KeyG') || e.repeat || e.target?.tagName === 'INPUT' || !walker.active) return; if (e.code === 'KeyG') setTeam(); else attack(); e.stopImmediatePropagation(); e.preventDefault(); }, true);
@@ -378,16 +414,21 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (ADM.frozen) return false; // [admin-menu] frozen by the owner (server-checked)
     if (!me.zone || me.down > 0 || me.cool > 0 || !walker.active) return false;
     const W = walker.w;
+    // [backpack-pvp] Island Safe Zones + 3s exit grace block PvP (Coliseum battle pads stay fightable when outside sanctuaries)
+    me.pvpOk = !SAFEZONES_ON || canFightOnFoot(isleSafe, ...layout.harborToFoot(W.x, W.z), performance.now() / 1000, { inHouse: !!inHouse?.() }); // walker = harbor frame, zones = foot frame
+    if (!me.pvpOk) { say('🛡️ SAFE ZONE — no PvP here<small>' + (STANCES_ON ? 'practice swings / shots only · 0 PvP damage' : 'leave to fight') + '</small>', 1400); if (!STANCES_ON) return false; }
     if (me.zone === Z_PIT) { me.cool = myW('sword').cool; mineR.st.act = { kind: 1, t: 0, hit: false }; me.kind = 1; sfx?.equip?.(); }
     else { W.yaw = W.camYaw; me.cool = myW('musket').reload; me.fireAt = ARENA.musket.delay; me.kind = 2; }
     me.seq = (me.seq + 1) % 1000; atk.classList.add('hit'); setTimeout(() => atk.classList.remove('hit'), 120); return true;
   }
+  const victimOpen = (p) => !SAFEZONES_ON || canFightOnFoot({}, ...layout.harborToFoot(p.x, p.z), 0); // nobody snipes INTO (or out of) a Safe Zone
+  const canHitPeer = (r, p, need) => !!r && !r.ba[6] && r.guard <= 0 && !mate(r) && (STANCES_ON ? (me.pvpOk && victimOpen(p)) : r.ba[0] === need);
   function addDmg(id, life, n) { const d = dealt.get(id); if (!d || d.life !== life) dealt.set(id, { life, n }); else d.n += n; }
   function swordHit() { // my blade at its hit frame: every pirate + dummy in the arc
     const W = walker.w, f = fwd(W.yaw, _v), S = myW('sword'); let any = false;
-    for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!r || r.ba[0] !== Z_PIT || r.ba[6] || r.guard > 0 || mate(r)) continue; const dx = p.x - W.x, dz = p.z - W.z, d = Math.hypot(dx, dz);
+    for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_PIT)) continue; const dx = p.x - W.x, dz = p.z - W.z, d = Math.hypot(dx, dz);
       if (d > S.reach + 0.45 || d < 0.01) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / d))); if (ang > S.arc) continue;
-      addDmg(id, r.ba[2], S.dmg); r.hpShown = Math.max(0, (r.hpShown ?? r.ba[1]) - S.dmg); any = true; spark(p.x, world.ground(p.x, p.z) + 1.1, p.z); }
+      addDmg(id, r.ba[2], S.dmg); r.hpShown = Math.max(0, (r.hpShown ?? r.ba[1]) - S.dmg); any = true; spark(p.x, world.ground(p.x, p.z) + 1.1, p.z); try { crewFight?.engage('me', 'sword', id); } catch {} } // [backpack-pvp] your blade on a pirate: your crew rush THEIR crew
     for (const d of dummies) { const dx = d.x - W.x, dz = d.z - W.z, dd = Math.hypot(dx, dz); if (dd > S.reach + 0.6) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / Math.max(0.01, dd)))); if (ang > S.arc) continue;
       d.wv += 6 * (((dx * f.z - dz * f.x) > 0) ? 1 : -1); any = true; spark(d.x, BA.PIT.y + 1.6, d.z); }
     if (any) sfx?.hit?.(0.8);
@@ -403,7 +444,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const along = (px, pz, r) => { const dx = px - x, dz = pz - z, a = dx * f.x + dz * f.z; if (a < 0.3 || a > best) return -1; const side = Math.abs(dx * f.z - dz * f.x); return side <= r ? a : -1; };
     for (const c of cover) { const a = along(c.x, c.z, c.r); if (a > 0 && vOk(a, -1e9, world.ground(c.x, c.z) + 1.4)) { best = a; hit = { kind: 'cover' }; } }
     for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0 && vOk(a, t.cy - 0.85, t.cy + 0.85)) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
-    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!r || r.ba[0] !== Z_RANGE || r.ba[6] || r.guard > 0 || mate(r)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
+    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
     if (aim && slope < 0 && !hit) { const g = mz.y + slope * best; if (g < world.ground(x + f.x * best, z + f.z * best)) best = Math.min(best, aimD); } // [Timothy tps] aimed at the ground: the ball lands there
     { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
@@ -411,7 +452,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     for (let i = 0; i < 4; i++) puff(mz.clone().addScaledVector(f, 0.3 + i * 0.25), 0xe8e2d4, 0.55 + i * 0.12, 1.2, new THREE.Vector3(f.x * 0.8, 0.5, f.z * 0.8));
     sfx?.cannon?.(Math.min(0.35, vol(mz) * 0.35)); R.st.recoil = S.recoil ?? 1; // [gunacc] stock = less kick
     if (hit?.kind === 'target') { hit.t.flip = 1.4; hit.t.t = 2.2; if (mine) say(hit.off < 0.18 ? 'BULLSEYE!' : hit.off < 0.42 ? 'NICE SHOT' : 'HIT', 900); spark(end.x, end.y, end.z); }
-    else if (hit?.kind === 'pirate') { const dm = S.dmg + (S.bayonet && best <= S.bayonet.reach ? S.bayonet.dmg : 0); /* [gunacc] bayonet point-blank */ addDmg(hit.id, hit.r.ba[2], dm); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - dm); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); }
+    else if (hit?.kind === 'pirate') { const dm = S.dmg + (S.bayonet && best <= S.bayonet.reach ? S.bayonet.dmg : 0); /* [gunacc] bayonet point-blank */ addDmg(hit.id, hit.r.ba[2], dm); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - dm); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); try { crewFight?.engage('me', 'gun', hit.id); } catch {} } // [backpack-pvp] you shot a pirate: your crew volley THEIR crew
     else puff(end, 0xb89a6a, 0.7, 0.6);
     if (mine) tps?.onShot(hit); // [Timothy tps] hit marker + sound, recoil kick, bloom
   }
@@ -421,15 +462,46 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (zone === Z_PIT) { const a = BA.PIT.gateA + (tm ? (tm === 1 ? 1 : -1) * Math.PI / 2 : 0) + (Math.random() - 0.5) * 0.6, [lx, lz] = BA.pitAt(a, BA.PIT.r - 2.2); return [...H(lx, lz), a + Math.PI]; }
     const R = BA.RANGE; if (tm === 2) return [...H(R.lx1 - 5 + (Math.random() - 0.5) * 3, R.lz0 + 5), 0];
     return [...H((tm === 1 ? R.divider + 4 : R.gate[0]) + (Math.random() - 0.5) * 4, R.lz1 - 2.5), Math.PI]; }
-  function takeHit(n, by) { if (ADM.god) { me.hp = ARENA.hp; return; } /* [admin-menu] GOD MODE */ if (me.down > 0 || me.guard > 0 || !me.zone) return; me.hp = Math.max(0, me.hp - n); me.lastBy = by; sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
-    if (me.hp <= 0) { me.down = ARENA.downS; me.downs++; if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; mineR.st.act = null; say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · no gold lost, no stats changed</small>`, 2400); } }
+  function takeHit(n, by) { if (ADM.god) { me.hp = ARENA.hp; return; } /* [admin-menu] GOD MODE */
+    if (me.down > 0 || me.guard > 0 || (STANCES_ON ? !me.onFoot : !me.zone)) return;
+    const W0 = walker.w;
+    // [backpack-pvp] incoming PvP deals 0 inside Safe Zone / grace / cottage
+    if (SAFEZONES_ON && !canFightOnFoot(isleSafe, ...layout.harborToFoot(W0.x, W0.z), performance.now() / 1000, { inHouse: !!inHouse?.() })) {
+      say('🛡️ SAFE ZONE<small>you are protected here</small>', 1200); return;
+    }
+    me.hp = Math.max(0, me.hp - n); me.lastBy = by; me.lastHitT = t; sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
+    if (me.hp <= 0) {
+      me.down = ARENA.downS; me.downs++; try { kd?.('d', `me:${me.life}`); } catch {} if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
+      const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);
+      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawn at the Harbor Safe Zone'}</small>`, 2400);
+      // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
+      if (!coli) try {
+        const inv = typeof inventory === 'function' ? inventory() : inventory;
+        const d = inv?.data || {};
+        lootBags?.dropHaul?.({
+          items: d.items || [], equipped: d.equipped || {},
+          x: walker.w.x, y: world.ground(walker.w.x, walker.w.z), z: walker.w.z,
+          killer_id: String(by || '').slice(0, 40), room: 'island',
+        });
+      } catch {}
+    }
+  }
   const esc = (s) => String(s).replace(/[<>&"'`\\]/g, '').slice(0, 20);
-  function respawn() { const W = walker.w, [x, z, ly] = spawnPoint(me.zone || me.lastZone); me.hp = ARENA.hp; me.down = 0; me.guard = ARENA.guardS; me.life = (me.life + 1) % 50000;
-    W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = yawW(ly); walker.snapCam?.(); }
+  /** [backpack-pvp] t1710u KO'd on the open island: back up in the Harbor Plaza / Dock Safe Zone (a berth's ashore spot), facing the plaza */
+  function harborRespawn() {
+    const a = (layout.berths || []).map((b) => b.ashore).filter((q) => q && Number.isFinite(q.x) && (!SAFEZONES_ON || insideSafeZoneH(q.x, q.z)));
+    const q = a.length ? a[Math.floor(Math.random() * Math.min(3, a.length))] : null, [x, z] = q ? [q.x, q.z] : H(-40, 10), [cx, cz] = H(-40, -30);
+    return [x, z, Math.atan2(cx - x, cz - z)];
+  }
+  function respawn() { const W = walker.w, open = STANCES_ON && !me.downArena;
+    const [x, z, ly] = open ? harborRespawn() : spawnPoint(me.downArena || me.zone || me.lastZone); me.hp = ARENA.hp; me.down = 0; me.guard = ARENA.guardS * (open ? 2 : 1); me.life = (me.life + 1) % 50000;
+    W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = open ? ly : yawW(ly); walker.snapCam?.(); me.downArena = 0;
+    if (open) { setStance(0, true); say('🛡️ HARBOR SAFE ZONE<small>back on your feet · full health</small>', 1800); } }
 
   // ---------- peers ----------
   function onPeer(m) {
     if (!m || !isNetId(m.i)) return; const p = fnet.peers.get(m.i);
+    try { crewFight?.remote(m.i, m.cm | 0, typeof m.ct === 'string' && (m.ct === myId() || isNetId(m.ct)) ? m.ct : '', myId()); } catch {} // [backpack-pvp] their crew vs ct's crew
     const ba = Array.isArray(m.ba) && m.ba.length >= 7 && m.ba.length <= 9 && m.ba.every(Number.isFinite) ? m.ba.map(v => v | 0) : null; // [Emerly] 9 = + team
     let r = peerR.get(m.i);
     if (!ba || !p) { if (r) { r.ba = [0, 100, 0, 0, 0, 0, 0]; r.st.zone = 0; r.team = 0; } return; }
@@ -437,7 +509,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const prevLife = r.ba[2], prevHp = r.ba[1]; r.name = String(m.n ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
     if (ba[3] !== r.lastSeq) { r.lastSeq = ba[3]; if (ba[4] === 1 && ba[0] === Z_PIT) r.st.act = { kind: 1, t: 0 }; else if (ba[4] === 2 && ba[0] === Z_RANGE) r.fireAt = ARENA.musket.delay; }
     r.team = ba[8] === 1 || ba[8] === 2 ? ba[8] : 0;
-    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) { me.kos++; say(`KO! <small>${esc(r.name)} is down · just for fun</small>`, 1600); } }
+    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) { me.kos++; try { kd?.('k', `${m.i}:${ba[2]}`); } catch {} say(`KO! <small>${esc(r.name)} is down · just for fun</small>`, 1600); } }
     if (!ba[6] && r.lastDown) r.guard = ARENA.guardS;
     r.lastDown = ba[6]; if (ba[2] !== prevLife || ba[1] > prevHp) r.hpShown = ba[1]; else r.hpShown = Math.min(r.hpShown ?? ba[1], ba[1]);
     r.ba = ba; r.st.zone = ba[0]; r.swordId = SWORD_IDS[ba[5]] || SWORD_DEFAULT; r.musketId = MUSKET_IDS[ba[7] | 0] || MUSKET_DEFAULT;
@@ -445,13 +517,15 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const bh = m.bh && typeof m.bh === 'object' && !Array.isArray(m.bh) ? m.bh[myId()] : null;
     if (Array.isArray(bh) && bh.length === 2 && bh.every(Number.isFinite)) { const [life, n] = bh, s = seenHit.get(m.i);
       if (life === me.life) { const prev = s && s.life === life ? s.n : 0, delta = Math.min(100, n - prev); seenHit.set(m.i, { life, n: Math.max(prev, n) });
-        const reach = me.zone === Z_PIT ? 5.5 : 70, d = Math.hypot(p.x - walker.w.x, p.z - walker.w.z);
-        if (delta > 0 && me.zone && ba[0] === me.zone && d <= reach && !mate(r)) takeHit(delta, r.name); } }
+        const d = Math.hypot(p.x - walker.w.x, p.z - walker.w.z);
+        const ok = STANCES_ON ? me.onFoot && d <= peerReach(ba[0]) && victimOpen(p) // [backpack-pvp] any stance of mine, their weapon's reach, never from inside a Safe Zone
+          : me.zone && ba[0] === me.zone && d <= (me.zone === Z_PIT ? 5.5 : 70);
+        if (delta > 0 && ok && !mate(r)) takeHit(delta, r.name); } }
   }
   // HP bars over the pirates you fight (canvas sprite, redrawn only when it changes)
   function hpBar(r) { if (!r.bar) { const c = document.createElement('canvas'); c.width = 128; c.height = 20; const t = new THREE.CanvasTexture(c); r.bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); r.bar.scale.set(1.3, 0.2, 1); r.bar.renderOrder = 9; r.bar.position.y = 2.45; r.bar.userData.c = c; r.obj.add(r.bar); r.barV = -1; }
     const v = Math.max(0, r.hpShown ?? r.ba[1]); if (v !== r.barV || r.team !== r.barT) { r.barV = v; r.barT = r.team; const g = r.bar.userData.c.getContext('2d'); g.clearRect(0, 0, 128, 20); g.fillStyle = r.team === 1 ? '#ff4a3d' : r.team === 2 ? '#4a8dff' : '#161616'; g.fillRect(0, 0, 128, 20); g.fillStyle = '#161616'; g.fillRect(2, 2, 124, 16); g.fillStyle = v > 34 ? '#2fbf5a' : '#d8322f'; g.fillRect(3, 3, 122 * v / 100, 14); r.bar.material.map.needsUpdate = true; }
-    r.bar.visible = !!r.st.zone; }
+    r.bar.visible = !!r.st.zone || (STANCES_ON && (r.hpShown ?? r.ba[1]) < ARENA.hp); }
 
   // ---------- per frame ----------
   let t = 0;
@@ -459,14 +533,26 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     t += dt; tickFx(dt);
     for (const tg of targets) { if (tg.t > 0) tg.t -= dt; const want = tg.t > 0 ? tg.flip : 0, cur = tg.piv.rotation.x; tg.piv.rotation.x = cur + (-want - cur) * Math.min(1, dt * (tg.t > 0 ? 18 : 4)); if (tg.t <= 0) tg.flip = 0; }
     for (const d of dummies) { d.wv += (-d.w * 60 - d.wv * 6) * dt; d.w += d.wv * dt; d.g.rotation.z = d.w * 0.35; }
-    if (!onFoot || !pirate) { if (me.zone) leave(); return; }
+    if (!onFoot || !pirate) { if (me.zone || me.onFoot) leave(); drawStance(false); return; }
+    // [backpack-pvp] track Island Safe Zone + exit grace while on foot
+    try { tickIsleSafe(isleSafe, ...layout.harborToFoot(walker.w.x, walker.w.z), performance.now() / 1000); } catch {}
     if (!mineR || mineR.obj !== pirate.object) { mineR = { ...rig(pirate.object), obj: pirate.object }; }
     hookBody(mineR);
     const W = walker.w;
     if (me.down > 0) { me.down -= dt; if (me.downAt) { W.x = me.downAt[0]; W.z = me.downAt[1]; W.speed = 0; pirate.object.position.x = W.x; pirate.object.position.z = W.z; } if (me.down <= 0) respawn(); }
     me.guard = Math.max(0, me.guard - dt); me.cool = Math.max(0, me.cool - dt);
+    if (STANCES_ON) { // [backpack-pvp] t1710u stances: arena = where you stand (pit / range), me.zone = what you hold
+      me.onFoot = true; if (me.stance && inHouse?.()) setStance(0, true);
+      const ar = me.down > 0 ? me.arena : zoneAt(W.x, W.z);
+      if (ar !== me.arena) { me.arena = ar; if (ar) { readSword(); me.lastZone = ar; setStance(ar === Z_PIT ? 1 : 2, true); say(ar === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } }
+      const held = me.down > 0 ? me.zone : me.stance;
+      if (held !== me.zone) { me.zone = held; me.cool = 0; mineR.st.act = null; me.fireAt = -1; if (held !== Z_RANGE) tps?.off(); }
+      if (!me.down && me.hp < ARENA.hp && t - me.lastHitT > 6) me.hp = Math.min(ARENA.hp, me.hp + 12 * dt); // out of the fight 6 s: patch up
+      drawStance(walker.active && !inHouse?.());
+    } else {
     const z = me.down > 0 ? me.zone : zoneAt(W.x, W.z);
     if (z !== me.zone) { if (z) { readSword(); me.lastZone = z; if (!me.zone) say(z === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (tps ? (touch ? 'drag the right side to aim · hold AIM for sights · tap FIRE' : 'click where you want to shoot · hold RIGHT to zoom') : touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } else leave(); me.zone = z; me.cool = 0; mineR.st.act = null; }
+    }
     // my rig
     const st = mineR.st; st.zone = me.zone; st.w += ((me.zone ? 1 : 0) - st.w) * Math.min(1, dt * 8); st.recoil = Math.max(0, st.recoil - dt * 5);
     if (st.act) { const a = st.act; a.t += dt; if (!a.hit && a.t >= ARENA.sword.hitAt) { a.hit = true; swordHit(); } if (a.t >= ARENA.sword.dur) st.act = null; }
@@ -483,16 +569,17 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       dress(r, s.zone, r.swordId || SWORD_DEFAULT, r.musketId || MUSKET_DEFAULT, r.team || 0); knock(r, r.ba[6] ? 1 : 0); hpBar(r); }
     drawHud();
   }
-  function leave() { tps?.off(); me.zone = 0; me.hp = ARENA.hp; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) mineR.fig.visible = true; } drawHud(); }
+  function leave() { tps?.off(); me.zone = 0; me.stance = 0; me.arena = 0; me.onFoot = false; me.downArena = 0; me.hp = ARENA.hp; me.down = 0; me.fireAt = -1; me.score = [0, 0, 0]; if (mineR) { mineR.st.act = null; mineR.st.zone = 0; knock(mineR, 0); if (mineR.fig) mineR.fig.visible = true; } drawHud(); }
   function netState() {
-    if (!me.zone) return { ba: 0 };
-    const out = { ba: [me.zone, Math.round(me.hp), me.life, me.seq, me.kind, Math.max(0, SWORD_IDS.indexOf(swordId)), me.down > 0 ? 1 : 0, Math.max(0, MUSKET_IDS.indexOf(musketId)), me.team] };
+    const cw = crewFight?.wire?.('me') || { cm: 0, ct: '' }; // [backpack-pvp] cm 1 gun | 2 sword, ct = the pirate whose crew yours fights
+    if (STANCES_ON ? !me.onFoot : !me.zone) return { ba: 0, cm: cw.cm, ct: cw.ct }; // [backpack-pvp] stances: ba rides whenever you are on foot (ba[0] = held: 0 unarmed)
+    const out = { cm: cw.cm, ct: cw.ct, ba: [me.zone, Math.round(me.hp), me.life, me.seq, me.kind, Math.max(0, SWORD_IDS.indexOf(swordId)), me.down > 0 ? 1 : 0, Math.max(0, MUSKET_IDS.indexOf(musketId)), me.team] };
     if (dealt.size) { const bh = {}; for (const [id, d] of dealt) if (fnet.peers.has(id)) bh[id] = [d.life, d.n]; out.bh = bh; }
     return out;
   }
   // [Emerly] fight sync: while you and at least one other pirate are in the same area, ask the harbor room (js/transport.js Batcher.boost,
   // wired in js/pvp.js) to send YOUR state at HARBOR_NET.fight.hz (1v1) / hz4 (3-4 fighters). 0 = the normal 1 Hz harbor rate.
-  function fastHz() { if (!me.zone) return 0; let n = 0; for (const r of peerR.values()) if (r.ba[0] === me.zone) n++; if (!n) return 0;
+  function fastHz() { if (!me.zone) return 0; let n = 0; for (const r of peerR.values()) if (STANCES_ON ? r.ba[0] > 0 : r.ba[0] === me.zone) n++; if (!n) return 0;
     const F = HARBOR_NET.fight || {}; return n + 1 <= 2 ? (F.hz ?? 10) : (F.hz4 ?? 5); }
   // [Emerly] crew followers stay OUT of the arenas: a point inside the pit / range (+1.6 m) -> the spot where follower i waits
   // (just outside the gate, harbor coords); null = free to walk there. js/onfoot/followers.js keepOut.
@@ -504,5 +591,5 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   // shop card renders (tools/battle/weapon_thumbs.html): pose any loaded v5 pirate with a weapon, outside the game loop
   function preview(obj, zone, id, act = null) { const R = { ...rig(obj), obj }; if (!hookBody(R)) return null; R.st.zone = zone; R.st.w = 1; R.st.act = act;
     dress(R, zone, zone === Z_PIT ? id : SWORD_DEFAULT, zone === Z_RANGE ? id : MUSKET_DEFAULT); return R; }
-  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps, padHud: () => { hudSig = ''; drawHud(); } };
+  return { muzzleAt: () => mineR ? muzzleWorld(mineR, new THREE.Vector3()).toArray().map(v => +v.toFixed(2)) : null, root, store, shops, setShopDoor, storeDoors, targets, dummies, attack, tick, onPeer, netState, clear, me, fastHz, keepOut, setTeam, peers: peerR, get zone() { return me.zone; }, setStance, get stance() { return me.stance; }, get arena() { return me.arena; }, harborRespawn, openHitOk, takeHit, respawn, get rig() { return mineR; }, swordId: () => swordId, musketId: () => musketId, preview, tps, padHud: () => { hudSig = ''; drawHud(); }, isleSafe, graceLeft: (now) => graceLeft(isleSafe, now, SAFE_GRACE_S) };
 }

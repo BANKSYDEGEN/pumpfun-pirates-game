@@ -71,7 +71,7 @@ function supabaseNet({ prefix, myId, ticket }) {
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_lobby`, { method: 'POST', keepalive: !!o.keepalive,
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ p_seat: o.seat, p_prefix: prefix, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_offer: o.offer ?? null }) });
+        body: JSON.stringify({ p_seat: o.seat, p_prefix: o.prefix || pfx, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_offer: o.offer ?? null }) });
       if (!r.ok) return { state: 'error', status: r.status };
       return await r.json();
     } catch { return { state: 'error' }; }
@@ -97,19 +97,21 @@ async function openBatched(name, myId, cfg, ticket) { // one Realtime channel + 
 //   call ops (pvp_harbor RPC, migration 021): beat (get / keep a copy seat) | spec (watch the busiest copy) | peek | leave
 //   A copy of n pirates + s spectators costs n·1.5·(n+s) msgs/s (1 Hz state + volleys); the RPC keeps the harbor total
 //   inside the free plan without ever touching the Solo / Squads arena budget.
+export const HARBOR_PREFIX_RE = /^pfp-harbor(-[a-z0-9]{1,16})?$/; // = migration 021 / 041 p_prefix check (lower-case codes only)
 export function createHarborNet({ prefix, myId, ticket }) {
   if (PVP_RELAY_URL || !SUPABASE_URL || !HARBOR_NET.on) return null;
-  const cfg = HARBOR_NET;
+  const cfg = HARBOR_NET; const base = prefix; let pfx = prefix; // [backpack-pvp server picker] pfx = 'pfp-harbor' (public) | 'pfp-harbor-<code>' (OWN server)
   async function call(op, o = {}) {
     try {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', keepalive: !!o.keepalive,
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ p_seat: o.seat, p_prefix: prefix, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_want_copy: o.wantCopy ?? null }) });
+        body: JSON.stringify({ p_seat: o.seat, p_prefix: o.prefix || pfx, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_want_copy: o.wantCopy ?? null }) });
       if (!r.ok) return { state: 'error', status: r.status };
       return await r.json();
     } catch { return { state: 'error' }; }
   }
-  return { kind: 'harbor', cfg, prefix, call, openRoom: (copy) => openBatched(`${prefix}-${copy}`, myId, cfg, ticket) };
+  const setPrefix = (p) => { pfx = HARBOR_PREFIX_RE.test(String(p || '')) ? String(p) : base; return pfx; };
+  return { kind: 'harbor', cfg, get prefix() { return pfx; }, base, setPrefix, call, openRoom: (copy) => openBatched(`${pfx}-${copy}`, myId, cfg, ticket) };
 }
 
 // ---------------- relay server (server/relay.js): one socket, lobby + room, server batches one frame per tick ----------------

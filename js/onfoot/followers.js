@@ -85,6 +85,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
         c.x += c.zipVx * dt; c.z += c.zipVz * dt; c.zipVx *= Math.exp(-dt * 0.55); c.zipVz *= Math.exp(-dt * 0.55);
         if (!c.body.air || Math.hypot(c.zipVx, c.zipVz) < 0.4) { c.zipVx = c.zipVz = null; }
       }
+      if (c.fight) { stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; const far0 = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far0; place(c); if (!far0) c.p.update(dt, c.speed, c.pose); return; } // [backpack-pvp] crewFight.js owns x / z / yaw while they fight
       if (followStep(c, W, dt, env) === 'tp') return place(c); // lost (> 40 m behind): regroup on your trail
       stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; bodyFX(fx, c.body, c.x, c.z, c.speed, dt); fx?.update();
       const far = camera ? camera.position.distanceToSquared(c.p.object.position) > 4900 : false; c.p.object.visible = !far;

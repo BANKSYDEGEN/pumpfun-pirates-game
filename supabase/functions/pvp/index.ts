@@ -10,6 +10,7 @@ import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts
 import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { houseAction, HOUSE_ACTIONS } from "./houses.ts"; // [storage-houses] migration 043: buyable cottages + chest storage
 import { adminAction, ADMIN_ACTIONS } from "./admin.ts"; // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
+import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -624,6 +625,7 @@ Deno.serve(async (req) => {
         if (INV_ACTIONS.includes(String(b.action))) return await inventoryAction({ db, whoAmI, boostsOf, json, mapSpots: MAP_SPOTS }, String(b.action), b); // [inventory]
         if (HOUSE_ACTIONS.includes(String(b.action) as any)) return await houseAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [storage-houses]
         if (ADMIN_ACTIONS.includes(String(b.action) as any)) return await adminAction({ db, whoAmI, json }, String(b.action), b); // [admin-menu] who.owner checked inside
+        if (LOOT_ACTIONS.includes(String(b.action) as any)) return await lootAction({ db, whoAmI, json }, String(b.action), b); // [backpack-pvp]
         return json(400, { error: "unknown action" });
     }
   } catch (e) { console.error(e); return json(500, { error: "server error" }); }

@@ -60,13 +60,13 @@ test("plaza_shops.json contract: Timothy's file parses, radius read, fallback = 
 test('[v209] 038 turns on only weapon_stats + rare_weapon_drops; common weapon stats = ARENA exactly, rare+ better', async () => {
   const fs = await import('node:fs'); const S38 = fs.readFileSync(new URL('../supabase/migrations/038_weapon_flags.sql', import.meta.url), 'utf8');
   assert.match(S38, /k in \('weapon_stats', 'rare_weapon_drops'\)/); assert.doesNotMatch(S38, /market_fee|drop table|delete from/i);
-  const C = await import('../js/inventory/catalog.js'); const { ARENA } = { ARENA: { sword: { dmg: 34, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 }, musket: { dmg: 50, range: 60, wide: 0.55, reload: 2.0, delay: 0.16 } } };
+  const C = await import('../js/inventory/catalog.js'); const { ARENA } = { ARENA: { sword: { dmg: 19, reach: 2.5, arc: 1.15, cool: 0.55, dur: 0.42, hitAt: 0.2 }, musket: { dmg: 19, range: 60, wide: 0.55, reload: 1.25, delay: 0.16 } } };
   for (const s of ['sword', 'musket']) { assert.deepEqual(C.weaponStats(s, 'common', ARENA[s]), ARENA[s]); assert.deepEqual(C.weaponStats(s, 'legendary', ARENA[s], false), ARENA[s]); }
   const r = C.weaponStats('sword', 'rare', ARENA.sword), l = C.weaponStats('musket', 'legendary', ARENA.musket);
-  assert.ok(r.dmg > 34 && r.cool < 0.55 && r.reach > 2.5); assert.ok(l.dmg > 50 && l.reload < 2 && l.range > 60 && l.wide < 0.55);
+  assert.ok(r.dmg > 19 && r.cool < 0.55 && r.reach > 2.5); assert.ok(l.dmg > 19 && l.reload < 1.25 && l.range > 60 && l.wide < 0.55); // [backpack-pvp] t1711u 5-6 hits to KO
   const B = fs.readFileSync(new URL('../js/onfoot/battle.js', import.meta.url), 'utf8');
   assert.match(B, /carryArmed\(R\.fig/); assert.match(B, /tps\.shotYaw/); assert.match(B, /S = mine \? myW\('musket'\) : ARENA\.musket/);
-  assert.match(B, /export const ARENA = \{\n  hp: 100, sword: \{ dmg: 34, reach: 2\.5, arc: 1\.15, cool: 0\.55/);
+  assert.match(B, /export const ARENA = \{\n  hp: 100, sword: \{ dmg: 19, reach: 2\.5, arc: 1\.15, cool: 0\.55/); assert.match(B, /musket: \{ dmg: 19, range: 60, wide: 0\.55, reload: 1\.25/);
 });
 
 test('[v212] plaza_shops.json = FALLBACK; shops sit on numbered existing structures, clear of the shop prompts', () => {

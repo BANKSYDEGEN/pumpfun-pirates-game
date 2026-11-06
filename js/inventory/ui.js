@@ -5,6 +5,7 @@
 import { itemInfo, RARITY_COLOR, FLAGS, MARKET } from './catalog.js';
 import { wstackOn, muskRankOn, RANK_UP, RANKS, SALVAGE_PARTS, PARTS_KEY, RANK_CAP, GUN_ACC, gunAccOn, loadGunAcc, setGunAcc, gunAcc, pruneGunAcc } from '../musketUpgrades.js'; // [Emerly wstack / eqslots / musket-rank / gunacc]
 import { createGivePick } from './givePick.js'; // [give-dropdown] GIVE: pick an online pirate (or type a name), then confirm
+import { countBackpackSlots, slotMeterText, isUnlimitedBag, BAGCAP_ON } from './backpackCap.js'; // [backpack-pvp]
 // [item-icons] real pictures for every item (assets/items/*.webp, 256 px, lazy); a spare cosmetic uses its baked shop render. The emoji stays as the fallback.
 const IMG_DIR = new URL('../../assets/items/', import.meta.url).href, THUMB_DIR = new URL('../../assets/pirates/thumbs/', import.meta.url).href;
 const MAP_TIER = { common: 'common', uncommon: 'common', rare: 'rare', epic: 'rare', legendary: 'legendary' };
@@ -27,6 +28,10 @@ const CSS = `
 #inv-panel .iv-box{width:min(760px,96vw);max-height:min(92vh,860px);display:flex;flex-direction:column;background:#2a1a0c;border:3px solid #ffcd77;border-radius:16px;box-shadow:0 10px 40px #000}
 #inv-panel .iv-head{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;font-size:30px;letter-spacing:.05em;color:#ffcd77}
 #inv-panel .iv-head small{font-size:18px;color:#cdb68c;flex:1}
+#inv-panel .iv-slots{font:bold 16px system-ui,sans-serif;padding:2px 10px;border-radius:999px;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;letter-spacing:.04em}
+#inv-panel .iv-slots.warn{border-color:#ffb020;color:#ffb020;background:#2a1a06}
+#inv-panel .iv-slots.full{border-color:#ff4a3d;color:#ffd0c8;background:#2a0c0a}
+#inv-panel .iv-slots.owner{border-color:#ffd700;color:#ffd700;background:#2a2208}
 #inv-panel .iv-x{width:44px;height:44px;border-radius:50%;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;font-size:22px;cursor:pointer}
 #inv-panel .iv-tabs{display:flex;gap:6px;padding:0 14px 6px}
 #inv-panel .iv-tabs button{font:20px 'Just Another Hand',cursive;padding:4px 12px 2px;border-radius:10px;border:2px solid rgba(255,205,119,.4);background:#1a0f07;color:#f4e2bb;cursor:pointer}
@@ -64,7 +69,7 @@ async function uncarry(slot, eq) { // [rare-equip] back to your WEAPON STORE pic
     G.setCarriedWeapons({ ...cur, [slot]: st[slot] ?? null }, eq[other] ? 'inventory' : 'profile'); } catch {} }
 export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = () => [] }) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
-  const el = document.createElement('div'); el.id = 'inv-panel'; el.innerHTML = '<div class="iv-box"><div class="iv-head">🎒 <span class="iv-title">INVENTORY</span><small></small><button class="iv-x" aria-label="Close">✕</button></div><div class="iv-tabs"></div><div class="iv-grid"></div><div class="iv-act"></div></div>';
+  const el = document.createElement('div'); el.id = 'inv-panel'; el.innerHTML = '<div class="iv-box"><div class="iv-head">🎒 <span class="iv-title">INVENTORY</span><small></small><span class="iv-slots" hidden></span><button class="iv-x" aria-label="Close">✕</button></div><div class="iv-tabs"></div><div class="iv-grid"></div><div class="iv-act"></div></div>';
   document.body.appendChild(el); for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'keydown']) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== 'keydown' });
   const $ = (s) => el.querySelector(s); let data = { items: [], maps: [], flags: {}, equipped: {} }, mode = 'bag', tab = 'mine', sel = null, selI = -1, listings = [], busy = false;
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); }); $('.iv-x').onclick = () => close();
@@ -128,7 +133,13 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; syncW(r); if (ACC_ON) pruneGunAcc(accWho(), (k) => qtyOf(k) > 0); } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
   function render() {
     const title = { bag: 'INVENTORY', fish: 'FISH MARKET', antiques: 'TREASURE TRADER', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
-    $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
+    const bagState = { owner: !!data.owner, name: pvp()?.name };
+    const haulUsed = countBackpackSlots(data.items || [], data.equipped || {});
+    const meter = slotMeterText(haulUsed, bagState);
+    const meterEl = $('.iv-slots');
+    if (BAGCAP_ON && mode === 'bag') { meterEl.hidden = false; meterEl.textContent = meter.text; meterEl.className = 'iv-slots ' + meter.level; }
+    else meterEl.hidden = true;
+    $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · ${meter.text} · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
     $('.iv-tabs').innerHTML = mode === 'market' ? `<button data-t="browse" class="${tab === 'browse' ? 'on' : ''}">FOR SALE</button><button data-t="mine" class="${tab === 'mine' ? 'on' : ''}">SELL YOURS</button>` : '';
     $('.iv-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.t; sel = null; render(); });
     const g = $('.iv-grid');
@@ -267,7 +278,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
   return { invSlots: () => (view || []).map(v => v ? { key: v.s.key, qty: v.n } : null), onSlotsChange: (f) => { _slotFns.push(f); }, // [inv-arrange] HOTBAR hook (not built): slot i -> item; fires on every move
-    open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
+    open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, slots, haulUsed: () => countBackpackSlots(data.items || [], data.equipped || {}), isOwnerBag: () => isUnlimitedBag({ owner: !!data.owner, name: pvp()?.name }), render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
 }
 export const INV_FLAGS = FLAGS;
 // [v240] every shop list cheapest first: the Marketplace FOR SALE grid by price, then oldest listing first (the server sent newest first)

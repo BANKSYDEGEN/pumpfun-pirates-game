@@ -8,6 +8,7 @@ import { invApi } from '../pvpSave.js';
 import { escHtml } from '../safe.js';
 import { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
 export { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
+import { countBackpackSlots, canAcceptItem, slotMeterText, isUnlimitedBag, BAG_FULL_MSG, BAGCAP_ON } from '../inventory/backpackCap.js'; // [backpack-pvp]
 
 export const HOUSES_ON = !(typeof location !== 'undefined' && /[?&]houses=0(?:&|$)/.test(location.search || ''));
 
@@ -95,6 +96,7 @@ const CSS = `
 #hs-panel .hs-slot b.hs-qty{position:absolute;right:3px;top:2px;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;pointer-events:none}
 #hs-panel .hs-slot .hs-split{position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:6px;border:1px solid #ffcd77;background:rgba(26,15,7,.9);color:#ffcd77;font:12px/20px system-ui,sans-serif;cursor:pointer;padding:0;z-index:2}
 #hs-panel .hs-slot .hs-split:hover{background:#5a3410;color:#fff}
+#hs-panel [data-bag-cap].warn{color:#ffb020}#hs-panel [data-bag-cap].full{color:#ff6b5a}#hs-panel [data-bag-cap].owner{color:#ffd700} /* [backpack-pvp] 16-slot meter */
 #hs-panel .hs-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 14px 12px;border-top:2px solid rgba(255,205,119,.25)}
 #hs-panel .hs-foot button{font:20px 'Just Another Hand',cursive;padding:6px 12px 4px;border-radius:10px;border:2px solid #ffcd77;background:#5a3410;color:#fff;cursor:pointer}
 #hs-panel .hs-foot button.ghost{background:#1a0f07;color:#ffcd77}
@@ -1290,6 +1292,19 @@ export function createHouses({
     panel.querySelector('[data-sub]').textContent = `${name} · drag full stacks · ✂️ to split`;
     panel.querySelector('[data-cap]').textContent = `${used} / ${ch.slots} slots`;
     panel.querySelector('[data-bag-cap]').textContent = `${bag.length} item${bag.length === 1 ? '' : 's'}`;
+    // [backpack-pvp] backpack slot meter
+    try {
+      const all = await bagItems(); // the whole backpack, not the filtered tab
+      const inv = typeof inventory === 'function' ? inventory() : inventory;
+      const owner = !!(inv?.isOwnerBag?.() || isUnlimitedBag({ name: (typeof localStorage !== 'undefined' && localStorage.getItem('pfp_name')) || '' }) || (typeof location !== 'undefined' && /[?&]banksy=1(&|$)/.test(location.search || '')));
+      const eq = {};
+      for (const s of all) if (s.equipped && String(s.item).startsWith('wpn:sword:')) eq.sword = s.item;
+      for (const s of all) if (s.equipped && String(s.item).startsWith('wpn:musket:')) eq.musket = s.item;
+      const haul = countBackpackSlots(all.map((s) => ({ item: s.item, qty: s.qty })), eq);
+      const m = slotMeterText(haul, { owner });
+      const el = panel.querySelector('[data-bag-cap]'); // [backpack-pvp] data-bagcap meter -> the v324 cap chip
+      if (el && BAGCAP_ON) { el.textContent = m.text; el.className = `hs-cap ${m.level || ''}`; }
+    } catch {}
     const bagEl = panel.querySelector('[data-bag]'), chestEl = panel.querySelector('[data-chest]');
     bagEl.innerHTML = bag.length
       ? bag.map((s) => slotHtml(s, 'bag')).join('')
@@ -1566,11 +1581,21 @@ export function createHouses({
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };
           persistChest(activeId);
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
-        } else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
+        } else if (r && (r.full || /backpack full/i.test(String(r.error || '')))) { toast(BAG_FULL_MSG, 2200); return; } // [backpack-pvp]
+        else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
           toast(String(r.error || 'no').toUpperCase(), 1800); return;
         }
       } catch {}
       if (!ok) {
+        const row0 = (owned[activeId].items || []).find((x) => x.slot === slot); if (!row0) return;
+        // [backpack-pvp] local 16-slot cap check (BANKSY ∞)
+        const bagNow = await bagItems();
+        const owner = !!(isUnlimitedBag({ name: (typeof localStorage !== 'undefined' && localStorage.getItem('pfp_name')) || '' }) || (typeof location !== 'undefined' && /[?&]banksy=1(&|$)/.test(location.search || '')));
+        const eq = {};
+        for (const s of bagNow) if (s.equipped && String(s.item).startsWith('wpn:sword:')) eq.sword = s.item;
+        for (const s of bagNow) if (s.equipped && String(s.item).startsWith('wpn:musket:')) eq.musket = s.item;
+        const check = canAcceptItem(bagNow.map((s) => ({ item: s.item, qty: s.qty })), row0.item, Math.min(qty, row0.qty), eq, { owner });
+        if (!check.ok) { toast(BAG_FULL_MSG, 2200); return; }
         const res = applyChestTake(owned[activeId].items || [], slot, qty);
         if (!res.ok) return;
         const st = lsLoad();

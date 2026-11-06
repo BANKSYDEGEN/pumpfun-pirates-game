@@ -886,6 +886,7 @@ function drawRadar() {
   rctx.clearRect(0, 0, W, W);
   rctx.strokeStyle = 'rgba(255,205,119,0.25)'; rctx.lineWidth = 1;
   [0.33, 0.66].forEach(f => { rctx.beginPath(); rctx.arc(R, R, R * f, 0, 7); rctx.stroke(); });
+  if (dock?.on) dock.radarZones?.(rctx, W, (x, z) => { const [lx, lz] = toLocal(player, x, z); return [R - lx / range * R, R - lz / range * R]; }, player); // [backpack-pvp] t1710u Safe Harbor + island Safe Zone on the ship radar
   const dot = (x, z, color, r) => {
     const [lx, lz] = toLocal(player, x, z);
     let px = -lx / range * R, py = -lz / range * R; // heading up, port on the left
