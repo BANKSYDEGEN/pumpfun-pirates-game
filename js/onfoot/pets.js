@@ -38,9 +38,9 @@ export function createPetFollower({ scene, world, low = false, keepOut = null, l
     if (world.blocked(c.x, c.z, o.x, o.z)) { c.x = o.x; c.z = o.z; }
     Object.assign(c, { yaw: o.yaw, speed: 0, stuck: 0, idleT: 0 }); placeBody(c.body, world, c.x, c.z); c.y = c.body.y; active = true; if (mesh) mesh.visible = true; place();
   }
-  function exit() { active = false; if (mesh) mesh.visible = false; bound(true); }
+  function exit() { active = false; if (mesh) { mesh.visible = false; mesh.rotation.order = 'YXZ'; mesh.rotation.set(0, c.yaw, 0); } bound(true); }
   function place() { if (!mesh) return; const s = c.body.swim && world.water ? world.water(c.x, c.z) : null, R = PET_RIG[id], k = figScale(fig);
-    mesh.scale.setScalar(k); mesh.position.set(c.x, s != null ? s - 0.32 * (R?.h || 0.3) * k : c.y, c.z); mesh.rotation.y = c.yaw; }   // swimming: head + back above the water
+    mesh.scale.setScalar(k); mesh.position.set(c.x, s != null ? s - 0.32 * (R?.h || 0.3) * k : c.y, c.z); mesh.rotation.order = 'YXZ'; mesh.rotation.set(0, c.yaw, 0); }   // [v320] upright: no stale pitch/roll from the canoe   // swimming: head + back above the water
   // o = the pirate you follow { x, z, yaw }; pirateObj = their loadPirate object (finds the bound copy); petId = their parrot-slot id
   function update(dt, o, { camera = null, pirateObj = null, petId = 'none' } = {}) {
     fig = figOf(pirateObj) || fig; setPet(petId, !!fig?.female);

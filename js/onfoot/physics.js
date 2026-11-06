@@ -61,7 +61,7 @@ export function poseBody(obj, b, x, z, yaw, speed, t, jh = 0) {
   else if (b.climb) { const k = Math.min(1, b.climb / PHYS.climbT); tilt = 0.35 * Math.sin(Math.PI * Math.min(1, k * 1.15)); st = 'climb'; obj.userData.swimK = k; back = 0.4 * (b.climbD > 0 ? -b.off / b.climbD : 0); }   // [Raul swim-anim] pull-up
   else if (b.air && b.vy < -4 && b.airT > PHYS.fallPose) { tilt = -0.18; st = 'fall'; }
   obj.userData.air = !!b.air; // [Raul emotes] land-only body emotes (js/onfoot/emotePose.js)
-  obj.rotation.order = 'YXZ'; obj.rotation.y = yaw; obj.rotation.x = tilt;
+  obj.rotation.order = 'YXZ'; obj.rotation.set(tilt, yaw, 0);   // [v320] zero roll: a stale rotation.z (canoe ride) left you walking sideways
   const hc = 1.05, s = Math.sin(yaw), c = Math.cos(yaw), oy = hc * (1 - Math.cos(tilt)), oz = -hc * Math.sin(tilt) * 0.7; // keep the chest where it was
   _o.set(x + s * (oz - back), y + oy, z + c * (oz - back)); obj.position.copy(_o); return st; }
 

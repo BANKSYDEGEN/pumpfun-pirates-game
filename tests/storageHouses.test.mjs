@@ -147,7 +147,7 @@ test('indoor pocket world.ground/water/blocked + dual exit/chest prompts + no HU
   assert.match(SRC, /hitFurn/);
   assert.match(SRC, /LEAVE COTTAGE/);
   assert.doesNotMatch(SRC, /hs-badge/);
-  assert.match(SRC, /OPEN STORAGE[\s\S]*EXIT TO ISLAND|a = nearChest/);
+  assert.match(SRC, /OPEN STORAGE[\s\S]*EXIT TO ISLAND/);
   assert.match(SRC, /tag: 'chest'/);
   assert.match(SRC, /tag: 'exit'/);
   assert.match(SRC, /ih:\s*1/); // silent reservation still on the wire
@@ -158,4 +158,27 @@ test('indoor pocket world.ground/water/blocked + dual exit/chest prompts + no HU
   assert.match(SRC, /crewF\?\.exit/);
   assert.match(SRC, /petF\?\.exit/);
   assert.match(SRC, /crewF\?\.enter/);
+});
+
+test('[v320] side chest + walk-to-door proximity prompts, spawn inside the door, step out facing the lane', () => {
+  // chest geometry untouched (west wall, Post owns buildInteriorRoom art)
+  assert.match(SRC, /chest\.position\.set\(-W \/ 2 \+ 1\.15, 0\.14, -0\.55\)/);
+  assert.match(SRC, /chest: \{ x: -W \/ 2 \+ 2\.15, z: -0\.55, r: 2\.2/);
+  assert.match(SRC, /exit: \{ x: 0, z: D \/ 2 - 1\.35, r: 2\.4/);
+  assert.match(SRC, /dChest < \(spots\.chest\.r \|\| 2\.2\) && dChest <= dExit/);
+  assert.match(SRC, /dExit < \(spots\.exit\.r \|\| 2\.4\)/);
+  assert.doesNotMatch(SRC, /key: 'Q', primary: false, tag: 'exit'/);
+  assert.match(SRC, /interior\.userData\.D \/ 2 - 1\.55/);
+  assert.match(SRC, /const outYaw = hold\.yaw \+ Math\.PI; w\.yaw = outYaw; w\.camYaw = outYaw;/);
+  assert.match(SRC, /world\.blocked\?\.\(w\.x, w\.z\)/);
+  assert.ok((SRC.match(/pirate\.object\.rotation\.set\(0, w\.yaw, 0\)/g) || []).length >= 2, 'enterHouse + tick zero pitch / roll');
+  // behaviour: replay the prompt logic on the real room layout
+  const W = 8, D = 7;   // any cabin size: chest / exit spots are relative to the walls
+  const spots = { chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2 }, exit: { x: 0, z: D / 2 - 1.35, r: 2.4 } };
+  const tagAt = (lx, lz) => { const dC = Math.hypot(spots.chest.x - lx, spots.chest.z - lz), dE = Math.hypot(spots.exit.x - lx, spots.exit.z - lz);
+    if (dC < spots.chest.r && dC <= dE) return 'chest'; if (dE < spots.exit.r) return 'exit'; return null; };
+  assert.equal(tagAt(spots.chest.x + 0.3, spots.chest.z), 'chest');
+  assert.equal(tagAt(0, D / 2 - 0.6), 'exit');
+  assert.equal(tagAt(0, D / 2 - 1.55), 'exit', 'spawn point is right at the door: one step back out');
+  assert.equal(tagAt(W / 2 - 1.0, -D / 2 + 1.0), null, 'far corner: no sticky banner');
 });

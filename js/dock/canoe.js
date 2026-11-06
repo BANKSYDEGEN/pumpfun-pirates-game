@@ -293,6 +293,14 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   let bobT = 0;
   const clearKeys = () => { for (const k in keys) keys[k] = false; };
   const wy = (x, z) => { const v = waveY?.(x, z); return Number.isFinite(v) ? v : 0; };
+  // [v320] riders copy the canoe's YXZ quaternion; stand them back upright (no pitch / roll) whenever they leave the canoe
+  // (BANKSY t1688u: "I and pet walk sideways after canoe" = a stale rotation.z from an XYZ decomposition of the canoe pose)
+  function uprightRiders(pirateObjOverride = null) {
+    const up = (o) => { if (!o?.rotation) return; o.rotation.order = 'YXZ'; o.rotation.x = 0; o.rotation.z = 0; };
+    up(pirateObjOverride || pirate?.object);
+    for (const c of (crewF?.list || [])) up(c?.p?.object);
+    up(petF?.mesh || petF?.object);
+  }
 
   // ---- canoe input: its own keys + camera look (the walker is inactive while paddling) ----
   function onKey(e, down) {
@@ -401,6 +409,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     document.documentElement.classList.remove('pfp-canoe'); // ship HUD back (html.pfp-canoe hides #controls / #hint)
     if (controls) controls.enabled = true;
     try { crewF?.exit?.(); petF?.exit?.(); } catch {}
+    uprightRiders();
     if (pirate?.object) pirate.object.visible = false;
     s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true; s._offshore = false; s._canoeAway = false;
     goAboardShip?.(); toast('BACK ABOARD · ⚓ or W to sail'); return true;
@@ -420,7 +429,8 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     st.mode = 'beached'; st.cspd = 0; clearKeys(); cam.drags.clear();
     placeBeached();
     document.documentElement.classList.remove('pfp-canoe');
-    if (ship) ship._canoeAway = true; goAshoreAt?.(x, z, spot.yaw); sfx?.coin?.(); return true;
+    uprightRiders();
+    if (ship) ship._canoeAway = true; goAshoreAt?.(x, z, spot.yaw); uprightRiders(); sfx?.coin?.(); return true;
   }
   function placeBeached() {
     const g = H(st.bx, st.bz), w = wy(st.bx, st.bz);
@@ -444,7 +454,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   function recallShip(s, docking, controls) {
     if (!s?.alive || !docking) return false;
     // clear canoe / offshore
-    mesh.visible = false; st.mode = 'sea'; s._offshore = false; s._canoeAway = false; s.anchor = false; clearKeys();
+    mesh.visible = false; st.mode = 'sea'; s._offshore = false; s._canoeAway = false; s.anchor = false; clearKeys(); uprightRiders();
     document.documentElement.classList.remove('pfp-canoe');
     if (controls) controls.enabled = true;
     // if we were canoeing (not on foot), stow crew/pet back off the canoe
@@ -460,7 +470,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     toast('SHIP RETURNED OFF THE HARBOR'); sfx?.coin?.(); return true;
   }
   function clearAll(s, controls) {
-    mesh.visible = false; st.mode = 'sea'; clearKeys();
+    mesh.visible = false; st.mode = 'sea'; clearKeys(); uprightRiders();
     if (s) { s._offshore = false; s._canoeAway = false; }
     document.documentElement.classList.remove('pfp-canoe');
     if (controls) controls.enabled = true;
@@ -512,7 +522,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
       const v = new THREE.Vector3();
       const placeAt = (obj, zLocal, yLocal = 0.18) => {
         if (!obj) return;
-        obj.visible = true;
+        obj.visible = true; obj.rotation.order = 'YXZ'; // [v320] decompose the canoe pose in YXZ (an XYZ copy at |yaw| > 90° read as x ≈ ±π, z ≈ ±π + roll)
         v.set(0, yLocal, zLocal).applyMatrix4(mesh.matrixWorld);
         obj.position.copy(v); obj.quaternion.copy(mesh.quaternion);
       };
@@ -609,7 +619,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     if (tag === 'boardShip') return boardShipFromCanoe(s, () => { goAboard?.(true); }, controls);
     if (tag === 'boardShipSwim') {
       clearAll(s, controls); s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.anchor = true; s._offshore = false; st.mode = 'sea';
-      goAboard?.(true); return true;
+      uprightRiders(); goAboard?.(true); return true;
     }
     if (tag === 'land') return landAshore((x, z, yaw) => { goAshoreAt?.(x, z, yaw); }, s); // goAshoreAt enters crew + pet itself
     if (tag === 'boardCanoeShore') {

@@ -81,5 +81,39 @@ let aboard = false; out.boardShip = canoe.act('boardShip', { s: ship, goAboard: 
 out.afterBoard = { anchor: ship.anchor, prompt: pr()?.a?.label || null };
 ship.anchor = false; ship.sail = 1; out.afterAnchorUp = pr();
 out.canoeCls = cls.has('pfp-canoe');
+// ---- [v320] riders stand upright after the canoe (BANKSY t1688u "I and pet walk sideways after canoe") ----
+// default 'XYZ' Object3D pirate / crew / pet, canoe at cyaw 2.65 on a pitched + rolled swell, then GO TO ISLAND or BOARD SHIP,
+// then the on-foot pose (physics.poseBody for pirate + crew, pets.js place() = order YXZ + set(0, yaw, 0)) => no pitch, no roll, up = +Y
+{ const PH = await import('../../js/onfoot/physics.js');
+  const PETSRC = (await import('node:fs')).readFileSync(new URL('../../js/onfoot/pets.js', import.meta.url), 'utf8');
+  const petPlace = (m, yaw) => { m.rotation.order = 'YXZ'; m.rotation.set(0, yaw, 0); };   // the exact pets.js place() rotation write (asserted below)
+  const upY = (o) => { o.updateMatrixWorld(true); return new THREE.Vector3(0, 1, 0).applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion())).y; };
+  const run = (how) => {
+    let TT = 0; const sw = (x, z) => 1.6 * Math.sin(x * 0.21 + TT * 1.7) + 1.2 * Math.cos(z * 0.17 - TT * 1.3);
+    const P = { object: new THREE.Object3D() }, crew = [0, 1].map(() => ({ p: { object: new THREE.Object3D() } })), petMeshO = new THREE.Object3D();
+    const crewF2 = { list: crew, enter() {}, exit() {} }, petF2 = { mesh: petMeshO, enter() {}, exit() {}, update() {} };
+    const sc = new THREE.Scene(); [P.object, petMeshO, ...crew.map(c => c.p.object)].forEach(o => sc.add(o));
+    const shp = { x: sx, z: sz, yaw: 0.4, alive: true, anchor: true, sail: 0, speed: 0, turn: 0 };
+    const cn = C.createCanoe({ scene: sc, layout: { FM, harborToFoot: CO.fromHarbor }, walker: { w: {} }, pirate: P, crewF: crewF2, petF: petF2, getPlayer: () => shp, waveY: sw });
+    cn.act('launchCanoe', { s: shp }); const S = cn.state;
+    if (how === 'land' && found2) { S.cx = found2[0]; S.cz = found2[1]; }
+    S.cyaw = 2.65;
+    let maxTilt = 0, before = null;
+    for (let i = 0; i < 20; i++) { TT += 0.11; cn.tick(1 / 60, { s: shp, pirateObj: P.object }); maxTilt = Math.max(maxTilt, Math.abs(cn.mesh.rotation.x) + Math.abs(cn.mesh.rotation.z)); }
+    before = { order: P.object.rotation.order, x: P.object.rotation.x, z: P.object.rotation.z, petOrder: petMeshO.rotation.order };
+    let ok, at = null;
+    if (how === 'land') ok = cn.act('land', { s: shp, goAshoreAt: (x, z, yaw) => { at = { x, z, yaw }; } });
+    else ok = cn.act('boardShip', { s: shp, goAboard: () => {} });
+    const yaw = at?.yaw ?? S.cyaw, x = at?.x ?? S.cx, z = at?.z ?? S.cz;
+    const afterExit = [P.object, ...crew.map(c => c.p.object), petMeshO].map(o => ({ x: o.rotation.x, z: o.rotation.z, order: o.rotation.order }));
+    PH.poseBody(P.object, PH.newBody(), x, z, yaw, 0, 0); crew.forEach((c, i) => PH.poseBody(c.p.object, PH.newBody(), x + i, z, yaw + 0.3, 0, 0)); petPlace(petMeshO, yaw);
+    const all = [P.object, ...crew.map(c => c.p.object), petMeshO];
+    return { ok, mode: cn.mode, cyaw: S.cyaw, maxTilt, before, afterExit,
+      rot: all.map(o => ({ x: o.rotation.x, z: o.rotation.z, upY: upY(o) })),
+      petSrc: /mesh\.rotation\.order = 'YXZ'; mesh\.rotation\.set\(0, c\.yaw, 0\);/.test(PETSRC) };
+  };
+  let found2 = null; { const s0 = { x: sx, z: sz }, dx = C.SAIL.cx - s0.x, dz = C.SAIL.cz - s0.z, d = Math.hypot(dx, dz);
+    for (let r = 0; r < d; r += 2) { const x = s0.x + dx / d * r, z = s0.z + dz / d * r; if (H(x, z) > -0.05) break; if (canoe.canLandAshore(x, z)) { found2 = [x, z]; break; } } }
+  out.upright = { land: run('land'), boardShip: run('boardShip'), found: !!found2 }; }
 console.log(JSON.stringify(out));
 process.exit(0);

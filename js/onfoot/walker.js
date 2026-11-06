@@ -42,7 +42,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   canvas.addEventListener('wheel', (e) => { if (!w.active) return; w.dist = Math.min(WALK.camD[2], Math.max(WALK.camD[0], w.dist * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: true });
   addEventListener('blur', () => { for (const k in w.keys) w.keys[k] = false; });
 
-  function enter(x, z, yaw) { Object.assign(w, { x, z, yaw, camYaw: yaw, speed: 0, active: true, pitch: 0.28, jh: 0, vy: 0, air: false, jumpQ: false }); placeBody(w.body, world, x, z); w.y = w.body.y; for (const k in w.keys) w.keys[k] = false; w.drags.clear(); pirate.object.visible = true; place(); snapCam(); }
+  function enter(x, z, yaw) { Object.assign(w, { x, z, yaw, camYaw: yaw, speed: 0, active: true, pitch: 0.28, jh: 0, vy: 0, air: false, jumpQ: false }); placeBody(w.body, world, x, z); w.y = w.body.y; for (const k in w.keys) w.keys[k] = false; w.drags.clear(); pirate.object.visible = true; pirate.object.rotation.order = 'YXZ'; pirate.object.rotation.set(0, yaw, 0); place(); snapCam(); }
   function exit() { fovReset(); w.active = false; pirate.object.visible = false; w.drags.clear(); w.joy.on = false; w.joy.x = w.joy.y = 0; }
   function place() { w.pose = poseBody(pirate.object, w.body, w.x, w.z, w.yaw, w.speed, performance.now() / 1000);
     // squash + stretch: crouch into the take-off, stretch in the air, squash on landing (scale only: the v4 clips keep running)

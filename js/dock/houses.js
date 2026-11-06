@@ -333,7 +333,7 @@ export function buildInteriorRoom({ tier = 'cozy', low = false } = {}) {
   ];
   const spots = {
     chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
-    exit: { x: 0, z: D / 2 - 1.35, r: 2.2, kind: 'house_exit', label: 'EXIT TO ISLAND' },
+    exit: { x: 0, z: D / 2 - 1.35, r: 2.4, kind: 'house_exit', label: 'EXIT TO ISLAND' },
   };
   g.userData = { W, D, H, tier, colliders, spots, chest, door };
   return g;
@@ -600,7 +600,7 @@ export function createHouses({
       // Flag indoor BEFORE placing walker so world.ground/blocked already see the pocket
       inHouse = true; activeId = d.id;
       const w = walker.w;
-      const lz = interior.userData.D / 2 - 1.45;
+      const lz = interior.userData.D / 2 - 1.55;   // [v320] just inside the front door, facing into the room (side chest ahead-left, door behind you)
       w.x = ox; w.z = oz + lz; w.y = oy + 0.14;
       w.yaw = Math.PI; w.camYaw = Math.PI; w.pitch = 0.16; w.dist = 4.4;
       w.vy = 0; w.speed = 0; w.air = false; w.swim = false; w.wade = 0;
@@ -617,8 +617,8 @@ export function createHouses({
       pirate.object.visible = true;
       try {
         pirate.object.position.set(w.x, w.y, w.z);
-        pirate.object.rotation.y = w.yaw;
-        pirate.object.rotation.x = 0;
+        pirate.object.rotation.order = 'YXZ';
+        pirate.object.rotation.set(0, w.yaw, 0);
       } catch {}
       // Park crew/pets outside so they don't crowd the cabin or block the cam
       try { crewF?.exit?.(); } catch {}
@@ -649,7 +649,10 @@ export function createHouses({
       inHouse = false; activeId = null; roomOrigin = null;
       w.x = hold.x; w.z = hold.z;
       w.y = world.ground?.(hold.x, hold.z) || 2;
-      w.yaw = hold.yaw; w.camYaw = hold.yaw; w.pitch = 0.12;
+      // [v320] step out facing the lane (hold.yaw faces the door), not back into the closed door
+      const outYaw = hold.yaw + Math.PI; w.yaw = outYaw; w.camYaw = outYaw; w.pitch = 0.12;
+      try { if (world.blocked?.(w.x, w.z)) { w.x += Math.sin(outYaw) * 0.6; w.z += Math.cos(outYaw) * 0.6; w.y = world.ground?.(w.x, w.z) || w.y; } } catch {}
+      try { pirate.object.rotation.order = 'YXZ'; pirate.object.rotation.set(0, outYaw, 0); } catch {}
       w._hsY = null; w.vy = 0; w.speed = 0; w.air = false; w.swim = false; w.wade = 0;
       if (w.body) {
         Object.assign(w.body, {
@@ -862,15 +865,18 @@ export function createHouses({
       const spots = interior.userData.spots;
       const dChest = Math.hypot(spots.chest.x - lx, spots.chest.z - lz);
       const dExit = Math.hypot(spots.exit.x - lx, spots.exit.z - lz);
-      const nearChest = dChest < spots.chest.r && dChest <= dExit;
-      const a = nearChest
-        ? { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }
-        : { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
-      const b = nearChest
-        ? { label: 'EXIT TO ISLAND', key: 'Q', primary: false, tag: 'exit' }
-        : { label: 'OPEN STORAGE', key: 'Q', primary: false, tag: 'chest' };
-      // Backward-compat flat fields + dual a/b for setActs
-      return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a, b };
+      // [v320] proximity prompts (BANKSY t1690u "Put chest off to side and allow them to walk to door to exit"):
+      // walk up to the side chest = OPEN STORAGE, walk up to the front door = EXIT TO ISLAND, mid-cabin = no banner
+      // (the LEAVE COTTAGE button in #hs-panel stays as an extra way out)
+      if (dChest < (spots.chest.r || 2.2) && dChest <= dExit) {
+        const a = { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' };
+        return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null };
+      }
+      if (dExit < (spots.exit.r || 2.4)) {
+        const a = { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
+        return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null };
+      }
+      return null;
     }
     const d = nearestDoor(W); if (!d) return null;
     if (isOwned(d.id)) return { label: 'ENTER COTTAGE', key: 'E', primary: true, tag: 'enter', door: d };
@@ -923,7 +929,7 @@ export function createHouses({
     const halfW = interior.userData.W / 2 - 0.55, halfD = interior.userData.D / 2 - 0.55;
     w.x = roomOrigin.x + Math.max(-halfW, Math.min(halfW, lx));
     w.z = roomOrigin.z + Math.max(-halfD, Math.min(halfD, lz));
-    try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.y = w.yaw; pirate.object.rotation.x = 0; pirate.object.visible = true; } catch {}
+    try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.order = 'YXZ'; pirate.object.rotation.set(0, w.yaw, 0); pirate.object.visible = true; } catch {}
     applyIndoorCam();
     // Keep outdoor peers hidden
     for (const [id, p] of fnet.peers) {

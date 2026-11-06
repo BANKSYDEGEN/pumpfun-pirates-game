@@ -69,3 +69,22 @@ test('no DROP ANCHOR popup: canoe prompt only when anchored with the on-screen â
   const ix = src('js/dock/index.js'), q = ix.indexOf("const q = now - leftAt > 5 ? docking.query(s) : null;"), c = ix.indexOf('const cp = q ? null : canoe?.prompts(');
   assert.ok(q > 0 && c > q, 'index.js: the dock approach is checked before the canoe prompt');
 });
+test('[v320] pirate, crew + pet stand upright after the canoe (cyaw 2.65, pitched + rolled swell, GO TO ISLAND or BOARD SHIP)', () => {
+  assert.equal(R.upright.found, true, 'a landing shore was found');
+  for (const how of ['land', 'boardShip']) {
+    const u = R.upright[how];
+    assert.equal(u.ok, true, `${how} ran`); assert.equal(u.mode, how === 'land' ? 'beached' : 'sea');
+    assert.ok(u.maxTilt > 0.05, `${how}: the canoe really pitched / rolled (${u.maxTilt})`);
+    assert.equal(u.before.order, 'YXZ', `${how}: riders decompose the canoe pose in YXZ`);
+    for (const [i, r] of u.afterExit.entries()) { assert.equal(r.order, 'YXZ'); assert.equal(r.x, 0, `${how} rider ${i} pitch after exit`); assert.equal(r.z, 0, `${how} rider ${i} roll after exit`); }
+    for (const [i, r] of u.rot.entries()) { assert.equal(r.x, 0, `${how} rider ${i} rotation.x`); assert.equal(r.z, 0, `${how} rider ${i} rotation.z`); assert.ok(r.upY > 0.9999, `${how} rider ${i} up.y ${r.upY}`); }
+    assert.equal(u.petSrc, true, 'pets.js place() writes order YXZ + set(0, yaw, 0)');
+  }
+  const cs = src('js/dock/canoe.js');
+  assert.match(cs, /obj\.rotation\.order = 'YXZ';[^\n]*\n?[\s\S]{0,200}obj\.quaternion\.copy\(mesh\.quaternion\)/);
+  assert.match(cs, /function uprightRiders\(pirateObjOverride = null\)/);
+  for (const fn of ['boardShipFromCanoe', 'landAshore', 'recallShip', 'clearAll']) assert.match(cs, new RegExp(`function ${fn}[\\s\\S]*?uprightRiders\\(\\)`), fn);
+  assert.match(src('js/onfoot/physics.js'), /obj\.rotation\.order = 'YXZ'; obj\.rotation\.set\(tilt, yaw, 0\);/);
+  assert.match(src('js/onfoot/walker.js'), /pirate\.object\.rotation\.order = 'YXZ'; pirate\.object\.rotation\.set\(0, yaw, 0\);/);
+  assert.match(src('js/onfoot/pets.js'), /function exit\(\)[^\n]*mesh\.rotation\.set\(0, c\.yaw, 0\)/);
+});
