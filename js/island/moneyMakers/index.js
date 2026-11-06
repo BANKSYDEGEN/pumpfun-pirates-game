@@ -184,7 +184,7 @@ export function createMoneyMakers(ctx) {
     if (api.live !== true) return; await pullBoard(true);
     if (duel.id) { const d = board.duels.find(x => x.id === duel.id); if (d && d.status === 'live' && duel.status !== 'live') { duel.status = 'live'; duel.opp = duel.side === 'r' ? d.blue : d.red; toPit(); say(`⚔ ${esc(duel.opp)} ACCEPTED YOUR FIGHT<small>pot ${gfmt(C.duelPot(duel.stake))} · KO them in the pit!</small>`, 3000); }
       if (d && d.status === 'done') { duel.id = null; duel.status = ''; }
-      else if (d && d.status === 'live' && (d.live_s | 0) > 605) { const r = await api.call('isl_duel_settle', { duel: d.id, result: 'cancel' }); if (r?.ok) { say('⚔ FIGHT EXPIRED · STAKES REFUNDED', 2400); duel.id = null; duel.status = ''; } } // [review fix 3] timeout refund if (!d && performance.now() - duel.t > 15 * 60e3) duel.id = null; }
+      else if (d && d.status === 'live' && (d.live_s | 0) > 605) { const r = await api.call('isl_duel_settle', { duel: d.id, result: 'cancel' }); if (r?.ok) { say('⚔ FIGHT EXPIRED · STAKES REFUNDED', 2400); duel.id = null; duel.status = ''; } } /* [review fix 3] timeout refund */ if (!d && performance.now() - duel.t > 15 * 60e3) duel.id = null; }
     const st = await api.call('isl_state', { since: creditSince }); if (!st?.ok || st.practice) return;
     const cr = (st.credits || []).filter(c => c.delta > 0); if (creditSince) for (const c of cr) say(`🪙 +${gfmt(c.delta)} · ${String(c.kind).replace('_', ' ').toUpperCase()}`, 2400);
     if (creditSince && cr.length && st.gold != null) { try { ctx.pvp?.()?.serverGold?.(st.gold, { rev: st.rev, owner: !!st.owner }); } catch {} } // a duel / bet win landed on the server: re-base
