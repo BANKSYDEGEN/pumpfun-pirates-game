@@ -78,9 +78,10 @@ test('falls.glb + falls_low.glb + &falls=0 kill switch', () => {
   }
 });
 
-test('sw.js is pfp-v323 and precaches falls assets', () => {
+test('sw.js is >= pfp-v323 and precaches falls assets', () => {
   const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /const VERSION = 'pfp-v323'/);
+  // [v324+] VERSION bumps continue; falls assets must stay in SHELL forever after v323
+  assert.match(sw, /const VERSION = 'pfp-v(?:32[3-9]|[4-9]\d+)'/);
   assert.match(sw, /fallsBlender\.js/);
   assert.match(sw, /waterfallCorridor\.js/);
   assert.match(sw, /falls\.glb/);

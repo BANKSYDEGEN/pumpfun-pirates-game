@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v323'; // [v323] waterfall AAA: rope-bridge→fishing graded path + multi-tier falls + Waterfall Hill trail to ziplines (falls.glb / fallsBlender.js, &falls=0); prev: [v322] BANKSY owner-only Admin Menu;
+const VERSION = 'pfp-v324'; // [v324] Waves wear Harbor skin only (no mid-run unlocks/changes) + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v323] waterfall AAA (falls.glb / fallsBlender.js); prev: [v322] BANKSY owner-only Admin Menu;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -35,6 +35,7 @@ const SHELL = [
   "./js/onfoot/followers.js", // [v107] 3 crew follow you ashore
   "./js/dock/index.js",
   "./js/dock/houses.js",
+  "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
   "./js/adminMenu.js",
   "./js/dock/docking.js",
