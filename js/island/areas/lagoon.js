@@ -137,3 +137,6 @@ const JOURNAL = {
 };
 export const _fishState = st; // tests
 export const _fish2 = () => fs2; // tests / shots
+// [dock-ladders] Grandpa Gill's dock + its swim ladder for js/dock/ladders.js (DOCK_Y is set when the area registers: the dock top)
+export const LAGOON_DOCK = DOCK; export const lagoonDockY = () => DOCK_Y;
+export const LAGOON_LADDER = { x: DOCK.x + DOCK.hw + 0.4, z: DOCK.z1 + 0.6, out: [1, 0] }; // = the rungs drawn in build() (x DOCK.x + hw + 0.4, z DOCK.z1 + 0.6)

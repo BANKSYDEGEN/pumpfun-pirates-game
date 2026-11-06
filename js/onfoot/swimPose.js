@@ -5,6 +5,8 @@
 //            + a breath to the side every other stroke
 //  - climb : the 0.6 s pull-up out of the water (js/onfoot/physics.js PHYS.climbT): reach onto the ledge, press up, knee up, stand
 //  - hop   : the surface kick (jump in deep water): streamline arms over the head, dolphin kick, nose-down re-entry
+//  - ladder: [dock-ladders] up a dock ladder (js/dock/ladders.js ride): hands reach up the rails in turn, feet step up the rungs, then
+//            a press over the top hoop onto the deck (upright: the body itself never tilts)
 // Applied after the mixer (PirateGLB.post) and blended in / out over ~0.2 s so it never pops against the idle / walk / run clips.
 // Cost: ~12 quaternion writes per visible pirate per frame, no allocation (phone-safe).
 import * as THREE from 'three';
@@ -48,6 +50,13 @@ function climb(S, R, dir, k) { // k 0..1 over the pull-up
   eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', 0.35 * press + 0.15 * reach, 0, 0); eul(S, R, 'head', -0.3 * reach + 0.1 * press, 0, 0);
   for (const s of ['L', 'R']) arm(S, R, dir, s, 0.3 * reach + 0.35 * press + 0.25 * stand, 0.75 * reach - 0.55 * press - 1 * stand, 0.85 * reach + 0.6 * press + 0.08 * stand, 0.15 * reach + 1.25 * press + 0.2 * stand);
   leg(S, R, 'L', -1.5 * knee, 1.6 * knee + 0.15 * reach, 0.05); leg(S, R, 'R', 0.25 * (reach + press) * (1 - stand), 0.35 * press, 0.03); }
+function ladder(S, R, dir, k) { // k 0..1 over the ladder ride: 0..0.72 up the rungs (3 hand-over-hand cycles), 0.72..1 over the top
+  const up = Math.min(1, k / 0.72), top = sm(0.72, 1, k), ph = up * 3 * TAU, a = Math.sin(ph), b = Math.sin(ph + Math.PI), lo = 1 - top, step = Math.sin(Math.PI * top);
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', 0.1 * lo + 0.3 * step, 0, 0); eul(S, R, 'head', -0.28 * lo + 0.05 * top, 0, 0);
+  for (const [s, q] of [['L', a], ['R', b]]) { const r = 0.5 + 0.5 * q;   // r 1 = this hand reaching high up the rail, 0 = pulling down at the chest
+    arm(S, R, dir, s, 0.2 * lo + 0.25 * top, (0.15 + 0.85 * r) * lo - 0.55 * top, 0.6 * lo + 0.55 * top, (1.05 - 0.75 * r) * lo + 0.45 * top); }
+  for (const [s, q] of [['L', b], ['R', a]]) { const r = 0.5 + 0.5 * q;   // the opposite foot steps up as a hand reaches
+    leg(S, R, s, -(0.2 + 0.9 * r) * lo - (s === 'L' ? 1.2 : 0.3) * step, (0.25 + 1.15 * r) * lo + (s === 'L' ? 1.3 : 0.4) * step, 0.04); } }
 function hop(S, R, dir, k) { // k 0..1 over the surface kick
   const up = 1 - sm(0.75, 1, k), kick = Math.sin(k * TAU * 1.5) * (1 - k);
   eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -0.3 * Math.sin(k * Math.PI), 0, 0); eul(S, R, 'head', -0.2 + 0.35 * k, 0, 0);
@@ -58,13 +67,13 @@ function hop(S, R, dir, k) { // k 0..1 over the surface kick
 // k = climb / hop progress (0..1). Returns true while the procedural pose owns the body (the caller keeps the idle clip underneath).
 export function swimPose(p, state, dt, speed = 0, k = 0) {
   const r = rig(p); if (!r) return false; const sw = p._sw || (p._sw = { w: 0, ph: 0, t: Math.random() * 9, st: null, S: Object.fromEntries(BONES.map((n) => [n, new THREE.Quaternion()])) });
-  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop';
-  sw.w = Math.min(1, Math.max(0, sw.w + (on ? 1 : -1) * dt / (state === 'climb' || sw.st === 'climb' ? 0.12 : 0.22)));
+  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop' || state === 'ladder';
+  sw.w = Math.min(1, Math.max(0, sw.w + (on ? 1 : -1) * dt / (state === 'climb' || sw.st === 'climb' || state === 'ladder' || sw.st === 'ladder' ? 0.12 : 0.22)));
   if (on) { sw.st = state; sw.kk = k; } sw.t += dt;
   if (sw.st === 'swim') sw.ph += dt * TAU * Math.max(0.35, speed) / SWIM_STRIDE; else sw.ph += dt * 2; // keep turning slowly so the next stroke starts mid-cycle
   if (p.addPost) p.addPost('swim', postPose, 0); else if (!p.post) p.post = postPose; // [Raul emotes] shared post hook (PirateGLB.addPost)
   return sw.w > 0; }
 function postPose() { // after mixer.update: pose the bones (PirateGLB.update)
   const sw = this._sw, r = this._swRig; if (!sw || !r || sw.w <= 0) return; const { B, R, dir } = r, S = sw.S;
-  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else return;
+  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else if (sw.st === 'ladder') ladder(S, R, dir, sw.kk); else return;
   const w = sw.w * sw.w * (3 - 2 * sw.w); for (const n of BONES) B[n].quaternion.slerp(S[n], w); }

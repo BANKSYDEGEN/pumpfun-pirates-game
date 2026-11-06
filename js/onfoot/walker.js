@@ -74,7 +74,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     if (w.ride) { const r = w.ride(dt), B = w.body; // [Emerly zipline-v2] owns x/y/z while riding; 'drop' falls into air physics below
       if (r === 'done') { placeBody(B, world, w.x, w.z, w.y); w.y = B.y; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
         camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
-      if (r !== 'drop') { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
+      if (r !== 'drop') { B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0; w.air = false; w.vy = 0; w.speed = 0; place(); if (w.ridePose) w.pose = w.ridePose; pirate.update(dt, 0, w.pose); /* [dock-ladders] w.ridePose = 'ladder' while climbing (js/onfoot/swimPose.js) */ fovPush(dt, 0);
         camPos(cam); camera.position.lerp(cam, Math.min(1, dt * 6)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); return; }
       /* r === 'drop': keep going into normal air / fall with zipVx */ }
     if (w.adminHook && w.adminHook(dt, { place, camPos, cam, tgt, pirate, camera, fovPush })) return; // [admin-menu] js/adminMenu.js: NOCLIP fly / server FREEZE own this frame

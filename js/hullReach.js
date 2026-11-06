@@ -9,3 +9,8 @@ export function hullDist(s, x, z) { // metres from (x, z) to the ship's hull box
   return Math.hypot(Math.max(0, Math.abs(lx) - hb), Math.max(0, Math.abs(lz) - hl));
 }
 export const touchesGold = (s, x, z, slack = 0) => Math.hypot(x - s.x, z - s.z) < PICK_R + slack || hullDist(s, x, z) < HULL_MARGIN + slack;
+// [board-anywhere] BANKSY t1722u "make it so they can board their ship anywhere around it": BOARD SHIP at your berth's step-ashore spot (the old 4 m,
+// now 4.5) OR within `hull` m of your moored hull box (bow, stern, port, starboard), on the pier or swimming beside it (js/dock/index.js).
+// Canoe / un-moored ship reach: js/dock/canoe.js BOARD_HULL. Dock ladders never take the E button (js/dock/ladders.js: automatic climbs).
+export const BOARD_REACH = { ashore: 4.5, hull: 5.5 };
+export function boardReach(W, b, s) { return (!!b?.ashore && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < BOARD_REACH.ashore) || (!!s?.alive && hullDist(s, W.x, W.z) <= BOARD_REACH.hull); }

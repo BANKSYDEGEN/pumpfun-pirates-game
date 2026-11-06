@@ -29,6 +29,9 @@ import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill
 import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
 import { createHouses, HOUSES_ON } from './houses.js'; // [Emerly storage-houses] buyable cottages + instanced storage (&houses=0)
 import { ADM } from '../adminState.js'; // [admin-menu] frozen = no interact
+import { boardReach } from '../hullReach.js'; // [board-anywhere] BOARD SHIP from anywhere round your docked hull
+import { createLadders, LADDERS_ON } from './ladders.js'; // [dock-ladders] swim back up the jetty / boardwalk / cove / lagoon ladders (&ladders=0 = off)
+import { LAGOON_LADDER, LAGOON_DOCK, lagoonDockY } from '../island/areas/lagoon.js';
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 import { createLootBags } from './lootBags.js'; // [backpack-pvp] PvP plunder bags
 import { buildSafeZoneMarks } from './safeZoneMarks.js'; // [backpack-pvp] sanctuary lanterns
@@ -89,6 +92,7 @@ export async function createDock(ctx) {
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
+  let ladders = null; try { if (LADDERS_ON) ladders = createLadders({ world, layout, walker, pirate, crewF, petF, lagoon: { ...LAGOON_LADDER, dock: LAGOON_DOCK, y: lagoonDockY() } }); } catch (e) { console.warn('[dock-ladders]', e); } // [dock-ladders]
   const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW, canvas, world, touch }); // [v314] + canvas look, world.blocked landings // [Emerly sail-around]
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
@@ -376,14 +380,18 @@ export async function createDock(ctx) {
     }
     // prompts
     if (onFoot) {
-      walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
+      if (!zip?.riding && !houses?.inHouse) ladders?.tick(dt); /* [dock-ladders] before the walker: swim into a ladder / JUMP next to it = climb */ walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
       world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
       let skinAct = null; // [dock-skin] BANKSY 8:42 PM: E = BOARD SHIP, Q = CHANGE SKIN at your own berth (phone: a 2nd button, pad: X)
-      if (!houses?.inHouse && b && Math.hypot(W.x - b.ashore.x, W.z - b.ashore.z) < 4) { best = { label: 'BOARD SHIP', fn: () => { skinPick.close(); goAboard(); } }; skinAct = { label: 'CHANGE SKIN', key: 'Q', fn: () => (skinPick.isOpen ? skinPick.close() : skinPick.open()) }; }
+      // [board-anywhere] BANKSY t1722u "make it so they can board their ship anywhere around it": the berth's step-ashore spot, OR within
+      // BOARD_REACH.hull m of your moored hull (js/hullReach.js oriented box: bow, stern, port, starboard), on the pier or swimming beside it
+      if (!houses?.inHouse && b && docking.mode === 'docked' && boardReach(W, b, s)) { const wet = !!W.swim; best = { label: 'BOARD SHIP', fn: () => { skinPick.close(); canoe?.clearAll?.(s); goAboard(wet); } };
+        if (!wet) skinAct = { label: 'CHANGE SKIN', key: 'Q', fn: () => (skinPick.isOpen ? skinPick.close() : skinPick.open()) }; }
       if (FLAG_DAILY) { try { const h = ctx.pvp?.()?.holder; globalThis.__pfpFlagDailyHolder = h ? { on: !!h.on, claimed: !!h.claimed, checked: !!h.checked } : null; } catch { globalThis.__pfpFlagDailyHolder = null; } } // [castle-flag-daily] fort.label reads this
       if (zip?.riding) { setActs({ label: 'JUMP / E · DROP OFF', key: 'E', primary: true, fn: () => { walker.w.zipDrop = true; } }, { label: 'S / Q · TURN BACK', key: 'Q', fn: () => zip.reverse?.() }); }
+      else if (ladders?.climbing) setActs(null, null); // [dock-ladders] mid-climb: no prompts (the climb itself never has one)
       else if (houses?.inHouse) { const hp = houses.prompts({ onFoot: true, W }); const a = hp?.a || (hp && { label: hp.label, key: hp.key || 'E', primary: !!hp.primary, tag: hp.tag }); const b = hp?.b || null; setActs(a ? { label: a.label, key: a.key || 'E', primary: !!a.primary, fn: () => houses.act(a.tag, { door: hp.door }) } : null, b ? { label: b.label, key: b.key || 'Q', primary: !!b.primary, fn: () => houses.act(b.tag) } : null); skinPick.close(); }
       else {
         if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
@@ -465,7 +473,7 @@ export async function createDock(ctx) {
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
     netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}) } : {}), // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
-    dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
+    ladders, /* [dock-ladders] */ dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,

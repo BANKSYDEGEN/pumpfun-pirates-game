@@ -5,10 +5,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { toon } from '../toon.js';
 import { getLocalGear } from '../pirateGear.js';
+import { hullDist } from '../hullReach.js'; // [board-anywhere] BOARD SHIP anywhere round the hull (canoe, swimming, shore)
 
 export const SAIL_ALL = !(typeof location !== 'undefined' && /[?&]sailall=0(?:&|$)/.test(location.search || ''));
 
 // Harbor-frame sailing disc: foot centre (-80, -40) → harbor via HC=(-890,-150); R covers main island + 5 ISLETS with sea beyond.
+// [board-anywhere] BANKSY t1722u: board your ship from anywhere round its hull (js/hullReach.js box), not just near its centre
+export const BOARD_HULL = { canoe: 6.5, foot: 5.5 };
+export const shipRefOf = (s, st) => (st && (st.mode === 'canoe' || st.mode === 'beached') && Number.isFinite(st.ax) ? { x: st.ax, z: st.az, yaw: st.ayaw, mesh: s?.mesh } : s);
 export const SAIL = { cx: 810, cz: 110, r: 1250, nearShore: 180, canoeR: 20, beachR: 8, boardR: 7.5, canoeSpd: [13, 16.5], canoeRev: 6 };
 
 export function inSailSea(x, z) { return Math.hypot(x - SAIL.cx, z - SAIL.cz) <= SAIL.r; }
@@ -570,11 +574,11 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   }
 
   function prompts({ s, onFoot, W, docking }) {
-    if (!SAIL_ALL) return null;
+    if (!SAIL_ALL) return onFoot && W && st.mode === 'sea' && s?.alive && !(s.sinking > 0) && docking?.mode === 'sea' && hullDist(s, W.x, W.z) <= BOARD_HULL.foot ? { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShipSwim' }, b: null } : null; // [board-anywhere] &sailall=0 too
     // canoe mode: GO TO ISLAND and BOARD SHIP can both show
     if (st.mode === 'canoe') {
       const dShip = s ? Math.hypot(st.cx - st.ax, st.cz - st.az) : 1e9;
-      const nearShore = canLandAshore(st.cx, st.cz, st.cyaw), nearShip = dShip < SAIL.canoeR;
+      const nearShore = canLandAshore(st.cx, st.cz, st.cyaw), nearShip = dShip < SAIL.canoeR || (!!s && hullDist(shipRefOf(s, st), st.cx, st.cz) <= BOARD_HULL.canoe);
       if (nearShore && nearShip) return { a: { label: 'GO TO ISLAND', key: 'E', primary: true, tag: 'land' }, b: { label: 'BOARD SHIP', key: 'Q', tag: 'boardShip' } };
       if (nearShore) return { a: { label: 'GO TO ISLAND', key: 'E', primary: true, tag: 'land' }, b: null };
       if (nearShip) return { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShip' }, b: null };
@@ -583,6 +587,9 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     // on foot near beached canoe
     if (st.mode === 'beached' && onFoot && W && Math.hypot(W.x - st.bx, W.z - st.bz) < SAIL.boardR)
       return { a: { label: 'BOARD CANOE', key: 'E', primary: true, tag: 'boardCanoeShore' }, b: null };
+    // [board-anywhere] on foot (shore, rocks, a pier) or swimming within BOARD_HULL.foot of your un-moored ship's hull, canoe out or not
+    if (onFoot && W && s?.alive && !(s.sinking > 0) && (!docking || docking.mode === 'sea') && hullDist(shipRefOf(s, st), W.x, W.z) <= BOARD_HULL.foot)
+      return { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShipSwim' }, b: null };
     // swimming to canoe / ship
     if (onFoot && W?.swim) {
       if (st.mode === 'beached' && Math.hypot(W.x - st.bx, W.z - st.bz) < SAIL.boardR)
@@ -618,7 +625,8 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     if (tag === 'launchCanoe') return boardCanoeFromShip(s, controls);
     if (tag === 'boardShip') return boardShipFromCanoe(s, () => { goAboard?.(true); }, controls);
     if (tag === 'boardShipSwim') {
-      clearAll(s, controls); s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.anchor = true; s._offshore = false; st.mode = 'sea';
+      const away = (st.mode === 'canoe' || st.mode === 'beached') && Number.isFinite(st.ax); // [board-anywhere] only an anchored-away ship snaps back to its anchor
+      clearAll(s, controls); if (away) { s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; } s.speed = 0; s.sail = 0; s.anchor = true; s._offshore = false; s._canoeAway = false; st.mode = 'sea';
       uprightRiders(); goAboard?.(true); return true;
     }
     if (tag === 'land') return landAshore((x, z, yaw) => { goAshoreAt?.(x, z, yaw); }, s); // goAshoreAt enters crew + pet itself
