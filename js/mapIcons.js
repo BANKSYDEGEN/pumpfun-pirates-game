@@ -47,6 +47,8 @@ const G = {
     poly(c, [[0.16, -0.1], [0.74, -0.14], [0.78, 0.24], [0.5, 0.2], [0.16, 0.08]]); c.fill();
     c.fillRect(0.02, 0.06, 0.06, 0.18); c.fillRect(-0.62, -0.16, 0.06, 0.1); c.restore(); },
   coin(c) { c.font = 'bold 1.2px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('$', 0, 0.06); },
+  doubloon(c) { c.lineWidth = 0.12; c.beginPath(); c.arc(0, 0, 0.62, 0, 7); c.stroke(); // [Timothy] the casino: a gold doubloon with a crown
+    poly(c, [[-0.38, 0.2], [-0.42, -0.26], [-0.2, -0.06], [0, -0.38], [0.2, -0.06], [0.42, -0.26], [0.38, 0.2]]); c.fill(); c.fillRect(-0.38, 0.25, 0.76, 0.13); },
   stall(c) { poly(c, [[-0.66, -0.2], [-0.5, -0.56], [0.5, -0.56], [0.66, -0.2]]); c.fill(); // striped awning
     for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(-0.495 + i * 0.33, -0.2, 0.165, 0, Math.PI); c.fill(); }
     c.fillRect(-0.56, 0.06, 0.1, 0.52); c.fillRect(0.46, 0.06, 0.1, 0.52); c.fillRect(-0.56, 0.2, 1.12, 0.14); },
@@ -90,6 +92,7 @@ export const SHOP_ICONS = {
   sword_shop: ['swords', '#8b1e1e', '#fff', '#fff', 'SWORD SHOP'],
   musket_shop: ['musket', '#6b4423', '#fff', '#fff', 'MUSKET SHOP'],
   squadhall: ['chest', '#9b5cff', '#fff', '#ffc93c', 'BIG SHOP · SQUAD HALL'],
+  casino: ['doubloon', '#8a1c1c', '#ffc93c', '#ffc93c', 'CASINO'],   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47)
   fish_stand: ['fish', '#1d7fb8', '#fff', '#fff', 'FISH MARKET'],   // the coming plaza shops (post/inventory-fish)
   antiques: ['chest', '#d4a017', '#3a1f0a', '#d8322f', 'TREASURE TRADER'],   // [v241] gold chest badge (was a magenta gem)
   market: ['scales', '#a77a12', '#fff', '#fff', 'MARKETPLACE'],

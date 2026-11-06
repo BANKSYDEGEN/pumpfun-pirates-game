@@ -28,6 +28,7 @@ import { SHOPS_KIT, SHOP_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js'
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
+export { casinoSite, casinoGround, casinoClear, casinoOverlap } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): foot.js terrain + buildStreet + grass hooks
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 // PLAZA_V2_DEFAULT = the build's default (flip to true to ship v2 as THE plaza); ?plaza=2 forces it on, ?plaza=1 forces the v103 plaza

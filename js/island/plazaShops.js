@@ -11,6 +11,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
 import { loadHill, buildHill } from './hillStreet.js';   // [Timothy] the Blender hill street (Main Street)
+import { loadCasinoReady, buildCasino } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47, Main Street east row)
 import { initLib, libMaterial } from './libTex.js';      // [Timothy] the shared material library (TEXCOORD_0 = layer code, no UV maps)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
@@ -108,13 +109,15 @@ export function plazaShopsReady(low, renderer = null) {
     SHOPS_KIT = { low, shops, url };
     return SHOPS_KIT;
   }).catch(e => { console.warn('[plaza] shop models failed, blockout shells instead', e); SHOPS_KIT = null; return null; });
-  _p = Promise.all([_p, bat, loadHill(low)]).then(([s]) => s);   // [Timothy] + the hill street (only with the Blender plaza: buildPlazaShops places it)
+  _p = Promise.all([_p, bat, loadHill(low), loadCasinoReady(low)]).then(([s]) => s);   // [Timothy] + the hill street + the casino (only with the Blender plaza: buildPlazaShops places them)
   return _p;
 }
 
+// [Timothy] the casino hall rides in the hill street group (null when it did not load / &casino=0)
+function withCasino(hill) { const c = buildCasino(); if (!c) return hill; if (!hill) { const g = new THREE.Group(); g.name = 'hill_street'; g.add(c); return g; } hill.add(c); return hill; }
 // one THREE.LOD per storefront placed by SHOP_PLACES (call after buildPlazaV2)
 export function buildPlazaShops() {
-  const hill = buildHill();   // [Timothy] the hill street buildings (null = the colonial houses)
+  const hill = withCasino(buildHill());   // [Timothy] the hill street buildings (null = the colonial houses) + the casino hall
   if ((!SHOPS_KIT || !SHOP_PLACES.length) && !DOCK_PLACES.length) return hill;
   const root = new THREE.Group(); root.name = 'plaza_v2_shops'; const d = SHOPS_KIT.low ? DIST.low : DIST.high; let tris = 0; if (hill) root.add(hill);
   for (const { id, m } of SHOPS_KIT ? SHOP_PLACES : []) { const s = SHOPS_KIT.shops[id]; if (!s) continue;

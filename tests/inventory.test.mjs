@@ -82,7 +82,8 @@ test('[v212] plaza_shops.json = FALLBACK; shops sit on numbered existing structu
     // storefront prompts (lz + 3.8) + the squad hall door stay out of reach of the new triggers
     const prompts = [[-49, -25.5], [-38.5, -25.5], [-10, -25.5], [20.5, -25.5], [32, -25.5], [14, -76.7]].map(([a, c]) => t2w(a, c));
     for (const id of S.SHOP_IDS) for (const [x, z] of prompts) assert.ok(Math.hypot(x - f[id].trigger.x, z - f[id].trigger.z) > f[id].trigger.radius + 2, id);
-    assert.deepEqual(N.map(b => b.n), N.map((_, i) => i + 1)); assert.equal(new Set(N.map(b => b.id)).size, N.length); });
+    const RESERVED = new Set([45, 46]);   // [Timothy] #45 / #46 = js/island/coliseum.js NEW_STORES (&colirent=1); #47 = THE GOLDEN DOUBLOON CASINO
+    const max = Math.max(...N.map(b => b.n)); assert.deepEqual(N.map(b => b.n), Array.from({ length: max }, (_, i) => i + 1).filter(n => !RESERVED.has(n))); assert.equal(new Set(N.map(b => b.id)).size, N.length); });
 });
 
 test('[v240] shop lists cheapest first + the plaza kill switches default OFF', async () => {

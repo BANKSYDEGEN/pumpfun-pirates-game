@@ -124,3 +124,10 @@ export function accThumbMesh(slot) {
   init();
   return cloneAcc(slot === 'scope' || slot === 'bayonet' || slot === 'stock' || slot === 'horn' ? slot : 'scope');
 }
+
+/** [weapon-sync] remove fitted accessories from musket mesh `m` (clones share geometry + materials: nothing to dispose). */
+export function stripAccMeshes(m) {
+  if (!m) return m;
+  for (let i = m.children.length - 1; i >= 0; i--) if (m.children[i].userData?.gunacc) m.remove(m.children[i]);
+  return m;
+}

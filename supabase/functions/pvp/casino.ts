@@ -7,13 +7,13 @@ export const MIN_BET = 10;
 export const MAX_BET = 25000;
 
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
-const SLOT_SYMS = ["doubloon", "anchor", "skull", "compass", "ruby", "chest", "crown"] as const;
+const SLOT_SYMS = ["doubloon", "anchor", "skull", "crown", "ruby", "chest", "seven"] as const;
 // Weighted pirate reels — ZERO crypto symbols
 const SLOT_WEIGHTS: Record<string, number> = {
-  doubloon: 22, anchor: 18, skull: 16, compass: 16, ruby: 12, chest: 10, crown: 6,
+  doubloon: 22, anchor: 18, skull: 16, crown: 10, ruby: 12, chest: 10, seven: 6,
 };
 const SLOT_PAY3: Record<string, number> = {
-  crown: 25, chest: 12, ruby: 8, doubloon: 5, skull: 4, anchor: 3, compass: 3,
+  seven: 25, chest: 15, crown: 10, doubloon: 8, ruby: 6, anchor: 4, skull: 3,
 };
 
 type Ctx = {
@@ -44,6 +44,10 @@ function shuffleDeck(): number[] {
   }
   return d;
 }
+const BJ_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const BJ_SUITS = ["S", "H", "D", "C"];
+function fmtCard(c: number | null) { return c == null ? null : `${BJ_RANKS[c % 13]}${BJ_SUITS[Math.floor(c / 13) % 4]}`; }
+function fmtHand(cs: (number | null)[]) { return cs.map(fmtCard); }
 function cardRank(c: number) { return c % 13; }
 function cardVal(c: number) { const r = cardRank(c); return r >= 10 ? 10 : r === 0 ? 11 : r + 1; }
 function handTotal(cards: number[]) {
@@ -62,9 +66,19 @@ function pickSlotSym() {
 }
 
 function evalRouletteBet(n: number, choice: any): { win: boolean; mult: number; label: string } {
+  if (typeof choice === "number" && Number.isInteger(choice) && choice >= 0 && choice <= 36) return { win: choice === n, mult: 36, label: "straight" };
+  if (typeof choice === "string") {
+    const s = choice.trim().toLowerCase();
+    if (s === "red" || s === "black") choice = { type: "color", val: s };
+    else if (s === "odd" || s === "even") choice = { type: "parity", val: s };
+    else if (s === "low" || s === "1-18") choice = { type: "half", val: "low" };
+    else if (s === "high" || s === "19-36") choice = { type: "half", val: "high" };
+    else if (/^(?:dozen|doz|d)[:_ -]?([123])$|^([123])(?:st|nd|rd)[ _-]?12$/.test(s)) choice = { type: "dozen", val: Number(s.replace(/\D/g, "")[0]) };
+    else if (/^(?:number:|n:)?\d{1,2}$/.test(s)) choice = { type: "straight", val: Number(s.replace(/\D/g, "")) };
+  }
   if (!choice || typeof choice !== "object") return { win: false, mult: 0, label: "bad" };
-  const type = String(choice.type || "");
-  const val = choice.val;
+  const type = String(choice.type || choice.kind || choice.bet || "").toLowerCase();
+  const val = choice.val ?? choice.value ?? choice.v ?? choice.number;
   if (type === "color") {
     if (n === 0) return { win: false, mult: 2, label: "color" };
     const want = String(val);
@@ -165,7 +179,8 @@ async function playRoulette(c: Ctx, who: any, b: Record<string, unknown>) {
 
 async function playDice(c: Ctx, who: any, b: Record<string, unknown>) {
   const bet = betOf(b.bet); if (!bet) return c.json(400, { error: "bad bet" });
-  const choice = String(b.choice || "");
+  const rawCh = String((b.choice && typeof b.choice === "object" ? (b.choice as any).value ?? (b.choice as any).kind : b.choice) || "").toLowerCase();
+  const choice = rawCh === "seven" || rawCh === "7" ? "lucky7" : rawCh;
   if (!["under7", "over7", "lucky7", "doubles"].includes(choice)) return c.json(400, { error: "bad choice" });
   const req = reqOf(b.reqId) || newReq();
   const deb = await debit(c.db, who.pid, bet, req, "dice");
@@ -184,7 +199,7 @@ async function playDice(c: Ctx, who: any, b: Record<string, unknown>) {
   return c.json(200, {
     ok: true, game: "dice", gold: cred?.gold ?? deb.gold, delta: payout - bet, payout,
     outcome: win ? "win" : "lose",
-    detail: { d1, d2, sum, choice, mult },
+    detail: { dice: [d1, d2], d1, d2, sum, choice, mult },
     state: null,
   });
 }
@@ -217,7 +232,7 @@ async function playSlots(c: Ctx, who: any, b: Record<string, unknown>) {
 }
 
 async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
-  const sub = b.subAction ? String(b.subAction) : "";
+  const sub = b.subAction ? String(b.subAction) : (b.bjAction ? String(b.bjAction) : "");
   const db = c.db, pid = who.pid;
 
   // Instant resolve (no subAction): deal + auto stand/dealer
@@ -255,7 +270,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
     });
     return c.json(200, {
       ok: true, game: "blackjack", gold: deb.gold, delta: -bet, payout: 0, outcome: "deal",
-      detail: { player, dealer: [dealer[0], null], total: handTotal(player) },
+      detail: { player: fmtHand(player), dealer: [fmtCard(dealer[0]), null], total: handTotal(player), playerTotal: handTotal(player) },
       state: { stateId, status: "open", canHit: true, canDouble: true },
     });
   }
@@ -278,14 +293,14 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
       const goldRow = await credit(db, pid, 0, "blackjack", "bust");
       return c.json(200, {
         ok: true, game: "blackjack", gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
-        detail: { player, dealer, total: handTotal(player), dealerTotal: handTotal(dealer) },
+        detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: handTotal(player), playerTotal: handTotal(player), dealerTotal: handTotal(dealer), finished: true },
         state: { stateId, status: "done" },
       });
     }
     await db.from("pvp_casino_hands").update({ player, deck, updated_at: new Date().toISOString() }).eq("player_id", pid);
     return c.json(200, {
       ok: true, game: "blackjack", gold: null, delta: 0, payout: 0, outcome: "hit",
-      detail: { player, dealer: [dealer[0], null], total: handTotal(player) },
+      detail: { player: fmtHand(player), dealer: [fmtCard(dealer[0]), null], total: handTotal(player), playerTotal: handTotal(player) },
       state: { stateId, status: "open", canHit: true, canDouble: false },
     });
   }
@@ -304,7 +319,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
       const goldRow = await credit(db, pid, 0, "blackjack", "bust");
       return c.json(200, {
         ok: true, game: "blackjack", gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
-        detail: { player, dealer, total: handTotal(player) },
+        detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: handTotal(player), playerTotal: handTotal(player), dealerTotal: handTotal(dealer), finished: true },
         state: { stateId, status: "done" },
       });
     }
@@ -334,7 +349,7 @@ async function settleBJ(c: Ctx, who: any, bet: number, player: number[], dealer:
   if (!who.wallet && !who.owner && !cred?.owner && payout > 0) await c.acctBump?.(c.db, who.raw, payout);
   return c.json(200, {
     ok: true, game: "blackjack", gold: cred?.gold ?? deb?.gold, delta: payout - bet, payout, outcome,
-    detail: { player, dealer, total: pt, dealerTotal: dt, blackjack: pbj },
+    detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: pt, playerTotal: pt, dealerTotal: dt, blackjack: pbj, finished: true },
     state: stateId ? { stateId, status: "done" } : null,
   });
 }

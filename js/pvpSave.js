@@ -492,5 +492,6 @@ export async function terrainSave(cells, rev, pieces = {}, paint = undefined) { 
 // hold, prices, the sell multiplier, recipients); this only carries the request. inv_pot = the owner's sales landing on his save.
 export async function invApi(action, body = {}) {
   if (!PVP_FN_URL) return { ok: false, error: 'offline' }; await ownerReady; const s = session();
-  try { return await api(action, { ...(s ? { token: s.token } : { dk: deviceKey() }), ...body }); }
+  const { action: subAct, ...rest } = body || {};
+  try { return await api(action, { ...(s ? { token: s.token } : { dk: deviceKey() }), ...(subAct != null && rest.subAction == null ? { subAction: subAct } : {}), ...rest }); }
   catch (e) { return { ok: false, error: e.message, status: e.status }; } }

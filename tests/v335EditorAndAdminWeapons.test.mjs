@@ -131,6 +131,6 @@ test('t1785u: the added 3D street signs are gone, the 2D map streets stay', asyn
 });
 
 test('Captain\'s Quarters untouched in v335 (Post owns it) + sw VERSION', () => {
-  assert.match(src('sw.js'), /VERSION = 'pfp-v335'/);
+  assert.ok(+(src('sw.js').match(/VERSION = 'pfp-v(\d+)'/) || [])[1] >= 335);
   assert.doesNotMatch(src('js/dock/shipHull.js'), /v335/);
 });

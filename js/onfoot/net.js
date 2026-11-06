@@ -13,9 +13,11 @@ import { createFollowers } from './followers.js'; // [remote-crew] their shore c
 import { shoreCrewGear, crewWeaponsOf } from '../crewV4.js';
 import { crewGear, crewFromWire, crewColorFromWire } from '../crewLoadout.js';
 import { createPetFollower } from './pets.js'; // [Raul items redo 2] their ground pet follows them here too (from 'gr', no new message)
+import { localWireLook, decodeWeaponLook, setObjLook, wsyncOn } from './weaponLook.js'; // [Raul weapon-sync] 'wl' = rarity + musket attachments
 import { isNetId } from '../safe.js'; // [security H5] // [Timothy] their shop gear ('gr')
 
 const FT_MS = 330; // on-foot pose send interval (ms)
+const WSYNC_ON = wsyncOn(); // [weapon-sync] &wsync=0 = no 'wl' sent / read
 function nameTag(text) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d');
   g.font = '40px "Just Another Hand", cursive'; const w = Math.min(248, g.measureText(text).width + 28);
@@ -34,7 +36,8 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
     if (me.active && me.w.ride) fast = true; // [Emerly zipline] sliding: send the pose at the fast rate
     if (!me.active) ftLast = ''; else if (!ftLast || now - ftAt >= (fast ? 90 : FT_MS)) { ftAt = now; const q = fast ? 10 : 2; ftLast = [Math.round(me.w.x * q) / q, Math.round(me.w.z * q) / q, Math.round(me.w.yaw * 20) * 5, Math.round(me.w.speed * 2) * 5]; }
     // [v106] fj: your jump counter (changes once per jump; the transport only sends changed fields, older clients ignore it)
-    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ds: docking.fresh?.() ? 1 : 0, ft: ftLast,   // [v152] ds = 1 for a few s after the join spawn moored you (older clients ignore it)
+    // [weapon-sync] wl: your sword / musket rarity + fitted musket attachments (one int 0..511, js/onfoot/weaponLook.js; STATIC in transport.js)
+    return { dk: docking.berth && docking.mode === 'docked' ? docking.berth.id : '', ds: docking.fresh?.() ? 1 : 0, ft: ftLast, ...(WSYNC_ON ? { wl: localWireLook() } : {}),   // [v152] ds = 1 for a few s after the join spawn moored you (older clients ignore it)
       ...(me.active && me.w.jumps ? { fj: me.w.jumps } : {}), ...(me.active && (me.w.ride || me.w.zipSent) ? { fy: (me.w.zipSent = !!me.w.ride) ? Math.round(me.w.y * 10) : 0 } : {}) }; // [Emerly zipline] fy = your height x10 while riding (0 = back on the ground)
   }
   function onPeerState(m) { // a peer's state (any transport); m.i = id, m.n = name
@@ -48,6 +51,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (Number.isFinite(m.fj) && m.fj !== p.fj) { if (p.fj !== undefined) p.jt = performance.now(); p.fj = m.fj; } // [v106] they jumped: play the arc here
       const gw = cleanWire(m.gr), sk = knownGearSkin(m.sk) ? m.sk : 'classic', ec = Number.isInteger(m.ec) && m.ec > 0 && m.ec <= EYE_SWATCHES.length ? m.ec : 0, gk = gw + '|' + sk + '|' + ec; if (gk !== p.gw) { p.gw = gk; const g = gearFromWire(gw); p.petId = g.parrot; p.capG = g; p.ck = null; /* [crew-weapons] their crew re-reads the captain's weapons */ applyGear(p.pirate, { ...g, eyeColor: ec }, { skin: sk }); } // [v115] + eye colour ('ec') // validated; missing = shirtless; clothes = their ship skin ('sk')
       { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = shoreCrewGear({ ...crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), ...crewWeaponsOf(p.capG) }); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
+      { const lk = decodeWeaponLook(WSYNC_ON ? m.wl : 0); if (lk !== p.look) { p.look = lk; setObjLook(p.pirate.object, lk); } } // [weapon-sync] their look -> held + holstered weapons (battle.js / carryWeapons.js)
       p.fy = Number.isFinite(m.fy) && m.fy !== 0 ? m.fy / 10 : null; // [Emerly zipline] riding a zipline: their height
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
       const name = String(m.n ?? p.name ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';

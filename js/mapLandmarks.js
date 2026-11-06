@@ -11,6 +11,7 @@ import { STOREFRONTS } from './island/plazaTown.js';
 import { BATTERY } from './island/battery.js';
 import { FORT } from './island/coast.js';
 import { JUNGLE_TRAILHEAD as TH } from './island/digSpots.js';
+import { CASINO_ON, CASINO_HALL } from './island/casinoData.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47, Main Street)
 const ROW_LZ = -36; // plaza storefront row (town-local lz -30 .. -42, plazaTown.js) — legacy only
 const MMICONS_LEGACY = typeof location !== 'undefined' && /[?&]mmicons=0(?:&|$)/.test(location.search);
 // [id, icon, label, frame, x, z, far]: frame 'town' = coast.js town-local (lx, lz), 'foot' = foot frame. far = landmark (not a town POI)
@@ -36,6 +37,7 @@ const LIST = () => [
   ['ruin_steps', 'ruins', 'ANCIENT STEPS', 'foot', 106, -332, true],
   ['jungle_idols', 'idol', 'IDOL GROVE', 'foot', 69, -357, true],
   ['mossbeard', 'camp', "MOSSBEARD'S OUTPOST", 'foot', TH.x - 4.5, TH.z + 9.5, true],
+  ...(CASINO_ON ? [['casino', 'casino', 'CASINO', 'town', CASINO_HALL.lx, CASINO_HALL.lz]] : []),   // one icon (its four tables register none)
 ].filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 export function mapLandmarks(FM) {
   const GEO_IDS = new Set(['castle','battery','sword_pit','musket_range','ruin_steps','jungle_idols','mossbeard','coliseum']);

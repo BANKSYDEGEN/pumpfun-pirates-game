@@ -38,7 +38,8 @@ import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two
 import { createTps, TPS_ON } from './tps.js';
 import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hints name the pad buttons while a pad is in use
 import { applyMuskUpg, muskLook, swordLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
-import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
+import { localWeaponLook, decodeWeaponLook, setObjLook, COMMON_LOOK, wsyncOn } from './weaponLook.js'; // [weapon-sync] rarity + attachments: yours + every peer's ('wl')
+import { decorateSword, decorateMusket, swordTint, musketTint } from './weaponDecor.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
 import { zipGrip } from '../dock/zipline.js'; // [zipline-shoot] one-hand trolley grip while GUN is drawn mid-ride
@@ -112,6 +113,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const shellSword = shellM(0.016), shellMusket = shellM(0.02);
   const goldM = toon(0xffffff, null, { vertexColors: true, emissive: 0x6b4a00, emissiveIntensity: 0.55, key: 'battle-gold-blade' }); // [Emerly] the LEGENDARY GOLD BLADE glows a little
   const weaponMesh = (geo, shell, m0 = mat) => { const m = new THREE.Mesh(geo, m0); if (!low) { const o = new THREE.Mesh(geo, shell); o.userData.outline = true; m.add(o); } return m; };
+  const WSYNC_ON = wsyncOn(); // [weapon-sync] &wsync=0 = peers draw common weapons again
   const LOOKM = new Map(), lookMat = (lk) => { if (!lk) return mat; if (!LOOKM.has(lk.id)) LOOKM.set(lk.id, toon(lk.c, null, { vertexColors: true, emissive: lk.e, emissiveIntensity: lk.ei, key: 'battle-musk-' + lk.id })); return LOOKM.get(lk.id); }; // [Emerly musket-rank]
   const withOutline = (geo, k = 1.06) => { const m = new THREE.Mesh(geo, mat); if (!low) { const o = new THREE.Mesh(geo, outM); o.scale.setScalar(k); o.userData.outline = true; m.add(o); } return m; };
 
@@ -330,22 +332,23 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (team && zone && !R.ring && R.obj) { R.ring = new THREE.Mesh(ringGeo2, new THREE.MeshBasicMaterial({ color: RING_COL[team], transparent: true, opacity: 0.85, depthWrite: false })); R.ring.position.y = 0.05; R.ring.renderOrder = 2; R.obj.add(R.ring); }
     if (R.ring) { R.ring.visible = !!(team && zone); if (team) R.ring.material.color.setHex(RING_COL[team]); }
     carryArmed(R.fig, zone === Z_PIT, zone === Z_RANGE);   // [Raul carry] the arena's weapon is in your hands: hide the carried sword / back musket
+    // [weapon-sync] the look: yours (inventory rarity + fitted attachments) or the peer's decoded 'wl' (older clients / bots = common);
+    // it also rides on the pirate root for the holstered copies (js/carryWeapons.js), set even before the v4 rig is ready.
+    // Rebuilds keyed on ints: zero per-frame allocation.
+    const LK = R === mineR ? localWeaponLook() : (R.look || R.obj?.userData?.wlook || COMMON_LOOK); if (R.obj) setObjLook(R.obj, LK);
     if (!R.v4 || !R.bones) return;
     const wantSword = zone === Z_PIT, wantMusket = zone === Z_RANGE;
     const hd = swordHand(R.fig?.userData?.gear);   // [Emerly sword-hand] same hand as the carried sword (no hook / left hook: right)
-    const swRar = R === mineR ? ((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.sword) || 'common') : 'common';
-    const swLk = R === mineR ? swordLook(swRar) : null, swLkId = (swLk?.id || '') + '|' + swRar;
-    if (wantSword && (R.swordId !== swordId || !R.sword || R.swordHand !== hd || R.swordLook !== swLkId)) { R.sword?.removeFromParent(); R.swordHand = hd; R.swordLook = swLkId;
-      const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : lookMat(swLk));
-      applyLegendaryOrnament(s, 'sword', swordId, swRar);
+    if (wantSword && (R.swordId !== swordId || !R.sword || R.swordHand !== hd || R.swordLook !== LK.sw)) { R.sword?.removeFromParent(); R.swordHand = hd; R.swordLook = LK.sw;
+      const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : lookMat(swordTint(LK)));
+      decorateSword(s, swordId, LK);
       const fr = hd === 'L' ? R.bones.fL : R.bones.fR; fr.updateWorldMatrix(true, false); fr.getWorldScale(_s); const sc = 0.85 / Math.max(1e-3, _s.x);
       s.scale.setScalar(sc); s.position.set(handAxis(hd) * 0.15 / Math.max(1e-3, _s.x), 0, 0); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), BONE_PERP); fr.add(s); R.sword = s; R.swordId = swordId; }
     if (R.sword) R.sword.visible = wantSword;
     // [Emerly musket-arm] parent the musket to the SCALED body root (v4.root), not pirate-v4: pirate-v4's child p.root carries the
     // height scale, so a gun on fig sat in bind metres while the arms lived in scaled metres → grips out of reach → T-pose sleeves.
-    const acc = R === mineR ? gunAcc() : {}, accSig = Object.keys(acc).sort().join(','); const lk = R === mineR ? muskLook((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common') : null, lkId = lk?.id || ''; // [Emerly musket-rank / gunacc] your rank tint / GILDED skin + accessories (local look)
-    const muRar = R === mineR ? ((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common') : 'common';
-    if (wantMusket && (!R.musket || R.musketId !== musketId || R.musketLook !== lkId + '|' + accSig + '|' + muRar)) { R.musket?.removeFromParent(); R.musketLook = lkId + '|' + accSig + '|' + muRar; const m = weaponMesh(musketGeo(musketId), shellMusket, lookMat(lk)); accMeshes(m, acc, musketId); applyLegendaryOrnament(m, 'musket', musketId, muRar); m.scale.setScalar(0.7);
+    // [Emerly musket-rank / gunacc] rank tint / GILDED skin + accessories; [weapon-sync] now for peers too (LK above), keyed on LK.mu
+    if (wantMusket && (!R.musket || R.musketId !== musketId || R.musketLook !== LK.mu)) { R.musket?.removeFromParent(); R.musketLook = LK.mu; const m = weaponMesh(musketGeo(musketId), shellMusket, lookMat(musketTint(LK))); decorateMusket(m, musketId, LK); m.scale.setScalar(0.7);
       (MUSKET_ARM_ON && R.v4?.root ? R.v4.root : R.fig).add(m); R.musket = m; R.musketId = musketId; }
     if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil;
       if (MUSKET_ARM_ON && R.bones?.spine) {
@@ -561,6 +564,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (!ba[6] && r.lastDown) r.guard = ARENA.guardS;
     r.lastDown = ba[6]; if (ba[2] !== prevLife || ba[1] > prevHp) r.hpShown = ba[1]; else r.hpShown = Math.min(r.hpShown ?? ba[1], ba[1]);
     r.ba = ba; r.st.zone = ba[0]; r.swordId = SWORD_IDS[ba[5]] || SWORD_DEFAULT; r.musketId = MUSKET_IDS[ba[7] | 0] || MUSKET_DEFAULT;
+    r.look = WSYNC_ON ? decodeWeaponLook(m.wl) : COMMON_LOOK; // [weapon-sync] their rarity + fitted attachments (missing = common)
     // their hits on YOU: bh[myId] = [your life, total they dealt you that life]; applied once, only from a pirate in your area + in reach
     const bh = m.bh && typeof m.bh === 'object' && !Array.isArray(m.bh) ? m.bh[myId()] : null;
     if (Array.isArray(bh) && bh.length === 2 && bh.every(Number.isFinite)) { const [life, n] = bh, s = seenHit.get(m.i);
@@ -585,7 +589,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     // [backpack-pvp] track Island Safe Zone + exit grace while on foot
     try { tickIsleSafe(isleSafe, ...layout.harborToFoot(walker.w.x, walker.w.z), performance.now() / 1000); } catch {}
     if (!mineR || mineR.obj !== pirate.object) { mineR = { ...rig(pirate.object), obj: pirate.object }; }
-    hookBody(mineR);
+    hookBody(mineR); if (WSYNC_ON) setObjLook(pirate.object, localWeaponLook()); // [weapon-sync] YOUR holstered copies wear your look everywhere on foot (not only in an arena)
     const W = walker.w;
     if (me.down > 0) { me.down -= dt; if (me.downAt) { W.x = me.downAt[0]; W.z = me.downAt[1]; W.speed = 0; pirate.object.position.x = W.x; pirate.object.position.z = W.z; } if (me.down <= 0) respawn(); }
     me.guard = Math.max(0, me.guard - dt); me.cool = Math.max(0, me.cool - dt);

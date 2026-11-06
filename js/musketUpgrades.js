@@ -86,3 +86,9 @@ export function applyLocalAcc(gid, slot, key) { // optimistic client update whil
   if (g.place === 'equip') { ACC = { ...g.acc }; try { localStorage.setItem(ACC_LS + (typeof window !== 'undefined' && window.PFP_GUN_WHO || 'me'), JSON.stringify(ACC)); } catch {} pub(); }
   return { ...g.acc };
 }
+
+// [weapon-sync] allocation-free reads of YOUR musket look for the per-frame dress + the 'wl' wire (js/onfoot/weaponLook.js)
+export const ACC_BIT = { scope: 1, bayonet: 2, stock: 4, horn: 8 };
+export const accBitsOf = (acc) => (acc ? (acc.scope ? 1 : 0) | (acc.bayonet ? 2 : 0) | (acc.stock ? 4 : 0) | (acc.horn ? 8 : 0) : 0);
+export const gunAccBits = () => (gunAccOn() ? accBitsOf(ACC) : 0);
+export const muskGilded = (lv = LV) => !!(muskUpgOn() && lv.skin && (typeof window === 'undefined' || window.PFP_MUSK_SKIN !== false));

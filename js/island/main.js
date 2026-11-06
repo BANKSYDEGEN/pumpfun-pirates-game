@@ -6,6 +6,7 @@
 // &foot=1 (PHASE 1 blockout: the dock town becomes the tip of a massive on-foot island, js/island/foot.js, loaded only here)
 //   &view=footMap|street|bridge|skull|cove|gallows|falls  &map=1 (2D review map)  &at=street (walker starts on the main street)
 import { hallTokenHidden } from './coast.js'; // [v240]
+import { casinoInteract } from './casinoData.js'; // [Timothy] casino tables
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toon } from '../toon.js';
@@ -450,11 +451,14 @@ function footPanel(q) {
   panel.querySelector('[data-copy]').onclick = async (e) => { const ok = await copyText(inv); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; };
   panel.sym = 'squad'; panel.style.display = 'flex';
 }
+// [Timothy] THE GOLDEN DOUBLOON CASINO tables (island.html has no server: the practice table, js/casino/ui.js)
+let casinoUi = null;
+function openCasino(game) { import('../casino/ui.js').then(m => { casinoUi ||= m.createCasinoUi({ ownKeys: true }); if (walker?.keys) for (const k in walker.keys) walker.keys[k] = false; casinoUi.open(game); }).catch(e => console.warn('[casino]', e)); }
 function footPrompt(t) {
   const v = L2W(walker.x, 0, walker.z), q = foot.nearInteract(v.x, v.z);
   if (!q || panel.sym) return false;
   if (prompt.textContent !== q.label) prompt.textContent = q.label; prompt.style.display = 'block';
-  const go = () => { const r = foot.activate(q, uTime.value); if (r === 'squadhall') footPanel(q); };
+  const go = () => { const r = foot.activate(q, uTime.value); if (r === 'squadhall') footPanel(q); else if (casinoInteract(q)) openCasino(casinoInteract(q)); };
   prompt.onclick = go; walker.near = null; walker.footGo = q.info ? null : go; return true;
 }
 addEventListener('keydown', e => { if (e.code === 'KeyE' && walker && walker.footGo) { walker.footGo(); walker.footGo = null; } });
@@ -520,7 +524,7 @@ function frame() {
 }
 if (foot && P.get('dig')) foot.digs.forEach(d => { d.t = (SHOT ? T0 : 0) - +P.get('dig'); }); // &dig=SECONDS: shots of a dig mid-reveal
 if (DEV) window.ISLAND_FOOT = foot ? { stats: foot.stats, pois: foot.pois, shop: FM.SHOP_SPOTS, coast: COASTM ? { HC: FM.CO.HC, berths: FM.CO.COAST_BERTHS, spawns: FM.CO.spawnCheck() } : null } : null;
-if (DEV) window.ISLAND = { foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
+if (DEV) window.ISLAND = { openCasino, foot, renderer, scene, camera, controls, goView, VIEWS, ships, isle, near, far, rocks, overlay, localOverlay, markers, walker, pois: ISLAND_POIS, setLod, HARBOR_ISLAND, colliders: islandColliders(), berths: BERTHS(), walls: harborWalls(), walk: { landArea: WALKAREA.landArea, deckArea: WALKAREA.deckArea }, real: REAL, decor: DECOR };
 requestAnimationFrame(frame);
 // 2D layout review map (&foot=1&map=1): heightmap shading, both trail loops, street, river + lake, every POI labelled
 if (COASTM && P.has('map')) { const cv = document.createElement('canvas'); cv.width = innerWidth; cv.height = innerHeight; cv.style.cssText = 'position:fixed;inset:0;z-index:50'; FM.drawCoastMap(cv); document.body.appendChild(cv); }

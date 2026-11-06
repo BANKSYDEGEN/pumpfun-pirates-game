@@ -697,6 +697,23 @@
    "use": "EMPTY shop (rentable, no prompt)",
    "x": -442.59,
    "z": -71.61
+  },
+  {
+   "n": 47,
+   "id": "casino",
+   "area": "dock plaza",
+   "kind": "building",
+   "lx": 21.25,
+   "lz": -50.4,
+   "w": 14.5,
+   "d": 16.7,
+   "door": {
+    "lx": 14,
+    "lz": -50.4
+   },
+   "use": "THE GOLDEN DOUBLOON CASINO",
+   "x": -589.6,
+   "z": -68.75
   }
  ]
 }

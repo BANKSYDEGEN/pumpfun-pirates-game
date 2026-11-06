@@ -26,6 +26,7 @@ import { createPlaza } from './plaza.js'; // [v103] live leaderboards + token bi
 import { createBattery } from './battery.js'; // [Timothy] headland battery: playable cosmetic guns
 import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock, padRumble } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
 import { createSkinPicker } from './skinPicker.js'; // [dock-skin] Q / CHANGE SKIN at your own berth
+import { casinoInteract } from '../island/casinoData.js'; // [Timothy] THE GOLDEN DOUBLOON CASINO tables → js/casino/ui.js
 import { createSquadHall } from './squadHall.js'; // [squad-hall] BANKSY: all-worlds list + invite / join
 import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill -> Skull Peak (&zipline=0 = none)
 import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
@@ -142,6 +143,7 @@ export async function createDock(ctx) {
   const treasure = createTreasure({ inventory: () => inventory, world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
   try { inventory = createInventory({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure, nearbyPlayers: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); /* [give-dropdown] your harbor copy's pirates first in the GIVE picker */ } catch (e) { console.warn('[inventory]', e); } // [inventory]
+  let casinoUi = null; // [Timothy] THE GOLDEN DOUBLOON CASINO table UI (created on the first E at a table, openCasino below)
   let squadHall = null; try { squadHall = createSquadHall({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), nearby: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); } catch (e) { console.warn('[squad-hall]', e); }
   setTimeout(() => { try { treasure.render?.(); } catch (e) { console.warn('[treasure]', e); } }, 0); // [minimap-fix] (deferred: the dock is still being built) the HUD button was first drawn before the inventory existed (read 'MAPS 0' until the next server poll)
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
@@ -155,7 +157,7 @@ export async function createDock(ctx) {
     crewOf: (id) => (id === 'me' ? (onFoot && crewF?.active ? crewF.list.filter((c) => c.p.object.visible || c.fight) : []) : (fnet.peers.get(id)?.crew?.list || [])),
     captainOf: (id) => (id === 'me' ? (onFoot ? walker.w : null) : (fnet.peers.get(id) || null)) });
   function respawnOnShip() { // [v328] BANKSY t1740u/t1741u open-island KO → aboard your ship (Harbor berth OR offshore anchor)
-    try { imap.close(); skinPick.close(); squadHall?.close?.(); houses?.closeStorage?.(); } catch {}
+    try { imap.close(); skinPick.close(); squadHall?.close?.(); houses?.closeStorage?.(); casinoUi?.close?.(); } catch {}
     const s = P(); if (!on || !s) return false;
     const ax = canoe?.state?.ax, az = canoe?.state?.az, ayaw = canoe?.state?.ayaw;
     const away = canoe && (canoe.mode === 'canoe' || canoe.mode === 'beached') && Number.isFinite(ax) && Number.isFinite(az);
@@ -307,7 +309,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { casinoUi?.close?.(); canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
     harborExtras(v || viewing); // [v330] t1754u
   }
   // ---------- actions ----------
@@ -410,8 +412,20 @@ export async function createDock(ctx) {
     // [castle-flag-daily] fort mast claims holder daily gold (server holder_claim unchanged)
     holder: () => { const h = ctx.pvp?.()?.holder; return h ? { on: !!h.on, claimed: !!h.claimed, checked: !!h.checked } : null; },
     claimDaily: () => { const pv = ctx.pvp?.(); if (!pv?.claimHolderGold) return Promise.reject(new Error('pvp offline')); return pv.claimHolderGold({ fromFlag: true, quiet: true }); } };
+  // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): the four tables inside the hall open the casino UI (js/casino/ui.js, loaded on first use).
+  // Live: the server plays every hand (pvp.inv.call('casino_play')) and its gold is the gold; ?casinoqa=1 / no server casino = the practice table.
+  function openCasino(gameId) {
+    import('../casino/ui.js').then(m => {
+      casinoUi ||= m.createCasinoUi({ pvp: () => ctx.pvp(), getGold: () => (game.gold | 0),
+        setGold: (g) => { game.gold = Math.max(0, Math.min(1e7, Math.floor(+g || 0))); try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} try { ctx.updateHud?.(); const el = document.getElementById('gold'); if (el) el.textContent = game.gold; } catch {} },
+        sfx: (k) => { const f = { win: ctx.sfx?.coin, card: ctx.sfx?.equip, dice: ctx.sfx?.equip, spin: ctx.sfx?.equip }[k]; f?.(); } });
+      for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) { try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {} }   // no walking off while seated
+      casinoUi.open(gameId);
+    }).catch(e => { console.warn('[casino] ui failed', e); toast('THE CASINO IS CLOSED RIGHT NOW', 2200); });
+  }
   function interact(q) {
     const pv = ctx.pvp(), t = game.t;
+    const casinoGame = casinoInteract(q.src || q.kind); if (casinoGame) { openCasino(casinoGame); return; }
     if (q.src?.id === 'fort_spyglass' || q.id === 'fort_spyglass') { const W = walker.w; specFrom = { src: 'fort', x: W.x, z: W.z, yaw: W.yaw, camYaw: W.camYaw, pitch: W.pitch }; goAboard(true); pv?.harborSpectate?.(false); return; } // [v254] specFrom tags the castle as the spectate source: EXIT puts you back here on foot (fortReturn) // [v252] BANKSY: Hilltop Fort spyglass = arena spectate (same as the mole spyglass); EXIT = usual spectate exit back to the harbor
     if (q.src?.area) { const m = world.foot.areas?.activate(q.src, t, areaApi); Promise.resolve(m).then(msg => { if (msg) toast(msg, 3200); }).catch(() => {}); return; } // [island-rework] area activities (+ [castle-flag-daily] async holder claim at fort_flag)
     if (q.kind === 'zipline') { zip?.start(q); return; } // [Emerly zipline]
@@ -435,6 +449,7 @@ export async function createDock(ctx) {
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
     if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen || ADM.frozen) return; // [admin-menu] frozen: no E / Q // [v145] the treasure map closes on its own keys (Esc / M)
+    if (casinoUi?.isOpen) { casinoUi.onKey(e); e.stopImmediatePropagation(); e.preventDefault(); return; } // [Timothy] the casino table has the keys (Esc closes)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && squadHall?.isOpen) { squadHall.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }

@@ -210,6 +210,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     { const ba = BA.stamp(lx, lz, h); h = ba.h; if (ba.d < TRg[q]) TRg[q] = ba.d; } // [Timothy] battle areas: level pads + dirt floors / paths
     if (COLI.COLISEUM_ON) { const c = COLI.stamp(lx, lz, h); h = c.h; if (c.d < TRg[q]) TRg[q] = c.d; }
     if (PV.hallGround) h = PV.hallGround(lx, lz, h); // [Timothy v312] the widened Squad Hall's ground stays on the street grade (js/island/hillStreet.js)
+    if (PV.casinoGround) h = PV.casinoGround(lx, lz, h); // [Timothy] THE GOLDEN DOUBLOON CASINO: the hall's ground = the street level (js/island/casinoData.js)
   }
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
@@ -651,7 +652,7 @@ const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round
   if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   if (RB_ON && x > -440 && x < -405 && z > -130 && z < -60 && areaDeckAt(x, z) !== null) return 0;   // [v220] no grass tufts through the fountain plaza / Climb paving
   if (COTTAGES_ON && cottagePadAt(x, z)) return 0; // [post/cottages] no grass through cottage floors / porches / aprons / well pad
-  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
+  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (PV.casinoClear && PV.casinoClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
 // [island-rework] now read from js/island/digSpots.js (active spots only, BAKED coords = today's beachNear() results, so no X moves)
@@ -863,6 +864,7 @@ export function buildStreet(A, low, F) {
     LOTS_MAP.push({ lx, z: zc, w: BS ? SQH.w : 16, d: BS ? SQH.d : 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
     const [dx, dz] = BS ? tw(SQH.interact.lx, SQH.interact.lz) : tw(lx - 7 + 3.5, zc); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: BS ? SQH.interact.r : 3.2, label: 'E · SQUAD HALL' }); // inside the hall, on the runner in front of the war table
   }
+  if (COASTM && PV.casinoSite) PV.casinoSite({ addBox, addCirc, addDeck, INTERACT, LOTS_MAP }); // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): walls + tables colliders, floor deck, 4 E points (js/island/casino.js)
   if (!COLI.COLISEUM_ON) { // old square restored ONLY by &coliseum=0 (well + stalls + colliders)
     const [z, w] = lots[4], lx = S.x + S.half + 7, [x, wz] = tw(lx, z), y = H(x, wz);
     W(k, cyl(1.6, 1.7, 1.0, 14), STONE, 11, M(x, y + 0.5, wz)); W(k, cyl(1.25, 1.25, 0.2, 14), 0x2b5d6a, 0, M(x, y + 0.92, wz), false);
@@ -1001,7 +1003,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   BA.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Timothy] battle areas: range + pit (static art, colliders)
-  COLI.buildArt({ rentLot: PV.rentLot, squadOverlap: PV.squadOverlap, k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
+  COLI.buildArt({ rentLot: PV.rentLot, squadOverlap: (a, b, c, d) => !!(PV.squadOverlap?.(a, b, c, d) || PV.casinoOverlap?.(a, b, c, d)), /* [Timothy] + the casino */ k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
   return k;
 }
 // [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v335'; // [v335] build mode unlocked (Plaza / Hill Street / GLB units) + owner-only multi-color REWORK flags + weapon gifting + 3D street signs removed (BANKSY t1777-85u); prev: [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
+const VERSION = 'pfp-v336'; // [v336] Golden Doubloon Casino (#33..#5, 4 pure-gold tables) + multiplayer weapon-sync (Legendary/rarity + 3D musket attachments in-hand & holstered) + [v335] build mode unlocked (Plaza / Hill Street / GLB units) + owner-only multi-color REWORK flags + weapon gifting + 3D street signs removed (BANKSY t1777-85u); prev: [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -60,7 +60,7 @@ const SHELL = [
   "./js/onfoot/physics.js", // [v154] Raul: falling + swimming
   "./js/onfoot/swimPose.js", // [Raul swim-anim] tread / crawl / pull-up poses (physics.js, pirate.js)
   "./js/onfoot/battle.js", "./js/onfoot/swordHand.js", // [v149] SWORD PIT + MUSKET RANGE
-  "./js/onfoot/swords.js",
+  "./js/onfoot/swords.js", "./js/onfoot/gunAccMesh.js", "./js/onfoot/weaponDecor.js", "./js/onfoot/weaponLook.js",
   "./js/onfoot/tps.js", // [v202] musket aim: PC point and click, phone over the shoulder
   "./js/onfoot/tpsMath.js",
   "./js/island/battleAreas.js",
@@ -72,7 +72,7 @@ const SHELL = [
   "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", "./js/island/areas/cottages.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
-  "./js/island/plazaShops.js", // [Timothy] Blender storefronts + battery loader
+  "./js/island/plazaShops.js", "./js/island/casino.js", "./js/island/casinoData.js", "./js/casino/engine.js", "./js/casino/ui.js", // [Timothy] Blender storefronts + battery loader
   "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
   "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
@@ -321,6 +321,7 @@ const ASSETS = [
   "./assets/island/town_kit_low.webp.glb",
   "./assets/island/plaza_shops.glb",
   "./assets/island/plaza_shops_low.glb",
+  "./assets/island/casino_hall_low.glb",
   // [Timothy hill street] only the phone (_low) models are precached; the High ones (3.7 MB) are cached on first use (network-first handler)
   "./assets/island/hill_street_low.glb",
   "./assets/island/hill_sword_shop_low.glb",

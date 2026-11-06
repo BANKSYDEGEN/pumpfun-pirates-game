@@ -15,6 +15,8 @@ import { swordGeo, musketGeo, musketMuzzle, loadWeaponModels, SWORD_IDS, MUSKET_
 import { toon } from './toon.js';
 import { carryHand, carryShows, holsterOn, holsterSide, swordHolstered } from './carryRules.js';
 import { TINTS } from './pirateGLB.js';
+import { objLook, COMMON_LOOK, wsyncOn } from './onfoot/weaponLook.js';   // [weapon-sync] the pirate's rarity + attachments look
+import { decorateSword, decorateMusket, swordTint, musketTint } from './onfoot/weaponDecor.js';
 
 export const CARRY = {
   holster: { x: 0.18, y: 0.47, z: -0.03, tilt: 0.5, out: 0.14 },   // [musket-holster] hip point (of the bind width / height), blade back + out from straight down
@@ -33,6 +35,10 @@ function mats() {
   }
   return _mat;
 }
+// [weapon-sync] rank-tinted copies of the carry material (shared per tint id, like battle.js lookMat)
+const _lookM = new Map();
+function lookMat(lk) { if (!lk) return mats().m; let m = _lookM.get(lk.id); if (!m) { m = toon(lk.c, null, { vertexColors: true, emissive: lk.e, emissiveIntensity: lk.ei, key: 'carry-look-' + lk.id }); _lookM.set(lk.id, m); } return m; }
+const WSYNC_ON = wsyncOn();
 function weaponMesh(geo, low, gold) { const M = mats(), m = new THREE.Mesh(geo, gold ? M.g : M.m); m.name = 'carry-weapon'; m.castShadow = !low; m.userData.carry = true;
   if (!low) { const o = new THREE.Mesh(geo, M.s); o.userData.outline = true; m.add(o); } return m; }
 const boneOf = (body, n) => body.skeleton.bones.find((b) => b.name === n) || null;
@@ -50,14 +56,15 @@ export function syncCarry(p, gear, body) {
   if (!p?.v5 || (p.forCrew && gear?.carryCrew !== 1) || !body?.skeleton) return;   // [crew-weapons] the deck bake pirate carries only crew weapons
   const sw = SWORD_IDS.includes(gear?.carrySword) ? gear.carrySword : null, mu = MUSKET_IDS.includes(gear?.carryMusket) ? gear.carryMusket : null;
   const hand = gear?.carryCrew === 1 && (gear.carryHand === 'L' || gear.carryHand === 'R') ? gear.carryHand : carryHand(gear);   // the hand WITHOUT the hook (no hook: right); crew: the CAPTAIN's
-  const crew = gear?.carryCrew === 1, key = [sw, mu, hand, crew].join('|'); const st = p.carry || (p.carry = { key: '', sword: null, musket: null, armedSword: false, armedMusket: false, sig: '', t: 0 });
+  const crew = gear?.carryCrew === 1, key = [sw, mu, hand, crew].join('|'); const st = p.carry || (p.carry = { key: '', sword: null, musket: null, armedSword: false, armedMusket: false, sig: '', t: 0, swV: -1, muV: -1 });
   body.userData.carryState = st; if (p.scene) p.scene.userData.carryState = st;
   if (st.key === key) return; st.key = key; const low = p.lod === 'lo';
   if (sw || mu) loadWeaponModels(low);
   if (st.sword) { st.sword.removeFromParent(); st.sword = null; }
   if (st.musket) { st.musket.removeFromParent(); st.musket = null; }
-  if (sw) { const fb = boneOf(body, 'forearm' + hand); if (fb) { const m = weaponMesh(swordGeo(sw), low, sw === 'blade_gold'); m.visible = false; m.userData.side = hand; fb.add(m); st.sword = m; st.swordPlaced = false; st.hand = fb; st.hip = boneOf(body, 'root'); st.holstered = false; st.holsterT = null; st.handT = null; } }
+  if (sw) { const fb = boneOf(body, 'forearm' + hand); if (fb) { const m = weaponMesh(swordGeo(sw), low, sw === 'blade_gold'); m.visible = false; m.userData.side = hand; m.userData.id = sw; fb.add(m); st.sword = m; st.swordPlaced = false; st.hand = fb; st.hip = boneOf(body, 'root'); st.holstered = false; st.holsterT = null; st.handT = null; } }
   if (mu) { const sb = boneOf(body, 'spine'); if (sb) { const m = weaponMesh(musketGeo(mu), low, false); m.visible = false; m.userData.id = mu; sb.add(m); st.musket = m; st.sig = ''; } }
+  st.swV = -1; st.muV = -1;   // [weapon-sync] fresh meshes: re-dress with the look on the next post
   st.body = body; st.crew = crew; p.addPost?.('carry', carryPost, 4);
 }
 // [crew-weapons] the deck crew bake (js/crewV4.js): put the carried copies where they ride (sword on the hip, musket slung) right now
@@ -132,8 +139,18 @@ function placeMusket(st) {
   _m.copy(bi).multiply(body.bindMatrix).multiply(D); _m.decompose(m.position, m.quaternion, m.scale);
   st.zMin = zMin; st.sling = [+pick.gap.toFixed(3), pick.dy, pick.dt, +slope.toFixed(3)];
 }
+// [weapon-sync] the holstered / carried copies wear the pirate's synced look (Legendary ornaments, rank tint, 3D attachments on the back
+// musket). Read from the pirate root each frame (a few parent hops, no allocation); re-dressed only when the int key changes.
+function lookCarry(st) {
+  const lk = (WSYNC_ON && !st.crew && objLook(st.body)) || COMMON_LOOK;
+  if (st.sword && st.swV !== lk.sw) { st.swV = lk.sw; const m = st.sword, id = m.userData.id;
+    m.material = id === 'blade_gold' ? mats().g : lookMat(swordTint(lk)); decorateSword(m, id, lk); }
+  if (st.musket && st.muV !== lk.mu) { st.muV = lk.mu; const m = st.musket; m.material = lookMat(musketTint(lk)); decorateMusket(m, m.userData.id, lk); }
+}
+export const _lookCarry = lookCarry;   // tests
 function carryPost(dt) {
   const st = this.carry; if (!st || !st.body) return;
+  lookCarry(st);
   const show = carryShows({ onFoot: this.footSpeed !== undefined, state: this.footState, armedSword: st.armedSword, armedMusket: st.armedMusket });   // footSpeed: set by js/onfoot/pirate.js each frame (ships never)
   if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = st.crew || swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); /* [crew-weapons] crew: always on the hip */ if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
   if (st.musket) {

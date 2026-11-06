@@ -13,7 +13,7 @@ import { Room } from './net.js';
 import { isNetId, safeMerge } from './safe.js'; // [security] peer ids are whitelisted, peer JSON is merged without __proto__ keys
 import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL, HARBOR_NET } from './config.js';
 
-const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj', 'gr', 'ec', 'cr', 'cc']; // [Raul gear colours] cc = the crew's hat colour (js/crewLoadout.js crewColorToWire) // [Timothy] cr = the crew's own loadout (js/crewLoadout.js crewToWire) // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order) // [Timothy] gr = equipped shop gear (js/pirateGear.js gearToWire)
+const STATIC = ['n', 'lv', 'sk', 'K', 'D', 'm', 'k', 'd', 'g', 'pc', 'hj', 'gr', 'ec', 'cr', 'cc', 'wl']; // [Raul weapon-sync] wl = weapon rarity + musket attachments (js/onfoot/weaponLook.js) // [Raul gear colours] cc = the crew's hat colour (js/crewLoadout.js crewColorToWire) // [Timothy] cr = the crew's own loadout (js/crewLoadout.js crewToWire) // [v98] pc = squads party tag; [v99] hj = when you joined this harbor copy (host order) // [Timothy] gr = equipped shop gear (js/pirateGear.js gearToWire)
 const DYN_EPS = { x: 0.25, z: 0.25, y: 0.015, v: 0.15, t: 0.05 };
 
 export class Batcher { // exported for tests

@@ -120,6 +120,11 @@ const legM = () => { if (_legM) return _legM; _legM = {
   ruby: toon(0xc4161c, null, { key: 'leg-ruby', emissive: 0x5a0008, emissiveIntensity: 0.7 }),
   enamel: toon(0x8a1020, null, { key: 'leg-enamel' }),
 }; return _legM; };
+// [weapon-sync] ornament geometries are SHARED (cached by shape): re-dressing a weapon (rarity / attachment change, a peer's look
+// arriving, the holstered copy) never allocates or leaks GPU buffers. Never dispose a geometry tagged userData.shared.
+const _OG = new Map();
+const _og = (k, mk) => { let g = _OG.get(k); if (!g) { g = mk(); g.userData.shared = true; _OG.set(k, g); } return g; };
+export const legendaryGeoCount = () => _OG.size;
 function _add(g, geo, mat, x, y, z, rx=0, ry=0, rz=0) { const o = new THREE.Mesh(geo, mat); o.position.set(x,y,z); o.rotation.set(rx,ry,rz); o.userData.legendary = true; g.add(o); return o; }
 
 /** Ornate royal-gold filigree + ruby gems for a legendary sword mesh (blade +Y). */
@@ -127,16 +132,16 @@ export function legendarySwordMesh(mesh) {
   if (!mesh || mesh.userData._legOrn) return mesh; mesh.userData._legOrn = true;
   const M = legM(), g = new THREE.Group(); g.name = 'legendarySwordOrn';
   // filigree guard/collar bands
-  _add(g, new THREE.TorusGeometry(0.055, 0.008, 6, 14), M.gold, 0, 0.05, 0, Math.PI / 2);
-  _add(g, new THREE.TorusGeometry(0.04, 0.006, 5, 12), M.gold2, 0, 0.02, 0, Math.PI / 2);
+  _add(g, _og('t55', () => new THREE.TorusGeometry(0.055, 0.008, 6, 14)), M.gold, 0, 0.05, 0, Math.PI / 2);
+  _add(g, _og('t40', () => new THREE.TorusGeometry(0.04, 0.006, 5, 12)), M.gold2, 0, 0.02, 0, Math.PI / 2);
   // crossguard cabochons + ruby pommel
-  _add(g, new THREE.OctahedronGeometry(0.028), M.ruby, 0.12, 0.05, 0);
-  _add(g, new THREE.OctahedronGeometry(0.028), M.ruby, -0.12, 0.05, 0);
-  _add(g, new THREE.OctahedronGeometry(0.035), M.ruby, 0, -0.2, 0);
+  _add(g, _og('o28', () => new THREE.OctahedronGeometry(0.028)), M.ruby, 0.12, 0.05, 0);
+  _add(g, _og('o28', () => new THREE.OctahedronGeometry(0.028)), M.ruby, -0.12, 0.05, 0);
+  _add(g, _og('o35', () => new THREE.OctahedronGeometry(0.035)), M.ruby, 0, -0.2, 0);
   // golden fuller / spine inlay along the blade
-  _add(g, new THREE.BoxGeometry(0.01, 0.55, 0.008), M.gold2, 0, 0.4, 0.01);
+  _add(g, _og('b55', () => new THREE.BoxGeometry(0.01, 0.55, 0.008)), M.gold2, 0, 0.4, 0.01);
   // crimson enamel collar
-  _add(g, new THREE.CylinderGeometry(0.032, 0.032, 0.03, 10), M.enamel, 0, 0.07, 0);
+  _add(g, _og('c32', () => new THREE.CylinderGeometry(0.032, 0.032, 0.03, 10)), M.enamel, 0, 0.07, 0);
   mesh.add(g); return mesh;
 }
 
@@ -146,17 +151,23 @@ export function legendaryMusketMesh(mesh, id = MUSKET_DEFAULT) {
   const M = legM(), mz = musketMuzzle(id), L = Math.max(0.6, mz.z || 1.38), y = mz.y || 0.06;
   const g = new THREE.Group(); g.name = 'legendaryMusketOrn';
   // royal-gold barrel bands
-  for (const t of [0.35, 0.55, 0.78]) _add(g, new THREE.TorusGeometry(0.036, 0.007, 5, 12), M.gold, 0, y, L * t, Math.PI / 2);
+  for (const t of [0.35, 0.55, 0.78]) _add(g, _og('t36', () => new THREE.TorusGeometry(0.036, 0.007, 5, 12)), M.gold, 0, y, L * t, Math.PI / 2);
   // filigree breech crest + ruby lock/sight jewel
-  _add(g, new THREE.BoxGeometry(0.05, 0.04, 0.08), M.gold2, 0, y + 0.04, 0.34);
-  _add(g, new THREE.OctahedronGeometry(0.022), M.ruby, 0.0, y + 0.07, 0.36);
+  _add(g, _og('b05', () => new THREE.BoxGeometry(0.05, 0.04, 0.08)), M.gold2, 0, y + 0.04, 0.34);
+  _add(g, _og('o22', () => new THREE.OctahedronGeometry(0.022)), M.ruby, 0.0, y + 0.07, 0.36);
   // gilded trigger guard + butt trim
-  _add(g, new THREE.TorusGeometry(0.035, 0.007, 5, 10, Math.PI), M.gold, 0, y - 0.05, 0.38, 0, Math.PI / 2, 0);
-  _add(g, new THREE.BoxGeometry(0.08, 0.14, 0.02), M.gold, 0, -0.02, -0.01, -0.12);
-  _add(g, new THREE.BoxGeometry(0.01, 0.01, L * 0.5), M.gold2, 0.0, y + 0.025, L * 0.45); // spine gleam
+  _add(g, _og('t35h', () => new THREE.TorusGeometry(0.035, 0.007, 5, 10, Math.PI)), M.gold, 0, y - 0.05, 0.38, 0, Math.PI / 2, 0);
+  _add(g, _og('b08', () => new THREE.BoxGeometry(0.08, 0.14, 0.02)), M.gold, 0, -0.02, -0.01, -0.12);
+  _add(g, _og('sp' + L.toFixed(3), () => new THREE.BoxGeometry(0.01, 0.01, L * 0.5)), M.gold2, 0.0, y + 0.025, L * 0.45); // spine gleam
   mesh.add(g); return mesh;
 }
 
+/** [weapon-sync] undo applyLegendaryOrnament (shared geometry + materials: nothing to dispose). */
+export function stripLegendaryOrnament(mesh) {
+  if (!mesh?.userData._legOrn) return mesh; mesh.userData._legOrn = false;
+  for (let i = mesh.children.length - 1; i >= 0; i--) { const c = mesh.children[i]; if (c.name === 'legendarySwordOrn' || c.name === 'legendaryMusketOrn') mesh.remove(c); }
+  return mesh;
+}
 export function applyLegendaryOrnament(mesh, slot, id, rarity) {
   if (rarity !== 'legendary' || !mesh) return mesh;
   return slot === 'sword' ? legendarySwordMesh(mesh) : legendaryMusketMesh(mesh, id);
