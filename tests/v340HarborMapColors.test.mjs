@@ -9,7 +9,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => readFileSync(join(ROOT, f), 'utf8');
 
 test('sw.js VERSION is pfp-v340', () => {
-  assert.match(read('sw.js'), /const VERSION = 'pfp-v340'/);
+  assert.ok(+(read('sw.js').match(/const VERSION = 'pfp-v(\d+)'/) || [])[1] >= 340);
 });
 
 test('pvp.js: Harbor squadmates green, non-squad black + flags; isHarborSquadMate exported', () => {

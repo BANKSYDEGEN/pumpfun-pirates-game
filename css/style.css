@@ -105,6 +105,7 @@ html.isle-map-open { overflow: hidden; overscroll-behavior: none; touch-action: 
 html.isle-map-open body { overscroll-behavior: none; touch-action: none; }
 #isle-map .im-key { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 16px 12px; font-size: 13px; align-items: center; opacity: .9; }
 #isle-map .im-key i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: -6px; border: 1px solid #161616; }
+#isle-map .im-key i.im-k-other, #isle-map .im-key i.im-k-squad { width: 13px; height: 13px; margin-left: 3px; } /* [v340] black / green pirate swatches read at a glance */
 #isle-map .im-key i.im-tr { width: 18px; height: 4px; border-radius: 2px; }
 #isle-map .im-key i.im-st { width: 14px; height: 11px; border-radius: 2px; background: repeating-linear-gradient(45deg, #6b5a4a 0 2px, #9a8a70 2px 5px); }
 @media (max-width: 700px) { #isle-map .im-head span { display: none; } #isle-map .im-key { font-size: 11px; } #isle-map .im-zbtn { width: 52px; height: 52px; min-width: 52px; min-height: 52px; font-size: 28px; } #isle-map .im-x { width: 52px; height: 52px; } }
@@ -1164,8 +1165,52 @@ html.pvp-harbor #hud-top { display: none !important; }
 }
 @media (max-width: 500px) and (orientation: portrait) {
   #radar { width: 104px !important; height: 104px !important; }
-  #hb-hub-btn { top: calc(10px + var(--safe-t, 0px)); }
+  /* [v340] t1804u QA: aboard on a phone the pill drops to a compact slot under the top row, between GOLD and the radar (never over #captain / 🔊) */
+  #hb-hub-btn { top: calc(54px + var(--safe-t, 0px)); left: auto; right: calc(120px + var(--safe-r, 0px)); transform: none; font-size: 14px; padding: 3px 9px 1px; gap: 5px; max-width: calc(100vw - 260px); white-space: nowrap; }
+  #hb-hub-btn .hb-ico { font-size: 14px; }
 }
 
 html.hb-hub-open #dk-acts, html.hb-hub-open #controls { visibility: hidden !important; pointer-events: none !important; }
 #casino-ui.on ~ #dk-acts, html:has(#casino-ui.on) #dk-acts, html:has(#casino-ui.on) #controls, html:has(#casino-ui.on) #hb-hub-btn { visibility: hidden !important; pointer-events: none !important; }
+
+/* ===== [v341] BANKSY t1808u: sound / camera / ⚙ / fullscreen row in the TOP MIDDLE, minimap flush in the TOP RIGHT =====
+   #hud-icons stays in the DOM inside #hud-tr (so every #hud-tr / #hud hide rule still hides it) but is fixed to the top centre.
+   PLAY · HARBOR (#hb-hub-btn) sits directly below the icon row; the radar + location card are the top-right column. */
+#hud-icons { position: fixed; left: 50%; right: auto; top: calc(10px + var(--safe-t, 0px)); transform: translateX(-50%); z-index: 7;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; pointer-events: none; max-width: calc(100vw - 2 * 270px - var(--safe-l, 0px) - var(--safe-r, 0px)); }
+#hud-icons > * { pointer-events: auto; }
+#hud-tr { top: calc(10px + var(--safe-t, 0px)) !important; right: calc(10px + var(--safe-r, 0px)) !important; }
+#hud-tr #radar { margin-top: 0; }
+#hb-hub-btn, .hb-hub-btn { top: calc(62px + var(--safe-t, 0px)); left: 50%; right: auto; transform: translateX(-50%); }
+#dk-islesafe { top: calc(var(--safe-t, 0px) + 104px) !important; } /* grace countdown under the top-centre stack */
+#bt-hud { top: calc(var(--safe-t, 0px) + 104px) !important; }
+#pvp-return { right: calc(10px + var(--safe-r) + 150px + 10px) !important; }
+html.hud-hide #hud-icons { visibility: hidden !important; pointer-events: none !important; }
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #hud-icons { top: calc(6px + var(--safe-t, 0px)); gap: 5px; max-width: calc(100vw - 2 * 170px); }
+  #hud-icons > button.icon { width: 34px; height: 34px; font-size: 15px; }
+  #hud-icons #btn-pause { font-size: 20px; }
+  #hud-tr { top: calc(6px + var(--safe-t, 0px)) !important; right: calc(8px + var(--safe-r, 0px)) !important; }
+  #hb-hub-btn, .hb-hub-btn { top: calc(46px + var(--safe-t, 0px)) !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
+  #pvp-return { right: calc(8px + var(--safe-r) + 104px + 8px) !important; }
+}
+/* phones upright: the icon row lives in the gap between the captain card and the radar (never centred over either) */
+@media (orientation: portrait) and (max-width: 600px) {
+  #hud-tl { max-width: 152px !important; }
+  #hud-icons { left: calc(156px + var(--safe-l, 0px)); right: calc(8px + 104px + 6px + var(--safe-r, 0px)); transform: none; max-width: none; gap: 4px; justify-content: center; }
+  #hud-icons > button.icon { width: 32px; height: 32px; font-size: 14px; }
+  #hud-icons #btn-pause { font-size: 18px; }
+  #hb-hub-btn, .hb-hub-btn { top: calc(46px + var(--safe-t, 0px)) !important; left: calc(150px + var(--safe-l, 0px)) !important; right: calc(8px + 104px + 6px + var(--safe-r, 0px)) !important; transform: none !important;
+    justify-content: center; font-size: 13px; padding: 3px 6px 1px; gap: 4px; max-width: none; }
+  #dk-islesafe, #bt-hud { top: calc(var(--safe-t, 0px) + 122px) !important; }
+}
+@media (orientation: portrait) and (max-width: 380px) {
+  #radar { width: 92px !important; height: 92px !important; }
+  #hud-tl { max-width: 148px !important; }
+  #captain-name { max-width: 84px !important; }
+  #hud-icons { left: calc(150px + var(--safe-l, 0px)); right: calc(8px + 92px + 4px + var(--safe-r, 0px)); gap: 3px; }
+  #hud-icons > button.icon { width: 29px; height: 29px; font-size: 13px; }
+  #hud-icons #btn-pause { font-size: 16px; }
+  #hb-hub-btn, .hb-hub-btn { left: calc(146px + var(--safe-l, 0px)) !important; right: calc(8px + 92px + 4px + var(--safe-r, 0px)) !important; font-size: 12px; }
+  #hb-hub-btn .hb-chip { display: none; }
+}

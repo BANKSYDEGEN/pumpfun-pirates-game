@@ -73,7 +73,7 @@ html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{max-width:cal
 #dk-fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .28s}
 #dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:70;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
 @media (max-height:480px){#dk-acts{bottom:calc(var(--safe-b,0px) + 104px)} #dk-acts button{font-size:22px;padding:8px 14px 5px} #dk-safe{top:calc(var(--safe-t,0px) + 46px);font-size:18px}}
-@media (max-width:600px){#dk-acts{bottom:calc(var(--safe-b,0px) + 200px)} #dk-safe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
+@media (max-width:600px){#dk-acts{bottom:calc(var(--safe-b,0px) + 200px);flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 16px)} /* [v340] 3 aboard buttons wrap instead of running off a 390px screen */ #dk-safe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
 /* [v340] mobile on-foot HUD (v339 QA t1793u-t1795u): BOARD SHIP / CHANGE SKIN never over the radar, INVENTORY, the weapon switch or the top icons */
 @media (orientation:landscape) and (max-height:540px){html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{flex-direction:row;align-items:flex-end;right:calc(var(--safe-r,0px) + 74px);bottom:calc(var(--safe-b,0px) + 14px);max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 330px);flex-wrap:wrap-reverse;justify-content:flex-end}
   html.dk-touch.pfp-onfoot #dk-acts button,html.dk-touch.pfp-canoe #dk-acts button{font-size:19px;padding:8px 13px 5px}}
@@ -81,7 +81,8 @@ html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{max-width:cal
 /* [v340] BANKSY t1806u: on foot (touch) JUMP + weapon switch + 💬 emote share ONE bottom row beside the stick */
 html.pfp-onfoot.dk-touch #bt-stance{left:calc(var(--safe-l,0px) + 248px)!important;right:auto!important;top:auto!important;bottom:calc(var(--safe-b,0px) + 36px)!important;width:50px!important;height:50px!important;font-size:22px}
 html.pfp-onfoot.dk-touch #btn-emote{position:fixed!important;left:calc(var(--safe-l,0px) + 308px)!important;right:auto!important;top:auto!important;bottom:calc(var(--safe-b,0px) + 36px)!important;width:50px!important;height:50px!important;font-size:22px!important}
-html.pfp-onfoot.dk-touch.bt-on:not(.tps-on) #bt-atk{right:calc(var(--safe-r,0px) + 18px);bottom:calc(var(--safe-b,0px) + 98px)}
+html.pfp-onfoot.dk-touch:not(.tps-on) #bt-atk{right:calc(var(--safe-r,0px) + 18px);bottom:calc(var(--safe-b,0px) + 98px)}
+html.pfp-onfoot.dk-touch.tps-on #bt-atk{bottom:calc(var(--safe-b,0px) + 100px)!important} html.pfp-onfoot.dk-touch.tps-on #tps-ads{bottom:calc(var(--safe-b,0px) + 110px)!important} html.pfp-onfoot.dk-touch.tps-on #tps-sw{bottom:calc(var(--safe-b,0px) + 210px)!important} /* [v340] musket aim cluster sits above the JUMP / weapon / emote row */
 @media (max-width:380px){html.pfp-onfoot.dk-touch #dk-joy{left:calc(var(--safe-l,0px) + 14px);width:120px;height:120px}
   html.pfp-onfoot.dk-touch #dk-jump{left:calc(var(--safe-l,0px) + 144px);width:62px;height:62px}
   html.pfp-onfoot.dk-touch #bt-stance{left:calc(var(--safe-l,0px) + 214px)!important;width:46px!important;height:46px!important}
@@ -229,7 +230,7 @@ export async function createDock(ctx) {
     const ctrls = ['dk-joy', 'dk-jump', 'bt-stance', 'bt-atk', 'btn-emote'].map(id => document.getElementById(id)).filter(vis)
       .map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     // [v340] v339 QA: also keep clear of the radar, INVENTORY, the weapon switch, the top icons + PLAY · HARBOR pill
-    const extra = ['radar', 'bt-stance', 'btn-sound', 'btn-cam', 'btn-pause', 'btn-full', 'captain', 'hb-hub-btn', 'inv-hud-btn', 'btn-inv'].map(id => document.getElementById(id))
+    const extra = ['radar', 'tps-ads', 'tps-sw', 'bt-stance', 'btn-sound', 'btn-cam', 'btn-pause', 'btn-full', 'captain', 'hb-hub-btn', 'inv-hud-btn', 'btn-inv'].map(id => document.getElementById(id))
       .concat([...document.querySelectorAll('.tm-btn')]).filter(vis).map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     const obst = ctrls.concat(extra);
     const hits = (oneLine) => { const r = acts.getBoundingClientRect(); if (r.left < 0 || r.right > W - sr - 8 || r.top < 0 || (oneLine && r.height > 64)) return true;
@@ -241,6 +242,7 @@ export async function createDock(ctx) {
     const joyTop = Math.min(H, ...left.map(c => c.top));
     const tries = [{ right: `${sr + 22}px`, bottom: `${sb + 14}px` }, { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${sb + 14}px` }, { right: `${sr + 22}px`, bottom: `${H - joyTop + pad}px` },
       { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${H - joyTop + pad}px` }, { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${sb + 120}px` }];
+    { const low = obst.filter(c => c.top > H * 0.45), lowTop = Math.min(H, ...low.map(c => c.top)); tries.push({ right: `${sr + 22}px`, bottom: `${H - lowTop + pad}px` }); } // [v341] above every lower-half control (musket-aim cluster)
     for (const o of tries) if (tryAt(o)) return;
     const allTop = Math.min(H, ...ctrls.map(c => c.top)); tryAt({ right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${H - allTop + pad}px` });
   }

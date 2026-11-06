@@ -8,7 +8,7 @@ const src = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 
 test('v339 sw.js is pfp-v339 with pooled install + phone-heavy captains_quarters', () => {
   const SW = src('sw.js');
-  assert.match(SW, /VERSION = 'pfp-v339'/);
+  assert.ok(+(SW.match(/VERSION = 'pfp-v(\d+)'/) || [])[1] >= 339); // [v341] later builds keep the v339 behaviour
   assert.match(SW, /const POOL = 8/);
   assert.match(SW, /async function pool\(/);
   assert.match(SW, /oldCaches = await Promise\.all/);
