@@ -1,0 +1,30 @@
+<!doctype html><html><head><base href="/"><meta charset="utf-8"><style>body{margin:0;background:#243445;color:white;font:14px system-ui}#labels{position:absolute;inset:0;pointer-events:none}#labels div{position:absolute;text-align:center}</style><script type="importmap">{"imports":{"three":"/vendor/three-0.165.0/build/three.module.js","three/addons/":"/vendor/three-0.165.0/examples/jsm/"}}</script></head><body><div id="labels"></div><script type="module">
+import * as THREE from 'three';
+import {PirateGLB} from '/js/pirateGLB.js';
+import {applyGear} from '/js/pirateGear.js';
+import {GEAR_ITEMS} from '/js/shopCatalog.js';
+import {ITEMS,equip} from '/js/pirateItems.js';
+import {EMOTE_POSES,startEmote,emotePose} from '/js/onfoot/emotePose.js';
+import {swimPose} from '/js/onfoot/swimPose.js';
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.prepend(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(30,1,.01,30);let cells=[];
+const catalog=GEAR_ITEMS.filter(x=>!['flag','figure'].includes(x.slot)&&!['none','plain','shirtless'].includes(x.id)).map(x=>({name:x.slot+':'+x.id,gear:{[x.slot]:x.id}}));
+for(const slot of ['hook','leg']) for(const d of catalog.filter(x=>x.name.startsWith(slot+':'))) catalog.push({name:d.name+':LEFT',gear:{...d.gear,[slot+'Side']:'L'}});
+window.V7QA={catalog,modes:['idle','walk','run','jump','swim','steer','cannon',...Object.keys(EMOTE_POSES).map(x=>'emote:'+x)],items:ITEMS.map(x=>({name:x.id,slot:x.slot})),async load(list,lod='hi'){
+ for(const c of cells) { c.p.root.removeFromParent(); c.p.mixer.stopAllAction(); } cells=[];document.querySelector('#labels').innerHTML='';
+ for(const d of list){const scene=new THREE.Scene();scene.background=new THREE.Color('#2a3a4a');scene.add(new THREE.HemisphereLight('#dfefff','#4a3a2a',1.6));const light=new THREE.DirectionalLight('#fff1dc',2.2);light.position.set(3,6,4);scene.add(light);
+  const p=await PirateGLB.create({lod});if(!p.v7)throw Error('V7 did not load');p.root.scale.setScalar(1.25);scene.add(p.root);await applyGear(p,d.gear||{});if(d.item)await equip(p,d.item);
+  cells.push({p,scene,name:d.name});const l=document.createElement('div');l.textContent=d.name;document.querySelector('#labels').append(l);
+ }
+ await new Promise(r=>setTimeout(r,150));return cells.map(c=>({name:c.name,v7:c.p.v7,items:Object.keys(c.p.items||{}),bones:c.p.atlasMeshes[0].skeleton.bones.map(b=>b.name)}));
+},render(mode='idle',back=false){
+ const cols=Math.min(4,cells.length),rows=Math.ceil(cells.length/cols),w=innerWidth/cols,h=innerHeight/rows;
+ renderer.setScissorTest(true);
+ for(let i=0;i<cells.length;i++) {const {p,scene}=cells[i];p.posts=[];p._sw=null;p.mixer.stopAllAction();p.clip=null;p.play(['idle','walk','run','steer','cannon'].includes(mode)?mode:'idle',{fade:0});p.mixer.setTime(.35);
+  if(mode==='swim'||mode==='jump'){swimPose(p,mode==='swim'?'swim':'hop',1,2,.4);p.posts.forEach(x=>x.fn.call(p,1/60));}
+  if(mode.startsWith('emote:')) {startEmote(p.root,+mode.split(':')[1]);emotePose(p,p.root,null,.7);p.posts.forEach(x=>x.fn.call(p,1/60));}
+  scene.updateMatrixWorld(true);p.atlasMeshes[0].skeleton.update();const x=(i%cols)*w,y=innerHeight-(Math.floor(i/cols)+1)*h;renderer.setViewport(x,y,w,h);renderer.setScissor(x,y,w,h);camera.aspect=w/h;camera.position.set(back?-.2:.2,1.03,back?-4.6:4.6);camera.lookAt(0,1.03,0);camera.updateProjectionMatrix();renderer.render(scene,camera);
+  const l=document.querySelectorAll('#labels div')[i];Object.assign(l.style,{left:x+'px',top:(innerHeight-y-20)+'px',width:w+'px'});
+ }return true;
+},audit(){const out=[];const v=new THREE.Vector3();for(const c of cells){const meshes=[];c.p.root.traverse(o=>{if(o.isSkinnedMesh){const P=o.geometry.attributes.position,J=o.geometry.attributes.skinIndex,W=o.geometry.attributes.skinWeight;let bad=0,max=0;for(let i=0;i<P.count;i++){let sum=0;for(let k=0;k<4;k++){if(W.getComponent(i,k)>0&&!o.skeleton.bones[J.getComponent(i,k)])bad++;sum+=W.getComponent(i,k);}if(Math.abs(sum-1)>.01)bad++;v.fromBufferAttribute(P,i);o.applyBoneTransform(i,v);if(!Number.isFinite(v.length()))bad++;max=Math.max(max,v.length());}meshes.push({name:o.name,bad,max,verts:P.count});}});out.push({name:c.name,meshes});}return out;},cells:()=>cells};
+</script></body></html>

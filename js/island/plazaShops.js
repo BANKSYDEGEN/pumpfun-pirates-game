@@ -6,6 +6,7 @@
 // footprints, counters, interact points and walk surfaces are unchanged. Extra prop colliders ride in the GLB (node extras).
 // &shopsglb=0 = the procedural blockout shells (also the fallback if the GLB fails to load).
 import * as THREE from 'three';
+import { addMaleShopDisplays } from './plazaMannequins.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -124,6 +125,7 @@ export function buildPlazaShops() {
     const lod = new THREE.LOD(); lod.name = 'plaza_' + id; m.decompose(lod.position, lod.quaternion, lod.scale);
     s.lods.forEach((g, i) => { lod.addLevel(g, d[i] ?? d[d.length - 1] + 80 * i); });
     s.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
+    addMaleShopDisplays(lod, id, SHOPS_KIT.low);
     root.add(lod); }
   if (DOCKS_KIT) { const dd = DOCKS_KIT.low ? [0] : [0, 70];
     for (const { i, m } of DOCK_PLACES) { const c = DOCKS_KIT.chunks[i], lod = new THREE.LOD(); lod.name = 'plaza_' + c.name; m.decompose(lod.position, lod.quaternion, lod.scale);

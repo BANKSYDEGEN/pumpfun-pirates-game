@@ -637,6 +637,7 @@ export function setBodyLook(p, { skinColor = 0, hairColor = 0, eyeColor = 0 } = 
   try { p.setIris?.(eyeColor > 0 ? EYE_SWATCHES[eyeColor - 1]?.[1] || null : null); } catch (e) { console.warn('[gear] eyes', e); } // [v115]
   const sk = skinColor > 0 ? SKIN_SWATCHES[skinColor - 1]?.[1] : null, hr = hairColor > 0 ? HAIR_SWATCHES[hairColor - 1]?.[1] : null;
   const key = (sk || '') + '|' + (hr || ''); if ((p.gearLook || '|') === key) return; p.gearLook = key;
+  if (p.v7) { const u = p._v7Tint; u.v7On.value.x = sk ? 1 : 0; u.v7On.value.y = hr ? 1 : 0; if (sk) u.v7Skin.value.set(sk); if (hr) u.v7Hair.value.set(hr); return; }
   const col = new THREE.Color(), want = { skin: sk, hair: hr };
   for (const m of p.tinted || []) { const t = m.userData.tint; if (t !== 'skin' && t !== 'hair') continue;
     if (!m.userData.gearBase) m.userData.gearBase = m.color.clone(); m.color.copy(want[t] ? col.set(want[t]) : m.userData.gearBase); }

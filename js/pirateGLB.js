@@ -22,8 +22,11 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 // is CONFORMED to the v5 body shape (v5 skeleton + weights, the V6 paint / face / hair kept), so every v5 item GLB (items/v5) is worn UNCHANGED;
 // the legacy base outfit (cloth_base: pants, belt, sash, boots, her wrap top) is still auto-worn, so nobody shows up barefoot / pantless. The ship crew bake keeps the v5 Low bodies
 // (their painted outfits = the captain's clothes; V6 crews would all be in underwear).
+// [V7 male] BANKSY-approved Meshy sculpt + single right-arm PumpFun pill, reweighted onto the
+// unchanged 13-bone game rig. Same clips / gear warp / attachment pivots; V6 is retained as load fallback.
+// Build: tools/v7/build_male.py. Female and the legacy V5 deck-crew bake are unchanged.
 export const PIRATE_GLB = {
-  male: { hi: 'assets/pirates/pirate_male_v6_hi.glb', lo: 'assets/pirates/pirate_male_v6_lo.glb' },
+  male: { hi: 'assets/pirates/pirate_male_v7_hi.glb', lo: 'assets/pirates/pirate_male_v7_lo.glb' },
   female: { hi: 'assets/pirates/pirate_female_v6_hi.glb', lo: 'assets/pirates/pirate_female_v6_lo.glb' },
 };
 export const PIRATE_GLB_V5 = {
@@ -75,7 +78,7 @@ function loader() {
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {
-  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); throw e; })); // [v112] retry a failed load next time
+  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); if (/pirate_male_v7_(hi|lo)\.glb$/.test(url)) return loadPirateGLB(url.replace('_v7_', '_v6_')); throw e; })); // [v112] retry a failed load next time
   return _cache.get(url);
 }
 // [perf3] the v5 pirate atlases are 2048 px (22 MB of GPU memory each with mips, six of them). Cap baked GLB maps at 1024 px:
@@ -85,11 +88,34 @@ const _capped = new WeakMap();
 function capTex(gl) {
   if (typeof document === 'undefined') return gl;
   gl.scene.traverse(o => { for (const m of [].concat(o.material || [])) for (const k of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap']) {
-    const t = m[k], img = t?.image; if (!img?.width || Math.max(img.width, img.height) <= TEX_CAP) continue;
-    try { let c = _capped.get(img); if (!c) { const f = TEX_CAP / Math.max(img.width, img.height); c = document.createElement('canvas'); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+    const cap = o.userData?.v7 && TEX_CAP === 1024 ? 2048 : TEX_CAP;
+    const t = m[k], img = t?.image; if (!img?.width || Math.max(img.width, img.height) <= cap) continue;
+    try { let c = _capped.get(img); if (!c) { const f = cap / Math.max(img.width, img.height); c = document.createElement('canvas'); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
         const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0, c.width, c.height); _capped.set(img, c); }
       t.image = c; t.needsUpdate = true; } catch (e) { console.warn('[pirate] texture cap', e); } } });
   return gl;
+}
+// V7 keeps the original Meshy texture intact. Independent pixel masks recolour skin / hair / iris;
+// teal tattoos, underwear, eyebrows, pupils and glints are never tinted.
+const _v7Masks = {};
+function v7Material(src, p, low) {
+  const key = low ? 'lo' : 'hi';
+  if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../assets/pirates/v7_male_tint' + (low ? '_lo' : '') + '.webp', import.meta.url).href); t.flipY = false; _v7Masks[key] = t; }
+  const m = new THREE.MeshLambertMaterial({ name: 'v7body', map: src.map, side: THREE.DoubleSide });
+  m.onBeforeCompile = s => {
+    Object.assign(s.uniforms, p._v7Tint, { v7Mask: { value: _v7Masks[key] } });
+    s.fragmentShader = 'uniform sampler2D v7Mask; uniform vec3 v7Skin; uniform vec3 v7Hair; uniform vec3 v7Iris; uniform vec3 v7On;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 mask7 = texture2D(v7Mask, vMapUv).rgb;
+      vec3 base7 = diffuseColor.rgb;
+      // Relative luminance keeps the painted folds, freckles and carved hair detail.
+      float skin7 = dot(base7, vec3(.2126,.7152,.0722)) / .43;
+      float hair7 = dot(base7, vec3(.2126,.7152,.0722)) / .38;
+      diffuseColor.rgb = mix(diffuseColor.rgb, v7Skin * skin7, mask7.r * v7On.r);
+      diffuseColor.rgb = mix(diffuseColor.rgb, v7Hair * hair7, mask7.g * v7On.g);
+      diffuseColor.rgb = mix(diffuseColor.rgb, v7Iris * max(.16, base7.b / .6), mask7.b * v7On.b);
+    `);
+  };
+  m.customProgramCacheKey = () => 'v7-tint-v1'; return m;
 }
 let _grad = null;
 export function gradient() {
@@ -207,19 +233,22 @@ export class PirateGLB {
   }
   _init(gltf, colors) {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
+    this.v7 = false; scene.traverse(o => { if (o.userData?.v7) this.v7 = true; });
+    this._v7Tint = { v7Skin: { value: new THREE.Color() }, v7Hair: { value: new THREE.Color() }, v7Iris: { value: new THREE.Color() }, v7On: { value: new THREE.Vector3() } };
     this.v6 = false; scene.traverse((o) => { if (o.userData?.v6) this.v6 = true; });   // [V6] (no hair rim, glossy material)
     scene.traverse((o) => {
       if (!o.isMesh) return;
+      if (this.v7 && o.userData.v7) { o.material = v7Material(o.material, this, low); return; }
       o.material = Array.isArray(o.material) ? o.material.map((m) => toonize(m, colors, low, this.v6)) : toonize(o.material, colors, low, this.v6);
       for (const m of [o.material].flat()) { if (m.userData?.decal) this.decals.push(m); else if (m.userData?.tint) this.tinted.push(m); }
     });
     this.atlasMeshes = []; scene.traverse((o) => { if (o.isSkinnedMesh && o.geometry.attributes._tint) this.atlasMeshes.push(o); });
-    this.v5 = false; this.warp = null; scene.traverse((o) => { if (/^v5_/.test(o.name)) this.v5 = true; });
+    this.v5 = this.v7; this.warp = null; scene.traverse((o) => { if (/^v5_/.test(o.name)) this.v5 = true; });
     if (this.v5) for (const o of this.atlasMeshes) { o.userData.v5 = true; try { this.warp ||= JSON.parse(o.userData.v5warp || 'null'); } catch {} } // [v121]
     if (this.v5 && this.warp) for (const o of this.atlasMeshes) o.userData.warp = this.warp;
     // [v138] the eye decal stays front-only: drawn both sides it showed through the hair as blue specks on the back of Low heads
-    if (this.v5) prepV5Body(scene, this.lod);   // [v138] (shared with the crew bake: js/crewV4.js)
-    if (low) this._mergeLow(scene);
+    if (this.v5 && !this.v7) prepV5Body(scene, this.lod);   // [v138] (shared with the crew bake: js/crewV4.js)
+    if (low && !this.v7) this._mergeLow(scene);
     // [v123] v5 bodies are an AI sculpt with some faces wound inward: draw both sides (front-only showed HOLLOW pirates / crew followers)
     if (this.v5) scene.traverse((o) => { if (o.isMesh && !/ink/i.test(o.name) && !/face_eyes/i.test(o.name)) for (const m of [o.material].flat()) if (m && m.name !== 'ink') { m.side = THREE.DoubleSide; m.needsUpdate = true; } });
     // [v115] iris tint: the face decal's light-blue iris (both tones) is re-coloured in the shader, sclera / pupil / lids / glints untouched
@@ -244,6 +273,7 @@ export class PirateGLB {
   setColors(colors) {
     for (const m of this.tinted) if (colors[m.userData.tint] != null) m.color.set(colors[m.userData.tint]);
     const col = new THREE.Color();
+    if (this.v7) { for (const [key, axis] of [['skin', 'x'], ['hair', 'y']]) { if (colors[key] != null) { this._v7Tint[key === 'skin' ? 'v7Skin' : 'v7Hair'].value.set(colors[key]); this._v7Tint.v7On.value[axis] = 1; } } return; }
     for (const o of this.atlasMeshes || []) {   // merged meshes (High + Low): retint = rewrite COLOR_0 per tint key
       if (!o.userData.ownColor) ownColorAttr(o); // [v106] per-instance COLOR_0: recolouring one pirate never recolours its clones (crew followers, mixed crews)
       const g = o.geometry, t = g.attributes._tint, c = g.attributes.color; if (!t || !c) continue;
@@ -257,7 +287,7 @@ export class PirateGLB {
     if (this.action) this.action.crossFadeTo(a, fade, false);
     this.action = a; this.clip = name;
   }
-  setIris(hex) { if (!this._iris) return; if (hex) { this._iris.value.set(hex); this._irisOn.value = 1; } else this._irisOn.value = 0; } // [v115] null = the drawn blue
+  setIris(hex) { if (this.v7) { this._v7Tint.v7On.value.z = hex ? 1 : 0; if (hex) this._v7Tint.v7Iris.value.set(hex); return; } if (!this._iris) return; if (hex) { this._iris.value.set(hex); this._irisOn.value = 1; } else this._irisOn.value = 0; } // [v115] null = the drawn blue
   setExpression(name) {
     const uv = EXPR_UV[name] || EXPR_UV.neutral;
     for (const m of this.decals) if (m.userData.decal !== 'skull' && m.map) { m.map.offset.set(uv[0], uv[1]); m.map.updateMatrix(); }

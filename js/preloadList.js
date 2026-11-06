@@ -58,6 +58,7 @@ export const HARBOR_MODULES = [
   "js/island/kit.js",
   "js/island/libTex.js",
   "js/island/look.js",
+  "js/island/plazaMannequins.js",
   "js/island/plazaShops.js",
   "js/island/plazaTown.js",
   "js/island/riverWater.js",
