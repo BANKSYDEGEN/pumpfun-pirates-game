@@ -11,10 +11,11 @@ import fort, { FORT_WALKIN } from './fort.js';
 import bldNums from './bldNums.js'; // [v212] &bldnum=1: BANKSY's building numbers over the plaza + hill street
 import invShops from './invShops.js'; // [inventory] Fish Stand + Antiques + Marketplace triggers (placeholders until Timothy's buildings)
 import hillRound from './hillRound.js';   // [path-fix2] fountain roundabout + high rope bridge
+import cottages from './cottages.js';     // [post/cottages] BANKSY cottage neighborhood around live Build Mode houses
 import { libAreaBuilt } from '../libTex.js';   // [Timothy] shared material library: re-tags a built area's kit pieces (the hilltop fort, the Pirates' Climb) + the gate junction dressing
 export { FORT_WALKIN };
 export const RB_ON = !(typeof location !== 'undefined' && /[?&]roundabout=0(&|$)/.test(location.search)); // [path-fix2] &roundabout=0 = no roundabout / high bridge: the old gate + dip path exactly
-export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort, invShops, bldNums, ...(RB_ON ? [hillRound] : [])];
+export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort, invShops, bldNums, cottages, ...(RB_ON ? [hillRound] : [])];
 // terrain edits (applied by foot.js to the height grid at load): pads = flat floors [x0, x1, z0, z1, y], paths = trails (painted + kept clear)
 export const AREA_TERRAIN = { pads: AREA_MODS.flatMap(a => a.terrain?.pads || []), paths: AREA_MODS.flatMap(a => a.terrain?.paths || []), cuts: AREA_MODS.flatMap(a => a.terrain?.cuts || []) };
 const dRect = (x, z, r) => Math.hypot(Math.max(r[0] - x, 0, x - r[1]), Math.max(r[2] - z, 0, z - r[3]));

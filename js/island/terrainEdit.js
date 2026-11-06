@@ -7,6 +7,10 @@
 import * as THREE from 'three';
 import { TERRAIN as T, H, pieceBlockers, PROP_CAT, propKit, propBlock, propUnblock, waterAt } from './foot.js';
 import { terrainLoad, terrainSave } from '../pvpSave.js';
+// [post/cottages] BANKSY's two Build Mode HOUSE pieces are village LOCATION MARKERS only —
+// areas/cottages.js builds the real cottages. &cottages=0 restores the stock markers.
+const COTTAGES_ON = !(typeof location !== 'undefined' && /[?&]cottages=0(&|$)/.test(location.search));
+const COTTAGE_MARKERS = new Set(['+mw2osffcajh8', '+mw2oslf9ghm9']);
 const LS = 'pfp_terrain_v1', LS_UI = 'pfp_tedit_ui';
 const TOOLS = [
   { id: 'level', label: 'LEVEL', ico: '⛰️', tip: 'raise / lower toward the picked height (tap 🎯 to sample)' },
@@ -56,7 +60,10 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     for (const m of ty.meshes) { m.count = ty.ids.length; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere?.(); } }
   function placeBox(ty, r) { return ty.box.clone().applyMatrix4(_m.compose(_p.set(r.x, r.y, r.z), _q.setFromAxisAngle(UP, r.ry || 0), _s)); }
   function placeSet(id, rec) { const old = PIECES.get(id); if (old) { const ty = typeOf(old.t), i = ty.ids.indexOf(id); if (i >= 0) ty.ids.splice(i, 1); propUnblock(BLK.get(id)); BLK.delete(id); PIECES.delete(id); REG.delete(id); redraw(ty); }
-    if (!rec || !PROP_CAT[rec.t | 0]) return; rec = { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0 }; const ty = typeOf(rec.t); PIECES.set(id, rec); ty.ids.push(id); redraw(ty);
+    if (!rec || !PROP_CAT[rec.t | 0]) return;
+    // village markers: skip mesh + collider while the cottage neighborhood area is on
+    if (COTTAGES_ON && COTTAGE_MARKERS.has(id)) { PIECES.set(id, { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0, marker: 1 }); return; }
+    rec = { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0 }; const ty = typeOf(rec.t); PIECES.set(id, rec); ty.ids.push(id); redraw(ty);
     BLK.set(id, propBlock(ty.P.id, rec.x, rec.y, rec.z, rec.ry)); REG.set(id, { id, key: id, placed: true, locked: false, label: ty.P.label + ' · PLACED', box: placeBox(ty, rec), ranges: [] }); }
   const groundAt = (P, x, z) => { const h = H(x, z), w = P.water ? waterAt(x, z) : null; return w != null && w > h ? w : h; };
   try { const c = JSON.parse(localStorage.getItem(LS) || 'null'); if (c?.cells) T.replace(c.cells); if (c?.pieces) replacePieces(c.pieces); if (c?.paint) T.replacePaint(c.paint); } catch {}
