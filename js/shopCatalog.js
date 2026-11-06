@@ -190,7 +190,12 @@ export const VENDORS = {
   clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear', 'wardrobe'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape', 'boots', 'pants'], awning: '#d8322f' },
   pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots, cats, monkeys + more', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW ROOM', sub: 'Harbor plaza · dress your crew in gear you own (free)', tabs: ['wardrobe'], slots: ['crewhat', 'crewoutfit', 'creweyes', 'crewbeard', 'crewface', 'crewcape', 'crewboots', 'crewpants'], awning: '#6a4fb3', crew: true, dress: true, ...(CREW_DRESS ? {} : { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear', 'wardrobe'], dress: false }) },   // [v6-store-clothes] BANKSY 2:39/2:40 PM: CREW ROOM = dress-up only, never sells twice (&crewdress=0 = the old CREW SHOP)
-  weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // [Timothy] window.openWeaponStore(); the SWORD SHOP + MUSKET SHOP doors on Main Street (battleAreas.js MAIN_ST_SHOPS) open it with their own title
+  // [t1714u] SWORD SHOP / MUSKET SHOP / MUSKET UPGRADES are THREE separate menus (no mixed tabs).
+  // Legacy `weapons` kept for older callers / tests that open vendor:'weapons' (still swords+muskets; upgrades append only there).
+  swords:     { name: 'SWORD SHOP', sub: 'Blades & cutlasses for island PvP and the Coliseum Sword Pit', tabs: ['swords'], slots: ['sword'], awning: '#8a5a2b', weapons: true },
+  muskets:    { name: 'MUSKET SHOP', sub: 'Muskets, blunderbusses & dragoons for island PvP and the Musket Range', tabs: ['muskets'], slots: ['musket'], awning: '#8a5a2b', weapons: true },
+  musket_upgrades: { name: 'MUSKET UPGRADES', sub: 'Gunsmith bench · barrel, lock & stock upgrades + musket accessories', tabs: ['muskupg'], slots: ['musket'], awning: '#8a5a2b', muskUpg: true },
+  weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // legacy combined (openWeaponStore without a dedicated counter)
   ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')
 };
 

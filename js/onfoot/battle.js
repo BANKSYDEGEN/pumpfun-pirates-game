@@ -116,30 +116,67 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       for (const sf of PV.STOREFRONTS || []) out.push({ id: 'plaza:' + sf.id, name: sf.name + ' (plaza row, balconies)', lx: sf.lx, lz: fz, ly: 0, note: 'already a shop (' + (sf.vendor || 'soon') + ')' }); }
     return out; }
   const SH = BA.MAIN_ST_SHOPS;
-  const shopSignTex = (() => { const cv = document.createElement('canvas'); cv.width = 512; cv.height = 150 * SH.length; const g = cv.getContext('2d'); // placeholder: js/island/art.js board() + text() style
-    const draw = () => SH.forEach((r, i) => { const y = i * 150, w = 512, h = 150; g.fillStyle = '#5a3219'; g.fillRect(0, y, w, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3;
+  const SH_SIGNS = SH.filter((r) => !r.noSign); // [t1714u] musket_upgrades shares the musket store facade (no 2nd outdoor sign)
+  const shopSignTex = (() => { const cv = document.createElement('canvas'); cv.width = 512; cv.height = 150 * Math.max(1, SH_SIGNS.length); const g = cv.getContext('2d'); // placeholder: js/island/art.js board() + text() style
+    const draw = () => SH_SIGNS.forEach((r, i) => { const y = i * 150, w = 512, h = 150; g.fillStyle = '#5a3219'; g.fillRect(0, y, w, h); g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 3;
       for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo(0, y + h * k / 4 + (k % 2) * 3); g.lineTo(w, y + h * k / 4); g.stroke(); } g.lineWidth = 10; g.strokeStyle = '#161616'; g.strokeRect(5, y + 5, w - 10, h - 10);
       const px = r.sign.length > 9 ? 100 : 120; g.font = `${px}px "Just Another Hand", cursive`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = px * 0.12; g.strokeStyle = '#161616'; g.strokeText(r.sign, 256, y + 80); g.fillStyle = '#ffcd77'; g.fillText(r.sign, 256, y + 80); });
     draw(); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; document.fonts?.ready?.then(() => { draw(); t.needsUpdate = true; }); return { cv, t }; })(); // redrawn once the hand font is in
   const shopSignMat = new THREE.MeshBasicMaterial({ map: shopSignTex.t, toneMapped: false }), ironM = toon(0x2b2f36, null, { key: 'battle-iron' });
   const boardGeo = (() => { const g = new THREE.BoxGeometry(2.9, 1.15, 0.12), c = new Float32Array(g.attributes.position.count * 3); for (let k = 0; k < c.length; k += 3) c.set([0.42, 0.27, 0.15], k); g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; })();
-  const shops = SH.map((r, i) => { const tab = r.tab === 'muskets' ? 'muskets' : 'swords', [hx, hz] = H(r.lx, r.lz), wy = yawW(r.yaw), c = Math.cos(wy), sn = Math.sin(wy);
+  const shops = SH.map((r, i) => {
+    const tab = r.tab || (r.id === 'musket_shop' ? 'muskets' : r.id === 'musket_upgrades' ? 'muskupg' : 'swords');
+    const vendor = r.vendor || (tab === 'muskupg' ? 'musket_upgrades' : tab === 'muskets' ? 'muskets' : 'swords');
+    const slot = r.slot || (tab === 'muskets' || tab === 'muskupg' ? 'musket' : 'sword');
+    const [hx, hz] = H(r.lx, r.lz), wy = yawW(r.yaw), c = Math.cos(wy), sn = Math.sin(wy);
     const dx = hx + c * r.door[0] + sn * r.door[1], dz = hz - sn * r.door[0] + c * r.door[1]; // building frame -> harbor (three.js rotation.y)
-    const q = { id: r.id, kind: 'shop', vendor: r.vendor || 'weapons', slot: tab === 'muskets' ? 'musket' : 'sword', tab, title: r.sign, x: dx, z: dz, r: 3.2, label: r.label }; layout.interact.push(q); // [v250] r 3.2 like other walk-ins
-    const g = new THREE.Group(); g.name = r.id + '_placeholder_sign'; g.position.set(hx, world.ground(hx, hz), hz); g.rotation.y = wy; // foot.js colonial(): the street signs hang at (-w*0.3, 3.3, d/2 + 1.25)
-    const at = (m, px, py, pz, ry = 0) => { m.position.set(px, py, pz); m.rotation.y = ry; g.add(m); return m; }, sx = -r.w * 0.3, fz = r.d / 2;
-    at(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), ironM), sx, 3.9, fz + 0.7); at(withOutline(boardGeo, 1.03), sx, 3.3, fz + 1.25);
-    for (const [ry, pz] of [[0, fz + 1.32], [Math.PI, fz + 1.18]]) { const geo = new THREE.PlaneGeometry(2.7, 0.95), uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, 1 - (i + 1 - uv.getY(k)) / SH.length); at(new THREE.Mesh(geo, shopSignMat), sx, 3.3, pz, ry); }
-    root.add(g); const [dlx, dlz] = toTown(dx, dz);
-    return { ...r, tab, q, g, glb: null, door: { lx: dlx, lz: dlz, ly: r.yaw, house: { lx: r.lx, lz: r.lz, w: r.w, d: r.d } } }; });
-  // [v250] BANKSY 8:33 PM walk-in: door_swords / door_muskets -> interact a few steps INSIDE the shop (was +1.2 m out on the street), placeholder sign hides
+    const q = { id: r.id, kind: 'shop', vendor, slot, tab, title: r.sign, x: dx, z: dz, r: r.r || 2.4, label: r.label }; layout.interact.push(q);
+    let g = null;
+    if (!r.noSign) {
+      const si = SH_SIGNS.indexOf(r);
+      g = new THREE.Group(); g.name = r.id + '_placeholder_sign'; g.position.set(hx, world.ground(hx, hz), hz); g.rotation.y = wy;
+      const at = (m, px, py, pz, ry = 0) => { m.position.set(px, py, pz); m.rotation.y = ry; g.add(m); return m; }, sx = -r.w * 0.3, fz = r.d / 2;
+      at(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 1.4), ironM), sx, 3.9, fz + 0.7); at(withOutline(boardGeo, 1.03), sx, 3.3, fz + 1.25);
+      for (const [ry, pz] of [[0, fz + 1.32], [Math.PI, fz + 1.18]]) { const geo = new THREE.PlaneGeometry(2.7, 0.95), uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, 1 - (si + 1 - uv.getY(k)) / SH_SIGNS.length); at(new THREE.Mesh(geo, shopSignMat), sx, 3.3, pz, ry); }
+      root.add(g);
+    }
+    const [dlx, dlz] = toTown(dx, dz);
+    return { ...r, tab, vendor, slot, q, g, glb: null, door: { lx: dlx, lz: dlz, ly: r.yaw, house: { lx: r.lx, lz: r.lz, w: r.w, d: r.d } } };
+  });
+  // [v250]/[t1714u] door_swords / door_muskets hide the outdoor placeholder once the GLB loads.
+  // Counter interact points (fixCounter) stay at the customer side of each physical counter — setShopDoor must NOT clobber them onto the doorway.
   const _dv = new THREE.Vector3(), _dq = new THREE.Quaternion(), _df = new THREE.Vector3();
-  function setShopDoor(id, obj) { const s = shops.find(s => s.id === id); if (!s || !obj) return false; obj.updateWorldMatrix(true, false); obj.getWorldPosition(_dv); obj.getWorldQuaternion(_dq); _df.set(0, 0, 1).applyQuaternion(_dq);
-    s.q.x = _dv.x - _df.x * 3.0; s.q.z = _dv.z - _df.z * 3.0; s.q.r = 3.2; s.g.visible = false; s.glb = obj; [s.door.lx, s.door.lz] = toTown(s.q.x, s.q.z); return true; }
-  { let tries = 0; const poll = setInterval(() => { for (const s of shops) if (!s.glb && s.empty) { const o = scene.getObjectByName(s.empty); if (o) setShopDoor(s.id, o); }
-    if (shops.every(s => s.glb || !s.empty) || ++tries > 60) clearInterval(poll); }, 3000); } // 3 min after load, then only setShopDoor()
-  const store = shops[0] || null; // (tests / older callers)
-  window.openWeaponStore = (tab = 'swords') => window.openShop?.({ vendor: 'weapons', tab, slot: tab === 'muskets' ? 'musket' : 'sword', title: tab === 'muskets' ? 'MUSKET SHOP' : 'SWORD SHOP' });
+  function setShopDoor(id, obj) {
+    const hits = shops.filter((s) => s.id === id || (s.empty && obj?.name && s.empty === obj.name));
+    const list = hits.length ? hits : shops.filter((s) => s.id === id);
+    if (!list.length || !obj) return false;
+    obj.updateWorldMatrix(true, false); obj.getWorldPosition(_dv); obj.getWorldQuaternion(_dq); _df.set(0, 0, 1).applyQuaternion(_dq);
+    for (const s of list) {
+      if (!s.fixCounter) {
+        s.q.x = _dv.x - _df.x * 3.0; s.q.z = _dv.z - _df.z * 3.0; s.q.r = s.r || 3.2;
+        [s.door.lx, s.door.lz] = toTown(s.q.x, s.q.z);
+      }
+      if (s.g) s.g.visible = false;
+      s.glb = obj;
+    }
+    return true;
+  }
+  { let tries = 0; const poll = setInterval(() => {
+    for (const empty of [...new Set(shops.map((s) => s.empty).filter(Boolean))]) {
+      const o = scene.getObjectByName(empty); if (!o) continue;
+      const pending = shops.filter((s) => s.empty === empty && !s.glb);
+      if (pending.length) setShopDoor(pending[0].id, o);
+    }
+    if (shops.every((s) => s.glb || !s.empty) || ++tries > 60) clearInterval(poll);
+  }, 3000); }
+  const store = shops.find((s) => s.id === 'sword_shop') || shops[0] || null; // (tests / older callers)
+  // [t1714u] openWeaponStore routes to the dedicated single-menu vendors
+  window.openWeaponStore = (tab = 'swords') => {
+    if (tab === 'muskupg') return window.openShop?.({ vendor: 'musket_upgrades', tab: 'muskupg', slot: 'musket', title: 'MUSKET UPGRADES' });
+    if (tab === 'muskets') return window.openShop?.({ vendor: 'muskets', tab: 'muskets', slot: 'musket', title: 'MUSKET SHOP' });
+    return window.openShop?.({ vendor: 'swords', tab: 'swords', slot: 'sword', title: 'SWORD SHOP' });
+  };
+  window.openMusketUpgrades = () => window.openWeaponStore('muskupg');
 
   // ---------- signs (one canvas, one material) ----------
   const SIGNS = [['MUSKET RANGE', '#ffcd77', '#5a3219'], ['SWORD PIT', '#ffcd77', '#5a3219']];

@@ -174,7 +174,10 @@ function render() {
   $('.ishop-title b', root).textContent = view.title || V.name; $('.ishop-title small', root).textContent = V.sub;
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
-  const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList0 = upg ? [...V.tabs, 'upgrades'] : V.tabs, tabList = V.weapons && (muskUpgOn() || gunAccOn()) ? [...tabList0, 'muskupg'] : tabList0; // [Emerly musket-upgrades] + MUSKET UPGRADES tab
+  // [t1714u] never mix menus: muskupg only appears for legacy vendor 'weapons' (combined) OR vendor musket_upgrades (tabs already ['muskupg']).
+  const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList0 = upg ? [...V.tabs, 'upgrades'] : [...V.tabs];
+  const tabList = (V.weapons && view.vendor === 'weapons' && (muskUpgOn() || gunAccOn()) && !tabList0.includes('muskupg'))
+    ? [...tabList0, 'muskupg'] : tabList0;
   const tabName = (t) => t === 'muskupg' ? 'MUSKET UPGRADES' : t === 'wardrobe' ? 'CHANGING ROOM' : t === 'gear' && V.tabs.includes('wardrobe') ? (V.crew ? 'BUY CREW GEAR' : 'BUY GEAR') : t === 'upgrades' ? 'UPGRADES' : t === 'skins' ? (V.upgrades ? 'SKINS' : 'SHIP SKINS') : V.crew ? 'CREW OUTFITS' : V.pets ? 'PETS' : t === 'swords' ? 'SWORDS' : t === 'muskets' ? 'MUSKETS' : t === 'shoes' ? 'SHOES & PANTS' : 'PIRATE GEAR';   // [V6 store] SHOES & PANTS tab (V.shoeSlots)
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2; tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
@@ -347,7 +350,14 @@ export async function openShop(opts = {}) {
   const v = VENDORS[opts.vendor] ? opts.vendor : 'shop', V = VENDORS[v];
   const sTab = tabForSlot(V, opts.slot);   // [V6 store] a boots / pants link opens the SHOES & PANTS tab
   let lastTab = null; try { lastTab = localStorage.getItem('pfp_shop_tab_' + v); } catch {}   // [v6-store-clothes] remember BUY GEAR / CHANGING ROOM
-  view = { vendor: v, tab: sTab || ((opts.tab === 'muskupg' && V.weapons && (muskUpgOn() || gunAccOn())) ? 'muskupg' : (V.tabs.includes(opts.tab) && !(opts.tab === 'gear' && lastTab === 'wardrobe') ? opts.tab : V.tabs.includes(lastTab) ? lastTab : V.tabs[0])), slot: sTab || V.slots.includes(opts.slot) ? opts.slot : V.slots[0], sel: opts.item || null, title: typeof opts.title === 'string' ? opts.title : null }; // [Emerly] title: e.g. SWORD SHOP / MUSKET SHOP (vendor 'weapons')
+  // [t1714u] ignore a stale saved tab that is not in this vendor's tabList (e.g. opening MUSKET UPGRADES after visiting WEAPON STORE)
+  if (lastTab && !V.tabs.includes(lastTab)) lastTab = null;
+  let tab = sTab || null;
+  if (!tab && opts.tab && V.tabs.includes(opts.tab) && !(opts.tab === 'gear' && lastTab === 'wardrobe')) tab = opts.tab;
+  else if (!tab && opts.tab === 'muskupg' && (V.tabs.includes('muskupg') || (V.weapons && v === 'weapons'))) tab = 'muskupg';
+  if (!tab) tab = V.tabs.includes(lastTab) ? lastTab : V.tabs[0];
+  const slot0 = (V.slots && V.slots.length) ? V.slots[0] : null;
+  view = { vendor: v, tab, slot: sTab || (V.slots.includes(opts.slot) ? opts.slot : slot0), sel: opts.item || null, title: typeof opts.title === 'string' ? opts.title : null };
   if (!skinMod) try { const [a, b, c] = await Promise.all([import('./skins.js'), import('./pvpSkins.js'), import('./skinPreview.js')]); skinMod = { skinSwatch: a.skinSwatch, pvpSkin: b.pvpSkin, previewCards: c.previewCards }; } catch { skinMod = null; }
   state = await provider.load(); if (!state) return false; // offline: the caller shows a toast
   open = true; root.classList.remove('hidden'); document.documentElement.classList.add('shop-open'); render();

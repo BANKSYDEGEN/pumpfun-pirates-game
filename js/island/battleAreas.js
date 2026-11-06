@@ -36,9 +36,14 @@ export const PATHS = COLISEUM_ON
 // origin = the R2 lot centre). lx / lz = the building origin (lot centre), door = the doorway in that building frame (x along the street, 2.2 m
 // in from the centre); the GLB door empties (door_swords / door_muskets) still move the interact a few steps inside once loaded (battle.js).
 // The old lots (L6 / R6, lz -133.83) are plain rent shops now (rent_23 / rent_24).
+// [t1714u] Three counters: Sword Shop (#36), Musket Shop counter A + Musket Upgrades counter B inside #34+#35.
+// door = building-local [x, z] at the CUSTOMER side of each physical counter (GLB colliders:
+//   sword counter ['b', 0.9, -2.423, 4.5, 1.2]; musket counters ['b', -0.582, -2.583, 3.7, 1.2] + ['b', 4.618, -2.583, 3.7, 1.2]).
+// Customer stand = counter centre + ~1.15 m toward the door (+local z). fixCounter: setShopDoor must NOT clobber these onto door_muskets.
 export const MAIN_ST_SHOPS = [
-  { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: 18.323, lz: -105.031, yaw: -Math.PI / 2, door: [0.9, 2.2], w: 8.836, d: 8.645, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords', lot: 'R3', n: 36 },
-  { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.483, lz: -93.897, yaw: -Math.PI / 2, door: [2.018, 2.2], w: 15.668, d: 8.966, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets', lot: 'R1+R2', n: 34 },
+  { id: 'sword_shop', vendor: 'swords', tab: 'swords', slot: 'sword', lx: 18.323, lz: -105.031, yaw: -Math.PI / 2, door: [0.9, -0.72], w: 8.836, d: 8.645, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords', lot: 'R3', n: 36, r: 2.4, fixCounter: true },
+  { id: 'musket_shop', vendor: 'muskets', tab: 'muskets', slot: 'musket', lx: 18.483, lz: -93.897, yaw: -Math.PI / 2, door: [-0.582, -0.85], w: 15.668, d: 8.966, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets', lot: 'R1+R2', n: 34, r: 2.4, fixCounter: true },
+  { id: 'musket_upgrades', vendor: 'musket_upgrades', tab: 'muskupg', slot: 'musket', lx: 18.483, lz: -93.897, yaw: -Math.PI / 2, door: [4.618, -0.85], w: 15.668, d: 8.966, sign: 'MUSKET UPGRADES', label: 'E · MUSKET UPGRADES', empty: 'door_muskets', lot: 'R1+R2', n: 34, r: 2.4, fixCounter: true, noSign: true },
 ];
 export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });

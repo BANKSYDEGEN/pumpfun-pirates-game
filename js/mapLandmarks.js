@@ -15,8 +15,8 @@ const ROW_LZ = -36; // plaza storefront row (town-local lz -30 .. -42, plazaTown
 const MMICONS_LEGACY = typeof location !== 'undefined' && /[?&]mmicons=0(?:&|$)/.test(location.search);
 // [id, icon, label, frame, x, z, far]: frame 'town' = coast.js town-local (lx, lz), 'foot' = foot frame. far = landmark (not a town POI)
 const LIST_LEGACY = () => [
-  ['sword_shop', 'sword_shop', 'SWORD SHOP', 'town', MAIN_ST_SHOPS[0]?.lx, MAIN_ST_SHOPS[0]?.lz],
-  ['musket_shop', 'musket_shop', 'MUSKET SHOP', 'town', MAIN_ST_SHOPS[1]?.lx, MAIN_ST_SHOPS[1]?.lz],
+  ['sword_shop', 'sword_shop', 'SWORD SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lz],
+  ['musket_shop', 'musket_shop', 'MUSKET SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lz],
   ...['shop_pets', 'shop_crew'].map(id => { const s = STOREFRONTS.find(q => q.id === id); return s ? [id, id, s.name, 'town', s.lx, ROW_LZ] : null; }),
   ['castle', 'castle', 'HILLTOP FORT', 'town', FORT.lx, FORT.lz, true],
   ['battery', 'fort', 'CLIFF BATTERY', 'town', BATTERY.lx, BATTERY.lz, true],
