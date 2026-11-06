@@ -26,7 +26,7 @@ import { ON_PORTAL } from '../config.js';
 import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v240] kill switches: &tokenx=1 kiosk, &hallboards=1 hall posters + TRENDING row
 import { SHOPS_KIT, SHOP_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
-export { hillLot, hillClear, bigShop, rentLot } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
+export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;

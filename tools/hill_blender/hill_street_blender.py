@@ -105,13 +105,18 @@ for b in B:   # close the 1.6 m gaps: each building takes half the gap on a side
     find_door(b)
 RENT = [b for b in B if b['kind'] == 'rent']
 for i, b in enumerate(RENT): b['rent'] = i + 1
-# [BANKSY pt203u] the Squad Hall building is gone: ONE big empty shop (rent_big) on its plot (R0, the old 16.6 x 14 m footprint, lx 14..28 /
-# lz _sq +-8.3; the R1 neighbour stays clipped to the same rect via OBST). Grand frontage: 6 m arched shopfront, blank facade sign plate, lanterns.
-# The Squad Hall interact (foot.js INTERACT 'squadhall') still stands at the middle of this shopfront.
-BIG = dict(G=6.4, OT=3.8, AR=1.0, key='R0', side=1, n=0, lz=_sq, lx=SX + HALF + 1 + 7, w=16.6, d=14.0, fl=3, style='stone', roof='gable', kind='big', v=3,
-           end0=False, end1=True, g=-0.11, x0=-8.3, x1=8.3, y=gyl(_sq), rent='big')
-find_door(BIG, ((1.3, 6.0, 1.3), (1.3, 5.4, 1.3), (1.3, 4.8, 1.3), (1.3, 4.2, 1.3)))
-B.append(BIG)
+# [Timothy v312] BANKSY pt381u "Upgrade the squad hall ... Make it wider, enhance inside and outside": R0 is the SQUAD HALL again, rebuilt here
+# (squad_hall() below) as a 24 m wide, 3-storey captains' guildhall: rusticated sandstone arcade with a 5 m arched portal + twin arched guild
+# windows each side, a corbelled timber gallery, the carved SQUAD HALL board over the arch, guild banners, a central raised gable with a compass
+# oculus, a ridge cupola, dormers, a finished south (plaza) gable; inside a walk-in war room (war table, armory + captains' lounge wings, the
+# squad roster board, chandeliers). Front on the Hill Street building line (lx 14), depth 14.5 (rear lx 28.5, 5.5 m clear of the coliseum
+# shell at lx 34), lz -83.0 .. -59.0: the north end keeps a 1 m alley to R1 (still clipped at lz -84.05 by OBST = the old 16.6 m plot), the
+# extra width goes south over the open flat (the terrain under the hall is held on the street grade: js/island/hillStreet.js hallGround).
+SQ_W, SQ_D, SQ_LZ1 = 24.0, 14.5, -83.0
+SQ_INTERACT = (0.0, -3.3)                                                          # E · SQUAD HALL: on the runner in front of the war table
+SQB = dict(G=7.6, OT=4.0, AR=2.5, key='R0', side=1, n=0, lz=SQ_LZ1 + SQ_W / 2, lx=SX + HALF + 1 + SQ_D / 2, w=SQ_W, d=SQ_D, fl=3, style='stone',
+           roof='ridge', kind='squad', v=3, end0=True, end1=True, g=-0.11, x0=-SQ_W / 2, x1=SQ_W / 2, y=gyl(SQ_LZ1 + SQ_W / 2), xo=0.0, ow=5.0, rent=None)
+B.append(SQB)
 
 def wall_rects(x0, x1, z0, z1, holes):
     zs = sorted({z0, z1, *[h[2] for h in holes if z0 < h[2] < z1], *[h[3] for h in holes if z0 < h[3] < z1]}); out = []
@@ -427,20 +432,6 @@ def interior(bd, b, lod, rng, cols):
 
 def rent_room(bd, b, lod, rng, R):
     gz = lambda x: b['g'] * x; cx = R['cx']; zb = gz(cx)
-    if b['kind'] == 'big':
-        bd.box(3.6, 0.08, 1.4, cx, R['by'] - 0.06, zb + 2.0, 0x5a3219, base=True)
-        for zz in (zb + 2.02, zb + 3.36): bd.box(3.7, 0.12, 0.1, cx, R['by'] - 0.08, zz, WOOD_D)
-        carve(bd, 'TO RENT', cx, R['by'] - 0.11, zb + 2.7, 3.0, 0.9, FRONT, lod, col=0xfff1d2)
-        for s in (-1, 1):   # empty wall racks either side of the board (behind the counters) + the side-wall shelves
-            for (a, c) in ((cx + s * 2.3, cx + s * 4.3), (cx + s * 4.6, cx + s * 6.6)):
-                xa, xc = min(a, c), max(a, c); xm = (xa + xc) / 2
-                bd.box(xc - xa, 0.04, 2.6, xm, R['by'] - 0.03, gz(xm) - 0.2, 0x5a3219, base=True)   # back board: reads as a shelf unit
-                for xx in (xa, xc): bd.box(0.1, 0.42, 2.7, xx, R['by'] - 0.23, gz(xm) - 0.2, WOOD_D, base=True)
-                bd.box(xc - xa + 0.1, 0.44, 0.1, xm, R['by'] - 0.23, gz(xm) + 2.5, WOOD_D)
-                for k in range(4 if lod == 0 else 2): bd.box(xc - xa, 0.42, 0.07, xm, R['by'] - 0.23, gz(xm) + 0.45 + k * (0.65 if lod == 0 else 1.3), WOOD_L)
-            xs = R['x0'] + 0.25 if s < 0 else R['x1'] - 0.25
-            for k in range(3 if lod == 0 else 1): bd.box(0.4, R['by'] - R['fy'] - 3.2, 0.06, xs, (R['fy'] + 1.2 + R['by'] - 2.0) / 2, gz(xs) + 0.9 + k * 0.7, WOOD_L)
-        return
     # TO RENT board on the back wall + empty shelves (fill them in later)
     bd.box(2.4, 0.08, 1.0, cx, R['by'] - 0.06, zb + 2.05, 0x5a3219, base=True)
     for zz in (zb + 2.07, zb + 3.01): bd.box(2.5, 0.12, 0.08, cx, R['by'] - 0.08, zz, WOOD_D)
@@ -540,20 +531,613 @@ def sign_plate(b):   # the blank hanging plate, its own mesh (Emerly: text / tex
     for yy in (FY - 0.38, FY - 1.78): sp.box(0.16, 0.08, 0.88, s, yy, 3.35, WOOD_D)
     return sp
 
-def sign_plate_big(b):   # the big blank sign plate over the arch, fixed on the front of the first-floor gallery (Emerly: text / textures later)
-    sp = Builder(); FY = -b['d'] / 2 - 1.3 - 0.1; xo = b['xo']; pw = b['ow'] + 1.6; z0, z1 = G + 0.02, G + 1.32
-    sp.box(pw, 0.12, z1 - z0, xo, FY, z0, 0x5a3219, base=True)
-    for zz in (z0 - 0.06, z1 - 0.04): sp.box(pw + 0.24, 0.2, 0.1, xo, FY - 0.04, zz, WOOD_D)
-    for xx in (xo - pw / 2 - 0.06, xo + pw / 2 + 0.06): sp.box(0.14, 0.2, z1 - z0 + 0.14, xx, FY - 0.04, z0 - 0.06, WOOD_D, base=True)
-    for xx in (xo - pw / 2 + 0.5, xo + pw / 2 - 0.5): sp.sphere(0.06, xx, FY - 0.08, z1 - 0.2, GOLD, sub=0)
-    return sp
-
 def bracket(bd, b):
     FY = -b['d'] / 2; xo, ow = b['xo'], b['ow']
     left = (xo - ow / 2) - b['x0'] >= b['x1'] - (xo + ow / 2); s = xo - ow / 2 - 0.95 if left else xo + ow / 2 + 0.95; b['ssx'] = s
     bd.box(0.08, 2.0, 0.08, s, FY - 1.0, 3.98, IRON); bd.box(0.06, 0.06, 1.1, s, FY - 0.45, 3.6, IRON, rx=0.8); bd.box(0.3, 0.06, 0.3, s, FY - 0.03, 3.7, IRON)
     for yy in (FY - 0.5, FY - 1.66): bd.box(0.04, 0.04, 0.2, s, yy, 3.86, IRON)
     bd.sphere(0.06, s, FY - 1.98, 3.98, IRON, sub=0)
+
+# ======================= [Timothy v312] the SQUAD HALL (R0): a dedicated generator (BANKSY pt381u "Make it wider, enhance inside and outside") =======================
+# Same frame as building(): Blender x = along Hill Street (+x = south / +lz), -y = out of the front (the street), z up, origin = the lot centre at its ground,
+# ground under the hall z = g * x (g = -0.11: the street climbs north). Same Builder / palette / library layers (solid + glow), LOD0 desktop, LOD1 phones.
+PURP, PURP_D, CRIM, PARCH, SEA, LAND, SILVER, BONE, SOOT = 0x5a2f9e, 0x3d1f6e, 0x8a1c1c, 0xe6cf9a, 0x2b6b7a, 0x4f8a3c, 0xd9dde3, 0xf2efe6, 0x1c1410
+SIGNB, EMBER, FLAME = 0x3a2414, 0xff7a1a, 0xffb347
+
+def arch_fill(bd, xc, ow, spring, rise, y, thick, col, ns):   # the wall over a round-headed opening (stepped spandrels inside the opening head)
+    r = ow / 2
+    for i in range(ns):
+        xa, xb = xc - r + i * ow / ns, xc - r + (i + 1) * ow / ns; u = max(abs(xa - xc), abs(xb - xc)) / r
+        ha = spring + rise * math.sqrt(max(0.0, 1 - u * u))
+        if spring + rise - ha > 0.01: bd.box(xb - xa + 0.002, thick, spring + rise - ha, (xa + xb) / 2, y, ha, col, base=True)
+
+def arch_ring(bd, xc, r, spring, rise, y, depth, th, col, nv, rng, key=None, keyc=None):   # voussoirs (+ a proud keystone)
+    for i in range(nv):
+        t = math.pi * (1 - (i + 0.5) / nv); rr = r + th / 2; k = key is not None and i == nv // 2
+        bd.box(math.pi * rr / nv * 0.94, depth + (0.1 if k else 0), th * (1.4 if k else 1.0), xc + rr * math.cos(t), y - (0.05 if k else 0),
+               spring + rise / r * rr * math.sin(t) + (th * 0.2 if k else 0), hexc(keyc if k else col, 0.05, rng), ry=math.pi / 2 - t)
+
+def lead_glass(bd, x, sill, spring, r, y, lod, lit=True):   # amber leaded glass (glow) + iron cames, round head
+    bd.box(2 * r, 0.06, spring + r - sill, x, y, sill, GLOW if lit else 0x22313d, mat=1 if lit else 0, base=True)
+    if lod == 0:
+        for k in (-0.5, 0.0, 0.5): bd.box(0.04, 0.04, spring + r * (0.95 if k == 0 else 0.8) - sill, x + k * r, y - 0.05, sill, IRON, base=True)
+        zz = sill + 0.45
+        while zz < spring + 0.1: bd.box(2 * r, 0.04, 0.04, x, y - 0.05, zz, IRON); zz += 0.5
+
+def applied_arch_window(bd, x, sill, spring, r, lod, rng, lit=True, frame=QUOIN):   # window on a wall face at local y = 0 (faces -y): glass, round head, ring, sill
+    bd.box(2 * r, 0.08, spring - sill, x, -0.03, sill, GLOW if lit else 0x22313d, mat=1 if lit else 0, base=True)
+    bd.cyl(r, r, 0.08, x, 0.01, spring, GLOW if lit else 0x22313d, n=12 if lod == 0 else 8, rx=math.pi / 2, mat=1 if lit else 0)
+    arch_ring(bd, x, r, spring, r, -0.1, 0.22, 0.28, frame, 9 if lod == 0 else 5, rng, key=True, keyc=STONES[2])
+    for s in (-1, 1): bd.box(0.28, 0.22, spring - sill, x + s * (r + 0.14), -0.1, sill, frame, base=True)
+    bd.box(2 * r + 0.7, 0.34, 0.14, x, -0.14, sill - 0.12, frame, base=True)
+    if lod == 0:
+        bd.box(0.04, 0.04, spring + r * 0.95 - sill, x, -0.09, sill, IRON, base=True)
+        for zz in np.arange(sill + 0.5, spring, 0.55): bd.box(2 * r, 0.04, 0.04, x, -0.09, zz, IRON)
+
+def wall_lantern(bd, x, y, z, lod, out=-1):   # wrought-iron bracket + hanging glow lantern (out = the facing side in y)
+    ly = y + out * 0.6
+    bd.box(0.06, 0.62, 0.06, x, y + out * 0.31, z + 0.62, IRON); bd.box(0.26, 0.26, 0.38, x, ly, z - 0.19, GLOW, mat=1, base=True)
+    if lod == 0:
+        bd.box(0.05, 0.05, 0.7, x, y + out * 0.1, z + 0.3, IRON, rx=-out * 0.75); bd.box(0.22, 0.04, 0.3, x, y + out * 0.02, z + 0.5, IRON)
+        bd.box(0.32, 0.32, 0.06, x, ly, z - 0.22, IRON); bd.box(0.36, 0.36, 0.07, x, ly, z + 0.22, IRON)
+        for sx in (-1, 1):
+            for sy in (-1, 1): bd.box(0.035, 0.035, 0.4, x + sx * 0.14, ly + sy * 0.14, z - 0.2, IRON, base=True)
+        bd.cyl(0.22, 0.0, 0.24, x, ly, z + 0.25, IRON, n=4, rz=math.pi / 4); bd.box(0.02, 0.02, 0.4, x, ly, z + 0.45, IRON, base=True)
+
+def sconce(bd, x, y, z, lod, out=-1):   # interior wall candle sconce (back plate + arm + glass lantern)
+    bd.box(0.26, 0.05, 0.5, x, y + out * 0.025, z, IRON)
+    bd.box(0.2, 0.2, 0.3, x, y + out * 0.34, z - 0.1, GLOW, mat=1, base=True)
+    if lod == 0:
+        bd.box(0.05, 0.3, 0.05, x, y + out * 0.18, z - 0.12, IRON); bd.box(0.26, 0.26, 0.05, x, y + out * 0.34, z - 0.13, IRON); bd.box(0.26, 0.26, 0.05, x, y + out * 0.34, z + 0.22, IRON)
+        bd.cyl(0.17, 0.0, 0.16, x, y + out * 0.34, z + 0.24, IRON, n=4, rz=math.pi / 4)
+
+def emblem(bd, x, y, z, s, lod, face=-1):   # skull + crossed cutlasses on a plane facing `face` in y (s = scale)
+    bd.sphere(0.17 * s, x, y + face * 0.05 * s, z + 0.07 * s, BONE, sub=1 if lod == 0 else 0, s=(1, 0.55, 1.0))
+    bd.box(0.2 * s, 0.07 * s, 0.1 * s, x, y + face * 0.05 * s, z - 0.12 * s, BONE)
+    if lod == 0:
+        for sx in (-1, 1): bd.sphere(0.045 * s, x + sx * 0.065 * s, y + face * 0.13 * s, z + 0.07 * s, SOOT, sub=0)
+    for sg in (-1, 1):
+        th = sg * 0.72; L = 0.95 * s; d = (math.sin(th), math.cos(th))
+        bd.box(0.055 * s, 0.03, L, x, y + face * 0.02, z, SILVER, ry=th)
+        hx, hz = x - d[0] * (L / 2 + 0.06 * s), z - d[1] * (L / 2 + 0.06 * s)
+        bd.box(0.26 * s, 0.05, 0.05 * s, hx + d[0] * 0.04 * s, y + face * 0.03, hz + d[1] * 0.04 * s, GOLD, ry=th)
+        if lod == 0: bd.box(0.05 * s, 0.05, 0.16 * s, hx - d[0] * 0.06 * s, y + face * 0.03, hz - d[1] * 0.06 * s, 0x3a2414, ry=th); bd.sphere(0.04 * s, hx - d[0] * 0.15 * s, y + face * 0.03, hz - d[1] * 0.15 * s, GOLD, sub=0)
+
+def banner(bd, x, y, ztop, h, wd, lod, rng, col=PURP, trim=GOLD, sym=True):   # guild banner hanging on a plane facing -y: gold rod, swallowtail, border, emblem
+    tail = min(0.55, h * 0.2); zb = ztop - 0.08 - (h - tail)
+    bd.cyl(0.04, 0.04, wd + 0.36, x - (wd + 0.36) / 2, y - 0.06, ztop, GOLD, n=6, ry=math.pi / 2)
+    for s in (-1, 1): bd.sphere(0.07, x + s * (wd / 2 + 0.2), y - 0.06, ztop, GOLD, sub=0)
+    bd.box(wd, 0.04, h - tail, x, y, zb, col, base=True, mat='awning_cloth')
+    bd.prism([(0, 0), (wd / 2, -tail), (wd / 2, 0)], 0.04, col, T(x, y - 0.02, zb), mat='awning_cloth')
+    bd.prism([(0, 0), (-wd / 2, 0), (-wd / 2, -tail)], 0.04, col, T(x, y - 0.02, zb), mat='awning_cloth')
+    for s in (-1, 1): bd.box(0.07, 0.03, h - tail, x + s * (wd / 2 - 0.06), y - 0.03, zb, trim, base=True)
+    bd.box(wd, 0.03, 0.08, x, y - 0.03, ztop - 0.18, trim); bd.box(wd, 0.03, 0.06, x, y - 0.03, zb + 0.05, trim)
+    if sym and lod == 0: emblem(bd, x, y - 0.02, zb + (h - tail) * 0.55, min(1.0, wd * 0.95), lod)
+
+def chair(bd, x, y, z, rz, lod, cush=PURP):   # high-backed captain's chair, faces local -y (rz turns it)
+    bd.push(T(x, y, z, rz=rz))
+    bd.box(0.58, 0.54, 0.09, 0, 0, 0.46, WOOD, base=True); bd.box(0.5, 0.46, 0.07, 0, -0.02, 0.55, cush, base=True, mat='awning_cloth')
+    bd.box(0.52, 0.07, 0.78, 0, 0.25, 0.62, WOOD_D, base=True); bd.box(0.66, 0.1, 0.13, 0, 0.26, 1.38, WOOD_D, base=True)
+    for sx in (-0.25, 0.25):
+        bd.box(0.08, 0.08, 1.42, sx, 0.25, -0.05, WOOD_D, base=True)
+        if lod == 0: bd.box(0.07, 0.07, 0.52, sx, -0.22, -0.05, WOOD_D, base=True)
+        if lod == 0: bd.sphere(0.06, sx, 0.25, 1.55, GOLD, sub=0); bd.box(0.06, 0.48, 0.06, sx, 0.0, 0.78, WOOD_D)
+    if lod == 0: bd.box(0.3, 0.03, 0.3, 0, 0.21, 1.0, GOLD)
+    bd.pop()
+
+def barrel_(bd, x, y, z, lod, r=0.4, h=1.0, col=WOOD_L):
+    n = 12 if lod == 0 else 7
+    bd.cyl(r * 0.84, r, h / 2, x, y, z, col, n=n); bd.cyl(r, r * 0.84, h / 2, x, y, z + h / 2, col, n=n)
+    for zz in ((0.12, 0.88) if lod else (0.1, 0.32, 0.68, 0.9)): bd.torus(r * (0.9 + 0.1 * (1 - abs(zz - 0.5) * 2)) + 0.012, 0.022, x, y, z + h * zz, IRON, n=n, m_=3)
+
+def chest(bd, x, y, z, rz, lod, gold=False):   # iron-bound treasure chest (rounded lid), long axis local x
+    bd.push(T(x, y, z, rz=rz))
+    bd.box(1.0, 0.62, 0.5, 0, 0, -0.02, 0x7a4a26, base=True)
+    bd.cyl(0.31, 0.31, 1.0, -0.5, 0, 0.46, 0x6a3e20, n=10 if lod == 0 else 6, ry=math.pi / 2)
+    for xx in (-0.38, 0.0, 0.38): bd.box(0.07, 0.66, 0.52, xx, 0, -0.02, IRON, base=True); bd.cyl(0.33, 0.33, 0.07, xx - 0.035, 0, 0.46, IRON, n=10 if lod == 0 else 6, ry=math.pi / 2)
+    bd.box(0.16, 0.06, 0.2, 0, -0.33, 0.38, GOLD, base=True)
+    if gold and lod == 0:
+        for i in range(7): bd.cyl(0.07, 0.07, 0.02, -0.75 + (i % 4) * 0.12, -0.5 + (i // 4) * 0.12, -0.02 + (i % 3) * 0.02, GOLD, n=8)
+    bd.pop()
+
+def bench(bd, x0_, x1_, y, gz, a, lod, back=0):   # oak guild bench along x (follows the floor slope), back = +1 / -1 side for a backrest
+    L = (x1_ - x0_) / math.cos(a); xm = (x0_ + x1_) / 2; zm = gz(xm)
+    bd.box(L, 0.46, 0.09, xm, y, zm + 0.46, WOOD, ry=a)
+    for xx in (x0_ + 0.25, x1_ - 0.25): bd.box(0.1, 0.42, 0.5, xx, y, gz(xx) - 0.05, WOOD_D, base=True)
+    if lod == 0: bd.box(L - 0.5, 0.06, 0.08, xm, y, zm + 0.2, WOOD_D, ry=a)
+    if back: bd.box(L, 0.07, 0.6, xm, y + back * 0.22, zm + 0.82, WOOD_D, ry=a)
+
+def chandelier(bd, x, y, z, R, nc, zc, lod):   # iron ring chandelier: candles (glow flames), spokes, chains up to the ceiling zc
+    n = 16 if lod == 0 else 8
+    bd.torus(R, 0.055, x, y, z, IRON, n=n, m_=4)
+    bd.cyl(0.03, 0.03, zc - z, x, y, z, IRON, n=4)
+    bd.sphere(0.13, x, y, z - 0.08, GOLD, sub=0)
+    for k in range(4 if lod == 0 else 2):
+        ang = k * math.pi / (2 if lod == 0 else 1) + math.pi / 4
+        bd.box(R, 0.04, 0.04, x + R / 2 * math.cos(ang), y + R / 2 * math.sin(ang), z, IRON, rz=ang)
+        if lod == 0:
+            th = math.atan2(R, 1.1); L = math.hypot(R, 1.1); bd.push(T(x, y, z, rz=ang)); bd.box(0.025, 0.025, L, R / 2, 0, 0.55, IRON, ry=-th); bd.pop()
+    for k in range(nc):
+        ang = k * 2 * math.pi / nc; cx, cy = x + R * math.cos(ang), y + R * math.sin(ang)
+        if lod == 0: bd.cyl(0.075, 0.06, 0.06, cx, cy, z + 0.03, IRON, n=6); bd.cyl(0.035, 0.035, 0.2, cx, cy, z + 0.09, BONE, n=6)
+        bd.box(0.07, 0.07, 0.13, cx, cy, z + 0.29 if lod == 0 else z + 0.14, FLAME, mat=1, base=True)
+    if lod == 0: bd.torus(R * 0.45, 0.04, x, y, z + 0.5, IRON, n=10, m_=4); bd.sphere(0.16, x, y, z + 0.5, FLAME, sub=1, mat=1)
+
+def tiles_x(bd, xa, xb, yf, yc_, top, rise, half, pitch, s, rc, lod, rng):   # one ridge-roof plane along x (s = -1 front, +1 back), rows of tiles + ribs
+    w = xb - xa; cx = (xa + xb) / 2; L = half / math.cos(pitch)
+    if lod == 0:
+        n = int(L / 0.42)
+        for i in range(n):
+            t = (i + 0.5) / n; dd = half * (1 - t); bd.box(w, 0.48, 0.14, cx, yc_ + s * dd, top + rise * t + 0.1, hexc(rc, 0.08, rng), rx=-s * pitch)
+        for k in range(int(w / 0.5)): bd.box(0.16, L, 0.07, xa + 0.25 + k * 0.5, yc_ + s * half / 2, top + rise / 2 + 0.24, hexc(rc, 0.12, rng), rx=-s * pitch, mat='stone_trim')
+    else: bd.box(w, L, 0.28, cx, yc_ + s * half / 2, top + rise / 2 + 0.1, rc, rx=-s * pitch)
+
+def tiles_y(bd, cx, ya, yb, top, rise, half, pitch, s, rc, lod, rng):   # one front-gable roof plane (ridge along y at cx; s = -1 west / +1 east side)
+    dep = yb - ya; yc_ = (ya + yb) / 2; L = half / math.cos(pitch)
+    if lod == 0:
+        n = int(L / 0.42)
+        for i in range(n):
+            t = (i + 0.5) / n; dd = half * (1 - t); bd.box(0.48, dep, 0.14, cx + s * dd, yc_, top + rise * t + 0.1, hexc(rc, 0.08, rng), ry=s * pitch)
+        for k in range(int(dep / 0.5)): bd.box(L, 0.16, 0.07, cx + s * half / 2, ya + 0.25 + k * 0.5, top + rise / 2 + 0.24, hexc(rc, 0.12, rng), ry=s * pitch)
+    else: bd.box(L, dep, 0.28, cx + s * half / 2, yc_, top + rise / 2 + 0.1, rc, ry=s * pitch)
+
+def squad_hall(bd, b, lod, rng, cols):
+    hi = lod == 0
+    W2, D2, WT = b['w'] / 2, b['d'] / 2, 0.6
+    x0, x1, FY, BY = -W2, W2, -D2, D2; w, d = b['w'], b['d']
+    g = b['g']; gz = lambda x: g * x; a = -math.atan(g)
+    Gs, Us = b['G'], 3.5; z3 = Gs + Us; top = Gs + 2 * Us; b['top'] = top
+    zlo = min(gz(x0), gz(x1)) - 1.2; zmin = min(gz(x0), gz(x1)) - 0.15
+    AS, AR, OW = b['OT'], b['AR'], b['ow']
+    SANDC, UPC, PL = SAND[0], STONES[0], PLASTERS[0]
+    WINX, WS, WSP, WR = (5.8, 9.4), 1.9, 3.9, 0.8          # ground-floor guild windows (each side): sill, spring, head radius
+    UPX = (5.2, 7.6, 10.0)                                   # upper-storey window bays (each side)
+    PIL = 3.95                                               # the centre bay pilasters (upper storeys)
+    # ================= ground storey: rusticated sandstone arcade =================
+    for xx in (x0 + WT / 2, x1 - WT / 2): bd.box(WT, d, Gs - zlo, xx, 0, zlo, SANDC, base=True)
+    bd.box(w, WT, Gs - zlo, 0, BY - WT / 2, zlo, SANDC, base=True)
+    holes = [(-OW / 2, OW / 2, zlo, AS + AR)] + [(s * xw - WR, s * xw + WR, WS, WSP + WR) for xw in WINX for s in (-1, 1)]
+    rects = wall_rects(x0, x1, zlo, Gs, holes)
+    for r in rects: bd.box(r[1] - r[0], WT, r[3] - r[2], (r[0] + r[1]) / 2, FY + WT / 2, (r[2] + r[3]) / 2, MORTAR if hi else SANDC)
+    if hi: ashlar(bd, [(r[0], r[1], max(r[2], zmin), r[3]) for r in rects], FY, SANDC, rng, rh=0.52)
+    arch_fill(bd, 0, OW, AS, AR, FY + WT / 2, WT, SANDC, 28 if hi else 10)
+    for xw in WINX:
+        for s in (-1, 1):
+            arch_fill(bd, s * xw, 2 * WR, WSP, WR, FY + WT / 2, WT, SANDC, 10 if hi else 4)
+            lead_glass(bd, s * xw, WS, WSP, WR, FY + 0.32, lod)
+            arch_ring(bd, s * xw, WR, WSP, WR, FY - 0.06, 0.3, 0.32, QUOIN, 9 if hi else 5, rng, key=True, keyc=STONES[2])
+            bd.box(2 * WR + 0.5, 0.42, 0.16, s * xw, FY - 0.08, WS - 0.16, QUOIN, base=True)                                   # sill
+            for k in (-1, 1): bd.box(0.12, 0.12, 0.5, s * xw + k * (WR + 0.12), FY - 0.15, WS - 0.62, QUOIN, base=True)        # sill brackets
+            if hi:   # iron grille bars in front of the glass
+                for k in (-0.55, -0.18, 0.18, 0.55): bd.box(0.035, 0.035, WSP - WS + 0.3, s * xw + k * WR, FY - 0.02, WS, IRON, base=True)
+                bd.box(2 * WR, 0.04, 0.04, s * xw, FY - 0.02, WS + (WSP - WS) * 0.5, IRON)
+    # stepped plinth along the front (follows the slope), skipping the portal
+    segs = 8; sw_ = w / segs
+    for i in range(segs):
+        a_, c_ = x0 + i * sw_, x0 + (i + 1) * sw_
+        for (pa, pc) in ((a_, min(c_, -OW / 2 - 0.9)), (max(a_, OW / 2 + 0.9), c_)):
+            if pc - pa < 0.1: continue
+            tz = max(gz(pa), gz(pc)) + 0.55; bd.box(pc - pa, 0.3, tz - zlo, (pa + pc) / 2, FY - 0.15, zlo, QUOIN, base=True)
+            if hi: bd.box(pc - pa + 0.02, 0.36, 0.1, (pa + pc) / 2, FY - 0.17, tz - 0.05, hexc(QUOIN, 0.05, rng))
+    # the grand portal: piers, imposts, voussoir ring + keystone, entablature, threshold
+    for s in (-1, 1):
+        px = s * (OW / 2 + 0.45)
+        bd.box(0.9, 0.5, AS + AR + 0.65 - zlo, px, FY - 0.2, zlo, QUOIN, base=True)
+        bd.box(1.1, 0.6, 0.6, px, FY - 0.24, max(gz(px), zlo) - 0.1, hexc(STONES[2], 0.03, rng), base=True)
+        bd.box(1.12, 0.62, 0.26, px, FY - 0.25, AS - 0.2, hexc(STONES[2], 0.03, rng), base=True)
+        if hi:
+            for zz in np.arange(max(gz(px), 0) + 0.7, AS - 0.3, 0.62): bd.box(0.96, 0.54, 0.06, px, FY - 0.21, zz, MORTAR)    # rusticated joints
+    arch_ring(bd, 0, OW / 2, AS, AR, FY - 0.15, 0.72, 0.62, QUOIN, 17 if hi else 7, rng, key=True, keyc=STONES[2])
+    bd.box(OW + 2.6, 0.62, Gs - (AS + AR + 0.65), 0, FY - 0.22, AS + AR + 0.65, hexc(STONES[2], 0.02, rng), base=True)
+    if hi:
+        for s in (-1, 1): bd.sphere(0.13, s * 1.4, FY - 0.55, AS + AR + 0.42, GOLD, sub=1)   # gilded rosettes in the spandrels
+    bd.box(OW, WT + 0.6, 0.1, 0, FY + WT / 2 - 0.3, gz(0) - 0.044, QUOIN, ry=a)
+    # first-floor string course + dentils, corner quoins
+    bd.box(w + 0.4, 0.62, 0.34, 0, FY - 0.12, Gs - 0.04, QUOIN)
+    if hi:
+        for i in range(int(w / 0.45)): bd.box(0.18, 0.18, 0.16, x0 + 0.22 + i * 0.45, FY - 0.36, Gs - 0.3, QUOIN)
+        for xx in (x0, x1):
+            zq = gz(xx) - 0.15
+            while zq < Gs - 0.4:
+                bd.box(0.95 if int((zq - zmin) / 0.6) % 2 else 0.6, 0.66, 0.56, xx + (0.25 if xx == x0 else -0.25), FY + 0.24, zq + 0.29, hexc(QUOIN, 0.05, rng)); zq += 0.6
+    for s in (-1, 1): wall_lantern(bd, s * 4.2, FY, 4.5, lod)
+    for s in (-1, 1):   # ground-floor guild standards between the twin windows
+        xb = s * 7.6; bd.box(0.06, 0.5, 0.06, xb - 0.45, FY - 0.25, Gs - 0.8, IRON); bd.box(0.06, 0.5, 0.06, xb + 0.45, FY - 0.25, Gs - 0.8, IRON)
+        banner(bd, xb, FY - 0.5, Gs - 0.8, 3.1, 1.0, lod, rng, col=PURP if s < 0 else CRIM)
+    if hi:   # the iron-studded oak doors, folded open flat against the inside of the front wall (never in the walkway)
+        for s in (-1, 1):
+            xc = s * (OW / 2 + 1.2)
+            bd.box(2.3, 0.12, 3.85, xc, FY + WT + 0.08, gz(xc) + 0.03 + 1.925, WOOD_D, ry=a)
+            for zz in (0.5, 1.9, 3.3): bd.box(2.3, 0.04, 0.12, xc, FY + WT + 0.16, gz(xc) + zz, IRON, ry=a)
+            for k in range(5): bd.box(0.03, 0.03, 3.7, xc - 0.92 + k * 0.46, FY + WT + 0.15, gz(xc - 0.92 + k * 0.46) + 0.1, 0x4a2c16, base=True)
+            bd.torus(0.12, 0.025, xc - s * 0.9, FY + WT + 0.2, gz(xc) + 1.7, IRON, n=8, m_=3, rx=math.pi / 2)
+    # ================= upper storeys =================
+    for xx in (x0 + WT / 2, x1 - WT / 2): bd.box(WT, d, top - Gs, xx, 0, Gs, UPC, base=True)
+    bd.box(w, WT, top - Gs, 0, BY - WT / 2, Gs, UPC, base=True)
+    # 2nd storey (captains' gallery): stone, three arched windows per wing, the SQUAD HALL board over the portal
+    h2 = [(s * x - 0.6, s * x + 0.6, Gs + 0.45, Gs + 2.75) for x in UPX for s in (-1, 1)]
+    r2 = wall_rects(x0, x1, Gs, z3, h2)
+    for r in r2: bd.box(r[1] - r[0], WT, r[3] - r[2], (r[0] + r[1]) / 2, FY + WT / 2, (r[2] + r[3]) / 2, MORTAR if hi else UPC)
+    if hi: ashlar(bd, r2, FY, UPC, rng)
+    for x in UPX:
+        for s in (-1, 1):
+            xx = s * x; lit = (int(x * 10) + (s > 0)) % 3 != 1
+            arch_fill(bd, xx, 1.2, Gs + 2.15, 0.6, FY + WT / 2, WT, UPC, 8 if hi else 3)
+            lead_glass(bd, xx, Gs + 0.45, Gs + 2.15, 0.6, FY + 0.32, lod, lit=lit)
+            arch_ring(bd, xx, 0.6, Gs + 2.15, 0.6, FY - 0.05, 0.26, 0.26, QUOIN, 9 if hi else 5, rng, key=True, keyc=STONES[2])
+    # gallery wings (corbelled timber deck + turned balustrade), clear of the centre bay
+    for s in (-1, 1):
+        xa, xb = sorted((s * (PIL + 0.45), s * (W2 - 0.55))); bw = xb - xa; cx = (xa + xb) / 2; dep = 1.45; fy_ = FY
+        bd.box(bw, dep, 0.24, cx, fy_ - dep / 2, Gs + 0.12, WOOD, base=True)
+        bd.box(bw + 0.12, 0.14, 0.12, cx, fy_ - dep + 0.08, Gs + 1.42, WOOD_D); bd.box(bw, 0.12, 0.1, cx, fy_ - dep + 0.08, Gs + 0.45, WOOD_D)
+        for px in np.linspace(xa, xb, 4): bd.box(0.18, 0.18, 1.12, px, fy_ - dep + 0.08, Gs + 0.36, WOOD_D, base=True); bd.box(0.18, dep, 0.12, px, fy_ - dep / 2, Gs + 1.42, WOOD_D)
+        if hi:
+            nb = int(bw / 0.24)
+            for i in range(1, nb): bx = xa + i * bw / nb; bd.cyl(0.04, 0.04, 0.9, bx, fy_ - dep + 0.08, Gs + 0.5, WOOD_L, n=6); bd.sphere(0.065, bx, fy_ - dep + 0.08, Gs + 0.92, WOOD_L, sub=0)
+            for i in range(int(bw / 1.2) + 1):   # stepped stone corbels
+                px = xa + 0.3 + i * (bw - 0.6) / max(1, int(bw / 1.2)); bd.box(0.32, dep * 0.9, 0.28, px, fy_ - dep * 0.45, Gs - 0.16, QUOIN); bd.box(0.3, dep * 0.5, 0.3, px, fy_ - dep * 0.25, Gs - 0.45, QUOIN)
+            for px in (xa + 1.1, xb - 1.1): plant(bd, px, fy_ - dep + 0.42, Gs + 0.36, rng, 0.85)
+            vine(bd, xb - 0.2 if s > 0 else xa + 0.2, fy_ - dep + 0.02, Gs - 1.6, Gs + 1.3, rng)
+        else: bd.box(bw, 0.05, 0.95, cx, fy_ - dep + 0.08, Gs + 0.45, WOOD_L, base=True)
+    # centre bay: pilasters, the carved SQUAD HALL board, a guild crest, flanking banners on iron poles
+    for s in (-1, 1):
+        bd.box(0.75, 0.32, top - Gs + 0.1, s * PIL, FY - 0.16, Gs + 0.1, hexc(STONES[2], 0.02, rng), base=True)
+        bd.box(0.95, 0.42, 0.28, s * PIL, FY - 0.2, z3 - 0.36, QUOIN, base=True); bd.box(0.95, 0.42, 0.28, s * PIL, FY - 0.2, top - 0.3, QUOIN, base=True)
+    sgw, sgh, sz0 = 6.2, 1.55, Gs + 0.42
+    bd.box(sgw, 0.16, sgh, 0, FY - 0.08, sz0, SIGNB, base=True)
+    for zz in (sz0 - 0.08, sz0 + sgh - 0.06): bd.box(sgw + 0.34, 0.28, 0.16, 0, FY - 0.14, zz, WOOD_D, base=True)
+    for xx in (-sgw / 2 - 0.08, sgw / 2 + 0.08): bd.box(0.2, 0.28, sgh + 0.2, xx, FY - 0.14, sz0 - 0.08, WOOD_D, base=True)
+    for zz in (sz0 + 0.12, sz0 + sgh - 0.16): bd.box(sgw - 0.3, 0.04, 0.04, 0, FY - 0.18, zz, GOLD)
+    for xx in (-sgw / 2 + 0.16, sgw / 2 - 0.16): bd.box(0.04, 0.04, sgh - 0.28, xx, FY - 0.18, sz0 + 0.14, GOLD, base=True)
+    for xx in (-sgw / 2 + 0.3, sgw / 2 - 0.3):
+        for zz in (sz0 + 0.3, sz0 + sgh - 0.3): bd.sphere(0.07, xx, FY - 0.2, zz, GOLD, sub=0)
+    carve(bd, 'SQUAD HALL', 0, FY - 0.17, sz0 + sgh / 2, sgw - 1.0, sgh - 0.5, FRONT, lod, col=GOLD)
+    # crest over the board: purple shield + skull & cutlasses
+    bd.prism([(-0.55, 0.3), (0.55, 0.3), (0.55, -0.15), (0, -0.55), (-0.55, -0.15)][::-1], 0.1, PURP, T(0, FY - 0.12, sz0 + sgh + 0.75), mat='awning_cloth')
+    bd.prism([(-0.62, 0.36), (0.62, 0.36), (0.62, -0.18), (0, -0.62), (-0.62, -0.18)][::-1], 0.08, GOLD, T(0, FY - 0.06, sz0 + sgh + 0.75))
+    emblem(bd, 0, FY - 0.15, sz0 + sgh + 0.78, 0.9, lod)
+    for s in (-1, 1):
+        bx = s * PIL; bd.box(0.07, 0.8, 0.07, bx, FY - 0.6, z3 - 0.2, IRON); bd.box(0.05, 0.05, 0.7, bx, FY - 0.42, z3 - 0.5, IRON, rx=0.7)
+        banner(bd, bx, FY - 0.95, z3 - 0.2, 2.75, 0.85, lod, rng, col=PURP)
+    for s in (-1, 1):   # gallery lanterns between the wing windows
+        for x in (6.4, 8.8): wall_lantern(bd, s * x, FY, Gs + 2.35, lod)
+    bd.box(w + 0.36, 0.5, 0.26, 0, FY - 0.06, z3 - 0.03, QUOIN)                                              # 3rd-floor string course
+    # 3rd storey: timber-framed plaster wings + a stone centre bay with a triple (serliana) window
+    h3 = [(s * x - 0.55, s * x + 0.55, z3 + 0.75, z3 + 2.35) for x in UPX for s in (-1, 1)] + [(-0.7, 0.7, z3 + 0.55, z3 + 2.6), (-1.75, -1.05, z3 + 0.55, z3 + 1.95), (1.05, 1.75, z3 + 0.55, z3 + 1.95)]
+    r3 = wall_rects(x0, x1, z3, top, h3)
+    for r in r3:
+        ra, rb = r[0], r[1]
+        for (pa, pc, centre) in ((ra, min(rb, -PIL), False), (max(ra, -PIL), min(rb, PIL), True), (max(ra, PIL), rb, False)):
+            if pc - pa < 0.01: continue
+            bd.box(pc - pa, WT, r[3] - r[2], (pa + pc) / 2, FY + WT / 2, (r[2] + r[3]) / 2, UPC if centre else hexc(PL, 0.03, rng))
+    arch_fill(bd, 0, 1.4, z3 + 1.9, 0.7, FY + WT / 2, WT, UPC, 8 if hi else 3)
+    lead_glass(bd, 0, z3 + 0.55, z3 + 1.9, 0.7, FY + 0.32, lod)
+    arch_ring(bd, 0, 0.7, z3 + 1.9, 0.7, FY - 0.05, 0.28, 0.3, QUOIN, 9 if hi else 5, rng, key=True, keyc=STONES[2])
+    for s in (-1, 1):
+        bd.box(0.7, 0.06, 1.4, s * 1.4, FY + 0.32, z3 + 0.55, GLOW, mat=1, base=True); bd.box(0.95, 0.36, 0.14, s * 1.4, FY - 0.1, z3 + 0.45, QUOIN, base=True)
+        for k in (-1, 1): bd.box(0.22, 0.3, 1.45, s * 1.4 + k * 0.46, FY - 0.08, z3 + 0.55, QUOIN, base=True)
+    bd.box(4.0, 0.42, 0.16, 0, FY - 0.1, z3 + 0.4, QUOIN, base=True)
+    shut = SHUT[5]
+    for x in UPX:
+        for s in (-1, 1): window(bd, s * x, z3 + 0.75, 1.6, FY, shut, lod, rng, lit=(int(x) + (s > 0)) % 2 == 0, box_=hi and int(x) % 2 == 1, stone=False)
+    for s in (-1, 1):   # timber frame on the plaster wings
+        xa, xb = sorted((s * (PIL + 0.38), s * W2)); posts = sorted({xa + 0.12, xb - 0.12, *[s * (x + 0.95) for x in UPX[:-1]], *[s * (x - 0.95) for x in UPX]})
+        posts = [p for p in posts if xa <= p <= xb]
+        for px in posts: bd.box(0.22, 0.16, Us, px, FY - 0.04, z3 + Us / 2, WOOD_D)
+        bd.box(xb - xa, 0.18, 0.22, (xa + xb) / 2, FY - 0.05, z3 + 0.14, WOOD_D); bd.box(xb - xa, 0.18, 0.2, (xa + xb) / 2, FY - 0.05, top - 0.1, WOOD_D)
+        if hi:
+            bd.box(xb - xa, 0.14, 0.12, (xa + xb) / 2, FY - 0.04, z3 + 0.68, WOOD_D); bd.box(xb - xa, 0.14, 0.12, (xa + xb) / 2, FY - 0.04, z3 + 2.42, WOOD_D)
+            for x in UPX:   # diagonal braces under each window
+                xx = s * x
+                for k in (-1, 1): bd.box(0.8, 0.12, 0.13, xx + k * 0.62, FY - 0.03, z3 + 0.42, WOOD_D, ry=k * 0.45)
+    # cornice + rafter tails
+    bd.box(w + 0.6, 0.72, 0.34, 0, FY + 0.06, top + 0.08, QUOIN)
+    if hi:
+        for i in range(int((w + 0.4) / 0.8)): bd.box(0.2, 0.55, 0.24, x0 - 0.1 + 0.4 + i * 0.8, FY - 0.3, top - 0.2, WOOD_D)
+    # ================= roof: ridge along the street + a raised centre gable with the compass oculus + cupola + dormers =================
+    rc = ROOFS[1]; pitch = 0.5; yf, yb = FY - 0.9, BY + 0.6; half = (yb - yf) / 2; yc = (yf + yb) / 2; rise = math.tan(pitch) * half
+    XE0, XE1, CG = x0 - 0.5, x1 + 0.5, 4.7
+    tiles_x(bd, XE0, XE1, yf, yc, top, rise, half, pitch, 1, rc, lod, rng)                                     # back plane
+    for (xa, xb) in ((XE0, -CG), (CG, XE1)): tiles_x(bd, xa, xb, yf, yc, top, rise, half, pitch, -1, rc, lod, rng)   # front plane wings
+    yfc = FY + 0.4; hc = yc - yfc; rc_ = rise * hc / half   # front plane behind the centre gable (from the wall line up)
+    tiles_x(bd, -CG, CG, yfc, yc, top + rise - rc_, rc_, hc, pitch, -1, rc, lod, rng)
+    bd.cyl(0.24, 0.24, XE1 - XE0 + 0.2, XE0 - 0.1, yc, top + rise + 0.06, ROOFS[2], n=6, ry=math.pi / 2)
+    for (xx, rz_) in ((x0 + 0.02, -math.pi / 2), (x1 - 0.52, -math.pi / 2)): bd.prism([(-D2, 0), (D2, 0), (0, rise - 0.22)], 0.5, UPC, T(xx, 0, top, rz=rz_), mat=0)
+    # centre (cross) gable: stone face, tile planes running back into the main roof, bargeboards, finial, the compass oculus
+    cpitch = 0.68; chalf = CG; crise = math.tan(cpitch) * (chalf - 0.3); cya, cyb = FY - 0.55, yc - 1.2
+    bd.prism([(-CG + 0.3, 0), (CG - 0.3, 0), (0, crise - 0.12)], 0.6, UPC, T(0, FY - 0.05, top), mat=0)
+    for s in (-1, 1): tiles_y(bd, 0, cya, cyb, top - 0.32, crise + 0.3, chalf, cpitch, s, rc, lod, rng)
+    bd.cyl(0.22, 0.22, cyb - cya + 0.1, 0, cya - 0.05, top + crise + 0.04, ROOFS[2], n=6, rx=-math.pi / 2)
+    L_ = chalf / math.cos(cpitch)
+    for s in (-1, 1): bd.box(L_ + 0.3, 0.16, 0.26, s * chalf / 2, cya - 0.1, top - 0.32 + (crise + 0.3) / 2 + 0.06, WOOD_D, ry=s * cpitch)
+    bd.cyl(0.08, 0.02, 1.3, 0, cya - 0.12, top + crise + 0.05, GOLD, n=6); bd.sphere(0.14, 0, cya - 0.12, top + crise + 0.25, GOLD, sub=1)
+    oz = top + crise * 0.42; oy = FY - 0.08
+    bd.torus(1.0, 0.16, 0, oy - 0.04, oz, QUOIN, n=16 if hi else 10, m_=4, rx=math.pi / 2)
+    bd.cyl(0.86, 0.86, 0.08, 0, oy + 0.02, oz, 0x1f3a5a, n=16 if hi else 10, rx=math.pi / 2)
+    bd.torus(0.8, 0.05, 0, oy - 0.08, oz, GOLD, n=16 if hi else 10, m_=4, rx=math.pi / 2)
+    for k in range(8):   # compass star
+        L8 = 0.7 if k % 2 == 0 else 0.42
+        bd.prism([(-0.09, 0), (0.09, 0), (0, L8)], 0.04, GOLD if k % 2 == 0 else BONE, T(0, oy - 0.12, oz, ry=k * math.pi / 4))
+    bd.sphere(0.1, 0, oy - 0.14, oz, GOLD, sub=1)
+    if hi:
+        for k in range(12): t = k * math.pi / 6; bd.box(0.05, 0.03, 0.12, 0.82 * math.sin(t), oy - 0.1, oz + 0.82 * math.cos(t), BONE, ry=t)
+    # dormers (lit) on the front plane wings
+    for s in (-1, 1):
+        dx = s * 8.4; dy = FY + 1.2; zr = top + rise * (1 - (yc - dy) / half)
+        bd.box(1.9, 2.8, 2.0, dx, dy + 1.4, zr - 0.35, UPC, base=True)
+        bd.box(1.0, 0.06, 1.1, dx, dy - 0.03, zr + 0.2, GLOW, mat=1, base=True); bd.box(1.25, 0.2, 0.12, dx, dy - 0.06, zr + 0.14, QUOIN, base=True)
+        if hi: bd.box(0.04, 0.04, 1.1, dx, dy - 0.07, zr + 0.2, WOOD_D, base=True); bd.box(1.0, 0.04, 0.04, dx, dy - 0.07, zr + 0.75, WOOD_D)
+        bd.prism([(-0.95, 0), (0.95, 0), (0, 0.85)], 0.12, UPC, T(dx, dy, zr + 1.65), mat=0)
+        for k in (-1, 1): bd.box(1.35, 3.1, 0.12, dx + k * 0.52, dy + 1.35, zr + 2.05, rc, ry=k * 0.72)
+    # cupola on the ridge: stone base, lit lantern stage, octagonal cap, gilded finial + pennant
+    cb = top + rise + 0.7   # cupola deck
+    bd.box(2.0, 2.0, 1.5, 0, yc, cb - 1.5, hexc(STONES[2], 0.02, rng), base=True); bd.box(2.3, 2.3, 0.16, 0, yc, cb, QUOIN, base=True)
+    bd.box(1.3, 1.3, 1.2, 0, yc, cb + 0.16, GLOW, mat=1, base=True)
+    for sx in (-1, 1):
+        for sy in (-1, 1): bd.box(0.24, 0.24, 1.3, sx * 0.8, yc + sy * 0.8, cb + 0.16, WOOD_D, base=True)
+    if hi:
+        for k in (-1, 1): bd.box(1.72, 0.08, 0.08, 0, yc + k * 0.8, cb + 0.55, WOOD_D); bd.box(0.08, 1.72, 0.08, k * 0.8, yc, cb + 0.55, WOOD_D)
+    bd.box(2.1, 2.1, 0.16, 0, yc, cb + 1.46, WOOD_D, base=True)
+    bd.cyl(1.35, 0.06, 1.5, 0, yc, cb + 1.6, rc, n=8 if hi else 4, rz=math.pi / 8 if hi else math.pi / 4)
+    bd.sphere(0.16, 0, yc, cb + 3.1, GOLD, sub=1); bd.cyl(0.04, 0.02, 1.2, 0, yc, cb + 3.1, GOLD, n=6)
+    bd.prism([(0, 0), (0, -0.4), (0.75, -0.18)], 0.03, PURP, T(0.04, yc, cb + 4.2), mat='awning_cloth')
+    # chimneys (the south one is the lounge hearth flue)
+    for (chx, chy) in ((x1 - 1.0, 0.6), (x0 + 1.6, 3.4)):
+        bd.box(1.0, 1.0, rise + 2.2, chx, chy, top - 0.5, QUOIN, base=True); bd.box(1.3, 1.3, 0.2, chx, chy, top + rise + 1.7, 0x6d665e, base=True)
+        if hi: bd.cyl(0.15, 0.15, 0.4, chx + 0.22, chy, top + rise + 1.9, 0xb8562e, n=6)
+    # ================= the end walls + back: stone courses, windows, the south gable faces the Fish Market plaza =================
+    for (xe, rz_, south) in ((x1, math.pi / 2, True), (x0, -math.pi / 2, False)):
+        bd.push(T(xe, 0, 0, rz=rz_)); zg = gz(xe)   # local: x along the wall (world y * sign), -y = outward, wall face at y = 0
+        wy = (-3.9, 3.9)
+        er = wall_rects(-D2, D2, zg + 0.55, Gs, [(y_ - 0.75, y_ + 0.75, 2.0 if south else zg + 1.0, 4.96 if south else zg + 3.46) for y_ in wy])
+        if hi: ashlar(bd, [(r[0], r[1], r[2], r[3]) for r in er], 0.0, SANDC, rng, rh=0.52)
+        for y_ in wy: applied_arch_window(bd, y_, 2.1 if south else zg + 1.1, 4.2 if south else zg + 2.7, 0.7, lod, rng, lit=True)
+        bd.box(d + 0.4, 0.5, 0.3, 0, -0.1, Gs - 0.04, QUOIN); bd.box(d + 0.3, 0.44, 0.24, 0, -0.08, z3 - 0.03, QUOIN)
+        bd.box(d + 0.6, 0.36, zg + 0.55 - zlo, 0, -0.15, zlo, QUOIN, base=True)   # plinth course
+        for f, zf in ((2, Gs), (3, z3)):
+            for y_ in (-4.2, 0.0, 4.2):
+                if f == 2 and y_ == 0.0 and south:
+                    applied_arch_window(bd, 0.0, zf + 0.4, zf + 2.0, 0.6, lod, rng, lit=True)
+                    bd.box(2.6, 1.0, 0.2, 0, -0.5, zf + 0.15, WOOD, base=True); bd.box(2.6, 0.1, 0.9, 0, -0.98, zf + 0.35, WOOD_D, base=True)   # Juliet balcony
+                    for k in (-1, 1): bd.box(0.12, 1.0, 0.12, k * 1.24, -0.5, zf + 1.2, WOOD_D)
+                    continue
+                window(bd, y_, zf + 0.8, 1.6, -0.25, shut, lod, rng, lit=(f + int(y_)) % 2 == 0, box_=hi and f == 2, stone=f == 2)
+        if hi:
+            for yy in (-D2, D2):
+                zq = zg - 0.15
+                while zq < top - 0.3: bd.box(0.9 if int((zq - zg) / 0.6) % 2 else 0.6, 0.66, 0.56, yy + (0.3 if yy < 0 else -0.3), -0.24, zq + 0.29, hexc(QUOIN, 0.05, rng)); zq += 0.6
+            ashlar(bd, wall_rects(-D2, D2, Gs, z3, [(y_ - 0.65, y_ + 0.65, Gs + 0.6, Gs + 2.6) for y_ in (-4.2, 0.0, 4.2)]), 0.0, UPC, rng)
+        # gable: oculus (south: a lit rose window)
+        bd.cyl(0.62, 0.62, 0.08, 0, -0.02, top + 1.6, GLOW if south else 0x22313d, n=12 if hi else 8, rx=math.pi / 2, mat=1 if south else 0)
+        bd.torus(0.7, 0.13, 0, -0.08, top + 1.6, QUOIN, n=12 if hi else 8, m_=4, rx=math.pi / 2)
+        if hi and south:
+            for k in range(4): bd.box(1.2, 0.04, 0.05, 0, -0.12, top + 1.6, IRON, ry=k * math.pi / 4)
+        bd.box(d + 0.5, 0.4, 0.26, 0, -0.08, top + 0.04, QUOIN)
+        bd.pop()
+    bd.push(T(0, BY, 0, rz=math.pi))   # back wall (faces the coliseum): courses + windows on the upper storeys
+    bd.box(w + 0.4, 0.5, 0.3, 0, -0.1, Gs - 0.04, QUOIN); bd.box(w + 0.3, 0.44, 0.24, 0, -0.08, z3 - 0.03, QUOIN); bd.box(w + 0.6, 0.72, 0.34, 0, -0.06, top + 0.08, QUOIN)
+    for zf in (Gs, z3):
+        for x in (-10.0, -6.0, -2.0, 2.0, 6.0, 10.0):
+            lit = (int(x) // 2 + int(zf)) % 3 == 0
+            if lod == 0: window(bd, x, zf + 0.8, 1.6, -0.25, shut, lod, rng, lit=lit, box_=False, stone=True)
+            else: bd.box(1.1, 0.08, 1.6, x, -0.03, zf + 0.8, GLOW if lit else 0x22313d, mat=1 if lit else 0, base=True); bd.box(1.4, 0.3, 0.12, x, -0.1, zf + 0.74, QUOIN, base=True)
+    for x in (-9.0, 9.0): applied_arch_window(bd, x, 2.0, 3.8, 0.6, lod, rng, lit=True)
+    bd.pop()
+    # ================= interior: the walk-in war room =================
+    ix0, ix1, iFY, iBY = x0 + WT, x1 - WT, FY + WT, BY - WT; iw, idp = ix1 - ix0, iBY - iFY; CEIL = Gs - 0.42
+    np_ = int(iw / 0.3) if hi else 6
+    for i in range(np_):   # weathered plank floor following the walk height (6 mm over the ground)
+        x = ix0 + (i + 0.5) * iw / np_; bd.box(iw / np_ / math.cos(a), idp, 0.08, x, (iFY + iBY) / 2, gz(x) + 0.006 - 0.04, hexc(FLOOR_A if i % 2 else FLOOR_B, 0.05, rng), ry=a)
+    bd.box(iw, idp, 0.12, 0, 0, CEIL, PLANK[2], base=True)                                                   # boarded ceiling
+    # inlaid stone border (front / back bands follow the slope, end bands level)
+    for yy in (iFY + 0.3, iBY - 0.3):
+        if hi:
+            nsb = int(iw / 0.9)
+            for i in range(nsb): xm = ix0 + (i + 0.5) * iw / nsb; bd.box(iw / nsb / math.cos(a) - 0.04, 0.56, 0.08, xm, yy, gz(xm) + 0.016 - 0.04, hexc(STONES[2], 0.05, rng), ry=a)
+        else: bd.box(iw / math.cos(a), 0.56, 0.08, 0, yy, 0.016 - 0.04, STONES[2], ry=a)
+    for xe in (ix0 + 0.3, ix1 - 0.3): bd.box(0.56, idp - 1.2, 0.08, xe, 0, gz(xe) + 0.016 - 0.04, STONES[2])
+    # guild runner (level along y on the centre line) + the round crimson rug under the war table
+    TY = 0.2   # war-table centre: a 2.8 m lane to the roster board behind it
+    bd.cyl(3.3, 3.3, 0.024, 0, TY, 0.0, CRIM, n=16 if hi else 8, ry=a, mat='awning_cloth')
+    if hi: bd.torus(3.12, 0.035, 0, TY, 0.026, GOLD, n=16, m_=3, ry=a)
+    bd.box(2.3 / math.cos(a), iBY - 0.9 - iFY + 0.6, 0.03, 0, (iFY - 0.6 + iBY - 0.9) / 2, 0.034 - 0.015, PURP, ry=a, mat='awning_cloth')
+    for s in (-1, 1):
+        bd.box(0.16, iBY - 0.9 - iFY + 0.6, 0.03, s * 1.05, (iFY - 0.6 + iBY - 0.9) / 2, gz(s * 1.05) + 0.045 - 0.015, CRIM, ry=a, mat='awning_cloth')
+        if hi: bd.box(0.05, iBY - 0.9 - iFY + 0.6, 0.03, s * 0.88, (iFY - 0.6 + iBY - 0.9) / 2, gz(s * 0.88) + 0.052 - 0.015, GOLD, ry=a)
+    # oak wainscot on the back + end walls (follows the floor), sandstone above
+    bd.box(iw / math.cos(a), 0.07, 1.35, 0, iBY - 0.035, 0.675, WOOD, ry=a); bd.box(iw / math.cos(a), 0.12, 0.1, 0, iBY - 0.07, 1.38, WOOD_D, ry=a)
+    for xe, s in ((ix0, 1), (ix1, -1)): bd.box(0.07, idp, 1.35, xe + s * 0.035, 0, gz(xe), WOOD, base=True); bd.box(0.12, idp, 0.1, xe + s * 0.06, 0, gz(xe) + 1.33, WOOD_D, base=True)
+    if hi:
+        for i in range(int(iw / 0.95) + 1): xx = ix0 + 0.1 + i * 0.95; bd.box(0.08, 0.04, 1.2, xx, iBY - 0.08, gz(xx) + 0.05, WOOD_D, base=True)
+        for xe, s in ((ix0, 1), (ix1, -1)):
+            for i in range(int(idp / 0.95) + 1): bd.box(0.04, 0.08, 1.2, xe + s * 0.08, iFY + 0.1 + i * 0.95, gz(xe) + 0.05, WOOD_D, base=True)
+    # timber frame: tie beams across the hall (back posts + arched braces, front corbels), wall plates, two purlins, four free-standing columns
+    BEAMX = (-7.6, -3.6, 0.0, 3.6, 7.6); bz = CEIL - 0.42
+    for yy in (iFY + 0.15, iBY - 0.15): bd.box(iw, 0.3, 0.3, 0, yy, CEIL - 0.3, WOOD_D, base=True)
+    for yy in (-3.2, 3.6): bd.box(iw, 0.3, 0.34, 0, yy, bz + 0.04, WOOD_D, base=True)
+    for bx in BEAMX:
+        bd.box(0.34, idp, 0.42, bx, 0, bz, WOOD_D, base=True)
+        for yy, sy in ((iBY - 0.26, -1), (iFY + 0.26, 1)):
+            posted = abs(bx) > 7 or (sy < 0 and abs(bx) > 3)
+            if not posted:
+                if abs(bx) > 0.1: bd.box(0.4, 0.5, 0.36, bx, yy - sy * 0.01, bz - 0.36, QUOIN, base=True)   # stone corbel
+                continue
+            bd.box(0.3, 0.26, bz - gz(bx) + 0.02, bx, yy - sy * 0.13, gz(bx) - 0.02, WOOD_D, base=True)
+            if hi: bd.box(0.2, 0.2, 2.0, bx, yy + sy * 0.62, bz - 0.62, WOOD_D, rx=sy * 0.78)
+    for cx_ in (-7.6, 7.6):
+        for cy_ in (-3.2, 3.6):
+            zb = gz(cx_)
+            bd.box(0.82, 0.82, 0.5, cx_, cy_, zb - 0.12, QUOIN, base=True)
+            bd.cyl(0.27, 0.24, bz - zb - 0.62, cx_, cy_, zb + 0.38, WOOD_D, n=8 if hi else 6)
+            bd.box(0.7, 0.7, 0.2, cx_, cy_, bz - 0.24, WOOD_D, base=True)
+            if hi:
+                bd.box(0.28, 1.8, 0.22, cx_, cy_, bz - 0.22, WOOD_D, base=True)
+                for k in (-1, 1): bd.box(0.16, 0.16, 1.3, cx_, cy_ + k * 0.42, bz - 0.85, WOOD_D, rx=-k * 0.7)
+                bd.torus(0.3, 0.04, cx_, cy_, zb + 0.42, GOLD, n=8, m_=3)
+            if cols is not None: cols.append(['c', round(cx_, 3), round(-cy_, 3), 0.5])
+    # light: the great chandelier over the war table, two in the wings, sconces
+    chandelier(bd, 0, TY, 4.9, 1.3, 10, CEIL, lod)
+    for s in (-1, 1): chandelier(bd, s * 9.4, 0.4, gz(s * 9.4) + 4.5, 0.85, 6, CEIL, lod)
+    for x in (-10.4, -4.6, 4.6, 10.4): sconce(bd, x, iBY, gz(x) + 3.0, lod, out=-1)
+    for x in (-6.9, 6.9): sconce(bd, x, iFY, gz(x) + 3.1, lod, out=1)
+    for xe, s in ((ix0, 1), (ix1, -1)):
+        for y_ in ((-4.4, 4.4) if s > 0 else (-3.4, 3.4)):
+            bd.push(T(xe, y_, gz(xe) + 2.9, rz=s * math.pi / 2)); sconce(bd, 0, 0, 0, lod, out=-1); bd.pop()
+    # ---- the Captains' War Table (octagon, carved oak, brass trim, parchment sea chart, islands, ship markers, compass, candles, scrolls) ----
+    tz = 0.96; o8 = math.pi / 8
+    bd.cyl(0.55, 0.42, tz - 0.2 + 0.25, 0, TY, -0.25, WOOD_D, n=8, rz=o8)
+    for k in range(8):
+        ang = k * math.pi / 4 + o8; lx_, ly_ = 1.38 * math.cos(ang), TY + 1.38 * math.sin(ang)
+        bd.box(0.17, 0.17, tz - 0.16 - gz(lx_) + 0.05, lx_, ly_, gz(lx_) - 0.05, WOOD_D, base=True, rz=ang)
+        if hi: bd.sphere(0.12, lx_, ly_, gz(lx_) + 0.3, WOOD_D, sub=0, s=(1, 1, 1.4)); bd.box(0.2, 0.2, 0.06, lx_, ly_, gz(lx_) - 0.01, GOLD, base=True, rz=ang)
+    bd.cyl(1.66, 1.66, 0.24, 0, TY, tz - 0.32, WOOD, n=8, rz=o8)
+    bd.cyl(1.9, 1.9, 0.1, 0, TY, tz - 0.08, WOOD_D, n=8, rz=o8)
+    bd.torus(1.9 / math.cos(o8) * math.cos(o8), 0.055, 0, TY, tz - 0.03, GOLD, n=8, m_=4, rz=o8)
+    bd.cyl(1.66, 1.66, 0.02, 0, TY, tz + 0.02, PARCH, n=8, rz=o8)
+    bd.cyl(1.42, 1.42, 0.02, 0, TY, tz + 0.03, SEA, n=8 if not hi else 24, rz=o8)
+    if hi:
+        for k in range(8):   # brass corner caps on the rim
+            ang = k * math.pi / 4; bd.box(0.16, 0.1, 0.14, 1.86 * math.cos(ang), TY + 1.86 * math.sin(ang), tz - 0.06, GOLD, rz=ang + math.pi / 2)
+    for (mx, my, s_) in ((-0.75, -0.35, 0.42), (0.55, 0.3, 0.5), (0.1, -0.7, 0.28), (-0.35, 0.75, 0.3), (0.95, -0.55, 0.22)):
+        bd.cyl(s_ + 0.06, s_ + 0.06, 0.02, mx, TY + my, tz + 0.045, 0xd9c08a, n=10 if hi else 6)
+        bd.sphere(s_, mx, TY + my, tz + 0.06, hexc(LAND, 0.1, rng), sub=1 if hi else 0, s=(1, 0.8, 0.32))
+        if hi and s_ > 0.3:
+            for k in range(2): bd.cyl(0.03, 0.0, 0.18, mx + 0.1 * k - 0.05, TY + my + 0.08, tz + 0.12, 0x2f6a2a, n=4)
+    for (mx, my, c_, r_) in ((-0.2, -0.15, PURP, 0.4), (0.25, -0.35, PURP, 1.2), (-0.55, 0.3, CRIM, 2.4), (0.6, 0.85, CRIM, 3.6)):
+        bd.box(0.2, 0.08, 0.06, mx, TY + my, tz + 0.07, WOOD_D, base=True, rz=r_)
+        bd.box(0.02, 0.02, 0.2, mx, TY + my, tz + 0.12, WOOD_D, base=True)
+        bd.prism([(-0.07, 0), (0.07, 0), (0, 0.15)], 0.015, c_, T(mx, TY + my, tz + 0.15, rz=r_), mat='awning_cloth')
+    bd.torus(0.2, 0.02, -1.05, TY + 0.55, tz + 0.06, GOLD, n=12 if hi else 6, m_=3)
+    for k in range(2): bd.box(0.46, 0.04, 0.012, -1.05, TY + 0.55, tz + 0.065, GOLD, rz=k * math.pi / 2)
+    bd.sphere(0.035, -1.05, TY + 0.55, tz + 0.08, GOLD, sub=0)
+    for (cx_, cy_) in ((1.15, TY + 0.95), (-1.2, TY - 0.85)):   # brass candlesticks
+        bd.cyl(0.11, 0.08, 0.04, cx_, cy_, tz + 0.04, GOLD, n=8); bd.cyl(0.03, 0.03, 0.3, cx_, cy_, tz + 0.08, GOLD, n=6)
+        bd.cyl(0.035, 0.035, 0.16, cx_, cy_, tz + 0.38, BONE, n=6); bd.box(0.06, 0.06, 0.1, cx_, cy_, tz + 0.54, FLAME, mat=1, base=True)
+    bd.box(0.24, 0.24, 0.3, 1.25, TY - 0.7, tz + 0.04, GLOW, mat=1, base=True)   # table lantern
+    bd.box(0.3, 0.3, 0.05, 1.25, TY - 0.7, tz + 0.03, IRON, base=True); bd.box(0.3, 0.3, 0.05, 1.25, TY - 0.7, tz + 0.34, IRON, base=True)
+    bd.cyl(0.03, 0.01, 0.12, 1.25, TY - 0.7, tz + 0.39, IRON, n=4)
+    for (cx_, cy_, rz_) in ((-0.5, TY + 1.3, 0.2), (0.25, TY + 1.42, -0.15), (-1.35, TY + 0.1, 1.5)):
+        bd.cyl(0.055, 0.055, 0.62, cx_ - 0.31 * math.cos(rz_), cy_ - 0.31 * math.sin(rz_), tz + 0.1, PARCH, n=8 if hi else 5, ry=math.pi / 2, rz=rz_)
+    for k in range(6):   # high-backed captains' chairs around the table (none on the entrance side)
+        ang = k * math.pi / 3; cx_, cy_ = 2.32 * math.cos(ang), TY + 2.32 * math.sin(ang)
+        chair(bd, cx_, cy_, gz(cx_) - 0.02, ang - math.pi / 2, lod, cush=PURP if k % 2 else CRIM)
+    if cols is not None: cols.append(['c', 0.0, round(-TY, 3), 2.78])
+    # ---- north wing: ARMORY & TROPHY (weapon rack + crossed cutlasses + flintlocks + shields on the end wall, chests, barrels, crates, benches) ----
+    zf = gz(ix0)
+    bd.push(T(ix0, 0, zf, rz=math.pi / 2))   # local -y = into the room (+x), local x = world y
+    bd.box(4.2, 0.1, 2.3, 0, -0.06, 1.25, WOOD_D, base=True)
+    for zz in (1.22, 3.5): bd.box(4.4, 0.16, 0.12, 0, -0.1, zz, WOOD, base=True)
+    for xx in (-2.15, 2.15): bd.box(0.14, 0.16, 2.4, xx, -0.1, 1.22, WOOD, base=True)
+    for xc_ in (-1.35, 0.0, 1.35): emblem(bd, xc_, -0.14, 2.75, 0.95, lod)
+    for zz in (1.55, 1.85):   # flintlocks
+        bd.cyl(0.03, 0.03, 1.15, -1.0, -0.2, zz, IRON, n=6, ry=math.pi / 2); bd.box(0.5, 0.06, 0.13, 0.35, -0.2, zz, 0x6b4527); bd.box(0.12, 0.05, 0.06, 0.1, -0.22, zz - 0.04, GOLD)
+    for xs, c_ in ((-2.9, CRIM), (2.9, PURP)):   # painted shields
+        bd.cyl(0.52, 0.52, 0.07, xs, -0.04, 2.5, c_, n=14 if hi else 8, rx=math.pi / 2)
+        bd.torus(0.52, 0.04, xs, -0.1, 2.5, GOLD, n=14 if hi else 8, m_=3, rx=math.pi / 2); bd.sphere(0.11, xs, -0.12, 2.5, GOLD, sub=0)
+        if hi: bd.box(0.12, 0.03, 0.96, xs, -0.1, 2.5, GOLD); bd.box(0.96, 0.03, 0.12, xs, -0.1, 2.5, GOLD)
+    chest(bd, -1.3, -0.62, 0.0, 0.0, lod, gold=True); chest(bd, 1.3, -0.62, 0.0, 0.0, lod)
+    bd.pop()
+    for (bx_, by_) in ((-10.75, 5.75), (-9.85, 5.9)): barrel_(bd, bx_, by_, gz(bx_), lod)
+    barrel_(bd, -10.3, 5.8, gz(-10.3) + 1.0, lod, r=0.36, h=0.9)
+    for (cx_, cy_, s_) in ((-10.75, -5.75, 0.95), (-9.85, -5.85, 0.75)):
+        bd.box(s_, s_, s_, cx_, cy_, gz(cx_) - 0.02, WOOD_L, base=True)
+        if hi:
+            for zz in (0.06, s_ - 0.06): bd.box(s_ + 0.04, s_ + 0.04, 0.1, cx_, cy_, gz(cx_) - 0.02 + zz, WOOD_D)
+    bench(bd, -8.6, -5.6, iFY + 0.52, gz, a, lod)
+    if hi:   # ship's wheel trophy on the back wall
+        wx, wz = -8.6, gz(-8.6) + 3.0
+        bd.torus(0.6, 0.05, wx, iBY - 0.12, wz, WOOD_D, n=16, m_=4, rx=math.pi / 2); bd.cyl(0.12, 0.12, 0.12, wx, iBY - 0.06, wz, GOLD, n=8, rx=math.pi / 2)
+        for k in range(8): t = k * math.pi / 4; bd.box(0.05, 0.05, 1.5, wx, iBY - 0.12, wz, WOOD_D, ry=t)
+    bench(bd, -8.9, -4.7, iBY - 0.55, gz, a, lod)
+    banner(bd, -5.5, iBY - 0.1, CEIL - 0.9, 2.6, 1.0, lod, rng, col=CRIM)
+    # ---- south wing: CAPTAINS' LOUNGE (hearth + mantel + chart, fireside chairs, globe, spyglass, map credenza, banner) ----
+    zf = gz(ix1)
+    bd.push(T(ix1, 0, zf, rz=-math.pi / 2))   # local -y = into the room (-x), local x = world -y
+    bd.box(3.4, 0.75, CEIL - zf + 0.2, 0, -0.37, -0.2, QUOIN, base=True)                       # chimney breast
+    bd.box(1.9, 0.08, 1.3, 0, -0.78, 0.0, SOOT, base=True)                                    # firebox
+    for k in (-1, 1): bd.box(0.36, 0.42, 1.55, k * 1.13, -0.86, -0.02, hexc(STONES[2], 0.02, rng), base=True)
+    bd.box(2.7, 0.46, 0.38, 0, -0.88, 1.38, hexc(STONES[2], 0.02, rng), base=True)
+    bd.box(3.2, 0.55, 0.14, 0, -0.95, 1.8, WOOD_D, base=True)                                  # mantel
+    bd.box(1.5, 0.5, 0.1, 0, -1.0, 0.02, EMBER, mat=1, base=True)
+    for k in (-1, 0, 1): bd.cyl(0.09, 0.09, 1.0, -0.5, -1.0 + k * 0.12, 0.16 + (k == 0) * 0.12, 0x4a2c16, n=6, ry=math.pi / 2)
+    for k in (-0.35, 0.0, 0.35): bd.prism([(-0.16, 0), (0.16, 0), (0, 0.5 - abs(k) * 0.4)], 0.06, FLAME, T(k, -1.0, 0.22), mat=1)
+    for k in (-1, 1): bd.cyl(0.08, 0.06, 0.04, k * 1.25, -1.0, 1.94, GOLD, n=6); bd.cyl(0.03, 0.03, 0.26, k * 1.25, -1.0, 1.98, BONE, n=6); bd.box(0.06, 0.06, 0.1, k * 1.25, -1.0, 2.24, FLAME, mat=1, base=True)
+    bd.box(1.9, 0.06, 1.2, 0, -0.78, 2.3, PARCH, base=True)                                   # framed chart over the mantel
+    for zz in (2.27, 3.48): bd.box(2.05, 0.1, 0.08, 0, -0.8, zz, WOOD_D, base=True)
+    for xx in (-0.98, 0.98): bd.box(0.08, 0.1, 1.3, xx, -0.8, 2.27, WOOD_D, base=True)
+    if hi:
+        bd.box(1.4, 0.02, 0.7, 0.05, -0.82, 2.55, SEA, base=True)
+        for (mx, mz, r_) in ((-0.35, 2.75, 0.18), (0.3, 2.95, 0.22), (0.4, 2.65, 0.12)): bd.cyl(r_, r_, 0.02, mx, -0.83, mz, LAND, n=8, rx=math.pi / 2)
+    bd.box(2.4, 3.0, 0.02, 0, -2.4, 0.03, CRIM, base=True, mat='awning_cloth')                 # hearth rug (level: the end strip is level)
+    bd.pop()
+    for k in (-1, 1): chair(bd, ix1 - 2.6, k * 1.25, gz(ix1 - 2.6) - 0.02, math.pi / 2 + k * 0.35, lod, cush=CRIM)
+    gx_, gy_ = 9.6, -4.7; zb = gz(gx_)   # globe on its stand
+    bd.cyl(0.32, 0.22, 0.08, gx_, gy_, zb, WOOD_D, n=8); bd.cyl(0.06, 0.05, 0.62, gx_, gy_, zb + 0.08, WOOD_D, n=6)
+    if hi:
+        for k in range(3): t = k * 2 * math.pi / 3; bd.box(0.07, 0.07, 0.5, gx_ + 0.2 * math.cos(t), gy_ + 0.2 * math.sin(t), zb + 0.25, WOOD_D, rx=0.5 * math.sin(t), ry=-0.5 * math.cos(t))
+    bd.sphere(0.4, gx_, gy_, zb + 1.08, SEA, sub=2 if hi else 1)
+    for (dx_, dy_, dz_) in ((0.3, -0.15, 0.1), (-0.2, -0.3, -0.15), (0.05, 0.3, 0.2)): bd.sphere(0.16, gx_ + dx_, gy_ + dy_, zb + 1.08 + dz_, LAND, sub=0, s=(1, 1, 0.8))
+    bd.torus(0.47, 0.03, gx_, gy_, zb + 1.08, GOLD, n=14 if hi else 8, m_=3, rx=math.pi / 2, rz=0.4)
+    bd.torus(0.47, 0.025, gx_, gy_, zb + 1.08, GOLD, n=14 if hi else 8, m_=3)
+    sx_, sy_ = 9.7, 4.6; zb = gz(sx_)   # brass spyglass on a tripod, pointed at the front windows
+    for k in range(3): t = k * 2 * math.pi / 3; bd.box(0.05, 0.05, 1.3, sx_ + 0.22 * math.cos(t), sy_ + 0.22 * math.sin(t), zb + 0.6, WOOD_D, rx=0.3 * math.sin(t), ry=-0.3 * math.cos(t))
+    bd.cyl(0.07, 0.05, 1.1, sx_ - 0.1, sy_ + 0.4, zb + 1.25, GOLD, n=8, rx=1.25)
+    bd.cyl(0.09, 0.09, 0.18, sx_ - 0.1, sy_ + 0.4, zb + 1.25, GOLD, n=8, rx=1.25)
+    CRX = 9.45
+    bd.box(2.9 / math.cos(a), 0.62, 0.98, CRX, iBY - 0.36, gz(CRX) + 0.49, WOOD, ry=a)       # map credenza
+    bd.box(3.0 / math.cos(a), 0.7, 0.08, CRX, iBY - 0.36, gz(CRX) + 1.0, WOOD_D, ry=a)
+    if hi:
+        for i in range(3):
+            xx = 8.5 + i * 0.95
+            for zz in (0.3, 0.68): bd.box(0.8, 0.03, 0.3, xx, iBY - 0.68, gz(xx) + zz, WOOD_D); bd.sphere(0.035, xx, iBY - 0.7, gz(xx) + zz, GOLD, sub=0)
+        for k in range(3): bd.cyl(0.06, 0.06, 0.7, 9.6 + k * 0.05, iBY - 0.5 + k * 0.13, gz(10.0) + 1.1 + 0.06, PARCH, n=6, ry=math.pi / 2)
+    bd.box(0.22, 0.22, 0.3, 8.6, iBY - 0.36, gz(8.6) + 1.04, GLOW, mat=1, base=True)
+    banner(bd, CRX, iBY - 0.1, CEIL - 0.9, 2.4, 1.0, lod, rng, col=PURP)
+    bench(bd, 5.6, 8.6, iFY + 0.52, gz, a, lod); bench(bd, 4.4, 7.2, iBY - 0.55, gz, a, lod)
+    # ---- rear focal wall: the SQUAD ROSTER board (2v2 crew slots, bounty + match notices, header plaque) between guild standards ----
+    yb_ = iBY
+    for s in (-1, 1): bd.box(0.5, 0.34, 4.6, s * 2.95, yb_ - 0.17, gz(s * 2.95) - 0.05, QUOIN, base=True)
+    bd.box(6.5, 0.46, 0.42, 0, yb_ - 0.23, 4.5, QUOIN, base=True); bd.box(6.3, 0.4, 0.5, 0, yb_ - 0.2, -0.1, QUOIN, base=True)
+    bd.box(5.4, 0.12, 3.6, 0, yb_ - 0.1, 0.8, WOOD_D, base=True)
+    bd.box(5.1, 0.04, 2.45, 0, yb_ - 0.17, 0.95, 0x2a1a0c, base=True)
+    bd.box(4.0, 0.12, 0.66, 0, yb_ - 0.2, 3.62, SIGNB, base=True)
+    for zz in (3.6, 4.24): bd.box(4.2, 0.16, 0.08, 0, yb_ - 0.24, zz, GOLD, base=True)
+    carve(bd, 'SQUAD HALL', 0, yb_ - 0.27, 3.95, 3.4, 0.46, FRONT, lod, col=GOLD)
+    emblem(bd, 0, yb_ - 0.5, 5.2, 1.0, lod)
+    for s, c_ in ((-1, PURP), (1, CRIM)):   # 2v2: two crews x two slots
+        cx_ = s * 1.35
+        bd.box(2.1, 0.05, 0.36, cx_, yb_ - 0.2, 3.12, c_, base=True, mat='awning_cloth')
+        for zz in (2.48, 1.86):
+            bd.box(1.9, 0.05, 0.46, cx_, yb_ - 0.2, zz, PARCH, base=True); bd.box(0.18, 0.06, 0.46, cx_ - 0.86, yb_ - 0.22, zz, c_, base=True)
+            if hi: bd.box(1.3, 0.02, 0.04, cx_ + 0.12, yb_ - 0.235, zz + 0.2, 0x5a3219); bd.sphere(0.05, cx_ + 0.86, yb_ - 0.26, zz + 0.36, CRIM, sub=0)
+    carve(bd, '2v2', 0, yb_ - 0.21, 2.35, 0.55, 0.4, FRONT, lod, col=GOLD)
+    for i, nx in enumerate((-2.1, -0.75, 0.75, 2.1)):   # pinned notices
+        rz_ = (-0.06, 0.05, -0.04, 0.07)[i]
+        bd.box(0.62, 0.03, 0.62, nx, yb_ - 0.2, 1.0, PARCH if i % 2 == 0 else 0xf3e6c8, base=True, ry=rz_)
+        bd.sphere(0.04, nx, yb_ - 0.24, 1.56, CRIM if i % 2 else PURP, sub=0)
+        if hi:
+            for k in range(3): bd.box(0.42, 0.012, 0.03, nx, yb_ - 0.22, 1.18 + k * 0.12, 0x5a3219, ry=rz_)
+            if i in (0, 3): bd.box(0.3, 0.012, 0.18, nx, yb_ - 0.22, 1.36, 0x8a1c1c, ry=rz_)
+    for s in (-1, 1):   # guild standards flanking the board
+        sx2 = s * 3.75; zb = gz(sx2)
+        bd.cyl(0.32, 0.36, 0.16, sx2, yb_ - 0.6, zb - 0.02, IRON, n=8); bd.cyl(0.05, 0.05, 4.7, sx2, yb_ - 0.6, zb, WOOD_D, n=6)
+        bd.cyl(0.08, 0.0, 0.32, sx2, yb_ - 0.6, zb + 4.7, GOLD, n=4)
+        banner(bd, sx2, yb_ - 0.6, zb + 4.35, 2.5, 0.9, lod, rng, col=PURP if s < 0 else CRIM)
+    if cols is not None:
+        cols.append(['b', 0.0, round(-(iBY - 0.4), 3), 8.4, 0.9])
+    # ---- colliders (three.js building frame: x, z = -y): the front wall split around the portal, the end walls, the back, the wing furniture ----
+    if cols is not None:
+        fz = D2 - WT / 2 + 0.1; fd = WT + 0.62
+        for (pa, pc) in ((x0 - 0.3, -OW / 2 - 0.02), (OW / 2 + 0.02, x1 + 0.3)): cols.append(['b', round((pa + pc) / 2, 3), round(fz, 3), round(pc - pa, 3), round(fd, 3)])
+        cols.append(['b', round(x0 + WT / 2 - 0.15, 3), 0.0, WT + 0.3, round(d + 0.6, 3)]); cols.append(['b', round(x1 - WT / 2 + 0.15, 3), 0.0, WT + 0.3, round(d + 0.6, 3)])
+        cols.append(['b', 0.0, round(-(D2 - WT / 2) - 0.15, 3), round(w + 0.6, 3), WT + 0.3])
+        cols += [['b', round(ix0 + 0.75, 3), 0.0, 1.5, 4.6],                                   # armory rack + chests
+                 ['c', -10.3, -5.8, 1.05], ['b', -10.3, 5.8, 1.9, 1.3],                        # barrels, crates
+                 ['b', -7.1, round(-(iFY + 0.52), 3), 3.2, 0.75], ['b', -6.8, round(-(iBY - 0.55), 3), 4.4, 0.75],   # benches
+                 ['b', round(ix1 - 0.6, 3), 0.0, 1.2, 3.6],                                    # hearth
+                 ['c', round(ix1 - 2.6, 3), -1.25, 0.5], ['c', round(ix1 - 2.6, 3), 1.25, 0.5],   # fireside chairs
+                 ['c', 9.6, 4.7, 0.55], ['c', 9.65, -4.75, 0.6],                               # globe, spyglass
+                 ['b', 9.45, round(-(iBY - 0.36), 3), 3.1, 0.85], ['b', 7.1, round(-(iFY + 0.52), 3), 3.2, 0.75], ['b', 5.8, round(-(iBY - 0.55), 3), 3.0, 0.75]]   # credenza, benches
 
 def mats():
     out = []
@@ -609,22 +1193,25 @@ COLLS = {k: bpy.data.collections.new('hill_' + k) for k in ('street', 'sword', '
 for c in COLLS.values(): bpy.context.scene.collection.children.link(c)
 for b in B:
     G = b['G']; OPEN_TOP = b.get('OT', 3.4); ARISE = b.get('AR', 0.0)
-    coll = COLLS['street' if b['kind'] == 'rent' else b['kind']]
+    coll = COLLS['street' if b['kind'] == 'rent' else 'big' if b['kind'] == 'squad' else b['kind']]
     root = bpy.data.objects.new('hill_' + b['key'], None); coll.objects.link(root); cols = []; b['_props'] = []; rep = {}
     for lod in (0, 1):
         rng = np.random.default_rng(b['n'] * 31 + (b['side'] > 0) * 7 + lod); random.seed(b['n'])
-        bd = Builder(); bd.ground = (lambda g: (lambda x, y: g * x))(b['g']); building(bd, b, lod, rng, cols if lod == 0 else None); R = interior(bd, b, lod, rng, cols if lod == 0 else None)
-        (rent_room if b['kind'] in ('rent', 'big') else weapon_room)(bd, b, lod, rng, R)
-        if b['kind'] != 'big': bracket(bd, b)
+        bd = Builder(); bd.ground = (lambda g: (lambda x, y: g * x))(b['g'])
+        if b['kind'] == 'squad': squad_hall(bd, b, lod, rng, cols if lod == 0 else None)   # [Timothy v312] its own generator (no rent room, no hanging sign plate)
+        else:
+            building(bd, b, lod, rng, cols if lod == 0 else None); R = interior(bd, b, lod, rng, cols if lod == 0 else None)
+            (rent_room if b['kind'] == 'rent' else weapon_room)(bd, b, lod, rng, R); bracket(bd, b)
         bake_obj(bd, f"hill_{b['key']}_LOD{lod}", coll, root); rep[f'LOD{lod}'] = bd.tris()
     cols += b['_props'] if b.get('grand') else b['_props'][:2]
-    sid = 'sign_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'sign_swords' if b['kind'] == 'sword' else 'sign_muskets'
-    eid = 'door_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'door_swords' if b['kind'] == 'sword' else 'door_muskets'
-    sp = sign_plate(b) if b['kind'] != 'big' else sign_plate_big(b); bake_obj(sp, sid, coll, root)
+    sid = None if b['kind'] == 'squad' else 'sign_rent_%s' % b['rent'] if b['kind'] == 'rent' else 'sign_swords' if b['kind'] == 'sword' else 'sign_muskets'
+    eid = 'door_squad_hall' if b['kind'] == 'squad' else 'door_rent_%s' % b['rent'] if b['kind'] == 'rent' else 'door_swords' if b['kind'] == 'sword' else 'door_muskets'
+    if sid: bake_obj(sign_plate(b), sid, coll, root)   # the Squad Hall's SQUAD HALL board is carved into its LOD meshes (phones keep their 2-draw merge)
     e = bpy.data.objects.new(eid, None); coll.objects.link(e); e.parent = root; e.location = (b['xo'], -b['d'] / 2, b['g'] * b['xo']); e.empty_display_size = 0.5
-    inner = [round(b['x0'] + WALL, 3), round(-(b['d'] / 2 - WALL), 3), round(b['x1'] - WALL, 3), round(b['d'] / 2 - WALL, 3)]   # three.js building frame x0, z0, x1, z1
+    wt_ = 0.6 if b['kind'] == 'squad' else WALL
+    inner = [round(b['x0'] + wt_, 3), round(-(b['d'] / 2 - wt_), 3), round(b['x1'] - wt_, 3), round(b['d'] / 2 - wt_, 3)]   # three.js building frame x0, z0, x1, z1
     root['colliders'] = json.dumps(cols); root['interior'] = json.dumps(inner); root['door'] = json.dumps([round(b['xo'], 3), round(b['d'] / 2, 3)])
-    root['sign'] = sid; root['empty'] = eid; root['top'] = b['top']; root['kind'] = b['kind']
+    root['sign'] = sid or ''; root['empty'] = eid; root['top'] = b['top']; root['kind'] = b['kind']
     if b.get('span'): root['span'] = json.dumps(b['span'])   # [Raul hill-weapons] town-local lz range of a widened / trimmed building (map + grass)
     if b.get('covers'): root['covers'] = json.dumps(b['covers'])
     REPORT[b['key']] = rep
@@ -648,19 +1235,26 @@ for k, c in COLLS.items():
 def town(L, bx, bz):
     th = math.pi / 2 if L['side'] < 0 else -math.pi / 2
     return [round(L['lx'] + bx * math.cos(th) + bz * math.sin(th), 3), round(L['lz'] - bx * math.sin(th) + bz * math.cos(th), 3)]
-rent, weap = [], []
+rent, weap, squad = [], [], None
 for L in DATA:
     th = math.pi / 2 if L['side'] < 0 else -math.pi / 2; i0, j0, i1, j1 = L['interior']
     cs = [town(L, a, c) for a in (i0, i1) for c in (j0, j1)]
-    e = dict(id=('rent_%s' % L['rent']) if L['kind'] in ('rent', 'big') else ('sword_shop' if L['kind'] == 'sword' else 'musket_shop'), lot=L['key'],
+    if L['kind'] == 'squad':   # [Timothy v312] the SQUAD HALL (R0): footprint, door, walk-in interior, the E · SQUAD HALL point (foot.js INTERACT 'squadhall')
+        il = town(L, SQ_INTERACT[0], -SQ_INTERACT[1])
+        squad = dict(id='squad_hall', lot=L['key'], lx=L['lx'], lz=L['lz'], ly=round(th, 4), w=L['w'], d=L['d'], storeys=3, top=L['top'],
+                     rect=dict(lx0=round(L['lx'] - L['d'] / 2, 3), lx1=round(L['lx'] + L['d'] / 2, 3), lz0=round(L['lz'] - L['w'] / 2, 3), lz1=round(L['lz'] + L['w'] / 2, 3)),
+                     door=dict(zip(('lx', 'lz'), town(L, L['door'][0], L['door'][1]))), doorY=round(L['y'] + L['g'] * L['door'][0], 3), doorW=L['ow'], facing=round(th, 4),
+                     interior=dict(lx0=min(c[0] for c in cs), lz0=min(c[1] for c in cs), lx1=max(c[0] for c in cs), lz1=max(c[1] for c in cs), slope=0.11),
+                     interact=dict(lx=il[0], lz=il[1], r=3.2), empty=L['empty'])
+        continue
+    e = dict(id=('rent_%s' % L['rent']) if L['kind'] == 'rent' else ('sword_shop' if L['kind'] == 'sword' else 'musket_shop'), lot=L['key'],
              lx=L['lx'], lz=L['lz'], ly=round(th, 4), w=round(L['x1'] - L['x0'], 3), d=L['d'], storeys=L['fl'],
              door=dict(zip(('lx', 'lz'), town(L, L['door'][0], L['door'][1]))), doorY=round(L['y'] + L['g'] * L['door'][0], 3), doorW=L['ow'], facing=round(th, 4),
              interior=dict(lx0=min(c[0] for c in cs), lz0=min(c[1] for c in cs), lx1=max(c[0] for c in cs), lz1=max(c[1] for c in cs), floorY=dict(atLz0=round(gyl(min(c[1] for c in cs)), 3), atLz1=round(gyl(max(c[1] for c in cs)), 3)), slope=0.11),
              sign=L['sign'], empty=L['empty'])
-    if L['kind'] == 'big': e['size'] = 'large'
     if L.get('covers'): e['lots'] = sorted([L['key'], *L['covers']]); e['size'] = 'double'   # [Raul hill-weapons] the MUSKET SHOP = R1 + R2
-    (rent if L['kind'] in ('rent', 'big') else weap).append(e)
-json.dump(dict(RENTABLE_SHOPS=rent, MAIN_ST_SHOPS=weap), open(os.path.join(GAME, 'assets/island/hill_shops.json'), 'w'), indent=1)
+    (rent if L['kind'] == 'rent' else weap).append(e)
+json.dump(dict(RENTABLE_SHOPS=rent, MAIN_ST_SHOPS=weap, SQUAD_HALL=squad), open(os.path.join(GAME, 'assets/island/hill_shops.json'), 'w'), indent=1)
 with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
     f.write("// [Timothy] PUMPFUN PIRATES hill street shop data (GENERATED by tools/hill_blender/hill_street_blender.py, do not hand-edit; also assets/island/hill_shops.json).\n")
     f.write("// Town-local frame (js/island/coast.js): lx along the waterfront, +lz out to sea; ly / facing = the way the door faces (three.js yaw in the town frame,\n")
@@ -668,9 +1262,10 @@ with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
     f.write("// interior = the walkable shop room (AABB inside the walls; its floor follows the street slope 0.11 m/m: floorY.atLz0 / atLz1 at its two ends).\n")
     f.write("// sign = the blank hanging sign-plate mesh name, empty = the door Object3D name (both in the scene once the hill GLBs load).\n")
     f.write("// RENTABLE_SHOPS: every hill-street ground floor except the two weapon shops = an EMPTY shop to rent (geometry + data only; no rental gameplay yet).\n")
-    f.write("// The last one, rent_big (size 'large', lot R0 = the old Squad Hall plot, hill_big_shop.glb), is the one big hall; the Squad Hall interact stays at its door.\n")
+    f.write("// SQUAD_HALL: lot R0 (hill_big_shop.glb, [Timothy v317] 24 x 14.5 m, 3 storeys): rect = its town-local footprint, interact = the E · SQUAD HALL point inside.\n")
     f.write("// MAIN_ST_SHOPS: the MUSKET SHOP (R1+R2 = #34+#35, one building, origin R2) + SWORD SHOP (R3 = #36, by the coliseum MAIN_GATE) as built\n")
     f.write("// (js/island/battleAreas.js MAIN_ST_SHOPS stays the gameplay config). The old weapon lots L6 / R6 are rent_23 / rent_24.\n")
     f.write('export const RENTABLE_SHOPS = ' + json.dumps(rent) + ';\n')
     f.write('export const MAIN_ST_SHOPS = ' + json.dumps(weap) + ';\n')
+    f.write('export const SQUAD_HALL = ' + json.dumps(squad) + ';\n')
 print('DATA', len(rent), 'rentable', len(weap), 'weapon')

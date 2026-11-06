@@ -12,12 +12,13 @@ const online = readFileSync(root + 'supabase/functions/pvp/online.ts', 'utf8');
 const mig = readFileSync(root + 'supabase/migrations/041_squad_hall.sql', 'utf8');
 
 describe('squad hall interior', () => {
-  it('dresses a war table, banners, crew board, lanterns, benches', () => {
-    assert.match(foot, /war table/);
-    assert.match(foot, /crew board/);
-    assert.match(foot, /wall lanterns/);
-    assert.match(foot, /PURP = 0x6a4fb3/);
-    assert.match(foot, /if \(!low\)/); // phone trim
+  it('dresses a war table, banners, crew board, lanterns, wings (the Blender hall, [Timothy v312])', () => {
+    const bl = readFileSync(root + 'tools/hill_blender/hill_street_blender.py', 'utf8');
+    assert.match(bl, /War Table/);
+    assert.match(bl, /roster board/);
+    assert.match(bl, /wall_lantern/);
+    assert.match(bl, /PURP, PURP_D, CRIM[^\n]*= 0x5a2f9e/);
+    assert.match(bl, /if hi:/); // phone (LOD1) trim
   });
   it('keeps the mid-hall interact', () => {
     assert.match(foot, /id: 'squadhall'/);

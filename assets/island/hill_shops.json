@@ -629,37 +629,6 @@
    },
    "sign": "sign_rent_22",
    "empty": "door_rent_22"
-  },
-  {
-   "id": "rent_big",
-   "lot": "R0",
-   "lx": 21,
-   "lz": -75.695,
-   "ly": -1.5708,
-   "w": 16.6,
-   "d": 14.0,
-   "storeys": 3,
-   "door": {
-    "lx": 14.0,
-    "lz": -76.695
-   },
-   "doorY": 5.936,
-   "doorW": 6.0,
-   "facing": -1.5708,
-   "interior": {
-    "lx0": 14.5,
-    "lz0": -83.495,
-    "lx1": 27.5,
-    "lz1": -67.895,
-    "floorY": {
-     "atLz0": 6.684,
-     "atLz1": 4.968
-    },
-    "slope": 0.11
-   },
-   "sign": "sign_rent_big",
-   "empty": "door_rent_big",
-   "size": "large"
   }
  ],
  "MAIN_ST_SHOPS": [
@@ -728,5 +697,42 @@
    "sign": "sign_swords",
    "empty": "door_swords"
   }
- ]
+ ],
+ "SQUAD_HALL": {
+  "id": "squad_hall",
+  "lot": "R0",
+  "lx": 21.25,
+  "lz": -71.0,
+  "ly": -1.5708,
+  "w": 24.0,
+  "d": 14.5,
+  "storeys": 3,
+  "top": 14.6,
+  "rect": {
+   "lx0": 14.0,
+   "lx1": 28.5,
+   "lz0": -83.0,
+   "lz1": -59.0
+  },
+  "door": {
+   "lx": 14.0,
+   "lz": -71.0
+  },
+  "doorY": 5.31,
+  "doorW": 5.0,
+  "facing": -1.5708,
+  "interior": {
+   "lx0": 14.6,
+   "lz0": -82.4,
+   "lx1": 27.9,
+   "lz1": -59.6,
+   "slope": 0.11
+  },
+  "interact": {
+   "lx": 17.95,
+   "lz": -71.0,
+   "r": 3.2
+  },
+  "empty": "door_squad_hall"
+ }
 }

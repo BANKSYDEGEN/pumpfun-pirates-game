@@ -144,7 +144,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       label(t, p.x, p.z, 38); }
     // [minimap-themes] landmarks: ink-and-parchment badges + hand labels (same list as the island map)
     { const L = [...mapLandmarks(FM), ...(layout ? mapDocks(layout).slice(0, 1).map(d => ({ ...d, label: 'Docks' })) : [])];
-      const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'Big Shop', x: sq.x, z: sq.z });
+      const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'Squad Hall', x: sq.x, z: sq.z });
       const nice = (t) => t.toLowerCase().replace(/(^|[\s·'])([a-z])/g, (m, a, b) => a + b.toUpperCase());
       for (const l of L) { const ic = SHOP_ICONS[l.icon]; if (!ic) continue; const [a, b] = P(l.x, l.z), r = lw(15);
         if (!bare) drawShopIcon(g, ic, a, b, r, 'paper'); label(nice(l.label), l.x + (r * 1.25) / k, l.z, 30, INK, 'left'); } }

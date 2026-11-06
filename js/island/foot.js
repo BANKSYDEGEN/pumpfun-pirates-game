@@ -208,6 +208,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     h = BT.ground(lx, lz, h); // [Timothy] battery ramp + gun deck
     { const ba = BA.stamp(lx, lz, h); h = ba.h; if (ba.d < TRg[q]) TRg[q] = ba.d; } // [Timothy] battle areas: level pads + dirt floors / paths
     if (COLI.COLISEUM_ON) { const c = COLI.stamp(lx, lz, h); h = c.h; if (c.d < TRg[q]) TRg[q] = c.d; }
+    if (PV.hallGround) h = PV.hallGround(lx, lz, h); // [Timothy v312] the widened Squad Hall's ground stays on the street grade (js/island/hillStreet.js)
   }
   const sk = Math.hypot(x - SKULL.x, z - (SKULL.z + 8)); if (sk < 32) h = h + (SKULL.y - h) * (1 - sm(19, 32, sk));
   Hg[q] = h;
@@ -809,47 +810,16 @@ export function buildStreet(A, low, F) {
       if (side === 1 && n === 3) { const [sx, sz] = tw(S.x + S.half + 1 - 1.6, z); SHOP_SPOTS.shop = { id: 'shop', x: +sx.toFixed(2), z: +sz.toFixed(2), r: 2.4, label: 'E · SHOP' }; } }
     addBox(x, wz, w + 0.6, d + 0.6, yaw);
   }
-  { // SQUAD HALL: wide 3 storeys, stone ground floor, banners; [v250] interact INSIDE the big hall (was at the door)
-    const [z] = lots[0], lx = S.x + S.half + 1 + 7, [x, wz] = tw(lx, z - 3), yaw = twy(-Math.PI / 2), y = H(x, wz);
-    const BS = PV.bigShop && PV.bigShop({ x, y, wz, yaw, lx, z: z - 3, addBox, addCirc }); // [Timothy] BANKSY: the big empty shop (js/island/hillStreet.js) replaces the hall building; the squad interact + map entry below stay
+  { // SQUAD HALL: [Timothy v312] the Blender guildhall (js/island/hillStreet.js bigShop: 24 x 14.5 m, walk-in war room, own colliders), else the old town-kit hall
+    const [z] = lots[0], SQH = PV.squadHall ? PV.squadHall() : null, lx = SQH ? SQH.lx : S.x + S.half + 1 + 7, zc = SQH ? SQH.lz : z - 3, [x, wz] = tw(lx, zc), yaw = twy(-Math.PI / 2), y = H(x, wz);
+    const BS = PV.bigShop && PV.bigShop({ x, y, wz, yaw, lx, z: zc, addBox, addCirc });
     if (!BS) colonial(k, F, x, y, wz, yaw, 16, 14, 3, 3, low, 'squad', A), addBox(x, wz, 16.6, 14.6, yaw);
     if (!BS) k.at(M(x, y, wz, yaw), () => { for (const sx of [-5.5, 5.5]) { if (!KP) W(k, box(1.8, 0.12, 4.6), RED, 12, M(sx, 7.5, 7.4, 0, Math.PI / 2), false); if (A.ppflag) atlasQuad(k, 1.7, 1.2, A.ppflag, M(sx, 7.9, KP ? 8.18 : 7.48)); }
       if (KP) atlasQuad(k, 6.6, 1.3, A.squad, M(0, 9.3, 7.5)); // on the Blender hall's facade sign board (2nd floor, reads from the street)
       else { W(k, box(4.2, 0.9, 0.3), WOOD_D, 2, M(0, 4.4, 7.4), false); atlasQuad(k, 4.0, 0.8, A.squad, M(0, 4.4, 7.56)); } });
-    // [squad-hall] BANKSY 9:35 PM: proper pirate squad hall (war table + map, banners, crew board, lanterns, benches). Kit merge only, 0 new textures; phones skip extra trim.
-    if (BS) { k.at(M(x, y, wz, yaw), () => {
-      const PURP = 0x6a4fb3, GOLD = 0xffc93c, MAP = 0xc9a66b, SEA = 0x2b6b7a, LAND = 0x4a7a3a;
-      // side banners (cloth + gold rails); phones keep one pair
-      for (const sx of [-5.2, 5.2]) {
-        W(k, box(0.08, 2.8, 1.8), PURP, 12, M(sx, 2.7, 0.2), false); W(k, box(0.1, 0.12, 1.9), GOLD, 0, M(sx, 4.15, 0.2), false); W(k, box(0.1, 0.12, 1.9), GOLD, 0, M(sx, 1.3, 0.2), false);
-        if (A.ppflag) atlasQuad(k, 1.5, 1.1, A.ppflag, M(sx + (sx > 0 ? -0.06 : 0.06), 2.7, 0.2, 0, Math.PI / 2));
-        if (!low) { W(k, box(0.08, 2.2, 1.4), PURP, 12, M(sx, 2.5, -3.2), false); W(k, box(0.1, 0.1, 1.5), GOLD, 0, M(sx, 3.65, -3.2), false); W(k, box(0.1, 0.1, 1.5), GOLD, 0, M(sx, 1.4, -3.2), false); }
-      }
-      // war table (centre): heavy timber + parchment map with island dots + sea paint
-      W(k, box(3.6, 0.95, 2.0), WOOD, 2, M(0, 0.48, -1.2)); W(k, box(3.8, 0.1, 2.2), MAP, 12, M(0, 1.0, -1.2), false);
-      W(k, box(3.2, 0.04, 1.6), SEA, 0, M(0, 1.06, -1.2), false);
-      for (const [mx, mz, s] of [[-0.8, -0.35, 0.55], [0.6, 0.25, 0.7], [0.1, -0.55, 0.4], [-0.3, 0.4, 0.35]]) W(k, cyl(s * 0.5, s * 0.55, 0.06, 8), LAND, 6, M(mx, 1.1, -1.2 + mz), false);
-      W(k, cyl(0.08, 0.08, 0.18, 6), GOLD, 0, M(0.9, 1.14, -0.7), false); // compass rose pin
-      for (const a of [0.4, 1.7, 2.9, 4.3]) W(k, cyl(0.28, 0.32, 0.55, 8), WOOD_L, 2, M(Math.sin(a) * 1.7, 0.28, -1.2 + Math.cos(a) * 1.35), false); // stools
-      // crew board on the back wall (local -z deeper into hall)
-      W(k, box(3.2, 2.2, 0.12), WOOD_D, 2, M(0, 2.4, -5.4)); W(k, box(3.0, 1.9, 0.04), 0x2a1a0c, 0, M(0, 2.4, -5.32), false);
-      for (let i = 0; i < (low ? 3 : 5); i++) { const yy = 3.05 - i * 0.32; W(k, box(2.6, 0.08, 0.02), i % 2 ? GOLD : 0xe9d5ff, 0, M(0, yy, -5.28), false); }
-      if (A.squad) atlasQuad(k, 2.4, 0.55, A.squad, M(0, 3.55, -5.28));
-      // wall lanterns + benches along the sides
-      for (const sx of [-1, 1]) {
-        W(k, box(0.28, 0.38, 0.28), 0xffd27a, 0, M(sx * 4.4, 2.9, -2.0), false); W(k, box(0.34, 0.08, 0.34), IRON, 0, M(sx * 4.4, 3.12, -2.0), false);
-        if (!low) { W(k, box(0.28, 0.38, 0.28), 0xffd27a, 0, M(sx * 4.4, 2.9, -4.2), false); W(k, box(0.34, 0.08, 0.34), IRON, 0, M(sx * 4.4, 3.12, -4.2), false); }
-        W(k, box(0.7, 0.55, 2.4), WOOD, 2, M(sx * 4.0, 0.35, -2.6)); W(k, box(0.12, 0.7, 2.4), WOOD_D, 2, M(sx * 4.35, 0.7, -2.6), false); // bench + back
-      }
-      if (!low) { // corner barrels / crates (phones skip)
-        barrel(k, M(-4.6, 0, -4.8, 0.4)); barrel(k, M(4.5, 0, -0.6, -0.3)); crate(k, M(4.4, 0, -5.0, 0.5), 1.05); crate(k, M(-4.5, 0, -0.4, -0.2), 1.0);
-      }
-    });
-      { const [tx, tz] = tw(lx + 1.2, z - 3); addBox(tx, tz, 4.0, 2.4, yaw); } // war table footprint
-      for (const [olx, olz] of [[lx + 2.6, z - 3 - 1.4], [lx + 2.6, z - 3 + 1.4]]) { const [bx, bz] = tw(olx, olz); addBox(bx, bz, 1.0, 2.6, yaw); } // side benches
-    }
-    LOTS_MAP.push({ lx, z: z - 3, w: 16, d: 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
-    const [dx, dz] = tw(lx - 7 + 3.5, z - 3); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: 3.2, label: 'E · SQUAD HALL' }); // [v250] mid-hall (~3.5 m past the door), was lx-7-1.6 doorstep
+    // the war table, banners, crew roster board, chandeliers, wing furniture + their colliders are baked into the Blender hall (hill_street_blender.py squad_hall)
+    LOTS_MAP.push({ lx, z: zc, w: BS ? SQH.w : 16, d: BS ? SQH.d : 14, side: 1, label: 'SQUAD HALL (R0)', col: '#a855f7', tc: '#e9d5ff', ldx: -30, ldy: 70 });
+    const [dx, dz] = BS ? tw(SQH.interact.lx, SQH.interact.lz) : tw(lx - 7 + 3.5, zc); INTERACT.push({ id: 'squadhall', x: dx, z: dz, r: BS ? SQH.interact.r : 3.2, label: 'E · SQUAD HALL' }); // inside the hall, on the runner in front of the war table
   }
   if (!COLI.COLISEUM_ON) { // old square restored ONLY by &coliseum=0 (well + stalls + colliders)
     const [z, w] = lots[4], lx = S.x + S.half + 7, [x, wz] = tw(lx, z), y = H(x, wz);
@@ -868,7 +838,7 @@ export function buildStreet(A, low, F) {
   for (let z = S.z0 - 6; z > S.z1; z -= 16) for (const s of [-1, 1]) { if (s === 1 && COLI.inMainAlley(S.x + S.half - 0.6,z,1)) continue; const [x, wz] = tw(S.x + s * (S.half - 0.6), z), y = H(x, wz);
     if (KP) kp(k, 'lamp', M(x, y, wz)); else { W(k, cyl(0.09, 0.12, 3.6, 6), IRON, 0, M(x, y + 1.8, wz)); W(k, box(0.5, 0.6, 0.5), IRON, 0, M(x, y + 3.7, wz), false); k.add(new THREE.SphereGeometry(0.2, 6, 4), 0xffd36b, { bucket: 'glow', m: M(x, y + 3.65, wz), outline: false }); } F.push({ x, y: y + 3.95, z: wz, lamp: true }); addCirc(x, wz, 0.3); }
   for (let i = 0; i < (low ? 10 : 22); i++) { const s = i % 2 ? 1 : -1, z = S.z0 - 8 - i * 6.4, [x, wz] = tw(S.x + s * (S.half - 0.2), z), y = H(x, wz), ry = twy(hash(i, 4) * 6);
-    if (s === 1 && COLI.inMainAlley(S.x + S.half - 0.2,z,1)) continue;
+    if (s === 1 && (COLI.inMainAlley(S.x + S.half - 0.2,z,1) || (PV.hallFront && PV.hallFront(z)))) continue; // [Timothy v312] + the Squad Hall portal kept clear
     if (i % 3 === 0) barrel(k, M(x, y, wz, ry)); else if (i % 3 === 1) crate(k, M(x, y, wz, ry), 1.1); else sacks(k, M(x, y, wz, ry)); addCirc(x, wz, 0.8); }
   { const z = S.z1 + 4, y = H(...tw(S.x, z)); // town gate
     for (const s of [-1, 1]) { const [x, wz] = tw(S.x + s * (S.half + 1.6), z); if (!GATE_ARCH_OFF) { W(k, box(3.2, 10, 3.2), STONE, 11, M(x, y + 5, wz, twy(0))); for (let c = 0; c < 4; c++) W(k, box(0.8, 0.9, 0.8), STONE, 11, M(x + (c % 2 - 0.5) * 2, y + 10.4, wz + (c > 1 ? 1 : -1) * 1.0, twy(0)), false); addBox(x, wz, 3.4, 3.4, twy(0)); } torchPost(k, F, ...tw(S.x + s * (S.half - 0.4), z + 2.5).flatMap((v, i) => i ? [H(...tw(S.x + s * (S.half - 0.4), z + 2.5)), v] : [v])); }
@@ -989,7 +959,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
   BT.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } });
   buildSwimCove(k, at, low);                                                                       // [Raul] SWIM COVE (BANKSY)
   BA.buildArt({ k, W, box, cyl, T, H, addBox, addCirc, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Timothy] battle areas: range + pit (static art, colliders)
-  COLI.buildArt({ rentLot: PV.rentLot, k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
+  COLI.buildArt({ rentLot: PV.rentLot, squadOverlap: PV.squadOverlap, k, W, box, cyl, T, H, addBox, addCirc, addDeck, torchPost, barrel, crate, F, C: { STONE, STONE_D, WOOD, WOOD_D, IRON } }); // [Emerly] intact colosseum shell + gates + stores
   return k;
 }
 // [Raul] SWIM COVE art (merged into the coast kit: 0 extra draw calls): jetty on posts + 4 steps up to a diving tower with rails and

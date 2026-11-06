@@ -15,6 +15,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
 import { libMaterial } from './libTex.js';   // [Timothy] the shared material library (TEXCOORD_0 = layer code)
+import { SQUAD_HALL } from './hillShops.js';  // [Timothy v312] the widened Squad Hall (R0) footprint / door / E · SQUAD HALL point (generated)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const HILL_GLB_ON = !(Q && Q.get('hillglb') === '0');
@@ -22,7 +23,7 @@ export let HILL_KIT = null;          // { low, mats, lots: { L3: { lods: [Group]
 export const HILL_PLACES = [];       // [{ key, m: Matrix4 }] (foot-world) filled by hillLot
 const RECTS = [];                    // town-local footprints of the placed buildings (+ the closed alleys): no grass in the shop rooms
 export const hillClear = (lx, lz) => { for (const r of RECTS) if (lx > r[0] && lx < r[1] && lz > r[2] && lz < r[3]) return true; return false; };
-const FILES = ['hill_street', 'hill_sword_shop', 'hill_musket_shop', 'hill_big_shop'];   // hill_big_shop = rent_big on the old Squad Hall plot (R0)
+const FILES = ['hill_street', 'hill_sword_shop', 'hill_musket_shop', 'hill_big_shop'];   // hill_big_shop = the SQUAD HALL (R0, [Timothy v312])
 const LOD_D = 46;                    // desktop: LOD0 -> LOD1 (m)
 
 const SIGN_MERGE = (() => { try { return !/[?&]signmerge=0/.test(location.search); } catch { return true; } })();
@@ -63,15 +64,29 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   return true;
 }
 
-// [BANKSY pt203u] foot.js buildStreet, the Squad Hall plot (one guarded line, Raul's file): when hill_big_shop is loaded the old town-kit Squad Hall
-// building, its banners, its sign and its solid footprint box are skipped and the big empty shop (rent_big, R0) stands there with its own colliders.
-// foot.js still pushes the 'SQUAD HALL (R0)' LOTS_MAP entry + the INTERACT 'squadhall' (E · SQUAD HALL) at the middle of the new shopfront, so the
-// Squad Hall board, the map POI, main.js squadSign and battle.js storeDoors keep working unchanged. false = load failed / ?hillglb=0 / &bigshop=0: the old hall.
-export const BIG_SHOP_ON = !(Q && Q.get('bigshop') === '0');   // &bigshop=0 = the old Squad Hall building (before / after shots)
+// [Timothy v312] BANKSY pt381u "Upgrade the squad hall ... Make it wider, enhance inside and outside": hill_big_shop.glb (R0) is the SQUAD HALL
+// again, rebuilt in tools/hill_blender/hill_street_blender.py squad_hall(): 24 x 14.5 m (was the 16.6 m empty rent shop), 3 storeys, a 5 m arched
+// portal, a walk-in war room (war table, armory + captains' lounge wings, the squad roster board) with its own colliders. foot.js buildStreet (one
+// guarded block, Raul's file) places it at SQUAD_HALL (lx 21.25, lz -71, front on the building line lx 14, lz -83 .. -59) and puts the 'SQUAD HALL (R0)'
+// map entry + INTERACT 'squadhall' (E · SQUAD HALL) at SQUAD_HALL.interact inside the hall. false = load failed / ?hillglb=0 / &bigshop=0: the old hall.
+export const BIG_SHOP_ON = !(Q && Q.get('bigshop') === '0');   // &bigshop=0 = the old town-kit Squad Hall building (before / after shots)
+const squadKit = () => { const L = BIG_SHOP_ON && HILL_KIT && HILL_KIT.lots.R0; return L && L.lods.length && L.kind === 'squad' ? L : null; };
+export const squadHall = () => (squadKit() ? SQUAD_HALL : null);   // foot.js: the hall data once the Blender hall is the one that stands
 export function bigShop({ x, y, wz, yaw, lx, z, addBox, addCirc }) {
-  if (!BIG_SHOP_ON) return false;
-  return hillLot({ side: 1, n: 0, z, w: 16.6, d: 14, lx, x, wz, yaw, y, addBox, addCirc });
+  if (!squadKit()) return false;
+  return hillLot({ side: 1, n: 0, z, w: SQUAD_HALL.w, d: SQUAD_HALL.d, lx, x, wz, yaw, y, addBox, addCirc });
 }
+// the ground under the hall stays on the Main Street grade (the plaza blend dipped the south end 0.4 m below the floor): flat inside the footprint,
+// eased back to the terrain over 2.5 m outside it (foot.js terrain, coast mode; static flags only: the terrain is built before the GLBs load)
+const SQ_GROUND_ON = HILL_GLB_ON && BIG_SHOP_ON && !!SQUAD_HALL;
+export function hallGround(lx, lz, h) {
+  if (!SQ_GROUND_ON) return h; const R = SQUAD_HALL.rect, dx = Math.max(R.lx0 - 0.6 - lx, 0, lx - R.lx1 - 0.6), dz = Math.max(R.lz0 - 0.6 - lz, 0, lz - R.lz1 - 0.6), dd = Math.hypot(dx, dz);
+  if (dd >= 2.5) return h; const t = 1 - dd / 2.5, k = t * t * (3 - 2 * t), ys = 3.0 + Math.max(0, -lz - 50) * 0.11; return h + (ys - h) * k;
+}
+// the street crates / barrels: none in front of the portal (foot.js street dressing, east row)
+export const hallFront = (lz) => !!squadKit() && Math.abs(lz - SQUAD_HALL.door.lz) < SQUAD_HALL.doorW / 2 + 1.4;
+// js/island/coliseum.js NEW_STORES (&colirent=1 only): a store whose footprint overlaps the hall is not built
+export const squadOverlap = (lx0, lx1, lz0, lz1) => { if (!squadKit()) return false; const R = SQUAD_HALL.rect; return lx0 < R.lx1 && lx1 > R.lx0 && lz0 < R.lz1 && lz1 > R.lz0; };
 
 // [Timothy] material library: the layer is projected in object space; merged into the world frame (phones) a building turned a quarter turn
 // would swap the grain of its top faces (deck boards, roof tiles along the ridge), so flip their swap bit back (side faces keep it)
@@ -81,11 +96,12 @@ function libTurn(geo, m) {
   for (let i = 0; i < U.count; i++) { const ny = Math.abs(N.getY(i)); if (ny < Math.abs(N.getX(i)) || ny < Math.abs(N.getZ(i))) continue;
     const c = Math.floor(U.getX(i) * 32); if (c < 2) continue; U.setX(i, ((c ^ 1) + 0.5) / 32); }
 }
-// [Emerly] BANKSY: the coliseum entrance shops (#45 / #46, js/island/coliseum.js NEW_STORES) = the same empty rent shop as the hill street
-// (the R0 big shop model: door, interior, colliders, blank rent sign plate), placed again (cloned in buildHill). &colirent=0 = the old stone boxes.
+// [Emerly] BANKSY: the coliseum entrance shops (#45 / #46, js/island/coliseum.js NEW_STORES, &colirent=1 only) = the same empty rent shop as the hill
+// street (the R0 big shop model), placed again (cloned in buildHill). &colirent=0 = the old stone boxes. [Timothy v312] R0 is the Squad Hall now
+// (never cloned onto another plot): the stores keep their stone boxes, and #46 (it overlaps the widened hall) is skipped (squadOverlap).
 export const COLI_RENT_ON = BIG_SHOP_ON && !(Q && Q.get('colirent') === '0');
 export function rentLot({ id, x, y, wz, yaw, addBox, addCirc }) {
-  const L = COLI_RENT_ON && HILL_KIT && HILL_KIT.lots.R0; if (!L || !L.lods.length) return false;
+  const L = COLI_RENT_ON && HILL_KIT && HILL_KIT.lots.R0; if (!L || !L.lods.length || L.kind === 'squad') return false;
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
   HILL_PLACES.push({ key: 'R0', id, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });

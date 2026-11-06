@@ -646,6 +646,7 @@ export function buildArt(o) {
   }
 
   for (const s of COLI_STORES_ON ? NEW_STORES : []) {
+    if (o.squadOverlap && o.squadOverlap(s.lx - s.d / 2, s.lx + s.d / 2, s.lz - s.w / 2, s.lz + s.w / 2)) continue;   // [Timothy v312] #46 vs the widened Squad Hall
     { const f = s.yaw > 0 ? 1 : -1, clx = s.lx + f * (s.d / 2 - 7), [rx, rz] = T(clx, s.lz);
       if (o.rentLot && o.rentLot({ id: s.id, x: rx, y: H(rx, rz), wz: rz, yaw: CO.t2wYaw(s.yaw), addBox, addCirc })) continue; }
     const [x, z] = T(s.lx, s.lz), y = H(x, z), yaw = CO.t2wYaw(s.yaw);
