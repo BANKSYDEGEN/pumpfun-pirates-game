@@ -14,6 +14,8 @@
 // walker can't step into them (same rule as any deck), and the wall-walk on top is the same deck. Only the outer parapet strips
 // + the stair parapets + props are colliders. Cosmetic only: nothing pays gold (flags.js).
 import { COLISEUM_ON } from '../coliseum.js';
+const ZIP_ON = !(typeof location !== 'undefined' && /[?&]zipline=0(&|$)/.test(location.search)); // [v309] castle zipline embrasure
+const ZIP_A_NE = ZIP_ON ? Math.atan2((-232) - (-57), (-188) - (-395)) : 0; // toward Waterfall Hill summit stand
 import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, W, C, store, today } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
@@ -89,17 +91,29 @@ export default {
     { const wx = F.x - wc, gz0 = F.z - F.gateHW, gz1 = F.z + F.gateHW;
       h.addHighBridge?.({ id: 'fort_gate_bridge', ax: wx, az: gz0, bx: wx, bz: gz1, L: F.gateHW * 2, yaw: 0, half: wd / 2 - 0.15, yAt: () => WT }); }
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) h.addDeck({ id: 'fort_tower_' + sx + sz, x: F.x + sx * F.half, z: F.z + sz * F.half, r: 3.6, y: WT });
+    // [v309] cantilevered zipline balcony deck + side guards on NE in-game turret [+1,-1]
+    if (ZIP_ON) {
+      const tx = F.x + F.half, tz = F.z - F.half, yaw = ZIP_A_NE;
+      const ox = Math.cos(yaw), oz = Math.sin(yaw), sx = -oz, sz = ox; // side unit
+      h.addDeck({ id: 'fort_zip_balc', x: tx + ox * 3.2, z: tz + oz * 3.2, yaw, hw: 1.5, hl: 1.7, y: WT });
+      for (const s of [-1, 1]) h.addBox(tx + ox * 3.2 + sx * s * 1.5, tz + oz * 3.2 + sz * s * 1.5, 0.35, 2.8, -yaw);
+    }
     // outer parapet colliders: N/S/E stop short of corner towers; WEST split around the gate (arch open at y=36)
     h.addBox(F.x, Z1 - 0.25, paraSpan, 0.5, 0);
     h.addBox(F.x, Z0 + 0.25, paraSpan, 0.5, 0);
     h.addBox(X1 - 0.25, F.z, 0.5, paraSpan, 0);
     for (const s of [-1, 1]) h.addBox(X0 + 0.25, F.z + s * (F.gateHW + gs / 2), 0.5, gs, 0);
     // all 4 corner towers: outer ~210° rim colliders only; inner ~150° into the two wall-walks stays open
+    // [v309] NE in-game turret [+1,-1]=(-395,-57): open ±0.42 rad embrasure toward Waterfall Hill zipline
+    const zipA_NE = ZIP_A_NE;
+    const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const tx = F.x + sx * F.half, tz = F.z + sz * F.half, inward = Math.atan2(-sz, -sx);
+      const isZipTurret = ZIP_ON && sx === 1 && sz === -1;
       for (let i = 0; i < 14; i++) {
         const a = i / 14 * Math.PI * 2; let d = a - inward; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
         if (Math.abs(d) < Math.PI * 75 / 180) continue; // open mouth into the wall-walks
+        if (isZipTurret && Math.abs(angDiff(a, zipA_NE)) < 0.55) continue; // zipline embrasure
         h.addBox(tx + Math.cos(a) * 3.15, tz + Math.sin(a) * 3.15, 0.85, 0.55, -a);
       }
     }
@@ -229,14 +243,21 @@ export default {
     kerb(kx1, F.z, 0.32, kz1 - kz0); // east
     kerb(kx0, F.z, 0.32, kz1 - kz0); // west (continuous over gate — inner face)
     // corner towers: round body + outer-arc crenels/canopy posts only (inner ~150° into wall-walks stays open). [fort-upper]
+    // [v309] NE in-game [+1,-1] opens merlon embrasure toward waterfall zipline; nudge canopy posts clear of the gap
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const x = F.x + sx * F.half, z = F.z + sz * F.half, inward = Math.atan2(-sz, -sx);
       const open = (a) => { let d = a - inward; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return Math.abs(d) < Math.PI * 75 / 180; };
+      const isZipTurret = ZIP_ON && sx === 1 && sz === -1;
+      const zipGap = (a) => { if (!isZipTurret) return false; let d = a - ZIP_A_NE; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return Math.abs(d) < 0.55; };
       W(k, cyl(3.4, 3.8, (WT - walkH) - base, 12), C.STONE, M(x, ((WT - walkH) + base) / 2, z));
       for (const yy of [Y + 1.8, Y + 4.2]) W(k, cyl(3.55, 3.55, 0.22, 12), C.STONE_D, M(x, yy, z), false);
-      if (hi) for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; if (open(a)) continue; W(k, box(0.5, 1.15, 0.18), 0x1b1d22, M(x + Math.cos(a) * 3.45, Y + 2.9, z + Math.sin(a) * 3.45, -a), false); }
-      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; if (open(a)) continue; W(k, box(0.95, 1.05, 0.65), C.STONE_D, M(x + Math.cos(a) * 3.2, WT + 0.55, z + Math.sin(a) * 3.2, -a), false); W(k, box(1.05, 0.14, 0.75), TRIM, M(x + Math.cos(a) * 3.2, WT + 1.12, z + Math.sin(a) * 3.2, -a), false); }
-      // canopy posts on outer arc at r=3.15 — never inside wall-walk mouths
-      for (const a of [inward + Math.PI * 0.55, inward + Math.PI * 0.9, inward + Math.PI * 1.1, inward + Math.PI * 1.45]) {
+      if (hi) for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; if (open(a) || zipGap(a)) continue; W(k, box(0.5, 1.15, 0.18), 0x1b1d22, M(x + Math.cos(a) * 3.45, Y + 2.9, z + Math.sin(a) * 3.45, -a), false); }
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; if (open(a) || zipGap(a)) continue; W(k, box(0.95, 1.05, 0.65), C.STONE_D, M(x + Math.cos(a) * 3.2, WT + 0.55, z + Math.sin(a) * 3.2, -a), false); W(k, box(1.05, 0.14, 0.75), TRIM, M(x + Math.cos(a) * 3.2, WT + 1.12, z + Math.sin(a) * 3.2, -a), false); }
+      // canopy posts on outer arc at r=3.15 — never inside wall-walk mouths; [v309] keep ≥0.50 rad clear of zip embrasure
+      for (let a of [inward + Math.PI * 0.55, inward + Math.PI * 0.9, inward + Math.PI * 1.1, inward + Math.PI * 1.45]) {
+        if (isZipTurret) {
+          let d = a - ZIP_A_NE; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+          if (Math.abs(d) < 0.58) a = ZIP_A_NE + (d >= 0 ? 0.58 : -0.58);
+        }
         W(k, cyl(0.16, 0.18, 3.6, 6), C.STONE_D, M(x + Math.cos(a) * 3.15, WT + 1.8, z + Math.sin(a) * 3.15), false);
       }
       W(k, new THREE.ConeGeometry(3.95, 3.4, 12), ROOF, M(x, WT + 5.3, z)); W(k, new THREE.ConeGeometry(3.6, 0.5, 12), ROOF_D, M(x, WT + 3.7, z), false);
