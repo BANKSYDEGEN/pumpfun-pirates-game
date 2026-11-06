@@ -4,6 +4,7 @@
 // Frames: a sword's grip centre is the origin and the blade points +Y (edge facing +Z); the musket's butt is the origin, barrel +Z.
 // SWORD_IDS is APPEND-ONLY: the index rides in the arena state ('ba') so other pirates see your blade.
 import * as THREE from 'three';
+import { toon } from '../toon.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const SWORD_IDS = ['rusty', 'cutlass', 'rapier', 'bone', 'sabre_gilded', 'blade_gold'];
@@ -110,3 +111,53 @@ export function loadWeaponModels(low = false) {
   _weapons = Promise.all([...SWORD_IDS.map((id) => one('sword', id)), ...MUSKET_IDS.map((id) => one('musket', id))]); return _weapons;
 }
 export const weaponEmpty = (slot, id, name) => EMPTIES.get(slot === 'sword' ? id : 'musket:' + id)?.[name] || null;   // grip_r / grip_l / tip / muzzle (file metres)
+
+// [v332] BANKSY t1748–t1750u: bespoke LEGENDARY ornamentation (gold filigree + crimson rubies) on top of rank tint
+let _legM = null;
+const legM = () => { if (_legM) return _legM; _legM = {
+  gold: toon(0xffd24a, null, { key: 'leg-gold', emissive: 0x7a4b00, emissiveIntensity: 0.55 }),
+  gold2: toon(0xffe08a, null, { key: 'leg-gold2', emissive: 0x6b3a00, emissiveIntensity: 0.4 }),
+  ruby: toon(0xc4161c, null, { key: 'leg-ruby', emissive: 0x5a0008, emissiveIntensity: 0.7 }),
+  enamel: toon(0x8a1020, null, { key: 'leg-enamel' }),
+}; return _legM; };
+function _add(g, geo, mat, x, y, z, rx=0, ry=0, rz=0) { const o = new THREE.Mesh(geo, mat); o.position.set(x,y,z); o.rotation.set(rx,ry,rz); o.userData.legendary = true; g.add(o); return o; }
+
+/** Ornate royal-gold filigree + ruby gems for a legendary sword mesh (blade +Y). */
+export function legendarySwordMesh(mesh) {
+  if (!mesh || mesh.userData._legOrn) return mesh; mesh.userData._legOrn = true;
+  const M = legM(), g = new THREE.Group(); g.name = 'legendarySwordOrn';
+  // filigree guard/collar bands
+  _add(g, new THREE.TorusGeometry(0.055, 0.008, 6, 14), M.gold, 0, 0.05, 0, Math.PI / 2);
+  _add(g, new THREE.TorusGeometry(0.04, 0.006, 5, 12), M.gold2, 0, 0.02, 0, Math.PI / 2);
+  // crossguard cabochons + ruby pommel
+  _add(g, new THREE.OctahedronGeometry(0.028), M.ruby, 0.12, 0.05, 0);
+  _add(g, new THREE.OctahedronGeometry(0.028), M.ruby, -0.12, 0.05, 0);
+  _add(g, new THREE.OctahedronGeometry(0.035), M.ruby, 0, -0.2, 0);
+  // golden fuller / spine inlay along the blade
+  _add(g, new THREE.BoxGeometry(0.01, 0.55, 0.008), M.gold2, 0, 0.4, 0.01);
+  // crimson enamel collar
+  _add(g, new THREE.CylinderGeometry(0.032, 0.032, 0.03, 10), M.enamel, 0, 0.07, 0);
+  mesh.add(g); return mesh;
+}
+
+/** Royal-gold barrel bands, ruby lock jewel, gilded trigger guard for a legendary musket (barrel +Z). */
+export function legendaryMusketMesh(mesh, id = MUSKET_DEFAULT) {
+  if (!mesh || mesh.userData._legOrn) return mesh; mesh.userData._legOrn = true;
+  const M = legM(), mz = musketMuzzle(id), L = Math.max(0.6, mz.z || 1.38), y = mz.y || 0.06;
+  const g = new THREE.Group(); g.name = 'legendaryMusketOrn';
+  // royal-gold barrel bands
+  for (const t of [0.35, 0.55, 0.78]) _add(g, new THREE.TorusGeometry(0.036, 0.007, 5, 12), M.gold, 0, y, L * t, Math.PI / 2);
+  // filigree breech crest + ruby lock/sight jewel
+  _add(g, new THREE.BoxGeometry(0.05, 0.04, 0.08), M.gold2, 0, y + 0.04, 0.34);
+  _add(g, new THREE.OctahedronGeometry(0.022), M.ruby, 0.0, y + 0.07, 0.36);
+  // gilded trigger guard + butt trim
+  _add(g, new THREE.TorusGeometry(0.035, 0.007, 5, 10, Math.PI), M.gold, 0, y - 0.05, 0.38, 0, Math.PI / 2, 0);
+  _add(g, new THREE.BoxGeometry(0.08, 0.14, 0.02), M.gold, 0, -0.02, -0.01, -0.12);
+  _add(g, new THREE.BoxGeometry(0.01, 0.01, L * 0.5), M.gold2, 0.0, y + 0.025, L * 0.45); // spine gleam
+  mesh.add(g); return mesh;
+}
+
+export function applyLegendaryOrnament(mesh, slot, id, rarity) {
+  if (rarity !== 'legendary' || !mesh) return mesh;
+  return slot === 'sword' ? legendarySwordMesh(mesh) : legendaryMusketMesh(mesh, id);
+}

@@ -41,7 +41,7 @@ export function applyMuskUpg(o, rarity = 'common', lv = LV) {
   return r;
 }
 // the look: rank tint / trim (toon colour multiplier + a faint emissive), the GILDED skin wins
-export const RANK_LOOK = { common: null, rare: { c: 0xd6e8ff, e: 0x0b2a55, ei: 0.35 }, epic: { c: 0xead6ff, e: 0x3a0f5a, ei: 0.4 }, legendary: { c: 0xfff0c4, e: 0x5a3a00, ei: 0.5 } };
+export const RANK_LOOK = { common: null, rare: { c: 0xd6e8ff, e: 0x0b2a55, ei: 0.35 }, epic: { c: 0xead6ff, e: 0x3a0f5a, ei: 0.4 }, legendary: { c: 0xffe08a, e: 0x7a4b00, ei: 0.55 } }; // [v332] legendary gold gleam
 export const GILDED_LOOK = { c: 0xffe08a, e: 0x6b4a00, ei: 0.6 };
 export function muskLook(rarity = 'common', lv = LV) {
   if (muskUpgOn() && lv.skin && (typeof window === 'undefined' || window.PFP_MUSK_SKIN !== false)) return { id: 'gilded', ...GILDED_LOOK };
@@ -71,4 +71,18 @@ export function applyGunAcc(o, acc = gunAcc()) {
   if ('wide' in r) { let w = r.wide; if (acc.scope) w *= 0.95; if (acc.stock) w *= 0.97; r.wide = +w.toFixed(3); }
   r.recoil = acc.stock ? 0.7 : 1; r.zoom = acc.scope ? 1.15 : 1; r.bayonet = acc.bayonet ? { dmg: 3, reach: 2.2 } : null; // [backpack-pvp] t1711u: 21 + 3 = 24 x 4 = 96 < 100 = still 5 shots at legendary
   return r;
+}
+
+// [v332] swords share the same rarity look table (battle.js swordLook)
+export const swordLook = (rarity = 'common') => muskLook(rarity, { reload: 0, range: 0, acc: 0, skin: false });
+// [v332] per-musket instance binding: active equipped loadout lives in ACC; bag/house copies tracked by gid
+let GUNS = []; // [{gid, item, place, acc, cottage_id?, house_slot?}] from inv_state
+export function setGunInstances(list = []) { GUNS = Array.isArray(list) ? list.map((g) => ({ ...g, acc: { ...(g.acc || {}) } })) : []; const eq = GUNS.find((g) => g.place === 'equip'); if (eq) { ACC = { ...eq.acc }; pub(); } if (typeof window !== 'undefined') window.PFP_GUN_INST = GUNS.map((g) => ({ ...g, acc: { ...g.acc } })); }
+export const gunInstances = () => GUNS.map((g) => ({ ...g, acc: { ...g.acc } }));
+export function gunAccOf(gid) { const g = GUNS.find((x) => x.gid === gid); return g ? { ...g.acc } : {}; }
+export function applyLocalAcc(gid, slot, key) { // optimistic client update while the RPC flies
+  const g = GUNS.find((x) => x.gid === gid); if (!g) return gunAcc();
+  if (key) g.acc[slot] = key; else delete g.acc[slot];
+  if (g.place === 'equip') { ACC = { ...g.acc }; try { localStorage.setItem(ACC_LS + (typeof window !== 'undefined' && window.PFP_GUN_WHO || 'me'), JSON.stringify(ACC)); } catch {} pub(); }
+  return { ...g.acc };
 }

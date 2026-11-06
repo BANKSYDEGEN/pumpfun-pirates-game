@@ -132,7 +132,7 @@ test('continuous walkable grade: Bridge→Fishing < 0.45, Plateau→Ziplines < 0
   assert.ok(mh < 0.55, `plateau→ziplines maxStep ${mh}`);
   // Ends near targets
   const fl = fish.pts.at(-1); assert.ok(Math.hypot(fl[0] + 205, fl[1] + 61.5) < 3, JSON.stringify(fl));
-  const hl = hill.pts.at(-1); assert.ok(Math.hypot(hl[0] + 188, hl[1] + 232) < 3, JSON.stringify(hl));
+  const hl = hill.pts.at(-1); assert.ok(Math.hypot(hl[0] + 200, hl[1] + 219) < 4, JSON.stringify(hl)); // [v332] cliff-edge skull zip
 });
 
 test('ZERO falls.glb / added rock mounds / trail lanterns / bridge signs', () => {

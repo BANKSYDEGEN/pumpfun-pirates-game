@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v331'; // [v331] Emerly load time + graphics + speed pass (t1746u / t1751u: full modulepreload graph, harbor warm-up, parallel island art, zipline merge, phone anisotropy 4) + Storm Hunt fixes (t1752u-t1754u: starts from the Harbor, 100 gold / wave, RETURN TO HARBOR, old open sea); prev: [v330] clean AAA river + lagoon + waterfall plunge + seamless outflow & graded fishing/zipline paths (BANKSY t402u); [v329] house_take source CHECK + non-stacking cottage weapons (t1742-3u) + Raul V6 AAA character polish; prev: [v328] HB east landing + Harbor co-op squads 16 / zero FF + ship respawn;
+const VERSION = 'pfp-v332'; // [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

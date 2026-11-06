@@ -9,7 +9,7 @@ import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's
 import { squadAction, SQUAD_ACTIONS } from "./squad.ts"; // [squad-hall]
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
-export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
+export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
 // every item the owner test kit holds (~3 of each): fish, valuables, weapons at every rarity (maps are added by SQL)
@@ -69,7 +69,9 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       const { data: flags } = await db.from("pvp_flags").select("k, on_");
       const stack = new Map<string, { item: string; qty: number; tradeable: number; kit: number }>();
       for (const r of rows || []) { const s = stack.get(r.item) || { item: r.item, qty: 0, tradeable: 0, kit: 0 }; s.qty += r.qty; if (r.source !== "carry_buy") s.tradeable += r.qty; if (r.source === "kit") s.kit += r.qty; stack.set(r.item, s); }
-      return json(200, { ok: true, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).filter((e: any) => who.owner || stack.has(e.item)).map((e: any) => [e.slot, e.item])) /* [rare-equip] a given / sold weapon stops counting */, flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
+      let guns: any[] = [];
+      try { const g = await rpc("pvp_gun_ensure", { p_player: pid }); guns = g?.guns || []; } catch { /* 047 not applied yet */ }
+      return json(200, { ok: true, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).filter((e: any) => who.owner || stack.has(e.item)).map((e: any) => [e.slot, e.item])) /* [rare-equip] a given / sold weapon stops counting */, guns, flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
     }
     case "inv_sell": {
       const item = b.item, qty = qtyOf(b.qty), shop = b.shop === "fish" ? "fish" : b.shop === "antiques" ? "antiques" : null;
@@ -116,6 +118,14 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       const slot = b.slot === "sword" ? "sword" : b.slot === "musket" ? "musket" : null; if (!slot) return json(400, { error: "bad slot" });
       const { error } = await db.from("pvp_inv_equip").delete().eq("player_id", pid).eq("slot", slot); if (error) throw error;
       return json(200, { ok: true, slot }); }
+    case "gun_acc_set": { // [v332] fit/detach attachment on a specific musket instance
+      const gid = String(b.gid ?? ""), slot = String(b.slot ?? ""), key = b.key == null || b.key === "" ? null : String(b.key);
+      if (!/^[0-9a-f-]{36}$/i.test(gid) || !["scope","bayonet","stock","horn"].includes(slot)) return json(400, { error: "bad gun" });
+      if (key && !ACC_PRICE[key]) return json(400, { error: "bad key" });
+      return reply(await rpc("pvp_gun_acc_set", { p_player: pid, p_gid: gid, p_slot: slot, p_key: key })); }
+    case "gun_equip": { // [v332] equip a specific musket instance (keeps each copy's acc)
+      const gid = String(b.gid ?? ""); if (!/^[0-9a-f-]{36}$/i.test(gid)) return json(400, { error: "bad gun" });
+      return reply(await rpc("pvp_gun_equip", { p_player: pid, p_gid: gid })); }
     case "inv_online": return reply(await onlineAction(db, pid, { detail: !!b?.detail })); // [give-dropdown] / [squad-hall] detail = world labels
     case "squad_invite": case "squad_invites": case "squad_invite_ack": {
       const { data: me } = await db.from("pvp_players").select("name").eq("id", pid).maybeSingle();

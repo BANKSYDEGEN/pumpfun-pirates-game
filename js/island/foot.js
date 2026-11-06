@@ -275,7 +275,7 @@ for (const p of AREA_TERRAIN.paths) {
     }
   }
   for (const [q, w] of accW) { const ww = Math.min(1, w); Hg[q] = Hg[q] * (1 - ww) + (accY.get(q) / w) * ww; }
-  if (p.id === 'wf_hill_trail') for (const [zx, zz] of [[-188, -247], [-188, -232]]) {
+  if (p.id === 'wf_hill_trail') for (const [zx, zz] of [[-200, -219], [-228, -212]]) { // [v332] cliff-edge zip stands
     const zy = H(zx, zz);
     for (let j = Math.max(0, Math.floor((zz - 5 - Z0) / G)); j <= Math.min(NZ, Math.ceil((zz + 5 - Z0) / G)); j++)
       for (let ii = Math.max(0, Math.floor((zx - 5 - X0) / G)); ii <= Math.min(NX, Math.ceil((zx + 5 - X0) / G)); ii++) {

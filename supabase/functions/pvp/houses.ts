@@ -62,8 +62,18 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
       }
       case "house_store": {
         const cottage = String(b.cottage ?? ""), item = b.item, qty = qtyOf(b.qty);
+        const gid = typeof b.gid === "string" && /^[0-9a-f-]{36}$/i.test(b.gid) ? b.gid : null;
         if (!okCottage(cottage) || !okKey(item) || !qty) return c.json(400, { error: "bad store" });
-        const { data, error } = await db.rpc("pvp_house_store", { p_player: pid, p_cottage: cottage, p_item: item, p_qty: qty });
+        // [v332] musket with gid → pvp_house_store_gun (moves that copy's acc into meta)
+        let data: any, error: any;
+        if (gid && String(item).startsWith("wpn:musket:")) {
+          ({ data, error } = await db.rpc("pvp_house_store_gun", { p_player: pid, p_cottage: cottage, p_gid: gid }));
+          if (error && /pvp_house_store_gun|PGRST202|42883/.test(`${error.code} ${error.message}`)) {
+            ({ data, error } = await db.rpc("pvp_house_store", { p_player: pid, p_cottage: cottage, p_item: item, p_qty: 1 }));
+          }
+        } else {
+          ({ data, error } = await db.rpc("pvp_house_store", { p_player: pid, p_cottage: cottage, p_item: item, p_qty: qty }));
+        }
         if (error) {
           if (/pvp_house_store|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;

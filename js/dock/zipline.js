@@ -1,4 +1,4 @@
-// [Emerly zipline-castle / v309] BANKSY 7:57–8:?? PM Nov 5:
+// [Emerly zipline / v332] BANKSY t1763u–t1764u: cliff-edge short stands + Skull outer brow restored.
 //   "make zipline from this corner of castle to the waterfall zipline" (in-game NE turret [-395,-57])
 //   "Move the 2 waterfall hill zip lines to top of hill"
 //   "Give them room that can get off and on, also make it so they can change direction while on zip line if want to return"
@@ -10,13 +10,14 @@ import { OPT_ON, freezeStatic, mergeStaticGroup } from '../opt.js';
 
 export const ZIP_ON = !(typeof location !== 'undefined' && /[?&]zipline=0(&|$)/.test(location.search));
 export const ZIP = {
-  treeClear: 9, sag: 0.014, vMin: 13, vMax: 44, vUp: 20.5, g: 9.8, drag: 0.008, lift: 0.7, lower: 0.7,
-  hang: 2.55, bob: 0.06, gantry: 2.85, crewGap: 0.3, crewDist: 4.2, grace: 0.25, cool: 0.6, dropVy: 1.2,
+  // [v332] BANKSY t1764u: short chibi gantries. Arms-up reach ~2.15 m; hang ~2.12 so hands meet the compact trolley bar.
+  treeClear: 9, sag: 0.011, vMin: 13, vMax: 44, vUp: 20.5, g: 9.8, drag: 0.008, lift: 0.7, lower: 0.7,
+  hang: 2.12, bob: 0.06, gantry: 2.35, crewGap: 0.3, crewDist: 4.2, grace: 0.25, cool: 0.6, dropVy: 1.2,
   revCool: 0.40,
 };
 
 // Castle NE turret (island map: -z = N, +x = E) — BANKSY screenshot corner, no spyglass.
-export const CASTLE_ZIP = { x: -395, z: -57, y: 42, r: 3.6, gantryR: 4.35, gantryH: 3.1, embrasure: 0.55 };
+export const CASTLE_ZIP = { x: -395, z: -57, y: 42, r: 3.6, gantryR: 4.35, gantryH: 2.35, embrasure: 0.55 }; // [v332] short turret gantry
 
 function rimToward(H, from, toward, { maxR = 90, step = 2, look = 8, minDrop = 5, minH = 35 } = {}) {
   const dx = toward[0] - from[0], dz = toward[1] - from[1], n = Math.hypot(dx, dz) || 1;
@@ -59,36 +60,48 @@ export function waterfallPeak(FM) {
 }
 
 /**
- * Two lines on the Waterfall Hill summit crown + Skull brow + Castle NE turret balcony.
- * Tuned so both stands sit on top (h≈76–78) with room to board, and cables clear terrain.
+ * Two lines: Waterfall Hill cliff-edge stands + Skull outer brow (~52 m) + Castle NE turret.
+ * [v332] BANKSY t1763u/t1764u: stands on the cliff lips (not summit centre), Skull restored to the
+ * outer-brow search from 2f4b049, ALL gantries short (<= 2.75 m) so cables clear without towers.
  */
 export function zipLines(FM) {
   const H = (x, z) => FM.H(x, z);
   const { hill, ha } = waterfallPeak(FM);
   const S = FM.SKULL;
-  // Tuned summit stands (island xz): castle-bound on W/S crown, skull-bound near peak. ~15 m apart.
-  // Elevations + gantry heights verified for foot clearance (see tools probe / commit notes).
-  let wfCastle = [-188, -232];
-  let wfSkull = [-188, -247];
-  // Snap a meter if peak drifts
+  // Cliff-edge stands (probed): WF castle = W/SW lip facing CASTLE_ZIP; WF skull = N/NE lip facing Skull.
+  // ~27 m apart (boarding radii never overlap); walkable summit ground behind each for landAt('behind').
+  let wfCastle = [-228, -212];
+  let wfSkull = [-200, -219];
   {
     const dC = Math.hypot(wfCastle[0] - hill[0], wfCastle[1] - hill[1]);
     const dS = Math.hypot(wfSkull[0] - hill[0], wfSkull[1] - hill[1]);
-    if (dC > 28 || H(...wfCastle) < ha - 10) wfCastle = [hill[0], hill[1] + 16];
-    if (dS > 20 || H(...wfSkull) < ha - 6) wfSkull = [hill[0], hill[1] + 1];
+    if (dC > 55 || H(...wfCastle) < ha - 14) wfCastle = [hill[0] - 30, hill[1] + 40];
+    if (dS > 50 || H(...wfSkull) < ha - 12) wfSkull = [hill[0] - 4, hill[1] + 34];
   }
-  let skull = rimToward(H, [S.x, S.z], wfSkull, { maxR: 55, minDrop: 5, minH: 70, look: 7 }) || (() => {
+  // [v332] restore 2f4b049 outer-brow Skull stand (~52 m from mouth). v309 rimToward(maxR:55)
+  // was snapping onto the inner hump (~22 m) so the cable scraped the stone-path brow.
+  let skull = (() => {
     const dx = wfSkull[0] - S.x, dz = wfSkull[1] - S.z, n = Math.hypot(dx, dz) || 1;
-    return [S.x + dx / n * 22, S.z + dz / n * 22];
+    let best = null, bs = -1e9;
+    for (let d = 44; d <= 60; d += 1) {
+      const x = S.x + dx / n * d, z = S.z + dz / n * d, h = H(x, z);
+      if (h < 98) continue;
+      const ahead = H(x + dx / n * 10, z + dz / n * 10), drop = h - ahead;
+      if (drop < 4.0) continue;
+      const flat = Math.abs(H(x + 1.2, z) - H(x - 1.2, z)) + Math.abs(H(x, z + 1.2) - H(x, z - 1.2));
+      const sc = drop * 3.0 + h * 0.04 - flat * 1.2 - Math.abs(d - 52) * 0.35;
+      if (sc > bs) { bs = sc; best = [x, z]; }
+    }
+    return best || [S.x + dx / n * 52, S.z + dz / n * 52];
   })();
 
-  // ---- waterfall ↔ skull ----
-  let hWfS = 2.85, hSk = 3.2, sagSk = 0.014;
+  // ---- waterfall ↔ skull (short gantries, hard-capped <= 2.75) ----
+  let hWfS = ZIP.gantry, hSk = Math.min(ZIP.gantry + 0.1, 2.45), sagSk = ZIP.sag;
   {
     const L = Math.hypot(skull[0] - wfSkull[0], skull[1] - wfSkull[1]);
     let sag = L * sagSk, cy = makeCy(H(...wfSkull), H(...skull), hWfS, hSk, sag);
-    for (let it = 0; it < 6 && minClearance(H, wfSkull, skull, cy) < 2.8; it++) {
-      hWfS = Math.min(3.5, hWfS + 0.15); hSk = Math.min(3.5, hSk + 0.1);
+    for (let it = 0; it < 8 && minClearance(H, wfSkull, skull, cy) < 2.6; it++) {
+      hWfS = Math.min(2.75, hWfS + 0.1); hSk = Math.min(2.75, hSk + 0.08);
       sag = L * sagSk; cy = makeCy(H(...wfSkull), H(...skull), hWfS, hSk, sag);
     }
   }
@@ -102,19 +115,20 @@ export function zipLines(FM) {
     y: cySk, minClr: minClearance(H, wfSkull, skull, cySk),
     labelA: 'SKULL PEAK', labelB: 'WATERFALL HILL',
     spotA: 'RIDE ZIPLINE · TO SKULL PEAK', spotB: 'RIDE ZIPLINE · TO WATERFALL HILL',
-    landA: 'behind', landB: 'behind', // standard rear dismount
+    landA: 'behind', landB: 'behind',
   };
 
-  // ---- castle NE turret ↔ waterfall summit ----
+  // ---- castle NE turret ↔ waterfall west lip (short: no west-shoulder tower) ----
   const CT = CASTLE_ZIP;
   const zipA = Math.atan2(wfCastle[1] - CT.z, wfCastle[0] - CT.x);
   const cLaunch = [CT.x + Math.cos(zipA) * CT.gantryR, CT.z + Math.sin(zipA) * CT.gantryR];
-  let hCast = CT.gantryH, hWfC = 5.5, sagCw = 0.012; // taller WF gantry clears west shoulder of the hill
+  let hCast = CT.gantryH, hWfC = ZIP.gantry, sagCw = 0.011;
   {
     const L = Math.hypot(wfCastle[0] - cLaunch[0], wfCastle[1] - cLaunch[1]);
     let sag = L * sagCw, cy = makeCy(CT.y, H(...wfCastle), hCast, hWfC, sag);
-    for (let it = 0; it < 8 && minClearance(H, cLaunch, wfCastle, cy) < 3.0; it++) {
-      hWfC = Math.min(6.5, hWfC + 0.25);
+    for (let it = 0; it < 8 && minClearance(H, cLaunch, wfCastle, cy) < 2.6; it++) {
+      hWfC = Math.min(2.75, hWfC + 0.1);
+      hCast = Math.min(2.75, hCast + 0.05);
       sag = L * sagCw; cy = makeCy(CT.y, H(...wfCastle), hCast, hWfC, sag);
     }
   }
@@ -211,13 +225,13 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
   const steel = toon(0xb8bec6, null, { key: 'zip-steel' }), brass = toon(0xc9a227, null, { key: 'zip-brass' });
   const iron = toon(0x3a3a40, null, { key: 'zip-iron' }), glow = toon(0xffc14a, null, { key: 'zip-glow' });
 
-  function makeTrolley() {
+  function makeTrolley() { // [v332] short drop rod + low handlebar (ZIP.hang ~2.12)
     const h = new THREE.Group();
     const pul = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 12).rotateZ(Math.PI / 2), brass); h.add(pul);
     const hous = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.22), iron); hous.position.y = -0.06; h.add(hous);
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6), steel); rod.position.y = -0.38; h.add(rod);
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.78, 8).rotateZ(Math.PI / 2), steel); bar.position.y = -0.62; h.add(bar);
-    for (const sx of [-0.32, 0.32]) { const tip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 4), brass); tip.position.set(sx, -0.62, 0); h.add(tip); }
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.26, 6), steel); rod.position.y = -0.22; h.add(rod);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.78, 8).rotateZ(Math.PI / 2), steel); bar.position.y = -0.40; h.add(bar);
+    for (const sx of [-0.32, 0.32]) { const tip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 4), brass); tip.position.set(sx, -0.40, 0); h.add(tip); }
     return h;
   }
 
@@ -252,23 +266,23 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
       const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, wide ? 3.2 : 2.6), wood); rail.position.set(sx, 1.05, 0); t.add(rail);
     }
     for (const sx of [-1.55, 1.55]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, h + 0.35, 0.22), dark);
-      leg.position.set(sx, (h + 0.35) / 2 + 0.15, 0); t.add(leg);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, h + 0.16, 0.22), dark);
+      leg.position.set(sx, (h + 0.16) / 2 + 0.15, 0); t.add(leg);
       const knee = new THREE.Mesh(new THREE.BoxGeometry(0.12, Math.min(h * 0.55, 1.5), 0.12), wood);
       knee.position.set(sx * 0.55, 0.9, 0.35); knee.rotation.z = sx > 0 ? 0.55 : -0.55; t.add(knee);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.28, 0.28), dark); beam.position.y = h + 0.35; t.add(beam);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.24, 0.24), dark); beam.position.y = h + 0.16; t.add(beam);
     const xbrace = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 0.1), wood); xbrace.position.set(0, h * 0.55, 0); xbrace.rotation.z = 0.4; t.add(xbrace);
     const xbrace2 = xbrace.clone(); xbrace2.rotation.z = -0.4; t.add(xbrace2);
     const pul = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12).rotateZ(Math.PI / 2), brass);
     pul.position.set(0, h + 0.2, 0.15); t.add(pul);
-    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.25), iron); clamp.position.set(0, h + 0.38, 0); t.add(clamp);
+    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 0.22), iron); clamp.position.set(0, h + 0.18, 0); t.add(clamp);
     const bol = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.55, 8), iron); bol.position.set(-1.3, 0.55, -1.5); t.add(bol);
     const coil = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.07, 6, 12), rope); coil.rotation.x = Math.PI / 2; coil.position.set(-1.3, 0.35, -1.5); t.add(coil);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 5), dark); pole.position.set(1.6, 1.0, -1.4); t.add(pole);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), glow); lamp.position.set(1.6, 1.65, -1.4); t.add(lamp);
-    const pen = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.32), toon(0xfa0d0d, null, { key: 'zip-flag', side: THREE.DoubleSide }));
-    pen.position.set(1.9, 1.85, -1.4); t.add(pen);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.05, 5), dark); pole.position.set(1.6, 0.82, -1.4); t.add(pole);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), glow); lamp.position.set(1.6, 1.32, -1.4); t.add(lamp);
+    const pen = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.28), toon(0xfa0d0d, null, { key: 'zip-flag', side: THREE.DoubleSide }));
+    pen.position.set(1.85, 1.48, -1.4); t.add(pen);
     g.add(t); return t;
   }
 
@@ -301,13 +315,13 @@ export function createZipline({ scene, world, layout, walker, pirate = null, cre
     // A-frame gantry at gantryR (local z = gantryR)
     const gz = CT.gantryR;
     for (const sx of [-1.45, 1.45]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, hGantry + 0.35, 0.22), dark);
-      leg.position.set(sx, (hGantry + 0.35) / 2 + 0.1, gz); t.add(leg);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, hGantry + 0.16, 0.22), dark);
+      leg.position.set(sx, (hGantry + 0.16) / 2 + 0.1, gz); t.add(leg);
     }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.28, 0.28), dark); beam.position.set(0, hGantry + 0.3, gz); t.add(beam);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.24, 0.24), dark); beam.position.set(0, hGantry + 0.14, gz); t.add(beam);
     const pul = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12).rotateZ(Math.PI / 2), brass);
-    pul.position.set(0, hGantry + 0.15, gz + 0.12); t.add(pul);
-    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.25), iron); clamp.position.set(0, hGantry + 0.35, gz); t.add(clamp);
+    pul.position.set(0, hGantry + 0.02, gz + 0.12); t.add(pul);
+    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 0.22), iron); clamp.position.set(0, hGantry + 0.16, gz); t.add(clamp);
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), glow); lamp.position.set(1.5, 1.4, gz - 0.8); t.add(lamp);
     g.add(t); return t;
   }

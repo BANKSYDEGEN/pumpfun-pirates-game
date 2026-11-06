@@ -46,8 +46,11 @@ const IMG_DIR = new URL('../../assets/items/', import.meta.url).href;
 function itemImg(key, info) {
   const p = String(key).split(':'); if (!info) return '';
   if (info.kind === 'fish') return `${IMG_DIR}fish_${p[1]}.webp`;
+  if (info.kind === 'gunacc') return `${IMG_DIR}val_${p[1]}.webp`;
   if (info.kind === 'valuable') return `${IMG_DIR}val_${p[1]}.webp`;
-  if (info.kind === 'weapon') return `${IMG_DIR}wpn_${info.slot}_${info.base}.webp`;
+  if (info.kind === 'weapon') return info.rarity === 'legendary'
+    ? `${IMG_DIR}wpn_${info.slot}_${info.base}_legendary.webp`
+    : `${IMG_DIR}wpn_${info.slot}_${info.base}.webp`;
   return '';
 }
 const cap = (w) => w.replace(/\b[a-z]/g, (c) => c.toUpperCase());
@@ -92,6 +95,8 @@ const CSS = `
 #hs-panel .hs-slot.hs-from{opacity:.4;outline:2px dashed #ffcd77}
 #hs-panel .hs-slot i{font-style:normal;font-size:28px;line-height:1;display:flex;align-items:center;justify-content:center;width:62%;aspect-ratio:1;pointer-events:none}
 #hs-panel .hs-slot img{width:100%;height:100%;object-fit:contain;pointer-events:none}
+#hs-panel .hs-slot.hs-leg{box-shadow:0 0 0 2px #ffd24a,0 0 12px rgba(255,205,60,.6);border-color:#ffd24a!important}
+#hs-panel .hs-accpip{position:absolute;left:4px;bottom:4px;font:bold 11px system-ui,sans-serif;color:#ffcd77;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px}
 #hs-panel .hs-slot span{font-size:12px;line-height:1.05;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;pointer-events:none}
 #hs-panel .hs-slot b.hs-qty{position:absolute;right:3px;top:2px;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;pointer-events:none}
 #hs-panel .hs-slot .hs-split{position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:6px;border:1px solid #ffcd77;background:rgba(26,15,7,.9);color:#ffcd77;font:12px/20px system-ui,sans-serif;cursor:pointer;padding:0;z-index:2}
@@ -1752,7 +1757,12 @@ export function createHouses({
     const splitBtn = stackable ? `<button type="button" class="hs-split" data-split title="Split stack">✂️</button>` : '';
     const lock = eq ? '<div class="hs-lock">🔒 EQUIPPED</div>' : '';
     const qty = q > 1 ? `<b class="hs-qty">×${q}</b>` : (q === 1 && !isStackable(s.item) ? '' : (q > 0 ? `<b class="hs-qty">×${q}</b>` : ''));
-    return `<div class="hs-slot${eq ? ' eq' : ''}" data-side="${side}" data-item="${itemAttr}" data-qty="${q}"${slotAttr} style="border-color:${border}" title="${eq ? 'Equipped — unequip in Inventory first' : name}">${splitBtn}${ico(s.item, info)}<span>${name}</span>${qty}${lock}</div>`;
+    const leg = info.rarity === 'legendary' ? ' hs-leg' : '';
+    const acc = (s.meta && s.meta.acc) || {};
+    const accN = ['scope','bayonet','stock','horn'].filter((k) => acc[k]).length;
+    const pip = accN ? `<b class="hs-accpip">${accN}/4</b>` : '';
+    const gidAttr = s.gid ? ` data-gid="${escHtml(s.gid)}"` : (s.meta?.gid ? ` data-gid="${escHtml(s.meta.gid)}"` : '');
+    return `<div class="hs-slot${eq ? ' eq' : ''}${leg}" data-side="${side}" data-item="${itemAttr}" data-qty="${q}"${slotAttr}${gidAttr} style="border-color:${border}" title="${eq ? 'Equipped — unequip in Inventory first' : name}">${splitBtn}${ico(s.item, info)}<span>${name}</span>${qty}${pip}${lock}</div>`;
   }
 
   async function renderStorage() {
@@ -2004,13 +2014,18 @@ export function createHouses({
     else await takeItem(slot | 0, q);
   }
 
-  async function storeItem(item, qty) {
+  async function storeItem(item, qty, gidOpt = null) {
     if (busy || !activeId) return;
     busy = true;
     try {
       let ok = false;
       try {
-        const r = await invApi('house_store', { cottage: activeId, item, qty });
+        let gid = gidOpt || (typeof window !== 'undefined' && window.PFP_GUN_STORE_GID) || null;
+        if (!gid && String(item).startsWith('wpn:musket:') && typeof window !== 'undefined' && Array.isArray(window.PFP_GUN_INST)) {
+          const g = window.PFP_GUN_INST.find((x) => x.place === 'bag' && x.item === item); gid = g?.gid || null;
+        }
+        const r = await invApi('house_store', { cottage: activeId, item, qty, ...(gid && String(item).startsWith('wpn:musket:') ? { gid } : {}) });
+        try { if (typeof window !== 'undefined') window.PFP_GUN_STORE_GID = null; } catch {}
         if (r?.ok) {
           ok = true;
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };

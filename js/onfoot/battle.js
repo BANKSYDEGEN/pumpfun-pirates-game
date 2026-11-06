@@ -26,7 +26,7 @@
 import * as THREE from 'three';
 import * as CO from '../island/coast.js';
 import * as BA from '../island/battleAreas.js';
-import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty } from './swords.js';
+import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty, applyLegendaryOrnament } from './swords.js';
 import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
 import { pitSwordOn, pitWeaponId } from '../carryRules.js'; // [Emerly pitsword]
@@ -37,7 +37,7 @@ import { ADM } from '../adminState.js'; // [admin-menu] GOD MODE / FREEZE
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
 import { createTps, TPS_ON } from './tps.js';
 import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hints name the pad buttons while a pad is in use
-import { applyMuskUpg, muskLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
+import { applyMuskUpg, muskLook, swordLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
 import { accMeshes } from './gunAccMesh.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
 import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
@@ -325,14 +325,19 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (!R.v4 || !R.bones) return;
     const wantSword = zone === Z_PIT, wantMusket = zone === Z_RANGE;
     const hd = swordHand(R.fig?.userData?.gear);   // [Emerly sword-hand] same hand as the carried sword (no hook / left hook: right)
-    if (wantSword && (R.swordId !== swordId || !R.sword || R.swordHand !== hd)) { R.sword?.removeFromParent(); R.swordHand = hd; const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : mat);
+    const swRar = R === mineR ? ((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.sword) || 'common') : 'common';
+    const swLk = R === mineR ? swordLook(swRar) : null, swLkId = (swLk?.id || '') + '|' + swRar;
+    if (wantSword && (R.swordId !== swordId || !R.sword || R.swordHand !== hd || R.swordLook !== swLkId)) { R.sword?.removeFromParent(); R.swordHand = hd; R.swordLook = swLkId;
+      const s = weaponMesh(swordGeo(swordId), shellSword, swordId === 'blade_gold' ? goldM : lookMat(swLk));
+      applyLegendaryOrnament(s, 'sword', swordId, swRar);
       const fr = hd === 'L' ? R.bones.fL : R.bones.fR; fr.updateWorldMatrix(true, false); fr.getWorldScale(_s); const sc = 0.85 / Math.max(1e-3, _s.x);
       s.scale.setScalar(sc); s.position.set(handAxis(hd) * 0.15 / Math.max(1e-3, _s.x), 0, 0); s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), BONE_PERP); fr.add(s); R.sword = s; R.swordId = swordId; }
     if (R.sword) R.sword.visible = wantSword;
     // [Emerly musket-arm] parent the musket to the SCALED body root (v4.root), not pirate-v4: pirate-v4's child p.root carries the
     // height scale, so a gun on fig sat in bind metres while the arms lived in scaled metres → grips out of reach → T-pose sleeves.
     const acc = R === mineR ? gunAcc() : {}, accSig = Object.keys(acc).sort().join(','); const lk = R === mineR ? muskLook((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common') : null, lkId = lk?.id || ''; // [Emerly musket-rank / gunacc] your rank tint / GILDED skin + accessories (local look)
-    if (wantMusket && (!R.musket || R.musketId !== musketId || R.musketLook !== lkId + '|' + accSig)) { R.musket?.removeFromParent(); R.musketLook = lkId + '|' + accSig; const m = weaponMesh(musketGeo(musketId), shellMusket, lookMat(lk)); accMeshes(m, acc, musketId); m.scale.setScalar(0.7);
+    const muRar = R === mineR ? ((typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common') : 'common';
+    if (wantMusket && (!R.musket || R.musketId !== musketId || R.musketLook !== lkId + '|' + accSig + '|' + muRar)) { R.musket?.removeFromParent(); R.musketLook = lkId + '|' + accSig + '|' + muRar; const m = weaponMesh(musketGeo(musketId), shellMusket, lookMat(lk)); accMeshes(m, acc, musketId); applyLegendaryOrnament(m, 'musket', musketId, muRar); m.scale.setScalar(0.7);
       (MUSKET_ARM_ON && R.v4?.root ? R.v4.root : R.fig).add(m); R.musket = m; R.musketId = musketId; }
     if (R.musket) { R.musket.visible = wantMusket; const rc = R.st.recoil;
       if (MUSKET_ARM_ON && R.bones?.spine) {
