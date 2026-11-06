@@ -966,6 +966,9 @@ html.pvp-spec #btn-emote { display: none !important; }
 .pz-list li { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 8px; align-items: baseline; padding: 2px 6px; border-radius: 6px; }
 .pz-list li:nth-child(even) { background: rgba(255,205,119,.07); } .pz-list li.empty { display: block; text-align: center; opacity: .8; padding: 20px; }
 .pz-list i { font-style: normal; color: #ffcd77; } .pz-list b { color: #ffcd77; font-weight: normal; } .pz-list small { opacity: .55; font-size: 18px; } .pz-list .pz-kd { opacity: .75; }
+/* [v356 friends] King of the Hill: +👥 add a pirate as a friend */
+.pz-list .pz-fr { margin-left: 8px; font: 16px 'Just Another Hand', cursive; padding: 1px 8px 0; min-height: 30px; min-width: 40px; border-radius: 8px; border: 2px solid #34d399; background: #0b2b1d; color: #a7f3d0; cursor: pointer; vertical-align: middle; }
+.pz-list .pz-fr:disabled { opacity: .5; cursor: default; } .pz-list .pz-fr-ok { margin-left: 8px; opacity: .8; }
 .pz-list li:nth-child(1) i { color: #ffd700; } .pz-list li:nth-child(2) i { color: #e0e0e0; } .pz-list li:nth-child(3) i { color: #cd7f32; }
 .pz-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .pz-go, .pz-alt, .pz-copy { display: inline-block; padding: 8px 16px; border-radius: 10px; border: 2px solid #ffcd77; background: #fa0d0d; color: #fff; font: inherit; font-size: 24px; text-decoration: none; cursor: pointer; }

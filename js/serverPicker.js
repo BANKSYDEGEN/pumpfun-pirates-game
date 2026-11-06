@@ -81,7 +81,7 @@ const CSS = `
  * UI + glue. api: { info() -> { prefix, copy, copies, cap, wantCopy }, switchTo(plan) -> Promise<{ok, msg|why}>, toast(m) }
  */
 export function createServerPicker(api) {
-  let el = null, btn = null, styleEl = null;
+  let el = null, btn = null, styleEl = null, fr = null; // [v356 friends] fr = { rows() -> [{ n, label, ok, why }], join(name), open() } (set by js/dock/index.js)
   function ensureStyle() {
     if (styleEl || typeof document === 'undefined') return;
     styleEl = document.createElement('style'); styleEl.id = 'srv-picker-css'; styleEl.textContent = CSS; document.head.appendChild(styleEl);
@@ -106,6 +106,7 @@ export function createServerPicker(api) {
     const i = api.info(), rows = publicRows(i.copies, { cap: i.cap || 8, cur: codeOfPrefix(i.prefix) ? 0 : i.copy }), code = codeOfPrefix(i.prefix);
     el.innerHTML = `<div class="sv-box"><h2>⚓ CHOOSE SERVER <button type="button" data-x aria-label="Close">✕</button></h2>
       <div class="sv-cur" data-cur>${escHtml(serverLabel(i))}</div>
+      ${friendsHtml()}
       <h3>ACTIVE PUBLIC SERVERS</h3>
       <div data-list>${rows.length ? rows.map((r) => `<div class="sv-row${r.here ? ' here' : ''}"><span>${escHtml(r.text)}${r.here ? ' · YOU' : ''}</span><button type="button" class="sv" data-pick="${r.copy}" ${r.here || r.full ? 'disabled' : ''}>${r.here ? 'HERE' : r.full ? 'FULL' : 'JOIN'}</button></div>`).join('') : '<div class="sv-row"><span>No other public harbors right now</span></div>'}</div>
       <button type="button" class="sv big" data-new>+ NEW PUBLIC SERVER</button>
@@ -116,12 +117,20 @@ export function createServerPicker(api) {
         <button type="button" class="sv" data-auto>AUTO PUBLIC</button></div>
       <p class="sv-note">Own servers are private harbors: share the code and your crew lands in the same copy (up to 8 pirates). Open-water ship PvP is on outside Safe Harbor.</p></div>`;
     el.querySelector('[data-x]').onclick = close;
+    el.querySelectorAll('[data-fjoin]').forEach((b) => { b.onclick = async () => { if (!fr) return; const r = await fr.join(b.dataset.fjoin); if (r?.ok) close(); else render(); }; });
+    el.querySelector('[data-fopen]')?.addEventListener('click', () => fr?.open?.());
     el.querySelectorAll('[data-pick]').forEach((b) => { b.onclick = () => go(planSwitch('pick', b.dataset.pick)); });
     el.querySelector('[data-new]').onclick = () => go(planSwitch('new'));
     el.querySelector('[data-create]').onclick = () => go(planSwitch('create'));
     el.querySelector('[data-join]').onclick = () => go(planSwitch('own', el.querySelector('[data-code]').value));
     el.querySelector('[data-auto]').onclick = () => go(planSwitch('auto'));
     el.querySelector('[data-copy]').onclick = async () => { const c = codeOfPrefix(api.info().prefix); if (!c) return; try { await navigator.clipboard?.writeText(c); } catch {} api.toast?.(`⚓ Code ${escHtml(c)} copied`); };
+  }
+  function friendsHtml() { // [v356 friends] FRIENDS ONLINE: one-tap JOIN onto a friend's server (+ open the Friends panel)
+    if (!fr) return '';
+    let rows = []; try { rows = (fr.rows?.() || []).slice(0, 12); } catch { rows = []; }
+    return `<h3>👥 FRIENDS ONLINE</h3>${rows.length ? rows.map((r) => `<div class="sv-row${r.here ? ' here' : ''}"><span>${escHtml(r.n)} · ${escHtml(r.label)}</span><button type="button" class="sv" data-fjoin="${escHtml(r.n)}" ${r.ok ? '' : 'disabled'} title="${escHtml(r.why || '')}">${r.ok ? (r.kind === 'arena' ? 'QUEUE' : 'JOIN') : r.here ? 'HERE' : r.full ? 'FULL' : 'JOIN'}</button></div>`).join('') : '<div class="sv-row"><span>No friends online right now</span></div>'}
+      <button type="button" class="sv big" data-fopen data-fr-open>👥 FRIENDS</button>`;
   }
   async function go(plan) {
     if (!plan?.ok) { api.toast?.(escHtml(plan?.why || 'no')); return plan; }
@@ -130,7 +139,7 @@ export function createServerPicker(api) {
   function open() { ensure(); render(); el?.classList.add('on'); }
   function close() { el?.classList.remove('on'); }
   return {
-    open, close, render, mountButton, go,
+    open, close, render, mountButton, go, setFriends: (h) => { fr = h || null; if (el?.classList.contains('on')) render(); },
     get isOpen() { return !!el?.classList.contains('on'); },
     pick: (copy) => go(planSwitch('pick', copy)), newServer: () => go(planSwitch('new')), create: () => go(planSwitch('create')),
     joinCode: (code) => go(planSwitch('own', code)), auto: () => go(planSwitch('auto')), info: () => ({ ...api.info(), label: serverLabel(api.info()) }),

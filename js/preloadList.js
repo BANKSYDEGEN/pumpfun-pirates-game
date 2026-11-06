@@ -23,6 +23,7 @@ export const HARBOR_MODULES = [
   "js/dock/treasureMap.js",
   "js/dock/world.js",
   "js/dock/zipline.js",
+  "js/friends.js",
   "js/gearColorPicker.js",
   "js/gearThumbs.js",
   "js/inventory/backpackCap.js",

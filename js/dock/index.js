@@ -27,6 +27,7 @@ import { createBattery } from './battery.js'; // [Timothy] headland battery: pla
 import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDock, padRumble } from '../gamepad.js'; // [Emerly gamepad] pad prompts + the walker / prompt hooks
 import { createSkinPicker } from './skinPicker.js'; // [dock-skin] Q / CHANGE SKIN at your own berth
 import { casinoInteract } from '../island/casinoData.js'; // [Timothy] THE GOLDEN DOUBLOON CASINO tables → js/casino/ui.js
+import { createFriends, myAt, joinPlan, whereLabel } from '../friends.js'; // [v356 friends] BANKSY t1851u: friends list + join their server
 import { createSquadHall } from './squadHall.js'; // [squad-hall] BANKSY: all-worlds list + invite / join
 import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill -> Skull Peak (&zipline=0 = none)
 import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
@@ -175,6 +176,27 @@ export async function createDock(ctx) {
   try { inventory = createInventory({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure, nearbyPlayers: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); /* [give-dropdown] your harbor copy's pirates first in the GIVE picker */ } catch (e) { console.warn('[inventory]', e); } // [inventory]
   let casinoUi = null; // [Timothy] THE GOLDEN DOUBLOON CASINO table UI (created on the first E at a table, openCasino below)
   let squadHall = null; try { squadHall = createSquadHall({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), nearby: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); } catch (e) { console.warn('[squad-hall]', e); }
+  // [v356 friends] BANKSY t1851u: ⚙ SETTINGS → 👥 FRIENDS (+ the ⚓ server picker's FRIENDS ONLINE, Squad Hall / King of the Hill "+ FRIEND")
+  let friends = null;
+  try {
+    const pv = () => ctx.pvp?.();
+    friends = createFriends({
+      call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'offline' }),
+      at: () => myAt(pv(), game),
+      name: () => { try { return pv()?.name || ''; } catch { return ''; } },
+      join: async (p) => { const r = await (pv()?.joinFriend?.(p) ?? { ok: false, why: 'set sail to the Harbor first' }); if (r?.ok) { try { pv()?.serverPicker?.close?.(); squadHall?.close?.(); if (!$('pause')?.classList.contains('hidden')) $('btn-resume')?.click(); } catch {} } return r; },
+      online: async () => { const r = await pv()?.inv?.call?.('inv_online', { detail: true }); return r?.ok && Array.isArray(r.players) ? r.players : []; },
+      toast: (...a) => toast(...a),
+    });
+    const fb = $('btn-friends'); if (fb) { fb.hidden = false; fb.onclick = (e) => { e.stopPropagation(); friends.open(); }; }
+    window.PFP_FRIENDS = Object.freeze({ open: (t) => friends.open(t), request: (n) => friends.request(n), relationOf: (n) => friends.relationOf(n), get me() { return friends.data.me; } });
+  } catch (e) { console.warn('[friends]', e); }
+  let frPickerHooked = false;
+  function hookFriendsPicker() { // the ⚓ server picker shows FRIENDS ONLINE with one-tap JOIN
+    const sp = ctx.pvp?.()?.serverPicker; if (frPickerHooked || !friends || !sp?.setFriends) return; frPickerHooked = true;
+    sp.setFriends({ rows: () => { const cur = myAt(ctx.pvp?.(), game); return friends.onlineFriends().map((f) => { const p = joinPlan(f, cur); return { n: f.n, label: whereLabel(f), ok: p.ok, kind: p.kind, why: p.why, here: !!p.here, full: !!p.full }; }); },
+      join: (n) => friends.joinFriend(n), open: () => friends.open() });
+  }
   setTimeout(() => { try { treasure.render?.(); } catch (e) { console.warn('[treasure]', e); } }, 0); // [minimap-fix] (deferred: the dock is still being built) the HUD button was first drawn before the inventory existed (read 'MAPS 0' until the next server poll)
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, toast: (m, ms) => toast(m, ms), myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
@@ -557,7 +579,7 @@ export async function createDock(ctx) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); const was = on; setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); harborExtras(view || on); } // [v330] t1754u + the scene-level island pieces if (view) world.update(camera.position, game.t, game.storm || 0);
-    treasure.tick(); squadHall?.tick?.(performance.now());
+    treasure.tick(); squadHall?.tick?.(performance.now()); if (friends) { friends.tick(performance.now()); if (!frPickerHooked) hookFriendsPicker(); } // [v356 friends] presence heartbeat ~30 s (8 s while the panel is open)
     if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;

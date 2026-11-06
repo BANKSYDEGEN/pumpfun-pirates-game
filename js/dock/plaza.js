@@ -86,8 +86,11 @@ export function createPlaza({ world, ctx = {} }) {
     panel.classList.remove('hidden');
     let rows = [], err = false; try { rows = await rowsFor(id, 50); } catch { err = true; }
     if (panel.dataset.board !== id) return;
-    panel.querySelector('.pz-list').innerHTML = rows.length ? rows.map((r, k) => `<li><i>${k + 1}.</i><span>${esc(r.name)}${r.sub ? ` <small>${esc(r.sub)}</small>` : ''}</span><b>${esc(r.v)}</b>${r.kd ? `<small class="pz-kd">${esc(r.kd)}</small>` : ''}</li>`).join('')
+    const F = id === 'arena' ? window.PFP_FRIENDS : null, meN = String(F?.me || '').toLowerCase(); // [v356 friends] "+👥" add a King of the Hill pirate as a friend
+    const frB = (n) => { if (!F || !n || n === 'PIRATE' || n.toLowerCase() === meN) return ''; const st = F.relationOf?.(n) || ''; return st === 'friend' ? '<small class="pz-fr-ok" title="Friend">👥</small>' : `<button type="button" class="pz-fr" data-fr="${esc(n)}" title="Add friend" aria-label="Add ${esc(n)} as a friend"${st === 'sent' ? ' disabled' : ''}>${st === 'sent' ? '…' : '+👥'}</button>`; };
+    panel.querySelector('.pz-list').innerHTML = rows.length ? rows.map((r, k) => `<li><i>${k + 1}.</i><span>${esc(r.name)}${r.sub ? ` <small>${esc(r.sub)}</small>` : ''}${frB(r.name)}</span><b>${esc(r.v)}</b>${r.kd ? `<small class="pz-kd">${esc(r.kd)}</small>` : ''}</li>`).join('')
       : `<li class="empty">${err ? 'Board offline, try again soon.' : 'No scores yet. Take the top spot!'}</li>`;
+    panel.querySelectorAll('.pz-fr').forEach((b) => { b.onclick = async (e) => { e.stopPropagation(); b.disabled = true; b.textContent = '…'; await F?.request?.(b.dataset.fr); }; });
   }
   function showToken(sym) {
     const t = TOK.find(q => q.sym === sym) || TOK[0]; panel.dataset.sym = t.sym; panel.dataset.board = '';

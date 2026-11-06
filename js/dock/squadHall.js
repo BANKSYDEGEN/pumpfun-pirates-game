@@ -119,14 +119,18 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
     list.innerHTML = h;
     $('.sq-sub').textContent = loading && !online ? 'checking every harbor + arena…' : `${all.length} pirate${all.length === 1 ? '' : 's'} online`;
     list.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => invite(b.dataset.inv));
+    list.querySelectorAll('[data-fr]').forEach(b => b.onclick = async () => { b.disabled = true; await window.PFP_FRIENDS?.request?.(b.dataset.fr); draw(); });
     list.querySelectorAll('[data-join]').forEach(b => b.onclick = () => joinWorld(b.dataset.join, b.dataset.w, b.dataset.copy, b.dataset.mode));
   }
 
+  // [v356 friends] "+ FRIEND" on every pirate in the hall (your world first): sends a friend request (js/friends.js)
+  function frBtn(n, dis) { const F = window.PFP_FRIENDS; if (!F) return ''; const r = F.relationOf?.(n) || '';
+    return r === 'friend' ? '' : `<button type="button" class="join" data-fr="${esc(n)}"${dis}${r === 'sent' ? ' disabled' : ''}>${r === 'sent' ? 'REQUESTED' : r === 'incoming' ? '+ ACCEPT' : '+ FRIEND'}</button>`; }
   function rowHtml(p) {
     const lab = p.here ? 'YOUR HARBOR' : worldLabel(p);
     const dis = busy === p.n ? ' disabled' : '';
     return `<div class="sq-row" role="option"><span class="av">${esc(p.n[0].toUpperCase())}</span><div class="who"><b>${esc(p.n)}</b><em>${esc(lab)}${p.mode === 'squads' && p.w === 'harbor' ? ' · SQUADS MODE' : ''}</em></div>
-      <div class="acts"><button type="button" data-inv="${esc(p.n)}"${dis}>INVITE</button><button type="button" class="join" data-join="${esc(p.n)}" data-w="${esc(p.w)}" data-copy="${p.copy | 0}" data-mode="${esc(p.mode || '')}"${dis}>JOIN WORLD</button></div></div>`;
+      <div class="acts">${frBtn(p.n, dis)}<button type="button" data-inv="${esc(p.n)}"${dis}>INVITE</button><button type="button" class="join" data-join="${esc(p.n)}" data-w="${esc(p.w)}" data-copy="${p.copy | 0}" data-mode="${esc(p.mode || '')}"${dis}>JOIN WORLD</button></div></div>`;
   }
 
   async function load() {

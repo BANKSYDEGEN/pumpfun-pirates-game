@@ -1460,6 +1460,17 @@ export function createPvp(K) {
     return { ok: true, msg: want > 1 ? `SAILING TO HARBOR ${want}…` : 'SAILING TO THEIR HARBOR…' };
   }
 
+  // [v356 friends] JOIN a friend: their Harbor server (public copy or OWN code, same path as the ⚓ server picker) or queue their arena mode
+  async function joinFriend(p) {
+    if (!p?.ok) return { ok: false, why: p?.why || 'cannot join right now' };
+    if (!active) return { ok: false, why: 'set sail to the Harbor first' };
+    if (p.kind === 'arena') return joinWorld({ w: 'arena', mode: p.mode });
+    if (!hbNet) return { ok: false, why: 'shared harbors are off right now' };
+    const plan = p.server?.kind === 'own' ? planSwitch('own', p.server.arg) : planSwitch('pick', p.server?.arg);
+    if (plan.ok && (p.server?.copy | 0) > 0) plan.wantCopy = p.server.copy | 0;
+    return switchServer(plan);
+  }
+
   function partyBeat() { party.room?.send('p', { i: myId, n: name, t: party.t, st: where === 'harbor' ? lob.state : where }); }
   function onPartyBeat(m) {
     if (!m || !isNetId(m.i) || m.i === myId) return; // [security H5]
@@ -2085,7 +2096,7 @@ export function createPvp(K) {
   const api = { gunAimCyls, gunShipTest, gunShipHit, shoreImpact, shoreBattery, shoreTarget, flushNow, serverGold, emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
-    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
+    get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, joinFriend, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
     // [v339] harbor session auto-resume (js/main.js pfp_harbor_resume_v1): which server you were on, and put you back on it after a phone reload
     harborInfo: () => ({ prefix: hbNet?.prefix || '', copy: hb.copy | 0, code: codeOfPrefix(hbNet?.prefix) || '', label: hbNet ? serverLabel({ prefix: hbNet.prefix, copy: hb.copy }) : 'HARBOR' }),
