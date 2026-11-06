@@ -7,8 +7,6 @@ import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, jitter, W, C, npc, openChest, store, today, instanced, sm } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
 import { FISH2, createFishing2 } from './fishing2.js'; // [fish2] the new cast / bite / reel fight / catch show (&fish2=0 = the old prompt)
-import { FISH_APPROACH, corridorClearAt } from './waterfallCorridor.js'; // [waterfall-aaa] graded path from HB landing
-export { corridorClearAt };
 const LAKE = { x: -205, z: -130, r: 58, y: 20 };                          // = foot.js LAKE (the area reads it, never edits it)
 const DOCK = { x: -205, z0: -63, z1: -97, hw: 1.6 };                       // south shore, out over the water (north = -z)
 const GILL = { x: -199.5, z: -61.5 };
@@ -25,9 +23,7 @@ let fs2 = null, _t2 = 0;                                                     // 
 
 export default {
   id: 'lagoon', name: 'Freshwater Lagoon', rect: [-295, -115, -265, -55],
-  terrain: { pads: [[GROTTO.x0, GROTTO.x1, GROTTO.z0, GROTTO.z1, GROTTO.y]],
-    // [waterfall-aaa] graded paved approach from High Rope Bridge east landing → dock (also on waterfallCorridor)
-    paths: [{ id: 'fish_approach', pts: FISH_APPROACH, pave: true }] },
+  terrain: { pads: [[GROTTO.x0, GROTTO.x1, GROTTO.z0, GROTTO.z1, GROTTO.y]], paths: [] },
   register(h) {
     const { H } = h; DOCK_Y = Math.max(H(DOCK.x, DOCK.z0), LAKE.y + 1.3);
     h.addDeck({ id: 'lagoon_dock', x: DOCK.x, z: (DOCK.z0 + DOCK.z1) / 2, hw: DOCK.hw, hl: Math.abs(DOCK.z1 - DOCK.z0) / 2 + 0.5, yaw: 0, y: DOCK_Y });
@@ -65,28 +61,6 @@ export default {
     // a little rowboat tied to the dock
     { const x = DOCK.x - 3.4, z = DOCK.z1 + 6, y = LAKE.y; W(k, box(1.4, 0.5, 3.6), C.WOOD, M(x, y + 0.1, z)); W(k, box(1.1, 0.1, 3.2), C.WOOD_D, M(x, y + 0.32, z), false); W(k, box(1.4, 0.12, 0.3), C.WOOD_L, M(x, y + 0.45, z), false);
       W(k, cyl(0.22, 0.7, 0.5, 4), C.WOOD, M(x, y + 0.1, z - 2.0, Math.PI / 4, -Math.PI / 2), false); }
-
-    // [waterfall-aaa] stone shore abutment + wide timber transition steps flush with fish_approach (zero lip snag)
-    { const ax = DOCK.x, az = DOCK.z0 + 1.8, ay = Math.max(H(ax, az), DOCK_Y - 0.05);
-      for (let i = 0; i < 5; i++) W(k, box(4.8 - i * 0.15, 0.18, 0.85), i % 2 ? C.STONE : 0xa8a196, M(ax, ay - 0.05 - i * 0.12, az + 0.4 + i * 0.7, (hash(i, 2) - 0.5) * 0.02));
-      for (const s of [-1, 1]) W(k, box(0.55, 0.55, 2.8), C.STONE_D, M(ax + s * 2.7, ay - 0.4, az + 1.2)); // kerb cheeks
-      for (const s of [-1, 1]) { const lx = ax + s * 3.1, lz = az + 0.2, ly = H(lx, lz); W(k, box(0.18, 2.4, 0.18), C.IRON, M(lx, ly + 1.2, lz)); W(k, box(0.4, 0.5, 0.4), 0xffd27a, M(lx, ly + 2.55, lz), false); } }
-    // [waterfall-aaa] Grandpa Gill's Angler Pavilion / open boathouse (south shore beside GILL — NPC stays visible)
-    { const px = GILL.x + 0.4, pz = GILL.z - 2.8, py = H(px, pz);
-      // posts + open-front timber frame
-      for (const [dx, dz] of [[-2.4, -1.8], [2.4, -1.8], [-2.4, 1.6], [2.4, 1.6]]) W(k, box(0.28, 3.2, 0.28), C.WOOD_D, M(px + dx, py + 1.6, pz + dz));
-      W(k, box(5.4, 0.22, 4.2), C.WOOD, M(px, py + 3.35, pz)); // roof plate
-      for (let i = -2; i <= 2; i++) W(k, box(0.9, 0.14, 4.4), i % 2 ? C.WOOD_L : C.WOOD, M(px + i * 0.95, py + 3.55 + Math.abs(i) * 0.08, pz, 0, 0.12), false); // shingles
-      // hanging nets + floats
-      for (let i = 0; i < 4; i++) { W(k, box(1.4, 1.1, 0.06), 0x6a8a6a, M(px - 1.6 + i * 1.1, py + 2.2, pz - 1.85, 0.1), false);
-        W(k, ball(0.12, 6, 4), i % 2 ? 0xff6b4a : 0xffd27a, M(px - 1.6 + i * 1.1, py + 1.55, pz - 1.9), false); }
-      // tackle table + barrels + trophy board
-      W(k, box(1.6, 0.12, 0.7), C.WOOD_L, M(px + 1.6, py + 0.85, pz + 0.4)); W(k, box(0.12, 0.85, 0.12), C.WOOD_D, M(px + 1.1, py + 0.42, pz + 0.4)); W(k, box(0.12, 0.85, 0.12), C.WOOD_D, M(px + 2.1, py + 0.42, pz + 0.4));
-      W(k, box(1.2, 0.9, 0.08), C.WOOD, M(px - 1.8, py + 1.6, pz + 1.5)); // trophy board
-      for (let i = 0; i < 3; i++) W(k, ball(0.22 + i * 0.04, 6, 4), [0x2a8ac0, 0x6f9a3a, 0xffc93c][i], M(px - 2.1 + i * 0.35, py + 1.7, pz + 1.55, 0, 0, 0, [1.4, 0.55, 0.45]), false);
-      for (const s of [-1, 1]) { const lx = px + s * 2.6, lz = pz - 0.2, ly = py; W(k, box(0.16, 2.2, 0.16), C.IRON, M(lx, ly + 1.1, lz)); W(k, box(0.36, 0.45, 0.36), 0xffd27a, M(lx, ly + 2.35, lz), false); }
-    }
-
     // Grandpa Gill: straw hat, white beard, rod
     k.at(M(GILL.x, H(GILL.x, GILL.z), GILL.z, Math.PI * 0.15), () => { npc(k, { shirt: 0x3a7ab8, pants: 0x4a3a2a, beard: C.WHITE, hat: 'straw', prop: 'rod' }); W(k, box(0.6, 0.45, 0.6), C.WOOD, M(-0.9, 0.22, -0.4)); });
     // stepping stones (flat-topped chunky rocks)

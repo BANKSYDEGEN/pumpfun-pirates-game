@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v325'; // [v325] backpack 16-slot cap (BANKSY ∞) + PvP loot bags (migration 044 + pvp loot.ts) + one Cottages-to-Dock Safe Zone (Coliseum excluded) + fishing lagoon safe zone + safe zones on map / minimap / radars + UNARMED / SWORD / GUN stances + 5-6 shot TTK + ⚓ server picker + harbor sea PvP / floating loot crates + unified K/D + crew-vs-crew fights; prev: [v324] Waves wear Harbor skin only (no mid-run unlocks/changes) + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v323] waterfall AAA (falls.glb / fallsBlender.js); prev: [v322] BANKSY owner-only Admin Menu;
+const VERSION = 'pfp-v326'; // [v326] revert v323 waterfall WIP (44eac37) per BANKSY [t399u]; prev: [v325] backpack 16-slot cap + PvP loot bags + Cottages-to-Dock & fishing lagoon safe zones + stances + server picker + sea PvP crates + unified K/D + crew-vs-crew fights; prev: [v324] Waves wear Harbor skin only + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v322] BANKSY owner-only Admin Menu;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -74,8 +74,6 @@ const SHELL = [
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
   "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
   "./js/island/d2Blender.js", // [v185] D2 Jungle Ruins Blender loader
-  "./js/island/fallsBlender.js", // [v323] fishing bridge + waterfall + high rope bridge Blender (&falls=0)
-  "./js/island/areas/waterfallCorridor.js", // [v323] graded fishing approach + Waterfall Hill trail
   "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
   "./js/island/kit.js",
@@ -328,9 +326,6 @@ const ASSETS = [
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",
   "./assets/island/battery_low.glb",
-  "./assets/island/falls.glb",
-  "./assets/island/falls_low.glb",
-  "./assets/island/falls_layout.json",
   "./assets/island/tex/lib_lo.ktx2",   // [Timothy] material library, phone set (the desktop lib.ktx2 is cached on first use)
   "./assets/island/nature_kit.glb",
   "./assets/island/nature_kit.webp.glb",

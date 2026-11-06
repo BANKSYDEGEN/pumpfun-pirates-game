@@ -17,7 +17,6 @@ import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun dec
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
 import * as COLI from './coliseum.js'; // [Emerly] intact colosseum (&coliseum=0 = off)
 import { clearAt as cottageClearAt, indoorOrPadAt as cottagePadAt, COTTAGES_ON } from './areas/cottages.js'; // [post/cottages] no trees/grass in cottages / well
-import { corridorClearAt } from './areas/waterfallCorridor.js'; // [waterfall-aaa] clear rope-bridge→fishing + hill trail
 const PV2 = COAST_ON_PV2();
 function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
@@ -479,64 +478,34 @@ function freshWater(uTime, low) {
   m.uniforms.uTime = uTime;
   const mesh = new THREE.Mesh(g, m); mesh.renderOrder = 3; mesh.name = 'foot_freshwater'; return mesh;
 }
-function waterfall(uTime, top, low) { // [waterfall-aaa] multi-tier tropical cascade: upper lip + main curtain + side ribbons + plunge foam + mist
-  const fx = FALLS_CLIFF.x + 6, fz = LAKE.z - LAKE.r + 2, hgt = Math.max(8, top - LAKE.y + 1);
-  const mkSheet = (w, h, segsW, segsH, bend) => {
-    const g = new THREE.PlaneGeometry(w, h, segsW, segsH), P = g.attributes.position;
-    for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i); P.setXYZ(i, x + Math.sin((y / h + 0.5) * Math.PI) * bend * (1 - Math.abs(x) / (w * 0.5 + 0.01)) * 0.35, y, Math.sin((0.5 - y / h) * Math.PI) * bend); }
-    P.needsUpdate = true; g.computeVertexNormals(); return g;
-  };
-  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: uTime }]),
-    vertexShader: `#include <fog_pars_vertex>
-varying vec2 vUv; varying float vY; void main(){ vUv=uv; vY=position.y; vec4 mvPosition=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mvPosition;
-#include <fog_vertex>
-}`,
-    fragmentShader: `
-      #include <common>
-      #include <fog_pars_fragment>
-      uniform float uTime; varying vec2 vUv; varying float vY;
-      void main(){
-        float flow = fract(vUv.y * 3.2 - uTime * 1.35 + sin(vUv.x * 18.0 + uTime) * 0.04);
-        float streak = smoothstep(0.15, 0.55, flow) * smoothstep(1.0, 0.7, flow);
-        float edge = smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
-        float crest = smoothstep(0.82, 1.0, vUv.y) * 0.55;
-        vec3 deep = vec3(0.55, 0.82, 0.92), lite = vec3(0.92, 0.98, 1.0);
-        vec3 col = mix(deep, lite, streak * 0.85 + crest);
-        float a = (0.55 + 0.4 * streak) * edge;
+function waterfall(uTime, top, low) { // curved sheet: lip at the cliff top, falls into the lagoon
+  const fx = FALLS_CLIFF.x + 6, fz = LAKE.z - LAKE.r + 2, hgt = top - LAKE.y + 1, g = new THREE.PlaneGeometry(11, hgt, 8, 16), P = g.attributes.position;
+  for (let i = 0; i < P.count; i++) { const v = (P.getY(i) + hgt / 2) / hgt; P.setZ(i, (v > 0.92 ? (v - 0.92) * -20 : 0) + (1 - v) * 3.0); }
+  g.translate(0, hgt / 2, 0); g.computeVertexNormals();
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uTime: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform float uTime; varying vec2 vUv;
+      float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hsh(i), hsh(i + vec2(1, 0)), f.x), mix(hsh(i + vec2(0, 1)), hsh(i + vec2(1, 1)), f.x), f.y); }
+      void main(){ float s = vn(vec2(vUv.x * 14.0, vUv.y * 6.0 + uTime * 3.2)) * 0.6 + vn(vec2(vUv.x * 30.0, vUv.y * 12.0 + uTime * 5.0)) * 0.4;
+        vec3 col = mix(vec3(0.45, 0.85, 0.9), vec3(1.0), smoothstep(0.35, 0.75, s) + smoothstep(0.2, 0.0, vUv.y) * 0.8);
+        float a = (0.6 + 0.4 * s) * smoothstep(0.0, 0.12, vUv.x) * smoothstep(1.0, 0.88, vUv.x);
         gl_FragColor = vec4(col, a);
-        #include <fog_fragment>
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }` });
-  const root = new THREE.Group(); root.name = 'waterfall_aaa';
-  // main roaring curtain (in front of the grotto mouth)
-  const main = new THREE.Mesh(mkSheet(14, hgt, 10, 22, 2.4), m); main.position.set(fx, LAKE.y - 0.4 + hgt / 2, fz - 4); main.renderOrder = 4; root.add(main);
-  // flanking secondary ribbons
-  for (const s of [-1, 1]) {
-    const side = new THREE.Mesh(mkSheet(4.5, hgt * 0.72, 4, 14, 1.4), m.clone());
-    side.material.uniforms = m.uniforms; side.position.set(fx + s * 9.5, LAKE.y - 0.2 + hgt * 0.36, fz - 2.5); side.rotation.y = s * 0.25; side.renderOrder = 4; root.add(side);
-  }
-  // upper lip cascade (shorter sheet at the spillway)
-  { const lip = new THREE.Mesh(mkSheet(10, Math.min(6, hgt * 0.22), 6, 6, 0.8), m.clone());
-    lip.material.uniforms = m.uniforms; lip.position.set(fx, top - 2.2, fz - 8); lip.renderOrder = 4; root.add(lip); }
-  // plunge foam rings on the pool surface
-  const foamG = new THREE.RingGeometry(1.2, 9.5, 32, 3);
-  const foamM = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide,
-    uniforms: { uTime: uTime },
-    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-    fragmentShader: `uniform float uTime; varying vec2 vUv; void main(){ float r=length(vUv-0.5)*2.0; float rings=sin(r*14.0 - uTime*3.2)*0.5+0.5; float a=smoothstep(1.0,0.2,r)*smoothstep(0.05,0.25,r)*(0.25+0.45*rings); gl_FragColor=vec4(0.95,0.98,1.0,a); }` });
-  const foam = new THREE.Mesh(foamG, foamM); foam.rotation.x = -Math.PI / 2; foam.position.set(fx, LAKE.y + 0.08, fz - 1.5); foam.renderOrder = 5; root.add(foam);
-  // mist plumes (gated: skipped on low / phone)
-  let mist = null;
-  if (!low) {
-    const N = 280, pg = new THREE.BufferGeometry(), pos = new Float32Array(N * 3), seed = new Float32Array(N);
-    for (let i = 0; i < N; i++) { pos[i * 3] = (Math.random() - 0.5) * 16; pos[i * 3 + 1] = Math.random() * 10; pos[i * 3 + 2] = (Math.random() - 0.5) * 10; seed[i] = Math.random(); }
-    pg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); pg.setAttribute('aS', new THREE.BufferAttribute(seed, 1));
-    mist = new THREE.Points(pg, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uTime: uTime },
-      vertexShader: `attribute float aS; uniform float uTime; varying float vA; void main(){ float t=fract(uTime*0.15+aS); vec3 p=position; p.y=mod(p.y+t*8.0,10.0); p.x+=sin(uTime*0.4+aS*6.0)*0.6; vA=(1.0-t)*0.45; vec4 mv=modelViewMatrix*vec4(p,1.0); gl_PointSize=40.0*(1.0-t)/max(0.6,-mv.z); gl_Position=projectionMatrix*mv; }`,
-      fragmentShader: `varying float vA; void main(){ float d=length(gl_PointCoord-0.5); if(d>0.5) discard; gl_FragColor=vec4(0.9,0.95,1.0,vA*smoothstep(0.5,0.1,d)); }` }));
-    mist.position.set(fx, LAKE.y, fz - 2); mist.renderOrder = 5; mist.frustumCulled = false;
-  }
-  return [root, mist];
+  m.uniforms.uTime = uTime;
+  const sheet = new THREE.Mesh(g, m); sheet.position.set(fx, LAKE.y - 0.5, fz - 4); sheet.renderOrder = 4;
+  // mist + splash (points)
+  const N = low ? 40 : 120, pp = new Float32Array(N * 3), sd = new Float32Array(N);
+  for (let i = 0; i < N; i++) { pp[i * 3] = (Math.random() - 0.5) * 12; pp[i * 3 + 2] = Math.random() * 6; sd[i] = Math.random(); }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3)); pg.setAttribute('aSeed', new THREE.BufferAttribute(sd, 1));
+  const mist = new THREE.Points(pg, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uTime: uTime },
+    vertexShader: `attribute float aSeed; uniform float uTime; varying float vA; void main(){ float t = fract(uTime * 0.35 + aSeed); vec3 p = position; p.y += t * 7.0; p.x *= 1.0 + t; vA = sin(t * 3.14159) * 0.5;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = (40.0 + 60.0 * aSeed) * (30.0 / -mv.z); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: 'varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vec3(1.0), smoothstep(0.5, 0.0, d) * vA); }' }));
+  mist.position.set(fx, LAKE.y, fz - 2); mist.renderOrder = 5; mist.frustumCulled = false;
+  return [sheet, mist];
 }
 
 // ---------- foliage: instanced + streamed (nearest N to the camera), wind sway in the vertex shader ----------
@@ -610,7 +579,6 @@ function foliageSpots() {
     const clr = COASTM ? BT.clearAt(lx, lz) : 0; if (clr > 1) continue; // [Timothy] battery: ramp + gun deck clear, no trees round the guns
     if (COASTM && (BA.clearAt(lx, lz) || (COLI.COLISEUM_ON && COLI.clearAt(lx, lz)))) continue; // [Timothy]/[Emerly] battle pads + colosseum
     if (COTTAGES_ON && cottageClearAt(x, z)) continue; // [post/cottages] no trees/palms/rocks/cliffs in cottages / porches / well
-    if (corridorClearAt(x, z)) continue; // [waterfall-aaa] graded fishing path + hill trail + belvedere / overlook / summit
     if (sl > 0.95 && TRg[q] > 9) { if (r < 0.2 && !inView(x, z)) cliffs.push([x, h, z, r]); else if (r < 0.3) rocks.push([x, h, z, r]); continue; }
     if (clr) continue;
     if (inView(x, z)) { if (r < 0.1 && TRg[q] > 6) ferns.push([x, h, z, r]); continue; }
@@ -640,7 +608,6 @@ function grassGeos() {
 const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round((z - Z0) / G); if (fx < 1 || fz < 1 || fx >= NX || fz >= NZ) return 0; const q = IDX(fx, fz), h = Hg[q];
   if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   if (RB_ON && x > -440 && x < -405 && z > -130 && z < -60 && areaDeckAt(x, z) !== null) return 0;   // [v220] no grass tufts through the fountain plaza / Climb paving
-  if (corridorClearAt(x, z)) return 0; // [waterfall-aaa] no grass on fishing approach / hill trail / summit
   if (COTTAGES_ON && cottagePadAt(x, z)) return 0; // [post/cottages] no grass through cottage floors / porches / aprons / well pad
   const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
@@ -1481,7 +1448,6 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   function rearm(id) { const d = digs.find(d => d.id === id); if (d) { d.t = -1; d.mound.scale.setScalar(1); d.mound.visible = true; d.cg.position.y = -1.6; d.lid.rotation.x = 0; }
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
-  import('./fallsBlender.js').then(m => m.fallsFoot({ root, groups, low, flames })).catch(e => console.warn('[falls]', e)); // [Timothy waterfall-aaa] Blender fishing bridge + waterfall + high rope bridge (&falls=0)
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
   return { areas, root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, setLayer, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
 }
