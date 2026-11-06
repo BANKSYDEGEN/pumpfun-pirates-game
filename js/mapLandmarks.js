@@ -18,27 +18,28 @@ const LIST_LEGACY = () => [
   ['sword_shop', 'sword_shop', 'SWORD SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lz],
   ['musket_shop', 'musket_shop', 'MUSKET SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lz],
   ...['shop_pets', 'shop_crew'].map(id => { const s = STOREFRONTS.find(q => q.id === id); return s ? [id, id, s.name, 'town', s.lx, ROW_LZ] : null; }),
-  ['castle', 'castle', 'HILLTOP FORT', 'town', FORT.lx, FORT.lz, true],
-  ['battery', 'fort', 'CLIFF BATTERY', 'town', BATTERY.lx, BATTERY.lz, true],
+  ['castle', 'castle', 'CROWN CITADEL', 'town', FORT.lx, FORT.lz, true],
+  ['battery', 'fort', 'CANNON HEADLAND', 'town', BATTERY.lx, BATTERY.lz, true],
   ['sword_pit', 'battle', 'SWORD PIT', 'town', PIT.lx, PIT.lz, true],
   ['musket_range', 'battle', 'MUSKET RANGE', 'town', (RANGE.lx0 + RANGE.lx1) / 2, (RANGE.lz0 + RANGE.lz1) / 2, true],
-  ...(COLISEUM_ON ? [['coliseum', 'fort', 'COLOSSEUM', 'town', (FOOT.lx0 + FOOT.lx1) / 2, (FOOT.lz0 + FOOT.lz1) / 2, true]] : []),
-  ['ruin_steps', 'ruins', 'RUIN STEPS', 'foot', 106, -332, true],
-  ['jungle_idols', 'idol', 'IDOLS', 'foot', 69, -357, true],
-  ['mossbeard', 'camp', "MOSSBEARD'S CAMP", 'foot', TH.x - 4.5, TH.z + 9.5, true],
+  ...(COLISEUM_ON ? [['coliseum', 'fort', 'BLOODSTONE COLOSSEUM', 'town', (FOOT.lx0 + FOOT.lx1) / 2, (FOOT.lz0 + FOOT.lz1) / 2, true]] : []),
+  ['ruin_steps', 'ruins', 'ANCIENT STEPS', 'foot', 106, -332, true],
+  ['jungle_idols', 'idol', 'IDOL GROVE', 'foot', 69, -357, true],
+  ['mossbeard', 'camp', "MOSSBEARD'S OUTPOST", 'foot', TH.x - 4.5, TH.z + 9.5, true],
 ].filter(Boolean).filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 // Default: no shop rows that layout.interact / battle already register (pets, crew, sword, musket). Landmarks only.
 const LIST = () => [
-  ['castle', 'castle', 'HILLTOP FORT', 'town', FORT.lx, FORT.lz, true],
-  ['battery', 'fort', 'CLIFF BATTERY', 'town', BATTERY.lx, BATTERY.lz, true],
+  ['castle', 'castle', 'CROWN CITADEL', 'town', FORT.lx, FORT.lz, true],
+  ['battery', 'fort', 'CANNON HEADLAND', 'town', BATTERY.lx, BATTERY.lz, true],
   ['sword_pit', 'battle', 'SWORD PIT', 'town', PIT.lx, PIT.lz, true],
   ['musket_range', 'battle', 'MUSKET RANGE', 'town', (RANGE.lx0 + RANGE.lx1) / 2, (RANGE.lz0 + RANGE.lz1) / 2, true],
-  ['ruin_steps', 'ruins', 'RUIN STEPS', 'foot', 106, -332, true],
-  ['jungle_idols', 'idol', 'IDOLS', 'foot', 69, -357, true],
-  ['mossbeard', 'camp', "MOSSBEARD'S CAMP", 'foot', TH.x - 4.5, TH.z + 9.5, true],
+  ['ruin_steps', 'ruins', 'ANCIENT STEPS', 'foot', 106, -332, true],
+  ['jungle_idols', 'idol', 'IDOL GROVE', 'foot', 69, -357, true],
+  ['mossbeard', 'camp', "MOSSBEARD'S OUTPOST", 'foot', TH.x - 4.5, TH.z + 9.5, true],
 ].filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 export function mapLandmarks(FM) {
-  return (MMICONS_LEGACY ? LIST_LEGACY() : LIST()).map(([id, icon, label, fr, x, z, far]) => { const [fx, fz] = fr === 'town' ? FM.townToWorld(x, z) : [x, z]; return { id, icon, label, x: fx, z: fz, far: !!far }; });
+  const GEO_IDS = new Set(['castle','battery','sword_pit','musket_range','ruin_steps','jungle_idols','mossbeard','coliseum']);
+  return (MMICONS_LEGACY ? LIST_LEGACY() : LIST()).map(([id, icon, label, fr, x, z, far]) => { const [fx, fz] = fr === 'town' ? FM.townToWorld(x, z) : [x, z]; return { id, icon, label, x: fx, z: fz, far: !!far, geo: GEO_IDS.has(id) }; });
 }
 // docks: one anchor per jetty (berth pairs share a jetty), harbor coords in -> foot
 // [minimap-icons] plaza v2 berths are B1..B10 (two per jetty J1..J5). The old /[LR]$/ strip only collapsed P1L/P1R, so each B*
@@ -46,7 +47,7 @@ export function mapLandmarks(FM) {
 export function mapDocks(layout) {
   if (MMICONS_LEGACY) {
     const by = new Map(); for (const b of layout.berths || []) { const k = String(b.id).replace(/[LR]$/, ''); const [x, z] = layout.harborToFoot(b.x, b.z); const a = by.get(k) || []; a.push([x, z]); by.set(k, a); }
-    return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'DOCK ' + k.replace(/^P/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
+    return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + k.replace(/^P/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
   }
   const by = new Map();
   for (const b of layout.berths || []) {
@@ -54,6 +55,6 @@ export function mapDocks(layout) {
     const k = m ? 'J' + Math.ceil(+m[1] / 2) : id.replace(/[LR]$/, '');
     const [x, z] = layout.harborToFoot(b.x, b.z); const a = by.get(k) || []; a.push([x, z]); by.set(k, a);
   }
-  return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'DOCK ' + k.replace(/^P/, '').replace(/^J/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
+  return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + k.replace(/^P/, '').replace(/^J/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
 }
 export const mmiconsLegacy = () => MMICONS_LEGACY;

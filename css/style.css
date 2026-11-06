@@ -74,6 +74,18 @@ button.icon { width: 44px; height: 44px; border-radius: 50%; border: 1px solid v
 button.icon:hover { border-color: var(--gold); }
 #radar { grid-column: 1 / span 5; width: 150px; height: 150px; border-radius: 50%; border: 1px solid var(--line); background: rgba(10, 20, 26, 0.6); margin-top: 4px; justify-self: end; pointer-events: none !important; }
 #radar.isle-tap { pointer-events: auto !important; cursor: zoom-in; } /* [v106] tap the island map for the full-screen map */
+
+/* [map-streets] district · street tag under the corner radar */
+#map-loc-hud { grid-column: 1 / span 5; justify-self: end; text-align: right; margin-top: 2px; padding: 4px 10px 5px; min-width: 120px; max-width: 220px; border-radius: 10px; border: 1px solid rgba(255,205,119,.45); background: linear-gradient(180deg, rgba(20,12,6,.82), rgba(10,6,3,.78)); pointer-events: none; line-height: 1.15; }
+#map-loc-hud .ml-dist { font: 700 13px/1.1 system-ui, sans-serif; color: #ffcd77; letter-spacing: .04em; text-transform: uppercase; }
+#map-loc-hud .ml-street { font: 600 11px/1.1 system-ui, sans-serif; color: rgba(255,244,220,.88); margin-top: 2px; min-height: 12px; }
+#map-loc-hud[hidden] { display: none !important; }
+#isle-map .im-loc, #isle-map .im-cur { font: 600 12px/1.2 system-ui, sans-serif; color: #ffcd77; letter-spacing: .02em; white-space: nowrap; }
+#isle-map .im-cur { color: rgba(255,236,190,.85); }
+#isle-map .im-hint { opacity: .65; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 700px) { #map-loc-hud { max-width: 150px; padding: 3px 7px; } #map-loc-hud .ml-dist { font-size: 11px; } #map-loc-hud .ml-street { font-size: 10px; } #isle-map .im-loc, #isle-map .im-cur { font-size: 10px; } }
+html.hud-hide #map-loc-hud { display: none !important; }
+
 #isle-map { position: fixed; inset: 0; z-index: 60; background: rgba(6, 14, 20, 0.94); display: flex; flex-direction: column; color: #fff; font-family: system-ui, sans-serif; touch-action: none; padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 #isle-map[hidden] { display: none; }
 #isle-map canvas { width: 100%; flex: 1; display: block; }

@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { shopIcon, drawShopIcon, getMapStyle, THEMES, SHOP_ICONS } from './mapIcons.js'; // [v153] shop badges + MINIMAP STYLE // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
 import { mapLandmarks, mapDocks } from './mapLandmarks.js'; // [minimap-themes] castle / fort / battle areas / shops / docks / D2 ruins from the island's own data
 import { mapSafeZoneRings, SAFEZONES_ON, coliseumExclusion, insideSafeZone, TRAIL_A_LINK } from './island/safeZones.js'; // [backpack-pvp]
+import { GEO_LABELS, ISLAND_STREETS, locatePoint, streetLabelPose } from './islandGeography.js'; // [map-streets]
 const BAKE_C = new THREE.Color(); // colour scratch for the bake
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // foot frame: the whole on-foot grid (main island + islets)
 const MMICONS_LEGACY = typeof location !== 'undefined' && /[?&]mmicons=0(?:&|$)/.test(location.search); // [minimap-icons] &mmicons=0 = old duplicated pets/crew (+ 10 dock) set
@@ -23,7 +24,8 @@ const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5c
   route_board: ['!', '#e8e2d4', '#161616', 'NOTICE BOARD'] }; // [hide-notice] only in interact when &noticeboard=1
 const POI_HIDE = new Set(['wish_fountain', 'cottage_well']); // wishing fountain + cottage well stay off the map (hidden feature)
 const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
-const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
+const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS RIDGE', bridge: "HANGMAN'S BRIDGE", lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
+const GEO_POI = new Set(['skullpeak','falls','gallows','bridge','gate','cove','fort_flag','fort_spyglass']); // [map-streets] typography only — never icon these
 
 const MAPZOOM_ON = typeof location === 'undefined' || !/[?&]mapzoom=0(?:&|$)/.test(location.search); // [map-zoom] BANKSY 2:43 PM; &mapzoom=0 = old tap-anywhere-to-close, no zoom/pan
 export function createIslandMap({ world, layout, low, islands = null, paperSheet = null }) { // paperSheet() = the MAPS parchment chart (js/dock/treasureMap.js sheet())
@@ -81,9 +83,9 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   const pois = () => { // [minimap-icons] one icon per id; interact/foot first (real walk-up spots), then FOOT_POIS / landmarks / docks. &mmicons=0 skips the id dedupe.
     const raw = [...layout.interact, ...(world.footInteract || [])].filter(q => !POI_HIDE.has(q.id) && (POI[q.id] || POI[q.kind] || shopIcon(q))).map(q => { const [fx, fz] = toF(q.x, q.z), ic = shopIcon(q); // [v153] shops: a badge per shop id
       return { id: q.id, x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind]), icon: ic }; })
-      .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ id: p.id, x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id) })))
+      .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ id: p.id, x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id), geo: GEO_POI.has(p.id) || !/lighthouse|_lh$/.test(p.id) })))
       .concat(rockLights())
-      .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon]; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true }; }));
+      .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon]; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true, geo: !!l.geo }; }));
     if (MMICONS_LEGACY) return raw;
     const seen = new Set(), out = [];
     for (const p of raw) { const k = p.id || (p.s && p.s[3]) || `${p.x|0},${p.z|0}`; if (seen.has(k)) continue; seen.add(k); out.push(p); }
@@ -169,7 +171,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   // headings: yaw 0 = +z (south on the map, north = -z up), so a screen rotation of (PI - yaw) points the arrow along the heading
   function draw(ctx, W, st) { // the round radar: whole island, north up
     if (!done) { bakeRows(low ? 14 : 18); return false; } // until it's mapped the sea radar stays
-    checkRev(); if (again) bakeRows(low ? 6 : 10); const th = theme(), SH = th.sheet && paperSheet ? paperSheet() : null;
+    checkRev(); if (again) bakeRows(low ? 6 : 10); const th = theme(), SH = th.sheet && paperSheet ? paperSheet(true) : null; // [map-streets] bare
     const R = W / 2, k = (R - 2) / LB.r, ox = R - (LB.cx - B.x0) * k, oz = R - (LB.cz - B.z0) * k;
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [ox + (fx - B.x0) * k, oz + (fz - B.z0) * k]; };
     ctx.clearRect(0, 0, W, W); ctx.save(); ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.clip();
@@ -177,7 +179,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     if (SH) ctx.drawImage(SH.cv, ox + (SH.x0 - B.x0) * k, oz + (SH.z0 - B.z0) * k, SH.w / SH.k * k, SH.h / SH.k * k); else ctx.drawImage(base(th), ox, oz, N * mpp * k, NZ * mpp * k);
     const sz = Math.max(4.5, W / 22);
     for (const p of P || []) { if (p.far && !p.lh && !p.icon) continue; const [a, b] = T(...toH(p.x, p.z)); if (p.lh) { const ph = 0.6 + 0.4 * Math.sin(performance.now() / 420); ctx.fillStyle = `rgba(255,224,138,${ph})`; ctx.strokeStyle = '#3a1d00'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(a, b, sz * 0.4, 0, 7); ctx.fill(); ctx.stroke(); continue; } if (p.icon) { if (p.far) drawShopIcon(ctx, p.icon, a, b, sz * 0.62, th.badge); continue; } ctx.fillStyle = p.s[1]; ctx.beginPath(); ctx.arc(a, b, sz * 0.42, 0, 7); ctx.fill(); }
-    drawSafeZoneRings(ctx, T, k, 1, { small: true }); // [backpack-pvp] island radar
+    // [t1726u] NO Safe Zone rings on the ship/island radar (draw) — only drawLocal + Full Map M
     markers(ctx, T, k, st, sz, [R, R, R - 3], th);
     ctx.restore();
     ctx.strokeStyle = th.ring; ctx.lineWidth = th.ringW; ctx.beginPath(); ctx.arc(R, R, R - 1, 0, 7); ctx.stroke();
@@ -239,6 +241,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   // [map-zoom] BANKSY 2:43-2:44 PM: wheel / pinch / stick zoom + drag / stick pan on the ISLAND MAP (fit → ~4×), icons stay screen-sized.
   let el = null, fc = null, open = false, getSt = null, raf = 0;
   let z = 1, panX = 0, panZ = 0; // z = zoom (1 = fit whole map), pan = foot-metre offset of the view centre from LB
+  let curFX = null, curFZ = null, locEl = null, curEl = null; // [map-streets] cursor + you callouts
   let vx = 0, vz = 0; // pan velocity (foot m / s) for inertia
   let fitK = 1; // px-per-metre at z=1 for the current canvas (set each frame)
   const ZMIN = 1, ZMAX = 4;
@@ -269,12 +272,12 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     const hint = MAPZOOM_ON
       ? 'scroll / pinch zoom · drag to pan · dbl-click reset · M · Esc'
       : 'tap anywhere · M · Esc to close';
-    el.innerHTML = `<div class="im-head"><b>ISLAND MAP</b><span>${hint}</span>` +
+    el.innerHTML = `<div class="im-head"><b>ISLAND MAP</b><span class="im-hint">${hint}</span><span class="im-loc" id="im-you-loc"></span><span class="im-cur" id="im-cur-loc"></span>` +
       (MAPZOOM_ON ? '<div class="im-zoom" role="group" aria-label="Map zoom"><button type="button" class="im-zbtn" data-z="out" aria-label="Zoom out">−</button><button type="button" class="im-zbtn" data-z="in" aria-label="Zoom in">+</button><button type="button" class="im-zbtn" data-z="reset" aria-label="Recentre"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="display:block;margin:auto" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button></div>' : '') +
       `<button class="im-x" aria-label="Close">✕</button></div><canvas></canvas>` +
-      '<div class="im-key"><i style="background:#fff"></i>you <i style="background:#ffcd77"></i>your ship <i style="background:#2fd866;box-shadow:0 0 0 2px #fff"></i>pirates <i style="background:#33d6ff;transform:rotate(45deg);border-radius:1px"></i>crew <i style="background:#ffcd00"></i>Commodore <i style="background:#fa0d0d"></i>AI ships <b style="color:#ff3b3b">✕</b> treasure <i class="im-tr" style="background:#fa0d0d"></i>red trail <i class="im-tr" style="background:#ffc93c"></i>yellow trail <i class="im-st"></i>steep (no way up) <i style="background:rgba(46,232,138,.45);border:1.5px solid #2ee88a"></i>safe zone' +
+      '<div class="im-key"><i style="background:#fff"></i>you <i style="background:#ffcd77"></i>your ship <i style="background:#2fd866;box-shadow:0 0 0 2px #fff"></i>pirates <i style="background:#33d6ff;transform:rotate(45deg);border-radius:1px"></i>crew <i style="background:#ffcd00"></i>Commodore <i style="background:#fa0d0d"></i>AI ships <b style="color:#ff3b3b">✕</b> treasure <i class="im-tr" style="background:#fa0d0d"></i>crimson trail <i class="im-tr" style="background:#ffc93c"></i>doubloon trail <i class="im-st"></i>steep (no way up) <i style="background:rgba(46,232,138,.45);border:1.5px solid #2ee88a"></i>safe zone' +
       (MAPZOOM_ON ? '<span class="im-padhint" hidden>L-stick pan · LT/RT zoom · Y recentre · B close</span>' : '') + '</div>';
-    document.body.appendChild(el); fc = el.querySelector('canvas');
+    document.body.appendChild(el); fc = el.querySelector('canvas'); locEl = el.querySelector('#im-you-loc'); curEl = el.querySelector('#im-cur-loc');
     el.querySelector('.im-x').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
     if (!MAPZOOM_ON) {
       el.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); setTimeout(close, 0); });
@@ -296,6 +299,15 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       const r = canvas.getBoundingClientRect();
       const f = Math.exp(-e.deltaY * 0.0015); zoomAt(f, e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
+    const syncCur = (e) => {
+      if (!LB || !fc || !fitK) return;
+      const r = canvas.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+      const sx = (e.clientX - r.left) * dpr, sy = (e.clientY - r.top) * dpr, kk = fitK * z;
+      const cx = LB.cx + panX, cz = LB.cz + panZ;
+      curFX = cx + (sx - fc.width / 2) / kk; curFZ = cz + (sy - fc.height / 2) / kk;
+    };
+    canvas.addEventListener('pointermove', syncCur);
+    canvas.addEventListener('pointerleave', () => { curFX = curFZ = null; });
     // ----- pointer drag pan + double-click/tap reset -----
     let dragging = false, pid = null, lastX = 0, lastY = 0, lastT = 0, moved = 0, lastTap = 0;
     const pts = new Map(); // pointerId -> {x,y} for pinch
@@ -370,20 +382,72 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     const cx = MAPZOOM_ON ? LB.cx + panX : LB.cx, cz = MAPZOOM_ON ? LB.cz + panZ : LB.cz;
     const ox = Wc / 2 - (cx - B.x0) * k, oz = Hc / 2 - (cz - B.z0) * k;
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [ox + (fx - B.x0) * k, oz + (fz - B.z0) * k]; };
-    const th = theme(), SH = th.sheet && paperSheet ? paperSheet() : null;
+    const th = theme(), SH = th.sheet && paperSheet ? paperSheet(true) : null; // [map-streets] bare parchment — NEVER stack treasureMap text under islandMap labels
     const baseAt = (ox2, oz2, kk) => SH ? c.drawImage(SH.cv, ox2 + (SH.x0 - B.x0) * kk, oz2 + (SH.z0 - B.z0) * kk, SH.w / SH.k * kk, SH.h / SH.k * kk) : c.drawImage(base(th), ox2, oz2, N * mpp * kk, NZ * mpp * kk);
     c.fillStyle = SH ? SEA_P : th.sea; c.fillRect(0, 0, Wc, Hc); c.imageSmoothingEnabled = true; baseAt(ox, oz, k);
-    // icons / labels: constant screen size (do not scale with z)
+    // [map-streets] shop/dock icons only; geographic names = clean typography (no ▲ pins). Collision boxes prevent overlap.
     const sz = 9 * dpr; c.textBaseline = 'middle';
-    for (const p of P || []) { const [a, b] = T(...toH(p.x, p.z)); if (p.town) continue; if (a < -40 || b < -40 || a > Wc + 40 || b > Hc + 40) continue;
-      if (p.icon) { drawShopIcon(c, p.icon, a, b, sz * 1.1, th.badge); c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.strokeText(p.s[3], a + sz * 1.1 + 3, b); c.fillStyle = '#fff'; c.fillText(p.s[3], a + sz * 1.1 + 3, b); continue; }
-      c.fillStyle = p.s[1]; c.strokeStyle = '#161616'; c.lineWidth = 1.5 * dpr; c.beginPath(); c.arc(a, b, sz, 0, 7); c.fill(); c.stroke();
-      c.font = `bold ${Math.round(sz * 1.15)}px system-ui, sans-serif`; c.textAlign = 'center'; c.fillStyle = p.s[2]; c.fillText(p.s[0], a, b + 0.5);
-      if (!p.town || kBase > 0.9 * dpr) { c.font = `bold ${Math.round(11 * dpr)}px system-ui, sans-serif`; c.textAlign = 'left'; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.strokeText(p.s[3], a + sz + 3, b); c.fillStyle = '#fff'; c.fillText(p.s[3], a + sz + 3, b); } }
-    { const tc = T(...toH(...(FM.TRAILS.A[Math.floor(FM.TRAILS.A.length * 0.3)])));
-      c.font = `bold ${Math.round(12 * dpr)}px system-ui, sans-serif`; c.lineWidth = 3 * dpr; c.strokeStyle = '#111'; c.fillStyle = '#fa0d0d'; c.strokeText('RED TRAIL', tc[0] + 6, tc[1]); c.fillText('RED TRAIL', tc[0] + 6, tc[1]);
-      const tb = T(...toH(...(FM.TRAILS.B[Math.floor(FM.TRAILS.B.length * 0.55)]))); c.fillStyle = '#ffc93c'; c.strokeText('YELLOW TRAIL', tb[0] + 6, tb[1]); c.fillText('YELLOW TRAIL', tb[0] + 6, tb[1]); }
-    drawSafeZoneRings(c, T, k, dpr);
+    const boxes = [];
+    const hit = (r) => boxes.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
+    const pushBox = (r) => { boxes.push(r); };
+    const inkLabel = (txt, a, b, px, col = '#f7e7c2', align = 'center', ang = 0) => {
+      c.save(); c.translate(a, b); c.rotate(ang);
+      c.font = `bold ${Math.round(px)}px "Just Another Hand", system-ui, sans-serif`;
+      c.textAlign = align; c.textBaseline = 'middle';
+      const tw = c.measureText(txt).width, thh = px * 0.9, pad = 3 * dpr;
+      const local = align === 'left' ? [0, -thh / 2, tw, thh / 2] : align === 'right' ? [-tw, -thh / 2, 0, thh / 2] : [-tw / 2, -thh / 2, tw / 2, thh / 2];
+      // AABB in screen space (ignore rotation for collision — good enough + cheap)
+      const rr = [a + local[0] - pad, b + local[1] - pad, a + local[2] + pad, b + local[3] + pad];
+      if (hit(rr) || a < 8 || b < 8 || a > Wc - 8 || b > Hc - 8) { c.restore(); return false; }
+      pushBox(rr);
+      c.lineWidth = Math.max(2.5 * dpr, px * 0.14); c.strokeStyle = 'rgba(12,8,4,0.85)'; c.strokeText(txt, 0, 0);
+      c.fillStyle = col; c.fillText(txt, 0, 0); c.restore(); return true;
+    };
+    // town shops / boards / docks: compact icons; hide text when zoomed out so town never piles up
+    const showShopText = z >= 1.6;
+    for (const p of P || []) {
+      if (p.geo || p.town || p.id === 'fort_flag' || p.id === 'fort_spyglass') continue; // geography layer owns geo names; inset owns town duplicates
+      const [a, b] = T(...toH(p.x, p.z)); if (a < -40 || b < -40 || a > Wc + 40 || b > Hc + 40) continue;
+      if (p.lh) { // lighthouse — tiny mark, no duplicate text from FPOI
+        const ph = 0.75; c.fillStyle = `rgba(255,224,138,${ph})`; c.strokeStyle = '#3a1d00'; c.lineWidth = 1.2 * dpr; c.beginPath(); c.arc(a, b, sz * 0.45, 0, 7); c.fill(); c.stroke();
+        if (z >= 1.25) inkLabel(p.s[3], a + sz * 1.2, b, 11 * dpr, '#ffe08a', 'left');
+        continue;
+      }
+      if (p.icon) {
+        drawShopIcon(c, p.icon, a, b, sz * 1.05, th.badge);
+        pushBox([a - sz, b - sz, a + sz, b + sz]);
+        if (showShopText) inkLabel(p.s[3], a + sz * 1.15, b, 11 * dpr, '#fff', 'left');
+        continue;
+      }
+      // non-geo leftover POIs (boards etc.): small badge, text only when zoomed
+      c.fillStyle = p.s[1]; c.strokeStyle = '#161616'; c.lineWidth = 1.5 * dpr; c.beginPath(); c.arc(a, b, sz * 0.85, 0, 7); c.fill(); c.stroke();
+      c.font = `bold ${Math.round(sz)}px system-ui, sans-serif`; c.textAlign = 'center'; c.fillStyle = p.s[2]; c.fillText(p.s[0], a, b + 0.5);
+      pushBox([a - sz, b - sz, a + sz, b + sz]);
+      if (showShopText) inkLabel(p.s[3], a + sz + 3, b, 11 * dpr, '#fff', 'left');
+    }
+    // District names (overview + zoomed)
+    for (const gl of GEO_LABELS.filter(g => g.kind === 'district')) {
+      const [a, b] = T(...toH(gl.x, gl.z));
+      const px = Math.max(11, (gl.size || 12) * dpr * (z < 1.2 ? 1.05 : z < 2 ? 0.95 : 0.85));
+      inkLabel(gl.name, a, b, px, 'rgba(255, 220, 150, 0.88)');
+    }
+    // Spot labels (waterfall / town gate) — zoomed only
+    if (z >= 1.25) for (const gl of GEO_LABELS.filter(g => g.kind === 'spot' || g.kind === 'street')) {
+      const [a, b] = T(...toH(gl.x, gl.z)); inkLabel(gl.name, a, b, Math.max(10, (gl.size || 11) * dpr * 0.9), 'rgba(247, 231, 194, 0.9)');
+    }
+    // Street / trail names angled along roads
+    const primaryIds = new Set(['market_row','gunpowder_row','lantern_lane','crimson_trail','doubloon_trail','boardwalk']);
+    const secondaryIds = new Set(['highgate_road','gladiator_way','citadel_ramp','anglers_path','idol_trail','hangmans_bridge','battery_trail','pier_1','pier_2','pier_3','pier_4','pier_5']);
+    const streetList = ISLAND_STREETS.filter(st => (z < 1.25 ? primaryIds.has(st.id) : (primaryIds.has(st.id) || secondaryIds.has(st.id))));
+    for (const st of streetList) {
+      const pose = streetLabelPose(st); const [a, b] = T(...toH(pose.x, pose.z));
+      let ang = pose.ang - Math.PI / 2; // screen: +z down
+      if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+      const col = st.color || 'rgba(255, 236, 190, 0.92)';
+      const px = Math.max(10, (st.primary ? 12 : 10.5) * dpr);
+      inkLabel(st.name, a, b, px, col, 'center', ang);
+    }
+    drawSafeZoneRings(c, T, k, dpr); // [backpack-pvp] Safe Zone overlay under labels
     const st = getSt ? getSt() : {}; markers(c, T, k, st, 11 * dpr, null, th);
     // HARBOR TOWN inset: only at fit zoom (hidden while zoomed so it doesn't fight the pan)
     if (!MAPZOOM_ON || z < 1.15) {
@@ -421,6 +485,11 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     c.strokeStyle = '#fff'; c.lineWidth = 3 * dpr; c.beginPath(); c.moveTo(14 * dpr, Hc - 14 * dpr); c.lineTo(14 * dpr + barM * k, Hc - 14 * dpr); c.stroke();
     c.fillStyle = '#fff'; c.font = `bold ${Math.round(11 * dpr)}px system-ui`; c.textAlign = 'left'; c.fillText(barM + ' m', 14 * dpr, Hc - 24 * dpr);
     if (MAPZOOM_ON && z > 1.02) { c.fillStyle = 'rgba(255,205,119,.85)'; c.font = `bold ${Math.round(12 * dpr)}px system-ui`; c.textAlign = 'right'; c.fillText(z.toFixed(1) + '×', Wc - 14 * dpr, Hc - 14 * dpr); }
+    // [map-streets] YOU + CURSOR district · street callouts
+    { const me = st.me ? toF(st.me.x, st.me.z) : null;
+      const you = me ? locatePoint(me[0], me[1], { onFoot: !!st.me?.foot }) : null;
+      if (locEl) { const t = you ? ('📍 YOUR LOCATION: ' + you.callout) : ''; if (locEl.textContent !== t) locEl.textContent = t; }
+      if (curEl) { const cur = (curFX != null) ? locatePoint(curFX, curFZ, { onFoot: true }) : null; const t = cur ? ('CURSOR: ' + cur.callout) : ''; if (curEl.textContent !== t) curEl.textContent = t; } }
   }
   // controller: left stick pan (foot m/s), LT/RT or right-stick Y zoom, Y recentre, B close — called from gamepad.js map mode
   function padTick(s) {
@@ -434,5 +503,5 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   }
   function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; resetView(); el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
   function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); vx = vz = 0; }
-  return { draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
+  return { draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), locate: locatePoint, get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
 }

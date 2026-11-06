@@ -13,6 +13,8 @@ import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
 import { createBerthSigns } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
+import { createStreetSigns } from './streetSigns.js'; // [map-streets] wooden district / street posts
+import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
 import { createPetFollower } from '../onfoot/pets.js'; // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
@@ -89,6 +91,7 @@ export async function createDock(ctx) {
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking, getCamera: () => camera });
   const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map(); // [berth-signs] peer id -> last synced name
+  let streetSigns = null; try { streetSigns = createStreetSigns({ scene, world, layout, low: LOW }); } catch (e) { console.warn('[street-signs]', e); }
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
@@ -108,6 +111,27 @@ export async function createDock(ctx) {
   const openIsleMap = () => { if (on && game.state === 'playing' && !treasure.isOpen) imap.open(() => minimapState(mapSt)); };
   const radarEl = document.getElementById('radar');
   radarEl?.addEventListener('pointerdown', (e) => { if (!on || !radarEl.classList.contains('isle-tap')) return; e.preventDefault(); e.stopPropagation(); openIsleMap(); });
+  // [map-streets] GTA-style district · street tag under the corner radar (Harbor / Island only)
+  let mapLocEl = document.getElementById('map-loc-hud');
+  if (!mapLocEl) {
+    mapLocEl = document.createElement('div'); mapLocEl.id = 'map-loc-hud'; mapLocEl.hidden = true;
+    mapLocEl.innerHTML = '<div class="ml-dist"></div><div class="ml-street"></div>';
+    (document.getElementById('hud-tr') || document.body).appendChild(mapLocEl);
+  }
+  let _locAcc = 0, _locSig = '';
+  function updateMapLocHud() {
+    const hide = !(on && onFoot && game.state === 'playing') || document.documentElement.classList.contains('hud-hide') || game.mode === 'waves';
+    if (hide) { if (!mapLocEl.hidden) mapLocEl.hidden = true; return; }
+    _locAcc++; if (_locAcc % 4) return; // ~4 Hz when drawMinimap runs every frame at 60
+    const W = walker.w; const [fx, fz] = layout.harborToFoot(W.x, W.z);
+    const loc = locatePoint(fx, fz, { onFoot: true });
+    const sig = loc.callout;
+    if (sig === _locSig && !mapLocEl.hidden) return; _locSig = sig;
+    mapLocEl.hidden = false;
+    const d = mapLocEl.querySelector('.ml-dist'), s2 = mapLocEl.querySelector('.ml-street');
+    if (d && d.textContent !== loc.district) d.textContent = loc.district;
+    if (s2 && s2.textContent !== (loc.street || '')) s2.textContent = loc.street || '';
+  }
   // [v145] calm() = the treasure-map reveal may play now (never mid-fight); getPos() = you on foot, else your ship (harbor coords)
   let inventory = null; // [inventory] (made right after the treasure maps: it opens them)
   const treasure = createTreasure({ inventory: () => inventory, world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
@@ -238,7 +262,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { canoe?.clearAll?.(P()); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { canoe?.clearAll?.(P()); houses?.clear?.(); streetSigns?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -475,7 +499,7 @@ export async function createDock(ctx) {
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     ladders, /* [dock-ladders] */ dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
-    drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
+    drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); updateMapLocHud(); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
     islandMap: imap, openIsleMap,
     // [backpack-pvp] t1710u the at-sea ship radar (main.js): Safe Harbor sea zone (no ship PvP inside) + the island Safe Zone overlay
     radarZones: (ctx, W, T, s) => {

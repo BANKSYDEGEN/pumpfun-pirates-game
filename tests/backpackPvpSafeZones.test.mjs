@@ -345,7 +345,7 @@ test('t1698u Option B: kill switch, unmanned ship shield, harbor sink credits + 
 import { STANCE, STANCE_LABEL, stanceForKey, stanceTap, holsterToggle, peerReach, openHitOk, hitsToKill, STANCES_ON } from '../js/onfoot/stances.js';
 import { weaponStats } from '../js/inventory/catalog.js';
 
-test('t1710u Safe Zone overlay drawn on the full map, HARBOR TOWN inset, on-foot minimap, island radar + ship radar', () => {
+test('t1710u/t1726u Safe Zone on full map + on-foot minimap (NOT ship/island radar draw)', () => {
   const map = read('js/islandMap.js');
   assert.match(map, /function safeCanvas\(\)/);
   assert.match(map, /insideSafeZone\(B\.x0 \+ \(i \+ 0\.5\) \* SZ_CELL/, 'baked from the true union insideSafeZone');
@@ -354,7 +354,7 @@ test('t1710u Safe Zone overlay drawn on the full map, HARBOR TOWN inset, on-foot
   const fn = (name) => { const a = map.indexOf(`function ${name}(`); const b = map.indexOf('\n  }\n', a); return map.slice(a, b); };
   assert.match(fn('drawLocal'), /drawSafeZoneRings\(ctx, T, k, 1, \{ labels: false \}\)/, 'rotating corner minimap');
   assert.match(fn('drawLocal'), /🛡️ SAFE' : '⚔️ PVP'/, 'rim pill');
-  assert.match(fn('draw'), /drawSafeZoneRings\(ctx, T, k, 1, \{ small: true \}\)/, 'island radar');
+  assert.doesNotMatch(fn('draw'), /drawSafeZoneRings/, 't1726u: NO Safe Zone on ship/island radar draw()');
   assert.match(fn('frame'), /drawSafeZoneRings\(c, T, k, dpr\)/, 'full-screen map');
   assert.match(fn('frame'), /drawSafeZoneRings\(c, T2, kk, dpr, \{ small: true \}\)/, 'HARBOR TOWN inset');
   assert.match(map, /<i style="background:rgba\(46,232,138,\.45\);border:1\.5px solid #2ee88a"><\/i>safe zone/, '.im-key legend');

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v326'; // [v326] revert v323 waterfall WIP (44eac37) per BANKSY [t399u]; prev: [v325] backpack 16-slot cap + PvP loot bags + Cottages-to-Dock & fishing lagoon safe zones + stances + server picker + sea PvP crates + unified K/D + crew-vs-crew fights; prev: [v324] Waves wear Harbor skin only + cottage storage drag/split + separate Sword/Musket/Musket Upgrades shops; prev: [v322] BANKSY owner-only Admin Menu;
+const VERSION = 'pfp-v326'; // [v326] waterfall AAA reverted (44eac37) + map streets pending fold into v327; prev: [v325] backpack PvP;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -149,6 +149,8 @@ const SHELL = [
   "./js/prestige.js", // [prestige] emblem + reward text (pvp.js, shop.js, uiProfile.js)
   "./js/modeKills.js", // [Timothy] pvp.js imports it (BR kills by mode, display only)
   "./js/islandMap.js",
+  "./js/islandGeography.js",
+  "./js/dock/streetSigns.js",
   "./js/mapIcons.js",
   "./js/mapLandmarks.js",
   "./js/pvpBoard.js",

@@ -12,9 +12,10 @@
 // Everything is in the FOOT frame (north = -z up, like js/islandMap.js); the spots + you come in harbor coords (toF converts).
 import { mapLandmarks, mapDocks } from '../mapLandmarks.js'; // [minimap-themes] the chart's new landmarks (fort, battery, battle areas, shops, D2 ruins, docks)
 import { SHOP_ICONS, drawShopIcon } from '../mapIcons.js';
+import { GEO_LABELS, ISLAND_STREETS, streetLabelPose } from '../islandGeography.js'; // [map-streets]
 const B = { x0: -940, x1: 700, z0: -820, z1: 780 }; // the on-foot grid (same box as js/islandMap.js)
 const INK = '#3b2410', INK_S = 'rgba(59,36,16,', RED = '#b5150d';
-const LABELS = { skullpeak: 'Skull Peak', falls: 'Waterfall', gallows: 'Gallows Hill', bridge: 'Rope Bridge', lighthouse: 'Lighthouse', sandbar_lh: 'Sandbar Light', cove: "Smugglers' Cove", gate: 'Town Gate' };
+const LABELS = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS RIDGE', bridge: "HANGMAN'S BRIDGE", lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', cove: "SMUGGLERS' COVE", gate: 'TOWN GATE' };
 const FONT = "'Just Another Hand', cursive";
 const hash2 = (x, z) => { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); };
 const CSS = `
@@ -137,19 +138,25 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
     // labels
     const label = (txt, x, z, size, color = INK, align = 'center', rot = 0) => { if (bare) return; const [a, b] = P(x, z); g.save(); g.translate(a, b); g.rotate(rot); g.font = `${Math.round(lw(size))}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle';
       g.lineWidth = lw(size) * 0.16; g.strokeStyle = 'rgba(240,224,182,0.85)'; g.strokeText(txt, 0, 0); g.fillStyle = color; g.fillText(txt, 0, 0); g.restore(); };
-    for (const p of FM.FOOT_POIS || []) { const t = LABELS[p.id]; if (!t) continue;
-      if (p.id === 'skullpeak') { const [a, b] = P(p.x, p.z); g.font = `${Math.round(lw(42))}px system-ui,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = INK; g.fillText('☠', a, b); label(t, p.x, p.z + 30 / k * lw(1), 42); continue; }
-      if (/lighthouse|_lh$/.test(p.id)) { const [a, b] = P(p.x, p.z); g.fillStyle = '#f3e3b5'; g.strokeStyle = INK; g.lineWidth = lw(1.3); g.beginPath(); g.moveTo(a - lw(4), b + lw(6)); g.lineTo(a - lw(2.4), b - lw(7)); g.lineTo(a + lw(2.4), b - lw(7)); g.lineTo(a + lw(4), b + lw(6)); g.closePath(); g.fill(); g.stroke();
-        g.fillStyle = 'rgba(255,190,60,.9)'; g.beginPath(); g.arc(a, b - lw(9), lw(2.6), 0, 7); g.fill(); label(t, p.x + 14 / k * lw(1), p.z, 34, INK, 'left'); continue; }
-      label(t, p.x, p.z, 38); }
-    // [minimap-themes] landmarks: ink-and-parchment badges + hand labels (same list as the island map)
-    { const L = [...mapLandmarks(FM), ...(layout ? mapDocks(layout).slice(0, 1).map(d => ({ ...d, label: 'Docks' })) : [])];
-      const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'Squad Hall', x: sq.x, z: sq.z });
-      const nice = (t) => t.toLowerCase().replace(/(^|[\s·'])([a-z])/g, (m, a, b) => a + b.toUpperCase());
-      for (const l of L) { const ic = SHOP_ICONS[l.icon]; if (!ic) continue; const [a, b] = P(l.x, l.z), r = lw(15);
-        if (!bare) drawShopIcon(g, ic, a, b, r, 'paper'); label(nice(l.label), l.x + (r * 1.25) / k, l.z, 30, INK, 'left'); } }
-    { const near = decks.map(d => toF(d.x, d.z)); if (near.length) { const cx = near.reduce((s, p) => s + p[0], 0) / near.length, cz = near.reduce((s, p) => s + p[1], 0) / near.length;
-        label('Harbor Town', cx + 85, cz - 60, 50, '#5a1a0c'); label('THE HARBOR', cx - 95, cz + 150, 44, 'rgba(30,62,66,.9)', 'center', -Math.PI / 2); } }
+    // [map-streets] clean cartographic labels only (no landmark icons). Shop/dock badges stay compact.
+    if (!bare) {
+      for (const p of FM.FOOT_POIS || []) {
+        if (!/lighthouse|_lh$/.test(p.id)) continue; // lights keep a tiny tower mark; peaks/bridges/coves = typography only
+        const t = LABELS[p.id]; if (!t) continue; const [a, b] = P(p.x, p.z);
+        g.fillStyle = '#f3e3b5'; g.strokeStyle = INK; g.lineWidth = lw(1.3); g.beginPath(); g.moveTo(a - lw(4), b + lw(6)); g.lineTo(a - lw(2.4), b - lw(7)); g.lineTo(a + lw(2.4), b - lw(7)); g.lineTo(a + lw(4), b + lw(6)); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = 'rgba(255,190,60,.9)'; g.beginPath(); g.arc(a, b - lw(9), lw(2.6), 0, 7); g.fill(); label(t, p.x + 14 / k * lw(1), p.z, 34, INK, 'left');
+      }
+      for (const gl of GEO_LABELS) label(gl.name, gl.x, gl.z, Math.round((gl.size || 12) * 2.6), gl.id === 'harbor_quay' || gl.id === 'merchant_plaza' ? '#5a1a0c' : INK);
+      for (const st of ISLAND_STREETS.filter(q => q.primary && (q.id === 'crimson_trail' || q.id === 'doubloon_trail' || q.id === 'market_row' || q.id === 'boardwalk' || q.id === 'lantern_lane' || q.id === 'gunpowder_row'))) {
+        const pose = streetLabelPose(st); label(st.name, pose.x, pose.z, 28, st.color || INK, 'center', pose.ang - Math.PI / 2);
+      }
+      { const L = [...mapLandmarks(FM).filter(l => !l.geo), ...(layout ? mapDocks(layout) : [])];
+        const sq = (FM.INTERACT || []).find(q => q.id === 'squadhall'); if (sq) L.push({ id: 'squadhall', icon: 'squadhall', label: 'SQUAD HALL', x: sq.x, z: sq.z });
+        for (const l of L) { const ic = SHOP_ICONS[l.icon]; if (!ic) continue; const [a, b] = P(l.x, l.z), r = lw(13);
+          drawShopIcon(g, ic, a, b, r, 'paper'); } }
+      { const near = decks.map(d => toF(d.x, d.z)); if (near.length) { const cx = near.reduce((s, p) => s + p[0], 0) / near.length, cz = near.reduce((s, p) => s + p[1], 0) / near.length;
+          label('HARBOR QUAY', cx - 40, cz + 120, 40, 'rgba(30,62,66,.9)', 'center', -Math.PI / 2); } }
+    }
     // compass rose (top-left corner of the sea) + title cartouche + scale bar
     { const R = Math.min(w, h) * 0.08, cx = R * 1.7, cy = h - R * 2.0; g.save(); g.translate(cx, cy);
       g.strokeStyle = INK; g.lineWidth = lw(1); g.beginPath(); g.arc(0, 0, R * 1.08, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, R * 0.98, 0, 7); g.stroke();
