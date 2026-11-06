@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v351'; // [v351] Brass Scope ADS zoom 3x (PC/phone/controller) + inventory grid fixed-rows (no slot squash/overlap; BANKSY t1841u / t1839u-t1840u); prev: [v350] HUD declutter + door-only LEAVE HULL + inventory/give UI fits phone/PC/controller;
+const VERSION = 'pfp-v352'; // [v352] KING OF THE HILL board (was BATTLE ROYALE kills) = Harbor+Arena gun/sword/boat-sink kills; prev: [v351] Brass Scope ADS 3x + inventory fixed-rows;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

@@ -82,10 +82,10 @@ test('t1823u: a cannonball kills a pirate on foot (direct or splash), never frie
   assert.ok(SC.BOMB_DMG >= 100);
   const p = R('js/pvp.js');
   assert.match(p, /sid && \(sid === myId \|\| isSquadMate\(sid\)\)\) return false; \/\/ no friendly fire/);
-  assert.match(p, /B\.takeHit\(SC\.BOMB_DMG, by\); \/\/ takeHit: GOD MODE, Island Safe Zones/);
+  assert.match(p, /B\.takeHit\(SC\.BOMB_DMG, by, sid\); \/\/ takeHit \+ sid → open-island KOTH victim claimKill/);
   assert.match(p, /KILLED BY/); assert.match(p, /BOMBED/); assert.match(p, /\.on\('bk', onBombKill\)/);
   assert.match(p, /if \(K\.dock\?\.onFoot && ballShore\(b, p, false\)\) return true;/);
-  const b = R('js/onfoot/battle.js'); assert.match(b, /function takeHit\(n, by\) \{ if \(ADM\.god\)/); assert.match(b, /canFightOnFoot\(isleSafe/);
+  const b = R('js/onfoot/battle.js'); assert.match(b, /function takeHit\(n, by, byId = null\) \{ if \(ADM\.god\)/); assert.match(b, /canFightOnFoot\(isleSafe/);
   const m = R('js/main.js'); assert.match(m, /dock\.world\.ground\(p\.x, p\.z\) : -1e9/); assert.match(m, /if \(g > wh \+ 0\.05 && p\.y <= g\)/); assert.match(m, /islands\.hitBall\(p, gnd > -1e8\)/);
   assert.match(R('js/props.js'), /hitBall\(p, walkable = false\)/); assert.match(m, /pvp\.shoreImpact\?\.\(b, p\)/);
   assert.match(m, /pvp\.shoreTarget\?\.\(e\)/);

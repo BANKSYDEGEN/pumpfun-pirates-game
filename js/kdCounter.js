@@ -15,7 +15,9 @@ export function kdText(k, d) { k = Math.max(0, k | 0); d = Math.max(0, d | 0); r
 export function createKdTally({ stats, onChange = () => {}, now = () => Date.now() } = {}) {
   const seen = new Map();
   const extra = { k: 0, d: 0 };                       // this session's kills / deaths NOT on the BR kills board (ground fights)
-  function record(side, src, key) {
+  // opts.board: open-island / bomb / shore kills also go through claimKill (KOTH board). They still
+  // bump profile.stats, but NOT `extra` — lifeK = max(stats, rk + extra) must not double-count them.
+  function record(side, src, key, opts = {}) {
     if (side !== 'k' && side !== 'd') return false;
     if (!KD_SOURCES.includes(src)) return false;
     const k = `${side}|${src}|${String(key ?? '').slice(0, 80)}`, t = now();
@@ -24,14 +26,14 @@ export function createKdTally({ stats, onChange = () => {}, now = () => Date.now
     const st = stats?.(); if (!st) return false;
     const f = side === 'k' ? 'kills' : 'deaths', per = `${src}${side === 'k' ? 'Kills' : 'Deaths'}`;
     st[f] = (st[f] | 0) + 1; st[per] = (st[per] | 0) + 1;
-    if (src === 'ground') extra[side]++;
-    try { onChange({ side, src, key, kills: st.kills | 0, deaths: st.deaths | 0 }); } catch {}
+    if (src === 'ground' && !opts.board) extra[side]++;
+    try { onChange({ side, src, key, kills: st.kills | 0, deaths: st.deaths | 0, board: !!opts.board }); } catch {}
     return true;
   }
   return {
     record,
-    kill: (src, key) => record('k', src, key),
-    death: (src, key) => record('d', src, key),
+    kill: (src, key, opts) => record('k', src, key, opts),
+    death: (src, key, opts) => record('d', src, key, opts),
     get extra() { return { ...extra }; },
     seen: (side, src, key) => seen.has(`${side}|${src}|${key}`),
   };

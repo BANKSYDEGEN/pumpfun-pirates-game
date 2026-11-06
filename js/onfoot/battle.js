@@ -8,8 +8,8 @@
 //    [Emerly] 2v2 TEAMS: tap the team chip in the HUD (desktop: G) to cycle FFA -> RED -> BLUE. Teammates can't hurt each other,
 //    respawn on their own side, and the HUD keeps a RED · BLUE KO tally (this device only, no rewards). Up to the harbor
 //    room's 4 pirates. Practice alone: 2 straw dummies in the pit, 3 flip targets on the range lanes.
-//  - COSMETIC + NO REWARDS (BANKSY): arena KOs are NEVER sent to pvp_claim_kill, never count towards a kill goal, pay no gold and
-//    touch no stat, save or ship HP. The only thing a KO changes is this little HUD tally (this session, this device).
+//  - COLISEUM (pit / musket range): COSMETIC + NO REWARDS — never sent to pvp_claim_kill / KING OF THE HILL.
+//  - OPEN ISLAND gun/sword KOs (BANKSY t1842u/t1843u): both sides claimKill → KING OF THE HILL (harbor + arena boat sinks already did).
 //  - weapons: the sword + musket you USE AS PRIMARY (inventory rare-equip -> carriedWeapons) or, if none, the WEAPON STORE pick
 //    (gear.sword / gear.musket). Look = the base id (SWORD_IDS / MUSKET_IDS); rarity stats via PFP_WEAPON_RARITY (my swings only).
 //    &pitsword=0 = store pick only (old). Peers see the look index in ba[5] / ba[7].
@@ -526,17 +526,22 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (zone === Z_PIT) { const a = BA.PIT.gateA + (tm ? (tm === 1 ? 1 : -1) * Math.PI / 2 : 0) + (Math.random() - 0.5) * 0.6, [lx, lz] = BA.pitAt(a, BA.PIT.r - 2.2); return [...H(lx, lz), a + Math.PI]; }
     const R = BA.RANGE; if (tm === 2) return [...H(R.lx1 - 5 + (Math.random() - 0.5) * 3, R.lz0 + 5), 0];
     return [...H((tm === 1 ? R.divider + 4 : R.gate[0]) + (Math.random() - 0.5) * 4, R.lz1 - 2.5), Math.PI]; }
-  function takeHit(n, by) { if (ADM.god) { me.hp = ARENA.hp; return; } /* [admin-menu] GOD MODE */
+  function takeHit(n, by, byId = null) { if (ADM.god) { me.hp = ARENA.hp; return; } /* [admin-menu] GOD MODE */
     if (me.down > 0 || me.guard > 0 || (STANCES_ON ? !me.onFoot : !me.zone)) return;
     const W0 = walker.w;
     // [backpack-pvp] incoming PvP deals 0 inside Safe Zone / grace / cottage
     if (SAFEZONES_ON && !canFightOnFoot(isleSafe, ...layout.harborToFoot(W0.x, W0.z), performance.now() / 1000, { inHouse: !!inHouse?.() })) {
       say('🛡️ SAFE ZONE<small>you are protected here</small>', 1200); return;
     }
-    me.hp = Math.max(0, me.hp - n); me.lastBy = by; me.lastHitT = t; me.repT = 0; me.repairing = false; /* [t1724u] a hit restarts the 20 s wait */ sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
+    me.hp = Math.max(0, me.hp - n); me.lastBy = by; if (byId) me.lastById = byId; me.lastHitT = t; me.repT = 0; me.repairing = false; /* [t1724u] a hit restarts the 20 s wait */ sfx?.playerHit?.(0.7); flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
     if (me.hp <= 0) {
-      me.down = ARENA.downS; me.downs++; try { kd?.('d', `me:${me.life}`); } catch {} try { dispatchEvent(new CustomEvent('pfp-pvp-down', { detail: { by: String(by || '') } })); } catch {} /* [v349] crate drop + prize fights */ if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
+      me.down = ARENA.downS; me.downs++; try { dispatchEvent(new CustomEvent('pfp-pvp-down', { detail: { by: String(by || '') } })); } catch {} /* [v349] crate drop + prize fights */ me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
       const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);
+      // [v352 KOTH] open-island gun/sword/bomb KO → claimKill (victim). Coliseum pit/range: cosmetic only (no board).
+      const kid = byId || me.lastById || null, mid = typeof myId === 'function' ? myId() : myId;
+      const board = !coli && typeof kid === 'string' && kid && kid !== mid;
+      try { kd?.('d', `me:${me.life}`, board ? { board: true, k: kid, v: mid, life: me.life } : undefined); } catch {}
+      if (me.team) me.score[3 - me.team]++;
       say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawning on your ship'}</small>`, 2400);
       // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
       if (!coli) try {
@@ -581,7 +586,14 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const prevLife = r.ba[2], prevHp = r.ba[1]; r.name = String(m.n ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
     if (ba[3] !== r.lastSeq) { r.lastSeq = ba[3]; if (ba[4] === 1 && ba[0] === Z_PIT) r.st.act = { kind: 1, t: 0 }; else if (ba[4] === 2 && ba[0] === Z_RANGE) r.fireAt = ARENA.musket.delay; }
     r.team = ba[8] === 1 || ba[8] === 2 ? ba[8] : 0;
-    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) { me.kos++; try { kd?.('k', `${m.i}:${ba[2]}`); } catch {} try { dispatchEvent(new CustomEvent('pfp-pvp-kill', { detail: { id: m.i, name: r.name } })); } catch {} /* [v349] bounties + prize fights */ say(`KO! <small>${esc(r.name)} is down · just for fun</small>`, 1600); } }
+    if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) {
+      me.kos++; try { dispatchEvent(new CustomEvent('pfp-pvp-kill', { detail: { id: m.i, name: r.name } })); } catch {} /* [v349] bounties + prize fights */
+      // [v352 KOTH] open-island gun/sword KO → claimKill (killer). Pit / musket range / Coliseum stay cosmetic.
+      const coli = !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z);
+      const mid = typeof myId === 'function' ? myId() : myId;
+      const board = STANCES_ON && !coli && typeof m.i === 'string' && m.i !== mid;
+      try { kd?.('k', `${m.i}:${ba[2]}`, board ? { board: true, k: mid, v: m.i, life: ba[2] } : undefined); } catch {}
+      say(`KO! <small>${esc(r.name)} is down${board ? '' : ' · just for fun'}</small>`, 1600); } }
     if (!ba[6] && r.lastDown) r.guard = ARENA.guardS;
     r.lastDown = ba[6]; if (ba[2] !== prevLife || ba[1] > prevHp) r.hpShown = ba[1]; else r.hpShown = Math.min(r.hpShown ?? ba[1], ba[1]);
     r.ba = ba; r.st.zone = ba[0]; r.swordId = SWORD_IDS[ba[5]] || SWORD_DEFAULT; r.musketId = MUSKET_IDS[ba[7] | 0] || MUSKET_DEFAULT;
@@ -593,7 +605,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
         const d = Math.hypot(p.x - walker.w.x, p.z - walker.w.z);
         const ok = STANCES_ON ? me.onFoot && d <= peerReach(ba[0]) && victimOpen(p) // [backpack-pvp] any stance of mine, their weapon's reach, never from inside a Safe Zone
           : me.zone && ba[0] === me.zone && d <= (me.zone === Z_PIT ? 5.5 : 70);
-        if (delta > 0 && ok && !isMate(m.i, r)) takeHit(delta, r.name); } }
+        if (delta > 0 && ok && !isMate(m.i, r)) takeHit(delta, r.name, m.i); } }
   }
   // HP bars over the pirates you fight (canvas sprite, redrawn only when it changes)
   function hpBar(r) { if (!r.bar) { const c = document.createElement('canvas'); c.width = 128; c.height = 20; const t = new THREE.CanvasTexture(c); r.bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); r.bar.scale.set(1.3, 0.2, 1); r.bar.renderOrder = 9; r.bar.position.y = 2.45; r.bar.userData.c = c; r.obj.add(r.bar); r.barV = -1; }

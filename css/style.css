@@ -599,7 +599,7 @@ html.pvp .wave-next, html.pvp #next-wave { display: none !important; }
 .pvp-save { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; font-size: 16px; }
 @media (max-width: 600px) { #pvp-feed { font-size: 16px; top: calc(104px + var(--safe-t)); } #btn-pvp-menu { top: calc(60px + var(--safe-t)); right: calc(14px + var(--safe-r)); } .pvp-skins { grid-template-columns: repeat(3, 1fr); } .pvp-skin canvas { width: 84px !important; height: 42px !important; } }
 
-/* [pvp] home leaderboard switch: WAVES (solo Top Pirates, unchanged) / BATTLE ROYALE (PvP kills) */
+/* [pvp] home leaderboard switch: WAVES (solo Top Pirates, unchanged) / KING OF THE HILL (Harbor+Arena kills) */
 .lb-modes { display: flex; gap: 0; width: max-content; max-width: 100%; margin: 0 auto 4px; padding: 2px; border-radius: 10px; background: rgba(0,0,0,0.45); border: 1px solid var(--line); }
 .lb-modes button { flex: 1 1 auto; font-size: 17px; line-height: 1; padding: 5px 12px 4px; border: none; border-radius: 8px; background: transparent; color: rgba(255,255,255,0.65); white-space: nowrap; }
 .lb-modes button:hover { color: var(--gold); }

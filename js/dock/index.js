@@ -210,7 +210,7 @@ export async function createDock(ctx) {
     lootBags: { dropHaul: (...a) => lootBags?.dropHaul?.(...a) },
     inHouse: () => !!houses?.inHouse,
     inventory: () => inventory, crewFight,
-    kd: (side, key) => { try { return ctx.pvp?.()?.groundKd?.(side, key); } catch { return false; } },
+    kd: (side, key, meta) => { try { return ctx.pvp?.()?.groundKd?.(side, key, meta); } catch { return false; } },
     isSquadMate: (id) => isSquadMateDock(id),
     respawnOnShip: () => respawnOnShip(),
   }); // [Timothy] + [backpack-pvp] + [v328] Harbor squad FF off + ship respawn

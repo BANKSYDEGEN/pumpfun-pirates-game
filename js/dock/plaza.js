@@ -13,7 +13,7 @@ import { copyText } from '../tokenChip.js';
 import { isBase58 } from '../safe.js'; // [security] third-party (DexScreener) values are validated before they reach a link
 
 const CW = 768, CH = 564, FONT = (px) => `${px}px "Just Another Hand", cursive`;
-const BOARDS = [{ id: 'waves', title: 'STORM HUNT · TOP PIRATES', col: '#fa0d0d', unit: 'score' }, { id: 'arena', title: 'BATTLE ROYALE · TOP KILLS', col: '#2a6df4', unit: 'kills' }];
+const BOARDS = [{ id: 'waves', title: 'STORM HUNT · TOP PIRATES', col: '#fa0d0d', unit: 'score' }, { id: 'arena', title: 'KING OF THE HILL · TOP KILLS', col: '#2a6df4', unit: 'kills' }];
 const short = (w) => w && w.length > 10 ? `${w.slice(0, 4)}…${w.slice(-4)}` : (w || '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => (+n || 0).toLocaleString('en-US');
@@ -81,7 +81,7 @@ export function createPlaza({ world, ctx = {} }) {
   async function openBoard(id) {
     const b = BOARDS.find(x => x.id === id); if (!b) return; panel.dataset.board = id; panel.dataset.sym = '';
     const act = id === 'waves' ? { t: '▶ START STORM HUNT', f: ctx.startWaves } : { t: '⚔ JOIN BATTLE / SPECTATE', f: ctx.openArena };
-    panel.innerHTML = `${head(b.title, b.col)}<ol class="pz-list"><li class="empty">Loading…</li></ol><div class="pz-row">${act.f ? `<button type="button" class="pz-go">${act.t}</button>` : ''}</div><small class="pz-foot">${id === 'waves' ? 'best Waves score per pirate · all time' : 'confirmed Battle Royale kills · all time'}</small>`;
+    panel.innerHTML = `${head(b.title, b.col)}<ol class="pz-list"><li class="empty">Loading…</li></ol><div class="pz-row">${act.f ? `<button type="button" class="pz-go">${act.t}</button>` : ''}</div><small class="pz-foot">${id === 'waves' ? 'best Waves score per pirate · all time' : 'confirmed kills · Harbor + Arena · gun, sword & boat sinks · all time'}</small>`;
     panel.querySelector('.pz-x').onclick = close; const go = panel.querySelector('.pz-go'); if (go) go.onclick = () => { close(); act.f(); };
     panel.classList.remove('hidden');
     let rows = [], err = false; try { rows = await rowsFor(id, 50); } catch { err = true; }

@@ -166,7 +166,7 @@ test('client: pure rules: unlock, NOCLIP flight, landing, jump-to-player, ESP la
 
 test('hooks: GOD (0 damage on foot + at sea), INVISIBLE (bye + no state + AI ignores + ghost), FREEZE (walker / ship / combat / interact), NOCLIP (ship rocks)', () => {
   assert.match(STATE, /export const ADM = \{ noclip: false, noclipMul: 1, god: false, invisible: false, frozen: false/);
-  assert.match(BATTLE, /function takeHit\(n, by\) \{ if \(ADM\.god\) \{ me\.hp = ARENA\.hp; return; \}/);
+  assert.match(BATTLE, /function takeHit\(n, by, byId = null\) \{ if \(ADM\.god\) \{ me\.hp = ARENA\.hp; return; \}/);
   assert.match(BATTLE, /function attack\(\) \{\n    if \(ADM\.frozen\) return false;/);
   assert.match(PVP, /function localDamage\(raw, by, p, shooterObj = null\) \{\n    if \(ADM\.god\) \{ const g = P\(\); g\.hp = g\.maxHp; return; \}/);
   assert.match(MAIN, /if \(s === player && ADM\.god\) \{ s\.hp = s\.maxHp; return; \}/);
