@@ -358,7 +358,7 @@
   },
   {
    "n": 26,
-   "id": "sword_shop",
+   "id": "rent_23",
    "area": "hill street",
    "kind": "building",
    "lot": "L6",
@@ -370,7 +370,7 @@
     "lx": -2,
     "lz": -135.231
    },
-   "use": "SWORD SHOP",
+   "use": "EMPTY shop (rentable, no prompt; was the SWORD SHOP to v310)",
    "x": -506.17,
    "z": -96.89
   },
@@ -502,56 +502,56 @@
   },
   {
    "n": 34,
-   "id": "rent_13",
+   "id": "musket_shop",
    "area": "hill street",
    "kind": "building",
-   "lot": "R1",
-   "lx": 18.105,
-   "lz": -83.135,
-   "w": 8.209,
-   "d": 4.035,
+   "lot": "R1+R2",
+   "lx": 18.483,
+   "lz": -91.879,
+   "w": 8.966,
+   "d": 15.668,
    "door": {
     "lx": 14,
-    "lz": -86.263
+    "lz": -91.879
    },
-   "use": "EMPTY shop (rentable, no prompt)",
-   "x": -556.87,
-   "z": -71.89
+   "use": "MUSKET SHOP (one building #34+#35, lots R1+R2)",
+   "x": -548.12,
+   "z": -71.52
   },
   {
    "n": 35,
-   "id": "rent_14",
+   "id": "musket_shop_35",
    "area": "hill street",
    "kind": "building",
    "lot": "R2",
    "lx": 18.483,
    "lz": -93.897,
    "w": 8.966,
-   "d": 11.632,
+   "d": 11.633,
    "door": {
     "lx": 14,
-    "lz": -93.897
+    "lz": -91.879
    },
-   "use": "EMPTY shop (rentable, no prompt)",
+   "use": "MUSKET SHOP (north bay of #34, lot R2)",
    "x": -546.1,
    "z": -71.52
   },
   {
    "n": 36,
-   "id": "rent_15",
+   "id": "sword_shop",
    "area": "hill street",
    "kind": "building",
    "lot": "R3",
    "lx": 18.323,
-   "lz": -105.031,
+   "lz": -104.131,
    "w": 8.645,
-   "d": 9.836,
+   "d": 8.836,
    "door": {
     "lx": 14,
-    "lz": -104.631
+    "lz": -104.131
    },
-   "use": "EMPTY shop (rentable, no prompt)",
-   "x": -534.97,
+   "use": "SWORD SHOP (by the coliseum MAIN_GATE)",
+   "x": -535.67,
    "z": -71.68
   },
   {
@@ -574,7 +574,7 @@
   },
   {
    "n": 38,
-   "id": "musket_shop",
+   "id": "rent_24",
    "area": "hill street",
    "kind": "building",
    "lot": "R6",
@@ -586,7 +586,7 @@
     "lx": 14,
     "lz": -133.331
    },
-   "use": "MUSKET SHOP",
+   "use": "EMPTY shop (rentable, no prompt; was the MUSKET SHOP to v310)",
    "x": -506.17,
    "z": -71.13
   },

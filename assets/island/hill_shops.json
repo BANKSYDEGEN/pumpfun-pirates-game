@@ -181,6 +181,36 @@
    "empty": "door_rent_6"
   },
   {
+   "id": "rent_23",
+   "lot": "L6",
+   "lx": -6.885,
+   "lz": -133.831,
+   "ly": 1.5708,
+   "w": 11.256,
+   "d": 9.77,
+   "storeys": 3,
+   "door": {
+    "lx": -2.0,
+    "lz": -135.231
+   },
+   "doorY": 12.375,
+   "doorW": 3.6,
+   "facing": 1.5708,
+   "interior": {
+    "lx0": -11.27,
+    "lz0": -138.959,
+    "lx1": -2.5,
+    "lz1": -128.703,
+    "floorY": {
+     "atLz0": 12.785,
+     "atLz1": 11.657
+    },
+    "slope": 0.11
+   },
+   "sign": "sign_rent_23",
+   "empty": "door_rent_23"
+  },
+  {
    "id": "rent_7",
    "lot": "L7",
    "lx": -6.047,
@@ -361,96 +391,6 @@
    "empty": "door_rent_12"
   },
   {
-   "id": "rent_13",
-   "lot": "R1",
-   "lx": 18.105,
-   "lz": -83.135,
-   "ly": -1.5708,
-   "w": 4.035,
-   "d": 8.209,
-   "storeys": 2,
-   "door": {
-    "lx": 14.0,
-    "lz": -86.263
-   },
-   "doorY": 6.989,
-   "doorW": 2.4,
-   "facing": -1.5708,
-   "interior": {
-    "lx0": 14.5,
-    "lz0": -87.58,
-    "lx1": 21.71,
-    "lz1": -84.545,
-    "floorY": {
-     "atLz0": 7.134,
-     "atLz1": 6.8
-    },
-    "slope": 0.11
-   },
-   "sign": "sign_rent_13",
-   "empty": "door_rent_13"
-  },
-  {
-   "id": "rent_14",
-   "lot": "R2",
-   "lx": 18.483,
-   "lz": -93.897,
-   "ly": -1.5708,
-   "w": 11.632,
-   "d": 8.966,
-   "storeys": 3,
-   "door": {
-    "lx": 14.0,
-    "lz": -93.897
-   },
-   "doorY": 7.829,
-   "doorW": 3.6,
-   "facing": -1.5708,
-   "interior": {
-    "lx0": 14.5,
-    "lz0": -99.213,
-    "lx1": 22.466,
-    "lz1": -88.581,
-    "floorY": {
-     "atLz0": 8.413,
-     "atLz1": 7.244
-    },
-    "slope": 0.11
-   },
-   "sign": "sign_rent_14",
-   "empty": "door_rent_14"
-  },
-  {
-   "id": "rent_15",
-   "lot": "R3",
-   "lx": 18.323,
-   "lz": -105.031,
-   "ly": -1.5708,
-   "w": 9.836,
-   "d": 8.645,
-   "storeys": 3,
-   "door": {
-    "lx": 14.0,
-    "lz": -104.631
-   },
-   "doorY": 9.009,
-   "doorW": 3.6,
-   "facing": -1.5708,
-   "interior": {
-    "lx0": 14.5,
-    "lz0": -109.049,
-    "lx1": 22.146,
-    "lz1": -100.213,
-    "floorY": {
-     "atLz0": 9.495,
-     "atLz1": 8.523
-    },
-    "slope": 0.11
-   },
-   "sign": "sign_rent_15",
-   "empty": "door_rent_15"
-  },
-  {
    "id": "rent_16",
    "lot": "R5",
    "lx": 18.206,
@@ -479,6 +419,36 @@
    },
    "sign": "sign_rent_16",
    "empty": "door_rent_16"
+  },
+  {
+   "id": "rent_24",
+   "lot": "R6",
+   "lx": 18.87,
+   "lz": -133.831,
+   "ly": -1.5708,
+   "w": 11.256,
+   "d": 9.74,
+   "storeys": 3,
+   "door": {
+    "lx": 14.0,
+    "lz": -133.331
+   },
+   "doorY": 12.166,
+   "doorW": 3.6,
+   "facing": -1.5708,
+   "interior": {
+    "lx0": 14.5,
+    "lz0": -138.959,
+    "lx1": 23.24,
+    "lz1": -128.703,
+    "floorY": {
+     "atLz0": 12.785,
+     "atLz1": 11.657
+    },
+    "slope": 0.11
+   },
+   "sign": "sign_rent_24",
+   "empty": "door_rent_24"
   },
   {
    "id": "rent_17",
@@ -694,64 +664,69 @@
  ],
  "MAIN_ST_SHOPS": [
   {
-   "id": "sword_shop",
-   "lot": "L6",
-   "lx": -6.885,
-   "lz": -133.831,
-   "ly": 1.5708,
-   "w": 11.256,
-   "d": 9.77,
+   "id": "musket_shop",
+   "lot": "R2",
+   "lx": 18.483,
+   "lz": -93.897,
+   "ly": -1.5708,
+   "w": 15.668,
+   "d": 8.966,
    "storeys": 3,
    "door": {
-    "lx": -2.0,
-    "lz": -135.231
+    "lx": 14.0,
+    "lz": -91.879
    },
-   "doorY": 12.375,
-   "doorW": 3.6,
-   "facing": 1.5708,
+   "doorY": 7.607,
+   "doorW": 4.6,
+   "facing": -1.5708,
    "interior": {
-    "lx0": -11.27,
-    "lz0": -138.959,
-    "lx1": -2.5,
-    "lz1": -128.703,
+    "lx0": 14.5,
+    "lz0": -99.213,
+    "lx1": 22.466,
+    "lz1": -84.545,
     "floorY": {
-     "atLz0": 12.785,
-     "atLz1": 11.657
+     "atLz0": 8.413,
+     "atLz1": 6.8
+    },
+    "slope": 0.11
+   },
+   "sign": "sign_muskets",
+   "empty": "door_muskets",
+   "lots": [
+    "R1",
+    "R2"
+   ],
+   "size": "double"
+  },
+  {
+   "id": "sword_shop",
+   "lot": "R3",
+   "lx": 18.323,
+   "lz": -105.031,
+   "ly": -1.5708,
+   "w": 8.836,
+   "d": 8.645,
+   "storeys": 3,
+   "door": {
+    "lx": 14.0,
+    "lz": -104.131
+   },
+   "doorY": 8.954,
+   "doorW": 3.6,
+   "facing": -1.5708,
+   "interior": {
+    "lx0": 14.5,
+    "lz0": -108.049,
+    "lx1": 22.146,
+    "lz1": -100.213,
+    "floorY": {
+     "atLz0": 9.385,
+     "atLz1": 8.523
     },
     "slope": 0.11
    },
    "sign": "sign_swords",
    "empty": "door_swords"
-  },
-  {
-   "id": "musket_shop",
-   "lot": "R6",
-   "lx": 18.87,
-   "lz": -133.831,
-   "ly": -1.5708,
-   "w": 11.256,
-   "d": 9.74,
-   "storeys": 3,
-   "door": {
-    "lx": 14.0,
-    "lz": -133.331
-   },
-   "doorY": 12.166,
-   "doorW": 3.6,
-   "facing": -1.5708,
-   "interior": {
-    "lx0": 14.5,
-    "lz0": -138.959,
-    "lx1": 23.24,
-    "lz1": -128.703,
-    "floorY": {
-     "atLz0": 12.785,
-     "atLz1": 11.657
-    },
-    "slope": 0.11
-   },
-   "sign": "sign_muskets",
-   "empty": "door_muskets"
   }
  ]
 }

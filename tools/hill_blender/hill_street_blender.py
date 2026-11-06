@@ -4,7 +4,8 @@
 #   blender -b --factory-startup -P tools/hill_blender/hill_street_blender.py -- GAME_DIR OUT_DIR
 # Same toolkit, palette + material buckets as the plaza shops (tools/plaza_blender/lib.py: vertex colour only, solid / glow).
 # Every lot of js/island/foot.js buildStreet (L0-L12, R1-R12 minus R4 = the well square, R0 = the Squad Hall) becomes one 2-3 storey building:
-#   L6 = SWORD SHOP, R6 = MUSKET SHOP (own GLBs, door_swords / door_muskets + sign_swords / sign_muskets, Emerly's js/onfoot/battle.js),
+#   R3 (#36) = SWORD SHOP, R1+R2 (#34+#35, ONE wide building, origin R2) = MUSKET SHOP (own GLBs, door_swords / door_muskets + sign_swords /
+#   sign_muskets, Emerly's js/onfoot/battle.js); [Raul hill-weapons] they were L6 / R6 (now plain rent shops rent_23 / rent_24),
 #   every other ground floor = an EMPTY RENTABLE SHOP (open front, walkable room, counter, TO RENT board, door_rent_<n>, blank sign_rent_<n>).
 # Building frame: Blender x = along the street (three.js x), -y = out of the front (three.js +z), z up; origin = lot centre at its ground.
 # The street climbs 0.11 m/m (foot.js coastH), so the ground under a building is z = g * x (g = +0.11 west row, -0.11 east row): stepped
@@ -207,7 +208,7 @@ def roof(bd, x0, x1, d, fy, top, b, lod, rng):
             bd.box(1.6, 1.4, 1.5, dx, dy, dz - 0.2, b['wallc'], base=True); bd.box(1.0, 0.06, 0.9, dx, dy - 0.71, dz + 0.1, GLOW if b['v'] % 3 == 0 else 0x22313d, mat=1 if b['v'] % 3 == 0 else 0, base=True)
             for s in (-1, 1): bd.box(1.0, 1.6, 0.12, dx + s * 0.45, dy - 0.05, dz + 1.45, rc, ry=s * 0.7)
     else:   # front gable: ridge runs back from the street, a carved gable face over the facade
-        pitch = 0.6 if b['kind'] != 'big' else 0.4; half = w / 2 + 0.4; rise = math.tan(pitch) * half; L = half / math.cos(pitch); y0, y1 = fy - 0.7, by + 0.5; yc, dep = (y0 + y1) / 2, y1 - y0
+        pitch = 0.6 if b['kind'] != 'big' and not b.get('grand') else 0.4; half = w / 2 + (0.4 if not b.get('grand') else 0.2); rise = math.tan(pitch) * half; L = half / math.cos(pitch); y0, y1 = fy - 0.7, by + 0.5; yc, dep = (y0 + y1) / 2, y1 - y0
         for s in (-1, 1):
             if lod == 0:
                 n = int(L / 0.42)
@@ -245,8 +246,10 @@ def building(bd, b, lod, rng, cols):
     holes = [(xo - ow / 2, xo + ow / 2, zlo, OPEN_TOP + ARISE)]; dwin = []
     for s in (-1, 1):   # display windows beside the opening where the pier is wide enough
         a, c = (x0 + 0.6, xo - ow / 2 - 0.6) if s < 0 else (xo + ow / 2 + 0.6, x1 - 0.6)
-        if c - a >= 1.5: xw = (a + c) / 2; holes.append((xw - 0.6, xw + 0.6, max(gz(xw), gz(xw)) + 0.95, OPEN_TOP - 0.3)); dwin.append(xw)
-    rects = wall_rects(x0, x1, zlo, G, holes)
+        nwin = max(1, int((c - a + 0.6) // 2.2)) if b.get('grand') else 1   # [Raul hill-weapons] the wide MUSKET SHOP: two display windows a pier
+        if c - a >= 1.5:
+            for j in range(nwin): xw = a + (c - a) * (j + 0.5) / nwin; holes.append((xw - 0.6, xw + 0.6, max(gz(xw), gz(xw)) + 0.95, OPEN_TOP - 0.3)); dwin.append(xw)
+    rects = wall_rects(x0, x1, zlo, G, holes); b['_dwin'] = dwin
     for r in rects: bd.box(r[1] - r[0], WALL, r[3] - r[2], (r[0] + r[1]) / 2, FY + WALL / 2, (r[2] + r[3]) / 2, MORTAR if lod == 0 else gcol)
     if lod == 0: ashlar(bd, [(r[0], r[1], max(r[2], zmin), r[3]) for r in rects], FY, gcol, rng, rh=0.3 if gcol in BRICK else 0.46)
     # stepped plinth (2-3 level courses following the slope), skipping the doorway
@@ -304,7 +307,7 @@ def building(bd, b, lod, rng, cols):
         bd.box(0.05, 0.4, 0.05, x, FY - 0.45, 3.0 + gz(x) * 0, IRON); bd.box(0.28, 0.28, 0.06, x, FY - 0.6, 2.62, IRON)
         bd.box(0.22, 0.22, 0.32, x, FY - 0.6, 2.8, GLOW, mat=1); bd.box(0.3, 0.3, 0.08, x, FY - 0.6, 3.0, IRON)
         if lod == 0: bd.cyl(0.18, 0.0, 0.2, x, FY - 0.6, 3.04, IRON, n=4)
-    if b['kind'] == 'big':
+    if b['kind'] == 'big' or b.get('grand'):
         for x in (x0 + 1.1, x1 - 1.1):
             zt = max(gz(x), 0) + 4.2
             bd.box(0.06, 0.6, 0.06, x, FY - 0.3, zt + 0.4, IRON); bd.box(0.06, 0.06, 0.7, x, FY - 0.6, zt + 0.05, IRON)
@@ -403,17 +406,17 @@ def interior(bd, b, lod, rng, cols):
     if lod == 0:
         for i in range(3): bd.box(iw, 0.22, 0.26, cx, FY + (i + 1) * idp / 4, G - 0.55, WOOD_D, base=True)
         bd.box(0.2, 0.2, G - 0.3 - zl, x0 + 0.12, BY - 0.12, zl, WOOD_D, base=True); bd.box(0.2, 0.2, G - 0.3 - zl, x1 - 0.12, BY - 0.12, zl, WOOD_D, base=True)
-    for lx_ in ((cx,) if b['kind'] != 'big' else (cx - iw / 3, cx, cx + iw / 3)):
+    for lx_ in ((cx,) if b['kind'] != 'big' and not b.get('grand') else (cx - iw / 3, cx, cx + iw / 3)):
         bd.cyl(0.015, 0.015, 0.8, lx_, (FY + BY) / 2, G - 1.1, IRON, n=4); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.5, IRON)
         bd.box(0.24, 0.24, 0.34, lx_, (FY + BY) / 2, G - 1.3, GLOW, mat=1); bd.box(0.3, 0.3, 0.06, lx_, (FY + BY) / 2, G - 1.1, IRON)
-    if b['kind'] == 'big':   # two long counters across the back, a 1.8 m walk-through gap in the middle
-        cy = BY - 1.4; cw = 4.6
+    if b['kind'] == 'big' or b.get('grand'):   # two long counters across the back, a 1.8 m walk-through gap in the middle
+        cy = BY - 1.4; cw = 4.6 if b['kind'] == 'big' else 3.4   # [Raul hill-weapons] MUSKET SHOP: 3.4 m (the floor climbs 0.11 m/m under them)
         for ccx in (cx - 0.9 - cw / 2, cx + 0.9 + cw / 2):
             bd.box(cw, 0.9, 1.05 + gz(ccx) - zl + 0.3, ccx, cy, zl - 0.3, WOOD, base=True); bd.box(cw + 0.2, 1.1, 0.12, ccx, cy, gz(ccx) + 1.05, WOOD_L, base=True)
             if lod == 0:
                 for i in range(int(cw / 0.5)): bd.box(0.05, 0.03, 0.9, ccx - cw / 2 + 0.25 + i * 0.5, cy - 0.47, gz(ccx) + 0.1, WOOD_D, base=True)
             if cols is not None: cols.append(['b', round(ccx, 3), round(-cy, 3), round(cw + 0.3, 3), 1.2])
-        return dict(x0=x0, x1=x1, fy=FY, by=BY, cy=cy, cw=cw * 2 + 1.8, cx=cx, zl=zl)
+        return dict(x0=x0, x1=x1, fy=FY, by=BY, cy=cy, cw=cw * 2 + 1.8, cx=cx, zl=zl, cxs=(cx - 0.9 - cw / 2, cx + 0.9 + cw / 2), cw1=cw)
     # counter across the back (walk-up side towards the door)
     cw = min(4.2, iw * 0.6); cy = BY - 1.4; ccx = cx
     bd.box(cw, 0.9, 1.05 + gz(ccx) - zl + 0.3, ccx, cy, zl - 0.3, WOOD, base=True); bd.box(cw + 0.2, 1.1, 0.12, ccx, cy, gz(ccx) + 1.05, WOOD_L, base=True)
@@ -448,7 +451,66 @@ def rent_room(bd, b, lod, rng, R):
     # a 'TO RENT' card in a display window too (reads from the street)
     return
 
+def musket_hall(bd, b, lod, rng, R):
+    # [Raul hill-weapons] the wide MUSKET SHOP (R1+R2): three gun racks on the back wall (the middle one over the walk-through gap between the
+    # two counters), pegged long-gun racks on both side walls, powder kegs + a shot crate in the front corners, a musket laid on each counter,
+    # glass display cases behind the four display windows. Everything solid stands on the sloped floor (gz) and gets a collider.
+    gz = lambda x: b['g'] * x; cx = R['cx']; by, fy = R['by'], R['fy']
+    def gun(x, y, z, flat=False, s=1.0):   # one long gun standing on its butt (or lying across a counter / case: flat)
+        if flat:   # barrel along +x (x - 0.65 s .. x + 0.15 s), stock behind it
+            bd.cyl(0.03, 0.026, 0.8 * s, x - 0.65 * s, y, z + 0.05, 0x1d2026, n=6 if lod == 0 else 4, ry=math.pi / 2); bd.box(0.5 * s, 0.09, 0.1, x + 0.4 * s, y, z + 0.06, 0x6b4527)
+            if lod == 0: bd.box(0.12, 0.07, 0.08, x + 0.13 * s, y, z + 0.09, 0x8a8f98)
+            return
+        bd.cyl(0.035, 0.03, 1.1 * s, x, y, z + 0.85 * s, 0x1d2026, n=6 if lod == 0 else 4); bd.box(0.12, 0.08, 0.6 * s, x, y, z + 0.55 * s, 0x6b4527, ry=0.08)
+        if lod == 0: bd.box(0.06, 0.1, 0.12, x, y - 0.03, z + 0.92 * s, 0x8a8f98); bd.box(0.08, 0.05, 0.06, x, y, z + 1.6 * s, GOLD)   # lock + front band
+    for (rx, rw) in ((cx, 1.8), *[(c, R['cw1'] - 0.2) for c in R['cxs']]):   # back-wall racks: board, butt shelf, top rail with pegs, the guns
+        zb = gz(rx); bd.box(rw, 0.1, 2.2, rx, by - 0.06, zb + 1.2, WOOD_D, base=True)
+        bd.box(rw + 0.2, 0.3, 0.1, rx, by - 0.2, zb + 1.18, WOOD); bd.box(rw + 0.2, 0.14, 0.1, rx, by - 0.16, zb + 3.36, WOOD)
+        bd.box(rw + 0.1, 0.06, 0.1, rx, by - 0.24, zb + 2.6, WOOD_L)
+        ng = max(3, int(rw / 0.36)) if lod == 0 else 3
+        for i in range(ng): gun(rx - rw / 2 + (i + 0.5) * rw / ng, by - 0.22, zb + 0.98)   # stocks stand on the butt shelf
+        bd.box(min(rw - 0.2, 1.8), 0.06, 0.36, rx, by - 0.08, zb + 3.62, 0x5a3219)
+        if lod == 0: carve(bd, 'MUSKETS', rx, by - 0.13, zb + 3.62, min(rw - 0.6, 1.4), 0.24, FRONT, lod, col=GOLD)
+    for s_ in (-1, 1):   # side walls: pegged long-gun racks (two rows), between the front kegs and the counters
+        xw = R['x0'] + 0.05 if s_ < 0 else R['x1'] - 0.05; y0_, y1_ = fy + 2.6, by - 0.5; L_ = y1_ - y0_
+        if L_ < 1.5: continue
+        bd.push(T(xw, (y0_ + y1_) / 2, gz(xw), rz=s_ * math.pi / 2))   # local x along the wall, local +y into the room
+        bd.box(L_, 0.06, 1.7, 0, 0.03, 1.05, WOOD_D, base=True); gl = min(1.4, L_ - 0.3) / 1.3
+        for zz in (1.45, 2.25):
+            for k in (-0.4, 0.3): bd.box(0.07, 0.26, 0.07, k * gl * 1.3, 0.16, zz - 0.07, WOOD_L)
+            gun(0.0, 0.2, zz - 0.07, flat=True, s=gl)
+        bd.pop()
+    # powder kegs (two + one stacked) and a shot crate in the front corners (solid)
+    for s_ in (-1, 1):
+        x = R['x0'] + 0.75 if s_ < 0 else R['x1'] - 0.75; y = fy + 1.4
+        bd.cyl(0.36, 0.42, 0.9, x, y, gz(x) - 0.02, 0x3a2a1c, n=10 if lod == 0 else 6)
+        if lod == 0:
+            for zz in (0.15, 0.75): bd.torus(0.4, 0.03, x, y, gz(x) + zz, IRON, n=10, m_=3)
+            bd.cyl(0.3, 0.34, 0.7, x, y, gz(x) + 0.88, 0x4a3520, n=10); bd.box(0.16, 0.16, 0.04, x, y - 0.3, gz(x) + 1.25, 0xd8322f)
+        b['_props'].append(['c', round(x, 3), round(-y, 3), 0.5])
+        xc = x - s_ * 1.1; bd.box(0.7, 0.6, 0.55, xc, y - 0.2, gz(xc) - 0.02, WOOD, base=True)
+        if lod == 0:
+            for k in range(6): bd.sphere(0.06, xc - 0.2 + (k % 3) * 0.2, y - 0.2 + (k // 3) * 0.18 - 0.09, gz(xc) + 0.58, 0x2b2f36, sub=0)
+        b['_props'].append(['b', round(xc, 3), round(-(y - 0.2), 3), 0.9, 0.8])
+    for ccx in R['cxs']:   # a musket laid on each counter + a powder horn
+        zt = gz(ccx) + 1.17; gun(ccx - 0.3, R['cy'] - 0.1, zt, flat=True)
+        if lod == 0: bd.cyl(0.05, 0.02, 0.32, ccx + 0.9, R['cy'] + 0.15, zt, 0xe9dcc0, n=6, ry=1.2)
+    FYo = -b['d'] / 2
+    for xw in b.get('_dwin', []):   # display cases behind the display windows (inside the facade wall)
+        yc = FYo + WALL + 0.45; bd.box(1.2, 0.6, 0.85, xw, yc, gz(xw) - 0.02, WOOD_D, base=True); bd.box(1.24, 0.64, 0.06, xw, yc, gz(xw) + 0.83, WOOD_L, base=True)
+        gun(xw, yc, gz(xw) + 0.88, flat=True, s=0.9)
+        b['_props'].append(['b', round(xw, 3), round(-yc, 3), 1.3, 0.75])
+    # the facade name board over the arch (a long one for the wide front) + crossed muskets either side
+    bw = min(b['ow'] + 2.6, 7.2); zbz = OPEN_TOP + ARISE + 0.78
+    bd.box(bw, 0.12, 0.7, b['xo'], FYo - 0.1, zbz, 0x5a3219)
+    for zz in (zbz - 0.33, zbz + 0.33): bd.box(bw + 0.1, 0.16, 0.07, b['xo'], FYo - 0.12, zz, WOOD_D)
+    carve(bd, 'MUSKET SHOP', b['xo'], FYo - 0.17, zbz, bw - 0.6, 0.5, FRONT, lod)
+    for s_ in (-1, 1):
+        ex = b['xo'] + s_ * (bw / 2 + 0.55)
+        for r_ in (-0.6, 0.6): bd.box(0.06, 0.06, 1.1, ex, FYo - 0.14, zbz - 0.45, 0x1d2026, ry=r_); bd.box(0.1, 0.07, 0.32, ex + math.sin(r_) * 0.45, FYo - 0.14, zbz - 0.95, 0x6b4527, ry=r_)
+
 def weapon_room(bd, b, lod, rng, R):
+    if b.get('grand'): return musket_hall(bd, b, lod, rng, R)
     gz = lambda x: b['g'] * x; cx = R['cx']; zb = gz(cx); by = R['by']
     bd.box(min(3.6, R['x1'] - R['x0'] - 1), 0.1, 1.8, cx, by - 0.06, zb + 1.5, WOOD_D, base=True)   # rack board on the back wall
     for i in range(6 if lod == 0 else 3):
@@ -507,6 +569,41 @@ def bake_obj(bd, name, coll, parent):
     for m in MATS: me.materials.append(m)
     o = bpy.data.objects.new(name, me); coll.objects.link(o); o.parent = parent; return o
 
+# ---- [Raul hill-weapons] BANKSY via Emerly: the weapon shops move to the east row by the coliseum MAIN_GATE ----
+#   R1 (#34) + R2 (#35) = ONE wide building = the MUSKET SHOP (origin R2, the deeper lot; R1's slice is a 'merged' stub: no building of its own,
+#   js/island/hillStreet.js hillLot returns true there). Its south end stays the finished end wall on the ~1 m alley to the Squad Hall (R0, #33:
+#   R1 stays clipped at lz -84.05 by OBST above, R0 itself is not touched here).
+#   R3 (#36) = the SWORD SHOP: its north end is pulled back so wall (1.4 m), eaves + trim (>= 0.6 m) and sign / colliders stay clear of the south face of
+#   the MAIN_GATE gallery (js/island/coliseum.js MAIN_GATE lz -114.761, w 9.624: face at lz -109.949).
+#   L6 (#26) + R6 (#38) = the old SWORD / MUSKET SHOP lots = plain empty rent shops (same style rules as every other rent lot).
+#   Stable ids: every rent shop keeps its rent_<n> (the v170 numbering), R1 / R2 / R3 retire rent_13 / 14 / 15, L6 / R6 are appended as rent_23 / 24.
+MG_LZ, MG_W, GATE_CLEAR = -114.761, 9.624, 1.4                                      # keep in sync with js/island/coliseum.js MAIN_GATE
+LEGACY = {'L6': 'sword', 'R6': 'musket'}
+_lr = [b for b in B if b['kind'] in ('rent', 'sword', 'musket') and LEGACY.get(b['key'], 'rent') == 'rent']
+RENT_ID = {b['key']: i + 1 for i, b in enumerate(_lr)}; RENT_ID.update(L6=len(_lr) + 1, R6=len(_lr) + 2)
+WEAPON_LOTS = {'R2': 'musket', 'R3': 'sword'}
+_k = {b['key']: b for b in B}
+for b in B:
+    if b['key'] not in ('L6', 'R6', 'R1', 'R2', 'R3'): continue
+    side, n = b['side'], b['n']; kind = WEAPON_LOTS.get(b['key'], 'merged' if b['key'] == 'R1' else 'rent'); b['kind'] = kind
+    if kind == 'rent':   # the same rules as the loop above gives every rent lot
+        b['fl'] = [2, 3, 3, 2, 3, 2, 3][(n * 3 + (side > 0) * 2) % 7]; b['style'] = ['stone', 'timber', 'plank'][(n + (side > 0)) % 3]
+        b['roof'] = 'gable' if (n * 5 + side) % 4 == 1 else 'ridge'; b['G'] = [4.6, 5.0, 4.8][(n + (side > 0)) % 3]; b['v'] = (n * 2 + (side > 0)) % 12
+    else:                # the weapon shops keep their v170 look (palette variant, style, 3 storeys, front gable)
+        b['fl'], b['roof'], b['G'] = 3, 'gable', 5.4; b['style'], b['v'] = ('stone', 0) if kind == 'sword' else ('timber', 1)
+    b['rent'] = RENT_ID.get(b['key']) if kind == 'rent' else None
+for b in B:
+    if b['kind'] == 'rent' and b['key'] in RENT_ID: b['rent'] = RENT_ID[b['key']]
+_m, _s = _k['R2'], _k['R1']     # MUSKET SHOP = R2 widened over R1's slice (R2 frame: local +x = +lz on the east row)
+_m['x1'] = _s['lz'] + _s['x1'] - _m['lz']; _m['end1'] = _s['end1']; _m['w'] = _m['x1'] - _m['x0']
+_m.update(grand=True, G=6.0, OT=3.6, AR=0.9, covers=['R1'], span=[round(_m['lz'] + _m['x0'], 3), round(_m['lz'] + _m['x1'], 3)])
+find_door(_m, ((1.3, 4.6, 1.3), (1.3, 4.2, 1.3), (1.3, 3.6, 1.3)))
+_w = _k['R3']; _w['x0'] = max(_w['x0'], (MG_LZ + MG_W / 2 + GATE_CLEAR) - _w['lz']); _w['w'] = _w['x1'] - _w['x0']; find_door(_w)
+_w['span'] = [round(_w['lz'] + _w['x0'], 3), round(_w['lz'] + _w['x1'], 3)]
+for b in (_k['L6'], _k['R6']): find_door(b)
+STUBS = [_s]; B.remove(_s)
+print('WEAPONS', {k: (round(_k[k]['x0'], 3), round(_k[k]['x1'], 3), round(_k[k]['xo'], 3), _k[k]['ow']) for k in ('R2', 'R3', 'L6', 'R6')}, 'rent', {k: _k[k]['rent'] for k in ('L6', 'R6')}, flush=True)
+
 REPORT = {}; DATA = []
 COLLS = {k: bpy.data.collections.new('hill_' + k) for k in ('street', 'sword', 'musket', 'big')}
 for c in COLLS.values(): bpy.context.scene.collection.children.link(c)
@@ -520,7 +617,7 @@ for b in B:
         (rent_room if b['kind'] in ('rent', 'big') else weapon_room)(bd, b, lod, rng, R)
         if b['kind'] != 'big': bracket(bd, b)
         bake_obj(bd, f"hill_{b['key']}_LOD{lod}", coll, root); rep[f'LOD{lod}'] = bd.tris()
-    cols += b['_props'][:2]
+    cols += b['_props'] if b.get('grand') else b['_props'][:2]
     sid = 'sign_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'sign_swords' if b['kind'] == 'sword' else 'sign_muskets'
     eid = 'door_rent_%s' % b['rent'] if b['kind'] in ('rent', 'big') else 'door_swords' if b['kind'] == 'sword' else 'door_muskets'
     sp = sign_plate(b) if b['kind'] != 'big' else sign_plate_big(b); bake_obj(sp, sid, coll, root)
@@ -528,11 +625,15 @@ for b in B:
     inner = [round(b['x0'] + WALL, 3), round(-(b['d'] / 2 - WALL), 3), round(b['x1'] - WALL, 3), round(b['d'] / 2 - WALL, 3)]   # three.js building frame x0, z0, x1, z1
     root['colliders'] = json.dumps(cols); root['interior'] = json.dumps(inner); root['door'] = json.dumps([round(b['xo'], 3), round(b['d'] / 2, 3)])
     root['sign'] = sid; root['empty'] = eid; root['top'] = b['top']; root['kind'] = b['kind']
+    if b.get('span'): root['span'] = json.dumps(b['span'])   # [Raul hill-weapons] town-local lz range of a widened / trimmed building (map + grass)
+    if b.get('covers'): root['covers'] = json.dumps(b['covers'])
     REPORT[b['key']] = rep
     DATA.append(dict(key=b['key'], kind=b['kind'], rent=b.get('rent'), side=b['side'], n=b['n'], lx=round(b['lx'], 3), lz=round(b['lz'], 3), w=round(b['w'], 3), d=round(b['d'], 3),
                      x0=round(b['x0'], 3), x1=round(b['x1'], 3), fl=b['fl'], style=b['style'], roof=b['roof'], g=b['g'], y=round(b['y'], 3), door=[round(b['xo'], 3), round(b['d'] / 2, 3)],
-                     ow=b['ow'], interior=inner, colliders=cols, sign=sid, empty=eid, top=round(b['top'], 2)))
+                     ow=b['ow'], interior=inner, colliders=cols, sign=sid, empty=eid, top=round(b['top'], 2), covers=b.get('covers')))
     print(b['key'], b['kind'], b['style'], b['roof'], 'fl', b['fl'], rep, flush=True)
+for b in STUBS:   # [Raul hill-weapons] R1 = the south bay of the MUSKET SHOP (R2): an empty marker so hillLot builds nothing there
+    st = bpy.data.objects.new('hill_' + b['key'], None); COLLS['musket'].objects.link(st); st['kind'] = 'merged'; st['merged'] = 'R2'; st['colliders'] = '[]'
 json.dump(dict(report=REPORT, lots=DATA), open(os.path.join(OUT, 'hill_report.json'), 'w'), indent=1)
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'hill_street.blend'))
 for k, c in COLLS.items():
@@ -557,6 +658,7 @@ for L in DATA:
              interior=dict(lx0=min(c[0] for c in cs), lz0=min(c[1] for c in cs), lx1=max(c[0] for c in cs), lz1=max(c[1] for c in cs), floorY=dict(atLz0=round(gyl(min(c[1] for c in cs)), 3), atLz1=round(gyl(max(c[1] for c in cs)), 3)), slope=0.11),
              sign=L['sign'], empty=L['empty'])
     if L['kind'] == 'big': e['size'] = 'large'
+    if L.get('covers'): e['lots'] = sorted([L['key'], *L['covers']]); e['size'] = 'double'   # [Raul hill-weapons] the MUSKET SHOP = R1 + R2
     (rent if L['kind'] in ('rent', 'big') else weap).append(e)
 json.dump(dict(RENTABLE_SHOPS=rent, MAIN_ST_SHOPS=weap), open(os.path.join(GAME, 'assets/island/hill_shops.json'), 'w'), indent=1)
 with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
@@ -567,7 +669,8 @@ with open(os.path.join(GAME, 'js/island/hillShops.js'), 'w') as f:
     f.write("// sign = the blank hanging sign-plate mesh name, empty = the door Object3D name (both in the scene once the hill GLBs load).\n")
     f.write("// RENTABLE_SHOPS: every hill-street ground floor except the two weapon shops = an EMPTY shop to rent (geometry + data only; no rental gameplay yet).\n")
     f.write("// The last one, rent_big (size 'large', lot R0 = the old Squad Hall plot, hill_big_shop.glb), is the one big hall; the Squad Hall interact stays at its door.\n")
-    f.write("// MAIN_ST_SHOPS: the SWORD SHOP (L6) + MUSKET SHOP (R6) as built (js/island/battleAreas.js MAIN_ST_SHOPS stays the gameplay config).\n")
+    f.write("// MAIN_ST_SHOPS: the MUSKET SHOP (R1+R2 = #34+#35, one building, origin R2) + SWORD SHOP (R3 = #36, by the coliseum MAIN_GATE) as built\n")
+    f.write("// (js/island/battleAreas.js MAIN_ST_SHOPS stays the gameplay config). The old weapon lots L6 / R6 are rent_23 / rent_24.\n")
     f.write('export const RENTABLE_SHOPS = ' + json.dumps(rent) + ';\n')
     f.write('export const MAIN_ST_SHOPS = ' + json.dumps(weap) + ';\n')
 print('DATA', len(rent), 'rentable', len(weap), 'weapon')

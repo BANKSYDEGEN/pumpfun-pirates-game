@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v314'; // [v314] storage-houses: buyable cottages + instanced interiors + house chests + server-spot reservation (&houses=0); prev: [v313] sail-around;
+const VERSION = 'pfp-v315'; // [v315] Hill Street weapons: MUSKET #34+#35 / SWORD #36 by coli MAIN_GATE; prev: [v314] storage-houses;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

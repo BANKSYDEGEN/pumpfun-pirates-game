@@ -1,7 +1,9 @@
 // [Timothy] PUMPFUN PIRATES hill street (Main Street, plaza -> town gate) as Blender-made models (BANKSY 7:35 PM "fix the buildings up the hill
 // and make them match the plaza buildings and look good", his Port Royal reference, "multi story on both sides", "make them all shops").
-// Source: tools/hill_blender/hill_street_blender.py -> assets/island/hill_street.glb (22 rentable shop buildings), hill_sword_shop.glb (L6),
-// hill_musket_shop.glb (R6); *_low.glb = phones (LOD1 only). Same look as the plaza shops (plazaShops.js): vertex colour toon, solid + glow.
+// Source: tools/hill_blender/hill_street_blender.py -> assets/island/hill_street.glb (21 rentable shop buildings), hill_sword_shop.glb (R3 = #36,
+// by the coliseum MAIN_GATE), hill_musket_shop.glb (R1+R2 = #34+#35: ONE wide building, origin R2, + an empty 'merged' R1 marker);
+// [Raul hill-weapons] the old weapon lots L6 / R6 are plain rent shops (rent_23 / rent_24); *_low.glb = phones (LOD1 only).
+// Same look as the plaza shops (plazaShops.js): vertex colour toon, solid + glow.
 // foot.js buildStreet calls hillLot() once per lot (one guarded line, Raul's file): when the models are loaded the lot gets the Blender building,
 // its own slide-friendly box colliders (walls with the doorway open, counter, the weapon-shop barrels) instead of the solid footprint box, and
 // the colonial house is skipped; otherwise (load failed, ?hillglb=0, ?plaza=1) it returns false and the old house is built as before.
@@ -39,8 +41,8 @@ export function loadHill(low) {
           lods[low ? lv - 1 : lv] = g; continue; }
         if (c.name === ex.sign) { let src = c.isMesh ? c : null; c.traverse(mm => { if (!src && mm.isMesh) src = mm; }); if (src) { sign = new THREE.Mesh(src.geometry, solid); rel.multiplyMatrices(inv, src.matrixWorld).decompose(sign.position, sign.quaternion, sign.scale); sign.name = ex.sign; sign.castShadow = !low; } continue; }
         if (c.name === ex.empty) { empty = new THREE.Object3D(); empty.name = ex.empty; rel.multiplyMatrices(inv, c.matrixWorld).decompose(empty.position, empty.quaternion, empty.scale); } }
-      let colliders = []; try { colliders = JSON.parse(ex.colliders || '[]'); } catch (e) { /* none */ }
-      lots[o.name.slice(5)] = { lods: lods.filter(Boolean), sign, empty, colliders, kind: ex.kind || 'rent' }; }); });
+      let colliders = [], span = null; try { colliders = JSON.parse(ex.colliders || '[]'); span = ex.span ? JSON.parse(ex.span) : null; } catch (e) { /* none */ }
+      lots[o.name.slice(5)] = { lods: lods.filter(Boolean), sign, empty, colliders, kind: ex.kind || 'rent', merged: ex.merged || null, span }; }); });   // [Raul hill-weapons] merged / span: the R1+R2 MUSKET SHOP
   return Promise.all(FILES.map(one)).then(() => { HILL_KIT = { low, lots, mats: { solid, glow } }; return HILL_KIT; })
     .catch(e => { console.warn('[hill] Blender hill street failed, the colonial houses instead', e); HILL_KIT = null; return null; });
 }
@@ -48,12 +50,15 @@ export function loadHill(low) {
 // foot.js buildStreet, once per Main Street lot (world coords): true = this lot is the Blender building (colliders added here), false = build the old house
 const LABEL = { sword: 'SWORD SHOP', musket: 'MUSKET SHOP' };
 export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, LOTS_MAP }) {
-  const key = (side < 0 ? 'L' : 'R') + n, L = HILL_KIT && HILL_KIT.lots[key]; if (!L || !L.lods.length) return false;
+  const key = (side < 0 ? 'L' : 'R') + n, L = HILL_KIT && HILL_KIT.lots[key];
+  if (L && L.kind === 'merged') { const M_ = HILL_KIT.lots[L.merged]; return !!(M_ && M_.lods.length); }   // [Raul hill-weapons] R1 = the south bay of the MUSKET SHOP (R2): built (+ colliders, map) with R2
+  if (!L || !L.lods.length) return false;
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
-  const nm = LABEL[L.kind] ? `${LABEL[L.kind]} (${key})` : null;
-  LOTS_MAP?.push({ lx, z, w, d, side, label: nm, col: nm ? '#fbbf24' : 'rgba(240,220,190,0.9)', tc: nm ? '#fde68a' : '#fff' });
-  RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]);
+  const lots = Object.keys(HILL_KIT.lots).filter(k => HILL_KIT.lots[k].merged === key).concat(key).sort().join('+');   // 'R1+R2' for the double MUSKET SHOP
+  const nm = LABEL[L.kind] ? `${LABEL[L.kind]} (${lots})` : null, zz = L.span ? (L.span[0] + L.span[1]) / 2 : z, ww = L.span ? L.span[1] - L.span[0] : w;   // span: town lz range of a widened building
+  LOTS_MAP?.push({ lx, z: zz, w: ww, d, side, label: nm, col: nm ? '#fbbf24' : 'rgba(240,220,190,0.9)', tc: nm ? '#fde68a' : '#fff' });
+  RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, zz - ww / 2 - 0.9, zz + ww / 2 + 0.9]);
   HILL_PLACES.push({ key, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });
   return true;
 }

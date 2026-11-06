@@ -31,9 +31,14 @@ export const PATHS = COLISEUM_ON
   ? [[[22, -115], [40, -112], [55, -108], pitAt(PIT.gateA, PIT.r + 4)], [[22, -115], [40, -122], [55, -131], [62, -133]]]
   : [[[-54, -46], [-66, -70], [-86, -100], [-98, -118], [-98, -125]], [[13, -59], [34, -62], pitAt(PIT.gateA, PIT.r + 4), pitAt(PIT.gateA, PIT.r - 1)]];
 
+// [Raul hill-weapons] BANKSY via Emerly: both weapon shops moved to the east row of Hill Street by the coliseum MAIN_GATE (js/island/hillShops.js
+// MAIN_ST_SHOPS = the built ones): SWORD SHOP = #36 (lot R3, right south of the gate), MUSKET SHOP = #34+#35 (lots R1+R2, ONE wide building,
+// origin = the R2 lot centre). lx / lz = the building origin (lot centre), door = the doorway in that building frame (x along the street, 2.2 m
+// in from the centre); the GLB door empties (door_swords / door_muskets) still move the interact a few steps inside once loaded (battle.js).
+// The old lots (L6 / R6, lz -133.83) are plain rent shops now (rent_23 / rent_24).
 export const MAIN_ST_SHOPS = [
-  { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: -6.88, lz: -133.83, yaw: Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.77, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords' },
-  { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.87, lz: -133.83, yaw: -Math.PI / 2, door: [0, 2.2], w: 9.66, d: 9.74, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets' },
+  { id: 'sword_shop', vendor: 'weapons', tab: 'swords', lx: 18.323, lz: -105.031, yaw: -Math.PI / 2, door: [0.9, 2.2], w: 8.836, d: 8.645, sign: 'SWORD SHOP', label: 'E · SWORD SHOP', empty: 'door_swords', lot: 'R3', n: 36 },
+  { id: 'musket_shop', vendor: 'weapons', tab: 'muskets', lx: 18.483, lz: -93.897, yaw: -Math.PI / 2, door: [2.018, 2.2], w: 15.668, d: 8.966, sign: 'MUSKET SHOP', label: 'E · MUSKET SHOP', empty: 'door_muskets', lot: 'R1+R2', n: 34 },
 ];
 export const DUMMIES = [[-4.2, -2.5], [4.2, -2.5]].map(([dx, dz]) => { const a = PIT.gateA + Math.PI; const c = Math.cos(a), s = Math.sin(a);
   return { lx: PIT.lx + s * 5 + c * dx, lz: PIT.lz + c * 5 - s * dx, ly: PIT.gateA }; });
