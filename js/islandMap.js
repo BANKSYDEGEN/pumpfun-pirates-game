@@ -20,7 +20,7 @@ const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5c
   cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'],
   fort_flag: ['⚑', '#ffcd00', '#161616', 'DAILY FLAG'], fort_spyglass: ['◎', '#e8e2d4', '#161616', 'CASTLE SPYGLASS'], // [minimap-icons] castle flag + fort spyglass
   route_board: ['!', '#e8e2d4', '#161616', 'NOTICE BOARD'] }; // [hide-notice] only in interact when &noticeboard=1
-const POI_HIDE = new Set(['wish_fountain']); // wishing fountain stays off the map (hidden feature)
+const POI_HIDE = new Set(['wish_fountain', 'cottage_well']); // wishing fountain + cottage well stay off the map (hidden feature)
 const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
 const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS HILL', bridge: 'ROPE BRIDGE', lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
 
