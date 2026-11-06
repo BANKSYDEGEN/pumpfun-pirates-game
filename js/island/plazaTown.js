@@ -87,7 +87,12 @@ export const HOUSES = [   // [v248] the plaza tavern house (lx 66-74, decor) is 
   // [v247] house_e (#10, lx 77.9) is gone: the FISH MARKET (FISH_MARKET below) fills it + the harbor tower's spot (#11)
   ];
 // [v240] lx 50 (#19) removed: it stood in front of the MARKETPLACE door
-export const STALLS = [-50, -42, -34, -26, -18, 26, 34].map((lx, i) => ({ lx, lz: STALL_LZ, c: [0xf2efe6, 0xd8322f, 0xe9dcc0, 0x2a6df4, 0xf2efe6][i % 5] }));
+// [Emerly] BANKSY 7:09 PM Nov 5: "remove these stands" / "yes remove all fruit stands" — Harbor Market Street freestanding
+// canvas-awning produce stalls (5 west + 2 east). Default OFF; &plazastalls=1 restores them. Export stays an array so
+// tools/plaza_blender/walk_test.js + tools/collide/sweep.js keep working.
+export const STALLS = (typeof location !== 'undefined' && /[?&]plazastalls=1(?:&|$)/.test(location.search))
+  ? [-50, -42, -34, -26, -18, 26, 34].map((lx, i) => ({ lx, lz: STALL_LZ, c: [0xf2efe6, 0xd8322f, 0xe9dcc0, 0x2a6df4, 0xf2efe6][i % 5] }))
+  : [];
 export const CARTS = [[-30, -22.5], [40, -22]], TAVERN_TABLES = [];   // [v248] dropped: the FISH MARKET fills the gap they stood in front of   // [v247] back in front of the tavern (the FISH MARKET moved to #10 / #11)   // [v240] the tavern tables made room for the FISH MARKET
 // [v247] BANKSY 7:44 PM: the FISH MARKET is a walk-in shop on the row where #10 house_e (lx 74.4-81.4) + #11 the harbor tower (81.5-90.5) stood:
 // lx 74.5-89.5 (0.5 m clear of the tavern), front on FACADE_LZ, ROW_D deep. The SELL FISH prompt is on the shop floor (lz -35.5, r 3).
