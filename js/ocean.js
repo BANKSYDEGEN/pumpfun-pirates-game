@@ -269,9 +269,9 @@ export function createSky() {
 
         // --- moon disc + soft lunar halo
         float moonDot = max(dot(d, normalize(uMoonDir)), 0.0);
-        float moonDisc = smoothstep(0.9988, 0.9996, moonDot);
-        float moonHalo = pow(moonDot, 40.0) * 0.45 + pow(moonDot, 6.0) * 0.12;
-        col += vec3(0.82, 0.88, 1.0) * (moonDisc * 2.4 + moonHalo) * uMoonVis * (1.0 - uStorm);
+        float moonDisc = smoothstep(0.9975, 0.9994, moonDot);
+        float moonHalo = pow(moonDot, 28.0) * 0.65 + pow(moonDot, 5.0) * 0.22;
+        col += vec3(0.85, 0.90, 1.0) * (moonDisc * 3.4 + moonHalo) * uMoonVis * (1.0 - uStorm);
 
         // --- fair-weather cumulus (SPARSE) / storm overcast — never grey-out sunny Caribbean sky
         vec2 uv = d.xz / (abs(d.y) + 0.22) * 1.2 + vec2(uTime * 0.014, uTime * 0.007);
@@ -283,39 +283,81 @@ export function createSky() {
         float s1 = smoothstep(cover, cover + 0.06, c);
         float s2 = smoothstep(cover + 0.10, cover + 0.16, c);
         float s3 = smoothstep(cover + 0.20, cover + 0.26, c);
-        vec3 cDark = mix(vec3(0.62, 0.68, 0.78), vec3(0.06, 0.08, 0.11), uStorm);
-        vec3 cMid  = mix(vec3(0.88, 0.91, 0.95), vec3(0.13, 0.17, 0.22), uStorm);
-        vec3 cLite = mix(vec3(1.0, 1.0, 1.0), vec3(0.24, 0.30, 0.37), uStorm);
+        // fair-weather day clouds (white) vs night moonlit indigo — never wash the starfield grey
+        vec3 dayDark = vec3(0.62, 0.68, 0.78), dayMid = vec3(0.88, 0.91, 0.95), dayLite = vec3(1.0, 1.0, 1.0);
+        vec3 nightDark = vec3(0.03, 0.05, 0.11), nightMid = vec3(0.06, 0.09, 0.18), nightLite = vec3(0.11, 0.16, 0.28);
+        float dayW = clamp(uSunVis, 0.0, 1.0);
+        vec3 fairDark = mix(nightDark, dayDark, dayW);
+        vec3 fairMid  = mix(nightMid, dayMid, dayW);
+        vec3 fairLite = mix(nightLite, dayLite, dayW);
+        vec3 cDark = mix(fairDark, vec3(0.06, 0.08, 0.11), uStorm);
+        vec3 cMid  = mix(fairMid,  vec3(0.13, 0.17, 0.22), uStorm);
+        vec3 cLite = mix(fairLite, vec3(0.24, 0.30, 0.37), uStorm);
         float rim = pow(max(dot(normalize(vec3(d.x, 0.15, d.z)), normalize(uSunDir)), 0.0), 2.0);
         cLite = mix(cLite, mix(uSunColor, vec3(1.0, 0.55, 0.3), uCloudWarm), rim * uSunVis * (0.35 + 0.55 * uCloudWarm));
         vec3 cloud = mix(cDark, cMid, s2);
         cloud = mix(cloud, cLite, s3);
         cloud += uSunColor * vec3(1.0, 0.5, 0.25) * uCloudWarm * (s1 - s2 * 0.4) * 0.9;
-        // night: even clearer skies so stars read; storm: nearly solid cover
-        float fairAmt = mix(0.55, 0.38, step(0.5, uMoonVis)); // clearer at night
+        // [v345] night: ~18% cloud cover so 82%+ is crystal starry indigo; storm: solid overcast
+        float fairAmt = mix(0.55, 0.12, clamp(uStarVis, 0.0, 1.0));
         float cloudAmt = s1 * m * mix(fairAmt, 0.96, uStorm);
         col = mix(col, cloud, cloudAmt);
 
-        // --- starfield (multi-tier hash cells) + soft Milky Way — occluded by clouds & storm
-        float starGate = uStarVis * (1.0 - cloudAmt * 0.92) * smoothstep(0.02, 0.18, y01);
+        // --- [v345] cubed-sphere 2D cell starfield (multi-pixel heroes — no 3D lattice sub-pixel miss)
+        float starGate = uStarVis * (1.0 - cloudAmt * 0.95) * smoothstep(0.01, 0.09, y01);
         if (starGate > 0.001) {
-          // bright hero stars
-          vec3 sp = d * 48.0; vec3 si = floor(sp); vec3 sf = fract(sp) - 0.5;
-          float sh = hash3(si);
-          float dist = length(sf);
-          float mag = step(0.955, sh);
-          float tw = 0.7 + 0.3 * sin(uTime * (2.0 + sh * 5.0) + sh * 20.0);
-          vec3 starCol = mix(vec3(0.75, 0.82, 1.0), mix(vec3(1.0, 0.92, 0.75), vec3(0.7, 0.9, 1.0), fract(sh * 17.0)), fract(sh * 9.0));
-          col += starCol * mag * smoothstep(0.11, 0.0, dist) * tw * starGate * 2.4;
-          // fine background dust
-          vec3 sp2 = d * 120.0; vec3 si2 = floor(sp2); float sh2 = hash3(si2);
-          float dist2 = length(fract(sp2) - 0.5);
-          col += vec3(0.85, 0.9, 1.0) * step(0.982, sh2) * smoothstep(0.055, 0.0, dist2) * starGate * 1.1;
-          // Milky Way band (safe xz normalize — zenith has d.xz≈0)
+          // cube-map face UV from largest abs axis (uniform density, zero pole pinch)
+          vec3 ad = abs(d);
+          vec2 fuv; float face;
+          if (ad.x >= ad.y && ad.x >= ad.z) { fuv = vec2(d.z, d.y) / max(ad.x, 1e-6); face = d.x >= 0.0 ? 0.0 : 1.0; }
+          else if (ad.y >= ad.x && ad.y >= ad.z) { fuv = vec2(d.x, d.z) / max(ad.y, 1e-6); face = d.y >= 0.0 ? 2.0 : 3.0; }
+          else { fuv = vec2(d.x, d.y) / max(ad.z, 1e-6); face = d.z >= 0.0 ? 4.0 : 5.0; }
+          fuv = fuv * 0.5 + 0.5;
+          // tier helper: N density, pKeep occupancy, soft radius + gain
+          // Tier 1 heroes
+          {
+            float N = 26.0; vec2 suv = fuv * N; vec2 cell = floor(suv);
+            float h1 = hash(cell + vec2(face * 19.0, 3.1)); float h2 = hash(cell + vec2(face * 41.0, 7.7));
+            float h3 = hash(cell + vec2(face * 73.0, 11.3));
+            if (h3 < 0.12) {
+              vec2 ctr = cell + vec2(0.22 + 0.56 * h1, 0.22 + 0.56 * h2);
+              float dist = length(suv - ctr);
+              float tw = 0.72 + 0.28 * sin(uTime * (1.8 + h1 * 4.5) + h2 * 20.0);
+              vec3 sc = mix(vec3(1.0, 0.94, 0.78), mix(vec3(0.78, 0.88, 1.0), vec3(1.0, 1.0, 1.0), fract(h2 * 9.0)), fract(h1 * 13.0));
+              float core = smoothstep(0.12, 0.012, dist) * 5.2;
+              float glow = exp(-dist * 14.0) * 0.55;
+              col += sc * (core + glow) * tw * starGate;
+            }
+          }
+          // Tier 2 medium
+          {
+            float N = 52.0; vec2 suv = fuv * N; vec2 cell = floor(suv);
+            float h1 = hash(cell + vec2(face * 23.0, 5.5)); float h2 = hash(cell + vec2(face * 47.0, 9.9));
+            float h3 = hash(cell + vec2(face * 89.0, 15.1));
+            if (h3 < 0.18) {
+              vec2 ctr = cell + vec2(0.22 + 0.56 * h1, 0.22 + 0.56 * h2);
+              float dist = length(suv - ctr);
+              float tw = 0.75 + 0.25 * sin(uTime * (2.2 + h2 * 3.5) + h1 * 14.0);
+              vec3 sc = mix(vec3(0.85, 0.9, 1.0), vec3(1.0, 0.95, 0.82), fract(h1 * 7.0));
+              col += sc * smoothstep(0.14, 0.02, dist) * 2.8 * tw * starGate;
+            }
+          }
+          // Tier 3 fine dust
+          {
+            float N = 95.0; vec2 suv = fuv * N; vec2 cell = floor(suv);
+            float h1 = hash(cell + vec2(face * 29.0, 2.2)); float h2 = hash(cell + vec2(face * 61.0, 8.4));
+            float h3 = hash(cell + vec2(face * 97.0, 12.6));
+            if (h3 < 0.22) {
+              vec2 ctr = cell + vec2(0.22 + 0.56 * h1, 0.22 + 0.56 * h2);
+              float dist = length(suv - ctr);
+              col += vec3(0.82, 0.88, 1.0) * smoothstep(0.22, 0.04, dist) * 1.3 * starGate;
+            }
+          }
+          // richer Milky Way band
           vec2 mwd = d.xz; float mwl = length(mwd); mwd = mwl > 1e-4 ? mwd / mwl : vec2(0.6, 0.8);
           float mw = exp(-pow(d.y * 1.8 - 0.15, 2.0) * 2.5) * exp(-pow(dot(mwd, vec2(0.6, 0.8)), 2.0) * 1.2);
           float mwN = fbm(d.xz * 6.0 + d.y * 3.0);
-          col += vec3(0.55, 0.6, 0.85) * mw * mwN * starGate * 0.42;
+          col += vec3(0.55, 0.6, 0.85) * mw * mwN * starGate * 0.75;
         }
 
         // lightning flash (storm)

@@ -72,7 +72,7 @@ test('sunrise / sunset: golden warm horizon, sun near horizon', () => {
 });
 
 test('night: stars > 0, moon visible, readable key light, indigo zenith', () => {
-  const st = evalSky(0.02, 0);
+  const st = evalSky(0.92, 0);
   assert.equal(st.name, 'night');
   assert.ok(st.starVis > 0.5, `starVis=${st.starVis}`);
   assert.ok(st.moonVis > 0.5);
@@ -99,7 +99,7 @@ test('storm < 0.25: rain alpha is 0 (Harbor fair weather)', () => {
 });
 
 test('fog horizon matches sky horizon color', () => {
-  for (const ph of [0.02, 0.22, 0.5, 0.78]) {
+  for (const ph of [0.92, 0.26, 0.5, 0.74]) {
     const st = evalSky(ph, 0);
     assert.equal(st.fogColor.r, st.horiz.r);
     assert.equal(st.fogColor.g, st.horiz.g);
@@ -143,9 +143,27 @@ test('sw.js caches skyCycle.js', () => {
   assert.match(read('sw.js'), /skyCycle\.js/);
 });
 
-test('sw.js VERSION is pfp-v344+', () => {
+test('sw.js VERSION is pfp-v345+', () => {
   const sw = read('sw.js');
   const m = sw.match(/VERSION = 'pfp-v(\d+)'/);
   assert.ok(m, 'VERSION present');
-  assert.ok(+m[1] >= 344, `expected >= 344, got pfp-v${m[1]}`);
+  assert.ok(+m[1] >= 345, `expected >= 345, got pfp-v${m[1]}`);
+});
+
+test('ocean.js v345: cubed-sphere starfield + night-dark clouds', () => {
+  const s = read('js/ocean.js');
+  assert.match(s, /cubed-sphere 2D cell starfield/);
+  assert.match(s, /float N = 26\.0/);
+  assert.match(s, /float N = 52\.0/);
+  assert.match(s, /float N = 95\.0/);
+  assert.match(s, /nightDark = vec3\(0\.03, 0\.05, 0\.11\)/);
+  assert.match(s, /fairAmt = mix\(0\.55, 0\.12/);
+  assert.match(s, /smoothstep\(0\.01, 0\.09, y01\)/);
+});
+
+test('skyCycle v345: night alias keeps moon mid-sky', () => {
+  setPhase('night');
+  const md = moonDir(skyPhase());
+  assert.ok(md.y > 0.3 && md.y < 0.7, `moon elev ${md.y}`);
+  clearPhase();
 });

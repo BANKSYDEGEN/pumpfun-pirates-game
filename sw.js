@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v344'; // [v344] AAA Caribbean dynamic sky: shared-clock sunny day / sunrise / sunset / starry night + moon (BANKSY t1812u-t1814u); Harbor fair weather (no rain) when not storming; Storm Hunt still blends to tempest; prev: [v343] casino gold fix + river swim under D3 rope bridge; prev: [v342] Male V6 head; prev: [v341] top HUD;
+const VERSION = 'pfp-v345'; // [v345] starfield fix: cubed-sphere multi-pixel stars + night-dark clouds + visible moon (BANKSY t1813u / t1817u); prev: [v344] AAA Caribbean dynamic sky;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

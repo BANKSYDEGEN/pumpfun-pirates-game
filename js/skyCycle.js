@@ -7,7 +7,7 @@ export const SKY_CYCLE_S = 1200; // 20-minute full day
 const PHASE_ALIAS = {
   auto: null, sunny: 0.50, noon: 0.50, day: 0.50,
   sunrise: 0.26, dawn: 0.20, sunset: 0.74, dusk: 0.80,
-  night: 0.02, midnight: 0.0, storm: 'storm',
+  night: 0.92, midnight: 0.0, storm: 'storm', // [v345] 0.92 keeps moon mid-sky (not zenith-only)
 };
 
 let forcedPhase = null; // number 0..1 OR 'storm' OR null (auto clock)
@@ -104,6 +104,20 @@ export function sunDir(phase, out = { x: 0, y: 1, z: 0 }) {
 /** Moon opposite the sun arc (visible when sun is below horizon). */
 export function moonDir(phase, out = { x: 0, y: 1, z: 0 }) {
   sunDir((phase + 0.5) % 1, out);
+  // [v345] pitch moon into camera-friendly elevation (~0.35..0.55) so sailing players actually see it
+  if (out.y > 0.55) {
+    const flat = Math.hypot(out.x, out.z) || 1e-6;
+    const ty = 0.45;
+    const s = Math.sqrt(Math.max(1e-6, 1 - ty * ty)) / flat;
+    out.x *= s; out.z *= s; out.y = ty;
+  } else if (out.y > 0 && out.y < 0.28) {
+    const flat = Math.hypot(out.x, out.z) || 1e-6;
+    const ty = 0.35;
+    const s = Math.sqrt(Math.max(1e-6, 1 - ty * ty)) / flat;
+    out.x *= s; out.z *= s; out.y = ty;
+  }
+  const len = Math.hypot(out.x, out.y, out.z) || 1;
+  out.x /= len; out.y /= len; out.z /= len;
   return out;
 }
 
