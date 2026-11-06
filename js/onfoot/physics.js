@@ -9,10 +9,10 @@
 import * as THREE from 'three';
 import { FOOT_SWIM } from '../island/coast.js';
 
-export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [2.3, 3.6], wade: 0.45, fallPose: 0.22, climbT: 0.6, climbV: 1.2, hop: 0.55, ...FOOT_SWIM }; // [Raul swim-anim] climbT = the pull-up out of the water (s), hop = the surface kick height (m)
+export const PHYS = { g: 32, stepRate: 1.4, stepEase: 14, bob: 0.05, swim: [8.5, 13.0], wade: 0.45, fallPose: 0.22, climbT: 0.6, climbV: 1.2, hop: 0.55, ...FOOT_SWIM }; // [Raul swim-anim] climbT = the pull-up out of the water (s), hop = the surface kick height (m)
 // [Emerly] BANKSY: jump while swimming = a dolphin-kick surge (k x swim speed, eased in / out over t s; holding jump keeps it going). live = the
 // leader's current factor (walker.js) so the crew can keep up (followers.js). Only in deep water: the hop height is unchanged. &swimjump=0 = old.
-export const SWIM_SURGE = { on: !(typeof location !== 'undefined' && /[?&]swimjump=0(&|$)/.test(location.search)), k: 1.75, t: 1.1, live: 1 };
+export const SWIM_SURGE = { on: !(typeof location !== 'undefined' && /[?&]swimjump=0(&|$)/.test(location.search)), k: 1.35, t: 1.1, live: 1 };
 const _f = { gy: 0, surf: null, depth: 0, swim: false, floor: 0 };
 export function floorAt(world, x, z, out = _f) { const gy = world.ground(x, z), s = world.water ? world.water(x, z) : null, d = s === null ? 0 : s - gy;
   out.gy = gy; out.surf = s; out.depth = d > 0 ? d : 0; out.swim = d > PHYS.depth; out.floor = out.swim ? s - PHYS.float : gy; return out; }

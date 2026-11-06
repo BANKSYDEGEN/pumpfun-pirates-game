@@ -32,11 +32,19 @@ export const DIG_SPOTS = [
   { id: 'dig13', n: 13, area: 'lagoon', x: -268, z: -80, active: false, roll: false },
   { id: 'dig14', n: 14, area: 'pirate_camp', x: -537, z: -470, active: false, roll: false },
   { id: 'dig15', n: 15, area: 'pirate_camp', x: -400, z: -492, active: false, roll: false },
-  { id: 'dig16', n: 16, area: 'islet_6a', x: -470, z: 420, active: false, roll: false, needs: 'swim|row' },
-  { id: 'dig17', n: 17, area: 'islet_6b', x: -329, z: 558, active: false, roll: false, needs: 'swim|row' },
-  { id: 'dig18', n: 18, area: 'islet_6c', x: 420, z: 560, active: false, roll: false, needs: 'swim|row' },
-  { id: 'dig19', n: 19, area: 'islet_6d', x: 560, z: -420, active: false, roll: false, needs: 'swim|row' },
-  { id: 'dig20', n: 20, area: 'islet_6e', x: -150, z: -770, active: false, roll: false, needs: 'swim|row' },
+  { id: 'dig16', n: 16, area: 'islet_6a', x: -455, z: 418, active: true, roll: true, needs: 'swim|row', hint: [-470, 405] },
+  { id: 'dig17', n: 17, area: 'islet_6b', x: -325, z: 545, active: true, roll: true, needs: 'swim|row', hint: [-330, 560] },
+  { id: 'dig18', n: 18, area: 'islet_6c', x: 410, z: 548, active: true, roll: true, needs: 'swim|row', hint: [420, 560] },
+  { id: 'dig19', n: 19, area: 'islet_6d', x: 548, z: -410, active: true, roll: true, needs: 'swim|row', hint: [560, -420] },
+  { id: 'dig20', n: 20, area: 'islet_6e', x: -150, z: -755, active: true, roll: true, needs: 'swim|row', hint: [-150, -770] },
+  // [v313] BANKSY: extra side-island digs (2nd on 6a-6d + 3rd on largest 6a/6b + bonus on 6b). islet_6e too small for a 40 m-separated 2nd dig.
+  { id: 'dig21', n: 21, area: 'islet_6a', x: -496, z: 415, active: true, roll: true, needs: 'swim|row', hint: [-505, 405] },
+  { id: 'dig22', n: 22, area: 'islet_6b', x: -330, z: 588, active: true, roll: true, needs: 'swim|row', hint: [-330, 600] },
+  { id: 'dig23', n: 23, area: 'islet_6c', x: 425, z: 587, active: true, roll: true, needs: 'swim|row', hint: [430, 600] },
+  { id: 'dig24', n: 24, area: 'islet_6d', x: 565, z: -447, active: true, roll: true, needs: 'swim|row', hint: [575, -455] },
+  { id: 'dig25', n: 25, area: 'islet_6a', x: -478, z: 452, active: true, roll: true, needs: 'swim|row', hint: [-485, 465] },
+  { id: 'dig26', n: 26, area: 'islet_6b', x: -365, z: 555, active: true, roll: true, needs: 'swim|row', hint: [-380, 555] },
+  { id: 'dig27', n: 27, area: 'islet_6b', x: -285, z: 554, active: true, roll: true, needs: 'swim|row', hint: [-270, 560] },
 ];
 
 // zones owned by others: no dig spot (and no rework prop) within `pad` m. Rects are foot-frame [x0, x1, z0, z1].

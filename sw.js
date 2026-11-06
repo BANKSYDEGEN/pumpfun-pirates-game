@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v312'; // [v312] Cannon Hill: lower ball arc + depression aim so lighthouse is hittable, dramatic Mole/Sandbar lighthouse hit effect (&lhhit=0); prev: [v311] CANNON HILL upgrade: real PUMPFUN PIRATES flag on a 17 m signal mast + compass rose, bastion embrasures/glacis/cordon, gun platforms, arched ramp gate, powder magazine, braziers
+const VERSION = 'pfp-v313'; // [v313] sail-around: full-island sea + hollow wooden canoe + dig16-27 side-island digs + ship recall + fast swim + tougher/more AI around N/E/S coasts + HUD gold card (&sailall=0); prev: [v312] Cannon Hill lighthouse hit;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -137,6 +137,7 @@ const SHELL = [
   "./js/islandShop.js",
   "./js/shopCatalog.js",
   "./js/dock/zipline.js", // [v296] Emerly zipline
+  "./js/dock/canoe.js", // [v311] sail-around offshore anchor + canoe + ship recall
   "./js/boosts.js", // [Emerly] ITEM SKILL BOOSTS (shop.js, pvp.js, islandShop.js import it)
   "./js/shopGoals.js", // [Timothy] shop goal progress (islandShop.js imports it)
   "./js/prestige.js", // [prestige] emblem + reward text (pvp.js, shop.js, uiProfile.js)

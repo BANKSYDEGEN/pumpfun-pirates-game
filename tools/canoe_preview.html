@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><title>canoe preview</title>
+<style>html,body{margin:0;background:#1a6a7a;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+<script type="importmap">{"imports":{"three":"/vendor/three-0.165.0/build/three.module.js","three/addons/":"/vendor/three-0.165.0/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { makeCanoeMesh } from '/js/dock/canoe.js';
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x3db8c4);
+const cam = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 200);
+const ren = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+ren.setPixelRatio(1); ren.setSize(innerWidth, innerHeight); document.body.appendChild(ren.domElement);
+const hemi = new THREE.HemisphereLight(0xfff2d6, 0x2a5a6a, 1.3); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe2b0, 1.1); sun.position.set(4,8,2); scene.add(sun);
+const water = new THREE.Mesh(new THREE.CircleGeometry(40, 48), new THREE.MeshBasicMaterial({ color: 0x2ea8b5 }));
+water.rotation.x = -Math.PI/2; water.position.y = -0.02; scene.add(water);
+const canoe = makeCanoeMesh(); scene.add(canoe);
+// animate paddles like in-game
+let t=0; const pL=canoe.getObjectByName('padL'), pR=canoe.getObjectByName('padR');
+function frame(ms){
+  t = ms*0.001; const swing=Math.sin(t*2.8)*0.72, dip=0.18+Math.abs(Math.sin(t*2.8))*0.22;
+  if(pL){pL.rotation.x=swing;pL.rotation.z=-0.55-dip} if(pR){pR.rotation.x=-swing;pR.rotation.z=0.55+dip}
+  canoe.rotation.y = 0.55; canoe.position.y = Math.sin(t*2.2)*0.04;
+  // 3/4 view
+  cam.position.set(-6.2, 3.1, -7.4); cam.lookAt(0.2, 0.55, 0.5);
+  ren.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__canoeReady = true;
+window.__shotClose = () => { cam.position.set(-4.0, 2.2, -4.6); cam.lookAt(0.1, 0.5, 0.4); ren.render(scene, cam); };
+</script></body></html>

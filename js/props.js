@@ -223,6 +223,15 @@ export function createIslands(quality) {
         const into = -(Math.sin(s.yaw) * nx + Math.cos(s.yaw) * nz); // 1 = straight at the rock
         if (into > 0) s.speed *= Math.max(0.2, 1 - into * Math.min(1, dt * 6));
       }
+      // [Emerly sail-around] heightmap land pushback around the whole island + outer islets (O(1) neighbour sample)
+      if (zone && zone.land && zone.land(s.x, s.z)) {
+        let bx = 0, bz = 0, n = 0;
+        for (const [dx, dz] of [[10,0],[-10,0],[0,10],[0,-10],[7,7],[7,-7],[-7,7],[-7,-7]]) {
+          if (!zone.land(s.x + dx, s.z + dz)) { bx += dx; bz += dz; n++; }
+        }
+        if (n) { const L = Math.hypot(bx, bz) || 1; s.x += bx / L * Math.max(2.5, R * 0.35); s.z += bz / L * Math.max(2.5, R * 0.35); s.speed *= 0.25; hit = true; }
+        else { s.speed *= 0.15; hit = true; }
+      }
       if (hit) s.rockT = 0.4; else if (s.rockT) s.rockT = Math.max(0, s.rockT - dt);
       return hit;
     },
@@ -257,7 +266,7 @@ export function createIslands(quality) {
       return [x, z];
     },
     isFree(x, z, r = 12) { for (const c of circlesNear(x, z)) if (Math.hypot(x - c.x, z - c.z) < c.r + r + 4) return false; return true; },
-    hitBall(p) { if (p.y > 80) return false; for (const c of circlesNear(p.x, p.z)) if (p.y < c.h && Math.hypot(p.x - c.x, p.z - c.z) < c.r * (p.y > 0 ? Math.max(0.35, 1 - p.y / Math.max(1, c.h)) : 1)) return true; return false; },
+    hitBall(p) { if (p.y > 80) return false; for (const c of circlesNear(p.x, p.z)) if (p.y < c.h && Math.hypot(p.x - c.x, p.z - c.z) < c.r * (p.y > 0 ? Math.max(0.35, 1 - p.y / Math.max(1, c.h)) : 1)) return true; if (zone && zone.land && p.y < 14 && zone.land(p.x, p.z)) return true; return false; },
   };
 }
 

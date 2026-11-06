@@ -26,6 +26,7 @@ import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDoc
 import { createSkinPicker } from './skinPicker.js'; // [dock-skin] Q / CHANGE SKIN at your own berth
 import { createSquadHall } from './squadHall.js'; // [squad-hall] BANKSY: all-worlds list + invite / join
 import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill -> Skull Peak (&zipline=0 = none)
+import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
 
 const CSS = `
@@ -38,19 +39,19 @@ const CSS = `
 #dk-acts button[disabled]{opacity:.75;background:rgba(22,22,22,.86);color:#ddd;border-color:#888}
 #dk-acts kbd{font:16px system-ui,sans-serif;background:#ffcd77;color:#161616;border-radius:5px;padding:1px 6px;margin-right:8px;vertical-align:3px}
 html.dk-touch #dk-acts kbd{display:none}
-html.pfp-onfoot #controls,html.pfp-onfoot #hint,html.pfp-onfoot #pvp-harbor,html.pfp-onfoot .ehp,html.pfp-onfoot #pvp-boss-bar{display:none!important}
+html.pfp-onfoot #controls,html.pfp-onfoot #hint,html.pfp-onfoot #pvp-harbor,html.pfp-onfoot .ehp,html.pfp-onfoot #pvp-boss-bar,html.pfp-canoe #controls,html.pfp-canoe #hint,html.pfp-canoe #pvp-harbor,html.pfp-canoe #pvp-menu{display:none!important}
 html.pfp-onfoot.dk-board #pvp-harbor{display:flex!important}
 #dk-board-x{position:fixed;right:14px;top:calc(var(--safe-t,0px) + 54px);z-index:9;display:none;font:22px 'Just Another Hand',cursive;padding:6px 14px 3px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77}
 html.dk-board #dk-board-x{display:block}
 #dk-joy{position:fixed;left:calc(var(--safe-l,0px) + 22px);bottom:calc(var(--safe-b,0px) + 22px);width:132px;height:132px;border-radius:50%;background:rgba(22,22,22,.35);border:3px solid rgba(255,205,119,.65);z-index:8;display:none;touch-action:none}
 #dk-joy i{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,205,119,.9);box-shadow:0 2px 6px #000}
-html.pfp-onfoot.dk-touch #dk-joy{display:block}
+html.pfp-onfoot.dk-touch #dk-joy,html.pfp-canoe.dk-touch #dk-joy{display:block}
 #dk-jump{position:fixed;left:calc(var(--safe-l,0px) + 168px);bottom:calc(var(--safe-b,0px) + 26px);width:70px;height:70px;border-radius:50%;display:none;z-index:8;font:24px 'Just Another Hand',cursive;color:#161616;background:rgba(255,205,119,.92);border:3px solid #161616;box-shadow:0 3px 8px rgba(0,0,0,.5);touch-action:none;padding:4px 0 0}
 #dk-jump:active{transform:scale(.92)}
 html.pfp-onfoot.dk-touch #dk-jump{display:block}
-html.dk-touch.pfp-onfoot #dk-acts{left:auto;right:calc(var(--safe-r,0px) + 22px);bottom:calc(var(--safe-b,0px) + 40px);transform:none;flex-direction:column;align-items:flex-end}
-html.dk-touch.pfp-onfoot #dk-acts button{font-size:24px;padding:14px 18px 10px}
-html.dk-touch.pfp-onfoot #dk-acts{max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 24px)} html.dk-touch.pfp-onfoot #dk-acts button{white-space:normal;text-align:center;max-width:100%} /* [v166] long shop labels wrap instead of running under the stick */
+html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{left:auto;right:calc(var(--safe-r,0px) + 22px);bottom:calc(var(--safe-b,0px) + 40px);transform:none;flex-direction:column;align-items:flex-end}
+html.dk-touch.pfp-onfoot #dk-acts button,html.dk-touch.pfp-canoe #dk-acts button{font-size:24px;padding:14px 18px 10px}
+html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 24px)} html.dk-touch.pfp-onfoot #dk-acts button,html.dk-touch.pfp-canoe #dk-acts button{white-space:normal;text-align:center;max-width:100%} /* [v166] long shop labels wrap instead of running under the stick */
 #dk-fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .28s}
 #dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:70;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
 @media (max-height:480px){#dk-acts{bottom:calc(var(--safe-b,0px) + 104px)} #dk-acts button{font-size:22px;padding:8px 14px 5px} #dk-safe{top:calc(var(--safe-t,0px) + 46px);font-size:18px}}
@@ -78,6 +79,7 @@ export async function createDock(ctx) {
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
+  const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW }); // [Emerly sail-around]
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
@@ -126,7 +128,7 @@ export async function createDock(ctx) {
   function placeActs() {
     if (!touch || acts.style.display === 'none') return;
     const st = acts.style; st.left = st.right = st.bottom = st.top = st.transform = '';
-    if (!document.documentElement.classList.contains('pfp-onfoot')) return; // aboard: the CSS spot (no stick / JUMP)
+    if (!document.documentElement.classList.contains('pfp-onfoot') && !document.documentElement.classList.contains('pfp-canoe')) return; // aboard: the CSS spot (no stick / JUMP)
     const W = innerWidth, H = innerHeight, cs = getComputedStyle(document.documentElement), px = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
     const sr = px('--safe-r'), sb = px('--safe-b'), pad = 10;
     const ctrls = ['dk-joy', 'dk-jump', 'bt-atk', 'btn-emote'].map(id => document.getElementById(id)).filter(e => e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden')
@@ -184,11 +186,11 @@ export async function createDock(ctx) {
   const P = () => ctx.getPlayer();
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
   // the harbor zone (clear water round the coast, curated islets, the coast colliders, no grid rocks on the land): sailing it OR spectating it
-  let zoneOn = null; const setZone = (v) => { v = !!v; if (v === zoneOn) return; zoneOn = v; islands.setHarbor(v ? { clearR: 470, islets: ctx.islets, island: sets, land: (x, z) => layout.FM.H(...layout.harborToFoot(x, z)) > -6 } : null); };
+  let zoneOn = null; const setZone = (v) => { v = !!v; if (v === zoneOn) return; zoneOn = v; islands.setHarbor(v ? { clearR: SAIL_ALL ? 1350 : 470, islets: ctx.islets, island: sets, land: (x, z) => layout.FM.H(...layout.harborToFoot(x, z)) > -6 } : null); };
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { canoe?.clearAll?.(P()); skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -207,6 +209,10 @@ export async function createDock(ctx) {
     docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`MOORED AT BERTH ${b.id} · SAFE HARBOR`, 2000);
   }
   function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
+  function goAshoreAt(x, z, yaw) { // [Emerly sail-around] canoe beach landing (any shore / islet)
+    fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
+      walker.enter(x, z, yaw ?? 0); crewF?.enter(); petF?.enter(walker.w); toast('ASHORE'); });
+  }
   function goAshore() {
     if (docking.mode !== 'docked') return; const b = docking.berth;
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
@@ -290,6 +296,8 @@ export async function createDock(ctx) {
     if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
+    // [Emerly sail-around] canoe / offshore-anchor tick (owns camera while paddling)
+    const canoeCam = canoe?.tick(dt, { s, onFoot, W: walker.w, keys: walker.w.keys, joy: walker.w.joy, camera, controls, pirateObj: pirate.object });
     if ((!was || (s.alive && !wasAlive)) && s.alive) { spawnNow(s); if (!was) fortReturn(); } wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
     if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
@@ -318,16 +326,32 @@ export async function createDock(ctx) {
       if (zip?.riding) { setActs({ label: 'JUMP / E · DROP OFF', key: 'E', primary: true, fn: () => { walker.w.zipDrop = true; } }, { label: 'S / Q · TURN BACK', key: 'Q', fn: () => zip.reverse?.() }); }
       else {
         if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
-        setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct);
+        { const cp = canoe?.prompts({ s, onFoot: true, W, docking });
+          if (cp?.a && !best) {
+            const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+            setActs({ label: cp.a.label, key: 'E', primary: true, fn: () => run(cp.a.tag) }, skinAct);
+          } else setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct); }
       }
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
-      const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
-      if (!q) setActs(null, null);
-      else if (q.reason === 'fast') setActs({ label: 'SLOW DOWN TO DOCK', disabled: true }, null);
-      else if (q.reason === 'full') setActs({ label: 'ALL BERTHS TAKEN', disabled: true }, null);
-      else if (q.reason === 'taken') setActs({ label: 'BERTH TAKEN', disabled: true }, null);
-      else setActs({ label: '⚓ DOCK', key: 'E', primary: true, fn: () => dockNow(q.berth) }, null);
+      const cp = canoe?.prompts({ s, onFoot: false, W: walker.w, docking });
+      if (cp?.a) {
+        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+        setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: cp.a.key || 'E', primary: !!cp.a.primary, disabled: !!cp.a.disabled, fn: () => run(cp.a.tag) },
+          cp.b ? { label: cp.b.label, key: cp.b.key || 'W', fn: () => run(cp.b.tag) } : null);
+      } else {
+        const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
+        if (!q) setActs(null, null);
+        else if (q.reason === 'fast') setActs({ label: 'SLOW DOWN TO DOCK', disabled: true }, null);
+        else if (q.reason === 'full') setActs({ label: 'ALL BERTHS TAKEN', disabled: true }, null);
+        else if (q.reason === 'taken') setActs({ label: 'BERTH TAKEN', disabled: true }, null);
+        else setActs({ label: '⚓ DOCK', key: 'E', primary: true, fn: () => dockNow(q.berth) }, null);
+      }
+    } else if (canoe?.mode === 'canoe') {
+      const cp = canoe.prompts({ s, onFoot: false, W: walker.w, docking });
+      const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walker });
+      if (cp?.a) setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: 'E', primary: true, disabled: !!cp.a.disabled, fn: () => run(cp.a.tag) }, null);
+      else setActs(null, null);
     } else setActs(null, null);
     battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
     fnet.tick(dt);
@@ -335,7 +359,7 @@ export async function createDock(ctx) {
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)
-  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t, game.storm || 0); return onFoot; }
+  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe'; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;
@@ -356,7 +380,7 @@ export async function createDock(ctx) {
   const CREW_EMOTE = { 0: 0, 1: 100, 2: 100, 4: 4, 6: 6, 7: 7 };
   const api = {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle,
-    get on() { return on; }, get onFoot() { return onFoot; },
+    get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, canoe, pet: petF, pirate, goAshoreAt,
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : null), followers: crewF,
     // [Raul emotes] the crew's answer: copy Arr! / Attack! / Yo ho ho!, bow on GG, nod + look on the points (Follow me! / Boss incoming!); none on Need help! / Retreat!

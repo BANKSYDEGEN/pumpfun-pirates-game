@@ -126,11 +126,11 @@ export const HARBOR_DMG_PER_LV = 0.03;    // [v93] +3% AI cannon damage per leve
 export const HARBOR_HP_PER_LV = 0.2;      // [v93] AI hull HP grows +20% per level (L 42 ≈ ×9.4; was the gold rate 13.7%, ×6.75): keeps pace with the stronger upgrades
 // [v93] harbor AI get sharper as you grow (f = L / 44): reload 4.75 s -> 3.2 s, accuracy 0.6 -> 0.8, speed +0 -> +25%,
 // fire range 70 -> 90 m, and more of them: 3 ships (L 0-14), 4 (L 15-29), 5 (L 30+). Early harbor stays as easy as before.
-export const HARBOR_AI = { reload: [4.75, 3.2], accuracy: [0.65, 0.84], speed: 0.25, fireR: [70, 90], countBase: 3, countPerLv: 1 / 15, countMax: 5, hpMul: 1.75 }; // [harbor-ai-tough] BANKSY: x1.75 hits to sink (every level), aim 0.6-0.8 -> 0.65-0.84; bosses keep their HP
+export const HARBOR_AI = { reload: [3.9, 2.65], accuracy: [0.73, 0.88], speed: 0.285, fireR: [88, 108], countBase: 3, countPerLv: 1 / 15, countMax: 5, hpMul: 2.15 }; // [sail-around] BANKSY: a bit harder — ~+23% HP, faster/sharper broadsides, slightly quicker close
 // [v94] HARBOR BOSS (BANKSY): one at a time, every 3-5 min of harbor time (alive, not spectating). The Waves boss hull, ×1.25,
 // scaled like the harbor AI at your level L but ×4 HP, ×1.1 cannon damage, 5-7 guns a side (AI: 2), +0.05 accuracy,
 // barrages; never flees. Sinking it drops ×12 the harbor kill pay (holder ×2 applies on pickup, like all earned gold).
-export const HARBOR_BOSS = { every: [180, 300], hp: 4, dmg: 1.1, guns: [5, 7], reloadMul: 1, accuracy: 0.05, scale: 1.25, pay: 12 };
+export const HARBOR_BOSS = { every: [180, 300], hp: 4.5, dmg: 1.25, guns: [5, 7], reloadMul: 0.9, accuracy: 0.08, scale: 1.25, pay: 12 }; // [sail-around] modest bump so the Commodore still outclasses tougher regular AI
 export const harborAiCount = (L) => Math.min(HARBOR_AI.countMax, HARBOR_AI.countBase + Math.floor(Math.max(0, L) * HARBOR_AI.countPerLv));
 export const harborHpScale = (L) => 1 + HARBOR_HP_PER_LV * Math.max(0, L);
 export const HARBOR_HP_BASE = 70;         // AI hull HP at L = 0
@@ -144,7 +144,7 @@ export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * HARBOR_PAY_MUL * 
 //   hull = 300 + 1.5 × (the Waves hull bonus): HULL PLANKS I-VI 420 / 450 / 472 / 502 / 532 / 562 HP;
 //   your cannonballs ×PVP_DMG_MUL (the best possible broadside, CANNONS VIII: 8 × 20 × 1.27 × 1.4 = 284, stays under 300);
 //   harbor AI hulls ×PVP_DMG_MUL (same time to sink them), AI cannons ×PVP_AI_DMG_MUL; shipwright repair +REPAIR.hp × 3.
-export const PVP_BASE_HP = 380, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 2.5, PVP_REPAIR_MUL = 3;
+export const PVP_BASE_HP = 380, PVP_HULL_MUL = 1.5, PVP_DMG_MUL = 1.4, PVP_AI_DMG_MUL = 3.05, PVP_REPAIR_MUL = 3; // [sail-around] AI broadside ~+22%
 export const PVP_TIER1_COST = 75; // BANKSY: level 1 of EVERY track costs 75 g (8 harbor kills at L0 since the v92 double pay); higher tiers follow the curve
 export const pvpTierCost = (t) => t === 0 ? PVP_TIER1_COST : Math.round(harborKills(t) * HARBOR_GOLD_BASE * harborScale(Math.min(7 * t, 42)) / 10) * 10; // same price in harbor + arena
 // HARD CAP: each track stops at its last tier (6 levels, CANNONS 8; js/upgrades.js). Maxed = MAX in the shop; more gold buys no power.

@@ -296,7 +296,10 @@ export function waterAt(x, z) { const h = H(x, z);
   const q = IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))));
   if (RVg[q] < 6.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) return RVl[q] + 0.2;
   return h < FOOT_SWIM.seaY ? FOOT_SWIM.seaY : null; }
-function seaLimit(x, z, h, surf) { if (surf !== FOOT_SWIM.seaY) return false; if (h < FOOT_SWIM.maxSea) return true;
+const SAIL_ALL_FOOT = !(typeof location !== 'undefined' && /[?&]sailall=0(?:&|$)/.test(location.search || '')); // [Emerly sail-around]
+function seaLimit(x, z, h, surf) { if (surf !== FOOT_SWIM.seaY) return false;
+  if (SAIL_ALL_FOOT) return false; // free swim to canoe / ship / islets
+  if (h < FOOT_SWIM.maxSea) return true;
   if (!COASTM || surf - h <= FOOT_SWIM.depth) return false; const [lx, lz] = worldToTown(x, z); return CO.inPoly(lx, lz, CO.SAFE); }
 // the cove jetty (bank -> west): walkway, 4 steps, the diving tower, the board (a = metres out from the bank). null = not on it
 export function coveDeckAt(x, z) { if (!COASTM) return null; const [lx, lz] = worldToTown(x, z), J = CO.SWIM_COVE.jetty, a = J.lx0 - lx, dz = Math.abs(lz - J.lz);

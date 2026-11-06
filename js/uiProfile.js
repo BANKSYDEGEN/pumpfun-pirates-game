@@ -91,7 +91,7 @@ let down = null, hover = false;
 function setHover(on) { if (on === hover) return; hover = on; html.classList.toggle('ui-cap-hover', on); const cv = $('game'); if (cv) cv.style.cursor = on ? 'pointer' : ''; }
 addEventListener('pointerdown', (e) => {
   if (isProfileOpen() || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) { down = null; return; }
-  const top = document.elementFromPoint(e.clientX, e.clientY); if (top && top.closest('button, input, a, .overlay:not(.hidden), #pvp-menu, #shop, #emote-wheel, #hud-top')) { down = null; return; }
+  const top = document.elementFromPoint(e.clientX, e.clientY); if (top && top.closest('button, input, a, .overlay:not(.hidden), #pvp-menu, #shop, #emote-wheel, #hud-top, #hud-gold')) { down = null; return; }
   down = inside(capRect(), e.clientX, e.clientY) ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : null;
   if (down) { html.classList.add('ui-cap-press'); setTimeout(() => html.classList.remove('ui-cap-press'), 180); }
 }, { capture: true, passive: true });
