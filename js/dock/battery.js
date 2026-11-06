@@ -38,7 +38,7 @@ const _shardMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: tr
 const _sparkMat = new THREE.MeshBasicMaterial({ color: 0xff4411, transparent: true, opacity: 0.9, depthWrite: false, fog: false });
 const _bits = [];
 
-export function createBattery({ scene, world, layout, fx, ocean, sfx, camera, hitShip = null, myId = () => null, toast = () => {} }) {
+export function createBattery({ scene, world, layout, fx, ocean, sfx, camera, hitShip = null, hitFoot = null, myId = () => null, toast = () => {} }) { // [v347] hitFoot(p, by, impact): a peer's cliff ball kills YOU on foot
   const B = world.foot?.battery; if (!B) return null;
   const root = world.footGroup; root.updateMatrixWorld(true);
   const toW = (v) => v.applyMatrix4(root.matrixWorld);                         // foot world -> harbor (scene) world
@@ -112,7 +112,7 @@ export function createBattery({ scene, world, layout, fx, ocean, sfx, camera, hi
     sfx?.cannon?.(vol(_p));
     const m = new THREE.Mesh(ballGeo, ballMat); m.position.copy(_p); m.name = 'battery_ball'; scene.add(m);
     // full 3D muzzle direction (includes pitch) for the flatter arc
-    balls.push({ m, v: _d.clone().multiplyScalar(BALL.speed), life: BALL.life, live: !!local, gun: i });
+    balls.push({ m, v: _d.clone().multiplyScalar(BALL.speed), life: BALL.life, live: !!local, gun: i, by: local ? null : by });
     const who = local ? myId() : by; if (who) SHOTS.set(who, { gun: i, t: performance.now() });
     if (local) { seq = (seq + 1) % 1000; mine = [seq, i, Math.round(g.yaw * 100), Math.round(g.pitch * 100)]; }
     return true;
@@ -142,8 +142,9 @@ export function createBattery({ scene, world, layout, fx, ocean, sfx, camera, hi
         const lh = hitLhSeg(_prev, p);
         if (lh) { spawnLhFx(lh); done = true; break; }
         if (b.live && hitShip) { try { if (hitShip(p, b.gun)) { done = true; break; } } catch (e) { console.warn('[battery] hit', e); } }
+        if (!b.live && hitFoot) { try { if (hitFoot(p, b.by, false)) { fx?.hit(p.clone()); done = true; break; } } catch (e) { console.warn('[battery] foot', e); } } // [v347] t1823u
         if (p.y < waveHeight(p.x, p.z, t)) { fx?.splash(p.clone()); ocean?.addSplash?.(p.x, p.z, 2.8, t); sfx?.splash?.(vol(p) * 0.8); done = true; break; }
-        if (p.y < world.ground(p.x, p.z) - 0.2) { fx?.hit(p.clone()); done = true; break; }
+        if (p.y < world.ground(p.x, p.z) - 0.2) { fx?.hit(p.clone()); for (let k = 0; k < 2; k++) fx?.smoke(p.clone(), false); if (!b.live) try { hitFoot?.(p, b.by, true); } catch {} done = true; break; } // [v347] lands on the coast: dust + splash kill
       }
       if (done) { b.m.removeFromParent(); balls.splice(i, 1); }
     }

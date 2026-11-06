@@ -165,12 +165,13 @@ export async function createDock(ctx) {
   setTimeout(() => { try { treasure.render?.(); } catch (e) { console.warn('[treasure]', e); } }, 0); // [minimap-fix] (deferred: the dock is still being built) the HUD button was first drawn before the inventory existed (read 'MAPS 0' until the next server poll)
   const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, toast: (m, ms) => toast(m, ms), myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
-    hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact // [lh-hit] toast on lighthouse strike
+    hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false, hitFoot: (p, by, impact) => ctx.pvp?.()?.shoreBattery?.(p, by, impact) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact // [lh-hit] toast on lighthouse strike
   let lootBags = null; // [backpack-pvp] filled after houses so inHouse can close over it
   const isleSafeHud = { _isleSafe: false, _isleSafeOut: 0, _isleSafeZone: null };
   const isSquadMateDock = (id) => { try { return !!ctx.pvp?.()?.isSquadMate?.(id); } catch { return false; } };
   const crewFight = createCrewFight({ THREE, scene, sfx: ctx.sfx, ground: (x, z) => world.ground(x, z), inSafe: (x, z) => insideSafeZoneH(x, z),
     isSquadMate: (id) => isSquadMateDock(id),
+    ships: { test: (...a) => ctx.pvp?.()?.gunShipTest?.(...a) || null, hit: (...a) => ctx.pvp?.()?.gunShipHit?.(...a) || 0, aim: () => ctx.pvp?.()?.gunAimCyls?.() || [] }, // [v347] t1821u shoot ships from the island
     crewOf: (id) => (id === 'me' ? (onFoot && crewF?.active ? crewF.list.filter((c) => c.p.object.visible || c.fight) : []) : (fnet.peers.get(id)?.crew?.list || [])),
     captainOf: (id) => (id === 'me' ? (onFoot ? walker.w : null) : (fnet.peers.get(id) || null)) });
   function respawnOnShip() { // [v328] BANKSY t1740u/t1741u open-island KO → aboard your ship (Harbor berth OR offshore anchor)
@@ -648,7 +649,8 @@ export async function createDock(ctx) {
 
   const CREW_EMOTE = { 0: 0, 1: 100, 2: 100, 4: 4, 6: 6, 7: 7 };
   const api = {
-    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle, crewFight, get lootBags() { return lootBags; }, safeZone: { inside: (x, z) => insideSafeZoneH(x, z), zoneAt: (x, z) => zoneAtH(x, z), coliseum: (x, z) => isInsideColiseumH(x, z), hud: isleSafeHud },
+    layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle, crewFight, toast: (m, ms) => toast(m, ms), // [v347] shore <-> sea combat toasts (pvp.js)
+    get lootBags() { return lootBags; }, safeZone: { inside: (x, z) => insideSafeZoneH(x, z), zoneAt: (x, z) => zoneAtH(x, z), coliseum: (x, z) => isInsideColiseumH(x, z), hud: isleSafeHud },
     get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, get inHull() { return !!shipHull?.inHull; }, shipHull, canoe, pet: petF, pirate, goAshoreAt,
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : on && canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null), followers: crewF, // [v314] the sea follows the canoe
@@ -670,10 +672,12 @@ export async function createDock(ctx) {
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     // [v339] Harbor session auto-resume helpers (js/main.js pfp_harbor_resume_v1)
     resumeState: () => { const W = walker?.w, s = P?.(); return { onFoot: !!onFoot && !shipHull?.inHull && canoe?.mode !== 'canoe', inHull: !!shipHull?.inHull, moored: docking.mode === 'docked', x: +(onFoot ? W?.x : s?.x) || 0, z: +(onFoot ? W?.z : s?.z) || 0, yaw: +(onFoot ? W?.yaw : s?.yaw) || 0 }; },
-    applyResume: (r) => { if (!r || !on) return false; try {
-      if (r.inHull && docking.mode === 'docked') { enterHull(); return true; }
-      if (r.onFoot && Number.isFinite(r.x) && Number.isFinite(r.z)) { goAshoreAt(r.x, r.z, r.yaw); return true; }
-      return docking.mode === 'docked';
+    // [v347] BANKSY t1826u "make them spawn at ship when refresh tab incase get stuck": a tab refresh NEVER puts you back ashore / in the
+    // hull where you were (that re-trapped pirates stuck in geometry): always aboard YOUR ship at its Harbor berth.
+    applyResume: (r) => { if (!r || !on) return false; try { const s = P();
+      if (shipHull?.inHull) leaveHull(); if (onFoot) goAboard(true); canoe?.clearAll?.(s, controls);
+      if (docking.mode !== 'docked' && s) { s.alive = true; s.sinking = 0; if (s.mesh) s.mesh.visible = true; docking.release(); spawnNow(s); }
+      return docking.mode === 'docked' && !onFoot && !shipHull?.inHull;
     } catch (e) { console.warn('[resume] apply', e); return false; } },
     ladders, /* [dock-ladders] */ dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, enterHull, leaveHull, weighAnchor, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)

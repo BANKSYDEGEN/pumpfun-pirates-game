@@ -88,6 +88,7 @@ export const HARBOR_MODULES = [
   "js/pvp.js",
   "js/serverPicker.js",
   "js/shopGoals.js",
+  "js/shoreCombat.js",
   "js/squads.js",
   "js/transport.js",
   "vendor/three-0.165.0/examples/jsm/libs/ktx-parse.module.js",

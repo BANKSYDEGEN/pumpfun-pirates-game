@@ -196,12 +196,14 @@ export function createIslands(quality) {
     return { obj, circles, bound: { x, z, r: Math.max(...circles.map(k => Math.hypot(k.x - x, k.z - z) + k.r)) } };
   }
   // zone: null (solo / arena: the original world) or { clearR, islets: [[design, x, z, rot, scale]...], island: { circles, bound } }
+  const isleC = new Set();
   function setHarbor(zn) {
     for (const o of isletObjs) group.remove(o); isletObjs.length = 0;
     for (const [key, o] of live) { group.remove(o.obj); pool[o.d].push(o.obj); live.delete(key); }
     cellInfo.clear(); lastCell = '';
     if (!zn) { zone = null; return; }
     const sets = (zn.islets || []).map(([d, x, z, rot, sc]) => { const i = islet(d, x, z, rot, sc || 1); isletObjs.push(i.obj); group.add(i.obj); return i; });
+    isleC.clear(); if (zn.island) for (const S of [].concat(zn.island)) for (const k of S.circles || []) isleC.add(k); // [v347] the walkable harbor island's coarse circles
     if (zn.island) sets.push(...[].concat(zn.island)); // [Emerly] one set or a list of clustered sets (dock layout colliders)
     zone = { clearR: zn.clearR || 0, sets, land: zn.land || null };
   }
@@ -266,7 +268,8 @@ export function createIslands(quality) {
       return [x, z];
     },
     isFree(x, z, r = 12) { for (const c of circlesNear(x, z)) if (Math.hypot(x - c.x, z - c.z) < c.r + r + 4) return false; return true; },
-    hitBall(p) { if (p.y > 80) return false; for (const c of circlesNear(p.x, p.z)) if (p.y < c.h && Math.hypot(p.x - c.x, p.z - c.z) < c.r * (p.y > 0 ? Math.max(0.35, 1 - p.y / Math.max(1, c.h)) : 1)) return true; if (zone && zone.land && p.y < 14 && zone.land(p.x, p.z)) return true; return false; },
+    // [v347] walkable = the harbor island's real ground decides (main.js): skip its coarse circles + the ship-nav land mask (they ate balls metres above the beach)
+    hitBall(p, walkable = false) { if (p.y > 80) return false; for (const c of circlesNear(p.x, p.z)) if (!(walkable && isleC.has(c)) && p.y < c.h && Math.hypot(p.x - c.x, p.z - c.z) < c.r * (p.y > 0 ? Math.max(0.35, 1 - p.y / Math.max(1, c.h)) : 1)) return true; if (!walkable && zone && zone.land && p.y < 14 && zone.land(p.x, p.z)) return true; return false; },
   };
 }
 

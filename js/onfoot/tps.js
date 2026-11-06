@@ -45,7 +45,7 @@ const hit3 = (o, d, c, r) => raySphere(o, d, c, r);
 
 // opts: walker, camera, canvas, touch, world, sfx, attack() (battle.js: fires if loaded), aimables() -> { spheres: [[x, y, z, r, kind]], cyls: [[x, z, r, y0, y1, kind]] },
 // pointers() -> [[x, y, z]] (aim-assist centres)
-export function createTps({ walker, camera, canvas, touch, world, sfx, attack, aimables, pointers }) {
+export function createTps({ walker, camera, canvas, touch, world, sfx, attack, aimables, pointers, farAimables = null }) { // [v347] farAimables() -> ships' cyls out to SHIP_RANGE
   const doc = document.documentElement, W = () => walker.w, pc = !touch, pcAim = () => pc && !st.pad; // [Emerly gamepad] pcAim: the cursor is the aim (PC without a pad in use)
   const st = { on: false, ads: 0, adsHeld: false, side: 1, sideK: 1, pitch: 0, kick: 0, spread: TPS.spread.hip, fired: -9, sens: sensLoad(globalThis.localStorage), look: null, camOk: false,
     mx: -1, my: -1, over: false, anchor: null, click: null, aim: null, pad: false };
@@ -122,13 +122,16 @@ export function createTps({ walker, camera, canvas, touch, world, sfx, attack, a
     for (const s of A.spheres) { const t = hit3(o, d, s, s[3]); if (t > 0.5 && t < best) { best = t; kind = s[4]; } }
     for (const c of A.cyls) { const t = rayCyl(o, d, c[0], c[1], c[2], c[3], c[4]); if (t > 0.5 && t < best) { best = t; kind = c[5]; } }
     for (let t = 1; t < best; t += 0.7) { if (o[1] + d[1] * t < world.ground(o[0] + d[0] * t, o[2] + d[2] * t)) { best = Math.max(0.5, t - 0.35); kind = 'ground'; break; } }
+    if (!kind && farAimables) { const F = farAimables(); let fb = 1e9, fk = null; // [v347] t1821u: nothing near -> a ship out over the water (captain / hull), unless the hill is in the way
+      for (const c of F.cyls) { const t = rayCyl(o, d, c[0], c[1], c[2], c[3], c[4]); if (t > best - 8 && t < fb) { fb = t; fk = c[5]; } }
+      if (fk) { let clear = true; for (let t = best; t < fb; t += 2) if (o[1] + d[1] * t < world.ground(o[0] + d[0] * t, o[2] + d[2] * t) - 0.2) { clear = false; break; } if (clear) { best = fb; kind = fk; } } }
     return { p: [o[0] + d[0] * best, o[1] + d[1] * best, o[2] + d[2] * best], kind, t: best }; }
   // battle.js shoot(): the yaw your ball flies along (from your feet x, z through the aim point) + the aim point for the tracer
   function shotYaw(x, z) { const a = aimPoint(true); st.lastAim = a; const dx = a.p[0] - x, dz = a.p[2] - z;
     if (Math.hypot(dx, dz) < 1.2) { const w = W(); return { yaw: pcAim() ? w.yaw : w.camYaw, aim: null }; } return { yaw: yawTo(x, z, a.p[0], a.p[2]), aim: a.p }; }
   function onShot(hit) { st.fired = performance.now(); if (!pcAim()) st.kick += TPS.recoil.kick * (st.ads > 0.5 ? 0.6 : 1); st.spread += TPS.spread.kick * (st.ads > 0.5 ? 0.5 : 1);
     if (pcAim()) { hm.style.left = st.mx + 'px'; hm.style.top = st.my + 'px'; } else hm.style.left = hm.style.top = '';
-    if (hit && (hit.kind === 'target' || hit.kind === 'pirate')) { hm.classList.toggle('ko', hit.kind === 'pirate' && (hit.r?.hpShown ?? 100) <= 0); hm.classList.remove('on'); void hm.offsetWidth; hm.classList.add('on'); if (hit.kind === 'target') sfx?.hit?.(0.55); } } // a pirate hit already plays battle.js's hit sound
+    if (hit && (hit.kind === 'target' || hit.kind === 'pirate' || hit.kind === 'captain' || hit.kind === 'ship')) { /* [v347] + a ship / its captain */ hm.classList.toggle('ko', hit.kind === 'pirate' && (hit.r?.hpShown ?? 100) <= 0); hm.classList.remove('on'); void hm.offsetWidth; hm.classList.add('on'); if (hit.kind === 'target') sfx?.hit?.(0.55); } } // a pirate hit already plays battle.js's hit sound
   // ---------- per frame (battle.tick) ----------
   function set(v) { if (v === st.on) return; st.on = v; doc.classList.toggle('tps-on', v); doc.classList.toggle('tps-pc', v && pcAim()); const w = W();
     if (v) { st.pitch = 0.04; st.kick = 0; st.ads = 0; st.camOk = false; st.side = st.sideK = 1; if (!pcAim()) w.camHook = camHook; }

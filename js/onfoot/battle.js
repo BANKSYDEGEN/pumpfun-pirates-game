@@ -24,6 +24,7 @@
 //   bh = { victimId: [their life, damage you dealt that life] }  cumulative, so a lost message never loses a hit. The VICTIM applies
 //   it (and checks you were in the same area and close enough): no new service, no new message, older clients ignore both.
 import * as THREE from 'three';
+import { SHIP_RANGE } from '../shoreCombat.js'; // [v347] t1821u musket balls reach ships over the water
 import * as CO from '../island/coast.js';
 import * as BA from '../island/battleAreas.js';
 import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, MUSKET_DEFAULT, musketMuzzle, loadWeaponModels, weaponEmpty, applyLegendaryOrnament } from './swords.js';
@@ -99,7 +100,7 @@ const P_MUSKET = { uR: v3(-0.12, -0.5, 0.86), fR: v3(0.25, 0.12, 0.96), uL: v3(0
 const lerpDir = (a, b, t, out) => out.copy(a).lerp(b, t).normalize();
 const ease = (t) => t * t * (3 - 2 * t);
 
-export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null, isSquadMate = null, respawnOnShip = null }) { // [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
+export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null, isSquadMate = null, respawnOnShip = null, ships = null }) { // [v347] ships: { test, hit, aim } (pvp.js gunShipTest / gunShipHit / gunAimCyls) // [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
   const H = (lx, lz) => layout.footToHarbor(...CO.t2w(lx, lz));            // town-local -> harbor (scene) x, z
   const toTown = (x, z) => CO.w2t(...layout.harborToFoot(x, z));
   const yawW = (ly) => CO.t2wYaw(ly);
@@ -233,6 +234,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     aimables: () => { const sp = [], cy = []; for (const t of targets) if (t.flip <= 0.2) sp.push([t.cx, t.cy, t.cz, 0.75, 'target']);
       for (const p of rangeMen()) { const g = peerFeetY(p); cy.push([p.x, p.z, 0.5, g - 0.2, g + 1.95, 'pirate']); }
       for (const c of cover) { const g = world.ground(c.x, c.z); cy.push([c.x, c.z, c.r, g - 0.5, g + 1.4, 'cover']); } return { spheres: sp, cyls: cy }; },
+    farAimables: ships?.aim ? () => ({ cyls: ships.aim() || [] }) : null, // [v347] ships / captains out over the water
     pointers: () => [...targets.filter(t => t.flip <= 0.2).map(t => [t.cx, t.cy, t.cz]), ...rangeMen().map(p => [p.x, peerFeetY(p) + 1.2, p.z])] }) : null;
 
   // ---------- small FX pool: muzzle flash, smoke, sparks, tracers ----------
@@ -496,13 +498,23 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0 && vOk(a, t.cy - 0.85, t.cy + 0.85)) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
     if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE, id)) continue; const a = along(p.x, p.z, S.wide); const py = peerFeetY(p); if (a > 0 && vOk(a, py - 0.2, py + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
     if (aim && slope < 0 && !hit) { const g = mz.y + slope * best; if (g < world.ground(x + f.x * best, z + f.z * best)) best = Math.min(best, aimD); } // [Timothy tps] aimed at the ground: the ball lands there
-    { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
+    // [v347] t1821u / t1822u: past every pirate / board / cover, the ball flies on over the water at a ship: its CAPTAIN first, else the hull
+    if (mine && ships?.test) { const ak = tps?.st?.lastAim?.kind, lim = hit ? best : (aim && ak === 'ground' ? aimD + 2 : SHIP_RANGE);
+      const h = ships.test({ x, y: mz.y, z }, f, slope, lim);
+      if (h && h.a > 0.3) { let clear = true; const yAt = (a) => (slope === null ? mz.y - 0.05 : mz.y + slope * a);
+        for (let a = 1.5; a < h.a - 1; a += 2) if (yAt(a) < world.ground(x + f.x * a, z + f.z * a) - 0.15) { clear = false; break; } // the hill / quay in the way
+        if (clear) { const [, lz] = toTown(x + f.x * h.a, z + f.z * h.a), [, bz] = toTown(x, z); if (zoneAt(x, z) === Z_RANGE && lz < BA.RANGE.lz0 + 1.8 && bz >= BA.RANGE.lz0 + 1.8) clear = false; } // from the range: its back wall
+        if (clear) { best = h.a; hit = { kind: h.kind, ship: h }; } } }
+    if (!hit?.ship) { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
     tracer(mz, end); puff(mz.clone().addScaledVector(f, 0.1), 0xffd27a, 0.9, 0.09, new THREE.Vector3(), true);
     for (let i = 0; i < 4; i++) puff(mz.clone().addScaledVector(f, 0.3 + i * 0.25), 0xe8e2d4, 0.55 + i * 0.12, 1.2, new THREE.Vector3(f.x * 0.8, 0.5, f.z * 0.8));
     sfx?.cannon?.(Math.min(0.35, vol(mz) * 0.35)); R.st.recoil = S.recoil ?? 1; // [gunacc] stock = less kick
     if (hit?.kind === 'target') { hit.t.flip = 1.4; hit.t.t = 2.2; if (mine) say(hit.off < 0.18 ? 'BULLSEYE!' : hit.off < 0.42 ? 'NICE SHOT' : 'HIT', 900); spark(end.x, end.y, end.z); }
     else if (hit?.kind === 'pirate') { const dm = S.dmg + (S.bayonet && best <= S.bayonet.reach ? S.bayonet.dmg : 0); /* [gunacc] bayonet point-blank */ addDmg(hit.id, hit.r.ba[2], dm); hit.r.hpShown = Math.max(0, (hit.r.hpShown ?? hit.r.ba[1]) - dm); spark(end.x, end.y, end.z); sfx?.hit?.(0.6); try { crewFight?.engage('me', 'gun', hit.id); } catch {} } // [backpack-pvp] you shot a pirate: your crew volley THEIR crew
+    else if (hit?.ship) { const dm = me.pvpOk === false ? 0 : ships.hit(hit.ship, end, S.dmg); spark(end.x, end.y, end.z); // [v347] practice shots out of a Safe Zone: 0 damage
+      if (hit.kind === 'captain') { for (let i = 0; i < 5; i++) puff(end, 0xb3121a, 0.3, 0.35, new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3)); sfx?.hit?.(0.6); }
+      else puff(end, 0x8a6a44, 0.6, 0.5, new THREE.Vector3(0, 0.6, 0)); if (mine && dm) say(hit.kind === 'captain' ? `🎯 CAPTAIN HIT! -${dm}` : `⚓ SHIP HIT -${dm}`, 800); }
     else puff(end, 0xb89a6a, 0.7, 0.6);
     if (mine) tps?.onShot(hit); // [Timothy tps] hit marker + sound, recoil kick, bloom
   }

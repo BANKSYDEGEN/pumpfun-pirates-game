@@ -4,6 +4,7 @@ import { OPT_ON, freezeStaticWorlds } from './opt.js'; // [Emerly perf-v304] &op
 import { DEV, devHook } from './env.js'; // [security L] console/test hooks exist on local dev servers only
 import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
+import * as BA from './broadsideAim.js'; // [v347] t1824u broadside aim (no homing)
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
 import { evalSkyNow, setPhase as setSkyPhase, clearPhase as clearSkyPhase, skyPhase, phaseName, isStormForced, skyCycle } from './skyCycle.js'; // [v343] day/night sky
@@ -376,7 +377,7 @@ function despawnEnemy(e) {
 let specialTarget = null; // [escorts] who the special AI (rammer / boss barrage) is after this frame
 // [escorts] enemies go for the nearest of you / your escorts, but an escort only wins if it's clearly closer (ESCORT.aggro); re-picked every ~1.5 s
 function enemyTarget(e, dt) {
-  if (game.mode === 'pvp') { e.tgtT = (e.tgtT || 0) - dt; if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt; e.tgtT = 1.5; let T = pvp.botTarget(e); if (T.alive && dock?.isSafe(T)) T = dock.NO_TARGET; return (e.tgt = T); } // [pvp] nearest ship of anyone's // [Emerly] SAFE HARBOR ships are never targeted
+  if (game.mode === 'pvp') { e.tgtT = (e.tgtT || 0) - dt; if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt; e.tgtT = 1.5; let T = pvp.botTarget(e); if (T.alive && dock?.isSafe(T)) T = dock.NO_TARGET; const S = pvp.shoreTarget?.(e); if (S && (!T.alive || Math.hypot(S.x - e.x, S.z - e.z) < Math.hypot(T.x - e.x, T.z - e.z))) { e.tgtT = 0.4; T = S; } return (e.tgt = T); } // [v347] t1821u: + a pirate exposed on the coast (shot at this ship / spotted) // [pvp] nearest ship of anyone's // [Emerly] SAFE HARBOR ships are never targeted
   e.tgtT = (e.tgtT || 0) - dt;
   if (e.tgtT > 0 && e.tgt && e.tgt.alive) return e.tgt;
   e.tgtT = 1.5;
@@ -431,35 +432,32 @@ function fire(shooter, side, target = null, accuracy = 1) {
       if (!e.alive) continue;
       const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
       if (d > (shooter.range || 90)) continue; // [Raul] ship upgrades: range
-      const cosang = (dx * dir.x + dz * dir.z) / d;
-      if (cosang > Math.cos(0.75) && d < bd) { bd = d; best = e; }
+      if (BA.inCone(dir, dx, dz) && d < bd) { bd = d; best = e; } // [v347] t1824u: lock only inside ±15° of the broadside (was ±43°)
     }
     target = best;
   }
+  // [v347] t1824u: no more heat-seeking broadsides. A locked shot gets a partial lead (player 28 %, AI 100 %), then ONE firing line
+  // turned at most ~5.7° (player) / ~13° (AI) off the gunports: every gun fires parallel along it and only the elevation ranges.
+  let line = null, aimY = 2;
   if (target) {
-    const d = Math.hypot(target.x - shooter.x, target.z - shooter.z), t = d / H;
-    aimPt = new THREE.Vector3(target.x + Math.sin(target.yaw) * target.speed * t, 0, target.z + Math.cos(target.yaw) * target.speed * t);
+    const lp = BA.leadPoint(shooter.x, shooter.z, target, shooter === player ? BA.AIM.lead : BA.AIM.aiLead);
+    aimPt = new THREE.Vector3(lp.x, 0, lp.z);
     const err = (1 - accuracy) * 14;
     aimPt.x += rnd(-err, err); aimPt.z += rnd(-err, err);
+    if (Number.isFinite(target.footY)) aimY = target.footY + 0.6; // [v347] t1821u: an AI bombarding a pirate on the coast ranges onto the beach
+    line = BA.fireLine(dir, shooter.x, shooter.z, aimPt.x, aimPt.z, shooter === player ? BA.AIM.maxDev : BA.AIM.aiMaxDev);
+    if (line.d < 4) line = null;
   }
   const gap = Math.min(0.07, 0.5 / Math.max(1, muzzles.length)); // [v95] ripple fire: up to 12 guns a side still fire within ~0.5 s
   muzzles.forEach((m, i) => {
     const p = new THREE.Vector3(); m.getWorldPosition(p);
-    let v, aimT = 0;
-    if (aimPt) {
-      const tx = aimPt.x + (i - (muzzles.length - 1) / 2) * Math.min(1.2, 8.4 / Math.max(1, muzzles.length - 1)) - p.x, tz = aimPt.z - p.z;
-      const d = Math.hypot(tx, tz); range = d;
-      const t = Math.max(0.3, d / H); aimT = t;
-      v = new THREE.Vector3(tx / t, (2 - p.y) / t + 0.5 * 20 * t, tz / t);
-      // keep the shot roughly on its broadside
-      const along = v.x * dir.x + v.z * dir.z;
-      if (along < H * 0.4) { v = null; aimT = 0; }
-    }
+    let v;
+    if (line) { const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H); v = new THREE.Vector3(g.x, g.y, g.z); range = line.d; } // parallel, no aim-point convergence
     if (!v) { const t = range / H; v = dir.clone().multiplyScalar(H).add(vel0); v.y = 0.5 * 20 * t + rnd(-0.6, 0.6); v.x += rnd(-1, 1); v.z += rnd(-1, 1); }
     // [v95] the ball is LAUNCHED from its muzzle when its turn in the ripple comes (updateBalls, after this frame's ship moves):
     // spawning it here left delayed balls hanging where the gun WAS (up to ~8 m behind a ship at full speed) and a frame stale
     const mesh = getBall(); mesh.position.copy(p); mesh.visible = false;
-    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * gap, muzzle: m, gi: i, side, p0: p.clone(), aimT });
+    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * gap, muzzle: m, gi: i, side, p0: p.clone() });
     if (shot) shot.push({ p: p.clone(), v: v.clone(), delay: i * gap, side, i }); // [pvp]
   });
   const dist = Math.hypot(shooter.x - player.x, shooter.z - player.z);
@@ -669,7 +667,6 @@ function updateEnemy(e, dt) {
 
 // ---------- cannonballs ----------
 const G = 20;
-const BALL_EXIT_T = 0.35; // [v97.1] s for a drawn ball to ease from its barrel's line onto its true (aimed) path
 // [v95] place a ball at its muzzle's CURRENT world position (ship already moved / floated this frame). Aimed shots keep their aim
 // point (velocity corrected for the gun's move since the trigger); unaimed ones keep their launch velocity. Muzzle flash here too.
 const _mp = new THREE.Vector3();
@@ -677,15 +674,11 @@ function launchBall(b) {
   let m = b.muzzle; b.muzzle = null;
   const live = (o) => { while (o.parent) o = o.parent; return o === scene; };
   if (!live(m) && b.owner?.mesh) { const L = gunList(b.owner, b.side || 'port'); if (L.length) m = L[(b.gi | 0) % L.length]; } // ship rebuilt (skin / upgrade) mid-ripple: use the new barrel
-  if (m.parent && b.owner?.mesh?.parent) { m.getWorldPosition(_mp); if (b.aimT > 0) { const t = b.aimT; b.v.x += (b.p0.x - _mp.x) / t; b.v.y += (b.p0.y - _mp.y) / t; b.v.z += (b.p0.z - _mp.z) / t; } b.mesh.position.copy(_mp); }
+  if (m.parent && b.owner?.mesh?.parent) { m.getWorldPosition(_mp); b.mesh.position.copy(_mp); }
   b.mesh.visible = true; b.spawnAt = b.mesh.position.clone();
-  // [v97.1] an AIMED ball's true path can leave up to ~45° off the barrel (auto-ranging at a ship ahead / astern, and the long v97 rows
-  // fan in on one point). Visual only: the drawn ball leaves straight down its barrel (ship's own speed added) and eases onto its true
-  // path within BALL_EXIT_T s. Hits, splashes and rocks keep using the true path (b.tp), so damage / range / timing are unchanged.
-  const o = b.owner; b.tp = b.mesh.position.clone(); b.ft = 0; b.ex = null;
-  if (o && o.mesh) { const a = sideDir(o, b.side || 'port'), sp = o.speed || 0, svx = Math.sin(o.yaw) * sp, svz = Math.cos(o.yaw) * sp;
-    const rvx = b.v.x - svx, rvz = b.v.z - svz, rv = Math.hypot(rvx, rvz), ex = svx + a.x * rv - b.v.x, ez = svz + a.z * rv - b.v.z;
-    if (Math.hypot(ex, ez) > 1.5) b.ex = { x: ex, z: ez }; }
+  // [v347] t1824u: the ball leaves its muzzle on its TRUE parabola and never bends mid-air (the v97.1 b.ex / b.tp sideways ease and the
+  // ripple-delay re-aim onto a fixed point are gone: those were what made broadsides look like heat-seeking missiles)
+  b.tp = null; b.ex = null; b.ft = 0;
   window.PFP_BALL_TAP?.(b);
   if (b.owner?.mesh) fx.muzzle(b.mesh.position, sideDir(b.owner, b.side || 'port'));
 }
@@ -695,10 +688,8 @@ function updateBalls(dt) {
     if (b.delay > 0) { b.delay -= dt; if (b.delay > 0) { b.mesh.visible = false; continue; } }
     if (b.muzzle) { launchBall(b); continue; } // [v95] appears exactly at the barrel tip this frame, flies from the next
     b.mesh.visible = true;
-    const p = b.tp || b.mesh.position; // [v97.1] the true path (hits); the drawn ball may still be easing out of its barrel
+    const p = b.mesh.position; // [v347] one true ballistic path: drawn = simulated, zero mid-flight lateral curve
     b.v.y -= G * dt; p.addScaledVector(b.v, dt); b.life -= dt;
-    if (b.tp) { b.ft += dt; const t = b.ft, u = t / BALL_EXIT_T, k = b.ex && u < 1 ? t * (1 - u * u * u * (u * (u * 6 - 15) + 10)) : 0; // straight down the barrel, then a smooth blend
-      if (k) b.mesh.position.set(p.x + b.ex.x * k, p.y, p.z + b.ex.z * k); else { b.mesh.position.copy(p); b.tp = null; } }
     fx.trail(b.mesh.position);
     let done = false;
     const ownAlly = b.owner === player || b.owner.ally;
@@ -714,9 +705,14 @@ function updateBalls(dt) {
         done = true; break;
       }
     }
-    if (!done && islands.hitBall(p)) { fx.hit(p.clone()); done = true; } // [solid rocks] balls stop on rocks
-    if (!done && p.y < waveHeight(p.x, p.z, game.t)) { fx.splash(p); ocean.addSplash(p.x, p.z, 2.8, game.t); // [aaa water] lingering foam
-      sfx.splash(clamp(1 - p.distanceTo(player.mesh.position) / 150, 0.05, 0.8)); done = true; }
+    const wh = done ? 0 : waveHeight(p.x, p.z, game.t), gnd = !done && dock?.on && p.y < 70 ? dock.world.ground(p.x, p.z) : -1e9; // [v347] the walkable island under the ball
+    // [v347] in the harbor the island's coarse 'rock' circles + nav land mask used to eat balls metres above the beach / shallows (they vanished): the real ground decides
+    if (!done && islands.hitBall(p, gnd > -1e8)) { fx.hit(p.clone()); done = true; if (game.mode === 'pvp') pvp.shoreImpact?.(b, p); } // [solid rocks] balls stop on rocks
+    // [v347] t1821u: a ball reaching the coast (beach, quay, pier, hill) lands ON it: blast + dust + thud (never through the island / under the sand)
+    if (!done && gnd > -1e8) { const g = gnd; if (g > wh + 0.05 && p.y <= g) { p.y = g + 0.15; fx.hit(p.clone()); fx.smoke(p.clone(), false); fx.smoke(p.clone().setY(g + 0.8), false);
+      sfx.impact?.({ dmg: 12, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: clamp(1 - p.distanceTo(camera.position) / 160, 0.05, 0.7) }); done = true; if (game.mode === 'pvp') pvp.shoreImpact?.(b, p); } }
+    if (!done && p.y < wh) { fx.splash(p); ocean.addSplash(p.x, p.z, 2.8, game.t); // [aaa water] lingering foam
+      sfx.splash(clamp(1 - p.distanceTo(player.mesh.position) / 150, 0.05, 0.8)); done = true; if (game.mode === 'pvp' && dock?.onFoot) pvp.shoreImpact?.(b, p); } // [v347] a splash at the waterline still catches a pirate wading
     if (done || b.life <= 0) { freeBall(b.mesh); balls.splice(i, 1); }
   }
 }
@@ -1751,9 +1747,8 @@ async function harborResumeBoot() {
     await wait(() => $('pvp-entry')?.classList.contains('hidden'), 4000); $('pvp-entry')?.classList.add('hidden');
     try { const p = pvp.resumeServer?.(r); if (p?.then) await p; } catch (e) { console.warn('[resume] server', e); }
     await wait(() => dock.docking?.mode === 'docked', 6000);
-    if (dock.applyResume) { dock.applyResume(r); await wait(() => (r.inHull ? dock.inHull : r.onFoot ? dock.onFoot : true), 3000); }
-    else if (r.inHull && dock.docking?.mode === 'docked') { dock.enterHull(); await wait(() => dock.inHull, 3000); }
-    else if (r.onFoot && Number.isFinite(r.x) && Number.isFinite(r.z)) { dock.goAshoreAt(r.x, r.z, r.yaw); await wait(() => dock.onFoot, 3000); }
+    // [v347] t1826u: same Harbor server, but ALWAYS back aboard your ship at its berth (never the stuck spot ashore / in the hull)
+    dock.applyResume?.(r); await wait(() => !dock.onFoot && !dock.inHull && dock.docking?.mode === 'docked', 4000);
     window.__pfpResume = { state: 'done', r, onFoot: !!dock.onFoot, inHull: !!dock.inHull };
     console.info('[resume] back in the harbor', r);
   } catch (e) { console.warn('[resume] failed', e); window.__pfpResume = { state: 'failed', r, err: String(e) }; harborResumeClear(); }

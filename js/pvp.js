@@ -54,7 +54,8 @@ import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upg
 import { setBoostSource, setBoostZone, goldFindBonus, MAX_BOOST } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS
 import { compilePreview } from './upgradeVisuals.js';
 import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] their shop flag + figurehead (from 'gr')
-import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain } from './captainSlot.js';
+import { attachCaptain, detachCaptain, localCaptain, setLocalCaptain, captainAnchor } from './captainSlot.js';
+import * as SC from './shoreCombat.js'; // [v347] t1821u-t1823u shore <-> sea combat
 import { setLocalGear, getLocalGear, gearToWire, cleanWire, gearFromWire, EYE_SWATCHES } from './pirateGear.js';
 const eyeOf = (v) => (Number.isInteger(v) && v > 0 && v <= EYE_SWATCHES.length ? v : 0); // [v115] validated eye colour ('ec') // [Timothy] other players see your shop gear ('gr')
 import { syncCrewGear } from './crewGear.js'; // [v105] shop gear on your pirate
@@ -703,7 +704,8 @@ export function createPvp(K) {
     bk.tokens = Math.min(16, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
     for (const it of m.h.slice(0, 16)) {
       if (!Array.isArray(it) || bk.tokens < 1) break; bk.tokens--;
-      const e = bots.get(it[0]); if (!e || e.remote || !e.alive || Math.hypot(sh.x - e.x, sh.z - e.z) > 260) continue;
+      const e = bots.get(it[0]), fp = footPeer(m.s); if (!e || e.remote || !e.alive || Math.min(Math.hypot(sh.x - e.x, sh.z - e.z), fp ? Math.hypot(fp.x - e.x, fp.z - e.z) : 1e9) > 260) continue; // [v347] + shot from the shore
+      if (fp && Math.hypot(fp.x - e.x, fp.z - e.z) <= SC.SHIP_RANGE + 30) e.shoreAggro = { id: m.s, until: performance.now() + 30000 };
       const dmg = clamp(Math.round(+it[1] || 0), 0, MAX_HIT); if (!dmg) continue;
       e.lastBy = m.s; (e.dmgBy ||= new Map()).set(m.s, (e.dmgBy.get(m.s) || 0) + Math.min(dmg, Math.max(0, e.hp)));
       K.damage(e, dmg, new THREE.Vector3(e.x, e.y + 2, e.z), sh);
@@ -741,7 +743,7 @@ export function createPvp(K) {
   }
   function wire(r) {
     r.on('lb', onLootNet); // [backpack-pvp] plunder bags / sea crates in this copy
-    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
+    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('gh', onGunHit).on('bk', onBombKill).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m?.i); if (p) p.heard = 0; if (isNetId(m?.i)) K.dock?.fnet?.drop?.(m.i); }) // [admin-menu] their on-foot pirate goes at once too (INVISIBLE / left)
@@ -950,7 +952,7 @@ export function createPvp(K) {
     else if (where === 'harbor' && isHost && shooter.net?.kind === 'bot' && !shooter.remote) // [v99] the host's AI volleys: at once when aimed at another pirate (their client applies the hits)
       room.send('shot', { o: shooter.net.id, b: w }, { now: shooter.tgt?.net?.kind === 'player' });
   }
-  function onLocalFire() { markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
+  function onLocalFire() { me.lastFireAt = performance.now(); markInput(); if (me.protect > 0) { me.protect = 0; } if (me.ret) me.ret.until = Math.max(me.ret.until, performance.now() + RET_QUIET); } // firing restarts the return countdown
   // [v96] quick-chat: send a preset id (the wheel already limits you to 1 / 2 s); receive: preset ids only, ≤1 per 1.5 s per pirate
   function emote(e) { if (!validEmote(e) || !room || (where !== 'arena' && where !== 'harbor')) return; room.send('emo', { i: myId, e }); } // [v99] + the shared harbor
   function onEmote(m) {
@@ -993,6 +995,7 @@ export function createPvp(K) {
     && !(K.dock?.canFire && shooter === P() && !K.dock.canFire(shooter)) && !(shooter !== P() && K.dock?.zone?.inside?.(shooter.x, shooter.z));
   function ballStep(b, p) { // returns true when the ball is spent
     const pl = P(), hbm = where === 'harbor' || (spec.on && spec.harbor), ownerBot = b.owner?.net?.kind === 'bot';
+    if (K.dock?.onFoot && ballShore(b, p, false)) return true; // [v347] t1823u: a cannonball through a pirate on foot = dead
     const ships = [pl, ...enemies];
     for (const s of ships) {
       if (s === b.owner || !s.alive || (s === pl && me.dead)) continue;
@@ -1024,6 +1027,106 @@ export function createPvp(K) {
     }
     return false;
   }
+  // ---------------- [v347] SHORE <-> SEA COMBAT (BANKSY t1821u / t1822u / t1823u) ----------------
+  // YOUR musket on foot -> a ship: the CAPTAIN at the wheel first (full on-foot gun damage), else the hull (small ship damage).
+  // Any cannonball -> YOU on foot: a direct hit or a landing within SC.BLAST_R kills outright (victim decides for itself, like ship hits).
+  const _cw = new THREE.Vector3(), gunBk = new Map(), cap = { hp: SC.CAPTAIN_HP, at: 0 }, bombSeen = new Map();
+  const footPeer = (id) => K.dock?.fnet?.peers?.get?.(id) || null;
+  const inSafeH = (x, z) => { try { return !!K.dock?.safeZone?.inside?.(x, z); } catch { return false; } };
+  function shipBox(s) { const u = s.mesh?.userData || {}, L = u.hitLen || u.len || 20; return { x: s.x, z: s.z, yaw: s.yaw, hw: (u.beam || 6) / 2 + 0.5, hl: L / 2 + 0.4, y0: (s.y || 0) - 1.2, y1: (s.y || 0) + L * 0.9 }; }
+  function captainAt(s) { const a = captainAnchor(s.mesh); const par = a && (a.node?.parent || s.mesh?.userData?.body); if (!par) return null;
+    par.updateWorldMatrix?.(true, false); _cw.copy(a.pos).applyMatrix4(par.matrixWorld); return { x: _cw.x, y: _cw.y, z: _cw.z, k: s.mesh.userData.buildOpts?.boss ? 1.2 : 1 }; }
+  // a peer's ship you may shoot from shore: harbor PvP on, not a party mate, crewed (captain at the helm), not in / just out of SAFE HARBOR
+  const gunPeerOk = (s) => HB_PVP_ON && where === 'harbor' && s.net?.kind === 'player' && !isSquadMate(s.net.id) && !shipProtectedHarbor(s);
+  // battle.js shoot() (mine): the nearest ship part on the musket line. o = muzzle {x,y,z}, f = unit horizontal, slope = dy per m (null = flat)
+  function gunShipTest(o, f, slope, maxD = SC.SHIP_RANGE) {
+    const pl = P(); if (!pl || !(where === 'harbor' || !room)) return null; let best = null;
+    for (const s of enemies) {
+      if (!s?.alive || !s.mesh || s === pl || s.sinking) continue;
+      const bot = s.net?.kind === 'bot' || (!s.net && s !== pl); if (!bot && !gunPeerOk(s)) continue;
+      const lim = best ? best.a : maxD, c = captainAt(s);
+      const ca = c ? SC.rayCylH(o, f, slope, c.x, c.z, SC.CAPTAIN_R * c.k, c.y - 0.15, c.y + SC.CAPTAIN_TALL * c.k, lim) : -1;
+      if (ca > 0) { best = { a: ca, kind: 'captain', s, bot }; continue; } // t1822u: the captain FIRST
+      const ha = SC.rayShipBox(o, f, slope, shipBox(s), lim);
+      if (ha > 0 && (!c || Math.hypot(o.x + f.x * ha - c.x, o.z + f.z * ha - c.z) > 0.05)) best = { a: ha, kind: 'ship', s, bot };
+    }
+    return best;
+  }
+  // tps.js crosshair: what the aim ray can land on out over the water (3 hull cylinders + the captain per ship; refreshed every 0.25 s)
+  let aimC = { t: 0, l: [] };
+  function gunAimCyls() { const now = performance.now(); if (now - aimC.t < 250) return aimC.l; const l = [], pl = P();
+    for (const s of enemies) { if (!s?.alive || !s.mesh || s === pl || s.sinking) continue; const bot = s.net?.kind === 'bot' || !s.net; if (!bot && !gunPeerOk(s)) continue;
+      const b = shipBox(s), fx0 = Math.sin(s.yaw), fz0 = Math.cos(s.yaw), c = captainAt(s);
+      for (const k of [-0.6, 0, 0.6]) l.push([s.x + fx0 * b.hl * k, s.z + fz0 * b.hl * k, b.hw, b.y0, b.y0 + (b.y1 - b.y0) * 0.45, 'ship']);
+      if (c) l.push([c.x, c.z, SC.CAPTAIN_R * c.k, c.y - 0.15, c.y + SC.CAPTAIN_TALL * c.k, 'captain']); }
+    aimC = { t: now, l }; return l; }
+  // apply YOUR gun hit (battle.js calls this once the ship part is the first thing on the line). gunDmg = your musket's real damage.
+  function gunShipHit(hit, p, gunDmg) {
+    const pl = P(), s = hit.s, capHit = hit.kind === 'captain', dmg = capHit ? Math.max(1, Math.round(gunDmg)) : SC.hullDamage(gunDmg);
+    const at = new THREE.Vector3(p.x, p.y, p.z);
+    if (hit.bot) { applyHit(s, dmg, at, pl); s.shoreAggro = { id: myId, until: performance.now() + 30000 }; }
+    else { if (!room) return 0; me.lastDealtAt = performance.now(); room.send('gh', { s: myId, t: s.net.id, k: capHit ? 'c' : 'h', d: dmg }, { now: true });
+      crewHit(s.mesh, dmg / Math.max(1, s.maxHp || 100) * 6); fx.hit(at); }
+    K.popup(at, capHit ? `CAPTAIN HIT! -${dmg}` : `-${dmg}`, 'hit'); sfx.impact?.({ dmg, maxHp: 100, kill: false, onPlayer: false, armor: 0, v: 0.6 });
+    return dmg;
+  }
+  // victim: a pirate on the island shot MY ship ('gh' { s, t, k: 'c' captain | 'h' hull, d })
+  function onGunHit(m, from) {
+    if (!m || !isNetId(m.s) || m.s !== from || m.t !== myId || where !== 'harbor' || !HB_PVP_ON || isSquadMate(m.s)) return;
+    const now = performance.now(), bk = gunBk.get(m.s) || { tokens: 3, t: now }; bk.tokens = Math.min(3, bk.tokens + (now - bk.t) / 1000 * 1.2); bk.t = now; gunBk.set(m.s, bk);
+    if (bk.tokens < 1) return; bk.tokens--;
+    const pl = P(), fp = footPeer(m.s); if (!pl?.alive || me.dead || !fp || shipProtectedHarbor(pl)) return; // on foot, crewed, out of SAFE HARBOR
+    if (Math.hypot(fp.x - pl.x, fp.z - pl.z) > SC.SHIP_RANGE + 30 || inSafeH(fp.x, fp.z)) return; // nobody snipes out of an Island Safe Zone
+    const d = clamp(Math.round(+m.d || 0), 0, m.k === 'c' ? SC.GUN_HIT_MAX : Math.ceil(SC.HULL_DMG[1] * 1.6)); if (!d) return;
+    if (m.k !== 'c') { localDamage(d, m.s, null, ownerObj(m.s)); return; }
+    if (ADM.god) return; // [admin-menu] GOD MODE
+    if (now - cap.at > 20000) cap.hp = SC.CAPTAIN_HP; cap.at = now; cap.hp -= d; me.lastDamageAt = now; me.lastBy = m.s;
+    K.popup(new THREE.Vector3(pl.x, (pl.y || 0) + 6, pl.z), `🩸 CAPTAIN -${d}`, 'hit'); sfx.playerHit?.(0.7);
+    if (cap.hp > 0) { K.dock?.toast?.(`🩸 SHOT AT THE WHEEL BY ${esc(nameOf(m.s))}<small>captain ${Math.max(0, Math.round(cap.hp))} / ${SC.CAPTAIN_HP} HP</small>`, 1600); return; }
+    cap.hp = SC.CAPTAIN_HP; K.banner('☠ CAPTAIN SHOT DOWN', `by ${nameOf(m.s)} from the shore`);
+    localDamage(SC.BOMB_DMG, m.s, null, ownerObj(m.s)); // the ship goes down with its captain: standard sunk flow (kill credit, sea crate, harbor respawn)
+  }
+  // a cannonball near ME on foot (every ball in flight: ballStep; landing: shoreImpact; cliff guns: shoreBattery)
+  function shoreBlast(owner, p, impact, by, sid) {
+    const d = K.dock, B = d?.battle; if (!d?.on || !d.onFoot || !B?.me?.onFoot || B.me.down > 0 || !d.walker?.w) return false;
+    const W = d.walker.w; if (!SC.blastHits(p, { x: W.x, y: W.y ?? 0, z: W.z }, impact)) return false;
+    if (sid && (sid === myId || isSquadMate(sid))) return false; // no friendly fire
+    if (owner && owner !== P() && Math.hypot(owner.x - W.x, owner.z - W.z) > 320) return false;
+    const k0 = B.me.life; B.takeHit(SC.BOMB_DMG, by); // takeHit: GOD MODE, Island Safe Zones (+ grace), houses, KO guard -> no damage
+    if (!(B.me.down > 0)) return false;
+    d.toast?.(`💣 KILLED BY ${esc(String(by).toUpperCase())}${sid ? "'S" : ''} CANNON`, 2600); fx.hit(new THREE.Vector3(p.x, p.y, p.z));
+    if (sid && room && peers.has(sid)) room.send('bk', { s: myId, k: sid, l: k0 }, { now: true });
+    return true;
+  }
+  function ballShore(b, p, impact) {
+    const o = b.owner; if (!o || o === P()) return false; const bot = o.net?.kind === 'bot' || !o.net, sid = bot ? null : o.net.id;
+    if (!bot && (!HB_PVP_ON || where !== 'harbor' || inSafeH(o.x, o.z) || K.dock?.zone?.inside?.(o.x, o.z))) return false; // SAFE HARBOR ships never bomb
+    return shoreBlast(o, p, impact, bot ? (o.harborBoss ? 'THE COMMODORE' : 'PIRATE GALLEON') : nameOf(sid), sid);
+  }
+  const shoreImpact = (b, p) => ballShore(b, p, true);
+  // a peer's cliff-battery replay landed (battery.js): shooter id known
+  const shoreBattery = (p, sid, impact) => shoreBlast(null, p, impact, sid ? `${nameOf(sid)}` : 'CLIFF BATTERY', sid || null);
+  // shooter: the pirate I bombed confirms ('bk' { s: victim, k: me, l: their foot life })
+  function onBombKill(m, from) {
+    if (!m || !isNetId(m.s) || m.s !== from || m.k !== myId || !peers.has(m.s)) return;
+    const key = `${m.s}:${m.l | 0}`; if (bombSeen.has(key)) return; bombSeen.set(key, 1); if (bombSeen.size > 200) bombSeen.clear();
+    if (performance.now() - (me.lastFireAt || 0) > 12000) return; // only right after one of MY broadsides
+    try { kdT.kill('ground', `bomb:${key}`); } catch {}
+    K.banner(`💥 BOMBED ${nameOf(m.s).toUpperCase()}!`, 'one cannonball, one pirate'); sfx.impact?.({ dmg: 100, maxHp: 100, kill: true, onPlayer: false, armor: 0, v: 0.9 });
+  }
+  // AI: a pirate exposed on the coast (out of Safe Zones) who shot this ship is worth a broadside (main.js enemyTarget)
+  function shoreTarget(e) {
+    if (e.remote || (room && where !== 'harbor')) return null;
+    const now = performance.now(), ag = e.shoreAggro && e.shoreAggro.until > now ? e.shoreAggro : null, d = K.dock;
+    const at = (id) => { if (id === myId) { if (!d?.onFoot || !d.walker?.w || d.battle?.me?.down > 0 || ADM.invisible) return null; const w = d.walker.w; return { x: w.x, z: w.z, y: w.y ?? 0 }; }
+      const fp = footPeer(id); if (!fp) return null; return { x: fp.x, z: fp.z, y: fp.body?.y ?? fp.fy ?? 0 }; };
+    const ok = (q, R) => q && !inSafeH(q.x, q.z) && Math.hypot(q.x - e.x, q.z - e.z) < R;
+    let q = ag ? at(ag.id) : null; if (!ok(q, SC.SHORE_SPOT)) q = null;
+    if (!q && d?.onFoot) { const m = at(myId); if (ok(m, SC.SHORE_SPOT * 0.6)) q = m; } // spotted on the open coast
+    if (!q && isHost && d?.fnet?.peers) for (const [id, p] of d.fnet.peers) { if (!peers.has(id)) continue; const m = { x: p.x, z: p.z, y: p.body?.y ?? p.fy ?? 0 }; if (ok(m, SC.SHORE_SPOT * 0.6)) { q = m; break; } }
+    return q ? { x: q.x, z: q.z, yaw: 0, speed: 0, alive: true, foot: true, footY: +q.y || 0, maxHp: 100 } : null;
+  }
+
   // [cliff gold] BANKSY: +50 gold per cliff-cannon hit on an AI / pirate ship (own + party ships never reach here). Paid at most once per
   // 5 s gun reload and 10 / min; counted in stats.batteryHits so the pvp function allows exactly 50 g per hit (2 + 10 / min cap there).
   const BAT_PAY = { gold: 50, gapMs: 5000, perMin: 10 }, batPaid = [];
@@ -1968,7 +2071,7 @@ export function createPvp(K) {
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length >= 3) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[2].textContent = 'SUNK'; }
   }
 
-  const api = { flushNow, serverGold, emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
+  const api = { gunAimCyls, gunShipTest, gunShipHit, shoreImpact, shoreBattery, shoreTarget, flushNow, serverGold, emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
