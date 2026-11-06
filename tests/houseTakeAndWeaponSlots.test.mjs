@@ -61,6 +61,6 @@ test('046 migration + houses.ts: house source allowed; opaque error path documen
   assert.match(hs, /String\(item\)\.startsWith\('wpn:'\) \? 1/);
 });
 
-test('sw.js is pfp-v330', () => {
-  assert.match(read('sw.js'), /VERSION = 'pfp-v330'/);
+test('sw.js is pfp-v331', () => {
+  assert.ok(+(((read('sw.js')).match(/VERSION = 'pfp-v(\d+)'/) || [])[1]) >= 331, 'sw at or past pfp-v331'); // [v330] numeric: later bumps keep passing
 });

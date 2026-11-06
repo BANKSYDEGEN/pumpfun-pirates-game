@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { coastLayout } from './layout.js';
 import { FLAG_DAILY } from '../config.js'; // [castle-flag-daily]
 import { buildWorld, colliderSets } from './world.js';
+import { loadTownKit, loadNatureKit } from '../island/townkit.js'; // [v330 perf] early kit downloads
 import { createSafeZone } from './safe.js';
 import { createDocking } from './docking.js';
 import { createWalker } from '../onfoot/walker.js';
@@ -77,6 +78,10 @@ export async function createDock(ctx) {
   const { scene, camera, controls, renderer, ocean, islands, game, quality, canvas } = ctx;
   const LOW = quality === 'low', $ = (id) => document.getElementById(id);
   const touch = !CONSOLE && (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window); // [Emerly gamepad] consoles: no touch stick / JUMP (the pad walks)
+  // [v330 perf] start the island art downloads (town + nature kits) before coastLayout imports / builds the island heightmap; world.js awaits the same promises
+  if (!/[?&]parworld=0(&|$)/.test(location.search)) { loadTownKit(LOW, renderer).catch(() => {}); if (new URLSearchParams(location.search).get('nature') !== '0') loadNatureKit(LOW, renderer).catch(() => {}); }
+  // [v330 perf] your on-foot pirate (V6 body GLB, ~0.8-1.6 MB) used to start downloading only after the whole island was built: start it now, alongside the island art
+  const pirate0 = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate0.object.visible = false; scene.add(pirate0.object); // [Timothy] + your shop gear
   const layout = await coastLayout();
   const uTime = { value: 0 };
   const world = await buildWorld({ layout, scene, quality, ocean, renderer, uTime });
@@ -84,7 +89,7 @@ export async function createDock(ctx) {
   const myId = () => ctx.pvp()?.myId || 'me';
   const skinPick = createSkinPicker({ current: () => ctx.pvp()?.profile?.skins?.equipped || 'classic' }); // [dock-skin]
   const docking = createDocking({ berths: layout.berths, myId }); // [v152] a getter: the room id can arrive later
-  const pirate = loadPirate({ look: ctx.look?.() || { skin: 0, hair: 0 }, low: LOW, gear: getLocalGear(), local: true }); pirate.object.visible = false; scene.add(pirate.object); // [Timothy] + your shop gear
+  const pirate = pirate0; // [v330 perf] created (and its V6 GLB download started) before the island build, see above
   const walker = createWalker({ camera, canvas, world, pirate, touch, low: LOW });
   import('../island/terrainEdit.js').then(m => m.initTerrainEdit({ scene, camera, canvas, footRoot: world.foot.root, walker, touch, toast: (t) => toast(t) })).then(te => { api.terrain = te; }).catch(e => console.warn('[terrain-edit]', e)); // [terrain-edit] everyone: saved deltas; owner: BUILD mode
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
@@ -284,10 +289,17 @@ export async function createDock(ctx) {
   const inHarbor = () => game.mode === 'pvp' && !!ctx.pvp() && ctx.pvp().where === 'harbor' && !ctx.pvp().spectating && ['playing', 'paused', 'shop'].includes(game.state);
   // the harbor zone (clear water round the coast, curated islets, the coast colliders, no grid rocks on the land): sailing it OR spectating it
   let zoneOn = null; const setZone = (v) => { v = !!v; if (v === zoneOn) return; zoneOn = v; islands.setHarbor(v ? { clearR: SAIL_ALL ? 1350 : 470, islets: ctx.islets, island: sets, land: (x, z) => layout.FM.H(...layout.harborToFoot(x, z)) > -6 } : null); };
+  // [v330] BANKSY t1754u "Do the old open sea map for waves and arena": a few harbor / island pieces hang straight off the scene (not under
+  // world.root), so they floated over the open sea in Storm Hunt and the Battle Royale arena: the zipline towers + cables, the SWORD PIT /
+  // MUSKET RANGE rings, the cottage name plaques and fallback cottage shells. They follow the island now (shown only while the harbor world
+  // is on or harbor-spectated). Bonus: ~150 fewer draw calls at sea.
+  const EXTRA_RE = /^(zipline|battle_areas|house_plaques|house_fallback_exteriors)$/;
+  function harborExtras(vis) { for (const o of scene.children) if (EXTRA_RE.test(o.name || '')) o.visible = vis; }
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
     if (!v) { canoe?.clearAll?.(P()); houses?.clear?.(); streetSigns?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    harborExtras(v || viewing); // [v330] t1754u
   }
   // ---------- actions ----------
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea": joining the harbor
@@ -388,10 +400,13 @@ export async function createDock(ctx) {
   addEventListener('keydown', onKeyDown, true); addEventListener('keyup', onKeyUp, true);
 
   // ---------- per frame (main.js: after pvp.update, before floatShip) ----------
+  // [v330 perf] write-on-change DOM pill (display / class / text); other code that sets style.display = 'none' directly is respected
+  function pill(el, show, cls = '', txt = null) { if (!el) return; const d = show ? 'block' : 'none'; if (el.style.display !== d) el.style.display = d; if (!show) return;
+    if (el.className !== cls) el.className = cls; if (txt !== null && el.textContent !== txt) el.textContent = txt; }
   function ship(dt) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); const was = on; setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
-    const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); } if (view) world.update(camera.position, game.t, game.storm || 0);
+    const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); harborExtras(view || on); } // [v330] t1754u + the scene-level island pieces if (view) world.update(camera.position, game.t, game.storm || 0);
     treasure.tick(); squadHall?.tick?.(performance.now());
     if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
     if (!on) return;
@@ -410,22 +425,23 @@ export async function createDock(ctx) {
     battery?.tick(dt, walker, onFoot); // [Timothy] aim the gun you stand at, fly the cosmetic balls
     // HUD tag
     const g = zone.graceLeft(s, now);
+    // [v330 perf] the two pills only touch the DOM when what they show changes (were 3-6 style / class / text writes every frame)
     if (onFoot) {
-      safeTag.style.display = 'none'; // BANKSY: no SAFE HARBOR tag while walking the island
+      pill(safeTag, false); // BANKSY: no SAFE HARBOR tag while walking the island
       // [backpack-pvp] Island Safe Zone pill (never while inside a cottage — BANKSY)
       if (SAFEZONES_ON && !houses?.inHouse) {
         const W = walker.w, tnow = now;
         const zn = tickIsleSafe(isleSafeHud, ...layout.harborToFoot(W.x, W.z), tnow); // walker = harbor frame
         const gl = graceLeft(isleSafeHud, tnow, SAFE_GRACE_S);
-        if (zn) { isleSafeTag.style.display = 'block'; isleSafeTag.className = ''; isleSafeTag.textContent = `🛡️ SAFE ZONE · ${zn.name}`; }
-        else if (gl > 0) { isleSafeTag.style.display = 'block'; isleSafeTag.className = 'grace'; isleSafeTag.textContent = `NO FIRING · ${Math.ceil(gl)}s`; }
-        else isleSafeTag.style.display = 'none';
-      } else isleSafeTag.style.display = 'none';
+        if (zn) pill(isleSafeTag, true, '', `🛡️ SAFE ZONE · ${zn.name}`);
+        else if (gl > 0) pill(isleSafeTag, true, 'grace', `NO FIRING · ${Math.ceil(gl)}s`);
+        else pill(isleSafeTag, false);
+      } else pill(isleSafeTag, false);
     } else {
-      isleSafeTag.style.display = 'none';
-      if (s._safe) safeTag.style.display = 'none'; // [v176] BANKSY: no ⚓ SAFE HARBOR pill (it covered the top hint); the zone itself is unchanged
-      else if (g > 0) { safeTag.style.display = 'block'; safeTag.className = 'grace'; safeTag.textContent = `NO FIRING · ${Math.ceil(g)}`; }
-      else safeTag.style.display = 'none';
+      pill(isleSafeTag, false);
+      if (s._safe) pill(safeTag, false); // [v176] BANKSY: no ⚓ SAFE HARBOR pill (it covered the top hint); the zone itself is unchanged
+      else if (g > 0) pill(safeTag, true, 'grace', `NO FIRING · ${Math.ceil(g)}`);
+      else pill(safeTag, false);
     }
     // prompts
     if (onFoot) {
@@ -530,5 +546,6 @@ export async function createDock(ctx) {
     radarZones: () => false,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
+  harborExtras(on || viewing); // [v330] t1754u: the scene-level island pieces start hidden until the harbor world switches on
   return api;
 }

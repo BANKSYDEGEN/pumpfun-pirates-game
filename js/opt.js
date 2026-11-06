@@ -57,7 +57,7 @@ export function mergeStaticGroup(host) {
     list.push(o);
   });
   if (list.length < 2) return 0;
-  return mergeInto(host, list, () => '');
+  return mergeInto(host, list, () => '', { ignoreGroups: true }); // [v330 perf] Box / Cylinder parts carry geometry groups: they never merged (zipline stations were ~120 draw calls)
 }
 
 // Animation LOD: full / half / quarter rate by distance to camera (squared metres).

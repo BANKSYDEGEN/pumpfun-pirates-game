@@ -22,7 +22,7 @@ test('config: HARBOR_SQUAD_MAX = 16; Arena SQUADS stays 2v2 (size 2, players 4)'
   assert.equal(SQUADS.size, 2);
   assert.equal(SQUADS.players, 4);
   assert.match(CFG, /HARBOR_SQUAD_MAX\s*=\s*16/);
-  assert.match(SW, /VERSION = 'pfp-v330'/);
+  assert.ok(+((SW.match(/VERSION = 'pfp-v(\d+)'/) || [])[1]) >= 331, 'sw at or past pfp-v331'); // [v330] numeric
 });
 
 test('makeTeams still builds 2v2 Arena sides (unchanged)', () => {

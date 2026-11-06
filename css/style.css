@@ -728,7 +728,7 @@ html.pvp-spec #pvp-return, html.pvp-harbor #pvp-return { display: none !importan
 .ca-chip.stack .tk { grid-area: tk; } .ca-chip.stack .cp { grid-area: cp; } .ca-chip.stack .ca { grid-area: ca; text-align: center; }
 .ca-chip.wrap .ca { white-space: normal; word-break: break-all; }
 /* [waves entry] same look as the BATTLE ROYALE entry card, over the title screen */
-#waves-entry { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); z-index: 40; pointer-events: auto; overflow-y: auto; padding: 10px; box-sizing: border-box; }
+#waves-entry { position: fixed; inset: 0; /* [v330] top-level overlay (t1752u) */ display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); z-index: 45; pointer-events: auto; overflow-y: auto; padding: 10px; box-sizing: border-box; }
 #waves-entry.hidden { display: none; }
 #waves-entry .pe-card { position: relative; background: rgba(10,10,10,0.92); border: 1px solid var(--line); border-radius: 18px; padding: 16px 26px; text-align: center; width: min(92vw, 460px); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; margin: auto; }
 #waves-entry h2 { color: var(--gold); font-size: 40px; margin: 0; }

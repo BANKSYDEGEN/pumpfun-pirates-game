@@ -42,10 +42,105 @@
 }
 </script>
 <!-- [load-speed] after the import map (a module preload before it would switch the map off) -->
-<link rel="modulepreload" href="./vendor/three-0.165.0/build/three.module.min.js"><!-- [load-speed] three.js (660 KB) starts with main.js instead of after it -->
-<link rel="modulepreload" href="./js/main.js">
-<link rel="modulepreload" href="./js/opt.js"><!-- [perf-v304] early opt helpers -->
-<link rel="modulepreload" href="./js/staticMerge.js"><!-- [perf-v304] -->
+<link rel="modulepreload" href="./js/main.js"><!-- [load-speed] main.js + three.js start together -->
+<!-- [v330 perf] BOOT modulepreload (generated: node tools/perf/gen_preload.mjs) -->
+<link rel="modulepreload" href="./vendor/three-0.165.0/build/three.module.min.js">
+<link rel="modulepreload" href="./assets/ships/pvp/diamond.js">
+<link rel="modulepreload" href="./assets/ships/pvp/flaming.js">
+<link rel="modulepreload" href="./assets/ships/pvp/flamingRedesign.js">
+<link rel="modulepreload" href="./assets/ships/pvp/ghost.js">
+<link rel="modulepreload" href="./assets/ships/pvp/golden.js">
+<link rel="modulepreload" href="./assets/ships/pvp/kraken.js">
+<link rel="modulepreload" href="./assets/ships/pvp/mobileSkins.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/celestial.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/kit.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/leviathan.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/opal.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/poseidon.js">
+<link rel="modulepreload" href="./assets/ships/pvp/newShips/sunKing.js">
+<link rel="modulepreload" href="./assets/ships/pvp/partsOverride.js">
+<link rel="modulepreload" href="./assets/ships/pvp/pvpKit.js">
+<link rel="modulepreload" href="./assets/ships/pvp/tierLooks.js">
+<link rel="modulepreload" href="./assets/ships/pvp/unlockSkins.js">
+<link rel="modulepreload" href="./js/accountUi.js">
+<link rel="modulepreload" href="./js/adminState.js">
+<link rel="modulepreload" href="./js/audio.js">
+<link rel="modulepreload" href="./js/avatar.js">
+<link rel="modulepreload" href="./js/boosts.js">
+<link rel="modulepreload" href="./js/bootPeg.js">
+<link rel="modulepreload" href="./js/captainSlot.js">
+<link rel="modulepreload" href="./js/carryRules.js">
+<link rel="modulepreload" href="./js/carryWeapons.js">
+<link rel="modulepreload" href="./js/config.js">
+<link rel="modulepreload" href="./js/controlsUi.js">
+<link rel="modulepreload" href="./js/crew.js">
+<link rel="modulepreload" href="./js/crewGear.js">
+<link rel="modulepreload" href="./js/crewLoadout.js">
+<link rel="modulepreload" href="./js/crewV4.js">
+<link rel="modulepreload" href="./js/daily.js">
+<link rel="modulepreload" href="./js/emotes.js">
+<link rel="modulepreload" href="./js/enemyTypes.js">
+<link rel="modulepreload" href="./js/env.js">
+<link rel="modulepreload" href="./js/escorts.js">
+<link rel="modulepreload" href="./js/fx.js">
+<link rel="modulepreload" href="./js/gamepad.js">
+<link rel="modulepreload" href="./js/gearRecolor.js">
+<link rel="modulepreload" href="./js/harborCard.js">
+<link rel="modulepreload" href="./js/healthDrops.js">
+<link rel="modulepreload" href="./js/hudHide.js">
+<link rel="modulepreload" href="./js/hullReach.js">
+<link rel="modulepreload" href="./js/island/coast.js">
+<link rel="modulepreload" href="./js/keybinds.js">
+<link rel="modulepreload" href="./js/leaderboard.js">
+<link rel="modulepreload" href="./js/lighthouseKit.js">
+<link rel="modulepreload" href="./js/mapIcons.js">
+<link rel="modulepreload" href="./js/newShips.js">
+<link rel="modulepreload" href="./js/newShipsTable.js">
+<link rel="modulepreload" href="./js/ocean.js">
+<link rel="modulepreload" href="./js/onfoot/swords.js">
+<link rel="modulepreload" href="./js/opt.js">
+<link rel="modulepreload" href="./js/petMotion.js">
+<link rel="modulepreload" href="./js/petRig.js">
+<link rel="modulepreload" href="./js/pirateAccount.js">
+<link rel="modulepreload" href="./js/pirateGear.js">
+<link rel="modulepreload" href="./js/pirateGLB.js">
+<link rel="modulepreload" href="./js/pirateItems.js">
+<link rel="modulepreload" href="./js/pirates.js">
+<link rel="modulepreload" href="./js/preloadList.js">
+<link rel="modulepreload" href="./js/prestige.js">
+<link rel="modulepreload" href="./js/props.js">
+<link rel="modulepreload" href="./js/pvpBoard.js">
+<link rel="modulepreload" href="./js/pvpSave.js">
+<link rel="modulepreload" href="./js/pvpSkins.js">
+<link rel="modulepreload" href="./js/safe.js">
+<link rel="modulepreload" href="./js/shareCard.js">
+<link rel="modulepreload" href="./js/shipGear.js">
+<link rel="modulepreload" href="./js/shipKit.js">
+<link rel="modulepreload" href="./js/ships.js">
+<link rel="modulepreload" href="./js/shop.js">
+<link rel="modulepreload" href="./js/shopCatalog.js">
+<link rel="modulepreload" href="./js/skinLooks.js">
+<link rel="modulepreload" href="./js/skinPreview.js">
+<link rel="modulepreload" href="./js/skins.js">
+<link rel="modulepreload" href="./js/soundProfile.js">
+<link rel="modulepreload" href="./js/staticMerge.js">
+<link rel="modulepreload" href="./js/tokenChip.js">
+<link rel="modulepreload" href="./js/toon.js">
+<link rel="modulepreload" href="./js/tutorial.js">
+<link rel="modulepreload" href="./js/uiProfile.js">
+<link rel="modulepreload" href="./js/upgrades.js">
+<link rel="modulepreload" href="./js/upgradeVisuals.js">
+<link rel="modulepreload" href="./js/v6Legacy.js">
+<link rel="modulepreload" href="./js/wake.js">
+<link rel="modulepreload" href="./js/wallet.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/controls/OrbitControls.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/geometries/RoundedBoxGeometry.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/libs/meshopt_decoder.module.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/loaders/DRACOLoader.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/utils/BufferGeometryUtils.js">
+<link rel="modulepreload" href="./vendor/three-0.165.0/examples/jsm/utils/SkeletonUtils.js">
+<!-- [v330 perf] /BOOT modulepreload -->
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -190,21 +285,7 @@
   <div class="faq-card ctl-card"><button id="ctl-close" class="faq-x" type="button" aria-label="Close">✕</button><h3 id="ctl-h">CONTROLS</h3><div id="ctl-body"></div></div>
 </div>
 <div id="title" class="overlay">
-  <!-- [waves entry] same pop-up as BATTLE ROYALE: name, optional airdrop wallet, save progress (read-only wallet sign-in) -->
-  <div id="waves-entry" class="hidden" role="dialog" aria-label="Storm Hunt"><div class="pe-card">
-    <button id="we-close" class="faq-x" type="button" aria-label="Close">✕</button>
-    <h2>STORM HUNT</h2>
-    <label class="field"><span>PIRATE NAME</span><input id="we-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
-    <small id="we-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
-    <label class="field we-crypto"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="we-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
-    <small id="we-addr-msg" class="muted we-crypto">Optional. Never asks for keys. Changing it later: a free signature.</small>
-    <div class="row wallet-row we-crypto"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
-      <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
-      <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
-    </div>
-    <div id="wallet-note" class="wallet-note muted we-crypto"></div>
-    <button id="we-go" type="button" class="big">SET SAIL</button>
-    <p class="muted">Survive the waves, sink the rug ships, top the leaderboard.</p></div></div>
+
   <div class="panel title-panel">
    <button id="btn-faq" class="faq-btn" type="button" aria-label="What is PUMPFUN PIRATES?" aria-haspopup="dialog">?</button>
    <button id="btn-ctl-title" class="faq-btn ctl-btn" type="button" aria-label="Controls" title="Controls (rebind keys)">⌨</button>
@@ -248,6 +329,22 @@
    </div>
   </div>
 </div>
+<!-- [v330] Storm Hunt entry is a top-level fixed overlay (was inside #title, so #title.hidden hid it in-game: t1752u) -->
+  <!-- [waves entry] same pop-up as BATTLE ROYALE: name, optional airdrop wallet, save progress (read-only wallet sign-in) -->
+  <div id="waves-entry" class="hidden" role="dialog" aria-label="Storm Hunt"><div class="pe-card">
+    <button id="we-close" class="faq-x" type="button" aria-label="Close">✕</button>
+    <h2>STORM HUNT</h2>
+    <label class="field"><span>PIRATE NAME</span><input id="we-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
+    <small id="we-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
+    <label class="field we-crypto"><span>SOLANA WALLET <em class="muted">(optional)</em></span><input id="we-addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="paste your Solana address"></label>
+    <small id="we-addr-msg" class="muted we-crypto">Optional. Never asks for keys. Changing it later: a free signature.</small>
+    <div class="row wallet-row we-crypto"><!-- [wallet save] read-only sign-in (signMessage only) saves progress to your wallet -->
+      <button id="btn-wallet" class="wallet-link" type="button" title="Optional, read-only Solana wallet sign-in: signs a free message, never a transaction">Save progress (optional)</button>
+      <div id="wallet-chip" class="wallet-chip hidden"><span class="wc-dot" aria-hidden="true"></span><span id="wc-addr"></span><button id="wc-out" type="button" aria-label="Disconnect wallet">DISCONNECT</button></div>
+    </div>
+    <div id="wallet-note" class="wallet-note muted we-crypto"></div>
+    <button id="we-go" type="button" class="big">SET SAIL</button>
+    <p class="muted">Survive the waves, sink the rug ships, top the leaderboard.</p></div></div>
 
 <!-- ============ PAUSE ============ -->
   <div id="waves-skins" class="hidden" role="dialog" aria-label="Skins"><div class="pe-card"><!-- [v83] Waves skins: ⚙ settings → 🏴 SKINS (like BATTLE ROYALE) -->

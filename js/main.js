@@ -56,6 +56,7 @@ import { compileShip, setRenderContext, prebuildNext, prebuildSkin } from './upg
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
 
 import { escHtml } from './safe.js'; // [security H5]
+import { HARBOR_MODULES } from './preloadList.js'; // [v330 perf] harbor module graph (generated)
 import { ADM } from './adminState.js'; // [admin-menu] owner GOD / NOCLIP at sea, server FREEZE (js/adminMenu.js)
 import { createEscorts, ESCORT, escortStep } from './escorts.js'; // [escorts] hired ally ships // [Raul] upgrade visuals: player ship compiled from upgrade traits + skin
 
@@ -801,7 +802,7 @@ installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spe
 const pad = initGamepad({ game: () => game, controls, camera, binds, spectating: () => !!pvp?.spectating }); // [Emerly gamepad] js/gamepad.js
 { const b = $('btn-ctl-title'); if (b) b.onclick = () => openControls(); }
 { const b = $('btn-ctl-pause'); if (b) b.onclick = () => openControls(); }
-$('btn-quit').onclick = () => { $('pause').classList.add('hidden'); toTitle(); };
+$('btn-quit').onclick = () => { $('pause').classList.add('hidden'); if (WAVES_HOME && game.mode !== 'pvp') { wavesBank(); return returnToHarbor(); } toTitle(); }; // [v330] t1753u: quitting Storm Hunt banks 100 / wave and sails home
 
 function togglePause() { // [v71] ⚙ settings: Waves pauses underneath; Battle Royale + spectate keep the shared sea running (just a menu)
   if (game.mode === 'pvp' && game.state === 'playing' && $('pvp-menu') && !$('pvp-menu').classList.contains('hidden')) { pvp.toggleMenu(false); return; } // [pvp] Esc closes the PvP menu first
@@ -810,7 +811,7 @@ function togglePause() { // [v71] ⚙ settings: Waves pauses underneath; Battle 
   setSaveUi();
   { const hb = $('btn-set-harbor'); if (hb) { const ok = pvp?.where === 'arena' && !pvp?.me?.dead; hb.disabled = !ok; hb.title = ok ? '' : 'You are already in the harbor'; } }
   if (pvp?.spectating && game.state !== 'playing' && game.state !== 'paused') { $('pause').classList.toggle('hidden'); return; }
-  if (game.state === 'playing') { game.state = 'paused'; $('pause').classList.remove('hidden'); }
+  if (game.state === 'playing') { game.state = 'paused'; $('pause').classList.remove('hidden'); { const q = $('btn-quit'); if (q) q.textContent = WAVES_HOME && game.mode !== 'pvp' ? '⚓ RETURN TO HARBOR' : 'MAIN MENU'; } } // [v330] t1753u
   else if (game.state === 'paused') { game.state = 'playing'; $('pause').classList.add('hidden'); }
 }
 
@@ -990,8 +991,20 @@ function closeWavesSkins() { $('waves-skins')?.classList.add('hidden'); if (game
 { const b = $('btn-set-wskins'); if (b) { b.setAttribute('hidden', ''); b.classList.add('hidden'); b.onclick = (e) => { e.stopPropagation(); openWavesSkins(); }; }
   for (const id of ['ws-close', 'ws-done']) { const x = $(id); if (x) x.onclick = (e) => { e.stopPropagation(); closeWavesSkins(); }; }
   addEventListener('keydown', (e) => { if (e.code === 'Escape' && !$('waves-skins')?.classList.contains('hidden')) { e.stopImmediatePropagation(); e.preventDefault(); closeWavesSkins(); } }, true); }
+// [v330] BANKSY t1752u "choosing storm hunt doesn't start the storm hunt mini game anymore": #waves-entry lived inside #title, which is
+// display:none in-game, so the harbor card's START STORM HUNT and the island board's ▶ START STORM HUNT opened an invisible card.
+// The card is a top-level overlay now, and from INSIDE the game (Harbor / Island) a pirate who already has a name sails straight
+// into Storm Hunt: step aboard if on foot, then startGame() (pvp.leave() drops the harbor / island world). &wavesdirect=0 = always the card.
 function openWavesEntry() {
   if (!we) return startGame();
+  const inGame = game.mode === 'pvp' && game.state !== 'title', nm = getSavedName() || (pvp && pvp.name) || '';
+  if (inGame && nm && !/[?&]wavesdirect=0(&|$)/.test(location.search)) {
+    if (!getSavedName()) { try { saveName(String(nm).slice(0, 20)); } catch {} }
+    try { if (dock?.onFoot) dock.goAboard?.(true); } catch (e) { console.warn('[waves] go aboard', e); }
+    try { pvp?.toggleMenu?.(false); } catch {}
+    for (const id of ['pvp-entry', 'waves-entry']) $(id)?.classList.add('hidden');
+    startGame(); return;
+  }
   weName.value = getSavedName(); if (weAddr) { weAddr.value = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); weCheck(); }
   we.classList.remove('hidden'); setTimeout(() => (weName.value ? $('we-go') : weName).focus(), 50);
 }
@@ -1168,11 +1181,12 @@ function clearWorld() {
 
 function startGame(mode = null) {
   clearEmotes(); // [v96]
-  if (game.mode === 'pvp' && mode !== 'pvp') pvp?.leave(); // [pvp]
+  const leftPvp = game.mode === 'pvp' && mode !== 'pvp'; // [v330] Harbor / Island -> Storm Hunt (t1752u)
+  if (leftPvp) pvp?.leave(); // [pvp]
   player.calm = 0; player.repT = 0; // [repair]
   // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
   game.wallet = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); game.name = getSavedName();
-  game.runId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); // [wallet save]
+  game.runId = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); game.claimP = null; // [wallet save] // [v330] one payout per run
   if (mode !== 'pvp') wavesStart(game.runId); // [v103] server notes the run start (for the score payout)
   // [daily] hidden from the UI: every run is a normal run
   game.mode = mode === 'pvp' ? 'pvp' : null; game.seed = null; game.lootRng = null; game.dropRng = null; // [pvp] PvP is its own mode
@@ -1194,6 +1208,9 @@ function startGame(mode = null) {
   updateHud();
   rotateTimer = 0; updateRotateHint();
   if (game.mode === 'pvp') { pvp.begin(); return; } // [pvp] no waves, no tutorial: drop straight in
+  // [v330] t1752u: from the Harbor / Island straight into Storm Hunt: switch the dock world off NOW (its own per-frame check only runs while
+  // the game is 'playing', so the island / harbor stayed drawn behind the how-to-play card) -> open sea for wave 1.
+  if (leftPvp && dock) { try { dock.ship(0); } catch (e) { console.warn('[waves] dock off', e); } }
   banner(game.mode === 'daily' ? 'DAILY CHALLENGE' : 'SET SAIL!', game.mode === 'daily' ? `same seas for every pirate · ${game.seed}` : 'hunt the rug ships');
   maybeShowTutorial(); // [tutorial] how-to-play card, game paused until closed
 }
@@ -1236,10 +1253,9 @@ async function gameOver() {
   $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   validateWallet();
   $('gameover').classList.remove('hidden');
-  if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = 'Banking gold from your score…'; } // [v103]
-    wavesClaim({ run: game.runId, score: game.score, wave: game.wave, sunk: game.sunk }).then(r => { const el = $('go-pay'); if (!el) return;
-      if (r?.ok && r.gold > 0) el.innerHTML = `Score ${game.score.toLocaleString('en-US')} → <b>+${(+r.gold | 0).toLocaleString('en-US')} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${+r.base | 0} × 2)</span>` : ''}<br><small class="muted">for the island SHOP · Battle Royale gold</small>`;
-      else if (r && r.ok === false && r.error) el.textContent = `No gold banked: ${r.error}`; else el.hidden = true; }); }
+  if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = `Banking ${game.wave * 100} gold (100 per wave)…`; } // [v103] // [v330] t1753u
+    wavesBank(); }
+  wavesExitLabel(); // [v330] t1753u: Storm Hunt from the Harbor -> ⚓ RETURN TO HARBOR (your real upgrades + the 100 / wave payout)
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
   renderBoard($('board-over'));
   prepareShare(shareStats()); // pre-render the card so SHARE opens the share sheet inside the tap
@@ -1262,8 +1278,34 @@ async function saveScore() {
 $('btn-save').onclick = saveScore;
 // leaving the game over screen saves automatically when a valid wallet is filled in (returning pirates aren't nagged); otherwise the run is skipped
 const saveIfReady = async () => { if (!game.saved && isValidSolanaAddress(walletInput.value.trim())) await saveScore(); };
+// [v330] BANKSY t1753u: "It should move them to another room and start small and do the waves and upgrades then when they die they come back
+// to real upgrades and not gain the gold had at end of waves but give them 100 per wave". Storm Hunt is its own solo sea (pvp.leave() frees the
+// Harbor seat), starts on the base hull with 0 run gold (resetShop), and that run gold only buys run upgrades. When it ends, the server banks a
+// flat 100 gold per wave reached (supabase pvp waves_claim) into your real save; RETURN TO HARBOR waits for that payout, then reloads your real
+// profile (pvp.prepare) so you're back at your berth with your saved upgrades + the new gold. The run's own game.gold is never banked.
+const WAVES_HOME = PVP_ENABLED && !ON_PORTAL; // the home screen enters the Harbor: Storm Hunt always returns there
+function wavesBank() { // one payout per run (wavesClaim forgets the run id after the first call)
+  if (game.claimP || game.mode === 'pvp' || !game.runId) return game.claimP || Promise.resolve(null);
+  const w = game.wave | 0;
+  game.claimP = wavesClaim({ run: game.runId, score: game.score, wave: w, sunk: game.sunk }).then(r => { const el = $('go-pay');
+    if (el) { if (r?.ok && r.gold > 0) el.innerHTML = `Wave ${w} × 100 → <b>+${(+r.gold | 0).toLocaleString('en-US')} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${+r.base | 0} × 2)</span>` : ''}<br><small class="muted">100 gold per wave · run gold stays in the storm</small>`;
+      else if (r && r.ok === false && r.error) el.textContent = `No gold banked: ${r.error}`; else if (!w) el.textContent = 'No waves reached: no gold banked'; else el.hidden = true; }
+    return r; }, () => null);
+  return game.claimP;
+}
+function wavesExitLabel() { const b = $('btn-menu'); if (!b) return; const home = WAVES_HOME && game.mode !== 'pvp'; b.textContent = home ? '⚓ RETURN TO HARBOR' : 'MAIN MENU'; b.classList.toggle('big', home); }
+let wavesHomeBusy = false;
+async function returnToHarbor() { // Storm Hunt over -> the Harbor with your real upgrades
+  if (wavesHomeBusy) return; wavesHomeBusy = true; const b = $('btn-menu'); if (b) b.disabled = true;
+  try {
+    await wavesBank(); // the 100 / wave payout lands in your save BEFORE the Harbor profile is loaded
+    $('gameover').classList.add('hidden'); $('pause').classList.add('hidden'); closeShop?.(); $('shop')?.classList.add('hidden');
+    await startPvp(false);
+    if (game.mode !== 'pvp') toTitle(); // the Harbor could not load: the title, as before
+  } finally { wavesHomeBusy = false; if (b) b.disabled = false; }
+}
 $('btn-again').onclick = async () => { await saveIfReady(); startGame(); };
-$('btn-menu').onclick = async () => { await saveIfReady(); toTitle(); };
+$('btn-menu').onclick = async () => { await saveIfReady(); if (WAVES_HOME && game.mode !== 'pvp') return returnToHarbor(); toTitle(); };
 
 // ---------- main loop ----------
 const clock = new THREE.Clock();
@@ -1290,8 +1332,9 @@ function fogCull() {
     FC._s.copy(g.boundingSphere).applyMatrix4(o.matrixWorld); const out = FC._s.center.distanceTo(cp) - FC._s.radius > far;
     if (out && o.visible) { o.visible = false; o.userData.fogHid = true; } else if (!out && o.userData.fogHid) { o.visible = true; o.userData.fogHid = false; } }
 }
+const ADAPT_OFF = /[?&]adapt=0/.test(location.search); // [v330 perf] read once (was a regex every frame)
 function adaptResolution() {
-  if (!ADAPT.on || game.state !== 'playing' || document.hidden || /[?&]adapt=0/.test(location.search)) { ADAPT.t0 = 0; ADAPT.warm = 0; return; }
+  if (!ADAPT.on || game.state !== 'playing' || document.hidden || ADAPT_OFF) { ADAPT.t0 = 0; ADAPT.warm = 0; return; }
   const now = performance.now(); if (!ADAPT.warm) ADAPT.warm = now; if (now - ADAPT.warm < 8000) return; // [perf2] loading / shader-compile hitches right after entering never count
   if (!ADAPT.t0) { ADAPT.t0 = now; ADAPT.n = 0; return; }
   ADAPT.n++;
@@ -1303,6 +1346,7 @@ function adaptResolution() {
   const up = [...ADAPT.steps].reverse().find(r => r > renderer.getPixelRatio() + 0.01 && r <= PR0) || (renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null);
   if (up && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
 }
+const _camTgt = new THREE.Vector3(), _camD = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0), _hullList = []; // [v330 perf] frame() scratch
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   try { pad.tick(dt); } catch (e) { console.warn('[pad]', e); } // [Emerly gamepad] poll the pads first: keys / sticks land before the ship + walker read them this frame
@@ -1394,7 +1438,8 @@ function frame() {
     const ships = escorts.list.length ? [...escorts.list, ...enemies] : enemies; // [escorts] foam collars + wakes too
     const list = ships.length < MAX_HULLS ? ships : ships.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
     const ch = dock?.canoeHull?.(); // [v314] the canoe's own water cap: always right after the player (its slot is reserved)
-    for (const s of [player, ...list]) { if (k >= MAX_HULLS - (ch && k > 0 ? 1 : 0)) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; hullCap(s, ocean.uniforms.uHullY.value[k]); H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len);
+    _hullList.length = 0; _hullList.push(player); for (const s of list) _hullList.push(s); // [v330 perf] one reused array, not a fresh spread every frame
+    for (const s of _hullList) { if (k >= MAX_HULLS - (ch && k > 0 ? 1 : 0)) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; hullCap(s, ocean.uniforms.uHullY.value[k]); H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len);
       if (ch && s === player && k < MAX_HULLS) { ocean.uniforms.uHullV.value[k] = ch.speed; ocean.uniforms.uHullY.value[k].set(ch.capY, ch.slopeZ, ch.slopeX, ch.halfBeam); H[k++].set(ch.x, ch.z, ch.yaw, ch.len); } }
     ocean.uniforms.uHullCount.value = k;
     wakes.update(player, list, t); } // [aaa water] wake trails: player first, then the nearest ships
@@ -1408,11 +1453,11 @@ function frame() {
   // camera follows the ship, orbit offset preserved
   if (!dock?.camera(dt)) { // [Emerly] on foot: the third-person pirate camera (js/onfoot/walker.js) instead
   const ud0 = player.mesh.userData, shipK = camScale(ud0); // [Raul] upgrade visuals: bigger hulls / taller rigs pull the camera back to stay framed
-  const tgt = new THREE.Vector3(player.x, player.y + 4 * shipK + 2.2 * ((ud0.frameK || 1) - 1), player.z);
-  camera.position.add(tgt.clone().sub(lastTarget)); lastTarget.copy(tgt);
+  const tgt = _camTgt.set(player.x, player.y + 4 * shipK + 2.2 * ((ud0.frameK || 1) - 1), player.z); // [v330 perf] reused vectors (no per-frame garbage)
+  camera.position.add(_camD.copy(tgt).sub(lastTarget)); lastTarget.copy(tgt);
   if (Math.abs(shipK - camShipK) > 1e-4) { const f = shipK / camShipK; camera.position.sub(tgt).multiplyScalar(f).add(tgt); controls.maxDistance = (camera.aspect < 1 ? 120 : 95) * Math.max(1, shipK); camShipK = shipK; }
   controls.target.copy(tgt);
-  if (game.state === 'title') { const off = camera.position.clone().sub(tgt).applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.06); camera.position.copy(tgt).add(off); }
+  if (game.state === 'title') { const off = _camD.copy(camera.position).sub(tgt).applyAxisAngle(_UP, dt * 0.06); camera.position.copy(tgt).add(off); }
   controls.update();
 
   { const low = game.state === 'title' && PHONE_MQ.matches; // [mobile title] phones: frame the ship lower on screen, under the logo
@@ -1503,11 +1548,22 @@ initHomeBoard(); // [pvp]
 addEventListener('pfp-renamed', () => { if (!$('title').classList.contains('hidden')) renderBoard($('board-title')); }); // [v74] Waves board too
 document.documentElement.classList.add('pfp-booted'); // [v167] BANKSY: "on refresh it shows the OLD home screen then the NEW one": index.html ships the old home markup and the code above reshapes it (ENTER GAME, no STORM HUNT, portal / account bits) after the GLB awaits; css/style.css keeps #title's panel hidden until here
 $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_retry'); } catch {}
-// [perf2] BANKSY "fast to load": while the title screen is up, warm the harbor's code + art (fetch / parse only, nothing runs) so tapping
-// in doesn't wait on the network: the dock / pvp / island modules (modulepreload; art is NOT prefetched: most kits load later, on foot). ?prefetch=0 = off.
+// [perf2] BANKSY "fast to load": while the title screen is up, warm the harbor's code (fetch / parse only, nothing runs) so tapping in
+// doesn't wait on the network. ?prefetch=0 = off.
+// [v330 perf] BANKSY "Optimized load time ... first": the WHOLE harbor module graph (js/preloadList.js, generated from the real imports: was 7
+// entry files whose ~85 dependencies still waterfalled 5 hops deep on SET SAIL), then the harbor's first-build art for THIS device's tier
+// (town / nature kits, storefronts, docks, battery, material library) one file at a time at low priority while the title is still up.
+// Art is skipped on Save-Data / 2G-3G connections and stops the moment you leave the title (the loaders fetch whatever is left).
 if (DOCK_ON && !/[?&]prefetch=0/.test(location.search)) setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => {
-  for (const m of ['dock/index.js', 'pvp.js', 'island/foot.js', 'island/coast.js', 'island/areas/index.js', 'onfoot/walker.js', 'onfoot/followers.js']) {
-    const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = new URL('./' + m, import.meta.url).href; document.head.appendChild(l); }
+  const head = document.head, have = new Set([...document.querySelectorAll('link[rel="modulepreload"]')].map(l => l.href));
+  for (const m of HARBOR_MODULES) { const href = new URL('../' + m, import.meta.url).href; if (have.has(href)) continue;
+    const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; head.appendChild(l); }
+  const net = navigator.connection || {}, slow = net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || '');
+  if (slow || /[?&]warmart=0/.test(location.search)) return;
+  const lo = quality === 'low', sfx2 = lo ? '_low' : '';
+  const art = [`assets/island/town_kit${sfx2}.glb`, `assets/island/nature_kit${sfx2}.glb`, `assets/island/tex/lib${lo ? '_lo' : ''}.ktx2`, `assets/island/docks${sfx2}.glb`, `assets/island/battery${sfx2}.glb`, `assets/island/plaza_shops${sfx2}.glb`];
+  (async () => { for (const u of art) { if (game.state !== 'title' || dock || dockLoading) return;
+    try { const r = await fetch(u, { priority: 'low', credentials: 'same-origin' }); if (r.ok) await r.arrayBuffer(); } catch {} } })();
 }, { timeout: 4000 }), 1500);
 requestAnimationFrame(frame);
 

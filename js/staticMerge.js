@@ -10,12 +10,15 @@ const _inv = new THREE.Matrix4(), _m = new THREE.Matrix4(), _c = new THREE.Vecto
 const sig = (g) => (g.index ? 'i' : 'n') + Object.keys(g.attributes).sort().map(k => { const a = g.attributes[k]; return k + a.itemSize + (a.normalized ? 'N' : '') + a.array.constructor.name; }).join(',');
 
 // meshes: candidate list; host: the Object3D the merged meshes go under; keyOf(mesh) -> extra key part (or null = skip).
-export function mergeInto(host, meshes, keyOf = () => '') {
+// [v330 perf] opts.ignoreGroups: a single-material mesh draws its whole geometry whatever geometry.groups says (Box / Cylinder geometries
+// always carry groups), so those groups can be dropped and the mesh merged. Only callers that opt in (js/opt.js mergeStaticGroup).
+export function mergeInto(host, meshes, keyOf = () => '', opts = {}) {
+  const ig = !!opts.ignoreGroups;
   host.updateMatrixWorld(true); _inv.copy(host.matrixWorld).invert();
   const groups = new Map();
   for (const o of meshes) {
     if (!o.isMesh || o.isSkinnedMesh || o.isInstancedMesh || Array.isArray(o.material) || o.morphTargetInfluences || !o.visible || o.userData.noMerge) continue;
-    const g = o.geometry; if (!g?.attributes?.position || g.groups?.length || g.drawRange.count !== Infinity || g.userData?.tagRanges) continue;
+    const g = o.geometry; if (!g?.attributes?.position || (g.groups?.length && !ig) || g.drawRange.count !== Infinity || g.userData?.tagRanges) continue;
     const extra = keyOf(o); if (extra === null) continue;
     const k = [o.material.uuid, sig(g), o.castShadow, o.receiveShadow, o.renderOrder, o.frustumCulled, o.layers.mask, extra].join('|');
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(o);
@@ -23,7 +26,7 @@ export function mergeInto(host, meshes, keyOf = () => '') {
   let saved = 0;
   for (const list of groups.values()) {
     if (list.length < 2) continue;
-    const geos = list.map(o => { const c = o.geometry.clone(); c.applyMatrix4(_m.multiplyMatrices(_inv, o.matrixWorld)); return c; });
+    const geos = list.map(o => { const c = o.geometry.clone(); if (ig) c.clearGroups(); c.applyMatrix4(_m.multiplyMatrices(_inv, o.matrixWorld)); return c; });
     let geo = null; try { geo = mergeGeometries(geos, false); } catch (e) { geo = null; } geos.forEach(c => c.dispose());
     if (!geo) continue;
     geo.computeBoundingSphere(); geo.computeBoundingBox();

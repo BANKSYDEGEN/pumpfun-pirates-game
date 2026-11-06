@@ -205,8 +205,11 @@ export function fitEquipped(p: Profile, owned: Set<string>, owner: boolean) {
 // Tuned on the real Waves board (scores vs run length) to land near the BR pace (~9.3k gold / hour for a mid player = ~155 / min):
 // 3 min run ~1,000 pts -> 500 (~150/min) · 7 min ~2,800 -> 840 (~127/min) · 11 min ~13,000 -> 1,825 (~166/min)
 // 27 min ~27,000 -> 2,620 (~98/min) · 33 min ~55,000 -> 3,766 (~114/min) · 38 min ~88,000 -> 4,736 (~126/min). sqrt = diminishing returns.
-export const WAVES_GOLD = { k: 16, cap: 6000, dayCap: 30000, minRunS: 20, maxRunH: 6 };
-export const wavesGold = (score: number) => Math.min(WAVES_GOLD.cap, Math.round(WAVES_GOLD.k * Math.sqrt(Math.max(0, score))));
+// [v330] BANKSY t1753u: "not gain the gold had at end of waves but give them 100 per wave": Storm Hunt pays a flat 100 gold per wave
+// reached (was 16 x sqrt(score)); the run's own gold only buys that run's upgrades. wavesProblem still caps the wave count by the
+// SERVER-timed run length (wave <= 2 + elapsed / 15), so minRunS drops 20 -> 5 s and a genuine short wave 1-2 run still pays.
+export const WAVES_GOLD = { perWave: 100, cap: 6000, dayCap: 30000, minRunS: 5, maxRunH: 6 };
+export const wavesGold = (wave: number) => Math.min(WAVES_GOLD.cap, Math.max(0, Math.floor(Number(wave) || 0)) * WAVES_GOLD.perWave);
 // the leaderboard's own limits (schema.sql: score <= 1,000,000, wave <= 500, sunk <= duration / 5) + a score pace no real run
 // reaches (best runs: ~50 points / s), against the SERVER-measured run length
 export function wavesProblem(score: number, wave: number, sunk: number, elapsed: number): string | null {

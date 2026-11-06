@@ -35,14 +35,27 @@ async function loadKit(name, low, renderer) {
 export function texBytes(t) { if (!t) return 0; if (t.isCompressedTexture && t.mipmaps && t.mipmaps.length) return t.mipmaps.reduce((s, m) => s + (m.data ? m.data.byteLength : 0), 0);
   const im = t.image || {}; return Math.round((im.width || 0) * (im.height || 0) * 4 * 1.33); }
 let _kit = null;
-export async function loadTownKit(low, renderer = null) {
+// [v330 perf] one in-flight load per kit: js/dock/index.js starts the downloads before the island module is even imported, and
+// js/dock/world.js awaits the same promise (no second copy). A failed load is forgotten so a later call can retry.
+let _kitP = null, _natP = null;
+export function loadTownKit(low, renderer = null) {
+  if (_kit) return Promise.resolve(_kit);
+  if (!_kitP) { _kitP = loadTownKit0(low, renderer); _kitP.catch(() => { _kitP = null; }); }
+  return _kitP;
+}
+export function loadNatureKit(low, renderer = null) {
+  if (_nat) return Promise.resolve(_nat);
+  if (!_natP) { _natP = loadNatureKit0(low, renderer); _natP.catch(() => { _natP = null; }); }
+  return _natP;
+}
+async function loadTownKit0(low, renderer = null) {
   if (_kit) return _kit;
   const gl = await loadKit('town_kit', low, renderer), url = gl.userData.url; gl.scene.updateMatrixWorld(true);
   const geos = {}, geos1 = {}; let map = null, normalMap = null;
   gl.scene.traverse(o => { if (!o.isMesh) return; const nm = o.name.replace(/_LOD[01]$/, ''), lod = /_LOD1$/.test(o.name) ? 1 : 0;
     if (lod === (low ? 1 : 0)) geos[nm] = toFloat(o.geometry, o.matrixWorld); if (lod === 1) geos1[nm] = geos1[nm] || toFloat(o.geometry, o.matrixWorld);
     map = map || o.material.map; normalMap = normalMap || o.material.normalMap; });
-  if (map) { map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = low ? 2 : 8; }
+  if (map) { map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = low ? 4 : 8; } // [v330 perf] phones 2 -> 4: crisper trim at grazing angles (~free)
   const mat = new THREE.MeshToonMaterial({ map, normalMap: low ? null : normalMap, vertexColors: true, gradientMap: softRamp() });
   if (mat.normalMap) mat.normalScale.set(1, 1);
   mat.onBeforeCompile = (s) => { // A channel of the trim albedo = emissive mask (lit windows, lantern glass)
@@ -83,13 +96,13 @@ function natGeo(src, m, name) {
   return g;
 }
 let _nat = null;
-export async function loadNatureKit(low, renderer = null) {
+async function loadNatureKit0(low, renderer = null) {
   if (_nat) return _nat;
   const gl = await loadKit('nature_kit', low, renderer); gl.scene.updateMatrixWorld(true);
   const geos = {}; let cards = null;
   gl.scene.traverse(o => { if (!o.isMesh) return; const nm = o.name.replace(/_LOD[01]$/, ''), lod = /_LOD1$/.test(o.name) ? 1 : 0;
     geos[nm + '_' + lod] = natGeo(o.geometry, o.matrixWorld, nm); cards = cards || o.material.map; });
-  if (cards) { cards.colorSpace = THREE.SRGBColorSpace; cards.anisotropy = low ? 2 : 8; }
+  if (cards) { cards.colorSpace = THREE.SRGBColorSpace; cards.anisotropy = low ? 4 : 8; } // [v330 perf] phones 2 -> 4
   const tris = Object.fromEntries(Object.entries(geos).map(([k, g]) => [k, (g.index ? g.index.count : g.attributes.position.count) / 3]));
   return (_nat = { geos, cards, low, url: gl.userData.url, ktx2: !!gl.userData.ktx2, texBytes: texBytes(cards), tris, get: (nm, lod) => geos[nm + '_' + lod] || geos[nm + '_1'] || geos[nm + '_0'] });
 }

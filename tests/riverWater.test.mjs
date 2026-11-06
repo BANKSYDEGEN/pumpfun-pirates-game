@@ -24,7 +24,7 @@ test('&riverfx=0 kill switch cleanly preserves fallback', () => {
   assert.match(s, /if \(!RIVER_FX/);
   assert.match(src('js/dock/world.js'), /upgradeRiver/);
   assert.match(src('js/island/main.js'), /riverWater\.js/);
-  assert.match(src('sw.js'), /const VERSION = 'pfp-v330'/);
+  assert.ok(+((src('sw.js').match(/const VERSION = 'pfp-v(\d+)'/) || [])[1]) >= 331, 'sw at or past pfp-v331'); // [v331] numeric
   assert.match(src('sw.js'), /riverWater\.js/);
 });
 

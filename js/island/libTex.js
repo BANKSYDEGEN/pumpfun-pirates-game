@@ -31,7 +31,7 @@ export function initLib(low, renderer) {
   let ktx; try { ktx = sharedKTX2(renderer); } // [perf2] shared with the town kits (townkit.js)
   catch (e) { console.warn('[lib] no KTX2 support, vertex colour only', e); return (_p = Promise.resolve(null)); }
   _p = ktx.loadAsync(new URL('../../' + file, import.meta.url).href).then(t => {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = low ? 2 : 8; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = low ? 4 : 8; /* [v330 perf] phones 2 -> 4: sharper cobbles / planks at distance */ t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
     LIB_U.uLib.value = t; LIB_U.uLibOn.value = 1;
     Object.assign(LIB_STATS, { file, ms: Math.round(performance.now() - t0), format: t.format, gpuBytes: (t.mipmaps || []).reduce((s, m) => s + (m.data ? m.data.byteLength : 0), 0) });
     return t; }).catch(e => { console.warn('[lib] material library failed, vertex colour only', e); return null; });

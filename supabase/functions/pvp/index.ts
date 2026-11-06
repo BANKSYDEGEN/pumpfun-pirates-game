@@ -494,12 +494,12 @@ Deno.serve(async (req) => {
         if ((count ?? 0) >= 30) return json(429, { error: "too many runs this hour" });
         const holder = who.owner || (!!who.wallet && !!(await holderStatus(who.wallet)).holder); // the same 2x as every earned gold
         const gfind = (await boostsOf(who, b)).goldFind || 0; // [Emerly boosts] PET gold find on the Waves payout (the daily cap stays on base gold)
-        const base = wavesGold(score), gold = Math.round((holder ? base * 2 : base) * (1 + gfind));
+        const base = wavesGold(wave) /* [v330] t1753u: 100 gold per wave */, gold = Math.round((holder ? base * 2 : base) * (1 + gfind));
         const { data, error } = await db.rpc("pvp_waves_claim", { p_player: who.pid, p_run: run, p_score: score, p_wave: wave, p_sunk: sunk, p_elapsed: elapsed, p_base: base, p_gold: gold, p_holder: holder, p_day_cap: WAVES_GOLD.dayCap });
         if (error) throw error;
         if (!data?.ok) return json(409, { error: data?.why || "no payout" });
         if (!who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0); // [v106] the device adds it to its own save too
-        return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score, goldFind: gfind });
+        return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score, wave, perWave: WAVES_GOLD.perWave, goldFind: gfind });
       }
       // [security H1] WAVES LEADERBOARD ROW through the server (the anon key can no longer insert into `scores`, migration 030).
       // The run must be one waves_start noted for this pirate; the score is checked against the SERVER-timed run length (the same

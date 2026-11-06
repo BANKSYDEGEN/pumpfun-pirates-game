@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v330'; // [v330] clean AAA river + lagoon + waterfall plunge + seamless outflow & graded fishing/zipline paths (BANKSY t402u); // [v329] house_take source CHECK + non-stacking cottage weapons (t1742-3u) + Raul V6 AAA character polish; prev: [v328] HB east landing + Harbor co-op squads 16 / zero FF + ship respawn;
+const VERSION = 'pfp-v331'; // [v331] Emerly load time + graphics + speed pass (t1746u / t1751u: full modulepreload graph, harbor warm-up, parallel island art, zipline merge, phone anisotropy 4) + Storm Hunt fixes (t1752u-t1754u: starts from the Harbor, 100 gold / wave, RETURN TO HARBOR, old open sea); prev: [v330] clean AAA river + lagoon + waterfall plunge + seamless outflow & graded fishing/zipline paths (BANKSY t402u); [v329] house_take source CHECK + non-stacking cottage weapons (t1742-3u) + Raul V6 AAA character polish; prev: [v328] HB east landing + Harbor co-op squads 16 / zero FF + ship respawn;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -11,6 +11,7 @@ const SHELL = [
   "./css/islandShop.css",
   "./css/account.css",
   "./js/main.js",
+  "./js/preloadList.js", // [v330 perf] generated harbor module list (main.js imports it)
   "./js/island/coast.js", // [Emerly] main.js + pvp.js import the coast flag (pure data)
   // [v100] ships v2 kit, v4 pirates, the coast harbor town, docking + on foot
   "./js/captainSlot.js",
@@ -379,7 +380,8 @@ self.addEventListener('activate', (e) => {
     // [mobile-perf] phones only precache the light (_lo / _low) art they actually use (the hi copies were ~2/3 of the 32 MB)
     const phone = new URL(self.location.href).searchParams.get('m') === '1' || /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || ''), heavy = (u) => /_hi\.glb$/.test(u) || (/\/island\/[a-z_]+(\.webp)?\.glb$/.test(u) && !/_low/.test(u)) || /\/kit\/[a-z_]+(?<!_lo)\.(glb|jpg)$/.test(u);
     const LP = new URL(self.location.href).searchParams.get('lp') !== '0'; // [v276 load-perf]
-    (async () => { if (LP) await new Promise(r => setTimeout(r, 45000)); for (const u of ASSETS) { if (phone && heavy(u)) continue; if (!(await c.match(u))) await c.add(u).catch(() => {}); } })(); // [v100] background, best effort, one at a time
+    (async () => { if (LP) await new Promise(r => setTimeout(r, 45000)); const net = self.navigator?.connection || {}; if (phone && (net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || ''))) return; // [v330 perf] no 33 MB art fill on Save-Data / slow phone links (the fetch handler still caches what you play)
+      for (const u of ASSETS) { if (phone && heavy(u)) continue; if (await c.match(u)) continue; try { const r = await fetch(u, { priority: 'low', cache: 'no-cache' }); if (r.ok) await c.put(u, r); } catch {} } })(); // [v100] background, best effort, one at a time // [v330 perf] low fetch priority: never outruns the game's own downloads
   })());
 });
 

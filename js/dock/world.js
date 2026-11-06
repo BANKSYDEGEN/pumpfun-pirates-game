@@ -31,17 +31,27 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   const foot0 = layout.footToHarbor(0, 0), footX = layout.footToHarbor(1, 0);
   const yaw = Math.atan2(-(footX[1] - foot0[1]), footX[0] - foot0[0]); // rotation.y that maps local +x onto the frame's +x
   const footGroup = new THREE.Group(); footGroup.position.set(foot0[0], 0, foot0[1]); footGroup.rotation.y = yaw; root.add(footGroup); footGroup.updateMatrixWorld(true);
-  const skull = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'assets/skull_transparent.png'; });
-  await document.fonts?.load('40px "Just Another Hand"').catch(() => {});
+  // [v330 perf] BANKSY "optimized load time": the skull image, brand font, town kit, nature kit and the plaza storefronts (+ docks, battery,
+  // material library) used to download one after another (5 serial awaits). They don't depend on each other, so they all start NOW and are
+  // awaited in the same order as before (same results, same failure fallbacks: only the downloads overlap). &parworld=0 = the old serial chain.
+  const PAR = !(typeof location !== 'undefined' && /[?&]parworld=0(&|$)/.test(location.search));
+  const NAT_ON = new URLSearchParams(location.search).get('nature') !== '0';
+  const skullP = new Promise(res => { const i = new Image(); i.decoding = 'async'; i.onload = () => res(i); i.onerror = () => res(null); i.src = 'assets/skull_transparent.png'; });
+  const fontP = Promise.resolve(document.fonts?.load('40px "Just Another Hand"')).catch(() => {});
+  const kitP = PAR ? loadTownKit(LOW, renderer).catch(e => { console.warn('[onfoot] town kit failed', e); return null; }) : null;
+  const natP = PAR && NAT_ON ? loadNatureKit(LOW, renderer).catch(e => { console.warn('[onfoot] nature kit failed', e); return null; }) : null;
+  const shopsP = PAR ? Promise.resolve(FM.PV?.plazaShopsReady?.(LOW, renderer)).catch(() => null) : null;
+  const skull = await skullP;
+  await fontP;
   const atlas = makeAtlas(skull);
   const MATS = { toon: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW }), sway: islandSurface(toon(0xffffff, null, { vertexColors: true }), { low: LOW, uTime, sway: true }),
     glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), atlas: toon(0xffffff, atlas.tex, { side: THREE.DoubleSide }) };
   for (const m of [MATS.toon, MATS.sway]) nanSafe(m);
   const OUT = { plain: outlineMaterial(0.09), sway: outlineMaterial(0.09, uTime) };
-  const KIT = await loadTownKit(LOW, renderer).catch(e => { console.warn('[onfoot] town kit failed', e); return null; });
+  const KIT = PAR ? await kitP : await loadTownKit(LOW, renderer).catch(e => { console.warn('[onfoot] town kit failed', e); return null; });
   // [release] Raul's island art M2: the Blender nature kit (palms, jungle trees, ferns, rocks, cliffs, Skull Peak); ?nature=0 = procedural
-  const NAT = KIT && new URLSearchParams(location.search).get('nature') !== '0' ? await loadNatureKit(LOW, renderer).catch(e => { console.warn('[onfoot] nature kit failed', e); return null; }) : null;
-  await FM.PV?.plazaShopsReady?.(LOW, renderer); // [Timothy] (+ the material library) Blender storefront models (plaza v2) before the plaza is built; resolves null on failure
+  const NAT = KIT && NAT_ON ? await (PAR ? natP : loadNatureKit(LOW, renderer).catch(e => { console.warn('[onfoot] nature kit failed', e); return null; })) : null;
+  await (PAR ? shopsP : FM.PV?.plazaShopsReady?.(LOW, renderer)); // [Timothy] (+ the material library) Blender storefront models (plaza v2) before the plaza is built; resolves null on failure
   const foot = FM.createFoot({ scene: footGroup, isle: null, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT, decorHulls: false }); // live berths: no toy hulls parked in them
   upgradeRiver(foot.root, { FM, low: LOW, uTime, ocean: ocean.uniforms }); // [clean-water] depth-coloured river + lagoon + waterfall plunge (&riverfx=0 = old)
   if (layout.shopInteract) for (const q of layout.shopInteract()) if (!layout.interact.some(o => o.id === q.id)) layout.interact.push(q);
