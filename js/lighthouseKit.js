@@ -129,11 +129,43 @@ export function lighthouseLight(o = {}) {
 }
 // per frame; works on clones (finds parts by name, no closures). cam = camera world position.
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+const HIT_MS = 6000, HIT_SPIN = 9.2; // [lh-hit] overloaded lantern reaction
+const _hitGold = new THREE.Color(0xffdd55), _hitFire = new THREE.Color(0xff4411), _hitMix = new THREE.Color();
+function ensureHitMats(g) { // clone shared lens/beam mats so one hit doesn't recolor every lighthouse
+  const lens = g.getObjectByName('lh_lens'), beam = g.getObjectByName('lh_beam');
+  if (lens && !lens.userData.hitMat) { lens.userData.baseColor = lens.material.color.clone(); lens.material = lens.material.clone(); lens.userData.hitMat = true; }
+  if (beam && !beam.userData.hitMat) { beam.material = beam.material.clone(); beam.userData.hitMat = true; }
+}
+/** Fire the ~6 s lantern/beam overload on a lighthouse root (or its lh_light child). */
+export function triggerLighthouseHit(root, nowMs = performance.now()) {
+  if (!root) return false;
+  const g = root.name === 'lh_light' ? root : root.getObjectByName('lh_light'); if (!g) return false;
+  const host = root.name === 'lh_light' ? root.parent || root : root;
+  ensureHitMats(g);
+  host.userData.hitUntil = nowMs + HIT_MS;
+  host.userData.hitAt = nowMs;
+  return true;
+}
 export function tickLighthouse(root, t, cam, storm = 0) {
   const g = root && (root.name === 'lh_light' ? root : root.getObjectByName('lh_light')); if (!g) return;
-  const rot = g.children[0], halo = g.getObjectByName('lh_halo'), a = t * SPIN + (root.userData.phase || 0); rot.rotation.y = a;
+  const host = root.name === 'lh_light' ? (root.parent || root) : root;
+  const now = performance.now(), hitLeft = Math.max(0, (host.userData.hitUntil || 0) - now), hit = hitLeft > 0;
+  const spin = hit ? HIT_SPIN : SPIN;
+  const rot = g.children[0], halo = g.getObjectByName('lh_halo'), a = t * spin + (host.userData.phase || root.userData.phase || 0); rot.rotation.y = a;
   g.getWorldPosition(_v); g.getWorldQuaternion(_q); _e.setFromQuaternion(_q, 'YXZ');
   const bear = Math.atan2(-(cam.z - _v.z), cam.x - _v.x), face = Math.pow(Math.abs(Math.cos(a + _e.y - bear)), 30);
-  if (halo) halo.scale.setScalar(halo.userData.hs * (1 + 1.3 * face));
-  _beamMat && (_beamMat.uniforms.uOp.value = 0.24 + 0.1 * storm);
+  const pulse = hit ? 0.55 + 0.45 * Math.sin(now * 0.028) : 0;
+  if (halo) halo.scale.setScalar(halo.userData.hs * (1 + 1.3 * face) * (hit ? 1.55 + pulse * 0.9 : 1));
+  const lens = g.getObjectByName('lh_lens'), beam = g.getObjectByName('lh_beam');
+  if (hit) {
+    _hitMix.copy(_hitGold).lerp(_hitFire, 0.35 + 0.65 * pulse);
+    if (lens?.material?.color) lens.material.color.copy(_hitMix).multiplyScalar(1.6 + pulse);
+    if (beam?.material?.uniforms?.uCol) { beam.material.uniforms.uCol.value.copy(_hitMix); beam.material.uniforms.uOp.value = 0.55 + 0.35 * pulse; }
+  } else {
+    if (lens?.userData.hitMat && lens.userData.baseColor) lens.material.color.copy(lens.userData.baseColor);
+    if (beam?.userData.hitMat && beam.material?.uniforms) {
+      beam.material.uniforms.uCol.value.set(1.0, 0.86, 0.58);
+      beam.material.uniforms.uOp.value = 0.24 + 0.1 * storm;
+    } else if (_beamMat) _beamMat.uniforms.uOp.value = 0.24 + 0.1 * storm;
+  }
 }
