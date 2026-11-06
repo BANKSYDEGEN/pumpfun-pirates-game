@@ -211,8 +211,8 @@ test('t1840u phone portrait + short landscape media rules keep act bar + scrolli
   assert.match(ui, /max-height:calc\(100dvh - 16px - env\(safe-area-inset-top/);
   assert.match(ui, /@media \(max-width:640px\)/);
   assert.match(ui, /@media \(max-height:520px\)/);
-  assert.match(ui, /max-height:520px[\s\S]*grid-template-columns:repeat\(8/);
-  assert.match(ui, /max-height:520px[\s\S]*max-height:44dvh/);
+  assert.match(ui, /max-height:520px[\s\S]*grid-template-columns:repeat\(10/); // [v351] more cols on short landscape
+  assert.match(ui, /max-height:520px[\s\S]*max-height:38dvh/); // [v351] more room for unscrunched slot rows
   assert.match(ui, /max-height:520px[\s\S]*min-height:32px/);
   assert.match(ui, /max-width:640px[\s\S]*grid-template-columns:repeat\(4/);
   assert.match(ui, /max-width:640px[\s\S]*min-height:36px/);

@@ -52,12 +52,12 @@ const CSS = `
 #inv-panel .iv-tabs{flex:none;display:flex;gap:6px;padding:0 14px 6px}
 #inv-panel .iv-tabs button{font:20px 'Just Another Hand',cursive;padding:4px 12px 2px;border-radius:10px;border:2px solid rgba(255,205,119,.4);background:#1a0f07;color:#f4e2bb;cursor:pointer}
 #inv-panel .iv-tabs button.on{border-color:#ffcd77;background:#5a3410;color:#fff}
-#inv-panel .iv-grid{flex:1 1 0;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;padding:8px 14px 12px;align-content:start}
+#inv-panel .iv-grid{flex:1 1 0;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:76px;gap:8px;padding:8px 14px 12px;align-content:start}
 
 #inv-panel .iv-slot.iv-leg{box-shadow:0 0 0 2px #ffd24a,0 0 14px rgba(255,205,60,.65),inset 0 0 18px rgba(255,200,80,.18);border-color:#ffd24a!important}
 #inv-panel .iv-slot .iv-accpip{position:absolute;left:4px;bottom:4px;font:bold 11px system-ui,sans-serif;color:#ffcd77;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;letter-spacing:.02em}
 #inv-panel .iv-acc i img{width:100%;height:100%;object-fit:contain}
-#inv-panel .iv-slot{position:relative;aspect-ratio:1;min-height:48px;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
+#inv-panel .iv-slot{position:relative;width:100%;height:100%;min-height:0;aspect-ratio:auto;box-sizing:border-box;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px;overflow:hidden}
 #inv-panel .iv-slot.sel{outline:3px solid #fff;outline-offset:1px}
 #inv-panel .iv-slot.iv-open{border-style:dashed;border-color:#4a3420;background:rgba(36,22,10,.55)}#inv-panel .iv-slot.iv-from{opacity:.35}#inv-panel .iv-slot.iv-over{outline:3px dashed #ffcd3c;outline-offset:1px}#inv-panel.iv-moving .iv-slot{cursor:copy}#inv-panel .iv-slot u{position:absolute;left:5px;top:2px;font:bold 11px system-ui,sans-serif;text-decoration:none;color:rgba(232,211,166,.55)}
 .iv-menu{position:fixed;z-index:99999;min-width:150px;background:#24160a;border:2px solid #d9a441;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.6)}.iv-menu .iv-mt{font-size:13px;color:#ffcd3c;padding:2px 4px 4px}.iv-menu button{background:#3d2a1c;color:#fff1d2;border:1px solid #6b4a24;border-radius:7px;padding:7px 10px;text-align:left;font:inherit;cursor:pointer}.iv-menu button:disabled{opacity:.45}
@@ -68,7 +68,7 @@ const CSS = `
 #inv-panel .iv-slot b{position:absolute;right:4px;bottom:2px;font:bold 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #inv-panel .iv-slot em{position:absolute;left:4px;top:2px;font:bold 12px system-ui,sans-serif;font-style:normal;color:#ffcd3c}
 #inv-panel .iv-eq{position:absolute;top:2px;left:4px;font-style:normal;font-size:14px;color:#1b1206;background:#7be37b;border-radius:8px;padding:0 4px;z-index:1}
-#inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:84px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-slot i.iv-rk{position:absolute;right:4px;top:3px;width:auto;aspect-ratio:auto;display:block;font:bold 10px/1.3 system-ui,sans-serif;font-style:normal;color:#1b1206;border-radius:6px;padding:0 4px}
+#inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:84px;height:84px;min-height:84px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-slot i.iv-rk{position:absolute;right:4px;top:3px;width:auto;aspect-ratio:auto;display:block;font:bold 10px/1.3 system-ui,sans-serif;font-style:normal;color:#1b1206;border-radius:6px;padding:0 4px}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
 #inv-panel .iv-act{flex:none;max-height:min(36dvh,36vh,220px);overflow-y:auto;border-top:2px solid rgba(255,205,119,.35);padding:7px 14px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:21px;min-height:0}
 #inv-panel .iv-act .t{flex:1 1 100%;font-size:20px}
@@ -82,7 +82,7 @@ html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act butto
 #inv-panel .iv-slot:focus-visible,#inv-panel .iv-act button:focus-visible,#inv-panel .iv-tabs button:focus-visible{
   outline:3px solid #ffcd77 !important;outline-offset:2px !important;box-shadow:0 0 0 5px rgba(22,22,22,.75),0 0 16px 3px rgba(255,205,119,.7) !important;z-index:2}
 #inv-panel .iv-slot{outline:none}#inv-panel .iv-act button,#inv-panel .iv-tabs button{outline:none}
-@media (min-width:900px){#inv-panel .iv-grid{grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media (min-width:900px){#inv-panel .iv-grid{grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-rows:84px}}
 /* [v350 t1840u] phone portrait */
 @media (max-width:640px){
   #inv-panel .iv-box{width:min(100vw - 12px,96vw);border-radius:14px}
@@ -91,8 +91,8 @@ html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act butto
   #inv-panel .iv-x{width:40px;height:40px}
   #inv-panel .iv-tabs{padding:0 10px 4px;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   #inv-panel .iv-tabs button{font-size:18px;padding:3px 10px 1px;flex:none}
-  #inv-panel .iv-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px 10px 8px}
-  #inv-panel .iv-slot{min-height:56px;border-width:2px}
+  #inv-panel .iv-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:78px;gap:6px;padding:6px 10px 8px}
+  #inv-panel .iv-slot{border-width:2px}
   #inv-panel .iv-slot i{font-size:26px}
   #inv-panel .iv-slot span{font-size:11px}
   #inv-panel .iv-act{max-height:min(38dvh,38vh,240px);padding:6px 10px 8px;gap:5px}
@@ -109,11 +109,19 @@ html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act butto
   #inv-panel .iv-x{width:36px;height:36px;font-size:18px}
   #inv-panel .iv-tabs{padding:0 10px 2px;margin-bottom:0;gap:4px;overflow-x:auto}
   #inv-panel .iv-tabs button{font-size:16px;padding:2px 9px 0;flex:none}
-  #inv-panel .iv-grid{flex:1 1 0;min-height:76px;overflow-y:auto;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;padding:4px 10px 6px}
-  #inv-panel .iv-slot{min-height:0;border-width:2px;border-radius:8px;padding:1px}
-  #inv-panel .iv-slot i{font-size:20px;width:55%}
-  #inv-panel .iv-slot span{font-size:10px;min-height:1.4em;-webkit-line-clamp:1}
-  #inv-panel .iv-act{flex:none;max-height:44dvh;overflow-y:auto;padding:6px 10px 8px;gap:5px}
+  #inv-panel .iv-eqs{gap:4px;padding:0 0 4px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #inv-panel .iv-eqs>small{font-size:13px;padding:0;margin:0;line-height:1.1;flex:0 0 auto;white-space:nowrap}
+  #inv-panel .iv-eqs .iv-slot{width:48px;height:48px;min-height:48px}
+  #inv-panel .iv-eqs .iv-acc{width:40px;height:40px;min-height:40px}
+  #inv-panel .iv-eqs .iv-acc i{font-size:16px}
+  #inv-panel .iv-eqs .iv-slot u{font-size:8px}
+  #inv-panel .iv-eqs .iv-slot span{font-size:9px;-webkit-line-clamp:1;min-height:0}
+  #inv-panel .iv-accs{gap:4px;padding-left:4px}
+  #inv-panel .iv-grid{flex:1 1 0;min-height:96px;overflow-y:auto;grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:52px;gap:4px;padding:4px 10px 6px}
+  #inv-panel .iv-slot{border-width:2px;border-radius:8px;padding:1px}
+  #inv-panel .iv-slot i{font-size:18px;width:50%}
+  #inv-panel .iv-slot span{font-size:9px;min-height:1.1em;-webkit-line-clamp:1}
+  #inv-panel .iv-act{flex:none;max-height:38dvh;overflow-y:auto;padding:4px 10px 6px;gap:4px}
   #inv-panel .iv-act .t{font-size:16px}
   #inv-panel .iv-act button{min-height:32px;padding:2px 9px 0;font-size:16px;border-radius:9px}
   #inv-panel .iv-act small.iv-note{font-size:12px}
