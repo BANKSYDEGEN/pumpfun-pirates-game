@@ -32,6 +32,7 @@ import { COAST_ON, fromHarbor as coastFromHarbor, w2t as coastW2t, inPoly as coa
 const COAST_TURN_X = 140; // [Emerly] bots turn back east of this (berths at x 201.5, no-fire zone from x 120)
 import { SAIL_ALL, SAIL, clampSail, inSailSea, islandSpawnRing } from './dock/canoe.js'; // [Emerly sail-around]
 import { PVP_DEATH_BONUS, PVP_BR_DEATH_LOSS, PVP_AI_GOLD, PVP_PILE_LIFE, PVP_RESPAWN, PVP_PROTECT, PVP_AI_SHIPS, PVP_ARENA_R, PVP_MAX_CARRY, PVP_AFK, PVP_OFFER } from './config.js';
+import { noteServerGold } from './pvpSave.js'; // [v342] casino: the server already moved the gold
 import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, signOut, kd, cleanProfile, blankProfile, claimKill, holderStatus, holderClaim, saveAirdrop, confirmAirdrop, nameToast, pvpTicket, fetchMe, clearKillsTopCache, checkName, ownerAllSkins } from './pvpSave.js';
 import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
@@ -360,6 +361,13 @@ export function createPvp(K) {
   });
   addEventListener('pfp-save-now', () => { if (active) save({ now: true, force: true }); }); // [v106] right before LOG OUT: the latest gold lands on the account
   function save(opts = {}) { if (!active && !opts.force) return; profile = snapshot(); saveProfile(profile, opts).then(r => { if (r && r.ok === false && r.status === 401) { wallet = ''; renderMenu(); } }); }
+  // [v342] BANKSY t1810u/t1811u casino gold: flush this device's save to the server BEFORE a wager (gold earned at sea is there first) ...
+  function flushNow() { if (!profile) return Promise.resolve(null); profile = snapshot(); return saveProfile(profile, { now: true }).catch(() => null); }
+  // ... and take the server's balance after it (casino_play moved it there): every sync path re-bases, nothing is debited / credited twice
+  function serverGold(g, { rev = null, owner = false } = {}) {
+    const v = noteServerGold(g, { rev, owner }); game.gold = v;
+    if (profile && rev != null && !owner) profile.rev = Math.max(0, rev | 0);
+    save({ now: true, force: true }); try { K.updateHud(); } catch {} return v; }
 
   // ---------------- rooms ----------------
   // ---------------- lobby (arena seat / queue), harbor <-> arena ----------------
@@ -1960,7 +1968,7 @@ export function createPvp(K) {
     const lab = document.querySelectorAll('#hud-top .label'); if (lab.length >= 3) { lab[0].textContent = 'SCORE'; lab[1].textContent = 'WAVE'; lab[2].textContent = 'SUNK'; }
   }
 
-  const api = { emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
+  const api = { flushNow, serverGold, emote, myId, rankTxt, refreshRank, showRank, prepare, applyProfile, begin, leave, update, updateRemote, botTarget, botSteer, ballStep, batteryStep, onFire, onLocalFire, onLocalSunk, onBotSunk, lootStep, hud, skinObj,
     get active() { return active; }, get isHost() { return isHost; }, get hostId() { return hostId; }, get room() { return room; }, get roomIdx() { return roomIdx; }, spectate, get specHarbor() { return !!(spec.on && spec.harbor); }, get spectating() { return spec.on; }, get spec() { return spec; }, specFollow, specCycle, setBoard, setHudOff, get lastClaim() { return lastClaim; },
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,

@@ -157,6 +157,17 @@ export function createLocalCasino({ purse = 1000, rng = cryptoInt } = {}) {
   return { play: (req) => Promise.resolve(play(req)), playSync: play, get gold() { return gold; }, set gold(v) { gold = Math.max(0, Math.floor(v)); } };
 }
 
+// [v342] save this device first (Promise.race: never wait more than 2.5 s for it)
+export async function flushSave(pvp) { try { const p = pvp?.(); const f = p?.flushNow ? p.flushNow() : p?.save?.({ now: true, force: true }); await Promise.race([Promise.resolve(f), new Promise(r => setTimeout(r, 2500))]); } catch {} }
+// [v342] no balance in the reply (old server): the local change. A blackjack follow-up (hit / stand / double) reports delta = payout - the WHOLE
+// bet, but the deal already took the first bet here, so only the rest moves (the double's extra stake, the payout).
+export function localChange(game, action, raw, res) {
+  const delta = Number(res?.delta) || 0;
+  if (game !== 'blackjack' || !action || action === 'deal') return delta;
+  const pv = raw?.payout ?? res?.detail?.payout; if (pv == null || !Number.isFinite(Number(pv))) return delta;   // no payout to split by: the reply's delta as-is
+  const payout = Number(pv), full = payout - delta, first = action === 'double' ? full / 2 : full;
+  return Math.round(delta + first);
+}
 // ---- the client: the server casino when it is there, else the practice table (sticky for the session) ----
 export function createCasinoClient({ pvp = () => null, getGold = () => 0, setGold = () => {}, qa = false, purse } = {}) {
   let practice = null, why = qa ? 'qa' : null;
@@ -165,9 +176,16 @@ export function createCasinoClient({ pvp = () => null, getGold = () => 0, setGol
   async function play(game, { bet, choice, action, stateId } = {}) {
     const req = { game, bet: Math.floor(Number(bet) || 0), choice: choice ?? null, action: action || null, stateId: stateId || null, reqId: newReqId() };
     if (live()) {
-      let raw = null; try { raw = await pvp().inv.call('casino_play', req); } catch (e) { raw = null; }
+      const wager = game !== 'blackjack' || !action || action === 'deal' || action === 'double';
+      if (wager) await flushSave(pvp);   // [v342] gold earned at sea / in the harbor reaches the server BEFORE it debits the bet
+      const send = async () => { try { return await pvp().inv.call('casino_play', req); } catch (e) { return null; } };
+      let raw = await send();
+      if (raw && raw.ok === false && /no save yet/i.test(String(raw.error || raw.why || ''))) { await flushSave(pvp); req.reqId = newReqId(); raw = await send(); }   // [v342] first wager on a new device: save, then retry once
       if (!unavailable(raw)) { const res = readResult(raw, game);
-        if (res.ok) { if (typeof res.gold === 'number') setGold(res.gold); else if (typeof res.delta === 'number' && res.delta && !raw?.gold_landed) setGold((Number(getGold()) || 0) + res.delta); }   // pvp.inv.call already landed a nonzero gold_landed
+        if (res.ok) {
+          // [v342] BANKSY t1810u/t1811u: the server's balance IS the balance (it already debited / credited it): re-base every save path on it
+          if (typeof res.gold === 'number') setGold(res.gold, { fromServer: true, rev: raw?.rev ?? null, owner: !!raw?.owner });
+          else if (typeof res.delta === 'number' && !raw?.gold_landed) { const ch = localChange(game, action, raw, res); if (ch) setGold((Number(getGold()) || 0) + ch); } }   // pvp.inv.call already landed a nonzero gold_landed
         res.mode = 'live'; return res; }
       if (game === 'blackjack' && action && action !== 'deal') { const res = readResult({ ok: false, error: 'the dealer lost the hand: deal again' }, game); res.mode = 'live'; return res; }
       why = 'offline';

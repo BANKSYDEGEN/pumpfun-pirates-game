@@ -1512,7 +1512,9 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   }
   // gameplay hooks (world coords): solid props, water / slope / bridge rules, interact points
   function bridgeAt(x, z) { const B = BRIDGE; if (!B.L) return null; const dx = x - B.ax, dz = z - B.az, along = dx * Math.sin(B.yaw) + dz * Math.cos(B.yaw), across = dx * Math.cos(B.yaw) - dz * Math.sin(B.yaw);
-    if (along < -1 || along > B.L + 1 || Math.abs(across) > B.half + 0.6) return null; return { y: B.deckY - Math.sin(Math.min(1, Math.max(0, along / B.L)) * Math.PI) * B.sag, inside: Math.abs(across) <= B.half }; }
+    if (along < -1 || along > B.L + 1 || Math.abs(across) > B.half + 0.6) return null; const y = B.deckY - Math.sin(Math.min(1, Math.max(0, along / B.L)) * Math.PI) * B.sag;
+    if (LAYER !== null && LAYER < y - 2) return null; // [v342] BANKSY t1815u: swimming the river UNDER D3's rope bridge (deck ~20 m up) - the deck + its rails are only the floor for whoever is up on it (like highBridgeAt)
+    return { y, inside: Math.abs(across) <= B.half }; }
   // [Raul] dig mounds are walked ON (the beach one outside the plaza sank your feet 0.7 m into it): the mound's dome (r 1.9, 0.855 tall at d.y - 0.1, shrinks as it's dug)
   function moundAt(x, z, h) { for (const d of digs) { if (!d.mound.visible) continue; const s = d.mound.scale.x, r = Math.hypot(x - d.x, z - d.z) / (1.9 * s); if (r < 1) h = Math.max(h, d.y - 0.1 + 0.855 * s * Math.sqrt(1 - r * r)); } return h; }
   function groundAt(x, z) { const hb = highBridgeAt(x, z); if (hb) return hb.y + 0.12; const b = bridgeAt(x, z); if (b) return b.y + 0.12; const ad = AREA_DECKS.length ? areaDeckAt(x, z) : null; if (ad !== null) return ad; // [island-rework] area decks (docks, stairs, ramps, ramparts) ARE the floor

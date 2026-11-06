@@ -280,19 +280,33 @@ export async function linkWallet(serverProfile, deviceProfile) {
 // one (delta) + its upgrade levels; the server adds the delta to the shared pot and keeps the max of each upgrade. Gold or
 // upgrades from the other device come back as 'pfp-group-sync' { drift, levels } (pvp.js applies them live). Serialized.
 let group = null, gPending = null, gTimer = 0, gChain = Promise.resolve();
+let gEpoch = 0; // [v342] bumped when the SERVER set the gold itself (casino_play): an in-flight group_sync reply must not undo it
+// [v342] BANKSY t1810u/t1811u: the casino already moved the gold on the server (owner pot / device / wallet row). Re-base every
+// sync path on that balance so the next save sends delta 0 (owner group_sync) and the matching shop rev (dev_sync / wallet save):
+// never a second debit, a second credit or a 422 / 409.
+export function noteServerGold(gold, { rev = null, owner = false } = {}) {
+  const g = Math.max(0, Math.min(1e7, Math.floor(Number(gold) || 0)));
+  if (group) { gEpoch++; group.base = g; if (gPending) gPending.gold = g; }
+  if (rev != null && Number.isFinite(+rev) && !owner) shop.rev = Math.max(0, rev | 0);
+  shopGold = g;
+  try { const d = readDevice(); writeDevice(cleanProfile({ ...d, gold: g, ...(rev != null && !owner ? { rev: Math.max(0, rev | 0) } : {}) })); } catch {}
+  return g;
+}
+export const groupActive = () => !!group; // [v342] tests / casino
 function groupFlush(keepalive = false) {
   gTimer = 0;
   return (gChain = gChain.then(async () => {
     const body = gPending; gPending = null; if (!body || !group) return { ok: true };
-    const delta = body.gold - group.base; group.base += delta;
+    const delta = body.gold - group.base; group.base += delta; const ep = gEpoch;
     try { const j = await api('group_sync', { dk: deviceKey(), profile: body, delta }, { keepalive }); if (!group) return { ok: true };
+      if (ep !== gEpoch) return { ok: true, group: true, gold: group.base }; // [v342] the casino re-based the pot meanwhile: its balance wins
       const drift = (j.gold | 0) - group.base; group.base = j.gold | 0; if (gPending) gPending.gold = Math.max(0, gPending.gold + drift);
       const up = Object.keys(body.levels).some(k => (j.levels?.[k] | 0) > (body.levels[k] | 0));
       if (drift || up) { const d = readDevice(); writeDevice(cleanProfile({ ...d, gold: Math.max(0, d.gold + drift), levels: up ? { ...d.levels, ...Object.fromEntries(Object.keys(d.levels).map(k => [k, Math.max(d.levels[k] | 0, j.levels?.[k] | 0)])) } : d.levels }));
         try { dispatchEvent(new CustomEvent('pfp-group-sync', { detail: { drift, levels: up ? j.levels : null } })); } catch {} }
       return { ok: true, group: true, gold: j.gold };
     } catch (e) { if (e.status === 404) { group = null; return { ok: false, error: e.message }; }
-      group.base -= delta; if (!gPending) gPending = body; if (!gTimer) gTimer = setTimeout(groupFlush, 5000); /* retried (422: the allowance grows) */ return { ok: false, error: e.message, status: e.status === 401 ? 0 : e.status }; }
+      if (ep === gEpoch) { group.base -= delta; if (!gPending) gPending = body; } /* [v342] a casino re-base meanwhile: the stale body is dropped */ if (!gTimer) gTimer = setTimeout(groupFlush, 5000); /* retried (422: the allowance grows) */ return { ok: false, error: e.message, status: e.status === 401 ? 0 : e.status }; }
   }));
 }
 // Save: device immediately; wallet (if linked) throttled ~3 s, or right away with now / keepalive (page closing).

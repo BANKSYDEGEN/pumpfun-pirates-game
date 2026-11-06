@@ -116,6 +116,9 @@ async function credit(db: any, pid: string, payout: number, game: string, note?:
   return data;
 }
 
+// [v342] every reply carries the shop rev + the owner flag so the client re-bases its save (no second debit, no 409 / 422)
+const meta = (who: any, deb: any, cred: any) => ({ rev: cred?.rev ?? deb?.rev ?? null, owner: !!(who?.owner || deb?.owner || cred?.owner) });
+
 function newReq() {
   const a = new Uint8Array(16); crypto.getRandomValues(a);
   return [...a].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -171,7 +174,7 @@ async function playRoulette(c: Ctx, who: any, b: Record<string, unknown>) {
   const gold = cred?.gold ?? deb.gold;
   const delta = payout - bet;
   return c.json(200, {
-    ok: true, game: "roulette", gold, delta, payout, outcome: payout > 0 ? "win" : "lose",
+    ok: true, game: "roulette", ...meta(who, deb, cred), gold, delta, payout, outcome: payout > 0 ? "win" : "lose",
     detail: { number: n, color: n === 0 ? "green" : RED.has(n) ? "red" : "black", bets: detail },
     state: null,
   });
@@ -197,7 +200,7 @@ async function playDice(c: Ctx, who: any, b: Record<string, unknown>) {
   const cred = await credit(c.db, who.pid, payout, "dice", `${d1}+${d2}`);
   if (!who.wallet && !who.owner && !cred?.owner && payout > 0) await c.acctBump?.(c.db, who.raw, payout);
   return c.json(200, {
-    ok: true, game: "dice", gold: cred?.gold ?? deb.gold, delta: payout - bet, payout,
+    ok: true, game: "dice", ...meta(who, deb, cred), gold: cred?.gold ?? deb.gold, delta: payout - bet, payout,
     outcome: win ? "win" : "lose",
     detail: { dice: [d1, d2], d1, d2, sum, choice, mult },
     state: null,
@@ -224,7 +227,7 @@ async function playSlots(c: Ctx, who: any, b: Record<string, unknown>) {
   const cred = await credit(c.db, who.pid, payout, "slots", reels.join(","));
   if (!who.wallet && !who.owner && !cred?.owner && payout > 0) await c.acctBump?.(c.db, who.raw, payout);
   return c.json(200, {
-    ok: true, game: "slots", gold: cred?.gold ?? deb.gold, delta: payout - bet, payout,
+    ok: true, game: "slots", ...meta(who, deb, cred), gold: cred?.gold ?? deb.gold, delta: payout - bet, payout,
     outcome: payout > 0 ? "win" : "lose",
     detail: { reels, mult },
     state: null,
@@ -269,7 +272,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
       player_id: pid, state_id: stateId, game: "blackjack", bet, player, dealer, deck, doubled: false, status: "open", updated_at: new Date().toISOString(),
     });
     return c.json(200, {
-      ok: true, game: "blackjack", gold: deb.gold, delta: -bet, payout: 0, outcome: "deal",
+      ok: true, game: "blackjack", ...meta(who, deb, null), gold: deb.gold, delta: -bet, payout: 0, outcome: "deal",
       detail: { player: fmtHand(player), dealer: [fmtCard(dealer[0]), null], total: handTotal(player), playerTotal: handTotal(player) },
       state: { stateId, status: "open", canHit: true, canDouble: true },
     });
@@ -289,17 +292,17 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
   if (sub === "hit") {
     player.push(deck.pop()!);
     if (handTotal(player) > 21) {
-      await db.from("pvp_casino_hands").update({ player, deck, status: "done", updated_at: new Date().toISOString() }).eq("player_id", pid);
+      await db.from("pvp_casino_hands").update({ player, deck, status: "done", updated_at: new Date().toISOString() }).eq("player_id", pid).eq("state_id", stateId);
       const goldRow = await credit(db, pid, 0, "blackjack", "bust");
       return c.json(200, {
-        ok: true, game: "blackjack", gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
+        ok: true, game: "blackjack", ...meta(who, null, goldRow), gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
         detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: handTotal(player), playerTotal: handTotal(player), dealerTotal: handTotal(dealer), finished: true },
         state: { stateId, status: "done" },
       });
     }
-    await db.from("pvp_casino_hands").update({ player, deck, updated_at: new Date().toISOString() }).eq("player_id", pid);
+    await db.from("pvp_casino_hands").update({ player, deck, updated_at: new Date().toISOString() }).eq("player_id", pid).eq("state_id", stateId);
     return c.json(200, {
-      ok: true, game: "blackjack", gold: null, delta: 0, payout: 0, outcome: "hit",
+      ok: true, game: "blackjack", ...meta(who, null, null), gold: null, delta: 0, payout: 0, outcome: "hit",
       detail: { player: fmtHand(player), dealer: [fmtCard(dealer[0]), null], total: handTotal(player), playerTotal: handTotal(player) },
       state: { stateId, status: "open", canHit: true, canDouble: false },
     });
@@ -313,12 +316,12 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
     if (!who.wallet && !who.owner && !deb.owner && !deb.retry) await c.acctBump?.(db, who.raw, -bet);
     bet = bet * 2; doubled = true;
     player.push(deck.pop()!);
-    await db.from("pvp_casino_hands").update({ player, deck, bet, doubled: true, updated_at: new Date().toISOString() }).eq("player_id", pid);
+    await db.from("pvp_casino_hands").update({ player, deck, bet, doubled: true, updated_at: new Date().toISOString() }).eq("player_id", pid).eq("state_id", stateId);
     if (handTotal(player) > 21) {
-      await db.from("pvp_casino_hands").update({ status: "done" }).eq("player_id", pid);
+      await db.from("pvp_casino_hands").update({ status: "done" }).eq("player_id", pid).eq("state_id", stateId);
       const goldRow = await credit(db, pid, 0, "blackjack", "bust");
       return c.json(200, {
-        ok: true, game: "blackjack", gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
+        ok: true, game: "blackjack", ...meta(who, null, goldRow), gold: goldRow?.gold, delta: -bet, payout: 0, outcome: "bust",
         detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: handTotal(player), playerTotal: handTotal(player), dealerTotal: handTotal(dealer), finished: true },
         state: { stateId, status: "done" },
       });
@@ -328,7 +331,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
 
   if (sub === "stand" || sub === "double") {
     while (handTotal(dealer) < 17) dealer.push(deck.pop()!);
-    await db.from("pvp_casino_hands").update({ player, dealer, deck, status: "done", updated_at: new Date().toISOString() }).eq("player_id", pid);
+    await db.from("pvp_casino_hands").update({ player, dealer, deck, status: "done", updated_at: new Date().toISOString() }).eq("player_id", pid).eq("state_id", stateId);
     return settleBJ(c, who, bet, player, dealer, deck, { gold: null }, doubled, stateId);
   }
 
@@ -348,7 +351,7 @@ async function settleBJ(c: Ctx, who: any, bet: number, player: number[], dealer:
   const cred = await credit(c.db, who.pid, payout, "blackjack", outcome);
   if (!who.wallet && !who.owner && !cred?.owner && payout > 0) await c.acctBump?.(c.db, who.raw, payout);
   return c.json(200, {
-    ok: true, game: "blackjack", gold: cred?.gold ?? deb?.gold, delta: payout - bet, payout, outcome,
+    ok: true, game: "blackjack", ...meta(who, deb, cred), gold: cred?.gold ?? deb?.gold, delta: payout - bet, payout, outcome,
     detail: { player: fmtHand(player), dealer: fmtHand(dealer), total: pt, playerTotal: pt, dealerTotal: dt, blackjack: pbj, finished: true },
     state: stateId ? { stateId, status: "done" } : null,
   });
