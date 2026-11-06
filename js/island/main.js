@@ -140,6 +140,7 @@ if (COASTM) isle.visible = false; // the round Dock Town island is not part of t
 // on-foot island (blockout): chunked heightmap terrain, streamed jungle, main street + inland POIs
 if (FOOT) await FM.PV?.plazaShopsReady?.(LOW, renderer); // [Timothy] Blender storefront models (plaza v2) + the shared material library (KTX2 needs the renderer)
 const foot = FOOT ? FM.createFoot({ scene, isle, MATS, OUT, low: LOW, atlas, uTime, uWaves: ocean.uniforms.uWaves, renderer, kit: KIT, nat: NAT }) : null;
+if (foot) (await import('./riverWater.js')).upgradeRiver(foot.root, { FM, low: LOW, uTime, ocean: ocean.uniforms }); // [clean-water] (&riverfx=0 = old)
 const _fw = new THREE.Vector3();
 const fY = FOOT ? (x, z) => { _fw.set(x, 0, z).applyMatrix4(isle.matrixWorld); return COASTM ? foot.groundAt(_fw.x, _fw.z) : Math.max(footY(x, z), foot.groundAt(_fw.x, _fw.z)); } : footY;
 const cW = FOOT ? (x, z) => fY(x, z) >= 0.8 : canWalk;

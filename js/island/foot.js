@@ -185,7 +185,8 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
   // lake basin with a raised rim, so the lagoon holds water at LAKE.y
   const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
   if (ld < LAKE.r) h = Math.min(h, LAKE.y - 1.2 - 5 * Math.sqrt(1 - ld / LAKE.r));
-  else if (ld < LAKE.r + 45 && rd > 9) h = Math.max(h, LAKE.y + 1.4 + (ld - LAKE.r) * 0.12);
+  // [clean-water] widen river outflow throat: rim used to pinch at rd>9 while the channel is w≈10..11
+  else if (ld < LAKE.r + 45) { const rim = sm(11, 18, rd); if (rim > 0.001) h = Math.max(h, (LAKE.y + 1.4 + (ld - LAKE.r) * 0.12) * rim + h * (1 - rim)); }
   // trails: ease the ground towards a smoothed level (walkable switchbacks come with the art pass)
   if (TRg[q] < 5 && h > 0.6) h = h * 0.85 + Math.max(1.4, h) * 0.15;
   // land bridge + main street from the town gate inland (flat cobbles, cut into any hill it meets)
@@ -250,6 +251,39 @@ for (const [ax, az, ay, bx, bz, by, hw, soft = 0] of AREA_TERRAIN.cuts || []) { 
       const [d, t] = segD(X0 + i * G, Z0 + j * G, ax, az, bx, bz); if (d > m) continue; const q = IDX(i, j), yl = ay + (by - ay) * t - 0.45;
       Hg[q] = soft ? Math.min(Hg[q], Hg[q] + (yl - Hg[q]) * (1 - sm(hw, m, d))) : Math.min(Hg[q], yl); } }
 for (const p of AREA_TERRAIN.paths) { const path = catmull(p.pts, false, 3); stamp(path, 12, TRg); }
+// [clean-water] grade area paths to a walkable max rise/run (fishing approach / plateau→ziplines); ZERO added props
+for (const p of AREA_TERRAIN.paths) {
+  if (p.grade === false) continue;
+  const path = catmull(p.pts, false, 2), hw = p.hw || (p.pave ? 3.2 : 2.6);
+  if (path.length < 2) continue;
+  const ys = path.map(([x, z]) => H(x, z)), ds = [0];
+  for (let i = 1; i < path.length; i++) ds.push(ds[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+  const L = ds[ds.length - 1] || 1, y0 = ys[0], y1 = ys[ys.length - 1];
+  const tgt = ds.map((s) => y0 + (y1 - y0) * (s / L));
+  const accY = new Map(), accW = new Map();
+  for (let i = 0; i < path.length - 1; i++) {
+    const [ax, az] = path[i], [bx, bz] = path[i + 1], ay = tgt[i], by = tgt[i + 1];
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - hw - 3 - X0) / G)), i1 = Math.min(NX, Math.ceil((Math.max(ax, bx) + hw + 3 - X0) / G));
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz) - hw - 3 - Z0) / G)), j1 = Math.min(NZ, Math.ceil((Math.max(az, bz) + hw + 3 - Z0) / G));
+    for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+      const x = X0 + ii * G, z = Z0 + j * G, [d, t] = segD(x, z, ax, az, bx, bz);
+      if (d > hw + 3) continue;
+      const q = IDX(ii, j), w = 1 - sm(hw * 0.55, hw + 3, d);
+      if (w <= 1e-3) continue;
+      const y = ay + (by - ay) * t;
+      accY.set(q, (accY.get(q) || 0) + y * w); accW.set(q, (accW.get(q) || 0) + w);
+    }
+  }
+  for (const [q, w] of accW) { const ww = Math.min(1, w); Hg[q] = Hg[q] * (1 - ww) + (accY.get(q) / w) * ww; }
+  if (p.id === 'wf_hill_trail') for (const [zx, zz] of [[-188, -247], [-188, -232]]) {
+    const zy = H(zx, zz);
+    for (let j = Math.max(0, Math.floor((zz - 5 - Z0) / G)); j <= Math.min(NZ, Math.ceil((zz + 5 - Z0) / G)); j++)
+      for (let ii = Math.max(0, Math.floor((zx - 5 - X0) / G)); ii <= Math.min(NX, Math.ceil((zx + 5 - X0) / G)); ii++) {
+        const x = X0 + ii * G, z = Z0 + j * G, d = Math.hypot(x - zx, z - zz), q = IDX(ii, j); if (d > 5) continue;
+        const w = 1 - sm(3.2, 5, d); Hg[q] = Hg[q] * (1 - w) + zy * w;
+      }
+  }
+}
 // [stairfix] the paint distance: = TRg, except near the dead leg of trail A, where only the live trails / area paths count
 const TRP_G = (() => { if (!DEAD_A.length) return TRg; const DG = new Float32Array(Hg.length).fill(99), OG = new Float32Array(Hg.length).fill(99), T = new Float32Array(TRg); for (const P of DEAD_A) stamp(P, 14, DG);
   for (const P of TRAIL_A_PAINT) stamp(P, 14, OG); stamp(TRAILS.B, 14, OG); for (const p of AREA_TERRAIN.paths) stamp(catmull(p.pts, false, 3), 12, OG);
@@ -296,7 +330,7 @@ export function waterAt(x, z) { const h = H(x, z);
   if (COASTM) { const [lx, lz] = worldToTown(x, z); if (CO.coveQ(lx, lz) < 1.02) return h < CO.SWIM_COVE.y ? CO.SWIM_COVE.y : null; }   // the swim cove
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2.5) return h < LAKE.y + 0.05 ? LAKE.y + 0.05 : null;
   const q = IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))));
-  if (RVg[q] < 6.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) return RVl[q] + 0.2;
+  if (RVg[q] < 10.5 && h < RVl[q] + 0.2 && RVl[q] > FOOT_SWIM.seaY) return RVl[q] + 0.2;
   return h < FOOT_SWIM.seaY ? FOOT_SWIM.seaY : null; }
 const SAIL_ALL_FOOT = !(typeof location !== 'undefined' && /[?&]sailall=0(?:&|$)/.test(location.search || '')); // [Emerly sail-around]
 function seaLimit(x, z, h, surf) { if (surf !== FOOT_SWIM.seaY) return false;
@@ -350,14 +384,22 @@ function splatAt(i, j, w) {
   w.fill(0); w[2] = 1;
   const paint = (L, a) => { if (a <= 0.001) return; a = Math.min(1, a); for (let k = 0; k < 8; k++) w[k] *= 1 - a; w[L] += a; };
   const jm = fbm(x * 0.01 + 7, z * 0.01, 3);
-  paint(7, sm(0.4, 0.58, jm) * sm(5, 12, h));
+  // [clean-water] w[7]->LAYERS[6] leaf-vein grid — keep off steep west hills / river gorge
+  { const jn = sm(0.4, 0.58, jm) * sm(5, 12, h); const westGorge = x < -120 || RVg[q] < 30;
+    paint(7, westGorge ? jn * (1 - sm(0.55, 0.95, sl)) : jn); }
   paint(0, 1 - sm(2.3, 3.9, h));
   paint(1, sm(1.4, 0.5, h) * sm(-3, -0.6, h));
   if (RVg[q] < 12 && h < RVl[q] + 2.5) paint(1, 0.85 * sm(12, 6, RVg[q]));
   if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 8) paint(1, 0.8 * sm(LAKE.r + 8, LAKE.r, Math.hypot(x - LAKE.x, z - LAKE.z)));
   paint(3, 1 - sm(2.0, 4.3, TRP_G[q]));
-  paint(4, sm(0.7, 1.05, sl) + sm(75, 105, h) * 0.7);
-  paint(5, Math.max(sm(1.05, 1.5, sl), sm(0.4, 0.7, sl) * (1 - sm(10, 22, TRP_G[q])))); // [path-hotfix] trail cuttings / bridge slots: steep walls are fractured cliff rock, not stone blocks
+  // [clean-water] w[4]->LAYERS[3] organic grey cracked rock; w[5]->LAYERS[9] tan block strata
+  paint(4, sm(0.72, 1.08, sl) + sm(82, 112, h) * 0.45);
+  if (x < -120 || RVg[q] < 30) {
+    paint(4, Math.max(sm(0.95, 1.4, sl), sm(0.45, 0.78, sl) * (1 - sm(10, 22, TRP_G[q]))));
+    w[5] = 0;
+  } else {
+    paint(5, Math.max(sm(1.05, 1.5, sl), sm(0.4, 0.7, sl) * (1 - sm(10, 22, TRP_G[q]))));
+  }
   paint(6, paveAt(q, x, z) * PAVE_FLAT(sl)); // [bridge-path-fix] paved trails: Main Street's cobble layer on the walkable floor only
   paint(6, 1 - sm(STREET.half + 1.6, STREET.half + 3.2, STg[q])); // cobbles run right up to the house fronts
   if (COASTM) paint(6, BT.pave(...worldToTown(x, z))); // [Timothy] battery ramp + gun deck
@@ -495,7 +537,7 @@ function waterfall(uTime, top, low) { // curved sheet: lip at the cliff top, fal
         #include <colorspace_fragment>
       }` });
   m.uniforms.uTime = uTime;
-  const sheet = new THREE.Mesh(g, m); sheet.position.set(fx, LAKE.y - 0.5, fz - 4); sheet.renderOrder = 4;
+  const sheet = new THREE.Mesh(g, m); sheet.position.set(fx, LAKE.y - 0.5, fz - 4); sheet.renderOrder = 4; sheet.name = 'foot_waterfall';
   // mist + splash (points)
   const N = low ? 40 : 120, pp = new Float32Array(N * 3), sd = new Float32Array(N);
   for (let i = 0; i < N; i++) { pp[i * 3] = (Math.random() - 0.5) * 12; pp[i * 3 + 2] = Math.random() * 6; sd[i] = Math.random(); }
@@ -504,7 +546,7 @@ function waterfall(uTime, top, low) { // curved sheet: lip at the cliff top, fal
     vertexShader: `attribute float aSeed; uniform float uTime; varying float vA; void main(){ float t = fract(uTime * 0.35 + aSeed); vec3 p = position; p.y += t * 7.0; p.x *= 1.0 + t; vA = sin(t * 3.14159) * 0.5;
       vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = (40.0 + 60.0 * aSeed) * (30.0 / -mv.z); gl_Position = projectionMatrix * mv; }`,
     fragmentShader: 'varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(vec3(1.0), smoothstep(0.5, 0.0, d) * vA); }' }));
-  mist.position.set(fx, LAKE.y, fz - 2); mist.renderOrder = 5; mist.frustumCulled = false;
+  mist.position.set(fx, LAKE.y, fz - 2); mist.renderOrder = 5; mist.frustumCulled = false; mist.name = 'foot_waterfall_mist';
   return [sheet, mist];
 }
 
@@ -573,7 +615,7 @@ function foliageSpots() {
   for (let j = 1; j < NZ; j += 2) for (let i = 1; i < NX; i += 2) {
     const x = X0 + i * G + (hash(i, j) - 0.5) * 7, z = Z0 + j * G + (hash(j, i) - 0.5) * 7, h = H(x, z), q = IDX(i, j), r = hash(i * 3.1, j * 1.7);
     if (h < 0.9) continue; const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 110) continue; if (COASTM && CO.coveQ(lx, lz) < 1.5) continue; // [Raul] swim cove
-    if (STg[q] < 26 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 || RVg[q] < 7) continue;
+    if (STg[q] < 26 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 || RVg[q] < 13.5 || gridAt(RVg, x, z) < 12.5) continue;
     const sl = slopeAt(i, j);
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
     const clr = COASTM ? BT.clearAt(lx, lz) : 0; if (clr > 1) continue; // [Timothy] battery: ramp + gun deck clear, no trees round the guns

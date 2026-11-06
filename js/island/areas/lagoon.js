@@ -23,7 +23,10 @@ let fs2 = null, _t2 = 0;                                                     // 
 
 export default {
   id: 'lagoon', name: 'Freshwater Lagoon', rect: [-295, -115, -265, -55],
-  terrain: { pads: [[GROTTO.x0, GROTTO.x1, GROTTO.z0, GROTTO.z1, GROTTO.y]], paths: [] },
+  terrain: { pads: [[GROTTO.x0, GROTTO.x1, GROTTO.z0, GROTTO.z1, GROTTO.y]],
+    paths: [{ id: 'fish_approach', pave: true, maxGrade: 0.32, hw: 3.4, pts: [
+      [-260, -58.6], [-245, -59.5], [-230, -60.8], [-216, -62.0], [-205, -62.5],
+    ]}] },
   register(h) {
     const { H } = h; DOCK_Y = Math.max(H(DOCK.x, DOCK.z0), LAKE.y + 1.3);
     h.addDeck({ id: 'lagoon_dock', x: DOCK.x, z: (DOCK.z0 + DOCK.z1) / 2, hw: DOCK.hw, hl: Math.abs(DOCK.z1 - DOCK.z0) / 2 + 0.5, yaw: 0, y: DOCK_Y });
@@ -80,7 +83,7 @@ export default {
     // reeds round the rim + lily pads on the water (instanced, near set only)
     const reeds = [], pads = []; const avoid = (x, z) => Math.hypot(x - DOCK.x, z - DOCK.z0) < 7 || Math.hypot(x - ENTRY[0], z - ENTRY[1]) < 6 || STONES.some(s => Math.hypot(x - s.x, z - s.z) < 2.6);
     for (let i = 0; i < (low ? 110 : 260); i++) { const a = hash(i, 11) * Math.PI * 2, r = LAKE.r - 4 + hash(i, 12) * 7, x = LAKE.x + Math.cos(a) * r, z = LAKE.z + Math.sin(a) * r, y = H(x, z);
-      if (y > LAKE.y + 3.5 || avoid(x, z)) continue; const s = 0.7 + hash(i, 13) * 0.8; reeds.push(new THREE.Matrix4().compose(new THREE.Vector3(x, Math.max(y, LAKE.y - 0.3), z), new THREE.Quaternion().setFromEuler(new THREE.Euler((hash(i, 14) - 0.5) * 0.3, a, (hash(i, 15) - 0.5) * 0.3)), new THREE.Vector3(s, s, s))); }
+      if (y > LAKE.y + 3.5 || y < LAKE.y - 1.35 || Math.hypot(x - (LAKE.x + 53), z - (LAKE.z + 21)) < 25 || avoid(x, z)) continue; const s = 0.7 + hash(i, 13) * 0.8; reeds.push(new THREE.Matrix4().compose(new THREE.Vector3(x, Math.max(y, LAKE.y - 0.3), z), new THREE.Quaternion().setFromEuler(new THREE.Euler((hash(i, 14) - 0.5) * 0.3, a, (hash(i, 15) - 0.5) * 0.3)), new THREE.Vector3(s, s, s))); }
     for (let i = 0; i < (low ? 24 : 48); i++) { const a = hash(i, 21) * Math.PI * 2, r = 12 + hash(i, 22) * 34, x = LAKE.x + Math.cos(a) * r, z = LAKE.z + Math.sin(a) * r; if (avoid(x, z) || (Math.abs(x - DOCK.x) < 5 && z > DOCK.z1 - 10)) continue;
       const s = 0.7 + hash(i, 23) * 0.7; pads.push(new THREE.Matrix4().compose(new THREE.Vector3(x, LAKE.y + 0.06, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a * 3), new THREE.Vector3(s, 1, s))); }
     near.add(instanced(MATS, OUT, (q) => { for (let j = 0; j < 4; j++) W(q, cyl(0.03, 0.06, 1.8 + j * 0.25, 4), j % 2 ? C.REED : C.REED_D, M((j - 1.5) * 0.15, 0.9 + j * 0.12, (j % 2) * 0.1, 0, (j - 1.5) * 0.1), false); W(q, cyl(0.07, 0.07, 0.35, 5), 0x6b4527, M(0.15, 2.2, 0), false); }, reeds, 'lagoon_reeds'));

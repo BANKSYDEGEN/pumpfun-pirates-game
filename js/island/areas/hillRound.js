@@ -271,7 +271,17 @@ export default {
   // [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": the plateau landing -> trail A is a real paved trail
   // (the loop's cobble splat + kerb stones, 4.6 m: paint only, no height change) instead of loose flags thinning out + rocks; it meets trail A
   // east of the old cliff drop (foot.js A_DEAD now leaves that unpainted), and trail A runs on along the cutting floor to D3's rope bridge
-  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-280.6, -71.9], [-278.0, -70.4], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6], [-230, -60], [-205, -63]], pave: true }] : []  /* [v328] flush to east landing lip → Trail A → Gill dock */ },
+  terrain: { pads: [], cuts: [], paths: RBB_ON ? [
+    { id: 'rb_plateau_path', grade: false, hw: 3.4, pts: [[-280.6, -71.9], [-278.0, -70.4], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6], [-245, -59.5], [-230, -60.8], [-216, -62.0], [-205, -63]], pave: true }, /* [v328] flush to east landing lip → Trail A → Gill dock */
+    // [clean-water] natural worn trail: plateau NW ridge → west/north shoulder of FALLS_CLIFF → summit ziplines (ZERO props)
+    { id: 'wf_hill_trail', pave: false, maxGrade: 0.48, hw: 4.2, pts: [
+      [-266, -60], [-268, -76], [-274, -95], [-280, -115], [-285, -135], [-284, -160], [-280, -180],
+      [-277, -190], [-275, -198], [-278, -205], [-274, -210], [-270, -214], [-266, -218],
+      [-262, -216], [-268, -222], [-262, -226], [-256, -224], [-250, -228], [-254, -232],
+      [-246, -234], [-238, -232], [-230, -234], [-222, -236], [-214, -238], [-206, -240],
+      [-198, -243], [-192, -245], [-188, -247], [-188, -240], [-188, -232],
+    ]},
+  ] : [] },
   register(h) {
     const { H, AREA_DECKS = [], collidersOff = null } = h;   // (from foot.js: no import, no module cycle)
     // the plateau end: walk in from the target until the ground stops rising (the cliff top), deck end = that ground

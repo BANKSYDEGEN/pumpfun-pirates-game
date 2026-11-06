@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v329'; // [v329] house_take source CHECK + non-stacking cottage weapons (t1742-3u) + Raul V6 AAA character polish; prev: [v328] HB east landing + Harbor co-op squads 16 / zero FF + ship respawn;
+const VERSION = 'pfp-v330'; // [v330] clean AAA river + lagoon + waterfall plunge + seamless outflow & graded fishing/zipline paths (BANKSY t402u); // [v329] house_take source CHECK + non-stacking cottage weapons (t1742-3u) + Raul V6 AAA character polish; prev: [v328] HB east landing + Harbor co-op squads 16 / zero FF + ship respawn;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -65,6 +65,7 @@ const SHELL = [
   "./js/island/art.js",
   "./js/island/bake.js",
   "./js/island/foot.js",
+  "./js/island/riverWater.js", // [clean-water] AAA river + lagoon + waterfall plunge (&riverfx=0)
   "./js/island/digSpots.js", // [v149] dig-spot registry (foot.js + dock/treasure.js import it)
   "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", "./js/island/areas/cottages.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)

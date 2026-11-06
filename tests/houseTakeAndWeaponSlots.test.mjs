@@ -61,6 +61,6 @@ test('046 migration + houses.ts: house source allowed; opaque error path documen
   assert.match(hs, /String\(item\)\.startsWith\('wpn:'\) \? 1/);
 });
 
-test('sw.js is pfp-v329', () => {
-  assert.match(read('sw.js'), /VERSION = 'pfp-v329'/);
+test('sw.js is pfp-v330', () => {
+  assert.match(read('sw.js'), /VERSION = 'pfp-v330'/);
 });

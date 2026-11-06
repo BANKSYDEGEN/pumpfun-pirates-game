@@ -67,7 +67,7 @@ test('source: east landing addDeck + ramp + pinned tiles + no belvedere / falls'
   // comments may mention the old waterfall arch; live imports / assets must be gone
   assert.doesNotMatch(HR, /belvedere_sign|falls\.glb|falls_blender|waterfallCorridor/);
   assert.doesNotMatch(HR, /from ['\"].*falls/);
-  assert.match(src('sw.js'), /VERSION = 'pfp-v329'/);
+  assert.match(src('sw.js'), /VERSION = 'pfp-v330'/);
   assert.doesNotMatch(src('js/island/areas/index.js'), /fallsBlender|waterfallCorridor|falls\.glb/);
 });
 
