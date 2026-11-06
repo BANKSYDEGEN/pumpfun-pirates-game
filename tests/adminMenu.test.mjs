@@ -48,14 +48,14 @@ const ownerWho = { raw: OWNER, pid: OWNER, wallet: null, owner: true }, victimWh
 
 test('server: every owner action is 403 "Owner only." for non-owners (and for no identity)', async () => {
   const db = fakeDb(); db.add(VICTIM, 'val:ruby', 2);
-  for (const action of ['admin_status', 'admin_players', 'admin_freeze', 'admin_pocket_get', 'admin_pocket_take', 'admin_pocket_give', 'admin_pocket_gold']) {
+  for (const action of ['admin_status', 'admin_players', 'admin_freeze', 'admin_pocket_get', 'admin_pocket_take', 'admin_pocket_give', 'admin_pocket_gold', 'admin_world_put']) { // [v346] + the sky / collision writer
     for (const who of [victimWho, null]) {
       const r = await res(await A.adminAction(ctx(db, who), action, { target_pid: VICTIM, item: 'val:ruby', qty: 1, frozen: true, delta: 100 }));
       assert.equal(r.status, 403, `${action} as ${who?.pid ?? 'nobody'}`); assert.equal(r.body.error, 'Owner only.');
     }
   }
   assert.equal(db.T.pvp_inv.find(r => r.player_id === VICTIM).qty, 2, 'nothing moved'); assert.equal(db.T.pvp_admin_controls.length, 0, 'nobody frozen');
-  assert.deepEqual(A.OWNER_ACTIONS.sort(), ['admin_freeze', 'admin_players', 'admin_pocket_get', 'admin_pocket_give', 'admin_pocket_gold', 'admin_pocket_take', 'admin_status']);
+  assert.deepEqual(A.OWNER_ACTIONS.sort(), ['admin_freeze', 'admin_players', 'admin_pocket_get', 'admin_pocket_give', 'admin_pocket_gold', 'admin_pocket_take', 'admin_status', 'admin_world_put']);
   assert.match(ATS, /if \(OWNER_ACTIONS\.includes\(action\) && !who\?\.owner\) return json\(403, \{ error: "Owner only\." \}\)/);
   assert.match(IDX, /owner: pid === OWNER_MAIN/); assert.match(IDX, /ADMIN_ACTIONS\.includes\(String\(b\.action\) as any\)\) return await adminAction\(\{ db, whoAmI, json \}/);
 });
@@ -179,7 +179,7 @@ test('hooks: GOD (0 damage on foot + at sea), INVISIBLE (bye + no state + AI ign
   assert.match(PVP, /\.on\('adm', \(m, from\) => \{ try \{ ADM\.onPoke\?\.\(m, from\); \} catch \{\} \}\)/);
   assert.match(SRC, /m\.t !== myNet\(\)\) return;/); assert.match(SRC, /if \(m\.k === 'chk'\) checkMine\(\); else if \(m\.k === 'inv'\) refreshMyPockets\(\)/);
   assert.match(WALK, /if \(w\.adminHook && w\.adminHook\(dt, \{ place, camPos, cam, tgt, pirate, camera, fovPush \}\)\) return;/);
-  assert.match(MAIN, /const shipLocked = \(\) => !!\(dock\?\.onFoot \|\| dock\?\.canoeing \|\| ADM\.frozen\)/);
+  assert.match(MAIN, /const shipLocked = \(\) => !!\(dock\?\.onFoot \|\| dock\?\.canoeing \|\| (?:dock\?\.inHull \|\| )?ADM\.frozen\)/); // [v346] v333 added the hull walk (dock?.inHull) to the same lock; ADM.frozen still locks the ship
   assert.match(DOCK, /treasure\.isOpen \|\| ADM\.frozen\) return;/);
   assert.match(MAIN, /if \(!\(s === player && ADM\.noclip\)\) islands\.collide\(s, dt\)/);
   assert.match(SRC, /❄️ FROZEN BY CAPTAIN BANKSY/);

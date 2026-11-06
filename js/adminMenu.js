@@ -13,6 +13,7 @@ import { ADM } from './adminState.js';
 import { invApi, ownerReady, ownerAllSkins, accountInfo, walletSession, shopCache } from './pvpSave.js';
 import { FISH, VALUABLES, GUN_ITEMS, WEAPON_BASES, WEAPON_TIERS, itemInfo, RARITY_COLOR } from './inventory/catalog.js';
 import { placeBody } from './onfoot/physics.js';
+import { createWorldAdmin, WORLD_CSS } from './adminWorld.js'; // [v346] ☀️ TIME & WEATHER + 🧱 COLLISIONS (t1819u / t1820u)
 
 // ---------------- pure helpers (tests/adminMenu.test.mjs) ----------------
 export const ADMIN_ON = typeof location === 'undefined' || !/[?&]admin=0(&|$)/.test(location.search);
@@ -128,7 +129,7 @@ html.pfp-frozen #dk-acts,html.pfp-frozen #bt-atk,html.pfp-frozen #dk-jump{displa
 html.pfp-frozen body:after{content:'';position:fixed;inset:0;pointer-events:none;z-index:87;box-shadow:inset 0 0 120px 30px rgba(120,220,255,.45)}
 #pfp-admin-toast{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:95;font:600 15px system-ui,sans-serif;color:#fff3d0;background:rgba(14,12,8,.92);border:1px solid #d9a93c;border-radius:12px;padding:8px 14px;opacity:0;transition:opacity .25s;pointer-events:none}
 #btn-set-admin{border-color:#d9a93c!important;color:#ffd36b!important}
-`;
+` + WORLD_CSS;
 
 export function initAdminMenu(ctx) {
   if (!ADMIN_ON || typeof document === 'undefined') return null;
@@ -140,7 +141,7 @@ export function initAdminMenu(ctx) {
   const st = { owner: false, open: false, esp: false, roster: [], server: [], pocket: null, pocketFor: null, pendingTp: null, lastCheck: -Infinity, lastBeat: 0, lastMine: 0, filter: '', sel: '' };
 
   // ---- server calls (owner actions are 403 server-side for everyone else). Local ?banksy=1 tests fall back to an in-memory mock. ----
-  const mock = { pockets: new Map(), frozen: new Map(), mine: [] };
+  const mock = { pockets: new Map(), frozen: new Map(), mine: [], world: {} };
   const mockPid = (net) => 'dev:' + [...String(net)].reduce((a, c) => ((a * 31 + c.charCodeAt(0)) >>> 0), 7).toString(16).padStart(8, '0').repeat(3).slice(0, 24);
   const mockPocket = (pid) => { if (!mock.pockets.has(pid)) mock.pockets.set(pid, { items: [{ item: 'val:gold_bar', qty: 3 }, { item: 'val:ruby', qty: 1 }, { item: 'fish:koi', qty: 2 }, { item: 'wpn:sword:cutlass:epic', qty: 1 }, { item: 'wpn:musket:dragoon:legendary', qty: 1 }, { item: 'val:musket_parts', qty: 6 }], gold: 4250, pending: 0, equipped: { sword: 'wpn:sword:cutlass:epic' } }); return mock.pockets.get(pid); };
   function mockApi(action, b) {
@@ -152,6 +153,8 @@ export function initAdminMenu(ctx) {
       case 'admin_pocket_get': return { ok: true, ...P };
       case 'admin_pocket_take': { const r = P.items.find(i => i.item === b.item); if (!r) return { ok: false, error: 'not there' }; const q = b.all ? r.qty : Math.min(r.qty, b.qty | 0 || 1); r.qty -= q; if (!r.qty) P.items.splice(P.items.indexOf(r), 1); mock.mine.push({ item: b.item, qty: q }); return { ok: true, took: { item: b.item, qty: q }, target: P }; }
       case 'admin_pocket_give': { const r = P.items.find(i => i.item === b.item); if (r) r.qty += b.qty | 0; else P.items.push({ item: b.item, qty: b.qty | 0 }); return { ok: true, gave: { item: b.item, qty: b.qty }, target: P }; }
+      case 'admin_world_get': return { ok: true, world: { ...mock.world }, mock: true };   // [v346] local ?banksy=1 only: in-memory world
+      case 'admin_world_put': { for (const [k, v] of Object.entries(b.set || {})) { if (v === null) delete mock.world[k]; else mock.world[k] = v; } return { ok: true, world: { ...mock.world }, mock: true }; }
       case 'admin_pocket_gold': P.gold = Math.max(0, P.gold + (b.delta | 0)); return { ok: true, delta: b.delta, target: P };
       default: return { ok: false, error: 'offline' };
     }
@@ -191,7 +194,11 @@ export function initAdminMenu(ctx) {
     return ADM.frozen;
   }
   async function refreshMyPockets() { try { await pvp()?.inv?.call('inv_pot'); } catch {} try { await dock()?.inventory?.refresh?.(); } catch {} }
+  // [v346] the owner's sky / weather / collision edits: every pirate reads them from the SERVER (admin_world_get); a poke only says "re-read"
+  const WA = createWorldAdmin({ dock, game: ctx.game || {}, camera: ctx.camera, canvas: ctx.canvas, player, call, invRead: (a) => call(a), send, toast: (t) => toast(t), isOwner: () => st.owner });
+  setTimeout(() => WA.fetchWorld().catch(() => {}), 1500);
   ADM.onPoke = (m, from) => {
+    if (m && typeof m === 'object' && !m.t && (from == null || isNetId(from)) && WA.poke(m)) return; // { k: 'env' | 'col' } for everyone: re-read the server, never the poke
     if (!m || typeof m !== 'object' || m.t !== myNet()) return; // only pokes naming ME; the server decides everything
     if (from && !isNetId(from)) return;
     if (m.k === 'chk') checkMine(); else if (m.k === 'inv') refreshMyPockets();
@@ -277,9 +284,10 @@ export function initAdminMenu(ctx) {
         <button data-p="invisible">👻 INVISIBLE</button><button data-p="esp">👁️ 3D ESP</button></div>
         <div class="spd">FLY SPEED ${SPEEDS.map(v => `<button data-s="${v}">${v}×</button>`).join('')}</div>
         <div class="pills"></div>
+        <div class="wa"></div>
         <h4>LIVE PLAYERS <button data-a="ref">↻ REFRESH</button></h4><div class="ros"></div>
         <div class="pk" hidden></div></div>`);
-    esp = mk('div', 'pfp-esp');
+    esp = mk('div', 'pfp-esp'); WA.mount(panel.querySelector('.wa'));
     panel.addEventListener('click', onClick); panel.addEventListener('input', onInput); panel.addEventListener('change', onInput);
     // drag by the header
     const hd = panel.querySelector('.hd'); let drag = null;
@@ -334,9 +342,10 @@ export function initAdminMenu(ctx) {
         <span></span>
         <div class="row"><button class="act" data-a="g+">+ GOLD</button><button class="act" data-a="g-">- GOLD</button></div></div>`;
   }
-  function onInput(e) { const i = e.target.dataset.i; if (i === 'filter') { st.filter = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintPocket(); const n = panel.querySelector('[data-i="filter"]'); n?.focus(); n?.setSelectionRange(pos, pos); } else if (i === 'sel') st.sel = e.target.value; }
+  function onInput(e) { if (e.target.dataset.wi || e.target.dataset.wf) return WA.input(e.target, e.type === 'change'); const i = e.target.dataset.i; if (i === 'filter') { st.filter = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintPocket(); const n = panel.querySelector('[data-i="filter"]'); n?.focus(); n?.setSelectionRange(pos, pos); } else if (i === 'sel') st.sel = e.target.value; }
   async function onClick(e) {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.w) return WA.click(b);
     if (b.dataset.p) return setPower(b.dataset.p, b.dataset.p === 'esp' ? !st.esp : !ADM[b.dataset.p]);
     if (b.dataset.s) { ADM.noclipMul = +b.dataset.s; return paint(); }
     const a = b.dataset.a, row = b.closest('.pl'), net = row?.dataset.net, p = net ? st.roster.find(r => r.net === net) : null;
@@ -432,11 +441,12 @@ export function initAdminMenu(ctx) {
         drawEsp(); if (st.open && now - paintT > 1000) { paintT = now; const ae = document.activeElement; if (!panel.contains(ae) || ae.tagName === 'BUTTON') paintRoster(); }
       }
       if (now - (frame._ice || 0) > 400) { frame._ice = now; tintFrozenPeers(); }
+      WA.frame(now);
     } catch (e) { if (!frame._w) { frame._w = 1; console.warn('[admin-menu]', e); } }
   }
   requestAnimationFrame(frame);
 
-  const api = { get owner() { return st.owner; }, get open() { return st.open; }, setOpen, setPower, refreshServer, jumpTo, freeze, openPocket, take, give, gold, roster, liveRoster, ADM };
+  const api = { get owner() { return st.owner; }, get open() { return st.open; }, world: WA, setOpen, setPower, refreshServer, jumpTo, freeze, openPocket, take, give, gold, roster, liveRoster, ADM };
   if (!IS_PROD_HOST) { // local dev / headless tests only (never on the live hosts)
     api._testApplyMyState = (s) => setFrozen(s); api._mockPid = mockPid; api._state = st;
     try { if (window.PFP && !Object.isFrozen(window.PFP)) window.PFP.admin = api; } catch {}

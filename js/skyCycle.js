@@ -12,6 +12,7 @@ const PHASE_ALIAS = {
 
 let forcedPhase = null; // number 0..1 OR 'storm' OR null (auto clock)
 let forcedStorm = null; // number 0..1 OR null
+let forcedRun = null; // [v346] admin RUN CLOCK: { phase, t } = the clock runs at the 20-min rate from `phase` at epoch ms `t`
 
 function readQuery() {
   try {
@@ -40,6 +41,7 @@ function readWindow() {
 
 /** Deterministic shared-clock phase in [0,1). phase 0 = midnight, 0.25 ≈ sunrise, 0.5 = noon, 0.75 ≈ sunset. */
 export function skyPhase(nowMs = Date.now()) {
+  if (forcedPhase == null && forcedRun) return ((forcedRun.phase + (nowMs - forcedRun.t) / 1000 / SKY_CYCLE_S) % 1 + 1) % 1; // [v346] admin RUN CLOCK from a chosen time
   const ov = forcedPhase != null ? forcedPhase : (readWindow() ?? readQuery());
   if (ov === 'storm') return 0.5; // noon colors under storm override; storm factor handled separately
   if (typeof ov === 'number' && Number.isFinite(ov)) return ((ov % 1) + 1) % 1;
@@ -47,6 +49,7 @@ export function skyPhase(nowMs = Date.now()) {
 }
 
 export function setPhase(p) {
+  forcedRun = null;
   if (p == null || p === 'auto') { forcedPhase = null; forcedStorm = null; return; }
   if (typeof p === 'string') {
     const key = p.toLowerCase();
@@ -57,7 +60,12 @@ export function setPhase(p) {
   if (Number.isFinite(n)) { forcedPhase = ((n % 1) + 1) % 1; forcedStorm = null; }
 }
 
-export function clearPhase() { forcedPhase = null; forcedStorm = null; }
+export function clearPhase() { forcedPhase = null; forcedStorm = null; forcedRun = null; }
+/** [v346] admin RUN CLOCK: the sky runs at the normal 20-min rate starting from `phase` at epoch ms `t` (every client with the same {phase, t} agrees). */
+export function runFrom(phase, t = Date.now()) { const n = Number(phase); if (!Number.isFinite(n)) return; forcedPhase = null; forcedRun = { phase: ((n % 1) + 1) % 1, t: Number(t) || Date.now() }; }
+/** [v346] 0..1 phase -> 'HH:MM' (phase 0 = 00:00, 0.25 = 06:00, 0.5 = 12:00, 0.75 = 18:00) */
+export function phaseClock(phase) { const m = Math.round((((Number(phase) || 0) % 1) + 1) % 1 * 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+export const skyOverride = () => (forcedPhase != null ? { mode: 'hold', phase: forcedPhase } : forcedRun ? { mode: 'run', ...forcedRun } : { mode: 'auto' });
 
 export function isStormForced() {
   if (forcedStorm != null) return forcedStorm;
@@ -232,7 +240,7 @@ export function evalSkyNow(storm = 0, nowMs = Date.now()) {
 }
 
 export const skyCycle = {
-  SKY_CYCLE_S, skyPhase, setPhase, clearPhase, phaseName, sunElevation, sunDir, moonDir,
+  SKY_CYCLE_S, skyPhase, setPhase, clearPhase, runFrom, phaseClock, skyOverride, phaseName, sunElevation, sunDir, moonDir,
   evalSky, evalSkyNow, isStormForced,
 };
 

@@ -57,7 +57,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
       REG.set(id, it); if (PIECES.has(id)) applyObj(it); }); }
   scan(); setInterval(() => { if (PIECES.size || live.on) scan(); }, 3000); // area kits (route, lagoon ...) build late: register + apply their saved state when they appear
   let rwHook = null; // [v335] owner only: redraws the 🚩 rework flags; everyone else keeps '!rw_*' (never sent to them anyway) as inert data
-  function setPiece(id, ov) { if (id[0] === '+') return placeSet(id, ov); if (id.startsWith(RW)) { ov && ov.rework ? PIECES.set(id, ov) : PIECES.delete(id); rwHook?.(); return; }
+  function setPiece(id, ov) { if (id[0] === '+') return placeSet(id, ov); if (id[0] === '!' && !id.startsWith(RW)) return; /* [v346] '!env' / '!col_*' / '!noc_*' / '!cmod_*' / '!cdel_*' belong to the admin menu (js/adminWorld.js; the server keeps them) */ if (id.startsWith(RW)) { ov && ov.rework ? PIECES.set(id, ov) : PIECES.delete(id); rwHook?.(); return; }
     ov && (ov.h || ov.dx || ov.dy || ov.dz || ov.ry) ? PIECES.set(id, ov) : PIECES.delete(id); const it = REG.get(id); if (it) it.isObj ? applyObj(it) : applyGeo(it); }
   // [v335] an object unit (Plaza shop / dock LOD, Hill Street building + its sign, battery, lighthouse ...): position / turn about its origin, or hide it + its colliders
   function applyObj(it) { const ov = PIECES.get(it.id) || null, prev = it.cur || null; it.cur = ov; const o = it.obj, ry = ov?.ry || 0;

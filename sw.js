@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v345'; // [v345] starfield fix: cubed-sphere multi-pixel stars + night-dark clouds + visible moon (BANKSY t1813u / t1817u); prev: [v344] AAA Caribbean dynamic sky;
+const VERSION = 'pfp-v346'; // [v346] owner Admin Menu: ☀️ TIME & WEATHER (presets, 24 h slider, freeze / run clock, storm slider, ⚡ lightning, 🌐 sync all; BANKSY t1819u) + 🧱 COLLISIONS (show / edit, add box / cylinder / pass zone, move / resize / remove / restore built-ins, server-saved for every pirate; t1820u); prev: [v345] starfield fix: cubed-sphere multi-pixel stars + night-dark clouds + visible moon (BANKSY t1813u / t1817u); prev: [v344] AAA Caribbean dynamic sky;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -40,6 +40,7 @@ const SHELL = [
   "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
   "./js/adminMenu.js",
+  "./js/adminWorld.js",
   "./js/inventory/backpackCap.js", "./js/island/safeZones.js", "./js/dock/lootBags.js", "./js/dock/safeZoneMarks.js", // [backpack-pvp]
   "./js/serverPicker.js", "./js/kdCounter.js", "./js/onfoot/crewFight.js", "./js/onfoot/stances.js", // [backpack-pvp] server picker · unified K/D · crew-vs-crew fights
   "./js/dock/docking.js",

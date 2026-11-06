@@ -720,10 +720,50 @@ const addDeck = (d) => { AREA_DECKS.push({ ...d, c: Math.cos(d.yaw || 0), s: Mat
 export const MAP_CIRCS = () => CIRC; // [v300] coli_check: wing props inside the kerb
 export const MAP_BOXES = () => BOXES; // [v106] building / wall footprints for the island map
 export function hitCollider(x, z, rad = 0.45) {
-  const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)); if (!list) return false;
-  for (const o of list) { if (o.off) continue; if (o.t === 0) { if (Math.hypot(x - o.x, z - o.z) < o.r + rad) return true; }
+  if (ADMIN_COL.nocs.length && nocAt(x, z)) return false; // [v346] BANKSY's PASS ZONE: nothing blocks inside it
+  const list = HASH.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (list) for (const o of list) { if (o.off || o.sup) continue; if (o.t === 0) { if (Math.hypot(x - o.x, z - o.z) < o.r + rad) return true; }   // o.sup = removed / moved by the owner (!cdel_ / !cmod_)
     else { const dx = x - o.x, dz = z - o.z, lx = dx * o.c - dz * o.s, lz = dx * o.s + dz * o.c; if (Math.abs(lx) < o.hx + rad && Math.abs(lz) < o.hz + rad) return true; } }
+  if (ADMIN_COL.cols.length) for (const c of ADMIN_COL.cols) if (yIn(c, 0) && shapeHit(c, x, z, rad)) return true;   // [v346] owner blockers + moved built-ins
   return false; }
+// ---------- [v346] BANKSY t1820u "add remove or move collisions": the owner's collision edits (pvp_terrain.pieces, every player) ----------
+// '!col_*' blocker / '!noc_*' pass zone { s: 'box' | 'cyl', x, z, w, d, yaw | r, y0, y1 } · '!cmod_<ob id>' a built-in moved { s, x, z, w, d, yaw | r } ·
+// '!cdel_<ob id>' a built-in removed. Built-ins get a stable id from their kind + ORIGINAL position (0.1 m): ob_<c|b>_<x36>_<z36>[_n].
+// y range: LAYER = the body's feet (walker / followers / physics set it); no layer (map tools, the ship) = the whole column.
+export const ADMIN_COL = { cols: [], nocs: [], mods: new Map(), dels: new Set(), sup: [], ver: 0 };
+const yIn = (c, pad) => LAYER === null || c.y0 === undefined || (LAYER < c.y1 + pad && LAYER + 1.8 > c.y0 - pad);
+export function shapeHit(c, x, z, rad = 0) { const dx = x - c.x, dz = z - c.z;
+  if (c.s === 'cyl') return dx * dx + dz * dz < (c.r + rad) * (c.r + rad);
+  const co = Math.cos(c.yaw || 0), sn = Math.sin(c.yaw || 0), lx = dx * co - dz * sn, lz = dx * sn + dz * co; return Math.abs(lx) < c.w / 2 + rad && Math.abs(lz) < c.d / 2 + rad; }
+export function nocAt(x, z) { for (const c of ADMIN_COL.nocs) if (yIn(c, 0.5) && shapeHit(c, x, z, 0)) return true; return false; }
+const q36 = (v) => Math.round(v * 10).toString(36);
+let OB = { n: -1, map: new Map() };
+/** every built-in obstacle by its stable id (o.ox / o.oz = where the island built it) */
+export function obstacleIds() { const all = CIRC.length + BOXES.length; if (OB.n === all) return OB.map; const map = new Map(), fresh = [];
+  for (const o of [...CIRC, ...BOXES]) { if (o.ox === undefined) Object.assign(o, { ox: o.x, oz: o.z }); if (o.id) map.set(o.id, o); else fresh.push(o); }
+  for (const o of fresh) { const k = `ob_${o.t ? 'b' : 'c'}_${q36(o.ox)}_${q36(o.oz)}`; let id = k, i = 1; while (map.has(id)) id = `${k}_${++i}`; o.id = id; map.set(id, o); }
+  OB = { n: all, map }; return map; }
+/** a built-in as an editable shape (its yaw from the box's c / s) */
+export function obstacleShape(o) { return o.t === 0 ? { s: 'cyl', x: o.x, z: o.z, r: o.r } : { s: 'box', x: o.x, z: o.z, w: o.hx * 2, d: o.hz * 2, yaw: Math.atan2(-o.s, o.c) }; }
+const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+function shapeOf(v, withY) { if (!v || typeof v !== 'object' || (v.s !== 'box' && v.s !== 'cyl')) return null; const x = Number(v.x), z = Number(v.z); if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  const o = { s: v.s, x, z }; if (v.s === 'cyl') o.r = num(v.r, 0.2, 60, 2); else { o.w = num(v.w, 0.2, 120, 4); o.d = num(v.d, 0.2, 120, 1.2); o.yaw = num(v.yaw, -7, 7, 0); }
+  if (withY) { o.y0 = num(v.y0, -60, 400, 0); o.y1 = Math.max(o.y0 + 0.2, num(v.y1, -60, 400, o.y0 + 4)); } return o; }
+/** apply the owner's world pieces ({ id: record }): replaces every earlier edit */
+export function applyAdminColliders(pieces) { const P = pieces || {}, ids = obstacleIds();
+  for (const o of ADMIN_COL.sup) o.sup = false; const cols = [], nocs = [], mods = new Map(), dels = new Set(), sup = [];
+  for (const [id, v] of Object.entries(P)) {
+    if (id.startsWith('!col_')) { const c = shapeOf(v, true); if (c) cols.push({ ...c, id }); }
+    else if (id.startsWith('!noc_')) { const c = shapeOf(v, true); if (c) nocs.push({ ...c, id }); }
+    else if (id.startsWith('!cdel_')) { const ob = id.slice(6); if (v && v.d) dels.add(ob); }
+    else if (id.startsWith('!cmod_')) { const c = shapeOf(v, false); if (c) mods.set(id.slice(6), c); } }
+  for (const ob of dels) { const o = ids.get(ob); if (o) { o.sup = true; sup.push(o); } }
+  for (const [ob, c] of mods) { if (dels.has(ob)) continue; const o = ids.get(ob); if (o) { o.sup = true; sup.push(o); } cols.push({ ...c, id: '!cmod_' + ob, ob }); }
+  Object.assign(ADMIN_COL, { cols, nocs, mods, dels, sup, ver: ADMIN_COL.ver + 1 }); return ADMIN_COL; }
+/** built-ins (with their ids + current shapes) within r m of (x, z), for the owner's 👁 SHOW COLLISIONS */
+export function obstaclesNear(x, z, r = 140) { const ids = obstacleIds(), out = [];
+  for (const [id, o] of ids) { const d = Math.hypot(o.x - x, o.z - z); if (d > r + (o.r || Math.hypot(o.hx || 0, o.hz || 0))) continue; out.push({ id, o, off: !!o.off, del: ADMIN_COL.dels.has(id), mod: ADMIN_COL.mods.has(id), shape: obstacleShape(o) }); }
+  return out; }
 
 // ---------- buildings + props (look.js material ids: 2 wood, 3 rock, 4 roof, 5 bark, 6 leaf, 7 plaster, 8 dirt, 10 cobble, 11 stone, 12 rope/cloth) ----------
 const STONE = 0xb9b2a6, STONE_D = 0x8a837a, WOOD = 0xa86a3a, WOOD_D = 0x6b4527, WOOD_L = 0xd9a36b, IRON = 0x2b2f36, GOLD = 0xffc93c, RED = 0xd8322f, CREAM = 0xfff1d2;
@@ -1524,7 +1564,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   // [Raul] foot physics (BANKSY "fall off cliffs" + "float / swim"): you may now walk OFF any ledge (js/onfoot/physics.js drops you
   // with gravity) and into water (deeper than chest height = swim at the surface). Uphill keeps the v105 grade limit; out of the
   // water you can pull yourself up onto anything up to FOOT_SWIM.climb above the surface (shore rocks, the lake rim, low jetties).
-  function blocked(x, z, fx, fz) { const hb = highBridgeAt(x, z); if (hb) return !hb.inside; const b = bridgeAt(x, z); if (b) return !b.inside;          // on the deck: rails bound you
+  function blocked(x, z, fx, fz) { if (ADMIN_COL.nocs.length && nocAt(x, z)) return false; /* [v346] owner PASS ZONE carves every check (props, rails, slopes, sea limit) */ const hb = highBridgeAt(x, z); if (hb) return !hb.inside; const b = bridgeAt(x, z); if (b) return !b.inside;          // on the deck: rails bound you
     if (hitCollider(x, z)) return true; const h = H(x, z);
     const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return true;
     const surf = waterAt(x, z); if (surf !== null && seaLimit(x, z, h, surf)) return true;       // open sea / the berths stay off limits
@@ -1541,7 +1581,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     if (coveDeckAt(fx, fz) !== null && rise <= FOOT_SWIM.step) return false;                       // jetty -> sand
     const ux = (x - fx) / d, uz = (z - fz) / d, e = Math.max(d, 0.1), g = (h - H(x - ux * e, z - uz * e)) / e;   // [v105] uphill grade of the step you just took
     return g > WALK_RULES.slope; }
-  function whyBlocked(x, z, fx, fz) { const hb = highBridgeAt(x, z); if (hb) return hb.inside ? '' : 'rail'; const b = bridgeAt(x, z); if (b) return b.inside ? '' : 'rail';  // [v105] dev: reachability report
+  function whyBlocked(x, z, fx, fz) { if (ADMIN_COL.nocs.length && nocAt(x, z)) return ''; const hb = highBridgeAt(x, z); if (hb) return hb.inside ? '' : 'rail'; const b = bridgeAt(x, z); if (b) return b.inside ? '' : 'rail';  // [v105] dev: reachability report
     if (hitCollider(x, z)) return 'prop'; const h = H(x, z);
     if (AREA_DECKS.length && areaDeckAt(x, z) !== null) return blocked(x, z, fx, fz) ? 'deck step' : '';
     const i = Math.round((x - X0) / G), j = Math.round((z - Z0) / G); if (i < 1 || j < 1 || i >= NX || j >= NZ) return 'edge';

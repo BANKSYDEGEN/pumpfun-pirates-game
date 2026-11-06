@@ -6,9 +6,10 @@
 // A Realtime 'adm' poke from the owner's client only makes the target re-ask admin_my_state / its inventory: nothing a peer
 // broadcasts can freeze anyone or move an item.
 import { KEY_RE, itemInfo } from "./invCatalog.ts";
+import { mergeWorld, worldOf } from "./adminWorld.ts"; // [v346] owner sky / weather + collision edits (pvp_terrain.pieces)
 
-export const ADMIN_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_register_net", "admin_my_state"] as const;
-export const OWNER_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold"];
+export const ADMIN_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_register_net", "admin_my_state", "admin_world_get", "admin_world_put"] as const;
+export const OWNER_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_world_put"];
 export const PRESENCE_FRESH_S = 45, FREEZE_MAX_S = 3600, FREEZE_DEFAULT_S = 600;
 
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
@@ -57,6 +58,10 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
   const { db, json } = c; const now = c.now ? c.now() : Date.now();
   const who = await c.whoAmI(b).catch(() => null);
   if (OWNER_ACTIONS.includes(action) && !who?.owner) return json(403, { error: "Owner only." });
+  if (action === "admin_world_get") { // [v346] ANY pirate (no identity needed): the owner's sky / weather + collision edits, read from the SERVER (never from a peer)
+    const { data } = await db.from("pvp_terrain").select("pieces, updated_at").eq("id", "island").maybeSingle();
+    return json(200, { ok: true, world: worldOf(data?.pieces), at: data?.updated_at ?? null });
+  }
   if (!who) return json(401, { error: "no identity" });
   const rpc = async (fn: string, args: Record<string, unknown>) => { const { data, error } = await db.rpc(fn, args); if (error) throw error; return data; };
   try {
@@ -117,6 +122,17 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
         const d = await rpc("pvp_admin_gold", { p_owner: who.pid, p_target: pid, p_delta: delta });
         if (!d?.ok) return json(409, { error: d?.why || "refused" });
         return json(200, { ok: true, delta, target: await pocketOf(db, pid as string) });
+      }
+      case "admin_world_put": { // [v346] OWNER: merge { id: record | null } ('!env', '!col_*', '!noc_*', '!cmod_*', '!cdel_*') into pvp_terrain.pieces
+        for (let tries = 0; tries < 4; tries++) { // optimistic: only writes over the row it read (updated_at), else re-reads; the terrain rev is untouched (Build Mode never 409s)
+          const { data: cur } = await db.from("pvp_terrain").select("pieces, updated_at").eq("id", "island").maybeSingle();
+          const m = mergeWorld(cur?.pieces, b.set, now); if (m.error) return json(400, { error: m.error });
+          const at = new Date(now + tries).toISOString();
+          if (!cur) { const { error } = await db.from("pvp_terrain").insert({ id: "island", cells: {}, pieces: m.pieces, paint: {}, rev: 0, log: [], updated_at: at }); if (error) { if (tries < 3) continue; throw error; } }
+          else { const { data: up, error } = await db.from("pvp_terrain").update({ pieces: m.pieces, updated_at: at }).eq("id", "island").eq("updated_at", cur.updated_at).select("id"); if (error) throw error; if (!up?.length) continue; }
+          return json(200, { ok: true, n: m.n, world: worldOf(m.pieces), at });
+        }
+        return json(409, { error: "busy, try again" });
       }
       default: return json(400, { error: "bad action" });
     }

@@ -81,6 +81,7 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
   function water(x, z) { if (deckAt(x, z) !== null || !foot.waterAt) return null; const [fx, fz] = toF(x, z); return foot.waterAt(fx, fz); }
   function stand(x, z) { const g = ground(x, z), s = water(x, z); return s !== null && s - g > FM.FOOT_SWIM.depth ? s - FM.FOOT_SWIM.float : g; }
   function blocked(x, z, px, pz) {
+    if (FM.ADMIN_COL?.nocs.length && FM.nocAt(...toF(x, z))) return false; // [v346] owner PASS ZONE: the harbor decks' step rule too
     const d = deckAt(x, z);
     if (d !== null && DECK_COLL && FM.hitCollider?.(...toF(x, z))) return true; // [Timothy collisions] props ON a deck block too (bollards, coils, posts, rails, crates, stalls on the boardwalk / jetties / plaza deck zones were walk-through); ?deckcoll=0 = old
     if (d !== null) { if (px === undefined) return false; const from = stand(px, pz); return d - from > 2.4; } // up a step / stairs ([Raul] from the water: where you float)

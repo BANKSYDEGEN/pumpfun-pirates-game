@@ -1437,6 +1437,7 @@ function frame() {
       if (game.nextLightning <= 0) { game.flash = 1; game.nextLightning = rnd(6, 16); sfx.thunder(rnd(0.3, 1.5)); sky.uniforms.uBolt.value.copy(bolt.strike(camera.position, Math.atan2(camera.position.x - player.x, camera.position.z - player.z) + Math.PI + rnd(-0.9, 0.9))); }
     } else { game.nextLightning = Math.max(game.nextLightning, 4); bolt.mesh.visible = false; }
   }
+  if (game.adminBolt) { game.adminBolt = 0; game.flash = 1; try { sfx.thunder(rnd(0.15, 0.5)); } catch {} const px = player?.x ?? 0, pz = player?.z ?? 0; sky.uniforms.uBolt.value.copy(bolt.strike(camera.position, Math.atan2(camera.position.x - px, camera.position.z - pz) + Math.PI + rnd(-0.9, 0.9))); } // [v346] the owner's ⚡ LIGHTNING (admin menu; synced through the server's '!env')
   game.flash = Math.max(0, game.flash - dt * 2.8);
   const fl = game.flash > 0 ? game.flash * (0.6 + 0.4 * Math.sin(game.flash * 40)) : 0;
   ocean.uniforms.uFlash.value = sky.uniforms.uFlash.value = rain.uniforms.uFlash.value = wakes.uniforms.uFlash.value = fl;
@@ -1707,7 +1708,7 @@ window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GF
 window.__pfpSky = Object.freeze({ setPhase: setSkyPhase, clearPhase: clearSkyPhase, phase: () => skyPhase(), name: () => phaseName(skyPhase()), eval: (st) => evalSkyNow(st ?? (game.storm || 0)), cycle: skyCycle });
 // [admin-menu] the owner Admin Menu (⚙ SETTINGS > 👑 ADMIN MENU, F8). Every player loads the tiny client half (server FREEZE / pocket refresh pokes);
 // the panel itself only mounts when the SERVER says owner (admin_status). &admin=0 = off.
-if (!/[?&]admin=0(&|$)/.test(location.search)) import('./adminMenu.js').then(m => m.initAdminMenu({ dock: () => dock, pvp: () => pvp, player: () => player, game, scene, camera })).catch(e => console.warn('[admin-menu]', e));
+if (!/[?&]admin=0(&|$)/.test(location.search)) import('./adminMenu.js').then(m => m.initAdminMenu({ dock: () => dock, pvp: () => pvp, player: () => player, game, scene, camera, canvas: renderer.domElement })).catch(e => console.warn('[admin-menu]', e));
 
 // ---------- [v339 mobile-stability] Harbor session auto-resume ----------
 // BANKSY t1792u: iOS / Android reload a tab after a memory kill or a long trip to another app, and a WebGL loss used to reload too. sessionStorage

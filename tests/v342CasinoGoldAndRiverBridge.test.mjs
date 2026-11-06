@@ -71,7 +71,7 @@ const B = (() => { const [cx, cz, ax, az, bx, bz] = RB, L = Math.hypot(bx - ax, 
 
 test('bridgeAt is layer-aware like highBridgeAt', () => {
   assert.match(fnSrc, /if \(LAYER !== null && LAYER < y - 2\) return null;/);
-  assert.match(FOOT, /function blocked\(x, z, fx, fz\) \{ const hb = highBridgeAt\(x, z\); if \(hb\) return !hb\.inside; const b = bridgeAt\(x, z\); if \(b\) return !b\.inside;/);
+  assert.match(FOOT, /function blocked\(x, z, fx, fz\) \{ (?:if \(ADMIN_COL\.nocs\.length && nocAt\(x, z\)\) return false; \/\*[^*]*\*\/ )?const hb = highBridgeAt\(x, z\); if \(hb\) return !hb\.inside; const b = bridgeAt\(x, z\); if \(b\) return !b\.inside;/);
 });
 
 test('swim the whole river both ways in 0.25 m steps: the D3 deck/rails never touch a swimmer', () => {

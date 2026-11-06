@@ -11,7 +11,8 @@ import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts
 import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { houseAction, HOUSE_ACTIONS } from "./houses.ts"; // [storage-houses] migration 043: buyable cottages + chest storage
 import { casinoAction, CASINO_ACTIONS } from "./casino.ts"; // [v333] pure-gold casino_play (048)
-import { adminAction, ADMIN_ACTIONS } from "./admin.ts"; // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
+import { adminAction, ADMIN_ACTIONS } from "./admin.ts";
+import { isWorldId } from "./adminWorld.ts"; // [v346] owner world overrides: terrain_put keeps the stored ones (only admin_world_put writes them) // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
@@ -443,6 +444,7 @@ Deno.serve(async (req) => {
         const pieces: Record<string, Record<string, number | string>> = {}; let np = 0, npl = 0, nrw = 0; const ps = b.pieces && typeof b.pieces === "object" && !Array.isArray(b.pieces) ? b.pieces as Record<string, any> : {};
         for (const [id, v] of Object.entries(ps)) { if (typeof id !== "string" || id.length > 160 || !v || typeof v !== "object") continue; if (++np > 5000) return json(413, { error: "too many pieces" });
           const f = (x: unknown, lim: number) => Math.max(-lim, Math.min(lim, Math.round((Number(x) || 0) * 100) / 100));
+          if (isWorldId(id)) continue; // [v346] '!env' / '!col_*' / '!noc_*' / '!cmod_*' / '!cdel_*': admin_world_put only (the stored ones are kept below)
           if (isReworkId(id)) { const rw = cleanRework(id, v); if (!rw) continue; if (++nrw > RW_MAX_FLAGS) return json(413, { error: "too many flags" }); pieces[id] = rw; continue; } // [v335] 🚩 owner rework flag (strings kept)
           if (id[0] === "+") { const t = Math.round(Number(v.t)); if (!/^\+[a-z0-9]{4,24}$/.test(id) || !Number.isInteger(t) || t < 0 || t > 63) continue; if (++npl > 2000) return json(413, { error: "too many placed" }); // [build-place] owner-placed prop
             pieces[id] = { t, x: f(v.x, 1500), y: f(v.y, 300), z: f(v.z, 1500), ry: f(v.ry, 7) }; continue; }
@@ -455,6 +457,7 @@ Deno.serve(async (req) => {
             if (L < 0 || L > 7 || pc <= 0 || pc > 100) continue; if (++nq > 60000) return json(413, { error: "too much paint" }); paint[String(q)] = L * 1000 + pc; } }
         const { data: cur } = await db.from("pvp_terrain").select("cells, pieces, paint, rev, log").eq("id", "island").maybeSingle();
         if (cur && Number.isInteger(b.rev) && b.rev !== cur.rev) return json(409, { error: "terrain changed", cells: cur.cells, pieces: cur.pieces, paint: (cur as any).paint, rev: cur.rev });
+        for (const [id, v] of Object.entries((cur?.pieces as Record<string, any>) || {})) if (isWorldId(id)) pieces[id] = v; // [v346] a Build Mode save never drops the owner's sky / collision edits
         const log = [...(Array.isArray(cur?.log) ? cur.log : []), ...(cur ? [{ at: new Date().toISOString(), rev: cur.rev, cells: cur.cells, pieces: cur.pieces, paint: (cur as any).paint }] : [])].slice(-20);
         const rev = (cur?.rev ?? 0) + 1;
         const { error } = await db.from("pvp_terrain").upsert({ id: "island", cells, pieces, paint: paint ?? (cur as any)?.paint ?? {}, rev, log, updated_at: new Date().toISOString() });
