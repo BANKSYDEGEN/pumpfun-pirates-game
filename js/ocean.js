@@ -39,6 +39,9 @@ export function createOcean(quality) {
     uTime: { value: 0 },
     uWaves: { value: W.map(v => new THREE.Vector4(v.dx, v.dz, v.a, v.k)) },
     uSun: { value: new THREE.Vector3(-0.45, 0.42, 0.78).normalize() },
+    uSunColor: { value: new THREE.Color(1.0, 0.92, 0.78) }, // [v343] live sun/moon tint for specular path
+    uSkyZenith: { value: new THREE.Color(0.18, 0.42, 0.78) },
+    uSkyHorizon: { value: new THREE.Color(0.72, 0.86, 0.94) },
     uFogColor: { value: FOG_COLOR.clone() },
     uFogDensity: { value: 0.0042 },
     uFlash: { value: 0 },
@@ -91,7 +94,7 @@ export function createOcean(quality) {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */`
-      uniform float uTime; uniform vec3 uSun; uniform vec3 uFogColor; uniform float uFogDensity; uniform float uFlash; uniform float uStorm;
+      uniform float uTime; uniform vec3 uSun; uniform vec3 uSunColor; uniform vec3 uSkyZenith; uniform vec3 uSkyHorizon; uniform vec3 uFogColor; uniform float uFogDensity; uniform float uFlash; uniform float uStorm;
       uniform vec4 uWaves[4];
       uniform vec4 uHulls[${MAX_HULLS}]; uniform int uHullCount; uniform float uHullV[${MAX_HULLS}];
       uniform vec4 uSplash[${NS}];
@@ -152,17 +155,19 @@ export function createOcean(quality) {
         float d = dot(n, uSun);
         float lit = mix(0.62 + 0.42 * clamp(d, 0.0, 1.0), 0.62 + 0.24 * smoothstep(0.05, 0.12, d) + 0.2 * smoothstep(0.5, 0.56, d), 0.35) * (1.0 - 0.3 * st);
         col *= lit;
-        // sky reflection (fresnel), softly stepped
-        vec3 skyLo = mix(vec3(0.12, 0.2, 0.25), vec3(0.055, 0.085, 0.11), st), skyHi = mix(vec3(0.27, 0.34, 0.43), vec3(0.11, 0.14, 0.19), st);
+        // [v343] sky reflection follows live zenith/horizon (sunrise gold / night indigo / storm)
+        vec3 skyLo = mix(uSkyHorizon, vec3(0.055, 0.085, 0.11), st);
+        vec3 skyHi = mix(uSkyZenith, vec3(0.11, 0.14, 0.19), st);
         float r = clamp(reflect(-V, n).y * 2.0, 0.0, 1.0);
         col = mix(col, mix(skyLo, skyHi, mix(r, floor(r * 3.0) / 3.0, 0.4)), 0.05 + fres * 0.6);
-        // sun glints: tight sparkles on the ripples + a broad warm sheen, both follow uSun
+        // [v343] sun/moon specular path — molten gold at sunrise/sunset, silver at night
         float ndh = max(dot(n, normalize(uSun + V)), 0.0);
         float sunward = smoothstep(-0.3, 0.8, dot(-V, sunH));
         float sparkle = smoothstep(0.55, 0.95, pow(ndh, 900.0)) * rf * rf * rf;
-        col += vec3(1.0, 0.86, 0.66) * (sparkle * 1.0 + pow(ndh, 60.0) * 0.12) * sunward * (1.0 - 0.75 * st);
+        float path = pow(max(dot(-V, sunH), 0.0), 4.0) * smoothstep(0.0, 0.35, uSun.y + 0.15);
+        col += uSunColor * (sparkle * 1.15 + pow(ndh, 60.0) * 0.14 + path * 0.22) * sunward * (1.0 - 0.75 * st);
         #ifdef ULTRA_Q
-        col += vec3(1.0, 0.9, 0.74) * (pow(ndh, 2400.0) * 1.6 + pow(ndh, 220.0) * 0.07) * sunward * (1.0 - 0.75 * st); // [ultra] tighter specular core
+        col += uSunColor * (pow(ndh, 2400.0) * 1.6 + pow(ndh, 220.0) * 0.07) * sunward * (1.0 - 0.75 * st);
         #endif
 
         // --- crest foam: builds just before a big crest, then dissolves slowly behind it
@@ -208,45 +213,120 @@ export function createOcean(quality) {
   return { mesh, uniforms, addSplash, clearSplashes };
 }
 
-// Stylized storm sky: stepped cloud bands, a smouldering sunset seam on the horizon, lightning-lit undersides.
+// [v343] AAA Caribbean sky: sunny day + sunrise/sunset Mie glow + starry night + moon, storm-blended.
+// Procedural FBM clouds + star cells in ONE dome shader (zero textures, zero extra draws). Driven by js/skyCycle.js.
 export function createSky() {
-  const geo = new THREE.SphereGeometry(1000, 32, 16);
-  const uniforms = { uTime: { value: 0 }, uFlash: { value: 0 }, uFogColor: { value: FOG_COLOR.clone() }, uBolt: { value: new THREE.Vector3(0, 0, 1) }, uStorm: { value: 0 } };
+  const geo = new THREE.SphereGeometry(1000, 48, 24);
+  const uniforms = {
+    uTime: { value: 0 }, uFlash: { value: 0 }, uFogColor: { value: FOG_COLOR.clone() },
+    uBolt: { value: new THREE.Vector3(0, 0, 1) }, uStorm: { value: 0 },
+    uSunDir: { value: new THREE.Vector3(-0.45, 0.55, 0.7).normalize() },
+    uMoonDir: { value: new THREE.Vector3(0.45, 0.55, -0.7).normalize() },
+    uZenith: { value: new THREE.Color(0.18, 0.42, 0.78) },
+    uMid: { value: new THREE.Color(0.38, 0.62, 0.92) },
+    uHorizon: { value: new THREE.Color(0.72, 0.86, 0.94) },
+    uSunColor: { value: new THREE.Color(1.0, 0.92, 0.78) },
+    uSunVis: { value: 1 }, uMoonVis: { value: 0 }, uStarVis: { value: 0 },
+    uCloudWarm: { value: 0 }, uGolden: { value: 0 },
+  };
   const mat = new THREE.ShaderMaterial({
     uniforms, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: /* glsl */`
-      uniform float uTime; uniform float uFlash; uniform vec3 uFogColor; uniform vec3 uBolt; uniform float uStorm; varying vec3 vDir;
+      uniform float uTime; uniform float uFlash; uniform vec3 uFogColor; uniform vec3 uBolt; uniform float uStorm;
+      uniform vec3 uSunDir; uniform vec3 uMoonDir; uniform vec3 uZenith; uniform vec3 uMid; uniform vec3 uHorizon;
+      uniform vec3 uSunColor; uniform float uSunVis; uniform float uMoonVis; uniform float uStarVis;
+      uniform float uCloudWarm; uniform float uGolden;
+      varying vec3 vDir;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float hash3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
       float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
       float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=.5; } return v; }
       void main(){
         vec3 d = normalize(vDir);
-        float y = max(d.y, 0.0);
-        vec3 top = mix(vec3(0.03, 0.04, 0.075), vec3(0.012, 0.016, 0.03), uStorm);
-        vec3 col = mix(uFogColor, top, pow(y, 0.5));
-        // smouldering sunset seam low in one direction, mostly hidden behind clouds
-        float sunDir = max(dot(normalize(vec3(d.x, 0.0, d.z)), normalize(vec3(-0.45, 0.0, 0.78))), 0.0);
-        float seam = exp(-y * 16.0) * pow(sunDir, 3.0);
-        seam *= 1.0 - 0.75 * uStorm; // [aaa water] later waves: the sunset seam closes up
-        col += vec3(1.0, 0.42, 0.16) * seam * 0.55;
-        // cloud field, quantized into 3 painted tones with bright rims
-        vec2 uv = d.xz / (d.y + 0.22) * 1.4 + vec2(uTime * 0.025, uTime * 0.012);
-        float c = fbm(uv) + 0.15 * fbm(uv * 3.0 - uTime * 0.05);
-        float m = smoothstep(0.0, 0.25, y);
-        c += 0.12 * uStorm; // heavier overcast
-        vec3 cDark = vec3(0.06, 0.08, 0.11), cMid = vec3(0.13, 0.17, 0.22), cLite = vec3(0.24, 0.3, 0.37);
-        float sd = 1.0 - 0.5 * uStorm; cDark *= sd; cMid *= sd; cLite *= sd;
-        float s1 = smoothstep(0.47, 0.5, c), s2 = smoothstep(0.6, 0.63, c), s3 = smoothstep(0.72, 0.745, c);
+        float y = d.y;
+        float y01 = max(y, 0.0);
+        // --- base atmosphere gradient (zenith → mid → horizon), live from skyCycle
+        float hMix = pow(1.0 - y01, 2.2); // thinner horizon haze — more blue mid-sky
+        float mMix = pow(y01, 0.35);
+        vec3 col = mix(uHorizon, uMid, clamp(1.0 - hMix * 0.85, 0.0, 1.0));
+        col = mix(col, uZenith, mMix * (1.0 - hMix * 0.2));
+        // opposite-horizon belt-of-Venus pastel during golden hour
+        vec3 flatD = normalize(vec3(d.x, 0.001, d.z));
+        vec3 sunFlat = normalize(vec3(uSunDir.x, 0.001, uSunDir.z));
+        float sunAz = max(dot(flatD, sunFlat), 0.0);
+        float antiAz = max(dot(flatD, -sunFlat), 0.0);
+        float horizonBand = exp(-max(y, 0.0) * 10.0);
+        col += uSunColor * vec3(1.0, 0.55, 0.25) * pow(sunAz, 3.0) * horizonBand * uGolden * 0.85 * uSunVis;
+        col += vec3(0.55, 0.35, 0.55) * pow(antiAz, 2.0) * horizonBand * uGolden * 0.35;
+
+        // --- sun disc + Mie corona
+        float sunDot = max(dot(d, normalize(uSunDir)), 0.0);
+        float disc = smoothstep(0.9994, 0.99985, sunDot);
+        float corona = pow(sunDot, 32.0) * 0.55 + pow(sunDot, 8.0) * 0.25 + pow(sunDot, 2.5) * 0.12;
+        col += uSunColor * (disc * 4.5 + corona * 1.45) * uSunVis * (1.0 - uStorm * 0.85);
+
+        // --- moon disc + soft lunar halo
+        float moonDot = max(dot(d, normalize(uMoonDir)), 0.0);
+        float moonDisc = smoothstep(0.9988, 0.9996, moonDot);
+        float moonHalo = pow(moonDot, 40.0) * 0.45 + pow(moonDot, 6.0) * 0.12;
+        col += vec3(0.82, 0.88, 1.0) * (moonDisc * 2.4 + moonHalo) * uMoonVis * (1.0 - uStorm);
+
+        // --- fair-weather cumulus (SPARSE) / storm overcast — never grey-out sunny Caribbean sky
+        vec2 uv = d.xz / (abs(d.y) + 0.22) * 1.2 + vec2(uTime * 0.014, uTime * 0.007);
+        float c = fbm(uv) + 0.12 * fbm(uv * 2.5 - uTime * 0.035);
+        c += 0.22 * uStorm;
+        float m = smoothstep(0.02, 0.35, y); // keep horizon clearer
+        // higher threshold = fewer clouds in fair weather; storm drops threshold for heavy cover
+        float cover = mix(0.68, 0.28, uStorm);
+        float s1 = smoothstep(cover, cover + 0.06, c);
+        float s2 = smoothstep(cover + 0.10, cover + 0.16, c);
+        float s3 = smoothstep(cover + 0.20, cover + 0.26, c);
+        vec3 cDark = mix(vec3(0.62, 0.68, 0.78), vec3(0.06, 0.08, 0.11), uStorm);
+        vec3 cMid  = mix(vec3(0.88, 0.91, 0.95), vec3(0.13, 0.17, 0.22), uStorm);
+        vec3 cLite = mix(vec3(1.0, 1.0, 1.0), vec3(0.24, 0.30, 0.37), uStorm);
+        float rim = pow(max(dot(normalize(vec3(d.x, 0.15, d.z)), normalize(uSunDir)), 0.0), 2.0);
+        cLite = mix(cLite, mix(uSunColor, vec3(1.0, 0.55, 0.3), uCloudWarm), rim * uSunVis * (0.35 + 0.55 * uCloudWarm));
         vec3 cloud = mix(cDark, cMid, s2);
         cloud = mix(cloud, cLite, s3);
-        cloud += vec3(1.0, 0.5, 0.25) * seam * 1.2 * (s1 - s2 * 0.5);
-        col = mix(col, cloud, s1 * m);
-        // lightning: whole sky pulses, clouds near the strike glow hardest
+        cloud += uSunColor * vec3(1.0, 0.5, 0.25) * uCloudWarm * (s1 - s2 * 0.4) * 0.9;
+        // night: even clearer skies so stars read; storm: nearly solid cover
+        float fairAmt = mix(0.55, 0.38, step(0.5, uMoonVis)); // clearer at night
+        float cloudAmt = s1 * m * mix(fairAmt, 0.96, uStorm);
+        col = mix(col, cloud, cloudAmt);
+
+        // --- starfield (multi-tier hash cells) + soft Milky Way — occluded by clouds & storm
+        float starGate = uStarVis * (1.0 - cloudAmt * 0.92) * smoothstep(0.02, 0.18, y01);
+        if (starGate > 0.001) {
+          // bright hero stars
+          vec3 sp = d * 48.0; vec3 si = floor(sp); vec3 sf = fract(sp) - 0.5;
+          float sh = hash3(si);
+          float dist = length(sf);
+          float mag = step(0.955, sh);
+          float tw = 0.7 + 0.3 * sin(uTime * (2.0 + sh * 5.0) + sh * 20.0);
+          vec3 starCol = mix(vec3(0.75, 0.82, 1.0), mix(vec3(1.0, 0.92, 0.75), vec3(0.7, 0.9, 1.0), fract(sh * 17.0)), fract(sh * 9.0));
+          col += starCol * mag * smoothstep(0.11, 0.0, dist) * tw * starGate * 2.4;
+          // fine background dust
+          vec3 sp2 = d * 120.0; vec3 si2 = floor(sp2); float sh2 = hash3(si2);
+          float dist2 = length(fract(sp2) - 0.5);
+          col += vec3(0.85, 0.9, 1.0) * step(0.982, sh2) * smoothstep(0.055, 0.0, dist2) * starGate * 1.1;
+          // Milky Way band (safe xz normalize — zenith has d.xz≈0)
+          vec2 mwd = d.xz; float mwl = length(mwd); mwd = mwl > 1e-4 ? mwd / mwl : vec2(0.6, 0.8);
+          float mw = exp(-pow(d.y * 1.8 - 0.15, 2.0) * 2.5) * exp(-pow(dot(mwd, vec2(0.6, 0.8)), 2.0) * 1.2);
+          float mwN = fbm(d.xz * 6.0 + d.y * 3.0);
+          col += vec3(0.55, 0.6, 0.85) * mw * mwN * starGate * 0.42;
+        }
+
+        // lightning flash (storm)
         float near = pow(max(dot(d, normalize(uBolt)), 0.0), 6.0);
-        col += uFlash * vec3(0.5, 0.58, 0.8) * (0.25 + c * 0.6 + near * 2.0 * s1);
-        if (d.y < 0.0) col = uFogColor;
+        col += uFlash * vec3(0.5, 0.58, 0.8) * (0.25 + c * 0.6 + near * 2.0 * s1) * uStorm;
+
+        // below horizon: fog/sea color
+        if (y < 0.0) {
+          float down = smoothstep(0.0, -0.15, y);
+          col = mix(uHorizon, uFogColor, down);
+        }
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -254,6 +334,7 @@ export function createSky() {
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = -1;
+  mesh.frustumCulled = false;
   return { mesh, uniforms };
 }
 

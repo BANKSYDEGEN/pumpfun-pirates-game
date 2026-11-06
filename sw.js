@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v343'; // [v343] casino gold fixed (owner plays his real pot, no 0 / 9999999, client re-bases on the server balance; BANKSY t1810u/t1811u) + river swim under the D3 rope bridge (layer-aware deck, t1815u); prev: [v342] Male V6 head sealed inner liner + eye-rim texel cleanup (hi/lo, Raul 5caf0e3, BANKSY t501u); prev: // [v341] top HUD: sound / camera / settings / fullscreen row in the TOP MIDDLE (PLAY · HARBOR below it), minimap flush TOP RIGHT (BANKSY t1808u) + v340 QA polish (portrait aboard buttons wrap, musket-aim cluster above the bottom row, legend swatches); prev: [v340] Harbor map colors: other players BLACK (#0d0d10+rim), squadmates+crew GREEN (#2fd866), AI ships RED (#fa0d0d) on ship radar / minimap / Full Map M + legend (BANKSY t1801u/t1802u) + mobile on-foot HUD: PLAY · HARBOR ship-only, no SAFE ZONE banner, INVENTORY under GOLD, JUMP + weapon + emote bottom row, zero overlaps, Q weapon label (t1804u-t1807u); prev: [v339] mobile stability + keybinds + PLAY & SERVERS hub + mobile Casino + Solo Arena 8;
+const VERSION = 'pfp-v344'; // [v344] AAA Caribbean dynamic sky: shared-clock sunny day / sunrise / sunset / starry night + moon (BANKSY t1812u-t1814u); Harbor fair weather (no rain) when not storming; Storm Hunt still blends to tempest; prev: [v343] casino gold fix + river swim under D3 rope bridge; prev: [v342] Male V6 head; prev: [v341] top HUD;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -124,6 +124,7 @@ const SHELL = [
   "./js/crew.js",
   "./js/emotes.js",
   "./js/ocean.js",
+  "./js/skyCycle.js",
   "./js/fx.js",
   "./js/wake.js",
   "./js/toon.js",

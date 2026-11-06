@@ -6,6 +6,7 @@ import { setAvatar } from './avatar.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createOcean, createSky, createRain, createBolt, waveHeight, FOG_COLOR, STORM_FOG, MAX_HULLS } from './ocean.js';
+import { evalSkyNow, setPhase as setSkyPhase, clearPhase as clearSkyPhase, skyPhase, phaseName, isStormForced, skyCycle } from './skyCycle.js'; // [v343] day/night sky
 import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
@@ -1430,24 +1431,63 @@ function frame() {
     escorts.animate(t, animateShip); // [escorts]
     fx.update(dt, t);
 
-    // lightning
-    game.nextLightning -= dt;
-    if (game.nextLightning <= 0) { game.flash = 1; game.nextLightning = rnd(6, 16); sfx.thunder(rnd(0.3, 1.5)); sky.uniforms.uBolt.value.copy(bolt.strike(camera.position, Math.atan2(camera.position.x - player.x, camera.position.z - player.z) + Math.PI + rnd(-0.9, 0.9))); }
+    // lightning — only while storming (Storm Hunt / tempest); fair Harbor weather stays clear
+    if ((game.storm || 0) > 0.4) {
+      game.nextLightning -= dt;
+      if (game.nextLightning <= 0) { game.flash = 1; game.nextLightning = rnd(6, 16); sfx.thunder(rnd(0.3, 1.5)); sky.uniforms.uBolt.value.copy(bolt.strike(camera.position, Math.atan2(camera.position.x - player.x, camera.position.z - player.z) + Math.PI + rnd(-0.9, 0.9))); }
+    } else { game.nextLightning = Math.max(game.nextLightning, 4); bolt.mesh.visible = false; }
   }
   game.flash = Math.max(0, game.flash - dt * 2.8);
   const fl = game.flash > 0 ? game.flash * (0.6 + 0.4 * Math.sin(game.flash * 40)) : 0;
   ocean.uniforms.uFlash.value = sky.uniforms.uFlash.value = rain.uniforms.uFlash.value = wakes.uniforms.uFlash.value = fl;
-  // [aaa water] mood by wave: sky, fog, light and water darken from wave 6, strongest by wave 12+ (DAILY too); a new run resets it
-  { const w = game.state === 'title' ? 0 : clamp((game.wave - 5) / 7, 0, 1), target = w * w * (3 - 2 * w);
+  // [v343] BANKSY t1812u–t1814u: shared-clock sunny day / sunrise / sunset / starry night; storm blends in from wave 6+ (Storm Hunt)
+  { // Harbor / title / early waves: storm → 0 (true fair weather). Late Storm Hunt waves raise storm mood.
+    const stormForced = isStormForced();
+    let target = 0;
+    if (stormForced != null) target = stormForced;
+    else if (game.state !== 'title' && game.mode !== 'pvp') { const w = clamp((game.wave - 5) / 7, 0, 1); target = w * w * (3 - 2 * w); }
+    // PvP Harbor stays fair (wave is pinned ~3 for AI strength only — never drives storm rain)
     game.storm = game.stormOverride ?? (game.storm || 0) + (target - (game.storm || 0)) * (1 - Math.exp(-dt * 0.6));
-    const sm = game.storm, dens = (0.0042 + 0.0007 * sm) * FOG_K;
-    moodColor.copy(FOG_COLOR).lerp(STORM_FOG, sm);
-    scene.fog.color.copy(moodColor); scene.background.copy(moodColor); scene.fog.density = dens;
+    const sm = game.storm;
+    const skySt = evalSkyNow(sm);
+    const dens = skySt.fogDensity * FOG_K;
+    moodColor.setRGB(skySt.fogColor.r, skySt.fogColor.g, skySt.fogColor.b);
+    if (sm > 0.01) moodColor.lerp(STORM_FOG, sm * 0.85);
+    scene.fog.color.copy(moodColor); scene.fog.density = dens;
+    // [v344] background tracks zenith (not pale horizon) so any dome edge stays Caribbean blue / night indigo
+    scene.background.setRGB(skySt.zenith.r, skySt.zenith.g, skySt.zenith.b);
+    if (sm > 0.01) scene.background.lerp(STORM_FOG, sm * 0.9);
     ocean.uniforms.uFogColor.value.copy(moodColor); sky.uniforms.uFogColor.value.copy(moodColor); wakes.uniforms.uFogColor.value.copy(moodColor);
     ocean.uniforms.uFogDensity.value = wakes.uniforms.uFogDensity.value = dens;
     ocean.uniforms.uStorm.value = sky.uniforms.uStorm.value = wakes.uniforms.uStorm.value = sm;
-    rain.uniforms.uAlpha.value = 0.28 + 0.17 * sm; sun.intensity = 2.1 * (1 - 0.4 * sm);
-    hemi.intensity = 1.9 * (1 - 0.28 * sm) + fl * 3; }
+    // rain OFF in fair weather (was always streaking at alpha 0.28 — caused Harbor grey rain)
+    rain.uniforms.uAlpha.value = skySt.rainAlpha;
+    rain.mesh.visible = skySt.rainAlpha > 0.02;
+    // sky dome live state
+    sky.uniforms.uSunDir.value.set(skySt.sunDir.x, skySt.sunDir.y, skySt.sunDir.z);
+    sky.uniforms.uMoonDir.value.set(skySt.moonDir.x, skySt.moonDir.y, skySt.moonDir.z);
+    sky.uniforms.uZenith.value.setRGB(skySt.zenith.r, skySt.zenith.g, skySt.zenith.b);
+    sky.uniforms.uMid.value.setRGB(skySt.mid.r, skySt.mid.g, skySt.mid.b);
+    sky.uniforms.uHorizon.value.setRGB(skySt.horiz.r, skySt.horiz.g, skySt.horiz.b);
+    sky.uniforms.uSunColor.value.setRGB(skySt.sunColor.r, skySt.sunColor.g, skySt.sunColor.b);
+    sky.uniforms.uSunVis.value = skySt.sunVis; sky.uniforms.uMoonVis.value = skySt.moonVis; sky.uniforms.uStarVis.value = skySt.starVis;
+    sky.uniforms.uCloudWarm.value = skySt.cloudWarm; sky.uniforms.uGolden.value = skySt.goldenW;
+    // ocean mirrors sky
+    ocean.uniforms.uSun.value.set(skySt.keyDir.x, Math.max(0.05, skySt.keyDir.y), skySt.keyDir.z).normalize();
+    ocean.uniforms.uSunColor.value.setRGB(skySt.keyColor.r, skySt.keyColor.g, skySt.keyColor.b);
+    ocean.uniforms.uSkyZenith.value.setRGB(skySt.zenith.r, skySt.zenith.g, skySt.zenith.b);
+    ocean.uniforms.uSkyHorizon.value.setRGB(skySt.horiz.r, skySt.horiz.g, skySt.horiz.b);
+    // scene lights
+    sun.color.setRGB(skySt.keyColor.r, skySt.keyColor.g, skySt.keyColor.b);
+    sun.intensity = skySt.keyIntensity * (1 - 0.15 * fl) + fl * 1.2;
+    hemi.color.setRGB(skySt.hemiSky.r, skySt.hemiSky.g, skySt.hemiSky.b);
+    hemi.groundColor.setRGB(skySt.hemiGround.r, skySt.hemiGround.g, skySt.hemiGround.b);
+    hemi.intensity = skySt.hemiIntensity + fl * 3;
+    renderer.toneMappingExposure = skySt.exposure;
+    // keep a unit offset for the shadow light follow (scaled from keyDir)
+    SUN_OFF.set(skySt.keyDir.x, Math.max(0.15, skySt.keyDir.y), skySt.keyDir.z).multiplyScalar(90);
+    game._sky = skySt; // tests / debug
+  }
   bolt.mesh.visible = game.flash > 0.3; bolt.mesh.material.opacity = clamp(fl * 1.6, 0, 1);
   wind.uTime.value = t; chestTime(t);
   // hull foam collars for the water shader (nearest ships first)
@@ -1661,7 +1701,10 @@ try { initHarborCard(); } catch (e) { console.warn('[harbor card]', e); }
 // [security L] the full debug object only on a local dev server; the live game exposes a tiny facade (what uiProfile.js / portal.js / pvp.js read)
 const pfpFacade = () => Object.freeze({ get dock() { return dock; }, get pvp() { return pvp ? pvp.publicApi || null : null; },
   game: Object.freeze({ get mode() { return game.mode; }, get state() { return game.state; }, set state(v) { if (v === 'playing' && game.state === 'paused') game.state = v; }, get wallet() { return game.wallet; }, set wallet(v) { if (typeof v === 'string' && v.length <= 44) game.wallet = v; } }) });
-window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, rebuildShip: (lv) => rebuildPlayerShip(lv) } : pfpFacade(); // [v112] + rebuildShip (ship tests: hull x CANNONS tiers in game) // [Raul] + renderer/scene for perf tests
+window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GFX_KEY, get pvp() { return pvp; }, game, get player() { return player; }, enemies, balls, loot, spawnEnemy, escorts, fire: playerFire, damage, startGame, gameOver, toTitle: () => toTitle(), quality, camera, controls, renderer, scene, wakes, ocean, sky, rain, rebuildShip: (lv) => rebuildPlayerShip(lv),
+  skyCycle, setSkyPhase, clearSkyPhase, get skyPhase() { return skyPhase(); }, get skyName() { return phaseName(skyPhase()); } } : pfpFacade(); // [v112] + rebuildShip // [v343] + sky day/night API
+// [v343] always expose a tiny sky override for Playwright / ?sky= (safe; no gameplay secrets)
+window.__pfpSky = Object.freeze({ setPhase: setSkyPhase, clearPhase: clearSkyPhase, phase: () => skyPhase(), name: () => phaseName(skyPhase()), eval: (st) => evalSkyNow(st ?? (game.storm || 0)), cycle: skyCycle });
 // [admin-menu] the owner Admin Menu (⚙ SETTINGS > 👑 ADMIN MENU, F8). Every player loads the tiny client half (server FREEZE / pocket refresh pokes);
 // the panel itself only mounts when the SERVER says owner (admin_status). &admin=0 = off.
 if (!/[?&]admin=0(&|$)/.test(location.search)) import('./adminMenu.js').then(m => m.initAdminMenu({ dock: () => dock, pvp: () => pvp, player: () => player, game, scene, camera })).catch(e => console.warn('[admin-menu]', e));
