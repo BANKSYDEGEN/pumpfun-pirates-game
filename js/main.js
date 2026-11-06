@@ -899,7 +899,8 @@ function drawRadar() {
   const W = radar.width, R = W / 2, range = 260;
   if (dock?.on) { // [v106] in the harbor (at sea + on foot): the whole-island map (js/islandMap.js), north up
     const peers = [], ai = [];
-    for (const e of enemies) if (e.alive) (e.radarColor === '#5ee08a' ? peers : ai).push({ x: e.x, z: e.z, boss: !!e.harborBoss });
+    // [v340] split by net kind (NOT radarColor): non-squad players are black, not AI red
+    for (const e of enemies) if (e.alive) (e.net?.kind === 'player' ? peers : ai).push({ x: e.x, z: e.z, boss: !!e.harborBoss, squad: !!e._hbSquad });
     if (dock.drawMinimap(rctx, W, { ship: { x: player.x, z: player.z, yaw: player.yaw }, peers, ai, loot })) return;
   }
   rctx.clearRect(0, 0, W, W);
@@ -914,7 +915,13 @@ function drawRadar() {
   };
   loot.forEach(l => dot(l.x, l.z, '#ffcd77', 3));
   healthDrops.radar(dot); // [health drops] green dots
-  enemies.forEach(e => e.alive && (e.harborBoss ? (dot(e.x, e.z, '#ffcd00', 7.5), dot(e.x, e.z, '#fa0d0d', 5)) : dot(e.x, e.z, e.radarColor || (e.state === 'flee' ? '#ff9b9b' : '#fa0d0d'), e.big ? 5 : 3.5))); // [v98] squads: teammates blue // [v94] harbor boss: big gold-ringed dot
+  enemies.forEach(e => { if (!e.alive) return; // [v98] Arena squads: blue teammates · [v94] harbor boss · [v340] Harbor other players BLACK, squadmates GREEN
+    if (e.harborBoss) { dot(e.x, e.z, '#ffcd00', 7.5); dot(e.x, e.z, '#fa0d0d', 5); return; }
+    const r = e.big ? 5 : 3.8;
+    if (e._hbSquad || e.radarColor === '#2fd866') { dot(e.x, e.z, '#f5efe0', r + 1.3); dot(e.x, e.z, '#2fd866', r); return; }
+    if (e._hbOther || e.radarColor === '#0d0d10') { dot(e.x, e.z, '#f5efe0', r + 1.4); dot(e.x, e.z, '#0d0d10', e.big ? 5 : 3.8); return; }
+    dot(e.x, e.z, e.radarColor || (e.state === 'flee' ? '#ff9b9b' : '#fa0d0d'), e.big ? 5 : 3.5);
+  });
   escorts.list.forEach(e => e.alive && (dot(e.x, e.z, '#ffffff', 4), dot(e.x, e.z, '#4ee37a', 2.8))); // [escorts] green dot, white ring
   rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.moveTo(R, R - 7); rctx.lineTo(R - 5, R + 5); rctx.lineTo(R + 5, R + 5); rctx.fill();
 }

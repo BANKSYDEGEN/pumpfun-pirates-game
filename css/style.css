@@ -1098,6 +1098,10 @@ html.hud-notitle #pvp-harbor { top: calc(138px + var(--safe-t, 0px)); }
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); white-space: nowrap; max-width: min(92vw, 360px); }
 html.pvp.pvp-harbor #hb-hub-btn, html.pvp.pvp-harbor .hb-hub-btn { display: inline-flex; }
 html.pvp-spec #hb-hub-btn, html.hud-hide #hb-hub-btn { display: none !important; }
+/* [v340] BANKSY t1804u: on mobile the PLAY · HARBOR pill only shows while you're on your ship — never on foot (island, quarters, cottages, canoe) */
+html.dk-touch.pfp-onfoot #hb-hub-btn, html.dk-touch.pfp-inhull #hb-hub-btn, html.dk-touch.pfp-inhouse #hb-hub-btn, html.dk-touch.pfp-canoe #hb-hub-btn,
+html.hb-mobile-foot #hb-hub-btn { display: none !important; }
+@media (pointer: coarse), (hover: none) { html.pfp-onfoot #hb-hub-btn, html.pfp-inhull #hb-hub-btn, html.pfp-inhouse #hb-hub-btn, html.pfp-canoe #hb-hub-btn { display: none !important; } }
 #hb-hub-btn .hb-ico { font-size: 18px; line-height: 1; }
 #hb-hub-btn .hb-chip { font: 700 12px/1 system-ui,sans-serif; padding: 3px 7px; border-radius: 999px; background: #fa0d0d; color: #fff; border: 1px solid #ffcd77; }
 #hb-hub-btn.queued { border-color: #ffcd77; box-shadow: 0 0 12px rgba(255,205,119,.45); }
@@ -1106,7 +1110,7 @@ html.pvp-spec #hb-hub-btn, html.hud-hide #hb-hub-btn { display: none !important;
 /* hide the sprawling harbor card until the hub opens it as a modal */
 html.pvp #pvp-harbor.hb-hub:not(.hb-modal-open) { display: none !important; }
 #pvp-harbor.hb-hub.hb-modal-open { display: flex !important; position: fixed; inset: 0; left: 0; right: 0; top: 0; bottom: 0; transform: none;
-  z-index: 70; align-items: center; justify-content: center; pointer-events: auto; background: rgba(6,3,1,.55);
+  z-index: 200; align-items: center; justify-content: center; pointer-events: auto; background: rgba(6,3,1,.55); /* [v340] above #dk-islesafe / #dk-safe / #bt-stance / combat HUD */
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); padding: calc(12px + var(--safe-t,0px)) 12px calc(12px + var(--safe-b,0px));
   max-width: none; flex-direction: column; gap: 0; }
 #pvp-harbor.hb-hub.hb-modal-open > *:not(.hb-hub-head) { position: relative; z-index: 1; }

@@ -53,6 +53,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = shoreCrewGear({ ...crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), ...crewWeaponsOf(p.capG) }); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
       { const lk = decodeWeaponLook(WSYNC_ON ? m.wl : 0); if (lk !== p.look) { p.look = lk; setObjLook(p.pirate.object, lk); } } // [weapon-sync] their look -> held + holstered weapons (battle.js / carryWeapons.js)
       p.fy = Number.isFinite(m.fy) && m.fy !== 0 ? m.fy / 10 : null; // [Emerly zipline] riding a zipline: their height
+      if (typeof m.pc === 'string') p.pc = m.pc.slice(0, 8); // [v340] Harbor squad party tag for on-foot minimap colors
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
       const name = String(m.n ?? p.name ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 20) || 'PIRATE';
       if (name !== p.name) { p.name = name; if (p.tag) { p.tag.material.map.dispose(); p.tag.removeFromParent(); } p.tag = nameTag(name); p.pirate.object.add(p.tag); p.tag.position.y = 2.75; }

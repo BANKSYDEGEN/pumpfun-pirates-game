@@ -383,21 +383,22 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const hud = el('div', 'bt-hud', '<b></b><button type="button" class="tm"></button><span class="sc"></span><small></small>'), atk = el('button', 'bt-atk', 'SWING'), flash = el('div', 'bt-flash'), msg = el('div', 'bt-msg');
-  const stanceBar = el('button', 'bt-stance', '<span class="bt-ico">🤚</span><span class="bt-tab">TAB</span><span class="bt-safe">🛡️</span>');
-  stanceBar.type = 'button'; stanceBar.title = 'Tab · cycle Unarmed → Musket → Sword';
+  const stanceBar = el('button', 'bt-stance', '<span class="bt-ico">🤚</span><span class="bt-tab"></span><span class="bt-safe">🛡️</span>');
+  const weaponKeyLabel = () => keyName(binds('weapon')[0] || 'KeyQ'); // [v340] the real weapon key (Q by default), never a stale "TAB"
+  stanceBar.type = 'button'; stanceBar.title = `${weaponKeyLabel()} · cycle Unarmed → Musket → Sword`;
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) stanceBar.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
   stanceBar.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cycleStance(); });
   let stanceSig = '';
   function drawStance(show) {
     const safeLock = !!(isleSafe._isleSafe && !me.arena);
     const pd = padActive();
-    const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}|${safeLock ? 1 : 0}|${pd ? padGlyph('X') : 'TAB'}` : '';
+    const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}|${safeLock ? 1 : 0}|${pd ? padGlyph('X') : weaponKeyLabel()}` : '';
     if (sig === stanceSig) return; stanceSig = sig;
     stanceBar.classList.toggle('on', !!show); if (!show) return;
     stanceBar.classList.toggle('safe-locked', safeLock);
     stanceBar.querySelector('.bt-ico').textContent = STANCE_ICON[me.stance] || '🤚';
     const tab = stanceBar.querySelector('.bt-tab');
-    if (tab) tab.textContent = pd ? padGlyph('X') : 'TAB'; // [t1734u] □ / X while a pad is in use
+    if (tab) tab.textContent = pd ? padGlyph('X') : weaponKeyLabel(); stanceBar.title = `${pd ? padGlyph('X') : weaponKeyLabel()} · cycle Unarmed → Musket → Sword`; // [v340] keybind label // [t1734u] □ / X while a pad is in use
     stanceBar.disabled = me.down > 0;
   }
   function setStance(s, auto = false) {

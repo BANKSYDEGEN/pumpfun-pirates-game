@@ -49,6 +49,16 @@ export function initHarborCard() {
     hub.classList.toggle('queued', queued);
     hub.title = queued ? 'In Battle Royale queue — tap to manage' : `Play & Servers · ${label}`;
   };
+  // [v340] BANKSY t1804u: on mobile the pill is a ship-only control — hide it (and close the modal) the moment you go on foot
+  const isMobile = () => document.documentElement.classList.contains('dk-touch') || matchMedia('(pointer: coarse), (hover: none)').matches;
+  const FOOT = ['pfp-onfoot', 'pfp-inhull', 'pfp-inhouse', 'pfp-canoe'];
+  let wasFoot = false;
+  const syncFoot = () => { const h = document.documentElement, foot = isMobile() && FOOT.some(c => h.classList.contains(c));
+    h.classList.toggle('hb-mobile-foot', foot);
+    if (foot && !wasFoot && card.classList.contains('hb-modal-open') && !h.classList.contains('dk-board')) close();
+    wasFoot = foot; };
+  syncFoot();
+  try { new MutationObserver(syncFoot).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); } catch {}
   paint();
   addEventListener('pfp-harbor-hub', (e) => paint(e.detail || {}));
   // expose for pvp.js

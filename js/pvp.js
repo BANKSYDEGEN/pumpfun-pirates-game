@@ -819,8 +819,9 @@ export function createPvp(K) {
     p.ship.netState = p.st;
     if (typeof m.dk === 'string') p.dk = m.dk; p.ship.anchor = p.ship._safe = where === 'harbor' && !!p.dk;
     p.um = !!m.um; p.ship._unmanned = where === 'harbor' && (p.um || !!p.dk); // [backpack-pvp] Option B: their parked / unmanned ship is shielded // [dock-waterline] a peer moored at a berth rides the moored waterline too
-    const hbv = where === 'harbor' || (spec.on && spec.harbor); // [v99] shared harbor: a friendly green tag + radar dot, never red / blue
-    p.ship.nameEl.classList.toggle('hb-mate', hbv); p.ship.radarColor = hbv ? '#5ee08a' : (p.ship.radarColor === '#5ee08a' ? null : p.ship.radarColor);
+    // [v340] BANKSY t1801u/t1802u: Harbor map colors — squadmates GREEN, other players BLACK (AI stay RED elsewhere)
+    const hbv = where === 'harbor' || (spec.on && spec.harbor);
+    hbPaint(p, hbv);
     if (hbv && m.i === hostId && m.ai !== undefined) syncBots(m.ai);
     syncCrewGear(p.ship.mesh, crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), { skin: sk }, p.captain?.gear); // [Raul shop2 fixes] + their captain's shop-items-2 extras // [Timothy] their crew in THEIR CREW loadout ('cr'; old builds: the uniform), never their captain's clothes
   }
@@ -1276,10 +1277,41 @@ export function createPvp(K) {
     const pc = partyTag(party.code), p = peers.get(id);
     return !!(pc && p?.pc && p.pc === pc);
   }
+  // [v340] BANKSY t1801u/t1802u: is this Harbor peer in YOUR squad (party active + same party tag 'pc', or a live party mate)?
+  function isHbSquadPeer(p) {
+    if (!p || !party.code) return false;
+    const mine = partyTag(party.code);
+    return !!(mine && ((p.pc && p.pc === mine) || isSquadMate(p.id)));
+  }
+  // [v340] Harbor map colors on a remote ship: squadmates GREEN (#2fd866), other players BLACK (#0d0d10); AI stay red (main.js)
+  function hbPaint(p, hbv = where === 'harbor' || (spec.on && spec.harbor)) {
+    if (!p?.ship) return;
+    if (hbv) {
+      const squad = isHbSquadPeer(p);
+      p.ship._hbSquad = squad; p.ship._hbOther = !squad;
+      p.ship.radarColor = squad ? '#2fd866' : '#0d0d10';
+      p.ship.nameEl?.classList.toggle('hb-mate', squad); // only true squadmates wear the green mate tag
+    } else {
+      p.ship._hbSquad = false; p.ship._hbOther = false;
+      p.ship.nameEl?.classList.remove('hb-mate');
+      if (p.ship.radarColor === '#2fd866' || p.ship.radarColor === '#0d0d10' || p.ship.radarColor === '#5ee08a') p.ship.radarColor = null;
+    }
+  }
+  function hbRepaintAll() { try { for (const p of peers.values()) hbPaint(p); } catch {} } // [v340] party code changed: refresh every peer's colour
+  // [v340] Harbor map / minimap: accept id string OR peer-like { id, i, pc, name }
+  function isHarborSquadMate(peer) {
+    if (!peer) return false;
+    const id = typeof peer === 'string' ? peer : (peer.id || peer.i || '');
+    if (id && isSquadMate(id)) return true;
+    const mine = party.code ? partyTag(party.code) : '';
+    if (!mine) return false;
+    const their = typeof peer === 'object' ? String(peer.pc || '').slice(0, 8) : '';
+    return !!(their && their === mine);
+  }
   function partyMsg(t) { party.msg = t; harborUi(); }
   async function partyJoin(code, made = false) {
     code = cleanCode(code); if (code.length !== 5) { partyMsg('A party code is 5 letters / numbers'); return; }
-    partyLeave(true); party.code = code; party.t = Date.now(); party.mates.clear(); party.msg = made ? 'share this code with your friend' : 'joining…';
+    partyLeave(true); party.code = code; party.t = Date.now(); party.mates.clear(); party.msg = made ? 'share this code with your friend' : 'joining…'; hbRepaintAll();
     const r = new Room('pfp-party-' + code.toLowerCase(), { ticket: rtTicket }); party.room = r;
     r.on('p', onPartyBeat).on('bye', (m) => { if (party.mates.delete(m?.i)) harborUi(); })
       .on('go', (m) => { if (m?.i && party.mates.has(m.i) && mode === 'squads' && where === 'harbor' && lob.state === 'harbor' && !spec.on) { K.banner('YOUR MATE SET SAIL', 'queuing you together…'); joinBattle(true); } });
@@ -1288,7 +1320,7 @@ export function createPvp(K) {
     if (party.room !== r) { r.close(); return; }
     if (!made) party.msg = 'waiting for your mate…'; partyBeat(); harborUi();
   }
-  function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; if (!silent) harborUi(); }
+  function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; hbRepaintAll(); if (!silent) harborUi(); }
   function partyMake() { const c = newPartyCode(); partyJoin(c, true); return c; } // [squad-hall]
   function partyInfo() { const mates = partyMates().map(m => ({ id: m.id, n: m.n, st: m.st })); return { code: party.code || '', mate: mates[0] || null, mates, count: party.code ? mates.length + 1 : 0, msg: party.msg || '' }; }
   async function joinWorld({ name, w, copy, mode } = {}) { // [squad-hall] travel to another pirate's harbor copy, or queue their arena mode
@@ -1313,7 +1345,7 @@ export function createPvp(K) {
     const now = performance.now(), live = [...party.mates.values()].filter(x => now - x.at < 10000);
     // [v328] Harbor co-op: allow up to HARBOR_SQUAD_MAX (16). Arena 2v2 still gates joinBattle separately.
     if (live.length + 1 > HARBOR_SQUAD_MAX && live.every(x => x.t < party.t)) { partyLeave(true); partyMsg(`SQUAD FULL: that code already has ${HARBOR_SQUAD_MAX} pirates`); return; }
-    if (!had) { party.msg = ''; partyBeat(); K.banner('SQUAD READY', `${party.mates.get(m.i).n} joined (${live.length + 1} in squad) · friendly fire OFF`); }
+    if (!had) { party.msg = ''; partyBeat(); hbRepaintAll(); K.banner('SQUAD READY', `${party.mates.get(m.i).n} joined (${live.length + 1} in squad) · friendly fire OFF`); }
     harborUi();
   }
   function partyTick(now) { if (party.room && now - party.hbT > 4000) { party.hbT = now; partyBeat(); } }
@@ -1939,9 +1971,9 @@ export function createPvp(K) {
       if (r.code && r.code !== curCode) return switchServer(planSwitch('own', r.code));
       if (!r.code && (r.copy | 0) > 0 && (r.copy | 0) !== (hb.copy | 0)) return switchServer(planSwitch('pick', r.copy | 0));
       return null; },
-    serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), isSquadMate: (id) => isSquadMate(id), partyMates, unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
-    _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
-  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+    serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), isSquadMate: (id) => isSquadMate(id), isHarborSquadMate: (p) => isHarborSquadMate(p), isHbSquadPeer: (p) => isHbSquadPeer(p), partyMates, unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
+    _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, isHbSquadPeer, hbPaint, hbRepaintAll, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
+  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), isHarborSquadMate: (p) => isHarborSquadMate(p), isHbSquadPeer: (p) => isHbSquadPeer(p), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;
 }

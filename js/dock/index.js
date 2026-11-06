@@ -48,6 +48,7 @@ const CSS = `
 #dk-safe.grace{color:#ffcd77;border-color:#ffcd77}
 #dk-islesafe{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:7;pointer-events:none;font:22px 'Just Another Hand',cursive;letter-spacing:.06em;color:#34d399;background:rgba(22,22,22,.72);border:2px solid #34d399;border-radius:999px;padding:2px 14px 0;white-space:nowrap;display:none}
 #dk-islesafe.grace{color:#ffcd77;border-color:#ffcd77}
+#dk-islesafe:not(.grace){display:none!important} /* [v340] BANKSY t1805u: SAFE ZONE text pill never shows (NO FIRING grace countdown still does) */
 @media (max-width:600px){#dk-islesafe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
 #dk-acts{position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 168px);transform:translateX(-50%);z-index:8;display:none;gap:10px;align-items:center;pointer-events:none}
 #dk-acts button[hidden]{display:none!important}
@@ -73,6 +74,18 @@ html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{max-width:cal
 #dk-toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:70;pointer-events:none;font:30px 'Just Another Hand',cursive;color:#fff;text-shadow:0 2px 4px #000;opacity:0;transition:opacity .3s;text-align:center}
 @media (max-height:480px){#dk-acts{bottom:calc(var(--safe-b,0px) + 104px)} #dk-acts button{font-size:22px;padding:8px 14px 5px} #dk-safe{top:calc(var(--safe-t,0px) + 46px);font-size:18px}}
 @media (max-width:600px){#dk-acts{bottom:calc(var(--safe-b,0px) + 200px)} #dk-safe{top:calc(var(--safe-t,0px) + 112px);font-size:18px}}
+/* [v340] mobile on-foot HUD (v339 QA t1793u-t1795u): BOARD SHIP / CHANGE SKIN never over the radar, INVENTORY, the weapon switch or the top icons */
+@media (orientation:landscape) and (max-height:540px){html.dk-touch.pfp-onfoot #dk-acts,html.dk-touch.pfp-canoe #dk-acts{flex-direction:row;align-items:flex-end;right:calc(var(--safe-r,0px) + 74px);bottom:calc(var(--safe-b,0px) + 14px);max-width:calc(100vw - var(--safe-l,0px) - var(--safe-r,0px) - 330px);flex-wrap:wrap-reverse;justify-content:flex-end}
+  html.dk-touch.pfp-onfoot #dk-acts button,html.dk-touch.pfp-canoe #dk-acts button{font-size:19px;padding:8px 13px 5px}}
+@media (orientation:portrait) and (max-width:600px){html.dk-touch.pfp-onfoot #dk-acts button,html.dk-touch.pfp-canoe #dk-acts button{font-size:20px;padding:10px 14px 7px}}
+/* [v340] BANKSY t1806u: on foot (touch) JUMP + weapon switch + 💬 emote share ONE bottom row beside the stick */
+html.pfp-onfoot.dk-touch #bt-stance{left:calc(var(--safe-l,0px) + 248px)!important;right:auto!important;top:auto!important;bottom:calc(var(--safe-b,0px) + 36px)!important;width:50px!important;height:50px!important;font-size:22px}
+html.pfp-onfoot.dk-touch #btn-emote{position:fixed!important;left:calc(var(--safe-l,0px) + 308px)!important;right:auto!important;top:auto!important;bottom:calc(var(--safe-b,0px) + 36px)!important;width:50px!important;height:50px!important;font-size:22px!important}
+html.pfp-onfoot.dk-touch.bt-on:not(.tps-on) #bt-atk{right:calc(var(--safe-r,0px) + 18px);bottom:calc(var(--safe-b,0px) + 98px)}
+@media (max-width:380px){html.pfp-onfoot.dk-touch #dk-joy{left:calc(var(--safe-l,0px) + 14px);width:120px;height:120px}
+  html.pfp-onfoot.dk-touch #dk-jump{left:calc(var(--safe-l,0px) + 144px);width:62px;height:62px}
+  html.pfp-onfoot.dk-touch #bt-stance{left:calc(var(--safe-l,0px) + 214px)!important;width:46px!important;height:46px!important}
+  html.pfp-onfoot.dk-touch #btn-emote{left:calc(var(--safe-l,0px) + 268px)!important;width:46px!important;height:46px!important}}
 `;
 
 export async function createDock(ctx) {
@@ -108,10 +121,13 @@ export async function createDock(ctx) {
   let mapSt = {};
   function minimapState(st) {
     const W = walker.w, peers = [...(st.peers || [])];
-    for (const p of fnet.peers.values()) peers.push({ x: p.x, z: p.z, foot: true });
+    for (const p of fnet.peers.values()) { // [v340] on-foot: squadmates green, other players black
+      let squad = false; try { const pv = ctx.pvp?.(); squad = !!(pv?.isHbSquadPeer?.(p) || pv?.isHarborSquadMate?.(p) || pv?.isSquadMate?.(p.id)); } catch {}
+      peers.push({ x: p.x, z: p.z, foot: true, squad, id: p.id });
+    }
     const crew = onFoot && crewF?.active ? crewF.list.map(c => ({ x: c.x, z: c.z })) : []; // [minimap-themes] your crew on the radar
     const demo = typeof window !== 'undefined' && typeof window.PFP_MAP_DEMO === 'function' && onFoot ? window.PFP_MAP_DEMO({ x: W.x, z: W.z }) : null; // dev: icon shots (tools)
-    if (demo) { peers.push(...(demo.peers || [])); crew.push(...(demo.crew || [])); }
+    if (demo) { peers.push(...(demo.peers || []).map(q => ({ ...q, squad: !!q.squad }))); crew.push(...(demo.crew || [])); }
     return { ...st, peers, crew, ai: [...(st.ai || []), ...(demo?.ai || [])], me: onFoot ? { x: W.x, z: W.z, yaw: W.yaw, foot: true } : null, dig: treasure.target() || (typeof window !== 'undefined' && window.PFP_MAP_TARGET) || st.dig || null };
   }
   const openIsleMap = () => { if (on && game.state === 'playing' && !treasure.isOpen) imap.open(() => minimapState(mapSt)); };
@@ -209,15 +225,24 @@ export async function createDock(ctx) {
     if (!document.documentElement.classList.contains('pfp-onfoot') && !document.documentElement.classList.contains('pfp-canoe')) return; // aboard: the CSS spot (no stick / JUMP)
     const W = innerWidth, H = innerHeight, cs = getComputedStyle(document.documentElement), px = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
     const sr = px('--safe-r'), sb = px('--safe-b'), pad = 10;
-    const ctrls = ['dk-joy', 'dk-jump', 'bt-atk', 'btn-emote'].map(id => document.getElementById(id)).filter(e => e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden')
+    const vis = (e) => e && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden';
+    const ctrls = ['dk-joy', 'dk-jump', 'bt-stance', 'bt-atk', 'btn-emote'].map(id => document.getElementById(id)).filter(vis)
       .map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    // [v340] v339 QA: also keep clear of the radar, INVENTORY, the weapon switch, the top icons + PLAY · HARBOR pill
+    const extra = ['radar', 'bt-stance', 'btn-sound', 'btn-cam', 'btn-pause', 'btn-full', 'captain', 'hb-hub-btn', 'inv-hud-btn', 'btn-inv'].map(id => document.getElementById(id))
+      .concat([...document.querySelectorAll('.tm-btn')]).filter(vis).map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    const obst = ctrls.concat(extra);
     const hits = (oneLine) => { const r = acts.getBoundingClientRect(); if (r.left < 0 || r.right > W - sr - 8 || r.top < 0 || (oneLine && r.height > 64)) return true;
-      return ctrls.some(c => r.left < c.right + pad && r.right > c.left - pad && r.top < c.bottom + pad && r.bottom > c.top - pad); };
+      return obst.some(c => r.left < c.right + pad && r.right > c.left - pad && r.top < c.bottom + pad && r.bottom > c.top - pad); };
     const left = ctrls.filter(c => c.left < W / 2), gapL = Math.max(0, ...left.map(c => c.right)) + pad;
+    const rightCol = obst.filter(c => c.left > W * 0.6 && c.bottom > H * 0.25), stanceR = Math.max(0, ...rightCol.map(c => W - c.left)) + pad; // clear the right-edge column (weapon switch / chat)
     const tryAt = (o, oneLine) => { st.left = o.left ?? 'auto'; st.right = o.right ?? 'auto'; st.bottom = o.bottom; st.transform = 'none'; return !hits(oneLine); };
     if (left.length && tryAt({ left: `${gapL}px`, bottom: `${sb + 24}px` }, true)) return; // the gap only when the label fits on one line
-    const joyTop = Math.min(H, ...left.map(c => c.top)); if (tryAt({ right: `${sr + 22}px`, bottom: `${H - joyTop + pad}px` })) return;
-    const allTop = Math.min(H, ...ctrls.map(c => c.top)); tryAt({ right: `${sr + 22}px`, bottom: `${H - allTop + pad}px` });
+    const joyTop = Math.min(H, ...left.map(c => c.top));
+    const tries = [{ right: `${sr + 22}px`, bottom: `${sb + 14}px` }, { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${sb + 14}px` }, { right: `${sr + 22}px`, bottom: `${H - joyTop + pad}px` },
+      { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${H - joyTop + pad}px` }, { right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${sb + 120}px` }];
+    for (const o of tries) if (tryAt(o)) return;
+    const allTop = Math.min(H, ...ctrls.map(c => c.top)); tryAt({ right: `${Math.max(sr + 22, stanceR)}px`, bottom: `${H - allTop + pad}px` });
   }
   if (touch) { addEventListener('resize', () => requestAnimationFrame(placeActs)); setInterval(placeActs, 600); } // controls come and go (battle areas, chat)
   const press = (s) => { if (s && !s.disabled) s.fn(); };
@@ -521,7 +546,7 @@ export async function createDock(ctx) {
         const W = walker.w, tnow = now;
         const zn = tickIsleSafe(isleSafeHud, ...layout.harborToFoot(W.x, W.z), tnow); // walker = harbor frame
         const gl = graceLeft(isleSafeHud, tnow, SAFE_GRACE_S);
-        if (zn) pill(isleSafeTag, true, '', `🛡️ SAFE ZONE · ${zn.name}`);
+        if (zn) pill(isleSafeTag, false); // [v340] BANKSY t1805u: no floating SAFE ZONE HUD banner text; safe-zone rules unchanged (was `🛡️ SAFE ZONE · ${zn.name}`)
         else if (gl > 0) pill(isleSafeTag, true, 'grace', `NO FIRING · ${Math.ceil(gl)}s`);
         else pill(isleSafeTag, false);
       } else pill(isleSafeTag, false);
