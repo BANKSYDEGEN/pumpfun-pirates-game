@@ -119,7 +119,12 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
         return c.json(400, { error: "bad action" });
     }
   } catch (e: any) {
-    console.error("[houses]", action, e?.message || e);
+    console.error("[houses]", action, e?.code || "", e?.message || e);
+    // [v329] surface known Postgres constraint / RPC failures clearly (was opaque "house error")
+    const msg = `${e?.code || ""} ${e?.message || ""}`;
+    if (/23514|check_violation|pvp_inv_source/i.test(msg)) {
+      return c.json(500, { error: "house error", detail: "inv_source" });
+    }
     return c.json(500, { error: "house error" });
   }
 }

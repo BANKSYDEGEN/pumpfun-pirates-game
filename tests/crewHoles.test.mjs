@@ -28,6 +28,10 @@ test('mannequin covers waist with classic pants unless pants/boots card', () => 
   assert.match(thumbs, /pants: 'classic_pants'/);
   assert.match(thumbs, /slot !== 'pants' && slot !== 'boots'/);
 });
-test('V6 hi body material is DoubleSide', () => {
-  assert.match(glb, /side: k === 'v6face' \? THREE\.FrontSide : THREE\.DoubleSide/);
+test('V6 hi body material is DoubleSide; eyes FrontSide + glossy', () => {
+  assert.match(glb, /side: isFace \? THREE\.FrontSide : THREE\.DoubleSide/);
+  assert.match(glb, /roughness: isFace \? 0\.22 : 0\.42/);
+  assert.match(glb, /MeshPhysicalMaterial/);
+  assert.match(glb, /bumpScale: isFace \? 0\.0 : 0\.0035/);
+  assert.match(glb, /k === 'v5eyes'/);
 });

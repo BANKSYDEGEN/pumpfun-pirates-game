@@ -1679,6 +1679,19 @@ export function createHouses({
     });
   }
 
+
+  // [v329] BANKSY t1743u: weapons never stack in Cottage Storage UI (attachments / per-unit identity)
+  function expandWeapons(list) {
+    const out = [];
+    for (const s of list || []) {
+      const q = Math.max(0, s.qty | 0);
+      if (!q) continue;
+      if (String(s.item).startsWith('wpn:')) {
+        for (let i = 0; i < q; i++) out.push({ ...s, qty: 1, meta: s.meta || undefined, _wunit: i });
+      } else out.push(s);
+    }
+    return out;
+  }
   async function bagItems() {
     // Prefer live inventory API; fall back to empty
     try {
@@ -1743,13 +1756,13 @@ export function createHouses({
   }
 
   async function renderStorage() {
-    const bag = (await bagItems()).filter((s) => filterCat(s.item, filter));
+    const bag = expandWeapons(await bagItems()).filter((s) => filterCat(s.item, filter));
     const ch = chestOf(activeId);
     const allChest = ch.items || [];
     const chestItems = allChest.filter((s) => filterCat(s.item, filter));
     const used = allChest.length;
     const name = (cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE';
-    panel.querySelector('[data-sub]').textContent = `${name} · drag full stacks · ✂️ to split`;
+    panel.querySelector('[data-sub]').textContent = `${name} · drag to move · weapons never stack · ✂️ splits loot`;
     panel.querySelector('[data-cap]').textContent = `${used} / ${ch.slots} slots`;
     panel.querySelector('[data-bag-cap]').textContent = `${bag.length} item${bag.length === 1 ? '' : 's'}`;
     // [backpack-pvp] backpack slot meter
@@ -1985,7 +1998,8 @@ export function createHouses({
 
   async function transfer(side, item, qty, slot) {
     if (busy || !activeId || !item) return;
-    const q = Math.max(1, qty | 0);
+    // [v329] weapons always move 1 unit (never stack / never split multi)
+    const q = String(item).startsWith('wpn:') ? 1 : Math.max(1, qty | 0);
     if (side === 'bag') await storeItem(item, q);
     else await takeItem(slot | 0, q);
   }
@@ -2060,9 +2074,14 @@ export function createHouses({
         if (!res.ok) return;
         const st = lsLoad();
         st.demoBag = st.demoBag || [];
-        const bag = st.demoBag.find((x) => x.item === res.taken.item);
-        if (bag) bag.qty += res.taken.qty;
-        else st.demoBag.push({ item: res.taken.item, qty: res.taken.qty, equipped: false });
+        // [v329] weapons never stack in the offline bag either (attachments / per-unit identity)
+        if (String(res.taken.item).startsWith('wpn:')) {
+          for (let i = 0; i < (res.taken.qty | 0); i++) st.demoBag.push({ item: res.taken.item, qty: 1, equipped: false, meta: res.taken.meta || undefined });
+        } else {
+          const bag = st.demoBag.find((x) => x.item === res.taken.item);
+          if (bag) bag.qty += res.taken.qty;
+          else st.demoBag.push({ item: res.taken.item, qty: res.taken.qty, equipped: false });
+        }
         lsSave(st);
         owned[activeId].items = res.items; persistChest(activeId);
       }

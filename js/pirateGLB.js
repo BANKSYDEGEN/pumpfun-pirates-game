@@ -102,9 +102,35 @@ const kindOf = (m) => (m?.name || '').split('.')[0];
 const V6_LIFT = 1.12;   // [V6 quality 2] BANKSY 'both faces darker than V5's clean flat skin': the lit V6 body a touch brighter (V5 toon bands read lighter)
 function toonize(src, colors, low, v6 = false) {
   const k = kindOf(src), key = tintOf(src);
-  // [V6] soft glossy vinyl-toy finish (his sheets), not flat toon: the detail atlas already carries the strand / muscle shading + AO
-  if (v6 && (k === 'pirate_hi' || k === 'v6face')) { const m = new THREE.MeshStandardMaterial({ name: src.name, color: k === 'pirate_hi' ? new THREE.Color(V6_LIFT, V6_LIFT, V6_LIFT) : 0xffffff, map: src.map || null, vertexColors: k === 'pirate_hi', roughness: k === 'v6face' ? 0.85 : 0.48, metalness: 0, alphaTest: k === 'v6face' ? 0.5 : 0, transparent: false, side: k === 'v6face' ? THREE.FrontSide : THREE.DoubleSide }); // [v280] body DoubleSide (hollow if front-only); eyes stay front-only (no hair-back blue)
-    m.userData = { tint: key, decal: k === 'v6face' ? 'face' : '' }; return m; }
+  // [V6 AAA v2] velvety collectible body (sheen + subtle bump from detail atlas) + wet glossy anime eyes (clearcoat).
+  // v5eyes = V6 face/eye decal material name from the GLB (kindOf splits on '.').
+  if (v6 && (k === 'pirate_hi' || k === 'v6face' || k === 'v5eyes')) {
+    const isFace = (k === 'v6face' || k === 'v5eyes');
+    const m = new THREE.MeshPhysicalMaterial({
+      name: src.name,
+      color: isFace ? 0xffffff : new THREE.Color(V6_LIFT, V6_LIFT, V6_LIFT),
+      map: src.map || null,
+      vertexColors: k === 'pirate_hi',
+      roughness: isFace ? 0.22 : 0.42,
+      metalness: 0,
+      envMapIntensity: isFace ? 1.25 : 0.9,
+      // subtle micro-relief from the detail/AO atlas (hair grooves, tank ribs) — tiny so skin stays velvet
+      bumpMap: (!low && src.map) ? src.map : null,
+      bumpScale: isFace ? 0.0 : 0.0035,
+      sheen: isFace ? 0.0 : 0.22,
+      sheenRoughness: 0.65,
+      sheenColor: new THREE.Color(0xfff3e8),
+      clearcoat: isFace ? 0.6 : 0.0,
+      clearcoatRoughness: isFace ? 0.12 : 0.0,
+      alphaTest: isFace ? 0.5 : 0,
+      transparent: false,
+      side: isFace ? THREE.FrontSide : THREE.DoubleSide, // [v280] body DoubleSide; eyes front-only
+    });
+    if (m.map) { m.map.anisotropy = Math.max(m.map.anisotropy || 0, 8); m.map.colorSpace = m.map.colorSpace || THREE.SRGBColorSpace; }
+    if (m.bumpMap) { m.bumpMap.anisotropy = Math.max(m.bumpMap.anisotropy || 0, 4); }
+    m.userData = { tint: key, decal: isFace ? 'face' : '' };
+    return m;
+  }
   if (k === 'ink') return new THREE.MeshBasicMaterial({ color: 0x0b0b0c, name: 'ink', side: THREE.FrontSide });
   const decal = k === 'face' || k === 'mouth' || k === 'skull';
   const atlas = k === 'pirate_hi';   // merged High: ONE greyscale detail + AO atlas x COLOR_0 (tint colours), normal atlas

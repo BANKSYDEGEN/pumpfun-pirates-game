@@ -13,22 +13,38 @@ export function chestCanAccept(items, slots, item) {
   return list.length < cap;
 }
 
-/** Deposit qty of item into chest. Returns { ok, items, why?, slot? }. */
-export function applyChestStore(items, slots, item, qty) {
-  const q = Math.max(1, Math.min(999, Math.floor(Number(qty) || 0)));
-  if (!item || !q) return { ok: false, items: items || [], why: 'bad store' };
+/** Deposit qty of item into chest. Returns { ok, items, why?, slot? }. Weapons (wpn:*) never stack — one unit per slot. */
+export function applyChestStore(items, slots, item, qty, meta = null) {
+  const q0 = Math.max(1, Math.min(999, Math.floor(Number(qty) || 0)));
+  if (!item || !q0) return { ok: false, items: items || [], why: 'bad store' };
   const list = (items || []).map((x) => ({ ...x }));
   const cap = slots | 0;
+  const metaObj = meta && typeof meta === 'object' ? { ...meta } : undefined;
   if (isStackable(item)) {
     const stack = list.find((x) => x.item === item);
-    if (stack) { stack.qty = (stack.qty | 0) + q; return { ok: true, items: list, slot: stack.slot }; }
+    if (stack) { stack.qty = (stack.qty | 0) + q0; return { ok: true, items: list, slot: stack.slot }; }
+    if (list.length >= cap) return { ok: false, items: list, why: 'chest full' };
+    let slot = 0; const used = new Set(list.map((x) => x.slot));
+    while (used.has(slot)) slot++;
+    if (slot >= cap) return { ok: false, items: list, why: 'chest full' };
+    const row = { slot, item, qty: q0 }; if (metaObj) row.meta = metaObj;
+    list.push(row);
+    return { ok: true, items: list, slot };
   }
-  if (list.length >= cap) return { ok: false, items: list, why: 'chest full' };
-  let slot = 0; const used = new Set(list.map((x) => x.slot));
-  while (used.has(slot)) slot++;
-  if (slot >= cap) return { ok: false, items: list, why: 'chest full' };
-  list.push({ slot, item, qty: q });
-  return { ok: true, items: list, slot };
+  // [v329] wpn:* — never merge; deposit one qty=1 row per unit into free slots
+  let placed = 0, first = null, left = q0;
+  while (left > 0) {
+    if (list.length >= cap) break;
+    let slot = 0; const used = new Set(list.map((x) => x.slot));
+    while (used.has(slot)) slot++;
+    if (slot >= cap) break;
+    const row = { slot, item, qty: 1 }; if (metaObj) row.meta = { ...metaObj };
+    list.push(row);
+    if (first == null) first = slot;
+    placed++; left--;
+  }
+  if (!placed) return { ok: false, items: list, why: 'chest full' };
+  return { ok: true, items: list, slot: first, qty: placed };
 }
 
 /** Withdraw qty from a chest slot. Returns { ok, items, taken?, why? }. */

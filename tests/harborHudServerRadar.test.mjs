@@ -75,7 +75,7 @@ test('ship radar / radarZones never draw SAFE HARBOR or green dashed Safe Zone',
   assert.match(imap, /function drawLocal[\s\S]*drawSafeZoneRings/);
 });
 
-test('sw.js is pfp-v328 and registers with update()', () => {
-  assert.match(src('sw.js'), /VERSION = 'pfp-v328'/);
+test('sw.js is pfp-v329 and registers with update()', () => {
+  assert.match(src('sw.js'), /VERSION = 'pfp-v329'/);
   assert.match(src('js/main.js'), /r\.update\(\)/);
 });
