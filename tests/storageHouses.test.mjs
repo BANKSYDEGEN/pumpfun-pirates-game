@@ -182,3 +182,18 @@ test('[v320] side chest + walk-to-door proximity prompts, spawn inside the door,
   assert.equal(tagAt(0, D / 2 - 1.55), 'exit', 'spawn point is right at the door: one step back out');
   assert.equal(tagAt(W / 2 - 1.0, -D / 2 + 1.0), null, 'far corner: no sticky banner');
 });
+
+test('enhanced pirate cabin interior: vaulted roof, textures, west-wall chest, cottageId', () => {
+  assert.match(SRC, /cottageId/);
+  assert.match(SRC, /buildInteriorRoom\(\{ tier, cottageId: d\.id, low \}\)/);
+  assert.match(SRC, /PEAK|pitched|vaulted|truss|chandelier/i);
+  assert.match(SRC, /CanvasTexture/);
+  assert.match(SRC, /hs-flame/);
+  assert.match(SRC, /skull_transparent|texJollyRoger|COTTAGE_ACCENT/);
+  // West-wall chest, clear of +Z door path (v319/v320 contract)
+  assert.match(SRC, /chest\.position\.set\(-W \/ 2 \+ 1\.15, 0\.14, -0\.55\)/);
+  assert.match(SRC, /chest\.rotation\.y = Math\.PI \/ 2/);
+  assert.match(SRC, /x: -W \/ 2 \+ 2\.15, z: -0\.55/);
+  assert.doesNotMatch(SRC, /hs-badge|SERVER SPOT RESERVED|INSIDE COTTAGE/);
+});
+

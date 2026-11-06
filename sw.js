@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v320'; // [v320] upright pirate + pet after the canoe (YXZ seat pose, zero roll on foot) + cottage side-chest / walk-to-door exit prompts, step out facing the lane; prev: [v319] indoor cottage walk/exit fix (dry pocket + dual E/Q prompts, no HUD badge); prev: [v318];
+const VERSION = 'pfp-v321'; // [v321] Post rich pirate-captain cottage interior (vaulted timber cabin, ship-wheel chandelier, roaring hearth, shutter-matched accents, side chest + walk-to-door exit); prev: [v320] upright pirate + pet after the canoe (YXZ seat pose, zero roll on foot) + cottage side-chest / walk-to-door exit prompts, step out facing the lane; prev: [v319] indoor cottage walk/exit fix (dry pocket + dual E/Q prompts, no HUD badge); prev: [v318];
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

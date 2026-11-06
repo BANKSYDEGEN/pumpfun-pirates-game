@@ -214,130 +214,593 @@ function disposeGroup(g) {
   g.parent?.remove(g);
 }
 
-/** Warm shaded pirate cabin interior (Lambert + 1 hemi + 1 dir light; glow panes stay Basic). */
-export function buildInteriorRoom({ tier = 'cozy', low = false } = {}) {
+/** Cached procedural CanvasTextures (null-safe when document is missing — Node tests). */
+const _texCache = Object.create(null);
+function _canDraw() { return typeof document !== 'undefined' && typeof document.createElement === 'function'; }
+function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1 } = {}) {
+  if (_texCache[key]) return _texCache[key];
+  if (!_canDraw()) { _texCache[key] = null; return null; }
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  try { draw(ctx, w, h); } catch { /* keep blank */ }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeatX, repeatY);
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  _texCache[key] = t;
+  return t;
+}
+function texOakFloor() {
+  return _canvasTex('oakFloor', 512, 512, (ctx, w, h) => {
+    ctx.fillStyle = '#8a5a2e'; ctx.fillRect(0, 0, w, h);
+    const plankH = 64;
+    for (let y = 0; y < h; y += plankH) {
+      const tone = 0x9a6234 + ((y / plankH) % 3) * 0x081008;
+      const r = (tone >> 16) & 0xff, g = (tone >> 8) & 0xff, b = tone & 0xff;
+      ctx.fillStyle = `rgb(${r + (y % 5) * 2},${g + (y % 3)},${b})`;
+      ctx.fillRect(0, y, w, plankH - 2);
+      ctx.strokeStyle = 'rgba(60,30,10,0.18)';
+      for (let i = 0; i < 8; i++) {
+        ctx.beginPath();
+        const yy = y + 8 + i * 6 + ((y / plankH + i) % 3);
+        ctx.moveTo(0, yy);
+        for (let x = 0; x < w; x += 32) ctx.lineTo(x + 16, yy + ((x + i) % 5) - 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(40,20,8,0.55)';
+      ctx.fillRect(0, y + plankH - 2, w, 2);
+      ctx.fillStyle = 'rgba(30,20,12,0.55)';
+      for (const nx of [24, w / 2, w - 24]) {
+        ctx.beginPath(); ctx.arc(nx, y + plankH / 2, 1.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }, { repeatX: 4, repeatY: 4 });
+}
+function texStone() {
+  return _canvasTex('hearthStone', 256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#7a736a'; ctx.fillRect(0, 0, w, h);
+    const bw = 64, bh = 36;
+    for (let row = 0; row < h / bh + 1; row++) {
+      const off = (row % 2) * (bw / 2);
+      for (let col = -1; col < w / bw + 1; col++) {
+        const x = col * bw + off, y = row * bh;
+        const v = 110 + ((row * 7 + col * 13) % 40);
+        ctx.fillStyle = `rgb(${v},${v - 6},${v - 14})`;
+        ctx.fillRect(x + 1, y + 1, bw - 2, bh - 2);
+        ctx.strokeStyle = 'rgba(55,50,42,0.85)';
+        ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1);
+        ctx.fillStyle = 'rgba(255,255,240,0.06)';
+        ctx.fillRect(x + 8, y + 6, 10, 5);
+      }
+    }
+  }, { repeatX: 2, repeatY: 2 });
+}
+function texPlaster() {
+  return _canvasTex('limePlaster', 256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#f3e6c8'; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1800; i++) {
+      const x = (i * 47) % w, y = (i * 91) % h;
+      const a = 0.015 + (i % 5) * 0.008;
+      ctx.fillStyle = i % 2 ? `rgba(200,170,120,${a})` : `rgba(255,250,230,${a})`;
+      ctx.fillRect(x, y, 3 + (i % 4), 2 + (i % 3));
+    }
+    ctx.strokeStyle = 'rgba(210,180,130,0.08)';
+    ctx.lineWidth = 6;
+    for (let i = 0; i < 12; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, i * 22);
+      ctx.quadraticCurveTo(w * 0.5, i * 22 + 10, w, i * 22 - 4);
+      ctx.stroke();
+    }
+  }, { repeatX: 2, repeatY: 2 });
+}
+function texRug() {
+  return _canvasTex('captainRug', 512, 384, (ctx, w, h) => {
+    ctx.fillStyle = '#7a1518'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 18; ctx.strokeRect(12, 12, w - 24, h - 24);
+    ctx.strokeStyle = '#2a0c0c'; ctx.lineWidth = 4; ctx.strokeRect(22, 22, w - 44, h - 44);
+    ctx.strokeStyle = '#d4b45a'; ctx.lineWidth = 8; ctx.strokeRect(30, 30, w - 60, h - 60);
+    ctx.fillStyle = '#c9a24b';
+    for (const [cx, cy] of [[50, 50], [w - 50, 50], [50, h - 50], [w - 50, h - 50]]) {
+      ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#7a1518'; ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9a24b';
+    }
+    const cx = w / 2, cy = h / 2;
+    ctx.save(); ctx.translate(cx, cy);
+    for (let i = 0; i < 8; i++) {
+      ctx.rotate(Math.PI / 4);
+      ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(10, 0); ctx.lineTo(0, 14); ctx.lineTo(-10, 0); ctx.closePath();
+      ctx.fillStyle = i % 2 ? '#e8c86a' : '#f4e2bb'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fillStyle = '#2a0c0c'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fillStyle = '#c9a24b'; ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(201,162,75,0.55)'; ctx.lineWidth = 3;
+    ctx.strokeRect(70, 55, w - 140, h - 110);
+  });
+}
+function texMap() {
+  return _canvasTex('treasureMap', 512, 384, (ctx, w, h) => {
+    ctx.fillStyle = '#d4b07a'; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(160,110,50,${0.04 + (i % 5) * 0.02})`;
+      ctx.beginPath(); ctx.ellipse((i * 73) % w, (i * 97) % h, 30 + i % 20, 18, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(40, 200); ctx.bezierCurveTo(120, 80, 220, 90, 280, 160); ctx.bezierCurveTo(340, 230, 420, 180, 480, 220); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(60, 280); ctx.bezierCurveTo(140, 300, 200, 250, 260, 290); ctx.bezierCurveTo(340, 340, 400, 300, 470, 320); ctx.stroke();
+    ctx.fillStyle = '#6a8a4a';
+    for (const [ix, iy, ir] of [[160, 150, 28], [310, 200, 22], [400, 140, 18], [220, 260, 16]]) {
+      ctx.beginPath(); ctx.ellipse(ix, iy, ir, ir * 0.7, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.setLineDash([4, 6]); ctx.strokeStyle = '#8b1e1e'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(80, 240); ctx.lineTo(160, 150); ctx.lineTo(310, 200); ctx.lineTo(400, 140); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#a01818'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(390, 130); ctx.lineTo(410, 150); ctx.moveTo(410, 130); ctx.lineTo(390, 150); ctx.stroke();
+    ctx.fillStyle = '#3a2410'; ctx.font = 'bold 18px serif'; ctx.fillText('N', 40, 50);
+    ctx.beginPath(); ctx.moveTo(48, 60); ctx.lineTo(54, 85); ctx.lineTo(42, 85); ctx.closePath(); ctx.fill();
+  });
+}
+function texPainting() {
+  return _canvasTex('seaBattle', 384, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+    g.addColorStop(0, '#6eb6e8'); g.addColorStop(1, '#cfe8f8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    const o = ctx.createLinearGradient(0, h * 0.45, 0, h);
+    o.addColorStop(0, '#2a7a9a'); o.addColorStop(1, '#0e3a4a');
+    ctx.fillStyle = o; ctx.fillRect(0, h * 0.45, w, h * 0.55);
+    ctx.strokeStyle = 'rgba(200,230,240,0.35)'; ctx.lineWidth = 2;
+    for (let y = h * 0.55; y < h; y += 14) {
+      ctx.beginPath();
+      for (let x = 0; x < w; x += 20) ctx.quadraticCurveTo(x + 10, y - 4, x + 20, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#3a2410';
+    ctx.beginPath(); ctx.moveTo(130, 160); ctx.lineTo(260, 160); ctx.lineTo(245, 195); ctx.lineTo(145, 195); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2a1810'; ctx.fillRect(155, 70, 4, 95); ctx.fillRect(210, 60, 4, 105);
+    ctx.fillStyle = '#f4e8d0';
+    ctx.beginPath(); ctx.moveTo(159, 75); ctx.lineTo(195, 85); ctx.lineTo(159, 130); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(214, 65); ctx.lineTo(255, 78); ctx.lineTo(214, 140); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(220,220,220,0.5)';
+    ctx.beginPath(); ctx.arc(270, 150, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(285, 145, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a1810'; ctx.fillRect(70, 145, 40, 12); ctx.fillRect(85, 110, 2, 40);
+    ctx.fillStyle = '#e8dcc0'; ctx.fillRect(87, 112, 18, 22);
+  });
+}
+function texSkyOcean() {
+  return _canvasTex('winSky', 256, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#7ec8f0'); g.addColorStop(0.45, '#d8eef8'); g.addColorStop(0.55, '#3cb0c8'); g.addColorStop(1, '#1a7a90');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(255,230,140,0.85)';
+    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.28, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,180,0.25)';
+    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.28, 40, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a4028';
+    ctx.fillRect(40, h * 0.42, 6, h * 0.2);
+    for (let i = 0; i < 5; i++) {
+      const a = -0.9 + i * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(43, h * 0.44);
+      ctx.quadraticCurveTo(43 + Math.cos(a) * 40, h * 0.44 + Math.sin(a) * 10 - 20, 43 + Math.cos(a) * 55, h * 0.5 + Math.sin(a) * 25);
+      ctx.lineWidth = 4; ctx.strokeStyle = '#1a4028'; ctx.stroke();
+    }
+    ctx.fillStyle = '#2a6040';
+    ctx.beginPath(); ctx.ellipse(w * 0.35, h * 0.52, 36, 10, 0, 0, Math.PI * 2); ctx.fill();
+  });
+}
+let _jollyTex = null;
+function texJollyRoger() {
+  if (_jollyTex) return _jollyTex;
+  if (!_canDraw()) return null;
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 320;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 256, 320);
+  ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 304);
+  ctx.fillStyle = '#f4e2bb';
+  ctx.beginPath(); ctx.ellipse(128, 130, 55, 60, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0d0d0d';
+  ctx.beginPath(); ctx.ellipse(108, 120, 12, 16, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(148, 120, 12, 16, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(118, 150, 20, 8);
+  ctx.strokeStyle = '#f4e2bb'; ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.moveTo(70, 210); ctx.lineTo(186, 270); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(186, 210); ctx.lineTo(70, 270); ctx.stroke();
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true;
+  _jollyTex = t;
+  try {
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 256, 320);
+      ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 304);
+      ctx.drawImage(img, 28, 40, 200, 200);
+      t.needsUpdate = true;
+    };
+    img.src = 'assets/skull_transparent.png';
+  } catch {}
+  return _jollyTex;
+}
+function matLMap(hex, map, key) {
+  const m = new THREE.MeshLambertMaterial({ color: hex, map: map || null, side: THREE.DoubleSide, fog: false });
+  m.userData.key = key; return m;
+}
+const COTTAGE_ACCENT = {
+  balcony: 0x2a6df4,
+  dormer: 0x1f8a5a,
+  gabled: 0x2b8fa3,
+  garden: 0xc0392b,
+};
+
+/** Warm shaded pirate-captain cabin (Lambert + hemi/dir lights; glow panes stay Basic). */
+export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false } = {}) {
   const g = new THREE.Group(); g.name = 'house_interior';
   const W = tier === 'manor' ? 14 : tier === 'captain' ? 12 : 10;
   const D = tier === 'manor' ? 12 : tier === 'captain' ? 10.5 : 9;
   const H = 4.2;
-  const wood = matL(0x9a6234, 'hs-wood'), woodD = matL(0x5a3418, 'hs-woodd'), woodL = matL(0xc48a4e, 'hs-woodl');
-  const plaster = matL(0xf3e6c8, 'hs-plaster'), stone = matL(0x8a837a, 'hs-stone'), stoneD = matL(0x6a635a, 'hs-stoned');
+  const PEAK = 5.35;
+  const accentHex = COTTAGE_ACCENT[cottageId] || COTTAGE_ACCENT.balcony;
+
+  const floorMap = texOakFloor(), stoneMap = texStone(), plasterMap = texPlaster();
+  const rugMap = texRug(), mapMap = texMap(), paintMap = texPainting(), skyMap = texSkyOcean();
+  const jollyMap = (tier === 'captain' || tier === 'manor') ? texJollyRoger() : null;
+
+  const wood = matLMap(0x9a6234, floorMap, 'hs-wood');
+  const woodD = matL(0x5a3418, 'hs-woodd'), woodL = matL(0xc48a4e, 'hs-woodl');
+  const timber = matL(0x3e2412, 'hs-timber');
+  const plaster = matLMap(0xf3e6c8, plasterMap, 'hs-plaster');
+  const stone = matLMap(0x8a837a, stoneMap, 'hs-stone');
+  const stoneD = matLMap(0x6a635a, stoneMap, 'hs-stoned');
   const gold = matL(0xc89b54, 'hs-gold'), iron = matL(0x2b2f36, 'hs-iron');
-  const rug = matL(0x8b1e1e, 'hs-rug'), rugGold = matL(0xc9a24b, 'hs-ruggold');
-  const sheet = matL(0xd9c4a0, 'hs-sheet'), blanket = matL(0x3a5a7a, 'hs-blanket'), pillow = matL(0xe8dcc0, 'hs-pillow');
-  const chart = matL(0xc9a66b, 'hs-chart'), glow = matGlow(0xffcf66, 'hs-glow'), ember = matGlow(0xff6a2a, 'hs-ember');
+  const brass = matL(0xb8860b, 'hs-brass');
+  const rug = matLMap(0x8b1e1e, rugMap, 'hs-rug');
+  const rugGold = matL(0xc9a24b, 'hs-ruggold');
+  const sheet = matL(0xd9c4a0, 'hs-sheet');
+  const blanket = matL(0x1a2e4a, 'hs-blanket');
+  const blanketTrim = matL(accentHex, 'hs-blanket-trim');
+  const pillow = matL(0xe8dcc0, 'hs-pillow');
+  const curtain = matL(accentHex, 'hs-curtain');
+  const chart = matLMap(0xc9a66b, mapMap, 'hs-chart');
+  const paintMat = matLMap(0xffffff, paintMap, 'hs-paint');
+  const skyMat = matGlow(0xffffff, 'hs-winsky'); if (skyMap) skyMat.map = skyMap;
+  const glow = matGlow(0xffcf66, 'hs-glow'), ember = matGlow(0xff6a2a, 'hs-ember');
+  const flame = matGlow(0xff9a2a, 'hs-flame');
+  const flame2 = matGlow(0xffdd66, 'hs-flame');
+  const bookR = matL(0x8b1e1e, 'hs-book'), bookB = matL(0x1e3a6b, 'hs-book'), bookG = matL(0x2a6b3a, 'hs-book');
+  const bottleG = matGlow(0x4ecdc4, 'hs-potion');
+  const leaf = matL(0x2f7a3a, 'hs-leaf');
+
   const add = (geo, m, x, y, z, ry = 0, rx = 0) => {
     const mesh = new THREE.Mesh(geo, m);
     mesh.position.set(x, y, z); mesh.rotation.order = 'YXZ'; mesh.rotation.y = ry; mesh.rotation.x = rx;
     mesh.castShadow = mesh.receiveShadow = false; g.add(mesh); return mesh;
   };
-  // Warm room lights (only live while interior is in the scene / inHouse)
-  const hemi = new THREE.HemisphereLight(0xffe6ba, 0x5c3a1e, 1.15); hemi.name = 'hs_hemi'; g.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffd28a, 0.85); dir.position.set(2.5, 5.5, 3.5); dir.name = 'hs_dir'; g.add(dir);
 
-  // Oak plank floor (alternating tones) + smaller centered rug
+  const hemi = new THREE.HemisphereLight(0xffe6ba, 0x5c3a1e, 0.95); hemi.name = 'hs_hemi'; g.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffd28a, 0.7); dir.position.set(2.5, 5.5, 3.5); dir.name = 'hs_dir'; g.add(dir);
+  const fill = new THREE.DirectionalLight(0xffb060, 0.35); fill.position.set(0, 3.2, -D / 2 + 1.5); fill.name = 'hs_fill'; g.add(fill);
+
+  // Floor + rug (keep exact rug size for tests)
   add(new THREE.BoxGeometry(W, 0.28, D), wood, 0, 0, 0);
-  for (let i = 0; i < 9; i++) {
-    const z = -D / 2 + 0.35 + i * ((D - 0.7) / 8);
-    add(new THREE.BoxGeometry(W - 0.35, 0.04, 0.55), i % 2 ? woodL : wood, 0, 0.15, z);
-  }
   add(new THREE.BoxGeometry(4.4, 0.05, 3.2), rugGold, 0, 0.175, 0.15);
   add(new THREE.BoxGeometry(4.2, 0.055, 3.0), rug, 0, 0.185, 0.15);
 
-  // Ceiling + rafters
-  add(new THREE.BoxGeometry(W + 0.4, 0.22, D + 0.4), woodD, 0, H, 0);
-  for (let i = -3; i <= 3; i++) add(new THREE.BoxGeometry(0.2, 0.28, D - 0.5), woodD, i * (W / 7), H - 0.22, 0);
+  // Vaulted plank ceiling + A-frame trusses
+  const halfD = D / 2 + 0.15;
+  const rise = PEAK - H;
+  const pitch = Math.atan2(rise, halfD);
+  const slabLen = Math.hypot(halfD, rise);
+  for (const s of [-1, 1]) {
+    add(new THREE.BoxGeometry(W + 0.5, 0.14, slabLen), woodD, 0, (H + PEAK) / 2, s * (halfD / 2), 0, s * pitch);
+  }
+  add(new THREE.BoxGeometry(W + 0.3, 0.18, 0.22), timber, 0, PEAK - 0.05, 0);
+  // Solid attic fill under the pitched slabs so no outdoor bg leaks through
+  add(new THREE.BoxGeometry(W + 0.2, 0.12, D + 0.2), woodD, 0, H + 0.06, 0);
+  const trussXs = low ? [-W * 0.28, W * 0.28] : [-W * 0.33, 0, W * 0.33];
+  for (const tx of trussXs) {
+    add(new THREE.BoxGeometry(0.16, 0.18, D - 0.4), timber, tx, H - 0.05, 0);
+    add(new THREE.BoxGeometry(0.14, rise + 0.15, 0.14), timber, tx, H + rise / 2, 0);
+    const strutLen = Math.hypot(D * 0.28, rise * 0.85);
+    const strutPitch = Math.atan2(rise * 0.85, D * 0.28);
+    for (const s of [-1, 1]) {
+      add(new THREE.BoxGeometry(0.1, 0.1, strutLen), timber, tx, H + rise * 0.4, s * D * 0.14, 0, s * strutPitch);
+    }
+    add(new THREE.BoxGeometry(0.22, 0.08, 0.28), iron, tx, H + 0.02, 0);
+    add(new THREE.BoxGeometry(0.22, 0.08, 0.22), iron, tx, PEAK - 0.18, 0);
+  }
 
-  // Plaster walls + timber studs + wainscoting
-  for (const [x, z, w, d] of [[0, -D / 2, W + 0.3, 0.28], [0, D / 2, W + 0.3, 0.28], [-W / 2, 0, 0.28, D], [W / 2, 0, 0.28, D]]) {
-    add(new THREE.BoxGeometry(w, H, d), plaster, x, H / 2, z);
+  // Ship-wheel chandelier
+  const chY = PEAK - 1.15;
+  add(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), iron, 0, chY + 0.55, 0);
+  add(new THREE.TorusGeometry(0.55, 0.05, 6, 16), timber, 0, chY, 0, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8), brass, 0, chY, 0);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    add(new THREE.BoxGeometry(0.06, 0.06, 0.5), timber, Math.sin(a) * 0.28, chY, Math.cos(a) * 0.28, a);
+    if (!low || i % 2 === 0) {
+      add(new THREE.SphereGeometry(0.08, 6, 5), glow, Math.sin(a) * 0.55, chY - 0.18, Math.cos(a) * 0.55);
+      add(new THREE.CylinderGeometry(0.03, 0.04, 0.12, 5), brass, Math.sin(a) * 0.55, chY - 0.05, Math.cos(a) * 0.55);
+    }
   }
-  // Wainscoting band
-  for (const [x, z, w, d] of [[0, -D / 2 + 0.08, W - 0.2, 0.1], [0, D / 2 - 0.08, W - 0.2, 0.1], [-W / 2 + 0.08, 0, 0.1, D - 0.2], [W / 2 - 0.08, 0, 0.1, D - 0.2]]) {
-    add(new THREE.BoxGeometry(w, 1.1, d), woodD, x, 0.55, z);
+
+  // Walls: stone plinth + Wainscot + plaster + half-timber
+  const plinthH = 0.32, wainH = 1.15;
+  for (const [x, z, w, d] of [
+    [0, -D / 2, W + 0.3, 0.32], [0, D / 2, W + 0.3, 0.32],
+    [-W / 2, 0, 0.32, D], [W / 2, 0, 0.32, D],
+  ]) {
+    add(new THREE.BoxGeometry(w, plinthH, d), stone, x, plinthH / 2, z);
+    add(new THREE.BoxGeometry(w * (Math.abs(w) > Math.abs(d) ? 1 : 0.95), wainH, d * (Math.abs(d) > Math.abs(w) ? 1 : 0.95)), woodD, x, plinthH + wainH / 2, z);
+    add(new THREE.BoxGeometry(
+      Math.abs(w) > Math.abs(d) ? w : 0.12, 0.08, Math.abs(d) > Math.abs(w) ? d : 0.12
+    ), woodL, x, plinthH + wainH, z + (z ? Math.sign(z) * 0.04 : 0) + (x ? Math.sign(x) * 0.04 : 0));
+    const upperH = H - plinthH - wainH;
+    add(new THREE.BoxGeometry(w, upperH, d), plaster, x, plinthH + wainH + upperH / 2, z);
+    if (Math.abs(z) > Math.abs(x)) {
+      const gableH = PEAK - H;
+      add(new THREE.BoxGeometry(w, gableH + 0.15, d), plaster, x, H + gableH / 2, z);
+    }
   }
-  // Vertical studs on long walls
   for (let i = -3; i <= 3; i++) {
     if (i === 0) continue;
-    add(new THREE.BoxGeometry(0.12, H - 0.3, 0.1), woodD, i * (W / 7), H / 2, -D / 2 + 0.16);
-    add(new THREE.BoxGeometry(0.12, H - 0.3, 0.1), woodD, i * (W / 7), H / 2, D / 2 - 0.16);
+    const px = i * (W / 7);
+    add(new THREE.BoxGeometry(0.12, H - 0.35, 0.1), timber, px, H / 2, -D / 2 + 0.18);
+    add(new THREE.BoxGeometry(0.12, H - 0.35, 0.1), timber, px, H / 2, D / 2 - 0.18);
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    add(new THREE.BoxGeometry(0.16, H - 0.2, 0.16), timber, sx * (W / 2 - 0.12), H / 2, sz * (D / 2 - 0.12));
+    add(new THREE.BoxGeometry(0.08, 0.08, 0.7), timber, sx * (W / 2 - 0.35), plinthH + wainH + 0.35, sz * (D / 2 - 0.18), sz * sx * 0.55);
   }
 
-  // Framed glowing windows
-  const winSpecs = [[-W * 0.28, -D / 2 + 0.18], [W * 0.28, -D / 2 + 0.18], [-W / 2 + 0.18, 0], [W / 2 - 0.18, 0]];
-  for (const [x, z] of winSpecs) {
-    const side = Math.abs(x) > Math.abs(z);
-    add(new THREE.BoxGeometry(side ? 0.14 : 1.35, 1.65, side ? 1.35 : 0.14), woodD, x, 2.15, z);
-    add(new THREE.BoxGeometry(side ? 0.08 : 1.05, 1.35, side ? 1.05 : 0.08), glow, x + (side ? Math.sign(x) * 0.04 : 0), 2.15, z + (side ? 0 : Math.sign(z) * 0.04));
-    add(new THREE.BoxGeometry(side ? 0.05 : 0.06, 1.35, side ? 0.06 : 0.05), woodD, x + (side ? Math.sign(x) * 0.07 : 0), 2.15, z + (side ? 0 : Math.sign(z) * 0.07));
-    add(new THREE.BoxGeometry(side ? 0.05 : 1.05, 0.06, side ? 1.05 : 0.05), woodD, x + (side ? Math.sign(x) * 0.07 : 0), 2.15, z + (side ? 0 : Math.sign(z) * 0.07));
-    add(new THREE.BoxGeometry(side ? 0.2 : 1.45, 0.12, side ? 1.45 : 0.2), stoneD, x, 1.25, z);
+  // Recessed mullioned windows (4) — open curtains
+  // Avoid west-wall chest: side windows stay clear of z≈-0.55
+  // North windows sit wide of PUMPFUN banners (±2.15) so curtains never collide.
+  const nWinX = W / 2 - 1.55;
+  const winSpecs = [
+    { x: -nWinX, z: -D / 2 + 0.22, side: false },
+    { x: nWinX, z: -D / 2 + 0.22, side: false },
+    { x: -W / 2 + 0.22, z: D * 0.22, side: true },   // west, south of chest (toward door)
+    { x: W / 2 - 0.22, z: 0.15, side: true },
+  ];
+  for (const { x, z, side } of winSpecs) {
+    // Inward normals toward room center — panes/curtains must face INSIDE, not behind the wall.
+    const ix = side ? -Math.sign(x) : 0, iz = side ? 0 : -Math.sign(z || -1);
+    add(new THREE.BoxGeometry(side ? 0.18 : 1.55, 1.85, side ? 1.55 : 0.18), woodD, x, 2.2, z);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 1.5, side ? 1.2 : 0.04), skyMat, x + ix * 0.10, 2.2, z + iz * 0.10);
+    add(new THREE.BoxGeometry(side ? 0.04 : 0.06, 1.5, side ? 0.06 : 0.04), timber, x + ix * 0.12, 2.2, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.2, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.55, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 1.85, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.28 : 1.65, 0.12, side ? 1.65 : 0.28), stoneD, x + ix * 0.08, 1.28, z + iz * 0.08);
+    add(new THREE.CylinderGeometry(0.025, 0.025, side ? 1.5 : 1.6, 5), brass, x + ix * 0.14, 3.05, z + iz * 0.14, side ? 0 : Math.PI / 2, side ? Math.PI / 2 : 0);
+    for (const s of [-1, 1]) {
+      const ox = side ? 0 : s * 0.68, oz = side ? s * 0.68 : 0;
+      add(new THREE.BoxGeometry(side ? 0.05 : 0.22, 1.55, side ? 0.22 : 0.05), curtain, x + ix * 0.16 + ox, 2.25, z + iz * 0.16 + oz);
+    }
+    if (!side) {
+      add(new THREE.CylinderGeometry(0.08, 0.1, 0.14, 6), matL(0x8a5a3a, 'hs-pot'), x - 0.4, 1.42, z + iz * 0.18);
+      add(new THREE.SphereGeometry(0.12, 6, 5), leaf, x - 0.4, 1.58, z + iz * 0.18);
+      add(new THREE.CylinderGeometry(0.03, 0.04, 0.22, 5), brass, x + 0.35, 1.48, z + iz * 0.18);
+      add(new THREE.SphereGeometry(0.05, 5, 4), glow, x + 0.35, 1.62, z + iz * 0.18);
+    } else {
+      add(new THREE.CylinderGeometry(0.06, 0.08, 0.28, 6), matL(0x2a5a4a, 'hs-bottle'), x + ix * 0.2, 1.5, z + 0.25);
+    }
   }
 
-  // Stone hearth + mantle
-  add(new THREE.BoxGeometry(2.8, 2.8, 1.0), stone, 0, 1.4, -D / 2 + 0.55);
-  add(new THREE.BoxGeometry(3.1, 0.22, 1.15), woodD, 0, 2.85, -D / 2 + 0.6); // mantle
-  add(new THREE.BoxGeometry(1.5, 1.15, 0.55), iron, 0, 0.95, -D / 2 + 0.9);
-  add(new THREE.BoxGeometry(1.2, 0.35, 0.4), ember, 0, 0.55, -D / 2 + 1.05);
-  add(new THREE.SphereGeometry(0.24, 8, 6), glow, 0, 1.05, -D / 2 + 1.1);
+  // Hero stone hearth (-Z)
+  const hz = -D / 2 + 0.55;
+  add(new THREE.BoxGeometry(3.4, 0.18, 1.35), stone, 0, 0.12, hz + 0.35);
+  add(new THREE.BoxGeometry(0.55, 2.4, 0.95), stone, -1.15, 1.3, hz);
+  add(new THREE.BoxGeometry(0.55, 2.4, 0.95), stone, 1.15, 1.3, hz);
+  add(new THREE.BoxGeometry(2.9, 0.35, 1.0), stoneD, 0, 2.55, hz);
+  add(new THREE.BoxGeometry(2.4, 0.28, 0.95), stone, 0, 2.85, hz);
+  add(new THREE.BoxGeometry(3.2, 0.18, 1.15), woodD, 0, 3.05, hz + 0.08);
+  for (const sx of [-1.1, 1.1]) add(new THREE.BoxGeometry(0.22, 0.35, 0.35), woodL, sx, 2.85, hz + 0.25);
+  add(new THREE.BoxGeometry(2.6, 1.1, 0.85), stone, 0, 3.7, hz - 0.05);
+  add(new THREE.BoxGeometry(2.0, 0.9, 0.7), stoneD, 0, 4.55, hz - 0.08);
+  add(new THREE.BoxGeometry(1.5, PEAK - 4.9, 0.55), stone, 0, (4.9 + PEAK) / 2, hz - 0.1);
+  add(new THREE.BoxGeometry(1.55, 1.05, 0.28), iron, 0, 0.95, hz + 0.05);
+  for (const sx of [-0.35, 0.35]) {
+    add(new THREE.BoxGeometry(0.08, 0.35, 0.5), iron, sx, 0.4, hz + 0.55);
+    add(new THREE.BoxGeometry(0.12, 0.08, 0.12), iron, sx, 0.55, hz + 0.78);
+  }
+  add(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 6), woodD, 0, 0.48, hz + 0.6, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.08, 0.1, 0.7, 6), timber, 0.15, 0.62, hz + 0.55, 0.2, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.07, 0.09, 0.65, 6), woodD, -0.12, 0.58, hz + 0.65, -0.15, Math.PI / 2);
+  add(new THREE.BoxGeometry(1.2, 0.2, 0.55), ember, 0, 0.4, hz + 0.7);
+  const fl1 = add(new THREE.ConeGeometry(0.28, 0.75, 5), flame, -0.18, 0.85, hz + 0.72);
+  const fl2 = add(new THREE.ConeGeometry(0.24, 0.95, 5), flame2, 0.05, 0.95, hz + 0.68);
+  const fl3 = add(new THREE.ConeGeometry(0.2, 0.65, 5), flame, 0.25, 0.8, hz + 0.78);
+  fl1.name = 'hs_flame_a'; fl2.name = 'hs_flame_b'; fl3.name = 'hs_flame_c';
+  // Mantle trophies
+  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, -0.25, 3.35, hz + 0.45, 0.55);
+  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, 0.25, 3.35, hz + 0.45, -0.55);
+  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, -0.7, 3.35, hz + 0.7, 0.55);
+  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, 0.7, 3.35, hz + 0.7, -0.55);
+  add(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 10), brass, 0, 3.45, hz + 0.55, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 8), iron, 0, 3.45, hz + 0.6, 0, Math.PI / 2);
+  for (const sx of [-1.2, 1.2]) {
+    add(new THREE.CylinderGeometry(0.05, 0.07, 0.28, 6), brass, sx, 3.28, hz + 0.35);
+    add(new THREE.SphereGeometry(0.06, 5, 4), glow, sx, 3.48, hz + 0.35);
+  }
+  add(new THREE.CylinderGeometry(0.1, 0.1, 0.28, 8), matL(0x6a90a8, 'hs-glass'), -0.55, 3.28, hz + 0.4);
+  add(new THREE.CylinderGeometry(0.07, 0.09, 0.2, 6), gold, 0.55, 3.25, hz + 0.4);
 
-  // Captain's bunk + pillow + folded blanket
-  add(new THREE.BoxGeometry(2.5, 0.4, 1.35), woodD, -W / 2 + 1.7, 0.45, D / 2 - 1.5);
-  add(new THREE.BoxGeometry(2.3, 0.16, 1.2), sheet, -W / 2 + 1.7, 0.72, D / 2 - 1.5);
-  add(new THREE.BoxGeometry(0.7, 0.22, 0.55), pillow, -W / 2 + 0.95, 0.92, D / 2 - 1.5);
-  add(new THREE.BoxGeometry(1.1, 0.14, 1.15), blanket, -W / 2 + 2.3, 0.86, D / 2 - 1.5);
+  if (tier === 'captain' || tier === 'manor') {
+    for (const sx of [-2.15, 2.15]) {
+      add(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 5), timber, sx, 2.6, -D / 2 + 0.35);
+      add(new THREE.SphereGeometry(0.07, 5, 4), brass, sx, 3.45, -D / 2 + 0.35);
+      const ban = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.95, 1.25),
+        jollyMap
+          ? new THREE.MeshLambertMaterial({ map: jollyMap, color: 0xffffff, side: THREE.DoubleSide, fog: false })
+          : matL(0x1a1a1a, 'hs-banner')
+      );
+      ban.position.set(sx, 2.5, -D / 2 + 0.42); g.add(ban);
+    }
+    if (tier === 'manor') {
+      add(new THREE.BoxGeometry(0.7, 0.45, 0.5), woodD, W / 2 - 1.2, 0.35, -D / 2 + 1.8);
+      add(new THREE.BoxGeometry(0.72, 0.08, 0.52), gold, W / 2 - 1.2, 0.6, -D / 2 + 1.8);
+    }
+  }
+  // Framed sea-battle painting on EAST wall above the chart table (faces -X into room)
+  add(new THREE.BoxGeometry(0.06, 1.0, 1.35), woodD, W / 2 - 0.20, 2.45, -1.85);
+  add(new THREE.BoxGeometry(0.04, 0.82, 1.15), paintMat, W / 2 - 0.23, 2.45, -1.85);
 
-  // Table + sea chart + rum bottle + mug
-  add(new THREE.BoxGeometry(1.9, 0.12, 1.15), wood, W / 2 - 2.1, 0.88, 0.35);
-  for (const s of [-1, 1]) for (const t of [-1, 1])
-    add(new THREE.BoxGeometry(0.12, 0.88, 0.12), woodD, W / 2 - 2.1 + s * 0.75, 0.44, 0.35 + t * 0.42);
-  add(new THREE.BoxGeometry(1.25, 0.02, 0.85), chart, W / 2 - 2.1, 0.96, 0.35);
-  add(new THREE.CylinderGeometry(0.1, 0.12, 0.38, 8), matL(0x3a1a10, 'hs-bottle'), W / 2 - 1.45, 1.12, 0.0);
-  add(new THREE.CylinderGeometry(0.12, 0.1, 0.22, 8), matL(0x6b4527, 'hs-mug'), W / 2 - 1.55, 1.05, 0.55);
+  // Captain's alcove bunk (SW) — keep clear of front-door center path
+  const bx = -W / 2 + 1.85, bz = D / 2 - 1.55;
+  add(new THREE.BoxGeometry(2.6, 0.45, 1.45), woodD, bx, 0.4, bz);
+  for (const sx of [-1.2, 1.2]) {
+    add(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 6), woodL, bx + sx, 0.95, bz - 0.6);
+    add(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 6), woodL, bx + sx, 0.95, bz + 0.6);
+  }
+  add(new THREE.BoxGeometry(2.4, 0.55, 0.12), woodD, bx, 1.15, bz - 0.7);
+  add(new THREE.BoxGeometry(2.4, 0.35, 0.1), woodD, bx, 1.0, bz + 0.7);
+  add(new THREE.BoxGeometry(2.35, 0.16, 1.25), sheet, bx, 0.72, bz);
+  add(new THREE.BoxGeometry(1.3, 0.14, 1.2), blanket, bx + 0.4, 0.88, bz);
+  add(new THREE.BoxGeometry(1.3, 0.04, 0.12), blanketTrim, bx + 0.4, 0.96, bz - 0.55);
+  add(new THREE.BoxGeometry(0.55, 0.22, 0.45), pillow, bx - 0.85, 0.95, bz);
+  add(new THREE.BoxGeometry(0.45, 0.18, 0.38), pillow, bx - 0.55, 0.92, bz + 0.15);
+  add(new THREE.BoxGeometry(0.7, 0.04, 1.5), matL(accentHex, 'hs-runner'), bx + 1.55, 0.16, bz);
+  add(new THREE.BoxGeometry(0.55, 0.55, 0.45), woodD, bx + 1.55, 0.4, bz - 0.15);
+  add(new THREE.BoxGeometry(0.18, 0.28, 0.18), brass, bx + 1.55, 0.82, bz - 0.15);
+  add(new THREE.SphereGeometry(0.1, 6, 5), glow, bx + 1.55, 1.02, bz - 0.15);
+  add(new THREE.BoxGeometry(0.28, 0.06, 0.22), matL(0x3a2410, 'hs-book'), bx + 1.55, 0.72, bz + 0.12);
 
-  // Weapon rack (clear of the west chest)
-  add(new THREE.BoxGeometry(0.2, 2.2, 1.7), woodD, -W / 2 + 0.25, 1.4, -2.1);
-  for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.08, 1.45, 0.08), iron, -W / 2 + 0.45, 1.5, -2.65 + i * 0.5, 0.28);
+  // Chart & dining (East)
+  const tx = W / 2 - 2.2, tz = 0.2;
+  add(new THREE.BoxGeometry(2.1, 0.12, 1.25), wood, tx, 0.9, tz);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.9, 1.1), woodD, tx + s * 0.85, 0.45, tz);
+  add(new THREE.BoxGeometry(1.7, 0.08, 0.12), woodD, tx, 0.35, tz);
+  add(new THREE.BoxGeometry(1.35, 0.02, 0.9), chart, tx - 0.1, 0.98, tz);
+  add(new THREE.BoxGeometry(0.04, 0.04, 0.35), iron, tx - 0.55, 1.02, tz - 0.25, 0.4);
+  add(new THREE.BoxGeometry(0.12, 0.03, 0.08), brass, tx - 0.7, 1.02, tz - 0.35, 0.4);
+  add(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 10), brass, tx + 0.55, 1.0, tz - 0.3);
+  add(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 6), matL(0x1a1008, 'hs-ink'), tx + 0.7, 1.05, tz + 0.2);
+  add(new THREE.CylinderGeometry(0.015, 0.015, 0.35, 4), matL(0xd9c4a0, 'hs-quill'), tx + 0.55, 1.12, tz + 0.25, 0.6);
+  add(new THREE.CylinderGeometry(0.09, 0.11, 0.38, 8), matL(0x3a1a10, 'hs-bottle'), tx + 0.75, 1.15, tz + 0.05);
+  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx - 0.7, 1.08, tz + 0.35);
+  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx + 0.35, 1.08, tz + 0.4);
+  add(new THREE.SphereGeometry(0.1, 6, 5), matL(0xe85a2e, 'hs-fruit'), tx + 0.15, 1.08, tz - 0.4);
+  add(new THREE.SphereGeometry(0.08, 5, 4), matL(0xf0d24a, 'hs-fruit'), tx + 0.28, 1.05, tz - 0.35);
+  for (const [cx, cz, cry] of [[tx - 0.15, tz + 1.05, 0], [tx - 0.15, tz - 1.05, Math.PI]]) {
+    add(new THREE.BoxGeometry(0.5, 0.08, 0.5), wood, cx, 0.55, cz, cry);
+    add(new THREE.BoxGeometry(0.5, 0.7, 0.08), woodD, cx, 0.95, cz + (cry ? 0.22 : -0.22), cry);
+    for (const s of [-1, 1]) for (const t of [-1, 1])
+      add(new THREE.BoxGeometry(0.06, 0.5, 0.06), woodD, cx + s * 0.18, 0.28, cz + t * 0.18);
+  }
+  add(new THREE.CylinderGeometry(0.22, 0.25, 0.45, 8), woodD, tx + 1.15, 0.35, tz + 0.85);
 
-  // Corner barrel + crate
-  add(new THREE.CylinderGeometry(0.42, 0.46, 0.95, 10), wood, W / 2 - 0.7, 0.55, -D / 2 + 1.2);
-  add(new THREE.BoxGeometry(0.7, 0.55, 0.7), woodD, W / 2 - 0.7, 0.35, -D / 2 + 2.1);
+  // Bookshelf + armory on WEST wall NORTH of chest (z ~ -2.3), clear of chest at z=-0.55
+  const wx = -W / 2 + 0.55, wz = -2.35;
+  add(new THREE.BoxGeometry(0.55, 2.6, 1.6), woodD, wx, 1.45, wz);
+  for (const sy of [0.55, 1.15, 1.75, 2.35]) add(new THREE.BoxGeometry(0.5, 0.06, 1.5), woodL, wx + 0.02, sy, wz);
+  const bookMats = [bookR, bookB, bookG, matL(0x6b3a1e, 'hs-book'), matL(0x4a2a6b, 'hs-book')];
+  for (let shelf = 0; shelf < 3; shelf++) {
+    for (let b = 0; b < 5; b++) {
+      const bh = 0.28 + (b % 3) * 0.06;
+      add(new THREE.BoxGeometry(0.18, bh, 0.22), bookMats[(shelf + b) % bookMats.length], wx + 0.12, 0.7 + shelf * 0.6 + bh / 2, wz - 0.55 + b * 0.25);
+    }
+  }
+  add(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 6), bottleG, wx + 0.15, 2.0, wz + 0.45);
+  add(new THREE.CylinderGeometry(0.06, 0.07, 0.18, 6), matGlow(0xc44ec8, 'hs-potion'), wx + 0.15, 1.98, wz + 0.65);
+  add(new THREE.SphereGeometry(0.12, 6, 5), gold, wx + 0.15, 2.55, wz - 0.2);
+  // Armory rack further north / beside bookcase
+  const ax = -W / 2 + 0.4, az = -3.35;
+  if (az > -D / 2 + 0.8) {
+    add(new THREE.BoxGeometry(0.18, 1.8, 1.0), woodD, ax, 1.2, az);
+    for (let i = 0; i < 2; i++) {
+      const zz = az - 0.25 + i * 0.45;
+      add(new THREE.BoxGeometry(0.05, 0.08, 0.85), iron, ax + 0.25, 1.45, zz, 0.35);
+      add(new THREE.BoxGeometry(0.16, 0.05, 0.18), brass, ax + 0.2, 1.28, zz + 0.35, 0.35);
+      add(new THREE.CylinderGeometry(0.035, 0.04, 0.2, 5), matL(0x3a2410, 'hs-grip'), ax + 0.18, 1.22, zz + 0.48, 0.35);
+    }
+  }
 
-  // Brass-banded oak chest — west wall, clear of the front doorway path
+  // Provision corner (NE)
+  const px = W / 2 - 0.85, pz = -D / 2 + 1.5;
+  for (const [ox, oz] of [[0, 0], [0.85, 0.55]]) {
+    add(new THREE.CylinderGeometry(0.4, 0.42, 0.95, 12), wood, px + ox, 0.55, pz + oz);
+    for (const hy of [0.25, 0.55, 0.85]) add(new THREE.TorusGeometry(0.42, 0.03, 4, 12), iron, px + ox, hy, pz + oz, 0, Math.PI / 2);
+  }
+  add(new THREE.BoxGeometry(0.7, 0.5, 0.7), woodD, px - 0.1, 0.35, pz + 1.3);
+  add(new THREE.BoxGeometry(0.55, 0.4, 0.55), woodL, px - 0.1, 0.8, pz + 1.3);
+  add(new THREE.TorusGeometry(0.28, 0.08, 6, 12), matL(0xc4a46a, 'hs-rope'), px - 0.7, 0.2, pz + 0.3, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), timber, px - 0.9, 0.9, pz + 0.8, 0.4);
+  add(new THREE.ConeGeometry(0.06, 0.18, 5), iron, px - 0.9, 1.7, pz + 0.8, 0.4);
+
+  // ---- Hero storage chest — WEST WALL (clear front-door path) ----
   const chest = new THREE.Group(); chest.name = 'house_chest';
-  const cBase = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.72, 0.95), wood); cBase.position.y = 0.36; chest.add(cBase);
-  for (const sx of [-0.52, 0, 0.52]) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.74, 0.98), gold); b.position.set(sx, 0.37, 0); chest.add(b);
+  const cBase = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.75, 0.98), wood); cBase.position.y = 0.4; chest.add(cBase);
+  for (const sx of [-0.55, 0, 0.55]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.78, 1.0), sx === 0 ? brass : iron); b.position.set(sx, 0.4, 0); chest.add(b);
+    for (const ry of [0.15, 0.65]) {
+      const riv = new THREE.Mesh(new THREE.SphereGeometry(0.035, 4, 3), brass); riv.position.set(sx, ry, 0.5); chest.add(riv);
+    }
   }
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.22, 0.96), woodD); lid.position.set(0, 0.86, 0); chest.add(lid);
-  const bevel = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 0.86), wood); bevel.position.set(0, 1.0, 0); chest.add(bevel);
-  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.12), gold); lock.position.set(0, 0.58, 0.5); chest.add(lock);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.2, 1.0), woodD); lid.position.set(0, 0.88, 0); chest.add(lid);
+  const vault = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.4, 10, 1, false, 0, Math.PI), wood);
+  vault.rotation.z = Math.PI / 2; vault.position.set(0, 0.98, 0); chest.add(vault);
+  for (const sx of [-0.75, 0.75]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 5, 10), iron);
+    ring.position.set(sx, 0.55, 0); ring.rotation.y = Math.PI / 2; chest.add(ring);
+  }
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.1), gold); lock.position.set(0, 0.55, 0.52); chest.add(lock);
+  const keyhole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.08, 6), iron); keyhole.rotation.x = Math.PI / 2; keyhole.position.set(0, 0.52, 0.58); chest.add(keyhole);
+  // BANKSY: off to the side wall, facing +X into the room — clear +Z door path
   chest.position.set(-W / 2 + 1.15, 0.14, -0.55); chest.rotation.y = Math.PI / 2; g.add(chest);
+  // mat + sconce + coins beside west chest (into the room)
+  add(new THREE.BoxGeometry(1.2, 0.04, 1.7), matL(0x6b4527, 'hs-mat'), -W / 2 + 1.15, 0.14, -0.55);
+  add(new THREE.BoxGeometry(0.1, 0.35, 0.1), brass, -W / 2 + 0.35, 2.4, -0.55);
+  add(new THREE.SphereGeometry(0.14, 6, 5), glow, -W / 2 + 0.55, 2.2, -0.55);
+  for (let i = 0; i < 5; i++) add(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8), gold, -W / 2 + 1.9 + (i % 3) * 0.08, 0.2 + Math.floor(i / 3) * 0.03, -0.2 + (i % 2) * 0.08);
+  add(new THREE.SphereGeometry(0.1, 6, 5), matL(0x8b1e3a, 'hs-pouch'), -W / 2 + 2.05, 0.25, -0.85);
+  if (tier === 'manor' || tier === 'captain') {
+    add(new THREE.BoxGeometry(0.55, 0.35, 0.4), woodD, -W / 2 + 1.9, 0.3, 0.55);
+    add(new THREE.BoxGeometry(0.2, 0.15, 0.05), gold, -W / 2 + 2.05, 0.35, 0.55);
+  }
 
-  // Exit door (+Z)
+  // Arched exit door (+Z)
   const door = new THREE.Group(); door.name = 'house_exit';
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.85, 2.7, 0.22), stoneD); frame.position.y = 1.35; door.add(frame);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.35, 0.12), woodD); panel.position.set(0, 1.25, 0.1); door.add(panel);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), gold); knob.position.set(0.42, 1.2, 0.22); door.add(knob);
+  const arch = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.9, 0.35), stoneD); arch.position.y = 1.5; door.add(arch);
+  const archCap = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.35, 0.4), stone); archCap.position.set(0, 3.05, 0); door.add(archCap);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.35, 2.4, 0.14), woodD); panel.position.set(0, 1.3, 0.12); door.add(panel);
+  for (const sy of [-0.7, 0, 0.7]) {
+    const pl = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.02), timber); pl.position.set(0, 1.3 + sy, 0.2); door.add(pl);
+  }
+  for (const sy of [0.5, 1.5, 2.2]) {
+    const hng = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.1, 0.06), iron); hng.position.set(-0.55, sy, 0.22); door.add(hng);
+  }
+  const knock = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 5, 10), iron); knock.position.set(0.15, 1.5, 0.28); door.add(knock);
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.08), brass); handle.position.set(0.48, 1.25, 0.26); door.add(handle);
   door.position.set(0, 0.14, D / 2 - 0.08); g.add(door);
-  add(new THREE.SphereGeometry(0.15, 8, 6), glow, 1.25, 2.55, D / 2 - 0.35);
+  add(new THREE.BoxGeometry(0.12, 0.4, 0.12), brass, 1.35, 2.5, D / 2 - 0.35);
+  add(new THREE.SphereGeometry(0.15, 8, 6), glow, 1.35, 2.25, D / 2 - 0.5);
+  add(new THREE.BoxGeometry(1.1, 0.04, 0.7), matL(0x5a3418, 'hs-doormat'), 0, 0.16, D / 2 - 1.0);
 
-  // Furniture AABBs only (room walls handled by world.blocked pocket halfW/halfD)
+  // Furniture AABBs ONLY — walls handled by world.blocked halfW/halfD (v319 hitFurn).
+  // Must NOT overlap spawn (0, D/2 - 1.55) or spots.exit / clear door path.
   const colliders = [
     { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },                 // hearth
     { x: -W / 2 + 1.7, z: D / 2 - 1.5, w: 2.6, d: 1.5 },       // bunk
     { x: W / 2 - 2.1, z: 0.35, w: 2.1, d: 1.4 },               // table
     { x: -W / 2 + 1.15, z: -0.55, w: 1.05, d: 1.55 },          // chest (west)
     { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },       // barrel + crate
-    { x: -W / 2 + 0.25, z: -2.1, w: 0.7, d: 1.9 },             // weapon rack
+    { x: -W / 2 + 0.55, z: -2.35, w: 0.9, d: 1.8 },            // bookcase / rack (NW)
   ];
   const spots = {
     chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
     exit: { x: 0, z: D / 2 - 1.35, r: 2.4, kind: 'house_exit', label: 'EXIT TO ISLAND' },
   };
-  g.userData = { W, D, H, tier, colliders, spots, chest, door };
+  g.userData = { W, D, H, tier, colliders, spots, chest, door, PEAK, cottageId };
   return g;
 }
+
 
 export function createHouses({
   scene, world, layout, walker, pirate, crewF, petF, fnet, camera = null,
@@ -563,7 +1026,7 @@ export function createHouses({
   function placeInterior(d) {
     if (interior) { scene.remove(interior); interior = null; }
     const tier = owned[d.id]?.tier || d.tier || 'cozy';
-    interior = buildInteriorRoom({ tier, low });
+    interior = buildInteriorRoom({ tier, cottageId: d.id, low });
     // Isolated pocket far from island colliders (harbor frame). Enclosed room hides the sky/ocean.
     const ox = 2800, oz = 2800, oy = 120;
     roomOrigin = { x: ox, y: oy, z: oz };
@@ -632,6 +1095,23 @@ export function createHouses({
       try {
         if (scene.fog) { scene.userData._hsFogDens = scene.fog.density; scene.fog.density = 0; }
         scene.userData._hsBg = scene.background; scene.background = new THREE.Color(0x1a1008);
+        // Hide outdoor lights (incl. nested under world.root) so V6 pirate is not blown out
+        const hid = [];
+        const underInterior = (o) => { let p = o; while (p) { if (p === interior) return true; p = p.parent; } return false; };
+        scene.traverse((c) => {
+          if (!c?.isLight) return;
+          if (underInterior(c) || (c.name && String(c.name).startsWith('hs_'))) return;
+          hid.push({ light: c, vis: c.visible, intensity: c.intensity });
+          c.visible = false;
+          c.intensity = 0;
+        });
+        scene.userData._hsOutLights = hid;
+        scene.userData._hsEnv = scene.environment;
+        scene.environment = null;
+        if ('environmentIntensity' in scene) {
+          scene.userData._hsEnvInt = scene.environmentIntensity;
+          scene.environmentIntensity = 0;
+        }
       } catch {}
       document.documentElement.classList.add('pfp-inhouse');
       toast('WELCOME HOME', 1800);
@@ -670,6 +1150,12 @@ export function createHouses({
       try { plaques.visible = true; } catch {}
       try { if (fallbackExteriors) fallbackExteriors.visible = true; } catch {}
       try { if (scene.fog && '_hsFogDens' in scene.userData) scene.fog.density = scene.userData._hsFogDens; if ('_hsBg' in scene.userData) scene.background = scene.userData._hsBg; } catch {}
+      try {
+        for (const h of (scene.userData._hsOutLights || [])) { try { h.light.visible = h.vis !== false; if (h.intensity != null) h.light.intensity = h.intensity; } catch {} }
+        scene.userData._hsOutLights = null;
+        if ('_hsEnv' in scene.userData) { scene.environment = scene.userData._hsEnv; delete scene.userData._hsEnv; }
+        if ('_hsEnvInt' in scene.userData) { scene.environmentIntensity = scene.userData._hsEnvInt; delete scene.userData._hsEnvInt; }
+      } catch {}
       try { crewF?.enter?.(); } catch {}
       try { petF?.enter?.(w); } catch {}
       document.documentElement.classList.remove('pfp-inhouse');
@@ -935,10 +1421,17 @@ export function createHouses({
     for (const [id, p] of fnet.peers) {
       if (p.pirate?.object?.visible) { p.pirate.object.visible = false; hiddenPeers.add(id); }
     }
-    // Ember flicker
+    // Ember + flame flicker
     try {
-      const em = interior.children.find((c) => c.material?.userData?.key === 'hs-ember');
-      if (em?.scale) em.scale.setScalar(0.9 + 0.15 * Math.sin((game?.t || performance.now() / 1000) * 6));
+      const t = game?.t || performance.now() / 1000;
+      interior.traverse((c) => {
+        const k = c.material?.userData?.key;
+        if (k === 'hs-ember' && c.scale) c.scale.setScalar(0.9 + 0.15 * Math.sin(t * 6));
+        if (k === 'hs-flame' && c.scale) {
+          const ph = (c.id || 1) * 1.7;
+          c.scale.set(0.85 + 0.2 * Math.sin(t * 9 + ph), 0.9 + 0.25 * Math.sin(t * 11 + ph), 0.85 + 0.2 * Math.cos(t * 8 + ph));
+        }
+      });
     } catch {}
   }
 
@@ -975,6 +1468,12 @@ export function createHouses({
       try { plaques.visible = true; } catch {}
       try { if (fallbackExteriors) fallbackExteriors.visible = true; } catch {}
       try { if (scene.fog && '_hsFogDens' in scene.userData) scene.fog.density = scene.userData._hsFogDens; if ('_hsBg' in scene.userData) scene.background = scene.userData._hsBg; } catch {}
+      try {
+        for (const h of (scene.userData._hsOutLights || [])) { try { h.light.visible = h.vis !== false; if (h.intensity != null) h.light.intensity = h.intensity; } catch {} }
+        scene.userData._hsOutLights = null;
+        if ('_hsEnv' in scene.userData) { scene.environment = scene.userData._hsEnv; delete scene.userData._hsEnv; }
+        if ('_hsEnvInt' in scene.userData) { scene.environmentIntensity = scene.userData._hsEnvInt; delete scene.userData._hsEnvInt; }
+      } catch {}
       inHouse = false; activeId = null; doorHold = null; roomOrigin = null;
       document.documentElement.classList.remove('pfp-inhouse');
     }
