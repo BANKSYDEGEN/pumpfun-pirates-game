@@ -20,7 +20,8 @@ test('rename: plaza / interact / home tab / panel say KING OF THE HILL; JOIN BAT
   assert.match(html, />BATTLE ROYALE</); // mode button unchanged
   assert.match(html, />JOIN BATTLE</);
   assert.match(R('js/pvpBoard.js'), /KING OF THE HILL/);
-  assert.match(R('sw.js'), /const VERSION = 'pfp-v352'/);
+  const version = /^const VERSION = 'pfp-v(\d+)'/m.exec(R('sw.js'));
+  assert.ok(version && +version[1] >= 352, 'KotH ships in v352 and must survive later cache-version bumps');
 });
 
 test('server top has no room filter (Harbor + Arena rooms all sum); claimKill RPC unchanged', () => {
