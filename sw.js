@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v336'; // [v336] Golden Doubloon Casino (#33..#5, 4 pure-gold tables) + multiplayer weapon-sync (Legendary/rarity + 3D musket attachments in-hand & holstered) + [v335] build mode unlocked (Plaza / Hill Street / GLB units) + owner-only multi-color REWORK flags + weapon gifting + 3D street signs removed (BANKSY t1777-85u); prev: [v332] hill-edge short ziplines + per-musket attachments + legendary weapon craft (BANKSY t1746-50u / t1763-4u); prev: [v331] load time + Storm Hunt 100g/wave; [v330] clean AAA river;
+const VERSION = 'pfp-v337'; // [v337] Harbor Free-tier capacity 4->8 (budgeted fight Hz) + Dock Plaza gravel floor continuous up Hill Street to Fountain (BANKSY t1789u/t1790u); prev: [v336] Golden Doubloon Casino + weapon-sync; prev: [v335] build mode + REWORK flags + weapon gifting;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

@@ -839,8 +839,60 @@ export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', l
 export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = (PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS).filter(t => !CO.hallTokenHidden(t.sym)); // [v240] $HQ / $RETARDIO hidden (&hallboards=1)
 export let PLAZA_V2_SIGNS = null; export const PV_DOCK = PV.DOCK; export { PV };
 export const INTERACT = []; // { id, x, z, r, label }
+// [v337] BANKSY t1790u: the SAME dock-plaza gravel (color 0xc9bfae, aMat 10 -> look.js libTri(4)) runs continuously up Main Street
+// from the Dock Plaza seam (lz = SLAB.lz0 = -54, y = STREET_Y = 2.73) to the Fountain plaza mouth (STREET.z1 / GATE, y ≈ 20.1).
+// Terrain-conforming strip (Htri crest-safe, ~4 cm proud of the 4 m facets) + a path deck so feet stand ON the gravel, never into shop interiors.
+const STREET_GRAVEL = { col: 0xc9bfae, mat: 10, lift: 0.04, step: 1.25, half: STREET.half + 0.9, fountainY: 20.1 };
+function streetGravelY(lx, lz) {
+  const [x, z] = townToWorld(lx, lz), lift = STREET_GRAVEL.lift;
+  let y = Math.max(H(x, z), Htri(x, z)) + lift;
+  const sy = (PV && PV.STREET_Y) || 2.73;
+  if (lz > -58) { const t = Math.min(1, Math.max(0, (lz + 58) / 4)); const e = t * t * (3 - 2 * t); y = y * (1 - e) + sy * e; }
+  if (lz < STREET.z1 + 8) { const t = Math.min(1, Math.max(0, (STREET.z1 + 8 - lz) / 8)); const e = t * t * (3 - 2 * t); y = y * (1 - e) + STREET_GRAVEL.fountainY * e; }
+  return y;
+}
+function buildStreetGravel(k) {
+  // Returns { verts, decks } for diagnostics. Safe: never throws out of createFoot.
+  try {
+    const S = STREET, Gv = STREET_GRAVEL, hw = Gv.half, step = Gv.step, lz0 = -54, lz1 = S.z1 + 1.5;
+    const pos = [];
+    const pushV = (lx, lz) => { const [x, z] = townToWorld(lx, lz); pos.push(x, streetGravelY(lx, lz), z); };
+    for (let lz = lz0; lz > lz1; lz -= step) {
+      const lzB = Math.max(lz1, lz - step);
+      for (let sx = -hw; sx < hw - 1e-6; sx += step) {
+        const sx1 = Math.min(hw, sx + step), lx0 = S.x + sx, lx1 = S.x + sx1;
+        const midx = (lx0 + lx1) / 2, midz = (lz + lzB) / 2;
+        // only skip the coliseum alley mouth (east of street), never the Main Street corridor itself
+        if (COLI.COLISEUM_ON && midx > S.x + S.half && COLI.inMainAlley(midx, midz, 0.4)) continue;
+        pushV(lx0, lz); pushV(lx0, lzB); pushV(lx1, lzB);
+        pushV(lx0, lz); pushV(lx1, lzB); pushV(lx1, lz);
+      }
+    }
+    if (!pos.length) { console.warn('[v337] street gravel: empty pos'); return { verts: 0, decks: 0 }; }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    W(k, g, Gv.col, Gv.mat, null, false);
+    const path = [], ps = [0];
+    for (let lz = lz0, i = 0; lz >= lz1 - 1e-6; lz -= step, i++) {
+      const [x, z] = townToWorld(S.x, Math.max(lz1, lz)); path.push([x, z]);
+      if (i) ps.push(ps[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+    }
+    let decks = 0;
+    if (path.length >= 2) {
+      const xs = path.map(p => p[0]), zs = path.map(p => p[1]), L = ps[ps.length - 1] || 1;
+      addDeck({ id: 'street_gravel', path, ps, hw, yAt: (s) => {
+        const u = Math.min(1, Math.max(0, s / L));
+        return streetGravelY(S.x, lz0 + (lz1 - lz0) * u);
+      }, bb: [Math.min(...xs) - hw - 1, Math.max(...xs) + hw + 1, Math.min(...zs) - hw - 1, Math.max(...zs) + hw + 1] });
+      decks = 1;
+    }
+    return { verts: pos.length / 3, decks };
+  } catch (e) { console.warn('[v337] street gravel failed', e); return { verts: 0, decks: 0, err: String(e && e.message || e) }; }
+}
 export function buildStreet(A, low, F) {
   const k = new Kit(), S = STREET; k.ao = (x, y, z) => 0.58 + 0.42 * sm(0, 2.6, y - H(x, z)); KPG = 'street';
+  // gravel mesh is built as its own kit group in createFoot (foot_street_gravel) so it cannot be dropped by street kit merge
   const lots = []; for (let z = S.z0 - 10, n = 0; z > S.z1 + 8; n++) { const w = 7 + hash(n, 3) * 4; lots.push([z - w / 2, w, n]); z -= w + 1.6; }
   const SIGNS = { '-1:1': 'tavern', '1:3': 'shop', '-1:4': 'bounties' };
   for (const side of [-1, 1]) for (const [z, w, n] of lots) {
@@ -1329,6 +1381,10 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   KP = kit ? {} : null; NK = nat; NP = nat ? {} : null;
   const fm = foliageMat(low, uTime, nat ? nat.cards : null);
   const street = buildStreet(atlas.R, low, F).build(MATS, OUT); street.name = 'foot_street'; root.add(street);
+  let streetGravel = null; if (COASTM) { // [v337] BANKSY t1790u: dock-plaza gravel up Hill Street to Fountain (own group, aMat 10)
+    const gk = new Kit(); gk.ao = (x, y, z) => 0.7 + 0.3 * sm(0, 2.6, y - H(x, z));
+    const gInfo = buildStreetGravel(gk); streetGravel = gk.build(MATS, OUT); streetGravel.name = 'foot_street_gravel'; root.add(streetGravel);
+    if (typeof console !== 'undefined') console.info('[v337] street gravel', gInfo); }
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
   const kerbG = buildKerbs(MATS, OUT, low); for (const g of kerbG) root.add(g); // [bridge-path-fix] the paved trails' kerbs (after the POIs: their colliders + area decks are in)
   // [stairs2] the saved terrain edits (BANKSY's, pvp_terrain) load after this: kerbs laid on the unedited ground floated / sank where he levelled
@@ -1493,7 +1549,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const q = INTERACT.find(q => q.id === id); if (q) q.used = false; } // [v122] a dug site fills back in: another map can point here
   function activate(q, t) { if (q.id.startsWith('dig')) { const d = digs.find(d => d.id === q.id); if (d && d.t < 0) { d.t = t; q.used = true; } return 'dig'; } return q.id; }
   const stats = { buildMs: BUILD_MS, chunks: chunks.length, trees: spots.trees.length, palms: spots.palms.length, ferns: spots.ferns.length, rocks: spots.rocks.length, torches: F.length, kitPieces: kitN, kitTris, kitTexBytes: kit ? kit.texBytes : 0, kitKtx2: kit ? kit.ktx2 : false, natPieces: natN, natTris, natTexBytes: nat ? nat.texBytes : 0, natKtx2: nat ? nat.ktx2 : false, cliffs: spots.cliffs.length, groups: groups.map(g => g.name), trailA: Math.round(pathLen(TRAILS.A)), trailB: Math.round(pathLen(TRAILS.B)), street: Math.round(Math.abs(STREET.z1 - STREET.z0)), texBytes: hTex.image.data.length };
-  return { areas, root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, setLayer, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups };
+  return { areas, root, update, battery, lighthouses: lhs, H, groundAt, waterAt, blocked, whyBlocked, setLayer, spots, nearInteract, activate, rearm, stats, pois: FOOT_POIS, digs, street, inland, IM, flames, lights, groups, areaDeckAt, AREA_DECKS, townToWorld, worldToTown, streetGravel };
 }
 // ---------- 2D review map (canvas) ----------
 export function drawMap(cv, extraPois = []) {

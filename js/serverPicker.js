@@ -28,7 +28,7 @@ export function serverLabel({ prefix = PUBLIC_PREFIX, copy = 0 } = {}) {
   return copy ? `HARBOR #${copy | 0}` : 'HARBOR · AUTO';
 }
 /** Rows for ACTIVE PUBLIC SERVERS from the RPC's [[copy, pirates], ...]. */
-export function publicRows(copies = [], { cap = 4, cur = 0 } = {}) {
+export function publicRows(copies = [], { cap = 8, cur = 0 } = {}) {
   const out = [];
   for (const r of Array.isArray(copies) ? copies : []) {
     const copy = cleanCopy(Array.isArray(r) ? r[0] : r?.copy), n = Math.max(0, Math.floor(Number(Array.isArray(r) ? r[1] : r?.n) || 0));
@@ -103,7 +103,7 @@ export function createServerPicker(api) {
   }
   function render() {
     ensure(); if (!el) return;
-    const i = api.info(), rows = publicRows(i.copies, { cap: i.cap || 4, cur: codeOfPrefix(i.prefix) ? 0 : i.copy }), code = codeOfPrefix(i.prefix);
+    const i = api.info(), rows = publicRows(i.copies, { cap: i.cap || 8, cur: codeOfPrefix(i.prefix) ? 0 : i.copy }), code = codeOfPrefix(i.prefix);
     el.innerHTML = `<div class="sv-box"><h2>⚓ CHOOSE SERVER <button type="button" data-x aria-label="Close">✕</button></h2>
       <div class="sv-cur" data-cur>${escHtml(serverLabel(i))}</div>
       <h3>ACTIVE PUBLIC SERVERS</h3>
@@ -114,7 +114,7 @@ export function createServerPicker(api) {
         <input data-code maxlength="12" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Server code" value="${escHtml(code)}">
         <button type="button" class="sv" data-join>JOIN CODE</button><button type="button" class="sv" data-copy ${code ? '' : 'disabled'}>COPY CODE</button>
         <button type="button" class="sv" data-auto>AUTO PUBLIC</button></div>
-      <p class="sv-note">Own servers are private harbors: share the code and your crew lands in the same copy (up to 4 pirates). Open-water ship PvP is on outside Safe Harbor.</p></div>`;
+      <p class="sv-note">Own servers are private harbors: share the code and your crew lands in the same copy (up to 8 pirates). Open-water ship PvP is on outside Safe Harbor.</p></div>`;
     el.querySelector('[data-x]').onclick = close;
     el.querySelectorAll('[data-pick]').forEach((b) => { b.onclick = () => go(planSwitch('pick', b.dataset.pick)); });
     el.querySelector('[data-new]').onclick = () => go(planSwitch('new'));

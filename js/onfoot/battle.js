@@ -640,8 +640,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   }
   // [Emerly] fight sync: while you and at least one other pirate are in the same area, ask the harbor room (js/transport.js Batcher.boost,
   // wired in js/pvp.js) to send YOUR state at HARBOR_NET.fight.hz (1v1) / hz4 (3-4 fighters). 0 = the normal 1 Hz harbor rate.
-  function fastHz() { if (!me.zone) return 0; let n = 0; for (const r of peerR.values()) if (STANCES_ON ? r.ba[0] > 0 : r.ba[0] === me.zone) n++; if (!n) return 0;
-    const F = HARBOR_NET.fight || {}; return n + 1 <= 2 ? (F.hz ?? 10) : (F.hz4 ?? 5); }
+  // [v337] BANKSY t1789u Free-tier budget: each sent packet fans out to every peer in the room (cost M msgs), so clamp fHz so
+  // (k * fHz + Math.max(0, M - k) * HARBOR_NET.hz) * M <= fight.budget (default 64). Still prefers 10 Hz in 2p / 5 Hz in 3-4p.
+  function fastHz(roomN) { if (!me.zone) return 0; let n = 0; for (const r of peerR.values()) if (STANCES_ON ? r.ba[0] > 0 : r.ba[0] === me.zone) n++; if (!n) return 0;
+    const F = HARBOR_NET.fight || {}, k = n + 1, want = k <= 2 ? (F.hz ?? 10) : (F.hz4 ?? 5), base = HARBOR_NET.hz || 1;
+    const M = Math.max(2, (roomN | 0) || (1 + peerR.size) || 2), budget = F.budget || 64;
+    const maxHz = Math.max(base, (budget / M - Math.max(0, M - k) * base) / k);
+    return Math.min(want, F.max ?? 10, maxHz); }
   // [Emerly] crew followers stay OUT of the arenas: a point inside the pit / range (+1.6 m) -> the spot where follower i waits
   // (just outside the gate, harbor coords); null = free to walk there. js/onfoot/followers.js keepOut.
   function keepOut(x, z, i = 0) { const [lx, lz] = toTown(x, z);

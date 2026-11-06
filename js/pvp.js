@@ -10,7 +10,7 @@ import { isKey } from './keybinds.js';
 //  - cannon volleys are broadcast as events so everyone sees the balls; the SHOOTER decides a hit and the VICTIM'S
 //    client applies it (after caps: damage per ball, hits per second, shooter distance);
 //  - AI ships live in the harbor only (the arena is players only) and never count for K/D. [v99] SHARED PvE HARBOR: the
-//    pvp_harbor RPC (migration 021) puts up to 4 pirates in one harbor copy (pfp-harbor-1, -2, ...; a full copy overflows into
+//    pvp_harbor RPC (migration 021) puts up to HARBOR_NET.cap pirates in one harbor copy (pfp-harbor-1, -2, ...; a full copy overflows into
 //    the next). In a copy the oldest pirate is the HOST: it sails the AI ships + boss and sends them in its state (1 Hz);
 //    the others draw them, report their hits to the host, and each victim applies the AI balls that hit it. Pirates can't
 //    hurt each other there. The last hit gets the kill, the gold is split by damage dealt. Alone in a copy = no Realtime
@@ -598,7 +598,7 @@ export function createPvp(K) {
   async function hbConnect(copy, g) {
     let link; try { link = await hbNet.openRoom(copy); } catch (e) { console.warn('[harbor] connect failed', e?.message); return; }
     if (!active || g !== hb.gen || where !== 'harbor' || spec.on || room) { link.close(); return; }
-    room = link; link.hbCopy = copy; roomIdx = copy; link.boost = () => window.PFP?.dock?.battle?.fastHz?.() || 0; // [Emerly] faster sends only while YOU fight someone in the SWORD PIT / MUSKET RANGE
+    room = link; link.hbCopy = copy; roomIdx = copy; link.boost = () => window.PFP?.dock?.battle?.fastHz?.(1 + (link.heard?.() || 0)) || 0; // [Emerly]/v337] faster sends while YOU fight; pass room headcount for Free-tier budget
     hb.hj = Date.now(); hb.listenUntil = performance.now() + HARBOR_NET.listen * 1000;
     isHost = false; hostId = null; wire(link); link.setState(stateMsg); link.send('hello', { i: myId }, { now: true });
   }
@@ -626,7 +626,7 @@ export function createPvp(K) {
     return { ok: true, msg, prefix: hbNet.prefix, wantCopy: plan.wantCopy || 0, code: plan.code || '' };
   }
   const serverPicker = hbNet && SERVER_PICKER_ON ? createServerPicker({
-    info: () => ({ prefix: hbNet.prefix, copy: hb.copy | 0, copies: hb.copies, cap: hb.cap || 4, wantCopy: hb.wantCopy | 0, n: hb.n | 0, pirates: hb.pirates | 0 }),
+    info: () => ({ prefix: hbNet.prefix, copy: hb.copy | 0, copies: hb.copies, cap: hb.cap || HARBOR_NET.cap, wantCopy: hb.wantCopy | 0, n: hb.n | 0, pirates: hb.pirates | 0 }),
     switchTo: switchServer, toast: (m) => K.banner?.('⚓ SERVER', String(m).slice(0, 60)),
   }) : null;
   try { const op = ownPrefix(localStorage.getItem('pfp_hb_server') || ''); if (hbNet && op && !QS.get('pvproom')) hbNet.setPrefix(op); } catch {} // your OWN server sticks until AUTO PUBLIC
