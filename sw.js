@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v313'; // [v313] sail-around: full-island sea + hollow wooden canoe + dig16-27 side-island digs + ship recall + fast swim + tougher/more AI around N/E/S coasts + HUD gold card (&sailall=0); prev: [v312] Cannon Hill lighthouse hit;
+const VERSION = 'pfp-v314'; // [v314] storage-houses: buyable cottages + instanced interiors + house chests + server-spot reservation (&houses=0); prev: [v313] sail-around;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
