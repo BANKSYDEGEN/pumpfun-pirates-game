@@ -83,7 +83,8 @@ const shellGaps={n:0,gaps:[]}; if(C.COLISEUM_ON&&C.contourAt){
     if(!F.hitCollider(x,z,.55)) shellGaps.gaps.push({i,lx:+c.lx.toFixed(2),lz:+c.lz.toFixed(2)});
   }
 }
+const interiorH={n:0,bumps:0,sample:[]}; if(C.COLISEUM_ON){for(let lx=34;lx<=88;lx+=1)for(let lz=-200;lz<=-72;lz+=1){if(!C.ellInside(lx,lz,2))continue;if(C.fishSample(lx,lz).d<C.FISH_HW+1.5&&C.fishSample(lx,lz).s<C.FISH_STAIR.sShell+2)continue;const h=F.H(...CO.t2w(lx,lz));interiorH.n++;if(Math.abs(h-C.FOOT.y)>0.08){interiorH.bumps++;if(interiorH.sample.length<5)interiorH.sample.push({lx,lz,h:+h.toFixed(2)});}}}
 const tips={south:C.FOOT.lz1,north:C.FOOT.lz0,fishClear:(-42)-C.FOOT.lz1,p:C.ELL.p,rz:C.ELL.rz,rx:C.ELL.rx};
-const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,wings,range:BA.RANGE,pit:BA.PIT,interiors,exteriorSummary,exterior,samples,walks,tips,shellGround,shellGaps};
+const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,wings,range:BA.RANGE,pit:BA.PIT,interiors,exteriorSummary,exterior,samples,walks,tips,shellGround,shellGaps,interiorH};
 if(process.env.COLI_REPORT) writeFileSync(process.env.COLI_REPORT,JSON.stringify(result,null,2));
 console.log(JSON.stringify({...result,samples:undefined,exterior:undefined,hits:hits.slice(0,8)}));

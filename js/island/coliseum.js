@@ -189,35 +189,31 @@ export function inFoot(lx, lz, pad = 0) { return ellInside(lx, lz, pad); }
 export function stamp(lx, lz, h) {
   if (!near(lx, lz)) return { h, d: 99 };
   const d = ellOutD(lx, lz);
+  // Flatten interior + 3.6 m shell shoulder to FOOT.y (cuts west hillside down AND supports south cliff bays across G=4 grid).
+  if (d <= 3.6) h = FOOT.y;
+  else if (d < 8.5) {
+    const w = 1 - sm(3.6, 8.5, d);
+    h = h * (1 - w) + FOOT.y * w;
+  }
   const dg = Math.hypot(Math.max(MAIN_GATE.lx - lx, 0, lx - MAIN_GATE.lx - MAIN_GATE.d), Math.max(Math.abs(lz - MAIN_GATE.lz) - MAIN_GATE.w / 2, 0));
   const ramp = castleSample(lx, lz), rd = ramp.d;
-  // [v307] plaza / fish cuts must never carve a cliff under the outer shell.
-  // Keep the actual FISH_STAIR corridor (f.d < FISH_HW+0.4) free so the ramp still descends through the gate.
+  // [v307] plaza / fish cuts must never carve a cliff under the outer shell (d < 3.6), except inside the FISH_STAIR corridor itself.
   let fd = 99, onFishRamp = false;
   if (nearFish(lx, lz)) {
     const f = fishSample(lx, lz); fd = f.d;
     onFishRamp = f.d < FISH_HW + 0.4 && f.s < FISH_STAIR.sShell + 1;
-    if (f.d < FISH_HW + 8.5 && f.s < FISH_STAIR.sShell + 1 && (d >= 2.2 || onFishRamp)) {
+    if (f.d < FISH_HW + 8.5 && f.s < FISH_STAIR.sShell + 1 && (d >= 3.6 || onFishRamp)) {
       const w = 1 - sm(FISH_HW + 4.5, FISH_HW + 8.5, f.d), ty = Math.min(f.y, fishLowY(lx, lz, FISH_HW + 6) ?? f.y) - 0.12;
       h = h * (1 - w) + (lx < 93 && lz > -46 ? Math.min(h, ty) : ty) * w;
     }
   }
-  if (PLAZA_V2 && d >= 2.2 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > FACADE_LZ - ROW_D - 6) {
+  if (PLAZA_V2 && d >= 3.6 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > FACADE_LZ - ROW_D - 6) {
     const keep = sm(FACADE_LZ - ROW_D - 6, FACADE_LZ - ROW_D - 2, lz);
     h += (Math.min(h, STREET_Y - 0.14) - h) * keep;
   }
-  // Gate ramps after plaza/fish so they win in the openings.
+  // Gate ramps after plaza/fish so they win cleanly in their openings.
   if (dg < 2) { const w = 1 - sm(0, 2, dg); h = h * (1 - w) + mainY(lx, lz) * w; }
   if (rd < CASTLE_RAMP_HW + 1.2) { const w = 1 - sm(CASTLE_RAMP_HW, CASTLE_RAMP_HW + 1.2, rd); h = h * (1 - w) + ramp.y * w; }
-  // [v307] solid shoulder under shell (covers G=4 bilinear); soft feather beyond for a natural cliff edge.
-  const shellExempt = onFishRamp || dg < 1.2 || rd < CASTLE_RAMP_HW + 0.5;
-  if (!shellExempt) {
-    if (d <= 3.6) h = Math.max(h, FOOT.y);
-    else if (d < 8.5) { const w = 1 - sm(3.6, 8.5, d); h = h * (1 - w) + FOOT.y * w; }
-  } else if (d < FOOT.feather) {
-    const w = 1 - sm(0, FOOT.feather, d);
-    h = h * (1 - w) + FOOT.y * w;
-  }
   return { h, d: Math.min(d, dg, rd, fd + 4) };
 }
 

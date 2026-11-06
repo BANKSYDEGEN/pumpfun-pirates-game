@@ -67,3 +67,9 @@ test('MAIN_GATE gallery is vaulted / pilastered (vomitorium art present in sourc
   assert.match(s, /blind arch|pilaster/i);
   assert.match(s, /contourAt|ellF|baySeg/);
 });
+
+// [v310] BANKSY: west Castle Hill slope must never bulge up inside the coliseum floor
+test("coliseum interior floor is completely flat at FOOT.y (no hillside bulge)", () => {
+  assert.ok(ON.interiorH && ON.interiorH.n > 500, "sampled interior");
+  assert.equal(ON.interiorH.bumps, 0, "interior bumps " + JSON.stringify(ON.interiorH.sample));
+});
