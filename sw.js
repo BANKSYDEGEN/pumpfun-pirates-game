@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v337'; // [v337] Harbor Free-tier capacity 4->8 (budgeted fight Hz) + Dock Plaza gravel floor continuous up Hill Street to Fountain (BANKSY t1789u/t1790u); prev: [v336] Golden Doubloon Casino + weapon-sync; prev: [v335] build mode + REWORK flags + weapon gifting;
+const VERSION = 'pfp-v338'; // [v338] 14-kit sculpted Captain's Quarters (stern gallery, transverse beams, mahogany wainscoting, two-tier wheel chandelier, Navigator's bureau & tripod telescope, trophy credenza, sea caustics) + [v337] Harbor Free-tier capacity 4->8 (budgeted fight Hz) + Dock Plaza gravel floor continuous up Hill Street to Fountain (BANKSY t1789u/t1790u); prev: [v336] Golden Doubloon Casino + weapon-sync; prev: [v335] build mode + REWORK flags + weapon gifting;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -322,6 +322,7 @@ const ASSETS = [
   "./assets/island/plaza_shops.glb",
   "./assets/island/plaza_shops_low.glb",
   "./assets/island/casino_hall_low.glb",
+  "./assets/island/captains_quarters.glb",
   // [Timothy hill street] only the phone (_low) models are precached; the High ones (3.7 MB) are cached on first use (network-first handler)
   "./assets/island/hill_street_low.glb",
   "./assets/island/hill_sword_shop_low.glb",

@@ -234,7 +234,7 @@ export async function createDock(ctx) {
   }); } catch (e) { console.warn('[storage-houses]', e); } // [Emerly storage-houses]
   let shipHull = null; try {
     shipHull = createShipHull({
-      scene, world, walker, pirate, crewF, petF, fnet, camera,
+      scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
       toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, fadeTo: (fn) => fadeTo(fn),
       houses, low: LOW, ocean, islands,
     });
