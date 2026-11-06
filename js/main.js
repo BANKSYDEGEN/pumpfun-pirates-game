@@ -37,10 +37,11 @@ import { isKey, held as heldKey, installMouseBinds, binds, keyName } from './key
 import { initControlsUi, openControls } from './controlsUi.js';
 import { initGamepad, CONSOLE } from './gamepad.js'; // [Emerly gamepad] controllers (Gamepad API) + console browsers (Xbox Edge / PlayStation); &pad=0 = off
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
+import { pvpSkin, shipTick } from './pvpSkins.js'; // [t1716u] Harbor skins (Flaming/Diamond/Kraken/…) in Waves + Daily
 import { previewCards } from './skinPreview.js'; // [v75] real renders in the skins pickers
 import { initHomeBoard } from './pvpBoard.js'; // [pvp] PvP KILLS board (home WAVES / BATTLE ROYALE switch)
 import { COAST_ON } from './island/coast.js';
-import { wavesStart, wavesClaim } from './pvpSave.js'; // [v103] Waves banks gold from SCORE (server-checked) // [Emerly] Raul's harbor coast flag (pure data module): gates docking + on foot + the coast harbor tweaks
+import { wavesStart, wavesClaim, harborEquippedSkinId } from './pvpSave.js'; // [v103] Waves banks gold · [t1716u] harborEquippedSkinId
 
 // [Raul] ship upgrades
 import { gunList, BALL_DMG } from './upgrades.js';
@@ -51,7 +52,7 @@ import { initTutorial, maybeShowTutorial, close as closeTutorial } from './tutor
 import { getMapStyle, setMapStyle, THEMES } from './mapIcons.js'; // [v153] MINIMAP STYLE setting // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
 import { wireHudHide } from './hudHide.js'; // [gold-hud] stats under captain + Hide HUD (H) · &goldhud=0
 import { compileShip, setRenderContext, prebuildNext, prebuildSkin } from './upgradeVisuals.js';
-import { wavesShipTick } from './skinLooks.js'; // [skin looks] upgraded GOLDEN / GHOST / BLOOD / MIDNIGHT looks in Waves (looks only; unlocks separate)
+// [t1716u] Waves uses shipTick from pvpSkins.js (Harbor animated skins); wavesShipTick no longer needed
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
 
 import { escHtml } from './safe.js'; // [security H5]
@@ -258,7 +259,9 @@ const game = {
 // [Raul] upgrade visuals: level-0 traits compile to exactly the original player ship (len 17, beam 5.4, 4 guns, 3 masts)
 const PLAYER_SHIP = { mainSailMap: sailTex, flagMap: flagTex, light: true, shadows: HIGH, quality };
 let pvp = null; // [pvp] PvP ARENA controller (js/pvp.js), loaded on first PVP tap; null = solo only
-const shipOpts = () => game.mode === 'pvp' && pvp ? { ...PLAYER_SHIP, skin: pvp.skinObj(), pvp: true } : PLAYER_SHIP; // [pvp] kill-tier skin + skin parts
+// [t1716u] Waves/Daily wear whatever skin was chosen in Harbor (same partsOverride / look as BR). Never fall back to Waves-only pfp_skins_v1.
+const harborSkinObj = () => (pvp ? pvp.skinObj() : pvpSkin(harborEquippedSkinId()));
+const shipOpts = () => ({ ...PLAYER_SHIP, skin: harborSkinObj(), pvp: true });
 function makePlayer() {
   const mesh = compileShip({}, shipOpts());
   attachCaptain(mesh, localCaptain()); applyShipGear(mesh, getLocalGear()); // [Raul shop items 2]
@@ -970,10 +973,10 @@ function renderWavesSkins() { // same cards as the BATTLE ROYALE picker; locked 
   }
   previewCards(grid, [getSkin('classic'), ...wavesUnlocks().map(u => u.skin)].map(sk => ({ id: sk.id, skin: sk })), {}); // [v75] real renders
 }
-// [v83] Waves skins live in ⚙ settings (BATTLE ROYALE style): pick one mid-run, the ship is rebuilt on the spot
-function openWavesSkins() { $('pause')?.classList.add('hidden'); renderWavesSkins(); $('waves-skins')?.classList.remove('hidden'); }
+// [t1716u] Waves cannot change skins mid-run — wear Harbor choice. Keep #waves-skins permanently hidden.
+function openWavesSkins() { $('waves-skins')?.classList.add('hidden'); }
 function closeWavesSkins() { $('waves-skins')?.classList.add('hidden'); if (game.state === 'paused') $('pause')?.classList.remove('hidden'); }
-{ const b = $('btn-set-wskins'); if (b) b.onclick = (e) => { e.stopPropagation(); openWavesSkins(); };
+{ const b = $('btn-set-wskins'); if (b) { b.setAttribute('hidden', ''); b.classList.add('hidden'); b.onclick = (e) => { e.stopPropagation(); openWavesSkins(); }; }
   for (const id of ['ws-close', 'ws-done']) { const x = $(id); if (x) x.onclick = (e) => { e.stopPropagation(); closeWavesSkins(); }; }
   addEventListener('keydown', (e) => { if (e.code === 'Escape' && !$('waves-skins')?.classList.contains('hidden')) { e.stopImmediatePropagation(); e.preventDefault(); closeWavesSkins(); } }, true); }
 function openWavesEntry() {
@@ -1165,6 +1168,7 @@ function startGame(mode = null) {
   initAudio(); setMusic(true); // [Raul] sound upgrades: shanty loop (Music slider in pause menu)
   clearWorld();
   scene.remove(player.mesh); disposeShip(player.mesh); player = makePlayer();
+  rebuildPlayerShip({}); // [t1716u] wear Harbor skin (+ captain/ship gear) even if just swapped in plaza before Waves
   Object.assign(game, { escortSunk: 0, storm: 0, state: 'playing', score: 0, gold: 0, wave: 0, sunk: 0, saved: false, startTime: performance.now(), waveTimer: 1.2, clearAck: false });
   game.captain = CAPTAINS[Math.floor(Math.random() * CAPTAINS.length)];
   setAvatar($('captain-img'), `assets/captains/${game.captain}.jpg`); // [v78] falls back to the skull if it fails to load
@@ -1229,7 +1233,7 @@ async function gameOver() {
   renderBoard($('board-over'));
   prepareShare(shareStats()); // pre-render the card so SHARE opens the share sheet inside the tap
 }
-function shareStats() { let skin = ''; try { skin = equippedSkin().name; } catch { /* skins optional */ } return { score: game.score, wave: game.wave, sunk: game.sunk, gold: game.gold + (game.goldSpent || 0), name: $('go-name').value.trim().slice(0, 20) || game.name, wallet: isValidSolanaAddress(walletInput.value.trim()) ? walletInput.value.trim() : game.wallet, captain: game.captain, skin }; }
+function shareStats() { let skin = ''; try { skin = harborSkinObj()?.name || 'Classic'; } catch { skin = 'Classic'; } return { score: game.score, wave: game.wave, sunk: game.sunk, gold: game.gold + (game.goldSpent || 0), name: $('go-name').value.trim().slice(0, 20) || game.name, wallet: isValidSolanaAddress(walletInput.value.trim()) ? walletInput.value.trim() : game.wallet, captain: game.captain, skin }; }
 $('btn-share').onclick = () => { const s = shareStats(); if (s.name !== game.name || s.wallet !== game.wallet) prepareShare(s); shareScore(s, { onStatus: (st) => { if (st === 'downloaded') $('save-msg').textContent = 'Score card downloaded. Attach it to your X post!'; } }); };
 async function saveScore() {
   if (game.saved) return;
@@ -1329,7 +1333,7 @@ function frame() {
     dockCoverTick(); // [v157] hide the sea spawn until the dock is on (it moors you on that frame)
     floatShip(player, dt);
     setLocalSkin(player.mesh?.userData?.skinId); // [Timothy] your shop clothes follow your ship skin (no-op unless it changed)
-    if (game.mode !== 'pvp') wavesShipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t, id: 'waves' }); // [skin looks] (PvP runs its own skinFx)
+    if (game.mode !== 'pvp') shipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t }); // [t1716u] Harbor skins (Flaming/Diamond/Ghost/Golden/Kraken/tierLooks)
     for (const e of enemies) updateEnemy(e, dt);
     escorts.update(dt); // [escorts]
     // remove fully sunk ships

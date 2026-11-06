@@ -237,8 +237,15 @@ export async function wavesScore(e) {
   const s = session();
   return api('waves_score', { ...(s ? { token: s.token } : { dk: deviceKey() }), run: e.run, wallet: e.wallet, name: e.name || null, score: e.score | 0, wave: e.wave | 0, sunk: e.sunk | 0, duration_s: e.duration_s | 0, ...(e.mode === 'daily' ? { mode: 'daily', seed: e.seed } : {}) });
 }
-function readDevice() { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } return cleanProfile(all.profiles?.device); }
+export function readDevice() { let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } return cleanProfile(all.profiles?.device); }
 function writeDevice(p) { if (acctFrozen) return; let all; try { all = JSON.parse(ls.get(DEVICE_KEY) || '{}'); } catch { all = {}; } all.profiles = all.profiles || {}; all.profiles.device = { ...p, updated: Date.now() }; ls.set(DEVICE_KEY, JSON.stringify(all)); }
+// [t1716u] Harbor skin the player chose (Battle Royale / island SHIP SKINS). Waves wears this — never the old Waves-only unlock list.
+export function harborEquippedSkinId() {
+  try {
+    const eq = readDevice()?.skins?.equipped;
+    return (typeof eq === 'string' && eq) ? eq : 'classic';
+  } catch { return 'classic'; }
+}
 
 // [V6 store] LEGACY GRANT (js/v6Legacy.js): once, on load, a pre-V6 save gets + wears classic pants + classic boots
 export { V6_LEGACY };
@@ -474,7 +481,7 @@ export async function acctCheck() { const a = acct(); if (!a || !PVP_FN_URL) ret
   try { const j = await api('acct_sync', { dk: deviceKey(), acct: a.token }); if (j.expires_at) ls.set(ACCT_KEY, JSON.stringify({ ...a, expires_at: j.expires_at })); return j; }
   catch (e) { if (e.status === 401) acctDrop('You were logged out (the password was changed or the session ended). This device is back to its own save.'); return null; } }
 window.PFP_ACCT = { info: accountInfo, setPassword: acctSetPassword, login: acctLogin, logout: acctLogout, changePassword: acctChangePassword, check: acctCheck, note: acctNote, takenByAccount };
-window.PFP_PVP_SAVE = { prestigeLevel, checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };
+window.PFP_PVP_SAVE = { prestigeLevel, checkName, renameEverywhere, loadProfile, saveProfile, linkWallet, walletSession, signOut, kd, readDevice, harborEquippedSkinId, claimKill, fetchKillsTop, clearKillsTopCache, fetchMe };
 
 // [terrain-edit] the island's height deltas (pvp function): load = anyone (+ whether YOU are the owner, decided by the server); put = owner only
 const ident = () => { const s = session(); return s ? { token: s.token } : { dk: deviceKey() }; };

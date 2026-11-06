@@ -252,7 +252,7 @@
   <div id="waves-skins" class="hidden" role="dialog" aria-label="Skins"><div class="pe-card"><!-- [v83] Waves skins: ⚙ settings → 🏴 SKINS (like BATTLE ROYALE) -->
     <button id="ws-close" class="faq-x" type="button" aria-label="Close">✕</button>
     <h2>SKINS</h2>
-    <div class="pvp-sub"><span class="muted">a new one every 5 waves · cosmetic only</span></div>
+    <div class="pvp-sub"><span class="muted">Wear the skin you chose in Harbor · Waves is score-only</span></div><!-- [t1716u] -->
     <div id="we-skins" class="pvp-skins"></div>
     <button id="ws-done" type="button" class="big">DONE</button></div></div>
 <div id="pause" class="overlay hidden">
@@ -261,7 +261,7 @@
     <div id="pause-sub" class="muted">game paused</div>
     <div class="controls-help" data-ctl="long">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · N sound · M island map</div>
     <button id="btn-ctl-pause" class="ghost" type="button">⌨ KEY BINDINGS / CONTROLS</button>
-    <button id="btn-set-wskins" class="ghost waves-set" type="button">🏴 SKINS</button>
+    <button id="btn-set-wskins" class="ghost waves-set hidden" type="button" hidden aria-hidden="true">🏴 SKINS</button><!-- [t1716u] Waves cannot change skins -->
     <!-- [v112] BANKSY: SKINS · SCOREBOARD · NAME and CONNECT WALLET left settings (name + account: the profile, tap your card top left; Tab still opens the BR menu) -->
     <div class="vol-box"><!-- [Raul] sound upgrades: volume sliders -->
       <label><span class="label">MASTER</span><input type="range" id="vol-master" min="0" max="100" step="1" aria-label="Master volume"></label>

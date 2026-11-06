@@ -816,7 +816,10 @@ html.pvp:not(.pvp-spec) #pause .pvp-set.pvp-set-inline { display: inline-block; 
 #waves-skins.hidden { display: none; }
 #waves-skins .pe-card { position: relative; background: rgba(10,10,10,0.92); border: 1px solid var(--line); border-radius: 18px; padding: 16px 22px; text-align: center; width: min(94vw, 520px); max-height: calc(var(--app-h, 100vh) - 20px); overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
 #waves-skins h2 { color: var(--gold); font-size: 36px; margin: 0; }
-#pause .waves-set { display: block; margin: 4px auto; } html.pvp #pause .waves-set { display: none; }
+#pause .waves-set { display: none !important; margin: 4px auto; } /* [t1716u] Waves cannot change skins */
+#btn-set-wskins, .waves-set#btn-set-wskins { display: none !important; }
+.shop-tabs.waves-upg-only { display: none !important; } /* [t1716u] Waves SHIPWRIGHT = upgrades only */
+.shop-tabs.waves-upg-only #tab-skins, #shop #tab-skins[hidden], #shop #skin-grid { display: none !important; }
 #waves-skins .pe-card > * { flex-shrink: 0; }
 /* [v94] harbor boss: top-of-screen HP bar (Battle Royale harbor only) */
 #pvp-boss-bar { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 56px); left: 50%; transform: translateX(-50%); z-index: 6; pointer-events: none; text-align: center; width: min(420px, 70vw); font: 800 13px/1.2 inherit; color: #ffcd00; letter-spacing: .08em; text-shadow: 0 2px 0 #000; }

@@ -106,12 +106,14 @@ function showPreview(s, src) {
 }
 function refreshPreviews() { if (ctx && ctx.game.state === 'shop' && tab === 'skins') requestPreviews(SKINS, { ...run.levels }, showPreview); } // [shop-exit-crash] only while the SKINS tab shows (the island SHIPWRIGHT has none: it rebuilt every skin's ship in a 2nd WebGL context on open + after every buy)
 function setTab(t) {
-  tab = t;
-  $('tab-upg').classList.toggle('on', t === 'upg'); $('tab-skins').classList.toggle('on', t === 'skins');
-  $('shop-grid').classList.toggle('hidden', t !== 'upg'); $('skin-grid').classList.toggle('hidden', t !== 'skins');
-  $('shop-hp').classList.toggle('hidden', t !== 'upg'); $('shop-escort').classList.toggle('hidden', t !== 'upg');
-  if (t === 'skins') refreshPreviews();
-  document.querySelector('#shop .shop-sub').textContent = t === 'upg' ? SUB_UPG() : 'Paint jobs are cosmetic and yours to keep across every voyage.';
+  // [t1716u] Waves SHIPWRIGHT = upgrades only (no mid-run skin buying / swapping)
+  tab = 'upg';
+  $('tab-upg')?.classList.add('on'); $('tab-skins')?.classList.remove('on');
+  $('tab-skins')?.classList.add('pvp-hide'); $('tab-skins')?.setAttribute('hidden', '');
+  document.querySelector('.shop-tabs')?.classList.add('waves-upg-only');
+  $('shop-grid')?.classList.remove('hidden'); $('skin-grid')?.classList.add('hidden');
+  $('shop-hp')?.classList.remove('hidden'); $('shop-escort')?.classList.remove('hidden');
+  document.querySelector('#shop .shop-sub').textContent = SUB_UPG();
   render();
 }
 function renderSkins() {
@@ -128,39 +130,9 @@ function renderSkins() {
 // [waves skins] fixed schedule: the n-th skin (price order, CLASSIC free) unlocks when a run reaches wave 5·n. Skins you already own
 // stay owned. Waves only ('pfp_skins_v1'); Battle Royale skins unlock by PvP kills. Picked in the WAVES entry pop-up (no shop tab).
 export const wavesUnlocks = () => SKINS.filter(x => x.id !== 'classic').sort((a, b) => a.price - b.price).map((s, i) => ({ skin: s, wave: 5 * (i + 1) }));
-export function waveSkinUnlock(wave) {
-  if (!ctx || wave < 5 || wave % 5) return null;
-  const got = wavesUnlocks().filter(u => u.wave <= wave && !ownsSkin(u.skin.id)).map(u => u.skin);
-  if (!got.length) return null; // nothing new at this wave
-  for (const x of got) unlockSkin(x.id);
-  const s = got[got.length - 1];
-  document.getElementById('skin-toast')?.remove();
-  const t = document.createElement('div'); t.id = 'skin-toast';
-  t.innerHTML = `<div class="st-txt"><b>NEW SKIN UNLOCKED</b><span>${s.name}</span></div><button class="buy">EQUIP</button>`;
-  const sw = skinSwatch(s, 88, 44); sw.className = 'st-sw'; t.prepend(sw);
-  const btn = t.querySelector('button');
-  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) t.addEventListener(ev, e => e.stopPropagation()); // don't steer / fire
-  btn.onclick = (e) => { e.stopPropagation(); equipSkin(s.id); ctx.rebuildShip?.(run.levels); ctx.sfx?.equip?.(); btn.textContent = 'EQUIPPED'; btn.disabled = true; if (ctx.game.state === 'shop') render(); setTimeout(() => t.remove(), 900); };
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 6000);
-  return s.id;
-}
-function skinAction(id) {
-  const s = SKINS.find(x => x.id === id); if (!s) return;
-  let bought = false;
-  if (!ownsSkin(id)) {
-    if (ctx.game.gold < s.price) return;
-    ctx.game.gold -= s.price; ctx.game.goldSpent = (ctx.game.goldSpent || 0) + s.price; unlockSkin(id); bought = true;
-  }
-  equipSkin(id);
-  const mesh = ctx.rebuildShip?.(run.levels);
-  const label = bought ? `+${s.name}` : s.name;
-  celebrateUpgrade(mesh, 'skin', { camera: ctx.camera, label });
-  lastBuy = { id: 'skin', label, legendary: false };
-  if (bought) ctx.sfx?.upgrade?.(false); ctx.sfx?.equip?.(); // [Raul] sound upgrades: cloth swish + sparkle
-  ctx.updateHud(); render();
-  const c = $('skin-grid').querySelector(`[data-skin="${id}"]`); if (c) { c.classList.remove('tierup'); void c.offsetWidth; c.classList.add('tierup'); setTimeout(() => c.classList.remove('tierup'), 800); }
-}
+// [t1716u] Waves is score-only: no skin unlocks mid-run (wear the Harbor skin you chose). Signature kept for callers.
+export function waveSkinUnlock(_wave) { return null; }
+function skinAction(_id) { /* [t1716u] Waves cannot buy / swap skins mid-run */ }
 
 function render() {
   if (!ctx) return;
@@ -170,7 +142,7 @@ function render() {
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < repairCost();
   rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${repairHp()} HP · ${repairCost()}g`;
-  $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins').classList.add('pvp-hide'); // skins live in the WAVES / BATTLE ROYALE pickers now (BANKSY) // [pvp] no escorts; PvP skins unlock by kills (PvP menu)
+  $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins')?.classList.add('pvp-hide'); $('tab-skins')?.setAttribute('hidden', ''); document.querySelector('.shop-tabs')?.classList.add('waves-upg-only'); // [t1716u] Waves: upgrades only
   const stats = shipStats(run);
   for (const u of UPGRADES) {
     const c = $('shop-grid').querySelector(`[data-id="${u.id}"]`), lv = run.levels[u.id];
