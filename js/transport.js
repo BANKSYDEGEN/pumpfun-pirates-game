@@ -20,13 +20,18 @@ export class Batcher { // exported for tests
   constructor(myId, cfg, rawSend) {
     this.myId = myId; this.cfg = cfg; this.rawSend = rawSend; this.handlers = new Map(); this.q = []; this.provider = null;
     this.last = 0; this.lastDyn = null; this.lastStatic = ''; this.lastStaticT = 0; this.full = new Map(); this.heardAt = new Map();
-    this.sent = 0; this.recv = 0; this.bytes = 0; this.byEv = {}; this.t0 = performance.now(); this.forceStatic = true;
+    this.sent = 0; this.recv = 0; this.bytes = 0; this.byEv = {}; this.t0 = performance.now(); this.forceStatic = true; this.specs = 0; // [v339] spectator count (synced from lob.specs)
     this.timer = setInterval(() => this.tick(), 50);
   }
   on(ev, fn) { this.handlers.set(ev, fn); return this; }
   setState(fn) { this.provider = fn; }
   heard() { const now = performance.now(); let n = 0; for (const [id, t] of this.heardAt) { if (now - t < 6000) n++; else { this.heardAt.delete(id); this.full.delete(id); } } return n; }
   hz() { if (!(this.heard() > 0)) return this.cfg.soloHz; // [Emerly] boost: an optional () => Hz (harbor rooms: the battle areas' fight rate, 0 = off)
+    // [v339] t1800u Solo Arena auto-scale: N·r·(N+S) <= scaleBudget (76.8); 2-4p stay at 4 Hz, 8p drops to 1.2 Hz. Cannon volleys still flush via { now: true }.
+    if (this.cfg.scaleBudget) {
+      const n = Math.max(2, this.heard() + 1), m = n + Math.max(0, this.specs | 0);
+      return Math.max(this.cfg.minHz || 1, Math.min(this.cfg.hz, +(this.cfg.scaleBudget / (n * m)).toFixed(3)));
+    }
     let b = 0; if (this.boost) try { b = Math.min(this.cfg.fight?.max || 10, Math.max(0, +this.boost() || 0)); } catch { b = 0; }
     return Math.max(this.cfg.hz, b); }
   send(ev, payload, o = {}) { this.q.push([ev, payload]); if (o.now) this.flush(true); return true; }

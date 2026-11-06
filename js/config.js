@@ -59,7 +59,8 @@ export const PVP_PROTECT = 3;         // spawn protection seconds (ends early th
 // ---- PvP NETWORK CAPACITY: the ONE place to change it (the server side must match: supabase/migrations/007_pvp_lobby.sql, server/relay.js env) ----
 // Supabase Realtime FREE: 100 msgs/s project-wide (sent + delivered), 200 connections, 20 presence msgs/s (we use none).
 // Clients batch everything into one message per tick, so an arena of N players at r Hz with S spectators costs N·r·(N+S)/s.
-// 4 players @ 4 Hz = 64/s (+1 spectator = 80/s, our 80% budget). Everyone else waits in the local harbor queue (0 msgs).
+// [v339] BANKSY t1800u: Solo Arena maxArena 4->8 with auto-scaling tick rate (scaleBudget 76.8): 2-4p @ 4 Hz, 8p @ 1.2 Hz (<=80 msgs/s).
+// SQUADS stay 2v2 / cap 4. Everyone else waits in the local harbor queue (0 msgs).
 // [security M5] the relay URL. On the live domains ONLY a host in RELAY_HOSTS is accepted (a ?relay= link can't point players at
 // someone else's server); a local dev / test server still takes any wss:// (or ws://localhost) for testing.
 export const RELAY_HOSTS = [];        // e.g. ['relay.pumpfunpirates.com'] once the relay is hosted (server/README.md)
@@ -71,7 +72,7 @@ export const relayAllowed = (u, prod = IS_PROD_HOST) => {
 };
 export const PVP_RELAY_URL = ((u) => relayAllowed(u) ? u : '')((typeof location !== 'undefined' && new URLSearchParams(location.search).get('relay')) || RELAY_DEFAULT); // 'wss://…' once a relay server is hosted ('' = Supabase fallback) // 'wss://…' once a relay server is hosted ('' = Supabase fallback); ?relay= for testing
 export const PVP_NET = {
-  supabase: { hz: 4, soloHz: 1, maxArena: 4, budget: 80, keepalive: 1.5 },
+  supabase: { hz: 4, soloHz: 1, minHz: 1, maxArena: 8, scaleBudget: 76.8, budget: 80, keepalive: 2 }, // [v339] t1800u Solo Arena 8 + auto-scale Hz
   relay: { hz: 10, soloHz: 2, maxArena: 16, keepalive: 1.5 },
 };
 // [v99] SHARED PvE HARBOR: up to `cap` pirates per harbor copy (pfp-harbor-1, -2, ... assigned by the pvp_harbor RPC, migration 021)

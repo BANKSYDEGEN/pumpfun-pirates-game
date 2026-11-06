@@ -110,3 +110,38 @@ test('v339 anyModalOpen / closeTopModal work against a tiny DOM stub', () => {
   assert.equal(closeTopModal(), true);
   assert.equal(anyModalOpen(), false);
 });
+
+test('v339 t1800u Solo Arena maxArena 8 + Batcher.hz auto-scales 1..8 ships under scaleBudget 76.8', async () => {
+  const { PVP_NET, SQUADS } = await import('../js/config.js');
+  assert.equal(PVP_NET.supabase.maxArena, 8);
+  assert.equal(PVP_NET.supabase.scaleBudget, 76.8);
+  assert.equal(PVP_NET.supabase.minHz, 1);
+  assert.equal(PVP_NET.supabase.keepalive, 2);
+  assert.equal(SQUADS.size, 2);
+  assert.equal(SQUADS.players, 4); // SQUADS stays 2v2 / cap 4
+  const { Batcher } = await import('../js/transport.js');
+  const b = new Batcher('me00000001', PVP_NET.supabase, () => true); b.stop();
+  assert.equal(b.hz(), 1);
+  const expect = { 1: 4, 2: 4, 3: 4, 4: 3.072, 5: 2.133, 6: 1.567, 7: 1.2 }; // heard peers => ships = heard+1
+  for (const [heard, hz] of Object.entries(expect)) {
+    b.heardAt.clear();
+    const n = +heard;
+    for (let i = 0; i < n; i++) b.heardAt.set('p' + i, performance.now());
+    assert.equal(b.hz(), hz, `heard=${n} ships=${n + 1}`);
+    const ships = n + 1, msgs = ships * b.hz() * ships;
+    assert.ok(msgs <= 80.01, `msgs ${msgs} at ${ships}p`);
+  }
+  b.heardAt.clear(); for (let i = 0; i < 7; i++) b.heardAt.set('p' + i, performance.now());
+  b.specs = 1;
+  const hz8s = b.hz();
+  assert.ok(hz8s <= 1.2);
+  assert.ok(8 * hz8s * 9 <= 80.01, `8p+1spec msgs ${8 * hz8s * 9}`);
+  const tx = src('js/transport.js'), pvp = src('js/pvp.js'), mig = src('supabase/migrations/051_arena_cap_8_autoscale.sql');
+  assert.match(tx, /scaleBudget/);
+  assert.match(pvp, /mode === 'squads' \? SQUADS\.players : net\.cfg\.maxArena/);
+  assert.match(pvp, /room\.specs = lob\.specs/);
+  assert.match(pvp, /step \* 1\.35/);
+  assert.match(mig, /pvp_arena_hz/);
+  assert.match(mig, /pfp-pvp-v1' then 8/);
+  assert.match(mig, /pfp-pvp-v1sq' then 4/);
+});

@@ -198,7 +198,7 @@ export function createPvp(K) {
   const seatId = myId + Math.random().toString(36).slice(2, 10);
   // where we are: 'harbor' (local, AI only) | 'arena' (in the shared room) | 'spec'. lob = the lobby's last answer.
   let where = 'harbor';
-  const lob = { state: 'harbor', pos: 0, queue: 0, players: 0, cap: net.cfg.maxArena, offerUntil: 0, pollT: 0, busy: false, wantJoin: false, queuedByDeath: false };
+  const lob = { state: 'harbor', pos: 0, queue: 0, players: 0, cap: mode === 'squads' ? SQUADS.players : net.cfg.maxArena, offerUntil: 0, pollT: 0, busy: false, wantJoin: false, queuedByDeath: false };
   const AFK_KICK = (TEST_AFK || PVP_AFK.kick) * 1000, AFK_WARN = Math.min(PVP_AFK.warn, (TEST_AFK || PVP_AFK.kick) / 2) * 1000, AFK_FARM = Math.min(PVP_AFK.farm, (TEST_AFK || PVP_AFK.kick) * 0.6) * 1000;
   const peers = new Map();           // id -> { id, name, ship, st, heard, k, d, g, K, D, lv, sk, key }
   const bots = new Map();            // id -> enemy object
@@ -369,6 +369,7 @@ export function createPvp(K) {
     if (n0 !== net && op === 'poll') return r; // [v98.3] a poll for the other mode's room (the switch flipped meanwhile): ignore
     if (r && r.state && r.state !== 'error') {
       Object.assign(lob, { state: r.state, pos: r.pos || 0, queue: r.queue || 0, players: r.players || 0, specs: r.spectators || 0, cap: r.cap || lob.cap, known: true });
+      if (room) room.specs = lob.specs | 0; // [v339] t1800u Batcher.hz() accounts for spectators in scaleBudget
       if (r.state === 'offer') { if (!lob.offerUntil) { lob.offerUntil = performance.now() + (+r.offer_in || PVP_OFFER) * 1000; showOffer(true); sfx.coin?.(); } }
       else { lob.offerUntil = 0; showOffer(false); }
     }
@@ -826,9 +827,11 @@ export function createPvp(K) {
   function updateRemote(e, dt) {
     const st = e.netState;
     if (st) {
-      const age = Math.min((performance.now() - st.at) / 1000, 1);
-      // [v87] dead-reckon heading with the measured turn rate (capped at 0.6 s), and move along the turning arc (mid heading)
-      const ta = Math.min(age, 0.6), ty = st.y + (st.yr || 0) * ta, my = st.y + (st.yr || 0) * ta * 0.5;
+      // [v339] t1800u: scale dead-reckon clamps with the live tick interval so 1.2 Hz (8-ship) arcs stay smooth (4 Hz unchanged)
+      const step = 1 / Math.max(1, room?.hz?.() || 4);
+      const age = Math.min((performance.now() - st.at) / 1000, Math.max(1, step * 1.35));
+      // [v87] dead-reckon heading with the measured turn rate (capped at 0.6 s @ 4 Hz), and move along the turning arc (mid heading)
+      const ta = Math.min(age, Math.max(0.6, step * 1.1)), ty = st.y + (st.yr || 0) * ta, my = st.y + (st.yr || 0) * ta * 0.5;
       const tx = st.x + Math.sin(my) * st.v * age, tz = st.z + Math.cos(my) * st.v * age;
       if (st.a && !e.alive) { e.alive = true; e.sinking = 0; e.x = tx; e.z = tz; e.yaw = st.y; } // respawned
       if (!st.a && e.alive) { e.alive = false; e.sinking = 0.001; }
@@ -1252,7 +1255,7 @@ export function createPvp(K) {
   const sqCanHit = (a, b) => sq.ph === 'live' && !!sqTeam(a) && !!sqTeam(b) && sqTeam(a) !== sqTeam(b);
   // [v328] Harbor co-op: always broadcast pc when you have a party code (even if BR mode toggle is SOLO)
   const myPc = () => (where === 'harbor' || mode === 'squads') && party.code ? partyTag(party.code) : '';
-  function setNet(m) { mode = m === 'squads' ? 'squads' : 'solo'; net = nets[mode]; Object.assign(lob, { cap: net.cfg.maxArena, known: false, lastPoll: 0, players: 0, queue: 0, specs: 0 }); }
+  function setNet(m) { mode = m === 'squads' ? 'squads' : 'solo'; net = nets[mode]; Object.assign(lob, { cap: mode === 'squads' ? SQUADS.players : net.cfg.maxArena, known: false, lastPoll: 0, players: 0, queue: 0, specs: 0 }); } // [v339] Solo Arena 8; SQUADS stays 2v2 / 4
   function setMode(m) { // the queue harbor's SOLO / SQUADS switch: only while not queued
     m = m === 'squads' ? 'squads' : 'solo'; if (m === mode) return;
     if (where !== 'harbor' || spec.on || lob.busy || lob.state !== 'harbor') { K.banner('LEAVE THE QUEUE FIRST', 'switch SOLO / SQUADS while you are not queued'); harborUi(); return; }
@@ -1508,7 +1511,7 @@ export function createPvp(K) {
     const hbN = room && where === 'harbor' ? livePeers().length + 1 : 0; // [v99] 'HARBOR · N pirates' in a shared copy (copy 2+ shows its number)
     const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${hbN > 1 ? `${hb.copy > 1 ? ` ${hb.copy}` : ''} · ${hbN} pirates` : ''}${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
       : room ? (isSq() ? sqHudLine(n) : `ARENA · ${n}/${lob.cap} pirates${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}`) : 'joining…';
-    if (where === 'harbor') { const an = $('pvp-arena-n'); if (an) { const t = lob.known ? `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · ${lob.players | 0}/${lob.cap || 4} in arena${lob.specs ? ` · ${lob.specs} 👁` : ''}` : `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · …`; if (an.textContent !== t) an.textContent = t; } } // [v98.3] follows the SOLO / SQUADS switch
+    if (where === 'harbor') { const an = $('pvp-arena-n'); if (an) { const t = lob.known ? `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · ${lob.players | 0}/${lob.cap || (mode === 'squads' ? SQUADS.players : net.cfg.maxArena)} in arena${lob.specs ? ` · ${lob.specs} 👁` : ''}` : `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · …`; if (an.textContent !== t) an.textContent = t; } } // [v98.3] follows the SOLO / SQUADS switch
     if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
     else { el._h = null; if (el.textContent !== txt) el.textContent = txt; }
   }
