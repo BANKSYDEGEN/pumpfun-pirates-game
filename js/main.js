@@ -168,7 +168,7 @@ const harborIsle = { obj: null, loading: false, on: false };
 const DOCK_ON = HARBOR_ISLAND_ON && COAST_ON && new URLSearchParams(location.search).get('dock') !== '0'; // gated on Raul's coast flag (on by default; ?coast=0 = old harbor)
 let dock = null, dockLoading = false;
 function dockLoad() { if (dock || dockLoading) return; dockLoading = true;
-  import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx, fx, /* [Timothy] battery muzzle / smoke / splash */
+  import('./dock/index.js').then(m => m.createDock({ scene, camera, controls, renderer, ocean, islands, game, quality, canvas, islets: HARBOR_ISLETS.filter(i => i[1] < 200), getPlayer: () => player, pvp: () => pvp, sfx, fx, waveHeight, /* [v314] the canoe rides the real swell */ /* [Timothy] battery muzzle / smoke / splash */
     openWaves: () => openWavesEntry(), camReset: () => { resetCamera(); lastTarget.set(player.x, player.y + 4 * camScale(player.mesh.userData) + 2.2 * ((player.mesh.userData.frameK || 1) - 1), player.z); } }))
     .then(d => { dock = d; }).catch(e => { dockFailed = true; console.warn('[dock] failed', e); }).finally(() => { dockLoading = false; }); }
 // [v157] BANKSY "Start them at dock": while the harbor world is still loading, a dark cover hides the sea spawn (under the name card),
@@ -459,6 +459,7 @@ function fire(shooter, side, target = null, accuracy = 1) {
 
 function playerFire(side) {
   if (game.state !== 'playing' || !player.alive || player.cd[side] > 0) return;
+  if (shipLocked()) return; // [v314] no broadsides from the canoe / the beach
   if (dock && !dock.canFire(player)) return; // [Emerly] SAFE HARBOR (no reload spent)
   player.cd[side] = player.reload;
   if (game.mode === 'pvp') pvp.onLocalFire(); // [pvp] firing ends spawn protection
@@ -625,7 +626,10 @@ function updateEnemy(e, dt) {
     spd = e.maxSpeed * 0.8;
   } else {
     e.state = 'roam';
-    if (!e.wp || Math.hypot(e.wp[0] - e.x, e.wp[1] - e.z) < 15) e.wp = [Y.x + rnd(-120, 120), Y.z + rnd(-120, 120)];
+    const ring = PV && !T.alive && e.islandPatrol && e.patrolC; // [v314] no target (you are moored / ashore): patrol the outer island ring, never (0, 0) off the dock
+    if (!e.wp || Math.hypot(e.wp[0] - e.x, e.wp[1] - e.z) < 15 || !!ring !== !!e.wpRing) {
+      if (ring) { const [pcx, pcz] = e.patrolC, a = Math.atan2(e.z - pcz, e.x - pcx) + (e.patrolDir || 1) * 0.45, R = e.patrolR || 760; e.wp = [pcx + Math.cos(a) * R, pcz + Math.sin(a) * R]; e.wpRing = true; }
+      else { e.wp = [Y.x + rnd(-120, 120), Y.z + rnd(-120, 120)]; e.wpRing = false; } }
     desired = Math.atan2(e.wp[0] - e.x, e.wp[1] - e.z);
     if (dYou < SPOT_RANGE && (!PV || T.alive)) desired = Math.atan2(Y.x - e.x, Y.z - e.z); // spotted you, close in ([spawn ring] was 230 m: covers the whole spawn ring so fresh waves still head straight in)
   }
@@ -708,15 +712,17 @@ function updateBalls(dt) {
 // ---------- input ----------
 const keys = {};
 const held = { left: false, right: false };
+const shipLocked = () => !!(dock?.onFoot || dock?.canoeing); // [v314] the canoe / walker own the input (anchored aboard: ⚓ / W still work)
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
   if (game.state === 'playing') {
-    if (isKey('sailUp', e.code)) setSail(player.sail + 1);
-    if (isKey('sailDown', e.code)) setSail(player.sail - 1);
-    if (isKey('firePort', e.code)) playerFire('port');
-    if (isKey('fireStar', e.code)) playerFire('star');
-    if (isKey('anchor', e.code)) { toggleAnchor(); e.preventDefault(); }
+    const helmOff = shipLocked(); // [v314] in the canoe / ashore: no stray sail / fire / anchor input to the big ship
+    if (!helmOff && isKey('sailUp', e.code)) setSail(player.sail + 1);
+    if (!helmOff && isKey('sailDown', e.code)) setSail(player.sail - 1);
+    if (!helmOff && isKey('firePort', e.code)) playerFire('port');
+    if (!helmOff && isKey('fireStar', e.code)) playerFire('star');
+    if (!helmOff && isKey('anchor', e.code)) { toggleAnchor(); e.preventDefault(); }
     if (isKey('camera', e.code)) resetCamera();
   }
   if (e.code === 'Space' && game.state === 'playing') e.preventDefault(); // never scroll / press a focused button
@@ -740,8 +746,8 @@ holdButton($('anchor'), toggleAnchor);
 holdButton($('fire-port'), () => playerFire('port'));
 holdButton($('fire-star'), () => playerFire('star'));
 
-function setSail(n) { player.sail = clamp(n, 0, 3); if (player.sail > 0) player.anchor = false; updateHud(); }
-function toggleAnchor() { player.anchor = !player.anchor; if (player.anchor) player.sail = 0; else if (player.sail === 0) player.sail = 1; updateHud(); }
+function setSail(n) { if (shipLocked()) return; player.sail = clamp(n, 0, 3); if (player.sail > 0) player.anchor = false; updateHud(); }
+function toggleAnchor() { if (shipLocked()) return; player.anchor = !player.anchor; if (player.anchor) player.sail = 0; else if (player.sail === 0) player.sail = 1; updateHud(); }
 function resetCamera() {
   const portrait = camera.aspect < 1, k = camScale(player.mesh.userData), dist = (portrait ? 46 : 34) * k, up = (portrait ? 24 : 16) * k; // [Raul] upgrade visuals: framing scales with hull
   const back = new THREE.Vector3(-Math.sin(player.yaw) * dist, up, -Math.cos(player.yaw) * dist);
@@ -1292,8 +1298,9 @@ function frame() {
   if (running) {
     // player
     if (game.state === 'playing' && player.alive) {
-      const turn = ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
-      moveShip(player, dt, player.anchor ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
+      const helmOff = shipLocked(); // [v314] never steer / sail the big ship from the canoe or the beach
+      const turn = helmOff ? 0 : ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
+      moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * 4.2 * (player.speedMul || 1), turn); // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
       updatePlayerRepair(dt); // [repair] game time only: pause / shop / tutorial don't count
@@ -1368,7 +1375,9 @@ function frame() {
   { const H = ocean.uniforms.uHulls.value; let k = 0;
     const ships = escorts.list.length ? [...escorts.list, ...enemies] : enemies; // [escorts] foam collars + wakes too
     const list = ships.length < MAX_HULLS ? ships : ships.slice().sort((a, b) => ((a.x - player.x) ** 2 + (a.z - player.z) ** 2) - ((b.x - player.x) ** 2 + (b.z - player.z) ** 2)); // [late waves] up to 15+ ships: foam for the nearest
-    for (const s of [player, ...list]) { if (k >= MAX_HULLS) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; hullCap(s, ocean.uniforms.uHullY.value[k]); H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len); }
+    const ch = dock?.canoeHull?.(); // [v314] the canoe's own water cap: always right after the player (its slot is reserved)
+    for (const s of [player, ...list]) { if (k >= MAX_HULLS - (ch && k > 0 ? 1 : 0)) break; if (s.sinking > 3) continue; ocean.uniforms.uHullV.value[k] = s.speed; hullCap(s, ocean.uniforms.uHullY.value[k]); H[k++].set(s.x, s.z, s.yaw, s.mesh.userData.len);
+      if (ch && s === player && k < MAX_HULLS) { ocean.uniforms.uHullV.value[k] = ch.speed; ocean.uniforms.uHullY.value[k].set(ch.capY, ch.slopeZ, ch.slopeX, ch.halfBeam); H[k++].set(ch.x, ch.z, ch.yaw, ch.len); } }
     ocean.uniforms.uHullCount.value = k;
     wakes.update(player, list, t); } // [aaa water] wake trails: player first, then the nearest ships
 

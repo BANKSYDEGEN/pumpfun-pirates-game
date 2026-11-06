@@ -108,15 +108,63 @@ export const islandSeaOk = (hx, hz, pad = 55) => { const [x, z] = coastFromHarbo
   return !(lx > sx0 - pad && lx < sx1 + pad && lz > sz0 - pad && lz < sz1 + pad); };
 const SPAWNS_COAST = [...Array.from({ length: 11 }, (_, i) => (60 + i * 24) / 360 * 6.283).map(a => [Math.cos(a) * PVP_ARENA_R * 0.82, Math.sin(a) * PVP_ARENA_R * 0.82]),
   ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])].filter(([x, z]) => coastSeaOk(x, z));
-const SPAWNS_ISLAND = SAIL_ALL ? islandSpawnRing(18, 700).concat(islandSpawnRing(12, 880)).filter(([x, z]) => {
-  // deep-ish sea around the island disc, outside the west arena ring; islandSeaOk (NOT coastSeaOk) so N/E/S stay valid
+// [v314] BANKSY t1674u "move all the ai boat spawns around the island not near dock so they don't all wait at dock": 3 rings round
+// the island, every point deep island sea and far from the west harbor dock; EVERY harbor AI + the Commodore spawns + patrols here.
+export const HARBOR_DOCK = { x: 160, z: 0 }, DOCK_KEEP = { spawn: 540, spawn0: 480, patrol: 480, hunt: 300 };
+export const SPAWNS_ISLAND = SAIL_ALL ? [...islandSpawnRing(16, 650), ...islandSpawnRing(16, 820), ...islandSpawnRing(14, 1000)].filter(([x, z]) => {
   const d = Math.hypot(x - SAIL.cx, z - SAIL.cz);
   if (d < 520 || d > 1180) return false;
-  if (Math.hypot(x, z) < PVP_ARENA_R + 40) return false; // leave west bay to SPAWNS_COAST
-  return islandSeaOk(x, z, 55);
+  if (Math.hypot(x - HARBOR_DOCK.x, z - HARBOR_DOCK.z) <= DOCK_KEEP.spawn || Math.hypot(x, z) <= DOCK_KEEP.spawn0) return false; // well away from the dock
+  return islandSeaOk(x, z, 70);
 }) : [];
+// runtime deep-water pass (the foot heightmap only exists once the dock is loaded): H(x, z) in the harbor frame
+export const islandSpawnsDeep = (H) => { if (!H) return SPAWNS_ISLAND; const deep = SPAWNS_ISLAND.filter(([x, z]) => { try { return H(x, z) < -9; } catch { return true; } }); return deep.length ? deep : SPAWNS_ISLAND; };
+// [v314] BANKSY t1680u "spawn the commodore at random spots around island": uniform random pick from the deep island pool
+// (> 540 m from the dock), > 160 m clear of every ship, and > 400 m from the last Commodore spawn when possible (a new side each time)
+export function pickBossSpawn(H, ships = [], lastPos = null, rnd = Math.random) {
+  const deep = islandSpawnsDeep(H).filter(([x, z]) => Math.hypot(x - HARBOR_DOCK.x, z - HARBOR_DOCK.z) > DOCK_KEEP.spawn);
+  if (!deep.length) return null;
+  let c = deep.filter(([x, z]) => ships.every(s => Math.hypot(s.x - x, s.z - z) > 160)); if (!c.length) c = deep;
+  if (lastPos) { const far = c.filter(([x, z]) => Math.hypot(x - lastPos[0], z - lastPos[1]) > 400); if (far.length) c = far; }
+  const pt = c[Math.min(c.length - 1, Math.floor(rnd() * c.length))]; return [pt[0], pt[1]];
+}
+// heading (yaw, forward = (sin, cos)) along the island patrol ring: tangent + a radial spring back to radius R
+export function patrolHeading(x, z, dir = 1, R = 760) {
+  const dx = x - SAIL.cx, dz = z - SAIL.cz, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+  const k = Math.max(-1, Math.min(1, (R - d) / 220));
+  return Math.atan2(-uz * dir + ux * k, ux * dir + uz * k); // tangent (-uz, ux)·dir in (x, z) + spring
+}
 const SPAWNS = [...Array.from({ length: 16 }, (_, i) => [Math.cos(i / 16 * 6.283) * PVP_ARENA_R * 0.82, Math.sin(i / 16 * 6.283) * PVP_ARENA_R * 0.82]),
   ...Array.from({ length: 6 }, (_, i) => [Math.cos((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42, Math.sin((i + 0.5) / 6 * 6.283) * PVP_ARENA_R * 0.42])];
+
+// [v314] island-patrol steering (harbor + sail-all): hunt a real live target, otherwise orbit the island at e.patrolR; never wait /
+// cluster by the harbor dock (keep-out 480 m patrolling, 300 m even while hunting); 24 / 48 m shallow look-ahead round headlands + islets
+export function islandSteer(e, desired, L) {
+  const dx = e.x - SAIL.cx, dz = e.z - SAIL.cz, d = Math.hypot(dx, dz);
+  if (d > SAIL.r - 80) return Math.atan2(-dx, -dz); // pull back into the sail disc
+  const dir = e.patrolDir || 1, R = e.patrolR || 760;
+  const hasTarget = !!(e.tgt && e.tgt.alive);
+  let steer = hasTarget ? desired : patrolHeading(e.x, e.z, dir, R);
+  const kx = e.x - HARBOR_DOCK.x, kz = e.z - HARBOR_DOCK.z, kd = Math.hypot(kx, kz) || 1;
+  const keep = hasTarget ? DOCK_KEEP.hunt : DOCK_KEEP.patrol;
+  if (kd < keep) { // dock keep-out: push away from the dock, blended with the patrol tangent so they round the N / S coast
+    const w = Math.min(4, (keep - kd) / 50 + 1.2), p = patrolHeading(e.x, e.z, dir, R);
+    const vx = kx / kd * w + Math.sin(p), vz = kz / kd * w + Math.cos(p);
+    steer = Math.atan2(vx, vz);
+  }
+  try {
+    if (L?.FM?.H && L.harborToFoot) {
+      const H = (x, z) => L.FM.H(...L.harborToFoot(x, z));
+      const clear = (a) => H(e.x + Math.sin(a) * 24, e.z + Math.cos(a) * 24) <= -7.5 && H(e.x + Math.sin(a) * 48, e.z + Math.cos(a) * 48) <= -7.5;
+      if (!clear(steer)) {
+        const out = Math.atan2(dx, dz); let pick = null;
+        for (let i = 1; i <= 8 && pick === null; i++) for (const sg of [1, -1]) { const a = steer + sg * i * 0.3; if (clear(a)) { if (pick === null || Math.cos(a - out) > Math.cos(pick - out)) pick = a; } }
+        steer = pick === null ? out : pick;
+      }
+    }
+  } catch {}
+  return steer;
+}
 
 export function createPvp(K) {
   const { scene, game, enemies, balls, loot, fx, sfx } = K;
@@ -439,8 +487,13 @@ export function createPvp(K) {
   const bossAlive = () => !!(boss.e && boss.e.alive && bots.has(boss.e.net.id));
   function spawnBoss() {
     if (bossAlive() || where !== 'harbor') return null;
-    const [x, z] = pickSpawn().pt, e = K.spawnEnemy(x, z, 2, 'boss'), id = `b${++botSeq}${myId.slice(-4)}`;
-    e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true; e.noFlee = true; e.dmgBy = new Map();
+    const isle = SAIL_ALL && where === 'harbor'; // [v314] the Commodore spawns + patrols round the island too, never off the dock
+    let pt = null;
+    if (isle) { const L = K.dock?.layout, H = L?.FM?.H && L.harborToFoot ? (x, z) => L.FM.H(...L.harborToFoot(x, z)) : null; // [v314] random spot round the island
+      pt = pickBossSpawn(H, allShips(), boss.last); if (pt && K.islands?.freeSpot) pt = K.islands.freeSpot(pt[0], pt[1], 16); }
+    const [x, z] = pt || pickSpawn(null, isle).pt, e = K.spawnEnemy(x, z, 2, 'boss'), id = `b${++botSeq}${myId.slice(-4)}`;
+    e.net = { id, kind: 'bot' }; e.yaw = Math.atan2(P().x - x, P().z - z); e.harborBoss = true;
+    if (isle) { islandPatrolInit(e, x, z); e.patrolDir = Math.random() < 0.5 ? 1 : -1; e.patrolR = 660 + Math.random() * 300; e.yaw = patrolHeading(x, z, e.patrolDir, e.patrolR); boss.last = [x, z]; } e.noFlee = true; e.dmgBy = new Map();
     e.pilot = hunterPilot(e); // [v99] hunter hook (always null: the AI sails it)
     e.bar.querySelector('.name').textContent = '☠ THE COMMODORE'; e.bar.classList.add('t-boss', 'harbor-boss');
     scaleAi(e); bots.set(id, e); boss.e = e;
@@ -457,6 +510,10 @@ export function createPvp(K) {
     if (show && !b) { b = boss.bar = document.createElement('div'); b.id = 'pvp-boss-bar'; b.innerHTML = '<span>☠ THE COMMODORE</span><i><b></b></i>'; document.body.appendChild(b); }
     if (b) { b.hidden = !show; if (show) b.querySelector('b').style.width = `${Math.max(0, boss.e.hp / boss.e.maxHp) * 100}%`; }
   }
+  function islandPatrolInit(e, x, z) {
+    e.islandPatrol = true; e.patrolDir = botSeq % 2 ? 1 : -1; e.patrolR = 640 + (botSeq % 4) * 95; e.patrolC = [SAIL.cx, SAIL.cz];
+    e.yaw = patrolHeading(x, z, e.patrolDir, e.patrolR); e.wp = null;
+  }
   function aiTick(dt) {
     bossTick(dt);
     botT -= dt; if (botT > 0) return; botT = 2;
@@ -466,7 +523,7 @@ export function createPvp(K) {
     if (aiWanted()) {
       const alive = [...bots.values()].filter(b => b.alive && !b.harborBoss && !b.remote).length; // the boss is extra
       const want = harborAiCount(copyLevel()) + (SAIL_ALL ? 6 : 0) + (room ? Math.min(HARBOR_NET.extraAiMax, livePeers().length * HARBOR_NET.extraAi) : 0); // [sail-around] +6 outer-coast AI when sail-all
-      if (alive < want) { const preferIsland = SAIL_ALL && alive >= harborAiCount(copyLevel()); const [x, z] = pickSpawn(null, preferIsland).pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.islandPatrol = !!preferIsland; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); e.dmgBy = new Map(); scaleAi(e); bots.set(id, e); }
+      if (alive < want) { const preferIsland = SAIL_ALL && where === 'harbor'; const [x, z] = pickSpawn(null, preferIsland).pt; const e = K.spawnEnemy(x, z, 1, null); const id = `b${++botSeq}${myId.slice(-4)}`; e.net = { id, kind: 'bot' }; e.bar.querySelector('.name').textContent = ''; e.yaw = Math.atan2(-x, -z); if (preferIsland) islandPatrolInit(e, x, z); e.dmgBy = new Map(); scaleAi(e); bots.set(id, e); } // [v314] every harbor AI patrols round the island
     } else clearLocalAi(false, true);
     capPiles(true);
   }
@@ -807,22 +864,7 @@ export function createPvp(K) {
     return best;
   }
   function botSteer(e, desired) {
-    if (where === 'harbor' && SAIL_ALL && e.islandPatrol) {
-      const d = Math.hypot(e.x - SAIL.cx, e.z - SAIL.cz), lim = SAIL.r - 80;
-      if (d > lim) return Math.atan2(SAIL.cx - e.x, SAIL.cz - e.z); // pull back into the sail disc
-      const tang = Math.atan2(e.z - SAIL.cz, e.x - SAIL.cx) + Math.PI / 2;
-      const pl = P(); const hunt = pl.alive && !me.dead && Math.hypot(pl.x - e.x, pl.z - e.z) < 280;
-      let steer = hunt ? desired : tang;
-      // skirt headlands / islets: if shallow water ahead, steer radially outward from island centre
-      try {
-        const L = K.dock?.layout; if (L?.FM?.H && L.harborToFoot) {
-          const ax = e.x + Math.sin(steer) * 28, az = e.z + Math.cos(steer) * 28;
-          const [fx, fz] = L.harborToFoot(ax, az);
-          if (L.FM.H(fx, fz) > -6) steer = Math.atan2(e.x - SAIL.cx, e.z - SAIL.cz);
-        }
-      } catch {}
-      return steer;
-    }
+    if (where === 'harbor' && SAIL_ALL && e.islandPatrol) return islandSteer(e, desired, K.dock?.layout);
     const r = Math.hypot(e.x, e.z);
     return r > PVP_ARENA_R - 50 || (COAST_ON && where === 'harbor' && e.x > COAST_TURN_X && !e.islandPatrol) ? Math.atan2(-e.x, -e.z) : desired;
   } // [Emerly] coast: west-bay bots turn before berths; [sail-around] island-patrol bots use sail disc + shallow look-ahead
@@ -835,8 +877,7 @@ export function createPvp(K) {
     if (preferIsland && SAIL_ALL && SP === SPAWNS_ISLAND) {
       const L = K.dock?.layout;
       if (L?.FM?.H && L.harborToFoot) {
-        const deep = SP.filter(([x, z]) => { try { const [fx, fz] = L.harborToFoot(x, z); return L.FM.H(fx, fz) < -9; } catch { return true; } });
-        if (deep.length) SP = deep;
+        SP = islandSpawnsDeep((x, z) => L.FM.H(...L.harborToFoot(x, z)));
       }
     }
     let best = SP[0], bd = -1;
@@ -1771,7 +1812,7 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
-    _test: { SPAWNS_COAST, SPAWNS_ISLAND, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
+    _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;

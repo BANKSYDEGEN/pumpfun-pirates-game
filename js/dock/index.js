@@ -80,7 +80,7 @@ export async function createDock(ctx) {
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
-  const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW }); // [Emerly sail-around]
+  const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW, canvas, world, touch }); // [v314] + canvas look, world.blocked landings // [Emerly sail-around]
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
@@ -167,15 +167,16 @@ export async function createDock(ctx) {
   // [Emerly gamepad] what the pad needs from the dock (js/gamepad.js): the prompts, the walker stick + camera, jump, the musket sights
   { let padJoy = false;
     onPadMode(() => { uiSig = ''; setActs(actA, actB); if (battle) battle.padHud?.(); });
-    registerPadDock({ on: () => on, onFoot: () => on && onFoot,
+    const inCanoe = () => on && canoe?.mode === 'canoe'; // [v314] the canoe paddles on the walker stick + looks on the right stick
+    registerPadDock({ on: () => on, onFoot: () => on && (onFoot || inCanoe()),
       prompts: () => [!!(actA && !actA.disabled && actA.fn), !!(actB && !actB.disabled && actB.fn)], press: (i) => { if (game.state === 'playing') press(i ? actB : actA); },
       zone: () => !!battle?.zone, tps: () => battle?.tps || null,
       ads: (v) => { const t = battle?.tps; if (t?.st) t.st.adsHeld = !!v && t.on; },
       jump: () => { if (on && onFoot && game.state === 'playing') walker.jump(); },
-      move: (x, y, act) => { const j = walker.w.joy; if (act && on && onFoot) { j.on = true; j.x = x; j.y = y; padJoy = true; } else if (padJoy) { padJoy = false; j.on = false; j.x = j.y = 0; } },
-      look: (rx, ry, dt) => { if (!on || !onFoot) return; const t = battle?.tps; if (t?.on && t.padLook) { t.padLook(rx * PAD.aim * dt, ry * PAD.aim * dt); return; }
+      move: (x, y, act) => { const j = walker.w.joy; if (act && on && (onFoot || inCanoe())) { j.on = true; j.x = x; j.y = y; padJoy = true; } else if (padJoy) { padJoy = false; j.on = false; j.x = j.y = 0; } },
+      look: (rx, ry, dt) => { if (inCanoe()) { canoe.padLook(rx, ry, dt, PAD.look); return; } if (!on || !onFoot) return; const t = battle?.tps; if (t?.on && t.padLook) { t.padLook(rx * PAD.aim * dt, ry * PAD.aim * dt); return; }
         const w = walker.w; w.camYaw -= rx * PAD.look[0] * dt; w.pitch = Math.min(1.1, Math.max(-0.35, w.pitch + ry * PAD.look[1] * dt)); w.look = performance.now(); },
-      camBehind: () => { if (on && onFoot) { walker.w.camYaw = walker.w.yaw; walker.w.look = 0; } },
+      camBehind: () => { if (inCanoe()) { canoe.camBehind(); return; } if (on && onFoot) { walker.w.camYaw = walker.w.yaw; walker.w.look = 0; } },
       hasInvites: () => !!squadHall?.hasInvites?.(), openInvites: () => squadHall?.openInvites?.(),
       islandMap: imap }); } // [map-zoom] [invite-discreet] VIEW → invite pill; islandMap = pad pan/zoom/close
   function openBoard() { document.documentElement.classList.add('dk-board'); ctx.pvp()?.harborUi?.(); }
@@ -287,14 +288,16 @@ export async function createDock(ctx) {
     if (game.state !== 'playing') return;
     let used = false;
     if (skinPick.isOpen) { if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyQ')) skinPick.close(); e.stopImmediatePropagation(); e.preventDefault(); return; } // [dock-skin] no walking while the shipyard panel is up
-    if (e.code === 'KeyQ' && !e.repeat && onFoot && actB?.key === 'Q') { press(actB); used = true; } else
-    if (e.code === 'KeyE' && !e.repeat) { if (actA && actA.key === 'E') { press(actA); used = true; } else if (onFoot) used = true; }
+    const inCanoe = canoe?.mode === 'canoe'; // [v314] in the canoe the big ship never hears these keys
+    if (e.code === 'KeyQ' && (onFoot || inCanoe) && actB?.key === 'Q') { if (!e.repeat) press(actB); used = true; } else
+    if (e.code === 'KeyE') { if (!e.repeat && actA && actA.key === 'E') { press(actA); used = true; } else if (onFoot || inCanoe) used = true; }
     else if ((e.code === 'KeyW' || e.code === 'ArrowUp') && !onFoot && docking.mode === 'docked') { setSail(); used = true; }
+    else if (inCanoe) { if (canoe.onKey(e, true)) used = true; }
     else if (onFoot && walker.onKey(e, true)) used = true;
     else if (!onFoot && docking.mode !== 'sea' && ['KeyA', 'KeyD', 'ArrowLeft', 'ArrowRight', 'KeyS', 'ArrowDown', 'Space'].includes(e.code)) used = true; // moored / easing: no helm
     if (used) { e.stopImmediatePropagation(); e.preventDefault(); }
   };
-  const onKeyUp = (e) => { if (on && onFoot) walker.onKey(e, false); };
+  const onKeyUp = (e) => { if (on && onFoot) walker.onKey(e, false); canoe?.onKey?.(e, false); };
   addEventListener('keydown', onKeyDown, true); addEventListener('keyup', onKeyUp, true);
 
   // ---------- per frame (main.js: after pvp.update, before floatShip) ----------
@@ -307,7 +310,7 @@ export async function createDock(ctx) {
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
     // [Emerly sail-around] canoe / offshore-anchor tick (owns camera while paddling)
-    const canoeCam = canoe?.tick(dt, { s, onFoot, W: walker.w, keys: walker.w.keys, joy: walker.w.joy, camera, controls, pirateObj: pirate.object });
+    const canoeCam = canoe?.tick(dt, { s, onFoot, W: walker.w, joy: walker.w.joy, camera, controls, pirateObj: pirate.object }); // [v314] the canoe reads its own keys
     if ((!was || (s.alive && !wasAlive)) && s.alive) { spawnNow(s); if (!was) fortReturn(); } wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
     if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
@@ -345,25 +348,25 @@ export async function createDock(ctx) {
           } else setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct); }
       }
     } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail });
+    else if (canoe?.mode === 'canoe') { // [v314] before the ship prompts: GO TO ISLAND (E) + BOARD SHIP (Q) can both show
+      const cp = canoe.prompts({ s, onFoot: false, W: walker.w, docking });
+      const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walker });
+      const mk = (q, k) => (!q ? null : q.disabled ? q : { label: q.label, key: q.key || k, primary: !!q.primary, fn: () => run(q.tag) });
+      setActs(mk(cp?.a, 'E'), mk(cp?.b, 'Q'));
+    }
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
-      const cp = canoe?.prompts({ s, onFoot: false, W: walker.w, docking });
-      if (cp?.a) {
-        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
-        setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: cp.a.key || 'E', primary: !!cp.a.primary, disabled: !!cp.a.disabled, fn: () => run(cp.a.tag) },
-          cp.b ? { label: cp.b.label, key: cp.b.key || 'W', fn: () => run(cp.b.tag) } : null);
-      } else {
-        const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
-        if (!q) setActs(null, null);
-        else if (q.reason === 'fast') setActs({ label: 'SLOW DOWN TO DOCK', disabled: true }, null);
+      // [v314] BANKSY t1675u: the dock approach ALWAYS wins; the canoe prompt only shows when you anchored with the on-screen ⚓ offshore
+      const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
+      const cp = q ? null : canoe?.prompts({ s, onFoot: false, W: walker.w, docking });
+      if (q) {
+        if (q.reason === 'fast') setActs({ label: 'SLOW DOWN TO DOCK', disabled: true }, null);
         else if (q.reason === 'full') setActs({ label: 'ALL BERTHS TAKEN', disabled: true }, null);
         else if (q.reason === 'taken') setActs({ label: 'BERTH TAKEN', disabled: true }, null);
         else setActs({ label: '⚓ DOCK', key: 'E', primary: true, fn: () => dockNow(q.berth) }, null);
-      }
-    } else if (canoe?.mode === 'canoe') {
-      const cp = canoe.prompts({ s, onFoot: false, W: walker.w, docking });
-      const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walker });
-      if (cp?.a) setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: 'E', primary: true, disabled: !!cp.a.disabled, fn: () => run(cp.a.tag) }, null);
-      else setActs(null, null);
+      } else if (cp?.a) {
+        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+        setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: cp.a.key || 'E', primary: !!cp.a.primary, fn: () => run(cp.a.tag) }, null);
+      } else setActs(null, null);
     } else setActs(null, null);
     battle?.tick(dt, onFoot, pirate); // [Timothy] battle areas: weapons, swings / shots, KOs, HUD
     fnet.tick(dt);
@@ -394,7 +397,8 @@ export async function createDock(ctx) {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle,
     get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, canoe, pet: petF, pirate, goAshoreAt,
     ship, camera: cameraHook,
-    focus: () => (on && onFoot ? walker.w : null), followers: crewF,
+    focus: () => (on && onFoot ? walker.w : on && canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null), followers: crewF, // [v314] the sea follows the canoe
+    canoeHull: () => (on ? canoe?.hullCap?.() : null),
     // [Raul emotes] the crew's answer: copy Arr! / Attack! / Yo ho ho!, bow on GG, nod + look on the points (Follow me! / Boss incoming!); none on Need help! / Retreat!
     // [Raul emotes] quick-chat on land (js/emotes.js sendEmote / js/pvp.js onEmote): body motion (js/onfoot/emotePose.js) on your pirate, your shore
     // crew answer it (CREW_EMOTE, staggered); returns the pirate to hang the bubble over (null = aboard: the bubble stays on the ship)

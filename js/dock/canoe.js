@@ -9,7 +9,7 @@ import { getLocalGear } from '../pirateGear.js';
 export const SAIL_ALL = !(typeof location !== 'undefined' && /[?&]sailall=0(?:&|$)/.test(location.search || ''));
 
 // Harbor-frame sailing disc: foot centre (-80, -40) → harbor via HC=(-890,-150); R covers main island + 5 ISLETS with sea beyond.
-export const SAIL = { cx: 810, cz: 110, r: 1250, nearShore: 180, canoeR: 16, beachR: 8, boardR: 5.5, canoeSpd: [13, 16.5], canoeRev: 6 };
+export const SAIL = { cx: 810, cz: 110, r: 1250, nearShore: 180, canoeR: 20, beachR: 8, boardR: 7.5, canoeSpd: [13, 16.5], canoeRev: 6 };
 
 export function inSailSea(x, z) { return Math.hypot(x - SAIL.cx, z - SAIL.cz) <= SAIL.r; }
 // Harbor-frame spawn ring around the main island (outside SAFE HARBOR / west arena), deep water only when filtered by caller.
@@ -267,18 +267,56 @@ export function makeCanoeMesh() {
   return g;
 }
 
-export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer, toast = () => {}, sfx = null, waveY = null, low = false }) {
+// [v314] BANKSY 9:2x PM Nov 5: "board ship / go to island doesn't work, you still control big ship" + "and go under the waves":
+// the canoe owns its own keys (W/A/S/D, arrows, Shift) + a drag / wheel / pinch camera, the anchored ship is locked while you
+// are off it (canoe / beached), GO TO ISLAND + BOARD SHIP coexist, landings search for dry sand, and the canoe
+// rides ON the swell (5-point wave sample, pitch + roll, its own water cap in the ocean shader via hullCap()).
+const CANOE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space', 'KeyQ', 'KeyC', 'KeyF']);
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+export const CANOE_DIM = { len: 5.6, halfBeam: 0.78, ride: 0.28, capLift: 0.42, bow: 2.5, side: 0.75 };
+
+export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer, toast = () => {}, sfx = null, waveY = null, low = false, canvas = null, world = null, touch = false }) {
   if (!SAIL_ALL) return null;
   const FM = layout.FM, toFoot = layout.harborToFoot, H = (x, z) => FM.H(...toFoot(x, z));
-  const mesh = makeCanoeMesh(); mesh.visible = false; scene.add(mesh);
+  const mesh = makeCanoeMesh(); mesh.visible = false; mesh.rotation.order = 'YXZ'; scene.add(mesh);
   const st = {
-    mode: 'none', // none | anchored | canoe | beached
-    ax: 0, az: 0, ayaw: 0, // anchored ship pose
+    mode: 'sea', // sea | canoe | beached  ([v314] no separate 'anchored' state: the on-screen ⚓ button sets s.anchor)
+    ax: 0, az: 0, ayaw: 0, // anchored ship pose (saved on GO TO ISLAND · CANOE)
     cx: 0, cz: 0, cyaw: 0, cspd: 0, // canoe
     bx: 0, bz: 0, // beached canoe
     crewN: 2,
+    y: 0, pitch: 0, roll: 0, snap: true, // floating pose (smoothed)
   };
+  const keys = {};
+  const cam = { yaw: 0, pitch: 0.30, dist: 10.5, drags: new Map(), look: 0 };
+  const CAM_D = [5.5, 22], CAM_P = [-0.05, 1.05];
   let bobT = 0;
+  const clearKeys = () => { for (const k in keys) keys[k] = false; };
+  const wy = (x, z) => { const v = waveY?.(x, z); return Number.isFinite(v) ? v : 0; };
+
+  // ---- canoe input: its own keys + camera look (the walker is inactive while paddling) ----
+  function onKey(e, down) {
+    const c = e?.code; if (!c) return false;
+    if (!down) { const had = !!keys[c]; keys[c] = false; return had && st.mode === 'canoe'; }
+    if (st.mode !== 'canoe' || !CANOE_KEYS.has(c)) return false;
+    keys[c] = true; return true;
+  }
+  if (typeof addEventListener === 'function') addEventListener('blur', () => { clearKeys(); cam.drags.clear(); });
+  if (canvas?.addEventListener) {
+    canvas.addEventListener('pointerdown', (e) => { if (st.mode !== 'canoe') return; cam.drags.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+    canvas.addEventListener('wheel', (e) => { if (st.mode !== 'canoe') return; cam.dist = Math.min(CAM_D[1], Math.max(CAM_D[0], cam.dist * (e.deltaY > 0 ? 1.1 : 0.9))); }, { passive: true });
+  }
+  if (typeof addEventListener === 'function') {
+    addEventListener('pointermove', (e) => { if (st.mode !== 'canoe') return; const d = cam.drags.get(e.pointerId); if (!d) return;
+      if (cam.drags.size === 2) { const [a, b] = [...cam.drags.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y); d.x = e.clientX; d.y = e.clientY; const d1 = Math.hypot(a.x - b.x, a.y - b.y);
+        cam.dist = Math.min(CAM_D[1], Math.max(CAM_D[0], cam.dist * (d0 / Math.max(1, d1)))); return; }
+      const k = touch ? 0.0075 : 0.0055; cam.yaw -= (e.clientX - d.x) * k; cam.pitch = Math.min(CAM_P[1], Math.max(CAM_P[0], cam.pitch + (e.clientY - d.y) * k * 0.8));
+      d.x = e.clientX; d.y = e.clientY; cam.look = performance.now(); });
+    const up = (e) => cam.drags.delete(e.pointerId); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  }
+  function padLook(rx, ry, dt, k = [2.8, 1.7]) { if (st.mode !== 'canoe') return; cam.yaw -= rx * k[0] * dt; cam.pitch = Math.min(CAM_P[1], Math.max(CAM_P[0], cam.pitch + ry * k[1] * dt)); cam.look = performance.now(); }
+  function camBehind() { cam.yaw = st.cyaw; cam.look = 0; }
+  function resetCam() { cam.yaw = st.cyaw; cam.pitch = 0.30; cam.dist = 10.5; cam.look = 0; cam.drags.clear(); }
 
   const nearLand = (x, z, r = SAIL.nearShore) => {
     for (let a = 0; a < 8; a++) {
@@ -287,26 +325,64 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     }
     return H(x, z) > -1.2;
   };
-  const shallow = (x, z) => H(x, z) >= -0.6;
-  const dry = (x, z) => H(x, z) > 0.15;
-
-  function dropAnchor(s) {
-    if (!s?.alive || st.mode === 'canoe') return false;
-    st.mode = 'anchored'; st.ax = s.x; st.az = s.z; st.ayaw = s.yaw;
-    s.anchor = true; s.sail = 0; s.speed = 0; s._offshore = true; s._canoeAway = false;
-    toast('ANCHOR DROPPED'); sfx?.coin?.(); return true;
+  // [v314] the beach shelf jumps -2.0 -> +0.8 across one 4 m grid cell, so "shallow" was a < 1 m strip: probe 9 m around instead
+  function canLandAshore(x, z) {
+    if (H(x, z) >= -1.7) return true;
+    for (const r of [3, 6, 9]) for (let a = 0; a < 12; a++) { const ang = a / 12 * Math.PI * 2; if (H(x + Math.sin(ang) * r, z + Math.cos(ang) * r) > -0.2) return true; }
+    return false;
   }
-  function weighAnchor(s) {
-    if (st.mode !== 'anchored') return false;
-    st.mode = 'none'; s.anchor = false; s._offshore = false; if (s.sail < 1) s.sail = 1;
-    toast('WEIGH ANCHOR · SET SAIL'); return true;
+  const walkable = (x, z) => H(x, z) > 0.65 && !(world?.blocked?.(x, z));
+  // dry walkable ground near (x, z): straight ahead first, then 8 directions (nearest-to-heading preferred), out to maxR
+  function findDry(x, z, yaw, maxR = 18) {
+    const seen = new Set(), list = [];
+    for (let k = 0; k < 8; k++) { const a = yaw + k * Math.PI / 4; list.push(a); }
+    list.sort((a, b) => Math.abs(wrapA(a - yaw)) - Math.abs(wrapA(b - yaw)));
+    let best = null, bs = 1e9;
+    for (const a of list) { const key = Math.round(wrapA(a) * 100); if (seen.has(key)) continue; seen.add(key);
+      for (let r = 1; r <= maxR; r += 1) { const px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r;
+        if (walkable(px, pz)) { const score = r + Math.abs(wrapA(a - yaw)) * 2.5; if (score < bs) { bs = score; best = { x: px, z: pz, yaw: a, r }; } break; } }
+      if (best && Math.abs(wrapA(a - yaw)) < 1e-3) break; // straight ahead is dry: take it
+    }
+    return best;
+  }
+  // nearest shoreline heading within R (for the canoe launch), null = none
+  function shoreHeading(x, z, R = 220) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2;
+      for (let r = 8; r <= R; r += 6) { if (H(x + Math.sin(a) * r, z + Math.cos(a) * r) > -0.2) { if (r < bd) { bd = r; best = a; } break; } } }
+    return best === null ? null : { yaw: best, d: bd };
+  }
+
+  // [v314] BANKSY t1675u: no DROP ANCHOR popup (it blocked pulling up to the main dock). The ship anchors only via the existing
+  // on-screen ⚓ button / Space (main.js toggleAnchor); GO TO ISLAND · CANOE shows only while anchored offshore, away from the dock.
+  const nearMainDock = (s, docking) => !!s && ((s.x > 135 && s.x < 240 && Math.abs(s.z) < 95) // the main harbor dock berth corridor
+    || (docking?.berths || []).some(b => Math.hypot(s.x - b.x, s.z - b.z) < 90)); // + every berth (B1..B10 run z -103..131)
+  function placeFloat(dt, snap) {
+    const fx = Math.sin(st.cyaw), fz = Math.cos(st.cyaw), px = Math.cos(st.cyaw), pz = -Math.sin(st.cyaw), L = CANOE_DIM.bow, B = CANOE_DIM.side;
+    const hC = wy(st.cx, st.cz), hF = wy(st.cx + fx * L, st.cz + fz * L), hA = wy(st.cx - fx * L, st.cz - fz * L);
+    const hP = wy(st.cx + px * B, st.cz + pz * B), hS = wy(st.cx - px * B, st.cz - pz * B);
+    const ty = Math.max(hC, (hF + hA) * 0.5, (hP + hS) * 0.5) + CANOE_DIM.ride;
+    const tp = -Math.atan2(hF - hA, 2 * L) * 0.85, tr = Math.atan2(hP - hS, 2 * B) * 0.70;
+    const k = snap ? 1 : 1 - Math.exp(-dt * 10);
+    st.y += (ty - st.y) * k; st.pitch += (tp - st.pitch) * k; st.roll += (tr - st.roll) * k;
+    if (st.y < ty - 0.05) st.y = ty - 0.05; // never lag under a rising crest
+    mesh.position.set(st.cx, st.y + Math.sin(bobT * 2.2) * 0.02, st.cz);
+    mesh.rotation.set(st.pitch + Math.sin(bobT * 1.7) * 0.012, st.cyaw, st.roll + Math.sin(bobT * 1.3) * 0.015);
   }
   function boardCanoeFromShip(s, controls) {
-    if (st.mode !== 'anchored' || !s) return false;
-    const yaw = s.yaw, side = 1;
-    st.cx = s.x + Math.cos(yaw) * 6 * side; st.cz = s.z - Math.sin(yaw) * 6 * side;
-    st.cyaw = yaw; st.cspd = 0; st.mode = 'canoe'; s._canoeAway = true;
-    mesh.visible = true; mesh.position.set(st.cx, (waveY?.(st.cx, st.cz) ?? 0) + 0.15, st.cz); mesh.rotation.y = st.cyaw;
+    if (st.mode !== 'sea' || !s?.alive || !s.anchor) return false;
+    st.ax = s.x; st.az = s.z; st.ayaw = s.yaw; s.anchor = true; s.sail = 0; s.speed = 0; s._offshore = true;
+    const yaw = s.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw); // ship local +X
+    const off = Math.max(6.5, (s.mesh?.userData?.beam || 8) * 0.5 + 4.5); // clear of the hull (big ships are 10+ m wide)
+    // launch off whichever side is closer to land (and clear of rocks)
+    const sideScore = (sd) => { const x = s.x + rx * off * sd, z = s.z + rz * off * sd; if (H(x, z) > -1.0) return 1e9;
+      for (let r = 10; r <= 220; r += 10) if (H(s.x + rx * r * sd, s.z + rz * r * sd) > -0.2) return r; return 500; };
+    const side = sideScore(1) <= sideScore(-1) ? 1 : -1;
+    st.cx = s.x + rx * off * side; st.cz = s.z + rz * off * side;
+    const sh = shoreHeading(st.cx, st.cz, 220);
+    st.cyaw = sh ? sh.yaw : yaw; st.cspd = 0; st.mode = 'canoe'; s._canoeAway = true; s.sail = 0; s.speed = 0; s.turn = 0;
+    clearKeys(); resetCam(); st.snap = true; bobT = 0;
+    mesh.visible = true; placeFloat(0, true); st.snap = false;
     if (controls) controls.enabled = false;
     document.documentElement.classList.add('pfp-canoe');
     // from sea: crew/pet are not ashore yet — enter them so they seat in the canoe right away
@@ -317,51 +393,58 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
       // pet mesh only loads after update() sees a ground-pet id from gear
       petF?.update?.(0, seat, { pirateObj: pirate?.object, petId: getLocalGear()?.parrot || 'none' });
     } catch {}
-    toast('CANOE LAUNCHED · paddle to shore'); sfx?.coin?.(); return true;
+    toast('CANOE LAUNCHED · WASD to paddle to the island'); sfx?.coin?.(); return true;
   }
   function boardShipFromCanoe(s, goAboardShip, controls) {
     if (st.mode !== 'canoe' || !s) return false;
-    mesh.visible = false; st.mode = 'anchored';
-    document.documentElement.classList.remove('pfp-canoe');
+    mesh.visible = false; st.mode = 'sea'; clearKeys();
+    document.documentElement.classList.remove('pfp-canoe'); // ship HUD back (html.pfp-canoe hides #controls / #hint)
     if (controls) controls.enabled = true;
     try { crewF?.exit?.(); petF?.exit?.(); } catch {}
     if (pirate?.object) pirate.object.visible = false;
-    s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.anchor = true; s._offshore = true;
-    goAboardShip?.(); toast('BACK ABOARD'); return true;
+    s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true; s._offshore = false; s._canoeAway = false;
+    goAboardShip?.(); toast('BACK ABOARD · ⚓ or W to sail'); return true;
   }
   function landAshore(goAshoreAt, ship) {
     if (st.mode !== 'canoe') return false;
-    // push onto dry sand
-    let x = st.cx, z = st.cz, yaw = st.cyaw;
-    for (let i = 0; i < 12; i++) {
-      const nx = x + Math.sin(yaw) * 1.2, nz = z + Math.cos(yaw) * 1.2;
-      if (H(nx, nz) > 0.6) { x = nx; z = nz; break; }
-      if (H(nx, nz) > H(x, z)) { x = nx; z = nz; }
-    }
-    st.bx = st.cx; st.bz = st.cz; st.mode = 'beached';
-    mesh.position.set(st.bx, Math.max(0.05, H(st.bx, st.bz) * 0.15), st.bz);
+    const spot = findDry(st.cx, st.cz, st.cyaw, 18) || findDry(st.cx, st.cz, st.cyaw, 30);
+    if (!spot) { toast('NO BEACH HERE · paddle closer to the sand'); return false; }
+    // walk the landing point back toward the canoe while still dry (short hop to the beached canoe)
+    let x = spot.x, z = spot.z; const ux = Math.sin(spot.yaw), uz = Math.cos(spot.yaw);
+    for (let i = 0; i < 20; i++) { const nx = x - ux * 0.5, nz = z - uz * 0.5; if (!walkable(nx, nz)) break; x = nx; z = nz; }
+    // beach the canoe right at the waterline (H ≈ -0.15..+0.25) on the line between the canoe and the landing point
+    let bx = st.cx, bz = st.cz;
+    for (let r = 0; r <= spot.r + 0.01; r += 0.25) { const qx = st.cx + ux * r, qz = st.cz + uz * r; if (H(qx, qz) >= -0.15) { bx = qx; bz = qz; break; } bx = qx; bz = qz; }
+    if (H(bx, bz) > 0.25) { bx -= ux * 0.75; bz -= uz * 0.75; }
+    st.bx = bx; st.bz = bz; st.cyaw = spot.yaw + Math.PI; // beached bow faces out to sea, ready to relaunch
+    st.mode = 'beached'; st.cspd = 0; clearKeys(); cam.drags.clear();
+    placeBeached();
     document.documentElement.classList.remove('pfp-canoe');
-    if (ship) ship._canoeAway = true; goAshoreAt?.(x, z, yaw); toast('ASHORE'); sfx?.coin?.(); return true;
+    if (ship) ship._canoeAway = true; goAshoreAt?.(x, z, spot.yaw); sfx?.coin?.(); return true;
+  }
+  function placeBeached() {
+    const g = H(st.bx, st.bz), w = wy(st.bx, st.bz);
+    mesh.visible = true;
+    mesh.position.set(st.bx, Math.max(g + 0.08, Math.min(w + CANOE_DIM.ride, g + 0.6), 0.05), st.bz);
+    mesh.rotation.set(0.06, st.cyaw, 0.04);
   }
   function boardCanoeFromShore() {
     if (st.mode !== 'beached') return false;
     st.mode = 'canoe'; st.cx = st.bx; st.cz = st.bz;
-    // nudge seaward
-    for (let i = 0; i < 8; i++) {
-      const nx = st.cx - Math.sin(st.cyaw) * 1.4, nz = st.cz - Math.cos(st.cyaw) * 1.4;
-      if (H(nx, nz) < -0.2) { st.cx = nx; st.cz = nz; break; }
-      st.cx = nx; st.cz = nz;
-    }
-    st.cyaw += Math.PI; st.cspd = 0;
+    // nudge seaward along the bow (beached facing out to sea) until there is water to paddle
+    let ok = false;
+    for (let i = 0; i < 16; i++) { const nx = st.cx + Math.sin(st.cyaw) * 1.0, nz = st.cz + Math.cos(st.cyaw) * 1.0; st.cx = nx; st.cz = nz; if (H(nx, nz) < -0.6) { ok = true; break; } }
+    if (!ok) { const sh = shoreHeading(st.cx, st.cz, 40); if (sh) { st.cyaw = sh.yaw + Math.PI; for (let i = 0; i < 12 && H(st.cx, st.cz) > -0.6; i++) { st.cx += Math.sin(st.cyaw); st.cz += Math.cos(st.cyaw); } } }
+    st.cspd = 0; clearKeys(); resetCam(); placeFloat(0, true);
     document.documentElement.classList.add('pfp-canoe');
     mesh.visible = true;
     try { crewF?.enter?.(); petF?.enter?.({ x: st.cx, z: st.cz, yaw: st.cyaw }); } catch {}
-    toast('CANOE READY'); return true;
+    toast('CANOE READY · paddle back to your ship'); return true;
   }
   function recallShip(s, docking, controls) {
     if (!s?.alive || !docking) return false;
     // clear canoe / offshore
-    mesh.visible = false; st.mode = 'none'; s._offshore = false; s._canoeAway = false; s.anchor = false;
+    mesh.visible = false; st.mode = 'sea'; s._offshore = false; s._canoeAway = false; s.anchor = false; clearKeys();
     document.documentElement.classList.remove('pfp-canoe');
     if (controls) controls.enabled = true;
     // if we were canoeing (not on foot), stow crew/pet back off the canoe
@@ -377,7 +460,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     toast('SHIP RETURNED OFF THE HARBOR'); sfx?.coin?.(); return true;
   }
   function clearAll(s, controls) {
-    mesh.visible = false; st.mode = 'none';
+    mesh.visible = false; st.mode = 'sea'; clearKeys();
     if (s) { s._offshore = false; s._canoeAway = false; }
     document.documentElement.classList.remove('pfp-canoe');
     if (controls) controls.enabled = true;
@@ -390,34 +473,31 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   function canoeSteer(dt, input) {
     if (st.mode !== 'canoe') return;
     const { f = 0, s = 0, run = false } = input || {};
-    const turn = s * 1.8 * dt;
-    st.cyaw += turn;
+    st.cyaw = wrapA(st.cyaw - s * 1.8 * dt); // D / stick right = turn right (yaw decreases, same as the ship's helm)
     const want = f > 0.05 ? (run ? SAIL.canoeSpd[1] : SAIL.canoeSpd[0]) * f : f < -0.05 ? SAIL.canoeRev * f : 0;
     st.cspd += (want - st.cspd) * Math.min(1, dt * 3);
     let nx = st.cx + Math.sin(st.cyaw) * st.cspd * dt, nz = st.cz + Math.cos(st.cyaw) * st.cspd * dt;
     // don't drive up onto dry land
     if (H(nx, nz) > -0.05) { st.cspd *= 0.2; nx = st.cx; nz = st.cz; }
+    [nx, nz] = clampSail(nx, nz);
     st.cx = nx; st.cz = nz;
   }
 
-  function tick(dt, { s, onFoot, W, keys, joy, camera, controls, pirateObj }) {
+  function lockShip(s) {
+    s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true; s._offshore = true;
+  }
+  function tick(dt, { s, joy, camera, controls, pirateObj } = {}) {
     bobT += dt;
-    if (st.mode === 'anchored' && s) {
-      s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.anchor = true; s._offshore = true;
-    }
+    if ((st.mode === 'canoe' || st.mode === 'beached') && s) lockShip(s); // locked only while you are off the ship
     if (st.mode === 'canoe') {
-      const K = keys || {};
+      const K = keys;
       let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0);
       let side = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
       let run = !!(K.ShiftLeft || K.ShiftRight);
       if (joy?.on && Math.hypot(joy.x, joy.y) > 0.12) { f = -joy.y; side = joy.x; run = Math.hypot(joy.x, joy.y) > 0.88; }
       canoeSteer(dt, { f, s: side, run });
-      const wy = waveY?.(st.cx, st.cz) ?? 0;
       mesh.visible = true;
-      mesh.position.set(st.cx, wy + 0.18 + Math.sin(bobT * 2.2) * 0.04, st.cz);
-      mesh.rotation.y = st.cyaw;
-      mesh.rotation.x = Math.sin(bobT * 1.7) * 0.03;
-      mesh.rotation.z = Math.sin(bobT * 1.3) * 0.04;
+      placeFloat(dt, st.snap); st.snap = false;
       // paddle stroke: fore-aft swing + outward dip while moving; rest cleanly when idle
       const pL = mesh.getObjectByName('padL'), pR = mesh.getObjectByName('padR');
       const moving = Math.abs(st.cspd) > 0.35;
@@ -426,14 +506,15 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
       const dip = moving ? 0.18 + Math.abs(Math.sin(bobT * cadence)) * 0.22 : 0.08;
       if (pL) { pL.rotation.x = swing; pL.rotation.z = -0.55 - dip; }
       if (pR) { pR.rotation.x = -swing; pR.rotation.z = 0.55 + dip; }
-      // seat pirate + crew + pet INSIDE the hollow canoe (feet on floorboards / benches)
-      // benches at local z = -1.65, -0.55, +0.55, +1.55; floor y ≈ 0.16 → seatY ≈ mesh.y + 0.14
-      const seatY = mesh.position.y + 0.18;
-      const placeAt = (obj, zLocal, yOff = 0) => {
+      // seat pirate + crew + pet INSIDE the hollow canoe with its full transform (yaw + pitch + roll + position)
+      // benches at local z = -1.65, -0.55, +0.55, +1.55; floor y ≈ 0.16
+      mesh.updateMatrixWorld(true);
+      const v = new THREE.Vector3();
+      const placeAt = (obj, zLocal, yLocal = 0.18) => {
         if (!obj) return;
         obj.visible = true;
-        obj.position.set(st.cx + Math.sin(st.cyaw) * zLocal, seatY + yOff, st.cz + Math.cos(st.cyaw) * zLocal);
-        obj.rotation.y = st.cyaw;
+        v.set(0, yLocal, zLocal).applyMatrix4(mesh.matrixWorld);
+        obj.position.copy(v); obj.quaternion.copy(mesh.quaternion);
       };
       if (pirateObj) placeAt(pirateObj, 0.55); // captain on forward-mid bench
       const crew = crewF?.list || [];
@@ -446,33 +527,48 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
       if (!petF?.mesh) {
         try { petF?.update?.(0, { x: st.cx, z: st.cz, yaw: st.cyaw }, { pirateObj: pirate?.object, petId: getLocalGear()?.parrot || 'none' }); } catch {}
       }
-      { const po = petF?.mesh || petF?.object; if (po) placeAt(po, 1.60, 0.22); } // pet perched on the bow bench
-      // camera follow — slightly pulled back / higher so the hollow canoe + crew read clearly
+      { const po = petF?.mesh || petF?.object; if (po) placeAt(po, 1.60, 0.40); } // pet perched on the bow bench
+      // camera: drag / wheel / pinch look, drifting back behind the canoe while paddling
+      if (moving && !cam.drags.size && performance.now() - cam.look > 1200) cam.yaw += wrapA(st.cyaw - cam.yaw) * Math.min(1, dt * 1.4);
       if (camera && controls) {
-        const dist = 10.5, pitch = 0.32;
-        const cp = Math.cos(pitch);
-        camera.position.set(st.cx - Math.sin(st.cyaw) * dist * cp, mesh.position.y + 3.6 + Math.sin(pitch) * dist, st.cz - Math.cos(st.cyaw) * dist * cp);
-        camera.lookAt(st.cx, mesh.position.y + 1.15, st.cz);
+        const cp = Math.cos(cam.pitch), by = st.y;
+        let dist = cam.dist;
+        // never put the camera inside the anchored ship's hull: pull in, then lift over the deck if still inside
+        const inShip = (x, z) => { if (!s?.mesh) return false; const ud = s.mesh.userData || {}, hl = (ud.len || 30) * 0.5 + 2, hb = (ud.beam || 8) * 0.5 + 2, dx = x - s.x, dz = z - s.z;
+          const f = dx * Math.sin(s.yaw) + dz * Math.cos(s.yaw), l = dx * Math.cos(s.yaw) - dz * Math.sin(s.yaw); return Math.abs(f) < hl && Math.abs(l) < hb; };
+        while (dist > 4 && inShip(st.cx - Math.sin(cam.yaw) * dist * cp, st.cz - Math.cos(cam.yaw) * dist * cp)) dist -= 0.5;
+        let px = st.cx - Math.sin(cam.yaw) * dist * cp, pz = st.cz - Math.cos(cam.yaw) * dist * cp, py = by + 1.6 + Math.sin(cam.pitch) * dist + 1.0;
+        if (inShip(px, pz)) py = Math.max(py, (s.y || 0) + 14);
+        py = Math.max(py, wy(px, pz) + 2.0);
+        camera.position.set(px, py, pz);
+        camera.lookAt(st.cx, by + 1.15, st.cz);
         return true; // camera owned
       }
     } else if (st.mode === 'beached') {
-      mesh.visible = true;
-      mesh.position.set(st.bx, Math.max(0.02, H(st.bx, st.bz) * 0.1), st.bz);
-      mesh.rotation.y = st.cyaw; mesh.rotation.x = 0.08; mesh.rotation.z = 0.05;
+      placeBeached();
     } else {
       mesh.visible = false;
     }
     return st.mode === 'canoe';
   }
+  // the canoe's water cap for the ocean shader (main.js uHulls / uHullY): same layout as main.js hullCap()
+  // { x, z, yaw, len, capY (cap height at the hull centre, the shader subtracts 0.3), slopeZ (dY per m forward), slopeX (dY per m to +X), halfBeam, speed }
+  function hullCap() {
+    if (!mesh.visible || (st.mode !== 'canoe' && st.mode !== 'beached')) return null;
+    const x = mesh.position.x, z = mesh.position.z, pitch = mesh.rotation.x, roll = mesh.rotation.z;
+    return { x, z, yaw: mesh.rotation.y, len: CANOE_DIM.len, capY: mesh.position.y + CANOE_DIM.capLift, slopeZ: Math.tan(-pitch), slopeX: Math.tan(roll), halfBeam: CANOE_DIM.halfBeam, speed: st.mode === 'canoe' ? st.cspd : 0 };
+  }
 
   function prompts({ s, onFoot, W, docking }) {
     if (!SAIL_ALL) return null;
-    // canoe mode
+    // canoe mode: GO TO ISLAND and BOARD SHIP can both show
     if (st.mode === 'canoe') {
       const dShip = s ? Math.hypot(st.cx - st.ax, st.cz - st.az) : 1e9;
-      if (dShip < SAIL.canoeR) return { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShip' }, b: null };
-      if (shallow(st.cx, st.cz) || dry(st.cx, st.cz)) return { a: { label: 'LAND ON SHORE', key: 'E', primary: true, tag: 'land' }, b: null };
-      return { a: { label: 'PADDLING…', disabled: true }, b: null };
+      const nearShore = canLandAshore(st.cx, st.cz, st.cyaw), nearShip = dShip < SAIL.canoeR;
+      if (nearShore && nearShip) return { a: { label: 'GO TO ISLAND', key: 'E', primary: true, tag: 'land' }, b: { label: 'BOARD SHIP', key: 'Q', tag: 'boardShip' } };
+      if (nearShore) return { a: { label: 'GO TO ISLAND', key: 'E', primary: true, tag: 'land' }, b: null };
+      if (nearShip) return { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShip' }, b: null };
+      return { a: { label: 'PADDLE TO SHORE (WASD)', disabled: true }, b: null };
     }
     // on foot near beached canoe
     if (st.mode === 'beached' && onFoot && W && Math.hypot(W.x - st.bx, W.z - st.bz) < SAIL.boardR)
@@ -481,19 +577,14 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     if (onFoot && W?.swim) {
       if (st.mode === 'beached' && Math.hypot(W.x - st.bx, W.z - st.bz) < SAIL.boardR)
         return { a: { label: 'BOARD CANOE', key: 'E', primary: true, tag: 'boardCanoeShore' }, b: null };
-      if ((st.mode === 'anchored' || st.mode === 'beached') && s && Math.hypot(W.x - st.ax, W.z - st.az) < SAIL.canoeR)
+      if (st.mode === 'beached' && s && Math.hypot(W.x - st.ax, W.z - st.az) < SAIL.canoeR)
         return { a: { label: 'BOARD SHIP', key: 'E', primary: true, tag: 'boardShipSwim' }, b: null };
     }
-    // aboard ship at sea
-    if (!onFoot && s?.alive && (!docking || docking.mode === 'sea')) {
-      if (st.mode === 'anchored' || s._offshore) {
-        return {
-          a: { label: 'BOARD CANOE · GO ASHORE', key: 'E', primary: true, tag: 'launchCanoe' },
-          b: { label: 'WEIGH ANCHOR · SET SAIL', key: 'W', tag: 'weigh' },
-        };
-      }
-      if (nearLand(s.x, s.z) || s.anchor)
-        return { a: { label: 'DROP ANCHOR', key: 'E', primary: true, tag: 'drop' }, b: null };
+    // aboard ship at sea: nothing pops up while sailing; anchored (on-screen ⚓) offshore, away from the main dock = the canoe
+    if (!onFoot && st.mode === 'sea' && s?.alive && (!docking || docking.mode === 'sea')) {
+      if (s.anchor && !nearMainDock(s, docking) && !(s.sinking > 0) && Math.abs(s.speed || 0) < 3.5)
+        return { a: { label: 'GO TO ISLAND · CANOE', key: 'E', primary: true, tag: 'launchCanoe' }, b: null };
+      return null;
     }
     // harbor recall: on foot, ship not at a berth
     if (onFoot && W && docking && s?.alive && docking.mode === 'sea' && st.mode !== 'canoe') {
@@ -514,18 +605,13 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
 
   function act(tag, ctx) {
     const { s, controls, goAshoreAt, goAboard, docking, walkerExit, walkerEnter, walker } = ctx || {};
-    if (tag === 'drop') return dropAnchor(s);
-    if (tag === 'weigh') return weighAnchor(s);
     if (tag === 'launchCanoe') return boardCanoeFromShip(s, controls);
     if (tag === 'boardShip') return boardShipFromCanoe(s, () => { goAboard?.(true); }, controls);
     if (tag === 'boardShipSwim') {
-      clearAll(s, controls); s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.anchor = true; s._offshore = true; st.mode = 'anchored';
+      clearAll(s, controls); s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.anchor = true; s._offshore = false; st.mode = 'sea';
       goAboard?.(true); return true;
     }
-    if (tag === 'land') return landAshore((x, z, yaw) => {
-      goAshoreAt?.(x, z, yaw);
-      crewF?.enter?.(); petF?.enter?.(walker?.w || { x, z });
-    }, s);
+    if (tag === 'land') return landAshore((x, z, yaw) => { goAshoreAt?.(x, z, yaw); }, s); // goAshoreAt enters crew + pet itself
     if (tag === 'boardCanoeShore') {
       walkerExit?.(); return boardCanoeFromShore();
     }
@@ -536,7 +622,9 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   return {
     get mode() { return st.mode; },
     get state() { return st; },
-    mesh, dropAnchor, weighAnchor, tick, prompts, act, clearAll, recallShip,
-    nearLand, inSailSea, clampSail,
+    get keys() { return keys; },
+    get cam() { return cam; },
+    mesh, nearMainDock, tick, prompts, act, clearAll, recallShip, onKey, clearKeys, padLook, camBehind, hullCap,
+    canLandAshore, findDry, nearLand, inSailSea, clampSail,
   };
 }
