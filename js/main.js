@@ -718,7 +718,7 @@ function updateBalls(dt) {
 // ---------- input ----------
 const keys = {};
 const held = { left: false, right: false };
-const shipLocked = () => !!(dock?.onFoot || dock?.canoeing || ADM.frozen); // [admin-menu] + frozen by the owner // [v314] the canoe / walker own the input (anchored aboard: ⚓ / W still work)
+const shipLocked = () => !!(dock?.onFoot || dock?.canoeing || dock?.inHull || ADM.frozen); // [admin-menu] + frozen by the owner // [v314]/[v333] canoe / walker / hull own the input
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
@@ -1474,7 +1474,7 @@ function frame() {
 
   if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
-  { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot && !dock?.canoeing; } // [Emerly sail-around] hide captain while paddling // [v100] you are either at the wheel or ashore, never both
+  { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot && !dock?.canoeing && !dock?.inHull; } // [Emerly sail-around]/[v333] hide captain while paddling / in hull
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
   tickPirates(dt, camera); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]

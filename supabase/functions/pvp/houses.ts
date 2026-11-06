@@ -11,8 +11,12 @@ export const UPGRADE_PRICE = 1500;
 export const UPGRADE_SLOTS = 16;
 export const TIER_SLOTS: Record<string, number> = { cozy: 24, captain: 40, manor: 60 };
 export const COTTAGE_IDS = ["balcony", "dormer", "gabled", "garden"] as const;
+export const SHIP_QUARTERS_ID = "ship_quarters";
+export const SHIP_QUARTERS_SLOTS = 12;
+export const ALL_CHEST_IDS = [...COTTAGE_IDS, SHIP_QUARTERS_ID] as const;
 
-const okCottage = (id: unknown) => typeof id === "string" && COTTAGE_IDS.includes(id as any);
+const okCottage = (id: unknown) => typeof id === "string" && (COTTAGE_IDS as readonly string[]).includes(id);
+const okChest = (id: unknown) => typeof id === "string" && (ALL_CHEST_IDS as readonly string[]).includes(id);
 const okKey = (k: unknown) => typeof k === "string" && KEY_RE.test(k);
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 999 ? n : 0; };
 const reqOf = (r: unknown) => typeof r === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(r) ? r : "";
@@ -38,13 +42,19 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
   try {
     switch (action) {
       case "house_state": {
+        try { await db.rpc("pvp_ensure_ship_quarters", { p_player: pid }); } catch {}
         const { data: rows } = await db.from("pvp_houses").select("cottage_id, tier, slots, purchased_at").eq("player_id", pid);
         const owned: Record<string, unknown> = {};
+        const landOwned: Record<string, unknown> = {};
         for (const h of rows || []) {
           const full = await loadHouse(db, pid, h.cottage_id);
-          if (full) owned[h.cottage_id] = full;
+          if (full) {
+            owned[h.cottage_id] = full;
+            // ship_quarters is free private storage — never a public island cottage plot plaque
+            if (h.cottage_id !== SHIP_QUARTERS_ID) landOwned[h.cottage_id] = full;
+          }
         }
-        return c.json(200, { ok: true, price: HOUSE_PRICE, upgrade: UPGRADE_PRICE, tiers: TIER_SLOTS, owned, owner: !!who.owner });
+        return c.json(200, { ok: true, price: HOUSE_PRICE, upgrade: UPGRADE_PRICE, tiers: TIER_SLOTS, owned, landOwned, shipQuarters: owned[SHIP_QUARTERS_ID] || null, owner: !!who.owner });
       }
       case "house_buy": {
         const cottage = String(b.cottage ?? ""); if (!okCottage(cottage)) return c.json(400, { error: "bad cottage" });
@@ -63,8 +73,9 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
       case "house_store": {
         const cottage = String(b.cottage ?? ""), item = b.item, qty = qtyOf(b.qty);
         const gid = typeof b.gid === "string" && /^[0-9a-f-]{36}$/i.test(b.gid) ? b.gid : null;
-        if (!okCottage(cottage) || !okKey(item) || !qty) return c.json(400, { error: "bad store" });
-        // [v332] musket with gid → pvp_house_store_gun (moves that copy's acc into meta)
+        if (!okChest(cottage) || !okKey(item) || !qty) return c.json(400, { error: "bad store" });
+        // [v332] musket with gid -> pvp_house_store_gun (moves that copy's acc into meta)
+        // [v333] okChest also allows ship_quarters
         let data: any, error: any;
         if (gid && String(item).startsWith("wpn:musket:")) {
           ({ data, error } = await db.rpc("pvp_house_store_gun", { p_player: pid, p_cottage: cottage, p_gid: gid }));
@@ -83,7 +94,7 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
       }
       case "house_take": {
         const cottage = String(b.cottage ?? ""), slot = Math.floor(Number(b.slot)), qty = qtyOf(b.qty) || 1;
-        if (!okCottage(cottage) || !Number.isFinite(slot) || slot < 0 || slot > 119) return c.json(400, { error: "bad take" });
+        if (!okChest(cottage) || !Number.isFinite(slot) || slot < 0 || slot > 119) return c.json(400, { error: "bad take" });
         // [backpack-pvp] enforce 16-slot backpack cap (owner unlimited; stacking onto existing stackable OK)
         if (!who.owner) {
           const { data: invRows } = await db.from("pvp_inv").select("item, qty").eq("player_id", pid);

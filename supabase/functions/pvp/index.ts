@@ -9,6 +9,7 @@ import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
 import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
 import { houseAction, HOUSE_ACTIONS } from "./houses.ts"; // [storage-houses] migration 043: buyable cottages + chest storage
+import { casinoAction, CASINO_ACTIONS } from "./casino.ts"; // [v333] pure-gold casino_play (048)
 import { adminAction, ADMIN_ACTIONS } from "./admin.ts"; // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
@@ -624,6 +625,7 @@ Deno.serve(async (req) => {
       default:
         if (INV_ACTIONS.includes(String(b.action))) return await inventoryAction({ db, whoAmI, boostsOf, json, mapSpots: MAP_SPOTS }, String(b.action), b); // [inventory]
         if (HOUSE_ACTIONS.includes(String(b.action) as any)) return await houseAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [storage-houses]
+        if (CASINO_ACTIONS.includes(String(b.action) as any)) return await casinoAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [v333] casino
         if (ADMIN_ACTIONS.includes(String(b.action) as any)) return await adminAction({ db, whoAmI, json }, String(b.action), b); // [admin-menu] who.owner checked inside
         if (LOOT_ACTIONS.includes(String(b.action) as any)) return await lootAction({ db, whoAmI, json }, String(b.action), b); // [backpack-pvp]
         return json(400, { error: "unknown action" });

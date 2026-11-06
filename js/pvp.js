@@ -902,7 +902,7 @@ export function createPvp(K) {
   };
   function botTarget(e) {
     // harbor AI hunts the nearest pirate within 220 m (alone: only ever YOU), never other AI ships, never a protected / unmanned offshore-anchored ship
-    const unmanned = (s) => !!(s && (s._offshore || s._canoeAway || (K.dock?.onFoot && s.anchor) || (K.dock?.canoeing && s.anchor)));
+    const unmanned = (s) => !!(s && (s._offshore || s._canoeAway || (K.dock?.onFoot && s.anchor) || (K.dock?.canoeing && s.anchor) || K.dock?.inHull));
     const pl = P(); let best = NO_TARGET, bd = e.islandPatrol ? 280 : 220;
     if (!ADM.invisible && pl.alive && !me.dead && me.protect <= 0 && !unmanned(pl)) { const d = Math.hypot(pl.x - e.x, pl.z - e.z); if (d < bd) { bd = d; best = pl; } }
     if (room && where === 'harbor') for (const p of livePeers()) { const s = p.ship; if (!s?.alive || s.prot || !p.st?.a || unmanned(s)) continue; const d = Math.hypot(s.x - e.x, s.z - e.z); if (d < bd) { bd = d; best = s; } }
@@ -967,7 +967,7 @@ export function createPvp(K) {
   }
   const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
   // [backpack-pvp] Option B helpers
-  const unmannedLocal = () => { const d = K.dock, pl = P(); return !!(d?.on && (d.docking?.mode === 'docked' || (pl?.anchor && (d.onFoot || d.canoeing)) || pl?._offshore || pl?._canoeAway)); };
+  const unmannedLocal = () => { const d = K.dock, pl = P(); return !!(d?.on && (d.inHull || d.docking?.mode === 'docked' || (pl?.anchor && (d.onFoot || d.canoeing)) || pl?._offshore || pl?._canoeAway)); };
   function shipProtectedHarbor(s) {
     if (!s || !s.alive) return true;
     if (s.prot) return true;

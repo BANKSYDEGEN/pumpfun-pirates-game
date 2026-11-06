@@ -17,6 +17,9 @@ export const UPGRADE_PRICE = 1500;
 export const UPGRADE_SLOTS = 16;
 export const TIER_SLOTS = { cozy: 24, captain: 40, manor: 60 };
 export const LS_KEY = 'pfp_house_v1';
+// [v333] free ship Captain's Quarters chest — never a public island cottage plaque
+export const SHIP_QUARTERS_ID = 'ship_quarters';
+export const SHIP_QUARTERS_SLOTS = 12;
 
 // Foot-frame doorsteps (match Post COTTAGES + marker neighborhood). Interact sits ~1.4 m in front of the door.
 export const FALLBACK_COTTAGES = [
@@ -26,6 +29,9 @@ export const FALLBACK_COTTAGES = [
   { id: 'gabled',  name: 'Gabled Cottage',  tier: 'captain', x: -369.88, z: -115.50, ry: -2.6347, frontZ: 6.30, slots: 40 },
   { id: 'garden',  name: 'Garden Cottage',  tier: 'cozy',    x: -388.99, z: -111.15, ry: -3.0321, frontZ: 4.85, slots: 24 },
 ];
+export const LAND_COTTAGE_IDS = new Set(FALLBACK_COTTAGES.map((c) => c.id));
+export const isLandCottage = (id) => LAND_COTTAGE_IDS.has(id);
+export const isShipQuarters = (id) => id === SHIP_QUARTERS_ID;
 
 export function doorstepOf(c, pad = 1.35) {
   const d = (c.frontZ || 4.5) + pad;
@@ -1341,7 +1347,14 @@ export function createHouses({
   document.body.appendChild(splitPop);
   panel.querySelector('.hs-x').onclick = () => closeStorage();
   panel.querySelector('[data-a="close"]').onclick = () => closeStorage();
-  panel.querySelector('[data-a="leave"]').onclick = () => { closeStorage(); exitHouse(); };
+  panel.querySelector('[data-a="leave"]').onclick = () => {
+    closeStorage();
+    if (activeId === SHIP_QUARTERS_ID) {
+      document.dispatchEvent(new CustomEvent('cq-leave-request'));
+      return;
+    }
+    exitHouse();
+  };
   panel.querySelector('[data-a="upgrade"]').onclick = () => upgradeChest();
   panel.querySelector('[data-filters]').onclick = (e) => {
     const b = e.target.closest?.('button[data-f]'); if (!b) return;
@@ -1504,6 +1517,32 @@ export function createHouses({
     } catch {}
   }
   syncState();
+
+  function ensureShipQuarters() {
+    if (!owned[SHIP_QUARTERS_ID]) {
+      owned[SHIP_QUARTERS_ID] = { tier: 'captain', slots: SHIP_QUARTERS_SLOTS, items: [] };
+    } else {
+      owned[SHIP_QUARTERS_ID].slots = owned[SHIP_QUARTERS_ID].slots || SHIP_QUARTERS_SLOTS;
+      owned[SHIP_QUARTERS_ID].tier = owned[SHIP_QUARTERS_ID].tier || 'captain';
+      if (!Array.isArray(owned[SHIP_QUARTERS_ID].items)) owned[SHIP_QUARTERS_ID].items = [];
+    }
+    // hullqa mock chest for Playwright offline store/withdraw
+    if (typeof location !== 'undefined' && /[?&]hullqa=1(?:&|$)/.test(location.search || '')) {
+      const st = lsLoad();
+      if (!st.chests[SHIP_QUARTERS_ID]?.length && !(owned[SHIP_QUARTERS_ID].items || []).length) {
+        owned[SHIP_QUARTERS_ID].items = [
+          { slot: 0, item: 'val:gold_bar', qty: 3 },
+          { slot: 1, item: 'wpn:sword:cutlass:rare', qty: 1, meta: { src: 'house' } },
+        ];
+      } else if (st.chests[SHIP_QUARTERS_ID]) {
+        owned[SHIP_QUARTERS_ID].items = st.chests[SHIP_QUARTERS_ID];
+      }
+      persistChest(SHIP_QUARTERS_ID);
+    }
+    return owned[SHIP_QUARTERS_ID];
+  }
+  ensureShipQuarters();
+
 
   function isOwned(id) { return !!owned[id]; }
   function chestOf(id) {
@@ -1736,13 +1775,39 @@ export function createHouses({
   }
 
   async function openStorage() {
-    if (!inHouse || !activeId) return;
+    if (!activeId) return;
+    if (!inHouse && activeId !== SHIP_QUARTERS_ID) return;
     storageOpen = true; panel.classList.add('on');
+    const head = panel.querySelector('.hs-head span');
+    const chestH = panel.querySelector('[data-pane="chest"] h4');
+    const leaveB = panel.querySelector('[data-a="leave"]');
+    if (activeId === SHIP_QUARTERS_ID) {
+      if (head) head.textContent = "⚓ CAPTAIN'S CHEST";
+      if (chestH) chestH.innerHTML = '🧰 SHIP CARGO <span class="hs-cap" data-cap></span>';
+      if (leaveB) leaveB.textContent = 'LEAVE HULL';
+    } else {
+      if (head) head.textContent = '🏠 COTTAGE STORAGE';
+      if (chestH) chestH.innerHTML = '🧰 COTTAGE CHEST <span class="hs-cap" data-cap></span>';
+      if (leaveB) leaveB.textContent = 'LEAVE COTTAGE';
+    }
     await renderStorage();
   }
   function closeStorage() {
     storageOpen = false; panel.classList.remove('on');
     clearDrag(); hideSplit();
+  }
+  /** Open the house chest UI for a cottage id (used by shipHull for ship_quarters). */
+  async function openFor(cottageId) {
+    ensureShipQuarters();
+    if (cottageId === SHIP_QUARTERS_ID) {
+      activeId = SHIP_QUARTERS_ID;
+      // Mark as "in" for store/take paths that gate on activeId; room itself is shipHull's
+      if (!inHouse) { /* shipHull owns the pocket; storage only */ }
+      return openStorage();
+    }
+    if (!isOwned(cottageId)) return;
+    activeId = cottageId;
+    return openStorage();
   }
 
   function slotHtml(s, side) {
@@ -2312,7 +2377,7 @@ export function createHouses({
     cottages: () => cottages,
     get postReady() { return postReady; },
     get fallbackExteriors() { return fallbackExteriors; },
-    prompts, act, tick, netState, onPeerState, clear, syncState, buyCottage, enterHouse, exitHouse, openStorage, closeStorage,
+    prompts, act, tick, netState, onPeerState, clear, syncState, buyCottage, enterHouse, exitHouse, openStorage, closeStorage, openFor, ensureShipQuarters,
     // test helpers
     _forceOwn(id) { owned[id] = { tier: (owned[id] && owned[id].tier) || 'cozy', slots: (owned[id] && owned[id].slots) || 24, items: (owned[id] && owned[id].items) || [] }; persistChest(id); return owned[id]; },
     _setDemoBag(items) { const st = lsLoad(); st.demoBag = items; lsSave(st); },
