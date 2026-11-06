@@ -217,7 +217,7 @@ export const STREET_SIGN_SPOTS = [
   { id: 'gunpowder_gladiator', x: -530, z: -82, yaw: 0, blades: [['E', 'GLADIATOR WAY'], ['W', 'GUNPOWDER ROW'], ['N', 'BLOODSTONE']] },
   { id: 'crimson_gill', x: -158, z: -50, yaw: 0.4, blades: [['W', "ANGLER'S PATH"], ['E', 'CRIMSON TRAIL'], ['N', "GILL'S LAGOON"]] },
   { id: 'doubloon_idol', x: 8, z: -392, yaw: -0.3, blades: [['N', 'IDOL TRAIL'], ['S', 'CRIMSON TRAIL'], ['E', 'TEMPLE JUNGLE']] },
-  { id: 'hangman_bridge', x: 24, z: -86, yaw: Math.PI / 2, blades: [['N', "HANGMAN'S BRIDGE"], ['S', 'CRIMSON TRAIL']] },
+  { id: 'hangman_bridge', x: 20.5, z: -56, yaw: Math.PI / 2, blades: [['N', "HANGMAN'S BRIDGE"], ['S', 'CRIMSON TRAIL']] },  // [v328] was (24,-86) down in the wet gorge under D3; roadside at N approach
 ];
 
 export const ISLAND_BOUNDS = { x0: -940, x1: 700, z0: -820, z1: 780 };

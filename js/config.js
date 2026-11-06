@@ -166,6 +166,9 @@ export const PVP_REPAIR_COST = 40;    // repairs stay cheap in PvP (+50 HP, same
 
 // [v98] SQUADS (2v2) under BATTLE ROYALE: its own lobby prefix (the same free-plan budget: the lobby counts every room), host-run
 // rounds (teams fixed per round, friendly fire off, a round ends when one team is fully sunk). Shared profile with Solo.
+// [v328] BANKSY t1737u/t1738u: Harbor / Island co-op PvE squads (friendly fire OFF) can hold up to 16.
+// Arena 2v2 (SQUADS.size/players) stays UNCHANGED.
+export const HARBOR_SQUAD_MAX = 16;
 export const SQUADS = {
   size: 2, players: 4,          // 2v2; a round starts with 4 pirates in the arena (cap 4)
   roundSecs: 360,               // a round that runs this long ends by pirates afloat, then hull left

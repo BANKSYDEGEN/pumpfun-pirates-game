@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v327'; // [v327] unified BANKSY Safe Zone polygon (Harbor+cottages+coli+fort+battery+lagoon; off ship radar) + Tab/Square weapon cycle (Unarmed→Musket→Sword) + pad RT armed open-world attack + Safe Zone auto-unarmed + dock auto-climb ladders + 360° BOARD SHIP + map streets + cabin AAA + unified #player-hp 20s regen; prev: [v326] revert bad waterfall AAA 44eac37;
+const VERSION = 'pfp-v328'; // [v328] HB east landing (t1735u) + SERVER ghost HUD + ship radar no SAFE HARBOR (t1736u) + Harbor co-op squads size 16 / zero FF (t1737-8u) + open-island death respawn on ship (t1739-41u); prev: [v327] unified Safe Zone + Tab/Square weapon + dock ladders + BOARD SHIP + map streets + cabin + #player-hp;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

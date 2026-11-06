@@ -28,13 +28,15 @@ export function crewTargets(attackers = [], defenders = []) {
  * @param o.inSafe(x, z) -> bool (HARBOR frame)
  * @param o.ground(x, z) -> y   o.THREE / o.scene optional (fx)   o.now() seconds
  */
-export function createCrewFight({ crewOf, captainOf, inSafe = () => false, ground = () => 0, THREE = null, scene = null, sfx = null, now = () => performance.now() / 1000 } = {}) {
+export function createCrewFight({ crewOf, captainOf, inSafe = () => false, ground = () => 0, THREE = null, scene = null, sfx = null, now = () => performance.now() / 1000, isSquadMate = () => false } = {}) {
   const fights = new Map();                 // attackerId -> { mode, target, until, t0 }
   const hp = new WeakMap(), ko = new WeakMap(), cool = new WeakMap();
   const log = [];                           // { t, kind: 'shot' | 'slash', by, i, target, victim }
   const fx = [];
   function engage(attacker, mode, target, t = now()) {
     if (!CREW_FIGHT_ON || !attacker || !target || attacker === target || !modeCode(mode)) return false;
+    // [v328] Harbor squad: crew never fight squadmates (or their captain)
+    if ((attacker === 'me' && isSquadMate(target)) || (target === 'me' && isSquadMate(attacker))) { stop(attacker); return false; }
     const f = fights.get(attacker);
     if (f && f.mode === mode && f.target === target) { f.until = t + CF.holdS; return true; }
     fights.set(attacker, { mode, target, until: t + CF.holdS, t0: t });   // a new mode / target: switch at once
@@ -73,6 +75,8 @@ export function createCrewFight({ crewOf, captainOf, inSafe = () => false, groun
   const V = (x, y, z) => (THREE ? new THREE.Vector3(x, y, z) : { x, y, z });
   function tick(dt, t = now()) {
     for (const [a, f] of [...fights]) {
+      // [v328] if a Harbor squad forms mid-fight, stop immediately
+      if ((a === 'me' && isSquadMate(f.target)) || (f.target === 'me' && isSquadMate(a))) { stop(a); continue; }
       const mine = crewOf(a) || [], theirs = crewOf(f.target) || [], cap = captainOf(a), foe = captainOf(f.target);
       if (t > f.until || !mine.length || !cap || !foe || safeAt(cap) || safeAt(foe)) { stop(a); continue; }
       const tg = crewTargets(mine, theirs.filter((d) => !(ko.get(d) > 0)));
@@ -113,8 +117,11 @@ export function createCrewFight({ crewOf, captainOf, inSafe = () => false, groun
   function wire(me = 'me') { const f = fights.get(me); return f ? { cm: modeCode(f.mode), ct: f.target } : { cm: 0, ct: '' }; }
   /** a peer's cm / ct (their crew vs ct's crew; ct === myId = MY crew). */
   function remote(id, cm, ct, myId) {
+    // [v328] Harbor squad: never let a squadmate's crew engage mine (or vice versa)
+    const peerId = id, targetId = (ct === myId) ? 'me' : ct;
+    if (isSquadMate(peerId) || (targetId && targetId !== 'me' && isSquadMate(targetId)) || (targetId === 'me' && isSquadMate(peerId))) { stop(peerId); return false; }
     const mode = modeOfCode(cm | 0); if (!mode || typeof ct !== 'string' || !ct) { if (fights.has(id)) stop(id); return; }
-    engage(id, mode, ct === myId ? 'me' : ct);
+    engage(id, mode, targetId);
   }
   function clear() { for (const a of [...fights.keys()]) stop(a); for (const e of fx) scene?.remove(e.m); fx.length = 0; }
   return { engage, stop, tick, wire, remote, clear, log, fights, hpOf: (c) => hp.get(c) ?? CF.hp, koOf: (c) => ko.get(c) || 0, get active() { return fights.size > 0; } };

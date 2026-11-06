@@ -86,12 +86,13 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
 
   function partyBar() {
     const p = party(), box = $('[data-party]');
+    const mates = Array.isArray(p.mates) ? p.mates : (p.mate ? [p.mate] : []);
     if (p.code) {
-      box.innerHTML = `PARTY <b>${esc(p.code)}</b> · ${p.mate ? `with ${esc(p.mate.n)}` : esc(p.msg || 'waiting…')}<button type="button" data-a="leave" class="ghost">LEAVE</button>`;
+      box.innerHTML = `SQUAD <b>${esc(p.code)}</b> · ${mates.length ? `with ${mates.map(m => esc(m.n)).join(', ')}` : esc(p.msg || 'waiting…')}<button type="button" data-a="leave" class="ghost">LEAVE</button>`;
       box.querySelector('[data-a="leave"]').onclick = () => { pvp()?.partyLeave?.(); draw(); };
     } else {
-      box.innerHTML = `No party · INVITE opens a code for Squads 2v2<button type="button" data-a="new">NEW PARTY</button>`;
-      box.querySelector('[data-a="new"]').onclick = () => { pvp()?.partyMake?.(); draw(); toast?.('PARTY READY<br><small>share the code or invite from the list</small>', 2400); };
+      box.innerHTML = `No squad · create a code for Harbor co-op PvE (up to 16) or Arena 2v2<button type="button" data-a="new">NEW SQUAD</button>`;
+      box.querySelector('[data-a="new"]').onclick = () => { pvp()?.partyMake?.(); draw(); toast?.('SQUAD READY<br><small>share the code · Harbor friendly fire OFF</small>', 2400); };
     }
   }
 
@@ -216,7 +217,7 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
     if (el.classList.contains('on')) {
       if (now - pollT > 8000) { pollT = now; load(); }
       else if (now - pollT > 500) { // party bar only when the hall is open, and only if the party text changed
-        const p = party(), sig = (p.code || '') + '|' + (p.mate?.n || '') + '|' + (p.msg || '');
+        const p = party(), mates = Array.isArray(p.mates) ? p.mates : (p.mate ? [p.mate] : []), sig = (p.code || '') + '|' + mates.map(m => m.n).join(',') + '|' + (p.msg || '');
         if (sig !== partySig) { partySig = sig; partyBar(); }
       }
     }

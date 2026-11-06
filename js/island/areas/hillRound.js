@@ -271,7 +271,7 @@ export default {
   // [v220] BANKSY 3:57 PM "fix the trail on that end of rope bridge to the next rope bridge": the plateau landing -> trail A is a real paved trail
   // (the loop's cobble splat + kerb stones, 4.6 m: paint only, no height change) instead of loose flags thinning out + rocks; it meets trail A
   // east of the old cliff drop (foot.js A_DEAD now leaves that unpainted), and trail A runs on along the cutting floor to D3's rope bridge
-  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-287.7, -72.3], [-283.8, -72.0], [-279.5, -69.6], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6]], pave: true }] : [] },
+  terrain: { pads: [], cuts: [], paths: RBB_ON ? [{ id: 'rb_plateau_path', pts: [[-280.6, -71.9], [-278.0, -70.4], [-275.5, -66.2], [-271.5, -62.6], [-266, -59.8], [-260, -58.6], [-230, -60], [-205, -63]], pave: true }] : []  /* [v328] flush to east landing lip → Trail A → Gill dock */ },
   register(h) {
     const { H, AREA_DECKS = [], collidersOff = null } = h;   // (from foot.js: no import, no module cycle)
     // the plateau end: walk in from the target until the ground stops rising (the cliff top), deck end = that ground
@@ -279,6 +279,17 @@ export default {
       for (let s = 0; s < 20; s += 0.5) { const x = ex + ux / n * s, z = ez + uz / n * s; if (H(x, z) < H(ex, ez) - 0.6) break; bx = x; bz = z; }
       Object.assign(HB, { bx, bz, yb: H(bx, bz), L: Math.hypot(bx - HB.ax, bz - HB.az), yaw: Math.atan2(bx - HB.ax, bz - HB.az) }); }
     h.addHighBridge?.(HB);
+    // [v328] BANKSY t1735u: east plateau landing was VISUAL ONLY (10×7 m white tiles at ~HB.yb) while
+    // highBridgeAt stops at L+0.6 and H() under the cliff edge drops 0.3–18 m — pirate sank waist-deep /
+    // fell through. Solid addDeck covers the tiles; graded ramp eases onto rb_plateau_path; lantern
+    // newels get corner circs ONLY (bridge mouth + 9 m front stay open).
+    if (RBB_ON) { const ux = Math.sin(HB.yaw), uz = Math.cos(HB.yaw), c0 = Math.cos(HB.yaw), s0 = Math.sin(HB.yaw);
+      const d0 = -0.4, d1 = 7.4, mid = (d0 + d1) / 2;
+      h.addDeck({ id: 'rb_hb_east_land', x: HB.bx + ux * mid, z: HB.bz + uz * mid, hw: 5.2, hl: (d1 - d0) / 2, yaw: HB.yaw, y: HB.yb });
+      const rd0 = 7.2, rLen = 8.0, rMid = rd0 + rLen / 2, ex = HB.bx + ux * (rd0 + rLen), ez = HB.bz + uz * (rd0 + rLen);
+      h.addDeck({ id: 'rb_hb_east_ramp', x: HB.bx + ux * rMid, z: HB.bz + uz * rMid, hw: 2.8, hl: rLen / 2, yaw: HB.yaw, y: HB.yb, y1: H(ex, ez) + 0.03 });
+      for (const s of [-1, 1]) { const x = HB.bx + ux * 7 + c0 * s * 5.1, z = HB.bz + uz * 7 - s0 * s * 5.1; h.addCirc(x, z, 0.45); }
+      h.poi('high_bridge_e_path', 'High rope bridge: plateau path', HB.bx + ux * 10, HB.bz + uz * 10, { clear: 7 }); }
     // the plaza + the stairs (walk decks)
     h.addDeck({ id: 'rb_plaza', x: (PX0 + PX1) / 2, z: (PZ0 + PZ1) / 2, hw: (PX1 - PX0) / 2, hl: (PZ1 - PZ0) / 2, yaw: 0, y: Y });
     h.addDeck({ id: 'rb_castle', x: (CASTLE.x0 + CASTLE.x1) / 2, z: (CASTLE.z0 + CASTLE.z1) / 2, hw: (CASTLE.x1 - CASTLE.x0) / 2, hl: (CASTLE.z1 - CASTLE.z0) / 2, yaw: 0, y: Y, y1: COLISEUM_ON ? Y : Math.max(H(-434, CASTLE.z1), 20.2) });
@@ -523,8 +534,22 @@ export default {
               if (yc - yd > 0.2) W(k, box(0.04, yc - yd, 0.04), 0xc9a36b, M(x + c0 * s * (off - 0.2), (yc + yd) / 2, z - s0 * s * (off - 0.2), HB.yaw), false); } } }
         for (const t of HB.piers) { const [x, z] = along(t), y = HB.yAt(t) - 0.3, g = gmin(x, z, 3) - 0.6; W(k, box(7.6, 0.5, 5.4), 0xd2c9b6, M(x, y + 0.05, z, HB.yaw), false);
           for (const s of [-1, 1]) { const px = x - s0 * s * 2.6, pz = z - c0 * s * 2.6; W(k, new THREE.CylinderGeometry(0.01, 2.6, Math.max(2, (y - g) * 0.85), 4), 0xa9a294, M(px, g + Math.max(2, (y - g) * 0.85) / 2, pz, HB.yaw + Math.PI / 4), false); } }
-        { const ux = Math.sin(HB.yaw), uz = Math.cos(HB.yaw); for (let d = 0.3; d < 7.3; d += 1.2) for (let o = -4.8; o <= 4.81; o += 1.2) { const x = HB.bx + ux * d + c0 * o, z = HB.bz + uz * d - s0 * o; W(k, box(1.12, 0.12, 1.12), (Math.round(d * 3 + o)) % 3 ? 0xc8bda7 : 0xb3a993, M(x, Math.max(H(x, z), HB.yb - 0.1) + 0.04, z, HB.yaw), false); }
-          for (const s of [-1, 1]) { const x = HB.bx + ux * 7 + c0 * s * 5.3, z = HB.bz + uz * 7 - s0 * s * 5.3, g = H(x, z); W(k, box(0.9, 1.6, 0.9), 0xb9b2a6, M(x, g + 0.8, z)); W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(x, g + 1.9, z)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(x, g + 1.9, z), false); } }
+        { const ux = Math.sin(HB.yaw), uz = Math.cos(HB.yaw);
+          // [v328] tiles pinned to HB.yb (walk deck top); retaining skirt under edges where cliff drops away
+          for (let d = 0.3; d < 7.3; d += 1.2) for (let o = -4.8; o <= 4.81; o += 1.2) { const x = HB.bx + ux * d + c0 * o, z = HB.bz + uz * d - s0 * o;
+            W(k, box(1.12, 0.12, 1.12), (Math.round(d * 3 + o)) % 3 ? 0xc8bda7 : 0xb3a993, M(x, HB.yb - 0.06, z, HB.yaw), false); }
+          for (let d = 0.6; d < 7.1; d += 1.4) for (const o of [-5.15, 5.15]) { const x = HB.bx + ux * d + c0 * o, z = HB.bz + uz * d - s0 * o, g = gmin(x, z, 1.2) - 0.2, hh = HB.yb - g;
+            if (hh > 0.45) { W(k, box(0.7, hh, 1.35), 0xb9b2a6, M(x, g + hh / 2, z, HB.yaw), false); for (let r = 1.5; r < hh - 0.4; r += 1.5) W(k, box(0.76, 0.1, 1.4), 0x8a837a, M(x, HB.yb - r, z, HB.yaw), false); } }
+          for (const s of [-1, 1]) { const x = HB.bx + ux * 0.4 + c0 * s * 5.15, z = HB.bz + uz * 0.4 - s0 * s * 5.15, g = gmin(x, z, 1.4) - 0.25, hh = HB.yb - g;
+            if (hh > 0.45) W(k, box(1.35, hh, 0.7), 0xb0a99c, M(x, g + hh / 2, z, HB.yaw), false); }
+          // dressed-stone ramp steps from landing lip onto the plateau path
+          for (let i = 0; i < 6; i++) { const d = 7.4 + i * 1.3, t = (i + 0.5) / 6, y = HB.yb + (H(HB.bx + ux * (7.4 + 8), HB.bz + uz * (7.4 + 8)) + 0.03 - HB.yb) * t;
+            for (let o = -2.4; o <= 2.41; o += 1.2) { const x = HB.bx + ux * d + c0 * o, z = HB.bz + uz * d - s0 * o; W(k, box(1.12, 0.1, 1.2), (i + Math.round(o)) % 2 ? 0xc8bda7 : 0xb3a993, M(x, y - 0.05, z, HB.yaw), false); }
+            for (const s of [-1, 1]) { const x = HB.bx + ux * d + c0 * s * 2.9, z = HB.bz + uz * d - s0 * s * 2.9; W(k, box(0.28, 0.18, 1.2), 0x8a837a, M(x, y + 0.02, z, HB.yaw), false); } }
+          // lantern newels at outer corners ONLY (o=±5.1) — mouth + front stay clear (no belvedere / trail sign)
+          for (const s of [-1, 1]) { const x = HB.bx + ux * 7 + c0 * s * 5.1, z = HB.bz + uz * 7 - s0 * s * 5.1, g = HB.yb;
+            W(k, box(0.9, 1.6, 0.9), 0xb9b2a6, M(x, g + 0.8, z)); W(k, box(1.06, 0.14, 1.06), 0xd2c9b6, M(x, g + 1.67, z), false);
+            W(k, box(0.42, 0.52, 0.42), 0x2b2f36, M(x, g + 2.05, z)); W(k, box(0.3, 0.4, 0.44), 0xffd27a, M(x, g + 2.05, z), false); } }
         for (const t of HB.piers) { const [x, z] = along(t), tp = HB.yAt(t); for (const s of [-1, 1]) { const px = x + c0 * s * off, pz = z - s0 * s * off; { const fm = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), pfpFlagMaterial()); fm.position.set(px, top(t) - 0.9, pz + 0.95); fm.rotation.y = Math.PI / 2; near.add(fm); } } }
       }
     }

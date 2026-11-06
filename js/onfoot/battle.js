@@ -96,7 +96,7 @@ const P_MUSKET = { uR: v3(-0.12, -0.5, 0.86), fR: v3(0.25, 0.12, 0.96), uL: v3(0
 const lerpDir = (a, b, t, out) => out.copy(a).lerp(b, t).normalize();
 const ease = (t) => t * t * (3 - 2 * t);
 
-export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null }) { // [backpack-pvp] crewFight: t1706u crew mirror your attack · kd: t1703u unified K/D
+export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null, isSquadMate = null, respawnOnShip = null }) { // [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
   const H = (lx, lz) => layout.footToHarbor(...CO.t2w(lx, lz));            // town-local -> harbor (scene) x, z
   const toTown = (x, z) => CO.w2t(...layout.harborToFoot(x, z));
   const yawW = (ly) => CO.t2wYaw(ly);
@@ -419,7 +419,9 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function setTeam(t = (me.team + 1) % 3) { if (me.down > 0) return; me.team = t; hudSig = ''; drawHud(); say(t ? `TEAM ${TEAM[t]}<small>2v2: teammates can't hurt each other</small>` : 'FREE-FOR-ALL<small>every pirate for themselves</small>', 1300); }
   const tmBtn = hud.querySelector('.tm'); for (const ev of ['pointerdown', 'touchstart', 'mousedown']) tmBtn.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
   tmBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setTeam(); });
-  const mate = (r) => !!me.team && r?.team === me.team;
+  // [v328] Coliseum 2v2 team mate OR Harbor/Island squad mate — NEVER friendly fire
+  const isMate = (id, r) => (!!me.team && r?.team === me.team) || !!isSquadMate?.(id);
+  const mate = (r) => isMate(null, r); // legacy team-only callers (prefer isMate with id)
   let hudSig = '';
   function drawHud() { const z = me.zone, showH = STANCES_ON ? !!(me.arena || me.down > 0) : !!z; /* [t1724u] one HP bar: the captain card #player-hp; #bt-hud = a tiny arena / KO pill only */ document.documentElement.classList.toggle('bt-on', !!z); if (!showH) { if (hudSig || hud.style.display !== 'none') { hud.style.display = 'none'; hudSig = ''; } return; }
     const reload = z === Z_RANGE && me.cool > 0, teams = me.team || [...peerR.values()].some(r => r.ba[0] === z && r.team), pd = padActive(), sig = [z, me.arena, me.down > 0, me.kos, me.downs, reload ? Math.ceil(me.cool * 2) : 0, me.team, teams, pd && padGlyph('RT'), ...me.score].join('|'); if (sig === hudSig) return; hudSig = sig;
@@ -447,11 +449,11 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     me.seq = (me.seq + 1) % 1000; atk.classList.add('hit'); setTimeout(() => atk.classList.remove('hit'), 120); return true;
   }
   const victimOpen = (p) => !SAFEZONES_ON || canFightOnFoot({}, ...layout.harborToFoot(p.x, p.z), 0); // nobody snipes INTO (or out of) a Safe Zone
-  const canHitPeer = (r, p, need) => !!r && !r.ba[6] && r.guard <= 0 && !mate(r) && (STANCES_ON ? (me.pvpOk && victimOpen(p)) : r.ba[0] === need);
+  const canHitPeer = (r, p, need, id) => !!r && !r.ba[6] && r.guard <= 0 && !isMate(id, r) && (STANCES_ON ? (me.pvpOk && victimOpen(p)) : r.ba[0] === need);
   function addDmg(id, life, n) { const d = dealt.get(id); if (!d || d.life !== life) dealt.set(id, { life, n }); else d.n += n; }
   function swordHit() { // my blade at its hit frame: every pirate + dummy in the arc
     const W = walker.w, f = fwd(W.yaw, _v), S = myW('sword'); let any = false;
-    for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_PIT)) continue; const dx = p.x - W.x, dz = p.z - W.z, d = Math.hypot(dx, dz);
+    for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_PIT, id)) continue; const dx = p.x - W.x, dz = p.z - W.z, d = Math.hypot(dx, dz);
       if (d > S.reach + 0.45 || d < 0.01) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / d))); if (ang > S.arc) continue;
       addDmg(id, r.ba[2], S.dmg); r.hpShown = Math.max(0, (r.hpShown ?? r.ba[1]) - S.dmg); any = true; spark(p.x, world.ground(p.x, p.z) + 1.1, p.z); try { crewFight?.engage('me', 'sword', id); } catch {} } // [backpack-pvp] your blade on a pirate: your crew rush THEIR crew
     for (const d of dummies) { const dx = d.x - W.x, dz = d.z - W.z, dd = Math.hypot(dx, dz); if (dd > S.reach + 0.6) continue; const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f.x + dz * f.z) / Math.max(0.01, dd)))); if (ang > S.arc) continue;
@@ -469,7 +471,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const along = (px, pz, r) => { const dx = px - x, dz = pz - z, a = dx * f.x + dz * f.z; if (a < 0.3 || a > best) return -1; const side = Math.abs(dx * f.z - dz * f.x); return side <= r ? a : -1; };
     for (const c of cover) { const a = along(c.x, c.z, c.r); if (a > 0 && vOk(a, -1e9, world.ground(c.x, c.z) + 1.4)) { best = a; hit = { kind: 'cover' }; } }
     for (const t of targets) { if (t.flip > 0.2) continue; const a = along(t.x, t.z, 0.72); if (a > 0 && vOk(a, t.cy - 0.85, t.cy + 0.85)) { best = a; hit = { kind: 'target', t, off: Math.abs((t.x - x) * f.z - (t.z - z) * f.x) }; } }
-    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
+    if (mine) for (const [id, p] of fnet.peers) { const r = peerR.get(id); if (!canHitPeer(r, p, Z_RANGE, id)) continue; const a = along(p.x, p.z, S.wide); if (a > 0 && vOk(a, world.ground(p.x, p.z) - 0.2, world.ground(p.x, p.z) + 2.1)) { best = a; hit = { kind: 'pirate', id, p, r }; } }
     if (aim && slope < 0 && !hit) { const g = mz.y + slope * best; if (g < world.ground(x + f.x * best, z + f.z * best)) best = Math.min(best, aimD); } // [Timothy tps] aimed at the ground: the ball lands there
     { const [lx, lz] = toTown(x + f.x * best, z + f.z * best); if (lz < BA.RANGE.lz0 + 1.8) { const [bx, bz] = toTown(x, z); const t = (bz - (BA.RANGE.lz0 + 1.8)) / Math.max(1e-3, bz - lz); best *= Math.min(1, t); if (!hit) hit = { kind: 'cover' }; } void lx; }
     const end = new THREE.Vector3(x + f.x * best, slope === null ? mz.y - 0.05 : mz.y + slope * best, z + f.z * best);
@@ -498,7 +500,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (me.hp <= 0) {
       me.down = ARENA.downS; me.downs++; try { kd?.('d', `me:${me.life}`); } catch {} if (me.team) me.score[3 - me.team]++; me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
       const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);
-      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawn at the Harbor Safe Zone'}</small>`, 2400);
+      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawning on your ship'}</small>`, 2400);
       // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
       if (!coli) try {
         const inv = typeof inventory === 'function' ? inventory() : inventory;
@@ -520,9 +522,16 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   }
   function footRegen(dt) { footRegenStep(me, dt, t, ARENA.hp); } // [t1724u]
   function respawn() { const W = walker.w, open = STANCES_ON && !me.downArena;
-    const [x, z, ly] = open ? harborRespawn() : spawnPoint(me.downArena || me.zone || me.lastZone); me.hp = ARENA.hp; me.repT = 0; me.repairing = false; me.down = 0; me.guard = ARENA.guardS * (open ? 2 : 1); me.life = (me.life + 1) % 50000;
-    W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = open ? ly : yawW(ly); walker.snapCam?.(); me.downArena = 0;
-    if (open) { setStance(0, true); say('🛡️ HARBOR SAFE ZONE<small>back on your feet · full health</small>', 1800); } }
+    me.hp = ARENA.hp; me.repT = 0; me.repairing = false; me.down = 0; me.guard = ARENA.guardS * (open ? 2 : 1); me.life = (me.life + 1) % 50000; me.downArena = 0;
+    if (open) {
+      setStance(0, true);
+      // [v328] BANKSY t1740u/t1741u: open-island death → respawn aboard your ship (moored Harbor OR anchored elsewhere)
+      try { if (respawnOnShip?.()) return; } catch {}
+      const [x, z, ly] = harborRespawn(); W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = ly; walker.snapCam?.();
+      say('🛡️ HARBOR SAFE ZONE<small>back on your feet · full health</small>', 1800); return;
+    }
+    const [x, z, ly] = spawnPoint(me.downArena || me.zone || me.lastZone);
+    W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = yawW(ly); walker.snapCam?.(); }
 
   // ---------- peers ----------
   function onPeer(m) {
@@ -546,7 +555,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
         const d = Math.hypot(p.x - walker.w.x, p.z - walker.w.z);
         const ok = STANCES_ON ? me.onFoot && d <= peerReach(ba[0]) && victimOpen(p) // [backpack-pvp] any stance of mine, their weapon's reach, never from inside a Safe Zone
           : me.zone && ba[0] === me.zone && d <= (me.zone === Z_PIT ? 5.5 : 70);
-        if (delta > 0 && ok && !mate(r)) takeHit(delta, r.name); } }
+        if (delta > 0 && ok && !isMate(m.i, r)) takeHit(delta, r.name); } }
   }
   // HP bars over the pirates you fight (canvas sprite, redrawn only when it changes)
   function hpBar(r) { if (!r.bar) { const c = document.createElement('canvas'); c.width = 128; c.height = 20; const t = new THREE.CanvasTexture(c); r.bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); r.bar.scale.set(1.3, 0.2, 1); r.bar.renderOrder = 9; r.bar.position.y = 2.45; r.bar.userData.c = c; r.obj.add(r.bar); r.barV = -1; }

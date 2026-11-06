@@ -412,16 +412,19 @@ test('t1710u open-island cross-stance hits + Safe-Zone sniper protection', () =>
   assert.equal(openHitOk(A, V, { inHouse: true }), false);
   const [cx, cz] = t2w(61, -136); assert.equal(openHitOk([cx, cz], [cx + 2, cz], {}), false, 'coli inside sanctuary = no open-world PvP');
   const B = read('js/onfoot/battle.js');
-  assert.match(B, /const canHitPeer = \(r, p, need\) => .*STANCES_ON \? \(me\.pvpOk && victimOpen\(p\)\) : r\.ba\[0\] === need/);
-  assert.match(B, /if \(!canHitPeer\(r, p, Z_PIT\)\) continue;/); assert.match(B, /if \(!canHitPeer\(r, p, Z_RANGE\)\) continue;/);
+  assert.match(B, /const canHitPeer = \(r, p, need, id\) => .*!isMate\(id, r\).*STANCES_ON \? \(me\.pvpOk && victimOpen\(p\)\) : r\.ba\[0\] === need/);
+  assert.match(B, /if \(!canHitPeer\(r, p, Z_PIT, id\)\) continue;/); assert.match(B, /if \(!canHitPeer\(r, p, Z_RANGE, id\)\) continue;/);
   assert.match(B, /me\.onFoot && d <= peerReach\(ba\[0\]\) && victimOpen\(p\)/, 'incoming hits accepted in any stance of mine');
 });
 
-test('t1710u open-island KO respawns in the Harbor Safe Zone (Coliseum KO: at the gate, no haul drop)', () => {
+test('t1710u/t1740u open-island KO respawns on your ship (Coliseum KO: at the gate, no haul drop)', () => {
   const B = read('js/onfoot/battle.js');
   assert.match(B, /function harborRespawn\(\)/);
   assert.match(B, /insideSafeZoneH\(q\.x, q\.z\)/);
-  assert.match(B, /open \? harborRespawn\(\) : spawnPoint\(me\.downArena/);
+  // [v328] open-island: try respawnOnShip first (moored Harbor OR offshore anchor); harborRespawn is the fallback
+  assert.match(B, /if \(respawnOnShip\?\.\(\)\) return/);
+  assert.match(B, /respawning on your ship/);
+  assert.match(B, /spawnPoint\(me\.downArena/);
   assert.match(B, /if \(!coli\) try \{/);
   assert.ok(zoneAt(-690, -84), 'the dock / berth ashore spots are inside the Safe Zone');
 });

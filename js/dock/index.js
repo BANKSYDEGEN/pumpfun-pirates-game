@@ -144,15 +144,38 @@ export async function createDock(ctx) {
     hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact // [lh-hit] toast on lighthouse strike
   let lootBags = null; // [backpack-pvp] filled after houses so inHouse can close over it
   const isleSafeHud = { _isleSafe: false, _isleSafeOut: 0, _isleSafeZone: null };
+  const isSquadMateDock = (id) => { try { return !!ctx.pvp?.()?.isSquadMate?.(id); } catch { return false; } };
   const crewFight = createCrewFight({ THREE, scene, sfx: ctx.sfx, ground: (x, z) => world.ground(x, z), inSafe: (x, z) => insideSafeZoneH(x, z),
+    isSquadMate: (id) => isSquadMateDock(id),
     crewOf: (id) => (id === 'me' ? (onFoot && crewF?.active ? crewF.list.filter((c) => c.p.object.visible || c.fight) : []) : (fnet.peers.get(id)?.crew?.list || [])),
     captainOf: (id) => (id === 'me' ? (onFoot ? walker.w : null) : (fnet.peers.get(id) || null)) });
+  function respawnOnShip() { // [v328] BANKSY t1740u/t1741u open-island KO → aboard your ship (Harbor berth OR offshore anchor)
+    try { imap.close(); skinPick.close(); squadHall?.close?.(); houses?.closeStorage?.(); } catch {}
+    const s = P(); if (!on || !s) return false;
+    const ax = canoe?.state?.ax, az = canoe?.state?.az, ayaw = canoe?.state?.ayaw;
+    const away = canoe && (canoe.mode === 'canoe' || canoe.mode === 'beached') && Number.isFinite(ax) && Number.isFinite(az);
+    if (away) {
+      canoe.clearAll(s, controls);
+      s.x = ax; s.z = az; s.yaw = Number.isFinite(ayaw) ? ayaw : s.yaw; s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true; s._offshore = false; s._canoeAway = false;
+    } else if (docking.mode === 'sea' && s.alive) {
+      canoe?.clearAll?.(s, controls); s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true; s._offshore = false; s._canoeAway = false;
+    } else if (docking.mode === 'docked' && s.alive) {
+      canoe?.clearAll?.(s, controls);
+    } else {
+      canoe?.clearAll?.(s, controls); s.alive = true; s.sinking = 0; s.hp = s.maxHp; if (s.mesh) s.mesh.visible = true; docking.release(); spawnNow(s);
+    }
+    goAboard(true); ctx.updateHud?.();
+    toast(docking.mode === 'docked' ? '⚓ RESPAWNED ON YOUR SHIP · HARBOR' : '⚓ RESPAWNED ON YOUR ANCHORED SHIP', 2200);
+    return true;
+  }
   const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW,
     lootBags: { dropHaul: (...a) => lootBags?.dropHaul?.(...a) },
     inHouse: () => !!houses?.inHouse,
     inventory: () => inventory, crewFight,
     kd: (side, key) => { try { return ctx.pvp?.()?.groundKd?.(side, key); } catch { return false; } },
-  }); // [Timothy] + [backpack-pvp] safe-zone / loot hooks · crew fights · unified K/D
+    isSquadMate: (id) => isSquadMateDock(id),
+    respawnOnShip: () => respawnOnShip(),
+  }); // [Timothy] + [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
   const sets = colliderSets(layout.shipCircles);
   const NO_TARGET = { x: 0, z: 0, alive: false, yaw: 0, speed: 0 };
 
@@ -375,7 +398,7 @@ export async function createDock(ctx) {
     const s = P(), now = game.t; uTime.value = now;
     // [Emerly sail-around] canoe / offshore-anchor tick (owns camera while paddling)
     const canoeCam = canoe?.tick(dt, { s, onFoot, W: walker.w, joy: walker.w.joy, camera, controls, pirateObj: pirate.object }); // [v314] the canoe reads its own keys
-    if ((!was || (s.alive && !wasAlive)) && s.alive) { spawnNow(s); if (!was) fortReturn(); } wasAlive = !!s.alive; // [v152] joined / respawned in the harbor; [v157] moored this frame
+    if ((!was || (s.alive && !wasAlive)) && s.alive) { canoe?.clearAll?.(s, controls); spawnNow(s); if (!was) fortReturn(); } wasAlive = !!s.alive; // [v152]/[v157] + [v328] stow offshore canoe before berth snap
     if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if ((lastHp !== null && s.hp < lastHp - 0.01) || cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon

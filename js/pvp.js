@@ -42,7 +42,7 @@ import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v1
 import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
 import { previewShipId } from './newShips.js'; // [Emerly] the new hulls' preview flag
-import { SQUADS, HARBOR_NET } from './config.js';
+import { SQUADS, HARBOR_NET, HARBOR_SQUAD_MAX } from './config.js';
 import { Room } from './net.js';
 import { isNetId, escHtml, num } from './safe.js';
 import { ADM } from './adminState.js'; // [admin-menu] owner GOD / INVISIBLE / NOCLIP, server FREEZE (js/adminMenu.js)
@@ -375,7 +375,13 @@ export function createPvp(K) {
     return r || { state: 'error' };
   }
   async function joinBattle(fromParty = false) { // harbor JOIN BATTLE button
-    if (where !== 'harbor' || lob.busy) return; lob.busy = true;
+    if (where !== 'harbor' || lob.busy) return;
+    // [v328] Arena SQUADS is 2v2 only — a larger Harbor co-op squad cannot queue for Arena
+    if (mode === 'squads' && partyMates().length + 1 > SQUADS.size) {
+      K.banner('ARENA SQUADS IS 2v2', `your Harbor squad has ${partyMates().length + 1} pirates · Arena is 2v2 only (Harbor PvE supports up to ${HARBOR_SQUAD_MAX})`);
+      return;
+    }
+    lob.busy = true;
     if (mode === 'squads' && !fromParty && partyMate()) party.room?.send('go', { i: myId }); // [v98] your party mate queues with you
     try {
       const r = await lobbyCall('play');
@@ -970,7 +976,7 @@ export function createPvp(K) {
     return false;
   }
   const harborPvpCanHit = (shooter, target) => HB_PVP_ON && where === 'harbor' && !spec.on && !!shooter && !!target
-    && !party.mates?.has?.(shipIdOf(target)) && !party.mates?.has?.(shipIdOf(shooter))
+    && !isSquadMate(shipIdOf(target)) && !isSquadMate(shipIdOf(shooter))
     && !shipProtectedHarbor(shooter) && !shipProtectedHarbor(target)
     && !(K.dock?.canFire && shooter === P() && !K.dock.canFire(shooter)) && !(shooter !== P() && K.dock?.zone?.inside?.(shooter.x, shooter.z));
   function ballStep(b, p) { // returns true when the ball is spent
@@ -997,7 +1003,7 @@ export function createPvp(K) {
     const pl = P(); if (!pl || where !== 'harbor') return false;
     for (const s of enemies) {
       if (!s.alive || !s.mesh) continue;
-      const pid = s.net?.kind === 'player' ? s.net.id : null; if (pid && party.mates?.has?.(pid)) continue;   // squad / party mates: pass through
+      const pid = s.net?.kind === 'player' ? s.net.id : null; if (pid && isSquadMate(pid)) continue;   // [v328] Harbor squad: pass through
       if (!inside(s, p)) continue;
       if (s.prot) { fx.splash(p); return true; }
       const raw = (BALL_DMG[0] + Math.random() * (BALL_DMG[1] - BALL_DMG[0])) * PVP_DMG_MUL;
@@ -1046,7 +1052,7 @@ export function createPvp(K) {
     bk.tokens = Math.min(12, bk.tokens + (now - bk.t) / 1000 * 10); bk.t = now; buckets.set(m.s, bk);
     const cap = MAX_HIT;
     // [v171] a cliff-battery hit (m.g = gun): only in the harbor, only from a pirate whose shot from that gun we just saw (battery.js replay), never a party mate, basic damage only
-    let bat = null; if (m.g != null) { const gi = m.g | 0; if (where !== 'harbor' || !Number.isInteger(m.g) || !BATTERY_GUNS[gi] || !batteryShotRecent(m.s, gi) || party.mates?.has?.(m.s)) return;
+    let bat = null; if (m.g != null) { const gi = m.g | 0; if (where !== 'harbor' || !Number.isInteger(m.g) || !BATTERY_GUNS[gi] || !batteryShotRecent(m.s, gi) || isSquadMate(m.s)) return;
       bat = { g: gi, cap: Math.ceil(BALL_DMG[1] * PVP_DMG_MUL) + 1 }; }
     for (const [t, d] of m.h.slice(0, 12)) {
       if (bk.tokens < 1) break; bk.tokens--;
@@ -1244,19 +1250,29 @@ export function createPvp(K) {
   const sqTeam = (id) => sq.A.includes(id) ? 'A' : sq.B.includes(id) ? 'B' : null;
   const shipIdOf = (o) => o === P() ? myId : o?.net?.id;
   const sqCanHit = (a, b) => sq.ph === 'live' && !!sqTeam(a) && !!sqTeam(b) && sqTeam(a) !== sqTeam(b);
-  const myPc = () => mode === 'squads' && party.code ? partyTag(party.code) : '';
+  // [v328] Harbor co-op: always broadcast pc when you have a party code (even if BR mode toggle is SOLO)
+  const myPc = () => (where === 'harbor' || mode === 'squads') && party.code ? partyTag(party.code) : '';
   function setNet(m) { mode = m === 'squads' ? 'squads' : 'solo'; net = nets[mode]; Object.assign(lob, { cap: net.cfg.maxArena, known: false, lastPoll: 0, players: 0, queue: 0, specs: 0 }); }
   function setMode(m) { // the queue harbor's SOLO / SQUADS switch: only while not queued
     m = m === 'squads' ? 'squads' : 'solo'; if (m === mode) return;
     if (where !== 'harbor' || spec.on || lob.busy || lob.state !== 'harbor') { K.banner('LEAVE THE QUEUE FIRST', 'switch SOLO / SQUADS while you are not queued'); harborUi(); return; }
     setNet(m); try { localStorage.setItem('pfp_br_mode', mode); } catch {} hud();
-    if (mode === 'solo') partyLeave(true);
+    // [v328] do NOT partyLeave on SOLO — Harbor co-op squads are independent of Arena queue mode
     lobbyCall('poll').then(() => { harborUi(); hud(); }); harborUi();
-    K.banner(mode === 'squads' ? 'SQUADS 2v2' : 'SOLO', mode === 'squads' ? 'share a party code with a friend, or get a random teammate' : 'free-for-all: every pirate for themselves');
+    K.banner(mode === 'squads' ? 'ARENA SQUADS 2v2' : 'SOLO', mode === 'squads' ? 'Arena is 2v2 · Harbor co-op PvE keeps your full squad (up to 16)' : 'Arena free-for-all · Harbor squad (if any) stays for island PvE');
   }
   // party: 2 friends share a 5-character code (a tiny realtime channel, a heartbeat every 4 s); JOIN BATTLE queues you both
   const party = { code: '', room: null, mates: new Map(), t: 0, hbT: 0, msg: '' };
   const partyMate = () => { const now = performance.now(); for (const [id, m] of party.mates) if (now - m.at < 10000) return { id, ...m }; return null; };
+  const partyMates = () => { const now = performance.now(), out = []; for (const [id, m] of party.mates) if (now - m.at < 10000) out.push({ id, ...m }); return out; };
+  // [v328] Harbor / Island: ZERO friendly fire for anyone sharing your party code (mates map OR matching pc tag)
+  function isSquadMate(id) {
+    if (!id || id === myId || !party.code) return false;
+    const m = party.mates.get(id);
+    if (m && performance.now() - m.at < 15000) return true;
+    const pc = partyTag(party.code), p = peers.get(id);
+    return !!(pc && p?.pc && p.pc === pc);
+  }
   function partyMsg(t) { party.msg = t; harborUi(); }
   async function partyJoin(code, made = false) {
     code = cleanCode(code); if (code.length !== 5) { partyMsg('A party code is 5 letters / numbers'); return; }
@@ -1271,7 +1287,7 @@ export function createPvp(K) {
   }
   function partyLeave(silent = false) { if (party.room) { party.room.send('bye', { i: myId }); party.room.close(); } party.room = null; party.code = ''; party.mates.clear(); party.msg = ''; if (!silent) harborUi(); }
   function partyMake() { const c = newPartyCode(); partyJoin(c, true); return c; } // [squad-hall]
-  function partyInfo() { const m = partyMate(); return { code: party.code || '', mate: m ? { id: m.id, n: m.n, st: m.st } : null, msg: party.msg || '' }; }
+  function partyInfo() { const mates = partyMates().map(m => ({ id: m.id, n: m.n, st: m.st })); return { code: party.code || '', mate: mates[0] || null, mates, count: party.code ? mates.length + 1 : 0, msg: party.msg || '' }; }
   async function joinWorld({ name, w, copy, mode } = {}) { // [squad-hall] travel to another pirate's harbor copy, or queue their arena mode
     if (!active || where !== 'harbor' || spec.on) return { ok: false, why: 'leave the arena / spectate first' };
     if (lob.state !== 'harbor') return { ok: false, why: 'leave the queue first' };
@@ -1292,8 +1308,9 @@ export function createPvp(K) {
     if (!m || !isNetId(m.i) || m.i === myId) return; // [security H5]
     const had = party.mates.has(m.i); party.mates.set(m.i, { n: esc(m.n).slice(0, 20) || 'PIRATE', t: +m.t || 0, st: String(m.st || '').slice(0, 10), at: performance.now() });
     const now = performance.now(), live = [...party.mates.values()].filter(x => now - x.at < 10000);
-    if (live.length >= SQUADS.size && live.every(x => x.t < party.t)) { partyLeave(true); partyMsg('PARTY FULL: that code already has 2 pirates'); return; } // the latest joiner leaves
-    if (!had) { party.msg = ''; partyBeat(); K.banner('PARTY READY', `${party.mates.get(m.i).n} joined · JOIN BATTLE queues you both`); }
+    // [v328] Harbor co-op: allow up to HARBOR_SQUAD_MAX (16). Arena 2v2 still gates joinBattle separately.
+    if (live.length + 1 > HARBOR_SQUAD_MAX && live.every(x => x.t < party.t)) { partyLeave(true); partyMsg(`SQUAD FULL: that code already has ${HARBOR_SQUAD_MAX} pirates`); return; }
+    if (!had) { party.msg = ''; partyBeat(); K.banner('SQUAD READY', `${party.mates.get(m.i).n} joined (${live.length + 1} in squad) · friendly fire OFF`); }
     harborUi();
   }
   function partyTick(now) { if (party.room && now - party.hbT > 4000) { party.hbT = now; partyBeat(); } }
@@ -1646,8 +1663,8 @@ export function createPvp(K) {
     h.classList.toggle('ph-waves', wv); const wb = $('pvp-waves'); if (wb) wb.hidden = !wv;
     if (wv) t.hidden = true;
     const ms = $('pvp-mode'); if (ms) { ms.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x.dataset.m === mode); x.setAttribute('aria-pressed', x.dataset.m === mode); }); ms.classList.toggle('locked', lob.state !== 'harbor'); } // [v98]
-    const pp = $('pvp-party'); if (pp) { pp.hidden = mode !== 'squads'; const mate = partyMate(); pp.classList.toggle('pp-idle', !party.code && !party.msg); // [v98.3] portrait hides the default 'No party' line
-      $('pvp-party-t').innerHTML = party.code ? `PARTY <b>${party.code}</b> · ${mate ? `with ${esc(mate.n)} ✔` : esc(party.msg || 'waiting for your mate…')}` : esc(party.msg || 'No party: you get a random teammate');
+    const pp = $('pvp-party'); if (pp) { pp.hidden = !(mode === 'squads' || !!party.code); const mates = partyMates(); pp.classList.toggle('pp-idle', !party.code && !party.msg); // [v328] show while Harbor squad active (even on SOLO BR toggle)
+      $('pvp-party-t').innerHTML = party.code ? `SQUAD <b>${party.code}</b> · ${mates.length ? `with ${mates.map(x => esc(x.n)).join(', ')} ✔` : esc(party.msg || 'share code or invite at Squad Hall')}` : esc(party.msg || 'No squad · Harbor co-op PvE (up to 16) or Arena 2v2');
       for (const id of ['pvp-party-new', 'pvp-party-join', 'pvp-party-code']) $(id).hidden = !!party.code; $('pvp-party-leave').hidden = !party.code; }
     if (where === 'harbor') hud(); // [v74] arena head-count + AI pay live under the minimap
     b.onclick = (e) => { e.stopPropagation(); lob.state === 'queue' ? leaveQueue() : lob.state === 'offer' ? acceptOffer() : joinBattle(); };
@@ -1909,9 +1926,9 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
-    serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
+    serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), isSquadMate: (id) => isSquadMate(id), partyMates, unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
     _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
-  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;
 }
