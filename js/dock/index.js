@@ -18,7 +18,7 @@ import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callou
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
 import { createPetFollower } from '../onfoot/pets.js'; // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
-import { binds, keyName, isKey } from '../keybinds.js';
+import { binds, keyName, isKey, anyModalOpen } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
 import { createInventory } from '../inventory/ui.js'; // [inventory] the INVENTORY grid + plaza shop panels (migration 036)
@@ -56,7 +56,7 @@ const CSS = `
 #dk-acts button[disabled]{opacity:.75;background:rgba(22,22,22,.86);color:#ddd;border-color:#888}
 #dk-acts kbd{font:16px system-ui,sans-serif;background:#ffcd77;color:#161616;border-radius:5px;padding:1px 6px;margin-right:8px;vertical-align:3px}
 html.dk-touch #dk-acts kbd{display:none}
-html.pfp-onfoot #controls,html.pfp-onfoot #hint,html.pfp-onfoot #pvp-harbor,html.pfp-onfoot .ehp,html.pfp-onfoot #pvp-boss-bar,html.pfp-canoe #controls,html.pfp-canoe #hint,html.pfp-canoe #pvp-harbor,html.pfp-canoe #pvp-menu{display:none!important}
+html.pfp-onfoot #controls,html.pfp-onfoot #hint,html.pfp-onfoot #pvp-harbor:not(.hb-modal-open),html.pfp-onfoot .ehp,html.pfp-onfoot #pvp-boss-bar,html.pfp-canoe #controls,html.pfp-canoe #hint,html.pfp-canoe #pvp-harbor:not(.hb-modal-open),html.pfp-canoe #pvp-menu{display:none!important}
 html.pfp-onfoot.dk-board #pvp-harbor{display:flex!important}
 #dk-board-x{position:fixed;right:14px;top:calc(var(--safe-t,0px) + 54px);z-index:9;display:none;font:22px 'Just Another Hand',cursive;padding:6px 14px 3px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77}
 html.dk-board #dk-board-x{display:block}
@@ -452,10 +452,24 @@ export async function createDock(ctx) {
     if (casinoUi?.isOpen) { casinoUi.onKey(e); e.stopImmediatePropagation(); e.preventDefault(); return; } // [Timothy] the casino table has the keys (Esc closes)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    // [v339] I = Inventory (Harbor); ignore while typing / other modals that own keys
+    if (isKey('inventory', e.code) && !e.repeat && game.state === 'playing' && inventory) {
+      if (inventory.isOpen) inventory.close();
+      else if (!anyModalOpen?.()) inventory.open('bag');
+      e.stopImmediatePropagation(); e.preventDefault(); return;
+    }
+    if (e.code === 'Escape' && inventory?.isOpen) { inventory.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (e.code === 'Escape' && document.getElementById('pvp-harbor')?.classList.contains('hb-modal-open')) {
+      document.getElementById('pvp-harbor').classList.remove('hb-modal-open'); e.stopImmediatePropagation(); e.preventDefault(); return;
+    }
     if (e.code === 'Escape' && squadHall?.isOpen) { squadHall.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && houses?.storageOpen) { houses.closeStorage(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && document.documentElement.classList.contains('dk-board')) { closeBoard(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (game.state !== 'playing') return;
+    // [v339] Build Mode owns Q/E to rotate props — never fire actA/actB or broadsides
+    if (document.documentElement.classList.contains('pfp-tedit') || document.querySelector('#te-bar')?.offsetParent) {
+      if (e.code === 'KeyE' || e.code === 'KeyQ') return;
+    }
     let used = false;
     if (skinPick.isOpen) { if (!e.repeat && (e.code === 'Escape' || e.code === 'KeyQ')) skinPick.close(); e.stopImmediatePropagation(); e.preventDefault(); return; } // [dock-skin] no walking while the shipyard panel is up
     const inCanoe = canoe?.mode === 'canoe'; // [v314] in the canoe the big ship never hears these keys
@@ -627,6 +641,13 @@ export async function createDock(ctx) {
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
     netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}) } : {}), // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
+    // [v339] Harbor session auto-resume helpers (js/main.js pfp_harbor_resume_v1)
+    resumeState: () => { const W = walker?.w, s = P?.(); return { onFoot: !!onFoot && !shipHull?.inHull && canoe?.mode !== 'canoe', inHull: !!shipHull?.inHull, moored: docking.mode === 'docked', x: +(onFoot ? W?.x : s?.x) || 0, z: +(onFoot ? W?.z : s?.z) || 0, yaw: +(onFoot ? W?.yaw : s?.yaw) || 0 }; },
+    applyResume: (r) => { if (!r || !on) return false; try {
+      if (r.inHull && docking.mode === 'docked') { enterHull(); return true; }
+      if (r.onFoot && Number.isFinite(r.x) && Number.isFinite(r.z)) { goAshoreAt(r.x, r.z, r.yaw); return true; }
+      return docking.mode === 'docked';
+    } catch (e) { console.warn('[resume] apply', e); return false; } },
     ladders, /* [dock-ladders] */ dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, enterHull, leaveHull, weighAnchor, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
     drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); updateMapLocHud(); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar

@@ -30,6 +30,13 @@ export function wireHudHide({ isSpectating, isTyping } = {}) {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (isTyping?.()) return;
     if (isSpectating?.()) return; // [pvp] spectate owns H for its own HUD hide
+    // [v339] ENTER HULL keeps H while moored/anchored (tests pin key:'H'); never also Hide HUD
+    try {
+      const acts = document.getElementById('dk-acts');
+      if (acts && acts.style.display !== 'none' && [...acts.querySelectorAll('button:not([hidden])')].some(b => /ENTER HULL/i.test(b.textContent || '') && /\bH\b/.test(b.textContent || ''))) return;
+      if (document.documentElement.classList.contains('pfp-inhull')) return;
+      if (typeof anyModalOpen === 'function' && anyModalOpen()) return;
+    } catch {}
     e.preventDefault(); toggleHudHidden();
   });
   // Settings: Hide HUD toggle (pause panel)

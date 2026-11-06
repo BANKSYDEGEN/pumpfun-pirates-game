@@ -58,7 +58,7 @@ const CSS = `
 #srv-btn{font:17px 'Just Another Hand',cursive;letter-spacing:.05em;padding:5px 12px 3px;border-radius:999px;border:1px solid rgba(255,205,119,0.45);background:rgba(14,14,14,0.72);color:#fff;cursor:pointer;margin:0;line-height:1.1;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
 #srv-btn:hover,#srv-btn:focus-visible{border-color:var(--gold,#ffcd77);color:var(--gold,#ffcd77);background:rgba(26,15,7,0.88);outline:none}
 #srv-btn.pad-focus{box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold,#ffcd77)}
-#pvp-harbor.ph-compact #srv-btn{display:none!important}
+#pvp-harbor.ph-compact #srv-btn{display:inline-flex!important}/* [v339] hub modal: never hide Switch Server */
 #srv-modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);font-family:'Just Another Hand',cursive}
 #srv-modal.on{display:flex}
 #srv-modal .sv-box{width:min(560px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(#2e1c0d,#1d1208);border:3px solid #ffcd77;border-radius:16px;box-shadow:0 12px 40px #000;color:#f4e2bb;padding:12px 16px 16px}
@@ -98,7 +98,7 @@ export function createServerPicker(api) {
     if (!SERVER_PICKER_ON || btn || typeof document === 'undefined') return;
     ensureStyle(); // [v328] style BEFORE first paint — never wait for open()
     const host = document.querySelector('#pvp-harbor .ph-btns') || document.getElementById('pvp-harbor'); if (!host) return;
-    btn = document.createElement('button'); btn.id = 'srv-btn'; btn.type = 'button'; btn.className = 'ghost'; btn.textContent = '⚓ SERVER'; btn.title = 'Choose / create a server';
+    btn = document.createElement('button'); btn.id = 'srv-btn'; btn.type = 'button'; btn.className = 'ghost'; btn.textContent = '⚓ SWITCH / PRIVATE SERVER'; btn.title = 'Choose / create a server';
     btn.addEventListener('click', (e) => { e.stopPropagation(); open(); }); host.appendChild(btn);
   }
   function render() {

@@ -102,7 +102,7 @@ test('keyFor: the live binds; broadsides never use E (the dock prompt key), sail
   assert.equal(keyFor('fireStar', binds), 'MouseR', 'default E / MOUSE R -> MOUSE R'); assert.equal(keyFor('firePort', binds), 'KeyQ');
   assert.equal(keyFor('left', binds), 'KeyA'); assert.equal(keyFor('sailUp', binds), 'KeyW'); assert.equal(keyFor('anchor', binds), 'Space'); assert.equal(keyFor('pause', binds), 'Escape');
   assert.equal(keyFor('fireStar', () => ['KeyE', '']), 'KeyE', 'only E bound: E'); assert.equal(keyFor('sailUp', () => ['MouseR', 'KeyI']), 'KeyI');
-  assert.equal(keyFor('attack'), 'KeyR'); assert.equal(keyFor('team'), 'KeyG'); assert.equal(keyFor('emote'), 'KeyT'); assert.equal(keyFor('weapon'), 'Tab'); assert.equal(keyFor('nope'), '');
+  assert.equal(keyFor('attack'), 'KeyR'); assert.equal(keyFor('team'), 'KeyG'); assert.equal(keyFor('emote'), 'KeyT'); assert.equal(keyFor('weapon'), 'KeyQ'); // [v339] assert.equal(keyFor('nope'), '');
 });
 test('spatialPick: a 3x2 grid (inventory / shop cards)', () => {
   const R = (x, y) => ({ left: x * 100, top: y * 100, right: x * 100 + 80, bottom: y * 100 + 80, width: 80, height: 80 });

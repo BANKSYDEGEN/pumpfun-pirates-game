@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v338'; // [v338] 14-kit sculpted Captain's Quarters (stern gallery, transverse beams, mahogany wainscoting, two-tier wheel chandelier, Navigator's bureau & tripod telescope, trophy credenza, sea caustics) + [v337] Harbor Free-tier capacity 4->8 (budgeted fight Hz) + Dock Plaza gravel floor continuous up Hill Street to Fountain (BANKSY t1789u/t1790u); prev: [v336] Golden Doubloon Casino + weapon-sync; prev: [v335] build mode + REWORK flags + weapon gifting;
+const VERSION = 'pfp-v339'; // [v339] mobile stability (no eager quarters / cabin decode on phones, 1 Draco worker, _lo maps, GPU freed on leave, WebGL-loss no blind reload, Harbor auto-resume, pooled sw install) + keybind de-clash (Tab / H / E / Q / Esc + modal key isolation) + decluttered mobile HUD + PLAY & SERVERS hub + mobile Casino (BANKSY t1792u-t1795u); prev: [v338] [v338] 14-kit sculpted Captain's Quarters (stern gallery, transverse beams, mahogany wainscoting, two-tier wheel chandelier, Navigator's bureau & tripod telescope, trophy credenza, sea caustics) + [v337] Harbor Free-tier capacity 4->8 (budgeted fight Hz) + Dock Plaza gravel floor continuous up Hill Street to Fountain (BANKSY t1789u/t1790u); prev: [v336] Golden Doubloon Casino + weapon-sync; prev: [v335] build mode + REWORK flags + weapon gifting;
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -361,16 +361,28 @@ const VENDOR_FILES = [
 // are cached on first use by the same-origin fetch handler below.
 // high-quality post-processing modules: cached when a desktop/high-tier device fetches them (see fetch handler)
 
+// [v339 mobile-stability] BANKSY t1792u: the worker's memory counts against the page's budget on iOS. The install used to run ASSETS.length (~340)
+// copies at once, each re-opening every old cache, plus a 110-file addAll burst. Now: old caches opened ONCE, every list walked by a small pool
+// (8 at a time), and phones skip the desktop-only art (heavy(): the hi kits, full-size island GLBs incl. captains_quarters.glb, cached on first use).
+const isPhone = () => new URL(self.location.href).searchParams.get('m') === '1' || /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || '');
+const heavy = (u) => /_hi\.glb$/.test(u) || (/\/island\/[a-z_]+(\.webp)?\.glb$/.test(u) && !/_low/.test(u)) || /\/kit\/[a-z_]+(?<!_lo)\.(glb|jpg)$/.test(u) || /captains_quarters\.glb$/.test(u);
+async function pool(list, n, fn) { let i = 0; const run = async () => { while (i < list.length) { const u = list[i++]; try { await fn(u); } catch {} } }; await Promise.all(Array.from({ length: Math.min(n, list.length) }, run)); }
+const POOL = 8;
+
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
-    await c.addAll(SHELL);
-    await Promise.all(VENDOR_FILES.map(u => c.add(u).catch(() => {}))); // best effort
-    // [v176] load fix: carry the art over from the previous version's cache HERE (install), not in activate. While a worker is
-    // 'activating' the browser holds every page fetch, so the v173 copy-forward (~300 entries, ~20 MB, one by one) stalled the load
-    // after each update on phones. Install runs while the old worker still serves the page; copies run in parallel.
-    const old = (await caches.keys()).filter(k => k !== VERSION);
-    await Promise.all(ASSETS.map(async (u) => { if (await c.match(u)) return; for (const k of old) { const hit = await (await caches.open(k)).match(u); if (hit) { await c.put(u, hit).catch(() => {}); return; } } }));
+    let shellFail = null;
+    await pool(SHELL, POOL, async (u) => { try { const r = await fetch(u, { cache: 'no-cache' }); if (!r.ok) throw 0; await c.put(u, r); } catch { shellFail = u; } });
+    if (shellFail) throw new Error('shell ' + shellFail); // same contract as cache.addAll: a broken shell never installs
+    await pool(VENDOR_FILES, POOL, (u) => c.add(u)); // best effort
+    // [v176] load fix: carry the art over from the previous version's cache HERE (install), not in activate (activating holds every page fetch).
+    const oldCaches = await Promise.all((await caches.keys()).filter(k => k !== VERSION).map(k => caches.open(k)));
+    const phone = isPhone();
+    if (oldCaches.length) await pool(ASSETS.filter(u => !(phone && heavy(u))), POOL, async (u) => {
+      if (await c.match(u)) return;
+      for (const oc of oldCaches) { const hit = await oc.match(u); if (hit) { await c.put(u, hit).catch(() => {}); return; } }
+    });
     self.skipWaiting();
   })());
 });
@@ -381,7 +393,7 @@ self.addEventListener('activate', (e) => {
     const c = await caches.open(VERSION);
     for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
     // [mobile-perf] phones only precache the light (_lo / _low) art they actually use (the hi copies were ~2/3 of the 32 MB)
-    const phone = new URL(self.location.href).searchParams.get('m') === '1' || /Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent || ''), heavy = (u) => /_hi\.glb$/.test(u) || (/\/island\/[a-z_]+(\.webp)?\.glb$/.test(u) && !/_low/.test(u)) || /\/kit\/[a-z_]+(?<!_lo)\.(glb|jpg)$/.test(u);
+    const phone = isPhone();
     const LP = new URL(self.location.href).searchParams.get('lp') !== '0'; // [v276 load-perf]
     (async () => { if (LP) await new Promise(r => setTimeout(r, 45000)); const net = self.navigator?.connection || {}; if (phone && (net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || ''))) return; // [v330 perf] no 33 MB art fill on Save-Data / slow phone links (the fetch handler still caches what you play)
       for (const u of ASSETS) { if (phone && heavy(u)) continue; if (await c.match(u)) continue; try { const r = await fetch(u, { priority: 'low', cache: 'no-cache' }); if (r.ok) await c.put(u, r); } catch {} } })(); // [v100] background, best effort, one at a time // [v330 perf] low fetch priority: never outruns the game's own downloads

@@ -7,6 +7,7 @@ import { CHIPS, MIN_BET, MAX_BET, SLOT_SYMBOLS, SLOT_PAYS, SLOT_PAIR, DICE_BETS,
   parseRouletteChoice, rouletteLabel, createCasinoClient } from './engine.js';
 
 export const CASINO_QA = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('casinoqa') === '1';
+const SHORT = { blackjack: 'BLACKJACK', roulette: 'ROULETTE', dice: 'DICE', slots: 'SLOTS' }; // [v339] phone tab labels
 const TITLES = { blackjack: 'PIRATE BLACKJACK', roulette: 'BUCCANEER ROULETTE', dice: "DEAD MAN'S DICE", slots: 'TREASURE SLOTS' };
 const RULES = { blackjack: 'Blackjack pays 3 to 2 · dealer stands on 17 · double on your first two cards',
   roulette: 'Red / Black · Odd / Even · 1-18 / 19-36 pay 2× · a dozen pays 3× · a single number pays 36×',
@@ -131,7 +132,79 @@ const CSS = `
 .cas-lever.pull:before{transform:scaleY(-.35)}.cas-lever.pull:after{transform:translateY(150px)}
 .cas-pay{display:grid;grid-template-columns:auto auto;gap:3px 10px;font:700 13px/1.1 Georgia,serif;align-items:center;color:#f6e7c1}
 .cas-pay svg{width:22px;height:22px;vertical-align:middle}.cas-pay b{color:#ffe08a}
-@media (max-width:720px){.cas-box{padding:10px}.cas-brand b{font-size:21px}.cas-pill{font-size:15px}.cas-board{grid-template-columns:repeat(13,22px);grid-auto-rows:28px}.cas-pick{font-size:10px}.cas-wheel{width:190px;height:190px}.cas-reel{width:70px;height:210px}.cas-strip div{height:70px}.cas-strip svg{width:52px;height:52px}.cas-card{width:56px;height:80px}.cas-dbets{grid-template-columns:repeat(2,1fr)}.cas-tab{min-width:120px;font-size:11px}.cas-pay{display:none}}
+@media (max-width:720px){.cas-box{padding:10px}.cas-brand b{font-size:21px}.cas-pill{font-size:15px}.cas-board{grid-template-columns:repeat(13,minmax(0,1fr));grid-auto-rows:28px;width:100%;max-width:100%}.cas-pick{font-size:10px;min-width:0}.cas-wheel{width:190px;height:190px}.cas-reel{width:70px;height:210px}.cas-strip div{height:70px}.cas-strip svg{width:52px;height:52px}.cas-card{width:56px;height:80px}.cas-dbets{grid-template-columns:repeat(2,1fr)}.cas-tab{min-width:0;flex:1;font-size:11px;padding:6px 4px}.cas-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex-wrap:nowrap}.cas-pay{display:none}.cas-head{flex-wrap:wrap;gap:6px;padding:2px 8px 8px}.cas-brand b{font-size:18px}.cas-x{width:32px;height:32px}}
+/* [v339] BANKSY t1793u "optimize ... casino on mobile": touch-native table. No full-screen backdrop blur on phones (the WebGL frame stays
+   un-blurred behind it), no double-tap zoom / rubber-band, a merged one-row top bar + side bet rail on landscape phones, a 4-up tab strip and a
+   fluid 13-column roulette felt on portrait phones (scrollWidth <= clientWidth at 360 px). */
+.cas-ov,.cas-ov button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.cas-ov,.cas-box{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.cas-tab .cas-ts{display:none}
+.cas-rl>div:last-child{min-width:0}
+@media (pointer:coarse),(max-width:720px),(max-height:540px){.cas-ov{backdrop-filter:none;-webkit-backdrop-filter:none;background:radial-gradient(ellipse at center,rgba(24,9,4,.86),rgba(6,2,1,.96))}
+ .cas-box{box-shadow:0 0 0 2px #3a1a08,0 0 0 5px #8a5a12,0 12px 30px rgba(0,0,0,.7)}}
+@media (max-width:600px){
+ .cas-ov{align-items:stretch}
+ .cas-box{width:100vw;height:100vh;height:100dvh;max-height:100dvh;border-radius:0;border-width:2px;padding:calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));overflow-x:hidden;overflow-y:auto}
+ .cas-box:before,.cas-box:after{display:none}
+ .cas-head{gap:8px;padding:2px 0 6px}
+ .cas-brand{min-width:0;flex:1}.cas-brand small{font-size:9px;letter-spacing:.2em}
+ .cas-brand b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .cas-mode,.cas-sp{display:none}
+ .cas-pill{font-size:14px;padding:4px 10px 4px 4px;white-space:nowrap;flex:none}.cas-pill svg{width:20px;height:20px}
+ .cas-x{width:40px;height:40px;flex:none}
+ .cas-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:6px 0}
+ .cas-tab{min-width:0;flex-direction:column;gap:3px;padding:6px 2px;font-size:10px;letter-spacing:.04em}
+ .cas-tab .cas-tl{display:none}.cas-tab .cas-ts{display:inline}
+ .cas-felt{padding:10px 8px;border-width:6px;min-height:0;border-radius:16px}
+ .cas-gname{font-size:15px;margin:-2px 0 6px;letter-spacing:.1em}
+ .cas-rl{flex-direction:column;gap:8px;flex-wrap:nowrap}.cas-rl>div:last-child{width:100%}
+ .cas-wheel{width:156px;height:156px}
+ .cas-board{grid-template-columns:repeat(13,minmax(0,1fr));grid-auto-rows:34px;gap:2px;width:100%}
+ .cas-pick{font-size:11px}.cas-pick.o{font-size:9px;letter-spacing:0;line-height:1.05}
+ .cas-reel{width:min(25vw,96px);height:180px}.cas-strip div{height:60px}.cas-strip svg{width:46px;height:46px}
+ .cas-cab{padding:12px 10px 10px}.cas-cab:before{display:none}
+ .cas-lever,.cas-pay{display:none}
+ .cas-card{width:54px;height:78px;margin:0 -6px}.cas-card b{font-size:15px}.cas-card b i{font-size:12px}.cas-card em{font-size:28px}.cas-cards{min-height:84px}
+ .cas-die{width:64px;height:64px;padding:7px}.cas-die i{width:11px;height:11px}
+ .cas-dbets{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.cas-dbets .cas-pick{height:46px;font-size:13px}
+ .cas-bets{gap:5px;margin:8px 0 2px}.cas-chip{width:42px;height:42px;font-size:11px}
+ .cas-adj{padding:9px 10px;font-size:12px}.cas-betv{min-width:86px;padding:6px 8px;font-size:15px}
+ .cas-acts{gap:6px;flex-wrap:nowrap}.cas-btn{min-width:0;flex:1;padding:13px 6px;font-size:14px;letter-spacing:.05em}
+ .cas-res{font-size:18px;min-height:24px;margin-top:4px}.cas-foot{font-size:10px}
+}
+@media (max-height:540px) and (min-width:560px){
+ .cas-ov{align-items:stretch}
+ .cas-box{width:100vw;height:100vh;height:100dvh;max-height:100dvh;border-radius:0;border-width:2px;overflow:hidden;
+  padding:calc(4px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+  display:grid;grid-template-columns:minmax(0,1fr) 214px;grid-template-rows:40px auto auto minmax(0,1fr) auto;grid-template-areas:"tabs head" "felt bets" "felt err" "felt hist" "felt foot";column-gap:8px}
+ .cas-box:before,.cas-box:after{display:none}
+ .cas-head{grid-area:head;padding:0;border:0;gap:6px;min-width:0}
+ .cas-brand,.cas-mode,.cas-sp{display:none}
+ .cas-pill{flex:1;justify-content:center;font-size:14px;padding:3px 8px 3px 3px;white-space:nowrap;min-width:0}.cas-pill svg{width:20px;height:20px}
+ .cas-x{width:36px;height:36px;flex:none;font-size:20px}
+ .cas-tabs{grid-area:tabs;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0;align-self:stretch}
+ .cas-tab{min-width:0;padding:3px 4px;font-size:11px;gap:5px;border-radius:9px}.cas-tab svg{width:18px;height:18px}
+ .cas-tab .cas-tl{display:none}.cas-tab .cas-ts{display:inline}
+ .cas-felt{grid-area:felt;min-height:0;margin-top:4px;padding:6px 8px;border-width:5px;border-radius:14px;overflow:hidden;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;column-gap:6px}
+ .cas-felt>*{width:100%}.cas-felt>.cas-hand{width:calc(50% - 6px);margin:0}
+ .cas-gname{font-size:13px;margin:0 0 2px;letter-spacing:.12em}
+ .cas-bets{grid-area:bets;margin:4px 0 0;gap:4px;align-content:flex-start}
+ .cas-chip{width:38px;height:38px;font-size:10px}.cas-chip:before{border-width:4px}
+ .cas-adj{padding:7px 9px;font-size:11px}.cas-betv{min-width:0;width:100%;padding:5px 6px;font-size:14px}.cas-betv small{font-size:9px}
+ .cas-err{grid-area:err;font-size:11px;min-height:0}.cas-hist{grid-area:hist;align-content:flex-start;overflow:hidden;margin:2px 0 0}.cas-foot{grid-area:foot;font-size:9px;margin:2px 0 0;line-height:1.2}
+ .cas-acts{margin-top:4px;gap:6px;flex-wrap:nowrap}.cas-btn{min-width:0;flex:1;max-width:170px;padding:10px 6px;font-size:13px;letter-spacing:.05em}
+ .cas-res{font-size:16px;min-height:20px;margin-top:2px}
+ .cas-card{width:52px;height:74px;margin:0 -6px}.cas-card b{font-size:14px}.cas-card b i{font-size:11px}.cas-card em{font-size:26px}.cas-cards{min-height:78px}.cas-hand h4{font-size:10px}
+ .cas-rl{flex-wrap:nowrap;gap:10px;align-items:center}.cas-wheel{width:140px;height:140px}.cas-rl>div:last-child{flex:1}
+ .cas-board{grid-template-columns:repeat(13,minmax(0,1fr));grid-auto-rows:26px;gap:2px;width:100%}.cas-pick{font-size:11px}.cas-pick.o{font-size:9px;letter-spacing:0}
+ .cas-rl .cas-row{margin-top:4px!important;font-size:12px}.cas-pocket{font-size:18px}
+ .cas-dice{margin:4px 0 2px;gap:18px}.cas-die{width:58px;height:58px;padding:6px;border-radius:12px}.cas-die i{width:10px;height:10px}
+ .cas-dbets{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:4px}.cas-dbets .cas-pick{height:42px;font-size:12px}
+ .cas-slot{gap:10px}.cas-cab{padding:8px 8px 7px;border-radius:16px 16px 10px 10px}.cas-cab:before{display:none}
+ .cas-reels{gap:6px;padding:6px}.cas-reel{width:76px;height:150px}.cas-strip div{height:50px}.cas-strip svg{width:40px;height:40px}
+ .cas-lever{width:24px;height:120px}.cas-lever:before{top:24px;height:90px}.cas-lever:after{width:22px;height:22px}.cas-lever.pull:after{transform:translateY(90px)}
+ .cas-pay{display:none}
+}
 `;
 function injectCss() { if (typeof document === 'undefined' || document.getElementById('cas-css')) return; const st = document.createElement('style'); st.id = 'cas-css'; st.textContent = CSS; document.head.appendChild(st); }
 
@@ -149,7 +222,7 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
       <span class="cas-mode" data-k="mode"></span><span class="cas-sp"></span>
       <div class="cas-pill" data-k="pill">${COIN}<span data-k="gold">0 GOLD</span></div>
       <button class="cas-x" data-k="x" title="Close (Esc)">×</button></div>
-    <div class="cas-tabs" data-k="tabs">${Object.keys(TITLES).map(g => `<button class="cas-tab" data-g="${g}">${GAME_ICON[g]}${esc(TITLES[g])}</button>`).join('')}</div>
+    <div class="cas-tabs" data-k="tabs">${Object.keys(TITLES).map(g => `<button class="cas-tab" data-g="${g}">${GAME_ICON[g]}<span class="cas-tl">${esc(TITLES[g])}</span><span class="cas-ts">${esc(SHORT[g])}</span></button>`).join('')}</div>
     <div class="cas-felt" data-k="felt"></div>
     <div class="cas-bets" data-k="bets"></div>
     <div class="cas-err" data-k="err"></div>

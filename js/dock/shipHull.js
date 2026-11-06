@@ -11,6 +11,23 @@ export const HULL_COMBAT_LOCK_S = 8;
 export const HULL_QA = typeof location !== 'undefined' && /[?&]hullqa=1(?:&|$)/.test(location.search || '');
 
 export const QUARTERS_GLB = 'assets/island/captains_quarters.glb';
+// [v339 mobile-stability] BANKSY t1792u "On mobile the tab refreshes and restarts me": iOS Safari kills (and reloads) a tab that crosses its
+// ~350-450 MB budget. Phones / low-memory devices never decode the quarters at Harbor boot (lazy: first ENTER HULL), use the _lo ship-kit
+// maps (no normal maps), anisotropy 1, quarter/half-size procedural canvases, ONE Draco worker, and free every per-visit GPU resource on leave.
+// ?lowmem=1 / ?lowmem=0 force it on / off.
+export const QUARTERS_LOW_MEM = (() => {
+  try {
+    const q = typeof location !== 'undefined' ? (location.search || '') : '';
+    if (/[?&]lowmem=0(?:&|$)/.test(q)) return false;
+    if (/[?&]lowmem=1(?:&|$)/.test(q)) return true;
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '', mem = +navigator.deviceMemory || 0;
+    return /Android|iPhone|iPad|iPod/i.test(ua) || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || (mem > 0 && mem <= 4);
+  } catch { return false; }
+})();
+const Q_ANISO = QUARTERS_LOW_MEM ? 1 : 8;
+/** [v339] canvas scale on low-memory devices: 2048/1024 px -> 1/4, 512-768 px -> 1/2, small sprites untouched. */
+function _texScale(w, h) { if (!QUARTERS_LOW_MEM) return 1; const m = Math.max(w, h); return m >= 1024 ? 0.25 : m >= 512 ? 0.5 : 1; }
 export const QUARTERS_KITS = Object.freeze([
   'stern_gallery_kit', 'hull_rib_kit', 'wainscot_bay_kit', 'porthole_kit',
   'wheel_chandelier_kit', 'gimbal_lantern_kit', 'chart_table_kit', 'berth_kit',
@@ -36,23 +53,25 @@ function _rng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1, colorSpace = true, wrap = true } = {}) {
+function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1, colorSpace = true, wrap = true, pixel = false } = {}) {
   if (_texCache[key]) return _texCache[key];
   if (!_canDraw()) { _texCache[key] = null; return null; }
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const f = _texScale(w, h), cw = Math.max(1, Math.round(w * f)), ch = Math.max(1, Math.round(h * f));
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
   const ctx = cv.getContext('2d');
-  try { draw(ctx, w, h); } catch { /* headless fallback */ }
+  // [v339] path-drawn textures keep their authored coordinates (ctx.scale); ImageData painters (pixel: true) fill the real canvas size
+  try { if (pixel) draw(ctx, cw, ch); else { if (f !== 1) ctx.scale(f, f); draw(ctx, w, h); } } catch { /* headless fallback */ }
   const t = new THREE.CanvasTexture(cv);
   if (colorSpace) t.colorSpace = THREE.SRGBColorSpace;
   if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY); }
-  t.anisotropy = 8; t.needsUpdate = true;
+  t.anisotropy = Q_ANISO; t.needsUpdate = true;
   t.userData = { cached: true };
   _texCache[key] = t;
   return t;
 }
 function _heightToNormal(key, w, h, heightFn, strength = 2.4) {
   if (_texCache[key]) return _texCache[key];
-  if (!_canDraw()) { _texCache[key] = null; return null; }
+  if (!_canDraw() || QUARTERS_LOW_MEM) { _texCache[key] = null; return null; } // [v339] phones: no procedural normal maps (flat shading, zero extra VRAM)
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(w, h);
@@ -73,7 +92,7 @@ function _heightToNormal(key, w, h, heightFn, strength = 2.4) {
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.NoColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 8; t.needsUpdate = true;
+  t.anisotropy = Q_ANISO; t.needsUpdate = true;
   t.userData = { cached: true };
   _texCache[key] = t;
   return t;
@@ -223,7 +242,7 @@ function texMahogany() {
       img.data[o] = 150 + k * 100; img.data[o + 1] = 118 + k * 82; img.data[o + 2] = 100 + k * 70; img.data[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-  });
+  }, { pixel: true });
 }
 function texMahoganyN() { return _heightToNormal('cqMahogN', 512, 512, (x, y, w, h) => _grainH(x * 2, y * 2, w * 2, h * 2) * 0.35, 2.0); }
 function texVelvet() {
@@ -302,8 +321,8 @@ let _jollyTex = null;
 function texJollyRoger() {
   if (_jollyTex) return _jollyTex;
   if (!_canDraw()) return null;
-  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 640;
-  const ctx = cv.getContext('2d');
+  const cv = document.createElement('canvas'), jf = QUARTERS_LOW_MEM ? 0.5 : 1; cv.width = 512 * jf; cv.height = 640 * jf;
+  const ctx = cv.getContext('2d'); if (jf !== 1) ctx.scale(jf, jf); // [v339] half-size flag on phones
   ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 512, 640);
   ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 14; ctx.strokeRect(14, 14, 484, 612);
   ctx.fillStyle = '#f4e2bb'; ctx.beginPath(); ctx.ellipse(256, 250, 100, 110, 0, 0, Math.PI * 2); ctx.fill();
@@ -317,7 +336,7 @@ function texJollyRoger() {
   ctx.fillStyle = '#c9a24b'; ctx.font = 'bold 36px serif'; ctx.textAlign = 'center';
   ctx.fillText('PUMPFUN PIRATES', 256, 580);
   const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Q_ANISO; t.needsUpdate = true;
   t.userData = { cached: true };
   _jollyTex = t;
   try {
@@ -397,15 +416,17 @@ function preloadQuartersTextures() {
       L.load(path, (t) => {
         t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
         if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = 8; t.needsUpdate = true;
+        t.anisotropy = Q_ANISO; t.needsUpdate = true;
         t.userData = { cached: true };
         res(t);
       }, undefined, () => res(null));
     } catch { res(null); }
   });
   const K = ['deck_d', 'deck_n', 'hull_d', 'hull_n', 'sail_d', 'sail_n'];
+  // [v339] phones: the 512 px _lo diffuse maps only (deck_d_lo.jpg / hull_d_lo.jpg / sail_d_lo.jpg), no normal maps (~1/4 the VRAM of 6 x 1024 px)
+  const kitUrl = (k) => (QUARTERS_LOW_MEM ? (k.endsWith('_n') ? null : `assets/ships/kit/${k}_lo.jpg`) : `assets/ships/kit/${k}.jpg`);
   _qTex.p = Promise.all([
-    ...K.map((k) => one(`assets/ships/kit/${k}.jpg`, k.endsWith('_d'))),
+    ...K.map((k) => (kitUrl(k) ? one(kitUrl(k), k.endsWith('_d')) : Promise.resolve(null))),
     ...PORTRAIT_IDS.map((id) => one(`assets/captains/${id}.jpg`, true, false)),
   ]).then((arr) => {
     K.forEach((k, i) => { _qTex[k] = arr[i]; });
@@ -423,8 +444,10 @@ export function preloadQuartersGlb() {
   if (_quartersGlbP) return _quartersGlbP;
   if (typeof window === 'undefined' || !_canDraw()) return null;
   try { window.__pfpQuartersGlbReady = !!_quartersGlb; } catch {}
+  try { window.__pfpQuartersPreloads = (window.__pfpQuartersPreloads | 0) + 1; } catch {} // [v339] test probe: how many times the GLB decode started
   const draco = new DRACOLoader();
   draco.setDecoderPath(new URL('../../vendor/three-0.165.0/examples/jsm/libs/draco/gltf/', import.meta.url).href);
+  if (QUARTERS_LOW_MEM) draco.setWorkerLimit(1); // [v339] one Draco WASM heap on phones (default 4)
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
   _quartersGlbP = Promise.all([
@@ -441,6 +464,23 @@ export function preloadQuartersGlb() {
     return gltf;
   }).catch((e) => { console.warn('[quarters] glb', e); _quartersGlbP = null; return null; });
   return _quartersGlbP;
+}
+
+/** [v339] Phones: give back everything the quarters uploaded (GLB geometry, kit maps, procedural canvases, cabin PMREM) after LEAVE HULL,
+ *  so Harbor VRAM / RAM returns to its pre-visit baseline. The next ENTER HULL simply reloads (HTTP / service-worker cache). */
+export function releaseQuartersAssets() {
+  if (_quartersGlbP && !_quartersGlb) return false; // still decoding: keep it (attach is pending)
+  try { _quartersGlb?.scene?.traverse((o) => { try { o.geometry?.dispose?.(); } catch {} for (const m of [].concat(o.material || [])) { try { m?.dispose?.(); } catch {} } }); } catch {}
+  _quartersGlb = null; _quartersGlbP = null;
+  try { window.__pfpQuartersGlbReady = false; } catch {}
+  for (const k of Object.keys(_texCache)) { try { _texCache[k]?.dispose?.(); } catch {} delete _texCache[k]; }
+  try { _jollyTex?.dispose?.(); } catch {} _jollyTex = null;
+  for (const k of ['deck_d', 'deck_n', 'hull_d', 'hull_n', 'sail_d', 'sail_n']) { try { _qTex[k]?.dispose?.(); } catch {} _qTex[k] = null; }
+  for (const t of Object.values(_qTex.cap || {})) { try { t?.dispose?.(); } catch {} }
+  _qTex.cap = {}; _qTex.ready = false; _qTex.p = null;
+  try { _cabinEnv?.dispose?.(); } catch {} _cabinEnv = null;
+  try { window.__pfpQuartersReleased = (window.__pfpQuartersReleased | 0) + 1; } catch {}
+  return true;
 }
 
 /** Per-visit material set (disposed cleanly on leave; shared textures stay cached). */
@@ -926,7 +966,8 @@ export function createShipHull({
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
   houses = null, low = false, ocean = null, islands = null,
 }) {
-  preloadQuartersGlb();
+  // [v339] desktop warms the quarters at Harbor boot; phones / low-memory devices load them lazily on ENTER HULL (buildCaptainsQuartersRoom)
+  if (!QUARTERS_LOW_MEM) preloadQuartersGlb();
 
   const leaveBtn = document.createElement('button');
   leaveBtn.id = 'cq-leave'; leaveBtn.type = 'button'; leaveBtn.textContent = 'LEAVE HULL';
@@ -1109,6 +1150,7 @@ export function createShipHull({
       try {
         try { houses?.closeStorage?.(); } catch {}
         if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
+        if (QUARTERS_LOW_MEM) releaseQuartersAssets(); // [v339] phones: back to the Harbor VRAM baseline
         roomOrigin = null; inHull = false; returnCtx = null;
         leaveBtn.style.display = 'none';
         document.documentElement.classList.remove('pfp-inhull', 'pfp-inhouse');
@@ -1177,6 +1219,7 @@ export function createShipHull({
     if (inHull) {
       try { houses?.closeStorage?.(); } catch {}
       if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
+      if (QUARTERS_LOW_MEM) releaseQuartersAssets(); // [v339]
       inHull = false; roomOrigin = null; returnCtx = null;
       leaveBtn.style.display = 'none';
       document.documentElement.classList.remove('pfp-inhull', 'pfp-inhouse');

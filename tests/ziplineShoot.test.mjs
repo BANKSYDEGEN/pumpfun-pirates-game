@@ -66,7 +66,8 @@ test('stance + attack gates still work on foot/zipline (no ride early-return in 
   const b = src('js/onfoot/battle.js');
   assert.match(b, /function attack\(\) \{[\s\S]*?if \(!me\.zone \|\| me\.down > 0 \|\| me\.cool > 0 \|\| !walker\.active\) return false;/);
   assert.doesNotMatch(b, /function attack\(\) \{[\s\S]*?w\.ride[\s\S]*?return false/);
-  assert.match(b, /if \(e\.code === 'Tab'\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); cycleStance\(\); return; \}/);
+  assert.match(b, /isKey\('weapon', e\.code\)/); // [v339] Q cycles weapon; Tab is menu-only
+  assert.doesNotMatch(b, /if \(e\.code === 'Tab'\) \{ e\.preventDefault\(\); e\.stopPropagation\(\); cycleStance\(\); return; \}/);
 });
 
 test('both ziplines (waterfall↔skull + castle↔waterfall) share createZipline / zipGrip', () => {

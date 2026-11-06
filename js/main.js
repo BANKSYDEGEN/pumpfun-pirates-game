@@ -33,7 +33,7 @@ import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
 import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
-import { isKey, held as heldKey, installMouseBinds, binds, keyName } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
+import { isKey, held as heldKey, installMouseBinds, binds, keyName, anyModalOpen, installModalKeyIsolation } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { initGamepad, CONSOLE } from './gamepad.js'; // [Emerly gamepad] controllers (Gamepad API) + console browsers (Xbox Edge / PlayStation); &pad=0 = off
 import { equippedSkin, ownsSkin, equipSkin, getSkin, skinSwatch } from './skins.js';
@@ -114,16 +114,21 @@ renderer.debug.checkShaderErrors = /[?&]shaderdebug=1/.test(location.search);
 // [perf2] sharper ground / decks at grazing angles: default anisotropy for every texture made from here on (explicit values stay)
 THREE.Texture.DEFAULT_ANISOTROPY = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, isMobile || quality === 'low' ? 4 : 8);
 renderer.setSize(innerWidth, innerHeight);
-// [mobile-perf] BANKSY "...and crashed": a phone under GPU memory pressure drops the WebGL context (black / frozen game). three.js
-// waits for a restore; if none comes within 6 s, reload once per tab session (the save is server-side) instead of a dead screen.
-canvas.addEventListener('webglcontextlost', () => { console.warn('[mobile] WebGL context lost'); setTimeout(() => {
-  if (!renderer.getContext().isContextLost()) return; let n = 0; try { n = +(sessionStorage.getItem('pfp_ctx_reload') || 0); sessionStorage.setItem('pfp_ctx_reload', n + 1); } catch {}
-  const match = game.state === 'playing' && !(dock && dock.on); // [mobile-perf] mid-match (Battle Royale / Storm Hunt, not the harbor): never auto-reload, offer a button
-  if (n < 1 && !match) return location.reload();
-  if (!document.getElementById('pfp-ctx-reload')) { const b = document.createElement('button'); b.id = 'pfp-ctx-reload'; b.textContent = 'GRAPHICS RESET · TAP TO RELOAD';
-    b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#e11d1d;color:#fff;border:3px solid #fbbf24;border-radius:14px';
-    b.onclick = () => location.reload(); document.body.appendChild(b); } }, 6000); }, false);
-canvas.addEventListener('webglcontextrestored', () => console.info('[mobile] WebGL context restored'), false);
+// [mobile-perf] BANKSY "...and crashed": a phone under GPU memory pressure drops the WebGL context (black / frozen game).
+// [v339 mobile-stability] BANKSY t1792u "On mobile the tab refreshes and restarts me": the old handler reloaded the page 6 s after a context loss
+// (once per tab, Harbor included) = straight back to the title. Now: preventDefault() right away (the browser may restore the context; three.js
+// re-uploads everything on 'webglcontextrestored'), skip drawing while lost, wait 12 s, and never blind-reload a live session: the Harbor
+// snapshot (pfp_harbor_resume_v1, below) is saved first and a tap banner offers the reload, which drops you straight back where you stood.
+let glLost = false, glLostT = 0;
+canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); glLost = true; console.warn('[mobile] WebGL context lost'); try { harborResumeSave(true); } catch {}
+  clearTimeout(glLostT); glLostT = setTimeout(() => {
+    if (!glLost || !renderer.getContext().isContextLost()) return;
+    let n = 0; try { n = +(sessionStorage.getItem('pfp_ctx_reload') || 0); } catch {}
+    if (game.state === 'title' && n < 1) { try { sessionStorage.setItem('pfp_ctx_reload', n + 1); } catch {} return location.reload(); } // nothing to lose on the title screen
+    if (!document.getElementById('pfp-ctx-reload')) { const b = document.createElement('button'); b.id = 'pfp-ctx-reload'; b.type = 'button'; b.textContent = 'GRAPHICS PAUSED · TAP TO RESUME';
+      b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#1a0f07;color:#ffcd77;border:3px solid #fbbf24;border-radius:14px;max-width:90vw';
+      b.onclick = () => { try { harborResumeSave(true); } catch {} location.reload(); }; document.body.appendChild(b); } }, 12000); }, false);
+canvas.addEventListener('webglcontextrestored', () => { glLost = false; clearTimeout(glLostT); document.getElementById('pfp-ctx-reload')?.remove(); console.info('[mobile] WebGL context restored'); }, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -726,12 +731,15 @@ addEventListener('keydown', (e) => {
     const helmOff = shipLocked(); // [v314] in the canoe / ashore: no stray sail / fire / anchor input to the big ship
     if (!helmOff && isKey('sailUp', e.code)) setSail(player.sail + 1);
     if (!helmOff && isKey('sailDown', e.code)) setSail(player.sail - 1);
-    if (!helmOff && isKey('firePort', e.code)) playerFire('port');
-    if (!helmOff && isKey('fireStar', e.code)) playerFire('star');
+    if (!helmOff && !anyModalOpen?.() && !document.documentElement.classList.contains('pfp-tedit') && isKey('firePort', e.code)) playerFire('port');
+    if (!helmOff && !anyModalOpen?.() && !document.documentElement.classList.contains('pfp-tedit') && isKey('fireStar', e.code)) playerFire('star');
     if (!helmOff && isKey('anchor', e.code)) { toggleAnchor(); e.preventDefault(); }
     if (isKey('camera', e.code)) resetCamera();
   }
   if (e.code === 'Space' && game.state === 'playing') e.preventDefault(); // never scroll / press a focused button
+  // [v339] Escape closes the topmost modal (capture installer) — never opens Settings over it; gameplay keys ignored while a modal is open
+  if (e.code === 'Escape' && anyModalOpen?.()) { e.preventDefault(); return; }
+  if (anyModalOpen?.() && !isKey('pause', e.code)) return;
   if (isKey('pause', e.code) || e.code === 'Escape') togglePause();
   if (isKey('sound', e.code)) toggleSound();
   if (isKey('full', e.code) && !ON_PORTAL) toggleFull(); // portals bring their own fullscreen (CrazyGames forbids custom fullscreen)
@@ -798,7 +806,7 @@ function setSaveUi() {
 // [v71] ⚙ settings holds the Battle Royale entries (BANKSY): 🏴 menu (skins / scoreboard / name / save) + ⚓ return to harbor
 const _bsp = $('btn-set-pvpmenu'); if (_bsp) _bsp.onclick = () => { togglePause(); if (!$('pause').classList.contains('hidden')) $('pause').classList.add('hidden'); pvp?.toggleMenu(true); };
 const _bsh = $('btn-set-harbor'); if (_bsh) _bsh.onclick = () => { if (_bsh.disabled) return; togglePause(); $('pause').classList.add('hidden'); $('pvp-menu-return')?.click(); };
-installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spectating });
+installModalKeyIsolation(); installMouseBinds({ canvas, inGame: () => game.state === 'playing' || !!pvp?.spectating });
 const pad = initGamepad({ game: () => game, controls, camera, binds, spectating: () => !!pvp?.spectating }); // [Emerly gamepad] js/gamepad.js
 { const b = $('btn-ctl-title'); if (b) b.onclick = () => openControls(); }
 { const b = $('btn-ctl-pause'); if (b) b.onclick = () => openControls(); }
@@ -1183,6 +1191,7 @@ function startGame(mode = null) {
   clearEmotes(); // [v96]
   const leftPvp = game.mode === 'pvp' && mode !== 'pvp'; // [v330] Harbor / Island -> Storm Hunt (t1752u)
   if (leftPvp) pvp?.leave(); // [pvp]
+  if (mode !== 'pvp') harborResumeClear(); // [v339] Storm Hunt: never resume into the Harbor
   player.calm = 0; player.repT = 0; // [repair]
   // [set sail first] no name / wallet needed to sail; use whatever was saved last time (may be empty)
   game.wallet = (pirate?.account.connected && pirate.account.wallet) || getSavedWallet(); game.name = getSavedName();
@@ -1226,6 +1235,7 @@ async function startPvp(watch = false) { // [pvp] watch = SPECTATE (receive-only
 }
 
 function toTitle() {
+  harborResumeClear(); // [v339] MAIN MENU = a deliberate exit: no auto-resume
   clearEmotes(); // [v96]
   closeTutorial(); // [tutorial]
   if (game.mode === 'pvp') { pvp?.leave(); closeShop(); $('shop')?.classList.add('hidden'); game.mode = null; } // [pvp]
@@ -1478,7 +1488,8 @@ function frame() {
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
   tickPirates(dt, camera); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
-  if (composer) composer.render(); else renderer.render(scene, camera);
+  if (!glLost) { if (composer) composer.render(); else renderer.render(scene, camera); } // [v339] no draws while the GPU context is lost
+  harborResumeTick();
   requestAnimationFrame(frame);
 }
 
@@ -1548,6 +1559,7 @@ initHomeBoard(); // [pvp]
 addEventListener('pfp-renamed', () => { if (!$('title').classList.contains('hidden')) renderBoard($('board-title')); }); // [v74] Waves board too
 document.documentElement.classList.add('pfp-booted'); // [v167] BANKSY: "on refresh it shows the OLD home screen then the NEW one": index.html ships the old home markup and the code above reshapes it (ENTER GAME, no STORM HUNT, portal / account bits) after the GLB awaits; css/style.css keeps #title's panel hidden until here
 $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_retry'); } catch {}
+setTimeout(() => harborResumeBoot(), 0); // [v339] a phone reload / OS tab eviction inside the Harbor drops you straight back in (no title, no name card)
 // [perf2] BANKSY "fast to load": while the title screen is up, warm the harbor's code (fetch / parse only, nothing runs) so tapping in
 // doesn't wait on the network. ?prefetch=0 = off.
 // [v330 perf] BANKSY "Optimized load time ... first": the WHOLE harbor module graph (js/preloadList.js, generated from the real imports: was 7
@@ -1556,8 +1568,11 @@ $('loading').classList.add('hidden'); try { sessionStorage.removeItem('pfp_boot_
 // Art is skipped on Save-Data / 2G-3G connections and stops the moment you leave the title (the loaders fetch whatever is left).
 if (DOCK_ON && !/[?&]prefetch=0/.test(location.search)) setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => {
   const head = document.head, have = new Set([...document.querySelectorAll('link[rel="modulepreload"]')].map(l => l.href));
-  for (const m of HARBOR_MODULES) { const href = new URL('../' + m, import.meta.url).href; if (have.has(href)) continue;
-    const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; head.appendChild(l); }
+  // [v339 mobile-stability] phones: the ~140 modulepreloads go in batches of 12 per idle slice (one burst spiked fetch + compile memory on iOS)
+  const todo = []; for (const m of HARBOR_MODULES) { const href = new URL('../' + m, import.meta.url).href; if (!have.has(href)) todo.push(href); }
+  const addPre = (href) => { const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; head.appendChild(l); };
+  if (!isMobile) todo.forEach(addPre);
+  else { const step = () => { if (game.state !== 'title' || dock || dockLoading) return; todo.splice(0, 12).forEach(addPre); if (todo.length) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(step, { timeout: 1500 }); }; step(); }
   const net = navigator.connection || {}, slow = net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || '');
   if (slow || /[?&]warmart=0/.test(location.search)) return;
   const lo = quality === 'low', sfx2 = lo ? '_low' : '';
@@ -1643,3 +1658,53 @@ window.PFP = DEV ? { get dock() { return dock; }, islands, harborIsle, ULTRA, GF
 // [admin-menu] the owner Admin Menu (⚙ SETTINGS > 👑 ADMIN MENU, F8). Every player loads the tiny client half (server FREEZE / pocket refresh pokes);
 // the panel itself only mounts when the SERVER says owner (admin_status). &admin=0 = off.
 if (!/[?&]admin=0(&|$)/.test(location.search)) import('./adminMenu.js').then(m => m.initAdminMenu({ dock: () => dock, pvp: () => pvp, player: () => player, game, scene, camera })).catch(e => console.warn('[admin-menu]', e));
+
+// ---------- [v339 mobile-stability] Harbor session auto-resume ----------
+// BANKSY t1792u: iOS / Android reload a tab after a memory kill or a long trip to another app, and a WebGL loss used to reload too. sessionStorage
+// survives exactly those reloads (one tab, same session) and is EMPTY on a fresh visit / new tab / every automated page.goto(), so this only ever
+// brings back the tab that was already in the Harbor. Saved every ~2 s and on pagehide / hidden while you're in the Harbor; cleared by MAIN MENU,
+// Storm Hunt, the arena / spectating, and logging out. ?noresume=1 = off.
+var RESUME_KEY = 'pfp_harbor_resume_v1', RESUME_MAX_MS = 15 * 60 * 1000, RESUME_ON = !/[?&]noresume=1(?:&|$)/.test(location.search);
+var resumeBusy = false, resumeT = 0, resumeOff = false; // var: hoisted (toTitle / the frame loop may touch these before this line runs)
+function harborResumeClear() { try { sessionStorage.removeItem(RESUME_KEY); } catch {} }
+function harborResumeRead() { try { const r = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null'); return r && r.v === 1 && Date.now() - (r.ts || 0) < RESUME_MAX_MS ? r : null; } catch { return null; } }
+function harborResumeSnap() {
+  if (!RESUME_ON || !DOCK_ON || resumeBusy || game.mode !== 'pvp' || !pvp || !dock?.on) return null;
+  if (pvp.where !== 'harbor' || pvp.spectating || !['playing', 'paused', 'shop'].includes(game.state)) return null;
+  const inf = pvp.harborInfo?.() || {}, W = dock.walker?.w, onFoot = !!dock.onFoot && !dock.inHull && !dock.canoeing;
+  const s = player;
+  return { v: 1, ts: Date.now(), prefix: inf.prefix || '', copy: inf.copy | 0, code: inf.code || '', pirateName: (pvp.name || '').slice(0, 24), onFoot, inHull: !!dock.inHull,
+    moored: dock.docking?.mode === 'docked', x: +(onFoot ? W?.x : s?.x) || 0, z: +(onFoot ? W?.z : s?.z) || 0, yaw: +(onFoot ? W?.yaw : s?.yaw) || 0 };
+}
+function harborResumeSave(force = false) {
+  if (resumeBusy || resumeOff) return;
+  try { if (sessionStorage.getItem('pfp_acct_bye')) { resumeOff = true; harborResumeClear(); return; } } catch {} // LOG OUT reload: start fresh
+  const r = harborResumeSnap();
+  if (r) { try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(r)); } catch {} return; }
+  // left the Harbor for the arena / spectate / Storm Hunt / title: forget it (but never while a boot-time resume is still running)
+  if (!force && game.state !== 'title' && pvp && (pvp.where !== 'harbor' || pvp.spectating)) harborResumeClear();
+}
+function harborResumeTick() { const now = performance.now(); if (now - resumeT < 2000) return; resumeT = now; harborResumeSave(); }
+addEventListener('pagehide', () => harborResumeSave(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') harborResumeSave(true); });
+addEventListener('pfp-acct', (e) => { if (e.detail?.out) { resumeOff = true; harborResumeClear(); } }, true);
+async function harborResumeBoot() {
+  const r = RESUME_ON && PVP_ENABLED && DOCK_ON ? harborResumeRead() : null;
+  if (!r) { harborResumeClear(); return; }
+  resumeBusy = true; window.__pfpResume = { state: 'start', r };
+  const wait = async (f, ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms) { try { if (f()) return true; } catch {} await new Promise(q => setTimeout(q, 120)); } return false; };
+  try {
+    await startPvp();
+    if (!await wait(() => dock?.on, 90000)) throw new Error('harbor did not load');
+    const go = $('pvp-entry-go'); if (go && !$('pvp-entry')?.classList.contains('hidden')) go.click(); // the name card: same name as before the reload
+    await wait(() => $('pvp-entry')?.classList.contains('hidden'), 4000); $('pvp-entry')?.classList.add('hidden');
+    try { const p = pvp.resumeServer?.(r); if (p?.then) await p; } catch (e) { console.warn('[resume] server', e); }
+    await wait(() => dock.docking?.mode === 'docked', 6000);
+    if (dock.applyResume) { dock.applyResume(r); await wait(() => (r.inHull ? dock.inHull : r.onFoot ? dock.onFoot : true), 3000); }
+    else if (r.inHull && dock.docking?.mode === 'docked') { dock.enterHull(); await wait(() => dock.inHull, 3000); }
+    else if (r.onFoot && Number.isFinite(r.x) && Number.isFinite(r.z)) { dock.goAshoreAt(r.x, r.z, r.yaw); await wait(() => dock.onFoot, 3000); }
+    window.__pfpResume = { state: 'done', r, onFoot: !!dock.onFoot, inHull: !!dock.inHull };
+    console.info('[resume] back in the harbor', r);
+  } catch (e) { console.warn('[resume] failed', e); window.__pfpResume = { state: 'failed', r, err: String(e) }; harborResumeClear(); }
+  finally { resumeBusy = false; }
+}

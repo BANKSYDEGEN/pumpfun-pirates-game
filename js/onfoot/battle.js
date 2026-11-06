@@ -30,7 +30,8 @@ import { swordGeo, musketGeo, swordGlow, SWORD_IDS, SWORD_DEFAULT, MUSKET_IDS, M
 import { toon } from '../toon.js';
 import { carryArmed } from '../carryWeapons.js';
 import { pitSwordOn, pitWeaponId } from '../carryRules.js'; // [Emerly pitsword]
-import { carriedWeapons } from '../pirateGear.js'; // [Emerly pitsword] inventory USE AS PRIMARY
+import { carriedWeapons } from '../pirateGear.js';
+import { isKey, binds, keyName, anyModalOpen } from '../keybinds.js'; // [v339] weapon key (Q) replaces Tab for stance cycle // [Emerly pitsword] inventory USE AS PRIMARY
 import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
 import { isNetId } from '../safe.js';
 import { ADM } from '../adminState.js'; // [admin-menu] GOD MODE / FREEZE
@@ -412,19 +413,24 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (s === me.stance) return true;
     me.stance = s; if (s) { me.drawn = s; readSword(); sfx?.equip?.(); }
     stanceSig = ''; hudSig = '';
-    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · Tab = switch · X = holster</small>` : '🤚 UNARMED<small>weapons holstered · Tab = Musket</small>', 1100);
+    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · ${keyName(binds('weapon')[0] || 'KeyQ')} = switch · X = holster</small>` : `🤚 UNARMED<small>weapons holstered · ${keyName(binds('weapon')[0] || 'KeyQ')} = Musket</small>`, 1100);
     return true;
   }
   function cycleStance() { return setStance(nextStance(me.stance)); }
   // keys 1 / 2 / 3 + X + Tab (bubble phase: the emote wheel's capture handler owns 1..8 while it is open)
   addEventListener('keydown', (e) => {
     if (!STANCES_ON || !me.onFoot || !walker.active || e.repeat) return;
+    if (anyModalOpen?.()) return;
     const tg = e.target?.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA' || e.target?.isContentEditable) return;
     // ignore when a modal / map / shop is up
     if (document.documentElement.classList.contains('isle-map-open')) return;
     const shop = document.getElementById('shop'); if (shop && shop.style.display !== 'none' && !shop.hidden && shop.offsetParent) return;
     const ew = document.getElementById('emote-wheel'); if (ew && !ew.classList.contains('hidden') && ew.style.display !== 'none' && ew.offsetParent) return;
-    if (e.code === 'Tab') { e.preventDefault(); e.stopPropagation(); cycleStance(); return; }
+    // [v339] Tab = PvP menu only (js/pvp.js isKey('menu')); Q = switch weapon on foot (unless a secondary Q prompt is up — dock capture owns that)
+    if (isKey('weapon', e.code)) {
+      if (document.querySelector('#dk-acts button:not([hidden]) kbd') && [...document.querySelectorAll('#dk-acts button:not([hidden])')].some(b => /\bQ\b/.test(b.textContent || ''))) return; // actB KeyQ prompt wins
+      e.preventDefault(); e.stopPropagation(); cycleStance(); return;
+    }
     const k = stanceForKey(e.code); if (k !== null) { setStance(k); e.preventDefault(); return; }
     if (e.code === 'KeyX') { setStance(holsterToggle(me.stance, me.drawn)); e.preventDefault(); }
   });

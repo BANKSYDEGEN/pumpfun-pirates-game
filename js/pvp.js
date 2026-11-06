@@ -66,7 +66,7 @@ import { getSavedName, saveName, syncName, isValidSolanaAddress, getSavedWallet,
 import { ON_PORTAL } from './config.js';
 import { mountKillsBoard, renderKills, refreshKillsBoards } from './pvpBoard.js';
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
-import { createServerPicker, SERVER_PICKER_ON, serverLabel, codeOfPrefix, ownPrefix } from './serverPicker.js'; // [backpack-pvp] t1694u CHOOSE SERVER
+import { createServerPicker, SERVER_PICKER_ON, serverLabel, codeOfPrefix, ownPrefix, planSwitch } from './serverPicker.js'; // [backpack-pvp] t1694u CHOOSE SERVER
 import { createKdTally } from './kdCounter.js'; // [backpack-pvp] t1703u K/D = sunk ships + ground fights
 
 const $ = (id) => document.getElementById(id);
@@ -1651,6 +1651,10 @@ export function createPvp(K) {
     const h = $('pvp-harbor'); if (!h) return;
     const show = active && where === 'harbor' && !spec.on; h.classList.toggle('hidden', !show); if (!show) return;
     serverPicker?.mountButton(); { const sb = document.getElementById('srv-btn'); if (sb && hbNet) sb.title = serverLabel({ prefix: hbNet.prefix, copy: hb.copy }); } // [backpack-pvp] ⚓ SERVER
+    try { // [v339] PLAY & SERVERS hub pill
+      const lab = hbNet ? serverLabel({ prefix: hbNet.prefix, copy: hb.copy }) : 'HARBOR';
+      dispatchEvent(new CustomEvent('pfp-harbor-hub', { detail: { label: lab, n: hb.n | hb.pirates | 0, queued: lob?.state === 'queue', pos: lob?.pos | 0 } }));
+    } catch {}
     const b = $('pvp-join'), t = $('pvp-harbor-t');
     if (lob.state === 'queue') { b.textContent = 'LEAVE QUEUE'; t.innerHTML = `${mode === 'squads' ? 'SQUADS · ' : ''}IN THE QUEUE · <b>#${num(lob.pos)}</b> of ${num(lob.queue)} · arena ${num(lob.players)}/${num(lob.cap)}`; }
     else if (lob.state === 'offer') { b.textContent = 'SET SAIL!'; t.innerHTML = '<b>BATTLE READY!</b>'; }
@@ -1926,6 +1930,12 @@ export function createPvp(K) {
     get profile() { return profile; }, get me() { return me; }, peers, bots, piles, get name() { return name; }, set name(v) { setName(v); }, pickSkin, renderMenu, toggleMenu,
     get where() { return where; }, lob, get net() { return net; }, get mode() { return mode; }, setMode, partyJoin, partyLeave, partyMake, partyInfo, joinWorld, sq, party, get skinId() { return skinId(); }, holder, refreshHolder, holderUi, claimHolderGold, joinBattle, acceptOffer, declineOffer, leaveQueue, harborSpectate, idleMs, maps, inv,
     requestReturn, get returning() { return me.ret; }, hb, hunter, get hbShared() { return where === 'harbor' && !!room; }, HB_PREFIX,
+    // [v339] harbor session auto-resume (js/main.js pfp_harbor_resume_v1): which server you were on, and put you back on it after a phone reload
+    harborInfo: () => ({ prefix: hbNet?.prefix || '', copy: hb.copy | 0, code: codeOfPrefix(hbNet?.prefix) || '', label: hbNet ? serverLabel({ prefix: hbNet.prefix, copy: hb.copy }) : 'HARBOR' }),
+    resumeServer: (r) => { if (!hbNet || !r) return null; const curCode = codeOfPrefix(hbNet.prefix) || '';
+      if (r.code && r.code !== curCode) return switchServer(planSwitch('own', r.code));
+      if (!r.code && (r.copy | 0) > 0 && (r.copy | 0) !== (hb.copy | 0)) return switchServer(planSwitch('pick', r.copy | 0));
+      return null; },
     serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), isSquadMate: (id) => isSquadMate(id), partyMates, unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
     _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
   api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game

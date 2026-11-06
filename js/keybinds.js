@@ -8,9 +8,10 @@ export const ACTIONS = [
   ['sprint', 'Sprint (on foot, hold)', ['ShiftLeft', 'ShiftRight']],
   ['menu', 'Battle Royale menu', ['Tab', '']], ['pause', 'Pause', ['KeyP', '']], ['sound', 'Sound on/off', ['KeyN', '']], ['full', 'Fullscreen', ['KeyF', '']],
   ['map', 'Island map (harbor)', ['KeyM', '']], ['jump', 'Jump (on foot)', ['Space', '']], // [v106] M = map (sound moved to N), Space = jump on foot
+  ['weapon', 'Switch weapon (on foot)', ['KeyQ', '']], ['inventory', 'Inventory (harbor)', ['KeyI', '']], // [v339] Tab = menu only; Q cycles weapon on foot (sea Q = firePort via CTX); I = inventory
 ];
-// [v106] actions that only ever fire in one mode can share a key with the other mode (Space: anchor at sea, jump on foot)
-const CTX = { anchor: 'sea', jump: 'foot' };
+// [v106]/[v339] actions that only ever fire in one mode can share a key with the other mode (Space: anchor at sea, jump on foot; Q: firePort at sea, weapon on foot; E: fireStar at sea, prompt on foot)
+const CTX = { anchor: 'sea', firePort: 'sea', fireStar: 'sea', jump: 'foot', sprint: 'foot', weapon: 'foot' };
 const clash = (a, b) => !(CTX[a] && CTX[b] && CTX[a] !== CTX[b]);
 const KEY = 'pfp_keys_v1', RESERVED = new Set(['Escape', 'MouseL']); // left click = camera drag / orbit
 // [mouse binds] mouse buttons bind like keys: 'MouseM' (wheel click), 'MouseR' (right), 'Mouse4' (side / back), 'Mouse5' (side / forward)
@@ -78,4 +79,57 @@ export function installMouseBinds({ inGame, canvas }) {
   let armed = false; const arm = () => { if (armed) return; armed = true; trap(); }; // after the first interaction (browsers skip entries without one)
   addEventListener('pointerdown', arm, { capture: true, once: true }); addEventListener('keydown', arm, { capture: true, once: true });
   addEventListener('popstate', () => { if (armed) trap(); });
+}
+
+// [v339] modal / panel key isolation: Escape closes the topmost open panel; gameplay keys ignore the background while any is open
+export function anyModalOpen() {
+  try {
+    const $ = (id) => document.getElementById(id);
+    if ($('inv-panel')?.classList.contains('on')) return true;
+    if ($('casino-ui')?.classList.contains('on')) return true;
+    if ($('srv-modal')?.classList.contains('on')) return true;
+    const srv = $('srv-modal'); if (srv && !srv.classList.contains('hidden') && srv.offsetParent) return true;
+    if ($('pvp-harbor')?.classList.contains('hb-modal-open')) return true;
+    if ($('pvp-menu') && !$('pvp-menu').classList.contains('hidden')) return true;
+    const shop = $('shop'); if (shop && !shop.classList.contains('hidden') && shop.style.display !== 'none' && shop.offsetParent) return true;
+    if (document.querySelector('.ishop-ov.on, #island-shop.on')) return true;
+    if ($('ctl-ov') && !$('ctl-ov').classList.contains('hidden')) return true;
+    if ($('pause') && !$('pause').classList.contains('hidden')) return true;
+    if (document.documentElement.classList.contains('dk-board')) return true;
+    if (document.documentElement.classList.contains('isle-map-open')) return true;
+    if (document.documentElement.classList.contains('ui-profile')) return true;
+    if (document.querySelector('.gp-modal.on')) return true;
+    const acct = $('acct-login'); if (acct && !acct.classList.contains('hidden')) return true;
+    return false;
+  } catch { return false; }
+}
+/** Close the topmost open modal/panel. Returns true if something was closed. */
+export function closeTopModal() {
+  try {
+    const $ = (id) => document.getElementById(id);
+    if ($('inv-panel')?.classList.contains('on')) { $("inv-panel").classList.remove('on'); return true; }
+    if ($('casino-ui')?.classList.contains('on')) { try { $('casino-ui').querySelector('[data-k="x"]')?.click(); } catch {} $('casino-ui').classList.remove('on'); return true; }
+    if ($('srv-modal')?.classList.contains('on')) { $('srv-modal').classList.remove('on'); return true; }
+    const srv = $('srv-modal'); if (srv && !srv.classList.contains('hidden') && srv.offsetParent) { srv.classList.add('hidden'); srv.style.display = 'none'; return true; }
+    if ($('pvp-harbor')?.classList.contains('hb-modal-open')) { $('pvp-harbor').classList.remove('hb-modal-open'); document.documentElement.classList.remove('hb-hub-open'); try { window.__pfpHarborHub?.close?.(); } catch {} return true; }
+    if ($('pvp-menu') && !$('pvp-menu').classList.contains('hidden')) { $('pvp-menu').classList.add('hidden'); return true; }
+    if ($('ctl-ov') && !$('ctl-ov').classList.contains('hidden')) { $('ctl-ov').classList.add('hidden'); return true; }
+    if (document.documentElement.classList.contains('isle-map-open')) { try { document.getElementById('isle-map')?.querySelector('.im-x, .imap-x, [data-close]')?.click(); } catch {} document.documentElement.classList.remove('isle-map-open'); return true; }
+    if (document.documentElement.classList.contains('dk-board')) { try { document.getElementById('dk-board-x')?.click(); } catch {} return true; }
+    if (document.documentElement.classList.contains('ui-profile')) { try { document.querySelector('#ui-profile .up-x, .profile-x')?.click(); } catch {} document.documentElement.classList.remove('ui-profile'); return true; }
+    const shop = $('shop'); if (shop && !shop.classList.contains('hidden') && shop.style.display !== 'none' && shop.offsetParent) { try { shop.querySelector('.close, .x, [data-close]')?.click(); } catch {} shop.classList.add('hidden'); return true; }
+    if (document.querySelector('.ishop-ov.on')) { document.querySelector('.ishop-ov.on')?.classList.remove('on'); return true; }
+    if (document.querySelector('.gp-modal.on')) { document.querySelector('.gp-modal.on')?.classList.remove('on'); return true; }
+    return false;
+  } catch { return false; }
+}
+export function installModalKeyIsolation() {
+  if (typeof addEventListener !== 'function' || window.__pfpModalKeys) return;
+  window.__pfpModalKeys = 1;
+  addEventListener('keydown', (e) => {
+    if (e.code !== 'Escape' || e.repeat) return;
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (!anyModalOpen()) return;
+    if (closeTopModal()) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
 }

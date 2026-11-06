@@ -109,7 +109,7 @@ export function keyFor(n, binds = () => []) {
     case 'left': case 'right': case 'anchor': case 'camera': case 'map': case 'jump': case 'sprint': return pick(n, ['MouseR', 'MouseM', 'Mouse4', 'Mouse5']);
     case 'menu': return pick('menu') || 'Tab'; case 'shop': return pick('shop');
     case 'pause': case 'back': return 'Escape';
-    case 'promptA': return 'KeyE'; case 'attack': return 'KeyR'; case 'team': return 'KeyG'; case 'emote': return 'KeyT'; case 'weapon': return 'Tab';
+    case 'promptA': return 'KeyE'; case 'attack': return 'KeyR'; case 'team': return 'KeyG'; case 'emote': return 'KeyT'; case 'weapon': return 'KeyQ'; // [v339] Tab = menu; Q = cycle weapon
     case 'specFollow': return 'KeyF'; case 'specLeader': return 'KeyL'; case 'specOverview': return 'KeyO'; case 'specHud': return 'KeyH'; case 'specPrev': return 'KeyQ'; case 'specNext': return 'Period'; case 'specBoard': return 'Tab';
     default: return '';
   }

@@ -70,6 +70,8 @@ let _loader = null; const _cache = new Map();
 function loader() {
   if (_loader) return _loader;
   const draco = new DRACOLoader(); draco.setDecoderPath(new URL('../vendor/three-0.165.0/examples/jsm/libs/draco/gltf/', import.meta.url).href); // [security M4] self-hosted (was jsDelivr)
+  // [v339 mobile-stability] phones: 2 Draco WASM workers (default 4 = ~4 decoder heaps of native RAM on iOS); pirate bodies are boot-critical so not 1
+  try { if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches) draco.setWorkerLimit(2); } catch {}
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {

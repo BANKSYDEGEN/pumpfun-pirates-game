@@ -7,7 +7,7 @@ if (/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname
 // "Hoisting the sails…" up forever. If start-up fails or takes over 30 s: clear the offline cache and reload (twice max),
 // then show a RELOAD button instead of hanging.
 (function () {
-  var KEY = 'pfp_boot_retry', booted = function () { var l = document.getElementById('loading'); return !!l && l.classList.contains('hidden'); };
+  var KEY = 'pfp_boot_retry', booted = function () { var l = document.getElementById('loading'); return (!!l && l.classList.contains('hidden')) || (function () { try { return document.documentElement.classList.contains('pfp-booted'); } catch (e) { return false; } })(); };
   var fail = function () {
     if (booted() || window.__pfpBootFail) return; window.__pfpBootFail = 1;
     var n = 0; try { n = +(sessionStorage.getItem(KEY) || 0); sessionStorage.setItem(KEY, n + 1); } catch (e) {}
@@ -41,7 +41,11 @@ if (/(^|\.)(itch\.zone|ungrounded\.net|crazygames\.com)$/.test(location.hostname
       if (++tries < 6) setTimeout(again, 500); else glCard(); };
     setTimeout(again, 500); }
   addEventListener('error', function (e) { if (e instanceof ErrorEvent && !booted()) setTimeout(fail, 400); }, true);
-  addEventListener('unhandledrejection', function () { if (!booted()) setTimeout(fail, 400); });
+  // [v339 mobile-stability] BANKSY t1792u: benign promise rejections (audio autoplay blocked, a wallet-extension probe, a network blip, an aborted
+  // fetch) never trigger the cache-clear + reload; and nothing here ever reloads once the title / game is up (booted()).
+  var benign = function (r) { var n = (r && r.name) || '', m = String((r && r.message) || r || '');
+    return /^(NotAllowedError|AbortError|NotSupportedError|SecurityError)$/.test(n) || /autoplay|play\(\)|user gesture|wallet|phantom|solana|ethereum|metamask|Failed to fetch|NetworkError|Load failed|network|timeout|supabase|realtime/i.test(m); };
+  addEventListener('unhandledrejection', function (e) { if (booted() || benign(e && e.reason)) return; setTimeout(fail, 400); });
   setTimeout(function () { if (!booted()) fail(); }, 30000);
 })();
 if (navigator.standalone === true || (/iPhone|iPad|iPod/.test(navigator.userAgent) && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches)) document.documentElement.classList.add('ios-pwa');

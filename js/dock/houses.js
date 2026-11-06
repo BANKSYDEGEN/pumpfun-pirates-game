@@ -250,6 +250,22 @@ export function buildFallbackExteriors(list, { layout, world, low = false } = {}
   return root;
 }
 
+/** [v339] free a cottage interior's per-visit GPU buffers + materials on exit (cached canvas / kit textures stay; phones also drop them). */
+function disposeRoom(g) {
+  if (!g) return;
+  try {
+    g.traverse((o) => {
+      if (o.geometry && !o.geometry.userData?.shared && !o.geometry.userData?.sharedGlb) { try { o.geometry.dispose(); } catch {} }
+      for (const m of [].concat(o.material || [])) { try { m?.dispose?.(); } catch {} }
+    });
+  } catch {}
+  if (HOUSES_LOW_MEM) {
+    for (const k of Object.keys(_texCache)) { try { _texCache[k]?.dispose?.(); } catch {} } // GPU copy only: three re-uploads the canvas on the next visit
+    for (const k of ['deck_d', 'deck_n', 'hull_d', 'hull_n', 'sail_d', 'sail_n']) { try { _shipKit[k]?.dispose?.(); } catch {} }
+    try { _jollyTex?.dispose?.(); } catch {}
+  }
+}
+
 function disposeGroup(g) {
   if (!g) return;
   g.traverse((o) => {
@@ -262,26 +278,42 @@ function disposeGroup(g) {
   g.parent?.remove(g);
 }
 
+// [v339 mobile-stability] BANKSY t1792u: phones / low-memory devices (iOS Safari reloads a tab past ~350-450 MB) never warm the cabin maps
+// at Harbor boot (first cottage entry loads them), use the 512 px _lo ship-kit diffuse maps, no procedural normal maps, anisotropy 1,
+// quarter / half-size canvases, and free the cabin's GPU memory on the way out. ?lowmem=1 / ?lowmem=0 force it.
+export const HOUSES_LOW_MEM = (() => {
+  try {
+    const q = typeof location !== 'undefined' ? (location.search || '') : '';
+    if (/[?&]lowmem=0(?:&|$)/.test(q)) return false;
+    if (/[?&]lowmem=1(?:&|$)/.test(q)) return true;
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '', mem = +navigator.deviceMemory || 0;
+    return /Android|iPhone|iPad|iPod/i.test(ua) || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || (mem > 0 && mem <= 4);
+  } catch { return false; }
+})();
+const H_ANISO = HOUSES_LOW_MEM ? 1 : 8;
+function _hTexScale(w, h) { if (!HOUSES_LOW_MEM) return 1; const m = Math.max(w, h); return m >= 1024 ? 0.25 : m >= 512 ? 0.5 : 1; }
 /** Cached procedural CanvasTextures (null-safe when document is missing — Node tests). */
 const _texCache = Object.create(null);
 function _canDraw() { return typeof document !== 'undefined' && typeof document.createElement === 'function'; }
 function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1, colorSpace = true, wrap = true } = {}) {
   if (_texCache[key]) return _texCache[key];
   if (!_canDraw()) { _texCache[key] = null; return null; }
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const f = _hTexScale(w, h); // [v339] phones: path-drawn at the authored size through ctx.scale
+  const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w * f)); cv.height = Math.max(1, Math.round(h * f));
   const ctx = cv.getContext('2d');
-  try { draw(ctx, w, h); } catch { /* keep blank */ }
+  try { if (f !== 1) ctx.scale(f, f); draw(ctx, w, h); } catch { /* keep blank */ }
   const t = new THREE.CanvasTexture(cv);
   if (colorSpace) t.colorSpace = THREE.SRGBColorSpace;
   if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY); }
-  t.anisotropy = 8;
+  t.anisotropy = H_ANISO;
   t.needsUpdate = true;
   _texCache[key] = t;
   return t;
 }
 function _heightToNormal(key, w, h, heightFn, strength = 2.4) {
   if (_texCache[key]) return _texCache[key];
-  if (!_canDraw()) { _texCache[key] = null; return null; }
+  if (!_canDraw() || HOUSES_LOW_MEM) { _texCache[key] = null; return null; } // [v339] phones: no procedural normal maps
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(w, h);
@@ -305,7 +337,7 @@ function _heightToNormal(key, w, h, heightFn, strength = 2.4) {
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.NoColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 8; t.needsUpdate = true;
+  t.anisotropy = H_ANISO; t.needsUpdate = true;
   _texCache[key] = t;
   return t;
 }
@@ -611,7 +643,7 @@ function texJollyRoger() {
   ctx.fillStyle = '#c9a24b'; ctx.font = 'bold 36px serif'; ctx.textAlign = 'center';
   ctx.fillText('PUMPFUN PIRATES', 256, 580);
   const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = H_ANISO; t.needsUpdate = true;
   _jollyTex = t;
   try {
     const img = new Image();
@@ -631,8 +663,9 @@ function texJollyRoger() {
 /** Shared ship-kit PBR textures (async warm; CanvasTexture fallback until ready). */
 const _shipKit = { deck_d: null, deck_n: null, hull_d: null, hull_n: null, sail_d: null, sail_n: null, ready: false };
 const _captainTex = Object.create(null);
-function preloadCabinAssets() {
+function preloadCabinAssets({ boot = false } = {}) {
   if (!_canDraw() || _shipKit.ready) return;
+  if (boot && HOUSES_LOW_MEM) return; // [v339] phones: nothing decoded at Harbor boot; the first cottage you walk into loads these
   _shipKit.ready = true;
   try {
     const L = new THREE.TextureLoader();
@@ -642,20 +675,26 @@ function preloadCabinAssets() {
         else t.colorSpace = THREE.NoColorSpace;
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.repeat.set(rep, rep);
-        t.anisotropy = 8;
+        t.anisotropy = H_ANISO;
         t.needsUpdate = true;
         _shipKit[key] = t;
       }, undefined, () => {});
     };
+    if (HOUSES_LOW_MEM) { // [v339] phones: 512 px diffuse maps only (deck_d_lo.jpg / hull_d_lo.jpg / sail_d_lo.jpg), no normal maps
+      load('assets/ships/kit/deck_d_lo.jpg', 'deck_d', { rep: 4 });
+      load('assets/ships/kit/hull_d_lo.jpg', 'hull_d', { rep: 2 });
+      load('assets/ships/kit/sail_d_lo.jpg', 'sail_d', { rep: 1 });
+    } else {
     load('assets/ships/kit/deck_d.jpg', 'deck_d', { rep: 4 });
     load('assets/ships/kit/deck_n.jpg', 'deck_n', { color: false, rep: 4 });
     load('assets/ships/kit/hull_d.jpg', 'hull_d', { rep: 2 });
     load('assets/ships/kit/hull_n.jpg', 'hull_n', { color: false, rep: 2 });
     load('assets/ships/kit/sail_d.jpg', 'sail_d', { rep: 1 });
     load('assets/ships/kit/sail_n.jpg', 'sail_n', { color: false, rep: 1 });
+    }
     for (const id of [1, 33, 74, 333]) {
       L.load(`assets/captains/${id}.jpg`, (t) => {
-        t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+        t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = H_ANISO; t.needsUpdate = true;
         _captainTex[id] = t;
       }, undefined, () => {});
     }
@@ -1314,7 +1353,7 @@ export function createHouses({
   inventory = null, pvp = () => null, low = false, game = null,
   ocean = null, islands = null,
 }) {
-  preloadCabinAssets();
+  preloadCabinAssets({ boot: true }); // [v339] desktop only at boot; phones warm on first cottage entry (buildInteriorRoom)
   if (!HOUSES_ON) {
     return { on: false, inHouse: false, prompts: () => null, tick() {}, netState: () => ({}), onPeerState() {}, clear() {}, act() {}, doors: [], storageOpen: false };
   }
@@ -1582,8 +1621,9 @@ export function createHouses({
   }
 
   function placeInterior(d) {
-    if (interior) { scene.remove(interior); interior = null; }
+    if (interior) { scene.remove(interior); disposeRoom(interior); interior = null; }
     const tier = owned[d.id]?.tier || d.tier || 'cozy';
+    preloadCabinAssets(); /* [v339] first cottage visit warms maps on phones */
     interior = buildInteriorRoom({ tier, cottageId: d.id, low });
     // Isolated pocket far from island colliders (harbor frame). Enclosed room hides the sky/ocean.
     const ox = 2800, oz = 2800, oy = 120;
@@ -1683,7 +1723,7 @@ export function createHouses({
     const hold = doorHold;
     fadeTo(() => {
       closeStorage();
-      if (interior) { scene.remove(interior); interior = null; }
+      if (interior) { scene.remove(interior); disposeRoom(interior); interior = null; }
       const w = walker.w;
       // Clear indoor flag BEFORE outdoor ground/blocked queries
       inHouse = false; activeId = null; roomOrigin = null;
@@ -2348,7 +2388,7 @@ export function createHouses({
     closeStorage();
     if (inHouse) {
       try { const w = walker?.w; if (w) { w.camHook = w._hsCamPrev || null; w._hsCamPrev = null; w._hsY = null; } } catch {}
-      if (interior) { scene.remove(interior); interior = null; }
+      if (interior) { scene.remove(interior); disposeRoom(interior); interior = null; }
       try { if (world?.root) world.root.visible = world.root.userData._hsVis !== false; } catch {}
       try { if (ocean?.mesh) ocean.mesh.visible = ocean.mesh.userData._hsVis !== false; } catch {}
       try { if (islands?.group) islands.group.visible = islands.group.userData._hsVis !== false; } catch {}

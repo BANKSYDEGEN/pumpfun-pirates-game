@@ -312,7 +312,7 @@ test('t1694u server picker: codes, prefixes, plans, labels', () => {
 
 test('t1694u server picker wiring: button, modal, switch, migration want semantics, sw.js shell', () => {
   const sp = read('js/serverPicker.js');
-  for (const s of ['⚓ SERVER', 'CHOOSE SERVER', 'ACTIVE PUBLIC SERVERS', '+ NEW PUBLIC SERVER', 'CREATE OWN SERVER', 'JOIN CODE', 'COPY CODE', 'AUTO PUBLIC']) assert.ok(sp.includes(s), s);
+  for (const s of ['⚓ SWITCH / PRIVATE SERVER', 'CHOOSE SERVER', 'ACTIVE PUBLIC SERVERS', '+ NEW PUBLIC SERVER', 'CREATE OWN SERVER', 'JOIN CODE', 'COPY CODE', 'AUTO PUBLIC']) assert.ok(sp.includes(s), s);
   assert.match(sp, /escHtml/);
   const pvp = read('js/pvp.js');
   assert.match(pvp, /function switchServer/);
@@ -374,7 +374,7 @@ test('t1726u/t1727u Safe Zone vector on full map + on-foot minimap; ZERO on ship
   assert.match(dock, /radarZones: \(\) => false/);
 });
 
-test('t1710u/t1731u stances: Tab cycles Unarmed→Musket→Sword; compact #bt-stance above emotes; Safe Zone auto-unarmed', () => {
+test('t1710u/t1731u/v339 stances: Q cycles Unarmed→Musket→Sword (Tab = menu); compact #bt-stance above emotes; Safe Zone auto-unarmed', () => {
   assert.ok(STANCES_ON);
   assert.deepEqual(STANCE, { unarmed: 0, sword: 1, gun: 2 });
   assert.deepEqual([...STANCE_LABEL], ['🤚 UNARMED', '⚔️ SWORD', '🔫 GUN']);
@@ -389,7 +389,7 @@ test('t1710u/t1731u stances: Tab cycles Unarmed→Musket→Sword; compact #bt-st
   assert.match(B, /function setStance\(s, auto = false\)/);
   assert.match(B, /id="bt-stance"|'bt-stance'/);
   assert.match(B, /nextStance|cycleStance/);
-  assert.match(B, /e\.code === 'Tab'/);
+  assert.match(B, /isKey\('weapon', e\.code\)/); // [v339] Q cycles weapon; Tab is menu-only
   assert.match(B, /safe-locked|SAFE ZONE<small>weapons stay holstered/);
   assert.match(B, /isleSafe\._isleSafe && !me\.arena && me\.stance !== 0/);
   assert.match(B, /bottom:calc\(84px \+ var\(--safe-b/);
