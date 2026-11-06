@@ -58,7 +58,7 @@ export const anyInput = (s) => !!s && (s.b.some(Boolean) || Math.hypot(s.lx, s.l
 export const MAP = {
   sea: { [BTN.A]: 'promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'enterHull|map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud] GUIDE/PS button toggles Hide HUD · [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
-  foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|weapon', [BTN.Y]: 'map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
+  foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|weapon', [BTN.Y]: 'leaveHullDoor|map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud]
   spec: { [BTN.A]: 'specFollow', [BTN.X]: 'specLeader', [BTN.Y]: 'specOverview', [BTN.B]: 'specHud', [BTN.LB]: 'specPrev', [BTN.RB]: 'specNext', [BTN.VIEW]: 'specBoard', [BTN.START]: 'pause' },
   ui: { [BTN.A]: 'click', [BTN.B]: 'back', [BTN.START]: 'back', [BTN.LB]: 'tabPrev', [BTN.RB]: 'tabNext', [BTN.Y]: 'click2', [BTN.X]: 'click3' },
@@ -69,7 +69,7 @@ export const MAP = {
 export const MAP_HELP = {
   sea: [['LEFT STICK', 'steer · push up / down = more / less sail'], ['RIGHT STICK', 'look around (R3 = reset camera)'], ['RT / RB', 'fire starboard (right)'], ['LT / LB', 'fire port (left)'],
     ['A', 'dock / go ashore (the prompt)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'enter hull (when moored / anchored) · island map (underway)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
-  foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'change weapon (Unarmed → Musket → Sword)'], ['Y', 'island map'],
+  foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'change weapon (Unarmed → Musket → Sword)'], ['Y', 'leave hull (at cabin door) · island map'],
     ['RT', 'swing sword / fire musket'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
   map: [['LEFT STICK', 'pan the island map'], ['RIGHT STICK / LT·RT', 'zoom out / in'], ['LB / RB', 'zoom out / in (tap)'], ['Y / A', 'recentre (fit whole island)'], ['B', 'close map']],
@@ -95,6 +95,7 @@ export function resolve(action, ctx = {}) {
     if (n === 'team' && !ctx.area) continue;
     if ((n === 'ads' || n === 'swap') && !ctx.tps) continue;
     if (n === 'enterHull' && !ctx.canEnterHull) continue; // [v349] Triangle / Y = ENTER HULL when moored or anchored
+    if (n === 'leaveHullDoor' && !ctx.canLeaveHullDoor) continue; // [v350 t1838u] Triangle / Y = LEAVE HULL only at the exit door
     if ((n === 'map' || n === 'inventory') && !ctx.harbor) continue;
     if (n === 'invite' && !ctx.invites) continue; // [invite-discreet] VIEW only steals the invite when a pill is up
     return a;
@@ -184,7 +185,7 @@ function focusables(root) {
 let ring = null;
 function clearFocusRing() { ring?.classList.remove('pad-focus'); ring = null; }
 function setRing(el) { if (ring === el) return; clearFocusRing(); if (!el) return; ring = el; el.classList.add('pad-focus'); try { el.focus({ preventScroll: true }); } catch {} try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch {} }
-const FIRST = ['#btn-pvp', '#pvp-entry-go', '#btn-resume', '#we-go', '#ws-done', '#al-go', '#pvp-dead-menu', '[autofocus]', '.primary', 'button.big', '.ew-opt'];
+const FIRST = ['#btn-pvp', '#pvp-entry-go', '#btn-resume', '#we-go', '#ws-done', '#al-go', '#pvp-dead-menu', '[data-ok="yes"]', '[autofocus]', '.primary', 'button.big', '.ew-opt', '.iv-act button:not([disabled])', '.iv-slot.sel', '.gp-row']; // [v350 t1840u] inventory / give-picker
 function startFocus(list) { for (const q of FIRST) { const e = list.find(x => x.matches(q)); if (e) return e; } return list.find(e => e.tagName === 'BUTTON') || list[0] || null; } // the main button of each screen first
 function activate(el) {
   if (!el) return;
@@ -241,12 +242,13 @@ export function initGamepad(opts = {}) {
     if (doc.classList.contains('pvp-spec') || opts.spectating?.()) return 'spec';
     return padHooks.dock?.onFoot?.() ? 'foot' : 'sea';
   }
-  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), armed: !!D?.armed?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.(), invites: !!D?.hasInvites?.(), canEnterHull: !!D?.canEnterHull?.() }; }
+  function context() { const D = padHooks.dock; return { prompt: D?.prompts?.() || [false, false], area: !!D?.zone?.(), armed: !!D?.armed?.(), tps: !!D?.tps?.()?.on, harbor: !!D?.on?.(), invites: !!D?.hasInvites?.(), canEnterHull: !!D?.canEnterHull?.(), canLeaveHullDoor: !!D?.canLeaveHullDoor?.() }; }
 
   function doAction(a, down, m) {
     const hold = a.startsWith('+'), n = hold ? a.slice(1) : a, D = padHooks.dock;
     if (n === 'promptA' || n === 'promptB') { if (down) { D?.press?.(n === 'promptA' ? 0 : 1); rumble(0.15, 0, 40); } return; }
     if (n === 'enterHull') { if (down) { D?.enterHull?.(); rumble(0.15, 0, 40); } return; } // [v349] Triangle / Y
+    if (n === 'leaveHullDoor') { if (down) { D?.leaveHullDoor?.(); rumble(0.15, 0, 40); } return; } // [v350 t1838u]
     if (n === 'weapon') { if (down) { if (D?.cycleWeapon) D.cycleWeapon(); else tap('Tab'); rumble(0.12, 0, 30); } return; }
     if (n === 'ads') { D?.ads?.(down); return; }
     if (n === 'swap') { if (down) D?.tps?.()?.swap?.(); return; }
@@ -284,7 +286,8 @@ export function initGamepad(opts = {}) {
     if (pr(BTN.LB)) tabStep(root, -1); if (pr(BTN.RB)) tabStep(root, 1);
   }
   // B on a menu that ignores Esc: its own ✕ / CLOSE / BACK button
-  function closeFallback(root) { setTimeout(() => { if (topLayer() !== root || !shown(root)) return; const x = root.querySelector('.faq-x, .iv-x, [aria-label^="Close"], .ew-back, .ok, #pvp-menu-close, #btn-resume, .close, [data-c="no"]'); if (x && shown(x)) activate(x); }, 60); }
+  function closeFallback(root) { setTimeout(() => { if (topLayer() !== root || !shown(root)) return; // [v350 t1840u] cancel move / confirm BACK / give-picker ✕ before closing the layer under it
+    const x = root.querySelector('[data-a="cancelmove"], [data-ok="no"], [data-b="back"], .gp-x, [data-x], .faq-x, .iv-x, [aria-label^="Close"], .ew-back, .ok, #pvp-menu-close, #btn-resume, .close, [data-c="no"]'); if (x && shown(x)) activate(x); }, 60); }
 
   function gameFrame(m, s, p, dt, now) {
     const map = MAP[m], ctx = context();
@@ -346,6 +349,7 @@ export function initGamepad(opts = {}) {
 
 const CSS = `
 html.pfp-pad .pad-focus{outline:3px solid #ffcd77 !important;outline-offset:3px !important;box-shadow:0 0 0 6px rgba(22,22,22,.8),0 0 18px 4px rgba(255,205,119,.75) !important;position:relative;z-index:1}
+html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act button.pad-focus,html.pfp-pad #iv-pick .gp-row.pad-focus,html.pfp-pad #iv-pick-ok .gp-btns button.pad-focus{outline-offset:2px !important}
 html.pfp-pad canvas,html.pfp-pad.tps-on.tps-pc canvas{cursor:none}
 html.pfp-pad #dk-acts kbd{display:inline-block !important;min-width:1.1em;text-align:center;border-radius:50%}
 html.pfp-pad.pfp-pad-ps #dk-acts kbd{font-family:system-ui,sans-serif}
@@ -354,7 +358,7 @@ html.pfp-pad.dk-touch.pfp-onfoot #dk-acts{left:50%;right:auto;transform:translat
 html.pfp-console{font-size:112%}
 html.pfp-console button,html.pfp-console .ghost{min-height:44px}
 html.pfp-console #hud{zoom:1.15}
-html.pfp-console #dk-acts button{font-size:32px;padding:12px 26px 9px}html.pfp-console #dk-acts kbd{font-size:19px}html.pfp-console #dk-toast{font-size:130%}html.pfp-console .pad-focus{outline-width:4px !important}
+html.pfp-console #dk-acts button{font-size:22px;padding:5px 13px 4px}html.pfp-console #dk-acts kbd{font-size:14px}html.pfp-console #dk-toast{font-size:130%}html.pfp-console .pad-focus{outline-width:4px !important}
 @media (min-width:1800px){html.pfp-console #hud{zoom:1.35}}
 html.pfp-console #dk-joy,html.pfp-console #dk-jump,html.pfp-console #tps-ads,html.pfp-console #tps-sw,html.pfp-console #rotate{display:none !important}
 #pad-rumble{display:none}html.pfp-padc #pad-rumble{display:flex;align-items:center;gap:10px}#pad-rumble input{width:24px;height:24px}

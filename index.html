@@ -88,6 +88,7 @@
 <link rel="modulepreload" href="./js/gearRecolor.js">
 <link rel="modulepreload" href="./js/harborCard.js">
 <link rel="modulepreload" href="./js/healthDrops.js">
+<link rel="modulepreload" href="./js/hudDeclutter.js">
 <link rel="modulepreload" href="./js/hudHide.js">
 <link rel="modulepreload" href="./js/hullReach.js">
 <link rel="modulepreload" href="./js/island/coast.js">
@@ -161,6 +162,7 @@
         <div class="cap-info">
           <div id="captain-name">CAPT. #000</div>
           <div class="bar"><div id="player-hp" class="fill red"></div></div>
+          <div id="hud-gold"><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
           <div id="wallet-short" class="muted"></div>
         </div>
       </div>
@@ -169,7 +171,6 @@
         <div><span class="label">WAVE</span> <span id="wave">1</span></div>
         <div><span class="label">SUNK</span> <span id="sunk">0</span></div>
       </div>
-      <div id="hud-gold"><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
     </div>
   </div>
   <button type="button" id="btn-showhud" class="hidden" title="Show HUD (H)" aria-label="Show HUD">👁 HUD</button>
@@ -187,7 +188,7 @@
   </div>
 
   <div id="controls">
-    <button class="fire" id="fire-port" title="Fire port broadside (Q)"><span class="cd"></span><span class="txt">◀︎</span> FIRE</button>
+    <button class="fire" id="fire-port" title="Fire port broadside (Q)"><span class="cd"></span><span class="txt">◀ PORT</span></button>
     <div id="pill">
       <button class="round" id="steer-left" title="Steer left (A / ←)">◀︎</button>
       <div id="sail-box">
@@ -198,7 +199,7 @@
       <button class="round" id="anchor" title="Drop anchor (Space)">⚓︎</button>
       <button class="round" id="steer-right" title="Steer right (D / →)">▶︎</button>
     </div>
-    <button class="fire" id="fire-star" title="Fire starboard broadside (E)"><span class="cd"></span>FIRE <span class="txt">▶︎</span></button>
+    <button class="fire" id="fire-star" title="Fire starboard broadside (E)"><span class="cd"></span><span class="txt">STAR ▶</span></button>
   </div>
 
   <div id="banner" class="hidden"></div>
@@ -364,6 +365,11 @@
     <h1 id="pause-h">SETTINGS</h1>
     <div id="pause-sub" class="muted">game paused</div>
     <div class="controls-help" data-ctl="long">A/D or ←/→ steer · W/S sails · Q/E broadsides · SPACE anchor · C camera · N sound · M island map</div>
+    <div id="pause-quick-btns" class="row">
+      <button id="pause-sound" class="ghost" type="button">🔊 SOUND ON</button>
+      <button id="pause-camera" class="ghost" type="button">🎥 RESET CAMERA</button>
+      <button id="pause-fullscreen" class="ghost" type="button">⛶ FULLSCREEN</button>
+    </div>
     <button id="btn-ctl-pause" class="ghost" type="button">⌨ KEY BINDINGS / CONTROLS</button>
     <button id="btn-set-wskins" class="ghost waves-set hidden" type="button" hidden aria-hidden="true">🏴 SKINS</button><!-- [t1716u] Waves cannot change skins -->
     <!-- [v112] BANKSY: SKINS · SCOREBOARD · NAME and CONNECT WALLET left settings (name + account: the profile, tap your card top left; Tab still opens the BR menu) -->

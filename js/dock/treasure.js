@@ -28,13 +28,13 @@ const SRC = { boss: 'from the Commodore', kill: 'from a battle kill', streak: 'f
 const spotName = (s) => s === 'cave' ? 'TREASURE CAVE' : 'DIG SITE ' + String(s).replace(/\D/g, '');
 const CSS = `
 /* [v135] BANKSY "Fix the location of maps": the MAPS button sits IN the top-right HUD column, under the radar + harbor line (holder 2x badge), so it can never overlap them */
-#tm-btn{position:static;white-space:nowrap;align-self:flex-start;margin-top:4px;pointer-events:auto;z-index:8;display:none;font:22px 'Just Another Hand',cursive;letter-spacing:.04em;padding:5px 12px 2px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer}
+#tm-btn{position:static;white-space:nowrap;align-self:flex-start;margin-top:4px;pointer-events:auto;z-index:8;display:none;font:16px 'Just Another Hand',cursive;letter-spacing:.04em;padding:2px 10px 1px;border-radius:999px;border:1.5px solid #ffcd77;background:rgba(22,22,22,.86);color:#ffcd77;cursor:pointer}
 #tm-btn b{color:#fff;margin-left:4px}
 #tm-btn.new{animation:tmBtn 1s ease-in-out 4}
 @keyframes tmBtn{50%{background:#7a4a10;box-shadow:0 0 14px #ffcd3c}}
 /* [v340] BANKSY t1807u: INVENTORY sits directly under GOLD (#hud-gold) in the top-left HUD column */
 #hud-tl #tm-btn{position:static;align-self:flex-start;margin:4px 0 0;flex:none}
-@media (max-height:520px),(max-width:600px){#hud-tl #tm-btn{font-size:18px;padding:3px 10px 1px;border-radius:10px;border-width:1.5px}}
+@media (max-height:520px),(max-width:600px){#hud-tl #tm-btn{font-size:16px;padding:2px 10px 1px;border-radius:999px;border-width:1.5px}}
 `;
 export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => true, getPos = () => null, sfx = null, low = false, inventory = () => null }) { // [inventory] inventory() = the INVENTORY grid (js/inventory/ui.js)
   const spots = new Map(world.footInteract.filter(q => q.kind === 'dig' || q.id === 'cave').map(q => [q.id, q]));
@@ -46,7 +46,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
   const tmap = createTreasureMap({ FM: layout.FM, toF, decks: layout.decks || [], spots: world.foot?.spots, low, sfx, layout });
   const chest = createChestReveal({ sfx, low, onWear: (key) => pvp()?.maps?.wear?.(key), canWear: (key) => !!pvp()?.maps?.canWear?.(key) }); // [v152] what the chest held
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
-  const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; { const hg = document.getElementById('hud-gold'); if (hg?.parentNode) hg.after(btn); else (document.getElementById('hud-tr') || document.body).appendChild(btn); } // [v340] t1807u: under GOLD
+  const btn = document.createElement('button'); btn.id = 'tm-btn'; btn.type = 'button'; { const captain = document.getElementById('captain'); if (captain?.parentNode) captain.after(btn); else (document.querySelector('.hud-tl-stack') || document.getElementById('hud-tl') || document.body).appendChild(btn); } // [v350] Inventory stays outside the Captain+Gold card
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) btn.addEventListener(ev, (x) => x.stopPropagation(), { passive: true });
   btn.addEventListener('click', (e) => { e.stopPropagation(); const iv = inventory(); if (iv) { tmap.isOpen && close(); iv.isOpen ? iv.close() : iv.open('bag'); return; } tmap.isOpen ? close() : open(); }); // [inventory] BANKSY 11:02: the MAPS button is INVENTORY
   // the dig target = the spot itself (harbor coords, for the radar): r = the DIG prompt radius

@@ -1824,11 +1824,12 @@ export function createHouses({
     if (activeId === SHIP_QUARTERS_ID) {
       if (head) head.textContent = "⚓ CAPTAIN'S QUARTERS · SHIP STORAGE";
       if (chestH) chestH.innerHTML = '🧰 SHIP CARGO <span class="hs-cap" data-cap></span>';
-      if (leaveB) leaveB.textContent = 'LEAVE HULL';
+      // [v350 t1838u] no LEAVE HULL inside the chest UI — close with ✕ / Esc / B, walk to the door
+      if (leaveB) { leaveB.hidden = true; leaveB.style.display = 'none'; leaveB.textContent = 'LEAVE HULL'; }
     } else {
       if (head) head.textContent = '🏠 COTTAGE STORAGE';
       if (chestH) chestH.innerHTML = '🧰 COTTAGE CHEST <span class="hs-cap" data-cap></span>';
-      if (leaveB) leaveB.textContent = 'LEAVE COTTAGE';
+      if (leaveB) { leaveB.hidden = false; leaveB.style.display = ''; leaveB.textContent = 'LEAVE COTTAGE'; }
     }
     await renderStorage();
   }

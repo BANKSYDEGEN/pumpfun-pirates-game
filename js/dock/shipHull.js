@@ -970,8 +970,9 @@ export function createShipHull({
   if (!QUARTERS_LOW_MEM) preloadQuartersGlb();
 
   const leaveBtn = document.createElement('button');
-  leaveBtn.id = 'cq-leave'; leaveBtn.type = 'button'; leaveBtn.textContent = 'LEAVE HULL';
-  leaveBtn.style.cssText = 'display:none;position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 92px);transform:translateX(-50%);z-index:9;font:22px "Just Another Hand",cursive;letter-spacing:.04em;padding:8px 18px 6px;border-radius:12px;border:3px solid #ffcd77;background:rgba(22,22,22,.9);color:#ffcd77;cursor:pointer;pointer-events:auto';
+  // [v350 t1838u] keep leaveBtn for API / cq-leave-request listeners, but never show it (door prompt lives on #dk-acts)
+  leaveBtn.id = 'cq-leave'; leaveBtn.type = 'button'; leaveBtn.textContent = 'LEAVE HULL'; leaveBtn.setAttribute('hidden', ''); leaveBtn.setAttribute('aria-hidden', 'true');
+  leaveBtn.style.cssText = 'display:none !important;position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 92px);transform:translateX(-50%);z-index:9;font:22px "Just Another Hand",cursive;letter-spacing:.04em;padding:8px 18px 6px;border-radius:12px;border:3px solid #ffcd77;background:rgba(22,22,22,.9);color:#ffcd77;cursor:pointer;pointer-events:auto';
   document.body.appendChild(leaveBtn);
 
   let inHull = false, interior = null, roomOrigin = null, returnCtx = null, busy = false;
@@ -1086,7 +1087,7 @@ export function createShipHull({
         const { ox, oy, oz } = placeRoom();
         inHull = true;
         document.documentElement.classList.add('pfp-inhull', 'pfp-onfoot', 'pfp-inhouse');
-        leaveBtn.style.display = 'block';
+        leaveBtn.style.display = 'none'; // [v350 t1838u] door prompt via #dk-acts only — never the always-on #cq-leave
         try { houses?.ensureShipQuarters?.(); } catch {}
         const w = walker.w;
         const lz = interior.userData.D / 2 - 1.55;
@@ -1170,6 +1171,7 @@ export function createShipHull({
   });
 
   function prompts() {
+    // [v350 t1838u] LEAVE HULL only at the cabin exit door — never at the chest and never mid-room
     if (!inHull || !interior || !roomOrigin || !walker?.w) return null;
     const w = walker.w;
     const lx = w.x - roomOrigin.x, lz = w.z - roomOrigin.z;
@@ -1179,9 +1181,9 @@ export function createShipHull({
       const d = Math.hypot(lx - sp.x, lz - sp.z);
       if (d < (sp.r || 2.3) && d < bd) { bd = d; best = { tag, label: sp.label, primary: true, key: 'E' }; }
     }
-    if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: { label: 'LEAVE HULL', key: 'Q', tag: 'leave' } };
+    if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: null };
     if (best?.tag === 'exit') return { a: { label: 'LEAVE HULL', key: 'E', primary: true, tag: 'leave' }, b: null };
-    return { a: null, b: { label: 'LEAVE HULL', key: 'Q', tag: 'leave' } };
+    return { a: null, b: null };
   }
 
   function act(tag) {

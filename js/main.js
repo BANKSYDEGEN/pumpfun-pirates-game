@@ -1,3 +1,4 @@
+import { createGameplayHint } from './hudDeclutter.js';
 // PUMPFUN PIRATES · Storm Hunt — main game
 import { mergeIslandKits, installShadowProxies, trimSmallCasters } from './staticMerge.js';
 import { OPT_ON, freezeStaticWorlds } from './opt.js'; // [Emerly perf-v304] &opt=0 — only foot/hill_street/battle_areas
@@ -73,6 +74,7 @@ const ENEMY_NAMES = ['RUG PULLER', 'JEETER', 'PAPER HANDS', 'DUMPER', 'BAG DUMPE
 // ---------- quality ----------
 const qp = new URLSearchParams(location.search).get('quality');
 const isMobile = !CONSOLE && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); // [Emerly gamepad] a console (its browser may report a coarse pointer) is never a phone: no touch sticks, the TV layout
+document.documentElement.classList.toggle('pfp-desktop', !isMobile);
 // [ultra] graphics choice (pause menu / start page), persisted: auto | low | high | ultra. ?quality=… still wins for one visit.
 // ULTRA is opt-in only (never auto-picked, not offered on phones) and renders on top of the HIGH tier: quality stays 'high'
 // for every gameplay / ship / hitbox path, the extras below are gated on ULTRA, so LOW and HIGH render exactly as before.
@@ -777,6 +779,7 @@ function toggleSound() { initAudio(); setMuted(!muted); } // [Raul] sound upgrad
 function toggleFull() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); else document.exitFullscreen?.(); }
 // [Raul] sound upgrades: clear sound button state + volume sliders in the pause menu
 onAudioState((a) => {
+  const quick = $('pause-sound'); if (quick) { const label = a.muted ? '🔇 MUTED' : '🔊 SOUND ON'; if (quick.textContent !== label) quick.textContent = label; quick.setAttribute('aria-pressed', String(a.muted)); }
   const b = $('btn-sound'); { const ic = a.muted ? '🔇' : '🔊'; if (b.textContent !== ic) b.textContent = ic; }
   b.classList.toggle('off', a.muted); b.classList.toggle('locked', !a.muted && !a.running);
   b.title = a.muted ? `Sound OFF (tap to turn on, ${keyName(binds('sound')[0])})` : a.running ? `Sound ON (tap to mute, ${keyName(binds('sound')[0])})` : 'Tap anywhere to enable sound';
@@ -790,6 +793,9 @@ onAudioState((a) => {
 for (const k of ['master', 'sfx', 'music']) { const el = $('vol-' + k); if (el) el.addEventListener('input', () => { const v = el.value / 100; initAudio(); if (muted && v > 0) setMuted(false); setLevel(k, v); }); } // read the value before initAudio(): its state notify re-syncs unfocused sliders (iOS doesn't focus range inputs on touch)
 devHook('PFP_AUDIO', { sfx, setLoadout });
 $('btn-sound').onclick = toggleSound; $('btn-sound-title').onclick = toggleSound; $('btn-cam').onclick = resetCamera; $('btn-full').onclick = toggleFull;
+$('pause-sound').onclick = () => $('btn-sound').click();
+$('pause-camera').onclick = () => { $('btn-cam').click(); if (!$('pause').classList.contains('hidden')) togglePause(); };
+$('pause-fullscreen').onclick = () => $('btn-full').click();
 $('btn-pause').onclick = togglePause; $('btn-resume').onclick = togglePause;
 initControlsUi();
 // [v76] ⚙ settings: low-key save status + CONNECT WALLET (the same signed flows as the save-progress pop-ups:
@@ -1369,10 +1375,16 @@ function adaptResolution() {
   const up = [...ADAPT.steps].reverse().find(r => r > renderer.getPixelRatio() + 0.01 && r <= PR0) || (renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null);
   if (up && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
 }
+const gameplayHint = createGameplayHint(document.documentElement);
+addEventListener('keydown', (e) => {
+  if (['left', 'right', 'sailUp', 'sailDown', 'firePort', 'fireStar', 'anchor', 'jump', 'sprint', 'weapon'].some(a => isKey(a, e.code)) || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) gameplayHint.input(game.state);
+}, true);
+addEventListener('pointerdown', (e) => { if (e.target === canvas || e.target.closest?.('#controls, #dk-joy, #dk-jump, #dk-acts')) gameplayHint.input(game.state); }, true);
 const _camTgt = new THREE.Vector3(), _camD = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0), _hullList = []; // [v330 perf] frame() scratch
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   try { pad.tick(dt); } catch (e) { console.warn('[pad]', e); } // [Emerly gamepad] poll the pads first: keys / sticks land before the ship + walker read them this frame
+  gameplayHint.update(game.state);
   if (!window.__pfpPlayable && game.state === 'playing') { window.__pfpPlayable = true; dispatchEvent(new Event('pfp-playable'));  { let n = 0; const iv = setInterval(() => { window.__pfpKitMerged = (window.__pfpKitMerged || 0) + mergeIslandKits(scene); if (HIGH) window.__pfpCastTrim = (window.__pfpCastTrim || 0) + trimSmallCasters(scene); if (OPT_ON) window.__pfpFrozen = (window.__pfpFrozen || 0) + freezeStaticWorlds(scene); if (++n >= 45) clearInterval(iv); }, 4000); } } // [perf4] the on-foot world is built on harbor entry: merge whenever its kit meshes appear // [perf3] deferred loads (music) start now
   adaptResolution();
   const running = game.state === 'playing' || game.state === 'over' || game.state === 'title' || (game.mode === 'pvp' && (game.state === 'shop' || game.state === 'paused')); // [pvp] the shared sea never pauses

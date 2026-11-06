@@ -115,7 +115,7 @@ test('inventory: weapons give like a fish (049 + inv_gift gid + UI)', () => {
   const U = src('js/inventory/ui.js');
   assert.match(U, /function giveTo\(s, k, gInst = null\)/);
   assert.match(U, /gid: gInst\.gid/);
-  assert.match(U, /<button data-a="give"\$\{!data\.flags\.gift \? ' disabled' : ''\}>GIVE TO A PIRATE ▾<\/button>`; \}/);
+  assert.match(U, /<button data-a="give"\$\{!data\.flags\.gift \? ' disabled' : ''\}>GIVE TO A PIRATE ▾<\/button>\$\{note\}`/); // [v350 t1839u] note trails after GIVE
   assert.match(U, /const wq = selE === 'sword' \|\| selE === 'musket'/); // equipped weapons can be given too
   assert.match(U, /bought with gold · can give to pirates/);
   assert.match(U, /'one weapon at a time': 'GIVE ONE WEAPON AT A TIME'/);

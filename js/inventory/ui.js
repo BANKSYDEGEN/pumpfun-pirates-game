@@ -41,23 +41,23 @@ const icoHtml = (key, info) => {
 const CSS = `
 #inv-panel{position:fixed;inset:0;z-index:62;display:none;background:rgba(10,7,4,.72);font-family:'Just Another Hand',cursive;color:#f4e2bb;touch-action:manipulation}
 #inv-panel.on{display:flex;align-items:center;justify-content:center}
-#inv-panel .iv-box{width:min(760px,96vw);max-height:min(92vh,860px);display:flex;flex-direction:column;background:#2a1a0c;border:3px solid #ffcd77;border-radius:16px;box-shadow:0 10px 40px #000}
-#inv-panel .iv-head{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;font-size:30px;letter-spacing:.05em;color:#ffcd77}
+#inv-panel .iv-box{width:min(760px,96vw);height:min(92vh,860px);height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-height:min(92vh,860px);max-height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:hidden;display:flex;flex-direction:column;background:#2a1a0c;border:3px solid #ffcd77;border-radius:16px;box-shadow:0 10px 40px #000}
+#inv-panel .iv-head{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px 6px;font-size:30px;letter-spacing:.05em;color:#ffcd77}
 #inv-panel .iv-head small{font-size:18px;color:#cdb68c;flex:1}
 #inv-panel .iv-slots{font:bold 16px system-ui,sans-serif;padding:2px 10px;border-radius:999px;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;letter-spacing:.04em}
 #inv-panel .iv-slots.warn{border-color:#ffb020;color:#ffb020;background:#2a1a06}
 #inv-panel .iv-slots.full{border-color:#ff4a3d;color:#ffd0c8;background:#2a0c0a}
 #inv-panel .iv-slots.owner{border-color:#ffd700;color:#ffd700;background:#2a2208}
 #inv-panel .iv-x{width:44px;height:44px;border-radius:50%;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;font-size:22px;cursor:pointer}
-#inv-panel .iv-tabs{display:flex;gap:6px;padding:0 14px 6px}
+#inv-panel .iv-tabs{flex:none;display:flex;gap:6px;padding:0 14px 6px}
 #inv-panel .iv-tabs button{font:20px 'Just Another Hand',cursive;padding:4px 12px 2px;border-radius:10px;border:2px solid rgba(255,205,119,.4);background:#1a0f07;color:#f4e2bb;cursor:pointer}
 #inv-panel .iv-tabs button.on{border-color:#ffcd77;background:#5a3410;color:#fff}
-#inv-panel .iv-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;padding:8px 14px 12px}
+#inv-panel .iv-grid{flex:1 1 0;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px;padding:8px 14px 12px;align-content:start}
 
 #inv-panel .iv-slot.iv-leg{box-shadow:0 0 0 2px #ffd24a,0 0 14px rgba(255,205,60,.65),inset 0 0 18px rgba(255,200,80,.18);border-color:#ffd24a!important}
 #inv-panel .iv-slot .iv-accpip{position:absolute;left:4px;bottom:4px;font:bold 11px system-ui,sans-serif;color:#ffcd77;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;letter-spacing:.02em}
 #inv-panel .iv-acc i img{width:100%;height:100%;object-fit:contain}
-#inv-panel .iv-slot{position:relative;aspect-ratio:1;min-height:64px;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
+#inv-panel .iv-slot{position:relative;aspect-ratio:1;min-height:48px;border-radius:12px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
 #inv-panel .iv-slot.sel{outline:3px solid #fff;outline-offset:1px}
 #inv-panel .iv-slot.iv-open{border-style:dashed;border-color:#4a3420;background:rgba(36,22,10,.55)}#inv-panel .iv-slot.iv-from{opacity:.35}#inv-panel .iv-slot.iv-over{outline:3px dashed #ffcd3c;outline-offset:1px}#inv-panel.iv-moving .iv-slot{cursor:copy}#inv-panel .iv-slot u{position:absolute;left:5px;top:2px;font:bold 11px system-ui,sans-serif;text-decoration:none;color:rgba(232,211,166,.55)}
 .iv-menu{position:fixed;z-index:99999;min-width:150px;background:#24160a;border:2px solid #d9a441;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.6)}.iv-menu .iv-mt{font-size:13px;color:#ffcd3c;padding:2px 4px 4px}.iv-menu button{background:#3d2a1c;color:#fff1d2;border:1px solid #6b4a24;border-radius:7px;padding:7px 10px;text-align:left;font:inherit;cursor:pointer}.iv-menu button:disabled{opacity:.45}
@@ -70,12 +70,55 @@ const CSS = `
 #inv-panel .iv-eq{position:absolute;top:2px;left:4px;font-style:normal;font-size:14px;color:#1b1206;background:#7be37b;border-radius:8px;padding:0 4px;z-index:1}
 #inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:84px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-slot i.iv-rk{position:absolute;right:4px;top:3px;width:auto;aspect-ratio:auto;display:block;font:bold 10px/1.3 system-ui,sans-serif;font-style:normal;color:#1b1206;border-radius:6px;padding:0 4px}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
-#inv-panel .iv-act{border-top:2px solid rgba(255,205,119,.35);padding:8px 14px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:21px;min-height:56px}
-#inv-panel .iv-act .t{flex:1 1 100%;font-size:22px}
-#inv-panel .iv-act button{font:22px 'Just Another Hand',cursive;min-height:44px;padding:4px 16px 2px;border-radius:12px;border:2px solid #ffcd77;background:#7a4a10;color:#fff;cursor:pointer}
+#inv-panel .iv-act{flex:none;max-height:min(36dvh,36vh,220px);overflow-y:auto;border-top:2px solid rgba(255,205,119,.35);padding:7px 14px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:21px;min-height:0}
+#inv-panel .iv-act .t{flex:1 1 100%;font-size:20px}
+#inv-panel .iv-act button{font:20px 'Just Another Hand',cursive;min-height:38px;padding:3px 13px 1px;border-radius:12px;border:2px solid #ffcd77;background:#7a4a10;color:#fff;cursor:pointer}
 #inv-panel .iv-act button[disabled]{opacity:.45}
-#inv-panel .iv-act input{font:20px system-ui,sans-serif;min-height:40px;width:130px;border-radius:10px;border:2px solid #ffcd77;background:#1a0f07;color:#fff;padding:0 8px}
-#inv-panel .iv-act input.n{width:72px}
+#inv-panel .iv-act input{font:18px system-ui,sans-serif;min-height:36px;width:120px;border-radius:10px;border:2px solid #ffcd77;background:#1a0f07;color:#fff;padding:0 8px}
+#inv-panel .iv-act input.n{width:68px}
+#inv-panel .iv-act small.iv-note{flex:1 1 100%;font-size:15px;color:#cdb68c;line-height:1.15;margin:0}
+/* [v350 t1840u] controller focus */
+html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act button.pad-focus,html.pfp-pad #inv-panel .iv-tabs button.pad-focus,
+#inv-panel .iv-slot:focus-visible,#inv-panel .iv-act button:focus-visible,#inv-panel .iv-tabs button:focus-visible{
+  outline:3px solid #ffcd77 !important;outline-offset:2px !important;box-shadow:0 0 0 5px rgba(22,22,22,.75),0 0 16px 3px rgba(255,205,119,.7) !important;z-index:2}
+#inv-panel .iv-slot{outline:none}#inv-panel .iv-act button,#inv-panel .iv-tabs button{outline:none}
+@media (min-width:900px){#inv-panel .iv-grid{grid-template-columns:repeat(8,minmax(0,1fr))}}
+/* [v350 t1840u] phone portrait */
+@media (max-width:640px){
+  #inv-panel .iv-box{width:min(100vw - 12px,96vw);border-radius:14px}
+  #inv-panel .iv-head{font-size:26px;padding:8px 10px 4px;gap:8px}
+  #inv-panel .iv-head small{font-size:15px}
+  #inv-panel .iv-x{width:40px;height:40px}
+  #inv-panel .iv-tabs{padding:0 10px 4px;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #inv-panel .iv-tabs button{font-size:18px;padding:3px 10px 1px;flex:none}
+  #inv-panel .iv-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px 10px 8px}
+  #inv-panel .iv-slot{min-height:56px;border-width:2px}
+  #inv-panel .iv-slot i{font-size:26px}
+  #inv-panel .iv-slot span{font-size:11px}
+  #inv-panel .iv-act{max-height:min(38dvh,38vh,240px);padding:6px 10px 8px;gap:5px}
+  #inv-panel .iv-act .t{font-size:18px}
+  #inv-panel .iv-act button{min-height:36px;padding:3px 11px 1px;font-size:18px}
+  #inv-panel .iv-act small.iv-note{font-size:13px}
+}
+/* [v350 t1840u] phone landscape / short screens */
+@media (max-height:520px){
+  #inv-panel.on{align-items:stretch;padding:env(safe-area-inset-top,0px) 6px env(safe-area-inset-bottom,0px)}
+  #inv-panel .iv-box{width:min(100vw - 10px,760px);height:calc(100dvh - 10px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-height:calc(100dvh - 10px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border-radius:12px}
+  #inv-panel .iv-head{font-size:22px;padding:6px 10px 2px;margin-bottom:0;gap:6px}
+  #inv-panel .iv-head small{font-size:13px}
+  #inv-panel .iv-x{width:36px;height:36px;font-size:18px}
+  #inv-panel .iv-tabs{padding:0 10px 2px;margin-bottom:0;gap:4px;overflow-x:auto}
+  #inv-panel .iv-tabs button{font-size:16px;padding:2px 9px 0;flex:none}
+  #inv-panel .iv-grid{flex:1 1 0;min-height:76px;overflow-y:auto;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;padding:4px 10px 6px}
+  #inv-panel .iv-slot{min-height:0;border-width:2px;border-radius:8px;padding:1px}
+  #inv-panel .iv-slot i{font-size:20px;width:55%}
+  #inv-panel .iv-slot span{font-size:10px;min-height:1.4em;-webkit-line-clamp:1}
+  #inv-panel .iv-act{flex:none;max-height:44dvh;overflow-y:auto;padding:6px 10px 8px;gap:5px}
+  #inv-panel .iv-act .t{font-size:16px}
+  #inv-panel .iv-act button{min-height:32px;padding:2px 9px 0;font-size:16px;border-radius:9px}
+  #inv-panel .iv-act small.iv-note{font-size:12px}
+  #inv-panel .iv-act input{min-height:30px;font-size:15px}
+}
 `;
 // [inventory] equip = carry: Raul's raul/items-redo exports setCarriedWeapons({sword, musket}, src) from js/pirateGear.js (he owns the gr sync).
 // Feature-checked: before his branch merges the export is missing and the old gear wear path runs instead. The id is the BASE (a SWORD_IDS /
@@ -238,12 +281,16 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     if (mode === 'bag' && moveFrom >= 0) { a.innerHTML = `<div class="t">${moveAmt ? `SPLITTING ${moveAmt} × ` : 'MOVING '}${s.info.name} · tap ${moveAmt ? 'an empty slot (or the same item)' : 'a slot: empty = move, item = swap, same item = stack'}</div><button data-a="cancelmove">CANCEL</button>`; bind(a, { cancelmove: () => { moveFrom = -1; moveAmt = 0; render(); } }); return; }
     if (mode === 'bag' && splitAsk) { a.innerHTML = `<div class="t">SPLIT ${s.info.name} · how many of ${slotN}?</div><input class="sp" type="number" min="1" max="${slotN - 1}" value="${Math.max(1, slotN >> 1)}" aria-label="split amount"><button data-a="splitgo">SPLIT · PICK A SLOT</button><button data-a="cancelmove">CANCEL</button>`;
       bind(a, { splitgo: () => { const k = Math.max(1, Math.min(slotN - 1, +(a.querySelector('.sp').value || 1) | 0)); splitAsk = false; if (splitTo >= 0) { moveSlot(selI, splitTo, k); splitTo = -1; render(); return; } moveFrom = selI; moveAmt = k; render(); }, cancelmove: () => { splitAsk = false; splitTo = -1; render(); } }); a.querySelector('.sp')?.focus(); return; }
-    if (mode === 'bag') { h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 && !single(s.key) ? '<button data-a="split">SPLIT</button>' : ''}`;
-      if (ACC_ON && s.info.kind === 'gunacc') h += `<button data-a="fit">FIT ${GUN_ACC.find(x => x.slot === s.info.acc)?.label || ''} ON MUSKET</button><small style="flex:1 1 100%;font-size:16px;color:#cdb68c">${GUN_ACC.find(x => x.slot === s.info.acc)?.fx || ''}</small>`;
+    if (mode === 'bag') { let note = ''; // [v350 t1839u] keep weapon buttons on one compact row; notes trail after GIVE
+      h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 && !single(s.key) ? '<button data-a="split">SPLIT</button>' : ''}`;
+      if (ACC_ON && s.info.kind === 'gunacc') { h += `<button data-a="fit">FIT ${GUN_ACC.find(x => x.slot === s.info.acc)?.label || ''} ON MUSKET</button>`; note += `<small class="iv-note">${GUN_ACC.find(x => x.slot === s.info.acc)?.fx || ''}</small>`; }
       if (RANK_ON && s.info.kind === 'weapon' && s.info.slot === 'musket') { const up = RANK_UP[s.info.rarity], nx = RANKS[RANKS.indexOf(s.info.rarity) + 1], parts = qtyOf(PARTS_KEY), own = !!data.owner;
         h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${up.gold.toLocaleString()}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
-        h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button><small style="flex:1 1 100%;font-size:16px;color:#cdb68c">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; } if (s.map) h += '<button data-a="open">OPEN MAP</button>'; if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
-      h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`; } // [v335] t1783u: weapons (shop-bought too) give like a fish; only the gift flag closes it // [give-dropdown] was a typed name box (typing stays, in the picker's search)
+        h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button>`;
+        note += `<small class="iv-note">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; }
+      if (s.map) h += '<button data-a="open">OPEN MAP</button>';
+      if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
+      h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>${note}`; } // [v335] t1783u + [v350 t1839u] notes after GIVE so buttons share one row
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));

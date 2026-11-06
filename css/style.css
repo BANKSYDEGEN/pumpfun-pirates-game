@@ -1214,3 +1214,68 @@ html.hud-hide #hud-icons { visibility: hidden !important; pointer-events: none !
   #hb-hub-btn, .hb-hub-btn { left: calc(146px + var(--safe-l, 0px)) !important; right: calc(8px + 92px + 4px + var(--safe-r, 0px)) !important; font-size: 12px; }
   #hb-hub-btn .hb-chip { display: none; }
 }
+
+/* [v350] One quiet HUD: keep every legacy hook, not every touch affordance. */
+/* [v350 t1838u] #cq-leave is API-only — LEAVE HULL lives on #dk-acts at the cabin door */
+#cq-leave { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+html.pfp-inhull #radar,
+html.pfp-inhull #hud-tr #radar,
+html.pfp-inhull #hb-hub-btn, html.pfp-inhull .hb-hub-btn,
+html.pfp-inhull #controls,
+html.pfp-inhull #hint,
+html.pfp-inhull #dk-safe,
+html.pfp-inhull #dk-islesafe { display: none !important; }
+html.pfp-inhull #dk-toast { font-size: 18px; opacity: .85; }
+html.dk-moored #controls, html.dk-moored #hint,
+html.pfp-onfoot #hint, html.pfp-canoe #hint { display: none !important; }
+html.dk-harbor #hud-top, html.dk-harbor #enemies-left { display: none !important; }
+#map-loc-hud, #hud-logo { display: none !important; }
+#hint { pointer-events: none; }
+html.pfp-hint-faded #hint { opacity: 0 !important; }
+#hud-icons > #btn-sound, #hud-icons > #btn-cam, #hud-icons > #btn-full { display: none !important; }
+#hud-icons > #btn-pause { width: 36px; height: 36px; font-size: 21px; }
+html.dk-harbor #btn-pvp-menu { display: none !important; }
+#pause-quick-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0; }
+#pause-quick-btns button { font-size: 18px; padding: 6px 10px 4px; border-radius: 999px; }
+#hb-hub-btn, .hb-hub-btn { top: calc(50px + var(--safe-t, 0px)); padding: 3px 10px 2px; font-size: 18px; gap: 5px; }
+#captain { gap: 7px; padding: 4px 10px 4px 4px; }
+#captain-img { width: 46px; height: 46px; }
+#captain #hud-gold { position: static; display: flex; background: none; border: 0; border-radius: 0; padding: 0; gap: 5px; font-size: 16px; line-height: 1; box-shadow: none; backdrop-filter: none; }
+#captain #hud-gold .label { font-size: 10px; }
+#hud-tl #tm-btn { font-size: 16px; padding: 2px 10px 1px; border-radius: 999px; border-width: 1.5px; line-height: 20px; margin-top: 3px; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #steer-left,
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #steer-right,
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #sail-up,
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #sail-down { display: none !important; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #controls { display: flex; left: 50%; right: auto; transform: translateX(-50%); bottom: calc(12px + var(--safe-b, 0px)); gap: 8px; width: max-content; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #fire-port,
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #fire-star { position: relative; left: auto; right: auto; bottom: auto; height: 30px; min-width: 58px; width: auto; padding: 0 10px; font-size: 16px; border-width: 1.5px; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) .fire.ready { box-shadow: 0 0 7px rgba(255,205,119,.2); }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #pill { gap: 6px; padding: 0 6px 0 0; width: auto; height: 30px; box-sizing: border-box; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #sail-readout { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; padding: 4px 12px; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #sail-readout .label,
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #knots { font-size: 17px; line-height: 1; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #knots::before { content: '· '; opacity: .6; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #anchor { width: 26px; height: 26px; font-size: 15px; opacity: .65; }
+html:is(.pfp-desktop,.pfp-pad,.pfp-console) #anchor.on { opacity: 1; }
+@media (max-width:600px) {
+  #hud-icons > #btn-pause { width: 30px; height: 30px; font-size: 18px; }
+  #captain-img { width: 36px; height: 36px; }
+  #hb-hub-btn, .hb-hub-btn { top: calc(40px + var(--safe-t, 0px)) !important; }
+}
+
+/* Settings owns the input layer; no dock action may float over its footer. */
+html:has(#pause:not(.hidden)) #dk-acts, html:has(#pause:not(.hidden)) #controls,
+html:has(#pause:not(.hidden)) #dk-joy, html:has(#pause:not(.hidden)) #dk-jump { visibility: hidden !important; pointer-events: none !important; }
+html.dk-harbor #dk-safe, html.dk-harbor #dk-islesafe { top: calc(82px + var(--safe-t, 0px)); }
+@media (max-width:600px) { html.dk-harbor #dk-safe, html.dk-harbor #dk-islesafe { top: calc(112px + var(--safe-t, 0px)); } }
+html:has(#pause:not(.hidden)) #bt-stance, html:has(#pause:not(.hidden)) #btn-emote,
+html:has(#pause:not(.hidden)) #bt-atk { visibility: hidden !important; pointer-events: none !important; }
+@media (orientation: portrait) and (max-width:600px) {
+  #hb-hub-btn, .hb-hub-btn { left: calc(156px + var(--safe-l, 0px)) !important; font-size: 13px; padding: 3px 6px 1px; gap: 3px; min-width: 0; }
+  #hb-hub-btn .hb-ico { display: none; }
+  #hb-hub-btn .hb-chip { font-size: 10px; padding: 2px 4px; }
+}
+@media (orientation: portrait) and (max-width:380px) {
+  #hb-hub-btn, .hb-hub-btn { left: calc(150px + var(--safe-l, 0px)) !important; font-size: 12px; }
+}

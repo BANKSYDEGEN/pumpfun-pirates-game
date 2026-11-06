@@ -87,6 +87,19 @@ html.pfp-onfoot.dk-touch.tps-on #bt-atk{bottom:calc(var(--safe-b,0px) + 100px)!i
   html.pfp-onfoot.dk-touch #dk-jump{left:calc(var(--safe-l,0px) + 144px);width:62px;height:62px}
   html.pfp-onfoot.dk-touch #bt-stance{left:calc(var(--safe-l,0px) + 214px)!important;width:46px!important;height:46px!important}
   html.pfp-onfoot.dk-touch #btn-emote{left:calc(var(--safe-l,0px) + 268px)!important;width:46px!important;height:46px!important}}
+
+/* [v350] compact action row; placeActs still collision-checks touch foot prompts. */
+#dk-acts { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:6px; bottom:calc(52px + var(--safe-b,0px)); max-width:calc(100vw - 24px); width:max-content; }
+html.dk-touch #dk-acts { bottom:calc(168px + var(--safe-b,0px)); }
+html.dk-moored #dk-acts, html.pfp-onfoot #dk-acts, html.pfp-canoe #dk-acts, html.pfp-inhull #dk-acts { bottom:calc(16px + var(--safe-b,0px)); }
+html.dk-touch.pfp-onfoot #dk-acts, html.dk-touch.pfp-canoe #dk-acts { flex-direction:row; flex-wrap:wrap; justify-content:center; align-items:center; bottom:calc(176px + var(--safe-b,0px)); }
+html #dk-acts button, html.dk-touch.pfp-onfoot #dk-acts button, html.dk-touch.pfp-canoe #dk-acts button { font-size:18px; line-height:1; padding:4px 11px 3px; border:1.5px solid rgba(255,205,119,.65); border-radius:999px; background:rgba(22,22,22,.78); backdrop-filter:blur(6px); }
+html #dk-acts button.primary { background:rgba(92,60,19,.88); color:#ffdf9e; border-color:#ffcd77; }
+html #dk-acts kbd { font-size:13px; padding:1px 6px; margin-right:5px; vertical-align:1px; }
+html.pfp-console #dk-acts button { font-size:22px; padding:5px 13px 4px; }
+html.pfp-console #dk-acts kbd { font-size:14px; }
+html.pfp-pad #dk-acts, html.pfp-console #dk-acts { bottom:calc(52px + var(--safe-b,0px)); }
+html.pfp-pad.pfp-onfoot #dk-acts, html.pfp-pad.dk-moored #dk-acts, html.pfp-console.pfp-onfoot #dk-acts, html.pfp-console.dk-moored #dk-acts { bottom:calc(16px + var(--safe-b,0px)); }
 `;
 
 export async function createDock(ctx) {
@@ -143,7 +156,7 @@ export async function createDock(ctx) {
   }
   let _locAcc = 0, _locSig = '';
   function updateMapLocHud() {
-    const hide = !(on && onFoot && game.state === 'playing') || document.documentElement.classList.contains('hud-hide') || game.mode === 'waves';
+    const hide = !imap.isOpen || !(on && onFoot && game.state === 'playing') || document.documentElement.classList.contains('hud-hide') || game.mode === 'waves';
     if (hide) { if (!mapLocEl.hidden) mapLocEl.hidden = true; return; }
     _locAcc++; if (_locAcc % 4) return; // ~4 Hz when drawMinimap runs every frame at 60
     const W = walker.w; const [fx, fz] = layout.harborToFoot(W.x, W.z);
@@ -216,7 +229,7 @@ export async function createDock(ctx) {
     actA = a; actB = b; actC = c; const pd = padActive(), sig = JSON.stringify([a && [a.label, a.key, a.disabled, a.primary, a.pad], b && [b.label, b.key, b.pad], c && [c.label, c.key, c.pad], pd && padGlyph('A')]); if (sig === uiSig) return; uiSig = sig;
     acts.style.display = a || b || c ? 'flex' : 'none';
     for (const [btn, s, i] of [[bA, a, 0], [bB, b, 1], [bC, c, 2]]) {
-      btn.hidden = !s; if (!s) continue;
+      btn.hidden = !s; if (!s) { btn.innerHTML = ''; btn.disabled = false; btn.classList.remove('primary'); continue; } // [v350 t1838u] clear stale LEAVE HULL / OPEN STORAGE text when mid-room
       const showKbd = (s.key || (pd && s.fn)) && (!touch || pd);
       const kbd = !showKbd ? '' : `<kbd>${s.key && !pd ? s.key : promptKey(s.key || 'E', i, s.pad || (s.label === 'ENTER HULL' ? 'Y' : null))}</kbd>`; // [v349] ENTER HULL → △ / Y on pad
       btn.innerHTML = kbd + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary);
@@ -237,7 +250,7 @@ export async function createDock(ctx) {
       .map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     // [v340] v339 QA: also keep clear of the radar, INVENTORY, the weapon switch, the top icons + PLAY · HARBOR pill
     const extra = ['radar', 'tps-ads', 'tps-sw', 'bt-stance', 'btn-sound', 'btn-cam', 'btn-pause', 'btn-full', 'captain', 'hb-hub-btn', 'inv-hud-btn', 'btn-inv'].map(id => document.getElementById(id))
-      .concat([...document.querySelectorAll('.tm-btn')]).filter(vis).map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+      .concat([...document.querySelectorAll('.tm-btn, #tm-btn, #sq-note')]).filter(vis).map(e => e.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     const obst = ctrls.concat(extra);
     const hits = (oneLine) => { const r = acts.getBoundingClientRect(); if (r.left < 0 || r.right > W - sr - 8 || r.top < 0 || (oneLine && r.height > 64)) return true;
       return obst.some(c => r.left < c.right + pad && r.right > c.left - pad && r.top < c.bottom + pad && r.bottom > c.top - pad); };
@@ -307,6 +320,9 @@ export async function createDock(ctx) {
       // [v349] Triangle / Y = ENTER HULL while moored at a berth OR anchored at sea (not on foot / canoe / already inside)
       canEnterHull: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && (docking.mode === 'docked' || (docking.mode === 'sea' && !!P()?.anchor))),
       enterHull: () => { if (game.state === 'playing') enterHull(); },
+      // [v350 t1838u] Triangle / Y (or A) leaves only when standing at the exit door prompt
+      canLeaveHullDoor: () => !!(shipHull?.inHull && actA && !actA.disabled && actA.tag === 'leave' && actA.fn),
+      leaveHullDoor: () => { if (game.state === 'playing' && actA?.tag === 'leave') press(actA); },
       zone: () => !!battle?.zone, armed: () => (battle?.stance || 0) > 0, // [t1734u] RT attack outside pit/range when a weapon is drawn
       cycleWeapon: () => battle?.cycleStance?.(), // [t1734u] Square / X cycles Unarmed → Musket → Sword
       tps: () => battle?.tps || null,
@@ -342,10 +358,15 @@ export async function createDock(ctx) {
   // is on or harbor-spectated). Bonus: ~150 fewer draw calls at sea.
   const EXTRA_RE = /^(zipline|battle_areas|house_plaques|house_fallback_exteriors)$/;
   function harborExtras(vis) { for (const o of scene.children) if (EXTRA_RE.test(o.name || '')) o.visible = vis; }
+  function syncDockHud() {
+    document.documentElement.classList.toggle('dk-harbor', !!on);
+    document.documentElement.classList.toggle('dk-moored', !!(on && docking.mode === 'docked' && !onFoot && !shipHull?.inHull));
+  }
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
     if (!v) { casinoUi?.close?.(); canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    syncDockHud();
     harborExtras(v || viewing); // [v330] t1754u
   }
   // ---------- actions ----------
@@ -494,7 +515,10 @@ export async function createDock(ctx) {
       else if (!anyModalOpen?.()) inventory.open('bag');
       e.stopImmediatePropagation(); e.preventDefault(); return;
     }
-    if (e.code === 'Escape' && inventory?.isOpen) { inventory.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    if (e.code === 'Escape' && inventory?.isOpen) { // [v350 t1840u] B/Esc cancels MOVE/SPLIT first, then closes the panel
+      const cancel = document.querySelector('#inv-panel.on [data-a="cancelmove"]');
+      if (cancel) { cancel.click(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+      inventory.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (e.code === 'Escape' && document.getElementById('pvp-harbor')?.classList.contains('hb-modal-open')) {
       document.getElementById('pvp-harbor').classList.remove('hb-modal-open'); e.stopImmediatePropagation(); e.preventDefault(); return;
     }
@@ -543,6 +567,7 @@ export async function createDock(ctx) {
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
     const r = docking.tick(s, dt);
+    syncDockHud();
     if (r === 'docked') toast('MOORED · SAFE HARBOR');
     if (r === 'free') { s.anchor = false; s.sail = Math.max(1, s.sail); leftAt = now; }
     zone.tick(s, now);
@@ -585,8 +610,10 @@ export async function createDock(ctx) {
         shipHull.tick?.();
         const hp = shipHull.prompts();
         const run = (tag) => { const r = shipHull.act(tag); if (r === 'leave') leaveHull(); };
-        setActs(hp?.a ? { label: hp.a.label, key: hp.a.key || 'E', primary: !!hp.a.primary, fn: () => run(hp.a.tag) } : null,
-                hp?.b ? { label: hp.b.label, key: hp.b.key || 'Q', primary: !!hp.b.primary, fn: () => run(hp.b.tag) } : null);
+        // [v350 t1838u] door-only LEAVE HULL (tag:'leave'); chest = OPEN STORAGE only; mid-room = clear #dk-acts
+        setActs(hp?.a ? { label: hp.a.label, key: hp.a.key || 'E', primary: !!hp.a.primary, tag: hp.a.tag, pad: hp.a.tag === 'leave' ? 'Y' : undefined, fn: () => run(hp.a.tag) } : null,
+                hp?.b ? { label: hp.b.label, key: hp.b.key || 'Q', primary: !!hp.b.primary, tag: hp.b.tag, fn: () => run(hp.b.tag) } : null,
+                null);
         skinPick.close();
       }
       else if (houses?.inHouse) { const hp = houses.prompts({ onFoot: true, W }); const a = hp?.a || (hp && { label: hp.label, key: hp.key || 'E', primary: !!hp.primary, tag: hp.tag }); const b = hp?.b || null; setActs(a ? { label: a.label, key: a.key || 'E', primary: !!a.primary, fn: () => houses.act(a.tag, { door: hp.door }) } : null, b ? { label: b.label, key: b.key || 'Q', primary: !!b.primary, fn: () => houses.act(b.tag) } : null); skinPick.close(); }

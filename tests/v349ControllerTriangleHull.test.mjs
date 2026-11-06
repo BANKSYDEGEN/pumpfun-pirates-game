@@ -14,7 +14,7 @@ const SW = src('sw.js');
 test('v349 MAP.sea: Triangle / Y = enterHull|map (enter hull wins when moored/anchored)', () => {
   assert.equal(BTN.Y, 3, 'standard Gamepad Y / Triangle index');
   assert.equal(MAP.sea[BTN.Y], 'enterHull|map');
-  assert.equal(MAP.foot[BTN.Y], 'map', 'on foot Y stays island map (LEAVE HULL keeps A on the door prompt)');
+  assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor|map', 'on foot Y = leave at cabin door, else island map (A also leaves at the door)');
 });
 
 test('v349 resolve: enterHull only when canEnterHull; else map when harbor', () => {
@@ -134,5 +134,5 @@ test('v349 driver: Y calls enterHull when canEnterHull, else taps map key when u
 });
 
 test('v349 sw.js VERSION = pfp-v349', () => {
-  assert.match(SW, /const VERSION = 'pfp-v349'/);
+  assert.ok(+SW.match(/const VERSION = 'pfp-v(\d+)'/)[1] >= 349); // future releases preserve v349 mapping
 });

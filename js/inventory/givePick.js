@@ -8,7 +8,7 @@ const CSS = `
  visibility:hidden;opacity:0;transition:opacity .18s ease,visibility 0s linear .18s;touch-action:manipulation}
 #iv-pick.on,#iv-pick-ok.on{visibility:visible;opacity:1;transition:opacity .18s ease}
 #iv-pick-ok{z-index:65;background:rgba(10,7,4,.45)}
-.gp-box{width:min(440px,94vw);height:min(600px,84vh);display:flex;flex-direction:column;background:linear-gradient(#33200e,#24160a);border:3px solid #ffcd77;border-radius:16px;
+.gp-box{width:min(440px,94vw);max-height:min(88vh,600px);max-height:calc(100dvh - 20px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));height:auto;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(#33200e,#24160a);border:3px solid #ffcd77;border-radius:16px;
  box-shadow:0 12px 40px #000,inset 0 0 0 2px #6b4a24;transform:translateY(14px) scale(.97);transition:transform .2s cubic-bezier(.2,1.3,.4,1)}
 .on>.gp-box{transform:none}
 .gp-head{display:flex;align-items:center;gap:10px;padding:10px 14px 4px;font-size:32px;letter-spacing:.05em;color:#ffcd77;flex:none}
@@ -20,7 +20,7 @@ const CSS = `
 .gp-q{margin:0 14px 8px;flex:none;font:20px system-ui,sans-serif;height:46px;border-radius:12px;border:2px solid #ffcd77;background:#1a0f07 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%23ffcd77' stroke-width='2.5'%3E%3Ccircle cx='8.5' cy='8.5' r='6'/%3E%3Cpath d='M13 13l5 5'/%3E%3C/svg%3E") no-repeat 12px center;color:#fff;padding:0 12px 0 40px;outline:none}
 .gp-q:focus{box-shadow:0 0 0 3px rgba(255,205,119,.35)}
 .gp-sub{margin:0 16px 4px;font-size:19px;color:#cdb68c;flex:none;min-height:22px}
-.gp-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:2px 14px 14px;display:flex;flex-direction:column;gap:6px}
+.gp-list{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:2px 14px 14px;display:flex;flex-direction:column;gap:6px}
 .gp-row{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:4px 12px 2px;border-radius:12px;border:2px solid #6b4a24;background:radial-gradient(circle at 20% 50%,#4a3018,#2a1a0c);
  color:#f4e2bb;font:25px 'Just Another Hand',cursive;text-align:left;cursor:pointer;flex:none;transition:background .12s,border-color .12s}
 .gp-row:hover,.gp-row:focus-visible{border-color:#ffcd77;background:#5a3410;outline:none}
@@ -36,7 +36,10 @@ html.pfp-pad #iv-pick .gp-row.pad-focus,#iv-pick .gp-row.pad-focus{outline:3px s
 @keyframes gpsk{from{background-position:200% 0}to{background-position:0 0}}
 .gp-empty{text-align:center;padding:26px 10px;font-size:26px;color:#cdb68c}.gp-empty small{display:block;font-size:19px;margin-top:6px;opacity:.85}
 .gp-empty .sk{font-size:46px;display:block;margin-bottom:4px}
-.gp-ok{height:auto;max-height:min(520px,90vh);padding-bottom:16px}
+.gp-ok{height:auto;max-height:min(88vh,520px);max-height:calc(100dvh - 20px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
+.gp-ok .big{flex:none}.gp-ok .gp-btns{flex:none;margin-top:auto}
+html.pfp-pad #iv-pick-ok .gp-btns button.pad-focus,#iv-pick-ok .gp-btns button:focus-visible,
+html.pfp-pad #iv-pick .gp-x.pad-focus{outline:3px solid #ffcd77 !important;outline-offset:2px !important;box-shadow:0 0 14px 2px rgba(255,205,119,.7) !important}
 .gp-ok .big{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 18px 14px;text-align:center}
 .gp-ok .big i{font-style:normal;font-size:64px;width:104px;height:104px;display:flex;align-items:center;justify-content:center;border-radius:18px;background:radial-gradient(#4a3018,#1a0f07);border:3px solid var(--rc,#6b4a24)}
 .gp-ok .big i img{width:84%;height:84%;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.6))}
@@ -47,7 +50,8 @@ html.pfp-pad #iv-pick .gp-row.pad-focus,#iv-pick .gp-row.pad-focus{outline:3px s
 .gp-btns button{flex:1;font:26px 'Just Another Hand',cursive;min-height:52px;border-radius:12px;border:2px solid #ffcd77;background:#1a0f07;color:#f4e2bb;cursor:pointer}
 .gp-btns button.primary{background:linear-gradient(#a0661a,#7a4a10);color:#fff;box-shadow:0 3px 0 #3b2410}
 .gp-btns button:disabled{opacity:.5}
-@media (max-height:520px){.gp-box{height:94vh}.gp-ok .big i{width:72px;height:72px;font-size:44px}}
+@media (max-height:620px){.gp-box{max-height:calc(100dvh - 12px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}.gp-ok{max-height:calc(100dvh - 12px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}.gp-ok .big{padding:4px 12px 8px;gap:4px}.gp-ok .big i{width:72px;height:72px;font-size:44px}.gp-ok .what{font-size:24px}.gp-ok .to{font-size:20px}.gp-ok .to b{font-size:26px}.gp-btns button{min-height:44px;font-size:22px}.gp-row{min-height:44px;font-size:22px}.gp-item{min-height:44px;font-size:20px}.gp-head{font-size:26px;padding:8px 12px 2px}}
+@media (max-height:520px){.gp-box,.gp-ok{max-height:calc(100dvh - 8px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}.gp-ok .big i{width:56px;height:56px;font-size:36px}.gp-btns{padding:0 10px;gap:8px}.gp-btns button{min-height:38px;font-size:20px}.gp-list{padding:2px 10px 10px;gap:4px}.gp-row{min-height:40px;font-size:20px;padding:2px 10px}.gp-q{height:40px;margin-bottom:4px}.gp-item{min-height:40px;margin-bottom:4px;font-size:18px}}
 `;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const cleanName = (n) => String(n ?? '').replace(/[<>&"'`\\\u0000-\u001f]/g, '').trim().slice(0, 20);
@@ -68,11 +72,11 @@ export function createGivePick({ pvp, nearby = () => [], toast = () => {} }) {
   if (typeof document === 'undefined') return { open() {}, close() {} };
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'iv-pick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Give to a pirate');
-  el.innerHTML = `<div class="gp-box"><div class="gp-head"><span>GIVE TO…</span><button class="gp-x" aria-label="Close">✕</button></div><div class="gp-item"></div>
+  el.innerHTML = `<div class="gp-box"><div class="gp-head"><span>GIVE TO…</span><button class="gp-x" data-x aria-label="Close">✕</button></div><div class="gp-item"></div>
     <input class="gp-q" type="search" placeholder="search, or type a pirate's name" aria-label="search pirates" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="20">
     <div class="gp-sub"></div><div class="gp-list" role="listbox"></div></div>`;
   const ok = document.createElement('div'); ok.id = 'iv-pick-ok'; ok.setAttribute('role', 'dialog'); ok.setAttribute('aria-label', 'Confirm the gift');
-  ok.innerHTML = `<div class="gp-box gp-ok"><div class="gp-head"><span>SEND IT?</span></div><div class="big"></div><div class="gp-btns"><button data-b="back">BACK</button><button data-b="give" class="primary">GIVE IT ⚓</button></div></div>`;
+  ok.innerHTML = `<div class="gp-box gp-ok"><div class="gp-head"><span>SEND IT?</span></div><div class="big"></div><div class="gp-btns"><button data-b="back" data-ok="no">BACK</button><button data-b="give" data-ok="yes" class="primary">GIVE IT ⚓</button></div></div>`;
   document.body.append(el, ok);
   for (const n of [el, ok]) for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'wheel']) n.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== 'keydown' });
   const $ = (s) => el.querySelector(s), q = $('.gp-q'), list = $('.gp-list');
@@ -86,11 +90,11 @@ export function createGivePick({ pvp, nearby = () => [], toast = () => {} }) {
     if (e.key === 'ArrowDown') { e.preventDefault(); rows[Math.min(rows.length - 1, i + 1)].focus(); } else if (e.key === 'ArrowUp') { e.preventDefault(); (i ? rows[i - 1] : q).focus(); } });
   const onKey = (e) => { if (e.key !== 'Escape' && e.code !== 'Escape') return; e.preventDefault(); e.stopImmediatePropagation(); if (ok.classList.contains('on')) back(); else close(); };
   const me = () => { try { return pvp()?.name || ''; } catch { return ''; } };
-  const row = (p, i) => `<button class="gp-row" role="option" data-n="${esc(p.n)}" data-to="${esc(p.to || p.n)}"${i === 0 ? ' autofocus' : ''}><span class="av">${esc(p.n[0].toUpperCase())}</span><b>${esc(p.n)}</b>${p.here ? '<em class="h">YOUR HARBOR</em>' : `<em class="a">${p.w === 'arena' ? 'IN BATTLE' : 'ONLINE'}</em>`}</button>`;
+  const row = (p, i) => `<button class="gp-row" role="option" data-pick data-n="${esc(p.n)}" data-to="${esc(p.to || p.n)}"${i === 0 ? ' autofocus' : ''}><span class="av">${esc(p.n[0].toUpperCase())}</span><b>${esc(p.n)}</b>${p.here ? '<em class="h">YOUR HARBOR</em>' : `<em class="a">${p.w === 'arena' ? 'IN BATTLE' : 'ONLINE'}</em>`}</button>`;
   function draw() {
     const typed = cleanName(q.value), rows = online ? pickList({ online, harbor: nearby(), me: me(), q: typed }) : pickList({ harbor: nearby(), me: me(), q: typed });
     const exact = rows.some((p) => p.n.toLowerCase() === typed.toLowerCase()), here = rows.filter((p) => p.here), rest = rows.filter((p) => !p.here);
-    const typedRow = typed && !exact && typed.toLowerCase() !== me().toLowerCase() ? `<button class="gp-row typed" role="option" data-n="${esc(typed)}" data-typed="1"><span class="av">✎</span><b>give to “${esc(typed)}”</b><em class="a">TYPED</em></button>` : '';
+    const typedRow = typed && !exact && typed.toLowerCase() !== me().toLowerCase() ? `<button class="gp-row typed" role="option" data-pick data-n="${esc(typed)}" data-typed="1"><span class="av">✎</span><b>give to “${esc(typed)}”</b><em class="a">TYPED</em></button>` : '';
     let h = rows.length ? '' : typedRow;
     if (here.length) h += `<div class="gp-sec">⚓ YOUR HARBOR</div>` + here.map(row).join('');
     if (rest.length) h += `<div class="gp-sec">🌊 ONLINE NOW</div>` + rest.map((p, i) => row(p, here.length ? 1 : i)).join('');
