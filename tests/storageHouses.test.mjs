@@ -86,7 +86,8 @@ test('buy + storage deposit/withdraw invariants (stacks, unique weapons, capacit
   const got = take(0, 1); assert.equal(got.item, 'val:gold_bar'); assert.equal(got.qty, 1);
   assert.equal(chest.find((x) => x.item === 'val:gold_bar').qty, 2);
   // UI blocks equipped; SQL blocks equipped
-  assert.match(SRC, /UNEQUIP THAT FIRST/);
+  assert.match(SRC, /EQUIPPED/);
+  assert.match(SRC, /unequip in Inventory first/);
   assert.match(SQL, /from pvp_inv_equip/);
 });
 
@@ -197,3 +198,99 @@ test('enhanced pirate cabin interior: vaulted roof, textures, west-wall chest, c
   assert.doesNotMatch(SRC, /hs-badge|SERVER SPOT RESERVED|INSIDE COTTAGE/);
 });
 
+test('[t1709u] cottage storage drag-full-stack + split-stack UI contract', () => {
+  assert.match(SRC, /hs-drag-ghost/);
+  assert.match(SRC, /hs-split-pop/);
+  assert.match(SRC, /✂️ SPLIT STACK/);
+  assert.match(SRC, /pointerdown/);
+  assert.match(SRC, /Shift\+Drag|shift/);
+  assert.match(SRC, /Alt\+Drag|alt/);
+  assert.match(SRC, /Double-click|ondblclick/);
+  assert.match(SRC, /YOUR BACKPACK/);
+  assert.match(SRC, /COTTAGE CHEST/);
+  assert.match(SRC, /hs-drop/);
+  assert.match(SRC, /hs-split/);
+  assert.match(SRC, /houseStorage\.js/);
+  assert.match(SRC, /applyChestStore/);
+  assert.match(SRC, /applyChestTake/);
+  assert.match(SRC, /isStackable/);
+  assert.match(SRC, /chestCanAccept/);
+  assert.match(SRC, /escHtml/);
+  // Equipped lock tag + no split on qty=1 weapons
+  assert.match(SRC, /🔒 EQUIPPED/);
+  assert.match(SRC, /stackable \? .*hs-split/);
+});
+
+test('[t1709u] full-stack drag + split transfer math (bag ↔ chest, merge into full chest)', async () => {
+  const { applyChestStore, applyChestTake, chestCanAccept, isStackable } = await import('../js/dock/houseStorage.js');
+  assert.equal(isStackable('val:gold_bar'), true);
+  assert.equal(isStackable('wpn:sword:cutlass:rare'), false);
+
+  // Full stack bag → chest (qty 12)
+  let chest = [];
+  let r = applyChestStore(chest, 24, 'val:gold_bar', 12);
+  assert.equal(r.ok, true);
+  chest = r.items;
+  assert.equal(chest.length, 1);
+  assert.equal(chest[0].qty, 12);
+
+  // Full stack chest → bag (take all 12)
+  r = applyChestTake(chest, chest[0].slot, 12);
+  assert.equal(r.ok, true);
+  assert.equal(r.taken.qty, 12);
+  assert.equal(r.taken.item, 'val:gold_bar');
+  chest = r.items;
+  assert.equal(chest.length, 0);
+
+  // Split 12 → move 5, leave 7 in bag (bag tracked separately); chest gets 5
+  let bagQty = 12;
+  const split1 = 5;
+  r = applyChestStore([], 24, 'fish:snapper', split1);
+  assert.equal(r.ok, true);
+  chest = r.items;
+  bagQty -= split1;
+  assert.equal(bagQty, 7);
+  assert.equal(chest[0].qty, 5);
+
+  // Split 3 more from bag → merges into chest (8), bag 4
+  const split2 = 3;
+  r = applyChestStore(chest, 24, 'fish:snapper', split2);
+  assert.equal(r.ok, true);
+  chest = r.items;
+  bagQty -= split2;
+  assert.equal(bagQty, 4);
+  assert.equal(chest.length, 1);
+  assert.equal(chest[0].qty, 8);
+
+  // Split from chest → bag (qty 8, split 4): chest 4, bag 8
+  r = applyChestTake(chest, chest[0].slot, 4);
+  assert.equal(r.ok, true);
+  chest = r.items;
+  bagQty += r.taken.qty;
+  assert.equal(chest[0].qty, 4);
+  assert.equal(bagQty, 8);
+
+  // Merge into ALREADY-EXISTING stack in a 24/24 full chest succeeds
+  const full = [];
+  for (let i = 0; i < 24; i++) {
+    full.push({ slot: i, item: i === 0 ? 'val:gold_bar' : `wpn:sword:cutlass:common`, qty: i === 0 ? 2 : 1 });
+  }
+  assert.equal(full.length, 24);
+  assert.equal(chestCanAccept(full, 24, 'val:gold_bar'), true);
+  r = applyChestStore(full, 24, 'val:gold_bar', 5);
+  assert.equal(r.ok, true, 'merge into existing stack at 24/24 must succeed');
+  assert.equal(r.items.find((x) => x.item === 'val:gold_bar').qty, 7);
+  assert.equal(r.items.length, 24);
+
+  // Brand-new item ID into 24/24 still blocked
+  assert.equal(chestCanAccept(full, 24, 'val:ruby'), false);
+  r = applyChestStore(full, 24, 'val:ruby', 1);
+  assert.equal(r.ok, false);
+  assert.equal(r.why, 'chest full');
+
+  // Unique weapon qty=1 is not stackable (no ✂️); store occupies a slot
+  assert.equal(isStackable('wpn:musket:blunder:common'), false);
+  r = applyChestStore([], 24, 'wpn:musket:blunder:common', 1);
+  assert.equal(r.ok, true);
+  assert.equal(r.items[0].qty, 1);
+});

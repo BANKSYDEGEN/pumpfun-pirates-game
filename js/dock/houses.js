@@ -5,6 +5,9 @@
 import * as THREE from 'three';
 import { itemInfo, RARITY_COLOR } from '../inventory/catalog.js';
 import { invApi } from '../pvpSave.js';
+import { escHtml } from '../safe.js';
+import { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
+export { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
 
 export const HOUSES_ON = !(typeof location !== 'undefined' && /[?&]houses=0(?:&|$)/.test(location.search || ''));
 
@@ -66,30 +69,62 @@ function reqId() {
 const CSS = `
 #hs-panel{position:fixed;inset:0;z-index:64;display:none;align-items:center;justify-content:center;background:rgba(10,7,4,.72);font-family:'Just Another Hand',cursive;color:#f4e2bb;touch-action:manipulation}
 #hs-panel.on{display:flex}
-#hs-panel .hs-box{width:min(860px,96vw);max-height:min(92vh,720px);display:flex;flex-direction:column;background:linear-gradient(#2a1a0c,#1a1008);border:3px solid #ffcd77;border-radius:16px;box-shadow:0 12px 40px #000}
-#hs-panel .hs-head{display:flex;align-items:center;gap:10px;padding:10px 14px 4px;font-size:30px;color:#ffcd77}
-#hs-panel .hs-head small{flex:1;font-size:18px;color:#cdb68c}
+#hs-panel .hs-box{width:min(920px,96vw);max-height:min(94vh,760px);display:flex;flex-direction:column;background:linear-gradient(#2a1a0c,#1a1008);border:3px solid #ffcd77;border-radius:16px;box-shadow:0 12px 40px #000}
+#hs-panel .hs-head{display:flex;align-items:center;gap:10px;padding:10px 14px 2px;font-size:30px;color:#ffcd77}
+#hs-panel .hs-head small{flex:1;font-size:17px;color:#cdb68c}
 #hs-panel .hs-x{width:44px;height:44px;border-radius:50%;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;font-size:22px;cursor:pointer}
-#hs-panel .hs-cols{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 12px 12px}
-#hs-panel .hs-col{display:flex;flex-direction:column;min-height:0;border:2px solid #6b4a24;border-radius:12px;background:#1a1008}
-#hs-panel .hs-col h4{margin:0;padding:6px 10px 2px;font-size:22px;color:#ffcd77;letter-spacing:.04em;border-bottom:2px solid rgba(255,205,119,.25)}
-#hs-panel .hs-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;padding:8px}
-#hs-panel .hs-slot{position:relative;aspect-ratio:1;border-radius:10px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px}
-#hs-panel .hs-slot.eq{opacity:.55}#hs-panel .hs-slot.eq::after{content:'EQUIPPED';position:absolute;left:2px;right:2px;bottom:2px;font:bold 9px system-ui,sans-serif;color:#ffcd77;text-align:center;background:rgba(0,0,0,.55);border-radius:4px}
-#hs-panel .hs-slot i{font-style:normal;font-size:28px;line-height:1;display:flex;align-items:center;justify-content:center;width:62%;aspect-ratio:1}
-#hs-panel .hs-slot img{width:100%;height:100%;object-fit:contain}
-#hs-panel .hs-slot span{font-size:12px;line-height:1.05;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
-#hs-panel .hs-slot b{position:absolute;right:4px;bottom:2px;font:bold 12px system-ui,sans-serif}
+#hs-panel .hs-hint{margin:0 12px 4px;padding:6px 10px;border-radius:10px;border:1px dashed rgba(255,205,119,.45);background:rgba(0,0,0,.28);font:16px/1.25 system-ui,sans-serif;color:#e8d4a8}
+#hs-panel .hs-filters{display:flex;flex-wrap:wrap;gap:6px;padding:2px 12px 6px}
+#hs-panel .hs-filters button{font:16px 'Just Another Hand',cursive;padding:3px 10px 2px;border-radius:999px;border:2px solid #6b4a24;background:#1a0f07;color:#cdb68c;cursor:pointer}
+#hs-panel .hs-filters button.on{border-color:#ffcd77;color:#ffcd77;background:#3a2410}
+#hs-panel .hs-cols{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 12px 10px}
+#hs-panel .hs-col{display:flex;flex-direction:column;min-height:0;border:2px solid #6b4a24;border-radius:12px;background:#1a1008;transition:box-shadow .12s,border-color .12s}
+#hs-panel .hs-col.hs-drop{border-color:#ffcd77;box-shadow:0 0 0 2px rgba(255,205,119,.55),inset 0 0 18px rgba(255,205,119,.12)}
+#hs-panel .hs-col h4{margin:0;padding:6px 10px 2px;font-size:22px;color:#ffcd77;letter-spacing:.04em;border-bottom:2px solid rgba(255,205,119,.25);display:flex;align-items:baseline;gap:8px}
+#hs-panel .hs-col h4 .hs-cap{font:14px/1 system-ui,sans-serif;color:#cdb68c;letter-spacing:0}
+#hs-panel .hs-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;padding:8px;align-content:start}
+#hs-panel .hs-slot{position:relative;aspect-ratio:1;border-radius:10px;border:3px solid #6b4a24;background:radial-gradient(#4a3018,#24160a);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:grab;padding:2px;user-select:none;-webkit-user-select:none;touch-action:none}
+#hs-panel .hs-slot:active{cursor:grabbing}
+#hs-panel .hs-slot.eq{opacity:.55;cursor:not-allowed}
+#hs-panel .hs-slot.eq .hs-lock{position:absolute;left:2px;right:2px;bottom:2px;font:bold 9px system-ui,sans-serif;color:#ffcd77;text-align:center;background:rgba(0,0,0,.6);border-radius:4px;pointer-events:none}
+#hs-panel .hs-slot.hs-empty-slot{opacity:.35;cursor:default;background:repeating-linear-gradient(45deg,#24160a 0 6px,#1a1008 6px 12px);border-style:dashed}
+#hs-panel .hs-slot.hs-from{opacity:.4;outline:2px dashed #ffcd77}
+#hs-panel .hs-slot i{font-style:normal;font-size:28px;line-height:1;display:flex;align-items:center;justify-content:center;width:62%;aspect-ratio:1;pointer-events:none}
+#hs-panel .hs-slot img{width:100%;height:100%;object-fit:contain;pointer-events:none}
+#hs-panel .hs-slot span{font-size:12px;line-height:1.05;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;pointer-events:none}
+#hs-panel .hs-slot b.hs-qty{position:absolute;right:3px;top:2px;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;pointer-events:none}
+#hs-panel .hs-slot .hs-split{position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:6px;border:1px solid #ffcd77;background:rgba(26,15,7,.9);color:#ffcd77;font:12px/20px system-ui,sans-serif;cursor:pointer;padding:0;z-index:2}
+#hs-panel .hs-slot .hs-split:hover{background:#5a3410;color:#fff}
 #hs-panel .hs-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 14px 12px;border-top:2px solid rgba(255,205,119,.25)}
 #hs-panel .hs-foot button{font:20px 'Just Another Hand',cursive;padding:6px 12px 4px;border-radius:10px;border:2px solid #ffcd77;background:#5a3410;color:#fff;cursor:pointer}
 #hs-panel .hs-foot button.ghost{background:#1a0f07;color:#ffcd77}
-#hs-panel .hs-empty{grid-column:1/-1;text-align:center;padding:28px 8px;opacity:.75;font-size:22px}
-@media (max-width:620px){#hs-panel .hs-cols{grid-template-columns:1fr}}
+#hs-panel .hs-empty{grid-column:1/-1;text-align:center;padding:18px 8px;opacity:.75;font-size:20px;pointer-events:none}
+#hs-drag-ghost{position:fixed;z-index:99999;pointer-events:none;width:86px;min-height:86px;transform:translate(-50%,-60%) scale(1.08);opacity:.95;border-radius:12px;border:3px solid #ffcd77;background:radial-gradient(#4a3018,#24160a);box-shadow:0 10px 28px rgba(0,0,0,.65);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;color:#f4e2bb;font-family:'Just Another Hand',cursive}
+#hs-drag-ghost i{font-style:normal;font-size:30px;width:62%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+#hs-drag-ghost img{width:100%;height:100%;object-fit:contain}
+#hs-drag-ghost span{font-size:13px;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#hs-drag-ghost b{position:absolute;right:4px;top:2px;font:bold 13px system-ui,sans-serif;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px}
+#hs-split-pop{position:fixed;z-index:100000;min-width:280px;max-width:min(360px,92vw);padding:12px 14px;border-radius:14px;border:3px solid #ffcd77;background:linear-gradient(#2a1a0c,#1a1008);box-shadow:0 14px 40px #000;color:#f4e2bb;font-family:'Just Another Hand',cursive;display:none}
+#hs-split-pop.on{display:block}
+#hs-split-pop .hs-sp-h{font-size:24px;color:#ffcd77;margin:0 0 4px}
+#hs-split-pop .hs-sp-sub{font:14px system-ui,sans-serif;color:#cdb68c;margin:0 0 8px}
+#hs-split-pop .hs-sp-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+#hs-split-pop input[type=range]{flex:1;accent-color:#ffcd77}
+#hs-split-pop input[type=number]{width:64px;font:16px system-ui,sans-serif;border-radius:8px;border:2px solid #6b4a24;background:#1a0f07;color:#ffcd77;padding:4px 6px}
+#hs-split-pop .hs-sp-pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#hs-split-pop .hs-sp-pills button,#hs-split-pop .hs-sp-actions button{font:18px 'Just Another Hand',cursive;padding:4px 10px 2px;border-radius:10px;border:2px solid #ffcd77;background:#5a3410;color:#fff;cursor:pointer}
+#hs-split-pop .hs-sp-pills button.ghost,#hs-split-pop .hs-sp-actions button.ghost{background:#1a0f07;color:#ffcd77}
+#hs-split-pop .hs-sp-prev{font:15px system-ui,sans-serif;color:#e8d4a8;margin:4px 0 8px}
+#hs-split-pop .hs-sp-actions{display:flex;gap:8px;justify-content:flex-end}
+@media (max-width:620px){#hs-panel .hs-cols{grid-template-columns:1fr}#hs-panel .hs-box{max-height:96vh}}
 `;
+
 
 function ico(key, info) {
   const u = itemImg(key, info);
-  return u ? `<i><img src="${u}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(document.createTextNode('${info.icon || '❔'}'))"></i>` : `<i>${info.icon || '❔'}</i>`;
+  const icon = escHtml(info?.icon || '❔');
+  const fallback = JSON.stringify(info?.icon || '❔');
+  return u ? `<i><img src="${escHtml(u)}" alt="" loading="lazy" decoding="async" onerror="this.replaceWith(document.createTextNode(${fallback}))"></i>` : `<i>${icon}</i>`;
 }
 
 function matL(hex, key) {
@@ -819,28 +854,47 @@ export function createHouses({
   const panel = document.createElement('div'); panel.id = 'hs-panel';
   panel.innerHTML = `<div class="hs-box" role="dialog" aria-label="Cottage Storage">
     <div class="hs-head"><span>🏠 COTTAGE STORAGE</span><small data-sub></small><button type="button" class="hs-x" aria-label="Close">✕</button></div>
+    <div class="hs-hint">Drag item across to move full stack · Shift+Drag or Split [✂️] to choose amount · Alt+Drag moves half · Double-click quick-moves stack</div>
+    <div class="hs-filters" data-filters>
+      <button type="button" data-f="all" class="on">All</button>
+      <button type="button" data-f="weapons">Weapons</button>
+      <button type="button" data-f="loot">Loot &amp; Fish</button>
+      <button type="button" data-f="resources">Resources</button>
+    </div>
     <div class="hs-cols">
-      <div class="hs-col"><h4>YOUR BACKPACK</h4><div class="hs-grid" data-bag></div></div>
-      <div class="hs-col"><h4>HOUSE CHEST <span data-cap></span></h4><div class="hs-grid" data-chest></div></div>
+      <div class="hs-col" data-pane="bag"><h4>🎒 YOUR BACKPACK <span class="hs-cap" data-bag-cap></span></h4><div class="hs-grid" data-bag></div></div>
+      <div class="hs-col" data-pane="chest"><h4>🧰 COTTAGE CHEST <span class="hs-cap" data-cap></span></h4><div class="hs-grid" data-chest></div></div>
     </div>
     <div class="hs-foot">
-      <button type="button" data-a="upgrade">UPGRADE CHEST +${UPGRADE_SLOTS} SLOTS · ${UPGRADE_PRICE.toLocaleString()}g</button>
+      <button type="button" data-a="upgrade">+${UPGRADE_SLOTS} SLOTS (${UPGRADE_PRICE.toLocaleString()}g)</button>
       <button type="button" class="ghost" data-a="leave">LEAVE COTTAGE</button>
       <button type="button" class="ghost" data-a="close">CLOSE</button>
     </div>
   </div>`;
   document.body.appendChild(panel);
+  const splitPop = document.createElement('div'); splitPop.id = 'hs-split-pop'; splitPop.setAttribute('role', 'dialog'); splitPop.setAttribute('aria-label', 'Split Stack');
+  document.body.appendChild(splitPop);
   panel.querySelector('.hs-x').onclick = () => closeStorage();
   panel.querySelector('[data-a="close"]').onclick = () => closeStorage();
   panel.querySelector('[data-a="leave"]').onclick = () => { closeStorage(); exitHouse(); };
   panel.querySelector('[data-a="upgrade"]').onclick = () => upgradeChest();
+  panel.querySelector('[data-filters]').onclick = (e) => {
+    const b = e.target.closest?.('button[data-f]'); if (!b) return;
+    filter = b.dataset.f || 'all';
+    for (const x of panel.querySelectorAll('[data-filters] button')) x.classList.toggle('on', x === b);
+    renderStorage();
+  };
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) panel.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) splitPop.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
 
   let cottages = resolveCottages(null);
   let postReady = false;
   let doors = []; // harbor-frame interact points
   let owned = {}; // id -> { tier, slots, items: [{slot,item,qty}] }
   let inHouse = false, activeId = null, doorHold = null, storageOpen = false, busy = false;
+  let filter = 'all';
+  let drag = null; // { side, item, qty, slot, el, sx, sy, on, gh, shift, alt, btn }
+  let lastTap = { t: 0, key: '' };
   let interior = null, roomOrigin = null; // harbor-frame origin of interior pocket
   let fallbackExteriors = null; // low-poly cottages when Post's area_cottages is absent
   const plaques = new THREE.Group(); plaques.name = 'house_plaques'; scene.add(plaques);
@@ -1185,10 +1239,12 @@ export function createHouses({
     const demo = lsLoad().demoBag;
     if (Array.isArray(demo)) return demo;
     return [
-      { item: 'val:gold_bar', qty: 2, equipped: false },
-      { item: 'fish:snapper', qty: 3, equipped: false },
+      { item: 'val:gold_bar', qty: 14, equipped: false },
+      { item: 'fish:snapper', qty: 12, equipped: false },
       { item: 'wpn:sword:cutlass:rare', qty: 1, equipped: true },
       { item: 'val:ruby', qty: 1, equipped: false },
+      { item: 'fish:koi', qty: 5, equipped: false },
+      { item: 'val:pearl_necklace', qty: 3, equipped: false },
     ];
   }
 
@@ -1204,40 +1260,263 @@ export function createHouses({
     storageOpen = true; panel.classList.add('on');
     await renderStorage();
   }
-  function closeStorage() { storageOpen = false; panel.classList.remove('on'); }
+  function closeStorage() {
+    storageOpen = false; panel.classList.remove('on');
+    clearDrag(); hideSplit();
+  }
+
+  function slotHtml(s, side) {
+    const info = itemInfo(s.item); if (!info) return '';
+    const border = RARITY_COLOR[info.rarity] || '#6b4a24';
+    const eq = !!s.equipped;
+    const q = s.qty | 0;
+    const stackable = isStackable(s.item) && q > 1;
+    const name = escHtml(shortName(info));
+    const itemAttr = escHtml(s.item);
+    const slotAttr = side === 'chest' ? ` data-slot="${s.slot | 0}"` : '';
+    const splitBtn = stackable ? `<button type="button" class="hs-split" data-split title="Split stack">✂️</button>` : '';
+    const lock = eq ? '<div class="hs-lock">🔒 EQUIPPED</div>' : '';
+    const qty = q > 1 ? `<b class="hs-qty">×${q}</b>` : (q === 1 && !isStackable(s.item) ? '' : (q > 0 ? `<b class="hs-qty">×${q}</b>` : ''));
+    return `<div class="hs-slot${eq ? ' eq' : ''}" data-side="${side}" data-item="${itemAttr}" data-qty="${q}"${slotAttr} style="border-color:${border}" title="${eq ? 'Equipped — unequip in Inventory first' : name}">${splitBtn}${ico(s.item, info)}<span>${name}</span>${qty}${lock}</div>`;
+  }
 
   async function renderStorage() {
-    const bag = await bagItems();
+    const bag = (await bagItems()).filter((s) => filterCat(s.item, filter));
     const ch = chestOf(activeId);
-    const used = (ch.items || []).length;
-    panel.querySelector('[data-sub]').textContent = `${(cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE'} · tap to move`;
-    panel.querySelector('[data-cap]').textContent = `(${used} / ${ch.slots})`;
+    const allChest = ch.items || [];
+    const chestItems = allChest.filter((s) => filterCat(s.item, filter));
+    const used = allChest.length;
+    const name = (cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE';
+    panel.querySelector('[data-sub]').textContent = `${name} · drag full stacks · ✂️ to split`;
+    panel.querySelector('[data-cap]').textContent = `${used} / ${ch.slots} slots`;
+    panel.querySelector('[data-bag-cap]').textContent = `${bag.length} item${bag.length === 1 ? '' : 's'}`;
     const bagEl = panel.querySelector('[data-bag]'), chestEl = panel.querySelector('[data-chest]');
-    bagEl.innerHTML = bag.length ? bag.map((s) => {
-      const info = itemInfo(s.item); if (!info) return '';
-      return `<div class="hs-slot${s.equipped ? ' eq' : ''}" data-side="bag" data-item="${s.item}" data-qty="${s.qty}" style="border-color:${RARITY_COLOR[info.rarity] || '#6b4a24'}">${ico(s.item, info)}<span>${shortName(info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`;
-    }).join('') : '<div class="hs-empty">backpack empty</div>';
-    chestEl.innerHTML = (ch.items || []).length ? ch.items.map((s) => {
-      const info = itemInfo(s.item); if (!info) return '';
-      return `<div class="hs-slot" data-side="chest" data-slot="${s.slot}" data-item="${s.item}" data-qty="${s.qty}" style="border-color:${RARITY_COLOR[info.rarity] || '#6b4a24'}">${ico(s.item, info)}<span>${shortName(info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`;
-    }).join('') : '<div class="hs-empty">chest empty · tap a backpack item</div>';
-    for (const el of panel.querySelectorAll('.hs-slot')) {
-      el.onclick = () => onSlot(el);
+    bagEl.innerHTML = bag.length
+      ? bag.map((s) => slotHtml(s, 'bag')).join('')
+      : '<div class="hs-empty">backpack empty</div>';
+    let chestHtml = chestItems.map((s) => slotHtml(s, 'chest')).join('');
+    // Empty slot cells so dropping onto any area of the chest feels tangible
+    const emptyN = Math.max(0, (ch.slots | 0) - used);
+    const showEmpty = Math.min(emptyN, filter === 'all' ? 12 : 4);
+    for (let i = 0; i < showEmpty; i++) chestHtml += '<div class="hs-slot hs-empty-slot" data-side="chest" data-empty="1" aria-hidden="true"></div>';
+    chestEl.innerHTML = chestHtml || '<div class="hs-empty">chest empty · drag a backpack item over</div>';
+    bindSlotEvents();
+  }
+
+  function bindSlotEvents() {
+    for (const el of panel.querySelectorAll('.hs-slot:not(.hs-empty-slot)')) {
+      el.onpointerdown = (e) => onSlotPointerDown(e, el);
+      el.ondblclick = (e) => { e.preventDefault(); e.stopPropagation(); quickMove(el, el.dataset.qty | 0); };
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        if ((el.dataset.qty | 0) > 1 && isStackable(el.dataset.item)) openSplit(el, e.clientX, e.clientY);
+      };
+    }
+    for (const btn of panel.querySelectorAll('.hs-split')) {
+      btn.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const el = btn.closest('.hs-slot'); if (el) openSplit(el, e.clientX, e.clientY);
+      };
+      btn.onpointerdown = (e) => e.stopPropagation();
     }
   }
 
-  async function onSlot(el) {
-    if (busy || !activeId) return;
-    const side = el.dataset.side, item = el.dataset.item, qty = Math.max(1, el.dataset.qty | 0);
-    if (side === 'bag') {
-      if (el.classList.contains('eq')) { toast('UNEQUIP THAT FIRST<br><small>open INVENTORY to unequip</small>', 2200); return; }
-      await storeItem(item, qty === 1 ? 1 : 1);
-    } else {
-      await takeItem(el.dataset.slot | 0, 1);
+  function clearDrag() {
+    if (drag?.gh) try { drag.gh.remove(); } catch {}
+    if (drag?.el) drag.el.classList.remove('hs-from');
+    panel.querySelectorAll('.hs-col.hs-drop').forEach((c) => c.classList.remove('hs-drop'));
+    drag = null;
+  }
+  function hideSplit() { splitPop.classList.remove('on'); splitPop.innerHTML = ''; }
+
+  function onSlotPointerDown(e, el) {
+    if (busy || !activeId || e.button === 2) return;
+    if (el.classList.contains('hs-empty-slot')) return;
+    if (e.target?.closest?.('.hs-split')) return;
+    // Equipped: block deposit attempts with a toast on click/drag end
+    const sx = e.clientX, sy = e.clientY;
+    drag = {
+      side: el.dataset.side, item: el.dataset.item, qty: el.dataset.qty | 0,
+      slot: el.dataset.slot != null ? (el.dataset.slot | 0) : -1,
+      el, sx, sy, on: false, gh: null,
+      shift: !!(e.shiftKey), alt: !!(e.altKey), btn: e.button | 0,
+      pointerId: e.pointerId, equipped: el.classList.contains('eq'),
+    };
+    try { el.setPointerCapture?.(e.pointerId); } catch {}
+    const move = (ev) => {
+      if (!drag || ev.pointerId !== drag.pointerId) return;
+      const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
+      if (!drag.on && (dx * dx + dy * dy) > 36) startDragGhost(ev.clientX, ev.clientY);
+      if (drag.on) {
+        if (drag.gh) { drag.gh.style.left = ev.clientX + 'px'; drag.gh.style.top = ev.clientY + 'px'; }
+        highlightDrop(ev.clientX, ev.clientY);
+      }
+    };
+    const up = (ev) => {
+      if (!drag || ev.pointerId !== drag.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      finishDrag(ev.clientX, ev.clientY);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  function startDragGhost(x, y) {
+    if (!drag || drag.on) return;
+    drag.on = true;
+    drag.el.classList.add('hs-from');
+    const info = itemInfo(drag.item) || { icon: '❔', name: drag.item, rarity: 'common' };
+    const gh = document.createElement('div'); gh.id = 'hs-drag-ghost';
+    const border = RARITY_COLOR[info.rarity] || '#ffcd77';
+    gh.style.borderColor = border;
+    gh.style.left = x + 'px'; gh.style.top = y + 'px';
+    gh.innerHTML = `${ico(drag.item, info)}<span>${escHtml(shortName(info))}</span>${drag.qty > 1 ? `<b>×${drag.qty}</b>` : ''}`;
+    document.body.appendChild(gh); drag.gh = gh;
+  }
+
+  function highlightDrop(x, y) {
+    panel.querySelectorAll('.hs-col.hs-drop').forEach((c) => c.classList.remove('hs-drop'));
+    if (!drag) return;
+    const target = drag.side === 'bag' ? 'chest' : 'bag';
+    const col = panel.querySelector(`.hs-col[data-pane="${target}"]`);
+    if (!col) return;
+    const r = col.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) col.classList.add('hs-drop');
+  }
+
+  function dropTarget(x, y) {
+    if (!drag) return null;
+    const want = drag.side === 'bag' ? 'chest' : 'bag';
+    const col = panel.querySelector(`.hs-col[data-pane="${want}"]`);
+    if (!col) return null;
+    const r = col.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return want;
+    return null;
+  }
+
+  async function finishDrag(x, y) {
+    const d = drag; if (!d) return;
+    const wasDrag = d.on;
+    const target = wasDrag ? dropTarget(x, y) : null;
+    const shift = d.shift || d.btn === 2;
+    const alt = d.alt;
+    const equipped = d.equipped;
+    const el = d.el;
+    clearDrag();
+    if (equipped && (wasDrag ? target === 'chest' : d.side === 'bag')) {
+      // click or drop attempt of equipped weapon
+      if (!wasDrag || target) toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 2200);
+      return;
     }
+    if (wasDrag && target) {
+      if (shift && d.qty > 1 && isStackable(d.item)) {
+        openSplit(el, x, y); return;
+      }
+      const qty = alt && d.qty > 1 && isStackable(d.item) ? Math.ceil(d.qty / 2) : d.qty;
+      await transfer(d.side, d.item, qty, d.slot);
+      return;
+    }
+    if (!wasDrag) {
+      // Tap / click without drag: full-stack quick move (mobile-friendly). Double-tap also covered by dblclick.
+      const key = `${d.side}:${d.item}:${d.slot}`;
+      const now = performance.now();
+      const isDbl = lastTap.key === key && (now - lastTap.t) < 380;
+      lastTap = { t: now, key };
+      if (isDbl) { /* dblclick handler will fire; skip single */ return; }
+      // single tap → full stack
+      setTimeout(async () => {
+        if (lastTap.key === key && lastTap.t === now) await quickMove(el, d.qty);
+      }, 220);
+    }
+  }
+
+  async function quickMove(el, qty) {
+    if (!el || busy || !activeId) return;
+    if (el.classList.contains('eq')) { toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 2200); return; }
+    const side = el.dataset.side, item = el.dataset.item, q = Math.max(1, qty | el.dataset.qty | 0);
+    const slot = el.dataset.slot != null ? (el.dataset.slot | 0) : -1;
+    await transfer(side, item, q, slot);
+  }
+
+  function openSplit(el, x, y) {
+    if (!el || busy) return;
+    if (el.classList.contains('eq')) { toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 2200); return; }
+    const side = el.dataset.side, item = el.dataset.item, qty = el.dataset.qty | 0;
+    const slot = el.dataset.slot != null ? (el.dataset.slot | 0) : -1;
+    if (qty <= 1 || !isStackable(item)) { quickMove(el, qty); return; }
+    const info = itemInfo(item) || { icon: '❔', name: item };
+    const dir = side === 'bag' ? 'Backpack ➔ Chest' : 'Chest ➔ Backpack';
+    const half = Math.ceil(qty / 2);
+    let cur = half;
+    hideSplit();
+    splitPop.innerHTML = `
+      <div class="hs-sp-h">✂️ SPLIT STACK</div>
+      <div class="hs-sp-sub">${ico(item, info)} <strong>${escHtml(shortName(info))}</strong> · ${escHtml(dir)} · ×${qty}</div>
+      <div class="hs-sp-row">
+        <button type="button" class="ghost" data-sp="-">−</button>
+        <input type="range" min="1" max="${qty}" value="${cur}" data-sp-range>
+        <button type="button" class="ghost" data-sp="+">+</button>
+        <input type="number" min="1" max="${qty}" value="${cur}" data-sp-num>
+      </div>
+      <div class="hs-sp-pills">
+        <button type="button" data-sp-set="1">1</button>
+        <button type="button" data-sp-set="${half}">HALF (${half})</button>
+        <button type="button" data-sp-set="${qty}">MAX (${qty})</button>
+      </div>
+      <div class="hs-sp-prev" data-sp-prev>Keep: ${qty - cur} · Move: ${cur}</div>
+      <div class="hs-sp-actions">
+        <button type="button" class="ghost" data-sp-cancel>CANCEL</button>
+        <button type="button" data-sp-go>MOVE ${cur} ➔</button>
+      </div>`;
+    const sync = () => {
+      cur = Math.max(1, Math.min(qty, cur | 0));
+      splitPop.querySelector('[data-sp-range]').value = cur;
+      splitPop.querySelector('[data-sp-num]').value = cur;
+      splitPop.querySelector('[data-sp-prev]').textContent = `Keep: ${qty - cur} · Move: ${cur}`;
+      splitPop.querySelector('[data-sp-go]').textContent = `MOVE ${cur} ➔`;
+    };
+    splitPop.querySelector('[data-sp-range]').oninput = (e) => { cur = e.target.value | 0; sync(); };
+    splitPop.querySelector('[data-sp-num]').oninput = (e) => { cur = e.target.value | 0; sync(); };
+    splitPop.querySelector('[data-sp="-"]').onclick = () => { cur -= 1; sync(); };
+    splitPop.querySelector('[data-sp="+"]').onclick = () => { cur += 1; sync(); };
+    for (const b of splitPop.querySelectorAll('[data-sp-set]')) b.onclick = () => { cur = b.dataset.spSet | 0; sync(); };
+    splitPop.querySelector('[data-sp-cancel]').onclick = () => hideSplit();
+    splitPop.querySelector('[data-sp-go]').onclick = async () => {
+      hideSplit();
+      await transfer(side, item, cur, slot);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { hideSplit(); window.removeEventListener('keydown', onKey); }
+      if (e.key === 'Enter') { splitPop.querySelector('[data-sp-go]')?.click(); window.removeEventListener('keydown', onKey); }
+    };
+    window.addEventListener('keydown', onKey);
+    // Position near pointer, clamp to viewport
+    splitPop.classList.add('on');
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const left = Math.max(8, Math.min(vw - 300, (x || vw / 2) - 140));
+    const top = Math.max(8, Math.min(vh - 280, (y || vh / 2) - 40));
+    splitPop.style.left = left + 'px'; splitPop.style.top = top + 'px';
+    // click outside cancels
+    setTimeout(() => {
+      const outside = (e) => {
+        if (!splitPop.contains(e.target)) { hideSplit(); window.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', onKey); }
+      };
+      window.addEventListener('pointerdown', outside, true);
+    }, 0);
+  }
+
+  async function transfer(side, item, qty, slot) {
+    if (busy || !activeId || !item) return;
+    const q = Math.max(1, qty | 0);
+    if (side === 'bag') await storeItem(item, q);
+    else await takeItem(slot | 0, q);
   }
 
   async function storeItem(item, qty) {
+    if (busy || !activeId) return;
     busy = true;
     try {
       let ok = false;
@@ -1248,39 +1527,35 @@ export function createHouses({
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };
           persistChest(activeId);
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
-        } else if (r && r.error === 'equipped') { toast('UNEQUIP THAT FIRST', 1800); return; }
+        } else if (r && r.error === 'equipped') { toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 1800); return; }
         else if (r && r.error === 'chest full') { toast('CHEST FULL', 1600); return; }
-        else if (r && r.ok === false && r.error !== 'offline' && r.error !== 'closed') { toast(String(r.error || 'no').toUpperCase(), 1800); return; }
+        else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
+          toast(String(r.error || 'no').toUpperCase(), 1800); return;
+        }
       } catch {}
       if (!ok) {
-        // Offline local move
+        // Offline local move — merge into existing stack even when chest is at capacity
         const ch = chestOf(activeId);
-        if ((ch.items || []).length >= ch.slots && !(ch.items || []).some((x) => x.item === item && !item.startsWith('wpn:'))) {
-          toast('CHEST FULL', 1600); return;
-        }
-        const items = [...(ch.items || [])];
-        const stack = !item.startsWith('wpn:') ? items.find((x) => x.item === item) : null;
-        if (stack) stack.qty += qty;
-        else {
-          let slot = 0; const used = new Set(items.map((x) => x.slot));
-          while (used.has(slot)) slot++;
-          if (slot >= ch.slots) { toast('CHEST FULL', 1600); return; }
-          items.push({ slot, item, qty });
-        }
-        // trim demo bag
+        const res = applyChestStore(ch.items || [], ch.slots, item, qty);
+        if (!res.ok) { toast((res.why || 'chest full').toUpperCase(), 1600); return; }
         const st = lsLoad();
         const bag = Array.isArray(st.demoBag) ? st.demoBag : null;
         if (bag) {
           const row = bag.find((x) => x.item === item);
-          if (row) { row.qty -= qty; if (row.qty <= 0) st.demoBag = bag.filter((x) => x.item !== item); lsSave(st); }
+          if (row) {
+            row.qty -= qty;
+            if (row.qty <= 0) st.demoBag = bag.filter((x) => x.item !== item);
+            lsSave(st);
+          }
         }
-        owned[activeId] = { ...owned[activeId], items }; persistChest(activeId);
+        owned[activeId] = { ...owned[activeId], items: res.items }; persistChest(activeId);
       }
-      sfx?.coin?.(); toast('STORED', 900); await renderStorage();
+      sfx?.coin?.(); toast(qty > 1 ? `STORED ×${qty}` : 'STORED', 900); await renderStorage();
     } finally { busy = false; }
   }
 
   async function takeItem(slot, qty) {
+    if (busy || !activeId) return;
     busy = true;
     try {
       let ok = false;
@@ -1291,20 +1566,22 @@ export function createHouses({
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };
           persistChest(activeId);
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
-        } else if (r && r.ok === false && r.error !== 'offline' && r.error !== 'closed') { toast(String(r.error || 'no').toUpperCase(), 1800); return; }
+        } else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
+          toast(String(r.error || 'no').toUpperCase(), 1800); return;
+        }
       } catch {}
       if (!ok) {
-        const items = [...(owned[activeId].items || [])];
-        const row = items.find((x) => x.slot === slot); if (!row) return;
-        const take = Math.min(qty, row.qty); row.qty -= take;
+        const res = applyChestTake(owned[activeId].items || [], slot, qty);
+        if (!res.ok) return;
         const st = lsLoad();
         st.demoBag = st.demoBag || [];
-        const bag = st.demoBag.find((x) => x.item === row.item);
-        if (bag) bag.qty += take; else st.demoBag.push({ item: row.item, qty: take, equipped: false });
+        const bag = st.demoBag.find((x) => x.item === res.taken.item);
+        if (bag) bag.qty += res.taken.qty;
+        else st.demoBag.push({ item: res.taken.item, qty: res.taken.qty, equipped: false });
         lsSave(st);
-        owned[activeId].items = items.filter((x) => x.qty > 0); persistChest(activeId);
+        owned[activeId].items = res.items; persistChest(activeId);
       }
-      sfx?.coin?.(); toast('WITHDRAWN', 900); await renderStorage();
+      sfx?.coin?.(); toast(qty > 1 ? `WITHDRAWN ×${qty}` : 'WITHDRAWN', 900); await renderStorage();
     } finally { busy = false; }
   }
 
@@ -1494,5 +1771,10 @@ export function createHouses({
     // test helpers
     _forceOwn(id) { owned[id] = { tier: (owned[id] && owned[id].tier) || 'cozy', slots: (owned[id] && owned[id].slots) || 24, items: (owned[id] && owned[id].items) || [] }; persistChest(id); return owned[id]; },
     _setDemoBag(items) { const st = lsLoad(); st.demoBag = items; lsSave(st); },
+    _renderStorage: () => renderStorage(),
+    _openSplit: (el, x, y) => openSplit(el, x, y),
+    _storeItem: (item, qty) => storeItem(item, qty),
+    _takeItem: (slot, qty) => takeItem(slot, qty),
+    _transfer: (side, item, qty, slot) => transfer(side, item, qty, slot),
   };
 }
