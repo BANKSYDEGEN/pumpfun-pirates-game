@@ -55,7 +55,35 @@ const walks={}; if(C.COLISEUM_ON){
   walks.castle=walk('castle',(()=>{const o=[]; for(let s=0;s<=C.CASTLE_STAIR.length;s+=0.35)o.push(C.castleAt(s)); return o;})());
   walks.battery=walk('battery',(()=>{const g=C.BATTERY_GATE,n=g.n||[1,0],o=[]; for(let t=-3;t<=8;t+=0.25)o.push([g.lx+n[0]*t,g.lz+n[1]*t]); return o;})());
 }
+// [v307] outer-shell face ground: every non-gate sample at off=-1.2 must sit on FOOT.y (no cliff undercut)
+const shellGround={min:Infinity,max:-Infinity,bad:[],n:0}; if(C.COLISEUM_ON&&C.contourAt){
+  const N=96, gates=[C.MAIN_GATE,C.CASTLE_GATE,C.BATTERY_GATE,C.FISH_GATE];
+  for(let i=0;i<N;i++){const c=C.contourAt((i+.5)/N*C.CONTOUR_LEN,0);
+    const inGate=gates.some(g=>{const glx=g.shellLx??g.lx,glz=g.lz; const hw=g===C.MAIN_GATE?(g.opening/2+1.75):(g.w/2+1.6);
+      return Math.hypot(c.lx-glx,c.lz-glz)<hw;});
+    if(inGate) continue;
+    const o=C.contourAt((i+.5)/N*C.CONTOUR_LEN,-1.2); const h=F.H(...CO.t2w(o.lx,o.lz));
+    shellGround.n++; shellGround.min=Math.min(shellGround.min,h); shellGround.max=Math.max(shellGround.max,h);
+    if(h<C.FOOT.y-0.35) shellGround.bad.push({i,lx:+o.lx.toFixed(2),lz:+o.lz.toFixed(2),h:+h.toFixed(2)});
+  }
+}
+// [v307] 360° shell coverage: radial rays at contour must hit a collider except inside the 4 gate openings
+const shellGaps={n:0,gaps:[]}; if(C.COLISEUM_ON&&C.contourAt){
+  const gates=[C.MAIN_GATE,C.CASTLE_GATE,C.BATTERY_GATE,C.FISH_GATE];
+  const N=180;
+  for(let i=0;i<N;i++){const c=C.contourAt(i/N*C.CONTOUR_LEN,0);
+    const inGate=gates.some(g=>{const glx=g.shellLx??g.lx,glz=g.lz; const hw=g===C.MAIN_GATE?(g.opening/2+0.15):(g.w/2+0.15);
+      // arc-length aware: use contourNearest distance along contour
+      const cg=C.contourNearest(glx,glz); const L=C.CONTOUR_LEN; const ds=Math.min(Math.abs(c.s-cg.s),L-Math.abs(c.s-cg.s));
+      return ds<hw;});
+    if(inGate) continue;
+    shellGaps.n++;
+    // probe just outside the wall face and at mid-wall — a solid bay/pier must block
+    const [x,z]=CO.t2w(c.lx,c.lz);
+    if(!F.hitCollider(x,z,.55)) shellGaps.gaps.push({i,lx:+c.lx.toFixed(2),lz:+c.lz.toFixed(2)});
+  }
+}
 const tips={south:C.FOOT.lz1,north:C.FOOT.lz0,fishClear:(-42)-C.FOOT.lz1,p:C.ELL.p,rz:C.ELL.rz,rx:C.ELL.rx};
-const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,wings,range:BA.RANGE,pit:BA.PIT,interiors,exteriorSummary,exterior,samples,walks,tips};
+const [wx,wz]=CO.t2w(20,-114.761); const result={rangeY:BA.RANGE.y,footY:C.FOOT.y,inRange:BA.inRange(69,-158),wellHit:F.hitCollider(wx,wz,.45),on:C.COLISEUM_ON,main:C.MAIN_GATE,join:C.CASTLE_JOIN,stairLength:C.CASTLE_STAIR.length,maxErr,maxStep,hits,edgeHits,gateHits,batteryHits,wallSolid,fish,battery:C.BATTERY_GATE,ell:C.ELL,wings,range:BA.RANGE,pit:BA.PIT,interiors,exteriorSummary,exterior,samples,walks,tips,shellGround,shellGaps};
 if(process.env.COLI_REPORT) writeFileSync(process.env.COLI_REPORT,JSON.stringify(result,null,2));
 console.log(JSON.stringify({...result,samples:undefined,exterior:undefined,hits:hits.slice(0,8)}));

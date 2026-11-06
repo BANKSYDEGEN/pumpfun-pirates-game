@@ -1,5 +1,5 @@
-// [Timothy v305] BANKSY coli-round: rounded-oval / superellipse shell (p=2.7, rz=74) — blunter Roman ends,
-// south tip pulled off Fish Market; MAIN_GATE = vaulted Roman vomitorium gallery. Kill switch: &coliseum=0.
+// [Timothy v308] BANKSY coli-cliff: south tip lz1=-72 off Fish Market cliff + shell-protect stamp + foundation skirt;
+// [v305] rounded-oval / superellipse (p=2.7); MAIN_GATE = vaulted Roman vomitorium gallery. Kill switch: &coliseum=0.
 import * as THREE from 'three';
 import { M } from './kit.js';
 import * as CO from './coast.js';
@@ -10,8 +10,9 @@ export const COLISEUM_ON = !(typeof location !== 'undefined' && /[?&]coliseum=0(
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const rectD = (lx, lz, R) => Math.hypot(Math.max(R.lx0 - lx, 0, lx - R.lx1), Math.max(R.lz0 - lz, 0, lz - R.lz1));
 
-// [v305] rounded amphitheatre: same mid-width (lx 34..88), tips pulled in 8 m (lz -200..-52), p>2 blunts the hairpin ends.
-export const FOOT = { lx0: 34, lx1: 88, lz0: -200, lz1: -52, y: 9.2, feather: 8, wall: 3.2, walk: 4.5, tiers: 3 };
+// [v308] south tip pulled to lz -72 (off Fish Market cliff) + stamp never undercuts shell; foundation skirt under outer bays.
+// [v305] rounded amphitheatre: mid-width lx 34..88, p>2 blunts the hairpin ends.
+export const FOOT = { lx0: 34, lx1: 88, lz0: -200, lz1: -72, y: 9.2, feather: 8, wall: 3.2, walk: 4.5, tiers: 3 };
 export const ELL = {
   cx: (FOOT.lx0 + FOOT.lx1) / 2, cz: (FOOT.lz0 + FOOT.lz1) / 2,
   rx: (FOOT.lx1 - FOOT.lx0) / 2, rz: (FOOT.lz1 - FOOT.lz0) / 2, p: 2.7,
@@ -65,13 +66,39 @@ export function contourNearest(lx, lz) {
   return contourAt(_PS[best]);
 }
 function baySeg(i, N, off = 0) {
-  const s0 = i / N * CONTOUR_LEN, s1 = (i + 1) / N * CONTOUR_LEN, smid = (s0 + s1) / 2;
+  const s0 = i / N * CONTOUR_LEN, s1 = (i + 1) / N * CONTOUR_LEN;
+  return baySegRange(s0, s1, off, i);
+}
+// Exact arc-length sub-segment (for gate cutout remnants that aren't a full bay).
+function baySegRange(s0, s1, off = 0, i = -1) {
+  const smid = (s0 + s1) / 2;
   const a = contourAt(s0, off), b = contourAt(s1, off), m = contourAt(smid, off);
   const [x0, z0] = CO.t2w(a.lx, a.lz), [x1, z1] = CO.t2w(b.lx, b.lz), [xm, zm] = CO.t2w(m.lx, m.lz);
   const [wx1, wz1] = CO.t2w(m.lx + m.nx, m.lz + m.nz);
   const nx = wx1 - xm, nz = wz1 - zm, nL = Math.hypot(nx, nz) || 1;
   return { i, s0, s1, smid, lx0: a.lx, lz0: a.lz, lx1: b.lx, lz1: b.lz, lxm: m.lx, lzm: m.lz,
     x0, z0, x1, z1, xm, zm, nx: nx / nL, nz: nz / nL, span: Math.hypot(x1 - x0, z1 - z0), yaw: Math.atan2(-(z1 - z0), x1 - x0) };
+}
+// Subtract a circular arc cutout [gS-hw, gS+hw] (mod CONTOUR_LEN) from [s0,s1]; return remaining [sa,sb] pieces.
+function subtractArc(s0, s1, gS, hw) {
+  const L = CONTOUR_LEN;
+  const norm = (s) => ((s % L) + L) % L;
+  // Lift cutout into a window that overlaps [s0,s1] (unwrap by ±L)
+  const pieces = [];
+  for (const k of [-1, 0, 1]) {
+    const c0 = gS - hw + k * L, c1 = gS + hw + k * L;
+    const a = Math.max(s0, c0), b = Math.min(s1, c1);
+    if (a < b) pieces.push([a, b]);
+  }
+  if (!pieces.length) return [[s0, s1]];
+  pieces.sort((u, v) => u[0] - v[0]);
+  const out = []; let cur = s0;
+  for (const [a, b] of pieces) {
+    if (a > cur + 1e-6) out.push([cur, a]);
+    cur = Math.max(cur, b);
+  }
+  if (s1 > cur + 1e-6) out.push([cur, s1]);
+  return out;
 }
 
 // Main entrance (remove stall_red/blue): between #36/#37 on east Hill Street
@@ -119,15 +146,15 @@ export const BATTERY_GATE = (() => {
 export const FISH_GATE = (() => {
   let best = null, bs = -Infinity;
   for (let i = 0; i < _N; i++) {
-    const [lx, lz] = _PTS[i]; if (lx < 78 || lz <= -68 || lz >= -56) continue;
-    const [nx, nz] = ellNormal(lx, lz); const toA = [94.5 - lx, -41.2 - lz], al = Math.hypot(...toA) || 1;
+    const [lx, lz] = _PTS[i]; if (lx < 72 || lz <= FOOT.lz1 - 14 || lz >= FOOT.lz1 - 1.5) continue;
+    const [nx, nz] = ellNormal(lx, lz); const toA = [95.5 - lx, -41.2 - lz], al = Math.hypot(...toA) || 1;
     const align = (nx * toA[0] + nz * toA[1]) / al; if (align > bs) { bs = align; best = i; }
   }
   const c = contourAt(_PS[best]); return { lx: c.lx, lz: c.lz, w: 7.2, n: [c.nx, c.nz], plazaY: STREET_Y };
 })();
 export const FISH_HW = 3.6;
 const FG_OUT = 1.6, FG_IN = 8;
-const FP = [[94.5, -41.2], [FISH_GATE.lx + FISH_GATE.n[0] * 13, FISH_GATE.lz + FISH_GATE.n[1] * 13], [FISH_GATE.lx + FISH_GATE.n[0] * FG_OUT, FISH_GATE.lz + FISH_GATE.n[1] * FG_OUT], [FISH_GATE.lx - FISH_GATE.n[0] * FG_IN, FISH_GATE.lz - FISH_GATE.n[1] * FG_IN]];
+const FP = [[95.8, -41.2], [FISH_GATE.lx + FISH_GATE.n[0] * 13, FISH_GATE.lz + FISH_GATE.n[1] * 13], [FISH_GATE.lx + FISH_GATE.n[0] * FG_OUT, FISH_GATE.lz + FISH_GATE.n[1] * FG_OUT], [FISH_GATE.lx - FISH_GATE.n[0] * FG_IN, FISH_GATE.lz - FISH_GATE.n[1] * FG_IN]];
 function roundPath(CPs, rmax) { const out = [CPs[0]];
   for (let i = 1; i < CPs.length - 1; i++) { const a = CPs[i - 1], b = CPs[i], c = CPs[i + 1], la = Math.hypot(a[0] - b[0], a[1] - b[1]), lc = Math.hypot(c[0] - b[0], c[1] - b[1]);
     const r = Math.min(rmax, la / 3, lc / 3), u = b.map((v, j) => v + (a[j] - v) * r / la), v = b.map((x, j) => x + (c[j] - x) * r / lc);
@@ -162,22 +189,35 @@ export function inFoot(lx, lz, pad = 0) { return ellInside(lx, lz, pad); }
 export function stamp(lx, lz, h) {
   if (!near(lx, lz)) return { h, d: 99 };
   const d = ellOutD(lx, lz);
-  if (d < FOOT.feather) {
-    const w = 1 - sm(0, FOOT.feather, d);
-    h = h * (1 - w) + FOOT.y * w;
-  }
   const dg = Math.hypot(Math.max(MAIN_GATE.lx - lx, 0, lx - MAIN_GATE.lx - MAIN_GATE.d), Math.max(Math.abs(lz - MAIN_GATE.lz) - MAIN_GATE.w / 2, 0));
-  if (dg < 2) { const w = 1 - sm(0, 2, dg); h = h * (1 - w) + mainY(lx, lz) * w; }
   const ramp = castleSample(lx, lz), rd = ramp.d;
-  if (rd < CASTLE_RAMP_HW + 1.2) { const w = 1 - sm(CASTLE_RAMP_HW, CASTLE_RAMP_HW + 1.2, rd); h = h * (1 - w) + ramp.y * w; }
-  if (PLAZA_V2 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > FACADE_LZ - ROW_D - 6) {
+  // [v307] plaza / fish cuts must never carve a cliff under the outer shell.
+  // Keep the actual FISH_STAIR corridor (f.d < FISH_HW+0.4) free so the ramp still descends through the gate.
+  let fd = 99, onFishRamp = false;
+  if (nearFish(lx, lz)) {
+    const f = fishSample(lx, lz); fd = f.d;
+    onFishRamp = f.d < FISH_HW + 0.4 && f.s < FISH_STAIR.sShell + 1;
+    if (f.d < FISH_HW + 8.5 && f.s < FISH_STAIR.sShell + 1 && (d >= 2.2 || onFishRamp)) {
+      const w = 1 - sm(FISH_HW + 4.5, FISH_HW + 8.5, f.d), ty = Math.min(f.y, fishLowY(lx, lz, FISH_HW + 6) ?? f.y) - 0.12;
+      h = h * (1 - w) + (lx < 93 && lz > -46 ? Math.min(h, ty) : ty) * w;
+    }
+  }
+  if (PLAZA_V2 && d >= 2.2 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > FACADE_LZ - ROW_D - 6) {
     const keep = sm(FACADE_LZ - ROW_D - 6, FACADE_LZ - ROW_D - 2, lz);
     h += (Math.min(h, STREET_Y - 0.14) - h) * keep;
   }
-  let fd = 99;
-  if (nearFish(lx, lz)) { const f = fishSample(lx, lz); fd = f.d;
-    if (f.d < FISH_HW + 8.5 && f.s < FISH_STAIR.sShell + 1) { const w = 1 - sm(FISH_HW + 4.5, FISH_HW + 8.5, f.d), ty = Math.min(f.y, fishLowY(lx, lz, FISH_HW + 6) ?? f.y) - 0.12;
-      h = h * (1 - w) + (lx < 93 && lz > -46 ? Math.min(h, ty) : ty) * w; } }
+  // Gate ramps after plaza/fish so they win in the openings.
+  if (dg < 2) { const w = 1 - sm(0, 2, dg); h = h * (1 - w) + mainY(lx, lz) * w; }
+  if (rd < CASTLE_RAMP_HW + 1.2) { const w = 1 - sm(CASTLE_RAMP_HW, CASTLE_RAMP_HW + 1.2, rd); h = h * (1 - w) + ramp.y * w; }
+  // [v307] solid shoulder under shell (covers G=4 bilinear); soft feather beyond for a natural cliff edge.
+  const shellExempt = onFishRamp || dg < 1.2 || rd < CASTLE_RAMP_HW + 0.5;
+  if (!shellExempt) {
+    if (d <= 3.6) h = Math.max(h, FOOT.y);
+    else if (d < 8.5) { const w = 1 - sm(3.6, 8.5, d); h = h * (1 - w) + FOOT.y * w; }
+  } else if (d < FOOT.feather) {
+    const w = 1 - sm(0, FOOT.feather, d);
+    h = h * (1 - w) + FOOT.y * w;
+  }
   return { h, d: Math.min(d, dg, rd, fd + 4) };
 }
 
@@ -239,7 +279,7 @@ export function buildArt(o) {
   // plan colors: musket pad + sword pad
   { const YEL = 0xbca779, PUR = 0xb5a48b;
     const [mx, mz] = T(61, -150); W(k, box(27, 0.08, 27), YEL, SA, M(mx, y0 + 0.1, mz, Y0W), false);
-    const [px, pz] = T(61, -92); W(k, new THREE.CylinderGeometry(10.1, 10.1, 0.08, 32), PUR, SA, M(px, y0 + 0.1, pz), false); }
+    const [px, pz] = T(61, -101); W(k, new THREE.CylinderGeometry(10.1, 10.1, 0.08, 32), PUR, SA, M(px, y0 + 0.1, pz), false); }
 
   // Worn flag patches
   for (let row = 0; row < 45; row++) for (let col = 0; col < 15; col++) {
@@ -251,35 +291,71 @@ export function buildArt(o) {
   // continuous cobbled ring walk
   for (let i = 0; i < N; i++) { const s = Wseg(baySeg(i, N, RING)); W(k, box(s.span * 1.06, 0.16, 4.6), COB, CB, M(s.xm, y0 + 0.07, s.zm, s.yaw), false); }
 
-  // seating podium + cavea; fish-gate neighbours trimmed short
-  const fgi = (() => { let bi = 0, bd = Infinity; for (let i = 0; i < N; i++) { const s = baySeg(i, N); const d = Math.hypot(s.lxm - FISH_GATE.lx, s.lzm - FISH_GATE.lz); if (d < bd) { bd = d; bi = i; } } return bi; })();
-  const trim = (i, s) => { const t = i === fgi - 1 ? 1 : i === fgi + 1 ? -1 : 0; if (!t) return s;
-    const c = 1.8, ux = Math.cos(s.yaw), uz = -Math.sin(s.yaw); return { ...s, span: s.span - c, xm: s.xm - ux * t * c / 2, zm: s.zm - uz * t * c / 2 }; };
+  // [v307] gate cutouts by exact arc-length (not whole-bay skip) so shell/cavea tie flush into gate piers
+  const GATE_CUTS = [MAIN_GATE, CASTLE_GATE, BATTERY_GATE, FISH_GATE].map((g) => {
+    const c = contourNearest(g.shellLx ?? g.lx, g.lz);
+    const isMain = g === MAIN_GATE;
+    return {
+      g, s: c.s,
+      shellHW: isMain ? g.opening / 2 + 3.0 : g.w / 2 + 2.4,
+      seatHW: isMain ? g.opening / 2 + 1.2 : g.w / 2 + 1.4,
+    };
+  });
+  const remainders = (s0, s1, kind) => {
+    let segs = [[s0, s1]];
+    for (const cut of GATE_CUTS) {
+      const hw = kind === 'seat' ? cut.seatHW : cut.shellHW;
+      const next = [];
+      for (const [a, b] of segs) next.push(...subtractArc(a, b, cut.s, hw));
+      segs = next;
+    }
+    return segs;
+  };
+
+  // seating podium + cavea — trim exactly to seatCutHW at each gate
   for (let i = 0; i < N; i++) {
-    const s0 = baySeg(i, N); if (gateHit(s0)) continue;
-    for (let r = 0; r < 4; r++) { const s = Wseg(trim(i, baySeg(i, N, SEAT0 - r * 0.6))), h = 1.2 + r * 1.1;
-      W(k, box(s.span * 1.05, h, 0.7), r % 2 ? ST : ST_L, DS, M(s.xm, y0 + h / 2, s.zm, s.yaw), r === 0); }
-    const s = Wseg(trim(i, baySeg(i, N, SEAT0 - 0.2))); addBox(s.xm, s.zm, s.span * 1.02, 1.0, s.yaw);
-    if (i % 3 === 0) { const t = Wseg(baySeg(i, N, SEAT0 + 0.6)); torchPost?.(k, F, t.xm, y0, t.zm); addCirc(t.xm, t.zm, 0.25); }
+    const s0 = i / N * CONTOUR_LEN, s1 = (i + 1) / N * CONTOUR_LEN;
+    const bits = remainders(s0, s1, 'seat').filter(([a, b]) => b - a > 0.25);
+    for (const [sa, sb] of bits) {
+      for (let r = 0; r < 4; r++) {
+        const s = Wseg(baySegRange(sa, sb, SEAT0 - r * 0.6, i)), h = 1.2 + r * 1.1;
+        W(k, box(s.span * 1.05, h, 0.7), r % 2 ? ST : ST_L, DS, M(s.xm, y0 + h / 2, s.zm, s.yaw), r === 0);
+      }
+      const s = Wseg(baySegRange(sa, sb, SEAT0 - 0.2, i)); addBox(s.xm, s.zm, s.span * 1.02, 1.0, s.yaw);
+    }
+    if (i % 3 === 0 && bits.length) {
+      const mid = bits[0], t = Wseg(baySegRange(mid[0], mid[1], SEAT0 + 0.6, i));
+      torchPost?.(k, F, t.xm, y0, t.zm); addCirc(t.xm, t.zm, 0.25);
+    }
   }
 
-  // outer shell: 3 arcaded tiers + attic + parapet (arc-length bays, true normals)
-  for (let i = 0; i < N; i++) {
-    const s = baySeg(i, N), g = gateHit(s), [px, pz] = [s.x0, s.z0];
-    const totH = F0.tiers * tierH + 2.6;
-    if (!pierInGateAt(s.lx0, s.lz0)) {
-      W(k, box(1.5, totH, wt + 0.3), ST, DS, M(px, y0 + totH / 2, pz, s.yaw));
-      W(k, cyl(0.42, 0.46, totH - 0.4, 8), ST_L, DS, M(px + s.nx * 0.95, y0 + totH / 2, pz + s.nz * 0.95), false);
-      addBox(px, pz, 1.6, wt + 0.4, s.yaw);
+  // [v307] outer shell: exact arc-length remnants around gates (arched if long, solid ashlar if short)
+  const totH = F0.tiers * tierH + 2.6;
+  const placePier = (s, force = false) => {
+    // Only skip when deep inside the walkable opening (not the cheek / shellHW zone).
+    if (!force) {
+      let inOpen = false;
+      for (const gg of [MAIN_GATE, CASTLE_GATE, BATTERY_GATE, FISH_GATE]) {
+        const glx = gg.shellLx ?? gg.lx, glz = gg.lz, hw = (gg.opening ?? gg.w) / 2 + 0.15;
+        if (Math.hypot(s.lx0 - glx, s.lz0 - glz) < hw) { inOpen = true; break; }
+      }
+      if (inOpen) return;
     }
-    if (g) {
-      const ay = y0 + F0.tiers * tierH;
-      W(k, box(s.span * 1.02, 2.2, wt), ST, DS, M(s.xm, ay + 1.1, s.zm, s.yaw), false);
-      W(k, box(s.span * 1.04, 0.4, wt + 0.7), ST_D, DS, M(s.xm, ay + 2.3, s.zm, s.yaw), false);
-      for (const f of [-0.25, 0.25]) W(k, box(s.span * 0.28, 0.9, wt), ST_L, DS, M(s.xm + Math.cos(s.yaw) * s.span * f, ay + 2.95, s.zm - Math.sin(s.yaw) * s.span * f, s.yaw), false);
-      continue;
-    }
-    const open = s.span - 1.5, r = Math.min(open / 2, 1.5);
+    const [px, pz] = [s.x0, s.z0];
+    W(k, box(1.5, totH, wt + 0.3), ST, DS, M(px, y0 + totH / 2, pz, s.yaw));
+    W(k, cyl(0.42, 0.46, totH - 0.4, 8), ST_L, DS, M(px + s.nx * 0.95, y0 + totH / 2, pz + s.nz * 0.95), false);
+    W(k, box(1.7, 2.6, wt + 0.55), ST_D, DS, M(px, y0 - 1.3, pz, s.yaw), false);
+    W(k, box(1.95, 0.28, wt + 0.75), ST_D, DS, M(px, y0 - 0.05, pz, s.yaw), false);
+    addBox(px, pz, 1.6, wt + 0.4, s.yaw);
+  };
+  const placeAttic = (s) => {
+    const ay = y0 + F0.tiers * tierH;
+    W(k, box(s.span * 1.02, 2.2, wt), ST, DS, M(s.xm, ay + 1.1, s.zm, s.yaw), false);
+    W(k, box(s.span * 1.04, 0.4, wt + 0.7), ST_D, DS, M(s.xm, ay + 2.3, s.zm, s.yaw), false);
+    for (const f of [-0.25, 0.25]) W(k, box(Math.min(s.span * 0.28, 1.2), 0.9, wt), ST_L, DS, M(s.xm + Math.cos(s.yaw) * s.span * f * 0.5, ay + 2.95, s.zm - Math.sin(s.yaw) * s.span * f * 0.5, s.yaw), false);
+  };
+  const placeArched = (s) => {
+    const open = Math.max(0.6, s.span - 1.3), r = Math.min(open / 2, 1.5);
     for (let ti = 0; ti < F0.tiers; ti++) {
       const ty = y0 + ti * tierH, spring = ty + tierH - 0.75 - r;
       W(k, box(open, tierH - (spring - ty) - r, wt), ST, DS, M(s.xm, (spring + r + ty + tierH) / 2, s.zm, s.yaw), false);
@@ -287,13 +363,78 @@ export function buildArt(o) {
       arch(s.xm, spring, s.zm, s.yaw, r, 0.22, wt + 0.1);
       if (ti === 0) {
         W(k, box(open, Math.max(0.4, spring + r - ty), wt * 0.85), ST_D, DS, M(s.xm, (ty + spring + r) / 2, s.zm, s.yaw), false);
+        W(k, box(s.span * 1.02, 2.5, wt + 0.45), ST_D, DS, M(s.xm, y0 - 1.25, s.zm, s.yaw), false);
         addBox(s.xm, s.zm, s.span, wt, s.yaw);
       }
     }
-    const ay = y0 + F0.tiers * tierH;
-    W(k, box(s.span * 1.02, 2.2, wt), ST, DS, M(s.xm, ay + 1.1, s.zm, s.yaw), false);
-    W(k, box(s.span * 1.04, 0.4, wt + 0.7), ST_D, DS, M(s.xm, ay + 2.3, s.zm, s.yaw), false);
-    for (const f of [-0.25, 0.25]) W(k, box(s.span * 0.28, 0.9, wt), ST_L, DS, M(s.xm + Math.cos(s.yaw) * s.span * f, ay + 2.95, s.zm - Math.sin(s.yaw) * s.span * f, s.yaw), false);
+    placeAttic(s);
+  };
+  const placeSolid = (s) => {
+    for (let ti = 0; ti < F0.tiers; ti++) {
+      const ty = y0 + ti * tierH;
+      W(k, box(s.span + 0.4, tierH, wt + 0.2), ST, DS, M(s.xm, ty + tierH / 2, s.zm, s.yaw), false);
+      W(k, box(s.span + 0.45, 0.32, wt + 0.5), ST_D, DS, M(s.xm, ty + tierH - 0.1, s.zm, s.yaw), false);
+      if (ti === 0) {
+        W(k, box(s.span + 0.4, 2.6, wt + 0.45), ST_D, DS, M(s.xm, y0 - 1.3, s.zm, s.yaw), false);
+        addBox(s.xm, s.zm, s.span + 0.3, wt + 0.2, s.yaw);
+      }
+    }
+    placeAttic(s);
+  };
+  // [v307] solid full-height cheek panels from the gate opening edge out to shellHW —
+  // closes the daylight slit that whole-bay skipping left beside every gate pier.
+  for (const cut of GATE_CUTS) {
+    const openHW = cut.g === MAIN_GATE ? cut.g.opening / 2 + 0.2 : cut.g.w / 2 + 0.2;
+    for (const sd of [-1, 1]) {
+      const a = cut.s + sd * openHW, b = cut.s + sd * cut.shellHW;
+      const sa = Math.min(a, b), sb = Math.max(a, b);
+      if (sb - sa < 0.2) continue;
+      const seg = Wseg(baySegRange(sa, sb, 0));
+      for (let ti = 0; ti < F0.tiers; ti++) {
+        const ty = y0 + ti * tierH;
+        W(k, box(seg.span + 0.6, tierH, wt + 0.25), ST, DS, M(seg.xm, ty + tierH / 2, seg.zm, seg.yaw), false);
+        W(k, box(seg.span + 0.65, 0.32, wt + 0.5), ST_D, DS, M(seg.xm, ty + tierH - 0.1, seg.zm, seg.yaw), false);
+      }
+      placeAttic({ ...seg, span: seg.span + 0.5 });
+      W(k, box(seg.span + 0.6, 2.6, wt + 0.45), ST_D, DS, M(seg.xm, y0 - 1.3, seg.zm, seg.yaw), false);
+      addBox(seg.xm, seg.zm, seg.span + 0.35, wt + 0.25, seg.yaw);
+      // matching cavea cheek fill (look + collider) up to seatHW
+      const seatA = cut.s + sd * (cut.g === MAIN_GATE ? cut.g.opening / 2 + 0.2 : cut.g.w / 2 + 0.2);
+      const seatB = cut.s + sd * cut.seatHW;
+      const s0 = Math.min(seatA, seatB), s1 = Math.max(seatA, seatB);
+      if (s1 - s0 > 0.15) {
+        for (let r = 0; r < 4; r++) {
+          const seat = Wseg(baySegRange(s0, s1, SEAT0 - r * 0.6));
+          const h = 1.2 + r * 1.1;
+          W(k, box(seat.span * 1.05, h, 0.7), r % 2 ? ST : ST_L, DS, M(seat.xm, y0 + h / 2, seat.zm, seat.yaw), r === 0);
+        }
+      }
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    const s0 = i / N * CONTOUR_LEN, s1 = (i + 1) / N * CONTOUR_LEN;
+    const bits = remainders(s0, s1, 'shell').filter(([a, b]) => b - a > 0.15);
+    const startInGate = GATE_CUTS.some((c) => {
+      const L = CONTOUR_LEN, d = Math.min(Math.abs(s0 - c.s), L - Math.abs(s0 - c.s));
+      return d < c.shellHW;
+    });
+    if (!startInGate) placePier(baySegRange(s0, Math.min(s0 + 0.01, s1), 0, i));
+    for (const [sa, sb] of bits) {
+      const len = sb - sa;
+      const s = Wseg(baySegRange(sa, sb, 0, i));
+      placePier(baySegRange(sa, sa + 0.01, 0, i));
+      placePier(baySegRange(sb - 0.01, sb, 0, i));
+      // Gate-adjacent remnants stay solid ashlar (no open arches) so you cannot see
+      // through the first bay into Hill Street / the arena — that was BANKSY's "hole".
+      const touchesGate = GATE_CUTS.some((c) => {
+        const L = CONTOUR_LEN;
+        const near = (u) => Math.min(Math.abs(u - (c.s - c.shellHW)), Math.abs(u - (c.s + c.shellHW)),
+          Math.abs(u - (c.s - c.shellHW) - L), Math.abs(u - (c.s + c.shellHW) - L),
+          Math.abs(u - (c.s - c.shellHW) + L), Math.abs(u - (c.s + c.shellHW) + L)) < 0.08;
+        return near(sa) || near(sb);
+      });
+      if (len >= 4.2) placeArched(s); else placeSolid(s);
+    }
   }
 
   // arched gate bays on the ring (castle / battery / fish). MAIN_GATE has its own vomitorium portal below.
@@ -303,10 +444,23 @@ export function buildArt(o) {
     const gh = 5.2;
     for (const sd of [-1, 1]) {
       const [px, pz] = T(c.lx + ca * sd * (w / 2 + 0.9), c.lz - sa * sd * (w / 2 + 0.9));
-      W(k, box(1.8, gh, wt + 0.8), ST, DS, M(px, y0 + gh / 2, pz, yaw)); addBox(px, pz, 1.8, wt + 0.8, yaw);
+      // [v307] full-height gate pier matching outer shell
+      W(k, box(1.9, totH, wt + 0.9), ST, DS, M(px, y0 + totH / 2, pz, yaw)); addBox(px, pz, 1.9, wt + 0.9, yaw);
+      W(k, box(2.1, 0.35, wt + 1.1), ST_D, DS, M(px, y0 + totH - 0.15, pz, yaw), false);
+      W(k, box(2.0, 2.6, wt + 1.0), ST_D, DS, M(px, y0 - 1.3, pz, yaw), false);
     }
     arch(x, y0 + gh, z, yaw, w / 2 + 0.2, 0.4, wt + 0.8);
-    W(k, box(w + 3.6, F0.tiers * tierH - gh - w / 2 - 0.4, wt), ST, DS, M(x, (y0 + gh + w / 2 + 0.4 + y0 + F0.tiers * tierH) / 2, z, yaw), false);
+    W(k, box(w + 4.0, totH - gh - w / 2 - 0.2, wt + 0.2), ST, DS, M(x, (y0 + gh + w / 2 + 0.2 + y0 + totH) / 2, z, yaw), false);
+    W(k, box(w + 4.2, 0.4, wt + 0.8), ST_D, DS, M(x, y0 + F0.tiers * tierH + 2.3, z, yaw), false);
+    // [v307] radial full-height cheeks (stop short of pink ring)
+    for (const sd of [-1, 1]) {
+      for (let off = 0.3; off <= SEAT0 + 0.4; off += 0.7) {
+        const clx = c.lx - c.nx * off + ca * sd * (w / 2 + 0.55), clz = c.lz - c.nz * off - sa * sd * (w / 2 + 0.55);
+        const [cxw, czw] = T(clx, clz);
+        W(k, box(1.1, totH, 1.6), ST, DS, M(cxw, y0 + totH / 2, czw, yaw));
+        if (off < SEAT0 - 0.2) addBox(cxw, czw, 1.0, 1.4, yaw);
+      }
+    }
     if (label) W(k, box(Math.min(w, 5), 0.9, 0.2), WOOD_D, 2, M(x, y0 + F0.tiers * tierH - 1.2, z, yaw), false);
   };
   gateArt(CASTLE_GATE, false); gateArt(BATTERY_GATE, false); gateArt(FISH_GATE, true);
@@ -320,14 +474,14 @@ export function buildArt(o) {
       for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) + pos.getX(i) * (yb - ya) / Math.max(len, 1e-3)); geom.computeVertexNormals();
       W(k, geom, COB, CB, M((ax + bx) / 2, (ya + yb) / 2 - 0.12, (az + bz) / 2, yaw), false);
       if (Math.round(a / 0.6) % 4 === 0) W(k, box(0.35, 0.06, hw * 2), ST_D, DS, M((ax + bx) / 2, (ya + yb) / 2 + 0.04, (az + bz) / 2, yaw), false); }
-    for (let a = 0; a < L - 0.3; a += 0.7) { const b = Math.min(L - 0.3, a + 0.7), m = frame((a + b) / 2), [ax, az] = T(...fishAt(a)), [bx, bz] = T(...fishAt(b)), len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(-(bz - az), bx - ax), y = fishY((a + b) / 2);
+    for (let a = 1.4; a < L - 0.3; a += 0.7) { const b = Math.min(L - 0.3, a + 0.7), m = frame((a + b) / 2), [ax, az] = T(...fishAt(a)), [bx, bz] = T(...fishAt(b)), len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(-(bz - az), bx - ax), y = fishY((a + b) / 2);
       for (const sd of [-1, 1]) { const ox = -m.dz * sd, oz = m.dx * sd, [x, z] = T(m.p[0] + ox * (hw + 0.35), m.p[1] + oz * (hw + 0.35)), [gx, gz] = T(m.p[0] + ox * (hw + 7), m.p[1] + oz * (hw + 7));
         const top = Math.max(y + 1.05, Math.min(H(gx, gz) + 0.35, y + 4.5)), bot = Math.min(y, H(x, z)) - 0.6;
         W(k, box(len + 0.06, top - bot, 0.6), ST, DS, M(x, (top + bot) / 2, z, yaw), false);
         W(k, box(len + 0.1, 0.16, 0.78), ST_L, DS, M(x, top + 0.08, z, yaw), false); addBox(x, z, len + 0.03, 0.6, yaw); } }
-    { const m = frame(0.3); for (const sd of [-1, 1]) { const lx = m.p[0] - m.dz * sd * (hw + 0.6), lz = m.p[1] + m.dx * sd * (hw + 0.6), [x, z] = T(lx, lz), y = STREET_Y;
-        W(k, box(1.5, 4.2, 1.5), ST, DS, M(x, y + 2.1, z, Y0W)); W(k, box(1.8, 0.35, 1.8), ST_D, DS, M(x, y + 4.35, z, Y0W), false);
-        W(k, box(1.2, 0.7, 1.2), ST_L, DS, M(x, y + 4.85, z, Y0W), false); torchPost?.(k, F, x, y + 5.2, z); addBox(x, z, 1.6, 1.6, Y0W); } }
+    { const m = frame(0.4), pyaw = CO.t2wYaw(Math.atan2(-m.dz, m.dx)); for (const sd of [-1, 1]) { const lx = m.p[0] - m.dz * sd * (hw + 1.25), lz = m.p[1] + m.dx * sd * (hw + 1.25), [x, z] = T(lx, lz), y = STREET_Y;
+        W(k, box(1.5, 4.2, 1.5), ST, DS, M(x, y + 2.1, z, pyaw)); W(k, box(1.8, 0.35, 1.8), ST_D, DS, M(x, y + 4.35, z, pyaw), false);
+        W(k, box(1.2, 0.7, 1.2), ST_L, DS, M(x, y + 4.85, z, pyaw), false); torchPost?.(k, F, x, y + 5.2, z); addBox(x, z, 1.5, 1.5, pyaw); } }
     { const g = FISH_GATE, c = contourNearest(g.lx, g.lz), yaw = CO.t2wYaw(c.yaw), ca = Math.cos(c.yaw), sa = Math.sin(c.yaw), [nx, nz] = g.n;
       for (const sd of [-1, 1]) {
         const [bx, bz] = T(g.lx + nx * (wt / 2 + 0.55) + ca * sd * (g.w / 2 + 0.9), g.lz + nz * (wt / 2 + 0.55) - sa * sd * (g.w / 2 + 0.9));
@@ -336,7 +490,7 @@ export function buildArt(o) {
   }
 
   // ─── MAIN_GATE: Roman vomitorium / triumphal entrance gallery ───
-  { const g = MAIN_GATE, D = g.d, ph = 10.8, th = 1.4, shell = g.shellLx, DW = shell + 1.4 - g.lx;
+  { const g = MAIN_GATE, D = g.d, ph = 10.8, th = 1.4, shell = g.shellLx, DW = shell + 2.2 - g.lx;
     const yawE = CO.t2wYaw(Math.PI / 2); // facing east into the arena
     const open = g.opening, halfW = g.w / 2;
     // Side gallery walls (street → shell), dressed with plinth + cornice
@@ -433,22 +587,31 @@ export function buildArt(o) {
       const gh = 5.6;
       for (const sd of [-1, 1]) {
         const [px, pz] = T(c.lx + ca * sd * (w / 2 + 1.0), c.lz - sa * sd * (w / 2 + 1.0));
-        W(k, box(2.0, gh, wt + 1.0), ST, DS, M(px, y0 + gh / 2, pz, yaw)); addBox(px, pz, 2.0, wt + 1.0, yaw);
+        // [v307] full-height portal pier (was only gh) so it meets the 3-tier shell with zero slit
+        W(k, box(2.2, totH, wt + 1.15), ST, DS, M(px, y0 + totH / 2, pz, yaw)); addBox(px, pz, 2.2, wt + 1.15, yaw);
+        W(k, box(2.4, 0.4, wt + 1.35), ST_D, DS, M(px, y0 + totH - 0.15, pz, yaw), false);
         const [bx, bz] = T(c.lx + ca * sd * (w / 2 + 1.0) - c.nx * 0.6, c.lz - sa * sd * (w / 2 + 1.0) - c.nz * 0.6);
         banner(bx, y0 + 7.4, bz, yaw, 2.4, 1.15);
+        W(k, box(2.3, 2.6, wt + 1.25), ST_D, DS, M(px, y0 - 1.3, pz, yaw), false);
       }
       arch(x, y0 + gh, z, yaw, w / 2 + 0.25, 0.42, wt + 1.0);
-      W(k, box(w + 4.0, F0.tiers * tierH - gh - w / 2, wt + 0.4), ST, DS, M(x, (y0 + gh + w / 2 + y0 + F0.tiers * tierH) / 2, z, yaw), false);
-      W(k, box(w + 4.4, 0.45, wt + 1.2), ST_D, DS, M(x, y0 + F0.tiers * tierH + 0.2, z, yaw), false);
-      // Stepped cheek walls capping cut cavea — stop BEHIND pink ring-walk outer edge
+      W(k, box(w + 4.6, totH - gh - w / 2, wt + 0.5), ST, DS, M(x, (y0 + gh + w / 2 + y0 + totH) / 2, z, yaw), false);
+      W(k, box(w + 4.8, 0.4, wt + 1.1), ST_D, DS, M(x, y0 + F0.tiers * tierH + 2.3, z, yaw), false);
+      // [v307] full-height radial cheek walls (shell → cavea), stop short of pink ring walk
       for (const sd of [-1, 1]) {
-        for (let r = 0; r < 4; r++) {
-          const off = SEAT0 - r * 0.6, h = 1.2 + r * 1.1;
-          if (off > RING - 2.2) continue;
+        for (let off = 0.3; off <= SEAT0 + 0.4; off += 0.7) {
           const clx = c.lx - c.nx * off + ca * sd * (w / 2 + 0.55), clz = c.lz - c.nz * off - sa * sd * (w / 2 + 0.55);
           const [cxw, czw] = T(clx, clz);
-          W(k, box(0.7, h, 1.4), r % 2 ? ST : ST_L, DS, M(cxw, y0 + h / 2, czw, yaw), false);
-          if (r === 0) addBox(cxw, czw, 0.65, 1.1, yaw);
+          W(k, box(1.15, totH, 1.7), ST, DS, M(cxw, y0 + totH / 2, czw, yaw));
+          W(k, box(1.3, 0.35, 1.85), ST_D, DS, M(cxw, y0 + totH - 0.15, czw, yaw), false);
+          if (off < SEAT0 - 0.2) addBox(cxw, czw, 1.05, 1.5, yaw);
+        }
+        for (let r = 0; r < 4; r++) {
+          const off = SEAT0 - r * 0.6, h = 1.2 + r * 1.1;
+          const clx = c.lx - c.nx * off + ca * sd * (w / 2 + 1.35), clz = c.lz - c.nz * off - sa * sd * (w / 2 + 1.35);
+          const [cxw, czw] = T(clx, clz);
+          W(k, box(1.8, h, 0.75), r % 2 ? ST : ST_L, DS, M(cxw, y0 + h / 2, czw, yaw), false);
+          if (r === 0) addBox(cxw, czw, 1.7, 0.7, yaw);
         }
       }
     }

@@ -14,10 +14,10 @@ test('fish-market approach: plaza level -> arena level, walk deck on profile, no
   assert.ok(f.length>30 && 6.47/(f.length-10)<0.3,'gentle ramp');
 });
 test('fish gate opens the plaza-end wall, east of the FISH MARKET, on the shell',()=>{
-  const g=ON.fish.gate; assert.ok(g.lz>-70 && g.lz<-55); assert.ok(g.w>=7);
+  const g=ON.fish.gate; assert.ok(g.lz>-80 && g.lz<-68); assert.ok(g.w>=7);
 });
 test('south (+lx) end pulled in: shell edge at lx 88, battery gate on it, wall still solid',()=>{
-  assert.equal(ON.ell.cx+ON.ell.rx,88); assert.ok(Math.abs(ON.battery.lx-87.99)<0.05,`battery ${ON.battery.lx}`);
+  assert.equal(ON.ell.cx+ON.ell.rx,88); assert.ok(Math.abs(ON.battery.lx-88)<0.3,`battery ${ON.battery.lx}`);
   assert.equal(ON.wallSolid,true); assert.deepEqual(ON.batteryHits,[]); assert.equal(ON.exteriorSummary.unexplained,0);
 });
 test('musket range + sword pit: stone walls on the coliseum, fence / ropes when &coliseum=0; benches for spectators',()=>{
@@ -38,11 +38,22 @@ test('wing spawns + gates are clear; floor pads match the wings',()=>{
   assert.ok(s.includes(`T(${P.lx}, ${P.lz}); W(k, new THREE.CylinderGeometry(${+(P.r+0.6).toFixed(1)}, ${+(P.r+0.6).toFixed(1)}`),'purple pad = PIT r + 0.6');
 });
 // [Timothy v305] BANKSY coli-round: rounded-oval ends + vaulted MAIN_GATE vomitorium
-test('rounded oval: tips pulled off Fish Market / castle, p>2, wings still inside kerb, ring walk clear', () => {
-  assert.equal(ON.ell.p, 2.7); assert.equal(ON.ell.rx, 27); assert.equal(ON.ell.rz, 74);
-  assert.equal(ON.tips.south, -52); assert.equal(ON.tips.north, -200);
-  assert.ok(ON.tips.fishClear >= 8, `fish clearance ${ON.tips.fishClear}`);
+test('rounded oval: tips pulled off Fish Market cliff / castle, p>2, wings still inside kerb, ring walk clear', () => {
+  assert.equal(ON.ell.p, 2.7); assert.equal(ON.ell.rx, 27); assert.equal(ON.ell.rz, 64);
+  assert.equal(ON.tips.south, -72); assert.equal(ON.tips.north, -200);
+  assert.ok(ON.tips.fishClear >= 14, `fish clearance ${ON.tips.fishClear}`);
   const w = ON.wings; assert.deepEqual(w.out, []); assert.deepEqual(w.ring, []);
+});
+// [v307] BANKSY: south end must not hang off the cliff — outer shell face ground >= FOOT.y - 0.35
+test('south / SE outer shell sits on solid ground (no cliff undercut at off=-1.2)', () => {
+  const g = ON.shellGround; assert.ok(g && g.n > 30, `sampled ${g&&g.n}`);
+  assert.deepEqual(g.bad, [], `undercut bays ${JSON.stringify(g.bad)}`);
+  assert.ok(g.min >= ON.footY - 0.35, `min H ${g.min} < ${ON.footY - 0.35}`);
+});
+// [v307] BANKSY hole fix: zero unblocked wall gaps around 360° except the 4 intentional gates
+test('outer shell has zero wall gaps except the four gate openings', () => {
+  const g = ON.shellGaps; assert.ok(g && g.n > 100, `probed ${g&&g.n}`);
+  assert.deepEqual(g.gaps, [], `shell gaps ${JSON.stringify(g.gaps)}`);
 });
 test('all four entrances walk clear end-to-end (stuck=0, hits=0)', () => {
   for (const id of ['main', 'fish', 'castle', 'battery']) {

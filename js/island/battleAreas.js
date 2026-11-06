@@ -22,7 +22,7 @@ const RANGE_COLI = { lx0: 47, lx1: 75, lz0: -164, lz1: -136, y: FOOT.y, flat: 8,
 export const RANGE = COLISEUM_ON ? RANGE_COLI : RANGE_OLD;
 
 const PIT_OLD = { lx: 60, lz: -86, pad: 16, r: 11, flat: 22, y: 6.4, feather: 6 };
-const PIT_COLI = { lx: 61, lz: -92, pad: 12.2, r: 9.5, flat: 14, y: FOOT.y, feather: 6 };   // [v300] r 9.5 ring + benches / torches / pennants within 12.3 m, flush with the arena sand (no 0.2 m dip across the ring walk); 18 m concourse to the range
+const PIT_COLI = { lx: 61, lz: -101, pad: 12.2, r: 9.5, flat: 14, y: FOOT.y, feather: 6 };   // [v300] r 9.5 ring + benches / torches / pennants within 12.3 m, flush with the arena sand (no 0.2 m dip across the ring walk); 18 m concourse to the range
 export const PIT = Object.assign({}, COLISEUM_ON ? PIT_COLI : PIT_OLD);
 PIT.gateA = COLISEUM_ON ? Math.PI : Math.atan2(46 - PIT.lx, -74 - PIT.lz);   // [v300] coli: the pit gate faces the central concourse (main + battery gates)
 export const pitAt = (a, r) => [PIT.lx + Math.sin(a) * r, PIT.lz + Math.cos(a) * r];
