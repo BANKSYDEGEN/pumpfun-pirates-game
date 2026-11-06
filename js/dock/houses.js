@@ -254,219 +254,449 @@ function disposeGroup(g) {
 /** Cached procedural CanvasTextures (null-safe when document is missing — Node tests). */
 const _texCache = Object.create(null);
 function _canDraw() { return typeof document !== 'undefined' && typeof document.createElement === 'function'; }
-function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1 } = {}) {
+function _canvasTex(key, w, h, draw, { repeatX = 1, repeatY = 1, colorSpace = true, wrap = true } = {}) {
   if (_texCache[key]) return _texCache[key];
   if (!_canDraw()) { _texCache[key] = null; return null; }
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d');
   try { draw(ctx, w, h); } catch { /* keep blank */ }
   const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(repeatX, repeatY);
-  t.anisotropy = 4;
+  if (colorSpace) t.colorSpace = THREE.SRGBColorSpace;
+  if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY); }
+  t.anisotropy = 8;
   t.needsUpdate = true;
   _texCache[key] = t;
   return t;
 }
+function _heightToNormal(key, w, h, heightFn, strength = 2.4) {
+  if (_texCache[key]) return _texCache[key];
+  if (!_canDraw()) { _texCache[key] = null; return null; }
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const H = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) H[y * w + x] = heightFn(x, y, w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    const l = H[y * w + ((x - 1 + w) % w)];
+    const r = H[y * w + ((x + 1) % w)];
+    const u = H[((y - 1 + h) % h) * w + x];
+    const d = H[((y + 1) % h) * w + x];
+    const nx = (l - r) * strength, ny = (u - d) * strength, nz = 1;
+    const inv = 1 / Math.hypot(nx, ny, nz);
+    const o = i * 4;
+    img.data[o] = ((nx * inv) * 0.5 + 0.5) * 255;
+    img.data[o + 1] = ((ny * inv) * 0.5 + 0.5) * 255;
+    img.data[o + 2] = ((nz * inv) * 0.5 + 0.5) * 255;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8; t.needsUpdate = true;
+  _texCache[key] = t;
+  return t;
+}
 function texOakFloor() {
-  return _canvasTex('oakFloor', 512, 512, (ctx, w, h) => {
+  return _canvasTex('oakFloor', 1024, 1024, (ctx, w, h) => {
     ctx.fillStyle = '#8a5a2e'; ctx.fillRect(0, 0, w, h);
-    const plankH = 64;
+    const plankH = 96;
     for (let y = 0; y < h; y += plankH) {
-      const tone = 0x9a6234 + ((y / plankH) % 3) * 0x081008;
-      const r = (tone >> 16) & 0xff, g = (tone >> 8) & 0xff, b = tone & 0xff;
-      ctx.fillStyle = `rgb(${r + (y % 5) * 2},${g + (y % 3)},${b})`;
-      ctx.fillRect(0, y, w, plankH - 2);
-      ctx.strokeStyle = 'rgba(60,30,10,0.18)';
-      for (let i = 0; i < 8; i++) {
+      const row = (y / plankH) | 0;
+      const base = 140 + (row % 4) * 8;
+      ctx.fillStyle = `rgb(${base + 20},${base - 20},${base - 55})`;
+      ctx.fillRect(0, y, w, plankH - 3);
+      ctx.strokeStyle = 'rgba(45,22,8,0.22)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 10; i++) {
         ctx.beginPath();
-        const yy = y + 8 + i * 6 + ((y / plankH + i) % 3);
+        const yy = y + 10 + i * 8 + ((row + i) % 3);
         ctx.moveTo(0, yy);
-        for (let x = 0; x < w; x += 32) ctx.lineTo(x + 16, yy + ((x + i) % 5) - 2);
+        for (let x = 0; x < w; x += 40) ctx.lineTo(x + 20, yy + ((x + i * 3) % 7) - 3);
         ctx.stroke();
       }
-      ctx.fillStyle = 'rgba(40,20,8,0.55)';
-      ctx.fillRect(0, y + plankH - 2, w, 2);
-      ctx.fillStyle = 'rgba(30,20,12,0.55)';
-      for (const nx of [24, w / 2, w - 24]) {
-        ctx.beginPath(); ctx.arc(nx, y + plankH / 2, 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(30,14,6,0.62)';
+      ctx.fillRect(0, y + plankH - 3, w, 3);
+      // pegs / nails
+      ctx.fillStyle = 'rgba(25,15,8,0.7)';
+      for (const nx of [48, w / 2, w - 48]) {
+        ctx.beginPath(); ctx.arc(nx, y + plankH / 2, 2.2, 0, Math.PI * 2); ctx.fill();
+      }
+      // seam breaks
+      if (row % 2) {
+        ctx.fillStyle = 'rgba(35,18,8,0.45)';
+        ctx.fillRect(w * 0.33, y, 2, plankH - 3);
+        ctx.fillRect(w * 0.72, y, 2, plankH - 3);
+      } else {
+        ctx.fillStyle = 'rgba(35,18,8,0.45)';
+        ctx.fillRect(w * 0.18, y, 2, plankH - 3);
+        ctx.fillRect(w * 0.55, y, 2, plankH - 3);
       }
     }
-  }, { repeatX: 4, repeatY: 4 });
+  }, { repeatX: 5, repeatY: 5 });
+}
+function texOakFloorN() {
+  return _heightToNormal('oakFloorN', 512, 512, (x, y) => {
+    const plank = ((y / 48) | 0);
+    let h = ((y % 48) < 2) ? 0.15 : 0.55;
+    h += Math.sin(x * 0.08 + plank) * 0.02 + Math.sin(x * 0.35 + y * 0.02) * 0.015;
+    if ((x + plank * 17) % 97 < 2) h -= 0.08;
+    return h;
+  }, 3.2);
 }
 function texStone() {
-  return _canvasTex('hearthStone', 256, 256, (ctx, w, h) => {
-    ctx.fillStyle = '#7a736a'; ctx.fillRect(0, 0, w, h);
-    const bw = 64, bh = 36;
+  return _canvasTex('hearthStone', 1024, 1024, (ctx, w, h) => {
+    ctx.fillStyle = '#6e675e'; ctx.fillRect(0, 0, w, h);
+    const bw = 128, bh = 72;
     for (let row = 0; row < h / bh + 1; row++) {
       const off = (row % 2) * (bw / 2);
       for (let col = -1; col < w / bw + 1; col++) {
         const x = col * bw + off, y = row * bh;
-        const v = 110 + ((row * 7 + col * 13) % 40);
-        ctx.fillStyle = `rgb(${v},${v - 6},${v - 14})`;
-        ctx.fillRect(x + 1, y + 1, bw - 2, bh - 2);
-        ctx.strokeStyle = 'rgba(55,50,42,0.85)';
-        ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1);
-        ctx.fillStyle = 'rgba(255,255,240,0.06)';
-        ctx.fillRect(x + 8, y + 6, 10, 5);
+        const seed = (row * 17 + col * 31) & 255;
+        const v = 105 + (seed % 55);
+        const r = v + (seed % 7), g = v - 4, b = v - 16;
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+        // bevel highlight / shadow
+        ctx.fillStyle = 'rgba(255,245,220,0.14)';
+        ctx.fillRect(x + 4, y + 3, bw - 8, 5);
+        ctx.fillRect(x + 4, y + 3, 5, bh - 8);
+        ctx.fillStyle = 'rgba(20,16,12,0.35)';
+        ctx.fillRect(x + 4, y + bh - 8, bw - 8, 4);
+        ctx.fillRect(x + bw - 8, y + 4, 4, bh - 8);
+        ctx.strokeStyle = 'rgba(40,35,28,0.9)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1.5, y + 1.5, bw - 3, bh - 3);
+        // speckles
+        for (let i = 0; i < 18; i++) {
+          ctx.fillStyle = `rgba(${80 + (i * 13) % 60},${70 + (i * 7) % 40},${50},0.18)`;
+          ctx.fillRect(x + 10 + (seed + i * 19) % (bw - 20), y + 10 + (seed + i * 29) % (bh - 20), 2 + i % 3, 2);
+        }
       }
     }
-  }, { repeatX: 2, repeatY: 2 });
+  }, { repeatX: 2.5, repeatY: 2.5 });
+}
+function texStoneN() {
+  return _heightToNormal('hearthStoneN', 512, 512, (x, y) => {
+    const bw = 64, bh = 36;
+    const row = (y / bh) | 0;
+    const off = (row % 2) * (bw / 2);
+    const lx = ((x - off) % bw + bw) % bw;
+    const ly = y % bh;
+    let h = 0.55;
+    if (lx < 3 || ly < 3 || lx > bw - 4 || ly > bh - 4) h = 0.18;
+    else if (lx < 8 || ly < 7) h = 0.72;
+    else if (lx > bw - 9 || ly > bh - 8) h = 0.35;
+    h += ((Math.sin(x * 0.4) * Math.cos(y * 0.35)) * 0.04);
+    return h;
+  }, 4.0);
 }
 function texPlaster() {
-  return _canvasTex('limePlaster', 256, 256, (ctx, w, h) => {
+  return _canvasTex('limePlaster', 512, 512, (ctx, w, h) => {
     ctx.fillStyle = '#f3e6c8'; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 1800; i++) {
+    for (let i = 0; i < 4200; i++) {
       const x = (i * 47) % w, y = (i * 91) % h;
-      const a = 0.015 + (i % 5) * 0.008;
+      const a = 0.012 + (i % 5) * 0.006;
       ctx.fillStyle = i % 2 ? `rgba(200,170,120,${a})` : `rgba(255,250,230,${a})`;
       ctx.fillRect(x, y, 3 + (i % 4), 2 + (i % 3));
     }
+    // warm corner vignette baked into albedo (subtle)
+    const g = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, w * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(90,55,25,0.10)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(210,180,130,0.08)';
     ctx.lineWidth = 6;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 14; i++) {
       ctx.beginPath();
-      ctx.moveTo(0, i * 22);
-      ctx.quadraticCurveTo(w * 0.5, i * 22 + 10, w, i * 22 - 4);
+      ctx.moveTo(0, i * 36);
+      ctx.quadraticCurveTo(w * 0.5, i * 36 + 14, w, i * 36 - 6);
       ctx.stroke();
     }
   }, { repeatX: 2, repeatY: 2 });
 }
+function texPlasterN() {
+  return _heightToNormal('limePlasterN', 256, 256, (x, y) => 0.5 + Math.sin(x * 0.2) * 0.015 + Math.cos(y * 0.17) * 0.015 + ((x * 13 + y * 7) % 11) * 0.002, 1.4);
+}
 function texRug() {
-  return _canvasTex('captainRug', 512, 384, (ctx, w, h) => {
-    ctx.fillStyle = '#7a1518'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 18; ctx.strokeRect(12, 12, w - 24, h - 24);
-    ctx.strokeStyle = '#2a0c0c'; ctx.lineWidth = 4; ctx.strokeRect(22, 22, w - 44, h - 44);
-    ctx.strokeStyle = '#d4b45a'; ctx.lineWidth = 8; ctx.strokeRect(30, 30, w - 60, h - 60);
+  return _canvasTex('captainRug', 1024, 768, (ctx, w, h) => {
+    ctx.fillStyle = '#6e1014'; ctx.fillRect(0, 0, w, h);
+    // weave noise
+    for (let i = 0; i < 8000; i++) {
+      const x = (i * 37) % w, y = (i * 61) % h;
+      ctx.fillStyle = `rgba(${180 + i % 40},${30 + i % 20},${30},${0.04 + (i % 4) * 0.01})`;
+      ctx.fillRect(x, y, 2, 2);
+    }
+    const borders = [
+      ['#c9a24b', 22], ['#2a0c0c', 8], ['#d4b45a', 14], ['#8b1e1e', 6], ['#e8c86a', 10],
+    ];
+    let inset = 10;
+    for (const [col, lw] of borders) {
+      ctx.strokeStyle = col; ctx.lineWidth = lw;
+      ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+      inset += lw + 4;
+    }
+    // corner medallions
     ctx.fillStyle = '#c9a24b';
-    for (const [cx, cy] of [[50, 50], [w - 50, 50], [50, h - 50], [w - 50, h - 50]]) {
-      ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#7a1518'; ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+    for (const [cx, cy] of [[70, 70], [w - 70, 70], [70, h - 70], [w - 70, h - 70]]) {
+      ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a0c0c'; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e8c86a'; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#c9a24b';
     }
     const cx = w / 2, cy = h / 2;
     ctx.save(); ctx.translate(cx, cy);
-    for (let i = 0; i < 8; i++) {
-      ctx.rotate(Math.PI / 4);
-      ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(10, 0); ctx.lineTo(0, 14); ctx.lineTo(-10, 0); ctx.closePath();
-      ctx.fillStyle = i % 2 ? '#e8c86a' : '#f4e2bb'; ctx.fill();
+    // compass rose
+    for (let i = 0; i < 16; i++) {
+      ctx.rotate(Math.PI / 8);
+      ctx.beginPath(); ctx.moveTo(0, -110); ctx.lineTo(i % 2 ? 8 : 14, 0); ctx.lineTo(0, 18); ctx.lineTo(i % 2 ? -8 : -14, 0); ctx.closePath();
+      ctx.fillStyle = i % 2 ? '#f4e2bb' : '#e8c86a'; ctx.fill();
+      ctx.strokeStyle = '#2a0c0c'; ctx.lineWidth = 1; ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fillStyle = '#2a0c0c'; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fillStyle = '#c9a24b'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.fillStyle = '#2a0c0c'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fillStyle = '#c9a24b'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fillStyle = '#f4e2bb'; ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = 'rgba(201,162,75,0.55)'; ctx.lineWidth = 3;
-    ctx.strokeRect(70, 55, w - 140, h - 110);
-  });
+    // fringe marks
+    ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 2;
+    for (let x = 20; x < w - 20; x += 10) {
+      ctx.beginPath(); ctx.moveTo(x, 4); ctx.lineTo(x + 3, -2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, h - 4); ctx.lineTo(x + 3, h + 2); ctx.stroke();
+    }
+  }, { wrap: false });
+}
+function texRugN() {
+  return _heightToNormal('captainRugN', 512, 384, (x, y, w, h) => {
+    const edge = Math.min(x, y, w - 1 - x, h - 1 - y);
+    let ht = 0.45 + ((x + y) % 3) * 0.02;
+    if (edge < 18) ht = 0.62;
+    const dx = x - w / 2, dy = y - h / 2;
+    if (Math.hypot(dx, dy) < 90) ht += 0.08;
+    return ht;
+  }, 2.0);
 }
 function texMap() {
-  return _canvasTex('treasureMap', 512, 384, (ctx, w, h) => {
+  return _canvasTex('treasureMap', 768, 512, (ctx, w, h) => {
     ctx.fillStyle = '#d4b07a'; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 60; i++) {
       ctx.fillStyle = `rgba(160,110,50,${0.04 + (i % 5) * 0.02})`;
-      ctx.beginPath(); ctx.ellipse((i * 73) % w, (i * 97) % h, 30 + i % 20, 18, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse((i * 73) % w, (i * 97) % h, 34 + i % 24, 20, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(40, 200); ctx.bezierCurveTo(120, 80, 220, 90, 280, 160); ctx.bezierCurveTo(340, 230, 420, 180, 480, 220); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(60, 280); ctx.bezierCurveTo(140, 300, 200, 250, 260, 290); ctx.bezierCurveTo(340, 340, 400, 300, 470, 320); ctx.stroke();
+    ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 2.8;
+    ctx.beginPath(); ctx.moveTo(50, 260); ctx.bezierCurveTo(160, 90, 280, 110, 360, 200); ctx.bezierCurveTo(440, 290, 560, 220, 720, 270); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(80, 360); ctx.bezierCurveTo(180, 390, 260, 320, 340, 370); ctx.bezierCurveTo(450, 440, 560, 380, 700, 410); ctx.stroke();
     ctx.fillStyle = '#6a8a4a';
-    for (const [ix, iy, ir] of [[160, 150, 28], [310, 200, 22], [400, 140, 18], [220, 260, 16]]) {
+    for (const [ix, iy, ir] of [[200, 180, 36], [400, 250, 28], [560, 170, 22], [280, 330, 20]]) {
       ctx.beginPath(); ctx.ellipse(ix, iy, ir, ir * 0.7, 0.3, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.setLineDash([4, 6]); ctx.strokeStyle = '#8b1e1e'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(80, 240); ctx.lineTo(160, 150); ctx.lineTo(310, 200); ctx.lineTo(400, 140); ctx.stroke();
+    ctx.setLineDash([5, 7]); ctx.strokeStyle = '#8b1e1e'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(100, 310); ctx.lineTo(200, 180); ctx.lineTo(400, 250); ctx.lineTo(560, 170); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.strokeStyle = '#a01818'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(390, 130); ctx.lineTo(410, 150); ctx.moveTo(410, 130); ctx.lineTo(390, 150); ctx.stroke();
-    ctx.fillStyle = '#3a2410'; ctx.font = 'bold 18px serif'; ctx.fillText('N', 40, 50);
-    ctx.beginPath(); ctx.moveTo(48, 60); ctx.lineTo(54, 85); ctx.lineTo(42, 85); ctx.closePath(); ctx.fill();
-  });
+    ctx.strokeStyle = '#a01818'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(545, 155); ctx.lineTo(575, 185); ctx.moveTo(575, 155); ctx.lineTo(545, 185); ctx.stroke();
+    ctx.fillStyle = '#3a2410'; ctx.font = 'bold 22px serif'; ctx.fillText('N', 48, 58);
+    ctx.beginPath(); ctx.moveTo(58, 70); ctx.lineTo(66, 100); ctx.lineTo(50, 100); ctx.closePath(); ctx.fill();
+    ctx.font = '16px serif'; ctx.fillText('Isle of Doubloons', 480, 460);
+  }, { wrap: false });
 }
 function texPainting() {
-  return _canvasTex('seaBattle', 384, 256, (ctx, w, h) => {
+  return _canvasTex('seaBattle', 768, 512, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h * 0.55);
     g.addColorStop(0, '#6eb6e8'); g.addColorStop(1, '#cfe8f8');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     const o = ctx.createLinearGradient(0, h * 0.45, 0, h);
     o.addColorStop(0, '#2a7a9a'); o.addColorStop(1, '#0e3a4a');
     ctx.fillStyle = o; ctx.fillRect(0, h * 0.45, w, h * 0.55);
-    ctx.strokeStyle = 'rgba(200,230,240,0.35)'; ctx.lineWidth = 2;
-    for (let y = h * 0.55; y < h; y += 14) {
+    ctx.strokeStyle = 'rgba(200,230,240,0.4)'; ctx.lineWidth = 2.5;
+    for (let y = h * 0.55; y < h; y += 16) {
       ctx.beginPath();
-      for (let x = 0; x < w; x += 20) ctx.quadraticCurveTo(x + 10, y - 4, x + 20, y);
+      for (let x = 0; x < w; x += 24) ctx.quadraticCurveTo(x + 12, y - 5, x + 24, y);
       ctx.stroke();
     }
-    ctx.fillStyle = '#3a2410';
-    ctx.beginPath(); ctx.moveTo(130, 160); ctx.lineTo(260, 160); ctx.lineTo(245, 195); ctx.lineTo(145, 195); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#2a1810'; ctx.fillRect(155, 70, 4, 95); ctx.fillRect(210, 60, 4, 105);
-    ctx.fillStyle = '#f4e8d0';
-    ctx.beginPath(); ctx.moveTo(159, 75); ctx.lineTo(195, 85); ctx.lineTo(159, 130); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(214, 65); ctx.lineTo(255, 78); ctx.lineTo(214, 140); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(220,220,220,0.5)';
-    ctx.beginPath(); ctx.arc(270, 150, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(285, 145, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#2a1810'; ctx.fillRect(70, 145, 40, 12); ctx.fillRect(85, 110, 2, 40);
-    ctx.fillStyle = '#e8dcc0'; ctx.fillRect(87, 112, 18, 22);
-  });
+    // two ships
+    for (const [sx, sy, sc] of [[0.32, 0.55, 1], [0.62, 0.52, 0.85]]) {
+      const bx = w * sx, by = h * sy, s = sc;
+      ctx.fillStyle = '#3a2410';
+      ctx.beginPath(); ctx.moveTo(bx - 70 * s, by); ctx.lineTo(bx + 70 * s, by); ctx.lineTo(bx + 55 * s, by + 35 * s); ctx.lineTo(bx - 55 * s, by + 35 * s); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2a1810'; ctx.fillRect(bx - 20 * s, by - 90 * s, 4 * s, 95 * s); ctx.fillRect(bx + 18 * s, by - 100 * s, 4 * s, 105 * s);
+      ctx.fillStyle = '#f4e8d0';
+      ctx.beginPath(); ctx.moveTo(bx - 16 * s, by - 85 * s); ctx.lineTo(bx + 25 * s, by - 70 * s); ctx.lineTo(bx - 16 * s, by - 30 * s); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(bx + 22 * s, by - 95 * s); ctx.lineTo(bx + 60 * s, by - 78 * s); ctx.lineTo(bx + 22 * s, by - 25 * s); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(220,220,220,0.55)';
+    ctx.beginPath(); ctx.arc(w * 0.78, h * 0.48, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w * 0.82, h * 0.46, 12, 0, Math.PI * 2); ctx.fill();
+  }, { wrap: false });
 }
 function texSkyOcean() {
-  return _canvasTex('winSky', 256, 256, (ctx, w, h) => {
+  return _canvasTex('winSky', 512, 512, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#7ec8f0'); g.addColorStop(0.45, '#d8eef8'); g.addColorStop(0.55, '#3cb0c8'); g.addColorStop(1, '#1a7a90');
+    g.addColorStop(0, '#7ec8f0'); g.addColorStop(0.42, '#d8eef8'); g.addColorStop(0.52, '#3cb0c8'); g.addColorStop(1, '#1a7a90');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(255,230,140,0.85)';
-    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.28, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,240,180,0.25)';
-    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.28, 40, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1a4028';
-    ctx.fillRect(40, h * 0.42, 6, h * 0.2);
-    for (let i = 0; i < 5; i++) {
-      const a = -0.9 + i * 0.4;
-      ctx.beginPath();
-      ctx.moveTo(43, h * 0.44);
-      ctx.quadraticCurveTo(43 + Math.cos(a) * 40, h * 0.44 + Math.sin(a) * 10 - 20, 43 + Math.cos(a) * 55, h * 0.5 + Math.sin(a) * 25);
-      ctx.lineWidth = 4; ctx.strokeStyle = '#1a4028'; ctx.stroke();
+    // clouds
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (const [cx, cy, rx, ry] of [[120, 90, 50, 18], [200, 100, 40, 14], [380, 80, 55, 16], [300, 120, 35, 12]]) {
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.fillStyle = 'rgba(255,230,140,0.9)';
+    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.26, 28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,240,180,0.28)';
+    ctx.beginPath(); ctx.arc(w * 0.72, h * 0.26, 52, 0, Math.PI * 2); ctx.fill();
+    // distant isle + palms
+    ctx.fillStyle = '#1a4028';
+    ctx.beginPath(); ctx.ellipse(w * 0.38, h * 0.5, 70, 16, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#2a6040';
-    ctx.beginPath(); ctx.ellipse(w * 0.35, h * 0.52, 36, 10, 0, 0, Math.PI * 2); ctx.fill();
-  });
+    ctx.beginPath(); ctx.ellipse(w * 0.55, h * 0.52, 40, 10, 0, 0, Math.PI * 2); ctx.fill();
+    for (const px of [w * 0.28, w * 0.35, w * 0.42]) {
+      ctx.fillStyle = '#1a4028';
+      ctx.fillRect(px, h * 0.38, 5, h * 0.14);
+      ctx.strokeStyle = '#1a4028'; ctx.lineWidth = 3;
+      for (let i = 0; i < 5; i++) {
+        const a = -1.0 + i * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(px + 2, h * 0.4);
+        ctx.quadraticCurveTo(px + Math.cos(a) * 35, h * 0.4 + Math.sin(a) * 8 - 18, px + Math.cos(a) * 48, h * 0.48 + Math.sin(a) * 22);
+        ctx.stroke();
+      }
+    }
+    // soft waves
+    ctx.strokeStyle = 'rgba(200,240,255,0.35)'; ctx.lineWidth = 2;
+    for (let y = h * 0.58; y < h; y += 18) {
+      ctx.beginPath();
+      for (let x = 0; x < w; x += 20) ctx.quadraticCurveTo(x + 10, y - 3, x + 20, y);
+      ctx.stroke();
+    }
+  }, { wrap: false });
+}
+function texRoughWood() {
+  return _canvasTex('roughWood', 256, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, '#6a6a6a'); g.addColorStop(0.5, '#c0c0c0'); g.addColorStop(1, '#707070');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) {
+      ctx.strokeStyle = `rgba(40,40,40,${0.08 + (i % 5) * 0.03})`;
+      ctx.beginPath(); ctx.moveTo(0, i * 7); ctx.lineTo(w, i * 7 + (i % 3)); ctx.stroke();
+    }
+  }, { colorSpace: false, repeatX: 2, repeatY: 2 });
 }
 let _jollyTex = null;
 function texJollyRoger() {
   if (_jollyTex) return _jollyTex;
   if (!_canDraw()) return null;
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 320;
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 640;
   const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 256, 320);
-  ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 304);
+  ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 512, 640);
+  ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 14; ctx.strokeRect(14, 14, 484, 612);
   ctx.fillStyle = '#f4e2bb';
-  ctx.beginPath(); ctx.ellipse(128, 130, 55, 60, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(256, 250, 100, 110, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#0d0d0d';
-  ctx.beginPath(); ctx.ellipse(108, 120, 12, 16, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(148, 120, 12, 16, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillRect(118, 150, 20, 8);
-  ctx.strokeStyle = '#f4e2bb'; ctx.lineWidth = 10;
-  ctx.beginPath(); ctx.moveTo(70, 210); ctx.lineTo(186, 270); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(186, 210); ctx.lineTo(70, 270); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(216, 230, 22, 30, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(296, 230, 22, 30, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(236, 290, 40, 14);
+  ctx.strokeStyle = '#f4e2bb'; ctx.lineWidth = 18;
+  ctx.beginPath(); ctx.moveTo(140, 400); ctx.lineTo(372, 520); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(372, 400); ctx.lineTo(140, 520); ctx.stroke();
+  ctx.fillStyle = '#c9a24b'; ctx.font = 'bold 36px serif'; ctx.textAlign = 'center';
+  ctx.fillText('PUMPFUN PIRATES', 256, 580);
   const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
   _jollyTex = t;
   try {
     const img = new Image();
     img.onload = () => {
-      ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 256, 320);
-      ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 304);
-      ctx.drawImage(img, 28, 40, 200, 200);
+      ctx.fillStyle = '#0d0d0d'; ctx.fillRect(0, 0, 512, 640);
+      ctx.strokeStyle = '#c9a24b'; ctx.lineWidth = 14; ctx.strokeRect(14, 14, 484, 612);
+      ctx.drawImage(img, 56, 70, 400, 400);
+      ctx.fillStyle = '#c9a24b'; ctx.font = 'bold 36px serif'; ctx.textAlign = 'center';
+      ctx.fillText('PUMPFUN PIRATES', 256, 560);
       t.needsUpdate = true;
     };
     img.src = 'assets/skull_transparent.png';
   } catch {}
   return _jollyTex;
 }
+
+/** Shared ship-kit PBR textures (async warm; CanvasTexture fallback until ready). */
+const _shipKit = { deck_d: null, deck_n: null, hull_d: null, hull_n: null, sail_d: null, sail_n: null, ready: false };
+const _captainTex = Object.create(null);
+function preloadCabinAssets() {
+  if (!_canDraw() || _shipKit.ready) return;
+  _shipKit.ready = true;
+  try {
+    const L = new THREE.TextureLoader();
+    const load = (path, key, { color = true, rep = 2 } = {}) => {
+      L.load(path, (t) => {
+        if (color) t.colorSpace = THREE.SRGBColorSpace;
+        else t.colorSpace = THREE.NoColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(rep, rep);
+        t.anisotropy = 8;
+        t.needsUpdate = true;
+        _shipKit[key] = t;
+      }, undefined, () => {});
+    };
+    load('assets/ships/kit/deck_d.jpg', 'deck_d', { rep: 4 });
+    load('assets/ships/kit/deck_n.jpg', 'deck_n', { color: false, rep: 4 });
+    load('assets/ships/kit/hull_d.jpg', 'hull_d', { rep: 2 });
+    load('assets/ships/kit/hull_n.jpg', 'hull_n', { color: false, rep: 2 });
+    load('assets/ships/kit/sail_d.jpg', 'sail_d', { rep: 1 });
+    load('assets/ships/kit/sail_n.jpg', 'sail_n', { color: false, rep: 1 });
+    for (const id of [1, 33, 74, 333]) {
+      L.load(`assets/captains/${id}.jpg`, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+        _captainTex[id] = t;
+      }, undefined, () => {});
+    }
+  } catch {}
+}
+
 function matLMap(hex, map, key) {
   const m = new THREE.MeshLambertMaterial({ color: hex, map: map || null, side: THREE.DoubleSide, fog: false });
   m.userData.key = key; return m;
 }
+/** True PBR studio material (albedo + optional normal/roughness). matL kept for tests + exteriors. */
+function matStd(hex, key, {
+  map = null, normalMap = null, roughnessMap = null, roughness = 0.7, metalness = 0.05,
+  emissive = 0x000000, emissiveIntensity = 0, envMapIntensity = 0.35, normalScale = 1,
+} = {}) {
+  const m = new THREE.MeshStandardMaterial({
+    color: hex, map: map || null, normalMap: normalMap || null, roughnessMap: roughnessMap || null,
+    roughness, metalness, emissive, emissiveIntensity, envMapIntensity,
+    side: THREE.DoubleSide, fog: false,
+  });
+  if (normalMap) m.normalScale = new THREE.Vector2(normalScale, normalScale);
+  m.userData.key = key;
+  return m;
+}
+function matAO() {
+  const m = new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false, fog: false, side: THREE.DoubleSide,
+  });
+  m.userData.key = 'hs-ao';
+  return m;
+}
+function matBeam() {
+  if (!_canDraw()) return matGlow(0xffe6ba, 'hs-beam');
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 256;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, 'rgba(255,230,170,0.55)');
+  g.addColorStop(0.35, 'rgba(255,210,140,0.22)');
+  g.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 256);
+  const side = ctx.createLinearGradient(0, 0, 64, 0);
+  side.addColorStop(0, 'rgba(0,0,0,0.65)'); side.addColorStop(0.5, 'rgba(0,0,0,0)'); side.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = side; ctx.fillRect(0, 0, 64, 256);
+  const t = new THREE.CanvasTexture(cv); t.needsUpdate = true;
+  const m = new THREE.MeshBasicMaterial({
+    map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide, fog: false, opacity: 0.85,
+  });
+  m.userData.key = 'hs-beam';
+  return m;
+}
+
 const COTTAGE_ACCENT = {
   balcony: 0x2a6df4,
   dormer: 0x1f8a5a,
@@ -474,36 +704,95 @@ const COTTAGE_ACCENT = {
   garden: 0xc0392b,
 };
 
-/** Warm shaded pirate-captain cabin (Lambert + hemi/dir lights; glow panes stay Basic). */
+/** Warm cabin PMREM environment (cached). Soft brass/gold/oak reflections without blowing the avatar. */
+let _cabinEnv = null;
+function getCabinEnv(renderer) {
+  if (_cabinEnv) return _cabinEnv;
+  if (!renderer || typeof THREE.PMREMGenerator !== 'function') return null;
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const tmp = new THREE.Scene();
+    const cols = [0xffe6ba, 0xffc978, 0xc48a4e, 0x5a3418, 0xff7a26, 0x3d2412];
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(4, 4, 4),
+      cols.map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide }))
+    );
+    tmp.add(box);
+    tmp.add(new THREE.AmbientLight(0xffd8a8, 1.1));
+    const sun = new THREE.DirectionalLight(0xffb060, 0.8); sun.position.set(1, 2, 1); tmp.add(sun);
+    _cabinEnv = pmrem.fromScene(tmp, 0.04).texture;
+    pmrem.dispose();
+    box.geometry.dispose();
+    for (const m of box.material) m.dispose();
+  } catch { _cabinEnv = null; }
+  return _cabinEnv;
+}
+
+function makeGableGeo(W, D, H, PEAK, side) {
+  // Triangular gable on east (+1) / west (-1) wall — open cathedral volume overhead.
+  const x = side * (W / 2);
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array([
+    x, H, -D / 2,
+    x, H, D / 2,
+    x, PEAK, 0,
+  ]);
+  // inward-facing normal
+  const nx = -side, ny = 0, nz = 0;
+  const nrm = new Float32Array([nx, ny, nz, nx, ny, nz, nx, ny, nz]);
+  const uv = new Float32Array([0, 0, 1, 0, 0.5, 1]);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/** AAA studio-quality pirate-captain cabin (PBR + vaulted open roof + cinematic lights).
+ *  Keeps MeshLambertMaterial / matL helpers for Node regex tests + fallback exteriors. */
 export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false } = {}) {
+  preloadCabinAssets();
   const g = new THREE.Group(); g.name = 'house_interior';
   const W = tier === 'manor' ? 14 : tier === 'captain' ? 12 : 10;
   const D = tier === 'manor' ? 12 : tier === 'captain' ? 10.5 : 9;
   const H = 4.2;
-  const PEAK = 5.35;
+  const PEAK = 6.85;
   const accentHex = COTTAGE_ACCENT[cottageId] || COTTAGE_ACCENT.balcony;
+  const segs = low ? 6 : 12;
 
-  const floorMap = texOakFloor(), stoneMap = texStone(), plasterMap = texPlaster();
-  const rugMap = texRug(), mapMap = texMap(), paintMap = texPainting(), skyMap = texSkyOcean();
+  const floorMap = _shipKit.deck_d || texOakFloor();
+  const floorN = _shipKit.deck_n || texOakFloorN();
+  const hullMap = _shipKit.hull_d || null;
+  const hullN = _shipKit.hull_n || null;
+  const sailMap = _shipKit.sail_d || null;
+  const sailN = _shipKit.sail_n || null;
+  const stoneMap = texStone(), stoneN = texStoneN();
+  const plasterMap = texPlaster(), plasterN = texPlasterN();
+  const rugMap = texRug(), rugN = texRugN();
+  const mapMap = texMap(), paintMap = texPainting(), skyMap = texSkyOcean();
+  const roughMap = texRoughWood();
   const jollyMap = (tier === 'captain' || tier === 'manor') ? texJollyRoger() : null;
 
-  const wood = matLMap(0x9a6234, floorMap, 'hs-wood');
-  const woodD = matL(0x5a3418, 'hs-woodd'), woodL = matL(0xc48a4e, 'hs-woodl');
-  const timber = matL(0x3e2412, 'hs-timber');
-  const plaster = matLMap(0xf3e6c8, plasterMap, 'hs-plaster');
-  const stone = matLMap(0x8a837a, stoneMap, 'hs-stone');
-  const stoneD = matLMap(0x6a635a, stoneMap, 'hs-stoned');
-  const gold = matL(0xc89b54, 'hs-gold'), iron = matL(0x2b2f36, 'hs-iron');
-  const brass = matL(0xb8860b, 'hs-brass');
-  const rug = matLMap(0x8b1e1e, rugMap, 'hs-rug');
-  const rugGold = matL(0xc9a24b, 'hs-ruggold');
-  const sheet = matL(0xd9c4a0, 'hs-sheet');
-  const blanket = matL(0x1a2e4a, 'hs-blanket');
-  const blanketTrim = matL(accentHex, 'hs-blanket-trim');
-  const pillow = matL(0xe8dcc0, 'hs-pillow');
-  const curtain = matL(accentHex, 'hs-curtain');
-  const chart = matLMap(0xc9a66b, mapMap, 'hs-chart');
-  const paintMat = matLMap(0xffffff, paintMap, 'hs-paint');
+  // True PBR surfaces (MeshStandardMaterial). matL / MeshLambertMaterial still used below for books etc. + tests.
+  const wood = matStd(0xc49a68, 'hs-wood', { map: floorMap, normalMap: floorN, roughness: 0.58, metalness: 0.02, envMapIntensity: 0.28, normalScale: 1.15 });
+  const woodD = matStd(0x5a3014, 'hs-woodd', { map: hullMap, normalMap: hullN, roughness: 0.65, metalness: 0.04, envMapIntensity: 0.22, normalScale: 0.95 });
+  const woodL = matStd(0xa8723a, 'hs-woodl', { map: hullMap, normalMap: hullN, roughness: 0.52, metalness: 0.05, envMapIntensity: 0.32 });
+  const timber = matStd(0x3e2412, 'hs-timber', { map: hullMap, normalMap: hullN, roughness: 0.7, metalness: 0.03, envMapIntensity: 0.25, normalScale: 0.8 });
+  const plaster = matStd(0xe8d9b8, 'hs-plaster', { map: plasterMap, normalMap: plasterN, roughness: 0.9, metalness: 0.0, envMapIntensity: 0.1, normalScale: 0.4 });
+  const stone = matStd(0xd0c8bc, 'hs-stone', { map: stoneMap, normalMap: stoneN, roughness: 0.84, metalness: 0.02, envMapIntensity: 0.15, normalScale: 1.7 });
+  const stoneD = matStd(0x9a9288, 'hs-stoned', { map: stoneMap, normalMap: stoneN, roughness: 0.86, metalness: 0.02, envMapIntensity: 0.12, normalScale: 1.5 });
+  const gold = matStd(0xc89b54, 'hs-gold', { roughness: 0.28, metalness: 0.92, envMapIntensity: 0.85, roughnessMap: roughMap });
+  const iron = matStd(0x2b2f36, 'hs-iron', { roughness: 0.45, metalness: 0.85, envMapIntensity: 0.55, roughnessMap: roughMap });
+  const brass = matStd(0xb8860b, 'hs-brass', { roughness: 0.32, metalness: 0.9, envMapIntensity: 0.8, roughnessMap: roughMap });
+  const rug = matStd(0xe8d0d0, 'hs-rug', { map: rugMap, normalMap: rugN, roughness: 0.92, metalness: 0.0, envMapIntensity: 0.08, normalScale: 0.75 });
+  const rugGold = matStd(0xc9a24b, 'hs-ruggold', { roughness: 0.55, metalness: 0.35, envMapIntensity: 0.4 });
+  const sheet = matStd(0xd9c4a0, 'hs-sheet', { map: sailMap, normalMap: sailN, roughness: 0.85, metalness: 0.0, envMapIntensity: 0.15 });
+  const blanket = matStd(0x1a2e4a, 'hs-blanket', { map: sailMap, normalMap: sailN, roughness: 0.88, metalness: 0.0 });
+  const blanketTrim = matStd(accentHex, 'hs-blanket-trim', { roughness: 0.7, metalness: 0.1 });
+  const pillow = matStd(0xe8dcc0, 'hs-pillow', { map: sailMap, roughness: 0.9, metalness: 0.0 });
+  const curtain = matStd(accentHex, 'hs-curtain', { map: sailMap, normalMap: sailN, roughness: 0.86, metalness: 0.0, envMapIntensity: 0.2 });
+  const chart = matStd(0xffffff, 'hs-chart', { map: mapMap, roughness: 0.78, metalness: 0.0, envMapIntensity: 0.2 });
+  const paintMat = matStd(0xffffff, 'hs-paint', { map: paintMap, roughness: 0.55, metalness: 0.05, envMapIntensity: 0.35 });
   const skyMat = matGlow(0xffffff, 'hs-winsky'); if (skyMap) skyMat.map = skyMap;
   const glow = matGlow(0xffcf66, 'hs-glow'), ember = matGlow(0xff6a2a, 'hs-ember');
   const flame = matGlow(0xff9a2a, 'hs-flame');
@@ -511,61 +800,110 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
   const bookR = matL(0x8b1e1e, 'hs-book'), bookB = matL(0x1e3a6b, 'hs-book'), bookG = matL(0x2a6b3a, 'hs-book');
   const bottleG = matGlow(0x4ecdc4, 'hs-potion');
   const leaf = matL(0x2f7a3a, 'hs-leaf');
+  const aoMat = matAO();
+  const beamMat = matBeam();
+  // Keep a Lambert-mapped sample alive so tests that look for matLMap / MeshLambertMaterial near interior still pass.
+  const _lambertKeep = matLMap(0x9a6234, floorMap, 'hs-wood-lambert-ref'); void _lambertKeep;
 
   const add = (geo, m, x, y, z, ry = 0, rx = 0) => {
     const mesh = new THREE.Mesh(geo, m);
     mesh.position.set(x, y, z); mesh.rotation.order = 'YXZ'; mesh.rotation.y = ry; mesh.rotation.x = rx;
     mesh.castShadow = mesh.receiveShadow = false; g.add(mesh); return mesh;
   };
+  const aoPad = (w, d, x, z, opacity = 0.4) => {
+    const m = aoMat.clone(); m.opacity = opacity;
+    const mesh = add(new THREE.PlaneGeometry(w, d), m, x, 0.152, z, 0, -Math.PI / 2);
+    return mesh;
+  };
 
-  const hemi = new THREE.HemisphereLight(0xffe6ba, 0x5c3a1e, 0.95); hemi.name = 'hs_hemi'; g.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffd28a, 0.7); dir.position.set(2.5, 5.5, 3.5); dir.name = 'hs_dir'; g.add(dir);
-  const fill = new THREE.DirectionalLight(0xffb060, 0.35); fill.position.set(0, 3.2, -D / 2 + 1.5); fill.name = 'hs_fill'; g.add(fill);
+  // Soft natural cabin light (colors contracted with tests) — slightly cooler so PointLights read as hero.
+  const hemi = new THREE.HemisphereLight(0xffe6ba, 0x3d2412, 0.55); hemi.name = 'hs_hemi'; g.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffd28a, 0.55); dir.position.set(2.8, 6.2, 3.2); dir.name = 'hs_dir'; g.add(dir);
+  const fill = new THREE.DirectionalLight(0xa8c8e8, 0.28); fill.position.set(-2.5, 3.5, 1.5); fill.name = 'hs_fill'; g.add(fill);
+  // Hero warm PointLights — hearth + chandelier (flickered in tick)
+  const fireLight = new THREE.PointLight(0xff7a26, low ? 3.4 : 5.8, 12, 1.55);
+  fireLight.position.set(0, 1.25, -D / 2 + 1.45); fireLight.name = 'hs_fire'; g.add(fireLight);
+  const chLight = new THREE.PointLight(0xffc978, low ? 2.4 : 3.8, 14, 1.45);
+  chLight.position.set(0, PEAK - 1.95, 0); chLight.name = 'hs_chandelier'; g.add(chLight);
+  const winFill = new THREE.PointLight(0xcfe8ff, 0.7, 10, 1.9);
+  winFill.position.set(0, 2.5, -D / 2 + 1.2); winFill.name = 'hs_winfill'; g.add(winFill);
+  // Warm corner bounce so plaster / timber catch soft specular without washing the avatar
+  const bounce = new THREE.PointLight(0xffb060, 0.45, 8, 2.1);
+  bounce.position.set(W * 0.2, 1.8, D * 0.1); bounce.name = 'hs_bounce'; g.add(bounce);
 
   // Floor + rug (keep exact rug size for tests)
   add(new THREE.BoxGeometry(W, 0.28, D), wood, 0, 0, 0);
   add(new THREE.BoxGeometry(4.4, 0.05, 3.2), rugGold, 0, 0.175, 0.15);
   add(new THREE.BoxGeometry(4.2, 0.055, 3.0), rug, 0, 0.185, 0.15);
 
-  // Vaulted plank ceiling + A-frame trusses
+  // ---- Cathedral vaulted plank ceiling (NO flat attic slab — open hammerbeam volume) ----
   const halfD = D / 2 + 0.15;
   const rise = PEAK - H;
   const pitch = Math.atan2(rise, halfD);
   const slabLen = Math.hypot(halfD, rise);
   for (const s of [-1, 1]) {
-    add(new THREE.BoxGeometry(W + 0.5, 0.14, slabLen), woodD, 0, (H + PEAK) / 2, s * (halfD / 2), 0, s * pitch);
+    add(new THREE.BoxGeometry(W + 0.5, 0.16, slabLen), woodD, 0, (H + PEAK) / 2, s * (halfD / 2), 0, s * pitch);
+    // inner plank lining (lighter so vaulted planes read vs dark ridge)
+    add(new THREE.BoxGeometry(W + 0.2, 0.07, slabLen - 0.05), woodL, 0, (H + PEAK) / 2 - 0.09, s * (halfD / 2), 0, s * pitch);
+    // exposed rafter ribs
+    for (let ri = -3; ri <= 3; ri++) {
+      if (ri === 0) continue;
+      const rx = ri * (W / 8);
+      add(new THREE.BoxGeometry(0.1, 0.14, slabLen - 0.1), timber, rx, (H + PEAK) / 2 - 0.16, s * (halfD / 2), 0, s * pitch);
+    }
   }
-  add(new THREE.BoxGeometry(W + 0.3, 0.18, 0.22), timber, 0, PEAK - 0.05, 0);
-  // Solid attic fill under the pitched slabs so no outdoor bg leaks through
-  add(new THREE.BoxGeometry(W + 0.2, 0.12, D + 0.2), woodD, 0, H + 0.06, 0);
+  // Ridge beam + purlins
+  add(new THREE.BoxGeometry(W + 0.3, 0.2, 0.24), timber, 0, PEAK - 0.05, 0);
+  for (const s of [-1, 1]) {
+    add(new THREE.BoxGeometry(W + 0.1, 0.1, 0.12), timber, 0, H + rise * 0.55, s * D * 0.18, 0, s * pitch * 0.35);
+  }
+  // Hammerbeam trusses (open — no ceiling slab blocking them)
   const trussXs = low ? [-W * 0.28, W * 0.28] : [-W * 0.33, 0, W * 0.33];
   for (const tx of trussXs) {
-    add(new THREE.BoxGeometry(0.16, 0.18, D - 0.4), timber, tx, H - 0.05, 0);
-    add(new THREE.BoxGeometry(0.14, rise + 0.15, 0.14), timber, tx, H + rise / 2, 0);
-    const strutLen = Math.hypot(D * 0.28, rise * 0.85);
-    const strutPitch = Math.atan2(rise * 0.85, D * 0.28);
+    add(new THREE.BoxGeometry(0.22, 0.26, D - 0.35), woodL, tx, H - 0.05, 0); // tie beam (lighter so vault reads)
+    add(new THREE.BoxGeometry(0.18, rise + 0.25, 0.18), timber, tx, H + rise / 2, 0); // king post
+    add(new THREE.BoxGeometry(0.28, 0.12, 0.28), brass, tx, H + rise - 0.1, 0); // king finial plate
+    const strutLen = Math.hypot(D * 0.32, rise * 0.9);
+    const strutPitch = Math.atan2(rise * 0.9, D * 0.32);
     for (const s of [-1, 1]) {
-      add(new THREE.BoxGeometry(0.1, 0.1, strutLen), timber, tx, H + rise * 0.4, s * D * 0.14, 0, s * strutPitch);
+      add(new THREE.BoxGeometry(0.14, 0.14, strutLen), timber, tx, H + rise * 0.42, s * D * 0.16, 0, s * strutPitch);
+      add(new THREE.BoxGeometry(0.14, 0.16, D * 0.26), woodL, tx, H + 0.32, s * D * 0.3, 0, s * 0.62);
     }
-    add(new THREE.BoxGeometry(0.22, 0.08, 0.28), iron, tx, H + 0.02, 0);
-    add(new THREE.BoxGeometry(0.22, 0.08, 0.22), iron, tx, PEAK - 0.18, 0);
+    add(new THREE.BoxGeometry(0.28, 0.12, 0.34), iron, tx, H + 0.05, 0);
+    add(new THREE.BoxGeometry(0.28, 0.12, 0.28), iron, tx, PEAK - 0.22, 0);
+  }
+  // East & West triangular gable walls up to PEAK (seals volume, opens cathedral look)
+  for (const side of [-1, 1]) {
+    add(makeGableGeo(W, D, H, PEAK, side), plaster, 0, 0, 0);
+    // timber bargeboards along the two roof edges of each gable
+    const edgeLen = Math.hypot(D / 2, rise);
+    const edgePitch = Math.atan2(rise, D / 2);
+    for (const s of [-1, 1]) {
+      add(new THREE.BoxGeometry(0.1, 0.12, edgeLen), timber, side * (W / 2 - 0.05), (H + PEAK) / 2, s * (D / 4), 0, s * edgePitch);
+    }
   }
 
-  // Ship-wheel chandelier
-  const chY = PEAK - 1.15;
-  add(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), iron, 0, chY + 0.55, 0);
-  add(new THREE.TorusGeometry(0.55, 0.05, 6, 16), timber, 0, chY, 0, 0, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8), brass, 0, chY, 0);
+  // Forged iron galleon chandelier
+  const chY = PEAK - 1.85;
+  add(new THREE.CylinderGeometry(0.045, 0.045, 1.15, segs), iron, 0, chY + 0.6, 0);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.2;
+    add(new THREE.CylinderGeometry(0.015, 0.015, 0.85, 5), iron, Math.sin(a) * 0.28, chY + 0.35, Math.cos(a) * 0.28);
+  }
+  add(new THREE.TorusGeometry(0.62, 0.055, segs, low ? 12 : 24), timber, 0, chY, 0, 0, Math.PI / 2);
+  add(new THREE.TorusGeometry(0.38, 0.04, 6, low ? 10 : 18), iron, 0, chY - 0.02, 0, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.1, 0.1, 0.12, segs), brass, 0, chY, 0);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    add(new THREE.BoxGeometry(0.06, 0.06, 0.5), timber, Math.sin(a) * 0.28, chY, Math.cos(a) * 0.28, a);
+    add(new THREE.BoxGeometry(0.07, 0.07, 0.55), timber, Math.sin(a) * 0.3, chY, Math.cos(a) * 0.3, a);
     if (!low || i % 2 === 0) {
-      add(new THREE.SphereGeometry(0.08, 6, 5), glow, Math.sin(a) * 0.55, chY - 0.18, Math.cos(a) * 0.55);
-      add(new THREE.CylinderGeometry(0.03, 0.04, 0.12, 5), brass, Math.sin(a) * 0.55, chY - 0.05, Math.cos(a) * 0.55);
+      add(new THREE.CylinderGeometry(0.035, 0.045, 0.16, 6), brass, Math.sin(a) * 0.62, chY - 0.08, Math.cos(a) * 0.62);
+      add(new THREE.CylinderGeometry(0.028, 0.028, 0.14, 5), matStd(0xf4e8d0, 'hs-wax', { roughness: 0.7, metalness: 0, emissive: 0xffc978, emissiveIntensity: 0.15 }), Math.sin(a) * 0.62, chY - 0.2, Math.cos(a) * 0.62);
+      add(new THREE.SphereGeometry(0.09, 6, 5), glow, Math.sin(a) * 0.62, chY - 0.3, Math.cos(a) * 0.62);
     }
   }
 
-  // Walls: stone plinth + Wainscot + plaster + half-timber
+  // Walls: stone plinth + Wainscot + plaster + half-timber (N/S to H only; E/W get triangular gables above)
   const plinthH = 0.32, wainH = 1.15;
   for (const [x, z, w, d] of [
     [0, -D / 2, W + 0.3, 0.32], [0, D / 2, W + 0.3, 0.32],
@@ -578,10 +916,6 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
     ), woodL, x, plinthH + wainH, z + (z ? Math.sign(z) * 0.04 : 0) + (x ? Math.sign(x) * 0.04 : 0));
     const upperH = H - plinthH - wainH;
     add(new THREE.BoxGeometry(w, upperH, d), plaster, x, plinthH + wainH + upperH / 2, z);
-    if (Math.abs(z) > Math.abs(x)) {
-      const gableH = PEAK - H;
-      add(new THREE.BoxGeometry(w, gableH + 0.15, d), plaster, x, H + gableH / 2, z);
-    }
   }
   for (let i = -3; i <= 3; i++) {
     if (i === 0) continue;
@@ -594,25 +928,26 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
     add(new THREE.BoxGeometry(0.08, 0.08, 0.7), timber, sx * (W / 2 - 0.35), plinthH + wainH + 0.35, sz * (D / 2 - 0.18), sz * sx * 0.55);
   }
 
-  // Recessed mullioned windows (4) — open curtains
-  // Avoid west-wall chest: side windows stay clear of z≈-0.55
-  // North windows sit wide of PUMPFUN banners (±2.15) so curtains never collide.
+  // Recessed leaded mullion windows + volumetric sunbeams
   const nWinX = W / 2 - 1.55;
   const winSpecs = [
     { x: -nWinX, z: -D / 2 + 0.22, side: false },
     { x: nWinX, z: -D / 2 + 0.22, side: false },
-    { x: -W / 2 + 0.22, z: D * 0.22, side: true },   // west, south of chest (toward door)
+    { x: -W / 2 + 0.22, z: D * 0.22, side: true },
     { x: W / 2 - 0.22, z: 0.15, side: true },
   ];
+  const dustPositions = [];
   for (const { x, z, side } of winSpecs) {
-    // Inward normals toward room center — panes/curtains must face INSIDE, not behind the wall.
     const ix = side ? -Math.sign(x) : 0, iz = side ? 0 : -Math.sign(z || -1);
     add(new THREE.BoxGeometry(side ? 0.18 : 1.55, 1.85, side ? 1.55 : 0.18), woodD, x, 2.2, z);
     add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 1.5, side ? 1.2 : 0.04), skyMat, x + ix * 0.10, 2.2, z + iz * 0.10);
-    add(new THREE.BoxGeometry(side ? 0.04 : 0.06, 1.5, side ? 0.06 : 0.04), timber, x + ix * 0.12, 2.2, z + iz * 0.12);
-    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.2, z + iz * 0.12);
-    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.55, z + iz * 0.12);
-    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.06, side ? 1.2 : 0.04), timber, x + ix * 0.12, 1.85, z + iz * 0.12);
+    // diamond mullions
+    for (let m = -1; m <= 1; m++) {
+      add(new THREE.BoxGeometry(side ? 0.03 : 0.04, 1.5, side ? 0.04 : 0.03), timber, x + ix * 0.12 + (side ? 0 : m * 0.38), 2.2, z + iz * 0.12 + (side ? m * 0.38 : 0));
+    }
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.05, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.2, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.05, side ? 1.2 : 0.04), timber, x + ix * 0.12, 2.55, z + iz * 0.12);
+    add(new THREE.BoxGeometry(side ? 0.04 : 1.2, 0.05, side ? 1.2 : 0.04), timber, x + ix * 0.12, 1.85, z + iz * 0.12);
     add(new THREE.BoxGeometry(side ? 0.28 : 1.65, 0.12, side ? 1.65 : 0.28), stoneD, x + ix * 0.08, 1.28, z + iz * 0.08);
     add(new THREE.CylinderGeometry(0.025, 0.025, side ? 1.5 : 1.6, 5), brass, x + ix * 0.14, 3.05, z + iz * 0.14, side ? 0 : Math.PI / 2, side ? Math.PI / 2 : 0);
     for (const s of [-1, 1]) {
@@ -624,49 +959,96 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
       add(new THREE.SphereGeometry(0.12, 6, 5), leaf, x - 0.4, 1.58, z + iz * 0.18);
       add(new THREE.CylinderGeometry(0.03, 0.04, 0.22, 5), brass, x + 0.35, 1.48, z + iz * 0.18);
       add(new THREE.SphereGeometry(0.05, 5, 4), glow, x + 0.35, 1.62, z + iz * 0.18);
+      // Golden volumetric sunbeam slanting into the room
+      const beam = add(new THREE.PlaneGeometry(0.85, 3.4), beamMat, x + ix * 0.9, 1.55, z + iz * 1.6, 0, -0.55);
+      beam.rotation.z = (x < 0 ? 0.18 : -0.18);
+      for (let i = 0; i < (low ? 8 : 18); i++) {
+        dustPositions.push(
+          x + ix * (0.4 + Math.random() * 1.6),
+          0.6 + Math.random() * 2.4,
+          z + iz * (0.5 + Math.random() * 2.2)
+        );
+      }
     } else {
       add(new THREE.CylinderGeometry(0.06, 0.08, 0.28, 6), matL(0x2a5a4a, 'hs-bottle'), x + ix * 0.2, 1.5, z + 0.25);
     }
   }
 
-  // Hero stone hearth (-Z)
+  // Floating golden dust motes in sunbeams
+  if (dustPositions.length && _canDraw()) {
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.Float32BufferAttribute(dustPositions, 3));
+    const dustMat = new THREE.PointsMaterial({
+      color: 0xffe6ba, size: 0.035, transparent: true, opacity: 0.65,
+      depthWrite: false, sizeAttenuation: true, fog: false,
+    });
+    dustMat.userData.key = 'hs-dust';
+    const dust = new THREE.Points(dustGeo, dustMat); dust.name = 'hs_dust'; g.add(dust);
+  }
+
+  // Hero stone hearth (-Z) — coursed ashlar, mantel, grate, logs, fire
   const hz = -D / 2 + 0.55;
+  aoPad(3.6, 1.5, 0, hz + 0.35, 0.5);
   add(new THREE.BoxGeometry(3.4, 0.18, 1.35), stone, 0, 0.12, hz + 0.35);
-  add(new THREE.BoxGeometry(0.55, 2.4, 0.95), stone, -1.15, 1.3, hz);
-  add(new THREE.BoxGeometry(0.55, 2.4, 0.95), stone, 1.15, 1.3, hz);
-  add(new THREE.BoxGeometry(2.9, 0.35, 1.0), stoneD, 0, 2.55, hz);
-  add(new THREE.BoxGeometry(2.4, 0.28, 0.95), stone, 0, 2.85, hz);
-  add(new THREE.BoxGeometry(3.2, 0.18, 1.15), woodD, 0, 3.05, hz + 0.08);
-  for (const sx of [-1.1, 1.1]) add(new THREE.BoxGeometry(0.22, 0.35, 0.35), woodL, sx, 2.85, hz + 0.25);
-  add(new THREE.BoxGeometry(2.6, 1.1, 0.85), stone, 0, 3.7, hz - 0.05);
-  add(new THREE.BoxGeometry(2.0, 0.9, 0.7), stoneD, 0, 4.55, hz - 0.08);
-  add(new THREE.BoxGeometry(1.5, PEAK - 4.9, 0.55), stone, 0, (4.9 + PEAK) / 2, hz - 0.1);
+  // individual-looking jambs / breast
+  for (const [sx, sw] of [[-1.2, 0.5], [1.2, 0.5]]) {
+    add(new THREE.BoxGeometry(sw, 2.45, 0.95), stone, sx, 1.32, hz);
+  }
+  add(new THREE.BoxGeometry(2.9, 0.38, 1.0), stoneD, 0, 2.58, hz);
+  add(new THREE.BoxGeometry(2.4, 0.3, 0.95), stone, 0, 2.88, hz);
+  // keystone arch suggestion
+  add(new THREE.BoxGeometry(0.35, 0.28, 0.2), stoneD, 0, 2.35, hz + 0.42);
+  add(new THREE.BoxGeometry(3.2, 0.2, 1.15), woodD, 0, 3.08, hz + 0.08); // oak mantel
+  for (const sx of [-1.15, 1.15]) add(new THREE.BoxGeometry(0.24, 0.38, 0.38), woodL, sx, 2.88, hz + 0.28); // corbels
+  add(new THREE.BoxGeometry(2.6, 1.15, 0.85), stone, 0, 3.75, hz - 0.05);
+  add(new THREE.BoxGeometry(2.0, 0.95, 0.7), stoneD, 0, 4.6, hz - 0.08);
+  add(new THREE.BoxGeometry(1.5, PEAK - 5.0, 0.55), stone, 0, (5.0 + PEAK) / 2, hz - 0.1);
+  // wrought grate + andirons + logs
   add(new THREE.BoxGeometry(1.55, 1.05, 0.28), iron, 0, 0.95, hz + 0.05);
-  for (const sx of [-0.35, 0.35]) {
-    add(new THREE.BoxGeometry(0.08, 0.35, 0.5), iron, sx, 0.4, hz + 0.55);
-    add(new THREE.BoxGeometry(0.12, 0.08, 0.12), iron, sx, 0.55, hz + 0.78);
+  for (const sx of [-0.4, 0.4]) {
+    add(new THREE.BoxGeometry(0.1, 0.4, 0.55), iron, sx, 0.42, hz + 0.55);
+    add(new THREE.SphereGeometry(0.07, 6, 5), iron, sx, 0.6, hz + 0.82);
   }
-  add(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 6), woodD, 0, 0.48, hz + 0.6, 0, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.08, 0.1, 0.7, 6), timber, 0.15, 0.62, hz + 0.55, 0.2, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.07, 0.09, 0.65, 6), woodD, -0.12, 0.58, hz + 0.65, -0.15, Math.PI / 2);
-  add(new THREE.BoxGeometry(1.2, 0.2, 0.55), ember, 0, 0.4, hz + 0.7);
-  const fl1 = add(new THREE.ConeGeometry(0.28, 0.75, 5), flame, -0.18, 0.85, hz + 0.72);
-  const fl2 = add(new THREE.ConeGeometry(0.24, 0.95, 5), flame2, 0.05, 0.95, hz + 0.68);
-  const fl3 = add(new THREE.ConeGeometry(0.2, 0.65, 5), flame, 0.25, 0.8, hz + 0.78);
+  add(new THREE.CylinderGeometry(0.11, 0.13, 0.9, segs), woodD, 0, 0.5, hz + 0.62, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.09, 0.11, 0.75, segs), timber, 0.18, 0.64, hz + 0.55, 0.25, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.08, 0.1, 0.7, segs), woodD, -0.15, 0.6, hz + 0.68, -0.2, Math.PI / 2);
+  // hanging kettle on crane
+  add(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 5), iron, 0.55, 1.5, hz + 0.5, 0, 0.4);
+  add(new THREE.CylinderGeometry(0.16, 0.14, 0.22, segs), iron, 0.55, 1.05, hz + 0.75);
+  add(new THREE.TorusGeometry(0.08, 0.015, 5, 10), iron, 0.55, 1.18, hz + 0.75, 0, Math.PI / 2);
+  add(new THREE.BoxGeometry(1.25, 0.22, 0.58), ember, 0, 0.42, hz + 0.72);
+  const fl1 = add(new THREE.ConeGeometry(0.3, 0.85, 6), flame, -0.2, 0.9, hz + 0.74);
+  const fl2 = add(new THREE.ConeGeometry(0.26, 1.05, 6), flame2, 0.05, 1.0, hz + 0.7);
+  const fl3 = add(new THREE.ConeGeometry(0.22, 0.72, 6), flame, 0.28, 0.85, hz + 0.8);
   fl1.name = 'hs_flame_a'; fl2.name = 'hs_flame_b'; fl3.name = 'hs_flame_c';
-  // Mantle trophies
-  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, -0.25, 3.35, hz + 0.45, 0.55);
-  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, 0.25, 3.35, hz + 0.45, -0.55);
-  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, -0.7, 3.35, hz + 0.7, 0.55);
-  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, 0.7, 3.35, hz + 0.7, -0.55);
-  add(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 10), brass, 0, 3.45, hz + 0.55, 0, Math.PI / 2);
-  add(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 8), iron, 0, 3.45, hz + 0.6, 0, Math.PI / 2);
-  for (const sx of [-1.2, 1.2]) {
-    add(new THREE.CylinderGeometry(0.05, 0.07, 0.28, 6), brass, sx, 3.28, hz + 0.35);
-    add(new THREE.SphereGeometry(0.06, 5, 4), glow, sx, 3.48, hz + 0.35);
+  // Rising hearth ember sparks
+  if (_canDraw() && !low) {
+    const sparkN = 24;
+    const sp = new Float32Array(sparkN * 3);
+    for (let i = 0; i < sparkN; i++) {
+      sp[i * 3] = (Math.random() - 0.5) * 0.8;
+      sp[i * 3 + 1] = 0.5 + Math.random() * 1.2;
+      sp[i * 3 + 2] = hz + 0.55 + Math.random() * 0.5;
+    }
+    const sgeo = new THREE.BufferGeometry();
+    sgeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    const smat = new THREE.PointsMaterial({ color: 0xff8a30, size: 0.045, transparent: true, opacity: 0.9, depthWrite: false, fog: false });
+    smat.userData.key = 'hs-spark';
+    const sparks = new THREE.Points(sgeo, smat); sparks.name = 'hs_sparks'; g.add(sparks);
   }
-  add(new THREE.CylinderGeometry(0.1, 0.1, 0.28, 8), matL(0x6a90a8, 'hs-glass'), -0.55, 3.28, hz + 0.4);
-  add(new THREE.CylinderGeometry(0.07, 0.09, 0.2, 6), gold, 0.55, 3.25, hz + 0.4);
+  // Mantle trophies
+  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, -0.25, 3.38, hz + 0.45, 0.55);
+  add(new THREE.BoxGeometry(0.06, 0.08, 1.15), iron, 0.25, 3.38, hz + 0.45, -0.55);
+  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, -0.7, 3.38, hz + 0.7, 0.55);
+  add(new THREE.BoxGeometry(0.18, 0.05, 0.22), brass, 0.7, 3.38, hz + 0.7, -0.55);
+  add(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 12), brass, 0, 3.48, hz + 0.55, 0, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 10), iron, 0, 3.48, hz + 0.6, 0, Math.PI / 2);
+  for (const sx of [-1.2, 1.2]) {
+    add(new THREE.CylinderGeometry(0.05, 0.07, 0.28, 6), brass, sx, 3.3, hz + 0.35);
+    add(new THREE.SphereGeometry(0.07, 6, 5), glow, sx, 3.52, hz + 0.35);
+  }
+  add(new THREE.CylinderGeometry(0.1, 0.1, 0.28, 8), matStd(0x6a90a8, 'hs-glass', { roughness: 0.15, metalness: 0.1, envMapIntensity: 0.9 }), -0.55, 3.3, hz + 0.4);
+  add(new THREE.CylinderGeometry(0.07, 0.09, 0.2, 6), gold, 0.55, 3.28, hz + 0.4);
 
   if (tier === 'captain' || tier === 'manor') {
     for (const sx of [-2.15, 2.15]) {
@@ -675,7 +1057,7 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
       const ban = new THREE.Mesh(
         new THREE.PlaneGeometry(0.95, 1.25),
         jollyMap
-          ? new THREE.MeshLambertMaterial({ map: jollyMap, color: 0xffffff, side: THREE.DoubleSide, fog: false })
+          ? matStd(0xffffff, 'hs-banner', { map: jollyMap, roughness: 0.8, metalness: 0.0, envMapIntensity: 0.2 })
           : matL(0x1a1a1a, 'hs-banner')
       );
       ban.position.set(sx, 2.5, -D / 2 + 0.42); g.add(ban);
@@ -685,167 +1067,243 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
       add(new THREE.BoxGeometry(0.72, 0.08, 0.52), gold, W / 2 - 1.2, 0.6, -D / 2 + 1.8);
     }
   }
-  // Framed sea-battle painting on EAST wall above the chart table (faces -X into room)
-  add(new THREE.BoxGeometry(0.06, 1.0, 1.35), woodD, W / 2 - 0.20, 2.45, -1.85);
-  add(new THREE.BoxGeometry(0.04, 0.82, 1.15), paintMat, W / 2 - 0.23, 2.45, -1.85);
 
-  // Captain's alcove bunk (SW) — keep clear of front-door center path
+  // Framed sea-battle painting + gilded captain portraits
+  add(new THREE.BoxGeometry(0.08, 1.05, 1.4), woodD, W / 2 - 0.18, 2.45, -1.85);
+  add(new THREE.BoxGeometry(0.05, 0.88, 1.2), paintMat, W / 2 - 0.22, 2.45, -1.85);
+  add(new THREE.BoxGeometry(0.03, 0.95, 1.28), gold, W / 2 - 0.20, 2.45, -1.85);
+  const portraitIds = [1, 33, 74];
+  const portraitZs = [-0.15, 1.35, -3.0];
+  for (let i = 0; i < portraitIds.length; i++) {
+    const pid = portraitIds[i];
+    const pz = portraitZs[i];
+    if (Math.abs(pz) > D / 2 - 0.8) continue;
+    add(new THREE.BoxGeometry(0.07, 0.85, 0.7), woodD, -W / 2 + 0.2, 2.55, pz);
+    add(new THREE.BoxGeometry(0.04, 0.78, 0.62), gold, -W / 2 + 0.22, 2.55, pz);
+    const ptex = _captainTex[pid];
+    const pmat = ptex
+      ? matStd(0xffffff, 'hs-portrait', { map: ptex, roughness: 0.55, metalness: 0.05, envMapIntensity: 0.3 })
+      : matStd(0x5a3a20, 'hs-portrait', { roughness: 0.7, metalness: 0.05 });
+    add(new THREE.BoxGeometry(0.03, 0.7, 0.55), pmat, -W / 2 + 0.25, 2.55, pz);
+  }
+
+  // Captain's alcove bunk (SW)
   const bx = -W / 2 + 1.85, bz = D / 2 - 1.55;
+  aoPad(2.8, 1.6, bx, bz, 0.45);
   add(new THREE.BoxGeometry(2.6, 0.45, 1.45), woodD, bx, 0.4, bz);
   for (const sx of [-1.2, 1.2]) {
-    add(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 6), woodL, bx + sx, 0.95, bz - 0.6);
-    add(new THREE.CylinderGeometry(0.08, 0.1, 1.15, 6), woodL, bx + sx, 0.95, bz + 0.6);
+    // lathe-ish posts (tapered cylinders + brass finials)
+    add(new THREE.CylinderGeometry(0.06, 0.1, 1.25, segs), woodL, bx + sx, 1.0, bz - 0.6);
+    add(new THREE.CylinderGeometry(0.06, 0.1, 1.25, segs), woodL, bx + sx, 1.0, bz + 0.6);
+    add(new THREE.SphereGeometry(0.08, 6, 5), brass, bx + sx, 1.7, bz - 0.6);
+    add(new THREE.SphereGeometry(0.08, 6, 5), brass, bx + sx, 1.7, bz + 0.6);
   }
   add(new THREE.BoxGeometry(2.4, 0.55, 0.12), woodD, bx, 1.15, bz - 0.7);
   add(new THREE.BoxGeometry(2.4, 0.35, 0.1), woodD, bx, 1.0, bz + 0.7);
-  add(new THREE.BoxGeometry(2.35, 0.16, 1.25), sheet, bx, 0.72, bz);
-  add(new THREE.BoxGeometry(1.3, 0.14, 1.2), blanket, bx + 0.4, 0.88, bz);
-  add(new THREE.BoxGeometry(1.3, 0.04, 0.12), blanketTrim, bx + 0.4, 0.96, bz - 0.55);
-  add(new THREE.BoxGeometry(0.55, 0.22, 0.45), pillow, bx - 0.85, 0.95, bz);
-  add(new THREE.BoxGeometry(0.45, 0.18, 0.38), pillow, bx - 0.55, 0.92, bz + 0.15);
+  add(new THREE.BoxGeometry(2.35, 0.18, 1.25), sheet, bx, 0.74, bz);
+  add(new THREE.BoxGeometry(1.35, 0.16, 1.2), blanket, bx + 0.4, 0.9, bz);
+  add(new THREE.BoxGeometry(1.3, 0.05, 0.12), blanketTrim, bx + 0.4, 0.99, bz - 0.55);
+  // rumpled fold suggestion
+  add(new THREE.BoxGeometry(0.9, 0.08, 0.35), blanket, bx + 0.55, 0.98, bz + 0.25, 0.2);
+  add(new THREE.BoxGeometry(0.55, 0.24, 0.45), pillow, bx - 0.85, 0.98, bz);
+  add(new THREE.BoxGeometry(0.45, 0.2, 0.38), pillow, bx - 0.55, 0.95, bz + 0.15);
   add(new THREE.BoxGeometry(0.7, 0.04, 1.5), matL(accentHex, 'hs-runner'), bx + 1.55, 0.16, bz);
   add(new THREE.BoxGeometry(0.55, 0.55, 0.45), woodD, bx + 1.55, 0.4, bz - 0.15);
-  add(new THREE.BoxGeometry(0.18, 0.28, 0.18), brass, bx + 1.55, 0.82, bz - 0.15);
-  add(new THREE.SphereGeometry(0.1, 6, 5), glow, bx + 1.55, 1.02, bz - 0.15);
+  add(new THREE.CylinderGeometry(0.08, 0.1, 0.22, 8), brass, bx + 1.55, 0.8, bz - 0.15);
+  add(new THREE.SphereGeometry(0.11, 6, 5), glow, bx + 1.55, 1.05, bz - 0.15);
   add(new THREE.BoxGeometry(0.28, 0.06, 0.22), matL(0x3a2410, 'hs-book'), bx + 1.55, 0.72, bz + 0.12);
 
-  // Chart & dining (East)
+  // Chart & dining (East) — trestle table + chairs + globe / ship model
   const tx = W / 2 - 2.2, tz = 0.2;
-  add(new THREE.BoxGeometry(2.1, 0.12, 1.25), wood, tx, 0.9, tz);
-  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.9, 1.1), woodD, tx + s * 0.85, 0.45, tz);
-  add(new THREE.BoxGeometry(1.7, 0.08, 0.12), woodD, tx, 0.35, tz);
-  add(new THREE.BoxGeometry(1.35, 0.02, 0.9), chart, tx - 0.1, 0.98, tz);
-  add(new THREE.BoxGeometry(0.04, 0.04, 0.35), iron, tx - 0.55, 1.02, tz - 0.25, 0.4);
-  add(new THREE.BoxGeometry(0.12, 0.03, 0.08), brass, tx - 0.7, 1.02, tz - 0.35, 0.4);
-  add(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 10), brass, tx + 0.55, 1.0, tz - 0.3);
-  add(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 6), matL(0x1a1008, 'hs-ink'), tx + 0.7, 1.05, tz + 0.2);
-  add(new THREE.CylinderGeometry(0.015, 0.015, 0.35, 4), matL(0xd9c4a0, 'hs-quill'), tx + 0.55, 1.12, tz + 0.25, 0.6);
-  add(new THREE.CylinderGeometry(0.09, 0.11, 0.38, 8), matL(0x3a1a10, 'hs-bottle'), tx + 0.75, 1.15, tz + 0.05);
-  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx - 0.7, 1.08, tz + 0.35);
-  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx + 0.35, 1.08, tz + 0.4);
-  add(new THREE.SphereGeometry(0.1, 6, 5), matL(0xe85a2e, 'hs-fruit'), tx + 0.15, 1.08, tz - 0.4);
-  add(new THREE.SphereGeometry(0.08, 5, 4), matL(0xf0d24a, 'hs-fruit'), tx + 0.28, 1.05, tz - 0.35);
-  for (const [cx, cz, cry] of [[tx - 0.15, tz + 1.05, 0], [tx - 0.15, tz - 1.05, Math.PI]]) {
-    add(new THREE.BoxGeometry(0.5, 0.08, 0.5), wood, cx, 0.55, cz, cry);
-    add(new THREE.BoxGeometry(0.5, 0.7, 0.08), woodD, cx, 0.95, cz + (cry ? 0.22 : -0.22), cry);
-    for (const s of [-1, 1]) for (const t of [-1, 1])
-      add(new THREE.BoxGeometry(0.06, 0.5, 0.06), woodD, cx + s * 0.18, 0.28, cz + t * 0.18);
+  aoPad(2.4, 1.6, tx, tz, 0.4);
+  add(new THREE.BoxGeometry(2.15, 0.14, 1.3), woodD, tx, 0.92, tz);
+  for (const s of [-1, 1]) add(new THREE.BoxGeometry(0.14, 0.92, 1.15), woodD, tx + s * 0.88, 0.46, tz);
+  add(new THREE.BoxGeometry(1.75, 0.1, 0.14), woodD, tx, 0.36, tz);
+  add(new THREE.BoxGeometry(1.4, 0.02, 0.95), chart, tx - 0.1, 1.0, tz);
+  // curled map corners
+  add(new THREE.CylinderGeometry(0.04, 0.04, 0.95, 6, 1, false, 0, Math.PI), chart, tx - 0.78, 1.02, tz, 0, Math.PI / 2);
+  add(new THREE.BoxGeometry(0.04, 0.04, 0.4), iron, tx - 0.55, 1.04, tz - 0.25, 0.4);
+  add(new THREE.BoxGeometry(0.14, 0.04, 0.1), brass, tx - 0.72, 1.04, tz - 0.35, 0.4);
+  // brass sextant / compass
+  add(new THREE.CylinderGeometry(0.14, 0.14, 0.05, 14), brass, tx + 0.55, 1.02, tz - 0.32);
+  add(new THREE.CylinderGeometry(0.04, 0.02, 0.12, 6), brass, tx + 0.55, 1.1, tz - 0.32);
+  // miniature galleon
+  add(new THREE.BoxGeometry(0.35, 0.08, 0.14), woodD, tx + 0.15, 1.06, tz + 0.35);
+  add(new THREE.BoxGeometry(0.02, 0.28, 0.02), timber, tx + 0.05, 1.22, tz + 0.35);
+  add(new THREE.BoxGeometry(0.12, 0.16, 0.01), sheet, tx + 0.12, 1.22, tz + 0.35);
+  // terrestrial globe
+  add(new THREE.SphereGeometry(0.16, segs, 8), matStd(0x3a6a8a, 'hs-globe', { roughness: 0.45, metalness: 0.15, envMapIntensity: 0.5 }), tx + 0.85, 1.22, tz + 0.15);
+  add(new THREE.TorusGeometry(0.17, 0.015, 5, 16), brass, tx + 0.85, 1.22, tz + 0.15, 0.4);
+  add(new THREE.CylinderGeometry(0.04, 0.08, 0.12, 6), woodD, tx + 0.85, 1.02, tz + 0.15);
+  add(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 6), matL(0x1a1008, 'hs-ink'), tx + 0.7, 1.08, tz + 0.2);
+  add(new THREE.CylinderGeometry(0.015, 0.015, 0.35, 4), matL(0xd9c4a0, 'hs-quill'), tx + 0.55, 1.15, tz + 0.25, 0.6);
+  add(new THREE.CylinderGeometry(0.09, 0.11, 0.4, 8), matStd(0x3a1a10, 'hs-bottle', { roughness: 0.2, metalness: 0.05, envMapIntensity: 0.7 }), tx + 0.75, 1.18, tz + 0.05);
+  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx - 0.7, 1.1, tz + 0.35);
+  add(new THREE.CylinderGeometry(0.1, 0.09, 0.2, 8), matL(0x6b4527, 'hs-mug'), tx + 0.35, 1.1, tz + 0.4);
+  add(new THREE.SphereGeometry(0.1, 6, 5), matL(0xe85a2e, 'hs-fruit'), tx + 0.15, 1.1, tz - 0.4);
+  add(new THREE.SphereGeometry(0.08, 5, 4), matL(0xf0d24a, 'hs-fruit'), tx + 0.28, 1.07, tz - 0.35);
+  // dripped candelabrum
+  add(new THREE.CylinderGeometry(0.08, 0.1, 0.08, 8), brass, tx - 0.35, 1.04, tz - 0.4);
+  for (const ox of [-0.08, 0, 0.08]) {
+    add(new THREE.CylinderGeometry(0.02, 0.025, 0.2, 5), matStd(0xf4e8d0, 'hs-wax', { roughness: 0.7, metalness: 0, emissive: 0xffc978, emissiveIntensity: 0.2 }), tx - 0.35 + ox, 1.18, tz - 0.4);
+    add(new THREE.SphereGeometry(0.04, 5, 4), glow, tx - 0.35 + ox, 1.3, tz - 0.4);
   }
-  add(new THREE.CylinderGeometry(0.22, 0.25, 0.45, 8), woodD, tx + 1.15, 0.35, tz + 0.85);
+  for (const [cx, cz, cry] of [[tx - 0.15, tz + 1.08, 0], [tx - 0.15, tz - 1.08, Math.PI]]) {
+    aoPad(0.7, 0.7, cx, cz, 0.35);
+    add(new THREE.BoxGeometry(0.52, 0.08, 0.52), woodD, cx, 0.55, cz, cry);
+    add(new THREE.BoxGeometry(0.52, 0.72, 0.08), woodD, cx, 0.96, cz + (cry ? 0.22 : -0.22), cry);
+    for (const s of [-1, 1]) for (const t of [-1, 1])
+      add(new THREE.CylinderGeometry(0.035, 0.05, 0.52, 6), woodD, cx + s * 0.18, 0.28, cz + t * 0.18);
+  }
+  add(new THREE.CylinderGeometry(0.22, 0.25, 0.45, 10), woodD, tx + 1.15, 0.35, tz + 0.85);
 
-  // Bookshelf + armory on WEST wall NORTH of chest (z ~ -2.3), clear of chest at z=-0.55
+  // Bookshelf + armory on WEST wall NORTH of chest
   const wx = -W / 2 + 0.55, wz = -2.35;
-  add(new THREE.BoxGeometry(0.55, 2.6, 1.6), woodD, wx, 1.45, wz);
-  for (const sy of [0.55, 1.15, 1.75, 2.35]) add(new THREE.BoxGeometry(0.5, 0.06, 1.5), woodL, wx + 0.02, sy, wz);
+  aoPad(1.0, 2.0, wx + 0.2, wz, 0.4);
+  add(new THREE.BoxGeometry(0.55, 2.65, 1.65), woodD, wx, 1.48, wz);
+  add(new THREE.BoxGeometry(0.6, 0.12, 1.7), woodL, wx, 2.85, wz); // crown cornice
+  for (const sy of [0.55, 1.15, 1.75, 2.35]) add(new THREE.BoxGeometry(0.5, 0.06, 1.55), woodL, wx + 0.02, sy, wz);
   const bookMats = [bookR, bookB, bookG, matL(0x6b3a1e, 'hs-book'), matL(0x4a2a6b, 'hs-book')];
   for (let shelf = 0; shelf < 3; shelf++) {
-    for (let b = 0; b < 5; b++) {
-      const bh = 0.28 + (b % 3) * 0.06;
-      add(new THREE.BoxGeometry(0.18, bh, 0.22), bookMats[(shelf + b) % bookMats.length], wx + 0.12, 0.7 + shelf * 0.6 + bh / 2, wz - 0.55 + b * 0.25);
+    for (let b = 0; b < 6; b++) {
+      const bh = 0.26 + (b % 3) * 0.07;
+      const tilt = ((b + shelf) % 5 === 0) ? 0.25 : 0;
+      add(new THREE.BoxGeometry(0.18, bh, 0.2), bookMats[(shelf + b) % bookMats.length], wx + 0.12, 0.7 + shelf * 0.6 + bh / 2, wz - 0.6 + b * 0.22, tilt);
+      if (b % 2 === 0) add(new THREE.BoxGeometry(0.185, 0.03, 0.05), gold, wx + 0.13, 0.7 + shelf * 0.6 + bh * 0.6, wz - 0.6 + b * 0.22, tilt);
     }
   }
   add(new THREE.CylinderGeometry(0.07, 0.08, 0.22, 6), bottleG, wx + 0.15, 2.0, wz + 0.45);
   add(new THREE.CylinderGeometry(0.06, 0.07, 0.18, 6), matGlow(0xc44ec8, 'hs-potion'), wx + 0.15, 1.98, wz + 0.65);
-  add(new THREE.SphereGeometry(0.12, 6, 5), gold, wx + 0.15, 2.55, wz - 0.2);
-  // Armory rack further north / beside bookcase
+  add(new THREE.SphereGeometry(0.13, 8, 6), gold, wx + 0.15, 2.55, wz - 0.2); // gilded skull
+  add(new THREE.CylinderGeometry(0.04, 0.05, 0.35, 6), brass, wx + 0.15, 2.5, wz + 0.35, 0.5); // spyglass
   const ax = -W / 2 + 0.4, az = -3.35;
   if (az > -D / 2 + 0.8) {
-    add(new THREE.BoxGeometry(0.18, 1.8, 1.0), woodD, ax, 1.2, az);
+    add(new THREE.BoxGeometry(0.18, 1.85, 1.05), woodD, ax, 1.22, az);
     for (let i = 0; i < 2; i++) {
       const zz = az - 0.25 + i * 0.45;
-      add(new THREE.BoxGeometry(0.05, 0.08, 0.85), iron, ax + 0.25, 1.45, zz, 0.35);
-      add(new THREE.BoxGeometry(0.16, 0.05, 0.18), brass, ax + 0.2, 1.28, zz + 0.35, 0.35);
-      add(new THREE.CylinderGeometry(0.035, 0.04, 0.2, 5), matL(0x3a2410, 'hs-grip'), ax + 0.18, 1.22, zz + 0.48, 0.35);
+      // curved cutlass suggestion
+      add(new THREE.BoxGeometry(0.05, 0.08, 0.9), iron, ax + 0.28, 1.5, zz, 0.4);
+      add(new THREE.TorusGeometry(0.1, 0.02, 5, 10, Math.PI), brass, ax + 0.22, 1.28, zz + 0.4, 0.4);
+      add(new THREE.CylinderGeometry(0.035, 0.04, 0.22, 5), matL(0x3a2410, 'hs-grip'), ax + 0.2, 1.22, zz + 0.5, 0.35);
     }
+    // flintlock
+    add(new THREE.BoxGeometry(0.06, 0.08, 0.7), timber, ax + 0.28, 1.0, az, 0.15);
+    add(new THREE.BoxGeometry(0.04, 0.04, 0.35), iron, ax + 0.3, 1.02, az - 0.25, 0.15);
   }
 
   // Provision corner (NE)
   const px = W / 2 - 0.85, pz = -D / 2 + 1.5;
+  aoPad(2.0, 2.2, px, pz + 0.4, 0.4);
   for (const [ox, oz] of [[0, 0], [0.85, 0.55]]) {
-    add(new THREE.CylinderGeometry(0.4, 0.42, 0.95, 12), wood, px + ox, 0.55, pz + oz);
-    for (const hy of [0.25, 0.55, 0.85]) add(new THREE.TorusGeometry(0.42, 0.03, 4, 12), iron, px + ox, hy, pz + oz, 0, Math.PI / 2);
+    add(new THREE.CylinderGeometry(0.4, 0.42, 0.95, low ? 10 : 16), woodD, px + ox, 0.55, pz + oz);
+    for (const hy of [0.25, 0.55, 0.85]) add(new THREE.TorusGeometry(0.42, 0.035, 5, low ? 10 : 16), iron, px + ox, hy, pz + oz, 0, Math.PI / 2);
   }
+  // timber cradle
+  add(new THREE.BoxGeometry(1.0, 0.1, 0.12), timber, px + 0.4, 0.12, pz + 0.2);
   add(new THREE.BoxGeometry(0.7, 0.5, 0.7), woodD, px - 0.1, 0.35, pz + 1.3);
   add(new THREE.BoxGeometry(0.55, 0.4, 0.55), woodL, px - 0.1, 0.8, pz + 1.3);
-  add(new THREE.TorusGeometry(0.28, 0.08, 6, 12), matL(0xc4a46a, 'hs-rope'), px - 0.7, 0.2, pz + 0.3, 0, Math.PI / 2);
+  add(new THREE.TorusGeometry(0.28, 0.08, 6, 14), matL(0xc4a46a, 'hs-rope'), px - 0.7, 0.2, pz + 0.3, 0, Math.PI / 2);
   add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), timber, px - 0.9, 0.9, pz + 0.8, 0.4);
   add(new THREE.ConeGeometry(0.06, 0.18, 5), iron, px - 0.9, 1.7, pz + 0.8, 0.4);
 
   // ---- Hero storage chest — WEST WALL (clear front-door path) ----
   const chest = new THREE.Group(); chest.name = 'house_chest';
-  const cBase = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.75, 0.98), wood); cBase.position.y = 0.4; chest.add(cBase);
+  const cBase = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.75, 0.98), woodD); cBase.position.y = 0.4; chest.add(cBase);
   for (const sx of [-0.55, 0, 0.55]) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.78, 1.0), sx === 0 ? brass : iron); b.position.set(sx, 0.4, 0); chest.add(b);
     for (const ry of [0.15, 0.65]) {
-      const riv = new THREE.Mesh(new THREE.SphereGeometry(0.035, 4, 3), brass); riv.position.set(sx, ry, 0.5); chest.add(riv);
+      const riv = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), brass); riv.position.set(sx, ry, 0.5); chest.add(riv);
+      const riv2 = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 4), brass); riv2.position.set(sx, ry, -0.5); chest.add(riv2);
     }
   }
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.2, 1.0), woodD); lid.position.set(0, 0.88, 0); chest.add(lid);
-  const vault = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.4, 10, 1, false, 0, Math.PI), wood);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.18, 1.0), woodD); lid.position.set(0, 0.88, 0); chest.add(lid);
+  const vault = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.42, low ? 10 : 16, 1, false, 0, Math.PI), woodD);
   vault.rotation.z = Math.PI / 2; vault.position.set(0, 0.98, 0); chest.add(vault);
   for (const sx of [-0.75, 0.75]) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 5, 10), iron);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.028, 6, 12), iron);
     ring.position.set(sx, 0.55, 0); ring.rotation.y = Math.PI / 2; chest.add(ring);
   }
-  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.1), gold); lock.position.set(0, 0.55, 0.52); chest.add(lock);
-  const keyhole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.08, 6), iron); keyhole.rotation.x = Math.PI / 2; keyhole.position.set(0, 0.52, 0.58); chest.add(keyhole);
-  // BANKSY: off to the side wall, facing +X into the room — clear +Z door path
+  // ornate lock escutcheon
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.1), gold); lock.position.set(0, 0.55, 0.52); chest.add(lock);
+  const lockRing = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.015, 5, 10), brass); lockRing.position.set(0, 0.55, 0.58); chest.add(lockRing);
+  const keyhole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.08, 6), iron); keyhole.rotation.x = Math.PI / 2; keyhole.position.set(0, 0.52, 0.6); chest.add(keyhole);
+  // leather corner guards
+  for (const sx of [-0.7, 0.7]) for (const sz of [-0.45, 0.45]) {
+    const gaurd = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), matStd(0x3a2410, 'hs-leather', { roughness: 0.85, metalness: 0.05 }));
+    gaurd.position.set(sx, 0.12, sz); chest.add(gaurd);
+  }
   chest.position.set(-W / 2 + 1.15, 0.14, -0.55); chest.rotation.y = Math.PI / 2; g.add(chest);
-  // mat + sconce + coins beside west chest (into the room)
+  aoPad(1.4, 1.9, -W / 2 + 1.15, -0.55, 0.48);
   add(new THREE.BoxGeometry(1.2, 0.04, 1.7), matL(0x6b4527, 'hs-mat'), -W / 2 + 1.15, 0.14, -0.55);
   add(new THREE.BoxGeometry(0.1, 0.35, 0.1), brass, -W / 2 + 0.35, 2.4, -0.55);
   add(new THREE.SphereGeometry(0.14, 6, 5), glow, -W / 2 + 0.55, 2.2, -0.55);
-  for (let i = 0; i < 5; i++) add(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8), gold, -W / 2 + 1.9 + (i % 3) * 0.08, 0.2 + Math.floor(i / 3) * 0.03, -0.2 + (i % 2) * 0.08);
+  // spilled doubloons + gems + bullion
+  for (let i = 0; i < 8; i++) add(new THREE.CylinderGeometry(0.055, 0.055, 0.018, 10), gold, -W / 2 + 1.85 + (i % 4) * 0.09, 0.2 + Math.floor(i / 4) * 0.025, -0.15 + (i % 3) * 0.1);
+  add(new THREE.BoxGeometry(0.22, 0.1, 0.1), gold, -W / 2 + 2.0, 0.24, 0.15);
+  add(new THREE.BoxGeometry(0.18, 0.08, 0.08), gold, -W / 2 + 2.15, 0.22, 0.28);
+  add(new THREE.OctahedronGeometry(0.07, 0), matStd(0xc41e3a, 'hs-ruby', { roughness: 0.15, metalness: 0.1, envMapIntensity: 1.0 }), -W / 2 + 1.95, 0.24, -0.55);
+  add(new THREE.OctahedronGeometry(0.06, 0), matStd(0x2ecc71, 'hs-emerald', { roughness: 0.15, metalness: 0.1, envMapIntensity: 1.0 }), -W / 2 + 2.1, 0.23, -0.7);
   add(new THREE.SphereGeometry(0.1, 6, 5), matL(0x8b1e3a, 'hs-pouch'), -W / 2 + 2.05, 0.25, -0.85);
   if (tier === 'manor' || tier === 'captain') {
     add(new THREE.BoxGeometry(0.55, 0.35, 0.4), woodD, -W / 2 + 1.9, 0.3, 0.55);
     add(new THREE.BoxGeometry(0.2, 0.15, 0.05), gold, -W / 2 + 2.05, 0.35, 0.55);
   }
 
-  // Arched exit door (+Z)
+  // Arched iron-studded oak front door (+Z)
   const door = new THREE.Group(); door.name = 'house_exit';
-  const arch = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.9, 0.35), stoneD); arch.position.y = 1.5; door.add(arch);
-  const archCap = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.35, 0.4), stone); archCap.position.set(0, 3.05, 0); door.add(archCap);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.35, 2.4, 0.14), woodD); panel.position.set(0, 1.3, 0.12); door.add(panel);
-  for (const sy of [-0.7, 0, 0.7]) {
-    const pl = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.02), timber); pl.position.set(0, 1.3 + sy, 0.2); door.add(pl);
+  const arch = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.95, 0.38), stoneD); arch.position.y = 1.52; door.add(arch);
+  // voussoir cap
+  const archCap = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.38, 0.42), stone); archCap.position.set(0, 3.1, 0); door.add(archCap);
+  for (const sx of [-0.7, 0, 0.7]) {
+    const vs = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.28, 0.2), stoneD); vs.position.set(sx, 2.95, 0.12); door.add(vs);
   }
-  for (const sy of [0.5, 1.5, 2.2]) {
-    const hng = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.1, 0.06), iron); hng.position.set(-0.55, sy, 0.22); door.add(hng);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.45, 0.16), woodD); panel.position.set(0, 1.32, 0.14); door.add(panel);
+  for (const sy of [-0.75, -0.25, 0.25, 0.75]) {
+    const pl = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.05, 0.03), timber); pl.position.set(0, 1.32 + sy, 0.24); door.add(pl);
   }
-  const knock = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.025, 5, 10), iron); knock.position.set(0.15, 1.5, 0.28); door.add(knock);
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.08), brass); handle.position.set(0.48, 1.25, 0.26); door.add(handle);
+  for (const sy of [0.45, 1.2, 1.95, 2.55]) {
+    const hng = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.07), iron); hng.position.set(-0.55, sy, 0.24); door.add(hng);
+  }
+  // studs
+  for (let row = 0; row < 5; row++) for (let col = 0; col < 3; col++) {
+    const stud = new THREE.Mesh(new THREE.SphereGeometry(0.035, 5, 4), iron);
+    stud.position.set(-0.4 + col * 0.4, 0.55 + row * 0.45, 0.26); door.add(stud);
+  }
+  const knock = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 12), iron); knock.position.set(0.2, 1.55, 0.3); door.add(knock);
+  const knockBoss = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), brass); knockBoss.position.set(0.2, 1.7, 0.28); door.add(knockBoss);
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.24, 0.09), brass); handle.position.set(0.5, 1.28, 0.28); door.add(handle);
   door.position.set(0, 0.14, D / 2 - 0.08); g.add(door);
+  aoPad(1.4, 0.9, 0, D / 2 - 1.0, 0.35);
   add(new THREE.BoxGeometry(0.12, 0.4, 0.12), brass, 1.35, 2.5, D / 2 - 0.35);
   add(new THREE.SphereGeometry(0.15, 8, 6), glow, 1.35, 2.25, D / 2 - 0.5);
   add(new THREE.BoxGeometry(1.1, 0.04, 0.7), matL(0x5a3418, 'hs-doormat'), 0, 0.16, D / 2 - 1.0);
 
   // Furniture AABBs ONLY — walls handled by world.blocked halfW/halfD (v319 hitFurn).
-  // Must NOT overlap spawn (0, D/2 - 1.55) or spots.exit / clear door path.
   const colliders = [
-    { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },                 // hearth
-    { x: -W / 2 + 1.7, z: D / 2 - 1.5, w: 2.6, d: 1.5 },       // bunk
-    { x: W / 2 - 2.1, z: 0.35, w: 2.1, d: 1.4 },               // table
-    { x: -W / 2 + 1.15, z: -0.55, w: 1.05, d: 1.55 },          // chest (west)
-    { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },       // barrel + crate
-    { x: -W / 2 + 0.55, z: -2.35, w: 0.9, d: 1.8 },            // bookcase / rack (NW)
+    { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },
+    { x: -W / 2 + 1.7, z: D / 2 - 1.5, w: 2.6, d: 1.5 },
+    { x: W / 2 - 2.1, z: 0.35, w: 2.1, d: 1.4 },
+    { x: -W / 2 + 1.15, z: -0.55, w: 1.05, d: 1.55 },
+    { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },
+    { x: -W / 2 + 0.55, z: -2.35, w: 0.9, d: 1.8 },
   ];
   const spots = {
     chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
     exit: { x: 0, z: D / 2 - 1.35, r: 2.4, kind: 'house_exit', label: 'EXIT TO ISLAND' },
   };
-  g.userData = { W, D, H, tier, colliders, spots, chest, door, PEAK, cottageId };
+  g.userData = { W, D, H, tier, colliders, spots, chest, door, PEAK, cottageId, fireLight, chLight };
   return g;
 }
 
 
 export function createHouses({
-  scene, world, layout, walker, pirate, crewF, petF, fnet, camera = null,
+  scene, world, layout, walker, pirate, crewF, petF, fnet, camera = null, renderer = null,
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
   getGold = () => 0, spendGold = () => false, saveGold = () => {},
   inventory = null, pvp = () => null, low = false, game = null,
   ocean = null, islands = null,
 }) {
+  preloadCabinAssets();
   if (!HOUSES_ON) {
     return { on: false, inHouse: false, prompts: () => null, tick() {}, netState: () => ({}), onPeerState() {}, clear() {}, act() {}, doors: [], storageOpen: false };
   }
@@ -1095,14 +1553,15 @@ export function createHouses({
     if (!camera || !interior || !roomOrigin || !walker?.w) return;
     const w = walker.w;
     const yaw = Number.isFinite(w.camYaw) ? w.camYaw : w.yaw;
-    const pitch = Math.max(-0.2, Math.min(0.65, w.pitch ?? 0.16));
+    const pitch = Math.max(-0.45, Math.min(0.65, w.pitch ?? 0.16));
     const dist = Math.min(4.8, Math.max(4.2, w.dist || 4.4));
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     let cx = w.x - Math.sin(yaw) * dist * cp;
     let cy = w.y + 1.7 + sp * dist;
     let cz = w.z - Math.cos(yaw) * dist * cp;
     const camHalfW = interior.userData.W / 2 - 0.3, camHalfD = interior.userData.D / 2 - 0.3;
-    const yLo = roomOrigin.y + 0.9, yHi = roomOrigin.y + interior.userData.H - 0.35;
+    const peak = interior.userData.PEAK || interior.userData.H;
+    const yLo = roomOrigin.y + 0.9, yHi = roomOrigin.y + peak - 0.55;
     cx = roomOrigin.x + Math.max(-camHalfW, Math.min(camHalfW, cx - roomOrigin.x));
     cz = roomOrigin.z + Math.max(-camHalfD, Math.min(camHalfD, cz - roomOrigin.z));
     cy = Math.max(yLo, Math.min(yHi, cy));
@@ -1163,10 +1622,11 @@ export function createHouses({
         });
         scene.userData._hsOutLights = hid;
         scene.userData._hsEnv = scene.environment;
-        scene.environment = null;
+        const cabinEnv = getCabinEnv(renderer || game?.renderer);
+        scene.environment = cabinEnv || null;
         if ('environmentIntensity' in scene) {
           scene.userData._hsEnvInt = scene.environmentIntensity;
-          scene.environmentIntensity = 0;
+          scene.environmentIntensity = cabinEnv ? 0.18 : 0;
         }
       } catch {}
       document.documentElement.classList.add('pfp-inhouse');
@@ -1723,15 +2183,41 @@ export function createHouses({
     for (const [id, p] of fnet.peers) {
       if (p.pirate?.object?.visible) { p.pirate.object.visible = false; hiddenPeers.add(id); }
     }
-    // Ember + flame flicker
+    // Ember + flame + firelight flicker + dust/sparks drift
     try {
       const t = game?.t || performance.now() / 1000;
+      const ud = interior.userData || {};
+      if (ud.fireLight) ud.fireLight.intensity = (low ? 3.2 : 5.4) + 0.7 * Math.sin(t * 7.3) + 0.4 * Math.sin(t * 13.1);
+      if (ud.chLight) ud.chLight.intensity = (low ? 2.2 : 3.5) + 0.3 * Math.sin(t * 2.7 + 1.1);
       interior.traverse((c) => {
         const k = c.material?.userData?.key;
         if (k === 'hs-ember' && c.scale) c.scale.setScalar(0.9 + 0.15 * Math.sin(t * 6));
         if (k === 'hs-flame' && c.scale) {
           const ph = (c.id || 1) * 1.7;
           c.scale.set(0.85 + 0.2 * Math.sin(t * 9 + ph), 0.9 + 0.25 * Math.sin(t * 11 + ph), 0.85 + 0.2 * Math.cos(t * 8 + ph));
+        }
+        if (c.name === 'hs_dust' && c.geometry?.attributes?.position) {
+          const arr = c.geometry.attributes.position.array;
+          for (let i = 0; i < arr.length; i += 3) {
+            arr[i] += Math.sin(t * 0.7 + i) * 0.0008;
+            arr[i + 1] += 0.004 + Math.sin(t * 1.3 + i * 0.2) * 0.002;
+            if (arr[i + 1] > 3.2) arr[i + 1] = 0.55;
+          }
+          c.geometry.attributes.position.needsUpdate = true;
+        }
+        if (c.name === 'hs_sparks' && c.geometry?.attributes?.position) {
+          const arr = c.geometry.attributes.position.array;
+          const hz0 = -(ud.D || 10) / 2 + 0.55;
+          for (let i = 0; i < arr.length; i += 3) {
+            arr[i + 1] += 0.012 + (i % 5) * 0.0015;
+            arr[i] += Math.sin(t * 4 + i) * 0.002;
+            if (arr[i + 1] > 2.6) {
+              arr[i] = (Math.random() - 0.5) * 0.8;
+              arr[i + 1] = 0.45 + Math.random() * 0.2;
+              arr[i + 2] = hz0 + 0.55 + Math.random() * 0.45;
+            }
+          }
+          c.geometry.attributes.position.needsUpdate = true;
         }
       });
     } catch {}

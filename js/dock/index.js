@@ -167,7 +167,7 @@ export async function createDock(ctx) {
   let toastT = 0; function toast(t, ms = 1600) { toastEl.innerHTML = t; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { toastEl.style.opacity = 0; }, ms); }
   const fadeTo = (fn) => { fade.style.opacity = 1; setTimeout(() => { fn(); setTimeout(() => { fade.style.opacity = 0; }, 60); }, 280); };
   let houses = null; try { houses = createHouses({
-    scene, world, layout, walker, pirate, crewF, petF, fnet, camera,
+    scene, world, layout, walker, pirate, crewF, petF, fnet, camera, renderer,
     toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, fadeTo: (fn) => fadeTo(fn),
     getGold: () => (game.gold | 0),
     spendGold: (n) => { const g = game.gold | 0; if (g < (n | 0)) return false; game.gold = g - (n | 0); try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} return true; },
