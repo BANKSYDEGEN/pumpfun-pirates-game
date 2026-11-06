@@ -120,6 +120,22 @@ export function libAreaBuilt(id, built, ctx = null) {
   if (id === 'hill_round') { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, RB_RULES, { floor: [{ y0: 20.0, y1: 20.35, from: 'stone_ashlar', to: 'cobble' }, { from: 'stone_ashlar', to: 'stone_trim' }], wear: true }), 0); return; }
   if (id === 'hilltop_fort') LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, FORT_RULES, { floor: { y0: 35.9, y1: 36.4, from: 'stone_ashlar', to: 'cobble' } }), 0);
   else if (id === 'inv_shops') LIB_AREA_STATS[id] = [built.near].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { wear: true }), 0);   // [v241] the TREASURE TRADER dressing (stone / timber / iron)
+  else if (id === 'cottages') {   // [post/cottages] BANKSY cottage village: ashlar / trim / plaster / timber / planks / roof tile / iron
+    const COTTAGE_RULES = [
+      [0xb9b2a6, 'stone_ashlar'], [0x8a837a, 'stone_ashlar'], [0xa39c8e, 'stone_ashlar'], [0x9e978a, 'stone_ashlar'],
+      [0xd8d0bf, 'stone_trim'], [0xcfc8bb, 'stone_trim'],
+      [0xfbf1dc, 'plaster'], [0xf3d6a4, 'plaster'], [0xe8c9a0, 'plaster'], [0xf0e6d0, 'plaster'],
+      [0xa86a3a, 'timber'], [0x6b4527, 'timber'], [0xd9a36b, 'timber'], [0x6e4325, 'timber'],
+      [0xc28a55, 'planks_weathered'],
+      [0xc8552e, 'roof_tile'], [0xb8472a, 'roof_tile'], [0xd2693a, 'roof_tile'], [0xa94428, 'roof_tile'],
+      [0x2b2f36, 'iron'],
+      // painted shutters / flowers / window glow / gold knob — leave vertex colour
+      [0x2a6df4, null], [0x1f8a5a, null], [0x2b8fa3, null], [0xc0392b, null],
+      [0xff4f6d, null], [0xffd43b, null], [0xffffff, null], [0xb36bff, null],
+      [0xffd36b, null], [0xffcf6b, null], [0xffc93c, null], [0x1a3040, null],
+      [0x3c9a3e, null], [0x2f8a3a, null],
+    ];
+    LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, COTTAGE_RULES, { wear: true }), 0); }
   else if (/^route_/.test(id)) { LIB_AREA_STATS[id] = [built.near, built.far].filter(Boolean).reduce((s, g) => s + libRetag(g, ROUTE_RULES, { floor: { from: 'stone_ashlar', to: 'stone_trim' }, wear: true }), 0);
     if (id === 'route_low' && ctx) import('./gateJunction.js').then(({ buildGateJunction, mergeInto, GATEJX }) => {   // the hill street's top end (BANKSY 9:55 PM); lazy: keeps look.js's imports light
       const g = buildGateJunction(ctx, { LIB_ID }); const merged = mergeInto(built.near, g); LIB_AREA_STATS.gate_junction = { ...(GATEJX.stats || {}), merged, hidden: GATEJX.hidden }; }).catch(e => console.warn('[gate junction]', e)); }
