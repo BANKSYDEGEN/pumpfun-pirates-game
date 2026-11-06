@@ -57,6 +57,18 @@ function ladder(S, R, dir, k) { // k 0..1 over the ladder ride: 0..0.72 up the r
     arm(S, R, dir, s, 0.2 * lo + 0.25 * top, (0.15 + 0.85 * r) * lo - 0.55 * top, 0.6 * lo + 0.55 * top, (1.05 - 0.75 * r) * lo + 0.45 * top); }
   for (const [s, q] of [['L', b], ['R', a]]) { const r = 0.5 + 0.5 * q;   // the opposite foot steps up as a hand reaches
     leg(S, R, s, -(0.2 + 0.9 * r) * lo - (s === 'L' ? 1.2 : 0.3) * step, (0.25 + 1.15 * r) * lo + (s === 'L' ? 1.3 : 0.4) * step, 0.04); } }
+// [bed-desk] js/dock/bedDesk.js: the body is laid flat (lie) or set on the chair (sit) by the room; these are the limbs over it
+function lie(S, R, dir, t) { // on the back in the bunk: upper body propped on the pillow (chibi head clear of it), hands folded on the belly, slow breaths
+  const br = Math.sin(t * 1.5) * 0.02;
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', 0.34 + br, 0, 0); eul(S, R, 'head', 0.3, 0.1, 0);
+  arm(S, R, dir, 'L', 0.3, -0.7, 0.62, 1.45); arm(S, R, dir, 'R', 0.3, -0.72, 0.6, 1.4);
+  leg(S, R, 'L', 0.0, 0.05, 0.05); leg(S, R, 'R', -0.04, 0.12, 0.03); }
+function sit(S, R, dir, t) { // on the chair facing the desk: thighs level, shins down, a little lean in, both hands resting on the desk top
+  const br = Math.sin(t * 1.8) * 0.012;
+  eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', 0.12 + br, 0, 0); eul(S, R, 'head', 0.16, Math.sin(t * 0.4) * 0.08, 0);
+  arm(S, R, dir, 'L', 0.22, -0.32, 0.92, 0.5); arm(S, R, dir, 'R', 0.22, -0.32, 0.92, 0.5);
+  leg(S, R, 'L', -1.5, 1.45, 0.06); leg(S, R, 'R', -1.5, 1.45, 0.06); }
+export const REST_POSES = Object.freeze(['lie', 'sit']);
 function hop(S, R, dir, k) { // k 0..1 over the surface kick
   const up = 1 - sm(0.75, 1, k), kick = Math.sin(k * TAU * 1.5) * (1 - k);
   eul(S, R, 'root', 0, 0, 0); eul(S, R, 'spine', -0.3 * Math.sin(k * Math.PI), 0, 0); eul(S, R, 'head', -0.2 + 0.35 * k, 0, 0);
@@ -67,7 +79,7 @@ function hop(S, R, dir, k) { // k 0..1 over the surface kick
 // k = climb / hop progress (0..1). Returns true while the procedural pose owns the body (the caller keeps the idle clip underneath).
 export function swimPose(p, state, dt, speed = 0, k = 0) {
   const r = rig(p); if (!r) return false; const sw = p._sw || (p._sw = { w: 0, ph: 0, t: Math.random() * 9, st: null, S: Object.fromEntries(BONES.map((n) => [n, new THREE.Quaternion()])) });
-  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop' || state === 'ladder';
+  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop' || state === 'ladder' || state === 'lie' || state === 'sit'; // [bed-desk] + lie / sit
   sw.w = Math.min(1, Math.max(0, sw.w + (on ? 1 : -1) * dt / (state === 'climb' || sw.st === 'climb' || state === 'ladder' || sw.st === 'ladder' ? 0.12 : 0.22)));
   if (on) { sw.st = state; sw.kk = k; } sw.t += dt;
   if (sw.st === 'swim') sw.ph += dt * TAU * Math.max(0.35, speed) / SWIM_STRIDE; else sw.ph += dt * 2; // keep turning slowly so the next stroke starts mid-cycle
@@ -75,5 +87,5 @@ export function swimPose(p, state, dt, speed = 0, k = 0) {
   return sw.w > 0; }
 function postPose() { // after mixer.update: pose the bones (PirateGLB.update)
   const sw = this._sw, r = this._swRig; if (!sw || !r || sw.w <= 0) return; const { B, R, dir } = r, S = sw.S;
-  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else if (sw.st === 'ladder') ladder(S, R, dir, sw.kk); else return;
+  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else if (sw.st === 'ladder') ladder(S, R, dir, sw.kk); else if (sw.st === 'lie') lie(S, R, dir, sw.t); else if (sw.st === 'sit') sit(S, R, dir, sw.t); else return;
   const w = sw.w * sw.w * (3 - 2 * sw.w); for (const n of BONES) B[n].quaternion.slerp(S[n], w); }

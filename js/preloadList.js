@@ -3,6 +3,7 @@
 // <link rel="modulepreload"> while the title sits idle (download + compile only, nothing runs), so entering the harbor skips the import waterfall.
 export const HARBOR_MODULES = [
   "js/dock/battery.js",
+  "js/dock/bedDesk.js",
   "js/dock/berthSigns.js",
   "js/dock/canoe.js",
   "js/dock/chestReveal.js",

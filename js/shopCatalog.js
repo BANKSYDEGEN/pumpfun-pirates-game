@@ -196,6 +196,9 @@ export const VENDORS = {
   muskets:    { name: 'MUSKET SHOP', sub: 'Muskets, blunderbusses & dragoons for island PvP and the Musket Range', tabs: ['muskets'], slots: ['musket'], awning: '#8a5a2b', weapons: true },
   musket_upgrades: { name: 'MUSKET UPGRADES', sub: 'Gunsmith bench · barrel, lock & stock upgrades + musket accessories', tabs: ['muskupg'], slots: ['musket'], awning: '#8a5a2b', muskUpg: true },
   weapons:    { name: 'WEAPON STORE', sub: 'Swords for the SWORD PIT · muskets for the MUSKET RANGE · cosmetic only', tabs: ['swords', 'muskets'], slots: ['sword', 'musket'], awning: '#8a5a2b', weapons: true },   // legacy combined (openWeaponStore without a dedicated counter)
+  // [bed-desk] BANKSY t408u "Also make it so they can change clothes in hull and cabin": the ship hull sea chest + the cabin wardrobe open
+  // the same CHANGING ROOM (owned clothes only, free, nothing to buy)
+  wardrobe:   { name: 'WARDROBE', sub: 'Sea chest / wardrobe · change into clothes you own (free)', tabs: ['wardrobe'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape', 'boots', 'pants'], awning: '#8a5a2b' },
   ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')
 };
 

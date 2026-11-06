@@ -8,6 +8,7 @@ import { invApi } from '../pvpSave.js';
 import { escHtml } from '../safe.js';
 import { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
 export { isStackable, chestCanAccept, applyChestStore, applyChestTake, filterCat } from './houseStorage.js';
+import { createRest, cabinRestSpots, restPrompt } from './bedDesk.js'; // [bed-desk] t406u LIE IN BED (alcove bunk) / SIT AT DESK (chart table)
 import { countBackpackSlots, canAcceptItem, slotMeterText, isUnlimitedBag, BAG_FULL_MSG, BAGCAP_ON } from '../inventory/backpackCap.js'; // [backpack-pvp]
 
 export const HOUSES_ON = !(typeof location !== 'undefined' && /[?&]houses=0(?:&|$)/.test(location.search || ''));
@@ -1201,7 +1202,7 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
   for (const [cx, cz, cry] of [[tx - 0.15, tz + 1.08, 0], [tx - 0.15, tz - 1.08, Math.PI]]) {
     aoPad(0.7, 0.7, cx, cz, 0.35);
     add(new THREE.BoxGeometry(0.52, 0.08, 0.52), woodD, cx, 0.55, cz, cry);
-    add(new THREE.BoxGeometry(0.52, 0.72, 0.08), woodD, cx, 0.96, cz + (cry ? 0.22 : -0.22), cry);
+    add(new THREE.BoxGeometry(0.52, 0.72, 0.08), woodD, cx, 0.96, cz + (cry ? -0.22 : 0.22), cry); // [bed-desk] backrest on the far side: you sit facing the table
     for (const s of [-1, 1]) for (const t of [-1, 1])
       add(new THREE.CylinderGeometry(0.035, 0.05, 0.52, 6), woodD, cx + s * 0.18, 0.28, cz + t * 0.18);
   }
@@ -1328,6 +1329,28 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
   add(new THREE.SphereGeometry(0.15, 8, 6), glow, 1.35, 2.25, D / 2 - 0.5);
   add(new THREE.BoxGeometry(1.1, 0.04, 0.7), matL(0x5a3418, 'hs-doormat'), 0, 0.16, D / 2 - 1.0);
 
+  // [bed-desk t408u] oak armoire in the SE corner (east wall): E · CHANGE CLOTHES (the WARDROBE changing room)
+  {
+    const wx2 = W / 2 - 0.6, wz2 = D / 2 - 1.35, fx = wx2 - 0.3; // front face toward -X
+    aoPad(0.9, 1.5, wx2 - 0.05, wz2, 0.42);
+    add(new THREE.BoxGeometry(0.6, 2.25, 1.2), woodD, wx2, 0.14 + 1.125 + 0.06, wz2).name = 'hs_wardrobe';
+    add(new THREE.BoxGeometry(0.66, 0.12, 1.3), woodL, wx2 - 0.02, 0.14 + 2.42, wz2);       // crown cornice
+    add(new THREE.BoxGeometry(0.64, 0.1, 1.24), timber, wx2, 0.14 + 0.05, wz2);             // plinth
+    for (const s of [-1, 1]) {                                                              // two panelled doors
+      add(new THREE.BoxGeometry(0.04, 1.95, 0.54), woodL, fx - 0.02, 0.14 + 1.22, wz2 + s * 0.29);
+      add(new THREE.BoxGeometry(0.03, 0.75, 0.38), woodD, fx - 0.045, 0.14 + 1.68, wz2 + s * 0.29);
+      add(new THREE.BoxGeometry(0.03, 0.75, 0.38), woodD, fx - 0.045, 0.14 + 0.78, wz2 + s * 0.29);
+      add(new THREE.BoxGeometry(0.05, 0.22, 0.04), brass, fx - 0.06, 0.14 + 1.25, wz2 + s * 0.06);
+      for (const hy of [0.55, 1.9]) add(new THREE.BoxGeometry(0.04, 0.08, 0.14), iron, fx - 0.04, 0.14 + hy, wz2 + s * 0.52);
+    }
+    add(new THREE.BoxGeometry(0.02, 1.95, 0.03), timber, fx - 0.04, 0.14 + 1.22, wz2);     // door seam
+    // a coat on a peg beside it + a tricorn on top
+    add(new THREE.BoxGeometry(0.16, 0.03, 0.03), brass, W / 2 - 0.25, 1.95, wz2 - 0.85);
+    add(new THREE.BoxGeometry(0.1, 0.95, 0.42), curtain, W / 2 - 0.3, 1.45, wz2 - 0.85);
+    add(new THREE.CylinderGeometry(0.2, 0.26, 0.1, 12), timber, wx2 - 0.05, 0.14 + 2.53, wz2 - 0.2);
+    add(new THREE.CylinderGeometry(0.13, 0.17, 0.14, 12), timber, wx2 - 0.05, 0.14 + 2.64, wz2 - 0.2);
+  }
+
   // Furniture AABBs ONLY — walls handled by world.blocked halfW/halfD (v319 hitFurn).
   const colliders = [
     { x: 0, z: -D / 2 + 0.7, w: 2.9, d: 1.1 },
@@ -1336,12 +1359,13 @@ export function buildInteriorRoom({ tier = 'cozy', cottageId = null, low = false
     { x: -W / 2 + 1.15, z: -0.55, w: 1.05, d: 1.55 },
     { x: W / 2 - 0.7, z: -D / 2 + 1.6, w: 1.3, d: 2.0 },
     { x: -W / 2 + 0.55, z: -2.35, w: 0.9, d: 1.8 },
+    { x: W / 2 - 0.6, z: D / 2 - 1.35, w: 0.6, d: 1.2 }, // [bed-desk t408u] wardrobe
   ];
   const spots = {
     chest: { x: -W / 2 + 2.15, z: -0.55, r: 2.2, kind: 'house_chest', label: 'OPEN STORAGE' },
     exit: { x: 0, z: D / 2 - 1.35, r: 2.4, kind: 'house_exit', label: 'EXIT TO ISLAND' },
   };
-  g.userData = { W, D, H, tier, colliders, spots, chest, door, PEAK, cottageId, fireLight, chLight };
+  g.userData = { W, D, H, tier, colliders, spots, chest, door, PEAK, cottageId, fireLight, chLight, rest: cabinRestSpots(W, D) }; // [bed-desk]
   return g;
 }
 
@@ -1351,7 +1375,7 @@ export function createHouses({
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
   getGold = () => 0, spendGold = () => false, saveGold = () => {},
   inventory = null, pvp = () => null, low = false, game = null,
-  ocean = null, islands = null,
+  ocean = null, islands = null, openWardrobe = null,
 }) {
   preloadCabinAssets({ boot: true }); // [v339] desktop only at boot; phones warm on first cottage entry (buildInteriorRoom)
   if (!HOUSES_ON) {
@@ -1416,6 +1440,7 @@ export function createHouses({
   let fallbackExteriors = null; // low-poly cottages when Post's area_cottages is absent
   const plaques = new THREE.Group(); plaques.name = 'house_plaques'; scene.add(plaques);
   const hiddenPeers = new Set();
+  const rest = createRest({ walker, pirate, getOrigin: () => (inHouse && interior && roomOrigin ? roomOrigin : null) }); // [bed-desk]
 
   // ---- Indoor pocket: override foot terrain queries so (2800,2800) is dry oak floor, not ocean ----
   const _ground = world.ground?.bind(world);
@@ -1637,13 +1662,14 @@ export function createHouses({
   function applyIndoorCam() {
     if (!camera || !interior || !roomOrigin || !walker?.w) return;
     const w = walker.w;
+    const f = rest.focus() || { x: w.x, y: w.y, z: w.z, up: 1.7, look: 1.35, dMin: 4.2, dMax: 4.8 }; // [bed-desk] lying / seated: frame the body
     const yaw = Number.isFinite(w.camYaw) ? w.camYaw : w.yaw;
     const pitch = Math.max(-0.45, Math.min(0.65, w.pitch ?? 0.16));
-    const dist = Math.min(4.8, Math.max(4.2, w.dist || 4.4));
+    const dist = Math.min(f.dMax, Math.max(f.dMin, w.dist || 4.4));
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
-    let cx = w.x - Math.sin(yaw) * dist * cp;
-    let cy = w.y + 1.7 + sp * dist;
-    let cz = w.z - Math.cos(yaw) * dist * cp;
+    let cx = f.x - Math.sin(yaw) * dist * cp;
+    let cy = f.y + f.up + sp * dist;
+    let cz = f.z - Math.cos(yaw) * dist * cp;
     const camHalfW = interior.userData.W / 2 - 0.3, camHalfD = interior.userData.D / 2 - 0.3;
     const peak = interior.userData.PEAK || interior.userData.H;
     const yLo = roomOrigin.y + 0.9, yHi = roomOrigin.y + peak - 0.55;
@@ -1651,7 +1677,7 @@ export function createHouses({
     cz = roomOrigin.z + Math.max(-camHalfD, Math.min(camHalfD, cz - roomOrigin.z));
     cy = Math.max(yLo, Math.min(yHi, cy));
     camera.position.set(cx, cy, cz);
-    camera.lookAt(w.x, w.y + 1.35, w.z);
+    camera.lookAt(f.x, f.y + f.look, f.z);
     camera.updateMatrixWorld?.(true);
   }
 
@@ -1721,6 +1747,7 @@ export function createHouses({
 
   function exitHouse() {
     if (!inHouse || !doorHold) return;
+    rest.end('leave'); // [bed-desk] stand up before the room goes away
     const hold = doorHold;
     fadeTo(() => {
       closeStorage();
@@ -2250,6 +2277,7 @@ export function createHouses({
   function prompts({ onFoot, W }) {
     if (!onFoot || !W) return null;
     if (inHouse && interior && roomOrigin) {
+      if (rest.posed) { const a = rest.prompt(); return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null }; } // [bed-desk] E = GET UP
       const lx = W.x - roomOrigin.x, lz = W.z - roomOrigin.z;
       const spots = interior.userData.spots;
       const dChest = Math.hypot(spots.chest.x - lx, spots.chest.z - lz);
@@ -2266,6 +2294,8 @@ export function createHouses({
         const a = { label: 'EXIT TO ISLAND', key: 'E', primary: true, tag: 'exit' };
         return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null };
       }
+      const rp = restPrompt(interior.userData.rest, lx, lz); // [bed-desk] at the bunk / the chart table
+      if (rp) { const a = { label: rp.label, key: 'E', primary: true, tag: rp.tag }; return { label: a.label, key: a.key, primary: a.primary, tag: a.tag, a: { ...a }, b: null }; }
       return null;
     }
     const d = nearestDoor(W); if (!d) return null;
@@ -2279,6 +2309,12 @@ export function createHouses({
     if (tag === 'exit') return exitHouse();
     if (tag === 'chest') return openStorage();
     if (tag === 'still') return globalThis.PFP_MM?.stillAct?.(activeId); // [v349 money-makers]
+    if (tag === 'bed' || tag === 'desk') { // [bed-desk]
+      const w = walker?.w, sp = interior?.userData?.rest?.[tag]; if (!w || !sp || !roomOrigin || !inHouse) return false;
+      closeStorage(); return rest.begin(tag, sp, w.x - roomOrigin.x, w.z - roomOrigin.z);
+    }
+    if (tag === 'getup') return rest.end('getup');
+    if (tag === 'wardrobe') { closeStorage(); try { openWardrobe?.('cabin'); } catch {} return true; } // [t408u] CHANGE CLOTHES
   }
 
   function softPushAABB(w, col) {
@@ -2309,6 +2345,7 @@ export function createHouses({
       for (const col of fallbackExteriors.userData.colliders) softPushAABB(walker.w, col);
     }
     if (!inHouse || !interior || !roomOrigin) return;
+    rest.update(); // [bed-desk] walk / stick / jump = get up
     const w = walker.w;
     // Ceiling clamp (world.ground/water pocket handles floor + dry standing; world.blocked handles walls/furniture)
     const ceilY = roomOrigin.y + interior.userData.H - 1.75;
@@ -2321,6 +2358,7 @@ export function createHouses({
     w.x = roomOrigin.x + Math.max(-halfW, Math.min(halfW, lx));
     w.z = roomOrigin.z + Math.max(-halfD, Math.min(halfD, lz));
     try { pirate.object.position.set(w.x, w.y, w.z); pirate.object.rotation.order = 'YXZ'; pirate.object.rotation.set(0, w.yaw, 0); pirate.object.visible = true; } catch {}
+    rest.apply(); // [bed-desk] the lying / seated body wins over the standing transform above
     applyIndoorCam();
     // Keep outdoor peers hidden
     for (const [id, p] of fnet.peers) {
@@ -2390,6 +2428,7 @@ export function createHouses({
 
   function clear() {
     closeStorage();
+    rest.end('leave'); // [bed-desk]
     if (inHouse) {
       try { const w = walker?.w; if (w) { w.camHook = w._hsCamPrev || null; w._hsCamPrev = null; w._hsY = null; } } catch {}
       if (interior) { scene.remove(interior); disposeRoom(interior); interior = null; }
@@ -2415,6 +2454,7 @@ export function createHouses({
   return {
     on: true,
     get inHouse() { return inHouse; },
+    get posed() { return rest.posed; }, get restKind() { return rest.kind; }, standUp: (why = 'hit') => rest.end(why), rest, // [bed-desk]
     get storageOpen() { return storageOpen; },
     get doors() { return doors; },
     get owned() { return owned; },

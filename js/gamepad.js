@@ -253,7 +253,7 @@ export function initGamepad(opts = {}) {
     if (n === 'ads') { D?.ads?.(down); return; }
     if (n === 'swap') { if (down) D?.tps?.()?.swap?.(); return; }
     if (n === 'camBehind') { if (down) D?.camBehind?.(); return; }
-    if (n === 'inventory') { if (down) document.getElementById('tm-btn')?.click(); return; }
+    if (n === 'inventory') { if (down) { if (D?.posed?.()) D.standUp?.(); else document.getElementById('tm-btn')?.click(); } return; } // [bed-desk] B = GET UP while lying / seated
     if (n === 'hideHud') { if (down) toggleHudHidden(); return; } // [gold-hud]
     if (n === 'invite') { if (down) D?.openInvites?.(); return; } // [invite-discreet] VIEW → expand the under-inventory invite pill
     if (n === 'sprint') { sprint = down; return; }

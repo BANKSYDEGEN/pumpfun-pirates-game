@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createRest, hullRestSpots, restPrompt } from './bedDesk.js'; // [bed-desk] t405u LIE IN BED (berth) / SIT AT DESK (chart table)
 
 export const SHIP_QUARTERS_ID = 'ship_quarters';
 export const SHIP_QUARTERS_SLOTS = 12;
@@ -775,6 +776,22 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
   door.position.set(0, F, D / 2 - 0.12); door.rotation.y = Math.PI;
   { const stand = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.1, 0.12), M.mahogany); stand.position.y = 1.05; stand.name = 'qs_door_stand'; door.add(stand); }
   g.add(door);
+  // [bed-desk t408u] clothes sea chest under the aft starboard porthole: E · CHANGE CLOTHES (the WARDROBE changing room)
+  {
+    const wp = hullRestSpots().wardrobe.prop, wr = new THREE.Group(); wr.name = 'qs_wardrobe';
+    wr.position.set(wp.x, F, wp.z); wr.rotation.y = wp.ry;
+    const part = (geo, mat, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.rotation.z = rz; m.castShadow = m.receiveShadow = false; wr.add(m); return m; };
+    part(new THREE.BoxGeometry(1.1, 0.5, 0.58), M.mahogany, 0, 0.29, 0);                       // body
+    part(new THREE.BoxGeometry(1.14, 0.06, 0.62), M.oak_dark, 0, 0.04, 0);                     // plinth
+    part(new THREE.CylinderGeometry(0.29, 0.29, 1.12, 16, 1, false, 0, Math.PI), M.mahogany, 0, 0.54, -0.06, 0, Math.PI / 2).rotation.set(-0.95, 0, Math.PI / 2); // lid, propped open
+    for (const sx of [-0.42, 0, 0.42]) part(new THREE.BoxGeometry(0.06, 0.52, 0.6), sx ? M.iron : M.brass, sx, 0.29, 0);   // straps
+    part(new THREE.BoxGeometry(0.16, 0.16, 0.04), M.gold, 0, 0.42, 0.3);                       // lock plate
+    part(new THREE.BoxGeometry(0.98, 0.1, 0.46), M.velvet, 0, 0.56, 0.0);                      // folded coat on top
+    part(new THREE.BoxGeometry(0.42, 0.05, 0.36), M.linen, -0.22, 0.63, 0.02);                // folded shirt
+    part(new THREE.BoxGeometry(0.34, 0.24, 0.06), M.linen, 0.3, 0.46, 0.31, 0.18);           // a sleeve spilling over the front
+    part(new THREE.CylinderGeometry(0.17, 0.2, 0.08, 14), M.hide, 0.28, 0.66, -0.04);        // tricorn crown on the pile
+    g.add(wr);
+  }
 
   const hemi = new THREE.HemisphereLight(0xffe6ba, 0x2a180c, 0.74); g.add(hemi);
   const sun = new THREE.DirectionalLight(0xffd28a, 0.82); sun.position.set(0.8, 6.5, -9); sun.target.position.set(0, 0, 0); g.add(sun); g.add(sun.target);
@@ -799,13 +816,14 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
     { x: -W / 2 + 0.75, z: 3.25, w: 1.3, d: 1.9 },
     { x: -4.55, z: D / 2 - 0.3, w: 1.85, d: 0.6 },
     { x: 2.85, z: D / 2 - 0.3, w: 1.72, d: 0.56 },
+    { x: 5.0, z: -3.65, w: 0.62, d: 1.15 }, // [bed-desk t408u] clothes sea chest
   ];
   const spots = {
     chest: { x: -W / 2 + 2.25, z: -0.55, r: 2.5, kind: 'ship_chest', label: 'OPEN STORAGE' },
     exit: { x: 0, z: D / 2 - 1.35, r: 2.5, kind: 'ship_exit', label: 'LEAVE HULL' },
   };
   g.userData = {
-    W, D, H, PEAK, tier, colliders, spots, chest, door, cottageId, kind: 'ship_quarters',
+    W, D, H, PEAK, tier, colliders, spots, chest, door, cottageId, kind: 'ship_quarters', rest: hullRestSpots(), // [bed-desk]
     wallInset: quartersWallInset, qMats: M, sway: [],
     lights: { sternLight, wakeLight, chandLight, candLight, chestLight, fwdLight },
     fireLight: candLight, chLight: chandLight, low, _quartersKitAttached: false, disposed: false,
@@ -964,7 +982,7 @@ function disposeInterior(room) {
 export function createShipHull({
   scene, world, walker, pirate, crewF, petF, fnet, camera = null, renderer = null, game = null,
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
-  houses = null, low = false, ocean = null, islands = null,
+  houses = null, low = false, ocean = null, islands = null, openWardrobe = null,
 }) {
   // [v339] desktop warms the quarters at Harbor boot; phones / low-memory devices load them lazily on ENTER HULL (buildCaptainsQuartersRoom)
   if (!QUARTERS_LOW_MEM) preloadQuartersGlb();
@@ -976,6 +994,7 @@ export function createShipHull({
   document.body.appendChild(leaveBtn);
 
   let inHull = false, interior = null, roomOrigin = null, returnCtx = null, busy = false;
+  const rest = createRest({ walker, pirate, getOrigin: () => (inHull && interior && roomOrigin ? roomOrigin : null) }); // [bed-desk]
   const hiddenPeers = new Set();
   let _ground, _water, _stand, _blocked;
   if (world) {
@@ -1027,13 +1046,14 @@ export function createShipHull({
   function applyCam() {
     if (!camera || !interior || !roomOrigin || !walker?.w) return;
     const w = walker.w;
+    const f = rest.focus() || { x: w.x, y: w.y, z: w.z, up: 1.68, look: 1.32, dMin: 3.8, dMax: 4.7 }; // [bed-desk] lying / seated: frame the body
     const yaw = Number.isFinite(w.camYaw) ? w.camYaw : w.yaw;
     const pitch = Math.max(-0.45, Math.min(0.65, w.pitch ?? 0.16));
-    const dist = Math.min(4.7, Math.max(3.8, w.dist || 4.25));
+    const dist = Math.min(f.dMax, Math.max(f.dMin, w.dist || 4.25));
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
-    let cx = w.x - Math.sin(yaw) * dist * cp;
-    let cy = w.y + 1.68 + sp * dist;
-    let cz = w.z - Math.cos(yaw) * dist * cp;
+    let cx = f.x - Math.sin(yaw) * dist * cp;
+    let cy = f.y + f.up + sp * dist;
+    let cz = f.z - Math.cos(yaw) * dist * cp;
     const camIn = interior.userData.wallInset ? interior.userData.wallInset(Math.max(0, cy - roomOrigin.y - QFLOOR)) : 0;
     const camHalfW = interior.userData.W / 2 - 0.28 - camIn, camHalfD = interior.userData.D / 2 - 0.28;
     const yLo = roomOrigin.y + 0.85, yHi = roomOrigin.y + (interior.userData.PEAK || interior.userData.H || 4.2) - 0.28;
@@ -1041,7 +1061,7 @@ export function createShipHull({
     cz = roomOrigin.z + Math.max(-camHalfD, Math.min(camHalfD, cz - roomOrigin.z));
     cy = Math.max(yLo, Math.min(yHi, cy));
     camera.position.set(cx, cy, cz);
-    camera.lookAt(w.x, w.y + 1.32, w.z);
+    camera.lookAt(f.x, f.y + f.look, f.z);
     camera.updateMatrixWorld?.(true);
   }
 
@@ -1145,6 +1165,7 @@ export function createShipHull({
 
   function leave(onBack = null) {
     if (!inHull || busy) return false;
+    rest.end('leave'); // [bed-desk] stand up before the room goes away
     busy = true;
     const ctx = returnCtx;
     fadeTo(() => {
@@ -1173,6 +1194,7 @@ export function createShipHull({
   function prompts() {
     // [v350 t1838u] LEAVE HULL only at the cabin exit door — never at the chest and never mid-room
     if (!inHull || !interior || !roomOrigin || !walker?.w) return null;
+    if (rest.posed) return { a: rest.prompt(), b: null }; // [bed-desk] lying / seated: E = GET UP (nothing else)
     const w = walker.w;
     const lx = w.x - roomOrigin.x, lz = w.z - roomOrigin.z;
     const spots = interior.userData.spots || {};
@@ -1183,17 +1205,26 @@ export function createShipHull({
     }
     if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: null };
     if (best?.tag === 'exit') return { a: { label: 'LEAVE HULL', key: 'E', primary: true, tag: 'leave' }, b: null };
+    const rp = restPrompt(interior.userData.rest, lx, lz); // [bed-desk] at the berth / the chart table
+    if (rp) return { a: { label: rp.label, key: 'E', primary: true, tag: rp.tag }, b: null };
     return { a: null, b: null };
   }
 
   function act(tag) {
     if (tag === 'chest') { try { houses?.openFor?.(SHIP_QUARTERS_ID); } catch {} return true; }
     if (tag === 'leave') return 'leave';
+    if (tag === 'bed' || tag === 'desk') { // [bed-desk]
+      const w = walker?.w, sp = interior?.userData?.rest?.[tag]; if (!w || !sp || !roomOrigin) return false;
+      return rest.begin(tag, sp, w.x - roomOrigin.x, w.z - roomOrigin.z);
+    }
+    if (tag === 'getup') return rest.end('getup');
+    if (tag === 'wardrobe') { try { openWardrobe?.('hull'); } catch {} return true; } // [t408u] CHANGE CLOTHES
     return false;
   }
 
   function tick() {
     if (!inHull || !interior || !walker?.w || !roomOrigin) return;
+    rest.update(); // [bed-desk] walk / stick / jump = get up
     const w = walker.w;
     const ceilY = roomOrigin.y + (interior.userData.PEAK || interior.userData.H || 4.1) - 1.55;
     if (w.y > ceilY) { w.y = ceilY; if (w.vy > 0) w.vy = 0; if (w.body) { w.body.y = ceilY; if (w.body.vy > 0) w.body.vy = 0; } }
@@ -1208,6 +1239,7 @@ export function createShipHull({
       pirate.object.rotation.order = 'YXZ';
       pirate.object.rotation.set(0, w.yaw, 0);
     } catch {}
+    rest.apply(); // [bed-desk] the lying / seated body wins over the standing transform above
     try {
       for (const [id, p] of (fnet?.peers || [])) {
         if (p.pirate?.object && p.pirate.object.visible) { p.pirate.object.visible = false; hiddenPeers.add(id); }
@@ -1219,6 +1251,7 @@ export function createShipHull({
 
   function clear() {
     if (inHull) {
+      rest.end('leave'); // [bed-desk]
       try { houses?.closeStorage?.(); } catch {}
       if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
       if (QUARTERS_LOW_MEM) releaseQuartersAssets(); // [v339]
@@ -1236,6 +1269,7 @@ export function createShipHull({
     get returnCtx() { return returnCtx; },
     get interior() { return interior; },
     get roomOrigin() { return roomOrigin; },
+    get posed() { return rest.posed; }, get restKind() { return rest.kind; }, standUp: (why = 'hit') => rest.end(why), rest, // [bed-desk]
     SHIP_QUARTERS_ID, SHIP_QUARTERS_SLOTS, HULL_COMBAT_LOCK_S,
     enter, leave, prompts, act, tick, clear, leaveBtn,
     buildCaptainsQuartersRoom,

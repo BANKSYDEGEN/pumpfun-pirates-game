@@ -231,6 +231,7 @@ export async function createDock(ctx) {
   const battle = createBattle({ scene, world, layout, walker, fnet, sfx: ctx.sfx, camera, canvas, touch, myId, low: LOW,
     lootBags: { dropHaul: (...a) => lootBags?.dropHaul?.(...a) },
     inHouse: () => !!houses?.inHouse,
+    posed: () => restPosed(), // [bed-desk] lying in a bunk / seated at a desk: holstered, no attacks
     inventory: () => inventory, crewFight,
     kd: (side, key, meta) => { try { return ctx.pvp?.()?.groundKd?.(side, key, meta); } catch { return false; } },
     isSquadMate: (id) => isSquadMateDock(id),
@@ -298,17 +299,26 @@ export async function createDock(ctx) {
     getGold: () => (game.gold | 0),
     spendGold: (n) => { const g = game.gold | 0; if (g < (n | 0)) return false; game.gold = g - (n | 0); try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} return true; },
     saveGold: () => { try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} },
-    inventory: () => inventory, pvp: () => ctx.pvp(), low: LOW, game, ocean, islands,
+    inventory: () => inventory, pvp: () => ctx.pvp(), low: LOW, game, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
   }); } catch (e) { console.warn('[storage-houses]', e); } // [Emerly storage-houses]
   let mm = null; import('../island/moneyMakers/index.js').then(m => m.createMoneyMakers({ scene, world, layout, walker, pirate, battle, houses, fnet, game, touch, low: LOW, pvp: () => ctx.pvp(), sfx: ctx.sfx, updateHud: () => ctx.updateHud?.(), toast: (m2, ms) => toast(m2, ms), inventory: () => inventory, insideSafe: (x, z) => insideSafeZoneH(x, z), onFoot: () => on && onFoot })).then(x => { mm = x || null; try { api.mm = mm; } catch {} }).catch(e => console.warn('[money-makers]', e)); // [v349 money-makers] BANKSY t204u: bounties, coliseum, crates, diving / pots / mining, cottage rum
   let shipHull = null; try {
     shipHull = createShipHull({
       scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
       toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, fadeTo: (fn) => fadeTo(fn),
-      houses, low: LOW, ocean, islands,
+      houses, low: LOW, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
     });
   } catch (e) { console.warn('[ship-hull]', e); }
   document.addEventListener('cq-leave-request', () => { try { leaveHull(); } catch {} });
+  // [bed-desk] t405u / t406u: LIE IN BED / SIT AT DESK in the hull + cottage cabins (js/dock/bedDesk.js)
+  // [t408u] BANKSY "Also make it so they can change clothes in hull and cabin": the existing island shop's CHANGING ROOM (owned clothes, free)
+  function openWardrobe(from = 'hull') {
+    for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) { try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {} } // no walking off while dressing
+    Promise.resolve(window.openShop ? window.openShop({ vendor: 'wardrobe', tab: 'wardrobe', from }) : false)
+      .then(ok => { if (!ok) toast('THE WARDROBE IS STUCK RIGHT NOW<br><small>check your connection and try again</small>', 2400); }).catch(() => {});
+  }
+  function restPosed() { return !!(shipHull?.posed || houses?.posed); }
+  function standUp(why = 'getup') { let r = false; try { r = !!shipHull?.standUp?.(why) || r; } catch {} try { r = !!houses?.standUp?.(why) || r; } catch {} return r; }
   if (shipHull?.leaveBtn) shipHull.leaveBtn.addEventListener('cq-leave-request', () => { try { leaveHull(); } catch {} });
   let safeMarks = null; try { safeMarks = buildSafeZoneMarks(scene, world, layout); } catch (e) { console.warn('[safe-marks]', e); }
   try {
@@ -347,7 +357,8 @@ export async function createDock(ctx) {
       canLeaveHullDoor: () => !!(shipHull?.inHull && actA && !actA.disabled && actA.tag === 'leave' && actA.fn),
       leaveHullDoor: () => { if (game.state === 'playing' && actA?.tag === 'leave') press(actA); },
       zone: () => !!battle?.zone, armed: () => (battle?.stance || 0) > 0, // [t1734u] RT attack outside pit/range when a weapon is drawn
-      cycleWeapon: () => battle?.cycleStance?.(), // [t1734u] Square / X cycles Unarmed → Musket → Sword
+      cycleWeapon: () => battle?.cycleStance?.(), // [t1734u] Square / X cycles Unarmed → Musket → Sword ([bed-desk] battle.setStance refuses while in bed / at the desk)
+      posed: () => restPosed(), standUp: () => standUp('pad'), // [bed-desk] B = GET UP while lying / seated
       tps: () => battle?.tps || null,
       ads: (v) => { const t = battle?.tps; if (t?.st) t.st.adsHeld = !!v && t.on; },
       jump: () => { if (on && onFoot && game.state === 'playing') walker.jump(); },
@@ -589,6 +600,7 @@ export async function createDock(ctx) {
     if (hidden() && docking.fresh()) docking.st.spawnAt = performance.now(); // [v157] the clash grace starts when the name card closes
     { const cd = Math.max(s.cd?.port || 0, s.cd?.star || 0); if (lastHp !== null && s.hp < lastHp - 0.01) { combatT = now; lastHitT = now; } else if (cd > lastCd + 0.05) combatT = now; lastHp = s.hp; lastCd = cd;
       const b = (mapSt.ai || []).some(e => e.boss); if (bossOn && !b) treasure.soon(6000); bossOn = b; } // a boss just sank: its map drop shows soon
+    if (restPosed() && (!s.alive || s.sinking || lastHitT === now)) standUp('hit'); // [bed-desk] a hit / your ship sinking = up out of the bunk / chair
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
     const r = docking.tick(s, dt);
     syncDockHud();
@@ -711,14 +723,14 @@ export async function createDock(ctx) {
   const api = {
     layout, world, zone, docking, walker, fnet, NO_TARGET, plaza, battery, battle, crewFight, toast: (m, ms) => toast(m, ms), // [v347] shore <-> sea combat toasts (pvp.js)
     get lootBags() { return lootBags; }, safeZone: { inside: (x, z) => insideSafeZoneH(x, z), zoneAt: (x, z) => zoneAtH(x, z), coliseum: (x, z) => isInsideColiseumH(x, z), hud: isleSafeHud },
-    get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, get inHull() { return !!shipHull?.inHull; }, shipHull, canoe, pet: petF, pirate, goAshoreAt,
+    get on() { return on; }, get onFoot() { return onFoot; }, get canoeing() { return canoe?.mode === 'canoe'; }, get inHull() { return !!shipHull?.inHull; }, get posed() { return restPosed(); }, standUp, shipHull, canoe, pet: petF, pirate, goAshoreAt,
     ship, camera: cameraHook,
     focus: () => (on && onFoot ? walker.w : on && canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null), followers: crewF, // [v314] the sea follows the canoe
     canoeHull: () => (on ? canoe?.hullCap?.() : null),
     // [Raul emotes] the crew's answer: copy Arr! / Attack! / Yo ho ho!, bow on GG, nod + look on the points (Follow me! / Boss incoming!); none on Need help! / Retreat!
     // [Raul emotes] quick-chat on land (js/emotes.js sendEmote / js/pvp.js onEmote): body motion (js/onfoot/emotePose.js) on your pirate, your shore
     // crew answer it (CREW_EMOTE, staggered); returns the pirate to hang the bubble over (null = aboard: the bubble stays on the ship)
-    footEmote(e) { if (!on || !onFoot || !pirate.object.visible) return null; pirate.emote(e);
+    footEmote(e) { if (!on || !onFoot || !pirate.object.visible || restPosed()) return null; pirate.emote(e); // [bed-desk] no jig in bed
       const ce = CREW_EMOTE[e]; if (ce != null) (crewF?.list || []).forEach((c, i) => { if (c.p.object.visible) c.p.emote(ce, 0.12 + i * 0.1); });
       bcLink?.emo?.(e); return pirate.object; },
     peerEmote(id, e) { const p = on ? fnet.peers.get(id) : null; if (!p) return null; p.pirate.emote(e); return p.pirate.object; },   // a harbor pirate walking in YOUR copy

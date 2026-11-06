@@ -100,7 +100,7 @@ const P_MUSKET = { uR: v3(-0.12, -0.5, 0.86), fR: v3(0.25, 0.12, 0.96), uL: v3(0
 const lerpDir = (a, b, t, out) => out.copy(a).lerp(b, t).normalize();
 const ease = (t) => t * t * (3 - 2 * t);
 
-export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, inventory = null, crewFight = null, kd = null, isSquadMate = null, respawnOnShip = null, ships = null }) { // [v347] ships: { test, hit, aim } (pvp.js gunShipTest / gunShipHit / gunAimCyls) // [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
+export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, canvas, touch, myId, myName, low, lootBags = null, inHouse = () => false, posed = () => false, inventory = null, crewFight = null, kd = null, isSquadMate = null, respawnOnShip = null, ships = null }) { // [v347] ships: { test, hit, aim } (pvp.js gunShipTest / gunShipHit / gunAimCyls) // [backpack-pvp] + [v328] Harbor squad FF off + ship respawn
   const H = (lx, lz) => layout.footToHarbor(...CO.t2w(lx, lz));            // town-local -> harbor (scene) x, z
   const toTown = (x, z) => CO.w2t(...layout.harborToFoot(x, z));
   const yawW = (ly) => CO.t2wYaw(ly);
@@ -405,7 +405,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   }
   function setStance(s, auto = false) {
     if (!STANCES_ON) return false; s = s | 0; if (s < 0 || s > 2 || me.down > 0) return false;
-    if (s && inHouse?.()) return false;
+    if (s && (inHouse?.() || posed?.())) return false; // [bed-desk] no drawing a weapon in bed / at the desk
     if (me.arena === Z_PIT && s === 2) { if (!auto) say('⚔ SWORD PIT<small>swords only in the pit</small>', 1200); s = 1; }
     // [t1729u] Safe Zone: weapons stay holstered (arena pads exempt)
     if (s !== 0 && isleSafe._isleSafe && !me.arena) {
@@ -465,6 +465,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function attack() {
     if (ADM.frozen) return false; // [admin-menu] frozen by the owner (server-checked)
     if (!me.zone || me.down > 0 || me.cool > 0 || !walker.active) return false;
+    if (posed?.()) return false; // [bed-desk] no swings from the bed / desk
     const W = walker.w;
     // [backpack-pvp] Island Safe Zones + 3s exit grace block PvP (Coliseum battle pads stay fightable when outside sanctuaries)
     me.pvpOk = !SAFEZONES_ON || canFightOnFoot(isleSafe, ...layout.harborToFoot(W.x, W.z), performance.now() / 1000, { inHouse: !!inHouse?.() }); // walker = harbor frame, zones = foot frame
@@ -627,7 +628,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (me.down > 0) { me.down -= dt; if (me.downAt) { W.x = me.downAt[0]; W.z = me.downAt[1]; W.speed = 0; pirate.object.position.x = W.x; pirate.object.position.z = W.z; } if (me.down <= 0) respawn(); }
     me.guard = Math.max(0, me.guard - dt); me.cool = Math.max(0, me.cool - dt);
     if (STANCES_ON) { // [backpack-pvp] t1710u stances: arena = where you stand (pit / range), me.zone = what you hold
-      me.onFoot = true; if (me.stance && inHouse?.()) setStance(0, true);
+      me.onFoot = true; if (me.stance && (inHouse?.() || posed?.())) setStance(0, true); // [bed-desk] holster when you lie down / sit
       const ar = me.down > 0 ? me.arena : zoneAt(W.x, W.z);
       if (ar !== me.arena) { me.arena = ar; if (ar) { readSword(); me.lastZone = ar; setStance(ar === Z_PIT ? 1 : 2, true); say(ar === Z_PIT ? '⚔ SWORD PIT<small>' + (touch ? 'tap SWING' : 'R or click to swing') + ' · no rewards, just glory</small>' : '🎯 MUSKET RANGE<small>' + (touch ? 'aim with the camera, tap FIRE' : 'aim with the camera · R or click to fire') + '</small>', 2200); } }
       // [t1729u] auto-holster to Unarmed inside Island Safe Zone (arena pads exempt)

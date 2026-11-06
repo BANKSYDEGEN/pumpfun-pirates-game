@@ -71,6 +71,10 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
   }
   function update(dt) {
     if (!w.active) return;
+    if (w.rest) { // [bed-desk] lying in a bunk / seated at a desk (js/dock/bedDesk.js owns the body + reads the keys / stick / jump to get up): no walking, jumping or falling
+      const B = w.body; w.speed = 0; w.vy = 0; w.air = false; B.y = w.y; B.vy = 0; B.air = false; B.swim = false; B.hop = false; B.climb = 0;
+      pirate.object.userData.air = false; w.pose = w.rest; pirate.update(dt, 0, w.rest); fovPush(dt, 0);
+      if (w.camHook) w.camHook(dt); return; }
     if (w.ride) { const r = w.ride(dt), B = w.body; // [Emerly zipline-v2] owns x/y/z while riding; 'drop' falls into air physics below
       if (r === 'done') { placeBody(B, world, w.x, w.z, w.y); w.y = B.y; w.air = false; w.vy = 0; w.speed = 0; place(); pirate.update(dt, 0, w.pose); fovPush(dt, 0);
         if (w.faceYaw != null) w.yaw = w.faceYaw; // [zipline-shoot] keep aim facing through dismount
