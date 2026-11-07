@@ -11,7 +11,7 @@ export function ownedCrewChoices(state, slot) {
 }
 export function crewChoiceLabel(slot, id) {
   if (slot === 'crewhat' && id === CREW_DEFAULT.crewhat) return 'No hat'; // legacy save ID stays bandana
-  if (slot === 'crewoutfit' && id === 'tank') return 'Default tank (free)'; // current server has no shirtless crew slot
+  if ((slot === 'crewoutfit' && id === CREW_DEFAULT.crewoutfit) || (slot === 'crewpants' && id === 'none')) return 'None · Underwear';
   if (id === 'none' || (slot === 'creweyes' && id === 'plain')) return 'None';
   return id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

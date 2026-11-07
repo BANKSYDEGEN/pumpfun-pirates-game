@@ -14,7 +14,7 @@ test('wardrobe includes only owned compatible clothes plus the free uniform', ()
   assert.deepEqual(ownedCrewChoices(state, 'tattoo'), []);
   for (const s of DRESS_SLOTS) assert.deepEqual(ownedCrewChoices({}, s), [CREW_DEFAULT[s]]);
   assert.equal(crewChoiceLabel('crewhat', 'bandana'), 'No hat');
-  assert.equal(crewChoiceLabel('crewoutfit', 'tank'), 'Default tank (free)');
+  assert.equal(crewChoiceLabel('crewoutfit', 'tank'), 'None · Underwear');
 });
 test('owner wardrobe honors existing all-owned flag; ordinary wardrobe never lists catalog-only items', () => {
   for (const s of DRESS_SLOTS) assert.deepEqual(ownedCrewChoices({ owner: true }, s), CREW_SLOTS[s]);

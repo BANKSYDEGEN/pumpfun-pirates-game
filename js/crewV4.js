@@ -8,9 +8,13 @@
 // Textures (body atlas + face decal, male + female) ride in the same material: uv.x carries a texture slot offset.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, PIRATE_GLB_V5 as PIRATE_GLB, TINTS, prepV5Body } from './pirateGLB.js'; // [V6] crews stay on v5 Low (painted outfits) // [v121] the ship crews (yours, enemies, NPC ships) bake from the v5 Low bodies
+import { loadPirateGLB, TINTS, prepV5Body } from './pirateGLB.js';
 import { skullTexture, ITEM_BY_ID } from './pirateItems.js';
 import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons] // [v123] the hat skull decal texture (crew slot tF0)
+
+// Reuse the existing V6 modest-underwear models, not remodeled bodies or new textures.
+// Always use the existing LOW assets for this many-body bake; players' V7 models are untouched.
+export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v6_lo.glb', female: 'assets/pirates/pirate_female_v6_lo.glb' };
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -28,7 +32,7 @@ function bake(gltf, clipName, time, slot) {
   if (clip) { const mx = new THREE.AnimationMixer(scene); mx.clipAction(clip).play(); mx.update(Math.min(time, clip.duration * 0.999)); }
   scene.updateMatrixWorld(true);
   let body = null, face = null; const extra = [];
-  scene.traverse(o => { if (o.isSkinnedMesh && o.geometry.attributes._tint && !body) body = o; else if (o.isSkinnedMesh && /^v5_face/.test(o.name)) extra.push(o); else if (o.isMesh && !o.isSkinnedMesh && !face) face = o; });
+  scene.traverse(o => { if (o.isSkinnedMesh && o.geometry.attributes._tint && !body) body = o; else if (o.isSkinnedMesh && /^v5_(face|tattoo)/.test(o.name)) extra.push(o); else if (o.isMesh && !o.isSkinnedMesh && !face) face = o; });
   if (!body) scene.traverse(o => { if (o.isSkinnedMesh && !body) body = o; });
   body.skeleton.update();
   const out = { pos: [], nrm: [], uv: [], col: [], tint: [], part: [] };
@@ -45,13 +49,13 @@ function bake(gltf, clipName, time, slot) {
         for (let e = 0; e < 16; e++) _m.elements[e] += _t.elements[e] * w; if (w > bw) { bw = w; best = j; } }
       full.copy(body.matrixWorld).multiply(body.bindMatrixInverse).multiply(_m).multiply(body.bindMatrix); _n3.setFromMatrix4(full);
       _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
-      out.uv.push(U ? U.getX(i) + slot + (src !== main0 ? 10 : 0) : -1, U ? U.getY(i) : -1); // [crew holes] the eyes sample their OWN map (slots 5 / 6 = tE0 / tE1): their uvs are the old albedo layout, not the per-part body atlas (streaked eyes)
+      out.uv.push(U ? U.getX(i) + (src === main0 ? slot : /^v5_tattoo/.test(src.name) ? 6 : slot + 10) : -1, U ? U.getY(i) : -1); // [crew holes] the eyes sample their OWN map (slots 5 / 6 = tE0 / tE1): their uvs are the old albedo layout, not the per-part body atlas (streaked eyes)
       out.col.push(Cc ? Cc.getX(i) : 1, Cc ? Cc.getY(i) : 1, Cc ? Cc.getZ(i) : 1); out.tint.push(T ? Math.round(T.getX(i)) : -1);
       out.part.push(PARTN[bn(body.skeleton.bones[best]?.name)] || 0);
     } } }
   if (bodyEnd) { // [crew holes] the painted eyes sit a hair off the face: at crew scale they z-fought it (torn / streaked eyes). Lift them along their normal
     let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < bodyEnd; i += 3) { y0 = Math.min(y0, out.pos[i]); y1 = Math.max(y1, out.pos[i]); } const e = (y1 - y0) * 0.004;
-    for (let i = bodyEnd; i < out.pos.length; i++) out.pos[i] += out.nrm[i] * e; }
+    for (let i = bodyEnd; i < out.pos.length; i++) if (out.uv[Math.floor(i / 3) * 2] >= 10) out.pos[i] += out.nrm[i] * e; }
   if (face) { const g = face.geometry.index ? face.geometry.toNonIndexed() : face.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv; _n3.getNormalMatrix(face.matrixWorld);
     for (let i = 0; i < P.count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(face.matrixWorld); out.pos.push(_v.x, _v.y, _v.z); _n.fromBufferAttribute(N, i).applyMatrix3(_n3).normalize(); out.nrm.push(_n.x, _n.y, _n.z);
       out.uv.push(U.getX(i) + slot + 4, U.getY(i)); out.col.push(1, 1, 1); out.tint.push(-1); out.part.push(0); } }
@@ -72,7 +76,7 @@ function bake(gltf, clipName, time, slot) {
       if (cx * (N[i] + N[i + 3] + N[i + 6]) + cy * (N[i + 1] + N[i + 4] + N[i + 7]) + cz * (N[i + 2] + N[i + 5] + N[i + 8]) < 0) {
         sw(P, 3, v + 1, v + 2); sw(N, 3, v + 1, v + 2); sw(out.uv, 2, v + 1, v + 2); sw(out.col, 3, v + 1, v + 2); sw(out.tint, 1, v + 1, v + 2); sw(out.part, 1, v + 1, v + 2); } } }
   const bone = (nm) => { const b = body.skeleton.bones.find(q => bn(q.name) === bn(nm)); return b ? b.getWorldPosition(new THREE.Vector3()) : null; };
-  return { out, hip: bone('thigh.L'), sh: bone('upperarm.L'), head: bone('head'), tex: [body.material.map, face?.material.map || null, extra[0]?.material?.map || null] };
+  return { out, hip: bone('thigh.L'), sh: bone('upperarm.L'), head: bone('head'), tex: [body.material.map, face?.material.map || null, extra.find(o => /^v5_face/.test(o.name))?.material?.map || null, extra.find(o => /^v5_tattoo/.test(o.name))?.material?.map || null] };
 }
 function finish(b, k, y0) { // normalise: feet on y 0, CREW_H tall, centred on x/z
   const p = b.out.pos; for (let i = 0; i < p.length; i += 3) { p[i] *= k; p[i + 1] = (p[i + 1] - y0) * k; p[i + 2] *= k; }
@@ -82,8 +86,8 @@ let _loading = null;
 export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirateBodyLod({ many: true }) in main.js
   if (_loading) return _loading;
   _loading = (async () => {
-    const [gm, gf] = await Promise.all([loadPirateGLB(PIRATE_GLB.male[lod]), loadPirateGLB(PIRATE_GLB.female[lod])]);
-    for (const g of [gm, gf]) prepV5Body(g.scene, lod); // [crew holes] the same hair rim the walking crew get (it was only there if a PirateGLB of that LOD happened to load first)
+    const [gm, gf] = await Promise.all([loadPirateGLB(CREW_BODY_GLB.male), loadPirateGLB(CREW_BODY_GLB.female)]);
+    for (const g of [gm, gf]) prepV5Body(g.scene, 'lo'); // [crew holes] the same hair rim the walking crew get (it was only there if a PirateGLB of that LOD happened to load first)
     const tpl = {}, tex = [];
     let hipY = 0.36, shY = 0.72, eyeY = 0.97;
     for (const [sex, g, slot] of [['m', gm, 0], ['f', gf, 2]]) {
@@ -91,7 +95,7 @@ export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirat
       let y0 = Infinity, y1 = -Infinity; for (let i = 1; i < idle.out.pos.length; i += 3) { y0 = Math.min(y0, idle.out.pos[i]); y1 = Math.max(y1, idle.out.pos[i]); }
       const k = CREW_H / (y1 - y0);
       if (sex === 'm') { if (idle.hip) hipY = (idle.hip.y - y0) * k; if (idle.sh) shY = (idle.sh.y - y0) * k; if (idle.head) eyeY = (idle.head.y - y0) * k + 0.12; }
-      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[slot === 0 ? 2 : 3] = idle.tex[1] || (slot === 0 ? skullTexture() : null); tex[slot === 0 ? 4 : 5] = idle.tex[2] || null; // [v123] v5 has no face decal: slot tF0 = the hat skull
+      tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[2] ||= skullTexture(); tex[3] ||= idle.tex[3] || skullTexture(); tex[slot === 0 ? 4 : 5] = idle.tex[2] || null; // [v123] v5 has no face decal: slot tF0 = the hat skull
     }
     for (const t of tex) if (t) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; }
     V4 = { tpl, tex, hipY, shY, eyeY }; return V4;
@@ -148,13 +152,8 @@ export function crewGearOf(gear) {
   if (gear.carryCrew === 1) { g.carryCrew = 1; g.carrySword = gear.carrySword || 'none'; g.carryMusket = gear.carryMusket || 'none'; g.carryHand = gear.carryHand || 'R'; }   // [crew-weapons]
   return (g.hat === 'none' && !g.carryCrew && g.outfit === 'shirtless' && g.eyes === 'plain' && !CREW_EXTRA_SLOTS.some((k) => g[k]) && !CREW_OWN_EXTRAS.some((k) => g[k])) ? null : g;
 }
-// [v280 crew holes] shore followers (V6 bodies) get classic pants under the Crew Shop top so the lo underwear hem gap stays covered. Ship bake stays without pants (V5 seats already have painted pants). &crewholes=0 = bare.
-export function shoreCrewGear(gear) {
-  const g = crewGearOf(gear); if (!g) return g;
-  if (typeof location !== 'undefined' && /[?&]crewholes=0(?:&|$)/.test(location.search)) return g;
-  if (!g.pants || g.pants === 'none') return { ...g, pants: 'classic_pants' };
-  return g;
-}
+// An empty pants slot means the body's modest underwear, never auto-equipped classic pants.
+export function shoreCrewGear(gear) { return crewGearOf(gear); }
 const _gc = new Map();
 export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, cannon }, f: {...} } | null>
   const g = crewGearOf(gear); if (!g || !V4) return Promise.resolve(null);

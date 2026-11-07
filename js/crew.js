@@ -6,9 +6,9 @@
 // Budget by quality: high = all gun crews + 3 walkers, culled past 95 m; phones / Medium = one gunner per gun pair + 2
 // walkers past 55 m; [v82] low / phones = a gunner at every cannon (low: no walkers), culled past 80 m. Purely cosmetic: no collision, never in userData.len/beam/depth.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wind } from './ships.js';
-import { V4, crewPirateV4, crewPirateV4Dressed } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
+import { V4, crewPirateV4, crewPirateV4Dressed, crewFemale } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
 
 let Q = 'high', PHONE = false;
 export function setCrewQuality(q, phone = false) { Q = q; PHONE = phone; }
@@ -42,13 +42,14 @@ function pirate(v) {
     g.setAttribute('color', new THREE.BufferAttribute(c, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(pa, 1)); noUv(g); out.push(g);
   };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), sph = (rad, a = 8, b = 6) => new THREE.SphereGeometry(rad, a, b), cyl = (a, b, h, s = 8, hs = 1, open = false) => new THREE.CylinderGeometry(a, b, h, s, hs, open);
-  for (const sx of [1, -1]) add(box(0.13, 0.36, 0.15), PANTS, sx > 0 ? 1 : 2, [sx * 0.085, 0.18, 0]);
-  add(box(0.36, 0.4, 0.24), coat, 0, [0, 0.55, 0]);
-  if (ci === 1) add(box(0.37, 0.06, 0.25), C(0xeeeeee), 0, [0, 0.62, 0]); // striped tee band
-  add(box(0.37, 0.06, 0.25), C(0x1a1208), 0, [0, 0.38, 0]); // belt
+  for (const sx of [1, -1]) add(box(0.13, 0.36, 0.15), skin, sx > 0 ? 1 : 2, [sx * 0.085, 0.18, 0]);
+  add(box(0.36, 0.4, 0.24), skin, 0, [0, 0.55, 0]);
+  add(box(0.37, 0.13, 0.25), WHITE, 0, [0, 0.39, 0]); // modest shorts, never explicit
+  for (const sx of [1, -1]) add(box(0.135, 0.1, 0.16), WHITE, sx > 0 ? 1 : 2, [sx * .085, .31, 0]);
+  if (crewFemale(v)) add(box(0.37, 0.13, 0.25), WHITE, 0, [0, 0.64, 0]); // female top + bottom
   for (const sx of [1, -1]) {
     const part = sx > 0 ? 3 : 4, isHook = hook && sx < 0;
-    add(box(0.11, 0.3, 0.11), ci === 3 || ci === 1 && r(7) < 0.5 ? skin : coat, part, [sx * 0.24, 0.58, 0]);
+    add(box(0.11, 0.3, 0.11), skin, part, [sx * 0.24, 0.58, 0]);
     if (isHook) { add(cyl(0.05, 0.06, 0.12, 6), WOOD, part, [sx * 0.24, 0.38, 0]); add(new THREE.TorusGeometry(0.06, 0.018, 4, 8, Math.PI * 1.3), IRON, part, [sx * 0.24, 0.27, 0.02], [0, Math.PI / 2, 0]); }
     else add(sph(0.065, 6, 4), skin, part, [sx * 0.24, 0.4, 0]);
   }
@@ -261,10 +262,18 @@ export function crewLodOf(body) {
   return null;
 }
 // [v106] every seat (+ lookouts) -> ONE merged geometry; chunks = the captain's baked gear (js/crewV4.js crewGearV4) or null
+// Cache an indexed copy of each baked seat. Exact shared vertices, including UV/part/colour,
+// use one buffer entry; triangle positions and locked traits stay unchanged. No per-frame work.
+const _compactSeats = new WeakMap();
+export function compactCrewSeat(source) {
+  let g = _compactSeats.get(source);
+  if (!g) { g = mergeVertices(source, 1e-6); _compactSeats.set(source, g); }
+  return g;
+}
 function seatGeo(c, chunks, tag) {
-  if (c.cap) return captainGeo(); // the captain seat (AI captains; on player ships it is hidden behind the animated captain)
-  const body = chunks && V4 ? crewPirateV4Dressed(c.v, c.pose, chunks, tag) : seat(c.v, c.pose);
-  return c.scope ? mergeGeometries([body.clone(), scopeGeo().clone()], false) : body.clone();
+  const body = c.cap ? captainGeo() : chunks && V4 ? crewPirateV4Dressed(c.v, c.pose, chunks, tag) : seat(c.v, c.pose);
+  if (c.scope) { const merged = mergeGeometries([body, scopeGeo()], false), g = mergeVertices(merged, 1e-6); merged.dispose(); return g; }
+  return compactCrewSeat(body).clone();
 }
 function crewGeo(seats, chunks, tag) {
   const parts = seats.map(c => { const g = seatGeo(c, chunks, tag), n = g.attributes.position.count;
@@ -331,7 +340,7 @@ function scopeGeo() {
 }
 export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   let lod = crewLodOf(body);
-  const g = mergeGeometries([seat(v).clone(), scopeGeo().clone()], false), n = g.attributes.position.count;
+  const raw = mergeGeometries([seat(v), scopeGeo()], false), g = mergeVertices(raw, 1e-6), n = g.attributes.position.count; raw.dispose();
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
   g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));

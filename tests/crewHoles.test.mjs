@@ -17,9 +17,10 @@ test('PirateGLB accepts body:\'v5\'; ship gear bake uses it', () => {
   assert.match(glb, /body === 'v5'/);
   assert.match(crew, /PirateGLB\.create\(\{ female: sex === 'f', lod: 'lo', body: 'v5'/);
 });
-test('shore crew get classic pants cover; CREW_EXTRA_SLOTS stays empty', () => {
+test('shore crew respect the underwear / empty pants choice; CREW_EXTRA_SLOTS stays empty', () => {
   assert.match(crew, /export function shoreCrewGear/);
-  assert.match(crew, /pants: 'classic_pants'/);
+  assert.match(crew, /export function shoreCrewGear\(gear\) \{ return crewGearOf\(gear\); \}/);
+  assert.doesNotMatch(crew, /pants: 'classic_pants'/);
   assert.match(crew, /export const CREW_EXTRA_SLOTS = \[\]/);
   assert.match(fol, /shoreCrewGear\(\{ \.\.\.crewGear\(\), \.\.\.crewWeaponsOf\(getLocalGear\(\)\) \}\)/);   // [crew-weapons] + the captain's weapons
   assert.match(net, /shoreCrewGear\(\{ \.\.\.crewGear\(/);
