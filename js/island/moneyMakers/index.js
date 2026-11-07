@@ -13,16 +13,26 @@ import { createEnemies } from './enemies.js';
 import { createMMApi, rid } from './api.js';
 import { createMMUi, esc, gfmt } from './ui.js';
 import { ISLAND_GOODS, islKey, islPrice, ISL_SHOP_NAMES } from '../../inventory/islandGoods.js';
+import { RENTABLE_SHOPS } from '../hillShops.js';
+import { t2w, t2wYaw, toHarbor } from '../coast.js';
+// [v372] BANKSY t1973u "move each stand into an empty rental shop": the counter stands move off the plaza / wharf / concourse into empty
+// hill-street rent shops (rent_1 = the Treasure Trader, so never that one). Each stand sits against the shop's back wall facing the door,
+// on the shop floor (floorY follows the street slope); the E prompt is in front of it, inside. A name board hangs over each shop door.
+const inShop = (id, name) => { const S = RENTABLE_SHOPS.find(r => r.id === id); if (!S) return null; const I = S.interior, f = Math.sin(S.facing) >= 0 ? 1 : -1;
+  const lx = f > 0 ? I.lx0 + 1.5 : I.lx1 - 1.5, lz = S.lz, y = I.floorY.atLz0 + (lz - I.lz0) / (I.lz1 - I.lz0) * (I.floorY.atLz1 - I.floorY.atLz0);
+  const [x, z] = toHarbor(...t2w(lx, lz)), ry = t2wYaw(S.facing), [dx, dz] = toHarbor(...t2w(S.door.lx + f * 1.1, S.door.lz));
+  return { x, z, y: y + 0.02, ry, fx: Math.sin(ry), fz: Math.cos(ry), shop: id, name, door: { x: dx, z: dz, y: S.doorY } }; };
 
 export const MM_ON = C.MM_ON;
 // ---------------- where everything stands (harbor frame; checked flush + off the paths, see tools in the v349 report) ----------------
 export const SITES = {
-  wanted: { x: 298, z: 58.6, ry: 0 },                     // Harbor Plaza, beside the WAVES / ARENA boards
-  fight: { x: 374, z: 106.5, ry: 0 },                                 // Coliseum concourse (Fight Master + gong + bookie)
+  wanted: inShop('rent_2', 'WANTED BOARD') || { x: 298, z: 58.6, ry: 0 },          // [v372] hill-street shop L1 (was Harbor Plaza)
+  fight: inShop('rent_16', 'FIGHT MASTER') || { x: 374, z: 106.5, ry: 0 },         // [v372] hill-street shop R5 by the coliseum (was the concourse)
+  arena: { x: 374, z: 106.5 },                                         // prize-fight foes still spawn on the coliseum concourse
   horde: { x: 374.5, z: 124, r: 7 },                                  // the Skeleton Horde ring on the concourse floor
-  rum: { x: 297, z: 160, ry: -Math.PI / 2 },                          // Harbor Rum Export Stall (wharf, by the Fish Market)
+  rum: inShop('rent_3', 'RUM EXPORT') || { x: 297, z: 160, ry: -Math.PI / 2 },   // [v372] hill-street shop L2 (was the wharf)
   crates: { wharf: { x: 258, z: 150, ry: Math.PI / 2, name: 'Harbor Wharf' }, cove: { x: 1086, z: 430, ry: Math.PI / 2, name: "Smugglers' Cove" } },
-  buyers: { fort: { x: 474, z: 104, ry: Math.PI / 2, name: 'Fort Quartermaster' }, jungle: { x: 884, z: -228, ry: Math.PI / 2, name: 'Jungle Outpost' }, harbor: { x: 300, z: 140, ry: -Math.PI / 2, name: 'Harbor Fence' } },
+  buyers: { fort: { x: 474, z: 104, ry: Math.PI / 2, name: 'Fort Quartermaster' }, jungle: { x: 884, z: -228, ry: Math.PI / 2, name: 'Jungle Outpost' }, harbor: { ...(inShop('rent_4', 'HARBOR FENCE') || { x: 300, z: 140, ry: -Math.PI / 2 }), name: 'Harbor Fence' } },   // [v372] harbor fence: hill-street shop L3
   raiders: { x: 1096, z: 446, r: 9 }, stalkers: { x: 930, z: -300, r: 9 },
   dive: [{ id: 'wreck_a', x: 1135, z: 460, kind: 'chest', where: 'Dead Man\'s Cove wreck' }, { id: 'wreck_b', x: 1152, z: 448, kind: 'chest', where: 'Dead Man\'s Cove wreck' },
     { id: 'wreck_c', x: 1146, z: 468, kind: 'clam', where: 'Dead Man\'s Cove wreck' }, { id: 'lagoon_a', x: 680, z: 15, kind: 'clam', where: 'Lagoon' }, { id: 'lagoon_b', x: 690, z: 26, kind: 'clam', where: 'Lagoon' }],
@@ -51,14 +61,16 @@ export function createMoneyMakers(ctx) {
   const spot = (id, mm, x, z, r, label, extra = {}) => { const q = { id: 'mm_' + id, kind: 'mm', mm, x, z, r, label, used: false, ...extra }; spots.push(q); world.footInteract.push(q); return q; };
 
   // ======================= props =======================
-  const wanted = put(P.wantedBoard(), SITES.wanted.x, SITES.wanted.z, SITES.wanted.ry); spot('wanted', 'board', SITES.wanted.x, SITES.wanted.z + 1.6, 3.2, 'WANTED BOARD · CONTRACTS + BOUNTIES');
-  const fm = put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry); spot('fight', 'coliseum', SITES.fight.x, SITES.fight.z + 1.6, 3.4, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE');
+  const fx = (S, d) => S.x + (S.fx ?? 0) * d, fz = (S, d) => S.z + (S.fz ?? 1) * d;   // [v372] a point d m in front of a stand (toward the shop door)
+  const doorBoard = (S) => { if (!S.door) return; const lb = P.label(S.name, { w: 512, h: 96, sx: 3.2 }); lb.material.depthTest = true; lb.renderOrder = 0; lb.position.set(S.door.x, S.door.y + 3.3, S.door.z); root.add(lb); };
+  const wanted = put(P.wantedBoard(), SITES.wanted.x, SITES.wanted.z, SITES.wanted.ry, SITES.wanted.y); spot('wanted', 'board', fx(SITES.wanted, 1.6), fz(SITES.wanted, 1.6), 3.0, 'WANTED BOARD · CONTRACTS + BOUNTIES'); doorBoard(SITES.wanted);
+  const fm = put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry, SITES.fight.y); spot('fight', 'coliseum', fx(SITES.fight, 1.6), fz(SITES.fight, 1.6), 3.0, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE'); doorBoard(SITES.fight);
   const hordeRing = put(P.ring(SITES.horde.r, 0xb3121a), SITES.horde.x, SITES.horde.z); hordeRing.position.y += 0.06; hordeRing.visible = false;
-  put(P.rumStall(), SITES.rum.x, SITES.rum.z, SITES.rum.ry); spot('rum', 'rum', SITES.rum.x - 1.4, SITES.rum.z, 3.0, 'HARBOR RUM EXPORT STALL · SELL RUM');
+  put(P.rumStall(), SITES.rum.x, SITES.rum.z, SITES.rum.ry, SITES.rum.y); spot('rum', 'rum', fx(SITES.rum, 1.4), fz(SITES.rum, 1.4), 3.0, 'HARBOR RUM EXPORT STALL · SELL RUM'); doorBoard(SITES.rum);
   for (const [k, s] of Object.entries(SITES.crates)) { put(P.crateStack(k === 'cove' ? "COVE CONTRABAND" : 'WHARF CONTRABAND'), s.x, s.z, s.ry); spot('crate_' + k, 'crate', s.x, s.z, 3.2, `SMUGGLER CRATES · ${s.name.toUpperCase()}`, { from: k }); }
   const buyerMk = {};
-  for (const [k, s] of Object.entries(SITES.buyers)) { put(P.buyerPost(s.name.toUpperCase(), k === 'fort' ? '#2a4a6a' : k === 'jungle' ? '#2a5a2a' : '#5a2a2a'), s.x, s.z, s.ry);
-    const ringM = put(P.ring(C.CRATE.deliverR, 0xffcd77), s.x, s.z); ringM.position.y += 0.08; const bc = put(P.beacon(), s.x, s.z); ringM.visible = bc.visible = false; buyerMk[k] = { ring: ringM, beacon: bc };
+  for (const [k, s] of Object.entries(SITES.buyers)) { put(P.buyerPost(s.name.toUpperCase(), k === 'fort' ? '#2a4a6a' : k === 'jungle' ? '#2a5a2a' : '#5a2a2a'), s.x, s.z, s.ry, s.y); if (s.door) doorBoard(s);
+    const ringM = put(P.ring(s.door ? 2.4 : C.CRATE.deliverR, 0xffcd77), s.x, s.z, 0, s.y); ringM.position.y += 0.08; const bc = put(P.beacon(), s.door ? s.door.x : s.x, s.door ? s.door.z : s.z, 0, s.door ? s.door.y : null); ringM.visible = bc.visible = false; buyerMk[k] = { ring: ringM, beacon: bc };
     spot('buyer_' + k, 'buyer', s.x, s.z, C.CRATE.deliverR, `${s.name.toUpperCase()} · DELIVER CRATE`, { to: k }); }
   const diveM = {};
   for (const d of SITES.dive) { const o = d.kind === 'chest' ? P.wreckChest() : P.clam(); put(o, d.x, d.z, d.x % 3); const bub = P.diveBuoy(); const wy = world.water(d.x, d.z); put(bub, d.x + 1.2, d.z, 0, (wy ?? G(d.x, d.z))); diveM[d.id] = { o, bub };
@@ -90,7 +102,7 @@ export function createMoneyMakers(ctx) {
   function overwhelmed(kind) {
     const H = horde; if (H.on) { endHorde(false, 'the horde overwhelmed you'); }
     if (carry) dropCrate('ko');
-    const w = W(), s = kind === 'gladiator' || kind === 'captain' ? SITES.fight : kind === 'stalker' ? SITES.buyers.jungle : SITES.crates.cove; const x = s.x + 2, z = s.z + 2;
+    const w = W(), s = kind === 'gladiator' || kind === 'captain' ? SITES.arena : kind === 'stalker' ? SITES.buyers.jungle : SITES.crates.cove; const x = s.x + 2, z = s.z + 2;
     w.x = x; w.z = z; w.y = G(x, z); walker.snapCam?.(); battle.me.guard = 3;
     say('💀 OVERWHELMED<small>you crawl back to safety · no haul lost</small>', 2400);
   }
