@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v441'; // V7 male earrings seated on earlobes
+const VERSION = 'pfp-v442'; // Golden Doubloon casino UI polish
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -79,7 +79,7 @@ const SHELL = [
   "./js/island/areas/index.js", "./js/island/areas/common.js", "./js/island/areas/flags.js", "./js/island/areas/lagoon.js", "./js/island/areas/lagoonArt.js", "./js/island/areas/fishing2.js", "./js/island/areas/fishTune.js", "./js/island/areas/jungle.js", "./js/island/areas/route.js", "./js/island/areas/ropeBridge.js", "./js/island/areas/fort.js", "./js/island/areas/hillRound.js", "./js/island/areas/cottages.js", // [v150] island rework areas (lagoon v150, jungle v151)
   "./js/island/plazaTown.js", // [Timothy] ?plaza=2 harbor town blockout (foot.js imports it)
   "./js/island/battery.js", // [Timothy] headland battery: ramp, gun deck, guns (foot.js imports it)
-  "./js/island/plazaShops.js", "./js/island/plazaMannequins.js", "./js/island/casino.js", "./js/island/casinoData.js", "./js/casino/engine.js", "./js/casino/ui.js", // [Timothy] Blender storefronts + battery loader
+  "./js/island/plazaShops.js", "./js/island/plazaMannequins.js", "./js/island/casino.js", "./js/island/casinoData.js", "./js/casino/engine.js", "./js/casino/ui.js", "./js/casino/theme.js", // [Timothy] Blender storefronts + battery loader
   "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
   "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
