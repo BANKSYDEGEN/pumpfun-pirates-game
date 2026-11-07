@@ -58,8 +58,7 @@ export function createPetsPanel(ctx) {
       const lv = petLv(p.xp), max = lv >= 10, a = lvXp(lv), z = lvXp(lv + 1), pc = max ? 100 : Math.round(((p.xp - a) / (z - a)) * 100), off = data.outgoing.find((o) => o.pet === p.pet);
       h += `<div class="pp-card${p.pet === eq ? ' on' : ''}"><div class="pp-top"><span class="pp-ic">${PET_ICON[p.pet]}</span><div class="pp-nm"><b>${esc(p.name || PET_LABEL[p.pet])}</b><small>${esc(PET_LABEL[p.pet])}${p.pet === eq ? ' · out with you' : ''}</small></div><span class="pp-lv">LV ${lv}${max ? ' MAX' : ''}</span></div>` +
         `<div class="pp-bar"><i style="width:${Math.max(0, Math.min(100, pc))}%"></i></div>` +
-        `<div class="pp-row"><input maxlength="16" placeholder="Name your ${esc(PET_LABEL[p.pet])}" value="${esc(p.name || '')}" data-name="${p.pet}"><button class="b" data-a="name" data-pet="${p.pet}">SAVE NAME</button></div>` +
-        `<div class="pp-row"><button class="b go" data-a="treat" data-pet="${p.pet}"${max ? ' disabled' : ''}>🍖 TREAT +100 XP · ${treatCost(lv).toLocaleString()}g</button>` +
+        `<div class="pp-row"><small>Parrot names & upgrades have moved to your ship hull cage.</small>` +
         (data.owner ? '' : off ? `<button class="b no" data-a="cancel" data-id="${off.id | 0}">CANCEL OFFER TO ${esc(off.to)}</button>` : `<button class="b" data-a="trade" data-pet="${p.pet}">🤝 TRADE</button>`) + `</div>` +
         (trade === p.pet && !off ? `<div class="pp-row"><input data-to="${p.pet}" maxlength="20" placeholder="Pirate name"><input data-price="${p.pet}" type="number" min="0" step="1" placeholder="Gold" style="max-width:90px"><button class="b go" data-a="offer" data-pet="${p.pet}">OFFER</button></div>` : '') + `</div>`;
     }
@@ -70,9 +69,7 @@ export function createPetsPanel(ctx) {
     const a = b.dataset.a, pet = b.dataset.pet, id = +b.dataset.id || 0, q = (s) => el.querySelector(s);
     if (a === 'trade') { trade = trade === pet ? '' : pet; draw(); return; }
     busy = true; b.disabled = true; let r = null;
-    if (a === 'name') { r = await call('pet_name', { pet, name: q(`input[data-name="${pet}"]`)?.value || '' }); if (r.ok) toast(r.name ? `🐾 Your pet is now <b>${esc(r.name)}</b>` : '🐾 Name cleared', 1800); }
-    else if (a === 'treat') { r = await call('pet_treat', { pet }); if (r.ok) { ctx.gold?.(r); toast(`🍖 Treat! <b>LV ${r.lv | 0}</b> (${r.xp | 0} XP)`, 1800); } }
-    else if (a === 'offer') { const to = q(`input[data-to="${pet}"]`)?.value || '', price = Math.max(0, Math.floor(+q(`input[data-price="${pet}"]`)?.value || 0)); r = await call('pet_offer', { pet, to, price }); if (r.ok) { trade = ''; toast(`🤝 Offer sent to <b>${esc(to)}</b>`, 1800); } }
+    if (a === 'offer') { const to = q(`input[data-to="${pet}"]`)?.value || '', price = Math.max(0, Math.floor(+q(`input[data-price="${pet}"]`)?.value || 0)); r = await call('pet_offer', { pet, to, price }); if (r.ok) { trade = ''; toast(`🤝 Offer sent to <b>${esc(to)}</b>`, 1800); } }
     else if (a === 'cancel') { r = await call('pet_cancel', { offer: id }); }
     else if (a === 'acc' || a === 'dec') { r = await call('pet_respond', { offer: id, accept: a === 'acc' }); if (r.ok && r.state === 'done') { ctx.gold?.(r); toast('🐾 The pet is yours! Equip it from your inventory.', 2600); } }
     if (r && !r.ok) toast(esc(r.why || r.error || 'try again'), 2000);

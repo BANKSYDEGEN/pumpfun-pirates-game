@@ -77,6 +77,11 @@ async function whoAmI(b: Record<string, unknown>) {
 }
 async function ownedSet(pid: string) { const { data } = await db.from("pvp_owned").select("item").eq("player_id", pid); const own = new Set((data ?? []).map((r: any) => r.item as string));
   for (const it of prestigeSkins(await prestigeOf(pid))) own.add(it); // [prestige] BANKSY: P1 GOLDEN / P2 DIAMOND are GIVEN (also counts for anyone already at that level)
+  // A legacy ownership receipt never makes a sold parrot reappear. Live inventory is authoritative.
+  const { data: birds, error: birdError } = await db.rpc("pvp_parrot_op", { p_player: pid, p_op: "list" });
+  if (birdError) throw birdError;
+  for (const it of [...own]) if (it.startsWith("gear:parrot:parrot_")) own.delete(it);
+  for (const p of birds?.parrots || []) if (p.id === birds.equipped) own.add("gear:parrot:" + p.color);
   return own; }
 // [prestige] write the given skins into pvp_owned (source 'grant', price 0). ADD only: an existing row is left as it is, nothing is removed.
 async function grantPrestigeSkins(pid: string, lv: number) { const rows = prestigeSkins(lv).map((item) => ({ player_id: pid, item, source: "grant", price: 0 }));
@@ -412,9 +417,16 @@ Deno.serve(async (req) => {
       case "shop_buy": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         const item = String(b.item ?? ""), it = SHOP_ITEMS[item], req = String(b.req ?? "");
-        if (!it) return json(400, { error: "not for sale" });
+        if (!it || (item.startsWith("gear:parrot:") && item !== "gear:parrot:parrot_green")) return json(400, { error: "not for sale" });
         if (!/^[A-Za-z0-9_-]{16,64}$/.test(req)) return json(400, { error: "bad request" });
-        if (who.owner) return json(200, { ok: true, owner: true, item });
+        if (who.owner && item !== "gear:parrot:parrot_green") return json(200, { ok: true, owner: true, item });
+        if (item === "gear:parrot:parrot_green") {
+          const { data, error } = await db.rpc("pvp_parrot_buy", { p_player: who.pid, p_req: req });
+          if (error) throw error;
+          if (!data?.ok) return json(409, { error: data?.why || "could not buy" });
+          if (!who.wallet && !who.owner && !data.retry) await acctBump(db, who.raw, -2000);
+          return json(200, { ...data, item });
+        }
         let stats: Profile["stats"];
         if (who.wallet) stats = toProfile(await getRow(who.wallet)).stats;
         else { const { data: r } = await db.from("pvp_dev_profiles").select("*").eq("id", who.pid).maybeSingle(); if (!r) return json(409, { error: "no save yet" }); stats = devProfile(r as DevRow).stats; }

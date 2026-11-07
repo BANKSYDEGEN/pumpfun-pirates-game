@@ -1,0 +1,67 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import { KEY_RE, itemInfo } from '../js/inventory/catalog.js';
+import { PARROT_COLORS } from '../js/parrotsPanel.js';
+const M = new URL('../supabase/migrations/', import.meta.url);
+const sql = fs.readFileSync(new URL('059_parrot_inventory.sql', M), 'utf8');
+test('parrot inventory keys, color ladder and base-only sale boundaries', () => {
+  assert.ok(KEY_RE.test('par:00000000-0000-4000-8000-000000000001'));
+  assert.equal(KEY_RE.test('par:------------------------------------'), false);
+  assert.equal(itemInfo('par:00000000-0000-4000-8000-000000000001').kind, 'parrot');
+  assert.deepEqual(PARROT_COLORS.map(p => p[2]), [0,1,2,4,6,8,10]);
+  for (const [color] of PARROT_COLORS) assert.ok(sql.includes(color));
+  assert.match(sql, /create unique index pvp_parrot_one_holder/);
+  assert.match(sql, /p_item like 'gear:parrot:%'/);
+  assert.match(fs.readFileSync(new URL('../js/islandShop.js', import.meta.url), 'utf8'), /it.id === 'parrot_green'/);
+});
+let PGlite;
+try { ({ PGlite } = await import(createRequire(process.cwd() + '/package.json').resolve('@electric-sql/pglite'))); } catch {}
+test('parrot SQL: purchase idempotency, level locks, escrow, metadata transfer, legacy anti-dupe', { skip: !PGlite && 'Run from a directory containing @electric-sql/pglite' }, async () => {
+  const db = new PGlite();
+  try {
+    const setup = fs.readFileSync(new URL('../tools/inventory/sql_test.mjs', import.meta.url), 'utf8');
+    await db.exec(setup.slice(setup.indexOf('create role anon;'), setup.indexOf('`);')));
+    await db.exec(`create role service_role;
+      alter table pvp_profiles add gear jsonb default '{}', add shop_rev int default 0;
+      alter table pvp_dev_profiles add gear jsonb default '{}', add shop_rev int default 0;
+      create table pvp_group_saves(main text primary key, gold int default 100000);
+      create table pvp_purchases(id bigserial primary key,player_id text,req text unique,item text,price int,gold_before int,gold_after int,rev int);
+      create function pvp_shop_buy(text,text,integer,text) returns jsonb language sql as $$select '{"ok":true}'::jsonb$$;`);
+    for (const f of ['026_treasure_maps.sql','035_chest_items.sql','036_inventory.sql','058_pets.sql','059_parrot_inventory.sql']) await db.exec(fs.readFileSync(new URL(f, M), 'utf8'));
+    await db.exec(`insert into pvp_dev_profiles(id,gold) values('dev:a',100000),('dev:b',100000); insert into pvp_players values('dev:a','A'),('dev:b','B'); update pvp_flags set on_=true where k in ('market','gift');`);
+    const q = async s => (await db.query(s)).rows;
+    const rpc = async (fn,args) => (await q(`select ${fn}(${args}) as r`))[0].r;
+    const op = (pid,act,id=null,other='') => rpc('pvp_parrot_op', `'dev:${pid}','${act}',${id ? "'"+id+"'" : 'null'}${other}`);
+    const a = await rpc('pvp_parrot_buy', "'dev:a','parrot-request-0001'"); assert.equal(a.ok,true); assert.equal(a.price,2000);
+    const retry = await rpc('pvp_parrot_buy', "'dev:a','parrot-request-0001'"); assert.equal(retry.retry,true); assert.equal((await op('a','list')).parrots.length,1);
+    assert.equal((await op('b','name',a.id,",'STOLEN'")).ok,false);
+    assert.equal((await op('a','color',a.id,",null,'parrot_diamond'")).ok,false);
+    assert.equal((await op('a','name',a.id,",'Polly'")).ok,true);
+    const treat = await op('a','treat',a.id); assert.equal(treat.lv,1); assert.equal(treat.gold,97750);
+    assert.equal((await op('a','color',a.id,",null,'parrot_red'")).ok,true);
+    assert.equal((await op('a','list')).equipped,a.id);
+    const listing = await rpc('pvp_mkt_list', `'dev:a','par:${a.id}',1,5000`); assert.equal(listing.ok,true);
+    assert.equal((await op('a','list')).equipped,null);
+    assert.equal((await op('a','treat',a.id)).ok,false);
+    const bought = await rpc('pvp_mkt_buy', `'dev:b',${listing.listing}`); assert.equal(bought.ok,true);
+    assert.equal((await rpc('pvp_mkt_buy', `'dev:b',${listing.listing}`)).ok,false);
+    const birds = (await op('b','list')).parrots; assert.equal(birds.length,1); assert.equal(birds[0].name,'Polly'); assert.equal(birds[0].xp,100); assert.equal(birds[0].color,'parrot_red'); assert.ok(birds[0].colors.includes('parrot_red'));
+    assert.equal((await op('b','equip',a.id)).ok,true);
+    const list2 = await rpc('pvp_mkt_list', `'dev:b','par:${a.id}',1,1000`); assert.equal(list2.ok,true);
+    assert.equal((await rpc('pvp_mkt_cancel', `'dev:b',${list2.listing}`)).ok,true);
+    assert.equal((await op('b','list')).parrots[0].name,'Polly');
+    assert.equal((await rpc('pvp_parrot_buy', "'dev:a','parrot-request-0002'")).ok,true);
+    await db.exec(`insert into pvp_owned(player_id,item,source,price) values('dev:a','gear:parrot:parrot_gold','buy',50000);`);
+    const list = await op('a','list'); const gold = list.parrots.find(p => p.color==='parrot_gold'); assert.equal(gold.lv,8);
+    assert.equal((await op('a','list')).parrots.length,list.parrots.length);
+    const oldList = await rpc('pvp_mkt_list', `'dev:a','par:${gold.id}',1,1000`); assert.equal(oldList.ok,true);
+    assert.equal((await rpc('pvp_mkt_buy', `'dev:b',${oldList.listing}`)).ok,true);
+    assert.equal((await op('a','list')).parrots.some(p=>p.id===gold.id),false);
+    assert.equal((await q("select count(*)::int as n from pvp_owned where player_id='dev:a'"))[0].n,1);
+    assert.equal((await rpc('pvp_shop_buy', "'dev:a','gear:parrot:pet_cat',3000,'retired-pet-00001'")).ok,false);
+    assert.equal((await rpc('pvp_shop_buy', "'dev:a','gear:parrot:parrot_diamond',100000,'retired-pet-00002'")).ok,false);
+    assert.equal((await rpc('pvp_mkt_list', `'dev:a','par:${gold.id}',2,1000`)).ok,false);
+  } finally { await db.close(); }
+});

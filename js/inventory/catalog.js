@@ -99,10 +99,11 @@ export function itemInfo(key) {
   if (p[0] === 'wpn' && WEAPON_BASES[p[1]]?.includes(p[2]) && WEAPON_TIERS.includes(p[3])) return { kind: 'weapon', slot: p[1], base: p[2], rarity: p[3], name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} ${p[1]}`, icon: p[1] === 'sword' ? '🗡️' : '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 };
   if (p[0] === 'dup' && p.length === 4) { const r = RARITIES.includes(p[3]) ? p[3] : 'common'; return { kind: 'dup', slot: p[1], id: p[2], rarity: r, name: `Spare ${p[2].replace(/_/g, ' ')}`, icon: '🎩', antiques: RARITY_ANTIQUES[r], fish: 0 }; }
   if (p[0] === 'isl') { const f = globalThis.PFP_ISL_INFO; return typeof f === 'function' ? f(key) : null; } // [055] island goods live in pvp_inv now; js/inventory/islandGoods.js fills this on the client
+  if (p[0] === 'par' && /^par:[0-9a-f-]{36}$/.test(key)) return { kind: 'parrot', name: 'Parrot', icon: '🦜', rarity: 'common', antiques: 0, fish: 0 };
   if (p[0] === 'map') return { kind: 'map', name: 'Treasure Map', icon: '🗺️', rarity: 'common', antiques: MAP_ANTIQUES, fish: 0 };
   return null;
 }
-export const KEY_RE = /^(fish:[a-z_]{2,16}|val:[a-z_]{2,20}|wpn:(sword|musket):[a-z_]{2,16}:(common|rare|epic|legendary)|dup:[a-z]{2,10}:[a-z0-9_]{2,24}:(common|uncommon|rare|epic|legendary)|isl:[a-z_]{2,24})$/;
+export const KEY_RE = /^(fish:[a-z_]{2,16}|val:[a-z_]{2,20}|wpn:(sword|musket):[a-z_]{2,16}:(common|rare|epic|legendary)|dup:[a-z]{2,10}:[a-z0-9_]{2,24}:(common|uncommon|rare|epic|legendary)|isl:[a-z_]{2,24}|par:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 // every NPC price, flat: [key, shop, base price]. migration 036 seeds exactly these rows (tests/inventory.test.mjs checks)
 export function priceRows() {
   const out = [];

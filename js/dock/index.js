@@ -194,8 +194,27 @@ export async function createDock(ctx) {
       const pp = m.createPetsPanel({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }),
         equipped: () => getLocalGear()?.parrot || '', out: () => !!petF?.active, toast: (...a) => toast(...a),
         gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } });
-      const fb2 = $('btn-friends'); if (fb2 && !$('btn-pets')) { const pb = document.createElement('button'); pb.id = 'btn-pets'; pb.type = 'button'; pb.className = 'ghost'; pb.textContent = '🐾 MY PETS'; pb.onclick = (e) => { e.stopPropagation(); pp.open(); }; fb2.insertAdjacentElement('afterend', pb); }
-      setInterval(() => { pp.tick(1); }, 1000); window.PFP_PETS = Object.freeze({ open: () => pp.open() });
+      const fb2 = $('btn-friends'); if (fb2 && !$('btn-pets')) { const pb = document.createElement('button'); pb.id = 'btn-pets'; pb.type = 'button'; pb.className = 'ghost'; pb.textContent = '🦜 PARROTS · HULL CAGE'; pb.onclick = (e) => { e.stopPropagation(); toast('Name & upgrade parrots at the cage inside your ship hull. Equip or trade them from INVENTORY.', 4000); }; fb2.insertAdjacentElement('afterend', pb); }
+      setInterval(() => pp.tick(1), 1000);
+      import('../parrotsPanel.js').then(m => {
+        const pc = m.createParrotsPanel({ flush: () => pv()?.flushNow?.(), call: (a, b) => pv()?.inv?.call?.(a, b),
+          equipped: () => getLocalGear()?.parrot || '', out: () => on && onFoot && !shipHull?.inHull,
+          equip: color => import('../islandShop.js').then(m => m.getShopProvider()?.equip?.('gear', 'parrot:' + color)),
+          gold: r => { if (r.gold != null) pv()?.serverGold?.(r.gold, { rev: r.rev, owner: !!r.owner }); } });
+        window.PFP_PETS = Object.freeze({ open: () => shipHull?.inHull ? pc.open() : toast('Visit the PARROT CAGE inside your ship hull.', 2400), close: () => pc.close(), get isOpen() { return pc.isOpen; } });
+        setInterval(() => pc.tick(1), 1000);
+        window.addEventListener('pfp-parrot-state', e => {
+          const birds = e.detail?.parrots || [], selected = birds.find(p => p.id === e.detail?.equipped);
+          const current = getLocalGear()?.parrot || '';
+          if (current.startsWith('parrot_') && current !== (selected?.color || 'none')) import('../islandShop.js').then(m => m.getShopProvider()?.equip?.('gear', 'parrot:' + (selected?.color || 'none')));
+          window.dispatchEvent(new CustomEvent('pfp-parrot', { detail: selected || null }));
+        });
+        window.addEventListener('pfp-parrot-equip', async e => {
+          const r = await pv()?.inv?.call?.('parrot_equip', { id: e.detail });
+          if (r?.ok) { await import('../islandShop.js').then(m => m.getShopProvider()?.equip?.('gear', 'parrot:' + r.color)); toast('🦜 PARROT EQUIPPED', 1800); window.dispatchEvent(new CustomEvent('pfp-parrot-equipped'));  }
+          else toast(r?.why || r?.error || 'Could not equip parrot', 2200);
+        });
+      });
     }).catch((e) => console.warn('[pets]', e));
     import('../social.js').then((m) => { // [Friends R2] map player list (mute / add friend / squad) + squad voice chat
       const soc = m.createSocial({ pvp: () => ctx.pvp?.(), friends, toast: (...a) => toast(...a) });
@@ -318,6 +337,8 @@ export async function createDock(ctx) {
       scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
       toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, fadeTo: (fn) => fadeTo(fn),
       houses, low: LOW, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
+      openParrotCage: () => { for (const code of ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','Space']) walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); window.PFP_PETS?.open(); },
+      closeParrotCage: () => window.PFP_PETS?.close(),
       openCrewRoom: (member) => openCrewRoom(member),
       closeCrewRoom: () => { import('../islandShop.js').then(m => m.closeHullCrewRoom()); },
     });
@@ -560,7 +581,7 @@ export async function createDock(ctx) {
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
     if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen || ADM.frozen) return; // [admin-menu] frozen: no E / Q // [v145] the treasure map closes on its own keys (Esc / M)
-    if (document.getElementById('crew-room')?.classList.contains('on')) return; // dressing owns gameplay keys
+    if ((document.getElementById('crew-room')?.classList.contains('on') || window.PFP_PETS?.isOpen)) return; // dressing owns gameplay keys
     if (casinoUi?.isOpen) { casinoUi.onKey(e); e.stopImmediatePropagation(); e.preventDefault(); return; } // [Timothy] the casino table has the keys (Esc closes)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
@@ -650,7 +671,7 @@ export async function createDock(ctx) {
     }
     // prompts
     if (onFoot) {
-      if (document.getElementById('crew-room')?.classList.contains('on')) {
+      if ((document.getElementById('crew-room')?.classList.contains('on') || window.PFP_PETS?.isOpen)) {
         const w = walker.w; for (const code in w.keys) w.keys[code] = false;
         w.joy.on = false; w.joy.x = w.joy.y = 0; w.jumpQ = false; w.speed = 0; w.drags.clear();
       } // phone pointer capture / held controller input cannot walk behind the wardrobe

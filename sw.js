@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v411'; // [v411] Post: casino AAA pass 2 (BANKSY 'Push it')
+const VERSION = 'pfp-v412'; // Parrot inventory, hull cage upgrades & base-only pet store
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -37,6 +37,8 @@ const SHELL = [
   "./js/dock/index.js", "./js/dock/ladders.js", "./js/hullReach.js",
   "./js/dock/houses.js",
   "./js/dock/shipHull.js",
+  "./js/dock/parrotCage.js",
+  "./js/parrotsPanel.js",
   "./js/dock/houseStorage.js", // [v324] cottage chest drag-full-stack + split UI
   "./js/adminState.js",
   "./js/adminMenu.js",

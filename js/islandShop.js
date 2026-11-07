@@ -110,6 +110,11 @@ function gearThumb(it, live = false, extra = null) {
   if (it.crew && it.slot === 'crewhat' && it.id === CREW_DEFAULT.crewhat) it = { ...it, id: 'none' };
   if (it.crew && it.slot === 'crewoutfit' && it.id === CREW_DEFAULT.crewoutfit) it = { ...it, id: 'shirtless' }; // legacy free uniform id renders bareheaded
 
+  if (it.slot === 'parrot' && it.id === 'parrot_green' && view.tab !== 'wardrobe') {
+    const d = document.createElement('div'); d.className = 'ishop-sw gear real3d';
+    const img = new Image(); img.alt = 'Base parrot'; img.className = 'gear-thumb'; img.src = new URL('../assets/pirates/items/icons/parrot.png', import.meta.url).href;
+    img.style.filter = 'hue-rotate(110deg)'; d.append(img); return d; // parrot-only preview, never an old pirate body or an extra WebGL context
+  }
   if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
     const d = document.createElement('div'); d.className = 'ishop-sw gear real3d weapon'; const img = new Image(); img.alt = ''; img.decoding = 'async';
     img.className = 'gear-thumb'; img.src = new URL(`../assets/pirates/thumbs/weapon_${it.slot}_${it.id}.png`, import.meta.url).href; d.append(img); return d; }
@@ -136,10 +141,11 @@ export const tabSlots = (V, tab) => tab === 'shoes' ? (V.shoeSlots || []) : tab 
 export const tabForSlot = (V, slot) => V.shoeSlots?.includes(slot) && V.tabs.includes('shoes') ? 'shoes' : null; // [Timothy] WEAPON STORE tabs: one gear slot each
 const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
   : TAB_SLOT[view.tab] ? WEAPON_ITEMS.filter(it => it.slot === TAB_SLOT[view.tab]).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label }))
-  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot && !(view.vendor === 'clothes' && STORE_HIDDEN.has(gearKey(it)))   /* [V6 store] clothes BOOTS tab = the V6 shoes only */).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first; [hide-shoes] Clothes Store hides boots
+  : [...GEAR_ITEMS, ...CREW_ITEMS].filter(it => it.slot === view.slot && (it.slot !== 'parrot' || (view.tab === 'wardrobe' ? true : it.id === 'parrot_green')) && !(view.vendor === 'clothes' && STORE_HIDDEN.has(gearKey(it)))   /* [V6 store] clothes BOOTS tab = the V6 shoes only */).map(it => ({ kind: 'gear', key: gearKey(it), it, name: it.label })), x => x.it.price); // [v157] cheapest first; [hide-shoes] Clothes Store hides boots
 const eqGear = (slot) => state.equipped.gear?.[slot] ?? (slot === 'sword' ? SWORD_FREE : slot === 'musket' ? MUSKET_FREE : CREW_DEFAULT[slot]); // [Timothy] a state without the crew slots (older server) = the crew uniform
 function statusOf(x) {
   const g = goalProgress(liveGoal(x.it), state.stats);
+  if (x.it.slot === 'parrot' && x.it.id === 'parrot_green' && view.tab !== 'wardrobe') return { k: state.owner || state.gold >= x.it.price ? 'buy' : 'poor', owned: false, g: null };
   // [prestige] a prestige grant (GOLDEN P1 / DIAMOND P2) is owned once that prestige is reached; other price-0 items are always free
   const owned = state.owner || (x.it.price === 0 && (x.it.grant !== 'prestige' || !!g?.done)) || (x.kind === 'skin' ? state.owned.skins : state.owned.gear).includes(x.key)
     || (x.it.crew && x.it.base && VENDORS.crew.dress && state.owned.gear.includes(`${x.it.base}:${x.it.id}`));   // [v6-store-clothes] CREW ROOM: own it = your crew can wear it
@@ -272,6 +278,7 @@ function detail(x) {
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${VENDORS.crew.dress ? ' Free in the CREW ROOM for any gear you own.' : x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
   if (x.kind === 'gear' && x.it.maleOnly) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">Male pirates only${getLocalGear().body ? ' · <b>not shown on your female pirate</b>' : ''}</div>`); // [Raul shop2 fixes]
   if (x.kind === 'gear' && x.it.slot === 'parrot' && PET_RARITY[x.it.id]) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i> Perches on your shoulder (your crew don't carry parrots)</div>`); // [Timothy] PET STORE
+  if (x.it.slot === 'parrot' && x.it.id === 'parrot_green' && view.tab !== 'wardrobe') d.insertAdjacentHTML('beforeend', '<div class="ishop-gl">Each purchase is its own inventory parrot. Name it, give treats & unlock colors at your ship hull cage. Trade birds at the Marketplace.</div>');
   if (x.kind === 'gear' && x.it.slot === 'hat' && x.it.id !== 'none' && x.it.tint?.hatColor && s.owned && provider.hatColor) { // [v109b] not the crown (its velvet = your hair colour) // [v105] free hat colour (equipped hat)
     const cur = state.equipped?.gear?.hatColor | 0, eq = state.equipped?.gear?.hat === x.it.id;
     d.insertAdjacentHTML('beforeend', `<div class="ishop-hatc"><small>HAT COLOUR · free${eq ? '' : ' (equip it first)'}</small><div>${[['DEFAULT', ''], ...HAT_SWATCHES].map(([n, c], i) =>

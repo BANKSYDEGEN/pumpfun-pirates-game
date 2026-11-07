@@ -61,6 +61,8 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
   const reply = (d: any) => d?.ok ? json(200, d) : json(409, { error: d?.why || "refused" });
   switch (action) {
     case "inv_state": {
+      const { data: birds, error: birdError } = await db.rpc("pvp_parrot_op", { p_player: pid, p_op: "list" });
+      if (birdError) throw birdError;
       await rpc("pvp_inv_carry", { p_player: pid });                                    // owned swords / muskets show up (once each)
       if (who.owner) await rpc("pvp_inv_owner_kit", { p_player: pid, p_items: ownerKitItems(), p_spots: c.mapSpots }); // once, owner only
       const { data: rows } = await db.from("pvp_inv").select("item, source, qty").eq("player_id", pid);
@@ -71,7 +73,7 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       for (const r of rows || []) { const s = stack.get(r.item) || { item: r.item, qty: 0, tradeable: 0, kit: 0 }; s.qty += r.qty; if (r.source !== "carry_buy") s.tradeable += r.qty; if (r.source === "kit") s.kit += r.qty; stack.set(r.item, s); }
       let guns: any[] = [];
       try { const g = await rpc("pvp_gun_ensure", { p_player: pid }); guns = g?.guns || []; } catch { /* 047 not applied yet */ }
-      return json(200, { ok: true, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).filter((e: any) => who.owner || stack.has(e.item)).map((e: any) => [e.slot, e.item])) /* [rare-equip] a given / sold weapon stops counting */, guns, flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
+      return json(200, { ok: true, parrots: birds?.parrots || [], parrotEquipped: birds?.equipped || null, items: [...stack.values()], maps: maps || [], equipped: Object.fromEntries((eq || []).filter((e: any) => who.owner || stack.has(e.item)).map((e: any) => [e.slot, e.item])) /* [rare-equip] a given / sold weapon stops counting */, guns, flags: Object.fromEntries((flags || []).map((f: any) => [f.k, f.on_])), owner: who.owner });
     }
     case "inv_sell": {
       const item = b.item, qty = qtyOf(b.qty), shop = b.shop === "fish" ? "fish" : b.shop === "antiques" ? "antiques" : null;
@@ -144,7 +146,10 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     case "mkt_browse": { const { data } = await db.from("pvp_mkt_listings").select("id, seller_id, item, qty, price, created_at").eq("status", "open").order("price", { ascending: true }).order("created_at", { ascending: true }).limit(100); // [v240] cheapest first (was newest first)
       const { data: names } = await db.from("pvp_players").select("id, name").in("id", [...new Set((data || []).map((l: any) => l.seller_id))]);
       const nm = new Map((names || []).map((n: any) => [n.id, n.name]));
-      return json(200, { ok: true, listings: (data || []).map((l: any) => ({ id: l.id, item: l.item, qty: l.qty, price: l.price, seller: nm.get(l.seller_id) || "PIRATE", mine: l.seller_id === pid })), limits: MARKET }); }
+      const ids = (data || []).filter((l: any) => l.item.startsWith("par:")).map((l: any) => l.item.slice(4));
+      const { data: birds } = ids.length ? await db.from("pvp_parrots").select("id,name,xp,color").in("id", ids) : { data: [] };
+      const birdMap = new Map((birds || []).map((p: any) => ["par:" + p.id, p]));
+      return json(200, { ok: true, listings: (data || []).map((l: any) => ({ id: l.id, parrot: birdMap.get(l.item) || null, item: l.item, qty: l.qty, price: l.price, seller: nm.get(l.seller_id) || "PIRATE", mine: l.seller_id === pid })), limits: MARKET }); }
     case "mkt_list": { const item = b.item, qty = qtyOf(b.qty), price = Math.floor(Number(b.price)); if (!okKey(item) || !qty || !Number.isFinite(price)) return json(400, { error: "bad listing" });
       return reply(await rpc("pvp_mkt_list", { p_player: pid, p_item: item, p_qty: qty, p_price: price })); }
     case "mkt_buy": { const id = Math.floor(Number(b.listing)); if (!(id > 0)) return json(400, { error: "bad listing" }); const d = await rpc("pvp_mkt_buy", { p_player: pid, p_listing: id });

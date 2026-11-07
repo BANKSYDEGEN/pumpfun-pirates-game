@@ -1,3 +1,4 @@
+import { addParrotCage } from './parrotCage.js';
 // [v333+] Walk-in Ship Captain's Quarters (ship_quarters): sculpted 14-kit naval cabin + storage + dock/sea return.
 // Modular: room + enter/leave live here; storage reuses houses.js with cottage_id = 'ship_quarters'.
 import * as THREE from 'three';
@@ -949,6 +950,7 @@ function disposeInterior(room) {
   if (!room) return;
   const ud = room.userData || {};
   ud.disposed = true;
+  ud.parrotCageDispose?.();
   if (ud.crewRoom) ud.crewRoom.userData.disposed = true; // outstanding shared gear bake must not revive a disposed room
   const mats = new Set();
   room.traverse((o) => {
@@ -976,7 +978,7 @@ function disposeInterior(room) {
 export function createShipHull({
   scene, world, walker, pirate, crewF, petF, fnet, camera = null, renderer = null, game = null,
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
-  houses = null, low = false, ocean = null, islands = null, openWardrobe = null, openCrewRoom = null, closeCrewRoom = null,
+  houses = null, low = false, ocean = null, islands = null, openWardrobe = null, openCrewRoom = null, closeCrewRoom = null, openParrotCage = null, closeParrotCage = null,
 }) {
   // [v339] desktop warms the quarters at Harbor boot; phones / low-memory devices load them lazily on ENTER HULL (buildCaptainsQuartersRoom)
   if (!QUARTERS_LOW_MEM) preloadQuartersGlb();
@@ -1079,6 +1081,7 @@ export function createShipHull({
     bench.name = 'crew_room_bench'; bench.position.set(-2.08, QFLOOR + .24, .4); interior.add(bench);
     interior.userData.colliders.push({ x: -2.08, z: .4, w: 2.8, d: .55 });
     dressHullCrew();
+    addParrotCage(interior, QFLOOR);
     installPocket();
     return { ox, oy, oz };
   }
@@ -1174,7 +1177,7 @@ export function createShipHull({
 
   function leave(onBack = null) {
     if (!inHull || busy) return false;
-    closeCrewRoom?.();
+    closeCrewRoom?.(); closeParrotCage?.();
     rest.end('leave'); // [bed-desk] stand up before the room goes away
     busy = true;
     const ctx = returnCtx;
@@ -1213,6 +1216,7 @@ export function createShipHull({
       const d = Math.hypot(lx - sp.x, lz - sp.z);
       if (d < (sp.r || 2.3) && d < bd) { bd = d; best = { tag, label: sp.label, primary: true, key: 'E' }; }
     }
+    if (best?.tag === 'parrot_cage') return { a: best, b: null };
     if (best?.tag?.startsWith('crew_')) return { a: best, b: null };
     if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: null };
     if (best?.tag === 'exit') return { a: { label: 'LEAVE HULL', key: 'E', primary: true, tag: 'leave' }, b: null };
@@ -1222,6 +1226,7 @@ export function createShipHull({
   }
 
   function act(tag) {
+    if (tag === 'parrot_cage' && inHull) { openParrotCage?.(); return true; }
     if (tag?.startsWith('crew_') && inHull) { openCrewRoom?.(Number(tag.slice(5))); return true; }
     if (tag === 'chest') { try { houses?.openFor?.(SHIP_QUARTERS_ID); } catch {} return true; }
     if (tag === 'leave') return 'leave';
@@ -1262,7 +1267,7 @@ export function createShipHull({
   }
 
   function clear() {
-    closeCrewRoom?.();
+    closeCrewRoom?.(); closeParrotCage?.();
     if (inHull) {
       rest.end('leave'); // [bed-desk]
       try { houses?.closeStorage?.(); } catch {}
