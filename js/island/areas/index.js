@@ -4,7 +4,6 @@
 //                NEAR_R, as the FAR impostor beyond it up to SHOW_R, hidden past SHOW_R and disposed past DROP_R (per-area culling + LOD)
 // Gold: nothing here pays gold while js/island/areas/flags.js AREA_GOLD_ON is false (PRICES_FOR_BANKSY.md, all pending).
 import lagoon from './lagoon.js';
-import cyanPath, { CYAN_ON } from '../cyanPath.js';
 import jungle from './jungle.js';
 import route from './route.js';
 import ropeBridge from './ropeBridge.js';
@@ -16,9 +15,9 @@ import cottages from './cottages.js';     // [post/cottages] BANKSY cottage neig
 import { libAreaBuilt } from '../libTex.js';   // [Timothy] shared material library: re-tags a built area's kit pieces (the hilltop fort, the Pirates' Climb) + the gate junction dressing
 export { FORT_WALKIN };
 export const RB_ON = !(typeof location !== 'undefined' && /[?&]roundabout=0(&|$)/.test(location.search)); // [path-fix2] &roundabout=0 = no roundabout / high bridge: the old gate + dip path exactly
-export const AREA_MODS = [...(CYAN_ON ? [cyanPath] : []), lagoon, jungle, ...route, ropeBridge, fort, invShops, bldNums, cottages, ...(RB_ON ? [hillRound] : [])];
+export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort, invShops, bldNums, cottages, ...(RB_ON ? [hillRound] : [])];
 // terrain edits (applied by foot.js to the height grid at load): pads = flat floors [x0, x1, z0, z1, y], paths = trails (painted + kept clear)
-export const AREA_TERRAIN = { pads: AREA_MODS.flatMap(a => a.terrain?.pads || []), paths: AREA_MODS.filter(a => a !== cyanPath).flatMap(a => a.terrain?.paths || []).concat(CYAN_ON ? cyanPath.terrain.paths : []), cuts: AREA_MODS.flatMap(a => a.terrain?.cuts || []) };
+export const AREA_TERRAIN = { pads: AREA_MODS.flatMap(a => a.terrain?.pads || []), paths: AREA_MODS.flatMap(a => a.terrain?.paths || []), cuts: AREA_MODS.flatMap(a => a.terrain?.cuts || []) };
 const dRect = (x, z, r) => Math.hypot(Math.max(r[0] - x, 0, x - r[1]), Math.max(r[2] - z, 0, z - r[3]));
 // AREA_LOG[area] = everything an area registered (colliders, decks, POIs, interact points): the Blender handoff reads it
 // (docs/island_rework/handoff/<area>.md + <area>.placements.json) so the rebuild keeps every walk height + collider in place

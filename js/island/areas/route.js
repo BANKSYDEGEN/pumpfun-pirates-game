@@ -1,4 +1,3 @@
-import { cyanDistance } from '../cyanPath.js';
 // [island-rework] THE PIRATES' CLIMB (BANKSY 2:46 PM "the path on, redesign it all make it better"). Plan: docs/island_rework/PLAN.md §1b
 // One designed route: plaza gap -> Main Street (R1) -> the town gate -> trail A -> the locked jungle trailhead (566 m along trail A).
 //   R0 join (v150 Blender plaza is live; Timothy's connector main_street lx 6, lz -56, y 2.6, 14 m wide lx -1..13): a 14 m threshold band +
@@ -50,7 +49,7 @@ function prep(h) {
     RT.bridge = { a0, a1, x: (p0.x + p1.x) / 2, z: (p0.z + p1.z) / 2, L, ux, uz, yaw: Math.atan2(ux, uz), prof };
     if (FORD_BRIDGE) h.addDeck({ id: 'route_ford_bridge', x: RT.bridge.x, z: RT.bridge.z, hw: 1.3, hl: L / 2, yaw: RT.bridge.yaw, y: prof[0], prof, ya: H(p0.x, p0.z), yb: H(p1.x, p1.z) }); }
   // stone steps on every pitch > 12 % (one stair deck per 3 m trail segment; tread tops = the highest ground under the tread + 4 cm)
-  for (let i = 1; i < RT.pts.length; i++) { const a = RT.pts[i - 1], b = RT.pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5 || cyanDistance((a[0]+b[0])/2,(a[1]+b[1])/2)<13) continue;
+  for (let i = 1; i < RT.pts.length; i++) { const a = RT.pts[i - 1], b = RT.pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
     const ya = H(a[0], a[1]), yb = H(b[0], b[1]), mid = (RT.acc[i - 1] + RT.acc[i]) / 2; let g = Math.abs(yb - ya) / L, gl = 0;
     for (let u = 0; u < L - 0.25; u += 0.5) { const t0 = u / L, t1 = Math.min(1, (u + 0.5) / L); gl = Math.max(gl, Math.abs(H(lerp(a[0], b[0], t1), lerp(a[1], b[1], t1)) - H(lerp(a[0], b[0], t0), lerp(a[1], b[1], t0))) / ((t1 - t0) * L)); }
     if (gl > 0.3) g = Math.max(g, ROUTE.stairG); // a short steep kink inside a gentle segment gets steps too
@@ -78,7 +77,7 @@ function prep(h) {
       h.addDeck({ id: 'route_stair_' + st.i, x: st.x, z: st.z, hw: ROUTE.hw, hl: st.L / 2 + 1.2, pad: 1.2, skirt: [byI.has(st.i - 1) ? 'join' : 'ground', byI.has(st.i + 1) ? 'join' : 'ground'], yaw: st.yaw, y: P[0], prof: P, ya: st.ya, yb: st.yb }); } }
   // lamps: every 30 m on the side opposite the trail's own torches (foot.js puts those at +3.2)
   for (let a = 15, k = 0; a < ROUTE.along - 4; a += ROUTE.lampEvery, k++) { const p = at(a), w = RT.walls.find(w => w.s < 0 && Math.abs(w.along - a) < w.L / 2 + 1.5), off = w ? 2.95 : ROUTE.lampOff; // on a retaining wall: stand on its cap
-    const [x, z] = side(p, -off); if(cyanDistance(x,z)<8) continue; const [ix, iz] = side(p, -1.4); RT.lamps.push({ k, x, z, y: w ? w.top + 0.12 : H(x, z), along: a, yaw: Math.atan2(p.ux, p.uz), onWall: !!w });
+    const [x, z] = side(p, -off), [ix, iz] = side(p, -1.4); RT.lamps.push({ k, x, z, y: w ? w.top + 0.12 : H(x, z), along: a, yaw: Math.atan2(p.ux, p.uz), onWall: !!w });
     h.addCirc(x, z, 0.3); h.INTERACT.push({ id: 'route_lamp_' + k, area: a < ROUTE.split ? 'route_low' : 'route_high', x: ix, z: iz, r: 1.8, label: 'E · LIGHT THE LAMP' }); }
   // landmarks (colliders + interact points)
   { const p = at(RT.lm.overlook); const [ox, oz] = RT.lm.ovDir, cx = p.x + ox * 5.0, cz = p.z + oz * 5.0, yaw = Math.atan2(ox, oz), y = H(p.x + ox * 2.3, p.z + oz * 2.3) + 0.08; // level with the ground at the trail edge (the trail itself can tilt)

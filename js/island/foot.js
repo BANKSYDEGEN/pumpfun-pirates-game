@@ -14,7 +14,6 @@ import { activeDigs } from './digSpots.js';
 import { AREA_TERRAIN, registerAreas, createAreas, FORT_WALKIN, RB_ON } from './areas/index.js'; // [island-rework] the six rework areas (lazy-built, per-area culling) // [island-rework] dig spots: one shared registry (baked coords; server lists generated from it)
 import * as PV from './plazaTown.js'; // [Timothy] ?plaza=2 harbor town blockout (off by default)
 import * as BT from './battery.js'; // [Timothy] headland battery: ramp, gun deck, playable guns
-import { CYAN_ON, cyanDistance, onBridge } from './cyanPath.js';
 import * as BA from './battleAreas.js'; // [Timothy] battle areas: MUSKET RANGE + SWORD PIT (pads, paths, art)
 import * as COLI from './coliseum.js'; // [Emerly] intact colosseum (&coliseum=0 = off)
 import { clearAt as cottageClearAt, indoorOrPadAt as cottagePadAt, COTTAGES_ON } from './areas/cottages.js'; // [post/cottages] no trees/grass in cottages / well
@@ -262,7 +261,7 @@ for (const p of AREA_TERRAIN.paths) {
   const ys = path.map(([x, z]) => H(x, z)), ds = [0];
   for (let i = 1; i < path.length; i++) ds.push(ds[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
   const L = ds[ds.length - 1] || 1, y0 = ys[0], y1 = ys[ys.length - 1];
-  const tgt = p.heightAt ? path.map(([x,z]) => p.heightAt(x,z,H)) : ds.map((s) => y0 + (y1 - y0) * (s / L));
+  const tgt = ds.map((s) => y0 + (y1 - y0) * (s / L));
   const accY = new Map(), accW = new Map();
   for (let i = 0; i < path.length - 1; i++) {
     const [ax, az] = path[i], [bx, bz] = path[i + 1], ay = tgt[i], by = tgt[i + 1];
@@ -291,8 +290,6 @@ for (const p of AREA_TERRAIN.paths) {
 const TRP_G = (() => { if (!DEAD_A.length) return TRg; const DG = new Float32Array(Hg.length).fill(99), OG = new Float32Array(Hg.length).fill(99), T = new Float32Array(TRg); for (const P of DEAD_A) stamp(P, 14, DG);
   for (const P of TRAIL_A_PAINT) stamp(P, 14, OG); stamp(TRAILS.B, 14, OG); for (const p of AREA_TERRAIN.paths) stamp(catmull(p.pts, false, 3), 12, OG);
   for (let q = 0; q < DG.length; q++) if (DG[q] < 14 && DG[q] <= TRg[q] + 1e-3) T[q] = OG[q]; return T; })();
-// Replace old surface paint inside the marked corridor (not a second parallel path).
-if (CYAN_ON) for(let j=0;j<=NZ;j++) for(let i=0;i<=NX;i++){const x=X0+i*G,z=Z0+j*G,d=cyanDistance(x,z);if(d<13 && !onBridge(x,z)){const q=IDX(i,j);TRP_G[q]=d;PVg[q]=d;}}
 // [v105] on-foot walk rules (navigability pass): uphill grade limit (rise / run), tree + rock colliders. ?slope=1.2 / ?trees=0 for tests
 const QS = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 export const SHALLOWS_ON = QS.get('shallows') === '1'; // [v348] t1829u: the old overlapping foot_shallows sea, opt-in only
@@ -866,7 +863,7 @@ function buildKerbs(MATS, OUT, low) {
     for (let i = 1; i < P.length; i++) { const [ax, az] = P[i - 1], [bx, bz] = P[i], dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 0.3) continue;
       const nx = dz / L, nz = -dx / L, mx = (ax + bx) / 2, mz = (az + bz) / 2;
       for (const sd of [-1, 1]) { const x0 = ax + nx * off * sd, z0 = az + nz * off * sd, x1 = bx + nx * off * sd, z1 = bz + nz * off * sd, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, Ls = Math.hypot(x1 - x0, z1 - z0);
-        if (cyanDistance(mx,mz)<13 || Ls < 0.4 || !ok(cx, cz, mx, mz)) continue; const y0 = H(x0, z0), y1 = H(x1, z1), yc = H(cx, cz); if (Math.abs(y1 - y0) > Ls * 1.0 || Math.abs(yc - (y0 + y1) / 2) > 0.5) { no('steep'); continue; }
+        if (Ls < 0.4 || !ok(cx, cz, mx, mz)) continue; const y0 = H(x0, z0), y1 = H(x1, z1), yc = H(cx, cz); if (Math.abs(y1 - y0) > Ls * 1.0 || Math.abs(yc - (y0 + y1) / 2) > 0.5) { no('steep'); continue; }
         if (RB_ON && cx > -295 && cx < -255 && cz > -80 && cz < -52 && PAVED_PATHS.some(Q => Q !== path && dSeg(Q, cx, cz) < off - 0.4)) { no('trail'); continue; }   // [v220] the high bridge's plateau landing path: trail A's kerb doesn't run across it (area paths aren't in TRP_G)
         if (RB_ON && ((cx > -295 && cx < -270 && cz > -80 && cz < -55) || (cx > -36 && cx < 18 && cz > -50 && cz < -28))) { const ymk = Math.max((y0 + y1) / 2, yc - 0.08) + 0.05;   // [v220] the high bridge's plateau landing + the north cutting: no stone that would hang off a lip / cutting wall
           if ([[x0, z0], [x1, z1]].some(([px, pz]) => [-0.21, 0.21].some(o => Math.abs(H(px + nx * o, pz + nz * o) - ymk) > 0.45))) { no('steep'); continue; } } R.laid = (R.laid || 0) + 1;
@@ -875,7 +872,7 @@ function buildKerbs(MATS, OUT, low) {
         W(k, box(0.42, 0.3, Ls - 0.08), (n++ & 1) ? STONE_D : 0x9e978a, 11, M(cx, ym + 0.05, cz, Math.atan2(x1 - x0, z1 - z0), -Math.atan2(y1 - y0, Ls)), false); } } }
   return Object.entries(tiles).map(([key, k]) => { const g = k.build(MATS, OUT); g.name = 'foot_kerbs_' + key; g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = !low; } }); return g; });
 }
-function torchPost(k, F, x, y, z) { if(cyanDistance(x,z)<5) return; if (KP) { kp(k, 'torch', M(x, y, z)); F.push({ x, y: y + 2.75, z }); return; } W(k, cyl(0.1, 0.14, 2.6, 6), WOOD_D, 2, M(x, y + 1.3, z)); W(k, cyl(0.3, 0.18, 0.4, 8), IRON, 0, M(x, y + 2.7, z), false); F.push({ x, y: y + 2.75, z }); }
+function torchPost(k, F, x, y, z) { if (KP) { kp(k, 'torch', M(x, y, z)); F.push({ x, y: y + 2.75, z }); return; } W(k, cyl(0.1, 0.14, 2.6, 6), WOOD_D, 2, M(x, y + 1.3, z)); W(k, cyl(0.3, 0.18, 0.4, 8), IRON, 0, M(x, y + 2.7, z), false); F.push({ x, y: y + 2.75, z }); }
 function cannon(k, m) { k.at(m, () => { W(k, box(1.2, 0.6, 1.8), WOOD_D, 2, M(0, 0.5, 0)); W(k, cyl(0.3, 0.42, 2.6, 10), IRON, 0, M(0, 1.05, 0.5, 0, Math.PI / 2 - 0.12));
   for (const s of [-1, 1]) for (const zz of [-0.6, 0.6]) W(k, cyl(0.3, 0.3, 0.15, 8), WOOD, 2, M(s * 0.65, 0.3, zz, 0, 0, Math.PI / 2), false); }); }
 function stall(k, x, y, z, yaw, c) { k.at(M(x, y, z, yaw), () => { W(k, box(3.2, 1.0, 1.4), WOOD, 2, M(0, 0.5, 0)); for (const sx of [-1.5, 1.5]) for (const sz of [-0.6, 0.6]) W(k, cyl(0.07, 0.07, 2.6, 5), WOOD_D, 2, M(sx, 1.3, sz), false);
