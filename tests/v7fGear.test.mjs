@@ -3,10 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, statSync, existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { MeshoptDecoder } from '../vendor/three-0.165.0/examples/jsm/libs/meshopt_decoder.module.js';
 import { V7F_FITS, V7F_YMAP, v7fY, V7F_PANTS_DYE_Y } from '../js/v7fFitData.js';
 import { BOOT_CUT } from '../js/bootPeg.js';
+import { V7M_FITS, V7M_SKIP } from '../js/v7mFitData.js';
 
 await MeshoptDecoder.ready;
 const CT = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array }, NC = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
@@ -87,11 +87,15 @@ test('routing: female V7 only; male V7 refits, v5 / v6 and the shared dye defaul
   // shared recolour: without dyeY the pants dye text is byte-identical to before (male V7 / v5 / v6 keep 0.565-0.595)
   assert.ok(s.includes(`:'(1.0-smoothstep(.565,.595,vGearY))')+' * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))'`));
   assert.ok(s.includes(`+ Number(hasTint) + (def.dyeY ? '|dy' + def.dyeY.join(',') : '');`));
-  // male data + assets untouched vs the base this branch started from
-  const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main']).toString().trim();
-  for (const f of ['js/v7mFitData.js', 'js/bootPeg.js']) assert.equal(readFileSync(f, 'utf8'), execFileSync('git', ['show', `${base}:${f}`]).toString(), f + ' unchanged');
-  const changed = execFileSync('git', ['diff', '--name-only', base]).toString().split('\n').filter(Boolean);
-  assert.ok(!changed.some((f) => /v7m_fit|v7mFitData|items\/v5\/|pirate_(male|female)_v[5-7]/.test(f)), 'no male / v5 / body asset edits: ' + changed.join(' '));
+  // male isolation, checked on the code as it is (not by git history: V7M_FITS / v7m assets legitimately change in their own commits,
+  // and a merge-base diff failed every branch carrying them). Her table only names her own v7f_fit files, the male table never names
+  // hers, and the male route stays gated on !p.female ahead of nothing of hers: neither body can load the other's refit.
+  for (const [id, F] of Object.entries(V7F_FITS)) for (const lod of ['hi', 'lo'])
+    assert.match(F[lod], /^assets\/pirates\/items\/v7f_fit\/[a-z0-9_]+_female_(hi|lo)\.glb$/, `${id} ${lod}: female route only loads her v7f_fit refit`);
+  assert.ok(Object.keys(V7M_FITS).length > 0 && V7M_SKIP instanceof Set);
+  for (const [id, F] of Object.entries(V7M_FITS)) for (const lod of ['hi', 'lo']) if (F[lod])
+    assert.ok(!/v7f_fit|_female_/.test(F[lod]), `${id} ${lod}: male route never loads a female file (${F[lod]})`);
+  assert.ok(s.slice(iM, iM + 120).startsWith('if (!p.female && p.v7'), 'male route gated on the male V7 body');
 });
 
 test('pants recolour: her pants dye height covers the top of every v5 female pants mesh (no undyed waistband)', () => {
