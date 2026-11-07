@@ -15,7 +15,8 @@ import { adminAction, ADMIN_ACTIONS } from "./admin.ts";
 import { isWorldId } from "./adminWorld.ts"; // [v346] owner world overrides: terrain_put keeps the stored ones (only admin_world_put writes them) // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { islandAction, ISLAND_ACTIONS } from "./island.ts"; // [v349 money-makers] migration 053: bounties, coliseum, crates, gathering, cottage rum
-import { friendAction, FRIEND_ACTIONS } from "./friends.ts"; // [v356 friends] migration 054: friend requests, list + presence, join
+import { friendAction, FRIEND_ACTIONS } from "./friends.ts";
+import { petAction, PET_ACTIONS, petLevel, PET_SELL_PER_LV } from "./pets.ts"; // [pets R1] migration 058 // [v356 friends] migration 054: friend requests, list + presence, join
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -96,7 +97,10 @@ async function boostsOf(who: { pid: string; owner: boolean; wallet: string | nul
     let gear: unknown = null;
     if (who.wallet) gear = toProfile(await getRow(who.wallet)).gear;
     else { const { data: r } = await db.from("pvp_dev_profiles").select("gear").eq("id", who.pid).maybeSingle(); gear = r?.gear ?? null; }
-    return gear ? boostsFor(gear, await ownedSet(who.pid), false) : boostsFor(null, new Set(), false);
+    if (!gear) return boostsFor(null, new Set(), false);
+    const own = await ownedSet(who.pid), out = boostsFor(gear, own, false), pet = (gear as any)?.parrot; // [pets R1] each pet level adds +1% sell (still under the cap)
+    if (typeof pet === "string" && own.has(`gear:parrot:${pet}`) && (out.sell || 0) > 0) { const lv = await petLevel(db, who.pid, pet); if (lv) out.sell = Math.min(0.4, Math.round(((out.sell || 0) + lv * PET_SELL_PER_LV) * 10000) / 10000); }
+    return out;
   } catch { return boostsFor(null, new Set(), false); }
 }
 // [prestige] this pirate's prestige level (migration 031; 0 while it isn't applied or on any read error: nothing locks up)
@@ -638,6 +642,7 @@ Deno.serve(async (req) => {
         if (LOOT_ACTIONS.includes(String(b.action) as any)) return await lootAction({ db, whoAmI, json }, String(b.action), b); // [backpack-pvp]
         if (ISLAND_ACTIONS.includes(String(b.action) as any)) return await islandAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [v349 money-makers]
         if (FRIEND_ACTIONS.includes(String(b.action) as any)) return await friendAction({ db, whoAmI, json }, String(b.action), b); // [v356 friends]
+        if (PET_ACTIONS.includes(String(b.action) as any)) return await petAction({ db, whoAmI, json }, String(b.action), b); // [pets R1]
         return json(400, { error: "unknown action" });
     }
   } catch (e) { console.error(e); return json(500, { error: "server error" }); }
