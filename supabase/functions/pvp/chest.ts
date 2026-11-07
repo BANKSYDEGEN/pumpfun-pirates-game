@@ -63,7 +63,7 @@ export function chestDrop(mapId: string, tier: string, owner = false, items = SH
 // ---------------- [inventory] ITEMS-ONLY CHESTS (BANKSY 11:12: "don't get gold from chests only items") ----------------
 // A dig now pays NO gold: the chest holds valuables (gold bars, rubies, diamonds, jewelry) + maybe a weapon (rare+ only from rare /
 // legendary chests, behind rare_weapon_drops) + the 035 cosmetic roll above (already owned -> a 'dup:' item to sell). Same seeded rolls.
-import { CHEST_VALUABLES, CHEST_EXTRA_VALUABLE, CHEST_WEAPON, WEAPON_BASES, VALUABLES, dupRarity } from "./invCatalog.ts";
+import { CHEST_VALUABLES, CHEST_EXTRA_VALUABLE, CHEST_WEAPON, WEAPON_BASES, VALUABLES, dupRarity, MUSKET_FIND_MODELS } from "./invCatalog.ts";
 const pickW = (table: Record<string, number>, roll: number) => { let r = roll; for (const [k, w] of Object.entries(table)) { if (r < w) return k; r -= w; } return Object.keys(table).at(-1)!; };
 export type ChestItem = { item: string; qty: number };
 export function chestItems(mapId: string, tier: string, holder = false, rareWeapons = false, lucky = false): ChestItem[] {
@@ -74,7 +74,8 @@ export function chestItems(mapId: string, tier: string, holder = false, rareWeap
   const w = CHEST_WEAPON[t];
   if (chestRoll("wpn:" + mapId) < w.chance + (lucky ? WISH.weaponChance : 0)) {
     let rar = pickW(lucky ? luckyTable(w.tiers, (k) => k) : w.tiers, chestRoll("wpnt:" + mapId)); if (!rareWeapons) rar = "common";
-    const slot = chestRoll("wpns:" + mapId) < 500 ? "sword" : "musket", bases = WEAPON_BASES[slot].filter((b: string) => b !== "rusty" || rar !== "common");
+    const slot = chestRoll("wpns:" + mapId) < 500 ? "sword" : "musket", bases = slot === "musket" ? MUSKET_FIND_MODELS : WEAPON_BASES[slot].filter((b: string) => b !== "rusty" || rar !== "common");
+    if (slot === "musket") rar = "common"; // [musket-levels] BANKSY t2084u: a found musket is always LV 1 of a find-only model (Brass Dragoon / Bone Musket); you level it up
     out.push({ item: `wpn:${slot}:${bases[chestRoll("wpnb:" + mapId) % bases.length]}:${rar}`, qty: 1 });
   }
   const m = new Map<string, number>(); for (const x of out) m.set(x.item, (m.get(x.item) || 0) + x.qty); // same item twice = one stack

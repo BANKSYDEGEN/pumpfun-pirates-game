@@ -150,8 +150,9 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:sword:cutlass": { price: 1500 }, "gear:sword:rapier": { price: 4000 }, "gear:sword:bone": { price: 12000 },
   "gear:sword:sabre_gilded": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
   "gear:sword:blade_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
-  "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 }, "gear:musket:dragoon": { price: 12000 },
-  "gear:musket:bone": { price: 25000, goal: [{ stat: "bossKills", need: 25 }] },
+  // [musket-levels] BANKSY t2084u: the MUSKET SHOP sells only NAVY + BLUNDERBUSS (LV 1); BRASS DRAGOON + BONE MUSKET are chest finds now
+  // (invCatalog MUSKET_FIND_MODELS). Owners keep theirs (pvp_owned untouched, GEAR_SLOTS still lets them equip).
+  "gear:musket:navy": { price: 2000 }, "gear:musket:blunder": { price: 5000 },
   "gear:musket:blunder_gold": { price: 75000, goal: [{ stat: "kills", need: 2000 }] },
   // [Emerly musket-upgrades] MUSKET UPGRADES (BANKSY 2:52 PM "just add it"): 3 tracks x 3 tiers, = js/musketUpgrades.js MUSK_TRACKS. pvp_owned rows, no migration.
   "gear:muskupg:reload1": { price: 1000 }, "gear:muskupg:reload2": { price: 3000 }, "gear:muskupg:reload3": { price: 8000 },

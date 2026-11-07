@@ -134,6 +134,7 @@ setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; cons
 
 // ---------- item model ----------
 const TAB_SLOT = { swords: 'sword', muskets: 'musket' };
+const MUSK_BANDS = '<span style="color:#c9c9c9">COMMON 1-5</span> · <span style="color:#4fa8ff">RARE 6-10</span> · <span style="color:#c070ff">EPIC 11-15</span> · <span style="color:#ffcd3c">LEGENDARY 16-20</span>'; // [musket-levels] = catalog.js RARITY_COLOR
 export const tabSlots = (V, tab) => tab === 'shoes' ? (V.shoeSlots || []) : tab === 'gear' || tab === 'wardrobe' ? V.slots : [];   // [v6-store-clothes] CHANGING ROOM = the same chips   // [V6 store] the SHOES & PANTS tab's chips
 export const tabForSlot = (V, slot) => V.shoeSlots?.includes(slot) && V.tabs.includes('shoes') ? 'shoes' : null; // [Timothy] WEAPON STORE tabs: one gear slot each
 const itemsFor = () => sortByPrice(view.tab === 'skins' ? SKIN_ITEMS.map(it => ({ kind: 'skin', key: it.id, it, name: it.name }))
@@ -149,6 +150,7 @@ function statusOf(x) {
   const eq = x.kind === 'skin' ? state.equipped.skin === x.key : eqGear(x.it.slot) === x.it.id;
   if (x.it.soon && !state.owner) return { k: 'soon', owned: false, g: null }; // [v102] not on sale yet: never sold, never equipped ([Timothy] the owner owns + equips everything)
   if (eq) return { k: 'equipped', owned, g }; if (owned) return { k: 'owned', owned, g };
+  if (x.it.findOnly) return { k: 'found', owned: false, g: null }; // [musket-levels] chest find: never sold
   if (x.it.crew && VENDORS.crew.dress) return { k: 'needbuy', owned: false, g: null };   // [v6-store-clothes] never sold twice: buy it once in the Clothes Shop
   if (g && !g.done) return { k: 'locked', g }; if (state.gold < x.it.price) return { k: 'poor', g }; return { k: 'buy', g };
 }
@@ -203,9 +205,10 @@ function render() {
     c.append(x.kind === 'skin' ? skinThumb(x.key) : gearThumb(x.it));
     // [Timothy] locked: each goal row as text + bar ('Harbor boss kills 37/100'); goal met: the card turns to BUY · price
     const met = s.g && s.g.done && (s.k === 'buy' || s.k === 'poor');
-    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON', needbuy: '🔒 BUY IN ' + VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name }[s.k];
+    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON', found: '🗺️ CHEST FIND', needbuy: '🔒 BUY IN ' + VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name }[s.k];
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
+    if (x.it.levels) c.insertAdjacentHTML('beforeend', '<i class="ishop-rar r-common" title="Sold / found at level 1 · rarity rises every 5 levels">LV 1 · COMMON</i>'); // [musket-levels]
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? (x.it.grant === 'prestige' ? 'UNLOCKED · FREE' : 'FREE') : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
     if (x.kind === 'gear') { const b = boostOf(x.it.slot, x.it.id); if (b && boostChips(b).length) c.insertAdjacentHTML('beforeend', `<span class="ishop-bst">${boostChipHtml(b, esc)}</span>`); } // [Emerly] '+4% RELOAD'
     c.onclick = () => { view.sel = x.key; if (x.kind === 'skin') provider?.prewarm?.('skin', x.key); render(); }; // [skin-swap-perf] selected = built + compiled before EQUIP
@@ -255,7 +258,7 @@ function detail(x) {
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
   const btn = { equipped: '<button type="button" class="ishop-act ghost" disabled>EQUIPPED ✓</button>', owned: '<button type="button" class="ishop-act big" data-a="equip">EQUIP</button>',
     locked: `<button type="button" class="ishop-act" disabled>${x.it.grant === 'prestige' ? 'PRESTIGE TO UNLOCK · FREE' : 'REACH THE GOAL FIRST'}</button>`, poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
-    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>', needbuy: `<button type="button" class="ishop-act" data-a="goto">🔒 BUY IN ${VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name}</button>` }[s.k];
+    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>', found: '<button type="button" class="ishop-act" disabled>FOUND IN TREASURE CHESTS ONLY</button>', needbuy: `<button type="button" class="ishop-act" data-a="goto">🔒 BUY IN ${VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name}</button>` }[s.k];
   d.insertAdjacentHTML('beforeend', `<div class="ishop-info"><h4>${esc(x.name)}</h4>
     <div class="ishop-pr">${x.it.price ? fmtGold(x.it.price) : 'FREE'}${s.owned ? ' · <b>OWNED</b>' : ''}${s.k === 'soon' ? ' · <b>COMING SOON</b>' : ''}</div>
     ${s.k === 'soon' ? '<div class="ishop-gl">Goes on sale when it shows on your pirate.</div>' : ''}
@@ -270,6 +273,7 @@ function detail(x) {
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
     ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b>. Pit KOs pay nothing and never count towards goals.</div>'
     : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b>. Range KOs pay nothing and never count towards goals.</div>');
+  if (x.kind === 'gear' && x.it.levels) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-common">LV 1 · COMMON</i>${x.it.findOnly ? 'Not sold here: <b>found in treasure chests</b>, always at LV 1.' : 'Sold at <b>LV 1</b>.'} Level it up from your <b>INVENTORY</b> (gold, + musket parts at each new rarity). Rarity rises every 5 levels: ${MUSK_BANDS}.</div>`); // [musket-levels]
   if (x.kind === 'gear') boostDetail(x, s, d); // [Emerly] ITEM SKILL BOOSTS
   if (x.it.crew) { // [Timothy] CREW SHOP
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${VENDORS.crew.dress ? ' Free in the CREW ROOM for any gear you own.' : x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }

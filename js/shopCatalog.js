@@ -9,6 +9,7 @@
 // keys, plus 'kd' (kills / max(1, deaths)). proposed: true = a goal Timothy proposes; BANKSY has not picked it yet.
 
 import { NEW_SHIP_TABLE } from './newShipsTable.js'; // [Emerly] the five new hulls (P3..P7)
+import { MUSKET_SHOP_MODELS, MUSKET_FIND_MODELS } from './inventory/catalog.js'; // [musket-levels] which muskets the MUSKET SHOP sells (LV 1) / chests drop
 export const SHOP_VERSION = 4; // [v105] gear on sale, parrot ladder // [v103] BANKSY: skin prices raised ("they will have to work for them")
 
 // ---------- ship skins (ids = the live BR skin ids; looks unchanged) ----------
@@ -169,7 +170,11 @@ export const WEAPON_PRICES = [
   ['musket', 'rusty', 'RUSTY FLINTLOCK', 0], ['musket', 'navy', 'NAVY MUSKET', 2000], ['musket', 'blunder', 'BLUNDERBUSS', 5000], ['musket', 'dragoon', 'BRASS DRAGOON', 12000],
   ['musket', 'bone', 'BONE MUSKET', 25000, BOSS25], ['musket', 'blunder_gold', 'GOLDEN BLUNDERBUSS', 75000, PVP2K],
 ];
-const weaponItem = ([slot, id, label, price, goal]) => ({ slot, id, label, price, glb: null, tint: null, weapon: true, ...(price ? {} : { free: true }), ...(goal ? { goal } : {}) });
+// [musket-levels] BANKSY t2084u: levels: the 4 levelled muskets; findOnly: Brass Dragoon + Bone Musket are never sold (treasure chests, LV 1),
+// an owner still sees + equips theirs. lib.ts SHOP_ITEMS no longer lists them, so the server refuses a buy too.
+const weaponItem = ([slot, id, label, price, goal]) => { const fo = slot === 'musket' && MUSKET_FIND_MODELS.includes(id);
+  return { slot, id, label, price, glb: null, tint: null, weapon: true, ...(price ? {} : { free: true }), ...(goal && !fo ? { goal } : {}),
+    ...(slot === 'musket' && (fo || MUSKET_SHOP_MODELS.includes(id)) ? { levels: true } : {}), ...(fo ? { findOnly: true } : {}) }; };
 export const SWORD_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'sword').map(weaponItem);
 export const MUSKET_ITEMS = WEAPON_PRICES.filter(r => r[0] === 'musket').map(weaponItem);
 export const WEAPON_ITEMS = [...SWORD_ITEMS, ...MUSKET_ITEMS];

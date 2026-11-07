@@ -2,14 +2,14 @@
 // asking (index.ts whoAmI), rolls server-side things (fish, chest items) and shapes replies. Client values are never trusted for
 // prices, qty ownership, multipliers or recipients.
 import { sellItem, OWNER_MAIN } from "./lib.ts";
-import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET, CHEST_VALUABLES, RUIN_CHESTS, IDOL_SHARDS } from "./invCatalog.ts";
+import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET, CHEST_VALUABLES, RUIN_CHESTS, IDOL_SHARDS, muskLevelOf, muskTierOf } from "./invCatalog.ts";
 import { chestRoll } from "./chest.ts";
 import { acctBump } from "./accounts.ts";
 import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's online list
 import { squadAction, SQUAD_ACTIONS } from "./squad.ts"; // [squad-hall]
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
-export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_ruin_chest", "inv_idol_forge", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
+export const INV_ACTIONS = ["inv_musk_level", "inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_ruin_chest", "inv_idol_forge", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
 // every item the owner test kit holds (~3 of each): fish, valuables, weapons at every rarity (maps are added by SQL)
@@ -114,8 +114,12 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     case "inv_idol_forge": return json(200, (await rpc("pvp_inv_idol_forge", { p_player: pid, p_need: IDOL_SHARDS })) ?? { ok: false, why: "refused" });   // [ruins] 21 shards -> Golden Idol
     case "inv_musk_rank": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic)$/.exec(item); if (!m) return json(400, { error: "bad item" });
       const c = RANK_UP[m[1]]; return reply(await rpc("pvp_inv_musk_rank", { p_player: pid, p_item: item, p_gold: c.gold, p_parts: c.parts, p_owner: who.owner })); }
-    case "inv_musk_salvage": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic|legendary)$/.exec(item); if (!m) return json(400, { error: "bad item" });
-      return reply(await rpc("pvp_inv_musk_salvage", { p_player: pid, p_item: item, p_parts: SALVAGE_PARTS[m[1]] })); }
+    case "inv_musk_level": { // [musket-levels] 061: one copy -> the next level; SQL owns the price (pvp_musk_lv_cost = catalog muskLevelCost)
+      const item = String(b.item ?? ""), lv = muskLevelOf(item); if (!lv) return json(400, { error: "bad item" }); if (lv >= 20) return json(409, { error: "max level" });
+      const gid = typeof b.gid === "string" && /^[0-9a-f-]{36}$/i.test(b.gid) ? b.gid : null;
+      return reply(await rpc("pvp_inv_musk_level", { p_player: pid, p_item: item, p_gid: gid, p_owner: who.owner })); }
+    case "inv_musk_salvage": { const item = String(b.item ?? ""), lv = muskLevelOf(item); if (!lv) return json(400, { error: "bad item" }); // [musket-levels] any level; parts by its rarity
+      return reply(await rpc("pvp_inv_musk_salvage", { p_player: pid, p_item: item, p_parts: SALVAGE_PARTS[muskTierOf(lv)] })); }
     case "inv_buy_acc": { const item = String(b.item ?? ""); if (!ACC_PRICE[item]) return json(400, { error: "not for sale" });
       return reply(await rpc("pvp_inv_buy_acc", { p_player: pid, p_item: item, p_price: ACC_PRICE[item], p_owner: who.owner })); }
     case "inv_equip": { // a weapon from the grid: the server checks you hold it, then records the rarity (gear slot = its base)

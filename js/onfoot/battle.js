@@ -42,7 +42,7 @@ import { padActive, padGlyph } from '../gamepad.js'; // [Emerly gamepad] HUD hin
 import { applyMuskUpg, muskLook, swordLook, applyGunAcc, gunAccOn, gunAcc } from '../musketUpgrades.js';
 import { localWeaponLook, decodeWeaponLook, setObjLook, COMMON_LOOK, wsyncOn } from './weaponLook.js'; // [weapon-sync] rarity + attachments: yours + every peer's ('wl')
 import { decorateSword, decorateMusket, swordTint, musketTint } from './weaponDecor.js'; // [Emerly gunacc] accessories on the held musket // [Emerly musket-upgrades] + [musket-rank] look
-import { weaponStats } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
+import { weaponStats, RARITY_COLOR, muskTierOf } from '../inventory/catalog.js'; // [inventory v209] rarity stats on the equipped sword / musket (common = the ARENA numbers exactly) // [Timothy tps] Fortnite-style over-the-shoulder musket aim (&tps=0 = off)
 import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, insideSafeZoneH, isInsideColiseumH } from '../island/safeZones.js'; // [backpack-pvp]
 import { zipGrip } from '../dock/zipline.js'; // [zipline-shoot] one-hand trolley grip while GUN is drawn mid-ride
 
@@ -58,7 +58,8 @@ export const ARENA = {
 const Z_PIT = 1, Z_RANGE = 2; // (also the held stance codes: 1 sword drawn, 2 gun drawn)
 // [inventory v209] MY weapon's numbers: ARENA + the equipped rarity (window.PFP_WEAPON_RARITY from the inventory; DB flag weapon_stats via inv_state, else catalog FLAGS). Peers' replays stay on ARENA.
 const myW = (slot) => { const o = myW0(slot); return slot === 'musket' ? (gunAccOn() ? applyGunAcc : (x) => x)(applyMuskUpg(o, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.musket) || 'common')) : o; }; // + [gunacc] // [Emerly musket-upgrades] tiers on top, capped by the musket's rank
-const myW0 = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined); };
+const myW0 = (slot) => { const f = typeof window !== 'undefined' && window.PFP_INV_FLAGS; return weaponStats(slot, (typeof window !== 'undefined' && window.PFP_WEAPON_RARITY?.[slot]) || 'common', ARENA[slot], f && 'weapon_stats' in f ? !!f.weapon_stats : undefined, slot === 'musket' ? myLv() : 0); }; // [musket-levels] + the equipped musket's level
+const myLv = () => (typeof window !== 'undefined' && window.PFP_WEAPON_LEVEL?.musket) | 0;
 const CSS = `
 #bt-hud{position:fixed;left:50%;top:calc(var(--safe-t,0px) + 54px);transform:translateX(-50%);z-index:8;pointer-events:none;display:none;text-align:center;font:22px 'Just Another Hand',cursive;color:#ffcd77;letter-spacing:.05em}
 #bt-hud b{display:inline-block;background:rgba(22,22,22,.8);border:2px solid #ffcd77;border-radius:999px;padding:2px 16px 0}
@@ -87,6 +88,8 @@ html.dk-touch.bt-on #bt-atk{display:block}
 #bt-stance.safe-locked .bt-tab{display:none}
 #bt-stance .bt-safe{display:none;position:absolute;left:-4px;bottom:-4px;font-size:12px;line-height:1;filter:drop-shadow(0 1px 0 #000)}
 #bt-stance.safe-locked .bt-safe{display:block}
+#bt-stance .bt-lv{display:none;pointer-events:none;position:absolute;right:-6px;bottom:-5px;font:bold 9px/1.25 system-ui,sans-serif;color:#161616;border-radius:5px;padding:0 3px;border:1px solid #000;box-shadow:0 1px 0 #000}
+#bt-stance.lv .bt-lv{display:block}
 html.dk-touch #bt-stance .bt-tab{display:none}
 @media (orientation: portrait){#bt-stance{right:calc(10px + var(--safe-r, 0px));bottom:calc(316px + var(--safe-b, 0px));width:46px;height:46px;font-size:22px}#bt-stance .bt-ico{font-size:22px}}
 @media (orientation: landscape) and (max-height: 520px), (orientation: landscape) and (max-width: 760px){#bt-stance{right:calc(10px + var(--safe-r, 0px));bottom:auto;top:calc(44% - 54px);width:44px;height:44px;font-size:20px}#bt-stance .bt-ico{font-size:20px}}
@@ -385,7 +388,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
   const el = (tag, id, html = '') => { const e = document.createElement(tag); e.id = id; e.innerHTML = html; document.body.appendChild(e); return e; };
   const hud = el('div', 'bt-hud', '<b></b><button type="button" class="tm"></button><span class="sc"></span><small></small>'), atk = el('button', 'bt-atk', 'SWING'), flash = el('div', 'bt-flash'), msg = el('div', 'bt-msg');
-  const stanceBar = el('button', 'bt-stance', '<span class="bt-ico">🤚</span><span class="bt-tab"></span><span class="bt-safe">🛡️</span>');
+  const stanceBar = el('button', 'bt-stance', '<span class="bt-ico">🤚</span><span class="bt-tab"></span><span class="bt-safe">🛡️</span><span class="bt-lv"></span>');
   const weaponKeyLabel = () => keyName(binds('weapon')[0] || 'KeyQ'); // [v340] the real weapon key (Q by default), never a stale "TAB"
   stanceBar.type = 'button'; stanceBar.title = `${weaponKeyLabel()} · cycle Unarmed → Musket → Sword`;
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) stanceBar.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
@@ -394,11 +397,13 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
   function drawStance(show) {
     const safeLock = !!(isleSafe._isleSafe && !me.arena);
     const pd = padActive();
-    const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}|${safeLock ? 1 : 0}|${pd ? padGlyph('X') : weaponKeyLabel()}` : '';
+    const lv = me.stance === Z_RANGE ? myLv() : 0; // [musket-levels] the drawn musket's level, in its rarity colour
+    const sig = show ? `${me.stance}|${me.arena}|${me.down > 0}|${safeLock ? 1 : 0}|${pd ? padGlyph('X') : weaponKeyLabel()}|${lv}` : '';
     if (sig === stanceSig) return; stanceSig = sig;
     stanceBar.classList.toggle('on', !!show); if (!show) return;
     stanceBar.classList.toggle('safe-locked', safeLock);
     stanceBar.querySelector('.bt-ico').textContent = STANCE_ICON[me.stance] || '🤚';
+    { const b = stanceBar.querySelector('.bt-lv'); stanceBar.classList.toggle('lv', lv > 0); if (b && lv > 0) { const t = muskTierOf(lv); b.textContent = 'LV ' + lv; b.style.background = RARITY_COLOR[t] || '#c9c9c9'; b.title = `${t} musket · level ${lv}`; } }
     const tab = stanceBar.querySelector('.bt-tab');
     if (tab) tab.textContent = pd ? padGlyph('X') : weaponKeyLabel(); stanceBar.title = `${pd ? padGlyph('X') : weaponKeyLabel()} · cycle Unarmed → Musket → Sword`; // [v340] keybind label // [t1734u] □ / X while a pad is in use
     stanceBar.disabled = me.down > 0;
@@ -416,7 +421,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (s === me.stance) return true;
     me.stance = s; if (s) { me.drawn = s; readSword(); sfx?.equip?.(); }
     stanceSig = ''; hudSig = '';
-    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · ${keyName(binds('weapon')[0] || 'KeyQ')} = switch · X = holster</small>` : `🤚 UNARMED<small>weapons holstered · ${keyName(binds('weapon')[0] || 'KeyQ')} = Musket</small>`, 1100);
+    if (!auto) say(s ? `${STANCE_LABEL[s]} DRAWN${s === Z_RANGE && myLv() ? ` <b style="color:${RARITY_COLOR[muskTierOf(myLv())]}">· LV ${myLv()} ${muskTierOf(myLv()).toUpperCase()}</b>` : ''}<small>${touch ? (s === 1 ? 'tap SWING' : 'tap FIRE') : (s === 1 ? 'R / CLICK = SWING' : 'R / CLICK = FIRE')} · ${keyName(binds('weapon')[0] || 'KeyQ')} = switch · X = holster</small>` : `🤚 UNARMED<small>weapons holstered · ${keyName(binds('weapon')[0] || 'KeyQ')} = Musket</small>`, 1100);
     return true;
   }
   function cycleStance() { return setStance(nextStance(me.stance)); }

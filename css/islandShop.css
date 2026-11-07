@@ -228,3 +228,4 @@
 }
 /* [v6-store-clothes] CHANGING ROOM: owned items only, no prices / buying */
 .ishop.wardrobe .ishop-pr, .ishop.wardrobe .ishop-bst { display: none; }
+.ishop-card.found .ishop-badge { color: #9fd3ff; } /* [musket-levels] a chest-find musket (never sold) */

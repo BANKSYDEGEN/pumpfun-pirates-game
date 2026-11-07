@@ -27,7 +27,7 @@ Deno.test("chest items: valid keys, deterministic, no rare weapons while the fla
 Deno.test("dup items + fish + owner kit keys are valid", () => {
   const d = chestDrop("00000000-0000-4000-8000-000000000007", "legendary"); if (d) assert(KEY_RE.test(dupItem(d)!));
   for (let i = 0; i < 500; i++) assert(KEY_RE.test(rollFish("s" + i)));
-  const k = ownerKitItems(); assert(k.length === 8 + 10 + 32); for (const x of k) assert(KEY_RE.test(x), x);
+  const k = ownerKitItems(); assert(k.length === 8 + 11 + 36, String(k.length)); // 8 fish + 11 valuables (golden idol) + (4 sword + 5 musket bases [musket-levels bone]) x 4 rarities for (const x of k) assert(KEY_RE.test(x), x);
 });
 // [fish2] lengths + reel tickets
 import { rollCm, signFishTicket, readFishTicket, FISH_TICKET_TTL_MS } from "./inventory.ts";

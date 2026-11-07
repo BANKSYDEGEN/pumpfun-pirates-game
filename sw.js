@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v423'; // [v423] Post: hull portrait replaces the left (aft) starboard porthole (BANKSY)
+const VERSION = 'pfp-v424'; // [v424] musket levels: LV 1-20, rarity every 5 levels, shop sells Navy + Blunderbuss, chests drop Dragoon + Bone (server: migration 061 + pvp deploy)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

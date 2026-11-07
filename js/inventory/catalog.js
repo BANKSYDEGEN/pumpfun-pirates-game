@@ -1,6 +1,6 @@
 // [inventory] THE ITEM CATALOG: one source for the client (grid icons / names), the Edge Function (supabase/functions/pvp/invCatalog.ts is
 // GENERATED from this file by tools/gen_inv_catalog.mjs) and the SQL price table (migration 036 seeds pvp_inv_prices; tests check it matches).
-// Item keys: fish:<id> · val:<id> (valuables + island finds) · wpn:<sword|musket>:<base>:<rarity> · dup:<slot>:<id> (a chest cosmetic you
+// Item keys: fish:<id> · val:<id> (valuables + island finds) · wpn:<sword|musket>:<base>:<rarity>[:<musket level>] · dup:<slot>:<id> (a chest cosmetic you
 // already own) · map:<uuid> (a treasure map: one row in pvp_maps, never stacks). Everything sell-related sits behind flags that are OFF.
 export const FLAGS = {
   INV_ON: true,              // the HUD INVENTORY grid (was the MAPS button)
@@ -53,8 +53,39 @@ export const RARITY_ANTIQUES = { common: 500, uncommon: 1000, rare: 2000, epic: 
 // a duplicate chest cosmetic -> its rarity from its shop price
 export const dupRarity = (price) => price <= 1500 ? 'common' : price <= 5000 ? 'uncommon' : price <= 12000 ? 'rare' : price <= 25000 ? 'epic' : 'legendary';
 // WEAPONS: rarity tiers on top of the shop bases. MODEST stats (PvP stays fair). rare+ NEVER sold in a store: chests only.
-export const WEAPON_BASES = { sword: ['rusty', 'cutlass', 'rapier', 'bone'], musket: ['rusty', 'navy', 'blunder', 'dragoon'] }; // goal-locked bases (gilded / gold / bone musket) are never rolled
+export const WEAPON_BASES = { sword: ['rusty', 'cutlass', 'rapier', 'bone'], musket: ['rusty', 'navy', 'blunder', 'dragoon', 'bone'] }; // goal-locked bases (gilded / gold sword, golden blunderbuss) are never rolled. [musket-levels] + bone musket (found only)
+const WEAPON_BASES_036 = { sword: ['rusty', 'cutlass', 'rapier', 'bone'], musket: ['rusty', 'navy', 'blunder', 'dragoon'] }; // exactly what migration 036 seeded (priceRows)
 export const WEAPON_TIERS = ['common', 'rare', 'epic', 'legendary'];
+// [musket-levels] BANKSY t2084u "Give muskets levels too ... can only buy level 1 of 2 models and can only find level 1 of the 2 other
+// models then they can upgrade them" + "Rarity goes up every 5 levels". FOUR levelled musket models: the MUSKET SHOP sells NAVY + BLUNDERBUSS
+// at LV 1; BRASS DRAGOON + BONE MUSKET only come out of treasure chests, at LV 1. Every musket copy carries its own level IN ITS ITEM KEY,
+// so it travels with the copy through gifts, the Marketplace, cottage chests and loot bags with no extra state:
+//   LV 1 = wpn:musket:<base>:common (the old key: every musket anyone already owns is unchanged), LV 6 = ...:rare, LV 11 = ...:epic,
+//   LV 16 = ...:legendary (an old rare / epic / legendary musket = LV 6 / 11 / 16), any other level = wpn:musket:<base>:<rarity>:<lv>.
+// Rarity = the level band (5 levels each): COMMON 1-5 · RARE 6-10 · EPIC 11-15 · LEGENDARY 16-20 (max). Migration 061 levels up on the server.
+export const MUSKET_SHOP_MODELS = ['navy', 'blunder'];  // bought at LV 1 in the MUSKET SHOP
+export const MUSKET_FIND_MODELS = ['dragoon', 'bone'];  // found at LV 1 in treasure chests only (no longer sold)
+export const MUSKET_MAX_LV = 20, MUSKET_TIER_LVS = 5;
+export const muskTierOf = (lv) => WEAPON_TIERS[Math.max(0, Math.min(WEAPON_TIERS.length - 1, Math.floor(((lv | 0) - 1) / MUSKET_TIER_LVS)))];
+export const muskTierStart = (rarity) => Math.max(0, WEAPON_TIERS.indexOf(rarity)) * MUSKET_TIER_LVS + 1;
+export const muskKeyAt = (base, lv) => { const n = Math.max(1, Math.min(MUSKET_MAX_LV, lv | 0)), t = muskTierOf(n); return n === muskTierStart(t) ? `wpn:musket:${base}:${t}` : `wpn:musket:${base}:${t}:${n}`; };
+// the level of a musket key (null = not a musket key / a level that doesn't match its rarity band)
+export function muskLevelOf(key) {
+  const m = /^wpn:musket:([a-z_]{2,16}):(common|rare|epic|legendary)(?::(\d{1,2}))?$/.exec(String(key)); if (!m) return null;
+  const lv = m[3] ? +m[3] : muskTierStart(m[2]); return lv >= 1 && lv <= MUSKET_MAX_LV && muskKeyAt(m[1], lv) === key ? lv : null;
+}
+// gold (+ MUSKET PARTS at a rarity step) to go from LV lv to lv + 1. Normal levels: 200 g x the level, no parts. Crossing into the next
+// rarity (5 -> 6, 10 -> 11, 15 -> 16) costs what the old RANK UP cost (1,500 g + 3 / 4,000 g + 6 / 10,000 g + 12 parts). = migration 061 pvp_musk_lv_cost.
+export const MUSK_LV_STEP = { 5: { gold: 1500, parts: 3 }, 10: { gold: 4000, parts: 6 }, 15: { gold: 10000, parts: 12 } };
+export const muskLevelCost = (lv) => (lv | 0) < 1 || (lv | 0) >= MUSKET_MAX_LV ? null : MUSK_LV_STEP[lv | 0] ? { ...MUSK_LV_STEP[lv | 0] } : { gold: 200 * (lv | 0), parts: 0 };
+// MODEST level stats (PvP stays fair): the rarity's WEAPON_STATS bump at LV 1 / 6 / 11 / 16 (damage only moves there: 19 / 20 / 20 / 21),
+// plus every level above LV 1: reload -0.3%, range +0.3%, accuracy +0.3% (so LV 20 = reload -13%, range +13%, accuracy +14% vs LV 1).
+// Every level is strictly better than the one before it (tests/musketLevels.test.mjs).
+export const MUSK_LV_STEP_MUL = 0.003;
+export function musketLevelMul(lv) {
+  const n = Math.max(1, Math.min(MUSKET_MAX_LV, lv | 0)), t = muskTierOf(n), m = WEAPON_STATS[t], k = n - 1;
+  return { rarity: t, dmg: m.dmg, reload: +(m.reload * (1 - MUSK_LV_STEP_MUL * k)).toFixed(4), range: +(m.range * (1 + MUSK_LV_STEP_MUL * k)).toFixed(4), acc: +(m.acc * (1 + MUSK_LV_STEP_MUL * k)).toFixed(4) };
+}
 export const WEAPON_STATS = { // multipliers on the arena base (js/onfoot/battle.js ARENA): dmg, reload (lower = faster), range, accuracy (spread), swing (cooldown, lower = faster)
   common:    { dmg: 1.00, reload: 1.00, range: 1.00, acc: 1.00, swing: 1.00 },
   rare:      { dmg: 1.04, reload: 0.97, range: 1.03, acc: 1.02, swing: 0.97 },
@@ -62,8 +93,8 @@ export const WEAPON_STATS = { // multipliers on the arena base (js/onfoot/battle
   legendary: { dmg: 1.10, reload: 0.92, range: 1.07, acc: 1.06, swing: 0.92 },
 };
 // the arena numbers with a rarity applied (the hook for battle.js; flag off = base numbers)
-export function weaponStats(slot, rarity, base, on = FLAGS.WEAPON_STATS_ON) {
-  const m = (on && WEAPON_STATS[rarity]) || WEAPON_STATS.common, o = { ...base };
+export function weaponStats(slot, rarity, base, on = FLAGS.WEAPON_STATS_ON, level = 0) { // [musket-levels] level = the musket's LV (0 = the rarity's first level)
+  const m = (on && slot === 'musket' && level > 0 && muskTierOf(level) === rarity) ? { ...WEAPON_STATS[rarity], ...musketLevelMul(level) } : (on && WEAPON_STATS[rarity]) || WEAPON_STATS.common, o = { ...base };
   if (slot === 'sword') { if ('dmg' in o) o.dmg = Math.round(o.dmg * m.dmg); if ('cool' in o) o.cool = +(o.cool * m.swing).toFixed(3); if ('reach' in o) o.reach = +(o.reach * m.range).toFixed(3); }
   else { if ('dmg' in o) o.dmg = Math.round(o.dmg * m.dmg); if ('reload' in o) o.reload = +(o.reload * m.reload).toFixed(3); if ('range' in o) o.range = +(o.range * m.range).toFixed(2); if ('wide' in o) o.wide = +(o.wide / m.acc).toFixed(3); }
   return o;
@@ -96,20 +127,27 @@ export function itemInfo(key) {
   if (p[0] === 'fish' && FISH[p[1]]) return { kind: 'fish', ...FISH[p[1]], antiques: 0 };
   if (p[0] === 'val' && GUN_ITEMS[p[1]]) return { ...GUN_ITEMS[p[1]], antiques: 0, fish: 0 }; // [Emerly musket-rank / gunacc] not sold to NPCs
   if (p[0] === 'val' && VALUABLES[p[1]]) return { kind: 'valuable', ...VALUABLES[p[1]], fish: 0 };
-  if (p[0] === 'wpn' && WEAPON_BASES[p[1]]?.includes(p[2]) && WEAPON_TIERS.includes(p[3])) return { kind: 'weapon', slot: p[1], base: p[2], rarity: p[3], name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} ${p[1]}`, icon: p[1] === 'sword' ? '🗡️' : '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 };
+  if (p[0] === 'wpn' && p[1] === 'musket' && WEAPON_BASES.musket.includes(p[2])) { const lv = muskLevelOf(key); if (!lv) return null; // [musket-levels] every musket has a level
+    return { kind: 'weapon', slot: 'musket', base: p[2], rarity: p[3], level: lv, name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} musket · Lv ${lv}`, icon: '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 }; }
+  if (p[0] === 'wpn' && p.length === 4 && WEAPON_BASES[p[1]]?.includes(p[2]) && WEAPON_TIERS.includes(p[3])) return { kind: 'weapon', slot: p[1], base: p[2], rarity: p[3], name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} ${p[1]}`, icon: p[1] === 'sword' ? '🗡️' : '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 };
   if (p[0] === 'dup' && p.length === 4) { const r = RARITIES.includes(p[3]) ? p[3] : 'common'; return { kind: 'dup', slot: p[1], id: p[2], rarity: r, name: `Spare ${p[2].replace(/_/g, ' ')}`, icon: '🎩', antiques: RARITY_ANTIQUES[r], fish: 0 }; }
   if (p[0] === 'isl') { const f = globalThis.PFP_ISL_INFO; return typeof f === 'function' ? f(key) : null; } // [055] island goods live in pvp_inv now; js/inventory/islandGoods.js fills this on the client
   if (p[0] === 'par' && /^par:[0-9a-f-]{36}$/.test(key)) return { kind: 'parrot', name: 'Parrot', icon: '🦜', rarity: 'common', antiques: 0, fish: 0 };
   if (p[0] === 'map') return { kind: 'map', name: 'Treasure Map', icon: '🗺️', rarity: 'common', antiques: MAP_ANTIQUES, fish: 0 };
   return null;
 }
-export const KEY_RE = /^(fish:[a-z_]{2,16}|val:[a-z_]{2,20}|wpn:(sword|musket):[a-z_]{2,16}:(common|rare|epic|legendary)|dup:[a-z]{2,10}:[a-z0-9_]{2,24}:(common|uncommon|rare|epic|legendary)|isl:[a-z_]{2,24}|par:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+export const KEY_RE = /^(fish:[a-z_]{2,16}|val:[a-z_]{2,20}|wpn:(sword|musket):[a-z_]{2,16}:(common|rare|epic|legendary)|wpn:musket:[a-z_]{2,16}:(common:[2-5]|rare:([7-9]|10)|epic:1[2-5]|legendary:(1[7-9]|20))|dup:[a-z]{2,10}:[a-z0-9_]{2,24}:(common|uncommon|rare|epic|legendary)|isl:[a-z_]{2,24}|par:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 // every NPC price, flat: [key, shop, base price]. migration 036 seeds exactly these rows (tests/inventory.test.mjs checks)
 export function priceRows() {
   const out = [];
   for (const [id, f] of Object.entries(FISH)) out.push([`fish:${id}`, 'fish', f.fish]);
   for (const [id, v] of Object.entries(VALUABLES)) out.push([`val:${id}`, 'antiques', v.antiques]);
-  for (const [s, bases] of Object.entries(WEAPON_BASES)) for (const b of bases) for (const t of WEAPON_TIERS) out.push([`wpn:${s}:${b}:${t}`, 'antiques', RARITY_ANTIQUES[t]]);
+  for (const [s, bases] of Object.entries(WEAPON_BASES_036)) for (const b of bases) for (const t of WEAPON_TIERS) out.push([`wpn:${s}:${b}:${t}`, 'antiques', RARITY_ANTIQUES[t]]);
+  return out;
+}
+// [musket-levels] migration 061 seeds these on top: every musket base x LV 1-20 sells at the Treasure Trader for its rarity's price
+export function musketLevelPriceRows() {
+  const out = []; for (const b of WEAPON_BASES.musket) for (let lv = 1; lv <= MUSKET_MAX_LV; lv++) out.push([muskKeyAt(b, lv), 'antiques', RARITY_ANTIQUES[muskTierOf(lv)]]);
   return out;
 }
 // PROVENANCE: where an inventory row came from. Only EARNED items can be sold / gifted / listed (no gold loops).
