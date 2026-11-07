@@ -104,9 +104,9 @@ export const ITEMS = [
   item('pet_cat', "Ship's Cat", 'shoulder', 0, null, [], { v5: v5files('pet_cat'), v5hide: [], v5only: true, single: true }),
   item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
   item('pet_chimp', 'Chimp', 'shoulder', 0, null, [], { v5: v5files('pet_chimp'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2]
-  item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_v7.glb' }),
+  item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_kn.glb' }),
   item('pet_tiger', 'Tiger', 'shoulder', 0, null, [], { v5: v5files('pet_tiger'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2] BANKSY 11:39 AM
-  item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_white_v7.glb' }),
+  item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_white_kn.glb' }),
   // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit; [Raul pegleg] re-seated on the v5 peg fit (knee sleeve, PEG5 hide)
   item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: PEG5('L'), v5only: true }),
   item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: PEG5('R'), v5only: true }),
@@ -599,7 +599,7 @@ const PET_GLSL = `{ vec3 q = transformed - uLyB; float part = floor(uv.x + 0.5),
     if (part > 2.5) { float li = part - 3.0; vec3 pv = li < 0.5 ? uPv[3] : li < 1.5 ? uPv[4] : li < 2.5 ? uPv[5] : uPv[6];
       float diag = (li < 0.5 || li > 2.5) ? 0.0 : 3.14159, bnd = li < 1.5 ? 0.0 : 2.2, o = mix(diag, bnd + mod(li, 2.0) * 0.3, rn);
       if (mky > 0.5) o = li < 1.5 ? (li < 0.5 ? 0.0 : 3.14159) : 1.57;
-      float a = amp * sin(ph + o) * (mky > 0.5 && li > 1.5 ? 0.45 : 1.0);
+      float a = amp * sin(ph + o) * (mky > 0.5 && li > 1.5 ? 0.45 : 1.0) * (uLyK.w > 0.0 ? uLyK.w : 1.0);   // [v367] uLyK.w: per-model stride scale (the knuckle gorilla)
       if (li > 1.5) { q = pv + (q - pv) * vec3(1.0, 1.0 - 0.5 * st * cat * lv, 1.0); }   // sit: the hind legs fold under the haunch
       q = lyRotX(q, pv, a); q.y += max(0.0, cos(ph + o)) * (wk * 0.025 + rn * 0.035) * S * lv;
       if (li < 1.5) {   // front limbs: counter the sit pitch (paws stay down), groom (cat: the left paw up to the mouth), chest-beat (gorillas)
@@ -626,7 +626,7 @@ function itemLayer(m, g0, def, B0 = null, Z = null) {   // B0: a free pet copy (
   const B = !pet ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : B0 || new THREE.Vector3(...R.anchor);
   const U = { uLyT: { value: 0 }, uLyB: { value: B } };
   if (pet) Object.assign(U, { uLyG: { value: new THREE.Vector4(0, 0, 0, PET_SIT[R.kind] || 0) }, uLyA: { value: new THREE.Vector4() },
-    uLyK: { value: new THREE.Vector4((Z ? Z.h : R.h) / 0.3, PET_KIND_ID[R.kind], R.kind === 'tiger' ? 1 : 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...((Z ? Z.pv[k] || Z.pv.sit : R[k] || R.sit)))) } });
+    uLyK: { value: new THREE.Vector4((Z ? Z.h : R.h) / 0.3, PET_KIND_ID[R.kind], R.kind === 'tiger' ? 1 : 0, Z?.amp || 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...((Z ? Z.pv[k] || Z.pv.sit : R[k] || R.sit)))) } });
   const mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
   mat.onBeforeCompile = (sh, r) => { prev?.call(mat, sh, r); Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + (pet ? ' uniform vec4 uLyG, uLyA, uLyK; uniform vec3 uPv[7];' : '') + (Z ? ' attribute vec2 petPart;' : '') + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + (Z ? LAYER_GLSL[kind].replace('floor(uv.x + 0.5), lv = uv.y', 'floor(petPart.x + 0.5), lv = petPart.y') : LAYER_GLSL[kind])); };
@@ -669,13 +669,18 @@ const _petGeo = new Map();
 // [v363 BANKSY t1921u-t1925u] Meshy pets walk again: each vertex gets a PET part (head / arm / leg, + how far down the limb) from a per-model
 // zone map (bind space of the Meshy mesh: y up, +z front, +x = its left), read by the same PET layer shader as the old pets via a petPart
 // attribute. scale = drawn size: the gorilla stands so a pirate's head reaches its chest (BANKSY "pirate would be up to his nipple").
+// [v367 BANKSY t1930u/t1946u] KNUCKLE-WALK like the old gorilla: the Meshy body is re-posed once in Blender (tools: /workspace/gorilla_rig/knuckle2.py,
+// a 12-bone skeleton + distance-blended weights): torso pitched ~55° forward over the hips, arms straight down onto the knuckles, head up to look
+// ahead, knees bent. Each vertex carries its PET part from that rig (_PETPART: head / arm / leg + how far down the limb); the PET shader swings the
+// four limbs in diagonal pairs from the posed shoulder / hip pivots below (glTF space: y up, +z front).
 export const MESHY_RIG = {
-  pet_gorilla: { scale: 1.6, h: 1.4, head: 1.18, headX: 0.26, arm: { y0: 0.34, y1: 1.12, x: (y) => 0.29 + Math.max(0, y - 0.75) * 0.2 }, leg: { y1: 0.4, x: 0.32 },
-    pv: { neck: [0, 1.17, 0.02], sit: [0, 0.45, -0.02], fl: [0.38, 1.06, 0], fr: [-0.38, 1.06, 0], bl: [0.15, 0.45, 0], br: [-0.15, 0.45, 0] } },
+  pet_gorilla: { scale: 1.6, h: 1.23, baked: true, amp: 0.5,
+    pv: { neck: [0, 0.83, 0.24], sit: [0, 0.43, -0.28], fl: [0.36, 0.81, 0.21], fr: [-0.36, 0.81, 0.21], bl: [0.15, 0.43, -0.28], br: [-0.15, 0.43, -0.28] } },
 };
 MESHY_RIG.pet_gorilla_white = { ...MESHY_RIG.pet_gorilla, scale: 1.47 };   // same build + the crown; same body height as the black one
 function meshyParts(g, Z) {
-  if (g.attributes.petPart) return; const P = g.attributes.position, A = new Float32Array(P.count * 2);
+  if (g.attributes.petPart) return; if (g.attributes._petpart) { g.setAttribute('petPart', g.attributes._petpart); return; }   // [v367] baked by the knuckle rig
+  const P = g.attributes.position, A = new Float32Array(P.count * 2);
   for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), ax = Math.abs(x); let part = 0, lv = 0;
     if (y > Z.head && ax < Z.headX) { part = 1; lv = 1; }
     else if (y > Z.arm.y0 && y < Z.arm.y1 && ax > Z.arm.x(y)) { part = x > 0 ? 3 : 4; lv = Math.min(1, Math.max(0, (Z.arm.y1 - y) / (Z.arm.y1 - Z.arm.y0))); }
