@@ -32,6 +32,10 @@ function inColiTown(lx, lz) {
   for (const p of PADS) if (p.kind === 'rect' ? (lx > p.lx0 && lx < p.lx1 && lz > p.lz0 && lz < p.lz1) : Math.hypot(lx - p.lx, lz - p.lz) < p.r) return true;
   return false;
 }
+// Sand/dirt fighting floor = coliseum.js superellipse inset by the kerb (KERB 8.2 - 0.3).
+const DIRT_IN = 7.9;
+export function inColiDirt(x, z) { const [lx, lz] = w2t(x, z);
+  return Math.abs((lx - ECX) / (ERX - DIRT_IN)) ** COLI.p + Math.abs((lz - ECZ) / (ERZ - DIRT_IN)) ** COLI.p <= 1; }
 /** Foot-world: anywhere in / on the Coliseum (or a battle pad). Used by arena logic — NOT a Safe Zone hole. */
 export function isInsideColiseum(x, z) { const [lx, lz] = w2t(x, z); return inColiTown(lx, lz); }
 
@@ -105,7 +109,7 @@ const ZONE = Object.freeze({ id: CORRIDOR_ID, name: CORRIDOR_NAME, part: 'island
 /** Foot-world: the Safe Zone object across the whole interior, or null. No coli / dig carve-outs. */
 export function zoneAt(x, z) {
   if (!SAFEZONES_ON) return null;
-  if (isInsideColiseum(x, z)) return null; // t2117u: Coliseum + fight pads are PvP — fight games work
+  if (inColiDirt(x, z)) return null; // t2117u/t2118u: only the coliseum DIRT floor is PvP; red track + rest stay safe
   return pointInPoly(x, z) ? { ...ZONE } : null;
 }
 export const insideSafeZone = (x, z) => !!zoneAt(x, z);
