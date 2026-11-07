@@ -1,0 +1,29 @@
+{
+  "scope": "Structural town trim + plaza/hill library; foliage/water/signs/NFTs/felt unchanged",
+  "structural_textures": {
+    "before": 3,
+    "after": 2
+  },
+  "desktop_texture_download_bytes": {
+    "before": 5080378,
+    "after": 1015618
+  },
+  "desktop_gpu_bytes_estimate_BC7": {
+    "before": 23767718,
+    "after": 4980664
+  },
+  "procedural_RG8_bytes": {
+    "before": 9087650,
+    "after": 4893350
+  },
+  "geometry_downloads": {
+    "town_shared.glb": {
+      "before": 2371208,
+      "after": 1140292
+    },
+    "town_shared_low.glb": {
+      "before": 398160,
+      "after": 228552
+    }
+  }
+}

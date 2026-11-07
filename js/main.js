@@ -1704,7 +1704,7 @@ if (DOCK_ON && !/[?&]prefetch=0/.test(location.search)) setTimeout(() => (window
   const step = () => { if (game.state !== 'title' || dock || dockLoading || document.hidden) return; todo.splice(0, 12).forEach(addPre); if (todo.length) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(step, { timeout: 1500 }); }; step();
   if (slow || /[?&]warmart=0/.test(location.search)) return;
   const lo = quality === 'low' || isMobile, sfx2 = lo ? '_low' : '';
-  const art = [`assets/island/town_kit${sfx2}.glb`, `assets/island/nature_kit${sfx2}.glb`, `assets/island/tex/lib${lo ? '_lo' : ''}.ktx2`, `assets/island/docks${sfx2}.glb`, `assets/island/battery${sfx2}.glb`, `assets/island/plaza_shops${sfx2}.glb`];
+  const art = [`assets/island/town_shared${sfx2}.glb`, `assets/island/nature_kit${sfx2}.glb`, 'assets/island/tex/island_surfaces.ktx2', 'assets/island/tex/town_fixtures.webp', `assets/island/docks${sfx2}.glb`, `assets/island/battery${sfx2}.glb`, `assets/island/plaza_shops${sfx2}.glb`];
   (async () => { for (const u of art) { if (game.state !== 'title' || dock || dockLoading) return;
     try { const r = await fetch(u, { priority: 'low', credentials: 'same-origin' }); if (r.ok) await r.arrayBuffer(); } catch {} } })();
 }, { timeout: 4000 }), 1500);

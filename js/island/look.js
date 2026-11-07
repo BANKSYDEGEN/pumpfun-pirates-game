@@ -8,7 +8,7 @@
 //   Low: half-res layers, albedo detail only (no bump, no rim, no extra passes).
 import * as THREE from 'three';
 import { SWAY_DECL, SWAY_BODY } from './kit.js';
-import { LIB_U, LIB_FDECL } from './libTex.js';   // [Timothy] the shared material library (aMat 21..32 + the town's man-made layers)
+import { LIB_ON, LIB_U, LIB_FDECL } from './libTex.js';   // [Timothy] the shared material library (aMat 21..32 + the town's man-made layers)
 
 // ---------- tileable procedural layers ----------
 function hash(x, y, s) { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
@@ -57,11 +57,14 @@ const LAYERS = [
   (u, v) => { const wv = ((Math.floor(u * 64) + Math.floor(v * 64)) % 2) * 0.12, tw = 0.5 + 0.5 * Math.sin((u + v * 0.6) * 24 * Math.PI * 2);
     return [0.6 + wv + 0.15 * tw + 0.1 * fbm(u * 4, v * 4, 4, 29), 0.4 + 0.4 * tw]; },                                                           // 12 rope / cloth weave
 ];
+// Only natural layers remain local; built surfaces use the plaza/hill atlas.
+const DETAIL_LAYERS = LIB_ON ? [0, 1, 3, 5, 6, 8, 9] : LAYERS.map((_, i) => i);
+const DETAIL_INDEX = LIB_ON ? [0, 1, 3, 2, 2, 3, 4, 2, 5, 6, 2, 2, 3] : LAYERS.map((_, i) => i);
 const _tex = {};
 export function detailTexture(low) {
   const S = low ? 256 : 512; if (_tex[S]) return _tex[S];
-  const N = LAYERS.length, data = new Uint8Array(S * S * N * 2);
-  for (let l = 0; l < N; l++) { const f = LAYERS[l], off = l * S * S * 2;
+  const N = DETAIL_LAYERS.length, data = new Uint8Array(S * S * N * 2);
+  for (let l = 0; l < N; l++) { const f = LAYERS[DETAIL_LAYERS[l]], off = l * S * S * 2;
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const [a, h] = f(x / S, y / S), i = off + (y * S + x) * 2; data[i] = 255 * sat(a); data[i + 1] = 255 * sat(h); } }
   const t = new THREE.DataArrayTexture(data, S, S, N);
   t.format = THREE.RGFormat; t.type = THREE.UnsignedByteType; t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -86,10 +89,11 @@ const VERT_BODY = 'vMat = aMat; vOP = position; vON = normal; vW0 = aW0; vW1 = a
 function fragDecl(low) {
   return `
 uniform sampler2DArray uDetail; uniform float uScale[13]; uniform float uBump[13];
+const int DETAIL_INDEX[13] = int[13](${DETAIL_INDEX.join(', ')});
 const int LIB_PL[12] = int[12](11, 11, 11, 7, 10, 2, 2, 2, 4, 3, 12, 12); // library layer -> procedural fallback (&plazatex=0 / not loaded)
 ${LIB_FDECL}
 varying float vMat; varying vec3 vOP; varying vec3 vON; varying vec4 vW0; varying vec4 vW1;
-vec2 isTri(int L, vec3 p, vec3 w) { float s = 1.0 / uScale[L]; float l = float(L);
+vec2 isTri(int L, vec3 p, vec3 w) { float s = 1.0 / uScale[L]; float l = float(DETAIL_INDEX[L]);
   return texture(uDetail, vec3(p.zy * s, l)).rg * w.x + texture(uDetail, vec3(p.xz * s, l)).rg * w.y + texture(uDetail, vec3(p.xy * s, l)).rg * w.z; }
 `;
 }
@@ -112,13 +116,13 @@ if (isM > 0) {
   } else if (isM == 13) { // [foot] 8-way splat: sand, wet, grass, dirt | rock, cliff, cobble, jungle floor (colour comes from the vertex)
     float w[8]; w[0] = vW0.x; w[1] = vW0.y; w[2] = vW0.z; w[3] = vW0.w; w[4] = vW1.x; w[5] = vW1.y; w[6] = vW1.z; w[7] = vW1.w;
     vec2 L[8]; L[0] = isTri(0, vOP, tw); L[1] = L[0] * vec2(0.85, 0.6); L[2] = isTri(1, vOP, tw); L[3] = isTri(8, vOP, tw);
-    L[4] = isTri(3, vOP, tw); L[5] = isTri(9, vOP, tw); L[6] = isTri(10, vOP, tw); L[7] = isTri(6, vOP * 0.7, tw);
+    L[4] = isTri(3, vOP, tw); L[5] = isTri(9, vOP, tw); L[6] = isTri(10, vOP, tw); if (uLibOn > 0.5) { vec4 cb = libTri(4, vOP, vON, 0.0); L[6] = vec2(dot(cb.rgb, vec3(0.3, 0.6, 0.1)), cb.a); } L[7] = isTri(6, vOP * 0.7, tw);
     float mx = 0.0; for (int i = 0; i < 8; i++) { w[i] = w[i] > 0.02 ? w[i] + L[i].y * 0.5 : 0.0; mx = max(mx, w[i]); }
     vec2 acc = vec2(0.0); float ws = 0.0; for (int i = 0; i < 8; i++) { float k = max(w[i] - (mx - 0.25), 0.0); acc += L[i] * k; ws += k; }
     d = acc / max(ws, 1e-4);
   }${cards ? ` else if (isM == 14) { vec4 cc = texture2D(uCards, vCUv); if (cc.a < 0.5) discard; diffuseColor.rgb *= cc.rgb * 1.35; d = vec2(0.5, dot(cc.rgb, vec3(0.3, 0.6, 0.1)) * 1.4); }` : ''}
-  else if (isM >= 21 || (uLibOn > 0.5 && (isM == 4 || isM == 7 || isM == 10 || isM == 11))) { // [Timothy] material library layer (libTex.js)
-    int li = isM >= 21 ? min(isM - 21, 11) : (isM == 4 ? 8 : isM == 7 ? 3 : isM == 10 ? 4 : 0);
+  else if (isM >= 21 || (uLibOn > 0.5 && (isM == 2 || isM == 4 || isM == 7 || isM == 10 || isM == 11 || isM == 12))) { // [Timothy] material library layer (libTex.js)
+    int li = isM >= 21 ? min(isM - 21, 11) : (isM == 2 ? 6 : isM == 4 ? 8 : isM == 7 ? 3 : isM == 10 ? 4 : isM == 12 ? 10 : 0);
     if (uLibOn > 0.5) { vec4 lt = libTri(li, vOP, vON, 0.0); diffuseColor.rgb *= lt.rgb * 2.0; d = vec2(0.5, lt.a); } else d = isTri(LIB_PL[li], vOP, tw);
   }
   else d = isTri(min(isM, 12), vOP, tw);
