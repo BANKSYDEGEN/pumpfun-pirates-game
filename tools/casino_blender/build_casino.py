@@ -13,6 +13,7 @@ import numpy as np
 from mathutils import Matrix
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(HERE, '..', 'plaza_blender'))
 from lib import Builder, T, hexc, text_mesh
+from mathutils import Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 GAME, OUT = argv[0], argv[1]; os.makedirs(OUT, exist_ok=True)
@@ -34,7 +35,7 @@ ARCH_W, ARCH_SPRING, ARCH_RISE = 5.0, 3.0, 1.4   # clear opening 5.0 x 4.4 m
 ST = dict(blackjack=dict(c=(-6.25, -1.4), e=(-4.0, -1.4)), roulette=dict(c=(5.6, -1.4), e=(4.0, -1.4)),
           dice=dict(c=(-5.7, 4.2), e=(-4.0, 4.2)), slots=dict(c=(7.3, 4.2), e=(5.6, 4.2)))
 # [v378] BANKSY t1984u/t1985u: THE HIGH SEAS ROOM, a wing straight back (into the walled yard, lx 28.5 .. 54.75) through an arch in the hall's back wall.
-BA_W, BA_SPRING, BA_RISE = 4.0, 3.1, 1.0      # back arch clear opening 4.0 x 4.1 m (centred)
+BA_W, BA_SPRING, BA_RISE = 12.0, 3.6, 0.7     # [t2007u] BANKSY: "open up the wall in between 2 rooms": a 12 m wide shallow arch, hall + wing read as one room
 WX, WYE, WSW = 8.0, 33.5, 0.55                 # wing half width (lz -58.4 .. -42.4), its back face (y), wall thickness
 WIX0, WIX1, WIY0, WIY1 = -WX + WSW, WX - WSW, Y1, WYE - 0.6
 WZ2, WCEIL = 6.6, 5.6                          # wing eaves / ceiling underside
@@ -252,8 +253,13 @@ def valance(bd, x0, x1, y, ztop, lod):   # scalloped burgundy + gold awning vala
         if lod == 0: bd.sphere(0.035, xa + sw / 2, y - 0.03, ztop - 0.45, GOLD, sub=0)
     bd.box(x1 - x0 + 0.04, 0.07, 0.05, (x0 + x1) / 2, y - 0.03, ztop - 0.04, GOLD)
 
+DEALERS = []    # [t2007u] BANKSY: the dealers are V7 PUMPFUN PIRATES: markers only (building frame x, y, z, facing), js/island/casino.js stands a V7 there
 def figure(bd, x, y, rz, lod, vest=CRIM, hat=True, sash=GOLD):   # a pirate dealer standing at a table, faces local -y
     bd.push(T(x, y, 0, rz=rz)); n = 10 if lod == 0 else 6
+    if lod == 0:
+        M_ = bd.stack[-1]; p_ = M_.to_translation(); f_ = M_.to_3x3() @ Vector((0.0, -1.0, 0.0))
+        DEALERS.append([round(p_.x, 3), round(p_.y, 3), round(p_.z, 3), round(math.atan2(f_.x, f_.y), 4), 0 if hat else 1])
+    bd.pop(); return
     for sx in (-0.11, 0.11): bd.cyl(0.08, 0.085, 0.82, sx, 0, 0, 0x2a2a33, n=n); bd.box(0.14, 0.24, 0.12, sx, -0.04, 0, BLACK, base=True)
     bd.cyl(0.22, 0.19, 0.62, 0, 0, 0.8, WHITE, n=n); bd.cyl(0.235, 0.205, 0.5, 0, 0.0, 0.84, vest, n=n)   # shirt + vest
     bd.cyl(0.24, 0.24, 0.09, 0, 0, 0.86, sash, n=n)
@@ -934,7 +940,7 @@ cols = [[q[0]] + [round(float(v), 3) for v in q[1:]] for q in cols]
 tables = {k: dict(c=[round(v['c'][0], 3), round(-v['c'][1], 3)], e=[round(v['e'][0], 3), round(-v['e'][1], 3)]) for k, v in ST.items()}   # three.js building frame
 root['colliders'] = json.dumps(cols); root['tables'] = json.dumps(tables); root['wing'] = json.dumps(dict(tables=wing_tables(), x0=-WX, x1=WX, y0=round(-Y1, 3), y1=round(-WYE, 3), inner=[WIX0, round(-WIY1, 3), WIX1, round(-WIY0, 3)], ceil=WCEIL, chand=[round(-y, 3) for y in WCH], arch=BA_W))
 root['footprint'] = json.dumps(dict(cx=CX, cz=CZ, w=W, d=D, inner=[round(IX0, 3), round(-IY1, 3), round(IX1, 3), round(-IY0, 3)], arch=ARCH_W, archH=ARCH_SPRING + ARCH_RISE, ceil=CEIL))
-root['kind'] = 'casino'; root['n'] = 47
+root['dealers'] = json.dumps(DEALERS); root['kind'] = 'casino'; root['n'] = 47
 json.dump(dict(report=rep, colliders=cols, tables=tables), open(os.path.join(OUT, 'casino_report.json'), 'w'), indent=1)
 for o in bpy.data.objects: o.select_set(True)
 f = os.path.join(OUT, 'casino_hall_raw.glb')

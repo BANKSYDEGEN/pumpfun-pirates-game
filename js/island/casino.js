@@ -35,7 +35,7 @@ export function loadCasinoReady(low) {
         mesh.castShadow = !low && mat === solid; mesh.receiveShadow = !low && mat === solid; g.add(mesh); });
       lods[low ? lv - 1 : lv] = g; }
     const J = (s, d) => { try { return JSON.parse(s || d); } catch { return JSON.parse(d); } };
-    CASINO_KIT = { low, lods: lods.filter(Boolean), colliders: J(ex.colliders, '[]'), tables: J(ex.tables, '{}'), footprint: J(ex.footprint, '{}'), wing: J(ex.wing, 'null'), mats: { solid, glow } };
+    CASINO_KIT = { low, lods: lods.filter(Boolean), colliders: J(ex.colliders, '[]'), tables: J(ex.tables, '{}'), footprint: J(ex.footprint, '{}'), wing: J(ex.wing, 'null'), dealers: J(ex.dealers, '[]'), mats: { solid, glow } };
     return CASINO_KIT;
   }).catch(e => { console.warn('[casino] the casino model failed to load (no casino this session)', e); CASINO_KIT = null; return null; });
   return _p;
@@ -77,7 +77,23 @@ export function buildCasino() {
     const spots = [[0, 0.1, 6.5, 12]]; if (K.wing) spots.push([0, 11.5, 6.5, 12], [0, 20.5, 6.5, 12], [0, 29.0, 6.0, 11]);
     for (const [bx, by, I, d] of spots) { const L = new THREE.PointLight(0xffb45c, I, d, 1.4); L.position.set(bx, 3.7, -by); L.name = 'casino_light'; g.add(L); }
   }
+  if (K.dealers?.length && !/[?&]casdealers=0(&|$)/.test(location.search)) v7Dealers(g, K.dealers);   // [t2007u] the dealers + bartender are V7 PUMPFUN PIRATES
   let tris = 0; K.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
   g.userData.tris = tris;
   return g;
+}
+
+// [t2007u] BANKSY: "make the dealers v7 pumpfun pirates". The Blender build leaves a marker per dealer (building frame x, y, z, facing, kind 1 = the bartender);
+// each gets the real V7 body (lo GLB, Draco), male / female alternating, playing the idle clip (ticked while on screen). ?casdealers=0 = none
+export function v7Dealers(g, list) { // [t2010u/t2011u] dressed through the game's own pirate builder: every dealer + the bartender wear the SAME casino suit
+  // [t2012u/t2013u] mixed skin tones, hair + eye colours (1-based SKIN / HAIR / EYE_SWATCHES in js/pirateGear.js, natural range only)
+  const LOOKS = [[3, 2, 1], [8, 1, 4], [5, 4, 3], [9, 1, 1], [2, 6, 4], [7, 3, 2], [4, 5, 3], [6, 1, 6], [1, 7, 5], [8, 8, 1]];
+  Promise.all([import('../pirates.js'), import('../pirateGear.js')]).then(([{ pirateFigure }, { setBodyLook }]) => list.forEach(([bx, by, bz, a, kind], i) => {
+    const [skinColor, hairColor, eyeColor] = LOOKS[i % LOOKS.length];
+    const fig = pirateFigure({ low: true, height: 1.78, female: kind !== 1 && i % 2 === 1, clip: 'idle', gear: { outfit: 'suit' },
+      onReady: (p) => { try { setBodyLook(p, { skinColor, hairColor, eyeColor }); } catch (e) { console.warn('[casino] dealer look', e); } } });
+    const w = new THREE.Group(); w.name = 'casino_dealer_v7'; w.add(fig);
+    w.position.set(bx, bz + (kind === 1 ? 0.42 : 0.03), -by); /* the bartender stands on the duckboard behind the bar */
+    w.rotation.y = Math.atan2(Math.sin(a), -Math.cos(a)); g.add(w);
+  })).catch(e => console.warn('[casino] V7 dealers', e));
 }

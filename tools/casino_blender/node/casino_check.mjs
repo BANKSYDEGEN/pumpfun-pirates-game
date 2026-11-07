@@ -45,7 +45,7 @@ if (kit) {
     out.archWalk = { hits, maxStep: +maxStep.toFixed(3) }; }
   // the arch's clear width (no collider for a point walker) and the solid walls
   { let w = 0; for (let lz = CD.CASINO_HALL.arch.lz - 3; lz <= CD.CASINO_HALL.arch.lz + 3; lz += 0.05) if (!hit(14.35, lz, 0)) w += 0.05; out.archClear = +w.toFixed(2); }
-  const R_ = CD.CASINO_HALL.rect; out.walls = { front: [hit(14.35, -56), hit(14.35, -45)], south: hit(20, R_.lz0 + 0.25), north: hit(20, R_.lz1 - 0.25), back: hit(R_.lx1 - 0.3, -54) && hit(R_.lx1 - 0.3, -46.5) };   // [v378] either side of the High Seas Room arch
+  const R_ = CD.CASINO_HALL.rect; out.walls = { front: [hit(14.35, -56), hit(14.35, -45)], south: hit(20, R_.lz0 + 0.25), north: hit(20, R_.lz1 - 0.25), back: hit(R_.lx1 - 0.3, -57.6) && hit(R_.lx1 - 0.3, -43.2) && !hit(R_.lx1 - 0.3, -50.4) && !hit(R_.lx1 - 0.3, -45.4) && !hit(R_.lx1 - 0.3, -55.4) };   // [t2007u] solid only outside the 12 m opening into the High Seas Room
   // aisles: a 2.2 m wide walker (r 1.1) along the runner, across the hall between the tables
   { let a = 0, b = 0; for (let lx = 14.9; lx <= 24.8; lx += 0.1) if (hit(lx, CD.CASINO_HALL.lz, 1.1)) a++; for (let lz = -53.8; lz <= -47.0; lz += 0.1) if (hit(22.4, lz, 1.1)) b++; out.aisles = { runner: a, cross: b }; }
   // free radius round each E point (the nearest collider)
