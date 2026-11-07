@@ -99,9 +99,18 @@ function capTex(gl) {
       t.image = c; t.needsUpdate = true; } catch (e) { console.warn('[pirate] texture cap', e); } } });
   return gl;
 }
+// [v364 BANKSY t1922u/t1933u] V7 FACE RIG: the Meshy faces are painted into a fragmented texture (no face bones), so blinks + talking
+// are drawn in the shader in BIND space (the undeformed body position, which follows the head through skinning): an eyelid wipes down
+// over each painted eye and back (a blink), and a dark mouth opening grows over the painted lips while the pirate talks (emote voice
+// lines). At rest nothing is drawn: the NFT eye shape stays exactly as painted. Centre xyz + half size xy, measured on the front renders.
+export const V7_FACE = {
+  male: { eyeL: [0.1008, 1.032, 0.1497], eyeR: [-0.1, 1.032, 0.1498], eyeS: [0.058, 0.046], mouth: [0, 0.9232, 0.1543], mouthW: 0.05, lid: '#f0a06e' },
+  female: { eyeL: [0.0959, 1.0705, 0.1546], eyeR: [-0.098, 1.0706, 0.1549], eyeS: [0.057, 0.055], mouth: [0, 0.9655, 0.1883], mouthW: 0.05, lid: '#fcb996' },
+};
 // V7 keeps the original Meshy texture intact. Independent pixel masks recolour skin / hair / iris;
 // teal tattoos, underwear, eyebrows, pupils and glints are never tinted.
 const _v7Masks = {};
+function v7FaceMask(fem) { const key = 'assets/pirates/v7_' + (fem ? 'female' : 'male') + '_face.webp'; if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href); t.flipY = false; _v7Masks[key] = t; } return _v7Masks[key]; }
 function v7Material(src, p, low, tint) {
   let cfg = null; try { cfg = typeof tint === 'string' ? JSON.parse(tint) : tint || null; } catch {}   // [Emerly V7 female] per-body mask
   const key = cfg?.mask || ('assets/pirates/v7_male_tint' + (low ? '_lo' : '') + '.webp');
@@ -110,7 +119,9 @@ function v7Material(src, p, low, tint) {
   const m = new THREE.MeshLambertMaterial({ name: 'v7body', map: src.map, normalMap: (!low && cfg && src.normalMap) || null, side: THREE.DoubleSide });
   m.onBeforeCompile = s => {
     Object.assign(s.uniforms, p._v7Tint, { v7Mask: { value: _v7Masks[key] } });
-    s.fragmentShader = 'uniform sampler2D v7Mask; uniform vec3 v7Skin; uniform vec3 v7Hair; uniform vec3 v7Iris; uniform vec3 v7On;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    s.vertexShader = 'varying vec3 vBind7; varying vec3 vFwd7;\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vBind7 = position;').replace('#include <skinnormal_vertex>', '#include <skinnormal_vertex>\n vec3 fw7 = vec3(0., 0., 1.);\n #ifdef USE_SKINNING\n fw7 = (skinMatrix * vec4(fw7, 0.)).xyz;\n #endif\n vFwd7 = normalize(normalMatrix * fw7);');
+    s.fragmentShader = 'uniform sampler2D v7Mask; uniform vec3 v7Skin; uniform vec3 v7Hair; uniform vec3 v7Iris; uniform vec3 v7On;\nvarying vec3 vBind7; varying vec3 vFwd7; uniform vec3 v7EyeL, v7EyeR, v7Mouth, v7Lid; uniform sampler2D v7FaceM; uniform vec4 v7FaceS; uniform vec2 v7Face;\n' + s.fragmentShader.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n if (lidK7 > 0.5) normal = vFwd7;').replace('#include <map_fragment>', `#include <map_fragment>
+      float lidK7 = 0.0;
       vec3 mask7 = texture2D(v7Mask, vMapUv).rgb;
       vec3 base7 = diffuseColor.rgb;
       // Relative luminance keeps the painted folds, freckles and carved hair detail.
@@ -119,9 +130,24 @@ function v7Material(src, p, low, tint) {
       diffuseColor.rgb = mix(diffuseColor.rgb, v7Skin * skin7, mask7.r * v7On.r);
       diffuseColor.rgb = mix(diffuseColor.rgb, v7Hair * hair7, mask7.g * v7On.g);
       diffuseColor.rgb = mix(diffuseColor.rgb, v7Iris * max(.16, base7.b / .6), mask7.b * v7On.b);
+    `).replace('#include <color_fragment>', `#include <color_fragment>
+      if (v7Face.x > 0.001 || v7Face.y > 0.001) {
+        vec3 lid7 = mix(v7Lid, v7Skin * (dot(v7Lid, vec3(.2126,.7152,.0722)) / .43), v7On.r);
+        vec3 fm7 = texture2D(v7FaceM, vMapUv).rgb;   // the painted eyes (+ their outline), traced per texel
+        for (int e = 0; e < 2; e++) { vec3 c7 = e == 0 ? v7EyeL : v7EyeR; vec2 d7 = (vBind7.xy - c7.xy) / (v7FaceS.xy * vec2(1.12, 1.0)); float in7 = e == 0 ? fm7.r : fm7.g;
+          if (abs(vBind7.z - c7.z) < 0.07 && dot(d7, d7) < 2.2 && (in7 > 0.08 || (dot(d7, d7) < 1.3 && abs(vBind7.z - c7.z) < 0.035)) && !(d7.y > 0.75 && in7 < 0.5 && dot(base7, vec3(.333)) < 0.2)) {   // (the brow stays)   // the lid comes down from the top of the eye
+            float yb = 1.25 - 1.45 * v7Face.x - 0.3 * (1.0 - clamp(d7.x * d7.x, 0.0, 1.0));   // curved lid edge: closed = a soft downward arc
+            if (d7.y > yb + 0.14 || (v7Face.x > 0.85 && d7.y < yb - 0.02)) { diffuseColor.rgb = lid7 * (0.9 + 0.1 * clamp(d7.y, 0.0, 1.0)); lidK7 = 1.0; }
+            else if (d7.y > yb && v7Face.x > 0.05) diffuseColor.rgb = vec3(0.08, 0.045, 0.035);   // lash line on the lid edge
+          } }
+        vec2 m7 = (vBind7.xy - v7Mouth.xy) / vec2(v7FaceS.z * (0.75 + 0.2 * v7Face.y), 0.003 + 0.019 * v7Face.y);
+        if (v7Face.y > 0.02 && abs(vBind7.z - v7Mouth.z) < 0.045) { float r7 = dot(m7, m7);
+          if (r7 < 1.0) diffuseColor.rgb = mix(vec3(0.15, 0.04, 0.04), vec3(0.45, 0.12, 0.12), smoothstep(0.2, 1.0, -m7.y) * 0.6);   // mouth inside + a hint of tongue
+          else if (r7 < 1.5) diffuseColor.rgb *= 0.75; }   // lip shadow
+      }
     `);
   };
-  m.customProgramCacheKey = () => 'v7-tint-v1'; return m;
+  m.customProgramCacheKey = () => 'v7-tint-v5face'; return m;
 }
 let _grad = null;
 export function gradient() {
@@ -190,7 +216,8 @@ function ownColorAttr(o) {
 // Shade (dark iris -> highlight) is kept from the original red channel; edge pixels blend by how blue they are, so the outlines stay crisp.
 function irisPatch(m, uIris, uOn) {
   m.onBeforeCompile = ((prev) => (s, r) => { prev?.(s, r); s.uniforms.uIris = uIris; s.uniforms.uIrisOn = uOn;
-    s.fragmentShader = 'uniform vec3 uIris; uniform float uIrisOn;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    s.fragmentShader = 'uniform vec3 uIris; uniform float uIrisOn;\n' + s.fragmentShader.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n if (lidK7 > 0.5) normal = vFwd7;').replace('#include <map_fragment>', `#include <map_fragment>
+      float lidK7 = 0.0;
       if (uIrisOn > 0.5) { vec3 c0 = diffuseColor.rgb; float blu = c0.b - c0.r; float k = smoothstep(0.12, 0.32, blu);
         float hl = clamp((c0.r - 0.24) / 0.19, 0.0, 1.0); vec3 tint = mix(uIris, mix(uIris, vec3(1.0), 0.22), hl);
         diffuseColor.rgb = mix(c0, tint, k); }`); })(m.onBeforeCompile);
@@ -241,6 +268,9 @@ export class PirateGLB {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
     this.v7 = false; scene.traverse(o => { if (o.userData?.v7) this.v7 = true; });
     this._v7Tint = { v7Skin: { value: new THREE.Color() }, v7Hair: { value: new THREE.Color() }, v7Iris: { value: new THREE.Color() }, v7On: { value: new THREE.Vector3() } };
+    if (this.v7) { const F = V7_FACE[this.female ? 'female' : 'male']; Object.assign(this._v7Tint, { v7EyeL: { value: new THREE.Vector3(...F.eyeL) }, v7EyeR: { value: new THREE.Vector3(...F.eyeR) }, v7Mouth: { value: new THREE.Vector3(...F.mouth) },
+      v7Lid: { value: new THREE.Color(F.lid) }, v7FaceS: { value: new THREE.Vector4(F.eyeS[0], F.eyeS[1], F.mouthW, 0) }, v7Face: { value: new THREE.Vector2() }, v7FaceM: { value: v7FaceMask(this.female) } });
+      this._face = { blinkIn: 1.5 + Math.random() * 3, blinkT: -1, talk: 0, ph: Math.random() * 9 }; }
     this.v6 = false; scene.traverse((o) => { if (o.userData?.v6) this.v6 = true; });   // [V6] (no hair rim, glossy material)
     scene.traverse((o) => {
       if (!o.isMesh) return;
@@ -301,7 +331,15 @@ export class PirateGLB {
   // [Raul emotes] shared post-mixer pose hook: procedural layers (js/onfoot/swimPose.js order 0, js/onfoot/emotePose.js order 1) run in
   // order after the clip, each blending its own bones; battle.js still wraps update() so its arm aim lands last
   addPost(key, fn, order = 0) { const L = this.posts || (this.posts = []); if (L.some((x) => x.key === key)) return; L.push({ key, fn, order }); L.sort((a, b) => a.order - b.order); }
+  // [v364] V7 face: talk(seconds) = the mouth moves (emote voice lines); blinks run on their own every 2-6 s
+  talk(sec = 2.5) { if (this._face) this._face.talk = Math.max(this._face.talk, sec); }
+  _faceTick(dt) { const f = this._face, u = this._v7Tint?.v7Face?.value; if (!f || !u) return; dt = Math.min(dt, 0.1);
+    f.blinkIn -= dt; if (f.blinkIn <= 0 && f.blinkT < 0) { f.blinkT = 0; f.blinkIn = 2 + Math.random() * 4 - (Math.random() < 0.15 ? 1.7 : 0); }
+    let b = 0; if (f.blinkT >= 0) { f.blinkT += dt; const k = f.blinkT / 0.16; b = k < 0.45 ? k / 0.45 : k < 0.6 ? 1 : Math.max(0, 1 - (k - 0.6) / 0.4); if (k >= 1) f.blinkT = -1; }
+    let m = 0; if (f.talk > 0) { f.talk -= dt; f.ph += dt; const t = f.ph; m = Math.max(0, 0.55 + 0.45 * Math.sin(t * 17.0) * Math.sin(t * 5.3 + 1.0)) * Math.min(1, f.talk * 4); }
+    u.set(b, m); }
   update(dt) { // [Emerly perf-v304] distance LOD on the mixer (posts still run when near / mid so swim + zipline grips stay live)
+    if (this._face) this._faceTick(dt);
     const step = OPT_ON ? animStep(this, dt) : dt;
     if (step > 0) { this.mixer?.update(step); for (const k in this.items || {}) this.items[k]?.mixer?.update(step); }
     else if (this._zip?.w > 0 || this._sw?.w > 0) { /* keep procedural grips / swim when layered even if mixer skipped */ }

@@ -25,6 +25,7 @@ export function showEmote(ship, e, { vol = 1, pitch = 1, own = false, body = nul
   let b = bubbles.get(ship);
   if (!b) { const el = document.createElement('div'); el.className = 'emote-bubble'; $('emote-bubbles')?.appendChild(el); b = { el }; bubbles.set(ship, b); }
   b.el.textContent = `${EMOTES[e].i} ${EMOTES[e].t}`; b.until = performance.now() + 3000; b.anchor = anchor;
+  try { let g = anchor?.userData?.v4; if (!g?.talk) anchor?.traverse?.(o => { if (!g?.talk && o.userData?.v4?.talk) g = o.userData.v4; }); g?.talk?.(2.6); } catch {}   // [v364 face rig] the V7 pirate's mouth moves with the voice line
   b.el.classList.remove('pop'); void b.el.offsetWidth; b.el.classList.add('pop');
   if (vol > 0.03) sfx.emote?.(e, vol, pitch, own, body, crew); // [v101] own = your crew joins in (real recorded voices)
   return true;
