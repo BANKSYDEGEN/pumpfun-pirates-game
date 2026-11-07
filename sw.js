@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v368'; // [v368] phones: shop previews use the baked PNGs only (no 2nd WebGL context = no crew shop crash) (BANKSY t1950u)
+const VERSION = 'pfp-v369'; // [v369] slim phone player card + portrait thumb-arc buttons (BANKSY t1954u)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
