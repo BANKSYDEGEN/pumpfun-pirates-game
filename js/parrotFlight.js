@@ -5,7 +5,16 @@ import { loadPirateGLB } from './pirateGLB.js';
 export const PARROT_MODEL = 'assets/pirates/items/v7/parrot_flight.glb';
 export const PARROT_COLORS = { parrot_green: '#3fd16a', parrot_red: '#e8231d', parrot_blue: '#1e74e8', parrot_cockatoo: '#f6f4ee', parrot_black: '#26262c', parrot_gold: '#ffc21f', parrot_diamond: '#bfe8ff' };
 export const isFlyingParrot = id => Object.hasOwn(PARROT_COLORS, id);
-const FLIGHT_PALETTES = { parrot_green: ['#187bd0','#edb528'], parrot_blue: ['#1a6be6','#ffc73b'], parrot_red: ['#e73627','#ffc83b'], parrot_cockatoo: ['#f4f0df','#fff7e0'], parrot_black: ['#242630','#30303a'], parrot_gold: ['#e7ad23','#ffe19b'], parrot_diamond: ['#b5e5ff','#f0fbff'] };
+// Chest/body, wing coverts, dark flight tips, crown: tuned independently for light and dark birds.
+const FLIGHT_PALETTES = {
+ parrot_green: ['#42ad45','#2583bc','#123e76','#b43527'],
+ parrot_blue: ['#edb83f','#238cdb','#143b83','#2874b2'],
+ parrot_red: ['#e84630','#edbc3a','#215ba4','#cf3026'],
+ parrot_cockatoo: ['#f2e9d4','#dfdcca','#969b9b','#f7d475'],
+ parrot_black: ['#555c69','#46515e','#202a38','#697689'],
+ parrot_gold: ['#efbe45','#dba03d','#865431','#ffe18a'],
+ parrot_diamond: ['#c3e8eb','#a5cfe0','#527f9f','#e5fbf8']
+};
 let featherMask = null;
 const deltaRotation = new THREE.Quaternion();
 function rotateBone(bird, name, axis, angle) {
@@ -48,7 +57,7 @@ export function perchParrot(bird, t, seed = 0) {
   const action = Math.floor((Math.sin(beat * 127.1 + seed * 311.7) * 43758.5453 % 1 + 1) % 1 * 6);
   const envelope = Math.sin(Math.PI * Math.min(1, Math.max(0, (u - .15) / .65))) ** 2;
   const flick = action === 0 ? envelope * Math.sin(u * 70) * .20 : 0;
-  const stretch = action === 1 ? envelope * .85 : 0;
+  const stretch = action === 1 ? envelope * .70 : 0;
   const preen = action === 4 ? envelope : 0;
   const shake = action === 3 ? envelope * Math.sin(u * 95) : 0;
   bird.rotation.order = 'YXZ';
@@ -69,7 +78,7 @@ export function colorParrot(bird, id) {
   bird.traverse(o => {
     if (o.userData.flightTint) {
       const U=o.userData.flightTint, pair=FLIGHT_PALETTES[id] || FLIGHT_PALETTES.parrot_green;
-      U.parrotBlue.value.set(pair[0]); U.parrotYellow.value.set(pair[1]); U.parrotTintOn.value = id === 'parrot_green' ? 0 : 1;
+      U.parrotBlue.value.set(pair[1]); U.parrotYellow.value.set(pair[0]); U.parrotTips.value.set(pair[2]); U.parrotCrown.value.set(pair[3]); U.parrotTintOn.value = 1;
       return;
     }
     const a = o.geometry?.attributes.color, base = o.userData.flightColors; if (!a || !base) return;
@@ -94,18 +103,30 @@ export function instantiateFlightParrot(gltf, id = 'parrot_green') {
     o.material = new THREE.MeshLambertMaterial({ map: source.map || null, vertexColors: !source.map && !!o.geometry.attributes.color, side: THREE.DoubleSide });
     if (source.map) {
       if (!featherMask) { featherMask = new THREE.TextureLoader().load(new URL('../assets/pirates/items/v7/parrot_flight_mask.webp', import.meta.url).href); featherMask.flipY = false; }
-      const U = { parrotMask: { value: featherMask }, parrotBlue: { value: new THREE.Color() }, parrotYellow: { value: new THREE.Color() }, parrotTintOn: { value: 0 } };
+      const U = { parrotMask: { value: featherMask }, parrotBlue: { value: new THREE.Color() }, parrotYellow: { value: new THREE.Color() }, parrotTips: { value: new THREE.Color() }, parrotCrown: { value: new THREE.Color() }, parrotTintOn: { value: 1 } };
       o.userData.flightTint = U;
       o.material.onBeforeCompile = shader => {
         Object.assign(shader.uniforms, U);
-        shader.fragmentShader = 'uniform sampler2D parrotMask; uniform vec3 parrotBlue, parrotYellow; uniform float parrotTintOn;\n' + shader.fragmentShader;
+        shader.vertexShader = 'varying vec3 vParrotRest;\n' + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vParrotRest = position;');
+        shader.fragmentShader = 'varying vec3 vParrotRest; uniform sampler2D parrotMask; uniform vec3 parrotBlue, parrotYellow, parrotTips, parrotCrown; uniform float parrotTintOn;\n' + shader.fragmentShader;
         shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-          vec2 featherRegion = texture2D(parrotMask, vMapUv).rg * parrotTintOn;
-          float featherLight = dot(diffuseColor.rgb, vec3(.2126,.7152,.0722));
-          diffuseColor.rgb = mix(diffuseColor.rgb, parrotBlue * (.40 + 1.8*featherLight), featherRegion.r);
-          diffuseColor.rgb = mix(diffuseColor.rgb, parrotYellow * (.25 + 1.15*featherLight), featherRegion.g);`);
+          vec3 featherRegion = texture2D(parrotMask, vMapUv).rgb * parrotTintOn;
+          // Keep texture micro-detail; mask softness blends regions instead of painting flat blocks.
+          vec3 original = diffuseColor.rgb;
+          float featherLight = dot(original, vec3(.2126,.7152,.0722));
+          float saturation = (max(max(original.r,original.g),original.b)-min(min(original.r,original.g),original.b))/max(.001,max(max(original.r,original.g),original.b));
+          featherRegion *= smoothstep(.22,.48,saturation); // face, eyes, beak and feet stay natural
+          float tips = smoothstep(.20,.48,abs(vParrotRest.x)) + smoothstep(.12,.40,-vParrotRest.z);
+          vec3 featherTone = mix(parrotBlue,parrotTips,clamp(tips,0.,1.));
+          vec3 target = featherTone * featherRegion.r + parrotYellow * featherRegion.g + parrotCrown * featherRegion.b;
+          float coverage = min(1.,dot(featherRegion,vec3(1.)));
+          float referenceLight = max(.035, dot(featherRegion,vec3(.12,.50,.11)) / max(.001,coverage));
+          float detail = clamp(pow(featherLight/referenceLight,.7),.35,1.55);
+          diffuseColor.rgb = mix(original,target/max(.001,dot(featherRegion,vec3(1.))) * detail,coverage);
+`);
       };
-      o.material.customProgramCacheKey = () => 'macaw-feather-mask-v1';
+      o.material.customProgramCacheKey = () => 'macaw-feather-soft-palette-v2';
     }
     o.castShadow = false; o.frustumCulled = false;
     const a = o.geometry.attributes.color; if (!a) return; const base = new Float32Array(a.count * 3);
@@ -137,7 +158,7 @@ export function syncFlyingParrot(p, id, create = createFlightParrot) {
   const h = Math.max(.5, box.max.y - box.min.y);
   p._flightReady = create(id).then(bird => {
     if (ticket !== p._flightTicket) { bird.userData.dispose(); return; }
-    p.root.add(bird); bird.scale.setScalar(h * .48); // [t2088u] macaw-sized, 1.5x
+    p.root.add(bird); bird.scale.setScalar(h * .672); // [t2106u] another 1.4x larger, still kept close by the companion AI
     p._flight = { bird, h, base: box.min.y, t: 0, phase: Math.random() * 6.28, avoidIn: 0, target: new THREE.Vector3(), position: new THREE.Vector3(), initialized: false };
     updateFlyingParrot(p, 0, null, true);
   }).catch(e => { if (ticket === p._flightTicket) p._flightId = null; console.warn('[parrot] model unavailable', e); });
@@ -150,7 +171,7 @@ const _pq = new THREE.Quaternion(), _bq = new THREE.Quaternion(), _e = new THREE
 // short airborne hover-and-look beats; leash 20 m = flies back fast; > 60 m (fast travel, sailing) = snaps back. Ground + wall checks
 // via world.ground / world.blocked (one probe every 0.1 s). Never lands on or touches the pirate. Each client runs it from a per-bird
 // seed (remote birds behave the same way; their exact path is local, nothing is synced).
-export const PARROT_AI = { near: 1.5, far: 4, leash: 7, snap: 60, cruise: 6.5, sprint: 15, minUp: 1.6, maxUp: 3.2, clear: 0.9, turn: 2.4 };
+export const PARROT_AI = { near: 1.5, far: 4, leash: 7, snap: 60, cruise: 6.5, sprint: 15, minUp: 1.6, maxUp: 3.2, clear: 1.2, turn: 2.4 };
 const rnd = b => (b.seed = (b.seed * 16807) % 2147483647) / 2147483647;
 function ground(x, z, fallback) { try { const g = world?.ground?.(x, z); return Number.isFinite(g) ? g : fallback; } catch { return fallback; } }
 function pickGoal(b, me, yaw) {

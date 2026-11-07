@@ -35,7 +35,7 @@ export function addParrotCage(room, floor = .14) {
     if (bird) { bird.visible = true; colorParrot(bird, color); }
     else if (!loading) loading = createFlightParrot(color).then(model => {
       if (dead || room.userData.disposed) { model.userData.dispose?.(); return; }
-      bird = model; bird.scale.setScalar(.7); bird.position.set(-.02, 1.75, 0); perchParrot(bird, 0); g.add(bird); sync();
+      bird = model; bird.scale.setScalar(.76); bird.position.set(-.02, 1.763, 0); perchParrot(bird, 0); g.add(bird); sync();
     }).catch(() => { loading = null; });
     const t = p.name || 'Parrot';
     if (t !== tagText && typeof document !== 'undefined' && document.createElement) { dropTag(); try { tag = nameTag(t); tagText = t; g.add(tag); } catch {} }
