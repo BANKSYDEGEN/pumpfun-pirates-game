@@ -90,7 +90,7 @@ export function v7Dealers(g, list) { // [t2010u/t2011u] dressed through the game
   const LOOKS = [[3, 2, 1], [8, 1, 4], [5, 4, 3], [9, 1, 1], [2, 6, 4], [7, 3, 2], [4, 5, 3], [6, 1, 6], [1, 7, 5], [8, 8, 1]];
   Promise.all([import('../pirates.js'), import('../pirateGear.js')]).then(([{ pirateFigure }, { setBodyLook }]) => list.forEach(([bx, by, bz, a, kind], i) => {
     const [skinColor, hairColor, eyeColor] = LOOKS[i % LOOKS.length];
-    const fig = pirateFigure({ low: true, height: 1.78, female: kind !== 1 && i % 2 === 1, clip: 'idle', gear: { outfit: 'suit' },
+    const fig = pirateFigure({ low: true, height: 1.78, female: kind !== 1 && i % 2 === 1, clip: 'idle', gear: { outfit: 'suit', pants: 'classic_pants', boots: 'shoes_buckle' } /* [t2020u] pants + shoes */,
       onReady: (p) => { try { setBodyLook(p, { skinColor, hairColor, eyeColor }); } catch (e) { console.warn('[casino] dealer look', e); } } });
     const w = new THREE.Group(); w.name = 'casino_dealer_v7'; w.add(fig);
     w.position.set(bx, bz + (kind === 1 ? 0.42 : 0.03), -by); /* the bartender stands on the duckboard behind the bar */
