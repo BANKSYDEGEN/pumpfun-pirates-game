@@ -543,8 +543,9 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       const board = !coli && typeof kid === 'string' && kid && kid !== mid;
       try { kd?.('d', `me:${me.life}`, board ? { board: true, k: kid, v: mid, life: me.life } : undefined); } catch {}
       if (me.team) me.score[3 - me.team]++;
-      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'unequipped haul dropped · respawning on your ship'}</small>`, 2400);
+      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'gold + unequipped haul dropped · respawning nearby'}</small>`, 2400);
       // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
+      if (!coli) try { dispatchEvent(new CustomEvent('pfp-foot-ko', { detail: { by: String(byId || me.lastById || ''), x: walker.w.x, y: world.ground(walker.w.x, walker.w.z), z: walker.w.z } })); } catch {} // [v370] BANKSY t1969u: -min(100, gold) as a ground pile (js/pvp.js)
       if (!coli) try {
         const inv = typeof inventory === 'function' ? inventory() : inventory;
         const d = inv?.data || {};
@@ -556,6 +557,15 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       } catch {}
     }
   }
+  function nearRespawn() { // [v370] a dry, open spot 7-18 m from the KO, facing it, on the far side from whoever dropped you
+    const [dx, dz] = me.downAt || []; if (!Number.isFinite(dx) || !Number.isFinite(dz)) return null;
+    const kp = me.lastById ? fnet?.peers?.get?.(me.lastById) : null, base = kp && Number.isFinite(kp.x) ? Math.atan2(dx - kp.x, dz - kp.z) : Math.random() * Math.PI * 2;
+    for (const r of [14, 10, 18, 7]) for (const o of [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8, Math.PI]) {
+      const a = base + o, x = dx + Math.sin(a) * r, z = dz + Math.cos(a) * r, g = world.ground(x, z); if (!Number.isFinite(g)) continue;
+      const wl = world.water?.(x, z); if (wl != null && Number.isFinite(+wl) && +wl > g - 0.3) continue;   // not in the sea / river
+      if (world.blocked?.(x, z, dx, dz)) continue; if (inHouse?.()) return null;
+      return [x, z, Math.atan2(dx - x, dz - z)]; }
+    return null; }
   const esc = (s) => String(s).replace(/[<>&"'`\\]/g, '').slice(0, 20);
   /** [backpack-pvp] t1710u KO'd on the open island: back up in the Harbor Plaza / Dock Safe Zone (a berth's ashore spot), facing the plaza */
   function harborRespawn() {
@@ -569,6 +579,8 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (open) {
       setStance(0, true);
       // [v328] BANKSY t1740u/t1741u: open-island death → respawn aboard your ship (moored Harbor OR anchored elsewhere)
+      // [v370] BANKSY t1970u: back up NEAR where you fell (10-18 m away, away from the killer, dry open ground); else your ship as before
+      try { const q = nearRespawn(); if (q) { W.x = q[0]; W.z = q[1]; W.y = world.ground(q[0], q[1]); W.yaw = W.camYaw = q[2]; walker.snapCam?.(); say('⚔️ BACK ON YOUR FEET<small>near where you fell · full health</small>', 1800); return; } } catch {}
       try { if (respawnOnShip?.()) return; } catch {}
       const [x, z, ly] = harborRespawn(); W.x = x; W.z = z; W.y = world.ground(x, z); W.yaw = W.camYaw = ly; walker.snapCam?.();
       say('🛡️ HARBOR SAFE ZONE<small>back on your feet · full health</small>', 1800); return;

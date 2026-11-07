@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v369'; // [v369] slim phone player card + portrait thumb-arc buttons (BANKSY t1954u)
+const VERSION = 'pfp-v370'; // [v370] gold drops on AI sinks + on-foot KOs, respawn near death, LOOT card, WANTED dropdown
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -43,7 +43,7 @@ const SHELL = [
   "./js/adminWorld.js",
   "./js/shoreCombat.js",
   "./js/broadsideAim.js",
-  "./js/inventory/backpackCap.js", "./js/island/safeZones.js", "./js/dock/lootBags.js", "./js/dock/safeZoneMarks.js", // [backpack-pvp]
+  "./js/inventory/backpackCap.js", "./js/island/safeZones.js", "./js/dock/lootBags.js", "./js/lootCard.js", "./js/dock/safeZoneMarks.js", // [backpack-pvp]
   "./js/serverPicker.js", "./js/kdCounter.js", "./js/onfoot/crewFight.js", "./js/onfoot/stances.js", // [backpack-pvp] server picker · unified K/D · crew-vs-crew fights
   "./js/dock/docking.js",
   "./js/dock/layout.js",

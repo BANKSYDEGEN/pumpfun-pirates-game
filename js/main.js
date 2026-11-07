@@ -1433,7 +1433,7 @@ function frame() {
     // loot
     for (let i = loot.length - 1; i >= 0; i--) {
       const l = loot[i]; l.life -= dt;
-      l.mesh.position.set(l.x, waveHeight(l.x, l.z, t) + 0.1 + Math.sin(t * 2 + l.ph) * 0.1, l.z); l.mesh.rotation.y += dt * 0.8;
+      l.mesh.position.set(l.x, (l.gy != null ? l.gy + 0.35 : waveHeight(l.x, l.z, t) + 0.1) + Math.sin(t * 2 + l.ph) * 0.1, l.z); // [v370] land piles sit on the ground l.mesh.rotation.y += dt * 0.8;
       if (Math.random() < 0.3) fx.sparkle(l.mesh.position);
       if (l.pid) { pvp?.lootStep(l); if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); pvp?.piles.delete(l.pid); } continue; } // [pvp] gold piles: host decides who gets each
       if ((player.alive && touchesGold(player, l.x, l.z)) || escorts.list.some(e => e.alive && touchesGold(e, l.x, l.z))) { // [big-hitbox] any part of the hull · [escort pickups] escorts fish gold for you

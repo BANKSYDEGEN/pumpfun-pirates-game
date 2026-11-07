@@ -9,6 +9,8 @@ import {
   countBackpackSlots, canAcceptItem, splitLootForCap, isUnlimitedBag, BAGCAP_ON, BACKPACK_CAP, splitHaulForDrop,
 } from '../inventory/backpackCap.js';
 import { insideSafeZoneH } from '../island/safeZones.js';
+import { itemInfo } from '../inventory/catalog.js';
+import { showLootCard } from '../lootCard.js'; // [v370] BANKSY t1967u: show WHAT you looted
 
 export const PVPLOOT_ON = !(typeof location !== 'undefined' && /[?&]pvploot=0(&|$)/.test(location.search || ''));
 export const LOOT_TTL_S = 120;
@@ -254,7 +256,8 @@ export function createLootBags({
     const n = take.reduce((a, i) => a + (i.qty | 0), 0);
     const who = escHtml(b.victim_name || 'a pirate');
     sfx?.coin?.();
-    toast(`💰 Looted ${n} item${n === 1 ? '' : 's'} from ${who}'s plunder!`, 2200);
+    showLootCard({ title: b.sea ? 'SEA LOOT CRATE' : 'PLUNDER', from: b.victim_name || 'a pirate', items: take.map((it) => { const inf = (() => { try { return itemInfo(it.item); } catch { return null; } })(); return { icon: inf?.icon || '📦', name: inf?.name || String(it.item).split(':').pop().replace(/_/g, ' '), qty: it.qty | 0 || 1 }; }) });
+    if (!n) toast(`💰 Looted ${who}'s plunder!`, 1600);
     if (left.length && !isUnlimitedBag(state)) toast('🎒 Backpack full — leftover plunder stays in the bag!', 2000);
     return { take, left };
   }

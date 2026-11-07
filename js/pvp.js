@@ -46,6 +46,7 @@ import { previewShipId } from './newShips.js'; // [Emerly] the new hulls' previe
 import { SQUADS, HARBOR_NET, HARBOR_SQUAD_MAX } from './config.js';
 import { Room } from './net.js';
 import { isNetId, escHtml, num } from './safe.js';
+import { showLootCard } from './lootCard.js'; // [v370]
 import { ADM } from './adminState.js'; // [admin-menu] owner GOD / INVISIBLE / NOCLIP, server FREEZE (js/adminMenu.js)
 import { IS_PROD_HOST } from './env.js'; // [security H5] peer ids whitelisted, attribute values escaped
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
@@ -748,7 +749,7 @@ export function createPvp(K) {
   }
   function wire(r) {
     r.on('lb', onLootNet); // [backpack-pvp] plunder bags / sea crates in this copy
-    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('gh', onGunHit).on('bk', onBombKill).on('sunk', onSunk).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS)); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
+    r.on('s', onState).on('shot', onShot).on('hit', onHit).on('gh', onGunHit).on('bk', onBombKill).on('sunk', onSunk).on('gdrop', onGdrop).on('pile', (m) => { if (where === 'harbor' && m?.h && m.h !== hostId) return; addPile(m.pid, m.x, m.z, m.v, m.ttl, false, Math.min(+m.e || 0, where === 'harbor' ? Math.max(PVP_DEATH_BONUS, harborGold(80) * HARBOR_BOSS.pay * 2) : PVP_DEATH_BONUS), false, m.y ?? null); }) // [v105] harbor: the host's shared AI drops (earned = the AI gold)
       .on('claim', (m) => { if (isHost) grant(m.pid, m.i); }).on('got', applyGot).on('gone', (m) => removePile(m.pid))
       .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m?.i); if (p) p.heard = 0; if (isNetId(m?.i)) K.dock?.fnet?.drop?.(m.i); }) // [admin-menu] their on-foot pirate goes at once too (INVISIBLE / left)
@@ -759,10 +760,10 @@ export function createPvp(K) {
     r.onStatus = (s) => { if (s === 'reconnecting') K.banner('RECONNECTING…', 'the sea went quiet for a moment'); else if (s === 'limit') K.banner('SERVERS BUSY', 'the arena is over capacity, hang on…'); };
   }
   const livePeers = () => [...peers.values()].filter(p => performance.now() - p.heard < PEER_TIMEOUT);
-  function sendWorld(sync = false) { const list = [...piles.values()].filter(l => !l.local && !l.taken).slice(0, PVP_PILE_CAP + 10).map(l => [l.pid, r1(l.x), r1(l.z), l.value, 0]); room?.send('world', { h: myId, s: sync ? 1 : 0, piles: list, e: list.map(p => piles.get(p[0])?.earned || 0) }); }
+  function sendWorld(sync = false) { const list = [...piles.values()].filter(l => !l.local && !l.taken).slice(0, PVP_PILE_CAP + 10).map(l => [l.pid, r1(l.x), r1(l.z), l.value, 0, l.gy]); room?.send('world', { h: myId, s: sync ? 1 : 0, piles: list, e: list.map(p => piles.get(p[0])?.earned || 0) }); }
   function onWorld(m) { // the host's pile list: add what we're missing; on a resync also drop piles the host no longer has
     const list = (Array.isArray(m?.piles) ? m.piles : []).slice(0, PVP_PILE_CAP + 10);
-    for (const p of list) { if (!Array.isArray(p)) continue; const [pid, x, z, v] = p, e = Array.isArray(m.e) ? m.e[list.indexOf(p)] : 0; const l = piles.get(pid); if (l) { if (+v > 0 && +v !== l.value) { l.value = clamp(Math.floor(+v), 0, PVP_PILE_MAX); pileLook(l); } } else addPile(pid, x, z, v, 0, false, Math.min(+e || 0, PVP_PILE_MAX)); }
+    for (const p of list) { if (!Array.isArray(p)) continue; const [pid, x, z, v, , gy] = p, e = Array.isArray(m.e) ? m.e[list.indexOf(p)] : 0; const l = piles.get(pid); if (l) { if (+v > 0 && +v !== l.value) { l.value = clamp(Math.floor(+v), 0, PVP_PILE_MAX); pileLook(l); } } else addPile(pid, x, z, v, 0, false, Math.min(+e || 0, PVP_PILE_MAX), false, gy ?? null); }
     if (m.s && m.h === hostId && !isHost) { const keep = new Set(list.map(p => p?.[0])); for (const [pid, l] of piles) if (!l.local && !keep.has(pid) && performance.now() - l.born > 5000) removePile(pid); }
   }
 
@@ -1202,7 +1203,7 @@ export function createPvp(K) {
     if (where !== 'arena' || byAi) { // harbor / lone-pirate AI: never K/D. [v92] sunk IN THE HARBOR: lose min(100, gold), keep the rest
       const lost = where === 'harbor' ? Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)) : 0;
       me.dead = true; me.respawn = where === 'harbor' ? PVP_HARBOR_RESPAWN : PVP_RESPAWN; me.respawnAt = where === 'harbor' ? performance.now() + PVP_HARBOR_RESPAWN * 1000 : 0; me.killedBy = bots.get(by)?.harborBoss ? 'the COMMODORE' : 'an AI ship'; me.dropped = 0; me.aiDeath = true; me.harborLoss = lost;
-      if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); }
+      if (lost) { game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); dropMyGold(pl.x, pl.z, lost); } // [v370] BANKSY t1963u: the lost gold floats where you sank (anyone can grab it)
       showDead(true); return;
     }
     me.aiDeath = false;
@@ -1317,18 +1318,40 @@ export function createPvp(K) {
       else { spawnPile(m.v, x, z, g + (afk ? 0 : PVP_DEATH_BONUS) + vb, false, afk ? 0 : PVP_DEATH_BONUS); earned.delete(m.v); }
     }
   }
+  // [v370] BANKSY t1963u-t1965u: gold YOU lose without a pirate sink (an AI ship sank you, or KO'd on foot) drops as a shared pile.
+  // Host spawns it (non-hosts ask with 'gdrop'; capped at the flat harbor loss); no room = a local pile you can take back.
+  let gdropSeq = 0; const seenGdrop = new Map();
+  function dropMyGold(x, z, v, gy = null) {
+    v = clamp(Math.floor(+v || 0), 0, PVP_HARBOR_DEATH_LOSS); if (!v) return;
+    if (!room) { spawnPile(myId, x, z, v, true, 0, false, gy); return; }
+    if (isHost) { spawnPile(myId, x, z, v, false, 0, false, gy); return; }
+    room.send('gdrop', { v: myId, k: `${me.life}:${++gdropSeq}`, x: r1(x), z: r1(z), g: v, ...(gy != null ? { y: r1(gy) } : {}) }, { now: true });
+  }
+  function onGdrop(m) {
+    if (!isHost || !m || typeof m.v !== 'string' || where !== 'harbor') return;
+    const key = `${m.v}:${String(m.k || '').slice(0, 24)}`, now = performance.now(); if (seenGdrop.has(key)) return; seenGdrop.set(key, now);
+    if (seenGdrop.size > 200) for (const [k2, t2] of seenGdrop) if (now - t2 > 60000) seenGdrop.delete(k2);
+    const g = clamp(Math.floor(+m.g || 0), 0, PVP_HARBOR_DEATH_LOSS); if (!g) return;
+    const gy = m.y != null && Number.isFinite(+m.y) ? clamp(+m.y, -5, 200) : null, [x, z] = gy != null ? [+m.x || 0, +m.z || 0] : clampXZ(m.x, m.z);
+    spawnPile(m.v, x, z, g, false, 0, false, gy);
+  }
+  addEventListener('pfp-foot-ko', (e) => { // [v370] knocked out on the open island (battle.js; never the Coliseum / Safe Zones): lose min(100, gold) as a ground pile
+    try { if (where !== 'harbor' || ADM.invisible) return; const d = e.detail || {}, lost = Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)); if (!lost) return;
+      game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); dropMyGold(+d.x || 0, +d.z || 0, lost, Number.isFinite(+d.y) ? +d.y : 0);
+      K.dock?.toast?.(`💀 -${lost} GOLD DROPPED<br><small>grab it back before someone else does</small>`, 2200); } catch (err) { console.warn('[foot ko gold]', err); }
+  });
   function dropSpot(x, z) { // [v105] a drop always floats in open water you can sail to (never on the shore or inside a rock)
     try { const q = K.islands?.freeSpot?.(x, z, 9); if (q && isFinite(q[0]) && isFinite(q[1])) return [q[0], q[1]]; } catch {} return [x, z]; }
-  function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0, map = false) { // [v145] map: the crimson treasure-map chest (look only, local piles) // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
+  function spawnPile(v, x, z, value, local = false, earnedPart = local ? value : 0, map = false, gy = null) { // [v145] map: the crimson treasure-map chest (look only, local piles) // earnedPart: newly created gold (AI gold / +100 bonus), the part the holder perk boosts
     const pid = `${String(v).slice(-6)}${(++pileSeq).toString(36)}${myId.slice(-3)}`;
-    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart, h: myId });
-    addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart, map);
+    if (!local) room?.send('pile', { pid, x: r1(x), z: r1(z), v: value, e: earnedPart, h: myId, ...(gy != null ? { y: r1(gy) } : {}) });
+    addPile(pid, x, z, value, PVP_PILE_LIFE, local, earnedPart, map, gy);
   }
-  function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0, map = false) {
+  function addPile(pid, x, z, value, ttl, local = false, earnedPart = 0, map = false, gy = null) {
     if (typeof pid !== 'string' || piles.has(pid)) return;
     value = clamp(Math.floor(+value || 0), 0, PVP_PILE_MAX); // merged piles can be big; never expire (life Infinity)
     const g = makeChest(map ? { map: true } : undefined); scene.add(g);
-    const l = { mesh: g, map, x: +x || 0, z: +z || 0, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
+    const l = { mesh: g, map, x: +x || 0, z: +z || 0, gy: gy != null && Number.isFinite(+gy) ? +gy : null /* [v370] on-foot KO gold: sits on the ground */, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
     pileLook(l);
     l.local = local; l.earned = clamp(Math.floor(+earnedPart || 0), 0, value); loot.push(l); piles.set(pid, l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
     if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), map ? `${value} GOLD + TREASURE MAP` : `${value} GOLD`, 'hit');
@@ -1337,8 +1360,9 @@ export function createPvp(K) {
   function lootStep(l) { // main loop, per pile: claim it when we sail over it
     if (!piles.has(l.pid)) return;
     { const t = performance.now(); if (t - (l.pulseT || 0) > 3500) { l.pulseT = t + Math.random() * 800; if (Math.hypot(l.x - P().x, l.z - P().z) < 260) fx.ring(new THREE.Vector3(l.x, 0, l.z), 1.5, 7, 1.2); } } // [v105] a soft gold ring every few s: easy to find
-    const pl = P(); if (me.dead || !pl.alive) return;
-    if (!touchesGold(pl, l.x, l.z)) return; // [big-hitbox] any part of the hull
+    if (l.gy != null) { const d = K.dock, w = d?.walker?.w; if (!d?.onFoot || !w || d.battle?.me?.down > 0 || Math.hypot(w.x - l.x, w.z - l.z) > 2.4) return; } // [v370] a land pile: walk over it
+    else { const pl = P(); if (me.dead || !pl.alive) return;
+    if (!touchesGold(pl, l.x, l.z)) return; } // [big-hitbox] any part of the hull
     const now = performance.now(); if (l.claimT && now - l.claimT < 1500) return; l.claimT = now;
     if (l.local) { applyGot({ pid: l.pid, to: myId, v: l.value }); return; } // local AI loot
     if (isHost) grant(l.pid, myId); else room?.send('claim', { pid: l.pid, i: myId });
@@ -1354,7 +1378,7 @@ export function createPvp(K) {
     const l = piles.get(m.pid); const v = clamp(Math.floor(+m.v || 0), 0, l ? l.value : 0);
     if (l) { if (m.to !== myId) K.popup(l.mesh.position.clone().setY(5), `${nameOf(m.to)} +${v}`, 'hit'); removePile(m.pid); }
     const hb = m.to === myId && l ? holderMul(l.earned) + goldFindBonus(l.earned) : 0; // HOLDER ×2 on earned gold only · [Emerly] + PET gold find (earned gold only)
-    if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); K.updateHud(); save(); }
+    if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); showLootCard({ title: l?.map ? 'TREASURE CHEST' : l?.gy != null ? 'DROPPED GOLD' : 'GOLD CHEST', gold: v + hb, bonus: hb, items: l?.map ? [{ icon: '🗺️', name: 'Treasure Map' }] : [] }); K.updateHud(); save(); } // [v370] the LOOT card
   }
   function respawn() {
     me.respawnAt = 0;
@@ -2106,7 +2130,8 @@ export function createPvp(K) {
       return null; },
     serverPicker, switchServer, groundKd, kdT, lifeK: () => lifeK(), lifeD: () => lifeD(), HB_PVP_ON, shipProtectedHarbor: (s) => shipProtectedHarbor(s), harborPvpCanHit: (a, b) => harborPvpCanHit(a, b), isSquadMate: (id) => isSquadMate(id), isHarborSquadMate: (p) => isHarborSquadMate(p), isHbSquadPeer: (p) => isHbSquadPeer(p), partyMates, unmannedLocal: () => unmannedLocal(), lootNet: (msg) => lootNet(msg),
     _test: { SPAWNS_COAST, SPAWNS_ISLAND, pickBossSpawn, coastOk: coastSeaOk, islandOk: islandSeaOk, spawnBoss, boss, P, onShot, onState, onEmote, skin: (id) => { profile.skins.equipped = id; return (K.rebuildShipSkin || K.rebuildShip)(getRunLevels()); }, skinWarm: (id) => K.prebuildSkin?.(getRunLevels(), pvpSkin(id)), damage: (...a) => K.damage(...a), spawnPile, grant, pickSpawn, localDamage, MAX_HIT, SPAWNS, afkKick, seatId, applyHit, hbTick, syncBots, aiRows, electHost, isHbSquadPeer, hbPaint, hbRepaintAll, copyLevel, sqHost, sqTeam, makeTeams, SQ_PREFIX, setNet } };
-  api.publicApi = Object.freeze({ serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), isHarborSquadMate: (p) => isHarborSquadMate(p), isHbSquadPeer: (p) => isHbSquadPeer(p), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+  api.publicApi = Object.freeze({ playerNames: () => (where === 'harbor' ? livePeers().map(p => p.name).filter(Boolean) : []) /* [v370] WANTED board dropdown */, serverPicker, groundKd, lootNet: (msg) => lootNet(msg), isSquadMate: (id) => isSquadMate(id), isHarborSquadMate: (p) => isHarborSquadMate(p), isHbSquadPeer: (p) => isHbSquadPeer(p), partyInfo, get kd() { return { kills: lifeK(), deaths: lifeD() }; }, renderMenu: (...a) => renderMenu(...a), get profile() { return profile ? structuredClone(profile) : profile; } }); // [security L] what other modules read on the live game
+  api.playerNames = api.publicApi.playerNames;
   window.PFP_PVP = DEV ? api : api.publicApi;
   return api;
 }

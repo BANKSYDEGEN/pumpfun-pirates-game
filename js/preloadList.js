@@ -14,6 +14,7 @@ export const HARBOR_MODULES = [
   "js/dock/ladders.js",
   "js/dock/layout.js",
   "js/dock/lootBags.js",
+  "js/lootCard.js",
   "js/dock/plaza.js",
   "js/dock/safe.js",
   "js/dock/safeZoneMarks.js",
