@@ -105,16 +105,16 @@ test('practice table: payouts per game (blackjack natural 3:2, roulette 36x / 3x
   assert.equal(E.rouletteMult(E.parseRouletteChoice('dozen1'), 5), 3); assert.equal(E.rouletteMult(E.parseRouletteChoice('1st12'), 13), 0);
   assert.equal(E.rouletteMult(E.parseRouletteChoice('red'), 1), 2); assert.equal(E.rouletteMult(E.parseRouletteChoice('red'), 2), 0); assert.equal(E.rouletteMult(E.parseRouletteChoice('odd'), 0), 0);
   assert.equal(E.rouletteMult(E.parseRouletteChoice('low'), 18), 2); assert.equal(E.rouletteMult(E.parseRouletteChoice({ kind: 'color', value: 'black' }), 2), 2);
-  assert.equal(E.diceMult('under7', 2, 3), 2); assert.equal(E.diceMult('seven', 3, 4), 4); assert.equal(E.diceMult('over7', 6, 5), 2); assert.equal(E.diceMult('doubles', 4, 4), 5); assert.equal(E.diceMult('over7', 3, 4), 0);
+  assert.equal(E.diceMult('under7', 2, 3), 2.2); assert.equal(E.diceMult('seven', 3, 4), 4); assert.equal(E.diceMult('over7', 6, 5), 2.2); assert.equal(E.diceMult('doubles', 4, 4), 5); assert.equal(E.diceMult('over7', 3, 4), 0);
   assert.equal(E.slotsMult(['seven', 'seven', 'seven']), 25); assert.equal(E.slotsMult(['chest', 'chest', 'chest']), 15); assert.equal(E.slotsMult(['crown', 'crown', 'crown']), 10);
   assert.equal(E.slotsMult(['doubloon', 'doubloon', 'doubloon']), 8); assert.equal(E.slotsMult(['ruby', 'ruby', 'ruby']), 6); assert.equal(E.slotsMult(['anchor', 'anchor', 'anchor']), 4);
-  assert.equal(E.slotsMult(['ruby', 'ruby', 'anchor']), 2); assert.equal(E.slotsMult(['ruby', 'seven', 'anchor']), 0);
+  assert.equal(E.slotsMult(['ruby', 'ruby', 'anchor']), 0); assert.equal(E.slotsMult(['ruby', 'seven', 'anchor']), 0);
   assert.equal(E.handTotal(['AS', 'KH']), 21); assert.ok(E.isNatural(['AS', 'KH'])); assert.equal(E.handTotal(['AS', 'AH', '9C']), 21);
   // deterministic rng: the local purse moves by exactly the reported delta, never below zero, bets clamp to the purse
   let seq = 0; const rng = (n) => (seq = (seq * 1103515245 + 12345) >>> 0) % n;
   const L = E.createLocalCasino({ purse: 1000, rng });
   for (const [game, choice] of [['roulette', 'red'], ['roulette', 'number:7'], ['dice', 'seven'], ['dice', 'doubles'], ['slots', null]]) for (let i = 0; i < 20; i++) { if (L.gold < 100) L.gold = 1000;
-    const before = L.gold, r = await L.play({ game, bet: 25, choice }); assert.equal(r.ok, true); assert.equal(r.gold, before + r.delta, `${game} purse`); assert.ok(r.gold >= 0); assert.ok(['win', 'lose'].includes(r.outcome)); assert.equal(r.delta, r.outcome === 'win' ? 25 * (r.detail.mult - 1) : -25); }
+    const before = L.gold, r = await L.play({ game, bet: 25, choice }); assert.equal(r.ok, true); assert.equal(r.gold, before + r.delta, `${game} purse`); assert.ok(r.gold >= 0); assert.ok(['win', 'lose'].includes(r.outcome)); assert.equal(r.delta, r.outcome === 'win' ? Math.floor(25 * r.detail.mult) - 25 : -25); }
   for (let i = 0; i < 200; i++) { if (L.gold < 200) L.gold = 1000; const before = L.gold; let r = await L.play({ game: 'blackjack', bet: 50, action: 'deal' }); let k = 0;
     while (r.ok && !r.detail.finished && k++ < 10) r = await L.play({ game: 'blackjack', action: r.detail.playerTotal < 12 && r.state.canDouble ? 'double' : r.detail.playerTotal < 17 ? 'hit' : 'stand', stateId: r.state.stateId });
     assert.equal(r.ok, true); assert.equal(r.detail.finished, true); const b = r.detail.bet;
@@ -139,7 +139,7 @@ test('live table: casino_play payload; nested + top-level replies set the HUD go
   r = await C.play('blackjack', { bet: 50, action: 'deal' }); assert.equal(r.stateId, 'bj1'); assert.equal(r.finished, false); assert.deepEqual(r.player, ['AS', '9H']); assert.equal(gold, 1250);
   pv = reply({ ok: true, delta: 50, outcome: 'win', state: { stateId: 'bj1', phase: 'done' }, detail: { player: ['AS', '9H'], dealer: ['KC', '8D'] } });
   r = await C.play('blackjack', { action: 'stand', stateId: 'bj1', bet: 50 }); assert.equal(calls.at(-1)[1].stateId, 'bj1'); assert.equal(calls.at(-1)[1].action, 'stand');
-  assert.equal(r.finished, true); assert.equal(gold, 1300, 'delta-only reply moves the HUD gold');
+  assert.equal(r.finished, true); assert.equal(gold, 1250, 'delta-only reply cannot mint HUD gold');
   pv = reply({ ok: true, gold: 1500, delta: 200, outcome: 'win', detail: { number: 7 } }); r = await C.play('roulette', { bet: 100, choice: { kind: 'number', value: 7 } });
   assert.equal(r.number, 7); assert.equal(r.color, 'red'); assert.equal(gold, 1500);
   // a game error stays live (no gold change)
@@ -151,7 +151,7 @@ test('live table: casino_play payload; nested + top-level replies set the HUD go
   // no pvp at all (island.html), ?casinoqa=1, the pvp offline reply, a throw
   gold = 500; C = E.createCasinoClient({ pvp: () => null, getGold: () => gold, setGold }); r = await C.play('slots', { bet: 10 }); assert.equal(r.mode, 'practice'); assert.equal(gold, 500);
   C = E.createCasinoClient({ pvp: () => reply({ ok: true, gold: 9 }), getGold: () => gold, setGold, qa: true }); r = await C.play('dice', { bet: 10, choice: 'seven' }); assert.equal(r.mode, 'practice'); assert.equal(gold, 500);
-  C = E.createCasinoClient({ pvp: () => reply({ ok: false, error: 'offline' }), getGold: () => gold, setGold }); r = await C.play('dice', { bet: 10, choice: 'seven' }); assert.equal(r.mode, 'practice'); assert.equal(gold, 500);
-  C = E.createCasinoClient({ pvp: () => ({ inv: { call: async () => { throw new Error('network'); } } }), getGold: () => gold, setGold }); r = await C.play('dice', { bet: 10, choice: 'seven' }); assert.equal(r.mode, 'practice'); assert.equal(gold, 500);
+  C = E.createCasinoClient({ pvp: () => reply({ ok: false, error: 'offline' }), getGold: () => gold, setGold }); r = await C.play('dice', { bet: 10, choice: 'seven' }); assert.equal(r.mode, 'live'); assert.equal(r.ok, false); assert.equal(gold, 500);
+  C = E.createCasinoClient({ pvp: () => ({ inv: { call: async () => { throw new Error('network'); } } }), getGold: () => gold, setGold }); r = await C.play('dice', { bet: 10, choice: 'seven' }); assert.equal(r.mode, 'live'); assert.equal(r.ok, false); assert.equal(gold, 500);
   assert.equal(E.clampBet(3, 1000), E.MIN_BET); assert.ok(E.clampBet(1e9, 1e9) <= E.MAX_BET);
 });

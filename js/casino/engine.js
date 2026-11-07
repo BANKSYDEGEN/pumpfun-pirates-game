@@ -11,7 +11,8 @@ export const MIN_BET = 10, MAX_BET = 5000;
 export const GAMES = ['blackjack', 'roulette', 'dice', 'slots'];
 export const SLOT_SYMBOLS = ['doubloon', 'anchor', 'skull', 'crown', 'ruby', 'chest', 'seven'];
 export const SLOT_PAYS = { seven: 25, chest: 15, crown: 10, doubloon: 8, ruby: 6, anchor: 4, skull: 3 };   // three of a kind (x bet, total return)
-export const SLOT_PAIR = 2;                                                                             // any two matching
+export const SLOT_PAIR = 2; // two crowns; two doubloons return 1.5x
+export const SLOT_WEIGHTS = { doubloon: 22, anchor: 18, skull: 16, crown: 10, ruby: 12, chest: 10, seven: 6 }; // same weighted reels as the server
 export const DICE_BETS = { under7: 2, seven: 4, over7: 2, doubles: 5 };                                  // total return (x bet)
 export const ROULETTE_PAYS = { color: 2, parity: 2, half: 2, dozen: 3, straight: 36 };
 export const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
@@ -61,10 +62,10 @@ export const rouletteLabel = (choice) => { const c = parseRouletteChoice(choice)
 export function parseDiceChoice(c) { const s = String((c && typeof c === 'object' ? c.value ?? c.kind : c) || '').toLowerCase().replace(/[\s_-]/g, '');
   if (/^(under7|under|low|lt7)(?![\s\S])/.test(s)) return 'under7'; if (/^(seven|lucky7|7|lucky)(?![\s\S])/.test(s)) return 'seven'; if (/^(over7|over|high|gt7)(?![\s\S])/.test(s)) return 'over7'; if (/^(doubles|double|pair)(?![\s\S])/.test(s)) return 'doubles'; return null; }
 export function diceMult(choice, d1, d2) { const c = parseDiceChoice(choice), s = d1 + d2; if (!c) return 0;
-  return c === 'under7' ? (s < 7 ? 2 : 0) : c === 'seven' ? (s === 7 ? 4 : 0) : c === 'over7' ? (s > 7 ? 2 : 0) : d1 === d2 ? 5 : 0; }
+  return c === 'under7' ? (s < 7 ? s <= 5 ? 2.2 : 2 : 0) : c === 'seven' ? (s === 7 ? 4 : 0) : c === 'over7' ? (s > 7 ? s >= 9 ? 2.2 : 2 : 0) : d1 === d2 ? 5 : 0; }
 
 // ---- slots ----
-export function slotsMult(reels) { const [a, b, c] = reels; if (a === b && b === c) return SLOT_PAYS[a] || 0; if (a === b || b === c || a === c) return SLOT_PAIR; return 0; }
+export function slotsMult(reels) { const [a, b, c] = reels; if (a === b && b === c) return SLOT_PAYS[a] || 0; if (reels.filter(s => s === 'crown').length === 2) return SLOT_PAIR; if (reels.filter(s => s === 'doubloon').length === 2) return 1.5; return 0; }
 
 // ---- blackjack ----
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'], SUITS = ['S', 'H', 'D', 'C'];
@@ -121,39 +122,44 @@ export const unavailable = (raw) => raw == null || raw === false || (typeof raw 
 // ---- the practice table: same contract, its own purse ----
 export function createLocalCasino({ purse = 1000, rng = cryptoInt } = {}) {
   let gold = Math.max(0, Math.floor(purse)); const hands = new Map();
-  const card = () => ({ r: RANKS[rng(13)], s: SUITS[rng(4)] });
+  let deck = [];
+  const card = () => deck.pop();
+  const shoe = () => { deck = SUITS.flatMap(s => RANKS.map(r => ({ r, s }))); for (let i = deck.length - 1; i > 0; i--) { const j = rng(i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; } };
+  const slot = () => { let n = rng(94); for (const [s, w] of Object.entries(SLOT_WEIGHTS)) { n -= w; if (n < 0) return s; } return 'seven'; };
   const fail = (error) => ({ ok: false, error, gold });
   const settle = (game, delta, outcome, detail, state = { phase: 'done' }) => { gold += delta; return { ok: true, gold, delta, outcome, detail, state }; };
   function play(req = {}) {
     const game = String(req.game || ''); if (!GAMES.includes(game)) return fail('unknown game');
     if (game === 'blackjack' && req.action && req.action !== 'deal') return blackjackAct(req);
+    if (game === 'blackjack' && hands.size) return fail('finish your blackjack hand first');
     const bet = Math.floor(Number(req.bet)); if (!(bet >= MIN_BET) || bet > MAX_BET) return fail('bet must be ' + MIN_BET + ' to ' + MAX_BET + ' gold');
     if (bet > gold) return fail('not enough gold');
     if (game === 'roulette') { const c = parseRouletteChoice(req.choice); if (!c) return fail('pick a bet on the table');
-      const n = rng(37), m = rouletteMult(c, n); return settle(game, m ? bet * (m - 1) : -bet, m ? 'win' : 'lose', { number: n, color: pocketColor(n), choice: c, mult: m, bet }); }
+      const n = rng(37), m = rouletteMult(c, n); return settle(game, Math.floor(bet * m) - bet, m ? 'win' : 'lose', { number: n, color: pocketColor(n), choice: c, mult: m, bet }); }
     if (game === 'dice') { const c = parseDiceChoice(req.choice); if (!c) return fail('pick a bet');
-      const d1 = rng(6) + 1, d2 = rng(6) + 1, m = diceMult(c, d1, d2); return settle(game, m ? bet * (m - 1) : -bet, m ? 'win' : 'lose', { dice: [d1, d2], sum: d1 + d2, choice: c, mult: m, bet }); }
-    if (game === 'slots') { const reels = [0, 1, 2].map(() => SLOT_SYMBOLS[rng(SLOT_SYMBOLS.length)]), m = slotsMult(reels);
-      return settle(game, m ? bet * (m - 1) : -bet, m ? 'win' : 'lose', { reels, mult: m, line: reels[0] === reels[1] && reels[1] === reels[2] ? 'three' : m ? 'pair' : 'none', bet }); }
+      const d1 = rng(6) + 1, d2 = rng(6) + 1, m = diceMult(c, d1, d2); return settle(game, Math.floor(bet * m) - bet, m ? 'win' : 'lose', { dice: [d1, d2], sum: d1 + d2, choice: c, mult: m, bet }); }
+    if (game === 'slots') { const reels = [slot(), slot(), slot()], m = slotsMult(reels);
+      return settle(game, Math.floor(bet * m) - bet, m ? 'win' : 'lose', { reels, mult: m, line: reels[0] === reels[1] && reels[1] === reels[2] ? 'three' : m ? 'pair' : 'none', bet }); }
     // blackjack deal
-    const P = [card(), card()], D = [card(), card()], id = newReqId().replace('cas_', 'bj_');
+    shoe(); const P = [card(), card()], D = [card(), card()], id = newReqId().replace('cas_', 'bj_');
     if (isNatural(P) || isNatural(D)) { const pn = isNatural(P), dn = isNatural(D), delta = pn && dn ? 0 : pn ? Math.floor(bet * 1.5) : -bet;
       return settle(game, delta, pn && dn ? 'push' : pn ? 'blackjack' : 'lose', bjDetail(P, D, bet, true)); }
-    hands.set(id, { P, D, bet }); return { ok: true, gold, delta: 0, outcome: 'playing', detail: bjDetail(P, D, bet, false), state: { stateId: id, phase: 'player', canDouble: bet * 2 <= gold } };
+    gold -= bet; hands.set(id, { P, D, bet }); return { ok: true, gold, delta: -bet, outcome: 'playing', detail: bjDetail(P, D, bet, false), state: { stateId: id, phase: 'player', canDouble: bet <= gold } };
   }
   function bjDetail(P, D, bet, done) { return { player: P, dealer: done ? D : [D[0], null], playerTotal: handTotal(P), dealerTotal: done ? handTotal(D) : handTotal([D[0]]), bet, finished: done }; }
   function blackjackAct(req) {
     const h = hands.get(req.stateId); if (!h) return fail('that hand is over');
     const a = String(req.action).toLowerCase();
-    if (a === 'double') { if (h.P.length !== 2 || h.bet * 2 > gold) return fail('cannot double now'); h.bet *= 2; h.P.push(card()); if (handTotal(h.P) > 21) { hands.delete(req.stateId); return settle('blackjack', -h.bet, 'bust', bjDetail(h.P, h.D, h.bet, true)); } return stand(req.stateId, h); }
-    if (a === 'hit') { h.P.push(card()); const t = handTotal(h.P); if (t > 21) { hands.delete(req.stateId); return settle('blackjack', -h.bet, 'bust', bjDetail(h.P, h.D, h.bet, true)); }
+    if (a === 'double') { if (h.P.length !== 2 || h.bet > gold) return fail('cannot double now'); gold -= h.bet; h.bet *= 2; h.P.push(card()); if (handTotal(h.P) > 21) { hands.delete(req.stateId); return settleHand(h, -h.bet, 'bust', bjDetail(h.P, h.D, h.bet, true)); } return stand(req.stateId, h); }
+    if (a === 'hit') { h.P.push(card()); const t = handTotal(h.P); if (t > 21) { hands.delete(req.stateId); return settleHand(h, -h.bet, 'bust', bjDetail(h.P, h.D, h.bet, true)); }
       if (t === 21) return stand(req.stateId, h); return { ok: true, gold, delta: 0, outcome: 'playing', detail: bjDetail(h.P, h.D, h.bet, false), state: { stateId: req.stateId, phase: 'player', canDouble: false } }; }
     if (a === 'stand') return stand(req.stateId, h);
     return fail('unknown action');
   }
+  function settleHand(h, delta, outcome, detail) { gold += h.bet; return settle('blackjack', delta, outcome, detail); }
   function stand(id, h) { hands.delete(id); while (handTotal(h.D) < 17) h.D.push(card());
     const p = handTotal(h.P), d = handTotal(h.D), delta = d > 21 || p > d ? h.bet : p < d ? -h.bet : 0;
-    return settle('blackjack', delta, delta > 0 ? 'win' : delta < 0 ? 'lose' : 'push', bjDetail(h.P, h.D, h.bet, true)); }
+    return settleHand(h, delta, delta > 0 ? 'win' : delta < 0 ? 'lose' : 'push', bjDetail(h.P, h.D, h.bet, true)); }
   return { play: (req) => Promise.resolve(play(req)), playSync: play, get gold() { return gold; }, set gold(v) { gold = Math.max(0, Math.floor(v)); } };
 }
 
@@ -170,10 +176,10 @@ export function localChange(game, action, raw, res) {
 }
 // ---- the client: the server casino when it is there, else the practice table (sticky for the session) ----
 export function createCasinoClient({ pvp = () => null, getGold = () => 0, setGold = () => {}, qa = false, purse } = {}) {
-  let practice = null, why = qa ? 'qa' : null;
+  let practice = null, why = qa ? 'qa' : null, pending = false;
   const local = () => (practice ||= createLocalCasino({ purse: purse ?? Math.max(1000, Math.floor(getGold() || 0)) }));
   const live = () => !qa && !why && typeof pvp()?.inv?.call === 'function';
-  async function play(game, { bet, choice, action, stateId } = {}) {
+  async function playRound(game, { bet, choice, action, stateId } = {}) {
     const req = { game, bet: Math.floor(Number(bet) || 0), choice: choice ?? null, action: action || null, stateId: stateId || null, reqId: newReqId() };
     if (live()) {
       const wager = game !== 'blackjack' || !action || action === 'deal' || action === 'double';
@@ -184,13 +190,22 @@ export function createCasinoClient({ pvp = () => null, getGold = () => 0, setGol
       if (!unavailable(raw)) { const res = readResult(raw, game);
         if (res.ok) {
           // [v342] BANKSY t1810u/t1811u: the server's balance IS the balance (it already debited / credited it): re-base every save path on it
-          if (typeof res.gold === 'number') setGold(res.gold, { fromServer: true, rev: raw?.rev ?? null, owner: !!raw?.owner });
-          else if (typeof res.delta === 'number' && !raw?.gold_landed) { const ch = localChange(game, action, raw, res); if (ch) setGold((Number(getGold()) || 0) + ch); } }   // pvp.inv.call already landed a nonzero gold_landed
+          if (typeof res.gold === 'number' && res.gold >= 0) { const meta = { ...raw, ...(raw?.result || raw?.data || {}) }; setGold(res.gold, { fromServer: true, rev: meta.rev ?? null, owner: !!meta.owner }); }
+          // A missing balance is NOT permission to mint gold from a payout/delta. The next server sync owns it.
+        }
         res.mode = 'live'; return res; }
-      if (game === 'blackjack' && action && action !== 'deal') { const res = readResult({ ok: false, error: 'the dealer lost the hand: deal again' }, game); res.mode = 'live'; return res; }
+      // A dropped reply may already have debited the wager. Never replay it as a practice win or retry automatically.
+      if (!raw || /offline|network|fetch|timeout/i.test(String(raw.error || '')) || (game === 'blackjack' && action && action !== 'deal')) {
+        return { ok: false, mode: 'live', error: 'Connection interrupted. The wager may have reached the dealer. Check your balance before playing again.' };
+      }
       why = 'offline';
     }
     const res = readResult(await local().play(req), game); res.mode = 'practice'; return res;
+  }
+  async function play(game, body) {
+    if (pending) return { ok: false, error: 'Wait for the current wager to finish.' };
+    pending = true;
+    try { return await playRound(game, body); } finally { pending = false; }
   }
   return { play, get mode() { return live() ? 'live' : 'practice'; }, get why() { return why; }, get purse() { return practice ? practice.gold : null; }, gold: () => (live() ? Number(getGold()) || 0 : local().gold), local };
 }

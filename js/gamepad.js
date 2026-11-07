@@ -161,7 +161,7 @@ let _rumble = null; export const padRumble = (w, s, ms) => { if (active) _rumble
 
 // ---------- menus: what is open on top ----------
 // top-most first; the first one that is really on screen is the layer the focus ring walks
-const LAYERS = ['#ctl-ov', '#fr-panel', '.pfp-hatcolor', '#prest-confirm', '.ishop-confirm', '#pfp-share', '#acct-login', '#ch-reveal', '#tm-reveal', '#tm-map', '#isle-map', '#emote-wheel',
+const LAYERS = ['#ctl-ov', '#casino-ui.on', '#fr-panel', '.pfp-hatcolor', '#prest-confirm', '.ishop-confirm', '#pfp-share', '#acct-login', '#ch-reveal', '#tm-reveal', '#tm-map', '#isle-map', '#emote-wheel',
   '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#sq-hall', '#sq-note.open', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title']; // [invite-discreet] #sq-note.open = expanded invite panel (pill alone stays non-blocking)
 const FOCUSABLE = 'button, a[href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"]), [role=button], [role=menuitem], [role=tab], [role=radio], .ew-opt, .iv-slot, [data-id], [data-skin], tr[data-id]'; // + the inventory / shop card grids (divs with a click handler)
 function shown(el) {
@@ -280,6 +280,7 @@ export function initGamepad(opts = {}) {
       if (i >= 0) setRing(others[i]); else if (d === 'down' || d === 'up') scrollLayer(root, d === 'down' ? 80 : -80);
     }
     if (Math.abs(s.ry) > 0.1) scrollLayer(root, s.ry * 22);
+    if (root.id === 'casino-ui' && Math.abs(s.rx) > 0.1) { const board = root.querySelector('.cas-board-wrap'); if (board) board.scrollLeft += s.rx * 22; }
     const pr = (b) => s.b[b] && !p.b[b];
     if (pr(BTN.A)) { activate(ring); rumble(0.12, 0, 30); }
     if (pr(BTN.B) || pr(BTN.START)) { if (ring?.tagName === 'INPUT' && document.activeElement === ring && ring.type !== 'range') ring.blur(); tap('Escape'); closeFallback(root); }

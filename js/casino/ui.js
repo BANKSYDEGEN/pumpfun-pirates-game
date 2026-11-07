@@ -1,18 +1,17 @@
-// [Timothy] THE GOLDEN DOUBLOON CASINO: the table UI (BANKSY via Emerly). One mahogany + brass modal, four tables:
+// THE GOLDEN DOUBLOON CASINO: mahogany + brass game dialogs. Every station opens only its own game:
 // PIRATE BLACKJACK, BUCCANEER ROULETTE, DEAD MAN'S DICE, TREASURE SLOTS. Opened from the E points inside the hall (js/island/casino.js):
 // js/dock/index.js (the game) and js/island/main.js (island.html). Wagers are GOLD only (100 GOLD / 100g); the server decides every result
 // (pvp.inv.call('casino_play', ...), js/casino/engine.js createCasinoClient); ?casinoqa=1 or no server casino = the practice table (own purse).
-// Styles are injected once (#cas-css). Esc / x closes.
+// Styles are injected once (#cas-css). Esc / x closes; pending results retain their DOM until settled.
 import { CHIPS, MIN_BET, MAX_BET, SLOT_SYMBOLS, SLOT_PAYS, SLOT_PAIR, DICE_BETS, WHEEL, REDS, pocketColor, fmtGold, fmtG, readCard, handTotal, SUIT_GLYPH,
-  parseRouletteChoice, rouletteLabel, createCasinoClient } from './engine.js';
+  parseRouletteChoice, rouletteLabel, ROULETTE_PAYS, createCasinoClient } from './engine.js';
 
 export const CASINO_QA = typeof location !== 'undefined' && new URLSearchParams(location.search || '').get('casinoqa') === '1';
-const SHORT = { blackjack: 'BLACKJACK', roulette: 'ROULETTE', dice: 'DICE', slots: 'SLOTS' }; // [v339] phone tab labels
 const TITLES = { blackjack: 'PIRATE BLACKJACK', roulette: 'BUCCANEER ROULETTE', dice: "DEAD MAN'S DICE", slots: 'TREASURE SLOTS' };
 const RULES = { blackjack: 'Blackjack pays 3 to 2 · dealer stands on 17 · double on your first two cards',
   roulette: 'Red / Black · Odd / Even · 1-18 / 19-36 pay 2× · a dozen pays 3× · a single number pays 36×',
-  dice: 'Two bones: under 7 pays 2× · a lucky 7 pays 4× · over 7 pays 2× · any doubles pay 5×',
-  slots: 'Three 7s 25× · chests 15× · crowns 10× · doubloons 8× · rubies 6× · anchors 4× · skulls 3× · any pair 2×' };
+  dice: 'Under / over 7: 2× on 6 / 8, 2.2× on 2–5 / 9–12 · seven 4× · doubles 5×',
+  slots: 'Three 7s 25× · chests 15× · crowns 10× · doubloons 8× · rubies 6× · anchors 4× · skulls 3× · two crowns 2× · two doubloons 1.5× · other pairs do not pay · weighted reels' };
 
 // ---- pirate symbols (inline SVG, no currency marks) ----
 const SVG = (inner, vb = '0 0 64 64') => `<svg viewBox="${vb}" aria-hidden="true">${inner}</svg>`;
@@ -205,6 +204,27 @@ const CSS = `
  .cas-lever{width:24px;height:120px}.cas-lever:before{top:24px;height:90px}.cas-lever:after{width:22px;height:22px}.cas-lever.pull:after{transform:translateY(90px)}
  .cas-pay{display:none}
 }
+
+/* DOM-only table polish: no WebGL lights, canvases or animation loops. */
+.cas-ticket{text-align:center;margin:10px 0 2px;color:#ffe4a0;font:700 13px/1.4 Georgia,serif;min-height:20px}
+.cas-btn.primary{min-height:48px}.cas-adj{min-width:44px;min-height:44px}.cas-chip{min-width:44px;min-height:44px}
+.cas-ov button:focus-visible{outline:3px solid #fff3b9;outline-offset:3px}
+.cas-mode.prac{display:inline-block}.cas-foot{line-height:1.55}.cas-acts{padding-bottom:4px}
+.cas-cards{max-width:100%;flex-wrap:wrap;justify-content:center;row-gap:4px}.cas-card{flex-shrink:0}
+.cas-rl>div:last-child{max-width:100%;overflow-x:auto;padding:4px;box-sizing:border-box}
+@media(max-width:600px){.cas-mode.prac{order:4;width:100%;text-align:center;box-sizing:border-box;font-size:10px}
+ .cas-board{min-width:510px;grid-template-columns:repeat(13,minmax(36px,1fr));grid-auto-rows:44px}
+ .cas-rl>div:last-child{overflow:visible}.cas-board-wrap{overflow-x:auto;padding:4px 3px 7px;overscroll-behavior-x:contain}
+ .cas-ticket{font-size:12px}.cas-reels{gap:6px;padding:6px}.cas-reel{width:min(22vw,80px)}
+ .cas-res{overflow-wrap:anywhere}.cas-chip{font-size:11px}.cas-btn{min-height:48px}.cas-cards{padding:0 5px}
+}
+@media(max-height:540px) and (min-width:560px){
+ .cas-box{display:block;height:100dvh;overflow-y:auto}.cas-head{justify-content:flex-end}.cas-brand{display:flex}.cas-mode.prac{display:inline-block}
+ .cas-felt{display:block;overflow:visible;min-height:0}.cas-felt>.cas-hand{width:100%}.cas-bets{margin-top:10px}
+ .cas-rl{flex-wrap:wrap}.cas-rl>div:last-child{flex:0 1 540px}.cas-board{grid-auto-rows:38px}
+ .cas-btn{min-height:44px}.cas-hist{overflow:visible}.cas-foot{font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){.cas-ov *{animation:none!important;transition:none!important}}
 `;
 function injectCss() { if (typeof document === 'undefined' || document.getElementById('cas-css')) return; const st = document.createElement('style'); st.id = 'cas-css'; st.textContent = CSS; document.head.appendChild(st); }
 
@@ -217,23 +237,24 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   const client = createCasinoClient({ pvp, getGold, setGold, qa });
   const S = { game: 'blackjack', open: false, busy: false, bet: { blackjack: 50, roulette: 50, dice: 50, slots: 25 }, rl: { kind: 'color', value: 'red' }, dice: 'under7', bj: null, hist: [], wheelDeg: 0, ballDeg: 0, lastGold: null };
   const ov = document.createElement('div'); ov.className = 'cas-ov'; ov.id = 'casino-ui';
-  ov.innerHTML = `<div class="cas-box" role="dialog" aria-label="The Golden Doubloon casino">
-    <div class="cas-head"><div class="cas-brand"><small>THE GOLDEN DOUBLOON</small><b data-k="title">PIRATE BLACKJACK</b></div>
+  ov.innerHTML = `<div class="cas-box" role="dialog" aria-modal="true" aria-labelledby="cas-title" aria-describedby="cas-rules" tabindex="-1">
+    <div class="cas-head"><div class="cas-brand"><small>THE GOLDEN DOUBLOON</small><b id="cas-title" data-k="title">PIRATE BLACKJACK</b></div>
       <span class="cas-mode" data-k="mode"></span><span class="cas-sp"></span>
       <div class="cas-pill" data-k="pill">${COIN}<span data-k="gold">0 GOLD</span></div>
-      <button class="cas-x" data-k="x" title="Close (Esc)">×</button></div>
-    <div class="cas-tabs" data-k="tabs"${/[?&]castabs=1(&|$)/.test(location.search) ? '' : ' hidden style="display:none"'}>${Object.keys(TITLES).map(g => `<button class="cas-tab" data-g="${g}">${GAME_ICON[g]}<span class="cas-tl">${esc(TITLES[g])}</span><span class="cas-ts">${esc(SHORT[g])}</span></button>`).join('')}</div>
+      <button class="cas-x" data-k="x" aria-label="Close casino" title="Close (Esc)">×</button></div>
+
     <div class="cas-felt" data-k="felt"></div>
     <div class="cas-bets" data-k="bets"></div>
-    <div class="cas-err" data-k="err"></div>
+    <div class="cas-ticket" data-k="ticket" aria-live="polite"></div>
+    <div class="cas-err" role="alert" data-k="err"></div>
     <div class="cas-hist" data-k="hist"></div>
-    <div class="cas-foot" data-k="foot"></div></div>`;
+    <div class="cas-foot" id="cas-rules" data-k="foot"></div></div>`;
   (document.body || document.documentElement).appendChild(ov);
   const q = (k, root = ov) => root.querySelector(`[data-k="${k}"]`);
   ov.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === ov) close(); });
   ov.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
   q('x').onclick = () => close();
-  q('tabs').querySelectorAll('.cas-tab').forEach(b => { b.onclick = () => { if (!S.busy && !S.bj) show(b.dataset.g); }; });
+
   const play = (name) => { try { sfx?.(name); } catch { /* sound is optional */ } };
 
   function gold() { return client.gold(); }
@@ -245,20 +266,30 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
     q('hist').innerHTML = S.hist.map(d => `<span class="${d > 0 ? 'w' : d < 0 ? 'l' : ''}">${d > 0 ? '+' : ''}${fmtG(d)}</span>`).join(''); }
   function settleText(res, bet) { const d = res.delta || 0;
     if (res.outcome === 'blackjack') return ['BLACKJACK! +' + fmtGold(d), 'win'];
-    if (d > 0) return ['YOU WIN +' + fmtGold(d), 'win']; if (d < 0) return [(res.outcome === 'bust' ? 'BUST · ' : 'THE HOUSE TAKES ') + fmtGold(-d), 'lose']; return ['PUSH · ' + fmtGold(bet) + ' BACK', 'push']; }
+    if (d > 0) return ['YOU WIN +' + fmtGold(d), 'win']; if (d < 0) return [(res.outcome === 'bust' ? 'BUST · ' : 'YOU LOSE −') + fmtGold(-d), 'lose']; return ['PUSH · NO GOLD LOST', 'push']; }
 
   // ---- bet controls ----
   function bets(disabled = false) {
     const b = S.bet[S.game], el = q('bets');
     el.innerHTML = CHIPS.map((c, i) => `<button class="cas-chip${b === c ? ' on' : ''}" data-c="${c}" style="--c:${['#6b7580', '#1f6b3a', '#1f4e8a', '#1c1c22', '#6a1fa0', '#c0262d'][i]}">${c}g</button>`).join('') +
-      `<button class="cas-adj" data-a="half">1/2</button><button class="cas-adj" data-a="dbl">2×</button><button class="cas-adj" data-a="max">MAX</button><div class="cas-betv"><small>YOUR BET</small>${fmtG(b)}</div>`;
-    el.querySelectorAll('button').forEach(x => { x.disabled = disabled; x.onclick = () => {
+      `<button class="cas-adj" data-a="minus" aria-label="Decrease bet by 10 gold">−</button><button class="cas-adj" data-a="plus" aria-label="Increase bet by 10 gold">+</button><button class="cas-adj" data-a="half">1/2</button><button class="cas-adj" data-a="dbl">2×</button><button class="cas-adj" data-a="max">MAX</button><div class="cas-betv"><small>YOUR BET</small>${fmtG(b)}</div>`;
+    el.querySelectorAll('button').forEach(x => { x.disabled = disabled || gold() < MIN_BET || (+x.dataset.c > gold()); x.onclick = () => {
+      if (S.busy || (S.game === 'blackjack' && S.bj)) return;
       const g = Math.max(MIN_BET, gold()), cap = Math.min(MAX_BET, g); let v = S.bet[S.game];
-      if (x.dataset.c) v = +x.dataset.c; else if (x.dataset.a === 'half') v = Math.floor(v / 2); else if (x.dataset.a === 'dbl') v = v * 2; else v = cap;
+      if (x.dataset.c) v = +x.dataset.c; else if (x.dataset.a === 'minus') v -= 10; else if (x.dataset.a === 'plus') v += 10; else if (x.dataset.a === 'half') v = Math.floor(v / 2); else if (x.dataset.a === 'dbl') v = v * 2; else v = cap;
       S.bet[S.game] = Math.max(MIN_BET, Math.min(cap, v)); play('click'); bets(); }; });
+    ticket();
   }
-  const betOk = () => { const b = S.bet[S.game]; if (b > gold()) { err('Not enough gold for that bet: lower it with 1/2 or a smaller chip.'); return false; } err(''); return true; };
-  async function call(game, body) { const res = await client.play(game, body); paintGold(res.ok ? Math.sign(res.delta || 0) : 0); if (!res.ok) err(res.error ? res.error.toUpperCase() : 'THE TABLE IS CLOSED'); return res; }
+  function ticket() {
+    const hand = S.game === 'blackjack' && S.bj, b = hand?.bet || S.bet[S.game]; let label = '', mult = 0;
+    if (S.game === 'roulette') { label = rouletteLabel(S.rl); mult = ROULETTE_PAYS[S.rl?.kind] || 0; }
+    if (S.game === 'dice') { label = { under7: 'UNDER 7', seven: 'LUCKY 7', over7: 'OVER 7', doubles: 'DOUBLES' }[S.dice]; mult = DICE_BETS[S.dice]; }
+    q('ticket').textContent = S.busy ? 'DEALER AT WORK · PLEASE WAIT…' : hand ? `HAND IN PLAY · ${fmtGold(b)} staked · Hit, Stand or Double` : gold() < MIN_BET ? 'Not enough gold · minimum bet 10 GOLD' :
+      `${label ? label + ' · ' : ''}Bet ${fmtG(b)} · ${mult ? 'Return ' + fmtG(Math.floor(b * mult)) + (S.game === 'dice' && /under|over/.test(S.dice) ? '–' + fmtG(Math.floor(b * 2.2)) : '') + ' on a win' : S.game === 'slots' ? 'Match the centre payline to win' : 'Beat the dealer without going over 21'}`;
+    ov.querySelector('.cas-box').setAttribute('aria-busy', String(S.busy));
+  }
+  const betOk = () => { const b = S.bet[S.game]; if (b > gold()) { err('Not enough gold for that bet: lower it with − or a smaller chip.'); return false; } err(''); return true; };
+  async function call(game, body) { let res; try { res = await client.play(game, body); } catch { res = { ok: false, error: 'The dealer could not confirm the wager. Check your balance before playing again.' }; } paintGold(res.ok ? Math.sign(res.delta || 0) : 0); if (!res.ok) err(res.error ? res.error.toUpperCase() : 'THE TABLE IS CLOSED'); return res; }
 
   // ---- PIRATE BLACKJACK ----
   function cardHtml(c0, i) { const c = readCard(c0); if (!c) return `<div class="cas-card back" style="animation-delay:${i * 0.12}s"><em>☠</em></div>`;
@@ -268,18 +299,19 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
     f.innerHTML = `<div class="cas-gname">PIRATE BLACKJACK</div>
       <div class="cas-hand"><h4>THE DEALER ${D.length ? `<span class="cas-tot">${live ? handTotal(D.filter(Boolean)) + '+' : handTotal(D)}</span>` : ''}</h4><div class="cas-cards">${D.map(cardHtml).join('') || '<div class="cas-card back" style="opacity:.25"><em>☠</em></div>'}</div></div>
       <div class="cas-hand"><div class="cas-cards">${P.map(cardHtml).join('') || '<div class="cas-card back" style="opacity:.25"><em>⚓</em></div>'}</div><h4>YOUR HAND ${P.length ? `<span class="cas-tot">${handTotal(P)}</span>` : ''}</h4></div>
-      <div class="cas-acts"><button class="cas-btn" data-a="deal">DEAL</button><button class="cas-btn" data-a="hit">HIT</button><button class="cas-btn" data-a="stand">STAND</button><button class="cas-btn red" data-a="double">DOUBLE</button></div>
-      <div class="cas-res" data-k="res"></div>`;
+      <div class="cas-acts"><button class="cas-btn primary" data-a="deal">DEAL</button><button class="cas-btn" data-a="hit">HIT</button><button class="cas-btn" data-a="stand">STAND</button><button class="cas-btn red" data-a="double">DOUBLE</button></div>
+      <div class="cas-res" role="status" aria-live="polite" data-k="res"></div>`;
     const btn = (a) => f.querySelector(`[data-a="${a}"]`);
-    btn('deal').disabled = live || S.busy; btn('hit').disabled = btn('stand').disabled = !live || S.busy; btn('double').disabled = !live || S.busy || !st.canDouble || (st.bet || S.bet.blackjack) * 2 > gold();
+    btn('deal').hidden = live; btn('deal').disabled = live || S.busy || gold() < MIN_BET; btn('hit').disabled = btn('stand').disabled = !live || S.busy; btn('double').disabled = !live || S.busy || !st.canDouble || (st.bet || S.bet.blackjack) > gold();
+    for (const a of ['hit', 'stand', 'double']) btn(a).hidden = !live;
     for (const a of ['deal', 'hit', 'stand', 'double']) btn(a).onclick = () => bjAct(a);
     bets(live || S.busy);
   }
   async function bjAct(a) {
-    if (S.busy) return; if (a === 'deal' && !betOk()) return; S.busy = true; err('');
-    const bet = S.bet.blackjack, res = await call('blackjack', a === 'deal' ? { bet, action: 'deal' } : { action: a, stateId: S.bj?.stateId, bet: S.bj?.bet || bet });
+    if (S.busy || (a !== 'deal' && !S.bj) || (a === 'deal' && S.bj)) return; if (a === 'deal' && !betOk()) return; S.busy = true; err(''); bjView(S.bj); result(a === 'deal' ? 'DEALING…' : a === 'stand' ? 'DEALER REVEAL…' : 'DRAWING…');
+    const bet = S.bj?.bet || S.bet.blackjack, res = await call('blackjack', a === 'deal' ? { bet, action: 'deal' } : { action: a, stateId: S.bj?.stateId, bet: S.bj?.bet || bet });
     S.busy = false;
-    if (!res.ok) { if (a !== 'deal') S.bj = null; bjView(S.bj); return; }
+    if (!res.ok) { if (/no hand|bad state|hand is over/i.test(res.error || '')) S.bj = null; bjView(S.bj); return; }
     play(a === 'deal' ? 'card' : 'card');
     S.bj = res.finished ? null : { ...res, bet: res.bet || (a === 'double' ? bet * 2 : S.bj?.bet || bet) };
     bjView(res);
@@ -306,15 +338,15 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
     board += ['1st12', '2nd12', '3rd12'].map((d, i) => `<button class="cas-pick o${on(d)}" data-c="${d}" style="grid-row:4;grid-column:${2 + i * 4} / span 4">${['1ST', '2ND', '3RD'][i]} 12 · 3×</button>`).join('');
     board += [['low', '1-18'], ['even', 'EVEN'], ['red', 'RED'], ['black', 'BLACK'], ['odd', 'ODD'], ['high', '19-36']].map(([c, t], i) => `<button class="cas-pick o${c === 'red' ? ' r' : ''}${on(c)}" data-c="${c}" style="grid-row:5;grid-column:${2 + i * 2} / span 2">${t}</button>`).join('');
     f.innerHTML = `<div class="cas-gname">BUCCANEER ROULETTE</div><div class="cas-rl"><div class="cas-wheel"><div class="cas-ptr"></div>${wheelSvg()}</div>
-      <div><div class="cas-board" data-k="board">${board}</div><div class="cas-row" style="margin-top:10px;gap:14px"><span>BET ON: <b data-k="pickl" style="color:#ffe08a">${esc(rouletteLabel(sel))}</b></span><span class="cas-pocket" data-k="pocket"></span></div>
-      <div class="cas-acts"><button class="cas-btn" data-a="spin">SPIN THE WHEEL</button></div></div></div><div class="cas-res" data-k="res"></div>`;
-    f.querySelectorAll('[data-c]').forEach(b => { b.disabled = S.busy; b.onclick = () => { S.rl = parseRouletteChoice(b.dataset.c); play('click'); rlView(); }; });
-    f.querySelector('[data-a="spin"]').disabled = S.busy; f.querySelector('[data-a="spin"]').onclick = rlSpin;
+      <div><div class="cas-board-wrap"><div class="cas-board" data-k="board">${board}</div></div><div class="cas-row" style="margin-top:10px;gap:14px"><span>BET ON: <b data-k="pickl" style="color:#ffe08a">${esc(rouletteLabel(sel))}</b></span><span class="cas-pocket" data-k="pocket"></span></div>
+      <div class="cas-acts"><button class="cas-btn primary" data-a="spin">SPIN THE WHEEL</button></div></div></div><div class="cas-res" role="status" aria-live="polite" data-k="res"></div>`;
+    f.querySelectorAll('[data-c]').forEach(b => { b.disabled = S.busy; b.setAttribute('aria-pressed', String(b.classList.contains('on'))); b.onclick = () => { S.rl = parseRouletteChoice(b.dataset.c); play('click'); rlView(); }; });
+    f.querySelector('[data-a="spin"]').disabled = S.busy || gold() < MIN_BET; f.querySelector('[data-a="spin"]').onclick = rlSpin;
     bets(S.busy);
   }
   async function rlSpin() {
     if (S.busy || !betOk()) return; if (!S.rl) { err('Pick a bet on the table first.'); return; }
-    S.busy = true; rlView(); const bet = S.bet.roulette, res = await call('roulette', { bet, choice: S.rl });
+    S.busy = true; rlView(); result('WHEEL IN MOTION…'); const bet = S.bet.roulette, res = await call('roulette', { bet, choice: S.rl });
     if (!res.ok || res.number === undefined) { S.busy = false; rlView(); return; }
     play('spin'); const i = WHEEL.indexOf(res.number), f = q('felt');
     S.wheelDeg = S.wheelDeg - (S.wheelDeg % 360) + 360 * 5 - i * STEP; S.ballDeg = S.ballDeg - (S.ballDeg % 360) - 360 * 7;   // the pocket ends under the pointer, the ball lands on it
@@ -327,19 +359,19 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   }
 
   // ---- DEAD MAN'S DICE ----
-  const dieHtml = (n) => `<div class="cas-die" data-face="${n}">${Array.from({ length: 9 }, (_, k) => `<i style="visibility:${PIPS[n].includes(k) ? 'visible' : 'hidden'}"></i>`).join('')}</div>`;
-  function face(el, n) { el.dataset.face = n; el.querySelectorAll('i').forEach((p, k) => { p.style.visibility = PIPS[n].includes(k) ? 'visible' : 'hidden'; }); }
+  const dieHtml = (n) => `<div class="cas-die" role="img" aria-label="Die showing ${n}" data-face="${n}">${Array.from({ length: 9 }, (_, k) => `<i style="visibility:${PIPS[n].includes(k) ? 'visible' : 'hidden'}"></i>`).join('')}</div>`;
+  function face(el, n) { el.dataset.face = n; el.setAttribute('aria-label', 'Die showing ' + n); el.querySelectorAll('i').forEach((p, k) => { p.style.visibility = PIPS[n].includes(k) ? 'visible' : 'hidden'; }); }
   function dcView(dice = S.lastDice || [6, 1]) {
     const f = q('felt'), opt = [['under7', 'UNDER 7'], ['seven', 'LUCKY 7'], ['over7', 'OVER 7'], ['doubles', 'DOUBLES']];
     f.innerHTML = `<div class="cas-gname">DEAD MAN'S DICE</div><div class="cas-dice" data-k="dice">${dieHtml(dice[0])}${dieHtml(dice[1])}</div>
       <div class="cas-row"><span class="cas-pocket" data-k="sum"></span></div>
-      <div class="cas-dbets">${opt.map(([c, t]) => `<button class="cas-pick${S.dice === c ? ' on' : ''}" data-c="${c}">${t}<small>PAYS ${DICE_BETS[c]}×</small></button>`).join('')}</div>
-      <div class="cas-acts"><button class="cas-btn" data-a="roll">ROLL THE BONES</button></div><div class="cas-res" data-k="res"></div>`;
-    f.querySelectorAll('[data-c]').forEach(b => { b.disabled = S.busy; b.onclick = () => { S.dice = b.dataset.c; play('click'); dcView(); }; });
-    const rb = f.querySelector('[data-a="roll"]'); rb.disabled = S.busy; rb.onclick = dcRoll; bets(S.busy);
+      <div class="cas-dbets">${opt.map(([c, t]) => `<button class="cas-pick${S.dice === c ? ' on' : ''}" data-c="${c}">${t}<small>RETURN ${DICE_BETS[c]}${c === 'under7' || c === 'over7' ? '–2.2' : ''}×</small></button>`).join('')}</div>
+      <div class="cas-acts"><button class="cas-btn primary" data-a="roll">ROLL THE BONES</button></div><div class="cas-res" role="status" aria-live="polite" data-k="res"></div>`;
+    f.querySelectorAll('[data-c]').forEach(b => { b.disabled = S.busy; b.setAttribute('aria-pressed', String(b.classList.contains('on'))); b.onclick = () => { S.dice = b.dataset.c; play('click'); dcView(); }; });
+    const rb = f.querySelector('[data-a="roll"]'); rb.disabled = S.busy || gold() < MIN_BET; rb.onclick = dcRoll; bets(S.busy);
   }
   async function dcRoll() {
-    if (S.busy || !betOk()) return; S.busy = true; dcView(); const bet = S.bet.dice, res = await call('dice', { bet, choice: S.dice });
+    if (S.busy || !betOk()) return; S.busy = true; dcView(); result('ROLLING THE BONES…'); const bet = S.bet.dice, res = await call('dice', { bet, choice: S.dice });
     if (!res.ok || !res.dice) { S.busy = false; dcView(); return; }
     play('dice'); const ds = [...q('dice', q('felt')).children]; ds.forEach(d => d.classList.add('roll'));
     const tick = setInterval(() => ds.forEach(d => face(d, 1 + Math.floor(Math.random() * 6))), 70);   // tumbling faces (visual only)
@@ -352,16 +384,16 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   // ---- TREASURE SLOTS ----
   const randSym = () => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];   // filler symbols on the moving strip (visual only)
   function slView(reels = S.lastReels || ['seven', 'crown', 'chest']) {
-    const f = q('felt'), pays = [...Object.entries(SLOT_PAYS)].map(([s, m]) => `<span>${SYM[s]}${SYM[s]}${SYM[s]}</span><b>${m}×</b>`).join('') + `<span>ANY PAIR</span><b>${SLOT_PAIR}×</b>`;
-    f.innerHTML = `<div class="cas-gname">TREASURE SLOTS</div><div class="cas-slot"><div class="cas-cab"><div class="cas-reels" data-k="reels">${reels.map(s => `<div class="cas-reel"><div class="cas-strip"><div>${SYM[randSym()]}</div><div>${SYM[s]}</div><div>${SYM[randSym()]}</div></div></div>`).join('')}</div></div>
+    const f = q('felt'), pays = [...Object.entries(SLOT_PAYS)].map(([s, m]) => `<span>${SYM[s]}${SYM[s]}${SYM[s]}</span><b>${m}×</b>`).join('') + `<span>TWO CROWNS</span><b>${SLOT_PAIR}×</b><span>TWO DOUBLOONS</span><b>1.5×</b>`;
+    f.innerHTML = `<div class="cas-gname">TREASURE SLOTS</div><div class="cas-slot"><div class="cas-cab"><div class="cas-reels" data-k="reels">${reels.map(s => `<div class="cas-reel" role="img" aria-label="${esc(s)}"><div class="cas-strip"><div>${SYM[randSym()]}</div><div>${SYM[s]}</div><div>${SYM[randSym()]}</div></div></div>`).join('')}</div></div>
       <div class="cas-lever" data-k="lever" title="Pull"></div><div class="cas-pay">${pays}</div></div>
-      <div class="cas-acts"><button class="cas-btn" data-a="spin">PULL THE LEVER</button></div><div class="cas-res" data-k="res"></div>`;
-    const sb = f.querySelector('[data-a="spin"]'); sb.disabled = S.busy; sb.onclick = slSpin; q('lever', f).onclick = slSpin; bets(S.busy);
+      <div class="cas-acts"><button class="cas-btn primary" data-a="spin">PULL THE LEVER</button></div><div class="cas-res" role="status" aria-live="polite" data-k="res"></div>`;
+    const sb = f.querySelector('[data-a="spin"]'); sb.disabled = S.busy || gold() < MIN_BET; sb.onclick = slSpin; q('lever', f).onclick = slSpin; bets(S.busy);
   }
   async function slSpin() {
     if (S.busy || !betOk()) return; S.busy = true; const lever = q('lever', q('felt')); lever.classList.add('pull'); setTimeout(() => lever.classList.remove('pull'), 380);
     q('felt').querySelectorAll('button').forEach(b => { b.disabled = true; }); bets(true);
-    const bet = S.bet.slots, res = await call('slots', { bet, choice: null });
+    result('REELS SPINNING…'); const bet = S.bet.slots, res = await call('slots', { bet, choice: null });
     if (!res.ok || !res.reels) { S.busy = false; slView(); return; }
     play('spin'); const reels = [...q('reels', q('felt')).children], cell = reels[0].clientHeight / 3 || 96, N = 22;
     const prev = S.lastReels || ['seven', 'crown', 'chest'];
@@ -376,17 +408,32 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
 
   // ---- open / close / keys ----
   const VIEWS = { blackjack: () => bjView(S.bj), roulette: rlView, dice: () => dcView(), slots: () => slView() };
-  function show(game) { if (!VIEWS[game]) game = 'blackjack'; S.game = game; q('title').textContent = TITLES[game]; q('foot').textContent = RULES[game] + ' · Wagers are in-game GOLD only.';
-    q('tabs').querySelectorAll('.cas-tab').forEach(b => b.classList.toggle('on', b.dataset.g === game)); err(''); VIEWS[game](); paintGold(); }
-  function open(game = 'blackjack') { S.open = true; ov.classList.add('on'); try { document.exitPointerLock?.(); } catch { /* none */ } show(game); }
-  function close() { if (!S.open) return; S.open = false; ov.classList.remove('on'); onClose?.(); }
+  let previousFocus = null;
+  function show(game) {
+    if (S.busy) return;
+    if (!VIEWS[game]) game = 'blackjack'; S.game = game;
+    q('title').textContent = TITLES[game];
+    q('foot').textContent = RULES[game] + ' · Multipliers include your stake; fractional GOLD rounded down. In-game GOLD only.';
+    err(''); VIEWS[game](); paintGold();
+  }
+  function open(game = 'blackjack') {
+    if (!S.open) previousFocus = document.activeElement;
+    S.open = true; ov.classList.add('on'); try { document.exitPointerLock?.(); } catch {}
+    show(game); (q('felt').querySelector('.cas-btn:not(:disabled):not([hidden])') || q('x')).focus({ preventScroll: true });
+  }
+  function close() { if (!S.open) return; S.open = false; ov.classList.remove('on'); previousFocus?.focus?.({ preventScroll: true }); onClose?.(); }
   function onKey(e) { if (!S.open) return false; const k = e.code || e.key;
     if (e.type === 'keydown') {
+      if (e.repeat) return true;
+      if (k === 'Tab') {
+        const items = [...ov.querySelectorAll('button:not(:disabled)')].filter(b => b.getClientRects().length);
+        const i = items.indexOf(document.activeElement); items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus(); e.preventDefault?.(); return true;
+      }
       if (k === 'Escape') { close(); return true; }
-      if (k === 'Space' || k === 'Enter') { const b = q('felt').querySelector('.cas-btn:not(:disabled)'); b?.click(); return true; }
+      if (k === 'Space' || k === 'Enter') { const focused = document.activeElement; const b = ov.contains(focused) && focused.matches('button:not(:disabled)') ? focused : q('felt').querySelector('.cas-btn:not(:disabled):not([hidden])'); b?.click(); return true; }
       if (S.game === 'blackjack') { const m = { KeyH: 'hit', KeyS: 'stand', KeyD: 'double' }[k]; if (m) { q('felt').querySelector(`[data-a="${m}"]:not(:disabled)`)?.click(); return true; } }
     }
     return true; }   // the casino has the keyboard while it is open (no walking, no E)
-  if (ownKeys) { const h = (e) => { if (!S.open) return; onKey(e); e.stopImmediatePropagation(); if (e.code !== 'Tab') e.preventDefault(); }; addEventListener('keydown', h, true); addEventListener('keyup', h, true); }
+  if (ownKeys) { const h = (e) => { if (!S.open) return; onKey(e); e.stopImmediatePropagation(); e.preventDefault(); }; addEventListener('keydown', h, true); addEventListener('keyup', h, true); }
   return { open, close, show, onKey, get isOpen() { return S.open; }, get game() { return S.game; }, client, el: ov, state: S };
 }
