@@ -191,13 +191,17 @@ export function createWorldAdmin(o) {
       <button class="wide" data-w="freeze">⏸ FREEZE TIME</button>
       <div class="g3">${STORM_PRESETS.map(p => `<button data-w="storm" data-id="${p[0]}">${p[1]}</button>`).join('')}<button class="bolt" data-w="bolt">⚡ LIGHTNING</button><span></span></div>
       <div class="sl"><input type="range" min="0" max="100" step="1" data-wi="storm" aria-label="storm intensity"><span class="badge" data-wb="storm">STORM AUTO</span></div></div>
-    <h4>🧱 COLLISIONS <span class="sv" data-wb="save">💾 SAVED</span></h4>
+`; }
+  function htmlCols() { return `<h4>🧱 COLLISIONS <span class="sv" data-wb="save">💾 SAVED</span></h4>
     <div class="cl"><div class="g2"><button data-w="show">👁 SHOW COLLISIONS</button><button data-w="edit">✏️ EDIT COLLISIONS</button></div>
       <div class="g3"><button data-w="add" data-id="box">+ BOX WALL</button><button data-w="add" data-id="cyl">+ CYLINDER</button><button class="add-noc" data-w="add" data-id="noc" title="+ PASS ZONE (UNBLOCK AREA)">+ PASS ZONE</button></div>
       <div class="sel" data-wb="sel" hidden></div><div class="rest" data-wb="rest"></div>
       <div class="hint">✏️ EDIT: click a volume to select · drag to move · Del removes · 🟧 built-in · 🟥 blocker · 🟩 pass zone · 🟦 moved</div></div>`; }
   function mount(container) { box = container; box.innerHTML = html(); paint(); }
-  const q = (s) => box?.querySelector(s);
+  // [v365 BANKSY t1942u] the 🧱 COLLISIONS tools live in the 🛠️ BUILD menu now (js/island/terrainEdit.js mounts them), not the Admin Menu
+  let box2 = null;
+  function mountCols(container) { box2 = container; box2.innerHTML = htmlCols(); paint(); }
+  const q = (s) => box?.querySelector(s) || box2?.querySelector(s);
   function paintEnv() { if (!box) return; const e = st.env, now = Date.now(), ph = e.mode === 'auto' ? envPhase({ mode: 'auto' }, now) : envPhase(e, now), ta = timeActive(e), sa = stormActive(e);
     box.querySelectorAll('[data-w="time"]').forEach(b => b.classList.toggle('on', b.dataset.id === ta)); box.querySelectorAll('[data-w="storm"]').forEach(b => b.classList.toggle('on', b.dataset.id === sa));
     const ts = q('[data-wi="time"]'); if (ts && document.activeElement !== ts) ts.value = String(phaseToSlider(ph)); const tb = q('[data-wb="time"]'); if (tb) tb.textContent = phaseBadge(ph) + (e.mode === 'run' ? ' ▶' : e.mode === 'hold' ? ' ⏸' : '');
@@ -214,10 +218,10 @@ export function createWorldAdmin(o) {
       ${k === 'del' ? `<button data-w="restore" data-id="${escHtml(st.sel.id)}" style="width:100%">↩ RESTORE THIS COLLIDER</button>` : `<div class="f">${F('x', 'X', rec.x)}${F('z', 'Z', rec.z)}${yv ? F('y0', 'Y BOTTOM', rec.y0) + F('y1', 'Y TOP', rec.y1) : ''}${cyl ? F('r', 'RADIUS', rec.r) : F('w', 'WIDTH', rec.w) + F('d', 'DEPTH', rec.d) + F('rot', 'ROTATE°', (rec.yaw || 0) * 180 / Math.PI, 5)}</div>
       <div class="ng"><button data-w="nudge" data-id="-x" title="west 0.5 m">◀</button><button data-w="nudge" data-id="+z" title="south 0.5 m">▼</button><button data-w="nudge" data-id="-z" title="north 0.5 m">▲</button><button data-w="nudge" data-id="+x" title="east 0.5 m">▶</button>${yv ? '<button data-w="nudge" data-id="+y" title="up 0.5 m">⤒</button><button data-w="nudge" data-id="-y" title="down 0.5 m">⤓</button>' : '<span></span><span></span>'}</div>
       <div class="g2" style="margin-top:5px"><button data-w="tome">📍 MOVE TO ME</button><button class="del" data-w="remove">🗑 REMOVE SELECTED</button></div>`}`; }
-  function paintSelVals() { const rec = selRec(); if (!rec || !box) return; for (const i of box.querySelectorAll('[data-wf]')) { if (document.activeElement === i) continue; const f = i.dataset.wf; const v = f === 'rot' ? (rec.yaw || 0) * 180 / Math.PI : rec[f]; if (v !== undefined) i.value = (+v).toFixed(f === 'rot' ? 0 : 2); } }
+  function paintSelVals() { const rec = selRec(); if (!rec || !(box || box2)) return; for (const i of [...(box?.querySelectorAll('[data-wf]') || []), ...(box2?.querySelectorAll('[data-wf]') || [])]) { if (document.activeElement === i) continue; const f = i.dataset.wf; const v = f === 'rot' ? (rec.yaw || 0) * 180 / Math.PI : rec[f]; if (v !== undefined) i.value = (+v).toFixed(f === 'rot' ? 0 : 2); } }
   function paintRest() { const el = q('[data-wb="rest"]'); if (!el) return; const L = removedList();
     el.innerHTML = `<button data-w="rest" style="width:100%">↩ RESTORE REMOVED (${L.length})</button>${st.restOpen ? (L.length ? L.map(id => `<div class="r"><span>${escHtml(id)}</span><button data-w="restore" data-id="${escHtml(id)}">↩ RESTORE</button></div>`).join('') : '<div class="r">nothing removed</div>') : ''}`; }
-  function paint() { if (!box) return; paintEnv(); paintSave(); const sh = q('[data-w="show"]'), ed = q('[data-w="edit"]');
+  function paint() { if (!box && !box2) return; paintEnv(); paintSave(); const sh = q('[data-w="show"]'), ed = q('[data-w="edit"]');
     if (sh) { sh.classList.toggle('on', st.show); sh.title = st.show ? 'collisions shown (tap to hide)' : 'show collision volumes within 140 m'; } if (ed) { ed.classList.toggle('on', st.edit); ed.title = st.edit ? 'editing: click a volume, drag to move' : 'click to select + drag to move'; }
     paintSel(); paintRest(); }
   function click(b) { const w = b.dataset.w, id = b.dataset.id;
@@ -246,5 +250,5 @@ export function createWorldAdmin(o) {
     if (now - st.lastFetch > 60000 && dock()?.on) fetchWorld();
     if (isOwner()) { if (st.show || G.root?.visible) { const me = meFoot(); if (me && (st.vizDirty || !G.at || Math.hypot(me.x - G.at.x, me.z - G.at.z) > 10 || now - lastViz > 1500)) { lastViz = now; rebuildViz(me); } }
       if (box && now - (frame._p || 0) > 500) { frame._p = now; paintEnv(); } } }
-  return { st, fetchWorld, applyWorld, poke, mount, paint, click, input, frame, add, remove, restore, setEnv, envStep: (a) => setEnv(envStep(st.env, a)), bolt, selRec, select: (s) => { st.sel = s; st.vizDirty = true; paint(); }, flush: () => Promise.all([flushEnv(), flushCols()]), viz: G, pickAt };
+  return { st, fetchWorld, applyWorld, poke, mount, mountCols, paint, click, input, frame, add, remove, restore, setEnv, envStep: (a) => setEnv(envStep(st.env, a)), bolt, selRec, select: (s) => { st.sel = s; st.vizDirty = true; paint(); }, flush: () => Promise.all([flushEnv(), flushCols()]), viz: G, pickAt };
 }

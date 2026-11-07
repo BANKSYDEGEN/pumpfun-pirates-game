@@ -173,7 +173,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     <span class="row selrow">${r('sm multi', '➕', 'MULTI', 'add to the selection')}${r('sm mv" data-m="-1,0', '⬅️', 'LEFT')}${r('sm mv" data-m="1,0', '➡️', 'RIGHT')}${r('sm mv" data-m="0,1', '⬆️', 'AWAY')}${r('sm mv" data-m="0,-1', '⬇️', 'NEAR')}${r('sm rot" data-r="1', '⟲', 'ROT')}${r('sm rot" data-r="-1', '⟳', 'ROT')}${r('sm del', '🗑️', 'DELETE')}${r('sm rest', '🧺', 'RESTORE')}</span>
     <span class="row brush"><div class="grp">SIZE ${Object.keys(SIZES).map(k => `<button class="pre" data-s="${k}">${k}</button>`).join('')}<input type="range" class="sz" min="1" max="40" step="0.5"><b class="szv"></b></div>
     <div class="grp">STRENGTH <button class="pre sdn">−</button><input type="range" class="st" min="0.1" max="1" step="0.1"><button class="pre sup">+</button></div>
-    ${r('sm reset', '♻️', 'RESET', 'RESET AREA: clear edits inside the ring')}</span>${r('sm exit', '✖️', 'EXIT')}</div><div class="tip"></div>`;
+    ${r('sm reset', '♻️', 'RESET', 'RESET AREA: clear edits inside the ring')}</span>${r('sm cols', '🧱', 'COLLISIONS', 'show / add / move / remove collisions')}${r('sm exit', '✖️', 'EXIT')}</div><div class="tip"></div>`;
   const chip = document.createElement('div'); chip.id = 'te-chip'; document.body.appendChild(chip); const rest = document.createElement('div'); rest.id = 'te-rest'; document.body.appendChild(rest);
   const $ = (q) => bar.querySelector(q), tip = $('.tip');
   const paint = () => { bar.classList.toggle('sel-on', ui.tool === 'select'); bar.classList.toggle('build-on', ui.tool === 'build'); bar.querySelectorAll('.cat').forEach(b => b.classList.toggle('sel', +b.dataset.c === ui.prop)); const sn = $('.snap'); sn.lastChild.textContent = ui.grid ? 'GRID' : 'FREE'; sn.classList.toggle('sel', ui.grid); bar.classList.toggle('paint-on', ui.tool === 'paint'); bar.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.p === ui.mat)); $('.undo').disabled = !undo.length; $('.redo').disabled = !redo.length; $('.multi').classList.toggle('sel', multi); bar.querySelectorAll('.tool').forEach(b => b.classList.toggle('sel', b.dataset.t === ui.tool));
@@ -193,6 +193,18 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   { const nt = $('.rw-note'); for (const ev of ['keydown', 'keyup', 'keypress']) nt.addEventListener(ev, (e) => { e.stopPropagation(); if (ev === 'keydown' && (e.key === 'Enter' || e.key === 'Escape')) nt.blur(); }); // typing a note never walks / shoots / opens menus
     nt.addEventListener('pointerdown', (e) => e.stopPropagation()); nt.addEventListener('input', () => { const v = nt.value.slice(0, 140); ui.rwNote = v; if (rwCur()) rwEdit({ note: v }); }); nt.addEventListener('change', () => rwCommit()); }
   $('.sz').addEventListener('input', (e) => setSize(+e.target.value)); $('.st').addEventListener('input', (e) => { ui.str = +e.target.value; paint(); });
+  // [v365 BANKSY t1942u] 🧱 COLLISIONS moved here from the Admin Menu: the same editor (js/adminWorld.js), mounted in a Build Mode panel
+  const colP = document.createElement('div'); colP.id = 'pfp-te-cols'; document.body.appendChild(colP); let colOn = false;
+  import('../adminWorld.js').then(m => { const c = document.createElement('style'); c.textContent = m.WORLD_CSS.replaceAll('#pfp-admin', '#pfp-te-cols') + `
+  #pfp-te-cols{position:fixed;left:10px;top:calc(var(--safe-t,0px) + 64px);z-index:64;width:330px;max-width:calc(100vw - 20px);max-height:calc(100vh - 260px);overflow:auto;display:none;background:rgba(14,12,9,.96);border:2px solid #d9a93c;border-radius:14px;padding:4px 8px 8px;color:#f3e3b5;font:12px system-ui}
+  #pfp-te-cols.on{display:block} #pfp-te-cols h4{margin:6px 0 4px;font:600 11px system-ui;letter-spacing:.14em;color:#d9a93c;display:flex;justify-content:space-between;align-items:center}`; document.head.appendChild(c); }).catch(() => {});
+  const WA = () => window.PFP_ADMIN?.world;
+  function setCols(v) { const w = WA(); if (v && !w) { toast?.('COLLISIONS NEED THE OWNER ADMIN TOOLS (STILL LOADING)'); return; } colOn = !!v; if (colOn && !colP.dataset.m) { w.mountCols(colP); colP.dataset.m = '1'; } colP.classList.toggle('on', colOn); bar.querySelector('.cols')?.classList.toggle('sel', colOn); if (colOn) w.paint(); }
+  bar.addEventListener('click', (e) => { if (e.target.closest('.cols')) { e.stopImmediatePropagation(); setCols(!colOn); } }, true);
+  colP.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b?.dataset.w) WA()?.click(b); });
+  for (const ev of ['input', 'change']) colP.addEventListener(ev, (e) => { if (e.target.dataset.wi || e.target.dataset.wf) WA()?.input(e.target, ev === 'change'); });
+  for (const ev of ['keydown', 'keyup', 'keypress']) colP.addEventListener(ev, (e) => { if (e.target.tagName === 'INPUT') e.stopPropagation(); });
+  colP.addEventListener('pointerdown', (e) => e.stopPropagation());
   btn.addEventListener('click', () => setOn(true));
   addEventListener('keydown', (e) => { if (on && e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); setOn(false); } }, true); // [v190] Esc in build mode = EXIT only (not also ⚙ settings)
   { const pz = document.querySelector('#pause .panel'), res = document.getElementById('btn-resume'); if (pz) { const sb = document.createElement('button'); sb.id = 'btn-set-build'; sb.type = 'button'; sb.className = 'ghost'; sb.textContent = '🛠️ BUILD MODE';
@@ -200,7 +212,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
       new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }); sync();
       sb.addEventListener('click', () => { if (!document.documentElement.classList.contains('pfp-onfoot')) { toast('GO ASHORE FIRST, THEN OPEN BUILD MODE'); return; }
         if (!document.getElementById('pause').classList.contains('hidden')) res?.click(); document.getElementById('pause').classList.add('hidden'); setOn(true); }); } }
-  function setOn(v) { on = v; live.on = v; if (v) scan(); rwDraw(); document.documentElement.classList.toggle('pfp-tedit', v); ring.visible = grid.visible = false; if (ghost) ghost.visible = false; if (!v) { sel.clear(); drawSel(); rest.style.display = 'none'; flush(); } paint(); }
+  function setOn(v) { on = v; live.on = v; if (v) scan(); rwDraw(); document.documentElement.classList.toggle('pfp-tedit', v); ring.visible = grid.visible = false; if (ghost) ghost.visible = false; if (!v) { sel.clear(); drawSel(); rest.style.display = 'none'; flush(); if (colOn) setCols(false); } paint(); }
   // ring + height grid preview (in the foot island's frame: footRoot's parent)
   const frame = footRoot.parent || footRoot, N = 64, GN = 9;
   const ring = new THREE.LineLoop(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3)), new THREE.LineBasicMaterial({ color: 0xffcd77, depthTest: false, transparent: true }));
