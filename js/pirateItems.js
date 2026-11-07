@@ -444,7 +444,8 @@ async function build(p, def, opts) {
     return buildV5(p, {...def, v5:{male:{hi:u,lo:u}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names); }
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
     const F=V7M_FITS[def.id];
-    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0, authoredCapeSkin:!!F.authoredCapeSkin}, opts, low, body, skel, names);
+    // [v7m hats] bakedSkull: the hat carries the REAL PUMPFUN PIRATES skull (brand/skull_transparent.png) as its own geometry; no runtime decal on top
+    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0, authoredCapeSkin:!!F.authoredCapeSkin, ...(F.bakedSkull ? { skull: false } : {})}, opts, low, body, skel, names);
   }
   if (p.v5 && def.v5) return buildV5(p, def, opts, low, body, skel, names);
   const gltf = await loadPirateGLB(url);

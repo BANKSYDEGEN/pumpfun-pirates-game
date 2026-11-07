@@ -1,5 +1,6 @@
 // v390-compatible mapping; only teeth + capes locally revalidated in the game renderer.
 // Other live mappings are unchanged; user visual approval remains pending.
+// [v7m hats] tricorn, bicorne, bandana, crown, crown_imperial reworked (v7m_refit, real-logo hats bake the skull: bakedSkull).
 export const V7M_FITS = {
   "tooth_gold": {
     "hi": "assets/pirates/items/v7m_refit/tooth_gold_male_hi.glb",
@@ -62,9 +63,10 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "hat_bicorne": {
-    "hi": "assets/pirates/items/v7m_fit/hat_bicorne_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/hat_bicorne_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/hat_bicorne_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/hat_bicorne_male_lo.glb",
+    "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING",
+    "bakedSkull": true
   },
   "cape_royal": {
     "hi": "assets/pirates/items/v7m_refit/cape_royal_male_hi.glb",
@@ -133,9 +135,10 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "hat_bandana": {
-    "hi": "assets/pirates/items/v7m_fit/hat_bandana_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/hat_bandana_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/hat_bandana_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/hat_bandana_male_lo.glb",
+    "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING",
+    "bakedSkull": true
   },
   "cape_tattered": {
     "hi": "assets/pirates/items/v7m_refit/cape_tattered_male_hi.glb",
@@ -205,9 +208,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "crown_imperial": {
-    "hi": "assets/pirates/items/v7m_fit/crown_imperial_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/crown_imperial_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/crown_imperial_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/crown_imperial_male_lo.glb",
+    "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING"
   },
   "cloth_base": {
     "hi": "assets/pirates/items/v7m_fit/cloth_base_male_hi.glb",
@@ -245,14 +248,15 @@ export const V7M_FITS = {
     "qaStatus": "LOBE_SEATED_LOCAL_GAME_V411_IDLE_RUN_CANNON_REVIEW_PENDING"
   },
   "hat_tricorn": {
-    "hi": "assets/pirates/items/v7m_fit/hat_tricorn_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/hat_tricorn_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/hat_tricorn_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/hat_tricorn_male_lo.glb",
+    "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING",
+    "bakedSkull": true
   },
   "crown": {
-    "hi": "assets/pirates/items/v7m_fit/crown_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/crown_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/crown_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/crown_male_lo.glb",
+    "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING"
   },
   "shirt": {
     "hi": "assets/pirates/items/v7m_fit/cloth_shirt_male_hi.glb",
