@@ -41,7 +41,13 @@ export const VALUABLES = {
   diamond:        { name: 'Diamond',           icon: '💎', rarity: 'epic',      antiques: 3500 },
   jewel_necklace: { name: 'Jewelled Necklace', icon: '📿', rarity: 'epic',      antiques: 3500 },
   crown_jewel:    { name: 'Royal Crown Jewel', icon: '👑', rarity: 'legendary', antiques: 5000 },
+  golden_idol:    { name: 'Golden Idol',       icon: '🗿', rarity: 'legendary', antiques: 20000 },  // [ruins] BANKSY t1999u: 20k. 21 Idol Shards at the Skull Cave altar (BANKSY t1996u/t1997u)
 };
+// [ruins] BANKSY t1996u-t1998u: Idol Shards (7 jungle spots, respawn daily) still sell at the Treasure Trader; 21 of them (3+ days) can instead
+// become a Golden Idol at the Skull Cave altar.
+export const IDOL_SHARDS = 21;
+// the 4 jungle ruin chests (Ruin Chest + 3 hidden) drop one valuable a day each from the common chest table (BANKSY 11:12: items, not gold)
+export const RUIN_CHESTS = ['jungle_ruin_chest', 'j_moss', 'j_idol', 'j_ledge'];
 export const MAP_ANTIQUES = 100;                       // BANKSY: "sell a map for 100 gold"
 export const RARITY_ANTIQUES = { common: 500, uncommon: 1000, rare: 2000, epic: 3500, legendary: 5000 }; // weapons + cosmetic duplicates
 // a duplicate chest cosmetic -> its rarity from its shop price

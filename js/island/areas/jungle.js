@@ -26,6 +26,8 @@ const STEPS = [[69, -357.2, 25.4, 106, -332.4, 52], [158, -306.4, 30.6, 124, -32
 const IDOLS = [[72.6, -362.2, -0.62], [65.4, -352.2, 2.52]]; // the two moss-grown idol heads guarding the foot of the west steps (concept D2)
 const FIRE = { x: TH.x - 4.5, z: TH.z + 9.5 };
 const trap = { start: [RUN.x, RUN.z0 + 1.2], last: -1, fake: [] };
+// [ruins] shards respawn every day (the server allows one per spot per day); today's pickups live in s.shardDay / s.shardsToday
+const shardsToday = (s) => (s.shardDay === today() ? s.shardsToday || [] : []);
 const dayHash = () => { const d = today(); let h = 0; for (const c of d) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
 
 export default {
@@ -119,7 +121,7 @@ export default {
     const pageM = PAGES.map(([x, z], i) => new THREE.Matrix4().compose(new THREE.Vector3(x, H(x, z) + 0.05, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i), new THREE.Vector3(1, 1, 1)));
     const pages = instanced(MATS, OUT, (q) => { W(q, box(0.5, 0.03, 0.65), C.CLOTH, M(0, 0.02, 0), false); W(q, box(0.4, 0.035, 0.05), 0x8a4a2a, M(0, 0.03, 0.15), false); W(q, cyl(0.06, 0.06, 0.6, 5), C.WOOD_D, M(0.3, 0.3, 0), false); }, pageM, 'jungle_pages'); near.add(pages);
     const hideInst = (grp, i, show, m) => grp.children.forEach(im => { const mm = m.clone(); if (!show) mm.scale(new THREE.Vector3(0, 0, 0)); im.setMatrixAt(i, mm); im.instanceMatrix.needsUpdate = true; });
-    const refresh = () => { const s = store.get(); SHARDS.forEach((_, i) => hideInst(shards, i, !(s.shards || []).includes(i), shardM[i])); PAGES.forEach((_, i) => hideInst(pages, i, !(s.pages || []).includes(i), pageM[i])); };
+    const refresh = () => { const s = store.get(); SHARDS.forEach((_, i) => hideInst(shards, i, !shardsToday(s).includes(i), shardM[i])); PAGES.forEach((_, i) => hideInst(pages, i, !(s.pages || []).includes(i), pageM[i])); };
     refresh();
     // far: temple massing only
     const kf = new Kit(); W(kf, box(40, 8, 2), C.STONE, M(cx, y + 4, TEMPLE.z0 + 0.8), false); for (let s = 0; s < 4; s++) W(kf, box(14 - s * 3, 1.6, 6 - s * 1.2), C.STONE, M(cx, y + 0.8 + s * 1.6, TEMPLE.z0 + 4.5), false);
@@ -135,22 +137,26 @@ export default {
   },
   label(q) { const s = store.get();
     if (q.id === 'jungle_ruin_chest' || HIDDEN.some(c => c.id === q.id)) return (s.chests || {})[q.id] === today() ? 'OPENED TODAY' : null;
-    if (q.id.startsWith('jungle_shard_')) return (s.shards || []).includes(+q.id.slice(13)) ? 'SHARD TAKEN' : null;
+    if (q.id.startsWith('jungle_shard_')) return shardsToday(s).includes(+q.id.slice(13)) ? 'TAKEN TODAY' : null;
     if (q.id.startsWith('jungle_page_')) return (s.pages || []).includes(+q.id.slice(12)) ? 'PAGE READ' : null;
     return null; },
   activate(q, t, api, b) { const s = store.get();
-    if (q.id === 'jungle_mossbeard') { const n = (s.pages || []).length, sh = (s.shards || []).length;
+    if (q.id === 'jungle_mossbeard') { const n = (s.pages || []).length, sh = shardsToday(s).length;
       if (!s.quest_exp) store.upd(o => { o.quest_exp = 'started'; });
       const line = n >= PAGES.length ? '"You found them all! The last page marks a dig site by the temple. A map will turn up when the jungle dig opens."' : n ? `"${n} of ${PAGES.length} pages. Keep going, they lost the rest deeper in."` : '"An expedition went up to the temple and never came back. Find their 4 journal pages!"';
-      return `OLD MOSSBEARD · THE LOST EXPEDITION<br><small>${line}<br>journal pages ${n}/${PAGES.length} · idol shards ${sh}/${SHARDS.length}<br>the temple trap run is straight ahead · mind the floor</small>`; }
-    if (q.id.startsWith('jungle_shard_')) { const i = +q.id.slice(13); if ((s.shards || []).includes(i)) return null; const o = store.upd(o => { (o.shards = o.shards || []).push(i); }); b?.refresh(); window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:idol_shard', spot: q.id } })); // [inventory] + a tradeable Idol Shard (server: once per spot per day)
-      return o.shards.length >= SHARDS.length ? 'THE GOLDEN IDOL IS WHOLE!<br><small>7/7 idol shards · the Golden Idol cosmetic is yours (it arrives in your gear with the next update)</small>' : `IDOL SHARD ${o.shards.length}/${SHARDS.length}<br><small>collect all 7 for the Golden Idol (cosmetic)</small>`; }
+      return `OLD MOSSBEARD · THE LOST EXPEDITION<br><small>${line}<br>journal pages ${n}/${PAGES.length} · idol shards today ${sh}/${SHARDS.length} · bring 21 to the altar in the Skull Cave<br>the temple trap run is straight ahead · mind the floor</small>`; }
+    if (q.id.startsWith('jungle_shard_')) { const i = +q.id.slice(13); if (shardsToday(s).includes(i)) return null;   // [ruins] daily respawn; 21 -> Golden Idol at the Skull Cave
+      const o = store.upd(o => { if (o.shardDay !== today()) { o.shardDay = today(); o.shardsToday = []; } o.shardsToday.push(i); (o.shards = o.shards || []).includes(i) || o.shards.push(i); }); b?.refresh();
+      window.dispatchEvent?.(new CustomEvent('pfp-find', { detail: { item: 'val:idol_shard', spot: q.id } }));   // the server puts it in the bag (once per spot per day)
+      return `IDOL SHARD · ${o.shardsToday.length}/${SHARDS.length} TODAY<br><small>21 shards make a Golden Idol at the altar in the Skull Cave · they come back tomorrow</small>`; }
     if (q.id.startsWith('jungle_page_')) { const i = +q.id.slice(12); if ((s.pages || []).includes(i)) return null; const o = store.upd(o => { (o.pages = o.pages || []).push(i); }); b?.refresh();
       const T = ['"Day 3. The trail splits at the old hermit\'s camp. We go north-east."', '"Day 5. The floor bites! Only half the tiles hold. Watch which ones crack."', '"Day 6. We left the gallows hill behind. The temple is close."', '"Day 9. From the high ledge I can see the altar. The treasure is real…"'];
       return `JOURNAL PAGE ${o.pages.length}/${PAGES.length}<br><small>${T[i]}</small>`; }
     if (q.id === 'jungle_ruin_chest' || HIDDEN.some(c => c.id === q.id)) { if ((s.chests || {})[q.id] === today()) return 'THE CHEST IS EMPTY<br><small>it refills tomorrow</small>';
       b?.chests[q.id]?.open(t); store.upd(o => { (o.chests = o.chests || {})[q.id] = today(); o.found = (o.found || 0) + 1; });
-      return `${q.id === 'jungle_ruin_chest' ? 'THE RUIN CHEST!' : 'HIDDEN CHEST!'}<br>${PENDING}`; }
+      window.dispatchEvent?.(new CustomEvent('pfp-ruin', { detail: { spot: q.id } }));   // [ruins] the server rolls a valuable (loot card shows it)
+      return `${q.id === 'jungle_ruin_chest' ? 'THE RUIN CHEST!' : 'HIDDEN CHEST!'}<br><small>treasure for the Treasure Trader · it refills tomorrow</small>`; }
+    if (q.id === 'skull_idol_altar') { window.dispatchEvent?.(new CustomEvent('pfp-idol')); return null; }   // [ruins] 21 Idol Shards -> Golden Idol (server)
     return null; },
   onPlayer(p, t, api, b) { const [x, z] = p; if (Math.abs(x - RUN.x) > RUN.hw + 0.4 || z > RUN.z0 || z < RUN.z1 || t - trap.last < 1.2) return;
     const back = (why) => { trap.last = t; api.teleport(trap.start[0], trap.start[1], Math.PI); api.toast(why + '<br><small>back to the start of the trap run</small>', 1800); };

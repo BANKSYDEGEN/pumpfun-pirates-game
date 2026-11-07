@@ -42,7 +42,7 @@ const icoHtml = (key, info) => {
 const CSS = `
 #inv-panel{position:fixed;inset:0;z-index:62;display:none;background:rgba(10,7,4,.72);font-family:'Just Another Hand',cursive;color:#f4e2bb;touch-action:manipulation}
 #inv-panel.on{display:flex;align-items:center;justify-content:center}
-#inv-panel .iv-box{width:min(760px,96vw);height:min(92vh,860px);height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));max-height:min(92vh,860px);max-height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:hidden;display:flex;flex-direction:column;background:#2a1a0c;border:3px solid #ffcd77;border-radius:16px;box-shadow:0 10px 40px #000}
+#inv-panel .iv-box{width:min(620px,92vw);height:auto;max-height:min(80vh,700px);max-height:min(80dvh,700px,calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)));overflow:hidden;display:flex;flex-direction:column;background:#2a1a0c;border:3px solid #ffcd77;border-radius:16px;box-shadow:0 10px 40px #000}
 #inv-panel .iv-head{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px 6px;font-size:30px;letter-spacing:.05em;color:#ffcd77}
 #inv-panel .iv-head small{font-size:18px;color:#cdb68c;flex:1}
 #inv-panel .iv-slots{font:bold 16px system-ui,sans-serif;padding:2px 10px;border-radius:999px;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;letter-spacing:.04em}
@@ -53,7 +53,7 @@ const CSS = `
 #inv-panel .iv-tabs{flex:none;display:flex;gap:6px;padding:0 14px 6px}
 #inv-panel .iv-tabs button{font:20px 'Just Another Hand',cursive;padding:4px 12px 2px;border-radius:10px;border:2px solid rgba(255,205,119,.4);background:#1a0f07;color:#f4e2bb;cursor:pointer}
 #inv-panel .iv-tabs button.on{border-color:#ffcd77;background:#5a3410;color:#fff}
-#inv-panel .iv-grid{flex:1 1 0;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));grid-auto-rows:76px;gap:8px;padding:8px 14px 12px;align-content:start}
+#inv-panel .iv-grid{flex:1 1 auto;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));grid-auto-rows:minmax(72px,auto);gap:8px;padding:8px 14px 12px;align-content:start}
 
 #inv-panel .iv-slot.iv-leg{box-shadow:0 0 0 2px #ffd24a,0 0 14px rgba(255,205,60,.65),inset 0 0 18px rgba(255,200,80,.18);border-color:#ffd24a!important}
 #inv-panel .iv-slot .iv-accpip{position:absolute;left:4px;bottom:4px;font:bold 11px system-ui,sans-serif;color:#ffcd77;background:rgba(0,0,0,.55);border-radius:6px;padding:0 4px;letter-spacing:.02em}
@@ -69,7 +69,7 @@ const CSS = `
 #inv-panel .iv-slot b{position:absolute;right:4px;bottom:2px;font:bold 15px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #inv-panel .iv-slot em{position:absolute;left:4px;top:2px;font:bold 12px system-ui,sans-serif;font-style:normal;color:#ffcd3c}
 #inv-panel .iv-eq{position:absolute;top:2px;left:4px;font-style:normal;font-size:14px;color:#1b1206;background:#7be37b;border-radius:8px;padding:0 4px;z-index:1}
-#inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:84px;height:84px;min-height:84px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-slot i.iv-rk{position:absolute;right:4px;top:3px;width:auto;aspect-ratio:auto;display:block;font:bold 10px/1.3 system-ui,sans-serif;font-style:normal;color:#1b1206;border-radius:6px;padding:0 4px}
+#inv-panel .iv-eqs{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:2px 0 8px;border-bottom:2px solid rgba(255,205,119,.3)}#inv-panel .iv-eqs>small{flex:1 1 100%;font-size:18px;color:#ffcd77;letter-spacing:.05em}#inv-panel .iv-eqs .iv-slot{width:76px;height:76px;min-height:76px;flex:none}#inv-panel .iv-eqs .iv-acc{width:60px;min-height:52px}#inv-panel .iv-eqs .iv-acc i{font-size:22px}#inv-panel .iv-eqs .iv-acc span{font-size:10px;min-height:0}#inv-panel .iv-slot.iv-eqslot{background:radial-gradient(#3a4a28,#18200c)}#inv-panel .iv-slot.iv-eqslot u{color:#bfe39a;font-size:10px}#inv-panel .iv-accs{display:flex;gap:6px;padding-left:6px;border-left:2px dashed rgba(191,227,154,.4)}#inv-panel .iv-slot i.iv-rk{position:absolute;right:4px;top:3px;width:auto;aspect-ratio:auto;display:block;font:bold 10px/1.3 system-ui,sans-serif;font-style:normal;color:#1b1206;border-radius:6px;padding:0 4px}
 #inv-panel .iv-empty{grid-column:1/-1;text-align:center;font-size:24px;color:#cdb68c;padding:30px 0}
 #inv-panel .iv-act{flex:none;max-height:min(36dvh,36vh,220px);overflow-y:auto;border-top:2px solid rgba(255,205,119,.35);padding:7px 14px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:21px;min-height:0}
 #inv-panel .iv-act .t{flex:1 1 100%;font-size:20px}
@@ -83,17 +83,20 @@ html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act butto
 #inv-panel .iv-slot:focus-visible,#inv-panel .iv-act button:focus-visible,#inv-panel .iv-tabs button:focus-visible{
   outline:3px solid #ffcd77 !important;outline-offset:2px !important;box-shadow:0 0 0 5px rgba(22,22,22,.75),0 0 16px 3px rgba(255,205,119,.7) !important;z-index:2}
 #inv-panel .iv-slot{outline:none}#inv-panel .iv-act button,#inv-panel .iv-tabs button{outline:none}
-@media (min-width:900px){#inv-panel .iv-grid{grid-template-columns:repeat(8,minmax(0,1fr));grid-auto-rows:84px}}
+@media (min-width:900px){#inv-panel .iv-grid{grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(76px,auto)}}
 /* [v350 t1840u] phone portrait */
 @media (max-width:640px){
   #inv-panel .iv-box{width:min(100vw - 12px,96vw);border-radius:14px}
   #inv-panel .iv-head{font-size:26px;padding:8px 10px 4px;gap:8px}
-  #inv-panel .iv-head small{font-size:15px}
+  #inv-panel .iv-head small{display:none}   /* [t2001u] the slot pill already says it; the squeezed line wrapped into a tall column */
   #inv-panel .iv-x{width:40px;height:40px}
   #inv-panel .iv-tabs{padding:0 10px 4px;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   #inv-panel .iv-tabs button{font-size:18px;padding:3px 10px 1px;flex:none}
-  #inv-panel .iv-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:78px;gap:6px;padding:6px 10px 8px}
+  #inv-panel .iv-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(74px,auto);gap:6px;padding:6px 10px 8px}
   #inv-panel .iv-slot{border-width:2px}
+  /* [t2001u] EQUIPPED on one line on phones: a wrapped second line was not sized by the grid and slid under the items */
+  #inv-panel .iv-eqs{flex-wrap:nowrap;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}#inv-panel .iv-eqs>small{display:none}
+  #inv-panel .iv-eqs .iv-slot{width:62px;height:62px;min-height:62px}#inv-panel .iv-eqs .iv-acc{width:46px;height:62px;min-height:62px}#inv-panel .iv-accs{gap:4px;padding-left:4px;flex:none}
   #inv-panel .iv-slot i{font-size:26px}
   #inv-panel .iv-slot span{font-size:11px}
   #inv-panel .iv-act{max-height:min(38dvh,38vh,240px);padding:6px 10px 8px;gap:5px}
@@ -118,7 +121,7 @@ html.pfp-pad #inv-panel .iv-slot.pad-focus,html.pfp-pad #inv-panel .iv-act butto
   #inv-panel .iv-eqs .iv-slot u{font-size:8px}
   #inv-panel .iv-eqs .iv-slot span{font-size:9px;-webkit-line-clamp:1;min-height:0}
   #inv-panel .iv-accs{gap:4px;padding-left:4px}
-  #inv-panel .iv-grid{flex:1 1 0;min-height:96px;overflow-y:auto;grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:52px;gap:4px;padding:4px 10px 6px}
+  #inv-panel .iv-grid{flex:1 1 0;min-height:96px;overflow-y:auto;grid-template-columns:repeat(10,minmax(0,1fr));grid-auto-rows:minmax(52px,auto);gap:4px;padding:4px 10px 6px}
   #inv-panel .iv-slot{border-width:2px;border-radius:8px;padding:1px}
   #inv-panel .iv-slot i{font-size:18px;width:50%}
   #inv-panel .iv-slot span{font-size:9px;min-height:1.1em;-webkit-line-clamp:1}
@@ -206,7 +209,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     else { if (part < A.n) return false; order[a] = B; order[b] = A; }
     saveOrder(); return true; }
   const isIsl = (s) => s?.info?.kind === 'island';
-  const shopTakes = (s) => isIsl(s) ? (mode === 'fish' || mode === 'antiques' ? !!s.info.sell?.[mode] : true) : mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' : true;
+  const shopTakes = (s) => isIsl(s) ? (mode === 'fish' || mode === 'antiques' ? !!s.info.sell?.[mode] : true) : mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' && (s.info.antiques | 0) > 0 : true;   // [ruins] 0-price items (shards, gun parts) stay out of the Trader grid
   const price = (s) => isIsl(s) ? (s.info.sell?.[mode] | 0) : mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
   const sellOn = () => mode === 'fish' ? !!data.flags.fish_sell : mode === 'antiques' ? !!data.flags.antiques_sell : false;
   // [inventory v209] battle.js reads these: the DB flags + the equipped weapons' rarity (after a reload too, once inv_state is read)
@@ -397,6 +400,13 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   window.addEventListener('pfp-fish', async (e) => { const d = e.detail || {}; if (!['inv_fish', 'inv_fish_bite', 'inv_fish_land'].includes(d.action)) return d.done?.(null);
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
+  // [ruins] jungle ruin chests: the SERVER rolls the valuable (once per chest per day); idol altar: 21 shards -> Golden Idol
+  const lootOf = (k, title) => { const i = itemInfo(k); if (!i) return; import('../lootCard.js').then(L => L.showLootCard({ title, items: [{ name: i.name, icon: i.icon, qty: 1 }], note: 'sell it at the Treasure Trader' })).catch(() => toast(`${i.icon} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2200)); };
+  window.addEventListener('pfp-ruin', async (e) => { let r = null; try { r = await pvp()?.inv?.call('inv_ruin_chest', { spot: e.detail?.spot }); } catch { r = null; }
+    if (r?.ok) { refresh(); lootOf(r.item, 'RUIN CHEST'); } else if (r?.why === 'found today') toast('THE CHEST IS EMPTY<br><small>it refills tomorrow</small>', 1800); else toast('THE CHEST IS STUCK<br><small>sign in to the pirate network to loot it</small>', 2000); });
+  window.addEventListener('pfp-idol', async () => { let r = null; try { r = await pvp()?.inv?.call('inv_idol_forge', {}); } catch { r = null; }
+    if (r?.ok) { refresh(); lootOf('val:golden_idol', 'THE GOLDEN IDOL IS WHOLE!'); }
+    else toast(r?.why === 'need shards' ? `THE ALTAR WANTS ${r.need} IDOL SHARDS<br><small>you have ${r.have | 0} · 7 can be found in the jungle ruins each day</small>` : 'THE ALTAR IS SILENT<br><small>sign in to the pirate network first</small>', 2600); });
   return { invSlots: () => (view || []).map(v => v ? { key: v.s.key, qty: v.n } : null), onSlotsChange: (f) => { _slotFns.push(f); }, // [inv-arrange] HOTBAR hook (not built): slot i -> item; fires on every move
     open, close, refresh, get isOpen() { return el.classList.contains('on'); }, get count() { return count(); }, get data() { return data; }, slots, haulUsed: () => countBackpackSlots(data.items || [], data.equipped || {}), isOwnerBag: () => isUnlimitedBag({ owner: !!data.owner, name: pvp()?.name }), render, _setData(d) { data = { ...data, ...d }; render(); }, _setListings(l) { listings = sortListings(l); render(); } };
 }

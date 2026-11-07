@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 const C = await import('../js/inventory/catalog.js');
 const SQL = readFileSync(new URL('../supabase/migrations/036_inventory.sql', import.meta.url), 'utf8');
 const SQL37 = readFileSync(new URL('../supabase/migrations/037_fish_prices.sql', import.meta.url), 'utf8'); // [v208] fish prices + sell / market on
+const SQL56 = readFileSync(new URL('../supabase/migrations/056_ruins_treasure.sql', import.meta.url), 'utf8'); // [ruins] the Golden Idol price
 test('migrations 036 + 037 seed exactly the catalog prices', () => {
-  const seeded = new Map([...(SQL + SQL37).matchAll(/\('([a-z:_]+)',\s*'(fish|antiques)',\s*(\d+)\)/g)].map(m => [m[1] + '|' + m[2], +m[3]]));
+  const seeded = new Map([...(SQL + SQL37 + SQL56).matchAll(/\('([a-z:_]+)',\s*'(fish|antiques)',\s*(\d+)\)/g)].map(m => [m[1] + '|' + m[2], +m[3]]));
   const rows = C.priceRows(); assert.equal(seeded.get('map|antiques'), 100); assert.equal(seeded.size, rows.length + 1);
   for (const [k, s, p] of rows) assert.equal(seeded.get(k + '|' + s), p, k);
 });
@@ -26,7 +27,8 @@ test('036 seeds every flag OFF but inventory + gifts; 037 (BANKSY 12:55 PM) turn
 });
 test("Antiques = BANKSY 11:19: map 100, finds 500..5000 by rarity", () => {
   assert.equal(C.MAP_ANTIQUES, 100); const R = { common: 500, uncommon: [1000, 1200], rare: [2000, 2200], epic: 3500, legendary: 5000 };
-  for (const v of Object.values(C.VALUABLES)) { assert.ok(v.antiques >= 500 && v.antiques <= 5000); const r = R[v.rarity]; assert.ok(Array.isArray(r) ? r.includes(v.antiques) : r === v.antiques, v.name); }
+  assert.equal(C.VALUABLES.golden_idol.antiques, 20000);   // [ruins] BANKSY t1999u: the 21-shard Golden Idol is the one exception
+  for (const v of Object.values(C.VALUABLES)) { if (v === C.VALUABLES.golden_idol) continue; assert.ok(v.antiques >= 500 && v.antiques <= 5000); const r = R[v.rarity]; assert.ok(Array.isArray(r) ? r.includes(v.antiques) : r === v.antiques, v.name); }
   assert.deepEqual(C.RARITY_ANTIQUES, { common: 500, uncommon: 1000, rare: 2000, epic: 3500, legendary: 5000 });
 });
 test('weapon stats: modest (<= +10 % dmg), monotone, flag off = base numbers', () => {

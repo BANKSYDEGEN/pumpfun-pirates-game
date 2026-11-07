@@ -2,14 +2,14 @@
 // asking (index.ts whoAmI), rolls server-side things (fish, chest items) and shapes replies. Client values are never trusted for
 // prices, qty ownership, multipliers or recipients.
 import { sellItem, OWNER_MAIN } from "./lib.ts";
-import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET } from "./invCatalog.ts";
+import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET, CHEST_VALUABLES, RUIN_CHESTS, IDOL_SHARDS } from "./invCatalog.ts";
 import { chestRoll } from "./chest.ts";
 import { acctBump } from "./accounts.ts";
 import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's online list
 import { squadAction, SQUAD_ACTIONS } from "./squad.ts"; // [squad-hall]
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
-export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
+export const INV_ACTIONS = ["inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_ruin_chest", "inv_idol_forge", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
 // every item the owner test kit holds (~3 of each): fish, valuables, weapons at every rarity (maps are added by SQL)
@@ -105,6 +105,11 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     case "inv_find": { const item = b.item === "val:river_pearl" ? "val:river_pearl" : b.item === "val:idol_shard" ? "val:idol_shard" : null; const spot = String(b.spot ?? "");
       if (!item || !/^(jungle_shard_\d{1,2}|lagoon_p(_grotto|\d))$/.test(spot)) return json(400, { error: "bad find" });
       return reply(await rpc("pvp_inv_find", { p_player: pid, p_item: item, p_spot: spot })); }
+    case "inv_ruin_chest": { const spot = String(b.spot ?? ""); if (!(RUIN_CHESTS as string[]).includes(spot)) return json(400, { error: "bad chest" });   // [ruins] server rolls the common chest table
+      const T = (CHEST_VALUABLES as any).common as Record<string, number>; let r = crypto.getRandomValues(new Uint32Array(1))[0] % 1000, item = "val:silver_ring";
+      for (const [k, w] of Object.entries(T)) { if (r < w) { item = "val:" + k; break; } r -= w; }
+      return json(200, (await rpc("pvp_inv_find", { p_player: pid, p_item: item, p_spot: spot })) ?? { ok: false, why: "refused" }); }   // 200 + why: the client shows "empty" / "need N"
+    case "inv_idol_forge": return json(200, (await rpc("pvp_inv_idol_forge", { p_player: pid, p_need: IDOL_SHARDS })) ?? { ok: false, why: "refused" });   // [ruins] 21 shards -> Golden Idol
     case "inv_musk_rank": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic)$/.exec(item); if (!m) return json(400, { error: "bad item" });
       const c = RANK_UP[m[1]]; return reply(await rpc("pvp_inv_musk_rank", { p_player: pid, p_item: item, p_gold: c.gold, p_parts: c.parts, p_owner: who.owner })); }
     case "inv_musk_salvage": { const item = String(b.item ?? ""), m = /^wpn:musket:[a-z_]{2,16}:(common|rare|epic|legendary)$/.exec(item); if (!m) return json(400, { error: "bad item" });

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v378'; // [v378] casino High Seas Room wing in the walled lot beside the hall: more one-game tables, lighting (BANKSY t1983u)
+const VERSION = 'pfp-v379'; // [v379] Golden Idol altar (gold V7 statue, 21 shards = 20k idol), daily shards, ruin chest valuables, smaller inventory panel with no overlap (BANKSY t1995u-t2003u)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

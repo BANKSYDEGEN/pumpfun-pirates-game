@@ -22,6 +22,7 @@ function COAST_ON_PV2() { return PV.PLAZA_V2 && CO.COAST_ON; }
 const COASTM = CO.COAST_ON;
 export { CO }; // ?coast=1: town + berths built into the main island's west coast (js/island/coast.js); no round dock island
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { buildLighthouse, tickLighthouse } from '../lighthouseKit.js';
 
 // ---------- layout ----------
@@ -1266,6 +1267,20 @@ const jagCone = (r, h, seg, seed) => { const g = new THREE.ConeGeometry(r, h, se
   for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), t = 0.5 - y / h, k = 1 + 0.3 * t * Math.sin(x * 0.9 + seed) * Math.sin(z * 1.1 + seed * 2) + 0.12 * t * Math.sin(y * 0.8 + seed); P.setXYZ(i, x * k, y, z * k); }
   g.computeVertexNormals(); return g; };
 function boulder(k, x, z, s, seed, sink = 0.3) { if (NP) return natRock(x, z, s * 1.05, seed, sink * 0.5); W(k, jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, seed), (px, py) => (py > 0.2 ? 0xa8a095 : 0x7f786f), 3, M(x, H(x, z) + s * (0.6 - sink), z, seed, 0.3, 0.2, [s * 1.2, s * 0.8, s])); }
+// [ruins t2003u] BANKSY: "make it a golden v7 pirate". The real V7 male body, frozen in his idle pose, cast in polished gold, on the altar
+function goldPirateStatue(root, low) {
+  if (typeof document === 'undefined') return;
+  const S0 = SKULL, R = Math.PI, lx = 0, lz = -11.95, x = S0.x + Math.cos(R) * lx + Math.sin(R) * lz, z = S0.z - Math.sin(R) * lx + Math.cos(R) * lz;
+  import('../pirateGLB.js').then(({ loadPirateGLB }) => loadPirateGLB('assets/pirates/pirate_male_v7_lo.glb')).then((gl) => {
+    const scn = SkeletonUtils.clone(gl.scene), gold = new THREE.MeshStandardMaterial({ color: 0xffc24a, metalness: 1, roughness: 0.28, emissive: 0x4a2c00, emissiveIntensity: 0.55 });
+    const clip = (gl.animations || []).find(a => a.name === 'idle') || gl.animations?.[0];
+    if (clip) { const mx = new THREE.AnimationMixer(scn); mx.clipAction(clip).play(); mx.update(0.6); }
+    scn.traverse(o => { if (o.isMesh) { o.material = gold; o.castShadow = false; o.frustumCulled = false; } });
+    scn.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(scn), hgt = bb.max.y - bb.min.y || 1, s = 1.4 / hgt;
+    const g = new THREE.Group(); g.name = 'gold_pirate_statue'; scn.scale.setScalar(s); scn.position.y = -bb.min.y * s; g.add(scn);
+    g.position.set(x, S0.y + 1.25, z); g.rotation.y = R; root.add(g);
+  }).catch(e => console.warn('[ruins] gold statue', e));
+}
 export function buildInland(A, low, F) {
   const k = new Kit(); k.ao = (x, y, z) => 0.6 + 0.4 * sm(0, 2.6, y - H(x, z));
   // lighthouse: dressed-stone base, banded tower with stone trim rings, gallery + rail, lantern room, keeper's hut
@@ -1339,11 +1354,18 @@ export function buildInland(A, low, F) {
       for (let i = 0; i < 9; i++) { const gx = -4 + (i % 3) * 4 + hash(i, 1), gz = -10 + Math.floor(i / 3) * 3.2; k.add(new THREE.ConeGeometry(1.2 + hash(i, 2), 1.0 + hash(i, 3) * 0.6, 10), GOLD, { m: M(gx, 0.45, gz), outline: false, mat: 0 });
         if (i % 2 === 0) k.add(new THREE.SphereGeometry(0.5, 8, 6), 0xffe9a0, { bucket: 'glow', m: M(gx, 1.0, gz), outline: false }); }
       for (const sx of [-1, 1]) { k.at(M(sx * 4.2, 0, -11, sx * -0.4), () => { W(k, box(2.2, 1.3, 1.4), WOOD, 2, M(0, 0.65, 0)); W(k, box(2.25, 0.18, 1.45), GOLD, 0, M(0, 1.0, 0), false); W(k, box(2.2, 0.25, 1.4), WOOD_D, 2, M(0, 1.55, -0.55, 0, -1.0), false); k.add(new THREE.SphereGeometry(0.7, 10, 6, 0, 6.29, 0, Math.PI / 2), 0xffd75a, { bucket: 'glow', m: M(0, 1.2, 0, 0, 0, 0, [1.2, 0.5, 0.75]), outline: false }); }); }
+      // [ruins] THE IDOL ALTAR (BANKSY t1996u): a carved stone altar against the back wall, an empty idol outline + 21 shard sockets, a gold glow
+      k.at(M(0, 0, -11.75), () => { W(k, box(2.6, 0.35, 1.3), 0x7d7264, 3, M(0, 0.18, 0)); W(k, box(2.2, 0.75, 1.0), 0x958a7a, 3, M(0, 0.72, 0)); W(k, box(2.5, 0.16, 1.2), 0xa99e8c, 3, M(0, 1.17, 0));
+        for (const sx of [-1, 1]) { W(k, box(0.34, 1.9, 0.34), 0x8a7f70, 3, M(sx * 1.05, 1.2, -0.2)); k.add(new THREE.SphereGeometry(0.16, 8, 6), 0xffb347, { bucket: 'glow', m: M(sx * 1.05, 2.25, -0.2), outline: false }); }
+        W(k, box(0.9, 1.5, 0.12), 0x3a2e22, 0, M(0, 2.0, -0.42), false);   // the dark idol-shaped niche
+        // [ruins t2003u] the idol is now a golden V7 pirate statue (goldPirateStatue, loaded after the kit)
+        for (let i = 0; i < 21; i++) k.add(new THREE.OctahedronGeometry(0.07, 0), i % 3 ? 0xd9a531 : 0xffcf4a, { m: M(-0.95 + (i % 7) * 0.32, 1.27, 0.12 + Math.floor(i / 7) * 0.16), outline: false, mat: 0 }); });
       if (!NP) for (let i = 0; i < 6; i++) W(k, jagCone(6 + hash(i, 7) * 4, 22 + hash(i, 8) * 16, low ? 5 : 7, i), (px, py) => (py > 0 ? 0x9a8f80 : 0x7a6f62), 3, M(-16 + i * 6.4, 10, -18 - hash(i, 9) * 8, i), false);
     });
-    for (const [lx, lz, sx] of [[-4, -6, 1], [4, -6, -1], [0, -11.8, 1]]) { const [x, z] = toW(lx, lz); F.push({ x, y: y + 2.4, z, cave: true }); const [px, pz] = toW(lx + sx * 0.3, lz); W(k, box(0.12, 0.6, 0.12), IRON, 0, M(px, y + 2.0, pz), false); }
+    for (const [lx, lz, sx] of [[-4, -6, 1], [4, -6, -1], [2.6, -11.8, 1]])   /* [ruins] back torch moved off the idol altar */ { const [x, z] = toW(lx, lz); F.push({ x, y: y + 2.4, z, cave: true }); const [px, pz] = toW(lx + sx * 0.3, lz); W(k, box(0.12, 0.6, 0.12), IRON, 0, M(px, y + 2.0, pz), false); }
     for (const [cx, cz, w, d] of [[-11.5, -2.5, 9, 22], [11.5, -2.5, 9, 22], [0, -19, 32, 12], [-5, 6.2, 4, 2.2], [5, 6.2, 4, 2.2]]) { const [x, z] = toW(cx, cz); addBox(x, z, w, d, R); }
     const [ex, ez] = toW(0, 8); INTERACT.push({ id: 'cave', x: ex, z: ez, r: 4, label: 'TREASURE CAVE · walk in', info: true });
+    { const [ax, az] = toW(0, -11.75); addBox(ax, az, 2.6, 1.3, R); const [qx, qz] = toW(0, -10.4); INTERACT.push({ id: 'skull_idol_altar', area: 'jungle_ruins', x: qx, z: qz, r: 2.2, label: 'E · IDOL ALTAR · 21 SHARDS' }); }   // [ruins] 21 Idol Shards -> Golden Idol
   }
   KPG = 'cove';
   // smugglers' cove: plank-built wreck on its side, broken masts, torn sail, a jetty with nets, crates, a campfire
@@ -1438,6 +1460,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const gInfo = buildStreetGravel(gk); streetGravel = gk.build(MATS, OUT); streetGravel.name = 'foot_street_gravel'; root.add(streetGravel);
     if (typeof console !== 'undefined') console.info('[v337] street gravel', gInfo); }
   const inland = buildInland(atlas.R, low, F).build(MATS, OUT); inland.name = 'foot_pois'; root.add(inland);
+  goldPirateStatue(root, low);   // [ruins t2003u] the Golden Idol on the Skull Cave altar is a gold V7 pirate
   const kerbG = buildKerbs(MATS, OUT, low); for (const g of kerbG) root.add(g); // [bridge-path-fix] the paved trails' kerbs (after the POIs: their colliders + area decks are in)
   // [stairs2] the saved terrain edits (BANKSY's, pvp_terrain) load after this: kerbs laid on the unedited ground floated / sank where he levelled
   // (up to 7.7 m by the bridge head). Every TERRAIN.set now re-lays them on the edited ground (geometry only; the ground itself is untouched)
