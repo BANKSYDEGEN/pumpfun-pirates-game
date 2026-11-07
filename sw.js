@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v373'; // [v373] dressed money-maker shop fronts: boards, awnings, bracket signs, lanterns, trade props (BANKSY t1974u)
+const VERSION = 'pfp-v374'; // [v374] owner gun buys/rank-ups charge immediately instead of netting against his next sale (BANKSY t1975u)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

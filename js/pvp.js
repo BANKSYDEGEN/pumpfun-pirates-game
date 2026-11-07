@@ -338,7 +338,7 @@ export function createPvp(K) {
   // in the same tick, like a dig. The owner's gold goes through his pot (inv_pot), never twice.
   const inv = { async call(action, body = {}) {
       const r = await invApi(action, { ...body, mirror: true }); if (!r || !r.ok) return r || { ok: false, error: 'offline' };
-      if (r.owner && (action === 'inv_sell' || action === 'mkt_buy')) { const p = await invApi('inv_pot', { mirror: true }); if (p && p.ok) r.gold_landed = p.gold | 0; }
+      if (r.owner && (action === 'inv_sell' || action === 'mkt_buy' || action === 'inv_musk_rank' || action === 'inv_buy_acc')) { /* [Emerly v374] settle the owner's pot right away so a buy/rank-up charges NOW instead of silently eating his next sale */ const p = await invApi('inv_pot', { mirror: true }); if (p && p.ok) r.gold_landed = p.gold | 0; }
       else r.gold_landed = action === 'inv_sell' || action === 'inv_pot' ? (r.gold | 0) : action === 'mkt_buy' ? -(r.price | 0) : (action === 'inv_musk_rank' || action === 'inv_buy_acc') && !r.owner ? -(r.price | 0) : 0; // [Emerly musket-rank / gunacc] server took the gold
       if (r.gold_landed) { game.gold = Math.max(0, Math.min(1e7, (game.gold | 0) + r.gold_landed)); save({ now: true, force: true }); K.updateHud(); if (r.gold_landed > 0) sfx.coin?.(); }
       return r; } };
