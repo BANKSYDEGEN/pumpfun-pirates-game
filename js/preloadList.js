@@ -54,6 +54,7 @@ export const HARBOR_MODULES = [
   "js/island/battleAreas.js",
   "js/island/casino.js",
   "js/island/casinoData.js",
+  "js/island/casinoFelt.js",
   "js/island/coliseum.js",
   "js/island/digSpots.js",
   "js/island/foot.js",
