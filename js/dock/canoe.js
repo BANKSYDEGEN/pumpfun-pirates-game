@@ -1,6 +1,7 @@
 // [Emerly sail-around] BANKSY 8:04 PM Nov 5: sail the whole island + 5 outer islets, drop anchor offshore, board a canoe
 // with small crew + pet, dig on side islands, recall ship at the harbor dock, swim much faster. CLIENT ONLY.
 // &sailall=0 = old west-harbor ring + no canoe / offshore anchor / ship-recall (dig spots stay on if shipped).
+import { seatCanoeRider, CANOE_CREW_BENCHES } from '../onfoot/canoeSeat.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { toon } from '../toon.js';
@@ -530,21 +531,13 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
         v.set(0, yLocal, zLocal).applyMatrix4(mesh.matrixWorld);
         obj.position.copy(v); obj.quaternion.copy(mesh.quaternion);
       };
-      const seatRider = (actor, z) => {
-        const obj = actor?.object; if (!obj) return;
-        obj.userData.canoeSeat = true; actor.update?.(dt, 0, 'canoe');
-        let hip = null; obj.traverse(o => { if (o.isBone && o.name === 'root') hip = o; });
-        obj.updateWorldMatrix(true, true);
-        const h = hip ? obj.worldToLocal(hip.getWorldPosition(new THREE.Vector3())).y : .8;
-        placeAt(obj, z, .425 - h * obj.scale.y);
-      };
-      if (pirateObj) seatRider(pirate, 0.55); // captain on forward-mid bench
+      if (pirateObj) seatCanoeRider(pirate, mesh, 0.55, dt); // captain on forward-mid bench
       const crew = crewF?.list || [];
-      const crewZ = [-0.55, -1.60];
+      const crewZ = CANOE_CREW_BENCHES;
       for (let i = 0; i < crew.length; i++) {
         const c = crew[i];
-        if (i >= st.crewN) { c.p.object.visible = false; continue; }
-        seatRider(c.p, crewZ[i] ?? (-0.55 - i * 1.05));
+        if (i >= Math.min(st.crewN, crewZ.length)) { c.p.object.visible = false; continue; }
+        seatCanoeRider(c.p, mesh, crewZ[i], dt);
       }
       if (!petF?.mesh) {
         try { petF?.update?.(0, { x: st.cx, z: st.cz, yaw: st.cyaw }, { pirateObj: pirate?.object, petId: getLocalGear()?.parrot || 'none' }); } catch {}

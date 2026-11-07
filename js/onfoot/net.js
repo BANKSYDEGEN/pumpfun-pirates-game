@@ -4,6 +4,7 @@
 //   dk: berth id your ship is moored at ('' = at sea)      ft: [x, z, yaw*100, speed*10] while you walk ('' = aboard)
 // Free-plan cap: a harbor room copy holds ~4 pirates, so at most 3 remote pirates are ever drawn (each ~5-10 draw calls).
 import * as THREE from 'three';
+import { seatCanoeRider, CANOE_CREW_BENCHES } from './canoeSeat.js';
 import { makeCanoeMesh } from '../dock/canoe.js';
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
@@ -93,7 +94,12 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
         p.crew = createFollowers({ scene, world, walker: { w: W }, low, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }
+      if (!p.cn) for (const c of p.crew?.list || []) delete c.p.object.userData.canoeSeat;
       p.crew?.update(dt, camera);
+      if (p.cn && p.canoe) for (const [i, c] of (p.crew?.list || []).entries()) {
+        if (i >= CANOE_CREW_BENCHES.length) { c.p.object.visible = false; continue; }
+        seatCanoeRider(c.p, p.canoe, CANOE_CREW_BENCHES[i], dt);
+      }
       if (p.petId && p.petId !== 'none') (p.pet ||= createPetFollower({ scene, world, low })).update(dt, p, { camera, pirateObj: p.pirate.object, petId: p.petId }); else if (p.pet) { p.pet.dispose(); p.pet = null; }
     }
   }

@@ -24,3 +24,16 @@ for(const female of [false,true])test(`${female?'female':'male'} canoe seats and
  for(let i=0;i<30;i++)swimPose(p,'walk',1/60,2.4);
  assert.equal(p._sw.w,0);
 });
+
+test('captain and both NPC crew use the same seated path on separate benches',async()=>{
+ const {seatCanoeRider,CANOE_CREW_BENCHES}=await import('../js/onfoot/canoeSeat.js');
+ const boat=new T.Group();boat.position.set(8,1.2,-4);boat.rotation.set(.07,.5,-.04,'YXZ');
+ const calls=[],actors=[.72,.81,.77].map((h,i)=>{const object=new T.Group(),hip=new T.Bone();hip.name='root';hip.position.y=h;object.add(hip);return {object,update(dt,speed,state){calls.push([i,speed,state]);}};});
+ [.55,...CANOE_CREW_BENCHES].forEach((z,i)=>seatCanoeRider(actors[i],boat,z,1/60));
+ assert.deepEqual(calls,[[0,0,'canoe'],[1,0,'canoe'],[2,0,'canoe']]);
+ for(let i=0;i<actors.length;i++){
+  const obj=actors[i].object;assert.equal(obj.userData.canoeSeat,true);
+  const hip=boat.worldToLocal(obj.children[0].getWorldPosition(new T.Vector3()));
+  assert.ok(Math.abs(hip.y-.425)<1e-6);assert.ok(Math.abs(hip.z-[.55,...CANOE_CREW_BENCHES][i])<1e-6);
+ }
+});
