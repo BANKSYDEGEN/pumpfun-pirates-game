@@ -398,7 +398,7 @@ export default {
     // the flag mast: the pirate flag goes up when you RAISE THE COLOURS (today, local)
     const mast = new Kit(); W(mast, cyl(0.14, 0.18, 13, 6), C.WOOD_D, M(MAST.x, Y + 6.5, MAST.z)); W(mast, ball(0.28, 6, 4), C.GOLD, M(MAST.x, Y + 13.2, MAST.z), false); near.add(mast.build(MATS, OUT));
     const flag = new THREE.Group(); { const fm = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.85), pfpFlagMaterial()); fm.position.set(1.45, 0, 0); fm.name = 'fort_pfp_flag'; flag.add(fm); }   // [hilltop] the Pumpfun Pirates flag
-    flag.position.set(MAST.x, Y + 3.4, MAST.z); near.add(flag);
+    flag.name = 'fort_flag_live'; flag.userData.live = true; /* [flagfix] opt.js freezeStatic froze this group's matrix (v304), so the raise never showed */ flag.position.set(MAST.x, Y + 3.4, MAST.z); near.add(flag);
     const up = () => fortFlagIsUp(); let fy = up() ? 11.5 : 3.4, fyT = fy; flag.position.y = Y + fy;
     // far impostor: walls with a west gate notch, towers + cones, keep + turret, the stair — still reads as a fort
     const kf = new Kit();
