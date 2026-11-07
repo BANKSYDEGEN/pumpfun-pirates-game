@@ -8,7 +8,7 @@
 import * as CAT from '../shopCatalog.js';
 const FONT = "'Just Another Hand', cursive";
 const TIER = { common: ['COMMON CHEST', '#e8cf95'], rare: ['RARE CHEST', '#7fd0ff'], legendary: ['LEGENDARY CHEST', '#ffcd3c'] };
-const SLOT = { hat: 'HAT', outfit: 'CLOTHES', eyes: 'EYEWEAR', hook: 'HOOK', leg: 'PEG LEG', face: 'FACE PAINT', parrot: 'PET', ears: 'EARRINGS', teeth: 'GOLD TEETH', boots: 'BOOTS', cape: 'CAPE', sword: 'SWORD', musket: 'MUSKET', crewhat: 'CREW HAT', crewoutfit: 'CREW CLOTHES' };
+const SLOT = { hat: 'HAT', outfit: 'CLOTHES', eyes: 'EYEWEAR', hook: 'HOOK', leg: 'PEG LEG', face: 'FACE PAINT', parrot: 'PET', ears: 'EARRINGS', teeth: 'TEETH', boots: 'BOOTS', cape: 'CAPE', sword: 'SWORD', musket: 'MUSKET', crewhat: 'CREW HAT', crewoutfit: 'CREW CLOTHES' };
 // weapons: the WEAPON STORE catalog (timothy/battle-areas WEAPON_ITEMS) when it is in this build, else these names (same ids)
 const WEAPON_NAMES = { 'sword:cutlass': 'CUTLASS', 'sword:rapier': 'RAPIER', 'sword:bone': 'BONE SKULL BLADE', 'musket:navy': 'NAVY MUSKET', 'musket:blunder': 'BLUNDERBUSS', 'musket:dragoon': 'BRASS DRAGOON' };
 export function chestItemInfo(key, crew = false) { // key = 'slot:id' ('crewhat:bicorne', 'sword:rapier')

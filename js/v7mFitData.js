@@ -1,11 +1,10 @@
-// Drop-in DATA artifact based on the saved live v381 loader mapping. No source checkout modified.
-// Dense checks: 20 samples x 15 clips x HI/LO. Candidates are not release/AAA approved.
-// Retained skips have unresolved raw body contacts; do not silently promote them.
+// v390-compatible mapping; only teeth + capes locally revalidated in the game renderer.
+// Other live mappings are unchanged; user visual approval remains pending.
 export const V7M_FITS = {
   "tooth_gold": {
-    "hi": "assets/pirates/items/v7m_fit/tooth_gold_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/tooth_gold_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/tooth_gold_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/tooth_gold_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO"
   },
   "facepaint_retardio": {
     "hi": "assets/pirates/items/v7m_fit/facepaint_retardio_male_hi.glb",
@@ -28,9 +27,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "grill_gold": {
-    "hi": "assets/pirates/items/v7m_fit/grill_gold_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/grill_gold_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/grill_gold_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/grill_gold_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO"
   },
   "hook_r": {
     "hi": "assets/pirates/items/v7m_fit/hook_r_male_hi.glb",
@@ -68,9 +67,10 @@ export const V7M_FITS = {
     "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
   },
   "cape_royal": {
-    "hi": "assets/pirates/items/v7m_fit/cape_royal_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cape_royal_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/cape_royal_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/cape_royal_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO",
+    "authoredCapeSkin": true
   },
   "mask_luchador": {
     "hi": "assets/pirates/items/v7m_fit/mask_luchador_male_hi.glb",
@@ -138,9 +138,10 @@ export const V7M_FITS = {
     "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
   },
   "cape_tattered": {
-    "hi": "assets/pirates/items/v7m_fit/cape_tattered_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cape_tattered_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/cape_tattered_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/cape_tattered_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO",
+    "authoredCapeSkin": true
   },
   "cloth_tshirt": {
     "hi": "assets/pirates/items/v7m_fit/cloth_tshirt_male_hi.glb",
@@ -173,9 +174,10 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "cape_captain": {
-    "hi": "assets/pirates/items/v7m_fit/cape_captain_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cape_captain_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/cape_captain_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/cape_captain_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO",
+    "authoredCapeSkin": true
   },
   "beard_moustache": {
     "hi": "assets/pirates/items/v7m_fit/beard_moustache_male_hi.glb",

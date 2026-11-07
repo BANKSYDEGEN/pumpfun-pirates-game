@@ -436,7 +436,7 @@ async function build(p, def, opts) {
     return buildV5(p, {...def, v5:{male:{hi:u,lo:u}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names); }
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
     const F=V7M_FITS[def.id];
-    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
+    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0, authoredCapeSkin:!!F.authoredCapeSkin}, opts, low, body, skel, names);
   }
   if (p.v5 && def.v5) return buildV5(p, def, opts, low, body, skel, names);
   const gltf = await loadPirateGLB(url);
@@ -779,7 +779,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
-  if (def.slot === 'cape') capeFollowLegs(g0, geo, skel, names);   // [Raul shop2 fixes] the hem rides the thighs (walk / run / swim / emotes: no legs through it)
+  if (def.slot === 'cape' && !def.authoredCapeSkin) capeFollowLegs(g0, geo, skel, names); // fitted capes carry shoulder-safe authored weights   // [Raul shop2 fixes] the hem rides the thighs (walk / run / swim / emotes: no legs through it)
   if (def.keyed) keyColors(geo, opts.colors, low); else if (opts.colors && !def.base) retint(geo, opts.colors);
   if (def.paint && p.lod === 'lo') paintLo(geo);
   const bt = def.backTint || 'shirt', hex = def.v5cloth ? opts.colors?.[bt] ?? def.tint?.[bt] : null;   // [Raul coats v5] coats: the inside in the coat colour   // [Raul clothes v5] single-layer cloth: both sides drawn, the inside in the cloth colour (shaded)

@@ -43,7 +43,7 @@ export const SKIN_ITEMS = [
 // ONE gear system (js/pirateGear.js applyGear): glb 'raul:<id>' = drawn with Raul's model (js/pirateItems.js), the rest with Timothy's.
 export const CAPTAIN_DEFAULTS = { v: 1, outfit: 'shirtless', hat: 'none', face: 'plain', hair: 'short', parrot: 'none', hook: 'none', leg: 'none', beard: 'none', ears: 'none', teeth: 'none', boots: 'none', pants: 'none', cape: 'none', flag: 'none', figure: 'none' };
 export const GEAR_SLOTS = [['hat', 'HATS'], ['outfit', 'CLOTHES'], ['eyes', 'EYEWEAR'], ['parrot', 'PARROTS'], ['hook', 'HOOKS'], ['leg', 'PEG LEGS'], ['face', 'FACE PAINT'],
-  ['beard', 'BEARDS'], ['ears', 'EARRINGS'], ['teeth', 'GOLD TEETH'], ['boots', 'SHOES'], ['pants', 'PANTS'], ['cape', 'CAPES'], ['flag', 'SHIP FLAGS'], ['figure', 'FIGUREHEADS']];   // [Raul shop items 2]
+  ['beard', 'BEARDS'], ['ears', 'EARRINGS'], ['teeth', 'TEETH'], ['boots', 'SHOES'], ['pants', 'PANTS'], ['cape', 'CAPES'], ['flag', 'SHIP FLAGS'], ['figure', 'FIGUREHEADS']];   // [Raul shop items 2]
 export const GEAR_ITEMS = [
   // [v105] Timothy's gear renders (js/pirateGear.js GEAR_RENDERS): sold for gold. Clothes take your ship skin's colours; hats get a
   // free colour pick (gear.hatColor, a HAT_SWATCHES index). soon: true = in the catalog, not buyable yet (renders in a later build).
