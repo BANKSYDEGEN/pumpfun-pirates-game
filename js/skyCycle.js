@@ -96,14 +96,14 @@ export function sunElevation(phase) {
   return Math.sin((phase - 0.25) * Math.PI * 2);
 }
 
-/** Unit sun direction (y up). Azimuth sweeps E→S→W across the day. */
+/** Unit sun direction (y up). [v384] Rises EAST (+x), arcs through the SOUTH (+z, ~25° tilt) and sets WEST (-x) in the foot frame (north = -z). */
+const SUN_TILT = 25 * Math.PI / 180;
 export function sunDir(phase, out = { x: 0, y: 1, z: 0 }) {
-  const elev = sunElevation(phase);
-  const az = (phase - 0.25) * Math.PI * 2; // 0 at sunrise → +X (east-ish), noon → +Z
-  const cosE = Math.sqrt(Math.max(0, 1 - elev * elev));
-  out.x = Math.sin(az) * cosE;
-  out.y = elev;
-  out.z = Math.cos(az) * cosE;
+  const az = (phase - 0.25) * Math.PI * 2; // 0 sunrise (east), PI/2 noon, PI sunset (west)
+  const up = Math.sin(az);
+  out.x = Math.cos(az);
+  out.y = up * Math.cos(SUN_TILT);
+  out.z = up * Math.sin(SUN_TILT);
   const len = Math.hypot(out.x, out.y, out.z) || 1;
   out.x /= len; out.y /= len; out.z /= len;
   return out;
@@ -196,7 +196,7 @@ export function evalSky(phase, storm = 0, nowMs = Date.now()) {
   const moonCol = col(0.72, 0.82, 0.98);
 
   // scene lights (readable night!)
-  const sunIntensity = lerp(0.0, 2.35, clamp01(elev * 0.55 + 0.55)) * (1 - 0.55 * st) * (sunVis > 0.05 ? 1 : 0);
+  const sunIntensity = lerp(0.0, 1.85, clamp01(elev * 0.55 + 0.55)) * (1 - 0.55 * st) * (sunVis > 0.05 ? 1 : 0);
   // moonlight fill when sun is down — keep playable
   const moonIntensity = lerp(0, 0.72, moonVis) * (1 - st);
   const keyIntensity = Math.max(sunIntensity, moonIntensity * 0.85);
@@ -207,7 +207,7 @@ export function evalSky(phase, storm = 0, nowMs = Date.now()) {
   const hemiSkyN = col(0.18, 0.28, 0.48);
   const hemiGnd = mixC(col(0.08, 0.12, 0.14), col(0.22, 0.28, 0.22), dayAmt);
   const hemiSkyF = mixC(mixC(hemiSkyN, hemiSky, dayAmt), col(0.25, 0.32, 0.4), st);
-  const hemiIntensity = lerp(0.55, 1.95, dayAmt) * (1 - 0.35 * st) + moonVis * 0.35;
+  const hemiIntensity = lerp(0.55, 1.35, dayAmt) * (1 - 0.2 * goldenW) * (1 - 0.35 * st) + moonVis * 0.35;
 
   // fog / horizon match sky horizon
   const fogDens = (0.0007 + 0.0014 * (1 - dayAmt) + 0.0020 * st); // [v344] very light day fog so blue sky reads
@@ -227,7 +227,7 @@ export function evalSky(phase, storm = 0, nowMs = Date.now()) {
     keyDir: { ...keyDir }, keyColor, keyIntensity: keyIntensity || (moonVis > 0.2 ? moonIntensity : 0.15),
     hemiSky: hemiSkyF, hemiGround: hemiGnd, hemiIntensity,
     fogColor: horiz, fogDensity: fogDens,
-    exposure: lerp(0.92, 1.28, dayAmt) * (1 - 0.08 * st),
+    exposure: lerp(0.92, 1.05, dayAmt) * (1 - 0.12 * goldenW) * (1 - 0.08 * st), // [v384] was 0.92..1.28 (washed out)
     nowMs,
   };
 }
