@@ -128,8 +128,11 @@ function pump() {
   requestAnimationFrame(step);
 }
 const SHIP_SLOTS = new Set(['flag', 'figure']);   // [Raul shop items 2] ship items: the pre-baked PNG only (no pirate to dress)
+// [v368] BANKSY t1950u "crew shop crashes game on mobile": phones never open this 2nd WebGL context (a 2048 px V7 body next to the game's
+// own context = iOS kills the tab). They show the pre-baked PNGs only. ?livethumbs=1 forces the live renders back on.
+const PHONE_PNG_ONLY = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && !(typeof location !== 'undefined' && /[?&]livethumbs=1(?:&|$)/.test(location.search));
 export function gearThumb(slot, id, opts = {}) {
-  if (SHIP_SLOTS.has(slot)) return Promise.resolve(null);
+  if (SHIP_SLOTS.has(slot) || PHONE_PNG_ONLY) return Promise.resolve(null);
   const k = keyOf(slot, id, opts);
   if (cache.has(k)) { if (opts.priority) { const i = queue.findIndex((j) => j.k === k); if (i > 0) queue.unshift(...queue.splice(i, 1)); } return cache.get(k); }   // [Timothy] the detail pane jumps the card queue
   const pr = new Promise((res) => { const job = { k, slot, id, o: opts, res }; if (opts.priority) queue.unshift(job); else queue.push(job); pump(); }).then((u) => { if (!u) cache.delete(k); return u; });
@@ -149,7 +152,8 @@ export function gearLive(el, slot, id, opts = {}) {
   const cv = el.tagName === 'CANVAS' ? el : el.appendChild(document.createElement('canvas')); const w = opts.w || (LOW ? 240 : 320), h = opts.h || Math.round(w * 76 / 150);
   cv.width = w; cv.height = h; cv.className = cv.className || 'gear-live'; const ctx = cv.getContext('2d');
   let on = true, last = 0, a = 0, ready = false, redress = false; const me = { stop }, dk = dressKey(slot, id, opts);
-  if (SHIP_SLOTS.has(slot)) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, h); im.src = PNG(slot, id); return () => {}; }   // [Raul shop items 2]
+  if (SHIP_SLOTS.has(slot)) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, h); im.src = PNG(slot, id); return () => {}; }
+  if (PHONE_PNG_ONLY) { const im = new Image(); im.onload = () => { ctx.clearRect(0, 0, w, h); const k = Math.min(w / im.width, h / im.height); ctx.drawImage(im, (w - im.width * k) / 2, (h - im.height * k) / 2, im.width * k, im.height * k); }; im.src = opts.png ? new URL(`../assets/pirates/thumbs/${opts.png}.png`, import.meta.url).href : (opts.body | 0) && slot !== 'beard' ? PNG(slot, id + '_f') : PNG(slot, id); return () => {}; }   // [v368] phones: the baked PNG, no live turn   // [Raul shop items 2]
   LIVE.add(me);
   // [Timothy] the pane is never empty: the pre-baked PNG at once, then this item's real still (rendered FIRST, ahead of the cards),
   // then the slow turn once the card queue has drained (the shared figure is re-dressed for the cards until then)
