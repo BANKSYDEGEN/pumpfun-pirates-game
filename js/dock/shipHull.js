@@ -673,7 +673,7 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
   };
   frameAt(qWallMatrix(-1, 1.1, 2.15, 0.01), 0.78, 0.78, 33);
   frameAt(qWallMatrix(1, 1.1, 2.15, 0.01), 0.78, 0.78, 1);
-  frameAt(qWallMatrix(1, -2.2, 2.15, 0.01), 0.72, 0.72, 100);
+  frameAt(qWallMatrix(1, -3.3, 1.95, 0.01), 0.72, 0.72, 100); // [BANKSY] hangs where the left (aft) starboard porthole was; its old spot on the z -2.2 rib was half hidden
   frameAt(new THREE.Matrix4().compose(
     new THREE.Vector3(4.55, F + 2.15, D / 2 - 0.02),
     new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI),
@@ -858,7 +858,7 @@ function attachQuartersKits(g) {
 
   const ph = [
     qWallMatrix(-1, -1.1, 1.95, 0), // [parrot alcove] the port porthole by the door gave way to the cage niche
-    qWallMatrix(1, -3.3, 1.95, 0), qWallMatrix(1, -1.1, 1.95, 0),
+    qWallMatrix(1, -1.1, 1.95, 0), // [BANKSY] the aft starboard porthole (z -3.3) gave way to the captain's portrait
   ];
   const p = instanceQuartersKit('porthole_kit', M, ph); if (p) g.add(p);
 
