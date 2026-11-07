@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v417'; // Meshy macaw, full-time flight rig, masked unlock colors and low-cost previews
+const VERSION = 'pfp-v418'; // Hull-aware dock clearance and longer park approach
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -48,6 +48,7 @@ const SHELL = [
   "./js/inventory/backpackCap.js", "./js/island/safeZones.js", "./js/dock/lootBags.js", "./js/lootCard.js", "./js/dock/safeZoneMarks.js", // [backpack-pvp]
   "./js/serverPicker.js", "./js/kdCounter.js", "./js/onfoot/crewFight.js", "./js/onfoot/stances.js", // [backpack-pvp] server picker · unified K/D · crew-vs-crew fights
   "./js/dock/docking.js",
+  "./js/dock/parkPose.js",
   "./js/dock/layout.js",
   "./js/dock/safe.js",
   "./js/dock/world.js",

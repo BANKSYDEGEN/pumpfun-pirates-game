@@ -44,9 +44,10 @@ export const STREET_Y = Y_QUAY + 0.13, SLAB = { lx0: -54, lx1: 99, lz0: -54, lz1
 // tools/measure_ship.py -> screens/ship_footprint.txt): hull 44.12 x 10.37 m; with yards, bowsprit and stern gallery the
 // footprint is 22.56 m wide, from 23.96 m aft to 33.69 m forward of the ship's origin (57.65 m overall).
 export const SHIP = { hullLen: 44.12, beam: 10.37, yardW: 22.56, aft: 23.96, fwd: 33.69 };
-// ---- berths: ships lie bow-out, side by side, 26 m centre to centre (yards 22.56 + 3.4 m clear); each jetty carries one ship
-// on each side (hull 1.8 m off the jetty face, yards 3.4 m apart over the deck). Ship origin at lz 35: stern gallery at lz 11
-// (3 m clear of the boardwalk edge), bowsprit at lz 68.7, the approach lane from lz 69 out is open water.
+// ---- berths: ships lie bow-out, side by side, at least 23 m centre to centre (yards 22.56 m); each jetty carries one ship
+// on each side. Park 1.5 m farther off the jetty and 10 m farther out to sea: even the largest
+// hull has 3.3 m side clearance and its stern gallery clears the boardwalk by 13 m.
+// Neighbouring ships between jetties retain 23 m centre spacing (yards 22.56 m).
 // ---- the WATERFRONT BOARDWALK (BANKSY "make dock the board walk all the way down"): one continuous timber deck over the water
 // just outside the seawall (lz 0..8), from the old west boardwalk (lx -176, deck 2.95) to the mole (lx 100). It slopes 0.27 %
 // down to street level by lx -55 and runs flat at street level from there; the land behind the sloped part is raised to the
@@ -54,12 +55,12 @@ export const SHIP = { hullLen: 44.12, beam: 10.37, yardW: 22.56, aft: 23.96, fwd
 // height, and walk height = visual height (layout.js gets it as short flat decks, < 1.5 cm off the slope).
 export const BOARDWALK = { lx0: -176, lxS: -55, lx1: 100, lz0: 0, lz1: 8, yW: Y_DECK, yE: STREET_Y + 0.02 };
 export const bwY = (lx) => { const B = BOARDWALK; return lx <= B.lx0 ? B.yW : lx >= B.lxS ? B.yE : B.yW + (B.yE - B.yW) * (lx - B.lx0) / (B.lxS - B.lx0); };
-export const JETTY = { w: 12, lz0: BOARDWALK.lz1, lz1: 59, shipOff: 13, shipLz: 35 };
+export const JETTY = { w: 12, lz0: BOARDWALK.lz1, lz1: 59, shipOff: 14.5, shipLz: 45 };
 const JETTY_LX = [-150, -98, -46, 6, 58];                      // lx 6 = on the Main Street axis (arrival looks straight up it)
 export const JETTIES = JETTY_LX.map((lx, i) => ({ id: 'J' + (i + 1), lx, y: +bwY(lx).toFixed(3), lz0: JETTY.lz0 }));   // timber, rooted flush in the boardwalk
 export const BERTHS = JETTIES.flatMap((j, i) => [-1, 1].map((s, k) => ({ id: 'B' + (i * 2 + k + 1), jetty: j.id, lx: j.lx + s * JETTY.shipOff, lz: JETTY.shipLz, ly: 0,
   ashore: { lx: j.lx + s * (JETTY.w / 2 - 1.4), lz: JETTY.shipLz, y: j.y }, side: s })));
-export const APPROACH = { lz0: 69, lx0: Math.min(...BERTHS.map(b => b.lx)) - SHIP.yardW / 2, lx1: Math.max(...BERTHS.map(b => b.lx)) + SHIP.yardW / 2 };
+export const APPROACH = { lz0: JETTY.shipLz + SHIP.fwd + 0.3, lx0: Math.min(...BERTHS.map(b => b.lx)) - SHIP.yardW / 2, lx1: Math.max(...BERTHS.map(b => b.lx)) + SHIP.yardW / 2 };
 export const keepOldPier = (lx) => lx < APPROACH.lx0 - 30;      // the v103 T-head piers outside the berth fan stay (art only)
 export const clearOfJetties = (lx, pad = 0) => JETTIES.every(j => Math.abs(lx - j.lx) > JETTY.w / 2 + pad);
 export const clearOfBerths = (lx, lz, pad = 0) => !(lz > 0 && lx > APPROACH.lx0 - pad && lx < APPROACH.lx1 + pad);
@@ -143,7 +144,8 @@ export const BW_SEGS = (() => { const out = [], B = BOARDWALK, n = 12, step = (B
 export function harborParts(L, yawW) {
   const sea = (() => { const [a, b] = L(0, 0), [c, d] = L(0, 1); return { x: c - a, z: d - b }; })();
   const berths = BERTHS.map(b => { const [x, z] = L(b.lx, b.lz), [ax, az] = L(b.ashore.lx, b.ashore.lz);
-    return { id: b.id, x, z, yaw: yawW(b.ly), len: SHIP.hullLen, beam: SHIP.beam, quay: false, ashore: { x: ax, z: az, y: b.ashore.y },
+    const j = JETTIES.find(j => j.id === b.jetty), [ex, ez] = L(j.lx + b.side * JETTY.w / 2, b.lz), [nx, nz] = L(j.lx + b.side * (JETTY.w / 2 + 1), b.lz);
+    return { id: b.id, x, z, edge: { x: ex, z: ez }, away: { x: nx-ex, z: nz-ez }, yaw: yawW(b.ly), len: SHIP.hullLen, beam: SHIP.beam, quay: false, ashore: { x: ax, z: az, y: b.ashore.y },
       bollards: [L(b.ashore.lx, b.lz - 16), L(b.ashore.lx, b.lz + 16)], out: sea }; });
   const decks = BW_SEGS.map(([a, b, y], i) => { const [x, z] = L((a + b) / 2, (BOARDWALK.lz0 + BOARDWALK.lz1) / 2); return { id: 'bw2_' + i, x, z, yaw: yawW(Math.PI / 2), hl: (b - a) / 2 + 0.05, hw: (BOARDWALK.lz1 - BOARDWALK.lz0) / 2 + 0.5, y }; }); // along = lx (world.js shrinks only the across edges by 0.35)
   decks.push(...JETTIES.map(j => { const lz0 = j.lz0 - 1, [x, z] = L(j.lx, (lz0 + JETTY.lz1) / 2); return { id: 'jetty_' + j.id, x, z, yaw: yawW(0), hw: JETTY.w / 2, hl: (JETTY.lz1 - lz0) / 2, y: j.y }; })); // root overlaps the boardwalk by 1 m

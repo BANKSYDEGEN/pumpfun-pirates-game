@@ -38,7 +38,8 @@ export async function coastLayout() {
   // ---- berths ----
   const berths = CO.COAST_BERTHS.map(b => { const [ax, az] = L(b.lx, b.quay ? b.ashoreLz : HEAD_ASHORE_LZ); // [v117] quay berths step onto the seawall
     const bl = (s) => L(b.lx + s * (b.len / 2 - 5), b.quay ? b.ashoreLz + 1.6 : CO.PIERS[0].head1 - 0.6);  // mooring bollards at bow + stern
-    return { id: b.id, x: b.hx, z: b.hz, yaw: b.yaw, len: b.len, beam: b.maxBeam, quay: !!b.quay, outLen: b.outLen, ashore: { x: ax, z: az, y: b.quay ? CO.QUAY.y : DECK_Y }, bollards: [bl(-1), bl(1)], out: sea }; });
+    const [ex, ez] = L(b.lx, b.quay ? 0 : CO.PIERS[0].head1);
+    return { edge: { x: ex, z: ez }, away: sea, id: b.id, x: b.hx, z: b.hz, yaw: b.yaw, len: b.len, beam: b.maxBeam, quay: !!b.quay, outLen: b.outLen, ashore: { x: ax, z: az, y: b.quay ? CO.QUAY.y : DECK_Y }, bollards: [bl(-1), bl(1)], out: sea }; });
   // ---- walkable decks over water (the quay, plaza and mole are terrain in foot.js coast mode) ----
   const B = CO.BOARDWALK, PV2 = FM.PLAZA_SHOPS_ON && FM.PLAZA_SHOPS_ON !== FM.PLAZA_SHOPS; // [Timothy] ?plaza=2 (js/island/plazaTown.js): 10 jetty berths, dock ramp
   const PVH = PV2 ? FM.PV.harborParts(L, CO.t2wYaw) : null;

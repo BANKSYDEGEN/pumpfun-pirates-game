@@ -1,9 +1,10 @@
-// [Emerly] PUMPFUN PIRATES docking: sail slowly into a berth -> DOCK eases the ship in and moors it (parked + invulnerable
+import { parkedPose } from './parkPose.js';
+// [Emerly] PUMPFUN PIRATES docking: sail slowly near a berth -> DOCK eases the ship in and moors it (parked + invulnerable
 // inside SAFE HARBOR); SET SAIL eases it forward out of the slip and hands the helm back. Berths come from the layout
-// (nearest free one wins). Other pirates in the harbor room claim berths through their synced state (dk = berth id);
+// (nearest stall owns its approach lane). Other pirates in the harbor room claim berths through their synced state (dk = berth id);
 // two pirates picking the same berth at once: the lower id keeps it, the other is moved to the next free berth.
 const sm = (k) => k * k * (3 - 2 * k), wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-export const DOCK = { range: 30, slow: 6.6, inMin: 2.2, inMax: 4.2, outLen: 34, outT: 3.4 };
+export const DOCK = { range: 60, slow: 6.6, inMin: 2.2, inMax: 4.2, outLen: 34, outT: 3.4 };
 
 export function createDocking({ berths, myId }) {
   const meId = () => String(typeof myId === 'function' ? myId() : myId); // [v152] a getter (the room id arrives after the harbor is built)
@@ -18,8 +19,10 @@ export function createDocking({ berths, myId }) {
   function query(s) {
     if (st.mode !== 'sea') return null;
     const any = nearest(s.x, s.z, DOCK.range, false); if (!any) return null;
-    const b = nearest(s.x, s.z, DOCK.range + 12, true);
-    if (!b) return { reason: berths.every(q => !isFree(q)) ? 'full' : 'taken' };
+    // One nearest-stall catchment, not overlapping free-stall circles: never auto-glide
+    // across an occupied ship / intervening jetty to a farther free stall.
+    const b = any;
+    if (!isFree(b)) return { reason: berths.every(q => !isFree(q)) ? 'full' : 'taken' };
     if (Math.abs(s.speed) > DOCK.slow) return { reason: 'fast', berth: b };
     return { berth: b };
   }
@@ -30,13 +33,13 @@ export function createDocking({ berths, myId }) {
     const k = Math.min(12, d * 0.45); st.ctl = { x: s.x + Math.sin(s.yaw) * k, z: s.z + Math.cos(s.yaw) * k };
   }
   // SET SAIL: ease forward out of the slip and swing toward open water (berth.out), ending under way on the curve's heading
-  function setSail(s) { if (st.mode !== 'docked') return false; const b = st.berth, fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), o = b.out || { x: fx, z: fz }, L = b.outLen || DOCK.outLen; // [v117] quay berths: a short swing
+  function setSail(s) { if (st.mode !== 'docked') return false; const b = { ...st.berth, ...parkedPose(s, st.berth) }, fx = Math.sin(b.yaw), fz = Math.cos(b.yaw), o = b.out || { x: fx, z: fz }, L = b.outLen || DOCK.outLen; // [v117] quay berths: a short swing
     Object.assign(st, { spawnAt: 0, mode: 'out', t: 0, dur: DOCK.outT, from: { x: b.x, z: b.z, yaw: b.yaw }, ctl: { x: b.x + fx * L * 0.5, z: b.z + fz * L * 0.5 }, to: { x: b.x + fx * L * 0.85 + o.x * L * 0.75, z: b.z + fz * L * 0.85 + o.z * L * 0.75 } }); return true; }
   function pose(s, x, z, yaw, speed) { s.x = x; s.z = z; s.yaw = yaw; s.speed = speed; s.turn = 0; }
   // call every frame AFTER the normal ship move: overrides the pose while docking / docked / leaving
   function tick(s, dt) {
     if (st.mode === 'sea') return false;
-    const b = st.berth; if (!b && st.mode !== 'out') { st.mode = 'sea'; return false; } st.t += dt; const k = Math.min(1, st.t / st.dur), e = sm(k);   // [v131] never throw on a lost berth
+    const berth = st.berth, b = berth && { ...berth, ...parkedPose(s, berth) }; if (!b && st.mode !== 'out') { st.mode = 'sea'; return false; } st.t += dt; const k = Math.min(1, st.t / st.dur), e = sm(k);   // [v131] never throw on a lost berth
     if (st.mode === 'in') {
       const u = 1 - e, x = u * u * st.from.x + 2 * u * e * st.ctl.x + e * e * b.x, z = u * u * st.from.z + 2 * u * e * st.ctl.z + e * e * b.z;
       pose(s, x, z, st.from.yaw + wrap(b.yaw - st.from.yaw) * e, (1 - e) * Math.max(1.5, Math.abs(st.from.speed)));
@@ -60,7 +63,7 @@ export function createDocking({ berths, myId }) {
     const n = berths.length; if (!n) return null; let h = 0; for (const c of meId()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     for (let k = 0; k < n; k++) { const b = berths[(h + k) % n]; if (b !== skip && !takenBy(b.id) && st.berth !== b) return b; } return null;
   }
-  function moor(s, b) { Object.assign(st, { mode: 'docked', berth: b, t: 0, dur: 0, from: null, ctl: null, spawnAt: performance.now() }); pose(s, b.x, b.z, b.yaw, 0); s.anchor = true; s.sail = 0; }
+  function moor(s, b) { Object.assign(st, { mode: 'docked', berth: b, t: 0, dur: 0, from: null, ctl: null, spawnAt: performance.now() }); const p = parkedPose(s, b); pose(s, p.x, p.z, b.yaw, 0); s.anchor = true; s.sail = 0; }
   // a peer's state: dk = berth id ('' = none)
   const peerBerth = (dk) => byId.has(dk) ? dk : (/^P[1-9][LR]$/.test(dk || '') && byId.has(dk.slice(0, 2)) ? dk.slice(0, 2) : dk); // [v117] old builds' P1L / P1R = pier 1's one berth
   function onPeer(id, dk, ds = 0) {
