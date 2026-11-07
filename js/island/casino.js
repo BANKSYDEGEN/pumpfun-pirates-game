@@ -169,10 +169,10 @@ export function buildCasino() {
   if (K.low) g.add(K.lods[0]);
   else { const lod = new THREE.LOD(); lod.name = 'casino_lod'; K.lods.forEach((lv, i) => lod.addLevel(lv, i ? LOD_D : 0)); g.add(lod); }
   // warm chandelier light (desktop only, a fixed count so shaders never recompile): [AAA] the grand chandelier + down the wing, hung under the
-  // raised ceilings (hall 8.2 m, wing 7.0 m), plus one low fill over the hall's tables. ?caslights=0 = off
+  // raised ceilings (hall 8.2 m, wing 7.0 m), plus one low fill over the hall's tables. ?caslights=0 = off // [v394 hotfix] realtime casino point lights off by default after a GPU context-loss report; &caslights=1 to test
   if (!K.low && !/[?&]caslights=0(&|$)/.test(location.search)) {
     const spots = [[0, 0.05, 4.1, 7.0, 15], [0, 0.05, 2.6, 2.6, 10]]; if (K.wing) spots.push([0, 11.5, 4.3, 5.6, 13], [0, 22.3, 4.3, 5.6, 13]);
-    for (const [bx, by, y, I, d] of spots) { const L = new THREE.PointLight(0xffb060, I, d, 1.3); L.position.set(bx, y, -by); L.name = 'casino_light'; g.add(L); }
+    if (new URLSearchParams(location.search).get('caslights') === '1') for (const [bx, by, y, I, d] of spots) { const L = new THREE.PointLight(0xffb060, I, d, 1.3); L.position.set(bx, y, -by); L.name = 'casino_light'; g.add(L); }
   }
   if (K.dealers?.length && !/[?&]casdealers=0(&|$)/.test(location.search)) v7Dealers(g, K.dealers);   // [t2007u] the dealers + bartender are V7 PUMPFUN PIRATES
   let tris = 0; K.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
