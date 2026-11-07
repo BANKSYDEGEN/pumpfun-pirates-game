@@ -19,7 +19,7 @@ test('cage uses shared V7 loader, owns cloned geometry, stays inside bars, has n
   const box=new THREE.Box3().setFromObject(bird), size=box.getSize(new THREE.Vector3());
   assert.ok(Math.max(size.x,size.y,size.z)<=.59); assert.ok(box.min.y>=1.41 && box.max.y<=2.08,'bird inside cage height including floor');
   let lights=0; cage.traverse(o=>{ if(o.isLight) lights++; }); assert.equal(lights,0);
-  assert.equal(room.userData.spots.parrot_cage.x,-2.25);
+  assert.equal(room.userData.spots.parrot_cage.x,-4.96);
   assert.equal(listeners.size,1);
   listeners.get('pfp-parrot')({detail:{color:'parrot_red'}});
   room.userData.parrotCageDispose(); assert.equal(listeners.size,0);

@@ -1,4 +1,4 @@
-import { addParrotCage } from './parrotCage.js';
+import { addParrotCage, CAGE_SPOT } from './parrotCage.js';
 // [v333+] Walk-in Ship Captain's Quarters (ship_quarters): sculpted 14-kit naval cabin + storage + dock/sea return.
 // Modular: room + enter/leave live here; storage reuses houses.js with cottage_id = 'ship_quarters'.
 import * as THREE from 'three';
@@ -40,7 +40,7 @@ export const QUARTERS_KITS = Object.freeze([
   'stern_gallery_kit', 'hull_rib_kit', 'wainscot_bay_kit', 'porthole_kit',
   'wheel_chandelier_kit', 'gimbal_lantern_kit', 'chart_table_kit', 'berth_kit',
   'quarters_chest_kit', 'navigator_bureau_kit', 'armory_bookcase_kit',
-  'rum_cargo_kit', 'trophy_credenza_kit', 'companionway_door_kit',
+  'rum_cargo_kit', 'trophy_credenza_kit', 'companionway_door_kit', 'parrot_alcove_kit',
 ]);
 
 const QW = 11.6, QD = 11.0, QH = 3.95, QPEAK = 4.35, QTH = 0.55, QFLOOR = 0.14;
@@ -804,7 +804,8 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
     { x: -W / 2 + 1.25, z: -0.55, w: 1.1, d: 1.7 },
     { x: -4.85, z: -2.95, w: 1.02, d: 1.52 },
     { x: -4.36, z: -4.13, w: 0.68, d: 0.68 },
-    { x: -W / 2 + 0.75, z: 3.25, w: 1.3, d: 1.9 },
+    { x: -W / 2 + 0.75, z: 1.2, w: 1.3, d: 1.75 },  // rum cargo (moved aft for the parrot alcove)
+    { x: -W / 2 + 0.3, z: CAGE_SPOT.z, w: 0.5, d: 2.0 }, // parrot alcove pilasters (the cage itself: parrotCage.js)
     { x: -4.55, z: D / 2 - 0.3, w: 1.85, d: 0.6 },
     { x: 2.85, z: D / 2 - 0.3, w: 1.72, d: 0.56 },
     { x: 5.0, z: -3.65, w: 0.62, d: 1.15 }, // [bed-desk t408u] clothes sea chest
@@ -850,12 +851,13 @@ function attachQuartersKits(g) {
 
   const wains = [];
   for (const z of [-3.3, -1.1, 1.1, 3.3]) {
-    wains.push(pose(-W / 2, F, z, Math.PI / 2), pose(W / 2, F, z, -Math.PI / 2));
+    if (z !== 3.3) wains.push(pose(-W / 2, F, z, Math.PI / 2)); // [parrot alcove] port bay by the door is the cage niche
+    wains.push(pose(W / 2, F, z, -Math.PI / 2));
   }
   const wb = instanceQuartersKit('wainscot_bay_kit', M, wains); if (wb) g.add(wb);
 
   const ph = [
-    qWallMatrix(-1, -1.1, 1.95, 0), qWallMatrix(-1, 3.3, 1.95, 0),
+    qWallMatrix(-1, -1.1, 1.95, 0), // [parrot alcove] the port porthole by the door gave way to the cage niche
     qWallMatrix(1, -3.3, 1.95, 0), qWallMatrix(1, -1.1, 1.95, 0),
   ];
   const p = instanceQuartersKit('porthole_kit', M, ph); if (p) g.add(p);
@@ -883,7 +885,8 @@ function attachQuartersKits(g) {
   put('berth_kit', W / 2 - 0.52, F, 2.65, -Math.PI / 2);
   put('navigator_bureau_kit', -5.28, F, -2.95, Math.PI / 2);
   put('armory_bookcase_kit', -3.75, F, D / 2 - 0.04, Math.PI);
-  put('rum_cargo_kit', -W / 2 + 0.12, F, 3.25, Math.PI / 2);
+  put('rum_cargo_kit', -W / 2 + 0.12, F, 1.35, Math.PI / 2); // [parrot alcove] moved aft along the port wall, beside the sea chest
+  put('parrot_alcove_kit', -W / 2, F, CAGE_SPOT.z, Math.PI / 2); // built-in brass birdcage niche, right of the door (bird: parrotCage.js at CAGE_SPOT)
   put('trophy_credenza_kit', 2.85, F, D / 2 - 0.04, Math.PI);
 
   if (ud.chest) {

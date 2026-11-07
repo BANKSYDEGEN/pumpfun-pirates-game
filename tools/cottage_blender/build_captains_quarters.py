@@ -1344,7 +1344,163 @@ def k_credenza():
     k.add(bm_torus(0.14, 0.016, 18, 5, arc=math.pi), 'mat_gold', T(0, -0.08, SZ - 0.14) @ R(math.pi / 2, 0, 0) @ R(0, 0, math.pi))
     return k
 
-builders = [k_stern, k_rib, k_porthole, k_chandelier, k_lantern, k_table, k_berth, k_chest, k_bookcase, k_rum, k_door, k_wainscot, k_bureau, k_credenza]
+# ================================================================= 15) PARROT ALCOVE (built-in brass birdcage in a panelled niche, port wall by the door)
+#   Wall kit (back on the hull plane, faces -Y). The cage axis sits CAGE_OUT in front of the wall; the bird
+#   (js/dock/parrotCage.js, CAGE_SPOT) perches at z 1.28 - 1.86 inside the bars.
+CAGE_OUT = 0.84
+def _lean(z0, z1, out=0.0):
+    zm = (z0 + z1) / 2; a = math.atan((f_in(z1) - f_in(z0)) / max(1e-6, z1 - z0))
+    return T(0, -(f_in(z0) + f_in(z1)) / 2 - out, zm) @ R(a, 0, 0)
+def k_parrot():
+    k = Kit('parrot_alcove_kit')
+    BW = 1.96
+    # --- the bay's own wainscot (waterway, dado panels, rail) so the alcove reads as part of the panelling
+    k.add(bm_box(BW, 0.22, 0.15, 0.018, 2), 'mat_oak_dark', T(0, -0.10, 0.075))
+    k.add(bm_box(BW - 0.1, 0.02, 0.03), 'mat_brass', T(0, -0.21, 0.12), smooth=None)
+    zd = 1.16; yd = -f_in(zd)
+    k.add(bm_box(BW, 0.05, 0.98, 0.008, 1), 'mat_mahogany', T(0, yd * 0.5 - 0.025, 0.64))
+    k.add(bm_box(BW + 0.02, 0.11, 0.085, 0.016, 2), 'mat_mahogany', T(0, yd - 0.045, zd))
+    k.add(bm_box(BW, 0.014, 0.022), 'mat_gold', T(0, yd - 0.102, zd), smooth=None)
+    pw = (BW - 0.24) / 3
+    for i in range(3):
+        cx = -BW / 2 + 0.12 + pw / 2 + i * pw
+        k.add(bm_box(pw - 0.08, 0.032, 0.68, 0.022, 1), 'mat_mahogany', T(cx, yd * 0.5 - 0.055, 0.64))
+        k.add(bm_box(pw - 0.16, 0.01, 0.58), 'mat_gold', T(cx, yd * 0.5 - 0.073, 0.64), smooth=None)
+    zt = RH - 0.14; yt = -f_in(zt)
+    k.add(bm_box(BW, 0.12, 0.18, 0.018, 2), 'mat_oak_dark', T(0, yt - 0.05, zt))
+    k.add(bm_box(BW, 0.016, 0.028), 'mat_gold', T(0, yt - 0.112, zt - 0.05), smooth=None)
+    for ox in (-0.68, 0.0, 0.68):
+        hex_bolt(k, (ox, yt - 0.112, zt + 0.02), (0, -1, 0), 0.016, 'mat_brass')
+    # --- upper wall of the bay: mahogany boarding behind everything
+    k.add(bm_box(BW, 0.03, 2.5, 0.006, 1), 'mat_mahogany', _lean(1.2, 3.7, 0.0))
+    # --- the arched niche: navy leather back, carved mahogany architrave, gilt bead
+    NW, Z0, SPR = 0.68, 1.22, 2.42
+    zm = (Z0 + SPR + NW) / 2
+    poly = [(-NW, Z0 - zm), (NW, Z0 - zm)] + [(math.cos(a) * NW, SPR - zm + math.sin(a) * NW) for a in [i / 20 * math.pi for i in range(21)]]
+    k.add(bm_extrude(poly, 0.02, 'XZ'), 'mat_hide', _lean(Z0, SPR + NW, 0.04), tint=(0.035, 0.06, 0.16, 1))
+    def arch_path(r, out):
+        pts = [(-r, Z0), (-r, SPR)] + [(-math.cos(a) * r, SPR + math.sin(a) * r) for a in [i / 24 * math.pi for i in range(1, 24)]] + [(r, SPR), (r, Z0)]
+        return [(x, -f_in(z) - out, z) for x, z in pts]
+    k.add(bm_sweep(arch_path(NW + 0.07, 0.07), rect(0.13, 0.09, 0.02), up=(0, -1, 0)), 'mat_mahogany', smooth=40)
+    k.add(bm_sweep(arch_path(NW + 0.005, 0.07), circle(0.022, 8), up=(0, -1, 0)), 'mat_gold', smooth=60)
+    k.add(bm_sweep(arch_path(NW + 0.14, 0.11), circle(0.014, 6), up=(0, -1, 0)), 'mat_gold', smooth=60)
+    # keystone + gilt shell on the arch crown
+    zk = SPR + NW + 0.07
+    k.add(bm_taper_box(0.16, 0.08, 0.2, 1.35, 0.012), 'mat_mahogany', T(0, -f_in(zk) - 0.12, zk))
+    k.add(bm_sphere(0.06, 12, 6, 1, 0.45, 1), 'mat_gold', T(0, -f_in(zk) - 0.17, zk + 0.02))
+    # gilt compass star on the leather above the cage
+    zs = 2.78
+    star = []
+    for i in range(16):
+        a = math.pi / 2 + i * math.pi / 8; r = 0.2 if i % 4 == 0 else (0.11 if i % 2 == 0 else 0.05)
+        star.append((math.cos(a) * r, math.sin(a) * r))
+    k.add(bm_extrude(star, 0.012, 'XZ'), 'mat_gold', _lean(zs - 0.01, zs + 0.01, 0.065) @ T(0, 0, 0), smooth=None)
+    k.add(bm_torus(0.15, 0.008, 28, 4), 'mat_gold', _lean(zs - 0.01, zs + 0.01, 0.07) @ R(math.pi / 2, 0, 0))
+    # velvet swag + tassels across the niche head
+    ysw = -f_in(2.95) - 0.12
+    swag(k, -0.62, 0.62, 2.98, 0.24, ysw, 0.07)
+    for s in (-1, 1):
+        k.add(bm_lathe([(0.0, 0.0), (0.03, 0.02), (0.04, 0.09), (0.02, 0.13), (0.03, 0.16), (0.0, 0.18)], 10), 'mat_gold', T(s * 0.62, ysw, 2.78))
+    # --- fluted pilasters, gilt bases + capitals, a dentilled cornice and a gilt cartouche
+    for s in (-1, 1):
+        x = s * 0.88
+        k.add(bm_box(0.17, 0.09, 2.06, 0.012, 1), 'mat_mahogany', T(x, 0, 0) @ _lean(1.21, 3.27, 0.05))
+        for f in (-0.045, 0.0, 0.045):
+            k.add(bm_box(0.022, 0.02, 1.7, 0.006, 1), 'mat_oak_dark', T(x + f, 0, 0) @ _lean(1.38, 3.08, 0.1))
+        k.add(bm_box(0.22, 0.13, 0.1, 0.012, 1), 'mat_gold', T(x, -f_in(1.26) - 0.07, 1.26))
+        k.add(bm_box(0.24, 0.14, 0.11, 0.012, 1), 'mat_gold', T(x, -f_in(3.18) - 0.07, 3.18))
+        for sv in (-1, 1): k.add(bm_torus(0.025, 0.01, 10, 4), 'mat_gold', T(x + sv * 0.1, -f_in(3.18) - 0.14, 3.19) @ R(math.pi / 2, 0, 0))
+        # brass candle sconce on each pilaster (flame only, no light)
+        zc = 1.95; yc = -f_in(zc) - 0.1
+        k.add(bm_box(0.06, 0.04, 0.12, 0.01, 1), 'mat_brass', T(x, yc - 0.01, zc))
+        k.add(bm_sweep([(x, yc - 0.02, zc - 0.03), (x, yc - 0.1, zc - 0.05), (x, yc - 0.16, zc - 0.02), (x, yc - 0.18, zc + 0.03)], circle(0.009, 6)), 'mat_brass', smooth=60)
+        k.add(bm_lathe([(0.0, 0.0), (0.05, 0.005), (0.06, 0.02), (0.05, 0.03), (0.02, 0.03), (0.0, 0.03)], 14), 'mat_brass', T(x, yc - 0.18, zc + 0.03))
+        candle(k, (x, yc - 0.18, zc + 0.055), h=0.13, r=0.022, drips=2)
+    zc_ = 3.32; yc_ = -f_in(zc_)
+    k.add(bm_box(BW - 0.02, 0.2, 0.1, 0.014, 2), 'mat_mahogany', T(0, yc_ - 0.1, zc_))
+    k.add(bm_box(BW - 0.02, 0.012, 0.02), 'mat_gold', T(0, yc_ - 0.205, zc_ - 0.03), smooth=None)
+    for i in range(17):
+        k.add(bm_box(0.045, 0.05, 0.05, 0.004, 1), 'mat_mahogany', T(-0.88 + i * 0.11, yc_ - 0.17, zc_ - 0.075))
+    zca = 3.52; yca = -f_in(zca) - 0.1
+    k.add(bm_cyl(0.13, 0.13, 0.03, 24), 'mat_mahogany', T(0, yca, zca) @ R(math.pi / 2, 0, 0))
+    k.add(bm_torus(0.13, 0.018, 28, 6), 'mat_gold', T(0, yca - 0.03, zca) @ R(math.pi / 2, 0, 0))
+    k.add(bm_box(0.018, 0.012, 0.15, 0.004, 1), 'mat_gold', T(0, yca - 0.035, zca))
+    k.add(bm_box(0.11, 0.012, 0.016, 0.004, 1), 'mat_gold', T(0, yca - 0.035, zca + 0.045))
+    k.add(bm_torus(0.055, 0.009, 14, 4, arc=math.pi), 'mat_gold', T(0, yca - 0.035, zca - 0.03) @ R(math.pi / 2, 0, 0) @ R(0, 0, math.pi))
+    for s in (-1, 1):   # gilt acanthus scrolls flanking the cartouche
+        k.add(bm_torus(0.06, 0.012, 16, 5, arc=1.5 * math.pi), 'mat_gold', T(s * 0.22, yca, zca - 0.04) @ R(math.pi / 2, 0, 0) @ R(0, 0, (0.25 if s > 0 else 1.25) * math.pi))
+    # --- carved mahogany pedestal (claw feet, baluster, gilt collars) + brass nameplate
+    cy = -CAGE_OUT
+    k.add(bm_box(0.62, 0.62, 0.07, 0.015, 2), 'mat_oak_dark', T(0, cy, 0.035))
+    k.add(bm_box(0.5, 0.5, 0.09, 0.02, 2), 'mat_mahogany', T(0, cy, 0.11))
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            k.add(bm_sphere(0.05, 10, 6, 1, 1, 0.8), 'mat_gold', T(sx * 0.27, cy + sy * 0.27, 0.04))
+            for j in (-1, 0, 1):
+                k.add(bm_sphere(0.022, 6, 4, 1.6, 1, 0.7), 'mat_gold', T(sx * 0.27 + sx * 0.04 + j * 0.02 * sy, cy + sy * 0.27 + sy * 0.04 - j * 0.02 * sx, 0.02))
+    bal = [(0.2, 0.155), (0.205, 0.18), (0.13, 0.22), (0.115, 0.28), (0.15, 0.36), (0.175, 0.46), (0.16, 0.56), (0.1, 0.66), (0.07, 0.72), (0.095, 0.75), (0.095, 0.78), (0.065, 0.81), (0.06, 0.88), (0.09, 0.92)]
+    k.add(bm_lathe(bal, 20), 'mat_mahogany', T(0, cy, 0), smooth=50)
+    for z, r in ((0.18, 0.205), (0.765, 0.098), (0.46, 0.178)):
+        k.add(bm_torus(r, 0.012, 24, 5), 'mat_gold', T(0, cy, z))
+    for i in range(8):   # carved leaves on the belly
+        a = i * math.pi / 4
+        k.add(bm_sphere(0.05, 8, 5, 0.5, 0.25, 1.4), 'mat_mahogany', T(math.cos(a) * 0.15, cy + math.sin(a) * 0.15, 0.36) @ R(0, 0, a) @ R(0, -0.35, 0))
+    k.add(bm_box(0.34, 0.34, 0.11, 0.015, 2), 'mat_mahogany', T(0, cy, 0.975))
+    k.add(bm_box(0.38, 0.38, 0.025, 0.008, 1), 'mat_gold', T(0, cy, 1.04))
+    k.add(bm_box(0.4, 0.4, 0.02, 0.006, 1), 'mat_mahogany', T(0, cy, 0.915))
+    k.add(bm_box(0.22, 0.012, 0.06, 0.006, 1), 'mat_brass', T(0, cy - 0.176, 0.975))
+    for i, w in enumerate((0.03, 0.022, 0.026, 0.024, 0.03)):
+        k.add(bm_box(w, 0.004, 0.022), 'mat_oak_dark', T(-0.07 + i * 0.035, cy - 0.183, 0.977), smooth=None)
+    for s in (-1, 1): k.add(bm_sphere(0.008, 6, 4), 'mat_brass', T(s * 0.095, cy - 0.183, 0.975))
+    # --- the domed brass birdcage
+    CR, ZB, ZR, DH = 0.47, 1.17, 1.95, 0.4
+    k.add(bm_lathe([(0.0, 1.052), (0.44, 1.052), (0.5, 1.07), (0.53, 1.1), (0.52, 1.14), (0.49, 1.16), (0.0, 1.16)], 32), 'mat_gold', T(0, cy, 0), smooth=40)
+    k.add(bm_torus(0.53, 0.012, 40, 5), 'mat_gold', T(0, cy, 1.1))
+    for z in (ZB, 1.56, ZR):
+        k.add(bm_torus(CR, 0.011, 40, 5), 'mat_brass', T(0, cy, z))
+    k.add(bm_torus(CR + 0.004, 0.006, 40, 4), 'mat_gold', T(0, cy, 1.585))
+    NB = 28
+    for i in range(NB):
+        a = 2 * math.pi * i / NB
+        if abs(math.atan2(math.sin(a + math.pi / 2), math.cos(a + math.pi / 2))) < 0.21 and False: continue
+        pts = [(math.cos(a) * CR, cy + math.sin(a) * CR, ZB), (math.cos(a) * CR, cy + math.sin(a) * CR, ZR)]
+        for j in range(1, 11):
+            t = j / 10 * math.pi / 2; r = CR * math.cos(t) if j < 10 else 0.05
+            pts.append((math.cos(a) * r, cy + math.sin(a) * r, ZR + DH * math.sin(t)))
+        k.add(bm_sweep(pts, circle(0.0055, 4)), 'mat_brass', smooth=50)
+    t5 = math.pi / 4
+    k.add(bm_torus(CR * math.cos(t5), 0.008, 32, 4), 'mat_brass', T(0, cy, ZR + DH * math.sin(t5)))
+    # finial: gilt crown, onion + hanging ring
+    ztp = ZR + DH - 0.01
+    k.add(bm_lathe([(0.07, 0.0), (0.075, 0.03), (0.045, 0.06), (0.06, 0.1), (0.05, 0.14), (0.02, 0.17), (0.025, 0.19), (0.0, 0.215)], 18), 'mat_gold', T(0, cy, ztp), smooth=50)
+    for i in range(6):
+        a = i * math.pi / 3
+        k.add(bm_sphere(0.012, 6, 4), 'mat_gold', T(math.cos(a) * 0.075, cy + math.sin(a) * 0.075, ztp + 0.035))
+    k.add(bm_torus(0.045, 0.009, 18, 5), 'mat_gold', T(0, cy, ztp + 0.26) @ R(0, math.pi / 2, 0))
+    # front door (faces the room) with gilt latch
+    yf = cy - CR - 0.004
+    for (w, h, x, z) in ((0.26, 0.016, 0, 1.22), (0.26, 0.016, 0, 1.54), (0.016, 0.33, -0.13, 1.38), (0.016, 0.33, 0.13, 1.38)):
+        k.add(bm_box(w, 0.014, h, 0.004, 1), 'mat_gold', T(x, yf, z))
+    k.add(bm_sphere(0.016, 8, 6), 'mat_gold', T(0.13, yf - 0.02, 1.4))
+    k.add(bm_box(0.05, 0.012, 0.016, 0.004, 1), 'mat_gold', T(0.11, yf - 0.012, 1.4))
+    # mahogany perch (brass end caps), seed cup + water cup on bar brackets, seeds on the tray
+    PZ = 1.255
+    k.add(bm_cyl(0.017, 0.017, 2 * CR - 0.02, 12), 'mat_oak_dark', T(-CR + 0.01, cy, PZ) @ R(0, math.pi / 2, 0), smooth=50)
+    for s in (-1, 1): k.add(bm_sphere(0.022, 8, 6), 'mat_brass', T(s * (CR - 0.01), cy, PZ))
+    for s, top in ((1, 'mat_rope'), (-1, 'mat_oak_dark')):
+        cx = s * 0.36; cyy = cy - 0.24
+        k.add(bm_lathe([(0.0, 0.0), (0.035, 0.0), (0.05, 0.03), (0.06, 0.07), (0.055, 0.075), (0.045, 0.035), (0.0, 0.035)], 16), 'mat_brass', T(cx, cyy, 1.3))
+        k.add(bm_cyl(0.052, 0.052, 0.004, 16), top, T(cx, cyy, 1.36), smooth=None)
+        k.add(bm_box(0.02, 0.1, 0.012, 0.003, 1), 'mat_brass', T(cx * 1.12, cyy - 0.02 * s, 1.36))
+        if s > 0:
+            for j in range(9):
+                k.add(bm_sphere(0.008, 5, 3, 1, 0.7, 0.6), 'mat_rope', T(cx + RNG.uniform(-0.035, 0.035), cyy + RNG.uniform(-0.035, 0.035), 1.366))
+    for j in range(14):
+        a = RNG.uniform(0, 2 * math.pi); r = RNG.uniform(0.05, 0.38)
+        k.add(bm_sphere(0.007, 5, 3, 1, 0.7, 0.6), 'mat_rope', T(math.cos(a) * r, cy + math.sin(a) * r, 1.163))
+    return k
+
+builders = [k_stern, k_rib, k_porthole, k_chandelier, k_lantern, k_table, k_berth, k_chest, k_bookcase, k_rum, k_door, k_wainscot, k_bureau, k_credenza, k_parrot]
 kits = []
 for b in builders:
     kk = b(); kk.finalize(); kits.append(kk)

@@ -1,18 +1,11 @@
-// Existing V7 parrot asset, a low-poly brass cage, no lights or canvas allocations.
+// Existing V7 parrot asset inside the built-in hull birdcage (parrot_alcove_kit); no lights or canvas allocations.
 import * as THREE from 'three';
 import { loadPirateGLB } from '../pirateGLB.js';
-export const CAGE_SPOT = Object.freeze({ x: -2.25, z: 2.5, r: 1.65, label: 'PARROT CAGE · NAME & UPGRADE' });
+// [parrot alcove] built into the port wall right of the door (cage + niche: parrot_alcove_kit in captains_quarters.glb)
+export const CAGE_SPOT = Object.freeze({ x: -4.96, z: 3.3, r: 1.65, label: 'PARROT CAGE · NAME & UPGRADE' });
 const COLORS = { parrot_green: 0x69d66e, parrot_red: 0xf26a55, parrot_blue: 0x72aeff, parrot_cockatoo: 0xffffff, parrot_black: 0x555566, parrot_gold: 0xffd156, parrot_diamond: 0xc5eeff };
 export function addParrotCage(room, floor = .14) {
   const g = new THREE.Group(); g.name = 'parrot_cage'; g.position.set(CAGE_SPOT.x, floor, CAGE_SPOT.z); room.add(g);
-  const metal = new THREE.MeshBasicMaterial({ color: 0xb98a3b }), wood = new THREE.MeshBasicMaterial({ color: 0x53321a });
-  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
-  add(new THREE.CylinderGeometry(.44, .5, .12, 16), wood, 0, .08, 0);
-  add(new THREE.CylinderGeometry(.07, .14, .85, 8), metal, 0, .52, 0);
-  for (const y of [1.02, 1.94]) add(new THREE.CylinderGeometry(.5, .5, .065, 20), metal, 0, y, 0);
-  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; add(new THREE.CylinderGeometry(.014, .014, .92, 5), metal, Math.cos(a) * .47, 1.48, Math.sin(a) * .47); }
-  add(new THREE.CylinderGeometry(.03, .03, .86, 6), wood, 0, 1.27, 0).rotation.z = Math.PI / 2;
-  add(new THREE.TorusGeometry(.1, .018, 5, 12), metal, 0, 2.09, 0);
   let bird = null, dead = false, currentColor = 'parrot_green';
   const recolor = e => {
     currentColor = e?.detail?.color || currentColor;
