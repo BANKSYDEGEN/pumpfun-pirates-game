@@ -274,7 +274,7 @@ def mannequin(b, q, x, y, body, wear, lod, rz=0.0, S=1.3):
     b.cyl(0.32, 0.36, 0.08, x, y, FLOOR, WOOD_D, n=12 if lod == 0 else 8)
     b.cyl(0.035, 0.035, 0.75, x, y, FLOOR, BRASS, n=6)
     # V7 males are live fitted figures (plazaShops.js), never a stale body baked into a building.
-    if body.startswith('pirate_male'): return
+    if body.startswith(('pirate_male', 'pirate_female')): return   # [v361] V7 female too
     m = T(x, y, FLOOR + 0.08 + 0.06 * S, rz=rz) @ T(s=S)
     pose = 0.0 if 'v5' not in body else 68.0     # v5: arms down (A-pose); the v4 captain's-coat form keeps its bind pose
     add_item(b, q(body, ('body',), 0.3, pose), m, mono=hexc(0xe2c79a))
