@@ -17,8 +17,8 @@ let world = null;
 export function setParrotWorld(value) { world = value; }
 // All positions are fractions of pirate height. Never pass through the head/body.
 export function flightPose(t, phase = 0) {
-  const a = t * .82 + phase, r = .38 + .055 * Math.sin(t * .47 + phase);
-  return { x: Math.cos(a) * r, y: .94 + .055 * Math.sin(t * 1.4 + phase), z: Math.sin(a) * r * .74,
+  const a = t * .82 + phase, r = .52 + .055 * Math.sin(t * .47 + phase);
+  return { x: Math.cos(a) * r, y: 1.0 + .055 * Math.sin(t * 1.4 + phase), z: Math.sin(a) * r * .74,
     yaw: -a, bank: -.22 - .10 * Math.sin(t * .47 + phase), pitch: .06 * Math.cos(t * 1.4 + phase) };
 }
 export function animateParrot(bird, t, { cage = false } = {}) {
@@ -31,6 +31,25 @@ export function animateParrot(bird, t, { cage = false } = {}) {
   }
   rotateBone(bird, 'tail', 'x', .08 + .10 * Math.sin(t * 2.4));
   rotateBone(bird, 'head', 'y', .13 * Math.sin(t * 1.3));
+}
+// [t2086u] perched in the hull cage: upright body, wings folded back along the flanks, feet on the perch; small idle only
+// (head turns, a tail twitch, a breath). Built from the wing / tip / tail / head bones (the v417 rig has no folded clip). No allocation.
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+function foldBone(bird, name, ay, az) {
+  const bone = bird.userData.flightBones[name], rest = bird.userData.flightRest[name]; if (!bone || !rest) return;
+  const ax = bird.userData.flightAxes[name]; qa.setFromAxisAngle(ax.y, ay); qb.setFromAxisAngle(ax.z, az);
+  bone.quaternion.copy(rest).premultiply(qa).premultiply(qb);
+}
+export const PERCH_PITCH = -.75;
+export function perchParrot(bird, t, seed = 0) {
+  bird.rotation.x = PERCH_PITCH; // stand upright on the perch (head up, tail down)
+  for (const s of [-1, 1]) { const L = s < 0;
+    foldBone(bird, L ? 'wing_L' : 'wing_R', s * 1.45, s * -.35);   // swept back + tucked down against the body
+    foldBone(bird, L ? 'tip_L' : 'tip_R', s * .25, 0); }
+  const look = Math.sin(t * .55 + seed) + .6 * Math.sin(t * 1.7 + seed * 2), snap = Math.max(-1, Math.min(1, look * 1.6));
+  rotateBone(bird, 'head', 'y', .55 * snap);
+  rotateBone(bird, 'tail', 'x', -.35 + .12 * Math.pow(Math.max(0, Math.sin(t * 1.3 + seed)), 24));
+  const breathe = 1 + .015 * Math.sin(t * 2.6); bird.userData.flightBones.body?.scale.set(breathe, breathe, breathe);
 }
 export function colorParrot(bird, id) {
   const tint = new THREE.Color(PARROT_COLORS[id] || PARROT_COLORS.parrot_green), c = new THREE.Color(), hsl = {};
@@ -105,7 +124,7 @@ export function syncFlyingParrot(p, id, create = createFlightParrot) {
   const h = Math.max(.5, box.max.y - box.min.y);
   p._flightReady = create(id).then(bird => {
     if (ticket !== p._flightTicket) { bird.userData.dispose(); return; }
-    p.root.add(bird); bird.scale.setScalar(h * .32);
+    p.root.add(bird); bird.scale.setScalar(h * .48); // [t2088u] macaw-sized, 1.5x
     p._flight = { bird, h, base: box.min.y, t: 0, phase: Math.random() * 6.28, avoidIn: 0, target: new THREE.Vector3(), position: new THREE.Vector3(), initialized: false };
     updateFlyingParrot(p, 0, null, true);
   }).catch(e => { if (ticket === p._flightTicket) p._flightId = null; console.warn('[parrot] model unavailable', e); });
@@ -115,6 +134,8 @@ const origin = new THREE.Vector3(), dest = new THREE.Vector3(), projected = new 
 export function updateFlyingParrot(p, dt, camera = null, preview = false) {
   const b = p._flight; if (!b) return;
   if (typeof document !== 'undefined' && document.hidden && !preview) return;
+  // [t2085u] inside the ship hull your parrot sits in the cage (js/dock/parrotCage.js), never flying; equip state untouched
+  if (!preview && typeof document !== 'undefined' && document.documentElement?.classList?.contains('pfp-inhull')) { b.bird.visible = false; return; }
   p.root.updateWorldMatrix(true, false);
   if (camera && !preview) {
     b.bird.getWorldPosition(projected); projected.project(camera);
@@ -140,11 +161,11 @@ export function updateFlyingParrot(p, dt, camera = null, preview = false) {
       if (!world.blocked(dest.x, dest.z, origin.x, origin.z) && !world.blocked(dest.x+.3, dest.z, origin.x, origin.z) && !world.blocked(dest.x-.3, dest.z, origin.x, origin.z) && !world.blocked(dest.x, dest.z+.3, origin.x, origin.z) && !world.blocked(dest.x, dest.z-.3, origin.x, origin.z)) break;
       b.target.x *= .65; b.target.z *= .65; b.target.y += b.h * .035;
     }
-    if (Math.hypot(b.target.x, b.target.z) < b.h * .24) b.target.y = Math.max(b.target.y, b.base+b.h*1.20);
+    if (Math.hypot(b.target.x, b.target.z) < b.h * .34) b.target.y = Math.max(b.target.y, b.base+b.h*1.28);
     b.safe = b.target.clone();
   } else if (!preview && b.safe) b.target.copy(b.safe);
   if (!b.initialized) { b.position.copy(b.target); b.initialized = true; }
-  b.position.lerp(b.target, 1-Math.exp(-dt*9)); if (Math.hypot(b.position.x, b.position.z) < b.h*.24) b.position.y = Math.max(b.position.y, b.base+b.h*1.20); b.bird.position.copy(b.position);
+  b.position.lerp(b.target, 1-Math.exp(-dt*9)); if (Math.hypot(b.position.x, b.position.z) < b.h*.34) b.position.y = Math.max(b.position.y, b.base+b.h*1.28); b.bird.position.copy(b.position);
   b.bird.rotation.set(f.pitch, f.yaw, f.bank, 'YXZ'); animateParrot(b.bird, b.t);
 }
 

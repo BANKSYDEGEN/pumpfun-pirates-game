@@ -26,11 +26,11 @@ test('cage uses shared V7 loader, owns cloned geometry, stays inside bars, has n
  } finally { GLTFLoader.prototype.loadAsync=original; globalThis.window=previousWindow; globalThis.document=previousDocument; }
 });
 
-test('cage holds your own bird only when it is not out flying', { skip: !addParrotCage && 'Needs game Three.js import map' }, async () => {
+test('cage always holds your own bird in the hull', { skip: !addParrotCage && 'Needs game Three.js import map' }, async () => {
  const { cageBird } = await import('../js/dock/parrotCage.js');
  const st = { parrots: [{ id: 'a', color: 'parrot_red' }, { id: 'b', color: 'parrot_gold', name: 'Goldie' }], equipped: 'b' };
  assert.equal(cageBird(st, 'none').id, 'b');
- assert.equal(cageBird(st, 'parrot_gold'), null);
+ assert.equal(cageBird(st, 'parrot_gold').id, 'b'); // in the hull it sits in the cage even when equipped
  assert.equal(cageBird({ parrots: [] }, 'none'), null);
  assert.equal(cageBird(null, ''), null);
 });

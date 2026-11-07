@@ -1,13 +1,13 @@
 // Built-in hull birdcage (parrot_alcove_kit): shows YOUR parrot (selected/equipped inventory bird, its color + name tag)
-// only while it is not out flying as your companion. Out flying / no parrot owned = empty cage. No lights, no PMREM.
+// whenever you are in the hull (the companion never flies in here; it resumes outside if equipped). No parrot owned = empty cage. No lights, no PMREM.
 import * as THREE from 'three';
-import { createFlightParrot, colorParrot, animateParrot, isFlyingParrot } from '../parrotFlight.js';
+import { createFlightParrot, colorParrot, perchParrot, isFlyingParrot } from '../parrotFlight.js';
 // Shared anchor from Post’s built-in door-side alcove; keep all display coordinates relative to it.
 export const CAGE_SPOT = Object.freeze({ x: -4.96, z: 3.3, r: 1.65, label: 'PARROT CAGE · NAME & UPGRADE' });
 // Pure: which inventory bird sits in the cage (null = empty). state = { parrots, equipped }, gearParrot = getLocalGear().parrot
 export function cageBird(state, gearParrot) {
   const birds = Array.isArray(state?.parrots) ? state.parrots : [];
-  if (!birds.length || isFlyingParrot(gearParrot)) return null;
+  if (!birds.length) return null; // [t2085u] in the hull the bird always sits here (the flying companion hides while pfp-inhull)
   return birds.find(p => p.id === state.equipped) || birds[0];
 }
 function nameTag(text) {
@@ -32,7 +32,7 @@ export function addParrotCage(room, floor = .14) {
     if (bird) { bird.visible = true; colorParrot(bird, color); }
     else if (!loading) loading = createFlightParrot(color).then(model => {
       if (dead || room.userData.disposed) { model.userData.dispose?.(); return; }
-      bird = model; bird.scale.setScalar(.55); bird.position.set(0, 1.338, 0); g.add(bird); sync();
+      bird = model; bird.scale.setScalar(.7); bird.position.set(0, 1.5, 0); perchParrot(bird, 0); g.add(bird); sync();
     }).catch(() => { loading = null; });
     const t = p.name || 'Parrot';
     if (t !== tagText && typeof document !== 'undefined' && document.createElement) { dropTag(); try { tag = nameTag(t); tagText = t; g.add(tag); } catch {} }
@@ -51,7 +51,7 @@ export function addParrotCage(room, floor = .14) {
       g.getWorldPosition(point); point.y += 1.5; point.project(camera);
       if (!(point.z >= -1 && point.z <= 1 && Math.abs(point.x) < 1.2 && Math.abs(point.y) < 1.2)) return;
     }
-    animateParrot(bird, t, { cage: true });
+    perchParrot(bird, t); // sits on the perch, wings folded (never flaps in place)
   };
   const EV = { 'pfp-parrot': onSelected, 'pfp-parrot-state': onState, 'pfp-gear': onGear, 'pfp-gear-local': onGear };
   for (const k in EV) window.addEventListener(k, EV[k]);
