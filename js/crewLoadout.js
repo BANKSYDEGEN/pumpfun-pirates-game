@@ -2,7 +2,7 @@
 // Your crew (deck crew, gunners, lookout, the crew that follows you ashore) wear THEIR OWN loadout, bought at the CREW SHOP.
 // Stored additively in the save's gear object as two extra slots: gear.crewhat / gear.crewoutfit (js/pvpSave.js GEAR_SLOTS,
 // server supabase/functions/pvp/lib.ts GEAR_SLOTS). Ownership = pvp_owned 'gear:crewhat:<id>' / 'gear:crewoutfit:<id>' (fits the
-// existing item check: no migration). A save without them = the free CREW UNIFORM (bandana + tank in your ship skin's colours).
+// existing item check: no migration). A save without them = the free CREW UNIFORM (no hat + tank in your ship skin's colours).
 // Player gear and crew gear never mix: buying 'hat:tricorn' does not dress the crew, 'crewhat:tricorn' does not dress you.
 // Other players: 'cr' (js/transport.js STATIC) = 2 base-36 digits (1 + index in CREW_SLOTS, 0 = uniform). Old builds don't send it:
 // their crew show the uniform. CREW_SLOTS is APPEND-ONLY (the index goes over the network).
@@ -20,8 +20,10 @@ export const CAPE_COLOR_MAX = 7;   // [v6-store-clothes] the crew's free cape co
 const cleanCape = (v) => { const h = Math.floor(+v); return Number.isFinite(h) && h >= 0 && h <= CAPE_COLOR_MAX ? h : 0; };
 export const cleanCrew = (g) => { const o = {}; for (const [s, ids] of Object.entries(CREW_SLOTS)) o[s] = ids.includes(g?.[s]) ? g[s] : ids[0]; o.crewhatColor = cleanHc(g?.crewhatColor); o.crewcapeColor = cleanCape(g?.crewcapeColor); o.crewpantsColor = cleanCape(g?.crewpantsColor); o.crewbootsColor = cleanCape(g?.crewbootsColor); return o; };
 export const getCrewLoadout = () => ({ ...cur });
+// Keep the legacy free crewhat='bandana' save/wire id for compatibility with production.
+// It now renders as NO HAT for crew only; the player's bandana and all paid crew hats are untouched.
 // what js/crewV4.js crewGearOf / js/pirateGear.js applyGear take (crew clothes follow the ship skin's colours, hat = its own colour)
-export const crewGear = (l = cur) => { const c = cleanCrew(l); return { hat: c.crewhat, outfit: c.crewoutfit, eyes: c.creweyes, hatColor: c.crewhatColor, outfitColor: 0, beard: c.crewbeard, face: c.crewface, cape: c.crewcape, capeColor: c.crewcapeColor, pantsColor: c.crewpantsColor, bootsColor: c.crewbootsColor, boots: c.crewboots, pants: c.crewpants }; };   // [v6-store-clothes] + the crew's own extras (beard tints with the crew's hair)   // [Raul gear colours] + the crew's hat colour
+export const crewGear = (l = cur) => { const c = cleanCrew(l); return { hat: c.crewhat === CREW_DEFAULT.crewhat ? 'none' : c.crewhat, outfit: c.crewoutfit, eyes: c.creweyes, hatColor: c.crewhatColor, outfitColor: 0, beard: c.crewbeard, face: c.crewface, cape: c.crewcape, capeColor: c.crewcapeColor, pantsColor: c.crewpantsColor, bootsColor: c.crewbootsColor, boots: c.crewboots, pants: c.crewpants }; };   // [v6-store-clothes] + the crew's own extras (beard tints with the crew's hair)   // [Raul gear colours] + the crew's hat colour
 export function setCrewLoadout(g) {
   const n = cleanCrew(g); if (Object.keys(CREW_SLOTS).every((k) => n[k] === cur[k]) && n.crewhatColor === (cur.crewhatColor | 0) && ['crewcapeColor', 'crewpantsColor', 'crewbootsColor'].every((k) => n[k] === (cur[k] | 0))) return cur;
   cur = n; try { dispatchEvent(new CustomEvent('pfp-crew', { detail: { ...n } })); } catch {} return cur;

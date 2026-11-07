@@ -153,7 +153,7 @@ export const CREW_BASE_OF = { crewhat: 'hat', crewoutfit: 'outfit', crewbeard: '
 export const CREW_ITEMS = Object.entries(CREW_FROM).flatMap(([slot, ids]) => ids.map((id) => {
   const base = CREW_BASE_OF[slot], p = GEAR_ITEMS.find((g) => g.slot === base && g.id === id);
   const free = CREW_FREE[slot] === id;
-  return { slot, id, base, crew: true, label: slot === 'creweyes' && free ? 'NO EYEWEAR' : (free && (slot === 'crewhat' || slot === 'crewoutfit') ? 'CREW ' : '') + p.label, maleOnly: p.maleOnly, price: free ? 0 : p.price, glb: p.glb, tint: p.tint, free: free || undefined };
+  return { slot, id, base, crew: true, label: slot === 'crewhat' && free ? 'NO HAT' : slot === 'creweyes' && free ? 'NO EYEWEAR' : (free && (slot === 'crewhat' || slot === 'crewoutfit') ? 'CREW ' : '') + p.label, maleOnly: p.maleOnly, price: free ? 0 : p.price, glb: p.glb, tint: p.tint, free: free || undefined };
 }));
 // ---------- [Timothy] WEAPON STORE: cosmetic SWORDS for the SWORD PIT (js/onfoot/battle.js; models js/onfoot/swords.js). BANKSY's
 // prices + goals (Nov 3). The RUSTY CUTLASS is free (every pirate's default, GEAR_SLOTS.sword[0]). Cosmetic only: every blade does the

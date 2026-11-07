@@ -103,10 +103,12 @@ function svgThumb(it) { // the painted fallback (only shown until the real rende
 // The pre-baked PNG shows while it renders; the painted SVG only if both fail. The detail pane turns it slowly (live preview).
 const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipped?.skin || 'classic', hatColor: (state?.equipped?.gear?.hatColor ?? g.hatColor) | 0, hookSide: g.hookSide, legSide: g.legSide, skinColor: g.skinColor | 0, hairColor: g.hairColor | 0, body: g.body | 0, eyeColor: g.eyeColor | 0, capeColor: g.capeColor | 0, pantsColor: g.pantsColor | 0, bootsColor: g.bootsColor | 0 }; };
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
-// a crew HAT is shown over the uniform tank, crew CLOTHES under the uniform bandana (a crew member in the default uniform)
+// a crew HAT is shown over the uniform tank, crew CLOTHES on the bareheaded uniform (a crew member in the default uniform)
 const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0, capeColor: state?.equipped?.gear?.crewcapeColor | 0, pantsColor: state?.equipped?.gear?.crewpantsColor | 0, bootsColor: state?.equipped?.gear?.crewbootsColor | 0,   // [Raul gear colours] crew hats in the crew's hat colour
-  wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: CREW_DEFAULT.crewhat }, png: `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
+  wear: it.slot === 'crewhat' ? { outfit: CREW_DEFAULT.crewoutfit } : { hat: 'none' }, png: `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
 function gearThumb(it, live = false, extra = null) {
+  if (it.crew && it.slot === 'crewhat' && it.id === CREW_DEFAULT.crewhat) it = { ...it, id: 'none' }; // legacy free uniform id renders bareheaded
+
   if (it.weapon) { // [Timothy] WEAPON STORE: a pre-rendered v5 pirate holding the weapon (tools/battle/weapon_thumbs.py, local three.js render)
     const d = document.createElement('div'); d.className = 'ishop-sw gear real3d weapon'; const img = new Image(); img.alt = ''; img.decoding = 'async';
     img.className = 'gear-thumb'; img.src = new URL(`../assets/pirates/thumbs/weapon_${it.slot}_${it.id}.png`, import.meta.url).href; d.append(img); return d; }

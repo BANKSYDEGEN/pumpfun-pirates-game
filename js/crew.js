@@ -62,14 +62,7 @@ function pirate(v) {
   else if (eye === 4) add(box(0.3, 0.07, 0.03), C(0x0b0b0b), 0, [0, ey, ez]);
   else if (eye === 5) add(box(0.3, 0.12, 0.1), C(0x1d1f26), 0, [0, ey, ez - 0.02]);
   else for (const sx of [1, -1]) add(sph(0.03, 5, 4), C(r(8) < 0.5 ? 0x2a6acc : 0x5a3a1a), 0, [sx * 0.07, ey, ez - 0.01]);
-  // the hat: wide brim, tall crown with the white skull up front
-  // [v87] brim / crown / band / skull each carry their own (classic-identical) colour key so dressCrew can recolour them per skin
-  const hv = r(3) < 0.7 ? 0 : 1;
-  add(cyl(0.33, 0.33, 0.04, 10), HAT_BRIM[hv], 0, [0, 1.1, 0], [0, 0, 0], [1, 1, 0.8]);
-  add(cyl(0.17, 0.22, 0.2, 10), hat, 0, [0, 1.21, 0]);
-  add(cyl(0.214, 0.226, 0.06, 10, 1, true), HAT_BAND[hv], 0, [0, 1.145, 0]); // hat band round the crown base
-  add(sph(0.055, 6, 4), SKULL, 0, [0, 1.22, 0.2], [0, 0, 0], [1, 1, 0.4]);
-  add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, 0.5]); add(box(0.15, 0.025, 0.02), SKULL, 0, [0, 1.17, 0.205], [0, 0, -0.5]);
+  // Free/default crew are bareheaded, including the procedural fallback before bodies load.
   const g = mergeGeometries(out, false); out.forEach(o => o.dispose()); _pc.set(v, g); return g;
 }
 
