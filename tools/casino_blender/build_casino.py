@@ -13,6 +13,8 @@ import numpy as np
 from mathutils import Matrix
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(HERE, '..', 'plaza_blender'))
 from lib import Builder, T, hexc, text_mesh
+import materials as ML   # [pass2] casino-only surface layers 13..15 (js/island/casino.js draws them in its own shader patch: damask wallpaper,
+for _i, _n in ((13, 'cas_damask'), (14, 'cas_carpet'), (15, 'cas_wood')): ML.ID[_n] = _i   # patterned carpet, polished boards); the shared library keeps 1..12
 from mathutils import Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
@@ -61,8 +63,8 @@ BONE, SKIN, RED, BLACK, WHITE = 0xf2efe6, 0xd9a27a, 0xc0262d, 0x1c1c22, 0xf4f1e8
 RUBY, EMER, SAPH = 0xd0103a, 0x1fa060, 0x2a5bd0
 DAMASK = 0x7a1c22
 Builder.AUTO = {**{c: 'stone_ashlar' for c in LIME}, QUO: 'stone_trim', MORT: 'stone_trim', **{c: 'roof_tile' for c in SLATE},
-                **{c: 'timber' for c in (MAHOG, MAHOG_D, MAHOG_L, TIMB)}, IRON: 'iron', CREAM: 'plaster', DAMASK: 'plaster',
-                **{c: 'planks_weathered' for c in FLOORS}}
+                **{c: 'timber' for c in (MAHOG, MAHOG_D, MAHOG_L, TIMB)}, IRON: 'iron', CREAM: 'plaster', DAMASK: 'cas_damask',
+                **{c: 'cas_wood' for c in FLOORS}}
 CLOTH = 'awning_cloth'
 
 # ---------------- helpers ----------------
@@ -225,27 +227,41 @@ def barrel_(bd, x, y, z, lod, r=0.4, h=1.0, col=MAHOG_L, rx=0.0, rz=0.0):
     bd.pop()
 
 def coins(bd, x, y, z, R, h, lod, rng):   # a heap of doubloons: a gold mound + loose coins
-    bd.sphere(R, x, y, z, GOLD, sub=1 if lod == 0 else 0, s=(1, 1, h / R))
+    bd.sphere(R, x, y, z, GOLD_D, sub=1 if lod == 0 else 0, s=(1, 1, h / R))   # [pass2] darker mound, bright coins on it (was a flat yellow pancake)
     if lod == 0:
-        for i in range(9):
-            a = rng.uniform(0, 6.283); rr = rng.uniform(0.2, 1.0) * R; bd.cyl(0.05, 0.05, 0.012, x + rr * math.cos(a), y + rr * math.sin(a), z + h * (1 - (rr / R) ** 2) * 0.95, GOLD_D, n=8, rx=rng.uniform(-0.5, 0.5))
+        for i in range(14):
+            a = rng.uniform(0, 6.283); rr = rng.uniform(0.1, 1.05) * R; bd.cyl(0.05, 0.05, 0.012, x + rr * math.cos(a), y + rr * math.sin(a), z + max(0.0, h * (1 - (rr / R) ** 2)) * 0.97, GOLD, n=7, rx=rng.uniform(-0.6, 0.6), ry=rng.uniform(-0.6, 0.6))
 
 def gem(bd, x, y, z, col, s=0.06): bd.sphere(s, x, y, z, col, sub=0, s=(1, 1, 1.3))
 
-def chest(bd, x, y, z, rz, lod, rng, open_=False, s=1.0):   # iron-bound treasure chest, long axis local x (open: lid back, doubloons + gems)
+def chest(bd, x, y, z, rz, lod, rng, open_=False, s=1.0):   # [pass2] iron-bound treasure chest (long axis local x): planked body, riveted bands,
+    # corner irons, a barrel-vault lid (open: thrown back on its hinge, velvet lining, doubloons + gems), a gilt lock plate
+    hi = lod == 0; WD, WDD = 0x6e3f1f, 0x4a2814; nl = 8 if hi else 4
     bd.push(T(x, y, z, rz=rz, s=s))
-    bd.box(1.0, 0.62, 0.5, 0, 0, 0, 0x7a4a26, base=True)
-    for xx in (-0.38, 0.0, 0.38): bd.box(0.07, 0.66, 0.52, xx, 0, 0, IRON, base=True)
-    bd.box(0.16, 0.06, 0.2, 0, -0.33, 0.28, GOLD, base=True)
+    bd.box(1.0, 0.62, 0.07, 0, 0, 0, WDD, base=True)
+    bd.box(0.96, 0.58, 0.43, 0, 0, 0.07, WD, base=True)
+    if hi:
+        for zz in (0.205, 0.345): bd.box(0.966, 0.586, 0.01, 0, 0, zz, WDD, base=True)   # plank seams
+        for sx in (-1, 1):
+            for sy in (-1, 1): bd.box(0.07, 0.07, 0.44, sx * 0.47, sy * 0.28, 0.06, IRON, base=True)   # corner irons
+    for xx in (-0.34, 0.0, 0.34):
+        bd.box(0.06, 0.64, 0.45, xx, 0, 0.05, IRON, base=True)
+    bd.box(1.0, 0.63, 0.035, 0, 0, 0.48, GOLD_D, base=True)   # gilt rim
+    bd.box(0.15, 0.03, 0.19, 0, -0.315, 0.27, GOLD, base=True)
+    if hi: bd.box(0.028, 0.01, 0.06, 0, -0.332, 0.33, BLACK, base=True)
+    vault = [(0.31 * math.cos(math.pi * i / nl), 0.19 * math.sin(math.pi * i / nl)) for i in range(nl + 1)]
+    def lid():
+        bd.prism(vault, 1.0, 0x5e331a, T(0.5, 0, 0, rz=math.pi / 2))
+        for xx in (-0.34, 0.0, 0.34): bd.prism([(1.07 * px, 1.1 * pz) for (px, pz) in vault], 0.06, IRON, T(xx + 0.03, 0, -0.002, rz=math.pi / 2))
     if open_:
-        bd.push(T(0, 0.31, 0.5, rx=-1.15)); bd.cyl(0.31, 0.31, 1.0, -0.5, -0.0, 0.0, 0x6a3e20, n=10 if lod == 0 else 6, ry=math.pi / 2); bd.pop()
-        coins(bd, 0, 0, 0.5, 0.45, 0.22, lod, rng)
-        if lod == 0:
-            for (gx, gy_, c) in ((-0.2, -0.1, RUBY), (0.15, 0.08, EMER), (0.3, -0.12, SAPH), (-0.05, 0.12, RUBY)): gem(bd, gx, gy_, 0.66, c)
-            bd.torus(0.12, 0.02, 0.32, 0.1, 0.62, 0xf4f1e8, n=10, m_=3, rx=0.5)   # pearl string
+        bd.push(T(0, 0.31, 0.515, rx=-1.95)); bd.push(T(0, -0.31, 0)); lid(); bd.box(0.9, 0.56, 0.012, 0, 0, -0.012, CRIM, base=True); bd.pop(); bd.pop()
+        bd.box(0.9, 0.52, 0.02, 0, 0, 0.44, CRIM, base=True)
+        coins(bd, 0, 0, 0.47, 0.42, 0.2, lod, rng)
+        if hi:
+            for (gx, gy_, c) in ((-0.2, -0.1, RUBY), (0.15, 0.08, EMER), (0.3, -0.12, SAPH), (-0.05, 0.12, RUBY)): gem(bd, gx, gy_, 0.62, c)
+            bd.torus(0.12, 0.02, 0.32, 0.1, 0.6, 0xf4f1e8, n=10, m_=3, rx=0.5)   # pearl string
     else:
-        bd.cyl(0.31, 0.31, 1.0, -0.5, 0, 0.5, 0x6a3e20, n=10 if lod == 0 else 6, ry=math.pi / 2)
-        for xx in (-0.38, 0.0, 0.38): bd.cyl(0.33, 0.33, 0.07, xx - 0.035, 0, 0.5, IRON, n=10 if lod == 0 else 6, ry=math.pi / 2)
+        bd.push(T(0, 0, 0.515)); lid(); bd.pop()
     bd.pop()
 
 def crown(bd, x, y, z, s, lod, col=GOLD):   # a gilded crown: band, five points with gems, a cap ball
@@ -304,7 +320,8 @@ def valance(bd, x0, x1, y, ztop, lod):   # scalloped burgundy + gold awning vala
 
 DEALERS = []    # [t2007u] BANKSY: the dealers are V7 PUMPFUN PIRATES: markers only (building frame x, y, z, facing), js/island/casino.js stands a V7 there
 def figure(bd, x, y, rz, lod, vest=CRIM, hat=True, sash=GOLD):   # a pirate dealer standing at a table, faces local -y
-    bd.push(T(x, y, 0, rz=rz)); n = 10 if lod == 0 else 6
+    # [pass2] BANKSY: the dealers' hands + forearms clipped into the tables: every table dealer stands 0.2 m further back (clear of the walls)
+    bd.push(T(x, y + (0.2 if hat else 0.0), 0, rz=rz)); n = 10 if lod == 0 else 6
     if lod == 0:
         M_ = bd.stack[-1]; p_ = M_.to_translation(); f_ = M_.to_3x3() @ Vector((0.0, -1.0, 0.0))
         DEALERS.append([round(p_.x, 3), round(p_.y, 3), round(p_.z, 3), round(math.atan2(f_.x, f_.y), 4), 0 if hat else 1])
@@ -400,7 +417,8 @@ def bulbs(bd, x0, x1, z0, z1, y, step, lod, r=0.035):   # a marquee bulb frame (
     if lod != 0: return
     nx_, nz_ = max(2, int(round((x1 - x0) / step))), max(1, int(round((z1 - z0) / step)))
     pts = [(x0 + (x1 - x0) * i / nx_, z) for i in range(nx_ + 1) for z in (z0, z1)] + [(x, z0 + (z1 - z0) * j / nz_) for j in range(1, nz_) for x in (x0, x1)]
-    for (bx, bz) in pts: bd.box(r * 1.6, r * 1.6, r * 1.6, bx, y, bz, BULB, mat=1, rx=math.pi / 4, rz=math.pi / 4)
+    o = r * 1.15; OV = [(o, 0, 0), (-o, 0, 0), (0, o, 0), (0, -o, 0), (0, 0, o), (0, 0, -o)]; OF = [(0, 2, 4), (2, 1, 4), (1, 3, 4), (3, 0, 4), (2, 0, 5), (1, 2, 5), (3, 1, 5), (0, 3, 5)]
+    for (bx, bz) in pts: bd.mesh(OV, OF, BULB, m=T(bx, y, bz), mat=1, smooth=False)   # [pass2] octahedral bulbs (file size)
 
 def sign_board(bd, text, x, y, z, w, h, lod, rz=0.0, sub=None, lit=True, board=MAHOG_D):
     # [AAA] a carved + gilded marquee board on a wall plane (local -y = into the room): layered gilt frame, corner rosettes,
@@ -408,6 +426,7 @@ def sign_board(bd, text, x, y, z, w, h, lod, rz=0.0, sub=None, lit=True, board=M
     hi = lod == 0
     bd.push(T(x, y, z, rz=rz))
     bd.box(w, 0.1, h, 0, -0.05, 0, board)
+    bd.box(w - 0.1, 0.008, h - 0.1, 0, -0.103, 0, 0x160604)   # [pass2] near-black inner plate: the lit letters read from across the hall
     for zz in (-h / 2 - 0.04, h / 2 + 0.04): bd.box(w + 0.2, 0.14, 0.09, 0, -0.08, zz, GOLD_D)
     for xx in (-w / 2 - 0.05, w / 2 + 0.05): bd.box(0.1, 0.14, h + 0.17, xx, -0.08, 0, GOLD_D)
     if hi:
@@ -423,10 +442,10 @@ def sign_board(bd, text, x, y, z, w, h, lod, rz=0.0, sub=None, lit=True, board=M
     bd.pop()
     c, s_ = math.cos(rz), math.sin(rz); fy = 0.11
     if sub:
-        carve(bd, text, x + fy * s_, y - fy * c, z + h * 0.12, w - 0.45, h * 0.5, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)
-        carve(bd, sub, x + fy * s_, y - fy * c, z - h * 0.3, w * 0.55, h * 0.2, lod, col=GOLD, rz=rz, depth=0.015)
+        carve(bd, text, x + fy * s_, y - fy * c, z + h * 0.11, w - 0.3, h * 0.56, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)   # [pass2] larger
+        carve(bd, sub, x + fy * s_, y - fy * c, z - h * 0.3, w * 0.62, h * 0.19, lod, col=GOLD, rz=rz, depth=0.015)
     else:
-        carve(bd, text, x + fy * s_, y - fy * c, z, w - 0.45, h - 0.26, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)
+        carve(bd, text, x + fy * s_, y - fy * c, z, w - 0.3, h - 0.2, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)
     if lit:
         light(bd, x + 0.6 * s_, y - 0.6 * c, z, 0.16, 2.6, lod)
 
@@ -652,24 +671,221 @@ def roof(bd, lod, rng):
     bd.cyl(0.03, 0.03, 1.0, 0, cy0, cb + 4.5, IRON, n=4)
     bd.prism([(0, 0), (0.0, -0.36), (0.7, -0.18)], 0.03, BURG, T(0.03, cy0, cb + 5.45), mat=CLOTH)   # pennant
 
+
+# ---------------- [pass2] BANKSY 3:09 PM "another pass on casino": floors, panelling, wall art, the vault display ----------------
+CHAIR = [(0.0, 0.0), (0.028, 0.0), (0.045, 0.018), (0.034, 0.038), (0.052, 0.058), (0.036, 0.085), (0.0, 0.1)]   # moulded chair rail (u out, v up)
+BEAD = [(0.0, 0.0), (0.018, 0.006), (0.024, 0.02), (0.018, 0.034), (0.0, 0.04)]
+
+def boards(bd, x0, x1, y0, y1, hi, rng):   # polished strip floor: staggered butt joints (1.2 .. 2.6 m boards), a tone per board, the cas_wood grain
+    iw = x1 - x0; cym = (y0 + y1) / 2
+    if not hi:
+        for i in range(5): bd.box(iw / 5, y1 - y0, 0.1, x0 + (i + 0.5) * iw / 5, cym, FLOOR - 0.1, FLOORS[i % 3], base=True, mat='cas_wood')
+        return
+    bd.box(iw, y1 - y0, 0.1, (x0 + x1) / 2, cym, FLOOR - 0.104, 0x1a0e07, base=True)   # the dark sub-floor that shows in the joints
+    n = int(iw / 0.26); w = iw / n; r2 = random.Random(4711)
+    for i in range(n):   # top faces only (file size): the joints are the gaps
+        x = x0 + (i + 0.5) * w; y = y0 - r2.uniform(0.0, 2.0); xa, xb = x - w / 2 + 0.004, x + w / 2 - 0.004
+        while y < y1:
+            L = r2.uniform(1.2, 2.6); ya, yb = max(y0, y) + 0.003, min(y1, y + L) - 0.003
+            if yb - ya > 0.05: bd.mesh([(xa, ya, FLOOR), (xb, ya, FLOOR), (xb, yb, FLOOR), (xa, yb, FLOOR)], [(0, 1, 2, 3)], hexc(FLOORS[r2.randrange(3)], 0.08, rng), smooth=False, mat='cas_wood')
+            y += L
+
+def straight(bd, L, y, prof, col, z0, smooth=False):   # a moulding run along local x (u = out of the wall, toward local -y)
+    sweep(bd, [(-L / 2, y), (L / 2, y)], prof, col, z0=z0, smooth=smooth)
+
+def fielded(bd, xc, zc, fw, fh, y=-0.06, bead=True):   # a raised-and-fielded panel facing local -y: sunk margin, field, raised centre, gilt bead
+    bd.box(fw + 0.03, 0.016, fh + 0.03, xc, y - 0.006, zc - 0.015, GOLD_D if bead else MAHOG_D, base=True)   # gilt bead round the field
+    bd.box(fw, 0.022, fh, xc, y - 0.012, zc, MAHOG_L, base=True)
+    if fw > 0.3 and fh > 0.3: bd.box(fw - 0.16, 0.014, fh - 0.16, xc, y - 0.027, zc + 0.08, MAHOG, base=True)
+
+def wainscot(bd, L, hi, top=1.3):   # mahogany dado (current frame: wall plane y = 0, local -y = into the room, x along the wall)
+    bd.box(L, 0.08, top, 0, -0.02, FLOOR, MAHOG, base=True)
+    bd.box(L, 0.1, 0.16, 0, -0.035, FLOOR, MAHOG_D, base=True)   # skirting
+    if not hi:
+        bd.box(L, 0.12, 0.08, 0, -0.05, top - 0.04, MAHOG_D, base=True); return
+    straight(bd, L, -0.06, CHAIR, MAHOG_D, top - 0.07)
+    straight(bd, L, -0.085, BEAD, GOLD_D, FLOOR + 0.16)
+    n = max(1, int(round(L / 0.95))); pw = L / n
+    for k in range(n):
+        fw = pw - 0.18
+        if fw > 0.2: fielded(bd, -L / 2 + (k + 0.5) * pw, FLOOR + 0.26, fw, top - 0.48)
+
+def display_plinth(bd, x0, x1, y0, y1, lod):   # the treasure display: panelled mahogany plinth, gilt corner posts + edge, crimson velvet top -> top z
+    hi = lod == 0; cx, cy = (x0 + x1) / 2, (y0 + y1) / 2; W_, D_ = x1 - x0, y1 - y0; TOP = 0.74
+    bd.box(W_ - 0.04, D_ - 0.04, 0.1, cx, cy, FLOOR, MAHOG_D, base=True)
+    bd.box(W_ - 0.2, D_ - 0.2, 0.52, cx, cy, FLOOR + 0.1, MAHOG, base=True)
+    bd.box(W_, D_, 0.08, cx, cy, FLOOR + 0.62, MAHOG_L, base=True)
+    bd.box(W_ + 0.02, D_ + 0.02, 0.025, cx, cy, FLOOR + 0.66, GOLD_D, base=True)
+    bd.box(W_ - 0.16, D_ - 0.16, 0.03, cx, cy, FLOOR + 0.7, CRIM, base=True, mat='cas_carpet')
+    for sx in (-1, 1):
+        for sy in (-1, 1): bd.box(0.1, 0.1, 0.52, cx + sx * (W_ / 2 - 0.12), cy + sy * (D_ / 2 - 0.12), FLOOR + 0.1, GOLD_D, base=True)
+    if hi:   # raised panels on the two faces that show (the room side + the aisle end)
+        for (fx, fy_, rz_, L) in ((x1 - 0.1, cy, math.pi / 2, D_ - 0.44), (cx, y1 - 0.1, math.pi, W_ - 0.44)):
+            bd.push(T(fx, fy_, 0, rz=rz_)); n = max(1, int(round(L / 0.8))); pw = L / n
+            for k in range(n): fielded(bd, -L / 2 + (k + 0.5) * pw, FLOOR + 0.17, pw - 0.12, 0.38, y=0.0)
+            bd.pop()
+    return FLOOR + TOP
+
+def frame_rect(bd, hx, hy, prof, col):   # a mitred picture frame round a (2 hx x 2 hy) opening in local XZ, profile (u out from the opening edge, v toward -y)
+    C = [(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)]
+    for i in range(4):
+        a, b = C[i], C[(i + 1) % 4]; d = ((b[0] - a[0]) / (2 * (hx if i % 2 == 0 else hy)), (b[1] - a[1]) / (2 * (hx if i % 2 == 0 else hy))); nrm = (d[1], -d[0])
+        V = []; F = []; m = len(prof)
+        for (P0, sg) in ((a, -1), (b, 1)):
+            for (u, v) in prof: V.append((P0[0] + nrm[0] * u + sg * d[0] * u, -v, P0[1] + nrm[1] * u + sg * d[1] * u))
+        for j in range(m - 1): F.append((j, j + 1, m + j + 1, m + j))
+        bd.mesh(V, F, col, smooth=False)
+
+FRAME = [(-0.03, 0.035), (0.0, 0.05), (0.03, 0.085), (0.07, 0.1), (0.1, 0.075), (0.13, 0.09), (0.16, 0.06), (0.17, 0.0)]
+
+def _n2(u, v, k):   # cheap smooth value noise for the painted canvases
+    return 0.5 + 0.25 * math.sin(u * 7.1 * k + v * 3.3) * math.cos(v * 9.7 * k - u * 2.1) + 0.25 * math.sin((u + v) * 13.0 * k + 1.7)
+
+def canvas_col(var, u, v):   # sRGB 0..1 at canvas point (u, v in 0..1, v up)
+    mix = lambda a, b, t: [a[i] + (b[i] - a[i]) * max(0.0, min(1.0, t)) for i in range(3)]
+    n = _n2(u, v, 1.0); hz = 0.36 + 0.015 * math.sin(u * 9.0)
+    if var == 3:   # a treasure chart on parchment: a coastline, shoals, burnt edges
+        d = math.hypot((u - 0.46) * 1.3, (v - 0.5) * 1.6) + 0.07 * math.sin(u * 17 + v * 5) + 0.05 * math.cos(v * 13)
+        c = mix([0.6, 0.66, 0.58], [0.66, 0.58, 0.36], (0.42 - d) * 30)
+        if 0.4 < d < 0.47: c = mix(c, [0.48, 0.55, 0.52], 0.5)
+        e = min(u, 1 - u, v, 1 - v); c = mix([0.36, 0.22, 0.1], c, e * 9)
+        return [ci * (0.92 + 0.12 * n) for ci in c]
+    if v > hz:   # sky
+        t = (v - hz) / (1 - hz)
+        if var == 0: c = mix([1.0, 0.66, 0.3], [0.86, 0.42, 0.36], t * 1.8) if t < 0.55 else mix([0.86, 0.42, 0.36], [0.2, 0.22, 0.42], (t - 0.55) * 2.2)
+        elif var == 1: c = mix([0.42, 0.44, 0.42], [0.16, 0.18, 0.21], t); c = mix(c, [0.78, 0.76, 0.66], max(0.0, 0.5 - math.hypot(u - 0.22, v - 0.86) * 2.4))
+        else: c = mix([0.2, 0.25, 0.4], [0.04, 0.06, 0.16], t * 1.3)
+        sx, sy = ((0.7, hz + 0.08), (0.3, 0.9), (0.72, 0.78))[var]
+        g = max(0.0, 1 - math.hypot((u - sx) * 1.6, v - sy) * (2.6 if var != 1 else 4.0))
+        c = mix(c, ([1.0, 0.86, 0.55], [0.9, 0.9, 0.82], [0.72, 0.78, 0.9])[var], g * (0.85 if var == 0 else 0.5))
+        c = [ci * (0.9 + 0.16 * n) for ci in c]   # brushy clouds
+    else:   # sea
+        t = (hz - v) / hz
+        c = mix(([0.12, 0.24, 0.3], [0.12, 0.22, 0.2], [0.05, 0.08, 0.14])[var], ([0.04, 0.1, 0.13], [0.05, 0.1, 0.09], [0.02, 0.03, 0.07])[var], t)
+        sx = (0.7, 0.3, 0.72)[var]; glint = max(0.0, 1 - abs(u - sx) * (5.0 - 3.0 * t)) * (1 - t) * (0.5 + 0.5 * math.sin(v * 90.0))
+        c = mix(c, ([1.0, 0.75, 0.4], [0.7, 0.74, 0.7], [0.75, 0.8, 0.92])[var], glint * 0.7)
+        if var == 1: c = mix(c, [0.5, 0.58, 0.55], max(0.0, math.sin(v * 40.0 + 3 * math.sin(u * 11)) - 0.6) * 0.8)   # rolling swell
+        c = [ci * (0.92 + 0.12 * n) for ci in c]
+    return c
+
+def galleon(bd, x, z, s, dark=False, tilt=0.0):   # a painted three-master on the canvas plane (local XZ, y = -0.032)
+    H, SL, FL = (0x1a120e, 0x2a2420, 0x1a120e) if dark else (0x3a2214, 0xeadcbc, 0xb02a24)
+    bd.push(T(x, -0.032, z, ry=tilt, s=s))
+    bd.prism([(-0.5, 0.0), (0.42, 0.0), (0.6, 0.2), (-0.62, 0.24), (-0.55, 0.13)], 0.004, H, T(0, 0, 0))
+    for (mx, mh) in ((-0.28, 0.85), (0.05, 1.0), (0.34, 0.75)):
+        bd.box(0.025, 0.004, mh, mx, 0, 0.18, H, base=True)
+        for (zz, w) in ((0.32, 0.36), (0.6, 0.3)):
+            if zz + 0.24 < mh + 0.18: bd.box(w * (mh / 1.0), 0.004, 0.22, mx, -0.002, zz, SL, base=True)
+        bd.box(0.08, 0.004, 0.04, mx + 0.05, -0.002, mh + 0.15, FL, base=True)
+    bd.prism([(0.6, 0.2), (0.95, 0.32), (0.6, 0.24)], 0.004, H, T(0, 0, 0))   # bowsprit
+    bd.pop()
+
+def painting(bd, x, y, z, pw, ph, var, lod):   # a gilt-framed oil seascape / chart on a wall plane facing -y (vertex-colour canvas + painted motifs)
+    hi = lod == 0
+    bd.push(T(x, y, z))
+    nu, nv = (10, 6) if hi else (3, 2)
+    V = []; F = []; CC = []
+    for j in range(nv + 1):
+        for i in range(nu + 1): V.append(((i / nu - 0.5) * pw, -0.03, (j / nv - 0.5) * ph))
+    for j in range(nv):
+        for i in range(nu):
+            a = j * (nu + 1) + i; f = (a, a + 1, a + nu + 2, a + nu + 1); F.append(f)
+            CC.append([canvas_col(var, (V[q][0] / pw) + 0.5, (V[q][2] / ph) + 0.5) for q in f])
+    bd.mesh(V, F, None, corner_cols=CC, smooth=False)
+    bd.box(pw + 0.04, 0.03, ph + 0.04, 0, -0.012, -ph / 2 - 0.02, 0x2a1408, base=True)   # stretcher shadow behind the canvas
+    hz = (0.36 - 0.5) * ph
+    if not hi: pass
+    elif var == 0:
+        bd.cyl(0.07 * ph, 0.07 * ph, 0.003, 0.2 * pw, -0.031, hz + 0.08 * ph, 0xfff0c8, n=14 if hi else 6, rx=math.pi / 2)
+        galleon(bd, -0.12 * pw, hz - 0.03 * ph, 0.36 * ph)
+    elif var == 1:
+        galleon(bd, 0.05 * pw, hz - 0.04 * ph, 0.4 * ph, tilt=0.12)
+        if hi: bd.prism([(0, 0), (0.04, 0.0), (-0.03, -0.12), (0.02, -0.12), (-0.05, -0.3), (0.0, -0.13), (-0.04, -0.13)], 0.003, 0xf0f0e0, T(0.32 * pw, -0.031, 0.42 * ph))   # lightning
+    elif var == 2:
+        bd.cyl(0.06 * ph, 0.06 * ph, 0.003, 0.22 * pw, -0.031, 0.28 * ph, 0xf4f0dc, n=14 if hi else 6, rx=math.pi / 2)
+        bd.prism([(-0.5 * pw, hz), (-0.32 * pw, hz + 0.1 * ph), (-0.2 * pw, hz + 0.14 * ph), (-0.08 * pw, hz + 0.06 * ph), (0.0, hz)][::-1], 0.003, 0x0a0c14, T(0, -0.031, 0))   # headland
+        bd.box(0.025 * pw, 0.003, 0.16 * ph, -0.2 * pw, -0.032, hz + 0.13 * ph, 0x1a1a22, base=True)
+        bd.box(0.035 * pw, 0.003, 0.03 * ph, -0.2 * pw, -0.033, hz + 0.29 * ph, 0xffe08a, base=True)   # lighthouse lamp
+        galleon(bd, 0.12 * pw, hz - 0.02 * ph, 0.3 * ph, dark=True)
+    else:
+        bd.box(0.06 * ph, 0.003, 0.012 * ph, 0.12 * pw, -0.032, 0.0, 0xb01e1e, rz=0, ry=0.78)
+        bd.box(0.06 * ph, 0.003, 0.012 * ph, 0.12 * pw, -0.032, 0.0, 0xb01e1e, ry=-0.78)
+        if hi:
+            for k in range(7): bd.box(0.02 * ph, 0.003, 0.008 * ph, -0.3 * pw + k * 0.06 * pw, -0.032, -0.2 * ph + 0.03 * ph * math.sin(k), 0x7a2a1a)
+        compass(bd, -0.36 * pw, -0.034, 0.28 * ph, 0.11 * ph, lod, flat=True)
+    if hi:
+        frame_rect(bd, pw / 2, ph / 2, FRAME, GOLD_D)
+        frame_rect(bd, pw / 2 + 0.02, ph / 2 + 0.02, [(-0.02, 0.035), (0.0, 0.045), (0.015, 0.04)], GOLD)   # gilt slip
+        for sx in (-1, 1):
+            for sz in (-1, 1): bd.box(0.1, 0.05, 0.1, sx * (pw / 2 + 0.1), -0.1, sz * (ph / 2 + 0.1), GOLD, ry=math.pi / 4)
+        bd.prism([(-0.28, 0.0), (0.28, 0.0), (0.16, 0.1), (0.0, 0.16), (-0.16, 0.1)], 0.05, GOLD_D, T(0, -0.1, ph / 2 + 0.16))   # crest
+        # brass picture light
+        bd.box(min(0.9, pw * 0.55), 0.09, 0.05, 0, -0.2, ph / 2 + 0.3, BRASS); bd.box(min(0.86, pw * 0.53), 0.05, 0.012, 0, -0.2, ph / 2 + 0.27, GLOW, mat=1)
+        for sx in (-0.2, 0.2): bd.box(0.02, 0.2, 0.02, sx, -0.1, ph / 2 + 0.33, BRASS)
+    else:
+        for zz in (-ph / 2 - 0.06, ph / 2 + 0.06): bd.box(pw + 0.24, 0.08, 0.12, 0, -0.06, zz, GOLD_D)
+        for xx in (-pw / 2 - 0.06, pw / 2 + 0.06): bd.box(0.12, 0.08, ph, xx, -0.06, 0, GOLD_D)
+    bd.pop()
+    p = bd.stack[-1] @ Vector((x, y - 0.6, z + 0.2))
+    if lod == 0 and RECORD: LIGHTS.append((p.x, p.y, p.z, 0.22, 1.6))
+
+def compass(bd, x, y, z, R, lod, flat=False):   # a gilded compass-rose medallion on a wall plane facing -y (flat: painted on a chart)
+    hi = lod == 0; n = 20 if hi else 10; yy = y
+    if not flat:
+        bd.cyl(R * 1.08, R * 1.08, 0.04, x, y, z, MAHOG_D, n=n, rx=math.pi / 2)
+        bd.torus(R, 0.07 * R, x, y - 0.04, z, GOLD_D, n=n, m_=3, rx=math.pi / 2)
+        if hi:
+            bd.cyl(R * 0.86, R * 0.86, 0.008, x, y - 0.04, z, GOLD, n=n, rx=math.pi / 2, caps=True)
+            for k in range(8): t = k * math.pi / 4 + math.pi / 8; bd.box(0.014, 0.01, 0.08 * R, x + 0.9 * R * math.sin(t), y - 0.045, z + 0.9 * R * math.cos(t), GOLD, ry=t)
+        yy = y - 0.05
+    cl, cs = (0x7a2a1a, 0x3a2414) if flat else (GOLD, GOLD_D)
+    for k in range(8 if hi else 4):
+        t = k * math.pi / (4 if hi else 2); L_ = 0.82 if k % 2 == 0 or not hi else 0.5; w_ = 0.13 if k % 2 == 0 else 0.1
+        bd.prism([(-w_ * R, 0.0), (0.0, L_ * R), (w_ * R, 0.0)][::-1], 0.03 if not flat else 0.002, cl if k % 2 == 0 else cs, T(x, yy, z, ry=t))
+    if not flat:
+        bd.cyl(0.12 * R, 0.08 * R, 0.05, x, yy - 0.02, z, GOLD, n=10 if hi else 6, rx=math.pi / 2)
+        if hi: bd.sphere(0.05 * R + 0.02, x, yy - 0.04, z + 0.98 * R, RUBY, sub=0)
+
+# the wall bays (building frame): wall plane point + facing (local -y = into the room) + bay width + what hangs there
+HALL_ART = [((IX0 + 0.03, y_, math.pi / 2), w_, k_, v_) for (y_, w_, k_, v_) in ((-5.075, 2.5, 'compass', 0), (-1.0, 4.0, 'painting', 0), (4.125, 4.6, 'painting', 1))] + \
+           [((IX1 - 0.03, y_, -math.pi / 2), w_, k_, v_) for (y_, w_, k_, v_) in ((-5.075, 2.5, 'compass', 0), (-1.0, 4.0, 'painting', 2), (4.125, 4.6, 'painting', 3))]
+WING_ART = [((WIX0 + 0.03, y_, math.pi / 2), w_, 'painting', v_) for (y_, w_, v_) in ((10.575, 3.7, 1), (16.825, 2.9, 3), (22.35, 2.5, 0), (27.9, 3.7, 2))] + \
+           [((WIX1 - 0.03, y_, -math.pi / 2), w_, 'painting', v_) for (y_, w_, v_) in ((10.575, 3.7, 0), (16.825, 2.9, 2), (22.35, 2.5, 1), (27.9, 3.7, 3))] + \
+           [((sx * 5.15, WIY1 - 0.03, 0.0), 3.4, 'painting', v_) for (sx, v_) in ((-1, 2), (1, 0))] 
+
+def wall_art(bd, lod):   # gilt panel mouldings on the damask (desktop), an oil painting or a compass medallion in each
+    hi = lod == 0
+    for ((wx, wy, rz_), bw, kind, var) in HALL_ART + WING_ART:
+        bd.push(T(wx, wy, 0, rz=rz_))
+        if hi and bw > 0:
+            z0, z1 = 1.62, 4.22
+            for (ins, t) in ((0.0, 0.05),):
+                pw_ = bw - 2 * ins
+                for zz in (z0 + ins, z1 - ins - t): bd.box(pw_, 0.03, t, 0, -0.035, zz, GOLD_D, base=True)
+                for xx in (-pw_ / 2 + t / 2, pw_ / 2 - t / 2): bd.box(t, 0.03, z1 - z0 - 2 * ins, xx, -0.035, z0 + ins, GOLD_D, base=True)
+            for sx in (-1, 1):
+                for zz in (z0 + 0.025, z1 - 0.025): bd.box(0.09, 0.03, 0.09, sx * (bw / 2 - 0.025), -0.05, zz, GOLD, ry=math.pi / 4)   # corner rosettes
+        if kind == 'painting':
+            pw_ = min(bw - 0.75, 2.5); ph_ = min(1.35, pw_ * 0.62); painting(bd, 0, -0.02, 2.95, pw_, ph_, var, lod)
+        else:
+            compass(bd, 0, -0.02, 2.95 if bw > 0 else 2.8, 0.42 if bw > 0 else 0.34, lod)
+        bd.pop()
+
 # ---------------- the interior: the gaming hall ----------------
 def interior(bd, lod, rng, cols):
     hi = lod == 0
     iw, idp = IX1 - IX0, IY1 - IY0; cxm, cym = (IX0 + IX1) / 2, (IY0 + IY1) / 2
     # dark plank floor (+ through the arch to the threshold)
-    np_ = int(iw / 0.26) if hi else 5
-    for i in range(np_):
-        x = IX0 + (i + 0.5) * iw / np_; bd.box(iw / np_ - (0.008 if hi else 0), idp, 0.1, x, cym, FLOOR - 0.1, hexc(FLOORS[i % 3], 0.05, rng), base=True)
+    boards(bd, IX0, IX1, IY0, IY1, hi, rng)   # [pass2] staggered polished boards
     bd.box(ARCH_W, WT, 0.1, 0, Y0 + WT / 2, FLOOR - 0.1, FLOORS[1], base=True)
     # crimson + gold runner from the arch to the rum bar, a round doubloon rug at the crossing
     ry0, ry1 = Y0 - 0.1, Y1
-    bd.box(2.0, ry1 - ry0, 0.012, 0, (ry0 + ry1) / 2, FLOOR, CRIM, base=True, mat=CLOTH)
+    bd.box(2.0, ry1 - ry0, 0.012, 0, (ry0 + ry1) / 2, FLOOR, CRIM, base=True, mat='cas_carpet')
     for s in (-1, 1): bd.box(0.1, ry1 - ry0, 0.014, s * 0.88, (ry0 + ry1) / 2, FLOOR, GOLD_D, base=True)
     if hi:
         for s in (-1, 1): bd.box(0.03, ry1 - ry0, 0.016, s * 0.75, (ry0 + ry1) / 2, FLOOR, GOLD, base=True)
-        for yy in np.arange(ry0 + 0.6, ry1 - 0.3, 1.2): bd.box(0.32, 0.32, 0.016, 0, yy, FLOOR, GOLD_D, base=True, rz=math.pi / 4)
     RY = 0.05   # [AAA] the doubloon rug sits under the grand chandelier
-    bd.cyl(1.8, 1.8, 0.016, 0, RY, FLOOR + 0.002, CRIM, n=24 if hi else 10, mat=CLOTH)
+    bd.cyl(1.8, 1.8, 0.016, 0, RY, FLOOR + 0.002, CRIM, n=24 if hi else 10, mat='cas_carpet')
     bd.torus(1.68, 0.04, 0, RY, FLOOR + 0.02, GOLD_D, n=24 if hi else 10, m_=3)
     bd.cyl(0.85, 0.85, 0.02, 0, RY, FLOOR + 0.004, GOLD_D, n=20 if hi else 8)
     bd.cyl(0.7, 0.7, 0.024, 0, RY, FLOOR + 0.006, GOLD, n=20 if hi else 8)
@@ -685,10 +901,10 @@ def interior(bd, lod, rng, cols):
     # the front wall inside (around the arch + windows)
     fy = IY0 + 0.03
     for (xa, xb) in ((IX0, -5.6 - 0.75), (-5.6 + 0.75, -ARCH_W / 2), (ARCH_W / 2, 5.6 - 0.75), (5.6 + 0.75, IX1)):
-        bd.box(xb - xa, 0.04, CEIL - 1.0, (xa + xb) / 2, fy, 1.0, DAMASK, base=True); bd.box(xb - xa, 0.08, 1.0, (xa + xb) / 2, fy + 0.02, FLOOR, MAHOG, base=True)
-        bd.box(xb - xa, 0.12, 0.08, (xa + xb) / 2, fy + 0.04, 1.0, MAHOG_D, base=True)
+        bd.box(xb - xa, 0.04, CEIL - 1.0, (xa + xb) / 2, fy, 1.0, DAMASK, base=True)
+        bd.push(T((xa + xb) / 2, fy, 0, rz=math.pi)); wainscot(bd, xb - xa, hi, top=1.0); bd.pop()
     for (xa, xb) in ((-5.6 - 0.75, -5.6 + 0.75), (5.6 - 0.75, 5.6 + 0.75)):
-        bd.box(xb - xa, 0.08, 1.0, (xa + xb) / 2, fy + 0.02, FLOOR, MAHOG, base=True); bd.box(xb - xa, 0.04, CEIL - 4.1, (xa + xb) / 2, fy, 4.1, DAMASK, base=True)
+        bd.push(T((xa + xb) / 2, fy, 0, rz=math.pi)); wainscot(bd, xb - xa, hi, top=1.0); bd.pop(); bd.box(xb - xa, 0.04, CEIL - 4.1, (xa + xb) / 2, fy, 4.1, DAMASK, base=True)
     bd.box(ARCH_W, 0.04, CEIL - 4.4, 0, fy, 4.4, DAMASK, base=True)
     entablature(bd, [((IX1, fy), (IX0, fy), math.pi)], hi)   # across the front wall (over the arch + the windows)
     upper_panels(bd, [((IX1, fy), (IX0, fy), math.pi)], CEIL, hi, skip=[(-3.6, 3.6)])
@@ -698,8 +914,14 @@ def interior(bd, lod, rng, cols):
     for s_ in (-1, 1): bd.box(0.35, 0.14, BA_SPRING + BA_RISE, s_ * (BA_W / 2 + 0.175), by_ - 0.04, FLOOR, MAHOG_D, base=True); bd.box(0.42, 0.18, 0.2, s_ * (BA_W / 2 + 0.175), by_ - 0.05, BA_SPRING - 0.1, GOLD_D, base=True)
     arch_ring(bd, 0, BA_W / 2, BA_SPRING, BA_RISE, by_ - 0.03, 0.12, 0.2, GOLD_D, 9 if hi else 5, rng, keyc=GOLD)
     bd.box(BA_W, WB + 0.1, 0.1, 0, Y1 - WB / 2, FLOOR - 0.1, FLOORS[1], base=True)
+    # [pass2] the reveal was bare grey stone (read as grey posts + braces from the hall): cased jambs + a curved mahogany soffit
+    ya_, yb_ = IY1 - 0.06, Y1 + 0.06
+    for s_ in (-1, 1): bd.box(0.05, yb_ - ya_, BA_SPRING, s_ * (BA_W / 2 - 0.025), (ya_ + yb_) / 2, FLOOR, MAHOG_D, base=True)
+    ns_ = 16 if hi else 8; r_ = BA_W / 2; xs_ = [-r_ + i * BA_W / ns_ for i in range(ns_ + 1)]; zs_ = [BA_SPRING + BA_RISE * math.sqrt(max(0.0, 1 - (x_ / r_) ** 2)) - 0.03 for x_ in xs_]
+    V_ = [(x_, ya_, z_) for x_, z_ in zip(xs_, zs_)] + [(x_, yb_, z_) for x_, z_ in zip(xs_, zs_)]
+    bd.mesh(V_, [(i, ns_ + 1 + i, ns_ + 2 + i, i + 1) for i in range(ns_)], MAHOG, smooth=False)
     entablature(bd, [((-BA_W / 2 - 0.35, by_), (BA_W / 2 + 0.35, by_), 0.0)], hi)
-    sign_board(bd, 'THE HIGH SEAS ROOM', 0, IY1 - 0.08, 5.45, 4.8, 0.78, lod, rz=0.0)
+    sign_board(bd, 'THE HIGH SEAS ROOM', 0, IY1 - 0.08, 5.55, 5.4, 0.92, lod, rz=0.0)
     for s_ in (-1, 1): drape(bd, s_ * (BA_W / 2 + 0.55), IY1 - 0.15, 4.2, 4.1, 0.6, lod, side=s_)
     for s in (-1, 1): drape(bd, s * (ARCH_W / 2 + 0.4), IY0 + 0.15, 4.3, 4.2, 0.7, lod, side=s)   # tied-back inner drapes, clear of the opening
     sign_board(bd, 'THE GOLDEN DOUBLOON', 0, IY0 + 0.07, 5.55, 6.0, 0.95, lod, rz=math.pi, sub='GAMING HALL')
@@ -736,6 +958,7 @@ def interior(bd, lod, rng, cols):
     stations(bd, lod, rng, cols)
     decor(bd, lod, rng, cols)
     wing_int(bd, lod, rng, cols)
+    wall_art(bd, lod)
 
 def entablature(bd, segs, hi, z=4.5):   # [AAA] gilt architrave + mahogany frieze + gilt cornice band (local -y = into the room)
     for (p, q, rz_) in segs:
@@ -1019,7 +1242,7 @@ def pendant(bd, kind, lod, ztop):   # [AAA] the lamp over a table (in the table'
     zb = 3.0
     if kind == 'blackjack':
         cx, cy = 0.0, -0.62
-        lathe(bd, [(0.56, 0.0), (0.55, 0.05), (0.44, 0.17), (0.26, 0.3), (0.1, 0.37), (0.06, 0.42)], cx, cy, zb, LACQ, n=20 if hi else 8)
+        lathe(bd, [(0.56, 0.0), (0.55, 0.05), (0.44, 0.17), (0.26, 0.3), (0.1, 0.37), (0.06, 0.42)], cx, cy, zb, LACQ, n=16 if hi else 8)
         bd.torus(0.56, 0.02, cx, cy, zb, BRASS, n=20 if hi else 8, m_=3)
         bd.cyl(0.53, 0.53, 0.01, cx, cy, zb + 0.005, GLOW, n=20 if hi else 8, mat=1)
         rods = [(cx, cy)]
@@ -1050,20 +1273,20 @@ def stations(bd, lod, rng, cols):
     # ---- PIRATE BLACKJACK: half-moon table, dealer behind the straight edge (south wall side), players on the curve ----
     cx, cy = ST['blackjack']['c']; place(bd, 'blackjack', lod, rng, cx, cy, math.pi / 2, CEIL)
     if cols is not None: cols += [['c', cx, -cy, 1.55], ['b', round((IX0 + cx) / 2, 3), -cy, round(cx - IX0, 3), 3.2]]
-    sign_board(bd, 'PIRATE BLACKJACK', IX0 + 0.06, cy, 5.3, 3.1, 0.78, lod, rz=math.pi / 2, sub='BLACKJACK PAYS 3 TO 2')
+    sign_board(bd, 'PIRATE BLACKJACK', IX0 + 0.06, cy, 5.42, 3.5, 0.9, lod, rz=math.pi / 2, sub='BLACKJACK PAYS 3 TO 2')
     # ---- BUCCANEER ROULETTE: long table along the wall, the wheel at the south end, croupier between it and the north wall ----
     cx, cy = ST['roulette']['c']; place(bd, 'roulette', lod, rng, cx, cy, -math.pi / 2, CEIL)
     if cols is not None: cols += [['b', round((cx - 0.85 + IX1) / 2, 3), -cy, round(IX1 - (cx - 0.85), 3), 3.6]]
-    sign_board(bd, 'BUCCANEER ROULETTE', IX1 - 0.06, cy, 5.3, 3.1, 0.78, lod, rz=-math.pi / 2, sub='RED OR BLACK')
+    sign_board(bd, 'BUCCANEER ROULETTE', IX1 - 0.06, cy, 5.42, 3.5, 0.9, lod, rz=-math.pi / 2, sub='RED OR BLACK')
     # ---- DEAD MAN'S DICE: the dice tub, the stickman on the wall side, a skull on the end rail ----
     cx, cy = ST['dice']['c']; place(bd, 'dice', lod, rng, cx, cy, math.pi / 2, CEIL)
     PL, PW = DICE_PL, DICE_PW
     if cols is not None: cols += [['b', round((IX0 + cx + PW / 2 + 0.05) / 2, 3), -cy, round(cx + PW / 2 + 0.05 - IX0, 3), PL + 0.2]]
-    sign_board(bd, "DEAD MAN'S DICE", IX0 + 0.06, cy, 5.3, 3.1, 0.78, lod, rz=math.pi / 2, sub='UNDER SEVEN OR OVER')
+    sign_board(bd, "DEAD MAN'S DICE", IX0 + 0.06, cy, 5.42, 3.5, 0.9, lod, rz=math.pi / 2, sub='UNDER SEVEN OR OVER')
     # ---- TREASURE SLOTS: a bank of three one-armed bandits against the north wall ----
     cx, cy = ST['slots']['c']; place(bd, 'slots', lod, rng, cx, cy, -math.pi / 2, CEIL)
     if cols is not None: cols += [['b', round((cx - 0.5 + IX1) / 2, 3), -cy, round(IX1 - (cx - 0.5), 3), 4.1]]
-    sign_board(bd, 'TREASURE SLOTS', IX1 - 0.06, cy, 5.3, 3.1, 0.78, lod, rz=-math.pi / 2, sub='PULL FOR THE JACKPOT')
+    sign_board(bd, 'TREASURE SLOTS', IX1 - 0.06, cy, 5.42, 3.5, 0.9, lod, rz=-math.pi / 2, sub='PULL FOR THE JACKPOT')
 
 def rum_bar(bd, lod, rng, cols, DY, IY1=IY1):   # [v378] the rum bar (moved to the wing's end wall: DY = how far back, IY1 = that wall's inner face - DY)
     hi = lod == 0
@@ -1091,7 +1314,7 @@ def rum_bar(bd, lod, rng, cols, DY, IY1=IY1):   # [v378] the rum bar (moved to t
         bd.box(0.7, 0.4, 0.14, xx, BY - 0.0, 1.06, MAHOG_D, base=True)
         bd.push(T(xx, BY - 0.02, 1.48, ry=math.pi / 2)); barrel_(bd, 0, 0, -0.36, lod, r=0.3, h=0.72); bd.pop()
         bd.cyl(0.03, 0.03, 0.14, xx + 0.0, BY - 0.25, 1.4, BRASS, n=6, rx=math.pi / 2); bd.cyl(0.02, 0.02, 0.08, xx, BY - 0.38, 1.33, BRASS, n=6)
-    sign_board(bd, 'RUM BAR', 0, IY1 - 0.08, 4.6, 3.0, 0.8, lod, rz=0.0)
+    sign_board(bd, 'RUM BAR', 0, IY1 - 0.08, 4.7, 3.4, 0.92, lod, rz=0.0)
     figure(bd, -0.9, 5.98, 0.0, lod, vest=0x6a1414, hat=False)
     for (xx, yy) in ((-3.45, 6.15), (3.45, 6.15)): barrel_(bd, xx, yy, 0, lod, r=0.38, h=1.0)
     barrel_(bd, 3.45, 6.15, 1.0, lod, r=0.32, h=0.85)
@@ -1102,15 +1325,14 @@ def decor(bd, lod, rng, cols):
     hi = lod == 0
     # ---- the treasure vault dais (front south corner): stone plinth, open chests overflowing, gold heaps, gems, a crown on a cushion ----
     dx0, dx1, dy0, dy1 = IX0, -5.55, IY0, -3.3; dcx, dcy = (dx0 + dx1) / 2, (dy0 + dy1) / 2
-    bd.box(dx1 - dx0, dy1 - dy0, 0.85, dcx, dcy, 0, QUO, base=True)
-    bd.box(dx1 - dx0 + 0.1, dy1 - dy0 + 0.1, 0.08, dcx, dcy, 0.85, LIME[2], base=True)
-    if hi: bd.box(dx1 - dx0 + 0.12, dy1 - dy0 + 0.12, 0.05, dcx, dcy, 0.05, GOLD_D, base=True)
-    chest(bd, dcx - 0.1, dcy - 0.6, 0.93, 0.3, lod, rng, open_=True)
-    chest(bd, dcx + 0.15, dcy + 0.75, 0.93, -0.4, lod, rng, open_=True, s=0.85)
-    coins(bd, dcx + 0.55, dcy - 0.05, 0.93, 0.45, 0.3, lod, rng)
-    bd.box(0.5, 0.5, 0.18, dcx - 0.55, dcy + 0.0, 0.93, CRIM, base=True, mat=CLOTH); crown(bd, dcx - 0.55, dcy, 1.11, 0.32, lod)
+    PT = display_plinth(bd, dx0, dx1, dy0, dy1, lod)   # [pass2] BANKSY: the pale stone block read as out of place / low-res
+    chest(bd, dcx - 0.05, dcy - 0.7, PT, 0.25, lod, rng, open_=True, s=0.9)
+    chest(bd, dcx + 0.1, dcy + 0.85, PT, -0.35, lod, rng, s=0.75)
+    coins(bd, dcx + 0.6, dcy + 0.05, PT, 0.36, 0.22, lod, rng)
+    lathe(bd, [(0.0, 0.0), (0.26, 0.0), (0.27, 0.05), (0.24, 0.12), (0.0, 0.13)], dcx - 0.45, dcy + 0.05, PT, CRIM, n=12 if hi else 6)   # tasselled cushion
+    crown(bd, dcx - 0.45, dcy + 0.05, PT + 0.12, 0.26, lod)
     if hi:
-        for (gx, gy_, c) in ((0.3, -0.4, RUBY), (0.6, 0.3, EMER), (-0.2, 0.3, SAPH), (0.7, -0.6, RUBY)): gem(bd, dcx + gx, dcy + gy_, 0.98, c, 0.07)
+        for (gx, gy_, c) in ((0.35, -0.35, RUBY), (0.7, 0.35, EMER), (-0.15, 0.4, SAPH), (0.75, -0.5, RUBY)): gem(bd, dcx + gx, dcy + gy_, PT + 0.05, c, 0.06)
         for k in range(4): bd.cyl(0.04, 0.04, 0.9, dx1 + 0.08, dy0 + 0.4 + k * 0.9, 0, BRASS, n=6); bd.sphere(0.06, dx1 + 0.08, dy0 + 0.4 + k * 0.9, 0.92, GOLD, sub=0)
         for k in range(3): bd.cyl(0.02, 0.02, 0.9, dx1 + 0.08, dy0 + 0.4 + k * 0.9, 0.75, CRIM, n=4, rx=-math.pi / 2)
     if cols is not None: cols += [['b', round(dcx + 0.05, 3), round(-dcy, 3), round(dx1 - dx0 + 0.2, 3), round(dy1 - dy0 + 0.1, 3)]]
@@ -1119,7 +1341,7 @@ def decor(bd, lod, rng, cols):
     chest(bd, 6.9, -5.75, FLOOR, math.pi / 2, lod, rng, open_=True)
     chest(bd, 6.95, -4.75, FLOOR, math.pi / 2 + 0.12, lod, rng, s=0.85)
     if cols is not None: cols += [['b', 6.9, 5.3, 1.4, 2.1]]
-    sign_board(bd, 'HIGH STAKES', IX1 - 0.06, -5.1, 5.3, 2.3, 0.62, lod, rz=-math.pi / 2)
+    sign_board(bd, 'HIGH STAKES', IX1 - 0.06, -5.1, 5.42, 2.7, 0.8, lod, rz=-math.pi / 2)
     # ---- the hall's own walls (three.js building frame: x, z = -y): the front split around the open arch (4.8 m clear), sides, back ----
     if cols is not None:
         fz = round(-(Y0 + WT / 2), 3); fd = WT + 0.1
@@ -1181,12 +1403,7 @@ def lining(bd, segs, ceil, hi, fleur=True):   # mahogany wainscot + damask + [AA
         L = math.dist(p, q); mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
         bd.push(T(mx, my, 0, rz=rz_))
         bd.box(L, 0.04, ceil - 1.3, 0, 0.0, 1.3, DAMASK, base=True)
-        bd.box(L, 0.08, 1.3, 0, -0.02, FLOOR, MAHOG, base=True); bd.box(L, 0.12, 0.08, 0, -0.05, 1.3, MAHOG_D, base=True)
-        bd.box(L, 0.1, 0.12, 0, -0.04, FLOOR, MAHOG_D, base=True)   # skirting
-        if hi:
-            for k in range(int(L / 1.0)): bd.box(0.78, 0.03, 0.85, -L / 2 + 0.5 + k * 1.0, -0.07, 0.25, MAHOG_L, base=True); bd.box(0.62, 0.035, 0.02, -L / 2 + 0.5 + k * 1.0, -0.08, 0.66, GOLD_D, base=True)
-            if fleur:
-                for k in range(int(L / 1.4)): xk = -L / 2 + 0.7 + k * 1.4; bd.box(0.05, 0.02, 0.5, xk, -0.03, 2.2, GOLD_D, base=True); bd.box(0.3, 0.02, 0.05, xk, -0.03, 2.45, GOLD_D)
+        wainscot(bd, L, hi)   # [pass2] (the flat gilt '+' crosses are gone: gilt panel mouldings, oil paintings + compass medallions, wall_art())
         bd.pop()
     entablature(bd, segs, hi)
     upper_panels(bd, segs, ceil, hi)
@@ -1194,9 +1411,7 @@ def lining(bd, segs, ceil, hi, fleur=True):   # mahogany wainscot + damask + [AA
 NAMES = dict(blackjack='PIRATE BLACKJACK', roulette='BUCCANEER ROULETTE', dice="DEAD MAN'S DICE", slots='TREASURE SLOTS')
 def wing_int(bd, lod, rng, cols):
     hi = lod == 0; iw, idp = WIX1 - WIX0, WIY1 - WIY0; cym = (WIY0 + WIY1) / 2
-    np_ = int(iw / 0.26) if hi else 5
-    for i in range(np_):
-        x = WIX0 + (i + 0.5) * iw / np_; bd.box(iw / np_ - (0.008 if hi else 0), idp, 0.1, x, cym, FLOOR - 0.1, hexc(FLOORS[i % 3], 0.05, rng), base=True)
+    boards(bd, WIX0, WIX1, WIY0, WIY1, hi, rng)   # [pass2] staggered polished boards
     # walls: sides, the end wall, the hall's back wall on this side (around the arch)
     fy = WIY0 + 0.03
     lining(bd, [((WIX0 + 0.03, WIY0), (WIX0 + 0.03, WIY1), math.pi / 2), ((WIX1 - 0.03, WIY0), (WIX1 - 0.03, WIY1), -math.pi / 2),
@@ -1204,7 +1419,7 @@ def wing_int(bd, lod, rng, cols):
     bd.box(BA_W + 0.7, 0.04, WCEIL - (BA_SPRING + BA_RISE), 0, fy, BA_SPRING + BA_RISE, DAMASK, base=True)
     for s_ in (-1, 1): bd.box(0.35, 0.14, BA_SPRING + BA_RISE, s_ * (BA_W / 2 + 0.175), fy + 0.04, FLOOR, MAHOG_D, base=True)
     arch_ring(bd, 0, BA_W / 2, BA_SPRING, BA_RISE, fy + 0.03, 0.12, 0.2, GOLD_D, 9 if hi else 5, rng, keyc=GOLD)
-    sign_board(bd, 'THE GOLDEN DOUBLOON', 0, fy + 0.08, 5.3, 4.4, 0.72, lod, rz=math.pi)
+    sign_board(bd, 'THE GOLDEN DOUBLOON', 0, fy + 0.08, 5.4, 5.0, 0.86, lod, rz=math.pi)
     # lit windows (inside faces of the leaded glass) flanked by sconces, pilasters between the bays
     for (xe, rz_) in ((WIX0, math.pi / 2), (WIX1, -math.pi / 2)):
         for yy in (13.9, 19.7, 25.0):
@@ -1225,20 +1440,19 @@ def wing_int(bd, lod, rng, cols):
     for yy in WCH: chandelier(bd, 0, yy, 4.95, 1.05, 10, WCEIL - 0.45, lod, I=0.7, reach=7.0)
     # the crimson runner from the arch to the bar, two doubloon rugs
     ry0, ry1 = WIY0 - 0.3, 30.8
-    bd.box(2.0, ry1 - ry0, 0.012, 0, (ry0 + ry1) / 2, FLOOR, CRIM, base=True, mat=CLOTH)
+    bd.box(2.0, ry1 - ry0, 0.012, 0, (ry0 + ry1) / 2, FLOOR, CRIM, base=True, mat='cas_carpet')
     for s_ in (-1, 1): bd.box(0.1, ry1 - ry0, 0.014, s_ * 0.88, (ry0 + ry1) / 2, FLOOR, GOLD_D, base=True)
     if hi:
         for s_ in (-1, 1): bd.box(0.03, ry1 - ry0, 0.016, s_ * 0.75, (ry0 + ry1) / 2, FLOOR, GOLD, base=True)
-        for yy in np.arange(ry0 + 0.6, ry1 - 0.3, 1.2): bd.box(0.32, 0.32, 0.016, 0, yy, FLOOR, GOLD_D, base=True, rz=math.pi / 4)
     for RY in (13.9, 19.7, 25.0):
-        bd.cyl(1.5, 1.5, 0.016, 0, RY, FLOOR + 0.002, CRIM, n=24 if hi else 10, mat=CLOTH); bd.torus(1.4, 0.04, 0, RY, FLOOR + 0.02, GOLD_D, n=24 if hi else 10, m_=3)
+        bd.cyl(1.5, 1.5, 0.016, 0, RY, FLOOR + 0.002, CRIM, n=24 if hi else 10, mat='cas_carpet'); bd.torus(1.4, 0.04, 0, RY, FLOOR + 0.02, GOLD_D, n=24 if hi else 10, m_=3)
         bd.cyl(0.7, 0.7, 0.02, 0, RY, FLOOR + 0.004, GOLD_D, n=20 if hi else 8); bd.cyl(0.58, 0.58, 0.024, 0, RY, FLOOR + 0.006, GOLD, n=20 if hi else 8)
     # one game per table
     roman = {2: 'II', 3: 'III'}
     for (g, n_, cx, cy, rz, ex) in WING:
         sg = -1 if cx < 0 else 1; wall = WIX0 if sg < 0 else WIX1
         place(bd, g, lod, rng, cx, cy, rz, WCEIL)
-        sign_board(bd, NAMES[g] + ' ' + roman[n_], wall - sg * 0.06, cy, 5.45, 3.0, 0.7, lod, rz=-sg * math.pi / 2)
+        sign_board(bd, NAMES[g] + ' ' + roman[n_], wall - sg * 0.06, cy, 5.5, 3.5, 0.84, lod, rz=-sg * math.pi / 2)
         if cols is not None:
             inner = {'blackjack': cx, 'roulette': cx - sg * 0.85, 'dice': cx - sg * 0.9}[g]; dep = {'blackjack': 3.2, 'roulette': 3.6, 'dice': 3.1}[g]
             cols.append(['b', round((wall + inner) / 2, 3), round(-cy, 3), round(abs(wall - inner), 3), dep])
@@ -1246,7 +1460,7 @@ def wing_int(bd, lod, rng, cols):
     for (cx, cy, rz) in WSLOTS:
         sg = -1 if cx < 0 else 1; wall = WIX0 if sg < 0 else WIX1
         place(bd, 'slots', lod, rng, cx, cy, rz, WCEIL)
-        sign_board(bd, NAMES['slots'], wall - sg * 0.06, cy, 5.45, 2.9, 0.7, lod, rz=-sg * math.pi / 2)
+        sign_board(bd, NAMES['slots'], wall - sg * 0.06, cy, 5.5, 3.3, 0.84, lod, rz=-sg * math.pi / 2)
         if cols is not None: cols.append(['b', round((wall + cx - sg * 0.5) / 2, 3), round(-cy, 3), round(abs(wall - (cx - sg * 0.5)), 3), 4.1])
     # the rum bar on the end wall, treasure in the corners beside it
     rum_bar(bd, lod, rng, cols, BAR_DY)

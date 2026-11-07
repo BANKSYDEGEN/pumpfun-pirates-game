@@ -15,6 +15,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { buildFelts, loadFeltFont } from './casinoFelt.js';
 import { softRamp } from './look.js';
 import { libMaterial } from './libTex.js';
+import { casinoSurface, casinoLookSetup } from './casinoLook.js';   // [pass2] damask / carpet / boards + painted lamp light
 import { t2w, t2wYaw } from './coast.js';
 import { squadHall } from './hillStreet.js';
 import { CASINO_ON, CASINO_HALL, CASINO_TABLES, CASINO_WING, CASINO_WING_TABLES, CASINO_Y, SQUAD_NORTH_DECK, streetGrade, casinoGround, casinoClear, casinoOverlap, casinoInteract } from './casinoData.js';
@@ -27,8 +28,8 @@ const LOD_D = 55;                    // desktop: LOD0 -> LOD1 (m)
 export function loadCasinoReady(low) {
   if (!CASINO_ON) return Promise.resolve(null);
   if (_p) return _p;
-  const solid = bakeLit(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low), 0.22); solid.name = 'casino_solid';
-  const tsolid = bakeLit(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low), 0.5); tsolid.name = 'casino_tables_solid';   // the table kit: brighter self-lit bake (the lamp pools)
+  const solid = casinoSurface(bakeLit(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), low), 0.22)); solid.name = 'casino_solid';
+  const tsolid = casinoSurface(bakeLit(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low), 0.5)); tsolid.name = 'casino_tables_solid';   // the table kit: brighter self-lit bake (the lamp pools)
   const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }); glow.name = 'casino_glow';
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder), q = typeof location !== 'undefined' ? location.search : '';
   const kitP = /[?&]castables=0(&|$)/.test(q) ? Promise.resolve(null)
@@ -161,6 +162,7 @@ export function casinoSite({ addBox, addCirc, addDeck, INTERACT, LOTS_MAP }) {
 export function buildCasino() {
   const K = CASINO_KIT; if (!K || !PLACED || !K.lods.length) return null;
   const P = casinoPlace(), g = new THREE.Group(); g.name = 'casino_hall'; g.position.set(P.x, P.y, P.z); g.rotation.y = P.yaw;
+  try { casinoLookSetup(K, P); } catch (e) { console.warn('[casino] pass2 look', e); }
   if (!K._dressed) { K._dressed = true;   // the table kit, the felts and the light FX ride the near level (desktop LOD0 / phones the only level)
     if (K.kit) { K.lods.forEach((lv, i) => { if (K.kit.kinds && Object.values(K.kit.kinds).some(l => l[i])) lv.add(kitLevel(K, i)); });
       const felts = buildFelts(K.kit.felts, K.placements, { low: K.low, anisotropy: K.low ? 2 : 8 }); if (felts) K.lods[0].add(felts); }
