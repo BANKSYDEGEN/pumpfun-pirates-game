@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
         const p = cleanProfile(b.profile), delta = Math.max(-1e7, Math.min(1e7, Math.floor(Number(b.delta) || 0)));
         const gw = await whoAmI({ dk: b.dk }), gpres = gw ? await prestigeOf(gw.pid) : 0;
         if (stalePrestige(p.prestige, gpres)) p.levels = zeroLevels(); // [prestige] the group keeps the max of each level: a stale device sends none
-        const { data, error } = await db.rpc("pvp_group_sync", { p_dev: dev, p_gold: p.gold, p_delta: delta, p_levels: p.levels, p_gain_base: CAPS.valueBase, p_gain_per_min: CAPS.valuePerMin });
+        const { data, error } = await db.rpc("pvp_group_sync", { p_dev: dev, p_gold: p.gold, p_delta: delta, p_levels: p.levels, p_gain_base: 1000000, p_gain_per_min: 100000 /* owner pot only: BANKSY t2152u raised gain cap */ });
         if (error) throw error;
         if (!data?.ok) return data?.why === "not a group" || !data ? json(404, { error: "not a group" }) : json(422, { error: data.why });
         return json(200, { gold: data.gold, levels: data.levels, seeded: !!data.seeded, devices: data.devices, prestige: gpres });
