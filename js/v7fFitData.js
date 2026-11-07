@@ -4,7 +4,9 @@
 // (tools/v7f_gear/fit.py: anatomical height map + per-slice girth profiles of both bodies, clearance push, skin weights from her body for
 // footwear), hi + lo, Meshopt-packed (lossless floats). Female V7 only; male (V7M_FITS) and v5 / v6 bodies keep their own files.
 // hide: her own bind-space cut heights (the v5 BOOT_CUT / PEG_CUT mapped through the same height map), replacing the v5 cut rules.
-const F = (id) => ({ hi: `assets/pirates/items/v7f_fit/${id}_female_hi.glb`, lo: `assets/pirates/items/v7f_fit/${id}_female_lo.glb` });
+const F = (id) => ({
+  "cloth_singlet": { "hi": "assets/pirates/items/v7f_fit/cloth_singlet_female_hi.glb", "lo": "assets/pirates/items/v7f_fit/cloth_singlet_female_lo.glb" },
+ hi: `assets/pirates/items/v7f_fit/${id}_female_hi.glb`, lo: `assets/pirates/items/v7f_fit/${id}_female_lo.glb` });
 // v5 female bind y -> V7 female bind y (floor, knee, hip joint, waist, armpit, neck, crown)
 export const V7F_YMAP = { v5: [0, 0.224, 0.42, 0.54, 0.69, 0.84, 1.397], v7: [0, 0.304, 0.534, 0.60, 0.72, 0.85, 1.397] };
 export function v7fY(y) { const A = V7F_YMAP.v5, B = V7F_YMAP.v7; if (y <= A[0]) return B[0]; for (let i = 1; i < A.length; i++) if (y <= A[i]) return B[i - 1] + (y - A[i - 1]) * (B[i] - B[i - 1]) / (A[i] - A[i - 1]); return y; }

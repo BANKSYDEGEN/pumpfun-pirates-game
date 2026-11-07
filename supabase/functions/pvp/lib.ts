@@ -144,7 +144,7 @@ export const SHOP_ITEMS: Record<string, { price: number; goal?: Goal }> = {
   "gear:crewhat:tricorn": { price: 400 }, "gear:crewhat:bicorne": { price: 1200 }, "gear:crewhat:crown": { price: 15000 }, "gear:crewhat:crown_imperial": { price: 25000 }, "gear:crewhat:helmet_hq": { price: 800 },
   // [v6-store-clothes] crew extras cost exactly the player price (CREW SHOP 1:1 rule)
   "gear:crewbeard:beard_moustache": { price: 400 }, "gear:crewbeard:beard_forked": { price: 900 }, "gear:crewbeard:beard_black": { price: 2500 }, "gear:crewface:facepaint_retardio": { price: 350 }, "gear:crewcape:cape_tattered": { price: 800 }, "gear:crewcape:cape_captain": { price: 2000 }, "gear:crewcape:cape_royal": { price: 8000 }, "gear:crewboots:boots_buckle": { price: 350 }, "gear:crewboots:boots_cavalier": { price: 1000 }, "gear:crewboots:boots_gold": { price: 3000 }, "gear:crewboots:boots_classic": { price: 150 }, "gear:crewboots:sandals": { price: 120 }, "gear:crewboots:shoes_buckle": { price: 250 }, "gear:crewboots:boots_sea": { price: 300 }, "gear:crewpants:classic_pants": { price: 150 }, "gear:crewpants:canvas_pants": { price: 250 }, "gear:crewpants:sailor_trousers": { price: 300 }, "gear:crewpants:leather_breeches": { price: 400 },
-  "gear:crewoutfit:tshirt": { price: 300 }, "gear:crewoutfit:coat": { price: 1000 }, "gear:crewoutfit:shirt": { price: 300 }, "gear:crewoutfit:suit": { price: 3000 },
+  "gear:crewoutfit:tshirt": { price: 300 }, "gear:crewoutfit:coat": { price: 1000 }, "gear:crewoutfit:shirt": { price: 300 }, "gear:crewoutfit:suit": { price: 3000 }, "gear:crewoutfit:singlet": { price: 600 },
   // [Timothy] WEAPON STORE: cosmetic swords (SWORD PIT) + muskets (MUSKET RANGE), BANKSY's prices + goals; the rusty cutlass + rusty
   // flintlock are free (GEAR_SLOTS.sword[0] / .musket[0]). Pit / range KOs never reach pvp_claim_kill, so they can't feed these goals.
   "gear:sword:cutlass": { price: 1500 }, "gear:sword:rapier": { price: 4000 }, "gear:sword:bone": { price: 12000 },
@@ -173,7 +173,7 @@ export const GEAR_SLOTS: Record<string, string[]> = { hat: ["none", "bandana", "
   // the free uniform, ids[0]). The crew no longer copy the captain's hat + clothes. APPEND-ONLY (js/crewLoadout.js CREW_SLOTS).
   // [V6 store] PANTS (APPEND-ONLY, mirrors js/pvpSave.js). The V6 bodies are barefoot in white underwear by default.
   pants: ["none", "classic_pants", "canvas_pants", "sailor_trousers", "leather_breeches"],
-  crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit"],
+  crewhat: ["bandana", "tricorn", "bicorne", "crown", "crown_imperial", "helmet_hq"], crewoutfit: ["tank", "tshirt", "coat", "shirt", "suit", "singlet"],
   // [v6-store-clothes] the crew's own beard / face paint / cape / shoes / pants (APPEND-ONLY, js/crewLoadout.js CREW_SLOTS)
   crewbeard: ["none", "beard_moustache", "beard_forked", "beard_black"], crewface: ["none", "facepaint_retardio"], crewcape: ["none", "cape_tattered", "cape_captain", "cape_royal"], crewboots: ["none", "boots_buckle", "boots_cavalier", "boots_gold", "boots_classic", "sandals", "shoes_buckle", "boots_sea"], crewpants: ["none", "classic_pants", "canvas_pants", "sailor_trousers", "leather_breeches"], creweyes: ["plain", "eyepatch", "sunglasses", "laser"],
   // [Timothy] WEAPON STORE sword + musket (a row without them = the free rusty cutlass / flintlock). APPEND-ONLY (js/onfoot/swords.js).

@@ -64,3 +64,12 @@ test('dressing is a cosmetic equip through the existing provider, never a purcha
   assert.match(read('js/islandShop.js'), /generation !== hullCrewGeneration/);
   assert.match(read('js/pvp.js'), /setCrewLoadout\(profile\.gear\)/);
 });
+
+test('owned wrestling singlet is a full-body crew choice, preserved on save and wire', () => {
+ const state = { owned: { gear: ['outfit:singlet'] } };
+ assert.ok(ownedCrewChoices(state, 'crewoutfit').includes('singlet'));
+ assert.match(read('js/v7mFitData.js'), /"cloth_singlet"/);
+ assert.match(read('js/v7fFitData.js'), /"cloth_singlet"/);
+ assert.match(read('js/crewLoadout.js'), /pants: c.crewoutfit === 'singlet' \? 'none' : c.crewpants/);
+ assert.match(read('supabase/functions/pvp/lib.ts'), /crewoutfit: \["tank", "tshirt", "coat", "shirt", "suit", "singlet"\]/);
+});
