@@ -64,14 +64,18 @@ export function createMoneyMakers(ctx) {
   // ======================= props =======================
   const fx = (S, d) => S.x + (S.fx ?? 0) * d, fz = (S, d) => S.z + (S.fz ?? 1) * d;   // [v372] a point d m in front of a stand (toward the shop door)
   const FRONT = { 'WANTED BOARD': 'wanted', 'FIGHT MASTER': 'fight', 'RUM EXPORT': 'rum', 'HARBOR FENCE': 'fence' };
-  const doorBoard = (S) => { if (!S.door) return; try { const f = shopFront(S, FRONT[S.name]); if (f) root.add(f); } catch (e) { console.warn('[mm-front]', e); } };   // [v373] dressed shop fronts
-  const wanted = put(P.wantedBoard(), SITES.wanted.x, SITES.wanted.z, SITES.wanted.ry, SITES.wanted.y); spot('wanted', 'board', fx(SITES.wanted, 1.6), fz(SITES.wanted, 1.6), 3.0, 'WANTED BOARD · CONTRACTS + BOUNTIES'); doorBoard(SITES.wanted);
-  const fm = put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry, SITES.fight.y); spot('fight', 'coliseum', fx(SITES.fight, 1.6), fz(SITES.fight, 1.6), 3.0, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE'); doorBoard(SITES.fight);
+  const FRONT_ID = { rent_2: 'wanted', rent_16: 'fight', rent_3: 'rum', rent_4: 'fence' };   // [hill-shopfronts] by shop id (the fence site is named 'Harbor Fence')
+  const doorBoard = (S) => { if (!S.door) return null; try { const f = shopFront(S, FRONT_ID[S.shop] || FRONT[S.name]); if (f) root.add(f); return f; } catch (e) { console.warn('[mm-front]', e); return null; } };   // [v373] dressed shop fronts
+  // [hill-shopfronts v3] in the 4 hill-street shops the business is FITTED into the room (shopFronts.js interior: joinery + counter + the wanted board /
+  // the gong); the freestanding v349 stall prop is only built where there is no shop (or if the fitted room failed). E spots below are unchanged.
+  const fitted = (S, make) => (S.door && doorBoard(S)) || make();
+  const wanted = fitted(SITES.wanted, () => put(P.wantedBoard(), SITES.wanted.x, SITES.wanted.z, SITES.wanted.ry, SITES.wanted.y)); spot('wanted', 'board', fx(SITES.wanted, 1.6), fz(SITES.wanted, 1.6), 3.0, 'WANTED BOARD · CONTRACTS + BOUNTIES');
+  const fm = fitted(SITES.fight, () => put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry, SITES.fight.y)); spot('fight', 'coliseum', fx(SITES.fight, 1.6), fz(SITES.fight, 1.6), 3.0, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE');
   const hordeRing = put(P.ring(SITES.horde.r, 0xb3121a), SITES.horde.x, SITES.horde.z); hordeRing.position.y += 0.06; hordeRing.visible = false;
-  put(P.rumStall(), SITES.rum.x, SITES.rum.z, SITES.rum.ry, SITES.rum.y); spot('rum', 'rum', fx(SITES.rum, 1.4), fz(SITES.rum, 1.4), 3.0, 'HARBOR RUM EXPORT STALL · SELL RUM'); doorBoard(SITES.rum);
+  fitted(SITES.rum, () => put(P.rumStall(), SITES.rum.x, SITES.rum.z, SITES.rum.ry, SITES.rum.y)); spot('rum', 'rum', fx(SITES.rum, 1.4), fz(SITES.rum, 1.4), 3.0, 'HARBOR RUM EXPORT STALL · SELL RUM');
   for (const [k, s] of Object.entries(SITES.crates)) { put(P.crateStack(k === 'cove' ? "COVE CONTRABAND" : 'WHARF CONTRABAND'), s.x, s.z, s.ry); spot('crate_' + k, 'crate', s.x, s.z, 3.2, `SMUGGLER CRATES · ${s.name.toUpperCase()}`, { from: k }); }
   const buyerMk = {};
-  for (const [k, s] of Object.entries(SITES.buyers)) { put(P.buyerPost(s.name.toUpperCase(), k === 'fort' ? '#2a4a6a' : k === 'jungle' ? '#2a5a2a' : '#5a2a2a'), s.x, s.z, s.ry, s.y); if (s.door) doorBoard(s);
+  for (const [k, s] of Object.entries(SITES.buyers)) { fitted(s, () => put(P.buyerPost(s.name.toUpperCase(), k === 'fort' ? '#2a4a6a' : k === 'jungle' ? '#2a5a2a' : '#5a2a2a'), s.x, s.z, s.ry, s.y));
     const ringM = put(P.ring(s.door ? 2.4 : C.CRATE.deliverR, 0xffcd77), s.x, s.z, 0, s.y); ringM.position.y += 0.08; const bc = put(P.beacon(), s.door ? s.door.x : s.x, s.door ? s.door.z : s.z, 0, s.door ? s.door.y : null); ringM.visible = bc.visible = false; buyerMk[k] = { ring: ringM, beacon: bc };
     spot('buyer_' + k, 'buyer', s.x, s.z, C.CRATE.deliverR, `${s.name.toUpperCase()} · DELIVER CRATE`, { to: k }); }
   const diveM = {};
