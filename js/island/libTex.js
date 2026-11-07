@@ -27,12 +27,12 @@ export function initLib(low, renderer) {
   if (_p) return _p;
   if (!LIB_ON) return (_p = Promise.resolve(null));
   if (!renderer) return Promise.resolve(null);   // (no cache: a later call with the renderer still loads it)
-  const t0 = performance.now(), file = 'assets/island/tex/island_surfaces.ktx2';
+  const t0 = performance.now(), file = `assets/island/tex/lib${low ? '_lo' : ''}.ktx2`;
   let ktx; try { ktx = sharedKTX2(renderer); } // [perf2] shared with the town kits (townkit.js)
   catch (e) { console.warn('[lib] no KTX2 support, vertex colour only', e); return (_p = Promise.resolve(null)); }
   _p = ktx.loadAsync(new URL('../../' + file, import.meta.url).href).then(t => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = low ? 4 : 8; /* [v330 perf] phones 2 -> 4: sharper cobbles / planks at distance */ t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
-    const old = LIB_U.uLib.value; LIB_U.uLib.value = t; LIB_U.uLibOn.value = 1; old.dispose();
+    LIB_U.uLib.value = t; LIB_U.uLibOn.value = 1;
     Object.assign(LIB_STATS, { file, ms: Math.round(performance.now() - t0), format: t.format, gpuBytes: (t.mipmaps || []).reduce((s, m) => s + (m.data ? m.data.byteLength : 0), 0) });
     return t; }).catch(e => { console.warn('[lib] material library failed, vertex colour only', e); return null; });
   return _p;

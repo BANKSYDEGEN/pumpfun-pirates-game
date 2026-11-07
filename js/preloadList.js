@@ -68,7 +68,6 @@ export const HARBOR_MODULES = [
   "js/island/plazaTown.js",
   "js/island/riverWater.js",
   "js/island/safeZones.js",
-  "js/island/sharedSurfaceData.js",
   "js/island/townkit.js",
   "js/islandGeography.js",
   "js/islandMap.js",

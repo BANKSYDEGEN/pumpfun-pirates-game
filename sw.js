@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v405'; // crew starts in modest underwear + no hat; existing save IDs retained
+const VERSION = 'pfp-v406'; // revert v404 island texture atlas (ULTRA textures not loading)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -78,7 +78,7 @@ const SHELL = [
   "./js/island/plazaShops.js", "./js/island/plazaMannequins.js", "./js/island/casino.js", "./js/island/casinoData.js", "./js/casino/engine.js", "./js/casino/ui.js", // [Timothy] Blender storefronts + battery loader
   "./js/island/hillStreet.js", // [Timothy] Blender hill street loader
   "./js/island/terrainEdit.js", // [v183] owner build mode (terrain tools)
-  "./js/island/libTex.js", "./js/island/sharedSurfaceData.js", // [Timothy] shared material library (KTX2 array + triplanar)
+  "./js/island/libTex.js", // [Timothy] shared material library (KTX2 array + triplanar)
   "./js/island/d2Blender.js", // [v185] D2 Jungle Ruins Blender loader
   "./js/island/hillShops.js", // [Timothy] hill street shop data (RENTABLE_SHOPS)
   "./js/island/harbor.js",
@@ -320,8 +320,10 @@ const ASSETS = [
   "./assets/pirates/items/v5/peg_r_male_lo.glb",
   "./assets/pirates/gear_hi.glb", // [Timothy] shop gear (hats, eyewear, parrots, hooks)
   "./assets/pirates/gear_lo.glb",
-  "./assets/island/town_shared.glb",
-  "./assets/island/town_shared_low.glb",
+  "./assets/island/town_kit.glb",
+  "./assets/island/town_kit.webp.glb",
+  "./assets/island/town_kit_low.glb",
+  "./assets/island/town_kit_low.webp.glb",
   "./assets/island/plaza_shops.glb",
   "./assets/island/plaza_shops_low.glb",
   "./assets/island/casino_hall_low.glb",
@@ -336,8 +338,7 @@ const ASSETS = [
   "./assets/island/docks_low.glb",
   "./assets/island/battery.glb",
   "./assets/island/battery_low.glb",
-  "./assets/island/tex/island_surfaces.ktx2",
-  "./assets/island/tex/town_fixtures.webp",   // [Timothy] material library, phone set (the desktop lib.ktx2 is cached on first use)
+  "./assets/island/tex/lib_lo.ktx2",   // [Timothy] material library, phone set (the desktop lib.ktx2 is cached on first use)
   "./assets/island/nature_kit.glb",
   "./assets/island/nature_kit.webp.glb",
   "./assets/island/nature_kit_low.glb",

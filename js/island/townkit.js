@@ -9,8 +9,6 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { softRamp } from './look.js';
-import { initLib, libMaterial } from './libTex.js';
-import { TOWN_SURFACE_RULES } from './sharedSurfaceData.js';
 
 function toFloat(src, m) { // quantized glTF attributes -> plain float geometry in the node's frame
   const g = new THREE.BufferGeometry();
@@ -50,54 +48,25 @@ export function loadNatureKit(low, renderer = null) {
   if (!_natP) { _natP = loadNatureKit0(low, renderer); _natP.catch(() => { _natP = null; }); }
   return _natP;
 }
-// Town fixtures retain their small unique sheet. Walls / roofs / docks / props
-// share the same library codes as the plaza and hill street (no second trim set).
-export function remapTownGeometry(g) {
-  const uv = g.attributes.uv; if (!uv) return g;
-  const original = new Float32Array(uv.count * 2), fixture = new Float32Array(uv.count * 2), done = new Uint8Array(uv.count);
-  for (let i = 0; i < uv.count; i++) { original[i * 2] = uv.getX(i); original[i * 2 + 1] = uv.getY(i); }
-  let color = g.attributes.color;
-  if (!color) { color = new THREE.Float32BufferAttribute(new Float32Array(uv.count * 3).fill(1), 3); g.setAttribute('color', color); }
-  const count = g.index?.count || uv.count;
-  for (let t = 0; t + 2 < count; t += 3) {
-    const ix = [0, 1, 2].map(k => g.index ? g.index.getX(t + k) : t + k);
-    const u = ix.reduce((a, i) => a + original[i * 2], 0) / 3, v = ix.reduce((a, i) => a + original[i * 2 + 1], 0) / 3;
-    const rule = TOWN_SURFACE_RULES.find(r => v >= r.rect[1] - 0.0002 && v <= r.rect[3] + 0.0002 &&
-      (r.rect[1] < 0.85 || (u >= r.rect[0] && u <= r.rect[2])));
-    for (const i of ix) {
-      if (done[i]) continue; done[i] = 1;
-      fixture[i * 2] = original[i * 2]; fixture[i * 2 + 1] = (original[i * 2 + 1] - 1760 / 2048) / (288 / 2048);
-      uv.setXY(i, ((rule?.layer || 0) * 2 + 0.5) / 32, 0);
-      if (rule) color.setXYZ(i, color.getX(i) * rule.tint[0], color.getY(i) * rule.tint[1], color.getZ(i) * rule.tint[2]);
-    }
-  }
-  g.setAttribute('aFixtureUv', new THREE.BufferAttribute(fixture, 2));
-  return g;
-}
 async function loadTownKit0(low, renderer = null) {
   if (_kit) return _kit;
-  const url = `assets/island/town_shared${low ? '_low' : ''}.glb`;
-  const [gl, fixtures] = await Promise.all([
-    gltfLoader(null).loadAsync(url),
-    new THREE.TextureLoader().loadAsync('assets/island/tex/town_fixtures.webp'),
-    initLib(low, renderer),
-  ]);
-  gl.scene.updateMatrixWorld(true);
-  const geos = {}, geos1 = {};
+  const gl = await loadKit('town_kit', low, renderer), url = gl.userData.url; gl.scene.updateMatrixWorld(true);
+  const geos = {}, geos1 = {}; let map = null, normalMap = null;
   gl.scene.traverse(o => { if (!o.isMesh) return; const nm = o.name.replace(/_LOD[01]$/, ''), lod = /_LOD1$/.test(o.name) ? 1 : 0;
-    if (lod === (low ? 1 : 0)) geos[nm] = remapTownGeometry(toFloat(o.geometry, o.matrixWorld));
-    if (lod === 1) geos1[nm] = geos[nm] || remapTownGeometry(toFloat(o.geometry, o.matrixWorld)); });
-  fixtures.colorSpace = THREE.SRGBColorSpace; fixtures.flipY = false; fixtures.anisotropy = low ? 2 : 4;
-  const mat = new THREE.MeshToonMaterial({ map: fixtures, vertexColors: true, gradientMap: softRamp() });
-  mat.onBeforeCompile = s => {
-    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aFixtureUv; varying vec2 vFixtureUv; varying float vTownLayer;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFixtureUv = aFixtureUv; vTownLayer = floor(floor(uv.x * 32.0) * 0.5);');
-    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vFixtureUv; varying float vTownLayer;')
-      .replace('#include <map_fragment>', 'if (vTownLayer < 0.5) { diffuseColor.rgb *= texture2D(map, vFixtureUv).rgb; }')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nif (vTownLayer < 0.5) totalEmissiveRadiance += diffuseColor.rgb * (1.0 - texture2D(map, vFixtureUv).a) * 1.35;');
+    if (lod === (low ? 1 : 0)) geos[nm] = toFloat(o.geometry, o.matrixWorld); if (lod === 1) geos1[nm] = geos1[nm] || toFloat(o.geometry, o.matrixWorld);
+    map = map || o.material.map; normalMap = normalMap || o.material.normalMap; });
+  if (map) { map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = low ? 4 : 8; } // [v330 perf] phones 2 -> 4: crisper trim at grazing angles (~free)
+  const mat = new THREE.MeshToonMaterial({ map, normalMap: low ? null : normalMap, vertexColors: true, gradientMap: softRamp() });
+  if (mat.normalMap) mat.normalScale.set(1, 1);
+  mat.onBeforeCompile = (s) => { // A channel of the trim albedo = emissive mask (lit windows, lantern glass)
+    s.fragmentShader = s.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      #ifdef USE_MAP
+      { float em = 1.0 - texture2D(map, vMapUv).a; totalEmissiveRadiance += diffuseColor.rgb * em * 1.35; }
+      #endif`).replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = opacity;');
   };
-  mat.customProgramCacheKey = () => 'town_shared_v1'; libMaterial(mat, low);
-  return (_kit = { geos, geos1, mat, low, url, ktx2: true, texBytes: texBytes(fixtures), names: Object.keys(geos) });
+  mat.customProgramCacheKey = () => 'townkit_' + (low ? 'l' : 'h');
+  const bytes = texBytes(map) + (mat.normalMap ? texBytes(normalMap) : 0);
+  return (_kit = { geos, geos1, mat, low, url, ktx2: !!gl.userData.ktx2, texBytes: Math.round(bytes), names: Object.keys(geos) });
 }
 // placements: [[name, Matrix4], ...] -> one merged mesh (one draw call)
 export function kitMesh(kit, list, name = 'townkit', lod1 = false) {
