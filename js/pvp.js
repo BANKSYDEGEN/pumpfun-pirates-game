@@ -754,6 +754,7 @@ export function createPvp(K) {
       .on('hello', () => { if (isHost && (where === 'arena' || where === 'harbor')) sendWorld(); }).on('world', onWorld).on('pv', (m) => { const l = piles.get(m?.pid); if (l) { l.value = clamp(Math.floor(+m.v || 0), 0, PVP_PILE_MAX); l.earned = clamp(Math.floor(+m.e || 0), 0, l.value); pileLook(l); } })
       .on('bye', (m) => { const p = peers.get(m?.i); if (p) p.heard = 0; if (isNetId(m?.i)) K.dock?.fnet?.drop?.(m.i); }) // [admin-menu] their on-foot pirate goes at once too (INVISIBLE / left)
       .on('adm', (m, from) => { try { ADM.onPoke?.(m, from); } catch {} }) // [admin-menu] zero-trust poke: the target only re-asks the SERVER (admin_my_state / inventory)
+      .on('soc', (m, from) => { try { globalThis.PFP_SOCIAL_NET?.onNet?.(m, from); } catch {} }) // [Friends R2] squad invites (addressed: m.to)
       .on('emo', onEmote) // [v96] quick-chat callouts (preset ids only)
       .on('sq', onSq) // [v98] squads round state (host)
       .on('bh', onBotHit).on('bs', (m) => onBotSunkNet(m)); // [v99] shared harbor: hits on the host's AI ships, an AI ship sunk (kill + gold shares)
@@ -964,6 +965,7 @@ export function createPvp(K) {
   function onEmote(m) {
     if (!m || !isNetId(m.i) || m.i === myId || !validEmote(m.e)) return;
     const p = peers.get(m.i), now = performance.now(); if (!p?.ship || !p.ship.alive) return;
+    if (globalThis.PFP_SOCIAL_NET?.isMuted?.(p.name)) return; // [Friends R2] muted pirates: no callouts
     if (now - (p.emoAt || 0) < EMOTE_GAP * 0.75) return; p.emoAt = now;
     // [v145] near pirates at full voice (linear falloff made a ship 100 m off -4 dB): full to 60 m, then eased out by 280 m
     const pl = P(), d = Math.hypot(p.ship.x - pl.x, p.ship.z - pl.z), u = Math.max(0, Math.min(1, (d - 60) / 220)), vol = 1 - u * u;
@@ -1460,6 +1462,7 @@ export function createPvp(K) {
     partyLeave(true); party.code = code; party.t = Date.now(); party.mates.clear(); party.msg = made ? 'share this code with your friend' : 'joining…'; hbRepaintAll();
     const r = new Room('pfp-party-' + code.toLowerCase(), { ticket: rtTicket }); party.room = r;
     r.on('p', onPartyBeat).on('bye', (m) => { if (party.mates.delete(m?.i)) harborUi(); })
+      .on('vc', (m) => { try { globalThis.PFP_SOCIAL_NET?.onSig?.(m); } catch {} }) // [Friends R2] squad voice signalling
       .on('go', (m) => { if (m?.i && party.mates.has(m.i) && mode === 'squads' && where === 'harbor' && lob.state === 'harbor' && !spec.on) { K.banner('YOUR MATE SET SAIL', 'queuing you together…'); joinBattle(true); } });
     harborUi();
     try { await r.connect(); } catch { if (party.room === r) { partyLeave(true); partyMsg('could not open the party channel, try again'); } return; }

@@ -190,6 +190,10 @@ export async function createDock(ctx) {
     });
     const fb = $('btn-friends'); if (fb) { fb.hidden = false; fb.onclick = (e) => { e.stopPropagation(); friends.open(); }; }
     window.PFP_FRIENDS = Object.freeze({ open: (t) => friends.open(t), request: (n) => friends.request(n), relationOf: (n) => friends.relationOf(n), get me() { return friends.data.me; } });
+    import('../social.js').then((m) => { // [Friends R2] map player list (mute / add friend / squad) + squad voice chat
+      const soc = m.createSocial({ pvp: () => ctx.pvp?.(), friends, toast: (...a) => toast(...a) });
+      Object.defineProperty(globalThis, 'PFP_SOCIAL_NET', { value: Object.freeze({ onNet: soc.onNet, onSig: soc.onSig, isMuted: soc.isMuted }), configurable: false });
+    }).catch((e) => console.warn('[social]', e));
   } catch (e) { console.warn('[friends]', e); }
   let frPickerHooked = false;
   function hookFriendsPicker() { // the ⚓ server picker shows FRIENDS ONLINE with one-tap JOIN
