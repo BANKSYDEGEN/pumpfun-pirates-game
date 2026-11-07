@@ -20,6 +20,9 @@ function nameTag(text) {
 }
 export function addParrotCage(room, floor = .14) {
   const g = new THREE.Group(); g.name = 'parrot_cage'; g.position.set(CAGE_SPOT.x, floor, CAGE_SPOT.z); room.add(g);
+  // A higher roost leaves room for the macaw's long tail above the seed tray.
+  const roost = new THREE.Mesh(new THREE.CylinderGeometry(.017, .017, .88, 12), new THREE.MeshLambertMaterial({ color: 0x69412a }));
+  roost.name = 'parrot_upper_perch'; roost.rotation.x = Math.PI / 2; roost.position.y = 1.62; g.add(roost);
   let bird = null, tag = null, tagText = '', dead = false, loading = null, getGear = () => window.__pfpGear || null;
   let state = window.__pfpParrotState || null;
   const dropTag = () => { if (!tag) return; g.remove(tag); tag.material.map?.dispose(); tag.material.dispose(); tag = null; tagText = ''; };
@@ -32,7 +35,7 @@ export function addParrotCage(room, floor = .14) {
     if (bird) { bird.visible = true; colorParrot(bird, color); }
     else if (!loading) loading = createFlightParrot(color).then(model => {
       if (dead || room.userData.disposed) { model.userData.dispose?.(); return; }
-      bird = model; bird.scale.setScalar(.7); bird.position.set(0, 1.5, 0); perchParrot(bird, 0); g.add(bird); sync();
+      bird = model; bird.scale.setScalar(.7); bird.position.set(-.02, 1.75, 0); perchParrot(bird, 0); g.add(bird); sync();
     }).catch(() => { loading = null; });
     const t = p.name || 'Parrot';
     if (t !== tagText && typeof document !== 'undefined' && document.createElement) { dropTag(); try { tag = nameTag(t); tagText = t; g.add(tag); } catch {} }
@@ -51,7 +54,7 @@ export function addParrotCage(room, floor = .14) {
       g.getWorldPosition(point); point.y += 1.5; point.project(camera);
       if (!(point.z >= -1 && point.z <= 1 && Math.abs(point.x) < 1.2 && Math.abs(point.y) < 1.2)) return;
     }
-    perchParrot(bird, t); // sits on the perch, wings folded (never flaps in place)
+    perchParrot(bird, t, 1.73); bird.position.z = bird.userData.perchShuffle || 0; // feet stay on the roost during flicks, stretches, preening and shuffles
   };
   const EV = { 'pfp-parrot': onSelected, 'pfp-parrot-state': onState, 'pfp-gear': onGear, 'pfp-gear-local': onGear };
   for (const k in EV) window.addEventListener(k, EV[k]);

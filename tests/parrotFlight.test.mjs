@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
-import {instantiateFlightParrot,animateParrot,colorParrot,flightPose,syncFlyingParrot,disposeFlyingParrot,updateFlyingParrot,setParrotWorld} from '../js/parrotFlight.js';
+import {instantiateFlightParrot,perchParrot,PERCH_PITCH,animateParrot,colorParrot,flightPose,syncFlyingParrot,disposeFlyingParrot,updateFlyingParrot,setParrotWorld} from '../js/parrotFlight.js';
 THREE.TextureLoader.prototype.load = () => new THREE.Texture();
 const bytes=fs.readFileSync(new URL('../assets/pirates/items/v7/parrot_flight.glb',import.meta.url));const gltf=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).register(()=>({name:'EXT_texture_webp',loadTexture:()=>Promise.resolve(new THREE.Texture())})).parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
 test('compressed macaw: 2400 triangles, one draw call, seven articulated bones, one WebP atlas under 400KB',()=>{const b=instantiateFlightParrot(gltf);let calls=0,tris=0;b.traverse(o=>{if(o.isMesh){calls++;tris+=(o.geometry.index?.count||o.geometry.attributes.position.count)/3;assert.ok(o.material.map);}});assert.equal(calls,1);assert.equal(tris,2400);assert.ok(bytes.length<400000);assert.equal(Object.keys(b.userData.flightBones).length,7);animateParrot(b,0);const a=b.userData.flightBones.wing_L.rotation.z;animateParrot(b,.075);assert.notEqual(b.userData.flightBones.wing_L.rotation.z,a);
@@ -22,3 +22,21 @@ test('independent companion: wanders 6-15 m, never on the pirate, leash + snap, 
  p.root.position.set(200,0,0);p.root.updateMatrixWorld(true);updateFlyingParrot(p,1/30,camera);assert.ok(p._flight.wpos.distanceTo(new THREE.Vector3(200,0,0))<10,'snaps back after fast travel');
  camera.lookAt(0,0,-500);camera.updateMatrixWorld(true);const before=p._flight.wpos.clone();updateFlyingParrot(p,1/30,camera);assert.equal(p._flight.bird.visible,false);assert.ok(!p._flight.wpos.equals(before),'AI keeps running offscreen');
  disposeFlyingParrot(p);assert.equal(p._flight,null);setParrotWorld(null);});
+
+test('cage rest pose stays upright, folded and bounded through lively idle actions',()=>{
+ const bird=instantiateFlightParrot(gltf);bird.scale.setScalar(.7);
+ const mesh=bird.getObjectByProperty('isSkinnedMesh',true), v=new THREE.Vector3();
+ assert.ok(Math.abs(PERCH_PITCH)<.2,'already upright GLB must not be tipped backwards');
+ const poses=new Set();
+ for(let t=0;t<90;t+=.25){
+  perchParrot(bird,t,1.73);bird.updateMatrixWorld(true);mesh.skeleton.update();
+  poses.add(bird.userData.flightBones.wing_L.quaternion.toArray().map(x=>x.toFixed(2)).join(','));
+  assert.ok(Math.abs(bird.userData.perchShuffle)<=.066);
+  for(let i=0;i<mesh.geometry.attributes.position.count;i++){
+   mesh.getVertexPosition(i,v).applyMatrix4(mesh.matrixWorld);
+   assert.ok(Math.hypot(v.x-.02,v.z+bird.userData.perchShuffle)<.45,'feathers clear cage bars');
+   assert.ok(v.y+1.75>1.17 && v.y+1.75<2.25,'tail clears tray, head clears dome');
+  }
+ }
+ assert.ok(poses.size>20,'varied wing flicks, stretch and ruffle, not a frozen bird');bird.userData.dispose();
+});

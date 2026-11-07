@@ -32,24 +32,37 @@ export function animateParrot(bird, t, { cage = false, glide: g = null } = {}) {
   rotateBone(bird, 'tail', 'x', .08 + .10 * Math.sin(t * 2.4));
   rotateBone(bird, 'head', 'y', .13 * Math.sin(t * 1.3));
 }
-// [t2086u] perched in the hull cage: upright body, wings folded back along the flanks, feet on the perch; small idle only
-// (head turns, a tail twitch, a breath). Built from the wing / tip / tail / head bones (the v417 rig has no folded clip). No allocation.
+// The GLB is already Y-up and upright in its rest pose. A large root pitch and
+// Y-axis wing sweep tipped it backwards and fanned the feathers instead of folding them.
 const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
-function foldBone(bird, name, ay, az) {
+function foldBone(bird, name, ay, az, ax = 0) {
   const bone = bird.userData.flightBones[name], rest = bird.userData.flightRest[name]; if (!bone || !rest) return;
-  const ax = bird.userData.flightAxes[name]; qa.setFromAxisAngle(ax.y, ay); qb.setFromAxisAngle(ax.z, az);
+  const axes = bird.userData.flightAxes[name]; qa.setFromAxisAngle(axes.y, ay); qb.setFromAxisAngle(axes.z, az);
   bone.quaternion.copy(rest).premultiply(qa).premultiply(qb);
+  if (ax) bone.quaternion.premultiply(qa.setFromAxisAngle(axes.x, ax));
 }
-export const PERCH_PITCH = -.75;
+export const PERCH_PITCH = .12;
 export function perchParrot(bird, t, seed = 0) {
-  bird.rotation.x = PERCH_PITCH; // stand upright on the perch (head up, tail down)
-  for (const s of [-1, 1]) { const L = s < 0;
-    foldBone(bird, L ? 'wing_L' : 'wing_R', s * 1.45, s * -.35);   // swept back + tucked down against the body
-    foldBone(bird, L ? 'tip_L' : 'tip_R', s * .25, 0); }
-  const look = Math.sin(t * .55 + seed) + .6 * Math.sin(t * 1.7 + seed * 2), snap = Math.max(-1, Math.min(1, look * 1.6));
-  rotateBone(bird, 'head', 'y', .55 * snap);
-  rotateBone(bird, 'tail', 'x', -.35 + .12 * Math.pow(Math.max(0, Math.sin(t * 1.3 + seed)), 24));
-  const breathe = 1 + .015 * Math.sin(t * 2.6); bird.userData.flightBones.body?.scale.set(breathe, breathe, breathe);
+  // Smooth, varied five-second beats; all movement remains anchored to the upper perch.
+  const beat = Math.floor((t + seed) / 5), u = ((t + seed) % 5) / 5;
+  const action = Math.floor((Math.sin(beat * 127.1 + seed * 311.7) * 43758.5453 % 1 + 1) % 1 * 6);
+  const envelope = Math.sin(Math.PI * Math.min(1, Math.max(0, (u - .15) / .65))) ** 2;
+  const flick = action === 0 ? envelope * Math.sin(u * 70) * .20 : 0;
+  const stretch = action === 1 ? envelope * .85 : 0;
+  const preen = action === 4 ? envelope : 0;
+  const shake = action === 3 ? envelope * Math.sin(u * 95) : 0;
+  bird.rotation.order = 'YXZ';
+  bird.rotation.set(PERCH_PITCH + .025 * shake, Math.PI / 2 + .14 * Math.sin(t * .43 + seed) + (action === 2 ? .35 * envelope : 0), .025 * shake);
+  bird.userData.perchShuffle = action === 2 ? .065 * envelope : 0;
+  for (const s of [-1, 1]) {
+    const open = stretch + flick + (s === -1 ? preen * .45 : 0);
+    foldBone(bird, s < 0 ? 'wing_L' : 'wing_R', s * .20, s * (-1.45 + open + .045 * shake));
+    foldBone(bird, s < 0 ? 'tip_L' : 'tip_R', s * .10, s * -.20 * (1 - stretch));
+  }
+  foldBone(bird, 'head', .35 * Math.sin(t * .85 + seed) - preen * .85,
+    .10 * Math.sin(t * 1.7) + preen * .45, .07 * Math.sin(t * 2.3) + preen * .55);
+  rotateBone(bird, 'tail', 'x', -.10 + (action === 5 ? envelope * .22 * Math.sin(u * 42) : 0));
+  const breathe = 1 + .006 * Math.sin(t * 2.6); bird.userData.flightBones.body?.scale.setScalar(breathe);
 }
 export function colorParrot(bird, id) {
   const tint = new THREE.Color(PARROT_COLORS[id] || PARROT_COLORS.parrot_green), c = new THREE.Color(), hsl = {};
