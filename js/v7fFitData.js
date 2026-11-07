@@ -14,6 +14,9 @@ const BOOT_CUT_F = { boots_buckle: 0.1796, boots_cavalier: 0.1756, boots_gold: 0
 const PEG_CUT_F = 0.2122;   // = PEG_CUT.female
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
 export const V7F_FITS = {
+  // [v7f gear b3] BANKSY t442u / t445u: her tank refit on her torso (tools/v7f_gear/fit.py cloth, seam copies welded, shells smoothed
+  // together, BUST band clearance; tools/v7f_gear/b3/README.md). Only the tank passed review; the other tops stay on the raw v5 files.
+  cloth_tank: F('cloth_tank'),
   ...Object.fromEntries(Object.entries(BOOT_CUT_F).map(([id, y]) => [id, { ...F(id), hide: [{ boot5: 1, y: r4(v7fY(y)), female: 1 }] }])),
   ...Object.fromEntries(['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'].flatMap((b) => ['l', 'r'].map((s) => [`${b}_${s}`, { ...F(`${b}_${s}`), hide: [{ leg5: s.toUpperCase(), y: r4(v7fY(PEG_CUT_F)), female: 1 }] }]))),
 };

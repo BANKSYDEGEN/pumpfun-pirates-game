@@ -28,8 +28,8 @@ const body = glb('assets/pirates/pirate_female_v7_hi.glb'), BODY_BONES = new Set
 const FOOT = ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', 'boots_sea', 'sandals', 'shoes_buckle'];
 const PEGS = ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'].flatMap((b) => [b + '_l', b + '_r']);
 
-test('V7F_FITS: exactly the refit batch (7 footwear + 8 peg legs), hi + lo each', () => {
-  assert.deepEqual(Object.keys(V7F_FITS).sort(), [...FOOT, ...PEGS].sort());
+test('V7F_FITS: exactly the refit batches (7 footwear + 8 peg legs + the tank), hi + lo each', () => {
+  assert.deepEqual(Object.keys(V7F_FITS).sort(), [...FOOT, ...PEGS, 'cloth_tank'].sort());
   for (const [id, F] of Object.entries(V7F_FITS)) for (const lod of ['hi', 'lo']) {
     assert.equal(F[lod], `assets/pirates/items/v7f_fit/${id}_female_${lod}.glb`); assert.ok(existsSync(F[lod]), F[lod]);
   }

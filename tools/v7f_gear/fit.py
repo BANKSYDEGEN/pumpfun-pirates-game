@@ -139,7 +139,10 @@ def vlook(CT,y,an):
   yy=((an+np.pi)/(2*np.pi)*NA-0.5)%NA;j=int(yy);fy=yy-j;j1=(j+1)%NA
   r=(T[i,j]*(1-fx)+T[i+1,j]*fx)*(1-fy)+(T[i,j1]*(1-fx)+T[i+1,j1]*fx)*fy
   return c,r
+SKIRT=int(__import__('os').environ.get('SKIRT','0'))
 def mapvert(g,p):
+  if SKIRT and g=='torso' and p[1]<CR5+0.02:   # [b2] coat / suit tails: below the crotch the torso cloth keeps its hip-slice offset (not shrink-wrapped per leg)
+    q=mapvert('torso',np.array([p[0],CR5+0.02,p[2]]));return np.array([q[0],ymap(p[1]),q[2]])
   y7=ymap(p[1]);C5,_=VP5[g];x=np.clip(p[1]/1.4*NY-0.5,0,NY-1.001);i=int(x);fx=x-i;c5=C5[i]*(1-fx)+C5[i+1]*fx
   an=np.arctan2(p[2]-c5[1],p[0]-c5[0]);L=np.hypot(p[2]-c5[1],p[0]-c5[0])
   _,r5=vlook(VP5[g],p[1],an);c7,r7=vlook(VP7[g],y7,an)
@@ -147,7 +150,7 @@ def mapvert(g,p):
   if ENV and g!='head' and (ENVALL or L>0.6*r5): L2=max(L2,r7*ENV)
   return np.array([c7[0]+L2*np.cos(an),y7,c7[1]+L2*np.sin(an)])
 def mapseg(k,p,_ms=mapseg):
-  if k in VG: return mapvert(VG[k] if VG[k]=='head' else str(sgroup(p[None],CR5,NK5)[0]),p)
+  if k in VG: return mapvert(VG[k] if VG[k]=='head' else ('torso' if SKIRT and VG[k]=='torso' else str(sgroup(p[None],CR5,NK5)[0])),p)
   return _ms(k,p)
 def mapv(p,j,w,names):
   acc=np.zeros(3);ws=0
@@ -176,11 +179,40 @@ for w,L in grp.items():
   if len(L)>1:
     for i in L: nbr[i].update(L)
 nbr=[np.array(sorted(n)) for n in nbr]
+# [b3] seams: co-located (UV / colour split) vertices are ONE cloth point. b2 smoothed / pushed / reweighted each copy on its own, so
+# seam copies drifted up to 4.7 cm apart (open cracks: skin + background through 'torn' edges) and took different weights (cracks
+# opening wider in the walk). Every per-vertex result is averaged over its welded group so copies stay bit-identical.
+_cnt=np.bincount(wid)
+def weld(X):
+  S=np.zeros((len(_cnt),)+X.shape[1:]);np.add.at(S,wid,X);return (S/_cnt.reshape((-1,)+(1,)*(X.ndim-1)))[wid]
+Q=weld(Q)
+# [b3] layers: coats / shirts are several stacked shells (lining, waistcoat, lapels, cuffs) 3-8 mm apart. Mapping each vertex through its
+# own skin weights + topological smoothing moved neighbouring shells by different amounts, so they crossed (the 'camo' patches on her
+# chest: lining / waistcoat colours through the lapels) and wrinkled. SPATIAL=r: the fit displacement (and every clearance push) is also
+# averaged over all cloth within r cm in 3D (Gaussian), so stacked shells move as one and keep their order and spacing.
+SPR=float(__import__('os').environ.get('SPATIAL','0'))
+if SPR:
+  from mathutils.kdtree import KDTree
+  _kd=KDTree(len(P))
+  for i,p in enumerate(P): _kd.insert(Vector(p),i)
+  _kd.balance();SN=[];SWt=[]
+  for i,p in enumerate(P):
+    L=_kd.find_range(Vector(p),SPR);ix=np.array([j for _,j,_ in L]);dd=np.array([d for _,_,d in L]);SN.append(ix);SWt.append(np.exp(-(dd/(SPR*0.5))**2))
+  SD=[np.array([d for _,_,d in _kd.find_range(Vector(p),SPR)]) for p in P];SF=[np.clip(2-2*d/SPR,0,1) for d in SD]   # flat-top kernel: 1 inside r/2, 0 at r
+  def dil(X):   # [b3] a clearance push reaches every shell stacked over the pushed one at full strength (outer lapel moves with the panel under it)
+    nX=np.linalg.norm(X,axis=1);out=np.zeros_like(X)
+    for i,(n,f) in enumerate(zip(SN,SF)):
+      k=int(np.argmax(f*nX[n]));out[i]=X[n[k]]*f[k]
+    return out
+  def spat(X): return np.array([(X[n]*w[:,None]).sum(0)/w.sum() for n,w in zip(SN,SWt)])
+  D=Q-P
+  for _ in range(int(__import__('os').environ.get('SPIT','3'))): D=spat(D)
+  Q=weld(P+D)
 
 NS=int(__import__('os').environ.get('NSMOOTH','6'))
 if MODE in ('cloth','seg'):
   D=Q-P
-  for _ in range(NS): D=0.5*D+0.5*np.array([D[n].mean(0) for n in nbr])
+  for _ in range(NS): D=weld(0.5*D+0.5*np.array([D[n].mean(0) for n in nbr]))
   Q=P+D
 if MODE in ('rigid','affine'):   # one transform for the whole item (keeps hard-surface shape)
   X=np.c_[P,np.ones(len(P))]
@@ -190,19 +222,29 @@ if MODE in ('rigid','affine'):   # one transform for the whole item (keeps hard-
 # clearance: the item never sits inside the V7 body (incl. her baked top / shorts); pushes spread over the mesh so shells stay whole
 CLR=float(args[4]) if len(args)>4 else 0.004
 pushed=0
+# [b3] BUST=m: extra clearance on her chest / bust / shoulder-blade band only (V7 bind y .66-.86, |x|<.2, eased over 3 cm). Her bust is
+# fuller and rounder than the v5 chest: with 5 mm per cloth VERTEX her skin still bulged out BETWEEN vertices there (skin / white flecks on
+# the lapels, checked: gone at 9 mm, a reverse per-face push made it worse). Arms, waist and tails keep the base clearance.
+BUST=float(__import__('os').environ.get('BUST','0'))
+def _band(q):
+  y,x=q[1],abs(q[0]);e=lambda d:min(1,max(0,d/0.03))
+  return e(y-0.66)*e(0.86-y)*e(0.2-x)
 if CLR>0:
-  for it in range(4):
+  for it in range(8):
     D=np.zeros_like(Q)
     for i in range(len(Q)):
       q,n,fi,dist=B7['T'].find_nearest(Vector(Q[i]))
       if q is None or dist>0.08: continue
       s_=(Vector(Q[i])-q).dot(n)
-      if s_<CLR and s_>-0.08: D[i]=np.array(n)*(CLR-s_)
+      c_=CLR+BUST*_band(Q[i])
+      if s_<c_ and s_>-0.08: D[i]=np.array(n)*(c_-s_)
     pushed=int((np.linalg.norm(D,axis=1)>0).sum())
     if not pushed: break
-    for _ in range(10):
-      M=np.array([D[n].mean(0) for n in nbr]);big=np.linalg.norm(M,axis=1)>np.linalg.norm(D,axis=1);D[big]=M[big]
-    Q=Q+D
+    DIL=SPR and int(__import__('os').environ.get('DIL','0'))
+    for _ in range(1 if DIL else 10):   # [b3] DIL=1: one flat-top dilation instead (tried: more layer crossings than the Gaussian spread, off)
+      M=dil(D) if DIL else spat(D) if SPR else np.array([D[n].mean(0) for n in nbr]);big=np.linalg.norm(M,axis=1)>np.linalg.norm(D,axis=1);D[big]=M[big]
+    Q=Q+weld(D)
+Q=weld(Q)
 if int(__import__('os').environ.get('FLOOR','0')): Q[:,1]=np.maximum(Q[:,1],min(P[:,1].min(),0.0))   # soles stay on the floor
 # reweight from the V7 body (nearest triangle, barycentric blend of its vertex weights)
 RW=MODE=='cloth' and SKIN
@@ -217,6 +259,15 @@ if RW:
     d00=v0@v0;d01=v0@v1;d11=v1@v1;den=d00*d11-d01*d01 or 1e-12;v=(d11*(v2@v0)-d01*(v2@v1))/den;w=(d00*(v2@v1)-d01*(v2@v0))/den;bc=np.clip([1-v-w,v,w],0,1);bc/=bc.sum()
     for vv,bb in zip(tri,bc):
       for jj,ww in zip(B7['J'][vv],B7['W'][vv]): NW[i,bmap[jj]]+=bb*ww
+  KEEPW=float(__import__('os').environ.get('KEEPW','0'))
+  KEEPY=float(__import__('os').environ.get('KEEPY','9'))   # [b3] own-weight blend only below this bind y (coat tails): above it a stacked lapel and the panel under it got different weights and crossed in the walk
+  if KEEPW:   # [b2] blend to the item's own weights with distance from her skin (skirts / tails / sleeves cuffs don't split onto the legs)
+    OW=np.zeros_like(NW)
+    for i in range(len(Q)):
+      for jj,ww in zip(J[i],Wt[i]): OW[i,jj]+=ww
+      q,n,fi,dist=B7['T'].find_nearest(Vector(Q[i]));t=min(1,max(0,(dist-0.012)/KEEPW))*(1.0 if Q[i,1]<KEEPY else 0.0);NW[i]=NW[i]*(1-t)+OW[i]*t
+  if SPR: NW=spat(NW)   # [b3] stacked shells take the same weights (they deform together in the walk, no crossing)
+  NW=weld(NW)   # [b3] seam copies share one weight set
   o=np.argsort(-NW,1)[:,:4];J=o;Wt=np.take_along_axis(NW,o,1);Wt/=Wt.sum(1,keepdims=True)
 # normals: smooth over welded positions
 FN=np.cross(Q[I[:,1]]-Q[I[:,0]],Q[I[:,2]]-Q[I[:,0]]);key=np.round(P*1e5).astype(np.int64);_,inv=np.unique(key,axis=0,return_inverse=True);inv=inv.ravel()
