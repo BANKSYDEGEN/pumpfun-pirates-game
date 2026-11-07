@@ -19,7 +19,7 @@ export const CASINO_HALL = {
   rect: { lx0: CX - D / 2, lx1: CX + D / 2, lz0: CZ - W / 2, lz1: CZ + W / 2 },     // lx 14 .. 28.5, lz -58.75 .. -42.05
   inner: { lx0: 14.7, lx1: 27.9, lz0: -58.2, lz1: -42.6 },                        // the gaming hall inside the walls
   arch: { lx: 14, lz: CZ, w: 5.0, open: 4.8, h: 4.4 },                            // the open arch (colliders leave 4.8 m clear)
-  floorY: CASINO_Y, ceil: 5.4,
+  floorY: CASINO_Y, ceil: 8.2,   // [AAA] BANKSY t216u: the raised coffered ceiling (was 5.4)
   vault: { lx0: 14.7, lx1: 17.95, lz0: -58.2, lz1: -55.95 },                      // the treasure dais (solid): the old slope under that corner
 };
 
@@ -40,8 +40,8 @@ export const CASINO_WING = {
 };
 const WT_ = (game, n, x, y, ex, title) => ({ id: `casino_${game}_${n}`, game, title, label: `E · ${title}`, at: town(x, y), e: town(ex, y), r: 2.2, wing: true });
 const WING_SLOTS = [];
-{ let k = 2; for (const [x, y] of [[-6.95, 27.4], [6.95, 27.4]]) for (const dy of [-1.2, 0, 1.2]) { const s = x < 0 ? -1 : 1;
-  WING_SLOTS.push({ id: `casino_slots_${k}`, game: 'slots', title: 'TREASURE SLOTS', label: 'E · TREASURE SLOTS', at: town(x, y + dy), e: town(x - s * 1.55, y + dy), r: 0.75, wing: true }); k++; } }
+{ let k = 2; for (const [x, y] of [[-6.95, 27.4], [6.95, 27.4]]) for (const dy of [-1.3, 0, 1.3]) { const s = x < 0 ? -1 : 1;
+  WING_SLOTS.push({ id: `casino_slots_${k}`, game: 'slots', title: 'TREASURE SLOTS', label: 'E · TREASURE SLOTS', at: town(x, y + dy), e: town(x - s * 1.55, y + dy), r: 0.6, wing: true }); k++; } }
 export const CASINO_WING_TABLES = [
   WT_('blackjack', 2, -5.4, 11.0, -3.15, 'PIRATE BLACKJACK II'), WT_('roulette', 2, 5.2, 11.0, 3.6, 'BUCCANEER ROULETTE II'),
   WT_('dice', 2, -5.2, 16.8, -3.5, "DEAD MAN'S DICE II"), WT_('blackjack', 3, 5.4, 16.8, 3.15, 'PIRATE BLACKJACK III'),

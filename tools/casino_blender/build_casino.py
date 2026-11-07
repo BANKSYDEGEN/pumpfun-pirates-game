@@ -28,7 +28,7 @@ WT, WS, WB = 0.7, 0.55, 0.6           # front / side / back wall thickness
 IX0, IX1, IY0, IY1 = X0 + WS, X1 - WS, Y0 + WT, Y1 - WB   # the hall inside the walls
 ZB = -0.6                             # wall feet (buried: the street climbs to the south)
 FLOOR = 0.025                         # plank top over the walk deck
-CEIL, G1, Z2 = 5.4, 6.0, 9.6          # coffered ceiling underside, 1st string course, main cornice
+CEIL, G1, Z2 = 8.2, 6.0, 9.6          # coffered ceiling underside ([AAA] BANKSY t216u: raised 5.4 -> 8.2, the hall now runs up through the 1st floor), 1st string course, main cornice
 MZ0, MZ1, MIN = 9.85, 12.6, 1.2       # mansard foot (on the cornice) / top / inset
 ARCH_W, ARCH_SPRING, ARCH_RISE = 5.0, 3.0, 1.4   # clear opening 5.0 x 4.4 m
 # the four stations (Blender frame x, y): table centre + the E point (players' side) - js/island/casinoData.js CASINO_TABLES
@@ -38,12 +38,13 @@ ST = dict(blackjack=dict(c=(-6.25, -1.4), e=(-4.0, -1.4)), roulette=dict(c=(5.6,
 BA_W, BA_SPRING, BA_RISE = 12.0, 3.6, 0.7     # [t2007u] BANKSY: "open up the wall in between 2 rooms": a 12 m wide shallow arch, hall + wing read as one room
 WX, WYE, WSW = 8.0, 33.5, 0.55                 # wing half width (lz -58.4 .. -42.4), its back face (y), wall thickness
 WIX0, WIX1, WIY0, WIY1 = -WX + WSW, WX - WSW, Y1, WYE - 0.6
-WZ2, WCEIL = 6.6, 5.6                          # wing eaves / ceiling underside
+WZ2, WCEIL = 7.8, 7.0                          # wing eaves / ceiling underside ([AAA] raised from 6.6 / 5.6 with the hall)
 # one game per table: (game, id suffix, table centre x, y, rotation (dealer to the wall), E point x)
 WING = [('blackjack', 2, -5.4, 11.0, math.pi / 2, -3.15), ('roulette', 2, 5.2, 11.0, -math.pi / 2, 3.6),
         ('dice', 2, -5.2, 16.8, math.pi / 2, -3.5), ('blackjack', 3, 5.4, 16.8, -math.pi / 2, 3.15),
         ('roulette', 3, -5.2, 22.6, math.pi / 2, -3.6), ('dice', 3, 5.2, 22.6, -math.pi / 2, 3.5)]
 WSLOTS = [(-6.95, 27.4, math.pi / 2), (6.95, 27.4, -math.pi / 2)]   # two banks of three: every machine is its own station
+SLOT_DY = 1.3                                  # [AAA] machine pitch in a bank (was 1.2): brass lamp posts between them, interaction zones never overlap
 WCH = [9.0, 13.9, 19.7, 25.0]                  # aisle chandeliers (y); js/island/casino.js puts warm lights under them
 BAR_DY = WIY1 - IY1                            # the rum bar moves to the wing's end wall
 
@@ -87,12 +88,28 @@ def ashlar(bd, rects, y, col, rng, rh=0.5):   # proud block faces on a wall face
                 x += bw
 
 FRONT = Matrix.Rotation(math.pi / 2, 4, 'X')   # text normal -> -y
-def carve(bd, text, cx, cy, cz, wfit, hfit, lod, col=GOLD, rz=0.0):
-    V, F, _ = text_mesh(text, FONT, size=1.0, extrude=0.03 if lod == 0 else 0.0, res=2 if lod == 0 else 1)
+SIGN_FONT = next((f for f in (os.path.join(GAME, 'assets/fonts/CinzelDecorative-Bold.ttf'),) if os.path.exists(f)), FONT)   # [AAA] crisp engraved capitals
+_FONTS = {}
+def text_mesh2(s, font_path, extrude=0.03, res=3):   # lib.text_mesh with a per-path font cache (lib caches only the first font)
+    f = _FONTS.get(font_path)
+    if f is None: f = _FONTS[font_path] = bpy.data.fonts.load(font_path)
+    cu = bpy.data.curves.new('t', 'FONT'); cu.body = s; cu.font = f; cu.size = 1.0; cu.extrude = extrude
+    cu.align_x = 'CENTER'; cu.align_y = 'CENTER'; cu.resolution_u = res; cu.fill_mode = 'BOTH' if extrude else 'FRONT'
+    o = bpy.data.objects.new('t', cu); bpy.context.scene.collection.objects.link(o)
+    dg = bpy.context.evaluated_depsgraph_get(); e = o.evaluated_get(dg); me = e.to_mesh()
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.dissolve_limit(bm, angle_limit=0.1, verts=bm.verts[:], edges=bm.edges[:]); bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    V = np.array([v.co[:] for v in bm.verts]); F = [tuple(v.index for v in f_.verts) for f_ in bm.faces]; bm.free()
+    e.to_mesh_clear(); bpy.data.objects.remove(o); bpy.data.curves.remove(cu)
+    return V, F, V[:, 0].max() - V[:, 0].min()
+
+def carve(bd, text, cx, cy, cz, wfit, hfit, lod, col=GOLD, rz=0.0, font=None, mat=0, depth=0.03):
+    deep = lod == 0 and depth >= 0.04   # [AAA] extruded relief only for the street marquee; signs indoors are flat cut faces standing proud of the board
+    V, F, _ = text_mesh2(text, font or SIGN_FONT, extrude=depth if deep else 0.0, res=2 if lod == 0 else 1)
     if lod: V = V + [0, 0, 0.012]
     mn, mx = V.min(0), V.max(0); s = min(wfit / (mx[0] - mn[0]), hfit / (mx[1] - mn[1]))
     V = (V - [(mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, mn[2]]) * [s, s, 1]
-    bd.mesh(V, F, col, m=Matrix.Translation((cx, cy, cz)) @ Matrix.Rotation(rz, 4, 'Z') @ FRONT, smooth=False)
+    bd.mesh(V, F, col, m=Matrix.Translation((cx, cy, cz)) @ Matrix.Rotation(rz, 4, 'Z') @ FRONT, smooth=False, mat=mat)
 
 def slab(bd, pts, z0, z1, col, mat=0):   # extrude a CCW (seen from above) polygon in the current frame between z0 and z1
     n = len(pts); V = [(p[0], p[1], z0) for p in pts] + [(p[0], p[1], z1) for p in pts]
@@ -153,21 +170,53 @@ def sconce(bd, x, y, z, lod, out=-1):   # interior brass candle sconce on a wall
     if lod == 0:
         bd.box(0.04, 0.3, 0.04, x, y + out * 0.17, z - 0.1, BRASS); bd.box(0.24, 0.24, 0.04, x, y + out * 0.32, z - 0.1, BRASS); bd.box(0.24, 0.24, 0.04, x, y + out * 0.32, z + 0.19, BRASS)
         bd.cyl(0.16, 0.0, 0.14, x, y + out * 0.32, z + 0.21, BRASS, n=4, rz=math.pi / 4)
+    light(bd, x, y + out * 0.6, z + 0.05, 0.3, 2.6, lod); halo(bd, x, y + out * 0.32, z + 0.05, 0.9, lod)   # [AAA]
 
-def chandelier(bd, x, y, z, R, nc, zc, lod):   # gilded two-tier ring chandelier: candles (glow flames), crystal drops, chains up to zc
-    n = 18 if lod == 0 else 8
-    bd.torus(R, 0.06, x, y, z, GOLD_D, n=n, m_=4); bd.cyl(0.03, 0.03, zc - z, x, y, z, IRON, n=4)
-    bd.cyl(0.1, 0.16, 0.45, x, y, z - 0.35, GOLD, n=8); bd.cyl(0.16, 0.02, 0.2, x, y, z - 0.55, GOLD, n=8)
-    for k in range(6 if lod == 0 else 3):
-        ang = k * math.pi / (3 if lod == 0 else 1.5); bd.box(R, 0.035, 0.035, x + R / 2 * math.cos(ang), y + R / 2 * math.sin(ang), z, GOLD_D, rz=ang)
+def rod(bd, p0, p1, r, col, n=6, mat=0):   # a round rod between two local points
+    p0, p1 = Vector(p0), Vector(p1); d = p1 - p0; L = d.length
+    if L < 1e-5: return
+    q = d.normalized().to_track_quat('Z', 'Y').to_matrix().to_4x4()
+    bd.push(Matrix.Translation(p0) @ q); bd.cyl(r, r, L, 0, 0, 0, col, n=n); bd.pop()
+
+def chandelier(bd, x, y, z, R, nc, zc, lod, I=0.75, reach=7.5):   # [AAA] gilded tiered chandelier: ceiling rose + chain, turned gilt column, S-scroll arms,
+    # two candle rings with bobeches, crystal strands + swags (glints), a crown finial; baked light + flame halos for js/island/casino.js
+    hi = lod == 0; n = 22 if hi else 8
+    lathe(bd, [(0.0, -0.16), (0.12, -0.13), (0.3, -0.06), (0.38 * max(1, R), 0.0)], x, y, zc, GOLD_D, n=12 if hi else 6, caps=False)   # ceiling rose
+    top = z + 1.0 * max(0.8, R / 1.2)
+    if zc - 0.12 > top:
+        bd.cyl(0.028, 0.028, zc - top, x, y, top, GOLD_D, n=6 if hi else 4, caps=False)
+        if hi:
+            zz = zc - 0.35
+            while zz > top + 0.1: bd.sphere(0.045, x, y, zz, GOLD, sub=0, s=(1, 1, 1.4)); zz -= 0.45
+    s_ = max(0.75, R / 1.2)
+    lathe(bd, [(0.0, -0.62 * s_), (0.05 * s_, -0.58 * s_), (0.13 * s_, -0.42 * s_), (0.09 * s_, -0.26 * s_), (0.18 * s_, -0.1 * s_), (0.22 * s_, 0.02 * s_), (0.14 * s_, 0.16 * s_),
+               (0.07 * s_, 0.38 * s_), (0.11 * s_, 0.55 * s_), (0.06 * s_, 0.78 * s_), (0.035 * s_, top - z)], x, y, z, GOLD, n=12 if hi else 6)
+    if hi: crown(bd, x, y, top - 0.02, 0.22 * s_, lod)
+    bd.torus(R, 0.045 * s_, x, y, z, GOLD_D, n=n, m_=4 if hi else 3)
+    if hi: bd.torus(R * 0.72, 0.022, x, y, z - 0.08, GOLD_D, n=n, m_=3)
     for k in range(nc):
-        ang = k * 2 * math.pi / nc; cx, cy = x + R * math.cos(ang), y + R * math.sin(ang)
-        if lod == 0: bd.cyl(0.07, 0.055, 0.05, cx, cy, z + 0.03, GOLD, n=6); bd.cyl(0.03, 0.03, 0.18, cx, cy, z + 0.08, BONE, n=6); bd.box(0.024, 0.024, 0.16, cx, cy, z - 0.22, 0xe8f4ff)
-        bd.box(0.06, 0.06, 0.12, cx, cy, z + 0.26 if lod == 0 else z + 0.12, FLAME, mat=1, base=True)
-    if lod == 0:
-        R2 = R * 0.55; bd.torus(R2, 0.045, x, y, z + 0.45, GOLD_D, n=12, m_=4)
-        for k in range(6): ang = k * math.pi / 3 + 0.5; cx, cy = x + R2 * math.cos(ang), y + R2 * math.sin(ang); bd.cyl(0.025, 0.025, 0.15, cx, cy, z + 0.5, BONE, n=5); bd.box(0.05, 0.05, 0.1, cx, cy, z + 0.65, FLAME, mat=1, base=True)
-        for k in range(4): t = k * math.pi / 2 + math.pi / 4; L = math.hypot(R, 0.9); bd.push(T(x, y, z, rz=t)); bd.box(0.02, 0.02, L, R / 2, 0, 0.45, IRON, ry=-math.atan2(R, 0.9)); bd.pop()
+        a = k * 2 * math.pi / nc; ca, sa = math.cos(a), math.sin(a); cx, cy = x + R * ca, y + R * sa
+        if hi:   # S-scroll arm: column -> a dip -> up to the bobeche
+            p0 = (x + 0.16 * s_ * ca, y + 0.16 * s_ * sa, z + 0.02); p1 = (x + R * 0.5 * ca, y + R * 0.5 * sa, z - 0.14 * s_); p2 = (x + R * 0.86 * ca, y + R * 0.86 * sa, z - 0.05); p3 = (cx, cy, z + 0.03)
+            rod(bd, p1, p3, 0.02 * s_, GOLD, n=4); rod(bd, p0, p1, 0.02 * s_, GOLD, n=3)
+            lathe(bd, [(0.02, -0.02), (0.075, 0.0), (0.085, 0.025), (0.03, 0.04)], cx, cy, z + 0.02, GOLD, n=6, caps=False)
+            bd.cyl(0.024, 0.024, 0.17, cx, cy, z + 0.06, BONE, n=5, caps=False)
+            bd.box(0.03, 0.03, 0.05, cx, cy, z - 0.09, 0xe9f6ff, mat=1, rz=math.pi / 4)   # crystal drop
+            nx_, ny_ = x + R * math.cos(a + math.pi / nc), y + R * math.sin(a + math.pi / nc)   # swag of crystal beads to the next arm
+            for j in (1, 2): t = j / 3; aa = a + 2 * math.pi / nc * t; bd.box(0.022, 0.022, 0.022, x + R * math.cos(aa), y + R * math.sin(aa), z - 0.05 - 0.12 * math.sin(math.pi * t), 0xe9f6ff, mat=1, rx=math.pi / 4)
+        else:
+            bd.box(R, 0.035, 0.035, x + R / 2 * ca, y + R / 2 * sa, z, GOLD_D, rz=a)
+        bd.box(0.05, 0.05, 0.11, cx, cy, z + (0.23 if hi else 0.12), FLAME, mat=1, base=True)
+        halo(bd, cx, cy, z + 0.29, 0.55, lod)
+    if hi:   # the upper ring
+        R2 = R * 0.55; z2 = z + 0.42 * s_; bd.torus(R2, 0.03 * s_, x, y, z2, GOLD_D, n=14, m_=4)
+        for k in range(max(4, nc // 2)):
+            a = k * 2 * math.pi / max(4, nc // 2) + 0.3; cx, cy = x + R2 * math.cos(a), y + R2 * math.sin(a)
+            bd.cyl(0.02, 0.02, 0.14, cx, cy, z2 + 0.05, BONE, n=6); bd.box(0.04, 0.04, 0.09, cx, cy, z2 + 0.19, FLAME, mat=1, base=True); halo(bd, cx, cy, z2 + 0.24, 0.45, lod)
+        for k in range(8):   # a crystal fringe under the lower ring
+            a = k * math.pi / 4 + 0.2; bd.sphere(0.03, x + R * 0.72 * math.cos(a), y + R * 0.72 * math.sin(a), z - 0.2, 0xe9f6ff, sub=0, mat=1, s=(1, 1, 1.8))
+        bd.sphere(0.07 * s_, x, y, z - 0.68 * s_, 0xe9f6ff, sub=1, mat=1, s=(1, 1, 1.5))   # the drop
+    light(bd, x, y, z + 0.1, I, reach, lod); pool(bd, x, y, 2.2 + R, 0.4, lod)
 
 def barrel_(bd, x, y, z, lod, r=0.4, h=1.0, col=MAHOG_L, rx=0.0, rz=0.0):
     n = 12 if lod == 0 else 7; bd.push(T(x, y, z, rx=rx, rz=rz))
@@ -287,6 +336,123 @@ def chip_stack(bd, x, y, z, n, col, lod):
     bd.cyl(0.045, 0.045, 0.016 * n, x, y, z, col, n=10 if lod == 0 else 6)
     if lod == 0 and n > 2: bd.cyl(0.046, 0.046, 0.006, x, y, z + 0.008 * n, WHITE, n=10)
 
+
+# ---------------- [AAA] BANKSY t214u-t216u: sculpting helpers (sweeps, lathes), light bookkeeping, marquee signs ----------------
+LIGHTS = []        # baked light sources (building frame x, y, z, strength, reach): filled on the LOD0 pass, baked into the interior vertex colours
+RECORD = True      # False while building the table kit (no dealer markers / lights / placements from kit-local geometry)
+KIT = []           # table placements, three.js building frame: [kind, x, z, yaw]  (js/island/casino.js instances assets/island/casino_tables*.glb there)
+POOLS = []         # soft floor light pools for js/island/casino.js (three frame): [x, z, radius, strength]
+HALOS = []         # flame halos for js/island/casino.js (three frame): [x, y, z, size]
+GLOW_G = 0xffd27a  # lit marquee lettering
+BULB = 0xfff0c0
+LEATH2 = 0x3b120c  # oxblood padded leather
+LACQ = 0x1d2a22    # dark green lacquer (lamp hoods)
+def light(bd, x, y, z, I, R, lod):   # a baked light at a local point of the current frame
+    if lod != 0 or not RECORD: return
+    p = bd.stack[-1] @ Vector((x, y, z)); LIGHTS.append((p.x, p.y, p.z, I, R))
+def halo(bd, x, y, z, size, lod):
+    if lod != 0 or not RECORD: return
+    p = bd.stack[-1] @ Vector((x, y, z)); HALOS.append([round(p.x, 3), round(p.z, 3), round(-p.y, 3), size])
+def pool(bd, x, y, r, I, lod):
+    if lod != 0 or not RECORD: return
+    p = bd.stack[-1] @ Vector((x, y, 0)); POOLS.append([round(p.x, 3), round(-p.y, 3), r, I])
+
+def sweep(bd, path, prof, col, closed=False, mat=0, smooth=True, z0=0.0):
+    # extrude a profile along a path in the current frame. path: [(x, y)] (CCW for closed loops); prof: [(u, v)] CCW in the
+    # (u = outward offset along the path's right-hand normal, v = height) plane -> outward-facing quads
+    n, m = len(path), len(prof); V = []; F = []
+    for i in range(n):
+        p = path[i]
+        a = path[(i - 1) % n] if (closed or i > 0) else p; b = path[(i + 1) % n] if (closed or i < n - 1) else p
+        tx, ty = b[0] - a[0], b[1] - a[1]; L = math.hypot(tx, ty) or 1.0; tx, ty = tx / L, ty / L
+        nx, ny = ty, -tx
+        for (u, v) in prof: V.append((p[0] + nx * u, p[1] + ny * u, z0 + v))
+    for i in range(n if closed else n - 1):
+        i2 = (i + 1) % n
+        for j in range(m - 1): F.append((i * m + j, i2 * m + j, i2 * m + j + 1, i * m + j + 1))
+    bd.mesh(V, F, col, mat=mat, smooth=smooth)
+
+def lathe(bd, prof, x, y, z, col, n=12, mat=0, smooth=True, caps=True):   # turned part: prof [(r, h)] bottom -> top up the outside
+    V = []; F = []; m = len(prof)
+    for (r, h) in prof:
+        for i in range(n): a = 2 * math.pi * i / n; V.append((x + r * math.cos(a), y + r * math.sin(a), z + h))
+    for j in range(m - 1):
+        for i in range(n): F.append((j * n + i, j * n + (i + 1) % n, (j + 1) * n + (i + 1) % n, (j + 1) * n + i))
+    if caps:
+        if prof[0][0] > 1e-4: F.append(tuple(range(n - 1, -1, -1)))
+        if prof[-1][0] > 1e-4: F.append(tuple(range((m - 1) * n, m * n)))
+    bd.mesh(V, F, col, mat=mat, smooth=smooth)
+
+def tube(u0, v0, ru, rv, k):   # a closed elliptic profile (CCW) for sweep(): padded bumpers, rods, beads
+    pts = [(u0 + ru * math.cos(-math.pi / 2 + 2 * math.pi * i / k), v0 + rv * math.sin(-math.pi / 2 + 2 * math.pi * i / k)) for i in range(k)]
+    return pts + [pts[0]]
+
+def arc(R, a0, a1, n, cx=0.0, cy=0.0):   # CCW arc points
+    return [(cx + R * math.cos(a0 + (a1 - a0) * i / n), cy + R * math.sin(a0 + (a1 - a0) * i / n)) for i in range(n + 1)]
+
+def rrect(hx, hy, r, k=4):   # rounded rectangle, CCW seen from above
+    pts = []
+    for (cx, cy, a0) in ((hx - r, -hy + r, -math.pi / 2), (hx - r, hy - r, 0.0), (-hx + r, hy - r, math.pi / 2), (-hx + r, -hy + r, math.pi)):
+        for i in range(k + 1): a = a0 + (math.pi / 2) * i / k; pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pts
+
+def bulbs(bd, x0, x1, z0, z1, y, step, lod, r=0.035):   # a marquee bulb frame (glow) round a sign face on a plane facing -y
+    if lod != 0: return
+    nx_, nz_ = max(2, int(round((x1 - x0) / step))), max(1, int(round((z1 - z0) / step)))
+    pts = [(x0 + (x1 - x0) * i / nx_, z) for i in range(nx_ + 1) for z in (z0, z1)] + [(x, z0 + (z1 - z0) * j / nz_) for j in range(1, nz_) for x in (x0, x1)]
+    for (bx, bz) in pts: bd.box(r * 1.6, r * 1.6, r * 1.6, bx, y, bz, BULB, mat=1, rx=math.pi / 4, rz=math.pi / 4)
+
+def sign_board(bd, text, x, y, z, w, h, lod, rz=0.0, sub=None, lit=True, board=MAHOG_D):
+    # [AAA] a carved + gilded marquee board on a wall plane (local -y = into the room): layered gilt frame, corner rosettes,
+    # crest scroll, lit gold lettering (glow) at its true proportions (uniform fit: never stretched), a frame of marquee bulbs
+    hi = lod == 0
+    bd.push(T(x, y, z, rz=rz))
+    bd.box(w, 0.1, h, 0, -0.05, 0, board)
+    for zz in (-h / 2 - 0.04, h / 2 + 0.04): bd.box(w + 0.2, 0.14, 0.09, 0, -0.08, zz, GOLD_D)
+    for xx in (-w / 2 - 0.05, w / 2 + 0.05): bd.box(0.1, 0.14, h + 0.17, xx, -0.08, 0, GOLD_D)
+    if hi:
+        for zz in (-h / 2 + 0.05, h / 2 - 0.05): bd.box(w - 0.1, 0.04, 0.025, 0, -0.115, zz, GOLD)
+        for xx in (-w / 2 + 0.05, w / 2 - 0.05): bd.box(0.025, 0.04, h - 0.1, xx, -0.115, 0, GOLD)
+        for sx in (-1, 1):
+            for sz in (-1, 1): bd.cyl(0.07, 0.05, 0.06, sx * (w / 2 + 0.05), -0.15, sz * (h / 2 + 0.04), GOLD, n=8, rx=math.pi / 2)
+        # crest: a scroll pediment with a doubloon over the board
+        bd.prism([(-0.55, 0), (0.55, 0), (0.35, 0.16), (0.0, 0.26), (-0.35, 0.16)], 0.1, GOLD_D, T(0, -0.13, h / 2 + 0.08))
+        bd.cyl(0.13, 0.11, 0.06, 0, -0.17, h / 2 + 0.3, GOLD, n=12, rx=math.pi / 2)
+        for sx in (-1, 1): bd.prism([(0, 0), (0.28, 0.0), (0.18, 0.12)], 0.08, GOLD_D, T(sx * (w / 2 - 0.1), -0.12, h / 2 + 0.08, rz=0 if sx > 0 else math.pi))
+    if lit: bulbs(bd, -w / 2 - 0.05, w / 2 + 0.05, -h / 2 - 0.16, h / 2 + 0.16, -0.17, 0.38, lod)
+    bd.pop()
+    c, s_ = math.cos(rz), math.sin(rz); fy = 0.11
+    if sub:
+        carve(bd, text, x + fy * s_, y - fy * c, z + h * 0.12, w - 0.45, h * 0.5, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)
+        carve(bd, sub, x + fy * s_, y - fy * c, z - h * 0.3, w * 0.55, h * 0.2, lod, col=GOLD, rz=rz, depth=0.015)
+    else:
+        carve(bd, text, x + fy * s_, y - fy * c, z, w - 0.45, h - 0.26, lod, col=GLOW_G if lit else GOLD, rz=rz, mat=1 if lit else 0, depth=0.025)
+    if lit:
+        light(bd, x + 0.6 * s_, y - 0.6 * c, z, 0.16, 2.6, lod)
+
+class NullBuilder(Builder):   # walks a table builder only for its transforms (dealer markers): no geometry
+    def _add(self, V, F, col, mat=0, smooth=False, corner_cols=None, m=None, lib=None, grain=None):
+        A = np.array(self.stack[-1] @ (m or Matrix.Identity(4))); return np.asarray(V, float) @ A[:3, :3].T + A[:3, 3]
+
+def light_bake(me, lights, inside, amb, warm_k=(0.0, 0.07, 0.17), lo=0.4, hi_=1.45):
+    # [AAA] baked interior lighting: per corner = colour x (ambient by height + every light's falloff x a lambert term), warm tint where lit.
+    # Glow faces (material 1) are left alone. Cheap at runtime: it is just the vertex colours (phones get it too).
+    nl = len(me.loops); vi = np.empty(nl, np.int32); me.loops.foreach_get('vertex_index', vi)
+    co = np.empty(len(me.vertices) * 3); me.vertices.foreach_get('co', co); P = co.reshape(-1, 3)[vi]
+    npl = len(me.polygons); lt = np.empty(npl, np.int32); me.polygons.foreach_get('loop_total', lt)
+    pn = np.empty(npl * 3); me.polygons.foreach_get('normal', pn); mi = np.empty(npl, np.int32); me.polygons.foreach_get('material_index', mi)
+    pl = np.repeat(np.arange(npl), lt); N = pn.reshape(-1, 3)[pl]; glow = mi[pl] == 1
+    ca = me.color_attributes['Col']; C = np.empty(nl * 4); ca.data.foreach_get('color_srgb', C); C = C.reshape(-1, 4)
+    m = inside(P) & ~glow; k = amb(P); w = np.zeros(nl)
+    for (x, y, z, I, R) in lights:
+        D = np.array([x, y, z]) - P; d = np.linalg.norm(D, axis=1) + 1e-6; f = np.clip(1 - d / R, 0, 1) ** 2
+        lam = np.clip((D * N).sum(1) / d, 0, 1); add = I * f * (0.2 + 0.8 * lam); k = k + add; w = w + add
+    k = np.clip(k, lo, hi_); wc = np.clip(w, 0, 1)
+    tint = np.stack([1 - warm_k[0] * wc, 1 - warm_k[1] * wc, 1 - warm_k[2] * wc], 1)
+    C[m, :3] = np.clip(C[m, :3] * k[m, None] * tint[m], 0, 1)
+    ca.data.foreach_set('color_srgb', C.ravel())
+    return int(m.sum())
+
 # ---------------- the exterior ----------------
 def exterior(bd, lod, rng):
     hi = lod == 0; FY = Y0
@@ -326,17 +492,19 @@ def exterior(bd, lod, rng):
             while zq < Z2 - 0.2: bd.box(0.62 if int(zq / 0.55) % 2 else 0.42, 0.62, 0.5, xx + (0.25 if xx < 0 else -0.25), FY - 0.06 + 0.25, zq + 0.25, hexc(QUO, 0.05, rng)); zq += 0.55
     for px in (-3.35, 3.35): wall_lantern(bd, px, FY - 0.3, 3.55, lod)                                      # lanterns on the arch pilasters
     for px in (-7.95, 7.95): wall_lantern(bd, px, FY - 0.3, 3.2, lod)
-    # the gilded mahogany signboard: THE GOLDEN DOUBLOON, gold frame, bosses
-    sgw, sgh, sz0 = 8.4, 1.15, 4.62; sy = FY - 0.36
-    bd.box(sgw, 0.14, sgh, 0, sy, sz0, MAHOG, base=True)
-    for zz in (sz0 - 0.07, sz0 + sgh - 0.05): bd.box(sgw + 0.3, 0.24, 0.13, 0, sy - 0.04, zz, GOLD_D, base=True)
-    for xx in (-sgw / 2 - 0.08, sgw / 2 + 0.08): bd.box(0.2, 0.24, sgh + 0.18, xx, sy - 0.04, sz0 - 0.07, GOLD_D, base=True)
+    # [AAA] the marquee signboard: lacquered board, layered gilt frame + rosettes, scroll ends, lit gold capitals (glow), a frame of bulbs
+    sgw, sgh, sz0 = 8.6, 1.2, 4.58; sy = FY - 0.36
+    bd.box(sgw, 0.16, sgh, 0, sy, sz0, MAHOG_D, base=True)
+    for zz in (sz0 - 0.08, sz0 + sgh - 0.05): bd.box(sgw + 0.34, 0.26, 0.13, 0, sy - 0.05, zz, GOLD_D, base=True)
+    for xx in (-sgw / 2 - 0.09, sgw / 2 + 0.09): bd.box(0.2, 0.26, sgh + 0.21, xx, sy - 0.05, sz0 - 0.08, GOLD_D, base=True)
     if hi:
-        for zz in (sz0 + 0.1, sz0 + sgh - 0.13): bd.box(sgw - 0.3, 0.03, 0.03, 0, sy - 0.085, zz, GOLD)
-        for xx in (-sgw / 2 + 0.2, sgw / 2 - 0.2):
-            for zz in (sz0 + 0.22, sz0 + sgh - 0.22): bd.sphere(0.07, xx, sy - 0.1, zz, GOLD, sub=0)
-        for s in (-1, 1): bd.prism([(0, 0), (0.6, -0.2), (0.6, 0.2)], 0.08, GOLD_D, T(s * (sgw / 2 + 0.17), sy - 0.02, sz0 + sgh / 2, rz=0 if s > 0 else math.pi))   # pointed scroll ends
-    carve(bd, 'THE GOLDEN DOUBLOON', 0, sy - 0.08, sz0 + sgh / 2, sgw - 0.8, sgh - 0.42, lod, col=GOLD)
+        for zz in (sz0 + 0.1, sz0 + sgh - 0.13): bd.box(sgw - 0.3, 0.03, 0.03, 0, sy - 0.095, zz, GOLD)
+        for xx in (-sgw / 2 + 0.16, sgw / 2 - 0.16): bd.box(0.03, 0.03, sgh - 0.26, xx, sy - 0.095, sz0 + 0.13, GOLD, base=True)
+        for xx in (-sgw / 2 - 0.09, sgw / 2 + 0.09):
+            for zz in (sz0 - 0.02, sz0 + sgh + 0.02): bd.cyl(0.11, 0.11, 0.06, xx, sy - 0.2, zz, GOLD, n=12, rx=math.pi / 2); bd.sphere(0.05, xx, sy - 0.24, zz, GOLD, sub=0)
+        for s in (-1, 1): bd.prism([(0, 0), (0.6, -0.2), (0.6, 0.2)], 0.08, GOLD_D, T(s * (sgw / 2 + 0.19), sy - 0.02, sz0 + sgh / 2, rz=0 if s > 0 else math.pi))   # pointed scroll ends
+    carve(bd, 'THE GOLDEN DOUBLOON', 0, sy - 0.1, sz0 + sgh / 2, sgw - 0.95, sgh - 0.42, lod, col=GLOW_G, mat=1, depth=0.045)
+    bulbs(bd, -sgw / 2 - 0.09, sgw / 2 + 0.09, sz0 - 0.2, sz0 + sgh + 0.1, sy - 0.22, 0.33, lod, r=0.05)
     # doubloon medallions over the windows, crossed brass anchors behind each
     for s in (-1, 1):
         x = s * WX; z = 5.18
@@ -348,7 +516,7 @@ def exterior(bd, lod, rng):
     bd.box(W + 0.4, 0.55, 0.32, 0, FY - 0.08, G1 - 0.06, QUO, base=True)
     BX0, BX1, BD_ = -7.1, 7.1, 1.05; bz = G1 + 0.26
     bd.box(BX1 - BX0, BD_, 0.2, 0, FY - BD_ / 2, bz - 0.2, MAHOG_D, base=True)
-    for px in np.linspace(BX0 + 0.4, BX1 - 0.4, 7 if hi else 3):   # stone corbels
+    for px in ((-6.7, -5.6, 5.6, 6.7) if hi else (-6.7, 6.7)):   # stone corbels ([AAA] clear of the marquee sign)
         bd.box(0.3, BD_ * 0.9, 0.26, px, FY - BD_ * 0.45, bz - 0.46, QUO, base=True); bd.box(0.28, BD_ * 0.5, 0.3, px, FY - BD_ * 0.25, bz - 0.76, QUO, base=True)
     rail_y = FY - BD_ + 0.05
     bd.box(BX1 - BX0 + 0.1, 0.12, 0.08, 0, rail_y, bz + 1.0, BRASS); bd.box(BX1 - BX0, 0.07, 0.06, 0, rail_y, bz + 0.1, IRON)
@@ -387,7 +555,8 @@ def exterior(bd, lod, rng):
     bd.box(3.0, 0.14, 0.62, 0, FY - 0.14, uz1 + 0.32, BURG, base=True, mat=CLOTH)
     for zz in (uz1 + 0.28, uz1 + 0.96): bd.box(3.2, 0.2, 0.08, 0, FY - 0.17, zz, GOLD_D, base=True)
     for xx in (-1.58, 1.58): bd.box(0.1, 0.2, 0.74, xx, FY - 0.17, uz1 + 0.28, GOLD_D, base=True)
-    carve(bd, 'CASINO', 0, FY - 0.22, uz1 + 0.63, 2.5, 0.48, lod, col=GOLD)
+    carve(bd, 'CASINO', 0, FY - 0.22, uz1 + 0.63, 2.5, 0.46, lod, col=GLOW_G, mat=1, depth=0.035)   # [AAA] lit marquee capitals
+    bulbs(bd, -1.66, 1.66, uz1 + 0.22, uz1 + 1.04, FY - 0.3, 0.28, lod, r=0.04)
     # gilded frieze + cornice with dentils
     bd.box(W + 0.2, 0.12, 0.16, 0, FY - 0.08, Z2 - 0.05, GOLD_D)
     bd.box(W + 0.7, 0.95, 0.4, 0, FY + 0.15, Z2 - 0.1, QUO, base=True)
@@ -409,7 +578,6 @@ def exterior(bd, lod, rng):
     arch_fill(bd, 0, BA_W, BA_SPRING, BA_RISE, WB / 2, WB, MORT if hi else LIME[0], 10 if hi else 4)
     bd.box(W + 0.4, 0.4, 0.3, 0, -0.08, G1 - 0.06, QUO, base=True); bd.box(W + 0.6, 0.85, 0.4, 0, 0.05, Z2 - 0.1, QUO, base=True)
     if hi: ashlar(bd, [(-W / 2, W / 2, WZ2 + 2.4, Z2 - 0.1)], 0.0, LIME[3], rng)
-    for xx in (-5.6, 5.6): bd.box(1.1, 0.08, 1.2, xx, -0.04, 8.0, GLOW, mat=1, base=True); bd.box(1.4, 0.3, 0.12, xx, -0.1, 7.92, QUO, base=True)
     bd.pop()
     wing_ext(bd, lod, rng)
     roof(bd, lod, rng)
@@ -500,7 +668,7 @@ def interior(bd, lod, rng, cols):
     if hi:
         for s in (-1, 1): bd.box(0.03, ry1 - ry0, 0.016, s * 0.75, (ry0 + ry1) / 2, FLOOR, GOLD, base=True)
         for yy in np.arange(ry0 + 0.6, ry1 - 0.3, 1.2): bd.box(0.32, 0.32, 0.016, 0, yy, FLOOR, GOLD_D, base=True, rz=math.pi / 4)
-    RY = 1.3
+    RY = 0.05   # [AAA] the doubloon rug sits under the grand chandelier
     bd.cyl(1.8, 1.8, 0.016, 0, RY, FLOOR + 0.002, CRIM, n=24 if hi else 10, mat=CLOTH)
     bd.torus(1.68, 0.04, 0, RY, FLOOR + 0.02, GOLD_D, n=24 if hi else 10, m_=3)
     bd.cyl(0.85, 0.85, 0.02, 0, RY, FLOOR + 0.004, GOLD_D, n=20 if hi else 8)
@@ -511,18 +679,9 @@ def interior(bd, lod, rng, cols):
         bd.push(T(0, RY, FLOOR + 0.03)); bd.box(0.8, 0.1, 0.03, 0, -0.16, 0, GOLD_D)
         for k in range(5): px = -0.3 + k * 0.15; h = 0.26 if k in (0, 4) else 0.34 if k != 2 else 0.42; bd.prism([(-0.06, 0), (0.06, 0), (0, h)], 0.02, GOLD_D, T(px, -0.12, 0, rx=-math.pi / 2))
         bd.pop()
-    # walls inside: mahogany wainscot + crimson damask above + gilt picture rail, interior lining over the stone
+    # walls inside: [AAA] the raised hall: mahogany wainscot, crimson damask, a gilt entablature at 4.5 m, framed upper panels, a coved cornice
     lin = [((IX0, IY1 - 0.03), (-BA_W / 2 - 0.35, IY1 - 0.03), 0.0), ((BA_W / 2 + 0.35, IY1 - 0.03), (IX1, IY1 - 0.03), 0.0), ((IX0 + 0.03, IY0), (IX0 + 0.03, IY1), math.pi / 2), ((IX1 - 0.03, IY0), (IX1 - 0.03, IY1), -math.pi / 2)]
-    for (p, q, rz_) in lin:
-        L = math.dist(p, q); mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
-        bd.push(T(mx, my, 0, rz=rz_))
-        bd.box(L, 0.04, CEIL - 1.3, 0, 0.0, 1.3, DAMASK, base=True)
-        bd.box(L, 0.08, 1.3, 0, -0.02, FLOOR, MAHOG, base=True); bd.box(L, 0.12, 0.08, 0, -0.05, 1.3, MAHOG_D, base=True)
-        bd.box(L, 0.06, 0.06, 0, -0.04, 3.7, GOLD_D); bd.box(L, 0.1, 0.3, 0, -0.04, CEIL - 0.3, MAHOG_D, base=True)
-        if hi:
-            for k in range(int(L / 1.0)): bd.box(0.78, 0.03, 0.85, -L / 2 + 0.5 + k * 1.0, -0.07, 0.25, MAHOG_L, base=True)   # raised panels
-            for k in range(int(L / 1.4)): xk = -L / 2 + 0.7 + k * 1.4; bd.box(0.05, 0.02, 0.5, xk, -0.03, 2.2, GOLD_D, base=True, ry=0.0); bd.box(0.3, 0.02, 0.05, xk, -0.03, 2.45, GOLD_D)   # damask fleurs
-        bd.pop()
+    lining(bd, lin, CEIL, hi)
     # the front wall inside (around the arch + windows)
     fy = IY0 + 0.03
     for (xa, xb) in ((IX0, -5.6 - 0.75), (-5.6 + 0.75, -ARCH_W / 2), (ARCH_W / 2, 5.6 - 0.75), (5.6 + 0.75, IX1)):
@@ -531,143 +690,297 @@ def interior(bd, lod, rng, cols):
     for (xa, xb) in ((-5.6 - 0.75, -5.6 + 0.75), (5.6 - 0.75, 5.6 + 0.75)):
         bd.box(xb - xa, 0.08, 1.0, (xa + xb) / 2, fy + 0.02, FLOOR, MAHOG, base=True); bd.box(xb - xa, 0.04, CEIL - 4.1, (xa + xb) / 2, fy, 4.1, DAMASK, base=True)
     bd.box(ARCH_W, 0.04, CEIL - 4.4, 0, fy, 4.4, DAMASK, base=True)
+    entablature(bd, [((IX1, fy), (IX0, fy), math.pi)], hi)   # across the front wall (over the arch + the windows)
+    upper_panels(bd, [((IX1, fy), (IX0, fy), math.pi)], CEIL, hi, skip=[(-3.6, 3.6)])
     # [v378] the back arch inside: gilt-cased opening, damask over it, threshold, the wing's name board
     by_ = IY1 - 0.03
     bd.box(BA_W + 0.7, 0.04, CEIL - (BA_SPRING + BA_RISE), 0, by_, BA_SPRING + BA_RISE, DAMASK, base=True)
     for s_ in (-1, 1): bd.box(0.35, 0.14, BA_SPRING + BA_RISE, s_ * (BA_W / 2 + 0.175), by_ - 0.04, FLOOR, MAHOG_D, base=True); bd.box(0.42, 0.18, 0.2, s_ * (BA_W / 2 + 0.175), by_ - 0.05, BA_SPRING - 0.1, GOLD_D, base=True)
     arch_ring(bd, 0, BA_W / 2, BA_SPRING, BA_RISE, by_ - 0.03, 0.12, 0.2, GOLD_D, 9 if hi else 5, rng, keyc=GOLD)
     bd.box(BA_W, WB + 0.1, 0.1, 0, Y1 - WB / 2, FLOOR - 0.1, FLOORS[1], base=True)
-    plaque(bd, 'THE HIGH SEAS ROOM', 0, IY1 - 0.06, 4.8, 3.4, 0.45, lod, rz=0.0)
+    entablature(bd, [((-BA_W / 2 - 0.35, by_), (BA_W / 2 + 0.35, by_), 0.0)], hi)
+    sign_board(bd, 'THE HIGH SEAS ROOM', 0, IY1 - 0.08, 5.45, 4.8, 0.78, lod, rz=0.0)
     for s_ in (-1, 1): drape(bd, s_ * (BA_W / 2 + 0.55), IY1 - 0.15, 4.2, 4.1, 0.6, lod, side=s_)
     for s in (-1, 1): drape(bd, s * (ARCH_W / 2 + 0.4), IY0 + 0.15, 4.3, 4.2, 0.7, lod, side=s)   # tied-back inner drapes, clear of the opening
-    plaque(bd, 'THE GOLDEN DOUBLOON', 0, IY0 + 0.05, 4.82, 4.4, 0.6, lod, rz=math.pi)
-    # pilasters on the side walls (gold capitals) + sconces
+    sign_board(bd, 'THE GOLDEN DOUBLOON', 0, IY0 + 0.07, 5.55, 6.0, 0.95, lod, rz=math.pi, sub='GAMING HALL')
+    # pilasters on the side walls, full height to the cornice (gilt bases, flutes + capitals) + sconces
     for xe, rz_ in ((IX0, math.pi / 2), (IX1, -math.pi / 2)):
         for yy in (-3.4, 1.4):
-            bd.push(T(xe, yy, 0, rz=rz_)); bd.box(0.5, 0.18, CEIL - 0.3, 0, -0.09, FLOOR, MAHOG_D, base=True); bd.box(0.62, 0.24, 0.24, 0, -0.12, CEIL - 0.55, GOLD_D, base=True)
+            bd.push(T(xe, yy, 0, rz=rz_)); bd.box(0.5, 0.18, CEIL - 0.75, 0, -0.09, FLOOR, MAHOG_D, base=True)
+            bd.box(0.62, 0.26, 0.3, 0, -0.12, FLOOR, MAHOG, base=True); bd.box(0.66, 0.28, 0.06, 0, -0.13, 0.3, GOLD_D, base=True)
+            bd.box(0.66, 0.26, 0.32, 0, -0.12, CEIL - 0.95, GOLD_D, base=True); bd.box(0.74, 0.3, 0.1, 0, -0.14, CEIL - 0.65, GOLD, base=True)
+            if hi:
+                for k in (-0.14, 0.0, 0.14): bd.box(0.05, 0.03, CEIL - 2.1, k, -0.19, 0.55, MAHOG, base=True)
+                for k in (-1, 1): bd.sphere(0.06, k * 0.24, -0.25, CEIL - 0.8, GOLD, sub=0)   # volutes
             sconce(bd, 0, -0.18, 2.75, lod, out=-1); bd.pop()
     for xx in (-4.3, 4.3): bd.push(T(xx, IY1, 0, rz=0)); sconce(bd, 0, 0, 2.75, lod, out=-1); bd.pop()
-    # coffered ceiling: mahogany grid, crimson coffers, gold rosettes, two chandeliers
-    bd.box(iw, idp, G1 - CEIL, cxm, cym, CEIL, MAHOG_D, base=True)
-    nx_, ny_ = 6, 5
-    for i in range(nx_ + 1): xx = IX0 + i * iw / nx_; bd.box(0.26, idp, 0.32, xx, cym, CEIL - 0.32, MAHOG, base=True)
-    for j in range(ny_ + 1): yy = IY0 + j * idp / ny_; bd.box(iw, 0.26, 0.32, cxm, yy, CEIL - 0.32, MAHOG, base=True)
-    for i in range(nx_):
-        for j in range(ny_):
-            xx = IX0 + (i + 0.5) * iw / nx_; yy = IY0 + (j + 0.5) * idp / ny_
-            bd.box(iw / nx_ - 0.5, idp / ny_ - 0.5, 0.04, xx, yy, CEIL - 0.04, BURG, base=True, mat=CLOTH)
-            if hi: bd.box(iw / nx_ - 0.62, 0.04, 0.03, xx, yy - (idp / ny_ - 0.62) / 2, CEIL - 0.07, GOLD_D); bd.box(iw / nx_ - 0.62, 0.04, 0.03, xx, yy + (idp / ny_ - 0.62) / 2, CEIL - 0.07, GOLD_D)
-            if hi: bd.sphere(0.09, xx, yy, CEIL - 0.07, GOLD, sub=0)
-    if hi:
-        for i in range(1, nx_):
-            for j in range(1, ny_): bd.cyl(0.13, 0.13, 0.05, IX0 + i * iw / nx_, IY0 + j * idp / ny_, CEIL - 0.37, GOLD, n=8)
-    for cyy in (-2.6, 2.8): chandelier(bd, 0, cyy, 3.95, 1.05, 12, CEIL - 0.3, lod)
-    for cxx in (-4.6, 4.6): chandelier(bd, cxx, 1.4, 4.2, 0.6, 6, CEIL - 0.3, lod)
+    # [AAA] clerestory: lit lunettes high on the north wall (the street-side windows' inside), gilt-framed mirror lunettes facing them
+    for (xe, rz_, lit) in ((IX1, -math.pi / 2, True), (IX0, math.pi / 2, False)):
+        for yy in (-4.2, 0.0, 4.2):
+            bd.push(T(xe, yy, 0, rz=rz_))
+            g = GLOW if lit else 0x2a2b36
+            bd.box(1.0, 0.05, 0.85, 0, -0.07, 6.25, g, mat=1 if lit else 0, base=True); bd.cyl(0.5, 0.5, 0.05, 0, -0.07, 7.1, g, n=14 if hi else 6, rx=math.pi / 2, mat=1 if lit else 0)
+            bd.box(1.24, 0.12, 0.1, 0, -0.1, 6.17, GOLD_D, base=True)
+            for sx in (-1, 1): bd.box(0.1, 0.12, 0.9, sx * 0.57, -0.1, 6.2, GOLD_D, base=True)
+            arch_ring(bd, 0, 0.5, 7.1, 0.5, -0.1, 0.1, 0.12, GOLD_D, 7 if hi else 4, rng, keyc=GOLD)
+            if lit and hi:
+                for k in (-0.25, 0.25): bd.box(0.03, 0.03, 1.3, k, -0.1, 6.25, IRON, base=True)
+                bd.box(1.0, 0.03, 0.03, 0, -0.1, 6.8, IRON)
+            bd.pop()
+            if lit: light(bd, xe - 1.0, yy, 6.8, 0.22, 3.4, lod)
+    # [AAA] the coffered ceiling up at 8.2 m: deep gilt-edged beams, crimson coffers with gilt mouldings + rosettes, a coved cornice,
+    # the centre coffer opened into a gilded lantern ring over the grand chandelier
+    ceiling(bd, IX0, IX1, IY0, IY1, CEIL, Z2 - 0.1, 5, 5, lod, centre=(0.0, RY))
+    chandelier(bd, 0, RY, 4.85, 1.35, 16, CEIL - 0.45, lod, I=0.9, reach=8.5)
+    for cyy in (-4.75, 4.75): chandelier(bd, 0, cyy, 5.75, 0.8, 10, CEIL - 0.1, lod, I=0.5, reach=6.0)
     stations(bd, lod, rng, cols)
     decor(bd, lod, rng, cols)
     wing_int(bd, lod, rng, cols)
 
-def t_blackjack(bd, lod, rng, cx, cy, rz):   # [v378] one station, placed anywhere (main hall + the wing)
-    hi = lod == 0
-    bd.push(T(cx, cy, 0, rz=rz)); n = 20 if hi else 8
-    bd.box(1.7, 0.6, 0.76, 0, -0.3, 0, MAHOG_D, base=True)
-    slab(bd, dshape(1.5, n), 0.76, 0.86, MAHOG); slab(bd, dshape(1.36, n), 0.86, 0.885, FELT, mat=CLOTH)
-    for i in range(n):
-        a0 = math.pi + math.pi * i / n; a1 = math.pi + math.pi * (i + 1) / n; am = (a0 + a1) / 2; L = 1.43 * (a1 - a0) * 1.04
-        bd.box(L, 0.17, 0.1, 1.43 * math.cos(am), 1.43 * math.sin(am), 0.86, LEATH, base=True, rz=am + math.pi / 2)
-        if hi: bd.box(L, 0.03, 0.02, 1.345 * math.cos(am), 1.345 * math.sin(am), 0.885, GOLD, base=True, rz=am + math.pi / 2)
-    bd.box(3.0, 0.16, 0.1, 0, 0.0, 0.86, LEATH, base=True)
-    for k in range(5):   # betting spots + cards
-        a = math.pi + math.pi * (k + 0.5) / 5; px, py = 1.0 * math.cos(a), 1.0 * math.sin(a)
-        bd.torus(0.12, 0.012, px, py, 0.89, GOLD, n=12 if hi else 6, m_=3)
-        if hi: bd.box(0.09, 0.13, 0.006, px + 0.04, py + 0.22, 0.887, WHITE, rz=a); bd.box(0.09, 0.13, 0.006, px + 0.08, py + 0.24, 0.893, WHITE, rz=a + 0.2); bd.box(0.02, 0.02, 0.004, px + 0.08, py + 0.24, 0.897, RED if k % 2 else BLACK)
-        chip_stack(bd, px, py, 0.887, 2 + k % 3, (CRIM, GOLD_D, BLACK, WHITE, SAPH)[k], lod)
-    bd.box(0.7, 0.24, 0.05, 0, -0.22, 0.887, MAHOG_D, base=True)   # chip rack
+def entablature(bd, segs, hi, z=4.5):   # [AAA] gilt architrave + mahogany frieze + gilt cornice band (local -y = into the room)
+    for (p, q, rz_) in segs:
+        L = math.dist(p, q); mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
+        bd.push(T(mx, my, 0, rz=rz_))
+        bd.box(L, 0.1, 0.06, 0, -0.06, z, GOLD_D, base=True); bd.box(L, 0.08, 0.32, 0, -0.05, z + 0.06, MAHOG_D, base=True)
+        bd.box(L, 0.16, 0.08, 0, -0.09, z + 0.38, GOLD_D, base=True)
+        if hi:
+            bd.box(L, 0.03, 0.025, 0, -0.105, z + 0.2, GOLD, base=True)
+            for k in range(int(L / 0.6)): bd.box(0.08, 0.05, 0.12, -L / 2 + 0.3 + k * 0.6, -0.1, z + 0.12, GOLD_D, base=True)   # triglyph studs
+        bd.pop()
+
+def upper_panels(bd, segs, ceil, hi, skip=(), z0=5.05, pitch=2.2):   # [AAA] gilt-moulded damask panels between the entablature and the cornice
+    if not hi: return
+    for (p, q, rz_) in segs:
+        L = math.dist(p, q); mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2; z1 = ceil - 0.85
+        if z1 - z0 < 0.6: continue
+        bd.push(T(mx, my, 0, rz=rz_))
+        n = max(1, int(L / pitch)); w = L / n
+        for k in range(n):
+            xc = -L / 2 + (k + 0.5) * w
+            gx = mx + (xc * math.cos(rz_)); gy = my + (xc * math.sin(rz_))
+            if any(a <= (gx if abs(math.sin(rz_)) < 0.5 else gy) <= b for (a, b) in skip): continue
+            pw = w - 0.5
+            for zz in (z0, z1): bd.box(pw, 0.04, 0.05, xc, -0.06, zz, GOLD_D, base=True)
+            for xx in (xc - pw / 2, xc + pw / 2): bd.box(0.05, 0.04, z1 - z0 + 0.05, xx, -0.06, z0, GOLD_D, base=True)
+        bd.pop()
+
+def ceiling(bd, x0, x1, y0, y1, zc, ztop, nx_, ny_, lod, centre=None):
+    hi = lod == 0; iw, idp = x1 - x0, y1 - y0; cxm, cym = (x0 + x1) / 2, (y0 + y1) / 2
+    bd.box(iw, idp, ztop - zc, cxm, cym, zc, MAHOG_D, base=True)
+    # coved cornice round the room: stepped mahogany bands, a gilt fillet, dentils
+    for (off, z0, h, c) in ((0.07, zc - 0.66, 0.14, MAHOG), (0.15, zc - 0.52, 0.06, GOLD_D), (0.22, zc - 0.46, 0.2, MAHOG), (0.34, zc - 0.26, 0.26, MAHOG_D)):
+        bd.box(iw, off, h, cxm, y0 + off / 2, z0, c, base=True); bd.box(iw, off, h, cxm, y1 - off / 2, z0, c, base=True)
+        bd.box(off, idp, h, x0 + off / 2, cym, z0, c, base=True); bd.box(off, idp, h, x1 - off / 2, cym, z0, c, base=True)
+    if hi and nx_ * ny_ <= 25:   # dentils: the hall only (file size)
+        for (a, b, fixed, along_x) in ((x0, x1, y0 + 0.2, True), (x0, x1, y1 - 0.2, True), (y0, y1, x0 + 0.2, False), (y0, y1, x1 - 0.2, False)):
+            k = a + 0.25
+            while k < b - 0.2:
+                if along_x: bd.box(0.08, 0.1, 0.1, k, fixed, zc - 0.36, GOLD_D, base=True)
+                else: bd.box(0.1, 0.08, 0.1, fixed, k, zc - 0.36, GOLD_D, base=True)
+                k += 0.32
+    xs = [x0 + i * iw / nx_ for i in range(nx_ + 1)]; ys = [y0 + j * idp / ny_ for j in range(ny_ + 1)]
+    BD = 0.48
+    for xx in xs[1:-1]:
+        bd.box(0.32, idp, BD, xx, cym, zc - BD, MAHOG, base=True)
+        if hi: bd.box(0.12, idp, 0.02, xx, cym, zc - BD - 0.005, GOLD_D, base=True); [bd.box(0.02, idp, 0.04, xx + sx * 0.165, cym, zc - 0.2, GOLD, base=True) for sx in (-1, 1)]
+    for yy in ys[1:-1]:
+        bd.box(iw, 0.32, BD, cxm, yy, zc - BD, MAHOG, base=True)
+        if hi: bd.box(iw, 0.12, 0.02, cxm, yy, zc - BD - 0.005, GOLD_D, base=True); [bd.box(iw, 0.02, 0.04, cxm, yy + sy * 0.165, zc - 0.2, GOLD, base=True) for sy in (-1, 1)]
     if hi:
-        for k in range(7): bd.cyl(0.03, 0.03, 0.12, -0.3 + k * 0.1, -0.22, 0.92, (CRIM, GOLD_D, BLACK, WHITE, SAPH, CRIM, GOLD_D)[k], n=8, rx=math.pi / 2)
-        for k in range(2): bd.box(0.09, 0.13, 0.006, -0.1 + k * 0.12, -0.55, 0.887, WHITE if k else 0x8a1c1c)       # dealer's hand (one face down)
-    bd.box(0.32, 0.22, 0.2, 0.95, -0.25, 0.887, MAHOG_D, base=True); bd.box(0.3, 0.02, 0.12, 0.95, -0.36, 0.95, BRASS, base=True)   # the shoe
-    for k in (-2, -1, 1, 2):   # stools (not on the E spot)
-        a = 1.5 * math.pi + k * 0.36; px, py = 2.0 * math.cos(a), 2.0 * math.sin(a)
-        bd.cyl(0.05, 0.05, 0.62, px, py, 0, BRASS, n=6); bd.cyl(0.22, 0.22, 0.1, px, py, 0.62, CRIM, n=10 if hi else 6)
-        if hi: bd.torus(0.17, 0.015, px, py, 0.25, BRASS, n=8, m_=3)
+        for xx in xs[1:-1]:
+            for yy in ys[1:-1]: lathe(bd, [(0.0, -0.12), (0.1, -0.08), (0.2, 0.0)], xx, yy, zc - BD, GOLD, n=8, caps=False)   # bosses
+    for i in range(nx_):
+        for j in range(ny_):
+            xx = (xs[i] + xs[i + 1]) / 2; yy = (ys[j] + ys[j + 1]) / 2; cw, ch = xs[i + 1] - xs[i] - 0.32, ys[j + 1] - ys[j] - 0.32
+            if centre and abs(xx - centre[0]) < (xs[1] - xs[0]) / 2 and abs(yy - centre[1]) < (ys[1] - ys[0]) / 2:
+                # the lantern coffer: stepped gilt octagon rings + a glowing ring of light round the chandelier rose
+                bd.box(cw, ch, 0.03, xx, centre[1], zc - 0.03, BURG, base=True, mat=CLOTH)
+                for (rr, hh, c) in ((min(cw, ch) * 0.48, 0.12, GOLD_D), (min(cw, ch) * 0.4, 0.2, MAHOG), (min(cw, ch) * 0.34, 0.08, GOLD)):
+                    bd.cyl(rr, rr, hh, xx, centre[1], zc - hh, c, n=8, rz=math.pi / 8)
+                bd.torus(min(cw, ch) * 0.3, 0.035, xx, centre[1], zc - 0.21, GLOW, n=24 if hi else 8, m_=3, mat=1)
+                light(bd, xx, centre[1], zc - 0.5, 0.35, 4.0, lod)
+                continue
+            bd.box(cw - 0.06, ch - 0.06, 0.03, xx, yy, zc - 0.03, BURG, base=True, mat=CLOTH)
+            if hi:
+                for (a_, b_) in ((cw - 0.24, 0.0), ):
+                    for sy in (-1, 1): bd.box(a_, 0.05, 0.05, xx, yy + sy * (ch - 0.24) / 2, zc - 0.08, GOLD_D, base=True)
+                    for sx in (-1, 1): bd.box(0.05, ch - 0.24, 0.05, xx + sx * (cw - 0.24) / 2, yy, zc - 0.08, GOLD_D, base=True)
+                lathe(bd, [(0.0, -0.09), (0.09, -0.07), (0.16, -0.03), (0.22, 0.0)], xx, yy, zc - 0.03, GOLD, n=8, caps=False)
+            else: bd.box(0.2, 0.2, 0.05, xx, yy, zc - 0.08, GOLD, base=True)
+
+def card(bd, x, y, z, rz, face=True, red=False):
+    bd.box(0.09, 0.13, 0.004, x, y, z, WHITE if face else 0x8a1c1c, rz=rz, base=True)
+    if face: bd.box(0.03, 0.03, 0.002, x, y, z + 0.004, RED if red else BLACK, rz=rz + math.pi / 4, base=True)
+
+def stool(bd, x, y, lod):   # [AAA] turned brass pedestal, footring, tufted oxblood seat with a gilt welt
+    hi = lod == 0; n = 12 if hi else 6
+    lathe(bd, [(0.21, 0.0), (0.21, 0.025), (0.13, 0.05), (0.045, 0.09), (0.035, 0.5), (0.06, 0.56), (0.07, 0.585)], x, y, 0, BRASS, n=n)
+    if hi: bd.torus(0.17, 0.014, x, y, 0.27, BRASS, n=12, m_=3); [rod(bd, (x, y, 0.27), (x + 0.17 * math.cos(a), y + 0.17 * math.sin(a), 0.27), 0.01, BRASS, n=4) for a in (0.4, 2.5, 4.6)]
+    lathe(bd, [(0.0, 0.585), (0.2, 0.585), (0.225, 0.61), (0.23, 0.65), (0.21, 0.69), (0.15, 0.72), (0.0, 0.73)], x, y, 0, LEATH2, n=n, caps=False)
+    if hi: bd.torus(0.215, 0.011, x, y, 0.615, GOLD, n=14, m_=3)
+
+RAIL = [(-0.09, 0.0), (0.05, 0.0), (0.09, 0.015), (0.105, 0.045), (0.09, 0.075), (0.05, 0.09), (-0.09, 0.09)]   # carved ogee rail section (u out, v up)
+
+def t_blackjack(bd, lod, rng, cx, cy, rz):   # [AAA] the half-moon table: turned pedestals, carved ogee rail, padded bumper + nail heads, brass inlay,
+    # sunken chip tray, cards + chips on the printed felt (js/island/casinoFelt.js), the shoe, tufted stools. Players on -y, the dealer on +y.
+    hi = lod == 0; n = 30 if hi else 10
+    bd.push(T(cx, cy, 0, rz=rz))
+    bd.box(2.0, 0.44, 0.07, 0, -0.5, 0, MAHOG_D, base=True)
+    if hi: bd.box(2.06, 0.5, 0.025, 0, -0.5, 0.0, GOLD_D, base=True)
+    for sx in (-0.72, 0.72):
+        lathe(bd, [(0.2, 0.07), (0.2, 0.11), (0.12, 0.15), (0.09, 0.22), (0.13, 0.3), (0.09, 0.4), (0.07, 0.52), (0.1, 0.6), (0.17, 0.665)], sx, -0.5, 0, MAHOG_D, n=12 if hi else 6)
+        if hi: bd.torus(0.12, 0.013, sx, -0.5, 0.3, GOLD, n=12, m_=3)
+    slab(bd, dshape(1.44, n), 0.665, 0.8, MAHOG_D)
+    bd.box(2.88, 0.12, 0.135, 0, 0.06, 0.665, MAHOG_D, base=True)
+    if hi:
+        sweep(bd, arc(1.442, math.pi, 2 * math.pi, n), tube(0.0, 0.0, 0.014, 0.014, 4), GOLD, z0=0.7)
+        for i in range(9): a = math.pi + math.pi * (i + 0.5) / 9; bd.box(0.3, 0.02, 0.07, 1.445 * math.cos(a), 1.445 * math.sin(a), 0.73, MAHOG_L, rz=a + math.pi / 2, base=True)   # carved apron panels
+    A = arc(1.42, math.pi, 2 * math.pi, n)
+    sweep(bd, A, RAIL, MAHOG, z0=0.8, smooth=hi)
+    slab(bd, dshape(1.34, n), 0.86, 0.886, FELT, mat=CLOTH)
+    if hi: sweep(bd, arc(1.345, math.pi, 2 * math.pi, n), tube(0.0, 0.0, 0.014, 0.006, 4), BRASS, z0=0.887)
+    sweep(bd, A, tube(0.015, 0.95, 0.1, 0.066, 12 if hi else 5), LEATH2)
+    if hi:
+        for i in range(27): a = math.pi + math.pi * (i + 0.5) / 27; bd.sphere(0.011, 1.54 * math.cos(a), 1.54 * math.sin(a), 0.945, GOLD, sub=0)
+    bd.box(2.92, 0.2, 0.09, 0, 0.08, 0.8, MAHOG, base=True); bd.box(2.92, 0.035, 0.03, 0, -0.02, 0.886, BRASS, base=True)
+    bd.box(2.96, 0.05, 0.05, 0, 0.17, 0.865, GOLD_D, base=True)
+    bd.box(0.94, 0.28, 0.035, 0, -0.17, 0.886, MAHOG_D, base=True)
+    if hi:
+        for s in (-1, 1): bd.box(0.96, 0.02, 0.04, 0, -0.17 + s * 0.14, 0.886, BRASS, base=True)
+        for k in range(8): bd.cyl(0.032, 0.032, 0.22, -0.39 + k * 0.111, -0.06, 0.925, (CRIM, GOLD_D, BLACK, WHITE, SAPH, EMER, CRIM, GOLD_D)[k], n=10, rx=math.pi / 2)
+    for k in range(5):
+        a = math.pi + math.pi * (k + 0.5) / 5; px, py = 1.0 * math.cos(a), 1.0 * math.sin(a)
+        chip_stack(bd, px, py, 0.888, 2 + k % 3, (CRIM, GOLD_D, BLACK, WHITE, SAPH)[k], lod)
+        if hi: card(bd, px + 0.03 * math.cos(a), py + 0.22, 0.888, a + math.pi / 2, red=k % 2 == 0); card(bd, px + 0.07, py + 0.24, 0.893, a + math.pi / 2 + 0.25, red=k % 2 == 1)
+    if hi:
+        card(bd, -0.06, -0.52, 0.888, 0.05, red=True); card(bd, 0.06, -0.52, 0.888, -0.04, face=False)
+        bd.box(0.34, 0.2, 0.16, 0.98, -0.22, 0.886, MAHOG_D, base=True, rz=-0.3); bd.box(0.3, 0.02, 0.12, 0.98 - 0.05, -0.33, 0.9, BRASS, base=True, rz=-0.3)   # the shoe
+        bd.box(0.16, 0.16, 0.1, -1.0, -0.22, 0.886, MAHOG_D, base=True, rz=0.3); bd.box(0.12, 0.12, 0.08, -1.0, -0.22, 0.986, WHITE, base=True, rz=0.3)   # discards
+    for k in (-2, -1, 1, 2):
+        a = 1.5 * math.pi + k * 0.38; stool(bd, 1.95 * math.cos(a), 1.95 * math.sin(a), lod)
     figure(bd, 0, 0.55, 0.0, lod, vest=CRIM)
     bd.pop()
 
-def t_roulette(bd, lod, rng, cx, cy, rz):   # [v378] one station, placed anywhere (main hall + the wing)
-    hi = lod == 0
+ROU_TL, ROU_TW, ROU_WX = 3.4, 1.6, 0.88
+def t_roulette(bd, lod, rng, cx, cy, rz):   # [AAA] six turned legs, a carved apron, rounded carved rail + padded bumper, the printed layout
+    # (js/island/casinoFelt.js), a lathe-turned wheel bowl: gilt rim, ball track + deflectors, 37 fretted pockets, a gilt cone + turret
+    hi = lod == 0; TL, TW, wx = ROU_TL, ROU_TW, ROU_WX; k_ = 4 if hi else 2
     bd.push(T(cx, cy, 0, rz=rz))
-    TL, TW = 3.4, 1.5
-    bd.box(TL - 0.4, TW - 0.5, 0.76, 0, 0, 0, MAHOG_D, base=True)
-    bd.box(TL, TW, 0.1, 0, 0, 0.76, MAHOG, base=True); bd.box(TL - 0.2, TW - 0.2, 0.02, 0, 0, 0.86, FELT, base=True, mat=CLOTH)
-    for s in (-1, 1): bd.box(TL, 0.12, 0.08, 0, s * (TW / 2 - 0.06), 0.86, LEATH, base=True)
-    for s in (-1, 1): bd.box(0.12, TW, 0.08, s * (TL / 2 - 0.06), 0, 0.86, LEATH, base=True)
-    REDS = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
-    gx0, cw, rh, gy0 = -1.5, 0.13, 0.26, 0.12
-    bd.box(0.12, 3 * rh, 0.006, gx0 - 0.07, gy0, 0.88, 0x1f9a4a, base=True)
-    for c in range(12):
-        for r in range(3):
-            nn = 3 * c + (r + 1); bd.box(cw - 0.012, rh - 0.012, 0.006, gx0 + (c + 0.5) * cw, gy0 + (r - 1) * rh, 0.88, RED if nn in REDS else BLACK, base=True)
-    for k in range(3): bd.box(4 * cw - 0.012, 0.16, 0.006, gx0 + (k * 4 + 2) * cw, gy0 - 1.5 * rh - 0.1, 0.88, FELT_D, base=True)
-    for k, c in enumerate((FELT_D, FELT_D, RED, BLACK, FELT_D, FELT_D)): bd.box(2 * cw - 0.012, 0.14, 0.006, gx0 + (k * 2 + 1) * cw, gy0 - 1.5 * rh - 0.27, 0.88, c, base=True)
+    for lx_ in (-1.45, 0.0, 1.45):
+        for ly_ in (-0.58, 0.58):
+            lathe(bd, [(0.09, 0.0), (0.1, 0.03), (0.07, 0.07), (0.055, 0.2), (0.085, 0.3), (0.06, 0.42), (0.05, 0.56), (0.075, 0.62), (0.075, 0.665)], lx_, ly_, 0, MAHOG_D, n=10 if hi else 5)
+            if hi: bd.torus(0.065, 0.011, lx_, ly_, 0.3, GOLD, n=10, m_=3)
+    bd.box(TL - 0.5, TW - 0.5, 0.05, 0, 0, 0.16, MAHOG_D, base=True)
+    sweep(bd, rrect(TL / 2 - 0.12, TW / 2 - 0.12, 0.22, k_), [(-0.06, 0.0), (0.0, 0.0), (0.0, 0.15), (-0.06, 0.15)], MAHOG_D, closed=True, smooth=False, z0=0.64)
     if hi:
-        for c in range(13): bd.box(0.008, 3 * rh, 0.004, gx0 + c * cw, gy0, 0.886, GOLD, base=True)
-        for r in range(4): bd.box(12 * cw, 0.008, 0.004, gx0 + 6 * cw, gy0 + (r - 1.5) * rh, 0.886, GOLD, base=True)
-        for (px, py, nn, col) in ((-1.2, -0.42, 3, CRIM), (-0.8, 0.2, 2, GOLD_D), (-0.3, -0.1, 4, BLACK), (0.0, -0.55, 2, WHITE)): chip_stack(bd, px, py, 0.886, nn, col, lod)
+        for zz in (0.66, 0.775): sweep(bd, rrect(TL / 2 - 0.12, TW / 2 - 0.12, 0.22, k_), tube(0.0, 0.0, 0.012, 0.012, 4), GOLD, closed=True, z0=zz)
+    slab(bd, rrect(TL / 2 - 0.1, TW / 2 - 0.1, 0.24, k_), 0.79, 0.86, MAHOG)
+    slab(bd, rrect(TL / 2 - 0.18, TW / 2 - 0.18, 0.16, k_), 0.86, 0.876, FELT, mat=CLOTH)
+    R_ = rrect(TL / 2 - 0.1, TW / 2 - 0.1, 0.24, k_)
+    sweep(bd, R_, RAIL, MAHOG, closed=True, z0=0.84, smooth=hi)
+    sweep(bd, R_, tube(0.015, 0.97, 0.09, 0.055, 12 if hi else 5), LEATH2, closed=True)
+    if hi: sweep(bd, rrect(TL / 2 - 0.185, TW / 2 - 0.185, 0.16, k_), tube(0.0, 0.0, 0.012, 0.005, 4), BRASS, closed=True, z0=0.877)
     # the wheel
-    wx = 0.95; nw = 37
-    bd.cyl(0.66, 0.6, 0.14, wx, 0, 0.86, MAHOG_D, n=24 if hi else 12); bd.torus(0.64, 0.035, wx, 0, 1.0, GOLD_D, n=24 if hi else 12, m_=3)
-    bd.cyl(0.56, 0.56, 0.03, wx, 0, 0.98, MAHOG_L, n=24 if hi else 12)
+    nW = 28 if hi else 12
+    lathe(bd, [(0.62, 0.876), (0.64, 0.93), (0.63, 0.99), (0.605, 1.01)], wx, 0, 0, MAHOG_D, n=nW, caps=False)
+    bd.torus(0.6, 0.022, wx, 0, 1.012, GOLD, n=nW, m_=4 if hi else 3)
+    lathe(bd, [(0.585, 1.01), (0.52, 0.99), (0.46, 0.975), (0.43, 0.968)], wx, 0, 0, MAHOG_L, n=nW, caps=False)
+    lathe(bd, [(0.43, 0.968), (0.29, 0.958)], wx, 0, 0, 0x2a1a10, n=nW, caps=False)
     WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26]
+    REDS = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     for k, nn in enumerate(WHEEL):
-        a = k * 2 * math.pi / nw; bd.box(0.07, 0.14, 0.02, wx + 0.4 * math.cos(a), 0.4 * math.sin(a), 1.0, 0x1f9a4a if nn == 0 else RED if nn in REDS else BLACK, rz=a + math.pi / 2, base=True)
-    bd.cyl(0.32, 0.12, 0.08, wx, 0, 1.0, GOLD_D, n=16 if hi else 8)
-    bd.cyl(0.04, 0.03, 0.2, wx, 0, 1.06, GOLD, n=6)
-    for k in range(4): a = k * math.pi / 2; bd.box(0.32, 0.03, 0.03, wx + 0.16 * math.cos(a), 0.16 * math.sin(a), 1.2, GOLD, rz=a); bd.sphere(0.03, wx + 0.32 * math.cos(a), 0.32 * math.sin(a), 1.2, GOLD, sub=0)
-    bd.sphere(0.022, wx + 0.48, 0.1, 1.03, WHITE, sub=1 if hi else 0)
+        a = k * 2 * math.pi / 37
+        bd.box(0.062, 0.13, 0.014, wx + 0.36 * math.cos(a), 0.36 * math.sin(a), 0.962, 0x1f9a4a if nn == 0 else RED if nn in REDS else BLACK, rz=a + math.pi / 2, base=True)
+        if hi: bd.box(0.006, 0.08, 0.03, wx + 0.33 * math.cos(a + math.pi / 37), 0.33 * math.sin(a + math.pi / 37), 0.962, GOLD, rz=a + math.pi / 37, base=True)   # frets
+    if hi:
+        for k in range(8): a = k * math.pi / 4 + 0.2; bd.box(0.05, 0.02, 0.015, wx + 0.5 * math.cos(a), 0.5 * math.sin(a), 0.985, GOLD, rz=a + math.pi / 2, base=True)   # deflectors
+    lathe(bd, [(0.29, 0.958), (0.25, 0.975), (0.13, 1.03), (0.06, 1.06), (0.045, 1.12), (0.0, 1.13)], wx, 0, 0, GOLD_D, n=16 if hi else 8, caps=False)
+    lathe(bd, [(0.03, 1.12), (0.045, 1.165), (0.02, 1.22), (0.032, 1.25), (0.0, 1.275)], wx, 0, 0, GOLD, n=8, caps=False)
+    for k in range(4):
+        a = k * math.pi / 2; bd.box(0.3, 0.025, 0.025, wx + 0.15 * math.cos(a), 0.15 * math.sin(a), 1.18, GOLD, rz=a); bd.sphere(0.028, wx + 0.3 * math.cos(a), 0.3 * math.sin(a), 1.18, GOLD, sub=0)
+    bd.sphere(0.02, wx + 0.36 * math.cos(1.1), 0.36 * math.sin(1.1), 0.985, WHITE, sub=1 if hi else 0)
+    # chips on the layout, the dolly, the croupier's stacks
+    if hi:
+        for (px, py, nn, col) in ((-1.2, -0.3, 3, CRIM), (-0.8, 0.12, 2, GOLD_D), (-0.35, -0.05, 4, BLACK), (-0.05, -0.42, 2, WHITE), (-0.6, -0.45, 3, SAPH)): chip_stack(bd, px, py, 0.877, nn, col, lod)
+        crown(bd, -0.92, -0.02, 0.877, 0.06, lod)
+        for k in range(6): chip_stack(bd, -0.9 + k * 0.12, 0.5, 0.877, 6, (CRIM, GOLD_D, BLACK, WHITE, SAPH, EMER)[k], lod)
+    for xx in (-1.3, -0.6): stool(bd, xx, -1.14, lod)
     figure(bd, wx, TW / 2 + 0.55, 0.0, lod, vest=0x1f4e8a)
     bd.pop()
 
-def t_dice(bd, lod, rng, cx, cy, rz):   # [v378] one station, placed anywhere (main hall + the wing)
-    hi = lod == 0
+DICE_PL, DICE_PW = 2.9, 1.7
+def t_dice(bd, lod, rng, cx, cy, rz):   # [AAA] the dice tub: carved panelled body, studded rubber band, padded rail, brass foot rail, printed felt
+    hi = lod == 0; PL, PW = DICE_PL, DICE_PW; k_ = 4 if hi else 2
     bd.push(T(cx, cy, 0, rz=rz))
-    PL, PW = 2.9, 1.7
-    bd.box(PL, PW, 0.62, 0, 0, 0, MAHOG_D, base=True)
-    bd.box(PL - 0.3, PW - 0.3, 0.04, 0, 0, 0.62, FELT, base=True, mat=CLOTH)
-    for s in (-1, 1): bd.box(PL, 0.15, 0.36, 0, s * (PW / 2 - 0.075), 0.62, MAHOG, base=True); bd.box(PL, 0.18, 0.06, 0, s * (PW / 2 - 0.08), 0.98, LEATH, base=True)
-    for s in (-1, 1): bd.box(0.15, PW, 0.36, s * (PL / 2 - 0.075), 0, 0.62, MAHOG, base=True); bd.box(0.18, PW, 0.06, s * (PL / 2 - 0.08), 0, 0.98, LEATH, base=True)
+    slab(bd, rrect(PL / 2 - 0.1, PW / 2 - 0.1, 0.3, k_), 0.0, 0.08, MAHOG_D)
+    slab(bd, rrect(PL / 2 - 0.04, PW / 2 - 0.04, 0.32, k_), 0.08, 0.62, MAHOG)
     if hi:
-        for s in (-1, 1): bd.box(PL - 0.3, 0.02, 0.012, 0, s * (PW / 2 - 0.4), 0.665, GOLD, base=True)
-        for s in (-1, 1): bd.box(0.02, PW - 0.8, 0.012, s * (PL / 2 - 0.45), 0, 0.665, GOLD, base=True)
-        bd.box(PL - 0.32, 0.03, 0.015, 0, -(PW / 2 - 0.16), 0.97, BRASS, base=True)
-    for (dx_, dy_, rz_, faces) in ((-0.35, 0.1, 0.4, 5), (0.05, -0.15, -0.3, 2)):   # two big bone dice
-        s_ = 0.14; bd.box(s_, s_, s_, dx_, dy_, 0.66, BONE, base=True, rz=rz_)
+        sweep(bd, rrect(PL / 2 - 0.04, PW / 2 - 0.04, 0.32, k_), tube(0.0, 0.0, 0.014, 0.014, 4), GOLD, closed=True, z0=0.1)
+        sweep(bd, rrect(PL / 2 - 0.04, PW / 2 - 0.04, 0.32, k_), tube(0.0, 0.0, 0.014, 0.014, 4), GOLD, closed=True, z0=0.58)
+        for s in (-1, 1):
+            for i in range(3):
+                px = -0.8 + i * 0.8; yy = s * (PW / 2 - 0.04 + 0.012)
+                bd.box(0.6, 0.03, 0.3, px, yy, 0.2, MAHOG_L, base=True)
+                for zz in (0.19, 0.51): bd.box(0.64, 0.035, 0.02, px, yy + s * 0.005, zz, GOLD_D, base=True)
+                for xx in (px - 0.31, px + 0.31): bd.box(0.02, 0.035, 0.34, xx, yy + s * 0.005, 0.18, GOLD_D, base=True)
+        for s in (-1, 1): bd.box(0.03, 0.7, 0.3, s * (PL / 2 - 0.028), 0, 0.2, MAHOG_L, base=True)
+    slab(bd, rrect(PL / 2 - 0.17, PW / 2 - 0.17, 0.2, k_), 0.62, 0.662, FELT, mat=CLOTH)
+    R_ = rrect(PL / 2 - 0.1, PW / 2 - 0.1, 0.26, k_)
+    sweep(bd, R_, [(-0.075, 0.0), (0.06, 0.0), (0.06, 0.32), (-0.075, 0.32), (-0.075, 0.0)], MAHOG, closed=True, smooth=False, z0=0.62)
+    sweep(bd, R_, [(-0.08, 0.0), (-0.074, 0.0), (-0.074, 0.15), (-0.08, 0.15), (-0.08, 0.0)], 0x1a1414, closed=True, smooth=False, z0=0.72)   # rubber band
+    if hi:
+        L = 0.0
+        for (p, q) in zip(R_, R_[1:] + R_[:1]):
+            d = math.dist(p, q); t = 0.0
+            while t < d:
+                u = t / d; px, py = p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u; tx, ty = (q[0] - p[0]) / d, (q[1] - p[1]) / d
+                bd.box(0.035, 0.012, 0.035, px - ty * -0.083, py + tx * -0.083, 0.795, GOLD, rz=math.atan2(ty, tx), ry=math.pi / 4)
+                t += 0.16
+    R2 = rrect(PL / 2 - 0.06, PW / 2 - 0.06, 0.3, k_)
+    sweep(bd, R2, RAIL, MAHOG, closed=True, z0=0.92, smooth=hi)
+    sweep(bd, R2, tube(0.015, 1.05, 0.085, 0.05, 12 if hi else 5), LEATH2, closed=True)
+    FR = rrect(PL / 2 + 0.12, PW / 2 + 0.12, 0.42, k_)
+    sweep(bd, FR, tube(0.0, 0.2, 0.024, 0.024, 6 if hi else 4), BRASS, closed=True)
+    if hi:
+        for (bx, by) in ((-1.0, -1), (0.0, -1), (1.0, -1), (-1.0, 1), (0.0, 1), (1.0, 1)): bd.box(0.03, 0.14, 0.03, bx, by * (PW / 2 + 0.05), 0.2, BRASS)
+    for (dx_, dy_, rz_, faces) in ((-0.35, 0.1, 0.4, 5), (0.05, -0.15, -0.3, 2)):
+        s_ = 0.14; bd.box(s_, s_, s_, dx_, dy_, 0.662, BONE, base=True, rz=rz_)
         if hi:
             c_, sn = math.cos(rz_), math.sin(rz_)
             pips = {5: [(-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)], 2: [(-1, -1), (1, 1)]}[faces]
-            for (u, v) in pips: px, py = u * 0.035, v * 0.035; bd.sphere(0.013, dx_ + px * c_ - py * sn, dy_ + px * sn + py * c_, 0.66 + s_, BLACK, sub=0)
-    bd.cyl(0.012, 0.012, 1.4, 0.4, 0.55, 1.05, MAHOG_L, n=5, ry=math.pi / 2 - 0.15, rz=math.pi)   # the stick
-    bd.box(0.12, 0.05, 0.02, -0.98, 0.55, 1.18, MAHOG_L)
-    bd.push(T(PL / 2 - 0.1, 0, 1.04, rz=-math.pi / 2)); bd.sphere(0.13, 0, 0, 0.13, BONE, sub=1 if hi else 0, s=(1, 0.85, 1)); bd.box(0.14, 0.12, 0.07, 0, 0.0, 0.02, BONE, base=True)
+            for (u, v) in pips: px, py = u * 0.035, v * 0.035; bd.sphere(0.013, dx_ + px * c_ - py * sn, dy_ + px * sn + py * c_, 0.662 + s_, BLACK, sub=0)
+    bd.cyl(0.012, 0.012, 1.4, 0.4, 0.55, 1.1, MAHOG_L, n=5, ry=math.pi / 2 - 0.15, rz=math.pi)   # the stick
+    bd.box(0.12, 0.05, 0.02, -0.98, 0.55, 1.23, MAHOG_L)
+    bd.push(T(PL / 2 - 0.1, 0, 1.1, rz=-math.pi / 2)); bd.sphere(0.13, 0, 0, 0.13, BONE, sub=1 if hi else 0, s=(1, 0.85, 1)); bd.box(0.14, 0.12, 0.07, 0, 0.0, 0.02, BONE, base=True)
     if hi:
         for sx in (-1, 1): bd.sphere(0.035, sx * 0.05, -0.1, 0.15, BLACK, sub=0)
     bd.pop()
-    for (px, py, nn, col) in ((-0.9, -0.55, 3, CRIM), (0.8, -0.6, 2, GOLD_D), (0.3, -0.62, 4, BLACK)): chip_stack(bd, px, py, 0.98, nn, col, lod)
+    for (px, py, nn, col) in ((-0.9, -0.62, 3, CRIM), (0.8, -0.66, 2, GOLD_D), (0.3, -0.66, 4, BLACK)): chip_stack(bd, px, py, 1.08, nn, col, lod)
     figure(bd, 0, PW / 2 + 0.6, 0.0, lod, vest=0x2a2a33, sash=CRIM)
     bd.pop()
 
-def t_slots(bd, lod, rng, cx, cy, rz):   # [v378] one station, placed anywhere (main hall + the wing)
-    hi = lod == 0
+def t_slots(bd, lod, rng, cx, cy, rz):   # [AAA] a bank of three one-armed bandits (SLOT_DY apart): rounded cabinets, gilt belts + button decks,
+    # bezelled reel windows, arched JACKPOT marquees ringed with bulbs, brass lamp posts between the machines, a stool at each
+    hi = lod == 0; k = 3 if hi else 1
     bd.push(T(cx, cy, 0, rz=rz))
     SYM = (('seven', 'chest', 'crown'), ('crown', 'crown', 'doubloon'), ('anchor', 'seven', 'ruby'))
-    for i, lx_ in enumerate((-1.2, 0.0, 1.2)):
-        bd.box(1.0, 0.85, 0.95, lx_, 0, 0, MAHOG, base=True); bd.box(1.04, 0.89, 0.06, lx_, 0, 0.95, GOLD_D, base=True)
-        bd.box(0.92, 0.7, 1.0, lx_, 0.06, 1.01, MAHOG_D, base=True)
-        bd.box(0.8, 0.06, 0.62, lx_, -0.3, 1.2, 0x120c08, base=True)   # reel window
-        for k, sym in enumerate(SYM[i]):
-            rx_ = lx_ + (k - 1) * 0.25; bd.box(0.22, 0.04, 0.5, rx_, -0.32, 1.26, WHITE, base=True)
+    for i, lx_ in enumerate((-SLOT_DY, 0.0, SLOT_DY)):
+        bd.push(T(lx_, 0, 0))
+        slab(bd, rrect(0.52, 0.44, 0.08, k), 0.0, 0.1, MAHOG_D)
+        slab(bd, rrect(0.49, 0.41, 0.1, k), 0.1, 0.9, MAHOG)
+        slab(bd, rrect(0.53, 0.47, 0.06, k), 0.9, 0.98, GOLD_D)
+        if hi:
+            bd.box(0.62, 0.03, 0.5, 0, -0.41, 0.25, MAHOG_L, base=True)
+            for zz in (0.24, 0.75): bd.box(0.66, 0.035, 0.025, 0, -0.42, zz, GOLD, base=True)
+            doubloon(bd, 0, -0.43, 0.5, 0.13, lod, rng, relief='anchor' if i == 1 else 'crown')
+            for b_, c_ in ((-0.22, RED), (0.0, GLOW), (0.22, 0x2a5bd0)): bd.cyl(0.035, 0.035, 0.02, b_, -0.38, 0.98, c_, n=10, mat=1)
+        bd.box(0.92, 0.7, 1.02, 0, 0.06, 0.98, MAHOG_D, base=True)
+        bd.box(0.96, 0.74, 0.05, 0, 0.06, 2.0, GOLD_D, base=True)
+        bd.box(0.8, 0.06, 0.62, 0, -0.3, 1.2, 0x120c08, base=True)   # reel window
+        for kk, sym in enumerate(SYM[i]):
+            rx_ = (kk - 1) * 0.25; bd.box(0.22, 0.04, 0.5, rx_, -0.32, 1.26, WHITE, base=True)
             zc = 1.51; yy = -0.35
-            if sym == 'seven': carve(bd, '7', rx_, yy, zc, 0.16, 0.26, lod, col=RED)
+            if sym == 'seven': carve(bd, '7', rx_, yy, zc, 0.16, 0.26, lod, col=RED, font=FONT)
             elif sym == 'crown':
                 bd.box(0.16, 0.02, 0.05, rx_, yy, zc - 0.06, GOLD_D)
                 for j in range(3): bd.prism([(-0.025, 0), (0.025, 0), (0, 0.09)], 0.02, GOLD_D, T(rx_ + (j - 1) * 0.06, yy, zc - 0.035))
@@ -675,40 +988,82 @@ def t_slots(bd, lod, rng, cx, cy, rz):   # [v378] one station, placed anywhere (
             elif sym == 'doubloon': bd.cyl(0.07, 0.07, 0.02, rx_, yy + 0.01, zc, GOLD, n=12 if hi else 8, rx=math.pi / 2)
             elif sym == 'anchor': anchor(bd, rx_, yy, zc + 0.02, 0.1, lod, col=0x1f4e8a)
             elif sym == 'ruby': bd.sphere(0.06, rx_, yy, zc, RUBY, sub=0, s=(1, 0.4, 1.2))
-        bd.box(0.86, 0.08, 0.06, lx_, -0.34, 1.82, GOLD, base=True); bd.box(0.86, 0.08, 0.06, lx_, -0.34, 1.16, GOLD, base=True)
-        bd.box(0.82, 0.04, 0.02, lx_, -0.36, 1.505, RED, base=True)   # pay line
-        bd.prism([(0.46 * math.cos(math.pi * j / 10), 0.46 * math.sin(math.pi * j / 10)) for j in range(11)], 0.5, MAHOG_D, T(lx_, -0.28, 2.01))   # arched marquee (CCW seen from the front)
-        bd.prism([(0.38 * math.cos(math.pi * j / 10), 0.38 * math.sin(math.pi * j / 10)) for j in range(11)], 0.04, GLOW, T(lx_, -0.31, 2.03), mat=1)
-        doubloon(bd, lx_, -0.36, 2.24, 0.15, lod, rng, relief='crown' if i != 1 else 'anchor')
-        bd.box(0.6, 0.18, 0.08, lx_, -0.48, 0.92, GOLD_D, base=True)   # coin tray
-        bd.box(0.62, 0.2, 0.05, lx_, -0.42, 0.84, MAHOG_D, base=True)
+        for zz in (1.16, 1.82): bd.box(0.88, 0.08, 0.06, 0, -0.34, zz, GOLD, base=True)
+        for xx in (-0.43, 0.43): bd.box(0.06, 0.08, 0.72, xx, -0.34, 1.16, GOLD, base=True)
+        bd.box(0.82, 0.04, 0.02, 0, -0.36, 1.505, RED, base=True)   # pay line
+        bd.prism([(0.47 * math.cos(math.pi * j / 12), 0.47 * math.sin(math.pi * j / 12)) for j in range(13)], 0.6, MAHOG_D, T(0, -0.28, 2.05))   # arched marquee
+        bd.prism([(0.4 * math.cos(math.pi * j / 12), 0.4 * math.sin(math.pi * j / 12)) for j in range(13)], 0.04, 0x3a0c10, T(0, -0.31, 2.07))
+        carve(bd, 'JACKPOT', 0, -0.33, 2.2, 0.56, 0.14, lod, col=GLOW_G, mat=1, depth=0.015)
         if hi:
-            for k in range(4): bd.cyl(0.035, 0.035, 0.012, lx_ - 0.15 + k * 0.1, -0.5, 0.97, GOLD, n=8)
-        bd.cyl(0.07, 0.07, 0.12, lx_ + 0.5, -0.05, 1.35, BRASS, n=8, ry=math.pi / 2)   # the one arm
-        bd.cyl(0.03, 0.03, 0.62, lx_ + 0.58, -0.05, 1.38, BRASS, n=6); bd.sphere(0.075, lx_ + 0.58, -0.05, 2.02, RED, sub=1 if hi else 0)
+            for j in range(11): a = math.pi * (j + 0.5) / 11; bd.sphere(0.022, 0.435 * math.cos(a), -0.31, 2.05 + 0.435 * math.sin(a), BULB, sub=0, mat=1)
+            crown(bd, 0, -0.05, 2.5, 0.12, lod)
+        bd.box(0.6, 0.18, 0.08, 0, -0.48, 0.92, GOLD_D, base=True)   # coin tray
+        bd.box(0.62, 0.2, 0.05, 0, -0.42, 0.84, MAHOG_D, base=True)
         if hi:
-            for k in range(4): bd.box(0.03, 0.03, 0.03, lx_ - 0.42, -0.36, 1.2 + k * 0.2, GLOW, mat=1)   # marker lamps
+            for kk in range(4): bd.cyl(0.035, 0.035, 0.012, -0.15 + kk * 0.1, -0.5, 0.97, GOLD, n=8)
+        bd.cyl(0.07, 0.07, 0.12, 0.5, -0.05, 1.35, BRASS, n=8, ry=math.pi / 2)   # the one arm
+        bd.cyl(0.03, 0.03, 0.62, 0.58, -0.05, 1.38, BRASS, n=6); bd.sphere(0.075, 0.58, -0.05, 2.02, RED, sub=1 if hi else 0)
+        stool(bd, 0, -0.9, lod)
+        bd.pop()
+    for px in (-SLOT_DY / 2, SLOT_DY / 2, -SLOT_DY * 1.5, SLOT_DY * 1.5):   # brass lamp posts between + beside the machines
+        lathe(bd, [(0.09, 0.0), (0.09, 0.04), (0.05, 0.08), (0.03, 0.2), (0.025, 2.0), (0.04, 2.1), (0.05, 2.18)], px, 0.1, 0, BRASS, n=8 if hi else 5)
+        bd.sphere(0.1, px, 0.1, 2.28, BULB, sub=1 if hi else 0, mat=1)
+        halo(bd, px, 0.1, 2.28, 0.9, lod)
     bd.pop()
+
+TB = dict(blackjack=t_blackjack, roulette=t_roulette, dice=t_dice, slots=t_slots)
+FELT_Z = dict(blackjack=0.8875, roulette=0.8775, dice=0.6635)
+def pendant(bd, kind, lod, ztop):   # [AAA] the lamp over a table (in the table's frame): lacquered hood, brass rim, glowing underside, drop rods
+    hi = lod == 0
+    if kind == 'slots': return
+    zb = 3.0
+    if kind == 'blackjack':
+        cx, cy = 0.0, -0.62
+        lathe(bd, [(0.56, 0.0), (0.55, 0.05), (0.44, 0.17), (0.26, 0.3), (0.1, 0.37), (0.06, 0.42)], cx, cy, zb, LACQ, n=20 if hi else 8)
+        bd.torus(0.56, 0.02, cx, cy, zb, BRASS, n=20 if hi else 8, m_=3)
+        bd.cyl(0.53, 0.53, 0.01, cx, cy, zb + 0.005, GLOW, n=20 if hi else 8, mat=1)
+        rods = [(cx, cy)]
+    else:
+        L, W_, cx = (2.3, 0.72, -0.35) if kind == 'roulette' else (2.0, 0.78, 0.0); cy = 0.0
+        bd.push(T(cx, cy, 0))
+        slab(bd, rrect(L / 2, W_ / 2, 0.12, 3 if hi else 1), zb, zb + 0.05, BRASS)
+        slab(bd, rrect(L / 2 - 0.05, W_ / 2 - 0.05, 0.1, 3 if hi else 1), zb + 0.05, zb + 0.24, LACQ)
+        slab(bd, rrect(L / 2 - 0.22, W_ / 2 - 0.15, 0.06, 2 if hi else 1), zb + 0.24, zb + 0.32, LACQ)
+        slab(bd, rrect(L / 2 - 0.04, W_ / 2 - 0.04, 0.1, 3 if hi else 1), zb - 0.006, zb + 0.001, GLOW, mat=1)
+        if hi:
+            for xx in (-L / 2 + 0.3, 0.0, L / 2 - 0.3): bd.sphere(0.03, xx, -W_ / 2 - 0.005, zb + 0.14, GOLD, sub=0)
+        bd.pop()
+        rods = [(cx - L / 3, cy), (cx + L / 3, cy)]
+    for (rx_, ry_) in rods:
+        bd.cyl(0.016, 0.016, ztop - (zb + 0.3), rx_, ry_, zb + 0.3, GOLD_D, n=6)
+        if hi: lathe(bd, [(0.0, -0.06), (0.06, -0.04), (0.09, 0.0)], rx_, ry_, ztop, GOLD_D, n=8, caps=False); bd.sphere(0.035, rx_, ry_, zb + 0.32, GOLD, sub=0)
+    light(bd, cx, cy, zb - 0.15, 0.95, 3.6, lod)
+    pool(bd, cx, cy, 2.3, 0.6, lod)
+
+def place(bd, kind, lod, rng, cx, cy, rz, ztop):   # [AAA] a table station: the instanced kit (recorded), its dealer marker, its lamp
+    if lod == 0 and RECORD: KIT.append([kind, round(cx, 3), round(-cy, 3), round(rz, 4)])
+    nb = NullBuilder(); nb.stack = [bd.stack[-1].copy()]; TB[kind](nb, lod, rng, cx, cy, rz)
+    bd.push(T(cx, cy, 0, rz=rz)); pendant(bd, kind, lod, ztop); bd.pop()
 
 def stations(bd, lod, rng, cols):
     hi = lod == 0
     # ---- PIRATE BLACKJACK: half-moon table, dealer behind the straight edge (south wall side), players on the curve ----
-    cx, cy = ST['blackjack']['c']; t_blackjack(bd, lod, rng, cx, cy, math.pi / 2)
+    cx, cy = ST['blackjack']['c']; place(bd, 'blackjack', lod, rng, cx, cy, math.pi / 2, CEIL)
     if cols is not None: cols += [['c', cx, -cy, 1.55], ['b', round((IX0 + cx) / 2, 3), -cy, round(cx - IX0, 3), 3.2]]
-    plaque(bd, 'PIRATE BLACKJACK', IX0 + 0.08, cy, 3.25, 3.0, 0.55, lod, rz=math.pi / 2)
+    sign_board(bd, 'PIRATE BLACKJACK', IX0 + 0.06, cy, 5.3, 3.1, 0.78, lod, rz=math.pi / 2, sub='BLACKJACK PAYS 3 TO 2')
     # ---- BUCCANEER ROULETTE: long table along the wall, the wheel at the south end, croupier between it and the north wall ----
-    cx, cy = ST['roulette']['c']; t_roulette(bd, lod, rng, cx, cy, -math.pi / 2)
+    cx, cy = ST['roulette']['c']; place(bd, 'roulette', lod, rng, cx, cy, -math.pi / 2, CEIL)
     if cols is not None: cols += [['b', round((cx - 0.85 + IX1) / 2, 3), -cy, round(IX1 - (cx - 0.85), 3), 3.6]]
-    plaque(bd, 'BUCCANEER ROULETTE', IX1 - 0.08, cy, 3.25, 3.2, 0.55, lod, rz=-math.pi / 2)
-    # ---- DEAD MAN'S DICE: the craps tub, the stickman on the wall side, a skull on the end rail ----
-    cx, cy = ST['dice']['c']; t_dice(bd, lod, rng, cx, cy, math.pi / 2)
-    PL, PW = 2.9, 1.7
+    sign_board(bd, 'BUCCANEER ROULETTE', IX1 - 0.06, cy, 5.3, 3.1, 0.78, lod, rz=-math.pi / 2, sub='RED OR BLACK')
+    # ---- DEAD MAN'S DICE: the dice tub, the stickman on the wall side, a skull on the end rail ----
+    cx, cy = ST['dice']['c']; place(bd, 'dice', lod, rng, cx, cy, math.pi / 2, CEIL)
+    PL, PW = DICE_PL, DICE_PW
     if cols is not None: cols += [['b', round((IX0 + cx + PW / 2 + 0.05) / 2, 3), -cy, round(cx + PW / 2 + 0.05 - IX0, 3), PL + 0.2]]
-    plaque(bd, "DEAD MAN'S DICE", IX0 + 0.08, cy, 3.25, 3.0, 0.55, lod, rz=math.pi / 2)
+    sign_board(bd, "DEAD MAN'S DICE", IX0 + 0.06, cy, 5.3, 3.1, 0.78, lod, rz=math.pi / 2, sub='UNDER SEVEN OR OVER')
     # ---- TREASURE SLOTS: a bank of three one-armed bandits against the north wall ----
-    cx, cy = ST['slots']['c']; t_slots(bd, lod, rng, cx, cy, -math.pi / 2)
-    if cols is not None: cols += [['b', round((cx - 0.5 + IX1) / 2, 3), -cy, round(IX1 - (cx - 0.5), 3), 3.7]]
-    plaque(bd, 'TREASURE SLOTS', IX1 - 0.08, cy, 3.35, 2.8, 0.55, lod, rz=-math.pi / 2)
+    cx, cy = ST['slots']['c']; place(bd, 'slots', lod, rng, cx, cy, -math.pi / 2, CEIL)
+    if cols is not None: cols += [['b', round((cx - 0.5 + IX1) / 2, 3), -cy, round(IX1 - (cx - 0.5), 3), 4.1]]
+    sign_board(bd, 'TREASURE SLOTS', IX1 - 0.06, cy, 5.3, 3.1, 0.78, lod, rz=-math.pi / 2, sub='PULL FOR THE JACKPOT')
 
 def rum_bar(bd, lod, rng, cols, DY, IY1=IY1):   # [v378] the rum bar (moved to the wing's end wall: DY = how far back, IY1 = that wall's inner face - DY)
     hi = lod == 0
@@ -736,7 +1091,7 @@ def rum_bar(bd, lod, rng, cols, DY, IY1=IY1):   # [v378] the rum bar (moved to t
         bd.box(0.7, 0.4, 0.14, xx, BY - 0.0, 1.06, MAHOG_D, base=True)
         bd.push(T(xx, BY - 0.02, 1.48, ry=math.pi / 2)); barrel_(bd, 0, 0, -0.36, lod, r=0.3, h=0.72); bd.pop()
         bd.cyl(0.03, 0.03, 0.14, xx + 0.0, BY - 0.25, 1.4, BRASS, n=6, rx=math.pi / 2); bd.cyl(0.02, 0.02, 0.08, xx, BY - 0.38, 1.33, BRASS, n=6)
-    plaque(bd, 'RUM BAR', 0, IY1 - 0.06, 3.95, 2.4, 0.55, lod, rz=0.0)
+    sign_board(bd, 'RUM BAR', 0, IY1 - 0.08, 4.6, 3.0, 0.8, lod, rz=0.0)
     figure(bd, -0.9, 5.98, 0.0, lod, vest=0x6a1414, hat=False)
     for (xx, yy) in ((-3.45, 6.15), (3.45, 6.15)): barrel_(bd, xx, yy, 0, lod, r=0.38, h=1.0)
     barrel_(bd, 3.45, 6.15, 1.0, lod, r=0.32, h=0.85)
@@ -760,12 +1115,11 @@ def decor(bd, lod, rng, cols):
         for k in range(3): bd.cyl(0.02, 0.02, 0.9, dx1 + 0.08, dy0 + 0.4 + k * 0.9, 0.75, CRIM, n=4, rx=-math.pi / 2)
     if cols is not None: cols += [['b', round(dcx + 0.05, 3), round(-dcy, 3), round(dx1 - dx0 + 0.2, 3), round(dy1 - dy0 + 0.1, 3)]]
     # ---- the north front corner: a stack of chests + doubloon barrels ----
-    chest(bd, 6.9, -5.9, FLOOR, math.pi / 2, lod, rng, open_=True)
-    chest(bd, 6.85, -4.95, FLOOR, math.pi / 2 + 0.2, lod, rng)
-    chest(bd, 6.85, -4.95, FLOOR + 0.82, math.pi / 2 - 0.15, lod, rng, s=0.8)
-    barrel_(bd, 5.6 + 0.6, -6.1, 0, lod, r=0.36, h=0.95); coins(bd, 6.2, -6.1, 0.95, 0.3, 0.16, lod, rng)
-    if cols is not None: cols += [['b', 6.75, 5.55, 2.1, 2.0]]
-    plaque(bd, 'HIGH STAKES', IX1 - 0.08, -5.4, 3.2, 2.0, 0.5, lod, rz=-math.pi / 2)
+    # [AAA] spacing: one open chest + a closed one by the door (the stacked chest + the barrel are gone: a clear way in)
+    chest(bd, 6.9, -5.75, FLOOR, math.pi / 2, lod, rng, open_=True)
+    chest(bd, 6.95, -4.75, FLOOR, math.pi / 2 + 0.12, lod, rng, s=0.85)
+    if cols is not None: cols += [['b', 6.9, 5.3, 1.4, 2.1]]
+    sign_board(bd, 'HIGH STAKES', IX1 - 0.06, -5.1, 5.3, 2.3, 0.62, lod, rz=-math.pi / 2)
     # ---- the hall's own walls (three.js building frame: x, z = -y): the front split around the open arch (4.8 m clear), sides, back ----
     if cols is not None:
         fz = round(-(Y0 + WT / 2), 3); fd = WT + 0.1
@@ -822,18 +1176,20 @@ def wing_ext(bd, lod, rng):
             for sy in (-1, 1): bd.box(0.14, 0.14, 0.75, sx * 0.6, yy + sy * 0.6, z0 + 0.3, CREAM, base=True)
         bd.cyl(1.15, 0.08, 0.7, 0, yy, z0 + 1.05, SLATE[1], n=4, rz=math.pi / 4); bd.sphere(0.12, 0, yy, z0 + 1.8, GOLD, sub=0)
 
-def lining(bd, segs, ceil, hi, fleur=True):   # mahogany wainscot + damask + gilt rail on interior wall runs (local -y = into the room)
+def lining(bd, segs, ceil, hi, fleur=True):   # mahogany wainscot + damask + [AAA] gilt entablature at 4.5 m + framed upper panels (local -y = into the room)
     for (p, q, rz_) in segs:
         L = math.dist(p, q); mx, my = (p[0] + q[0]) / 2, (p[1] + q[1]) / 2
         bd.push(T(mx, my, 0, rz=rz_))
         bd.box(L, 0.04, ceil - 1.3, 0, 0.0, 1.3, DAMASK, base=True)
         bd.box(L, 0.08, 1.3, 0, -0.02, FLOOR, MAHOG, base=True); bd.box(L, 0.12, 0.08, 0, -0.05, 1.3, MAHOG_D, base=True)
-        bd.box(L, 0.06, 0.06, 0, -0.04, 3.7, GOLD_D); bd.box(L, 0.1, 0.3, 0, -0.04, ceil - 0.3, MAHOG_D, base=True)
+        bd.box(L, 0.1, 0.12, 0, -0.04, FLOOR, MAHOG_D, base=True)   # skirting
         if hi:
-            for k in range(int(L / 1.0)): bd.box(0.78, 0.03, 0.85, -L / 2 + 0.5 + k * 1.0, -0.07, 0.25, MAHOG_L, base=True)
+            for k in range(int(L / 1.0)): bd.box(0.78, 0.03, 0.85, -L / 2 + 0.5 + k * 1.0, -0.07, 0.25, MAHOG_L, base=True); bd.box(0.62, 0.035, 0.02, -L / 2 + 0.5 + k * 1.0, -0.08, 0.66, GOLD_D, base=True)
             if fleur:
                 for k in range(int(L / 1.4)): xk = -L / 2 + 0.7 + k * 1.4; bd.box(0.05, 0.02, 0.5, xk, -0.03, 2.2, GOLD_D, base=True); bd.box(0.3, 0.02, 0.05, xk, -0.03, 2.45, GOLD_D)
         bd.pop()
+    entablature(bd, segs, hi)
+    upper_panels(bd, segs, ceil, hi)
 
 NAMES = dict(blackjack='PIRATE BLACKJACK', roulette='BUCCANEER ROULETTE', dice="DEAD MAN'S DICE", slots='TREASURE SLOTS')
 def wing_int(bd, lod, rng, cols):
@@ -848,29 +1204,25 @@ def wing_int(bd, lod, rng, cols):
     bd.box(BA_W + 0.7, 0.04, WCEIL - (BA_SPRING + BA_RISE), 0, fy, BA_SPRING + BA_RISE, DAMASK, base=True)
     for s_ in (-1, 1): bd.box(0.35, 0.14, BA_SPRING + BA_RISE, s_ * (BA_W / 2 + 0.175), fy + 0.04, FLOOR, MAHOG_D, base=True)
     arch_ring(bd, 0, BA_W / 2, BA_SPRING, BA_RISE, fy + 0.03, 0.12, 0.2, GOLD_D, 9 if hi else 5, rng, keyc=GOLD)
-    plaque(bd, 'THE GOLDEN DOUBLOON', 0, fy + 0.06, 4.85, 3.0, 0.42, lod, rz=math.pi)
+    sign_board(bd, 'THE GOLDEN DOUBLOON', 0, fy + 0.08, 5.3, 4.4, 0.72, lod, rz=math.pi)
     # lit windows (inside faces of the leaded glass) flanked by sconces, pilasters between the bays
     for (xe, rz_) in ((WIX0, math.pi / 2), (WIX1, -math.pi / 2)):
         for yy in (13.9, 19.7, 25.0):
             bd.push(T(xe, yy, 0, rz=rz_))
             bd.box(1.1, 0.05, 1.1, 0, -0.06, 3.2, GLOW, mat=1, base=True); bd.cyl(0.55, 0.55, 0.05, 0, -0.06, 4.3, GLOW, n=12 if hi else 6, rx=math.pi / 2, mat=1)
             bd.box(1.36, 0.12, 0.1, 0, -0.1, 3.1, GOLD_D, base=True)
-            for sx in (-1, 1): bd.box(0.1, 0.12, 1.2, sx * 0.62, -0.1, 3.1, GOLD_D, base=True); sconce(bd, sx * 1.15, -0.06, 2.75, lod, out=-1)
+            for sx in (-1, 1):
+                bd.box(0.1, 0.12, 1.2, sx * 0.62, -0.1, 3.1, GOLD_D, base=True)
+                if not (25.6 < yy + sx * 1.15 * (1 if rz_ > 0 else -1) < 29.6): sconce(bd, sx * 1.15, -0.06, 2.75, lod, out=-1)
             bd.pop()
+            light(bd, xe + (0.9 if xe < 0 else -0.9), yy, 3.9, 0.18, 3.0, lod)
         for yy in (8.3, 30.2):
-            bd.push(T(xe, yy, 0, rz=rz_)); bd.box(0.5, 0.18, WCEIL - 0.3, 0, -0.09, FLOOR, MAHOG_D, base=True); bd.box(0.62, 0.24, 0.24, 0, -0.12, WCEIL - 0.55, GOLD_D, base=True); bd.pop()
-    # coffered ceiling + chandeliers down the aisle and a smaller one over every table
-    bd.box(iw, idp, WZ2 - WCEIL, 0, cym, WCEIL, MAHOG_D, base=True)
-    nx_, ny_ = 6, 13
-    for i in range(nx_ + 1): xx = WIX0 + i * iw / nx_; bd.box(0.26, idp, 0.32, xx, cym, WCEIL - 0.32, MAHOG, base=True)
-    for j in range(ny_ + 1): yy = WIY0 + j * idp / ny_; bd.box(iw, 0.26, 0.32, 0, yy, WCEIL - 0.32, MAHOG, base=True)
-    for i in range(nx_):
-        for j in range(ny_):
-            xx = WIX0 + (i + 0.5) * iw / nx_; yy = WIY0 + (j + 0.5) * idp / ny_
-            bd.box(iw / nx_ - 0.5, idp / ny_ - 0.5, 0.04, xx, yy, WCEIL - 0.04, BURG, base=True, mat=CLOTH)
-            if hi: bd.sphere(0.09, xx, yy, WCEIL - 0.07, GOLD, sub=0)
-    for yy in WCH: chandelier(bd, 0, yy, 4.15, 1.05, 12, WCEIL - 0.3, lod)
-    for (g, n_, cx, cy, rz, ex) in WING: chandelier(bd, (cx + ex) / 2, cy, 4.4, 0.55, 6, WCEIL - 0.3, max(lod, 1))   # small ones: LOD1 detail (file size)
+            bd.push(T(xe, yy, 0, rz=rz_)); bd.box(0.5, 0.18, WCEIL - 0.65, 0, -0.09, FLOOR, MAHOG_D, base=True)
+            bd.box(0.62, 0.26, 0.3, 0, -0.12, FLOOR, MAHOG, base=True); bd.box(0.66, 0.26, 0.32, 0, -0.12, WCEIL - 0.85, GOLD_D, base=True); bd.box(0.74, 0.3, 0.1, 0, -0.14, WCEIL - 0.55, GOLD, base=True)
+            bd.pop()
+    # [AAA] the coffered ceiling (raised to 7 m) + grand chandeliers down the aisle; every table has its own lamp (pendant())
+    ceiling(bd, WIX0, WIX1, WIY0, WIY1, WCEIL, WZ2 - 0.05, 4, 8, lod)
+    for yy in WCH: chandelier(bd, 0, yy, 4.95, 1.05, 10, WCEIL - 0.45, lod, I=0.7, reach=7.0)
     # the crimson runner from the arch to the bar, two doubloon rugs
     ry0, ry1 = WIY0 - 0.3, 30.8
     bd.box(2.0, ry1 - ry0, 0.012, 0, (ry0 + ry1) / 2, FLOOR, CRIM, base=True, mat=CLOTH)
@@ -885,17 +1237,17 @@ def wing_int(bd, lod, rng, cols):
     roman = {2: 'II', 3: 'III'}
     for (g, n_, cx, cy, rz, ex) in WING:
         sg = -1 if cx < 0 else 1; wall = WIX0 if sg < 0 else WIX1
-        {'blackjack': t_blackjack, 'roulette': t_roulette, 'dice': t_dice}[g](bd, lod, rng, cx, cy, rz)
-        plaque(bd, NAMES[g] + ' ' + roman[n_], wall - sg * 0.08, cy, 3.25, 3.0, 0.5, lod, rz=-sg * math.pi / 2)
+        place(bd, g, lod, rng, cx, cy, rz, WCEIL)
+        sign_board(bd, NAMES[g] + ' ' + roman[n_], wall - sg * 0.06, cy, 5.45, 3.0, 0.7, lod, rz=-sg * math.pi / 2)
         if cols is not None:
             inner = {'blackjack': cx, 'roulette': cx - sg * 0.85, 'dice': cx - sg * 0.9}[g]; dep = {'blackjack': 3.2, 'roulette': 3.6, 'dice': 3.1}[g]
             cols.append(['b', round((wall + inner) / 2, 3), round(-cy, 3), round(abs(wall - inner), 3), dep])
             if g == 'blackjack': cols.append(['c', cx, round(-cy, 3), 1.55])
     for (cx, cy, rz) in WSLOTS:
         sg = -1 if cx < 0 else 1; wall = WIX0 if sg < 0 else WIX1
-        t_slots(bd, lod, rng, cx, cy, rz)
-        plaque(bd, NAMES['slots'], wall - sg * 0.08, cy, 3.35, 2.8, 0.5, lod, rz=-sg * math.pi / 2)
-        if cols is not None: cols.append(['b', round((wall + cx - sg * 0.5) / 2, 3), round(-cy, 3), round(abs(wall - (cx - sg * 0.5)), 3), 3.7])
+        place(bd, 'slots', lod, rng, cx, cy, rz, WCEIL)
+        sign_board(bd, NAMES['slots'], wall - sg * 0.06, cy, 5.45, 2.9, 0.7, lod, rz=-sg * math.pi / 2)
+        if cols is not None: cols.append(['b', round((wall + cx - sg * 0.5) / 2, 3), round(-cy, 3), round(abs(wall - (cx - sg * 0.5)), 3), 4.1])
     # the rum bar on the end wall, treasure in the corners beside it
     rum_bar(bd, lod, rng, cols, BAR_DY)
     for sg in (-1, 1):
@@ -912,7 +1264,7 @@ def wing_tables():   # three.js building frame, like `tables`: one entry per sta
     k = 2
     for (cx, cy, rz) in WSLOTS:
         sg = -1 if cx < 0 else 1
-        for dy in (-1.2, 0.0, 1.2): out.append(dict(id='casino_slots_%d' % k, game='slots', c=[cx, round(-(cy + dy), 3)], e=[round(cx - sg * 1.55, 3), round(-(cy + dy), 3)])); k += 1
+        for dy in (-SLOT_DY, 0.0, SLOT_DY): out.append(dict(id='casino_slots_%d' % k, game='slots', c=[cx, round(-(cy + dy), 3)], e=[round(cx - sg * 1.55, 3), round(-(cy + dy), 3)])); k += 1
     return out
 
 # ---------------- build + export ----------------
@@ -928,23 +1280,66 @@ MATS = mats()
 coll = bpy.data.collections.new('casino'); bpy.context.scene.collection.children.link(coll)
 root = bpy.data.objects.new('casino_hall', None); coll.objects.link(root)
 cols = []; rep = {}
+
+def inside_rooms(P):   # interior corners that get the baked light (hall + wing volumes; never the facade, roofs or the back wall's outer face)
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    hall = (x > IX0 - 0.08) & (x < IX1 + 0.08) & (y > IY0 - 0.08) & (y < IY1 + 0.05) & (z > -0.3) & (z < Z2 - 0.12)
+    arch = (x > -BA_W / 2 - 0.4) & (x < BA_W / 2 + 0.4) & (y >= IY1 + 0.05) & (y < Y1 + 0.05) & (z > -0.3) & (z < BA_SPRING + BA_RISE + 0.1)
+    wing = (x > WIX0 - 0.08) & (x < WIX1 + 0.08) & (y > Y1 - 0.05) & (y < WIY1 + 0.08) & (z > -0.3) & (z < WZ2 - 0.02)
+    return hall | arch | wing
+def amb_rooms(P):   # ambient by height: the floor + tables keep their colour, the upper walls + ceiling fall into warm shadow
+    return 0.86 - 0.3 * np.clip((P[:, 2] - 1.6) / 6.0, 0, 1)
+
 for lod in (0, 1):
     rng = np.random.default_rng(4747 + lod); random.seed(47)
     bd = Builder(); bd.ground = lambda x, y: 0.0
     exterior(bd, lod, rng); interior(bd, lod, rng, cols if lod == 0 else None)
     me = bd.bake(f'casino_hall_LOD{lod}'); me.validate(clean_customdata=False)
+    nlit = light_bake(me, LIGHTS, inside_rooms, amb_rooms)
     for m in MATS: me.materials.append(m)
     o = bpy.data.objects.new(f'casino_hall_LOD{lod}', me); coll.objects.link(o); o.parent = root; rep[f'LOD{lod}'] = bd.tris()
-    print('LOD', lod, 'tris', rep[f'LOD{lod}'], flush=True)
+    print('LOD', lod, 'tris', rep[f'LOD{lod}'], 'lit corners', nlit, 'lights', len(LIGHTS), flush=True)
 cols = [[q[0]] + [round(float(v), 3) for v in q[1:]] for q in cols]
 tables = {k: dict(c=[round(v['c'][0], 3), round(-v['c'][1], 3)], e=[round(v['e'][0], 3), round(-v['e'][1], 3)]) for k, v in ST.items()}   # three.js building frame
 root['colliders'] = json.dumps(cols); root['tables'] = json.dumps(tables); root['wing'] = json.dumps(dict(tables=wing_tables(), x0=-WX, x1=WX, y0=round(-Y1, 3), y1=round(-WYE, 3), inner=[WIX0, round(-WIY1, 3), WIX1, round(-WIY0, 3)], ceil=WCEIL, chand=[round(-y, 3) for y in WCH], arch=BA_W))
 root['footprint'] = json.dumps(dict(cx=CX, cz=CZ, w=W, d=D, inner=[round(IX0, 3), round(-IY1, 3), round(IX1, 3), round(-IY0, 3)], arch=ARCH_W, archH=ARCH_SPRING + ARCH_RISE, ceil=CEIL))
 root['dealers'] = json.dumps(DEALERS); root['kind'] = 'casino'; root['n'] = 47
-json.dump(dict(report=rep, colliders=cols, tables=tables), open(os.path.join(OUT, 'casino_report.json'), 'w'), indent=1)
-for o in bpy.data.objects: o.select_set(True)
-f = os.path.join(OUT, 'casino_hall_raw.glb')
-kw = dict(filepath=f, export_format='GLB', use_selection=True, export_extras=True, export_apply=False, export_yup=True)
-try: bpy.ops.export_scene.gltf(**kw, export_vertex_color='MATERIAL')
-except TypeError: bpy.ops.export_scene.gltf(**kw)
-print('EXPORTED', f, os.path.getsize(f), rep, flush=True)
+# [AAA] the instanced table kit placements + the soft light pools / flame halos js/island/casino.js lays over the baked lighting
+root['kit'] = json.dumps(KIT); root['pools'] = json.dumps(POOLS); root['halos'] = json.dumps(HALOS)
+root['lamps'] = json.dumps([[round(l[0], 3), round(l[2], 3), round(-l[1], 3)] for l in LIGHTS if l[3] >= 0.7])   # the strong ones (chandeliers + table lamps) for the realtime light rig
+
+# ---------------- [AAA] the table kit: one sculpted model per game (LOD0 + LOD1), instanced at every station ----------------
+RECORD = False
+kcoll = bpy.data.collections.new('casino_tables'); bpy.context.scene.collection.children.link(kcoll)
+kroot = bpy.data.objects.new('casino_tables', None); kcoll.objects.link(kroot)
+KLIGHTS = dict(blackjack=[(0.0, -0.62, 2.85, 0.95, 3.6)], roulette=[(-0.35, 0.0, 2.85, 0.95, 3.6)], dice=[(0.0, 0.0, 2.85, 0.95, 3.6)],
+               slots=[(px, 0.1, 2.28, 0.32, 1.8) for px in (-SLOT_DY / 2, SLOT_DY / 2, -SLOT_DY * 1.5, SLOT_DY * 1.5)] + [(0.0, -1.6, 2.6, 0.45, 3.5)])
+krep = {}
+for kind in ('blackjack', 'roulette', 'dice', 'slots'):
+    for lod in (0, 1):
+        rng = np.random.default_rng(910 + lod); random.seed(47)
+        bd = Builder(); bd.ground = lambda x, y: 0.0
+        TB[kind](bd, lod, rng, 0.0, 0.0, 0.0)
+        me = bd.bake(f'{kind}_LOD{lod}'); me.validate(clean_customdata=False)
+        light_bake(me, KLIGHTS[kind], lambda P: np.ones(len(P), bool), lambda P: 0.8 - 0.1 * np.clip(1 - P[:, 2] / 0.8, 0, 1), lo=0.45, hi_=1.35)
+        for m in MATS: me.materials.append(m)
+        o = bpy.data.objects.new(f'{kind}_LOD{lod}', me); kcoll.objects.link(o); o.parent = kroot; krep[f'{kind}_LOD{lod}'] = bd.tris()
+print('KIT', krep, flush=True)
+# printed felts (three.js kit frame: x, z = -y, y up): js/island/casinoFelt.js draws the layouts at these sizes
+kroot['felts'] = json.dumps(dict(
+    blackjack=dict(shape='d', r=1.34, y=FELT_Z['blackjack']),
+    roulette=dict(shape='rect', hx=round(ROU_TL / 2 - 0.18, 3), hz=round(ROU_TW / 2 - 0.18, 3), rr=0.16, y=FELT_Z['roulette'], wheel=[ROU_WX, 0.0, 0.64]),
+    dice=dict(shape='rect', hx=round(DICE_PL / 2 - 0.17, 3), hz=round(DICE_PW / 2 - 0.17, 3), rr=0.2, y=FELT_Z['dice'])))
+kroot['kind'] = 'casino_tables'
+
+json.dump(dict(report=rep, kit=krep, colliders=cols, tables=tables, placements=KIT, pools=len(POOLS), halos=len(HALOS), lights=len(LIGHTS)), open(os.path.join(OUT, 'casino_report.json'), 'w'), indent=1)
+def export(objs, f):
+    for o in bpy.data.objects: o.select_set(False)
+    for o in objs: o.select_set(True)
+    kw = dict(filepath=f, export_format='GLB', use_selection=True, export_extras=True, export_apply=False, export_yup=True)
+    try: bpy.ops.export_scene.gltf(**kw, export_vertex_color='MATERIAL')
+    except TypeError: bpy.ops.export_scene.gltf(**kw)
+    print('EXPORTED', f, os.path.getsize(f), flush=True)
+export([root] + list(root.children), os.path.join(OUT, 'casino_hall_raw.glb'))
+export([kroot] + list(kroot.children), os.path.join(OUT, 'casino_tables_raw.glb'))
+print('DONE', rep, flush=True)
