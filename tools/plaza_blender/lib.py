@@ -231,11 +231,10 @@ def bbox_parts(parts):
     V = np.concatenate([p[0] for p in parts]); return V.min(0), V.max(0)
 
 # ---------- carved 3D lettering (the brand font) ----------
-_font = None
+_fonts = {}   # [clothes-aaa] one loaded font per path (the clothes shop signs use the repo's Cinzel Decorative)
 def text_mesh(s, font_path, size=0.5, extrude=0.03, res=3):
-    global _font
-    if _font is None: _font = bpy.data.fonts.load(font_path)
-    cu = bpy.data.curves.new('t', 'FONT'); cu.body = s; cu.font = _font; cu.size = size; cu.extrude = extrude
+    if font_path not in _fonts: _fonts[font_path] = bpy.data.fonts.load(font_path)
+    cu = bpy.data.curves.new('t', 'FONT'); cu.body = s; cu.font = _fonts[font_path]; cu.size = size; cu.extrude = extrude
     cu.align_x = 'CENTER'; cu.align_y = 'CENTER'; cu.resolution_u = res; cu.fill_mode = 'BOTH' if extrude else 'FRONT'
     o = bpy.data.objects.new('t', cu); bpy.context.scene.collection.objects.link(o)
     dg = bpy.context.evaluated_depsgraph_get(); e = o.evaluated_get(dg); me = e.to_mesh()

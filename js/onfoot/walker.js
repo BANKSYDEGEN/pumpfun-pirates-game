@@ -56,7 +56,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
       for (let i = 1; i <= N; i++) { const t = i / N, x = hx + (out.x - hx) * t, z = hz + (out.z - hz) * t, g = world.ground(x, z);
         if (g - pg > 1.2 && g + 0.3 > hy + (out.y - hy) * t) { cut = Math.max(0.1, t - 1 / N - 0.3 / w.dist); break; } pg = g; }
       if (cut < 1) out.set(hx + (out.x - hx) * cut, hy + (out.y - hy) * cut, hz + (out.z - hz) * cut); }
-    const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; world.layer?.(null); return out; }
+    const gy = world.ground(out.x, out.z), ws = world.water ? world.water(out.x, out.z) : null, lo = Math.max(gy, ws === null ? -1e9 : ws + 0.3); if (out.y < lo + 0.8) out.y = lo + 0.8; world.camClamp?.(out, w.x, w.y + 1.5, w.z); /* [clothes-aaa] walk-in shop rooms keep the camera inside */ world.layer?.(null); return out; }
   function snapCam() { camera.position.copy(camPos(cam)); tgt.set(w.x, w.y + 1.5, w.z); camera.lookAt(tgt); }
   const DEFLECT = typeof location !== 'undefined' && /[?&]deflect=0/.test(location.search) ? null : [0.6, -0.6, 1.2, -1.2];   // ?deflect=0 = the old axis-only slide
   function step(dx, dz) { // move with sliding + a few sub-steps so a fast run never tunnels through a wall

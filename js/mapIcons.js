@@ -85,6 +85,7 @@ const G = {
 // id -> [glyph, badge colour, glyph colour (colored), accent, map label]
 export const SHOP_ICONS = {
   ship_store: ['ship', '#2a6df4', '#fff', '#ffcd77', 'SHIP STORE'],
+  outfit_store: ['shirt', '#d8322f', '#fff', '#ffc93c', 'CLOTHES & ACCESSORIES'],   // [outfit-store] one pin for the joint Clothes + Accessories building
   shop_clothes: ['shirt', '#d8322f', '#fff', '#ffc93c', 'CLOTHES'],
   shop_pets: ['paw', '#1f8a5a', '#fff', '#ffb020', 'PET SHOP'],
   shop_ships: ['ship', '#2a6df4', '#fff', '#fff', 'SHIP SHOP'],

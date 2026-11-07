@@ -8,7 +8,8 @@ import { islandSurface, grassMaterial } from '../island/look.js';
 import { Kit, M, outlineMaterial } from '../island/kit.js';
 import { loadTownKit, loadNatureKit } from '../island/townkit.js';
 import { freezeStatic } from '../opt.js'; // [Emerly perf-v304]
-import { upgradeRiver, mouthSink, mouthSea } from '../island/riverWater.js'; // [clean-water] AAA river/lagoon/falls (&riverfx=0 = old)
+import { upgradeRiver, mouthSink, mouthSea } from '../island/riverWater.js';
+import { CAM_ROOMS } from '../island/plazaTown.js'; // [clothes-aaa] indoor camera boxes (walk-in shops) // [clean-water] AAA river/lagoon/falls (&riverfx=0 = old)
 
 const GOLD = 0xffc93c;
 
@@ -100,12 +101,31 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
     if (px === undefined) return foot.blocked(fx, fz);
     const [pfx, pfz] = toF(px, pz); return foot.blocked(fx, fz, pfx, pfz);
   }
+  // [clothes-aaa] BANKSY t232u "make them walk in stores": while your head is inside a walk-in shop room (plazaTown CAM_ROOMS: the
+  // clothes shop), the orbit camera stays inside it: pulled in along the boom to 0.3 m inside the walls and under the ceiling, the way
+  // the hull / houses interiors clamp theirs. Called by js/onfoot/walker.js camPos (harbor coords; the foot frame is rigid, so the
+  // boom fraction is the same in both).
+  function camClamp(out, hx, hy, hz) {
+    if (!CAM_ROOMS.length) return out;
+    const [fx, fz] = toF(hx, hz);
+    for (const R of CAM_ROOMS) {
+      const dx = fx - R.x, dz = fz - R.z, a = dx * R.ux + dz * R.uz, b = dx * R.vx + dz * R.vz;
+      if (Math.abs(a) > R.hw || Math.abs(b) > R.hd || hy < R.y0 - 0.5 || hy > R.ceil + 0.5) continue;
+      const [cx, cz] = toF(out.x, out.z), ca = (cx - R.x) * R.ux + (cz - R.z) * R.uz, cb = (cx - R.x) * R.vx + (cz - R.z) * R.vz;
+      const m = 0.3, A = R.hw - m, B = R.hd - m; let t = 1;
+      if (Math.abs(ca) > A && Math.abs(ca - a) > 1e-6) t = Math.min(t, (Math.sign(ca) * A - a) / (ca - a));
+      if (Math.abs(cb) > B && Math.abs(cb - b) > 1e-6) t = Math.min(t, (Math.sign(cb) * B - b) / (cb - b));
+      t = Math.max(0, Math.min(1, t));
+      if (t < 1) out.set(hx + (out.x - hx) * t, hy + (out.y - hy) * t, hz + (out.z - hz) * t);
+      if (out.y > R.ceil - 0.35) out.y = R.ceil - 0.35;
+      return out; }
+    return out; }
   const _cf = new THREE.Vector3();
   function update(cam, t, storm = 0) { const [fx, fz] = toF(cam.x, cam.z); _cf.set(fx, cam.y, fz); foot.update(_cf, t, { storm, camW: cam }); }
   // foot.js interact points (Squad Hall, digs, treasure cave) in harbor coords
   const footInteract = FM.INTERACT.map(q => { const [x, z] = layout.footToHarbor(q.x, q.z); return { ...q, x, z, src: q, kind: q.id.startsWith('dig') ? 'dig' : q.id, label: q.label.replace(/^E · /, '') }; });
   const stats = { ms: Math.round(performance.now() - t0), footBuildMs: FM.BUILD_MS, foot: foot.stats };
-  return { root, foot, footGroup, atlas, ground, water, stand, blocked, deckAt, layer: (y) => foot.setLayer?.(y), /* [path-fix2] the body height for high bridges (foot.js setLayer) */ update, footInteract, activate: (q, t) => foot.activate(q.src, t), rearm: (q) => { foot.rearm?.(q.src.id); q.used = false; }, stats, quay };
+  return { root, foot, footGroup, atlas, ground, water, stand, blocked, deckAt, camClamp, layer: (y) => foot.setLayer?.(y), /* [path-fix2] the body height for high bridges (foot.js setLayer) */ update, footInteract, activate: (q, t) => foot.activate(q.src, t), rearm: (q) => { foot.rearm?.(q.src.id); q.used = false; }, stats, quay };
 }
 
 // ship colliders -> props.js harbor zone sets (clustered, so each ship only scans the circles near it)

@@ -3,29 +3,30 @@
  "buildings": [
   {
    "n": 1,
-   "id": "shop_clothes",
-   "lx": -49,
-   "w": 10,
-   "use": "CLOTHES SHOP",
+   "id": "outfit_store",
+   "lx": -44,
+   "w": 20,
+   "use": "CLOTHES & ACCESSORIES (clothing + accessories areas)",
    "area": "dock plaza",
    "kind": "building",
-   "lz": -36,
-   "d": 12,
-   "x": -604,
-   "z": -139
+   "lz": -39,
+   "d": 18,
+   "x": -601,
+   "z": -134
   },
   {
    "n": 2,
    "id": "shop_crew",
    "lx": -38.5,
-   "w": 9,
-   "use": "ACCESSORIES STORE",
+   "w": 5.2,
+   "use": "CLOTHES & ACCESSORIES \u00b7 ACCESSORIES COUNTER",
    "area": "dock plaza",
-   "kind": "building",
-   "lz": -36,
-   "d": 12,
-   "x": -604,
-   "z": -128.5
+   "kind": "counter",
+   "lz": -45.2,
+   "d": 1.15,
+   "x": -594.8,
+   "z": -128.5,
+   "parent": "outfit_store"
   },
   {
    "n": 3,
