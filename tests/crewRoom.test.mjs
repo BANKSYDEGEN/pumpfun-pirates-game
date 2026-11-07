@@ -22,14 +22,28 @@ test('owner wardrobe honors existing all-owned flag; ordinary wardrobe never lis
   ownedCrewChoices(state, 'crewboots'); assert.deepEqual(owned, ['boots:boots_gold']);
   assert.equal(ownedCrewChoices({ owner: 'true' }, 'crewhat').length, 1);
 });
-test('hull display reuses deck geometry in one draw call, without allocating lights or render targets', async () => {
-  const { createCrewRoomDisplay } = await import('../js/crew.js');
-  const room = createCrewRoomDisplay([{ x: -2.8, y: .14, z: 1.35 }, { x: -1.35, y: .14, z: 1.35 }]);
-  const meshes = []; room.traverse(o => { assert.ok(!o.isLight); if (o.isMesh) meshes.push(o); });
-  assert.equal(meshes.length, 1); assert.ok(meshes[0].userData.crewMesh);
-  assert.equal(room.children[0].userData.seats.length, 2);
-  assert.ok(meshes[0].geometry.attributes.position.count > 0);
-  meshes[0].geometry.dispose(); meshes[0].material.dispose();
+test('hull display is one V7 pirate near stern window, using refitted wardrobe and explicit disposal', () => {
+  const source = read('js/crew.js').split('export function createCrewRoomDisplay(spots) {')[1].split('// [v109b]')[0];
+  assert.match(source, /const p = spots\[0\]/);
+  assert.match(source, /pirateFigure\(\{ height: 1.75, low: true, bodyFromGear: true/);
+  assert.match(source, /applyGear\(figure/);
+  assert.match(source, /figure.userData.dispose\?\.\(\)/);
+  assert.doesNotMatch(source, /PointLight|PMREM|CanvasTexture|crewGeo/);
+  const hull = read('js/dock/shipHull.js');
+  assert.match(hull, /HULL_CREW_SPOTS = Object.freeze\(\[\{ x: -2.8, y: 0.14, z: -4.15 \}\]\)/);
+  assert.doesNotMatch(hull, /crew_room_bench/);
+  assert.match(hull, /addParrotCage\(interior, QFLOOR\)/);
+  assert.match(read('js/pirateGLB.js'), /pirate_male_v7_lo.glb/);
+  assert.match(read('js/pirateItems.js'), /v7mFitData/);
+  assert.match(read('js/pirateItems.js'), /v7fFitData/);
+});
+test('hull opens original CREW ROOM shop with owned-only cards and releases previews on exit', () => {
+  const shop = read('js/islandShop.js');
+  assert.match(shop, /openShop\(\{ vendor: 'crew', tab: 'wardrobe'/);
+  assert.match(shop, /view.tab === 'wardrobe' \? itemsFor\(\).filter\(x => statusOf\(x\).owned\)/);
+  assert.match(shop, /if \(x.it\?\.crew\) setCrewLoadout\(state.equipped\?\.gear \|\| \{\}\)/);
+  assert.match(shop, /if \(view.vendor === 'crew'\) releaseGearPreviews\(\)/);
+  assert.match(read('js/gearThumbs.js'), /for \(const live of \[...LIVE\]\) live.stop\(\)/);
 });
 test('same hull prompt path supports E, phone tap and controller; saved uniform updates hull and deck', () => {
   const hull = read('js/dock/shipHull.js'), dock = read('js/dock/index.js');

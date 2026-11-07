@@ -11,7 +11,7 @@ import { gearStoreForSlot, SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, STORE_HI
 import { CREW_LOOK, CREW_DEFAULT, setCrewLoadout, getCrewLoadout, crewGear } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
-import { gearThumbEl, gearLive } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
+import { gearThumbEl, gearLive, releaseGearPreviews } from './gearThumbs.js'; // [Timothy] real 3D card art (the v4 pirate wearing the item)
 import { getLocalGear, setLocalGear, CAPE_SWATCHES } from './pirateGear.js';
 import { openGearColorPicker } from './gearColorPicker.js';
 import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
@@ -105,7 +105,7 @@ const thumbOpts = () => { const g = getLocalGear(); return { skin: state?.equipp
 // [Timothy] CREW SHOP items draw with the player item of the same id (it.base) on a CREW MEMBER (CREW_LOOK), hat in its own colour
 // a crew HAT is shown over the underwear uniform, crew CLOTHES on the bareheaded uniform (a crew member in the default uniform)
 const optsFor = (it) => it.crew ? { ...thumbOpts(), ...CREW_LOOK, hatColor: it.slot === 'crewhat' && it.tint?.hatColor ? state?.equipped?.gear?.crewhatColor | 0 : 0, eyeColor: 0, capeColor: state?.equipped?.gear?.crewcapeColor | 0, pantsColor: state?.equipped?.gear?.crewpantsColor | 0, bootsColor: state?.equipped?.gear?.crewbootsColor | 0,   // [Raul gear colours] crew hats in the crew's hat colour
-  wear: { outfit: 'shirtless', hat: 'none', pants: 'none' }, png: `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
+  lod: 'lo', wear: { outfit: 'shirtless', hat: 'none', pants: 'none' }, png: it.slot === 'crewhat' && it.id === 'none' ? 'hat_none' : it.slot === 'crewoutfit' && it.id === 'shirtless' ? 'outfit_shirtless' : `${it.slot}_${it.id}` } : it.maleOnly ? { ...thumbOpts(), body: 0 } : thumbOpts();   // [Raul shop2 fixes] beards: shown on a male pirate (female bodies don't draw them)
 function gearThumb(it, live = false, extra = null) {
   if (it.crew && it.slot === 'crewhat' && it.id === CREW_DEFAULT.crewhat) it = { ...it, id: 'none' };
   if (it.crew && it.slot === 'crewoutfit' && it.id === CREW_DEFAULT.crewoutfit) it = { ...it, id: 'shirtless' }; // legacy free uniform id renders bareheaded
@@ -199,7 +199,7 @@ function render() {
   { const lb = $('.ishop-look', chips); if (lb) lb.onclick = () => openGearColorPicker({ kind: 'look', parent: root, onClose: () => { if (open) render(); } }); }
   boostBar(V);
   if (view.tab === 'muskupg') return renderMuskUpg(); // [Emerly musket-upgrades]
-  const items = view.tab === 'wardrobe' && !V.dress ? itemsFor().filter(x => statusOf(x).owned) : itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
+  const items = view.tab === 'wardrobe' ? itemsFor().filter(x => statusOf(x).owned) : itemsFor(); if (!items.some(x => x.key === view.sel)) view.sel = (items.find(x => statusOf(x).k === 'equipped') || items[0])?.key;
   const grid = $('.ishop-grid', root); grid.innerHTML = '';
   for (const x of items) {
     const s = statusOf(x), c = document.createElement('button'); c.type = 'button'; c.className = `ishop-card ${s.k}${x.key === view.sel ? ' sel' : ''}`; c.dataset.id = x.key; if (x.kind === 'skin') c.dataset.skin = x.key;
@@ -350,7 +350,7 @@ function confirmBuy(x) {
     hideConfirm(); render(); toast(x.it?.crew ? `Your crew can wear ${x.name} (CREW ROOM)` : `${x.name} is yours`); };
 }
 const hideConfirm = () => $('.ishop-confirm', root).classList.add('hidden');
-async function doEquip(x) { state = await provider.equip(x.kind, x.key); render(); }
+async function doEquip(x) { state = await provider.equip(x.kind, x.key); if (x.it?.crew) setCrewLoadout(state.equipped?.gear || {}); render(); }
 function toast(t) { const el = document.createElement('div'); el.className = 'ishop-toast'; el.textContent = t; $('.ishop-panel', root).appendChild(el); setTimeout(() => el.remove(), 2200); }
 
 // ---------- API ----------
@@ -376,6 +376,7 @@ export async function openShop(opts = {}) {
 }
 export function closeShop() {
   if (!open) return; open = false; root.classList.add('hidden'); hideConfirm(); document.documentElement.classList.remove('shop-open');
+  if (view.vendor === 'crew') releaseGearPreviews();
   try { import('./skinPreview.js').then(m => m.pausePreviews?.()); } catch {}
   try { dispatchEvent(new CustomEvent('pfp-shop', { detail: { open: false } })); } catch {}
 }
@@ -394,13 +395,13 @@ window.PFP_ISLAND_SHOP = { openShop, closeShop, isShopOpen, setShopProvider, moc
 if (!ON_PORTAL) { window.openShop = openShop; window.closeShop = closeShop; window.isShopOpen = isShopOpen; }
 export const refreshShop = () => { if (open && provider) provider.load().then(st => { if (st && open) { state = st; render(); } }); };
 
-// Hull dressing uses authoritative owned/equipped state, without the shop's WebGL previews.
-let hullCrewPanel = null, hullCrewGeneration = 0;
+// Use the original island CREW ROOM panel, including its fonts, colours and previews.
+let hullCrewGeneration = 0;
 export async function openHullCrewRoom(member = 0) {
   const generation = ++hullCrewGeneration;
-  const { openCrewWardrobe } = await import('./crewWardrobe.js');
-  if (generation !== hullCrewGeneration) return; // area exit cancels a pending lazy import
-  hullCrewPanel?.close();
-  hullCrewPanel = openCrewWardrobe({ provider, member });
+  VENDORS.crew.dress = true; VENDORS.crew.tabs = ['wardrobe'];
+  const opened = await openShop({ vendor: 'crew', tab: 'wardrobe', title: 'CREW ROOM · DRESS YOUR CREW' });
+  if (generation !== hullCrewGeneration) { if (opened && view.vendor === 'crew') closeShop(); return; }
+  if (opened) setCrewLoadout(state.equipped?.gear || {});
 }
-export function closeHullCrewRoom() { hullCrewGeneration++; hullCrewPanel?.close(); hullCrewPanel = null; }
+export function closeHullCrewRoom() { hullCrewGeneration++; if (open && view.vendor === 'crew') closeShop(); }

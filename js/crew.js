@@ -6,6 +6,9 @@
 // Budget by quality: high = all gun crews + 3 walkers, culled past 95 m; phones / Medium = one gunner per gun pair + 2
 // walkers past 55 m; [v82] low / phones = a gunner at every cannon (low: no walkers), culled past 80 m. Purely cosmetic: no collision, never in userData.len/beam/depth.
 import * as THREE from 'three';
+import { pirateFigure } from './pirates.js';
+import { crewGear, CREW_LOOK } from './crewLoadout.js';
+import { applyGear } from './pirateGear.js';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wind } from './ships.js';
 import { V4, crewPirateV4, crewPirateV4Dressed, crewFemale } from './crewV4.js'; // [v101] Raul's v4 pirates as the crew (baked poses, same single draw call)
@@ -236,19 +239,20 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   ship.userData.crew = mat.uniforms;
   return lod;
 }
-// Two of the actual deck crew, merged into ONE draw call in the hull crew corner.
-// Uses the existing baked body/gear textures: no skeletons, lights, canvases or render targets.
+// One V7 pirate, dressed through the same refitted gear pipeline as player pirates.
+// Keep the painted hair, tattoo and eye shape; only wardrobe slots are changed.
 export function createCrewRoomDisplay(spots) {
   const group = new THREE.Group(); group.name = 'hull_crew_room';
-  const seats = spots.map((p, i) => ({ v: i, o: [p.x, p.y || 0, p.z], info: [0, 0, hash(i + 1), 0], pose: 'idle' }));
-  const geo = crewGeo(seats, null, ''); geo.computeBoundingSphere();
-  // Shader places vertices at aOrigin, so its bounding volume must cover the whole corner.
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.3, 1.4), 7);
-  const mat = crewMaterial(); mat.uniforms.uS.value = 1.55;
-  const mesh = new THREE.Mesh(geo, mat); mesh.name = 'hull_crew_members'; mesh.userData.crewMesh = true;
-  mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), 50);
-  lod.userData.seats = seats; lod.userData.v4 = !!V4; group.add(lod);
+  const p = spots[0];
+  const figure = pirateFigure({ height: 1.75, low: true, bodyFromGear: true,
+    gear: { ...CREW_LOOK, ...crewGear() }, clip: 'idle' });
+  figure.position.set(p.x, p.y || 0, p.z); group.add(figure);
+  group.userData.dressCrew = (gear, colors) => {
+    if (!group.userData.disposed) return applyGear(figure, { ...CREW_LOOK, ...gear }, colors);
+  };
+  group.userData.dispose = () => {
+    group.userData.disposed = true; figure.userData.dispose?.(); figure.removeFromParent();
+  };
   return group;
 }
 

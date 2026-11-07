@@ -11,7 +11,7 @@ import { crewGear } from '../crewLoadout.js';
 import { getLocalColors } from '../pirateGear.js';
 import { createRest, hullRestSpots, restPrompt } from './bedDesk.js'; // [bed-desk] t405u LIE IN BED (berth) / SIT AT DESK (chart table)
 
-export const HULL_CREW_SPOTS = Object.freeze([{ x: -2.8, y: 0.14, z: 1.35 }, { x: -1.35, y: 0.14, z: 1.35 }]);
+export const HULL_CREW_SPOTS = Object.freeze([{ x: -2.8, y: 0.14, z: -4.15 }]);
 
 export const SHIP_QUARTERS_ID = 'ship_quarters';
 export const SHIP_QUARTERS_SLOTS = 12;
@@ -951,7 +951,7 @@ function disposeInterior(room) {
   const ud = room.userData || {};
   ud.disposed = true;
   ud.parrotCageDispose?.();
-  if (ud.crewRoom) ud.crewRoom.userData.disposed = true; // outstanding shared gear bake must not revive a disposed room
+  if (ud.crewRoom) { ud.crewRoom.userData.disposed = true; ud.crewRoom.userData.dispose?.(); } // outstanding shared gear bake must not revive a disposed room
   const mats = new Set();
   room.traverse((o) => {
     if (o.isInstancedMesh) { try { o.dispose(); } catch {} }
@@ -1076,10 +1076,6 @@ export function createShipHull({
       interior.userData.spots['crew_' + i] = { ...p, r: 1.65, label: 'DRESS CREW · CREW ROOM' };
       interior.userData.colliders.push({ x: p.x, z: p.z, w: .5, d: .5 });
     });
-    // A small shared-material wooden bench marks the crew's dressing nook, clear of the centre aisle.
-    const bench = new THREE.Mesh(new THREE.BoxGeometry(2.8, .48, .55), interior.userData.qMats.mahogany);
-    bench.name = 'crew_room_bench'; bench.position.set(-2.08, QFLOOR + .24, .4); interior.add(bench);
-    interior.userData.colliders.push({ x: -2.08, z: .4, w: 2.8, d: .55 });
     dressHullCrew();
     addParrotCage(interior, QFLOOR);
     installPocket();

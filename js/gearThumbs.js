@@ -52,6 +52,7 @@ const lookOf = (slot, o) => slot === 'map' ? '' : [slot === 'outfit' ? (o.skin |
 const keyOf = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}|${o.w || TW}x${o.h || TH}|${o.lod || ''}|${o.frame || ''}`;
 const TW = 200, TH = 102;   // the shop card swatch is 150 x 76 (css .ishop-sw), drawn at ~1.33x
 const cache = new Map();   // key -> dataURL
+let previewGeneration = 0, dressing = 0;
 let R = null, scene = null, cam = null, fig = null, figP = null, scroll = null, idleT = 0;
 const queue = []; let pumping = false;
 export const thumbStats = { renders: 0, ms: [], dressMs: [], drawMs: [], firstReadyMs: 0 };
@@ -71,7 +72,7 @@ function setup(lod) {
   return figP;
 }
 const IDLE_MS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 3000 : 15000; // [shop-exit-crash] phones: free this 2nd GL context sooner (iOS drops the game's own context under memory pressure)
-function release() { if (!R || performance.now() - idleT < IDLE_MS || queue.length || LIVE.size) return;
+function release(force = false) { if (!R || (!force && performance.now() - idleT < IDLE_MS) || queue.length || LIVE.size || dressing) return;
   try { fig?.userData.dispose?.(); } catch {} R.dispose(); R.forceContextLoss?.(); R = scene = cam = fig = figP = null; }
 setInterval(release, IDLE_MS === 3000 ? 1500 : 5000);
 
@@ -95,13 +96,15 @@ function mapScroll() {
 
 const dressKey = (slot, id, o) => `${slot}:${id}|${lookOf(slot, o)}`;
 async function dressFor(slot, id, o) {
+  dressing++; try {
   // [v280 crew holes] mannequin is a V6 body: classic pants cover the lo underwear hem gap unless this card IS the pants/boots (or &crewholes=0).
   const cover = (typeof location === 'undefined' || !/[?&]crewholes=0(?:&|$)/.test(location.search)) && slot !== 'pants' && slot !== 'boots' && !o.wear?.pants;
   await applyGear(fig, normalizeGear({ ...(o.wear || {}), [slot]: id, hatColor: o.hatColor | 0, hookSide: o.hookSide, legSide: o.legSide, skinColor: o.skinColor | 0, hairColor: o.hairColor | 0, body: o.body | 0, eyeColor: o.eyeColor | 0, capeColor: o.capeColor | 0, pantsColor: o.pantsColor | 0, bootsColor: o.bootsColor | 0, ...(cover ? { pants: 'classic_pants' } : null) }), slot === 'outfit' || o.wear?.outfit ? { skin: o.skin || 'classic' } : null);
   fig.userData.thumbKey = dressKey(slot, id, o);
+  } finally { dressing--; }
 }
 async function renderOne(slot, id, o) {
-  const p = await setup(o.lod); const w = o.w || TW, h = o.h || TH; const t0 = performance.now();
+  const p = await setup(o.lod); const w = Math.min(1024, o.w || TW), h = Math.min(1024, o.h || TH); const t0 = performance.now();
   const isMap = slot === 'map';
   if (isMap) { fig.visible = false; const s = mapScroll(); if (!s.parent) scene.add(s); s.visible = true; cam.position.set(0, 0.25, 1.9); cam.lookAt(0, 0, 0); }
   else {
@@ -132,6 +135,7 @@ const SHIP_SLOTS = new Set(['flag', 'figure']);   // [Raul shop items 2] ship it
 // own context = iOS kills the tab). They show the pre-baked PNGs only. ?livethumbs=1 forces the live renders back on.
 const PHONE_PNG_ONLY = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && !(typeof location !== 'undefined' && /[?&]livethumbs=1(?:&|$)/.test(location.search));
 export function gearThumb(slot, id, opts = {}) {
+  previewGeneration++;
   if (SHIP_SLOTS.has(slot) || PHONE_PNG_ONLY) return Promise.resolve(null);
   const k = keyOf(slot, id, opts);
   if (cache.has(k)) { if (opts.priority) { const i = queue.findIndex((j) => j.k === k); if (i > 0) queue.unshift(...queue.splice(i, 1)); } return cache.get(k); }   // [Timothy] the detail pane jumps the card queue
@@ -149,7 +153,8 @@ export function gearThumbEl(slot, id, opts = {}) {
 // live turning preview (the detail pane): draws the shared renderer into el's own 2D canvas ~24 fps while el is on the page
 const LIVE = new Set();
 export function gearLive(el, slot, id, opts = {}) {
-  const cv = el.tagName === 'CANVAS' ? el : el.appendChild(document.createElement('canvas')); const w = opts.w || (LOW ? 240 : 320), h = opts.h || Math.round(w * 76 / 150);
+  previewGeneration++;
+  const cv = el.tagName === 'CANVAS' ? el : el.appendChild(document.createElement('canvas')); const w = Math.min(1024, opts.w || (LOW ? 240 : 320)), h = Math.min(1024, opts.h || Math.round(w * 76 / 150));
   cv.width = w; cv.height = h; cv.className = cv.className || 'gear-live'; const ctx = cv.getContext('2d');
   let on = true, last = 0, a = 0, ready = false, redress = false; const me = { stop }, dk = dressKey(slot, id, opts);
   if (SHIP_SLOTS.has(slot)) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, w, h); im.src = PNG(slot, id); return () => {}; }
@@ -179,3 +184,16 @@ export function gearLive(el, slot, id, opts = {}) {
   return stop;
 }
 devHook('PFP_GEAR_THUMBS', { gearThumb, gearThumbEl, gearLive, thumbStats, cacheSize: () => cache.size, _fig: () => fig });
+
+// Drain the current async dress safely, then free the preview context on room exit.
+export function releaseGearPreviews() {
+  const generation = ++previewGeneration;
+  for (const live of [...LIVE]) live.stop();
+  for (const job of queue.splice(0)) job.res(null);
+  const finish = () => {
+    if (generation !== previewGeneration) return;
+    if (pumping || dressing) { requestAnimationFrame(finish); return; }
+    release(true);
+  };
+  finish();
+}

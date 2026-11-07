@@ -13,6 +13,7 @@ export const crewGearKey = (gear, colors) => { const g = crewGearOf(gear); retur
 export function syncCrewGear(ship, gear, colors = null, captain = null) {
   if (captain) gear = { ...(gear || {}), ...captainExtras(captain, crewLow()), ...crewWeaponsOf(captain) };   // [crew-weapons] + the captain's sword / musket
   const body = ship?.userData?.body || ship; if (!body) return;
+  if (body.userData?.dressCrew) { if (!body.userData.disposed) body.userData.dressCrew(gear, colors); return; }
   const cur = crewGearTag(body); if (cur === null) return; // no crew mesh (yet)
   const tag = crewGearKey(gear, colors); if (cur === tag || performance.now() - (failed.get(tag) ?? -1e9) < 15000 || pending.get(body) === tag) return;
   if (!tag) { pending.delete(body); setCrewGear(body, null); return; }
