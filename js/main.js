@@ -84,7 +84,10 @@ document.documentElement.classList.toggle('pfp-desktop', !isMobile);
 // for every gameplay / ship / hitbox path, the extras below are gated on ULTRA, so LOW and HIGH render exactly as before.
 const GFX_KEY = 'pfp_gfx';
 const gfxSaved = (() => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } })();
-const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); const last = +(localStorage.getItem('pfp_ctx_last_loss') || 0); return Date.now() - last < 86400000 || !!(r && r.n >= 1 && Date.now() - r.ts < 300000); } catch { return false; } })();
+// [v408] BANKSY 'outside of casino / stone exteriors look different': a past context loss no longer pins LOW for 24 h or overwrites the
+// player's saved choice. Only the reload right after a loss (same tab, within 5 min) renders LOW once; the saved setting is untouched.
+try { localStorage.removeItem('pfp_ctx_last_loss'); } catch {}
+const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); return !!(r && r.n >= 1 && Date.now() - r.ts < 300000); } catch { return false; } })();
 const gfxPick = ctxSafe ? 'low' : ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
 const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH)
 const ULTRA = gfxPick === 'ultra' && !isMobile;
@@ -137,7 +140,6 @@ function graphicsRecovery() {
     if (r.n >= 2) throw new Error('reload budget reached');
     r.n++;
     sessionStorage.setItem('pfp_ctx_recovery', JSON.stringify(r));
-    if (r.n >= 2) { try { localStorage.setItem(GFX_KEY, 'low'); } catch {} }
     try { harborResumeSave(true); } catch {}
     glReloading = true;
     location.reload();
@@ -149,7 +151,6 @@ function graphicsRecovery() {
 }
 canvas.addEventListener('webglcontextlost', (e) => {
   e.preventDefault(); glLost = true;
-  try { localStorage.setItem('pfp_ctx_last_loss', String(Date.now())); localStorage.setItem(GFX_KEY, 'low'); } catch {}
   graphicsSample('context-lost');
   try { harborResumeSave(true); } catch {}
   if (!document.getElementById('pfp-ctx-reload')) {
