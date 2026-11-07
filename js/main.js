@@ -80,7 +80,8 @@ document.documentElement.classList.toggle('pfp-desktop', !isMobile);
 // for every gameplay / ship / hitbox path, the extras below are gated on ULTRA, so LOW and HIGH render exactly as before.
 const GFX_KEY = 'pfp_gfx';
 const gfxSaved = (() => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } })();
-const gfxPick = ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
+const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); return !!(r && r.n >= 2 && Date.now() - r.ts < 300000); } catch { return false; } })();
+const gfxPick = ctxSafe ? 'low' : ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
 const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH)
 const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
@@ -118,21 +119,42 @@ renderer.debug.checkShaderErrors = /[?&]shaderdebug=1/.test(location.search);
 // [perf2] sharper ground / decks at grazing angles: default anisotropy for every texture made from here on (explicit values stay)
 THREE.Texture.DEFAULT_ANISOTROPY = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, isMobile || quality === 'low' ? 4 : 8);
 renderer.setSize(innerWidth, innerHeight);
-// [mobile-perf] BANKSY "...and crashed": a phone under GPU memory pressure drops the WebGL context (black / frozen game).
-// [v339 mobile-stability] BANKSY t1792u "On mobile the tab refreshes and restarts me": the old handler reloaded the page 6 s after a context loss
-// (once per tab, Harbor included) = straight back to the title. Now: preventDefault() right away (the browser may restore the context; three.js
-// re-uploads everything on 'webglcontextrestored'), skip drawing while lost, wait 12 s, and never blind-reload a live session: the Harbor
-// snapshot (pfp_harbor_resume_v1, below) is saved first and a tap banner offers the reload, which drops you straight back where you stood.
-let glLost = false, glLostT = 0;
-canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); glLost = true; console.warn('[mobile] WebGL context lost'); try { harborResumeSave(true); } catch {}
-  clearTimeout(glLostT); glLostT = setTimeout(() => {
-    if (!glLost || !renderer.getContext().isContextLost()) return;
-    let n = 0; try { n = +(sessionStorage.getItem('pfp_ctx_reload') || 0); } catch {}
-    if (game.state === 'title' && n < 1) { try { sessionStorage.setItem('pfp_ctx_reload', n + 1); } catch {} return location.reload(); } // nothing to lose on the title screen
-    if (!document.getElementById('pfp-ctx-reload')) { const b = document.createElement('button'); b.id = 'pfp-ctx-reload'; b.type = 'button'; b.textContent = 'GRAPHICS PAUSED · TAP TO RESUME';
-      b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#1a0f07;color:#ffcd77;border:3px solid #fbbf24;border-radius:14px;max-width:90vw';
-      b.onclick = () => { try { harborResumeSave(true); } catch {} location.reload(); }; document.body.appendChild(b); } }, 12000); }, false);
-canvas.addEventListener('webglcontextrestored', () => { glLost = false; clearTimeout(glLostT); document.getElementById('pfp-ctx-reload')?.remove(); console.info('[mobile] WebGL context restored'); }, false);
+// A context loss must not leave an invisible / frozen game. Preserve the Harbor
+// resume snapshot, allow three.js to restore, then restart with a bounded budget.
+let glLost = false, glLostT = 0, glReloading = false;
+function graphicsRecovery() {
+  if (glReloading) return;
+  clearTimeout(glLostT);
+  const banner = document.getElementById('pfp-ctx-reload');
+  try {
+    const now = Date.now();
+    let r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null');
+    if (!r || !Number.isFinite(r.ts) || !Number.isFinite(r.n) || now - r.ts >= 300000) r = { ts: now, n: 0 };
+    if (r.n >= 2) throw new Error('reload budget reached');
+    r.n++;
+    sessionStorage.setItem('pfp_ctx_recovery', JSON.stringify(r));
+    if (r.n >= 2) { try { localStorage.setItem(GFX_KEY, 'low'); } catch {} }
+    try { harborResumeSave(true); } catch {}
+    glReloading = true;
+    location.reload();
+  } catch {
+    // Storage unavailable or two resets in five minutes: never enter a reload loop.
+    if (banner) banner.textContent = glLost ? 'GRAPHICS PAUSED · CLOSE THIS TAB AND REOPEN THE GAME' : 'GRAPHICS RESTORED · LOW QUALITY RECOMMENDED';
+    if (!glLost) setTimeout(() => banner?.remove(), 6000);
+  }
+}
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault(); glLost = true;
+  try { harborResumeSave(true); } catch {}
+  if (!document.getElementById('pfp-ctx-reload')) {
+    const b = document.createElement('div'); b.id = 'pfp-ctx-reload'; b.setAttribute('role', 'status');
+    b.textContent = 'Graphics reset, reloading…';
+    b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#1a0f07;color:#ffcd77;border:2px solid #fbbf24;border-radius:14px;max-width:90vw';
+    document.body.appendChild(b);
+  }
+  clearTimeout(glLostT); glLostT = setTimeout(graphicsRecovery, 3000);
+}, false);
+canvas.addEventListener('webglcontextrestored', () => { glLost = false; graphicsRecovery(); }, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1505,6 +1527,12 @@ function frame() {
     // keep a unit offset for the shadow light follow (scaled from keyDir)
     SUN_OFF.set(skySt.keyDir.x, Math.max(0.15, skySt.keyDir.y), skySt.keyDir.z).multiplyScalar(90);
     game._sky = skySt; // tests / debug
+  }
+  // Cabin reuses these same lights; weather must not overwrite its warm fill.
+  if (scene.userData._cqOutLights?.length) {
+    hemi.color.set(0xffe6ba); hemi.groundColor.set(0x604020); hemi.intensity = 2.0;
+    sun.color.set(0xffd28a); sun.intensity = 0.82;
+    renderer.toneMappingExposure = 1.2;
   }
   bolt.mesh.visible = game.flash > 0.3; bolt.mesh.material.opacity = clamp(fl * 1.6, 0, 1);
   wind.uTime.value = t; chestTime(t);

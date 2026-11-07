@@ -28,7 +28,7 @@ export const QUARTERS_LOW_MEM = (() => {
 })();
 const Q_ANISO = QUARTERS_LOW_MEM ? 1 : 8;
 /** [v339] canvas scale on low-memory devices: 2048/1024 px -> 1/4, 512-768 px -> 1/2, small sprites untouched. */
-function _texScale(w, h) { if (!QUARTERS_LOW_MEM) return 1; const m = Math.max(w, h); return m >= 1024 ? 0.25 : m >= 512 ? 0.5 : 1; }
+function _texScale(w, h) { const m = Math.max(w, h); return QUARTERS_LOW_MEM ? (m >= 1024 ? 0.25 : m >= 512 ? 0.5 : 1) : Math.min(1, 1024 / m); }
 export const QUARTERS_KITS = Object.freeze([
   'stern_gallery_kit', 'hull_rib_kit', 'wainscot_bay_kit', 'porthole_kit',
   'wheel_chandelier_kit', 'gimbal_lantern_kit', 'chart_table_kit', 'berth_kit',
@@ -113,29 +113,8 @@ function matStd(hex, key, {
   return m;
 }
 
-/** Warm cabin PMREM environment (cached). Soft brass/gold/mahogany reflections without blowing out the avatar. */
-let _cabinEnv = null;
-function getCabinEnv(renderer) {
-  if (_cabinEnv) return _cabinEnv;
-  if (!renderer || typeof THREE.PMREMGenerator !== 'function') return null;
-  try {
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const tmp = new THREE.Scene();
-    const cols = [0xffe6ba, 0xffc978, 0xc48a4e, 0x5a3418, 0xff7a26, 0x3d2412];
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(4, 4, 4),
-      cols.map((c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide }))
-    );
-    tmp.add(box);
-    tmp.add(new THREE.AmbientLight(0xffd8a8, 1.1));
-    const sun = new THREE.DirectionalLight(0xffb060, 0.8); sun.position.set(1, 2, 1); tmp.add(sun);
-    _cabinEnv = pmrem.fromScene(tmp, 0.04).texture;
-    pmrem.dispose();
-    box.geometry.dispose();
-    for (const m of box.material) m.dispose();
-  } catch { _cabinEnv = null; }
-  return _cabinEnv;
-}
+// Reuse the main scene environment: entering a room must not allocate a cube camera /
+// PMREM render target while the entire Harbor (including the casino) is still resident.
 
 /** Painted stern view: golden-hour sky, low sun, distant brigantine, turquoise sea, churning ship wake. */
 function texSternWake() {
@@ -479,7 +458,6 @@ export function releaseQuartersAssets() {
   for (const k of ['deck_d', 'deck_n', 'hull_d', 'hull_n', 'sail_d', 'sail_n']) { try { _qTex[k]?.dispose?.(); } catch {} _qTex[k] = null; }
   for (const t of Object.values(_qTex.cap || {})) { try { t?.dispose?.(); } catch {} }
   _qTex.cap = {}; _qTex.ready = false; _qTex.p = null;
-  try { _cabinEnv?.dispose?.(); } catch {} _cabinEnv = null;
   try { window.__pfpQuartersReleased = (window.__pfpQuartersReleased | 0) + 1; } catch {}
   return true;
 }
@@ -793,14 +771,8 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
     g.add(wr);
   }
 
-  const hemi = new THREE.HemisphereLight(0xffe6ba, 0x2a180c, 0.74); g.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffd28a, 0.82); sun.position.set(0.8, 6.5, -9); sun.target.position.set(0, 0, 0); g.add(sun); g.add(sun.target);
-  const sternLight = new THREE.PointLight(0xffcf88, low ? 2.6 : 4.2, 13, 1.5); sternLight.position.set(0, F + 2.2, -D / 2 + 0.95); g.add(sternLight);
-  const wakeLight = new THREE.PointLight(0x5ec8e8, low ? 1.1 : 1.9, 9.5, 1.6); wakeLight.position.set(0, F + 1.5, -D / 2 + 0.55); g.add(wakeLight);
-  const chandLight = new THREE.PointLight(0xffbd66, low ? 2.5 : 4.0, 14, 1.45); chandLight.position.set(0, F + quartersCeil(0) - 1.5, -0.95); g.add(chandLight);
-  const candLight = new THREE.PointLight(0xff9438, low ? 1.8 : 3.2, 8.5, 1.6); candLight.position.set(2.85, F + 1.35, -1.58); g.add(candLight);
-  const chestLight = new THREE.PointLight(0xff9c42, low ? 1.8 : 3.1, 8.5, 1.55); chestLight.position.set(-W / 2 + 1.35, F + 1.95, -1.2); g.add(chestLight);
-  const fwdLight = new THREE.PointLight(0xffb464, low ? 1.4 : 2.3, 8.5, 1.65); fwdLight.position.set(1.8, F + 2.35, D / 2 - 1.1); g.add(fwdLight);
+  // No per-visit lights. Six extra PointLights changed the shader light count on
+  // every entry; retain the renderer's existing hemisphere / sun and emissive lamps.
 
   const colliders = [
     { x: 0, z: -D / 2 + 0.45, w: 8.6, d: 0.85 },
@@ -825,8 +797,7 @@ export function buildCaptainsQuartersRoom({ tier = 'captain', cottageId = SHIP_Q
   g.userData = {
     W, D, H, PEAK, tier, colliders, spots, chest, door, cottageId, kind: 'ship_quarters', rest: hullRestSpots(), // [bed-desk]
     wallInset: quartersWallInset, qMats: M, sway: [],
-    lights: { sternLight, wakeLight, chandLight, candLight, chestLight, fwdLight },
-    fireLight: candLight, chLight: chandLight, low, _quartersKitAttached: false, disposed: false,
+    lights: null, low, _quartersKitAttached: false, disposed: false,
   };
   if (_quartersGlb) attachQuartersKits(g);
   else preloadQuartersGlb()?.then(() => attachQuartersKits(g));
@@ -962,6 +933,7 @@ function disposeInterior(room) {
   ud.disposed = true;
   const mats = new Set();
   room.traverse((o) => {
+    if (o.isInstancedMesh) { try { o.dispose(); } catch {} }
     if (o.geometry && !o.geometry.userData?.sharedGlb) {
       try { o.geometry.dispose(); } catch {}
     }
@@ -970,6 +942,9 @@ function disposeInterior(room) {
       else mats.add(o.material);
     }
   });
+  // Some authored materials are replaced by the async kits before ever being drawn.
+  for (const m of Object.values(ud.qMats || {})) if (m?.isMaterial) mats.add(m);
+  for (const m of Object.values(ud.qMats?.portrait || {})) if (m?.isMaterial) mats.add(m);
   for (const m of mats) {
     try { m.dispose(); } catch {}
   }
@@ -1085,7 +1060,10 @@ export function createShipHull({
     try { if (ocean?.mesh) ocean.mesh.visible = ocean.mesh.userData._cqVis !== false; } catch {}
     try { if (islands?.group) islands.group.visible = islands.group.userData._cqVis !== false; } catch {}
     try {
-      for (const [l, vis] of (scene.userData._cqOutLights || [])) l.visible = vis;
+      for (const [l, color, intensity, ground] of (scene.userData._cqOutLights || [])) {
+        l.color.copy(color); l.intensity = intensity;
+        if (ground) l.groundColor.copy(ground);
+      }
       scene.userData._cqOutLights = null;
       if ('_cqEnv' in scene.userData) { scene.environment = scene.userData._cqEnv; delete scene.userData._cqEnv; }
       if ('_cqEnvInt' in scene.userData && 'environmentIntensity' in scene) { scene.environmentIntensity = scene.userData._cqEnvInt; delete scene.userData._cqEnvInt; }
@@ -1142,16 +1120,15 @@ export function createShipHull({
           scene.background = new THREE.Color(0x0c0704);
           const outLights = [];
           for (const ch of scene.children) {
-            if (ch !== interior && ch.isLight) { outLights.push([ch, ch.visible]); ch.visible = false; }
+            if (ch.isHemisphereLight || ch.isDirectionalLight) {
+              outLights.push([ch, ch.color.clone(), ch.intensity, ch.groundColor?.clone()]);
+              ch.color.set(ch.isHemisphereLight ? 0xffe6ba : 0xffd28a);
+              ch.intensity = ch.isHemisphereLight ? 2.0 : 0.82;
+              if (ch.groundColor) ch.groundColor.set(0x604020);
+            }
           }
+          // Keep visibility / light counts stable: no full-world shader variant burst.
           scene.userData._cqOutLights = outLights;
-          scene.userData._cqEnv = scene.environment;
-          scene.userData._cqEnvInt = scene.environmentIntensity ?? 1;
-          const env = getCabinEnv(renderer);
-          if (env) {
-            scene.environment = env;
-            if ('environmentIntensity' in scene) scene.environmentIntensity = 0.22;
-          }
         } catch {}
         applyCam();
         sfx?.coin?.();
