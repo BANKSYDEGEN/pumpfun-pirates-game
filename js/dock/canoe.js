@@ -300,7 +300,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
   // [v320] riders copy the canoe's YXZ quaternion; stand them back upright (no pitch / roll) whenever they leave the canoe
   // (BANKSY t1688u: "I and pet walk sideways after canoe" = a stale rotation.z from an XYZ decomposition of the canoe pose)
   function uprightRiders(pirateObjOverride = null) {
-    const up = (o) => { if (!o?.rotation) return; o.rotation.order = 'YXZ'; o.rotation.x = 0; o.rotation.z = 0; };
+    const up = (o) => { if (!o?.rotation) return; delete o.userData.canoeSeat; o.rotation.order = 'YXZ'; o.rotation.x = 0; o.rotation.z = 0; };
     up(pirateObjOverride || pirate?.object);
     for (const c of (crewF?.list || [])) up(c?.p?.object);
     up(petF?.mesh || petF?.object);
@@ -530,13 +530,21 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
         v.set(0, yLocal, zLocal).applyMatrix4(mesh.matrixWorld);
         obj.position.copy(v); obj.quaternion.copy(mesh.quaternion);
       };
-      if (pirateObj) placeAt(pirateObj, 0.55); // captain on forward-mid bench
+      const seatRider = (actor, z) => {
+        const obj = actor?.object; if (!obj) return;
+        obj.userData.canoeSeat = true; actor.update?.(dt, 0, 'canoe');
+        let hip = null; obj.traverse(o => { if (o.isBone && o.name === 'root') hip = o; });
+        obj.updateWorldMatrix(true, true);
+        const h = hip ? obj.worldToLocal(hip.getWorldPosition(new THREE.Vector3())).y : .8;
+        placeAt(obj, z, .425 - h * obj.scale.y);
+      };
+      if (pirateObj) seatRider(pirate, 0.55); // captain on forward-mid bench
       const crew = crewF?.list || [];
       const crewZ = [-0.55, -1.60];
       for (let i = 0; i < crew.length; i++) {
         const c = crew[i];
         if (i >= st.crewN) { c.p.object.visible = false; continue; }
-        placeAt(c.p.object, crewZ[i] ?? (-0.55 - i * 1.05));
+        seatRider(c.p, crewZ[i] ?? (-0.55 - i * 1.05));
       }
       if (!petF?.mesh) {
         try { petF?.update?.(0, { x: st.cx, z: st.cz, yaw: st.cyaw }, { pirateObj: pirate?.object, petId: getLocalGear()?.parrot || 'none' }); } catch {}

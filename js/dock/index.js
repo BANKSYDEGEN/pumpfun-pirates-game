@@ -754,6 +754,12 @@ export async function createDock(ctx) {
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)
+  function footNetState(fast = false) {
+    if (canoe?.mode !== 'canoe') return { ...fnet.netState(walker, fast), cn: null };
+    const o = pirate.object, c = canoe.state;
+    return { ...fnet.netState({ active: true, w: { x: o.position.x, z: o.position.z, yaw: c.cyaw, speed: 0 } }, true),
+      cn: [o.position.y, o.rotation.x, o.rotation.z] };
+  }
   function cameraHook() { plaza.update(on); if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
@@ -761,7 +767,7 @@ export async function createDock(ctx) {
   if (new URLSearchParams(location.search).has('harborbc')) {
     const ch = new BroadcastChannel('pfp-harbor-test'); let last = 0;
     ch.onmessage = (ev) => { if (!on) return; const m = ev.data; if (Number.isInteger(m?.emo)) { const a = api.peerEmote(m.i, m.emo); if (a) showEmote(a, m.emo, { anchor: a, vol: 0 }); return; } handlePeer(m); }; // [Raul emotes] 'emo' on the 2-tab test channel
-    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...fnet.netState(walker), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); }, emo: (e) => ch.postMessage({ i: myId(), emo: e }) };
+    bcLink = { tick() { const now = performance.now(); if (now - last < 250) return; last = now; ch.postMessage({ i: myId(), n: ctx.pvp()?.name || 'PIRATE', ...footNetState(), ...(battery?.netState() || {}), ...(battle?.netState() || {}), gr: gearToWire(getLocalGear()), sk: ctx.pvp()?.skinId || 'classic' }); }, emo: (e) => ch.postMessage({ i: myId(), emo: e }) };
   }
   function handlePeer(m) { if (m && typeof m.n === 'string') peerNames.set(m.i, m.n); battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m); houses?.onPeerState?.(m); mm?.onPeer?.(m); /* [v349] */
     if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
@@ -793,7 +799,7 @@ export async function createDock(ctx) {
     invuln: (s) => on && (zone.inside(s.x, s.z) || !!shipHull?.inHull),
     isSafe: (s) => on && !!s && zone.inside(s.x, s.z),
     aiSteer: (e, desired) => on ? zone.steer(e, desired) : desired,
-    netState: () => (on ? { ...fnet.netState(walker, (battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}), ...(mm?.netState?.() || {}) } : {}), // [v349] + mc (smuggler crate) // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
+    netState: () => (on ? { ...footNetState((battle?.fastHz?.() || 0) > 1), ...(battery?.netState() || {}), ...(battle?.netState() || {}), ...(houses?.netState?.() || {}), ...(mm?.netState?.() || {}) } : {}), // [v349] + mc (smuggler crate) // [Timothy] + 'bc'/'ba'/'bh' · [storage-houses] + ih
     onPeerState: (m) => { if (on) handlePeer(m); else if (m && typeof m.i === 'string' && typeof m.dk === 'string' && m.dk) docking.onPeer(m.i, m.dk, m.ds === 1 ? 1 : 0); }, // [v157] off: just note their berth (spawnPick skips it)
     // [v339] Harbor session auto-resume helpers (js/main.js pfp_harbor_resume_v1)
     resumeState: () => { const W = walker?.w, s = P?.(); return { onFoot: !!onFoot && !shipHull?.inHull && canoe?.mode !== 'canoe', inHull: !!shipHull?.inHull, moored: docking.mode === 'docked', x: +(onFoot ? W?.x : s?.x) || 0, z: +(onFoot ? W?.z : s?.z) || 0, yaw: +(onFoot ? W?.yaw : s?.yaw) || 0 }; },

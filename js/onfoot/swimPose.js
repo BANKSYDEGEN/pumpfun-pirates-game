@@ -79,7 +79,7 @@ function hop(S, R, dir, k) { // k 0..1 over the surface kick
 // k = climb / hop progress (0..1). Returns true while the procedural pose owns the body (the caller keeps the idle clip underneath).
 export function swimPose(p, state, dt, speed = 0, k = 0) {
   const r = rig(p); if (!r) return false; const sw = p._sw || (p._sw = { w: 0, ph: 0, t: Math.random() * 9, st: null, S: Object.fromEntries(BONES.map((n) => [n, new THREE.Quaternion()])) });
-  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop' || state === 'ladder' || state === 'lie' || state === 'sit'; // [bed-desk] + lie / sit
+  const on = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop' || state === 'ladder' || state === 'lie' || state === 'sit' || state === 'canoe'; // [bed-desk] + lie / sit
   sw.w = Math.min(1, Math.max(0, sw.w + (on ? 1 : -1) * dt / (state === 'climb' || sw.st === 'climb' || state === 'ladder' || sw.st === 'ladder' ? 0.12 : 0.22)));
   if (on) { sw.st = state; sw.kk = k; } sw.t += dt;
   if (sw.st === 'swim') sw.ph += dt * TAU * Math.max(0.35, speed) / SWIM_STRIDE; else sw.ph += dt * 2; // keep turning slowly so the next stroke starts mid-cycle
@@ -87,5 +87,5 @@ export function swimPose(p, state, dt, speed = 0, k = 0) {
   return sw.w > 0; }
 function postPose() { // after mixer.update: pose the bones (PirateGLB.update)
   const sw = this._sw, r = this._swRig; if (!sw || !r || sw.w <= 0) return; const { B, R, dir } = r, S = sw.S;
-  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else if (sw.st === 'ladder') ladder(S, R, dir, sw.kk); else if (sw.st === 'lie') lie(S, R, dir, sw.t); else if (sw.st === 'sit') sit(S, R, dir, sw.t); else return;
+  if (sw.st === 'tread') tread(S, R, dir, sw.t); else if (sw.st === 'swim') crawl(S, R, dir, sw.ph); else if (sw.st === 'climb') climb(S, R, dir, sw.kk); else if (sw.st === 'hop') hop(S, R, dir, sw.kk); else if (sw.st === 'ladder') ladder(S, R, dir, sw.kk); else if (sw.st === 'lie') lie(S, R, dir, sw.t); else if (sw.st === 'sit' || sw.st === 'canoe') sit(S, R, dir, sw.t); else return;
   const w = sw.w * sw.w * (3 - 2 * sw.w); for (const n of BONES) B[n].quaternion.slerp(S[n], w); }

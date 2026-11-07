@@ -67,6 +67,7 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
   let v4 = null; const fig = pirateFigure({ look, low, height: 1.75, gear, local, bodyFromGear, onReady: (p) => { v4 = p; hips.visible = false; } }); root.add(fig);
   let ph = 0, blend = 0, t = 0;
   function update(dt, speed = 0, state = 'idle') {
+    if (root.userData.canoeSeat) { state = 'canoe'; speed = 0; }
     if (v4) { // [Raul] state (js/onfoot/physics.js poseBody): fall = fast run (flailing). [Raul swim-anim] swim / tread / climb / hop = procedural
       // bone poses (js/onfoot/swimPose.js) over the idle clip, blended in and out
       v4.birdFly = true; v4.footSpeed = speed; v4.footState = state;   // [Raul items redo 2] on foot the parrot may take off (js/pirateGear.js birdPost)

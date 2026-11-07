@@ -7,9 +7,9 @@ import * as THREE from 'three';
 
 const canonical = (name) => name.replace(/[^a-zA-Z]/g, '');
 const cache = new WeakMap();
-export function locomotionClip(source, female = false) {
+export function locomotionClip(source) {
   let variants = cache.get(source); if (!variants) cache.set(source, variants = []);
-  const key = female ? 1 : 0; if (variants[key]) return variants[key];
+  const key = 0; if (variants[key]) return variants[key]; // Shared male profile.
   const run = source.name === 'run', clip = source.clone();
   const tracks = Object.fromEntries(source.tracks.filter(t => t.name.endsWith('.quaternion')).map(t => [canonical(t.name.split('.')[0]), t]));
   if (!tracks.root || !tracks.thighL || !tracks.thighR) return source;
@@ -28,7 +28,7 @@ export function locomotionClip(source, female = false) {
     for (let i = 0; i <= count; i++) {
       const t = times[i], l = swing(left.evaluate(t)), r = swing(right.evaluate(t));
       const stride = THREE.MathUtils.clamp((l - r) / (run ? 1.7 : 1), -1, 1);
-      const yaw = stride * (female ? .038 : .03), roll = -stride * (female ? .018 : .012);
+      const yaw = stride * .03, roll = -stride * .012;
       q.fromArray(sample.evaluate(t));
       if (bone === 'root') {
         // No pitch; <= 2.5 degrees TOTAL pelvis offset. Never tilt the group.

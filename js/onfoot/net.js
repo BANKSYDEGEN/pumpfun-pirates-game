@@ -4,6 +4,7 @@
 //   dk: berth id your ship is moored at ('' = at sea)      ft: [x, z, yaw*100, speed*10] while you walk ('' = aboard)
 // Free-plan cap: a harbor room copy holds ~4 pirates, so at most 3 remote pirates are ever drawn (each ~5-10 draw calls).
 import * as THREE from 'three';
+import { makeCanoeMesh } from '../dock/canoe.js';
 import { loadPirate } from './pirate.js';
 import { jumpArc } from './walker.js';
 import { newBody, placeBody, stepBody, jumpBody, poseBody, waterFX, bodyFX } from './physics.js'; // [Raul] remote pirates fall + swim too
@@ -52,6 +53,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       const gw = cleanWire(m.gr), sk = knownGearSkin(m.sk) ? m.sk : 'classic', ec = Number.isInteger(m.ec) && m.ec > 0 && m.ec <= EYE_SWATCHES.length ? m.ec : 0, gk = gw + '|' + sk + '|' + ec; if (gk !== p.gw) { p.gw = gk; const g = gearFromWire(gw); p.petId = g.parrot; p.capG = g; p.ck = null; /* [crew-weapons] their crew re-reads the captain's weapons */ applyGear(p.pirate, { ...g, eyeColor: ec }, { skin: sk }); } // [v115] + eye colour ('ec') // validated; missing = shirtless; clothes = their ship skin ('sk')
       { const ck = String(m.cr ?? '') + '|' + String(m.cc ?? ''); if (ck !== p.ck) { p.ck = ck; p.crewG = shoreCrewGear({ ...crewGear({ ...crewFromWire(m.cr), crewhatColor: crewColorFromWire(m.cc) }), ...crewWeaponsOf(p.capG) }); } p.sk = sk; } // [remote-crew] their Crew Shop loadout ('cr' / 'cc', already sent)
       { const lk = decodeWeaponLook(WSYNC_ON ? m.wl : 0); if (lk !== p.look) { p.look = lk; setObjLook(p.pirate.object, lk); } } // [weapon-sync] their look -> held + holstered weapons (battle.js / carryWeapons.js)
+      p.cn = Array.isArray(m.cn) && m.cn.length === 3 && m.cn.every(Number.isFinite) && Math.abs(m.cn[0]) < 20 && Math.abs(m.cn[1]) < 1 && Math.abs(m.cn[2]) < 1 ? m.cn : null;
       p.fy = Number.isFinite(m.fy) && m.fy !== 0 ? m.fy / 10 : null; // [Emerly zipline] riding a zipline: their height
       if (typeof m.pc === 'string') p.pc = m.pc.slice(0, 8); // [v340] Harbor squad party tag for on-foot minimap colors
       p.tx = ft[0]; p.tz = ft[1]; p.tyaw = ft[2] / 100; p.tspeed = ft[3] / 10; p.heard = performance.now();
@@ -61,7 +63,7 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
     else if (p) p.heard = performance.now();
     return moved;
   }
-  function drop(id) { const p = peers.get(id); if (!p) return; p.pet?.dispose(); p.crew?.dispose(); p.pirate.dispose(); if (p.tag) p.tag.material.map.dispose(); peers.delete(id); }
+  function drop(id) { const p = peers.get(id); if (!p) return; if (p.canoe) { p.canoe.removeFromParent(); p.canoe.traverse(o => o.geometry?.dispose()); } p.pet?.dispose(); p.crew?.dispose(); p.pirate.dispose(); if (p.tag) p.tag.material.map.dispose(); peers.delete(id); }
   const fx = waterFX(scene, low);
   function crewCount() { let n = 0; for (const q of peers.values()) if (q.crew) n++; return n; }
   function tick(dt) {
@@ -76,7 +78,18 @@ export function createFootNet({ scene, low, world, docking, maxPeers = 3, getCam
       if (p.fy != null) { p.body.y = p.fy; p.body.air = false; p.body.vy = 0; } // [Emerly zipline] pin peer height to the cable
       const st = poseBody(p.pirate.object, p.body, p.x, p.z, p.yaw, p.fy != null ? 0 : p.speed, now / 1000, p.fy != null ? 0 : jh);
       zipGrip(p.pirate, p.fy != null, dt); // [Emerly zipline-v2] both arms up on the bar
-      p.pirate.update(dt, p.fy != null ? 0 : p.speed, st);
+      p.pirate.object.userData.canoeSeat = !!p.cn;
+      if (p.cn) { p.pirate.object.position.y = p.cn[0]; p.pirate.object.rotation.set(p.cn[1], p.yaw, p.cn[2], 'YXZ'); }
+      p.pirate.update(dt, p.cn || p.fy != null ? 0 : p.speed, p.cn ? 'canoe' : st);
+      if (p.cn) {
+        if (!p.canoe) { p.canoe = makeCanoeMesh(); scene.add(p.canoe); }
+        const o = p.pirate.object; let hip = null;
+        o.traverse(b => { if (b.isBone && b.name === 'root') hip = b; });
+        o.updateWorldMatrix(true, true);
+        const h = hip ? o.worldToLocal(hip.getWorldPosition(new THREE.Vector3())).y * o.scale.y : .8;
+        p.canoe.visible = true; p.canoe.quaternion.copy(o.quaternion);
+        p.canoe.position.copy(o.position).add(new THREE.Vector3(0, h - .425, -.55).applyQuaternion(o.quaternion));
+      } else if (p.canoe) p.canoe.visible = false;
       if (CREW_N && !p.crew && p.body && crewCount() < CREW_PEERS) { // [perf5] counted without a per-frame array copy + filter per crewless peer // [remote-crew] BANKSY 6:09 PM "I can't see other players crews": capped (desktop 2 each for 3 pirates, phones 1 each for 2)
         const W = { get x() { return p.x; }, get z() { return p.z; }, get yaw() { return p.yaw; }, get y() { return p.body?.y ?? 0; }, get jumps() { return p.fj | 0; }, get speed() { return p.speed || 0; } };
         p.crew = createFollowers({ scene, world, walker: { w: W }, low, count: CREW_N, gearOf: () => p.crewG, colorsOf: () => ({ skin: p.sk || 'classic' }) }); p.crew.enter(); }

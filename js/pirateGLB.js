@@ -6,6 +6,7 @@
 // material (3 draw calls with the face). Low ('pirate_lo_body'): unlit baked-light atlas (2 draw calls with the face).
 // Milestone 1 (starter bases only): shirtless male / wrap-top female, plain pants, basic boots, hair + face. Shop items: js/pirateItems.js.
 import * as THREE from 'three';
+import { sharedBodyClips } from './onfoot/retarget.js';
 import { locomotionClip } from './onfoot/locomotion.js';
 import { OPT_ON, animStep } from './opt.js'; // [Emerly perf-v304] &opt=0 = full-rate mixers
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -266,7 +267,7 @@ export class PirateGLB {
     this._url = (v4 ? PIRATE_GLB_V4 : useV5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
     this.ready = loadPirateGLB(this._url).then((g) => this._init(g, colors));
   }
-  _init(gltf, colors) {
+  async _init(gltf, colors) {
     const scene = SkeletonUtils.clone(gltf.scene); const low = this.lod === 'lo';
     this.v7 = false; scene.traverse(o => { if (o.userData?.v7) this.v7 = true; });
     this._v7Tint = { v7Skin: { value: new THREE.Color() }, v7Hair: { value: new THREE.Color() }, v7Iris: { value: new THREE.Color() }, v7On: { value: new THREE.Vector3() } };
@@ -295,7 +296,8 @@ export class PirateGLB {
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
     scene.traverse((o) => { if (o.isBone) o.userData.swRest = o.quaternion.clone(); });   // [Raul] bind pose for the procedural swim poses (js/onfoot/swimPose.js)
-    this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, this.v7 && (a.name === 'walk' || a.name === 'run') ? locomotionClip(a, this.female) : a]));
+    const animations = this.v7 && this.female ? sharedBodyClips(gltf, await loadPirateGLB(PIRATE_GLB.male[this.lod])) : gltf.animations;
+    this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(animations.map((a) => [a.name, this.v7 && (a.name === 'walk' || a.name === 'run') ? locomotionClip(a) : a]));
     this.play('idle');
     return this;
   }
