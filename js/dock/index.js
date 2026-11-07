@@ -190,6 +190,13 @@ export async function createDock(ctx) {
     });
     const fb = $('btn-friends'); if (fb) { fb.hidden = false; fb.onclick = (e) => { e.stopPropagation(); friends.open(); }; }
     window.PFP_FRIENDS = Object.freeze({ open: (t) => friends.open(t), request: (n) => friends.request(n), relationOf: (n) => friends.relationOf(n), get me() { return friends.data.me; } });
+    import('../petsPanel.js').then((m) => { // [pets R1] name / level / trade your pets (settings: 🐾 MY PETS)
+      const pp = m.createPetsPanel({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }),
+        equipped: () => getLocalGear()?.parrot || '', out: () => !!petF?.active, toast: (...a) => toast(...a),
+        gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } });
+      const fb2 = $('btn-friends'); if (fb2 && !$('btn-pets')) { const pb = document.createElement('button'); pb.id = 'btn-pets'; pb.type = 'button'; pb.className = 'ghost'; pb.textContent = '🐾 MY PETS'; pb.onclick = (e) => { e.stopPropagation(); pp.open(); }; fb2.insertAdjacentElement('afterend', pb); }
+      setInterval(() => { pp.tick(1); }, 1000); window.PFP_PETS = Object.freeze({ open: () => pp.open() });
+    }).catch((e) => console.warn('[pets]', e));
     import('../social.js').then((m) => { // [Friends R2] map player list (mute / add friend / squad) + squad voice chat
       const soc = m.createSocial({ pvp: () => ctx.pvp?.(), friends, toast: (...a) => toast(...a) });
       Object.defineProperty(globalThis, 'PFP_SOCIAL_NET', { value: Object.freeze({ onNet: soc.onNet, onSig: soc.onSig, isMuted: soc.isMuted }), configurable: false });
