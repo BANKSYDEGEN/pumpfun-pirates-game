@@ -12,6 +12,7 @@ import { escHtml, isNetId } from './safe.js';
 import { ADM } from './adminState.js';
 import { invApi, ownerReady, ownerAllSkins, accountInfo, walletSession, shopCache } from './pvpSave.js';
 import { FISH, VALUABLES, GUN_ITEMS, WEAPON_BASES, WEAPON_TIERS, itemInfo, RARITY_COLOR } from './inventory/catalog.js';
+import { giveCatalog, spawnCatalog, maxKeyOf } from './adminSpawn.js'; // [admin-spawn t2149u]
 import { placeBody } from './onfoot/physics.js';
 import { createWorldAdmin, WORLD_CSS } from './adminWorld.js'; // [v346] ☀️ TIME & WEATHER + 🧱 COLLISIONS (t1819u / t1820u)
 
@@ -53,15 +54,7 @@ export function toScreen(camera, x, y, z, W, H, V) {
   const v = V || new camera.position.constructor(); v.set(x, y, z).project(camera);
   if (v.z > 1 || v.z < -1) return null; return { x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H };
 }
-// every item BANKSY can slip into pockets
-export function giveCatalog() {
-  const out = [];
-  for (const [id, f] of Object.entries(FISH)) out.push({ key: `fish:${id}`, name: f.name, icon: f.icon, rarity: f.rarity, group: 'Fish' });
-  for (const [id, v] of Object.entries(VALUABLES)) out.push({ key: `val:${id}`, name: v.name, icon: v.icon, rarity: v.rarity, group: 'Treasure' });
-  for (const [id, g] of Object.entries(GUN_ITEMS)) out.push({ key: `val:${id}`, name: g.name, icon: g.icon, rarity: g.rarity, group: 'Musket parts' });
-  for (const [slot, bases] of Object.entries(WEAPON_BASES)) for (const b of bases) for (const t of WEAPON_TIERS) { const i = itemInfo(`wpn:${slot}:${b}:${t}`); if (i) out.push({ key: `wpn:${slot}:${b}:${t}`, name: i.name, icon: i.icon, rarity: t, group: slot === 'sword' ? 'Swords' : 'Muskets' }); }
-  return out;
-}
+export { giveCatalog } from './adminSpawn.js';
 export const itemLabel = (key) => { const i = itemInfo(key); return i ? `${i.icon || ''} ${i.name}` : String(key); };
 // the target client: what the server said about ME
 export function applyMyState(st, now = Date.now()) {
@@ -287,7 +280,8 @@ export function initAdminMenu(ctx) {
         <div class="pills"></div>
         <div class="wa"></div>
         <h4>LIVE PLAYERS <button data-a="ref">↻ REFRESH</button></h4><div class="ros"></div>
-        <div class="pk" hidden></div></div>`);
+        <div class="pk" hidden></div>
+        <h4>🧰 ITEM SPAWNER · into MY inventory</h4><div class="sp"></div></div></div>`);
     esp = mk('div', 'pfp-esp'); WA.mount(panel.querySelector('.wa'));
     panel.addEventListener('click', onClick); panel.addEventListener('input', onInput); panel.addEventListener('change', onInput);
     // drag by the header
@@ -316,7 +310,7 @@ export function initAdminMenu(ctx) {
       b.textContent = { noclip: '🕊️ NOCLIP', god: '⚡ GOD MODE', invisible: '👻 INVISIBLE', esp: '👁️ 3D ESP' }[k] + (on ? ': ON' : ''); });
     panel.querySelectorAll('.spd button').forEach(b => b.classList.toggle('on', +b.dataset.s === ADM.noclipMul));
     panel.querySelector('.pills').innerHTML = pills().map(p => `<span class="pill">${escHtml(p)}</span>`).join(' · ');
-    paintRoster(); paintPocket();
+    paintRoster(); paintPocket(); paintSpawn();
   }
   function paintRoster() {
     const box = panel?.querySelector('.ros'); if (!box) return; const me = meNow(), list = roster(); st.roster = list;
@@ -343,7 +337,34 @@ export function initAdminMenu(ctx) {
         <span></span>
         <div class="row"><button class="act" data-a="g+">+ GOLD</button><button class="act" data-a="g-">- GOLD</button></div></div>`;
   }
-  function onInput(e) { if (e.target.dataset.wi || e.target.dataset.wf) return WA.input(e.target, e.type === 'change'); const i = e.target.dataset.i; if (i === 'filter') { st.filter = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintPocket(); const n = panel.querySelector('[data-i="filter"]'); n?.focus(); n?.setSelectionRange(pos, pos); } else if (i === 'sel') st.sel = e.target.value; }
+  // ---- [admin-spawn] ITEM SPAWNER + MAX UPGRADE (own pockets; the server re-checks owner on every call) ----
+  const myPid = () => { const n = myNet(); return st.server.find(p => p.net === n)?.pid || st.mine?.pid || null; };
+  function paintSpawn() {
+    const box = panel?.querySelector('.sp'); if (!box) return;
+    const cat = spawnCatalog(), groups = [...new Set(cat.map(c => c.group))], f = (st.sf || '').toLowerCase();
+    const opts = cat.filter(c => (!st.sg || c.group === st.sg) && (!f || (c.name + ' ' + c.key + ' ' + c.group + ' ' + c.rarity).toLowerCase().includes(f)));
+    const mine = (st.mine?.items || []).filter(it => maxKeyOf(it.item));
+    box.innerHTML = `<div class="give"><input class="full" data-i="sf" placeholder="search all ${cat.length} items…" value="${escHtml(st.sf || '')}">
+      <select data-i="sg"><option value="">ALL CATEGORIES</option>${groups.map(g => `<option${g === st.sg ? ' selected' : ''}>${escHtml(g)}</option>`).join('')}</select>
+      <select data-i="ssel" size="8" class="full">${opts.map(o => `<option value="${escHtml(o.key)}"${o.key === st.ssel ? ' selected' : ''} style="color:${escHtml(RARITY_COLOR[o.rarity] || '#ccc')}">${escHtml(o.icon + ' ' + o.name + ' · ' + o.rarity + (o.srv === '062' ? ' · (server 062)' : ''))}</option>`).join('')}</select>
+      <input data-i="sq" type="number" min="1" max="99" value="${st.sq || 1}"><div class="row"><button class="act" data-a="spawn">+ SPAWN TO ME</button></div></div>
+      <h4>⬆️ MAX UPGRADE <button data-a="mref">↻</button> <button data-a="maxall">MAX ALL</button></h4>
+      <div class="items">${st.mine ? (mine.map(it => `<div class="it" data-item="${escHtml(it.item)}"><span class="nm">${escHtml(itemLabel(it.item))}</span><button data-a="max">MAX</button></div>`).join('') || '<div class="empty">nothing left to upgrade</div>') : '<div class="empty">press ↻ to load your weapons</div>'}</div>`;
+  }
+  async function loadMine() { const pid = myPid(); if (!pid) { await refreshServer(); } const id = myPid(); if (!id) return toast('your id is not on the roster yet: sail / walk a moment, then ↻');
+    const r = await call('admin_pocket_get', { target_pid: id }); st.mine = r?.ok ? { ...r, pid: id } : null; if (!r?.ok) toast(`my pockets: ${r?.error || 'offline'}`); paintSpawn(); }
+  async function spawnMe(item, qty) {
+    if (!myPid()) await refreshServer(); const pid = myPid(); if (!pid) return toast('your id is not on the roster yet');
+    const r = await call('admin_pocket_give', { target_pid: pid, item, qty: item.startsWith('wpn:') ? 1 : qty });
+    if (!r?.ok) return toast(`couldn't spawn ${itemLabel(item)}: ${r?.error || 'refused'}${spawnCatalog().find(c => c.key === item)?.srv === '062' ? ' (needs server update 062)' : ''}`), false;
+    if (r.target) st.mine = { ...r.target, pid }; refreshMyPockets(); toast(`🧰 Spawned ${item.startsWith('wpn:') ? 1 : qty}× ${itemLabel(item)}`); paintSpawn(); return true;
+  }
+  async function maxUp(items) { let n = 0; for (const it of items) { const k = maxKeyOf(it); if (k && await spawnMe(k, 1)) n++; } toast(n ? `⬆️ ${n} weapon${n > 1 ? 's' : ''} maxed (max copy added)` : 'nothing upgraded'); }
+  function onInput(e) {
+    const si = e.target.dataset.i; if (si === 'sf') { st.sf = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintSpawn(); const n = panel.querySelector('[data-i="sf"]'); n?.focus(); n?.setSelectionRange(pos, pos); return; }
+    if (si === 'sg') { st.sg = e.target.value; return paintSpawn(); } if (si === 'ssel') { st.ssel = e.target.value; return; } if (si === 'sq') { st.sq = Math.max(1, Math.min(99, e.target.value | 0)); return; }
+    return onInput0(e); }
+  function onInput0(e) { if (e.target.dataset.wi || e.target.dataset.wf) return WA.input(e.target, e.type === 'change'); const i = e.target.dataset.i; if (i === 'filter') { st.filter = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintPocket(); const n = panel.querySelector('[data-i="filter"]'); n?.focus(); n?.setSelectionRange(pos, pos); } else if (i === 'sel') st.sel = e.target.value; }
   async function onClick(e) {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.w) return WA.click(b);
@@ -358,6 +379,10 @@ export function initAdminMenu(ctx) {
     if (a === 'pk' && p) return openPocket(p);
     if (a === 'pref') return openPocket(st.roster.find(r => r.pid === st.pocketFor) || { pid: st.pocketFor, name: st.pocketName });
     if (a === 'pclose') { st.pocketFor = null; st.pocket = null; return paintPocket(); }
+    if (a === 'spawn') { const k = panel.querySelector('[data-i="ssel"]')?.value || st.ssel; return k ? spawnMe(k, st.sq || 1) : toast('pick an item first'); }
+    if (a === 'mref') return loadMine();
+    if (a === 'max') { const k = b.closest('.it')?.dataset.item; if (k) return maxUp([k]); }
+    if (a === 'maxall') { if (!st.mine) await loadMine(); return maxUp((st.mine?.items || []).map(i => i.item)); }
     const it = b.closest('.it')?.dataset.item;
     if ((a === 't1' || a === 'ta') && it) return take(it, a === 'ta');
     if (a === 'give') { const sel = panel.querySelector('[data-i="sel"]')?.value, q = Math.max(1, Math.min(99, panel.querySelector('[data-i="qty"]')?.value | 0)); if (sel) return give(sel, q); }

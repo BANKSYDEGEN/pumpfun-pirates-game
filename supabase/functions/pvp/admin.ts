@@ -23,7 +23,7 @@ const okItem = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map
 const qtyOf = (q: unknown, max = 99) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= max ? n : 0; };
 const cleanName = (n: unknown) => String(n ?? "").replace(/[<>&"'`\\\u0000-\u001f]/g, "").trim().slice(0, 20);
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 10) / 10 : null; };
-const isGiveable = (k: string) => KEY_RE.test(k) && !!itemInfo(k);
+const isGiveable = (k: string) => KEY_RE.test(k) && !k.startsWith("par:") && (!!itemInfo(k) || /^isl:[a-z_]{2,24}$/.test(k)); // [admin-spawn 062] island goods have no server itemInfo; the SQL regex is the gate
 
 // one pirate's pockets: stacked items (all sources), undug maps, equipped weapons, gold (save + waiting pot)
 export async function pocketOf(db: any, pid: string) {

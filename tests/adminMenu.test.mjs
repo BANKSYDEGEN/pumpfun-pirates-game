@@ -190,3 +190,16 @@ test('hooks: GOD (0 damage on foot + at sea), INVISIBLE (bye + no state + AI ign
   assert.match(MAIN, /\[\?&\]admin=0\(&\|\$\)/);
   assert.ok(!/PUMP FUN PIRATES/.test(SRC + ATS + SQL));
 });
+
+// [admin-spawn t2149u] full spawner list + max upgrade keys
+import { spawnCatalog, maxKeyOf } from '../js/adminSpawn.js';
+import { KEY_RE as KRE } from '../js/inventory/catalog.js';
+{
+  const c = spawnCatalog(); const keys = new Set(c.map(x => x.key));
+  if (keys.size !== c.length) throw new Error('spawn dup keys');
+  for (const x of c) if (!KRE.test(x.key)) throw new Error('bad spawn key ' + x.key);
+  if (!keys.has('wpn:musket:navy:legendary:20') || !c.some(x => x.key.startsWith('isl:'))) throw new Error('spawn list incomplete');
+  if (maxKeyOf('wpn:musket:navy:common') !== 'wpn:musket:navy:legendary:20' || maxKeyOf('wpn:musket:navy:legendary:20') !== null) throw new Error('musket max');
+  if (maxKeyOf('wpn:sword:bone:rare') !== 'wpn:sword:bone:legendary' || maxKeyOf('fish:koi') !== null) throw new Error('sword max');
+  console.log('admin spawn ok', c.length);
+}
