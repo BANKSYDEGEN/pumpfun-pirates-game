@@ -6,6 +6,7 @@
 // material (3 draw calls with the face). Low ('pirate_lo_body'): unlit baked-light atlas (2 draw calls with the face).
 // Milestone 1 (starter bases only): shirtless male / wrap-top female, plain pants, basic boots, hair + face. Shop items: js/pirateItems.js.
 import * as THREE from 'three';
+import { locomotionClip } from './onfoot/locomotion.js';
 import { OPT_ON, animStep } from './opt.js'; // [Emerly perf-v304] &opt=0 = full-rate mixers
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -294,7 +295,7 @@ export class PirateGLB {
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
     scene.traverse((o) => { if (o.isBone) o.userData.swRest = o.quaternion.clone(); });   // [Raul] bind pose for the procedural swim poses (js/onfoot/swimPose.js)
-    this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, a]));
+    this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(gltf.animations.map((a) => [a.name, this.v7 && (a.name === 'walk' || a.name === 'run') ? locomotionClip(a, this.female) : a]));
     this.play('idle');
     return this;
   }

@@ -8,6 +8,7 @@ import { toon } from '../toon.js';
 
 export { PIRATE_GLB } from '../pirateGLB.js'; // [v100] Raul's Blender pirates v4 (js/pirates.js); the procedural deckhand below is the fallback while it loads
 import { pirateFigure } from '../pirates.js';
+import { playLocomotion } from './locomotion.js';
 import { swimPose } from './swimPose.js'; // [Raul swim-anim] tread / crawl / pull-up / surface kick
 import { emotePose, startEmote } from './emotePose.js'; // [Raul emotes] quick-chat body motions on land
 
@@ -72,8 +73,8 @@ export function loadPirate({ look = { skin: 0, hair: 0 }, low = false, outline =
       const wet = state === 'swim' || state === 'tread' || state === 'climb' || state === 'hop';
       const own = swimPose(v4, state, dt, speed, root.userData.swimK || 0);
       if (root.userData.emote) emotePose(v4, root, state, dt, speed);   // [Raul emotes] land only, over the clip (after the swim layer)
-      const c = wet || own ? 'idle' : state === 'fall' ? 'run' : speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle'; v4.play(c);
-      if (v4.action) v4.action.setEffectiveTimeScale(c === 'idle' ? 1 : state === 'fall' ? 1.7 : c === 'run' ? Math.max(0.7, speed / 6) : c === 'walk' ? Math.max(0.6, speed / 2.4) : 1); return; }
+      const c = wet || own ? 'idle' : state === 'fall' ? 'run' : speed > 4.4 ? 'run' : speed > 0.25 ? 'walk' : 'idle';
+      playLocomotion(v4, c, speed, state === 'fall'); return; }
     t += dt; const run = Math.min(1, Math.max(0, (speed - 4.4) / 2)), walk = Math.min(1, speed / 1.2);
     blend += (walk - blend) * Math.min(1, dt * 10);
     ph += dt * (speed > 0.1 ? 2.2 + speed * 1.15 : 0);
