@@ -3,6 +3,7 @@ import { parrotUpgradeState, parrotUpgradeFeedback } from './parrotUpgrade.js';
 // (icon + count, identical items stack, no slot / stack cap). Tap a slot: OPEN (a treasure map -> the MAPS chart, as before), EQUIP (a
 // weapon), GIVE (a player + a quantity), and at a plaza shop SELL (Fish Stand / Antiques) or LIST (Marketplace). The server does every
 // move (migration 036); this only shows what it says. Used items leave the grid (a dug / sold / given map, a sold fish...).
+import { getSort, setSort, nextSort, sortByRarity, SORT_LABEL } from './raritySort.js'; // [rarity-sort]
 import { itemInfo, RARITY_COLOR, FLAGS, MARKET, muskLevelCost, muskTierOf, musketLevelMul, MUSKET_MAX_LV, muskTierStart } from './catalog.js'; // [musket-levels]
 import { wstackOn, muskRankOn, RANK_UP, RANKS, SALVAGE_PARTS, PARTS_KEY, RANK_CAP, GUN_ACC, gunAccOn, loadGunAcc, setGunAcc, gunAcc, pruneGunAcc, setGunInstances, gunInstances, applyLocalAcc } from '../musketUpgrades.js'; // [Emerly wstack / eqslots / musket-rank / gunacc / v332 per-gun]
 import { islInfo, islKey } from './islandGoods.js'; // [v375] island goods as bag items (BANKSY t1978u)
@@ -209,6 +210,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   const saveOrder = () => { try { let n = order.length; while (n && !order[n - 1]) n--; localStorage.setItem(ORDER_V + orderFor, JSON.stringify(order.slice(0, n))); } catch { /* private mode */ } for (const f of _slotFns) try { f(order.slice()); } catch {} };
   let view = []; // the last layout: slot index -> { s (slot item), n (qty shown in this slot) } | null
   function layout(list) { // the server's totals spread over the saved slots; leftovers go to that item's first slot, else the first empty one
+    const srt = getSort('inv'); if (srt !== 'default') { loadOrder(); order = []; list = sortByRarity(list, srt, (x) => x.info); } // [rarity-sort] fresh slots in rarity order
     const o = loadOrder(), by = new Map(list.map(x => [x.key, x])), left = new Map(list.map(x => [x.key, x.qty]));
     if (EQS) for (const sl of ['sword', 'musket']) { const k = eqKey(sl); if (k && left.has(k)) left.set(k, left.get(k) - 1); } // [eqslots] it sits in EQUIPPED
     if (ACC_ON) { accWho(); for (const k of Object.values(gunAcc())) if (left.has(k)) left.set(k, left.get(k) - 1); } // [gunacc] fitted on the musket
@@ -224,7 +226,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     if (!B) { order[b] = { k: A.k, n: part }; if (part < A.n) A.n -= part; else order[a] = null; }
     else if (B.k === A.k && !single(A.k)) { B.n += part; if (part < A.n) A.n -= part; else order[a] = null; }
     else { if (part < A.n) return false; order[a] = B; order[b] = A; }
-    saveOrder(); return true; }
+    if (getSort('inv') !== 'default') setSort('inv', 'default'); saveOrder(); return true; }
   const isIsl = (s) => s?.info?.kind === 'island';
   const shopTakes = (s) => isIsl(s) ? (mode === 'fish' || mode === 'antiques' ? !!s.info.sell?.[mode] : true) : mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' && (s.info.antiques | 0) > 0 : true;   // [ruins] 0-price items (shards, gun parts) stay out of the Trader grid
   const price = (s) => isIsl(s) ? (s.info.sell?.[mode] | 0) : mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
@@ -256,7 +258,8 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     else meterEl.hidden = true;
     $('.iv-head small').textContent = mode === 'bag' ? `${count()} items · ${meter.text} · tap one` : mode === 'market' ? (data.flags.market ? 'buy from pirates · list yours' : 'opens soon') : sellOn() ? 'tap an item to sell' : 'prices coming soon · BANKSY is setting them';
     $('.iv-tabs').innerHTML = mode === 'market' ? `<button data-t="browse" class="${tab === 'browse' ? 'on' : ''}">FOR SALE</button><button data-t="mine" class="${tab === 'mine' ? 'on' : ''}">SELL YOURS</button>` : '';
-    $('.iv-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.t; sel = null; render(); });
+    if (mode === 'bag') $('.iv-tabs').innerHTML = `<button data-sort="1" class="${getSort('inv') !== 'default' ? 'on' : ''}">${SORT_LABEL[getSort('inv')]}</button>`;
+    $('.iv-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.sort) { setSort('inv', nextSort(getSort('inv'))); if (getSort('inv') === 'default') saveOrder(); sel = null; selI = -1; render(); return; } tab = b.dataset.t; sel = null; render(); });
     const g = $('.iv-grid');
     if (mode === 'market' && tab === 'browse') {
       g.innerHTML = listings.length ? listings.map(l => { const i = infoOf(l.item) || { icon: '❔', name: l.item, rarity: 'common' };

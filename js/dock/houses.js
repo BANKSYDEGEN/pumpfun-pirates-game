@@ -2,6 +2,7 @@
 // main-server spot stays reserved (ih:1). Kill switch: &houses=0.
 // Doors auto-bind to Post's cottage village (js/island/areas/cottages.js) when present; otherwise the same
 // 4 doorsteps (Build Mode markers + future Post doors) so post/cottages merges cleanly.
+import { getSort, setSort, nextSort, sortByRarity, SORT_LABEL } from '../inventory/raritySort.js'; // [rarity-sort]
 import * as THREE from 'three';
 import { itemInfo, RARITY_COLOR } from '../inventory/catalog.js';
 import { invApi } from '../pvpSave.js';
@@ -87,6 +88,7 @@ const CSS = `
 #hs-panel .hs-hint{margin:0 12px 4px;padding:6px 10px;border-radius:10px;border:1px dashed rgba(255,205,119,.45);background:rgba(0,0,0,.28);font:16px/1.25 system-ui,sans-serif;color:#e8d4a8}
 #hs-panel .hs-filters{display:flex;flex-wrap:wrap;gap:6px;padding:2px 12px 6px}
 #hs-panel .hs-filters button{font:16px 'Just Another Hand',cursive;padding:3px 10px 2px;border-radius:999px;border:2px solid #6b4a24;background:#1a0f07;color:#cdb68c;cursor:pointer}
+#hs-panel .hs-filters .hs-sort{margin-left:auto}
 #hs-panel .hs-filters button.on{border-color:#ffcd77;color:#ffcd77;background:#3a2410}
 #hs-panel .hs-cols{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 12px 10px}
 #hs-panel .hs-col{display:flex;flex-direction:column;min-height:0;border:2px solid #6b4a24;border-radius:12px;background:#1a1008;transition:box-shadow .12s,border-color .12s}
@@ -1394,6 +1396,7 @@ export function createHouses({
       <button type="button" data-f="weapons">Weapons</button>
       <button type="button" data-f="loot">Loot &amp; Fish</button>
       <button type="button" data-f="resources">Resources</button>
+      <button type="button" data-sort class="hs-sort">SORT: DEFAULT</button>
     </div>
     <div class="hs-cols">
       <div class="hs-col" data-pane="bag"><h4>🎒 YOUR BACKPACK <span class="hs-cap" data-bag-cap></span></h4><div class="hs-grid" data-bag></div></div>
@@ -1420,9 +1423,10 @@ export function createHouses({
   };
   panel.querySelector('[data-a="upgrade"]').onclick = () => upgradeChest();
   panel.querySelector('[data-filters]').onclick = (e) => {
+    if (e.target.closest?.('button[data-sort]')) { setSort('storage', nextSort(getSort('storage'))); renderStorage(); return; } // [rarity-sort]
     const b = e.target.closest?.('button[data-f]'); if (!b) return;
     filter = b.dataset.f || 'all';
-    for (const x of panel.querySelectorAll('[data-filters] button')) x.classList.toggle('on', x === b);
+    for (const x of panel.querySelectorAll('[data-filters] button[data-f]')) x.classList.toggle('on', x === b);
     renderStorage();
   };
   for (const ev of ['pointerdown', 'touchstart', 'mousedown']) panel.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
@@ -1900,10 +1904,10 @@ export function createHouses({
   }
 
   async function renderStorage() {
-    const bag = expandWeapons(await bagItems()).filter((s) => filterCat(s.item, filter));
+    let bag = expandWeapons(await bagItems()).filter((s) => filterCat(s.item, filter));
     const ch = chestOf(activeId);
     const allChest = ch.items || [];
-    const chestItems = allChest.filter((s) => filterCat(s.item, filter));
+    let chestItems = allChest.filter((s) => filterCat(s.item, filter));
     const used = allChest.length;
     const name = activeId === SHIP_QUARTERS_ID ? "CAPTAIN'S QUARTERS" : ((cottages.find((c) => c.id === activeId) || {}).name || 'COTTAGE');
     panel.querySelector('[data-sub]').textContent = `${name} · drag to move · weapons never stack · ✂️ splits loot`;
@@ -1922,6 +1926,9 @@ export function createHouses({
       const el = panel.querySelector('[data-bag-cap]'); // [backpack-pvp] data-bagcap meter -> the v324 cap chip
       if (el && BAGCAP_ON) { el.textContent = m.text; el.className = `hs-cap ${m.level || ''}`; }
     } catch {}
+    const srt = getSort('storage'), sInfo = (x) => itemInfo(x.item); // [rarity-sort] display order only; data-slot stays the real chest slot
+    const sb = panel.querySelector('[data-sort]'); if (sb) { sb.textContent = SORT_LABEL[srt]; sb.classList.toggle('on', srt !== 'default'); }
+    bag = sortByRarity(bag, srt, sInfo); chestItems = sortByRarity(chestItems, srt, sInfo);
     const bagEl = panel.querySelector('[data-bag]'), chestEl = panel.querySelector('[data-chest]');
     bagEl.innerHTML = bag.length
       ? bag.map((s) => slotHtml(s, 'bag')).join('')
