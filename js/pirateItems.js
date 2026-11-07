@@ -1,4 +1,5 @@
-import { V7M_FITS, V7M_SKIP } from './v7mFitData.js'; // [v381] restored V7 male gear refits
+import { V7M_FITS, V7M_SKIP } from './v7mFitData.js';
+export const V7M_PAINT = { facepaint_retardio: 'assets/pirates/items/v7m_paint/facepaint_retardio_male.glb' };   // [v7m paint] restored V7 male face paints (tools/v7m_paint/) // [v381] restored V7 male gear refits
 // [Raul] PUMPFUN PIRATES shop cosmetics for the v4 Blender pirates (js/pirateGLB.js). Built by tools/blender/build_items.py into
 // assets/pirates/items/item_<id>[_<base>]_{hi,lo}.glb. Each item = ONE mesh + ONE material (+1 draw call at High and Low):
 //  - skinned items (hat, crown, hooks, pegs, shirt, suit) are authored in the pirate's T-pose bind space on the same armature and are
@@ -386,6 +387,10 @@ async function build(p, def, opts) {
   const base = p.female ? 'female' : 'male', low = p.lod === 'lo', url = def.files[base][low && def.slot === 'outfit' && !p.forCrew ? 'hi' : p.lod];
   const body = p.atlasMeshes[0], skel = body.skeleton, names = skel.bones.map((b) => b.name);
   // [v381] the restored V7 male wears his native-space refit (no second v4->v5 warp); V7M_SKIP items keep the old path for now
+  // [v7m paint] BANKSY "Redo the retardio face paint on v7 characters" (male): his own skin-mapped shell (body topology + weights, painted map,
+  // alpha-masked to his skin texels: hair / beard / brows / eyes stay his) instead of the refit v5 mask. Male V7 only; female + v5 unchanged.
+  if (!p.female && p.v7 && body.userData.sourceLocked && V7M_PAINT[def.id]) { const u = V7M_PAINT[def.id];
+    return buildV5(p, {...def, v5:{male:{hi:u,lo:u}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names); }
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
     const F=V7M_FITS[def.id];
     return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
@@ -740,7 +745,7 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   if (def.glow && !low) glowMat(m.material);   // [Raul pegs 2]
   if (PET_IDLE[def.id] || def.slot === 'cape') { itemLayer(m, g0, def); p.addPost?.('items', itemsPost, 2); }   // [Raul shop2 fixes] pet idle + the cape's swim lift
   if (def.decal) Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });   // [Raul shop items 2] the grin sticker wins over the lips / beard under it
-  if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
+  if (def.paint) { m.material = m.material.clone(); Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); if (m.material.map) m.material.alphaTest = 0.5; }   // [v145] the paint wins over the skin under it (phone bodies poked through the 4 mm shell)
   body.parent.add(m); m.bind(skel, body.bindMatrix);
   if (dy) { const P = geo.attributes.position; for (let i = 0; i < P.count; i++) P.setY(i, P.getY(i) + dy); P.needsUpdate = true; geo.computeBoundingSphere(); }
   const decal = def.skull ? skullDecal(geo, skel, body, low, def.skullOpt || {}) : null;

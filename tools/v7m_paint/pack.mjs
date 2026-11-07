@@ -1,0 +1,21 @@
+import { NodeIO } from '@gltf-transform/core'; import { ALL_EXTENSIONS } from '@gltf-transform/extensions'; import { MeshoptDecoder } from 'meshoptimizer'; import fs from 'fs';
+import { prune } from '@gltf-transform/functions';
+await MeshoptDecoder.ready; const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+const old = await io.read('paint_before.glb'); const t = old.getRoot().listMeshes()[0].listPrimitives()[0].getAttribute('_TINT').getArray(); console.log('old _TINT', [...new Set(t)]);
+const d = await io.read('male_hi.glb'), R = d.getRoot(), p = R.listMeshes()[0].listPrimitives()[0], buf = R.listBuffers()[0];
+const npz = JSON.parse(fs.readFileSync('shell.json'));
+const A = (k, T, n) => d.createAccessor().setType(n === 1 ? 'SCALAR' : 'VEC' + n).setArray((b => new T(b.buffer, b.byteOffset, b.length / T.BYTES_PER_ELEMENT).slice())(fs.readFileSync('sh_' + k + '.bin'))).setBuffer(buf);
+for (const s of p.listSemantics()) p.setAttribute(s, null); for (const tg of p.listTargets()) { p.removeTarget(tg); tg.dispose(); } R.listMeshes()[0].setWeights([]);
+p.setAttribute('POSITION', A('P', Float32Array, 3)).setAttribute('NORMAL', A('N', Float32Array, 3)).setAttribute('TEXCOORD_0', A('UV', Float32Array, 2))
+ .setAttribute('JOINTS_0', A('J', Uint16Array, 4)).setAttribute('WEIGHTS_0', A('W', Float32Array, 4));
+const n = p.getAttribute('POSITION').getCount();
+p.setAttribute('COLOR_0', d.createAccessor().setType('VEC3').setArray(new Float32Array(n * 3).fill(1)).setBuffer(buf));
+p.setAttribute('_TINT', d.createAccessor().setType('SCALAR').setArray(new Float32Array(n).fill(t[0])).setBuffer(buf));
+p.setIndices(d.createAccessor().setType('SCALAR').setArray((b => new Uint32Array(b.buffer, b.byteOffset, b.length / 4).slice())(fs.readFileSync('sh_I.bin'))).setBuffer(buf));
+for (const x of R.listTextures()) x.dispose(); for (const m of R.listMaterials()) m.dispose();
+const tx = d.createTexture('facepaint_retardio_v7m').setImage(fs.readFileSync('paint_tex.png')).setMimeType('image/png');
+p.setMaterial(d.createMaterial('facepaint').setBaseColorTexture(tx).setAlphaMode('MASK').setAlphaCutoff(0.5).setRoughnessFactor(0.85).setMetallicFactor(0));
+R.listMeshes()[0].setName('facepaint'); for (const a of R.listAccessors()) if (!a.listParents().some(q => q !== R)) a.dispose();
+for (const a of R.listAnimations()) a.dispose(); for (const a of R.listAccessors()) if (!a.listParents().some(q => q !== R)) a.dispose();
+for (const e of R.listExtensionsUsed()) if (e.extensionName !== 'KHR_materials_emissive_strength') e.dispose();
+for (const a of R.listAccessors()) if (a.listParents().length === 1) a.dispose(); await io.write(process.argv[2], d); console.log('verts', n);
