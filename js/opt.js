@@ -68,11 +68,11 @@ export function animStep(pirateGLB, dt) {
   const p = root.getWorldPosition(_tmp);
   const d2 = cam.distanceToSquared(p);
   const st = pirateGLB._opt || (pirateGLB._opt = { acc: 0, n: 0 });
-  st.n++;
-  if (d2 > 14400) return 0;
-  if (d2 > 4900) { if (st.n & 3) return 0; return dt * 4; }
-  if (d2 > 784) { if (st.n & 1) return 0; return dt * 2; }
-  return dt;
+  st.n++; st.acc += dt;
+  if (d2 > 14400) { st.acc = 0; return 0; }
+  if ((d2 > 4900 && (st.n & 3)) || (d2 > 784 && d2 <= 4900 && (st.n & 1))) return 0;
+  const elapsed = st.acc; st.acc = 0; return elapsed;
+
 }
 const _tmp = new THREE.Vector3();
 

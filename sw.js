@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v400'; // default crew uniform is bareheaded; player hats unchanged
+const VERSION = 'pfp-v401'; // bounded mobile GPU, lean HDR ping-pong, demand-driven art and hidden-NPC sleep
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -400,6 +400,9 @@ self.addEventListener('activate', (e) => {
     // [mobile-perf] phones only precache the light (_lo / _low) art they actually use (the hi copies were ~2/3 of the 32 MB)
     const phone = isPhone();
     const LP = new URL(self.location.href).searchParams.get('lp') !== '0'; // [v276 load-perf]
+    // Default: cache art on demand. Unused legacy/high/low variants no longer compete with play or fill memory.
+    // ?lp=0 remains the explicit legacy/offline-prefill opt-in.
+    if (LP) return;
     (async () => { if (LP) await new Promise(r => setTimeout(r, 45000)); const net = self.navigator?.connection || {}; if (phone && (net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || ''))) return; // [v330 perf] no 33 MB art fill on Save-Data / slow phone links (the fetch handler still caches what you play)
       for (const u of ASSETS) { if (phone && heavy(u)) continue; if (await c.match(u)) continue; try { const r = await fetch(u, { priority: 'low', cache: 'no-cache' }); if (r.ok) await c.put(u, r); } catch {} } })(); // [v100] background, best effort, one at a time // [v330 perf] low fetch priority: never outruns the game's own downloads
   })());

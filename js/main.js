@@ -13,7 +13,7 @@ import { createWakes } from './wake.js'; // [aaa water] Kelvin wake trails
 import { initKit } from './shipKit.js'; // [Timothy] Blender ship art kit
 import { attachCaptain, localCaptain, registerCaptainBuilder, setLocalCaptain } from './captainSlot.js'; // [Timothy v2] your captain pirate at the wheel
 import { setLocalSkin } from './pirateGear.js'; // [Timothy] shop clothes follow your ship skin
-import { applyShipGear, figuresReady } from './shipGear.js'; // [Raul shop items 2] your shop FLAG + FIGUREHEAD on your ship
+import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] your shop FLAG + FIGUREHEAD on your ship
 import { buildCaptainV4, tickPirates } from './pirates.js'; // [v100] Raul's v4 pirates: you are the captain at your wheel + the on-foot pirate
 import { initCrewV4 } from './crewV4.js'; import { pirateBodyLod } from './pirateGLB.js';
 import { syncCrewGear } from './crewGear.js';
@@ -35,7 +35,11 @@ import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } fr
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
-import { prepareShare, shareScore } from './shareCard.js'; // game-over score card
+// Score-card rendering is needed only at game over, not while loading the title/harbor.
+let shareModule = null;
+const loadShare = () => shareModule ||= import('./shareCard.js');
+const prepareShare = (stats) => loadShare().then(m => m.prepareShare(stats));
+const shareScore = (stats, opts) => loadShare().then(m => m.shareScore(stats, opts));
 import { isKey, held as heldKey, installMouseBinds, binds, keyName, anyModalOpen, installModalKeyIsolation } from './keybinds.js'; // [keybinds] desktop rebindable keys (+ mouse buttons)
 import { initControlsUi, openControls } from './controlsUi.js';
 import { initGamepad, CONSOLE } from './gamepad.js'; // [Emerly gamepad] controllers (Gamepad API) + console browsers (Xbox Edge / PlayStation); &pad=0 = off
@@ -93,7 +97,7 @@ setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carria
 // (same awaits, same order of use: only the downloads overlap).
 const bootArt = Promise.all([loadImage('assets/skull_transparent.png'), document.fonts.load('40px "Just Another Hand"')]); bootArt.catch(() => {});
 const crewV4P = initCrewV4({ lod: pirateBodyLod({ low: quality === 'low' || isMobile, many: true, quality }) }); let crewV4Late = false;
-await Promise.all([initKit(quality === 'low' || isMobile), figuresReady(quality === 'low' || isMobile)]); // [figureheads 2] + the carved shop figureheads (same LOD)
+await initKit(quality === 'low' || isMobile); // Figureheads load on first equipped use via applyShipGear(), never block boot.
 // [crew holes] HIGH desktops bake the High body (the v128 walking-crew fix): crewV4P is started above, before the kit
 await Promise.race([crewV4P, new Promise(r => setTimeout(() => { crewV4Late = true; r(); }, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 // [v112] Raul: a late bake (slow phone) re-bakes every crew built meanwhile (rebakeCrewV4) and re-dresses yours, instead of keeping the placeholder crew forever
@@ -110,7 +114,7 @@ const canvas = $('game');
 // [perf2] BANKSY "hd sharp and fast": MSAA on every tier except an explicit LOW pick (phones were aliased at 1.0x); phones start at
 // 1.5x on 2x+ screens (was 1.25, often stepped to 1.0 = blurry on a 3x phone), desktop 2x cap. Adaptive steps down only on slow FPS.
 const DPR = window.devicePixelRatio || 1, LOW_PICK = gfxPick === 'low';
-const PR0 = Math.min(CONSOLE ? 1.25 : 9, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
+const PR0 = Math.min(CONSOLE ? 1.25 : isMobile ? 1.5 : 2, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high' || !LOW_PICK, powerPreference: 'high-performance' });
 renderer.setPixelRatio(PR0); // [ultra] supersamples 1x screens
 // [perf2] three.js reads every shader's info log after compiling (forces a synchronous wait per program: ~4.8 s of a 15 s desktop
@@ -158,7 +162,7 @@ canvas.addEventListener('webglcontextrestored', () => { glLost = false; graphics
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-const HIGH = quality === 'high';
+const HIGH = quality === 'high' && !isMobile; // Phones never allocate shadow maps or the HDR/bloom pipeline, even with HIGH selected.
 if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; } installShadowProxies(renderer); // [perf4] merged shadow-only meshes (js/staticMerge.js)
 
 const scene = new THREE.Scene();
@@ -243,6 +247,9 @@ if (HIGH) {
     ]);
     // [ultra] 4x MSAA half-float target, stronger bloom so Diamond / Golden / Flaming glow, SMAA, subtle grade
     composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 })); // [perf2] HIGH too: 4x MSAA scene target (was FXAA only = soft edges + blurred text-like detail)
+    // Only the scene target needs MSAA/depth. Fullscreen post passes need neither.
+    // Pin read/write roles at frame start (none of these passes has temporal history).
+    composer.renderTarget1.samples = 0; composer.renderTarget1.depthBuffer = false;
     composer.addPass(new RenderPass(scene, camera));
     // [v112] NaN / Inf guard (BANKSY: Ultra went black when a ship sank): one bad pixel in the half-float scene target (a NaN normal, a
     // huge additive burst) gets smeared over the whole frame by the bloom blur mips -> black screen. Clamp every channel to a finite
@@ -1394,7 +1401,8 @@ function adaptResolution() {
   const next = ADAPT.steps.find(r => r < renderer.getPixelRatio() - 0.01);
   ADAPT.slow = fps < ADAPT.min ? ADAPT.slow + 1 : 0; ADAPT.fast = fps > 57 ? ADAPT.fast + 1 : 0;
   if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; ADAPT.downAt = now; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); return; }
-  const up = [...ADAPT.steps].reverse().find(r => r > renderer.getPixelRatio() + 0.01 && r <= PR0) || (renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null);
+  let up = null; for (let i = ADAPT.steps.length - 1; i >= 0; i--) { const r = ADAPT.steps[i]; if (r > renderer.getPixelRatio() + 0.01 && r <= PR0) { up = r; break; } }
+  up ||= renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null;
   if (up && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
 }
 const gameplayHint = createGameplayHint(document.documentElement);
@@ -1581,7 +1589,7 @@ function frame() {
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
   tickPirates(dt, camera); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
-  if (!glLost) { if (composer) composer.render(); else renderer.render(scene, camera); } // [v339] no draws while the GPU context is lost
+  if (!glLost) { if (composer) { composer.readBuffer = composer.renderTarget2; composer.writeBuffer = composer.renderTarget1; composer.render(); } else renderer.render(scene, camera); } // [v339] no draws while the GPU context is lost
   harborResumeTick();
   requestAnimationFrame(frame);
 }
@@ -1660,15 +1668,15 @@ setTimeout(() => harborResumeBoot(), 0); // [v339] a phone reload / OS tab evict
 // (town / nature kits, storefronts, docks, battery, material library) one file at a time at low priority while the title is still up.
 // Art is skipped on Save-Data / 2G-3G connections and stops the moment you leave the title (the loaders fetch whatever is left).
 if (DOCK_ON && !/[?&]prefetch=0/.test(location.search)) setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => {
+  const net = navigator.connection || {}, slow = net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || '');
+  if (slow || document.hidden) return;
   const head = document.head, have = new Set([...document.querySelectorAll('link[rel="modulepreload"]')].map(l => l.href));
   // [v339 mobile-stability] phones: the ~140 modulepreloads go in batches of 12 per idle slice (one burst spiked fetch + compile memory on iOS)
   const todo = []; for (const m of HARBOR_MODULES) { const href = new URL('../' + m, import.meta.url).href; if (!have.has(href)) todo.push(href); }
-  const addPre = (href) => { const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = href; head.appendChild(l); };
-  if (!isMobile) todo.forEach(addPre);
-  else { const step = () => { if (game.state !== 'title' || dock || dockLoading) return; todo.splice(0, 12).forEach(addPre); if (todo.length) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(step, { timeout: 1500 }); }; step(); }
-  const net = navigator.connection || {}, slow = net.saveData || /(^|-)2g$|^3g$/.test(net.effectiveType || '');
+  const addPre = (href) => { const l = document.createElement('link'); l.rel = 'modulepreload'; l.fetchPriority = 'low'; l.href = href; head.appendChild(l); };
+  const step = () => { if (game.state !== 'title' || dock || dockLoading || document.hidden) return; todo.splice(0, 12).forEach(addPre); if (todo.length) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(step, { timeout: 1500 }); }; step();
   if (slow || /[?&]warmart=0/.test(location.search)) return;
-  const lo = quality === 'low', sfx2 = lo ? '_low' : '';
+  const lo = quality === 'low' || isMobile, sfx2 = lo ? '_low' : '';
   const art = [`assets/island/town_kit${sfx2}.glb`, `assets/island/nature_kit${sfx2}.glb`, `assets/island/tex/lib${lo ? '_lo' : ''}.ktx2`, `assets/island/docks${sfx2}.glb`, `assets/island/battery${sfx2}.glb`, `assets/island/plaza_shops${sfx2}.glb`];
   (async () => { for (const u of art) { if (game.state !== 'title' || dock || dockLoading) return;
     try { const r = await fetch(u, { priority: 'low', credentials: 'same-origin' }); if (r.ok) await r.arrayBuffer(); } catch {} } })();

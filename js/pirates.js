@@ -43,7 +43,7 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
   root.userData.dispose = () => { root.userData.disposed = true; unmarkLocal(root); const p = root.userData.v4; if (p) { LIVE.delete(p); root.userData.v4 = null; try { p.dispose?.(); } catch {} } }; // [shop-exit-crash] + the GLB body + the local-gear list (disposeShip calls this for the captain)
   return root;
 }
-const inScene = (o) => { while (o.parent) o = o.parent; return !!o.isScene; };
+const inScene = (o) => { while (o.parent) { if (!o.visible) return false; o = o.parent; } return !!o.isScene && o.visible; };
 export function tickPirates(dt, camera) { if (camera) setOptCamera(camera); for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); } }
 // captainSlot builder: captain JSON -> a ~2.1-unit figure (captainSlot scales it to the deck crew height) on the 'steer' clip
 // gear: captain.gear ({ hat, outfit, eyes, parrot, hook, hatColor }), captain.skin = their ship skin (clothes colours); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
