@@ -1,5 +1,5 @@
 # Meshy macaw -> normalized game flight rig, single atlas/material, texture-limited GLB.
-import bpy,math,sys,json
+import bpy,bmesh,math,sys,json
 import numpy as np
 from mathutils import Vector
 from pathlib import Path
@@ -19,6 +19,14 @@ zmin,zmax=coords[:,2].min(),coords[:,2].max();chest=zmin+(zmax-zmin)*.56
 for v in obj.data.vertices:v.co=(v.co-Vector((center,0,chest)))*(.94/span)
 obj.rotation_euler.x=math.radians(62);bpy.ops.object.transform_apply(location=False,rotation=True,scale=False)
 tri=obj.modifiers.new('triangulate','TRIANGULATE');bpy.ops.object.modifier_apply(modifier=tri.name)
+# Weld Meshy UV-split vertices before decimation. Decimating disconnected UV
+# islands independently tears thousands of triangular holes through the feathers.
+# BMesh keeps the per-corner UVs while giving the collapse operation real adjacency.
+bm=bmesh.new();bm.from_mesh(obj.data)
+bmesh.ops.remove_doubles(bm,verts=list(bm.verts),dist=.00001)
+bmesh.ops.holes_fill(bm,edges=[e for e in bm.edges if e.is_boundary],sides=12)
+bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces))
+bm.to_mesh(obj.data);bm.free()
 before=len(obj.data.polygons)
 if before>2400:
  dec=obj.modifiers.new('mobile_decimate','DECIMATE');dec.ratio=2400/before;dec.use_collapse_triangulate=True;bpy.ops.object.modifier_apply(modifier=dec.name)

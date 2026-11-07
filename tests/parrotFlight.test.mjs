@@ -40,3 +40,25 @@ test('cage rest pose stays upright, folded and bounded through lively idle actio
  }
  assert.ok(poses.size>20,'varied wing flicks, stretch and ruffle, not a frozen bird');bird.userData.dispose();
 });
+
+// Meshy exports UV-split vertices. Decimating those islands separately used to
+// leave 3,810 open edges: visible triangular holes across the wings and back.
+test('macaw surface stays joined across UV seams after mobile decimation',()=>{
+ const bird=instantiateFlightParrot(gltf), mesh=bird.getObjectByProperty('isSkinnedMesh',true);
+ const g=mesh.geometry, p=g.attributes.position, ids=new Map(), welded=[];
+ for(let i=0;i<p.count;i++){
+  const key=[p.getX(i),p.getY(i),p.getZ(i)].map(v=>v.toFixed(5)).join(',');
+  if(!ids.has(key))ids.set(key,ids.size);welded[i]=ids.get(key);
+ }
+ const edges=new Map(), index=g.index;
+ for(let i=0;i<index.count;i+=3){
+  const tri=[0,1,2].map(k=>welded[index.getX(i+k)]);
+  for(let k=0;k<3;k++){
+   const a=tri[k],b=tri[(k+1)%3];if(a===b)continue;
+   const key=a<b?`${a},${b}`:`${b},${a}`;edges.set(key,(edges.get(key)||0)+1);
+  }
+ }
+ assert.ok([...edges.values()].filter(n=>n===1).length<64,'wings and torso must not be a collection of disconnected triangles');
+ assert.equal(mesh.material.side,THREE.DoubleSide);assert.equal(mesh.material.transparent,false);assert.equal(mesh.material.alphaTest,0);
+ bird.userData.dispose();
+});

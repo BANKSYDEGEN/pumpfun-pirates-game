@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v443'; // Clothes + Accessories: one AAA walk-in store, two areas (BANKSY t231u-t232u, 5:52 PM)
+const VERSION = 'pfp-v444'; // Clothes + Accessories: one AAA walk-in store, two areas (BANKSY t231u-t232u, 5:52 PM)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
