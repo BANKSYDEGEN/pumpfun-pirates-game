@@ -1,3 +1,4 @@
+import { parrotUpgradeState, parrotUpgradeFeedback } from './parrotUpgrade.js';
 // [inventory] THE INVENTORY GRID (BANKSY 11:01-11:03 AM): the HUD MAPS button is now INVENTORY and opens a scrolling grid of item slots
 // (icon + count, identical items stack, no slot / stack cap). Tap a slot: OPEN (a treasure map -> the MAPS chart, as before), EQUIP (a
 // weapon), GIVE (a player + a quantity), and at a plaza shop SELL (Fish Stand / Antiques) or LIST (Marketplace). The server does every
@@ -153,7 +154,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     const lv = Math.min(10, Math.floor(Math.sqrt(Math.max(0, +p?.xp || 0) / 100)));
     // Inventory templates use innerHTML: escape the custom name before interpolation.
     const name = String(p?.name || 'Parrot').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    return { ...info, name: `${name} · LV ${lv}`, rarity: lv >= 8 ? 'legendary' : lv >= 6 ? 'epic' : lv >= 4 ? 'rare' : lv >= 1 ? 'uncommon' : 'common', lv, color: p?.color, colors: p?.colors };
+    return { ...info, name: `${name} · LV ${lv}`, rarity: lv >= 8 ? 'legendary' : lv >= 6 ? 'epic' : lv >= 4 ? 'rare' : lv >= 1 ? 'uncommon' : 'common', lv, xp: Math.max(0, +p?.xp || 0), color: p?.color, colors: p?.colors };
   }
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); }); $('.iv-x').onclick = () => close();
   const picker = createGivePick({ pvp, nearby: nearbyPlayers, toast }); // [give-dropdown]
@@ -192,7 +193,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
 
   const RK_BG = { rare: '#4fa8ff', epic: '#c070ff', legendary: '#ffcd3c' };
   const LV_ON = () => !!data.flags?.musket_levels; // [musket-levels] migration 061 (until it runs: the old rank badge + RANK UP)
-  const rk = (info) => info?.kind === 'weapon' && info.slot === 'musket' && info.level && LV_ON() ? `<i class="iv-rk" title="${info.rarity} · level ${info.level}" style="background:${RARITY_COLOR[info.rarity] || '#c9c9c9'}">L${info.level}</i>`
+  const rk = (info) => info?.kind === 'parrot' ? `<i class="iv-rk" title="Parrot level ${info.lv}" style="background:${RARITY_COLOR[info.rarity] || '#3fd16a'}">L${info.lv}</i>` : info?.kind === 'weapon' && info.slot === 'musket' && info.level && LV_ON() ? `<i class="iv-rk" title="${info.rarity} · level ${info.level}" style="background:${RARITY_COLOR[info.rarity] || '#c9c9c9'}">L${info.level}</i>`
     : RANK_ON && info?.kind === 'weapon' && info.slot === 'musket' && RK_BG[info.rarity] ? `<i class="iv-rk" style="background:${RK_BG[info.rarity]}">${info.rarity[0].toUpperCase()}</i>` : '';
   function lvUi(info) { // [musket-levels] the LEVEL UP button + the level line for one musket (bag slot or the EQUIPPED slot)
     const lv = info.level, c = muskLevelCost(lv), parts = qtyOf(PARTS_KEY), own = !!data.owner, nx = lv + 1, nt = c && muskTierOf(nx), nextBand = muskTierStart(info.rarity) + 5;
@@ -304,9 +305,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
     if (mode === 'bag' && EQS && selI === -2 && selE) { // [eqslots] an EQUIPPED slot is picked: move it out (tap a bag slot) or unequip to the first free one
       const wq = selE === 'sword' || selE === 'musket'; // [v335] t1783u: an equipped sword / musket can be given straight from here
-      const L = selE === 'musket' && LV_ON() && s.info.level ? lvUi(s.info) : null; // [musket-levels] level the equipped musket in place
+      const L = s.info.kind === 'parrot' ? parrotLvUi(s.info) : selE === 'musket' && LV_ON() && s.info.level ? lvUi(s.info) : null; // [musket-levels] level the equipped musket in place
       a.innerHTML = `<div class="t">${s.info.name} <small>· equipped ${selE.startsWith('acc:') ? 'on your musket' : selE}</small></div><button data-a="eqout">MOVE TO BAG ⇄</button><button data-a="equnq">UNEQUIP</button>${L ? L.btn : ''}${wq ? `<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>` : ''}${L ? L.note : ''}`;
-      bind(a, { level: () => levelUp(s), eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); }, give: () => giveTo(s, 1, selE === 'musket' ? eqGun() : null) }); return; }
+      bind(a, { parrotupgrade: () => upgradeParrot(s), level: () => levelUp(s), eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); }, give: () => giveTo(s, 1, selE === 'musket' ? eqGun() : null) }); return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
     if (isIsl(s) && (mode === 'fish' || mode === 'antiques')) { const where = Object.keys(s.info.sell || {}).map(k => ({ fish: 'Fish Market', antiques: 'Treasure Trader', rum: 'Rum Export' })[k]).join(' / ');
       let ih = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity} · island good · sells at ${where}</small></div>`;
@@ -329,7 +330,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
         h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${up.gold.toLocaleString()}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
         h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button>`;
         note += `<small class="iv-note">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; }
-      if (s.info.kind === 'parrot') { h += `<button data-a="parrotequip">${data.parrotEquipped === s.key.slice(4) ? '✓ EQUIPPED PARROT' : 'EQUIP PARROT'}</button>`; note += '<small class="iv-note">Name & upgrade at the cage inside your ship hull. List this bird at the Marketplace; its name, XP & colors travel with it.</small>'; }
+      if (s.info.kind === 'parrot') { const P = parrotLvUi(s.info); h += P.btn; note += P.note; h += `<button data-a="parrotequip">${data.parrotEquipped === s.key.slice(4) ? '✓ EQUIPPED PARROT' : 'EQUIP PARROT'}</button>`; note += '<small class="iv-note">Name & choose unlocked colors at the cage inside your ship hull. List this bird at the Marketplace; its name, XP & colors travel with it.</small>'; }
       if (s.map) h += '<button data-a="open">OPEN MAP</button>';
       if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
       h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>${note}`; } // [v335] t1783u + [v350 t1839u] notes after GIVE so buttons share one row
@@ -343,12 +344,32 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       salvage: () => run('inv_musk_salvage', { item: s.key }, (r) => `SALVAGED · +${r.parts | 0} MUSKET PARTS`),
       level: () => levelUp(s),
       open: () => { close(); treasure?.openMap?.(s.map.id); },
+      parrotupgrade: () => upgradeParrot(s),
       parrotequip: () => { window.dispatchEvent(new CustomEvent('pfp-parrot-equip', { detail: s.key.slice(4) })); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
       unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
       give: () => { const wpn = s.info.kind === 'weapon'; giveTo(s, wpn ? 1 : q(), wpn && s.info.slot === 'musket' ? (selI >= 0 ? gunOfBag(selI) : null) : null); },
       sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
       list: () => run('mkt_list', { item: s.key, qty: q(), price: +(a.querySelector('.pr').value || 0) | 0 }, 'LISTED ON THE MARKETPLACE') });
+  }
+  function parrotLvUi(info) {
+    const gold = pvp()?.gold ?? pvp()?.profile?.gold, u = parrotUpgradeState(info.xp, gold);
+    return { btn: u.max ? '<button disabled>MAX LEVEL · LV 10</button>' : `<button data-a="parrotupgrade"${u.can && !busy ? '' : ' disabled'}>UPGRADE · TREAT +100 XP · ${u.cost.toLocaleString()}g</button>`,
+      note: `<small class="iv-note">LV ${u.lv} · ${u.xp.toLocaleString()} XP${u.max ? ' · all colors unlocked' : ` · ${u.remaining.toLocaleString()} XP to LV ${u.lv + 1} · ${Number.isFinite(gold) ? gold.toLocaleString() + 'g available' : 'gold unavailable'}`}</small>` };
+  }
+  async function upgradeParrot(s) {
+    if (busy || !parrotUpgradeState(s.info.xp, pvp()?.gold ?? pvp()?.profile?.gold).can) return;
+    busy = true; render();
+    try {
+      await pvp()?.flushNow?.(); // same save-first, authoritative-gold flow as the hull cage
+      const r = await pvp()?.inv?.call('parrot_treat', { id: s.key.slice(4) });
+      if (r?.ok) {
+        if (r.gold != null) pvp()?.serverGold?.(r.gold, { rev: r.rev, owner: !!r.owner });
+        toast(parrotUpgradeFeedback(s.info.xp, r), 3500);
+      } else toast(WHY[r?.why || r?.error] || 'COULD NOT UPGRADE PARROT · TRY AGAIN', 2400);
+      await refresh(); // retains selection, refreshes badges and broadcasts cage / companion state
+    } catch { toast('COULD NOT UPGRADE PARROT · CHECK YOUR CONNECTION', 2400); }
+    finally { busy = false; render(); }
   }
   // [musket-levels] LEVEL UP this exact copy (bag slot or EQUIPPED): its attachments + equipped place follow it; it keeps its bag slot
   function levelUp(s) { const eqd = selI === -2 && selE === 'musket', at = selI, g = at >= 0 ? gunOfBag(at) : eqd ? eqGun() : null;
