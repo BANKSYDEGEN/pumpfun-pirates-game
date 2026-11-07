@@ -163,8 +163,8 @@ def shell(b, sh, lod, rng):
         z0 = PL + G + (f - 1) * U
         for i in range(nw):
             x = (i - (nw - 1) / 2) * (w / nw); door = f == 1
-            zb = z0 + (0.0 if door else 0.9); h = 2.5 if door else 1.6
-            holes.append((x - 0.6, x + 0.6, zb, zb + h)); wins.append((x, zb, h, door, f))
+            wz = z0 + (0.0 if door else 0.9); h = 2.5 if door else 1.6   # [ext-tex] own name: reusing zb dropped the whole ground-floor front wall
+            holes.append((x - 0.6, x + 0.6, wz, wz + h)); wins.append((x, wz, h, door, f))
     rects = wall_rects(-w / 2, w / 2, zb, top, holes)
     for r in rects: b.box(r[1] - r[0], WALL, r[3] - r[2], (r[0] + r[1]) / 2, FY + WALL / 2, (r[2] + r[3]) / 2, MORTAR if lod == 0 else col)
     if lod == 0: ashlar(b, rects, FY, col, rng)
@@ -850,11 +850,11 @@ def signs_aaa(b, sh, lod, rng):
     # crisp carved signage: a navy board with a gilt frame + raised Cinzel capitals over the arch, the same on the hanging sign
     # [outfit-store] the joint building: one long board over the middle pier + a hanging sign at each end (CLOTHING left, ACCESSORIES right)
     w = sh['w']; bw = sh.get('bw') or (12.4 if sh.get('combo') else w * 0.62); z0, z1 = sh.get('board', (4.15, 4.95))
-    b.box(bw, 0.12, z1 - z0, 0, FY - 0.08, (z0 + z1) / 2, NAVY, tag='sign')
+    b.box(bw, 0.12, z1 - z0, 0, FY - 0.08, (z0 + z1) / 2, NAVY, tag='sign', mat='timber')   # [ext-tex] painted timber board
     if lod < 2:
-        for zz in (z0 + 0.04, z1 - 0.04): b.box(bw + 0.12, 0.17, 0.08, 0, FY - 0.1, zz, GOLD, tag='sign')
-        for xx in (-bw / 2, bw / 2): b.box(0.08, 0.17, z1 - z0, xx, FY - 0.1, (z0 + z1) / 2, GOLD, tag='sign')
-        for xx in (-bw / 2 + 0.28, bw / 2 - 0.28): b.sphere(0.07, xx, FY - 0.16, (z0 + z1) / 2, GOLD, sub=0)
+        for zz in (z0 + 0.04, z1 - 0.04): b.box(bw + 0.12, 0.17, 0.08, 0, FY - 0.1, zz, GOLD, tag='sign', mat='iron')
+        for xx in (-bw / 2, bw / 2): b.box(0.08, 0.17, z1 - z0, xx, FY - 0.1, (z0 + z1) / 2, GOLD, tag='sign', mat='iron')
+        for xx in (-bw / 2 + 0.28, bw / 2 - 0.28): b.sphere(0.07, xx, FY - 0.16, (z0 + z1) / 2, GOLD, sub=0, mat='iron')
         carve(b, sh['name'], 0, FY - 0.14, (z0 + z1) / 2, bw - 0.8, (z1 - z0) * 0.56, Matrix.Rotation(math.pi / 2, 4, 'X'), lod, font=FONT_SIGN)
     ends = sh.get('ends') or ([(-1, 'CLOTHING', NAVY), (1, 'ACCESSORIES', PLUM_D)] if sh.get('combo') else [(1, 'CLOTHES', NAVY)])
     S = SIGN
@@ -864,9 +864,9 @@ def signs_aaa(b, sh, lod, rng):
         b.box(0.06, 0.06, 1.0, xs, FY - 0.45, S['z_bar'] - 0.35, IRON, rx=0.85, tag='sign')
         b.box(0.3, 0.06, 0.3, xs, FY - 0.03, S['z_bar'] - 0.3, IRON, tag='sign')
         for yy in (S['y0'] + 0.15, S['y1'] - 0.15): b.box(0.04, 0.04, S['z_bar'] - S['z1'], xs, yy, (S['z_bar'] + S['z1']) / 2, IRON, tag='sign')
-        b.box(0.14, S['y0'] - S['y1'], S['z1'] - S['z0'], xs, (S['y0'] + S['y1']) / 2, (S['z0'] + S['z1']) / 2, bg, tag='sign')
+        b.box(0.14, S['y0'] - S['y1'], S['z1'] - S['z0'], xs, (S['y0'] + S['y1']) / 2, (S['z0'] + S['z1']) / 2, bg, tag='sign', mat='timber')
         if lod < 2:
-            for zz in (S['z1'], S['z0']): b.box(0.18, S['y0'] - S['y1'] + 0.08, 0.07, xs, (S['y0'] + S['y1']) / 2, zz, GOLD, tag='sign')
+            for zz in (S['z1'], S['z0']): b.box(0.18, S['y0'] - S['y1'] + 0.08, 0.07, xs, (S['y0'] + S['y1']) / 2, zz, GOLD, tag='sign', mat='iron')
             for s in (-1, 1):
                 face = Matrix.Rotation(s * math.pi / 2, 4, 'Z') @ Matrix.Rotation(math.pi / 2, 4, 'X')
                 carve(b, text, xs + s * 0.075, (S['y0'] + S['y1']) / 2, (S['z0'] + S['z1']) / 2, S['y0'] - S['y1'] - 0.3, (S['z1'] - S['z0']) * 0.5, face, lod, deep=False, font=FONT_SIGN)
@@ -1269,6 +1269,17 @@ def room_ship(b, sh, lod, rng, ow):
             gilt_frame(b, sd * xo, (p0 + p1) / 2, 4.35, CEIL - 1.05, p1 - p0 - 0.9, -sd, lod, fill=TEAL_D)
     for x in (-7.5, -3.0, 3.0, 7.5):
         gilt_frame(b, x, yb, 4.6, CEIL - 1.05, 2.6, 0, lod, fill=TEAL_D)
+        if lod == 2: continue
+        if x < 0:   # a sea chart: parchment, rhumb lines, a coastline, a compass rose
+            b.box(2.2, 0.03, 2.3, x, yb - 0.06, 4.9, 0xe8d6a8, base=True, mat='none')
+            if lod == 0:
+                for k in range(8): b.box(0.025, 0.02, 2.6, x, yb - 0.08, 6.05, 0xb08a5a, ry=k * math.pi / 8 + 0.2)
+                for k in range(5): b.box(0.5 + 0.25 * (k % 3), 0.025, 0.12, x - 0.6 + k * 0.28, yb - 0.085, 5.2 + k * 0.32, 0x7a9a5a, base=True, ry=0.3 * (k - 2))
+                b.torus(0.32, 0.03, x + 0.55, yb - 0.09, 6.5, 0x8a2a1f, n=16, m_=3, rx=math.pi / 2)
+        else:   # a ship portrait on a sea-blue ground
+            b.box(2.2, 0.03, 2.3, x, yb - 0.06, 4.9, 0x2a6a8a, base=True, mat='none')
+            b.box(2.2, 0.035, 0.7, x, yb - 0.07, 4.9, 0x1f4f6a, base=True, mat='none')
+            if lod == 0: k = 0 if x < 5 else 4; galleon(b, T(x, yb - 0.35, 5.75, rz=math.pi / 2), 1.6, hull=SKINS[k][0], sail=SKINS[k][1], trim=SKINS[k][2], lod=lod)
     # frieze + gilt cornice band round the room under the ceiling
     for sd in (-1, 1): b.box(0.06, L, 0.12, sd * (xo - 0.03), cy, CEIL - 0.85, GOLD, base=True)
     b.box(2 * xo, 0.06, 0.12, 0, yb - 0.03, CEIL - 0.85, GOLD, base=True); b.box(2 * xo, 0.06, 0.12, 0, ya + 0.03, CEIL - 0.85, GOLD, base=True)
@@ -1382,7 +1393,9 @@ def ship_aaa(b, sh, lod, rng, cols):
     C('b', kx, -ky, 6.5, 1.15, 0)
     # behind it: shelving with crates, kegs, chain, a brass wheel over the shelves
     sy_ = yb - 0.3
-    b.box(6.0, 0.55, 2.4, kx, sy_, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.0, 0.06, 2.4, kx, yb - 0.03, FLR, MAHOG_D, base=True, mat='timber')   # open shelving: back board, two cheeks, a crown
+    for sx in (-1, 1): b.box(0.08, 0.6, 2.4, kx + sx * 2.98, sy_, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.1, 0.62, 0.1, kx, sy_, FLR + 2.4, MAHOG_L, base=True, mat='timber')
     for j in range(3): b.box(5.9, 0.5, 0.05, kx, sy_ - 0.03, FLR + 0.4 + j * 0.7, MAHOG_L, base=True)
     if lod < 2:
         for j in range(3):
@@ -1455,7 +1468,9 @@ def ship_aaa(b, sh, lod, rng, cols):
     b.cyl(0.05, 0.05, 0.16, bx_ + 0.25, by_, bz_ + 0.16, 0x9fdcc0, n=8, ry=math.pi / 2, mat=2)
     for k in range(5): b.box(0.5, 0.36, 0.03, kx - 1.8 + k * 0.08, ky + 0.05, bz_ + k * 0.03, [0x8a1c1c, 0xd4a017, 0x2f6f4f, 0x3b2a5a, 0x1f3d7a][k], base=True, rz=0.15 * k)   # swatch book
     C('b', kx, -ky, 6.5, 1.15, 0)
-    b.box(6.0, 0.55, 2.4, kx, sy_, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.0, 0.06, 2.4, kx, yb - 0.03, FLR, MAHOG_D, base=True, mat='timber')   # open shelving: back board, two cheeks, a crown
+    for sx in (-1, 1): b.box(0.08, 0.6, 2.4, kx + sx * 2.98, sy_, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.1, 0.62, 0.1, kx, sy_, FLR + 2.4, MAHOG_L, base=True, mat='timber')
     for j in range(3): b.box(5.9, 0.5, 0.05, kx, sy_ - 0.03, FLR + 0.4 + j * 0.7, MAHOG_L, base=True)
     for j in range(3):
         for i in range(5 if lod == 0 else 2):
@@ -1506,6 +1521,15 @@ for sh in SHOPS:
         bd.append(b.tris())
         if not sh.get('plain'): signs(b, sh, lod, rng)
         bd.append(b.tris())
+        if lod < 2:   # [ext-tex] BANKSY 6:24 PM "finish outside texture": solid exterior parts (shell / front / signs, outside the room box) with no library layer
+            iw_, ya_, yb_ = sh['w'] / 2 - WALL + 0.02, FY + WALL - 0.02, FY + sh.get('deep', D) - WALL + 0.02; plain_ = {}
+            for (V_, F_, c_, _, cc_, lib_, _) in b.parts[0]:
+                if (lib_ and lib_ != 'none') or cc_ is not None: continue   # mat='none' = deliberately smooth paint
+                mn_, mx_ = V_.min(0), V_.max(0)
+                if mn_[0] > -iw_ and mx_[0] < iw_ and mn_[1] > ya_ and mx_[1] < yb_ and mx_[2] < CEIL + 0.35: continue   # inside the room (the painted interior)
+                k_ = c_ if isinstance(c_, (int, np.integer)) else '#%02x%02x%02x' % tuple(int(v * 255) for v in np.asarray(c_, float).reshape(-1)[:3])
+                plain_[str(k_ if isinstance(k_, str) else '#%06x' % k_)] = plain_.get(str(k_ if isinstance(k_, str) else '#%06x' % k_), 0) + 1
+            rep[f'LOD{lod}_plain_exterior'] = dict(sorted(plain_.items(), key=lambda q: -q[1])[:24])
         if lod < 2 and not sh.get('plain'):
             market_props(b, sh, lod, rng, cols if lod == 0 else [])
             if sh.get('ship'): ship_aaa(b, sh, lod, rng, cols if lod == 0 else [])   # [ship-aaa]
