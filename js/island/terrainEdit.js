@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { TERRAIN as T, H, pieceBlockers, PROP_CAT, propKit, propBlock, propUnblock, waterAt, CO } from './foot.js';
 import { locatePoint } from '../islandGeography.js'; // [v335] rework flags name the district they sit in
-import { terrainLoad, terrainSave } from '../pvpSave.js';
+import { terrainLoad, terrainSave, roomGenApi } from '../pvpSave.js';
+import * as RG from './roomGen.js'; // [sims-build] 2 m kit: drag lines / areas, room presets, describe-a-room, grow a room
 // [post/cottages] BANKSY's two Build Mode HOUSE pieces are village LOCATION MARKERS only —
 // areas/cottages.js builds the real cottages. &cottages=0 restores the stock markers.
 const COTTAGES_ON = !(typeof location !== 'undefined' && /[?&]cottages=0(&|$)/.test(location.search));
@@ -20,8 +21,10 @@ const TOOLS = [
   { id: 'raise', label: 'RAISE', ico: '⬆️', tip: 'push the ground up' },
   { id: 'lower', label: 'LOWER', ico: '⬇️', tip: 'dig the ground down' },
   { id: 'paint', label: 'PAINT', ico: '🖌️', tip: 'paint the ground: pick grass, sand, dirt, rock or paved path' },
-  { id: 'build', label: 'BUILD', ico: '🏗️', tip: 'pick a piece · tap to place · Q / E or ⟲ ⟳ turn · GRID / FREE snap · SELECT moves or deletes it' },
-  { id: 'select', label: 'SELECT', ico: '👆', tip: 'tap a piece (shift / MULTI = add) · 🗑 / Delete hides it for everyone · arrows move · ⟲ ⟳ rotate' }, // [build-select] SELECT + PAINT finished: no longer hidden
+  { id: 'build', label: 'BUILD', ico: '🏗️', tip: 'pick a piece · tap to place · walls / paths: DRAG a line · floor / roof: DRAG an area (2 m snap) · Q / E turn · SELECT drags, turns or deletes' },
+  { id: 'rooms', label: 'ROOMS', ico: '🏠', tip: 'pick a room preset · drag a rectangle to size it · or type a room and tap ✨ DESCRIBE (it builds where you point)' },
+  { id: 'grow', label: 'GROW', ico: '↔️', tip: 'grab a wall of a built room and drag it out / in: floor, roof and side walls re-tile to fit' },
+  { id: 'select', label: 'SELECT', ico: '👆', tip: 'tap a piece (shift / MULTI = add) · DRAG it to move · Q / E turn · 🗑 / Delete hides it for everyone · arrows move · ⟲ ⟳ rotate' }, // [build-select] SELECT + PAINT finished: no longer hidden
   { id: 'rework', label: 'REWORK', ico: '🚩', tip: 'ONLY YOU SEE THESE: tap a part or the ground to drop a flag · PIN = that exact part · radius up to 160 m = a whole town · color + note say what to change' }];
 // [v335] BANKSY t1777u/t1778u: "unlock" — nothing is LOCKED any more: Plaza shops + docks, Hill Street (with its signs) and every GLB / Kit unit can be
 // selected, moved, turned, deleted (colliders off) and restored. BANKSY t1779u/t1781u: owner-only 🚩 REWORK flags (PIECES '!rw_*'), 8 colors + radius.
@@ -58,10 +61,10 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   scan(); setInterval(() => { if (PIECES.size || live.on) scan(); }, 3000); // area kits (route, lagoon ...) build late: register + apply their saved state when they appear
   let rwHook = null; // [v335] owner only: redraws the 🚩 rework flags; everyone else keeps '!rw_*' (never sent to them anyway) as inert data
   function setPiece(id, ov) { if (id[0] === '+') return placeSet(id, ov); if (id[0] === '!' && !id.startsWith(RW)) return; /* [v346] '!env' / '!col_*' / '!noc_*' / '!cmod_*' / '!cdel_*' belong to the admin menu (js/adminWorld.js; the server keeps them) */ if (id.startsWith(RW)) { ov && ov.rework ? PIECES.set(id, ov) : PIECES.delete(id); rwHook?.(); return; }
-    ov && (ov.h || ov.dx || ov.dy || ov.dz || ov.ry) ? PIECES.set(id, ov) : PIECES.delete(id); const it = REG.get(id); if (it) it.isObj ? applyObj(it) : applyGeo(it); }
+    ov && (ov.h || ov.dx || ov.dy || ov.dz || ov.ry || (ov.sx && ov.sx !== 1) || (ov.sz && ov.sz !== 1)) ? PIECES.set(id, ov) : PIECES.delete(id); const it = REG.get(id); if (it) it.isObj ? applyObj(it) : applyGeo(it); }
   // [v335] an object unit (Plaza shop / dock LOD, Hill Street building + its sign, battery, lighthouse ...): position / turn about its origin, or hide it + its colliders
   function applyObj(it) { const ov = PIECES.get(it.id) || null, prev = it.cur || null; it.cur = ov; const o = it.obj, ry = ov?.ry || 0;
-    o.visible = !ov?.h; o.position.set(it.origPos.x + (ov?.dx || 0), it.origPos.y + (ov?.dy || 0), it.origPos.z + (ov?.dz || 0)); o.quaternion.copy(it.origQuat).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry)); o.updateMatrixWorld(true);
+    o.visible = !ov?.h; if (!it.origScale) it.origScale = o.scale.clone(); o.scale.set(it.origScale.x * (ov?.sx || 1), it.origScale.y, it.origScale.z * (ov?.sz || 1)); /* [sims-build] GROW stretch (local axes) */ o.position.set(it.origPos.x + (ov?.dx || 0), it.origPos.y + (ov?.dy || 0), it.origPos.z + (ov?.dz || 0)); o.quaternion.copy(it.origQuat).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry)); o.updateMatrixWorld(true);
     const cs = Math.cos(ry), sn = Math.sin(ry), done = new Set();
     for (const r of it.ranges) { const [m, a, n] = r, P = m.geometry.attributes.position, N = m.geometry.attributes.normal, c = r.c; if (!r.orig) { r.orig = P.array.slice(a * 3, (a + n) * 3); r.on = N ? N.array.slice(a * 3, (a + n) * 3) : null; }
       for (let i = 0; i < n; i++) { const k = (a + i) * 3, x = r.orig[i * 3] - c.x, y = r.orig[i * 3 + 1], z = r.orig[i * 3 + 2] - c.z;
@@ -146,6 +149,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   #te-bar .catrow { display: none; } #te-bar.build-on .catrow { display: flex; } #te-bar.build-on .brush { display: none; } #te-bar .cat { width: 62px; height: 62px; font-size: 14px; } #te-bar .cat .i { font-size: 26px; } #te-bar .cat.sel { box-shadow: 0 0 16px 5px rgba(255,205,119,.85), 0 4px 0 #000; border-color: #fff; background: radial-gradient(circle at 35% 30%, #fa0d0d, #6a0505 75%); color: #fff; }
   #te-bar .selrow { display: none; } #te-bar.sel-on .selrow { display: flex; } #te-bar.sel-on .brush { display: none; }
   #te-chip { position: fixed; z-index: 62; pointer-events: none; font-family: 'Just Another Hand', cursive; font-size: 20px; background: #161616; color: #ffcd77; border: 2px solid #ffcd77; border-radius: 14px; padding: 0 10px; transform: translate(-50%, -130%); display: none; white-space: nowrap; }
+  #te-bar .roomrow { display: none; } #te-bar.rooms-on .roomrow { display: flex; } #te-bar.rooms-on .brush, #te-bar.grow-on .brush { display: none; } #te-bar .room-txt { width: 330px; }
   #te-bar .reworkrow { display: none; } #te-bar.rw-on .reworkrow { display: flex; } #te-bar.rw-on .brush { display: none; }
   #te-bar .rwc { width: 46px; height: 46px; font-size: 12px; color: #161616; border-color: #161616; text-shadow: none; } #te-bar .rwc.sel { border-color: #fff; box-shadow: 0 0 14px 5px rgba(255,255,255,.85), 0 4px 0 #000; transform: scale(1.12); }
   #te-bar .rw-note { font-family: inherit; font-size: 22px; width: 240px; height: 40px; border-radius: 12px; border: 2px solid #ffcd77; background: #161616; color: #fff; padding: 0 10px; }
@@ -165,6 +169,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     ${r('sm pick', '🎯', 'PICK', 'LEVEL: sample a height (then tap the ground)')}</div>
     <div class="row paintrow" style="margin-top:6px">${MATS.map(([id, ico, lb, c]) => `<button class="te-r sw" data-p="${id}" title="${lb}" style="background:radial-gradient(circle at 35% 30%, ${c}, #161616 85%)"><span class="i">${ico}</span>${lb}</button>`).join('')}</div>
     <div class="row catrow" style="margin-top:6px">${PROP_CAT.map((c, i) => `<button class="te-r cat" data-c="${i}" title="${c.label}"><span class="i">${c.ico}</span>${c.label}</button>`).join('')}${r('sm prot" data-q="1', '⟲', 'TURN', 'Q')}${r('sm prot" data-q="-1', '⟳', 'TURN', 'E')}${r('sm snap', '#️⃣', 'GRID', 'GRID 1 m + 15° / FREE')}</div>
+    <div class="row roomrow" style="margin-top:6px">${Object.entries(RG.PRESETS).map(([id, P]) => `<button class="te-r cat" data-room="${id}" title="${P.label}"><span class="i">${P.ico}</span>${P.label}</button>`).join('')}
+      <input class="rw-note room-txt" type="text" maxlength="200" placeholder="describe a room: small rum cellar with barrels and a lantern…" autocomplete="off" spellcheck="false">${r('sm roomgo', '✨', 'DESCRIBE', 'build the described room where you point')}</div>
     <div class="row reworkrow" style="margin-top:6px">${RW_COLORS.map(([id, hex, lb]) => `<button class="te-r rwc" data-rwc="${id}" title="${lb} flag" style="background:${hex}">${lb}</button>`).join('')}
       <div class="grp">RADIUS ${RW_PRESETS.map(([v, lb]) => `<button class="pre rwp" data-rwr="${v}" style="width:auto;padding:0 8px;border-radius:20px">${lb}</button>`).join('')}<input type="range" class="rwr" min="0" max="${RW_MAX}" step="1"><b class="rwv"></b></div>
       <input class="rw-note" type="text" maxlength="140" placeholder="note: what to change here…" autocomplete="off" spellcheck="false"><b class="rwn">🚩 0</b>
@@ -176,7 +182,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     ${r('sm reset', '♻️', 'RESET', 'RESET AREA: clear edits inside the ring')}</span>${r('sm cols', '🧱', 'COLLISIONS', 'show / add / move / remove collisions')}${r('sm exit', '✖️', 'EXIT')}</div><div class="tip"></div>`;
   const chip = document.createElement('div'); chip.id = 'te-chip'; document.body.appendChild(chip); const rest = document.createElement('div'); rest.id = 'te-rest'; document.body.appendChild(rest);
   const $ = (q) => bar.querySelector(q), tip = $('.tip');
-  const paint = () => { bar.classList.toggle('sel-on', ui.tool === 'select'); bar.classList.toggle('build-on', ui.tool === 'build'); bar.querySelectorAll('.cat').forEach(b => b.classList.toggle('sel', +b.dataset.c === ui.prop)); const sn = $('.snap'); sn.lastChild.textContent = ui.grid ? 'GRID' : 'FREE'; sn.classList.toggle('sel', ui.grid); bar.classList.toggle('paint-on', ui.tool === 'paint'); bar.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.p === ui.mat)); $('.undo').disabled = !undo.length; $('.redo').disabled = !redo.length; $('.multi').classList.toggle('sel', multi); bar.querySelectorAll('.tool').forEach(b => b.classList.toggle('sel', b.dataset.t === ui.tool));
+  const paint = () => { bar.classList.toggle('sel-on', ui.tool === 'select'); bar.classList.toggle('build-on', ui.tool === 'build'); bar.classList.toggle('rooms-on', ui.tool === 'rooms'); bar.classList.toggle('grow-on', ui.tool === 'grow'); bar.querySelectorAll('[data-room]').forEach(b => b.classList.toggle('sel', b.dataset.room === ui.room)); bar.querySelectorAll('.cat').forEach(b => b.classList.toggle('sel', +b.dataset.c === ui.prop)); const sn = $('.snap'); sn.lastChild.textContent = ui.grid ? 'GRID' : 'FREE'; sn.classList.toggle('sel', ui.grid); bar.classList.toggle('paint-on', ui.tool === 'paint'); bar.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.p === ui.mat)); $('.undo').disabled = !undo.length; $('.redo').disabled = !redo.length; $('.multi').classList.toggle('sel', multi); bar.querySelectorAll('.tool').forEach(b => b.classList.toggle('sel', b.dataset.t === ui.tool));
     bar.querySelectorAll('.pre[data-s]').forEach(b => b.classList.toggle('sel', SIZES[b.dataset.s] === ui.size)); $('.sz').value = ui.size; $('.szv').textContent = ui.size + ' m'; $('.st').value = ui.str;
     bar.classList.toggle('rw-on', ui.tool === 'rework'); bar.querySelectorAll('.rwc').forEach(b => b.classList.toggle('sel', b.dataset.rwc === (rwCur()?.color || ui.rwColor)));
     const rr = rwCur() ? rwCur().r : ui.rwR; bar.querySelectorAll('.rwp').forEach(b => b.classList.toggle('sel', +b.dataset.rwr === rr)); $('.rwr').value = rr; $('.rwv').textContent = rr ? rr + ' m' : 'PIN';
@@ -184,11 +190,13 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     const t = TOOLS.find(t => t.id === ui.tool); tip.textContent = sampling ? 'tap the ground to pick the LEVEL height' : (t.tip + (ui.tool === 'level' ? ` · target ${target == null ? 'your feet' : target.toFixed(2) + ' m'}` : '')); keepUi(); };
   const setSize = (v) => { ui.size = Math.max(1, Math.min(40, Math.round(v * 2) / 2)); paint(); };
   bar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.c) ui.prop = +b.dataset.c; else if (b.dataset.q) turn(+b.dataset.q); else if (b.classList.contains('snap')) ui.grid = !ui.grid; else if (b.dataset.p) ui.mat = b.dataset.p; else if (b.dataset.t) { ui.tool = b.dataset.t; sampling = false; } else if (b.dataset.s) setSize(SIZES[b.dataset.s]);
+    if (b.dataset.room) ui.room = b.dataset.room; else if (b.classList.contains('roomgo')) describeHere();
+    else if (b.dataset.c) ui.prop = +b.dataset.c; else if (b.dataset.q) turn(+b.dataset.q); else if (b.classList.contains('snap')) ui.grid = !ui.grid; else if (b.dataset.p) ui.mat = b.dataset.p; else if (b.dataset.t) { ui.tool = b.dataset.t; sampling = false; } else if (b.dataset.s) setSize(SIZES[b.dataset.s]);
     else if (b.classList.contains('sdn')) ui.str = Math.max(0.1, +(ui.str - 0.1).toFixed(1)); else if (b.classList.contains('sup')) ui.str = Math.min(1, +(ui.str + 0.1).toFixed(1));
     else if (b.dataset.rwc) rwSetColor(b.dataset.rwc); else if (b.dataset.rwr != null) rwSetR(+b.dataset.rwr, true); else if (b.classList.contains('rwnew')) { selReworkId = null; rwSync(); } else if (b.classList.contains('rwdel')) rwDelete(); else if (b.classList.contains('rwclear')) rwClear(); else if (b.classList.contains('rwshow')) { ui.rwShow = !ui.rwShow; rwDraw(); }
     else if (b.classList.contains('pick')) { ui.tool = 'level'; sampling = true; } else if (b.classList.contains('undo')) doUndo(); else if (b.classList.contains('redo')) doRedo(); else if (b.classList.contains('multi')) multi = !multi; else if (b.dataset.m) moveSel(...b.dataset.m.split(',').map(Number)); else if (b.dataset.r) editSel({ ry: +b.dataset.r * Math.PI / 12 }); else if (b.classList.contains('del')) delSel(); else if (b.classList.contains('rest')) showRestore(); else if (b.classList.contains('reset')) resetArea(); else if (b.classList.contains('exit')) setOn(false);
     paint(); });
+  { const rt = $('.room-txt'); for (const ev of ['keydown', 'keyup', 'keypress']) rt.addEventListener(ev, (e) => { e.stopPropagation(); if (ev === 'keydown' && e.key === 'Enter') { rt.blur(); describeHere(); } if (ev === 'keydown' && e.key === 'Escape') rt.blur(); }); rt.addEventListener('pointerdown', (e) => e.stopPropagation()); }
   $('.rwr').addEventListener('input', (e) => rwSetR(+e.target.value, false)); $('.rwr').addEventListener('change', () => rwCommit());
   { const nt = $('.rw-note'); for (const ev of ['keydown', 'keyup', 'keypress']) nt.addEventListener(ev, (e) => { e.stopPropagation(); if (ev === 'keydown' && (e.key === 'Enter' || e.key === 'Escape')) nt.blur(); }); // typing a note never walks / shoots / opens menus
     nt.addEventListener('pointerdown', (e) => e.stopPropagation()); nt.addEventListener('input', () => { const v = nt.value.slice(0, 140); ui.rwNote = v; if (rwCur()) rwEdit({ note: v }); }); nt.addEventListener('change', () => rwCommit()); }
@@ -293,6 +301,76 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     ghost.visible = !!show; if (!show) return; const r = snapAt(hit); ghost.position.set(r.x, r.y, r.z); ghost.rotation.set(0, r.ry, 0); }
   function placeHere() { if (!hit) { toast('POINT AT THE GROUND FIRST'); return; } if ([...PIECES.keys()].filter(k => k[0] === '+').length >= 2000) { toast('PLACE LIMIT 2000'); return; }
     const id = '+' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), rec = snapAt(hit); setPiece(id, rec); push({ k: 'piece', c: [[id, null, rec]] }); }
+
+  // ===== [sims-build t2071u-t2075u] drag-build lines / areas, room presets, describe-a-room, grow a room, drag-move =====
+  // Every result is ordinary placed pieces ('+id' { t, x, y, z, ry }), so it saves through terrain_put for every player (owner-only, server-checked).
+  const PG = [], pgMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.38, depthWrite: false }), pgBad = new THREE.MeshBasicMaterial({ color: 0xfa0d0d, transparent: true, opacity: 0.4, depthWrite: false });
+  const pgRoot = new THREE.Group(); pgRoot.name = 'build_preview'; pgRoot.renderOrder = 998; frame.add(pgRoot);
+  function preview(recs, bad = false) { for (let i = 0; i < Math.max(recs.length, PG.length); i++) { let g = PG[i]; const r = recs[i];
+      if (!r) { if (g) g.visible = false; continue; }
+      if (!g || g.userData.t !== r.t || g.userData.bad !== bad) { if (g) pgRoot.remove(g); g = new THREE.Group(); g.userData.t = r.t; g.userData.bad = bad; for (const o of typeOf(r.t).parts) if (!o.userData.outline) g.add(new THREE.Mesh(o.geometry, bad ? pgBad : pgMat)); pgRoot.add(g); PG[i] = g; }
+      g.visible = true; g.position.set(r.x, r.y, r.z); g.rotation.set(0, r.ry || 0, 0); }
+    if (PG.length > 400) { for (const g of PG.splice(400)) pgRoot.remove(g); } }
+  const newId = () => '+' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const placedN = () => { let n = 0; for (const k of PIECES.keys()) if (k[0] === '+') n++; return n; };
+  function commit(ch, msg) { // ch = { add: [recs], del: [ids], move: [[id, rec]] } -> one undo step
+    const add = ch.add || [], del = ch.del || [], move = ch.move || []; if (placedN() + add.length - del.length > 2000) { toast('PLACE LIMIT 2000'); return false; }
+    const c = []; for (const id of del) { const b = PIECES.get(id); if (!b) continue; c.push([id, b, null]); setPiece(id, null); }
+    for (const [id, a] of move) { const b = PIECES.get(id); if (!b) continue; c.push([id, b, a]); setPiece(id, a); }
+    for (const a of add) { const id = newId(); c.push([id, null, a]); setPiece(id, a); }
+    if (!c.length) return false; push({ k: 'piece', c }); if (msg) toast(msg); return true; }
+  const groundRect = (R) => { let y = -1e9; for (const [x, z] of [[R.x0, R.z0], [R.x1, R.z0], [R.x0, R.z1], [R.x1, R.z1], [(R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2]]) y = Math.max(y, H(x, z)); return +y.toFixed(2); };
+  function doorSide(R) { const W = walker.w, cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2; const px = Number.isFinite(W?.x) ? W.x : cx, pz = Number.isFinite(W?.z) ? W.z : cz - 10; // the side facing you
+    const dx = px - cx, dz = pz - cz; return Math.abs(dx) > Math.abs(dz) ? (dx < 0 ? 'w' : 'e') : (dz < 0 ? 's' : 'n'); }
+  const P2 = (h) => ({ x: h.x, z: h.z });
+  let bdrag = null; // { kind: 'line' | 'area' | 'room' | 'move' | 'grow', a, b, ... }
+  function dragRecs(d) { if (!d?.b) return [];
+    if (d.kind === 'room') { const R0 = RG.rectOf(d.a, d.b), y = groundRect(R0); return RG.room(PROP_CAT, ui.room || 'tavern', d.a, d.b, y, doorSide(R0)).pieces; }
+    const P = PROP_CAT[ui.prop], gfn = (x, z) => +groundAt(P, x, z).toFixed(2);
+    if (d.kind === 'line') return RG.lineOf(PROP_CAT, P.id, P2(d.a), P2(d.b), P.shell ? groundRect(RG.rectOf(d.a, d.b)) : null, gfn);
+    return RG.areaOf(PROP_CAT, P.id, P2(d.a), P2(d.b), groundRect(RG.rectOf(d.a, d.b)), gfn); }
+  async function describeHere() { const txt = $('.room-txt').value.trim(); if (!txt) { toast('TYPE A ROOM FIRST, E.G. "SMALL RUM CELLAR WITH BARRELS"'); return; }
+    const at = hit || (Number.isFinite(walker.w?.x) ? { x: walker.w.x + 8, z: walker.w.z } : null); if (!at) { toast('POINT AT THE GROUND FIRST'); return; }
+    const D = RG.describe(txt), R0 = RG.rectOf({ x: at.x - D.w / 2, z: at.z - D.d / 2 }, { x: at.x + D.w / 2, z: at.z + D.d / 2 }), y = groundRect(R0), door = doorSide(R0);
+    let recs = null, src = 'server'; const r = await roomGenApi(txt, { x: +at.x.toFixed(2), z: +at.z.toFixed(2) }, y, door).catch(() => null);
+    if (r?.ok && Array.isArray(r.pieces)) recs = r.pieces.map((p) => { const t = PROP_CAT.findIndex((c) => c.id === p.id); return t < 0 ? null : { t, x: +p.x, y: +p.y, z: +p.z, ry: +p.ry || 0 }; }).filter(Boolean);
+    if (!recs) { src = 'local'; recs = RG.describedRoom(PROP_CAT, txt, at, y, door).pieces; }
+    if (commit({ add: recs })) toast(`✨ ${RG.PRESETS[D.preset].label} ${D.w}×${D.d} m · ${recs.length} PIECES${src === 'local' ? '' : ' (SERVER)'}`); }
+  // GROW: a placed wall -> its room; a built-in unit (shop, Hill Street house ...) -> stretch it (sx / sz, needs the pvp deploy to persist)
+  function growStart(cx, cy) { const f = findPiece(cx, cy), it = f?.it; if (!it) { toast('GRAB A WALL OF A BUILT ROOM (OR A BUILDING)'); return null; }
+    if (it.placed) { const rec = PIECES.get(it.id), all = [...PIECES].filter(([k]) => k[0] === '+'), at = RG.roomAt(PROP_CAT, all, rec);
+      if (!at) { toast('THAT PIECE IS NOT A WALL OF A ROOM WITH A FLOOR'); return null; } return { kind: 'grow', room: at, all, a: pick(cx, cy) || { x: rec.x, z: rec.z }, n: 0 }; }
+    if (it.isObj) { const h = pick(cx, cy); if (!h) return null; const b = it.box, c = b.getCenter(new THREE.Vector3()), hx = (b.max.x - b.min.x) / 2, hz = (b.max.z - b.min.z) / 2, dx = h.x - c.x, dz = h.z - c.z;
+      const axis = Math.abs(dx) / Math.max(hx, 0.1) > Math.abs(dz) / Math.max(hz, 0.1) ? 'x' : 'z'; return { kind: 'stretch', it, axis, sgn: Math.sign(axis === 'x' ? dx : dz) || 1, half: axis === 'x' ? hx : hz, a: h, before: PIECES.get(it.id) || null }; }
+    toast('GROW WORKS ON BUILT ROOMS AND BUILDINGS'); return null; }
+  function growN(d) { const R = d.room.rect, s = d.room.side, out = s === 'x0' ? d.a.x - d.b.x : s === 'x1' ? d.b.x - d.a.x : s === 'z0' ? d.a.z - d.b.z : d.b.z - d.a.z; return Math.round(out / RG.G); }
+  function stretchOv(d) { const out = ((d.axis === 'x' ? d.b.x - d.a.x : d.b.z - d.a.z) * d.sgn), k = Math.max(0.5, Math.min(3, (2 * d.half + out) / (2 * d.half))), b = d.before || {};
+    const sc = +(k * ((d.axis === 'x' ? b.sx : b.sz) || 1)).toFixed(3), shift = out / 2 * d.sgn; // grow away from the grabbed wall: the far wall stays put
+    return { ...b, dx: +((b.dx || 0) + (d.axis === 'x' ? shift : 0)).toFixed(2), dz: +((b.dz || 0) + (d.axis === 'z' ? shift : 0)).toFixed(2), [d.axis === 'x' ? 'sx' : 'sz']: sc }; }
+  function dragMove(d) { const dx = d.b.x - d.a.x, dz = d.b.z - d.a.z, sx = ui.grid ? Math.round(dx / 0.5) * 0.5 : dx, sz = ui.grid ? Math.round(dz / 0.5) * 0.5 : dz; return { sx: +sx.toFixed(2), sz: +sz.toFixed(2) }; }
+  function bdragUpdate() { const d = bdrag; if (!d || !d.b) return;
+    if (d.kind === 'line' || d.kind === 'area' || d.kind === 'room') { preview(dragRecs(d)); return; }
+    if (d.kind === 'grow') { const n = growN(d), g = n ? RG.growRoom(PROP_CAT, d.all, d.room.rect, d.room.side, n) : null; d.n = g ? n : 0;
+      const keep = new Map(d.all); if (g) { for (const id of g.del) keep.delete(id); for (const [id, m] of g.move) keep.set(id, m); }
+      const shown = g ? [...g.move.map(([, m]) => m), ...g.add] : []; preview(shown, !g && n !== 0); tip.textContent = g ? `${n > 0 ? 'GROW' : 'SHRINK'} ${Math.abs(n) * RG.G} m · release to build` : n ? 'TOO SMALL' : 'drag the wall out / in'; return; }
+    if (d.kind === 'stretch') { const ov = stretchOv(d); setPiece(d.it.id, ov); return; }
+    if (d.kind === 'move') { const m = dragMove(d); for (const [id, b] of d.start) { const it = REG.get(id); if (!it) continue;
+        if (it.placed) { const a = { ...b, x: +(b.x + m.sx).toFixed(2), z: +(b.z + m.sz).toFixed(2) }; a.y = +groundAt(PROP_CAT[a.t], a.x, a.z).toFixed(2); if (PROP_CAT[a.t].shell) a.y = b.y + (a.y - groundAt(PROP_CAT[b.t], b.x, b.z)); setPiece(id, a); }
+        else setPiece(id, { ...(b || {}), dx: +((b?.dx || 0) + m.sx).toFixed(2), dz: +((b?.dz || 0) + m.sz).toFixed(2) }); } drawSel(); } }
+  function bdragEnd() { const d = bdrag; bdrag = null; preview([]); if (!d) return; paint();
+    if (!d.b || (Math.hypot(d.b.x - d.a.x, d.b.z - d.a.z) < 0.6 && d.kind !== 'move')) { if (d.kind === 'line' || d.kind === 'area') placeHere(); if (d.kind === 'room') { d.b = { x: d.a.x + 8, z: d.a.z + 8 }; commit({ add: dragRecs(d) }, '🏠 ' + RG.PRESETS[ui.room || 'tavern'].label + ' BUILT · DRAG NEXT TIME TO SIZE IT'); } if (d.kind === 'stretch') setPiece(d.it.id, d.before); return; }
+    if (d.kind === 'line' || d.kind === 'area') { const recs = dragRecs(d); commit({ add: recs }, `🧱 ${recs.length} × ${PROP_CAT[ui.prop].label}`); return; }
+    if (d.kind === 'room') { commit({ add: dragRecs(d) }, '🏠 ' + RG.PRESETS[ui.room || 'tavern'].label + ' BUILT'); return; }
+    if (d.kind === 'grow') { if (!d.n) return; const g = RG.growRoom(PROP_CAT, d.all, d.room.rect, d.room.side, d.n); if (g) commit(g, `↔️ ROOM ${d.n > 0 ? 'GROWN' : 'SHRUNK'} ${Math.abs(d.n) * RG.G} m`); return; }
+    if (d.kind === 'stretch') { const a = PIECES.get(d.it.id) || null; push({ k: 'piece', c: [[d.it.id, d.before, a]] }); toast('↔️ BUILDING STRETCHED'); return; }
+    if (d.kind === 'move') { const c = []; for (const [id, b] of d.start) c.push([id, b, PIECES.get(id) || null]); if (c.some(([, b, a]) => JSON.stringify(b) !== JSON.stringify(a))) push({ k: 'piece', c }); } }
+  function bdragDown(e) { const h = pick(e.clientX, e.clientY); if (h) hit = h;
+    if (ui.tool === 'build') { const P = PROP_CAT[ui.prop]; if (!P.drag) { placeHere(); return true; } if (!h) return true; bdrag = { kind: P.drag, a: P2(h), b: null }; return true; }
+    if (ui.tool === 'rooms') { if (!h) { toast('POINT AT THE GROUND FIRST'); return true; } if (!ui.room) ui.room = 'tavern'; bdrag = { kind: 'room', a: P2(h), b: null }; return true; }
+    if (ui.tool === 'grow') { const d = growStart(e.clientX, e.clientY); if (d) bdrag = d; return true; }
+    if (ui.tool === 'select') { const f = findPiece(e.clientX, e.clientY); if (f?.it && sel.has(f.it.id) && !(multi || e.shiftKey) && h) { bdrag = { kind: 'move', a: P2(h), b: null, start: [...sel].map((id) => [id, PIECES.get(id) || null]) }; return true; } return false; }
+    return false; }
+  function bdragMove(e) { if (!bdrag) return; const h = pick(e.clientX, e.clientY); if (!h) return; hit = h; bdrag.b = P2(h); bdragUpdate(); }
   function queueSave() { clearTimeout(saveT); saveT = setTimeout(flush, 1500); }
   async function flush() { clearTimeout(saveT); const cells = T.dump(), pieces = dumpPieces(), paintD = T.dumpPaint(); try { localStorage.setItem(LS, JSON.stringify({ rev, cells, pieces, paint: paintD })); } catch {}
     const r = await terrainSave(cells, rev, pieces, paintD); if (r?.ok) rev = r.rev; else if (r?.status === 409 && r.body) { rev = r.body.rev | 0; toast('TERRAIN CHANGED ELSEWHERE · RELOADED'); T.replace(r.body.cells); replacePieces(r.body.pieces); T.replacePaint(r.body.paint); } else toast('TERRAIN SAVE FAILED: ' + (r?.error || '?')); }
@@ -300,17 +378,17 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   const pts = new Map();
   ov.addEventListener('pointerdown', (e) => { ov.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
     if (pts.size === 2) { endStroke(); const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: ui.size, r: rwCur()?.r ?? ui.rwR }; return; }
-    ptr = [e.clientX, e.clientY]; if (ui.tool === 'build') { const h = pick(e.clientX, e.clientY); if (h) hit = h; placeHere(); return; } if (ui.tool === 'select') { pickPiece(e.clientX, e.clientY, multi || e.shiftKey); return; } if (ui.tool === 'rework') { rwClick(e.clientX, e.clientY, e.shiftKey); return; } hit = pick(e.clientX, e.clientY); if (!hit) return;
+    ptr = [e.clientX, e.clientY]; if (bdragDown(e)) return; if (ui.tool === 'select') { pickPiece(e.clientX, e.clientY, multi || e.shiftKey); return; } if (ui.tool === 'rework') { rwClick(e.clientX, e.clientY, e.shiftKey); return; } hit = pick(e.clientX, e.clientY); if (!hit) return;
     if (sampling) { target = hit.y; sampling = false; paint(); toast(`LEVEL HEIGHT ${target.toFixed(2)} m`); return; }
     const W = walker.w; stroke = { y: hit.y, feet: Number.isFinite(W?.y) ? W.y : hit.y, old: new Map(), oldP: new Map() }; });
   ov.addEventListener('pointermove', (e) => { if (pts.has(e.pointerId)) pts.set(e.pointerId, [e.clientX, e.clientY]);
     if (pinch && pts.size === 2 && ui.tool === 'rework') { const [a, b] = [...pts.values()]; rwSetR(Math.max(pinch.r, 4) * Math.hypot(a[0] - b[0], a[1] - b[1]) / Math.max(10, pinch.d), false); rwCommitSoon(); return; }
     if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; setSize(pinch.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / Math.max(10, pinch.d)); return; }
-    ptr = [e.clientX, e.clientY]; });
-  const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) endStroke(); };
+    ptr = [e.clientX, e.clientY]; if (bdrag && pts.size === 1) bdragMove(e); });
+  const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) { endStroke(); bdragEnd(); } };
   ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up);
   ov.addEventListener('wheel', (e) => { e.preventDefault(); if (ui.tool === 'rework') { const c = rwCur()?.r ?? ui.rwR; rwSetR(c + (e.deltaY > 0 ? -1 : 1) * Math.max(1, Math.round(c * 0.1)), false); rwCommitSoon(); return; } setSize(ui.size * (e.deltaY > 0 ? 0.9 : 1.1)); }, { passive: false });
-  addEventListener('keydown', (e) => { if (!on || e.target?.closest?.('input, textarea, select')) return; if (ui.tool === 'rework' && (e.key === '[' || e.key === ']')) { rwSetR((rwCur()?.r ?? ui.rwR) + (e.key === ']' ? 5 : -5), false); rwCommitSoon(); return; } if (ui.tool === 'rework' && (e.key === 'Delete' || e.key === 'Backspace')) { rwDelete(); return; } if (e.key === '[') setSize(ui.size - 1); else if (e.key === ']') setSize(ui.size + 1); else if (e.key === 'Escape') setOn(false); else if (ui.tool === 'build' && (e.key === 'q' || e.key === 'Q')) turn(1); else if (ui.tool === 'build' && (e.key === 'e' || e.key === 'E')) turn(-1); else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); doRedo(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && ui.tool === 'select') delSel(); });
+  addEventListener('keydown', (e) => { if (!on || e.target?.closest?.('input, textarea, select')) return; if (ui.tool === 'rework' && (e.key === '[' || e.key === ']')) { rwSetR((rwCur()?.r ?? ui.rwR) + (e.key === ']' ? 5 : -5), false); rwCommitSoon(); return; } if (ui.tool === 'rework' && (e.key === 'Delete' || e.key === 'Backspace')) { rwDelete(); return; } if (e.key === '[') setSize(ui.size - 1); else if (e.key === ']') setSize(ui.size + 1); else if (e.key === 'Escape') setOn(false); else if (ui.tool === 'build' && (e.key === 'q' || e.key === 'Q')) turn(1); else if (ui.tool === 'build' && (e.key === 'e' || e.key === 'E')) turn(-1); else if (ui.tool === 'select' && (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E')) editSel({ ry: (e.key.toLowerCase() === 'q' ? 1 : -1) * Math.PI / 12 }); else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); doRedo(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(); } else if ((e.key === 'Delete' || e.key === 'Backspace') && ui.tool === 'select') delSel(); });
 
   // ===== [v335] 🚩 REWORK FLAGS (owner only: terrain_get strips '!rw_*' for everyone else; zero colliders) =====
   // PIECES '!rw_<ts36><rand>' = { rework: 1, num, x, y, z (foot frame), lx, lz (town-local, coast.js w2t), r (0..160 m), note, part, partId, at, color }
@@ -386,7 +464,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     if (ptr && now - lastPick > (touch ? 60 : 30)) { lastPick = now; const h = pick(ptr[0], ptr[1]); if (h) hit = h; }
     if (ui.tool === 'rework') { ring.visible = grid.visible = false; if (ghost) ghost.visible = false; if (ptr && now - rwHoverT > 120) { rwHoverT = now; rwHover = rwTarget(ptr[0], ptr[1]); } rwGhostDraw(); return; } rwGhost.visible = false;
     if (ui.tool === 'select') { ring.visible = grid.visible = false; const id = chip.dataset.id, it = id && REG.get(id); if (it && chip.style.display === 'block') { const ov = it.placed ? {} : PIECES.get(id) || {}, c = it.box.getCenter(new THREE.Vector3()); c.x += ov.dx || 0; c.z += ov.dz || 0; c.y = it.box.max.y + (ov.dy || 0); frame.localToWorld(c); c.project(camera); chip.style.left = ((c.x + 1) / 2 * innerWidth) + 'px'; chip.style.top = ((1 - c.y) / 2 * innerHeight) + 'px'; } return; }
-    drawGhost(); if (ui.tool === 'build') { ring.visible = grid.visible = false; return; } if (stroke) apply(dt); drawRing(); }
+    if (ui.tool === 'rooms' || ui.tool === 'grow') { ring.visible = grid.visible = false; if (ghost) ghost.visible = false; return; }
+    drawGhost(); if (bdrag && ghost) ghost.visible = false; if (ui.tool === 'build') { ring.visible = grid.visible = false; return; } if (stroke) apply(dt); drawRing(); }
   tick(); paint();
-  return { owner: true, setOn, placeHere, PROP_CAT, TYPES, placeRoot, REG, PIECES, sel, pickPiece, findPiece, delSel, rwPlace, rwTarget, rwClick, rwDelete, rwClear, rwSetR, rwSetColor, rwEdit, rwCommit, rwRoot, RW_COLORS, drawSel, get selReworkId() { return selReworkId; }, set selReworkId(v) { selReworkId = v; rwSync(); }, doUndo, doRedo, get undo() { return undo; }, get on() { return on; }, ui, flush, get rev() { return rev; } };
+  return { owner: true, setOn, placeHere, commit, describeHere, RG, PROP_CAT, TYPES, placeRoot, REG, PIECES, sel, pickPiece, findPiece, delSel, rwPlace, rwTarget, rwClick, rwDelete, rwClear, rwSetR, rwSetColor, rwEdit, rwCommit, rwRoot, RW_COLORS, drawSel, get selReworkId() { return selReworkId; }, set selReworkId(v) { selReworkId = v; rwSync(); }, doUndo, doRedo, get undo() { return undo; }, get on() { return on; }, ui, flush, get rev() { return rev; } };
 }

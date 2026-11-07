@@ -502,6 +502,8 @@ const ident = () => { const s = session(); return s ? { token: s.token } : { dk:
 export async function terrainLoad() { if (!PVP_FN_URL) return null; try { return await api('terrain_get', ident()); } catch { return null; } }
 export async function terrainSave(cells, rev, pieces = {}, paint = undefined) { if (!PVP_FN_URL) return { ok: false, error: 'offline' };
   try { return await api('terrain_put', { ...ident(), cells, pieces, rev, ...(paint ? { paint } : {}) }); } catch (e) { return { ok: false, status: e.status, error: e.message, body: e.body }; } }
+// [sims-build] owner "describe a room": the pvp action parses the words into kit pieces (roomGen.ts); null = not deployed / offline
+export async function roomGenApi(text, at, y, door) { if (!PVP_FN_URL) return null; try { return await api('admin_room_gen', { ...ident(), text: String(text || '').slice(0, 200), at, y, door }); } catch (e) { return { ok: false, status: e.status, error: e.message }; } }
 // [inventory] migration 036: one call for every inventory / shop / gift / Marketplace action. The SERVER decides everything (what you
 // hold, prices, the sell multiplier, recipients); this only carries the request. inv_pot = the owner's sales landing on his save.
 export async function invApi(action, body = {}) {

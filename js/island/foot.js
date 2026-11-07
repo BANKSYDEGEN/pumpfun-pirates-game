@@ -1669,7 +1669,22 @@ export const PROP_CAT = [
   { id: 'lamp', label: 'LAMP', ico: '🏮', col: ['c', 0.25] }, { id: 'tree', label: 'TREE', ico: '🌳', col: ['c', 0.7] },
   { id: 'palm', label: 'PALM', ico: '🌴', col: ['c', 0.45] }, { id: 'rock', label: 'ROCK', ico: '🪨', col: ['c', 1.3] },
   { id: 'stall', label: 'STALL', ico: '⛺', col: ['b', 3.3, 1.5] },
-  { id: 'dock', label: 'DOCK', ico: '⚓', water: true, col: ['k', 3, 4, 0.7, 0] }, { id: 'bridge', label: 'BRIDGE', ico: '🌉', water: true, col: ['k', 1.4, 7, 0.9, 2] }];
+  { id: 'dock', label: 'DOCK', ico: '⚓', water: true, col: ['k', 3, 4, 0.7, 0] }, { id: 'bridge', label: 'BRIDGE', ico: '🌉', water: true, col: ['k', 1.4, 7, 0.9, 2] },
+  // [sims-build t2071u] 2 m pirate building kit (snap grid 2 m): drag a line of walls / a path, drag a rectangle of floor / roof, room presets.
+  // drag: 'line' = segments along the drag, 'area' = tiles over the dragged rectangle. Indices are stored in PIECES '+id'.t: append only.
+  { id: 'twall', label: 'TIMBER WALL', ico: '🪵', col: ['b', 2, 0.3], drag: 'line', len: 2, shell: 'wall' },
+  { id: 'twin', label: 'WINDOW WALL', ico: '🪟', col: ['b', 2, 0.3], drag: 'line', len: 2, shell: 'wall' },
+  { id: 'tdoor', label: 'DOORWAY', ico: '🚪', col: null, drag: 'line', len: 2, shell: 'wall' },
+  { id: 'swall', label: 'STONE WALL', ico: '🧱', col: ['b', 2, 0.5], drag: 'line', len: 2, shell: 'wall' },
+  { id: 'tfloor', label: 'PLANK FLOOR', ico: '🟫', col: null, drag: 'area', len: 2, shell: 'floor' },
+  { id: 'troof', label: 'ROOF', ico: '🛖', col: null, drag: 'area', len: 2, shell: 'roof' },
+  { id: 'tpath', label: 'COBBLE PATH', ico: '🛤️', col: null, drag: 'line', len: 2 },
+  { id: 'table', label: 'TABLE', ico: '🍽️', col: ['c', 0.75] }, { id: 'bench', label: 'BENCH', ico: '🪑', col: ['b', 1.6, 0.45] },
+  { id: 'bed', label: 'BUNK', ico: '🛏️', col: ['b', 1.1, 2.1] }, { id: 'chest', label: 'TREASURE CHEST', ico: '🧰', col: ['c', 0.55] },
+  { id: 'counter', label: 'COUNTER', ico: '🧾', col: ['b', 2, 0.7] }, { id: 'shelf', label: 'SHELF', ico: '📚', col: ['b', 1.8, 0.45] },
+  { id: 'rack', label: 'RUM RACK', ico: '🍾', col: ['b', 2, 0.8] }, { id: 'lantern', label: 'LANTERN', ico: '🕯️', col: ['c', 0.15] },
+  { id: 'rug', label: 'RUG', ico: '🟥', col: null }, { id: 'cannon', label: 'CANNON', ico: '💣', col: ['c', 0.8] },
+  { id: 'gold', label: 'GOLD PILE', ico: '💰', col: ['c', 0.6] }];
 export function propKit(id, low = false) { const k = new Kit(), kp0 = KP, F = []; KP = null;
   try { switch (id) {
     case 'house': colonial(k, F, 0, 0, 0, 0, 10, 9, 2, 3, low); break;
@@ -1682,6 +1697,25 @@ export function propKit(id, low = false) { const k = new Kit(), kp0 = KP, F = []
     case 'rock': W(k, jitter(new THREE.IcosahedronGeometry(1.4, 1), 0.22, 4), 0xa59d92, 3, M(0, 0.5, 0, 0, 0, 0, [1, 0.75, 1])); break;
     case 'stall': stall(k, 0, 0, 0, 0, 0xd8322f); break;
     case 'dock': W(k, box(6, 0.25, 8), WOOD_L, 2, M(0, 0.58, 0)); for (const x of [-2.7, 2.7]) for (const z of [-3.6, 0, 3.6]) W(k, cyl(0.18, 0.18, 3.4, 6), WOOD_D, 2, M(x, -1.1, z)); for (let z = -3.5; z <= 3.5; z += 1) W(k, box(6.05, 0.05, 0.08), WOOD_D, 2, M(0, 0.71, z), false); break;
+    // [sims-build] 2 m kit: walls run along local X (x -1..1), 3 m tall; floor / roof tiles 2 x 2 m; furniture faces +Z
+    case 'twall': W(k, box(2, 3, 0.22), WOOD, 2, M(0, 1.5, 0)); for (const x of [-0.95, 0.95]) W(k, box(0.2, 3.1, 0.3), WOOD_D, 2, M(x, 1.55, 0)); for (const y of [0.15, 2.95]) W(k, box(2.02, 0.14, 0.28), WOOD_D, 2, M(0, y, 0), false); break;
+    case 'twin': for (const [y, h] of [[0.5, 1], [2.6, 0.8]]) W(k, box(2, h, 0.22), WOOD, 2, M(0, y, 0)); for (const x of [-0.75, 0.75]) W(k, box(0.5, 1.2, 0.22), WOOD, 2, M(x, 1.6, 0)); for (const x of [-0.95, 0.95]) W(k, box(0.2, 3.1, 0.3), WOOD_D, 2, M(x, 1.55, 0)); W(k, box(1.0, 0.08, 0.36), WOOD_D, 2, M(0, 1.02, 0.02), false); W(k, box(0.06, 1.2, 0.06), IRON, 0, M(0, 1.6, 0), false); W(k, box(1.0, 0.06, 0.06), IRON, 0, M(0, 1.6, 0), false); break;
+    case 'tdoor': for (const x of [-0.85, 0.85]) W(k, box(0.3, 3.1, 0.3), WOOD_D, 2, M(x, 1.55, 0)); W(k, box(2, 0.6, 0.22), WOOD, 2, M(0, 2.7, 0)); W(k, box(1.5, 0.12, 0.34), WOOD_D, 2, M(0, 2.42, 0), false); break;
+    case 'swall': W(k, box(2, 3, 0.45), STONE, 11, M(0, 1.5, 0)); W(k, box(2.05, 0.25, 0.55), STONE_D, 11, M(0, 3.05, 0)); W(k, box(2.05, 0.3, 0.55), STONE_D, 11, M(0, 0.15, 0), false); break;
+    case 'tfloor': W(k, box(2, 0.12, 2), WOOD_L, 2, M(0, 0.06, 0), false); for (const z of [-0.5, 0, 0.5]) W(k, box(2.0, 0.01, 0.03), WOOD_D, 2, M(0, 0.125, z), false); break;
+    case 'troof': W(k, box(2.3, 0.16, 2.3), 0x8a4a2a, 2, M(0, 3.15, 0)); W(k, box(2.32, 0.06, 0.12), WOOD_D, 2, M(0, 3.25, 0), false); break;
+    case 'tpath': W(k, box(2, 0.08, 2), STONE_D, 11, M(0, 0.04, 0), false); for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) W(k, box(0.9, 0.06, 0.9), STONE, 11, M(x, 0.09, z, (x * z) * 0.3), false); break;
+    case 'table': W(k, cyl(0.75, 0.75, 0.1, low ? 8 : 14), WOOD_L, 2, M(0, 0.85, 0)); W(k, cyl(0.12, 0.18, 0.8, 6), WOOD_D, 2, M(0, 0.4, 0)); W(k, cyl(0.45, 0.5, 0.06, 8), WOOD_D, 2, M(0, 0.03, 0), false); break;
+    case 'bench': W(k, box(1.6, 0.1, 0.45), WOOD_L, 2, M(0, 0.5, 0)); for (const x of [-0.65, 0.65]) W(k, box(0.1, 0.45, 0.4), WOOD_D, 2, M(x, 0.23, 0)); break;
+    case 'bed': W(k, box(1.1, 0.4, 2.1), WOOD_D, 2, M(0, 0.25, 0)); W(k, box(1.0, 0.18, 1.95), CREAM, 2, M(0, 0.52, 0)); W(k, box(0.8, 0.14, 0.4), 0xffffff, 2, M(0, 0.66, -0.75), false); W(k, box(1.02, 0.06, 1.2), RED, 2, M(0, 0.63, 0.35), false); W(k, box(1.1, 0.8, 0.1), WOOD_D, 2, M(0, 0.6, -1.05)); break;
+    case 'chest': W(k, box(1.0, 0.55, 0.65), WOOD, 2, M(0, 0.28, 0)); W(k, cyl(0.33, 0.33, 1.0, 10), WOOD, 2, M(0, 0.55, 0, 0, 0, Math.PI / 2, [1, 1, 1])); for (const x of [-0.38, 0.38]) W(k, box(0.08, 0.9, 0.7), GOLD, 0, M(x, 0.45, 0), false); W(k, box(0.16, 0.16, 0.05), GOLD, 0, M(0, 0.5, 0.34), false); break;
+    case 'counter': W(k, box(2, 1.05, 0.7), WOOD_D, 2, M(0, 0.53, 0)); W(k, box(2.1, 0.08, 0.8), WOOD_L, 2, M(0, 1.09, 0)); for (const x of [-0.6, 0.6]) W(k, box(0.5, 0.6, 0.02), WOOD, 2, M(x, 0.55, 0.36), false); break;
+    case 'shelf': W(k, box(1.8, 2.2, 0.45), WOOD_D, 2, M(0, 1.1, 0)); for (const y of [0.55, 1.15, 1.75]) { W(k, box(1.7, 0.05, 0.42), WOOD_L, 2, M(0, y, 0.02), false); for (const x of [-0.6, -0.2, 0.25, 0.6]) W(k, cyl(0.07, 0.08, 0.3, 6), [0x2f7a3a, 0x7a2f2f, 0x2f4a7a, 0xa87a2f][(x * 10 + y * 3 | 0) & 3], 2, M(x, y + 0.18, 0.05), false); } break;
+    case 'rack': for (const x of [-0.95, 0.95]) W(k, box(0.12, 1.6, 0.8), WOOD_D, 2, M(x, 0.8, 0)); for (const y of [0.45, 1.25]) for (const x of [-0.5, 0.5]) W(k, cyl(0.36, 0.36, 0.75, 10), WOOD_L, 2, M(x, y, 0, 0, Math.PI / 2, 0, [1, 1, 1])); break;
+    case 'lantern': W(k, cyl(0.06, 0.08, 2.2, 6), WOOD_D, 2, M(0, 1.1, 0)); W(k, box(0.4, 0.06, 0.06), WOOD_D, 2, M(0.18, 2.15, 0), false); W(k, box(0.22, 0.32, 0.22), GOLD, 0, M(0.34, 1.9, 0), false); break;
+    case 'rug': W(k, box(2.4, 0.03, 1.6), RED, 2, M(0, 0.14, 0), false); W(k, box(2.0, 0.035, 1.2), GOLD, 2, M(0, 0.145, 0), false); W(k, box(1.8, 0.04, 1.0), RED, 2, M(0, 0.15, 0), false); break;
+    case 'cannon': W(k, cyl(0.2, 0.28, 2.0, 10), IRON, 0, M(0, 0.75, 0.2, 0, Math.PI / 2 - 0.12, 0)); for (const x of [-0.38, 0.38]) W(k, cyl(0.42, 0.42, 0.12, 10), WOOD_D, 2, M(x, 0.42, -0.1, 0, 0, Math.PI / 2)); W(k, box(0.6, 0.35, 1.3), WOOD, 2, M(0, 0.4, -0.1)); break;
+    case 'gold': for (const [x, z, r] of [[0, 0, 0.55], [0.4, 0.2, 0.32], [-0.35, 0.25, 0.3]]) W(k, cyl(r * 0.4, r, r * 0.8, 10), GOLD, 0, M(x, r * 0.4, z), false); W(k, box(0.5, 0.35, 0.35), WOOD, 2, M(0.2, 0.18, -0.4)); break;
     case 'bridge': W(k, box(2.8, 0.22, 10), WOOD_L, 2, M(0, 0.8, 0)); for (const x of [-1.35, 1.35]) { W(k, box(0.12, 0.12, 10), WOOD_D, 2, M(x, 1.75, 0)); for (const z of [-4.9, -2.45, 0, 2.45, 4.9]) W(k, cyl(0.09, 0.11, 1.9, 6), WOOD_D, 2, M(x, 0.85, z)); } for (const s of [-1, 1]) W(k, box(2.8, 0.2, 2.2), WOOD, 2, M(0, 0.4, s * 5.9, 0, s * 0.35)); break;
   } } finally { KP = kp0; } return k; }
 // placed-prop colliders / decks (foot frame); returns a handle for propUnblock

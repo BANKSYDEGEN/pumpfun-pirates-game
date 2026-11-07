@@ -12,6 +12,7 @@ import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [i
 import { houseAction, HOUSE_ACTIONS } from "./houses.ts"; // [storage-houses] migration 043: buyable cottages + chest storage
 import { casinoAction, CASINO_ACTIONS } from "./casino.ts"; // [v333] pure-gold casino_play (048)
 import { adminAction, ADMIN_ACTIONS } from "./admin.ts";
+import { describedRoom } from "./roomGen.ts"; // [sims-build] owner "describe a room" -> 2 m kit pieces
 import { isWorldId } from "./adminWorld.ts"; // [v346] owner world overrides: terrain_put keeps the stored ones (only admin_world_put writes them) // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { islandAction, ISLAND_ACTIONS } from "./island.ts"; // [v349 money-makers] migration 053: bounties, coliseum, crates, gathering, cottage rum
@@ -450,6 +451,17 @@ Deno.serve(async (req) => {
         const pieces = who?.owner ? (data?.pieces ?? {}) : stripRework(data?.pieces as Record<string, any>); // [v335] 🚩 rework flags: the owner's eyes only
         return json(200, { ok: true, cells: data?.cells ?? {}, pieces, paint: (data as any)?.paint ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
       }
+      case "admin_room_gen": { // [sims-build t2074u] OWNER: "describe a room" -> pieces from the 2 m pirate kit (deterministic word parser, no writes; the client saves them via terrain_put)
+        const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
+        if (!who.owner) return json(403, { error: "owner only" });
+        const text = String(b.text ?? "").slice(0, 200), at = b.at && typeof b.at === "object" ? b.at as any : null;
+        if (!text.trim() || !at || !Number.isFinite(+at.x) || !Number.isFinite(+at.z)) return json(400, { error: "bad request" });
+        const KIT = ["twall", "twin", "tdoor", "swall", "tfloor", "troof", "tpath", "table", "bench", "bed", "chest", "counter", "shelf", "rack", "lantern", "rug", "cannon", "gold", "crate", "barrel"];
+        const cat = KIT.map((id) => ({ id, shell: /^(twall|twin|tdoor|swall)$/.test(id) ? "wall" : id === "tfloor" ? "floor" : id === "troof" ? "roof" : undefined }));
+        const y = Math.max(-50, Math.min(300, Number(b.y) || 0)), door = ["s", "n", "w", "e"].includes(String(b.door)) ? String(b.door) : "s";
+        const r = describedRoom(cat, text, { x: Math.max(-1500, Math.min(1500, +at.x)), z: Math.max(-1500, Math.min(1500, +at.z)) }, y, door);
+        return json(200, { ok: true, preset: r.preset, w: r.w, d: r.d, pieces: r.pieces.slice(0, 400).map((p: any) => ({ id: cat[p.t].id, x: p.x, y: p.y, z: p.z, ry: p.ry })) });
+      }
       case "terrain_put": {
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
         if (!who.owner) return json(403, { error: "owner only" });
@@ -466,7 +478,10 @@ Deno.serve(async (req) => {
           if (isReworkId(id)) { const rw = cleanRework(id, v); if (!rw) continue; if (++nrw > RW_MAX_FLAGS) return json(413, { error: "too many flags" }); pieces[id] = rw; continue; } // [v335] 🚩 owner rework flag (strings kept)
           if (id[0] === "+") { const t = Math.round(Number(v.t)); if (!/^\+[a-z0-9]{4,24}$/.test(id) || !Number.isInteger(t) || t < 0 || t > 63) continue; if (++npl > 2000) return json(413, { error: "too many placed" }); // [build-place] owner-placed prop
             pieces[id] = { t, x: f(v.x, 1500), y: f(v.y, 300), z: f(v.z, 1500), ry: f(v.ry, 7) }; continue; }
-          pieces[id] = v.h ? { h: 1 } : { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; }
+          if (v.h) { pieces[id] = { h: 1 }; continue; }
+          const o: Record<string, number> = { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; // [sims-build] + GROW stretch of a built-in building (0.5x..3x)
+          for (const k of ["sx", "sz"]) { const sc = Math.round(Number(v[k]) * 1000) / 1000; if (Number.isFinite(sc) && sc !== 1 && sc > 0) o[k] = Math.max(0.5, Math.min(3, sc)); }
+          pieces[id] = o; }
         // [034] paint: { cell: layer * 1000 + percent } (layers 0-7); a save WITHOUT paint (v183 / v184 clients) keeps the stored paint
         let paint: Record<string, number> | null = null;
         if (b.paint && typeof b.paint === "object" && !Array.isArray(b.paint)) { paint = {}; let nq = 0;
