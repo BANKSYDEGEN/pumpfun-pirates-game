@@ -25,6 +25,7 @@ export function outfitWalls(S = OUTFIT_STORE) {
   for (const sx of [-1, 1]) out.push([S.lx + sx * (hw - t / 2), cz, t + 0.6, S.depth + 0.6]);
   const xs = [-hw, ...S.arches.flatMap(a => [a - S.door / 2, a + S.door / 2]), hw];
   for (let i = 0; i < xs.length; i += 2) { const a = xs[i], b = xs[i + 1]; out.push([S.lx + (a + b) / 2, S.facadeLz - t / 2, b - a + 0.3, t + 0.6]); }
+  if (!S.divider) return out;   // [ship-aaa] the SHIP STORE hall reuses these walls (one room, no middle wall)
   const [y0, y1] = S.divider.arch, ya = -6 + t, yb = -6 + S.depth - t;
   for (const [a, b] of [[ya, y0], [y1, yb]]) out.push([S.lx, (lzOf(a) + lzOf(b)) / 2, S.divider.t + 0.2, b - a]);
   return out;

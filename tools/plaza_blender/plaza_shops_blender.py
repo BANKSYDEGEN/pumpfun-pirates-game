@@ -22,8 +22,10 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 # ---- the shared layout (keep in sync with js/island/plazaTown.js STOREFRONTS + SHOP_SIGN) ----
 SHOPS = [dict(id='shop_clothes', name='CLOTHES & ACCESSORIES', w=20, fl=3, v=0, awn=0xd8322f, awn2=0x6a4fb3, deep=18.0, combo=True),   # [clothes-aaa] walk-in, 18 m deep; [outfit-store] + Accessories: one 20 m building, 2 areas (js/island/outfitStore.js)
          dict(id='shop_pets', name='PET STORE', w=9, fl=2, v=1, awn=0x1f8a5a),
-         dict(id='shop_ships', name='SHIP SHOP', w=12, fl=3, v=2, awn=0x2a6df4),
-         dict(id='shop_upgrades', name='UPGRADE SHOP', w=11, fl=2, v=3, awn=0xffc93c),
+         # [ship-aaa] SHIP SHOP + UPGRADE SHOP = Emerly's combined SHIP STORE (js/island/shipStore.js): one 22 m x 12 m walk-in hall (the casino
+         # is right behind) with an 8.6 m gilded ceiling, two counters (UPGRADES left, SHIP SKINS right) -> ship_store; the old standalone nodes are gone
+         dict(id='ship_store', name='SHIP STORE', w=22, fl=3, v=2, awn=0x2a6df4, deep=12.0, ship=True, ceil=8.6, arches=[-6.5, 0.0, 6.5], ow=5.0,
+              awns=[0xc49731, 0x8a1c1c, 0x2a6df4], bw=10.0, board=(4.35, 5.15), ends=[(-1, 'UPGRADES', 0x5a1a14), (1, 'SHIP SKINS', 0x1c2840)]),
          # [outfit-store] shop_crew (the old CREW / Accessories plot) is the right half of shop_clothes now: no standalone building
          # the WEAPON STORE moved up the hill (Emerly builds it): its slot between the tavern and the harbor tower is a plain matching
          # stone house now: no shopfront, sign, interior or trigger (door + ground-floor windows, same shell / balcony / roof)
@@ -31,7 +33,7 @@ SHOPS = [dict(id='shop_clothes', name='CLOTHES & ACCESSORIES', w=20, fl=3, v=0, 
 D, PL, G, U, WALL = 12.0, 0.5, 5.4, 3.3, 0.5
 FY = -D / 2                       # front face
 OPEN_TOP, BOARD = 3.6, (4.2, 4.85)
-ARCHES = lambda sh: [-5.0, 5.0] if sh.get('combo') else [0.0]   # [outfit-store] arch centres (js OUTFIT_STORE.arches)
+ARCHES = lambda sh: sh.get('arches') or ([-5.0, 5.0] if sh.get('combo') else [0.0])   # [outfit-store] arch centres (js OUTFIT_STORE.arches)
 BAL_Z = PL + G                    # balcony floor top (5.9): every sign stays below BAL_Z - 0.2 with clearance
 SIGN = dict(z_bar=3.95, z0=2.85, z1=3.75, y0=FY - 0.35, y1=FY - 1.95)
 STONES = [0xc9bfae, 0xb9b2a6, 0xd6c7a8, 0xbdb3a2]; QUOIN = 0x8a837a; MORTAR = 0x6f675d
@@ -141,14 +143,15 @@ def signs(b, sh, lod, rng):
 
 def shell(b, sh, lod, rng):
     w, fl, v = sh['w'], sh['fl'], sh['v']; col = STONES[v % 4]; shut = SHUT[(v + 2) % 6]
-    top = PL + G + (fl - 1) * U; ow = 6.6 if sh.get('combo') else min(w * 0.66, w - 2.6); deep = sh.get('deep'); zb = 0.0 if deep else PL
+    top = PL + G + (fl - 1) * U; ow = sh.get('ow') or (6.6 if sh.get('combo') else min(w * 0.66, w - 2.6)); deep = sh.get('deep'); zb = 0.0 if deep else PL
     if deep: deep_ground(b, sh, lod, rng, ow, col)   # [clothes-aaa] walk-in: perimeter plinth, full-depth room, single-storey rear wing
     else:
         b.box(w + 0.6, D + 0.6, 0.8, 0, 0, -0.3, QUOIN, base=True)                                             # plinth
         # rear mass + side walls + back wall of the shop room + upper storeys (hidden faces are cheap boxes)
         b.box(w, D / 2 - 1.0, G, 0, 1.0 + (D / 2 - 1.0) / 2, PL, col, base=True)
         for s in (-1, 1): b.box(WALL, 7.0, G, s * (w / 2 - WALL / 2), FY + 3.5, PL, col, base=True)
-    b.box(w, D - WALL, top - (PL + G), 0, WALL / 2, PL + G, col, base=True)
+    zm = max(PL + G, CEIL + 0.3) if deep else PL + G   # [ship-aaa] a tall hall: the upper mass starts over its ceiling
+    b.box(w, D - WALL, top - zm, 0, WALL / 2, zm, col, base=True)
     # front wall with the shop arch + upper windows
     plain = sh.get('plain')
     holes = [(ax - ow / 2, ax + ow / 2, zb, OPEN_TOP) for ax in ARCHES(sh)] if not plain else []; wins = []
@@ -204,7 +207,8 @@ def shopfront(b, sh, lod, rng, ow):
     w = sh['w']; awn = sh['awn']
     # room: plank floor, plaster walls, ceiling beams, hanging lanterns
     iw = w - 2 * WALL; deep = sh.get('deep')
-    if sh.get('combo'): room_combo(b, sh, lod, rng, ow)   # [outfit-store]
+    if sh.get('ship'): room_ship(b, sh, lod, rng, ow)   # [ship-aaa]
+    elif sh.get('combo'): room_combo(b, sh, lod, rng, ow)   # [outfit-store]
     elif deep: room_aaa(b, sh, lod, rng, ow)   # [clothes-aaa]
     elif lod < 2:
         nfl = int(iw / 0.3)
@@ -227,7 +231,7 @@ def shopfront(b, sh, lod, rng, ow):
     # striped canvas awning on timber posts (posts at x +-w*0.33, y FY-2.5), scalloped valance
     AX = ARCHES(sh); wa = w / len(AX)   # [outfit-store] one awning per arch (Clothing red, Accessories plum)
     for k_, ax in enumerate(AX):
-        awn = sh['awn2'] if k_ and sh.get('awn2') else sh['awn']
+        awn = sh['awns'][k_] if sh.get('awns') else sh['awn2'] if k_ and sh.get('awn2') else sh['awn']
         aw = wa * 0.72; ang = math.atan2(0.7, 2.8); L = math.hypot(2.8, 0.7); ns = 8 if lod < 2 else 1
         for i in range(ns):
             x = ax - aw / 2 + (i + 0.5) * aw / ns
@@ -559,17 +563,19 @@ VELVET, VELVET_D, NAVY = 0x8e1b22, 0x6a1218, 0x1c2840
 BOLTS = [0xd8322f, 0x2a6df4, 0xffd43b, 0x1f8a5a, 0xf2efe6, 0x6a4fb3, 0xff8a3d, 0x2b8fa3, 0x8a1c1c, 0x1c1c24]
 
 def deep_ground(b, sh, lod, rng, ow, col):
-    w = sh['w']; CD = sh['deep']; BY = FY + CD; cy = FY + CD / 2; WH = PL + G; WING = 6.5
+    w = sh['w']; CD = sh['deep']; BY = FY + CD; cy = FY + CD / 2; WH = max(PL + G, CEIL + 0.3); WING = max(6.5, CEIL + 1.3)   # [ship-aaa] taller for a high-ceilinged hall
     # perimeter base course only: the shop floor is the street (the walker's ground), so the door has no step
     xs = [-w / 2 - 0.3] + [x for ax in ARCHES(sh) for x in (ax - ow / 2 - 0.5, ax + ow / 2 + 0.5)] + [w / 2 + 0.3]
     for a, bx in zip(xs[::2], xs[1::2]): b.box(bx - a, 0.6, 0.8, (a + bx) / 2, FY, -0.3, QUOIN, base=True)   # front base course between the arches
     for s in (-1, 1): b.box(0.6, CD + 0.6, 0.8, s * (w / 2), cy, -0.3, QUOIN, base=True)
     b.box(w + 0.6, 0.6, 0.8, 0, BY, -0.3, QUOIN, base=True)
+    wing = CD > D + 0.01   # [ship-aaa] the SHIP STORE hall is only the lot deep (the casino stands behind): no rear wing, it goes up instead
     for s in (-1, 1):
         b.box(WALL, D, WH, s * (w / 2 - WALL / 2), 0, 0, col, base=True)                              # front block side walls
-        b.box(WALL, CD - D, WING, s * (w / 2 - WALL / 2), FY + D + (CD - D) / 2, 0, col, base=True)   # rear wing side walls
-    b.box(w, WALL, WING, 0, BY - WALL / 2, 0, col, base=True)                                        # back wall
+        if wing: b.box(WALL, CD - D, WING, s * (w / 2 - WALL / 2), FY + D + (CD - D) / 2, 0, col, base=True)   # rear wing side walls
+    b.box(w, WALL, WING if wing else WH, 0, BY - WALL / 2, 0, col, base=True)                        # back wall
     b.box(w - 2 * WALL + 0.02, CD - 2 * WALL + 0.02, 0.3, 0, cy, CEIL, CORN, base=True, mat='none')   # the room's ceiling slab (smooth: no library layer)
+    if not wing: return
     b.box(w, CD - D - WALL, WING - CEIL - 0.3, 0, FY + D + (CD - D) / 2 - WALL / 2 + 0.25, CEIL + 0.3, col, base=True)   # wing loft (closed)
     # lean-to roof of the wing against the upper storeys' back wall + string course + back quoins
     y0, y1, z0, z1 = FY + D, BY + 0.55, WING + 0.95, WING + 0.05; L = math.hypot(y1 - y0, z0 - z1); a = math.atan2(z0 - z1, y1 - y0)
@@ -843,14 +849,14 @@ def _clothes_aaa(b, sh, lod, rng, C, iw):
 def signs_aaa(b, sh, lod, rng):
     # crisp carved signage: a navy board with a gilt frame + raised Cinzel capitals over the arch, the same on the hanging sign
     # [outfit-store] the joint building: one long board over the middle pier + a hanging sign at each end (CLOTHING left, ACCESSORIES right)
-    w = sh['w']; bw = 12.4 if sh.get('combo') else w * 0.62; z0, z1 = 4.15, 4.95
+    w = sh['w']; bw = sh.get('bw') or (12.4 if sh.get('combo') else w * 0.62); z0, z1 = sh.get('board', (4.15, 4.95))
     b.box(bw, 0.12, z1 - z0, 0, FY - 0.08, (z0 + z1) / 2, NAVY, tag='sign')
     if lod < 2:
         for zz in (z0 + 0.04, z1 - 0.04): b.box(bw + 0.12, 0.17, 0.08, 0, FY - 0.1, zz, GOLD, tag='sign')
         for xx in (-bw / 2, bw / 2): b.box(0.08, 0.17, z1 - z0, xx, FY - 0.1, (z0 + z1) / 2, GOLD, tag='sign')
         for xx in (-bw / 2 + 0.28, bw / 2 - 0.28): b.sphere(0.07, xx, FY - 0.16, (z0 + z1) / 2, GOLD, sub=0)
         carve(b, sh['name'], 0, FY - 0.14, (z0 + z1) / 2, bw - 0.8, (z1 - z0) * 0.56, Matrix.Rotation(math.pi / 2, 4, 'X'), lod, font=FONT_SIGN)
-    ends = [(-1, 'CLOTHING', NAVY), (1, 'ACCESSORIES', PLUM_D)] if sh.get('combo') else [(1, 'CLOTHES', NAVY)]
+    ends = sh.get('ends') or ([(-1, 'CLOTHING', NAVY), (1, 'ACCESSORIES', PLUM_D)] if sh.get('combo') else [(1, 'CLOTHES', NAVY)])
     S = SIGN
     for e, text, bg in ends:
         xs = e * (w / 2 - 0.45)
@@ -879,9 +885,9 @@ MARB_A, MARB_B, MARB_V = 0xebe3d1, 0x2f4a46, 0xd9cfb9
 PLUM, PLUM_D = 0x4a2a6a, 0x351c4f
 PLASTER_F = 0xece4d6   # the blank V7 forms' plaster (js mannequinMaterial)
 
-def hang_sign(b, x, y, text, lod, bg=NAVY, wd=2.8):
+def hang_sign(b, x, y, text, lod, bg=NAVY, wd=2.8, zz=(3.0, 3.62)):
     # a carved double-sided board hung off the ceiling on two brass chains, across the hall (read from the door and from the back)
-    z0, z1 = 3.0, 3.62
+    z0, z1 = zz
     for sx in (-1, 1):
         b.cyl(0.012, 0.012, CEIL - z1, x + sx * (wd / 2 - 0.25), y, z1, BRASS, n=4)
         b.cyl(0.05, 0.04, 0.04, x + sx * (wd / 2 - 0.25), y, CEIL - 0.34, BRASS, n=6)
@@ -1172,6 +1178,308 @@ def _accessories_aaa(b, sh, lod, rng, C):
                 a = k * 2 * math.pi / 7; b.box(0.7, 0.16, 0.03, px + math.cos(a) * 0.32, py + math.sin(a) * 0.32, FLR + 1.05 - 0.1 * (k % 2), hexc(0x2f7a3a, 0.08, rng), rz=a, ry=0.45)
             b.cyl(0.03, 0.04, 0.6, px, py, FLR + 0.45, 0x5a3a1a, n=5)
 
+# ======================= [ship-aaa] the SHIP STORE hall (BANKSY 6:18-6:19 PM) =======================
+# "Then start on ship store" / "Make higher ceilings and make the store nice, keep 2 counters one for upgrades and one for skins":
+# Emerly's combined SHIP STORE (js/island/shipStore.js, lx 15 .. 37) as one 22 m x 12 m walk-in hall at street level (the casino's front
+# is right behind it at lz -42, so the depth stays the full 12 m lot and the hall goes UP instead) with an 8.6 m
+# gilded coffered ceiling (the casino-hall read: dark beams with gilt fillets, navy coffers, rosettes, two grand two-tier chandeliers).
+# Mahogany wainscot under deep sea-teal walls with tall gilt-framed panels between cream pilasters (charts on the Upgrades side, ship
+# portraits on the Skins side). Three street arches. LEFT = UPGRADES (tarred deck planks, cannon on its carriage, anchor, binnacle +
+# wheel, fittings wall, the shipwright's counter); RIGHT = SHIP SKINS (polished teak, galleons in glass cases, skin shadow-box wall,
+# sail swatches, the skins counter). A clear navy runner up the middle to the hero galleon on its dais between the two counters.
+# No lights: the painted pools are js/island/clothesLook.js (SHIP_LAMPS). Colliders ride in the GLB extras.
+TEAL, TEAL_D = 0x1f4650, 0x173840
+DECK_A, DECK_B, TEAK_A, TEAK_B = 0x5d4029, 0x4e3522, 0xb47a46, 0xa46c3b
+SKINS = [(0x8a1c1c, 0xffd29a, GOLD), (0xd4a017, 0xfff3c4, 0xffffff), (0x2f6f4f, 0xe6f2e6, GOLD), (0x3b2a5a, 0xc8b6ff, 0x9fe8ff), (0x1f3d7a, 0xf2ead6, GOLD), (0x1c1c22, 0x2a2a30, 0x9fe8ff)]
+
+def grand_chandelier(b, x, y, lod, zc=None):
+    zc = zc or CEIL - 2.7
+    b.cyl(0.3, 0.2, 0.12, x, y, CEIL - 0.12, GOLD, n=12)
+    b.cyl(0.025, 0.025, CEIL - zc - 0.3, x, y, zc + 0.2, IRON, n=4)
+    for R, dz, k in ((1.05, 0.0, 12 if lod == 0 else 8), (0.6, 0.55, 8 if lod == 0 else 6)):
+        b.torus(R, 0.05, x, y, zc + dz, GOLD, n=24 if lod == 0 else 14, m_=5 if lod == 0 else 4)
+        for i in range(k):
+            a = i * 2 * math.pi / k; cx, cy = x + math.cos(a) * R, y + math.sin(a) * R
+            b.box(R, 0.04, 0.04, x + math.cos(a) * R / 2, y + math.sin(a) * R / 2, zc + dz, GOLD, rz=a)
+            b.cyl(0.08, 0.07, 0.05, cx, cy, zc + dz + 0.02, GOLD, n=8)
+            b.cyl(0.035, 0.035, 0.2, cx, cy, zc + dz + 0.07, 0xfff4dc, n=6, mat=1)
+            b.box(0.07, 0.07, 0.12, cx, cy, zc + dz + 0.32, GLOW, mat=1)
+            if lod == 0: b.box(0.045, 0.045, 0.18, x + math.cos(a + 0.2) * R * 0.8, y + math.sin(a + 0.2) * R * 0.8, zc + dz - 0.2, 0xfff0c8, mat=1)   # crystal drops
+    b.sphere(0.2, x, y, zc - 0.1, GOLD, sub=1); b.cyl(0.04, 0.0, 0.3, x, y, zc - 0.55, GOLD, n=6)
+
+def gilt_frame(b, x, y, z0, z1, wd, face, lod, fill=None):
+    # a tall gilt frame on a wall (face = +1: wall on -x side, normal +x; -1: wall on +x side; 0: back wall, normal -y)
+    if face == 0:
+        if fill is not None: b.box(wd, 0.03, z1 - z0, x, y - 0.03, z0, fill, base=True, mat='none')
+        for zz in (z0, z1): b.box(wd + 0.12, 0.06, 0.08, x, y - 0.05, zz - 0.04, GOLD, base=True)
+        for xx in (x - wd / 2, x + wd / 2): b.box(0.08, 0.06, z1 - z0, xx, y - 0.05, z0, GOLD, base=True)
+        return
+    xf = x + face * 0.05
+    if fill is not None: b.box(0.03, wd, z1 - z0, x + face * 0.03, y, z0, fill, base=True, mat='none')
+    for zz in (z0, z1): b.box(0.06, wd + 0.12, 0.08, xf, y, zz - 0.04, GOLD, base=True)
+    for yy in (y - wd / 2, y + wd / 2): b.box(0.06, 0.08, z1 - z0, xf, yy, z0, GOLD, base=True)
+
+def room_ship(b, sh, lod, rng, ow):
+    w = sh['w']; CD = sh['deep']; BY = FY + CD; ya, yb = FY + WALL, BY - WALL; cy = (ya + yb) / 2; L = yb - ya; xo = w / 2 - WALL
+    AX = ARCHES(sh)
+    if lod == 2:
+        for ax in AX: b.box(ow, 0.05, OPEN_TOP, ax, FY + 2.5, 0, 0x8a6a40, base=True)
+        return
+    # ---- floors: UPGRADES tarred deck planks (caulked seams) | SHIP SKINS polished teak; a brass strip down the middle
+    for x0, x1, A, B_, lib in ((-xo, -0.6, DECK_A, DECK_B, 'timber'), (0.6, xo, TEAK_A, TEAK_B, 'timber')):
+        pw = 0.3 if lod == 0 else 0.6; nb = int((x1 - x0) / pw)
+        for i in range(nb):
+            x = x0 + (i + 0.5) * (x1 - x0) / nb; c = hexc(A if i % 2 else B_, 0.05, rng)
+            if lod == 0:
+                cut = ya + L * (0.25 + 0.5 * ((i * 37) % 10) / 10)
+                for p0, p1 in ((ya, cut), (cut, yb)): b.box((x1 - x0) / nb - 0.014, p1 - p0 - 0.014, 0.04, x, (p0 + p1) / 2, 0.0, c, base=True, mat=lib)
+            else: b.box((x1 - x0) / nb - 0.014, L, 0.04, x, cy, 0.0, c, base=True, mat=lib)
+        if lod == 0 and A == DECK_A:
+            for i in range(nb + 1): b.box(0.012, L, 0.042, x0 + i * (x1 - x0) / nb, cy, 0.0, 0x1a120c, base=True)   # black caulking
+    b.box(1.2, L, 0.04, 0, cy, 0.0, 0x2a2622, base=True, mat='none')
+    for s in (-1, 1): b.box(0.06, L, 0.045, s * 0.6, cy, 0.0, BRASS, base=True)
+    # ---- the navy runner up the middle to the hero dais, gold borders
+    r0, r1 = ya + 0.35, 2.9
+    b.box(2.4, r1 - r0, 0.016, 0, (r0 + r1) / 2, FLR, NAVY, base=True, mat='awning_cloth')
+    for s in (-1, 1):
+        b.box(0.1, r1 - r0, 0.02, s * 1.1, (r0 + r1) / 2, FLR, 0xc9a243, base=True)
+        if lod == 0: b.box(0.05, r1 - r0 - 0.3, 0.02, s * 0.88, (r0 + r1) / 2, FLR, 0xd9b45a, base=True)
+    for yy in (r0 + 0.05, r1 - 0.05): b.box(2.4, 0.1, 0.02, 0, yy, FLR, 0xc9a243, base=True)
+    if lod == 0:   # a brass compass rose inlaid where the runner starts
+        for k in range(8): b.box(0.06, 0.9 if k % 2 == 0 else 0.55, 0.02, 0, r0 + 1.4, FLR + 0.012, GOLD, rz=k * math.pi / 4)
+        b.torus(0.5, 0.03, 0, r0 + 1.4, FLR + 0.02, GOLD, n=24, m_=4)
+    for ax in AX: b.box(ow - 0.1, 0.16, 0.012, ax, FY + WALL / 2, 0.0, 0xa8853a, base=True)
+    # ---- walls: mahogany wainscot + deep teal upper walls (gilt chair rail), cream pilasters to the ceiling, tall gilt-framed panels
+    UPW = dict(upper=TEAL, rail=GOLD)
+    wain_panels(b, -xo, -xo, ya, yb, (1, 0), lod, **UPW); wain_panels(b, xo, xo, yb, ya, (-1, 0), lod, **UPW)
+    wain_panels(b, -xo, xo, yb, yb, (0, -1), lod, **UPW)
+    xs = [-xo] + [x for ax in AX for x in (ax - ow / 2, ax + ow / 2)] + [xo]
+    for a, c in zip(xs[::2], xs[1::2]): wain_panels(b, a, c, ya, ya, (0, 1), lod, **UPW)
+    for ax in AX:
+        b.box(ow, 0.03, CEIL - OPEN_TOP, ax, ya + 0.015, OPEN_TOP, TEAL, base=True, mat='none')
+        b.box(ow + 0.3, 0.12, 0.18, ax, ya + 0.06, OPEN_TOP - 0.02, MAHOG_L, base=True)
+        if lod == 0: b.box(0.3, 0.1, 0.4, ax, ya + 0.08, OPEN_TOP + 0.1, GOLD, base=True)   # keystone
+    PY = [ya + 0.25, -1.8, 1.8, yb - 0.25]
+    for sd in (-1, 1):
+        for yy in PY:
+            b.box(0.16, 0.42, CEIL - 1.2 - 0.45, sd * (xo - 0.08), yy, FLR + 1.19, CORN, base=True, mat='none')
+            b.box(0.22, 0.52, 0.22, sd * (xo - 0.11), yy, CEIL - 0.68, GOLD, base=True)   # gilt capital
+            if lod == 0: b.box(0.2, 0.5, 0.12, sd * (xo - 0.1), yy, FLR + 1.19, MAHOG_L, base=True)   # base block
+        for p0, p1 in zip(PY, PY[1:]):   # tall gilt-framed panels in each bay (upper zone, over the displays)
+            gilt_frame(b, sd * xo, (p0 + p1) / 2, 4.35, CEIL - 1.05, p1 - p0 - 0.9, -sd, lod, fill=TEAL_D)
+    for x in (-7.5, -3.0, 3.0, 7.5):
+        gilt_frame(b, x, yb, 4.6, CEIL - 1.05, 2.6, 0, lod, fill=TEAL_D)
+    # frieze + gilt cornice band round the room under the ceiling
+    for sd in (-1, 1): b.box(0.06, L, 0.12, sd * (xo - 0.03), cy, CEIL - 0.85, GOLD, base=True)
+    b.box(2 * xo, 0.06, 0.12, 0, yb - 0.03, CEIL - 0.85, GOLD, base=True); b.box(2 * xo, 0.06, 0.12, 0, ya + 0.03, CEIL - 0.85, GOLD, base=True)
+    # ---- the gilded coffered ceiling: dark beams with gilt fillets, navy coffers, gold rosettes
+    b.box(2 * xo, L, 0.04, 0, cy, CEIL - 0.04, NAVY, base=True, mat='none')
+    nbm = 5; xsp = [-xo + 2 * xo * k / 4 for k in range(5)]
+    for i in range(nbm + 1):
+        yy = min(max(ya + i * L / nbm, ya + 0.17), yb - 0.17)
+        b.box(2 * xo, 0.34, 0.42, 0, yy, CEIL - 0.42, MAHOG_D, base=True, mat='timber')
+        b.box(2 * xo, 0.38, 0.05, 0, yy, CEIL - 0.47, GOLD, base=True)
+    for x in xsp[1:-1]:
+        b.box(0.3, L, 0.36, x, cy, CEIL - 0.36, MAHOG_D, base=True, mat='timber'); b.box(0.34, L, 0.05, x, cy, CEIL - 0.41, GOLD, base=True)
+    if lod == 0:
+        for i in range(nbm):
+            for k in range(4):
+                b.sphere(0.13, (xsp[k] + xsp[k + 1]) / 2, ya + (i + 0.5) * L / nbm, CEIL - 0.1, GOLD, sub=1, s=(1, 1, 0.45))   # rosettes
+    # ---- light: two grand chandeliers over the aisle, one over each counter; two tiers of sconces
+    for yy in (-2.6, 1.0): grand_chandelier(b, 0, yy, lod)
+    for ax in (-5.5, 6.0): chandelier(b, ax, 3.0, lod)
+    for sd in (-1, 1):
+        for yy in ((-3.6, 0.0, 3.6) if lod == 0 else (-3.6, 3.6)):
+            sconce(b, sd * (xo - 0.03), yy, 3.0, -sd, lod)
+            if lod == 0: sconce(b, sd * (xo - 0.03), yy, 6.4, -sd, lod)
+    # ---- crisp hanging signs over the two stalls
+    hang_sign(b, -5.5, 2.3, 'UPGRADES', lod, bg=0x5a1a14, wd=3.6, zz=(4.6, 5.4))
+    hang_sign(b, 6.0, 2.3, 'SHIP SKINS', lod, bg=NAVY, wd=3.6, zz=(4.6, 5.4))
+
+def ship_aaa(b, sh, lod, rng, cols):
+    C = lambda *a: cols.append(list(a))
+    w = sh['w']; CD = sh['deep']; xo = w / 2 - WALL; BY = FY + CD; yb = BY - WALL; ya = FY + WALL
+    # ========== UPGRADES (left half) ==========
+    # window: an iron anchor on a stand + a cannonball pyramid on a plinth
+    ax_, ay_ = -9.6, -4.5
+    b.box(1.0, 0.8, 0.25, ax_, ay_, FLR, MAHOG, base=True, mat='timber')
+    b.box(0.12, 0.12, 1.7, ax_, ay_, FLR + 0.25, IRON, base=True)
+    b.box(0.9, 0.1, 0.1, ax_, ay_, FLR + 1.75, IRON, base=True)
+    b.torus(0.5, 0.07, ax_, ay_, FLR + 0.75, IRON, n=14, m_=5, rx=math.pi / 2, rz=0)
+    b.torus(0.12, 0.035, ax_, ay_, FLR + 2.05, IRON, n=10, m_=4, rx=math.pi / 2)
+    for s in (-1, 1): b.cyl(0.07, 0.0, 0.25, ax_ + s * 0.55, ay_, FLR + 0.7, IRON, n=6)
+    C('b', ax_, -ay_, 1.1, 0.9, 0)
+    plinth(b, -3.25, -4.6, 0.48, lod, top=0.4)
+    if lod < 2:
+        for lvl, n in enumerate((3, 2, 1)):
+            for i in range(n):
+                for j in range(n): b.sphere(0.13, -3.25 + (i - (n - 1) / 2) * 0.26, -4.6 + (j - (n - 1) / 2) * 0.26, 0.53 + lvl * 0.21, 0x22252b, sub=1 if lod == 0 else 0)
+    C('c', -3.25, 4.6, 0.55)
+    # the hero upgrade: a bronze long gun on its carriage on a low dais, facing the street
+    b.box(2.0, 2.6, 0.22, -7.6, -0.6, FLR, MAHOG, base=True, mat='timber'); b.box(2.1, 2.7, 0.04, -7.6, -0.6, FLR + 0.22, GOLD, base=True)
+    cannon(b, -7.6, -0.6, FLR + 0.26, 1.35, 0.0, lod)
+    if lod == 0:
+        for k in range(2): b.torus(0.3 - k * 0.06, 0.05, -6.8, 0.4, FLR + 0.3 + k * 0.09, 0xd9c39a, n=14, m_=5)
+    C('b', -7.6, 0.6, 2.2, 2.8, 0)
+    # binnacle compass + a ship's wheel on a pedestal
+    bx_, by_ = -3.0, 0.9
+    b.cyl(0.28, 0.22, 1.0, bx_, by_, FLR, MAHOG, n=12); b.cyl(0.3, 0.3, 0.12, bx_, by_, FLR + 1.0, BRASS, n=14)
+    b.sphere(0.26, bx_, by_, FLR + 1.22, BRASS, sub=1, s=(1, 1, 0.7)); b.cyl(0.2, 0.2, 0.02, bx_, by_, FLR + 1.3, 0xf2ead6, n=14, mat=1)
+    for s in (-1, 1): b.sphere(0.1, bx_ + s * 0.38, by_, FLR + 1.15, 0x8a1c1c, sub=1)
+    wx_, wy_ = -3.0, -1.4
+    b.box(0.3, 0.3, 1.15, wx_, wy_, FLR, MAHOG_D, base=True, mat='timber')
+    b.torus(0.62, 0.05, wx_, wy_ - 0.2, FLR + 1.6, WOOD, n=20 if lod == 0 else 12, m_=5, rx=math.pi / 2)
+    for i in range(8):
+        a = i * math.pi / 4; b.box(0.06, 0.06, 1.62, wx_, wy_ - 0.2, FLR + 1.6, WOOD_D, ry=a)
+    b.cyl(0.14, 0.14, 0.14, wx_, wy_ - 0.27, FLR + 1.6, BRASS, n=10, rx=math.pi / 2)
+    C('c', bx_, -by_, 0.42); C('c', wx_, -wy_, 0.4)
+    # the fittings wall (left): cannon barrels on gilt brackets, sail-cloth bolts, rope coils + blocks, powder kegs
+    xw = -xo
+    for k, yy in enumerate((-3.3, -2.1, -0.9)):
+        for s in (-1, 1): b.box(0.3, 0.08, 0.3, xw + 0.15, yy + s * 0.32, FLR + 1.55, GOLD, base=True)
+        b.push(T(xw + 0.38, yy, FLR + 1.95, rz=math.pi / 2)); b.cyl(0.17 - k * 0.02, 0.13 - k * 0.02, 1.1, 0, -0.55, 0, [0x1d2026, 0x6b4a1a, 0x2b2f36][k], n=12 if lod == 0 else 8, rx=-math.pi / 2); b.pop()
+    b.box(0.55, 3.6, 0.9, xw + 0.28, -2.1, FLR, MAHOG, base=True, mat='timber'); b.box(0.6, 3.7, 0.05, xw + 0.3, -2.1, FLR + 0.9, MAHOG_L, base=True)
+    if lod < 2:
+        for k in range(5 if lod == 0 else 3): barrel(b, xw + 0.3, -3.6 + k * (0.75 if lod == 0 else 1.5), FLR + 0.95, lod, 0.42, col=0x3a2a1c)
+    C('b', xw + 0.3, 2.1, 0.7, 3.8, 0)
+    b.box(0.6, 2.4, 2.6, xw + 0.3, 1.2, FLR, MAHOG, base=True, mat='timber')
+    for j in range(4): b.box(0.56, 2.3, 0.05, xw + 0.32, 1.2, FLR + 0.3 + j * 0.62, MAHOG_L, base=True)
+    if lod < 2:
+        for j in range(4):
+            for i in range(6 if lod == 0 else 3):
+                yy = 0.1 + (i + 0.5) * 2.2 / (6 if lod == 0 else 3)
+                b.cyl(0.13, 0.13, 0.5, xw + 0.28, yy, FLR + 0.36 + j * 0.62 + 0.13, hexc([0xf2ead6, 0xe6d8b8, 0x8a1c1c, 0x2a6df4, 0xd9c39a][(i + j) % 5], 0.05, rng), n=10, rx=math.pi / 2, rz=math.pi / 2) if False else \
+                b.cyl(0.13, 0.13, 0.5, xw + 0.06, yy, FLR + 0.49 + j * 0.62, hexc([0xf2ead6, 0xe6d8b8, 0x8a1c1c, 0x2a6df4, 0xd9c39a][(i + j) % 5], 0.05, rng), n=10 if lod == 0 else 6, ry=math.pi / 2)
+    C('b', xw + 0.3, -1.2, 0.75, 2.6, 0)
+    yr = 2.9
+    for k in range(3 if lod == 0 else 1): b.torus(0.42 - k * 0.08, 0.07, xw + 0.7, yr, FLR + 0.07 + k * 0.12, 0xd9c39a, n=16, m_=5)
+    if lod == 0:
+        for k in range(3):   # rigging blocks on a rail
+            b.box(0.18, 0.12, 0.28, xw + 0.12, yr - 0.6 + k * 0.6, FLR + 2.2, WOOD, base=True); b.torus(0.06, 0.015, xw + 0.12, yr - 0.6 + k * 0.6, FLR + 2.52, BRASS, n=8, m_=3, rx=math.pi / 2)
+        b.box(0.08, 2.0, 0.08, xw + 0.06, yr, FLR + 2.6, BRASS, base=True)
+    C('c', xw + 0.7, -yr, 0.5)
+    # framed charts in the left wall's gilt panels
+    if lod < 2:
+        for yy in (-3.6, 0.0, 3.6):
+            b.box(0.03, 2.2, 1.4, -xo + 0.08, yy, 4.9, 0xe8d6a8, base=True, mat='none')
+            if lod == 0:
+                for k in range(4): b.box(0.035, 1.6 - k * 0.3, 0.02, -xo + 0.09, yy, 5.2 + k * 0.25, 0x8a6a3a, base=True)
+                b.torus(0.25, 0.015, -xo + 0.1, yy + 0.6, 5.9, 0x8a2a1f, n=12, m_=3, ry=math.pi / 2)
+    # the UPGRADES counter (the shipwright's bench; prompt in front of it)
+    ky = 3.6; kx = -5.5
+    b.box(6.2, 0.9, 0.98, kx, ky, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.4, 1.06, 0.07, kx, ky, FLR + 0.98, MAHOG_L, base=True, mat='timber')
+    b.box(6.24, 0.04, 0.12, kx, ky - 0.47, FLR, BRASS, base=True)
+    b.box(5.8, 0.65, 0.03, kx, ky, FLR + 1.05, 0x8a1c1c, base=True, mat='awning_cloth')
+    if lod == 0:
+        for i in range(6):
+            x = kx - 2.6 + i * 1.04
+            b.box(0.84, 0.03, 0.56, x, ky - 0.46, FLR + 0.24, MAHOG_L, base=True, mat='timber'); b.box(0.7, 0.02, 0.44, x, ky - 0.475, FLR + 0.3, MAHOG, base=True, mat='timber')
+        b.box(6.42, 0.05, 0.04, kx, ky - 0.53, FLR + 1.0, BRASS, base=True)
+    b.cyl(0.13, 0.17, 1.3, kx - 2.0, ky, FLR + 1.2, 0x343b40, n=10, ry=math.pi / 2)
+    for off in (0.6, 1.4, 2.2): b.torus(0.22, 0.045, kx + off, ky, FLR + 1.12, 0xc5a169, n=12, m_=4)
+    b.box(0.6, 0.45, 0.06, kx - 0.4, ky + 0.1, FLR + 1.08, 0x6a1218, base=True, rz=0.1); b.box(0.55, 0.4, 0.03, kx - 0.4, ky + 0.1, FLR + 1.13, 0xf4ead2, base=True, rz=0.1)
+    C('b', kx, -ky, 6.5, 1.15, 0)
+    # behind it: shelving with crates, kegs, chain, a brass wheel over the shelves
+    sy_ = yb - 0.3
+    b.box(6.0, 0.55, 2.4, kx, sy_, FLR, MAHOG, base=True, mat='timber')
+    for j in range(3): b.box(5.9, 0.5, 0.05, kx, sy_ - 0.03, FLR + 0.4 + j * 0.7, MAHOG_L, base=True)
+    if lod < 2:
+        for j in range(3):
+            for i in range(6 if lod == 0 else 3):
+                x = kx - 2.5 + i * 5.0 / (5 if lod == 0 else 2)
+                if (i + j) % 2: crate(b, x, sy_ - 0.05, FLR + 0.45 + j * 0.7, 0.42, lod, rng)
+                else: barrel(b, x, sy_ - 0.05, FLR + 0.45 + j * 0.7, lod, 0.48, col=0x6b4527)
+    b.torus(0.75, 0.06, kx, yb - 0.12, FLR + 3.4, WOOD, n=20 if lod == 0 else 12, m_=5, rx=math.pi / 2)
+    for i in range(8): b.box(0.07, 0.07, 1.9, kx, yb - 0.1, FLR + 3.4, WOOD_D, ry=i * math.pi / 4)
+    b.cyl(0.16, 0.16, 0.14, kx, yb - 0.2, FLR + 3.4, BRASS, n=10, rx=math.pi / 2)
+    C('b', kx, -sy_, 6.1, 0.75, 0)
+    # ========== SHIP SKINS (right half) ==========
+    def case(x, y, wx, wy, hh, L, skin, rz=math.pi / 2, base_h=0.85):
+        b.box(wx, wy, base_h, x, y, FLR, MAHOG, base=True, mat='timber'); b.box(wx + 0.1, wy + 0.1, 0.06, x, y, FLR + base_h, MAHOG_L, base=True, mat='timber')
+        z0 = FLR + base_h + 0.06
+        for sx in (-1, 1):
+            for sy in (-1, 1): b.box(0.04, 0.04, hh, x + sx * (wx / 2 - 0.02), y + sy * (wy / 2 - 0.02), z0, BRASS, base=True)
+        for sy in (-1, 1): b.box(wx, 0.04, 0.04, x, y + sy * (wy / 2 - 0.02), z0 + hh, BRASS, base=True)
+        for sx in (-1, 1): b.box(0.04, wy, 0.04, x + sx * (wx / 2 - 0.02), y, z0 + hh, BRASS, base=True)
+        b.box(wx - 0.05, wy - 0.05, hh, x, y, z0, 0xcfe6ef, base=True, mat=2)
+        b.box(0.3, 0.14, 0.2, x, y, z0, WOOD_D, base=True)
+        hc, sc, tc = skin
+        galleon(b, T(x, y, z0 + 0.2 + L * 0.09, rz=rz), L, hull=hc, sail=sc, trim=tc, flag=0xd8322f if hc != 0x1c1c22 else 0x111111, lod=lod)
+    case(3.25, -4.55, 0.95, 0.8, 1.0, 0.75, SKINS[1], rz=math.pi / 2 + 0.3); C('b', 3.25, 4.55, 1.1, 1.0, 0)
+    case(9.55, -4.45, 0.95, 0.8, 1.0, 0.75, SKINS[3], rz=math.pi / 2 - 0.3); C('b', 9.55, 4.45, 1.1, 1.0, 0)
+    case(7.9, -0.6, 2.4, 1.3, 1.5, 1.85, SKINS[0], rz=math.pi / 2 + 0.2); C('b', 7.9, 0.6, 2.6, 1.5, 0)
+    # a sail-swatch stand: a timber frame with the skins' sail colours hanging in it
+    fx_, fy_ = 3.0, 1.2
+    for s in (-1, 1): b.box(0.1, 0.1, 2.4, fx_ + s * 0.9, fy_, FLR, MAHOG_D, base=True, mat='timber')
+    b.box(1.95, 0.12, 0.1, fx_, fy_, FLR + 2.35, MAHOG_D, base=True)
+    for k, (hc, sc, tc) in enumerate(SKINS):
+        b.box(0.26, 0.03, 1.5, fx_ - 0.75 + k * 0.3, fy_, FLR + 0.8, sc if k % 2 == 0 else hc, base=True, mat='awning_cloth')
+        if lod == 0: b.box(0.26, 0.035, 0.08, fx_ - 0.75 + k * 0.3, fy_, FLR + 0.8, tc, base=True)
+    C('b', fx_, -fy_, 2.1, 0.5, 0)
+    # the skins wall (right): three lit shadow-box shelves of galleons in every colourway + swatch banners over them
+    xw = xo
+    for row in range(3):
+        z = FLR + 1.0 + row * 0.95
+        b.box(0.6, 5.8, 0.06, xw - 0.3, -0.8, z, MAHOG_L, base=True, mat='timber')
+        if lod == 0:
+            for yy in (-3.5, -0.8, 1.9): b.box(0.3, 0.05, 0.25, xw - 0.15, yy, z - 0.25, GOLD, base=True)
+        n = 6 if lod == 0 else 3
+        for i in range(n):
+            hc, sc, tc = SKINS[(i + row * 2) % 6]; yy = -3.35 + i * 5.1 / (n - 1)
+            b.box(0.1, 0.18, 0.08, xw - 0.32, yy, z + 0.06, WOOD_D, base=True)
+            galleon(b, T(xw - 0.32, yy, z + 0.06 + 0.1 + 0.6 * 0.07, rz=math.pi), 0.62, hull=hc, sail=sc, trim=tc, lod=lod)
+    b.box(0.04, 6.0, 3.1, xw - 0.02, -0.8, FLR + 0.85, NAVY, base=True)
+    b.box(0.5, 5.8, 0.85, xw - 0.25, -0.8, FLR, MAHOG, base=True, mat='timber')
+    C('b', xw - 0.3, 0.8, 0.75, 6.0, 0)
+    # skin portraits in the right wall's gilt panels: a galleon on a sea-blue ground in each
+    if lod < 2:
+        for k, yy in enumerate((-3.6, 0.0, 3.6)):
+            b.box(0.03, 2.2, 1.6, xo - 0.08, yy, 4.8, 0x2a6a8a, base=True, mat='none')
+            if lod == 0: galleon(b, T(xo - 0.2, yy, 5.25, rz=0), 1.1, hull=SKINS[k * 2][0], sail=SKINS[k * 2][1], trim=SKINS[k * 2][2], lod=lod)
+    # the SHIP SKINS counter + model ships behind it
+    kx = 6.0
+    b.box(6.2, 0.9, 0.98, kx, ky, FLR, MAHOG, base=True, mat='timber')
+    b.box(6.4, 1.06, 0.07, kx, ky, FLR + 0.98, MAHOG_L, base=True, mat='timber')
+    b.box(6.24, 0.04, 0.12, kx, ky - 0.47, FLR, BRASS, base=True)
+    b.box(5.8, 0.65, 0.03, kx, ky, FLR + 1.05, 0x2a6df4, base=True, mat='awning_cloth')
+    if lod == 0:
+        for i in range(6):
+            x = kx - 2.6 + i * 1.04
+            b.box(0.84, 0.03, 0.56, x, ky - 0.46, FLR + 0.24, MAHOG_L, base=True, mat='timber'); b.box(0.7, 0.02, 0.44, x, ky - 0.475, FLR + 0.3, MAHOG, base=True, mat='timber')
+        b.box(6.42, 0.05, 0.04, kx, ky - 0.53, FLR + 1.0, BRASS, base=True)
+    bx_, by_, bz_ = kx + 1.6, ky, FLR + 1.08   # ship in a bottle
+    b.box(0.6, 0.18, 0.06, bx_, by_, bz_, WOOD_D, base=True)
+    galleon(b, T(bx_, by_, bz_ + 0.16, rz=math.pi / 2), 0.36, lod=lod)
+    b.cyl(0.13, 0.13, 0.5, bx_ - 0.25, by_, bz_ + 0.16, 0x9fdcc0, n=12, ry=math.pi / 2, mat=2)
+    b.cyl(0.05, 0.05, 0.16, bx_ + 0.25, by_, bz_ + 0.16, 0x9fdcc0, n=8, ry=math.pi / 2, mat=2)
+    for k in range(5): b.box(0.5, 0.36, 0.03, kx - 1.8 + k * 0.08, ky + 0.05, bz_ + k * 0.03, [0x8a1c1c, 0xd4a017, 0x2f6f4f, 0x3b2a5a, 0x1f3d7a][k], base=True, rz=0.15 * k)   # swatch book
+    C('b', kx, -ky, 6.5, 1.15, 0)
+    b.box(6.0, 0.55, 2.4, kx, sy_, FLR, MAHOG, base=True, mat='timber')
+    for j in range(3): b.box(5.9, 0.5, 0.05, kx, sy_ - 0.03, FLR + 0.4 + j * 0.7, MAHOG_L, base=True)
+    for j in range(3):
+        for i in range(5 if lod == 0 else 2):
+            x = kx - 2.3 + i * 4.6 / (4 if lod == 0 else 1); hc, sc, tc = SKINS[(i + j * 2) % 6]
+            galleon(b, T(x, sy_ - 0.05, FLR + 0.45 + j * 0.7 + 0.04, rz=math.pi / 2), 0.55, hull=hc, sail=sc, trim=tc, lod=lod)
+    C('b', kx, -sy_, 6.1, 0.75, 0)
+    # ========== the centre: the hero galleon under glass on a round dais between the two counters ==========
+    dx, dy = 0.25, 4.25
+    plinth(b, dx, dy, 1.0, lod, top=0.35, velvet=True)
+    b.cyl(0.72, 0.72, 0.6, dx, dy, 0.35, MAHOG, n=20 if lod == 0 else 12); b.torus(0.72, 0.03, dx, dy, 0.95, GOLD, n=20, m_=4)
+    b.cyl(0.68, 0.68, 1.5, dx, dy, 0.97, 0xcfe6ef, n=20 if lod == 0 else 12, mat=2)
+    b.torus(0.69, 0.035, dx, dy, 2.47, GOLD, n=20, m_=4); b.sphere(0.12, dx, dy, 2.52, GOLD, sub=1)
+    galleon(b, T(dx, dy, 0.97 + 0.25 + 1.2 * 0.09, rz=math.pi / 2 + 0.5), 1.2, hull=0x5e3b20, sail=0xf2ead6, trim=GOLD, lod=lod)
+    C('c', dx, -dy, 1.05)
+    # brass-banded tub planters with palms in the front corners
+    if lod == 0:
+        for sd in (-1, 1):
+            px, py = sd * (xo - 0.5), ya + 0.5
+            if sd > 0: py = ya + 0.5
+            barrel(b, px, py, FLR, lod, 0.55, col=0x5e3b20)
+            for k in range(7):
+                a = k * 2 * math.pi / 7; b.box(0.8, 0.18, 0.03, px + math.cos(a) * 0.36, py + math.sin(a) * 0.36, FLR + 1.05 - 0.1 * (k % 2), hexc(0x2f7a3a, 0.08, rng), rz=a, ry=0.45)
+            b.cyl(0.03, 0.04, 0.5, px, py, FLR + 0.55, 0x5a3a1a, n=5)
+
 INTERIOR = dict(shop_clothes=clothes, shop_pets=pets, shop_ships=ships, shop_upgrades=upgrades, shop_crew=crew)
 
 # ---------------- build + export ----------------
@@ -1189,6 +1497,7 @@ MATS = mats()
 REPORT = {}; COLL = bpy.data.collections.new('shops'); bpy.context.scene.collection.children.link(COLL)
 def overlap(a, b, pad=0.0): return all(a[1][i] < b[2][i] - pad and b[1][i] < a[2][i] - pad for i in range(3))
 for sh in SHOPS:
+    CEIL = sh.get('ceil', 5.2)   # [ship-aaa] module global read by the room / chandelier / sign helpers (the ship hall is 8.6 m)
     root = bpy.data.objects.new(sh['id'], None); COLL.objects.link(root); cols = []; rep = {}
     for lod in (0, 1, 2):
         rng = np.random.default_rng(hash(sh['id']) % 1000 + lod); random.seed(1)
@@ -1199,7 +1508,8 @@ for sh in SHOPS:
         bd.append(b.tris())
         if lod < 2 and not sh.get('plain'):
             market_props(b, sh, lod, rng, cols if lod == 0 else [])
-            if sh.get('combo'): clothes_aaa(b, sh, lod, rng, cols if lod == 0 else [], xo=-5.0); accessories_aaa(b, sh, lod, rng, cols if lod == 0 else [], xo=5.0)   # [outfit-store]
+            if sh.get('ship'): ship_aaa(b, sh, lod, rng, cols if lod == 0 else [])   # [ship-aaa]
+            elif sh.get('combo'): clothes_aaa(b, sh, lod, rng, cols if lod == 0 else [], xo=-5.0); accessories_aaa(b, sh, lod, rng, cols if lod == 0 else [], xo=5.0)   # [outfit-store]
             elif sh.get('deep'): clothes_aaa(b, sh, lod, rng, cols if lod == 0 else [])   # [clothes-aaa]
             else: INTERIOR[sh['id']](b, sh, lod, rng)
         bd.append(b.tris()); rep[f'LOD{lod}_split shell/front/signs/interior'] = [bd[0], bd[1] - bd[0], bd[2] - bd[1], bd[3] - bd[2]]

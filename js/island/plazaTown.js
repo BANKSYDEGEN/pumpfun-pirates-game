@@ -97,7 +97,7 @@ export const STOREFRONTS = [
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: 32, w: 10, mapHidden: true, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', mapHidden: true, lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
-].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }), ...(OUTFIT_STORE.areas.some(a => a.id === s.id) ? { depth: OUTFIT_STORE.depth, promptLz: OUTFIT_STORE.promptLz, mapHidden: true, part: OUTFIT_STORE.id } : {}) }));   // [v250] mid-floor prompt; [outfit-store] two vendors, one building + one map pin; [v254] outside shops: street prompt lz+3.8 + solid footprint
+].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }), ...(OUTFIT_STORE.areas.some(a => a.id === s.id) ? { depth: OUTFIT_STORE.depth, promptLz: OUTFIT_STORE.promptLz, mapHidden: true, part: OUTFIT_STORE.id } : {}), ...(SHIP_STORE.counters.some(c => c.id === s.id) ? { depth: SHIP_STORE.depth, promptLz: SHIP_STORE.promptLz } : {}) }));   // [v250] mid-floor prompt; [outfit-store] two vendors, one building + one map pin; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
 export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
@@ -363,14 +363,16 @@ export function buildPlazaV2(h) {
   // [outfit-store] Clothes + Accessories: one Blender building (GLB node 'shop_clothes') on both former plots, two arches, a middle wall
   // with an archway; both counters' colliders + the props ride in the GLB extras (building frame, relative to OUTFIT_STORE.lx).
   // Shared materials only: no lights, textures, canvases or extra WebGL contexts.
+  // [clothes-aaa] one indoor camera box (town-local room box -> foot-world frame)
+  function camRoom(R, ceil) { const mx = (R.lx0 + R.lx1) / 2, mz = (R.lz0 + R.lz1) / 2, [x, z] = T(mx, mz), [ex, ez] = T(mx + 1, mz), [fx, fz] = T(mx, mz + 1);
+    CAM_ROOMS.push({ id: R.id, x, z, ux: ex - x, uz: ez - z, vx: fx - x, vz: fz - z, hw: (R.lx1 - R.lx0) / 2, hd: (R.lz1 - R.lz0) / 2, y0: Y0, ceil: Y0 + ceil }); }
   function outfitStore() {
     const S = OUTFIT_STORE, glb = SHOPS_KIT && SHOPS_KIT.shops.shop_clothes;
     if (glb) {
       { const [x, z] = T(S.lx, cz); SHOP_PLACES.push({ id: 'shop_clothes', m: M(x, Y0, z, yaw0) }); }
       for (const [lx, lz, a, b] of outfitWalls()) addBox(...T(lx, lz), a, b, yaw0);
       for (const c of glb.colliders) { const [x, z] = T(S.lx + c[1], cz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
-      for (const R of outfitRooms()) { const mx = (R.lx0 + R.lx1) / 2, mz = (R.lz0 + R.lz1) / 2, [x, z] = T(mx, mz), [ex, ez] = T(mx + 1, mz), [fx, fz] = T(mx, mz + 1);
-        CAM_ROOMS.push({ id: R.id, x, z, ux: ex - x, uz: ez - z, vx: fx - x, vz: fz - z, hw: (R.lx1 - R.lx0) / 2, hd: (R.lz1 - R.lz0) / 2, y0: Y0, ceil: Y0 + S.ceil }); }
+      for (const R of outfitRooms()) camRoom(R, S.ceil);
     } else {   // &shopsglb=0 / GLB failed: the plain 12 m house on the same footprint, one wide door (both prompts r 3.4 reach inside)
       stoneHouse(S.lx, S.w, 3, 0, { shop: true, hollow: true, openGround: true });
       shopWalkInCols({ lx: S.lx, w: S.w });
@@ -380,7 +382,9 @@ export function buildPlazaV2(h) {
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
   SHIP_STORE_PLACES.length = 0;
-  buildShipStore(h, { stoneHouse, shopWalkInCols, sign });
+  // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
+  buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,
+    place: (lx, lz) => { const [x, z] = T(lx, lz); SHOP_PLACES.push({ id: SHIP_STORE.id, m: M(x, Y0, z, yaw0) }); } });
   { const [x, z] = T(SHIP_STORE.lx, SHIP_STORE.lz); SHIP_STORE_PLACES.push(M(x, Y0, z, yaw0)); }
   outfitStore();
   for (const s of STOREFRONTS) {

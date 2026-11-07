@@ -8,8 +8,8 @@
 import * as THREE from 'three';
 export const MALE_SHOP_DISPLAYS = {
   ship_store: [
-    { x: -5.5, z: -3.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'shirt', hat: 'none' } },
-    { x: 6, z: -3.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'suit', hat: 'none' } },
+    { x: -5.5, z: -4.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'shirt', hat: 'none' } },   // [ship-aaa] behind the hall's counters (lz -39.6)
+    { x: 6, z: -4.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'suit', hat: 'none' } },
   ],
   // [clothes-aaa] the walk-in clothes shop (building frame: x across, z = toward the street, front wall z = +6, back wall z = -12);
   // [outfit-store] the building is Clothes + Accessories now (centre lx -44): the CLOTHING area is the left half (x -9.5 .. -0.5),

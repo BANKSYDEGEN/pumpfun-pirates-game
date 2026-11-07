@@ -7,7 +7,7 @@
 // &shopsglb=0 = the procedural blockout shells (also the fallback if the GLB fails to load).
 import * as THREE from 'three';
 import { addMaleShopDisplays } from './plazaMannequins.js';
-import { clothesSurface, clothesLookSetup } from './clothesLook.js';   // [clothes-aaa] the walk-in clothes shop's painted light
+import { clothesSurface, clothesLookSetup, shipSurface, shipLookSetup } from './clothesLook.js';   // [clothes-aaa] the walk-in clothes shop's painted light
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -99,15 +99,17 @@ export function plazaShopsReady(low, renderer = null) {
     const glass = new THREE.MeshBasicMaterial({ color: 0xd8eef6, transparent: true, opacity: 0.22, depthWrite: false }); glass.name = 'plaza_shops_glass';
     // [clothes-aaa] the clothes shop gets its own copy of the solid material (painted interior light, js/island/clothesLook.js)
     const clothesSolid = clothesSurface(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low)); clothesSolid.name = 'plaza_shops_solid';
-    const pick = (m, id) => /glow/.test(m.name) ? glow : /glass/.test(m.name) ? glass : id === 'shop_clothes' ? clothesSolid : solid;
+    const shipSolid = shipSurface(libMaterial(new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: softRamp() }), low)); shipSolid.name = 'plaza_shops_solid';   // [ship-aaa] the SHIP STORE hall's painted light
+    const pick = (m, id) => /glow/.test(m.name) ? glow : /glass/.test(m.name) ? glass : id === 'shop_clothes' ? clothesSolid : id === 'ship_store' ? shipSolid : solid;
     const shops = {};
     gl.scene.updateMatrixWorld(true); const inv = new THREE.Matrix4(), rel = new THREE.Matrix4();
-    gl.scene.traverse(o => { if (!/^(shop|house)_[a-z]+$/.test(o.name) || o.isMesh) return; inv.copy(o.matrixWorld).invert();
+    gl.scene.traverse(o => { if (!/^(shop|house|ship)_[a-z]+$/.test(o.name) || o.isMesh) return;   // [ship-aaa] + ship_store
+      inv.copy(o.matrixWorld).invert();
       const ex = o.userData || {}, lods = [];
       for (const c of o.children) { const lv = +(/_LOD(\d)$/.exec(c.name) || [])[1]; if (isNaN(lv)) continue;
         const g = new THREE.Group(); g.name = c.name;
         c.traverse(mm => { if (!mm.isMesh) return; const mesh = new THREE.Mesh(mm.geometry, pick(mm.material, o.name)); rel.multiplyMatrices(inv, mm.matrixWorld).decompose(mesh.position, mesh.quaternion, mesh.scale); mesh.name = c.name + '_' + mesh.material.name.replace('plaza_shops_', '');
-          mesh.castShadow = !low && (mesh.material === solid || mesh.material === clothesSolid); mesh.receiveShadow = !low && (mesh.material === solid || mesh.material === clothesSolid); if (mesh.material === glass) mesh.renderOrder = 2; g.add(mesh); });
+          mesh.castShadow = !low && (mesh.material === solid || mesh.material === clothesSolid || mesh.material === shipSolid); mesh.receiveShadow = !low && (mesh.material === solid || mesh.material === clothesSolid || mesh.material === shipSolid); if (mesh.material === glass) mesh.renderOrder = 2; g.add(mesh); });
         lods[low ? lv - 1 : lv] = g; }
       let cols = []; try { cols = JSON.parse(ex.colliders || '[]'); } catch (e) { /* none */ }
       shops[o.name] = { lods: lods.filter(Boolean), colliders: cols }; });
@@ -130,7 +132,8 @@ export function buildPlazaShops() {
     s.lods.forEach((g, i) => { lod.addLevel(g, d[i] ?? d[d.length - 1] + 80 * i); });
     s.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
     const look = id === 'shop_clothes' ? clothesSurface : null;   // [clothes-aaa] the blank forms + their garments share the room's light
-    addMaleShopDisplays(lod, id, SHOPS_KIT.low, look); if (look) clothesLookSetup(lod);
+    if (id === 'ship_store') shipLookSetup(lod);   // [ship-aaa] its keepers ride in SHIP_STORE_PLACES (below)
+    else { addMaleShopDisplays(lod, id, SHOPS_KIT.low, look); if (look) clothesLookSetup(lod); }
     root.add(lod); }
   if (DOCKS_KIT) { const dd = DOCKS_KIT.low ? [0] : [0, 70];
     for (const { i, m } of DOCK_PLACES) { const c = DOCKS_KIT.chunks[i], lod = new THREE.LOD(); lod.name = 'plaza_' + c.name; m.decompose(lod.position, lod.quaternion, lod.scale);

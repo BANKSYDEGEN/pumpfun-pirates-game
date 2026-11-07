@@ -12,9 +12,9 @@ await MeshoptEncoder.ready; await MeshoptDecoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 const doc = await io.read(oldF), src = await io.read(newF);
 const kill = (n) => { for (const c of n.listChildren()) kill(c); n.dispose(); };
-const oldRoot = doc.getRoot().listNodes().find(n => n.getName() === id); if (!oldRoot) throw new Error('no ' + id + ' in ' + oldF);
-const scene = doc.getRoot().listScenes()[0], parent = oldRoot.getParentNode();
-kill(oldRoot);
+const oldRoot = doc.getRoot().listNodes().find(n => n.getName() === id);   // [ship-aaa] absent = a brand-new shop node: just add it
+const scene = doc.getRoot().listScenes()[0], parent = oldRoot ? oldRoot.getParentNode() : null;
+if (oldRoot) kill(oldRoot);
 // DROP=a,b: also remove whole shop subtrees that left the game ([outfit-store] the old standalone CREW / Accessories building)
 for (const d of (process.env.DROP || '').split(',').filter(Boolean)) { const n = doc.getRoot().listNodes().find(n => n.getName() === d && !n.getParentNode()); if (n) kill(n); }
 // keep only the wanted subtree in the fresh doc, then merge it in
