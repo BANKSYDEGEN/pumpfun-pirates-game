@@ -1,4 +1,5 @@
 import { V7M_FITS, V7M_SKIP } from './v7mFitData.js';
+export const V7F_PAINT = { facepaint_retardio: { hi: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_hi.glb', lo: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_lo.glb' } };   // [v7f paint] V7 female face paints (tools/v7f_paint/), built from her own face
 export const V7M_PAINT = { facepaint_retardio: 'assets/pirates/items/v7m_paint/facepaint_retardio_male.glb' };   // [v7m paint] restored V7 male face paints (tools/v7m_paint/) // [v381] restored V7 male gear refits
 // [Raul] PUMPFUN PIRATES shop cosmetics for the v4 Blender pirates (js/pirateGLB.js). Built by tools/blender/build_items.py into
 // assets/pirates/items/item_<id>[_<base>]_{hi,lo}.glb. Each item = ONE mesh + ONE material (+1 draw call at High and Low):
@@ -429,6 +430,8 @@ async function build(p, def, opts) {
   // [v381] the restored V7 male wears his native-space refit (no second v4->v5 warp); V7M_SKIP items keep the old path for now
   // [v7m paint] BANKSY "Redo the retardio face paint on v7 characters" (male): his own skin-mapped shell (body topology + weights, painted map,
   // alpha-masked to his skin texels: hair / beard / brows / eyes stay his) instead of the refit v5 mask. Male V7 only; female + v5 unchanged.
+  // [v7f paint] BANKSY t433u "Do v7 girl face paint too": her own skin-mapped shell (hi / lo each from that body), same Retardio design
+  if (p.female && p.v7 && V7F_PAINT[def.id]) return buildV5(p, {...def, v5:{female:V7F_PAINT[def.id]}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_PAINT[def.id]) { const u = V7M_PAINT[def.id];
     return buildV5(p, {...def, v5:{male:{hi:u,lo:u}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names); }
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
