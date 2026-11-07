@@ -195,9 +195,9 @@ export const V7M_FITS = {
     "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
   },
   "earring_skull": {
-    "hi": "assets/pirates/items/v7m_fit/earring_skull_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/earring_skull_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/earring_skull_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/earring_skull_male_lo.glb",
+    "qaStatus": "LOBE_SEATED_LOCAL_GAME_V411_IDLE_RUN_CANNON_REVIEW_PENDING"
   },
   "sailor_trousers": {
     "hi": "assets/pirates/items/v7m_fit/sailor_trousers_male_hi.glb",
@@ -225,9 +225,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "earring_double": {
-    "hi": "assets/pirates/items/v7m_fit/earring_double_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/earring_double_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/earring_double_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/earring_double_male_lo.glb",
+    "qaStatus": "LOBE_SEATED_LOCAL_GAME_V411_IDLE_RUN_CANNON_REVIEW_PENDING"
   },
   "sandals": {
     "hi": "assets/pirates/items/v7m_fit/sandals_male_hi.glb",
@@ -240,9 +240,9 @@ export const V7M_FITS = {
     "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "earring_hoop": {
-    "hi": "assets/pirates/items/v7m_fit/earring_hoop_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/earring_hoop_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/earring_hoop_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/earring_hoop_male_lo.glb",
+    "qaStatus": "LOBE_SEATED_LOCAL_GAME_V411_IDLE_RUN_CANNON_REVIEW_PENDING"
   },
   "hat_tricorn": {
     "hi": "assets/pirates/items/v7m_fit/hat_tricorn_male_hi.glb",
