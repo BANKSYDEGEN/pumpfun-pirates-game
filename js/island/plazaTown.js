@@ -1,3 +1,4 @@
+import { SHIP_STORE, buildShipStore } from './shipStore.js';
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
 // look ref brand/requests/plaza_ref/port_royal_hero_banksy.jpg ("Like that"). Behind ?plaza=2: without the flag nothing here
 // runs and the v103 plaza + the 7 old berths are untouched. (&pvships=1 adds the ship-footprint boxes for layout review.)
@@ -24,7 +25,7 @@
 import * as THREE from 'three';
 import { ON_PORTAL } from '../config.js';
 import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v240] kill switches: &tokenx=1 kiosk, &hallboards=1 hall posters + TRENDING row
-import { SHOPS_KIT, SHOP_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
+import { SHOPS_KIT, SHOP_PLACES, SHIP_STORE_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
@@ -72,15 +73,15 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // hollow wall colliders (door gap), prompt on the shop floor (promptLz), not the street. vendor = js/shopCatalog.js VENDORS id.
 // [v254] BANKSY 9:33 PM 'Move the crew shop, upgrade shop, pet shop, clothing store back outside cuz can't go inside those':
 // Clothes / Pets / Upgrade / Crew go back outside (street prompt + solid footprint). [shipshop-fix] Ship too: walk-in was blocked by the GLB counter / awning-post colliders at the door (same as the four).
-export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_ships', 'shop_upgrades']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
+export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
 export const ACCESSORIES_ROOM = Object.freeze({ counter: Object.freeze({ x: 0, z: -1.6, w: 5.4, d: 1.1 }), promptLz: FACADE_LZ - 5.5 });
 // Swap the complete fitted storefronts, not only their prompts: baked cages, keeper, signs,
 // colliders and accessory racks follow the same ID/anchor used by layout and both maps.
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · TOPS, PANTS, SHOES' },
   { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -10, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
-  { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: 32, w: 10, modelScaleX: 10 / 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
-  { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
+  { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: 32, w: 10, mapHidden: true, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
+  { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', mapHidden: true, lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
 ].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }) }));   // [v250] mid-floor prompt; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
@@ -159,7 +160,8 @@ export function harborParts(L, yawW) {
 
 // sign labels: one canvas (brand font, carved boards, skull on the hanging ones) + one merged plane mesh
 export function signList() {
-  const S = STOREFRONTS.map(s => ({ key: s.id, text: s.name, col: '#ffcd77', bg: '#5a3219', skull: true }));
+  const S = STOREFRONTS.map(s => ({ key: s.id, text: s.id === 'shop_ships' ? 'SHIP SKINS' : s.id === 'shop_upgrades' ? 'SHIP UPGRADES' : s.name, col: '#ffcd77', bg: '#5a3219', skull: true }));
+  S.push({ key: SHIP_STORE.id, text: 'SHIP STORE', col: '#ffcd77', bg: '#243a54', skull: true });
   S.push({ key: 'market', text: 'MARKETPLACE', col: '#ffcd77', bg: '#5a3219', big: true, skull: true }, { key: 'fishmarket', text: 'FISH MARKET', col: '#ffffff', bg: '#14557d', big: true }); // [v240]
   if (!ON_PORTAL && HALL_BOARDS_ON) { S.push({ key: 'tok_HQ', text: '$HQ', col: '#ffcd77', bg: '#161616', big: true }, { key: 'tok_RETARDIO', text: '$RETARDIO', col: '#ffcd77', bg: '#161616', big: true });
     for (let i = 0; i < TRENDING.n; i++) S.push({ key: 'trend' + i, text: 'TRENDING #' + (i + 1), col: '#7cff6b', bg: '#161616' }); }
@@ -376,7 +378,11 @@ export function buildPlazaV2(h) {
     hanging(s.id, s.lx, s.w);
   }
   SHOP_PLACES.length = 0;
+  SHIP_STORE_PLACES.length = 0;
+  buildShipStore(h, { stoneHouse, shopWalkInCols, sign });
+  { const [x, z] = T(SHIP_STORE.lx, SHIP_STORE.lz); SHIP_STORE_PLACES.push(M(x, Y0, z, yaw0)); }
   for (const s of STOREFRONTS) {
+    if (s.id === 'shop_ships' || s.id === 'shop_upgrades') continue; // combined shell above, never attach old baked storefronts
     if (s.vendor === 'accessories') { accessoriesRoom(s); continue; } // skip old crew GLB, exterior stands, signage and mannequin
     const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
     if (glb) {   // [v250] Blender model already has open arch + interior; hollow walls + prop / awning-post colliders (no solid footprint)

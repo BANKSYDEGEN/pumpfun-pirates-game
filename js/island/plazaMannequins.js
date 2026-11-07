@@ -2,6 +2,10 @@
 // The old merged wooden male forms are removed from plaza_shops*.glb; stands and female forms stay.
 import * as THREE from 'three';
 export const MALE_SHOP_DISPLAYS = {
+  ship_store: [
+    { x: -5.5, z: -3.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'shirt', hat: 'none' } },
+    { x: 6, z: -3.5, y: 0, scale: 2, yaw: 0, gear: { outfit: 'suit', hat: 'none' } },
+  ],
   shop_clothes: [
     { x: -2.6, z: 4.6, yaw: .25, gear: { outfit: 'shirt', hat: 'none' } },
     { x: 2.6, z: 4.6, yaw: -.25, gear: { outfit: 'tshirt', hat: 'none' } },
@@ -18,7 +22,7 @@ export function addMaleShopDisplays(parent, id, low = false) {
     const p = await PirateGLB.create({ lod: 'lo', female: !!d.female });
     await applyGear(p, { ...d.gear, body: d.female ? 1 : 0, pants: 'classic_pants', boots: 'boots_classic' });
     p.mixer.setTime(.35); p.root.name = 'v7_mannequin_' + id + '_' + i;
-    p.root.position.set(d.x, .718, d.z); p.root.rotation.y = d.yaw; p.root.scale.setScalar(1.3);
+    p.root.position.set(d.x, d.y ?? .718, d.z); p.root.rotation.y = d.yaw; p.root.scale.setScalar(d.scale ?? 1.3);
     p.root.traverse(o => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
     group.add(p.root); return p;
   })));

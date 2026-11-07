@@ -18,6 +18,7 @@ import { initLib, libMaterial } from './libTex.js';      // [Timothy] the shared
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 export const SHOPS_GLB_ON = !(Q && Q.get('shopsglb') === '0');
 export let SHOPS_KIT = null;                 // { low, shops: { id: { lods: [Group...], colliders: [[kind, x, z, r | w, d]] } } }
+export const SHIP_STORE_PLACES = []; // combined store's two V7 shopkeepers, placed by plazaTown
 export const SHOP_PLACES = [];               // [{ id, m: Matrix4 }] filled by plazaTown.buildPlazaV2 (foot-world frame)
 let _p = null;
 // LOD switch distances (m): desktop LOD0 / LOD1 / LOD2, phones LOD1 / LOD2
@@ -119,8 +120,8 @@ function withCasino(hill) { const c = buildCasino(); if (!c) return hill; if (!h
 // one THREE.LOD per storefront placed by SHOP_PLACES (call after buildPlazaV2)
 export function buildPlazaShops() {
   const hill = withCasino(buildHill());   // [Timothy] the hill street buildings (null = the colonial houses) + the casino hall
-  if ((!SHOPS_KIT || !SHOP_PLACES.length) && !DOCK_PLACES.length) return hill;
-  const root = new THREE.Group(); root.name = 'plaza_v2_shops'; const d = SHOPS_KIT.low ? DIST.low : DIST.high; let tris = 0; if (hill) root.add(hill);
+  if ((!SHOPS_KIT || !SHOP_PLACES.length) && !DOCK_PLACES.length && !SHIP_STORE_PLACES.length) return hill;
+  const root = new THREE.Group(); root.name = 'plaza_v2_shops'; const d = SHOPS_KIT?.low ? DIST.low : DIST.high; let tris = 0; if (hill) root.add(hill);
   for (const { id, m } of SHOPS_KIT ? SHOP_PLACES : []) { const s = SHOPS_KIT.shops[id]; if (!s) continue;
     const lod = new THREE.LOD(); lod.name = 'plaza_' + id; m.decompose(lod.position, lod.quaternion, lod.scale);
     s.lods.forEach((g, i) => { lod.addLevel(g, d[i] ?? d[d.length - 1] + 80 * i); });
@@ -130,6 +131,7 @@ export function buildPlazaShops() {
   if (DOCKS_KIT) { const dd = DOCKS_KIT.low ? [0] : [0, 70];
     for (const { i, m } of DOCK_PLACES) { const c = DOCKS_KIT.chunks[i], lod = new THREE.LOD(); lod.name = 'plaza_' + c.name; m.decompose(lod.position, lod.quaternion, lod.scale);
       c.lods.forEach((g, k) => lod.addLevel(g, dd[k] ?? 70 * k)); root.add(lod); } }
+  for (const m of SHIP_STORE_PLACES) { const group = new THREE.Group(); group.name = 'ship_store_keepers'; m.decompose(group.position, group.quaternion, group.scale); addMaleShopDisplays(group, 'ship_store', SHOPS_KIT?.low); root.add(group); }
   root.userData.tris = tris;
   return root;
 }

@@ -76,7 +76,7 @@ export async function coastLayout() {
   // [v103] the old HARBOR MARKET: CLOTHES SHOP + SHIP SKINS / UPGRADES shops and the three token billboards (foot.js PLAZA_*)
   for (const sp of (FM.PLAZA_SHOPS_ON || FM.PLAZA_SHOPS)) { if (!sp.vendor && !sp.soon) continue;
     const [x, z] = L(sp.lx, sp.promptLz != null ? sp.promptLz : sp.lz + 3.8); // [v250] walk-in: STOREFRONTS.promptLz on the shop floor; old v1 plaza keeps street lz+3.8
-    interact.push(sp.vendor ? { id: sp.id, kind: 'shop', vendor: sp.vendor, slot: sp.slot, open: sp.open, x, z, r: 3.4, label: sp.label } : { id: sp.id, kind: 'soon', x, z, r: 3.4, label: sp.soon }); }
+    interact.push(sp.vendor ? { id: sp.id, kind: 'shop', vendor: sp.vendor, slot: sp.slot, open: sp.open, ...(sp.mapHidden ? { mapHidden: true } : {}), x, z, r: 3.4, label: sp.label } : { id: sp.id, kind: 'soon', x, z, r: 3.4, label: sp.soon }); }
   for (const tb of (FM.PLAZA_TOKENS_ON || FM.PLAZA_TOKENS)) { const [x, z] = L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: (FM.PLAZA_TOKENS_TITLE?.[tb.sym] || '$' + tb.sym) + ' · CA + CHART' }); }
   // Timothy's SHOP door + the red / blue stalls: foot.js fills SHOP_SPOTS while it builds the street (createFoot), so world.js
   // calls this right after

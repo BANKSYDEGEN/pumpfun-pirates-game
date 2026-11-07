@@ -1,3 +1,4 @@
+import { SHIP_STORE } from './island/shipStore.js';
 // [minimap-themes] BANKSY 2026-11-04 10:34 AM: "update the treasure map and real map based on new locations".
 //   One list of map landmarks for the radar, the full island map and the treasure chart, read from the same data the island
 //   builds from, so a moved shop or area moves on the maps too. Foot frame (north = -z). Icons: js/mapIcons.js.
@@ -16,6 +17,7 @@ const ROW_LZ = -36; // plaza storefront row (town-local lz -30 .. -42, plazaTown
 const MMICONS_LEGACY = typeof location !== 'undefined' && /[?&]mmicons=0(?:&|$)/.test(location.search);
 // [id, icon, label, frame, x, z, far]: frame 'town' = coast.js town-local (lx, lz), 'foot' = foot frame. far = landmark (not a town POI)
 const LIST_LEGACY = () => [
+  [SHIP_STORE.id, SHIP_STORE.id, 'SHIP STORE', 'town', SHIP_STORE.lx, SHIP_STORE.lz],
   ['sword_shop', 'sword_shop', 'SWORD SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'sword_shop')?.lz],
   ['musket_shop', 'musket_shop', 'MUSKET SHOP', 'town', MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lx, MAIN_ST_SHOPS.find(s => s.id === 'musket_shop')?.lz],
   ...['shop_pets', 'shop_crew'].map(id => { const s = STOREFRONTS.find(q => q.id === id); return s ? [id, id, s.name, 'town', s.lx, ROW_LZ] : null; }),
@@ -30,6 +32,7 @@ const LIST_LEGACY = () => [
 ].filter(Boolean).filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 // Default: no shop rows that layout.interact / battle already register (pets, crew, sword, musket). Landmarks only.
 const LIST = () => [
+  [SHIP_STORE.id, SHIP_STORE.id, 'SHIP STORE', 'town', SHIP_STORE.lx, SHIP_STORE.lz],
   ['castle', 'castle', 'CROWN CITADEL', 'town', FORT.lx, FORT.lz, true],
   ['battery', 'fort', 'CANNON HEADLAND', 'town', BATTERY.lx, BATTERY.lz, true],
   ['sword_pit', 'battle', 'SWORD PIT', 'town', PIT.lx, PIT.lz, true],

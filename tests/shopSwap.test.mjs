@@ -6,10 +6,10 @@ test('approved five-shop row and permanent physical building numbers agree',()=>
  assert.deepEqual(row.map(s=>s.id),['shop_clothes','shop_crew','shop_pets','shop_upgrades','shop_ships']);
  assert.deepEqual(row.map(s=>s.lx),[-49,-38.5,-10,20.5,32]);
  const buildings=JSON.parse(readFileSync(new URL('../assets/island/building_numbers.json',import.meta.url))).buildings;
- for(const s of row){const b=buildings.find(b=>b.id===s.id);assert.equal(b.lx,s.lx);assert.equal(b.w,s.w);assert.equal(b.z,s.lx-90);}
+ for(const s of row.filter(s=>!['shop_upgrades','shop_ships'].includes(s.id))){const b=buildings.find(b=>b.id===s.id);assert.equal(b.lx,s.lx);assert.equal(b.w,s.w);assert.equal(b.z,s.lx-90);}
  assert.equal(buildings.find(b=>b.id==='shop_crew').n,2);assert.equal(buildings.find(b=>b.id==='shop_pets').n,4);assert.equal(buildings.find(b=>b.id==='shop_ships').n,6);
  assert.equal(row[1].walkIn,true);assert.ok(!SHOPS_OUTSIDE.has(row[1].id));
- assert.equal(row[4].w,10);assert.equal(row[4].modelScaleX,10/12,'complete ship model fits its new 10m lot');
+ assert.equal(row[4].w,10);assert.equal(row[4].walkIn,true,'skins counter is now inside the shared shell');
  assert.equal(row[3].open,'upgrades');assert.equal(row[4].open,undefined,'skins and upgrades still open different shop views');
 });
 test('map labels and signage follow shop anchors rather than stale fixed coordinates',async()=>{
