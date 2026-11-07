@@ -369,7 +369,47 @@ function recolorTex(tex, kind, hex) {
   } catch (e) { console.warn('[gear] recolour', kind, e); }
   _rcTex.set(key, out); return out;
 }
+// Native fitted pants/shoes/plain capes carry fixed painted colours, not a pants/boots _TINT channel.
+// Tint only their fabric/leather family in the shader; retain painted folds, ink, gold, cream and red sash.
+function fittedGearRecolor(m, def, hex) {
+  const kind = def.pants ? 'pants' : def.boots ? 'boots' : /^(cape_tattered|cape_royal)$/.test(def.id) ? 'cape' : null;
+  if (!kind || !hex) return false;
+  const mat = m.material, previous = mat.onBeforeCompile, cache = mat.customProgramCacheKey?.bind(mat);
+  const U = { gearDye: { value: new THREE.Color(hex) }, gearDyeOn: { value: 1 } };
+  const reference = ({ classic_pants:.16, canvas_pants:.32, sailor_trousers:.32, leather_breeches:.12, cape_tattered:.035, cape_royal:.16 })[def.id] || .09;
+  const hasTint = !!m.geometry.attributes._tint;
+  mat.onBeforeCompile = (shader, renderer) => {
+    previous?.call(mat, shader, renderer); Object.assign(shader.uniforms, U);
+    shader.vertexShader = 'varying float vGearY; varying float vGearTag;\n' + (hasTint ? 'attribute float _tint;\n' : '') + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGearY = position.y; vGearTag = ' + (hasTint ? '_tint' : '-1.0') + ';');
+    shader.fragmentShader = 'uniform vec3 gearDye; uniform float gearDyeOn; varying float vGearY; varying float vGearTag;\n' + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      // Classification in sRGB; recolouring in linear light. Default (no dye) never installs this hook.
+      vec3 dyeBase = diffuseColor.rgb;
+      vec3 dc = mix(12.92 * dyeBase, 1.055 * pow(max(dyeBase, vec3(0.0)), vec3(1.0/2.4)) - .055, step(vec3(.0031308), dyeBase));
+      float mx = max(dc.r,max(dc.g,dc.b)), mn = min(dc.r,min(dc.g,dc.b)), delta = mx-mn;
+      float sat = delta/max(mx,.00001), hue = 0.0;
+      if (delta > .00001) {
+        if (mx == dc.r) hue = 60.0 * mod((dc.g-dc.b)/delta+6.0,6.0);
+        else if (mx == dc.g) hue = 60.0*((dc.b-dc.r)/delta+2.0);
+        else hue = 60.0*((dc.r-dc.g)/delta+4.0);
+      }
+      float red = float((hue<18.0 || hue>345.0) && sat>.30);
+      float gold = float(hue>35.0 && hue<65.0 && sat>.55 && mx>.5);
+      float neutralDark = float(sat<.20 && mx>.055 && mx<.75);
+      float inkKeep = smoothstep(.018,.06,mx);
+      float dyeMask = ${kind==='pants'?'(1.0-smoothstep(.565,.595,vGearY)) * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))':kind==='boots'?'float((hue>10.0 && hue<75.0 && sat>.12) || neutralDark>.5) * (1.0-gold)':'max(red,neutralDark) * (1.0-gold)'} * inkKeep;
+      float dyeShade = clamp(dot(dyeBase,vec3(.2126,.7152,.0722))/${reference.toFixed(5)},.035,2.0);
+      diffuseColor.rgb = mix(dyeBase,gearDye*dyeShade,clamp(dyeMask*gearDyeOn,0.0,1.0));
+    `);
+  };
+  mat.customProgramCacheKey = () => (cache?.() || '') + '|fitted-gear-dye-v1|' + kind + '|' + def.id + '|' + Number(hasTint);
+  m.userData.gearRecolor = { kind, hex, uniforms: U, reference, hasTint };
+  m.userData.texVerts = true; mat.needsUpdate = true; return true;
+}
+
 function recolorItem(m, def, colors) {
+  if (fittedGearRecolor(m, def, colors?.recolor)) return;
   if (!def.recolor) return; m.userData.texVerts = true; const hex = colors?.recolor; if (!hex || !m.material?.map) return;
   m.material.map = recolorTex(m.material.map, def.recolor, hex); m.material.needsUpdate = true;
 }
