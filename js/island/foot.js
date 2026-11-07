@@ -1555,8 +1555,9 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   // flames + flickering point lights (High: the nearest few torches get a real light)
   const flames = buildFlames(F, uTime); root.add(flames);
   // [v108] lighthouses (shared kit): one merged body + lens / glass / beam / flare each; High: the island one adds ONE point light
-  const lhs = LIGHTHOUSES.map((L, i) => { const g = buildLighthouse({ ...L.opts, low, light: L.opts.light && !low }); g.position.set(L.x, L.y, L.z); g.userData.phase = i * 2.1; g.name = 'lighthouse_' + L.id; root.add(g); return g; });
-  const lights = []; if (!low) for (let i = 0; i < 6; i++) { const l = new THREE.PointLight(0xffa64a, 0, 16, 1.6); root.add(l); lights.push(l); }
+  const realLights = !low && new URLSearchParams(location.search).get('islandlights') === '1';
+  const lhs = LIGHTHOUSES.map((L, i) => { const g = buildLighthouse({ ...L.opts, low, light: L.opts.light && realLights }); g.position.set(L.x, L.y, L.z); g.userData.phase = i * 2.1; g.name = 'lighthouse_' + L.id; root.add(g); return g; });
+  const lights = []; if (realLights) for (let i = 0; i < 6; i++) { const l = new THREE.PointLight(0xffa64a, 0, 16, 1.6); root.add(l); lights.push(l); }
   // small life: gulls (town + falls), crabs on beaches (High)
   const birds = buildBirds(low, uTime); { const g = new THREE.Group(); g.position.set(TOWN.x + 40, 4, TOWN.z - 30); g.add(birds); root.add(g); }
   if (!low) { const b2 = buildBirds(true, uTime); const g = new THREE.Group(); g.position.set(SKULL.x, 50, SKULL.z); g.add(b2); root.add(g); }

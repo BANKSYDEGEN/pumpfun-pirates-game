@@ -712,7 +712,7 @@ export async function createDock(ctx) {
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)
-  function cameraHook() { plaza.update(on); if (!on) return false; world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
+  function cameraHook() { plaza.update(on); if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;

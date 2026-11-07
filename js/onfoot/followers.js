@@ -49,7 +49,7 @@ export function createFollowers({ scene, world, walker, low, keepOut = null, cou
   if (!gearOf) { addEventListener('pfp-gear-local', () => setTimeout(redress, 0)); /* [crew-weapons] a weapon swap */ addEventListener('pfp-gear', () => setTimeout(redress, 0)); addEventListener('pfp-crew', () => setTimeout(redress, 0)); } // [Timothy] a Crew Shop equip // after pirateGear has merged it (its own 'pfp-gear' listener)
   let active = false, lastJumps = 0;
   function enter() {
-    redress(true); // [v112] going ashore always re-dresses the crew in your current gear
+    redress(); // Keep unchanged gear: forced re-equips cloned GPU meshes on every shore visit. Failed / changed gear still retries.
     const W = walker.w; TR.clear(); lastJumps = W.jumps;
     const bx = -Math.sin(W.yaw), bz = -Math.cos(W.yaw);
     crew.forEach((c, i) => { // start just behind you (on the gangway / quay), on free ground

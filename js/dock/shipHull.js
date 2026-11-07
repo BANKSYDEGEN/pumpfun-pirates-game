@@ -446,6 +446,18 @@ export function preloadQuartersGlb() {
   return _quartersGlbP;
 }
 
+// Drop GPU residency on desktop too, retaining decoded CPU assets for the next visit.
+// Texture.dispose() and Geometry.dispose() are re-upload-safe when reused by three.js.
+function releaseQuartersGpu() {
+  const geos = new Set();
+  _quartersGlb?.scene?.traverse(o => { if (o.geometry) geos.add(o.geometry); });
+  for (const g of geos) g.dispose();
+  const textures = new Set([...Object.values(_texCache), _jollyTex,
+    ...['deck_d', 'deck_n', 'hull_d', 'hull_n', 'sail_d', 'sail_n'].map(k => _qTex[k]),
+    ...Object.values(_qTex.cap || {})]);
+  for (const t of textures) t?.dispose?.();
+}
+
 /** [v339] Phones: give back everything the quarters uploaded (GLB geometry, kit maps, procedural canvases, cabin PMREM) after LEAVE HULL,
  *  so Harbor VRAM / RAM returns to its pre-visit baseline. The next ENTER HULL simply reloads (HTTP / service-worker cache). */
 export function releaseQuartersAssets() {
@@ -1149,7 +1161,7 @@ export function createShipHull({
       try {
         try { houses?.closeStorage?.(); } catch {}
         if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
-        if (QUARTERS_LOW_MEM) releaseQuartersAssets(); // [v339] phones: back to the Harbor VRAM baseline
+        if (QUARTERS_LOW_MEM) releaseQuartersAssets(); else releaseQuartersGpu(); // [v339] phones: back to the Harbor VRAM baseline
         roomOrigin = null; inHull = false; returnCtx = null;
         leaveBtn.style.display = 'none';
         document.documentElement.classList.remove('pfp-inhull', 'pfp-inhouse');
@@ -1231,7 +1243,7 @@ export function createShipHull({
       rest.end('leave'); // [bed-desk]
       try { houses?.closeStorage?.(); } catch {}
       if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
-      if (QUARTERS_LOW_MEM) releaseQuartersAssets(); // [v339]
+      if (QUARTERS_LOW_MEM) releaseQuartersAssets(); else releaseQuartersGpu(); // [v339]
       inHull = false; roomOrigin = null; returnCtx = null;
       leaveBtn.style.display = 'none';
       document.documentElement.classList.remove('pfp-inhull', 'pfp-inhouse');

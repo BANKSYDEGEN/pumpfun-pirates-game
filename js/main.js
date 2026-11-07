@@ -84,7 +84,7 @@ document.documentElement.classList.toggle('pfp-desktop', !isMobile);
 // for every gameplay / ship / hitbox path, the extras below are gated on ULTRA, so LOW and HIGH render exactly as before.
 const GFX_KEY = 'pfp_gfx';
 const gfxSaved = (() => { try { return localStorage.getItem(GFX_KEY); } catch { return null; } })();
-const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); return !!(r && r.n >= 2 && Date.now() - r.ts < 300000); } catch { return false; } })();
+const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); const last = +(localStorage.getItem('pfp_ctx_last_loss') || 0); return Date.now() - last < 86400000 || !!(r && r.n >= 1 && Date.now() - r.ts < 300000); } catch { return false; } })();
 const gfxPick = ctxSafe ? 'low' : ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
 const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH)
 const ULTRA = gfxPick === 'ultra' && !isMobile;
@@ -149,6 +149,8 @@ function graphicsRecovery() {
 }
 canvas.addEventListener('webglcontextlost', (e) => {
   e.preventDefault(); glLost = true;
+  try { localStorage.setItem('pfp_ctx_last_loss', String(Date.now())); localStorage.setItem(GFX_KEY, 'low'); } catch {}
+  graphicsSample('context-lost');
   try { harborResumeSave(true); } catch {}
   if (!document.getElementById('pfp-ctx-reload')) {
     const b = document.createElement('div'); b.id = 'pfp-ctx-reload'; b.setAttribute('role', 'status');
@@ -156,9 +158,29 @@ canvas.addEventListener('webglcontextlost', (e) => {
     b.style.cssText = 'position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99999;padding:14px 22px;font:700 18px system-ui;background:#1a0f07;color:#ffcd77;border:2px solid #fbbf24;border-radius:14px;max-width:90vw';
     document.body.appendChild(b);
   }
-  clearTimeout(glLostT); glLostT = setTimeout(graphicsRecovery, 3000);
+  clearTimeout(glLostT); glLostT = setTimeout(graphicsRecovery, 1000);
 }, false);
 canvas.addEventListener('webglcontextrestored', () => { glLost = false; graphicsRecovery(); }, false);
+// Keep numeric-only bounded diagnostics: no player identity or network payloads.
+let graphicsLastFrame = performance.now(), graphicsVisibleAt = performance.now(), graphicsState = '', graphicsFrameSeen = false;
+const graphicsHistory = [];
+function graphicsSample(reason) {
+  const m = renderer.info.memory;
+  const sample = { reason, ms: Math.round(performance.now()), geometries: m.geometries,
+    textures: m.textures, programs: renderer.info.programs?.length || 0 };
+  graphicsHistory.push(sample); if (graphicsHistory.length > 48) graphicsHistory.shift();
+  window.__pfpGraphics = { history: graphicsHistory, quality, lost: glLost };
+}
+document.addEventListener('visibilitychange', () => { graphicsVisibleAt = graphicsLastFrame = performance.now(); });
+setInterval(() => {
+  if (document.hidden || glReloading) return;
+  const now = performance.now();
+  // Covers missing browser events; the DOM notice uses the same event handler.
+  if (!glLost && (renderer.getContext().isContextLost() ||
+      (graphicsFrameSeen && now - graphicsLastFrame > 6000 && now - graphicsVisibleAt > 6000))) {
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+  }
+}, 1000);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1589,7 +1611,12 @@ function frame() {
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape
   tickPirates(dt, camera); // [v100] v4 pirate clips (captain steer, on-foot idle / walk / run)
   if (isMobile || quality === 'low') fogCull(); // [mobile-perf-2]
-  if (!glLost) { if (composer) { composer.readBuffer = composer.renderTarget2; composer.writeBuffer = composer.renderTarget1; composer.render(); } else renderer.render(scene, camera); } // [v339] no draws while the GPU context is lost
+  if (!glLost) {
+    if (composer) { composer.readBuffer = composer.renderTarget2; composer.writeBuffer = composer.renderTarget1; composer.render(); } else renderer.render(scene, camera);
+    graphicsLastFrame = performance.now(); graphicsFrameSeen = true;
+    const state = dock?.inHull ? 'hull' : dock?.onFoot ? 'ashore' : 'ship';
+    if (state !== graphicsState) { graphicsState = state; graphicsSample(state); }
+  } // [v339] no draws while the GPU context is lost
   harborResumeTick();
   requestAnimationFrame(frame);
 }
