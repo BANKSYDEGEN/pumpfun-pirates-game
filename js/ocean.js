@@ -291,8 +291,8 @@ export function createSky() {
         // --- moon disc + soft lunar halo
         float moonDot = max(dot(d, normalize(uMoonDir)), 0.0);
         float moonDisc = smoothstep(0.9975, 0.9994, moonDot);
-        float moonHalo = pow(moonDot, 28.0) * 0.65 + pow(moonDot, 5.0) * 0.22;
-        col += vec3(0.85, 0.90, 1.0) * (moonDisc * 3.4 + moonHalo) * uMoonVis * (1.0 - uStorm);
+        float moonHalo = pow(moonDot, 48.0) * 0.40 + pow(moonDot, 12.0) * 0.08; // [v393] BANKSY 'do same with moon glare': tighter, dimmer halo (was 28/5 @ .65/.22)
+        col += vec3(0.85, 0.90, 1.0) * (moonDisc * 2.4 + moonHalo * 0.8) * uMoonVis * (1.0 - uStorm);
 
         // --- fair-weather cumulus (SPARSE) / storm overcast — never grey-out sunny Caribbean sky
         vec2 uv = d.xz / (abs(d.y) + 0.22) * 1.2 + vec2(uTime * 0.014, uTime * 0.007);
