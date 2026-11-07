@@ -198,7 +198,7 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   import('../adminWorld.js').then(m => { const c = document.createElement('style'); c.textContent = m.WORLD_CSS.replaceAll('#pfp-admin', '#pfp-te-cols') + `
   #pfp-te-cols{position:fixed;left:10px;top:calc(var(--safe-t,0px) + 64px);z-index:64;width:330px;max-width:calc(100vw - 20px);max-height:calc(100vh - 260px);overflow:auto;display:none;background:rgba(14,12,9,.96);border:2px solid #d9a93c;border-radius:14px;padding:4px 8px 8px;color:#f3e3b5;font:12px system-ui}
   #pfp-te-cols.on{display:block} #pfp-te-cols h4{margin:6px 0 4px;font:600 11px system-ui;letter-spacing:.14em;color:#d9a93c;display:flex;justify-content:space-between;align-items:center}`; document.head.appendChild(c); }).catch(() => {});
-  const WA = () => window.PFP_ADMIN?.world;
+  const WA = () => window.PFP_WORLD_ADMIN?.() || null;
   function setCols(v) { const w = WA(); if (v && !w) { toast?.('COLLISIONS NEED THE OWNER ADMIN TOOLS (STILL LOADING)'); return; } colOn = !!v; if (colOn && !colP.dataset.m) { w.mountCols(colP); colP.dataset.m = '1'; } colP.classList.toggle('on', colOn); bar.querySelector('.cols')?.classList.toggle('sel', colOn); if (colOn) w.paint(); }
   bar.addEventListener('click', (e) => { if (e.target.closest('.cols')) { e.stopImmediatePropagation(); setCols(!colOn); } }, true);
   colP.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b?.dataset.w) WA()?.click(b); });

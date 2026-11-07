@@ -197,6 +197,7 @@ export function initAdminMenu(ctx) {
   // [v346] the owner's sky / weather / collision edits: every pirate reads them from the SERVER (admin_world_get); a poke only says "re-read"
   const WA = createWorldAdmin({ dock, game: ctx.game || {}, camera: ctx.camera, canvas: ctx.canvas, player, call, invRead: (a) => call(a), send, toast: (t) => toast(t), isOwner: () => st.owner });
   setTimeout(() => WA.fetchWorld().catch(() => {}), 1500);
+  try { Object.defineProperty(window, 'PFP_WORLD_ADMIN', { value: () => (st.owner ? WA : null), configurable: false }); } catch {}   // [v365 t1942u] the 🛠️ BUILD menu's 🧱 COLLISIONS panel (owner only)
   ADM.onPoke = (m, from) => {
     if (m && typeof m === 'object' && !m.t && (from == null || isNetId(from)) && WA.poke(m)) return; // { k: 'env' | 'col' } for everyone: re-read the server, never the poke
     if (!m || typeof m !== 'object' || m.t !== myNet()) return; // only pokes naming ME; the server decides everything
