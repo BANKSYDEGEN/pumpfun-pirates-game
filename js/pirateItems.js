@@ -1,4 +1,5 @@
 import { V7M_FITS, V7M_SKIP } from './v7mFitData.js';
+import { V7F_FITS, V7F_PANTS_DYE_Y } from './v7fFitData.js';   // [v7f gear] BANKSY t436u: V7 female refits (footwear + peg legs) + her pants dye height
 export const V7F_PAINT = { facepaint_retardio: { hi: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_hi.glb', lo: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_lo.glb' } };   // [v7f paint] V7 female face paints (tools/v7f_paint/), built from her own face
 export const V7M_PAINT = { facepaint_retardio: 'assets/pirates/items/v7m_paint/facepaint_retardio_male.glb' };   // [v7m paint] restored V7 male face paints (tools/v7m_paint/) // [v381] restored V7 male gear refits
 // [Raul] PUMPFUN PIRATES shop cosmetics for the v4 Blender pirates (js/pirateGLB.js). Built by tools/blender/build_items.py into
@@ -399,13 +400,13 @@ function fittedGearRecolor(m, def, hex) {
       float gold = float(hue>35.0 && hue<65.0 && sat>.55 && mx>.5);
       float neutralDark = float(sat<.20 && mx>.055 && mx<.75);
       float inkKeep = smoothstep(.018,.06,mx);
-      float dyeMask = ${kind==='pants'?'(1.0-smoothstep(.565,.595,vGearY)) * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))':kind==='boots'?'float((hue>10.0 && hue<75.0 && sat>.12) || neutralDark>.5) * (1.0-gold)':'max(red,neutralDark) * (1.0-gold)'} * inkKeep;
+      float dyeMask = ${kind==='pants'?(def.dyeY?`(1.0-smoothstep(${def.dyeY[0].toFixed(3)},${def.dyeY[1].toFixed(3)},vGearY))`:'(1.0-smoothstep(.565,.595,vGearY))')+' * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))':kind==='boots'?'float((hue>10.0 && hue<75.0 && sat>.12) || neutralDark>.5) * (1.0-gold)':'max(red,neutralDark) * (1.0-gold)'} * inkKeep;
       float dyeShade = clamp(dot(dyeBase,vec3(.2126,.7152,.0722))/${reference.toFixed(5)},.035,2.0);
       diffuseColor.rgb = mix(dyeBase,gearDye*dyeShade,clamp(dyeMask*gearDyeOn,0.0,1.0));
     `);
   };
-  mat.customProgramCacheKey = () => (cache?.() || '') + '|fitted-gear-dye-v1|' + kind + '|' + def.id + '|' + Number(hasTint);
-  m.userData.gearRecolor = { kind, hex, uniforms: U, reference, hasTint };
+  mat.customProgramCacheKey = () => (cache?.() || '') + '|fitted-gear-dye-v1|' + kind + '|' + def.id + '|' + Number(hasTint) + (def.dyeY ? '|dy' + def.dyeY.join(',') : '');
+  m.userData.gearRecolor = { kind, hex, uniforms: U, reference, hasTint, ...(def.dyeY ? { dyeY: def.dyeY } : {}) };
   m.userData.texVerts = true; mat.needsUpdate = true; return true;
 }
 
@@ -432,6 +433,12 @@ async function build(p, def, opts) {
   // alpha-masked to his skin texels: hair / beard / brows / eyes stay his) instead of the refit v5 mask. Male V7 only; female + v5 unchanged.
   // [v7f paint] BANKSY t433u "Do v7 girl face paint too": her own skin-mapped shell (hi / lo each from that body), same Retardio design
   if (p.female && p.v7 && V7F_PAINT[def.id]) return buildV5(p, {...def, v5:{female:V7F_PAINT[def.id]}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
+  // [v7f gear] BANKSY t436u "Fix all v7 girl clothes and accessories": her own refits (js/v7fFitData.js) + her cut heights for the body hide;
+  // her v5 pants keep their mesh but dye up to their top (V7F_PANTS_DYE_Y). Female V7 only.
+  if (p.female && p.v7 && V7F_FITS[def.id]) { const F = V7F_FITS[def.id];
+    const it = await buildV5(p, {...def, v5:{female:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
+    if (F.hide) it.v5hide = F.hide; return it; }
+  if (p.female && p.v7 && def.pants && p.v5 && def.v5) return buildV5(p, {...def, dyeY: V7F_PANTS_DYE_Y}, opts, low, body, skel, names);
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_PAINT[def.id]) { const u = V7M_PAINT[def.id];
     return buildV5(p, {...def, v5:{male:{hi:u,lo:u}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names); }
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
