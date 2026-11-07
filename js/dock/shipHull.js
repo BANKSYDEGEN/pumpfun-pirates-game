@@ -4,7 +4,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createCrewRoomDisplay } from '../crew.js';
+import { syncCrewGear } from '../crewGear.js';
+import { crewGear } from '../crewLoadout.js';
+import { getLocalColors } from '../pirateGear.js';
 import { createRest, hullRestSpots, restPrompt } from './bedDesk.js'; // [bed-desk] t405u LIE IN BED (berth) / SIT AT DESK (chart table)
+
+export const HULL_CREW_SPOTS = Object.freeze([{ x: -2.8, y: 0.14, z: 1.35 }, { x: -1.35, y: 0.14, z: 1.35 }]);
 
 export const SHIP_QUARTERS_ID = 'ship_quarters';
 export const SHIP_QUARTERS_SLOTS = 12;
@@ -943,6 +949,7 @@ function disposeInterior(room) {
   if (!room) return;
   const ud = room.userData || {};
   ud.disposed = true;
+  if (ud.crewRoom) ud.crewRoom.userData.disposed = true; // outstanding shared gear bake must not revive a disposed room
   const mats = new Set();
   room.traverse((o) => {
     if (o.isInstancedMesh) { try { o.dispose(); } catch {} }
@@ -969,7 +976,7 @@ function disposeInterior(room) {
 export function createShipHull({
   scene, world, walker, pirate, crewF, petF, fnet, camera = null, renderer = null, game = null,
   toast = () => {}, sfx = null, fadeTo = (fn) => fn(),
-  houses = null, low = false, ocean = null, islands = null, openWardrobe = null,
+  houses = null, low = false, ocean = null, islands = null, openWardrobe = null, openCrewRoom = null, closeCrewRoom = null,
 }) {
   // [v339] desktop warms the quarters at Harbor boot; phones / low-memory devices load them lazily on ENTER HULL (buildCaptainsQuartersRoom)
   if (!QUARTERS_LOW_MEM) preloadQuartersGlb();
@@ -1052,6 +1059,9 @@ export function createShipHull({
     camera.updateMatrixWorld?.(true);
   }
 
+  function dressHullCrew() { const crew = interior?.userData?.crewRoom; if (crew && !crew.userData.disposed) syncCrewGear(crew, crewGear(), getLocalColors()); }
+  addEventListener('pfp-crew', dressHullCrew);
+
   function placeRoom() {
     if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
     interior = buildCaptainsQuartersRoom({ low });
@@ -1059,6 +1069,16 @@ export function createShipHull({
     roomOrigin = { x: ox, y: oy, z: oz };
     interior.position.set(ox, oy, oz);
     scene.add(interior);
+    const crew = createCrewRoomDisplay(HULL_CREW_SPOTS); interior.add(crew); interior.userData.crewRoom = crew;
+    HULL_CREW_SPOTS.forEach((p, i) => {
+      interior.userData.spots['crew_' + i] = { ...p, r: 1.65, label: 'DRESS CREW · CREW ROOM' };
+      interior.userData.colliders.push({ x: p.x, z: p.z, w: .5, d: .5 });
+    });
+    // A small shared-material wooden bench marks the crew's dressing nook, clear of the centre aisle.
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(2.8, .48, .55), interior.userData.qMats.mahogany);
+    bench.name = 'crew_room_bench'; bench.position.set(-2.08, QFLOOR + .24, .4); interior.add(bench);
+    interior.userData.colliders.push({ x: -2.08, z: .4, w: 2.8, d: .55 });
+    dressHullCrew();
     installPocket();
     return { ox, oy, oz };
   }
@@ -1154,6 +1174,7 @@ export function createShipHull({
 
   function leave(onBack = null) {
     if (!inHull || busy) return false;
+    closeCrewRoom?.();
     rest.end('leave'); // [bed-desk] stand up before the room goes away
     busy = true;
     const ctx = returnCtx;
@@ -1192,6 +1213,7 @@ export function createShipHull({
       const d = Math.hypot(lx - sp.x, lz - sp.z);
       if (d < (sp.r || 2.3) && d < bd) { bd = d; best = { tag, label: sp.label, primary: true, key: 'E' }; }
     }
+    if (best?.tag?.startsWith('crew_')) return { a: best, b: null };
     if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: null };
     if (best?.tag === 'exit') return { a: { label: 'LEAVE HULL', key: 'E', primary: true, tag: 'leave' }, b: null };
     const rp = restPrompt(interior.userData.rest, lx, lz); // [bed-desk] at the berth / the chart table
@@ -1200,6 +1222,7 @@ export function createShipHull({
   }
 
   function act(tag) {
+    if (tag?.startsWith('crew_') && inHull) { openCrewRoom?.(Number(tag.slice(5))); return true; }
     if (tag === 'chest') { try { houses?.openFor?.(SHIP_QUARTERS_ID); } catch {} return true; }
     if (tag === 'leave') return 'leave';
     if (tag === 'bed' || tag === 'desk') { // [bed-desk]
@@ -1239,6 +1262,7 @@ export function createShipHull({
   }
 
   function clear() {
+    closeCrewRoom?.();
     if (inHull) {
       rest.end('leave'); // [bed-desk]
       try { houses?.closeStorage?.(); } catch {}

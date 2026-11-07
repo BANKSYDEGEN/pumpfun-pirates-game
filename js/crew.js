@@ -235,6 +235,22 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   ship.userData.crew = mat.uniforms;
   return lod;
 }
+// Two of the actual deck crew, merged into ONE draw call in the hull crew corner.
+// Uses the existing baked body/gear textures: no skeletons, lights, canvases or render targets.
+export function createCrewRoomDisplay(spots) {
+  const group = new THREE.Group(); group.name = 'hull_crew_room';
+  const seats = spots.map((p, i) => ({ v: i, o: [p.x, p.y || 0, p.z], info: [0, 0, hash(i + 1), 0], pose: 'idle' }));
+  const geo = crewGeo(seats, null, ''); geo.computeBoundingSphere();
+  // Shader places vertices at aOrigin, so its bounding volume must cover the whole corner.
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.3, 1.4), 7);
+  const mat = crewMaterial(); mat.uniforms.uS.value = 1.55;
+  const mesh = new THREE.Mesh(geo, mat); mesh.name = 'hull_crew_members'; mesh.userData.crewMesh = true;
+  mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), 50);
+  lod.userData.seats = seats; lod.userData.v4 = !!V4; group.add(lod);
+  return group;
+}
+
 // [v109b] the ship's crew LOD: a child of the body, or one level down when a premium PvP skin moved everything into its
 // 'pvpLift' group (assets/ships/pvp/pvpKit.js liftRig). Missing it there made those skins drop your crew's clothes.
 const isCrewLod = (o) => o.isLOD && o.children[0]?.userData?.crewMesh;

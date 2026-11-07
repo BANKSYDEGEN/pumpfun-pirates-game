@@ -385,3 +385,14 @@ window.PFP_SHOP = { openShop, closeShop, isShopOpen, setShopProvider, mockProvid
 window.PFP_ISLAND_SHOP = { openShop, closeShop, isShopOpen, setShopProvider, mockProvider }; // [Timothy] js/shop.js also sets window.PFP_SHOP (upgrade shop); whichever loads last wins, so tests use this one
 if (!ON_PORTAL) { window.openShop = openShop; window.closeShop = closeShop; window.isShopOpen = isShopOpen; }
 export const refreshShop = () => { if (open && provider) provider.load().then(st => { if (st && open) { state = st; render(); } }); };
+
+// Hull dressing uses authoritative owned/equipped state, without the shop's WebGL previews.
+let hullCrewPanel = null, hullCrewGeneration = 0;
+export async function openHullCrewRoom(member = 0) {
+  const generation = ++hullCrewGeneration;
+  const { openCrewWardrobe } = await import('./crewWardrobe.js');
+  if (generation !== hullCrewGeneration) return; // area exit cancels a pending lazy import
+  hullCrewPanel?.close();
+  hullCrewPanel = openCrewWardrobe({ provider, member });
+}
+export function closeHullCrewRoom() { hullCrewGeneration++; hullCrewPanel?.close(); hullCrewPanel = null; }

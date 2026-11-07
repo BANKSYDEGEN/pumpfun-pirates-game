@@ -86,6 +86,7 @@ export function anyModalOpen() {
   try {
     const $ = (id) => document.getElementById(id);
     if ($('inv-panel')?.classList.contains('on')) return true;
+    if ($('crew-room')?.classList.contains('on')) return true;
     if ($('casino-ui')?.classList.contains('on')) return true;
     if ($('srv-modal')?.classList.contains('on')) return true;
     const srv = $('srv-modal'); if (srv && !srv.classList.contains('hidden') && srv.offsetParent) return true;
@@ -107,6 +108,7 @@ export function anyModalOpen() {
 export function closeTopModal() {
   try {
     const $ = (id) => document.getElementById(id);
+    if ($('crew-room')?.classList.contains('on')) { $('crew-room').querySelector('[data-close]')?.click(); return true; }
     if ($('inv-panel')?.classList.contains('on')) { $("inv-panel").classList.remove('on'); return true; }
     if ($('casino-ui')?.classList.contains('on')) { try { $('casino-ui').querySelector('[data-k="x"]')?.click(); } catch {} $('casino-ui').classList.remove('on'); return true; }
     if ($('srv-modal')?.classList.contains('on')) { $('srv-modal').classList.remove('on'); return true; }

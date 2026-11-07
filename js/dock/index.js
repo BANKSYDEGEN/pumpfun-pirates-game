@@ -318,11 +318,19 @@ export async function createDock(ctx) {
       scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
       toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, fadeTo: (fn) => fadeTo(fn),
       houses, low: LOW, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
+      openCrewRoom: (member) => openCrewRoom(member),
+      closeCrewRoom: () => { import('../islandShop.js').then(m => m.closeHullCrewRoom()); },
     });
   } catch (e) { console.warn('[ship-hull]', e); }
   document.addEventListener('cq-leave-request', () => { try { leaveHull(); } catch {} });
   // [bed-desk] t405u / t406u: LIE IN BED / SIT AT DESK in the hull + cottage cabins (js/dock/bedDesk.js)
   // [t408u] BANKSY "Also make it so they can change clothes in hull and cabin": the existing island shop's CHANGING ROOM (owned clothes, free)
+  function openCrewRoom(member) {
+    for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) {
+      try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {}
+    }
+    import('../islandShop.js').then(m => m.openHullCrewRoom(member)).catch(() => toast('CREW ROOM UNAVAILABLE · TRY AGAIN', 2200));
+  }
   function openWardrobe(from = 'hull') {
     for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) { try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {} } // no walking off while dressing
     Promise.resolve(window.openShop ? window.openShop({ vendor: 'wardrobe', tab: 'wardrobe', from }) : false)
@@ -552,6 +560,7 @@ export async function createDock(ctx) {
   // capture-phase keys: E = the main prompt, W = SET SAIL while moored; on foot the walker eats movement / fire keys
   const onKeyDown = (e) => {
     if (!on || e.target?.tagName === 'INPUT' || treasure.isOpen || ADM.frozen) return; // [admin-menu] frozen: no E / Q // [v145] the treasure map closes on its own keys (Esc / M)
+    if (document.getElementById('crew-room')?.classList.contains('on')) return; // dressing owns gameplay keys
     if (casinoUi?.isOpen) { casinoUi.onKey(e); e.stopImmediatePropagation(); e.preventDefault(); return; } // [Timothy] the casino table has the keys (Esc closes)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
@@ -641,6 +650,10 @@ export async function createDock(ctx) {
     }
     // prompts
     if (onFoot) {
+      if (document.getElementById('crew-room')?.classList.contains('on')) {
+        const w = walker.w; for (const code in w.keys) w.keys[code] = false;
+        w.joy.on = false; w.joy.x = w.joy.y = 0; w.jumpQ = false; w.speed = 0; w.drags.clear();
+      } // phone pointer capture / held controller input cannot walk behind the wardrobe
       if (!zip?.riding && !houses?.inHouse) ladders?.tick(dt); /* [dock-ladders] before the walker: swim into a ladder / JUMP next to it = climb */ walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
       world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;

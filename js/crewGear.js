@@ -18,7 +18,7 @@ export function syncCrewGear(ship, gear, colors = null, captain = null) {
   if (!tag) { pending.delete(body); setCrewGear(body, null); return; }
   pending.set(body, tag);
   crewGearV4(gear, colors).then((ch) => {
-    if (pending.get(body) !== tag) return; pending.delete(body);
+    if (body.userData?.disposed || pending.get(body) !== tag) return; pending.delete(body);
     if (!ch) { failed.set(tag, performance.now()); return; }
     setCrewGear(body, ch, tag);
   });
