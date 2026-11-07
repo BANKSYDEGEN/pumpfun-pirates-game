@@ -1,3 +1,4 @@
+import { syncFlyingParrot, isFlyingParrot } from './parrotFlight.js';
 // [Timothy] PUMPFUN PIRATES island-shop GEAR on Raul's v4 pirates (hats, clothes, eyewear, parrots, hooks; ids = js/shopCatalog.js).
 //
 //   import { applyGear, setLocalGear, getLocalGear } from './pirateGear.js';
@@ -691,6 +692,10 @@ function tankTop(p, hex) {
   }
 }
 function dress(p, gear, colors) {
+  const bird = syncFlyingParrot(p, gear.parrot);
+  return Promise.all([dressClothes(p, isFlyingParrot(gear.parrot) ? { ...gear, parrot: 'none' } : gear, colors), bird]).then(([mesh]) => mesh);
+}
+function dressClothes(p, gear, colors) {
   const body = bodyOf(p); if (!body) return Promise.resolve(null);
   try { syncCarry(p, gear, body); } catch (e) { console.warn('[gear] carry', e); }   // [Raul carry]
   const key = gearKey(gear) + '|' + JSON.stringify(colors || {});

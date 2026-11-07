@@ -1,3 +1,4 @@
+import { updateFlyingParrot } from './parrotFlight.js';
 // [Timothy] PUMPFUN PIRATES island shop: REAL 3D card art for every gear item (BANKSY: "Make sure in clothes shop all items render
 // as real items"). One small offscreen three.js renderer draws Raul's v4 pirate wearing the item (applyGear + gear_hi / gear_lo.glb,
 // the very meshes the game draws), framed on that item: hats in your hat colour, clothes in your ship skin's colours, eyewear,
@@ -111,7 +112,7 @@ async function renderOne(slot, id, o) {
     if (scroll) scroll.visible = false; fig.visible = true;
     const td = performance.now(); await dressFor(slot, id, o); thumbStats.dressMs.push(Math.round((performance.now() - td) * 10) / 10);
     await new Promise((r) => requestAnimationFrame(r));   // dress and draw in separate frames (each stays short)
-    (fig.userData.v4 || p).mixer?.setTime(0.35); fig.updateMatrixWorld(true); // [v112] the body may have been swapped (BODY pick)
+    (fig.userData.v4 || p).mixer?.setTime(0.35); updateFlyingParrot(fig.userData.v4 || p, 1/30, null, true); fig.updateMatrixWorld(true); // [v112] the body may have been swapped (BODY pick)
     const F = frameOf(slot, o, id), d = new THREE.Vector3(...F.d).normalize(), dist = F.r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
   }
@@ -177,7 +178,7 @@ export function gearLive(el, slot, id, opts = {}) {
       cam.position.set(F.c[0], F.c[1], F.c[2]).addScaledVector(d, dist); cam.lookAt(F.c[0], F.c[1], F.c[2]);
     }
     cam.aspect = w / h; cam.updateProjectionMatrix(); if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);
-    R.render(scene, cam); ctx.clearRect(0, 0, w, h); ctx.drawImage(R.domElement, 0, 0); fig.rotation.y = 0; idleT = performance.now(); turned = true;
+    updateFlyingParrot(fig.userData.v4, 1/30, null, true); R.render(scene, cam); ctx.clearRect(0, 0, w, h); ctx.drawImage(R.domElement, 0, 0); fig.rotation.y = 0; idleT = performance.now(); turned = true;
   }
   requestAnimationFrame(frame);
   function stop() { on = false; LIVE.delete(me); }

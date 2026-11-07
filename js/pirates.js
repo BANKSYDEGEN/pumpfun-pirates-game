@@ -1,3 +1,4 @@
+import { updateFlyingParrot, disposeFlyingParrot } from './parrotFlight.js';
 // [Emerly v100] PUMPFUN PIRATES: Raul's Blender pirates v4 (js/pirateGLB.js, assets/pirates/*.glb) in the game.
 // One helper for every place a v4 pirate stands: the on-foot pirate (js/onfoot/pirate.js) and YOUR captain at the wheel
 // (js/captainSlot.js builder). Returns a Group right away (sync callers) and fills it when the GLB arrives; until then
@@ -33,18 +34,18 @@ export function pirateFigure({ look = {}, low = false, height = 1.75, clip = 'id
       p.root.scale.setScalar(height / h); p.root.position.y = -box.min.y * height / h;
       p.root.traverse((o) => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
       const old = root.userData.v4; p.play(old?.clip || clip, { fade: 0 }); root.add(p.root); root.userData.v4 = p; LIVE.add(p);
-      if (old) { LIVE.delete(old); old.root.removeFromParent(); try { old.dispose?.(); } catch {} }   // the old body goes once the new one is in (no blank frame)
+      if (old) { LIVE.delete(old); disposeFlyingParrot(old); old.root.removeFromParent(); try { old.dispose?.(); } catch {} }   // the old body goes once the new one is in (no blank frame)
       const dressed = gearOnReady(root, p);
       onReady?.(p);
       return Promise.resolve(dressed).then(() => p);
     }).catch((e) => { console.warn('[pirates] v4 GLB failed, keeping the fallback', e); return null; }); };
   root.userData.setBody = (fem) => (root.userData.bodyF === !!fem ? null : build(!!fem));
   build(bodyFromGear && root.userData.gear ? root.userData.gear.body === 1 : female);
-  root.userData.dispose = () => { root.userData.disposed = true; unmarkLocal(root); const p = root.userData.v4; if (p) { LIVE.delete(p); root.userData.v4 = null; try { p.dispose?.(); } catch {} } }; // [shop-exit-crash] + the GLB body + the local-gear list (disposeShip calls this for the captain)
+  root.userData.dispose = () => { root.userData.disposed = true; unmarkLocal(root); const p = root.userData.v4; if (p) { disposeFlyingParrot(p); LIVE.delete(p); root.userData.v4 = null; try { p.dispose?.(); } catch {} } }; // [shop-exit-crash] + the GLB body + the local-gear list (disposeShip calls this for the captain)
   return root;
 }
 const inScene = (o) => { while (o.parent) { if (!o.visible) return false; o = o.parent; } return !!o.isScene && o.visible; };
-export function tickPirates(dt, camera) { if (camera) setOptCamera(camera); for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); } }
+export function tickPirates(dt, camera) { if (camera) setOptCamera(camera); for (const p of LIVE) { if (!inScene(p.root)) { if (!p.root.parent?.parent?.parent) LIVE.delete(p); continue; } p.update(dt); updateFlyingParrot(p, dt, camera); } }
 // captainSlot builder: captain JSON -> a ~2.1-unit figure (captainSlot scales it to the deck crew height) on the 'steer' clip
 // gear: captain.gear ({ hat, outfit, eyes, parrot, hook, hatColor }), captain.skin = their ship skin (clothes colours); captain.local = YOUR captain (re-dressed by setLocalGear, reads the local save)
 // captain.remote = another player's captain (Low LOD everywhere: 2 draw calls + 1 for the gear)

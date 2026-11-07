@@ -1,39 +1,30 @@
 // Existing V7 parrot asset inside the built-in hull birdcage (parrot_alcove_kit); no lights or canvas allocations.
 import * as THREE from 'three';
-import { loadPirateGLB } from '../pirateGLB.js';
-// [parrot alcove] built into the port wall right of the door (cage + niche: parrot_alcove_kit in captains_quarters.glb)
+import { createFlightParrot, colorParrot, animateParrot } from '../parrotFlight.js';
+// Shared anchor from Post’s built-in door-side alcove; keep all display coordinates relative to it.
 export const CAGE_SPOT = Object.freeze({ x: -4.96, z: 3.3, r: 1.65, label: 'PARROT CAGE · NAME & UPGRADE' });
-const COLORS = { parrot_green: 0x69d66e, parrot_red: 0xf26a55, parrot_blue: 0x72aeff, parrot_cockatoo: 0xffffff, parrot_black: 0x555566, parrot_gold: 0xffd156, parrot_diamond: 0xc5eeff };
 export function addParrotCage(room, floor = .14) {
   const g = new THREE.Group(); g.name = 'parrot_cage'; g.position.set(CAGE_SPOT.x, floor, CAGE_SPOT.z); room.add(g);
   let bird = null, dead = false, currentColor = 'parrot_green';
-  const recolor = e => {
-    currentColor = e?.detail?.color || currentColor;
-    const tint = new THREE.Color(COLORS[currentColor] || COLORS.parrot_green), base = new THREE.Color(), hsl = {};
-    bird?.traverse(o => {
-      const col = o.geometry?.attributes?.color, original = o.userData.parrotColors;
-      if (!col || !original) return;
-      for (let i = 0; i < col.count; i++) {
-        base.setRGB(original[i * 3], original[i * 3 + 1], original[i * 3 + 2]); base.getHSL(hsl);
-        // Preserve eyes, feet and beak; recolor only saturated blue/green feather vertices.
-        if (hsl.s > .22 && hsl.h > .23 && hsl.h < .76) base.copy(tint).multiplyScalar(Math.max(.3, hsl.l * 1.7));
-        col.setXYZ(i, base.r, base.g, base.b);
-      }
-      col.needsUpdate = true;
-    });
-  };
-  loadPirateGLB('assets/pirates/items/v7/parrot_plain_v7.glb').then(gltf => {
-    if (dead || room.userData.disposed) return;
-    // The game's shared Draco/Meshopt loader owns the cached source. Hull display owns ONLY its clones.
-    bird = gltf.scene.clone(true);
-    bird.traverse(o => { if (!o.isMesh) return; o.geometry = o.geometry.clone(); o.geometry.userData = {}; o.material = new THREE.MeshBasicMaterial({ vertexColors: !!o.geometry.attributes.color, color: 0xffffff }); const col = o.geometry.attributes.color; if (col) { const colors = new Float32Array(col.count * 3); for (let i = 0; i < col.count; i++) { colors[i*3] = col.getX(i); colors[i*3+1] = col.getY(i); colors[i*3+2] = col.getZ(i); } o.userData.parrotColors = colors; } });
-    const box = new THREE.Box3().setFromObject(bird), size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3()), scale = .58 / Math.max(size.x, size.y, size.z);
-    bird.scale.setScalar(scale); bird.position.set(-center.x * scale, 1.28 - box.min.y * scale, -center.z * scale); g.add(bird); recolor();
+  const recolor = e => { currentColor = e?.detail?.color || currentColor; if (bird) colorParrot(bird, currentColor); };
+  createFlightParrot(currentColor).then(model => {
+    if (dead || room.userData.disposed) { model.userData.dispose(); return; }
+    bird = model; bird.scale.setScalar(.55); bird.position.set(0, 1.338, 0); g.add(bird); recolor();
   }).catch(() => {});
+  const point = new THREE.Vector3();
+  room.userData.parrotCageTick = (t, camera) => {
+    if (!bird || dead || document.hidden) return;
+    if (camera) {
+      g.getWorldPosition(point); point.y += 1.5; point.project(camera);
+      bird.visible = point.z >= -1 && point.z <= 1 && Math.abs(point.x) < 1.2 && Math.abs(point.y) < 1.2;
+      if (!bird.visible) return;
+    }
+    animateParrot(bird, t, { cage: true });
+  };
   window.addEventListener('pfp-parrot', recolor);
   room.userData.spots.parrot_cage = { ...CAGE_SPOT };
   room.userData.colliders.push({ x: CAGE_SPOT.x, z: CAGE_SPOT.z, w: 1, d: 1 });
   // Parent hull disposal owns all geometry/materials; detach the sole event listener before it runs.
-  room.userData.parrotCageDispose = () => { dead = true; window.removeEventListener('pfp-parrot', recolor); };
+  room.userData.parrotCageDispose = () => { dead = true; room.userData.parrotCageTick = null; bird?.traverse(o => o.skeleton?.dispose?.()); window.removeEventListener('pfp-parrot', recolor); };
   return g;
 }

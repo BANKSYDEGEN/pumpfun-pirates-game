@@ -1,6 +1,7 @@
+import { parrotPreviewEl, releaseParrotPreviews } from './parrotFlight.js';
 // Hull cage: each bird is a real inventory instance. Never computes gold or grants colors locally.
 export const PARROT_COLORS = [
-  ['parrot_green', 'GREEN', 0, '#3fd16a'], ['parrot_red', 'RED', 1, '#e8231d'],
+  ['parrot_green', 'DEFAULT', 0, '#3fd16a'], ['parrot_red', 'RED', 1, '#e8231d'],
   ['parrot_blue', 'BLUE', 2, '#1e74e8'], ['parrot_cockatoo', 'WHITE', 4, '#f6f4ee'],
   ['parrot_black', 'BLACK', 6, '#383842'], ['parrot_gold', 'GOLD', 8, '#ffc21f'],
   ['parrot_diamond', 'DIAMOND', 10, '#bfe8ff'],
@@ -36,6 +37,10 @@ export function createParrotsPanel(ctx) {
       const lv = p.lv | 0, xp = p.xp | 0, progress = lv >= 10 ? 100 : Math.max(0, Math.min(100, (xp - lv * lv * 100) / ((lv + 1) ** 2 * 100 - lv * lv * 100) * 100));
       return `<article data-id="${p.id}"><div class="pc-top"><img class="pc-preview" alt="${esc(p.color.replace('parrot_', ''))} parrot preview" style="filter:${PREVIEW_FILTER[p.color] || 'none'}" src="assets/pirates/items/icons/parrot.png"><div><b>${esc(p.name || 'Parrot')}</b><small>LV ${lv} · ${xp.toLocaleString()} XP${p.id === equipped ? ' · EQUIPPED' : ''}</small><small>Inventory bird #${p.id.slice(0, 8)}</small></div></div><div class="pc-bar"><i style="width:${progress}%"></i></div><div class="pc-row"><input data-name maxlength="16" aria-label="Parrot name" value="${esc(p.name || '')}" placeholder="Name your parrot"><button data-a="name">SAVE NAME</button></div><div class="pc-row"><button data-a="equip" class="${p.id === equipped ? 'on' : ''}">EQUIP PARROT</button><button data-a="treat"${lv >= 10 ? ' disabled' : ''}>${lv >= 10 ? 'MAX LEVEL' : `TREAT +100 XP · ${(250 * (lv + 1) ** 2).toLocaleString()}g`}</button></div><div class="pc-colors">${PARROT_COLORS.map(([id, name, need, hex]) => `<button data-a="color" data-color="${id}" class="${p.color === id ? 'on' : ''}"${!p.colors?.includes(id) ? ' disabled' : ''}><i style="background:${hex}"></i>${name}${lv < need ? `<small>🔒 LV ${need}</small>` : ''}</button>`).join('')}</div></article>`;
     }).join('') : '<p>No parrots aboard. Buy a base parrot at the Pet Store, or trade for one at the Marketplace.</p>';
+    for (const card of root.querySelectorAll('article[data-id]')) {
+      const p = birds.find(p => p.id === card.dataset.id); if (!p) continue;
+      const preview = parrotPreviewEl(p.color); preview.classList.add('pc-preview'); preview.style.height = '52px'; preview.style.flexShrink = '0'; card.querySelector('.pc-preview')?.replaceWith(preview);
+    }
     if (busy) root.querySelectorAll('button[data-a]').forEach(b => b.disabled = true);
   }
   async function load() {
@@ -60,7 +65,7 @@ export function createParrotsPanel(ctx) {
     busy = false; await load();
   }
   function open() { ensure(); root.hidden = false; status('Loading parrots…'); draw(); load(); root.querySelector('[data-close]').focus(); }
-  function close() { if (root) root.hidden = true; }
+  function close() { if (root) { releaseParrotPreviews(root); root.hidden = true; } }
   async function tick(dt) {
     walkT += dt; if (walkT < 60) return; walkT = 0;
     if (!ctx.out?.() || !String(ctx.equipped?.()).startsWith('parrot_') || document.hidden) return;

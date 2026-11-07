@@ -14,7 +14,7 @@ test('parrot inventory keys, color ladder and base-only sale boundaries', () => 
   for (const [color] of PARROT_COLORS) assert.ok(sql.includes(color));
   assert.match(sql, /create unique index pvp_parrot_one_holder/);
   assert.match(sql, /p_item like 'gear:parrot:%'/);
-  assert.match(fs.readFileSync(new URL('../js/islandShop.js', import.meta.url), 'utf8'), /it.id === 'parrot_green'/);
+  assert.match(fs.readFileSync(new URL('../js/islandShop.js', import.meta.url), 'utf8'), /isFlyingParrot\(it.id\)/);
 });
 let PGlite;
 try { ({ PGlite } = await import(createRequire(process.cwd() + '/package.json').resolve('@electric-sql/pglite'))); } catch {}

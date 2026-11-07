@@ -1262,7 +1262,7 @@ export function createShipHull({
       }
     } catch {}
     applyCam();
-    try { tickQuarters(interior, (game?.t ?? performance.now() * 0.001)); } catch {}
+    try { interior?.userData.parrotCageTick?.(game?.t ?? performance.now() * .001, camera); tickQuarters(interior, (game?.t ?? performance.now() * 0.001)); } catch {}
   }
 
   function clear() {

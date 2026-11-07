@@ -1,3 +1,4 @@
+import { setParrotWorld } from '../parrotFlight.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot controller (harbor only; Waves, the arena and spectate never load or run it).
 // Layout-driven (js/dock/layout.js): berths, SAFE HARBOR zone, decks, interact points, ship colliders, walkable land.
 // main.js talks to it through a handful of one-line hooks (see EMERLY-HOOKS in the report): ship(dt), camera(dt), focus(),
@@ -114,6 +115,7 @@ export async function createDock(ctx) {
   const layout = await coastLayout();
   const uTime = { value: 0 };
   const world = await buildWorld({ layout, scene, quality, ocean, renderer, uTime });
+  setParrotWorld(world);
   const zone = createSafeZone(layout.safe, layout.graceS);
   const myId = () => ctx.pvp()?.myId || 'me';
   const skinPick = createSkinPicker({ current: () => ctx.pvp()?.profile?.skins?.equipped || 'classic' }); // [dock-skin]

@@ -8,9 +8,9 @@ test('cage uses shared V7 loader, owns cloned geometry, stays inside bars, has n
  const listeners = new Map(), previousWindow = globalThis.window, previousDocument = globalThis.document, original = GLTFLoader.prototype.loadAsync;
  globalThis.window = { addEventListener: (k,f) => listeners.set(k,f), removeEventListener: (k,f) => { if (listeners.get(k)===f) listeners.delete(k); } };
  globalThis.document = { baseURI: 'https://example.test/' };
- const source = new THREE.Group(), sourceMesh = new THREE.Mesh(new THREE.BoxGeometry(.4, .6, .3), new THREE.MeshBasicMaterial()); source.add(sourceMesh);
+ const source = new THREE.Group(), sourceMesh = new THREE.Mesh(new THREE.BoxGeometry(.4, .2, .3), new THREE.MeshBasicMaterial()); sourceMesh.position.y=-.023; const colors=new Float32Array(sourceMesh.geometry.attributes.position.count*3); for(let i=0;i<colors.length;i+=3)colors.set([.1,.6,.2],i);sourceMesh.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));source.add(sourceMesh);
  let loaded;
- GLTFLoader.prototype.loadAsync = function(url) { assert.match(url, /items\/v7\/parrot_plain_v7\.glb$/); loaded=Promise.resolve({scene:source}); return loaded; };
+ GLTFLoader.prototype.loadAsync = function(url) { assert.match(url, /items\/v7\/parrot_flight\.glb$/); loaded=Promise.resolve({scene:source}); return loaded; };
  try {
   const room = new THREE.Group(); room.userData={spots:{},colliders:[]};
   const cage=addParrotCage(room); await loaded; await new Promise(resolve=>setImmediate(resolve));
