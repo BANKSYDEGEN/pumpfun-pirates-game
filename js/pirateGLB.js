@@ -27,8 +27,12 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 // Build: tools/v7/build_male.py. Female and the legacy V5 deck-crew bake are unchanged.
 export const PIRATE_GLB = {
   male: { hi: 'assets/pirates/pirate_male_v7_hi.glb', lo: 'assets/pirates/pirate_male_v7_lo.glb' },
-  female: { hi: 'assets/pirates/pirate_female_v6_hi.glb', lo: 'assets/pirates/pirate_female_v6_lo.glb' },
+  female: { hi: 'assets/pirates/pirate_female_v7_hi.glb', lo: 'assets/pirates/pirate_female_v7_lo.glb' },
 };
+// [Emerly V7 female] BANKSY t1900u "let meshi do all the work just rig it": the Meshy V7 female mesh / texture / normals / hands / braid
+// UNTOUCHED (uniform scale only); the 13 game bones were moved onto HER joints instead (same names / orientations / clips).
+// Default look = the Meshy paint as-is; her own tint mask ('v7tint' extras) only applies when a player PICKS a skin / hair / eye colour.
+// Build: tools/v7/build_female.py. V6 = load fallback.
 export const PIRATE_GLB_V5 = {
   male: { hi: 'assets/pirates/pirate_male_v5_hi.glb', lo: 'assets/pirates/pirate_male_v5_lo.glb' },
   female: { hi: 'assets/pirates/pirate_female_v5_hi.glb', lo: 'assets/pirates/pirate_female_v5_lo.glb' },
@@ -78,7 +82,7 @@ function loader() {
   _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
 }
 export function loadPirateGLB(url) {
-  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); if (/pirate_male_v7_(hi|lo)\.glb$/.test(url)) return loadPirateGLB(url.replace('_v7_', '_v6_')); throw e; })); // [v112] retry a failed load next time
+  if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); if (/pirate_(male|female)_v7_(hi|lo)\.glb$/.test(url)) return loadPirateGLB(url.replace('_v7_', '_v6_')); throw e; })); // [v112] retry a failed load next time
   return _cache.get(url);
 }
 // [perf3] the v5 pirate atlases are 2048 px (22 MB of GPU memory each with mips, six of them). Cap baked GLB maps at 1024 px:
@@ -98,10 +102,12 @@ function capTex(gl) {
 // V7 keeps the original Meshy texture intact. Independent pixel masks recolour skin / hair / iris;
 // teal tattoos, underwear, eyebrows, pupils and glints are never tinted.
 const _v7Masks = {};
-function v7Material(src, p, low) {
-  const key = low ? 'lo' : 'hi';
-  if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../assets/pirates/v7_male_tint' + (low ? '_lo' : '') + '.webp', import.meta.url).href); t.flipY = false; _v7Masks[key] = t; }
-  const m = new THREE.MeshLambertMaterial({ name: 'v7body', map: src.map, side: THREE.DoubleSide });
+function v7Material(src, p, low, tint) {
+  let cfg = null; try { cfg = typeof tint === 'string' ? JSON.parse(tint) : tint || null; } catch {}   // [Emerly V7 female] per-body mask
+  const key = cfg?.mask || ('assets/pirates/v7_male_tint' + (low ? '_lo' : '') + '.webp');
+  if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href); t.flipY = false; _v7Masks[key] = t; }
+  // [Emerly V7 female] her Meshy normal map rides along on High (keeps the sculpted hair / cloth relief of the approved render)
+  const m = new THREE.MeshLambertMaterial({ name: 'v7body', map: src.map, normalMap: (!low && cfg && src.normalMap) || null, side: THREE.DoubleSide });
   m.onBeforeCompile = s => {
     Object.assign(s.uniforms, p._v7Tint, { v7Mask: { value: _v7Masks[key] } });
     s.fragmentShader = 'uniform sampler2D v7Mask; uniform vec3 v7Skin; uniform vec3 v7Hair; uniform vec3 v7Iris; uniform vec3 v7On;\n' + s.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
@@ -238,7 +244,7 @@ export class PirateGLB {
     this.v6 = false; scene.traverse((o) => { if (o.userData?.v6) this.v6 = true; });   // [V6] (no hair rim, glossy material)
     scene.traverse((o) => {
       if (!o.isMesh) return;
-      if (this.v7 && o.userData.v7) { o.material = v7Material(o.material, this, low); return; }
+      if (this.v7 && o.userData.v7) { o.material = v7Material(o.material, this, low, o.userData.v7tint); return; }
       o.material = Array.isArray(o.material) ? o.material.map((m) => toonize(m, colors, low, this.v6)) : toonize(o.material, colors, low, this.v6);
       for (const m of [o.material].flat()) { if (m.userData?.decal) this.decals.push(m); else if (m.userData?.tint) this.tinted.push(m); }
     });

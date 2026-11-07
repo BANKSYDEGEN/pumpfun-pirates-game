@@ -19,6 +19,6 @@ const dir='assets/pirates/items/v5';
 for (const file of readdirSync(dir).filter(n=>/_male_(hi|lo)\.glb$/.test(n))) test('V7 resolves garment/accessory bones: '+file,()=>{
  const j=glb(dir+'/'+file); for(const s of j.skins||[]) for(const i of s.joints) assert.ok(expected.has(j.nodes[i].name),'missing '+j.nodes[i].name);
 });
-test('V7 loads for male only; failed V7 load retains V6 fallback; tint masks leave approved tattoo paint intact',()=>{
- const s=readFileSync('js/pirateGLB.js','utf8');assert.match(s,/male_v7_hi/);assert.match(s,/female_v6_hi/);assert.match(s,/replace\('_v7_', '_v6_'\)/);assert.ok(readFileSync('assets/pirates/v7_male_tint.webp').length>100);
+test('V7 male + female (pfp-v358); failed V7 load retains V6 fallback; tint masks leave approved tattoo paint intact',()=>{
+ const s=readFileSync('js/pirateGLB.js','utf8');assert.match(s,/male_v7_hi/);assert.match(s,/female_v7_hi/);assert.match(s,/pirate_\(male\|female\)_v7_/);assert.match(s,/replace\('_v7_', '_v6_'\)/);assert.ok(readFileSync('assets/pirates/v7_male_tint.webp').length>100);
 });

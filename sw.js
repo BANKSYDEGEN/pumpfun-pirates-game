@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v357'; // [v357] hotfix: island money-makers parse error (mid-line comment from a4c1aab); prev: [v356] FRIENDS: add / requests / list with online + where / JOIN their server / auto-join (BANKSY t1851u); prev: [v355] approved V7 male + single PumpFun pill, game rig/gear/recolors, fitted mannequins + previews; prev: [v353] island money-makers, [v352] KING OF THE HILL
+const VERSION = 'pfp-v358'; // [v358] V7 female = the raw Meshy model, rigged only (BANKSY t1900u/t1903u); prev: [v357] hotfix: island money-makers parse error (mid-line comment from a4c1aab); prev: [v356] FRIENDS: add / requests / list with online + where / JOIN their server / auto-join (BANKSY t1851u); prev: [v355] approved V7 male + single PumpFun pill, game rig/gear/recolors, fitted mannequins + previews; prev: [v353] island money-makers, [v352] KING OF THE HILL
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
