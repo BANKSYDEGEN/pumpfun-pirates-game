@@ -24,9 +24,12 @@ if (kit) {
     if (lx >= V.lx0 - 0.01 && lx <= V.lx1 + 0.01 && lz >= V.lz0 - 0.01 && lz <= V.lz1 + 0.01) continue;
     const e = F.H(...t2w(lx, lz)) - (CD.CASINO_Y + 0.025); if (e > poke) { poke = e; pokeAt = [lx, lz]; } }
   out.floorPoke = { max: +poke.toFixed(3), at: pokeAt };
+  { const WI = CD.CASINO_WING?.inner; let wp = -9, wat = null; if (WI) for (let lx = WI.lx0 + 0.7; lx <= WI.lx1 + 1e-6; lx += 0.25) for (let lz = WI.lz0; lz <= WI.lz1 + 1e-6; lz += 0.25) {   // [v378] the wing floor
+      const e = F.H(...t2w(lx, lz)) - (CD.CASINO_Y + 0.025); if (e > wp) { wp = e; wat = [lx, lz]; } }
+    out.wingPoke = { max: +wp.toFixed(3), at: wat }; }
   let vault = -9; for (let lx = V.lx0; lx <= V.lx1; lx += 0.25) for (let lz = V.lz0; lz <= V.lz1; lz += 0.25) vault = Math.max(vault, F.H(...t2w(lx, lz)) - CD.CASINO_Y); out.vaultTerrain = +vault.toFixed(3);
   // BFS from Main Street (lx 8, the arch's lz) to each E point: 0.2 m grid, 0.45 m walker, steps <= 0.3 m
-  const LX0 = 4, LX1 = 29, LZ0 = -60, LZ1 = -41, nx = Math.round((LX1 - LX0) / step) + 1, nz = Math.round((LZ1 - LZ0) / step) + 1, id = (i, j) => i * nz + j;
+  const LX0 = 4, LX1 = 56,   /* [v378] through the wing */ LZ0 = -60, LZ1 = -41, nx = Math.round((LX1 - LX0) / step) + 1, nz = Math.round((LZ1 - LZ0) / step) + 1, id = (i, j) => i * nz + j;
   const prev = new Int32Array(nx * nz).fill(-2), Y = new Float32Array(nx * nz), free = new Uint8Array(nx * nz);
   for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const lx = LX0 + i * step, lz = LZ0 + j * step; free[id(i, j)] = hit(lx, lz) ? 0 : 1; Y[id(i, j)] = ga(lx, lz); }
   const si = Math.round((8 - LX0) / step), sj = Math.round((CD.CASINO_HALL.arch.lz - LZ0) / step), Qu = [id(si, sj)]; prev[id(si, sj)] = -1;
@@ -42,7 +45,7 @@ if (kit) {
     out.archWalk = { hits, maxStep: +maxStep.toFixed(3) }; }
   // the arch's clear width (no collider for a point walker) and the solid walls
   { let w = 0; for (let lz = CD.CASINO_HALL.arch.lz - 3; lz <= CD.CASINO_HALL.arch.lz + 3; lz += 0.05) if (!hit(14.35, lz, 0)) w += 0.05; out.archClear = +w.toFixed(2); }
-  const R_ = CD.CASINO_HALL.rect; out.walls = { front: [hit(14.35, -56), hit(14.35, -45)], south: hit(20, R_.lz0 + 0.25), north: hit(20, R_.lz1 - 0.25), back: hit(R_.lx1 - 0.3, -50) };
+  const R_ = CD.CASINO_HALL.rect; out.walls = { front: [hit(14.35, -56), hit(14.35, -45)], south: hit(20, R_.lz0 + 0.25), north: hit(20, R_.lz1 - 0.25), back: hit(R_.lx1 - 0.3, -54) && hit(R_.lx1 - 0.3, -46.5) };   // [v378] either side of the High Seas Room arch
   // aisles: a 2.2 m wide walker (r 1.1) along the runner, across the hall between the tables
   { let a = 0, b = 0; for (let lx = 14.9; lx <= 24.8; lx += 0.1) if (hit(lx, CD.CASINO_HALL.lz, 1.1)) a++; for (let lz = -53.8; lz <= -47.0; lz += 0.1) if (hit(22.4, lz, 1.1)) b++; out.aisles = { runner: a, cross: b }; }
   // free radius round each E point (the nearest collider)

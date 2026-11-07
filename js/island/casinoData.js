@@ -30,6 +30,24 @@ export const CASINO_TABLES = [
   { id: 'casino_dice', game: 'dice', title: "DEAD MAN'S DICE", label: "E · DEAD MAN'S DICE", at: town(-5.7, 4.2), e: town(-4.0, 4.2), r: 2.4 },
   { id: 'casino_slots', game: 'slots', title: 'TREASURE SLOTS', label: 'E · TREASURE SLOTS', at: town(7.3, 4.2), e: town(5.6, 4.2), r: 2.4 },
 ];
+// [v378] BANKSY t1984u/t1985u: THE HIGH SEAS ROOM, the wing straight back through an arch in the hall's back wall into the walled yard
+// (rework flag "expand casino to here"). Building frame x -8 .. 8, y 7.25 .. 33.5 (tools/casino_blender/build_casino.py WX / WYE).
+// One game per table: every table / slot machine is its own station (no game tabs at any table).
+export const CASINO_WING = {
+  rect: { lx0: CX + D / 2, lx1: CX + 33.5, lz0: CZ - 8, lz1: CZ + 8 },               // lx 28.5 .. 54.75, lz -58.4 .. -42.4
+  inner: { lx0: CX + D / 2 - 0.6, lx1: CX + 32.9, lz0: CZ - 7.45, lz1: CZ + 7.45 },  // the walk deck (starts under the back arch)
+  chand: [9.0, 13.9, 19.7, 25.0],                                                     // aisle chandeliers (building y): warm lights under them
+};
+const WT_ = (game, n, x, y, ex, title) => ({ id: `casino_${game}_${n}`, game, title, label: `E · ${title}`, at: town(x, y), e: town(ex, y), r: 2.2, wing: true });
+const WING_SLOTS = [];
+{ let k = 2; for (const [x, y] of [[-6.95, 27.4], [6.95, 27.4]]) for (const dy of [-1.2, 0, 1.2]) { const s = x < 0 ? -1 : 1;
+  WING_SLOTS.push({ id: `casino_slots_${k}`, game: 'slots', title: 'TREASURE SLOTS', label: 'E · TREASURE SLOTS', at: town(x, y + dy), e: town(x - s * 1.55, y + dy), r: 0.75, wing: true }); k++; } }
+export const CASINO_WING_TABLES = [
+  WT_('blackjack', 2, -5.4, 11.0, -3.15, 'PIRATE BLACKJACK II'), WT_('roulette', 2, 5.2, 11.0, 3.6, 'BUCCANEER ROULETTE II'),
+  WT_('dice', 2, -5.2, 16.8, -3.5, "DEAD MAN'S DICE II"), WT_('blackjack', 3, 5.4, 16.8, 3.15, 'PIRATE BLACKJACK III'),
+  WT_('roulette', 3, -5.2, 22.6, -3.6, 'BUCCANEER ROULETTE III'), WT_('dice', 3, 5.2, 22.6, 3.5, "DEAD MAN'S DICE III"),
+  ...WING_SLOTS,
+];
 export const CASINO_GAMES = CASINO_TABLES.map(t => t.game);
 
 // Main Street grade in coast mode (js/island/hillStreet.js hallGround): the Squad Hall floor
@@ -43,17 +61,19 @@ export const SQUAD_NORTH_DECK = { lx0: 14.6, lx1: 27.9, lz0: -64, lz1: -59.6 };
 export function casinoGround(lx, lz, h) {
   if (!CASINO_ON) return h;
   if (lx > 13 && lx < 31 && lz > -57 && lz < -43) return Math.min(h, CASINO_FLAT);
-  if (lz > -61 && lz < -59) { if (lx > 17 && lx < 27) return Math.min(h, CASINO_FLAT); if (lx > 29 && lx < 31) return Math.min(h, 2.78); }
+  if (lx > 30.5 && lx < 57 && lz > -57 && lz < -43) return Math.min(h, CASINO_FLAT);   // [v378] the wing
+  if (lz > -61 && lz < -59) { if (lx > 17 && lx < 27) return Math.min(h, CASINO_FLAT); if (lx > 29 && lx < 31) return Math.min(h, 2.78); if (lx > 33 && lx < 55) return Math.min(h, CASINO_FLAT); }
   return h;
 }
 // no grass / foliage in the hall (town-local)
-export const casinoClear = (lx, lz) => CASINO_ON && lx > CASINO_HALL.rect.lx0 - 0.5 && lx < CASINO_HALL.rect.lx1 + 0.5 && lz > CASINO_HALL.rect.lz0 - 0.5 && lz < CASINO_HALL.rect.lz1 + 0.5;
+const inR = (R, lx, lz, m) => lx > R.lx0 - m && lx < R.lx1 + m && lz > R.lz0 - m && lz < R.lz1 + m;
+export const casinoClear = (lx, lz) => CASINO_ON && (inR(CASINO_HALL.rect, lx, lz, 0.5) || inR(CASINO_WING.rect, lx, lz, 0.5));
 // js/island/coliseum.js NEW_STORES (&colirent=1 only): a store whose footprint overlaps the casino is not built (like the Squad Hall's squadOverlap)
-export const casinoOverlap = (lx0, lx1, lz0, lz1) => { if (!CASINO_ON) return false; const R = CASINO_HALL.rect; return lx0 < R.lx1 && lx1 > R.lx0 && lz0 < R.lz1 && lz1 > R.lz0; };
+export const casinoOverlap = (lx0, lx1, lz0, lz1) => { if (!CASINO_ON) return false; return [CASINO_HALL.rect, CASINO_WING.rect].some(R => lx0 < R.lx1 && lx1 > R.lx0 && lz0 < R.lz1 && lz1 > R.lz0); };
 // A prompt / INTERACT entry → its casino game ('blackjack' | 'roulette' | 'dice' | 'slots'), or null when it is not a casino table.
 // js/dock/index.js and js/island/main.js open js/casino/ui.js on that game.
 export function casinoInteract(q) {
   const id = typeof q === 'string' ? q : String(q?.id || q?.kind || q?.src?.id || '');
-  const m = /^casino_(blackjack|roulette|dice|slots)\b/.exec(id); if (!m) return null;
+  const m = /^casino_(blackjack|roulette|dice|slots)(?:_\d+)?\b/.exec(id);   if (!m) return null;   // [v378] wing tables: casino_blackjack_2 ...
   const g = typeof q === 'object' ? (q.game || q.src?.game) : null; return CASINO_GAMES.includes(g) ? g : m[1];
 }

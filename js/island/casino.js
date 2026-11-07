@@ -12,7 +12,7 @@ import { softRamp } from './look.js';
 import { libMaterial } from './libTex.js';
 import { t2w, t2wYaw } from './coast.js';
 import { squadHall } from './hillStreet.js';
-import { CASINO_ON, CASINO_HALL, CASINO_TABLES, CASINO_Y, SQUAD_NORTH_DECK, streetGrade, casinoGround, casinoClear, casinoOverlap, casinoInteract } from './casinoData.js';
+import { CASINO_ON, CASINO_HALL, CASINO_TABLES, CASINO_WING, CASINO_WING_TABLES, CASINO_Y, SQUAD_NORTH_DECK, streetGrade, casinoGround, casinoClear, casinoOverlap, casinoInteract } from './casinoData.js';
 export { CASINO_ON, CASINO_HALL, CASINO_TABLES, CASINO_Y, casinoGround, casinoClear, casinoOverlap, casinoInteract };
 
 export let CASINO_KIT = null;        // { low, lods: [Group], colliders: [['b', x, z, w, d] | ['c', x, z, r]] (three.js building frame), tables, mats }
@@ -35,7 +35,7 @@ export function loadCasinoReady(low) {
         mesh.castShadow = !low && mat === solid; mesh.receiveShadow = !low && mat === solid; g.add(mesh); });
       lods[low ? lv - 1 : lv] = g; }
     const J = (s, d) => { try { return JSON.parse(s || d); } catch { return JSON.parse(d); } };
-    CASINO_KIT = { low, lods: lods.filter(Boolean), colliders: J(ex.colliders, '[]'), tables: J(ex.tables, '{}'), footprint: J(ex.footprint, '{}'), mats: { solid, glow } };
+    CASINO_KIT = { low, lods: lods.filter(Boolean), colliders: J(ex.colliders, '[]'), tables: J(ex.tables, '{}'), footprint: J(ex.footprint, '{}'), wing: J(ex.wing, 'null'), mats: { solid, glow } };
     return CASINO_KIT;
   }).catch(e => { console.warn('[casino] the casino model failed to load (no casino this session)', e); CASINO_KIT = null; return null; });
   return _p;
@@ -57,7 +57,10 @@ export function casinoSite({ addBox, addCirc, addDeck, INTERACT, LOTS_MAP }) {
   for (const q of K.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], P.yaw); }
   if (addDeck) { const I = CASINO_HALL.inner, lx0 = CASINO_HALL.rect.lx0 - 0.1, [x, z] = tw((lx0 + I.lx1) / 2, (I.lz0 + I.lz1) / 2);   // the plank floor (+ the arch threshold)
     addDeck({ x, z, hw: (I.lz1 - I.lz0) / 2, hl: (I.lx1 - lx0) / 2, yaw: 0, y: CASINO_Y, tag: 'casino' }); }
-  for (const t of CASINO_TABLES) { const [x, z] = tw(t.e.lx, t.e.lz); INTERACT.push({ id: t.id, x, z, r: t.r, label: t.label, game: t.game, casino: true }); }
+  if (addDeck && K.wing) { const I = CASINO_WING.inner, [x, z] = tw((I.lx0 + I.lx1) / 2, (I.lz0 + I.lz1) / 2);   // [v378] THE HIGH SEAS ROOM floor
+    addDeck({ x, z, hw: (I.lz1 - I.lz0) / 2, hl: (I.lx1 - I.lx0) / 2, yaw: 0, y: CASINO_Y, tag: 'casino_wing' }); }
+  for (const t of K.wing ? [...CASINO_TABLES, ...CASINO_WING_TABLES] : CASINO_TABLES) { const [x, z] = tw(t.e.lx, t.e.lz); INTERACT.push({ id: t.id, x, z, r: t.r, label: t.label, game: t.game, casino: true }); }
+  if (K.wing) { const R = CASINO_WING.rect; LOTS_MAP?.push({ lx: (R.lx0 + R.lx1) / 2, z: (R.lz0 + R.lz1) / 2, w: R.lz1 - R.lz0, d: R.lx1 - R.lx0, side: 1, label: 'CASINO: HIGH SEAS ROOM', col: '#d4a017', tc: '#fde68a', ldx: 40, ldy: -40 }); }
   LOTS_MAP?.push({ lx: CASINO_HALL.lx, z: CASINO_HALL.lz, w: CASINO_HALL.w, d: CASINO_HALL.d, side: 1, label: 'THE GOLDEN DOUBLOON CASINO (#47)', col: '#d4a017', tc: '#fde68a', ldx: 40, ldy: -60 });
   PLACED = true;
   return true;
@@ -69,6 +72,11 @@ export function buildCasino() {
   const P = casinoPlace(), g = new THREE.Group(); g.name = 'casino_hall'; g.position.set(P.x, P.y, P.z); g.rotation.y = P.yaw;
   if (K.low) g.add(K.lods[0]);
   else { const lod = new THREE.LOD(); lod.name = 'casino_lod'; K.lods.forEach((lv, i) => lod.addLevel(lv, i ? LOD_D : 0)); g.add(lod); }
+  // [v378] warm chandelier light (desktop only, a fixed count so shaders never recompile): the hall + down the wing to the bar. ?caslights=0 = off
+  if (!K.low && !/[?&]caslights=0(&|$)/.test(location.search)) {
+    const spots = [[0, 0.1, 6.5, 12]]; if (K.wing) spots.push([0, 11.5, 6.5, 12], [0, 20.5, 6.5, 12], [0, 29.0, 6.0, 11]);
+    for (const [bx, by, I, d] of spots) { const L = new THREE.PointLight(0xffb45c, I, d, 1.4); L.position.set(bx, 3.7, -by); L.name = 'casino_light'; g.add(L); }
+  }
   let tris = 0; K.lods[0].traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
   g.userData.tris = tris;
   return g;

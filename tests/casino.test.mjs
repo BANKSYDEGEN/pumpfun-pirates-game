@@ -31,7 +31,7 @@ test('footprint on Main Street between the Squad Hall (#33) and the Upgrade Shop
   assert.deepEqual(D.overlap, [true, false]); assert.deepEqual(OFF.overlap, [false, false]);
   assert.match(src('js/island/foot.js'), /PV\.casinoOverlap\?\.\(/); assert.match(src('js/island/coliseum.js'), /o\.squadOverlap/);
   // the Squad Hall's north strip keeps the street grade (its own deck), the terrain under the hall drops to the floor
-  assert.equal(D.squadNorth, 0); assert.equal(D.H.s18_60, CD.CASINO_FLAT); assert.equal(D.lots, 1);
+  assert.equal(D.squadNorth, 0); assert.equal(D.H.s18_60, CD.CASINO_FLAT); assert.equal(D.lots, 2);
 });
 
 test('kill switch &casino=0: no hall, no tables, no terrain change, no map icon', () => {
@@ -42,7 +42,7 @@ test('kill switch &casino=0: no hall, no tables, no terrain change, no map icon'
 });
 
 test('GLBs: LOD0 + LOD1 with colliders and table points, each file under 1.2 MB; the tables in the GLB match CASINO_TABLES', () => {
-  for (const f of ['casino_hall.glb', 'casino_hall_low.glb']) { const n = statSync(new URL('assets/island/' + f, ROOT)).size; assert.ok(n < 1.2e6, `${f} ${n}`); }
+  for (const [f, cap] of [['casino_hall.glb', 1.8e6], ['casino_hall_low.glb', 1.2e6]]) { const n = statSync(new URL('assets/island/' + f, ROOT)).size; assert.ok(n < cap, `${f} ${n}`); }   // [v378] desktop file carries the wing
   assert.equal(D.kit, true); assert.equal(D.lods, 2); assert.ok(D.colliders >= 12, `colliders ${D.colliders}`);
   assert.ok(D.built && D.built.lod, 'buildCasino → THREE.LOD');
   // three.js building frame (x = lz - CZ, z = CX - lx; Blender y = lx - CX, z = -y) back to town
@@ -53,8 +53,10 @@ test('GLBs: LOD0 + LOD1 with colliders and table points, each file under 1.2 MB;
 });
 
 test('four stations: ids, labels, r 2.4, on the floor, 5.5 m+ apart, unblocked', () => {
-  assert.equal(D.interacts.length, 4);
-  for (const q of D.interacts) { const [id, label] = IDS[q.game]; assert.equal(q.id, id); assert.equal(q.label, label); assert.equal(q.r, 2.4); assert.equal(q.y, CD.CASINO_Y); assert.equal(q.blocked, false);
+  const W_ = CD.CASINO_WING_TABLES; assert.equal(D.interacts.length, 4 + W_.length);   // [v378] + THE HIGH SEAS ROOM: one game per table
+  for (const q of D.interacts.filter(q => /^casino_[a-z]+_\d+$/.test(q.id))) { assert.equal(CD.casinoInteract(q.id), q.game); assert.equal(q.y, CD.CASINO_Y); assert.equal(q.blocked, false); assert.ok(!/·.*·/.test(q.label)); }
+  for (let i = 0; i < W_.length; i++) for (let j = i + 1; j < W_.length; j++) { const a = W_[i].e, b = W_[j].e; assert.ok(Math.hypot(a.lx - b.lx, a.lz - b.lz) >= (W_[i].game === 'slots' && W_[j].game === 'slots' ? 1.15 : (W_[i].game === 'slots' || W_[j].game === 'slots') ? 3.5 : 4.5), `${W_[i].id} - ${W_[j].id}`); }
+  for (const q of D.interacts.filter(q => !/_\d+$/.test(q.id))) { const [id, label] = IDS[q.game]; assert.equal(q.id, id); assert.equal(q.label, label); assert.equal(q.r, 2.4); assert.equal(q.y, CD.CASINO_Y); assert.equal(q.blocked, false);
     assert.equal(CD.casinoInteract({ id: q.id }), q.game); assert.equal(CD.casinoInteract(q.id), q.game); }
   assert.equal(CD.casinoInteract({ id: 'squadhall' }), null);
   const T = CD.CASINO_TABLES; for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) { const a = T[i].at || T[i].e, b = T[j].at || T[j].e;
@@ -64,7 +66,8 @@ test('four stations: ids, labels, r 2.4, on the floor, 5.5 m+ apart, unblocked',
 
 test('walk in from Main Street (lx 8) through the arch to all four tables; 2.2 m aisles; floor never under terrain; walls solid', () => {
   for (const r of D.reach) { assert.ok(r.ok, r.id); assert.ok(r.viaArch, `${r.id} via the arch`); assert.ok(r.maxStep <= 0.3, `${r.id} step ${r.maxStep}`); }
-  assert.equal(D.reach.length, 4);
+  assert.equal(D.reach.length, 4 + CD.CASINO_WING_TABLES.length);
+  assert.ok(D.wingPoke.max <= 0, `terrain through the wing planks at ${D.wingPoke.at}: ${D.wingPoke.max}`);
   assert.equal(D.archWalk.hits, 0); assert.ok(D.archWalk.maxStep <= 0.3); assert.ok(D.archClear >= 4.5, `arch ${D.archClear}`);
   assert.equal(D.aisles.runner, 0, 'runner aisle (2.2 m walker)'); assert.equal(D.aisles.cross, 0, 'cross aisle (2.2 m walker)');
   assert.ok(D.floorPoke.max <= 0, `terrain through the planks at ${D.floorPoke.at}: ${D.floorPoke.max}`); assert.ok(D.vaultTerrain < 0.85, 'treasure dais covers the corner');
