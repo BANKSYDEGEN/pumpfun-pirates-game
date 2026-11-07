@@ -621,16 +621,16 @@ const LAYER_GLSL = {
   PET: PET_GLSL,
   CAPE: `{ float w = smoothstep(uLyB.y, uLyB.y - 0.18, transformed.y) * uLyT; transformed.z -= w; transformed.x *= 1.0 + 0.6 * w; }`,
 };
-function itemLayer(m, g0, def, B0 = null) {   // B0: a free pet copy (its own origin) instead of the bind-space anchor
+function itemLayer(m, g0, def, B0 = null, Z = null) {   // B0: a free pet copy (its own origin) instead of the bind-space anchor
   const pet = def.slot !== 'cape', kind = pet ? 'PET' : 'CAPE', bb = g0.boundingBox || (g0.computeBoundingBox(), g0.boundingBox), R = pet ? PET_RIG[def.id] : null;
   const B = !pet ? new THREE.Vector3(0, bb.max.y - 0.03, 0) : B0 || new THREE.Vector3(...R.anchor);
   const U = { uLyT: { value: 0 }, uLyB: { value: B } };
   if (pet) Object.assign(U, { uLyG: { value: new THREE.Vector4(0, 0, 0, PET_SIT[R.kind] || 0) }, uLyA: { value: new THREE.Vector4() },
-    uLyK: { value: new THREE.Vector4(R.h / 0.3, PET_KIND_ID[R.kind], R.kind === 'tiger' ? 1 : 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...(R[k] || R.sit))) } });
+    uLyK: { value: new THREE.Vector4((Z ? Z.h : R.h) / 0.3, PET_KIND_ID[R.kind], R.kind === 'tiger' ? 1 : 0, 0) }, uPv: { value: ['neck', 'sit', 'tail', 'fl', 'fr', 'bl', 'br'].map((k) => new THREE.Vector3(...((Z ? Z.pv[k] || Z.pv.sit : R[k] || R.sit)))) } });
   const mat = m.material, prev = mat.onBeforeCompile, ck = mat.customProgramCacheKey?.bind(mat);
   mat.onBeforeCompile = (sh, r) => { prev?.call(mat, sh, r); Object.assign(sh.uniforms, U);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + (pet ? ' uniform vec4 uLyG, uLyA, uLyK; uniform vec3 uPv[7];' : '') + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LAYER_GLSL[kind]); };
-  mat.customProgramCacheKey = () => (ck ? ck() : '') + '|ly' + kind;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uLyT; uniform vec3 uLyB;' + (pet ? ' uniform vec4 uLyG, uLyA, uLyK; uniform vec3 uPv[7];' : '') + (Z ? ' attribute vec2 petPart;' : '') + LAYER_FN).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + (Z ? LAYER_GLSL[kind].replace('floor(uv.x + 0.5), lv = uv.y', 'floor(petPart.x + 0.5), lv = petPart.y') : LAYER_GLSL[kind])); };
+  mat.customProgramCacheKey = () => (ck ? ck() : '') + '|ly' + kind + (Z ? 'm' : '');
   m.userData.layer = { kind, U, t: Math.random() * 20, st: pet ? newPetState(R.kind, Math.random()) : null };
   return m.userData.layer;
 }
@@ -666,10 +666,34 @@ function capeFollowLegs(g0, geo, skel, names) {
 // facing +z, its own PET layer (drive it with petLayerTick(mesh.userData.layer, dt, speed)). Shares the GLB's buffers with the bound copy.
 const _petGeo = new Map();
 // [v360 BANKSY t1917u] the Meshy gorillas: static textured meshes (no PET layer), ground-centred, facing +z, real size
-const _meshy = new Map(), meshyScene = (url) => { if (!_meshy.has(url)) _meshy.set(url, loadPirateGLB(url)); return _meshy.get(url).then((g) => { const o = g.scene.clone(true); o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } }); return o; }); };
+// [v363 BANKSY t1921u-t1925u] Meshy pets walk again: each vertex gets a PET part (head / arm / leg, + how far down the limb) from a per-model
+// zone map (bind space of the Meshy mesh: y up, +z front, +x = its left), read by the same PET layer shader as the old pets via a petPart
+// attribute. scale = drawn size: the gorilla stands so a pirate's head reaches its chest (BANKSY "pirate would be up to his nipple").
+export const MESHY_RIG = {
+  pet_gorilla: { scale: 1.6, h: 1.4, head: 1.18, headX: 0.26, arm: { y0: 0.34, y1: 1.12, x: (y) => 0.29 + Math.max(0, y - 0.75) * 0.2 }, leg: { y1: 0.4, x: 0.32 },
+    pv: { neck: [0, 1.17, 0.02], sit: [0, 0.45, -0.02], fl: [0.38, 1.06, 0], fr: [-0.38, 1.06, 0], bl: [0.15, 0.45, 0], br: [-0.15, 0.45, 0] } },
+};
+MESHY_RIG.pet_gorilla_white = { ...MESHY_RIG.pet_gorilla, scale: 1.47 };   // same build + the crown; same body height as the black one
+function meshyParts(g, Z) {
+  if (g.attributes.petPart) return; const P = g.attributes.position, A = new Float32Array(P.count * 2);
+  for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), ax = Math.abs(x); let part = 0, lv = 0;
+    if (y > Z.head && ax < Z.headX) { part = 1; lv = 1; }
+    else if (y > Z.arm.y0 && y < Z.arm.y1 && ax > Z.arm.x(y)) { part = x > 0 ? 3 : 4; lv = Math.min(1, Math.max(0, (Z.arm.y1 - y) / (Z.arm.y1 - Z.arm.y0))); }
+    else if (y < Z.leg.y1 && ax < Z.leg.x) { part = x > 0 ? 5 : 6; lv = Math.min(1, Math.max(0, (Z.leg.y1 - y) / Z.leg.y1)); }
+    A[i * 2] = part; A[i * 2 + 1] = lv; }
+  g.setAttribute('petPart', new THREE.BufferAttribute(A, 2));
+}
+const _meshy = new Map();
+async function meshyScene(url, id) {
+  if (!_meshy.has(url)) _meshy.set(url, loadPirateGLB(url)); const g = await _meshy.get(url), Z = MESHY_RIG[id];
+  const o = new THREE.Group(), inner = g.scene.clone(true); o.add(inner); if (Z) inner.scale.setScalar(Z.scale); let mesh = null;
+  inner.traverse((m) => { if (!m.isMesh) return; m.castShadow = true; m.frustumCulled = false; if (Z && !mesh) { mesh = m; meshyParts(m.geometry, Z); m.material = m.material.clone(); } });
+  if (Z && mesh) o.userData.layer = itemLayer(mesh, mesh.geometry, ITEM_BY_ID[id], new THREE.Vector3(), Z);
+  return o;
+}
 export async function petMesh(id, female, low) {
   const def = ITEM_BY_ID[id], R = PET_RIG[id]; if (!def?.v5 || !R) return null;
-  if (def.meshy) { const o = await meshyScene(def.meshy); o.name = 'pet-' + id; o.userData.layer = null; return o; }
+  if (def.meshy) { const o = await meshyScene(def.meshy, id); o.name = 'pet-' + id; return o; }
   const url = def.v5[female ? 'female' : 'male'][low ? 'lo' : 'hi'];
   let e = _petGeo.get(url);
   if (!e) { const gltf = await loadPirateGLB(url); let src = null; gltf.scene.traverse((o) => { if (o.isMesh && (!src || o.geometry.attributes.position.count > src.geometry.attributes.position.count)) src = o; });
@@ -679,7 +703,7 @@ export async function petMesh(id, female, low) {
   itemLayer(m, e.g, def, new THREE.Vector3()); return m;
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
-  if (def.meshy) { const o = await meshyScene(def.meshy); o.name = 'item_' + def.id; o.position.fromArray(PET_RIG[def.id].anchor); body.parent.add(o); return { obj: o }; }   // [v360] beside your foot (bind space)
+  if (def.meshy) { const o = await meshyScene(def.meshy, def.id); o.name = 'item_' + def.id; o.position.fromArray(PET_RIG[def.id].anchor); body.parent.add(o); if (o.userData.layer) p.addPost?.('items', itemsPost, 2); return { obj: o }; }   // [v360] beside your foot (bind space)
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
