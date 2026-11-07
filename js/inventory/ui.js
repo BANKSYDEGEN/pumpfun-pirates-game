@@ -147,12 +147,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); }); $('.iv-x').onclick = () => close();
   const picker = createGivePick({ pvp, nearby: nearbyPlayers, toast }); // [give-dropdown]
   const slots = () => [...data.items.map(s => ({ key: s.item, qty: s.qty, tradeable: s.tradeable, info: itemInfo(s.item) })).filter(s => s.info),
-    ...data.maps.map(m => ({ key: 'map:' + m.id, qty: 1, tradeable: 1, map: m, info: { ...itemInfo('map:' + m.id), rarity: m.tier, name: `${m.tier.toUpperCase()} MAP` } })),
-    ...islSlots()];
-  // [v375] BANKSY t1978u "make island goods show as items in inventory": crabs / pearls / ore / spices / rum (pvp_isl_goods, the money-makers'
-  // own server list) sit in the bag like any item. Sold through the island server (isl_sell), never inv_sell; no give / market (no server path).
-  function islSlots() { let g = {}; try { g = globalThis.PFP_MM?.isl?.goods?.() || {}; } catch { g = {}; }
-    return Object.entries(g).filter(([, q]) => (q | 0) > 0).map(([id, q]) => { const key = islKey(id), info = islInfo(key); return info ? { key, qty: q | 0, tradeable: 0, island: true, info } : null; }).filter(Boolean); }
+    ...data.maps.map(m => ({ key: 'map:' + m.id, qty: 1, tradeable: 1, map: m, info: { ...itemInfo('map:' + m.id), rarity: m.tier, name: `${m.tier.toUpperCase()} MAP` } }))];
   const count = () => slots().reduce((a, s) => a + s.qty, 0);
   // [inv-arrange] BANKSY 9:40 PM "on inventory let them rearrange spots", modelled on QBCore qb-inventory (9:41 PM): fixed numbered
   // slots, drag onto an empty slot = move, onto another item = swap, onto the same item = stack, SHIFT-drag / the item menu's SPLIT =
@@ -210,8 +205,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     else if (B.k === A.k && !single(A.k)) { B.n += part; if (part < A.n) A.n -= part; else order[a] = null; }
     else { if (part < A.n) return false; order[a] = B; order[b] = A; }
     saveOrder(); return true; }
-  const shopTakes = (s) => s.island ? (mode === 'fish' || mode === 'antiques' ? !!s.info.sell?.[mode] : true) : mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' : true;
-  const price = (s) => s.island ? (s.info.sell?.[mode] | 0) : mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
+  const isIsl = (s) => s?.info?.kind === 'island';
+  const shopTakes = (s) => isIsl(s) ? (mode === 'fish' || mode === 'antiques' ? !!s.info.sell?.[mode] : true) : mode === 'fish' ? s.info.kind === 'fish' : mode === 'antiques' ? s.info.kind !== 'fish' : true;
+  const price = (s) => isIsl(s) ? (s.info.sell?.[mode] | 0) : mode === 'fish' ? s.info.fish : mode === 'antiques' ? s.info.antiques : 0;
   const sellOn = () => mode === 'fish' ? !!data.flags.fish_sell : mode === 'antiques' ? !!data.flags.antiques_sell : false;
   // [inventory v209] battle.js reads these: the DB flags + the equipped weapons' rarity (after a reload too, once inv_state is read)
   function syncW(r) { if (typeof window === 'undefined') return; window.PFP_INV_FLAGS = r.flags || {}; const w = { ...(window.PFP_WEAPON_RARITY || {}) }; for (const [slot, k] of Object.entries(r.equipped || {})) { const i = itemInfo(k); if (i && (slot === 'sword' || slot === 'musket')) w[slot] = i.rarity || 'common'; } window.PFP_WEAPON_RARITY = w;
@@ -291,10 +287,9 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       a.innerHTML = `<div class="t">${s.info.name} <small>· equipped ${selE.startsWith('acc:') ? 'on your musket' : selE}</small></div><button data-a="eqout">MOVE TO BAG ⇄</button><button data-a="equnq">UNEQUIP</button>${wq ? `<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>` : ''}`;
       bind(a, { eqout: () => { moveFrom = -2; render(); }, equnq: () => { const src = selE; selE = ''; dropOn({ e: src }, { i: freeBag() }); }, give: () => giveTo(s, 1, selE === 'musket' ? eqGun() : null) }); return; }
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
-    if (s.island) { const where = Object.keys(s.info.sell || {}).map(k => ({ fish: 'Fish Market', antiques: 'Treasure Trader', rum: 'Rum Export' })[k]).join(' / ');
+    if (isIsl(s) && (mode === 'fish' || mode === 'antiques')) { const where = Object.keys(s.info.sell || {}).map(k => ({ fish: 'Fish Market', antiques: 'Treasure Trader', rum: 'Rum Export' })[k]).join(' / ');
       let ih = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity} · island good · sells at ${where}</small></div>`;
-      if (mode === 'bag') ih += '<button data-a="move">MOVE ⇄</button>' + ((mode === 'bag' && selI >= 0 && view[selI]?.n > 1) ? '<button data-a="split">SPLIT</button>' : '');
-      else if (mode === 'fish' || mode === 'antiques') ih += `${s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="${s.qty}" aria-label="quantity">` : ''}<button data-a="isell">SELL · ${price(s).toLocaleString()}g each</button>`;
+      ih += `${s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="${s.qty}" aria-label="quantity">` : ''}<button data-a="isell">SELL · ${price(s).toLocaleString()}g each</button>`;
       a.innerHTML = ih; const iq = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || s.qty) | 0));
       bind(a, { move: () => { moveFrom = selI >= 0 && order?.[selI]?.k === s.key ? selI : (order || []).findIndex(e => e?.k === s.key); moveAmt = 0; render(); }, split: () => { splitAsk = true; splitTo = -1; render(); },
         isell: async () => { if (busy) return; busy = true; try { await globalThis.PFP_MM?.isl?.sell?.(s.info.id, iq(), mode); } finally { busy = false; } sel = null; render(); } }); return; }

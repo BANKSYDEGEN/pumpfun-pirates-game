@@ -38,3 +38,6 @@ export function islPriceRows() {
   const out = []; for (const [id, g] of Object.entries(ISLAND_GOODS)) for (const [shop, p] of Object.entries(g.sell)) out.push([islKey(id), shop, p]);
   return out;
 }
+
+// [055] isl:<id> are regular inventory items now: catalog.js itemInfo() asks this (the catalog is copied to the Edge Function, so no import there)
+if (typeof globalThis !== 'undefined') globalThis.PFP_ISL_INFO = (key) => { const i = islInfo(key); return i ? { ...i, fish: i.sell.fish | 0, antiques: i.sell.antiques | 0 } : null; };

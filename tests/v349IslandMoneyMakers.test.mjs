@@ -65,7 +65,7 @@ test('island goods: catalog rows == migration 053 seed == island.ts ISLAND_PRICE
   const items = [...noComments(MIG).matchAll(/\('(isl:[a-z_]+)', '(crab|dive|mine|plot|still)'\)/g)].map(m => `${m[1]}|${m[2]}`).sort();
   assert.deepEqual(items, Object.entries(IG.ISLAND_GOODS).map(([id, g]) => `isl:${id}|${g.src}`).sort());
   for (const [id] of Object.entries(IG.ISLAND_GOODS)) assert.match(IG.islKey(id), IG.ISL_KEY_RE);
-  assert.ok(!src('js/inventory/catalog.js').includes('isl:'), 'catalog.js (-> invCatalog.ts, migration 036) is untouched');
+  // [055] isl:<id> keys are regular pvp_inv items now (catalog.js KEY_RE + itemInfo via globalThis.PFP_ISL_INFO)
 });
 
 // ---------------- the server: migration 053 + island.ts ----------------

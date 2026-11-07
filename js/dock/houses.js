@@ -1817,7 +1817,7 @@ export function createHouses({
         }
       }
       if (inv?.slots) {
-        return inv.slots().filter((s) => s?.key && !s.island && !String(s.key).startsWith('map:')).map((s) => ({
+        return inv.slots().filter((s) => s?.key && !String(s.key).startsWith('map:')).map((s) => ({
           item: s.key, qty: s.qty | 0, equipped: !!(s.info?.kind === 'weapon' && inv /* unknown */),
         }));
       }
