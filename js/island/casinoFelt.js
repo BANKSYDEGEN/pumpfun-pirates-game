@@ -23,7 +23,8 @@ const FX = (px) => `700 ${Math.round(px)}px Georgia, "Times New Roman", serif`; 
 function canvasFor(wm, hm, ppm) {
   if (typeof document === 'undefined' || !document.createElement) return null;
   const c = document.createElement('canvas'); if (!c || !c.getContext) return null;
-  c.width = Math.max(8, Math.round(wm * ppm)); c.height = Math.max(8, Math.round(hm * ppm));
+  const k = Math.min(1, 2048 / Math.max(wm * ppm, hm * ppm, 1)); // [v395 hotfix] cap every felt canvas at 2048 px (GPU context loss on foot)
+  c.width = Math.max(8, Math.round(wm * ppm * k)); c.height = Math.max(8, Math.round(hm * ppm * k));
   const g = c.getContext('2d'); if (!g) return null;
   return { c, g, s: c.width / wm };   // s = px per metre
 }
@@ -119,7 +120,7 @@ const DRAW = { blackjack: drawBlackjack, roulette: drawRoulette, dice: drawDice 
 export function buildFelts(felts, placements, { low = false, anisotropy = 4 } = {}) {
   if (!felts || !placements?.length) return null;
   const grp = new THREE.Group(); grp.name = 'casino_felts';
-  const ppm = low ? 380 : 760, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+  const ppm = low ? 160 : 300, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
   for (const kind of Object.keys(DRAW)) {
     const f = felts[kind], list = placements.filter(p => p[0] === kind); if (!f || !list.length) continue;
     let cv = null; try { cv = DRAW[kind](f, ppm); } catch (e) { console.warn('[casino] felt', kind, e); }
