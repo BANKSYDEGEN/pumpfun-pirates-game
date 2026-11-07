@@ -150,7 +150,7 @@ const _pq = new THREE.Quaternion(), _bq = new THREE.Quaternion(), _e = new THREE
 // short airborne hover-and-look beats; leash 20 m = flies back fast; > 60 m (fast travel, sailing) = snaps back. Ground + wall checks
 // via world.ground / world.blocked (one probe every 0.1 s). Never lands on or touches the pirate. Each client runs it from a per-bird
 // seed (remote birds behave the same way; their exact path is local, nothing is synced).
-export const PARROT_AI = { near: 6, far: 15, leash: 20, snap: 60, cruise: 6.5, sprint: 15, minUp: 1.6, maxUp: 6.5, clear: 1.6, turn: 2.4 };
+export const PARROT_AI = { near: 1.5, far: 4, leash: 7, snap: 60, cruise: 6.5, sprint: 15, minUp: 1.6, maxUp: 3.2, clear: 0.9, turn: 2.4 };
 const rnd = b => (b.seed = (b.seed * 16807) % 2147483647) / 2147483647;
 function ground(x, z, fallback) { try { const g = world?.ground?.(x, z); return Number.isFinite(g) ? g : fallback; } catch { return fallback; } }
 function pickGoal(b, me, yaw) {
