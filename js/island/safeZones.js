@@ -105,6 +105,7 @@ const ZONE = Object.freeze({ id: CORRIDOR_ID, name: CORRIDOR_NAME, part: 'island
 /** Foot-world: the Safe Zone object across the whole interior, or null. No coli / dig carve-outs. */
 export function zoneAt(x, z) {
   if (!SAFEZONES_ON) return null;
+  if (isInsideColiseum(x, z)) return null; // t2117u: Coliseum + fight pads are PvP — fight games work
   return pointInPoly(x, z) ? { ...ZONE } : null;
 }
 export const insideSafeZone = (x, z) => !!zoneAt(x, z);
