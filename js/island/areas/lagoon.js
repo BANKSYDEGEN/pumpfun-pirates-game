@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Kit, M, box, cyl, ball, hash, jitter, W, C, npc, openChest, store, today, instanced, sm } from './common.js';
 import { AREA_GOLD_ON, PENDING } from './flags.js';
+import { LAGOON_ART, buildLagoonArt, dockDressing } from './lagoonArt.js'; // [lagoon-rework] hill strata, cooler falls, path + dock dressing (&lagoonart=0 = off)
 import { FISH2, createFishing2 } from './fishing2.js'; // [fish2] the new cast / bite / reel fight / catch show (&fish2=0 = the old prompt)
 const LAKE = { x: -205, z: -130, r: 58, y: 20 };                          // = foot.js LAKE (the area reads it, never edits it)
 const DOCK = { x: -205, z0: -63, z1: -97, hw: 1.6 };                       // south shore, out over the water (north = -z)
@@ -47,7 +48,7 @@ export default {
     h.INTERACT.push({ id: 'lagoon_gill', area: 'lagoon', x: GILL.x, z: GILL.z + 1.4, r: 2.6, label: 'E · GRANDPA GILL' });
     h.INTERACT.push({ id: 'lagoon_grotto', area: 'lagoon', x: -206, z: GROTTO.z0 + 4, r: 2.6, label: 'E · OPEN THE CHEST' });
   },
-  build({ MATS, OUT, low, H }) {
+  build({ MATS, OUT, low, H, uTime }) {
     const k = new Kit(), near = new THREE.Group(), far = new THREE.Group(); near.name = 'area_lagoon'; far.name = 'area_lagoon_far';
     // dock: planks on posts, rails on one side, a ladder, barrels + rod rack at the root
     const L = Math.abs(DOCK.z1 - DOCK.z0), zc = (DOCK.z0 + DOCK.z1) / 2;
@@ -77,6 +78,8 @@ export default {
       W(k, cyl(0.05, 0.05, 1.2, 4), C.IRON, M(gx + 3.6, y + 1.8, GROTTO.z0 + 0.4), false); W(k, box(0.36, 0.5, 0.36), 0xffd27a, M(gx + 3.6, y + 1.05, GROTTO.z0 + 0.5), false);
       for (let i = 0; i < 5; i++) { const x = gx - 5 + i * 1.1, z = GROTTO.z0 + 1.2 + hash(i, 6); W(k, cyl(0.04, 0.05, 0.25, 4), C.WHITE, M(x, y + 0.12, z), false); W(k, ball(0.16, 6, 3), 0x9bffb0, M(x, y + 0.28, z, 0, 0, 0, [1, 0.5, 1]), false); }
       W(k, ball(0.5, 8, 4), 0xd9c2a8, M(gx - 3.2, y + 0.2, GROTTO.z0 + 1.6, 0, 0, 0, [1, 0.45, 0.8])); }
+    let lanterns = []; if (LAGOON_ART) { lanterns = dockDressing({ k, DOCK, DOCK_Y, LAKE, H }); // [lagoon-rework] gateway, rail lanterns, tackle station
+      for (const [x, y, z] of lanterns) { W(k, box(0.26, 0.05, 0.26), C.IRON, M(x, y + 0.2, z), false); W(k, box(0.2, 0.3, 0.2), 0xffe7a0, M(x, y, z), false); W(k, cyl(0.0, 0.17, 0.14, 4), C.IRON, M(x, y + 0.29, z, Math.PI / 4), false); W(k, box(0.24, 0.04, 0.24), C.IRON, M(x, y - 0.16, z), false); } }
     const g = k.build(MATS, OUT); near.add(g);
     // chest (animated lid) in the grotto; opened today -> open
     const ch = openChest(MATS, OUT, { c: 0x3a6a8a, band: C.GOLD }); ch.grp.position.set(-206, GROTTO.y, GROTTO.z0 + 2.2); near.add(ch.grp); if ((store.get().chests || {}).lagoon_grotto === today()) ch.open(-10);
@@ -87,7 +90,7 @@ export default {
     for (let i = 0; i < (low ? 24 : 48); i++) { const a = hash(i, 21) * Math.PI * 2, r = 12 + hash(i, 22) * 34, x = LAKE.x + Math.cos(a) * r, z = LAKE.z + Math.sin(a) * r; if (avoid(x, z) || (Math.abs(x - DOCK.x) < 5 && z > DOCK.z1 - 10)) continue;
       const s = 0.7 + hash(i, 23) * 0.7; pads.push(new THREE.Matrix4().compose(new THREE.Vector3(x, LAKE.y + 0.06, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a * 3), new THREE.Vector3(s, 1, s))); }
     near.add(instanced(MATS, OUT, (q) => { for (let j = 0; j < 4; j++) W(q, cyl(0.03, 0.06, 1.8 + j * 0.25, 4), j % 2 ? C.REED : C.REED_D, M((j - 1.5) * 0.15, 0.9 + j * 0.12, (j % 2) * 0.1, 0, (j - 1.5) * 0.1), false); W(q, cyl(0.07, 0.07, 0.35, 5), 0x6b4527, M(0.15, 2.2, 0), false); }, reeds, 'lagoon_reeds'));
-    near.add(instanced(MATS, OUT, (q) => { W(q, cyl(0.6, 0.6, 0.04, 8, 1), 0x3f9a3a, M(0, 0, 0), false); W(q, cyl(0.12, 0.12, 0.06, 6), 0xff9ad0, M(0.25, 0.04, 0.1), false); }, pads, 'lagoon_pads'));
+    if (!LAGOON_ART) near.add(instanced(MATS, OUT, (q) => { W(q, cyl(0.6, 0.6, 0.04, 8, 1), 0x3f9a3a, M(0, 0, 0), false); W(q, cyl(0.12, 0.12, 0.06, 6), 0xff9ad0, M(0.25, 0.04, 0.1), false); }, pads, 'lagoon_pads')); // [lagoon-rework] notched pads + lotus in lagoonArt.js
     // the bobber (shown while fishing)
     const bob = new THREE.Group(); { const kb = new Kit(); W(kb, ball(0.16, 8, 5), C.RED, M(0, 0.1, 0), false); W(kb, ball(0.15, 8, 5), C.WHITE, M(0, -0.04, 0), false); W(kb, cyl(0.02, 0.02, 0.3, 3), C.IRON, M(0, 0.32, 0), false); bob.add(kb.build(MATS, OUT)); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })); ring.rotation.x = -Math.PI / 2; bob.add(ring);
@@ -96,7 +99,8 @@ export default {
     // far impostor: dock deck strip + Gill box + the stones row (one small merged mesh)
     const kf = new Kit(); W(kf, box(DOCK.hw * 2, 0.3, L), C.WOOD, M(DOCK.x, DOCK_Y - 0.15, zc), false); STONES.forEach((s, i) => { if (i % 2 === 0) W(kf, cyl(s.r, s.r, 0.8, 5), C.STONE, M(s.x, s.y - 0.4, s.z), false); });
     W(kf, box(GROTTO.x1 - GROTTO.x0, 7, 1.2), 0x3a3631, M((GROTTO.x0 + GROTTO.x1) / 2, GROTTO.y + 3.4, GROTTO.z0 - 0.4), false); far.add(kf.build(MATS, OUT));
-    return { near, far, chest: ch, tick(t) { ch.tick(t); if (fs2) { fs2.tick(t, Math.min(0.1, Math.max(0, t - _t2))); _t2 = t; } else fishTick(t); } };
+    let art = null; if (LAGOON_ART) try { art = buildLagoonArt({ MATS, OUT, low, H, uTime, near, far, LAKE, DOCK, DOCK_Y, GROTTO, STONES, lanterns, PATH: this.terrain.paths[0].pts }); } catch (e) { console.warn('[lagoon-art]', e); } // [lagoon-rework]
+    return { near, far, chest: ch, art, tick(t) { ch.tick(t); art?.tick(t); if (fs2) { fs2.tick(t, Math.min(0.1, Math.max(0, t - _t2))); _t2 = t; } else fishTick(t); } };
   },
   label(q) { if (q.id === 'lagoon_fish' && fs2) return fs2.label(); if (q.id === 'lagoon_fish') return st.mode === 'bite' ? 'REEL IN!' : st.mode === 'wait' ? 'WAIT FOR THE BITE…' : 'CAST YOUR LINE'; if (q.id === 'lagoon_grotto') return (store.get().chests || {}).lagoon_grotto === today() ? 'GROTTO CHEST · OPENED TODAY' : 'OPEN THE GROTTO CHEST'; return null; },
   activate(q, t, api, b) {
