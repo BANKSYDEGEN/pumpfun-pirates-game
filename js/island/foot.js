@@ -359,6 +359,14 @@ export function Htri(x, z) {
 }
 const gridAt = (A, x, z) => A[IDX(Math.round(Math.min(NX, Math.max(0, (x - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (z - Z0) / G))))];
 export const trailDist = (x, z) => gridAt(TRg, x, z);
+// [v371] BANKSY t1972u: is (x, z) (FOOT frame) on / right beside a walkway? trails, the town street, battle-area paths, and PATH paint from Build Mode
+export function onWalkway(x, z, pad = 1.5) {
+  if (gridAt(TRg, x, z) < 3.4 + pad || gridAt(STg, x, z) < STREET.half + 1.6 + pad) return true;
+  try { if (COASTM && BA.onPath(...CO.w2t(x, z)) > 0.15) return true; } catch {}
+  if (PAINTM.size) { const r = Math.ceil((1.5 + pad) / G), i0 = Math.round((x - X0) / G), j0 = Math.round((z - Z0) / G);
+    for (let j = j0 - r; j <= j0 + r; j++) for (let i = i0 - r; i <= i0 + r; i++) { if (i < 0 || j < 0 || i > NX || j > NZ) continue; const v = PAINTM.get(IDX(i, j)); if (v && v[0] === 6 && v[1] > 0.3) return true; } }
+  return false;
+}
 
 // ---------- terrain colours ----------
 const C = (h) => new THREE.Color(h);
