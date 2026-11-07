@@ -74,12 +74,14 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // Clothes / Pets / Upgrade / Crew go back outside (street prompt + solid footprint). [shipshop-fix] Ship too: walk-in was blocked by the GLB counter / awning-post colliders at the door (same as the four).
 export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_ships', 'shop_upgrades']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
 export const ACCESSORIES_ROOM = Object.freeze({ counter: Object.freeze({ x: 0, z: -1.6, w: 5.4, d: 1.1 }), promptLz: FACADE_LZ - 5.5 });
+// Swap the complete fitted storefronts, not only their prompts: baked cages, keeper, signs,
+// colliders and accessory racks follow the same ID/anchor used by layout and both maps.
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · TOPS, PANTS, SHOES' },
-  { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
-  { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: -10, w: 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
+  { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -10, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
+  { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: 32, w: 10, modelScaleX: 10 / 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
-  { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
+  { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
 ].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }) }));   // [v250] mid-floor prompt; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
@@ -378,9 +380,14 @@ export function buildPlazaV2(h) {
     if (s.vendor === 'accessories') { accessoriesRoom(s); continue; } // skip old crew GLB, exterior stands, signage and mannequin
     const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
     if (glb) {   // [v250] Blender model already has open arch + interior; hollow walls + prop / awning-post colliders (no solid footprint)
-      { const [x, z] = T(s.lx, cz); if (!s.walkIn) addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }   // [v254] outside shops: solid footprint again
+      { const [x, z] = T(s.lx, cz); if (!s.walkIn) addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0).scale(new THREE.Vector3(s.modelScaleX || 1, 1, 1)) }); }   // [v254] outside shops: solid footprint again
       if (s.walkIn) shopWalkInCols(s);
-      for (const c of glb.colliders) { const [x, z] = T(s.lx + c[1], cz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
+      for (const c of glb.colliders) {
+        const sx = s.modelScaleX || 1, [x, z] = T(s.lx + c[1] * sx, cz + c[2]);
+        if (c[0] === 'c') addCirc(x, z, c[3]); // conservative enclosing circle after width-only fit
+        else if (sx !== 1) { const a = c[5] || 0; addBox(x, z, (Math.abs(Math.cos(a)) * c[3] + Math.abs(Math.sin(a)) * c[4]) * sx, Math.abs(Math.sin(a)) * c[3] + Math.abs(Math.cos(a)) * c[4], yaw0); }
+        else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0));
+      }
       { const [x, z] = T(s.lx, FACADE_LZ + 1.0); addBox(x, z, s.w * 0.6 + 0.4, 1.4, yaw0); } for (const sx of [-1, 1]) addCirc(...T(s.lx + sx * s.w * 0.33, FACADE_LZ + 2.5), 0.25);
       continue; }
     stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true, hollow: !!s.walkIn });   // [v250] hollow: walls-only colliders (shopWalkInCols); [v254] outside shops solid
