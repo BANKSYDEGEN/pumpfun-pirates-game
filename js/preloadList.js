@@ -92,6 +92,7 @@ export const HARBOR_MODULES = [
   "js/onfoot/swordHand.js",
   "js/onfoot/tps.js",
   "js/onfoot/tpsMath.js",
+  "js/onfoot/v7Sword.js",
   "js/onfoot/walker.js",
   "js/pvp.js",
   "js/serverPicker.js",

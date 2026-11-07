@@ -34,6 +34,7 @@ import { pitSwordOn, pitWeaponId } from '../carryRules.js'; // [Emerly pitsword]
 import { carriedWeapons } from '../pirateGear.js';
 import { isKey, binds, keyName, anyModalOpen } from '../keybinds.js'; // [v339] weapon key (Q) replaces Tab for stance cycle // [Emerly pitsword] inventory USE AS PRIMARY
 import { swordHand, mirrorTwist, handAxis } from './swordHand.js';
+import { v7SwordPose, makeV7SwordApply } from './v7Sword.js'; // [v7 sword fight] BANKSY t452u / t453u: V7 male + female guard / wind-up / strike / follow-through / recovery
 import { isNetId } from '../safe.js';
 import { ADM } from '../adminState.js'; // [admin-menu] GOD MODE / FREEZE
 import { HARBOR_NET } from '../config.js'; // [Emerly] fight sync rate while two pirates share an area
@@ -282,6 +283,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     const v4 = R.fig?.userData?.v4; if (!v4 || v4 === R.v4) return !!v4;
     R.v4 = v4; const sc = v4.scene, b = MUSKET_ARM_ON ? (n) => boneByName(sc, n) : (n) => sc.getObjectByName(n);
     R.bones = { uR: b('upperarmR'), fR: b('forearmR'), uL: b('upperarmL'), fL: b('forearmL'), spine: b('spine') };
+    if (v4.v7) Object.assign(R.bones, { root: b('root'), head: b('head'), tL: b('thighL'), tR: b('thighR') });   // [v7 sword fight] full-body support (V7 rigs only)
     R.sword?.removeFromParent(); R.sword = null; R.swordId = null; R.musket?.removeFromParent(); R.musket = null;
     if (!v4.__btWrapped) { const u = v4.update.bind(v4); v4.update = (dt) => { u(dt); const f = v4.__btPose; if (f) try { f(); } catch (e) { if (!v4.__btErr) { v4.__btErr = 1; console.warn('[battle] pose', e); } } }; v4.__btWrapped = true; } // never break the clip
     v4.__btPose = () => pose(R); return true;
@@ -299,10 +301,16 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     _gU.copy(_gD).applyAxisAngle(_gA, A); _gF.copy(_gS).addScaledVector(_gD, d).sub(_gE.copy(_gS).addScaledVector(_gU, a)).normalize();
     _gQ.copy(_rootQ).invert(); const axis = MUSKET_ARM_ON ? side : -1;
     aimBone(uB, _gU.applyQuaternion(_gQ), k, _rootQ, null, axis); aimBone(fB, _gF.applyQuaternion(_gQ), k, _rootQ, roll, axis); return true; }
+  // [v7 sword fight] &v7sword=0 = the old 3-key arm pose on V7 bodies too. Posing only: the swing clock / hit / reach / damage / net stay above.
+  const V7_SWORD_ON = typeof location === 'undefined' || !/[?&]v7sword=0(&|$)/.test(location.search || ''); let _v7Apply = null;
+  const moveW = (v4) => { let w = 0; for (const n of ['walk', 'run']) { const c = v4.clips?.[n], a = c && v4.mixer?.existingAction(c); if (a && a.isRunning()) w += a.getEffectiveWeight(); } return Math.min(1, w); };
+  function v7Fight(R) { const st = R.st, a = st.act && st.act.kind === 1 ? st.act : null, hd = R.swordHand || 'R';
+    (_v7Apply ||= makeV7SwordApply(THREE))(R.bones, v7SwordPose(a ? a.t / ARENA.sword.dur : null, { female: !!R.v4.female, hand: hd, moving: moveW(R.v4), time: performance.now() / 1000, flinch: st.flinch || 0 }), st.w, _rootQ, hd); }
   function pose(R) {
     const st = R.st, B = R.bones; if (!B || st.w <= 0.001) return;
     R.fig.updateWorldMatrix(true, false); R.fig.getWorldQuaternion(_rootQ); const k = st.w;
-    if (st.zone === Z_PIT) {
+    if (st.zone === Z_PIT && R.v4?.v7 && V7_SWORD_ON) v7Fight(R);
+    else if (st.zone === Z_PIT) {
       let p0 = P_READY, p1 = P_READY, t = 0;
       if (st.act && st.act.kind === 1) { const s = st.act.t / ARENA.sword.dur;
         if (s < 0.28) { p0 = P_READY; p1 = P_WIND; t = ease(s / 0.28); } else if (s < 0.62) { p0 = P_WIND; p1 = P_SLASH; t = ease((s - 0.28) / 0.34); } else if (s < 1) { p0 = P_SLASH; p1 = P_READY; t = ease((s - 0.62) / 0.38); } }
@@ -660,6 +668,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     }
     // my rig
     const st = mineR.st; st.zone = me.zone; st.w += ((me.zone ? 1 : 0) - st.w) * Math.min(1, dt * 8); st.recoil = Math.max(0, st.recoil - dt * 5);
+    if (me.hp < (st.hp0 ?? me.hp)) st.flinch = 1; st.hp0 = me.hp; st.flinch = Math.max(0, (st.flinch || 0) - dt * 4);   // [v7 sword fight] hit taken: a short lean back (pose only)
     if (st.act) { const a = st.act; a.t += dt; if (!a.hit && a.t >= ARENA.sword.hitAt) { a.hit = true; swordHit(); } if (a.t >= ARENA.sword.dur) st.act = null; }
     if (me.fireAt >= 0) { me.fireAt -= dt; if (me.fireAt < 0) shoot(mineR, W.x, W.z, W.yaw, true); }
     // [zipline-shoot] one hand on the trolley while GUN is drawn mid-ride; free-look ADS works on the cable
@@ -673,6 +682,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     // peers
     for (const [id, r] of peerR) { const p = fnet.peers.get(id); if (!p || p.pirate.object !== r.obj) { r.bar?.removeFromParent(); r.bar = null; r.ring?.removeFromParent(); r.ring = null; if (!p) peerR.delete(id); continue; } // [Emerly] body swapped: onPeer re-rigs it and keeps the seq / down edges (a KO is never missed)
       hookBody(r); const s = r.st; s.zone = r.ba[0]; s.w += ((s.zone ? 1 : 0) - s.w) * Math.min(1, dt * 8); s.recoil = Math.max(0, s.recoil - dt * 5); r.guard = Math.max(0, r.guard - dt);
+      { const hv = r.hpShown ?? r.ba[1]; if (hv < (s.hp0 ?? hv)) s.flinch = 1; s.hp0 = hv; s.flinch = Math.max(0, (s.flinch || 0) - dt * 4); }   // [v7 sword fight] their hit reaction (pose only)
       if (s.act) { s.act.t += dt; if (s.act.t >= ARENA.sword.dur) s.act = null; }
       if (r.fireAt >= 0) { r.fireAt -= dt; if (r.fireAt < 0) shoot(r, p.x, p.z, p.yaw, false); }
       // [zipline-shoot] peer on a cable with musket drawn: left hand grips, right aims (matches local)
