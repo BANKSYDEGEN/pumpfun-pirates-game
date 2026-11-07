@@ -330,8 +330,10 @@ export function createMoneyMakers(ctx) {
       act: async (a, b) => { const [, id, n] = a.split(':'); b.disabled = true; await sell(id, +n, 'rum'); ui.draw(); } };
   }
   async function sell(id, n, shop) { if (!(n > 0)) return; const r = await api.call('isl_sell', { item: islKey(id), qty: n, shop }); if (r?.ok) { if (r.goods) api.takeGoods(r); else api.st.goods[id] = Math.max(0, api.qty(id) - n); api.save(); say(`SOLD ${n} × ${ISLAND_GOODS[id].name.toUpperCase()} · +${gfmt(r.delta || islPrice(islKey(id), shop) * n)}`); refreshInv(); } else say(why(r)); }
-  // the inventory strip (bag: what you hold; FISH MARKET / TREASURE TRADER: SELL buttons)
-  addEventListener('pfp-inv-render', (e) => { const { el, mode } = e.detail || {}; if (!el) return; let s = el.querySelector('#iv-isl'); const grid = el.querySelector('.iv-grid'); if (!grid) return;
+  // [v375] island goods are bag items now (js/inventory/ui.js islSlots, BANKSY t1978u): the inventory reads + sells them through this hook
+  globalThis.PFP_MM.isl = { goods: () => api.goods(), sell: (id, n, shop) => sell(id, n, shop) };
+  // the old inventory strip: off now (?islstrip=1 brings it back)
+  if (/[?&]islstrip=1(&|$)/.test(globalThis.location?.search || '')) addEventListener('pfp-inv-render', (e) => { const { el, mode } = e.detail || {}; if (!el) return; let s = el.querySelector('#iv-isl'); const grid = el.querySelector('.iv-grid'); if (!grid) return;
     const shop = mode === 'fish' ? 'fish' : mode === 'antiques' ? 'antiques' : null; const rows = Object.entries(api.goods()).filter(([id]) => mode === 'bag' || (shop && ISLAND_GOODS[id]?.sell?.[shop]));
     if (!(mode === 'bag' || shop) || !rows.length) { s?.remove(); return; }
     if (!s) { s = document.createElement('div'); s.id = 'iv-isl'; s.style.cssText = 'margin:8px 4px;padding:6px 8px;border:2px solid #c9a66b;border-radius:10px;background:rgba(40,24,10,.55);font:20px Just Another Hand,cursive;color:#f1e2bd'; }
