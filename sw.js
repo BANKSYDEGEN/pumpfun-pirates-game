@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v376'; // [v376] island goods live in the regular inventory (pvp_inv, migration 055): give / market / house / bag cap like any item (BANKSY t1979u)
+const VERSION = 'pfp-v377'; // [v377] one game per casino table + every store opens only its own counter: no tabs to the others (BANKSY t1983u)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

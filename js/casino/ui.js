@@ -222,7 +222,7 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
       <span class="cas-mode" data-k="mode"></span><span class="cas-sp"></span>
       <div class="cas-pill" data-k="pill">${COIN}<span data-k="gold">0 GOLD</span></div>
       <button class="cas-x" data-k="x" title="Close (Esc)">×</button></div>
-    <div class="cas-tabs" data-k="tabs">${Object.keys(TITLES).map(g => `<button class="cas-tab" data-g="${g}">${GAME_ICON[g]}<span class="cas-tl">${esc(TITLES[g])}</span><span class="cas-ts">${esc(SHORT[g])}</span></button>`).join('')}</div>
+    <div class="cas-tabs" data-k="tabs"${/[?&]castabs=1(&|$)/.test(location.search) ? '' : ' hidden style="display:none"'}>${Object.keys(TITLES).map(g => `<button class="cas-tab" data-g="${g}">${GAME_ICON[g]}<span class="cas-tl">${esc(TITLES[g])}</span><span class="cas-ts">${esc(SHORT[g])}</span></button>`).join('')}</div>
     <div class="cas-felt" data-k="felt"></div>
     <div class="cas-bets" data-k="bets"></div>
     <div class="cas-err" data-k="err"></div>
