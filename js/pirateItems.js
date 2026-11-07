@@ -701,6 +701,21 @@ async function buildV5(p, def, opts, low, body, skel, names) {
   const cl = def.v5cloth ? { cloth: true, hex, col0: def.base ? colors3(geo.attributes.color) : null } : null;
   return { obj: m, decal, v5hide, flatten, ...cl };
 }
+// [v362] V7 female: widen the crown's rim (x / z about its centre, + a matching lift) to her hair's cross-section at the rim height
+// plus a margin, so the Meshy hair sits inside it instead of poking out the sides. Only ever grows; bind space, per-pirate copy.
+export const V7_HAT_GROW = { margin: 1.08, band: 0.02 };
+function v7GrowHat(geo, p) {
+  const P = geo.attributes.position; let ymin = 1e9; for (let i = 0; i < P.count; i++) ymin = Math.min(ymin, P.getY(i));
+  let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9; for (let i = 0; i < P.count; i++) { if (P.getY(i) > ymin + 0.03) continue; a0 = Math.min(a0, P.getX(i)); a1 = Math.max(a1, P.getX(i)); b0 = Math.min(b0, P.getZ(i)); b1 = Math.max(b1, P.getZ(i)); }
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (const o of p.atlasMeshes || []) { const B = o.geometry.attributes.position; for (let i = 0; i < B.count; i++) { const y = B.getY(i); if (y < ymin - V7_HAT_GROW.band || y > ymin + 0.06) continue;
+    const x = B.getX(i), z = B.getZ(i); if (Math.abs(x) > 0.5 || Math.abs(z) > 0.5) continue; x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); } }
+  if (!(x1 > x0) || !(a1 > a0)) return;
+  const sx = Math.max(1, (x1 - x0) * V7_HAT_GROW.margin / (a1 - a0)), sz = Math.max(1, (z1 - z0) * V7_HAT_GROW.margin / (b1 - b0)); if (sx === 1 && sz === 1) return;
+  const ca = (a0 + a1) / 2, cb = (b0 + b1) / 2, sy = (sx + sz) / 2;
+  for (let i = 0; i < P.count; i++) P.setXYZ(i, ca + (P.getX(i) - ca) * sx, ymin + (P.getY(i) - ymin) * sy, cb + (P.getZ(i) - cb) * sz);
+  P.needsUpdate = true; geo.computeBoundingSphere();
+}
 // [v123] BANKSY on Raul's crown: "Looks good, doesn't fit on head". Same design, re-seated per body: the ermine rim is scaled to the
 // head + hair cross-section at brow / ear height (bind space) and dropped there; the hair inside the crown is hidden (the velvet cap closes it).
 export const CROWN_FIT = { brow: 0.075, snug: 1.02, drop: 0.012 };
@@ -789,6 +804,7 @@ export async function equip(p, id, opts = {}) {
   const def = ITEM_BY_ID[id]; if (!def) throw new Error('unknown item ' + id);
   await p.ready; p.items ||= {}; p._eqTok ||= {}; const tok = (p._eqTok[def.slot] = {});
   const it = await build(p, def, opts);
+  if (p.v7 && p.female && def.id === 'crown') it.obj?.traverse?.((o) => { if (o.isMesh && o.geometry?.attributes.position) { o.geometry = o.geometry.clone(); v7GrowHat(o.geometry, p); } });   // [v362] BANKSY t1920u: her hair poked out the crown's sides
   if (p._eqTok[def.slot] !== tok) { drop(it); return null; }   // a newer equip / unequip on this slot won
   if (p.items[def.slot]) drop(p.items[def.slot]);
   p.items[def.slot] = { id, hide: def.hide, paint: def.paint, ...it, v5hide: def.v5 ? (it.v5hide || def.v5hide) : null }; applyHide(p); return it.obj;
