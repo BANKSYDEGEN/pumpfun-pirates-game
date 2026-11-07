@@ -205,7 +205,12 @@ export async function createDock(ctx) {
           gold: r => { if (r.gold != null) pv()?.serverGold?.(r.gold, { rev: r.rev, owner: !!r.owner }); } });
         window.PFP_PETS = Object.freeze({ open: () => shipHull?.inHull ? pc.open() : toast('Visit the PARROT CAGE inside your ship hull.', 2400), close: () => pc.close(), get isOpen() { return pc.isOpen; } });
         setInterval(() => pc.tick(1), 1000);
+        const call0 = async (a, b) => { try { return await pv()?.inv?.call?.(a, b); } catch { return null; } };
+        window.addEventListener('pfp-parrot-cage-sync', async () => { // hull cage wants your birds: client read only
+          const r = await call0('parrot_list'); if (r?.ok) window.dispatchEvent(new CustomEvent('pfp-parrot-state', { detail: { parrots: r.parrots || [], equipped: r.equipped || null } }));
+        });
         window.addEventListener('pfp-parrot-state', e => {
+          window.__pfpParrotState = e.detail || null;
           const birds = e.detail?.parrots || [], selected = birds.find(p => p.id === e.detail?.equipped);
           const current = getLocalGear()?.parrot || '';
           if (current.startsWith('parrot_') && current !== (selected?.color || 'none')) import('../islandShop.js').then(m => m.getShopProvider()?.equip?.('gear', 'parrot:' + (selected?.color || 'none')));
@@ -341,6 +346,7 @@ export async function createDock(ctx) {
       houses, low: LOW, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
       openParrotCage: () => { for (const code of ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','Space']) walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); window.PFP_PETS?.open(); },
       closeParrotCage: () => window.PFP_PETS?.close(),
+      loadParrots: () => ctx.pvp?.()?.inv?.call?.('parrot_list'),
       openCrewRoom: (member) => openCrewRoom(member),
       closeCrewRoom: () => { import('../islandShop.js').then(m => m.closeHullCrewRoom()); },
     });
