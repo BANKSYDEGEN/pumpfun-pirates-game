@@ -228,7 +228,7 @@ if (HIGH) {
     composer.addPass(new ShaderPass({ uniforms: { tDiffuse: { value: null } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; float f(float x){ return (x > -1.0 && x < 60000.0) ? clamp(x, 0.0, 64.0) : 0.0; } void main(){ vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(f(c.r), f(c.g), f(c.b), (c.a >= 0.0 && c.a <= 1.0) ? c.a : 1.0); }' }));
-    const bloom = ULTRA ? new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.85, 0.55, 0.86) : new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.92);
+    const bloom = ULTRA ? new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 0.9) : new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.4, 0.95);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     const vignette = new ShaderPass({

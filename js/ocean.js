@@ -285,8 +285,8 @@ export function createSky() {
         // --- sun disc + Mie corona
         float sunDot = max(dot(d, normalize(uSunDir)), 0.0);
         float disc = smoothstep(0.9994, 0.99985, sunDot);
-        float corona = pow(sunDot, 32.0) * 0.55 + pow(sunDot, 8.0) * 0.25 + pow(sunDot, 2.5) * 0.12;
-        col += uSunColor * (disc * 4.5 + corona * 1.45) * uSunVis * (1.0 - uStorm * 0.85);
+        float corona = pow(sunDot, 48.0) * 0.40 + pow(sunDot, 12.0) * 0.12 + pow(sunDot, 4.0) * 0.04; // [v392] BANKSY 'lower the sun glare': tighter, dimmer halo (was 32/8/2.5 @ .55/.25/.12 x1.45)
+        col += uSunColor * (disc * 3.0 + corona * 0.9) * uSunVis * (1.0 - uStorm * 0.85);
 
         // --- moon disc + soft lunar halo
         float moonDot = max(dot(d, normalize(uMoonDir)), 0.0);
