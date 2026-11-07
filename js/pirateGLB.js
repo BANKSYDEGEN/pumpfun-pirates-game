@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { OPT_ON, animStep } from './opt.js'; // [Emerly perf-v304] &opt=0 = full-rate mixers
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'; // [v381] the restored V7 male + his gear refits are Meshopt-packed
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // [v121] BANKSY "Push them in game for now": the v5 bases (turnaround-sheet look, painted anime eyes, pill tattoo) on the SAME v4
@@ -79,7 +80,7 @@ function loader() {
   const draco = new DRACOLoader(); draco.setDecoderPath(new URL('../vendor/three-0.165.0/examples/jsm/libs/draco/gltf/', import.meta.url).href); // [security M4] self-hosted (was jsDelivr)
   // [v339 mobile-stability] phones: 2 Draco WASM workers (default 4 = ~4 decoder heaps of native RAM on iOS); pirate bodies are boot-critical so not 1
   try { if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches) draco.setWorkerLimit(2); } catch {}
-  _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); return _loader;
+  _loader = new GLTFLoader(); _loader.setDRACOLoader(draco); _loader.setMeshoptDecoder(MeshoptDecoder); return _loader;
 }
 export function loadPirateGLB(url) {
   if (!_cache.has(url)) _cache.set(url, loader().loadAsync(new URL(url, document.baseURI).href).then(capTex).catch((e) => { _cache.delete(url); if (/pirate_(male|female)_v7_(hi|lo)\.glb$/.test(url)) return loadPirateGLB(url.replace('_v7_', '_v6_')); throw e; })); // [v112] retry a failed load next time
@@ -104,7 +105,7 @@ function capTex(gl) {
 // over each painted eye and back (a blink), and a dark mouth opening grows over the painted lips while the pirate talks (emote voice
 // lines). At rest nothing is drawn: the NFT eye shape stays exactly as painted. Centre xyz + half size xy, measured on the front renders.
 export const V7_FACE = {
-  male: { eyeL: [0.1008, 1.032, 0.1497], eyeR: [-0.1, 1.032, 0.1498], eyeS: [0.058, 0.046], mouth: [0, 0.9232, 0.1543], mouthW: 0.05, lid: '#f0a06e' },
+  male: { eyeL: [0.0947, 1.0294, 0.1497], eyeR: [-0.0928, 1.0294, 0.1498], eyeS: [0.058, 0.046], mouth: [0, 0.9232, 0.1543], mouthW: 0.05, lid: '#f0a06e' },
   female: { eyeL: [0.0959, 1.0705, 0.1546], eyeR: [-0.098, 1.0706, 0.1549], eyeS: [0.057, 0.055], mouth: [0, 0.9655, 0.1883], mouthW: 0.05, lid: '#fcb996' },
 };
 // V7 keeps the original Meshy texture intact. Independent pixel masks recolour skin / hair / iris;

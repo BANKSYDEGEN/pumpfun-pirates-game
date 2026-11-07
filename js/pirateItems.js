@@ -1,3 +1,4 @@
+import { V7M_FITS, V7M_SKIP } from './v7mFitData.js'; // [v381] restored V7 male gear refits
 // [Raul] PUMPFUN PIRATES shop cosmetics for the v4 Blender pirates (js/pirateGLB.js). Built by tools/blender/build_items.py into
 // assets/pirates/items/item_<id>[_<base>]_{hi,lo}.glb. Each item = ONE mesh + ONE material (+1 draw call at High and Low):
 //  - skinned items (hat, crown, hooks, pegs, shirt, suit) are authored in the pirate's T-pose bind space on the same armature and are
@@ -263,6 +264,18 @@ function applyHide(p) {
       g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(o2) : new Uint16Array(o2), 1)); }
   }
   flattenHair(p); baseTop(p); bootsUnderPeg(p);
+  // [v381] Raul: the restored V7 male's source head is locked (no hat / mask hides his head, hair or beard triangles).
+  // never remove source head/hair/beard triangles to make a hat or mask appear to fit.
+  if (p.v7 && !p.female) for (const o of p.atlasMeshes || []) {
+    if (!o.userData.sourceLocked) continue;
+    const g=o.geometry,B=g.userData.baseIndex,P=g.userData.basePos||g.attributes.position;
+    if (g.attributes.position!==P) g.setAttribute('position',P);
+    const SI=g.attributes.skinIndex,SW=g.attributes.skinWeight,hi=o.skeleton.bones.findIndex(b=>b.name==='head'),H=new Uint8Array(P.count);
+    for(let i=0;i<P.count;i++)for(let k=0;k<4;k++)if(SI.getComponent(i,k)===hi&&SW.getComponent(i,k)>.99)H[i]=1;
+    const out=[];for(let i=0;i<g.index.count;i+=3){const a=g.index.array.subarray(i,i+3);if(!a.some(v=>H[v]))out.push(...a);}
+    for(let i=0;i<B.count;i+=3){const a=B.array.subarray(i,i+3);if(a.some(v=>H[v]))out.push(...a);}
+    g.setIndex(new THREE.BufferAttribute(P.count>65535?new Uint32Array(out):new Uint16Array(out),1));
+  }
 }
 // [Raul shop items 2] boots + a peg leg: the boot on the peg's side goes. [Raul items redo] BANKSY "boots don't work with peg leg":
 // each boot is its own closed shell on its own side (bind-space x sign of the whole triangle), so the peg-side boot is dropped whole
@@ -285,6 +298,7 @@ function baseTop(p) {
   C.needsUpdate = true;
 }
 function flattenHair(p) {   // [v124] hair under the worn hat (v5 only)
+  if (p.v7 && !p.female && p.atlasMeshes?.some(o => o.userData.sourceLocked)) return; // [v381] locked source: fit the gear, never squash / tuck / shrink him
   const F = p.v5 ? Object.values(p.items || {}).map((it) => it.flatten).find(Boolean) : null, iH = TINTS.indexOf('hair');
   const PT = p.v5 && p.lod === 'lo' ? Object.values(p.items || {}).find((it) => it.paint && it.obj?.geometry) : null;
   for (const o of p.atlasMeshes || []) {
@@ -371,6 +385,11 @@ async function build(p, def, opts) {
   // (one per pirate, Low material). Ship crews (crewV4 sets p.forCrew) still bake the light Low file.
   const base = p.female ? 'female' : 'male', low = p.lod === 'lo', url = def.files[base][low && def.slot === 'outfit' && !p.forCrew ? 'hi' : p.lod];
   const body = p.atlasMeshes[0], skel = body.skeleton, names = skel.bones.map((b) => b.name);
+  // [v381] the restored V7 male wears his native-space refit (no second v4->v5 warp); V7M_SKIP items keep the old path for now
+  if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
+    const F=V7M_FITS[def.id];
+    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
+  }
   if (p.v5 && def.v5) return buildV5(p, def, opts, low, body, skel, names);
   const gltf = await loadPirateGLB(url);
   if (def.attach) {  // parrot: own rig + clip, rides a pirate bone (bind space -> bone space via that bone's inverse bind matrix)
