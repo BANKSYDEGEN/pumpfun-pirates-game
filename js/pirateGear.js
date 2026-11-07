@@ -20,7 +20,10 @@ import * as THREE from 'three';
 import { birdFlight, birdTick, newBirdState } from './petMotion.js';   // [Raul items redo 2] parrot flight
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { TINTS, v5Fwd, v5Inv, v5Hat } from './pirateGLB.js';
+import { TINTS, v5Fwd, v5Inv, v5Hat, loadPirateGLB } from './pirateGLB.js';
+// [v360 BANKSY t1917u] V7 bodies: the Meshy parrots (crowned = gold / diamond, plain = blue), feet on the shoulder at V7_SEAT
+const MESHY_PARROT = { parrot_gold: 'crown', parrot_diamond: 'crown', parrot_blue: 'plain' }, V7_SEAT = [0.25, 0.76, 0.06], V7_PARROT_S = 0.7, _mp = new Map();
+function meshyParrot(kind) { if (!_mp.has(kind)) _mp.set(kind, loadPirateGLB(`assets/pirates/items/v7/parrot_${kind}_v7.glb`).then((g) => { let m = null; g.scene.traverse((o) => { if (o.isMesh && !m) m = o; }); const ge = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry; return { pos: ge.attributes.position.array, nrm: ge.attributes.normal.array, col: ge.attributes.color }; })); return _mp.get(kind); }
 import { syncCarry } from './carryWeapons.js';   // [Raul carry] sword in the no-hook hand + musket on the back (on foot)
 import { SWORD_IDS, MUSKET_IDS } from './onfoot/swords.js';
 import { carryPick, carryDigits, carryFromDigits } from './carryRules.js';
@@ -542,6 +545,13 @@ function buildGearGeometry(p, body, gear, lib, colors) {
   const toBody = new THREE.Matrix4().copy(body.matrixWorld).invert().multiply(p.scene.matrixWorld), nm3 = new THREE.Matrix3().getNormalMatrix(toBody), v = new THREE.Vector3(), c = new THREE.Color();
   for (const slot of ['hat', 'eyes', 'parrot', 'hook']) {
     const pc = PIECES[`${slot}:${gear[slot]}`]; if (!pc || (p.v5 && RAUL5[`${slot}:${gear[slot]}`])) continue;
+    if (slot === 'parrot' && p.v7 && lib?._mp?.[gear.parrot]) { const M = lib._mp[gear.parrot], n = M.pos.length / 3, bi = boneIx(pc[1]), pal = PARROTS[gear.parrot], tc = new THREE.Color(pal[1]);
+      const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { for (let k = 0; k < 3; k++) pos[i * 3 + k] = V7_SEAT[k] + M.pos[i * 3 + k] * V7_PARROT_S;
+        c.setRGB(M.col.getX(i), M.col.getY(i), M.col.getZ(i)); const L = (c.r + c.g + c.b) / 3; c.lerp(new THREE.Color(tc.r * L * 1.6, tc.g * L * 1.6, tc.b * L * 1.6), 0.55);   // keep the tier colour
+        if (low) c.multiplyScalar(shade(M.nrm[i * 3], M.nrm[i * 3 + 1], M.nrm[i * 3 + 2])); c.toArray(col, i * 3); }
+      chunks.push({ pos, nrm: Float32Array.from(M.nrm), col, uv: new Float32Array(n * 2).fill(0.75), si: new Uint16Array(n * 4).map((_, k) => (k % 4 ? 0 : bi)), sw: new Float32Array(n * 4).map((_, k) => (k % 4 ? 0 : 1)), index: null, bird: new Float32Array(n).fill(1) });
+      continue; }
     for (const mesh of pc[0]) {
     const src = lib?.[mesh]; if (!src) continue;
     const pal = pc[2] ? pc[2](gear) : null, fx = pc[3] || {}, bi = boneIx(pc[1]), n = src.n;
@@ -692,7 +702,8 @@ function dress(p, gear, colors) {
     if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); if (p.gearMesh.userData.bird) p.gearMesh.material.dispose(); p.gearMesh = null; }
     return syncRaul(p, gear, colors, ticket).then(() => null);
   }
-  return (needLib ? loadLib(p.lod === 'lo' ? 'lo' : 'hi') : Promise.resolve(null)).then((lib) => {
+  const mk = p.v7 && MESHY_PARROT[gear.parrot];
+  return (needLib ? Promise.all([loadLib(p.lod === 'lo' ? 'lo' : 'hi'), mk ? meshyParrot(mk).catch(() => null) : null]).then(([lib, mp]) => (mp && lib ? Object.assign(Object.create(lib), { _mp: { [gear.parrot]: mp } }) : lib)) : Promise.resolve(null)).then((lib) => {
     if (ticket !== p.gearTicket) return null;
     if (p.gearMesh) { p.gearMesh.removeFromParent(); p.gearMesh.geometry.dispose(); if (p.gearMesh.userData.bird) p.gearMesh.material.dispose(); p.gearMesh = null; }
     const rj = syncRaul(p, gear, colors, ticket);

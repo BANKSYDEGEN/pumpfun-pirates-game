@@ -104,9 +104,9 @@ export const ITEMS = [
   item('pet_cat', "Ship's Cat", 'shoulder', 0, null, [], { v5: v5files('pet_cat'), v5hide: [], v5only: true, single: true }),
   item('pet_cat_black', 'Black Cat', 'shoulder', 0, null, [], { v5: v5files('pet_cat_black'), v5hide: [], v5only: true, single: true }),
   item('pet_chimp', 'Chimp', 'shoulder', 0, null, [], { v5: v5files('pet_chimp'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2]
-  item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true }),
+  item('pet_gorilla', 'Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_v7.glb' }),
   item('pet_tiger', 'Tiger', 'shoulder', 0, null, [], { v5: v5files('pet_tiger'), v5hide: [], v5only: true, single: true }),   // [Raul items redo 2] BANKSY 11:39 AM
-  item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true }),
+  item('pet_gorilla_white', 'White Gorilla', 'shoulder', 0, null, [], { v5: v5files('pet_gorilla_white'), v5hide: [], v5only: true, single: true, meshy: 'assets/pirates/items/v7/pet_gorilla_white_v7.glb' }),
   // [Raul shop items 2] BANKSY (10:16 PM): SPECIAL peg legs, the peg slot's left / right fit; [Raul pegleg] re-seated on the v5 peg fit (knee sleeve, PEG5 hide)
   item('peg_gold_l', 'Gilded Peg (Left)', 'legL', 0, null, [], { v5: v5files('peg_gold_l'), v5hide: PEG5('L'), v5only: true }),
   item('peg_gold_r', 'Gilded Peg (Right)', 'legR', 0, null, [], { v5: v5files('peg_gold_r'), v5hide: PEG5('R'), v5only: true }),
@@ -665,8 +665,11 @@ function capeFollowLegs(g0, geo, skel, names) {
 // [Raul items redo 2] a FREE copy of a ground pet (js/onfoot/pets.js: it follows you on foot): a plain mesh, origin = the floor under it,
 // facing +z, its own PET layer (drive it with petLayerTick(mesh.userData.layer, dt, speed)). Shares the GLB's buffers with the bound copy.
 const _petGeo = new Map();
+// [v360 BANKSY t1917u] the Meshy gorillas: static textured meshes (no PET layer), ground-centred, facing +z, real size
+const _meshy = new Map(), meshyScene = (url) => { if (!_meshy.has(url)) _meshy.set(url, loadPirateGLB(url)); return _meshy.get(url).then((g) => { const o = g.scene.clone(true); o.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } }); return o; }); };
 export async function petMesh(id, female, low) {
   const def = ITEM_BY_ID[id], R = PET_RIG[id]; if (!def?.v5 || !R) return null;
+  if (def.meshy) { const o = await meshyScene(def.meshy); o.name = 'pet-' + id; o.userData.layer = null; return o; }
   const url = def.v5[female ? 'female' : 'male'][low ? 'lo' : 'hi'];
   let e = _petGeo.get(url);
   if (!e) { const gltf = await loadPirateGLB(url); let src = null; gltf.scene.traverse((o) => { if (o.isMesh && (!src || o.geometry.attributes.position.count > src.geometry.attributes.position.count)) src = o; });
@@ -676,6 +679,7 @@ export async function petMesh(id, female, low) {
   itemLayer(m, e.g, def, new THREE.Vector3()); return m;
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
+  if (def.meshy) { const o = await meshyScene(def.meshy); o.name = 'item_' + def.id; o.position.fromArray(PET_RIG[def.id].anchor); body.parent.add(o); return { obj: o }; }   // [v360] beside your foot (bind space)
   const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
