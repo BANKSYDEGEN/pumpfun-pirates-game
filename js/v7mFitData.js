@@ -4,7 +4,7 @@ export const V7M_FITS = {
   "tooth_gold": {
     "hi": "assets/pirates/items/v7m_refit/tooth_gold_male_hi.glb",
     "lo": "assets/pirates/items/v7m_refit/tooth_gold_male_lo.glb",
-    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO"
+    "qaStatus": "PASSED_LOCAL_V411_TEETH_V2_VISIBILITY_AND_HEAD_FOLLOW_REVIEW_PENDING"
   },
   "facepaint_retardio": {
     "hi": "assets/pirates/items/v7m_fit/facepaint_retardio_male_hi.glb",
@@ -17,9 +17,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "boots_sea": {
-    "hi": "assets/pirates/items/v7m_fit/boots_sea_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/boots_sea_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/boots_sea_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/boots_sea_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "peg_ghost_l": {
     "hi": "assets/pirates/items/v7m_fit/peg_ghost_l_male_hi.glb",
@@ -29,7 +29,7 @@ export const V7M_FITS = {
   "grill_gold": {
     "hi": "assets/pirates/items/v7m_refit/grill_gold_male_hi.glb",
     "lo": "assets/pirates/items/v7m_refit/grill_gold_male_lo.glb",
-    "qaStatus": "PASSED_LOCAL_V390_GAME_QA_15X20X8_HI_LO"
+    "qaStatus": "PASSED_LOCAL_V411_TEETH_V2_VISIBILITY_AND_HEAD_FOLLOW_REVIEW_PENDING"
   },
   "hook_r": {
     "hi": "assets/pirates/items/v7m_fit/hook_r_male_hi.glb",
@@ -123,9 +123,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "shoes_buckle": {
-    "hi": "assets/pirates/items/v7m_fit/shoes_buckle_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/shoes_buckle_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/shoes_buckle_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/shoes_buckle_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "cloth_coat": {
     "hi": "assets/pirates/items/v7m_fit/cloth_coat_male_hi.glb",
@@ -154,9 +154,9 @@ export const V7M_FITS = {
     "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
   },
   "boots_classic": {
-    "hi": "assets/pirates/items/v7m_fit/boots_classic_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/boots_classic_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/boots_classic_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/boots_classic_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "cloth_singlet": {
     "hi": "assets/pirates/items/v7m_fit/cloth_singlet_male_hi.glb",
@@ -169,9 +169,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "boots_cavalier": {
-    "hi": "assets/pirates/items/v7m_fit/boots_cavalier_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/boots_cavalier_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/boots_cavalier_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/boots_cavalier_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "cape_captain": {
     "hi": "assets/pirates/items/v7m_refit/cape_captain_male_hi.glb",
@@ -215,9 +215,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "boots_buckle": {
-    "hi": "assets/pirates/items/v7m_fit/boots_buckle_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/boots_buckle_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/boots_buckle_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/boots_buckle_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "hook_l": {
     "hi": "assets/pirates/items/v7m_fit/hook_l_male_hi.glb",
@@ -235,9 +235,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "boots_gold": {
-    "hi": "assets/pirates/items/v7m_fit/boots_gold_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/boots_gold_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_refit/boots_gold_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/boots_gold_male_lo.glb",
+    "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "earring_hoop": {
     "hi": "assets/pirates/items/v7m_fit/earring_hoop_male_hi.glb",

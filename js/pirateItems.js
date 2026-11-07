@@ -379,12 +379,12 @@ function fittedGearRecolor(m, def, hex) {
   const mat = m.material, previous = mat.onBeforeCompile, cache = mat.customProgramCacheKey?.bind(mat);
   const U = { gearDye: { value: new THREE.Color(hex) }, gearDyeOn: { value: 1 } };
   const reference = ({ classic_pants:.16, canvas_pants:.32, sailor_trousers:.32, leather_breeches:.12, cape_tattered:.035, cape_royal:.16 })[def.id] || .09;
-  const hasTint = !!m.geometry.attributes._tint;
+  const hasTint = !!m.geometry.attributes._tint, hasBootDye = !!m.geometry.attributes._bootdye;
   mat.onBeforeCompile = (shader, renderer) => {
     previous?.call(mat, shader, renderer); Object.assign(shader.uniforms, U);
-    shader.vertexShader = 'varying float vGearY; varying float vGearTag;\n' + (hasTint ? 'attribute float _tint;\n' : '') + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGearY = position.y; vGearTag = ' + (hasTint ? '_tint' : '-1.0') + ';');
-    shader.fragmentShader = 'uniform vec3 gearDye; uniform float gearDyeOn; varying float vGearY; varying float vGearTag;\n' + shader.fragmentShader;
+    shader.vertexShader = 'varying float vGearY; varying float vGearTag; varying float vGearBootDye;\n' + (hasBootDye ? 'attribute float _bootdye;\n' : '') + (hasTint ? 'attribute float _tint;\n' : '') + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvGearY = position.y; vGearTag = ' + (hasTint ? '_tint' : '-1.0') + '; vGearBootDye = ' + (hasBootDye ? '_bootdye' : '-1.0') + ';');
+    shader.fragmentShader = 'uniform vec3 gearDye; uniform float gearDyeOn; varying float vGearY; varying float vGearTag; varying float vGearBootDye;\n' + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
       // Classification in sRGB; recolouring in linear light. Default (no dye) never installs this hook.
       vec3 dyeBase = diffuseColor.rgb;
@@ -400,13 +400,14 @@ function fittedGearRecolor(m, def, hex) {
       float gold = float(hue>35.0 && hue<65.0 && sat>.55 && mx>.5);
       float neutralDark = float(sat<.20 && mx>.055 && mx<.75);
       float inkKeep = smoothstep(.018,.06,mx);
-      float dyeMask = ${kind==='pants'?(def.dyeY?`(1.0-smoothstep(${def.dyeY[0].toFixed(3)},${def.dyeY[1].toFixed(3)},vGearY))`:'(1.0-smoothstep(.565,.595,vGearY))')+' * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))':kind==='boots'?'float((hue>10.0 && hue<75.0 && sat>.12) || neutralDark>.5) * (1.0-gold)':'max(red,neutralDark) * (1.0-gold)'} * inkKeep;
+      float dyeMask = ${kind==='pants'?(def.dyeY?`(1.0-smoothstep(${def.dyeY[0].toFixed(3)},${def.dyeY[1].toFixed(3)},vGearY))`:'(1.0-smoothstep(.565,.595,vGearY))')+' * (1.0-red) * (1.0-gold) * (1.0-step(2.5,vGearTag)*step(vGearTag,3.5))':kind==='boots'?(hasBootDye?'clamp(vGearBootDye,0.0,1.0)':'float((hue>10.0 && hue<75.0 && sat>.12) || neutralDark>.5) * (1.0-gold)'):'max(red,neutralDark) * (1.0-gold)'} * inkKeep;
       float dyeShade = clamp(dot(dyeBase,vec3(.2126,.7152,.0722))/${reference.toFixed(5)},.035,2.0);
       diffuseColor.rgb = mix(dyeBase,gearDye*dyeShade,clamp(dyeMask*gearDyeOn,0.0,1.0));
     `);
   };
   mat.customProgramCacheKey = () => (cache?.() || '') + '|fitted-gear-dye-v1|' + kind + '|' + def.id + '|' + Number(hasTint) + (def.dyeY ? '|dy' + def.dyeY.join(',') : '');
-  m.userData.gearRecolor = { kind, hex, uniforms: U, reference, hasTint, ...(def.dyeY ? { dyeY: def.dyeY } : {}) };
+  if (hasBootDye) { const k0 = mat.customProgramCacheKey; mat.customProgramCacheKey = () => k0() + '|bootmask'; }
+  m.userData.gearRecolor = { kind, hex, uniforms: U, reference, hasTint, hasBootDye, ...(def.dyeY ? { dyeY: def.dyeY } : {}) };
   m.userData.texVerts = true; mat.needsUpdate = true; return true;
 }
 
