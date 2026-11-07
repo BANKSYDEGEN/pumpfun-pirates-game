@@ -3,12 +3,12 @@
 import * as THREE from 'three';
 export const MALE_SHOP_DISPLAYS = {
   shop_clothes: [
-    { x: -2.6, z: 4.6, yaw: .25, gear: { outfit: 'shirt', hat: 'tricorn' } },
-    { x: 2.6, z: 4.6, yaw: -.25, gear: { outfit: 'tshirt', hat: 'bicorne' } },
-    { x: 1.4, z: 1.2, yaw: -.3, gear: { outfit: 'suit', hat: 'tricorn' } },
-    { x: 0, z: 4.3, yaw: 0, female: true, gear: { outfit: 'shirt', hat: 'crown' } },   // [v361] V7 female display (BANKSY t1919u)
+    { x: -2.6, z: 4.6, yaw: .25, gear: { outfit: 'shirt', hat: 'none' } },
+    { x: 2.6, z: 4.6, yaw: -.25, gear: { outfit: 'tshirt', hat: 'none' } },
+    { x: 1.4, z: 1.2, yaw: -.3, gear: { outfit: 'suit', hat: 'none' } },
+    { x: 0, z: 4.3, yaw: 0, female: true, gear: { outfit: 'shirt', hat: 'none' } },   // [v361] V7 female display (BANKSY t1919u)
   ],
-  shop_crew: [{ x: 2.2, z: 4.4, yaw: -.3, gear: { outfit: 'tank', hat: 'bandana' } }],
+  // The former crew building has a static, built-in accessories counter (no hiring / crew mannequin).
 };
 export function addMaleShopDisplays(parent, id, low = false) {
   const list = MALE_SHOP_DISPLAYS[id]; if (!list) return;

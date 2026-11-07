@@ -7,7 +7,7 @@
 //                          the MOCK provider only; the real one calls the `pvp` Edge Function (shop_state / shop_buy / shop_equip)
 //                          and the SERVER decides every purchase (price, goal, gold, owned): see shop/PLAN.md.
 // Events: 'pfp-shop' { open: true|false, vendor } on window. Off on the crypto-free portal builds (itch.io / Newgrounds).
-import { SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, STORE_HIDDEN, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, WEAPON_ITEMS, SWORD_FREE, MUSKET_FREE, sortByPrice } from './shopCatalog.js';
+import { gearStoreForSlot, SKIN_ITEMS, GEAR_ITEMS, GEAR_SLOTS, VENDORS, STORE_HIDDEN, CAPTAIN_DEFAULTS, HAT_SWATCHES, gearKey, goalProgress, fmtGoal, fmtGold, liveGoal, CREW_ITEMS, CREW_SLOT_LABELS, PET_RARITY, WEAPON_ITEMS, SWORD_FREE, MUSKET_FREE, sortByPrice } from './shopCatalog.js';
 import { CREW_LOOK, CREW_DEFAULT, setCrewLoadout, getCrewLoadout, crewGear } from './crewLoadout.js'; // [Timothy] CREW SHOP: the crew's own loadout (gear.crewhat / gear.crewoutfit)
 import { goalStats, onGoalStats, goalCardHtml, goalRowsHtml } from './shopGoals.js'; // [Timothy] goal progress (cards, detail, profile)
 import { ON_PORTAL } from './config.js';
@@ -200,7 +200,7 @@ function render() {
     c.append(x.kind === 'skin' ? skinThumb(x.key) : gearThumb(x.it));
     // [Timothy] locked: each goal row as text + bar ('Harbor boss kills 37/100'); goal met: the card turns to BUY · price
     const met = s.g && s.g.done && (s.k === 'buy' || s.k === 'poor');
-    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON', needbuy: '🔒 BUY IN CLOTHES SHOP' }[s.k];
+    const badge = { equipped: 'EQUIPPED ✓', owned: 'OWNED', locked: '🔒 GOAL', poor: fmtGold(x.it.price), buy: met ? `BUY · ${fmtGold(x.it.price)}` : fmtGold(x.it.price), soon: 'COMING SOON', needbuy: '🔒 BUY IN ' + VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name }[s.k];
     if (met) c.classList.add('goal-met'); if (s.k === 'locked') c.classList.add('has-goal');
     if (V.pets && PET_RARITY[x.it.id]) c.insertAdjacentHTML('beforeend', `<i class="ishop-rar r-${PET_RARITY[x.it.id].toLowerCase()}">${PET_RARITY[x.it.id]}</i>`);
     c.insertAdjacentHTML('beforeend', `<b class="ishop-name">${esc(x.name)}</b>${s.k === 'locked' ? goalCardHtml(s.g, modesNow()) : `<span class="ishop-badge">${x.it.price === 0 && s.k === 'owned' ? (x.it.grant === 'prestige' ? 'UNLOCKED · FREE' : 'FREE') : badge}</span>`}${met ? `<span class="ishop-metl">✓ GOAL MET${s.k === 'poor' ? ` · need ${fmtGold(x.it.price - state.gold)}` : ''}</span>` : ''}`);
@@ -252,7 +252,7 @@ function detail(x) {
   const rows = s.g ? goalRowsHtml(s.g, modesNow()) : '';
   const btn = { equipped: '<button type="button" class="ishop-act ghost" disabled>EQUIPPED ✓</button>', owned: '<button type="button" class="ishop-act big" data-a="equip">EQUIP</button>',
     locked: `<button type="button" class="ishop-act" disabled>${x.it.grant === 'prestige' ? 'PRESTIGE TO UNLOCK · FREE' : 'REACH THE GOAL FIRST'}</button>`, poor: `<button type="button" class="ishop-act" disabled>NEED ${fmtGold(x.it.price - state.gold)} MORE</button>`,
-    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>', needbuy: '<button type="button" class="ishop-act" data-a="goto">🔒 BUY IT IN THE CLOTHES SHOP</button>' }[s.k];
+    buy: `<button type="button" class="ishop-act big" data-a="buy">BUY · ${fmtGold(x.it.price)}</button>`, soon: '<button type="button" class="ishop-act" disabled>COMING SOON</button>', needbuy: `<button type="button" class="ishop-act" data-a="goto">🔒 BUY IN ${VENDORS[gearStoreForSlot(x.it.base || x.it.slot)].name}</button>` }[s.k];
   d.insertAdjacentHTML('beforeend', `<div class="ishop-info"><h4>${esc(x.name)}</h4>
     <div class="ishop-pr">${x.it.price ? fmtGold(x.it.price) : 'FREE'}${s.owned ? ' · <b>OWNED</b>' : ''}${s.k === 'soon' ? ' · <b>COMING SOON</b>' : ''}</div>
     ${s.k === 'soon' ? '<div class="ishop-gl">Goes on sale when it shows on your pirate.</div>' : ''}
@@ -261,7 +261,7 @@ function detail(x) {
     ${btn}</div>`);
   if (view.tab === 'wardrobe' && s.k === 'equipped' && x.kind === 'gear') { const off = itemsFor().find(y => y.it.slot === x.it.slot && y.it.price === 0 && y.it.free && y.key !== x.key);   // [v6-store-clothes] take it off = the slot's free default
     if (off) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ishop-act ghost'; b.textContent = 'TAKE OFF'; b.onclick = () => doEquip(off); $('.ishop-info', d)?.append(b); } }
-  const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'goto' ? openShop({ vendor: 'clothes', tab: 'gear', slot: x.it.base, item: `${x.it.base}:${x.it.id}` }) : a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
+  const a = $('[data-a]', d); if (a) a.onclick = () => a.dataset.a === 'goto' ? openShop({ vendor: gearStoreForSlot(x.it.base), tab: 'gear', slot: x.it.base, item: `${x.it.base}:${x.it.id}` }) : a.dataset.a === 'buy' ? confirmBuy(x) : doEquip(x);
   { const bar = $('.ishop-actbar', root), main = $('.ishop-info > .ishop-act', d); bar.innerHTML = ''; // [Emerly] phones: the same EQUIP / BUY button pinned under the detail, always on screen (CSS shows it on phones only)
     if (main) { const c = main.cloneNode(true); c.insertAdjacentHTML('afterbegin', `<span class="ishop-actn">${esc(x.name)}</span>`); if (a) c.onclick = a.onclick; bar.append(c); } }
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE

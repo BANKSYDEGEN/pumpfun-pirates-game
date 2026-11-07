@@ -8,7 +8,7 @@ test('boots stay in the catalog', () => {
 });
 test('Clothes Store: every shoe is listed again ([v6-store-clothes] BANKSY 1:36 PM "Add shoes and pants back to store")', async () => {
   assert.match(cat, /STORE_HIDDEN = new Set\(\)/);
-  const clothes = cat.match(/clothes:\s*\{[^}]+\}/); assert.ok(clothes); assert.match(clothes[0], /'boots', 'pants'/);
+  const { VENDORS } = await import('../js/shopCatalog.js'); assert.ok(VENDORS.clothes.slots.includes('boots')); assert.ok(VENDORS.clothes.slots.includes('pants'));
   const { GEAR_ITEMS, STORE_HIDDEN } = await import('../js/shopCatalog.js');
   const listed = GEAR_ITEMS.filter((it) => it.slot === 'boots' && !STORE_HIDDEN.has(`boots:${it.id}`)).map((it) => it.id);
   assert.deepEqual(listed.sort(), ['boots_buckle', 'boots_cavalier', 'boots_classic', 'boots_gold', 'boots_sea', 'none', 'sandals', 'shoes_buckle']);

@@ -190,7 +190,8 @@ test('CHANGE CLOTHES: the built hull has the sea chest prop + collider', async (
 test('CHANGE CLOTHES opens the existing island shop CHANGING ROOM (owned clothes, nothing to buy)', async () => {
   const { VENDORS } = await import('../js/shopCatalog.js');
   const V = VENDORS.wardrobe; assert.ok(V, 'WARDROBE vendor'); assert.deepEqual(V.tabs, ['wardrobe']); assert.ok(!V.dress && !V.crew, 'owned clothes only');
-  assert.deepEqual(V.slots, VENDORS.clothes.slots, 'same clothing slots as the CLOTHES SHOP changing room');
+  for (const slot of VENDORS.clothes.slots) assert.ok(V.slots.includes(slot), 'wardrobe keeps clothing slot ' + slot);
+  for (const slot of VENDORS.accessories.slots) assert.ok(V.slots.includes(slot), 'wardrobe also keeps owned accessories ' + slot);
   assert.match(DOCK, /function openWardrobe\(/); assert.match(DOCK, /window\.openShop\(\{ vendor: 'wardrobe', tab: 'wardrobe', from \}\)/);
   assert.equal((DOCK.match(/openWardrobe: \(from\) => openWardrobe\(from\)/g) || []).length, 2, 'passed to both the hull and the cabins');
   assert.match(HULL, /if \(tag === 'wardrobe'\) \{ try \{ openWardrobe\?\.\('hull'\)/); assert.match(HOUSES, /if \(tag === 'wardrobe'\) \{ closeStorage\(\); try \{ openWardrobe\?\.\('cabin'\)/);

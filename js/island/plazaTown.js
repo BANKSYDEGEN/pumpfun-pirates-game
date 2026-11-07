@@ -71,14 +71,15 @@ export const FACADE_LZ = -30, ROW_D = 12, STALL_LZ = -17;
 // hollow wall colliders (door gap), prompt on the shop floor (promptLz), not the street. vendor = js/shopCatalog.js VENDORS id.
 // [v254] BANKSY 9:33 PM 'Move the crew shop, upgrade shop, pet shop, clothing store back outside cuz can't go inside those':
 // Clothes / Pets / Upgrade / Crew go back outside (street prompt + solid footprint). [shipshop-fix] Ship too: walk-in was blocked by the GLB counter / awning-post colliders at the door (same as the four).
-export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_ships', 'shop_upgrades', 'shop_crew']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
+export const SHOPS_OUTSIDE = new Set(['shop_clothes', 'shop_pets', 'shop_ships', 'shop_upgrades']); // [shipshop-fix] BANKSY 9:44 PM 'Ship shop doesn't work': Ship kept walk-in in v254, same blocked door as the other four
+export const ACCESSORIES_ROOM = Object.freeze({ counter: Object.freeze({ x: 0, z: -1.6, w: 5.4, d: 1.1 }), promptLz: FACADE_LZ - 5.5 });
 export const STOREFRONTS = [
-  { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · HATS, COATS, EYEWEAR' },
+  { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · TOPS, PANTS, SHOES' },
   { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: -10, w: 12, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
-  { id: 'shop_crew', name: 'CREW ROOM', vendor: 'crew', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'CREW ROOM · DRESS YOUR CREW' },   // [v6-store-clothes] BANKSY 2:40 PM "crew room" (id stays shop_crew)
-].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: FACADE_LZ - 5.5 }) }));   // [v250] mid-floor prompt; [v254] outside shops: street prompt lz+3.8 + solid footprint
+  { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: 32, w: 10, fl: 3, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
+].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }) }));   // [v250] mid-floor prompt; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
 export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
@@ -177,9 +178,17 @@ export function buildPlazaV2(h) {
     const [x, z] = T(lx, cz); if (!o.hollow) addBox(x, z, w + 0.6, ROW_D + 0.6, yaw0);   // [v250] hollow = walk-in (caller adds wall colliders)
     at(lx, cz, 0, () => {
       const d = ROW_D, fh = 3.5, col = STONES[v % 4], sh = C.SHUTTER[(v + 2) % C.SHUTTER.length];
-      W(k, box(w + 0.6, 0.7, d + 0.6), QUOIN, TRIM, M(0, 0.15, 0));
+      if (!o.openGround) W(k, box(w + 0.6, 0.7, d + 0.6), QUOIN, TRIM, M(0, 0.15, 0));
+      else W(k, box(w, .08, d), QUOIN, TRIM, M(0, .02, 0), false);
       for (let f = 0; f < fl; f++) { const y0 = 0.5 + f * fh;
-        W(k, box(w, fh, d), col, MASON, M(0, y0 + fh / 2, 0));
+        if (f === 0 && o.openGround) {
+          const t = .5, door = Math.min(w * .66, w - 2.6), pier = (w - door) / 2;
+          W(k, box(w, fh, t), col, MASON, M(0, y0 + fh / 2, -d / 2 + t / 2));
+          for (const sx of [-1, 1]) {
+            W(k, box(t, fh, d), col, MASON, M(sx * (w / 2 - t / 2), y0 + fh / 2, 0));
+            W(k, box(pier, fh, t), col, MASON, M(sx * (door / 2 + pier / 2), y0 + fh / 2, d / 2 - t / 2));
+          }
+        } else W(k, box(w, fh, d), col, MASON, M(0, y0 + fh / 2, 0));
         W(k, box(w + 0.36, 0.3, d + 0.36), QUOIN, TRIM, M(0, y0 + fh, 0), false);                       // string course
         for (const sx of [-1, 1]) for (let q = 0; q < (low ? 1 : 3); q++) W(k, box(0.8, low ? fh : 0.9, 0.8), QUOIN, TRIM, M(sx * (w / 2 - 0.3), y0 + (low ? fh / 2 : 0.55 + q * 1.15), d / 2 - 0.3), false); // quoins
         const nw = Math.max(1, Math.floor(w / 3.2));
@@ -194,7 +203,7 @@ export function buildPlazaV2(h) {
           for (let b = -(w - 0.8) / 2; b <= (w - 0.8) / 2 + 0.01; b += low ? 1.2 : 0.5) W(k, box(0.09, 1.0, 0.09), C.WOOD_L, TIMBER, M(b, y0 + 0.65, d / 2 + 1.35), false);
           for (const sx of [-1, 1]) W(k, box(0.2, 0.9, 0.2), C.WOOD_D, TIMBER, M(sx * (w / 2 - 0.8), y0 - 0.3, d / 2 + 0.55, 0, 0.75), false); }
       }
-      if (o.shop) { W(k, box(w * 0.62, 2.9, 0.14), 0x2a1d14, 0, M(0, 1.95, d / 2 + 0.02), false);          // shop opening + arch
+      if (o.shop) { if (!o.openGround) W(k, box(w * 0.62, 2.9, 0.14), 0x2a1d14, 0, M(0, 1.95, d / 2 + 0.02), false);          // shop opening + arch
         W(k, box(w * 0.62 + 0.8, 0.5, 0.4), QUOIN, TRIM, M(0, 3.6, d / 2 + 0.15), false); for (const sx of [-1, 1]) W(k, box(0.5, 3.1, 0.4), QUOIN, TRIM, M(sx * (w * 0.31 + 0.2), 2.05, d / 2 + 0.15), false); }
       const top = 0.5 + fl * fh; W(k, box(w + 0.2, 0.3, 0.3), C.WOOD_D, TIMBER, M(0, top - 0.2, d / 2 + 0.25), false);   // eave beam
       const pitch = 0.55, half = d / 2 + 0.8, slab = half / Math.cos(pitch), rise = Math.tan(pitch) * half;
@@ -332,8 +341,39 @@ export function buildPlazaV2(h) {
     const B = (lx, lz, a, b) => addBox(...T(s.lx + lx, cz + lz), a, b, yaw0);
     B(0, -hd + t / 2, w + 0.6, t + 0.6); for (const sx of [-1, 1]) { B(sx * (hw - t / 2), 0, t + 0.6, d + 0.6); B(sx * px, hd - t / 2, pier + 0.3, t + 0.6); }
   }
+  // Accessories are part of this open-front building, not a sidewalk stand.
+  // Shared material-library geometry only: no lights, textures, canvases or extra WebGL contexts.
+  function accessoriesRoom(s) {
+    stoneHouse(s.lx, s.w, s.fl, s.v, { shop: true, hollow: true, openGround: true });
+    shopWalkInCols(s);
+    const counter = ACCESSORIES_ROOM.counter;
+    at(s.lx, cz, 0, () => {
+      W(k, box(counter.w, 1.0, counter.d), C.WOOD_D, TIMBER, M(counter.x, .5, counter.z));
+      W(k, box(counter.w + .18, .12, counter.d + .16), C.WOOD_L, TIMBER, M(counter.x, 1.06, counter.z), false);
+      W(k, box(counter.w - .3, .04, .65), 0x6a4fb3, CLOTH, M(0, 1.14, counter.z), false);
+      // Jewellery, makeup tins, eyewear and grill trays on the one counter.
+      for (const x of [-1.95, -1.55]) W(k, new THREE.TorusGeometry(.12, .035, 5, 12), 0xffcd77, 0, M(x, 1.28, counter.z), false);
+      for (const x of [-.8, -.45]) W(k, cyl(.13, .13, .14, 10), x < -.6 ? 0x993b61 : 0xd3a873, 0, M(x, 1.23, counter.z), false);
+      for (const x of [.3, .66]) W(k, box(.28, .16, .07), 0x161616, 0, M(x, 1.3, counter.z), false);
+      W(k, box(.13, .04, .07), 0xb48c46, 0, M(.48, 1.3, counter.z), false);
+      for (let i = 0; i < 5; i++) W(k, box(.09, .15, .06), 0xffcd77, 0, M(1.45 + i * .1, 1.26, counter.z), false);
+      // Attached back-wall display shelves, hats and draped capes.
+      W(k, box(s.w - 1.3, 2.7, .1), C.WOOD_D, TIMBER, M(0, 2.0, -ROW_D / 2 + .65), false);
+      for (const y of [1.25, 2.5]) W(k, box(s.w - 1.2, .12, .65), C.WOOD_L, TIMBER, M(0, y, -ROW_D / 2 + .9), false);
+      for (const x of [-2.8, 0, 2.8]) {
+        W(k, cyl(.42, .45, .07, 12), 0x161616, 0, M(x, 2.62, -ROW_D / 2 + .85), false);
+        W(k, cyl(.24, .29, .28, 10), x === 0 ? 0xb38c42 : 0x242229, 0, M(x, 2.79, -ROW_D / 2 + .85), false);
+      }
+      for (const [x, col] of [[-3.8, 0x9b2335], [3.8, 0x304c86]]) W(k, box(.1, 1.9, 1.7), col, CLOTH, M(x, 2.0, -2.8), false);
+      W(k, box(s.w * .8, .9, .15), C.WOOD_D, TIMBER, M(0, 4.35, ROW_D / 2 + .2), false);
+    }, Y0);
+    addBox(...T(s.lx + counter.x, cz + counter.z), counter.w + .2, counter.d + .2, yaw0);
+    sign(s.id, s.w * .77, .75, s.lx, Y0 + 4.35, FACADE_LZ + .3);
+    hanging(s.id, s.lx, s.w);
+  }
   SHOP_PLACES.length = 0;
   for (const s of STOREFRONTS) {
+    if (s.vendor === 'accessories') { accessoriesRoom(s); continue; } // skip old crew GLB, exterior stands, signage and mannequin
     const glb = SHOPS_KIT && SHOPS_KIT.shops[s.id];
     if (glb) {   // [v250] Blender model already has open arch + interior; hollow walls + prop / awning-post colliders (no solid footprint)
       { const [x, z] = T(s.lx, cz); if (!s.walkIn) addBox(x, z, s.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: s.id, m: M(x, Y0, z, yaw0) }); }   // [v254] outside shops: solid footprint again

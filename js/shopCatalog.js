@@ -180,6 +180,9 @@ export const PET_RARITY = { none: '', pet_cat: 'UNCOMMON', pet_monkey: 'RARE', p
 export const STORE_HIDDEN = new Set();   // [v6-store-clothes] BANKSY 1:36 PM "Add shoes and pants back to store": every shoe is listed again
 // ---------- vendors (Raul's INTERACT ids in js/island/foot.js) ----------
 const CREW_DRESS = (() => { try { return !/[?&]crewdress=0(?:&|$)/.test(location.search); } catch { return true; } })();   // [v6-store-clothes] &crewdress=0 = the old CREW SHOP (crew items sold separately)
+export const CLOTHING_STORE_SLOTS = ['outfit', 'pants', 'boots'];
+export const ACCESSORIES_STORE_SLOTS = ['hat', 'eyes', 'ears', 'face', 'cape', 'teeth', 'beard', 'hook', 'leg'];
+export const gearStoreForSlot = slot => ACCESSORIES_STORE_SLOTS.includes(slot) ? 'accessories' : 'clothes';
 export const VENDORS = {
   shop:       { name: 'SHOP', sub: 'Dock Town · Main Street', tabs: ['skins', 'gear'], slots: ['hat', 'outfit', 'eyes', 'parrot', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'boots', 'pants', 'cape', 'flag', 'figure'], awning: null },
   stall_red:  { name: 'RED STALL', sub: 'The Tailor · market square', tabs: ['gear', 'wardrobe'], slots: ['hat', 'outfit', 'eyes', 'face', 'cape', 'boots', 'pants'], awning: '#d8322f' },   // [shop-boosts] BANKSY: no parrots / pets here (PET STORE, SHOP, BLUE STALL still sell them; owned + equipped ones keep working)
@@ -187,9 +190,10 @@ export const VENDORS = {
   // [v103] harbor plaza shops (replace the old HARBOR MARKET stalls)
   // [hide-shoes] BANKSY 10:03 PM: no old boots in the Clothes Store (STORE_HIDDEN); [V6 store] BANKSY "we will add in shoe and pants section for v6":
   // shoes + pants are their own SHOES & PANTS tab (shoeSlots), not mixed into the clothing (PIRATE GEAR tab)
-  clothes:    { name: 'CLOTHES SHOP', sub: 'Harbor plaza · pirate gear', tabs: ['gear', 'wardrobe'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape', 'boots', 'pants'], awning: '#d8322f' },
+  clothes:    { name: 'CLOTHES SHOP', sub: 'Shirts & tops · pants · shoes', tabs: ['gear'], slots: CLOTHING_STORE_SLOTS, awning: '#d8322f' },
+  accessories: { name: 'ACCESSORIES STORE', sub: 'Hats · earrings · makeup · capes · eyewear · teeth & grills', tabs: ['gear'], slots: ACCESSORIES_STORE_SLOTS, awning: '#6a4fb3' },
   pets:       { name: 'PET STORE', sub: 'Harbor plaza · parrots, cats, monkeys + more', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
-  crew:       { name: 'CREW ROOM', sub: 'Harbor plaza · dress your crew in gear you own (free)', tabs: ['wardrobe'], slots: ['crewhat', 'crewoutfit', 'creweyes', 'crewbeard', 'crewface', 'crewcape', 'crewboots', 'crewpants'], awning: '#6a4fb3', crew: true, dress: true, ...(CREW_DRESS ? {} : { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear', 'wardrobe'], dress: false }) },   // [v6-store-clothes] BANKSY 2:39/2:40 PM: CREW ROOM = dress-up only, never sells twice (&crewdress=0 = the old CREW SHOP)
+  crew:       { name: 'CREW ROOM', sub: 'Ship hull · dress your crew in gear you own (free)', tabs: ['wardrobe'], slots: ['crewhat', 'crewoutfit', 'creweyes', 'crewbeard', 'crewface', 'crewcape', 'crewboots', 'crewpants'], awning: '#6a4fb3', crew: true, dress: true, ...(CREW_DRESS ? {} : { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear', 'wardrobe'], dress: false }) },   // [v6-store-clothes] BANKSY 2:39/2:40 PM: CREW ROOM = dress-up only, never sells twice (&crewdress=0 = the old CREW SHOP)
   // [t1714u] SWORD SHOP / MUSKET SHOP / MUSKET UPGRADES are THREE separate menus (no mixed tabs).
   // Legacy `weapons` kept for older callers / tests that open vendor:'weapons' (still swords+muskets; upgrades append only there).
   swords:     { name: 'SWORD SHOP', sub: 'Blades & cutlasses for island PvP and the Coliseum Sword Pit', tabs: ['swords'], slots: ['sword'], awning: '#8a5a2b', weapons: true },
