@@ -181,9 +181,10 @@ export function createOcean(quality) {
         float sunward = smoothstep(-0.3, 0.8, dot(-V, sunH));
         float sparkle = smoothstep(0.55, 0.95, pow(ndh, 900.0)) * rf * rf * rf;
         float path = pow(max(dot(-V, sunH), 0.0), 4.0) * smoothstep(0.0, 0.35, uSun.y + 0.15);
-        col += uSunColor * (sparkle * 1.15 + pow(ndh, 60.0) * 0.14 + path * 0.22) * sunward * (1.0 - 0.75 * st);
+        float hiSun = 1.0 - 0.7 * smoothstep(0.35, 0.9, uSun.y); // [v386] BANKSY 'work on daytime water glare': the broad haze + path fade as the sun climbs (golden-hour paths unchanged)
+        col += uSunColor * (sparkle * mix(0.75, 1.15, hiSun) + pow(ndh, 60.0) * 0.14 * hiSun + path * 0.22 * hiSun) * sunward * (1.0 - 0.75 * st);
         #ifdef ULTRA_Q
-        col += uSunColor * (pow(ndh, 2400.0) * 1.6 + pow(ndh, 220.0) * 0.07) * sunward * (1.0 - 0.75 * st);
+        col += uSunColor * (pow(ndh, 2400.0) * mix(1.0, 1.6, hiSun) + pow(ndh, 220.0) * 0.07 * hiSun) * sunward * (1.0 - 0.75 * st);
         #endif
 
         // --- crest foam: builds just before a big crest, then dissolves slowly behind it
