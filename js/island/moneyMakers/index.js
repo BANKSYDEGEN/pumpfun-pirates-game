@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import * as C from './config.js';
 import * as P from './props.js';
 import { createEnemies } from './enemies.js';
+import { shopFront } from './shopFronts.js';
 import { createMMApi, rid } from './api.js';
 import { createMMUi, esc, gfmt } from './ui.js';
 import { ISLAND_GOODS, islKey, islPrice, ISL_SHOP_NAMES } from '../../inventory/islandGoods.js';
@@ -21,7 +22,7 @@ import { t2w, t2wYaw, toHarbor } from '../coast.js';
 const inShop = (id, name) => { const S = RENTABLE_SHOPS.find(r => r.id === id); if (!S) return null; const I = S.interior, f = Math.sin(S.facing) >= 0 ? 1 : -1;
   const lx = f > 0 ? I.lx0 + 1.5 : I.lx1 - 1.5, lz = S.lz, y = I.floorY.atLz0 + (lz - I.lz0) / (I.lz1 - I.lz0) * (I.floorY.atLz1 - I.floorY.atLz0);
   const [x, z] = toHarbor(...t2w(lx, lz)), ry = t2wYaw(S.facing), [dx, dz] = toHarbor(...t2w(S.door.lx + f * 1.1, S.door.lz));
-  return { x, z, y: y + 0.02, ry, fx: Math.sin(ry), fz: Math.cos(ry), shop: id, name, door: { x: dx, z: dz, y: S.doorY } }; };
+  return { x, z, y: y + 0.02, ry, fx: Math.sin(ry), fz: Math.cos(ry), shop: id, name, door: { x: dx, z: dz, y: S.doorY, out: 1.1 } }; };
 
 export const MM_ON = C.MM_ON;
 // ---------------- where everything stands (harbor frame; checked flush + off the paths, see tools in the v349 report) ----------------
@@ -62,7 +63,8 @@ export function createMoneyMakers(ctx) {
 
   // ======================= props =======================
   const fx = (S, d) => S.x + (S.fx ?? 0) * d, fz = (S, d) => S.z + (S.fz ?? 1) * d;   // [v372] a point d m in front of a stand (toward the shop door)
-  const doorBoard = (S) => { if (!S.door) return; const lb = P.label(S.name, { w: 512, h: 96, sx: 3.2 }); lb.material.depthTest = true; lb.renderOrder = 0; lb.position.set(S.door.x, S.door.y + 3.3, S.door.z); root.add(lb); };
+  const FRONT = { 'WANTED BOARD': 'wanted', 'FIGHT MASTER': 'fight', 'RUM EXPORT': 'rum', 'HARBOR FENCE': 'fence' };
+  const doorBoard = (S) => { if (!S.door) return; try { const f = shopFront(S, FRONT[S.name]); if (f) root.add(f); } catch (e) { console.warn('[mm-front]', e); } };   // [v373] dressed shop fronts
   const wanted = put(P.wantedBoard(), SITES.wanted.x, SITES.wanted.z, SITES.wanted.ry, SITES.wanted.y); spot('wanted', 'board', fx(SITES.wanted, 1.6), fz(SITES.wanted, 1.6), 3.0, 'WANTED BOARD · CONTRACTS + BOUNTIES'); doorBoard(SITES.wanted);
   const fm = put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry, SITES.fight.y); spot('fight', 'coliseum', fx(SITES.fight, 1.6), fz(SITES.fight, 1.6), 3.0, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE'); doorBoard(SITES.fight);
   const hordeRing = put(P.ring(SITES.horde.r, 0xb3121a), SITES.horde.x, SITES.horde.z); hordeRing.position.y += 0.06; hordeRing.visible = false;
