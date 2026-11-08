@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_LANTERNS, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS, PET_PARROTS, PET_RINGS } from './model.js';
 import { HQ, PET_LOT, PET_STORE, PET_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 import { WATCH_TOKENS } from './market.js';
+import { skyPhase, sunElevation } from '../skyCycle.js';
 import { petLook, petParrots, petBrass } from './petlook.js';
 import { C, frame, icon, txt, rr, rowBg, logo as tokenLogoDot, pill, bar, tapHint, withUpdated, usd } from './boardkit.js';
 export function buildParts(parts, low=false) {
@@ -24,6 +25,7 @@ export function buildHQ(low=false){const group=new THREE.Group();group.name='pum
  const extra=[];for(const f of [cloth,flags,rugs])try{f(group,low,extra);}catch(e){console.warn('[pumpfun] hall dressing skipped',e.message);}
  try{damask(group,low);}catch(e){console.warn('[pumpfun] damask skipped',e.message);}
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
+ try{nightFill(group,low);}catch(e){console.warn('[pumpfun] night fill skipped',e.message);}
  return {group,board,referral,cv,tex,squadBoards,panels,dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
 // carved timber sign (casino style: dark mahogany, gilt incised letters): replaces the flat green bar; one shared canvas
 function carvedSign(low){const c=document.createElement('canvas');c.width=low?512:1024;c.height=c.width/8;const g=c.getContext('2d'),W=c.width,H=c.height;
@@ -119,6 +121,22 @@ function glow(group,low){
  for(const P of HQ_PANELS.filter(p=>p.face==='s'))pool(6.4,P.lx,Y+HQ_BOARD_BAND.y,P.lz-.02,0,Math.PI);
  pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
+// BANKSY t303u "make the inside light even at night": an interior-only warm fill (additive planes just inside the walls, floor and
+// ceiling, holes at both doorways). Opacity follows the sky's night amount every frame (onBeforeRender), so the hall reads like day
+// at night and adds nothing at noon. No lights, nothing outside the hall; it goes away with the hall group (dispose on exit).
+export const hqNightAmount=(p=skyPhase())=>{const e=sunElevation(p),t=Math.min(1,Math.max(0,(e+.05)/.3));return 1-t*t*(3-2*t);};
+function nightFill(group,low){const Y=HQ.floor,C=Y+HQ.ceil-.04,X0=HQ.lx0+.58,X1=HQ.lx1-.98,Z0=HQ.lz0+.58,Z1=HQ.lz1-.58,geos=[];
+ const q=(w,h,x,y,z,rx,ry)=>{if(w<=0||h<=0)return;const g=new THREE.PlaneGeometry(w,h);g.rotateX(rx);g.rotateY(ry);g.translate(x,y,z);geos.push(g);};
+ q(X1-X0,Z1-Z0,(X0+X1)/2,Y+.035,(Z0+Z1)/2,-Math.PI/2,0); q(X1-X0,Z1-Z0,(X0+X1)/2,C,(Z0+Z1)/2,Math.PI/2,0);
+ q(Z1-Z0,C-Y,X0,(Y+C)/2,(Z0+Z1)/2,0,Math.PI/2); q(X1-X0,C-Y,(X0+X1)/2,(Y+C)/2,Z0,0,0);
+ const D=HQ.hillDoor,dz0=D.lz-D.w/2-.4,dz1=D.lz+D.w/2+.4,dt=Y+D.h+D.w/2+.5;   // east wall, hole for the Hill Street arch
+ q(dz0-Z0,C-Y,X1,(Y+C)/2,(Z0+dz0)/2,0,-Math.PI/2); q(Z1-dz1,C-Y,X1,(Y+C)/2,(dz1+Z1)/2,0,-Math.PI/2); q(dz1-dz0,C-dt,X1,(dt+C)/2,D.lz,0,-Math.PI/2);
+ const G=HQ.door,gx0=G.lx-G.w/2-.4,gx1=G.lx+G.w/2+.4,gt=Y+G.w/2+5.0;   // front wall, hole for the dock gate
+ q(gx0-X0,C-Y,(X0+gx0)/2,(Y+C)/2,Z1,0,Math.PI); q(X1-gx1,C-Y,(gx1+X1)/2,(Y+C)/2,Z1,0,Math.PI); q(gx1-gx0,C-gt,G.lx,(gt+C)/2,Z1,0,Math.PI);
+ const mat=new THREE.MeshBasicMaterial({color:0xffc58a,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1});
+ const m=new THREE.Mesh(mergeGeometries(geos),mat);geos.forEach(g=>g.dispose());m.name='hq_night_fill';m.renderOrder=1;m.frustumCulled=false;
+ const peak=low?.2:.22;let at=0;m.onBeforeRender=()=>{const now=performance.now();if(now-at<500)return;at=now;mat.opacity=peak*hqNightAmount();};mat.opacity=peak*hqNightAmount();
+ group.add(m);}
 // [post-petstore] near-only pet store detail: props (boxes / cylinders / gables, rotations), unlit flames, carved signs, petlook.js textures, painted
 // light pools (one 128 px gradient, additive, no lights). The shell is in the plaza kit (model.js petShellParts).
 export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_store_L4_dress';const bins=new Map(),S=PET_STORE,F=S.floor;
