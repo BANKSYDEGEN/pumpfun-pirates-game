@@ -30,6 +30,8 @@ import { ON_PORTAL } from '../config.js';
 import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v240] kill switches: &tokenx=1 kiosk, &hallboards=1 hall posters + TRENDING row
 import { SHOPS_KIT, SHOP_PLACES, SHIP_STORE_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
+export { villageGround, villageClear, VILLAGE_RENTALS, VILLAGE_LOTS, VILLAGE_ROADS } from './village.js';   // [post-village]
+import { buildVillage } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 export { casinoSite, casinoGround, casinoClear, casinoOverlap } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): foot.js terrain + buildStreet + grass hooks
@@ -413,6 +415,7 @@ export function buildPlazaV2(h) {
     for (const [lx,lz,w,d] of PET_WALLS) addBox(...T(lx,lz),w,d,yaw0); for (const [,lx,lz,w,d] of PET_PROPS) addBox(...T(lx,lz),w,d,yaw0);
     camRoom({id:PET_SHOP.id,...I},S.ceil-.4,S.floor); }
   else camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
+  try { buildVillage(h, { camRoom, Y0, C }); } catch (e) { console.warn('[post-village] build failed', e); }   // [post-village] BANKSY's 23 rentals + roads
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
   buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,
@@ -481,7 +484,7 @@ export function buildPlazaV2(h) {
     addCirc(x, z, 1.72); }   // [collisions] table + its 3 stools as one round footprint (the stools were walk-through; separate circles left pockets)
   // ---- palms (blockout: chunky trunk + fronds; phase 2 = the nature kit palm) ----
   // [Emerly] BANKSY: the plaza palms = the nature kit palms (palm0-2, the ones under the rope bridge), instanced in foot.js createFoot from PALM_SPOTS; &plazapalm=0 = the blockout palms
-  if (PLAZA_PALM_ON) for (const [i, [lx, lz]] of PALMS.entries()) { const [x, z] = T(lx, lz); PALM_SPOTS.push([x, Y0, z, i * 1.3, i % 3]); addCirc(x, z, 0.5); }
+  if (PLAZA_PALM_ON) for (const [i, [lx, lz]] of PALMS.entries()) { if (vClear(lx, lz)) continue; const [x, z] = T(lx, lz); PALM_SPOTS.push([x, Y0, z, i * 1.3, i % 3]); addCirc(x, z, 0.5); }
   else for (const [i, [lx, lz]] of PALMS.entries()) at(lx, lz, i * 1.3, () => { for (let s = 0; s < 4; s++) W(k, cyl(0.32 - s * 0.04, 0.36 - s * 0.04, 2.0, 7), C.BARK, 5, M(s * 0.18, 1 + s * 1.9, 0, 0, 0, -0.06 * s));
       for (let f = 0; f < 6; f++) W(k, box(0.9, 0.14, 3.6), 0x3fca45, 6, M(0.7 + Math.sin(f * 1.05) * 1.5, 7.6, Math.cos(f * 1.05) * 1.5, f * 1.05, 0.38)); addCirc(...T(lx, lz), 0.5); }, Y0);
   // ---- cargo between the jetty roots (never on a jetty root or berth lane), rope coils, crane ----

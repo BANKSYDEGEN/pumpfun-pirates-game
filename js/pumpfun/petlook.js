@@ -3,7 +3,7 @@
 // bordered rug, plank texture on the stands. Everything here is near-only and disposed with the dress.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PET_STORE, PET_PROPS } from './site.js';
+import { PET_STORE, PET_DZ, PET_PROPS } from './site.js';
 const can=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return [c,c.getContext('2d')];};
 const tex=(c,rep=true)=>{const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;if(rep)t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;return t;};
 const rnd=(s=>()=>(s=(s*16807)%2147483647)/2147483647)(7);
@@ -63,7 +63,7 @@ export function petLook(g,low){const S=PET_STORE,F=S.floor,C=F+S.ceil,I=S.I,n=lo
  plane('pla',dz1-dz0,C-F-4.5,I.lx1-o,(F+4.5+C)/2,S.door.lz,-Math.PI/2,2.2);
  plane('dam',I.lz1-I.lz0,h,I.lx0+o,ym,(I.lz0+I.lz1)/2,Math.PI/2,1.6);plane('pla',I.lz1-I.lz0,C-y1-.05,I.lx0+o,(y1+C)/2,(I.lz0+I.lz1)/2,Math.PI/2,2.2);
  // supply wall behind the counter: plank backing, three stocked shelves above the shelf unit (around the carved sign)
- const sz0=-117.6,sz1=-110.5,sx=I.lx0+.1;plane('pk',sz1-sz0,2.6,sx,F+4.1,(sz0+sz1)/2,Math.PI/2,1.2);
+ const sz0=(-117.6+PET_DZ),sz1=(-110.5+PET_DZ),sx=I.lx0+.1;plane('pk',sz1-sz0,2.6,sx,F+4.1,(sz0+sz1)/2,Math.PI/2,1.2);
  for(const y of [F+4.25,F+5.05]){box('pk',.36,.06,sz1-sz0,sx+.18,y,(sz0+sz1)/2,1.2);for(const zz of [sz0+.3,(sz0+sz1)/2,sz1-.3])box('pk',.3,.22,.05,sx+.15,y-.14,zz,1.2);
   for(let i=0;i<14;i++){const zz=sz0+.35+i*(sz1-sz0-.7)/13,tin=i%3!==1,lab=6+(i%4)%2+((i>>2)%2)*0;const ci=5+(i%4);const ww=tin?.22:.3,hh=tin?.3:.42;
    const [u,v,uw,vh]=cell(ci<8?ci:5);const sub=(i%2)*.5,suv=[u+(i%4>1?uw/2:0),v+((i%2)?vh/2:0),uw/2,vh/2];plane('at',ww,hh,sx+.36,y+.03+hh/2,zz,Math.PI/2,0,i%7===3?cell(7):suv);box('pk',.2,hh,ww,sx+.25,y+.03+hh/2,zz,.6);}}

@@ -38,20 +38,23 @@ export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHO
 export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
 // [post-petstore] BANKSY t299u "rework the pet store with 3a quality": L4 is a procedural stone walk-in (the Blender L4 house is skipped in
 // hillStreet.js), 14 m deep (back wall lx -16.2), a flat floor level with the door threshold, a 7 m beamed ceiling.
-export const PET_STORE = Object.freeze({ x0: -16.2, x1: -1.75, z0: -119.15, z1: -110.4, floor: PET_LOT.doorY, ceil: 7.0, wall: .5, top: 8.4,
-  door: Object.freeze({ lz: PET_LOT.door.lz, w: 3.2, h: 2.6 }),   // h = arch springing (crown 2.6 + w/2 = 4.2 m)
-  I: Object.freeze({ lx0: -15.7, lx1: -2.25, lz0: -118.65, lz1: -110.9 }) });
+// [post-village] BANKSY "move pet store one building up hill street": the whole v515 store shifts 8.9 m north (L5's slot; Rum Row runs
+// through the old L4 lot). Every pet z below is the v515 value + PET_DZ.
+export const PET_DZ = -8.9, PET_FLOOR = 11.03;
+export const PET_STORE = Object.freeze({ x0: -16.2, x1: -1.75, z0: (-119.15+PET_DZ), z1: (-110.4+PET_DZ), floor: PET_FLOOR, ceil: 7.0, wall: .5, top: 8.4,
+  door: Object.freeze({ lz: (PET_LOT.door.lz+PET_DZ), w: 3.2, h: 2.6 }),   // h = arch springing (crown 2.6 + w/2 = 4.2 m)
+  I: Object.freeze({ lx0: -15.7, lx1: -2.25, lz0: (-118.65+PET_DZ), lz1: (-110.9+PET_DZ) }) });
 export const PET_SHOP = Object.freeze({ id: 'shop_pets', name: 'PET STORE', lot: PET_LOT.lot, vendor: 'pets',
-  lx: -9.4, lz: PET_LOT.door.lz, r: 2.4, keeper: { lx: -12.6, lz: PET_LOT.door.lz }, birds: { lx: -6.2, lz: -117.0 } });
-// [BANKSY: parrots only] props (all solid): [kind, lx, lz, w(x), d(z)] - nothing between the door and the counter (lz -115.7 .. -112.4 stays open)
+  lx: -9.4, lz: (PET_LOT.door.lz+PET_DZ), r: 2.4, keeper: { lx: -12.6, lz: (PET_LOT.door.lz+PET_DZ) }, birds: { lx: -6.2, lz: (-117.0+PET_DZ) } });
+// [BANKSY: parrots only] props (all solid): [kind, lx, lz, w(x), d(z)] - nothing between the door and the counter (lz (-115.7+PET_DZ) .. (-112.4+PET_DZ) stays open)
 export const PET_PROPS = Object.freeze([
-  ['counter', -11.3, -114.06, 1.0, 5.6],
-  ['shelf', -15.35, -114.06, .6, 6.4],
-  ['bigcage', -4.2, -118.0, 1.6, 1.3], ['tree', -7.3, -118.0, 1.6, 1.3],
-  ['cage', -10.0, -117.9, 1.1, 1.1], ['perch', -13.4, -117.6, 1.2, 1.2],
-  ['toyrack', -4.3, -111.35, 2.0, .7], ['bigcage', -7.0, -111.6, 1.6, 1.3],
-  ['cage', -10.0, -111.6, 1.1, 1.1], ['perch', -13.4, -111.5, 1.2, 1.2],
-  ['stand', -8.9, -111.4, .6, .6], ['sacks', -11.7, -118.2, .9, .8], ['sacks', -15.2, -118.2, .8, .8],
+  ['counter', -11.3, (-114.06+PET_DZ), 1.0, 5.6],
+  ['shelf', -15.35, (-114.06+PET_DZ), .6, 6.4],
+  ['bigcage', -4.2, (-118.0+PET_DZ), 1.6, 1.3], ['tree', -7.3, (-118.0+PET_DZ), 1.6, 1.3],
+  ['cage', -10.0, (-117.9+PET_DZ), 1.1, 1.1], ['perch', -13.4, (-117.6+PET_DZ), 1.2, 1.2],
+  ['toyrack', -4.3, (-111.35+PET_DZ), 2.0, .7], ['bigcage', -7.0, (-111.6+PET_DZ), 1.6, 1.3],
+  ['cage', -10.0, (-111.6+PET_DZ), 1.1, 1.1], ['perch', -13.4, (-111.5+PET_DZ), 1.2, 1.2],
+  ['stand', -8.9, (-111.4+PET_DZ), .6, .6], ['sacks', -11.7, (-118.2+PET_DZ), .9, .8], ['sacks', -15.2, (-118.2+PET_DZ), .8, .8],
 ]);
 // walls (colliders, town lx/lz centre + size): back, two sides, the front split by the 3.2 m arched doorway
 export const PET_WALLS = (() => { const S = PET_STORE, cz = (S.z0 + S.z1) / 2, L = S.x1 - S.x0, cx = (S.x0 + S.x1) / 2, dz0 = S.door.lz - S.door.w / 2, dz1 = S.door.lz + S.door.w / 2, fx = S.x1 - S.wall / 2;

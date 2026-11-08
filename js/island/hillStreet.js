@@ -56,7 +56,8 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   const key = (side < 0 ? 'L' : 'R') + n, L = HILL_KIT && HILL_KIT.lots[key];
   if (L && L.kind === 'merged') { const M_ = HILL_KIT.lots[L.merged]; return !!(M_ && M_.lods.length); }   // [Raul hill-weapons] R1 = the south bay of the MUSKET SHOP (R2): built (+ colliders, map) with R2
   if (!L || !L.lods.length) return false;
-  if (key === PET_LOT.lot && PET_REWORK_HILL) { LOTS_MAP?.push({ lx, z, w, d, side, label: 'PET STORE (L4)', col: '#fbbf24', tc: '#fde68a' }); RECTS.push([PET_STORE.x0 - 0.6, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]); return true; }   // [post-petstore] procedural walk-in (plazaTown + model.js petShellParts) replaces the L4 house + its colliders
+  if (key === PET_LOT.lot && PET_REWORK_HILL) return true;   // [post-village] old L4 lot = the Rum Row junction (no house)
+  if (key === 'L5' && PET_REWORK_HILL) { LOTS_MAP?.push({ lx, z: (PET_STORE.z0 + PET_STORE.z1) / 2, w: PET_STORE.z1 - PET_STORE.z0, d, side, label: 'PET STORE (L5)', col: '#fbbf24', tc: '#fde68a' }); RECTS.push([PET_STORE.x0 - 0.6, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]); return true; }   // [post-petstore] procedural walk-in (plazaTown + model.js petShellParts) replaces the L4 house + its colliders
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
   const lots = Object.keys(HILL_KIT.lots).filter(k => HILL_KIT.lots[k].merged === key).concat(key).sort().join('+');   // 'R1+R2' for the double MUSKET SHOP

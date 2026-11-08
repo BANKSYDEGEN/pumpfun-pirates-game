@@ -1,5 +1,5 @@
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
-import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor, PET_STORE, PET_PROPS } from './site.js';
+import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor, PET_STORE, PET_DZ, PET_PROPS } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
 export const HQ_TRENCH_LAMPS=[];
 export function hqParts() {
@@ -215,8 +215,8 @@ export function petShellParts() {
   // arched windows either side (iron grille, stone sill + head), upper-floor windows with shutters
   const win=(z,y,w,h,detail)=>{ B(X1+.02,y,z,.08,h,w,glass,detail); B(X1+.12,y-h/2-.08,z,.3,.16,w+.4,darkStone,detail); for(let i=0;i<9;i++){const a=Math.PI*(i+.5)/9;B(X1+.08,y+h/2+Math.sin(a)*(w/2+.12),z+Math.cos(a)*(w/2+.12),.22,.26,.3,darkStone,detail,{rx:-(a-Math.PI/2)});}
     B(X1+.06,y+h/2+w/4,z,.06,w/2,w*.86,glass,detail); for(let i=1;i<4;i++) B(X1+.09,y,z-w/2+i*w/4,.05,h,.05,iron,true); B(X1+.09,y,z,.05,.05,w,iron,true); };
-  win(-117.4,F+2.0,1.5,2.1,false); win(-111.55,F+2.0,1.0,2.1,false);
-  for(const z of [-117.4,-111.55]){ win(z,F+5.6,1.0,1.4,true); for(const s of [-1,1]) B(X1+.08,F+5.7,z+s*.85,.06,1.6,.55,'#2e5a46',true); }
+  win((-117.4+PET_DZ),F+2.0,1.5,2.1,false); win((-111.55+PET_DZ),F+2.0,1.0,2.1,false);
+  for(const z of [(-117.4+PET_DZ),(-111.55+PET_DZ)]){ win(z,F+5.6,1.0,1.4,true); for(const s of [-1,1]) B(X1+.08,F+5.7,z+s*.85,.06,1.6,.55,'#2e5a46',true); }
   // quoins, string courses, cornice
   for(const z of [Z0+.25,Z1-.25]) for(let k=0;k<11;k++) B(X1+.04,F-.6+k*.82,z+(k%2?0:(z<CZ?.18:-.18)),.1,.62,k%2?.5:.86,darkStone,true);
   B(X1+.08,F+4.62,(Z0+D.lz-R-.7)/2,.3,.24,D.lz-R-.7-Z0,darkStone); B(X1+.08,F+4.62,(D.lz+R+.7+Z1)/2,.3,.24,Z1-D.lz-R-.7,darkStone);
@@ -239,10 +239,10 @@ export function petShellParts() {
   return p;
 }
 // near-only detail (render.js buildPetDress): counter, shelves, parrot cages, play tree, perches, toy rack, rugs, chandeliers + flames
-export const PET_CHANDELIERS = [[-5.6,-114.78],[-10.6,-114.78]];
+export const PET_CHANDELIERS = [[-5.6,(-114.78+PET_DZ)],[-10.6,(-114.78+PET_DZ)]];
 export const PET_LAMPS = [];
 export const PET_PARROTS = [];   // [x, perchY, z, yaw, palette 0 scarlet / 1 blue-gold / 2 green-wing]
-export const PET_RINGS = [[-5.2,-117.2],[-8.2,-117.4],[-5.2,-110.9]];   // hanging brass ring perches
+export const PET_RINGS = [[-5.2,(-117.2+PET_DZ)],[-8.2,(-117.4+PET_DZ)],[-5.2,(-110.9+PET_DZ)]];   // hanging brass ring perches
 export function petParts() {
   const p=[], wood='#4a3023', mahog='#5a2a1a', dark='#2a160d', gold='#ffcd77', iron='#2b2a28', flame='#ffb347', candle='#f3e6c4', water='#2f8fa8', sand='#d8c38a', straw='#c9a64a', red='#7a1d22', green='#2e6b55';
   const B=(x,y,z,w,h,d,c,detail=false,ex)=>p.push({kind:'box',x,y,z,w,h,d,c,detail,...ex}), Cy=(x,y,z,r,r1,h,n,c,detail=false,ex)=>p.push({kind:'cyl',x,y,z,r,r1,h,n,c,detail,...ex});
@@ -281,7 +281,7 @@ export function petParts() {
   PET_RINGS.forEach(([x,z],i)=>{ B(x,C-1.07,z,.025,2.15,.025,iron,true); B(x,C-2.83,z,.62,.045,.045,wood,true); if(i===0) parrot(x,C-2.81,z,Math.PI/2,1); });
   for(const [x,z] of PET_CHANDELIERS){ B(x,C-.9,z,.05,1.8,.05,iron,true); Cy(x,C-1.85,z,.95,.95,.08,18,iron); Cy(x,C-1.6,z,.15,.15,.5,8,iron,true);
     for(let i=0;i<8;i++){const a=i/8*Math.PI*2,cx=x+Math.cos(a)*.95,cz=z+Math.sin(a)*.95; B(cx,C-1.72,cz,.08,.24,.08,candle,true,{glow:true}); B(cx,C-1.53,cz,.06,.14,.06,flame,true,{glow:true});} }
-  for(const z of [-116.7,-111.45]){ const x=S.I.lx1-.15; B(x,F+2.6,z,.1,.4,.1,iron,true); B(x-.18,F+2.85,z,.22,.32,.22,flame,true,{glow:true}); PET_LAMPS.push([x,z]); }
+  for(const z of [(-116.7+PET_DZ),(-111.45+PET_DZ)]){ const x=S.I.lx1-.15; B(x,F+2.6,z,.1,.4,.1,iron,true); B(x-.18,F+2.85,z,.22,.32,.22,flame,true,{glow:true}); PET_LAMPS.push([x,z]); }
   for(const s of [-1,1]){ const z=S.door.lz+s*(S.door.w/2+.75); B(S.x1+.25,F+2.9,z,.4,.1,.1,iron,true); B(S.x1+.45,F+3.05,z,.12,.45,.12,wood,true); B(S.x1+.45,F+3.45,z,.22,.35,.22,flame,true,{glow:true}); }   // street torches
   return p;
 }

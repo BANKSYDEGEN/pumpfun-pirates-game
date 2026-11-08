@@ -11,6 +11,7 @@ import { createBuildingWaypoint, buildingPinButton, waypointOutsideView, drawBui
 // Harbor frame = foot frame - HC (no rotation), so headings are the same in both.
 import * as THREE from 'three';
 import { shopIcon, drawShopIcon, getMapStyle, THEMES, SHOP_ICONS } from './mapIcons.js'; // [v153] shop badges + MINIMAP STYLE // [minimap-themes] + NIGHT / GOLD / BLUEPRINT
+import { VILLAGE_ON, VILLAGE_ROADS, ROAD_LABELS } from './island/village.js';   // [post-village]
 import { mapBuildings, drawBuildingFootprints, drawBuildingEmblems } from './mapBuildings.js';
 import { SAIL, SAIL_ALL } from './dock/canoe.js';
 import { mapLandmarks, mapDocks } from './mapLandmarks.js'; // [minimap-themes] castle / fort / battle areas / shops / docks / D2 ruins from the island's own data
@@ -147,6 +148,9 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       // [minimap-themes] the red / yellow loop is paved now (Main Street cobbles + kerbs): a cobble band with the trail colour down the middle
       for (const [pts, col] of [[MP.A, '#fa0d0d'], [MP.B, '#ffc93c']]) { line(pts, 5.5 * s + 2, '#161616'); line(pts, 4 * s + 1, '#cbbd9f'); line(pts, 1.8 * s + 0.6, col, [8 * s + 2, 4 * s + 1]); }
       for (const a of MP.areas || []) { if (a.pts.length < 2) continue; line(a.pts, (a.pave ? 4.5 : 3.6) * s + 1.5, '#161616'); line(a.pts, (a.pave ? 3 : 2.2) * s + 0.8, a.pave ? '#cbbd9f' : '#d9b77a'); } }
+    if (VILLAGE_ON && FM.townToWorld) for (const [x0, x1, z0, z1] of VILLAGE_ROADS) {   // [post-village] Rum Row / Cutlass / Powder Lane: Hill Street's cobble colour
+      const p4 = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([a, b]) => px(...FM.townToWorld(a, b)));
+      g.fillStyle = '#e7d7b8'; g.strokeStyle = '#161616'; g.lineWidth = 1.2; g.beginPath(); p4.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); g.fill(); }
     const BR = FM.BRIDGE; if (BR && BR.L) { line([[BR.ax, BR.az], [BR.bx, BR.bz]], 6 * s + 2, '#161616'); line([[BR.ax, BR.az], [BR.bx, BR.bz]], 4 * s + 1, '#c48a50'); }
     // fit circle for the radar: the land's bounding box, padded
     const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2; LB = { cx, cz, r: Math.max(lx1 - lx0, lz1 - lz0) / 2 * 1.04 + 20 };
@@ -309,7 +313,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     key.replaceChildren();
     const groups = new Map();
     for (const b of buildings) {
-      const group = /^(rent_|musket_shop|sword_shop|squad_hall)/.test(b.id) ? 'Hill Street' : /^casino/.test(b.id) ? 'The Golden Doubloon' : /^(castle|coliseum)/.test(b.id) ? 'Citadel & Colosseum' : /^cottage_/.test(b.id) ? 'Cottage Village' : /magazine|lighthouse|sandbar|keeper/.test(b.id) ? 'Coast & Headland' : 'Harbor Waterfront';
+      const group = /^(rent_|musket_shop|sword_shop|squad_hall)/.test(b.id) ? 'Hill Street' : /^casino/.test(b.id) ? 'The Golden Doubloon' : /^(castle|coliseum)/.test(b.id) ? 'Citadel & Colosseum' : /^cottage_/.test(b.id) ? 'Cottage Village' : /^village_/.test(b.id) ? 'Rum Row Village' : /magazine|lighthouse|sandbar|keeper/.test(b.id) ? 'Coast & Headland' : 'Harbor Waterfront';
       if (!groups.has(group)) groups.set(group,[]); groups.get(group).push(b);
     }
     for (const [name, places] of groups) {
@@ -506,6 +510,9 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     const primaryIds = new Set(['market_row','gunpowder_row','lantern_lane','crimson_trail','doubloon_trail','boardwalk']);
     const secondaryIds = new Set(['highgate_road','gladiator_way','citadel_ramp','anglers_path','idol_trail','hangmans_bridge','battery_trail','pier_1','pier_2','pier_3','pier_4','pier_5']);
     const streetList = ISLAND_STREETS.filter(st => (z < 1.25 ? primaryIds.has(st.id) : (primaryIds.has(st.id) || secondaryIds.has(st.id))));
+    if (VILLAGE_ON && FM.townToWorld && z >= 1.25) for (const [nm, lx, lz, vert] of ROAD_LABELS) { const [fx, fz] = FM.townToWorld(lx, lz), [fx2, fz2] = FM.townToWorld(lx + (vert ? 0 : 1), lz + (vert ? 1 : 0));
+      const [a, b] = T(...toH(fx, fz)), [a2, b2] = T(...toH(fx2, fz2)); let ang = Math.atan2(b2 - b, a2 - a); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+      inkLabel(nm, a, b, Math.max(10, 10.5 * dpr), 'rgba(255, 236, 190, 0.92)', 'center', ang); }   // [post-village]
     for (const st of streetList) {
       const pose = streetLabelPose(st); const [a, b] = T(...toH(pose.x, pose.z));
       let ang = pose.ang - Math.PI / 2; // screen: +z down

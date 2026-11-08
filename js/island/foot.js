@@ -210,6 +210,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     h = BT.ground(lx, lz, h); // [Timothy] battery ramp + gun deck
     { const ba = BA.stamp(lx, lz, h); h = ba.h; if (ba.d < TRg[q]) TRg[q] = ba.d; } // [Timothy] battle areas: level pads + dirt floors / paths
     if (COLI.COLISEUM_ON) { const c = COLI.stamp(lx, lz, h); h = c.h; if (c.d < TRg[q]) TRg[q] = c.d; }
+    if (PV.villageGround) h = PV.villageGround(lx, lz, h, PV.STREET_Y); // [post-village] lot floors + plaza extension
     if (PV.hallGround) h = PV.hallGround(lx, lz, h); // [Timothy v312] the widened Squad Hall's ground stays on the street grade (js/island/hillStreet.js)
     if (PV.casinoGround) h = PV.casinoGround(lx, lz, h); // [Timothy] THE GOLDEN DOUBLOON CASINO: the hall's ground = the street level (js/island/casinoData.js)
   }
@@ -628,7 +629,7 @@ function foliageSpots() {
     return al > -8 && al < v.L + 10 && (lat < 14 || (al < 60 && lat < 8 + al * 0.8)); });
   for (let j = 1; j < NZ; j += 2) for (let i = 1; i < NX; i += 2) {
     const x = X0 + i * G + (hash(i, j) - 0.5) * 7, z = Z0 + j * G + (hash(j, i) - 0.5) * 7, h = H(x, z), q = IDX(i, j), r = hash(i * 3.1, j * 1.7);
-    if (h < 0.9) continue; const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 110) continue; if (COASTM && CO.coveQ(lx, lz) < 1.5) continue; // [Raul] swim cove
+    if (h < 0.9) continue; const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 110) continue; if (PV.villageClear && PV.villageClear(lx, lz)) continue; // [post-village] if (COASTM && CO.coveQ(lx, lz) < 1.5) continue; // [Raul] swim cove
     if (STg[q] < 26 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4 || RVg[q] < 13.5 || gridAt(RVg, x, z) < 12.5) continue;
     const sl = slopeAt(i, j);
     if (FOOT_POIS.some(p => Math.hypot(p.x - x, p.z - z) < (p.clear || 22))) continue;
@@ -666,7 +667,7 @@ const grassOK = (x, z) => { const fx = Math.round((x - X0) / G), fz = Math.round
   if (h < 3.2 || TRP_G[q] < 3.2 || STg[q] < STREET.half + 3.5 || slopeAt(fx, fz) > 0.65 || (RVg[q] < 9) || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2) return 0;
   if (RB_ON && x > -440 && x < -405 && z > -130 && z < -60 && areaDeckAt(x, z) !== null) return 0;   // [v220] no grass tufts through the fountain plaza / Climb paving
   if (COTTAGES_ON && cottagePadAt(x, z)) return 0; // [post/cottages] no grass through cottage floors / porches / aprons / well pad
-  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (PV.casinoClear && PV.casinoClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
+  const [lx, lz] = worldToTown(x, z); if (Math.hypot(lx, lz) < 100) return 0; if (PV.hillClear && PV.hillClear(lx, lz)) return 0; if (PV.villageClear && PV.villageClear(lx, lz)) return 0; if (PV.casinoClear && PV.casinoClear(lx, lz)) return 0; if (COASTM && BT.pave(lx, lz) > 0.2) return 0; if (COASTM && CO.coveQ(lx, lz) < 1.3) return 0; return 1; };
 
 // [v122] the six dig sites (server lib.ts MAP_SPOTS dig1..dig6; a treasure map names one of them, the legendary one the cave)
 // [island-rework] now read from js/island/digSpots.js (active spots only, BAKED coords = today's beachNear() results, so no X moves)

@@ -11,6 +11,7 @@ import { FORT } from './island/areas/fort.js';
 import { COTTAGES_ON, COTTAGES, COL_SIZES } from './island/areas/cottages.js';
 import { MAG, MAG_COLLIDERS } from './island/battery.js';
 import { SHOP_ICONS, drawShopIcon } from './mapIcons.js';
+import { VILLAGE_ON, VILLAGE_LOTS } from './island/village.js';   // [post-village]
 
 export function rectangle(x, z, w, d, yaw = 0) {
   const c = Math.cos(yaw), s = Math.sin(yaw);
@@ -42,15 +43,16 @@ export function mapBuildings(FM, interactions = []) {
     if (/CASINO|HIGH SEAS|SQUARE/i.test(lot.label || '')) continue;
     const src = known.reduce((a,b) => Math.hypot(b.lx-lot.lx,b.lz-lot.z)<Math.hypot(a.lx-lot.lx,a.lz-lot.z)?b:a,known[0]);
     const matched = Math.hypot(src.lx-lot.lx,src.lz-lot.z)<4;
-    const id = matched ? src.id : 'hill_'+lot.side+'_'+lot.z;
+    const petLot = /^PET STORE/.test(lot.label || ''), id = petLot ? PET_LOT.id : matched ? src.id : 'hill_'+lot.side+'_'+lot.z;
     if (seen.has(id)) continue; seen.add(id);
-    const isPet = matched && src.id===PET_LOT.id;
+    const isPet = petLot;
     const aliases = isPet ? [PET_SHOP.id] : matched && src.id===SQUAD_HALL.id ? ['squadhall'] : matched && src.id==='rent_1' ? ['invshop_antiques'] : [];
     const inside = interactions.find(q=>q.id?.startsWith('mm_') && Math.abs(q.lx-lot.lx)<lot.d/2 && Math.abs(q.lz-lot.z)<lot.w/2);
     const name = isPet ? PET_SHOP.name : inside ? title(inside.label) : matched && src.id===SQUAD_HALL.id ? 'SQUAD HALL' : matched && src.id==='rent_1' ? 'TREASURE TRADER' : matched && MAIN_ST_SHOPS.includes(src) ? SHOP_ICONS[src.id][4] : 'Hill shop '+(matched?src.lot:id);
     const icon = isPet ? PET_SHOP.id : matched && src.id===SQUAD_HALL.id ? 'squadhall' : matched && src.id==='rent_1' ? 'antiques' : matched && MAIN_ST_SHOPS.includes(src) ? src.id : inside?.id==='mm_fight' ? 'battle' : 'shop';
     tr(id,name,icon,{lx0:lot.lx-lot.d/2,lx1:lot.lx+lot.d/2,lz0:lot.z-lot.w/2,lz1:lot.z+lot.w/2},aliases);
   }
+  if (VILLAGE_ON && PLAZA_V2) for (const o of VILLAGE_LOTS) tr('village_'+o.n,(o.n===7?'RUM ROW MANOR':'RENTAL')+' #'+o.n+' · FOR RENT','shop',{lx0:o.lx0,lx1:o.lx1,lz0:o.lz0,lz1:o.lz1});   // [post-village] BANKSY's numbered lots
   if (CASINO_ON && (FM.LOTS_MAP || []).some(l=>/CASINO/i.test(l.label || ''))) {
     tr('casino',CASINO_HALL.name+' CASINO','casino',CASINO_HALL.rect);
     if ((FM.LOTS_MAP || []).some(l=>/HIGH SEAS/i.test(l.label || ''))) tr('casino_wing','THE HIGH SEAS ROOM','casino',CASINO_WING.rect);

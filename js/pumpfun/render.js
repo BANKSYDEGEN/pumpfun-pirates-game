@@ -153,7 +153,7 @@ export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_s
  try{petLook(g,low);}catch(e){console.warn('[pet store] look skipped',e.message);}
  try{petParrots(g,PET_PARROTS,low);petBrass(g,PET_PROPS,PET_RINGS,F,F+S.ceil,low);}catch(e){console.warn('[pet store] parrots/brass skipped',e.message);}
  plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.8,.95,S.x1+.21,F+5.45,S.door.lz,Math.PI/2);   // over the arch
- const hs=PET_LOT.doorY+3.6;plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.73,0);plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.67,Math.PI);   // hanging bracket sign
+ const hs=PET_STORE.floor+3.6;plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.73,0);plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.67,Math.PI);   // hanging bracket sign
  plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.4,.85,-15.0,F+3.4,S.door.lz,Math.PI/2);   // board over the shelves behind the counter
  try{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),r=x.createRadialGradient(64,64,2,64,64,64);
   r.addColorStop(0,'rgba(255,196,118,0.62)');r.addColorStop(.4,'rgba(255,156,66,0.24)');r.addColorStop(1,'rgba(255,140,50,0)');x.fillStyle=r;x.fillRect(0,0,128,128);

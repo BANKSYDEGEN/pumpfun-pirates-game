@@ -48,7 +48,7 @@ test('tall gilded beamed ceiling, chandeliers and painted light pools, no realti
  const r=src('js/pumpfun/render.js');assert.ok(!/PointLight|SpotLight|PMREM/.test(r));assert.match(r,/AdditiveBlending/);assert.match(r,/c.width=c.height=128/);
  assert.match(src('js/dock/pumpfun.js'),/hq.dispose\(\)/);
  assert.ok(!src('js/dock/pumpfun.js').includes('BANKSYDEGEN'));assert.ok(!r.includes('BANKSYDEGEN'));
- assert.match(r,/PET_LOT.doorY\+3.6/);
+ assert.match(r,/PET_STORE.floor\+3.6/);
 });
 test('pirate-fortress exterior: crenellated parapet, round gun towers, stone kit materials, no roof cones',()=>{
  const parts=hqParts(),TOP=HQ.floor+HQ.wallTop;

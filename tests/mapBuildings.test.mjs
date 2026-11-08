@@ -12,12 +12,14 @@ const {FORT} = await import('../js/island/areas/fort.js');
 const {ellF} = await import('../js/island/coliseum.js');
 const known = [...RENTABLE_SHOPS,...MAIN_ST_SHOPS,SQUAD_HALL];
 const lots = known.map(s=>({lx:s.lx,z:s.lz,w:s.w,d:s.d,side:s.lot.startsWith('L')?-1:1}));
+// [post-village] the pet store moved up one lot (L5 slot, labelled), the old L4 lot is the Rum Row junction (no house)
+for(let i=lots.length-1;i>=0;i--){const s=known[i];if(s.id==='rent_5')lots.splice(i,1);else if(s.id==='rent_6')lots[i].label='PET STORE (L5)';}
 lots.push({label:'CASINO: HIGH SEAS ROOM',lx:40,z:-50,w:16,d:26});
 const FM = {townToWorld:CO.t2w,worldToTown:CO.w2t,LOTS_MAP:lots,LIGHTHOUSES:[{id:'lighthouse',x:-758,z:18,opts:{height:20}},{id:'sandbar_lh',x:-745,z:-435,opts:{baseR:4.6}}]};
 const interactions = [['rent_2','mm_wanted','E · WANTED BOARD · CONTRACTS + BOUNTIES'],['rent_3','mm_rum','E · HARBOR RUM EXPORT STALL · SELL RUM'],['rent_4','mm_buyer_harbor','E · HARBOR FENCE'],['rent_16','mm_fight','E · FIGHT MASTER · PRIZE FIGHTS']].map(([id,q,label])=>{const s=known.find(s=>s.id===id);return {id:q,lx:s.lx,lz:s.lz,label};});
 const buildings = M.mapBuildings(FM,interactions);
 test('every placed hill building has one footprint and matching name; merged musket remains one',()=>{
- for(const s of known) assert.equal(buildings.filter(b=>b.id===s.id).length,1,s.id);
+ for(const s of known) if(s.id!=='rent_6') assert.equal(buildings.filter(b=>b.id===s.id).length,1,s.id);   // rent_6 = the moved pet store (id rent_5)
  assert.equal(new Set(buildings.map(b=>b.id)).size,buildings.length);
  assert.equal(buildings.find(b=>b.id===PET_LOT.id).name,'PET STORE');
  for(const name of ['WANTED BOARD','HARBOR FENCE','FIGHT MASTER','TREASURE TRADER']) assert.ok(buildings.some(b=>b.name===name),name);
