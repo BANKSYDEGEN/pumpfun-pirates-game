@@ -112,6 +112,19 @@ export const HILLTOP_KIT = RBB_ON && typeof location !== 'undefined' && /[?&]rbp
 export const RB2 = RBB_ON ? { c: [-420.5, AXZ], y: Y, plaza: [-438, -403, AXZ - 12, AXZ + 12], r: 11.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: AXZ }
   : { c: [-425.5, -88], y: Y, plaza: [-438, -413, -100, -76], r: 9.5, half: 2.3, sag: 0.5, piers: [1 / 3, 2 / 3], end: [-282, -72], az: -88 };
 const [CX, CZ] = RB2.c, [PX0, PX1, PZ0, PZ1] = RB2.plaza;
+// Decorative roundabout inlays must stay ON their rectangular supporting terrace.
+// Keep every Kit.add and its ordering: saved Build Mode #p IDs must not shift.
+export function seatPlazaInlay(geo, matrix) {
+  geo.applyMatrix4(matrix); const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i,
+    Math.max(PX0 + 0.02, Math.min(PX1 - 0.02, p.getX(i))),
+    Math.min(Y + 0.035, p.getY(i)),
+    Math.max(PZ0 + 0.02, Math.min(PZ1 - 0.02, p.getZ(i))));
+  // Keep the original transformed unit normals (collapsed outside triangles are
+  // invisible); recomputing normals here would create zero normals on those faces.
+  return geo;
+}
+
 // the fountain (BANKSY's later wishing fountain: a rim spot for the prompt + where a thrown coin splashes), world coords
 // [hilltop] the fountain scaled x1.4 about its centre (FS) to suit the bigger roundabout (collider + wishing spot scale with it)
 const FS = RBB_ON ? 1.4 : 1, BR0 = 4.2;
@@ -515,11 +528,11 @@ export default {
       for (const [x, z] of [[-439, -71.5], [-429, -71.5]]) { if(clearCastleDressing(x,z)) continue; const g = H(x, z); W(k, cyl(0.55, 0.65, 0.7, 8), 0xb0a99c, M(x, g + 0.35, z)); k.add(new THREE.SphereGeometry(0.85, 10, 8), 0x3f7d2c, { m: M(x, g + 1.5, z), outline: false }); k.add(new THREE.SphereGeometry(0.55, 10, 8), 0x4e8a34, { m: M(x, g + 2.6, z), outline: false }); }
       // the plaza: a paved compass rose in the fountain ring's apron (flush inlay) + four tall twin-lantern standards on the corners
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, L = i % 2 ? 2.2 : 3.6, r0 = RB2.r + 0.6;
-        W(k, box(i % 2 ? 0.45 : 0.7, 0.04, L), i % 2 ? 0xd2c9b6 : 0x8f6a3a, M(CX + Math.sin(a) * (r0 + L / 2), Y + 0.04, CZ + Math.cos(a) * (r0 + L / 2), a), false); }
+        W(k, seatPlazaInlay(box(i % 2 ? 0.45 : 0.7, 0.01, L), M(CX + Math.sin(a) * (r0 + L / 2), Y + 0.01, CZ + Math.cos(a) * (r0 + L / 2), a)), i % 2 ? 0xd2c9b6 : 0x8f6a3a, M(), false); }
       // [hilltop] the roundabout: an outer kerb ring + a second paved band (r 11.5 -> 14), 8 dark radial setts: reads as a roundabout from the street
-      W(k, new THREE.CylinderGeometry(14, 14, 0.04, 56), 0xb9ab92, M(CX, Y + 0.012, CZ), false);
-      for (let i = 0; i < 64; i++) { const a = (i + 0.5) / 64 * Math.PI * 2; W(k, box(0.5, 0.16, 1.45), 0x7d766c, M(CX + Math.sin(a) * 14.1, Y + 0.08, CZ + Math.cos(a) * 14.1, a + Math.PI / 2), false); }
-      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; W(k, box(0.22, 0.05, 2.3), 0x8a837a, M(CX + Math.sin(a) * 12.75, Y + 0.03, CZ + Math.cos(a) * 12.75, a), false); }
+      W(k, seatPlazaInlay(new THREE.CylinderGeometry(14, 14, 0.02, 56), M(CX, Y + 0.005, CZ)), 0xc8bda7, M(), false); // shared stone -> cobble library layer, not untagged flat tan
+      for (let i = 0; i < 64; i++) { const a = (i + 0.5) / 64 * Math.PI * 2; W(k, seatPlazaInlay(box(0.5, 0.03, 1.45), M(CX + Math.sin(a) * 14.1, Y + 0.01, CZ + Math.cos(a) * 14.1, a + Math.PI / 2)), 0x8a837a, M(), false); }
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; W(k, seatPlazaInlay(box(0.22, 0.01, 2.3), M(CX + Math.sin(a) * 12.75, Y + 0.03, CZ + Math.cos(a) * 12.75, a)), 0x8a837a, M(), false); }
       // the path down (S): a paved trail-head apron at the Climb's foot (9 x 7 m flags on the ground), then 36 m of kerbed flag trail at trail
       // width with lantern posts + shrub borders: a real trail exit (paint-level: no height change, the walk stays the terrain)
       { const [ex, ez] = CLIMB.at(CLIMB.L), a = CLIMB.yawAt(CLIMB.L), ux = Math.sin(a), uz = Math.cos(a), cx = Math.cos(a), cz = -Math.sin(a);
