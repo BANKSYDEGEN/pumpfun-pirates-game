@@ -244,7 +244,7 @@ export function createPvp(K) {
     b.hidden = !(HOLDER_ENABLED && holder.on);
     // [castle-flag-daily] default: claim at the fort flag; &flagdaily=0 keeps the HUD button
     c.hidden = !(HOLDER_ENABLED && holder.on && !holder.claimed && !FLAG_DAILY);
-    c.textContent = `Claim daily gold (+${HOLDER_DAILY_GOLD})`;
+    c.textContent = `Claim daily gold (+${formatGoldAmount(HOLDER_DAILY_GOLD)})`;
   }
   async function claimHolderGold(opts = {}) {
     // [castle-flag-daily] opts.fromFlag: skip the HUD button disable (flag path has no button); still server-gated
@@ -833,7 +833,7 @@ export function createPvp(K) {
     if (bt >= PVP_BOUNTY.announce && (p.bt || 0) < PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(p.name)}</b> has a <b>${formatGoldAmount(bt)}g</b> bounty!`);
     else if (bt >= PVP_BOUNTY.cap && (p.bt || 0) < PVP_BOUNTY.cap) addFeed(`☠ <b>${esc(p.name)}</b> is at the MAX <b>${formatGoldAmount(bt)}g</b> bounty!`);
     p.bt = bt;
-    p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${bt}</span>` : ''}`;
+    p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${formatGoldAmount(bt)}</span>` : ''}`;
     p.ship.netState = p.st;
     if (typeof m.dk === 'string') p.dk = m.dk; p.ship.anchor = p.ship._safe = where === 'harbor' && !!p.dk;
     p.um = !!m.um; p.ship._unmanned = where === 'harbor' && (p.um || !!p.dk); // [backpack-pvp] Option B: their parked / unmanned ship is shielded // [dock-waterline] a peer moored at a berth rides the moored waterline too
@@ -1145,7 +1145,7 @@ export function createPvp(K) {
     const now = performance.now(); while (batPaid.length && now - batPaid[0] > 60000) batPaid.shift();
     if ((batPaid.length && now - batPaid[batPaid.length - 1] < BAT_PAY.gapMs) || batPaid.length >= BAT_PAY.perMin) return;
     batPaid.push(now); game.gold += BAT_PAY.gold; profile.stats.batteryHits = (profile.stats.batteryHits | 0) + 1;
-    sfx.coin?.(); K.popup(p.clone().setY(6), `+${BAT_PAY.gold}`); K.updateHud(); save({});
+    sfx.coin?.(); K.popup(p.clone().setY(6), `+${formatGoldAmount(BAT_PAY.gold)}`); K.updateHud(); save({});
   }
   function applyHit(target, raw, p, shooter) {
     const pl = P(), sid = shooter === pl ? myId : shooter.net?.id; if (!sid) return;
@@ -1555,7 +1555,7 @@ export function createPvp(K) {
       const myT = sq.A0.includes(myId) ? 'A' : sq.B0.includes(myId) ? 'B' : null, won = !!myT && sq.w === myT, draw = sq.w === 'D', losers = sq.w === 'A' ? sq.B0 : sq.A0;
       let gold = 0;
       if (won && [...sq.sunk].some(id => losers.includes(id))) { // win gold only for a real fight (someone on the other team was sunk), earned gold: the holder perk doubles it
-        gold = SQUADS.winGold + holderMul(SQUADS.winGold) + goldFindBonus(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${gold} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
+        gold = SQUADS.winGold + holderMul(SQUADS.winGold) + goldFindBonus(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${formatGoldAmount(gold)} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
       if (won) sfx.victory?.(); // [v101] recorded victory stinger
       K.banner(draw ? 'DRAW' : won ? 'VICTORY!' : myT ? 'DEFEAT' : 'ROUND OVER', won ? (gold ? `+${formatGoldAmount(gold)} gold · next round in ${SQUADS.endSecs} s` : 'no gold: nobody on their team was sunk') : draw ? 'nobody wins this round' : `next round in ${SQUADS.endSecs} s`);
       if (myT && !won && lob.queue > 0) lobbyCall('died').then((r) => { if (r.state === 'queue') lob.queuedByDeath = true; }); // rotation: the losing team makes room for the queue

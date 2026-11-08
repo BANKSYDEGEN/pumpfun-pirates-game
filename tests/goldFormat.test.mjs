@@ -15,5 +15,7 @@ test('formatting never mutates numeric values, input fields or request payloads'
  const s=text('js/inventory/ui.js');assert.match(s,/max="\$\{MARKET\.maxPrice\}"/);assert.match(s,/price: \+\(a\.querySelector\('\.pr'\)\.value \|\| 0\) \| 0/);
  assert.match(text('js/casino/ui.js'),/data-c="\$\{c\}"/);
  for(const p of ['js/main.js','js/pvp.js'])assert.match(text(p),/\$\('gold'\)\.textContent = formatGoldAmount\(game.gold\)/);
+ assert.match(text('js/pvp.js'),/formatGoldAmount\(gold\)\} VICTORY GOLD/);
+ assert.match(text('js/pvp.js'),/formatGoldAmount\(HOLDER_DAILY_GOLD\)/);
  assert.match(text('js/pvp.js'),/<td>\$\{formatGoldAmount\(r.g\)\}<\/td>/);
 });
