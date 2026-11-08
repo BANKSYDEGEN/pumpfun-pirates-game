@@ -1,6 +1,8 @@
 // Built-in hull birdcage (parrot_alcove_kit): shows YOUR parrot (selected/equipped inventory bird, its color + name tag)
 // whenever you are in the hull (the companion never flies in here; it resumes outside if equipped). No parrot owned = empty cage. No lights, no PMREM.
 import * as THREE from 'three';
+import { PILLY_ENABLED } from '../features.js';
+import { PILLY_HULL_SPOT } from '../pillyEntries.js';
 import { createFlightParrot, colorParrot, perchParrot, isFlyingParrot } from '../parrotFlight.js';
 // Shared anchor from Post’s built-in door-side alcove; keep all display coordinates relative to it.
 export const CAGE_SPOT = Object.freeze({ x: -4.96, z: 3.3, r: 1.65, label: 'PARROT CAGE · NAME & UPGRADE' });
@@ -61,6 +63,13 @@ export function addParrotCage(room, floor = .14) {
   sync();
   try { window.dispatchEvent(new CustomEvent('pfp-parrot-cage-sync')); } catch {} // ask dock/index.js for a fresh parrot_list
   room.userData.spots.parrot_cage = { ...CAGE_SPOT };
+  if (PILLY_ENABLED) {
+    room.userData.spots.pilly_companion = { ...PILLY_HULL_SPOT };
+    if (typeof document !== 'undefined' && typeof document.createElement === 'function') try {
+      const sign = nameTag('PILLY · UPGRADE'); sign.name = 'pilly_hull_upgrade';
+      sign.scale.set(1.2, .3, 1); sign.position.set(PILLY_HULL_SPOT.x - CAGE_SPOT.x, 1.3, PILLY_HULL_SPOT.z - CAGE_SPOT.z); g.add(sign);
+    } catch {}
+  }
   room.userData.colliders.push({ x: CAGE_SPOT.x, z: CAGE_SPOT.z, w: 1, d: 1 });
   // Parent hull disposal owns bird geometry/materials; we own the name tag + listeners.
   room.userData.parrotCageDispose = () => { dead = true; room.userData.parrotCageTick = null; dropTag(); bird?.traverse(o => o.skeleton?.dispose?.()); for (const k in EV) window.removeEventListener(k, EV[k]); };

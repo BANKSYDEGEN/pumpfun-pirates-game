@@ -1215,6 +1215,7 @@ export function createShipHull({
       const d = Math.hypot(lx - sp.x, lz - sp.z);
       if (d < (sp.r || 2.3) && d < bd) { bd = d; best = { tag, label: sp.label, primary: true, key: 'E' }; }
     }
+    if (best?.tag === 'pilly_companion') return { a: best, b: null };
     if (best?.tag === 'parrot_cage') return { a: best, b: null };
     if (best?.tag?.startsWith('crew_')) return { a: best, b: null };
     if (best?.tag === 'chest') return { a: { label: 'OPEN STORAGE', key: 'E', primary: true, tag: 'chest' }, b: null };
@@ -1225,6 +1226,7 @@ export function createShipHull({
   }
 
   function act(tag) {
+    if (tag === 'pilly_companion' && inHull) { window.PFP_PILLY?.open(); return true; }
     if (tag === 'parrot_cage' && inHull) { openParrotCage?.(); return true; }
     if (tag?.startsWith('crew_') && inHull) { openCrewRoom?.(Number(tag.slice(5))); return true; }
     if (tag === 'chest') { try { houses?.openFor?.(SHIP_QUARTERS_ID); } catch {} return true; }

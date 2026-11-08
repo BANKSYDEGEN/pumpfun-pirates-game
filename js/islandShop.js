@@ -22,7 +22,7 @@ import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STA
 import { MUSK_TRACKS, MUSK_SKIN, muskKey, muskLevels, setMuskLevels, muskUpgOn, gunAccOn, GUN_ACC, RANK_CAP } from './musketUpgrades.js'; // The walk-in pet counter has exactly two purchases. Management stays in the hull.
 function petPillyCard() {
   return pillyShopCard(PILLY_ENABLED && window.PFP_PILLY ? window.PFP_PILLY : {
-    state: { avail: false }, mobilePaused: !PILLY_ENABLED, openStore() {}
+    state: { avail: PILLY_ENABLED ? null : false }, mobilePaused: !PILLY_ENABLED, openStore() {}
   });
 }
 function renderPetStore() {

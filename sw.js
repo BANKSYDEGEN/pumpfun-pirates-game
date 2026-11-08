@@ -155,6 +155,7 @@ const SHELL = [
   "./js/pvpSkins.js",
   "./js/islandShop.js",
   "./js/pillyShopCard.js",
+  "./js/pillyEntries.js",
   "./js/shopCatalog.js",
   "./js/dock/zipline.js", // [v296] Emerly zipline
   "./js/dock/canoe.js", // [v311] sail-around offshore anchor + canoe + ship recall

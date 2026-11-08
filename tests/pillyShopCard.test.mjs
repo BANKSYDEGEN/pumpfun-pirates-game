@@ -16,8 +16,8 @@ test('owned Pilly directs upgrades to the ship hull, never the store', () => {
   assert.match(card.innerHTML, /Upgrade Pilly in your ship hull or inventory/); assert.equal(button.textContent, 'OWNED'); assert.equal(button.disabled, true);
 });
 test('unavailable and loading cannot offer a purchase', () => {
-  for (const [avail, label] of [[false, 'COMING SOON'], [null, 'LOADING…']]) {
-    const { button } = make({ avail }); assert.equal(button.textContent, label); assert.equal(button.disabled, true);
+  for (const [avail, label] of [[false, 'RETRY PILLY'], [null, 'LOADING…']]) {
+    const { button } = make({ avail }); assert.equal(button.textContent, label); assert.equal(button.disabled, avail == null);
   }
 });
 test('walk-in counter still uses the shared pets UI and refreshes its Pilly card', () => {

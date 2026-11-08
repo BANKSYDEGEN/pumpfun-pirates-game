@@ -1,5 +1,6 @@
 import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
+import { installPillyInventory } from '../pillyEntries.js';
 import { createPumpfun } from './pumpfun.js';
 import { setParrotWorld } from '../parrotFlight.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot controller (harbor only; Waves, the arena and spectate never load or run it).
@@ -206,7 +207,8 @@ export async function createDock(ctx) {
       if (PILLY_ENABLED) { pillyS = createPillyState({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }), follower: pillyF, toast: (...a) => toast(...a),
         out: () => on && onFoot && !shipHull?.inHull, gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } }); // [Pilly]
       window.PFP_PILLY = Object.freeze({ open: () => pillyS.open(), openStore: () => pillyS.open({ storeOnly: true }), close: () => pillyS.close(), refresh: () => pillyS.refresh(), get state() { return pillyS.state; } });
-      setInterval(() => pillyS.tick(1), 1000); { let tries = 0; const t = setInterval(() => { if (++tries > 30 || pillyS.state.avail != null) return clearInterval(t); if (pv()?.inv?.call) pillyS.refresh(); }, 4000); }
+      installPillyInventory(window.PFP_PILLY);
+      setInterval(() => pillyS.tick(1), 1000); { let tries = 0; const t = setInterval(() => { if (++tries > 30 || pillyS.state.avail === true) return clearInterval(t); if (pv()?.inv?.call) pillyS.refresh(); }, 4000); }
       }
       import('../parrotsPanel.js').then(m => {
         const pc = m.createParrotsPanel({ flush: () => pv()?.flushNow?.(), call: (a, b) => pv()?.inv?.call?.(a, b),

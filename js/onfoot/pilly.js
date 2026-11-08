@@ -83,7 +83,7 @@ export function createPilly({ scene, world, low = false }) {
   function setLv(n) {
     lv = n; if (!root) return; root.scale.setScalar(scaleOf(lv));
     if (greenMat) { greenMat.emissive = new THREE.Color(lv >= 10 ? 0xffc23a : 0x3dff8a); greenMat.emissiveIntensity = lv >= 10 ? 0.35 : lv >= 3 ? 0.05 + 0.025 * lv : 0; }
-    const bc = badge.userData.cv, g = bc.getContext('2d'); g.clearRect(0, 0, 128, 48); g.fillStyle = lv >= 10 ? '#c9901a' : '#1f6b3a'; g.beginPath(); g.roundRect(4, 4, 120, 40, 18); g.fill();
+    const bc = badge?.userData?.cv, g = bc?.getContext('2d'); if (!g) return; g.clearRect(0, 0, 128, 48); g.fillStyle = lv >= 10 ? '#c9901a' : '#1f6b3a'; g.beginPath(); g.roundRect(4, 4, 120, 40, 18); g.fill();
     g.fillStyle = '#fff'; g.font = '800 26px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('LV ' + lv, 64, 25); badge.material.map.needsUpdate = true;
   }
   function enter(o) {
@@ -129,17 +129,33 @@ const CSS = `#pilly-panel{position:fixed;inset:0;z-index:85;display:flex;align-i
 const esc = (s) => String(s ?? '').replace(/[&<>"'`]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 export function createPillyState(ctx) {
   // ctx: { call(action, body), toast(html, ms), gold(json), follower: createPilly() result, out() -> bool (you are ashore, not in the hull) }
-  let st = { avail: null, owned: false, out: false, xp: 0, lv: 0, name: null }, el = null, busy = false, walkT = 0, storeOnly = false;
+  let st = { avail: null, owned: false, out: false, xp: 0, lv: 0, name: null, error: null }, el = null, busy = false, walkT = 0, storeOnly = false, refreshPending = null, requestSeq = 0;
   const call = async (a, b = {}) => { try { return (await ctx.call(a, b)) || { ok: false }; } catch { return { ok: false, why: 'offline' }; } };
-  const apply = (r) => { if (!r?.ok) return; const prev = st.lv; Object.assign(st, { avail: true, owned: !!r.owned, out: !!r.out, xp: r.xp | 0, lv: r.lv | 0, name: r.name || null });
+  const apply = (r) => { if (!r?.ok) return; const prev = st.lv; Object.assign(st, { avail: true, error: null, owned: !!r.owned, out: !!r.out, xp: r.xp | 0, lv: r.lv | 0, name: r.name || null });
     globalThis.__pfpPillySwim = st.owned && st.out ? 1 + pillySwim(st.lv) : 1; ctx.follower?.setLv(st.lv); ctx.gold?.(r);
     if (st.lv > prev && prev >= 0 && st.owned) { ctx.follower?.react('laugh', 2.4); ctx.toast?.(`💊 Pilly reached <b>LV ${st.lv}</b>!`, 2400); } draw(); };
-  async function refresh() { const r = await call('pilly_list'); if (r?.ok) apply(r); else st.avail = st.avail === true && !r?.error; draw(); return r; }
+  function failed(r) {
+    st.error = String(r?.why || r?.error || 'Connection unavailable. Retry.');
+    // Transport errors do not mean this already-deployed companion is COMING SOON.
+    if (st.avail !== true) st.avail = false;
+  }
+  async function refresh() {
+    if (busy) return null;
+    if (refreshPending) return refreshPending;
+    const seq = ++requestSeq;
+    refreshPending = (async () => {
+      const r = await call('pilly_list');
+      if (seq === requestSeq) { if (r?.ok) apply(r); else { failed(r); draw(); } }
+      return r;
+    })();
+    try { return await refreshPending; } finally { refreshPending = null; }
+  }
   function draw() {
     globalThis.dispatchEvent?.(new Event('pfp-pilly-change'));
     if (!el || el.hidden) return; const box = el.querySelector('.pl-box'), nm = esc(st.name || 'Pilly');
     let h = `<h3><b>💊 ${nm.toUpperCase()} · COMPANION</b><button class="x" aria-label="Close">✕</button></h3>`;
-    if (st.avail === false) h += `<p>Pilly the pump.fun pill is <b>COMING SOON</b> to the pet store. A companion that walks beside you (alongside your parrot) and levels up to LV 10.</p>`;
+    if (st.error) h += `<p role="status">${esc(st.error)}</p>`;
+    if (st.avail === false) h += '<p>Could not load Pilly. Retry to check ownership.</p><button class="b" data-a="retry">RETRY</button>';
     else if (st.avail == null) h += `<p>Loading…</p>`;
     else if (!st.owned) h += `<p>A waist-high companion that walks beside you ashore. Your parrot or shoulder pet stays equipped too.</p><button class="b go" data-a="buy" ${busy ? 'disabled' : ''}>BUY PILLY · ${PILLY_PRICE.toLocaleString()} 🪙</button>`;
     else if (storeOnly) h += '<p><b>OWNED</b> · Upgrade Pilly in your ship hull or inventory.</p>';
@@ -153,10 +169,11 @@ export function createPillyState(ctx) {
     box.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => act(b.dataset.a, box.querySelector('input')?.value));
   }
   async function act(a, v) {
-    if (busy) return; busy = true; draw();
+    if (a === 'retry') return refresh();
+    if (busy) return; ++requestSeq; busy = true; draw();
     const r = await call('pilly_' + a, a === 'out' ? { out: !st.out } : a === 'name' ? { name: v } : {}); busy = false;
     if (r?.ok) { apply(r); if (a === 'buy') { ctx.toast?.('💊 PILLY JOINED YOUR CREW', 2200); ctx.follower?.wave(); } if (a === 'treat') ctx.follower?.react('happy', 1.6); }
-    else { if (r?.error) st.avail = false; ctx.toast?.(esc(r?.why || r?.error || 'Could not do that'), 2200); draw(); }
+    else { failed(r); ctx.toast?.(esc(st.error), 2200); draw(); }
   }
   function open(opts = {}) { storeOnly = !!opts.storeOnly; if (!el) { const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); el = document.createElement('div'); el.id = 'pilly-panel'; el.innerHTML = '<div class="pl-box" role="dialog" aria-label="Pilly"></div>'; el.onclick = (e) => { if (e.target === el) close(); }; document.body.appendChild(el); }
     el.hidden = false; draw(); refresh(); }
