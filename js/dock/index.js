@@ -18,7 +18,7 @@ import { createWalker } from '../onfoot/walker.js';
 import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
-import { createBerthSigns } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
+import { createBerthSigns, berthOccupantName } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
 import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
@@ -688,6 +688,8 @@ export async function createDock(ctx) {
     if (restPosed() && (!s.alive || s.sinking || lastHitT === now)) standUp('hit'); // [bed-desk] a hit / your ship sinking = up out of the bunk / chair
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
     const r = docking.tick(s, dt);
+    // Refresh occupancy before optional player/world subsystems can interrupt this frame.
+    signs.tick(dt, b => berthOccupantName(b, docking, ctx.pvp()?.name, peerNames));
     syncDockHud();
     if (r === 'docked') toast('MOORED · SAFE HARBOR');
     if (r === 'free') { s.anchor = false; s.sail = Math.max(1, s.sail); leftAt = now; }
@@ -743,7 +745,7 @@ export async function createDock(ctx) {
       }
       else if (houses?.inHouse) { const hp = houses.prompts({ onFoot: true, W }); const a = hp?.a || (hp && { label: hp.label, key: hp.key || 'E', primary: !!hp.primary, tag: hp.tag }); const b = hp?.b || null; setActs(a ? { label: a.label, key: a.key || 'E', primary: !!a.primary, fn: () => houses.act(a.tag, { door: hp.door }) } : null, b ? { label: b.label, key: b.key || 'Q', primary: !!b.primary, fn: () => houses.act(b.tag) } : null); skinPick.close(); }
       else {
-        if (!best) { const mb = moveBerthNear(W); if (mb) best = { label: `MOVE SHIP HERE · ${mb.id}`, fn: () => moveShipTo(mb) }; }   // [berth-move]
+        if (!best) { const mb = moveBerthNear(W); if (mb) best = { label: `MOVE SHIP HERE · ${mb.id}`, pad: 'A', fn: () => moveShipTo(mb) }; }   // [berth-move]
         if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
         if (!best && lootBags?.on) { const lp = lootBags.prompts({ onFoot: true, W }); if (lp) best = { label: lp.label, primary: true, key: 'E', fn: () => lootBags.act() }; }
         if (!best && houses?.on) { const hp = houses.prompts({ onFoot: true, W }); if (hp) best = { label: hp.label, primary: !!hp.primary, key: hp.key || 'E', fn: () => houses.act(hp.tag, { door: hp.door }) }; }
@@ -787,7 +789,6 @@ export async function createDock(ctx) {
     fnet.tick(dt);
     if (onFoot) crewFight.tick(dt); else if (crewFight.active) crewFight.clear(); // [backpack-pvp] after every crew moved
     if (!onFoot) lootBags?.tick?.(dt, { ship: P(), sailing: !canoe || canoe.mode !== 'canoe', canoe: canoe?.mode === 'canoe' ? { x: canoe.state.cx, z: canoe.state.cz } : null }); // sea crates bob + scoop while sailing
-    signs.tick(dt, (b) => docking.berth === b && docking.mode === 'docked' ? (ctx.pvp()?.name || 'PIRATE') : (docking.takenBy(b.id) ? peerNames.get(docking.takenBy(b.id)) || 'PIRATE' : ''));
     if (bcLink) bcLink.tick();
   }
   // camera: true = we drove it this frame (main.js skips its ship camera)

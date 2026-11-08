@@ -4,7 +4,16 @@
 // beside a second framed board 2.2 m away: two signs per berth). Each face reads the berth number + the moored captain
 // (you, or a peer via their synced dk + n), or OPEN when the berth is free. One canvas per berth, redrawn only on change (~2x a second).
 import * as THREE from 'three';
-const clean = (n) => String(n ?? '').replace(/[\u0000-\u001f<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).toUpperCase() || 'PIRATE';
+export const cleanBerthName = (n) => { const text = String(n ?? '');
+  if (/(?:0x[a-f0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}|https?:\/\/|ref(?:erral)?[=:/])/i.test(text)) return 'PIRATE';
+  return text.replace(/[\u0000-\u001f<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).toUpperCase() || 'PIRATE'; };
+// Match berth IDs, not object identity: restored/copied local berth records still own their sign.
+export function berthOccupantName(b, docking, localName, peerNames) {
+  if (docking.berth?.id === b.id && docking.mode !== 'sea') return cleanBerthName(localName || 'PIRATE');
+  const peer = docking.takenBy(b.id);
+  return peer ? cleanBerthName(peerNames.get(peer) || 'PIRATE') : '';
+}
+const clean = cleanBerthName;
 // the baked plaque (tools/plaza_blender/docks_blender.py plaque()): 0.18 thick, 1.85 wide, frame bars 1.42..2.48 m over the deck.
 // The cover is 0.30 x 1.24 x 2.0 centred 1.95 m up (0.04-0.08 m clear on every side), on the plaque's own 0.2 m post.
 export const BERTH_SIGN = { w: 2.0, h: 1.24, t: 0.30, y: 1.95, face: 0.152 };
