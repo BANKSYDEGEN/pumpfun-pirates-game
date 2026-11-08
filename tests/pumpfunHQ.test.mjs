@@ -50,3 +50,12 @@ test('east wall is restored and no unsafe rear opening is cut into the rising hi
  assert.ok(HQ_WALLS.some(([x,z,w,d])=>x===-18.5&&z===-56.5&&w===29&&d===17));
  assert.ok(!src('js/island/plazaTown.js').includes('y:HQ.floor+.15'));
 });
+
+// v475 supplied token_AHOY, which was never a SHOP_ICONS entry: the first
+// completed minimap bake threw inside the frame loop when going ashore.
+test('HQ landmark has a real map icon and unknown icons cannot kill the frame',()=>{
+ assert.match(src('js/mapLandmarks.js'), /\[HQ.id, HQ.id,/);
+ assert.match(src('js/mapIcons.js'), /pumpfun_hq: \['coin'/);
+ assert.match(src('js/islandMap.js'), /SHOP_ICONS\[l.icon\] \|\| SHOP_ICONS.shop/);
+ assert.match(src('js/features.js'), /PILLY_ENABLED = false/);
+});

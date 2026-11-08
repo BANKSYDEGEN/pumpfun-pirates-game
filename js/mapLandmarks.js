@@ -35,7 +35,7 @@ const LIST_LEGACY = () => [
 ].filter(Boolean).filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 // Default: no shop rows that layout.interact / battle already register (pets, crew, sword, musket). Landmarks only.
 const LIST = () => [
-  [HQ.id, 'token_AHOY', 'PUMPFUN PIRATES', 'town', HQ.prompt.lx, HQ.prompt.lz],
+  [HQ.id, HQ.id, 'PUMPFUN PIRATES', 'town', HQ.prompt.lx, HQ.prompt.lz],
   [SHIP_STORE.id, SHIP_STORE.id, 'SHIP STORE', 'town', SHIP_STORE.lx, SHIP_STORE.lz],
   [OUTFIT_STORE.id, OUTFIT_STORE.id, OUTFIT_STORE.name, 'town', OUTFIT_STORE.lx, OUTFIT_STORE.lz],
   ['castle', 'castle', 'CROWN CITADEL', 'town', FORT.lx, FORT.lz, true],

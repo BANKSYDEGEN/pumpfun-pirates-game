@@ -68,7 +68,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       return { id: q.id, x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind]), icon: ic }; })
       .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ id: p.id, x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id), geo: GEO_POI.has(p.id) || !/lighthouse|_lh$/.test(p.id) })))
       .concat(rockLights())
-      .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon]; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true, geo: !!l.geo }; }));
+      .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon] || SHOP_ICONS.shop; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true, geo: !!l.geo }; }));
     if (MMICONS_LEGACY) return raw;
     const seen = new Set(), out = [];
     for (const p of raw) { const k = p.id || (p.s && p.s[3]) || `${p.x|0},${p.z|0}`; if (seen.has(k)) continue; seen.add(k); out.push(p); }
