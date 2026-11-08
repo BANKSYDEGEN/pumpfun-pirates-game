@@ -118,8 +118,7 @@ function glow(group,low){
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const Y=HQ.floor,geos=[];
  const pool=(w,px,py,pz,rx,ry)=>{const g=new THREE.PlaneGeometry(w,w);g.rotateX(rx);g.rotateY(ry);g.translate(px,py,pz);geos.push(g);};
  for(const z of HQ_CHANDELIERS){pool(11,-18.5,Y+.06,z,-Math.PI/2,0);pool(5,-18.5,Y+.07,z,-Math.PI/2,0);if(!low)pool(6,-18.5,Y+HQ.ceil-.02,z,Math.PI/2,0);}
- for(const [px,pz] of HQ_LANTERNS){const s=px<-18?1:-1,wx=s>0?-32.25:-5.15;pool(5,px,Y+.06,pz,-Math.PI/2,0);pool(6.4,wx+s*.03,Y+HQ_BOARD_BAND.y,pz,0,s*Math.PI/2);}
- for(const P of HQ_PANELS.filter(p=>p.face==='s'))pool(6.4,P.lx,Y+HQ_BOARD_BAND.y,P.lz-.02,0,Math.PI);
+ for(const [px,pz] of HQ_LANTERNS){const s=px<-18?1:-1,wx=s>0?-32.25:-5.15;pool(5,px,Y+.06,pz,-Math.PI/2,0);}   // BANKSY t339u: no glow patches on the wall boards
  pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
 // BANKSY t303u "make the inside light even at night": an interior-only warm fill (additive planes just inside the walls, floor and
