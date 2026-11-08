@@ -1516,7 +1516,7 @@ function frame() {
     const stormForced = isStormForced();
     let target = 0;
     if (stormForced != null) target = stormForced;
-    else if (game.state !== 'title' && game.mode !== 'pvp') { const w = clamp((game.wave - 5) / 7, 0, 1); target = w * w * (3 - 2 * w); }
+    else if (game.state !== 'title' && game.mode !== 'pvp') target = 1; // [v484] BANKSY t2241u: Storm Hunt is always storming (was ramping in from wave 6)
     // PvP Harbor stays fair (wave is pinned ~3 for AI strength only — never drives storm rain)
     game.storm = game.stormOverride ?? (game.storm || 0) + (target - (game.storm || 0)) * (1 - Math.exp(-dt * 0.6));
     const sm = game.storm;
