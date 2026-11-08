@@ -35,13 +35,17 @@ test('high-ceiling hall uses the shared plaza stone kit; neutral signs retain re
  assert.match(src('js/pumpfun/render.js'),/PET_LOT.doorY\+3.6/);
 });
 
-test('hill entrance grade, joins, clear passage and footprints',async()=>{
- const {HILL_ENTRANCE:e,entranceY,entranceParts}=await import('../js/pumpfun/entrance.js');
- assert.equal(entranceY(e.lz0),5.86);assert.equal(entranceY(e.lz1),HQ.floor);
- assert.ok(Math.abs((e.y0-e.y1)/(e.lz1-e.lz0))<.14);
- assert.ok(e.lx0>HQ.lx1+1);assert.ok(e.lx0>-2); // trader door stays west
- for(let z=e.lz0;z<e.lz1;z+=.1)assert.ok(Math.abs(entranceY(z+.1)-entranceY(z))<.014);
- const arch=entranceParts().find(p=>p.w===8.4);assert.ok(arch.y-arch.h/2-entranceY(-65)>4);
- assert.match(src('js/island/plazaTown.js'),/h.addDeck\?\.\(\{x:ex,z:ez,hw:3,hl:12,yaw:yaw0,y:E.y0,y1:E.y1\}\)/);
- assert.match(src('js/island/foot.js'),/PV.buildPlazaV2\(\{ addDeck/);
+test('cancelled hill entrance leaves no ramp, terrain override, deck or post colliders',()=>{
+ const plaza=src('js/island/plazaTown.js');
+ for(const removed of ['entranceGround','entranceParts','HILL_ENTRANCE','x:ex,z:ez,hw:3,hl:12','[2.75,10.25]'])assert.ok(!plaza.includes(removed),removed);
+ assert.match(plaza,/for\(const p of hqParts\(\)\)/);
+ assert.match(plaza,/hw:14,hl:9,yaw:yaw0,y:HQ.floor/); // HQ floor remains
+});
+
+test('east side door opens toward Trader with collider gap and one small doorstep',()=>{
+ assert.deepEqual(HQ.sideDoor,{lx:-4,lz:-42,w:4});
+ for(let x=-7;x<=-2.7;x+=.1)for(const [cx,cz,w,d] of HQ_WALLS)assert.ok(!(Math.abs(x-cx)<w/2+.33&&Math.abs(-42-cz)<d/2+.33),'side door walk lane');
+ const parts=hqParts();assert.ok(!parts.some(p=>p.x===-6.5&&p.z===-42&&p.h===1));assert.ok(!parts.some(p=>p.x===-4.3&&p.z===-39.5&&p.d===19));
+ const step=parts.find(p=>p.x===-3.3&&p.z===-42);assert.ok(Math.abs(step.y+step.h/2-HQ.floor-.15)<1e-6);
+ assert.match(src('js/island/plazaTown.js'),/hw:.7,hl:2,yaw:yaw0,y:HQ.floor\+.15/);
 });

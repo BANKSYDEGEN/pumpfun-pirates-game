@@ -1,4 +1,3 @@
-import { HILL_ENTRANCE, entranceGround, entranceParts } from '../pumpfun/entrance.js';
 import { hqParts, gableVertices } from '../pumpfun/model.js';
 import { HQ, HQ_WALLS, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, petFloor } from '../pumpfun/site.js';
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
@@ -154,7 +153,6 @@ export const PLAZA = {
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
 export function plazaGround(lx, lz, h) {
-  h=entranceGround(lx,lz,h);
   if(lx>HQ.lx0&&lx<HQ.lx1&&lz>-48&&lz<HQ.lz1)h=HQ.floor-.05;
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
@@ -390,15 +388,12 @@ export function buildPlazaV2(h) {
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
   // Use the EXACT shared W/box/M stone kit and masonry/trim/tile library layers as stoneHouse.
-  for(const p of [...hqParts(),...entranceParts()]) { if(low&&p.detail)continue;const [x,z]=T(p.x,p.z);
+  for(const p of hqParts()) { if(low&&p.detail)continue;const [x,z]=T(p.x,p.z);
     const geo=p.kind==='gable'?new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3)):box(p.w,p.h,p.d);
     if(p.kind==='gable')geo.computeVertexNormals();
     W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0,p.rx||0),false); }
-  const E=HILL_ENTRANCE,[ex,ez]=T(E.lx,-64);
-  h.addDeck?.({x:ex,z:ez,hw:3,hl:12,yaw:yaw0,y:E.y0,y1:E.y1});
-  // Curbs are only 15 cm high: no full-height box that blocks crossing to the trader.
-  for(const x of [2.75,10.25]) addBox(...T(x,-65),1,1.1,yaw0);
   h.addDeck?.({x:T(-18.5,-39)[0],z:T(-18.5,-39)[1],hw:14,hl:9,yaw:yaw0,y:HQ.floor});
+  h.addDeck?.({x:T(-3.3,-42)[0],z:T(-3.3,-42)[1],hw:.7,hl:2,yaw:yaw0,y:HQ.floor+.15});
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
   camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: -47.5, lz1: -30.5 }, 7.8);
