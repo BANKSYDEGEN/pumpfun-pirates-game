@@ -1,3 +1,4 @@
+import { BOARD_ROWS } from './boardgrid.js';
 // One shared, proximity-driven FREE poller per game client. No socket, API key, timer, proxy or server deployment.
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
 export const WATCH_TOKENS = [
@@ -76,7 +77,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';
     if(!safeMint(mint)||!/(pump)/i.test(dex)||seen.has(mint))continue;seen.add(mint);rows.push({mint,symbol:safeText(base.symbol),name:safeText(base.name),price:finite(a.base_token_price_usd),cap:finite(a.market_cap_usd)??finite(a.fdv_usd),change:finite(a.price_change_percentage?.h24),volume:finite(a.volume_usd?.h24),imageUrl:safeImg(base.image_url)});}
-   if(rows.length)good('trending',rows.slice(0,5),'GeckoTerminal · Pump venues, Solana trending');else failed('trending','no Pump venue rows');
+   if(rows.length)good('trending',rows.slice(0,BOARD_ROWS),'GeckoTerminal · Pump venues, Solana trending');else failed('trending','no Pump venue rows');
   }catch{failed('trending');}})(),
   // DEX BOOSTED (BANKSY: renamed from Callout Feed): DexScreener token-boosts/latest
   (async()=>{try{const f=await import('./feeds.js');const rows=await f.fetchCallouts(get,clock());if(rows.length)good('callouts',rows,'Latest DexScreener boosts · pump.fun tokens');else failed('callouts','no pump.fun boosts');

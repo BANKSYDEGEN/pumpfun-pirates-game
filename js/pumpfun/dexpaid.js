@@ -1,3 +1,4 @@
+import { BOARD_ROWS } from './boardgrid.js';
 // Free latest profiles are CANDIDATES, not proof of payment. Verify tokenProfile orders.
 import { safeMint, safeText, safeImg, selectPair } from './market.js';
 import { openPump } from './links.js';
@@ -28,7 +29,7 @@ export function makeDexPaidFeed({ fetcher = (...a) => fetch(...a), clock = () =>
       } }
       await Promise.all([worker(), worker()]);
       rows.sort((a,b) => b.paidAt - a.paidAt);
-      const top = rows.slice(0,5);
+      const top = rows.slice(0,BOARD_ROWS);
       if (top.length) try {
         const pairs = await get('/tokens/v1/solana/' + top.map(r => r.mint).join(','));
         for (const row of top) { const pair = selectPair(pairs, row.mint); if (!pair) continue;

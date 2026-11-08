@@ -25,12 +25,12 @@ test('just migrated / volume leaders / callout feed use real rows only',()=>{con
  const seen=new Map(),c=parseCallouts([{chainId:'solana',tokenAddress:mint,amount:50,totalAmount:50},{chainId:'solana',tokenAddress:mint,amount:50,totalAmount:50},{chainId:'ethereum',tokenAddress:mint}],seen,now);
  assert.equal(c.length,1);assert.equal(c[0].seenAt,now);assert.equal(parseCallouts([{chainId:'solana',tokenAddress:mint,amount:50,totalAmount:50}],seen,now+9)[0].seenAt,now);
  const b=[{mint,symbol:'x',cap:null}];enrich(b,[{chainId:'solana',baseToken:{address:mint,symbol:'GIG',name:'n'},priceUsd:'0.001',marketCap:1234,priceChange:{h24:-3}}]);assert.equal(b[0].cap,1234);
- const ours=WALL_BOARDS.find(b=>b.ours);assert.deepEqual(ours.ours,['AHOY','SUNK']);assert.equal(wallPanelMint(ours,{},{y:1-150/512}),'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump');assert.equal(wallPanelMint(ours,{},{y:1-350/512}),'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump');});
+ const ours=WALL_BOARDS.find(b=>b.slot==='front_e');assert.deepEqual(ours.ours,['AHOY']);assert.equal(wallPanelMint(ours,{},{y:1-150/512}),'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump');const sunk=WALL_BOARDS.find(b=>b.slot==='squad_ranks');assert.equal(wallPanelMint(sunk,{},{y:1-350/512}),'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump');});
 test('a dead feed reports Feed offline on every wall board key',async()=>{const feed=makeMarketFeed({fetcher:async()=>{throw Error('down');}});await feed.tick(true,true);for(const k of ['bonding','migrated','volume','callouts'])assert.match(feed.state.status[k],/^Feed offline/,k);});
 test('all six wall slots carry a board; taps go through openPump; no DexScreener links or visible code',()=>{
  const w=src('js/pumpfun/wallboards.js')+src('js/pumpfun/wallpanels.js'),d=src('js/dock/pumpfun.js');
  for(const P of HQ_PANELS) assert.ok(P.id==='east_1'||w.includes(`slot: '${P.id}'`),P.id);
- assert.match(d,/wallPanelMint\(wb.board,marketFeed.state,hit.uv\):null;if\(m\)openPump\(m\)/);
+ assert.match(d,/wallPanelMint\(wb.board,marketFeed.state,hit.uv,wb.at\):null;if\(m\)openPump\(m\)/);
  for(const s of [w,src('js/pumpfun/feeds.js'),d,src('js/pumpfun/render.js')]){assert.ok(!s.includes('PUMPFUNPIRATES')&&!s.includes('BANKSYDEGEN')&&!s.includes('3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34'));assert.ok(!/dexscreener\.com\/solana|PointLight|SpotLight/.test(s));}
- assert.match(w,/low \? 320 : 640/);
- assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices']);});
+ assert.match(src('js/pumpfun/wallpanels.js'),/boardCanvas\(640, 512, low\)/);
+ assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices','prices']);});

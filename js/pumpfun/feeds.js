@@ -1,3 +1,4 @@
+import { BOARD_ROWS } from './boardgrid.js';
 // Extra free HQ board feeds (BANKSY t2262u "work on all the boards"). Keyless, CORS-open, already in CSP connect-src.
 // Pure parsers + one fetch per feed; market.js calls them inside its 120 s discovery pass. Never invents rows.
 import { safeMint, safeText, safeImg, selectPair } from './market.js';
@@ -17,7 +18,7 @@ export function parseCurvePools(j) { const out = [];
     out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), progress, createdAt: Number.isFinite(at) ? at : null, cap: finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'curve', imageUrl: safeImg(base.image_url) }); }
   return out; }
 // ABOUT TO BOND: 60..99.5 % bonded, most-bonded first.
-export const aboutToBond = rows => uniq(rows.filter(r => r.progress >= BOND_MIN && r.progress < BOND_MAX).sort((x, y) => y.progress - x.progress)).slice(0, 5);
+export const aboutToBond = rows => uniq(rows.filter(r => r.progress >= BOND_MIN && r.progress < BOND_MAX).sort((x, y) => y.progress - x.progress)).slice(0, BOARD_ROWS);
 export const parseBonding = j => aboutToBond(parseCurvePools(j));
 // PumpSwap pools (where pump.fun tokens migrate on graduation) for pump.fun mints, SOL-quoted.
 export function parseSwapPools(j) { const out = [];
@@ -26,10 +27,10 @@ export function parseSwapPools(j) { const out = [];
     out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), createdAt: Number.isFinite(at) ? at : null, cap: finite(a.market_cap_usd) ?? finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'pumpswap', imageUrl: safeImg(base.image_url) }); }
   return out; }
 // VOLUME LEADERS: pump.fun tokens on PumpSwap ranked by real 24h pool volume.
-export const volumeLeaders = rows => uniq([...rows].filter(r => r.volume != null).sort((x, y) => y.volume - x.volume)).slice(0, 5);
+export const volumeLeaders = rows => uniq([...rows].filter(r => r.volume != null).sort((x, y) => y.volume - x.volume)).slice(0, BOARD_ROWS);
 // JUST MIGRATED: pump.fun curves that completed (>= 99.5 % bonded) or new PumpSwap pools for pump.fun mints, opened in the last 24 h, newest first.
 export const MIGRATED_WINDOW_MS = 86400000;
-export const justMigrated = (rows, now = Date.now()) => uniq([...rows].filter(r => r.createdAt != null && now - r.createdAt >= 0 && now - r.createdAt < MIGRATED_WINDOW_MS && (r.venue === 'pumpswap' || r.progress >= BOND_MAX)).sort((x, y) => y.createdAt - x.createdAt)).slice(0, 5);
+export const justMigrated = (rows, now = Date.now()) => uniq([...rows].filter(r => r.createdAt != null && now - r.createdAt >= 0 && now - r.createdAt < MIGRATED_WINDOW_MS && (r.venue === 'pumpswap' || r.progress >= BOND_MAX)).sort((x, y) => y.createdAt - x.createdAt)).slice(0, BOARD_ROWS);
 // CALLOUT FEED: DexScreener token-boosts/latest is a stream of PAID boost events (newest first). Pump.fun mints only; first-seen time is ours.
 export function parseCallouts(j, seenAt = new Map(), now = Date.now()) { const out = [], dup = new Set();
   for (const t of Array.isArray(j) ? j : []) { if (t.chainId !== 'solana' || !safeMint(t.tokenAddress) || !t.tokenAddress.endsWith('pump')) continue;

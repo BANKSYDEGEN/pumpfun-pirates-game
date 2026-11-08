@@ -75,21 +75,21 @@ export function tapHint(g, W, y, n = 22, s = 'Tap a token to open it on pump.fun
   txt(g, s, x, y, n, C.dim, 'left', W - 120); }
 // empty / loading / offline message, centred in the row area
 export function emptyState(g, W, status, y = 270) { const off = /offline/i.test(status || ''), load = !status || status === 'Loading…';
-  txt(g, load ? 'Loading…' : off ? 'Feed offline' : 'Nothing to show right now', W / 2, y, 46, C.parch, 'center', W - 80, true);
+  txt(g, load ? 'Loading…' : off ? 'Feed offline' : '—', W / 2, y, 46, C.parch, 'center', W - 80, true);
   txt(g, load ? 'Fetching a free snapshot' : off ? 'Retrying while you are nearby' : status, W / 2, y + 50, 24, C.muted, 'center', W - 90); }
 // one token row on a 640-wide wall board: rank, logo, big symbol, labelled value, then a pill / text / progress bar
 // spec: { name, midLabel, mid, right: { pill: v } | { text, color }, bar: 0..1 }
-export function tokenRow(g, W, i, y, h, row, spec) { const x0 = 28, x1 = W - 28, cy = y + h / 2, r = h * .4;
-  rowBg(g, i, x0, y, x1 - x0, h); txt(g, String(i + 1), x0 + 16, cy + 1, 24, C.dim, 'center');
-  logo(g, row, x0 + 52, cy, r); const nx = x0 + 52 + r + 10;
-  if (spec.bar != null) { txt(g, spec.name, nx, cy + 1, 36, '#ffe9b8', 'left', 128);
-    const bx = nx + 138, bw = x1 - 14 - 92 - bx; txt(g, spec.midLabel + ' ' + spec.mid, bx, cy - 9, 22, C.muted, 'left', bw);
-    bar(g, bx, cy + 4, bw, 14, spec.bar); txt(g, spec.right.text, x1 - 14, cy + 1, 30, spec.right.color || C.gold, 'right', 90); return; }
+export function tokenRow(g, W, i, y, h, row, spec) { const x0 = 28, x1 = W - 28, cy = y + h / 2, r = Math.min(16, h * .4);
+  rowBg(g, i, x0, y, x1 - x0, h); txt(g, String(i + 1), x0 + 16, cy + 1, 18, C.dim, 'center');
+  logo(g, row, x0 + 48, cy, r); const nx = x0 + 48 + r + 10;
+  if (spec.bar != null) { txt(g, spec.name, nx, cy + 1, 24, '#ffe9b8', 'left', 128);
+    const bx = nx + 138, bw = x1 - 14 - 92 - bx; txt(g, spec.midLabel + ' ' + spec.mid, bx, cy - 5, 17, C.muted, 'left', bw);
+    bar(g, bx, cy + 5, bw, 5, spec.bar); txt(g, spec.right.text, x1 - 14, cy + 1, 22, spec.right.color || C.gold, 'right', 90); return; }
   const rx = x1 - 14; let rw = 0;
-  if (spec.right?.pill !== undefined) rw = pill(g, spec.right.pill, rx, cy, 26); else if (spec.right) rw = txt(g, spec.right.text, rx, cy + 1, 27, spec.right.color || C.gold, 'right', 170);
-  const mx = Math.min(x0 + 420, rx - rw - 18), vw = txt(g, spec.mid, mx, cy + 1, 31, C.parch, 'right', 120);
-  if (spec.midLabel) txt(g, spec.midLabel, mx - vw - 8, cy + 3, 20, C.dim, 'right');
-  txt(g, spec.name, nx, cy + 1, 36, '#ffe9b8', 'left', Math.max(60, mx - vw - (spec.midLabel ? 46 : 14) - nx)); }
+  if (spec.right?.pill !== undefined) rw = pill(g, spec.right.pill, rx, cy, 20); else if (spec.right) rw = txt(g, spec.right.text, rx, cy + 1, 21, spec.right.color || C.gold, 'right', 170);
+  const mx = Math.min(x0 + 420, rx - rw - 18), vw = txt(g, spec.mid, mx, cy + 1, 23, C.parch, 'right', 120);
+  if (spec.midLabel) txt(g, spec.midLabel, mx - vw - 8, cy + 1, 16, C.dim, 'right');
+  txt(g, spec.name, nx, cy + 1, 24, '#ffe9b8', 'left', Math.max(60, mx - vw - (spec.midLabel ? 46 : 14) - nx)); }
 // status + tap hint along the bottom of a wall board
 export const withUpdated = (status, at, now = Date.now()) => status ? status + (at ? ' · updated ' + (now - at < 60000 ? 'just now' : ago(at, now) + ' ago') : '') : '';
 export function footer(g, W, H, status, at, now = Date.now()) { const s = withUpdated(status, at, now); if (s) txt(g, s, W / 2, H - 64, 20, C.dim, 'center', W - 90); tapHint(g, W, H - 36); }
