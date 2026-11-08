@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { BTN, MAP, MAP_HELP, resolve, glyphFor, padBrand } from '../js/gamepad.js';
+import { BTN, MAP, MAP_HELP, resolve, glyphFor, padBrand, padAction, readPad } from '../js/gamepad.js';
 
 const src = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const G = src('js/gamepad.js');
@@ -13,9 +13,9 @@ const SW = src('sw.js');
 
 test('v349 MAP.sea: Cross / A enters hull; Triangle / Y goes ashore', () => {
   assert.equal(BTN.Y, 3, 'standard Gamepad Y / Triangle index');
-  assert.equal(MAP.sea[BTN.Y], 'goAshore|map');
+  assert.equal(MAP.sea[BTN.Y], 'goAshore');
   assert.equal(MAP.sea[BTN.A], 'enterHull|promptA');
-  assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor|map', 'on foot Y = leave at cabin door, else island map (A also leaves at the door)');
+  assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor', 'on foot Y = leave at cabin door, else island map (A also leaves at the door)');
 });
 
 test('v349 resolve: enterHull only when canEnterHull; else map when harbor', () => {
@@ -32,7 +32,7 @@ test('t2343u contextual swap preserves prompt, jump and UI fallbacks', () => {
   assert.equal(resolve(MAP.sea[BTN.A], { canEnterHull: false, prompt: [true] }), 'promptA');
   assert.equal(resolve(MAP.sea[BTN.A], { canEnterHull: false, prompt: [false] }), null);
   assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: true, harbor: true }), 'goAshore');
-  assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: false, harbor: true }), 'map');
+  assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: false, harbor: true }), null);
   assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: false, harbor: false }), null);
   assert.equal(resolve(MAP.foot[BTN.A], { prompt: [false], canEnterHull: true }), 'jump');
   assert.equal(resolve(MAP.foot[BTN.A], { prompt: [true], canEnterHull: true }), 'promptA');
@@ -55,7 +55,7 @@ test('v349 MAP_HELP.sea documents Cross for hull and Triangle for shore', () => 
   assert.match(y[1], /go to shore/i);
   assert.match(MAP_HELP.sea.find(row => row[0] === 'A')[1], /enter hull/i);
   assert.match(y[1], /moored|anchored/i);
-  assert.match(y[1], /island map/i);
+  assert.doesNotMatch(y[1], /island map/i);
   assert.match(G, /take canoe \(when moored\) · go to shore by canoe \(anchored\)/);
 });
 
@@ -134,6 +134,9 @@ test('v349 driver: A calls enterHull when canEnterHull, else taps map key when u
     log.length = 0; sent.length = 0;
     plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
     assert.deepEqual(log, ['goAshore']);
+    ashore = false; // action changed context immediately; a held Triangle stays consumed
+    drv.tick(0.016); drv.tick(0.016);
+    assert.deepEqual(log, ['goAshore']);
     assert.equal(sent.length, 0);
     plug(mk()); drv.tick(0.016);
 
@@ -141,7 +144,7 @@ test('v349 driver: A calls enterHull when canEnterHull, else taps map key when u
     ashore = false; log.length = 0; sent.length = 0;
     plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
     assert.deepEqual(log, []);
-    assert.ok(sent.includes('+' + binds('map')[0]));
+    assert.deepEqual(sent, [], 'Triangle never opens map, even when no ship action is available');
     plug(mk()); drv.tick(0.016);
 
     // underway at sea: Y → island map
@@ -149,7 +152,14 @@ test('v349 driver: A calls enterHull when canEnterHull, else taps map key when u
     plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
     assert.ok(!log.includes('enterHull'), 'Y does not enter hull while sailing');
     const mapCode = binds('map')[0];
-    assert.ok(sent.includes('+' + mapCode) && sent.includes('-' + mapCode), 'Y taps island map key when underway');
+    assert.deepEqual(sent, [], 'Triangle has no map fallback underway');
+    plug(mk()); drv.tick(0.016);
+    plug(mk({ press: [BTN.START] })); drv.tick(0.016);
+    assert.ok(sent.includes('+' + mapCode) && sent.includes('-' + mapCode), 'Start taps island map on pads without touchpad');
+    plug(mk()); drv.tick(0.016);
+    sent.length = 0;
+    plug(mk({ press: [BTN.VIEW] })); drv.tick(0.016);
+    assert.ok(sent.includes('+Escape'), 'View keeps settings reachable');
 
     // promptKey glyphs while pad active
     assert.equal(GP.promptKey('H', 2, 'A'), 'A'); // xbox brand from DualSense? pad brand from last pad = xbox
@@ -190,4 +200,23 @@ test('t2343u clarification: moored Triangle launches canoe; anchored Triangle us
   assert.match(D, /padLabel: 'GO TO SHORE · CANOE'/);
   assert.ok(D.indexOf("} else if (canoe?.mode === 'canoe')") < D.indexOf("else if (docking.mode === 'docked') setActs"), 'canoe prompts override moored ship prompts');
   assert.match(D, /!onFoot && !inCanoe && !inHull && docking.mode === 'docked'/, 'paddling W cannot set sail on the moored ship');
+});
+
+test('t2343u map uses touchpad 17 or Start; Triangle has no map consumer', () => {
+  const ps = readPad({ id: 'DualSense Wireless Controller', buttons: Array.from({length: 18}, (_, i) => ({pressed: i === 17, value: i === 17 ? 1 : 0})), axes: [] });
+  assert.equal(ps.hasTouchpad, true); assert.equal(ps.b[17], true);
+  const xbox = readPad({ id: 'Xbox Wireless Controller', buttons: Array(17).fill({pressed:false,value:0}), axes: [] });
+  const psNoTouch = readPad({ id: 'DualSense Wireless Controller', buttons: Array(17).fill({pressed:false,value:0}), axes: [] });
+  for (const mode of ['sea', 'foot']) {
+    assert.equal(padAction(mode, BTN.TOUCHPAD, ps, {harbor:true}), 'map');
+    assert.equal(padAction(mode, BTN.START, ps, {harbor:true}), 'pause');
+    for (const pad of [xbox, psNoTouch]) {
+      assert.equal(resolve(padAction(mode, BTN.START, pad, {harbor:true}), {harbor:true}), 'map');
+      assert.equal(resolve(padAction(mode, BTN.VIEW, pad, {harbor:true}), {harbor:true}), 'pause');
+      assert.equal(resolve(padAction(mode, BTN.START, pad, {harbor:false}), {harbor:false}), 'pause');
+    }
+    assert.doesNotMatch(padAction(mode, BTN.Y, ps, {}), /map/);
+  }
+  assert.equal(MAP.map[BTN.Y], undefined);
+  assert.match(G, /recenter: pr\(BTN.A\), close:/);
 });

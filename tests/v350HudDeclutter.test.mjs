@@ -171,7 +171,7 @@ test('t1838u html.pfp-inhull hides radar, hub, controls, hint, safe tags', () =>
 });
 
 test('t1838u controller Triangle / Y leaves only at the cabin door', () => {
-  assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor|map');
+  assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor');
   assert.equal(resolve('leaveHullDoor|map', { canLeaveHullDoor: true, harbor: true }), 'leaveHullDoor');
   assert.equal(resolve('leaveHullDoor|map', { canLeaveHullDoor: false, harbor: true }), 'map');
   assert.equal(resolve('leaveHullDoor|map', { canLeaveHullDoor: false, harbor: false }), null);

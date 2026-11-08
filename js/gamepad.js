@@ -20,7 +20,7 @@ export const PAD = {
 };
 export const padOn = (search = '') => !/[?&]pad=0(&|$)/.test(String(search));
 // standard mapping (https://w3c.github.io/gamepad/#remapping)
-export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15, HOME: 16 };
+export const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, VIEW: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15, HOME: 16, TOUCHPAD: 17 };
 
 // ---------- consoles ----------
 // Xbox Edge: '... (Windows NT 10.0; Win64; x64; Xbox; Xbox Series X) ... Edg/...'. PS5: 'Mozilla/5.0 (PlayStation; PlayStation 5/10.20) AppleWebKit/...'
@@ -37,16 +37,16 @@ export function deadzone(x, y, d = PAD.dead) { const m = Math.hypot(x, y); if (m
 export function padBrand(id = '') { id = String(id); return /xbox|045e|xinput/i.test(id) ? 'xbox' : /054c|DualSense|DualShock|PlayStation|PS[345]\b/i.test(id) ? 'ps' : /057e|Nintendo|Pro Controller|Joy-Con/i.test(id) ? 'nintendo' : 'xbox'; }
 const GLY = {
   xbox: { A: 'A', B: 'B', X: 'X', Y: 'Y', LB: 'LB', RB: 'RB', LT: 'LT', RT: 'RT', VIEW: 'VIEW', START: 'MENU', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' },
-  ps: { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'CREATE', START: 'OPTIONS', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' },
+  ps: { A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', VIEW: 'CREATE', TOUCHPAD: 'TOUCHPAD', START: 'OPTIONS', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' },
   nintendo: { A: 'B', B: 'A', X: 'Y', Y: 'X', LB: 'L', RB: 'R', LT: 'ZL', RT: 'ZR', VIEW: '−', START: '+', L3: 'L3', R3: 'R3', UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶' }, // standard mapping is positional: the south button is Nintendo's B
 };
 export const glyphFor = (brand, b) => (GLY[brand] || GLY.xbox)[b] || b;
 // one snapshot of a Gamepad (standard mapping; others best effort with the same indices)
 export function readPad(gp) {
   const B = gp?.buttons || [], A = gp?.axes || [], val = (i) => { const b = B[i]; return b == null ? 0 : typeof b === 'object' ? (+b.value || (b.pressed ? 1 : 0)) : +b || 0; };
-  const b = []; for (let i = 0; i < 17; i++) b[i] = i === 6 || i === 7 ? val(i) > PAD.trig : (typeof B[i] === 'object' ? !!B[i]?.pressed || val(i) > 0.5 : val(i) > 0.5);
+  const b = []; for (let i = 0; i < Math.max(17, B.length); i++) b[i] = i === 6 || i === 7 ? val(i) > PAD.trig : (typeof B[i] === 'object' ? !!B[i]?.pressed || val(i) > 0.5 : val(i) > 0.5);
   const [lx, ly] = deadzone(+A[0] || 0, +A[1] || 0), [rx, ry] = deadzone(+A[2] || 0, +A[3] || 0);
-  return { b, lt: val(6), rt: val(7), lx, ly, rx, ry, id: gp?.id || '', brand: padBrand(gp?.id), index: gp?.index ?? -1 };
+  return { b, hasTouchpad: padBrand(gp?.id) === 'ps' && B.length > BTN.TOUCHPAD, lt: val(6), rt: val(7), lx, ly, rx, ry, id: gp?.id || '', brand: padBrand(gp?.id), index: gp?.index ?? -1 };
 }
 // the pad that counts: the last one that pressed something (several pads = whoever touched one last)
 export function pickPad(list, lastIndex = -1) { const pads = [...(list || [])].filter(p => p && p.connected !== false); if (!pads.length) return null; return pads.find(p => p.index === lastIndex) || pads[0]; }
@@ -56,31 +56,41 @@ export const anyInput = (s) => !!s && (s.b.some(Boolean) || Math.hypot(s.lx, s.l
 // sea = sailing your ship (Waves, Battle Royale SOLO / SQUADS, the harbor); foot = walking the island (+ the sword pit / musket range);
 // spec = spectating a battle; ui = any menu / shop / inventory / pop-up on top (focus navigation).
 export const MAP = {
-  sea: { [BTN.A]: 'enterHull|promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'goAshore|map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
+  sea: { [BTN.A]: 'enterHull|promptA', [BTN.X]: 'promptB|anchor', [BTN.Y]: 'goAshore', [BTN.TOUCHPAD]: 'map', [BTN.LT]: 'firePort', [BTN.RT]: 'fireStar', [BTN.LB]: 'firePort', [BTN.RB]: 'fireStar',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: 'emote', [BTN.R3]: 'camera', [BTN.UP]: 'sailUp', [BTN.DOWN]: 'sailDown', [BTN.LEFT]: '+left', [BTN.RIGHT]: '+right', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud] GUIDE/PS button toggles Hide HUD · [invite-discreet] VIEW opens invite pill when one is pending (else BR menu)
-  foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|weapon', [BTN.Y]: 'leaveHullDoor|map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
+  foot: { [BTN.A]: 'promptA|jump', [BTN.X]: 'promptB|weapon', [BTN.Y]: 'leaveHullDoor', [BTN.TOUCHPAD]: 'map', [BTN.RT]: 'attack', [BTN.LT]: '+ads', [BTN.RB]: 'swap', [BTN.LB]: 'team',
     [BTN.VIEW]: 'invite|menu', [BTN.START]: 'pause', [BTN.L3]: '+sprint', [BTN.R3]: 'swap|camBehind', [BTN.UP]: 'emote', [BTN.DOWN]: 'inventory', [BTN.B]: 'inventory', [BTN.HOME]: 'hideHud' }, // [gold-hud]
   spec: { [BTN.A]: 'specFollow', [BTN.X]: 'specLeader', [BTN.Y]: 'specOverview', [BTN.B]: 'specHud', [BTN.LB]: 'specPrev', [BTN.RB]: 'specNext', [BTN.VIEW]: 'specBoard', [BTN.START]: 'pause' },
   ui: { [BTN.A]: 'click', [BTN.B]: 'back', [BTN.START]: 'back', [BTN.LB]: 'tabPrev', [BTN.RB]: 'tabNext', [BTN.Y]: 'click2', [BTN.X]: 'click3' },
-  // [map-zoom] BANKSY 2:44 PM: while the ISLAND MAP is open — sticks pan/zoom, Y recentre, B close (no sea fire / no menu focus fight)
-  map: { [BTN.B]: 'mapClose', [BTN.START]: 'mapClose', [BTN.Y]: 'mapRecentre', [BTN.A]: 'mapRecentre', [BTN.LB]: 'mapZoomOut', [BTN.RB]: 'mapZoomIn' },
+  // [map-zoom] BANKSY 2:44 PM: while the ISLAND MAP is open — sticks pan/zoom, A recentre, B close (no sea fire / no menu focus fight)
+  map: { [BTN.B]: 'mapClose', [BTN.START]: 'mapClose', [BTN.A]: 'mapRecentre', [BTN.LB]: 'mapZoomOut', [BTN.RB]: 'mapZoomIn' },
 };
+// Map owns a separate button; Triangle never falls through to a map toggle.
+export function padAction(mode, button, snapshot = {}, ctx = {}) {
+  if (mode === 'sea' || mode === 'foot') {
+    if (button === BTN.TOUCHPAD) return snapshot.hasTouchpad ? 'map' : null;
+    if (button === BTN.START) return snapshot.hasTouchpad ? 'pause' : 'map|pause';
+    // On pads using Start for the map, View/Create keeps settings reachable in Harbor.
+    if (button === BTN.VIEW && !snapshot.hasTouchpad && ctx.harbor) return 'invite|pause';
+  }
+  return MAP[mode]?.[button];
+}
 // readable map for the CONTROLS overlay + the report (glyphs follow the pad brand)
 export const MAP_HELP = {
   sea: [['LEFT STICK', 'steer · push up / down = more / less sail'], ['RIGHT STICK', 'look around (R3 = reset camera)'], ['RT / RB', 'fire starboard (right)'], ['LT / LB', 'fire port (left)'],
-    ['A', 'enter hull (when moored / anchored) · dock (underway)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'take canoe (when moored) · go to shore by canoe (anchored) · island map (underway)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
-  foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'change weapon (Unarmed → Musket → Sword)'], ['Y', 'leave hull (at cabin door) · island map'],
-    ['RT', 'swing sword / fire musket'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · else Battle Royale menu'], ['MENU', 'settings / pause'], ['GUIDE', 'hide / show HUD']],
+    ['A', 'enter hull (when moored / anchored) · dock (underway)'], ['X', 'anchor · SET SAIL when moored'], ['Y', 'take canoe (when moored) · go to shore by canoe (anchored)'], ['B', 'inventory (harbor)'], ['D-PAD', '▲▼ sails · ◀▶ steer'], ['L3', 'quick chat'], ['VIEW', 'squad invite (when pending) · otherwise settings without touchpad / Battle Royale menu with touchpad'], ['TOUCHPAD', 'island map (PlayStation with touchpad click)'], ['MENU', 'island map without touchpad · otherwise settings'], ['GUIDE', 'hide / show HUD']],
+  foot: [['LEFT STICK', 'walk (push all the way = sprint, or hold L3)'], ['RIGHT STICK', 'look / aim'], ['A', 'the prompt (shop, door, fountain, dig, fish…) · else jump'], ['X', 'change weapon (Unarmed → Musket → Sword)'], ['Y', 'leave hull (at cabin door)'],
+    ['RT', 'swing sword / fire musket'], ['LT', 'aim down the sights (musket range)'], ['RB / R3', 'swap shoulder (musket)'], ['LB', 'team FFA / RED / BLUE (in an area)'], ['B / D-PAD ▼', 'inventory'], ['D-PAD ▲', 'quick chat'], ['VIEW', 'squad invite (when pending) · otherwise settings without touchpad / Battle Royale menu with touchpad'], ['TOUCHPAD', 'island map (PlayStation with touchpad click)'], ['MENU', 'island map without touchpad · otherwise settings'], ['GUIDE', 'hide / show HUD']],
   ui: [['D-PAD / LEFT STICK', 'move'], ['A', 'select'], ['B', 'back / close'], ['LB / RB', 'switch tabs'], ['RIGHT STICK', 'scroll'], ['◀ ▶ on a slider', 'change it']],
-  map: [['LEFT STICK', 'pan the island map'], ['RIGHT STICK / LT·RT', 'zoom out / in'], ['LB / RB', 'zoom out / in (tap)'], ['Y / A', 'recentre (fit whole island)'], ['B', 'close map']],
+  map: [['LEFT STICK', 'pan the island map'], ['RIGHT STICK / LT·RT', 'zoom out / in'], ['LB / RB', 'zoom out / in (tap)'], ['A', 'recentre (fit whole island)'], ['B', 'close map']],
 };
 // the one-line hint (title, pause, the HUD) while a pad is in use
 export function padLine(short = false, b = brand) { const g = (k) => glyphFor(b, k);
   return short ? `left stick steer · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides · ${g('X')} anchor · right stick look`
-    : `left stick steer / walk · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides (on foot ${g('RT')} swing / fire) · ${g('A')} enter hull / dock / interact · ${g('X')} anchor / change weapon · ${g('Y')} go ashore / island map · ${g('B')} inventory / back · right stick look · ${g('START')} settings`; }
+    : `left stick steer / walk · ▲▼ sails · ${g('LT')}/${g('RT')} broadsides (on foot ${g('RT')} swing / fire) · ${g('A')} enter hull / dock / interact · ${g('X')} anchor / change weapon · ${g('Y')} canoe / shore · ${g('B')} inventory / back · right stick look · TOUCHPAD / ${g('START')} map · ${g('VIEW')} settings without touchpad`; }
 // the CONTROLS overlay's controller section (button names follow the pad in use: Xbox A/B/X/Y, PlayStation ✕/○/□/△)
 export function padHelpHtml(b = brand) {
-  const g = (t) => t.replace(/\b(LT|RT|LB|RB|VIEW|MENU|A|B|X|Y)\b/g, (m) => glyphFor(b, m === 'MENU' ? 'START' : m));
+  const g = (t) => t.replace(/\b(LT|RT|LB|RB|TOUCHPAD|VIEW|MENU|A|B|X|Y)\b/g, (m) => glyphFor(b, m === 'MENU' ? 'START' : m));
   const sec = (h, rows) => `<h4>${h}</h4><table><tbody>${rows.map(([k, v]) => `<tr><td>${g(k)}</td><td>${v}</td></tr>`).join('')}</tbody></table>`;
   return `<div id="pad-help"><p class="muted">🎮 CONTROLLER${connected ? '' : ' (plug one in or press a button)'}</p>${sec('SAILING', MAP_HELP.sea)}${sec('ON FOOT', MAP_HELP.foot)}${sec('ISLAND MAP', MAP_HELP.map)}${sec('MENUS', MAP_HELP.ui)}</div>`;
 }
@@ -294,8 +304,8 @@ export function initGamepad(opts = {}) {
 
   function gameFrame(m, s, p, dt, now) {
     const map = MAP[m], ctx = context();
-    for (let i = 0; i < 17; i++) {
-      const a = map[i]; if (!a) continue;
+    for (let i = 0; i < Math.max(18, s.b.length); i++) {
+      const a = padAction(m, +i, s, ctx); if (!a) continue;
       if (s.b[i] && !p.b[i]) { const r = resolve(a, ctx); if (r) { doAction(r, true, m); if (r.startsWith('+')) btnHeld.set(i, r); } }
       else if (!s.b[i] && p.b[i]) { const r = btnHeld.get(i); if (r) { btnHeld.delete(i); doAction(r, false, m); } }
     }
@@ -318,7 +328,7 @@ export function initGamepad(opts = {}) {
       const pr = (b) => s.b[b] && !p.b[b];
       D?.islandMap?.padTick?.({
         lx: s.lx, ly: s.ly, rx: s.rx, ry: s.ry, lt: s.lt, rt: s.rt,
-        recenter: pr(BTN.Y) || pr(BTN.A), close: pr(BTN.B) || pr(BTN.START),
+        recenter: pr(BTN.A), close: pr(BTN.B) || pr(BTN.START),
       });
     }
   }
