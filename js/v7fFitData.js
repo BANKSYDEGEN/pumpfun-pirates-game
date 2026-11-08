@@ -18,6 +18,10 @@ export const V7F_FITS = {
   // together, BUST band clearance; tools/v7f_gear/b3/README.md). Only the tank passed review; the other tops stay on the raw v5 files.
   cloth_tank: F('cloth_tank'),
   ...Object.fromEntries(Object.entries(BOOT_CUT_F).map(([id, y]) => [id, { ...F(id), hide: [{ boot5: 1, y: r4(v7fY(y)), female: 1 }] }])),
+  // [v7f hooks b10] BANKSY t449u / t450u hooks first: the raw v5-female hook cuff sat 3 cm low / 4 cm forward of her forearm, so after
+  // the runtime hand hide her ragged wrist stub showed below / behind the cuff. RIGID re-seat only (one translation per file onto her
+  // forearm axis; mesh, UVs, colours, _TINT, skin untouched); the v5hide arm cut (female s) stays, now inside the cuff. Iron + gold (same files).
+  hook_l: F('hook_l'), hook_r: F('hook_r'),
   ...Object.fromEntries(['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'].flatMap((b) => ['l', 'r'].map((s) => [`${b}_${s}`, { ...F(`${b}_${s}`), hide: [{ leg5: s.toUpperCase(), y: r4(v7fY(PEG_CUT_F)), female: 1 }] }]))),
 };
 // [v7f gear] her (unrefit) v5 pants run to y 0.673; the shared pants dye stops at 0.565-0.595 (male V7 waist), so the hip / waistband
