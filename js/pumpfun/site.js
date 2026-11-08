@@ -27,9 +27,8 @@ export const HQ_PANELS = Object.freeze([
   { id: 'front_e', lx: -9.75, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'LEADERBOARD' },
 ]);
 // BANKSY 1:06 AM "keep boards symmetrical": west wall mirrors the east wall (lz -35.85 / -52.15 / -59.5, same 3.72 x 3.0 frames);
-// opposite the Hill Street archway (lz -44): plain damask wall (BANKSY: no matching arch). Exact mirror of the east wall
-// (east_1 / east_2 / east_3 <-> squad / west_1 / squad_ranks).
-export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.85, 'squad'], ['squad_ranks', -59.5, 'squad_ranks']]
+// BANKSY 1:17 AM: v501 west layout (4 boards) kept, no fake arch, anchor stand removed
+export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.85, 'squad'], ['daily_ranks', -44, 'daily_ranks'], ['squad_ranks', -59.5, 'squad_ranks']]
   .map(([file, lz, kind]) => Object.freeze({ file, lx: -32.4, lz, face: 'e', w: 3.72, h: 3.0, kind })));
 
 export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
