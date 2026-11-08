@@ -9,9 +9,9 @@ const finite=(v)=>v!==null && v!=='' && Number.isFinite(+v) ? +v : null;
 export const safeMint=v=>typeof v==='string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
 export const safeText=v=>String(v??'').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,48);
 export function selectPair(pairs,ca) {return (Array.isArray(pairs)?pairs:[]).filter(p=>p.chainId==='solana'&&p.baseToken?.address===ca&&finite(p.priceUsd)>0).sort((a,b)=>(finite(b.liquidity?.usd)||0)-(finite(a.liquidity?.usd)||0))[0]||null;}
-export function pairRow(p) {return {mint:p.baseToken.address,symbol:safeText(p.baseToken.symbol),name:safeText(p.baseToken.name),price:finite(p.priceUsd),cap:finite(p.marketCap),fdv:finite(p.fdv),change:finite(p.priceChange?.h24),volume:finite(p.volume?.h24)};}
+export function pairRow(p) {return {mint:p.baseToken.address,symbol:safeText(p.baseToken.symbol),name:safeText(p.baseToken.name),price:finite(p.priceUsd),cap:finite(p.marketCap),fdv:finite(p.fdv),change:finite(p.priceChange?.h24),volume:finite(p.volume?.h24),liquidity:finite(p.liquidity?.usd)};}
 export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()}={}) {
- const state={prices:{},trending:[],callouts:[],bonding:[],dexpaid:[],status:{prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Free launch feed unavailable · no verified near-bond list'},revision:0};
+ const state={prices:{},trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},status:{prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
  let nextP=0,nextD=0,busyP=null,busyD=null,active=false,discovery=false;const controllers=new Set();
  async function get(url){const c=new AbortController();controllers.add(c);const tm=setTimeout(()=>c.abort(),10000);try{const r=await fetcher(url,{signal:c.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}finally{clearTimeout(tm);controllers.delete(c);}}
  async function prices(){let failed=false;await Promise.all(WATCH_TOKENS.map(async t=>{try{
@@ -23,13 +23,21 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
  async function discoveries(){await Promise.all([
   // DEX JUST PAID (BANKSY 2026-11-07): verified paid DexScreener profiles, own 120s cache; lazy module, errors never escape.
   (async()=>{try{const d=await import('./dexpaid.js');state.dexpaid=await d.fetchDexJustPaid();state.status.dexpaid=d.dexPaidFeed.state.status;}catch{state.status.dexpaid='Feed offline'+(state.dexpaid.length?' · cached paid profiles':'');}})(),
+  // HQ wall boards (BANKSY t2262u): lazy module, each feed isolated, cached rows kept and marked on failure.
+  (async()=>{try{const f=await import('./feeds.js');const r=await f.fetchPumpBoards(get,clock());for(const k of ['bonding','volume','migrated'])state[k]=r[k];
+   state.status.bonding=r.bonding.length?'GeckoTerminal pump.fun curve pools · ≈ progress from curve price · 120s':'No tokens 60–99% bonded in the top curve pools';
+   state.status.volume=r.volume.length?'GeckoTerminal · pump.fun curve + PumpSwap pools · 24h volume · 120s':'No pump.fun pools in this snapshot';
+   state.status.migrated=r.migrated.length?'Completed pump.fun curves + new PumpSwap pools · last 24h · 120s':'No pump.fun graduations seen in the last 24h';
+  }catch{for(const k of ['bonding','volume','migrated'])state.status[k]='Feed offline'+(state[k].length?' · cached snapshot':'');}})(),
+  // $AHOY / $SUNK holders + 24h chart (BANKSY: "Show mc, holder count, chart for ahoy and sunk"), pool from the price feed.
+  ...['AHOY','SUNK'].map((sym,i)=>(async()=>{try{await new Promise(r=>setTimeout(r,1200*(i+1)));if(busyP)await busyP.catch(()=>{});const t=WATCH_TOKENS.find(t=>t.sym===sym),f=await import('./feeds.js');const old=state.details[sym]||{},fresh=old.holders!=null&&clock()-(old.holdersAt||0)<600000;const d=await f.fetchTokenDetail(get,t.ca,state.prices[sym]?.pair?.pairAddress,{skipHolders:fresh});state.details[sym]={holders:d.holders??old.holders??null,holdersAt:d.holders!=null?clock():old.holdersAt||0,chart:d.chart.length?d.chart:(old.chart||[]),updated:clock()};}catch{}})()),
   (async()=>{try{const j=await get('https://api.geckoterminal.com/api/v2/networks/solana/trending_pools?include=base_token');
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';
-    if(!safeMint(mint)||!/(pump)/i.test(dex)||seen.has(mint))continue;seen.add(mint);rows.push({mint,symbol:safeText(base.symbol),name:safeText(base.name),price:finite(a.base_token_price_usd),change:finite(a.price_change_percentage?.h24),volume:finite(a.volume_usd?.h24)});}
+    if(!safeMint(mint)||!/(pump)/i.test(dex)||seen.has(mint))continue;seen.add(mint);rows.push({mint,symbol:safeText(base.symbol),name:safeText(base.name),price:finite(a.base_token_price_usd),cap:finite(a.market_cap_usd)??finite(a.fdv_usd),change:finite(a.price_change_percentage?.h24),volume:finite(a.volume_usd?.h24)});}
    state.trending=rows.slice(0,5);state.status.trending=rows.length?'GeckoTerminal · Pump venues · 120s snapshots':'Feed offline · no Pump venue rows';
   }catch{state.status.trending='Feed offline · trending'+(state.trending.length?' · cached snapshot':'');}})(),
-  (async()=>{try{const j=await get(DEX+'/token-boosts/latest/v1');const seen=new Set();state.callouts=(Array.isArray(j)?j:[]).filter(t=>t.chainId==='solana'&&safeMint(t.tokenAddress)&&!seen.has(t.tokenAddress)&&(seen.add(t.tokenAddress),true)).slice(0,5).map(t=>({mint:t.tokenAddress,symbol:t.tokenAddress.slice(0,4)+'…'+t.tokenAddress.slice(-4),amount:finite(t.totalAmount)||0}));state.status.callouts=state.callouts.length?'DexScreener · PAID PROMOTION · 120s snapshots':'Feed offline · no Solana boost rows · PAID PROMOTION';
+  (async()=>{try{const f=await import('./feeds.js');state.callouts=await f.fetchCallouts(get,clock());state.status.callouts=state.callouts.length?'DexScreener boost events · PAID PROMOTION · 120s snapshots':'Feed offline · no pump.fun boost events · PAID PROMOTION';
   }catch{state.status.callouts='Feed offline · callouts'+(state.callouts.length?' · cached snapshot':'');}})()
  ]);state.revision++;}
  function tick(on,discover=false){active=!!on;discovery=!!discover; if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
