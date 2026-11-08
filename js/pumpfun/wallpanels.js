@@ -5,9 +5,9 @@ import { boardCanvas, boardTexture } from './boardtexture.js';
 import * as THREE from 'three';
 import { WALL_BOARDS } from './wallboards.js';
 export { WALL_BOARDS, drawWallPanel, wallPanelMint, wallRows } from './wallboards.js';
-export function attachWallPanels(hq, low = false) { const out = [];
+export function attachWallPanels(hq, low = false, compact = false) { const out = [];
  for (const b of WALL_BOARDS) { try { const mesh = (hq.panels || []).find(m => m.userData.panelSlot === b.slot) || (hq.squadBoards || []).find(m => m.userData.pumpAction === b.slot); if (!mesh) continue;
-   const cv = boardCanvas(640, 512, low);
+   const cv = boardCanvas(640, 512, low, compact);
    const tex = boardTexture(cv, low);
    const ph = mesh.userData.placeholderMat || mesh.material; mesh.material = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }); if (ph) { ph.map?.dispose?.(); ph.dispose?.(); mesh.userData.placeholderMat = null; } mesh.userData.wallBoard = b.key; out.push({ board: b, mesh, cv, tex }); }
   catch (e) { console.warn('[pumpfun] wall board skipped', b.slot, e.message); } }

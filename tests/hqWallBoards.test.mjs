@@ -32,5 +32,14 @@ test('all six wall slots carry a board; taps go through openPump; no DexScreener
  for(const P of HQ_PANELS) assert.ok(P.id==='east_1'||w.includes(`slot: '${P.id}'`),P.id);
  assert.match(d,/wallPanelMint\(wb.board,marketFeed.state,hit.uv,wb.at\):null;if\(m\)openPump\(m\)/);
  for(const s of [w,src('js/pumpfun/feeds.js'),d,src('js/pumpfun/render.js')]){assert.ok(!s.includes('PUMPFUNPIRATES')&&!s.includes('BANKSYDEGEN')&&!s.includes('3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34'));assert.ok(!/dexscreener\.com\/solana|PointLight|SpotLight/.test(s));}
- assert.match(src('js/pumpfun/wallpanels.js'),/boardCanvas\(640, 512, low\)/);
+ assert.match(src('js/pumpfun/wallpanels.js'),/boardCanvas\(640, 512, low, compact\)/);
  assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices','prices']);});
+test('phone layout: ten tall rows fill the panel, taps map to the same rows, tap-to-read opens the 2D board',async()=>{
+ const {wallGrid,wallRow,BOARD_ROWS}=await import('../js/pumpfun/boardgrid.js');const g=wallGrid(true);
+ assert.ok(g.h>=36&&g.y0+BOARD_ROWS*g.h<=480,'rows fill the panel above the footer');
+ for(let i=0;i<BOARD_ROWS;i++)assert.equal(wallRow({y:1-(g.y0+g.h*(i+.5))/512},true),i);assert.equal(wallRow({y:1-40/512},true),-1);
+ const vol=WALL_BOARDS.find(b=>b.key==='volume');const s={volume:[{mint,symbol:'GIG',volume:5000,change:3}]};
+ assert.equal(wallPanelMint(vol,s,{y:1-(g.y0+g.h/2)/512},Date.now(),true),mint);assert.equal(vol.rows(s)[0].cv.value,'$5.0K');
+ const kit=src('js/pumpfun/boardkit.js'),d=src('js/dock/pumpfun.js');
+ for(const m of kit.slice(kit.indexOf('phone layout')).matchAll(/btxt\([^;]*?, (\d+), /g))assert.ok(+m[1]>=20,'phone canvas text >= 20 logical px: '+m[0]);
+ assert.match(d,/if\(compact\)\{const wb2=walls\.find/);assert.match(d,/open\(wb2\.board\.key\)/);assert.match(d,/ph-solo/);});

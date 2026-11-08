@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 // Desktop gets 2x logical pixels; phones retain 1x even on 3x DPR screens.
 // Capped textures keep the six lazy wall canvases within a modest mobile budget.
-export function boardScale(low = false) { return low ? 1 : 2; }
-export function boardCanvas(w, h, low = false) {
- const cv = document.createElement('canvas'), scale = boardScale(low);
+export function boardScale(low = false, compact = false) { return low ? (compact ? 1.5 : 1) : 2; }
+export function boardCanvas(w, h, low = false, compact = false) {
+ const cv = document.createElement('canvas'), scale = boardScale(low, compact);
  cv.width = Math.round(w * scale); cv.height = Math.round(h * scale); return cv;
 }
 export function boardTexture(cv, low = false) {

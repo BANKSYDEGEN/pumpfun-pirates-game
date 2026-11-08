@@ -93,3 +93,19 @@ export function tokenRow(g, W, i, y, h, row, spec) { const x0 = 28, x1 = W - 28,
 // status + tap hint along the bottom of a wall board
 export const withUpdated = (status, at, now = Date.now()) => status ? status + (at ? ' · updated ' + (now - at < 60000 ? 'just now' : ago(at, now) + ' ago') : '') : '';
 export function footer(g, W, H, status, at, now = Date.now()) { const s = withUpdated(status, at, now); if (s) txt(g, s, W / 2, H - 64, 20, C.dim, 'center', W - 90); tapHint(g, W, H - 36); }
+// ---- phone layout: rank · logo · ticker · ONE key value, bold high-contrast sans, rows fill the panel ----
+export const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+export function btxt(g, s, x, y, n, c = '#fff8e6', a = 'left', max = 0, shadow = true) {
+  g.font = `800 ${n}px ${SANS}`; g.textAlign = a; g.textBaseline = 'middle'; const t = fit(g, s, max);
+  if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } g.fillStyle = c; g.fillText(t, x, y); return g.measureText(t).width; }
+export function compactBanner(g, W, title, kind) { banner(g, W, title, kind, { y: 48, h: 74, size: 70 }); }
+// spec: { name, value, color, bar }
+export function compactRow(g, W, i, y, h, row, spec) { const x0 = 24, x1 = W - 24, cy = y + h / 2, r = Math.min(16, h * .42);
+  rowBg(g, i, x0, y + 1, x1 - x0, h - 2); btxt(g, String(i + 1), x0 + 20, cy + 1, 24, C.gold, 'center', 34);
+  logo(g, row, x0 + 58, cy, r); const nx = x0 + 58 + r + 12;
+  const vw = btxt(g, spec.value, x1 - 12, cy + 1, 30, spec.color || '#fff8e6', 'right', 230);
+  if (spec.bar != null) bar(g, x1 - 12 - vw, cy + h * .36, vw, 4, spec.bar);
+  btxt(g, spec.name, nx, cy + 1, 30, '#ffe9b8', 'left', Math.max(80, x1 - 12 - vw - 18 - nx)); }
+export function compactEmpty(g, W, status) { const off = /offline/i.test(status || ''), load = !status || status === 'Loading…';
+  btxt(g, load ? 'Loading…' : off ? 'Feed offline' : '—', W / 2, 270, 48, C.parch, 'center', W - 80); if (off) btxt(g, 'Retrying nearby', W / 2, 326, 28, C.muted, 'center', W - 80); }
+export function compactFooter(g, W, H) { btxt(g, 'TAP TO READ', W / 2, H - 25, 26, C.gold, 'center', W - 80); }
