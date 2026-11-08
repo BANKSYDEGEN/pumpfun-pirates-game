@@ -30,7 +30,7 @@ test('the rear wall is gone: one hall over the whole footprint, open across the 
  for(let lz=-31;lz>=-63.8;lz-=.25) assert.ok(!solidAt(-18.5,lz),'centre aisle blocked at '+lz);
  for(const lx of [-30,-18.5,-8]) for(const lz of [-47,-48,-49,-50]) assert.ok(!solidAt(lx,lz),'old wall line blocked at '+lx);
  const plaza=src('js/island/plazaTown.js');
- assert.match(plaza,/lz>=HQ.lz0&&lz<HQ.lz1\)h=Math.min\(h,HQ.floor-.05\)/); // floor flattened to the back wall
+ assert.match(plaza,/lz>=HQ.lz0-3&&lz<HQ.lz1\)\{const o=Math.max\(HQ.lx0-lx,HQ.lz0-lz,0\);h=Math.min\(h,HQ.floor-.05\+o\*1.3\)/); // floor flattened to the back wall
  assert.match(plaza,/hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor/);
  assert.match(plaza,/lz0: HQ.lz0\+.8, lz1: HQ.lz1-.5 \}, HQ.ceil-.4/);
 });

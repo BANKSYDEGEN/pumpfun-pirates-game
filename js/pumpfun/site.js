@@ -3,7 +3,7 @@ import { RENTABLE_SHOPS } from '../island/hillShops.js';
 // [post-hq-castle] BANKSY t261u: the rear stone mass is gone; the hall now fills the WHOLE 29 x 35 m footprint (one walk-in hall),
 // 11.4 m beamed ceiling, castle exterior, and exactly two entrances (t-10:18 PM): the dock plaza gate (front) and a Hill Street door in the east wall.
 export const HQ = Object.freeze({ id: 'pumpfun_hq', lx0: -33, lx1: -4, lz0: -65, lz1: -30, floor: 2.73, ceil: 11.4, wallTop: 13.6,
-  door: { lx: -18.5, lz: -30, w: 6 }, hillDoor: { lx: -4.5, lz: -44, w: 4.4, h: 5.2 }, prompt: { lx: -18.5, lz: -40, r: 3 },
+  door: { lx: -18.5, lz: -30, w: 6 }, hillDoor: { lx: -4.5, lz: -44, w: 4.4, h: 4.0 }, prompt: { lx: -18.5, lz: -40, r: 3 },
   dais: { lz0: -64.4, lz1: -59.6, rise: .4 }, board: { lx: -18.5, lz: -64.2, y: 8.53, w: 24, h: 6.2 } });
 export const HQ_TOWERS = Object.freeze([{ lx: -29.8, lz: -30.2, r: 2.0 }, { lx: -7.2, lz: -30.2, r: 2.0 }]);   // front gun towers (p2: pulled in clear of the Outfit Store eaves)
 // p2 pirate dressing, one table drives both the geometry (model.js) and the colliders: [kind, lx, lz, colliderW, colliderD]
@@ -17,7 +17,14 @@ export const HQ_PROPS = Object.freeze([
   ['crates', -31.6, -33.1, 1.3, 1.8], ['crates', -5.8, -32.7, 1.2, 1.2], ['crates', -5.8, -62.4, 1.2, 1.2],
   ['rope', -25.2, -59.0, 1.2, 1.2], ['rope', -11.8, -59.0, 1.2, 1.2],
 ]);
-export const HQ_PILLARS = Object.freeze([-24.5, -12.5].flatMap(lx => [-40, -48, -56].map(lz => ({ lx, lz }))));
+export const HQ_PILLARS = Object.freeze([]);   // BANKSY 10:43 PM: no pillars; the roof spans on heavy trusses
+// Wall info-panel SLOTS (BANKSY 10:43 PM "more wall panels on the free walls"): framed in model.js, a placeholder face in render.js
+// (hq.panels[i].userData.panelSlot = id) for Emerly to draw on later. face: the inward normal axis.
+export const HQ_PANELS = Object.freeze([
+  { id: 'east_1', lx: -5.0, lz: -37.0, face: 'w', w: 3.6, h: 2.9 }, { id: 'east_2', lx: -5.0, lz: -51.5, face: 'w', w: 3.6, h: 2.9 },
+  { id: 'east_3', lx: -5.0, lz: -58.4, face: 'w', w: 3.2, h: 2.9 }, { id: 'west_1', lx: -32.4, lz: -51.6, face: 'e', w: 3.6, h: 2.9 },
+  { id: 'front_w', lx: -25.0, lz: -30.6, face: 's', w: 3.6, h: 2.9 }, { id: 'front_e', lx: -12.0, lz: -30.6, face: 's', w: 3.6, h: 2.9 },
+]);
 export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
 // L0 is the Treasure Trader, L1 Wanted, L2 Rum Export, L3 Harbor Fence. L4 is FIRST genuinely unused room.
 export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
@@ -32,7 +39,7 @@ export const HQ_WALLS = [
   ...HQ_TOWERS.map(t => [t.lx, t.lz, t.r * 1.8, t.r * 1.8]),
   ...HQ_PILLARS.map(p => [p.lx, p.lz, 1.2, 1.2]),
   ...HQ_PROPS.map(([, lx, lz, w, d]) => [lx, lz, w, d]),
-  [-18.5 - 3.6, -29.6, 1.3, 1.3], [-18.5 + 3.6, -29.6, 1.3, 1.3], // p2 gate buttresses
+  [-18.5 - 3.6, -29.4, 1.3, 1.3], [-18.5 + 3.6, -29.4, 1.3, 1.3], // gate buttresses (outside the 6 m opening)
 ];
 export const inHQ = (lx, lz, pad = 0) => lx >= HQ.lx0 - pad && lx <= HQ.lx1 + pad && lz >= HQ.lz0 - pad && lz <= HQ.lz1 + pad;
 export function hqDistance(lx, lz) { return Math.hypot(Math.max(HQ.lx0 - lx, 0, lx - HQ.lx1), Math.max(HQ.lz0 - lz, 0, lz - HQ.lz1)); }
