@@ -1,3 +1,6 @@
+import { marketFeed } from '../pumpfun/market.js';
+import { TOKEN_BOARD_SPOTS } from '../pumpfun/site.js';
+import { tokenURL, tokenFallbackURL, openPump, openReferral, REFERRAL_CODE } from '../pumpfun/links.js';
 // PUMPFUN PIRATES · [v103] harbor plaza (BANKSY): the WAVES + ARENA boards are LIVE LEADERBOARDS (top 10, drawn on the boards
 // from the existing Waves + Battle Royale boards, refreshed every 60 s while you are in the harbor; read-only), the three token
 // billboards ($SUNK / $AHOY / $PUMP: live price strip + a CA / copy / DexScreener panel), and the full-board panel.
@@ -63,15 +66,16 @@ export function createPlaza({ world, ctx = {} }) {
   const fmtP = (v) => { const n = +v; if (!n) return '—'; return n >= 1 ? '$' + n.toFixed(2) : n >= 0.01 ? '$' + n.toFixed(4) : '$' + n.toPrecision(3); };
   // [v112] BANKSY: "on token boards show mc not price": DexScreener marketCap (fdv when missing), short: MC $123.4K / MC $1.2M
   const fmtMC = (p) => { const n = +(p?.marketCap || p?.fdv || 0); if (!(n > 0)) return 'MC —'; const [d, u] = n >= 1e9 ? [1e9, 'B'] : n >= 1e6 ? [1e6, 'M'] : n >= 1e3 ? [1e3, 'K'] : [1, '']; const v = n / d; return 'MC $' + (u ? (v >= 100 ? v.toFixed(0) : v.toFixed(1)) : v.toFixed(0)) + u; };
-  let lastTok = 0;
-  async function refreshTokens() { lastTok = performance.now();
-    await Promise.all(TOK.map(async (t) => { try {
-      const j = await (await fetch('https://api.dexscreener.com/latest/dex/tokens/' + t.ca)).json();
-      const p = (j.pairs || []).filter(q => q.chainId === 'solana').sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0]; if (!p) throw new Error('no pair');
-      t.pair = p; if (!t.chart) t.chart = p.url; const ch = +(p.priceChange?.h24 ?? 0);
-      world.atlas?.drawTokenBoard(t.sym, [fmtMC(p), `${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h`, ch >= 0 ? '#7cff6b' : '#ff6b6b']);
-    } catch { if (!t.pair) world.atlas?.drawTokenBoard(t.sym, ['$' + t.sym, 'press E · CA + chart']); } }));
-    if (panel.dataset.sym) showToken(panel.dataset.sym); }
+  let tokRevision = -1;
+  function syncTokens() {
+    if (tokRevision === marketFeed.state.revision) return;
+    tokRevision = marketFeed.state.revision;
+    for (const t of TOK) { const snap = marketFeed.state.prices[t.sym]; if (!snap) continue;
+      t.pair = snap.pair; t.stale = snap.stale; const ch = snap.change;
+      world.atlas?.drawTokenBoard(t.sym, [fmtMC(t.pair), `${ch == null ? '—' : (ch >= 0 ? '▲' : '▼') + ' ' + Math.abs(ch).toFixed(1) + '%'} 24h${snap.stale ? ' · STALE' : ''}`, ch >= 0 ? '#7cff6b' : '#ff6b6b']);
+    }
+    if (panel.dataset.sym) showToken(panel.dataset.sym);
+  }
   // ---- the panel (full leaderboard / token CA) ----
   const panel = document.createElement('div'); panel.id = 'plaza-panel'; panel.className = 'plaza-panel hidden'; panel.setAttribute('role', 'dialog'); document.body.appendChild(panel);
   const close = () => { panel.classList.add('hidden'); panel.dataset.sym = ''; panel.dataset.board = ''; };
@@ -100,16 +104,25 @@ export function createPlaza({ world, ctx = {} }) {
     panel.innerHTML = `${head(esc(t.title || '$' + t.sym), t.color)}
       <div class="pz-tabs">${TOK.map(q => `<button type="button" data-sym="${q.sym}" class="${q.sym === t.sym ? 'on' : ''}" style="--pz:${q.color}">${esc(q.title || '$' + q.sym)}</button>`).join('')}</div>
       <div class="pz-logo-row">${logo}</div>
-      <div class="pz-price">${p ? `${fmtMC(p)} <span style="color:${ch >= 0 ? '#7cff6b' : '#ff6b6b'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h</span>` : 'market cap loading…'}</div>
+      <div class="pz-price">${p ? `${t.stale ? 'STALE · ' : ''}${fmtMC(p)} <span style="color:${ch >= 0 ? '#7cff6b' : '#ff6b6b'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(1)}% 24h</span>` : 'market cap loading…'}</div>
       <div class="pz-ca"><code title="${esc(t.ca)}"><span class="pz-ca-full">${esc(t.ca)}</span><span class="pz-ca-short">${esc(t.ca.slice(0, 4) + '…' + t.ca.slice(-4))}</span></code><button type="button" class="pz-copy">COPY CA</button></div>
-      <div class="pz-row"><a class="pz-go" href="${esc(chart)}" target="_blank" rel="noopener">OPEN CHART ON DEXSCREENER ▸</a></div>`;
+      <div class="pz-row"><button type="button" class="pz-go pz-pump">OPEN ON PUMP.FUN ▸</button><button type="button" class="pz-alternative">ALTERNATIVE TOKEN PAGE</button></div>`;
     panel.querySelector('.pz-x').onclick = close;
+    panel.querySelector('.pz-pump').onclick = () => openPump(t.ca);
+    panel.querySelector('.pz-alternative').onclick = () => window.open(tokenFallbackURL(t.ca), '_blank', 'noopener,noreferrer');
     panel.querySelector('.pz-copy').onclick = async (e) => { const ok = await copyText(t.ca); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; setTimeout(() => { if (e.target.isConnected) e.target.textContent = 'COPY CA'; }, 1800); };
-    panel.querySelectorAll('.pz-tabs button').forEach(b => b.onclick = () => showToken(b.dataset.sym));
+    panel.querySelectorAll('.pz-tabs button').forEach(b => b.onclick = () => { showToken(b.dataset.sym); const selected = TOK.find(t => t.sym === b.dataset.sym); if (selected) openPump(selected.ca); });
     panel.classList.remove('hidden');
   }
   // ---- tick: refresh while the harbor world is shown (boards every 60 s, prices every 120 s) ----
-  function update(on) { if (!on) { if (!panel.classList.contains('hidden')) close(); return; } const t = performance.now();
-    if (!lastBoards || t - lastBoards > 60000) refreshBoards(); if (!lastTok || t - lastTok > 120000) refreshTokens(); }
+  function update(on, { position = null, nearHQ = false, hqOpen = false } = {}) {
+    if (!on) { if (!panel.classList.contains('hidden')) close(); marketFeed.tick(false); return; }
+    const now = performance.now(); if (!lastBoards || now - lastBoards > 60000) refreshBoards();
+    let nearTokens = false;
+    if (position) { const [fx,fz] = world.layout?.harborToFoot?.(position.x,position.z) || ctx.harborToFoot?.(position.x,position.z) || [1e6,1e6];
+      nearTokens = Object.values(TOKEN_BOARD_SPOTS).some(q => { const [x,z]=CO.t2w(q.lx,q.lz); return Math.hypot(fx-x,fz-z)<28; }); }
+    marketFeed.tick(!document.hidden && (nearTokens || nearHQ || hqOpen || !!panel.dataset.sym), nearHQ || hqOpen);
+    syncTokens();
+  }
   return { update, openBoard, openToken: showToken, close, refreshBoards, mesh, get open() { return !panel.classList.contains('hidden'); } };
 }

@@ -1,3 +1,4 @@
+import { PET_LOT } from '../pumpfun/site.js';
 // [Timothy] PUMPFUN PIRATES hill street (Main Street, plaza -> town gate) as Blender-made models (BANKSY 7:35 PM "fix the buildings up the hill
 // and make them match the plaza buildings and look good", his Port Royal reference, "multi story on both sides", "make them all shops").
 // Source: tools/hill_blender/hill_street_blender.py -> assets/island/hill_street.glb (21 rentable shop buildings), hill_sword_shop.glb (R3 = #36,
@@ -57,7 +58,7 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
   const lots = Object.keys(HILL_KIT.lots).filter(k => HILL_KIT.lots[k].merged === key).concat(key).sort().join('+');   // 'R1+R2' for the double MUSKET SHOP
-  const nm = LABEL[L.kind] ? `${LABEL[L.kind]} (${lots})` : null, zz = L.span ? (L.span[0] + L.span[1]) / 2 : z, ww = L.span ? L.span[1] - L.span[0] : w;   // span: town lz range of a widened building
+  const nm = key === PET_LOT.lot ? 'PET STORE (L4)' : LABEL[L.kind] ? `${LABEL[L.kind]} (${lots})` : null, zz = L.span ? (L.span[0] + L.span[1]) / 2 : z, ww = L.span ? L.span[1] - L.span[0] : w;   // span: town lz range of a widened building
   LOTS_MAP?.push({ lx, z: zz, w: ww, d, side, label: nm, col: nm ? '#fbbf24' : 'rgba(240,220,190,0.9)', tc: nm ? '#fde68a' : '#fff' });
   RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, zz - ww / 2 - 0.9, zz + ww / 2 + 0.9]);
   HILL_PLACES.push({ key, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, wz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(1, 1, 1)) });

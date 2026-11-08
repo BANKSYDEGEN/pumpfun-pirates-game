@@ -1091,7 +1091,7 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
     if (A.ppflag) atlasQuad(k, 4.2, 3.0, A.ppflag, M(0, 3.75, -0.13, Math.PI));                                  // back: the PUMPFUN PIRATES flag
   }, Y0);
   for (const tb of PLAZA_TOKENS_ON) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
-  if (PV2) PLAZA_V2_SIGNS = PV.buildPlazaV2({ k, W, box, cyl, M, at, colonial, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, H, F, A, low, Y0, yaw0, deckY: PY + 0.15,
+  if (PV2) PLAZA_V2_SIGNS = PV.buildPlazaV2({ addDeck, k, W, box, cyl, M, at, colonial, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, H, F, A, low, Y0, yaw0, deckY: PY + 0.15,
     C: { WOOD, WOOD_D, WOOD_L, IRON, STONE, STONE_D, ROOF: ROOFS[1], ROOFS, SHUTTER, BARK: 0xa96a38, GOLD, CREAM } });   // [Timothy] harbor town blockout
   if (!PV2) for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
   if (!(PV2 && PV.FISH_HALL)) { // [v247] the harbor tower (#11) made room for the FISH MARKET on the plaza-v2 row

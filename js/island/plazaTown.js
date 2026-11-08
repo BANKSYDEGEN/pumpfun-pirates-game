@@ -1,3 +1,6 @@
+import { HILL_ENTRANCE, entranceGround, entranceParts } from '../pumpfun/entrance.js';
+import { hqParts, gableVertices } from '../pumpfun/model.js';
+import { HQ, HQ_WALLS, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, petFloor } from '../pumpfun/site.js';
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
 import { OUTFIT_STORE, outfitWalls, outfitRooms } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
@@ -95,15 +98,16 @@ export const ACCESSORIES_ROOM = Object.freeze({ counter: Object.freeze({ x: 0, z
 // colliders and accessory racks follow the same ID/anchor used by layout and both maps.
 export const STOREFRONTS = [
   { id: 'shop_clothes', name: 'CLOTHES SHOP', vendor: 'clothes', lx: -49, w: 10, fl: 3, v: 0, awn: 0xd8322f, label: 'CLOTHES SHOP · TOPS, PANTS, SHOES' },
-  { id: 'shop_pets', name: 'PET STORE', vendor: 'pets', lx: -10, w: 9, fl: 2, v: 1, awn: 0x1f8a5a, label: 'PET STORE' },
+  // Pets relocated to hill L4 (pumpfun/site.js); no old shell, keeper or collider here.
   { id: 'shop_ships', name: 'SHIP SHOP', vendor: 'ships', lx: 32, w: 10, mapHidden: true, fl: 3, v: 2, awn: 0x2a6df4, label: 'SHIP SHOP · SHIP SKINS' },
   { id: 'shop_upgrades', name: 'UPGRADE SHOP', vendor: 'ships', open: 'upgrades', mapHidden: true, lx: 20.5, w: 11, fl: 2, v: 3, awn: 0xffc93c, label: 'UPGRADE SHOP · SHIP UPGRADES' },
   { id: 'shop_crew', name: 'ACCESSORIES STORE', vendor: 'accessories', lx: -38.5, w: 9, fl: 2, v: 1, awn: 0x6a4fb3, label: 'ACCESSORIES STORE · HATS, JEWELRY & MORE' },   // Stable landmark ID; crew are already aboard, dressing is in the hull.
 ].map(s => ({ ...s, lz: FACADE_LZ + 0.7, ...(SHOPS_OUTSIDE.has(s.id) ? {} : { walkIn: true, promptLz: ACCESSORIES_ROOM.promptLz }), ...(OUTFIT_STORE.areas.some(a => a.id === s.id) ? { depth: OUTFIT_STORE.depth, promptLz: OUTFIT_STORE.promptLz, mapHidden: true, part: OUTFIT_STORE.id } : {}), ...(SHIP_STORE.counters.some(c => c.id === s.id) ? { depth: SHIP_STORE.depth, promptLz: SHIP_STORE.promptLz } : {}) }));   // [v250] mid-floor prompt; [outfit-store] two vendors, one building + one map pin; [v254] outside shops: street prompt lz+3.8 + solid footprint
 // token halls: stone warehouses whose ground floor carries the walk-up billboards (the v103 billboard art + live MC strip +
 // CA / DexScreener panel, just moved: foot.js PLAZA_TOKENS is remapped through TOKEN_SLOTS, so v144's HQ / RETARDIO follow)
-export const HALLS = [{ id: 'hall_w', lx: -25, w: 16, fl: 2 }, { id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
-export const TOKEN_SLOTS = { SUNK: -30.5, AHOY: -25, PUMP: -19.5, HQ: 42.5, RETARDIO: 51.5 };
+export const HALLS = [{ id: 'hall_e', lx: 47, w: 18, fl: 2, trending: 5, market: true }];   // [v240] hall_e = the player MARKETPLACE (#7)
+export const TOKEN_SLOTS = { SUNK: TOKEN_BOARD_SPOTS.SUNK.lx, AHOY: TOKEN_BOARD_SPOTS.AHOY.lx, PUMP: TOKEN_BOARD_SPOTS.PUMP.lx, HQ: 42.5, RETARDIO: 51.5 };
+export const tokenSpot = sym => TOKEN_BOARD_SPOTS[sym] || { lx: TOKEN_SLOTS[sym], lz: FACADE_LZ + .6 };
 export const TRENDING = { lx0: 39.5, lx1: 54.5, y: 6.6, n: 5 };   // upstairs row on hall_e: room for the coming trending boards
 export const HOUSES = [   // [v248] the plaza tavern house (lx 66-74, decor) is inside the wider FISH MARKET now
   // [v247] house_e (#10, lx 77.9) is gone: the FISH MARKET (FISH_MARKET below) fills it + the harbor tower's spot (#11)
@@ -129,7 +133,7 @@ export const LAMPS = [-54, -42, -30, -18, -4, 16, 28, 40, 52, 60, 93].map(lx => 
 export const CARGO = [[-34, -3.5], [-28, -4], [-20, -3.5], [-14, -4.5], [20, -3.5], [26, -4], [34, -3.5], [74, -4.5], [82, -3.5]];
 export const CRANE = { lx: 40, lz: -2.2 };
 export const DOCK = { deckEnd: BOARDWALK.lx0 };   // the v103 boardwalk stops where the v2 one starts (flush, same 2.95)
-export const remapTokens = (list) => list.filter(t => TOKEN_SLOTS[t.sym] !== undefined).map(t => ({ ...t, lx: TOKEN_SLOTS[t.sym], lz: FACADE_LZ + 0.6 }));
+export const remapTokens = (list) => list.filter(t => TOKEN_SLOTS[t.sym] !== undefined).map(t => ({ ...t, ...tokenSpot(t.sym) }));
 export const SPAWN = { lx: 6, lz: 50, ly: Math.PI };            // GO ASHORE fallback: the end of the Main Street jetty, facing town
 
 export const PLAZA = {
@@ -150,6 +154,8 @@ export const PLAZA = {
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
 export function plazaGround(lx, lz, h) {
+  h=entranceGround(lx,lz,h);
+  if(lx>HQ.lx0&&lx<HQ.lx1&&lz>-48&&lz<HQ.lz1)h=HQ.floor-.05;
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
     const w = sm(SLAB.lx0 - 4, SLAB.lx0, lx) * (1 - sm(SLAB.lx1, SLAB.lx1 + 4, lx)) * sm(SLAB.lz0 - 4, SLAB.lz0, lz); h = h * (1 - w) + Math.max(h, STREET_Y - 0.04) * w; }
@@ -367,8 +373,8 @@ export function buildPlazaV2(h) {
   // with an archway; both counters' colliders + the props ride in the GLB extras (building frame, relative to OUTFIT_STORE.lx).
   // Shared materials only: no lights, textures, canvases or extra WebGL contexts.
   // [clothes-aaa] one indoor camera box (town-local room box -> foot-world frame)
-  function camRoom(R, ceil) { const mx = (R.lx0 + R.lx1) / 2, mz = (R.lz0 + R.lz1) / 2, [x, z] = T(mx, mz), [ex, ez] = T(mx + 1, mz), [fx, fz] = T(mx, mz + 1);
-    CAM_ROOMS.push({ id: R.id, x, z, ux: ex - x, uz: ez - z, vx: fx - x, vz: fz - z, hw: (R.lx1 - R.lx0) / 2, hd: (R.lz1 - R.lz0) / 2, y0: Y0, ceil: Y0 + ceil }); }
+  function camRoom(R, ceil, base = Y0) { const mx = (R.lx0 + R.lx1) / 2, mz = (R.lz0 + R.lz1) / 2, [x, z] = T(mx, mz), [ex, ez] = T(mx + 1, mz), [fx, fz] = T(mx, mz + 1);
+    CAM_ROOMS.push({ id: R.id, x, z, ux: ex - x, uz: ez - z, vx: fx - x, vz: fz - z, hw: (R.lx1 - R.lx0) / 2, hd: (R.lz1 - R.lz0) / 2, y0: base, ceil: base + ceil }); }
   function outfitStore() {
     const S = OUTFIT_STORE, glb = SHOPS_KIT && SHOPS_KIT.shops.shop_clothes;
     if (glb) {
@@ -383,6 +389,20 @@ export function buildPlazaV2(h) {
     }
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
+  // Use the EXACT shared W/box/M stone kit and masonry/trim/tile library layers as stoneHouse.
+  for(const p of [...hqParts(),...entranceParts()]) { if(low&&p.detail)continue;const [x,z]=T(p.x,p.z);
+    const geo=p.kind==='gable'?new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3)):box(p.w,p.h,p.d);
+    if(p.kind==='gable')geo.computeVertexNormals();
+    W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0,p.rx||0),false); }
+  const E=HILL_ENTRANCE,[ex,ez]=T(E.lx,-64);
+  h.addDeck?.({x:ex,z:ez,hw:3,hl:12,yaw:yaw0,y:E.y0,y1:E.y1});
+  // Curbs are only 15 cm high: no full-height box that blocks crossing to the trader.
+  for(const x of [2.75,10.25]) addBox(...T(x,-65),1,1.1,yaw0);
+  h.addDeck?.({x:T(-18.5,-39)[0],z:T(-18.5,-39)[1],hw:14,hl:9,yaw:yaw0,y:HQ.floor});
+  // Collision exists even before the interactive canvases load.
+  for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
+  camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: -47.5, lz1: -30.5 }, 7.8);
+  camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
   buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,
@@ -430,8 +450,8 @@ export function buildPlazaV2(h) {
       at(lx, FACADE_LZ, 0, () => W(k, box(2.9, 2.2, 0.2), C.WOOD_D, TIMBER, M(0, TRENDING.y, 0.12), false), Y0); sign('trend' + i, 2.6, 1.9, lx, Y0 + TRENDING.y, FACADE_LZ + 0.24); }
   }
   if (!ON_PORTAL) for (const [sym, lx] of Object.entries(TOKEN_SLOTS)) if (!A['bb' + sym] && !hallTokenHidden(sym)) {     // slot frames for boards not in this build
-    at(lx, FACADE_LZ + 0.6, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, TIMBER, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, TIMBER, M(0, 3.75, 0)); }, Y0);
-    sign('tok_' + sym, 4.1, 3.6, lx, Y0 + 3.85, FACADE_LZ + 0.74); }
+    at(lx, tokenSpot(sym).lz, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, TIMBER, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, TIMBER, M(0, 3.75, 0)); }, Y0);
+    sign('tok_' + sym, 4.1, 3.6, lx, Y0 + 3.85, tokenSpot(sym).lz + .14); }
   if (TOKENX_ON) { const [x, z] = T(62, -27.4); addBox(x, z, 4.9, 1.2, yaw0); }   // the v103 token exchange counter (was walk-through); [v240] hidden unless &tokenx=1
   for (const hs of HOUSES) { const glb = hs.glb && SHOPS_KIT && SHOPS_KIT.shops[hs.glb];
     if (glb) { const [x, z] = T(hs.lx, cz); addBox(x, z, hs.w + 0.6, ROW_D + 0.6, yaw0); SHOP_PLACES.push({ id: hs.glb, m: M(x, Y0, z, yaw0) }); continue; }

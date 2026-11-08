@@ -162,7 +162,7 @@ let _rumble = null; export const padRumble = (w, s, ms) => { if (active) _rumble
 // ---------- menus: what is open on top ----------
 // top-most first; the first one that is really on screen is the layer the focus ring walks
 const LAYERS = ['#pfp-admin-portal.on', '#ctl-ov', '#crew-room.on', '#casino-ui.on', '#fr-panel', '.pfp-hatcolor', '#prest-confirm', '.ishop-confirm', '#pfp-share', '#acct-login', '#ch-reveal', '#tm-reveal', '#tm-map', '#isle-map', '#emote-wheel',
-  '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#plaza-panel', '#sq-hall', '#sq-note.open', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title']; // [invite-discreet] #sq-note.open = expanded invite panel (pill alone stays non-blocking)
+  '#iv-pick-ok', '#iv-pick', '#inv-panel', '#island-shop', '#shop', '#pumpfun-panel', '#plaza-panel', '#sq-hall', '#sq-note.open', '#profile', '#pvp-menu', '#pvp-entry', '#waves-skins', '.faq', '#pause', '#pvp-dead', '#gameover', '#title']; // [invite-discreet] #sq-note.open = expanded invite panel (pill alone stays non-blocking)
 const FOCUSABLE = 'button, a[href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"]), [role=button], [role=menuitem], [role=tab], [role=radio], .ew-opt, .iv-slot, [data-id], [data-skin], tr[data-id]'; // + the inventory / shop card grids (divs with a click handler)
 function shown(el) {
   if (!el || el.hidden || !el.isConnected) return false; const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false;

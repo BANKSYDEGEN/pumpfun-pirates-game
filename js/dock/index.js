@@ -1,3 +1,4 @@
+import { createPumpfun } from './pumpfun.js';
 import { setParrotWorld } from '../parrotFlight.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot controller (harbor only; Waves, the arena and spectate never load or run it).
 // Layout-driven (js/dock/layout.js): berths, SAFE HARBOR zone, decks, interact points, ship colliders, walkable land.
@@ -234,7 +235,8 @@ export async function createDock(ctx) {
       join: (n) => friends.joinFriend(n), open: () => friends.open() });
   }
   setTimeout(() => { try { treasure.render?.(); } catch (e) { console.warn('[treasure]', e); } }, 0); // [minimap-fix] (deferred: the dock is still being built) the HUD button was first drawn before the inventory existed (read 'MAPS 0' until the next server poll)
-  const plaza = createPlaza({ world, ctx: { startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
+  const pumpfun = createPumpfun({world, layout, camera, canvas, low: LOW});
+  const plaza = createPlaza({ world, ctx: { harborToFoot: layout.harborToFoot, startWaves: () => { goAboard(true); ctx.openWaves(); }, openArena: () => openBoard() } });
   const battery = createBattery({ scene, world, layout, fx: ctx.fx, ocean, sfx: ctx.sfx, camera, toast: (m, ms) => toast(m, ms), myId: () => { const v = ctx.pvp?.()?.myId; return (typeof v === 'function' ? v() : v) ?? null; },
     hitShip: (p, gun) => ctx.pvp?.()?.batteryStep?.(p, gun) || false, hitFoot: (p, by, impact) => ctx.pvp?.()?.shoreBattery?.(p, by, impact) || false }); // [v171] live shots: AI + other pirates' ships (pvp.batteryStep) // [Timothy] adds its 6 FIRE CANNON points to layout.interact // [lh-hit] toast on lighthouse strike
   let lootBags = null; // [backpack-pvp] filled after houses so inHouse can close over it
@@ -575,6 +577,7 @@ export async function createDock(ctx) {
     if (q.kind === 'zipline') { zip?.start(q); return; } // [Emerly zipline]
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
+      case 'pumpfun': pumpfun.open(); break;
       case 'token': plaza.openToken(q.sym); break;
       case 'cannon': battery?.fire(q); break; // [Timothy] headland gun; [v171] live: hits AI + pirate ships (pvp.batteryStep)
       case 'exchange': plaza.openToken('SUNK'); break;
@@ -764,7 +767,7 @@ export async function createDock(ctx) {
     return { ...fnet.netState({ active: true, w: { x: o.position.x, z: o.position.z, yaw: c.cyaw, speed: 0 } }, true),
       cn: [o.position.y, o.rotation.x, o.rotation.z] };
   }
-  function cameraHook() { plaza.update(on); if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
+  function cameraHook() { const pos = onFoot ? walker.w : ctx.getPlayer?.(); const shown = on && !shipHull?.inHull && !houses?.inHouse; pumpfun.update(shown, pos, game.t); plaza.update(shown, {position:pos, nearHQ:pumpfun.near, hqOpen:pumpfun.openNow}); if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;

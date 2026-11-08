@@ -30,29 +30,30 @@
   },
   {
    "n": 3,
-   "id": "hall_w",
-   "lx": -25,
-   "w": 16,
-   "use": "TOKEN HALL 1 ($SUNK $AHOY $PUMP boards)",
+   "id": "pumpfun_hq",
+   "lx": -18.5,
+   "w": 29,
+   "use": "PUMPFUN PIRATES TOKEN HALL (replaces Harbor Exchange + former Pet Store)",
    "area": "dock plaza",
    "kind": "building",
-   "lz": -36,
-   "d": 12,
-   "x": -604,
-   "z": -115
+   "lz": -47.5,
+   "d": 35,
+   "x": -592.5,
+   "z": -108.5
   },
   {
    "n": 4,
    "id": "shop_pets",
    "lx": -10,
    "w": 9,
-   "use": "PET STORE",
+   "use": "MERGED into #3 PUMPFUN hall; PET STORE relocated to #24 / L4",
    "area": "dock plaza",
-   "kind": "building",
+   "kind": "part",
    "lz": -36,
    "d": 12,
    "x": -604,
-   "z": -100
+   "z": -100,
+   "parent": "pumpfun_hq"
   },
   {
    "n": 5,
@@ -324,7 +325,7 @@
   },
   {
    "n": 24,
-   "id": "rent_5",
+   "id": "pet_store_L4",
    "area": "hill street",
    "kind": "building",
    "lot": "L4",
@@ -336,7 +337,7 @@
     "lx": -2,
     "lz": -114.061
    },
-   "use": "EMPTY shop (rentable, no prompt)",
+   "use": "WALK-IN PET STORE (relocated from plaza #4; parrots flying inside)",
    "x": -525.24,
    "z": -96.12
   },

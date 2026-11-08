@@ -1,3 +1,4 @@
+import { HQ } from './pumpfun/site.js';
 import { SHIP_STORE } from './island/shipStore.js';
 import { OUTFIT_STORE } from './island/outfitStore.js';   // [outfit-store] Clothes + Accessories: one building, one pin
 // [minimap-themes] BANKSY 2026-11-04 10:34 AM: "update the treasure map and real map based on new locations".
@@ -34,6 +35,7 @@ const LIST_LEGACY = () => [
 ].filter(Boolean).filter(r => Number.isFinite(r[4]) && Number.isFinite(r[5]));
 // Default: no shop rows that layout.interact / battle already register (pets, crew, sword, musket). Landmarks only.
 const LIST = () => [
+  [HQ.id, 'token_AHOY', 'PUMPFUN PIRATES', 'town', HQ.prompt.lx, HQ.prompt.lz],
   [SHIP_STORE.id, SHIP_STORE.id, 'SHIP STORE', 'town', SHIP_STORE.lx, SHIP_STORE.lz],
   [OUTFIT_STORE.id, OUTFIT_STORE.id, OUTFIT_STORE.name, 'town', OUTFIT_STORE.lx, OUTFIT_STORE.lz],
   ['castle', 'castle', 'CROWN CITADEL', 'town', FORT.lx, FORT.lz, true],

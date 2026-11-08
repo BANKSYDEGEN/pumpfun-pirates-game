@@ -85,6 +85,7 @@ export function installMouseBinds({ inGame, canvas }) {
 export function anyModalOpen() {
   try {
     const $ = (id) => document.getElementById(id);
+    if ($('pumpfun-panel')?.classList.contains('on')) return true;
     if ($('pfp-admin-portal')?.classList.contains('on')) return true;
     if ($('inv-panel')?.classList.contains('on')) return true;
     if ($('crew-room')?.classList.contains('on')) return true;
@@ -109,6 +110,7 @@ export function anyModalOpen() {
 export function closeTopModal() {
   try {
     const $ = (id) => document.getElementById(id);
+    if ($('pumpfun-panel')?.classList.contains('on')) { $('pumpfun-panel').querySelector('.ph-x')?.click(); return true; }
     if ($('pfp-admin-portal')?.classList.contains('on')) { $('pfp-admin-portal').querySelector('[data-close]')?.click(); return true; }
     if ($('crew-room')?.classList.contains('on')) { $('crew-room').querySelector('[data-close]')?.click(); return true; }
     if ($('inv-panel')?.classList.contains('on')) { $("inv-panel").classList.remove('on'); return true; }
