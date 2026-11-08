@@ -18,7 +18,7 @@ test('pair selection requires exact BASE mint and Solana, prefers liquidity',()=
 test('one lazy poller coalesces callers, bounded cadence, prices stay last-known on failure',async()=>{let now=1,calls=[],fail=false;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>{calls.push(url);if(fail)throw Error('offline');return{ok:true,json:async()=>url.includes('/latest/dex/tokens/')?{pairs:WATCH_TOKENS.map(t=>({chainId:'solana',baseToken:{address:t.ca,symbol:t.sym,name:'a<img onerror=x>'},priceUsd:'0.01',marketCap:12,volume:{h24:3},priceChange:{h24:2}}))}:[]};}});
  await feed.tick(false);assert.equal(calls.length,0);await Promise.all([feed.tick(true),feed.tick(true)]);assert.equal(calls.length,3);assert.equal(feed.state.prices.SUNK.price,.01);await feed.tick(true);assert.equal(calls.length,3);now+=PRICE_MS;fail=true;await feed.tick(true);assert.equal(feed.state.prices.SUNK.price,.01);assert.equal(feed.state.prices.SUNK.stale,true);
 });
-test('discovery distinguishes sponsored boosts; never invents bonding progress or ranking rows',async()=>{let now=1;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>({ok:true,json:async()=>url.includes('/launches')?{source:'pumpfun:unavailable',launches:[]}:url.includes('trending_pools')?{data:[],included:[]}:[]})});await feed.tick(true,true);assert.deepEqual(feed.state.bonding,[]);assert.match(feed.state.status.bonding,/unavailable/);assert.match(feed.state.status.callouts,/PAID PROMOTION/);assert.ok(DISCOVERY_MS>=180000);});
+test('discovery distinguishes sponsored boosts; never invents bonding progress or ranking rows',async()=>{let now=1;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>({ok:true,json:async()=>url.includes('/launches')?{source:'pumpfun:unavailable',launches:[]}:url.includes('trending_pools')?{data:[],included:[]}:[]})});await feed.tick(true,true);assert.deepEqual(feed.state.bonding,[]);assert.match(feed.state.status.bonding,/unavailable/);assert.match(feed.state.status.callouts,/PAID PROMOTION/);assert.ok(DISCOVERY_MS>=120000);});
 test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<65);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
 
 test('high-ceiling hall uses the shared plaza stone kit; neutral signs retain referral targets',()=>{
@@ -58,4 +58,11 @@ test('HQ landmark has a real map icon and unknown icons cannot kill the frame',(
  assert.match(src('js/mapIcons.js'), /pumpfun_hq: \['coin'/);
  assert.match(src('js/islandMap.js'), /SHOP_ICONS\[l.icon\] \|\| SHOP_ICONS.shop/);
  assert.match(src('js/features.js'), /PILLY_ENABLED = false/);
+});
+
+test('board CSP allows only the needed public discovery host; no unverified launch proxy',()=>{
+ const html=src('index.html'),feed=src('js/pumpfun/market.js');
+ assert.match(html,/connect-src[^;]*https:\/\/api.geckoterminal.com/);
+ assert.ok(!html.includes('three.ws'));assert.ok(!feed.includes('three.ws'));
+ assert.match(src('js/pumpfun/render.js'),/Feed offline/);
 });
