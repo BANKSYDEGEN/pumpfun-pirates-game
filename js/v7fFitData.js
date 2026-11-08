@@ -15,6 +15,7 @@ const PEG_CUT_F = 0.2122;   // = PEG_CUT.female
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
 export const V7F_FITS = {
   classic_pants: F('classic_pants'),
+  canvas_pants: F('canvas_pants'),
   // [v7f gear b3] BANKSY t442u / t445u: her tank refit on her torso (tools/v7f_gear/fit.py cloth, seam copies welded, shells smoothed
   // together, BUST band clearance; tools/v7f_gear/b3/README.md). Only the tank passed review; the other tops stay on the raw v5 files.
   cloth_tank: F('cloth_tank'),
