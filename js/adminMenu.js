@@ -339,7 +339,7 @@ export function initAdminMenu(ctx) {
         <div class="row"><button class="act" data-a="g+">+ GOLD</button><button class="act" data-a="g-">- GOLD</button></div></div>`;
   }
   // ---- [admin-spawn] ITEM SPAWNER + MAX UPGRADE (own pockets; the server re-checks owner on every call) ----
-  const myPid = () => { const n = myNet(); return st.server.find(p => p.net === n)?.pid || st.mine?.pid || null; };
+  const myPid = () => { const n = myNet(); return st.server.find(p => p.net === n)?.pid || st.mine?.pid || st.mePid || null; }; // [roster fix] owner's own pid comes back as r.me
   function paintSpawn() {
     const box = panel?.querySelector('.sp'); if (!box) return;
     const cat = spawnCatalog(), groups = [...new Set(cat.map(c => c.group))], f = (st.sf || '').toLowerCase();
@@ -394,7 +394,7 @@ export function initAdminMenu(ctx) {
     if (a === 'give') { const sel = panel.querySelector('[data-i="sel"]')?.value, q = Math.max(1, Math.min(99, panel.querySelector('[data-i="qty"]')?.value | 0)); if (sel) return give(sel, q); }
     if (a === 'g+' || a === 'g-') { const g = Math.max(1, Math.min(1000000, panel.querySelector('[data-i="gold"]')?.value | 0)); return gold(a === 'g+' ? g : -g); }
   }
-  async function refreshServer() { const r = await call('admin_players'); if (r?.ok && Array.isArray(r.players)) st.server = r.players.filter(p => isNetId(p.net)); paint(); }
+  async function refreshServer() { const r = await call('admin_players'); if (r?.ok && typeof r.me === 'string') st.mePid = r.me; if (r?.ok && Array.isArray(r.players)) st.server = r.players.filter(p => isNetId(p.net)); paint(); }
   async function freeze(p, on) {
     if (!p.pid) return toast('no id for that pirate yet');
     const r = await call('admin_freeze', { target_net: isNetId(p.net) ? p.net : null, target_pid: p.pid, frozen: on, seconds: 600 });

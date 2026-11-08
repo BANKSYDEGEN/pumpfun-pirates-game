@@ -103,11 +103,11 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
         if (b.portal === true) {
           // SQL does the canonical/group-save join; never expose whole profile rows.
           const { data, error } = await db.rpc("pvp_admin_live", { p_owner: who.pid });
-          return json(200, { ok: true, players: list.map(x => ({ ...x, ...(data?.ok ? data.players?.find((v: any) => v.net === x.net) : {}) })), metadata_pending: !!error });
+          return json(200, { ok: true, players: list.map(x => ({ ...x, ...(data?.ok ? data.players?.find((v: any) => v.net === x.net) : {}) })), me: who.pid, metadata_pending: !!error });
         }
         const { data: ctl } = list.length ? await db.from("pvp_admin_controls").select("target_pid, frozen, expires_at").in("target_pid", list.map((x) => x.pid)) : { data: [] };
         const fz = new Set((ctl || []).filter((r: any) => r.frozen && Date.parse(r.expires_at) > now).map((r: any) => r.target_pid));
-        return json(200, { ok: true, players: list.map((x) => ({ ...x, frozen: fz.has(x.pid) })) });
+        return json(200, { ok: true, players: list.map((x) => ({ ...x, frozen: fz.has(x.pid) })), me: who.pid });
       }
       case "admin_freeze": {
         const pid = b.target_pid, net = b.target_net == null ? null : b.target_net;
