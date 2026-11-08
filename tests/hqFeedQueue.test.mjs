@@ -1,0 +1,21 @@
+// BANKSY t2276u "most of the boards are offline": GeckoTerminal reads are queued + backed off, last good rows survive failures.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { makeMarketFeed, CACHE_KEY } from '../js/pumpfun/market.js';
+const mint='GDRSWpEeKWngc26CVLFXZyZCUwo9fEzctZoEAp1qpump';
+const body=url=>url.includes('token-boosts')?[{chainId:'solana',tokenAddress:mint,amount:10,totalAmount:10}]:url.includes('trending_pools')?{data:[{attributes:{volume_usd:{h24:'5'}},relationships:{base_token:{data:{id:'t'}},dex:{data:{id:'pump-fun'}}}}],included:[{id:'t',attributes:{address:mint,symbol:'GIG'}}]}:url.includes('/tokens/v1/')?[]:{data:[],included:[]};
+const store=()=>{const m=new Map();return {m,getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)};};
+test('GeckoTerminal reads are serial and spaced; 429 backs off and retries',async()=>{const at=[];let first429=true;
+ const feed=makeMarketFeed({storage:null,gtGapMs:40,fetcher:async url=>{if(url.includes('geckoterminal')){at.push([Date.now(),url]);if(first429&&url.includes('/dexes/pump-fun/')){first429=false;return {ok:false,status:429};}}return {ok:true,json:async()=>body(url)};}});
+ await feed.tick(true,true);const gt=at.filter(([,u])=>!u.includes('/info')&&!u.includes('ohlcv'));
+ assert.ok(gt[0][1].includes('/dexes/pump-fun/'),'main curve read goes first');
+ for(let i=1;i<gt.length;i++)assert.ok(gt[i][0]-gt[i-1][0]>=35,'gap '+i);
+ assert.equal(gt.filter(([,u])=>u.includes('/dexes/pump-fun/')).length,2,'429 retried');assert.ok(gt[1][0]-gt[0][0]>=75,'backoff > gap');
+ assert.doesNotMatch(feed.state.status.bonding,/offline/i);});
+test('last good rows persist across failures and reloads; "Feed offline" only without data',async()=>{const s=store();let down=false;
+ const fetcher=async url=>{if(down)throw Error('down');return {ok:true,json:async()=>body(url)};};
+ const a=makeMarketFeed({storage:s,gtGapMs:1,fetcher});await a.tick(true,true);assert.equal(a.state.callouts.length,1);assert.ok(s.m.get(CACHE_KEY));
+ down=true;const b=makeMarketFeed({storage:s,gtGapMs:1,fetcher});assert.equal(b.state.trending.length,1);assert.ok(b.state.updated.trending>0);
+ await b.tick(true,true);assert.equal(b.state.callouts.length,1);assert.doesNotMatch(b.state.status.callouts,/offline/i);
+ const c=makeMarketFeed({storage:null,gtGapMs:1,fetcher});await c.tick(true,true);assert.match(c.state.status.trending,/^Feed offline/);});
+test('nothing is fetched while the player is away from the HQ',async()=>{let n=0;const f=makeMarketFeed({storage:null,fetcher:async()=>{n++;return {ok:true,json:async()=>({})};}});await f.tick(false,true);assert.equal(n,0);});

@@ -1,5 +1,5 @@
 // Free latest profiles are CANDIDATES, not proof of payment. Verify tokenProfile orders.
-import { safeMint, safeText, selectPair } from './market.js';
+import { safeMint, safeText, safeImg, selectPair } from './market.js';
 import { openPump } from './links.js';
 const API = 'https://api.dexscreener.com';
 export const DEX_PAID_CACHE_MS = 120000;
@@ -32,7 +32,7 @@ export function makeDexPaidFeed({ fetcher = (...a) => fetch(...a), clock = () =>
       if (top.length) try {
         const pairs = await get('/tokens/v1/solana/' + top.map(r => r.mint).join(','));
         for (const row of top) { const pair = selectPair(pairs, row.mint); if (!pair) continue;
-          row.symbol = safeText(pair.baseToken.symbol) || row.symbol; row.name = safeText(pair.baseToken.name); row.mcUsd = Number.isFinite(+pair.marketCap) && pair.marketCap != null ? +pair.marketCap : null;
+          row.symbol = safeText(pair.baseToken.symbol) || row.symbol; row.name = safeText(pair.baseToken.name); row.mcUsd = Number.isFinite(+pair.marketCap) && pair.marketCap != null ? +pair.marketCap : null; row.imageUrl = safeImg(pair.info?.imageUrl);
         }
       } catch {} // Payment proof remains useful without optional market caps.
       state.rows = top; state.updatedAt = clock(); state.status = top.length ? 'Verified paid token profiles · 120s snapshots' : 'No verified recent paid profiles';

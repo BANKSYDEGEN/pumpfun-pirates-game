@@ -1,6 +1,6 @@
 // Extra free HQ board feeds (BANKSY t2262u "work on all the boards"). Keyless, CORS-open, already in CSP connect-src.
 // Pure parsers + one fetch per feed; market.js calls them inside its 120 s discovery pass. Never invents rows.
-import { safeMint, safeText, selectPair } from './market.js';
+import { safeMint, safeText, safeImg, selectPair } from './market.js';
 const DEX = 'https://api.dexscreener.com', GT = 'https://api.geckoterminal.com/api/v2/networks/solana';
 const finite = v => v !== null && v !== '' && v !== undefined && Number.isFinite(+v) ? +v : null;
 // Standard pump.fun bonding curve (SOL quote): 30 virtual SOL x 1,073,000,000 virtual tokens, graduates after 793,100,000 tokens are sold.
@@ -14,7 +14,7 @@ const gtRows = j => { const toks = new Map((j?.included || []).map(t => [t.id, t
 export function parseCurvePools(j) { const out = [];
   for (const { a, base, dex } of gtRows(j)) { const mint = base?.address, at = Date.parse(a.pool_created_at); if (dex !== 'pump-fun' || !safeMint(mint) || !/\/ SOL$/.test(String(a.name || ''))) continue;
     const progress = curveProgress(a.base_token_price_native_currency); if (progress == null) continue;
-    out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), progress, createdAt: Number.isFinite(at) ? at : null, cap: finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'curve' }); }
+    out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), progress, createdAt: Number.isFinite(at) ? at : null, cap: finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'curve', imageUrl: safeImg(base.image_url) }); }
   return out; }
 // ABOUT TO BOND: 60..99.5 % bonded, most-bonded first.
 export const aboutToBond = rows => uniq(rows.filter(r => r.progress >= BOND_MIN && r.progress < BOND_MAX).sort((x, y) => y.progress - x.progress)).slice(0, 5);
@@ -23,7 +23,7 @@ export const parseBonding = j => aboutToBond(parseCurvePools(j));
 export function parseSwapPools(j) { const out = [];
   for (const { a, base, dex } of gtRows(j)) { const mint = base?.address, at = Date.parse(a.pool_created_at);
     if (dex !== 'pumpswap' || !safeMint(mint) || !mint.endsWith('pump') || !/\/ SOL$/.test(String(a.name || ''))) continue;
-    out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), createdAt: Number.isFinite(at) ? at : null, cap: finite(a.market_cap_usd) ?? finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'pumpswap' }); }
+    out.push({ mint, symbol: safeText(base.symbol), name: safeText(base.name), createdAt: Number.isFinite(at) ? at : null, cap: finite(a.market_cap_usd) ?? finite(a.fdv_usd), volume: finite(a.volume_usd?.h24), change: finite(a.price_change_percentage?.h24), venue: 'pumpswap', imageUrl: safeImg(base.image_url) }); }
   return out; }
 // VOLUME LEADERS: pump.fun tokens on PumpSwap ranked by real 24h pool volume.
 export const volumeLeaders = rows => uniq([...rows].filter(r => r.volume != null).sort((x, y) => y.volume - x.volume)).slice(0, 5);
@@ -37,7 +37,7 @@ export function parseCallouts(j, seenAt = new Map(), now = Date.now()) { const o
     out.push({ mint: t.tokenAddress, symbol: t.tokenAddress.slice(0, 4) + '…' + t.tokenAddress.slice(-4), boost: finite(t.amount) || 0, amount: finite(t.totalAmount) || 0, seenAt: seenAt.get(id), cap: null, change: null }); }
   if (seenAt.size > 400) for (const k of [...seenAt.keys()].slice(0, seenAt.size - 400)) seenAt.delete(k);
   return out.slice(0, 20); }
-export function enrich(rows, pairs) { for (const r of rows) { const p = selectPair(pairs, r.mint); if (!p) continue; r.symbol = safeText(p.baseToken.symbol) || r.symbol; r.name = safeText(p.baseToken.name); r.cap = finite(p.marketCap) ?? finite(p.fdv); r.change = finite(p.priceChange?.h24); } return rows; }
+export function enrich(rows, pairs) { for (const r of rows) { const p = selectPair(pairs, r.mint); if (!p) continue; r.symbol = safeText(p.baseToken.symbol) || r.symbol; r.name = safeText(p.baseToken.name); r.cap = finite(p.marketCap) ?? finite(p.fdv); r.change = finite(p.priceChange?.h24); r.imageUrl = r.imageUrl || safeImg(p.info?.imageUrl); } return rows; }
 // One pass, three GeckoTerminal reads: curve pools by volume, PumpSwap pools by volume, newest pools.
 export async function fetchPumpBoards(get, now = Date.now()) { const soft = u => get(u).catch(() => null);
   const [curveJ, swapJ, freshJ] = await Promise.all([get(GT + '/dexes/pump-fun/pools?sort=h24_volume_usd_desc&include=base_token&page=1'), soft(GT + '/dexes/pumpswap/pools?sort=h24_volume_usd_desc&include=base_token&page=1'), soft(GT + '/new_pools?include=base_token&page=1')]);

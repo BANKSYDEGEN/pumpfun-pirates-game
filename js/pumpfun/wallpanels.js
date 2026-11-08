@@ -8,6 +8,6 @@ export function attachWallPanels(hq, low = false) { const out = [];
  for (const b of WALL_BOARDS) { try { const mesh = (hq.panels || []).find(m => m.userData.panelSlot === b.slot); if (!mesh) continue;
    const cv = document.createElement('canvas'); cv.width = low ? 320 : 640; cv.height = low ? 256 : 512;
    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-   mesh.material = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }); mesh.userData.wallBoard = b.key; out.push({ board: b, mesh, cv, tex }); }
+   const ph = mesh.userData.placeholderMat; mesh.material = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }); if (ph) { ph.map?.dispose?.(); ph.dispose?.(); mesh.userData.placeholderMat = null; } mesh.userData.wallBoard = b.key; out.push({ board: b, mesh, cv, tex }); }
   catch (e) { console.warn('[pumpfun] wall board skipped', b.slot, e.message); } }
  return out; }

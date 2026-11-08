@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES } from './model.js';
 import { HQ, PET_LOT, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
+import { WATCH_TOKENS } from './market.js';
+import { C, frame, icon, txt, rr, rowBg, logo as tokenLogoDot, pill, bar, tapHint, withUpdated, usd } from './boardkit.js';
 export function buildParts(parts, low=false) {
  const group=new THREE.Group(),bins=new Map();
  for(const p of parts){if(p.detail&&low)continue;const geo=p.kind==='pill'?new THREE.CapsuleGeometry(p.h/2,p.w-p.h,4,low?8:12).rotateZ(Math.PI/2).scale(1,1,p.d/p.h):new THREE.BoxGeometry(p.w,p.h,p.d);geo.translate(p.x,p.y,p.z);(bins.get(p.c)||bins.set(p.c,[]).get(p.c)).push(geo);}
@@ -118,17 +120,25 @@ export function buildPetDress(low=false){const g=buildParts(petParts(),low);g.na
  plaque(g,'assets/pumpfun/pet_sign.webp',3,.9,-9.09,12.69,-114.761,Math.PI/2);
  plaque(g,'assets/pumpfun/pet_sign.webp',1.6,1.1,-7.69,10.84,-111.1,Math.PI/2);
  return g;}
-const usd=v=>v===null||v===undefined?'—':'$'+(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':v>=1?v.toFixed(2):v.toPrecision(3));
-export function drawHQBoard(cv,state){const g=cv.getContext('2d'),k=cv.width/1536;g.save();g.setTransform(k,0,0,cv.height/384,0,0);const W=1536;
- g.fillStyle='#101f1c';g.fillRect(0,0,W,384);g.strokeStyle='#54d08a';g.lineWidth=5;g.strokeRect(3,3,W-6,378);g.textBaseline='middle';g.textAlign='left';
- const text=(s,x,y,n=27,c='#e9e5d6')=>{g.font=`${n}px "Just Another Hand",sans-serif`;g.fillStyle=c;g.fillText(String(s),x,y);};
- text('PUMPFUN PIRATES / MARKET WATCH',24,24,33,'#54d08a');text('FREE SNAPSHOTS · NOT A LIVE TRADE FEED',925,24,25,'#ffcd77');
- ['SUNK','AHOY','PUMP'].forEach((sym,i)=>{const p=state.prices[sym],x=24+i*500;text('$'+sym+'  '+(p?usd(p.price):state.status.prices==='Loading…'?'Loading…':'Feed offline')+'   '+(p?.cap!=null?'MC '+usd(p.cap):p?.fdv!=null?'FDV '+usd(p.fdv):'MC —'),x,65,29);text((p?.change!=null?(p.change>=0?'+':'')+p.change.toFixed(1)+'% 24h':'24h —')+'   VOL '+usd(p?.volume)+(p?.stale?' · STALE':''),x,98,24,p?.change<0?'#ff817b':'#54d08a');});
- const defs=[['ABOUT TO BOND','bonding','≈ curve progress · GeckoTerminal pump.fun pools'],['TRENDING TOKENS','trending','GeckoTerminal · Pump venues, Solana trending'],['CALLOUT FEED','callouts','Live DexScreener PAID BOOST events · pump.fun']];
- defs.forEach(([title,key,source],i)=>{const x=24+i*500;g.fillStyle='#254038';g.fillRect(x-4,126,482,216);text(title,x+8,149,32,'#ffcd77');text(source,x+8,180,22,'#a8bfb0');
-  const rows=state[key].slice(0,3);if(!rows.length){const st=state.status[key]||'Loading…';text(st==='Loading…'?'Loading…':/offline/i.test(st)?'Feed offline':'Nothing to show right now',x+8,226,24);text(/offline/i.test(st)?'Retrying when nearby':'',x+8,261,23,'#a8bfb0');}
-  text((state.status[key]||'Loading…').slice(0,58),x+8,326,19,'#a8bfb0');
-  rows.forEach((r,n)=>text(`${n+1}. ${r.symbol}  ${key==='bonding'?'≈'+r.progress.toFixed(1)+'% bonded':key==='callouts'?'+'+(r.boost||r.amount)+' boost'+(r.cap!=null?'  MC '+usd(r.cap):''):usd(r.volume)+' vol / 24h'}`,x+8,221+n*39,29));});
- text('E / controller / tap to browse · token links open pump.fun · not financial advice',24,366,25,'#a8bfb0');g.restore();}
+// Main 24 m board (BANKSY t2275u "Work on board ui"): same tap grid as before (token strip y<119, rows at 202+n*39), shared pirate board kit.
+export function drawHQBoard(cv,state,now=Date.now()){const g=cv.getContext('2d'),W=1536,H=384;g.save();g.setTransform(cv.width/W,0,0,cv.height/H,0,0);
+ frame(g,W,H,{trim:10});icon(g,'market',46,32,17);txt(g,'PUMPFUN PIRATES · MARKET WATCH',72,33,36,C.gold,'left',760,true);txt(g,'FREE SNAPSHOTS · NOT A LIVE TRADE FEED',W-30,33,24,C.muted,'right',600);
+ ['SUNK','AHOY','PUMP'].forEach((sym,i)=>{const p=state.prices[sym],t=WATCH_TOKENS.find(t=>t.sym===sym),x=24+i*500,w=482;rowBg(g,i,x-4,52,w,64);
+  tokenLogoDot(g,{mint:t?.ca,symbol:sym,imageUrl:p?.imageUrl},x+28,84,24);txt(g,'$'+sym,x+60,85,42,C.gold,'left',112,true);
+  const pw=pill(g,p?.change??null,x+w-14,70,24,p?.change!=null?(p.change>=0?'+':'')+p.change.toFixed(1)+'% 24h':'24h —');
+  txt(g,p?usd(p.price)+(p.stale?' · STALE':''):state.status.prices==='Loading…'?'Loading…':'Feed offline',x+180,71,30,C.parch,'left',w-200-pw);
+  txt(g,(p?.cap!=null?'MC '+usd(p.cap):p?.fdv!=null?'FDV '+usd(p.fdv):'MC —')+'  ·  VOL '+usd(p?.volume),x+180,100,24,C.muted,'left',w-194);});
+ const defs=[['ABOUT TO BOND','bonding','bond','≈ curve progress · GeckoTerminal pump.fun pools'],['TRENDING TOKENS','trending','volume','GeckoTerminal · Pump venues, Solana trending'],['DEX BOOSTED','callouts','callout','Latest DexScreener boosts · pump.fun tokens']];
+ defs.forEach(([title,key,ic,source],i)=>{const x=24+i*500,w=482;g.fillStyle='rgba(0,0,0,0.32)';rr(g,x-4,126,w,218,10);g.fill();g.strokeStyle='rgba(255,205,119,0.35)';g.lineWidth=1.5;g.stroke();
+  icon(g,ic,x+20,152,16);txt(g,title,x+44,153,34,C.gold,'left',w-60,true);txt(g,source,x+8,182,22,C.muted,'left',w-20);
+  const rows=state[key].slice(0,3);if(!rows.length){const st=state.status[key]||'Loading…';txt(g,st==='Loading…'?'Loading…':/offline/i.test(st)?'Feed offline':'Nothing to show right now',x+w/2-4,240,32,C.parch,'center',w-30);txt(g,/offline/i.test(st)?'Retrying when nearby':'',x+w/2-4,276,22,C.muted,'center',w-30);}
+  rows.forEach((r,n)=>{const cy=221+n*39,xr=x+w-18;rowBg(g,n,x+2,cy-17,w-12,35);tokenLogoDot(g,r,x+24,cy,14);let rw=0;
+   if(key==='bonding'){rw=txt(g,'≈'+r.progress.toFixed(1)+'%',xr,cy+1,28,C.gold,'right',90);bar(g,x+210,cy-6,xr-rw-14-(x+210),12,r.progress/100);}
+   else if(key==='trending'){rw=pill(g,r.change??null,xr,cy,22);const vw=txt(g,usd(r.volume),xr-rw-12,cy+1,27,C.parch,'right',110);txt(g,'VOL',xr-rw-18-vw,cy+3,19,C.dim,'right');}
+   else{rw=txt(g,'+'+(r.boost||r.amount)+' boost',xr,cy+1,26,C.gold,'right',120);if(r.cap!=null)txt(g,'MC '+usd(r.cap),xr-rw-14,cy+1,24,C.muted,'right',110);}
+   txt(g,r.symbol||r.mint.slice(0,6),x+46,cy+1,30,'#ffe9b8','left',key==='bonding'?156:150);});
+  txt(g,rows.length?withUpdated(state.status[key],state.updated?.[key],now):(state.status[key]||'Loading…'),x+8,332,19,C.dim,'left',w-20);});
+ tapHint(g,W,366,24,'E / controller / tap to browse · token links open pump.fun · not financial advice');g.restore();}
+export { logoRev } from './logos.js';
 export { attachDexPanel, drawDexPanel, dexPanelRow } from './dexpanel.js';
 export { attachWallPanels, drawWallPanel, wallPanelMint } from './wallpanels.js';
