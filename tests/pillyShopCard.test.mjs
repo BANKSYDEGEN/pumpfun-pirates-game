@@ -20,14 +20,13 @@ test('unavailable and loading cannot offer a purchase', () => {
     const { button } = make({ avail }); assert.equal(button.textContent, label); assert.equal(button.disabled, avail == null);
   }
 });
-test('walk-in counter still uses the shared pets UI and refreshes its Pilly card', () => {
+test('walk-in counter sells only the parrot (Pilly is free, t2348u)', () => {
   const text = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
   assert.match(text('js/dock/layout.js'), /vendor:'pets'/);
-  assert.match(text('js/islandShop.js'), /grid.append\(card, petPillyCard\(\)\)/);
+  assert.match(text('js/islandShop.js'), /grid.append\(card\);/); assert.doesNotMatch(text('js/islandShop.js'), /petPillyCard|pillyShopCard/);
   assert.match(text('js/islandShop.js'), /if \(V.pets\) return renderPetStore\(\)/);
   assert.match(text('js/dock/index.js'), /openStore: \(\) => pillyS.open\(\{ storeOnly: true \}\)/);
   assert.match(text('js/islandShop.js'), /opts.vendor === 'pets'.*PFP_PILLY\?\.refresh/);
-  assert.match(text('js/islandShop.js'), /addEventListener\('pfp-pilly-change'/);
   assert.doesNotMatch(text('js/islandShop.js'), /PILLY COMPANION ·/);
   assert.match(text('js/preloadList.js'), /js\/pillyShopCard.js/);
   assert.match(text('sw.js'), /js\/pillyShopCard.js/);

@@ -1,5 +1,4 @@
 import { PILLY_ENABLED } from './features.js';
-import { pillyShopCard } from './pillyShopCard.js';
 import { parrotPreviewEl, isFlyingParrot, releaseParrotPreviews } from './parrotFlight.js';
 // [Timothy] PUMPFUN PIRATES · ISLAND SHOP panel. [v102 live, Emerly] the REAL provider comes from js/pvp.js (setShopProvider): every
 // buy goes to the `pvp` Edge Function (shop_buy), which checks price, goal, gold and ownership server-side. The mock stays for tests.
@@ -20,11 +19,6 @@ import { openGearColorPicker } from './gearColorPicker.js';
 import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
 
 import { MUSK_TRACKS, MUSK_SKIN, muskKey, muskLevels, setMuskLevels, muskUpgOn, gunAccOn, GUN_ACC, RANK_CAP } from './musketUpgrades.js'; // The walk-in pet counter has exactly two purchases. Management stays in the hull.
-function petPillyCard() {
-  return pillyShopCard(PILLY_ENABLED && window.PFP_PILLY ? window.PFP_PILLY : {
-    state: { avail: PILLY_ENABLED ? null : false }, mobilePaused: !PILLY_ENABLED, openStore() {}
-  });
-}
 function renderPetStore() {
   root.classList.add('pets'); root.classList.remove('wardrobe', 'crewshop');
   for (const sel of ['.ishop-tabs', '.ishop-chips', '.ishop-bsts', '.ishop-detail', '.ishop-actbar', '.ishop-foot']) $(sel, root).hidden = true;
@@ -39,7 +33,7 @@ function renderPetStore() {
   buy.textContent = `BUY PARROT · ${fmtGold(it.price)}`;
   buy.disabled = !state.owner && state.gold < it.price;
   buy.onclick = () => confirmBuy(x); card.appendChild(buy);
-  grid.append(card, petPillyCard());
+  grid.append(card); // [t2348u] Pilly is free for everyone: the counter only sells the parrot
 }
 // [Emerly musket-upgrades + gunacc]
 import { GUN_ITEMS } from './inventory/catalog.js';
@@ -156,9 +150,7 @@ function realOr(id) {
 setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; const d = root.querySelector('.ishop-detail > .ishop-sw');
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
-addEventListener('pfp-pilly-change', () => {
-  if (open && VENDORS[view.vendor]?.pets) root.querySelector('[data-id="companion:pilly"]')?.replaceWith(petPillyCard());
-});
+
 
 // ---------- item model ----------
 const TAB_SLOT = { swords: 'sword', muskets: 'musket' };

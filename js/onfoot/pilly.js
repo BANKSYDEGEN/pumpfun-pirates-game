@@ -131,13 +131,15 @@ export function createPillyState(ctx) {
   // ctx: { call(action, body), toast(html, ms), gold(json), follower: createPilly() result, out() -> bool (you are ashore, not in the hull) }
   let st = { avail: null, owned: false, out: false, xp: 0, lv: 0, name: null, error: null }, el = null, busy = false, walkT = 0, storeOnly = false, refreshPending = null, requestSeq = 0;
   const call = async (a, b = {}) => { try { return (await ctx.call(a, b)) || { ok: false }; } catch { return { ok: false, why: 'offline' }; } };
-  const apply = (r) => { if (!r?.ok) return; const prev = st.lv; Object.assign(st, { avail: true, error: null, owned: !!r.owned, out: !!r.out, xp: r.xp | 0, lv: r.lv | 0, name: r.name || null });
+  // [t2348u] "They auto get it": every player owns Pilly (no purchase). Players without a server row keep their out / home choice locally.
+  const LKEY = 'pfp_pilly_out', localOut = () => { try { return localStorage.getItem(LKEY) !== '0'; } catch { return true; } };
+  const apply = (r) => { if (!r?.ok) return; const prev = st.lv; Object.assign(st, { avail: true, error: null, srv: !!r.owned, owned: true, out: r.owned ? !!r.out : localOut(), xp: r.xp | 0, lv: r.lv | 0, name: r.name || null });
     globalThis.__pfpPillySwim = st.owned && st.out ? 1 + pillySwim(st.lv) : 1; ctx.follower?.setLv(st.lv); ctx.gold?.(r);
     if (st.lv > prev && prev >= 0 && st.owned) { ctx.follower?.react('laugh', 2.4); ctx.toast?.(`💊 Pilly reached <b>LV ${st.lv}</b>!`, 2400); } draw(); };
   function failed(r) {
     st.error = String(r?.why || r?.error || 'Connection unavailable. Retry.');
     // Transport errors do not mean this already-deployed companion is COMING SOON.
-    if (st.avail !== true) st.avail = false;
+    if (st.avail !== true) { st.avail = false; st.owned = true; st.srv = false; st.out = localOut(); } // [t2348u] free for all: still walks with you offline
   }
   async function refresh() {
     if (busy) return null;
@@ -155,13 +157,12 @@ export function createPillyState(ctx) {
     if (!el || el.hidden) return; const box = el.querySelector('.pl-box'), nm = 'Pilly';
     let h = `<h3><b>💊 ${nm.toUpperCase()} · COMPANION</b><button class="x" aria-label="Close">✕</button></h3>`;
     if (st.error) h += `<p role="status">${esc(st.error)}</p>`;
-    if (st.avail === false) h += '<p>Could not load Pilly. Retry to check ownership.</p><button class="b" data-a="retry">RETRY</button>';
+    if (st.avail === false) h += `<p>Pilly levels load in the Harbor.</p><button class="b" data-a="out">${st.out ? 'LEAVE ON SHIP' : 'BRING PILLY'}</button><button class="b" data-a="retry">RETRY</button>`;
     else if (st.avail == null) h += `<p>Loading…</p>`;
-    else if (!st.owned) h += `<p>A waist-high companion that walks beside you ashore. Your parrot or shoulder pet stays equipped too.</p><button class="b go" data-a="buy" ${busy ? 'disabled' : ''}>BUY PILLY · ${PILLY_PRICE.toLocaleString()} 🪙</button>`;
     else if (storeOnly) h += '<p><b>OWNED</b> · Upgrade Pilly in your ship hull or inventory.</p>';
     else { const nx = lvXp(st.lv + 1), pc = st.lv >= 10 ? 100 : Math.round((st.xp - lvXp(st.lv)) / (nx - lvXp(st.lv)) * 100);
       h += `<div><b>LV ${st.lv}</b> · ${st.xp} XP${st.lv < 10 ? ` / ${nx}` : ' · MAX'} · now <b>+${Math.round(pillySwim(st.lv) * 100)}% swim speed</b></div><div class="bar"><i style="width:${pc}%"></i></div>
-        <button class="b ${st.out ? '' : 'go'}" data-a="out">${st.out ? 'SEND HOME' : 'BRING PILLY'}</button>${st.lv < 10 ? `<button class="b" data-a="treat" ${busy ? 'disabled' : ''}>TREAT +100 XP · ${pillyTreatCost(st.lv).toLocaleString()} 🪙</button>` : ''}`; }
+        <button class="b ${st.out ? '' : 'go'}" data-a="out">${st.out ? 'LEAVE ON SHIP' : 'BRING PILLY'}</button>${st.lv < 10 && st.srv ? `<button class="b" data-a="treat" ${busy ? 'disabled' : ''}>TREAT +100 XP · ${pillyTreatCost(st.lv).toLocaleString()} 🪙</button>` : ''}`; }
     if (!storeOnly) h += `<ol>${PILLY_LADDER.map((t, i) => `<li class="${st.owned && i <= st.lv ? 'got' : ''}${st.owned && i === st.lv ? ' now' : ''}">LV ${i}: ${t}</li>`).join('')}</ol>
       <p style="font-size:11px;opacity:.75">Pilly earns XP while out with you on the island, like your parrot. Its swim boost stacks with your parrot's gold find and pets' sell bonus.</p>`;
     box.innerHTML = h; box.querySelector('.x').onclick = close;
@@ -169,7 +170,8 @@ export function createPillyState(ctx) {
   }
   async function act(a) {
     if (a === 'retry') return refresh();
-    if (a === 'name') return; // [t2341u] Pilly is always just "Pilly": no naming
+    if (a === 'name' || a === 'buy') return;
+    if (a === 'out' && !st.srv) { st.out = !st.out; try { localStorage.setItem(LKEY, st.out ? '1' : '0'); } catch {} globalThis.__pfpPillySwim = 1; draw(); return; } // [t2341u] Pilly is always just "Pilly": no naming
     if (busy) return; ++requestSeq; busy = true; draw();
     const r = await call('pilly_' + a, a === 'out' ? { out: !st.out } : {}); busy = false;
     if (r?.ok) { apply(r); if (a === 'buy') { ctx.toast?.('💊 PILLY JOINED YOUR CREW', 2200); ctx.follower?.wave(); } if (a === 'treat') ctx.follower?.react('happy', 1.6); }
@@ -179,9 +181,9 @@ export function createPillyState(ctx) {
     el.hidden = false; draw(); refresh(); }
   function close() { if (el) el.hidden = true; }
   async function tick(dt) { // walk XP: one ping a minute while Pilly is out with you (server rate-limits to 1 / 55 s)
-    if (!st.owned || !st.out || !ctx.out?.()) return; walkT += dt; if (walkT < 60) return; walkT = 0;
+    if (!st.srv || !st.out || !ctx.out?.()) return; walkT += dt; if (walkT < 60) return; walkT = 0;
     const r = await call('pilly_walk'); if (r?.ok) { const up = (r.xp | 0) > st.xp; apply(r); if (up) ctx.follower?.react('happy', 1.2); }
   }
   try { document.addEventListener('click', (e) => { if (e.target?.closest?.('[data-pilly-open]')) open(); }); } catch {}
-  return { refresh, open, close, tick, get state() { return st; }, get show() { return st.avail && st.owned && st.out; } };
+  return { refresh, open, close, tick, get state() { return st; }, get show() { return st.owned && st.out; } };
 }
