@@ -773,7 +773,9 @@ export async function createDock(ctx) {
     return { ...fnet.netState({ active: true, w: { x: o.position.x, z: o.position.z, yaw: c.cyaw, speed: 0 } }, true),
       cn: [o.position.y, o.rotation.x, o.rotation.z] };
   }
-  function cameraHook() { const pos = onFoot ? walker.w : ctx.getPlayer?.(); const shown = on && !shipHull?.inHull && !houses?.inHouse; pumpfun.update(shown, pos, game.t); plaza.update(shown, {position:pos, nearHQ:pumpfun.near, hqOpen:pumpfun.openNow}); if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
+  // [v476] the PumpFun hall / pet store can never take the frame loop down: 3 errors and it switches itself off.
+  let pfOk = true, pfN = 0; const pfErr = (e) => { console.warn('[pumpfun] update', e); if (++pfN >= 3) { pfOk = false; try { pumpfun.update(false); } catch {} } };
+  function cameraHook() { const pos = onFoot ? walker.w : ctx.getPlayer?.(); const shown = on && !shipHull?.inHull && !houses?.inHouse; if (pfOk) try { pumpfun.update(shown, pos, game.t); } catch (e) { pfErr(e); } try { plaza.update(shown, {position:pos, nearHQ:pfOk&&pumpfun.near, hqOpen:pfOk&&pumpfun.openNow}); } catch (e) { console.warn('[plaza] update', e); } if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;

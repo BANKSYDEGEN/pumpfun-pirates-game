@@ -16,14 +16,14 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
  const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let down=null;
  function localPoint(p){return w2t(...layout.harborToFoot(p.x,p.z));}
  function loadRender(){return loading||(loading=import('../pumpfun/render.js').then(m=>(mod=m)).catch(e=>{loading=null;console.warn('[pumpfun] render unavailable',e.message);}));}
- function dress(){if(hq||!mod)return;hq=mod.buildHQ(low);root.add(hq.group);proxy.visible=false;}
+ function dress(){if(hq||!mod)return;try{hq=mod.buildHQ(low);root.add(hq.group);proxy.visible=false;}catch(e){console.warn('[pumpfun] hall detail unavailable',e.message);hq=null;mod=null;loading=Promise.resolve();}}
  async function pets(){if(petLoad||petReady)return;petLoad=(async()=>{
   await loadRender();if(!mod)return;
   if(!petDress){petDress=mod.buildPetDress(low);root.add(petDress);}
   const [{createFlightParrot},{PirateGLB},{applyGear}]=await Promise.all([import('../parrotFlight.js'),import('../pirateGLB.js'),import('../pirateGear.js')]);
   const f=await import('../parrotFlight.js');
-  for(const id of (low?['parrot_green','parrot_red']:['parrot_green','parrot_red','parrot_blue'])){const bird=await createFlightParrot(id);bird.scale.setScalar(.48);bird.userData.shopAnimate=f.animateParrot;root.add(bird);birds.push(bird);}
-  keeper=await PirateGLB.create({lod:'lo'});await applyGear(keeper,{outfit:'shirt',hat:'none',pants:'classic_pants',boots:'boots_classic'});
+  for(const id of (low?['parrot_green']:['parrot_green','parrot_red'])){const bird=await createFlightParrot(id);bird.scale.setScalar(.48);bird.userData.shopAnimate=f.animateParrot;root.add(bird);birds.push(bird);}
+  if(low){petReady=true;return;}keeper=await PirateGLB.create({lod:'lo'});await applyGear(keeper,{outfit:'shirt',hat:'none',pants:'classic_pants',boots:'boots_classic'});
   keeper.root.position.set(PET_SHOP.keeper.lx,petFloor(PET_SHOP.keeper.lz),PET_SHOP.keeper.lz);keeper.root.rotation.y=Math.PI/2;keeper.root.scale.setScalar(1.1);keeper.mixer.setTime(.35);root.add(keeper.root);petReady=true;
  })().catch(e=>{console.warn('[pet store] load unavailable',e.message);petReady=true;}).finally(()=>{petLoad=null;});}
  function createPanel(){if(panel)return;panel=document.createElement('section');panel.id='pumpfun-panel';panel.className='gp-modal hidden';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','PUMPFUN PIRATES token boards');document.body.append(panel);
@@ -46,7 +46,7 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   uiRev=s.revision;if(focused){const b=[...panel.querySelectorAll('button')].find(b=>b.dataset.key===focused);b?.focus();}}
  function update(on,position,t){active=!!on&&!document.hidden;const [lx,lz]=position?localPoint(position):[1e6,1e6];nearHQ=active&&hqDistance(lx,lz)<32;nearPet=active&&Math.hypot(lx-PET_SHOP.lx,lz-PET_SHOP.lz)<17;
   if(!active){close();if(hq)hq.group.visible=false;if(petDress)petDress.visible=false;for(const b of birds)b.visible=false;if(keeper)keeper.root.visible=false;return;}
-  const dist=hqDistance(lx,lz);proxy.visible=dist>=95||!hq;if(dist<95&&!hq)loadRender().then(dress);if(hq){hq.group.visible=dist<95;if(nearHQ&&rev!==marketFeed.state.revision){mod.drawHQBoard(hq.cv,marketFeed.state);hq.tex.needsUpdate=true;rev=marketFeed.state.revision;}}
+  const dist=hqDistance(lx,lz);proxy.visible=dist>=40||!hq;if(dist<40&&!hq)loadRender().then(dress).catch(()=>{});if(hq){hq.group.visible=dist<40;if(nearHQ&&rev!==marketFeed.state.revision){rev=marketFeed.state.revision;try{mod.drawHQBoard(hq.cv,marketFeed.state);hq.tex.needsUpdate=true;}catch(e){console.warn('[pumpfun] board draw',e.message);}}}
   if(nearPet&&!petReady)pets();if(petDress)petDress.visible=nearPet;if(keeper)keeper.root.visible=nearPet;
   if(nearPet){const now=performance.now();if(now-lastPet>(low?50:33)){lastPet=now;birds.forEach((b,i)=>{const a=t*.48+i*2.094;const bx=PET_SHOP.birds.lx+Math.cos(a)*1.1,bz=PET_SHOP.birds.lz+Math.sin(a)*1.8;b.position.set(bx,petFloor(bz)+2.35+Math.sin(a*1.7+i)*.24,bz);b.rotation.set(.05,-a-Math.PI/2,-.16);b.userData.shopAnimate(b,t+i);b.visible=true;});}}
   else for(const b of birds)b.visible=false;

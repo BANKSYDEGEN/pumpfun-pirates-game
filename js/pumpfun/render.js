@@ -12,7 +12,7 @@ function plaque(group,url,w,h,x,y,z,yaw=0){const tex=new THREE.TextureLoader().l
 export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  plaque(group,'assets/pumpfun/hq_sign.webp',20.7,2.1,-18.5,HQ.floor+8.6,-29.35);
  const referral=plaque(group,'assets/pumpfun/referral_sign.webp',7,1.75,-18.5,HQ.floor+5.6,-29.85);referral.userData.referral=true;
- const cv=document.createElement('canvas');cv.width=low?1024:1536;cv.height=384;const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
+ const cv=document.createElement('canvas');cv.width=low?512:1024;cv.height=low?128:256;const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = [['squad',-33.5,'squad'],['squad_ranks',-39,'squad_ranks'],['daily_ranks',-44.5,'daily_ranks']].map(([file,z,kind])=>{const m=plaque(group,'assets/pumpfun/'+file+'.webp',4.7,4.6,-32.34,6.9,z,Math.PI/2);m.userData.pumpAction=kind;return m;});
  return {group,board,referral,cv,tex,squadBoards};}
@@ -22,7 +22,7 @@ export function buildPetDress(low=false){const g=buildParts(petParts(),low);g.na
  plaque(g,'assets/pumpfun/pet_sign.webp',1.6,1.1,-7.69,10.84,-111.1,Math.PI/2);
  return g;}
 const usd=v=>v===null||v===undefined?'—':'$'+(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':v>=1?v.toFixed(2):v.toPrecision(3));
-export function drawHQBoard(cv,state){const g=cv.getContext('2d'),k=cv.width/1536;g.save();g.scale(k,1);const W=1536;
+export function drawHQBoard(cv,state){const g=cv.getContext('2d'),k=cv.width/1536;g.save();g.setTransform(k,0,0,cv.height/384,0,0);const W=1536;
  g.fillStyle='#101f1c';g.fillRect(0,0,W,384);g.strokeStyle='#54d08a';g.lineWidth=5;g.strokeRect(3,3,W-6,378);g.textBaseline='middle';g.textAlign='left';
  const text=(s,x,y,n=27,c='#e9e5d6')=>{g.font=`${n}px "Just Another Hand",sans-serif`;g.fillStyle=c;g.fillText(String(s),x,y);};
  text('PUMPFUN PIRATES / MARKET WATCH',24,24,33,'#54d08a');text('FREE SNAPSHOTS · NOT A LIVE TRADE FEED',925,24,25,'#ffcd77');

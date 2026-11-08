@@ -116,12 +116,12 @@ export function createPlaza({ world, ctx = {} }) {
   }
   // ---- tick: refresh while the harbor world is shown (boards every 60 s, prices every 120 s) ----
   function update(on, { position = null, nearHQ = false, hqOpen = false } = {}) {
-    if (!on) { if (!panel.classList.contains('hidden')) close(); marketFeed.tick(false); return; }
+    if (!on) { if (!panel.classList.contains('hidden')) close(); marketFeed.tick(false)?.catch?.(()=>{}); return; }
     const now = performance.now(); if (!lastBoards || now - lastBoards > 60000) refreshBoards();
     let nearTokens = false;
     if (position) { const [fx,fz] = world.layout?.harborToFoot?.(position.x,position.z) || ctx.harborToFoot?.(position.x,position.z) || [1e6,1e6];
       nearTokens = Object.values(TOKEN_BOARD_SPOTS).some(q => { const [x,z]=CO.t2w(q.lx,q.lz); return Math.hypot(fx-x,fz-z)<28; }); }
-    marketFeed.tick(!document.hidden && (nearTokens || nearHQ || hqOpen || !!panel.dataset.sym), nearHQ || hqOpen);
+    marketFeed.tick(!document.hidden && (nearTokens || nearHQ || hqOpen || !!panel.dataset.sym), nearHQ || hqOpen)?.catch?.(()=>{});
     syncTokens();
   }
   return { update, openBoard, openToken: showToken, close, refreshBoards, mesh, get open() { return !panel.classList.contains('hidden'); } };
