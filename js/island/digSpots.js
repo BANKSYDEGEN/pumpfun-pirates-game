@@ -20,7 +20,7 @@ export const DIG_SPOTS = [
   { id: 'dig3', n: 3, area: 'north_east_beach', x: 396, z: -460, active: true, roll: true, hint: [340, -360] },
   { id: 'dig4', n: 4, area: 'pirate_camp', x: -332, z: -580, active: true, roll: true, hint: [-335, -580], clear: 6 },   // NW bay: the camp keeps a 6 m ring
   { id: 'dig5', n: 5, area: 'east_bay', x: 420, z: 100, active: true, roll: true, hint: [421, 100] },
-  { id: 'dig6', n: 6, area: 'town_shore', x: -628, z: -212, active: true, roll: true, hint: [-631, -208], clear: 6, inside: 'plaza_v2' }, // Timothy keeps a clear ring
+  { id: 'dig6', n: 6, area: 'town_shore', x: -626, z: -258, active: true, roll: true, hint: [-629, -254], clear: 6, inside: 'plaza_v2' }, // [post-village v3] BANKSY: moved off the plaza extension to the west shore sand (town lx -168, lz -14); was -628, -212 // Timothy keeps a clear ring
   { id: 'cave', area: 'skull_cave', x: 90, z: 180, r: 4, active: true, roll: false, derived: 'foot.js cave mouth toW(0, 8)' },            // legendary maps only
   // ---- island rework: registered, OFF until each area ships (plan: /docs/island_rework/PLAN.md) ----
   { id: 'dig7', n: 7, area: 'jungle_ruins', x: 62, z: -402, active: false, roll: false },

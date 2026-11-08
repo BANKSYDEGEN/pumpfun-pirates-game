@@ -20,7 +20,8 @@ test('append-only: every shipped id stays valid, the roll order is an unchanged 
   assert.equal(valid[valid.length - 1], 'cave'); assert.ok(!roll.includes('cave'));
 });
 test("today's X positions do not move (v148 coords)", () => {
-  for (const [id, [x, z]] of Object.entries(EVER.coords_v148)) { const s = R.spotById(id); assert.ok(s, id); assert.deepEqual([s.x, s.z], [x, z], id + ' moved'); }
+  const MOVED = { dig6: [-626, -258] };   // [post-village v3] BANKSY moved the town-shore X off the plaza extension (registry rule: keep the id, change x / z)
+  for (const [id, [x, z]] of Object.entries(EVER.coords_v148)) { const s = R.spotById(id); assert.ok(s, id); assert.deepEqual([s.x, s.z], MOVED[id] || [x, z], id + ' moved'); }
 });
 test('new island spots are registered but OFF (not rolled, not diggable)', () => {
   for (const s of S) if (!EVER.valid.includes(s.id)) { assert.equal(s.active, false, s.id); assert.equal(s.roll, false, s.id); }

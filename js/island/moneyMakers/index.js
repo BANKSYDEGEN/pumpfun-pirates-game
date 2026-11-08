@@ -15,7 +15,9 @@ import { shopFront } from './shopFronts.js';
 import { createMMApi, rid } from './api.js';
 import { createMMUi, esc, gfmt } from './ui.js';
 import { ISLAND_GOODS, islKey, islPrice, ISL_SHOP_NAMES } from '../../inventory/islandGoods.js';
-import { RENTABLE_SHOPS } from '../hillShops.js';
+import { RENTABLE_SHOPS as HILL_RENTABLE } from '../hillShops.js';
+import { VILLAGE_RENTABLE } from '../village.js';   // [post-village v3] the village rentals use the same rent-shop data path
+const RENTABLE_SHOPS = [...HILL_RENTABLE, ...VILLAGE_RENTABLE];
 import { t2w, t2wYaw, toHarbor } from '../coast.js';
 // [v372] BANKSY t1973u "move each stand into an empty rental shop": the counter stands move off the plaza / wharf / concourse into empty
 // hill-street rent shops (rent_1 = the Treasure Trader, so never that one). Each stand sits against the shop's back wall facing the door,

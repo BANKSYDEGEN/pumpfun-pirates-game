@@ -31,7 +31,7 @@ import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v
 import { SHOPS_KIT, SHOP_PLACES, SHIP_STORE_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 export { villageGround, villageClear, VILLAGE_RENTALS, VILLAGE_LOTS, VILLAGE_ROADS } from './village.js';   // [post-village]
-import { buildVillage } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
+import { buildVillage } from './villageBuild.js'; export { buildVillagePools } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 export { casinoSite, casinoGround, casinoClear, casinoOverlap } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): foot.js terrain + buildStreet + grass hooks
@@ -160,7 +160,7 @@ export const PLAZA = {
 // [post-petstore] &petold=1 = the old Blender L4 house (before shots)
 export const PET_REWORK = !(typeof location !== 'undefined' && /[?&]petold=1/.test(location.search));
 export function plazaGround(lx, lz, h) {
-  if(lx>=-47.4&&lx<=-34.4&&lz>=-57.4&&lz<=-48.0) h=Math.min(h,HQ.floor-.05);   // p8: paved yard behind the Outfit Store, level with the trench
+  if(lx>=-43.9&&lx<=-34.4&&lz>=-57.4&&lz<=-48.0) h=Math.min(h,HQ.floor-.05);   // p8: paved yard behind the Outfit Store, level with the trench
   if(lx>=HQ.lx0-3&&lx<=HQ.lx1&&lz>=HQ.lz0-3&&lz<HQ.lz1){const o=Math.max(HQ.lx0-lx,HQ.lz0-lz,0),trench=lz<HQ_TRENCH.westLz+.2||lx>=HQ.lx0;h=Math.min(h,trench?(o<=HQ_TRENCH.w?HQ.floor-.05:h):HQ.floor-.05+(o<2?Math.ceil(o/.5)*.65:o*1.3));}   // whole footprint flat; west/back: paved trench behind a retaining wall (p3)   // [post-hq-castle] whole footprint
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
@@ -195,6 +195,7 @@ export function signList() {
   S.push({ key: 'market', text: 'MARKETPLACE', col: '#ffcd77', bg: '#5a3219', big: true, skull: true }, { key: 'fishmarket', text: 'FISH MARKET', col: '#ffffff', bg: '#14557d', big: true }); // [v240]
   if (!ON_PORTAL && HALL_BOARDS_ON) { S.push({ key: 'tok_HQ', text: '$HQ', col: '#ffcd77', bg: '#161616', big: true }, { key: 'tok_RETARDIO', text: '$RETARDIO', col: '#ffcd77', bg: '#161616', big: true });
     for (let i = 0; i < TRENDING.n; i++) S.push({ key: 'trend' + i, text: 'TRENDING #' + (i + 1), col: '#7cff6b', bg: '#161616' }); }
+  S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true }, { key: 'village_torent', text: 'TO RENT', col: '#f3ead2', bg: '#2a1a10' });   // [post-village v3]
   S.push({ key: 'hall', text: 'HARBOR EXCHANGE HALL', col: '#ffcd77', bg: '#5a3219' }, { key: 'tavern', text: 'THE SUNK TAVERN', col: '#ffcd77', bg: '#5a3219', skull: true });
   for (const b of BERTHS) S.push({ key: 'berth_' + b.id, text: 'BERTH ' + b.id.slice(1), col: '#fff1d2', bg: '#3d2a1c' });
   return S;
@@ -409,13 +410,13 @@ export function buildPlazaV2(h) {
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
   for (const [lx,lz,w,d] of HQ_OUTWORKS) addBox(...T(lx,lz),w,d,yaw0);   // p3 trench retaining walls
-  addBox(...T(-41.05,-57.2),14.1,1.2,yaw0);   // p9 yard retaining kerb
+  addBox(...T(-39.3,-57.2),10.6,1.2,yaw0);   // [post-village v3] trimmed 3.5 m for rental #24   // p9 yard retaining kerb
   camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: HQ.lz0+.8, lz1: HQ.lz1-.5 }, HQ.ceil-.4, HQ.floor);
   if(PET_REWORK){ const S=PET_STORE, I=S.I, c=T((I.lx0+I.lx1)/2,(I.lz0+I.lz1)/2); h.addDeck?.({x:c[0],z:c[1],hw:(I.lx1-I.lx0)/2+.25,hl:(I.lz1-I.lz0)/2,yaw:yaw0,y:S.floor});   // [post-petstore] flat floor + threshold
     for (const [lx,lz,w,d] of PET_WALLS) addBox(...T(lx,lz),w,d,yaw0); for (const [,lx,lz,w,d] of PET_PROPS) addBox(...T(lx,lz),w,d,yaw0);
     camRoom({id:PET_SHOP.id,...I},S.ceil-.4,S.floor); }
   else camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
-  try { buildVillage(h, { camRoom, Y0, C }); } catch (e) { console.warn('[post-village] build failed', e); }   // [post-village] BANKSY's 23 rentals + roads
+  try { buildVillage(h, { camRoom, Y0, C, sign }); } catch (e) { console.warn('[post-village] build failed', e); }   // [post-village] BANKSY's 23 rentals + roads
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
   buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,

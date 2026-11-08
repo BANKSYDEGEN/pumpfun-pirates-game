@@ -156,7 +156,8 @@ export function hqParts() {
   B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
   // ---- p8: paved yard at the trench's north end (was bare sloping grass): flagstones level with the trench, coped retaining kerb holding the hill
   // p9: one raised flagstone bed (top Y+.14, a walkable 14 cm lip) over the whole flattened yard, wide coped kerbs hiding the terrain seam
-  { const x0=-46.9, x1=-34.6, z0=-56.6, z1=-48.2, cx=(x0+x1)/2, cz=(z0+z1)/2;
+  { const x0=-43.4, x1=-34.6, z0=-56.6, z1=-48.2,   // [post-village v3] west 3.5 m given to rental #24
+    cx=(x0+x1)/2, cz=(z0+z1)/2;
     B(cx,Y-.1,cz,x1-x0,.48,z1-z0,stone); for(let i=1;i<7;i++) B(x0+i*(x1-x0)/7,Y+.145,cz,.06,.02,z1-z0-.2,darkStone,true); for(let j=1;j<4;j++) B(cx,Y+.145,z0+j*(z1-z0)/4,x1-x0-.2,.02,.06,darkStone,true);
     B(cx-.3,Y+.5,z0-.6,x1-x0+1.8,1.2,1.2,stone); B(cx-.3,Y+1.16,z0-.6,x1-x0+2.0,.14,1.35,darkStone);   // south retaining kerb (holds the hill), runs under the west kerb corner
     B(x0-.6,Y-.05,cz+.3,1.2,.5,z1-z0+.6,darkStone);   // west edge: flush kerb into Main Street (walkable)
@@ -181,7 +182,8 @@ export function hqParts() {
   for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
-  frameAt(-25.2,Y+5.5,Z1+.4,'n',4.2,1.575,false);   // BANKSY t303u: raised level with the skull banner, clear of the gate torch and the string course   // referral board outside: centred in the bay left of the gate, mirrors the banner
+  frameAt(-25.2,Y+5.5,Z1+.4,'n',4.2,1.575,false);
+  frameAt(X1+.4,Y+5.5,HD.lz-6.7,'e',4.2,1.575,false);   // [post-village v3] the Hill Street twin (Treasure Trader side, same 6.7 m off the door axis)   // BANKSY t303u: raised level with the skull banner, clear of the gate torch and the string course   // referral board outside: centred in the bay left of the gate, mirrors the banner
   B(-25.2,Y+5.5,Z1+.26,4.5,1.9,.28,mahog);   // backing block proud of the string course
   B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)

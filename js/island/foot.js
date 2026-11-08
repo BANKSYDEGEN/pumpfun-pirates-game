@@ -1476,6 +1476,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
+  if (coast && PLAZA_V2_SIGNS && PV.buildVillagePools) { const vp = PV.buildVillagePools(); if (vp) root.add(vp); } // [post-village v3] painted light pools
   if (coast && PLAZA_V2_SIGNS) { const ps = PV.buildPlazaShops(); if (ps) root.add(ps); } // [Timothy] Blender storefront models (plazaShops.js; null = blockout shells)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
