@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 const clean = (n) => String(n ?? '').replace(/[\u0000-\u001f<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).toUpperCase() || 'PIRATE';
 export function createBerthSigns({ scene, berths, low }) {
-  const signs = new Map(), geo = new THREE.PlaneGeometry(1.62, 0.86); let acc = 0;
+  const signs = new Map(), geo = new THREE.PlaneGeometry(1.62, 0.86), postGeo = new THREE.BoxGeometry(0.2, 1.5, 0.2), boardGeo = new THREE.BoxGeometry(0.16, 0.96, 1.74), wood = new THREE.MeshLambertMaterial({ color: 0x3b2414 }); let acc = 0;
   const fit = (g, t, fs, w, min) => { for (; fs > min; fs -= 2) { g.font = `bold ${fs}px system-ui,sans-serif`; if (g.measureText(t).width <= w) break; } };
   function draw(sg, id, name) {
     const c = sg.c, g = c.getContext('2d'), W = c.width, H = c.height, w = W * 0.88;
@@ -19,12 +19,15 @@ export function createBerthSigns({ scene, berths, low }) {
     // [v243] the baked board (plazaTown) faces ACROSS the jetty (side * PI/2), i.e. perpendicular to the bollard line; the v238 faces
     // faced along the line (berth -> ashore), so they sat edge-on inside the board and the name never showed
     const dx = p[0] - q[0], dz = p[1] - q[1], dl = Math.hypot(dx, dz) || 1; let nx = -dz / dl, nz = dx / dl; if (nx * ax + nz * az < 0) { nx = -nx; nz = -nz; }
-    return { x: p[0] + dx / 16, z: p[1] + dz / 16, y: (b.ashore.y ?? 0) + 1.9, nx, nz }; }
+    // [v470] own post 2.2 m shoreward of the carved number plaque (lz 17): it used to share the plaque's spot (stale clients
+    // still showed it at the old ship-relative bollard station, against the hull); now it never overlaps the plaque or a hull
+    const k = (2 + 2.2) / dl; return { x: p[0] + dx * k, z: p[1] + dz * k, y: (b.ashore.y ?? 0) + 1.9, nx, nz }; }
   function make(b) {
     const P = post(b); if (!P) return null;
     const c = document.createElement('canvas'); c.width = low ? 256 : 512; c.height = c.width / 2;
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; const mat = new THREE.MeshBasicMaterial({ map: tex, fog: false, toneMapped: false });
     const m = new THREE.Group(); m.name = 'berth_sign_' + b.id; m.position.set(P.x, P.y, P.z); m.rotation.y = Math.atan2(P.nx, P.nz);
+    const pm = new THREE.Mesh(postGeo, wood); pm.position.y = -1.15; const bd = new THREE.Mesh(boardGeo, wood); bd.rotation.y = Math.PI / 2; m.add(pm, bd); // own post + backing board on the deck
     for (const s of [1, -1]) { const f = new THREE.Mesh(geo, mat); f.position.z = s * 0.11; if (s < 0) f.rotation.y = Math.PI; m.add(f); } // a face just proud of each side of the board
     scene.add(m); return { m, mat, c, tex, name: '' };
   }
