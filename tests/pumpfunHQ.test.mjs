@@ -36,7 +36,7 @@ test('the rear wall is gone: one hall over the whole footprint, open across the 
 });
 test('tall gilded beamed ceiling, chandeliers and painted light pools, no realtime lights',()=>{
  const parts=hqParts(),Y=HQ.floor;assert.ok(HQ.ceil>=11);
- const ceiling=parts.find(p=>p.mat===26&&p.w>25&&p.d>30);assert.ok(ceiling.y-ceiling.h/2-Y>=11);
+ const ceiling=parts.filter(p=>p.mat===26&&p.w>25&&p.d>30).sort((a,b)=>b.y-a.y)[0];assert.ok(ceiling.y-ceiling.h/2-Y>=11);
  assert.ok(parts.filter(p=>p.glow).length>=30);
  const r=src('js/pumpfun/render.js');assert.ok(!/PointLight|SpotLight|PMREM/.test(r));assert.match(r,/AdditiveBlending/);assert.match(r,/c.width=c.height=128/);
  assert.match(src('js/dock/pumpfun.js'),/hq.dispose\(\)/);

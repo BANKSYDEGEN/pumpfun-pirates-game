@@ -9,7 +9,7 @@ export function hqParts() {
   const Cy = (x,y,z,r,r1,h,n,c,detail=false) => p.push({ kind:'cyl', x,y,z,r,r1,h,n,c,detail,mat:mat(c) });
   const Y=HQ.floor, TOP=Y+HQ.wallTop, CEIL=Y+HQ.ceil, X0=HQ.lx0, X1=HQ.lx1, Z0=HQ.lz0, Z1=HQ.lz1, CX=(X0+X1)/2, CZ=(Z0+Z1)/2, D=Z1-Z0;
   const HD=HQ.hillDoor, hz0=HD.lz-HD.w/2, hz1=HD.lz+HD.w/2;
-  B(CX,Y-.03,CZ,28.8,.12,D-.6,stone); // one floor, wall to wall
+  B(CX,Y-.03,CZ,28.8,.12,D-.6,'#5b3b26',false,{mat:26}); // dark oiled deck planks // one floor, wall to wall
   // ---- outer walls, full height (no rear mass: the back half is part of the hall) ----
   const WH=TOP-(Y-.6), WY=(TOP+Y-.6)/2;
   B(X0+.3,WY,CZ,.6,WH,D,stone); B(CX,WY,Z0+.3,X1-X0,WH,.6,stone);
@@ -35,7 +35,7 @@ export function hqParts() {
   // front corner gun towers (round, battered base, crenellated crown, no fairy-tale cones) + rear corner bartizans
   for(const t of HQ_TOWERS){ Cy(t.lx,(TOP+2.2+Y-.4)/2,t.lz,t.r,t.r+.2,TOP+2.2-Y+.4,16,stone); Cy(t.lx,Y+.8,t.lz,t.r+.45,t.r+.6,1.8,16,darkStone);
     Cy(t.lx,TOP+2.4,t.lz,t.r+.35,t.r+.35,.45,16,darkStone); for(let i=0;i<8;i++){const a=i/8*Math.PI*2;B(t.lx+Math.cos(a)*(t.r+.1),TOP+3.25,t.lz+Math.sin(a)*(t.r+.1),.8,1.25,.8,stone,false,{ry:-a});}
-    for(const y of [Y+6.5,Y+10.5]) B(t.lx,y,t.lz+t.r+.02,.3,1.4,.12,'#1a1a1c'); // arrow slits
+    for(const y of [Y+6.5,Y+10.5]) { B(t.lx,y,t.lz+t.r+.05,.75,1.95,.22,darkStone); B(t.lx,y+1.05,t.lz+t.r+.1,.9,.22,.3,darkStone); B(t.lx,y,t.lz+t.r+.17,.2,1.35,.04,'#3a2a1c'); B(t.lx,y,t.lz+t.r+.19,.05,1.35,.03,iron,true); } // framed arrow slits
     B(t.lx,TOP+5.2,t.lz,.12,4,.12,wood,true); B(t.lx+.9,TOP+6.5,t.lz,1.7,1.1,.04,'#141414',true); B(t.lx+.9,TOP+6.55,t.lz+.03,.5,.5,.03,bone,true); }
   for(const [x,z] of [[X0+.4,Z0+.4],[X1-.4,Z0+.4]]) { Cy(x,TOP-1.6,z,1.5,.4,2,12,darkStone); Cy(x,TOP+.7,z,1.5,1.5,2.6,12,stone); for(let i=0;i<6;i++){const a=i/6*Math.PI*2;B(x+Math.cos(a)*1.35,TOP+2.4,z+Math.sin(a)*1.35,.6,.9,.6,stone,false,{ry:-a});} }
   // side-wall arrow-slit lancets (glazed both faces) + front banners flanking the gate
@@ -69,6 +69,19 @@ export function hqParts() {
   for(const [x,z] of [[IX0+.8,IZ1-.9],[IX0+1.9,IZ1-.8],[IX1-.8,IZ1-.9],[IX0+.8,IZ0+.9],[IX1-.8,IZ0+.9]]) { Cy(x,Y+.55,z,.5,.45,1.1,12,'#6b4428',true); Cy(x,Y+.3,z,.53,.53,.08,12,iron,true); Cy(x,Y+.85,z,.5,.5,.08,12,iron,true); }
   { const cx=-11.5, cz=-62.5, y=Y+HQ.dais.rise; B(cx,y+.35,cz,1.5,.7,.95,wood,true); B(cx,y+.86,cz,1.52,.32,.97,'#3a2418',true); for(const dx of [-.55,0,.55]) B(cx+dx,y+.6,cz,.08,1.02,1,gold,true); for(const [dx,dz] of [[.95,.1],[1.15,-.3],[-1,.25]]) B(cx+dx,y+.08,cz+dz,.32,.16,.32,gold,true); }
   for(const [x,z] of [[-30.5,-42],[-6.9,-56]]) { B(x,Y+.45,z,1.1,.9,5.3,mahog,true); B(x,Y+.93,z,1.2,.08,5.4,'#2a160d',true); }
+
+  // casino-style wall: gilt cap rail over the damask (render.js paints the damask panels), crimson/green banners between pillars
+  for(const [x,z,w,d] of [[IX0+.05,CZ,.16,IZ1-IZ0],[CX,IZ0+.05,IX1-IX0,.16],[IX1-.05,CZ,.16,IZ1-IZ0]]) B(x,Y+6.3,z,w,.14,d,gold,true);
+  for(const x of [-24.5,-12.5]) for(const [z,c] of [[-44,'#7a1d22'],[-52.5,'#1b4d36']]) { B(x,CEIL-1.25,z,2.0,.1,.1,iron,true); B(x,CEIL-3.6,z,1.7,4.6,.05,c,true); B(x,CEIL-1.4,z,1.8,.14,.09,gold,true); B(x,CEIL-4.4,z,.8,.8,.07,gold,true); B(x,CEIL-5.95,z,1.7,.12,.07,gold,true); }
+  // west wall: ship's wheel + anchor; jolly roger flags; crates and gold by the barrels
+  { const wx=IX0+.2, wy=Y+4.3, wz=-60.5; B(wx,wy,wz,.25,.32,.32,wood,true);
+    for(let i=0;i<4;i++) B(wx,wy,wz,.12,2.3,.12,wood,true,{rx:i*Math.PI/4});
+    for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;B(wx,wy+Math.cos(a)*.82,wz+Math.sin(a)*.82,.16,.66,.14,wood,true,{rx:-a+Math.PI/2});}
+    const az=-55.5; B(wx,Y+3.6,az,.18,2.6,.2,iron,true); B(wx,Y+4.65,az,.18,.18,1.3,iron,true); B(wx,Y+5.1,az,.18,.5,.5,iron,true);
+    for(const sd of [-1,1]) B(wx,Y+2.5,az+sd*.5,.18,.2,1.15,iron,true,{rx:sd*.55}); }
+  for(const [x,z] of [[IX0+.12,-45],[IX1-.12,-61]]) { B(x,Y+8.2,z,.05,2.4,3.6,'#17130f',true); B(x,Y+8.45,z,.07,.62,.56,bone,true); for(const sd of [-1,1]) B(x,Y+7.7,z,.07,.12,1.1,bone,true,{rx:sd*.6}); }
+  for(const [x,z,q] of [[IX0+.8,IZ1-2.1,1],[IX0+.75,IZ1-2.95,.7],[IX1-.8,IZ1-2.1,.9],[IX1-.8,IZ0+2.0,1]]) B(x,Y+q/2,z,q,q,q,'#7a5636',true);
+  for(const [x,z] of [[IX0+1.9,IZ1-1.6],[IX1-1.9,IZ0+1.4]]) { B(x,Y+.12,z,.9,.24,.7,gold,true); B(x+.1,Y+.32,z,.5,.18,.4,gold,true); }
   B(HQ.board.lx,HQ.board.y,HQ.board.lz-.12,HQ.board.w+.6,HQ.board.h+.6,.25,mahog);
   B(HQ.board.lx,HQ.board.y,HQ.board.lz+.0,HQ.board.w+.25,HQ.board.h+.25,.07,gold);
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
