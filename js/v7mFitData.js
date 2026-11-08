@@ -75,9 +75,11 @@ export const V7M_FITS = {
     "authoredCapeSkin": true
   },
   "mask_luchador": {
-    "hi": "assets/pirates/items/v7m_fit/mask_luchador_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/mask_luchador_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hide": [],
+    "maskHairCut": 0.945,
+    "hi": "assets/pirates/items/v7m_refit/mask_luchador_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/mask_luchador_male_lo.glb",
+    "qaStatus": "REWORK_V452_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING"
   },
   "peg_r": {
     "hi": "assets/pirates/items/v7m_fit/peg_r_male_hi.glb",
@@ -270,4 +272,4 @@ export const V7M_FITS = {
   }
 };
 
-export const V7M_SKIP = new Set(["beard_black", "beard_forked", "mask_luchador"]);
+export const V7M_SKIP = new Set(["beard_black", "beard_forked"]);

@@ -267,16 +267,18 @@ function applyHide(p) {
       g.setIndex(new THREE.BufferAttribute(n > 65535 ? new Uint32Array(o2) : new Uint16Array(o2), 1)); }
   }
   flattenHair(p); baseTop(p); bootsUnderPeg(p);
-  // [v381] Raul: the restored V7 male's source head is locked (no hat / mask hides his head, hair or beard triangles).
-  // never remove source head/hair/beard triangles to make a hat or mask appear to fit.
+  // [v381] Raul: the restored V7 male's source head geometry stays locked; ordinary hats cannot hide it.
+  // Exception: an explicitly authored V7 male mask may hide hair-only triangles above its hem. No position/skin/eye/beard edits; unequip restores the original index.
   if (p.v7 && !p.female) for (const o of p.atlasMeshes || []) {
     if (!o.userData.sourceLocked) continue;
     const g=o.geometry,B=g.userData.baseIndex,P=g.userData.basePos||g.attributes.position;
     if (g.attributes.position!==P) g.setAttribute('position',P);
     const SI=g.attributes.skinIndex,SW=g.attributes.skinWeight,hi=o.skeleton.bones.findIndex(b=>b.name==='head'),H=new Uint8Array(P.count);
     for(let i=0;i<P.count;i++)for(let k=0;k<4;k++)if(SI.getComponent(i,k)===hi&&SW.getComponent(i,k)>.99)H[i]=1;
-    const out=[];for(let i=0;i<g.index.count;i+=3){const a=g.index.array.subarray(i,i+3);if(!a.some(v=>H[v]))out.push(...a);}
-    for(let i=0;i<B.count;i+=3){const a=B.array.subarray(i,i+3);if(a.some(v=>H[v]))out.push(...a);}
+    const hairCut = Object.values(p.items).reduce((c,it) => Math.max(c,it.maskHairCut || 0),0), T = g.attributes._tint;
+    const maskHair = a => hairCut && T && a.every(v => Math.round(T.getX(v)) === TINTS.indexOf('hair') && P.getY(v) > hairCut && !(P.getZ(v) > 0.1 && P.getY(v) < 0.962));
+    const out=[];for(let i=0;i<g.index.count;i+=3){const a=g.index.array.subarray(i,i+3);if(!a.some(v=>H[v]) && !maskHair(a))out.push(...a);}
+    for(let i=0;i<B.count;i+=3){const a=B.array.subarray(i,i+3);if(a.some(v=>H[v]) && !maskHair(a))out.push(...a);}
     g.setIndex(new THREE.BufferAttribute(P.count>65535?new Uint32Array(out):new Uint16Array(out),1));
   }
 }
@@ -445,7 +447,8 @@ async function build(p, def, opts) {
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_FITS[def.id] && !V7M_SKIP.has(def.id)) {
     const F=V7M_FITS[def.id];
     // [v7m hats] bakedSkull: the hat carries the REAL PUMPFUN PIRATES skull (brand/skull_transparent.png) as its own geometry; no runtime decal on top
-    return buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0, authoredCapeSkin:!!F.authoredCapeSkin, ...(F.bakedSkull ? { skull: false } : {})}, opts, low, body, skel, names);
+    const it = await buildV5(p, {...def, v5:{male:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0, authoredCapeSkin:!!F.authoredCapeSkin, ...(F.bakedSkull ? { skull: false } : {})}, opts, low, body, skel, names);
+    if (F.hide) it.v5hide = F.hide; if (F.maskHairCut) it.maskHairCut = F.maskHairCut; return it;
   }
   if (p.v5 && def.v5) return buildV5(p, def, opts, low, body, skel, names);
   const gltf = await loadPirateGLB(url);
