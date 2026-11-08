@@ -76,6 +76,12 @@ function litClone(src, look) {
     c.userData = { ...src.userData }; delete c.userData.clothesLook; look(c); _lookClones.set(src, c); }
   return c;
 }
+// These display poses are frozen at .35 s: compute exact posed bounds once, not every frame.
+export function cullStaticShopFigure(root) {
+ root.updateWorldMatrix(true,false);root.updateMatrixWorld(true); // refresh SkinnedMesh attached bind inverses too
+ root.traverse(o=>{if(!o.isMesh)return;if(o.isSkinnedMesh)o.computeBoundingSphere();else if(!o.geometry.boundingSphere)o.geometry.computeBoundingSphere();
+  const b=o.isSkinnedMesh?o.boundingSphere:o.geometry.boundingSphere;o.frustumCulled=!!b&&Number.isFinite(b.radius)&&b.radius>0;if(o.isSkinnedMesh&&o.frustumCulled)b.radius+=.001;});
+}
 export function addMaleShopDisplays(parent, id, low = false, look = null) {
   const list = MALE_SHOP_DISPLAYS[id]; if (!list) return;
   const lod = new THREE.LOD(); lod.name = 'v7_shop_displays_' + id;
@@ -94,7 +100,7 @@ export function addMaleShopDisplays(parent, id, low = false, look = null) {
     p.mixer.setTime(.35); p.root.name = 'v7_mannequin_' + id + '_' + i;
     p.root.position.set(d.x, d.y ?? .718, d.z); p.root.rotation.y = d.yaw; p.root.scale.setScalar(d.scale ?? 1.3);   // [clothes-aaa] y .2 = the clothes shop's display plinths
     p.root.traverse(o => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
-    group.add(p.root); return p;
+    group.add(p.root); cullStaticShopFigure(p.root); return p;
   })));
   r.catch(e => console.warn('[V7 mannequins] load failed', e)); return r; };
   lod.addEventListener('removed', () => { if (!ready) { if (blank && --_matUsers <= 0) { _matUsers = 0; disposeBlankForms(); } return; } ready.then(ps => { for (const p of ps) { try { p.dispose?.(); } catch {} } }).catch(() => {});

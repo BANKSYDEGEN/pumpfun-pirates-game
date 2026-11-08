@@ -1,3 +1,5 @@
+import { warmBuildingGPU } from './gpuWarmup.js';
+import { LIB_U } from '../island/libTex.js';
 import { berthLabel } from './berthLabels.js';
 import { formatGoldAmount, setGoldText } from '../goldFormat.js';
 import { createPrivateBuildingMarker } from './buildingWaypoint.js';
@@ -356,7 +358,7 @@ export async function createDock(ctx) {
     saveGold: () => { try { ctx.pvp?.()?.save?.({ now: true, force: true }); } catch {} },
     inventory: () => inventory, pvp: () => ctx.pvp(), low: LOW, game, ocean, islands, openWardrobe: (from) => openWardrobe(from), // [t408u]
   }); } catch (e) { console.warn('[storage-houses]', e); } // [Emerly storage-houses]
-  let mm = null; import('../island/moneyMakers/index.js').then(m => m.createMoneyMakers({ scene, world, layout, walker, pirate, battle, houses, fnet, game, touch, low: LOW, pvp: () => ctx.pvp(), sfx: ctx.sfx, updateHud: () => ctx.updateHud?.(), toast: (m2, ms) => toast(m2, ms), inventory: () => inventory, insideSafe: (x, z) => insideSafeZoneH(x, z), onFoot: () => on && onFoot })).then(x => { mm = x || null; try { api.mm = mm; } catch {} }).catch(e => console.warn('[money-makers]', e)); // [v349 money-makers] BANKSY t204u: bounties, coliseum, crates, diving / pots / mining, cottage rum
+  let mm = null; const mmReady=import('../island/moneyMakers/index.js').then(m => m.createMoneyMakers({ scene, world, layout, walker, pirate, battle, houses, fnet, game, touch, low: LOW, pvp: () => ctx.pvp(), sfx: ctx.sfx, updateHud: () => ctx.updateHud?.(), toast: (m2, ms) => toast(m2, ms), inventory: () => inventory, insideSafe: (x, z) => insideSafeZoneH(x, z), onFoot: () => on && onFoot })).then(x => { mm = x || null; try { api.mm = mm; } catch {} }).catch(e => console.warn('[money-makers]', e)); // [v349 money-makers] BANKSY t204u: bounties, coliseum, crates, diving / pots / mining, cottage rum
   let shipHull = null; try {
     shipHull = createShipHull({
       scene, world, walker, pirate, crewF, petF, fnet, camera, renderer, game,
@@ -866,5 +868,12 @@ export async function createDock(ctx) {
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
   harborExtras(on || viewing); // [v330] t1754u: the scene-level island pieces start hidden until the harbor world switches on
+  // Before main.js drops ROWING INTO THE HARBOR: no warm-up work in ship()/walker ticks.
+  if(!/[?&]gpuwarm=0(?:&|$)/.test(location.search))try{
+    await mmReady;
+    const hqWarm=(navigator.deviceMemory&&navigator.deviceMemory<=2)?{skipped:'low-memory'}:await pumpfun.prepare(renderer,scene);
+    const buildings=await warmBuildingGPU({renderer,scene,camera,roots:[world.root.getObjectByName('foot_coast'),world.root.getObjectByName('plaza_v2_shops'),world.root.getObjectByName('mm_money_makers')],textures:[LIB_U.uLib.value]});
+    api.gpuWarmup={hq:hqWarm,buildings};
+  }catch(e){console.warn('[harbor] GPU warm-up skipped',e.message);}
   return api;
 }

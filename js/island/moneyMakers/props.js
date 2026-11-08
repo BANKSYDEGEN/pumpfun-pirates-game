@@ -1,3 +1,4 @@
+import { batchShopFront } from './staticBatch.js';
 import { formatGoldAmount } from '../../goldFormat.js';
 // [v349 money-makers] procedural 3D props for the 5 island gold loops (no downloads): the WANTED board, the Coliseum Fight Master stand
 // + gong + bookie, smuggler crate stacks / buyers / the crate on your back, wreck chests + clams, crab pots, ore veins, spice plots,
@@ -69,11 +70,13 @@ export function fightMaster() {
   g.userData.gong = disc; return g;
 }
 // ---- 3. Smuggler crates ----
+let crateSkullMaterial = null;
 export function crateMesh(s = 1) {
   const g = new THREE.Group(); const b = box(0.9 * s, 0.62 * s, 0.62 * s, 0x8b5a2b); g.add(at(b, 0, 0.31 * s, 0));
   for (const x of [-0.42, 0.42]) g.add(at(box(0.07 * s, 0.66 * s, 0.66 * s, WOODD), x * s, 0.31 * s, 0));
   g.add(at(box(0.94 * s, 0.07 * s, 0.66 * s, IRON), 0, 0.31 * s, 0));
-  const skull = plane(0.34 * s, 0.34 * s, signTex([{ t: '☠', c: '#161616' }], { w: 64, h: 64, bg: '#c9a66b', border: '#8b5a2b' })); g.add(at(skull, 0, 0.36 * s, 0.315 * s)); return g;
+  crateSkullMaterial ||= new THREE.MeshBasicMaterial({map:signTex([{ t: '☠', c: '#161616' }], { w: 64, h: 64, bg: '#c9a66b', border: '#8b5a2b' }),side:THREE.DoubleSide});
+  const skull = new THREE.Mesh(new THREE.PlaneGeometry(0.34*s,0.34*s),crateSkullMaterial); g.add(at(skull, 0, 0.36 * s, 0.315 * s)); return g;
 }
 export function crateStack(label = 'SMUGGLER CRATES') {
   const g = new THREE.Group(); g.name = 'mm_crate_stack';
@@ -129,7 +132,7 @@ export function spicePlot() {
     const sp = cyl(0.015, 0.02, 0.32, 0x5fae3a, 4); st[1].add(at(sp, x, 0.38, z)); st[1].add(at(ball(0.08, 0x6cc04a, {}, 6), x, 0.55, z));
     const cane = cyl(0.04, 0.05, 1.25, 0x9cc25a, 6); st[2].add(at(cane, x - 0.12, 0.82, z)); st[2].add(at(box(0.5, 0.03, 0.12, 0x4f9a32), x - 0.12, 1.2, z));
     st[2].add(at(ball(0.11, i % 2 ? 0xd8322f : 0xf2a33a, {}, 6), x + 0.18, 0.42, z + 0.05)); }
-  st.forEach((s, i) => { s.visible = i === 0; g.add(s); });
+  st.forEach((s, i) => { batchShopFront(s); s.userData.batchDynamic = true; s.visible = i === 0; g.add(s); });
   const sign = plane(0.9, 0.36, signTex(['SPICE PLOT'], { w: 240, h: 96 })); g.add(at(box(0.07, 0.95, 0.07, WOODD), -1.5, 0.47, 0.95)); g.add(at(sign, -1.5, 0.95, 0.99));
   g.userData.setStage = (n) => st.forEach((s, i) => { s.visible = i === n; }); return g;
 }

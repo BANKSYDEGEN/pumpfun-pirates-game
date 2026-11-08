@@ -59,7 +59,7 @@ export function createMoneyMakers(ctx) {
   const api = createMMApi({ pvp: ctx.pvp, game, updateHud: ctx.updateHud, sfx });
   const ui = createMMUi();
   const G = (x, z) => world.ground(x, z);
-  const put = (o, x, z, ry = 0, y = null) => { o.position.set(x, y ?? G(x, z), z); o.rotation.y = ry; root.add(o); return o; };
+  const put = (o, x, z, ry = 0, y = null) => { o.position.set(x, y ?? G(x, z), z); o.rotation.y = ry; root.add(o); if(o.isGroup) batchShopFront(o); return o; };
   const myName = () => { try { return ctx.pvp?.()?.name || 'PIRATE'; } catch { return 'PIRATE'; } };
   const W = () => walker.w;
   const say = (m, ms = 2200) => toast?.(m, ms);

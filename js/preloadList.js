@@ -10,6 +10,7 @@ export const HARBOR_MODULES = [
   "js/dock/canoe.js",
   "js/dock/chestReveal.js",
   "js/dock/docking.js",
+  "js/dock/gpuWarmup.js",
   "js/dock/houses.js",
   "js/dock/houseStorage.js",
   "js/dock/index.js",

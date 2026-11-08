@@ -1,3 +1,4 @@
+import { batchShopFront } from '../island/moneyMakers/staticBatch.js';
 import { ageLabel, rowFlash } from './liveui.js';
 import { boardCanvas, boardTexture } from './boardtexture.js';
 import { MAIN_ROW_Y0, MAIN_ROW_H, boardRows } from './boardgrid.js';
@@ -17,9 +18,9 @@ export function buildParts(parts, low=false) {
 }
 const plaqueMaterials=new WeakMap();
 function plaque(group,url,w,h,x,y,z,yaw=0){let assets=plaqueMaterials.get(group);if(!assets){assets=new Map();plaqueMaterials.set(group,assets);}let material=assets.get(url);if(!material){const tex=new THREE.TextureLoader().load(url);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.minFilter=THREE.LinearMipmapLinearFilter;material=new THREE.MeshBasicMaterial({map:tex,toneMapped:false});assets.set(url,material);}const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);m.position.set(x,y,z);m.rotation.y=yaw;group.add(m);return m;}
-export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
+export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
- const panels=panelSlots(group,low);
+ const panels=panelSlots(group,low,deferPanels);
  const referral=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,-25.2,HQ.floor+5.5,-29.3);referral.userData.referral=true;
  const referral2=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,HQ.lx1+.7,HQ.floor+5.5,HQ.hillDoor.lz-6.7,Math.PI/2);referral2.userData.referral=true;   // [post-village v3] BANKSY: the same sign on the Hill Street side, Treasure Trader side of the door
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
@@ -29,7 +30,7 @@ export function buildHQ(low=false){const group=new THREE.Group();group.name='pum
  try{damask(group,low);}catch(e){console.warn('[pumpfun] damask skipped',e.message);}
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
  try{nightFill(group,low);}catch(e){console.warn('[pumpfun] night fill skipped',e.message);}
- return {group,board,referral,cv,tex,squadBoards,panels,dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
+ return {group,board,referral,cv,tex,squadBoards,panels,finalizePanels(){for(const m of panels){const f=m.userData.deferredPlaceholder;if(f&&m.material===m.userData.placeholderMat){m.material.dispose();m.material=f();m.userData.placeholderMat=m.material;}delete m.userData.deferredPlaceholder;}},dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
 // carved timber sign (casino style: dark mahogany, gilt incised letters): replaces the flat green bar; one shared canvas
 function carvedSign(low){const c=document.createElement('canvas');c.width=low?512:1024;c.height=c.width/8;const g=c.getContext('2d'),W=c.width,H=c.height;
  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#5a2a1a');gr.addColorStop(.5,'#3e1c10');gr.addColorStop(1,'#2a120a');g.fillStyle=gr;g.fillRect(0,0,W,H);
@@ -39,18 +40,17 @@ function carvedSign(low){const c=document.createElement('canvas');c.width=low?51
  g.fillStyle='#1a0a05';g.fillText('PUMPFUN PIRATES',W/2+H*.03,H*.55+H*.03);g.fillStyle='#e8b85a';g.fillText('PUMPFUN PIRATES',W/2,H*.55);
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return new THREE.MeshBasicMaterial({map:t,toneMapped:false});}
 // wall info-panel slots: one shared placeholder face; Emerly can swap mesh.material per slot later (userData.panelSlot = id)
-function panelSlots(group,low){const Y=HQ.floor+HQ_BOARD_BAND.y;
- // p3: each slot gets its own engraved placeholder face (dark lacquer, gilt title, ruled rows); Emerly swaps mesh.material per slot
- return HQ_PANELS.map((P,i)=>{const c=boardCanvas(512,Math.round(512*P.h/P.w),low);const g=c.getContext('2d'),W=c.width,H=c.height,k=W/512;
+function engravedPanel(P,i,low){const c=boardCanvas(512,Math.round(512*P.h/P.w),low);const g=c.getContext('2d'),W=c.width,H=c.height,k=W/512;
   const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#16261f');bg.addColorStop(1,'#0c1612');g.fillStyle=bg;g.fillRect(0,0,W,H);
   g.strokeStyle='rgba(217,164,65,.55)';g.lineWidth=2*k;g.strokeRect(14*k,14*k,W-28*k,H-28*k);g.strokeStyle='rgba(217,164,65,.25)';g.strokeRect(22*k,22*k,W-44*k,H-44*k);
   g.textAlign='center';g.textBaseline='middle';g.font=`bold ${Math.round(40*k)}px Georgia, "Times New Roman", serif`;g.fillStyle='#000';g.fillText(P.title,W/2+2*k,62*k+2*k);g.fillStyle='#e8b85a';g.fillText(P.title,W/2,62*k);
   g.fillStyle='rgba(217,164,65,.6)';g.fillRect(W*.2,92*k,W*.6,2*k);
   for(let r=0;r<5;r++){const y=122*k+r*52*k;g.fillStyle=r%2?'rgba(255,255,255,.035)':'rgba(255,255,255,.07)';g.fillRect(36*k,y,W-72*k,42*k);g.fillStyle='rgba(232,184,90,.75)';g.font=`${Math.round(22*k)}px Georgia, serif`;g.textAlign='left';g.fillText((r+1)+'.',48*k,y+21*k);g.fillStyle='rgba(200,210,200,.35)';g.fillRect(84*k,y+18*k,(W-200*k)*(.5+.4*((r*37+i*13)%10)/10),6*k);}
   g.textAlign='center';g.fillStyle='rgba(168,191,176,.8)';g.font=`italic ${Math.round(18*k)}px Georgia, serif`;g.fillText('PUMPFUN PIRATES · TOKEN HALL',W/2,H-34*k);
-  const t=boardTexture(c,low);const mat=new THREE.MeshBasicMaterial({map:t,toneMapped:false});
+  const t=boardTexture(c,low);return new THREE.MeshBasicMaterial({map:t,toneMapped:false});}
+function panelSlots(group,low,deferred=false){const Y=HQ.floor+HQ_BOARD_BAND.y;return HQ_PANELS.map((P,i)=>{const mat=deferred?new THREE.MeshBasicMaterial({color:0x0c1612,toneMapped:false}):engravedPanel(P,i,low);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(P.w,P.h),mat);m.position.set(P.lx+(P.face==='w'?-.14:P.face==='e'?.14:0),Y,P.lz+(P.face==='s'?-.14:0));
-  m.rotation.y=P.face==='w'?-Math.PI/2:P.face==='e'?Math.PI/2:Math.PI;m.userData.panelSlot=P.id;m.userData.placeholderMat=mat;m.name='hq_panel_'+P.id;group.add(m);return m;});}
+  m.rotation.y=P.face==='w'?-Math.PI/2:P.face==='e'?Math.PI/2:Math.PI;m.userData.panelSlot=P.id;m.userData.placeholderMat=mat;if(deferred)m.userData.deferredPlaceholder=()=>engravedPanel(P,i,low);m.name='hq_panel_'+P.id;group.add(m);return m;});}
 // p3 cloth: one fabric canvas per colourway (weave + folds + gilt fringe) carrying the REAL logo; gentle vertex sway, no lights
 let LOGO=null;function logo(low){return LOGO||(LOGO=new Promise(res=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>res(null);im.src='assets/pumpfun/flag_logo_'+(low?256:512)+'.webp';}));}
 function fabric(low,base,trim,withLogo,aspect,extra,fray){const c=document.createElement('canvas');c.width=low?128:256;c.height=Math.round(c.width*aspect);const g=c.getContext('2d'),W=c.width,H=c.height;
@@ -174,6 +174,7 @@ export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_s
   for(const [px,pz] of PET_LAMPS){pool(3.2,px-.05,F+2.8,pz,0,-Math.PI/2);pool(3,px-1.2,F+.05,pz,-Math.PI/2,0);}
   for(const s of [-1,1])pool(3,S.x1+.03,F+3.3,S.door.lz+s*(S.door.w/2+.75),0,Math.PI/2);
   const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(q=>q.dispose());m.renderOrder=2;g.add(m);}catch(e){console.warn('[pet store] pools skipped',e.message);}
+ batchShopFront(g); // opaque repeat signs only; instanced macaws, glass and glow stay intact
  g.userData.dispose=()=>g.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});
  return g;}
 // Main 24 m board: ten compact rows per column; pointer grid shared with boardgrid.js.

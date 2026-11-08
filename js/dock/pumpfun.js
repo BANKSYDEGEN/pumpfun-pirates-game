@@ -1,3 +1,4 @@
+import { warmBuildingGPU } from './gpuWarmup.js';
 import { boardRefreshDue, boardDataKey } from '../pumpfun/boardRefresh.js';
 import { ageLabel } from '../pumpfun/liveui.js';
 import { BOARD_ROWS, BOOST_STEP_MS, mainBoardRow, boardRows, compactBoards } from '../pumpfun/boardgrid.js';
@@ -16,6 +17,7 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
  // A distant, texture-free shell only; expensive detail, canvases, pets and keeper load near their respective rooms.
  const proxy=new THREE.Group(); // Shell is merged into the plaza stone kit, not a mismatched distant box.
 
+ let preloadedHQ=false;
  let mod=null,loading=null,hq=null,petDress=null,petLoad=null,petReady=false,birds=[],keeper=null,rev=-1,active=false,nearHQ=false,lastPet=0,nearPet=false,hqBoardAt=0;
  let petInView=true,petViewAt=0;const petViewSphere=new THREE.Sphere();
  let approachHQ=false,panel=null,uiRev=-1,dex=null,dexRev=-1,dexAt=0,walls=[],wallRev=-1,wallAt=0,solo=null,lastPos=null,lastAge=0;
@@ -28,7 +30,7 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
  const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let down=null;
  function localPoint(p){return w2t(...layout.harborToFoot(p.x,p.z));}
  function loadRender(){return loading||(loading=import('../pumpfun/render.js').then(m=>(mod=m)).catch(e=>{loading=null;console.warn('[pumpfun] render unavailable',e.message);}));}
- function dress(){if(hq||!mod)return;try{hq=mod.buildHQ(low);hqBoardAt=dexAt=0;root.add(hq.group);proxy.visible=false;try{dex=mod.attachDexPanel?.(hq,low,compact)||null;dexRev=-1;}catch(e){console.warn('[pumpfun] dex panel skipped',e.message);dex=null;}try{walls=mod.attachWallPanels?.(hq,low,compact)||[];wallRev=-1;}catch(e){console.warn('[pumpfun] wall boards skipped',e.message);walls=[];}}catch(e){console.warn('[pumpfun] hall detail unavailable',e.message);hq=null;mod=null;loading=Promise.resolve();}}
+ function dress(){if(hq||!mod)return;try{hq=mod.buildHQ(low,{deferPanels:true});hqBoardAt=dexAt=0;root.add(hq.group);proxy.visible=false;try{dex=mod.attachDexPanel?.(hq,low,compact)||null;dexRev=-1;}catch(e){console.warn('[pumpfun] dex panel skipped',e.message);dex=null;}try{walls=mod.attachWallPanels?.(hq,low,compact)||[];wallRev=-1;}catch(e){console.warn('[pumpfun] wall boards skipped',e.message);walls=[];}hq.finalizePanels?.();}catch(e){console.warn('[pumpfun] hall detail unavailable',e.message);hq=null;mod=null;loading=Promise.resolve();}}
  async function pets(){if(petLoad||petReady)return;petLoad=(async()=>{
   await loadRender();if(!mod)return;
   if(!petDress){petDress=mod.buildPetDress(low);root.add(petDress);petDress.updateWorldMatrix(true,true);new THREE.Box3().setFromObject(petDress).getBoundingSphere(petViewSphere);}
@@ -86,7 +88,8 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   uiRev=s.revision;lastAge=Math.floor(now/1000);if(focused){const b=[...panel.querySelectorAll('button')].find(b=>b.dataset.key===focused);b?.focus();}}
  function update(on,position,t){active=!!on&&!document.hidden;lastPos=position||null;const [lx,lz]=position?localPoint(position):[1e6,1e6];nearHQ=active&&hqDistance(lx,lz)<32;approachHQ=active&&hqDistance(lx,lz)<70;nearPet=active&&Math.hypot(lx-PET_SHOP.lx,lz-PET_SHOP.lz)<17;
   if(!active){close();if(hq)hq.group.visible=false;if(petDress)petDress.visible=false;for(const b of birds)b.visible=false;if(keeper)keeper.root.visible=false;return;}
-  const dist=hqDistance(lx,lz);if(hq&&dist>70){try{hq.dispose();}catch(e){}hq=null;rev=-1;dex=null;walls=[];}proxy.visible=dist>=40||!hq;if(dist<40&&!hq)loadRender().then(dress).catch(()=>{});if(hq){hq.group.visible=dist<40;
+  if(nearHQ)preloadedHQ=false;
+  const dist=hqDistance(lx,lz);if(hq&&dist>(preloadedHQ?180:70)){try{hq.dispose();}catch(e){}hq=null;rev=-1;dex=null;walls=[];}proxy.visible=dist>=40||!hq;if(dist<40&&!hq)loadRender().then(dress).catch(()=>{});if(hq){hq.group.visible=dist<40;
    const now=Date.now();if(nearHQ&&now-boardCheckAt>=250){boardCheckAt=now;camera.updateMatrixWorld();boardVP.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);boardFrustum.setFromProjectionMatrix(boardVP);const logos=mod?.logoRev?.()||0,revision=boardDataKey(marketFeed.state,'main',logos);
     if(boardVisible(hq.board)&&boardRefreshDue(rev,revision,hqBoardAt,now)){try{mod.drawHQBoard(hq.cv,marketFeed.state,now);hq.tex.needsUpdate=true;rev=revision;hqBoardAt=now;}catch(e){console.warn('[pumpfun] board draw',e.message);}}
     if(dex&&boardVisible(dex.mesh)&&boardRefreshDue(dexRev,boardDataKey(marketFeed.state,'dexpaid',logos),dexAt,now)){try{mod.drawDexPanel(dex.cv,marketFeed.state,now,compact);dex.tex.needsUpdate=true;dexRev=boardDataKey(marketFeed.state,'dexpaid',logos);dexAt=now;}catch(e){console.warn('[pumpfun] dex panel draw',e.message);dex=null;}}
@@ -105,5 +108,11 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   if(dm.includes(hit.object)){const i=hit.uv?mod.dexPanelRow(hit.uv):-1,entry=(marketFeed.state.dexpaid||[])[i];if(entry)openPump(entry.mint);else open();return;}
   if(hit.object===hq.referral||hit.object.userData.referral)openReferral();else if(hit.object.userData.pumpAction){const a=hit.object.userData.pumpAction;if(a==='squad')openSquad();else openLeaderboard(a==='daily_ranks');}else if(hit.uv){const x=hit.uv.x,y=1-hit.uv.y;const col=Math.min(2,Math.floor(x*3));if(y<.31)openPump(WATCH_TOKENS[Math.min(WATCH_TOKENS.length-1,Math.floor(x*WATCH_TOKENS.length))].ca);else{const key=['bonding','trending','callouts'][col],row=mainBoardRow(hit.uv),entry=boardRows(marketFeed.state,key,hqBoardAt)[row];if(entry&&row>=0&&row<BOARD_ROWS)openPump(entry.mint);else open();}}
  });
- return {update,open,close,get openNow(){return isOpen();},get near(){return nearHQ;},get approach(){return approachHQ;},root};
+ async function prepare(renderer,scene){await loadRender();dress();if(!hq)return null;preloadedHQ=true;hq.group.visible=false;
+  const now=Date.now(),logos=mod.logoRev?.()||0;try{mod.drawHQBoard(hq.cv,marketFeed.state,now);hq.tex.needsUpdate=true;rev=boardDataKey(marketFeed.state,'main',logos);hqBoardAt=now;}catch(e){}
+  if(dex)try{mod.drawDexPanel(dex.cv,marketFeed.state,now,compact);dex.tex.needsUpdate=true;dexRev=boardDataKey(marketFeed.state,'dexpaid',logos);dexAt=now;}catch(e){}
+  for(const w of walls)try{mod.drawWallPanel(w.cv,w.board,marketFeed.state,now,compact);w.tex.needsUpdate=true;w.rev=boardDataKey(marketFeed.state,w.board.key,logos);w.at=now;}catch(e){}
+  return warmBuildingGPU({renderer,scene,camera,roots:[hq.group],collectTextures:true});
+ }
+ return {prepare,update,open,close,get openNow(){return isOpen();},get near(){return nearHQ;},get approach(){return approachHQ;},root};
 }
