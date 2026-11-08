@@ -54,10 +54,13 @@ function fabric(low,base,trim,withLogo,aspect,extra,fray){const c=document.creat
   if(fray){g.globalCompositeOperation='destination-out';for(let y=0;y<H;y+=3){const d=(Math.sin(y*1.7)*.5+.5)*W*.03+Math.random()*W*.02;g.fillRect(W-d,y,d,3);}for(let x=0;x<W;x+=3){const d=Math.random()*H*.02;g.fillRect(x,H-d,3,d);}g.globalCompositeOperation='source-over';}
   t.needsUpdate=true;};
  paint(null);if(withLogo)logo(low).then(im=>{try{paint(im);}catch(e){}});
- const m=new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide,transparent:!!fray,alphaTest:fray?.5:0});const u={value:0};
- m.onBeforeCompile=sh=>{sh.uniforms.uT=u;sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float sw=uv.x*(1.0-uv.y*0.0); transformed.z+=sin(uT*1.7+uv.x*5.0+uv.y*3.0)*0.07*'+(fray?'uv.x':'(1.0-uv.y)')+';');};
+ const m=new THREE.MeshLambertMaterial({map:t,side:THREE.FrontSide,transparent:!!fray,alphaTest:fray?.5:0});const u={value:0};
+ m.onBeforeCompile=sh=>{sh.uniforms.uT=u;sh.vertexShader='uniform float uT;\nattribute vec2 aSw;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.z+=sin(uT*1.7+aSw.x*5.0+aSw.y*3.0)*0.07*'+(fray?'aSw.x':'(1.0-aSw.y)')+';');};
  m.userData.tick=u;extra.push(m);return m;}
-function swayMesh(geo,mat){const m=new THREE.Mesh(geo,mat);m.onBeforeRender=()=>{mat.userData.tick.value=performance.now()/1000;};return m;}
+// two sheets back to back (front-face only): the back sheet has mirrored U and reversed winding, so the logo reads correctly from BOTH sides
+function swayMesh(geo,mat){geo.setAttribute('aSw',geo.attributes.uv.clone());const back=geo.clone(),uv=back.attributes.uv;for(let i=0;i<uv.count;i++)uv.setX(i,1-uv.getX(i));
+ const ix=back.index.array;for(let i=0;i<ix.length;i+=3){const a=ix[i+1];ix[i+1]=ix[i+2];ix[i+2]=a;}back.computeVertexNormals();
+ const g=new THREE.Group(),f=new THREE.Mesh(geo,mat),b=new THREE.Mesh(back,mat);f.onBeforeRender=()=>{mat.userData.tick.value=performance.now()/1000;};g.add(f,b);return g;}
 function cloth(group,low,extra){const Y=HQ.floor,CEIL=Y+HQ.ceil,seg=low?2:6;
  const red=fabric(low,'#6e1a20','#d9a441',true,2.6,extra,false),green=fabric(low,'#173d2c','#d9a441',true,2.6,extra,false);
  for(const x of [-24.5,-12.5]) for(const [z,mt] of [[-44,red],[-52.5,green]]){const g=new THREE.PlaneGeometry(1.75,4.6,1,seg);g.translate(0,-2.3,0);const m=swayMesh(g,mt);m.position.set(x,CEIL-1.45,z);group.add(m);}
