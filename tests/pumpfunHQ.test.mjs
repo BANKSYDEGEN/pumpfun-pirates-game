@@ -87,8 +87,7 @@ test('p2: towers clear the Outfit Store eaves, every bench / prop is solid, walk
  const {OUTFIT_STORE}=await import('../js/island/outfitStore.js');const {HQ_PROPS}=await import('../js/pumpfun/site.js');
  const eave=OUTFIT_STORE.lx+OUTFIT_STORE.w/2;for(const t of HQ_TOWERS)assert.ok(t.lx-t.r-.6>eave+1.2,'tower under outfit eaves');
  for(const [k,x,z] of HQ_PROPS)assert.ok(HQ_WALLS.some(b=>inBox(b,x,z,0)),'no collider for '+k);
- assert.ok(HQ_PROPS.filter(p=>p[0]==='bench').length===2);
- for(const k of ['cannon','maptable','rack','treasure','rope'])assert.ok(HQ_PROPS.some(p=>p[0]===k),k);
+ for(const k of ['bench','cannon','maptable','rack','treasure','chest','rope'])assert.ok(!HQ_PROPS.some(p=>p[0]===k),k+' removed (walk up to the boards)');
  for(let lz=-26;lz>=-59;lz-=.25)assert.ok(!solidAt(-18.5,lz,.35),'aisle '+lz);
  for(let lx=-1;lx>=-18.5;lx-=.25)assert.ok(!solidAt(lx,HQ.hillDoor.lz,.35),'hill route '+lx);
  assert.match(src('js/pumpfun/render.js'),/const n=low\?256:512/); // damask <= 1024 px
@@ -105,4 +104,13 @@ test('p3: boards share one band, sit in clear wall bays, every board framed; fla
  const r=src('js/pumpfun/render.js');assert.match(r,/flag_logo_'\+\(low\?256:512\)\+'.webp/);assert.match(r,/userData.panelSlot=P.id/);assert.match(r,/function rugs/);
  for(const f of ['flag_logo_512.webp','flag_logo_256.webp'])assert.ok(readFileSync(new URL('../assets/pumpfun/'+f,import.meta.url)).length>1000);
  assert.ok(S.HQ_OUTWORKS.length===4);
+});
+
+test('p5: nothing blocks the floor in front of any board (BANKSY: walk up to the boards)',async()=>{
+ const S=await import('../js/pumpfun/site.js');const W=[...S.HQ_PROPS.map(([,x,z,w,d])=>[x,z,w,d])];
+ const hit=(x0,x1,z0,z1)=>W.some(([x,z,w,d])=>x+w/2>x0&&x-w/2<x1&&z+d/2>z0&&z-d/2<z1);
+ for(const b of [...S.HQ_PANELS,...S.HQ_SQUAD_BOARDS]){const h=b.w/2;
+  const r=b.face==='w'?[b.lx-1.6,b.lx,b.lz-h,b.lz+h]:b.face==='e'?[b.lx,b.lx+1.6,b.lz-h,b.lz+h]:[b.lx-h,b.lx+h,b.lz-1.6,b.lz];
+  assert.ok(!hit(...r),'blocked: '+b.id+b.file);}
+ assert.ok(!hit(S.HQ.board.lx-S.HQ.board.w/2,S.HQ.board.lx+S.HQ.board.w/2,-64.4,-57),'main board blocked');
 });

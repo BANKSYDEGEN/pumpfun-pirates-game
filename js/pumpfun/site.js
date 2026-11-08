@@ -7,15 +7,10 @@ export const HQ = Object.freeze({ id: 'pumpfun_hq', lx0: -33, lx1: -4, lz0: -65,
   dais: { lz0: -64.4, lz1: -59.6, rise: .4 }, board: { lx: -18.5, lz: -64.2, y: 8.53, w: 24, h: 6.2 } });
 export const HQ_TOWERS = Object.freeze([{ lx: -29.8, lz: -30.2, r: 2.0 }, { lx: -7.2, lz: -30.2, r: 2.0 }]);   // front gun towers (p2: pulled in clear of the Outfit Store eaves)
 // p2 pirate dressing, one table drives both the geometry (model.js) and the colliders: [kind, lx, lz, colliderW, colliderD]
+// BANKSY 12:45 AM "remove the tables on ground so can walk up to the boards": only corner stores remain, clear of every board front
 export const HQ_PROPS = Object.freeze([
-  ['bench', -30.5, -42, 1.3, 5.5], ['bench', -6.9, -56, 1.3, 5.5],
-  ['cannon', -27, -61.2, 1.5, 2.6], ['cannon', -10, -61.2, 1.5, 2.6],
-  ['maptable', -28.3, -52, 2.7, 1.9], ['maptable', -8.6, -37.6, 2.7, 1.9],
-  ['rack', -5.45, -37.6, .8, 3.2], ['rack', -5.45, -51.5, .8, 3.2], ['rack', -31.95, -58.0, .8, 3.2],
-  ['treasure', -14.4, -62.6, 1.9, 1.5], ['treasure', -22.6, -62.6, 1.9, 1.5], ['chest', -11.5, -62.5, 1.7, 1.2],
   ['barrels', -31.1, -31.6, 2.4, 1.3], ['barrels', -5.8, -31.6, 1.2, 1.3], ['barrels', -31.4, -63.5, 1.3, 1.3], ['barrels', -5.8, -63.5, 1.3, 1.3],
-  ['crates', -31.6, -33.1, 1.3, 1.8], ['crates', -5.8, -32.7, 1.2, 1.2], ['crates', -5.8, -62.4, 1.2, 1.2],
-  ['rope', -25.2, -59.0, 1.2, 1.2], ['rope', -11.8, -59.0, 1.2, 1.2],
+  ['crates', -31.6, -32.6, 1.3, 1.0], ['crates', -5.8, -32.5, 1.2, 1.0], ['crates', -5.8, -62.4, 1.2, 1.2],
 ]);
 export const HQ_PILLARS = Object.freeze([]);   // BANKSY 10:43 PM: no pillars; the roof spans on heavy trusses
 // Wall info-panel SLOTS (BANKSY 10:43 PM "more wall panels on the free walls"): framed in model.js, a placeholder face in render.js
