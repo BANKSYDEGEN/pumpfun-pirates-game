@@ -4,7 +4,7 @@ import { BOARD_ROWS, WALL_ROW_Y0, WALL_ROW_H, BOOST_STEP_MS, boardRows } from '.
 // one canvas each (1280x1024, 640x512 on phones), built lazily with the hall, redrawn on data change / once a minute, no lights.
 // Look: shared pirate board kit (boardkit.js, BANKSY t2275u "Work on board ui").
 import { WATCH_TOKENS } from './market.js';
-import { C, frame, banner, tokenRow, footer, emptyState, txt, rr, logo, pill, tapHint, usd, ago } from './boardkit.js';
+import { C, frame, banner, tokenRow, footer, emptyState, txt, rr, logo, pill, bar, tapHint, usd, ago } from './boardkit.js';
 const DEX_PANEL_ROWS = BOARD_ROWS, DEX_PANEL_ROW_Y0 = WALL_ROW_Y0, DEX_PANEL_ROW_H = WALL_ROW_H; // same row grid as dexpanel.js (logical 640x512)
 // slot -> board. rows(state, now) returns [{mint, imageUrl, symbol, spec}] from real feed rows only. east_1 is DEX JUST PAID (dexpanel.js).
 const R = (r, spec) => ({ mint: r.mint, imageUrl: r.imageUrl, symbol: r.symbol, name: r.symbol, spec: { name: r.symbol || r.mint.slice(0, 6), ...spec } });
@@ -15,11 +15,11 @@ export const WALL_BOARDS = Object.freeze([
    rows: (s, now) => boardRows(s, 'callouts', now).map(r => R(r, { midLabel: 'MC', mid: usd(r.cap), right: { text: '+' + (r.boost || r.amount) + ' boost · ' + ago(r.seenAt, now) } })) },
  { slot: 'east_3', key: 'migrated', icon: 'migrated', title: 'JUST MIGRATED', sub: 'pump.fun curves completed · PumpSwap · last 24h',
    rows: (s, now) => (s.migrated || []).map(r => R(r, { midLabel: 'MC', mid: usd(r.cap), right: { text: ago(r.createdAt, now) + ' ago', color: C.muted } })) },
- { slot: 'front_w', key: 'volume', icon: 'volume', title: 'VOLUME LEADERS', sub: 'Highest 24h volume · pump.fun tokens',
+ { slot: 'squad_ranks', key: 'volume', icon: 'volume', title: 'VOLUME LEADERS', sub: 'Highest 24h volume · pump.fun tokens',
    rows: s => (s.volume || []).map(r => R(r, { midLabel: 'VOL', mid: usd(r.volume), right: { pill: r.change } })) },
- // All six info slots are occupied: reuse the unconnected squad-rank plaque for SUNK, keeping squad join and daily ranks.
- { slot: 'squad_ranks', key: 'prices', icon: 'ours', title: '$SUNK', ours: ['SUNK'], rows: () => [] },
- { slot: 'front_e', key: 'prices', icon: 'ours', title: '$AHOY', ours: ['AHOY'], rows: () => [] },
+ // Dedicated tokens flank the front door; Volume Leaders uses the existing squad-rank plaque.
+ { slot: 'front_e', key: 'prices', icon: 'ours', title: '$SUNK', ours: ['SUNK'], rows: () => [] },
+ { slot: 'front_w', key: 'prices', icon: 'ours', title: '$AHOY', ours: ['AHOY'], rows: () => [] },
 ]);
 const price = v => v == null ? '—' : v >= 1 ? '$' + v.toFixed(2) : '$' + v.toPrecision(3);
 // 24 h hourly line: gradient fill, last-price dot, hi/lo + time axis labels
@@ -46,6 +46,12 @@ function drawOurs(g, board, state) { const W = 640;
   txt(g, p ? price(p.price) + (p.stale ? ' · old' : '') : state.status?.prices === 'Loading…' ? 'Loading…' : 'Feed offline', x1 - 12 - pw - 14, y0 + 33, 32, C.parch, 'right', 200);
   const stats = [['MC', usd(p?.cap)], ['HOLDERS', d?.holders != null ? Number(d.holders).toLocaleString('en-US') : '—'], ['LIQ', usd(p?.liquidity)], ['VOL 24H', usd(p?.volume)]], cw = (x1 - x0 - 24) / 4;
   stats.forEach(([k, v], j) => { const cx = x0 + 12 + cw * j + cw / 2; txt(g, k, cx, y0 + 68, 18, C.dim, 'center', cw - 8); txt(g, v, cx, y0 + 90, 28, '#ffe9b8', 'center', cw - 8); });
+  if (sym === 'SUNK' && !d?.bonded) {
+   const progress = d?.curveProgress;
+   txt(g, 'BONDING CURVE', x0 + 12, y0 + 116, 17, C.dim);
+   txt(g, progress == null ? '—' : '≈' + progress.toFixed(1) + '%', x1 - 12, y0 + 116, 22, C.gold, 'right', 94);
+   if (progress != null) bar(g, x0 + 155, y0 + 113, x1 - x0 - 270, 7, progress / 100);
+  }
   const c = (d?.chart || []).filter(x => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > 0), cy0 = y0 + 132, cy1 = y0 + 372;
   if (c.length >= 2) chart(g, c, x0 + 12, cy0, x1 - 12, cy1);
   else { g.fillStyle = 'rgba(0,0,0,0.35)'; rr(g, x0 + 12, cy0, x1 - x0 - 24, cy1 - cy0, 8); g.fill(); txt(g, d ? 'Chart feed offline' : 'Chart loading…', W / 2, (cy0 + cy1) / 2, 26, C.muted, 'center'); } }); }

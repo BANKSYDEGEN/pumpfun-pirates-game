@@ -61,7 +61,7 @@ test('trending keeps ten entries from one existing queued pool call',async()=>{
 });
 test('AHOY and SUNK occupy distinct existing board meshes, no added geometry or feed clients',()=>{
  const ours=WALL_BOARDS.filter(b=>b.ours);assert.equal(ours.length,2);
- assert.deepEqual(ours.map(b=>[b.slot,b.ours]),[['squad_ranks',['SUNK']],['front_e',['AHOY']]]);
+ assert.deepEqual(ours.map(b=>[b.slot,b.ours]),[['front_e',['SUNK']],['front_w',['AHOY']]]);
  for(const b of ours){const mint=wallPanelMint(b,{},uv(300));assert.ok(mint);assert.equal(wallPanelMint(b,{},uv(40)),null);}
  assert.notEqual(wallPanelMint(ours[0],{},uv(300)),wallPanelMint(ours[1],{},uv(300)));
  const code=readFileSync(new URL('../js/pumpfun/wallpanels.js',import.meta.url),'utf8');assert.match(code,/hq.squadBoards/);assert.doesNotMatch(code,/new THREE\.(Plane|Box)Geometry|fetch\(/);
@@ -78,7 +78,23 @@ test('attachment reuses seven existing meshes and releases replaced placeholder 
   const wall=attachWallPanels(hq,low),dex=attachDexPanel(hq,low);assert.equal(wall.length,6);assert.ok(dex);
   for(const b of [...wall,dex]){assert.equal(b.cv.width,low?640:1280);assert.equal(b.cv.height,low?512:1024);}
   assert.deepEqual([...hq.panels,...hq.squadBoards].map(m=>m.geometry),geometries);
-  assert.equal(wall.find(w=>w.board.ours?.[0]==='SUNK').mesh,hq.squadBoards[1]);
+  assert.equal(wall.find(w=>w.board.key==='volume').mesh,hq.squadBoards[1]);
+  assert.equal(wall.find(w=>w.board.ours?.[0]==='SUNK').mesh,hq.panels.find(m=>m.userData.panelSlot==='front_e'));
+  assert.equal(wall.find(w=>w.board.ours?.[0]==='AHOY').mesh,hq.panels.find(m=>m.userData.panelSlot==='front_w'));
   for(const m of [...hq.panels,...hq.squadBoards]){m.material.map?.dispose();m.material.dispose();m.geometry.dispose();}
  }}finally{if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;}
+});
+test('slot remap disposes old materials and maps, and disposes replaced maps again on reattachment',async()=>{
+ const {attachWallPanels}=await import('../js/pumpfun/wallpanels.js');
+ const {HQ_PANELS}=await import('../js/pumpfun/site.js');
+ const oldDocument=globalThis.document;globalThis.document={createElement:()=>({width:0,height:0})};
+ const disposed=[];
+ const mesh=()=>{const map=new THREE.Texture(),mat=new THREE.MeshBasicMaterial({map}),m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat);map.addEventListener('dispose',()=>disposed.push(map));mat.addEventListener('dispose',()=>disposed.push(mat));return m;};
+ try{
+  const hq={panels:HQ_PANELS.map(p=>{const m=mesh();m.userData.panelSlot=p.id;m.userData.placeholderMat=m.material;return m;}),squadBoards:[mesh()]};hq.squadBoards[0].userData.pumpAction='squad_ranks';
+  let wall=attachWallPanels(hq);assert.equal(wall.length,6);assert.equal(disposed.length,12);
+  const replaced=[];for(const w of wall){w.tex.addEventListener('dispose',()=>replaced.push(w.tex));w.mesh.material.addEventListener('dispose',()=>replaced.push(w.mesh.material));}
+  wall=attachWallPanels(hq);assert.equal(replaced.length,12);
+  for(const m of [...hq.panels,...hq.squadBoards]){m.material.map?.dispose();m.material.dispose();m.geometry.dispose();}
+ }finally{if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;}
 });

@@ -26,7 +26,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
  // ---- last good snapshot (memory + localStorage) ----
  try { const c = storage && JSON.parse(storage.getItem(CACHE_KEY) || 'null'), now = clock();
   if (c && typeof c === 'object') { for (const k of BOARD_KEYS) { const at = +c.updated?.[k]; if (Array.isArray(c[k]) && c[k].length && now - at < CACHE_MAX_AGE) { state[k] = c[k].filter(r => r && safeMint(r.mint)).slice(0, 20); if (state[k].length) { state.updated[k] = at; state.status[k] = 'Saved snapshot · refreshing'; } } }
-   for (const t of WATCH_TOKENS) { const p = c.prices?.[t.sym]; if (p && now - (+p.updated || 0) < CACHE_MAX_AGE && finite(p.price)) { state.prices[t.sym] = { ...p, stale: true }; state.updated.prices = Math.max(state.updated.prices || 0, +p.updated); } const d = c.details?.[t.sym]; if (d && now - (+d.updated || 0) < CACHE_MAX_AGE) state.details[t.sym] = d; }
+   for (const t of WATCH_TOKENS) { const p = c.prices?.[t.sym]; if (p && now - (+p.updated || 0) < CACHE_MAX_AGE && finite(p.price)) { state.prices[t.sym] = { ...p, stale: true }; state.updated.prices = Math.max(state.updated.prices || 0, +p.updated); } const d = c.details?.[t.sym]; if (d && now - (+d.updated || 0) < CACHE_MAX_AGE) state.details[t.sym] = d; else if (t.sym === 'SUNK' && d?.bonded === true) state.details[t.sym] = {bonded:true}; }
    if (state.updated.prices) state.status.prices = 'Saved snapshot · refreshing'; } } catch {}
  let saveAt = 0;
  function save(force = false) { if (!storage) return; const now = clock(); if (!force && now - saveAt < 15000) return; saveAt = now;
@@ -52,19 +52,21 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
  }catch{bad=true;if(state.prices[t.sym])state.prices[t.sym].stale=true;}}));
  if(!bad)state.updated.prices=clock();
  state.status.prices=bad?(Object.keys(state.prices).length?'Some prices failed · last good values marked stale':'Feed offline'):'DexScreener · 60s snapshots';state.revision++;save();}
+ let curveSnapshot = null;
  async function details(){const f=await import('./feeds.js');   // lazy: only after the main lists, lowest GT priority
   for(const sym of ['AHOY','SUNK']){try{if(busyP)await busyP.catch(()=>{});const t=WATCH_TOKENS.find(t=>t.sym===sym),old=state.details[sym]||{},fresh=old.holders!=null&&clock()-(old.holdersAt||0)<600000;
-   const d=await f.fetchTokenDetail(u=>get(u,8),t.ca,state.prices[sym]?.pair?.pairAddress,{skipHolders:fresh});
-   state.details[sym]={holders:d.holders??old.holders??null,holdersAt:d.holders!=null?clock():old.holdersAt||0,chart:d.chart.length?d.chart:(old.chart||[]),updated:d.holders!=null||d.chart.length?clock():old.updated||0};state.revision++;}catch{}}
+   const d=await f.fetchTokenDetail(u=>get(u,8),t.ca,state.prices[sym]?.pair?.pairAddress,{skipHolders:fresh,curve:sym==='SUNK'&&!old.bonded,curveSnapshot});
+   const bonded=old.bonded===true||d.curve?.bonded===true;
+   state.details[sym]={...(sym==='SUNK'?{bonded,curveProgress:bonded?null:d.curve?.progress??null}:{}),holders:d.holders??old.holders??null,holdersAt:d.holders!=null?clock():old.holdersAt||0,chart:d.chart.length?d.chart:(old.chart||[]),updated:d.holders!=null||d.chart.length?clock():old.updated||0};state.revision++;}catch{}}
   save(true);}
- async function discoveries(){let f=null;try{f=await import('./feeds.js');}catch{}   // load first so the main GT reads queue ahead of the rest
+ async function discoveries(){curveSnapshot=null;let f=null;try{f=await import('./feeds.js');}catch{}   // load first so the main GT reads queue ahead of the rest
  await Promise.all([
   // DEX JUST PAID (BANKSY 2026-11-07): verified paid DexScreener profiles, own 120s cache; lazy module, errors never escape.
   (async()=>{try{const d=await import('./dexpaid.js');const rows=await d.fetchDexJustPaid(),st=d.dexPaidFeed.state.status;if(rows.length||!/offline/i.test(st))good('dexpaid',rows,st);else failed('dexpaid');}catch{failed('dexpaid');}})(),
   // HQ wall boards (BANKSY t2262u): ONE pump-fun curve pools read + ONE PumpSwap read (+ new pools, soft) feed About to Bond, Volume Leaders and Just Migrated.
   (async()=>{try{const G=GT+'api/v2/networks/solana',q='?sort=h24_volume_usd_desc&include=base_token&page=1';
    const curveP=get(G+'/dexes/pump-fun/pools'+q,0),swapP=get(G+'/dexes/pumpswap/pools'+q,1).catch(()=>null),freshP=get(G+'/new_pools?include=base_token&page=1',3).catch(()=>null);
-   const publish=(curveJ,swapJ,freshJ)=>{const curve=[...f.parseCurvePools(curveJ),...f.parseCurvePools(freshJ)],swap=[...f.parseSwapPools(swapJ),...f.parseSwapPools(freshJ)],now=clock();
+   const publish=(curveJ,swapJ,freshJ)=>{for(const j of [curveJ,swapJ,freshJ]){const c=f.tokenCurveState(j,WATCH_TOKENS.find(t=>t.sym==='SUNK').ca);if(c&&(!curveSnapshot?.bonded||c.bonded))curveSnapshot=c;}const curve=[...f.parseCurvePools(curveJ),...f.parseCurvePools(freshJ)],swap=[...f.parseSwapPools(swapJ),...f.parseSwapPools(freshJ)],now=clock();
     const bonding=f.aboutToBond(curve),volume=f.volumeLeaders([...curve,...swap]),migrated=f.justMigrated([...curve,...swap],now);
     good('bonding',bonding,bonding.length?'GeckoTerminal pump.fun curve pools · ≈ progress from curve price':'No tokens 60–99% bonded in the top curve pools');
     good('volume',volume,volume.length?'GeckoTerminal · pump.fun curve + PumpSwap pools · 24h volume':'No pump.fun pools in this snapshot');

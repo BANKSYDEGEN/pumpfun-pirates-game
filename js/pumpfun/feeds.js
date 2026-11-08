@@ -44,9 +44,24 @@ export async function fetchPumpBoards(get, now = Date.now()) { const soft = u =>
   const [curveJ, swapJ, freshJ] = await Promise.all([get(GT + '/dexes/pump-fun/pools?sort=h24_volume_usd_desc&include=base_token&page=1'), soft(GT + '/dexes/pumpswap/pools?sort=h24_volume_usd_desc&include=base_token&page=1'), soft(GT + '/new_pools?include=base_token&page=1')]);
   const curve = parseCurvePools(curveJ), swap = [...parseSwapPools(swapJ), ...parseSwapPools(freshJ)], freshCurve = parseCurvePools(freshJ);
   return { bonding: aboutToBond([...curve, ...freshCurve]), volume: volumeLeaders([...curve, ...swap]), migrated: justMigrated([...curve, ...freshCurve, ...swap], now) }; }
+// Token-specific successful pools snapshots can establish disappearance; the global top-pools list cannot.
+export function tokenCurveState(j, mint, authoritative = false) {
+ if (!Array.isArray(j?.data)) return null;
+ const all = gtRows(j), tokenId = id => id === 'solana_' + mint || id === mint;
+ const rows = all.filter(({p,base}) => base?.address === mint || tokenId(p.relationships?.base_token?.data?.id) || tokenId(p.relationships?.quote_token?.data?.id));
+ if (j.data.length && (!rows.length || rows.every(({dex}) => !dex))) return null;
+ if (rows.some(({dex}) => /pumpswap|raydium/i.test(dex))) return {bonded:true,progress:null};
+ const curve = rows.find(({dex}) => dex === 'pump-fun');
+ if (!curve) return authoritative ? {bonded:true,progress:null} : null;
+ const a = curve.a, baseId = curve.p.relationships?.base_token?.data?.id;
+ const raw = (curve.base?.address === mint || tokenId(baseId)) && /\/ SOL$/.test(String(a.name || '')) ? curveProgress(a.base_token_price_native_currency) : null;
+ return {bonded:false,progress:raw == null ? null : Math.max(0,Math.min(100,raw))};
+}
 // OUR TOKENS detail: GeckoTerminal holder count (token info) + 24 hourly closes for the chart, from the token's main DexScreener pool.
-export async function fetchTokenDetail(get, mint, pool, { skipHolders = false } = {}) { const out = { holders: null, chart: [] };
+export async function fetchTokenDetail(get, mint, pool, { skipHolders = false, curve = false, curveSnapshot = null } = {}) { const out = { holders: null, chart: [] };
   await Promise.all([
+    (async () => { if (!curve) return; if (curveSnapshot) { out.curve = curveSnapshot; return; }
+      try { out.curve = tokenCurveState(await get(GT + '/tokens/' + mint + '/pools?include=base_token&page=1'), mint, true); } catch { out.curve = null; } })(),
     (async () => { if (skipHolders) return; try { const j = await get(GT + '/tokens/' + mint + '/info'); out.holders = finite(j?.data?.attributes?.holders?.count); } catch {} })(),
     (async () => { if (!safeMint(pool)) return; try { const j = await get(GT + '/pools/' + pool + '/ohlcv/hour?aggregate=1&limit=24&currency=usd');
       const list = j?.data?.attributes?.ohlcv_list; out.chart = (Array.isArray(list) ? list : []).map(c => [finite(c[0]), finite(c[4])]).filter(([t, c]) => t != null && c != null && c > 0).sort((a, b) => a[0] - b[0]); } catch {} })()]);
