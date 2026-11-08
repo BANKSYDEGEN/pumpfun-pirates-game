@@ -86,7 +86,7 @@ function hallFloor(group,low,extra){const cv=document.createElement('canvas'),N=
   const y=(i%2?.25:.75)*N;g.fillStyle='#3d2b1e';g.fillRect(x,y,w,Math.max(1,N/256));}
  const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=low?4:8;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;
  const w=HQ.lx1-HQ.lx0-1.55,d=HQ.lz1-HQ.lz0-1.16;t.repeat.set(w/4,d/4);
- const mat=new THREE.MeshLambertMaterial({map:t});extra.push(mat);
+ const mat=new THREE.MeshLambertMaterial({map:t,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.4});extra.push(mat);
  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);mesh.name='hq_floor_palette_preview';mesh.rotation.x=-Math.PI/2;mesh.position.set((HQ.lx0+HQ.lx1)/2-.2,HQ.floor+.034,(HQ.lz0+HQ.lz1)/2);group.add(mesh);}
 // p3 floor rugs: one 512 px medallion carpet canvas (256 on phones), Lambert, flat on the planks
 function rugs(group,low,extra){const c=document.createElement('canvas');c.width=low?256:512;c.height=c.width*.62;const g=c.getContext('2d'),W=c.width,H=c.height;
@@ -95,7 +95,7 @@ function rugs(group,low,extra){const c=document.createElement('canvas');c.width=
  for(let i=0;i<24;i++){const x=W*.06+i*W*.88/24;g.fillStyle=i%2?'#ffcd77':'#2c9f68';g.beginPath();g.moveTo(x,H*.1);g.lineTo(x+W*.018,H*.135);g.lineTo(x,H*.17);g.fill();g.beginPath();g.moveTo(x,H*.83);g.lineTo(x+W*.018,H*.865);g.lineTo(x,H*.9);g.fill();}
  g.save();g.translate(W/2,H/2);for(let r=4;r>0;r--){g.fillStyle=['#ffcd77','#161616','#2c9f68','#eee2be'][r%4];g.beginPath();for(let a=0;a<16;a++){const R=(a%2?.55:1)*H*.075*r;g.lineTo(Math.cos(a*Math.PI/8)*R*1.5,Math.sin(a*Math.PI/8)*R);}g.fill();}g.restore();
  for(const sx of [-1,1])for(const sy of [-1,1]){g.fillStyle='#ffcd77';g.beginPath();g.arc(W/2+sx*W*.33,H/2+sy*H*.24,H*.05,0,7);g.fill();}
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;const mat=new THREE.MeshLambertMaterial({map:t,polygonOffset:true,polygonOffsetFactor:-1});extra.push(mat);
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;const mat=new THREE.MeshLambertMaterial({map:t,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.4,polygonOffset:true,polygonOffsetFactor:-1});extra.push(mat);
  const Y=HQ.floor,geos=[];for(const [x,z,w,d,ry] of [[-26.5,-37.5,5.2,3.2,Math.PI/2],[-10.5,-37.5,5.2,3.2,Math.PI/2],[-28.3,-52,4.6,2.9,0],[-8.6,-52.6,4.6,2.9,0],[-26.5,-45.5,5.2,3.2,Math.PI/2],[-10.5,-46.8,4.2,2.6,0]]){const g2=new THREE.PlaneGeometry(w,d);g2.rotateX(-Math.PI/2);g2.rotateY(ry);g2.translate(x,Y+.045,z);geos.push(g2);}
  const m=new THREE.Mesh(mergeGeometries(geos),mat);geos.forEach(q=>q.dispose());group.add(m);}
 // [post-hq-castle] casino damask above the mahogany wainscot: ONE 256 px canvas pattern (128 on phones), lit Lambert, one merged mesh
@@ -125,12 +125,12 @@ function damask(group,low){const n=low?256:512,c=document.createElement('canvas'
 function glow(group,low){
  const flames=hqParts().filter(p=>p.glow);if(flames.length){const g=buildParts(flames.map(p=>({...p,detail:false})),false);g.traverse(o=>{if(o.material){const c=o.material.color;o.material.dispose();o.material=new THREE.MeshBasicMaterial({color:c,toneMapped:false});}});group.add(g);}
  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),r=x.createRadialGradient(64,64,2,64,64,64);
- r.addColorStop(0,'rgba(255,196,118,0.62)');r.addColorStop(.4,'rgba(255,156,66,0.24)');r.addColorStop(1,'rgba(255,140,50,0)');x.fillStyle=r;x.fillRect(0,0,128,128);
+ r.addColorStop(0,'rgba(248,241,225,0.12)');r.addColorStop(.4,'rgba(244,239,225,0.055)');r.addColorStop(1,'rgba(244,239,225,0)');x.fillStyle=r;x.fillRect(0,0,128,128);
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const Y=HQ.floor,geos=[];
  const pool=(w,px,py,pz,rx,ry)=>{const g=new THREE.PlaneGeometry(w,w);g.rotateX(rx);g.rotateY(ry);g.translate(px,py,pz);geos.push(g);};
- for(const z of HQ_CHANDELIERS){pool(11,-18.5,Y+.06,z,-Math.PI/2,0);pool(5,-18.5,Y+.07,z,-Math.PI/2,0);if(!low)pool(6,-18.5,Y+HQ.ceil-.02,z,Math.PI/2,0);}
- for(const [px,pz] of HQ_LANTERNS){const s=px<-18?1:-1,wx=s>0?-32.25:-5.15;pool(5,px,Y+.06,pz,-Math.PI/2,0);}   // BANKSY t339u: no glow patches on the wall boards
- pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
+ for(const z of HQ_CHANDELIERS){pool(11,-18.5,Y+.085,z,-Math.PI/2,0);if(!low)pool(6,-18.5,Y+HQ.ceil-.02,z,Math.PI/2,0);}
+ for(const [px,pz] of HQ_LANTERNS){const s=px<-18?1:-1,wx=s>0?-32.25:-5.15;pool(5,px,Y+.085,pz,-Math.PI/2,0);}   // BANKSY t339u: no glow patches on the wall boards
+ pool(10,HQ.board.lx,Y+HQ.dais.rise+.07,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
 // BANKSY t303u "make the inside light even at night": an interior-only warm fill (additive planes just inside the walls, floor and
 // ceiling, holes at both doorways). Opacity follows the sky's night amount every frame (onBeforeRender), so the hall reads like day
@@ -138,13 +138,14 @@ function glow(group,low){
 export const hqNightAmount=(p=skyPhase())=>{const e=sunElevation(p),t=Math.min(1,Math.max(0,(e+.05)/.3));return 1-t*t*(3-2*t);};
 function nightFill(group,low){const Y=HQ.floor,C=Y+HQ.ceil-.04,X0=HQ.lx0+.58,X1=HQ.lx1-.98,Z0=HQ.lz0+.58,Z1=HQ.lz1-.58,geos=[];
  const q=(w,h,x,y,z,rx,ry)=>{if(w<=0||h<=0)return;const g=new THREE.PlaneGeometry(w,h);g.rotateX(rx);g.rotateY(ry);g.translate(x,y,z);geos.push(g);};
- q(X1-X0,Z1-Z0,(X0+X1)/2,Y+.07,(Z0+Z1)/2,-Math.PI/2,0); q(X1-X0,Z1-Z0,(X0+X1)/2,C,(Z0+Z1)/2,Math.PI/2,0);
+ // Floor/rugs use texture-modulated neutral fill; no flat additive wash over their colours.
+ q(X1-X0,Z1-Z0,(X0+X1)/2,C,(Z0+Z1)/2,Math.PI/2,0);
  q(Z1-Z0,C-Y,X0,(Y+C)/2,(Z0+Z1)/2,0,Math.PI/2); q(X1-X0,C-Y,(X0+X1)/2,(Y+C)/2,Z0,0,0);
  const D=HQ.hillDoor,dz0=D.lz-D.w/2-.4,dz1=D.lz+D.w/2+.4,dt=Y+D.h+D.w/2+.5;   // east wall, hole for the Hill Street arch
  q(dz0-Z0,C-Y,X1,(Y+C)/2,(Z0+dz0)/2,0,-Math.PI/2); q(Z1-dz1,C-Y,X1,(Y+C)/2,(dz1+Z1)/2,0,-Math.PI/2); q(dz1-dz0,C-dt,X1,(dt+C)/2,D.lz,0,-Math.PI/2);
  const G=HQ.door,gx0=G.lx-G.w/2-.4,gx1=G.lx+G.w/2+.4,gt=Y+G.w/2+5.0;   // front wall, hole for the dock gate
  q(gx0-X0,C-Y,(X0+gx0)/2,(Y+C)/2,Z1,0,Math.PI); q(X1-gx1,C-Y,(gx1+X1)/2,(Y+C)/2,Z1,0,Math.PI); q(gx1-gx0,C-gt,G.lx,(gt+C)/2,Z1,0,Math.PI);
- const mat=new THREE.MeshBasicMaterial({color:0xffc58a,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1});
+ const mat=new THREE.MeshBasicMaterial({color:0xe7ecf2,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1});
  const m=new THREE.Mesh(mergeGeometries(geos),mat);geos.forEach(g=>g.dispose());m.name='hq_night_fill';m.renderOrder=1;m.frustumCulled=false;
  const peak=low?.2:.22;let at=0;m.onBeforeRender=()=>{const now=performance.now();if(now-at<500)return;at=now;mat.opacity=peak*hqNightAmount();};mat.opacity=peak*hqNightAmount();
  group.add(m);}
