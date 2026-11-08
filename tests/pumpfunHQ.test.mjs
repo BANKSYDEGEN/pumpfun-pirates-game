@@ -100,7 +100,7 @@ test('p3: boards share one band, sit in clear wall bays, every board framed; fla
  const byWall={};for(const P of all)(byWall[P.face+P.lx]??=[]).push(P);
  for(const L of Object.values(byWall)){const k=L[0].face==='s'?'lx':'lz';L.sort((a,b)=>a[k]-b[k]);for(let i=1;i<L.length;i++)assert.ok(L[i][k]-L[i-1][k]>(L[i].w+L[i-1].w)/2+1.2,'boards too close');}
  const D=HQ.hillDoor;for(const P of S.HQ_PANELS.filter(p=>p.face==='w'))assert.ok(Math.abs(P.lz-D.lz)>D.w/2+2.6+P.w/2,'board cut by door / leaves');
- for(const P of S.HQ_PANELS.filter(p=>p.face==='s'))assert.ok(Math.abs(P.lx-HQ.door.lx)-P.w/2-.36>HQ.door.w/2+1.95+.2,'board in the gate');
+ for(const P of S.HQ_PANELS.filter(p=>p.face==='s'))assert.ok(Math.abs(P.lx-HQ.door.lx)-P.w/2-.36>HQ.door.w/2+1.0,'board in the gate');
  assert.equal(new Set(S.HQ_PANELS.map(p=>p.title)).size,S.HQ_PANELS.length);assert.ok(!S.HQ_PANELS.some(p=>/BANKSYDEGEN/i.test(p.title)));
  const r=src('js/pumpfun/render.js');assert.match(r,/flag_logo_'\+\(low\?256:512\)\+'.webp/);assert.match(r,/userData.panelSlot=P.id/);assert.match(r,/function rugs/);
  for(const f of ['flag_logo_512.webp','flag_logo_256.webp'])assert.ok(readFileSync(new URL('../assets/pumpfun/'+f,import.meta.url)).length>1000);

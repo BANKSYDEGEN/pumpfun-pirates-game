@@ -24,7 +24,7 @@ export function hqParts() {
   // p2 gatehouse presence: projecting buttresses, a second deep outer arch ring + hood moulding, gilt skull keystone, iron-studded leaves
   for(const s of [-1,1]) { const bx=HQ.door.lx+s*3.6; B(bx,Y+4.6,Z1+.62,1.3,9.4,1.3,darkStone); B(bx,Y+9.45,Z1+.62,1.55,.35,1.55,darkStone); B(bx,Y+.7,Z1+.68,1.55,1.4,1.45,darkStone);
     B(bx,Y+10.0,Z1+.62,.9,.8,.9,stone); B(HQ.door.lx+s*(GR-.05),Y+2.4,Z1-.2,.12,4.6,1.0,iron,true);
-    B(HQ.door.lx+s*(GR+1.0),Y+3.1,Z1-.95,1.9,4.6,.12,wood,true); for(const y of [Y+1.4,Y+3.1,Y+4.8]) B(HQ.door.lx+s*(GR+1.0),y,Z1-1.03,1.9,.12,.05,iron,true); }
+    B(HQ.door.lx+s*(GR+.2),Y+3.1,Z1-.6-1.5,.14,6.0,2.9,wood,true); for(const y of [Y+1.0,Y+3.1,Y+5.2]) B(HQ.door.lx+s*(GR+.2)-s*.09,y,Z1-.6-1.5,.05,.14,2.9,iron,true); }   // gate leaves swung square to the wall
   for(let i=0;i<15;i++){const a=Math.PI*(i+.5)/15; B(HQ.door.lx+Math.cos(a)*(GR+.95),GS+Math.sin(a)*(GR+.95),Z1+.45,.95,.6,1.5,stone,false,{rz:a-Math.PI/2});}
   for(let i=0;i<17;i++){const a=Math.PI*(i+.5)/17; B(HQ.door.lx+Math.cos(a)*(GR+1.5),GS+Math.sin(a)*(GR+1.5),Z1+.55,.85,.22,1.25,darkStone,false,{rz:a-Math.PI/2});}
   for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(HQ.door.lx+Math.cos(a)*(GR+.05),GS+Math.sin(a)*(GR+.05),Z1-.2,.6,.15,1.2,darkStone,true,{rz:a-Math.PI/2});}   // arch soffit through the wall
