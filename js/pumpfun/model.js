@@ -24,21 +24,17 @@ export function hqParts() {
   for(const s of [-1,1]) B(HQ.door.lx+s*(GR+.3),Y+2.3,Z1+.05,.8,4.6,.8,darkStone);
   // p2 gatehouse presence: projecting buttresses, a second deep outer arch ring + hood moulding, gilt skull keystone, iron-studded leaves
   for(const s of [-1,1]) { const bx=HQ.door.lx+s*3.6; B(bx,Y+4.6,Z1+.62,1.3,9.4,1.3,darkStone); B(bx,Y+9.45,Z1+.62,1.55,.35,1.55,darkStone); B(bx,Y+.7,Z1+.68,1.55,1.4,1.45,darkStone);
-    B(bx,Y+10.0,Z1+.62,.9,.8,.9,stone); B(HQ.door.lx+s*(GR-.05),Y+2.4,Z1-.2,.12,4.6,1.0,iron,true);
-    B(HQ.door.lx+s*(GR+.2),Y+3.1,Z1-.6-1.5,.14,6.0,2.9,wood,true); for(const y of [Y+1.0,Y+3.1,Y+5.2]) B(HQ.door.lx+s*(GR+.2)-s*.09,y,Z1-.6-1.5,.05,.14,2.9,iron,true); }   // gate leaves swung square to the wall
+    B(bx,Y+10.0,Z1+.62,.9,.8,.9,stone); }   // BANKSY 12:47 AM: no doors, no portcullis: open stone archways
+
   for(let i=0;i<15;i++){const a=Math.PI*(i+.5)/15; B(HQ.door.lx+Math.cos(a)*(GR+.95),GS+Math.sin(a)*(GR+.95),Z1+.45,.95,.6,1.5,stone,false,{rz:a-Math.PI/2});}
   for(let i=0;i<17;i++){const a=Math.PI*(i+.5)/17; B(HQ.door.lx+Math.cos(a)*(GR+1.5),GS+Math.sin(a)*(GR+1.5),Z1+.55,.85,.22,1.25,darkStone,false,{rz:a-Math.PI/2});}
   for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(HQ.door.lx+Math.cos(a)*(GR+.05),GS+Math.sin(a)*(GR+.05),Z1-.2,.6,.15,1.2,darkStone,true,{rz:a-Math.PI/2});}   // arch soffit through the wall
   for(const s of [-1,1]) { const bx=HQ.door.lx+s*3.6; B(bx,Y+3.4,Z1+1.35,.12,.12,.4,iron,true); B(bx,Y+3.55,Z1+1.55,.12,.5,.12,wood,true); B(bx,Y+3.95,Z1+1.55,.22,.38,.22,flame,true,{glow:true}); }
   B(HQ.door.lx,GS+GR+.85,Z1+1.25,.95,1.15,.3,gold); B(HQ.door.lx,GS+GR+.95,Z1+1.42,.55,.5,.06,bone,true); B(HQ.door.lx,GS+GR+.6,Z1+1.42,.3,.14,.06,bone,true);
 
-  for(let i=-5;i<=5;i++){const x0=i*.5, yy=GS+Math.sqrt(Math.max(0,GR*GR-x0*x0))-.2; if(yy>Y+6.8)B(HQ.door.lx+x0,(yy+Y+6.7)/2,Z1-.05,.08,yy-Y-6.7,.08,iron,true);}
-  for(const y of [Y+6.85,Y+7.3]) B(HQ.door.lx,y,Z1-.05,2*Math.sqrt(GR*GR-(y-GS)**2)-.3,.08,.08,iron,true);
   // ---- Hill Street door (east wall): dressed jambs, lintel, iron-strapped timber leaves folded open inside ----
   { const R=HD.w/2;
     for(const s of [-1,1]) { const z=HD.lz+s*(R+.4); B(X1-.35,Y+HD.h/2,z,1.5,HD.h,.8,darkStone); B(X1+.25,Y+.5,z+s*.05,.5,1.0,1.0,darkStone); B(X1-.35,Y+HD.h+.12,z,1.6,.24,.95,darkStone);   // thick jambs, plinth, impost
-      for(const y of [Y+.8,Y+2.4,Y+4.0]) B(X1-1.2,y,HD.lz+s*(R+1.25),.05,.12,1.6,iron,true);
-      B(X1-1.12,Y+(HD.h+1.0)/2+.05,HD.lz+s*(R+1.25),.1,HD.h+1.0,1.65,wood,true);   // iron-strapped leaf, swung open flat to the inner wall
       B(X1+.25,Y+3.0,z+s*.85,.4,.12,.12,iron,true); B(X1+.48,Y+3.1,z+s*.85,.12,.5,.12,wood,true); B(X1+.48,Y+3.5,z+s*.85,.2,.35,.2,flame,true,{glow:true}); }   // street torches
     for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(X1-.3,Y+HD.h+Math.sin(a)*(R+.35),HD.lz+Math.cos(a)*(R+.35),1.4,.62,.62,darkStone,false,{rx:-(a-Math.PI/2)});}
     for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(X1+.05,Y+HD.h+Math.sin(a)*(R+.95),HD.lz+Math.cos(a)*(R+.95),.6,.22,.55,darkStone,false,{rx:-(a-Math.PI/2)});}
