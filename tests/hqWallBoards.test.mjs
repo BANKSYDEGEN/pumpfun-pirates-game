@@ -43,3 +43,17 @@ test('phone layout: ten tall rows fill the panel, taps map to the same rows, tap
  const kit=src('js/pumpfun/boardkit.js'),d=src('js/dock/pumpfun.js');
  for(const m of kit.slice(kit.indexOf('phone layout')).matchAll(/btxt\([^;]*?, (\d+), /g))assert.ok(+m[1]>=20,'phone canvas text >= 20 logical px: '+m[0]);
  assert.match(d,/if\(compact\)\{const wb2=walls\.find/);assert.match(d,/open\(wb2\.board\.key\)/);assert.match(d,/ph-solo/);});
+import {fetchNewPumpSwap,mergeMigrated} from '../js/pumpfun/feeds.js';
+test('Just Migrated: GT new_pools pages filtered to pumpswap/pump/SOL, merged with PumpPortal, newest first, top 10',async()=>{
+ const now=Date.parse('2026-11-08T16:30:00Z'),B='FpnKAi6g9vhaAx58QAL4CKtL2PCXPhqE17';
+ const pool=(i,dex,mint,quote='SOL')=>({id:'p'+i,attributes:{name:'T'+i+' / '+quote,pool_created_at:new Date(now-i*60000).toISOString()},relationships:{base_token:{data:{id:'t'+i}},dex:{data:{id:dex}}}});
+ const page=n=>({data:[0,1,2,3].map(k=>{const i=n*4+k;return pool(i,k===3?'raydium':'pumpswap',B+String(i).padStart(3,'x')+'pump',k===2&&n===0?'USDC':'SOL');}),included:[0,1,2,3].map(k=>{const i=n*4+k;return {id:'t'+i,attributes:{address:B+String(i).padStart(3,'x')+'pump',symbol:'S'+i}};})});
+ const urls=[];const rows=await fetchNewPumpSwap(async u=>{urls.push(u);const n=+u.split('page=')[1]-1;return page(n);});
+ assert.equal(rows.length,10);assert.ok(urls.length>1&&urls.every(u=>u.includes('/new_pools?')));assert.ok(rows.every(r=>r.venue==='pumpswap'&&r.mint.endsWith('pump')));
+ assert.ok(!rows.some(r=>r.symbol==='S2'||r.symbol==='S3'));
+ const portal=[{mint:B+'NEWpump',symbol:'LIVE',createdAt:now,source:'pumpportal'},{mint:rows[0].mint,symbol:rows[0].mint.slice(0,6),createdAt:now-1000,source:'pumpportal'}];
+ const m=mergeMigrated([portal,rows],now);assert.equal(m.length,10);assert.equal(m[0].symbol,'LIVE');assert.equal(m[1].symbol,rows[0].symbol);assert.equal(new Set(m.map(r=>r.mint)).size,10);
+ for(let i=1;i<m.length;i++)assert.ok(m[i-1].createdAt>=m[i].createdAt);
+ await assert.rejects(fetchNewPumpSwap(async()=>{throw Error('down');}));
+ assert.deepEqual(mergeMigrated([[{...rows[0],createdAt:now-2*86400000}]],now),[]);
+});

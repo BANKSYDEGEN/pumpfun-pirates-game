@@ -31,6 +31,19 @@ export const volumeLeaders = rows => uniq([...rows].filter(r => r.volume != null
 // JUST MIGRATED: pump.fun curves that completed (>= 99.5 % bonded) or new PumpSwap pools for pump.fun mints, opened in the last 24 h, newest first.
 export const MIGRATED_WINDOW_MS = 86400000;
 export const justMigrated = (rows, now = Date.now()) => uniq([...rows].filter(r => r.createdAt != null && now - r.createdAt >= 0 && now - r.createdAt < MIGRATED_WINDOW_MS && (r.venue === 'pumpswap' || r.progress >= BOND_MAX)).sort((x, y) => y.createdAt - x.createdAt)).slice(0, BOARD_ROWS);
+// JUST MIGRATED v2 (BANKSY t2326u "was last token to migrate 14 hours ago?"): the volume-sorted pool lists miss fresh graduations, so read
+// GeckoTerminal new_pools (newest first, all Solana dexes) page by page, keep PumpSwap pools of pump.fun mints quoted in SOL, stop at 10.
+export const MIGRATED_PAGES = 8;
+export async function fetchNewPumpSwap(get, { pages = MIGRATED_PAGES, want = BOARD_ROWS, stopBefore = 0 } = {}) { const out = []; let ok = 0;
+  for (let page = 1; page <= pages && uniq(out).length < want; page++) { let j; try { j = await get(GT + '/new_pools?include=base_token&page=' + page); ok++; } catch (e) { if (!ok) throw e; break; }
+    out.push(...parseSwapPools(j)); const rows = gtRows(j); if (!rows.length) break;
+    const oldest = Math.min(...rows.map(r => Date.parse(r.a.pool_created_at)).filter(Number.isFinite)); if (stopBefore && oldest < stopBefore) break; }
+  return uniq(out.sort((x, y) => y.createdAt - x.createdAt)).slice(0, want); }
+// Merge every migration source (GT new PumpSwap pools, live PumpPortal events, last good rows): newest per mint, last 24 h, top 10.
+export function mergeMigrated(lists, now = Date.now()) { const best = new Map();
+  for (const r of lists.flat()) { if (!r || !safeMint(r.mint) || r.createdAt == null || now - r.createdAt < -60000 || now - r.createdAt >= MIGRATED_WINDOW_MS) continue;
+    const o = best.get(r.mint); if (!o) best.set(r.mint, { ...r }); else { const m = { ...o, ...Object.fromEntries(Object.entries(r).filter(([, v]) => v != null)) }; m.createdAt = Math.max(o.createdAt, r.createdAt); if (o.source !== 'pumpportal' && o.symbol) { m.symbol = o.symbol; m.name = o.name; } best.set(r.mint, m); } }
+  return [...best.values()].sort((x, y) => y.createdAt - x.createdAt).slice(0, BOARD_ROWS); }
 // CALLOUT FEED: DexScreener token-boosts/latest is a stream of PAID boost events (newest first). Pump.fun mints only; first-seen time is ours.
 export function parseCallouts(j, seenAt = new Map(), now = Date.now()) { const out = [], dup = new Set();
   for (const t of Array.isArray(j) ? j : []) { if (t.chainId !== 'solana' || !safeMint(t.tokenAddress) || !t.tokenAddress.endsWith('pump')) continue;

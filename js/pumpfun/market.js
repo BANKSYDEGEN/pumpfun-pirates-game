@@ -23,13 +23,20 @@ const BOARD_KEYS = ['trending','callouts','bonding','dexpaid','migrated','volume
 const defaultStorage = () => { try { return globalThis.localStorage || null; } catch { return null; } };
 export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket}={}) {
  const state={prices:{},newtokens:[],trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{newtokens:'Connecting to PumpPortal near HQ…',prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
- let portalMigrated=false;
- const portal=makePortal({socket:portalSocket,clock,publish:(rows,status)=>{state.newtokens=rows.newtokens;state.status.newtokens=status;if(rows.newtokens.length)state.updated.newtokens=rows.newtokens[0].observedAt;if(rows.migrated.length){portalMigrated=true;state.migrated=rows.migrated;state.updated.migrated=rows.migrated[0].observedAt;state.status.migrated=status;}else if(portalMigrated){portalMigrated=false;state.migrated=[];state.status.migrated='Feed offline · waiting for migration events';}state.revision++;}});
+ // Just Migrated merges GT new PumpSwap pools + PumpPortal migration events (neither source blocks the other).
+ let gtMig=[],portalMig=[],gtMigOk=null,mergeMig=null;
+ const publishMig=()=>{if(!mergeMig)return;const rows=mergeMig([portalMig,gtMig],clock());
+  if(rows.length){state.migrated=rows;state.updated.migrated=clock();state.status.migrated=gtMigOk===false?'Refresh failed · showing last good snapshot':'GeckoTerminal new PumpSwap pools + live PumpPortal migrations';}
+  else if(gtMigOk===false&&!portalMig.length){state.migrated=[];state.status.migrated='Feed offline';}
+  else if(gtMigOk){state.migrated=[];state.status.migrated='No pump.fun migrations seen in the last 24h';}
+  state.revision++;};
+ const portal=makePortal({socket:portalSocket,clock,publish:(rows,status)=>{state.newtokens=rows.newtokens;state.status.newtokens=status;if(rows.newtokens.length)state.updated.newtokens=rows.newtokens[0].observedAt;if(rows.migrated.length)portalMig=rows.migrated;publishMig();}});
  let nextP=0,nextD=0,busyP=null,busyD=null,active=false,discovery=false;const controllers=new Set();
  // ---- last good snapshot (memory + localStorage) ----
  try { const c = storage && JSON.parse(storage.getItem(CACHE_KEY) || 'null'), now = clock();
   if (c && typeof c === 'object') { for (const k of BOARD_KEYS) { const at = +c.updated?.[k]; if (Array.isArray(c[k]) && c[k].length && now - at < CACHE_MAX_AGE) { state[k] = c[k].filter(r => r && safeMint(r.mint)).slice(0, 20); if (state[k].length) { state.updated[k] = at; state.status[k] = 'Saved snapshot · refreshing'; } } }
    for (const t of WATCH_TOKENS) { const p = c.prices?.[t.sym]; if (p && now - (+p.updated || 0) < CACHE_MAX_AGE && finite(p.price)) { state.prices[t.sym] = { ...p, stale: true }; state.updated.prices = Math.max(state.updated.prices || 0, +p.updated); } const d = c.details?.[t.sym]; if (d && now - (+d.updated || 0) < CACHE_MAX_AGE) state.details[t.sym] = d; else if (t.sym === 'SUNK' && d?.bonded === true) state.details[t.sym] = {bonded:true}; }
+   gtMig = state.migrated.slice();
    if (state.updated.prices) state.status.prices = 'Saved snapshot · refreshing'; } } catch {}
  let saveAt = 0;
  function save(force = false) { if (!storage) return; const now = clock(); if (!force && now - saveAt < 15000) return; saveAt = now;
@@ -68,16 +75,19 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   (async()=>{try{const d=await import('./dexpaid.js');const rows=await d.fetchDexJustPaid(),st=d.dexPaidFeed.state.status;if(rows.length||!/offline/i.test(st))good('dexpaid',rows,st);else failed('dexpaid');}catch{failed('dexpaid');}})(),
   // HQ wall boards (BANKSY t2262u): ONE pump-fun curve pools read + ONE PumpSwap read (+ new pools, soft) feed About to Bond, Volume Leaders and Just Migrated.
   (async()=>{try{const G=GT+'api/v2/networks/solana',q='?sort=h24_volume_usd_desc&include=base_token&page=1';
-   const curveP=get(G+'/dexes/pump-fun/pools'+q,0),swapP=get(G+'/dexes/pumpswap/pools'+q,1).catch(()=>null),freshP=get(G+'/new_pools?include=base_token&page=1',3).catch(()=>null);
+   const curveP=get(G+'/dexes/pump-fun/pools'+q,0),swapP=get(G+'/dexes/pumpswap/pools'+q,1).catch(()=>null),freshP=Promise.resolve(null);
    const publish=(curveJ,swapJ,freshJ)=>{for(const j of [curveJ,swapJ,freshJ]){const c=f.tokenCurveState(j,WATCH_TOKENS.find(t=>t.sym==='SUNK').ca);if(c&&(!curveSnapshot?.bonded||c.bonded))curveSnapshot=c;}const curve=[...f.parseCurvePools(curveJ),...f.parseCurvePools(freshJ)],swap=[...f.parseSwapPools(swapJ),...f.parseSwapPools(freshJ)],now=clock();
-    const bonding=f.aboutToBond(curve),volume=f.volumeLeaders([...curve,...swap]),migrated=f.justMigrated([...curve,...swap],now);
+    const bonding=f.aboutToBond(curve),volume=f.volumeLeaders([...curve,...swap]);if(swap.length){mergeMig=f.mergeMigrated;gtMig=f.mergeMigrated([gtMig,f.justMigrated(swap,now)],now);publishMig();}   // older PumpSwap pools only fill gaps; newest-first merge keeps fresh ones on top
+
     good('bonding',bonding,bonding.length?'GeckoTerminal pump.fun curve pools · ≈ progress from curve price':'No tokens 60–99% bonded in the top curve pools');
     good('volume',volume,volume.length?'GeckoTerminal · pump.fun curve + PumpSwap pools · 24h volume':'No pump.fun pools in this snapshot');
-    if(!portalMigrated&&(migrated.length||freshJ||!state.migrated.length))good('migrated',migrated,migrated.length?'Completed pump.fun curves + new PumpSwap pools · last 24h':'No pump.fun graduations seen in the last 24h');};
+   };
    const curveJ=await curveP;publish(curveJ,null,null);   // first paint the moment the main curve read lands
    const swapJ=await swapP;if(swapJ)publish(curveJ,swapJ,null);
-   const freshJ=await freshP;if(freshJ)publish(curveJ,swapJ,freshJ);
-  }catch{for(const k of ['bonding','volume','migrated'])if(k!=='migrated'||!portalMigrated)failed(k);}})(),
+  }catch{for(const k of ['bonding','volume'])failed(k);}})(),
+  // JUST MIGRATED: GT new_pools pages (shared queue), merged with PumpPortal events + last good rows.
+  (async()=>{try{if(!f)throw Error('no feeds');mergeMig=f.mergeMigrated;const newest=Math.max(0,...gtMig.filter(r=>r.venue==='pumpswap').map(r=>r.createdAt||0));
+   const rows=await f.fetchNewPumpSwap(u=>get(u,1),{stopBefore:newest});gtMigOk=true;gtMig=f.mergeMigrated([rows,gtMig],clock());}catch{gtMigOk=false;}publishMig();})(),
   (async()=>{try{const j=await get(GT+'api/v2/networks/solana/trending_pools?include=base_token',2);
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';
