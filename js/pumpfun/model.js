@@ -235,7 +235,7 @@ export function petShellParts() {
   B((I.lx0+I.lx1)/2,C-.5,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.3,.3,wood); B((I.lx0+I.lx1)/2,C-.66,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.04,.34,gold,true);
   return p;
 }
-// near-only detail (render.js buildPetDress): counter, shelves, aquarium tanks, bird cages, perches, kennels, rugs, chandeliers + flames
+// near-only detail (render.js buildPetDress): counter, shelves, parrot cages, play tree, perches, toy rack, rugs, chandeliers + flames
 export const PET_CHANDELIERS = [[-5.6,-114.78],[-10.6,-114.78]];
 export const PET_LAMPS = [];
 export function petParts() {
@@ -248,18 +248,38 @@ export function petParts() {
     if(k==='shelf'){ B(x,F+1.4,z,w,2.8,d,mahog); for(const y of [.55,1.15,1.75,2.35]) B(x+.32,F+y,z,.06,.06,d-.1,dark,true);
       for(let i=0;i<10;i++) for(const y of [.75,1.95]) Cy(x+.15,F+y,z-d/2+.4+i*(d-.8)/9,.13,.13,.34,8,['#c9a64a','#8a5a2b','#b5653a'][i%3],true);
       for(let i=0;i<5;i++) B(x+.15,F+1.37,z-d/2+.7+i*(d-1.4)/4,.4,.42,.55,straw,true); B(x+.28,F+3.4,z,.08,.9,d-.6,dark); B(x+.31,F+3.4,z,.04,1.0,d-.4,gold,true); }   // sign board (canvas in render.js)
-    if(k==='tank'){ B(x,F+.45,z,w,.9,d,mahog); B(x,F+.93,z,w+.1,.06,d+.1,dark); B(x,F+1.5,z,w-.1,1.05,d-.15,water,false,{glass:true}); B(x,F+1.02,z,w-.14,.08,d-.2,sand,true);
-      for(const s of [-1,1]) B(x+s*(w/2-.03),F+1.5,z,.06,1.1,d-.1,iron,true); B(x,F+2.06,z,w,.08,d-.05,iron,true);
-      for(let i=0;i<4;i++) B(x-.8+i*.5,F+1.25+((i*7)%3)*.2,z+(i%2?.12:-.1),.18,.08,.04,['#ff8a3c','#ffd23f','#ff5d8f','#7fe0ff'][i],true,{glow:true});
-      for(let i=0;i<3;i++) B(x-.6+i*.6,F+1.25,z-.05,.05,.35+.1*i,.05,green,true); }
     if(k==='cage'){ Cy(x,F+.4,z,.12,.2,.8,10,dark); Cy(x,F+.82,z,.45,.45,.06,16,gold); for(let i=0;i<12;i++){const a=i/12*Math.PI*2;B(x+Math.cos(a)*.42,F+1.35,z+Math.sin(a)*.42,.03,1.0,.03,gold,true);}
       Cy(x,F+1.9,z,.05,.46,.3,16,gold); Cy(x,F+2.15,z,.06,.06,.25,8,gold,true); B(x,F+1.2,z,.7,.03,.03,wood,true); }
     if(k==='perch'){ Cy(x,F+.05,z,.45,.5,.1,12,dark); Cy(x,F+1.0,z,.06,.07,1.9,8,wood); B(x,F+1.9,z,.08,.08,1.3,wood); B(x,F+1.55,z,.08,.08,.9,wood,false,{rx:Math.PI/2}); Cy(x,F+1.2,z+.35,.13,.1,.12,10,'#b5653a',true); }
-    if(k==='kennel'){ B(x,F+.55,z,w,1.1,d,wood); p.push({kind:'gable',x,y:F+1.1,z,w:w+.2,h:.6,d:d+.3,c:red,detail:false}); B(x+.01,F+.5,z+d/2+.01,.7,.8,.02,'#120a06'); for(let i=0;i<3;i++) B(x-w/2+.35+i*.65,F+.55,z+d/2+.02,.08,1.08,.04,dark,true);
-      B(x,F+1.25,z+d/2+.05,.9,.22,.04,gold,true); B(x+.55,F+.06,z+d/2+.4,.5,.1,.32,'#8a5a2b',true); }
+    if(k==='bigcage'){ B(x,F+.4,z,w,.8,d,mahog); B(x,F+.83,z,w+.1,.06,d+.1,dark); B(x,F+.88,z,w-.1,.04,d-.1,'#d8c38a',true);   // ornate dome cage on a mahogany stand
+      const nx=7,nz=6; for(let i=0;i<=nx;i++) for(const sz of [-1,1]) B(x-w/2+.08+i*(w-.16)/nx,F+1.65,z+sz*(d/2-.08),.03,1.5,.03,gold,true);
+      for(let i=1;i<nz;i++) for(const sx of [-1,1]) B(x+sx*(w/2-.08),F+1.65,z-d/2+.08+i*(d-.16)/nz,.03,1.5,.03,gold,true);
+      for(const y of [.92,1.6,2.38]) B(x,F+y,z,w-.1,.05,d-.1,gold,y===1.6); p.push({kind:'gable',x,y:F+2.4,z,w:w-.1,h:.55,d:d-.1,c:gold,detail:false}); Cy(x,F+3.05,z,.09,.05,.2,8,gold,true); Cy(x,F+3.2,z,.07,.07,.07,8,gold,true);
+      B(x,F+1.5,z,w-.3,.04,.04,wood,true); B(x,F+1.9,z+.2,.04,.04,d-.4,wood,true,{ry:Math.PI/2}); B(x-.4,F+1.05,z,.18,.1,.18,'#c58b3c',true); B(x+.45,F+2.05,z,.06,.35,.06,'#e84d2b',true); }
+    if(k==='tree'){ Cy(x,F+.15,z,.75,.8,.3,14,'#3a2418'); Cy(x,F+.31,z,.68,.68,.03,14,'#c9b087',true); Cy(x,F+1.4,z,.11,.16,2.2,8,'#6b4a2f');   // parrot play tree
+      for(const [y,ry,L] of [[1.1,0,1.3],[1.6,1.1,1.1],[2.1,2.3,1.2],[2.45,.5,.9]]) B(x,F+y,z,L,.07,.07,'#7a5636',false,{ry}); Cy(x,F+2.55,z,.3,.3,.04,12,'#7a5636',true);
+      for(const [dx,dz,c] of [[.5,.1,'#e84d2b'],[-.45,-.2,'#2a6fd8'],[.15,.4,'#f2c230']]){ B(x+dx,F+.95,z+dz,.02,.25,.02,iron,true); B(x+dx,F+.78,z+dz,.1,.1,.1,c,true); } }
+    if(k==='toyrack'){ B(x,F+1.2,z+.2,w,2.4,.08,wood); B(x,F+.3,z,w,.6,d,mahog); B(x,F+.62,z,w+.06,.05,d+.06,dark);   // cuttlebone + toy rack against the north wall
+      for(const y of [1.1,1.65,2.2]) B(x,F+y,z+.05,w-.1,.05,.3,dark,true);
+      for(let i=0;i<6;i++){ const tx=x-w/2+.25+i*(w-.5)/5; B(tx,F+1.3,z+.08,.09,.32,.03,'#efe6cf',true); B(tx,F+1.85,z+.05,.13,.13,.13,['#e84d2b','#2a6fd8','#f2c230','#2ea84a','#9b4dd8','#ff8a3c'][i],true); Cy(tx,F+2.35,z+.05,.08,.08,.22,8,['#c9a64a','#b5653a'][i%2],true); }
+      for(let i=0;i<4;i++) B(x-.75+i*.5,F+.85,z-.05,.36,.42,.3,['#c9b087','#d6c29a'][i%2],true); }
+    if(k==='stand'){ Cy(x,F+.05,z,.3,.32,.1,12,dark); Cy(x,F+.8,z,.05,.06,1.5,8,wood); B(x,F+1.55,z,.06,.06,.7,wood); B(x,F+1.5,z+.3,.12,.06,.12,'#c58b3c',true); }
+  }
+  const parrot=(x,y,z,ry,c,c2)=>{ const cs=Math.cos(ry),sn=Math.sin(ry),P=(f,u)=>[x+cs*f,z-sn*f];
+    Cy(x,y+.17,z,.075,.09,.26,8,c,true,{rx:0}); const [hx,hz]=P(.03); B(hx,y+.35,hz,.12,.12,.12,c,true,{ry}); const [bx,bz]=P(.1); B(bx,y+.33,bz,.06,.06,.05,'#f2d24a',true,{ry,rz:-.4});
+    for(const s of [-1,1]){const wx=x+sn*s*.08,wz=z+cs*s*.08; B(wx,y+.18,wz,.05,.22,.12,c2,true,{ry});}
+    const [tx,tz]=P(-.08); B(tx,y-.04,tz,.05,.3,.08,c2,true,{ry,rz:.35}); B(hx-cs*-.0,y+.38,hz,.035,.035,.125,'#fff2d0',true,{ry}); };
+  const pc=[['#d8262a','#2a6fd8'],['#2ea84a','#f2c230'],['#2a6fd8','#f2d24a'],['#f2c230','#2ea84a']];
+  for(const [k,x,z,w,d] of PET_PROPS){ const i=Math.abs(Math.round(z))%4;
+    if(k==='perch'){ parrot(x,F+1.94,z-.35,0,...pc[i]); parrot(x,F+1.94,z+.35,Math.PI,...pc[(i+1)%4]); parrot(x,F+1.59,z,Math.PI/2,...pc[(i+2)%4]); }
+    if(k==='bigcage'){ parrot(x-.25,F+1.54,z,Math.PI*.3,...pc[i]); parrot(x+.3,F+1.94,z+.2,-Math.PI*.4,...pc[(i+2)%4]); }
+    if(k==='tree'){ parrot(x+.5,F+1.14,z,Math.PI/2,...pc[i]); parrot(x-.3,F+1.64,z+.2,0,...pc[(i+1)%4]); parrot(x+.2,F+2.14,z-.3,Math.PI,...pc[(i+3)%4]); }
+    if(k==='stand') parrot(x,F+1.59,z-.15,-Math.PI/2,...pc[(i+1)%4]);
+    if(k==='cage') parrot(x,F+1.22,z,Math.PI*.7,...pc[(i+3)%4]);
+    if(k==='counter'){ Cy(x,F+1.3,z-.4,.16,.16,.28,12,'#d6c29a',true); Cy(x,F+1.46,z-.4,.17,.17,.05,12,'#7a1d22',true); B(x,F+1.2,z+.5,.5,.06,.3,'#7a5636',true); }   // seed tin + perch tray
+    if(k==='sacks') for(let j=0;j<3;j++){ const sx=x+(j%2?.2:-.2)*(w/.9),sz=z+(j-1)*.22,top=j===2; Cy(sx,F+(top?.85:.32),sz-(top?.22:0),.26,.3,.62,10,['#c9b087','#b89a6a','#d6c29a'][j]); Cy(sx,F+(top?1.2:.67),sz-(top?.22:0),.1,.22,.12,8,'#a68a5a',true); B(sx+.27,F+(top?.85:.32),sz-(top?.22:0),.02,.24,.3,['#7a1d22','#2e6b55','#1d2a3f'][j],true); }
   }
   // rugs, hanging bird hoops, wall lamps, chandeliers (iron ring + candles + flames = glow parts, painted pools in render.js)
-  B(-6.6,F+.02,-114.06,6.4,.03,3.2,red); B(-6.6,F+.03,-114.06,6.0,.03,2.8,'#1d2a3f',true); B(-6.6,F+.04,-114.06,5.5,.03,2.3,red,true);
   for(const [x,z] of [[-5.2,-117.2],[-8.2,-117.4],[-5.2,-111.0+.1]]) { B(x,C-1.2,z,.03,2.4,.03,iron,true); Cy(x,C-2.5,z,.4,.4,.04,16,gold,true,{rx:Math.PI/2}); B(x,C-2.85,z,.6,.04,.04,wood,true); }
   for(const [x,z] of PET_CHANDELIERS){ B(x,C-.9,z,.05,1.8,.05,iron,true); Cy(x,C-1.85,z,.95,.95,.08,18,iron); Cy(x,C-1.6,z,.15,.15,.5,8,iron,true);
     for(let i=0;i<8;i++){const a=i/8*Math.PI*2,cx=x+Math.cos(a)*.95,cz=z+Math.sin(a)*.95; B(cx,C-1.72,cz,.08,.24,.08,candle,true,{glow:true}); B(cx,C-1.53,cz,.06,.14,.06,flame,true,{glow:true});} }

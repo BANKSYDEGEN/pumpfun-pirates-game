@@ -83,7 +83,7 @@ export function bigShop({ x, y, wz, yaw, lx, z, addBox, addCirc }) {
 // eased back to the terrain over 2.5 m outside it (foot.js terrain, coast mode; static flags only: the terrain is built before the GLBs load)
 const SQ_GROUND_ON = HILL_GLB_ON && BIG_SHOP_ON && !!SQUAD_HALL;
 export function hallGround(lx, lz, h) {
-  if (PET_REWORK_HILL && lx >= PET_STORE.x0 - 2.5 && lx <= PET_STORE.x1 - .3 && lz >= PET_STORE.z0 - 2.6 && lz <= PET_STORE.z1 + 1.6) h = Math.min(h, PET_STORE.floor - .1);   // [post-petstore] no terrain through the pet store's plank floor
+  if (PET_REWORK_HILL && lx >= PET_STORE.x0 - 2.5 && (lx <= PET_STORE.x1 - .3 || (lx <= PET_STORE.x1 + .15 && Math.abs(lz - PET_STORE.door.lz) < PET_STORE.door.w / 2 + .6)) && lz >= PET_STORE.z0 - 2.6 && lz <= PET_STORE.z1 + 1.6) h = Math.min(h, PET_STORE.floor - .1);   // [post-petstore] no terrain through the pet store's plank floor
   if (!SQ_GROUND_ON) return h; const R = SQUAD_HALL.rect, dx = Math.max(R.lx0 - 0.6 - lx, 0, lx - R.lx1 - 0.6), dz = Math.max(R.lz0 - 0.6 - lz, 0, lz - R.lz1 - 0.6), dd = Math.hypot(dx, dz);
   if (dd >= 2.5) return h; const t = 1 - dd / 2.5, k = t * t * (3 - 2 * t), ys = 3.0 + Math.max(0, -lz - 50) * 0.11; return h + (ys - h) * k;
 }

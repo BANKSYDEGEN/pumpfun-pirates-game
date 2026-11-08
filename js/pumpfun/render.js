@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS } from './model.js';
 import { HQ, PET_LOT, PET_STORE, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 import { WATCH_TOKENS } from './market.js';
+import { petLook } from './petlook.js';
 import { C, frame, icon, txt, rr, rowBg, logo as tokenLogoDot, pill, bar, tapHint, withUpdated, usd } from './boardkit.js';
 export function buildParts(parts, low=false) {
  const group=new THREE.Group(),bins=new Map();
@@ -117,7 +118,7 @@ function glow(group,low){
  for(const [px,pz] of HQ_TORCHES){const s=px<-18?1:-1;pool(4.2,px+s*.03,Y+3.4,pz,0,s*Math.PI/2);pool(4,px+s*1.6,Y+.05,pz,-Math.PI/2,0);}
  pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
-// [post-petstore] near-only pet store detail: props (boxes / cylinders / gables, rotations), unlit flames, glass tanks, carved signs, painted
+// [post-petstore] near-only pet store detail: props (boxes / cylinders / gables, rotations), unlit flames, carved signs, petlook.js textures, painted
 // light pools (one 128 px gradient, additive, no lights). The shell is in the plaza kit (model.js petShellParts).
 export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_store_L4_dress';const bins=new Map(),S=PET_STORE,F=S.floor;
  for(const p of petParts()){if(p.detail&&low&&!p.glow)continue;let geo;
@@ -130,6 +131,7 @@ export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_s
  for(const [key,geos] of bins){const geo=mergeGeometries(geos);geos.forEach(q=>q.dispose());const c=key.slice(1);
   const mat=key[0]==='G'?new THREE.MeshBasicMaterial({color:c,toneMapped:false}):key[0]==='T'?new THREE.MeshLambertMaterial({color:c,transparent:true,opacity:.5,depthWrite:false,emissive:0x0b3a48}):new THREE.MeshLambertMaterial({color:c});
   const m=new THREE.Mesh(geo,mat);if(key[0]==='T')m.renderOrder=1;g.add(m);}
+ try{petLook(g,low);}catch(e){console.warn('[pet store] look skipped',e.message);}
  plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.8,.95,S.x1+.21,F+5.45,S.door.lz,Math.PI/2);   // over the arch
  const hs=PET_LOT.doorY+3.6;plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.73,0);plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.67,Math.PI);   // hanging bracket sign
  plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.4,.85,-15.0,F+3.4,S.door.lz,Math.PI/2);   // board over the shelves behind the counter

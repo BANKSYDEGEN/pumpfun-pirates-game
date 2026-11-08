@@ -41,14 +41,15 @@ export const PET_STORE = Object.freeze({ x0: -16.2, x1: -1.75, z0: -119.15, z1: 
   I: Object.freeze({ lx0: -15.7, lx1: -2.25, lz0: -118.65, lz1: -110.9 }) });
 export const PET_SHOP = Object.freeze({ id: 'shop_pets', name: 'PET STORE', lot: PET_LOT.lot, vendor: 'pets',
   lx: -9.4, lz: PET_LOT.door.lz, r: 2.4, keeper: { lx: -12.6, lz: PET_LOT.door.lz }, birds: { lx: -6.2, lz: -117.0 } });
-// props (all solid): [kind, lx, lz, w(x), d(z)] - nothing between the door and the counter (lz -115.7 .. -112.4 stays open)
+// [BANKSY: parrots only] props (all solid): [kind, lx, lz, w(x), d(z)] - nothing between the door and the counter (lz -115.7 .. -112.4 stays open)
 export const PET_PROPS = Object.freeze([
   ['counter', -11.3, -114.06, 1.0, 5.6],
   ['shelf', -15.35, -114.06, .6, 6.4],
-  ['tank', -4.2, -118.15, 2.4, 1.0], ['tank', -7.3, -118.15, 2.4, 1.0],
+  ['bigcage', -4.2, -118.0, 1.6, 1.3], ['tree', -7.3, -118.0, 1.6, 1.3],
   ['cage', -10.0, -117.9, 1.1, 1.1], ['perch', -13.4, -117.6, 1.2, 1.2],
-  ['kennel', -4.3, -111.6, 2.0, 1.4], ['kennel', -7.0, -111.6, 2.0, 1.4],
+  ['toyrack', -4.3, -111.35, 2.0, .7], ['bigcage', -7.0, -111.6, 1.6, 1.3],
   ['cage', -10.0, -111.6, 1.1, 1.1], ['perch', -13.4, -111.5, 1.2, 1.2],
+  ['stand', -8.9, -111.4, .6, .6], ['sacks', -11.7, -118.2, .9, .8], ['sacks', -15.2, -118.2, .8, .8],
 ]);
 // walls (colliders, town lx/lz centre + size): back, two sides, the front split by the 3.2 m arched doorway
 export const PET_WALLS = (() => { const S = PET_STORE, cz = (S.z0 + S.z1) / 2, L = S.x1 - S.x0, cx = (S.x0 + S.x1) / 2, dz0 = S.door.lz - S.door.w / 2, dz1 = S.door.lz + S.door.w / 2, fx = S.x1 - S.wall / 2;
