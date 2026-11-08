@@ -1546,7 +1546,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
       for (const [d, t] of near) { const v = Math.floor(t[3] * 37) % 3, b = all ? bl[bl.length - 1] : bl.find(b => d >= b.r0 && d < b.r1 && (b.v < 0 || b.v === v) && b.n < b.cap); if (!b || b.n >= b.cap) continue;
         const thin = FARTREE && !all && k === 'trees' && d > 165; if (thin && Math.floor(t[3] * 9973) % 2) continue;   // [perf6] &fartree=0: past 165 m every other tree (the kept ones 20% bigger), the far tree mesh was 115k tris
         const s = (SC[k][0] + t[3] * SC[k][1]) * (thin ? 1.2 : 1), tall = k === 'cliffs' ? 1.0 + t[3] * 0.6 : k === 'trees' ? 0.9 + t[3] * 0.3 : 0.9 + t[3] * 0.4;
-        _q.setFromAxisAngle(_up, t[3] * 40); _s.set(s, s * tall, s); _p.set(t[0], t[1] - (k === 'rocks' ? 0.45 * s : k === 'cliffs' ? 0.9 * s : 0.3), t[2]); _m.compose(_p, _q, _s); b.m.setMatrixAt(b.n++, _m); } }
+        _q.setFromAxisAngle(_up, t[3] * 40); _s.set(s, s * tall, s); _p.set(t[0], H(t[0], t[2]) - (k === 'rocks' ? 0.45 * s : k === 'cliffs' ? 0.9 * s : 0.3), t[2]); _m.compose(_p, _q, _s); b.m.setMatrixAt(b.n++, _m); } }
     for (const b of BUCKETS) { b.m.count = b.n; b.m.instanceMatrix.needsUpdate = true; } }
   // grass + flowers (instanced, a ring round the camera)
   const gg = grassGeos(), gMat = grassMaterial(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide }), uTime);
@@ -1576,8 +1576,14 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const areas = createAreas({ root, MATS, OUT, low, uTime, H }); // [island-rework] lazy area meshes
   let lastP = new THREE.Vector3(1e9, 0, 0), lastG = new THREE.Vector3(1e9, 0, 0), allDone = false; const GROUP_R = low ? 260 : 900;
   const lightPick = new THREE.Vector3();
+  let foliageTerrainRev = TERRAIN.rev;
   function update(cam, t, opts = {}) {
     const all = !!opts.all;
+    // Ground edits can arrive after construction, or while the camera stands still.
+    if (foliageTerrainRev !== TERRAIN.rev) {
+      foliageTerrainRev = TERRAIN.rev;
+      lastP.set(1e9, 0, 0); lastG.set(1e9, 0, 0); allDone = false;
+    }
     for (const c of chunks) { const d = Math.hypot(c.cx - cam.x, c.cz - cam.z) - 160;
       if (!all && d > VIEW_R) { c.mesh.visible = false; continue; }
       let lv = all ? 4 : LODS[0][1]; if (!all) for (const [r, s] of LODS) if (d >= r) lv = s;

@@ -94,21 +94,38 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     g.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(g); g.traverse(o => { if (o.isMesh) parts.push(o); });
     ty = { t, P, box, parts, meshes: [], ids: [], cap: 0 }; TYPES.set(t, ty); return ty; }
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
+  const groundSeated = new Set(['tree', 'palm', 'rock', 'lamp', 'lantern']);
+  // Runtime-only seating: do not rewrite the owner's saved transforms or terrain.
+  const seated = (ty, r) => groundSeated.has(ty.P.id) ? { ...r, y: H(r.x, r.z) } : r;
   function redraw(ty) { if (ty.ids.length > ty.cap) { for (const m of ty.meshes) { placeRoot.remove(m); m.dispose(); } ty.cap = Math.max(16, ty.cap * 2, ty.ids.length);
       ty.meshes = ty.parts.map(o => { const m = new THREE.InstancedMesh(o.geometry, o.material, ty.cap); m.name = 'placed_' + ty.P.id; m.userData.placed = ty; m.frustumCulled = false; placeRoot.add(m); return m; }); }
-    ty.ids.forEach((id, i) => { const r = PIECES.get(id); _m.compose(_p.set(r.x, r.y, r.z), _q.setFromAxisAngle(UP, r.ry || 0), _s); for (const m of ty.meshes) m.setMatrixAt(i, _m); });
+    ty.ids.forEach((id, i) => { const r = seated(ty, PIECES.get(id)); _m.compose(_p.set(r.x, r.y, r.z), _q.setFromAxisAngle(UP, r.ry || 0), _s); for (const m of ty.meshes) m.setMatrixAt(i, _m); });
     for (const m of ty.meshes) { m.count = ty.ids.length; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere?.(); } }
-  function placeBox(ty, r) { return ty.box.clone().applyMatrix4(_m.compose(_p.set(r.x, r.y, r.z), _q.setFromAxisAngle(UP, r.ry || 0), _s)); }
+  function placeBox(ty, r) { r = seated(ty, r); return ty.box.clone().applyMatrix4(_m.compose(_p.set(r.x, r.y, r.z), _q.setFromAxisAngle(UP, r.ry || 0), _s)); }
   function placeSet(id, rec) { const old = PIECES.get(id); if (old) { const ty = typeOf(old.t), i = ty.ids.indexOf(id); if (i >= 0) ty.ids.splice(i, 1); propUnblock(BLK.get(id)); BLK.delete(id); PIECES.delete(id); REG.delete(id); redraw(ty); }
     if (!rec || !PROP_CAT[rec.t | 0]) return;
     // village markers: skip mesh + collider while the cottage neighborhood area is on
     if (COTTAGES_ON && COTTAGE_MARKERS.has(id)) { PIECES.set(id, { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0, marker: 1 }); return; }
     rec = { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0 }; const ty = typeOf(rec.t); PIECES.set(id, rec); ty.ids.push(id); redraw(ty);
-    BLK.set(id, propBlock(ty.P.id, rec.x, rec.y, rec.z, rec.ry)); REG.set(id, { id, key: id, placed: true, locked: false, label: ty.P.label + ' · PLACED', box: placeBox(ty, rec), ranges: [] }); }
+    const seat = seated(ty, rec); BLK.set(id, propBlock(ty.P.id, seat.x, seat.y, seat.z, seat.ry)); REG.set(id, { id, key: id, placed: true, locked: false, label: ty.P.label + ' · PLACED', box: placeBox(ty, rec), ranges: [] }); }
   const groundAt = (P, x, z) => { const h = H(x, z), w = P.water ? waterAt(x, z) : null; return w != null && w > h ? w : h; };
   try { const c = JSON.parse(localStorage.getItem(LS) || 'null'); if (c?.cells) T.replace(c.cells); if (c?.pieces) replacePieces(c.pieces); if (c?.paint) T.replacePaint(c.paint); } catch {}
   let rev = 0, owner = false;
   const j = await terrainLoad(); if (j?.ok) { rev = j.rev | 0; owner = !!j.owner; T.replace(j.cells); replacePieces(j.pieces); T.replacePaint(j.paint); try { localStorage.setItem(LS, JSON.stringify({ rev, cells: j.cells, pieces: j.pieces || {}, paint: j.paint || {} })); } catch {} }
+  // Everyone refreshes anchored props and blockers after initial or live ground edits.
+  let seatRev = -1;
+  function reseatPlaced() {
+    if (seatRev === T.rev) return; seatRev = T.rev;
+    for (const ty of TYPES.values()) if (groundSeated.has(ty.P.id)) {
+      redraw(ty);
+      for (const id of ty.ids) {
+        const r = seated(ty, PIECES.get(id)); propUnblock(BLK.get(id));
+        BLK.set(id, propBlock(ty.P.id, r.x, r.y, r.z, r.ry));
+        const it = REG.get(id); if (it) it.box = placeBox(ty, r);
+      }
+    }
+  }
+  reseatPlaced(); setInterval(reseatPlaced, 200);
   if (!owner) return { owner: false };
   // 2) the owner's build mode
   const ui = Object.assign({ tool: 'level', size: 8, str: 0.5, mat: 'path', prop: 0, rot: 0, grid: true, rwColor: 'red', rwR: 0, rwShow: true }, (() => { try { return JSON.parse(localStorage.getItem(LS_UI) || '{}'); } catch { return {}; } })());
