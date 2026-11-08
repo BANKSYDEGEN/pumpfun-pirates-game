@@ -7,8 +7,8 @@ test('Pilly disabled on touch phones, tablets and coarse-pointer devices', () =>
   assert.equal(pillyEnabledFor({ matchMedia: () => ({ matches: true }) }), false);
   assert.equal(pillyEnabledFor({ window: { ontouchstart: null } }), false);
 });
-test('desktop Pilly remains available', () => {
-  assert.equal(pillyEnabledFor({ navigator: { maxTouchPoints: 0 }, matchMedia: () => ({ matches: false }), window: {} }), true);
+test('emergency pause disables desktop Pilly too', () => {
+  assert.equal(pillyEnabledFor({ navigator: { maxTouchPoints: 0 }, matchMedia: () => ({ matches: false }), window: {} }), false);
 });
 test('disabled feature guards both companion construction and purchase entry points', () => {
   const text = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
