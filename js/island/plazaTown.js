@@ -1,3 +1,4 @@
+import { berthLabel } from '../dock/berthLabels.js';
 import { VILLAGE_ON } from './village.js';
 import { hqParts, petShellParts, gableVertices } from '../pumpfun/model.js';
 import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, PET_STORE, PET_WALLS, PET_PROPS, petFloor, HQ_WALK_DECKS } from '../pumpfun/site.js';
@@ -198,7 +199,7 @@ export function signList() {
     for (let i = 0; i < TRENDING.n; i++) S.push({ key: 'trend' + i, text: 'TRENDING #' + (i + 1), col: '#7cff6b', bg: '#161616' }); }
   if (VILLAGE_ON) S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true }, { key: 'village_torent', text: 'TO RENT', col: '#f3ead2', bg: '#2a1a10' });   // [post-village v3]
   S.push({ key: 'hall', text: 'HARBOR EXCHANGE HALL', col: '#ffcd77', bg: '#5a3219' }, { key: 'tavern', text: 'THE SUNK TAVERN', col: '#ffcd77', bg: '#5a3219', skull: true });
-  for (const b of BERTHS) S.push({ key: 'berth_' + b.id, text: 'BERTH ' + b.id.slice(1), col: '#fff1d2', bg: '#3d2a1c' });
+  for (const b of BERTHS) S.push({ key: 'berth_' + b.id, text: 'BERTH ' + berthLabel(b).slice(1), col: '#fff1d2', bg: '#3d2a1c' });
   return S;
 }
 

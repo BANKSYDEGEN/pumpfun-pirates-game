@@ -1,3 +1,4 @@
+import { berthLabel } from './berthLabels.js';
 // [Emerly sail-around] BANKSY 8:04 PM Nov 5: sail the whole island + 5 outer islets, drop anchor offshore, board a canoe
 // with small crew + pet, dig on side islands, recall ship at the harbor dock, swim much faster. CLIENT ONLY.
 // &sailall=0 = old west-harbor ring + no canoe / offshore anchor / ship-recall (dig spots stay on if shipped).
@@ -469,7 +470,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     }
     let b = docking.spawnPick?.();
     if (!b && docking.berths) b = docking.berths.find(q => !docking.takenBy?.(q.id));
-    if (b) { docking.moor(s, b); toast(`SHIP RETURNED TO BERTH ${b.id}`); sfx?.coin?.(); return true; }
+    if (b) { docking.moor(s, b); toast(`SHIP RETURNED TO BERTH ${berthLabel(b)}`); sfx?.coin?.(); return true; }
     // fallback: park just off the harbor mouth
     s.x = 40; s.z = 0; s.yaw = Math.PI / 2; s.speed = 0; s.sail = 0;
     toast('SHIP RETURNED OFF THE HARBOR'); sfx?.coin?.(); return true;

@@ -26,7 +26,7 @@ test('occupancy refresh precedes optional world and player update calls', () => 
 test('open sign move uses Cross prompt instead of jump; keyboard remains E and consumes event', () => {
   assert.equal(resolve(MAP.foot[BTN.A],{prompt:[true,false]}),'promptA');
   assert.equal(glyphFor('ps','A'),'✕');
-  assert.match(dock,/best = \{ label: `MOVE SHIP HERE · \$\{mb.id\}`, pad: 'A', fn:/);
+  assert.match(dock,/best = \{ label: `MOVE SHIP HERE · \$\{berthLabel\(mb\)\}`, pad: 'A', fn:/);
   assert.match(dock,/setActs\(best \? \{ \.\.\.best, key: 'E', primary: true \}/);
   assert.match(dock,/if \(e.code === 'KeyE'\) \{ if \(!e.repeat && actA && actA.key === 'E'\) \{ press\(actA\); used = true;/);
   assert.match(dock,/if \(used\) \{ e.stopImmediatePropagation\(\); e.preventDefault\(\); \}/);
@@ -41,9 +41,9 @@ test('rendered sign updates captain name and returns to OPEN on release', async 
     const scene=new THREE.Scene(), b={id:'B7',x:0,z:0,ashore:{x:3,z:0,y:1},signBollards:[[0,19],[0,51]]};
     const signs=createBerthSigns({scene,berths:[b],low:true});
     let name='BANKSY'; signs.tick(.5,()=>name);
-    assert.deepEqual(labels,['B7','BANKSY']);
+    assert.deepEqual(labels,['B4','BANKSY']);
     labels.length=0; name=''; signs.tick(.5,()=>name);
-    assert.deepEqual(labels,['B7','OPEN']);
+    assert.deepEqual(labels,['B4','OPEN']);
     assert.equal(scene.children.length,1,'reuse one sign instead of adding a stale second label');
     signs.clear(); assert.equal(scene.children.length,0);
   } finally { if(previous===undefined) delete globalThis.document; else globalThis.document=previous; }

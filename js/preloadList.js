@@ -4,6 +4,7 @@
 export const HARBOR_MODULES = [
   "js/dock/battery.js",
   "js/dock/bedDesk.js",
+  "js/dock/berthLabels.js",
   "js/dock/berthSigns.js",
   "js/dock/buildingWaypoint.js",
   "js/dock/canoe.js",

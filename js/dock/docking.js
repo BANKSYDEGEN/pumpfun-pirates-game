@@ -1,3 +1,4 @@
+import { berthDisplayNumber } from './berthLabels.js';
 import { parkedPose } from './parkPose.js';
 // [Emerly] PUMPFUN PIRATES docking: sail slowly near a berth -> DOCK eases the ship in and moors it (parked + invulnerable
 // inside SAFE HARBOR); SET SAIL eases it forward out of the slip and hands the helm back. Berths come from the layout
@@ -9,6 +10,7 @@ export const DOCK = { range: 60, slow: 6.6, inMin: 2.2, inMax: 4.2, outLen: 34, 
 export function createDocking({ berths, myId }) {
   const meId = () => String(typeof myId === 'function' ? myId() : myId); // [v152] a getter (the room id arrives after the harbor is built)
   const byId = new Map(berths.map(b => [b.id, b]));
+  const spawnOrder = [...berths].sort((a,b) => berthDisplayNumber(a) - berthDisplayNumber(b));
   const peers = new Map(); // peerId -> { berth, t, fresh }
   const st = { mode: 'sea', berth: null, t: 0, dur: 0, from: null, ctl: null, spawnAt: 0, moveFrom: null };   // [v152] spawnAt = moored by the join spawn (a few s of grace to settle a clash)
   const takenBy = (id) => { for (const [pid, p] of peers) if (p.berth === id && performance.now() - p.t < 6000) return pid; return null; };
@@ -57,11 +59,11 @@ export function createDocking({ berths, myId }) {
   }
   function release() { st.mode = 'sea'; st.berth = null; st.spawnAt = 0; st.moveFrom = null; }
   // [v152] BANKSY "When they join harbor spawn them at an empty berth unless they are full then spawn them at sea":
-  // a free berth picked deterministically from your id (two pirates joining at once start at different berths), moored on the spot
+  // lowest displayed open berth for auto-arrivals only; never shuffle established/manual ships.
+  // Simultaneous claims retain the existing fresh-claim/id tie-break below (not a server-side reservation).
   const SPAWN_GRACE = 6000, fresh = () => st.mode === 'docked' && st.spawnAt > 0 && performance.now() - st.spawnAt < SPAWN_GRACE;
   function spawnPick(skip = null) {
-    const n = berths.length; if (!n) return null; let h = 0; for (const c of meId()) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-    for (let k = 0; k < n; k++) { const b = berths[(h + k) % n]; if (b !== skip && !takenBy(b.id) && st.berth !== b) return b; } return null;
+    for (const b of spawnOrder) if (b !== skip && !takenBy(b.id) && st.berth !== b) return b; return null;
   }
   function moor(s, b) { Object.assign(st, { mode: 'docked', berth: b, t: 0, dur: 0, from: null, ctl: null, spawnAt: performance.now(), moveFrom: null }); const p = parkedPose(s, b); pose(s, p.x, p.z, b.yaw, 0); s.anchor = true; s.sail = 0; }
   // [berth-move] BANKSY t2329u "if berth is open can move ship to different one": your moored ship re-moors at another OPEN berth.

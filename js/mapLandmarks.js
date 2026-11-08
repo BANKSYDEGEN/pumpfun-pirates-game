@@ -1,3 +1,4 @@
+import { berthLabel } from './dock/berthLabels.js';
 import { HQ } from './pumpfun/site.js';
 import { SHIP_STORE } from './island/shipStore.js';
 import { OUTFIT_STORE } from './island/outfitStore.js';   // [outfit-store] Clothes + Accessories: one building, one pin
@@ -57,7 +58,7 @@ export function mapLandmarks(FM) {
 export function mapDocks(layout) {
   if (MMICONS_LEGACY) {
     const by = new Map(); for (const b of layout.berths || []) { const k = String(b.id).replace(/[LR]$/, ''); const [x, z] = layout.harborToFoot(b.x, b.z); const a = by.get(k) || []; a.push([x, z]); by.set(k, a); }
-    return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + k.replace(/^P/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
+    return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + berthLabel(k).replace(/^P/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
   }
   const by = new Map();
   for (const b of layout.berths || []) {
@@ -65,6 +66,6 @@ export function mapDocks(layout) {
     const k = m ? 'J' + Math.ceil(+m[1] / 2) : id.replace(/[LR]$/, '');
     const [x, z] = layout.harborToFoot(b.x, b.z); const a = by.get(k) || []; a.push([x, z]); by.set(k, a);
   }
-  return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + k.replace(/^P/, '').replace(/^J/, ''), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
+  return [...by.entries()].map(([k, a]) => ({ id: 'dock_' + k, icon: 'dock', label: 'PIER ' + (/^J[1-5]$/.test(k) ? 6 - +k.slice(1) : k.replace(/^P/, '')), x: a.reduce((s, p) => s + p[0], 0) / a.length, z: a.reduce((s, p) => s + p[1], 0) / a.length, far: false }));
 }
 export const mmiconsLegacy = () => MMICONS_LEGACY;

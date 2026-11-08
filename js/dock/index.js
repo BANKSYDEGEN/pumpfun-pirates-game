@@ -1,3 +1,4 @@
+import { berthLabel } from './berthLabels.js';
 import { formatGoldAmount, setGoldText } from '../goldFormat.js';
 import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
@@ -493,9 +494,9 @@ export async function createDock(ctx) {
     if (!BERTH_SPAWN || !s?.alive || onFoot || docking.mode !== 'sea') return;
     spawnFrom = { x: s.x, z: s.z, yaw: s.yaw };
     const b = docking.spawnPick(); if (!b) return; // all berths taken: the sea spawn stands
-    docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`MOORED AT BERTH ${b.id} · SAFE HARBOR`, 2000);
+    docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`MOORED AT BERTH ${berthLabel(b)} · SAFE HARBOR`, 2000);
   }
-  function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${b.id}`); }
+  function dockNow(b) { const s = P(); docking.begin(s, b); ctx.sfx?.coin?.(); toast(`MOORING AT BERTH ${berthLabel(b)}`); }
   // [berth-move] BANKSY t2329u "if berth is open can move ship to different one": your ship moored, you ashore at an OPEN berth's sign
   // (or its step-ashore spot) -> E / tap / pad A = MOVE SHIP HERE. The ship re-moors there (dk syncs, every sign updates, the old berth reads
   // OPEN); a same-instant claim by another pirate is settled by docking.js (the loser's ship goes back). ?berthmove=0 = off.
@@ -503,7 +504,7 @@ export async function createDock(ctx) {
   function moveBerthNear(W) { if (!BERTH_MOVE || docking.mode !== 'docked' || !docking.berth || W.swim) return null;
     for (const b of layout.berths) { if (!docking.canMoveTo(b)) continue; const sp = signs.post(b);
       if ((sp && (sp.x - W.x) ** 2 + (sp.z - W.z) ** 2 < MOVE_R * MOVE_R) || (b.ashore.x - W.x) ** 2 + (b.ashore.z - W.z) ** 2 < MOVE_R * MOVE_R) return b; } return null; }
-  function moveShipTo(b) { if (!docking.moveTo(P(), b)) { toast('BERTH TAKEN'); return; } skinPick.close(); ctx.sfx?.coin?.(); toast(`⚓ SHIP MOVED TO BERTH ${b.id}`, 2000); }
+  function moveShipTo(b) { if (!docking.moveTo(P(), b)) { toast('BERTH TAKEN'); return; } skinPick.close(); ctx.sfx?.coin?.(); toast(`⚓ SHIP MOVED TO BERTH ${berthLabel(b)}`, 2000); }
   function goAshoreAt(x, z, yaw) { // [Emerly sail-around] canoe beach landing (any shore / islet)
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
       walker.enter(x, z, yaw ?? 0); crewF?.enter(); petF?.enter(walker.w); toast('ASHORE'); });
@@ -749,7 +750,7 @@ export async function createDock(ctx) {
       }
       else if (houses?.inHouse) { const hp = houses.prompts({ onFoot: true, W }); const a = hp?.a || (hp && { label: hp.label, key: hp.key || 'E', primary: !!hp.primary, tag: hp.tag }); const b = hp?.b || null; setActs(a ? { label: a.label, key: a.key || 'E', primary: !!a.primary, fn: () => houses.act(a.tag, { door: hp.door }) } : null, b ? { label: b.label, key: b.key || 'Q', primary: !!b.primary, fn: () => houses.act(b.tag) } : null); skinPick.close(); }
       else {
-        if (!best) { const mb = moveBerthNear(W); if (mb) best = { label: `MOVE SHIP HERE · ${mb.id}`, pad: 'A', fn: () => moveShipTo(mb) }; }   // [berth-move]
+        if (!best) { const mb = moveBerthNear(W); if (mb) best = { label: `MOVE SHIP HERE · ${berthLabel(mb)}`, pad: 'A', fn: () => moveShipTo(mb) }; }   // [berth-move]
         if (!best) for (const q of [...layout.interact, ...world.footInteract, ...(zip?.spots || [])]) { if (q.used || q.src?.hidden?.()) continue; /* [wish] a spot that is switched off */ const d = Math.hypot(q.x - W.x, q.z - W.z); if (d < (q.r || 3) && d < bd) { bd = d; best = { label: (q.src?.area && world.foot.areas?.label(q.src)) || treasure.label(q) || q.label, fn: () => interact(q) }; } }
         if (!best && lootBags?.on) { const lp = lootBags.prompts({ onFoot: true, W }); if (lp) best = { label: lp.label, primary: true, key: 'E', fn: () => lootBags.act() }; }
         if (!best && houses?.on) { const hp = houses.prompts({ onFoot: true, W }); if (hp) best = { label: hp.label, primary: !!hp.primary, key: hp.key || 'E', fn: () => houses.act(hp.tag, { door: hp.door }) }; }
@@ -815,14 +816,14 @@ export async function createDock(ctx) {
   }
   function handlePeer(m) { if (m && typeof m.n === 'string') peerNames.set(m.i, m.n); battery?.onPeer(m); const r = fnet.onPeerState(m); battle?.onPeer(m); houses?.onPeerState?.(m); mm?.onPeer?.(m); /* [v349] */
     if (r && r.moveLost !== undefined) { const b = r.moveLost; // [berth-move] another pirate claimed that berth at the same instant: they keep it
-      if (b) { docking.moor(P(), b); docking.st.spawnAt = 0; toast(`BERTH ${r.lost?.id || ''} TAKEN · SHIP BACK AT ${b.id}`, 2200); } return; }
+      if (b) { docking.moor(P(), b); docking.st.spawnAt = 0; toast(`BERTH ${berthLabel(r.lost)} TAKEN · SHIP BACK AT ${berthLabel(b)}`, 2200); } return; }
     if (r && r.spawnMoved !== undefined) { const s = P(), b = r.spawnMoved; // [v152] two pirates spawned onto the same berth: the other keeps it
       const go = () => { if (!on || onFoot || !docking.fresh()) return;
-        if (b) { docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`BERTH TAKEN · MOORED AT ${b.id}`); }
+        if (b) { docking.moor(s, b); ctx.camReset?.(); if (!hidden()) toast(`BERTH TAKEN · MOORED AT ${berthLabel(b)}`); }
         else { docking.release(); if (spawnFrom) { s.x = spawnFrom.x; s.z = spawnFrom.z; s.yaw = spawnFrom.yaw; s.speed = 0; s.anchor = false; ctx.camReset?.(); } if (!hidden()) toast('ALL BERTHS TAKEN · AT SEA'); } };
       fadeTo(go); // [v157] a fade, never a visible jump (the name card is see-through)
       return; }
-    if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${r.moved.id}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
+    if (r && r.moved !== undefined) { if (r.moved) { dockNow(r.moved); toast(`BERTH TAKEN · MOVING TO ${berthLabel(r.moved)}`); } else { docking.release(); toast('NO FREE BERTH'); } } }
 
   const CREW_EMOTE = { 0: 0, 1: 100, 2: 100, 4: 4, 6: 6, 7: 7 };
   const api = {

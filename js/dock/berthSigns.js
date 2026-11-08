@@ -4,6 +4,7 @@
 // beside a second framed board 2.2 m away: two signs per berth). Each face reads the berth number + the moored captain
 // (you, or a peer via their synced dk + n), or OPEN when the berth is free. One canvas per berth, redrawn only on change (~2x a second).
 import * as THREE from 'three';
+import { berthLabel } from './berthLabels.js';
 export const cleanBerthName = (n) => { const text = String(n ?? '');
   if (/(?:0x[a-f0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44}|https?:\/\/|ref(?:erral)?[=:/])/i.test(text)) return 'PIRATE';
   return text.replace(/[\u0000-\u001f<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).toUpperCase() || 'PIRATE'; };
@@ -28,7 +29,7 @@ export function berthSignPost(b) { const [p, q] = b.signBollards || b.bollards |
   const k = 2 / dl; return { x: p[0] + dx * k, z: p[1] + dz * k, y: (b.ashore.y ?? 0) + BERTH_SIGN.y, nx, nz }; }   // signBollards[0] = lz 19 -> the plaque's lz 17
 export function createBerthSigns({ scene, berths, low }) {
   const posts = new Map(berths.map(b => [b.id, berthSignPost(b)]));
-  const S = BERTH_SIGN, signs = new Map(), geo = new THREE.PlaneGeometry(S.w - 0.08, S.h - 0.08), boardGeo = new THREE.BoxGeometry(S.t, S.h, S.w), wood = new THREE.MeshLambertMaterial({ color: 0x3b2414 }); let acc = 0;
+  const S = BERTH_SIGN, signs = new Map(), geo = new THREE.PlaneGeometry(S.w - 0.08, S.h - 0.08), boardGeo = new THREE.BoxGeometry(S.t, S.h, S.w), wood = new THREE.MeshLambertMaterial({ color: 0x3b2414 }); let acc = 0.5; // paint labels on the first harbor tick, then only poll at 2 Hz
   const fit = (g, t, fs, w, min) => { for (; fs > min; fs -= 2) { g.font = `900 ${fs}px Georgia,'Times New Roman',serif`; if (g.measureText(t).width <= w) break; } };
   function draw(sg, id, name) {
     const c = sg.c, g = c.getContext('2d'), W = c.width, H = c.height, w = W * 0.86, lw = Math.max(4, W / 56), open = !name;
@@ -53,7 +54,7 @@ export function createBerthSigns({ scene, berths, low }) {
   // who(b) -> captain name or '' (open berth); every jetty berth keeps its one sign
   function tick(dt, who) { acc += dt; if (acc < 0.5) return; acc = 0;
     for (const b of berths) { const raw = who(b) || ''; let sg = signs.get(b.id); if (!sg) { sg = make(b); if (!sg) continue; signs.set(b.id, sg); }
-      if (sg.raw === raw) continue; sg.raw = raw; const name = raw ? clean(raw) : ''; if (sg.name !== name) draw(sg, b.id, name); } }
+      if (sg.raw === raw) continue; sg.raw = raw; const name = raw ? clean(raw) : ''; if (sg.name !== name) draw(sg, berthLabel(b), name); } }
   function clear() { for (const id of [...signs.keys()]) drop(id); }
   return { tick, clear, clean, post: b => posts.get(b.id) || null };
 }
