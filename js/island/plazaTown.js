@@ -1,5 +1,5 @@
-import { hqParts, gableVertices } from '../pumpfun/model.js';
-import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, petFloor } from '../pumpfun/site.js';
+import { hqParts, petShellParts, gableVertices } from '../pumpfun/model.js';
+import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, PET_STORE, PET_WALLS, PET_PROPS, petFloor } from '../pumpfun/site.js';
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
 import { OUTFIT_STORE, outfitWalls, outfitRooms } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
@@ -152,7 +152,10 @@ export const PLAZA = {
 // v2 ground: the shore behind the sloped boardwalk (lx -176..-55, lz -14..0) is raised to the boardwalk's height, fading into the
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
+// [post-petstore] &petold=1 = the old Blender L4 house (before shots)
+export const PET_REWORK = !(typeof location !== 'undefined' && /[?&]petold=1/.test(location.search));
 export function plazaGround(lx, lz, h) {
+  if(PET_REWORK&&lx>=PET_STORE.x0-.2&&lx<=PET_STORE.x1-.3&&lz>=PET_STORE.z0-.2&&lz<=PET_STORE.z1+.2) h=Math.min(h,PET_STORE.floor-.1);   // [post-petstore] terrain under the walk-in stays below the plank floor
   if(lx>=-47.4&&lx<=-34.4&&lz>=-57.4&&lz<=-48.0) h=Math.min(h,HQ.floor-.05);   // p8: paved yard behind the Outfit Store, level with the trench
   if(lx>=HQ.lx0-3&&lx<=HQ.lx1&&lz>=HQ.lz0-3&&lz<HQ.lz1){const o=Math.max(HQ.lx0-lx,HQ.lz0-lz,0),trench=lz<HQ_TRENCH.westLz+.2||lx>=HQ.lx0;h=Math.min(h,trench?(o<=HQ_TRENCH.w?HQ.floor-.05:h):HQ.floor-.05+(o<2?Math.ceil(o/.5)*.65:o*1.3));}   // whole footprint flat; west/back: paved trench behind a retaining wall (p3)   // [post-hq-castle] whole footprint
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -389,7 +392,7 @@ export function buildPlazaV2(h) {
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
   // Use the EXACT shared W/box/M stone kit and masonry/trim/tile library layers as stoneHouse.
-  for(const p of hqParts()) { if((low&&p.detail)||p.glow)continue; // glow flames: render.js buildHQ (unlit, near only)
+  for(const p of [...hqParts(),...(PET_REWORK?petShellParts():[])]) { if((low&&p.detail)||p.glow)continue; // glow flames: render.js buildHQ (unlit, near only)
     const [x,z]=T(p.x,p.z); let geo;
     if(p.kind==='gable'){geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3));geo.computeVertexNormals();}
     else if(p.kind==='cyl'){const n=low?Math.max(8,p.n>>1):p.n;geo=p.half?new THREE.CylinderGeometry(p.r,p.r1,p.h,Math.max(4,n>>1),1,false,-Math.PI/2,Math.PI):cyl(p.r,p.r1,p.h,n);}else geo=box(p.w,p.h,p.d);   // half: exterior half-drum (towers)
@@ -404,7 +407,10 @@ export function buildPlazaV2(h) {
   for (const [lx,lz,w,d] of HQ_OUTWORKS) addBox(...T(lx,lz),w,d,yaw0);   // p3 trench retaining walls
   addBox(...T(-41.05,-57.2),14.1,1.2,yaw0);   // p9 yard retaining kerb
   camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: HQ.lz0+.8, lz1: HQ.lz1-.5 }, HQ.ceil-.4, HQ.floor);
-  camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
+  if(PET_REWORK){ const S=PET_STORE, I=S.I, c=T((I.lx0+I.lx1)/2,(I.lz0+I.lz1)/2); h.addDeck?.({x:c[0],z:c[1],hw:(I.lx1-I.lx0)/2+.25,hl:(I.lz1-I.lz0)/2,yaw:yaw0,y:S.floor});   // [post-petstore] flat floor + threshold
+    for (const [lx,lz,w,d] of PET_WALLS) addBox(...T(lx,lz),w,d,yaw0); for (const [,lx,lz,w,d] of PET_PROPS) addBox(...T(lx,lz),w,d,yaw0);
+    camRoom({id:PET_SHOP.id,...I},S.ceil-.4,S.floor); }
+  else camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
   buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,

@@ -1,5 +1,5 @@
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
-import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor } from './site.js';
+import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor, PET_STORE, PET_PROPS } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
 export const HQ_TRENCH_LAMPS=[];
 export function hqParts() {
@@ -191,14 +191,81 @@ export function hqParts() {
 }
 export const HQ_CHANDELIERS = [-37, -46, -55];
 export const HQ_TORCHES = [[-32.25,-38.5],[-32.25,-49.5],[-32.25,-56],[-32.25,-63.2],[-5.15,-38.5],[-5.15,-49.5],[-5.15,-56],[-5.15,-63.2]];
+// [post-petstore] PET STORE (L4) shell: merged into the plaza stone kit (always drawn, like the HQ). Stone pirate house front on the Main
+// Street building line, arched walk-through doorway, quoins, string courses, gabled tile roof (gable end to the street), no awning.
+// Inside: plank floor, mahogany wainscot to 1.3 m, plaster above, beamed 7 m ceiling. Props + flames + chandeliers: petParts() (near only).
+export function petShellParts() {
+  const p=[], stone='#c9bfae', darkStone='#8a837a', wood='#4a3023', roof='#c8552e', mahog='#5a2a1a', plaster='#e6d8bb', gold='#ffcd77', iron='#2b2a28', glass='#22323c';
+  const mat=c=>c===stone?11:c===darkStone?22:c===wood?26:c===roof?4:0;
+  const B=(x,y,z,w,h,d,c,detail=false,ex)=>p.push({kind:'box',x,y,z,w,h,d,c,detail,mat:mat(c),...ex});
+  const S=PET_STORE, F=S.floor, X0=S.x0, X1=S.x1, Z0=S.z0, Z1=S.z1, T=F+S.top, WL=S.wall, I=S.I, D=S.door, CZ=(Z0+Z1)/2, L=X1-X0, Wd=Z1-Z0;
+  const dz0=D.lz-D.w/2, dz1=D.lz+D.w/2, R=D.w/2, SP=F+D.h;   // arch springing
+  // walls (stone), plinth down into the sloping street, back + sides full height
+  B(X0+WL/2,(T+F-1.4)/2,CZ,WL,T-F+1.4,Wd,stone); for(const z of [Z0+WL/2,Z1-WL/2]) B((X0+X1)/2,(T+F-1.4)/2,z,L,T-F+1.4,WL,stone);
+  const fx=X1-WL/2; B(fx,(T+F-1.4)/2,(Z0+dz0-.3)/2,WL,T-F+1.4,dz0-.3-Z0,stone); B(fx,(T+F-1.4)/2,(dz1+.3+Z1)/2,WL,T-F+1.4,Z1-dz1-.3,stone);
+  for(let i=0;i<12;i++){const z0=-R-.3+i*(D.w+.6)/12+(D.w+.6)/24, yy=SP+Math.sqrt(Math.max(0,(R+.3)*(R+.3)-z0*z0)); B(fx,(yy+T)/2,D.lz+z0,WL,T-yy,(D.w+.6)/12+.01,stone);}
+  for(const s of [-1,1]) B(fx,F+D.h/2-.7,D.lz+s*(R+.15),WL,D.h+1.4,.3,stone);   // jamb returns
+  // arched doorway: dressed jambs, voussoirs, gilt keystone, flush threshold
+  for(const s of [-1,1]){ B(X1+.05,F+D.h/2,D.lz+s*(R+.25),.4,D.h,.5,darkStone); B(X1+.05,F+.35,D.lz+s*(R+.3),.55,.7,.65,darkStone); B(X1+.08,SP+.08,D.lz+s*(R+.3),.5,.16,.62,darkStone); }
+  for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(X1+.05,SP+Math.sin(a)*(R+.28),D.lz+Math.cos(a)*(R+.28),.45,.56,.5,darkStone,false,{rx:-(a-Math.PI/2)});}
+  B(X1+.25,SP+R+.45,D.lz,.25,.75,.55,gold); B(X1-.2,F+.01,D.lz,1.4,.04,D.w,darkStone,true);
+  // arched windows either side (iron grille, stone sill + head), upper-floor windows with shutters
+  const win=(z,y,w,h,detail)=>{ B(X1+.02,y,z,.08,h,w,glass,detail); B(X1+.12,y-h/2-.08,z,.3,.16,w+.4,darkStone,detail); for(let i=0;i<9;i++){const a=Math.PI*(i+.5)/9;B(X1+.08,y+h/2+Math.sin(a)*(w/2+.12),z+Math.cos(a)*(w/2+.12),.22,.26,.3,darkStone,detail,{rx:-(a-Math.PI/2)});}
+    B(X1+.06,y+h/2+w/4,z,.06,w/2,w*.86,glass,detail); for(let i=1;i<4;i++) B(X1+.09,y,z-w/2+i*w/4,.05,h,.05,iron,true); B(X1+.09,y,z,.05,.05,w,iron,true); };
+  win(-117.4,F+2.0,1.5,2.1,false); win(-111.55,F+2.0,1.0,2.1,false);
+  for(const z of [-117.4,-111.55]){ win(z,F+5.6,1.0,1.4,true); for(const s of [-1,1]) B(X1+.08,F+5.7,z+s*.85,.06,1.6,.55,'#2e5a46',true); }
+  // quoins, string courses, cornice
+  for(const z of [Z0+.25,Z1-.25]) for(let k=0;k<11;k++) B(X1+.04,F-.6+k*.82,z+(k%2?0:(z<CZ?.18:-.18)),.1,.62,k%2?.5:.86,darkStone,true);
+  B(X1+.08,F+4.62,(Z0+D.lz-R-.7)/2,.3,.24,D.lz-R-.7-Z0,darkStone); B(X1+.08,F+4.62,(D.lz+R+.7+Z1)/2,.3,.24,Z1-D.lz-R-.7,darkStone);
+  B(X1+.1,F+5.45,D.lz,.2,1.15,4.0,'#5a2a1a'); B(X1+.06,F+5.45,D.lz,.16,1.3,4.15,gold,true);   // carved sign board over the arch (face: render.js)
+  B(X1+.7,F+4.35,Z0+.7,1.4,.08,.08,iron,true); B(X1+.08,F+4.1,Z0+.7,.08,.6,.08,iron,true); B(X1+.35,F+4.12,Z0+.7,.55,.06,.06,iron,true,{rz:.75});   // hanging-sign bracket B(X1+.12,T-.2,CZ,.4,.4,Wd+.3,darkStone); B(X1+.06,F-.55,CZ,.2,1.0,Wd,darkStone);
+  for(const z of [Z0-.08,Z1+.08]) B((X0+X1)/2,F+4.62,z,L,.24,.2,darkStone,true);
+  // gabled tile roof, ridge along x (gable end to the street), stone gable infills, ridge tiles, chimney
+  B(X1-WL/2,T,CZ,WL,.01,Wd,stone);
+  p.push({kind:'gable',x:X1-WL/2,y:T,z:CZ,w:WL,h:3.0,d:Wd,c:stone,mat:11,detail:false}); p.push({kind:'gable',x:X0+WL/2,y:T,z:CZ,w:WL,h:3.0,d:Wd,c:stone,mat:11,detail:false});
+  p.push({kind:'gable',x:(X0+X1)/2,y:T+.12,z:CZ,w:L+.9,h:3.25,d:Wd+1.1,c:roof,mat:4,detail:false});
+  B((X0+X1)/2,T+3.3,CZ,L+1.0,.22,.38,darkStone); B(X0+3,T+2.6,Z0+2.2,1.0,3.0,1.0,stone); B(X0+3,T+4.15,Z0+2.2,1.2,.2,1.2,darkStone);
+  // interior: plank floor, wainscot, plaster, beamed ceiling
+  B((I.lx0+I.lx1)/2,F-.12,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.24,I.lz1-I.lz0,wood);
+  const C=F+S.ceil; B((I.lx0+I.lx1)/2,C+.1,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.2,I.lz1-I.lz0,'#3a2418');
+  for(const z of [I.lz0+.03,I.lz1-.03]) { B((I.lx0+I.lx1)/2,F+.65,z,I.lx1-I.lx0,1.3,.06,mahog); B((I.lx0+I.lx1)/2,F+1.33,z+(z<CZ?.04:-.04),I.lx1-I.lx0,.08,.1,gold,true); B((I.lx0+I.lx1)/2,(F+1.37+C)/2,z,I.lx1-I.lx0,C-F-1.37,.04,plaster); }
+  B(I.lx0+.03,F+.65,(I.lz0+I.lz1)/2,.06,1.3,I.lz1-I.lz0,mahog); B(I.lx0+.03,(F+1.3+C)/2,(I.lz0+I.lz1)/2,.04,C-F-1.3,I.lz1-I.lz0,plaster);
+  for(const s of [-1,1]){ const zc=s<0?(I.lz0+dz0-.3)/2:(dz1+.3+I.lz1)/2, wz=s<0?dz0-.3-I.lz0:I.lz1-dz1-.3; B(I.lx1-.03,F+.65,zc,.06,1.3,wz,mahog); B(I.lx1-.03,(F+1.3+C)/2,zc,.04,C-F-1.3,wz,plaster); }
+  for(let x=I.lx0+1.2;x<I.lx1-.5;x+=2.2){ B(x,C-.22,(I.lz0+I.lz1)/2,.34,.44,I.lz1-I.lz0,wood); for(const z of [I.lz0+.2,I.lz1-.2]) B(x,C-.85,z+(z<CZ?.25:-.25),.26,.26,.9,wood,true,{rx:z<CZ?-.6:.6}); }
+  B((I.lx0+I.lx1)/2,C-.5,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.3,.3,wood); B((I.lx0+I.lx1)/2,C-.66,(I.lz0+I.lz1)/2,I.lx1-I.lx0,.04,.34,gold,true);
+  return p;
+}
+// near-only detail (render.js buildPetDress): counter, shelves, aquarium tanks, bird cages, perches, kennels, rugs, chandeliers + flames
+export const PET_CHANDELIERS = [[-5.6,-114.78],[-10.6,-114.78]];
+export const PET_LAMPS = [];
 export function petParts() {
- const p=[], I=PET_LOT.interior, B=(x,y,z,w,h,d,c)=>p.push({kind:'box',x,y,z,w,h,d,c});
- // Overlay both TO RENT plates and the blank fascia; never move the room or its counter.
- B(-9.15,petFloor(PET_LOT.lz)+2.55,PET_LOT.lz, .08,1.05,3.1,wood);
- B(-7.75,petFloor(-111.1)+1.15,-111.1,.09,1.25,1.7,wood);
- B(-1.25,PET_LOT.doorY+3.6,-114.76,.18,.65,5.8,wood);
- for(const z of [-117,-112.5]) { B(-7.7,petFloor(z)+1.1,z,.15,2.2,.15,wood);B(-7.7,petFloor(z)+2.2,z,.15,.1,1.5,gold); }
- return p;
+  const p=[], wood='#4a3023', mahog='#5a2a1a', dark='#2a160d', gold='#ffcd77', iron='#2b2a28', flame='#ffb347', candle='#f3e6c4', water='#2f8fa8', sand='#d8c38a', straw='#c9a64a', red='#7a1d22', green='#2e6b55';
+  const B=(x,y,z,w,h,d,c,detail=false,ex)=>p.push({kind:'box',x,y,z,w,h,d,c,detail,...ex}), Cy=(x,y,z,r,r1,h,n,c,detail=false,ex)=>p.push({kind:'cyl',x,y,z,r,r1,h,n,c,detail,...ex});
+  const S=PET_STORE, F=S.floor, C=F+S.ceil; PET_LAMPS.length=0;
+  for(const [k,x,z,w,d] of PET_PROPS){
+    if(k==='counter'){ B(x,F+.55,z,w,1.1,d,mahog); B(x+.05,F+1.13,z,w+.25,.08,d+.25,dark); for(let i=0;i<6;i++) B(x+w/2+.02,F+.55,z-d/2+.47+i*(d-.94)/5,.04,.8,.6,'#6b3420',true); B(x+w/2+.04,F+.95,z,.03,.06,d-.1,gold,true);
+      B(x,F+1.3,z-1.6,.5,.3,.4,gold,true); for(const dz of [-.3,.2,.7]) Cy(x-.1,F+1.24,z+1.2+dz*.6,.12,.12,.18,10,dz>0?'#9b6a2a':'#c58b3c',true); }   // till, seed jars
+    if(k==='shelf'){ B(x,F+1.4,z,w,2.8,d,mahog); for(const y of [.55,1.15,1.75,2.35]) B(x+.32,F+y,z,.06,.06,d-.1,dark,true);
+      for(let i=0;i<10;i++) for(const y of [.75,1.95]) Cy(x+.15,F+y,z-d/2+.4+i*(d-.8)/9,.13,.13,.34,8,['#c9a64a','#8a5a2b','#b5653a'][i%3],true);
+      for(let i=0;i<5;i++) B(x+.15,F+1.37,z-d/2+.7+i*(d-1.4)/4,.4,.42,.55,straw,true); B(x+.28,F+3.4,z,.08,.9,d-.6,dark); B(x+.31,F+3.4,z,.04,1.0,d-.4,gold,true); }   // sign board (canvas in render.js)
+    if(k==='tank'){ B(x,F+.45,z,w,.9,d,mahog); B(x,F+.93,z,w+.1,.06,d+.1,dark); B(x,F+1.5,z,w-.1,1.05,d-.15,water,false,{glass:true}); B(x,F+1.02,z,w-.14,.08,d-.2,sand,true);
+      for(const s of [-1,1]) B(x+s*(w/2-.03),F+1.5,z,.06,1.1,d-.1,iron,true); B(x,F+2.06,z,w,.08,d-.05,iron,true);
+      for(let i=0;i<4;i++) B(x-.8+i*.5,F+1.25+((i*7)%3)*.2,z+(i%2?.12:-.1),.18,.08,.04,['#ff8a3c','#ffd23f','#ff5d8f','#7fe0ff'][i],true,{glow:true});
+      for(let i=0;i<3;i++) B(x-.6+i*.6,F+1.25,z-.05,.05,.35+.1*i,.05,green,true); }
+    if(k==='cage'){ Cy(x,F+.4,z,.12,.2,.8,10,dark); Cy(x,F+.82,z,.45,.45,.06,16,gold); for(let i=0;i<12;i++){const a=i/12*Math.PI*2;B(x+Math.cos(a)*.42,F+1.35,z+Math.sin(a)*.42,.03,1.0,.03,gold,true);}
+      Cy(x,F+1.9,z,.05,.46,.3,16,gold); Cy(x,F+2.15,z,.06,.06,.25,8,gold,true); B(x,F+1.2,z,.7,.03,.03,wood,true); }
+    if(k==='perch'){ Cy(x,F+.05,z,.45,.5,.1,12,dark); Cy(x,F+1.0,z,.06,.07,1.9,8,wood); B(x,F+1.9,z,.08,.08,1.3,wood); B(x,F+1.55,z,.08,.08,.9,wood,false,{rx:Math.PI/2}); Cy(x,F+1.2,z+.35,.13,.1,.12,10,'#b5653a',true); }
+    if(k==='kennel'){ B(x,F+.55,z,w,1.1,d,wood); p.push({kind:'gable',x,y:F+1.1,z,w:w+.2,h:.6,d:d+.3,c:red,detail:false}); B(x+.01,F+.5,z+d/2+.01,.7,.8,.02,'#120a06'); for(let i=0;i<3;i++) B(x-w/2+.35+i*.65,F+.55,z+d/2+.02,.08,1.08,.04,dark,true);
+      B(x,F+1.25,z+d/2+.05,.9,.22,.04,gold,true); B(x+.55,F+.06,z+d/2+.4,.5,.1,.32,'#8a5a2b',true); }
+  }
+  // rugs, hanging bird hoops, wall lamps, chandeliers (iron ring + candles + flames = glow parts, painted pools in render.js)
+  B(-6.6,F+.02,-114.06,6.4,.03,3.2,red); B(-6.6,F+.03,-114.06,6.0,.03,2.8,'#1d2a3f',true); B(-6.6,F+.04,-114.06,5.5,.03,2.3,red,true);
+  for(const [x,z] of [[-5.2,-117.2],[-8.2,-117.4],[-5.2,-111.0+.1]]) { B(x,C-1.2,z,.03,2.4,.03,iron,true); Cy(x,C-2.5,z,.4,.4,.04,16,gold,true,{rx:Math.PI/2}); B(x,C-2.85,z,.6,.04,.04,wood,true); }
+  for(const [x,z] of PET_CHANDELIERS){ B(x,C-.9,z,.05,1.8,.05,iron,true); Cy(x,C-1.85,z,.95,.95,.08,18,iron); Cy(x,C-1.6,z,.15,.15,.5,8,iron,true);
+    for(let i=0;i<8;i++){const a=i/8*Math.PI*2,cx=x+Math.cos(a)*.95,cz=z+Math.sin(a)*.95; B(cx,C-1.72,cz,.08,.24,.08,candle,true,{glow:true}); B(cx,C-1.53,cz,.06,.14,.06,flame,true,{glow:true});} }
+  for(const z of [-116.7,-111.45]){ const x=S.I.lx1-.15; B(x,F+2.6,z,.1,.4,.1,iron,true); B(x-.18,F+2.85,z,.22,.32,.22,flame,true,{glow:true}); PET_LAMPS.push([x,z]); }
+  for(const s of [-1,1]){ const z=S.door.lz+s*(S.door.w/2+.75); B(S.x1+.25,F+2.9,z,.4,.1,.1,iron,true); B(S.x1+.45,F+3.05,z,.12,.45,.12,wood,true); B(S.x1+.45,F+3.45,z,.22,.35,.22,flame,true,{glow:true}); }   // street torches
+  return p;
 }
 
 // Closed triangular prism, shared with the approval renderer.

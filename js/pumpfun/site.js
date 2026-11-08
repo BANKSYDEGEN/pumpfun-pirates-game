@@ -34,9 +34,27 @@ export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.85, 'squad'], ['dail
 export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
 // L0 is the Treasure Trader, L1 Wanted, L2 Rum Export, L3 Harbor Fence. L4 is FIRST genuinely unused room.
 export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
+// [post-petstore] BANKSY t299u "rework the pet store with 3a quality": L4 is a procedural stone walk-in (the Blender L4 house is skipped in
+// hillStreet.js), 14 m deep (back wall lx -16.2), a flat floor level with the door threshold, a 7 m beamed ceiling.
+export const PET_STORE = Object.freeze({ x0: -16.2, x1: -1.75, z0: -119.15, z1: -110.4, floor: PET_LOT.doorY, ceil: 7.0, wall: .5, top: 8.4,
+  door: Object.freeze({ lz: PET_LOT.door.lz, w: 3.2, h: 2.6 }),   // h = arch springing (crown 2.6 + w/2 = 4.2 m)
+  I: Object.freeze({ lx0: -15.7, lx1: -2.25, lz0: -118.65, lz1: -110.9 }) });
 export const PET_SHOP = Object.freeze({ id: 'shop_pets', name: 'PET STORE', lot: PET_LOT.lot, vendor: 'pets',
-  lx: -5.1, lz: PET_LOT.door.lz, r: 2.0, keeper: { lx: -9.35, lz: PET_LOT.door.lz }, birds: { lx: -5.8, lz: -114.8 } });
-export const petFloor = lz => { const I = PET_LOT.interior; return I.floorY.atLz0 + (lz - I.lz0) / (I.lz1 - I.lz0) * (I.floorY.atLz1 - I.floorY.atLz0); };
+  lx: -9.4, lz: PET_LOT.door.lz, r: 2.4, keeper: { lx: -12.6, lz: PET_LOT.door.lz }, birds: { lx: -6.2, lz: -117.0 } });
+// props (all solid): [kind, lx, lz, w(x), d(z)] - nothing between the door and the counter (lz -115.7 .. -112.4 stays open)
+export const PET_PROPS = Object.freeze([
+  ['counter', -11.3, -114.06, 1.0, 5.6],
+  ['shelf', -15.35, -114.06, .6, 6.4],
+  ['tank', -4.2, -118.15, 2.4, 1.0], ['tank', -7.3, -118.15, 2.4, 1.0],
+  ['cage', -10.0, -117.9, 1.1, 1.1], ['perch', -13.4, -117.6, 1.2, 1.2],
+  ['kennel', -4.3, -111.6, 2.0, 1.4], ['kennel', -7.0, -111.6, 2.0, 1.4],
+  ['cage', -10.0, -111.6, 1.1, 1.1], ['perch', -13.4, -111.5, 1.2, 1.2],
+]);
+// walls (colliders, town lx/lz centre + size): back, two sides, the front split by the 3.2 m arched doorway
+export const PET_WALLS = (() => { const S = PET_STORE, cz = (S.z0 + S.z1) / 2, L = S.x1 - S.x0, cx = (S.x0 + S.x1) / 2, dz0 = S.door.lz - S.door.w / 2, dz1 = S.door.lz + S.door.w / 2, fx = S.x1 - S.wall / 2;
+  return [[S.x0 + S.wall / 2, cz, S.wall, S.z1 - S.z0], [cx, S.z0 + S.wall / 2, L, S.wall], [cx, S.z1 - S.wall / 2, L, S.wall],
+    [fx, (S.z0 + dz0) / 2, S.wall, dz0 - S.z0], [fx, (dz1 + S.z1) / 2, S.wall, S.z1 - dz1]]; })();
+export const petFloor = () => PET_STORE.floor;   // [post-petstore] flat floor (was the L4 house's 0.11 slope)
 export const HQ_WALLS = [
   [-32.7, -47.5, .6, 35], // west wall, full depth
   [-4.5, -35.9, 1, 11.8], [-4.5, -55.6, 1, 18.8], // east wall, split by the Hill Street door (lz -46.2 .. -41.8)

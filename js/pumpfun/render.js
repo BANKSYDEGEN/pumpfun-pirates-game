@@ -2,8 +2,8 @@ import { boardCanvas, boardTexture } from './boardtexture.js';
 import { MAIN_ROW_Y0, MAIN_ROW_H, boardRows } from './boardgrid.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_TRENCH_LAMPS } from './model.js';
-import { HQ, PET_LOT, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
+import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS } from './model.js';
+import { HQ, PET_LOT, PET_STORE, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 import { WATCH_TOKENS } from './market.js';
 import { C, frame, icon, txt, rr, rowBg, logo as tokenLogoDot, pill, bar, tapHint, withUpdated, usd } from './boardkit.js';
 export function buildParts(parts, low=false) {
@@ -117,10 +117,30 @@ function glow(group,low){
  for(const [px,pz] of HQ_TORCHES){const s=px<-18?1:-1;pool(4.2,px+s*.03,Y+3.4,pz,0,s*Math.PI/2);pool(4,px+s*1.6,Y+.05,pz,-Math.PI/2,0);}
  pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
-export function buildPetDress(low=false){const g=buildParts(petParts(),low);g.name='pet_store_L4_dress';
- plaque(g,'assets/pumpfun/pet_sign.webp',5.65,.6,-1.14,PET_LOT.doorY+3.6,-114.76,Math.PI/2);
- plaque(g,'assets/pumpfun/pet_sign.webp',3,.9,-9.09,12.69,-114.761,Math.PI/2);
- plaque(g,'assets/pumpfun/pet_sign.webp',1.6,1.1,-7.69,10.84,-111.1,Math.PI/2);
+// [post-petstore] near-only pet store detail: props (boxes / cylinders / gables, rotations), unlit flames, glass tanks, carved signs, painted
+// light pools (one 128 px gradient, additive, no lights). The shell is in the plaza kit (model.js petShellParts).
+export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_store_L4_dress';const bins=new Map(),S=PET_STORE,F=S.floor;
+ for(const p of petParts()){if(p.detail&&low&&!p.glow)continue;let geo;
+  if(p.kind==='cyl')geo=new THREE.CylinderGeometry(p.r,p.r1,p.h,low?Math.max(6,p.n>>1):p.n);
+  else if(p.kind==='gable'){geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3));geo.computeVertexNormals();}
+  else geo=new THREE.BoxGeometry(p.w,p.h,p.d);
+  if(p.kind==='gable'){geo.translate(p.x,p.y,p.z);}else{const m=new THREE.Matrix4().compose(new THREE.Vector3(p.x,p.y,p.z),new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx||0,p.ry||0,p.rz||0)),new THREE.Vector3(1,1,1));geo.applyMatrix4(m);}
+  if(geo.index)geo=geo.toNonIndexed();for(const k of Object.keys(geo.attributes))if(k!=='position'&&k!=='normal')geo.deleteAttribute(k);
+  const key=(p.glow?'G':p.glass?'T':'L')+p.c;(bins.get(key)||bins.set(key,[]).get(key)).push(geo);}
+ for(const [key,geos] of bins){const geo=mergeGeometries(geos);geos.forEach(q=>q.dispose());const c=key.slice(1);
+  const mat=key[0]==='G'?new THREE.MeshBasicMaterial({color:c,toneMapped:false}):key[0]==='T'?new THREE.MeshLambertMaterial({color:c,transparent:true,opacity:.5,depthWrite:false,emissive:0x0b3a48}):new THREE.MeshLambertMaterial({color:c});
+  const m=new THREE.Mesh(geo,mat);if(key[0]==='T')m.renderOrder=1;g.add(m);}
+ plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.8,.95,S.x1+.21,F+5.45,S.door.lz,Math.PI/2);   // over the arch
+ const hs=PET_LOT.doorY+3.6;plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.73,0);plaque(g,'assets/pumpfun/pet_sign_carved.webp',1.3,.33,S.x1+.75,hs,S.z0+.67,Math.PI);   // hanging bracket sign
+ plaque(g,'assets/pumpfun/pet_sign_carved.webp',3.4,.85,-15.0,F+3.4,S.door.lz,Math.PI/2);   // board over the shelves behind the counter
+ try{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),r=x.createRadialGradient(64,64,2,64,64,64);
+  r.addColorStop(0,'rgba(255,196,118,0.62)');r.addColorStop(.4,'rgba(255,156,66,0.24)');r.addColorStop(1,'rgba(255,140,50,0)');x.fillStyle=r;x.fillRect(0,0,128,128);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const geos=[],pool=(w,px,py,pz,rx,ry)=>{const q=new THREE.PlaneGeometry(w,w);q.rotateX(rx);q.rotateY(ry);q.translate(px,py,pz);geos.push(q);};
+  const C=F+S.ceil;for(const [px,pz] of PET_CHANDELIERS){pool(7.5,px,F+.06,pz,-Math.PI/2,0);pool(4,px,F+.07,pz,-Math.PI/2,0);if(!low)pool(4.5,px,C-.02,pz,Math.PI/2,0);}
+  for(const [px,pz] of PET_LAMPS){pool(3.2,px-.05,F+2.8,pz,0,-Math.PI/2);pool(3,px-1.2,F+.05,pz,-Math.PI/2,0);}
+  for(const s of [-1,1])pool(3,S.x1+.03,F+3.3,S.door.lz+s*(S.door.w/2+.75),0,Math.PI/2);
+  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(q=>q.dispose());m.renderOrder=2;g.add(m);}catch(e){console.warn('[pet store] pools skipped',e.message);}
+ g.userData.dispose=()=>g.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});
  return g;}
 // Main 24 m board: ten compact rows per column; pointer grid shared with boardgrid.js.
 export function drawHQBoard(cv,state,now=Date.now()){const g=cv.getContext('2d'),W=1536,H=384;g.save();g.setTransform(cv.width/W,0,0,cv.height/H,0,0);

@@ -19,6 +19,7 @@ import { libMaterial } from './libTex.js';   // [Timothy] the shared material li
 import { SQUAD_HALL } from './hillShops.js';  // [Timothy v312] the widened Squad Hall (R0) footprint / door / E · SQUAD HALL point (generated)
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+const PET_REWORK_HILL = !(Q && Q.get('petold') === '1');
 export const HILL_GLB_ON = !(Q && Q.get('hillglb') === '0');
 export let HILL_KIT = null;          // { low, mats, lots: { L3: { lods: [Group], sign: Mesh, empty: Object3D, colliders, kind } } }
 export const HILL_PLACES = [];       // [{ key, m: Matrix4 }] (foot-world) filled by hillLot
@@ -55,6 +56,7 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   const key = (side < 0 ? 'L' : 'R') + n, L = HILL_KIT && HILL_KIT.lots[key];
   if (L && L.kind === 'merged') { const M_ = HILL_KIT.lots[L.merged]; return !!(M_ && M_.lods.length); }   // [Raul hill-weapons] R1 = the south bay of the MUSKET SHOP (R2): built (+ colliders, map) with R2
   if (!L || !L.lods.length) return false;
+  if (key === PET_LOT.lot && PET_REWORK_HILL) { LOTS_MAP?.push({ lx, z, w, d, side, label: 'PET STORE (L4)', col: '#fbbf24', tc: '#fde68a' }); RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]); return true; }   // [post-petstore] procedural walk-in (plazaTown + model.js petShellParts) replaces the L4 house + its colliders
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
   const lots = Object.keys(HILL_KIT.lots).filter(k => HILL_KIT.lots[k].merged === key).concat(key).sort().join('+');   // 'R1+R2' for the double MUSKET SHOP
