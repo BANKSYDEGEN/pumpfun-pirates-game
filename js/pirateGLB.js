@@ -113,11 +113,16 @@ export const V7_FACE = {
 // V7 keeps the original Meshy texture intact. Independent pixel masks recolour skin / hair / iris;
 // teal tattoos, underwear, eyebrows, pupils and glints are never tinted.
 const _v7Masks = {};
-function v7FaceMask(fem) { const key = 'assets/pirates/v7_' + (fem ? 'female' : 'male') + '_face.webp'; if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href); t.flipY = false; _v7Masks[key] = t; } return _v7Masks[key]; }
+// [perf v466] ONE load per mask url, shared with the plaza mannequins' pixel read (js/island/plazaMannequins.js maskPixels), which used to fetch it again
+const _v7MaskImg = {};
+export function v7MaskTexture(key) { if (!_v7Masks[key]) { let ok, bad; _v7MaskImg[key] = new Promise((a, b) => { ok = a; bad = b; }); _v7MaskImg[key].catch(() => {});
+  const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href, (tx) => ok(tx.image), undefined, bad); t.flipY = false; _v7Masks[key] = t; } return _v7Masks[key]; }
+export function v7MaskImage(key) { v7MaskTexture(key); return _v7MaskImg[key] || Promise.resolve(_v7Masks[key]?.image || null); }
+function v7FaceMask(fem) { return v7MaskTexture('assets/pirates/v7_' + (fem ? 'female' : 'male') + '_face.webp'); }
 function v7Material(src, p, low, tint) {
   let cfg = null; try { cfg = typeof tint === 'string' ? JSON.parse(tint) : tint || null; } catch {}   // [Emerly V7 female] per-body mask
   const key = cfg?.mask || ('assets/pirates/v7_male_tint' + (low ? '_lo' : '') + '.webp');
-  if (!_v7Masks[key]) { const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href); t.flipY = false; _v7Masks[key] = t; }
+  v7MaskTexture(key);
   // [Emerly V7 female] her Meshy normal map rides along on High (keeps the sculpted hair / cloth relief of the approved render)
   const m = new THREE.MeshLambertMaterial({ name: 'v7body', map: src.map, normalMap: (!low && cfg && src.normalMap) || null, side: THREE.DoubleSide });
   m.onBeforeCompile = s => {

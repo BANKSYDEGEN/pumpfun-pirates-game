@@ -43,7 +43,7 @@ export function mannequinMaterial(src = null, key = 'm') {   // one matte stone 
   return _mats[key];
 }
 async function maskPixels(url) {
-  try { const im = new Image(); im.src = new URL('../../' + url, import.meta.url).href; await im.decode();
+  try { const im = await (await import('../pirateGLB.js')).v7MaskImage(url); if (!im) return null;   // [perf v466] the same image the V7 body shader loaded (was a 2nd fetch)
     const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(im, 0, 0, 256, 256);
     return { w: 256, h: 256, d: g.getImageData(0, 0, 256, 256).data }; } catch { return null; }
 }
@@ -79,20 +79,24 @@ function litClone(src, look) {
 export function addMaleShopDisplays(parent, id, low = false, look = null) {
   const list = MALE_SHOP_DISPLAYS[id]; if (!list) return;
   const lod = new THREE.LOD(); lod.name = 'v7_shop_displays_' + id;
-  const group = new THREE.Group(); lod.addLevel(group, 0); lod.addLevel(new THREE.Group(), low ? 38 : 120); parent.add(lod);
+  // [perf v466] hidden past 38 m (phones) / 60 m (desktop, was 120), and only BUILT the first time the camera comes that close (their V7 bodies +
+  // garment GLBs were ~2.6 MB and ~240k triangles on every harbor enter). Blank forms use the Low V7 on every platform (same unmodified asset).
+  const group = new THREE.Group(); lod.addLevel(group, 0); lod.addLevel(new THREE.Group(), low ? 38 : 60); parent.add(lod);
   const blank = BLANK_FORMS.has(id); if (blank) _matUsers++;
-  const ready = Promise.all([import('../pirateGLB.js'), import('../pirateGear.js')]).then(([{ PirateGLB }, { applyGear }]) => Promise.all(list.map(async (d, i) => {
-    const p = await PirateGLB.create({ lod: blank && !low ? 'hi' : 'lo', female: !!d.female });   // [v7-statue] the players' own LOD
+  let ready = null; const start = () => (ready ||= build());
+  const upd = lod.update.bind(lod); lod.update = (cam) => { upd(cam); if (!ready && lod.getCurrentLevel() === 0) start(); };
+  Object.defineProperty(parent.userData, 'mannequinsReady', { get: start, configurable: true, enumerable: false });   // reading it (tools/v7/game_scenes.js) starts the build
+  const build = () => { const r = Promise.all([import('../pirateGLB.js'), import('../pirateGear.js')]).then(([{ PirateGLB }, { applyGear }]) => Promise.all(list.map(async (d, i) => {
+    const p = await PirateGLB.create({ lod: 'lo', female: !!d.female });   // [v7-statue] the players' own asset ([perf v466] Low everywhere)
     await applyGear(p, { ...d.gear, body: d.female ? 1 : 0, pants: 'classic_pants', boots: 'boots_classic' });
-    if (blank) { const sm = await blankBody(p, !!d.female, low); if (sm && look && !sm.userData.clothesLook) look(sm);
+    if (blank) { const sm = await blankBody(p, !!d.female, true); if (sm && look && !sm.userData.clothesLook) look(sm);
       if (look) p.root.traverse(o => { if (o.isMesh && o.material && !o.userData.blank) o.material = Array.isArray(o.material) ? o.material.map(m => litClone(m, look)) : litClone(o.material, look); }); }
     p.mixer.setTime(.35); p.root.name = 'v7_mannequin_' + id + '_' + i;
     p.root.position.set(d.x, d.y ?? .718, d.z); p.root.rotation.y = d.yaw; p.root.scale.setScalar(d.scale ?? 1.3);   // [clothes-aaa] y .2 = the clothes shop's display plinths
     p.root.traverse(o => { if (o.isMesh) { o.castShadow = !low; o.frustumCulled = false; } });
     group.add(p.root); return p;
   })));
-  parent.userData.mannequinsReady = ready;
-  ready.catch(e => console.warn('[V7 mannequins] load failed', e));
-  lod.addEventListener('removed', () => { ready.then(ps => { for (const p of ps) { try { p.dispose?.(); } catch {} } }).catch(() => {});
+  r.catch(e => console.warn('[V7 mannequins] load failed', e)); return r; };
+  lod.addEventListener('removed', () => { if (!ready) { if (blank && --_matUsers <= 0) { _matUsers = 0; disposeBlankForms(); } return; } ready.then(ps => { for (const p of ps) { try { p.dispose?.(); } catch {} } }).catch(() => {});
     if (blank && --_matUsers <= 0) { _matUsers = 0; disposeBlankForms(); } });
 }
