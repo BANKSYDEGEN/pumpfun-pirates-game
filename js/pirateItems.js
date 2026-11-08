@@ -153,6 +153,11 @@ function baseMask(o, P, T, female) {
     out[i] = 1; }
   _baseM.set(P, out); return out;
 }
+// [v7f pants b2] BANKSY t462u / t490u girl pants: her refit trousers / breeches are one closed opaque cloth from the waistband to the leg
+// hems (only boundaries: waist top + the two hems), so her skin + baked white shorts inside that band can never be seen; drawing them
+// only let shorts slivers / skin shards poke through the cloth in stride. Bind-space band, never hair or the braid (braid bone, or the
+// braid ties hanging behind the seat). Rule { v7fUnder: [y0, y1], female: 1 } (js/v7fFitData.js); body only, never the pants.
+function v7fUnderHit(r, x, y, z, t, br) { return y > r.v7fUnder[0] && y < r.v7fUnder[1] && t !== TINTS.indexOf('hair') && br !== 1 && !(z < -0.1 && Math.abs(x) < 0.07); }
 // [Raul wrestler] under the luchador mask (three bind space, per body; tools/mask.py prints these): every head vertex above the mask's
 // bottom (cut) goes, except the front eye-hole zones + the open chin (x, y centre, x, y radii; front = z > zf); below the cut only the
 // hair (the male beard in front stays). Her braid (top bone 'braid') always stays.
@@ -227,11 +232,13 @@ function applyHide(p) {
     if (p.v6 && bIt?.obj?.geometry && !isCloth) { const cm = coverMask(P, Tt, bIt.obj.geometry); for (let i = 0; i < n; i++) if (cm[i]) hid[i] = 1; }   // [V6 store] the legs' skin under the pants
     if (isCloth && (p.items.outfit?.id === 'suit' || p.items.outfit?.id === 'cloth_singlet' || ITEM_BY_ID[p.items.outfit?.id]?.longCoat) && Tt) for (let i = 0; i < n; i++) if (Math.round(Tt.getX(i)) === TI('accent')) hid[i] = 1;   // sash tails under the long coats / the singlet
     const LU = p.v5 && !isCloth && rules.some((r) => r.lucha) ? { ...LUCHA[p.female ? 'female' : 'male'], male: !p.female } : null, BR = LU ? braidOf(o) : null;   // [Raul wrestler]
+    let UB = null;   // [v7f pants b2] braidOf(o), only when a v7fUnder rule asks
     const SG = p.v5 && !isCloth && p.items.outfit?.id === 'cloth_singlet' ? CLOTH.cut[p.female ? 'female' : 'male'] : 0, SB = SG ? braidOf(o) : null;
     for (let i = 0; i < n; i++) { if (hid[i]) continue; const t = Tt ? Math.round(Tt.getX(i)) : -1, rX = P.getX(i), rY = P.getY(i), rZ = P.getZ(i); let X = rX, Y = rY, Z = rZ; if (p.warp) { const q = v5Inv(p.warp, X, Y, Z); X = q[0]; Y = q[1]; Z = q[2]; }   // [v121] rules are in v4 bind space
       if (LU && luchaHit(LU, rX, rY, rZ, t, BR[i])) { hid[i] = 1; continue; }
       if (SG && t === TINTS.indexOf('hair') && rY < SG && (p.female || Math.abs(rX) < 0.14) && SB[i] !== 1) { hid[i] = 1; continue; }   // [wrestler v2] hair-tinted pants detail (fly / sash folds) under the fitted singlet legs (never the braid)
       for (const r of rules) { if (r.lucha) continue;
+        if (r.v7fUnder) { if (!isCloth && p.female && v7fUnderHit(r, rX, rY, rZ, t, (UB ||= braidOf(o))[i])) { hid[i] = 1; break; } continue; }   // [v7f pants b2]
         if (r.boot5) { if (bootHides(r, rX, rY, p.female, p.items.legL, p.items.legR)) { hid[i] = 1; break; } continue; }   // [Raul items redo] both legs under the boots (not a peg leg: PEG5 owns that one)
         if (r.leg5) { if ((r.female && !p.female) || (r.male && p.female)) continue; const sx = r.leg5 === 'L' ? 1 : -1; if (sx * rX > 0.002 && sx * rX < 0.3 && rY < r.y) { hid[i] = 1; break; } continue; }   // [Raul pegleg] v5 raw: that leg below the cut (body + base outfit)
         if (r.raw) { if (r.tints && !r.tints.some((k) => TI(k) === t)) continue; const [ex, ez, ax, az] = r.ell; if (rY > r.y0 && ((rX - ex) / ax) ** 2 + ((rZ - ez) / az) ** 2 < 1) { hid[i] = 1; break; } continue; }   // [v123] v5 bind-space ellipse (crown)

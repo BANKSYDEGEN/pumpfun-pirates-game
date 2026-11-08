@@ -29,7 +29,7 @@ const FOOT = ['boots_buckle', 'boots_cavalier', 'boots_gold', 'boots_classic', '
 const PEGS = ['peg', 'peg_gold', 'peg_kraken', 'peg_ghost'].flatMap((b) => [b + '_l', b + '_r']);
 
 test('V7F_FITS: exactly the refit batches (7 footwear + 8 peg legs + the tank + 2 hooks), hi + lo each', () => {
-  assert.deepEqual(Object.keys(V7F_FITS).sort(), [...FOOT, ...PEGS, 'cloth_tank', 'hook_l', 'hook_r'].sort());
+  assert.deepEqual(Object.keys(V7F_FITS).sort(), [...FOOT, ...PEGS, 'cloth_tank', 'hook_l', 'hook_r', 'classic_pants', 'canvas_pants', 'sailor_trousers'].sort());
   for (const [id, F] of Object.entries(V7F_FITS)) for (const lod of ['hi', 'lo']) {
     assert.equal(F[lod], `assets/pirates/items/v7f_fit/${id}_female_${lod}.glb`); assert.ok(existsSync(F[lod]), F[lod]);
   }
@@ -78,7 +78,7 @@ test('footwear sits under her own knees: one shell per foot, under her shin bone
 test('routing: female V7 only; male V7 refits, v5 / v6 and the shared dye default unchanged', () => {
   const s = readFileSync('js/pirateItems.js', 'utf8');
   assert.match(s, /if \(p\.female && p\.v7 && V7F_FITS\[def\.id\]\) \{ const F = V7F_FITS\[def\.id\];/);
-  assert.match(s, /v5:\{female:\{hi:F\.hi,lo:F\.lo\}\}, crownFit:false, noFlatten:true, v5dy:0\}/);
+  assert.ok(s.includes('v5:{female:{hi:F.hi,lo:F.lo}}, ...(def.pants ? {dyeY:V7F_PANTS_DYE_Y} : {}), crownFit:false, noFlatten:true, v5dy:0}'));
   assert.match(s, /if \(F\.hide\) it\.v5hide = F\.hide; return it; \}/);
   assert.match(s, /if \(p\.female && p\.v7 && def\.pants && p\.v5 && def\.v5\) return buildV5\(p, \{\.\.\.def, dyeY: V7F_PANTS_DYE_Y\}/);
   // the female route sits after her face paint and before the male / generic routes; the male route is as shipped
