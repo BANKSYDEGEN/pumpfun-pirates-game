@@ -1,3 +1,4 @@
+import { itemIconHtml } from './inventory/itemIcon.js';
 // [v370] BANKSY t1966u/t1967u: a clear LOOT card when you pick something up: the gold (+ holder / pet bonus) and every item, with icons.
 // One card at a time near the top-centre; a new pickup inside 1.2 s merges into the card that is showing.
 import { escHtml } from './safe.js';
@@ -19,7 +20,7 @@ box-shadow:0 6px 24px rgba(0,0,0,.5),0 0 18px rgba(255,200,80,.25);color:#fff4dc
   document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'loot-card'; document.body.appendChild(el); return el;
 }
-/** show({ title, from, gold, bonus, items: [{ icon, name, qty }], note }) */
+/** show({ title, from, gold, bonus, items: [{ icon, iconImage, name, qty }], note }) */
 export function showLootCard(o = {}) {
   try {
     const now = performance.now();
@@ -30,7 +31,7 @@ export function showLootCard(o = {}) {
     const c = mount();
     c.innerHTML = `<div class="lc-t">${escHtml(cur.title)}${cur.from ? ' · ' + escHtml(String(cur.from).toUpperCase()) : ''}</div>`
       + (cur.gold ? `<div class="lc-g">🪙 +${cur.gold.toLocaleString()} GOLD</div>${cur.bonus ? `<div class="lc-b">incl. +${cur.bonus.toLocaleString()} bonus</div>` : ''}` : '')
-      + (cur.items.length ? `<div class="lc-i">${cur.items.slice(0, 12).map(it => `<span>${escHtml(it.icon || '📦')} ${escHtml(it.name || 'item')}${it.qty > 1 ? ' ×' + it.qty : ''}</span>`).join('')}${cur.items.length > 12 ? `<span>+${cur.items.length - 12} more</span>` : ''}</div>` : '')
+      + (cur.items.length ? `<div class="lc-i">${cur.items.slice(0, 12).map(it => `<span>${itemIconHtml(it, '📦')} ${escHtml(it.name || 'item')}${it.qty > 1 ? ' ×' + it.qty : ''}</span>`).join('')}${cur.items.length > 12 ? `<span>+${cur.items.length - 12} more</span>` : ''}</div>` : '')
       + (cur.note ? `<div class="lc-n">${escHtml(cur.note)}</div>` : '');
     c.classList.add('on'); clearTimeout(hideT); hideT = setTimeout(() => { c.classList.remove('on'); cur = null; }, cur.items.length ? 3600 : 2600);
   } catch {}

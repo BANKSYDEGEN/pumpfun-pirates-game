@@ -1,3 +1,4 @@
+import { itemIconHtml } from './itemIcon.js';
 import { parrotUpgradeState, parrotUpgradeFeedback } from './parrotUpgrade.js';
 // [inventory] THE INVENTORY GRID (BANKSY 11:01-11:03 AM): the HUD MAPS button is now INVENTORY and opens a scrolling grid of item slots
 // (icon + count, identical items stack, no slot / stack cap). Tap a slot: OPEN (a treasure map -> the MAPS chart, as before), EQUIP (a
@@ -14,6 +15,7 @@ const IMG_DIR = new URL('../../assets/items/', import.meta.url).href, THUMB_DIR 
 const MAP_TIER = { common: 'common', uncommon: 'common', rare: 'rare', epic: 'rare', legendary: 'legendary' };
 export function itemImg(key, info) {
   const p = String(key).split(':'); if (!info) return '';
+  if (info.iconImage) return info.iconImage;
   if (info.kind === 'fish') return `${IMG_DIR}fish_${p[1]}.webp`;
   if (info.kind === 'gunacc') return `${IMG_DIR}val_${p[1]}.webp`; // [v332] crafted attachment thumbs
   if (info.kind === 'valuable') return `${IMG_DIR}val_${p[1]}.webp`;
@@ -454,7 +456,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
   // [ruins] jungle ruin chests: the SERVER rolls the valuable (once per chest per day); idol altar: 21 shards -> Golden Idol
-  const lootOf = (k, title) => { const i = infoOf(k); if (!i) return; import('../lootCard.js').then(L => L.showLootCard({ title, items: [{ name: i.name, icon: i.icon, qty: 1 }], note: 'sell it at the Treasure Trader' })).catch(() => toast(`${i.icon} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2200)); };
+  const lootOf = (k, title) => { const i = infoOf(k); if (!i) return; import('../lootCard.js').then(L => L.showLootCard({ title, items: [{ name: i.name, icon: i.icon, iconImage: i.iconImage, qty: 1 }], note: 'sell it at the Treasure Trader' })).catch(() => toast(`${itemIconHtml(i)} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2200)); };
   window.addEventListener('pfp-ruin', async (e) => { let r = null; try { r = await pvp()?.inv?.call('inv_ruin_chest', { spot: e.detail?.spot }); } catch { r = null; }
     if (r?.ok) { refresh(); lootOf(r.item, 'RUIN CHEST'); } else if (r?.why === 'found today') toast('THE CHEST IS EMPTY<br><small>it refills tomorrow</small>', 1800); else toast('THE CHEST IS STUCK<br><small>sign in to the pirate network to loot it</small>', 2000); });
   window.addEventListener('pfp-idol', async () => { let r = null; try { r = await pvp()?.inv?.call('inv_idol_forge', {}); } catch { r = null; }

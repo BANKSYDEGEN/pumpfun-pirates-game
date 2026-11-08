@@ -41,7 +41,7 @@ export const VALUABLES = {
   diamond:        { name: 'Diamond',           icon: '💎', rarity: 'epic',      antiques: 3500 },
   jewel_necklace: { name: 'Jewelled Necklace', icon: '📿', rarity: 'epic',      antiques: 3500 },
   crown_jewel:    { name: 'Royal Crown Jewel', icon: '👑', rarity: 'legendary', antiques: 5000 },
-  golden_idol:    { name: 'Golden Idol',       icon: '🗿', rarity: 'legendary', antiques: 20000 },  // [ruins] BANKSY t1999u: 20k. 21 Idol Shards at the Skull Cave altar (BANKSY t1996u/t1997u)
+  golden_idol:    { name: 'Golden Idol',       icon: '🗿', iconImage: new URL('../../assets/items/val_golden_idol.webp', import.meta.url).href, rarity: 'legendary', antiques: 20000 },  // [ruins] BANKSY t1999u: 20k. 21 Idol Shards at the Skull Cave altar (BANKSY t1996u/t1997u)
 };
 // [ruins] BANKSY t1996u-t1998u: Idol Shards (7 jungle spots, respawn daily) still sell at the Treasure Trader; 21 of them (3+ days) can instead
 // become a Golden Idol at the Skull Cave altar.
