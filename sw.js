@@ -166,6 +166,7 @@ const SHELL = [
   "./js/dock/streetSigns.js", // [v335] no-op stub (3D street signs removed)
   "./js/mapIcons.js",
   "./js/mapLandmarks.js",
+  "./js/mapBuildings.js",
   "./js/pvpBoard.js",
   "./js/squads.js",
   "./assets/ships/pvp/unlockSkins.js",

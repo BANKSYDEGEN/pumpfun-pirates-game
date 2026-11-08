@@ -1,3 +1,4 @@
+import { SAIL, SAIL_ALL } from './canoe.js';
 // [v145] PUMPFUN PIRATES · THE TREASURE MAP (BANKSY: "make it more of a moment when they get a treasure map, also when they open it
 // a treasure map needs to pop up with island map on it with the treasure hunt").
 //   - sheet(): ONE hand-drawn parchment chart of the REAL island + harbor, baked once from the on-foot terrain (js/island/foot.js
@@ -59,15 +60,20 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   // ---------------- the chart (baked once) ----------------
   let SH = null; // { cv, x0, z0, k, w, h }
+  let SHI = null; // expanded Island Map only; the HUD radar keeps its original sheet/range
   let SHB = null; // [minimap-fix] the BARE chart (no ink labels / shop badges): the TREASURE MAP radar draws its own icons, the names cluttered the small disc
   function sheet(bare = false) {
-    { const C = bare ? SHB : SH; if (C && C.rev === (FM.TERRAIN?.rev || 0)) return C; } // [minimap-themes] build-mode edits re-ink the chart (next time it's shown)
+    { const C = bare === 'island' ? SHI : bare ? SHB : SH; if (C && C.rev === (FM.TERRAIN?.rev || 0)) return C; } // [minimap-themes] build-mode edits re-ink the chart (next time it's shown)
     const t0 = performance.now(), S = 5, nx = Math.floor((B.x1 - B.x0) / S) + 1, nz = Math.floor((B.z1 - B.z0) / S) + 1, G = new Float32Array(nx * nz);
     let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = B.x0 + i * S, z = B.z0 + j * S, h = FM.H(x, z); G[j * nx + i] = h;
       if (h > 0.3) { if (x < lx0) lx0 = x; if (x > lx1) lx1 = x; if (z < lz0) lz0 = z; if (z > lz1) lz1 = z; } }
     for (const d of decks) { const [fx, fz] = toF(d.x, d.z); lx0 = Math.min(lx0, fx - 30); lx1 = Math.max(lx1, fx + 30); lz0 = Math.min(lz0, fz - 30); lz1 = Math.max(lz1, fz + 30); }
-    const pad = 70, x0 = Math.max(B.x0, lx0 - pad), x1 = Math.min(B.x1, lx1 + pad), z0 = Math.max(B.z0, lz0 - pad - 40), z1 = Math.min(B.z1, lz1 + pad);
+    const pad = 70; let x0 = Math.max(B.x0, lx0 - pad), x1 = Math.min(B.x1, lx1 + pad), z0 = Math.max(B.z0, lz0 - pad - 40), z1 = Math.min(B.z1, lz1 + pad);
+    if (bare === 'island' && SAIL_ALL) {
+      const [sx,sz] = toF(SAIL.cx,SAIL.cz), r = SAIL.r + 60;
+      x0 = Math.min(x0,sx-r); x1 = Math.max(x1,sx+r); z0 = Math.min(z0,sz-r); z1 = Math.max(z1,sz+r);
+    }
     const LONG = low ? 1150 : 1700, k = LONG / Math.max(x1 - x0, z1 - z0), w = Math.round((x1 - x0) * k), h = Math.round((z1 - z0) * k);
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
     const P = (x, z) => [(x - x0) * k, (z - z0) * k], u = k / 1.0; // px per metre
@@ -125,7 +131,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
         g.lineWidth = lw(0.8); g.beginPath(); for (let i = 1; i <= 3; i++) { const f = i / 4; g.moveTo(a - s * 0.1 + f * s * 0.55, b - s * 0.75 + f * s * 1.2); g.lineTo(a - s * 0.1 + f * s * 0.55 - s * 0.18, b - s * 0.75 + f * s * 1.2); } g.stroke(); } }
     // town: roofs, street, piers + boardwalk
     if (MP?.street) { poly(MP.street, lw(5), INK_S + '0.55)'); poly(MP.street, lw(3), 'rgba(236,220,180,0.9)'); }
-    for (const o of FM.MAP_BOXES ? FM.MAP_BOXES() : []) { if (o.hx * o.hz < 3) continue; const [a, b] = P(o.x, o.z); g.save(); g.translate(a, b); g.rotate(-Math.atan2(o.s, o.c));
+    for (const o of !bare && FM.MAP_BOXES ? FM.MAP_BOXES() : []) { if (o.hx * o.hz < 3) continue; const [a, b] = P(o.x, o.z); g.save(); g.translate(a, b); g.rotate(-Math.atan2(o.s, o.c));
       g.fillStyle = 'rgba(150,72,40,0.85)'; g.strokeStyle = INK; g.lineWidth = lw(0.8); const W2 = Math.max(1.2, o.hx * k), H2 = Math.max(1.2, o.hz * k); g.fillRect(-W2, -H2, 2 * W2, 2 * H2); g.strokeRect(-W2, -H2, 2 * W2, 2 * H2); g.restore(); }
     for (const dk of decks) { const [fx, fz] = toF(dk.x, dk.z), [a, b] = P(fx, fz); g.save(); g.translate(a, b); g.rotate(-(dk.yaw || 0));
       g.fillStyle = '#b07a46'; g.strokeStyle = INK; g.lineWidth = lw(1.1); g.fillRect(-dk.hw * k, -dk.hl * k, 2 * dk.hw * k, 2 * dk.hl * k); g.strokeRect(-dk.hw * k, -dk.hl * k, 2 * dk.hw * k, 2 * dk.hl * k); g.restore(); }
@@ -167,7 +173,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       g.fillStyle = '#8e2a14'; g.beginPath(); g.arc(0, 0, R * 0.07, 0, 7); g.fill();
       g.font = `${Math.round(R * 0.55)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#8e2a14'; g.fillText('N', 0, -R * 1.34);
       g.fillStyle = INK; g.font = `${Math.round(R * 0.36)}px ${FONT}`; g.fillText('S', 0, R * 1.3); g.fillText('E', R * 1.3, 0); g.fillText('W', -R * 1.3, 0); g.restore(); }
-    { const tw = Math.min(w * 0.7, lw(760)), th = lw(112), tx = w / 2, ty = lw(54) + th / 2; g.save(); g.translate(tx, ty);
+    if (!bare) { const tw = Math.min(w * 0.7, lw(760)), th = lw(112), tx = w / 2, ty = lw(54) + th / 2; g.save(); g.translate(tx, ty);
       g.fillStyle = 'rgba(236,216,168,0.96)'; g.strokeStyle = INK; g.lineWidth = lw(2); g.beginPath(); g.moveTo(-tw / 2, -th / 2); g.lineTo(tw / 2, -th / 2); g.lineTo(tw / 2 + th * 0.35, 0); g.lineTo(tw / 2, th / 2); g.lineTo(-tw / 2, th / 2); g.lineTo(-tw / 2 - th * 0.35, 0); g.closePath(); g.fill(); g.stroke();
       g.lineWidth = lw(0.8); g.strokeRect(-tw / 2 + lw(6), -th / 2 + lw(6), tw - lw(12), th - lw(12));
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#8e2a14'; g.font = `${Math.round(th * 0.62)}px ${FONT}`; g.fillText('PUMPFUN PIRATES', 0, -th * 0.08);
@@ -190,7 +196,7 @@ export function createTreasureMap({ FM, toF, decks = [], spots = null, low = fal
       g.save(); g.globalCompositeOperation = 'destination-in'; path(); g.fillStyle = '#000'; g.fill(); g.restore();
       g.save(); path(); g.clip(); g.shadowColor = 'rgba(70,32,6,0.9)'; g.shadowBlur = lw(18); g.lineWidth = lw(7); g.strokeStyle = 'rgba(70,32,6,0.85)'; path(); g.stroke(); g.restore();
       g.lineWidth = lw(1.4); g.strokeStyle = 'rgba(50,22,4,0.9)'; path(); g.stroke(); }
-    const out = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0), rev: FM.TERRAIN?.rev || 0 }; if (bare) SHB = out; else SH = out;
+    const out = { cv, x0, z0, k, w, h, ms: Math.round(performance.now() - t0), rev: FM.TERRAIN?.rev || 0 }; if (bare === 'island') SHI = out; else if (bare) SHB = out; else SH = out;
     return out;
   }
 

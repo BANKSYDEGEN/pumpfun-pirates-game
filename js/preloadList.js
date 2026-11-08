@@ -76,6 +76,7 @@ export const HARBOR_MODULES = [
   "js/kdCounter.js",
   "js/lootCard.js",
   "js/mapLandmarks.js",
+  "js/mapBuildings.js",
   "js/modeKills.js",
   "js/net.js",
   "js/onfoot/battle.js",

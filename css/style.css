@@ -1349,3 +1349,18 @@ html:has(#pause:not(.hidden)) #bt-atk { visibility: hidden !important; pointer-e
   #hud-tr #hb-hub-btn { font-size: 13px; padding: 3px 5px; gap: 3px; }
   #hud-tr #hb-hub-btn .hb-ico { font-size: 13px; }
 }
+/* Island Map: building key left, zoomable chart centre, existing social list right. */
+#isle-map { display: grid; grid-template-columns: 200px minmax(0,1fr) var(--im-social-width,0px); grid-template-rows: auto minmax(0,1fr) auto; }
+#isle-map .im-head { grid-column: 1 / -1; grid-row: 1; }
+#isle-map > canvas { grid-column: 2; grid-row: 2; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+#isle-map .im-key { grid-column: 1 / 3; grid-row: 3; max-height: 28vh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+#isle-map .im-building-key { grid-column: 1; grid-row: 2; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; min-height: 0; padding: 8px; border-right: 1px solid #ffcd7740; }
+#isle-map .im-building-key summary { cursor: pointer; color: #ffcd77; font-size: 12px; padding: 8px 0; position: sticky; top: 0; background: #0c1821; }
+#isle-map .im-buildings { display: flex; flex-direction: column; gap: 3px; }
+#isle-map .im-building { display: flex; flex-shrink: 0; align-items: center; gap: 5px; min-width: 0; font-size: 11px; }
+#isle-map .im-building canvas { flex: 0 0 22px; width: 22px; height: 22px; cursor: default; touch-action: pan-y; }
+#isle-map:has(.im-building-key:not([open])) { grid-template-columns: 44px minmax(0,1fr) var(--im-social-width,0px); }
+#isle-map .im-building-key:not([open]) summary { writing-mode: vertical-rl; min-height: 90px; }
+@media (max-width:700px) { #isle-map { grid-template-columns: 120px minmax(0,1fr) var(--im-social-width,0px); } #isle-map .im-building-key { padding: 4px; } #isle-map .im-building { font-size: 10px; } }
+/* Keep native legend/player-list scrolling; only the chart consumes drag/pinch gestures. */
+html.isle-map-open, html.isle-map-open body, #isle-map { touch-action: auto; }
