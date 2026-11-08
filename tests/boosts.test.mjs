@@ -38,7 +38,7 @@ test('ownership: unowned gives 0; owner owns all but is still capped', () => {
 });
 test('mode factors: harbor 100%, BR 50%, Waves 100%, SWORD PIT / MUSKET RANGE 0', () => {
   assert.deepEqual(BOOST_MODE, { harbor: 1, br: 0.5, waves: 1, pit: 0 });
-  setBoostSource({ gear: { hat: 'crown_imperial', parrot: 'parrot_gold' }, owned: ['hat:crown_imperial', 'parrot:parrot_gold'], owner: false });
+  setBoostSource({ gear: { hat: 'crown_imperial', parrot: 'parrot_gold' }, owned: ['hat:crown_imperial', 'parrot:parrot_gold'], owner: false, parrotLv: 4 });
   setBoostZone('harbor'); assert.equal(activeBoosts('pvp').reload, 0.06);
   setBoostZone('br'); assert.equal(activeBoosts('pvp').reload, 0.03); assert.equal(activeBoosts('pvp').goldFind, 0.08); // economy stays full
   setFairFight(true); assert.equal(boostZone(), 'pit'); assert.equal(activeBoosts('pvp').combat, 0); setFairFight(false);
@@ -69,4 +69,15 @@ test('swords + muskets: their OWN hit rate only (never cannon damage / range), o
   assert.equal(weaponHitBonus('sword', { arena: true }), 0); assert.equal(weaponHitBonus('musket', { arena: true }), 0);
   setFairFight(true); assert.equal(weaponHitBonus('sword'), 0); setFairFight(false); assert.equal(weaponHitBonus('cannon'), 0);
   setBoostSource({ gear: { sword: 'rapier' }, owned: [], owner: false }); assert.equal(weaponHitBonus('sword', { arena: false }), 0); // not owned
+});
+
+test('[parrot levels] parrot boost = LEVEL, not color; boosts stack and grow every level', async () => {
+  const { parrotBoost } = await import('../js/boosts.js');
+  assert.deepEqual(boostsFor({ parrot: 'parrot_green' }, ['parrot:parrot_green'], false, 4), boostsFor({ parrot: 'parrot_diamond' }, ['parrot:parrot_diamond'], false, 4));
+  assert.deepEqual(parrotBoost(0), { goldFind: 0.02 });
+  assert.deepEqual(parrotBoost(4), { goldFind: 0.08, digLuck: 0.06 });
+  assert.deepEqual(parrotBoost(10), { goldFind: 0.17, digLuck: 0.15, sell: 0.1, swordHit: 0.02, musketHit: 0.02 });
+  for (let l = 1; l <= 10; l++) for (const [k, v] of Object.entries(parrotBoost(l - 1))) assert.ok(parrotBoost(l)[k] > v, `${k} grows at LV${l}`);
+  const lib = await import('../supabase/functions/pvp/lib.ts').catch(() => null);
+  if (lib?.parrotBoost) for (let l = 0; l <= 10; l++) assert.deepEqual(lib.parrotBoost(l), parrotBoost(l));
 });

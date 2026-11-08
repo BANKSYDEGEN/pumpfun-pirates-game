@@ -19,7 +19,7 @@ export const BOOST_STATS = {
   turn:     { label: 'TURN',      icon: '☸️', cap: 0.04, combat: true,  live: true, track: 'RUDDER' },
   speed:    { label: 'SPEED',     icon: '⛵', cap: 0.05, combat: true,  live: true, track: 'SAILS' },
   regen:    { label: 'REPAIR',    icon: '🔧', cap: 0.08, combat: true,  live: true, track: 'HULL PLANKS' },
-  goldFind: { label: 'GOLD FIND', icon: '🪙', cap: 0.10, combat: false, live: true },
+  goldFind: { label: 'GOLD FIND', icon: '🪙', cap: 0.25 /* [parrot levels] was 0.10: a LV10 parrot alone gives 20% */, combat: false, live: true },
   // [Raul items redo 2] BANKSY 11:29 AM "make pets be good boost on sells" (PROPOSED): more gold when the game SELLS for you = a chest item
   // you already own is paid out in gold (chest.ts CHEST_DUP_SHARE); the server applies it in map_dig (lib.ts sellGold)
   sell:     { label: 'SELL BONUS', icon: '💰', cap: 0.40, combat: false, live: true, hint: 'more gold for spare chest items' },
@@ -52,9 +52,7 @@ export const BOOSTS = {
   // crew clothes = hull repair
   'crewoutfit:tshirt': { regen: 0.03 }, 'crewoutfit:shirt': { regen: 0.03 }, 'crewoutfit:coat': { regen: 0.05 }, 'crewoutfit:suit': { regen: 0.08 },
   // pets (parrots) = economy: gold find, + dig luck from RARE up (dig luck not live yet)
-  'parrot:parrot_green': { goldFind: 0.02 }, 'parrot:parrot_red': { goldFind: 0.03 }, 'parrot:parrot_blue': { goldFind: 0.04 },
-  'parrot:parrot_cockatoo': { goldFind: 0.05, digLuck: 0.05 }, 'parrot:parrot_black': { goldFind: 0.06, digLuck: 0.08 },
-  'parrot:parrot_gold': { goldFind: 0.08, digLuck: 0.12 }, 'parrot:parrot_diamond': { goldFind: 0.10, digLuck: 0.15 },
+  // parrots: [parrot levels] BANKSY "make it per level not color": the boost comes from the equipped parrot's LEVEL (parrotBoost), color is cosmetic
   // [shop-boosts] BANKSY 10:00 AM "give skill boosts to the new items": Raul's shop items 2 + special pegs, scaled by price within each slot.
   // beard = repair · earrings = range · gold teeth + pets = gold find · boots = speed · cape = hull HP · ship flag = reload · figurehead = damage · special pegs = turn + speed
   'beard:beard_moustache': { regen: 0.01 }, 'beard:beard_forked': { regen: 0.02 }, 'beard:beard_black': { regen: 0.03 },
@@ -78,13 +76,28 @@ export const BOOSTS = {
   'musket:navy': { musketHit: 0.01 }, 'musket:blunder': { musketHit: 0.02 }, 'musket:dragoon': { musketHit: 0.03 }, 'musket:bone': { musketHit: 0.04 }, 'musket:blunder_gold': { musketHit: 0.05 },
 };
 const r4 = (v) => Math.round(v * 10000) / 10000;
-export const boostOf = (slot, id) => BOOSTS[`${slot}:${id}`] || null;
+// [parrot levels] mirror: supabase/functions/pvp/lib.ts parrotBoost. LV0..10 (levels stack: a LV10 bird has every unlock at once)
+//   gold find 2% + 1.5%/lv · LV3+ dig luck 1.5%/lv · LV6+ sell bonus 2% + 2%/lv · LV10 +2% sword hit +2% musket hit
+export const isParrot = (id) => typeof id === 'string' && id.startsWith('parrot_');
+export function parrotBoost(lv) {
+  lv = Math.max(0, Math.min(10, Math.floor(Number(lv) || 0)));
+  const b = { goldFind: 0.02 + 0.015 * lv };
+  if (lv >= 3) b.digLuck = 0.015 * lv;
+  if (lv >= 6) b.sell = 0.02 + 0.02 * (lv - 6);
+  if (lv >= 10) { b.swordHit = 0.02; b.musketHit = 0.02; }
+  for (const k of Object.keys(b)) b[k] = r4(b[k]); return b;
+}
+export const PARROT_UNLOCKS = [[0, 'gold find'], [3, 'dig luck'], [6, 'sell bonus'], [10, 'sword + musket hit']];
+// panel line: what this level gives now + what the next level gives
+export const parrotBoostNext = (lv) => (lv | 0) >= 10 ? 'MAX LEVEL' : 'next ' + parrotBoostText((lv | 0) + 1);
+export const parrotBoostText = (lv) => `LV ${lv | 0}: ` + Object.entries(parrotBoost(lv)).map(([k, v]) => `+${fmtPct(v)} ${BOOST_STATS[k].label.toLowerCase()}`).join(', ');
+export const boostOf = (slot, id, lv = 0) => slot === 'parrot' && isParrot(id) ? parrotBoost(lv) : BOOSTS[`${slot}:${id}`] || null;
 // equipped gear ∩ owned (owner = owns everything, still CAPPED) -> { reload, hp, ..., goldFind, digLuck, combat, raw, capped }
-export function boostsFor(gear, owned, owner = false) {
+export function boostsFor(gear, owned, owner = false, parrotLv = 0) {
   const has = owned instanceof Set ? owned : new Set(Array.isArray(owned) ? owned : []);
   const raw = {}; for (const k of Object.keys(BOOST_STATS)) raw[k] = 0;
   for (const [slot, id] of Object.entries(gear || {})) {
-    if (typeof id !== 'string') continue; const b = boostOf(slot, id); if (!b) continue;
+    if (typeof id !== 'string') continue; const b = boostOf(slot, id, parrotLv); if (!b) continue;
     if (!owner && !has.has(`${slot}:${id}`)) continue; // not yours: no boost (the server strips it too: fitEquipped)
     for (const [k, v] of Object.entries(b)) raw[k] += v;
   }
@@ -132,20 +145,21 @@ export function statPreview(k, after, now = null) {
     return from === to ? null : { from, to }; } catch { return null; }
 }
 // ---------- live state (js/pvp.js feeds it from the server-validated profile + the server's owned list) ----------
-const src = { gear: null, owned: [], owner: false, server: null }; let zone = 'harbor', fair = false;
+const src = { gear: null, owned: [], owner: false, server: null, parrotLv: 0, parrotLvKnown: false }; let zone = 'harbor', fair = false;
 const emit = () => { try { dispatchEvent(new CustomEvent('pfp-boosts', { detail: { boosts: currentBoosts(), zone: boostZone() } })); } catch {} };
 export function setBoostSource(p = {}) {
   if (p.gear && typeof p.gear === 'object') src.gear = { ...p.gear };
   if (Array.isArray(p.owned)) src.owned = p.owned.slice();
   if (typeof p.owner === 'boolean') src.owner = p.owner;
   if ('server' in p) src.server = p.server || null;
+  if (p.parrotLv != null) { src.parrotLv = Math.max(0, Math.min(10, p.parrotLv | 0)); src.parrotLvKnown = true; }
   emit();
 }
 // 'harbor' | 'br' (js/pvp.js where) · setFairFight(true) = the SWORD PIT / MUSKET RANGE (emerly/battle-areas calls it on enter / leave)
 export function setBoostZone(z) { if (!(z in BOOST_MODE) || z === zone) return; zone = z; emit(); }
 export function setFairFight(on) { on = !!on; if (on === fair) return; fair = on; emit(); }
 export const boostZone = () => fair ? 'pit' : zone;
-export const currentBoosts = () => boostsFor(src.gear, src.owned, src.owner); // full (100%) boosts of what you wear
+export const currentBoosts = () => boostsFor(src.gear, src.owned, src.owner, src.parrotLv); // full (100%) boosts of what you wear
 // gameMode = game.mode ('pvp' = harbor / BR, else Waves). What the ship actually gets right now.
 export function activeBoosts(gameMode) { const z = gameMode === 'pvp' ? boostZone() : 'waves'; return scaleBoosts(currentBoosts(), BOOST_MODE[z] ?? 0); }
 // gold find on gold the CLIENT banks (BR / harbor piles, victory gold); the server pays its own (Waves) itself
@@ -175,4 +189,7 @@ try { if (!ON_PORTAL) addEventListener('pfp-profile', (e) => {
   if (!sec) { sec = document.createElement('section'); sec.id = 'pf-boosts'; sec.className = 'pf-sec'; (document.getElementById('pf-goals') || document.getElementById('pf-acct') || card.lastElementChild)?.before(sec); }
   sec.innerHTML = profileBoostsHtml();
 }); if (!ON_PORTAL) addEventListener('pfp-boosts', () => { const sec = pfOn && document.getElementById('pf-boosts'); if (sec) sec.innerHTML = profileBoostsHtml(); }); } catch {}
-devHook('PFP_BOOSTS', { profileBoostsHtml, BOOSTS, BOOST_STATS, BOOST_MODE, COMBAT_CAP, boostsFor, applyBoosts, scaleBoosts, currentBoosts, activeBoosts, setBoostSource, setBoostZone, setFairFight, boostZone, goldFindBonus, weaponHitBonus, ARENA_WEAPON_BOOSTS, src });
+// [parrot levels] the equipped bird's level (parrot_list / inv_state from the server)
+const lvFromState = (d) => { const p = (d?.parrots || []).find((x) => x.id === d.equipped); setBoostSource({ parrotLv: p ? p.lv | 0 : 0 }); };
+try { addEventListener('pfp-parrot-state', (e) => lvFromState(e.detail)); addEventListener('pfp-parrot', (e) => setBoostSource({ parrotLv: e.detail ? e.detail.lv | 0 : 0 })); } catch {}
+devHook('PFP_BOOSTS', { parrotBoost, parrotBoostText, profileBoostsHtml, BOOSTS, BOOST_STATS, BOOST_MODE, COMBAT_CAP, boostsFor, applyBoosts, scaleBoosts, currentBoosts, activeBoosts, setBoostSource, setBoostZone, setFairFight, boostZone, goldFindBonus, weaponHitBonus, ARENA_WEAPON_BOOSTS, src });

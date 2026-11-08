@@ -99,13 +99,14 @@ const ownedLists = (own: Set<string>, owner: boolean) => owner
 const ownedOfProfile = (p: Profile) => new Set<string>(((p as any).gearOwned ?? []).map((i: string) => `gear:${i}`));
 async function boostsOf(who: { pid: string; owner: boolean; wallet: string | null }, b: Record<string, unknown>) {
   try {
-    if (who.owner) return boostsFor(cleanProfile(b.profile).gear, new Set(), true);
+    const plv = async (g: unknown) => { const pet = (g as any)?.parrot; return typeof pet === "string" && pet.startsWith("parrot_") ? await petLevel(db, who.pid, pet) : 0; }; // [parrot levels]
+    if (who.owner) { const g = cleanProfile(b.profile).gear; return boostsFor(g, new Set(), true, await plv(g)); }
     let gear: unknown = null;
     if (who.wallet) gear = toProfile(await getRow(who.wallet)).gear;
     else { const { data: r } = await db.from("pvp_dev_profiles").select("gear").eq("id", who.pid).maybeSingle(); gear = r?.gear ?? null; }
     if (!gear) return boostsFor(null, new Set(), false);
-    const own = await ownedSet(who.pid), out = boostsFor(gear, own, false), pet = (gear as any)?.parrot; // [pets R1] each pet level adds +1% sell (still under the cap)
-    if (typeof pet === "string" && own.has(`gear:parrot:${pet}`) && (out.sell || 0) > 0) { const lv = await petLevel(db, who.pid, pet); if (lv) out.sell = Math.min(0.4, Math.round(((out.sell || 0) + lv * PET_SELL_PER_LV) * 10000) / 10000); }
+    const own = await ownedSet(who.pid), out = boostsFor(gear, own, false, await plv(gear)), pet = (gear as any)?.parrot; // [pets R1] each pet level adds +1% sell (still under the cap)
+    if (typeof pet === "string" && !pet.startsWith("parrot_") && own.has(`gear:parrot:${pet}`) && (out.sell || 0) > 0) { const lv = await petLevel(db, who.pid, pet); if (lv) out.sell = Math.min(0.4, Math.round(((out.sell || 0) + lv * PET_SELL_PER_LV) * 10000) / 10000); }
     return out;
   } catch { return boostsFor(null, new Set(), false); }
 }

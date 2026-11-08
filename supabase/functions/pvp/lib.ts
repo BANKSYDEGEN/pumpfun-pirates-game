@@ -88,7 +88,7 @@ export function value(p: Profile) {
 // Is going from `cur` to `next` plausible in `mins` minutes? Returns a reason string when not.
 // [Emerly boosts] goldFind (0..0.10, the PET gold find from boostsFor) widens the gold pace by the same share (default 0 = unchanged)
 export function saveProblem(cur: Profile, next: Profile, mins: number, goldFind = 0): string | null {
-  const m = Math.max(0, Math.min(mins, 60)), gf = 1 + Math.max(0, Math.min(0.10, Number(goldFind) || 0));
+  const m = Math.max(0, Math.min(mins, 60)), gf = 1 + Math.max(0, Math.min(BOOST_CAPS.goldFind, Number(goldFind) || 0));
   const dbh = batteryDelta(cur, next); // a save without it (older client) keeps the stored count (keepCounters)
   if (dbh > batteryCap(m)) return "too many cliff cannon hits for the time";
   if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m + BATTERY_GOLD * dbh) return "gold gained too fast";
@@ -231,7 +231,7 @@ export { MAP_SPOTS, MAP_SPOTS_ALL } from "./digSpots.ts";
 // Server copy of js/boosts.js BOOSTS (tests/boosts_test.mjs checks the two tables match). Boosts = equipped gear ∩ pvp_owned
 // (the owner owns everything, still CAPPED). The server applies GOLD FIND to the gold it pays (waves_claim) and widens the save
 // pace check by it; combat boosts ride the same trust as upgrade levels (the client runs its own ship).
-export const BOOST_CAPS: Record<string, number> = { reload: 0.06, hp: 0.05, range: 0.05, dmg: 0.04, turn: 0.04, speed: 0.05, regen: 0.08, goldFind: 0.10, digLuck: 0.15, swordHit: 0.04, musketHit: 0.05, sell: 0.40 };
+export const BOOST_CAPS: Record<string, number> = { reload: 0.06, hp: 0.05, range: 0.05, dmg: 0.04, turn: 0.04, speed: 0.05, regen: 0.08, goldFind: 0.25, digLuck: 0.15, swordHit: 0.04, musketHit: 0.05, sell: 0.40 };
 // [Raul items redo 2] PET SELL BONUS (BANKSY 11:29 AM, PROPOSED): the gold the game pays when it SELLS for you (a chest item you already
 // own -> CHEST_DUP_SHARE of its price) x (1 + sell), sell clamped to its cap. Before the holder x2 (the SQL doubles it, like the dig gold).
 export const sellGold = (base: number, sell = 0) => Math.round(Math.max(0, Number(base) || 0) * (1 + Math.max(0, Math.min(BOOST_CAPS.sell, Number(sell) || 0))));
@@ -247,9 +247,7 @@ export const BOOSTS: Record<string, Record<string, number>> = {
   "face:facepaint_retardio": { speed: 0.02 },
   "crewhat:tricorn": { speed: 0.01 }, "crewhat:helmet_hq": { speed: 0.015 }, "crewhat:bicorne": { speed: 0.02 }, "crewhat:crown": { speed: 0.03 }, "crewhat:crown_imperial": { speed: 0.035 },
   "crewoutfit:tshirt": { regen: 0.03 }, "crewoutfit:shirt": { regen: 0.03 }, "crewoutfit:coat": { regen: 0.05 }, "crewoutfit:suit": { regen: 0.08 },
-  "parrot:parrot_green": { goldFind: 0.02 }, "parrot:parrot_red": { goldFind: 0.03 }, "parrot:parrot_blue": { goldFind: 0.04 },
-  "parrot:parrot_cockatoo": { goldFind: 0.05, digLuck: 0.05 }, "parrot:parrot_black": { goldFind: 0.06, digLuck: 0.08 },
-  "parrot:parrot_gold": { goldFind: 0.08, digLuck: 0.12 }, "parrot:parrot_diamond": { goldFind: 0.10, digLuck: 0.15 },
+  // parrots: [parrot levels] boost = the equipped bird's LEVEL (parrotBoost), color is cosmetic
   // [shop-boosts] Raul's shop items 2 + special pegs (mirror js/boosts.js)
   "beard:beard_moustache": { regen: 0.01 }, "beard:beard_forked": { regen: 0.02 }, "beard:beard_black": { regen: 0.03 },
   "ears:earring_hoop": { range: 0.01 }, "ears:earring_double": { range: 0.015 }, "ears:earring_skull": { range: 0.02 },
@@ -270,11 +268,19 @@ export const BOOSTS: Record<string, Record<string, number>> = {
   "musket:navy": { musketHit: 0.01 }, "musket:blunder": { musketHit: 0.02 }, "musket:dragoon": { musketHit: 0.03 }, "musket:bone": { musketHit: 0.04 }, "musket:blunder_gold": { musketHit: 0.05 },
 };
 const r4 = (v: number) => Math.round(v * 10000) / 10000;
+// [parrot levels] mirror js/boosts.js parrotBoost (levels stack: LV10 has every unlock)
+export function parrotBoost(lv: unknown): Record<string, number> {
+  const l = Math.max(0, Math.min(10, Math.floor(Number(lv) || 0))), b: Record<string, number> = { goldFind: 0.02 + 0.015 * l };
+  if (l >= 3) b.digLuck = 0.015 * l;
+  if (l >= 6) b.sell = 0.02 + 0.02 * (l - 6);
+  if (l >= 10) { b.swordHit = 0.02; b.musketHit = 0.02; }
+  for (const k of Object.keys(b)) b[k] = r4(b[k]); return b;
+}
 // gear (any shape: cleaned here) + the pvp_owned set ('gear:slot:id') -> capped boosts. Never throws.
-export function boostsFor(gear: unknown, owned: Set<string>, owner: boolean): Record<string, number> {
+export function boostsFor(gear: unknown, owned: Set<string>, owner: boolean, parrotLv = 0): Record<string, number> {
   const g = cleanGear(gear), raw: Record<string, number> = Object.fromEntries(Object.keys(BOOST_CAPS).map((k) => [k, 0]));
   for (const [slot, id] of Object.entries(g)) {
-    const b = typeof id === "string" ? BOOSTS[`${slot}:${id}`] : undefined; if (!b) continue;
+    const b = typeof id !== "string" ? undefined : slot === "parrot" && id.startsWith("parrot_") ? parrotBoost(parrotLv) : BOOSTS[`${slot}:${id}`]; if (!b) continue;
     if (!owner && !owned.has(`gear:${slot}:${id}`)) continue;
     for (const [k, v] of Object.entries(b)) raw[k] += v;
   }
