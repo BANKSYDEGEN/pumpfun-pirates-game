@@ -19,7 +19,7 @@ test('one lazy poller coalesces callers, bounded cadence, prices stay last-known
  await feed.tick(false);assert.equal(calls.length,0);await Promise.all([feed.tick(true),feed.tick(true)]);assert.equal(calls.length,3);assert.equal(feed.state.prices.SUNK.price,.01);await feed.tick(true);assert.equal(calls.length,3);now+=PRICE_MS;fail=true;await feed.tick(true);assert.equal(feed.state.prices.SUNK.price,.01);assert.equal(feed.state.prices.SUNK.stale,true);
 });
 test('discovery distinguishes sponsored boosts; never invents bonding progress or ranking rows',async()=>{let now=1;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>({ok:true,json:async()=>url.includes('/launches')?{source:'pumpfun:unavailable',launches:[]}:url.includes('trending_pools')?{data:[],included:[]}:[]})});await feed.tick(true,true);assert.deepEqual(feed.state.bonding,[]);assert.doesNotMatch(feed.state.status.bonding,/Loading/);assert.match(feed.state.status.callouts,/PAID PROMOTION/);assert.ok(DISCOVERY_MS>=120000);});
-test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<900&&hqParts().filter(p=>!p.detail).length<400&&hqParts().filter(p=>p.glow).length<90);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
+test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<1400&&hqParts().filter(p=>!p.detail).length<400&&hqParts().filter(p=>p.glow).length<90);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
 
 import {HQ_PILLARS,HQ_TOWERS} from '../js/pumpfun/site.js';
 const inBox=([x,z,w,d],px,pz,pad=.3)=>Math.abs(px-x)<w/2+pad&&Math.abs(pz-z)<d/2+pad;
@@ -30,7 +30,7 @@ test('the rear wall is gone: one hall over the whole footprint, open across the 
  for(let lz=-31;lz>=-63.8;lz-=.25) assert.ok(!solidAt(-18.5,lz),'centre aisle blocked at '+lz);
  for(const lx of [-30,-18.5,-8]) for(const lz of [-47,-48,-49,-50]) assert.ok(!solidAt(lx,lz),'old wall line blocked at '+lx);
  const plaza=src('js/island/plazaTown.js');
- assert.match(plaza,/lz>=HQ.lz0-3&&lz<HQ.lz1\)\{const o=Math.max\(HQ.lx0-lx,HQ.lz0-lz,0\);h=Math.min\(h,HQ.floor-.05\+o\*1.3\)/); // floor flattened to the back wall
+ assert.match(plaza,/lz>=HQ.lz0-3&&lz<HQ.lz1\)\{const o=Math.max\(HQ.lx0-lx,HQ.lz0-lz,0\)/);assert.match(plaza,/HQ_OUTWORKS\) addBox/); // floor flattened to the back wall
  assert.match(plaza,/hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor/);
  assert.match(plaza,/lz0: HQ.lz0\+.8, lz1: HQ.lz1-.5 \}, HQ.ceil-.4/);
 });
@@ -92,4 +92,17 @@ test('p2: towers clear the Outfit Store eaves, every bench / prop is solid, walk
  for(let lz=-26;lz>=-59;lz-=.25)assert.ok(!solidAt(-18.5,lz,.35),'aisle '+lz);
  for(let lx=-1;lx>=-18.5;lx-=.25)assert.ok(!solidAt(lx,HQ.hillDoor.lz,.35),'hill route '+lx);
  assert.match(src('js/pumpfun/render.js'),/const n=low\?256:512/); // damask <= 1024 px
+});
+
+test('p3: boards share one band, sit in clear wall bays, every board framed; flags use the real logo; rugs + cloth',async()=>{
+ const S=await import('../js/pumpfun/site.js');const all=[...S.HQ_PANELS,...S.HQ_SQUAD_BOARDS];
+ for(const P of all){assert.equal(P.h,S.HQ_BOARD_BAND.h);}
+ const byWall={};for(const P of all)(byWall[P.face+P.lx]??=[]).push(P);
+ for(const L of Object.values(byWall)){const k=L[0].face==='s'?'lx':'lz';L.sort((a,b)=>a[k]-b[k]);for(let i=1;i<L.length;i++)assert.ok(L[i][k]-L[i-1][k]>(L[i].w+L[i-1].w)/2+1.2,'boards too close');}
+ const D=HQ.hillDoor;for(const P of S.HQ_PANELS.filter(p=>p.face==='w'))assert.ok(Math.abs(P.lz-D.lz)>D.w/2+2.6+P.w/2,'board cut by door / leaves');
+ for(const P of S.HQ_PANELS.filter(p=>p.face==='s'))assert.ok(Math.abs(P.lx-HQ.door.lx)-P.w/2-.36>HQ.door.w/2+1.95+.2,'board in the gate');
+ assert.equal(new Set(S.HQ_PANELS.map(p=>p.title)).size,S.HQ_PANELS.length);assert.ok(!S.HQ_PANELS.some(p=>/BANKSYDEGEN/i.test(p.title)));
+ const r=src('js/pumpfun/render.js');assert.match(r,/flag_logo_'\+\(low\?256:512\)\+'.webp/);assert.match(r,/userData.panelSlot=P.id/);assert.match(r,/function rugs/);
+ for(const f of ['flag_logo_512.webp','flag_logo_256.webp'])assert.ok(readFileSync(new URL('../assets/pumpfun/'+f,import.meta.url)).length>1000);
+ assert.ok(S.HQ_OUTWORKS.length===4);
 });

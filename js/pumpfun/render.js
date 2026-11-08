@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES } from './model.js';
-import { HQ, PET_LOT, HQ_PANELS } from './site.js';
+import { HQ, PET_LOT, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 export function buildParts(parts, low=false) {
  const group=new THREE.Group(),bins=new Map();
  for(const p of parts){if(p.detail&&low)continue;const geo=p.kind==='pill'?new THREE.CapsuleGeometry(p.h/2,p.w-p.h,4,low?8:12).rotateZ(Math.PI/2).scale(1,1,p.d/p.h):new THREE.BoxGeometry(p.w,p.h,p.d);geo.translate(p.x,p.y,p.z);(bins.get(p.c)||bins.set(p.c,[]).get(p.c)).push(geo);}
@@ -12,13 +12,14 @@ function plaque(group,url,w,h,x,y,z,yaw=0){const tex=new THREE.TextureLoader().l
 export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
  const panels=panelSlots(group,low);
- const referral=plaque(group,'assets/pumpfun/referral_sign.webp',3.2,.8,-24.6,HQ.floor+4.0,-29.74);referral.userData.referral=true;
+ const referral=plaque(group,'assets/pumpfun/referral_sign.webp',3.2,.8,-24.6,HQ.floor+4.0,-29.7);referral.userData.referral=true;
  const cv=document.createElement('canvas');cv.width=low?512:1024;cv.height=low?128:256;const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
- const squadBoards = [['squad',-33.5,'squad'],['squad_ranks',-39,'squad_ranks'],['daily_ranks',-44.5,'daily_ranks']].map(([file,z,kind])=>{const m=plaque(group,'assets/pumpfun/'+file+'.webp',4.7,4.6,-32.16,6.9,z,Math.PI/2);m.userData.pumpAction=kind;return m;});
+ const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});
+ const extra=[];for(const f of [cloth,flags,rugs])try{f(group,low,extra);}catch(e){console.warn('[pumpfun] hall dressing skipped',e.message);}
  try{damask(group,low);}catch(e){console.warn('[pumpfun] damask skipped',e.message);}
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
- return {group,board,referral,cv,tex,squadBoards,panels,dispose(){group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
+ return {group,board,referral,cv,tex,squadBoards,panels,dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
 // carved timber sign (casino style: dark mahogany, gilt incised letters): replaces the flat green bar; one shared canvas
 function carvedSign(low){const c=document.createElement('canvas');c.width=low?512:1024;c.height=c.width/8;const g=c.getContext('2d'),W=c.width,H=c.height;
  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#5a2a1a');gr.addColorStop(.5,'#3e1c10');gr.addColorStop(1,'#2a120a');g.fillStyle=gr;g.fillRect(0,0,W,H);
@@ -29,13 +30,52 @@ function carvedSign(low){const c=document.createElement('canvas');c.width=low?51
  for(const x of [H*.55,W-H*.55]){g.fillStyle='#e8b85a';g.beginPath();g.arc(x,H/2,H*.2,0,7);g.fill();g.fillStyle='#5a2a1a';g.beginPath();g.arc(x,H/2,H*.1,0,7);g.fill();}
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return new THREE.MeshBasicMaterial({map:t,toneMapped:false});}
 // wall info-panel slots: one shared placeholder face; Emerly can swap mesh.material per slot later (userData.panelSlot = id)
-function panelSlots(group,low){const c=document.createElement('canvas');c.width=low?256:512;c.height=c.width*.8;const g=c.getContext('2d'),W=c.width,H=c.height;
- g.fillStyle='#101f1c';g.fillRect(0,0,W,H);g.strokeStyle='#54d08a';g.lineWidth=W*.012;g.strokeRect(W*.02,W*.02,W-W*.04,H-W*.04);
- g.fillStyle='#54d08a';g.font=`${Math.round(W*.085)}px "Just Another Hand", Georgia, serif`;g.textAlign='center';g.textBaseline='middle';g.fillText('PUMPFUN PIRATES',W/2,H*.18);
- g.fillStyle='#254038';for(let i=0;i<3;i++)g.fillRect(W*.08,H*(.34+i*.19),W*.84,H*.14);g.fillStyle='#a8bfb0';g.font=`${Math.round(W*.05)}px Georgia, serif`;g.fillText('NOTICE BOARD',W/2,H*.91);
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const mat=new THREE.MeshBasicMaterial({map:t,toneMapped:false});
- return HQ_PANELS.map(P=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(P.w,P.h),mat);m.position.set(P.lx+(P.face==='w'?-.14:P.face==='e'?.14:0),HQ.floor+4.2,P.lz+(P.face==='s'?-.14:0));
-  m.rotation.y=P.face==='w'?-Math.PI/2:P.face==='e'?Math.PI/2:Math.PI;m.userData.panelSlot=P.id;m.name='hq_panel_'+P.id;group.add(m);return m;});}
+function panelSlots(group,low){const Y=HQ.floor+HQ_BOARD_BAND.y;
+ // p3: each slot gets its own engraved placeholder face (dark lacquer, gilt title, ruled rows); Emerly swaps mesh.material per slot
+ return HQ_PANELS.map((P,i)=>{const c=document.createElement('canvas');c.width=low?256:512;c.height=Math.round(c.width*P.h/P.w);const g=c.getContext('2d'),W=c.width,H=c.height,k=W/512;
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#16261f');bg.addColorStop(1,'#0c1612');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(217,164,65,.55)';g.lineWidth=2*k;g.strokeRect(14*k,14*k,W-28*k,H-28*k);g.strokeStyle='rgba(217,164,65,.25)';g.strokeRect(22*k,22*k,W-44*k,H-44*k);
+  g.textAlign='center';g.textBaseline='middle';g.font=`bold ${Math.round(40*k)}px Georgia, "Times New Roman", serif`;g.fillStyle='#000';g.fillText(P.title,W/2+2*k,62*k+2*k);g.fillStyle='#e8b85a';g.fillText(P.title,W/2,62*k);
+  g.fillStyle='rgba(217,164,65,.6)';g.fillRect(W*.2,92*k,W*.6,2*k);
+  for(let r=0;r<5;r++){const y=122*k+r*52*k;g.fillStyle=r%2?'rgba(255,255,255,.035)':'rgba(255,255,255,.07)';g.fillRect(36*k,y,W-72*k,42*k);g.fillStyle='rgba(232,184,90,.75)';g.font=`${Math.round(22*k)}px Georgia, serif`;g.textAlign='left';g.fillText((r+1)+'.',48*k,y+21*k);g.fillStyle='rgba(200,210,200,.35)';g.fillRect(84*k,y+18*k,(W-200*k)*(.5+.4*((r*37+i*13)%10)/10),6*k);}
+  g.textAlign='center';g.fillStyle='rgba(168,191,176,.8)';g.font=`italic ${Math.round(18*k)}px Georgia, serif`;g.fillText('PUMPFUN PIRATES · TOKEN HALL',W/2,H-34*k);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const mat=new THREE.MeshBasicMaterial({map:t,toneMapped:false});
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(P.w,P.h),mat);m.position.set(P.lx+(P.face==='w'?-.14:P.face==='e'?.14:0),Y,P.lz+(P.face==='s'?-.14:0));
+  m.rotation.y=P.face==='w'?-Math.PI/2:P.face==='e'?Math.PI/2:Math.PI;m.userData.panelSlot=P.id;m.userData.placeholderMat=mat;m.name='hq_panel_'+P.id;group.add(m);return m;});}
+// p3 cloth: one fabric canvas per colourway (weave + folds + gilt fringe) carrying the REAL logo; gentle vertex sway, no lights
+let LOGO=null;function logo(low){return LOGO||(LOGO=new Promise(res=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>res(null);im.src='assets/pumpfun/flag_logo_'+(low?256:512)+'.webp';}));}
+function fabric(low,base,trim,withLogo,aspect,extra,fray){const c=document.createElement('canvas');c.width=low?128:256;c.height=Math.round(c.width*aspect);const g=c.getContext('2d'),W=c.width,H=c.height;
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+ const paint=im=>{g.clearRect(0,0,W,H);g.fillStyle=base;g.fillRect(0,0,W,H);
+  for(let x=0;x<W;x+=2){g.fillStyle=`rgba(0,0,0,${.05+.05*Math.sin(x*.9)})`;g.fillRect(x,0,1,H);}for(let y=0;y<H;y+=2){g.fillStyle='rgba(255,255,255,.025)';g.fillRect(0,y,W,1);}   // weave
+  const fold=g.createLinearGradient(0,0,W,0);for(let i=0;i<=6;i++)fold.addColorStop(i/6,i%2?'rgba(0,0,0,.22)':'rgba(255,255,255,.06)');g.fillStyle=fold;g.fillRect(0,0,W,H);
+  if(im){const s=Math.min(W*.86,H*.7),x=(W-s)/2,y=fray?(H-s)/2:H*.2;g.save();g.globalCompositeOperation='screen';g.drawImage(im,x,y,s,s);g.restore();}
+  if(trim){g.fillStyle=trim;g.fillRect(0,0,W,W*.05);g.fillRect(0,0,W*.04,H);g.fillRect(W-W*.04,0,W*.04,H);if(!fray){g.fillRect(0,H*.9,W,W*.04);for(let x=0;x<W;x+=W/12){g.beginPath();g.moveTo(x,H*.93);g.lineTo(x+W/24,H);g.lineTo(x+W/12,H*.93);g.fill();}}}
+  if(fray){g.globalCompositeOperation='destination-out';for(let y=0;y<H;y+=3){const d=(Math.sin(y*1.7)*.5+.5)*W*.03+Math.random()*W*.02;g.fillRect(W-d,y,d,3);}for(let x=0;x<W;x+=3){const d=Math.random()*H*.02;g.fillRect(x,H-d,3,d);}g.globalCompositeOperation='source-over';}
+  t.needsUpdate=true;};
+ paint(null);if(withLogo)logo(low).then(im=>{try{paint(im);}catch(e){}});
+ const m=new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide,transparent:!!fray,alphaTest:fray?.5:0});const u={value:0};
+ m.onBeforeCompile=sh=>{sh.uniforms.uT=u;sh.vertexShader='uniform float uT;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n float sw=uv.x*(1.0-uv.y*0.0); transformed.z+=sin(uT*1.7+uv.x*5.0+uv.y*3.0)*0.07*'+(fray?'uv.x':'(1.0-uv.y)')+';');};
+ m.userData.tick=u;extra.push(m);return m;}
+function swayMesh(geo,mat){const m=new THREE.Mesh(geo,mat);m.onBeforeRender=()=>{mat.userData.tick.value=performance.now()/1000;};return m;}
+function cloth(group,low,extra){const Y=HQ.floor,CEIL=Y+HQ.ceil,seg=low?2:6;
+ const red=fabric(low,'#6e1a20','#d9a441',true,2.6,extra,false),green=fabric(low,'#173d2c','#d9a441',true,2.6,extra,false);
+ for(const x of [-24.5,-12.5]) for(const [z,mt] of [[-44,red],[-52.5,green]]){const g=new THREE.PlaneGeometry(1.75,4.6,1,seg);g.translate(0,-2.3,0);const m=swayMesh(g,mt);m.position.set(x,CEIL-1.45,z);group.add(m);}
+ const g=new THREE.PlaneGeometry(1.75,5.0,1,seg);g.translate(0,-2.5,0);const m=swayMesh(g,green);m.position.set(-12.4,Y+6.8,-29.66);group.add(m);}
+function flags(group,low,extra){const Y=HQ.floor,TOP=Y+HQ.wallTop,mat=fabric(low,'#0b0b0c',null,true,1.0,extra,true),seg=low?3:8;
+ const add=(w,h,x,y,z,ry)=>{const g=new THREE.PlaneGeometry(w,h,seg,seg>>1);g.translate(w/2,-h/2,0);const m=swayMesh(g,mat);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);};
+ add(2.3,2.3,HQ.lx0+.75,Y+10.05,-56.6,-Math.PI/2);add(2.3,2.3,HQ.lx1-1.15,Y+10.05,-63.4,Math.PI/2);   // hall flags off the wall brackets
+ for(const t of HQ_TOWERS)add(2.0,2.0,t.lx+.08,TOP+7.1,t.lz,0);}                                       // gun-tower flags
+// p3 floor rugs: one 512 px medallion carpet canvas (256 on phones), Lambert, flat on the planks
+function rugs(group,low,extra){const c=document.createElement('canvas');c.width=low?256:512;c.height=c.width*.62;const g=c.getContext('2d'),W=c.width,H=c.height;
+ g.fillStyle='#5b1418';g.fillRect(0,0,W,H);g.fillStyle='#1d2a3f';g.fillRect(W*.06,H*.1,W*.88,H*.8);g.fillStyle='#6e1a20';g.fillRect(W*.1,H*.17,W*.8,H*.66);
+ g.strokeStyle='#d9a441';g.lineWidth=W*.008;g.strokeRect(W*.03,H*.05,W*.94,H*.9);g.strokeRect(W*.1,H*.17,W*.8,H*.66);
+ for(let i=0;i<24;i++){const x=W*.06+i*W*.88/24;g.fillStyle=i%2?'#d9a441':'#2e6b55';g.beginPath();g.moveTo(x,H*.1);g.lineTo(x+W*.018,H*.135);g.lineTo(x,H*.17);g.fill();g.beginPath();g.moveTo(x,H*.83);g.lineTo(x+W*.018,H*.865);g.lineTo(x,H*.9);g.fill();}
+ g.save();g.translate(W/2,H/2);for(let r=4;r>0;r--){g.fillStyle=['#d9a441','#1d2a3f','#c8552e','#e8d6a8'][r%4];g.beginPath();for(let a=0;a<16;a++){const R=(a%2?.55:1)*H*.075*r;g.lineTo(Math.cos(a*Math.PI/8)*R*1.5,Math.sin(a*Math.PI/8)*R);}g.fill();}g.restore();
+ for(const sx of [-1,1])for(const sy of [-1,1]){g.fillStyle='#d9a441';g.beginPath();g.arc(W/2+sx*W*.33,H/2+sy*H*.24,H*.05,0,7);g.fill();}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;const mat=new THREE.MeshLambertMaterial({map:t,polygonOffset:true,polygonOffsetFactor:-1});extra.push(mat);
+ const Y=HQ.floor,geos=[];for(const [x,z,w,d,ry] of [[-26.5,-37.5,5.2,3.2,Math.PI/2],[-10.5,-37.5,5.2,3.2,Math.PI/2],[-28.3,-52,4.6,2.9,0],[-8.6,-52.6,4.6,2.9,0],[-26.5,-45.5,5.2,3.2,Math.PI/2],[-10.5,-46.8,4.2,2.6,0]]){const g2=new THREE.PlaneGeometry(w,d);g2.rotateX(-Math.PI/2);g2.rotateY(ry);g2.translate(x,Y+.045,z);geos.push(g2);}
+ const m=new THREE.Mesh(mergeGeometries(geos),mat);geos.forEach(q=>q.dispose());group.add(m);}
 // [post-hq-castle] casino damask above the mahogany wainscot: ONE 256 px canvas pattern (128 on phones), lit Lambert, one merged mesh
 function damask(group,low){const n=low?256:512,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d'),k=n/512;
  // crimson tone-on-tone damask (the casino's motif family): ogee medallions on a half-drop lattice, gilt hairline, soft vertical sheen

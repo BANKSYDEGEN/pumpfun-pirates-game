@@ -1,5 +1,5 @@
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
-import { HQ, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, PET_LOT, petFloor } from './site.js';
+import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
 export function hqParts() {
   // [post-hq-castle] BANKSY t261u: ONE hall over the whole footprint (lx -33..-4, lz -65..-30), pirate-fortress stone outside,
@@ -55,12 +55,11 @@ export function hqParts() {
   for(const t of HQ_TOWERS){ Cy(t.lx,(TOP+2.2+Y-.4)/2,t.lz,t.r,t.r+.2,TOP+2.2-Y+.4,16,stone); Cy(t.lx,Y+.8,t.lz,t.r+.45,t.r+.6,1.8,16,darkStone);
     Cy(t.lx,TOP+2.4,t.lz,t.r+.35,t.r+.35,.45,16,darkStone); for(let i=0;i<8;i++){const a=i/8*Math.PI*2;B(t.lx+Math.cos(a)*(t.r+.1),TOP+3.25,t.lz+Math.sin(a)*(t.r+.1),.8,1.25,.8,stone,false,{ry:-a});}
     for(const y of [Y+6.5,Y+10.5]) { B(t.lx,y,t.lz+t.r+.05,.75,1.95,.22,darkStone); B(t.lx,y+1.05,t.lz+t.r+.1,.9,.22,.3,darkStone); B(t.lx,y,t.lz+t.r+.17,.2,1.35,.04,'#3a2a1c'); B(t.lx,y,t.lz+t.r+.19,.05,1.35,.03,iron,true); } // framed arrow slits
-    B(t.lx,TOP+5.2,t.lz,.12,4,.12,wood,true); B(t.lx+.9,TOP+6.5,t.lz,1.7,1.1,.04,'#141414',true); B(t.lx+.9,TOP+6.55,t.lz+.03,.5,.5,.03,bone,true); }
+    B(t.lx,TOP+5.2,t.lz,.12,4.1,.12,wood,true); B(t.lx,TOP+7.25,t.lz,.22,.22,.22,gold,true); }
   for(const [x,z] of [[X0+.4,Z0+.4],[X1-.4,Z0+.4]]) { Cy(x,TOP-1.6,z,1.5,.4,2,12,darkStone); Cy(x,TOP+.7,z,1.5,1.5,2.6,12,stone); for(let i=0;i<6;i++){const a=i/6*Math.PI*2;B(x+Math.cos(a)*1.35,TOP+2.4,z+Math.sin(a)*1.35,.6,.9,.6,stone,false,{ry:-a});} }
   // side-wall arrow-slit lancets (glazed both faces) + front banners flanking the gate
   for(const z of [-36,-42,-54,-60]) for(const x of [X0+.3,X1-.5]) { const t=x>-10?1.12:.72; B(x,Y+8.4,z,t,3.2,1.0,'#33505f'); B(x,Y+10.1,z,t+.08,.3,1.4,darkStone); B(x,Y+6.7,z,t+.08,.3,1.4,darkStone); }
-  B(-24.6,Y+4.0,Z1+.1,3.6,1.15,.15,mahog); B(-24.6,Y+4.0,Z1+.14,3.75,1.3,.08,gold);   // referral board (left of the gate, out of the opening)
-  for(const x of [-12.4]) { B(x,Y+4.2,Z1+.2,1.7,5.2,.06,'#1b4d36'); B(x,Y+6.85,Z1+.25,1.95,.18,.18,gold); B(x,Y+4.6,Z1+.24,.9,.9,.04,gold); B(x,Y+1.75,Z1+.22,1.7,.3,.05,gold); }
+  for(const x of [-12.4]) { B(x,Y+6.85,Z1+.3,2.0,.12,.12,gold); for(const s of [-1,1]) Cy(x+s*1.02,Y+6.85,Z1+.3,.09,.09,.09,10,gold,true,{rz:Math.PI/2}); B(x,Y+7.0,Z1+.12,.12,.35,.3,iron,true); }   // banner rod (cloth: render.js)
   B(-18.5,Y+10.6,Z1+.2,18.4,2.3,.3,mahog); B(-18.5,Y+10.6,Z1+.3,18.7,2.6,.14,gold); for(const s of [-1,1]) { B(-18.5+s*9.6,Y+10.6,Z1+.32,.7,3.1,.35,darkStone); B(-18.5+s*9.6,Y+12.3,Z1+.32,.9,.3,.45,darkStone); }   // carved timber sign in a stone frame // HQ sign board
   // ---- interior: mahogany wainscot, gilded beamed ceiling on two stone arcades, dais under the big board ----
   const IX0=X0+.6, IX1=X1-1.0, IZ0=Z0+.6, IZ1=Z1-.6;
@@ -90,7 +89,7 @@ export function hqParts() {
 
   // casino-style wall: gilt cap rail over the damask (render.js paints the damask panels), crimson/green banners between pillars
   for(const [x,z,w,d] of [[IX0+.05,CZ,.16,IZ1-IZ0],[CX,IZ0+.05,IX1-IX0,.16],[IX1-.05,CZ,.16,IZ1-IZ0]]) B(x,Y+6.3,z,w,.14,d,gold,true);
-  for(const x of [-24.5,-12.5]) for(const [z,c] of [[-44,'#7a1d22'],[-52.5,'#1b4d36']]) { B(x,CEIL-1.25,z,2.0,.1,.1,iron,true); B(x,CEIL-3.6,z,1.7,4.6,.05,c,true); B(x,CEIL-1.4,z,1.8,.14,.09,gold,true); B(x,CEIL-4.4,z,.8,.8,.07,gold,true); B(x,CEIL-5.95,z,1.7,.12,.07,gold,true); }
+  for(const x of [-24.5,-12.5]) for(const [z,c] of [[-44,'#7a1d22'],[-52.5,'#1b4d36']]) { B(x,CEIL-1.25,z,2.0,.1,.1,iron,true); B(x,CEIL-1.4,z,1.9,.12,.12,gold,true); }
 
   // ---- p2 pirate dressing (HQ_PROPS also feeds the colliders in site.js) ----
   const iy=z=>Y+(z<HQ.dais.lz1&&z>HQ.dais.lz0?HQ.dais.rise:0);
@@ -103,8 +102,8 @@ export function hqParts() {
       B(x-.2,y+.99,z,1.7,.02,1.15,'#e8d6a8',true); B(x-.55,y+1.0,z-.1,.6,.01,.35,'#2f6b8a',true); B(x+.2,y+1.0,z+.25,.5,.01,.3,'#5f8a43',true); B(x+.35,y+1.01,z-.2,.08,.01,.08,'#9b2335',true);
       Cy(x+.9,y+1.02,z-.45,.18,.18,.05,14,gold,true); B(x-1.0,y+1.1,z+.55,.1,.22,.1,candle,true,{glow:true}); B(x-1.0,y+1.27,z+.55,.05,.1,.05,flame,true,{glow:true});
       Cy(x+.75,y+1.2,z+.45,.05,.05,.5,8,gold,true,{rz:Math.PI/2}); }
-    if(kind==='rack'){ const s=x<-18?1:-1, rx=x; for(const dz of [-1.4,1.4]) B(rx,y+1.1,z+dz,.18,2.2,.18,wood,true); for(const yy of [y+.5,y+1.8]) B(rx,yy,z,.18,.14,3.0,wood,true);
-      for(let i=0;i<5;i++){const zz=z-1.1+i*.55; B(rx+s*.12,y+1.15,zz,.04,1.7,.09,'#c9ccd1',true,{rx:(i%2?.12:-.12)}); B(rx+s*.12,y+.38,zz,.12,.08,.32,gold,true); B(rx+s*.12,y+.22,zz,.06,.24,.06,'#2a160d',true);}
+    if(kind==='rack'){ const s=x<-18?1:-1, rx=x; for(const dz of [-1.4,1.4]) B(rx,y+.95,z+dz,.18,1.9,.18,wood,true); for(const yy of [y+.45,y+1.6]) B(rx,yy,z,.18,.14,3.0,wood,true);
+      for(let i=0;i<5;i++){const zz=z-1.1+i*.55; B(rx+s*.12,y+1.0,zz,.04,1.5,.09,'#c9ccd1',true,{rx:(i%2?.12:-.12)}); B(rx+s*.12,y+.38,zz,.12,.08,.32,gold,true); B(rx+s*.12,y+.22,zz,.06,.24,.06,'#2a160d',true);}
       Cy(rx+s*.15,y+2.0,z-1.0,.12,.12,.05,10,iron,true,{rz:Math.PI/2}); }
     if(kind==='treasure'){ Cy(x,y+.3,z,.2,.95,.6,14,gold,true); Cy(x+.55,y+.08,z+.4,.25,.25,.16,12,gold,true); Cy(x-.5,y+.06,z-.35,.22,.22,.12,12,gold,true);
       for(const [dx,dz,c] of [[.2,.3,'#d8322f'],[-.3,.25,'#2a6df4'],[.35,-.25,'#2f8a3a'],[-.15,-.4,'#9b5cff'],[0,.0,'#ff7ab8']]) B(x+dx,y+.55-(Math.abs(dx)+Math.abs(dz))*.4,z+dz,.14,.14,.14,c,true,{ry:dx*3});
@@ -116,24 +115,39 @@ export function hqParts() {
   }
   // hanging iron lanterns in the arcades (glow cores, no lights)
   for(const x of [-24.5,-12.5]) for(const z of [-36,-44,-52]) { const zz=z+(z===-44?4:z===-52?4.0:0); B(x+(x<-18?1.4:-1.4),CEIL-2.6,zz,.04,2.6,.04,iron,true); B(x+(x<-18?1.4:-1.4),Y+6.6,zz,.5,.08,.5,iron,true); B(x+(x<-18?1.4:-1.4),Y+6.15,zz,.32,.6,.32,flame,true,{glow:true}); B(x+(x<-18?1.4:-1.4),Y+5.8,zz,.45,.08,.45,iron,true); }
-  for(const P of HQ_PANELS){ const nx=P.face==='w'?-1:P.face==='e'?1:0, nz=P.face==='s'?-1:0, y=Y+4.2, alongX=nz!==0;
-    const BX=(off,w,h,d,c)=>B(P.lx+nx*off,y,P.lz+nz*off,alongX?w:d,h,alongX?d:w,c,true);
-    BX(.06,P.w+.5,P.h+.5,.12,mahog); BX(.1,P.w+.22,P.h+.22,.06,gold); BX(.1,P.w+.7,.14,.2,gold);
-    B(P.lx+nx*.12,y+P.h/2+.42,P.lz+nz*.12,alongX?1.0:.08,.32,alongX?.08:1.0,gold,true); }   // wall info-panel slots (faces in render.js)
+  // ---- p3 outworks: coped stone retaining walls + paved trench floor around the west / back wall foot ----
+  for(const [x,z,w,d] of HQ_OUTWORKS){ B(x,Y+1.25,z,w,3.1,d,stone); B(x,Y+2.9,z,w+.25,.22,d+.25,darkStone); }
+  B(X0-.95,Y-.02,(HQ_OUTWORKS[0][1]),1.4,.1,HQ_OUTWORKS[0][3]-.4,darkStone); B((X0+X1)/2-.7,Y-.02,Z0-.95,X1-X0+1.2,.1,1.4,darkStone);
+  for(let z=-50;z>-66;z-=3.2) B(X0-.32,Y+.25,z,.5,.5,.5,darkStone,true);   // drain blocks along the wall foot
+  // ---- p3 AAA board frames: wall shadow inset, stepped mahogany moulding (bevel), gilt bead, brass corner rosettes, nameplate + chains ----
+  const frameAt=(cx,cy,cz,face,w,h,plate=true)=>{ const nx=face==='w'?-1:face==='e'?1:0, nz=face==='s'?-1:face==='n'?1:0, ax=nz!==0;
+    const F=(du,dv,off,bw,bh,bd,c,ex)=>B(cx+(ax?du:0)+nx*off,cy+dv,cz+(ax?0:du)+nz*off,ax?bw:bd,bh,ax?bd:bw,c,true,ex);
+    F(0,-.06,.02,w+1.0,h+1.0,.04,'#140906');                                  // soft contact shadow on the wall
+    for(const [o,t,d,c] of [[.34,.36,.12,'#3a1a0e'],[.24,.22,.2,mahog],[.12,.1,.26,'#7a3a22']]) {   // three stepped mouldings = bevelled profile
+      const W2=w/2+o, H2=h/2+o; F(0,H2-t/2,d/2,w+2*o,t,d,c); F(0,-H2+t/2,d/2,w+2*o,t,d,c); F(W2-t/2,0,d/2,t,h+2*o-2*t,d,c); F(-W2+t/2,0,d/2,t,h+2*o-2*t,d,c); }
+    for(const [u,v,L,vert] of [[0,h/2+.03,w+.06,0],[0,-h/2-.03,w+.06,0],[w/2+.03,0,h,1],[-w/2-.03,0,h,1]]) F(u,v,.29,vert?.05:L,vert?L:.05,.05,gold);   // gilt inner bead
+    for(const su of [-1,1]) for(const sv of [-1,1]) { const u=su*(w/2+.24), v=sv*(h/2+.24); p.push({kind:'cyl',x:cx+(ax?u:0)+nx*.3,y:cy+v,z:cz+(ax?0:u)+nz*.3,r:.13,r1:.13,h:.06,n:12,c:gold,detail:true,mat:0,rx:ax?Math.PI/2:0,rz:ax?0:Math.PI/2});
+      F(u,v,.33,.09,.09,.04,'#8a5a14'); }
+    if(plate){ F(0,-h/2-.52,.16,1.2,.24,.06,gold); F(0,-h/2-.52,.2,1.0,.14,.02,'#3a2418'); }
+    for(const su of [-1,1]) { F(su*w*.32,h/2+.75,.05,.035,1.0,.035,iron); F(su*w*.32,h/2+.37,.08,.12,.12,.06,gold); }   // brass eyes + hanging chains
+  };
+  const BY=Y+HQ_BOARD_BAND.y;
+  for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
+  for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
+  frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
+  frameAt(-24.6,Y+4.0,Z1,'n',3.2,.8,false);                                          // referral board outside
   // west wall: ship's wheel + anchor; jolly roger flags; crates and gold by the barrels
   { const wx=IX0+.2, wy=Y+4.3, wz=-60.5; B(wx,wy,wz,.25,.32,.32,wood,true);
     for(let i=0;i<4;i++) B(wx,wy,wz,.12,2.3,.12,wood,true,{rx:i*Math.PI/4});
     for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;B(wx,wy+Math.cos(a)*.82,wz+Math.sin(a)*.82,.16,.66,.14,wood,true,{rx:-a+Math.PI/2});}
     const az=-55.5; B(wx,Y+3.6,az,.18,2.6,.2,iron,true); B(wx,Y+4.65,az,.18,.18,1.3,iron,true); B(wx,Y+5.1,az,.18,.5,.5,iron,true);
     for(const sd of [-1,1]) B(wx,Y+2.5,az+sd*.5,.18,.2,1.15,iron,true,{rx:sd*.55}); }
-  for(const [x,z] of [[IX0+.12,-45],[IX1-.12,-61]]) { B(x,Y+8.2,z,.05,2.4,3.6,'#17130f',true); B(x,Y+8.45,z,.07,.62,.56,bone,true); for(const sd of [-1,1]) B(x,Y+7.7,z,.07,.12,1.1,bone,true,{rx:sd*.6}); }
-  B(HQ.board.lx,HQ.board.y,HQ.board.lz-.12,HQ.board.w+.6,HQ.board.h+.6,.25,mahog);
-  B(HQ.board.lx,HQ.board.y,HQ.board.lz+.0,HQ.board.w+.25,HQ.board.h+.25,.07,gold);
+  for(const [x,z,sg] of [[IX0+.1,-56.6,1],[IX1-.1,-63.4,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
   return p;
 }
 export const HQ_CHANDELIERS = [-37, -46, -55];
-export const HQ_TORCHES = [[-32.25,-49],[-32.25,-62],[-5.15,-33.5],[-5.15,-54.3],[-5.15,-61.4]];
+export const HQ_TORCHES = [[-32.25,-48.3],[-32.25,-62.6],[-5.15,-38.5],[-5.15,-56],[-5.15,-63.2]];
 export function petParts() {
  const p=[], I=PET_LOT.interior, B=(x,y,z,w,h,d,c)=>p.push({kind:'box',x,y,z,w,h,d,c});
  // Overlay both TO RENT plates and the blank fascia; never move the room or its counter.

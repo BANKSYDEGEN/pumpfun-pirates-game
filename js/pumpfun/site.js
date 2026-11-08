@@ -11,7 +11,7 @@ export const HQ_PROPS = Object.freeze([
   ['bench', -30.5, -42, 1.3, 5.5], ['bench', -6.9, -56, 1.3, 5.5],
   ['cannon', -27, -61.2, 1.5, 2.6], ['cannon', -10, -61.2, 1.5, 2.6],
   ['maptable', -28.3, -52, 2.7, 1.9], ['maptable', -8.6, -37.6, 2.7, 1.9],
-  ['rack', -5.45, -37.6, .8, 3.2], ['rack', -5.45, -51.5, .8, 3.2], ['rack', -31.95, -52.4, .8, 3.2],
+  ['rack', -5.45, -37.6, .8, 3.2], ['rack', -5.45, -51.5, .8, 3.2], ['rack', -31.95, -58.0, .8, 3.2],
   ['treasure', -14.4, -62.6, 1.9, 1.5], ['treasure', -22.6, -62.6, 1.9, 1.5], ['chest', -11.5, -62.5, 1.7, 1.2],
   ['barrels', -31.1, -31.6, 2.4, 1.3], ['barrels', -5.8, -31.6, 1.2, 1.3], ['barrels', -31.4, -63.5, 1.3, 1.3], ['barrels', -5.8, -63.5, 1.3, 1.3],
   ['crates', -31.6, -33.1, 1.3, 1.8], ['crates', -5.8, -32.7, 1.2, 1.2], ['crates', -5.8, -62.4, 1.2, 1.2],
@@ -20,11 +20,20 @@ export const HQ_PROPS = Object.freeze([
 export const HQ_PILLARS = Object.freeze([]);   // BANKSY 10:43 PM: no pillars; the roof spans on heavy trusses
 // Wall info-panel SLOTS (BANKSY 10:43 PM "more wall panels on the free walls"): framed in model.js, a placeholder face in render.js
 // (hq.panels[i].userData.panelSlot = id) for Emerly to draw on later. face: the inward normal axis.
+// p3 board layout (BANKSY "space all the boards and frame them nicely"): every wall board shares one band (centre floor+4.1, face 3.0 m
+// tall), centred in its wall bay between the doors, torches and corner towers. face: inward normal ('w' = -x, 'e' = +x, 's' = -z).
+export const HQ_BOARD_BAND = Object.freeze({ y: 4.1, h: 3.0 });
 export const HQ_PANELS = Object.freeze([
-  { id: 'east_1', lx: -5.0, lz: -37.0, face: 'w', w: 3.6, h: 2.9 }, { id: 'east_2', lx: -5.0, lz: -51.5, face: 'w', w: 3.6, h: 2.9 },
-  { id: 'east_3', lx: -5.0, lz: -58.4, face: 'w', w: 3.2, h: 2.9 }, { id: 'west_1', lx: -32.4, lz: -51.6, face: 'e', w: 3.6, h: 2.9 },
-  { id: 'front_w', lx: -25.0, lz: -30.6, face: 's', w: 3.6, h: 2.9 }, { id: 'front_e', lx: -12.0, lz: -30.6, face: 's', w: 3.6, h: 2.9 },
+  { id: 'east_1', lx: -5.0, lz: -35.2, face: 'w', w: 3.72, h: 3.0, title: 'DEX JUST PAID' },
+  { id: 'east_2', lx: -5.0, lz: -52.5, face: 'w', w: 3.72, h: 3.0, title: 'TRENDING TOKENS' },
+  { id: 'east_3', lx: -5.0, lz: -59.5, face: 'w', w: 3.72, h: 3.0, title: 'ABOUT TO BOND' },
+  { id: 'west_1', lx: -32.4, lz: -51.2, face: 'e', w: 3.72, h: 3.0, title: 'NOTICE BOARD' },
+  { id: 'front_w', lx: -25.15, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'SQUAD · PFPIRATES' },
+  { id: 'front_e', lx: -11.85, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'LEADERBOARD' },
 ]);
+export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.5, 'squad'], ['squad_ranks', -40.6, 'squad_ranks'], ['daily_ranks', -45.7, 'daily_ranks']]
+  .map(([file, lz, kind]) => Object.freeze({ file, lx: -32.4, lz, face: 'e', w: 3.07, h: 3.0, kind })));
+
 export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
 // L0 is the Treasure Trader, L1 Wanted, L2 Rum Export, L3 Harbor Fence. L4 is FIRST genuinely unused room.
 export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
@@ -45,3 +54,13 @@ export const inHQ = (lx, lz, pad = 0) => lx >= HQ.lx0 - pad && lx <= HQ.lx1 + pa
 export function hqDistance(lx, lz) { return Math.hypot(Math.max(HQ.lx0 - lx, 0, lx - HQ.lx1), Math.max(HQ.lz0 - lz, 0, lz - HQ.lz1)); }
 // Manual-only hook: aggregated prices/volume cannot prove an individual buy. Never simulate a buy ticker.
 export const BIG_BUY_SOL = 1;
+
+// p3 outworks: the hill is cut back from the west + back walls into a paved stone service trench with a coped retaining wall
+// (the hall floor sits ~2 m under the hill there). Colliders keep players from dropping in from the hill or the street.
+export const HQ_TRENCH = Object.freeze({ w: 1.8, westLz: -48.5 });
+export const HQ_OUTWORKS = Object.freeze([
+  [-34.6, -57.65, .5, 18.7],   // west retaining wall (lz -48.3 .. -67)
+  [-19.35, -66.6, 30.5, .5],   // back retaining wall (lx -34.6 .. -4.1)
+  [-33.9, -48.5, 1.9, .4],     // west end cap (the Outfit Store's back)
+  [-4.25, -65.85, .4, 1.9],    // east end cap at Hill Street
+]);

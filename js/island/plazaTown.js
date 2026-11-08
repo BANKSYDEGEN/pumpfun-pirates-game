@@ -1,5 +1,5 @@
 import { hqParts, gableVertices } from '../pumpfun/model.js';
-import { HQ, HQ_WALLS, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, petFloor } from '../pumpfun/site.js';
+import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, petFloor } from '../pumpfun/site.js';
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
 import { OUTFIT_STORE, outfitWalls, outfitRooms } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
@@ -153,7 +153,7 @@ export const PLAZA = {
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
 export function plazaGround(lx, lz, h) {
-  if(lx>=HQ.lx0-3&&lx<=HQ.lx1&&lz>=HQ.lz0-3&&lz<HQ.lz1){const o=Math.max(HQ.lx0-lx,HQ.lz0-lz,0);h=Math.min(h,HQ.floor-.05+o*1.3);}   // whole footprint flat; west/back hill eases down to the wall foot (no grass through the floor)   // [post-hq-castle] whole footprint
+  if(lx>=HQ.lx0-3&&lx<=HQ.lx1&&lz>=HQ.lz0-3&&lz<HQ.lz1){const o=Math.max(HQ.lx0-lx,HQ.lz0-lz,0),trench=lz<HQ_TRENCH.westLz+.2||lx>=HQ.lx0;h=Math.min(h,trench?(o<=HQ_TRENCH.w?HQ.floor-.05:h):HQ.floor-.05+o*1.3);}   // whole footprint flat; west/back: paved trench behind a retaining wall (p3)   // [post-hq-castle] whole footprint
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
     const w = sm(SLAB.lx0 - 4, SLAB.lx0, lx) * (1 - sm(SLAB.lx1, SLAB.lx1 + 4, lx)) * sm(SLAB.lz0 - 4, SLAB.lz0, lz); h = h * (1 - w) + Math.max(h, STREET_Y - 0.04) * w; }
@@ -400,6 +400,7 @@ export function buildPlazaV2(h) {
   { const c=T(HQ.hillDoor.lx,HQ.hillDoor.lz); h.addDeck?.({x:c[0],z:c[1],hw:1.2,hl:HQ.hillDoor.w/2,yaw:yaw0,y:HQ.floor}); }
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
+  for (const [lx,lz,w,d] of HQ_OUTWORKS) addBox(...T(lx,lz),w,d,yaw0);   // p3 trench retaining walls
   camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: HQ.lz0+.8, lz1: HQ.lz1-.5 }, HQ.ceil-.4, HQ.floor);
   camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
   SHIP_STORE_PLACES.length = 0;
