@@ -439,7 +439,7 @@ async function build(p, def, opts) {
   // [v7f gear] BANKSY t436u "Fix all v7 girl clothes and accessories": her own refits (js/v7fFitData.js) + her cut heights for the body hide;
   // her v5 pants keep their mesh but dye up to their top (V7F_PANTS_DYE_Y). Female V7 only.
   if (p.female && p.v7 && V7F_FITS[def.id]) { const F = V7F_FITS[def.id];
-    const it = await buildV5(p, {...def, v5:{female:{hi:F.hi,lo:F.lo}}, crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
+    const it = await buildV5(p, {...def, v5:{female:{hi:F.hi,lo:F.lo}}, ...(def.pants ? {dyeY:V7F_PANTS_DYE_Y} : {}), crownFit:false, noFlatten:true, v5dy:0}, opts, low, body, skel, names);
     if (F.hide) it.v5hide = F.hide; return it; }
   if (p.female && p.v7 && def.pants && p.v5 && def.v5) return buildV5(p, {...def, dyeY: V7F_PANTS_DYE_Y}, opts, low, body, skel, names);
   if (!p.female && p.v7 && body.userData.sourceLocked && V7M_PAINT[def.id]) { const u = V7M_PAINT[def.id];
