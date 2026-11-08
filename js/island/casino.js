@@ -190,7 +190,9 @@ export function v7Dealers(g, list, low = false) {
   const dl = new THREE.LOD(); dl.name = 'casino_dealers_lod'; const near = new THREE.Group(); dl.addLevel(near, 0); dl.addLevel(new THREE.Group(), low ? 60 : 90); g.add(dl); // [t2010u/t2011u] dressed through the game's own pirate builder: every dealer + the bartender wear the SAME casino suit
   // [t2012u/t2013u] mixed skin tones, hair + eye colours (1-based SKIN / HAIR / EYE_SWATCHES in js/pirateGear.js, natural range only)
   const LOOKS = [[3, 2, 1], [8, 1, 4], [5, 4, 3], [9, 1, 1], [2, 6, 4], [7, 3, 2], [4, 5, 3], [6, 1, 6], [1, 7, 5], [8, 8, 1]];
-  Promise.all([import('../pirates.js'), import('../pirateGear.js')]).then(([{ pirateFigure }, { setBodyLook }]) => list.forEach(([bx, by, bz, a, kind], i) => {
+  // [perf v464] built the first time the camera comes within that range (their V7 bodies + casino suit GLBs were ~2 MB on every harbor enter)
+  let started = false; const upd = dl.update.bind(dl); dl.update = (cam) => { upd(cam); if (!started && dl.getCurrentLevel() === 0) { started = true; build(); } };
+  const build = () => Promise.all([import('../pirates.js'), import('../pirateGear.js')]).then(([{ pirateFigure }, { setBodyLook }]) => list.forEach(([bx, by, bz, a, kind], i) => {
     const [skinColor, hairColor, eyeColor] = LOOKS[i % LOOKS.length];
     const fig = pirateFigure({ low: true, height: 1.78, female: kind !== 1 && i % 2 === 1, clip: 'idle', gear: { outfit: 'suit', pants: 'classic_pants', boots: 'shoes_buckle' } /* [t2020u] pants + shoes */,
       onReady: (p) => { try { setBodyLook(p, { skinColor, hairColor, eyeColor }); } catch (e) { console.warn('[casino] dealer look', e); } } });
