@@ -22,7 +22,9 @@ import { createBerthSigns, berthOccupantName } from './berthSigns.js'; // [berth
 import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
-import { createPetFollower } from '../onfoot/pets.js'; import { createPilly, createPillyState } from '../onfoot/pilly.js'; // [Pilly] companion slot
+import { createPetFollower } from '../onfoot/pets.js';
+// Disabled Pilly must not even load / parse its renderer module. No peer path creates it.
+const { createPilly, createPillyState } = PILLY_ENABLED ? await import('../onfoot/pilly.js') : {};
 // // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
 import { binds, keyName, isKey, anyModalOpen } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';

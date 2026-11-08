@@ -102,7 +102,6 @@ export const HARBOR_MODULES = [
   "js/onfoot/net.js",
   "js/onfoot/pets.js",
   "js/onfoot/physics.js",
-  "js/onfoot/pilly.js",
   "js/onfoot/pirate.js",
   "js/onfoot/stances.js",
   "js/onfoot/swimPose.js",

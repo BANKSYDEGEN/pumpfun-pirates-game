@@ -15,4 +15,7 @@ test('disabled feature guards both companion construction and purchase entry poi
   assert.match(text('js/dock/index.js'), /!PILLY_ENABLED.*\? null : createPilly/);
   assert.match(text('js/dock/index.js'), /if \(PILLY_ENABLED\) \{ pillyS = createPillyState/);
   assert.match(text('js/petsPanel.js'), /PILLY_ENABLED \?/);
+  assert.match(text('js/dock/index.js'), /PILLY_ENABLED \? await import\('..\/onfoot\/pilly.js'\)/);
+  assert.doesNotMatch(text('sw.js'), /\".\/js\/onfoot\/pilly.js\"/);
+  assert.doesNotMatch(text('js/preloadList.js'), /js\/onfoot\/pilly.js/);
 });
