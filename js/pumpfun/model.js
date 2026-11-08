@@ -75,9 +75,9 @@ export function hqParts() {
   for(const x of [-24.5,-12.5]) { B(x,CEIL-.9,CZ,.5,.5,IZ1-IZ0,wood); B(x,CEIL-1.17,CZ,.56,.05,IZ1-IZ0,gold,true); }
   for(const q of HQ_PILLARS) { B(q.lx,Y+(HQ.ceil-1.15)/2,q.lz,1.0,HQ.ceil-1.15,1.0,stone); B(q.lx,Y+.3,q.lz,1.3,.6,1.3,darkStone); B(q.lx,CEIL-1.35,q.lz,1.35,.4,1.35,darkStone);
     B(q.lx,Y+1.3,q.lz,1.04,.08,1.04,gold,true); }
-  // long crimson runner from the plaza gate to the dais, cross runner from the Hill Street door
-  B(-18.5,Y+.035,(IZ1+HQ.dais.lz1)/2,3.2,.05,IZ1-HQ.dais.lz1,crimson,true); for(const s of [-1,1]) B(-18.5+s*1.62,Y+.04,(IZ1+HQ.dais.lz1)/2,.12,.05,IZ1-HQ.dais.lz1,gold,true);
-  B((-18.5+IX1)/2+.8,Y+.03,HD.lz,IX1+18.5-1.6,.05,2.6,crimson,true);
+  // green-and-gold runner preview from the plaza gate to the dais, cross runner from the Hill Street door
+  B(-18.5,Y+.035,(IZ1+HQ.dais.lz1)/2,3.2,.05,IZ1-HQ.dais.lz1,'#18593e',true); for(const s of [-1,1]) B(-18.5+s*1.62,Y+.04,(IZ1+HQ.dais.lz1)/2,.12,.05,IZ1-HQ.dais.lz1,gold,true);
+  B((-18.5+IX1)/2+.8,Y+.03,HD.lz,IX1+18.5-1.6,.05,2.6,'#18593e',true);
   // dais + board wall
   const DZ=(HQ.dais.lz0+HQ.dais.lz1)/2; B(CX,Y+HQ.dais.rise/2,DZ,IX1-IX0,HQ.dais.rise,HQ.dais.lz1-HQ.dais.lz0,darkStone); B(CX,Y+HQ.dais.rise+.02,DZ,IX1-IX0,.04,HQ.dais.lz1-HQ.dais.lz0-.2,'#3a2418',true);
   B(CX,Y+HQ.dais.rise-.05,HQ.dais.lz1+.05,IX1-IX0,.1,.12,gold,true);

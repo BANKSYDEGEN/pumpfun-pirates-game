@@ -8,9 +8,9 @@ export const HQ = Object.freeze({ id: 'pumpfun_hq', lx0: -33, lx1: -4, lz0: -65,
   dais: { lz0: -64.4, lz1: -59.6, rise: .4 }, board: { lx: -18.5, lz: -64.2, y: 8.53, w: 24, h: 6.2 } });
 // Visible top surfaces, not box centres: keep boots above planks / cloth / dais.
 export const HQ_WALK_DECKS = Object.freeze([
- {id:'hq_floor',lx:-18.5,lz:-47.5,hw:14.4,hl:17.2,top:.03},
- {id:'hq_dock_threshold',lx:HQ.door.lx,lz:HQ.door.lz,hw:HQ.door.w/2,hl:.7,top:.03},
- {id:'hq_hill_threshold',lx:HQ.hillDoor.lx,lz:HQ.hillDoor.lz,hw:1.2,hl:HQ.hillDoor.w/2,top:.03},
+ {id:'hq_floor',lx:-18.5,lz:-47.5,hw:14.4,hl:17.2,top:.034},
+ {id:'hq_dock_threshold',lx:HQ.door.lx,lz:HQ.door.lz,hw:HQ.door.w/2,hl:.7,top:.034},
+ {id:'hq_hill_threshold',lx:HQ.hillDoor.lx,lz:HQ.hillDoor.lz,hw:1.2,hl:HQ.hillDoor.w/2,top:.034},
  {id:'hq_dais',lx:-18.5,lz:(HQ.dais.lz0+HQ.dais.lz1)/2,hw:13.8,hl:(HQ.dais.lz1-HQ.dais.lz0)/2,top:HQ.dais.rise+.04},
  {id:'hq_runner',lx:-18.5,lz:(HQ.lz1-.6+HQ.dais.lz1)/2,hw:1.6,hl:(HQ.lz1-.6-HQ.dais.lz1)/2,top:.06},
  {id:'hq_cross_runner',lx:(-18.5+HQ.lx1-1)/2+.8,lz:HQ.hillDoor.lz,hw:(HQ.lx1-1+18.5-1.6)/2,hl:1.3,top:.055},
