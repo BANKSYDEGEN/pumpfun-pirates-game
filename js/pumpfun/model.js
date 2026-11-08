@@ -5,13 +5,7 @@ export function hqParts() {
   const p = [], B = (x,y,z,w,h,d,c,detail=false) => p.push({ kind:'box', x,y,z,w,h,d,c,detail,mat:c===stone?11:c===darkStone?22:c===wood?26:c===roof?4:0 });
   const Y=HQ.floor;
   B(-18.5,Y-.03,-39.3,28.8,.12,18.5,darkStone);
-  B(-32.7,Y+4.8,-39.5,.6,9.6,19,stone); // East side door faces the Treasure Trader / hill street; same 4.6 m clear height as front.
-  B(-4.3,Y+4.8,-46.5,.6,9.6,5,stone);B(-4.3,Y+4.8,-35,.6,9.6,10,stone);
-  B(-4.3,Y+7.1,-42,.6,5,4,stone);
-  for(const z of [-44.3,-39.7])B(-3.95,Y+2.3,z,.8,4.6,.5,darkStone);
-  B(-3.95,Y+4.85,-42,.8,.5,5.1,darkStone);
-  B(-3.5,Y+4.5,-42,1.5,.18,4.8,wood);
-  B(-3.3,Y+.025,-42,1.4,.25,4, darkStone); // one small stone doorstep, top = floor + .15
+  B(-32.7,Y+4.8,-39.5,.6,9.6,19,stone); B(-4.3,Y+4.8,-39.5,.6,9.6,19,stone);
   for (const x of [-27.25,-9.75]) B(x,Y+4.8,-30.3,11.5,9.6,.6,stone);
   B(-18.5,Y+7.1,-30.3,6,5,.6,stone); // tall open doorway, no threshold
   B(-18.5,Y+4.8,-56.5,29,9.6,17,stone); // enclosed rear mass reaches the trader's edge
@@ -32,7 +26,7 @@ export function hqParts() {
   B(-18.5,Y+4.7,-29.4,7.2,.18,1.5,wood);
   // structural timber ribs, benches and warm lantern cores (no realtime lights)
   for(const z of [-33,-39,-46]) { B(-18.5,Y+7.65,z,28,.25,.24,wood,true); }
-  for(const x of [-30.5,-6.5]) { B(x,Y+.5,x===-6.5?-34:-42,1.1,1,5.3,wood,true); }
+  for(const x of [-30.5,-6.5]) { B(x,Y+.5,-42,1.1,1,5.3,wood,true); }
   for(const x of [-31,-6]) for(const z of [-34,-44]) { B(x,Y+3.8,z,.4,.65,.4,gold,true); B(x,Y+4.2,z,.6,.12,.6,wood,true); }
   B(HQ.board.lx,HQ.board.y,HQ.board.lz-.12,HQ.board.w+.45,HQ.board.h+.45,.25,wood);
   B(HQ.board.lx,HQ.board.y,HQ.board.lz+.025,HQ.board.w+.2,HQ.board.h+.2,.07,gold);

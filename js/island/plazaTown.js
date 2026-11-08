@@ -393,7 +393,6 @@ export function buildPlazaV2(h) {
     if(p.kind==='gable')geo.computeVertexNormals();
     W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0,p.rx||0),false); }
   h.addDeck?.({x:T(-18.5,-39)[0],z:T(-18.5,-39)[1],hw:14,hl:9,yaw:yaw0,y:HQ.floor});
-  h.addDeck?.({x:T(-3.3,-42)[0],z:T(-3.3,-42)[1],hw:.7,hl:2,yaw:yaw0,y:HQ.floor+.15});
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
   camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: -47.5, lz1: -30.5 }, 7.8);

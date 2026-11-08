@@ -42,10 +42,11 @@ test('cancelled hill entrance leaves no ramp, terrain override, deck or post col
  assert.match(plaza,/hw:14,hl:9,yaw:yaw0,y:HQ.floor/); // HQ floor remains
 });
 
-test('east side door opens toward Trader with collider gap and one small doorstep',()=>{
- assert.deepEqual(HQ.sideDoor,{lx:-4,lz:-42,w:4});
- for(let x=-7;x<=-2.7;x+=.1)for(const [cx,cz,w,d] of HQ_WALLS)assert.ok(!(Math.abs(x-cx)<w/2+.33&&Math.abs(-42-cz)<d/2+.33),'side door walk lane');
- const parts=hqParts();assert.ok(!parts.some(p=>p.x===-6.5&&p.z===-42&&p.h===1));assert.ok(!parts.some(p=>p.x===-4.3&&p.z===-39.5&&p.d===19));
- const step=parts.find(p=>p.x===-3.3&&p.z===-42);assert.ok(Math.abs(step.y+step.h/2-HQ.floor-.15)<1e-6);
- assert.match(src('js/island/plazaTown.js'),/hw:.7,hl:2,yaw:yaw0,y:HQ.floor\+.15/);
+test('east wall is restored and no unsafe rear opening is cut into the rising hill',()=>{
+ assert.ok(!HQ.sideDoor);
+ assert.ok(HQ_WALLS.some(([x,z,w,d])=>x===-4.3&&z===-39.5&&w===.6&&d===19));
+ assert.ok(hqParts().some(p=>p.x===-4.3&&p.z===-39.5&&p.d===19));
+ assert.ok(!hqParts().some(p=>p.x===-3.3&&p.z===-42));
+ assert.ok(HQ_WALLS.some(([x,z,w,d])=>x===-18.5&&z===-56.5&&w===29&&d===17));
+ assert.ok(!src('js/island/plazaTown.js').includes('y:HQ.floor+.15'));
 });
