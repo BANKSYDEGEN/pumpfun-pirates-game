@@ -1,3 +1,4 @@
+import { createBuildingWaypoint, buildingPinButton, waypointOutsideView, drawBuildingPin } from './mapWaypoint.js';
 // [Emerly v106] PUMPFUN PIRATES · ISLAND MAP (BANKSY: "add the full island map to mini map").
 //   - ONE pre-rendered texture of the whole island, baked a few rows a frame the first time you enter the harbor (no hitch):
 //     Raul's real terrain colours (beach, grass, jungle, rock), shallows + deep water, the lake + river, steep faces hatched
@@ -36,6 +37,7 @@ export function mapOverlayViewport(width, height, left = 0, right = 0) {
   return { x:(x0+x1)/2, y:height/2, width:Math.max(1,x1-x0), height:Math.max(1,height) };
 }
 export function createIslandMap({ world, layout, low, islands = null, paperSheet = null }) { // paperSheet() = the MAPS parchment chart (js/dock/treasureMap.js sheet())
+  const waypoint = createBuildingWaypoint(); let revealPin = false;
   const FM = layout.FM, toF = layout.harborToFoot, toH = layout.footToHarbor;
   // [backpack-pvp] t1727u: ONE smooth vector Safe Zone polygon (BANKSY pink+blue outline). Drawn ONLY on
   // Full Island Map (M) + on-foot drawLocal — NEVER on the at-sea ship radar `draw()` / dock.radarZones.
@@ -94,7 +96,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     if (!force && stamp === buildingStamp) return;
     buildingStamp = stamp;
     const interactions = [...layout.interact, ...(world.footInteract || [])].map(q => { const [fx,fz] = toF(q.x,q.z), [lx,lz] = FM.worldToTown(fx,fz); return {...q,lx,lz}; });
-    buildings = mapBuildings(FM, interactions); P = pois(); updateBuildingKey();
+    buildings = mapBuildings(FM, interactions); const old=waypoint.current; if(old){ const b=buildings.find(b=>b.id===old.id); b?waypoint.select(b):waypoint.clear(); } P = pois(); updateBuildingKey();
   }
   // [v108] the offshore rock lighthouse(s) (props.js grid rocks) inside the mapped box
   const rockLights = () => { if (!islands?.lighthousesIn) return []; const [hx0, hz0] = toH(B.x0, B.z0), [hx1, hz1] = toH(B.x1, B.z1);
@@ -177,6 +179,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       ctx.fillStyle = sq ? '#2fd866' : '#0d0d10'; ctx.beginPath(); ctx.arc(a, b, r * 0.68, 0, 7); ctx.fill(); }
     if (st.ship) { const [a, b] = T(st.ship.x, st.ship.z), L = Math.max(sz * 0.9, 18 * k), W = L * 0.36; ctx.save(); ctx.translate(a, b); ctx.rotate(Math.PI - st.ship.yaw);
       ctx.fillStyle = '#ffcd77'; ctx.strokeStyle = '#161616'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(W, -L * 0.3, W * 0.8, L * 0.7); ctx.lineTo(-W * 0.8, L * 0.7); ctx.quadraticCurveTo(-W, -L * 0.3, 0, -L); ctx.fill(); ctx.stroke(); ctx.restore(); }
+    const pin=waypoint.current; if(pin){const [a,b]=T(...toH(pin.x,pin.z)); if(!out(a,b))drawBuildingPin(ctx,pin,footProject(T),Math.max(6,sz*.7));}
     if (st.me) { const [a, b] = T(st.me.x, st.me.z), s = sz * (st.me.foot ? 0.85 : 1); ctx.save(); ctx.translate(a, b); ctx.rotate(Math.PI - st.me.yaw);
       ctx.fillStyle = th.me; ctx.strokeStyle = th.ink === '#e6f2ff' ? '#06264f' : th.ink; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.7, s * 0.75); ctx.lineTo(0, s * 0.35); ctx.lineTo(-s * 0.7, s * 0.75); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
   }
@@ -289,10 +292,12 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       : 'tap anywhere · M · Esc to close';
     el.innerHTML = `<div class="im-head"><div class="im-title"><small>EXPLORE THE HARBOR</small><b>ISLAND MAP</b></div><div class="im-status"><span class="im-loc" id="im-you-loc"></span><span class="im-cur" id="im-cur-loc"></span></div><span class="im-hint">${hint}</span>` +
       (MAPZOOM_ON ? '<div class="im-zoom" role="group" aria-label="Map zoom"><button type="button" class="im-zbtn" data-z="out" aria-label="Zoom out">−</button><button type="button" class="im-zbtn" data-z="in" aria-label="Zoom in">+</button><button type="button" class="im-zbtn" data-z="reset" aria-label="Recentre"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="display:block;margin:auto" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button></div>' : '') +
-      `<button class="im-x" aria-label="Close">✕</button></div><details class="im-building-key" open><summary aria-label="Toggle building key"><span class="im-key-toggle" aria-hidden="true">≡</span><span class="im-key-heading"><small>PLACES & LANDMARKS</small><strong>Buildings</strong></span><span class="im-building-count"></span></summary><div class="im-buildings" aria-label="Building key"></div></details><canvas role="img" aria-label="Island chart. Drag to pan; scroll or pinch to zoom."></canvas>` +
+      `<button class="im-x" aria-label="Close">✕</button></div><details class="im-building-key" open><summary aria-label="Toggle building key"><span class="im-key-toggle" aria-hidden="true">≡</span><span class="im-key-heading"><small>PLACES & LANDMARKS</small><strong>Buildings</strong></span><span class="im-building-count"></span></summary><div class="im-pin-status"><span class="im-pin-label" role="status" aria-live="polite">Choose a building to place a private pin.</span><button type="button" class="im-pin-clear" disabled>Clear pin</button></div><div class="im-buildings" aria-label="Building key"></div></details><canvas role="img" aria-label="Island chart. Drag to pan; scroll or pinch to zoom."></canvas>` +
       '<div class="im-key"><span class="im-legend-item"><i style="background:#fff"></i>you </span><span class="im-legend-item"><i style="background:#ffcd77"></i>your ship </span><span class="im-legend-item"><i class="im-k-other" style="background:#0d0d10;box-shadow:0 0 0 2px #f5efe0,0 0 0 3px #161616"></i>other pirates </span><span class="im-legend-item"><i class="im-k-squad" style="background:#2fd866;box-shadow:0 0 0 2px #fff,0 0 0 3px #161616"></i>squad </span><span class="im-legend-item"><i class="im-k-crew" style="background:#2fd866;transform:rotate(45deg);border-radius:1px;box-shadow:0 0 0 1px #082412"></i>crew </span><span class="im-legend-item"><i style="background:#ffcd00"></i>Commodore </span><span class="im-legend-item"><i class="im-k-ai" style="background:#fa0d0d;box-shadow:0 0 0 1px #161616"></i>AI ships </span><span class="im-legend-item"><b style="color:#ff3b3b">✕</b> treasure </span><span class="im-legend-item"><i class="im-tr" style="background:#fa0d0d"></i>crimson trail </span><span class="im-legend-item"><i class="im-tr" style="background:#ffc93c"></i>doubloon trail </span><span class="im-legend-item"><i class="im-st"></i>steep (no way up) </span><span class="im-legend-item"><i style="background:rgba(46,232,138,.45);border:1.5px solid #2ee88a"></i>safe zone</span>' +
       (MAPZOOM_ON ? '<span class="im-padhint" hidden>L-stick pan · LT/RT zoom · Y recentre · B close</span>' : '') + '</div>';
     document.body.appendChild(el); fc = el.querySelector('canvas'); locEl = el.querySelector('#im-you-loc'); curEl = el.querySelector('#im-cur-loc'); if (innerWidth <= 900) el.querySelector('.im-building-key').open = false; updateBuildingKey();
+    el.querySelector('.im-pin-clear').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')e.stopPropagation();});
+    el.querySelector('.im-pin-clear').addEventListener('click', e=>{e.stopPropagation();clearPin();});
     el.querySelector('.im-x').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
     if (!MAPZOOM_ON) {
       el.addEventListener('pointerdown', (e) => { if(e.target.closest('.im-building-key')) return; e.preventDefault(); e.stopPropagation(); setTimeout(close, 0); });
@@ -312,16 +317,28 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       group.className='im-key-group'; group.dataset.group=name; group.open=!closed.has(name);
       heading.textContent=name; list.className='im-key-places'; group.append(heading,list);
       for (const b of places) {
-        const item = document.createElement('span'), badge = document.createElement('canvas'), label = document.createElement('span');
+        const item = buildingPinButton(document,b,waypoint.current?.id===b.id,selectBuildingPin), badge = document.createElement('canvas'), label = document.createElement('span');
         item.className = 'im-building'; badge.width = badge.height = 48; badge.setAttribute('aria-hidden','true');
         drawShopIcon(badge.getContext('2d'),b.icon,24,24,19,theme().badge);
         label.textContent = b.name; item.append(badge,label); list.append(item);
       }
       key.append(group);
     }
-    const count=el.querySelector('.im-building-count'); if(count) count.textContent=String(buildings.length);
+    const count=el.querySelector('.im-building-count'); if(count) count.textContent=String(buildings.length); syncPinUi();
 
   }
+  function syncPinUi() {
+    const pin=waypoint.current;
+    for(const button of el?.querySelectorAll('button[data-building]') || [])button.setAttribute('aria-pressed',String(button.dataset.building===pin?.id));
+    const label=el?.querySelector('.im-pin-label'),clear=el?.querySelector('.im-pin-clear');
+    if(label)label.textContent=pin?'PRIVATE PIN · '+pin.name+' · Only you':'Choose a building to place a private pin.';
+    if(clear)clear.disabled=!pin;
+  }
+  function selectBuildingPin(id) {
+    const building=buildings.find(b=>b.id===id);if(!waypoint.select(building))return false;
+    revealPin=true;vx=vz=0;syncPinUi();return true;
+  }
+  function clearPin(){waypoint.clear();revealPin=false;syncPinUi();}
   function wireZoom(root, canvas) {
     root.querySelector('.im-zoom')?.addEventListener('click', (e) => {
       const b = e.target.closest('[data-z]'); if (!b) return; e.preventDefault(); e.stopPropagation();
@@ -423,6 +440,11 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     fitK = Math.min(view.width / (2 * FB.rx), view.height / (2 * FB.rz));
     const k = MAPZOOM_ON ? fitK * z : fitK;
     if (MAPZOOM_ON) clampPan();
+    if(revealPin && waypoint.current && MAPZOOM_ON){
+      const pin=waypoint.current,project=(x,z)=>[view.x+(x-FB.cx-panX)*k,view.y+(z-FB.cz-panZ)*k];
+      if(waypointOutsideView(pin,project,view)){panX=pin.x-FB.cx;panZ=pin.z-FB.cz;vx=vz=0;clampPan();}
+      revealPin=false;
+    }
     const cx = MAPZOOM_ON ? FB.cx + panX : FB.cx, cz = MAPZOOM_ON ? FB.cz + panZ : FB.cz;
     const ox = view.x - (cx - B.x0) * k, oz = view.y - (cz - B.z0) * k;
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [ox + (fx - B.x0) * k, oz + (fz - B.z0) * k]; };
@@ -536,5 +558,5 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     c.textAlign='left'; c.fillStyle='#ffe0a0'; c.fillText('N ↑ · island & sea · harbor coordinates',14*dpr,22*dpr);
     return true;
   }
-  return { drawAdminChart, draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), locate: locatePoint, get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
+  return { selectBuildingPin, clearPin, get pin(){return waypoint.current;}, drawAdminChart, draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), locate: locatePoint, get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
 }

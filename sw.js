@@ -167,6 +167,8 @@ const SHELL = [
   "./js/mapIcons.js",
   "./js/mapLandmarks.js",
   "./js/mapBuildings.js",
+  "./js/mapWaypoint.js",
+  "./js/dock/buildingWaypoint.js",
   "./js/pvpBoard.js",
   "./js/squads.js",
   "./assets/ships/pvp/unlockSkins.js",

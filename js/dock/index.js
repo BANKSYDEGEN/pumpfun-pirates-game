@@ -1,3 +1,4 @@
+import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
 import { createPumpfun } from './pumpfun.js';
 import { setParrotWorld } from '../parrotFlight.js';
@@ -137,6 +138,7 @@ export async function createDock(ctx) {
   const pillyF = !PILLY_ENABLED || new URLSearchParams(location.search).get('pilly') === '0' ? null : createPilly({ scene, world, low: LOW }); let pillyS = null; // [Pilly] own slot: walks beside you WITH your parrot / pet
   let ladders = null; try { if (LADDERS_ON) ladders = createLadders({ world, layout, walker, pirate, crewF, petF, lagoon: { ...LAGOON_LADDER, dock: LAGOON_DOCK, y: lagoonDockY() } }); } catch (e) { console.warn('[dock-ladders]', e); } // [dock-ladders]
   const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW, canvas, world, touch }); // [v314] + canvas look, world.blocked landings // [Emerly sail-around]
+  const buildingMarker = createPrivateBuildingMarker({parent:world.root,layout,ground:world.ground});
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
   // [v106] radar markers: main.js passes ship / AI / harbor mates / loot; we add you on foot + the on-foot pirates + the dig target
   let mapSt = {};
@@ -461,7 +463,7 @@ export async function createDock(ctx) {
   function setOn(v) {
     if (v === on) return; on = v; world.root.visible = v;
     setZone(v || viewing);
-    if (!v) { casinoUi?.close?.(); canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
+    if (!v) { imap.clearPin(); buildingMarker.clear(); casinoUi?.close?.(); canoe?.clearAll?.(P()); shipHull?.clear?.(); houses?.clear?.(); lootBags?.clear?.(); isleSafeTag.style.display = 'none'; skinPick.close(); imap.close(); radarEl?.classList.remove('isle-tap'); if (onFoot) goAboard(true); docking.release(); fnet.clear(); signs.clear(); peerNames.clear(); safeTag.style.display = 'none'; setActs(null, null); closeBoard(); squadHall?.close?.(); battery?.clear(); battle?.clear(); }
     syncDockHud();
     harborExtras(v || viewing); // [v330] t1754u
   }
@@ -608,6 +610,8 @@ export async function createDock(ctx) {
     if (casinoUi?.isOpen) { casinoUi.onKey(e); e.stopImmediatePropagation(); e.preventDefault(); return; } // [Timothy] the casino table has the keys (Esc closes)
     if (imap.isOpen && (e.code === 'Escape' || isKey('map', e.code))) { imap.close(); e.stopImmediatePropagation(); e.preventDefault(); return; }
     if (isKey('map', e.code) && !e.repeat && game.state === 'playing' && !document.documentElement.classList.contains('dk-board')) { openIsleMap(); e.stopImmediatePropagation(); e.preventDefault(); return; }
+    // The open chart owns focus: do not let the capture-phase walker swallow native key-button Space/Enter.
+    if (imap.isOpen) return;
     // [v339] I = Inventory (Harbor); ignore while typing / other modals that own keys
     if (isKey('inventory', e.code) && !e.repeat && game.state === 'playing' && inventory) {
       if (inventory.isOpen) inventory.close();
@@ -656,6 +660,7 @@ export async function createDock(ctx) {
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); harborExtras(view || on); } // [v330] t1754u + the scene-level island pieces if (view) world.update(camera.position, game.t, game.storm || 0);
     treasure.tick(); squadHall?.tick?.(performance.now()); if (friends) { friends.tick(performance.now()); if (!frPickerHooked) hookFriendsPicker(); } // [v356 friends] presence heartbeat ~30 s (8 s while the panel is open)
     if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
+    buildingMarker.update(imap.pin, on && !!P()?.alive);
     if (!on) return;
     const s = P(), now = game.t; uTime.value = now;
     // [Emerly sail-around] canoe / offshore-anchor tick (owns camera while paddling)

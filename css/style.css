@@ -1419,3 +1419,14 @@ html.isle-map-open, html.isle-map-open body, #isle-map { touch-action:auto; }
   html.isle-map-open #soc-panel .sp-h { padding:10px 8px; font-size:9px; } html.isle-map-open #soc-panel .sp-row { padding:10px 2px; } html.isle-map-open #soc-panel .sp-b button { flex:1 1 44%; font-size:10px; } html.isle-map-open #soc-panel .sp-foot { padding:9px; }
 }
 @media (prefers-reduced-motion:reduce) { #isle-map *, html.isle-map-open #soc-panel * { transition:none !important; } }
+/* Personal building waypoint: native buttons retain touch/Enter/Space behavior. */
+#isle-map button.im-building { width:100%; border:1px solid transparent; background:transparent; text-align:left; cursor:pointer; appearance:none; }
+#isle-map button.im-building:hover { background:#ffffff0c; border-color:#d9b87830; }
+#isle-map button.im-building[aria-pressed="true"] { color:#ffe4aa; background:#d9b8781c; border-color:#d9b87880; }
+#isle-map .im-pin-status { padding:12px 14px 4px; display:flex; align-items:flex-start; flex-direction:column; gap:8px; }
+#isle-map .im-pin-label { color:#dfcfad; font:500 11px/1.5 system-ui,sans-serif; overflow-wrap:anywhere; }
+#isle-map .im-pin-clear { border:1px solid #d9b87850; background:#d9b87810; border-radius:8px; padding:7px 10px; color:#ead7ad; font:600 10px/1.3 system-ui,sans-serif; cursor:pointer; min-height:32px; }
+#isle-map .im-pin-clear:disabled { display:none; }
+
+#isle-map button.im-building canvas { cursor:inherit; }
+#isle-map .im-pin-clear:hover { background:#d9b87824; border-color:#d9b87899; }
