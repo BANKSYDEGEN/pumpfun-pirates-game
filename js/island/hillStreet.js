@@ -1,4 +1,4 @@
-import { PET_LOT } from '../pumpfun/site.js';
+import { PET_LOT, PET_STORE } from '../pumpfun/site.js';
 // [Timothy] PUMPFUN PIRATES hill street (Main Street, plaza -> town gate) as Blender-made models (BANKSY 7:35 PM "fix the buildings up the hill
 // and make them match the plaza buildings and look good", his Port Royal reference, "multi story on both sides", "make them all shops").
 // Source: tools/hill_blender/hill_street_blender.py -> assets/island/hill_street.glb (21 rentable shop buildings), hill_sword_shop.glb (R3 = #36,
@@ -56,7 +56,7 @@ export function hillLot({ side, n, z, w, d, lx, x, wz, yaw, y, addBox, addCirc, 
   const key = (side < 0 ? 'L' : 'R') + n, L = HILL_KIT && HILL_KIT.lots[key];
   if (L && L.kind === 'merged') { const M_ = HILL_KIT.lots[L.merged]; return !!(M_ && M_.lods.length); }   // [Raul hill-weapons] R1 = the south bay of the MUSKET SHOP (R2): built (+ colliders, map) with R2
   if (!L || !L.lods.length) return false;
-  if (key === PET_LOT.lot && PET_REWORK_HILL) { LOTS_MAP?.push({ lx, z, w, d, side, label: 'PET STORE (L4)', col: '#fbbf24', tc: '#fde68a' }); RECTS.push([lx - d / 2 - 0.4, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]); return true; }   // [post-petstore] procedural walk-in (plazaTown + model.js petShellParts) replaces the L4 house + its colliders
+  if (key === PET_LOT.lot && PET_REWORK_HILL) { LOTS_MAP?.push({ lx, z, w, d, side, label: 'PET STORE (L4)', col: '#fbbf24', tc: '#fde68a' }); RECTS.push([PET_STORE.x0 - 0.6, lx + d / 2 + 0.4, z - w / 2 - 0.9, z + w / 2 + 0.9]); return true; }   // [post-petstore] procedural walk-in (plazaTown + model.js petShellParts) replaces the L4 house + its colliders
   const c = Math.cos(yaw), s = Math.sin(yaw), at = (bx, bz) => [x + bx * c + bz * s, wz - bx * s + bz * c];
   for (const q of L.colliders) { const [cx, cz] = at(q[1], q[2]); if (q[0] === 'c') addCirc(cx, cz, q[3]); else addBox(cx, cz, q[3], q[4], yaw); }
   const lots = Object.keys(HILL_KIT.lots).filter(k => HILL_KIT.lots[k].merged === key).concat(key).sort().join('+');   // 'R1+R2' for the double MUSKET SHOP
@@ -83,6 +83,7 @@ export function bigShop({ x, y, wz, yaw, lx, z, addBox, addCirc }) {
 // eased back to the terrain over 2.5 m outside it (foot.js terrain, coast mode; static flags only: the terrain is built before the GLBs load)
 const SQ_GROUND_ON = HILL_GLB_ON && BIG_SHOP_ON && !!SQUAD_HALL;
 export function hallGround(lx, lz, h) {
+  if (PET_REWORK_HILL && lx >= PET_STORE.x0 - .2 && lx <= PET_STORE.x1 - .3 && lz >= PET_STORE.z0 - .2 && lz <= PET_STORE.z1 + .2) h = Math.min(h, PET_STORE.floor - .1);   // [post-petstore] no terrain through the pet store's plank floor
   if (!SQ_GROUND_ON) return h; const R = SQUAD_HALL.rect, dx = Math.max(R.lx0 - 0.6 - lx, 0, lx - R.lx1 - 0.6), dz = Math.max(R.lz0 - 0.6 - lz, 0, lz - R.lz1 - 0.6), dd = Math.hypot(dx, dz);
   if (dd >= 2.5) return h; const t = 1 - dd / 2.5, k = t * t * (3 - 2 * t), ys = 3.0 + Math.max(0, -lz - 50) * 0.11; return h + (ys - h) * k;
 }
