@@ -4,8 +4,7 @@ import { BOARD_ROWS } from './boardgrid.js';
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
 export const WATCH_TOKENS = [
  {sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},
- {sym:'AHOY',ca:'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump'},
- {sym:'PUMP',ca:'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'}];
+ {sym:'AHOY',ca:'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump'}];
 const DEX='https://api.dexscreener.com';
 const finite=(v)=>v!==null && v!=='' && Number.isFinite(+v) ? +v : null;
 export const safeMint=v=>typeof v==='string' && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
@@ -56,7 +55,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
      if(++j.tries<3){gtJobs.unshift(j);continue;}}else gtNext=Date.now()+gtGapMs;j.reject(e);}}}finally{gtRun=false;}}
  const get=(url,prio)=>url.startsWith(GT)?gtGet(url,prio):rawGet(url);
  async function prices(){let bad=false;await Promise.all(WATCH_TOKENS.map(async t=>{try{
-  // Separate token reads avoid the aggregate endpoint's 30-pair truncation (PUMP otherwise hides SUNK pools).
+  // Separate token reads avoid the aggregate endpoint's 30-pair truncation.
   const j=await get(DEX+'/latest/dex/tokens/'+t.ca),p=selectPair(j.pairs,t.ca);
   if(!p)throw Error('no priced pair');state.prices[t.sym]={...pairRow(p),pair:p,updated:clock(),stale:false};
  }catch{bad=true;if(state.prices[t.sym])state.prices[t.sym].stale=true;}}));

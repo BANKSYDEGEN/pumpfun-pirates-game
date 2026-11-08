@@ -149,7 +149,7 @@ export function buildPetDress(low=false){const g=new THREE.Group();g.name='pet_s
 // Main 24 m board: ten compact rows per column; pointer grid shared with boardgrid.js.
 export function drawHQBoard(cv,state,now=Date.now()){const g=cv.getContext('2d'),W=1536,H=384;g.save();g.setTransform(cv.width/W,0,0,cv.height/H,0,0);
  frame(g,W,H,{trim:10});icon(g,'market',46,32,17);txt(g,'PUMPFUN PIRATES · MARKET WATCH',72,33,36,C.gold,'left',760,true);txt(g,'FREE SNAPSHOTS · NOT A LIVE TRADE FEED',W-30,33,24,C.muted,'right',600);
- ['SUNK','AHOY','PUMP'].forEach((sym,i)=>{const p=state.prices[sym],t=WATCH_TOKENS.find(t=>t.sym===sym),x=24+i*500,w=482;rowBg(g,i,x-4,52,w,64);
+ WATCH_TOKENS.map(t=>t.sym).forEach((sym,i)=>{const p=state.prices[sym],t=WATCH_TOKENS.find(t=>t.sym===sym),x=24+i*(1500/WATCH_TOKENS.length),w=1500/WATCH_TOKENS.length-18;rowBg(g,i,x-4,52,w,64);
   tokenLogoDot(g,{mint:t?.ca,symbol:sym,imageUrl:p?.imageUrl},x+28,84,24);txt(g,'$'+sym,x+60,85,42,C.gold,'left',112,true);
   const pw=pill(g,p?.change??null,x+w-14,70,24,p?.change!=null?(p.change>=0?'+':'')+p.change.toFixed(1)+'% 24h':'24h —');
   txt(g,p?usd(p.price)+(p.stale?' · STALE':''):state.status.prices==='Loading…'?'Loading…':'Feed offline',x+180,71,30,C.parch,'left',w-200-pw);
