@@ -1,6 +1,6 @@
 import { VILLAGE_ON } from './village.js';
 import { hqParts, petShellParts, gableVertices } from '../pumpfun/model.js';
-import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, PET_STORE, PET_WALLS, PET_PROPS, petFloor } from '../pumpfun/site.js';
+import { HQ, HQ_WALLS, HQ_OUTWORKS, HQ_TRENCH, TOKEN_BOARD_SPOTS, PET_SHOP, PET_LOT, PET_STORE, PET_WALLS, PET_PROPS, petFloor, HQ_WALK_DECKS } from '../pumpfun/site.js';
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
 import { OUTFIT_STORE, outfitWalls, outfitRooms } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
@@ -405,9 +405,7 @@ export function buildPlazaV2(h) {
     W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0+(p.ry||0),p.rx||0,p.rz||0),false); }
   // [post-hq-castle] one floor over the WHOLE footprint (the old rear mass is gone), the back dais (0.4 m: a step), and the
   // Hill Street door threshold, which meets the street flush (street H at lz -48 is ~2.7 = HQ.floor)
-  h.addDeck?.({x:T(-18.5,-47.5)[0],z:T(-18.5,-47.5)[1],hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor});
-  { const D=HQ.dais, c=T(-18.5,(D.lz0+D.lz1)/2); h.addDeck?.({x:c[0],z:c[1],hw:13.8,hl:(D.lz1-D.lz0)/2,yaw:yaw0,y:HQ.floor+D.rise}); }
-  { const c=T(HQ.hillDoor.lx,HQ.hillDoor.lz); h.addDeck?.({x:c[0],z:c[1],hw:1.2,hl:HQ.hillDoor.w/2,yaw:yaw0,y:HQ.floor}); }
+  for(const D of HQ_WALK_DECKS){const c=T(D.lx,D.lz);h.addDeck?.({id:D.id,x:c[0],z:c[1],hw:D.hw,hl:D.hl,yaw:yaw0+(D.ry||0),y:HQ.floor+D.top});}
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
   for (const [lx,lz,w,d] of HQ_OUTWORKS) addBox(...T(lx,lz),w,d,yaw0);   // p3 trench retaining walls

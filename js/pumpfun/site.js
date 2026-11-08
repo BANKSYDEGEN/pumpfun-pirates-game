@@ -6,6 +6,16 @@ import { RENTABLE_SHOPS } from '../island/hillShops.js';
 export const HQ = Object.freeze({ id: 'pumpfun_hq', lx0: -33, lx1: -4, lz0: -65, lz1: -30, floor: 2.73, ceil: 11.4, wallTop: 13.6,
   door: { lx: -18.5, lz: -30, w: 6 }, hillDoor: { lx: -4.5, lz: -44, w: 4.4, h: 4.0 }, prompt: { lx: -18.5, lz: -40, r: 3 },
   dais: { lz0: -64.4, lz1: -59.6, rise: .4 }, board: { lx: -18.5, lz: -64.2, y: 8.53, w: 24, h: 6.2 } });
+// Visible top surfaces, not box centres: keep boots above planks / cloth / dais.
+export const HQ_WALK_DECKS = Object.freeze([
+ {id:'hq_floor',lx:-18.5,lz:-47.5,hw:14.4,hl:17.2,top:.03},
+ {id:'hq_dock_threshold',lx:HQ.door.lx,lz:HQ.door.lz,hw:HQ.door.w/2,hl:.7,top:.03},
+ {id:'hq_hill_threshold',lx:HQ.hillDoor.lx,lz:HQ.hillDoor.lz,hw:1.2,hl:HQ.hillDoor.w/2,top:.03},
+ {id:'hq_dais',lx:-18.5,lz:(HQ.dais.lz0+HQ.dais.lz1)/2,hw:13.8,hl:(HQ.dais.lz1-HQ.dais.lz0)/2,top:HQ.dais.rise+.04},
+ {id:'hq_runner',lx:-18.5,lz:(HQ.lz1-.6+HQ.dais.lz1)/2,hw:1.6,hl:(HQ.lz1-.6-HQ.dais.lz1)/2,top:.06},
+ {id:'hq_cross_runner',lx:(-18.5+HQ.lx1-1)/2+.8,lz:HQ.hillDoor.lz,hw:(HQ.lx1-1+18.5-1.6)/2,hl:1.3,top:.055},
+ ...[[-26.5,-37.5,5.2,3.2,Math.PI/2],[-10.5,-37.5,5.2,3.2,Math.PI/2],[-28.3,-52,4.6,2.9,0],[-8.6,-52.6,4.6,2.9,0],[-26.5,-45.5,5.2,3.2,Math.PI/2],[-10.5,-46.8,4.2,2.6,0]].map(([lx,lz,w,d,ry],i)=>({id:'hq_rug_'+i,lx,lz,hw:w/2,hl:d/2,ry,top:.045}))
+]);
 export const HQ_TOWERS = Object.freeze([{ lx: -29.8, lz: -30.2, r: 2.0 }, { lx: -7.2, lz: -30.2, r: 2.0 }]);   // front gun towers (p2: pulled in clear of the Outfit Store eaves)
 // p2 pirate dressing, one table drives both the geometry (model.js) and the colliders: [kind, lx, lz, colliderW, colliderD]
 // BANKSY 12:45 AM "remove the tables on ground so can walk up to the boards": only corner stores remain, clear of every board front

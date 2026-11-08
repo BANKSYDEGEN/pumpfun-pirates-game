@@ -38,7 +38,7 @@ test('the rear wall is gone: one hall over the whole footprint, open across the 
  for(const lx of [-30,-18.5,-8]) for(const lz of [-47,-48,-49,-50]) assert.ok(!solidAt(lx,lz),'old wall line blocked at '+lx);
  const plaza=src('js/island/plazaTown.js');
  assert.match(plaza,/lz>=HQ.lz0-3&&lz<HQ.lz1\)\{const o=Math.max\(HQ.lx0-lx,HQ.lz0-lz,0\)/);assert.match(plaza,/HQ_OUTWORKS\) addBox/); // floor flattened to the back wall
- assert.match(plaza,/hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor/);
+ assert.match(plaza,/for\(const D of HQ_WALK_DECKS\)/);
  assert.match(plaza,/lz0: HQ.lz0\+.8, lz1: HQ.lz1-.5 \}, HQ.ceil-.4/);
 });
 test('tall gilded beamed ceiling, chandeliers and painted light pools, no realtime lights',()=>{
@@ -69,7 +69,7 @@ test('exactly two entrances: dock plaza gate + Hill Street door, both walkable; 
  // the back wall is solid end to end (no door toward the trader), and it is the plaza deck height everywhere inside
  for(let lx=-32;lx<=-5;lx+=.5) assert.ok(solidAt(lx,-64.7,0),'back wall gap '+lx);
  const plaza=src('js/island/plazaTown.js');assert.ok(!plaza.includes('pumpfun_backdoor'));assert.ok(!src('js/pumpfun/model.js').includes('backDoor'));
- assert.match(plaza,/c=T\(HQ.hillDoor.lx,HQ.hillDoor.lz\); h.addDeck/);
+ assert.match(src('js/pumpfun/site.js'),/id:'hq_hill_threshold',lx:HQ.hillDoor.lx,lz:HQ.hillDoor.lz/);
  assert.ok(HQ.dais.rise<=.5); // a step, not a climb (DECK_STEP 0.6)
  for(const q of HQ_PILLARS) assert.ok(Math.abs(q.lx-HQ.door.lx)>4);
 });
