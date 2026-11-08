@@ -2,6 +2,7 @@ import { markRows } from './liveui.js';
 import { makePortal } from './portal.js';
 import { BOARD_ROWS } from './boardgrid.js';
 // One shared proximity-driven free poller + one free PumpPortal socket per game client.
+export const SHARED_CACHE_URL='https://qhandcjwlkmovjzwzqfk.supabase.co/functions/v1/boardfeed';
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
 export const WATCH_TOKENS = [
  {sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},
@@ -21,7 +22,7 @@ export const GT_GAP_MS = 2500, CACHE_KEY = 'pfp_hq_feed_v1', CACHE_MAX_AGE = 12 
 const GT = 'https://api.geckoterminal.com/';
 const BOARD_KEYS = ['trending','callouts','bonding','dexpaid','migrated','volume'];
 const defaultStorage = () => { try { return globalThis.localStorage || null; } catch { return null; } };
-export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket}={}) {
+export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket,cacheURL=null}={}) {
  const state={prices:{},newtokens:[],trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{newtokens:'Connecting to PumpPortal…',prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
  // Just Migrated merges GT new PumpSwap pools + PumpPortal migration events (neither source blocks the other).
  let gtMig=[],portalMig=[],gtMigOk=null,mergeMig=null;
@@ -98,11 +99,42 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   (async()=>{try{const f=await import('./feeds.js');const rows=await f.fetchCallouts(get,clock());if(rows.length)good('callouts',rows,'Latest DexScreener boosts · pump.fun tokens');else failed('callouts','no pump.fun boosts');
   }catch{failed('callouts');}})()
  ]);save(true);details().catch(()=>{});}
- function tick(on,discover=false,worldOn=on){active=!!on;discovery=!!discover;world=!!worldOn;portal.tick(world&&!!(portalSocket||globalThis.document)&&!(globalThis.document?.hidden)); if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
+ function directTick(on,discover=false,worldOn=on){active=!!on;discovery=!!discover;world=!!worldOn;portal.tick(world&&!!(portalSocket||globalThis.document)&&!(globalThis.document?.hidden)); if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
   if(now>=nextP&&!busyP){nextP=now+PRICE_MS;busyP=prices().finally(()=>{busyP=null;});}if(busyP)jobs.push(busyP);
   if(discovery&&now>=nextD&&!busyD){nextD=now+DISCOVERY_MS;busyD=discoveries().finally(()=>{busyD=null;});}if(busyD)jobs.push(busyD);
   return Promise.all(jobs);}
+ let nextShared=0,busyShared=null,nextDetailFallback=0;
+ async function shared(discover) {
+  const data=await rawGet(cacheURL),remote=data?.state,now=clock();
+  if(!data.ok||!remote||!remote.updated)throw Error('shared cache offline');
+  let complete=true;
+  for(const k of BOARD_KEYS){
+   const at=+remote.updated[k];
+   if(Array.isArray(remote[k])&&at>0&&now-at<180000&&at<=now+30000&&!/offline|failed/i.test(remote.status?.[k]||'')){
+    let rows=remote[k].filter(r=>r&&safeMint(r.mint)).slice(0,k==='callouts'?20:BOARD_ROWS);
+    if(k==='migrated'){const f=await import('./feeds.js');mergeMig=f.mergeMigrated;gtMig=f.mergeMigrated([rows,gtMig],now);gtMigOk=true;rows=f.mergeMigrated([portalMig,gtMig],now);}
+    markRows(state,k,rows,now);state[k]=rows;state.updated[k]=Math.max(at,k==='migrated'?Math.max(0,...portalMig.map(r=>r.observedAt||0)):0);state.status[k]=remote.status?.[k]||'Shared server cache';
+   }else if(discover)complete=false;
+  }
+  let pricesOK=true;
+  for(const t of WATCH_TOKENS){const p=remote.prices?.[t.sym];if(p&&finite(p.price)>0&&now-(+p.updated||0)<180000&&!p.stale){state.prices[t.sym]=p;}else pricesOK=false;
+   const d=remote.details?.[t.sym];if(d&&now-(+d.updated||0)<CACHE_MAX_AGE)state.details[t.sym]=d;}
+  if(pricesOK){state.updated.prices=remote.updated.prices;state.status.prices=remote.status?.prices||'Shared server cache';}else complete=false;
+  if(discover&&now>=nextDetailFallback&&WATCH_TOKENS.some(t=>(state.details[t.sym]?.chart||[]).length<2)){nextDetailFallback=now+300000;details().catch(()=>{});}
+  state.revision++;save(true);return complete;
+ }
+ function tick(on,discover=false,worldOn=on){
+  // Socket lifetime follows the world, not the expensive proximity-driven HTTP boards.
+  world=!!worldOn;portal.tick(world&&!!(portalSocket||globalThis.document)&&!globalThis.document?.hidden);
+  if(!on||!cacheURL)return directTick(on,discover,worldOn);
+  active=true;discovery=!!discover;
+  if(busyShared)return busyShared;
+  if(clock()<nextShared)return Promise.resolve();
+  nextShared=clock()+15000;
+  busyShared=shared(discover).catch(()=>false).then(ok=>ok?undefined:directTick(on,discover,worldOn)).finally(()=>{busyShared=null;});
+  return busyShared;
+ }
  globalThis.document?.addEventListener('visibilitychange',()=>{portal.tick(world&&!document.hidden);});
  return {state,tick};
 }
-export const marketFeed=makeMarketFeed();
+export const marketFeed=makeMarketFeed({cacheURL:SHARED_CACHE_URL});
