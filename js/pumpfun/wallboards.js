@@ -14,7 +14,7 @@ export const WALL_BOARDS = Object.freeze([
    rows: s => (s.bonding || []).map(r => R(r, { midLabel: 'MC', mid: usd(r.cap), right: { text: '≈' + r.progress.toFixed(1) + '%' }, bar: r.progress / 100 }, { value: '≈' + r.progress.toFixed(1) + '%', color: C.gold, bar: r.progress / 100 })) },
  { slot: 'east_2', key: 'callouts', icon: 'callout', title: 'DEX BOOSTED', sub: 'Latest DexScreener boosts · pump.fun tokens', tickMs: BOOST_STEP_MS,
    rows: (s, now) => boardRows(s, 'callouts', now).map(r => R(r, { midLabel: 'MC', mid: usd(r.cap), right: { text: '+' + (r.boost || r.amount) + ' boost · ' + ago(r.seenAt, now) } }, { value: r.cap != null ? usd(r.cap) : '+' + (r.boost || r.amount), color: r.cap != null ? '#fff8e6' : C.gold })) },
- { slot: 'east_3', key: 'migrated', icon: 'migrated', title: 'JUST MIGRATED', sub: 'pump.fun curves completed · PumpSwap · last 24h',
+ { slot: 'east_3', key: 'migrated', icon: 'migrated', title: 'JUST MIGRATED', sub: 'Live PumpPortal migrations · GeckoTerminal snapshot fallback',
    rows: (s, now) => (s.migrated || []).map(r => R(r, { midLabel: 'MC', mid: usd(r.cap), right: { text: ago(r.createdAt, now) + ' ago', color: C.muted } }, { value: r.cap != null ? usd(r.cap) : ago(r.createdAt, now) })) },
  { slot: 'squad_ranks', key: 'volume', icon: 'volume', title: 'VOLUME LEADERS', sub: 'Highest 24h volume · pump.fun tokens',
    rows: s => (s.volume || []).map(r => R(r, { midLabel: 'VOL', mid: usd(r.volume), right: { pill: r.change } }, { value: usd(r.volume) })) },

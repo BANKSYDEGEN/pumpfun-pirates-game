@@ -1,5 +1,6 @@
+import { makePortal } from './portal.js';
 import { BOARD_ROWS } from './boardgrid.js';
-// One shared, proximity-driven FREE poller per game client. No socket, API key, timer, proxy or server deployment.
+// One shared proximity-driven free poller + one free PumpPortal socket per game client.
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
 export const WATCH_TOKENS = [
  {sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},
@@ -20,8 +21,10 @@ export const GT_GAP_MS = 2500, CACHE_KEY = 'pfp_hq_feed_v1', CACHE_MAX_AGE = 12 
 const GT = 'https://api.geckoterminal.com/';
 const BOARD_KEYS = ['trending','callouts','bonding','dexpaid','migrated','volume'];
 const defaultStorage = () => { try { return globalThis.localStorage || null; } catch { return null; } };
-export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}) {
- const state={prices:{},trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
+export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket}={}) {
+ const state={prices:{},newtokens:[],trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{newtokens:'Connecting to PumpPortal near HQ…',prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
+ let portalMigrated=false;
+ const portal=makePortal({socket:portalSocket,clock,publish:(rows,status)=>{state.newtokens=rows.newtokens;state.status.newtokens=status;if(rows.newtokens.length)state.updated.newtokens=rows.newtokens[0].observedAt;if(rows.migrated.length){portalMigrated=true;state.migrated=rows.migrated;state.updated.migrated=rows.migrated[0].observedAt;state.status.migrated=status;}else if(portalMigrated){portalMigrated=false;state.migrated=[];state.status.migrated='Feed offline · waiting for migration events';}state.revision++;}});
  let nextP=0,nextD=0,busyP=null,busyD=null,active=false,discovery=false;const controllers=new Set();
  // ---- last good snapshot (memory + localStorage) ----
  try { const c = storage && JSON.parse(storage.getItem(CACHE_KEY) || 'null'), now = clock();
@@ -70,11 +73,11 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
     const bonding=f.aboutToBond(curve),volume=f.volumeLeaders([...curve,...swap]),migrated=f.justMigrated([...curve,...swap],now);
     good('bonding',bonding,bonding.length?'GeckoTerminal pump.fun curve pools · ≈ progress from curve price':'No tokens 60–99% bonded in the top curve pools');
     good('volume',volume,volume.length?'GeckoTerminal · pump.fun curve + PumpSwap pools · 24h volume':'No pump.fun pools in this snapshot');
-    if(migrated.length||freshJ||!state.migrated.length)good('migrated',migrated,migrated.length?'Completed pump.fun curves + new PumpSwap pools · last 24h':'No pump.fun graduations seen in the last 24h');};
+    if(!portalMigrated&&(migrated.length||freshJ||!state.migrated.length))good('migrated',migrated,migrated.length?'Completed pump.fun curves + new PumpSwap pools · last 24h':'No pump.fun graduations seen in the last 24h');};
    const curveJ=await curveP;publish(curveJ,null,null);   // first paint the moment the main curve read lands
    const swapJ=await swapP;if(swapJ)publish(curveJ,swapJ,null);
    const freshJ=await freshP;if(freshJ)publish(curveJ,swapJ,freshJ);
-  }catch{for(const k of ['bonding','volume','migrated'])failed(k);}})(),
+  }catch{for(const k of ['bonding','volume','migrated'])if(k!=='migrated'||!portalMigrated)failed(k);}})(),
   (async()=>{try{const j=await get(GT+'api/v2/networks/solana/trending_pools?include=base_token',2);
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';
@@ -85,10 +88,11 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   (async()=>{try{const f=await import('./feeds.js');const rows=await f.fetchCallouts(get,clock());if(rows.length)good('callouts',rows,'Latest DexScreener boosts · pump.fun tokens');else failed('callouts','no pump.fun boosts');
   }catch{failed('callouts');}})()
  ]);save(true);details().catch(()=>{});}
- function tick(on,discover=false){active=!!on;discovery=!!discover; if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
+ function tick(on,discover=false){active=!!on;discovery=!!discover;portal.tick(active&&discovery&&!!(portalSocket||globalThis.document)&&!(globalThis.document?.hidden)); if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
   if(now>=nextP&&!busyP){nextP=now+PRICE_MS;busyP=prices().finally(()=>{busyP=null;});}if(busyP)jobs.push(busyP);
   if(discovery&&now>=nextD&&!busyD){nextD=now+DISCOVERY_MS;busyD=discoveries().finally(()=>{busyD=null;});}if(busyD)jobs.push(busyD);
   return Promise.all(jobs);}
+ globalThis.document?.addEventListener('visibilitychange',()=>{if(document.hidden)portal.tick(false);});
  return {state,tick};
 }
 export const marketFeed=makeMarketFeed();
