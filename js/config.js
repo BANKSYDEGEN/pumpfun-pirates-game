@@ -193,6 +193,7 @@ export const PUMP_SITE_URL = 'https://pump.fun';
 export const PUMP_SHARE_URLS = Object.freeze({
   [AHOY_CA]: 'https://pump.fun/c/30ca27df-3478-499b-874a-bf617704feb3/BANKSYDEGEN',
   [SUNK_CA]: 'https://pump.fun/c/4ad61f8d-c23d-4a09-ae12-72775b4ef5fc/BANKSYDEGEN',
+  [PUMP_CA]: 'https://pump.fun/c/396fa44e-4ec3-4efb-946b-53046565d86a/BANKSYDEGEN',
 });
 // [v134] BANKSY "change the sign to say $sunk not storm hunt" / "And have the other one $pump": board titles $SUNK · $AHOY · $PUMP
 export const ISLAND_TOKENS = [
