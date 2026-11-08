@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../../goldFormat.js';
 // [island-rework] HILLTOP FORT walk-in (BANKSY 2:46 PM "the inaccessible castle at top of hill"; 5:33 PM "fix those 3 first").
 // [v252] BANKSY 8:28 PM "redo the castle": plaza-shop quality keep / gatehouse / walls / towers / courtyard (concept B3_fort.jpg);
 //        fort spyglass = arena spectate (same as the mole spyglass). Plan: PLAN.md §1c
@@ -416,7 +417,7 @@ export default {
     // [castle-flag-daily] holder status comes from dock areaApi.holder() (set each frame / on interact)
     const h = (typeof globalThis !== 'undefined' && globalThis.__pfpFlagDailyHolder) || null;
     if (h && h.on && h.claimed) return `COME BACK TOMORROW · ${untilIndyMidnight()}`;
-    if (h && h.on && !h.claimed) return `RAISE THE COLOURS · +${HOLDER_DAILY_GOLD} GOLD`;
+    if (h && h.on && !h.claimed) return `RAISE THE COLOURS · +${formatGoldAmount(HOLDER_DAILY_GOLD)} GOLD`;
     return fortFlagIsUp() ? 'THE COLOURS ARE FLYING' : 'RAISE THE COLOURS';
   },
   activate(q, t, api, b) {
@@ -446,7 +447,7 @@ function flagDailyActivate(api, b) {
     return Promise.resolve(pending).then((r) => {
       const g = (r && r.gold) | 0;
       store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; });
-      return `THE JOLLY ROGER FLIES · +${g || HOLDER_DAILY_GOLD} DAILY GOLD!<br><small>come back tomorrow · resets in ${untilIndyMidnight()}</small>`;
+      return `THE JOLLY ROGER FLIES · +${formatGoldAmount(g || HOLDER_DAILY_GOLD)} DAILY GOLD!<br><small>come back tomorrow · resets in ${untilIndyMidnight()}</small>`;
     }).catch((e) => {
       if (e?.status === 409) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>already claimed · resets in ${untilIndyMidnight()}</small>`; }
       if (e?.status === 403) return 'HOLDER YOUR WALLET<br><small>hold $SUNK or $AHOY to claim daily gold</small>';
@@ -455,7 +456,7 @@ function flagDailyActivate(api, b) {
   }
   // not a holder (or holder status not ready): cosmetic raise only, point them at the perk
   const first = !fortFlagIsUp(); markFortFlagRaised(); if (first) store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; }); b?.raise();
-  if (!h || !h.on) return `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>holders of $SUNK / $AHOY claim +${HOLDER_DAILY_GOLD} gold here once a day</small>`;
+  if (!h || !h.on) return `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>holders of $SUNK / $AHOY claim +${formatGoldAmount(HOLDER_DAILY_GOLD)} gold here once a day</small>`;
   return first ? `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>come back tomorrow</small>` : `COME BACK TOMORROW<br><small>resets in ${left}</small>`;
 }
 

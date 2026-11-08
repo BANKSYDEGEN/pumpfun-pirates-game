@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 import { itemIconHtml } from '../inventory/itemIcon.js';
 // [v122] TREASURE MAPS in the harbor (server: supabase/migrations/026 + pvp maps_state / map_dig). Maps drop server-side from boss kills
 // (common) and confirmed BR kills (rare; legendary = the cave). The matching dig site (or the cave) asks the server, which checks the
@@ -63,7 +64,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
     const iv = inventory(); btn.innerHTML = iv ? `🎒 INVENTORY<b>${Math.max(iv.count, maps.length)}</b>` : `🗺 MAPS<b>${maps.length}</b>`;
     const chips = maps.length > 1 || !maps.length ? maps.map(m => { const [tn, tc] = TIER[m.tier] || TIER.common;
       return `<button type="button" class="tm-chip${sel && sel.id === m.id ? ' sel' : ''}" data-id="${m.id}"><span style="color:${tc}">✕ ${tn}</span><small>${spotName(m.spot)} · ${SRC[m.source] || 'found'}</small></button>`; }).join('') : '';
-    const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${(r.gold | 0).toLocaleString()}</b>${r.loot && r.loot.item && !r.loot.dup ? ` + ${chestItemInfo(r.loot.item, r.loot.crew).label}${r.loot.crew ? ' (crew)' : ''}` : ''}`).join(' ')}` : '';
+    const p = getPos(), rec = recent.length ? ` · last finds ${recent.slice(0, 3).map(r => `<b>+${formatGoldAmount(r.gold | 0)}</b>${r.loot && r.loot.item && !r.loot.dup ? ` + ${chestItemInfo(r.loot.item, r.loot.crew).label}${r.loot.crew ? ' (crew)' : ''}` : ''}`).join(' ')}` : '';
     const hint = !sel ? 'NO MAPS YET · sink the COMMODORE + win battle kills' : (p && p.foot ? `follow the dotted trail to the red <b>X</b> · ${padActive() ? `press ${padGlyph('A')} ·` : 'ontouchstart' in window ? 'tap' : 'press E ·'} DIG on the spot` : 'moor at the harbor, go ashore + follow the trail to the red <b>X</b>') + rec;
     const one = maps.length === 1 ? `<span style="color:${(TIER[sel.tier] || TIER.common)[1]}">${(TIER[sel.tier] || TIER.common)[0]}</span> · ${spotName(sel.spot)} · ` : '';
     tmap.setUi(chips, one + hint);
@@ -110,7 +111,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
         recent[0].loot = r.loot || null; renderUi();
         if (r.loot && r.loot.item) chest.show(r); // [v152] the chest held an item: its card (for you / your crew / already yours)
         else if (r.items && r.items.length) toast(`TREASURE!<br>${r.items.map(x => { const i = itemInfo(x.item); return i ? `${itemIconHtml(i, '❔', x.item)} ${i.name}${x.qty > 1 ? ' ×' + x.qty : ''}` : x.item; }).join(' · ')}<br><small>in your INVENTORY · sell at the TREASURE TRADER${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3600); // [inventory] items, no chest gold
-        else toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200);
+        else toast(`TREASURE! +${formatGoldAmount((r.gold | 0))} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200);
         if (r.items && r.loot && r.loot.item) setTimeout(() => toast(`+ ${r.items.map(x => itemInfo(x.item)?.name || x.item).join(' · ')}<br><small>in your INVENTORY</small>`, 2600), 3400);
         inventory()?.refresh?.();
       } else { toast(WHY[r?.error] || 'THE DIG FAILED<br><small>check your connection and try again</small>', 2600); if (r?.error === 'already dug' || r?.error === 'not your map') refresh(); }

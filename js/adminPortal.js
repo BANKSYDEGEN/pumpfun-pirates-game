@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 // Lazy owner-only fleet intelligence. No telemetry subscription or polling while closed.
 // Every data call is owner-gated by pvp/admin.ts; SQL RPCs are service-role only.
 import { escHtml as esc } from './safe.js';
@@ -39,7 +40,7 @@ export function statsMarkup(s) {
     ['NEW SAVES TODAY', s?.new_today, `${fmt(s?.new_7d)} in 7d · ${fmt(s?.new_30d)} in 30d`],
     ['SAVED GOLD', s?.saved_gold, `Linked saves deduped · ${fmt(s?.pending_gold)} pending`],
     ['PVP KILLS · 30 DAYS', s?.kills_30d, `${fmt(s?.kills_total)} recorded all-time`],
-    ['SHOP PURCHASES · 30 DAYS', s?.purchases_30d, `${fmt(s?.shop_gold_30d)} gold spent · excludes casino`],
+    ['SHOP PURCHASES · 30 DAYS', s?.purchases_30d, `${formatGoldAmount(s?.shop_gold_30d)} gold spent · excludes casino`],
     ['CASINO STAKES · 30 DAYS', s?.casino_staked_30d, `${fmt(s?.casino_bets_30d)} recorded bets · not net profit`],
   ].map(v => card(...v)).join('');
 }
@@ -75,7 +76,7 @@ export async function openAdminPortal({ call, chart, self = () => null }) {
     const unique = new Set(list.map(p => p.pid || p.net));
     $('[data-count]').textContent = `LIVE PIRATES · ${unique.size} / ${list.length} sessions`;
     const filtered = filterPlayers(list, $('[data-search]').value, $('[data-area]').value);
-    $('.ap-roster').innerHTML = filtered.length ? filtered.map(p => `<div class="ap-player"><div><b>${p.label}. ${esc(p.name || 'PIRATE')}</b><small>${esc(areaOf(p))} · ${esc(p.room || 'Room unknown')}<br>${esc(p.device || 'Device unknown')} · session ${esc(sessionLabel(p))}</small></div><div class="ap-gold">${fmt(p.gold)}g<small>${Number.isFinite(p.x) && Number.isFinite(p.z) ? `${Math.round(p.x)}, ${Math.round(p.z)}` : 'Position unknown'}</small></div></div>`).join('') : '<p class="ap-note">No matching live pirates.</p>';
+    $('.ap-roster').innerHTML = filtered.length ? filtered.map(p => `<div class="ap-player"><div><b>${p.label}. ${esc(p.name || 'PIRATE')}</b><small>${esc(areaOf(p))} · ${esc(p.room || 'Room unknown')}<br>${esc(p.device || 'Device unknown')} · session ${esc(sessionLabel(p))}</small></div><div class="ap-gold">${formatGoldAmount(p.gold)}g<small>${Number.isFinite(p.x) && Number.isFinite(p.z) ? `${Math.round(p.x)}, ${Math.round(p.z)}` : 'Position unknown'}</small></div></div>`).join('') : '<p class="ap-note">No matching live pirates.</p>';
     $('[data-status]').textContent = !liveAt ? 'Live roster unavailable · check your connection.' : stale ? 'Live roster stale · dots hidden until the connection returns.' : `${liveOK ? '● Live' : 'Connection interrupted · last snapshot'} · refreshed ${Math.floor((Date.now()-liveAt)/1000)}s ago · polling every 5s`;
     const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     canvas.width = Math.max(1, Math.round(canvas.clientWidth*dpr)); canvas.height = Math.max(1, Math.round(canvas.clientHeight*dpr));

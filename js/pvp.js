@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 import { DEV } from './env.js';
 import { isKey } from './keybinds.js';
 // PUMPFUN PIRATES · PvP ARENA (BETA): drop-in, real-time, free-for-all on a shared sea.
@@ -250,7 +251,7 @@ export function createPvp(K) {
     const c = $('pvp-holder-claim'); if (!opts.fromFlag && (!c || c.disabled)) return null; if (c && !opts.fromFlag) c.disabled = true;
     try {
       const r = await holderClaim(); game.gold += r.gold | 0; holder.claimed = true; sfx.coin();
-      if (!opts.quiet) K.popup(new THREE.Vector3(P().x, 6, P().z), `+${r.gold} DAILY GOLD`);
+      if (!opts.quiet) K.popup(new THREE.Vector3(P().x, 6, P().z), `+${formatGoldAmount(r.gold)} DAILY GOLD`);
       K.updateHud(); save({ now: true });
       // keep the courtyard mast raised for this Indy day (visual only; claim is server-side)
       try { const { markFortFlagRaised } = await import('./island/areas/fort.js'); markFortFlagRaised(); } catch {}
@@ -503,7 +504,7 @@ export function createPvp(K) {
     if (!me.ret.ready) { me.ret.ready = true; return; } // one more frame: a killing hit landing now wins over the return
     me.ret = null; retUi();
     save({ now: true, force: true }); // carried gold is banked in your PvP profile; not a death
-    lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${game.gold | 0} gold · JOIN BATTLE to go again`);
+    lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${formatGoldAmount(game.gold | 0)} gold · JOIN BATTLE to go again`);
     lobbyCall('poll').then(harborUi);
   }
   function retUi() {
@@ -534,7 +535,7 @@ export function createPvp(K) {
     e.pilot = hunterPilot(e); // [v99] hunter hook (always null: the AI sails it)
     e.bar.querySelector('.name').textContent = '☠ THE COMMODORE'; e.bar.classList.add('t-boss', 'harbor-boss');
     scaleAi(e); bots.set(id, e); boss.e = e;
-    K.banner('☠ THE COMMODORE!', room ? `the Commodore sails in · ${e.gold}g, shared by damage` : `the Commodore sails in · sink him for ${e.gold}g`); K.sfx?.boss?.();
+    K.banner('☠ THE COMMODORE!', room ? `the Commodore sails in · ${formatGoldAmount(e.gold)}g, shared by damage` : `the Commodore sails in · sink him for ${formatGoldAmount(e.gold)}g`); K.sfx?.boss?.();
     return e;
   }
   function bossTick(dt) {
@@ -744,7 +745,7 @@ export function createPvp(K) {
     const g = mine ? clamp(Math.floor(+mine[1] || 0), 0, capG) : 0;
     const mapDrop = isBoss && m.k === myId && !spec.on; // [v145] your boss kill = your treasure map: your share floats in the crimson map chest
     if (g > 0 && !spec.on && !m.sp) spawnPile(m.b, x, z, g, true, g, mapDrop); // (a v104 host: your damage share, only you see it)
-    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', m.sp ? `${clamp(m.g | 0, 0, capG * 2)}g of treasure in the water · first to grab it gets it` : g ? `your share: ${g}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
+    if (isBoss) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', m.sp ? `${formatGoldAmount(clamp(m.g | 0, 0, capG * 2))}g of treasure in the water · first to grab it gets it` : g ? `your share: ${formatGoldAmount(g)}g of treasure · grab it` : `sunk by ${esc(nameOf(m.k))}`); }
     if (m.k === myId && !spec.on) countBotKill(isBoss);
   }
   function wire(r) {
@@ -829,8 +830,8 @@ export function createPvp(K) {
       obj.mesh = buildRemoteMesh(p, lv, sk); obj.mesh.position.set(x, 0, z); p.ship = obj; p.key = key; makeBar(obj, p.name); enemies.push(obj);
     } else if (p.key !== key) { p.key = key; buildRemoteMesh(p, lv, sk); p.ship.cannons = stats.cannons; }
     const bt = clamp(m.bt | 0, 0, PVP_BOUNTY.cap);
-    if (bt >= PVP_BOUNTY.announce && (p.bt || 0) < PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(p.name)}</b> has a <b>${bt}g</b> bounty!`);
-    else if (bt >= PVP_BOUNTY.cap && (p.bt || 0) < PVP_BOUNTY.cap) addFeed(`☠ <b>${esc(p.name)}</b> is at the MAX <b>${bt}g</b> bounty!`);
+    if (bt >= PVP_BOUNTY.announce && (p.bt || 0) < PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(p.name)}</b> has a <b>${formatGoldAmount(bt)}g</b> bounty!`);
+    else if (bt >= PVP_BOUNTY.cap && (p.bt || 0) < PVP_BOUNTY.cap) addFeed(`☠ <b>${esc(p.name)}</b> is at the MAX <b>${formatGoldAmount(bt)}g</b> bounty!`);
     p.bt = bt;
     p.ship.nameEl.innerHTML = `${esc(p.name)} · ${kd(p.K, p.D)}${bt ? ` <span class="pvp-bounty">☠${bt}</span>` : ''}`;
     p.ship.netState = p.st;
@@ -1264,7 +1265,7 @@ export function createPvp(K) {
     if (room && where === 'harbor' && isHost && !e.fade) { hostBotSunk(e, src); return; } // [v99] shared copy: kill + gold shares for everyone
     const by = src === P() || e.lastBy === myId ? myId : null; // only YOUR kills count (AI never credits AI)
     if (!e.fade) spawnPile(e.net.id, e.x, e.z, e.gold || PVP_AI_GOLD, true, e.gold || PVP_AI_GOLD, !!e.harborBoss && by === myId); // [v145] your boss kill: the crimson map chest
-    if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', `${e.gold}g of treasure in the water · grab it`); }
+    if (e.harborBoss && !e.fade) { if (boss.bar) boss.bar.hidden = true; K.banner('THE COMMODORE SUNK!', `${formatGoldAmount(e.gold)}g of treasure in the water · grab it`); }
     if (by === myId && !e.fade) countBotKill(!!e.harborBoss);
   }
   function countBotKill(isBoss) { // [v98] unlock tracks: harbor AI kills / harbor boss kills (COMMODORE = 100 boss kills); the server caps their pace ([v99] shared harbor: the last hit)
@@ -1291,7 +1292,7 @@ export function createPvp(K) {
     // streak bounty: only kills that count (the caller already skips idle victims); the same victim again inside the
     // anti-farm window gives no bounty (the PvP KILLS board drops it too)
     const tn = performance.now(), last = me.pairs.get(victim) || -1e9; me.pairs.set(victim, tn);
-    if (tn - last > PVP_BOUNTY.pairWindow * 1000) { me.streak++; const before = me.bounty; me.bounty = Math.min(PVP_BOUNTY.cap, me.streak * PVP_BOUNTY.perKill); if (me.bounty > before && me.bounty >= PVP_BOUNTY.announce && before < PVP_BOUNTY.announce) addFeed(`☠ <b class="me">${esc(name)}</b> has a <b>${me.bounty}g</b> bounty!`); }
+    if (tn - last > PVP_BOUNTY.pairWindow * 1000) { me.streak++; const before = me.bounty; me.bounty = Math.min(PVP_BOUNTY.cap, me.streak * PVP_BOUNTY.perKill); if (me.bounty > before && me.bounty >= PVP_BOUNTY.announce && before < PVP_BOUNTY.announce) addFeed(`☠ <b class="me">${esc(name)}</b> has a <b>${formatGoldAmount(me.bounty)}g</b> bounty!`); }
     const before = { ...profile.stats }; if (!kdT.kill('ship', key || `${victim}:${Math.round(tn)}`)) return; me.kills++; bumpModeKill(mode); // [Timothy] Solo / Squads split (display only)
     goalToast(before, profile.stats);
     sfx.coin(); save({ now: true });
@@ -1311,7 +1312,7 @@ export function createPvp(K) {
     const hbSink = where === 'harbor' && !!m.hb; // [backpack-pvp] Option B sink: no +100 bonus gold out of thin air
     if (!afk) creditKill(by, m.v, `${m.v}:${m.l | 0}`);
     const vb = clamp(m.b | 0, 0, Math.min(PVP_BOUNTY.cap, peers.get(m.v)?.bt ?? 0)); // never more than the bounty they showed
-    if (vb >= PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(by ? nameOf(by) : 'the sea')}</b> claimed <b>${esc(nameOf(m.v))}</b>'s <b>${vb}g</b> bounty`);
+    if (vb >= PVP_BOUNTY.announce) addFeed(`☠ <b>${esc(by ? nameOf(by) : 'the sea')}</b> claimed <b>${esc(nameOf(m.v))}</b>'s <b>${formatGoldAmount(vb)}g</b> bounty`);
     if (!afk && by === myId && peers.has(m.v) && !(hbSink && codeOfPrefix(hbNet?.prefix))) boardClaim('k', myId, m.v, m.l | 0);
     if (isHost) {
       const [x, z] = clampXZ(m.x, m.z);
@@ -1340,7 +1341,7 @@ export function createPvp(K) {
   addEventListener('pfp-foot-ko', (e) => { // [v370] knocked out on the open island (battle.js; never the Coliseum / Safe Zones): lose min(100, gold) as a ground pile
     try { if (where !== 'harbor' || ADM.invisible) return; const d = e.detail || {}, lost = Math.min(PVP_HARBOR_DEATH_LOSS, Math.max(0, game.gold | 0)); if (!lost) return;
       game.gold = Math.max(0, (game.gold | 0) - lost); K.updateHud(); save({ now: true }); dropMyGold(+d.x || 0, +d.z || 0, lost, Number.isFinite(+d.y) ? +d.y : 0);
-      K.dock?.toast?.(`💀 -${lost} GOLD DROPPED<br><small>grab it back before someone else does</small>`, 2200); } catch (err) { console.warn('[foot ko gold]', err); }
+      K.dock?.toast?.(`💀 -${formatGoldAmount(lost)} GOLD DROPPED<br><small>grab it back before someone else does</small>`, 2200); } catch (err) { console.warn('[foot ko gold]', err); }
   });
   function dropSpot(x, z) { // [v105] a drop always floats in open water you can sail to (never on the shore or inside a rock)
     try { const q = K.islands?.freeSpot?.(x, z, 9); if (q && isFinite(q[0]) && isFinite(q[1])) return [q[0], q[1]]; } catch {} return [x, z]; }
@@ -1356,7 +1357,7 @@ export function createPvp(K) {
     const l = { mesh: g, map, x: +x || 0, z: +z || 0, gy: gy != null && Number.isFinite(+gy) ? +gy : null /* [v370] on-foot KO gold: sits on the ground */, value, life: Infinity, ph: Math.random() * 6, pid, expires: Infinity, born: performance.now() };
     pileLook(l);
     l.local = local; l.earned = clamp(Math.floor(+earnedPart || 0), 0, value); loot.push(l); piles.set(pid, l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
-    if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), map ? `${value} GOLD + TREASURE MAP` : `${value} GOLD`, 'hit');
+    if (Math.hypot(l.x - P().x, l.z - P().z) < 200) K.popup(new THREE.Vector3(l.x, 6, l.z), map ? `${formatGoldAmount(value)} GOLD + TREASURE MAP` : `${formatGoldAmount(value)} GOLD`, 'hit');
   }
   function removePile(pid) { const l = piles.get(pid); if (!l) return; piles.delete(pid); const i = loot.indexOf(l); if (i >= 0) loot.splice(i, 1); scene.remove(l.mesh); }
   function lootStep(l) { // main loop, per pile: claim it when we sail over it
@@ -1380,13 +1381,13 @@ export function createPvp(K) {
     const l = piles.get(m.pid); const v = clamp(Math.floor(+m.v || 0), 0, l ? l.value : 0);
     if (l) { if (m.to !== myId) K.popup(l.mesh.position.clone().setY(5), `${nameOf(m.to)} +${v}`, 'hit'); removePile(m.pid); }
     const hb = m.to === myId && l ? holderMul(l.earned) + goldFindBonus(l.earned) : 0; // HOLDER ×2 on earned gold only · [Emerly] + PET gold find (earned gold only)
-    if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${v} GOLD`); showLootCard({ title: l?.map ? 'TREASURE CHEST' : l?.gy != null ? 'DROPPED GOLD' : 'GOLD CHEST', gold: v + hb, bonus: hb, items: l?.map ? [{ icon: '🗺️', name: 'Treasure Map' }] : [] }); K.updateHud(); save(); } // [v370] the LOOT card
+    if (m.to === myId && v) { game.gold += v + hb; me.gold += v + hb; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${formatGoldAmount(v)} GOLD`); showLootCard({ title: l?.map ? 'TREASURE CHEST' : l?.gy != null ? 'DROPPED GOLD' : 'GOLD CHEST', gold: v + hb, bonus: hb, items: l?.map ? [{ icon: '🗺️', name: 'Treasure Map' }] : [] }); K.updateHud(); save(); } // [v370] the LOOT card
   }
   function respawn() {
     me.respawnAt = 0;
     if (where === 'harbor' || (where === 'arena' && me.aiDeath && !room)) { respawnHarbor(true); return; } // [v95] stay in the harbor, never the lobby
     if (lob.queuedByDeath) { lob.queuedByDeath = false; toHarbor('IN THE QUEUE', `position #${lob.pos || '?'} · farm the harbor AI while you wait`); return; }
-    if (where === 'arena' && !me.aiDeath && !isSq()) { lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${game.gold | 0} gold · JOIN BATTLE to go again`); return; } // [br-death] sunk by a pirate: no arena respawn
+    if (where === 'arena' && !me.aiDeath && !isSq()) { lobbyCall('leave'); toHarbor('BACK IN THE HARBOR', `you kept ${formatGoldAmount(game.gold | 0)} gold · JOIN BATTLE to go again`); return; } // [br-death] sunk by a pirate: no arena respawn
     const pl = P(), { pt, crowded } = pickSpawn(pl);
     me.dead = false; me.life++; me.protect = PVP_PROTECT * (crowded ? 2 : 1); me.lastBy = null; me.lastDamageAt = 0;
     Object.assign(pl, { alive: true, sinking: 0, hp: pl.maxHp, x: pt[0], z: pt[1], yaw: Math.atan2(-pt[0], -pt[1]), speed: 0, sail: 1, anchor: false, calm: 0, repT: 0 });
@@ -1556,7 +1557,7 @@ export function createPvp(K) {
       if (won && [...sq.sunk].some(id => losers.includes(id))) { // win gold only for a real fight (someone on the other team was sunk), earned gold: the holder perk doubles it
         gold = SQUADS.winGold + holderMul(SQUADS.winGold) + goldFindBonus(SQUADS.winGold); game.gold += gold; me.gold += gold; sfx.coin(); K.popup(new THREE.Vector3(P().x, 6, P().z), `+${gold} VICTORY GOLD`); K.updateHud(); save({ now: true }); }
       if (won) sfx.victory?.(); // [v101] recorded victory stinger
-      K.banner(draw ? 'DRAW' : won ? 'VICTORY!' : myT ? 'DEFEAT' : 'ROUND OVER', won ? (gold ? `+${gold} gold · next round in ${SQUADS.endSecs} s` : 'no gold: nobody on their team was sunk') : draw ? 'nobody wins this round' : `next round in ${SQUADS.endSecs} s`);
+      K.banner(draw ? 'DRAW' : won ? 'VICTORY!' : myT ? 'DEFEAT' : 'ROUND OVER', won ? (gold ? `+${formatGoldAmount(gold)} gold · next round in ${SQUADS.endSecs} s` : 'no gold: nobody on their team was sunk') : draw ? 'nobody wins this round' : `next round in ${SQUADS.endSecs} s`);
       if (myT && !won && lob.queue > 0) lobbyCall('died').then((r) => { if (r.state === 'queue') lob.queuedByDeath = true; }); // rotation: the losing team makes room for the queue
       return;
     }
@@ -1697,11 +1698,11 @@ export function createPvp(K) {
     if (!spec.on) refreshRank(); // every 30 s at most
     const lab = document.querySelectorAll('#hud-top .label');
     if (lab.length >= 3) { lab[0].textContent = 'KILLS'; lab[1].textContent = 'DEATHS'; lab[2].textContent = 'K/D'; } // [sail-around] GOLD moved to #hud-gold
-    $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = game.gold; $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
+    $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = formatGoldAmount(game.gold); $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
     const hbN = room && where === 'harbor' ? livePeers().length + 1 : 0; // [v99] 'HARBOR · N pirates' in a shared copy (copy 2+ shows its number)
-    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${hbN > 1 ? `${hb.copy > 1 ? ` ${hb.copy}` : ''} · ${hbN} pirates` : ''}${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''} · pay ${harborGold(totalLevel())}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
+    const el = $('enemies-left'), txt = where === 'harbor' ? `HARBOR${hbN > 1 ? `${hb.copy > 1 ? ` ${hb.copy}` : ''} · ${hbN} pirates` : ''}${lob.state === 'queue' ? ` · queue #${lob.pos}` : ''} · pay ${formatGoldAmount(harborGold(totalLevel()))}g${h2x ? '\u0001' : ''}` // [v74] under the minimap (BANKSY); [v98.3] the arena count moved into the harbor card, above SPECTATE
       : room ? (isSq() ? sqHudLine(n) : `ARENA · ${n}/${lob.cap} pirates${lob.queue ? ` · ${lob.queue} queued` : ''}${isHost ? ' · host' : ''}`) : 'joining…';
     if (where === 'harbor') { const an = $('pvp-arena-n'); if (an) { const t = lob.known ? `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · ${lob.players | 0}/${lob.cap || (mode === 'squads' ? SQUADS.players : net.cfg.maxArena)} in arena${lob.specs ? ` · ${lob.specs} 👁` : ''}` : `${mode === 'squads' ? 'SQUADS' : 'SOLO'} · …`; if (an.textContent !== t) an.textContent = t; } } // [v98.3] follows the SOLO / SQUADS switch
     if (h2x) { const html = esc(txt).replace('\u0001', ' <b class="hud-2x" title="Holder perk: AI ships pay double">HOLDER 2×</b>'); if (el._h !== html || !el.firstElementChild) { el._h = html; el.innerHTML = html; } }
@@ -1716,13 +1717,13 @@ export function createPvp(K) {
     else if (where === 'arena' && !me.aiDeath && re) re.firstChild.textContent = 'Back to the harbor in '; // [br-death] SOLO
     el.classList.toggle('pd-harbor', where === 'harbor'); // [v95] harbor: big centred 5-4-3-2-1, respawn right here
     if (where === 'harbor' && re) re.firstChild.textContent = 'Back at sea in the harbor in ';
-    el.querySelector('.pd-drop').textContent = me.harborPvp ? `Sunk at sea by ${me.killedBy}: -${me.harborLoss | 0} gold + your unequipped haul floats in a sea loot crate. Equipped gear, ship, skins + cottage storage kept. Counts for K/D.` : me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${me.harborLoss} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
-      : me.afkDeath ? `You were idle: you dropped ${me.dropped} gold (no bonus) and it does not count for K/D. You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}` : `You dropped ${me.dropped} gold (${me.lostGold | 0} + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}`;
-    el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${me.gold} gold</span>`;
+    el.querySelector('.pd-drop').textContent = me.harborPvp ? `Sunk at sea by ${me.killedBy}: -${formatGoldAmount(me.harborLoss | 0)} gold + your unequipped haul floats in a sea loot crate. Equipped gear, ship, skins + cottage storage kept. Counts for K/D.` : me.aiDeath ? (me.harborLoss ? `Sunk in the harbor: -${formatGoldAmount(me.harborLoss)} gold (you kept ${game.gold | 0}). K/D unchanged.` : where === 'harbor' ? `Sunk in the harbor: no gold to lose. K/D unchanged.` : 'AI ships cost you nothing but time: gold and K/D unchanged.')
+      : me.afkDeath ? `You were idle: you dropped ${formatGoldAmount(me.dropped)} gold (no bonus) and it does not count for K/D. You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}` : `You dropped ${formatGoldAmount(me.dropped)} gold (${me.lostGold | 0} + ${PVP_DEATH_BONUS} bonus${me.lostBounty ? ` + ${me.lostBounty} bounty` : ''}). You kept ${game.gold | 0}. ${isSq() ? 'Watching your teammate.' : 'Back to the harbor.'}`;
+    el.querySelector('.pd-kd').innerHTML = `K/D <b>${kd(profile.stats.kills, profile.stats.deaths)}</b> · ${profile.stats.kills} kills · ${profile.stats.deaths} deaths<br><span class="muted">this session: ${me.kills} kills · ${me.deaths} deaths · ${formatGoldAmount(me.gold)} gold</span>`;
   }
   function renderBoard() {
     const rows = [{ id: myId, name, k: me.kills, d: me.deaths, g: me.gold, K: boardK(), D: boardD() }, ...livePeers().map(p => ({ id: p.id, name: p.name, k: p.k, d: p.d, g: p.g, K: p.bK ?? p.K, D: p.bD ?? p.D }))].sort((a, b) => b.k - a.k || a.d - b.d);
-    $('pvp-board').innerHTML = `<tr><th>PIRATE</th><th>K</th><th>D</th><th>GOLD</th><th>K/D</th></tr>` + rows.map(r => `<tr class="${r.id === myId ? 'me' : ''}"><td>${esc(r.name)}${r.id === hostId ? ' <i class="muted">host</i>' : ''}</td><td>${r.k}</td><td>${r.d}</td><td>${r.g}</td><td title="lifetime ${r.K} kills / ${r.D} deaths">${kd(r.K, r.D)}</td></tr>`).join('');
+    $('pvp-board').innerHTML = `<tr><th>PIRATE</th><th>K</th><th>D</th><th>GOLD</th><th>K/D</th></tr>` + rows.map(r => `<tr class="${r.id === myId ? 'me' : ''}"><td>${esc(r.name)}${r.id === hostId ? ' <i class="muted">host</i>' : ''}</td><td>${r.k}</td><td>${r.d}</td><td>${formatGoldAmount(r.g)}</td><td title="lifetime ${r.K} kills / ${r.D} deaths">${kd(r.K, r.D)}</td></tr>`).join('');
   }
   function renderMenu() {
     const m = $('pvp-menu'); if (!m) return;
@@ -1735,7 +1736,7 @@ export function createPvp(K) {
       const c = document.createElement('div'); c.className = `pvp-skin view-only${ok ? '' : ' locked'}${t.id === skinId() ? ' on' : ''}`; c.dataset.skin = t.id; // [Timothy] display only: buy / equip at the island ship shop
       c.appendChild(skinSwatch(pvpSkin(t.id), 96, 48));
       const lab = document.createElement('span');
-      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'EQUIPPED' : 'OWNED') : g && !g.done ? `🔒 ${g.rows.filter(x => !x.done).map(x => x.fmt === 'prestige' ? `PRESTIGE ${x.need}` : x.fmt === 'kd' ? `K/D ${x.need}` : `${x.need.toLocaleString('en-US')} kills`).join(' + ')}` : `${(it?.price || 0).toLocaleString('en-US')}g`}`; c.appendChild(lab);
+      lab.innerHTML = `<b>${t.name}</b>${ok ? (t.id === skinId() ? 'EQUIPPED' : 'OWNED') : g && !g.done ? `🔒 ${g.rows.filter(x => !x.done).map(x => x.fmt === 'prestige' ? `PRESTIGE ${x.need}` : x.fmt === 'kd' ? `K/D ${x.need}` : `${x.need.toLocaleString('en-US')} kills`).join(' + ')}` : `${formatGoldAmount((it?.price || 0))}g`}`; c.appendChild(lab);
       grid.appendChild(c);
     }
     previewCards(grid, [...TIERS, ...UNLOCKS].map(t => ({ id: t.id, skin: pvpSkin(t.id) })), getRunLevels(), { pvp: true }); // [v75] real renders, like the shop
@@ -2016,7 +2017,7 @@ export function createPvp(K) {
     if (!spec.on) return;
     const list = specPlayers(), p = spec.mode === 'overview' ? null : peers.get(spec.target);
     const who = $('spec-name'), st = $('spec-stats'), ic = $('spec-skin');
-    if (p) { who.textContent = p.name; const TK = p.bK ?? p.K ?? 0, TD = p.bD ?? p.D ?? 0; st.textContent = `${skinName(p.sk)}${isSq() && sqTeam(p.id) ? ` · ${sqTeam(p.id) === 'A' ? 'BLUE' : 'RED'} TEAM` : ''} · ${TK} kills · ${TD} deaths · K/D ${kd(TK, TD)} (all-time) · this battle ${p.k | 0}/${p.d | 0}${p.bt ? ` · ☠ ${p.bt}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
+    if (p) { who.textContent = p.name; const TK = p.bK ?? p.K ?? 0, TD = p.bD ?? p.D ?? 0; st.textContent = `${skinName(p.sk)}${isSq() && sqTeam(p.id) ? ` · ${sqTeam(p.id) === 'A' ? 'BLUE' : 'RED'} TEAM` : ''} · ${TK} kills · ${TD} deaths · K/D ${kd(TK, TD)} (all-time) · this battle ${p.k | 0}/${p.d | 0}${p.bt ? ` · ☠ ${formatGoldAmount(p.bt)}g bounty` : ''}`; ic.style.backgroundImage = `url(${skinIcon(p.sk)})`; ic.hidden = false; }
     else { who.textContent = spec.mode === 'overview' ? 'BATTLEFIELD OVERVIEW' : spec.mode === 'free' ? 'FREE CAMERA' : 'WAITING FOR PIRATES…'; st.textContent = list.length ? 'tap a captain or ◀ ▶ to follow' : 'nobody is fighting in this room right now';
       // [v79] nobody to follow: the ship box cycles through the skins (same real renders as the skins pickers) instead of sitting empty
       const t = TIERS[Math.floor(performance.now() / 2200) % TIERS.length]; ic.style.backgroundImage = `url(${skinIcon(t.id)})`; ic.title = t.name; ic.hidden = false; }

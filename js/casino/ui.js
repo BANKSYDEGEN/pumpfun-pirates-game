@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 // THE GOLDEN DOUBLOON CASINO: mahogany + brass game dialogs. Every station opens only its own game:
 // PIRATE BLACKJACK, BUCCANEER ROULETTE, DEAD MAN'S DICE, TREASURE SLOTS. Opened from the E points inside the hall (js/island/casino.js):
 // js/dock/index.js (the game) and js/island/main.js (island.html). Wagers are GOLD only (100 GOLD / 100g); the server decides every result
@@ -305,7 +306,7 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   // ---- bet controls ----
   function bets(disabled = false) {
     const b = S.bet[S.game], el = q('bets');
-    el.innerHTML = CHIPS.map((c, i) => `<button class="cas-chip${b === c ? ' on' : ''}" data-c="${c}" aria-label="Bet ${c} gold" aria-pressed="${b === c}" style="--c:${['#6b7580', '#1f6b3a', '#1f4e8a', '#1c1c22', '#6a1fa0', '#c0262d'][i]}">${c}g</button>`).join('') +
+    el.innerHTML = CHIPS.map((c, i) => `<button class="cas-chip${b === c ? ' on' : ''}" data-c="${c}" aria-label="Bet ${formatGoldAmount(c)} gold" aria-pressed="${b === c}" style="--c:${['#6b7580', '#1f6b3a', '#1f4e8a', '#1c1c22', '#6a1fa0', '#c0262d'][i]}">${formatGoldAmount(c)}g</button>`).join('') +
       `<button class="cas-adj" data-a="minus" aria-label="Decrease bet by 10 gold">−</button><button class="cas-adj" data-a="plus" aria-label="Increase bet by 10 gold">+</button><button class="cas-adj" data-a="half" aria-label="Halve bet">1/2</button><button class="cas-adj" data-a="dbl" aria-label="Double bet">2×</button><button class="cas-adj" data-a="max" aria-label="Maximum affordable bet">MAX</button><div class="cas-betv"><small>YOUR BET</small>${fmtG(b)}</div>`;
     el.querySelectorAll('button').forEach(x => { x.disabled = disabled || gold() < MIN_BET || (+x.dataset.c > gold()); x.onclick = () => {
       if (S.busy || (S.game === 'blackjack' && S.bj)) return;

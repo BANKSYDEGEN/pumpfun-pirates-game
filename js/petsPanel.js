@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 import { PILLY_ENABLED } from './features.js';
 // [pets R1] BANKSY: name your pets, level them up (walk XP while they follow you + gold treats), and trade them to another pirate.
 // Server = migration 058 / supabase/functions/pvp/pets.ts: the client only says which pet; ownership, gold + swaps are checked there.
@@ -50,7 +51,7 @@ export function createPetsPanel(ctx) {
     if (!el || el.hidden) return;
     const L = el.querySelector('.pp-list'), eq = ctx.equipped?.() || '';
     let h = '';
-    if (data.incoming.length) h += `<div class="pp-sec">PET OFFERS FOR YOU</div>` + data.incoming.map((o) => `<div class="pp-card"><div class="pp-top"><span class="pp-ic">${PET_ICON[o.pet] || '🐾'}</span><div class="pp-nm"><b>${esc(PET_LABEL[o.pet] || o.pet)}</b><small>from ${esc(o.from)} for ${(o.price | 0).toLocaleString()} gold</small></div></div><div class="pp-row"><button class="b go" data-a="acc" data-id="${o.id | 0}">ACCEPT</button><button class="b no" data-a="dec" data-id="${o.id | 0}">DECLINE</button></div></div>`).join('');
+    if (data.incoming.length) h += `<div class="pp-sec">PET OFFERS FOR YOU</div>` + data.incoming.map((o) => `<div class="pp-card"><div class="pp-top"><span class="pp-ic">${PET_ICON[o.pet] || '🐾'}</span><div class="pp-nm"><b>${esc(PET_LABEL[o.pet] || o.pet)}</b><small>from ${esc(o.from)} for ${formatGoldAmount((o.price | 0))} gold</small></div></div><div class="pp-row"><button class="b go" data-a="acc" data-id="${o.id | 0}">ACCEPT</button><button class="b no" data-a="dec" data-id="${o.id | 0}">DECLINE</button></div></div>`).join('');
     const pets = [...data.pets]; if (eq && PET_LABEL[eq] && !pets.some((p) => p.pet === eq)) pets.unshift({ pet: eq, name: null, xp: 0, lv: 0 });
     h += `<div class="pp-sec">YOUR PETS</div>`;
     if (!pets.length) h += `<div class="pp-empty">No pets yet. Buy one at the pet shop and it will show up here.</div>`;

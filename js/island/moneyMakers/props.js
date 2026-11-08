@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../../goldFormat.js';
 // [v349 money-makers] procedural 3D props for the 5 island gold loops (no downloads): the WANTED board, the Coliseum Fight Master stand
 // + gong + bookie, smuggler crate stacks / buyers / the crate on your back, wreck chests + clams, crab pots, ore veins, spice plots,
 // the copper rum still and the Harbor Rum Export Stall. Every prop sits on world.ground (flush) and is built small (Lambert, few parts).
@@ -49,7 +50,7 @@ export function wantedBoard() {
   const head = plane(3.2, 0.5, signTex([{ t: 'WANTED · BOUNTIES', c: '#9b1010' }], { w: 512, h: 80, bg: '#e8d3a3' })); g.add(at(head, 0, 2.78, 0.075));
   const posters = []; for (let i = 0; i < 3; i++) { const p = plane(0.95, 1.2, signTex(['WANTED', '?', 'reward'], { w: 160, h: 200 })); g.add(at(p, -1.07 + i * 1.07, 1.78, 0.075)); posters.push(p); }
   g.userData.setPosters = (rows) => posters.forEach((p, i) => { const r = rows[i]; p.material.map?.dispose?.();
-    p.material.map = r ? signTex([{ t: 'WANTED', c: '#9b1010' }, { t: String(r.name).slice(0, 12) }, { t: `${(r.pot | 0).toLocaleString()}g`, c: '#7a5a00' }], { w: 160, h: 200 })
+    p.material.map = r ? signTex([{ t: 'WANTED', c: '#9b1010' }, { t: String(r.name).slice(0, 12) }, { t: `${formatGoldAmount((r.pot | 0))}g`, c: '#7a5a00' }], { w: 160, h: 200 })
       : signTex([{ t: 'CONTRACT', c: '#2a5a1a' }, { t: ['RAIDERS', 'STALKERS', 'CAPTAINS'][i] }, { t: ['150g', '120g', '250g'][i], c: '#7a5a00' }], { w: 160, h: 200 }); p.material.needsUpdate = true; });
   g.userData.setPosters([]);
   return g;

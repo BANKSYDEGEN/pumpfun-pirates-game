@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 // [Timothy] THE GOLDEN DOUBLOON CASINO: the game rules, the response reader and the practice table (pure, no DOM, testable in node).
 // Contract (the pvp edge function, Emerly): pvp.inv.call('casino_play', { game, bet, choice, action, stateId, reqId })
 //   -> { ok: true, gold, delta, outcome, detail, state }   (gold = the new balance, delta = the change this call: +win / -loss / 0 push)
@@ -19,8 +20,8 @@ export const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 
 export const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 export const pocketColor = (n) => (n === 0 ? 'green' : REDS.has(n) ? 'red' : 'black');
 
-export const fmtGold = (n) => Math.round(Number(n) || 0).toLocaleString('en-US') + ' GOLD';
-export const fmtG = (n) => Math.round(Number(n) || 0).toLocaleString('en-US') + 'g';
+export const fmtGold = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + ' GOLD';
+export const fmtG = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + 'g';
 export const clampBet = (b, gold) => Math.max(MIN_BET, Math.min(MAX_BET, Math.floor(Number(b) || 0), Math.max(MIN_BET, Math.floor(Number(gold) || 0))));
 
 // ---- roulette choices: objects { kind, value } or strings ('red', 'odd', 'low', 'dozen1' / '1st12', 'number:7', '7', 'n:17') ----

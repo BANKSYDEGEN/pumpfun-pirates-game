@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 // [Timothy] PUMPFUN PIRATES · ISLAND SHOP catalog. Data only. [v102 live] Timothy's proposed prices as-is (BANKSY tunes later);
 // goals = BANKSY's: COMMODORE 100 boss kills, GHOST 100 kills, FIRE 200 kills, GOLDEN = PRESTIGE 1 (free), DIAMOND = PRESTIGE 2 (free) ([prestige]). Item ids are STABLE.
 // soon: true = no model on the v4 pirate yet: shown as COMING SOON, never sold (the server catalog doesn't list it either).
@@ -230,7 +231,7 @@ const kd1 = (x) => (Math.floor(x * 10) / 10).toFixed(1); // floor: 9.96 shows 9.
 // 'Harbor boss kills 37/100' · 'K/D 6.2 / 10' · 'kills 41/50' · 'BR kills 1,234/5,000'
 export const fmtGoalRow = (r) => r.fmt === 'prestige' ? `PRESTIGE ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}` : r.fmt === 'kd' ? `K/D ${kd1(r.have)} / ${r.need}` : `${r.label} ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}`;
 export const fmtGoal = (g) => g.rows.map(fmtGoalRow).join(' · ');
-export const fmtGold = (n) => `${fmtN(n)}g`;
+export const fmtGold = (n) => `${formatGoldAmount(n)}g`;
 // [v157] BANKSY: "keep shops sorted by price". Every shop list goes through this: free/default first, then gold price
 // ascending (kill-gated items sort by their gold price too), ties by name. Returns a new array; prices, ids, ownership untouched.
 export const byPrice = (price = (x) => x.price, name = (x) => x.name || x.label || '') => (a, b) =>

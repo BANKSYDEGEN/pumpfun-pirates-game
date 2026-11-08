@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
 import { installPillyInventory } from '../pillyEntries.js';
@@ -590,7 +591,7 @@ export async function createDock(ctx) {
   function openCasino(gameId) {
     import('../casino/ui.js').then(m => {
       casinoUi ||= m.createCasinoUi({ pvp: () => ctx.pvp(), getGold: () => (game.gold | 0),
-        setGold: (g, meta) => { const pv = ctx.pvp?.(); if (meta?.fromServer && pv?.serverGold) { try { pv.serverGold(g, meta); } catch {} } /* [v342] the server already moved it: re-base, never sync it twice */ else { game.gold = Math.max(0, Math.min(1e7, Math.floor(+g || 0))); try { pv?.save?.({ now: true, force: true }); } catch {} } try { ctx.updateHud?.(); const el = document.getElementById('gold'); if (el) el.textContent = game.gold; } catch {} },
+        setGold: (g, meta) => { const pv = ctx.pvp?.(); if (meta?.fromServer && pv?.serverGold) { try { pv.serverGold(g, meta); } catch {} } /* [v342] the server already moved it: re-base, never sync it twice */ else { game.gold = Math.max(0, Math.min(1e7, Math.floor(+g || 0))); try { pv?.save?.({ now: true, force: true }); } catch {} } try { ctx.updateHud?.(); const el = document.getElementById('gold'); if (el) el.textContent = formatGoldAmount(game.gold); } catch {} },
         sfx: (k) => { const f = { win: ctx.sfx?.coin, card: ctx.sfx?.equip, dice: ctx.sfx?.equip, spin: ctx.sfx?.equip }[k]; f?.(); } });
       for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) { try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {} }   // no walking off while seated
       casinoUi.open(gameId);

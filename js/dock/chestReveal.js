@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 // [v152] CHEST ITEMS reveal (BANKSY: "add accessories weapons clothes for character or crew as options for treasure hunt chests").
 // The SERVER picks what a dug chest holds (supabase/functions/pvp/chest.ts + migration 035); this only SHOWS it:
 //   gold only        -> TREASURE! +gold (the chest pops open, coins)
@@ -66,11 +67,11 @@ export function createChestReveal({ sfx = null, low = false, onWear = null, canW
       html += `<div class="ch-head">CHEST: ${I.label}!</div><div class="ch-tier" style="color:${tc}">${tn}</div>` +
         `<div class="ch-card"><div class="ch-for${L.dup ? ' dup' : I.crew ? ' crew' : ''}">${who}</div><div class="ch-art"><img alt="" src="${I.thumb}"></div>` +
         `<div class="ch-name">${I.label}</div><div class="ch-kind">${I.kind}${I.weapon ? ' · cosmetic' : ''}</div></div>` +
-        `<div class="ch-gold">+${gold.toLocaleString()} GOLD<small>${L.dup ? `treasure ${dig.toLocaleString()} + ${(L.dup_gold | 0).toLocaleString()} sold for the spare ${I.kind.toLowerCase()}${L.sell > 0 ? ` (pet +${Math.round(L.sell * 100)}% sell)` : ''}` : 'treasure gold'}${x2}</small></div>` +
+        `<div class="ch-gold">+${formatGoldAmount(gold)} GOLD<small>${L.dup ? `treasure ${dig.toLocaleString()} + ${(L.dup_gold | 0).toLocaleString()} sold for the spare ${I.kind.toLowerCase()}${L.sell > 0 ? ` (pet +${Math.round(L.sell * 100)}% sell)` : ''}` : 'treasure gold'}${x2}</small></div>` +
         `<div class="ch-btns">${!L.dup && onWear && canWear(L.item) ? `<button type="button" class="wear">${I.crew ? 'DRESS CREW' : 'WEAR IT'}</button>` : ''}<button type="button" class="ok">NICE!</button></div>`;
     } else {
       html += `<div class="ch-head">TREASURE!</div><div class="ch-tier" style="color:${tc}">${tn}</div><div class="ch-chest">${CHEST_SVG}</div>` +
-        `<div class="ch-gold">+${gold.toLocaleString()} GOLD<small>${x2 ? x2.slice(3) : 'dug up from the sand'}</small></div><div class="ch-btns"><button type="button" class="ok">NICE!</button></div>`;
+        `<div class="ch-gold">+${formatGoldAmount(gold)} GOLD<small>${x2 ? x2.slice(3) : 'dug up from the sand'}</small></div><div class="ch-btns"><button type="button" class="ok">NICE!</button></div>`;
     }
     el.className = ''; void el.offsetWidth; el.innerHTML = html; el.classList.add('on', 't-' + (r.tier || 'common'));
     const img = el.querySelector('.ch-art img');

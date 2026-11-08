@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../../goldFormat.js';
 // [v349 money-makers] the pirate-styled panels (parchment modal, tabs, rows) + the HUD bits (crate banner, O2 bar, horde wave pill).
 // One modal (#mm-modal) reused by every money-maker; phone-friendly (full-width under 600 px, 44 px tap targets, safe areas).
 const CSS = `
@@ -58,4 +59,4 @@ export function createMMUi({ onClose } = {}) {
   };
 }
 export const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 24);
-export const gfmt = (n) => `${(n | 0).toLocaleString()}g`;
+export const gfmt = (n) => `${formatGoldAmount((n | 0))}g`;

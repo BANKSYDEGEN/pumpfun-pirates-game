@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../../goldFormat.js';
 // [fish2] PUMPFUN PIRATES fishing, round 2 (BANKSY 3:43 PM: "improve the fishing" + "show the fish they catch"). Grandpa Gill's dock (lagoon.js).
 //   cast: the pirate turns to the water and swings the rod, the bobber flies out on a real line (sagging), splash + ripples
 //   wait: fish shadows cruise under the dock; one comes to the float and NIBBLES (little twitches + plips: pressing now spooks it)
@@ -201,7 +202,7 @@ export function createFishing2({ MATS, OUT, near, lakeY, dockY, dock, journal })
         const rc = RARITY_COLOR[c.rarity] || '#ccc', price = CAT[c.id]?.fish | 0; card.style.setProperty('--rc', rc);
         card.innerHTML = `<div class="rr">${c.rarity.toUpperCase()}</div><img alt="" src="${new URL('../../../assets/items/fish_' + c.id + '.webp', import.meta.url).href}"><div class="nm">${c.name.toUpperCase()}</div>
           <div class="ms">${c.cm} cm · ${fmtKg(c.kg)}</div>${c.isNew ? '<div class="tg">NEW IN YOUR FISH JOURNAL!</div>' : c.rec ? '<div class="tg">A NEW RECORD!</div>' : ''}
-          <small>${c.bag ? `in your bag · the Fish Stand pays ${price} gold` : 'not saved to your bag · check your connection'} · journal ${c.n}/${c.of}${c.pearl ? '<br>…and a RIVER PEARL!' : ''}</small>`;
+          <small>${c.bag ? `in your bag · the Fish Stand pays ${formatGoldAmount(price)} gold` : 'not saved to your bag · check your connection'} · journal ${c.n}/${c.of}${c.pearl ? '<br>…and a RIVER PEARL!' : ''}</small>`;
         card.classList.add('on'); card._t = setTimeout(() => card.classList.remove('on'), 4600); },
       flash(txt) { if (!doc) return; css(); if (!fl) { fl = doc.createElement('div'); fl.id = 'fs2-fl'; doc.body.appendChild(fl); } fl.textContent = txt; fl.classList.add('on'); clearTimeout(fl._t); fl._t = setTimeout(() => fl.classList.remove('on'), 650); },
       toast(m) { st.api?.toast?.(m, 2600); } };

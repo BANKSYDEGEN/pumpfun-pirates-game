@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 import { itemIconHtml } from './itemIcon.js';
 import { parrotUpgradeState, parrotUpgradeFeedback } from './parrotUpgrade.js';
 // [inventory] THE INVENTORY GRID (BANKSY 11:01-11:03 AM): the HUD MAPS button is now INVENTORY and opens a scrolling grid of item slots
@@ -183,7 +184,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     : RANK_ON && info?.kind === 'weapon' && info.slot === 'musket' && RK_BG[info.rarity] ? `<i class="iv-rk" style="background:${RK_BG[info.rarity]}">${info.rarity[0].toUpperCase()}</i>` : '';
   function lvUi(info) { // [musket-levels] the LEVEL UP button + the level line for one musket (bag slot or the EQUIPPED slot)
     const lv = info.level, c = muskLevelCost(lv), parts = qtyOf(PARTS_KEY), own = !!data.owner, nx = lv + 1, nt = c && muskTierOf(nx), nextBand = muskTierStart(info.rarity) + 5;
-    return { btn: c ? `<button data-a="level"${own || parts >= c.parts ? '' : ' disabled'}>LEVEL UP → LV ${nx}${nt !== info.rarity ? ` · ${nt.toUpperCase()}` : ''} · ${own ? 'FREE' : `${c.gold.toLocaleString()}g${c.parts ? ` + ${c.parts} 🔩` : ''}`}</button>` : '<button disabled>MAX LEVEL</button>',
+    return { btn: c ? `<button data-a="level"${own || parts >= c.parts ? '' : ' disabled'}>LEVEL UP → LV ${nx}${nt !== info.rarity ? ` · ${nt.toUpperCase()}` : ''} · ${own ? 'FREE' : `${formatGoldAmount(c.gold)}g${c.parts ? ` + ${c.parts} 🔩` : ''}`}</button>` : '<button disabled>MAX LEVEL</button>',
       note: `<small class="iv-note"><b style="color:${RARITY_COLOR[info.rarity]}">LV ${lv} ${info.rarity.toUpperCase()}</b> · ${lvStats(lv)} vs LV 1${nextBand <= MUSKET_MAX_LV ? ` · ${muskTierOf(nextBand).toUpperCase()} at LV ${nextBand}` : ''} · you have ${parts} musket parts</small>` }; }
   const pct = (m) => `${m >= 1 ? '+' : '-'}${Math.abs(Math.round((m - 1) * 1000) / 10)}%`;
   const lvStats = (lv) => { const m = musketLevelMul(lv); return `dmg ${Math.round(19 * m.dmg)} · reload ${pct(m.reload)} · range ${pct(m.range)} · accuracy ${pct(m.acc)}`; }; // vs LV 1 (battle.js ARENA musket 19 dmg)
@@ -248,11 +249,11 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     const g = $('.iv-grid');
     if (mode === 'market' && tab === 'browse') {
       g.innerHTML = listings.length ? listings.map(l => { const i = infoOf(l.item) || { icon: '❔', name: l.item, rarity: 'common' };
-        return `<div class="iv-slot${sel === 'L' + l.id ? ' sel' : ''}" data-l="${l.id}" style="border-color:${RARITY_COLOR[i.rarity] || '#6b4a24'}"><em>${l.price.toLocaleString()}g</em>${icoHtml(l.item, i)}<span>${i.kind ? shortName(i) : i.name}</span><b>${l.qty > 1 ? '×' + l.qty : ''}</b></div>`; }).join('') : '<div class="iv-empty">nothing for sale yet</div>';
+        return `<div class="iv-slot${sel === 'L' + l.id ? ' sel' : ''}" data-l="${l.id}" style="border-color:${RARITY_COLOR[i.rarity] || '#6b4a24'}"><em>${formatGoldAmount(l.price)}g</em>${icoHtml(l.item, i)}<span>${i.kind ? shortName(i) : i.name}</span><b>${l.qty > 1 ? '×' + l.qty : ''}</b></div>`; }).join('') : '<div class="iv-empty">nothing for sale yet</div>';
       g.querySelectorAll('[data-l]').forEach(d => d.onclick = () => { sel = 'L' + d.dataset.l; render(); });
     } else {
       const list = slots().filter(shopTakes); if (mode === 'fish' || mode === 'antiques') list.sort((a, b) => (price(a) - price(b)) || shortName(a.info).localeCompare(shortName(b.info))); // [v240] cheapest first (BANKSY's shop rule)
-      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${price(s).toLocaleString()}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
+      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${formatGoldAmount(price(s))}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       if (mode === 'bag' && list.length) { el.classList.toggle('iv-moving', moveFrom >= 0); // [inv-arrange]
         const eqCell = (sl) => { const k = eqKey(sl), s = k && slots().find(x => x.key === k); const eg = sl === 'musket' ? eqGun() : null; const leg = s?.info?.rarity === 'legendary' ? ' iv-leg' : '';
@@ -288,7 +289,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
   function actions() {
     const a = $('.iv-act');
     if (sel && sel.startsWith('L')) { const l = listings.find(x => 'L' + x.id === sel); if (!l) { a.innerHTML = ''; return; } const i = infoOf(l.item) || { name: l.item };
-      a.innerHTML = `<div class="t">${i.name}${l.qty > 1 ? ' ×' + l.qty : ''} · <b>${l.price.toLocaleString()} gold</b> · from ${l.seller}</div>` + (l.mine ? '<button data-a="cancel">TAKE BACK</button>' : `<button data-a="buy"${data.flags.market ? '' : ' disabled'}>BUY</button>`);
+      a.innerHTML = `<div class="t">${i.name}${l.qty > 1 ? ' ×' + l.qty : ''} · <b>${formatGoldAmount(l.price)} gold</b> · from ${l.seller}</div>` + (l.mine ? '<button data-a="cancel">TAKE BACK</button>' : `<button data-a="buy"${data.flags.market ? '' : ' disabled'}>BUY</button>`);
       bind(a, { buy: () => run('mkt_buy', { listing: l.id }, `BOUGHT ${i.name}`), cancel: () => run('mkt_cancel', { listing: l.id }, 'BACK IN YOUR INVENTORY') }); return; }
     const s = slots().find(x => x.key === sel); if (!s) { a.innerHTML = mode === 'bag' ? '<div class="t">tap an item</div>' : ''; return; }
     if (mode === 'bag' && EQS && selI === -2 && selE) { // [eqslots] an EQUIPPED slot is picked: move it out (tap a bag slot) or unequip to the first free one
@@ -299,7 +300,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     const n = s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="1" aria-label="quantity">` : '', locked = !s.tradeable;
     if (isIsl(s) && (mode === 'fish' || mode === 'antiques')) { const where = Object.keys(s.info.sell || {}).map(k => ({ fish: 'Fish Market', antiques: 'Treasure Trader', rum: 'Rum Export' })[k]).join(' / ');
       let ih = `<div class="t">${s.info.name}${s.qty > 1 ? ' ×' + s.qty : ''} <small>· ${s.info.rarity} · island good · sells at ${where}</small></div>`;
-      ih += `${s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="${s.qty}" aria-label="quantity">` : ''}<button data-a="isell">SELL · ${price(s).toLocaleString()}g each</button>`;
+      ih += `${s.qty > 1 ? `<input class="n" type="number" min="1" max="${s.qty}" value="${s.qty}" aria-label="quantity">` : ''}<button data-a="isell">SELL · ${formatGoldAmount(price(s))}g each</button>`;
       a.innerHTML = ih; const iq = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || s.qty) | 0));
       bind(a, { move: () => { moveFrom = selI >= 0 && order?.[selI]?.k === s.key ? selI : (order || []).findIndex(e => e?.k === s.key); moveAmt = 0; render(); }, split: () => { splitAsk = true; splitTo = -1; render(); },
         isell: async () => { if (busy) return; busy = true; try { await globalThis.PFP_MM?.isl?.sell?.(s.info.id, iq(), mode); } finally { busy = false; } sel = null; render(); } }); return; }
@@ -315,7 +316,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
         if (RANK_ON) h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button>`;
         note += L.note; }
       else if (RANK_ON && s.info.kind === 'weapon' && s.info.slot === 'musket') { const up = RANK_UP[s.info.rarity], nx = RANKS[RANKS.indexOf(s.info.rarity) + 1], parts = qtyOf(PARTS_KEY), own = !!data.owner;
-        h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${up.gold.toLocaleString()}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
+        h += up ? `<button data-a="rank"${(own || parts >= up.parts) && s.tradeable ? '' : ' disabled'}>RANK UP → ${nx.toUpperCase()} · ${own ? 'FREE' : `${formatGoldAmount(up.gold)}g + ${up.parts} 🔩`}</button>` : '<button disabled>MAX RANK</button>';
         h += `<button data-a="salvage"${s.tradeable ? '' : ' disabled'}>SALVAGE · +${SALVAGE_PARTS[s.info.rarity] | 0} 🔩</button>`;
         note += `<small class="iv-note">rank ${s.info.rarity} · upgrade tiers up to ${RANK_CAP[s.info.rarity]} apply · you have ${parts} musket parts</small>`; }
       if (s.info.kind === 'parrot') { const P = parrotLvUi(s.info); h += P.btn; note += P.note; h += `<button data-a="parrotequip">${data.parrotEquipped === s.key.slice(4) ? '✓ EQUIPPED PARROT' : 'EQUIP PARROT'}</button>`; note += '<small class="iv-note">Name & choose unlocked colors at the cage inside your ship hull. List this bird at the Marketplace; its name, XP & colors travel with it.</small>'; }
@@ -323,7 +324,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
       if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
       h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>${manualDrop()?.canDrop?.() && !s.map && s.info.kind !== 'parrot' && s.tradeable && !Object.values(data.equipped || {}).includes(s.key) ? '<button data-a="drop">DROP…</button><small class="iv-note">Anyone can pick it up · gone forever after 5 minutes</small>' : ''}${note}`; } // [v335] t1783u + [v350 t1839u] notes after GIVE so buttons share one row
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
-    else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
+    else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${formatGoldAmount(price(s))}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
     bind(a, { move: () => { moveFrom = selI >= 0 && order?.[selI]?.k === s.key ? selI : (order || []).findIndex(e => e?.k === s.key); moveAmt = 0; render(); }, // [inv-arrange] tap-then-tap (phones, controller A)
       split: () => { splitAsk = true; splitTo = -1; render(); },
@@ -346,13 +347,13 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
         finally { busy = false; await refresh(); }
       },
       give: () => { const wpn = s.info.kind === 'weapon'; giveTo(s, wpn ? 1 : q(), wpn && s.info.slot === 'musket' ? (selI >= 0 ? gunOfBag(selI) : null) : null); },
-      sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
+      sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${formatGoldAmount((r.gold | 0))} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
       list: () => run('mkt_list', { item: s.key, qty: q(), price: +(a.querySelector('.pr').value || 0) | 0 }, 'LISTED ON THE MARKETPLACE') });
   }
   function parrotLvUi(info) {
     const gold = pvp()?.gold ?? pvp()?.profile?.gold, u = parrotUpgradeState(info.xp, gold);
-    return { btn: u.max ? '<button disabled>MAX LEVEL · LV 10</button>' : `<button data-a="parrotupgrade"${u.can && !busy ? '' : ' disabled'}>${itemIconHtml({ icon: '🍎', iconImage: treatArt })} UPGRADE · TREAT +100 XP · ${u.cost.toLocaleString()}g</button>`,
-      note: `<small class="iv-note">LV ${u.lv} · ${u.xp.toLocaleString()} XP${u.max ? ' · all colors unlocked' : ` · ${u.remaining.toLocaleString()} XP to LV ${u.lv + 1} · ${Number.isFinite(gold) ? gold.toLocaleString() + 'g available' : 'gold unavailable'}`}</small>` };
+    return { btn: u.max ? '<button disabled>MAX LEVEL · LV 10</button>' : `<button data-a="parrotupgrade"${u.can && !busy ? '' : ' disabled'}>${itemIconHtml({ icon: '🍎', iconImage: treatArt })} UPGRADE · TREAT +100 XP · ${formatGoldAmount(u.cost)}g</button>`,
+      note: `<small class="iv-note">LV ${u.lv} · ${u.xp.toLocaleString()} XP${u.max ? ' · all colors unlocked' : ` · ${u.remaining.toLocaleString()} XP to LV ${u.lv + 1} · ${Number.isFinite(gold) ? formatGoldAmount(gold) + 'g available' : 'gold unavailable'}`}</small>` };
   }
   async function upgradeParrot(s) {
     if (busy || !parrotUpgradeState(s.info.xp, pvp()?.gold ?? pvp()?.profile?.gold).can) return;
@@ -395,7 +396,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     render(); }
   const bind = (a, fns) => a.querySelectorAll('[data-a]').forEach(b => b.onclick = () => fns[b.dataset.a]?.());
   const WHY = { 'one weapon at a time': 'GIVE ONE WEAPON AT A TIME', 'shop closed': 'THE SHOP ISN\'T BUYING YET', 'not enough': 'YOU DON\'T HAVE THAT MANY', 'slow down': 'SLOW DOWN A MOMENT', 'not to yourself': 'YOU CAN\'T GIVE YOURSELF THINGS', 'no such pirate': 'NO PIRATE BY THAT NAME',
-    'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough parts': 'NOT ENOUGH MUSKET PARTS<br><small>chests, fishing + salvage drop them</small>', 'max level': 'ALREADY MAX LEVEL', 'use level up': 'USE LEVEL UP', 'levels closed': 'MUSKET LEVELS OPEN SOON', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${MARKET.maxPrice.toLocaleString()} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
+    'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough parts': 'NOT ENOUGH MUSKET PARTS<br><small>chests, fishing + salvage drop them</small>', 'max level': 'ALREADY MAX LEVEL', 'use level up': 'USE LEVEL UP', 'levels closed': 'MUSKET LEVELS OPEN SOON', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${formatGoldAmount(MARKET.maxPrice)} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
   async function run(action, body, okMsg) { if (busy) return false; busy = true; // true = done ([give-dropdown] the picker closes on it)
     try { const r = await pvp()?.inv?.call(action, body); if (r && r.ok) { toast(typeof okMsg === 'function' ? okMsg(r) : okMsg, 2400); sel = null; await refresh(); if (action !== 'inv_equip') treasure?.refresh?.(); return true; }
       const why = WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>'; toast(why, 2200); return action === 'inv_gift' ? why : false; } // [gift-fix] the picker shows the reason (truthy string = failed)

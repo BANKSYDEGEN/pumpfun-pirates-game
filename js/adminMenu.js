@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 import { itemIconHtml } from './inventory/itemIcon.js';
 // PUMPFUN PIRATES · [admin-menu] BANKSY's owner-only ADMIN MENU (t1700u / t1701u / t1702u). Kill switch: &admin=0.
 //   ⚙ SETTINGS > 👑 ADMIN MENU (owner only; nothing on the HUD, nothing in the DOM for anyone else) or F8 opens #pfp-admin:
@@ -328,7 +329,7 @@ export function initAdminMenu(ctx) {
     const groups = [...new Set(opts.map(o => o.group))];
     const rows = P ? (P.items || []).map(it => { const i = itemInfo(it.item) || { name: it.item, icon: '❔', rarity: 'common' }, rc = RARITY_COLOR[i.rarity] || '#ccc';
       return `<div class="it" data-item="${escHtml(it.item)}"><span class="q">${it.qty | 0}×</span><span class="nm">${itemIconHtml(i, '', it.item)} ${escHtml(i.name)}</span><span class="rb" style="color:${escHtml(rc)}">${escHtml(i.rarity || '')}</span><button data-a="t1">TAKE 1</button><button data-a="ta">TAKE ALL</button></div>`; }).join('') || '<div class="empty">empty pockets</div>' : '<div class="empty">opening pockets…</div>';
-    box.innerHTML = `<div class="ph"><span>🎒 ${escHtml(who.name)}'s Pockets · 💰 ${(P?.gold | 0).toLocaleString('en-US')}g${P?.pending ? ` <small>(${(P.pending | 0) > 0 ? '+' : ''}${P.pending | 0} waiting)</small>` : ''}</span><span><button data-a="pref">↻ Refresh</button> <button data-a="pclose">✕</button></span></div>
+    box.innerHTML = `<div class="ph"><span>🎒 ${escHtml(who.name)}'s Pockets · 💰 ${formatGoldAmount((P?.gold | 0))}g${P?.pending ? ` <small>(${(P.pending | 0) > 0 ? '+' : ''}${formatGoldAmount(P.pending | 0)} waiting)</small>` : ''}</span><span><button data-a="pref">↻ Refresh</button> <button data-a="pclose">✕</button></span></div>
       <div class="items">${rows}</div>
       <h4>+ SLIP INTO POCKETS</h4>
       <div class="give"><input class="full" data-i="filter" placeholder="search items (ruby, koi, legendary…)" value="${escHtml(st.filter)}">
@@ -422,7 +423,7 @@ export function initAdminMenu(ctx) {
     const r = await call('admin_pocket_gold', { target_pid: st.pocketFor, delta });
     if (!r?.ok) return toast(`gold: ${r?.error || 'refused'}`);
     if (r.target) st.pocket = { ...st.pocket, ...r.target }; nudge(); if (delta < 0) { try { await pvp()?.inv?.call('inv_pot'); } catch {} }
-    toast(delta > 0 ? `💰 Dropped ${delta.toLocaleString('en-US')}g into ${st.pocketName}'s pockets` : `💰 Confiscated ${(-delta).toLocaleString('en-US')}g from ${st.pocketName}`); paintPocket();
+    toast(delta > 0 ? `💰 Dropped ${formatGoldAmount(delta)}g into ${st.pocketName}'s pockets` : `💰 Confiscated ${formatGoldAmount((-delta))}g from ${st.pocketName}`); paintPocket();
   }
   // ---- TP ----
   function jumpTo(p) {

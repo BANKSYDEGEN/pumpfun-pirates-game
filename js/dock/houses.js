@@ -1,3 +1,4 @@
+import { formatGoldAmount } from '../goldFormat.js';
 // [Emerly storage-houses] BANKSY: buyable cottages as item storage — step inside → private instanced room,
 // main-server spot stays reserved (ih:1). Kill switch: &houses=0.
 // Doors auto-bind to Post's cottage village (js/island/areas/cottages.js) when present; otherwise the same
@@ -1403,7 +1404,7 @@ export function createHouses({
       <div class="hs-col" data-pane="chest"><h4>🧰 COTTAGE CHEST <span class="hs-cap" data-cap></span></h4><div class="hs-grid" data-chest></div></div>
     </div>
     <div class="hs-foot">
-      <button type="button" data-a="upgrade">+${UPGRADE_SLOTS} SLOTS (${UPGRADE_PRICE.toLocaleString()}g)</button>
+      <button type="button" data-a="upgrade">+${UPGRADE_SLOTS} SLOTS (${formatGoldAmount(UPGRADE_PRICE)}g)</button>
       <button type="button" class="ghost" data-a="leave">LEAVE COTTAGE</button>
       <button type="button" class="ghost" data-a="close">CLOSE</button>
     </div>
@@ -1621,7 +1622,7 @@ export function createHouses({
   async function buyCottage(d) {
     if (busy || isOwned(d.id)) return;
     const gold = getGold() | 0;
-    if (gold < HOUSE_PRICE) { toast(`NEED ${HOUSE_PRICE.toLocaleString()} GOLD<br><small>you have ${gold.toLocaleString()}g</small>`, 2200); return; }
+    if (gold < HOUSE_PRICE) { toast(`NEED ${formatGoldAmount(HOUSE_PRICE)} GOLD<br><small>you have ${formatGoldAmount(gold)}g</small>`, 2200); return; }
     busy = true;
     try {
       const req = reqId();
@@ -2249,7 +2250,7 @@ export function createHouses({
   async function upgradeChest() {
     if (!activeId || busy) return;
     const gold = getGold() | 0;
-    if (gold < UPGRADE_PRICE) { toast(`NEED ${UPGRADE_PRICE.toLocaleString()} GOLD`, 1800); return; }
+    if (gold < UPGRADE_PRICE) { toast(`NEED ${formatGoldAmount(UPGRADE_PRICE)} GOLD`, 1800); return; }
     busy = true;
     try {
       let ok = false;
@@ -2308,7 +2309,7 @@ export function createHouses({
     }
     const d = nearestDoor(W); if (!d) return null;
     if (isOwned(d.id)) return { label: 'ENTER COTTAGE', key: 'E', primary: true, tag: 'enter', door: d };
-    return { label: `BUY COTTAGE · ${HOUSE_PRICE.toLocaleString()}g`, key: 'E', primary: true, tag: 'buy', door: d };
+    return { label: `BUY COTTAGE · ${formatGoldAmount(HOUSE_PRICE)}g`, key: 'E', primary: true, tag: 'buy', door: d };
   }
 
   function act(tag, ctx) {

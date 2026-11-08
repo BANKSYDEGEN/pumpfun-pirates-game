@@ -1,3 +1,4 @@
+import { formatGoldAmount } from './goldFormat.js';
 import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { isKey } from './keybinds.js';
 // [Raul] ship upgrades — SHOP button (top HUD row) + shipwright overlay.
@@ -51,9 +52,9 @@ function buildDom() {
     <nav class="shop-isle-tabs" role="tablist" aria-label="Ship shop"><button type="button" role="tab" data-isle="skins" aria-selected="false">SKINS</button><button type="button" role="tab" data-isle="upg" class="on" aria-selected="true">UPGRADES</button></nav>
     <div class="shop-sub muted">Spend looted gold on your ship. Upgrades last this voyage only.</div>
     <div id="shop-hp" class="shop-hp"><span class="label">HULL</span><div class="bar"><div class="fill red"></div></div><span class="hp-txt"></span>
-      <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${REPAIR.cost}g</button></div>
+      <button id="shop-repair" class="buy">REPAIR HULL +${REPAIR.hp} HP · ${formatGoldAmount(REPAIR.cost)}g</button></div>
     <div id="shop-escort" class="shop-hp shop-escort" title="An allied ship that sails with you and fights until it sinks. Up to 5 at once."><span class="esc-ico" aria-hidden="true">⚓</span><span class="label">ESCORTS</span><span id="esc-count" class="esc-count">0/5</span>
-      <button id="shop-hire" class="buy">HIRE ESCORT · 1500g</button></div>
+      <button id="shop-hire" class="buy">HIRE ESCORT · ${formatGoldAmount(1500)}g</button></div>
     <div class="shop-tabs" role="tablist"><button id="tab-upg" class="shop-tab on" role="tab">UPGRADES</button><button id="tab-skins" class="shop-tab" role="tab">SKINS</button></div>
     <div id="shop-grid" class="shop-grid"></div>
     <div id="skin-grid" class="shop-grid skin-grid hidden"></div>
@@ -123,7 +124,7 @@ function renderSkins() {
     c.classList.toggle('equipped', s.id === eq); c.classList.toggle('owned', own); c.classList.toggle('locked', !own);
     if (s.id === eq) { b.textContent = 'EQUIPPED'; b.disabled = true; }
     else if (own) { b.textContent = 'EQUIP'; b.disabled = false; }
-    else { b.textContent = `${s.price}g`; b.disabled = g < s.price; }
+    else { b.textContent = `${formatGoldAmount(s.price)}g`; b.disabled = g < s.price; }
   }
 }
 // [wave skins] every 5th wave: free unlock of the cheapest unowned skin + a non-blocking toast with EQUIP
@@ -137,11 +138,11 @@ function skinAction(_id) { /* [t1716u] Waves cannot buy / swap skins mid-run */ 
 function render() {
   if (!ctx) return;
   const { game } = ctx, p = ctx.getPlayer();
-  $('shop-gold').textContent = game.gold;
+  $('shop-gold').textContent = formatGoldAmount(game.gold);
   $('shop-hp').querySelector('.fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < repairCost();
-  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${repairHp()} HP · ${repairCost()}g`;
+  rb.textContent = p.hp >= p.maxHp ? 'HULL IS SOUND' : `REPAIR HULL +${repairHp()} HP · ${formatGoldAmount(repairCost())}g`;
   $('shop-escort').classList.toggle('pvp-hide', PVP()); $('tab-skins')?.classList.add('pvp-hide'); $('tab-skins')?.setAttribute('hidden', ''); document.querySelector('.shop-tabs')?.classList.add('waves-upg-only'); // [t1716u] Waves: upgrades only
   const stats = shipStats(run);
   for (const u of UPGRADES) {
@@ -152,7 +153,7 @@ function render() {
     c.classList.remove('max');
     const ns = shipStats({ ...run, levels: { ...run.levels, [u.id]: lv + 1 } }); // [v93] next level with the same mode boosts
     c.querySelector('.sc-stat').innerHTML = `${fmtStat(u, stats[u.stat], stats.gunDmg)} <span class="arrow">→</span> <b>${fmtStat(u, ns[u.stat], ns.gunDmg)}</b>`;
-    b.textContent = `${costOf(next)}g`; b.disabled = game.gold < costOf(next);
+    b.textContent = `${formatGoldAmount(costOf(next))}g`; b.disabled = game.gold < costOf(next);
   }
   // [v157] cheapest next level first; maxed upgrades last; ties keep the catalogue order
   const g = $('shop-grid'), nx = (u) => { const t = u.tiers[run.levels[u.id]]; return t ? costOf(t) : Infinity; };
@@ -190,7 +191,7 @@ function renderEscorts() {
   const E = ctx.escorts; if (!E) return;
   const n = E.count(), max = E.max, cost = E.cost, b = $('shop-hire');
   $('esc-count').textContent = `${n}/${max}`;
-  b.textContent = n >= max ? 'FLEET FULL' : `HIRE ESCORT · ${cost}g`;
+  b.textContent = n >= max ? 'FLEET FULL' : `HIRE ESCORT · ${formatGoldAmount(cost)}g`;
   b.disabled = n >= max || ctx.game.gold < cost;
 }
 function hire() {
