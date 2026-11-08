@@ -121,7 +121,7 @@ export function createPlaza({ world, ctx = {} }) {
     let nearTokens = false;
     if (position) { const [fx,fz] = world.layout?.harborToFoot?.(position.x,position.z) || ctx.harborToFoot?.(position.x,position.z) || [1e6,1e6];
       nearTokens = Object.values(TOKEN_BOARD_SPOTS).some(q => { const [x,z]=CO.t2w(q.lx,q.lz); return Math.hypot(fx-x,fz-z)<28; }); }
-    marketFeed.tick(!document.hidden && (nearTokens || nearHQ || hqOpen || !!panel.dataset.sym), nearHQ || hqOpen)?.catch?.(()=>{});
+    marketFeed.tick(!document.hidden && (nearTokens || nearHQ || hqOpen || !!panel.dataset.sym), nearHQ || hqOpen, nearHQ)?.catch?.(()=>{});
     syncTokens();
   }
   return { update, openBoard, openToken: showToken, close, refreshBoards, mesh, get open() { return !panel.classList.contains('hidden'); } };

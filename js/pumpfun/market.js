@@ -88,7 +88,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   (async()=>{try{const f=await import('./feeds.js');const rows=await f.fetchCallouts(get,clock());if(rows.length)good('callouts',rows,'Latest DexScreener boosts · pump.fun tokens');else failed('callouts','no pump.fun boosts');
   }catch{failed('callouts');}})()
  ]);save(true);details().catch(()=>{});}
- function tick(on,discover=false){active=!!on;discovery=!!discover;portal.tick(active&&discovery&&!!(portalSocket||globalThis.document)&&!(globalThis.document?.hidden)); if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
+ function tick(on,discover=false,portalNear=discover){active=!!on;discovery=!!discover;portal.tick(active&&portalNear&&!!(portalSocket||globalThis.document)&&!(globalThis.document?.hidden)); if(!active){for(const c of controllers)c.abort();return Promise.resolve();}const now=clock(),jobs=[];
   if(now>=nextP&&!busyP){nextP=now+PRICE_MS;busyP=prices().finally(()=>{busyP=null;});}if(busyP)jobs.push(busyP);
   if(discovery&&now>=nextD&&!busyD){nextD=now+DISCOVERY_MS;busyD=discoveries().finally(()=>{busyD=null;});}if(busyD)jobs.push(busyD);
   return Promise.all(jobs);}
