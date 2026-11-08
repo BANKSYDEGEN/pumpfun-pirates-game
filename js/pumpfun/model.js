@@ -154,10 +154,12 @@ export function hqParts() {
   for(let k=0;k<4;k++){ const o=.25+k*.5,top=Y+(k+1)*.65,zc=(-48.3-30.2)/2; B(X0-o-.07,(top+Y-.2)/2,zc,.5,top-Y+.2,18.1,stone,true); B(X0-o-.1,top+.03,zc,.56,.08,18.2,darkStone,true); }
   B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
   // ---- p8: paved yard at the trench's north end (was bare sloping grass): flagstones level with the trench, coped retaining kerb holding the hill
-  B(-39.5,Y-.01,-52.4,9.8,.06,8.2,stone);
-  for(let i=0;i<6;i++) B(-44.1+i*1.85,Y+.035,-52.4,.06,.02,8.0,darkStone,true);   // flagstone joints
-  B(-39.4,Y+.45,-56.75,10.6,.9,.5,stone); B(-39.4,Y+.95,-56.75,10.8,.14,.65,darkStone);   // retaining kerb + coping
-  B(-44.85,Y+.3,-52.4,.5,.6,8.6,stone); B(-44.85,Y+.65,-52.4,.65,.12,8.7,darkStone);       // low west kerb
+  // p9: one raised flagstone bed (top Y+.14, a walkable 14 cm lip) over the whole flattened yard, wide coped kerbs hiding the terrain seam
+  { const x0=-46.9, x1=-34.6, z0=-56.6, z1=-48.2, cx=(x0+x1)/2, cz=(z0+z1)/2;
+    B(cx,Y-.1,cz,x1-x0,.48,z1-z0,stone); for(let i=1;i<7;i++) B(x0+i*(x1-x0)/7,Y+.145,cz,.06,.02,z1-z0-.2,darkStone,true); for(let j=1;j<4;j++) B(cx,Y+.145,z0+j*(z1-z0)/4,x1-x0-.2,.02,.06,darkStone,true);
+    B(cx-.3,Y+.5,z0-.6,x1-x0+1.8,1.2,1.2,stone); B(cx-.3,Y+1.16,z0-.6,x1-x0+2.0,.14,1.35,darkStone);   // south retaining kerb (holds the hill), runs under the west kerb corner
+    B(x0-.6,Y-.05,cz+.3,1.2,.5,z1-z0+.6,darkStone);   // west edge: flush kerb into Main Street (walkable)
+    B(x0-.6,Y+1.3,z0-.6,1.5,.3,1.5,darkStone); }   // corner cap where the kerbs meet
   // ---- p3 outworks: coped stone retaining walls + paved trench floor around the west / back wall foot ----
   for(const [x,z,w,d] of HQ_OUTWORKS){ B(x,Y+1.25,z,w,3.1,d,stone); B(x,Y+2.9,z,w+.25,.22,d+.25,darkStone); }
   B(X0-.95,Y-.02,(HQ_OUTWORKS[0][1]),1.4,.1,HQ_OUTWORKS[0][3]-.4,darkStone); B((X0+X1)/2-.7,Y-.02,Z0-.95,X1-X0+1.2,.1,1.4,darkStone);
