@@ -99,7 +99,7 @@ function parrotParts(low){const S=(r,ws=8,hs=6)=>new THREE.SphereGeometry(r,ws,h
  P(pair(s=>m(S(.075,low?6:8,5),{sx:.55,sy:1.7,sz:.32,rz:-.35,ry:s*.12,x:-.03,y:.17,z:s*.072})),'wing');
  P(pair(s=>m(S(.05,6,4),{sx:.5,sy:.9,sz:.3,rz:-.35,x:-.02,y:.22,z:s*.082})),'band');
  {const t=new THREE.ConeGeometry(.045,.42,4);m(t,{sz:.45,rz:-2.85,x:-.1,y:-.09});P(t,'tail');const t2=new THREE.ConeGeometry(.03,.3,4);m(t2,{sz:.45,rz:-2.95,x:-.13,y:-.14});P(t2,'wing');}
- if(!low)P(mergeGeometries([1,-1].map(s=>{const g=new THREE.TorusGeometry(.024,.008,4,8,Math.PI*1.3);g.rotateZ(-.15);return m(g,{x:.0,y:-.005,z:s*.03});})),'foot');
+ if(!low)P(mergeGeometries([1,-1].flatMap(s=>[[.035,0],[.03,.4],[.03,-.4],[-.03,Math.PI]].map(([L,a])=>{const g=new THREE.ConeGeometry(.009,L+.02,4);g.rotateZ(L>0?-Math.PI/2-.5:Math.PI/2+.5);g.rotateY(a>3?0:a);g.translate(L>0?L*.5:L*.6,-.012,s*.03+(a>3?0:Math.sin(a)*.01));return g.index?g.toNonIndexed():g;}))),'foot');   // 3 forward toes + 1 back claw curling over the perch
  return out;}
 const col=(pal,key)=>key==='beak'?'#2a2420':key==='beakL'?'#3a3430':key==='face'?'#f4eee2':key==='eye'?'#111111':key==='foot'?'#5a5550':PAL[pal][key];
 export function petParrots(g,list,low){const items=low?list.filter((_,i)=>i%2===0):list;if(!items.length)return;const parts=parrotParts(low),M=new THREE.Matrix4(),Q=new THREE.Quaternion(),E=new THREE.Euler(),V=new THREE.Vector3(),ONE=new THREE.Vector3(1,1,1),c=new THREE.Color();
@@ -114,7 +114,7 @@ export function petBrass(g,props,rings,F,C,low){const brass=new THREE.MeshPhongM
   put(new THREE.SphereGeometry(R*.32,low?8:12,6,0,Math.PI*2,0,Math.PI/2),x,y1+R*.9,z);put(new THREE.TorusGeometry(R*.3,.02,4,14),x,y1+R*.9,z,Math.PI/2);
   put(new THREE.CylinderGeometry(.025,.05,.14,8),x,y1+R+.07,z);put(new THREE.SphereGeometry(.055,10,8),x,y1+R+.19,z);put(new THREE.TorusGeometry(.05,.01,4,10),x,y1+R+.27,z);
   put(new THREE.CylinderGeometry(.07,.055,.06,10,1,true),x+R*.7,y0+.35,z);   // seed cup
-  const sw=y1-.08,sb=y0+.42;for(const s of [-1,1])put(new THREE.CylinderGeometry(.005,.005,sw-sb,4),x-R*.25,(sw+sb)/2,z+s*.12);put(new THREE.CylinderGeometry(.012,.012,.26,6),x-R*.25,sb,z,Math.PI/2);};   // swing
+  const sw=y1-.08,sb=y0+.42;for(const s of [-1,1])put(new THREE.CylinderGeometry(.012,.012,sw-sb,5),x-R*.25,(sw+sb)/2,z+s*.12);put(new THREE.CylinderGeometry(.024,.024,.3,8),x-R*.25,sb,z,Math.PI/2);};   // swing
  for(const [k,x,z,w,d] of props){if(k==='cage')cage(x,z,.43,F+.86,F+1.86,low?10:16);if(k==='bigcage')cage(x,z,Math.min(w,d)/2-.06,F+.9,F+2.35,low?12:22);}
  for(const [x,z] of rings){put(new THREE.TorusGeometry(.36,.018,5,low?16:28),x,C-2.47,z);put(new THREE.SphereGeometry(.03,8,6),x,C-2.1,z);}
  // ribs: vertical bars use a unit cylinder scaled in y; dome ribs are a quarter arc rotated to face out

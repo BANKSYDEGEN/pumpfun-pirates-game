@@ -266,7 +266,7 @@ export function petParts() {
   const parrot=(x,y,z,ry,pal)=>PET_PARROTS.push([x,y,z,ry,pal]);   // sculpted instanced macaws: petlook.js
   const pc=[[0],[1],[2],[0]];
   for(const [k,x,z,w,d] of PET_PROPS){ const i=Math.abs(Math.round(z))%4;
-    if(k==='perch'){ parrot(x,F+1.94,z-.35,0,...pc[i]); parrot(x,F+1.94,z+.35,Math.PI,...pc[(i+1)%4]); parrot(x,F+1.59,z,Math.PI/2,...pc[(i+2)%4]); }
+    if(k==='perch'){ parrot(x,F+1.94,z-.35,0,...pc[i]); parrot(x,F+1.94,z+.35,Math.PI,...pc[(i+1)%4]); parrot(x,F+1.94,z,Math.PI/2,...pc[(i+2)%4]); }
     if(k==='bigcage'){ parrot(x-.25,F+1.54,z,Math.PI*.3,...pc[i]); parrot(x+.3,F+1.94,z+.2,-Math.PI*.4,...pc[(i+2)%4]); }
     if(k==='tree'){ parrot(x+.5,F+1.14,z,Math.PI/2,...pc[i]); parrot(x-.3,F+1.64,z+.2,0,...pc[(i+1)%4]); parrot(x+.2,F+2.14,z-.3,Math.PI,...pc[(i+3)%4]); }
     if(k==='stand') parrot(x,F+1.59,z-.15,-Math.PI/2,...pc[(i+1)%4]);
