@@ -86,10 +86,13 @@ export function hqParts() {
   for(const z of HQ_CHANDELIERS) { B(-18.5,CEIL-1.6,z,.06,3.0,.06,iron,true); B(-18.5,Y+7.6,z,.35,.3,.35,gold,true);
     for(let i=0;i<10;i++){const a=i/10*Math.PI*2; B(-18.5+Math.cos(a)*1.25,Y+7.0,z+Math.sin(a)*1.25,.82,.1,.12,iron,true,{ry:-a+Math.PI/2}); B(-18.5+Math.cos(a)*1.25,Y+7.2,z+Math.sin(a)*1.25,.09,.32,.09,candle,true,{glow:true}); B(-18.5+Math.cos(a)*1.25,Y+7.45,z+Math.sin(a)*1.25,.07,.16,.07,flame,true,{glow:true}); } }
   // wall torches (iron bracket + glow flame) and pirate dressing: barrels, chest of gold, ship's wheel, anchor
-  for(const [x,z] of HQ_TORCHES) { const s=x<-18?1:-1; B(x+s*.2,Y+3.0,z,.4,.12,.12,iron,true); B(x+s*.42,Y+3.1,z,.12,.5,.12,wood,true); B(x+s*.42,Y+3.5,z,.2,.35,.2,flame,true,{glow:true}); }
+  // BANKSY t303u: wall lanterns removed; iron lanterns hang on chains from the ceiling over each board row (glow core unlit, pools in render.js)
+  for(const [x,z] of HQ_LANTERNS) { const ly=Y+HQ_LANTERN_Y; B(x,(CEIL+ly+.75)/2,z,.05,CEIL-ly-.75,.05,iron,true); B(x,ly+.78,z,.12,.12,.12,gold,true);
+    p.push({kind:'cyl',x,y:ly+.6,z,r:.06,r1:.36,h:.28,n:8,c:iron,detail:true}); B(x,ly+.44,z,.62,.06,.62,iron,true); B(x,ly-.44,z,.56,.07,.56,iron,true); p.push({kind:'cyl',x,y:ly-.58,z,r:.2,r1:.04,h:.2,n:8,c:iron,detail:true});
+    for(const sx of [-1,1]) for(const sz of [-1,1]) B(x+sx*.27,ly,z+sz*.27,.05,.88,.05,iron,true); B(x,ly,z,.44,.8,.44,flame,true,{glow:true}); }
 
   // casino-style wall: gilt cap rail over the damask (render.js paints the damask panels), crimson/green banners between pillars
-  for(const [x,z,w,d] of [[IX0+.05,CZ,.16,IZ1-IZ0],[CX,IZ0+.05,IX1-IX0,.16],[IX1-.05,CZ,.16,IZ1-IZ0]]) B(x,Y+6.3,z,w,.14,d,gold,true);
+  for(const [x,z,w,d] of [[IX0+.05,CZ,.16,IZ1-IZ0],[CX,IZ0+.05,IX1-IX0,.16],[IX1-.05,CZ,.16,IZ1-IZ0]]) B(x,Y+7.25,z,w,.14,d,gold,true);
   for(const x of [-24.5,-12.5]) for(const [z,c] of [[-44,'#7a1d22'],[-52.5,'#1b4d36']]) { B(x,CEIL-1.25,z,2.0,.1,.1,iron,true); B(x,CEIL-1.4,z,1.9,.12,.12,gold,true); }
 
   // ---- p2 pirate dressing (HQ_PROPS also feeds the colliders in site.js) ----
@@ -190,7 +193,9 @@ export function hqParts() {
   return p;
 }
 export const HQ_CHANDELIERS = [-37, -46, -55];
-export const HQ_TORCHES = [[-32.25,-38.5],[-32.25,-49.5],[-32.25,-56],[-32.25,-63.2],[-5.15,-38.5],[-5.15,-49.5],[-5.15,-56],[-5.15,-63.2]];
+export const HQ_TORCHES = [];   // BANKSY t303u: no wall lanterns in the hall
+export const HQ_LANTERN_Y = 8.1;   // lantern centre above the floor, clear of the board frames (top ~ floor+6.9)
+export const HQ_LANTERNS = [-27.6,-9.4].flatMap(x=>[-35.85,-44,-52.15,-59.5].map(z=>[x,z]));
 // [post-petstore] PET STORE (L4) shell: merged into the plaza stone kit (always drawn, like the HQ). Stone pirate house front on the Main
 // Street building line, arched walk-through doorway, quoins, string courses, gabled tile roof (gable end to the street), no awning.
 // Inside: plank floor, mahogany wainscot to 1.3 m, plaster above, beamed 7 m ceiling. Props + flames + chandeliers: petParts() (near only).

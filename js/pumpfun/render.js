@@ -2,7 +2,7 @@ import { boardCanvas, boardTexture } from './boardtexture.js';
 import { MAIN_ROW_Y0, MAIN_ROW_H, boardRows } from './boardgrid.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS, PET_PARROTS, PET_RINGS } from './model.js';
+import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_LANTERNS, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS, PET_PARROTS, PET_RINGS } from './model.js';
 import { HQ, PET_LOT, PET_STORE, PET_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 import { WATCH_TOKENS } from './market.js';
 import { petLook, petParrots, petBrass } from './petlook.js';
@@ -99,7 +99,7 @@ function damask(group,low){const n=low?256:512,c=document.createElement('canvas'
  for(const [cx,cy] of [[384,128],[128,384],[384,640],[640,128],[-128,128],[128,-128]])med(cx,cy,.42);
  x.strokeStyle='rgba(214,164,74,0.18)';x.lineWidth=1.4*k;for(let i=-1;i<=2;i++){x.beginPath();x.moveTo(i*256*k,0);x.lineTo((i*256+512)*k,n);x.stroke();x.beginPath();x.moveTo((i*256+512)*k,0);x.lineTo(i*256*k,n);x.stroke();}
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;
- const Y=HQ.floor,y0=Y+1.62,y1=Y+6.22,h=y1-y0,geos=[];
+ const Y=HQ.floor,y0=Y+1.62,y1=Y+7.18,h=y1-y0,geos=[];
  const panel=(w,px,pz,ry)=>{const g=new THREE.PlaneGeometry(w,h);const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/1.8,uv.getY(i)*h/1.8);g.rotateY(ry);g.translate(px,(y0+y1)/2,pz);geos.push(g);};
  const X0=HQ.lx0+.62,X1=HQ.lx1-1.02,Z0=HQ.lz0+.62,Z1=HQ.lz1-.62,D=HQ.hillDoor;
  panel(Z1-Z0,X0,(Z0+Z1)/2,Math.PI/2);panel(X1-X0,(X0+X1)/2,Z0,0);
@@ -115,7 +115,8 @@ function glow(group,low){
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;const Y=HQ.floor,geos=[];
  const pool=(w,px,py,pz,rx,ry)=>{const g=new THREE.PlaneGeometry(w,w);g.rotateX(rx);g.rotateY(ry);g.translate(px,py,pz);geos.push(g);};
  for(const z of HQ_CHANDELIERS){pool(11,-18.5,Y+.06,z,-Math.PI/2,0);pool(5,-18.5,Y+.07,z,-Math.PI/2,0);if(!low)pool(6,-18.5,Y+HQ.ceil-.02,z,Math.PI/2,0);}
- for(const [px,pz] of HQ_TORCHES){const s=px<-18?1:-1;pool(4.2,px+s*.03,Y+3.4,pz,0,s*Math.PI/2);pool(4,px+s*1.6,Y+.05,pz,-Math.PI/2,0);}
+ for(const [px,pz] of HQ_LANTERNS){const s=px<-18?1:-1,wx=s>0?-32.25:-5.15;pool(5,px,Y+.06,pz,-Math.PI/2,0);pool(6.4,wx+s*.03,Y+HQ_BOARD_BAND.y,pz,0,s*Math.PI/2);}
+ for(const P of HQ_PANELS.filter(p=>p.face==='s'))pool(6.4,P.lx,Y+HQ_BOARD_BAND.y,P.lz-.02,0,Math.PI);
  pool(10,HQ.board.lx,Y+HQ.dais.rise+.05,-61.8,-Math.PI/2,0);
  const m=new THREE.Mesh(mergeGeometries(geos),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2}));geos.forEach(g=>g.dispose());m.renderOrder=2;group.add(m);}
 // [post-petstore] near-only pet store detail: props (boxes / cylinders / gables, rotations), unlit flames, carved signs, petlook.js textures, painted
