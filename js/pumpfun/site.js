@@ -10,7 +10,7 @@ export const HQ_TOWERS = Object.freeze([{ lx: -29.8, lz: -30.2, r: 2.0 }, { lx: 
 // BANKSY 12:45 AM "remove the tables on ground so can walk up to the boards": only corner stores remain, clear of every board front
 export const HQ_PROPS = Object.freeze([
   ['barrels', -31.1, -31.6, 2.4, 1.3], ['barrels', -5.8, -31.6, 1.2, 1.3], ['barrels', -31.4, -63.5, 1.3, 1.3], ['barrels', -5.8, -63.5, 1.3, 1.3],
-  ['crates', -31.6, -32.6, 1.3, 1.0], ['crates', -5.8, -32.5, 1.2, 1.0], ['crates', -5.8, -62.4, 1.2, 1.2],
+  ['crates', -31.6, -32.6, 1.3, 1.0], ['crates', -5.8, -32.5, 1.2, 1.0], ['crates', -5.8, -62.55, 1.2, 1.2],
 ]);
 export const HQ_PILLARS = Object.freeze([]);   // BANKSY 10:43 PM: no pillars; the roof spans on heavy trusses
 // Wall info-panel SLOTS (BANKSY 10:43 PM "more wall panels on the free walls"): framed in model.js, a placeholder face in render.js
