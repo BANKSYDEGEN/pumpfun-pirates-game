@@ -14,7 +14,9 @@ import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons]
 
 // Reuse the existing V6 modest-underwear models, not remodeled bodies or new textures.
 // Always use the existing LOW assets for this many-body bake; players' V7 models are untouched.
-export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v6_lo.glb', female: 'assets/pirates/pirate_female_v6_lo.glb' };
+// [perf v461] crew-only copies of the V6 Low bodies: body mesh simplified 25k -> 6k tris (eyes + tattoo untouched), atlases 4096/2048 -> 1024/512
+// (crew are ~1 m tall on screen): 3.3 MB -> 1 MB at boot and ~200k fewer triangles per ship. Rebuild: tools/perf/crew_bodies.mjs
+export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v6_crew.glb', female: 'assets/pirates/pirate_female_v6_crew.glb' };
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }

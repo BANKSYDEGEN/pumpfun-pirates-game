@@ -1278,7 +1278,10 @@ function goldPirateStatue(root, low) {
     scn.traverse(o => { if (o.isMesh) { o.material = gold; o.castShadow = false; o.frustumCulled = false; } });
     scn.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(scn), hgt = bb.max.y - bb.min.y || 1, s = 1.4 / hgt;
     const g = new THREE.Group(); g.name = 'gold_pirate_statue'; scn.scale.setScalar(s); scn.position.y = -bb.min.y * s; g.add(scn);
-    g.position.set(x, S0.y + 1.25, z); g.rotation.y = R; root.add(g);
+    g.position.set(x, S0.y + 1.25, z); g.rotation.y = R;
+    // [perf v461] frustumCulled is off on the posed skinned body, so it drew from everywhere (23k tris): an LOD hides it past 70 m / 140 m
+    const lod = new THREE.LOD(); lod.name = 'gold_pirate_statue_lod'; lod.position.copy(g.position); g.position.set(0, 0, 0); g.rotation.y = 0; lod.rotation.y = R;
+    lod.addLevel(g, 0); lod.addLevel(new THREE.Group(), low ? 70 : 140); root.add(lod);
   }).catch(e => console.warn('[ruins] gold statue', e));
 }
 export function buildInland(A, low, F) {

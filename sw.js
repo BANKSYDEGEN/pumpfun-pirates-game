@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v462'; // V7 statue mannequins: unmodified V7 pirate in one stone colour
+const VERSION = 'pfp-v463'; // perf: cache-first service worker (per-VERSION cache, background revalidate), light crew bodies, casino dealers + gold statue distance-culled
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -421,9 +421,24 @@ self.addEventListener('fetch', (e) => {
   if (url.hostname.endsWith('supabase.co') || url.pathname.includes('/rest/v1/')) return;
   // [security M4] only same-origin files are cached (no third-party script is ever served from the cache)
   if (url.origin !== self.location.origin) return;
-  // same-origin: network-first (fresh when online), cache fallback offline
-  e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => { // revalidate (cheap 304s): never mix an old cached file with new ones after an update
-    if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+  // [perf v461] pages, sw.js and Range (media) requests: network-first as before (fresh when online), cache fallback offline
+  const live = () => fetch(req, { cache: 'no-cache' }).then(res => { // revalidate (cheap 304s)
+    if (res.ok && res.status === 200) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)).catch(() => {}); }
     return res;
-  }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match('./index.html'))));
+  });
+  if (req.mode === 'navigate' || req.headers.has('range') || /\/sw\.js$/.test(url.pathname) || /[?&]nocache=1(&|$)/.test(url.search)) {
+    e.respondWith(live().catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match('./index.html'))));
+    return;
+  }
+  // [perf v461] BANKSY t2169u "optimize load time": every other same-origin file is served straight from THIS version's cache (the cache is
+  // keyed by VERSION and refilled from the network on every bump, so a release can never mix old + new files), and revalidated once per
+  // worker in the background (low priority) so a file changed without a VERSION bump is still fresh by the next load. The old network-first
+  // path waited one round trip per file (~140 of them, chained through the module graph) on every boot, even when nothing had changed.
+  e.respondWith(caches.open(VERSION).then(c => c.match(req)).then(hit => {
+    if (!hit) return live().catch(() => caches.match(req, { ignoreSearch: true }).then(h => h || caches.match('./index.html')));
+    if (!REVAL.has(req.url)) { REVAL.add(req.url); e.waitUntil(new Promise(r => setTimeout(r, 4000)).then(() => fetch(req, { cache: 'no-cache', priority: 'low' })).then(res => {
+      if (res.ok && res.status === 200) return caches.open(VERSION).then(c => c.put(req, res)); }).catch(() => {})); }
+    return hit;
+  }).catch(() => live()));
 });
+const REVAL = new Set(); // [perf v461] urls revalidated by this worker instance
