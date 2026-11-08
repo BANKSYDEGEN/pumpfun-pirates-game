@@ -14,7 +14,7 @@ test('transitions avoid hidden island rebuilds, forced gear clones and realtime 
   assert.match(hull, /else releaseQuartersGpu\(\)/);
   assert.match(hull, /for \(const t of textures\) t\?\.dispose/);
 });
-test('actual canvas loss and watchdog both recover; first loss persists LOW; reload loop bounded', () => {
+test('actual loss and missing-event watchdog recover once in LOW without overwriting saved graphics; loop bounded', () => {
   const code = main.slice(main.indexOf('let glLost ='), main.indexOf('renderer.toneMapping ='));
   const saved = new Map(); let reloads = 0;
   for (let boot = 0; boot < 3; boot++) {
@@ -31,10 +31,27 @@ test('actual canvas loss and watchdog both recover; first loss persists LOW; rel
       harborResumeSave(){}, location:{reload:()=>reloads++} });
     if (boot===0) { lost=true; interval(); } // Chrome omitted the native event
     else { const e=new Event('webglcontextlost',{cancelable:true}); canvas.dispatchEvent(e); assert.ok(e.defaultPrevented); }
-    assert.ok(notice); assert.equal(saved.get('pfp_gfx'),'low');
-    assert.ok(+saved.get('pfp_ctx_last_loss')>0);
+    assert.ok(notice); assert.equal(saved.get('pfp_gfx'),undefined);
+    assert.equal(saved.get('pfp_ctx_last_loss'),undefined);
     timers.shift()();
     if(boot===2) assert.match(notice.textContent,/GRAPHICS PAUSED/);
   }
   assert.equal(reloads,2);
+});
+
+test('a long island build is not a lost WebGL context and must not reload', () => {
+  const code = main.slice(main.indexOf('let glLost ='), main.indexOf('renderer.toneMapping ='));
+  let interval, notices = 0, saves = 0;
+  const context = vm.createContext({ Number, JSON, Error, Date, Event, quality: 'high',
+    performance: { now: () => 20000 }, window: {},
+    canvas: { addEventListener() {}, dispatchEvent() { throw Error('healthy context treated as lost'); } },
+    renderer: { getContext: () => ({ isContextLost: () => false }) },
+    document: { hidden: false, addEventListener() {}, getElementById() {},
+      createElement() { notices++; }, body: { appendChild() {} } },
+    setInterval: f => interval = f, setTimeout() {}, clearTimeout() {},
+    harborResumeSave() { saves++; }, location: { reload() { throw Error('unexpected reload'); } } });
+  vm.runInContext(code, context);
+  vm.runInContext('graphicsFrameSeen = true; graphicsLastFrame = 0; graphicsVisibleAt = 0;', context);
+  interval();
+  assert.equal(notices, 0); assert.equal(saves, 0);
 });

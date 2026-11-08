@@ -1,3 +1,4 @@
+import { renderPixelRatio, sceneSamples } from './graphicsBudget.js';
 import { createGameplayHint } from './hudDeclutter.js';
 // PUMPFUN PIRATES · Storm Hunt — main game
 import { mergeIslandKits, installShadowProxies, trimSmallCasters } from './staticMerge.js';
@@ -118,8 +119,11 @@ const canvas = $('game');
 // [perf2] BANKSY "hd sharp and fast": MSAA on every tier except an explicit LOW pick (phones were aliased at 1.0x); phones start at
 // 1.5x on 2x+ screens (was 1.25, often stepped to 1.0 = blurry on a 3x phone), desktop 2x cap. Adaptive steps down only on slow FPS.
 const DPR = window.devicePixelRatio || 1, LOW_PICK = gfxPick === 'low';
-const PR0 = Math.min(CONSOLE ? 1.25 : isMobile ? 1.5 : 2, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high' || !LOW_PICK, powerPreference: 'high-performance' });
+const PR_WANTED = Math.min(CONSOLE ? 1.25 : isMobile ? 1.5 : 2, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
+// Bound framebuffer memory before the island's first shader/geometry upload, not 12 seconds later.
+const PR0 = renderPixelRatio(innerWidth, innerHeight, PR_WANTED, ULTRA);
+// HIGH renders into its own multisampled scene target: a second MSAA canvas is unused.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !(quality === 'high' && !isMobile) && !LOW_PICK, powerPreference: 'high-performance' });
 renderer.setPixelRatio(PR0); // [ultra] supersamples 1x screens
 // [perf2] three.js reads every shader's info log after compiling (forces a synchronous wait per program: ~4.8 s of a 15 s desktop
 // harbor entry). Off in production; ?shaderdebug=1 turns the checks back on.
@@ -169,17 +173,19 @@ const graphicsHistory = [];
 function graphicsSample(reason) {
   const m = renderer.info.memory;
   const sample = { reason, ms: Math.round(performance.now()), geometries: m.geometries,
-    textures: m.textures, programs: renderer.info.programs?.length || 0 };
+    textures: m.textures, programs: renderer.info.programs?.length || 0,
+    pixelRatio: renderer.getPixelRatio?.(), pixels: canvas.width * canvas.height,
+    heap: performance.memory?.usedJSHeapSize || 0 };
   graphicsHistory.push(sample); if (graphicsHistory.length > 48) graphicsHistory.shift();
   window.__pfpGraphics = { history: graphicsHistory, quality, lost: glLost };
 }
 document.addEventListener('visibilitychange', () => { graphicsVisibleAt = graphicsLastFrame = performance.now(); });
 setInterval(() => {
   if (document.hidden || glReloading) return;
-  const now = performance.now();
-  // Covers missing browser events; the DOM notice uses the same event handler.
-  if (!glLost && (renderer.getContext().isContextLost() ||
-      (graphicsFrameSeen && now - graphicsLastFrame > 6000 && now - graphicsVisibleAt > 6000))) {
+  // Only a real lost context may trigger recovery. Island construction / shader compilation
+  // can block frames for >6 s with a healthy context; fabricating a loss then reloads a
+  // working game, and the reload itself can repeat the expensive island construction.
+  if (!glLost && renderer.getContext().isContextLost()) {
     canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
   }
 }, 1000);
@@ -270,7 +276,7 @@ if (HIGH) {
       import('three/addons/postprocessing/OutputPass.js'), import('three/addons/shaders/FXAAShader.js'),
     ]);
     // [ultra] 4x MSAA half-float target, stronger bloom so Diamond / Golden / Flaming glow, SMAA, subtle grade
-    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 })); // [perf2] HIGH too: 4x MSAA scene target (was FXAA only = soft edges + blurred text-like detail)
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: sceneSamples(ULTRA) })); // 2x on HIGH; 4x is reserved for opt-in ULTRA
     // Only the scene target needs MSAA/depth. Fullscreen post passes need neither.
     // Pin read/write roles at frame start (none of these passes has temporal history).
     composer.renderTarget1.samples = 0; composer.renderTarget1.depthBuffer = false;
@@ -1427,7 +1433,8 @@ function adaptResolution() {
   if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; ADAPT.downAt = now; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); return; }
   let up = null; for (let i = ADAPT.steps.length - 1; i >= 0; i--) { const r = ADAPT.steps[i]; if (r > renderer.getPixelRatio() + 0.01 && r <= PR0) { up = r; break; } }
   up ||= renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null;
-  if (up && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
+  if (up) { const [w, h] = viewSize(); up = renderPixelRatio(w, h, up, ULTRA); }
+  if (up > renderer.getPixelRatio() + 0.01 && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
 }
 const gameplayHint = createGameplayHint(document.documentElement);
 addEventListener('keydown', (e) => {
@@ -1663,6 +1670,9 @@ function onResize() {
   const root = document.documentElement.style;
   root.setProperty('--app-w', `${w}px`); root.setProperty('--app-h', `${h}px`);
   fitCamera(w, h); if (camLow) applyCamLow();
+  // Re-cap on resize too (Windows scaling, fullscreen and 4K displays).
+  const capped = renderPixelRatio(w, h, Math.min(renderer.getPixelRatio(), PR_WANTED), ULTRA);
+  if (capped !== renderer.getPixelRatio()) renderer.setPixelRatio(capped);
   renderer.setSize(w, h);
   if (composer) {
     const pr = renderer.getPixelRatio();
