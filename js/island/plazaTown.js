@@ -153,7 +153,7 @@ export const PLAZA = {
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
 export function plazaGround(lx, lz, h) {
-  if(lx>HQ.lx0&&lx<HQ.lx1&&lz>-48&&lz<HQ.lz1)h=HQ.floor-.05;
+  if(lx>=HQ.lx0&&lx<=HQ.lx1&&lz>=HQ.lz0&&lz<HQ.lz1)h=Math.min(h,HQ.floor-.05);   // [post-hq-castle] whole footprint
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
     const w = sm(SLAB.lx0 - 4, SLAB.lx0, lx) * (1 - sm(SLAB.lx1, SLAB.lx1 + 4, lx)) * sm(SLAB.lz0 - 4, SLAB.lz0, lz); h = h * (1 - w) + Math.max(h, STREET_Y - 0.04) * w; }
@@ -388,14 +388,19 @@ export function buildPlazaV2(h) {
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
   // Use the EXACT shared W/box/M stone kit and masonry/trim/tile library layers as stoneHouse.
-  for(const p of hqParts()) { if(low&&p.detail)continue;const [x,z]=T(p.x,p.z);
-    const geo=p.kind==='gable'?new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3)):box(p.w,p.h,p.d);
-    if(p.kind==='gable')geo.computeVertexNormals();
-    W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0,p.rx||0),false); }
-  h.addDeck?.({x:T(-18.5,-39)[0],z:T(-18.5,-39)[1],hw:14,hl:9,yaw:yaw0,y:HQ.floor});
+  for(const p of hqParts()) { if((low&&p.detail)||p.glow)continue; // glow flames: render.js buildHQ (unlit, near only)
+    const [x,z]=T(p.x,p.z); let geo;
+    if(p.kind==='gable'){geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3));geo.computeVertexNormals();}
+    else if(p.kind==='cyl')geo=cyl(p.r,p.r1,p.h,low?Math.max(8,p.n>>1):p.n);else geo=box(p.w,p.h,p.d);
+    W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0+(p.ry||0),p.rx||0,p.rz||0),false); }
+  // [post-hq-castle] one floor over the WHOLE footprint (the old rear mass is gone), the back dais (0.4 m: a step), and the
+  // Hill Street door threshold, which meets the street flush (street H at lz -48 is ~2.7 = HQ.floor)
+  h.addDeck?.({x:T(-18.5,-47.5)[0],z:T(-18.5,-47.5)[1],hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor});
+  { const D=HQ.dais, c=T(-18.5,(D.lz0+D.lz1)/2); h.addDeck?.({x:c[0],z:c[1],hw:13.8,hl:(D.lz1-D.lz0)/2,yaw:yaw0,y:HQ.floor+D.rise}); }
+  { const c=T(HQ.hillDoor.lx,HQ.hillDoor.lz); h.addDeck?.({x:c[0],z:c[1],hw:1.2,hl:HQ.hillDoor.w/2,yaw:yaw0,y:HQ.floor}); }
   // Collision exists even before the interactive canvases load.
   for (const [lx,lz,w,d] of HQ_WALLS) addBox(...T(lx,lz),w,d,yaw0);
-  camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: -47.5, lz1: -30.5 }, 7.8);
+  camRoom({ id: HQ.id, lx0: HQ.lx0+.8, lx1: HQ.lx1-.8, lz0: HQ.lz0+.8, lz1: HQ.lz1-.5 }, HQ.ceil-.4, HQ.floor);
   camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way

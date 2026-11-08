@@ -9,7 +9,7 @@ const src=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('HQ fits before trader and leaves existing Hill Street, Outfit Store and walk route clear',()=>{
  assert.ok(HQ.lx0>=-33&&HQ.lx1<=-4);assert.ok(HQ.lz0>=-65&&HQ.lz1<=-30);
  assert.ok(HQ.lz0>-68.5);assert.ok(HQ.lx0>-34);assert.ok(HQ.lx1<-1);
- for(const [x,z,w,d] of HQ_WALLS){assert.ok(x-w/2>=HQ.lx0-.01&&x+w/2<=HQ.lx1+.01);assert.ok(z-d/2>=HQ.lz0-.01&&z+d/2<=HQ.lz1+.01);assert.ok(!(x-w/2< HQ.door.lx && x+w/2>HQ.door.lx&&z+d/2>=HQ.door.lz-.6));}
+ for(const [x,z,w,d] of HQ_WALLS){assert.ok(x-w/2>=HQ.lx0-.01&&x+w/2<=HQ.lx1+.01);assert.ok(z-d/2>=HQ.lz0-.01&&z+d/2<=HQ.lz1+2.1);assert.ok(!(x-w/2< HQ.door.lx && x+w/2>HQ.door.lx&&z+d/2>=HQ.door.lz-.6));}
 });
 test('first really empty hill room is L4; buyer shops and trader are preserved',()=>{assert.equal(PET_LOT.lot,'L4');assert.equal(PET_LOT.id,'rent_5');const I=PET_LOT.interior;assert.ok(PET_SHOP.lx>I.lx0&&PET_SHOP.lx<I.lx1);assert.ok(PET_SHOP.lz>I.lz0&&PET_SHOP.lz<I.lz1);assert.ok(petFloor(I.lz0)>petFloor(I.lz1));assert.ok(PET_SHOP.keeper.lx<I.lx0+1);});
 test('moved boards retain safe gaps from lamps, palms and street, common source drives prompts',()=>{for(const b of Object.values(TOKEN_BOARD_SPOTS)){assert.equal(b.lz,-14);assert.ok(b.lx<-27);assert.ok(b.lx-2.3>-54);assert.ok(b.lz+2.2>-14);}assert.match(src('js/island/plazaTown.js'),/\.\.\.tokenSpot\(t.sym\)/);assert.match(src('js/dock/layout.js'),/tb.lz \+ 2.2/);});
@@ -19,36 +19,52 @@ test('one lazy poller coalesces callers, bounded cadence, prices stay last-known
  await feed.tick(false);assert.equal(calls.length,0);await Promise.all([feed.tick(true),feed.tick(true)]);assert.equal(calls.length,3);assert.equal(feed.state.prices.SUNK.price,.01);await feed.tick(true);assert.equal(calls.length,3);now+=PRICE_MS;fail=true;await feed.tick(true);assert.equal(feed.state.prices.SUNK.price,.01);assert.equal(feed.state.prices.SUNK.stale,true);
 });
 test('discovery distinguishes sponsored boosts; never invents bonding progress or ranking rows',async()=>{let now=1;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>({ok:true,json:async()=>url.includes('/launches')?{source:'pumpfun:unavailable',launches:[]}:url.includes('trending_pools')?{data:[],included:[]}:[]})});await feed.tick(true,true);assert.deepEqual(feed.state.bonding,[]);assert.match(feed.state.status.bonding,/unavailable/);assert.match(feed.state.status.callouts,/PAID PROMOTION/);assert.ok(DISCOVERY_MS>=120000);});
-test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<65);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
+test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<600&&hqParts().filter(p=>p.glow).length<90);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
 
-test('high-ceiling hall uses the shared plaza stone kit; neutral signs retain referral targets',()=>{
- const parts=hqParts(),floor=HQ.floor;
- const ceiling=parts.find(p=>p.z===-39&&p.w===28&&p.h===.35);
- assert.ok(ceiling.y-ceiling.h/2-floor>=7.8);
- const front=parts.find(p=>p.z===-30.3&&p.w===11.5),back=parts.find(p=>p.z===-56.5&&p.h===9.6);
- assert.ok(front.y+front.h/2>=back.y+back.h/2);
- assert.ok(HQ.board.h>=6&&HQ.board.w>=24);
- assert.match(src('js/island/plazaTown.js'),/p.mat\|\|0/);
- assert.ok(parts.some(p=>p.mat===11));assert.ok(parts.some(p=>p.mat===22));assert.ok(parts.some(p=>p.mat===4&&p.rx===.55));
- assert.ok(!src('js/dock/pumpfun.js').includes('BANKSYDEGEN'));
- assert.ok(!src('js/pumpfun/render.js').includes('BANKSYDEGEN'));
- assert.match(src('js/pumpfun/render.js'),/PET_LOT.doorY\+3.6/);
-});
-
-test('cancelled hill entrance leaves no ramp, terrain override, deck or post colliders',()=>{
+import {HQ_PILLARS,HQ_TOWERS} from '../js/pumpfun/site.js';
+const inBox=([x,z,w,d],px,pz,pad=.3)=>Math.abs(px-x)<w/2+pad&&Math.abs(pz-z)<d/2+pad;
+const solidAt=(lx,lz,pad=.3)=>HQ_WALLS.some(b=>inBox(b,lx,lz,pad));
+test('the rear wall is gone: one hall over the whole footprint, open across the old wall line (lz -48)',()=>{
+ assert.ok(!HQ_WALLS.some(([x,z,w,d])=>d>5&&w>5)); // no solid rear mass of any size
+ assert.ok(!hqParts().some(p=>p.z===-56.5&&p.h===9.6));
+ for(let lz=-31;lz>=-63.8;lz-=.25) assert.ok(!solidAt(-18.5,lz),'centre aisle blocked at '+lz);
+ for(const lx of [-30,-18.5,-8]) for(const lz of [-47,-48,-49,-50]) assert.ok(!solidAt(lx,lz),'old wall line blocked at '+lx);
  const plaza=src('js/island/plazaTown.js');
- for(const removed of ['entranceGround','entranceParts','HILL_ENTRANCE','x:ex,z:ez,hw:3,hl:12','[2.75,10.25]'])assert.ok(!plaza.includes(removed),removed);
- assert.match(plaza,/for\(const p of hqParts\(\)\)/);
- assert.match(plaza,/hw:14,hl:9,yaw:yaw0,y:HQ.floor/); // HQ floor remains
+ assert.match(plaza,/lz>=HQ.lz0&&lz<HQ.lz1\)h=Math.min\(h,HQ.floor-.05\)/); // floor flattened to the back wall
+ assert.match(plaza,/hw:14.2,hl:17.2,yaw:yaw0,y:HQ.floor/);
+ assert.match(plaza,/lz0: HQ.lz0\+.8, lz1: HQ.lz1-.5 \}, HQ.ceil-.4/);
 });
-
-test('east wall is restored and no unsafe rear opening is cut into the rising hill',()=>{
- assert.ok(!HQ.sideDoor);
- assert.ok(HQ_WALLS.some(([x,z,w,d])=>x===-4.3&&z===-39.5&&w===.6&&d===19));
- assert.ok(hqParts().some(p=>p.x===-4.3&&p.z===-39.5&&p.d===19));
- assert.ok(!hqParts().some(p=>p.x===-3.3&&p.z===-42));
- assert.ok(HQ_WALLS.some(([x,z,w,d])=>x===-18.5&&z===-56.5&&w===29&&d===17));
- assert.ok(!src('js/island/plazaTown.js').includes('y:HQ.floor+.15'));
+test('tall gilded beamed ceiling, chandeliers and painted light pools, no realtime lights',()=>{
+ const parts=hqParts(),Y=HQ.floor;assert.ok(HQ.ceil>=11);
+ const ceiling=parts.find(p=>p.mat===26&&p.w>25&&p.d>30);assert.ok(ceiling.y-ceiling.h/2-Y>=11);
+ assert.ok(parts.filter(p=>p.glow).length>=30);
+ const r=src('js/pumpfun/render.js');assert.ok(!/PointLight|SpotLight|PMREM/.test(r));assert.match(r,/AdditiveBlending/);assert.match(r,/c.width=c.height=128/);
+ assert.match(src('js/dock/pumpfun.js'),/hq.dispose\(\)/);
+ assert.ok(!src('js/dock/pumpfun.js').includes('BANKSYDEGEN'));assert.ok(!r.includes('BANKSYDEGEN'));
+ assert.match(r,/PET_LOT.doorY\+3.6/);
+});
+test('pirate-fortress exterior: crenellated parapet, round gun towers, stone kit materials, no roof cones',()=>{
+ const parts=hqParts(),TOP=HQ.floor+HQ.wallTop;
+ assert.ok(parts.filter(p=>p.kind==='box'&&p.y>TOP+.5&&p.y<TOP+1.5&&p.mat===11).length>=50);
+ assert.equal(HQ_TOWERS.length,2);assert.ok(parts.filter(p=>p.kind==='cyl').length>=6);
+ assert.ok(parts.some(p=>p.mat===11)&&parts.some(p=>p.mat===22)&&parts.some(p=>p.mat===26));
+ assert.ok(!src('js/pumpfun/model.js').includes('ConeGeometry'));
+ assert.match(src('js/island/plazaTown.js'),/p.kind==='cyl'/);
+});
+test('exactly two entrances: dock plaza gate + Hill Street door, both walkable; no back door, tunnel or ramp',()=>{
+ assert.ok(!HQ.sideDoor&&!HQ.backDoor);
+ // dock plaza gate: walk from the plaza straight in
+ for(let lz=-26;lz>=-34;lz-=.25) assert.ok(!solidAt(HQ.door.lx,lz,.35),'front gate blocked '+lz);
+ for(const lx of [HQ.door.lx-HQ.door.w/2-.6,HQ.door.lx+HQ.door.w/2+.6]) assert.ok(solidAt(lx,-30.3,0));
+ // Hill Street door: walk in from the street (east) across the 1 m wall
+ const D=HQ.hillDoor;for(let lx=-1;lx>=-9;lx-=.25) assert.ok(!solidAt(lx,D.lz,.35),'hill door blocked '+lx);
+ for(const lz of [D.lz-D.w/2-.6,D.lz+D.w/2+.6]) assert.ok(solidAt(D.lx,lz,0));
+ // the back wall is solid end to end (no door toward the trader), and it is the plaza deck height everywhere inside
+ for(let lx=-32;lx<=-5;lx+=.5) assert.ok(solidAt(lx,-64.7,0),'back wall gap '+lx);
+ const plaza=src('js/island/plazaTown.js');assert.ok(!plaza.includes('pumpfun_backdoor'));assert.ok(!src('js/pumpfun/model.js').includes('backDoor'));
+ assert.match(plaza,/c=T\(HQ.hillDoor.lx,HQ.hillDoor.lz\); h.addDeck/);
+ assert.ok(HQ.dais.rise<=.5); // a step, not a climb (DECK_STEP 0.6)
+ for(const q of HQ_PILLARS) assert.ok(Math.abs(q.lx-HQ.door.lx)>4);
 });
 
 // v475 supplied token_AHOY, which was never a SHOP_ICONS entry: the first
