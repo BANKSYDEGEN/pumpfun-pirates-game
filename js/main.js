@@ -109,6 +109,7 @@ registerCaptainBuilder(buildCaptainV4(quality === 'low' || isMobile)); setLocalC
 // [v106] your equipped gear for the crew (setLocalGear fires 'pfp-gear'); colours follow your pirate's rules (Timothy's getLocalColors when present)
 let localGear = getLocalGear(), crewGearT = 1, PGmod = null;
 import('./pirateGear.js').then(m => { PGmod = m; });
+import('./bondfx.js').then(m => m.startBondFx()).catch(() => {}); // [heliuswh] island-wide $SUNK BONDED celebration (chain-confirmed only)
 const localGearColors = () => getLocalColors();
 addEventListener('pfp-crew', () => { crewGearT = 0; }); addEventListener('pfp-gear', () => { crewGearT = 0; }); // [v109b] the crew reads getLocalGear() (your resolved gear + free colours), not the event's (the BR profile copy has no clothes colour)
 

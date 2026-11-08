@@ -39,8 +39,26 @@ function chart(g, c, x0, y0, x1, y1, compact = false) {
   if (compact) return;
   txt(g, price(hi), x1 - 8, py0 + 2, 19, C.muted, 'right', 66); txt(g, price(lo), x1 - 8, py1, 19, C.muted, 'right', 66);
   txt(g, '24h ago', x0 + 10, y1 - 8, 17, C.dim); txt(g, 'now', px1, y1 - 8, 17, C.dim, 'right'); }
+// Live trades strip ($AHOY/$SUNK): real swaps pushed by the Helius webhook (server-parsed); newest first, never synthesized.
+const kfmt = v => v == null || !Number.isFinite(v) ? '—' : v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v >= 1 ? v.toFixed(2) : v.toPrecision(2);
+const tradeQuote = r => r.sol != null ? (r.sol >= 1 ? r.sol.toFixed(2) : r.sol.toFixed(3)) + ' SOL' : r.quoteAmount != null && r.quote ? kfmt(r.quoteAmount) + ' ' + r.quote : '—';
+const tAge = (at, now) => { const s = Math.max(0, Math.floor((now - at) / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
+function tradesStrip(g, state, sym, x0, y0, x1, y1, now, compact = false) {
+ const rows = state.trades?.[sym], rh = compact ? 30 : 24, fs = compact ? 22 : 18, n = Math.max(1, Math.floor((y1 - y0 - rh) / rh));
+ g.fillStyle = 'rgba(0,0,0,0.35)'; rr(g, x0, y0, x1 - x0, y1 - y0, 8); g.fill();
+ txt(g, 'LIVE TRADES', x0 + 10, y0 + rh / 2 + 1, compact ? 19 : 16, C.dim);
+ if (state.tradeStream === 'live' || state.tradeStream === 'idle') { g.fillStyle = state.tradeStream === 'live' ? C.up : C.muted; g.beginPath(); g.arc(x1 - 14, y0 + rh / 2, 5, 0, 7); g.fill(); }
+ if (!Array.isArray(rows)) { txt(g, '—', (x0 + x1) / 2, (y0 + rh + y1) / 2, fs + 4, C.muted, 'center'); return; }
+ if (!rows.length) { txt(g, 'No trades yet', (x0 + x1) / 2, (y0 + rh + y1) / 2, fs + 4, C.muted, 'center'); return; }
+ rows.slice(0, n).forEach((r, i) => { const y = y0 + rh + i * rh, cy = y + rh / 2, buy = r.side === 'buy', col = buy ? C.up : C.down;
+  const left = (state.flashes?.trades?.[r.id] || 0) - now; if (left > 0) { g.save(); g.fillStyle = (buy ? 'rgba(63,210,127,' : 'rgba(255,90,79,') + (.28 * Math.min(1, left / 1000)) + ')'; g.fillRect(x0 + 2, y, x1 - x0 - 4, rh - 2); g.restore(); }
+  const w = x1 - x0; txt(g, buy ? 'BUY' : 'SELL', x0 + 10, cy, fs, col, 'left', w * .14, true);
+  txt(g, tradeQuote(r), x0 + w * (compact ? .40 : .36), cy, fs, '#ffe9b8', 'right', w * .24);
+  txt(g, kfmt(r.amount) + ' $' + sym, x0 + w * (compact ? .72 : .64), cy, fs, C.parch, 'right', w * .27);
+  if (!compact) txt(g, r.wallet || '—', x0 + w * .83, cy, fs - 2, C.dim, 'right', w * .18);
+  txt(g, tAge(r.at, now), x1 - 10, cy, fs, C.muted, 'right', w * .12); }); }
 // $AHOY / $SUNK: market cap, holder count, liquidity, volume, 24 h hourly price line. Every figure from a feed; "—" when a feed has no value.
-function drawOurs(g, board, state) { const W = 640;
+function drawOurs(g, board, state, now = Date.now()) { const W = 640;
  board.ours.forEach((sym, i) => { const t = WATCH_TOKENS.find(t => t.sym === sym), p = state.prices?.[sym], d = state.details?.[sym], y0 = 84, x0 = 28, x1 = W - 28;
   g.fillStyle = i % 2 ? 'rgba(0,0,0,0.30)' : 'rgba(255,226,170,0.08)'; rr(g, x0, y0, x1 - x0, 386, 12); g.fill(); g.strokeStyle = 'rgba(255,205,119,0.3)'; g.lineWidth = 1.5; g.stroke();
   logo(g, { mint: t.ca, symbol: sym, imageUrl: p?.imageUrl }, x0 + 34, y0 + 32, 23);
@@ -55,13 +73,14 @@ function drawOurs(g, board, state) { const W = 640;
    txt(g, progress == null ? '—' : '≈' + progress.toFixed(1) + '%', x1 - 12, y0 + 116, 22, C.gold, 'right', 94);
    if (progress != null) bar(g, x0 + 155, y0 + 113, x1 - x0 - 270, 7, progress / 100);
   }
-  const c = (d?.chart || []).filter(x => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > 0), cy0 = y0 + 132, cy1 = y0 + 372;
+  const c = (d?.chart || []).filter(x => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > 0), cy0 = y0 + 132, cy1 = y0 + 252;
+  tradesStrip(g, state, sym, x0 + 12, cy1 + 6, x1 - 12, y0 + 380, now);
   if (c.length >= 2) chart(g, c, x0 + 12, cy0, x1 - 12, cy1);
   else { g.fillStyle = 'rgba(0,0,0,0.35)'; rr(g, x0 + 12, cy0, x1 - x0 - 24, cy1 - cy0, 8); g.fill(); txt(g, d ? 'Chart feed offline' : 'Chart loading…', W / 2, (cy0 + cy1) / 2, 26, C.muted, 'center'); } }); }
 export function wallRows(board, state, now = Date.now()) { return board.rows(state, now).slice(0, DEX_PANEL_ROWS); }
 export function drawWallPanel(cv, board, state, now = Date.now(), compact = false) { if (compact) return drawCompact(cv, board, state, now); const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
- if (board.ours) { banner(g, W, board.title, board.icon, { y: 46, h: 56, size: 50 }); drawOurs(g, board, state); liveTag(g,state.updated?.prices,now,320,486,17,'center'); g.restore(); return; }
+ if (board.ours) { banner(g, W, board.title, board.icon, { y: 46, h: 56, size: 50 }); drawOurs(g, board, state, now); liveTag(g,state.updated?.prices,now,320,486,17,'center'); g.restore(); return; }
  banner(g, W, board.title, board.icon, { sub: board.sub });
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now);
  if (!rows.length) emptyState(g, W, status);
@@ -73,14 +92,14 @@ export function wallPanelMint(board, state, uv, now = Date.now(), compact = fals
 // Phone layout: big title, no subtitle, rank · logo · ticker · one value, ten rows filling the panel, "TAP TO READ" opens the 2D board.
 export function drawCompact(cv, board, state, now = Date.now()) { const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
- if (board.ours) { compactBanner(g, W, board.title, board.icon); drawOursCompact(g, board, state); liveTag(g,state.updated?.prices,now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); return; }
+ if (board.ours) { compactBanner(g, W, board.title, board.icon); drawOursCompact(g, board, state, now); liveTag(g,state.updated?.prices,now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); return; }
  compactBanner(g, W, board.title, board.icon);
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now), { y0, h } = wallGrid(true);
  if (!rows.length) compactEmpty(g, W, status);
  rows.forEach((r, i) => compactRow(g, W, i, y0 + i * h, h, r, r.cv || { name: r.spec.name, value: r.spec.mid }));
  rows.forEach((r,i)=>rowFlash(g,state,board.key,r.mint,24,y0+i*h,592,h-2,now)); liveTag(g,state.updated?.[board.key],now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); }
 // $AHOY / $SUNK on phones: price + change, then four big stats; chart kept, axis labels dropped. Every figure from a feed; "—" otherwise.
-function drawOursCompact(g, board, state) { const W = 640, sym = board.ours[0], t = WATCH_TOKENS.find(t => t.sym === sym), p = state.prices?.[sym], d = state.details?.[sym], x0 = 28, x1 = W - 28;
+function drawOursCompact(g, board, state, now = Date.now()) { const W = 640, sym = board.ours[0], t = WATCH_TOKENS.find(t => t.sym === sym), p = state.prices?.[sym], d = state.details?.[sym], x0 = 28, x1 = W - 28;
  logo(g, { mint: t.ca, symbol: sym, imageUrl: p?.imageUrl }, x0 + 30, 122, 26);
  btxt(g, p ? price(p.price) : state.status?.prices === 'Loading…' ? 'Loading…' : 'Feed offline', x0 + 66, 122, 40, '#fff8e6', 'left', 330);
  const ch = p?.change ?? null; btxt(g, ch == null ? '24h —' : pct(ch), x1 - 6, 122, 36, ch == null ? C.muted : ch < 0 ? C.down : C.up, 'right', 180);
@@ -89,6 +108,7 @@ function drawOursCompact(g, board, state) { const W = 640, sym = board.ours[0], 
   btxt(g, k, cx, y + 16, 22, C.muted, 'center', cw - 20, false); btxt(g, v, cx, y + 42, 32, '#ffe9b8', 'center', cw - 20); });
  let cy0 = 316;
  if (sym === 'SUNK' && !d?.bonded && d?.curveProgress != null) { btxt(g, 'BONDING ≈' + d.curveProgress.toFixed(1) + '%', x0 + 6, cy0 + 12, 22, C.gold, 'left', 260); bar(g, x0 + 270, cy0 + 6, x1 - x0 - 276, 12, d.curveProgress / 100); cy0 += 32; }
- const c = (d?.chart || []).filter(x => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > 0), cy1 = 470;
+ const c = (d?.chart || []).filter(x => Number.isFinite(x[0]) && Number.isFinite(x[1]) && x[1] > 0), cy1 = cy0 + Math.max(50, 470 - cy0 - 104);
+ tradesStrip(g, state, sym, x0, cy1 + 6, x1, 470, now, true);
  if (c.length >= 2) chart(g, c, x0, cy0, x1, cy1, true);
  else { g.fillStyle = 'rgba(0,0,0,0.35)'; rr(g, x0, cy0, x1 - x0, cy1 - cy0, 8); g.fill(); btxt(g, d ? 'Chart offline' : 'Chart loading…', W / 2, (cy0 + cy1) / 2, 28, C.muted, 'center'); } }

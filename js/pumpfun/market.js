@@ -119,6 +119,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   let pricesOK=true;
   for(const t of WATCH_TOKENS){const p=remote.prices?.[t.sym];if(p&&finite(p.price)>0&&now-(+p.updated||0)<180000&&!p.stale){state.prices[t.sym]=p;}else pricesOK=false;
    const d=remote.details?.[t.sym];if(d&&now-(+d.updated||0)<CACHE_MAX_AGE){const old=state.details[t.sym]||{};state.details[t.sym]={...old,...d,holders:d.holders??old.holders??null,chart:d.chart?.length>=2?d.chart:(old.chart||[]),bonded:old.bonded||d.bonded};}}
+  if(remote.trades&&typeof remote.trades==='object'){state.trades||={};state.flashes||={};const fl=state.flashes.trades||={};for(const t of WATCH_TOKENS){const rows=(Array.isArray(remote.trades[t.sym])?remote.trades[t.sym]:[]).filter(r=>r&&(r.side==='buy'||r.side==='sell')&&finite(r.at)>0&&typeof r.id==='string').slice(0,20);const seen=new Set((state.trades[t.sym]||[]).map(r=>r.id));if(state.trades[t.sym])for(const r of rows)if(!seen.has(r.id))fl[r.id]=now+2500;for(const [k,u] of Object.entries(fl))if(u<now)delete fl[k];state.trades[t.sym]=rows;}state.tradeStream=data.helius?.tradeStream||null;}
   if(pricesOK){state.updated.prices=remote.updated.prices;state.status.prices=remote.status?.prices||'Shared server cache';}else complete=false;
   if(discover&&now>=nextDetailFallback&&WATCH_TOKENS.some(t=>(state.details[t.sym]?.chart||[]).length<2)){nextDetailFallback=now+300000;details().catch(()=>{});}
   state.revision++;save(true);return complete;

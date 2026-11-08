@@ -29,3 +29,17 @@ export async function pollEnhanced(address: string, before?: string) {
  const u=new URL('https://api-mainnet.helius-rpc.com/v0/addresses/'+address+'/transactions');u.searchParams.set('api-key',key);u.searchParams.set('limit','20');if(before)u.searchParams.set('before',before);
  const r=await fetch(u,{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('chain source unavailable');return await r.json();
 }
+// $SUNK pump.fun bonding curve, read straight from chain. Address = PDA(["bonding-curve", mint], 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P),
+// verified Nov 8 2026. Layout: 8-byte discriminator, then u64 virtualToken, virtualQuote, realToken, realQuote, supply, then bool complete.
+export const CURVES: Record<string,string> = { By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump: 'Gyv6bpd6MLrPMYY4zdyE7hzWpcG3C6TnhnsEFqKoLT5b' };
+const CURVE_PROGRAM='6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P', SELLABLE=793_100_000_000_000n, OFFSET=279_900_000_000_000n;
+export async function readCurve(mint: string) {
+ const addr=CURVES[mint];if(!addr||!heliusConfigured())return null;
+ const r:any=await heliusRPC('getAccountInfo',[addr,{encoding:'base64',commitment:'confirmed'}]);const v=r?.value;
+ if(!v||v.owner!==CURVE_PROGRAM||!Array.isArray(v.data))return null;
+ const b=Uint8Array.from(atob(v.data[0]),c=>c.charCodeAt(0));if(b.length<49)return null;const dv=new DataView(b.buffer);
+ const vt=dv.getBigUint64(8,true),rt=dv.getBigUint64(24,true),complete=b[48]===1;
+ if(complete)return {bonded:true,progress:100,slot:r.context?.slot??null};
+ if(vt-rt!==OFFSET||rt>SELLABLE)return null; // unknown curve configuration: publish nothing rather than a guess
+ return {bonded:false,progress:Number(SELLABLE-rt)*100/Number(SELLABLE),slot:r.context?.slot??null};
+}
