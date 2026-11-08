@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { STOREFRONTS, SHOPS_OUTSIDE, CLOTHES_ROOM, FACADE_LZ, HALLS, signList } from '../js/island/plazaTown.js';
 import { OUTFIT_STORE, outfitWalls, outfitRooms } from '../js/island/outfitStore.js';
-import { MALE_SHOP_DISPLAYS, BLANK_FORMS, blankBodyGeometry, SKULL, SHRINK } from '../js/island/plazaMannequins.js';
+import { MALE_SHOP_DISPLAYS, BLANK_FORMS, blankBodyGeometry, NECK, SHRINK } from '../js/island/plazaMannequins.js';
 import { CLOTHES_LAMPS, ACC_LAMPS } from '../js/island/clothesLook.js';
 import { mapLandmarks } from '../js/mapLandmarks.js';
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
@@ -60,25 +60,21 @@ test('walk in through each arch to its own counter prompt, and through the archw
   }
   const R = outfitRooms(); assert.equal(R.length, 2); assert.ok(R[0].lx1 < R[1].lx0, 'two camera rooms, split by the middle wall');
 });
-test('blank V7 forms: real V7 head, hair flattened onto the skull (no holes), braid pressed flat, body inside the garments', () => {
+test('V7 statue forms: the unmodified V7 head + hair, one stone colour, only the bare body eased inside the garments', () => {
   assert.ok(BLANK_FORMS.has('shop_clothes'));
-  // 0 hair above the crown, 1 a lock off the side of the head, 2 her braid, 3 bare torso, 4 the face (nose tip)
-  const pos = new Float32Array([0, 1.5, 0.0, 0.3, 1.1, 0.1, 0.0, 0.6, -0.15, 0.2, 0.4, 0.05, 0, 1.05, 0.2]), uv = new Float32Array(10);
-  const nrm = new Float32Array(15); nrm[11] = 1;
+  // 0 hair above the crown, 1 face (nose tip), 2 her braid (hair mask), 3 bare torso, 4 boot level
+  const pos = new Float32Array([0, 1.5, 0.0, 0, 1.05, 0.2, 0.0, 0.6, -0.15, 0.2, 0.4, 0.05, 0.1, 0.1, 0.05]), uv = new Float32Array([0, 0, 0, 0, 0.75, 0.75, 0, 0, 0, 0]);
+  const nrm = new Float32Array(15); for (let i = 0; i < 5; i++) nrm[i * 3 + 2] = 1;
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  g.setIndex([0, 1, 4, 2, 3, 4]);
-  const before = pos.slice(), b = blankBodyGeometry(g, true, null), P = b.attributes.position, H = b.attributes.blankHair;
+  const d = new Uint8ClampedArray(4 * 4 * 4); d[(3 * 4 + 3) * 4 + 1] = 255;   // hair channel only where the braid's uv points
+  const before = pos.slice(), b = blankBodyGeometry(g, true, { w: 4, h: 4, d }), P = b.attributes.position;
   assert.deepEqual(Array.from(g.attributes.position.array), Array.from(before), 'source untouched');
-  assert.equal(b.index.count, 6, 'no triangle removed (no holes)');
-  const K = SKULL.f, L = (i, [c, r]) => Math.hypot(...[P.getX(i), P.getY(i), P.getZ(i)].map((v, k) => (v - c[k]) / r[k]));
-  for (const i of [0, 1]) { const ls = L(i, K.skull), lj = L(i, K.jaw);
-    assert.ok((Math.abs(ls - 1) < 1e-4 && lj >= 0.999) || (Math.abs(lj - 1) < 1e-4 && ls >= 0.999), 'hair lands on the bald skull / jaw surface'); assert.equal(H.getX(i), 1); }
-  assert.deepEqual([P.getX(2), P.getY(2)], [0, before[7]]); assert.ok(Math.abs(P.getZ(2) + 0.075) < 1e-6, 'her braid is pressed into the back'); assert.equal(H.getX(2), 1);
-  assert.ok(Math.abs(P.getZ(3) - (0.05 - SHRINK)) < 1e-6, 'the bare torso sits inside the garments'); assert.equal(H.getX(3), 0);
-  assert.deepEqual([P.getX(4), P.getY(4), P.getZ(4)].map(v => +v.toFixed(5)), [0, 1.05, 0.2], 'the real V7 face stays'); assert.equal(H.getX(4), 0);
-  assert.equal(b.attributes._tint, undefined);
+  for (const i of [0, 1, 2, 4]) assert.deepEqual([P.getX(i), P.getY(i), P.getZ(i)], [before[i * 3], before[i * 3 + 1], before[i * 3 + 2]], 'V7 head / hair / braid / feet keep their exact shape');
+  assert.ok(Math.abs(P.getZ(3) - (0.05 - SHRINK)) < 1e-6, 'the bare torso sits inside the garments');
+  assert.ok(NECK.m > 0.8 && NECK.f > 0.8);
   const src = read('js/island/plazaMannequins.js');
-  assert.match(src, /color: 0xece4d6/); assert.doesNotMatch(src, /\.map\s*=|v7Skin|v7Hair|discard/);
+  assert.match(src, /STATUE_TONE = 0x/); assert.match(src, /lod: blank && !low \? 'hi' : 'lo'/);
+  assert.doesNotMatch(src, /v7Skin|v7Hair|discard|SKULL/);
 });
 test('painted light only: no realtime lights, render targets or textures; one 16-lamp bank per area', () => {
   for (const f of ['js/island/clothesLook.js', 'js/island/plazaMannequins.js', 'js/island/outfitStore.js']) assert.doesNotMatch(read(f), /PointLight|SpotLight|PMREM|WebGLRenderTarget|CanvasTexture|DataTexture/);
