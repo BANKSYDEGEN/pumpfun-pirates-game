@@ -391,7 +391,7 @@ export function buildPlazaV2(h) {
   for(const p of hqParts()) { if((low&&p.detail)||p.glow)continue; // glow flames: render.js buildHQ (unlit, near only)
     const [x,z]=T(p.x,p.z); let geo;
     if(p.kind==='gable'){geo=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(gableVertices(p),3));geo.computeVertexNormals();}
-    else if(p.kind==='cyl'){const n=low?Math.max(8,p.n>>1):p.n;geo=cyl(p.r,p.r1,p.h,n);if(p.half){const ref=geo;geo=new THREE.CylinderGeometry(p.r,p.r1,p.h,n>>1,1,false,-Math.PI/2,Math.PI);if(!ref.index)geo=geo.toNonIndexed();for(const a of Object.keys(geo.attributes))if(!ref.attributes[a])geo.deleteAttribute(a);for(const a of Object.keys(ref.attributes))if(!geo.attributes[a])geo.setAttribute(a,new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count*ref.attributes[a].itemSize),ref.attributes[a].itemSize));ref.dispose();}}   // half: exterior half-drum (towers)else geo=box(p.w,p.h,p.d);
+    else if(p.kind==='cyl'){const n=low?Math.max(8,p.n>>1):p.n;geo=p.half?new THREE.CylinderGeometry(p.r,p.r1,p.h,Math.max(4,n>>1),1,false,-Math.PI/2,Math.PI):cyl(p.r,p.r1,p.h,n);}else geo=box(p.w,p.h,p.d);   // half: exterior half-drum (towers)
     W(k,geo,Number(p.c.replace('#','0x')),p.mat||0,M(x,p.y,z,yaw0+(p.ry||0),p.rx||0,p.rz||0),false); }
   // [post-hq-castle] one floor over the WHOLE footprint (the old rear mass is gone), the back dais (0.4 m: a step), and the
   // Hill Street door threshold, which meets the street flush (street H at lz -48 is ~2.7 = HQ.floor)
