@@ -1,3 +1,4 @@
+import { CREW_ITEM_LODS } from './crewItemLods.js';
 import { V7M_FITS, V7M_SKIP } from './v7mFitData.js';
 import { V7F_FITS, V7F_PANTS_DYE_Y } from './v7fFitData.js';   // [v7f gear] BANKSY t436u: V7 female refits (footwear + peg legs) + her pants dye height
 export const V7F_PAINT = { facepaint_retardio: { hi: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_hi.glb', lo: 'assets/pirates/items/v7f_paint/facepaint_retardio_female_lo.glb' } };   // [v7f paint] V7 female face paints (tools/v7f_paint/), built from her own face
@@ -795,7 +796,9 @@ export async function petMesh(id, female, low) {
 }
 async function buildV5(p, def, opts, low, body, skel, names) {
   if (def.meshy) { const o = await meshyScene(def.meshy, def.id); o.name = 'item_' + def.id; o.position.fromArray(PET_RIG[def.id].anchor); body.parent.add(o); if (o.userData.layer) p.addPost?.('items', itemsPost, 2); return { obj: o }; }   // [v360] beside your foot (bind space)
-  const base = p.female ? 'female' : 'male', { geo: g0, mat } = await v5Geometry(def.v5[base][p.lod], names);
+  const base = p.female ? 'female' : 'male', sourceURL = def.v5[base][p.lod];
+  const url = p.forCrew && p.v7 ? CREW_ITEM_LODS[sourceURL] || sourceURL : sourceURL;
+  const { geo: g0, mat } = await v5Geometry(url, names);
   const dy = typeof def.v5dy === 'object' ? def.v5dy[base] || 0 : def.v5dy || 0;   // [v144] per body (the female helmet sits 1.5 cm higher)
   const geo = g0.clone(); if (def.crownFit || dy) geo.setAttribute('position', geo.attributes.position.clone());
   if (def.slot === 'cape' && !def.authoredCapeSkin) capeFollowLegs(g0, geo, skel, names); // fitted capes carry shoulder-safe authored weights   // [Raul shop2 fixes] the hem rides the thighs (walk / run / swim / emotes: no legs through it)

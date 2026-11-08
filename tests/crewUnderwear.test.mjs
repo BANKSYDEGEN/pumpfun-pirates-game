@@ -22,10 +22,10 @@ test('empty pants stays underwear even with hats, coats or carried weapons; no a
   const p = shoreCrewGear({ ...crewGear(), pants: 'classic_pants' }); assert.equal(p.pants, 'classic_pants');
   assert.doesNotMatch(read('js/crewV4.js'), /pants: 'classic_pants'/);
 });
-test('both sexes reuse existing modest V6 LOW assets; the player body / traits are not modified', () => {
+test('both sexes use authentic modest V7 crew LODs; player body / traits stay unchanged', () => {
   assert.ok(Array.from({ length: 20 }, (_, v) => crewFemale(v)).includes(true));
   assert.ok(Array.from({ length: 20 }, (_, v) => crewFemale(v)).includes(false));
-  for (const [sex, path] of Object.entries(CREW_BODY_GLB)) { assert.match(path, new RegExp('pirate_' + sex + '_v6_lo\\.glb$')); assert.ok(existsSync(new URL('../' + path, import.meta.url))); }
+  for (const [sex, path] of Object.entries(CREW_BODY_GLB)) { assert.match(path, new RegExp('pirate_' + sex + '_v7_crew\\.glb$')); assert.ok(existsSync(new URL('../' + path, import.meta.url))); }
   const glb = read('js/pirateGLB.js'); assert.match(glb, /pirate_male_v7_hi\.glb/); assert.match(glb, /pirate_female_v7_hi\.glb/);
   assert.match(read('js/crewV4.js'), /v5_\(face\|tattoo\)/); // original eyes and tattoo decal preserved, no repainted features
 });

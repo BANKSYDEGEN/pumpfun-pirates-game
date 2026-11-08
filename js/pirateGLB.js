@@ -264,12 +264,12 @@ function hairRim(g, rings = 2) {
 export class PirateGLB {
   // opts: { female, lod: 'hi'|'lo', colors }
   static async create(opts = {}) { const p = new PirateGLB(opts); await p.ready; return p; }
-  constructor({ female = false, lod = 'hi', colors = null, v4 = false, body = null } = {}) {
-    this.female = female; this.lod = lod; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
+  constructor({ female = false, lod = 'hi', colors = null, v4 = false, body = null, bodyURL = null, maleClipURL = null } = {}) {
+    this.female = female; this.lod = lod; this.maleClipURL = maleClipURL; this.root = new THREE.Group(); this.root.name = 'pirateGLB';
     this.decals = []; this.tinted = []; this.action = null; this.clip = null;
-    // body: 'v5' | 'v6' | null (null = __PIRATE_BODY_V5 ? v5 : live PIRATE_GLB). Ship crew gear bake forces v5 (painted outfits).
+    // body: 'v5' | 'v6' | null (null = __PIRATE_BODY_V5 ? v5 : live PIRATE_GLB). bodyURL is only used for the lightweight V7 ship-crew derivative; normal player selection is unchanged.
     const useV5 = body === 'v5' || (!body && !v4 && !!globalThis.__PIRATE_BODY_V5);
-    this._url = (v4 ? PIRATE_GLB_V4 : useV5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
+    this._url = bodyURL || (v4 ? PIRATE_GLB_V4 : useV5 ? PIRATE_GLB_V5 : PIRATE_GLB)[female ? 'female' : 'male'][lod];   // [V6] tools/gear_viewer.html?body=v5: V5 vs V6 review shots
     this.ready = loadPirateGLB(this._url).then((g) => this._init(g, colors));
   }
   async _init(gltf, colors) {
@@ -301,7 +301,7 @@ export class PirateGLB {
     if (colors) this.setColors(colors);
     this.scene = scene; this.root.add(scene);
     scene.traverse((o) => { if (o.isBone) o.userData.swRest = o.quaternion.clone(); });   // [Raul] bind pose for the procedural swim poses (js/onfoot/swimPose.js)
-    const animations = this.v7 && this.female ? sharedBodyClips(gltf, await loadPirateGLB(PIRATE_GLB.male[this.lod])) : gltf.animations;
+    const animations = this.v7 && this.female ? sharedBodyClips(gltf, await loadPirateGLB(this.maleClipURL || PIRATE_GLB.male[this.lod])) : gltf.animations;
     this.mixer = new THREE.AnimationMixer(scene); this.clips = Object.fromEntries(animations.map((a) => [a.name, this.v7 && (a.name === 'walk' || a.name === 'run') ? locomotionClip(a) : a]));
     this.play('idle');
     return this;

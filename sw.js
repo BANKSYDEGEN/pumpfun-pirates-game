@@ -28,7 +28,8 @@ const SHELL = [
   "./js/petRig.js", "./js/petMotion.js", "./js/onfoot/pets.js", "./js/features.js", "./js/graphicsBudget.js", "./js/onfoot/followPath.js", // [v198] Raul: ground pets that follow you (rig + gait), parrot flight
   "./js/carryWeapons.js", "./js/carryRules.js", // [v202] Raul: the carried sword + back musket
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
-  "./js/crewV4.js", // [v102] v4 pirates as the ship crew
+  "./js/crewV4.js", // V7 shared ship crew templates
+  "./js/crewItemLods.js", // crew-only light native-space V7 garments
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes
   "./js/harborCard.js", // [v107] compact phone harbor card
@@ -246,6 +247,20 @@ const ASSETS = [
   "./assets/pirates/pirate_male_v5_lo.glb",
   "./assets/pirates/pirate_female_v5_hi.glb",
   "./assets/pirates/pirate_female_v5_lo.glb",
+  "./assets/pirates/pirate_male_v7_crew.glb",
+  "./assets/pirates/pirate_female_v7_crew.glb",
+  "./assets/pirates/items/v7_crew/cloth_coat_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_coat_male_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_shirt_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_shirt_male_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_singlet_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_singlet_male_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_suit_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_suit_male_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_tank_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_tank_male_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_tshirt_female_lo.glb",
+  "./assets/pirates/items/v7_crew/cloth_tshirt_male_lo.glb",
   "./assets/pirates/skull_decal.png",
   // [Raul] weapon models (js/onfoot/swords.js loadWeaponModels)
   "./assets/pirates/items/v5/weapon_sword_rusty_hi.glb",

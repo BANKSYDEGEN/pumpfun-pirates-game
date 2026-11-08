@@ -1,22 +1,20 @@
-// [Emerly v101] PUMPFUN PIRATES: Raul's Blender pirates v4 as the SHIP CREW (BANKSY: "Make all the pirates on ship those style";
-// "They can be girls or different skin or hair colors but have them wearing what captain is").
-// The crew stays ONE merged mesh + ONE draw call per ship with all animation in js/crew.js's vertex shader: here each v4 Low
-// body (male / female, ~1.1k tris) is posed ONCE on the CPU from Raul's own clips (idle; cannon for gunners), baked to static
-// geometry, split into the shader's parts by dominant bone (legs / arms swing about the real hip + shoulder heights) and
-// normalised to the old crew height. Clothes = the captain's (Raul's baked v4 outfit colours, never per skin); per seat only
-// the body (male / female), skin tone and hair colour vary, from a stable hash of the seat, so nothing flickers.
-// Textures (body atlas + face decal, male + female) ride in the same material: uv.x carries a texture slot offset.
+// V7 ship crew: authentic male/female V7 LODs, matching V7 item refits, cached role poses.
+// Every deck, cannon, wheel and rigging lookout remains ONE merged GPU-animated mesh per ship.
+// Stable generic outfit/dye variants never grant items or alter the player's saved Crew Shop uniform.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { loadPirateGLB, TINTS, prepV5Body } from './pirateGLB.js';
+import { loadPirateGLB, TINTS } from './pirateGLB.js';
+import { sharedBodyClips } from './onfoot/retarget.js';
 import { skullTexture, ITEM_BY_ID } from './pirateItems.js';
 import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons] // [v123] the hat skull decal texture (crew slot tF0)
 
-// Reuse the existing V6 modest-underwear models, not remodeled bodies or new textures.
-// Always use the existing LOW assets for this many-body bake; players' V7 models are untouched.
-// [perf v461] crew-only copies of the V6 Low bodies: body mesh simplified 25k -> 6k tris (eyes + tattoo untouched), atlases 4096/2048 -> 1024/512
-// (crew are ~1 m tall on screen): 3.3 MB -> 1 MB at boot and ~200k fewer triangles per ship. Rebuild: tools/perf/crew_bodies.mjs
-export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v6_crew.glb', female: 'assets/pirates/pirate_female_v6_crew.glb' };
+// Authentic V7 crew-only LOD derivatives; original player GLBs are unchanged.
+export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v7_crew.glb', female: 'assets/pirates/pirate_female_v7_crew.glb' };
+export const GENERIC_CREW_STYLES = [
+  { hat: 'none', outfit: 'shirt', outfitColor: 0 },
+  { hat: 'none', outfit: 'tshirt', outfitColor: 4 },
+  { hat: 'none', outfit: 'coat', outfitColor: 7 },
+];
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
@@ -34,7 +32,7 @@ function bake(gltf, clipName, time, slot) {
   if (clip) { const mx = new THREE.AnimationMixer(scene); mx.clipAction(clip).play(); mx.update(Math.min(time, clip.duration * 0.999)); }
   scene.updateMatrixWorld(true);
   let body = null, face = null; const extra = [];
-  scene.traverse(o => { if (o.isSkinnedMesh && o.geometry.attributes._tint && !body) body = o; else if (o.isSkinnedMesh && /^v5_(face|tattoo)/.test(o.name)) extra.push(o); else if (o.isMesh && !o.isSkinnedMesh && !face) face = o; });
+  scene.traverse(o => { if (o.isSkinnedMesh && o.geometry.attributes._tint && !body) body = o; else if (!gltf.bodyOnly && o.isSkinnedMesh && /^v5_(face|tattoo)/.test(o.name)) extra.push(o); else if (!gltf.bodyOnly && o.isMesh && !o.isSkinnedMesh && !face) face = o; });
   if (!body) scene.traverse(o => { if (o.isSkinnedMesh && !body) body = o; });
   body.skeleton.update();
   const out = { pos: [], nrm: [], uv: [], col: [], tint: [], part: [] };
@@ -89,7 +87,8 @@ export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirat
   if (_loading) return _loading;
   _loading = (async () => {
     const [gm, gf] = await Promise.all([loadPirateGLB(CREW_BODY_GLB.male), loadPirateGLB(CREW_BODY_GLB.female)]);
-    for (const g of [gm, gf]) prepV5Body(g.scene, 'lo'); // [crew holes] the same hair rim the walking crew get (it was only there if a PirateGLB of that LOD happened to load first)
+    gf.animations = sharedBodyClips(gf, gm);
+    // V7 keeps its painted face/hair boundaries. V5 hair-rim expansion must never retint this artwork.
     const tpl = {}, tex = [];
     let hipY = 0.36, shY = 0.72, eyeY = 0.97;
     for (const [sex, g, slot] of [['m', gm, 0], ['f', gf, 2]]) {
@@ -100,23 +99,27 @@ export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirat
       tpl[sex] = { idle: finish(idle, k, y0), cannon: finish(gun, k, y0), k, y0 }; tex[slot === 0 ? 0 : 1] = idle.tex[0]; tex[2] ||= skullTexture(); tex[3] ||= idle.tex[3] || skullTexture(); tex[slot === 0 ? 4 : 5] = idle.tex[2] || null; // [v123] v5 has no face decal: slot tF0 = the hat skull
     }
     for (const t of tex) if (t) { t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; }
-    V4 = { tpl, tex, hipY, shY, eyeY }; return V4;
+    V4 = { version: 7, ready: false, tpl, tex, hipY, shY, eyeY, generic: [] };
+    // One-time cached V7 clothing bakes, never live per-seat skeletons. No ownership or wire data changes.
+    for (const style of GENERIC_CREW_STYLES) { const chunks = await crewGearV4(style); if (chunks) V4.generic.push(chunks); }
+    V4.ready = true; return V4;
   })().catch(e => { console.warn('[crew] v4 pirates failed, keeping the procedural crew', e); return null; });
   return _loading;
 }
 // one seat's pirate: stable look from the seat id v; pose 'idle' | 'cannon'. Same attributes as crew.js pirate(): position, normal, color, aPart (+ uv)
 const _cache = new Map(), _c = new THREE.Color();
 export const crewFemale = (v) => hash(v * 3.17 + 1) < 0.42;
-export function crewPirateV4(v, pose = 'idle', { female: fem = null } = {}) {
-  const key = v + '|' + pose + '|' + fem; if (_cache.has(key)) return _cache.get(key);
-  const female = fem ?? crewFemale(v), T = V4.tpl[female ? 'f' : 'm'][pose] || V4.tpl[female ? 'f' : 'm'].idle;
+export function crewPirateV4(v, pose = 'idle', { female: fem = null, bare = false, template = null, tag = '' } = {}) {
+  if (!bare && fem === null && V4?.generic?.length) { const i = Math.floor(hash(v * 4.37) * V4.generic.length); return crewPirateV4Dressed(v, pose, V4.generic[i], 'v7-generic-' + i); }
+  const key = v + '|' + pose + '|' + fem + '|' + tag; if (_cache.has(key)) return _cache.get(key);
+  const female = fem ?? crewFemale(v), T = template || V4.tpl[female ? 'f' : 'm'][pose] || V4.tpl[female ? 'f' : 'm'].idle;
   const skin = _c.set(SKIN[Math.floor(hash(v * 5.3 + 2) * SKIN.length)]).clone(), hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]).clone();
   const col = T.col.slice(), iS = TINTS.indexOf('skin'), iH = TINTS.indexOf('hair');
   for (let i = 0; i < T.tint.length; i++) { const t = T.tint[i], c = t === iS ? skin : t === iH ? hair : null; if (c) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(T.pos.slice(), 3)); g.setAttribute('normal', new THREE.BufferAttribute(T.nrm.slice(), 3));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('aPart', new THREE.BufferAttribute(T.part.slice(), 1)); g.setAttribute('uv', new THREE.BufferAttribute(T.uv.slice(), 2));
-  _cache.set(key, g); return g;
+  if (_cache.size > 400) _cache.clear(); _cache.set(key, g); return g;
 }
 
 // [v106] CREW GEAR (BANKSY: "Make sure all the pirates on my ship wear same clothes I choose"). The player's hat + clothes are put
@@ -129,8 +132,9 @@ const gearMod = () => (_gearMod ||= import('./pirateGear.js'));
 async function gearPirate(sex) {
   if (_gp[sex]) return _gp[sex];
   const { PirateGLB } = await import('./pirateGLB.js');
-  // [v280 crew holes] bake clothes on the V5 Low body (painted pants), not live V6 (bare underwear + neck splice gaps). Body seats stay V5.
-  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo', body: 'v5' }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
+  // V7 garments use the LIVE V7 male/female refits, not V5 clothing on a different body.
+  // Only two hidden skeletons are used during a cached bake; the ship remains one GPU-animated mesh.
+  return (_gp[sex] = PirateGLB.create({ female: sex === 'f', lod: 'lo', bodyURL: CREW_BODY_GLB[sex === 'f' ? 'female' : 'male'], maleClipURL: CREW_BODY_GLB.male }).then((p) => { p.forCrew = true; return p; }));   // [v133] crews bake the light Low tops
 }
 export const CREW_GEAR_SLOTS = ['hat', 'outfit']; // what the crew copies from the captain (hatColor rides along)
 // [Raul shop2 fixes] BANKSY via Emerly "deck crew wear the new items": the crew keep THEIR OWN hat + outfit (Crew Shop, js/crewLoadout.js) and
@@ -156,11 +160,11 @@ export function crewGearOf(gear) {
 }
 // An empty pants slot means the body's modest underwear, never auto-equipped classic pants.
 export function shoreCrewGear(gear) { return crewGearOf(gear); }
-const _gc = new Map();
+const _gc = new Map(); let _gearQueue = Promise.resolve();
 export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, cannon }, f: {...} } | null>
   const g = crewGearOf(gear); if (!g || !V4) return Promise.resolve(null);
   const key = JSON.stringify([g, colors]); if (_gc.has(key)) return _gc.get(key);
-  const pr = (async () => {
+  const pr = _gearQueue.then(async () => {
     const PG = await gearMod(), out = {};
     if (g.carryCrew) { try { await (await import('./onfoot/swords.js')).loadWeaponModels(true); } catch {} }   // [crew-weapons] the real weapon models before the bake
     for (const sex of ['m', 'f']) {
@@ -169,7 +173,11 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       const items = Object.values(p.items || {}).map((it) => it.obj).filter((o) => o?.isSkinnedMesh && o.parent), meshes = [...(p.gearMesh ? [p.gearMesh] : []), ...items];
       const carry = g.carryCrew ? (await import('./carryWeapons.js')).placeCarryNow : null;   // [crew-weapons] the captain's sword + musket, baked rigid
       if (!meshes.length && !(g.carryCrew && p.carry && (p.carry.sword || p.carry.musket))) return null;
-      out[sex] = {}; out[sex].top = g.outfit !== 'shirtless';   // [v128] the seat body is pulled in under tops (as the player since v124)
+      // Bake the actual V7 item hide indices, not a bare body poking through clothing.
+      const T = V4.tpl[sex], body = { scene: p.scene, animations: Object.values(p.clips), bodyOnly: true };
+      out[sex] = { body: {} };
+      for (const pose of ['idle', 'cannon']) out[sex].body[pose] = finish(bake(body, pose, 0, sex === 'm' ? 0 : 2), T.k, T.y0);
+      out[sex].top = !p.v7 && g.outfit !== 'shirtless';   // [v128] the seat body is pulled in under tops (as the player since v124)
       const crown = Object.values(p.items || {}).find((it) => it.id === 'crown')?.obj; // [v109b] its velvet takes each seat's own hair colour
       const decals = Object.values(p.items || {}).map((it) => it.decal).filter((o) => o?.isSkinnedMesh && o.parent); // [v123] the PUMPFUN skull on the hat (crew slot tF0)
       const hairy = new Set(Object.values(p.items || {}).filter((it) => /^beard_(moustache|forked)$/.test(it.id)).map((it) => it.obj));   // [Raul shop2 fixes] beards in each seat's hair colour
@@ -177,8 +185,8 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...(carry ? bakeCarry(p, pose, V4.tpl[sex], carry) : []), ...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown ? 1 : hairy.has(m) ? 2 : 0, false, raul2.has(m))), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
     }
     return out;
-  })().catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
-  _gc.set(key, pr); return pr;
+  }).catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
+  _gearQueue = pr.then(() => {}, () => {}); _gc.set(key, pr); return pr;
 }
 // [crew-weapons] the carried sword / musket (plain meshes on the hip + spine bones) in this pose -> a crew chunk (vertex colour, no stripe uv)
 function bakeCarry(p, pose, T, placeNow) {
@@ -247,7 +255,7 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false
 const _dc = new Map();
 export function crewPirateV4Dressed(v, pose, chunks, tag) {
   const female = crewFemale(v), ch = chunks?.[female ? 'f' : 'm']?.[pose] || chunks?.[female ? 'f' : 'm']?.idle;
-  const base = crewPirateV4(v, pose); if (!ch) return base;
+  const base = crewPirateV4(v, pose, { bare: true, template: chunks?.[female ? 'f' : 'm']?.body?.[pose], tag: 'body-' + tag }); if (!ch) return base;
   const key = v + '|' + pose + '|' + tag; if (_dc.has(key)) return _dc.get(key);
   const cat = (a, b, k) => { const o = new Float32Array(a.length + b.length); o.set(a); o.set(b, a.length); return new THREE.BufferAttribute(o, k); };
   const A = base.attributes, g = new THREE.BufferGeometry();

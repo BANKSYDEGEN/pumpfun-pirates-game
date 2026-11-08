@@ -12,10 +12,11 @@ test('prepV5Body hairRim runs on V6 unless &crewholes=0', () => {
   assert.match(glb, /skipV6 && o\.userData\?\.v6/);
   assert.doesNotMatch(glb, /_tint && !o\.userData\?\.v6\) hairRim/);
 });
-test('PirateGLB accepts body:\'v5\'; ship gear bake uses it', () => {
+test('legacy V5 preview stays available; ship gear uses matching V7 crew LOD', () => {
   assert.match(glb, /body = null/);
   assert.match(glb, /body === 'v5'/);
-  assert.match(crew, /PirateGLB\.create\(\{ female: sex === 'f', lod: 'lo', body: 'v5'/);
+  assert.match(crew, /PirateGLB\.create\(\{ female: sex === 'f', lod: 'lo', bodyURL: CREW_BODY_GLB/);
+  assert.doesNotMatch(crew, /body: 'v5'/);
 });
 test('shore crew respect the underwear / empty pants choice; CREW_EXTRA_SLOTS stays empty', () => {
   assert.match(crew, /export function shoreCrewGear/);

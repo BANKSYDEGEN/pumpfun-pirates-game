@@ -235,7 +235,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   const mat = crewMaterial(), mesh = new THREE.Mesh(geo, mat); mat.uniforms.uS.value = s;
   if (walk?.deck) { const d = walk.deck; mat.uniforms.uDk.value.set(d.zA, d.zB, d.lf, d.l); mat.uniforms.uDk2.value.set(d.depth, d.drop, 1, 0); } mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; lod.userData.v4 = !!V4; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
+  const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; lod.userData.v4 = !!V4?.ready; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
   ship.userData.crew = mat.uniforms;
   return lod;
 }
@@ -311,6 +311,8 @@ export function setWalkLanes(body, lanes) {
 // (same uniforms object, so ship.userData.crew / fire / hit anims keep working), still one draw call. Gear re-dress follows (crewGear.js).
 export function rebakeCrewV4(root) {
   if (!V4 || !root) return 0; const lods = []; _scope = null;
+  // A ship can exist before V7 finishes loading. Do not retain its cached procedural helm pirate.
+  _cap?.dispose(); _cap = null;
   root.traverse((o) => { if (o.isLOD && o.userData.seats && !o.userData.v4) lods.push(o); });
   for (const lod of lods) {
     const mesh = lod.children[0]; if (!mesh?.isMesh) continue; const om = mesh.material, nm = crewMaterial();
@@ -358,7 +360,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   g.attributes.aInfo.array.forEach((_, i, a) => { if (i % 4 === 3) a[i] = info[3]; });
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
-  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec]; lod.userData.v4 = !!V4;
+  lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec]; lod.userData.v4 = !!V4?.ready;
   ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps
