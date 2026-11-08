@@ -1,5 +1,5 @@
 // node --test tests/v349ControllerTriangleHull.test.mjs
-// [v349] BANKSY t1837u: controller Triangle / Y (BTN.Y = 3) = ENTER HULL when moored or anchored;
+// Updated for t2343u: Cross / A enters hull; Triangle / Y goes ashore when moored;
 // glyph △ (PlayStation) / Y (Xbox); keyboard H / E / Q / W unchanged; underway Y still opens the island map.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,9 +11,10 @@ const G = src('js/gamepad.js');
 const D = src('js/dock/index.js');
 const SW = src('sw.js');
 
-test('v349 MAP.sea: Triangle / Y = enterHull|map (enter hull wins when moored/anchored)', () => {
+test('v349 MAP.sea: Cross / A enters hull; Triangle / Y goes ashore', () => {
   assert.equal(BTN.Y, 3, 'standard Gamepad Y / Triangle index');
-  assert.equal(MAP.sea[BTN.Y], 'enterHull|map');
+  assert.equal(MAP.sea[BTN.Y], 'goAshore|map');
+  assert.equal(MAP.sea[BTN.A], 'enterHull|promptA');
   assert.equal(MAP.foot[BTN.Y], 'leaveHullDoor|map', 'on foot Y = leave at cabin door, else island map (A also leaves at the door)');
 });
 
@@ -26,6 +27,19 @@ test('v349 resolve: enterHull only when canEnterHull; else map when harbor', () 
   assert.equal(resolve('enterHull', { canEnterHull: true }), 'enterHull');
 });
 
+test('t2343u contextual swap preserves prompt, jump and UI fallbacks', () => {
+  assert.equal(resolve(MAP.sea[BTN.A], { canEnterHull: true, prompt: [true] }), 'enterHull');
+  assert.equal(resolve(MAP.sea[BTN.A], { canEnterHull: false, prompt: [true] }), 'promptA');
+  assert.equal(resolve(MAP.sea[BTN.A], { canEnterHull: false, prompt: [false] }), null);
+  assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: true, harbor: true }), 'goAshore');
+  assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: false, harbor: true }), 'map');
+  assert.equal(resolve(MAP.sea[BTN.Y], { canGoAshore: false, harbor: false }), null);
+  assert.equal(resolve(MAP.foot[BTN.A], { prompt: [false], canEnterHull: true }), 'jump');
+  assert.equal(resolve(MAP.foot[BTN.A], { prompt: [true], canEnterHull: true }), 'promptA');
+  assert.equal(MAP.ui[BTN.A], 'click');
+  assert.match(D, /label: 'GO ASHORE', key: 'E', pad: 'Y'/);
+});
+
 test('v349 glyphs: PlayStation △, Xbox Y, Nintendo X (positional Y face)', () => {
   assert.equal(glyphFor('ps', 'Y'), '△');
   assert.equal(glyphFor('xbox', 'Y'), 'Y');
@@ -34,13 +48,14 @@ test('v349 glyphs: PlayStation △, Xbox Y, Nintendo X (positional Y face)', () 
   assert.equal(padBrand('Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)'), 'xbox');
 });
 
-test('v349 MAP_HELP.sea documents Triangle / Y for Enter Hull', () => {
+test('v349 MAP_HELP.sea documents Cross for hull and Triangle for shore', () => {
   const y = MAP_HELP.sea.find((row) => row[0] === 'Y');
   assert.ok(y, 'MAP_HELP.sea has a Y row');
-  assert.match(y[1], /enter hull/i);
+  assert.match(y[1], /go ashore/i);
+  assert.match(MAP_HELP.sea.find(row => row[0] === 'A')[1], /enter hull/i);
   assert.match(y[1], /moored|anchored/i);
   assert.match(y[1], /island map/i);
-  assert.match(G, /enter hull \(when moored \/ anchored\) · island map \(underway\)/);
+  assert.match(G, /go ashore \(when moored\) · island map \(underway\)/);
 });
 
 test('v349 gamepad wiring: resolve gate, doAction enterHull, context.canEnterHull, promptKey padBtn', () => {
@@ -48,11 +63,11 @@ test('v349 gamepad wiring: resolve gate, doAction enterHull, context.canEnterHul
   assert.match(G, /n === 'enterHull'.*D\?\.enterHull/);
   assert.match(G, /canEnterHull: !!D\?\.canEnterHull/);
   assert.match(G, /padBtn/);
-  assert.match(G, /ENTER HULL → Y/);
-  assert.match(G, /\[BTN\.Y\]: 'enterHull\|map'/);
+  assert.match(G, /n === 'goAshore' && !ctx\.canGoAshore/);
+  assert.match(G, /\[BTN\.A\]: 'enterHull\|promptA'/);
 });
 
-test('v349 dock: canEnterHull + enterHull hooks; ENTER HULL pad:Y; keyboard keys preserved', () => {
+test('v349 dock: canEnterHull + enterHull hooks; ENTER HULL pad:A; keyboard keys preserved', () => {
   assert.match(D, /canEnterHull:\s*\(\)\s*=>/);
   assert.match(D, /enterHull:\s*\(\)\s*=>\s*\{\s*if \(game\.state === 'playing'\) enterHull\(\);/);
   assert.match(D, /docking\.mode === 'docked' \|\| \(docking\.mode === 'sea' && !!P\(\)\?\.anchor\)/);
@@ -60,7 +75,7 @@ test('v349 dock: canEnterHull + enterHull hooks; ENTER HULL pad:Y; keyboard keys
   assert.ok(D.includes("{ label: 'ENTER HULL', key: 'H'"));
   assert.ok(D.includes("label: 'ENTER HULL', key: 'E'"));
   assert.match(D, /pad:\s*'Y'/);
-  assert.match(D, /promptKey\(s\.key \|\| 'E', i, s\.pad \|\| \(s\.label === 'ENTER HULL' \? 'Y' : null\)\)/);
+  assert.match(D, /promptKey\(s\.key \|\| 'E', i, s\.pad \|\| \(s\.label === 'ENTER HULL' \? 'A' : null\)\)/);
   // GO ASHORE / SET SAIL / LAUNCH CANOE / WEIGH ANCHOR keyboard keys stay
   assert.match(D, /label: 'GO ASHORE', key: 'E'/);
   assert.match(D, /label: 'SET SAIL', key: 'W'/);
@@ -68,7 +83,7 @@ test('v349 dock: canEnterHull + enterHull hooks; ENTER HULL pad:Y; keyboard keys
   assert.match(D, /label: 'WEIGH ANCHOR', key: 'W'/);
 });
 
-test('v349 driver: Y calls enterHull when canEnterHull, else taps map key when underway', async () => {
+test('v349 driver: A calls enterHull when canEnterHull, else taps map key when underway', async () => {
   const win = new EventTarget(), body = new EventTarget(), cls = new Set(), sent = [];
   const el = () => ({ classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, style: {}, appendChild() {}, querySelector: () => null, querySelectorAll: () => [], set textContent(v) {}, set innerHTML(v) {}, set id(v) {} });
   body.tagName = 'BODY'; body.closest = () => null;
@@ -85,10 +100,11 @@ test('v349 driver: Y calls enterHull when canEnterHull, else taps map key when u
     const GP = await import('../js/gamepad.js?v349=' + Math.random());
     const { binds } = await import('../js/keybinds.js');
     const log = [];
-    let can = false;
+    let can = false, ashore = false;
     GP.registerPadDock({
       on: () => true, onFoot: () => false,
       prompts: () => [false, false, false], press: () => {},
+      canGoAshore: () => ashore, goAshore: () => log.push('goAshore'),
       canEnterHull: () => can, enterHull: () => log.push('enterHull'),
       zone: () => false, armed: () => false, tps: () => null,
       jump: () => {}, move: () => {}, look: () => {}, ads: () => {},
@@ -104,13 +120,27 @@ test('v349 driver: Y calls enterHull when canEnterHull, else taps map key when u
     plug(mk({ press: [BTN.A] })); drv.tick(0.016); assert.equal(GP.padActive(), true);
     plug(mk()); drv.tick(0.016);
 
-    // docked / anchored: Y → enterHull
-    can = true; log.length = 0; sent.length = 0;
-    plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
-    assert.ok(log.includes('enterHull'), 'Y enters hull when canEnterHull');
+    // docked / anchored: Cross / A → enterHull
+    can = true; ashore = true; log.length = 0; sent.length = 0;
+    plug(mk({ press: [BTN.A] })); drv.tick(0.016);
+    assert.deepEqual(log, ['enterHull'], 'A enters hull without triggering shore prompt');
     assert.ok(!sent.includes('+' + binds('map')[0]), 'map key not fired while enterHull wins');
 
     // release
+    plug(mk()); drv.tick(0.016);
+
+    // moored: Triangle / Y takes the shore action, never hull or map
+    log.length = 0; sent.length = 0;
+    plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
+    assert.deepEqual(log, ['goAshore']);
+    assert.equal(sent.length, 0);
+    plug(mk()); drv.tick(0.016);
+
+    // anchored: Y stays map (no shore action), A still enters hull
+    ashore = false; log.length = 0; sent.length = 0;
+    plug(mk({ press: [BTN.Y] })); drv.tick(0.016);
+    assert.deepEqual(log, []);
+    assert.ok(sent.includes('+' + binds('map')[0]));
     plug(mk()); drv.tick(0.016);
 
     // underway at sea: Y → island map
@@ -121,10 +151,11 @@ test('v349 driver: Y calls enterHull when canEnterHull, else taps map key when u
     assert.ok(sent.includes('+' + mapCode) && sent.includes('-' + mapCode), 'Y taps island map key when underway');
 
     // promptKey glyphs while pad active
-    assert.equal(GP.promptKey('H', 2, 'Y'), 'Y'); // xbox brand from DualSense? pad brand from last pad = xbox
+    assert.equal(GP.promptKey('H', 2, 'A'), 'A'); // xbox brand from DualSense? pad brand from last pad = xbox
     // switch to DualSense and check △
     plug(mk({ id: 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)', press: [BTN.A] })); drv.tick(0.016);
-    assert.equal(GP.promptKey('H', 2, 'Y'), '△');
+    assert.equal(GP.promptKey('H', 2, 'A'), '✕');
+    assert.equal(GP.promptKey('E', 0, 'Y'), '△');
     assert.equal(GP.promptKey('E', 0), '✕'); // PS A = ✕
     assert.equal(GP.promptKey('Q', 1), '□'); // PS X = □
     assert.equal(GP.promptKey('W', 2), 'W', 'slot 2 without padBtn keeps keyboard letter');

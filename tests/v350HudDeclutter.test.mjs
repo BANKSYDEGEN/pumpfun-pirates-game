@@ -9,10 +9,10 @@ const html = read('index.html'), css = read('css/style.css'), dock = read('js/do
 const hull = read('js/dock/shipHull.js'), houses = read('js/dock/houses.js'), pad = read('js/gamepad.js');
 const declutter = css.slice(css.indexOf('/* [v350]'));
 
-test('v350 release preserves the Triangle hull mapping', () => {
+test('v350 release uses the updated Cross hull mapping', () => {
   assert.ok(+read('sw.js').match(/VERSION = 'pfp-v(\d+)'/)[1] >= 350);
-  assert.match(dock, /label: 'ENTER HULL', key: 'H', pad: 'Y'/);
-  assert.match(pad, /\[BTN\.Y\]: 'enterHull\|map'/);
+  assert.match(dock, /label: 'ENTER HULL', key: 'H', pad: 'A'/);
+  assert.match(pad, /\[BTN\.A\]: 'enterHull\|promptA'/);
 });
 
 test('all ship DOM hooks remain exactly once', () => {

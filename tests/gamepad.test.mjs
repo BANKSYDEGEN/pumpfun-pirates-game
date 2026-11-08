@@ -57,12 +57,12 @@ test('pickPad: the pad last used, else the first connected one; null slots skipp
   assert.equal(pickPad([{ ...a, connected: false }]), null);
 });
 test('the map: every mode has the standard layout BANKSY asked for', () => {
-  assert.equal(MAP.sea[BTN.RT], 'fireStar'); assert.equal(MAP.sea[BTN.LT], 'firePort'); assert.equal(MAP.sea[BTN.A], 'promptA'); assert.equal(MAP.sea[BTN.START], 'pause');
+  assert.equal(MAP.sea[BTN.RT], 'fireStar'); assert.equal(MAP.sea[BTN.LT], 'firePort'); assert.equal(MAP.sea[BTN.A], 'enterHull|promptA'); assert.equal(MAP.sea[BTN.START], 'pause');
   assert.equal(MAP.foot[BTN.RT], 'attack'); assert.equal(MAP.foot[BTN.LT], '+ads'); assert.equal(MAP.foot[BTN.A], 'promptA|jump');
   assert.equal(MAP.foot[BTN.X], 'promptB|weapon', 'Square / X cycles weapons (BANKSY t1734u)');
   assert.equal(MAP.ui[BTN.A], 'click'); assert.equal(MAP.ui[BTN.B], 'back'); assert.equal(MAP.ui[BTN.LB], 'tabPrev'); assert.equal(MAP.ui[BTN.RB], 'tabNext');
   assert.equal(MAP.spec[BTN.LB], 'specPrev'); assert.equal(MAP.spec[BTN.RB], 'specNext');
-  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite', 'hideHud', 'weapon', 'enterHull', 'leaveHullDoor']); // [t1734u] weapon → dock.cycleWeapon // [gold-hud] HOME → toggleHudHidden // [invite-discreet] VIEW → openInvites // [v349] Y → enterHull when moored/anchored // [v350 t1838u] Y → leaveHullDoor at cabin door
+  const special = new Set(['promptA', 'promptB', 'ads', 'swap', 'camBehind', 'inventory', 'sprint', 'jump', 'invite', 'hideHud', 'weapon', 'enterHull', 'goAshore', 'leaveHullDoor']); // [t1734u] weapon → dock.cycleWeapon // [gold-hud] HOME → toggleHudHidden // [invite-discreet] VIEW → openInvites // [v349] Y → enterHull when moored/anchored // [v350 t1838u] Y → leaveHullDoor at cabin door
   for (const m of ['sea', 'foot', 'spec']) for (const a of Object.values(MAP[m])) for (const n of a.split('|').map(x => x.replace(/^\+/, '')))
     assert.ok(special.has(n) || keyFor(n, binds), `${m}: ${n} sends nothing`);
 });
