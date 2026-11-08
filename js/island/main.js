@@ -1,3 +1,4 @@
+import { openPump } from '../pumpfun/links.js';
 // [Raul] PUMPFUN PIRATES island: standalone art / layout test scene (island.html). Not part of the game build or the service worker.
 // URL: island.html?quality=high|low  &harbor=1 (place it in the BATTLE ROYALE harbor: storm sea, real rock islands, spawn
 // overlay, AI duel, a ship sailing in to a jetty berth)  &view=<name>  &shot=1 (hide UI, freeze the clock)  &overlay=1 (layout +
@@ -418,8 +419,8 @@ function showPanel(sym) {
   const id0 = t.pair?.pairAddress || (t.dex ? t.dex.split('/').pop() : null), id = isBase58(id0) ? id0 : null;
   panel.innerHTML = `<div style="display:flex;align-items:center;gap:10px"><b style="font:40px 'Just Another Hand',cursive;color:${t.color}">$${sym}</b><span data-stat style="flex:1;opacity:.9">${statLine(t)}</span><button data-x style="font-size:20px;background:none;color:#fff;border:0;cursor:pointer">✕</button></div>
     <div style="display:flex;gap:8px;align-items:center"><code style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#000;padding:6px 8px;border-radius:6px">${t.ca}</code><button data-copy style="padding:6px 10px;background:#ffcd77;border:0;border-radius:6px;font-weight:700;cursor:pointer">COPY CA</button></div>
-    ${id ? `<iframe title="$${sym} chart" src="https://dexscreener.com/solana/${id}?embed=1&theme=dark&trades=0&info=0" style="flex:1;width:100%;border:0;border-radius:8px;background:#000"></iframe>` : '<div style="flex:1;display:grid;place-items:center;opacity:.7">resolving the main pair…</div>'}
-    <div style="display:flex;gap:16px"><a href="${t.chart}" target="_blank" rel="noopener" style="color:#ffcd77">OPEN CHART ON DEXSCREENER ▸</a>${t.site ? `<a href="${t.site}" target="_blank" rel="noopener" style="color:#7cff6b">PUMP.FUN ▸</a>` : ''}</div>`;
+    <button data-pump style="flex:1;min-height:120px;border:1px solid #54d08a;border-radius:8px;background:#10251e;color:#ffcd77;font-size:24px;cursor:pointer">OPEN $${sym} ON PUMP.FUN ▸</button>`;
+  panel.querySelector('[data-pump]').onclick = () => openPump(t.ca);
   panel.querySelector('[data-x]').onclick = () => { panel.style.display = 'none'; panel.sym = null; };
   panel.querySelector('[data-copy]').onclick = async (e) => { const ok = await copyText(t.ca); e.target.textContent = ok ? 'COPIED ✓' : 'COPY FAILED'; };
   panel.style.display = 'flex';

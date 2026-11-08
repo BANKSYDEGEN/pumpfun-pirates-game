@@ -1,6 +1,7 @@
+import { tokenURL } from './pumpfun/links.js';
 // Title screen: website / DexScreener / X / Telegram links + the token pick ($SUNK / $AHOY) with its FULL contract address (tap = copy).
 // Values live in config.js. No wallet, no signing: this only copies text and opens links.
-import { SUNK_CA, SUNK_CA_TEXT, SUNK_DEX_URL, X_URL, TG_URL, AHOY_CA, AHOY_DEX_URL } from './config.js';
+import { SUNK_CA, SUNK_CA_TEXT, X_URL, TG_URL, AHOY_CA } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,7 +27,7 @@ export async function copyText(text) {
 // switches straight between $SUNK and $AHOY (⇄ icon). $SUNK stays the default.
 // The shown CA, COPY and the chart link follow the pick (saved in pfp_ca_token). The full CA always shows: the font shrinks to fit,
 // then the pill stacks (token + COPY on top, the CA on its own line), last resort the CA wraps. COPY always copies the full address.
-const TOKENS = { SUNK: { ca: SUNK_CA, text: SUNK_CA_TEXT, dex: SUNK_DEX_URL, logo: 'assets/tokens/sunk.png' }, AHOY: { ca: AHOY_CA, text: AHOY_CA || 'TBA', dex: AHOY_DEX_URL, logo: 'assets/tokens/ahoy.png' } };
+const TOKENS = { SUNK: { ca: SUNK_CA, text: SUNK_CA_TEXT,  logo: 'assets/tokens/sunk.png' }, AHOY: { ca: AHOY_CA, text: AHOY_CA || 'TBA',  logo: 'assets/tokens/ahoy.png' } };
 const ORDER = ['SUNK', 'AHOY'];   // [sunk-first] fixed order: $SUNK always first
 const PICK_KEY = 'pfp_ca_token';
 function init() {
@@ -56,7 +57,7 @@ function init() {
     }
     chip.title = T.ca ? `Tap to copy the $${sym} CA: ${T.ca}` : `$${sym} CA: TBA`; chip.setAttribute('aria-label', T.ca ? `Copy the $${sym} contract address ${T.ca}` : `$${sym} contract address: TBA`); chip.classList.toggle('tba', !T.ca);
     if (label) label.textContent = ''; chip.classList.remove('copied', 'failed');
-    const dex = $('lnk-dex'); if (dex) { if (T.dex) { dex.href = T.dex; dex.style.display = ''; } else dex.style.display = 'none'; dex.setAttribute('aria-label', `$${sym} chart on DexScreener`); dex.title = `$${sym} chart (DexScreener)`; }
+    const dex = $('lnk-dex'); if (dex) { const url = tokenURL(T.ca); if (url) { dex.href = url; dex.style.display = ''; } else dex.style.display = 'none'; dex.setAttribute('aria-label', `Open $${sym} on pump.fun`); dex.title = `Open $${sym} on pump.fun`; }
     fit();
   };
   if (sel) { // a real <button>: Enter / Space fire click natively, so keyboard + touch + mouse all take this one path
