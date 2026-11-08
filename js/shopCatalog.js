@@ -68,7 +68,7 @@ export const GEAR_ITEMS = [
   { slot: 'eyes', id: 'sunglasses', label: 'SHADES', price: 500, glb: 'gear', tint: null },
   { slot: 'eyes', id: 'laser', label: 'VR GOGGLES', price: 3000, glb: 'gear', tint: null },   // [v121] BANKSY: laser eyes removed, VR GOGGLES in their place (same id + price: owners keep it)
   { slot: 'parrot', id: 'none', label: 'NO PARROT', price: 0, glb: null, tint: null, free: true },
-  { slot: 'parrot', id: 'parrot_green', label: 'BASE PARROT', price: 2000, glb: 'gear', tint: { body: '#3fd16a' } },
+  { slot: 'parrot', id: 'parrot_green', label: 'PARROT', price: 2000, glb: 'gear', tint: { body: '#3fd16a' } },
   { slot: 'parrot', id: 'parrot_red', label: 'RED MACAW', price: 5000, glb: 'gear', tint: { body: '#e8231d' } },
   { slot: 'parrot', id: 'parrot_blue', label: 'BLUE MACAW', price: 8000, glb: 'gear', tint: { body: '#1e74e8' } },
   { slot: 'parrot', id: 'parrot_cockatoo', label: 'COCKATOO', price: 12000, glb: 'gear', tint: { body: '#f6f4ee' } },
@@ -197,7 +197,7 @@ export const VENDORS = {
   // shoes + pants are their own SHOES & PANTS tab (shoeSlots), not mixed into the clothing (PIRATE GEAR tab)
   clothes:    { name: 'CLOTHES SHOP', sub: 'Shirts & tops · pants · shoes', tabs: ['gear'], slots: CLOTHING_STORE_SLOTS, awning: '#d8322f' },
   accessories: { name: 'ACCESSORIES STORE', sub: 'Hats · earrings · makeup · capes · eyewear · teeth & grills', tabs: ['gear'], slots: ACCESSORIES_STORE_SLOTS, awning: '#6a4fb3' },
-  pets:       { name: 'PET STORE', sub: 'Base parrots · name, upgrade & unlock colors at your hull cage', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
+  pets:       { name: 'PET STORE', sub: 'Parrots & Pilly · companions, levels & colors', tabs: ['gear'], slots: ['parrot'], awning: '#1f8a5a', pets: true },   // [Timothy] plaza PET STORE counter
   crew:       { name: 'CREW ROOM', sub: 'Ship hull · dress your crew in gear you own (free)', tabs: ['wardrobe'], slots: ['crewhat', 'crewoutfit', 'creweyes', 'crewbeard', 'crewface', 'crewcape', 'crewboots', 'crewpants'], awning: '#6a4fb3', crew: true, dress: true, ...(CREW_DRESS ? {} : { name: 'CREW SHOP', sub: 'Harbor plaza · outfits for your crew', tabs: ['gear', 'wardrobe'], dress: false }) },   // [v6-store-clothes] BANKSY 2:39/2:40 PM: CREW ROOM = dress-up only, never sells twice (&crewdress=0 = the old CREW SHOP)
   // [t1714u] SWORD SHOP / MUSKET SHOP / MUSKET UPGRADES are THREE separate menus (no mixed tabs).
   // Legacy `weapons` kept for older callers / tests that open vendor:'weapons' (still swords+muskets; upgrades append only there).

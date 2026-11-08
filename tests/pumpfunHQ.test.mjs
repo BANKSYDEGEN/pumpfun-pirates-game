@@ -73,7 +73,7 @@ test('HQ landmark has a real map icon and unknown icons cannot kill the frame',(
  assert.match(src('js/mapLandmarks.js'), /\[HQ.id, HQ.id,/);
  assert.match(src('js/mapIcons.js'), /pumpfun_hq: \['coin'/);
  assert.match(src('js/islandMap.js'), /SHOP_ICONS\[l.icon\] \|\| SHOP_ICONS.shop/);
- assert.match(src('js/features.js'), /PILLY_ENABLED = false/);
+ // Pilly is restored independently; the minimap fallback above prevents the old ashore freeze.
 });
 
 test('board CSP allows only the needed public discovery host; no unverified launch proxy',()=>{

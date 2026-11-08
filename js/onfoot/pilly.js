@@ -99,9 +99,11 @@ export function createPilly({ scene, world, low = false }) {
     if (r === 'tp') setFace('surprised', 1.4); else { stepBody(c.body, world, c.x, c.z, dt, c.speed); c.y = c.body.y; }
     if (c.body.swim && !o.body?.swim && Math.hypot(c.x - o.x, c.z - o.z) > 6) { const q = TR.at(env.back, o.x, o.z); c.x = q[0]; c.z = q[1]; env.place(c); setFace('surprised', 1.2); }   // keep out of the sea when you are on land
     if (!root) return;
-    const far = camera ? camera.position.distanceToSquared(root.position) > 4900 : false; root.visible = !hide && !far; if (!root.visible) return;
+    // Place before distance-culling: a newly loaded model starts at (0,0,0), far
+    // from the harbor. Culling first leaves it invisible forever (also after teleport).
     const s = c.body.swim && world.water ? world.water(c.x, c.z) : null;
     root.position.set(c.x, s != null ? s - 0.45 * H_GAME : c.y, c.z); root.rotation.set(0, c.yaw, 0);
+    const far = camera ? camera.position.distanceToSquared(root.position) > 4900 : false; root.visible = !hide && !far; if (!root.visible) return;
     const moving = c.speed > 0.35;
     if (moving) { wasMoving += dt; idleT = 0; if (waveT <= 0) play(c.speed > 4.2 ? 'Run' : 'Walk'); if (cur && cur !== acts.Wave) cur.timeScale = Math.min(1.8, Math.max(0.7, c.speed / (cur === acts.Run ? 6 : 2.4))); }
     else { idleT += dt; if (wasMoving > 3 && Math.random() < 0.35) wave(); wasMoving = 0; if (waveT <= 0) play('Idle'); quirkT -= dt; if (quirkT <= 0) { quirkT = 9 + Math.random() * 12; if (Math.random() < 0.4) wave(); else setFace('wink', 1.2); } }
