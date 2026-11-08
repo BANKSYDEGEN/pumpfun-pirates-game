@@ -4,7 +4,11 @@
 // and the map. No three.js import here (tests + map read it).
 // Emergency town safety pause (BANKSY Nov 8): default OFF, including colliders / decks / map / terrain cuts.
 // Local QA may compare the old art; production URLs cannot re-enable it.
-export const villageEnabledFor = (env = globalThis) => !!(env.location && /^(localhost|127\.0\.0\.1)$/.test(env.location.hostname) && new URLSearchParams(env.location.search).get('village') === '1');
+// [village-live] BANKSY t2410u "Try it, be ready to pull it right off if bad": the optimized village is ON by default.
+// ?village=0 forces it off for one visit (any host). ROLLBACK = set VILLAGE_DEFAULT to false (then only localhost ?village=1 turns it on).
+export const VILLAGE_DEFAULT = true;
+export const villageEnabledFor = (env = globalThis, def = VILLAGE_DEFAULT) => { const q = env.location ? new URLSearchParams(env.location.search || '').get('village') : null;
+  if (q === '0') return false; if (def) return true; return !!(env.location && /^(localhost|127\.0\.0\.1)$/.test(env.location.hostname) && q === '1'); };
 export const VILLAGE_ON = villageEnabledFor();
 // roads: Hill Street's gravel (colour 0xc9bfae, library layer 10). [v3] GRADED: each road has its own straight profile (knots along its
 // long axis), flat across the width, with flat landings at the junctions; the ground is cut / filled to it (villageGround).

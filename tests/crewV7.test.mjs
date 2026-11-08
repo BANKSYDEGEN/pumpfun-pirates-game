@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CREW_ITEM_LODS } from '../js/crewItemLods.js';
 import { pillyEnabledFor } from '../js/features.js';
-import { villageEnabledFor } from '../js/island/village.js';
+import { villageEnabledFor, VILLAGE_DEFAULT } from '../js/island/village.js';
 const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const glb = p => { const b=readFileSync(new URL('../'+p,import.meta.url)); return JSON.parse(b.subarray(20,20+b.readUInt32LE(12)).toString()); };
 test('male and female ship LODs are authentic V7 with all source bones and clips, under the V6 crew triangle budget', () => {
@@ -31,9 +31,10 @@ test('all ship crew duties share V7 distant sources and retain one merged far dr
  assert.match(render,/_cap\?\.dispose\(\); _cap = null/);
  assert.match(c,/V4\.generic\[i\]/); assert.match(c,/V4.ready = true/); assert.match(render,/lod.userData.v4 = !!V4\?\.ready/); assert.doesNotMatch(c,/hairStyle:|eyeShape:|tattoo:/);
 });
-test('Pilly and village remain disabled',()=>{
+test('Pilly remains disabled; the village follows VILLAGE_DEFAULT (t2410u live) and ?village=0 always forces it off',()=>{
  assert.equal(pillyEnabledFor({}),false);
- assert.equal(villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:'?village=1'}}),false);
+ assert.equal(villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:'?village=1'}}),VILLAGE_DEFAULT);
+ assert.equal(villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:'?village=0'}}),false);
 });
 
 test('crew garments keep all source bones and fit metadata under an 800-triangle budget',()=>{for(const [source,path] of Object.entries(CREW_ITEM_LODS)){const original=glb(source),g=glb(path);const n=g.meshes.flatMap(m=>m.primitives).reduce((a,p)=>a+g.accessors[p.indices].count/3,0);assert.ok(n<=800,path);assert.equal(g.animations?.length||0,0);assert.deepEqual(g.skins.map(s=>s.joints.map(i=>g.nodes[i].name)),original.skins.map(s=>s.joints.map(i=>original.nodes[i].name)));}assert.match(read('js/pirateItems.js'),/p.forCrew && p.v7 \? CREW_ITEM_LODS\[sourceURL\]/);});

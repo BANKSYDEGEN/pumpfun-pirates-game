@@ -1615,7 +1615,7 @@ function frame() {
   if (HIGH) { sun.target.position.set(oc.x, 0, oc.z); sun.position.copy(sun.target.position).add(SUN_OFF); } // [Emerly] oc = ship, or the walker on foot
   rain.uniforms.uCam.value.copy(camera.position);
 
-  if (game.state !== 'title') { updateBars(); updateEscortBars(); drawRadar(); updateFireButtons(); emoteTick(); }
+  if (game.state !== 'title') { updateBars(); updateEscortBars(); try { drawRadar(); } catch (e) { if (!drawRadar.warned) { drawRadar.warned = true; console.warn('[radar] minimap draw failed (rendering continues)', e); } } updateFireButtons(); emoteTick(); }   // [village-opt] a minimap error must never stop the frame (it froze the game with the v3 village)
   updateAmbient({ speed: player.speed, sail: player.anchor ? 0 : player.sail, playing: game.state === 'playing' && player.alive, hpFrac: player.hp / player.maxHp, roll: player.roll || 0, dt }); // [Raul] sound upgrades: sea / wind / creaks / low-hp
   { const cm = player.mesh.userData.captainMesh; if (cm) cm.visible = !dock?.onFoot && !dock?.canoeing && !dock?.inHull; } // [Emerly sail-around]/[v333] hide captain while paddling / in hull
   { crewGearT -= dt; if (crewGearT <= 0) { crewGearT = 0.5; syncCrewGear(player.mesh, crewGear(), localGearColors(), getLocalGear()); } } // [Timothy] the crew's OWN loadout (Crew Shop), not your clothes (was getLocalGear(), v106); colours = your ship skin; [Raul shop2 fixes] + your beard / earrings / teeth / boots / cape

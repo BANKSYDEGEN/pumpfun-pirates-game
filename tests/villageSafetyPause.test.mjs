@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { VILLAGE_ON, VILLAGE_RENTALS, VILLAGE_RENTABLE, villageClear, villageGround, villageEnabledFor } from '../js/island/village.js';
-import { buildVillage, buildVillagePools } from '../js/island/villageBuild.js';
-test('new village is paused in production even with a URL override; local QA only', () => {
+// [village-live] t2410u: the village is ON by default; ?village=0 forces it off. This file runs as a ?village=0 visit, so the
+// paused / old-map contracts below are exactly what a rollback (VILLAGE_DEFAULT = false) or ?village=0 gives.
+import './helpers/threeRegister.mjs';
+globalThis.location = { hostname: 'game.pumpfunpirates.com', search: '?village=0' };
+const { VILLAGE_ON, VILLAGE_DEFAULT, VILLAGE_RENTALS, VILLAGE_RENTABLE, villageClear, villageGround, villageEnabledFor } = await import('../js/island/village.js');
+const { buildVillage, buildVillagePools } = await import('../js/island/villageBuild.js');
+test('village default + overrides: ?village=0 always off; default off = localhost ?village=1 QA only', () => {
   assert.equal(VILLAGE_ON,false);
-  assert.equal(villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:'?village=1'}}),false);
-  assert.equal(villageEnabledFor({location:{hostname:'127.0.0.1',search:'?village=1'}}),true);
-  assert.equal(villageEnabledFor({location:{hostname:'127.0.0.1',search:''}}),false);
+  const prod = (q, def) => villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:q}}, def), local = (q, def) => villageEnabledFor({location:{hostname:'127.0.0.1',search:q}}, def);
+  assert.equal(prod('', true), true); assert.equal(prod('?village=0', true), false); assert.equal(local('?village=0', true), false);
+  assert.equal(prod('?village=1', false), false); assert.equal(local('?village=1', false), true); assert.equal(local('', false), false);
+  assert.equal(villageEnabledFor({location:{hostname:'game.pumpfunpirates.com',search:''}}), VILLAGE_DEFAULT);
 });
 test('paused village creates no geometry, invisible colliders, decks, camera rooms, pools or rental prompts', () => {
   const trap = new Proxy({}, {get(){throw Error('disabled village built something');}});

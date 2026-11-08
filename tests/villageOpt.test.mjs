@@ -1,5 +1,5 @@
 // [village-opt] the village freeze fix + deferred / culled village art. VILLAGE_ON is forced on for THIS test process only
-// (localhost + ?village=1, the QA-only switch); production stays off (villageSafetyPause.test.mjs).
+// (village on: the live default since t2410u; villageSafetyPause.test.mjs covers ?village=0 / rollback).
 import './helpers/threeRegister.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,4 +64,10 @@ test('walkers stand on the graded road surface (the 4 m terrain grid sagged belo
   for (const r of V.VILLAGE_ROADS) { const lx = (r.lx0 + r.lx1) / 2, lz = (r.lz0 + r.lz1) / 2; assert.ok(Math.abs(V.villageRoadY(lx, lz) - (V.roadY(r, lx, lz) + .05)) < 1e-9 || V.villageRoadY(lx, lz) >= V.roadY(r, lx, lz) + .05); }
   assert.equal(V.villageRoadY(-200, -80), null); assert.equal(V.villageRoadY(-90, -125), null, 'inside lot 3, not a road');
   const foot = readFileSync(new URL('../js/island/foot.js', import.meta.url), 'utf8'); assert.match(foot, /const VROAD = !!\(COASTM && PV\.VILLAGE_ON && PV\.villageRoadY\)/);
+});
+
+test('a minimap draw error only warns once and never stops the frame', () => {
+  const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  assert.match(main, /try \{ drawRadar\(\); \} catch \(e\) \{ if \(!drawRadar\.warned\) \{ drawRadar\.warned = true; console\.warn\(/);
+  const line = main.split('\n').find(l => l.includes('drawRadar.warned')); assert.ok(line.indexOf('//') > line.indexOf('emoteTick(); }'), 'nothing after the comment');
 });
