@@ -489,5 +489,24 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   }
   function openMap(fn) { if (!el) build(); getSt = fn || getSt; open = true; resetView(); el.hidden = false; document.documentElement.classList.add('isle-map-open'); cancelAnimationFrame(raf); frame(); }
   function close() { if (!open) return; open = false; cancelAnimationFrame(raf); if (el) el.hidden = true; document.documentElement.classList.remove('isle-map-open'); vx = vz = 0; }
-  return { draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), locate: locatePoint, get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
+  // Owner portal reuses this exact terrain bake and harbor->foot transform, not a second map asset.
+  function drawAdminChart(canvas, players = []) {
+    checkRev(); if (!done || again) bakeRows(24);
+    const c = canvas.getContext('2d'), W = canvas.width, H = canvas.height, dpr = W / Math.max(1, canvas.clientWidth || W);
+    c.fillStyle = '#123541'; c.fillRect(0, 0, W, H);
+    if (!done) { c.fillStyle = '#ffe0a0'; c.font = '16px system-ui'; c.fillText('Mapping the island…', 20, 35); return false; }
+    const dots = players.filter(p => /^Harbor/.test(p.room || '') && !['hull', 'cottage'].includes(p.mode) && Number.isFinite(p.x) && Number.isFinite(p.z)).map(p => ({ ...p, f: toF(p.x, p.z) }));
+    // Expand the chart for sailors beyond the island; arena/interior frames must never be projected here.
+    const xs = [B.x0, B.x1, ...dots.map(p => p.f[0])], zs = [B.z0, B.z1, ...dots.map(p => p.f[1])];
+    const x0 = Math.min(...xs) - 30, x1 = Math.max(...xs) + 30, z0 = Math.min(...zs) - 30, z1 = Math.max(...zs) + 30;
+    const k = Math.min(W / (x1 - x0), H / (z1 - z0));
+    const T = (x, z) => [W / 2 + (x - (x0 + x1) / 2) * k, H / 2 + (z - (z0 + z1) / 2) * k];
+    const [ox, oz] = T(B.x0, B.z0); c.drawImage(base(THEMES.colored), ox, oz, N * mpp * k, NZ * mpp * k);
+    c.font = `${12*dpr}px system-ui`; c.textAlign = 'center'; c.fillStyle = '#ebd7a3';
+    for (const gl of GEO_LABELS.filter(g => g.kind === 'district')) { const [a,b] = T(gl.x,gl.z); c.strokeStyle='#102027'; c.lineWidth=3; c.strokeText(gl.name,a,b); c.fillText(gl.name,a,b); }
+    dots.forEach((p, i) => { const [a,b] = T(...p.f); c.beginPath(); c.arc(a,b,6*dpr,0,Math.PI*2); c.fillStyle='#68f0cb'; c.fill(); c.strokeStyle='#071d25'; c.lineWidth=2; c.stroke(); c.fillStyle='#fff4d3'; c.textAlign='left'; c.fillText(`${p.label || i+1} ${String(p.name || 'PIRATE').slice(0,20)}`,a+9*dpr,b-8*dpr); });
+    c.textAlign='left'; c.fillStyle='#ffe0a0'; c.fillText('N ↑ · island & sea · harbor coordinates',14*dpr,22*dpr);
+    return true;
+  }
+  return { drawAdminChart, draw, drawLocal, drawSafeOverlay, safeCanvas, zoomAt: (f, x, y) => zoomAt(f, x, y), bakeRows, open: openMap, close, toggle: (fn) => open ? close() : openMap(fn), padTick, resetView, zoomIn: () => zoomAt(1.25), zoomOut: () => zoomAt(1 / 1.25), locate: locatePoint, get isOpen() { return open; }, get ready() { return done; }, get pois() { return P || []; }, get zoom() { return z; } };
 }

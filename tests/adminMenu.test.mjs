@@ -48,14 +48,14 @@ const ownerWho = { raw: OWNER, pid: OWNER, wallet: null, owner: true }, victimWh
 
 test('server: every owner action is 403 "Owner only." for non-owners (and for no identity)', async () => {
   const db = fakeDb(); db.add(VICTIM, 'val:ruby', 2);
-  for (const action of ['admin_status', 'admin_players', 'admin_freeze', 'admin_pocket_get', 'admin_pocket_take', 'admin_pocket_give', 'admin_pocket_gold', 'admin_world_put']) { // [v346] + the sky / collision writer
+  for (const action of ['admin_stats', 'admin_status', 'admin_players', 'admin_freeze', 'admin_pocket_get', 'admin_pocket_take', 'admin_pocket_give', 'admin_pocket_gold', 'admin_world_put']) { // [v346] + the sky / collision writer
     for (const who of [victimWho, null]) {
       const r = await res(await A.adminAction(ctx(db, who), action, { target_pid: VICTIM, item: 'val:ruby', qty: 1, frozen: true, delta: 100 }));
       assert.equal(r.status, 403, `${action} as ${who?.pid ?? 'nobody'}`); assert.equal(r.body.error, 'Owner only.');
     }
   }
   assert.equal(db.T.pvp_inv.find(r => r.player_id === VICTIM).qty, 2, 'nothing moved'); assert.equal(db.T.pvp_admin_controls.length, 0, 'nobody frozen');
-  assert.deepEqual(A.OWNER_ACTIONS.sort(), ['admin_freeze', 'admin_players', 'admin_pocket_get', 'admin_pocket_give', 'admin_pocket_gold', 'admin_pocket_take', 'admin_status', 'admin_world_put']);
+  assert.deepEqual(A.OWNER_ACTIONS.sort(), ['admin_freeze', 'admin_players', 'admin_pocket_get', 'admin_pocket_give', 'admin_pocket_gold', 'admin_pocket_take', 'admin_stats', 'admin_status', 'admin_world_put']);
   assert.match(ATS, /if \(OWNER_ACTIONS\.includes\(action\) && !who\?\.owner\) return json\(403, \{ error: "Owner only\." \}\)/);
   assert.match(IDX, /owner: pid === OWNER_MAIN/); assert.match(IDX, /ADMIN_ACTIONS\.includes\(String\(b\.action\) as any\)\) return await adminAction\(\{ db, whoAmI, json \}/);
 });

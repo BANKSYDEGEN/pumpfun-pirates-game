@@ -8,8 +8,8 @@
 import { KEY_RE, itemInfo } from "./invCatalog.ts";
 import { mergeWorld, worldOf } from "./adminWorld.ts"; // [v346] owner sky / weather + collision edits (pvp_terrain.pieces)
 
-export const ADMIN_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_register_net", "admin_my_state", "admin_world_get", "admin_world_put"] as const;
-export const OWNER_ACTIONS = ["admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_world_put"];
+export const ADMIN_ACTIONS = ["admin_stats", "admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_register_net", "admin_my_state", "admin_world_get", "admin_world_put"] as const;
+export const OWNER_ACTIONS = ["admin_stats", "admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_world_put"];
 export const PRESENCE_FRESH_S = 45, FREEZE_MAX_S = 3600, FREEZE_DEFAULT_S = 600;
 
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
@@ -66,10 +66,24 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
   const rpc = async (fn: string, args: Record<string, unknown>) => { const { data, error } = await db.rpc(fn, args); if (error) throw error; return data; };
   try {
     switch (action) {
+      case "admin_stats": {
+        const { data, error } = await db.rpc("pvp_admin_stats", { p_owner: who.pid });
+        if (error) return json(503, { ok: false, pending: true, error: "Server update pending" });
+        if (!data?.ok) return json(403, { error: "Owner only." });
+        return json(200, data);
+      }
       case "admin_status": return json(200, { ok: true, owner: true });
       case "admin_register_net": { // any pirate: THEIR OWN net id (pid from whoAmI)
         if (!okNet(b.net_id)) return json(400, { error: "bad net" });
         const d = await rpc("pvp_admin_register", { p_net: b.net_id, p_pid: who.pid, p_name: cleanName(b.name), p_room: String(b.room ?? "").slice(0, 24), p_mode: String(b.mode ?? "").slice(0, 12), p_x: num(b.x), p_y: num(b.y), p_z: num(b.z) });
+        if (d?.ok && b.portal_v === 1) {
+          // Optional metadata, coarse only. Old migration/client combinations remain compatible.
+          const started = Number(b.session_started_at);
+          const device = ["phone", "tablet", "desktop"].includes(String(b.device)) ? b.device : null;
+          if (Number.isFinite(started) && started <= now && started > now - 7 * 86400000) {
+            await db.from("pvp_admin_presence").update({ device, session_started_at: new Date(started).toISOString() }).eq("net_id", b.net_id).eq("pid", who.pid);
+          }
+        }
         return d?.ok ? json(200, { ok: true }) : json(409, { error: d?.why || "refused" });
       }
       case "admin_my_state": { // any pirate: am I frozen? (keyed on MY pid, the net id only narrows nothing)
@@ -84,7 +98,13 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
           db.from("pvp_harbor_seats").select("seat, copy, state").gt("seen", since).limit(1000),
           db.from("pvp_seats").select("seat, state").gt("seen", since).limit(1000),
         ]);
-        const list = mergeRoster(p?.data || [], h?.data || [], a?.data || [], now).filter((x) => x.pid !== who.pid);
+        if (p.error || h.error || a.error) throw new Error("presence unavailable");
+        const list = mergeRoster(p?.data || [], h?.data || [], a?.data || [], now).filter((x) => b.portal === true || x.pid !== who.pid);
+        if (b.portal === true) {
+          // SQL does the canonical/group-save join; never expose whole profile rows.
+          const { data, error } = await db.rpc("pvp_admin_live", { p_owner: who.pid });
+          return json(200, { ok: true, players: list.map(x => ({ ...x, ...(data?.ok ? data.players?.find((v: any) => v.net === x.net) : {}) })), metadata_pending: !!error });
+        }
         const { data: ctl } = list.length ? await db.from("pvp_admin_controls").select("target_pid, frozen, expires_at").in("target_pid", list.map((x) => x.pid)) : { data: [] };
         const fz = new Set((ctl || []).filter((r: any) => r.frozen && Date.parse(r.expires_at) > now).map((r: any) => r.target_pid));
         return json(200, { ok: true, players: list.map((x) => ({ ...x, frozen: fz.has(x.pid) })) });

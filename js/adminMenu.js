@@ -163,13 +163,14 @@ export function initAdminMenu(ctx) {
     const P = pvp(), d = dock(), s = player(); if (!P?.active) return null;
     const room = P.where === 'harbor' ? `Harbor #${P.hb?.copy || 1}` : P.where === 'arena' ? 'Arena' : P.where || '';
     const foot = !!d?.onFoot, w = d?.walker?.w;
-    const mode = d?.houses?.inHouse ? 'cottage' : foot ? 'foot' : d?.canoeing ? 'canoe' : 'sea';
+    const mode = d?.inHull ? 'hull' : d?.houses?.inHouse ? 'cottage' : foot ? 'foot' : d?.canoeing ? 'canoe' : 'sea';
     const pos = foot && w ? { x: w.x, y: w.y, z: w.z } : { x: s?.x || 0, y: 0, z: s?.z || 0 };
     return { room, mode, ...pos };
   }
+  const portalSessionStart = Date.now();
   async function beat(now) {
     const net = myNet(), w = whereNow(); if (!net || !w || ADM.invisible) return;
-    st.lastBeat = now; await call('admin_register_net', { net_id: net, name: pvp()?.name || 'PIRATE', ...w }).catch(() => {});
+    st.lastBeat = now; await call('admin_register_net', { net_id: net, name: pvp()?.name || 'PIRATE', ...w, portal_v: 1, session_started_at: portalSessionStart, device: /iPad|Tablet/i.test(navigator.userAgent) ? 'tablet' : /Mobi|Android/i.test(navigator.userAgent) ? 'phone' : 'desktop' }).catch(() => {});
     if (!st.lastMine) checkMine(true);
   }
   async function checkMine(force = false) {
@@ -273,7 +274,7 @@ export function initAdminMenu(ctx) {
   function build() {
     if (panel) return;
     panel = mk('div', 'pfp-admin', `<div class="hd"><b>👑 BANKSY ADMIN</b><button data-a="min" title="collapse">–</button><button data-a="x" title="close (F8)">✕</button></div>
-      <div class="bd"><div class="pw">
+      <div class="bd"><button class="act" data-a="portal" style="width:100%;margin-bottom:8px">⚓ ADMIN PORTAL · LIVE MAP & STATS</button><div class="pw">
         <button data-p="noclip">🕊️ NOCLIP</button><button data-p="god">⚡ GOD MODE</button>
         <button data-p="invisible">👻 INVISIBLE</button><button data-p="esp">👁️ 3D ESP</button></div>
         <div class="spd">FLY SPEED ${SPEEDS.map(v => `<button data-s="${v}">${v}×</button>`).join('')}</div>
@@ -366,6 +367,11 @@ export function initAdminMenu(ctx) {
     return onInput0(e); }
   function onInput0(e) { if (e.target.dataset.wi || e.target.dataset.wf) return WA.input(e.target, e.type === 'change'); const i = e.target.dataset.i; if (i === 'filter') { st.filter = e.target.value.slice(0, 40); const pos = e.target.selectionStart; paintPocket(); const n = panel.querySelector('[data-i="filter"]'); n?.focus(); n?.setSelectionRange(pos, pos); } else if (i === 'sel') st.sel = e.target.value; }
   async function onClick(e) {
+    if (e.target.closest('[data-a="portal"]') && st.owner) {
+      setOpen(false);
+      import('./adminPortal.js').then(m => m.openAdminPortal({ call: (a, b) => invApi(a, b), chart: () => dock()?.islandMap, self: () => { const w = whereNow(); return w ? { net: myNet(), name: pvp()?.name || 'BANKSY', ...w } : null; } })).catch(() => toast('Portal could not load; try refreshing.'));
+      return;
+    }
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.w) return WA.click(b);
     if (b.dataset.p) return setPower(b.dataset.p, b.dataset.p === 'esp' ? !st.esp : !ADM[b.dataset.p]);
