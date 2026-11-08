@@ -14,8 +14,8 @@ const BOOT_CUT_F = { boots_buckle: 0.1796, boots_cavalier: 0.1756, boots_gold: 0
 const PEG_CUT_F = 0.2122;   // = PEG_CUT.female
 const r4 = (v) => Math.round(v * 1e4) / 1e4;
 export const V7F_FITS = {
-  classic_pants: F('classic_pants'),
-  canvas_pants: F('canvas_pants'),
+  classic_pants: { ...F('classic_pants'), hide: [{ v7fUnder: [0.33, 0.63], female: 1 }] },   // [v7f pants b4] sailor-method refit, closed-cloth band (hems <= .307, waist top >= .632)
+  canvas_pants: { ...F('canvas_pants'), hide: [{ v7fUnder: [0.33, 0.63], female: 1 }] },   // [v7f pants b4] same refit geometry as classic, own texture
   // [v7f gear b3] BANKSY t442u / t445u: her tank refit on her torso (tools/v7f_gear/fit.py cloth, seam copies welded, shells smoothed
   // together, BUST band clearance; tools/v7f_gear/b3/README.md). Only the tank passed review; the other tops stay on the raw v5 files.
   cloth_tank: F('cloth_tank'),
@@ -31,6 +31,9 @@ export const V7F_FITS = {
   // swung the belt + seat): thighs mirrored L/R, crotch seam shared, thigh share fading to ~0.25 at the belt (rest root), one smooth
   // knee band thigh -> shin. UVs / colours / _TINT / _HEM / indices untouched. hide: her skin + baked shorts inside the closed cloth band.
   sailor_trousers: { ...F('sailor_trousers'), hide: [{ v7fUnder: [0.33, 0.64], female: 1 }] },   // BANKSY t491u: one pair first (method trial)
+  // [v7f pants b3] BANKSY t491u / t492u: leather_breeches by the sailor method; its band sits between its own hems (max y 0.271) and
+  // waist top (min y 0.632): 0.29-0.63, so the knee backs never poke through the breeches and nothing shows above the waistband.
+  leather_breeches: { ...F('leather_breeches'), hide: [{ v7fUnder: [0.29, 0.63], female: 1 }] },
 };
 // [v7f gear] her (unrefit) v5 pants run to y 0.673; the shared pants dye stops at 0.565-0.595 (male V7 waist), so the hip / waistband
 // fabric never took the chosen pants colour on her. V7 female only: the dye runs to the top of her pants (red sash / gold / accent kept).

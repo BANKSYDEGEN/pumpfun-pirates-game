@@ -25,13 +25,13 @@ function glb(path) {   // json + decoded (Meshopt / plain) accessors
 const prim = (g) => { const ms = g.j.meshes.map((m) => m.primitives[0]); return ms.reduce((a, p) => (g.j.accessors[p.attributes.POSITION].count > g.j.accessors[a.attributes.POSITION].count ? p : a)); };
 const joints = (g) => g.j.skins[0].joints.map((i) => g.j.nodes[i].name);
 const body = glb('assets/pirates/pirate_female_v7_hi.glb'), BODY_BONES = new Set(joints(body));
-const PANTS = ['sailor_trousers'], HEM = { sailor_trousers: [0.20, 0.23] };
+const PANTS = ['sailor_trousers', 'leather_breeches', 'classic_pants', 'canvas_pants'], HEM = { sailor_trousers: [0.20, 0.23], leather_breeches: [0.25, 0.275], classic_pants: [0.30, 0.31], canvas_pants: [0.30, 0.31] }, BAND = { sailor_trousers: [0.33, 0.64], leather_breeches: [0.29, 0.63], classic_pants: [0.33, 0.63], canvas_pants: [0.33, 0.63] };
 const A = (g, k) => g.acc(prim(g).attributes[k]);
 
-test('V7F_FITS: this batch = sailor_trousers, with the closed-cloth band hide; male fits stay his', () => {
+test('V7F_FITS: refit pants = sailor_trousers (b2) + leather_breeches (b3) + classic_pants / canvas_pants (b4), each with its closed-cloth band hide; male fits stay his', () => {
   for (const id of PANTS) { const F = V7F_FITS[id]; assert.ok(F, id);
     for (const lod of ['hi', 'lo']) assert.equal(F[lod], `assets/pirates/items/v7f_fit/${id}_female_${lod}.glb`);
-    assert.deepEqual(F.hide, [{ v7fUnder: [0.33, 0.64], female: 1 }]); }
+    assert.deepEqual(F.hide, [{ v7fUnder: BAND[id], female: 1 }]); }
   for (const id of PANTS) if (V7M_FITS[id]) assert.ok(!V7M_FITS[id].hi.includes('v7f_fit') && !V7M_FITS[id].hide?.some((r) => r.v7fUnder), id);   // his own male fits stay his
 });
 
@@ -63,7 +63,13 @@ for (const id of PANTS) for (const lod of ['hi', 'lo']) {
       const wi = {}, wj = {}; for (let k2 = 0; k2 < 4; k2++) { wi[J[i * 4 + k2]] = (wi[J[i * 4 + k2]] || 0) + W[i * 4 + k2]; wj[J[j * 4 + k2]] = (wj[J[j * 4 + k2]] || 0) + W[j * 4 + k2]; }
       for (const b of new Set([...Object.keys(wi), ...Object.keys(wj)])) assert.ok(Math.abs((wi[b] || 0) - (wj[b] || 0)) <= (W.some((x) => x > 1.5) ? 3 : 0.012), `seam weights ${i}/${j}`); } }
     let ymin = 9, ymax = -9; for (let i = 0; i < n; i++) { const y = P[i * 3 + 1]; ymin = Math.min(ymin, y); ymax = Math.max(ymax, y); if (P0[i * 3 + 1] > 0.665) assert.ok(y > 0.64, `waist top ${i} ${y}`); }
-    assert.ok(ymax < V7F_PANTS_DYE_Y[0], 'top under the dye height'); assert.ok(ymin > HEM[id][0] && ymin < HEM[id][1], `hem ${ymin}`);
+    assert.ok(ymax < V7F_PANTS_DYE_Y[0], 'top under the dye height');
+    if (id !== 'sailor_trousers') {   // [v7f pants b3/b4] band inside the closed cloth: above both hems, below the lowest waist-top point
+      let hemTop = 0, waistLow = 9;   // from the cloth's open edges (hems below 0.4, the waist top above; the sash-knot slit at |x| > 0.13 is off her body)
+      const I = f.acc(prim(f).indices), E = new Map(); const K = (i) => [0, 1, 2].map((c) => Math.round(P[i * 3 + c] * 1e5)).join(',');
+      for (let t = 0; t < I.length; t += 3) for (const [a, b] of [[I[t], I[t + 1]], [I[t + 1], I[t + 2]], [I[t + 2], I[t]]]) { const ka = K(a), kb = K(b), e = ka < kb ? ka + '|' + kb : kb + '|' + ka; E.set(e, (E.get(e) || 0) + 1); }
+      for (const [e, c] of E) if (c === 1) for (const k of e.split('|')) { const [x, y, z] = k.split(',').map((v) => v / 1e5); if (y < 0.4) hemTop = Math.max(hemTop, y); else if (Math.abs(x) < 0.13) waistLow = Math.min(waistLow, y); }
+      assert.ok(BAND[id][0] > hemTop + 0.015, `band ${BAND[id][0]} above the hems ${hemTop}`); assert.ok(BAND[id][1] < waistLow, `band ${BAND[id][1]} under the waist top ${waistLow}`); } assert.ok(ymin > HEM[id][0] && ymin < HEM[id][1], `hem ${ymin}`);
   });
 }
 
