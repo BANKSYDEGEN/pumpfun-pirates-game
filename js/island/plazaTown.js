@@ -132,6 +132,9 @@ export const LAMPS = [-54, -42, -30, -18, -4, 16, 28, 40, 52, 60, 93].map(lx => 
 export const CARGO = [[-34, -3.5], [-28, -4], [-20, -3.5], [-14, -4.5], [20, -3.5], [26, -4], [34, -3.5], [74, -4.5], [82, -3.5]];
 export const CRANE = { lx: 40, lz: -2.2 };
 export const DOCK = { deckEnd: BOARDWALK.lx0 };   // the v103 boardwalk stops where the v2 one starts (flush, same 2.95)
+// BANKSY t303u "remove the 3 boards, the cart and the torches outside": the plaza in front of the PUMPFUN HQ gate is kept clear
+export const HQ_PLAZA_CLEAR = (lx, lz) => lx > -45 && lx < 0 && lz > -30 && lz < -8;
+export const plazaBoardOff = (sym) => ['SUNK', 'AHOY', 'PUMP'].includes(sym);
 export const remapTokens = (list) => list.filter(t => TOKEN_SLOTS[t.sym] !== undefined).map(t => ({ ...t, ...tokenSpot(t.sym) }));
 export const SPAWN = { lx: 6, lz: 50, ly: Math.PI };            // GO ASHORE fallback: the end of the Main Street jetty, facing town
 
@@ -456,7 +459,7 @@ export function buildPlazaV2(h) {
     if (hl.trending && !ON_PORTAL && HALL_BOARDS_ON) for (let i = 0; i < TRENDING.n; i++) { const lx = TRENDING.lx0 + i * (TRENDING.lx1 - TRENDING.lx0) / (TRENDING.n - 1);
       at(lx, FACADE_LZ, 0, () => W(k, box(2.9, 2.2, 0.2), C.WOOD_D, TIMBER, M(0, TRENDING.y, 0.12), false), Y0); sign('trend' + i, 2.6, 1.9, lx, Y0 + TRENDING.y, FACADE_LZ + 0.24); }
   }
-  if (!ON_PORTAL) for (const [sym, lx] of Object.entries(TOKEN_SLOTS)) if (!A['bb' + sym] && !hallTokenHidden(sym)) {     // slot frames for boards not in this build
+  if (!ON_PORTAL) for (const [sym, lx] of Object.entries(TOKEN_SLOTS)) if (!A['bb' + sym] && !hallTokenHidden(sym) && !plazaBoardOff(sym)) {     // slot frames for boards not in this build
     at(lx, tokenSpot(sym).lz, 0, () => { for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), C.WOOD_D, TIMBER, M(sx * 2.05, 2.9, 0)); W(k, box(4.5, 4.0, 0.24), C.WOOD_D, TIMBER, M(0, 3.75, 0)); }, Y0);
     sign('tok_' + sym, 4.1, 3.6, lx, Y0 + 3.85, tokenSpot(sym).lz + .14); }
   if (TOKENX_ON) { const [x, z] = T(62, -27.4); addBox(x, z, 4.9, 1.2, yaw0); }   // the v103 token exchange counter (was walk-through); [v240] hidden unless &tokenx=1
@@ -465,12 +468,12 @@ export function buildPlazaV2(h) {
     stoneHouse(hs.lx, hs.w, hs.fl, hs.v); if (hs.tavern) hanging('tavern', hs.lx, hs.w); }
   fishHall();   // [v247] the walk-in FISH MARKET on the shop row (#10 + #11)
   // ---- market street + stalls + tavern tables + carts ----
-  for (const [lx, lz] of LAMPS) { const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
+  for (const [lx, lz] of LAMPS) { if (HQ_PLAZA_CLEAR(lx, lz)) continue; const [x, z] = T(lx, lz); torchPost(k, F, x, Y0, z); addCirc(x, z, 0.3); }
   for (const s of STALLS) { const [x, z] = T(s.lx, s.lz); stall(k, x, Y0, z, yaw0 + Math.PI, 0xd8322f); { const [bx, bz] = T(s.lx, s.lz - 0.2); addBox(bx, bz, 4.3, 3.0, yaw0); }   // [collisions] counter + the 4 awning posts (the r 1.8 circle let you walk through the corner posts)
     at(s.lx, s.lz, Math.PI, () => { W(k, box(4.4, 0.1, 3.2), s.c, CLOTH, M(0, 3.0, 0.3, 0, 0.14)); for (const sx of [-2.0, 2.0]) for (const sz of [-1.2, 1.6]) W(k, box(0.14, 3.0, 0.14), C.WOOD_D, TIMBER, M(sx, 1.5, sz), false);
       for (let p = 0; p < 5; p++) k.add(new THREE.IcosahedronGeometry(0.28, 0), [0xff7a1a, 0xffd43b, 0x7cc142, 0xd8322f][(p + s.lx) & 3], { m: M(-1.2 + p * 0.6, 1.2, 0.2), outline: false, mat: 0 }); }, Y0);
     const [bx, bz] = T(s.lx + 2.8, s.lz + 1.0); ((s.lx / 8) % 2 ? barrel : sacks)(k, M(bx, Y0, bz, s.lx)); addCirc(bx, bz, 0.7); }
-  for (const [lx, lz] of CARTS) { at(lx, lz, 0.3, () => { W(k, box(2.6, 0.5, 1.5), C.WOOD, TIMBER, M(0, 0.95, 0)); for (const sz of [-0.85, 0.85]) W(k, cyl(0.55, 0.55, 0.14, 10), C.WOOD_D, TIMBER, M(-0.4, 0.55, sz, 0, Math.PI / 2), false);
+  for (const [lx, lz] of CARTS) { if (HQ_PLAZA_CLEAR(lx, lz)) continue; at(lx, lz, 0.3, () => { W(k, box(2.6, 0.5, 1.5), C.WOOD, TIMBER, M(0, 0.95, 0)); for (const sz of [-0.85, 0.85]) W(k, cyl(0.55, 0.55, 0.14, 10), C.WOOD_D, TIMBER, M(-0.4, 0.55, sz, 0, Math.PI / 2), false);
       W(k, box(1.8, 0.1, 0.1), C.WOOD_D, TIMBER, M(2.1, 0.8, 0.4), false); W(k, box(1.8, 0.1, 0.1), C.WOOD_D, TIMBER, M(2.1, 0.8, -0.4), false); }, Y0);
     const [x, z] = T(lx, lz); barrel(k, M(x, Y0 + 1.2, z, 1)); { const c = Math.cos(0.3), s = Math.sin(0.3), [bx, bz] = T(lx + 0.9 * c, lz - 0.9 * s); addBox(bx, bz, 4.9, 1.8, yaw0 + 0.3); } }   // [collisions] cart body + wheels + the shafts (circle 1.5 missed the shafts)
   for (const [lx, lz] of TAVERN_TABLES) { at(lx, lz, 0, () => { W(k, cyl(0.9, 0.9, 0.12, 10), C.WOOD, TIMBER, M(0, 1.0, 0)); W(k, cyl(0.15, 0.25, 1.0, 6), C.WOOD_D, TIMBER, M(0, 0.5, 0), false);

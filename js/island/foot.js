@@ -891,7 +891,7 @@ export const PLAZA_TOKENS_TITLE = { SUNK: '$SUNK', AHOY: '$AHOY', PUMP: '$PUMP',
 export const PLAZA_TOKENS = [{ sym: 'SUNK', lx: -42, lz: -36 }, { sym: 'AHOY', lx: -36, lz: -36 }, { sym: 'PUMP', lx: -30, lz: -36 },
   { sym: 'HQ', lx: 45, lz: -36 }, { sym: 'RETARDIO', lx: 51, lz: -36 }];   // [v144] the other side of the plaza (the first three mirrored across the leaderboards)
 // [Timothy] ?plaza=2: the shops + billboards the plaza actually shows (js/dock/layout.js uses these too)
-export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = (PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS).filter(t => !CO.hallTokenHidden(t.sym)); // [v240] $HQ / $RETARDIO hidden (&hallboards=1)
+export const PLAZA_SHOPS_ON = PV2 ? PV.STOREFRONTS : PLAZA_SHOPS, PLAZA_TOKENS_ON = (PV2 ? PV.remapTokens(PLAZA_TOKENS) : PLAZA_TOKENS).filter(t => !CO.hallTokenHidden(t.sym) && !(PV2 && PV.plazaBoardOff?.(t.sym))); // [v240] $HQ / $RETARDIO hidden (&hallboards=1)
 export let PLAZA_V2_SIGNS = null; export const PV_DOCK = PV.DOCK; export { PV };
 export const INTERACT = []; // { id, x, z, r, label }
 // [v337] BANKSY t1790u: the SAME dock-plaza gravel (color 0xc9bfae, aMat 10 -> look.js libTri(4)) runs continuously up Main Street

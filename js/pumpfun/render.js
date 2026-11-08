@@ -34,7 +34,6 @@ function carvedSign(low){const c=document.createElement('canvas');c.width=low?51
  g.strokeStyle='#d9a441';g.lineWidth=H*.05;g.strokeRect(H*.08,H*.08,W-H*.16,H-H*.16);g.lineWidth=H*.015;g.strokeRect(H*.16,H*.16,W-H*.32,H-H*.32);
  g.font=`bold ${Math.round(H*.62)}px Georgia, "Times New Roman", serif`;g.textAlign='center';g.textBaseline='middle';
  g.fillStyle='#1a0a05';g.fillText('PUMPFUN PIRATES',W/2+H*.03,H*.55+H*.03);g.fillStyle='#e8b85a';g.fillText('PUMPFUN PIRATES',W/2,H*.55);
- for(const x of [H*.55,W-H*.55]){g.fillStyle='#e8b85a';g.beginPath();g.arc(x,H/2,H*.2,0,7);g.fill();g.fillStyle='#5a2a1a';g.beginPath();g.arc(x,H/2,H*.1,0,7);g.fill();}
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return new THREE.MeshBasicMaterial({map:t,toneMapped:false});}
 // wall info-panel slots: one shared placeholder face; Emerly can swap mesh.material per slot later (userData.panelSlot = id)
 function panelSlots(group,low){const Y=HQ.floor+HQ_BOARD_BAND.y;
@@ -127,7 +126,7 @@ function glow(group,low){
 export const hqNightAmount=(p=skyPhase())=>{const e=sunElevation(p),t=Math.min(1,Math.max(0,(e+.05)/.3));return 1-t*t*(3-2*t);};
 function nightFill(group,low){const Y=HQ.floor,C=Y+HQ.ceil-.04,X0=HQ.lx0+.58,X1=HQ.lx1-.98,Z0=HQ.lz0+.58,Z1=HQ.lz1-.58,geos=[];
  const q=(w,h,x,y,z,rx,ry)=>{if(w<=0||h<=0)return;const g=new THREE.PlaneGeometry(w,h);g.rotateX(rx);g.rotateY(ry);g.translate(x,y,z);geos.push(g);};
- q(X1-X0,Z1-Z0,(X0+X1)/2,Y+.035,(Z0+Z1)/2,-Math.PI/2,0); q(X1-X0,Z1-Z0,(X0+X1)/2,C,(Z0+Z1)/2,Math.PI/2,0);
+ q(X1-X0,Z1-Z0,(X0+X1)/2,Y+.07,(Z0+Z1)/2,-Math.PI/2,0); q(X1-X0,Z1-Z0,(X0+X1)/2,C,(Z0+Z1)/2,Math.PI/2,0);
  q(Z1-Z0,C-Y,X0,(Y+C)/2,(Z0+Z1)/2,0,Math.PI/2); q(X1-X0,C-Y,(X0+X1)/2,(Y+C)/2,Z0,0,0);
  const D=HQ.hillDoor,dz0=D.lz-D.w/2-.4,dz1=D.lz+D.w/2+.4,dt=Y+D.h+D.w/2+.5;   // east wall, hole for the Hill Street arch
  q(dz0-Z0,C-Y,X1,(Y+C)/2,(Z0+dz0)/2,0,-Math.PI/2); q(Z1-dz1,C-Y,X1,(Y+C)/2,(dz1+Z1)/2,0,-Math.PI/2); q(dz1-dz0,C-dt,X1,(dt+C)/2,D.lz,0,-Math.PI/2);
