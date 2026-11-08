@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { STOREFRONTS, SHOPS_OUTSIDE, CLOTHES_ROOM, FACADE_LZ, HALLS, signList } from '../js/island/plazaTown.js';
-import { OUTFIT_STORE, outfitWalls, outfitRooms, outfitPosts } from '../js/island/outfitStore.js';
+import { OUTFIT_STORE, outfitWalls, outfitRooms } from '../js/island/outfitStore.js';
 import { MALE_SHOP_DISPLAYS, BLANK_FORMS, blankBodyGeometry } from '../js/island/plazaMannequins.js';
 import { CLOTHES_LAMPS, ACC_LAMPS } from '../js/island/clothesLook.js';
 import { mapLandmarks } from '../js/mapLandmarks.js';
@@ -19,7 +19,7 @@ const O = OUTFIT_STORE, CZ = FACADE_LZ - 6;   // GLB building origin (plazaTown 
 const CL = STOREFRONTS.find(s => s.id === 'shop_clothes'), AC = STOREFRONTS.find(s => s.id === 'shop_crew');
 function colliders(file = 'assets/island/plaza_shops.glb') {
   const ex = glbExtras(file, 'shop_clothes'); assert.ok(ex && ex.colliders, 'colliders ride in ' + file);
-  const boxes = outfitWalls().map(([x, z, w, d]) => ({ x, z, w, d })), circles = outfitPosts().map(([x, z]) => ({ x, z, r: 0.25 }));
+  const boxes = outfitWalls().map(([x, z, w, d]) => ({ x, z, w, d })), circles = [];
   for (const c of JSON.parse(ex.colliders)) { const x = O.lx + c[1], z = CZ + c[2]; if (c[0] === 'c') circles.push({ x, z, r: c[3] }); else boxes.push({ x, z, w: c[3], d: c[4] }); }
   const R = .33; return { boxes, circles, blocked: (x, z) => boxes.some(b => Math.abs(x - b.x) < b.w / 2 + R && Math.abs(z - b.z) < b.d / 2 + R) || circles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + R) };
 }
@@ -40,7 +40,8 @@ test('the wider + deeper footprint stays clear of the token hall, the Pet Store 
   const x0 = O.lx - O.w / 2 - 0.3, x1 = O.lx + O.w / 2 + 0.3, hall = HALLS.find(h => h.id === 'hall_w'), pets = STOREFRONTS.find(s => s.id === 'shop_pets');
   assert.ok(x1 <= hall.lx - hall.w / 2 - 0.3 + 1e-6, `clear of hall_w (${x1} <= ${hall.lx - hall.w / 2 - 0.3})`);
   assert.ok(x1 < pets.lx - pets.w / 2, 'clear of the Pet Store'); assert.ok(x0 >= -54.3 - 1e-6, 'west edge unchanged (old Clothes plinth)');
-  for (const [, lz] of outfitPosts()) assert.equal(lz, FACADE_LZ + 2.5, 'awning posts on the old line (street untouched)');
+  assert.doesNotMatch(read('js/island/plazaTown.js') + read('js/island/outfitStore.js'), /outfitPosts/, '[no-awn] no awning posts (BANKSY 6:53 PM)');
+  assert.match(read('tools/plaza_blender/plaza_shops_blender.py'), /dict\(id='shop_clothes'[^\n]*noawn=True/);
 });
 test('walk in through each arch to its own counter prompt, and through the archway between the areas', () => {
   for (const file of ['assets/island/plaza_shops.glb', 'assets/island/plaza_shops_low.glb']) {

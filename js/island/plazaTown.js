@@ -1,5 +1,5 @@
 import { SHIP_STORE, buildShipStore } from './shipStore.js';
-import { OUTFIT_STORE, outfitWalls, outfitRooms, outfitPosts } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
+import { OUTFIT_STORE, outfitWalls, outfitRooms } from './outfitStore.js';   // [outfit-store] Clothes + Accessories = one building
 // [Timothy] PUMPFUN PIRATES island plaza v2 = the HERO AREA (PHASE 1 BLOCKOUT). BANKSY: "Port Royal-style harbor town", main
 // look ref brand/requests/plaza_ref/port_royal_hero_banksy.jpg ("Like that"). Behind ?plaza=2: without the flag nothing here
 // runs and the v103 plaza + the 7 old berths are untouched. (&pvships=1 adds the ship-footprint boxes for layout review.)
@@ -378,7 +378,6 @@ export function buildPlazaV2(h) {
       shopWalkInCols({ lx: S.lx, w: S.w });
       sign(S.id, S.w * 0.62, 0.85, S.lx, Y0 + 4.35, FACADE_LZ + 0.52);
     }
-    for (const [lx, lz] of outfitPosts()) addCirc(...T(lx, lz), 0.25);   // awning posts
   }
   SHOP_PLACES.length = 0; CAM_ROOMS.length = 0;
   SHIP_STORE_PLACES.length = 0;

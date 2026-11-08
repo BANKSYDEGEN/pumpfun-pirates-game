@@ -35,5 +35,4 @@ export function outfitRooms(S = OUTFIT_STORE) {
   const t = 0.5, d = S.divider.t / 2;
   return S.areas.map(a => ({ id: a.id, lx0: S.lx + (a.x < 0 ? -S.w / 2 + t : d), lx1: S.lx + (a.x < 0 ? -d : S.w / 2 - t), lz0: S.facadeLz - S.depth + t, lz1: S.facadeLz - t }));
 }
-// awning posts (town-local [lx, lz]): two per arch
-export const outfitPosts = (S = OUTFIT_STORE) => S.arches.flatMap(a => [-1, 1].map(s => [S.lx + a + s * (S.w / S.arches.length) * 0.33, S.facadeLz + 2.5]));
+// [no-awn] BANKSY 6:53 PM "Remove the awnings outside clothing accessories and ship stores": no awning posts (or their colliders) any more

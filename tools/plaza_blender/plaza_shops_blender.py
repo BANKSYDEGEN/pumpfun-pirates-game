@@ -20,11 +20,11 @@ IT = lambda p: os.path.join(GAME, 'assets/pirates', p)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 # ---- the shared layout (keep in sync with js/island/plazaTown.js STOREFRONTS + SHOP_SIGN) ----
-SHOPS = [dict(id='shop_clothes', name='CLOTHES & ACCESSORIES', w=20, fl=3, v=0, awn=0xd8322f, awn2=0x6a4fb3, deep=18.0, combo=True),   # [clothes-aaa] walk-in, 18 m deep; [outfit-store] + Accessories: one 20 m building, 2 areas (js/island/outfitStore.js)
+SHOPS = [dict(id='shop_clothes', name='CLOTHES & ACCESSORIES', w=20, fl=3, v=0, awn=0xd8322f, awn2=0x6a4fb3, deep=18.0, combo=True, noawn=True),   # [clothes-aaa] walk-in, 18 m deep; [outfit-store] + Accessories: one 20 m building, 2 areas (js/island/outfitStore.js)
          dict(id='shop_pets', name='PET STORE', w=9, fl=2, v=1, awn=0x1f8a5a),
          # [ship-aaa] SHIP SHOP + UPGRADE SHOP = Emerly's combined SHIP STORE (js/island/shipStore.js): one 22 m x 12 m walk-in hall (the casino
          # is right behind) with an 8.6 m gilded ceiling, two counters (UPGRADES left, SHIP SKINS right) -> ship_store; the old standalone nodes are gone
-         dict(id='ship_store', name='SHIP STORE', w=22, fl=3, v=2, awn=0x2a6df4, deep=12.0, ship=True, ceil=8.6, arches=[-6.5, 0.0, 6.5], ow=5.0,
+         dict(id='ship_store', name='SHIP STORE', w=22, fl=3, v=2, awn=0x2a6df4, deep=12.0, ship=True, noawn=True, ceil=8.6, arches=[-6.5, 0.0, 6.5], ow=5.0,
               awns=[0xc49731, 0x8a1c1c, 0x2a6df4], bw=10.0, board=(4.35, 5.15), ends=[(-1, 'UPGRADES', 0x5a1a14), (1, 'SHIP SKINS', 0x1c2840)]),
          # [outfit-store] shop_crew (the old CREW / Accessories plot) is the right half of shop_clothes now: no standalone building
          # the WEAPON STORE moved up the hill (Emerly builds it): its slot between the tavern and the harbor tower is a plain matching
@@ -230,7 +230,8 @@ def shopfront(b, sh, lod, rng, ow):
         for i in range(int(w * 0.6 / 0.6)): b.box(0.05, 0.03, 0.9, -w * 0.3 + 0.3 + i * 0.6, FY - 1.51, 0.1, WOOD_D, base=True)
     # striped canvas awning on timber posts (posts at x +-w*0.33, y FY-2.5), scalloped valance
     AX = ARCHES(sh); wa = w / len(AX)   # [outfit-store] one awning per arch (Clothing red, Accessories plum)
-    for k_, ax in enumerate(AX):
+    # [no-awn] BANKSY 6:53 PM "Remove the awnings outside clothing accessories and ship stores": noawn = no canvas, posts, bases or beam
+    for k_, ax in enumerate([] if sh.get('noawn') else AX):
         awn = sh['awns'][k_] if sh.get('awns') else sh['awn2'] if k_ and sh.get('awn2') else sh['awn']
         aw = wa * 0.72; ang = math.atan2(0.7, 2.8); L = math.hypot(2.8, 0.7); ns = 8 if lod < 2 else 1
         for i in range(ns):

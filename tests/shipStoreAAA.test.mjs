@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHIP_STORE, shipWalls, shipPosts, shipRoom } from '../js/island/shipStore.js';
+import { SHIP_STORE, shipWalls, shipRoom } from '../js/island/shipStore.js';
 import { STOREFRONTS, FACADE_LZ, HALLS } from '../js/island/plazaTown.js';
 import { MALE_SHOP_DISPLAYS } from '../js/island/plazaMannequins.js';
 import { SHIP_LAMPS, SKIN_LAMPS } from '../js/island/clothesLook.js';
@@ -13,7 +13,7 @@ function glbJson(file) { const b = readFileSync(new URL('../' + file, import.met
 const S = SHIP_STORE;
 function colliders(file) {
   const ex = glbJson(file).nodes.find(n => n.name === 'ship_store')?.extras; assert.ok(ex && ex.colliders, 'ship_store colliders ride in ' + file);
-  const boxes = shipWalls().map(([x, z, w, d]) => ({ x, z, w, d })), circles = shipPosts().map(([x, z]) => ({ x, z, r: 0.25 }));
+  const boxes = shipWalls().map(([x, z, w, d]) => ({ x, z, w, d })), circles = [];
   for (const c of JSON.parse(ex.colliders)) { const x = S.lx + c[1], z = S.lz + c[2]; if (c[0] === 'c') circles.push({ x, z, r: c[3] }); else boxes.push({ x, z, w: c[3], d: c[4] }); }
   for (const d of MALE_SHOP_DISPLAYS.ship_store) circles.push({ x: S.lx + d.x, z: S.lz + d.z, r: 0.38 });
   const R = .33; return { boxes, circles, blocked: (x, z) => boxes.some(b => Math.abs(x - b.x) < b.w / 2 + R && Math.abs(z - b.z) < b.d / 2 + R) || circles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + R) };
@@ -29,6 +29,8 @@ test('the hall: one GLB node, old standalone nodes gone, the lot depth kept (the
   const R = shipRoom(); assert.ok(R.lx1 - R.lx0 > 20 && R.lz1 - R.lz0 > 10);
   assert.match(read('js/island/plazaTown.js'), /glb: SHOPS_KIT && SHOPS_KIT\.shops\.ship_store/);
   assert.match(read('js/island/plazaShops.js'), /\(shop\|house\|ship\)_/);
+  assert.doesNotMatch(read('js/island/shipStore.js'), /Posts/, '[no-awn] no awning posts (BANKSY 6:53 PM)');
+  assert.match(read('tools/plaza_blender/plaza_shops_blender.py'), /dict\(id='ship_store'[^\n]*noawn=True/);
 });
 test('walk in through each arch straight to its own counter prompt; counters solid; prompts apart; centre aisle to the dais', () => {
   for (const file of ['assets/island/plaza_shops.glb', 'assets/island/plaza_shops_low.glb']) {

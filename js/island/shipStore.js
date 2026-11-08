@@ -1,6 +1,6 @@
 // One shared shell on the former upgrade + skins lots; two independent shop counters.
 import * as THREE from 'three';
-import { outfitWalls, outfitPosts } from './outfitStore.js';
+import { outfitWalls } from './outfitStore.js';
 // [ship-aaa] BANKSY 6:18-6:19 PM "Then start on ship store" / "Make higher ceilings and make the store nice, keep 2 counters one for
 // upgrades and one for skins": the Blender hall (plaza_shops.glb node 'ship_store', tools/plaza_blender/plaza_shops_blender.py) fills
 // the whole 12 m lot (the casino's front is right behind it at lz -42) and goes UP: an 8.6 m gilded ceiling, three street arches; the
@@ -8,9 +8,8 @@ import { outfitWalls, outfitPosts } from './outfitStore.js';
 export const SHIP_STORE = Object.freeze({ id: 'ship_store', lx: 26, lz: -36, w: 22, d: 12, promptLz: -38.0,
   depth: 12, ceil: 8.6, facadeLz: -30, door: 5.0, arches: Object.freeze([-6.5, 0, 6.5]), counterLz: -39.6,
   counters: Object.freeze([{ id: 'shop_upgrades', lx: 20.5, color: 0xc49731 }, { id: 'shop_ships', lx: 32, color: 0x367bd0 }]) });
-// [ship-aaa] wall colliders (town-local [lx, lz, w, d]: back, sides, the four piers round the three arches), awning posts, camera room
+// [ship-aaa] wall colliders (town-local [lx, lz, w, d]: back, sides, the four piers round the three arches), camera room ([no-awn] no awning posts)
 export const shipWalls = (S = SHIP_STORE) => outfitWalls(S);
-export const shipPosts = (S = SHIP_STORE) => outfitPosts(S);
 export const shipRoom = (S = SHIP_STORE) => ({ id: S.id, lx0: S.lx - S.w / 2 + 0.5, lx1: S.lx + S.w / 2 - 0.5, lz0: S.facadeLz - S.depth + 0.5, lz1: S.facadeLz - 0.5 });
 // glb = SHOPS_KIT.shops.ship_store (null = fallback); place(lx, lz) = put the model there; room(R, ceil) = an indoor camera box.
 // Returns true when the Blender hall was placed.
@@ -21,7 +20,6 @@ export function buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb = null
     place?.(S.lx, S.lz);
     for (const [lx, lz, a, b] of shipWalls()) addBox(...T(lx, lz), a, b, yaw0);
     for (const c of glb.colliders) { const [x, z] = T(S.lx + c[1], S.lz + c[2]); if (c[0] === 'c') addCirc(x, z, c[3]); else addBox(x, z, c[3], c[4], yaw0 + (c[5] || 0)); }
-    for (const [lx, lz] of shipPosts()) addCirc(...T(lx, lz), 0.25);
     room?.(shipRoom(), S.ceil);
     return true;
   }
