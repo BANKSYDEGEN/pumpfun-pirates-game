@@ -1,3 +1,4 @@
+import { PILLY_ENABLED } from '../features.js';
 // [Emerly] PUMPFUN PIRATES on-foot controller: third-person pirate on the harbor world (layout walk API).
 // PC: WASD / arrows move (camera-relative), Shift runs, drag the mouse to look (same left-drag as the ship camera), wheel zooms.
 // Phone / tablet: virtual joystick (left thumb: push far = run), drag anywhere else to look, pinch zooms. Interact = E / the
@@ -95,7 +96,7 @@ export function createWalker({ camera, canvas, world, pirate, touch, low = false
     let want = 0;
     if (mag > 0.01) {
       const n = Math.hypot(f, s), fx = Math.sin(w.camYaw), fz = Math.cos(w.camYaw), dx = (fx * f - fz * s) / n, dz = (fz * f + fx * s) / n;
-      want = (w.body.swim ? PHYS.swim[run ? 1 : 0] : (run ? WALK.run : WALK.walk) * wadeFactor(w.body)) * (w.joy.on ? Math.max(0.35, mag) : 1) * (w.body.swim ? (w.sk || 1) * (globalThis.__pfpPillySwim || 1) : 1); /* [Pilly] companion level = swim speed */ // [Raul] swim / wade slower [Emerly] x the swim surge
+      want = (w.body.swim ? PHYS.swim[run ? 1 : 0] : (run ? WALK.run : WALK.walk) * wadeFactor(w.body)) * (w.joy.on ? Math.max(0.35, mag) : 1) * (w.body.swim ? (w.sk || 1) * (PILLY_ENABLED ? globalThis.__pfpPillySwim || 1 : 1) : 1); /* [Pilly] companion level = swim speed */ // [Raul] swim / wade slower [Emerly] x the swim surge
       if (w.moveK) want *= w.moveK; // [Timothy tps] ADS: half speed
       if (w.carryK) want *= w.carryK; // [v349 money-makers] hauling a smuggler crate: 80% speed
       if (climbing(w.body)) want = Math.min(want, PHYS.climbV); // [Raul swim-anim] shuffle forward during the 0.6 s pull-up out of the water

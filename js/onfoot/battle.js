@@ -1,3 +1,4 @@
+import { PILLY_ENABLED } from '../features.js';
 // [Timothy] PUMPFUN PIRATES · BATTLE AREAS, game side (BANKSY, approved 1:40 PM Nov 3): on-foot SWORD fights in the SWORD PIT and
 // MUSKET fights at the MUSKET RANGE (js/island/battleAreas.js: layout + static art). Harbor only, on foot only.
 //  - walk into the pit (inside the rope ring) = your SWORD is drawn; walk into the range (inside the fence) = you shoulder a MUSKET.
@@ -547,7 +548,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (SAFEZONES_ON && !canFightOnFoot(isleSafe, ...layout.harborToFoot(W0.x, W0.z), performance.now() / 1000, { inHouse: !!inHouse?.() })) {
       say('🛡️ SAFE ZONE<small>you are protected here</small>', 1200); return;
     }
-    me.hp = Math.max(0, me.hp - n); me.lastBy = by; if (byId) me.lastById = byId; me.lastHitT = t; me.repT = 0; me.repairing = false; /* [t1724u] a hit restarts the 20 s wait */ sfx?.playerHit?.(0.7); try { dispatchEvent(new Event('pfp-foot-hit')); } catch {} /* [Pilly] surprised face */ flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
+    me.hp = Math.max(0, me.hp - n); me.lastBy = by; if (byId) me.lastById = byId; me.lastHitT = t; me.repT = 0; me.repairing = false; /* [t1724u] a hit restarts the 20 s wait */ sfx?.playerHit?.(0.7); if (PILLY_ENABLED) try { dispatchEvent(new Event('pfp-foot-hit')); } catch {} /* [Pilly] surprised face */ flash.style.opacity = 1; setTimeout(() => { flash.style.opacity = 0; }, 160);
     if (me.hp <= 0) {
       me.down = ARENA.downS; me.downs++; try { dispatchEvent(new CustomEvent('pfp-pvp-down', { detail: { by: String(by || '') } })); } catch {} /* [v349] crate drop + prize fights */ me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
       const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);

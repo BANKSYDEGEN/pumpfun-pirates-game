@@ -1,3 +1,4 @@
+import { PILLY_ENABLED } from '../features.js';
 import { createPumpfun } from './pumpfun.js';
 import { setParrotWorld } from '../parrotFlight.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot controller (harbor only; Waves, the arena and spectate never load or run it).
@@ -133,7 +134,7 @@ export async function createDock(ctx) {
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
-  const pillyF = new URLSearchParams(location.search).get('pilly') === '0' ? null : createPilly({ scene, world, low: LOW }); let pillyS = null; // [Pilly] own slot: walks beside you WITH your parrot / pet
+  const pillyF = !PILLY_ENABLED || new URLSearchParams(location.search).get('pilly') === '0' ? null : createPilly({ scene, world, low: LOW }); let pillyS = null; // [Pilly] own slot: walks beside you WITH your parrot / pet
   let ladders = null; try { if (LADDERS_ON) ladders = createLadders({ world, layout, walker, pirate, crewF, petF, lagoon: { ...LAGOON_LADDER, dock: LAGOON_DOCK, y: lagoonDockY() } }); } catch (e) { console.warn('[dock-ladders]', e); } // [dock-ladders]
   const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW, canvas, world, touch }); // [v314] + canvas look, world.blocked landings // [Emerly sail-around]
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
@@ -200,10 +201,11 @@ export async function createDock(ctx) {
         equipped: () => getLocalGear()?.parrot || '', out: () => !!petF?.active, toast: (...a) => toast(...a),
         gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } });
       setInterval(() => pp.tick(1), 1000);
-      pillyS = createPillyState({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }), follower: pillyF, toast: (...a) => toast(...a),
+      if (PILLY_ENABLED) { pillyS = createPillyState({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }), follower: pillyF, toast: (...a) => toast(...a),
         out: () => on && onFoot && !shipHull?.inHull, gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } }); // [Pilly]
       window.PFP_PILLY = Object.freeze({ open: () => pillyS.open(), close: () => pillyS.close(), refresh: () => pillyS.refresh(), get state() { return pillyS.state; } });
       setInterval(() => pillyS.tick(1), 1000); { let tries = 0; const t = setInterval(() => { if (++tries > 30 || pillyS.state.avail != null) return clearInterval(t); if (pv()?.inv?.call) pillyS.refresh(); }, 4000); }
+      }
       import('../parrotsPanel.js').then(m => {
         const pc = m.createParrotsPanel({ flush: () => pv()?.flushNow?.(), call: (a, b) => pv()?.inv?.call?.(a, b),
           equipped: () => getLocalGear()?.parrot || '', out: () => on && onFoot && !shipHull?.inHull,
