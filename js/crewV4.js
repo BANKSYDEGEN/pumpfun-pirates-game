@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { loadPirateGLB, TINTS } from './pirateGLB.js';
 import { sharedBodyClips } from './onfoot/retarget.js';
+import { SKIN_SWATCHES, HAIR_SWATCHES, EYE_SWATCHES } from './pirateGear.js';
 import { skullTexture, ITEM_BY_ID } from './pirateItems.js';
 import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons] // [v123] the hat skull decal texture (crew slot tF0)
 
@@ -12,14 +13,10 @@ import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons]
 export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v7_crew.glb', female: 'assets/pirates/pirate_female_v7_crew.glb' };
 export const GENERIC_CREW_STYLES = [
   { hat: 'none', outfit: 'shirt', outfitColor: 0, pants: 'canvas_pants', boots: 'boots_classic' },
-  { hat: 'none', outfit: 'tshirt', outfitColor: 4, pants: 'classic_pants', boots: 'boots_classic' },
-  { hat: 'none', outfit: 'coat', outfitColor: 7, pants: 'leather_breeches', boots: 'boots_classic' },
 ];
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
 export let V4 = null;                           // { tpl: { m: { idle, cannon }, f: {...} }, tex: [atlasM, atlasF, faceM, faceF], hipY, shY, eyeY }
-const SKIN = [0xf2c9a0, 0xe0ac7e, 0xc68a5e, 0x9a6440, 0x6e4528, 0xf5d6b8];
-const HAIR = [0x1a1410, 0x4a2c17, 0x8a5a2b, 0xd9b25a, 0x161616, 0xb5401f, 0x7a4a22];
 const hash = (i) => ((Math.sin(i * 127.1 + 311.7) * 43758.5453) % 1 + 1) % 1;
 const PART = { 'thigh.L': 1, 'shin.L': 1, 'thigh.R': 2, 'shin.R': 2, 'upperarm.L': 3, 'forearm.L': 3, 'upperarm.R': 4, 'forearm.R': 4 };
 const bn = (s) => (s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase(); // GLTFLoader sanitises 'thigh.L' -> 'thighL'
@@ -109,11 +106,13 @@ export function initCrewV4({ lod = 'lo' } = {}) { // [crew holes] lod from pirat
 // one seat's pirate: stable look from the seat id v; pose 'idle' | 'cannon'. Same attributes as crew.js pirate(): position, normal, color, aPart (+ uv)
 const _cache = new Map(), _c = new THREE.Color();
 export const crewFemale = (v) => hash(v * 3.17 + 1) < 0.42;
+// Free colours only; source V7 hair/tattoo/eye shapes are never randomized.
+export function crewAppearance(v){return {female:crewFemale(v),skinColor:1+Math.floor(hash(v*5.3+2)*SKIN_SWATCHES.length),hairColor:1+Math.floor(hash(v*7.9+3)*HAIR_SWATCHES.length),eyeColor:1+Math.floor(hash(v*9.1+4)*EYE_SWATCHES.length)};}
 export function crewPirateV4(v, pose = 'idle', { female: fem = null, bare = false, template = null, tag = '' } = {}) {
   if (!bare && fem === null && V4?.generic?.length) { const i = Math.floor(hash(v * 4.37) * V4.generic.length); return crewPirateV4Dressed(v, pose, V4.generic[i], 'v7-generic-' + i); }
   const key = v + '|' + pose + '|' + fem + '|' + tag; if (_cache.has(key)) return _cache.get(key);
   const female = fem ?? crewFemale(v), T = template || V4.tpl[female ? 'f' : 'm'][pose] || V4.tpl[female ? 'f' : 'm'].idle;
-  const skin = _c.set(SKIN[Math.floor(hash(v * 5.3 + 2) * SKIN.length)]).clone(), hair = _c.set(HAIR[Math.floor(hash(v * 7.9 + 3) * HAIR.length)]).clone();
+  const look=crewAppearance(v),skin=_c.set(SKIN_SWATCHES[look.skinColor-1][1]).clone(),hair=_c.set(HAIR_SWATCHES[look.hairColor-1][1]).clone();
   const col = T.col.slice(), iS = TINTS.indexOf('skin'), iH = TINTS.indexOf('hair');
   for (let i = 0; i < T.tint.length; i++) { const t = T.tint[i], c = t === iS ? skin : t === iH ? hair : null; if (c) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } }
   const g = new THREE.BufferGeometry();
@@ -152,7 +151,7 @@ export const CREW_OWN_EXTRAS = ['beard', 'face', 'cape', 'boots', 'pants'];
 export { crewWeapOn, crewWeaponsOf };   // [crew-weapons] pure, in js/carryRules.js (node tests)
 
 export function crewGearOf(gear) {
-  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: gear.eyes || 'plain',   /* [v6-store-clothes] crew eyewear */ parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0 }; // [Timothy] + the free clothes colour
+  if (!gear) return null; const g = { hat: gear.hat || 'none', outfit: gear.outfit || 'shirtless', eyes: gear.eyes || 'plain',   /* [v6-store-clothes] crew eyewear */ parrot: 'none', hook: 'none', hatColor: gear.hatColor | 0, outfitColor: gear.outfitColor | 0, capeColor: gear.capeColor | 0, pantsColor: gear.pantsColor | 0, bootsColor: gear.bootsColor | 0 }; // [Timothy] + the free clothes colour
   for (const k of CREW_EXTRA_SLOTS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [Raul shop2 fixes]
   for (const k of CREW_OWN_EXTRAS) if (gear[k] && gear[k] !== 'none') g[k] = gear[k];   // [v6-store-clothes] the crew's OWN Crew Shop extras (not the captain's)
   if (gear.carryCrew === 1) { g.carryCrew = 1; g.carrySword = gear.carrySword || 'none'; g.carryMusket = gear.carryMusket || 'none'; g.carryHand = gear.carryHand || 'R'; }   // [crew-weapons]
@@ -254,6 +253,7 @@ function bakeGear(p, mesh, pose, T, plain = false, velvet = false, decal = false
 // one seat's body + the baked gear chunk -> one geometry (same attributes as crewPirateV4)
 const _dc = new Map();
 export function crewPirateV4Dressed(v, pose, chunks, tag) {
+  if(chunks?.uniformEmpty)return crewPirateV4(v,pose,{bare:true,tag:'explicit-empty-uniform'});
   const female = crewFemale(v), ch = chunks?.[female ? 'f' : 'm']?.[pose] || chunks?.[female ? 'f' : 'm']?.idle;
   const base = crewPirateV4(v, pose, { bare: true, template: chunks?.[female ? 'f' : 'm']?.body?.[pose], tag: 'body-' + tag }); if (!ch) return base;
   const key = v + '|' + pose + '|' + tag; if (_dc.has(key)) return _dc.get(key);
