@@ -2,7 +2,10 @@
 // buildings, move pet store one building up hill street". Town-local metres (north = -lz), traced from his numbered sketch over the
 // minimap (HQ / Hill Street / Squad Hall calibration, 4.38 px/m). One table drives the roads, the ground, the buildings, colliders
 // and the map. No three.js import here (tests + map read it).
-export const VILLAGE_ON = !(typeof location !== 'undefined' && /[?&]village=0/.test(location.search));
+// Emergency town safety pause (BANKSY Nov 8): default OFF, including colliders / decks / map / terrain cuts.
+// Local QA may compare the old art; production URLs cannot re-enable it.
+export const villageEnabledFor = (env = globalThis) => !!(env.location && /^(localhost|127\.0\.0\.1)$/.test(env.location.hostname) && new URLSearchParams(env.location.search).get('village') === '1');
+export const VILLAGE_ON = villageEnabledFor();
 // roads: Hill Street's gravel (colour 0xc9bfae, library layer 10). [v3] GRADED: each road has its own straight profile (knots along its
 // long axis), flat across the width, with flat landings at the junctions; the ground is cut / filled to it (villageGround).
 export const STREET_Y = 2.73;                                   // the dock plaza slab top (plazaTown STREET_Y)
@@ -51,7 +54,7 @@ export function lotFrame(o) {
 // floors: the graded road level at each door (re-seated on the v3 road profiles), +0.15 m slab
 export const floorOf = (o) => { const f = lotFrame(o), { r } = roadAt(f.door.lx, f.door.lz); return +(roadY(r, f.door.lx, f.door.lz) + .03).toFixed(2); };
 // rental data for the later rental system (ids stable, numbers = BANKSY's sketch)
-export const VILLAGE_RENTALS = VILLAGE_LOTS.map(o => { const f = lotFrame(o), y = floorOf(o), b = (u, v) => ({ lx: +(f.cx + f.nx * v + (f.nz ? u : 0) * (f.nz ? -f.nz : 1) + (f.nx ? 0 : 0)).toFixed(2), lz: +(f.cz + f.nz * v + (f.nx ? u * f.nx : 0)).toFixed(2) });
+export const VILLAGE_RENTALS = (VILLAGE_ON ? VILLAGE_LOTS : []).map(o => { const f = lotFrame(o), y = floorOf(o), b = (u, v) => ({ lx: +(f.cx + f.nx * v + (f.nz ? u : 0) * (f.nz ? -f.nz : 1) + (f.nx ? 0 : 0)).toFixed(2), lz: +(f.cz + f.nz * v + (f.nx ? u * f.nx : 0)).toFixed(2) });
   return Object.freeze({ id: 'village_' + o.n, lot: o.n, name: 'FOR RENT', grand: o.n === 7, door: { ...f.door, y }, facing: o.face, storeys: o.fl,
     slots: { counter: b(0, -f.d / 2 + 1.6), shelves: [b(-f.w / 2 + 1, 0), b(f.w / 2 - 1, 0)], sign: { ...f.door, y: y + 4.6 } } }); });
 const inR = (r, lx, lz, m = 0) => lx > r[0] - m && lx < r[1] + m && lz > r[2] - m && lz < r[3] + m;
@@ -80,7 +83,7 @@ export function villageGround(lx, lz, h, plazaY = STREET_Y) {
 
 // [v3] the village rentals in the Hill Street RENTABLE_SHOPS shape (js/island/hillShops.js): same fields, flat floors (slope 0), so anything
 // that reads a hill rent shop (moneyMakers inShop, a rental system) reads these the same way. ALL_RENTABLE = hill + village.
-export const VILLAGE_RENTABLE = VILLAGE_LOTS.map(o => { const f = lotFrame(o), y = floorOf(o), t = VILLAGE_HALL.wall + .3;
+export const VILLAGE_RENTABLE = (VILLAGE_ON ? VILLAGE_LOTS : []).map(o => { const f = lotFrame(o), y = floorOf(o), t = VILLAGE_HALL.wall + .3;
   const a = [f.cx - (f.nz ? f.w : f.d) / 2 + t, f.cz - (f.nz ? f.d : f.w) / 2 + t], b = [f.cx + (f.nz ? f.w : f.d) / 2 - t, f.cz + (f.nz ? f.d : f.w) / 2 - t];
   const ly = Math.atan2(f.nx, f.nz);
   return Object.freeze({ id: 'village_' + o.n, lot: 'V' + o.n, lx: f.cx, lz: f.cz, ly, w: f.w, d: f.d, storeys: o.fl, door: { lx: f.door.lx, lz: f.door.lz }, doorY: y,

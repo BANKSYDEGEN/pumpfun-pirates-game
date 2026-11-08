@@ -119,7 +119,7 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
 function top0(o) { return (o.n === 7 ? VILLAGE_HALL.grand : VILLAGE_HALL.h) + Math.max(0, o.fl - 2) * 3.5 - 1.5; }
 // painted light pools under the lanterns: ONE additive mesh (radial canvas, 128 px), no lights
 export function buildVillagePools() {
-  if (!POOLS.length) return null;
+  if (!VILLAGE_ON || !POOLS.length) return null;
   const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, 'rgba(255,196,110,0.55)'); gr.addColorStop(.5, 'rgba(255,170,80,0.22)'); gr.addColorStop(1, 'rgba(255,150,60,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
   const geos = POOLS.map(([x, y, z, r]) => { const p = new THREE.PlaneGeometry(2 * r, 2 * r); p.rotateX(-Math.PI / 2); p.translate(x, y + .02, z); return p; });
