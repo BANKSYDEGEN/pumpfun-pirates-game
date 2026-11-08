@@ -152,7 +152,7 @@ export function createPillyState(ctx) {
   }
   function draw() {
     globalThis.dispatchEvent?.(new Event('pfp-pilly-change'));
-    if (!el || el.hidden) return; const box = el.querySelector('.pl-box'), nm = esc(st.name || 'Pilly');
+    if (!el || el.hidden) return; const box = el.querySelector('.pl-box'), nm = 'Pilly';
     let h = `<h3><b>💊 ${nm.toUpperCase()} · COMPANION</b><button class="x" aria-label="Close">✕</button></h3>`;
     if (st.error) h += `<p role="status">${esc(st.error)}</p>`;
     if (st.avail === false) h += '<p>Could not load Pilly. Retry to check ownership.</p><button class="b" data-a="retry">RETRY</button>';
@@ -161,17 +161,17 @@ export function createPillyState(ctx) {
     else if (storeOnly) h += '<p><b>OWNED</b> · Upgrade Pilly in your ship hull or inventory.</p>';
     else { const nx = lvXp(st.lv + 1), pc = st.lv >= 10 ? 100 : Math.round((st.xp - lvXp(st.lv)) / (nx - lvXp(st.lv)) * 100);
       h += `<div><b>LV ${st.lv}</b> · ${st.xp} XP${st.lv < 10 ? ` / ${nx}` : ' · MAX'} · now <b>+${Math.round(pillySwim(st.lv) * 100)}% swim speed</b></div><div class="bar"><i style="width:${pc}%"></i></div>
-        <button class="b ${st.out ? '' : 'go'}" data-a="out">${st.out ? 'SEND HOME' : 'BRING PILLY'}</button>${st.lv < 10 ? `<button class="b" data-a="treat" ${busy ? 'disabled' : ''}>TREAT +100 XP · ${pillyTreatCost(st.lv).toLocaleString()} 🪙</button>` : ''}
-        <div style="margin-top:6px"><input maxlength="16" placeholder="Name" value="${esc(st.name || '')}"><button class="b" data-a="name">RENAME</button></div>`; }
+        <button class="b ${st.out ? '' : 'go'}" data-a="out">${st.out ? 'SEND HOME' : 'BRING PILLY'}</button>${st.lv < 10 ? `<button class="b" data-a="treat" ${busy ? 'disabled' : ''}>TREAT +100 XP · ${pillyTreatCost(st.lv).toLocaleString()} 🪙</button>` : ''}`; }
     if (!storeOnly) h += `<ol>${PILLY_LADDER.map((t, i) => `<li class="${st.owned && i <= st.lv ? 'got' : ''}${st.owned && i === st.lv ? ' now' : ''}">LV ${i}: ${t}</li>`).join('')}</ol>
       <p style="font-size:11px;opacity:.75">Pilly earns XP while out with you on the island, like your parrot. Its swim boost stacks with your parrot's gold find and pets' sell bonus.</p>`;
     box.innerHTML = h; box.querySelector('.x').onclick = close;
-    box.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => act(b.dataset.a, box.querySelector('input')?.value));
+    box.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => act(b.dataset.a));
   }
-  async function act(a, v) {
+  async function act(a) {
     if (a === 'retry') return refresh();
+    if (a === 'name') return; // [t2341u] Pilly is always just "Pilly": no naming
     if (busy) return; ++requestSeq; busy = true; draw();
-    const r = await call('pilly_' + a, a === 'out' ? { out: !st.out } : a === 'name' ? { name: v } : {}); busy = false;
+    const r = await call('pilly_' + a, a === 'out' ? { out: !st.out } : {}); busy = false;
     if (r?.ok) { apply(r); if (a === 'buy') { ctx.toast?.('💊 PILLY JOINED YOUR CREW', 2200); ctx.follower?.wave(); } if (a === 'treat') ctx.follower?.react('happy', 1.6); }
     else { failed(r); ctx.toast?.(esc(st.error), 2200); draw(); }
   }

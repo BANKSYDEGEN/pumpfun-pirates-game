@@ -1,5 +1,5 @@
 // Companion ownership is server-owned and independent of bag capacity/trading.
-export const PILLY_HULL_SPOT = Object.freeze({ x: -4.96, z: 1.15, r: 1.35, label: 'PILLY · NAME & LEVEL UP' });
+export const PILLY_HULL_SPOT = Object.freeze({ x: -4.96, z: 1.15, r: 1.35, label: 'PILLY · LEVEL UP' });
 export function pillyInventoryEntry(pilly, doc = document) {
   if (!pilly?.state?.owned) return null;
   const entry = doc.createElement('button'); entry.type = 'button';
