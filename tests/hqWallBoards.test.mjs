@@ -31,6 +31,6 @@ test('all six wall slots carry a board; taps go through openPump; no DexScreener
  const w=src('js/pumpfun/wallboards.js')+src('js/pumpfun/wallpanels.js'),d=src('js/dock/pumpfun.js');
  for(const P of HQ_PANELS) assert.ok(P.id==='east_1'||w.includes(`slot: '${P.id}'`),P.id);
  assert.match(d,/wallPanelMint\(wb.board,marketFeed.state,hit.uv\):null;if\(m\)openPump\(m\)/);
- for(const s of [w,src('js/pumpfun/feeds.js'),d,src('js/pumpfun/render.js')]){assert.ok(!s.includes('PUMPFUNPIRATES')&&!s.includes('BANKSYDEGEN'));assert.ok(!/dexscreener\.com\/solana|PointLight|SpotLight/.test(s));}
+ for(const s of [w,src('js/pumpfun/feeds.js'),d,src('js/pumpfun/render.js')]){assert.ok(!s.includes('PUMPFUNPIRATES')&&!s.includes('BANKSYDEGEN')&&!s.includes('3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34'));assert.ok(!/dexscreener\.com\/solana|PointLight|SpotLight/.test(s));}
  assert.match(w,/low \? 320 : 640/);
  assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices']);});

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import { makeDexPaidFeed, openDexPaidToken } from '../js/pumpfun/dexpaid.js';
-import { PUMP_SHARE_URLS } from '../js/config.js';
+import { tokenURL } from '../js/pumpfun/links.js';
 const src=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const mint='GDRSWpEeKWngc26CVLFXZyZCUwo9fEzctZoEAp1qpump', ours='By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump';
 test('profiles alone are not proof of payment; approved profile orders are sorted and cached 120s',async()=>{
@@ -19,6 +19,6 @@ test('a failing feed reports Feed offline and never throws',async()=>{
 test('Dex Just Paid clicks use the pump.fun link builder, never DexScreener or a visible code',()=>{
  const seen=[];globalThis.window={open:(url)=>seen.push(url)};
  openDexPaidToken({mint});openDexPaidToken({mint:ours});delete globalThis.window;
- assert.deepEqual(seen,['https://pump.fun/coin/'+mint+'?ref=PUMPFUNPIRATES',PUMP_SHARE_URLS[ours]]);
+ assert.deepEqual(seen,[tokenURL(mint),tokenURL(ours)]);
  for(const f of ['js/pumpfun/dexpaid.js','js/pumpfun/render.js','js/dock/pumpfun.js']){const s=src(f);assert.ok(!s.includes('BANKSYDEGEN'),f);assert.ok(!/dexscreener\.com\/solana/.test(s),f);}
 });

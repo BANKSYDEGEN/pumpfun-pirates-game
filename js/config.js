@@ -189,12 +189,8 @@ export const AHOY_CA = HOLDER_MINTS.AHOY;
 export const AHOY_DEX_URL = 'https://dexscreener.com/solana/6x2dj4saq6fykuwz2q5pwej4kfsuqzcud5wrhmtv9zd4';
 export const PUMP_CA = 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'; // the pump.fun token
 export const PUMP_SITE_URL = 'https://pump.fun';
-// Verified per-token share URLs only; unknown tokens use their plain coin page.
-export const PUMP_SHARE_URLS = Object.freeze({
-  [AHOY_CA]: 'https://pump.fun/c/30ca27df-3478-499b-874a-bf617704feb3/BANKSYDEGEN',
-  [SUNK_CA]: 'https://pump.fun/c/4ad61f8d-c23d-4a09-ae12-72775b4ef5fc/BANKSYDEGEN',
-  [PUMP_CA]: 'https://pump.fun/c/396fa44e-4ec3-4efb-946b-53046565d86a/BANKSYDEGEN',
-});
+// Legacy export kept empty; all token links use pumpfun/links.js.
+export const PUMP_SHARE_URLS = Object.freeze({});
 // [v134] BANKSY "change the sign to say $sunk not storm hunt" / "And have the other one $pump": board titles $SUNK · $AHOY · $PUMP
 export const ISLAND_TOKENS = [
   { sym: 'SUNK', title: '$SUNK', logo: 'assets/tokens/sunk.png', ca: SUNK_CA, dex: SUNK_DEX_URL, color: '#fa0d0d' },
