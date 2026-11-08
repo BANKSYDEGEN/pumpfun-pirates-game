@@ -305,7 +305,7 @@ export async function createDock(ctx) {
       btn.hidden = !s; if (!s) { btn.innerHTML = ''; btn.disabled = false; btn.classList.remove('primary'); continue; } // [v350 t1838u] clear stale LEAVE HULL / OPEN STORAGE text when mid-room
       const showKbd = (s.key || (pd && s.fn)) && (!touch || pd);
       const kbd = !showKbd ? '' : `<kbd>${s.key && !pd ? s.key : promptKey(s.key || 'E', i, s.pad || (s.label === 'ENTER HULL' ? 'A' : null))}</kbd>`; // [v349] ENTER HULL → ✕ / A on pad
-      btn.innerHTML = kbd + s.label; btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary);
+      btn.innerHTML = kbd + (pd && s.padLabel ? s.padLabel : s.label); btn.disabled = !!s.disabled; btn.classList.toggle('primary', !!s.primary);
     }
     placeActs();
   }
@@ -418,8 +418,13 @@ export async function createDock(ctx) {
       prompts: () => [!!(actA && !actA.disabled && actA.fn), !!(actB && !actB.disabled && actB.fn), !!(actC && !actC.disabled && actC.fn)], press: (i) => { if (game.state === 'playing') press(i === 2 ? actC : i ? actB : actA); },
       // [v349] Cross / A = ENTER HULL while moored at a berth OR anchored at sea (not on foot / canoe / already inside)
       canEnterHull: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && (docking.mode === 'docked' || (docking.mode === 'sea' && !!P()?.anchor))),
-      canGoAshore: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && actA?.label === 'GO ASHORE' && !actA.disabled && actA.fn),
-      goAshore: () => { if (game.state === 'playing' && actA?.label === 'GO ASHORE' && !actA.disabled) press(actA); },
+      canGoAshore: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && ((actA?.label === 'GO ASHORE' && !actA.disabled && actA.fn) || (actB?.tag === 'launchCanoe' && !actB.disabled && actB.fn))),
+      goAshore: () => {
+        if (game.state !== 'playing') return;
+        if (actA?.label === 'GO ASHORE' && !actA.disabled && SAIL_ALL) { const s = P(); if (s) { s.anchor = true; canoe?.act('launchCanoe', { s, controls }); } }
+        else if (actA?.label === 'GO ASHORE' && !actA.disabled) press(actA);
+        else if (actB?.tag === 'launchCanoe' && !actB.disabled) press(actB);
+      },
       enterHull: () => { if (game.state === 'playing') enterHull(); },
       // [v350 t1838u] Triangle / Y (or A) leaves only when standing at the exit door prompt
       canLeaveHullDoor: () => !!(shipHull?.inHull && actA && !actA.disabled && actA.tag === 'leave' && actA.fn),
@@ -652,7 +657,7 @@ export async function createDock(ctx) {
     if (e.code === 'KeyQ' && (onFoot || inCanoe || inHull) && actB?.key === 'Q') { if (!e.repeat) press(actB); used = true; } else
     if (e.code === 'KeyE') { if (!e.repeat && actA && actA.key === 'E') { press(actA); used = true; } else if (onFoot || inCanoe || inHull) used = true; }
     else if (e.code === 'KeyH' && !e.repeat && ((actC && actC.key === 'H') || (!onFoot && !inCanoe && (docking.mode === 'docked' || (docking.mode === 'sea' && P()?.anchor))))) { if (actC?.key === 'H') press(actC); else enterHull(); used = true; }
-    else if ((e.code === 'KeyW' || e.code === 'ArrowUp') && !onFoot && !inHull && docking.mode === 'docked') { setSail(); used = true; }
+    else if ((e.code === 'KeyW' || e.code === 'ArrowUp') && !onFoot && !inCanoe && !inHull && docking.mode === 'docked') { setSail(); used = true; }
     else if ((e.code === 'KeyW' || e.code === 'ArrowUp') && !onFoot && !inHull && docking.mode === 'sea' && P()?.anchor && actC?.key === 'W') { press(actC); used = true; }
     else if (inCanoe) { if (canoe.onKey(e, true)) used = true; }
     else if (onFoot && walker.onKey(e, true)) used = true;
@@ -749,13 +754,13 @@ export async function createDock(ctx) {
             setActs({ label: cp.a.label, key: 'E', primary: true, fn: () => run(cp.a.tag) }, skinAct);
           } else setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct); }
       }
-    } else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', pad: 'Y', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', pad: 'A', fn: enterHull }); // Cross / A enters hull
-    else if (canoe?.mode === 'canoe') { // [v314] before the ship prompts: GO TO ISLAND (E) + BOARD SHIP (Q) can both show
+    } else if (canoe?.mode === 'canoe') { // [v314] before the ship prompts: GO TO ISLAND (E) + BOARD SHIP (Q) can both show
       const cp = canoe.prompts({ s, onFoot: false, W: walker.w, docking });
       const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walker });
       const mk = (q, k) => (!q ? null : q.disabled ? q : { label: q.label, key: q.key || k, primary: !!q.primary, fn: () => run(q.tag) });
       setActs(mk(cp?.a, 'E'), mk(cp?.b, 'Q'));
     }
+    else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', pad: 'Y', padLabel: SAIL_ALL ? 'TAKE CANOE' : 'GO ASHORE', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', pad: 'A', fn: enterHull }); // keyboard/touch still walk ashore; Triangle takes canoe
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
       // [v314] BANKSY t1675u: the dock approach ALWAYS wins; the canoe prompt only shows when you anchored with the on-screen ⚓ offshore
       const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
@@ -768,7 +773,7 @@ export async function createDock(ctx) {
       } else if (s.anchor && cp?.a) {
         // [v333] BANKSY t1768u: anchored at sea → ENTER HULL / LAUNCH CANOE / WEIGH ANCHOR
         const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
-        const canoeAct = cp.a.disabled ? cp.a : { label: (cp.a.tag === 'launchCanoe' ? 'LAUNCH CANOE' : cp.a.label), key: 'Q', primary: false, fn: () => run(cp.a.tag) };
+        const canoeAct = cp.a.disabled ? cp.a : { label: (cp.a.tag === 'launchCanoe' ? 'LAUNCH CANOE' : cp.a.label), tag: cp.a.tag, key: 'Q', pad: 'Y', padLabel: 'GO TO SHORE · CANOE', primary: false, fn: () => run(cp.a.tag) };
         setActs({ label: 'ENTER HULL', key: 'E', pad: 'A', primary: true, fn: enterHull }, canoeAct, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor }); // [v349] pad Cross / A = ENTER HULL (LAUNCH CANOE stays X / □, WEIGH ANCHOR keeps W)
       } else if (cp?.a) {
         const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });

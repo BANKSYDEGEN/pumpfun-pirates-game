@@ -51,11 +51,12 @@ test('v349 glyphs: PlayStation △, Xbox Y, Nintendo X (positional Y face)', () 
 test('v349 MAP_HELP.sea documents Cross for hull and Triangle for shore', () => {
   const y = MAP_HELP.sea.find((row) => row[0] === 'Y');
   assert.ok(y, 'MAP_HELP.sea has a Y row');
-  assert.match(y[1], /go ashore/i);
+  assert.match(y[1], /take canoe/i);
+  assert.match(y[1], /go to shore/i);
   assert.match(MAP_HELP.sea.find(row => row[0] === 'A')[1], /enter hull/i);
   assert.match(y[1], /moored|anchored/i);
   assert.match(y[1], /island map/i);
-  assert.match(G, /go ashore \(when moored\) · island map \(underway\)/);
+  assert.match(G, /take canoe \(when moored\) · go to shore by canoe \(anchored\)/);
 });
 
 test('v349 gamepad wiring: resolve gate, doAction enterHull, context.canEnterHull, promptKey padBtn', () => {
@@ -166,4 +167,27 @@ test('v349 driver: A calls enterHull when canEnterHull, else taps map key when u
 
 test('v349 sw.js VERSION = pfp-v349', () => {
   assert.ok(+SW.match(/const VERSION = 'pfp-v(\d+)'/)[1] >= 349); // future releases preserve v349 mapping
+});
+
+test('t2343u clarification: moored Triangle launches canoe; anchored Triangle uses shore/canoe action', () => {
+  // Execute the actual pad hook with minimal dock state, without loading the world.
+  const hook = D.match(/goAshore: \(\) => \{([\s\S]*?)\n      \},\n      enterHull:/)[1];
+  const run = new Function('game', 'actA', 'actB', 'SAIL_ALL', 'P', 'canoe', 'controls', 'press', hook);
+  const ship = { anchor: false }, calls = [], controls = {};
+  const canoe = { act: (tag, ctx) => calls.push([tag, ctx]) };
+  const shore = { label: 'GO ASHORE', fn() {} }, launch = { tag: 'launchCanoe', fn() {} };
+  run({ state: 'playing' }, shore, null, true, () => ship, canoe, controls, a => calls.push(a));
+  assert.equal(calls[0][0], 'launchCanoe');
+  assert.equal(calls[0][1].s, ship);
+  assert.equal(ship.anchor, true);
+  calls.length = 0;
+  run({ state: 'playing' }, { label: 'ENTER HULL' }, launch, true, () => ship, canoe, controls, a => calls.push(a));
+  assert.deepEqual(calls, [launch]);
+  calls.length = 0;
+  run({ state: 'paused' }, shore, launch, true, () => ship, canoe, controls, a => calls.push(a));
+  assert.deepEqual(calls, []);
+  assert.match(D, /padLabel: SAIL_ALL \? 'TAKE CANOE' : 'GO ASHORE'/);
+  assert.match(D, /padLabel: 'GO TO SHORE · CANOE'/);
+  assert.ok(D.indexOf("} else if (canoe?.mode === 'canoe')") < D.indexOf("else if (docking.mode === 'docked') setActs"), 'canoe prompts override moored ship prompts');
+  assert.match(D, /!onFoot && !inCanoe && !inHull && docking.mode === 'docked'/, 'paddling W cannot set sail on the moored ship');
 });
