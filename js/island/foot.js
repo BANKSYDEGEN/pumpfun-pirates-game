@@ -647,7 +647,8 @@ function foliageSpots() {
     else if (r < 0.15 + 0.8 * sm(0.36, 0.56, jm)) { trees.push([x, h, z, r]); if (hash(i, j * 2.3) < 0.8) { const fx = x + 3 * (hash(i, 7) - 0.5) * 2, fz = z + 3; const fq = IDX(Math.round(Math.min(NX, Math.max(0, (fx - X0) / G))), Math.round(Math.min(NZ, Math.max(0, (fz - Z0) / G)))); if (!(COTTAGES_ON && cottageClearAt(fx, fz)) && TRg[fq] > 4 && PVg[fq] > 2.5) ferns.push([fx, H(fx, fz), fz, hash(j, 5)]); } }
     else if (r < 0.5) ferns.push([x, h, z, r]);
   }
-  return { trees, palms, ferns, rocks, cliffs };
+  // Retire the hollow moss-boulder family globally, including all streamed LODs.
+  return { trees, palms, ferns, rocks: [], removedRocks: rocks, cliffs };
 }
 // grass tufts + flowers near the camera (deterministic per 1.7 m cell, rebuilt as you move)
 function grassGeos() {
@@ -751,6 +752,7 @@ export function shapeHit(c, x, z, rad = 0) { const dx = x - c.x, dz = z - c.z;
 export function nocAt(x, z) { for (const c of ADMIN_COL.nocs) if (yIn(c, 0.5) && shapeHit(c, x, z, 0)) return true; return false; }
 const q36 = (v) => Math.round(v * 10).toString(36);
 let OB = { n: -1, map: new Map() };
+const RETIRED_ROCK_OBS = new Set();
 /** every built-in obstacle by its stable id (o.ox / o.oz = where the island built it) */
 export function obstacleIds() { const all = CIRC.length + BOXES.length; if (OB.n === all) return OB.map; const map = new Map(), fresh = [];
   for (const o of [...CIRC, ...BOXES]) { if (o.ox === undefined) Object.assign(o, { ox: o.x, oz: o.z }); if (o.id) map.set(o.id, o); else fresh.push(o); }
@@ -771,7 +773,7 @@ export function applyAdminColliders(pieces) { const P = pieces || {}, ids = obst
     else if (id.startsWith('!cdel_')) { const ob = id.slice(6); if (v && v.d) dels.add(ob); }
     else if (id.startsWith('!cmod_')) { const c = shapeOf(v, false); if (c) mods.set(id.slice(6), c); } }
   for (const ob of dels) { const o = ids.get(ob); if (o) { o.sup = true; sup.push(o); } }
-  for (const [ob, c] of mods) { if (dels.has(ob)) continue; const o = ids.get(ob); if (o) { o.sup = true; sup.push(o); } cols.push({ ...c, id: '!cmod_' + ob, ob }); }
+  for (const [ob, c] of mods) { if (dels.has(ob) || [...RETIRED_ROCK_OBS].some(k => ob === k || ob.startsWith(k + '_'))) continue; const o = ids.get(ob); if (o) { o.sup = true; sup.push(o); } cols.push({ ...c, id: '!cmod_' + ob, ob }); }
   Object.assign(ADMIN_COL, { cols, nocs, mods, dels, sup, ver: ADMIN_COL.ver + 1 }); return ADMIN_COL; }
 /** built-ins (with their ids + current shapes) within r m of (x, z), for the owner's 👁 SHOW COLLISIONS */
 export function obstaclesNear(x, z, r = 140) { const ids = obstacleIds(), out = [];
@@ -840,7 +842,7 @@ let KP = null, KPG = 'street'; const kp = (k, name, m) => (KP[KPG] = KP[KPG] || 
 // [nature] Blender nature kit placements (static hero pieces: Skull Peak, spires, boulders), merged per group like the town kit
 let NK = null, NP = null; const np = (name, m, lod = 0) => (NP[KPG] = NP[KPG] || []).push([name, lod, m]);
 const NM = (x, y, z, ry = 0, s = 1, sy = s) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(s, sy, s));
-function natRock(x, z, s, seed, sink = 0.3, kind = 'rock') { np(kind + (seed % (kind === 'rock' ? 3 : 2)), NM(x, H(x, z) - s * sink, z, seed * 1.7, s, s * (0.8 + 0.3 * hash(seed, 2)))); }
+function natRock(x, z, s, seed, sink = 0.3, kind = 'rock') { if (kind === 'rock') return; np(kind + (seed % (kind === 'rock' ? 3 : 2)), NM(x, H(x, z) - s * sink, z, seed * 1.7, s, s * (0.8 + 0.3 * hash(seed, 2)))); }
 function barrel(k, m) { if (KP) return kp(k, 'barrel', m); k.at(m, () => { W(k, cyl(0.62, 0.55, 1.5, 12), WOOD_L, 2, M(0, 0.75, 0)); for (const y of [0.3, 1.2]) W(k, cyl(0.66, 0.66, 0.1, 12), IRON, 0, M(0, y, 0), false); }); }
 function crate(k, m, s = 1.3) { if (KP) return kp(k, 'crate', m.clone().multiply(new THREE.Matrix4().makeScale(s / 1.2, s / 1.2, s / 1.2))); k.at(m, () => { W(k, box(s, s, s), WOOD_L, 2, M(0, s / 2, 0)); for (const y of [0.12, s - 0.12]) W(k, box(s + 0.06, 0.18, s + 0.06), WOOD_D, 2, M(0, y, 0), false); W(k, box(s + 0.04, s * 1.25, 0.14), WOOD_D, 2, M(0, s / 2, 0, 0, 0, 0.78), false); }); }
 function sacks(k, m) { if (KP) return kp(k, 'sacks', m); k.at(m, () => { for (let i = 0; i < 3; i++) W(k, jitter(new THREE.SphereGeometry(0.5, 8, 6), 0.1, i).scale(1, 0.75, 0.8), 0xd9c39a, 12, M(i * 0.7 - 0.7, 0.36 + (i === 1 ? 0.5 : 0), i === 1 ? 0 : 0.2)); }); }
@@ -1266,7 +1268,8 @@ export const DIGS = [];
 const jagCone = (r, h, seg, seed) => { const g = new THREE.ConeGeometry(r, h, seg, 5), P = g.attributes.position;
   for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), t = 0.5 - y / h, k = 1 + 0.3 * t * Math.sin(x * 0.9 + seed) * Math.sin(z * 1.1 + seed * 2) + 0.12 * t * Math.sin(y * 0.8 + seed); P.setXYZ(i, x * k, y, z * k); }
   g.computeVertexNormals(); return g; };
-function boulder(k, x, z, s, seed, sink = 0.3) { if (NP) return natRock(x, z, s * 1.05, seed, sink * 0.5); W(k, jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, seed), (px, py) => (py > 0.2 ? 0xa8a095 : 0x7f786f), 3, M(x, H(x, z) + s * (0.6 - sink), z, seed, 0.3, 0.2, [s * 1.2, s * 0.8, s])); }
+// Retired hollow boulders: includes fixed lighthouse, dig-site and pool-rim placements.
+function boulder() {}
 // [ruins t2003u] BANKSY: "make it a golden v7 pirate". The real V7 male body, frozen in his idle pose, cast in polished gold, on the altar
 function goldPirateStatue(root, low) {
   if (typeof document === 'undefined') return;
@@ -1506,7 +1509,8 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     const okAt = (x, z) => trailDist(x, z) > 5 && gridAt(STg, x, z) > 26 && !B0(x, z);
     for (const t of spots.trees) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.45);
     for (const t of spots.palms) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.32);
-    for (const t of spots.rocks) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.35 * (0.7 + t[3] * 2.4));
+    // Also ignore saved admin moves of these retired built-in circles (no invisible blockers).
+    for (const t of spots.removedRocks) if (okAt(t[0], t[2])) RETIRED_ROCK_OBS.add(`ob_c_${q36(t[0])}_${q36(t[2])}`);
     for (const t of spots.cliffs) if (okAt(t[0], t[2])) addCirc(t[0], t[2], 0.35 * (3.2 + t[3] * 4.2)); }
   // foliage buckets: [kind(s), geometry, variant (-1 any), r0, r1 (m from the camera), cap, casts shadow]. High: per-variant LOD0 up close,
   // one LOD1 mesh beyond; Low: one LOD1 mesh per kind (4 calls, as before). Procedural fallback (&nature=0): the old blockout shapes.
@@ -1518,6 +1522,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
        [['cliffs'], 'cliff0', -1, 0, 220, 300, 1], [['cliffs'], 'cliff1_far', -1, 220, 620, 600, 0]];
   else { const geo = treeGeos(low); BK = [[['trees'], geo.tree, -1, 0, low ? 210 : 380, low ? 520 : 2400, !low], [['palms'], geo.palm, -1, 0, low ? 210 : 380, low ? 200 : 600, !low],
     [['ferns'], geo.fern, -1, 0, low ? 70 : 140, low ? 300 : 2000, 0], [['rocks', 'cliffs'], geo.rock, -1, 0, low ? 160 : 300, low ? 160 : 700, !low]]; }
+  BK = BK.map(([kinds, ...rest]) => [kinds.filter(k => k !== 'rocks'), ...rest]).filter(([kinds]) => kinds.length);
   const IM = {}, BUCKETS = BK.map(([kinds, g, v, r0, r1, cap, sh], i) => {
     const geom = typeof g === 'string' ? nat.get(g.replace('_far', ''), g.endsWith('_far') || low ? 1 : 0) : g;
     if (geom) safeNormals(geom);
