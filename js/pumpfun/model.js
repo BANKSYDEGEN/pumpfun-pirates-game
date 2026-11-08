@@ -153,6 +153,11 @@ export function hqParts() {
   // west foot north of the trench: a stone stair-terrace instead of a bare slope down to the wall
   for(let k=0;k<4;k++){ const o=.25+k*.5,top=Y+(k+1)*.65,zc=(-48.3-30.2)/2; B(X0-o-.07,(top+Y-.2)/2,zc,.5,top-Y+.2,18.1,stone,true); B(X0-o-.1,top+.03,zc,.56,.08,18.2,darkStone,true); }
   B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
+  // ---- p8: paved yard at the trench's north end (was bare sloping grass): flagstones level with the trench, coped retaining kerb holding the hill
+  B(-39.5,Y-.01,-52.4,9.8,.06,8.2,stone);
+  for(let i=0;i<6;i++) B(-44.1+i*1.85,Y+.035,-52.4,.06,.02,8.0,darkStone,true);   // flagstone joints
+  B(-39.4,Y+.45,-56.75,10.6,.9,.5,stone); B(-39.4,Y+.95,-56.75,10.8,.14,.65,darkStone);   // retaining kerb + coping
+  B(-44.85,Y+.3,-52.4,.5,.6,8.6,stone); B(-44.85,Y+.65,-52.4,.65,.12,8.7,darkStone);       // low west kerb
   // ---- p3 outworks: coped stone retaining walls + paved trench floor around the west / back wall foot ----
   for(const [x,z,w,d] of HQ_OUTWORKS){ B(x,Y+1.25,z,w,3.1,d,stone); B(x,Y+2.9,z,w+.25,.22,d+.25,darkStone); }
   B(X0-.95,Y-.02,(HQ_OUTWORKS[0][1]),1.4,.1,HQ_OUTWORKS[0][3]-.4,darkStone); B((X0+X1)/2-.7,Y-.02,Z0-.95,X1-X0+1.2,.1,1.4,darkStone);
@@ -173,12 +178,12 @@ export function hqParts() {
   for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
-  frameAt(-25.2,Y+4.3,Z1+.28,'n',3.2,.8,false);   // referral board outside: centred in the bay left of the gate, mirrors the banner
-  B(-25.2,Y+4.3,Z1+.14,3.5,1.1,.28,mahog);   // backing block proud of the string course
+  frameAt(-25.2,Y+4.3,Z1+.28,'n',4.2,1.575,false);   // referral board outside: centred in the bay left of the gate, mirrors the banner
+  B(-25.2,Y+4.3,Z1+.14,4.5,1.9,.28,mahog);   // backing block proud of the string course
   B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)
   // (BANKSY 1:16 AM: no blind arch / wheel opposite Hill Street; plain damask wall there)
-  for(const [x,z,sg] of [[IX0+.1,-56.6,1],[IX1-.1,-63.4,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
+  for(const [x,z,sg] of [[IX0+.1,-49.3,1],[IX1-.1,-47.0,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
   return p;
 }

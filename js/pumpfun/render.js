@@ -16,7 +16,7 @@ function plaque(group,url,w,h,x,y,z,yaw=0){const tex=new THREE.TextureLoader().l
 export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
  const panels=panelSlots(group,low);
- const referral=plaque(group,'assets/pumpfun/referral_sign.webp',3.2,.8,-25.2,HQ.floor+4.3,-29.42);referral.userData.referral=true;
+ const referral=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,-25.2,HQ.floor+4.3,-29.42);referral.userData.referral=true;
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});
@@ -71,7 +71,7 @@ function cloth(group,low,extra){const Y=HQ.floor,CEIL=Y+HQ.ceil,seg=low?2:6;
  const g=new THREE.PlaneGeometry(1.75,5.0,1,seg);g.translate(0,-2.5,0);const m=swayMesh(g,green);m.position.set(-11.8,Y+6.8,-29.25);group.add(m);}
 function flags(group,low,extra){const Y=HQ.floor,TOP=Y+HQ.wallTop,mat=fabric(low,'#0b0b0c',null,true,1.0,extra,true),seg=low?3:8;
  const add=(w,h,x,y,z,ry)=>{const g=new THREE.PlaneGeometry(w,h,seg,seg>>1);g.translate(w/2,-h/2,0);const m=swayMesh(g,mat);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);};
- add(2.3,2.3,HQ.lx0+.75,Y+10.05,-56.6,-Math.PI/2);add(2.3,2.3,HQ.lx1-1.15,Y+10.05,-63.4,Math.PI/2);   // hall flags off the wall brackets
+ add(2.3,2.3,HQ.lx0+.75,Y+10.05,-49.3,-Math.PI/2);add(2.3,2.3,HQ.lx1-1.15,Y+10.05,-47.0,Math.PI/2);   // p8: both flags fly over lz -49.3..-47.0   // hall flags off the wall brackets
  for(const t of HQ_TOWERS)add(2.0,2.0,t.lx+.08,TOP+7.1,t.lz,0);}                                       // gun-tower flags
 // p3 floor rugs: one 512 px medallion carpet canvas (256 on phones), Lambert, flat on the planks
 function rugs(group,low,extra){const c=document.createElement('canvas');c.width=low?256:512;c.height=c.width*.62;const g=c.getContext('2d'),W=c.width,H=c.height;

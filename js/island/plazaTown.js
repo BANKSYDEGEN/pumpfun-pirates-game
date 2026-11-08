@@ -153,6 +153,7 @@ export const PLAZA = {
 // beach over 8 m inland and 10 m west, so street level = boardwalk level along the whole waterfront (east of -55 the quay
 // already sits at street level)
 export function plazaGround(lx, lz, h) {
+  if(lx>=-44.6&&lx<=-34.4&&lz>=-56.6&&lz<=-48.2) h=Math.min(h,HQ.floor-.05);   // p8: paved yard behind the Outfit Store, level with the trench
   if(lx>=HQ.lx0-3&&lx<=HQ.lx1&&lz>=HQ.lz0-3&&lz<HQ.lz1){const o=Math.max(HQ.lx0-lx,HQ.lz0-lz,0),trench=lz<HQ_TRENCH.westLz+.2||lx>=HQ.lx0;h=Math.min(h,trench?(o<=HQ_TRENCH.w?HQ.floor-.05:h):HQ.floor-.05+(o<2?Math.ceil(o/.5)*.65:o*1.3));}   // whole footprint flat; west/back: paved trench behind a retaining wall (p3)   // [post-hq-castle] whole footprint
   const B = BOARDWALK, sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   if (lz <= 0.5 && lx > SLAB.lx0 - 4 && lx < SLAB.lx1 + 4 && lz > SLAB.lz0 - 4) {             // under the cobbled slab: 4 cm below its top
