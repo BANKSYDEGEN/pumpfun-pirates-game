@@ -136,6 +136,7 @@ export function createPillyState(ctx) {
     if (st.lv > prev && prev >= 0 && st.owned) { ctx.follower?.react('laugh', 2.4); ctx.toast?.(`💊 Pilly reached <b>LV ${st.lv}</b>!`, 2400); } draw(); };
   async function refresh() { const r = await call('pilly_list'); if (r?.ok) apply(r); else st.avail = st.avail === true && !r?.error; draw(); return r; }
   function draw() {
+    globalThis.dispatchEvent?.(new Event('pfp-pilly-change'));
     if (!el || el.hidden) return; const box = el.querySelector('.pl-box'), nm = esc(st.name || 'Pilly');
     let h = `<h3><b>💊 ${nm.toUpperCase()} · COMPANION</b><button class="x" aria-label="Close">✕</button></h3>`;
     if (st.avail === false) h += `<p>Pilly the pump.fun pill is <b>COMING SOON</b> to the pet store. A companion that walks beside you (alongside your parrot) and levels up to LV 10.</p>`;

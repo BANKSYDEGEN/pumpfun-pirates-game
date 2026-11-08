@@ -1,4 +1,5 @@
 import { PILLY_ENABLED } from './features.js';
+import { pillyShopCard } from './pillyShopCard.js';
 import { parrotPreviewEl, isFlyingParrot, releaseParrotPreviews } from './parrotFlight.js';
 // [Timothy] PUMPFUN PIRATES · ISLAND SHOP panel. [v102 live, Emerly] the REAL provider comes from js/pvp.js (setShopProvider): every
 // buy goes to the `pvp` Edge Function (shop_buy), which checks price, goal, gold and ownership server-side. The mock stays for tests.
@@ -133,6 +134,8 @@ function realOr(id) {
 setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; const d = root.querySelector('.ishop-detail > .ishop-sw');
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
+addEventListener('pfp-pilly-change', () => { if (open && VENDORS[view.vendor]?.pets) render(); });
+
 // ---------- item model ----------
 const TAB_SLOT = { swords: 'sword', muskets: 'musket' };
 const MUSK_BANDS = '<span style="color:#c9c9c9">COMMON 1-5</span> · <span style="color:#4fa8ff">RARE 6-10</span> · <span style="color:#c070ff">EPIC 11-15</span> · <span style="color:#ffcd3c">LEGENDARY 16-20</span>'; // [musket-levels] = catalog.js RARITY_COLOR
@@ -191,7 +194,7 @@ function render() {
   const tabs = $('.ishop-tabs', root); tabs.hidden = tabList.length < 2 || !/[?&]shoptabs=1(&|$)/.test(location.search); /* [v377] BANKSY t1983u: each store opens only its own counter, no tabs to the others (?shoptabs=1 = old tabs) */ tabs.setAttribute('aria-label', upg ? 'Ship shop' : 'Shop');
   tabs.innerHTML = tabList.map(t => `<button type="button" role="tab" data-tab="${t}" class="${t === view.tab ? 'on' : ''}" aria-selected="${t === view.tab}">${tabName(t)}</button>`).join('');
   tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === 'upgrades') return openUpgrades(); view.tab = b.dataset.tab; try { localStorage.setItem('pfp_shop_tab_' + view.vendor, view.tab); } catch {} if (TAB_SLOT[view.tab]) view.slot = TAB_SLOT[view.tab]; const ss = tabSlots(V, view.tab); if (ss.length && !ss.includes(view.slot)) view.slot = ss[0]; view.sel = null; render(); });
-  const chips = $('.ishop-chips', root); root.classList.toggle('wardrobe', view.tab === 'wardrobe'); chips.hidden = (view.tab !== 'gear' && view.tab !== 'shoes' && view.tab !== 'wardrobe') || tabSlots(V, view.tab).length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew); { let pb = root.querySelector('.ishop-pilly'); if (PILLY_ENABLED && V.pets && window.PFP_PILLY) { if (!pb) { pb = document.createElement('button'); pb.type = 'button'; pb.className = 'ishop-pilly'; pb.style.cssText = 'display:block;margin:6px auto;padding:8px 14px;border-radius:9px;border:2px solid #4ade80;background:#14351f;color:#fff;font:800 13px system-ui;cursor:pointer'; pb.onclick = () => window.PFP_PILLY?.open(); chips.before(pb); } const s0 = window.PFP_PILLY.state; pb.textContent = s0.avail === false ? '💊 PILLY COMPANION · COMING SOON' : s0.owned ? `💊 PILLY · LV ${s0.lv} · LEVEL UP` : '💊 PILLY COMPANION · 5,000 🪙 (walks with your parrot)'; } else pb?.remove(); } /* [Pilly] */
+  const chips = $('.ishop-chips', root); root.classList.toggle('wardrobe', view.tab === 'wardrobe'); chips.hidden = (view.tab !== 'gear' && view.tab !== 'shoes' && view.tab !== 'wardrobe') || tabSlots(V, view.tab).length < 2; root.classList.toggle('pets', !!V.pets); root.classList.toggle('crewshop', !!V.crew);
   chips.innerHTML = [...GEAR_SLOTS, ...CREW_SLOT_LABELS].filter(([s]) => tabSlots(V, view.tab).includes(s)).map(([s, l]) => `<button type="button" role="tab" data-slot="${s}" class="${s === view.slot ? 'on' : ''}">${l}</button>`).join('');
   { const on = chips.querySelector('button.on'); if (on && !chips.hidden) requestAnimationFrame(() => { const l = on.offsetLeft - chips.offsetLeft, w = on.offsetWidth; if (l < chips.scrollLeft || l + w > chips.scrollLeft + chips.clientWidth) chips.scrollLeft = Math.max(0, l - (chips.clientWidth - w) / 2); }); }   // [v6-store-clothes] phone: the picked chip (SHOES / PANTS) scrolled into view
   if (V.slots.includes('outfit') && (view.tab === 'wardrobe' || !V.tabs.includes('wardrobe'))) chips.insertAdjacentHTML('beforeend', '<button type="button" class="ishop-look" title="Body, skin tone, hair + eye colour (free)">👤 BODY · SKIN · HAIR · EYES</button>'); // [Timothy] captain look
@@ -215,6 +218,7 @@ function render() {
     c.onclick = () => { view.sel = x.key; if (x.kind === 'skin') provider?.prewarm?.('skin', x.key); render(); }; // [skin-swap-perf] selected = built + compiled before EQUIP
     grid.appendChild(c);
   }
+  if (PILLY_ENABLED && V.pets && window.PFP_PILLY) grid.appendChild(pillyShopCard(window.PFP_PILLY));
   detail(items.find(x => x.key === view.sel));
   $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale gold${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some gold is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
@@ -357,6 +361,7 @@ function toast(t) { const el = document.createElement('div'); el.className = 'is
 
 // ---------- API ----------
 export async function openShop(opts = {}) {
+  if (PILLY_ENABLED && opts.vendor === 'pets') window.PFP_PILLY?.refresh();
   if (ON_PORTAL || !provider) return false; // crypto-free portal builds: no Battle Royale, no shared gold, so no shop
   if (!root) build();
   const v = VENDORS[opts.vendor] ? opts.vendor : 'shop', V = VENDORS[v];

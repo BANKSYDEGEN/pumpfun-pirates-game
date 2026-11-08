@@ -73,6 +73,7 @@ export const HARBOR_MODULES = [
   "js/islandGeography.js",
   "js/islandMap.js",
   "js/islandShop.js",
+  "js/pillyShopCard.js",
   "js/kdCounter.js",
   "js/lootCard.js",
   "js/mapLandmarks.js",

@@ -229,3 +229,7 @@
 /* [v6-store-clothes] CHANGING ROOM: owned items only, no prices / buying */
 .ishop.wardrobe .ishop-pr, .ishop.wardrobe .ishop-bst { display: none; }
 .ishop-card.found .ishop-badge { color: #9fd3ff; } /* [musket-levels] a chest-find musket (never sold) */
+
+/* Pilly shares the normal pet item grid, not a small utility button. */
+.ishop-pilly-item .ishop-pilly-icon{display:flex;align-items:center;justify-content:center;font-size:64px;background:radial-gradient(ellipse,#287a4a66,transparent 72%)}
+.ishop-pilly-item .ishop-act{width:100%;min-height:44px;margin-top:8px;padding:8px 6px;font-size:12px}
