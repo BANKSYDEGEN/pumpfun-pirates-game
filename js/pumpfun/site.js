@@ -19,15 +19,17 @@ export const HQ_PILLARS = Object.freeze([]);   // BANKSY 10:43 PM: no pillars; t
 // tall), centred in its wall bay between the doors, torches and corner towers. face: inward normal ('w' = -x, 'e' = +x, 's' = -z).
 export const HQ_BOARD_BAND = Object.freeze({ y: 4.1, h: 3.0 });
 export const HQ_PANELS = Object.freeze([
-  { id: 'east_1', lx: -5.0, lz: -35.2, face: 'w', w: 3.72, h: 3.0, title: 'DEX JUST PAID' },
-  { id: 'east_2', lx: -5.0, lz: -52.5, face: 'w', w: 3.72, h: 3.0, title: 'TRENDING TOKENS' },
+  { id: 'east_1', lx: -5.0, lz: -35.85, face: 'w', w: 3.72, h: 3.0, title: 'DEX JUST PAID' },
+  { id: 'east_2', lx: -5.0, lz: -52.15, face: 'w', w: 3.72, h: 3.0, title: 'TRENDING TOKENS' },
   { id: 'east_3', lx: -5.0, lz: -59.5, face: 'w', w: 3.72, h: 3.0, title: 'ABOUT TO BOND' },
-  { id: 'west_1', lx: -32.4, lz: -51.2, face: 'e', w: 3.72, h: 3.0, title: 'NOTICE BOARD' },
-  { id: 'front_w', lx: -25.15, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'SQUAD · PFPIRATES' },
-  { id: 'front_e', lx: -11.85, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'LEADERBOARD' },
+  { id: 'west_1', lx: -32.4, lz: -52.15, face: 'e', w: 3.72, h: 3.0, title: 'NOTICE BOARD' },
+  { id: 'front_w', lx: -27.25, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'SQUAD · PFPIRATES' },
+  { id: 'front_e', lx: -9.75, lz: -30.6, face: 's', w: 3.72, h: 3.0, title: 'LEADERBOARD' },
 ]);
-export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.5, 'squad'], ['squad_ranks', -40.6, 'squad_ranks'], ['daily_ranks', -45.7, 'daily_ranks']]
-  .map(([file, lz, kind]) => Object.freeze({ file, lx: -32.4, lz, face: 'e', w: 3.07, h: 3.0, kind })));
+// BANKSY 1:06 AM "keep boards symmetrical": west wall mirrors the east wall (lz -35.85 / -52.15 / -59.5, same 3.72 x 3.0 frames);
+// the slot opposite the Hill Street archway (lz -44) holds a board inside a matching blind stone arch.
+export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.85, 'squad'], ['daily_ranks', -44, 'daily_ranks'], ['squad_ranks', -59.5, 'squad_ranks']]
+  .map(([file, lz, kind]) => Object.freeze({ file, lx: -32.4, lz, face: 'e', w: 3.72, h: 3.0, kind })));
 
 export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
 // L0 is the Treasure Trader, L1 Wanted, L2 Rum Export, L3 Harbor Fence. L4 is FIRST genuinely unused room.

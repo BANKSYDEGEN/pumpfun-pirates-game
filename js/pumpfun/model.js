@@ -40,7 +40,11 @@ export function hqParts() {
     for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(X1+.05,Y+HD.h+Math.sin(a)*(R+.95),HD.lz+Math.cos(a)*(R+.95),.6,.22,.55,darkStone,false,{rx:-(a-Math.PI/2)});}
     B(X1+.32,Y+HD.h+R+.95,HD.lz,.3,1.0,.85,gold); B(X1+.49,Y+HD.h+R+1.0,HD.lz,.05,.45,.5,bone,true);   // gilt keystone
     B(X1+.18,Y+HD.h+R+2.3,HD.lz,.18,1.1,3.7,mahog); B(X1+.23,Y+HD.h+R+2.3,HD.lz,.1,1.24,3.86,gold);   // carved sign board (face drawn in render.js)
-    B(X1-.5,Y+.005,HD.lz,2.6,.03,HD.w,darkStone,true); }   // flush threshold, no bump
+    B(X1-.5,Y+.005,HD.lz,2.6,.03,HD.w,darkStone,true);   // flush threshold, no bump
+    // blind arch on the west wall opposite the archway (symmetry), framing the daily-ranks board
+    const XW=X0+.75; for(const s of [-1,1]) { const z=HD.lz+s*(R+.4); B(XW,Y+HD.h/2,z,.5,HD.h,.8,darkStone); B(XW,Y+HD.h+.12,z,.6,.24,.95,darkStone); }
+    for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(XW,Y+HD.h+Math.sin(a)*(R+.35),HD.lz+Math.cos(a)*(R+.35),.5,.62,.62,darkStone,false,{rx:-(a-Math.PI/2)});}
+    B(XW+.1,Y+HD.h+R+.95,HD.lz,.3,1.0,.85,gold); }
   // ---- fortress exterior: plinth, string course, crenellated parapet on all four walls, flat lead-and-stone roof ----
   for(const [a,b] of [[X0-.15,HQ.door.lx-HQ.door.w/2-.9],[HQ.door.lx+HQ.door.w/2+.9,X1+.15]]) B((a+b)/2,Y+.6,Z1+.12,b-a,1.4,.3,darkStone);   // plinth stops at the gate: open to the floor
   B(HQ.door.lx,Y+.005,Z1-.3,HQ.door.w+.2,.03,1.6,darkStone,true);   // flush threshold B(X0-.1,Y+.6,CZ,.3,1.4,D,darkStone);
@@ -120,7 +124,8 @@ export function hqParts() {
     for(const [x0,z0,x1,z1,nx,nz] of sides){ const L=Math.hypot(x1-x0,z1-z0),n=Math.floor(L/1.25),front=nz===1;
       for(let i=0;i<n;i++){const t=(i+.5)/n,x=x0+(x1-x0)*t+nx*.3,z=z0+(z1-z0)*t+nz*.3; B(x,TOP-1.05,z,nx?.6:.45,.75,nx?.45:.6,darkStone,!front); B(x+nx*.05,TOP-1.5,z+nz*.05,nx?.4:.35,.25,nx?.35:.4,darkStone,true); }
       const cx=(x0+x1)/2+nx*.42, cz=(z0+z1)/2+nz*.42; B(cx,TOP-.45,cz,nx?.3:L,.5,nx?L:.3,stone,!front);   // parapet face carried forward on the corbels
-      B((x0+x1)/2+nx*.15,Y+5.6,(z0+z1)/2+nz*.15,nx?.3:L,.28,nx?L:.3,darkStone,!front); }   // mid string course
+      { const cut=nz===1?[HQ.door.lx-GR-1.3,HQ.door.lx+GR+1.3]:nx===1?[HD.lz-HD.w/2-.9,HD.lz+HD.w/2+.9]:null, a0=nx?Math.min(z0,z1):Math.min(x0,x1), a1=nx?Math.max(z0,z1):Math.max(x0,x1);
+        for(const [u0,u1] of cut?[[a0,cut[0]],[cut[1],a1]]:[[a0,a1]]){ const c=(u0+u1)/2, l=u1-u0; B(nx?x0+nx*.15:c,Y+5.6,nx?c:z0+nz*.15,nx?.3:l,.28,nx?l:.3,darkStone,!front); } } }   // mid string course, broken by the archways
   }
   for(const q of p.filter(q=>q.kind==='box'&&q.mat===11&&Math.abs(q.y-(TOP+.95))<.01&&q.h===1.3)) B(q.x,TOP+1.68,q.z,q.w+.14,.16,q.d+.14,darkStone,true);   // merlon caps
   const slit=(x,y,z,nx,nz)=>{ B(x+nx*.06,y,z+nz*.06,nx?.24:1.1,2.9,nx?1.1:.24,darkStone); B(x+nx*.14,y+1.55,z+nz*.14,nx?.34:1.35,.3,nx?1.35:.34,darkStone); B(x+nx*.14,y-1.5,z+nz*.14,nx?.34:1.2,.22,nx?1.2:.34,darkStone);
@@ -139,12 +144,15 @@ export function hqParts() {
     for(const yy of [Y+3.45,Y+4.1]) B(x,yy,z,along?L:.1,.1,along?.1:L,iron,true);
     for(let u=-L/2+.6;u<L/2;u+=1.2){ const px=along?x+u:x, pz=along?z:z+u; B(px,Y+3.78,pz,.05,.6,.05,iron,true); B(px,Y+3.78,pz,along?.34:.05,.05,along?.05:.34,iron,true,{rz:along?Math.PI/4:0,rx:along?0:Math.PI/4}); B(px,Y+4.22,pz,.09,.18,.09,gold,true); } }   // pickets + diamond scrolls + finials
   for(let z=-51;z>-64;z-=4.2) B(X0-.95,Y+.04,z,.9,.03,.9,iron,true);
-  // ---- p5 weathering: damp base band, moss patches at the foot, rain streaks under the corbel table ----
-  { const sides=[[X0,Z1+.07,X1,Z1+.07,0,1],[X1+.07,Z1,X1+.07,Z0,1,0],[X0-.07,Z1,X0-.07,Z0,-1,0],[X0,Z0-.07,X1,Z0-.07,0,-1]];
-    for(const [x0,z0,x1,z1,nx,nz] of sides){ const L=Math.hypot(x1-x0,z1-z0),cx=(x0+x1)/2,cz=(z0+z1)/2;
+  // ---- p5 weathering: damp base band, moss patches at the foot, rain streaks under the corbel table (never across the two archways) ----
+  { const gap=(nx,nz)=>nz===1?[HQ.door.lx-GR-1.3,HQ.door.lx+GR+1.3,'x']:nx===1?[HD.lz-HD.w/2-1.0,HD.lz+HD.w/2+1.0,'z']:null;
+    const sides=[[X0,Z1+.07,X1,Z1+.07,0,1],[X1+.07,Z1,X1+.07,Z0,1,0],[X0-.07,Z1,X0-.07,Z0,-1,0],[X0,Z0-.07,X1,Z0-.07,0,-1]];
+    for(const [sx0,sz0,sx1,sz1,nx,nz] of sides){ const g=gap(nx,nz), segs=[];
+      if(!g) segs.push([sx0,sz0,sx1,sz1]); else if(g[2]==='x') segs.push([sx0,sz0,g[0],sz1],[g[1],sz0,sx1,sz1]); else segs.push([sx0,sz0,sx0,g[1]],[sx0,g[0],sx1,sz1]);
+      for(const [x0,z0,x1,z1] of segs){ const L=Math.hypot(x1-x0,z1-z0),cx=(x0+x1)/2,cz=(z0+z1)/2; if(L<.5) continue;
       B(cx,Y+.55,cz,nx?.05:L,1.1,nx?L:.05,'#6b665b',true); B(cx+nx*.01,Y+1.25,cz+nz*.01,nx?.05:L,.3,nx?L:.05,'#7c766b',true);
-      for(let i=0;i<Math.floor(L/2.6);i++){ const t=(i+.37+((i*7)%5)*.08)/Math.floor(L/2.6),x=x0+(x1-x0)*t+nx*.03,z=z0+(z1-z0)*t+nz*.03,w=.7+((i*13)%7)*.18,h=.35+((i*5)%4)*.22;
-        B(x,Y+h/2,z,nx?.05:w,h,nx?w:.05,i%2?'#56643a':'#4d5a34',true); if(i%2===0) B(x+.4,TOP-1.6-1.1,z+.4*Math.abs(nx),nx?.05:.35,2.2,nx?.35:.05,'#837c70',true); } } }
+      const m=Math.floor(L/2.6); for(let i=0;i<m;i++){ const t=(i+.37+((i*7)%5)*.08)/Math.max(1,m),x=x0+(x1-x0)*t+nx*.03,z=z0+(z1-z0)*t+nz*.03,w=.7+((i*13)%7)*.18,h=.35+((i*5)%4)*.22;
+        B(x,Y+h/2,z,nx?.05:w,h,nx?w:.05,i%2?'#56643a':'#4d5a34',true); if(i%2===0) B(x+.4*Math.abs(nz),TOP-1.6-1.1,z+.4*Math.abs(nx),nx?.05:.35,2.2,nx?.35:.05,'#837c70',true); } } } }
   // west foot north of the trench: a stone stair-terrace instead of a bare slope down to the wall
   for(let k=0;k<4;k++){ const o=.25+k*.5,top=Y+(k+1)*.65,zc=(-48.3-30.2)/2; B(X0-o-.07,(top+Y-.2)/2,zc,.5,top-Y+.2,18.1,stone,true); B(X0-o-.1,top+.03,zc,.56,.08,18.2,darkStone,true); }
   B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
@@ -180,7 +188,7 @@ export function hqParts() {
   return p;
 }
 export const HQ_CHANDELIERS = [-37, -46, -55];
-export const HQ_TORCHES = [[-32.25,-48.3],[-32.25,-62.6],[-5.15,-38.5],[-5.15,-56],[-5.15,-63.2]];
+export const HQ_TORCHES = [[-32.25,-38.5],[-32.25,-49.5],[-32.25,-56],[-32.25,-63.2],[-5.15,-38.5],[-5.15,-49.5],[-5.15,-56],[-5.15,-63.2]];
 export function petParts() {
  const p=[], I=PET_LOT.interior, B=(x,y,z,w,h,d,c)=>p.push({kind:'box',x,y,z,w,h,d,c});
  // Overlay both TO RENT plates and the blank fascia; never move the room or its counter.
