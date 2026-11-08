@@ -19,7 +19,29 @@ import { getLocalGear, setLocalGear, CAPE_SWATCHES } from './pirateGear.js';
 import { openGearColorPicker } from './gearColorPicker.js';
 import { boostOf, boostChipHtml, boostChips, boostsFor, currentBoosts, BOOST_STATS, BOOST_MODE, COMBAT_CAP, ARENA_WEAPON_BOOSTS, fmtPct, statPreview } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS: chips, detail, totals
 
-import { MUSK_TRACKS, MUSK_SKIN, muskKey, muskLevels, setMuskLevels, muskUpgOn, gunAccOn, GUN_ACC, RANK_CAP } from './musketUpgrades.js'; // [Emerly musket-upgrades + gunacc]
+import { MUSK_TRACKS, MUSK_SKIN, muskKey, muskLevels, setMuskLevels, muskUpgOn, gunAccOn, GUN_ACC, RANK_CAP } from './musketUpgrades.js'; // The walk-in pet counter has exactly two purchases. Management stays in the hull.
+function petPillyCard() {
+  return pillyShopCard(PILLY_ENABLED && window.PFP_PILLY ? window.PFP_PILLY : {
+    state: { avail: false }, mobilePaused: !PILLY_ENABLED, openStore() {}
+  });
+}
+function renderPetStore() {
+  root.classList.add('pets'); root.classList.remove('wardrobe', 'crewshop');
+  for (const sel of ['.ishop-tabs', '.ishop-chips', '.ishop-bsts', '.ishop-detail', '.ishop-actbar', '.ishop-foot']) $(sel, root).hidden = true;
+  // CSS on other vendors uses these elements; remove hidden again on their next render.
+  const grid = $('.ishop-grid', root); grid.innerHTML = '';
+  const it = GEAR_ITEMS.find(it => it.slot === 'parrot' && it.id === 'parrot_green');
+  const x = { kind: 'gear', key: gearKey(it), it, name: it.label };
+  const card = document.createElement('div'); card.className = 'ishop-card ishop-pet-purchase'; card.dataset.id = x.key;
+  card.append(gearThumb(it));
+  card.insertAdjacentHTML('beforeend', `<b class="ishop-name">PARROT</b><span class="ishop-badge">${fmtGold(it.price)}</span>`);
+  const buy = document.createElement('button'); buy.type = 'button'; buy.className = 'ishop-act big';
+  buy.textContent = `BUY PARROT · ${fmtGold(it.price)}`;
+  buy.disabled = !state.owner && state.gold < it.price;
+  buy.onclick = () => confirmBuy(x); card.appendChild(buy);
+  grid.append(card, petPillyCard());
+}
+// [Emerly musket-upgrades + gunacc]
 import { GUN_ITEMS } from './inventory/catalog.js';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -134,7 +156,9 @@ function realOr(id) {
 setInterval(() => { if (!open || view.tab !== 'skins' || !view.sel) return; const d = root.querySelector('.ishop-detail > .ishop-sw');
   if (d && !d.classList.contains('real') && root.querySelector(`.ishop-card[data-id="${view.sel}"] canvas.sk-real`)) d.replaceWith(realOr(view.sel)); }, 600);
 
-addEventListener('pfp-pilly-change', () => { if (open && VENDORS[view.vendor]?.pets) render(); });
+addEventListener('pfp-pilly-change', () => {
+  if (open && VENDORS[view.vendor]?.pets) root.querySelector('[data-id="companion:pilly"]')?.replaceWith(petPillyCard());
+});
 
 // ---------- item model ----------
 const TAB_SLOT = { swords: 'sword', muskets: 'musket' };
@@ -185,6 +209,8 @@ function render() {
   root.style.setProperty('--ishop-awning', V.awning || 'transparent'); root.classList.toggle('stall', !!V.awning);
   $('.ishop-title b', root).textContent = view.title || V.name; $('.ishop-title small', root).textContent = V.sub;
   $('.ishop-purse', root).innerHTML = `<i class="coin"></i>${state.owner ? 'OWNER · ' : ''}${fmtGold(state.gold)}`;
+  for (const sel of ['.ishop-bsts', '.ishop-detail', '.ishop-actbar', '.ishop-foot']) $(sel, root).hidden = false;
+  if (V.pets) return renderPetStore();
   // [Timothy] V.upgrades adds an UPGRADES tab (opens the ship upgrades panel); no vendor sets it now: SHIP SKINS and the UPGRADE SHOP are separate
   // [t1714u] never mix menus: muskupg only appears for legacy vendor 'weapons' (combined) OR vendor musket_upgrades (tabs already ['muskupg']).
   const upg = !!(V.upgrades && window.PFP_OPEN_UPGRADES), tabList0 = upg ? [...V.tabs, 'upgrades'] : [...V.tabs];
@@ -218,7 +244,6 @@ function render() {
     c.onclick = () => { view.sel = x.key; if (x.kind === 'skin') provider?.prewarm?.('skin', x.key); render(); }; // [skin-swap-perf] selected = built + compiled before EQUIP
     grid.appendChild(c);
   }
-  if (PILLY_ENABLED && V.pets && window.PFP_PILLY) grid.appendChild(pillyShopCard(window.PFP_PILLY));
   detail(items.find(x => x.key === view.sel));
   $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale gold${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some gold is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}

@@ -22,7 +22,7 @@ test('Pilly enabled alongside parrot with an animated face-capable companion mod
   assert.match(text('js/onfoot/pilly.js'), /export const PILLY_PRICE = 5000/);
   assert.match(text('js/onfoot/pilly.js'), /Math\.min\(10,/);
   assert.match(text('js/onfoot/pilly.js'), /new THREE\.CanvasTexture\(cv\)/);
-  assert.match(text('js/islandShop.js'), /PILLY_ENABLED && V\.pets && window\.PFP_PILLY/);
+  assert.match(text('js/islandShop.js'), /PILLY_ENABLED && window\.PFP_PILLY/);
   assert.match(text('supabase/functions/pvp/pets.ts'), /db\.rpc\("pvp_pilly_op"/);
   assert.match(text('supabase/functions/pvp/pets.ts'), /"pilly_buy"/);
 });
