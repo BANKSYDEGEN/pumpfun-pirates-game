@@ -11,7 +11,7 @@ export const safeText=v=>String(v??'').replace(/[\x00-\x1f\x7f]/g,' ').slice(0,4
 export function selectPair(pairs,ca) {return (Array.isArray(pairs)?pairs:[]).filter(p=>p.chainId==='solana'&&p.baseToken?.address===ca&&finite(p.priceUsd)>0).sort((a,b)=>(finite(b.liquidity?.usd)||0)-(finite(a.liquidity?.usd)||0))[0]||null;}
 export function pairRow(p) {return {mint:p.baseToken.address,symbol:safeText(p.baseToken.symbol),name:safeText(p.baseToken.name),price:finite(p.priceUsd),cap:finite(p.marketCap),fdv:finite(p.fdv),change:finite(p.priceChange?.h24),volume:finite(p.volume?.h24)};}
 export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()}={}) {
- const state={prices:{},trending:[],callouts:[],bonding:[],status:{prices:'Loading…',trending:'Loading…',callouts:'Loading…',bonding:'Free launch feed unavailable · no verified near-bond list'},revision:0};
+ const state={prices:{},trending:[],callouts:[],bonding:[],dexpaid:[],status:{prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Free launch feed unavailable · no verified near-bond list'},revision:0};
  let nextP=0,nextD=0,busyP=null,busyD=null,active=false,discovery=false;const controllers=new Set();
  async function get(url){const c=new AbortController();controllers.add(c);const tm=setTimeout(()=>c.abort(),10000);try{const r=await fetcher(url,{signal:c.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}finally{clearTimeout(tm);controllers.delete(c);}}
  async function prices(){let failed=false;await Promise.all(WATCH_TOKENS.map(async t=>{try{
@@ -21,6 +21,8 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
  }catch{failed=true;if(state.prices[t.sym])state.prices[t.sym].stale=true;}}));
  state.status.prices=failed?'Feed offline for some prices · cached values marked stale':'DexScreener · 60s snapshots';state.revision++;}
  async function discoveries(){await Promise.all([
+  // DEX JUST PAID (BANKSY 2026-11-07): verified paid DexScreener profiles, own 120s cache; lazy module, errors never escape.
+  (async()=>{try{const d=await import('./dexpaid.js');state.dexpaid=await d.fetchDexJustPaid();state.status.dexpaid=d.dexPaidFeed.state.status;}catch{state.status.dexpaid='Feed offline'+(state.dexpaid.length?' · cached paid profiles':'');}})(),
   (async()=>{try{const j=await get('https://api.geckoterminal.com/api/v2/networks/solana/trending_pools?include=base_token');
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';

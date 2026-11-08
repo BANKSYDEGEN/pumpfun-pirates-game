@@ -87,3 +87,4 @@ export function drawHQBoard(cv,state){const g=cv.getContext('2d'),k=cv.width/153
   text((state.status[key]||'Loading…').slice(0,58),x+8,326,19,'#a8bfb0');
   rows.forEach((r,n)=>text(`${n+1}. ${r.symbol}  ${key==='bonding'?r.progress.toFixed(1)+'%':key==='callouts'?r.amount+' boosts':usd(r.volume)+' vol / 24h'}`,x+8,221+n*39,29));});
  text('E / controller / tap to browse · token links open pump.fun · not financial advice',24,366,25,'#a8bfb0');g.restore();}
+export { attachDexPanel, drawDexPanel, dexPanelRow } from './dexpanel.js';
