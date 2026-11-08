@@ -30,6 +30,11 @@ const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS RI
 const GEO_POI = new Set(['skullpeak','falls','gallows','bridge','gate','cove','fort_flag','fort_spyglass']); // [map-streets] typography only — never icon these
 
 const MAPZOOM_ON = typeof location === 'undefined' || !/[?&]mapzoom=0(?:&|$)/.test(location.search); // [map-zoom] BANKSY 2:43 PM; &mapzoom=0 = old tap-anywhere-to-close, no zoom/pan
+// Overlay panels float above the full-bleed canvas. Fit/zoom/pan use the unobstructed area.
+export function mapOverlayViewport(width, height, left = 0, right = 0) {
+  const x0 = Math.min(Math.max(0,left),width*0.48), x1 = Math.max(x0+1,width-Math.max(0,right));
+  return { x:(x0+x1)/2, y:height/2, width:Math.max(1,x1-x0), height:Math.max(1,height) };
+}
 export function createIslandMap({ world, layout, low, islands = null, paperSheet = null }) { // paperSheet() = the MAPS parchment chart (js/dock/treasureMap.js sheet())
   const FM = layout.FM, toF = layout.harborToFoot, toH = layout.footToHarbor;
   // [backpack-pvp] t1727u: ONE smooth vector Safe Zone polygon (BANKSY pink+blue outline). Drawn ONLY on
@@ -252,24 +257,25 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   let z = 1, panX = 0, panZ = 0; // z = zoom (1 = fit whole map), pan = foot-metre offset of the view centre from FB
   let curFX = null, curFZ = null, locEl = null, curEl = null; // [map-streets] cursor + you callouts
   let vx = 0, vz = 0; // pan velocity (foot m / s) for inertia
+  let view = {x:0,y:0,width:1,height:1};
   let fitK = 1; // px-per-metre at z=1 for the current canvas (set each frame)
   const ZMIN = 1, ZMAX = 12; // expanded sailing chart still zooms close enough to read individual shop footprints
   const clampZ = (v) => Math.max(ZMIN, Math.min(ZMAX, v));
   function clampPan() { // pan across the whole sailing chart, not just the old land crop
     if (!FB || fitK <= 0) return;
-    const Wc = fc?.width || 1, Hc = fc?.height || 1, k = fitK * z;
-    const maxX = Math.max(0, FB.rx - (Wc / 2) / k + 8), maxZ = Math.max(0, FB.rz - (Hc / 2) / k + 8);
+    const k = fitK * z;
+    const maxX = Math.max(0, FB.rx - (view.width / 2) / k + 8), maxZ = Math.max(0, FB.rz - (view.height / 2) / k + 8);
     panX = Math.max(-maxX, Math.min(maxX, panX)); panZ = Math.max(-maxZ, Math.min(maxZ, panZ));
   }
   function resetView() { z = 1; panX = panZ = 0; vx = vz = 0; }
   function zoomAt(factor, sx, sy) { // sx,sy = canvas CSS px relative to canvas top-left (centre of zoom); keep that world point under the cursor
     if (!MAPZOOM_ON || !FB || !fc) { z = clampZ(z * factor); return; }
-    const dpr = Math.min(2, devicePixelRatio || 1), Wc = fc.width, Hc = fc.height;
-    const cx = (sx == null ? fc.clientWidth / 2 : sx) * dpr, cy = (sy == null ? fc.clientHeight / 2 : sy) * dpr;
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    const cx = sx == null ? view.x : sx*dpr, cy = sy == null ? view.y : sy*dpr;
     const k0 = fitK * z, nz = clampZ(z * factor), k1 = fitK * nz;
-    // world foot under cursor before zoom: viewCentre + (screen - canvasCentre) / k
-    const fx = FB.cx + panX + (cx - Wc / 2) / k0, fz = FB.cz + panZ + (cy - Hc / 2) / k0;
-    z = nz; panX = fx - FB.cx - (cx - Wc / 2) / k1; panZ = fz - FB.cz - (cy - Hc / 2) / k1; clampPan(); vx = vz = 0;
+    // world foot under cursor before zoom: viewCentre + (screen - safeViewportCentre) / k
+    const fx = FB.cx + panX + (cx - view.x) / k0, fz = FB.cz + panZ + (cy - view.y) / k0;
+    z = nz; panX = fx - FB.cx - (cx - view.x) / k1; panZ = fz - FB.cz - (cy - view.y) / k1; clampPan(); vx = vz = 0;
   }
   function panByPx(dx, dy) { // canvas CSS delta → foot metres (north-up: +y screen = +z foot)
     if (!MAPZOOM_ON || !fitK) return;
@@ -281,12 +287,12 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     const hint = MAPZOOM_ON
       ? 'scroll / pinch zoom · drag to pan · dbl-click reset · M · Esc'
       : 'tap anywhere · M · Esc to close';
-    el.innerHTML = `<div class="im-head"><b>ISLAND MAP</b><span class="im-hint">${hint}</span><span class="im-loc" id="im-you-loc"></span><span class="im-cur" id="im-cur-loc"></span>` +
+    el.innerHTML = `<div class="im-head"><div class="im-title"><small>EXPLORE THE HARBOR</small><b>ISLAND MAP</b></div><div class="im-status"><span class="im-loc" id="im-you-loc"></span><span class="im-cur" id="im-cur-loc"></span></div><span class="im-hint">${hint}</span>` +
       (MAPZOOM_ON ? '<div class="im-zoom" role="group" aria-label="Map zoom"><button type="button" class="im-zbtn" data-z="out" aria-label="Zoom out">−</button><button type="button" class="im-zbtn" data-z="in" aria-label="Zoom in">+</button><button type="button" class="im-zbtn" data-z="reset" aria-label="Recentre"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="display:block;margin:auto" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button></div>' : '') +
-      `<button class="im-x" aria-label="Close">✕</button></div><details class="im-building-key" open><summary aria-label="Toggle building key">BUILDINGS</summary><div class="im-buildings" aria-label="Building key"></div></details><canvas></canvas>` +
-      '<div class="im-key"><i style="background:#fff"></i>you <i style="background:#ffcd77"></i>your ship <i class="im-k-other" style="background:#0d0d10;box-shadow:0 0 0 2px #f5efe0,0 0 0 3px #161616"></i>other pirates <i class="im-k-squad" style="background:#2fd866;box-shadow:0 0 0 2px #fff,0 0 0 3px #161616"></i>squad <i class="im-k-crew" style="background:#2fd866;transform:rotate(45deg);border-radius:1px;box-shadow:0 0 0 1px #082412"></i>crew <i style="background:#ffcd00"></i>Commodore <i class="im-k-ai" style="background:#fa0d0d;box-shadow:0 0 0 1px #161616"></i>AI ships <b style="color:#ff3b3b">✕</b> treasure <i class="im-tr" style="background:#fa0d0d"></i>crimson trail <i class="im-tr" style="background:#ffc93c"></i>doubloon trail <i class="im-st"></i>steep (no way up) <i style="background:rgba(46,232,138,.45);border:1.5px solid #2ee88a"></i>safe zone' +
+      `<button class="im-x" aria-label="Close">✕</button></div><details class="im-building-key" open><summary aria-label="Toggle building key"><span class="im-key-toggle" aria-hidden="true">≡</span><span class="im-key-heading"><small>PLACES & LANDMARKS</small><strong>Buildings</strong></span><span class="im-building-count"></span></summary><div class="im-buildings" aria-label="Building key"></div></details><canvas role="img" aria-label="Island chart. Drag to pan; scroll or pinch to zoom."></canvas>` +
+      '<div class="im-key"><span class="im-legend-item"><i style="background:#fff"></i>you </span><span class="im-legend-item"><i style="background:#ffcd77"></i>your ship </span><span class="im-legend-item"><i class="im-k-other" style="background:#0d0d10;box-shadow:0 0 0 2px #f5efe0,0 0 0 3px #161616"></i>other pirates </span><span class="im-legend-item"><i class="im-k-squad" style="background:#2fd866;box-shadow:0 0 0 2px #fff,0 0 0 3px #161616"></i>squad </span><span class="im-legend-item"><i class="im-k-crew" style="background:#2fd866;transform:rotate(45deg);border-radius:1px;box-shadow:0 0 0 1px #082412"></i>crew </span><span class="im-legend-item"><i style="background:#ffcd00"></i>Commodore </span><span class="im-legend-item"><i class="im-k-ai" style="background:#fa0d0d;box-shadow:0 0 0 1px #161616"></i>AI ships </span><span class="im-legend-item"><b style="color:#ff3b3b">✕</b> treasure </span><span class="im-legend-item"><i class="im-tr" style="background:#fa0d0d"></i>crimson trail </span><span class="im-legend-item"><i class="im-tr" style="background:#ffc93c"></i>doubloon trail </span><span class="im-legend-item"><i class="im-st"></i>steep (no way up) </span><span class="im-legend-item"><i style="background:rgba(46,232,138,.45);border:1.5px solid #2ee88a"></i>safe zone</span>' +
       (MAPZOOM_ON ? '<span class="im-padhint" hidden>L-stick pan · LT/RT zoom · Y recentre · B close</span>' : '') + '</div>';
-    document.body.appendChild(el); fc = el.querySelector('canvas'); locEl = el.querySelector('#im-you-loc'); curEl = el.querySelector('#im-cur-loc'); if (innerWidth <= 700) el.querySelector('.im-building-key').open = false; updateBuildingKey();
+    document.body.appendChild(el); fc = el.querySelector('canvas'); locEl = el.querySelector('#im-you-loc'); curEl = el.querySelector('#im-cur-loc'); if (innerWidth <= 900) el.querySelector('.im-building-key').open = false; updateBuildingKey();
     el.querySelector('.im-x').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); close(); });
     if (!MAPZOOM_ON) {
       el.addEventListener('pointerdown', (e) => { if(e.target.closest('.im-building-key')) return; e.preventDefault(); e.stopPropagation(); setTimeout(close, 0); });
@@ -294,13 +300,27 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   }
   function updateBuildingKey() {
     const key = el?.querySelector('.im-buildings'); if (!key) return;
+    const closed = new Set([...key.querySelectorAll('details:not([open])')].map(g=>g.dataset.group));
     key.replaceChildren();
+    const groups = new Map();
     for (const b of buildings) {
-      const item = document.createElement('span'), badge = document.createElement('canvas'), label = document.createElement('span');
-      item.className = 'im-building'; badge.width = badge.height = 40; badge.setAttribute('aria-hidden','true');
-      drawShopIcon(badge.getContext('2d'),b.icon,20,20,16,theme().badge);
-      label.textContent = b.name; item.append(badge,label); key.append(item);
+      const group = /^(rent_|musket_shop|sword_shop|squad_hall)/.test(b.id) ? 'Hill Street' : /^casino/.test(b.id) ? 'The Golden Doubloon' : /^(castle|coliseum)/.test(b.id) ? 'Citadel & Colosseum' : /^cottage_/.test(b.id) ? 'Cottage Village' : /magazine|lighthouse|sandbar|keeper/.test(b.id) ? 'Coast & Headland' : 'Harbor Waterfront';
+      if (!groups.has(group)) groups.set(group,[]); groups.get(group).push(b);
     }
+    for (const [name, places] of groups) {
+      const group = document.createElement('details'), heading = document.createElement('summary'), list = document.createElement('div');
+      group.className='im-key-group'; group.dataset.group=name; group.open=!closed.has(name);
+      heading.textContent=name; list.className='im-key-places'; group.append(heading,list);
+      for (const b of places) {
+        const item = document.createElement('span'), badge = document.createElement('canvas'), label = document.createElement('span');
+        item.className = 'im-building'; badge.width = badge.height = 48; badge.setAttribute('aria-hidden','true');
+        drawShopIcon(badge.getContext('2d'),b.icon,24,24,19,theme().badge);
+        label.textContent = b.name; item.append(badge,label); list.append(item);
+      }
+      key.append(group);
+    }
+    const count=el.querySelector('.im-building-count'); if(count) count.textContent=String(buildings.length);
+
   }
   function wireZoom(root, canvas) {
     root.querySelector('.im-zoom')?.addEventListener('click', (e) => {
@@ -323,7 +343,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
       const r = canvas.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
       const sx = (e.clientX - r.left) * dpr, sy = (e.clientY - r.top) * dpr, kk = fitK * z;
       const cx = FB.cx + panX, cz = FB.cz + panZ;
-      curFX = cx + (sx - fc.width / 2) / kk; curFZ = cz + (sy - fc.height / 2) / kk;
+      curFX = cx + (sx - view.x) / kk; curFZ = cz + (sy - view.y) / kk;
     };
     canvas.addEventListener('pointermove', syncCur);
     canvas.addEventListener('pointerleave', () => { curFX = curFZ = null; });
@@ -389,21 +409,22 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   }
   function frame() {
     if (!open) return; raf = requestAnimationFrame(frame); if (!done) bakeRows(40);
-    // Social owns its fixed right-hand player list. Reserve its actual (including folded/mobile) width.
-    const panel = document.getElementById('soc-panel');
-    const reserve = panel && !panel.hidden ? Math.max(0, innerWidth - panel.getBoundingClientRect().left + 8) : 0;
-    const right = reserve + 'px'; if (el.style.getPropertyValue('--im-social-width') !== right) el.style.setProperty('--im-social-width', right);
     const dpr = Math.min(2, devicePixelRatio || 1), Wc = Math.max(1, Math.floor(fc.clientWidth * dpr)), Hc = Math.max(1, Math.floor(fc.clientHeight * dpr));
     if (fc.width !== Wc || fc.height !== Hc) { fc.width = Wc; fc.height = Hc; }
+    const canvasRect = fc.getBoundingClientRect(), keyRect = el.querySelector('.im-building-key').getBoundingClientRect();
+    const panel = document.getElementById('soc-panel'), socialRect = panel && !panel.hidden ? panel.getBoundingClientRect() : null;
+    const left = Math.max(0,keyRect.right-canvasRect.left+16)*dpr;
+    const right = socialRect ? Math.max(0,canvasRect.right-socialRect.left+16)*dpr : 16*dpr;
+    view = mapOverlayViewport(Wc,Hc,left,right);
     const c = fc.getContext('2d'); c.clearRect(0, 0, Wc, Hc); if (!done) { c.fillStyle = '#ffcd77'; c.font = `${30 * dpr}px "Just Another Hand", cursive`; c.textAlign = 'center'; c.fillText('mapping the island…', Wc / 2, Hc / 2); return; }
     checkRev(); if (again) bakeRows(40);
     // inertia
     if (MAPZOOM_ON && (vx || vz)) { const dt = 1 / 60; panX += vx * dt; panZ += vz * dt; vx *= 0.92; vz *= 0.92; if (Math.hypot(vx, vz) < 0.4) vx = vz = 0; clampPan(); }
-    fitK = Math.min(Wc / (2 * FB.rx), Hc / (2 * FB.rz));
+    fitK = Math.min(view.width / (2 * FB.rx), view.height / (2 * FB.rz));
     const k = MAPZOOM_ON ? fitK * z : fitK;
     if (MAPZOOM_ON) clampPan();
     const cx = MAPZOOM_ON ? FB.cx + panX : FB.cx, cz = MAPZOOM_ON ? FB.cz + panZ : FB.cz;
-    const ox = Wc / 2 - (cx - B.x0) * k, oz = Hc / 2 - (cz - B.z0) * k;
+    const ox = view.x - (cx - B.x0) * k, oz = view.y - (cz - B.z0) * k;
     const T = (xh, zh) => { const [fx, fz] = toF(xh, zh); return [ox + (fx - B.x0) * k, oz + (fz - B.z0) * k]; };
     const th = theme(), SH = th.sheet && paperSheet ? paperSheet('island') : null; // [map-streets] bare parchment — NEVER stack treasureMap text under islandMap labels
     const baseAt = (ox2, oz2, kk) => SH ? c.drawImage(SH.cv, ox2 + (SH.x0 - B.x0) * kk, oz2 + (SH.z0 - B.z0) * kk, SH.w / SH.k * kk, SH.h / SH.k * kk) : c.drawImage(base(th), ox2, oz2, N * mpp * kk, NZ * mpp * kk);
