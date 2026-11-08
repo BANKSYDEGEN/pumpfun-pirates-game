@@ -19,6 +19,6 @@ test('a failing feed reports Feed offline and never throws',async()=>{
 test('Dex Just Paid clicks use the pump.fun link builder, never DexScreener or a visible code',()=>{
  const seen=[];globalThis.window={open:(url)=>seen.push(url)};
  openDexPaidToken({mint});openDexPaidToken({mint:ours});delete globalThis.window;
- assert.deepEqual(seen,['https://pump.fun/coin/'+mint,PUMP_SHARE_URLS[ours]]);
+ assert.deepEqual(seen,['https://pump.fun/coin/'+mint+'?ref=PUMPFUNPIRATES',PUMP_SHARE_URLS[ours]]);
  for(const f of ['js/pumpfun/dexpaid.js','js/pumpfun/render.js','js/dock/pumpfun.js']){const s=src(f);assert.ok(!s.includes('BANKSYDEGEN'),f);assert.ok(!/dexscreener\.com\/solana/.test(s),f);}
 });

@@ -1,12 +1,12 @@
 // Use verified per-token share IDs, never mint addresses in /c/ URLs.
 import { safeMint } from './market.js';
 import { PUMP_SHARE_URLS } from '../config.js';
-export const REFERRAL_CODE = 'BANKSYDEGEN';
-export const REFERRAL_URL = 'https://pump.fun/u/BANKSYDEGEN';
+export const REFERRAL_CODE = 'PUMPFUNPIRATES';
+export const REFERRAL_URL = 'https://pump.fun/u/PUMPFUNPIRATES';
 export const TOKEN_REFERRAL_EXAMPLE = 'https://pump.fun/c/30ca27df-3478-499b-874a-bf617704feb3/BANKSYDEGEN';
-export const REFERRAL_FALLBACK_URL = 'https://pump.fun/u/BANKSYDEGEN';
+export const REFERRAL_FALLBACK_URL = 'https://pump.fun/u/PUMPFUNPIRATES';
 export function tokenURL(mint) { return safeMint(mint) ? (PUMP_SHARE_URLS[mint] || tokenFallbackURL(mint)) : null; }
-export function tokenFallbackURL(mint) { return safeMint(mint) ? `https://pump.fun/coin/${mint}` : null; }
+export function tokenFallbackURL(mint) { return safeMint(mint) ? `https://pump.fun/coin/${mint}?ref=${REFERRAL_CODE}` : null; }
 export function openPump(mint) { const url = tokenURL(mint); if (url) window.open(url, '_blank', 'noopener,noreferrer'); }
 export function openReferral(fallback=false) { window.open(fallback ? REFERRAL_FALLBACK_URL : REFERRAL_URL, '_blank', 'noopener,noreferrer'); }
 export const SQUAD_URL = 'https://pump.fun/squads/PFPIRATES';
