@@ -13,9 +13,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "cloth_tank": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_tank_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_tank_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_refit/cloth_tank_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/cloth_tank_male_lo.glb",
+    "qaStatus": "TOPS_V456_LOCAL_GAME_FIT_PASS_VISUAL_APPROVAL_PENDING"
   },
   "boots_sea": {
     "hi": "assets/pirates/items/v7m_refit/boots_sea_male_hi.glb",
@@ -164,9 +164,9 @@ export const V7M_FITS = {
     "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "cloth_singlet": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_singlet_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_singlet_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_refit/cloth_singlet_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/cloth_singlet_male_lo.glb",
+    "qaStatus": "TOPS_V456_LOCAL_GAME_FIT_PASS_VISUAL_APPROVAL_PENDING"
   },
   "peg_kraken_r": {
     "hi": "assets/pirates/items/v7m_fit/peg_kraken_r_male_hi.glb",
