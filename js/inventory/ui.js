@@ -129,7 +129,7 @@ async function carry(slot, base, pv) {
 async function uncarry(slot, eq) { // [rare-equip] back to your WEAPON STORE pick (or the free default) for this slot
   try { const G = await import('../pirateGear.js'); if (typeof G.setCarriedWeapons !== 'function') return; const cur = G.carriedWeapons?.() || {}, st = G.storeWeapons?.() || {}, other = slot === 'sword' ? 'musket' : 'sword';
     G.setCarriedWeapons({ ...cur, [slot]: st[slot] ?? null }, eq[other] ? 'inventory' : 'profile'); } catch {} }
-export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = () => [] }) {
+export function createInventory({ pvp, toast, manualDrop = () => null, treasure = null, nearbyPlayers = () => [] }) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const el = document.createElement('div'); el.id = 'inv-panel'; el.innerHTML = '<div class="iv-box"><div class="iv-head">🎒 <span class="iv-title">INVENTORY</span><small></small><span class="iv-slots" hidden></span><button class="iv-x" aria-label="Close">✕</button></div><div class="iv-tabs"></div><div class="iv-grid"></div><div class="iv-act"></div></div>';
   document.body.appendChild(el); for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'keydown']) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: ev !== 'keydown' });
@@ -232,7 +232,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
     }
     try { localStorage.removeItem('pfp_gunacc_v1:' + accWho()); } catch {}
   }
-  async function refresh() { const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; window.dispatchEvent(new CustomEvent('pfp-parrot-state', { detail: { parrots: r.parrots || [], equipped: r.parrotEquipped || null } })); syncW(r); if (ACC_ON) { setGunInstances(r.guns || []); const eq = (r.guns || []).find((g) => g.place === 'equip'); if (eq) { /* server is source of truth for equipped acc */ for (const a of GUN_ACC) setGunAcc(accWho(), a.slot, eq.acc?.[a.slot] || null); } else pruneGunAcc(accWho(), (k) => qtyOf(k) > 0); migrateLegacyAcc(); } } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
+  async function refresh() { await manualDrop()?.syncManual?.(); const r = await pvp()?.inv?.call('inv_state'); if (r && r.ok) { data = r; window.dispatchEvent(new CustomEvent('pfp-parrot-state', { detail: { parrots: r.parrots || [], equipped: r.parrotEquipped || null } })); syncW(r); if (ACC_ON) { setGunInstances(r.guns || []); const eq = (r.guns || []).find((g) => g.place === 'equip'); if (eq) { /* server is source of truth for equipped acc */ for (const a of GUN_ACC) setGunAcc(accWho(), a.slot, eq.acc?.[a.slot] || null); } else pruneGunAcc(accWho(), (k) => qtyOf(k) > 0); migrateLegacyAcc(); } } if (mode === 'market') { const m = await pvp()?.inv?.call('mkt_browse'); listings = m?.ok && Array.isArray(m.listings) ? sortListings(m.listings) : []; } render(); return r; }
   function render() {
     const title = { bag: 'INVENTORY', fish: 'FISH MARKET', antiques: 'TREASURE TRADER', market: 'MARKETPLACE' }[mode]; $('.iv-title').textContent = title;
     const bagState = { owner: !!data.owner, name: pvp()?.name };
@@ -321,7 +321,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       if (s.info.kind === 'parrot') { const P = parrotLvUi(s.info); h += P.btn; note += P.note; h += `<button data-a="parrotequip">${data.parrotEquipped === s.key.slice(4) ? '✓ EQUIPPED PARROT' : 'EQUIP PARROT'}</button>`; note += '<small class="iv-note">Name & choose unlocked colors at the cage inside your ship hull. List this bird at the Marketplace; its name, XP & colors travel with it.</small>'; }
       if (s.map) h += '<button data-a="open">OPEN MAP</button>';
       if (s.info.kind === 'weapon') h += data.equipped[s.info.slot] === s.key ? `<button disabled>✓ PRIMARY ${s.info.slot.toUpperCase()}</button><button data-a="unequip">USE STORE ${s.info.slot.toUpperCase()}</button>` : `<button data-a="equip">USE AS PRIMARY ${s.info.slot.toUpperCase()}</button>`; // [rare-equip]
-      h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>${note}`; } // [v335] t1783u + [v350 t1839u] notes after GIVE so buttons share one row
+      h += `${single(s.key) || s.info.kind === 'weapon' ? '' : n}<button data-a="give"${!data.flags.gift ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>${manualDrop()?.canDrop?.() && !s.map && s.info.kind !== 'parrot' && s.tradeable && !Object.values(data.equipped || {}).includes(s.key) ? '<button data-a="drop">DROP…</button><small class="iv-note">Anyone can pick it up · gone forever after 5 minutes</small>' : ''}${note}`; } // [v335] t1783u + [v350 t1839u] notes after GIVE so buttons share one row
     else if (mode === 'market') h += `${n}<input class="pr" type="number" min="${MARKET.minPrice}" max="${MARKET.maxPrice}" placeholder="price" aria-label="price"><button data-a="list"${locked || !data.flags.market ? ' disabled' : ''}>LIST</button>`;
     else h += `${n}<button data-a="sell"${locked || !sellOn() ? ' disabled' : ''}>SELL · ${price(s).toLocaleString()}g each</button>`;
     a.innerHTML = h; const q = () => Math.max(1, Math.min(s.qty, +(a.querySelector('.n')?.value || 1) | 0));
@@ -336,6 +336,15 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
       parrotequip: () => { window.dispatchEvent(new CustomEvent('pfp-parrot-equip', { detail: s.key.slice(4) })); },
       equip: () => run('inv_equip', { item: s.key }, (r) => { carry(r.slot, r.base, pvp()); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: r.rarity }; return 'EQUIPPED ' + s.info.name; }), // the look = the base (gear slot); the rarity stats: catalog weaponStats() (battle.js hook, see report)
       unequip: () => run('inv_unequip', { slot: s.info.slot }, (r) => { const eq = { ...data.equipped }; delete eq[r.slot]; uncarry(r.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [r.slot]: 'common' }; return 'BACK TO YOUR STORE ' + r.slot.toUpperCase(); }), // [rare-equip]
+      drop: async () => {
+        if (busy || !manualDrop()?.canDrop?.()) return;
+        const amount = s.info.kind === 'weapon' ? 1 : Math.min(slotN, q(), 999);
+        const plainName = s.info.name.replace(/<[^>]*>/g, '');
+        if (!globalThis.confirm(`Drop ${amount} × ${plainName}${['rare', 'epic', 'legendary'].includes(s.info.rarity) ? ' (RARE+ ITEM)' : ''}? Anyone can pick it up. After 5 minutes unclaimed items are gone forever.`)) return;
+        busy = true;
+        try { const r = await manualDrop().dropItem({ item: s.key, qty: amount, gid: s.info.slot === 'musket' && selI >= 0 ? gunOfBag(selI)?.gid : null }); if (r?.ok) { sel = null; close(); } }
+        finally { busy = false; await refresh(); }
+      },
       give: () => { const wpn = s.info.kind === 'weapon'; giveTo(s, wpn ? 1 : q(), wpn && s.info.slot === 'musket' ? (selI >= 0 ? gunOfBag(selI) : null) : null); },
       sell: () => run('inv_sell', { item: s.key, qty: q(), shop: mode }, (r) => `SOLD · +${(r.gold | 0).toLocaleString()} GOLD${r.mult > 1 ? `<br><small>pet bonus ×${(+r.mult).toFixed(2)}</small>` : ''}`),
       list: () => run('mkt_list', { item: s.key, qty: q(), price: +(a.querySelector('.pr').value || 0) | 0 }, 'LISTED ON THE MARKETPLACE') });
@@ -420,7 +429,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   // the item menu: the same buttons the action bar already has for this item (no new actions)
   function itemMenu(i, x, y) { const v = view[i]; if (!v) return; sel = v.s.key; selI = i; splitAsk = false; render(); menuClose();
     const acts = [...$('.iv-act').querySelectorAll('button[data-a]')].filter(b => b.dataset.a !== 'move'); if (!acts.length) return;
-    const LBL = { open: 'USE · OPEN MAP', equip: 'EQUIP', unequip: 'UNEQUIP', split: 'SPLIT', give: 'GIVE…' };
+    const LBL = { open: 'USE · OPEN MAP', equip: 'EQUIP', unequip: 'UNEQUIP', split: 'SPLIT', drop: 'DROP…', give: 'GIVE…' };
     menu = document.createElement('div'); menu.className = 'iv-menu'; menu.innerHTML = `<div class="iv-mt">${v.s.info.name}${v.n > 1 ? ' ×' + v.n : ''}</div>` + acts.map((b, k) => `<button data-m="${k}"${b.disabled ? ' disabled' : ''}>${LBL[b.dataset.a] || b.textContent}</button>`).join('');
     document.body.appendChild(menu); const r = menu.getBoundingClientRect(); menu.style.left = Math.max(6, Math.min(innerWidth - r.width - 6, x)) + 'px'; menu.style.top = Math.max(6, Math.min(innerHeight - r.height - 6, y)) + 'px';
     menu.querySelectorAll('[data-m]').forEach(b => b.onclick = (e) => { e.stopPropagation(); const t = acts[+b.dataset.m]; menuClose(); t?.click(); });

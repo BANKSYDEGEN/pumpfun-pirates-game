@@ -3,7 +3,7 @@
 import { KEY_RE } from "./invCatalog.ts";
 import { OWNER_MAIN } from "./lib.ts";
 
-export const LOOT_ACTIONS = ["pvp_drop_haul", "pvp_claim_loot", "pvp_loot_list"] as const;
+export const LOOT_ACTIONS = ["pvp_drop_haul", "pvp_claim_loot", "pvp_loot_list", "pvp_manual_drop", "pvp_loot_status"] as const;
 export type LootAction = (typeof LOOT_ACTIONS)[number];
 
 export const LOOT_TTL_S = 120;
@@ -151,35 +151,32 @@ export async function lootAction(c: Ctx, action: string, b: Record<string, unkno
         const remaining = await loadInv(db, pid);
         return c.json(200, { ok: true, bag: row, remainingInventory: remaining, owner: !!who.owner });
       }
+      case "pvp_loot_status": {
+        const { data, error } = await db.rpc("pvp_manual_loot_status", { p_room: String(b.room_key || "").slice(0, 64) });
+        if (error) return c.json(200, { ok: true, manualDrops: false, bags: [] });
+        return c.json(200, data);
+      }
+      case "pvp_manual_drop": {
+        const item = b.item, qty = Number(b.qty);
+        const pos = [b.x, b.y, b.z].map(Number);
+        if (!okKey(item) || String(item).startsWith("par:") || !Number.isInteger(qty) || qty < 1 || qty > 999 ||
+            !pos.every(Number.isFinite) || !/^[0-9a-f-]{36}$/.test(String(b.drop_id || ""))) return c.json(400, { error: "bad drop" });
+        const { data, error } = await db.rpc("pvp_manual_drop", {
+          p_pid: pid, p_item: item, p_qty: qty, p_x: pos[0], p_y: pos[1], p_z: pos[2],
+          p_room: String(b.room_key || "").slice(0, 64), p_sea: b.sea === true, p_id: b.drop_id,
+          p_gid: typeof b.gid === "string" ? b.gid : null,
+        });
+        if (error) return c.json(409, { error: "Drop unavailable — try again after reloading" });
+        return c.json(data?.ok ? 200 : 409, data || { error: "Drop unavailable" });
+      }
       case "pvp_claim_loot": {
-        const bagId = typeof b.bag_id === "string" ? b.bag_id : "";
-        if (!bagId || bagId.length > 64) return c.json(400, { error: "bad bag" });
-        // [backpack-pvp] atomic: whoever deletes the row owns the bag (two looters can never both take it); leftovers go back in
-        const { data: bag, error } = await db.from("pvp_loot_bags").delete().eq("id", bagId).select("*").maybeSingle();
-        if (error) {
-          if (/pvp_loot_bags|42P01|PGRST/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
-          throw error;
-        }
-        if (!bag) return c.json(409, { error: "gone" });
-        if (new Date(bag.expires_at).getTime() <= Date.now()) return c.json(409, { error: "expired" });
-        const putBack = async (items: unknown) => { await db.from("pvp_loot_bags").insert({ ...bag, items }); };
-        const equipped = await loadEquip(db, pid);
-        // Client may pass equipped keys; server equip wins
-        const looter = await loadInv(db, pid);
-        const items = Array.isArray(bag.items) ? bag.items.filter((it: any) => okKey(it?.item) && qtyOf(it?.qty)) : [];
-        const unlimited = !!who.owner || pid === OWNER_MAIN;
-        const { take, left } = splitForCap(items, looter, equipped, unlimited);
-        if (!take.length) { await putBack(bag.items); return c.json(409, { error: "Backpack full (16/16) — stash or sell items first!", full: true }); }
-
-        for (const it of take) {
-          try { await db.rpc("pvp_inv_add", { p_pid: pid, p_item: it.item, p_qty: it.qty, p_source: "loot", p_why: "pvp_claim", p_ref: bagId }); }
-          catch { /* soft */ }
-        }
-        if (left.length) {
-          await putBack(left);
-          return c.json(200, { ok: true, take, left, bag: { ...bag, items: left }, owner: unlimited });
-        }
-        return c.json(200, { ok: true, take, left: [], bag: null, bag_id: bagId, owner: unlimited });
+        if (!/^[0-9a-f-]{36}$/.test(String(b.bag_id || ""))) return c.json(400, { error: "bad bag" });
+        const { data, error } = await db.rpc("pvp_claim_loot_atomic", {
+          p_pid: pid, p_bag: b.bag_id, p_room: String(b.room_key || "").slice(0, 64),
+          p_owner: !!who.owner || pid === OWNER_MAIN,
+        });
+        if (error) return c.json(409, { error: "Loot unavailable — try again shortly" });
+        return c.json(data?.ok ? 200 : 409, data || { error: "gone" });
       }
       default:
         return c.json(400, { error: "bad action" });

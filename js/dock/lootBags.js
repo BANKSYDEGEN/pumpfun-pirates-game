@@ -16,7 +16,7 @@ export const PVPLOOT_ON = !(typeof location !== 'undefined' && /[?&]pvploot=0(&|
 export const LOOT_TTL_S = 120;
 export const LOOT_PROMPT_R = 2.6;
 export const SEA_FOOT_R = 3.5, SEA_HULL_R = 15;
-export const MAX_BAGS = 12;
+export const MAX_BAGS = 128;
 
 const LOCAL_KEY = 'pfp_loot_bags_v1';
 
@@ -84,7 +84,7 @@ export function buildSeaCrateMesh(THREE_ = THREE) {
 export function createLootBags({
   scene, world, walker, toast = () => {}, sfx = null, invApi = null, inventory = null,
   myId = () => '', myName = () => 'PIRATE', isOwner = () => false, inHouse = () => false,
-  inSafe = (hx, hz) => insideSafeZoneH(hx, hz), now = () => performance.now() / 1000, waveHeight = null, broadcast = null,
+  inSafe = (hx, hz) => insideSafeZoneH(hx, hz), now = () => performance.now() / 1000, waveHeight = null, broadcast = null, roomKey = () => '', dropContext = () => null,
 }) {
   if (!PVPLOOT_ON) {
     return {
@@ -95,6 +95,41 @@ export function createLootBags({
 
   const bags = new Map(); // id -> { id, x, y, z, items, victim_id, victim_name, expires_at, mesh }
   let promptId = null;
+  let manualReady = false, syncAt = 0, syncedRoom = '', syncing = null;
+  const canDrop = () => manualReady && !!roomKey() && !!dropContext();
+  async function syncManual(force = false) {
+    const key = roomKey();
+    if (!key || !invApi) { manualReady = false; return; }
+    if (key !== syncedRoom) { manualReady = false; for (const b of [...bags.values()]) if (b.manual) remove(b.id); }
+    if (syncing) return syncing;
+    if (!force && key === syncedRoom && Date.now() - syncAt < 15000) return;
+    syncing = (async () => {
+      try {
+        const r = await invApi('pvp_loot_status', { room_key: key });
+        if (key !== roomKey()) return;
+        manualReady = !!(r?.ok && r.manualDrops);
+        if (r?.ok && r.manualDrops && Array.isArray(r.bags)) {
+          const ids = new Set(r.bags.map(b => String(b.id)));
+          for (const b of bags.values()) if (b.manual && !ids.has(b.id)) remove(b.id);
+          for (const b of r.bags) upsert(b);
+        }
+      } catch { manualReady = false; }
+      finally { syncAt = Date.now(); syncedRoom = key; }
+    })();
+    try { await syncing; } finally { syncing = null; }
+  }
+  async function dropItem({ item, qty, gid = null }) {
+    const pos = dropContext(), key = roomKey();
+    if (!canDrop() || !pos || !key) return null;
+    let r;
+    try { r = await invApi('pvp_manual_drop', { ...pos, item, qty, gid, room_key: key, drop_id: crypto.randomUUID() }); }
+    catch { toast('DROP FAILED · CHECK YOUR CONNECTION', 2200); return null; }
+    if (!r?.ok || !r.bag) { toast(escHtml(r?.why || r?.error || 'DROP FAILED · TRY AGAIN'), 2600); return r; }
+    // Never create an offline/local manual bag: only the committed server transaction can spawn one.
+    if (key === roomKey()) { upsert(r.bag); broadcast?.({ type: 'loot_spawn', bag: { ...r.bag, expires_at: bags.get(String(r.bag.id))?.expires_at } }); }
+    toast('ITEMS DROPPED · ANYONE CAN PICK THEM UP', 2200);
+    return r;
+  }
 
   function groundY(x, z) {
     try { return world?.ground?.(x, z) ?? 0; } catch { return 0; }
@@ -127,14 +162,14 @@ export function createLootBags({
         for (const v of bags.values()) if (!oldest || v.expires_at < oldest.expires_at) oldest = v;
         if (oldest) remove(oldest.id);
       }
-      b = { id, sea: !!row.sea, mesh: row.sea ? buildSeaCrateMesh() : buildLootBagMesh() };
+      b = { id, manual: !!row.manual, sea: !!row.sea || row.room === 'sea', mesh: (row.sea || row.room === 'sea') ? buildSeaCrateMesh() : buildLootBagMesh() };
       scene.add(b.mesh);
       bags.set(id, b);
     }
     b.x = x; b.y = y; b.z = z; b.items = items;
     b.victim_id = isNetId(row.victim_id) ? row.victim_id : String(row.victim_id || '').slice(0, 40);
     b.victim_name = String(row.victim_name || 'PIRATE').slice(0, 24);
-    b.expires_at = Number(row.expires_at) || (Date.now() + LOOT_TTL_S * 1000);
+    b.expires_at = Number(row.expires_at) || Date.parse(row.expires_at) || (Date.now() + LOOT_TTL_S * 1000);
     b.mesh.position.set(x, y, z);
   }
   const sane = (r) => r && /^[a-zA-Z0-9_-]{4,64}$/.test(String(r.id || ''));
@@ -146,15 +181,15 @@ export function createLootBags({
   }
 
   function persistLocal() {
-    lsSave([...bags.values()].map((b) => ({
+    lsSave([...bags.values()].filter(b => !b.manual).map((b) => ({
       id: b.id, x: b.x, y: b.y, z: b.z, items: b.items, sea: !!b.sea,
-      victim_id: b.victim_id, victim_name: b.victim_name, expires_at: b.expires_at,
+      manual: !!b.manual, victim_id: b.victim_id, victim_name: b.victim_name, expires_at: b.expires_at,
     })));
   }
 
   // Restore local bags (offline / refresh)
   for (const row of lsLoad()) {
-    if (Number(row.expires_at) > Date.now()) upsert(row);
+    if (!row.manual && Number(row.expires_at) > Date.now()) upsert(row);
   }
 
   async function dropHaul({ items, equipped, x, y, z, killer_id = '', room = 'island', sea = false }) {
@@ -221,7 +256,7 @@ export function createLootBags({
       }
     } catch {}
     const state = { owner: !!isOwner?.(), name: myName?.() };
-    const { take, left } = splitLootForCap(b.items, looterItems, equipped, state);
+    let { take, left } = splitLootForCap(b.items, looterItems, equipped, state);
     if (!take.length) {
       toast('🎒 Backpack full (16/16)! Stash haul at your Cottage!', 2200);
       return null;
@@ -229,14 +264,19 @@ export function createLootBags({
     let ok = false;
     try {
       if (invApi) {
-        const r = await invApi('pvp_claim_loot', { bag_id: bagId, equipped, take });
+        const r = await invApi('pvp_claim_loot', { bag_id: bagId, room_key: roomKey() });
         if (r?.ok) {
-          ok = true;
+          ok = true; take = r.take || []; left = r.left || [];
           if (r.bag?.items?.length) upsert(r.bag); else remove(bagId);
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
+        } else if (!bagId.startsWith('local_')) {
+          const why = r?.why || r?.error || 'Could not pick up — check your connection';
+          if (why === 'gone' || why === 'expired') remove(bagId);
+          toast(escHtml(why), 2200); return null;
         }
       }
     } catch {}
+    if (!ok && !bagId.startsWith('local_')) { toast('LOOT UNAVAILABLE · TRY AGAIN', 2000); return null; }
     if (!ok) {
       // Local claim
       if (left.length) { b.items = left; upsert(b); } else remove(bagId);
@@ -293,6 +333,7 @@ export function createLootBags({
   // o.ship (manned, sailing): hull reach <= SEA_HULL_R auto-scoops a sea crate · o.canoe { x, z }: <= SEA_FOOT_R scoops too
   function tick(dt, o = {}) {
     const tn = Date.now(), t = now();
+    if (roomKey() && (syncedRoom !== roomKey() || tn - syncAt > 15000)) syncManual();
     for (const b of [...bags.values()]) {
       if (b.expires_at <= tn) { remove(b.id); continue; }
       if (!b.mesh) continue;
@@ -321,12 +362,13 @@ export function createLootBags({
   }
 
   function clear() {
+    manualReady = false; syncedRoom = ''; syncAt = 0;
     for (const id of [...bags.keys()]) remove(id);
   }
 
   return {
     on: true,
     bags: () => [...bags.values()].map((b) => ({ id: b.id, x: b.x, y: b.y, z: b.z, sea: !!b.sea, items: b.items, victim_name: b.victim_name, expires_at: b.expires_at })),
-    tick, prompts, act, dropHaul, dropLocalHaul, claim, onNet, clear, upsert, remove,
+    tick, prompts, act, dropHaul, dropLocalHaul, claim, onNet, clear, upsert, remove, canDrop, syncManual, dropItem,
   };
 }

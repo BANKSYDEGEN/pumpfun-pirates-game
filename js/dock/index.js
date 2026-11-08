@@ -175,7 +175,7 @@ export async function createDock(ctx) {
   let inventory = null; // [inventory] (made right after the treasure maps: it opens them)
   const treasure = createTreasure({ inventory: () => inventory, world, layout, toast: (...a) => toast(...a), pvp: () => ctx.pvp(), isOn: () => on && inHarbor(), calm: () => calm(), sfx: ctx.sfx, low: LOW || touch,
     getPos: () => { if (onFoot) { const W = walker.w; return { x: W.x, z: W.z, yaw: W.yaw, foot: true }; } const s = P(); return s ? { x: s.x, z: s.z, yaw: s.yaw, foot: false } : null; } });
-  try { inventory = createInventory({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure, nearbyPlayers: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); /* [give-dropdown] your harbor copy's pirates first in the GIVE picker */ } catch (e) { console.warn('[inventory]', e); } // [inventory]
+  try { inventory = createInventory({ manualDrop: () => lootBags, pvp: () => ctx.pvp(), toast: (...a) => toast(...a), treasure, nearbyPlayers: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); /* [give-dropdown] your harbor copy's pirates first in the GIVE picker */ } catch (e) { console.warn('[inventory]', e); } // [inventory]
   let casinoUi = null; // [Timothy] THE GOLDEN DOUBLOON CASINO table UI (created on the first E at a table, openCasino below)
   let squadHall = null; try { squadHall = createSquadHall({ pvp: () => ctx.pvp(), toast: (...a) => toast(...a), nearby: () => (on ? [...fnet.peers.values()].map(p => p.name).filter(Boolean) : []) }); } catch (e) { console.warn('[squad-hall]', e); }
   // [v356 friends] BANKSY t1851u: ⚙ SETTINGS → 👥 FRIENDS (+ the ⚓ server picker's FRIENDS ONLINE, Squad Hall / King of the Hill "+ FRIEND")
@@ -375,6 +375,11 @@ export async function createDock(ctx) {
         try { return await ctx.pvp?.()?.inv?.call?.(action, body); } catch { return null; }
       },
       inventory: () => inventory,
+      roomKey: () => { const h = ctx.pvp?.()?.harborInfo?.(); return h?.prefix && h.copy > 0 ? `${h.prefix}-${h.copy}` : ''; },
+      dropContext: () => {
+        if (!on || !onFoot || houses?.inHouse || shipHull?.inHull || game.state !== 'playing' || ctx.pvp?.()?.where !== 'harbor') return null;
+        const W = walker.w; if (W.air || zip?.riding) return null; return { x: W.x, z: W.z, y: W.y, sea: !!W.swim };
+      },
       myId: () => { const v = typeof myId === 'function' ? myId() : myId; return v || 'local'; },
       myName: () => ctx.pvp?.()?.name || 'PIRATE',
       isOwner: () => !!(ownerAllSkins?.() || shopCache?.()?.owner || accountInfo?.()?.owner || (typeof location !== 'undefined' && /[?&]banksy=1(&|$)/.test(location.search || ''))),

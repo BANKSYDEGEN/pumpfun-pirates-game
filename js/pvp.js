@@ -1246,7 +1246,7 @@ export function createPvp(K) {
   function lootNet(msg) {
     if (!room || where !== 'harbor' || !msg || typeof msg !== 'object') return false;
     const b = msg.bag; const out = { t: msg.type === 'loot_claim' ? 'c' : 's', id: String(msg.bag_id || b?.id || '').slice(0, 64) };
-    if (b) out.b = { id: String(b.id).slice(0, 64), x: r1(+b.x || 0), y: r1(+b.y || 0), z: r1(+b.z || 0), sea: b.sea ? 1 : 0, n: String(b.victim_name || 'PIRATE').slice(0, 24),
+    if (b) out.b = { id: String(b.id).slice(0, 64), x: r1(+b.x || 0), y: r1(+b.y || 0), z: r1(+b.z || 0), sea: b.sea ? 1 : 0, m: b.manual ? 1 : 0, n: String(b.victim_name || 'PIRATE').slice(0, 24),
       it: (b.items || []).slice(0, 40).map((i) => [String(i.item).slice(0, 64), Math.max(0, Math.min(9999, i.qty | 0))]), ex: Math.max(0, Math.min(600, Math.round(((+b.expires_at || 0) - Date.now()) / 1000))) };
     room.send('lb', { i: myId, ...out }); return true;
   }
@@ -1257,7 +1257,7 @@ export function createPvp(K) {
     const b = m.b; if (!b || !Array.isArray(b.it)) return;
     const items = b.it.filter((r) => Array.isArray(r) && LOOT_KEY_RE.test(String(r[0])) && (r[1] | 0) > 0).map((r) => ({ item: String(r[0]), qty: Math.min(9999, r[1] | 0) }));
     const [x, z] = clampXZ(b.x, b.z);
-    lb.onNet({ type: m.t === 'c' ? 'loot_claim' : 'loot_spawn', bag_id: m.id, bag: { id: m.id, x, z, y: clamp(+b.y || 0, -5, 80), sea: !!b.sea, victim_name: esc(b.n).slice(0, 24) || 'PIRATE', items, expires_at: Date.now() + clamp(b.ex | 0, 5, 600) * 1000 } });
+    lb.onNet({ type: m.t === 'c' ? 'loot_claim' : 'loot_spawn', bag_id: m.id, bag: { id: m.id, x, z, y: clamp(+b.y || 0, -5, 80), sea: !!b.sea, manual: !!b.m, victim_name: esc(b.n).slice(0, 24) || 'PIRATE', items, expires_at: Date.now() + clamp(b.ex | 0, 5, 600) * 1000 } });
   }
   function onBotSunk(e, src) { // one of our AI ships went down (local harbor, or we host the shared copy)
     if (e.remote) return;

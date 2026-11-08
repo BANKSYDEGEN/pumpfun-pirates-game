@@ -346,7 +346,7 @@ test('t1698u Option B: kill switch, unmanned ship shield, harbor sink credits + 
   assert.match(bags, /waveHeight/);
   assert.match(bags, /function dropLocalHaul/);
   const loot = read('supabase/functions/pvp/loot.ts');
-  assert.match(loot, /delete\(\)\.eq\("id", bagId\)\.select/, 'atomic claim');
+  assert.match(loot, /pvp_claim_loot_atomic/, 'transactional atomic claim');
   assert.match(loot, /"sea"/);
 });
 

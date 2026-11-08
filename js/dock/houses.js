@@ -1390,7 +1390,7 @@ export function createHouses({
   const panel = document.createElement('div'); panel.id = 'hs-panel';
   panel.innerHTML = `<div class="hs-box" role="dialog" aria-label="Cottage Storage">
     <div class="hs-head"><span>🏠 COTTAGE STORAGE</span><small data-sub></small><button type="button" class="hs-x" aria-label="Close">✕</button></div>
-    <div class="hs-hint">Drag item across to move full stack · Shift+Drag or Split [✂️] to choose amount · Alt+Drag moves half · Double-click quick-moves stack</div>
+    <div class="hs-hint">Tap or drag a stack to choose an exact amount · type a number, HALF or ALL · works both ways</div>
     <div class="hs-filters" data-filters>
       <button type="button" data-f="all" class="on">All</button>
       <button type="button" data-f="weapons">Weapons</button>
@@ -2051,7 +2051,7 @@ export function createHouses({
       return;
     }
     if (wasDrag && target) {
-      if (shift && d.qty > 1 && isStackable(d.item)) {
+      if (d.qty > 1 && isStackable(d.item)) {
         openSplit(el, x, y); return;
       }
       const qty = alt && d.qty > 1 && isStackable(d.item) ? Math.ceil(d.qty / 2) : d.qty;
@@ -2059,13 +2059,13 @@ export function createHouses({
       return;
     }
     if (!wasDrag) {
-      // Tap / click without drag: full-stack quick move (mobile-friendly). Double-tap also covered by dblclick.
+      // Tap / click: stacks always open the exact-quantity picker (also on mobile).
       const key = `${d.side}:${d.item}:${d.slot}`;
       const now = performance.now();
       const isDbl = lastTap.key === key && (now - lastTap.t) < 380;
       lastTap = { t: now, key };
       if (isDbl) { /* dblclick handler will fire; skip single */ return; }
-      // single tap → full stack
+      // single tap → quantity picker for stacks
       setTimeout(async () => {
         if (lastTap.key === key && lastTap.t === now) await quickMove(el, d.qty);
       }, 220);
@@ -2075,7 +2075,8 @@ export function createHouses({
   async function quickMove(el, qty) {
     if (!el || busy || !activeId) return;
     if (el.classList.contains('eq')) { toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 2200); return; }
-    const side = el.dataset.side, item = el.dataset.item, q = Math.max(1, qty | el.dataset.qty | 0);
+    const side = el.dataset.side, item = el.dataset.item, q = Math.max(1, Math.min(el.dataset.qty | 0, qty | 0));
+    if (q > 1 && isStackable(item)) { openSplit(el); return; }
     const slot = el.dataset.slot != null ? (el.dataset.slot | 0) : -1;
     await transfer(side, item, q, slot);
   }
@@ -2103,7 +2104,7 @@ export function createHouses({
       <div class="hs-sp-pills">
         <button type="button" data-sp-set="1">1</button>
         <button type="button" data-sp-set="${half}">HALF (${half})</button>
-        <button type="button" data-sp-set="${qty}">MAX (${qty})</button>
+        <button type="button" data-sp-set="${qty}">ALL (${qty})</button>
       </div>
       <div class="hs-sp-prev" data-sp-prev>Keep: ${qty - cur} · Move: ${cur}</div>
       <div class="hs-sp-actions">
