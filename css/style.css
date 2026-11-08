@@ -1306,3 +1306,34 @@ html:has(#pause:not(.hidden)) #bt-atk { visibility: hidden !important; pointer-e
   html.pfp-onfoot.dk-touch:not(.pfp-x).tps-on #tps-ads { right: calc(var(--safe-r, 0px) + 166px) !important; bottom: calc(var(--safe-b, 0px) + 170px) !important; width: 64px !important; height: 64px !important; font-size: 20px !important; }
   html.pfp-onfoot.dk-touch:not(.pfp-x).tps-on #tps-sw { right: calc(var(--safe-r, 0px) + 69px) !important; bottom: calc(var(--safe-b, 0px) + 219px) !important; width: 46px !important; height: 46px !important; }
 }
+
+/* Compact settings: dynamic buttons share the same grid as built-in controls. */
+#pause { box-sizing: border-box; height: 100dvh; max-height: var(--app-h, 100dvh); padding: max(6px, var(--safe-t)) max(8px, var(--safe-r)) max(6px, var(--safe-b)) max(8px, var(--safe-l)); }
+#pause .panel { box-sizing: border-box; width: min(740px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+#pause .panel > :not(button) { grid-column: 1 / -1; min-width: 0; }
+#pause .panel > h1 { font-size: 36px; margin: 0; line-height: 1; }
+#pause #pause-sub { font-size: 16px; margin: 0; }
+#pause .controls-help { font-size: 15px; margin: 0; line-height: 1.1; }
+#pause .panel button { box-sizing: border-box; min-width: 0; min-height: 34px; height: auto; margin: 0; padding: 5px 7px; font-size: 19px; line-height: 1.1; border-radius: 10px; white-space: normal; }
+#pause #pause-quick-btns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
+#pause #btn-voice.voice-off { color: #aaa; }
+#pause .vol-box { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 10px; margin: 2px 0; }
+#pause .vol-box label { display: flex; align-items: center; gap: 5px; min-width: 0; margin: 0; }
+#pause .vol-box .label { font-size: 13px; white-space: nowrap; }
+#pause .vol-box input[type=range] { min-width: 0; width: 100%; height: 22px; }
+#pause .gfx-box { gap: 4px; margin: 0; }
+#pause .gfx-box button { min-height: 28px; font-size: 17px; padding: 3px 7px; }
+#pause #btn-resume { background-color: var(--gold); }
+@media (max-width: 480px) {
+  #pause .panel { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 9px; gap: 6px; }
+  #pause #pause-quick-btns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #pause .vol-box { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #pause .panel button { font-size: 17px; }
+}
+@media (max-height: 500px) and (min-width: 481px) {
+  #pause .panel { padding: 6px 10px; gap: 4px; }
+  #pause .panel > h1 { font-size: 25px; }
+  #pause #pause-sub, #pause .controls-help { font-size: 13px; }
+  #pause .panel button { min-height: 27px; font-size: 16px; padding: 3px 5px; }
+  #pause .gfx-box button { min-height: 24px; font-size: 15px; }
+}

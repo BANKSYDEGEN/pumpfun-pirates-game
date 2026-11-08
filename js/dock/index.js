@@ -196,7 +196,6 @@ export async function createDock(ctx) {
       const pp = m.createPetsPanel({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }),
         equipped: () => getLocalGear()?.parrot || '', out: () => !!petF?.active, toast: (...a) => toast(...a),
         gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } });
-      const fb2 = $('btn-friends'); if (fb2 && !$('btn-pets')) { const pb = document.createElement('button'); pb.id = 'btn-pets'; pb.type = 'button'; pb.className = 'ghost'; pb.textContent = '🦜 PARROTS · HULL CAGE'; pb.onclick = (e) => { e.stopPropagation(); toast('Name & upgrade parrots at the cage inside your ship hull. Equip or trade them from INVENTORY.', 4000); }; fb2.insertAdjacentElement('afterend', pb); }
       setInterval(() => pp.tick(1), 1000);
       import('../parrotsPanel.js').then(m => {
         const pc = m.createParrotsPanel({ flush: () => pv()?.flushNow?.(), call: (a, b) => pv()?.inv?.call?.(a, b),

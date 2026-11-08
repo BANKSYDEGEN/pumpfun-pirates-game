@@ -196,9 +196,16 @@ export function createSocial(ctx) {
       drawBtn();
     }
     let btn = null;
-    function drawBtn() { if (btn) btn.textContent = `🎙 SQUAD VOICE CHAT: ${on ? 'ON' : 'OFF'}`; }
+    function drawBtn() {
+      if (!btn) return;
+      btn.textContent = `${on ? '🎙' : '🔇'} VOICE ${on ? 'ON' : 'OFF'}`;
+      btn.setAttribute('aria-pressed', String(on));
+      btn.setAttribute('aria-label', `Squad voice chat ${on ? 'on' : 'off'}`);
+      btn.title = `Squad voice chat ${on ? 'ON' : 'OFF'} · tap to toggle`;
+      btn.classList.toggle('voice-off', !on);
+    }
     function mountButton() {
-      if (!doc || btn) return; const after = doc.getElementById('btn-friends'); if (!after) return;
+      if (!doc || btn) return; const after = doc.getElementById('pause-sound'); if (!after) return;
       btn = doc.createElement('button'); btn.id = 'btn-voice'; btn.type = 'button'; btn.className = 'ghost';
       btn.onclick = (e) => { e.stopPropagation(); setOn(!on); }; after.insertAdjacentElement('afterend', btn); drawBtn();
     }
