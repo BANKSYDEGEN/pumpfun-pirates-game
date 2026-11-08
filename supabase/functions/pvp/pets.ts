@@ -2,7 +2,7 @@
 // Identity = index.ts whoAmI; the client only names WHICH pet. Ownership, gold and the swap are all checked inside one SQL transaction.
 import { cleanName } from "./online.ts";
 import { acctBump } from "./accounts.ts";
-export const PET_ACTIONS = ["pet_list", "pet_name", "pet_walk", "pet_treat", "pet_offer", "pet_cancel", "pet_respond", "parrot_list", "parrot_name", "parrot_treat", "parrot_color", "parrot_equip", "parrot_walk"] as const;
+export const PET_ACTIONS = ["pet_list", "pet_name", "pet_walk", "pet_treat", "pet_offer", "pet_cancel", "pet_respond", "parrot_list", "parrot_name", "parrot_treat", "parrot_color", "parrot_equip", "parrot_walk", "pilly_list", "pilly_buy", "pilly_out", "pilly_name", "pilly_walk", "pilly_treat"] as const; // [Pilly] migration 067
 const PET_RE = /^pet_[a-z0-9_]{2,20}$/;
 export const petName = (n: unknown) => String(n ?? "").replace(/[<>&"'`\\\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
 export const PET_SELL_PER_LV = 0.01;
@@ -16,6 +16,13 @@ export async function petLevel(db: any, pid: string, pet: unknown) {
 }
 export async function petAction(c: { db: any; whoAmI: (b: Record<string, unknown>) => Promise<{ pid: string; raw?: string; wallet?: string | null; owner?: boolean } | null>; json: (s: number, o: unknown) => Response }, action: string, b: Record<string, unknown>) {
   const { db, json } = c; const who = await c.whoAmI(b); if (!who) return json(401, { error: "no identity" });
+  if (action.startsWith("pilly_")) { // [Pilly] migration 067: the companion slot (independent of the parrot slot)
+    const op = action.slice(6);
+    if (op !== "walk" && op !== "list") { const { data: okRate } = await db.rpc("pvp_rl_hit", { p_key: "pilly:" + who.pid, p_window_s: 60, p_max: 40 }); if (okRate === false) return json(429, { ok: false, why: "slow down" }); }
+    const { data, error } = await db.rpc("pvp_pilly_op", { p_player: who.pid, p_op: op, p_name: op === "name" ? petName(b.name) : null, p_out: op === "out" && typeof b.out === "boolean" ? b.out : null });
+    if (!error && data?.ok && (op === "treat" || op === "buy") && !who.wallet && !who.owner) await acctBump(db, who.raw, -(op === "buy" ? (data.price || 0) : (data.cost || 0)));
+    return json(200, error ? { ok: false, why: "busy, try again" } : data || { ok: false });
+  }
   if (action.startsWith("parrot_")) {
     const op = action.slice(7), id = typeof b.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(b.id) ? b.id : null;
     if (!["list", "walk"].includes(op) && !id) return json(400, { ok: false, why: "pick a parrot" });

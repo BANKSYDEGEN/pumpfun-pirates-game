@@ -37,7 +37,7 @@ export function createPetsPanel(ctx) {
     if (el || typeof document === 'undefined') return;
     if (!document.getElementById('pet-css')) { const s = document.createElement('style'); s.id = 'pet-css'; s.textContent = CSS; document.head.appendChild(s); }
     el = document.createElement('div'); el.id = 'pet-panel'; el.hidden = true;
-    el.innerHTML = `<div class="pp-box" role="dialog" aria-label="Pets"><div class="pp-h"><b>🐾 MY PETS</b><button type="button" class="pp-x" aria-label="Close pets">✕</button></div><div class="pp-list"></div><div class="pp-foot">Pets earn XP while they follow you on the island. Treats level them faster. Every level adds +1% to your pet's sell bonus.</div></div>`;
+    el.innerHTML = `<div class="pp-box" role="dialog" aria-label="Pets"><div class="pp-h"><b>🐾 MY PETS</b><button type="button" class="b" data-pilly-open="1" style="margin-right:8px">💊 PILLY</button><button type="button" class="pp-x" aria-label="Close pets">✕</button></div><div class="pp-list"></div><div class="pp-foot">Pets earn XP while they follow you on the island. Treats level them faster. Every level adds +1% to your pet's sell bonus.</div></div>`;
     document.body.appendChild(el);
     for (const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel', 'keydown', 'keyup']) el.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
     el.addEventListener('click', (e) => { if (e.target === el) close(); });

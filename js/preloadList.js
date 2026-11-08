@@ -85,6 +85,7 @@ export const HARBOR_MODULES = [
   "js/onfoot/followPath.js",
   "js/onfoot/net.js",
   "js/onfoot/pets.js",
+  "js/onfoot/pilly.js",
   "js/onfoot/physics.js",
   "js/onfoot/pirate.js",
   "js/onfoot/stances.js",

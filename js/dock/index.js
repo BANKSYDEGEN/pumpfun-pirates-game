@@ -19,7 +19,8 @@ import { createBerthSigns } from './berthSigns.js'; // [berth-signs] captain nam
 import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
-import { createPetFollower } from '../onfoot/pets.js'; // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
+import { createPetFollower } from '../onfoot/pets.js'; import { createPilly, createPillyState } from '../onfoot/pilly.js'; // [Pilly] companion slot
+// // [Raul items redo 2] your cat / monkey / chimp / gorilla follows you ashore
 import { binds, keyName, isKey, anyModalOpen } from '../keybinds.js';
 import { createIslandMap } from '../islandMap.js';
 import { createTreasure } from './treasure.js'; // [v122] treasure maps: MAPS list, radar dig area, server digs
@@ -132,6 +133,7 @@ export async function createDock(ctx) {
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
   const petF = new URLSearchParams(location.search).get('pets') === '0' ? null : createPetFollower({ scene, world, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Raul items redo 2] ?pets=0 = the pet stays by your boots
+  const pillyF = new URLSearchParams(location.search).get('pilly') === '0' ? null : createPilly({ scene, world, low: LOW }); let pillyS = null; // [Pilly] own slot: walks beside you WITH your parrot / pet
   let ladders = null; try { if (LADDERS_ON) ladders = createLadders({ world, layout, walker, pirate, crewF, petF, lagoon: { ...LAGOON_LADDER, dock: LAGOON_DOCK, y: lagoonDockY() } }); } catch (e) { console.warn('[dock-ladders]', e); } // [dock-ladders]
   const canoe = createCanoe({ scene, layout, walker, pirate, crewF, petF, getPlayer: () => ctx.getPlayer(), toast: (m, ms) => toast(m, ms), sfx: ctx.sfx, waveY: (x, z) => ctx.waveHeight?.(x, z, uTime?.value || 0) ?? 0, low: LOW, canvas, world, touch }); // [v314] + canvas look, world.blocked landings // [Emerly sail-around]
   const imap = createIslandMap({ world, layout, low: LOW || touch, islands, paperSheet: (bare) => treasure.map.sheet(bare) }); // [v153] PAPER minimap style = the MAPS parchment chart // [v106] the radar is the whole-island map in the harbor (at sea + on foot)
@@ -198,6 +200,10 @@ export async function createDock(ctx) {
         equipped: () => getLocalGear()?.parrot || '', out: () => !!petF?.active, toast: (...a) => toast(...a),
         gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } });
       setInterval(() => pp.tick(1), 1000);
+      pillyS = createPillyState({ call: (a, b) => pv()?.inv?.call ? pv().inv.call(a, b) : Promise.resolve({ ok: false, why: 'set sail to the Harbor first' }), follower: pillyF, toast: (...a) => toast(...a),
+        out: () => on && onFoot && !shipHull?.inHull, gold: (r) => { if (r?.gold != null) try { pv()?.serverGold?.(r.gold, { rev: r.rev ?? null, owner: !!r.owner }); } catch {} } }); // [Pilly]
+      window.PFP_PILLY = Object.freeze({ open: () => pillyS.open(), close: () => pillyS.close(), refresh: () => pillyS.refresh(), get state() { return pillyS.state; } });
+      setInterval(() => pillyS.tick(1), 1000); { let tries = 0; const t = setInterval(() => { if (++tries > 30 || pillyS.state.avail != null) return clearInterval(t); if (pv()?.inv?.call) pillyS.refresh(); }, 4000); }
       import('../parrotsPanel.js').then(m => {
         const pc = m.createParrotsPanel({ flush: () => pv()?.flushNow?.(), call: (a, b) => pv()?.inv?.call?.(a, b),
           equipped: () => getLocalGear()?.parrot || '', out: () => on && onFoot && !shipHull?.inHull,
@@ -486,7 +492,7 @@ export async function createDock(ctx) {
       if (!sprintHinted) { sprintHinted = true; toast(touch || padActive() ? 'ASHORE<br><small>push the stick to the edge to sprint</small>' : `ASHORE<br><small>WASD walk · hold ${keyName(binds('sprint')[0])} to sprint</small>`, 2600); } });
   }
   function goAboard(instant = false) {
-    const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); petF?.exit(); // [Raul emotes] no half-played emote next time ashore
+    const fin = () => { onFoot = false; pirate.object.userData.emote = null; for (const c of crewF?.list || []) c.p.object.userData.emote = null; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); // [Raul emotes] no half-played emote next time ashore
       closeBoard(); document.documentElement.classList.remove('pfp-onfoot'); controls.enabled = true; ctx.camReset(); };
     if (instant) fin(); else fadeTo(fin);
   }
@@ -521,7 +527,7 @@ export async function createDock(ctx) {
     fadeTo(() => {
       onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
       try { walker.enter(s.x, s.z, s.yaw); } catch {}
-      crewF?.exit?.(); petF?.exit?.();
+      crewF?.exit?.(); petF?.exit?.(); pillyF?.exit?.();
       shipHull.enter({ from: fromDock ? 'dock' : 'sea', ax, az, ayaw, berthId: docking.berth?.id || null, skipFade: true });
     });
   }
@@ -532,7 +538,7 @@ export async function createDock(ctx) {
       // Put player back aboard in the exact state they entered from
       onFoot = false; pirate.object.userData.emote = null;
       for (const c of crewF?.list || []) c.p.object.userData.emote = null;
-      walker.exit(); crewF?.exit(); petF?.exit();
+      walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit();
       document.documentElement.classList.remove('pfp-onfoot', 'pfp-inhull', 'pfp-inhouse');
       controls.enabled = true;
       if (s) {
@@ -690,7 +696,7 @@ export async function createDock(ctx) {
         const w = walker.w; for (const code in w.keys) w.keys[code] = false;
         w.joy.on = false; w.joy.x = w.joy.y = 0; w.jumpQ = false; w.speed = 0; w.drags.clear();
       } // phone pointer capture / held controller input cannot walk behind the wardrobe
-      if (!zip?.riding && !houses?.inHouse) ladders?.tick(dt); /* [dock-ladders] before the walker: swim into a ladder / JUMP next to it = climb */ walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot });
+      if (!zip?.riding && !houses?.inHouse) ladders?.tick(dt); /* [dock-ladders] before the walker: swim into a ladder / JUMP next to it = climb */ walker.update(dt); houses?.tick?.(dt); /* [storage-houses] pin interior floor AFTER walker ground */ crewF?.update(dt, camera); petF?.update(dt, walker.w, { camera, pirateObj: pirate.object, petId: getLocalGear().parrot }); if (pillyF) { if (pillyS?.show) pillyF.update(dt, walker.w, { camera, hide: !!shipHull?.inHull || !!houses?.inHouse }); else if (pillyF.active) pillyF.exit(); }
       world.foot.areas?.onPlayer(layout.harborToFoot(walker.w.x, walker.w.z), game.t, areaApi); // [island-rework] traps / leaving the dock
       const W = walker.w, b = docking.berth;
       let best = null, bd = 1e9;
@@ -719,7 +725,7 @@ export async function createDock(ctx) {
         if (!best && houses?.on) { const hp = houses.prompts({ onFoot: true, W }); if (hp) best = { label: hp.label, primary: !!hp.primary, key: hp.key || 'E', fn: () => houses.act(hp.tag, { door: hp.door }) }; }
         { const cp = canoe?.prompts({ s, onFoot: true, W, docking });
           if (cp?.a && !best) {
-            const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+            const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard: (inst) => goAboard(inst), docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
             setActs({ label: cp.a.label, key: 'E', primary: true, fn: () => run(cp.a.tag) }, skinAct);
           } else setActs(best ? { ...best, key: 'E', primary: true } : null, skinAct); }
       }
@@ -741,11 +747,11 @@ export async function createDock(ctx) {
         else setActs({ label: '⚓ DOCK', key: 'E', primary: true, fn: () => dockNow(q.berth) }, null);
       } else if (s.anchor && cp?.a) {
         // [v333] BANKSY t1768u: anchored at sea → ENTER HULL / LAUNCH CANOE / WEIGH ANCHOR
-        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
         const canoeAct = cp.a.disabled ? cp.a : { label: (cp.a.tag === 'launchCanoe' ? 'LAUNCH CANOE' : cp.a.label), key: 'Q', primary: false, fn: () => run(cp.a.tag) };
         setActs({ label: 'ENTER HULL', key: 'E', pad: 'Y', primary: true, fn: enterHull }, canoeAct, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor }); // [v349] pad Triangle / Y = ENTER HULL (LAUNCH CANOE stays X / □, WEIGH ANCHOR keeps W)
       } else if (cp?.a) {
-        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
+        const run = (tag) => canoe.act(tag, { s, controls, goAshoreAt, goAboard, docking, walkerExit: () => { onFoot = false; walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); document.documentElement.classList.remove('pfp-onfoot'); }, walker });
         setActs(cp.a.disabled ? cp.a : { label: cp.a.label, key: cp.a.key || 'E', primary: !!cp.a.primary, fn: () => run(cp.a.tag) }, null);
       } else if (s.anchor) {
         setActs({ label: 'ENTER HULL', key: 'E', pad: 'Y', primary: true, fn: enterHull }, null, { label: 'WEIGH ANCHOR', key: 'W', fn: weighAnchor }); // [v349] pad Triangle / Y
