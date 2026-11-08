@@ -19,7 +19,7 @@ test('one lazy poller coalesces callers, bounded cadence, prices stay last-known
  await feed.tick(false);assert.equal(calls.length,0);await Promise.all([feed.tick(true),feed.tick(true)]);assert.equal(calls.length,3);assert.equal(feed.state.prices.SUNK.price,.01);await feed.tick(true);assert.equal(calls.length,3);now+=PRICE_MS;fail=true;await feed.tick(true);assert.equal(feed.state.prices.SUNK.price,.01);assert.equal(feed.state.prices.SUNK.stale,true);
 });
 test('discovery distinguishes sponsored boosts; never invents bonding progress or ranking rows',async()=>{let now=1;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>({ok:true,json:async()=>url.includes('/launches')?{source:'pumpfun:unavailable',launches:[]}:url.includes('trending_pools')?{data:[],included:[]}:[]})});await feed.tick(true,true);assert.deepEqual(feed.state.bonding,[]);assert.match(feed.state.status.bonding,/unavailable/);assert.match(feed.state.status.callouts,/PAID PROMOTION/);assert.ok(DISCOVERY_MS>=120000);});
-test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<600&&hqParts().filter(p=>p.glow).length<90);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
+test('light geometry budget and no fake buy ticker, untrusted DOM HTML or paid feed',()=>{assert.ok(hqParts().length<900&&hqParts().filter(p=>!p.detail).length<400&&hqParts().filter(p=>p.glow).length<90);const code=src('js/dock/pumpfun.js');assert.ok(!code.includes('innerHTML'));assert.match(code,/createFlightParrot/);assert.match(code,/low\?\['parrot_green'\]:/);assert.ok(!src('js/pumpfun/market.js').includes('WebSocket'));assert.match(code,/no ranking feed connected/);});
 
 import {HQ_PILLARS,HQ_TOWERS} from '../js/pumpfun/site.js';
 const inBox=([x,z,w,d],px,pz,pad=.3)=>Math.abs(px-x)<w/2+pad&&Math.abs(pz-z)<d/2+pad;
@@ -81,4 +81,15 @@ test('board CSP allows only the needed public discovery host; no unverified laun
  assert.match(html,/connect-src[^;]*https:\/\/api.geckoterminal.com/);
  assert.ok(!html.includes('three.ws'));assert.ok(!feed.includes('three.ws'));
  assert.match(src('js/pumpfun/render.js'),/Feed offline/);
+});
+
+test('p2: towers clear the Outfit Store eaves, every bench / prop is solid, walk routes stay open',async()=>{
+ const {OUTFIT_STORE}=await import('../js/island/outfitStore.js');const {HQ_PROPS}=await import('../js/pumpfun/site.js');
+ const eave=OUTFIT_STORE.lx+OUTFIT_STORE.w/2;for(const t of HQ_TOWERS)assert.ok(t.lx-t.r-.6>eave+1.2,'tower under outfit eaves');
+ for(const [k,x,z] of HQ_PROPS)assert.ok(HQ_WALLS.some(b=>inBox(b,x,z,0)),'no collider for '+k);
+ assert.ok(HQ_PROPS.filter(p=>p[0]==='bench').length===2);
+ for(const k of ['cannon','maptable','rack','treasure','rope'])assert.ok(HQ_PROPS.some(p=>p[0]===k),k);
+ for(let lz=-26;lz>=-59;lz-=.25)assert.ok(!solidAt(-18.5,lz,.35),'aisle '+lz);
+ for(let lx=-1;lx>=-18.5;lx-=.25)assert.ok(!solidAt(lx,HQ.hillDoor.lz,.35),'hill route '+lx);
+ assert.match(src('js/pumpfun/render.js'),/const n=low\?256:512/); // damask <= 1024 px
 });

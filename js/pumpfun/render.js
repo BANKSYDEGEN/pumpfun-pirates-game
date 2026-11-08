@@ -19,13 +19,22 @@ export function buildHQ(low=false){const group=new THREE.Group();group.name='pum
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
  return {group,board,referral,cv,tex,squadBoards,dispose(){group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
 // [post-hq-castle] casino damask above the mahogany wainscot: ONE 256 px canvas pattern (128 on phones), lit Lambert, one merged mesh
-function damask(group,low){const n=low?128:256,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d'),k=n/256;
- x.fillStyle='#4a1418';x.fillRect(0,0,n,n);x.fillStyle='rgba(214,164,74,0.32)';
- for(const [cx,cy] of [[64,64],[192,192],[192,64],[64,192]]){const s=(cx+cy)%256===128?.55:1;x.save();x.translate(cx*k,cy*k);x.scale(k*s,k*s);x.beginPath();
-  for(let i=0;i<4;i++){x.rotate(Math.PI/2);x.moveTo(0,0);x.bezierCurveTo(14,-20,34,-12,40,0);x.bezierCurveTo(34,12,14,20,0,0);}x.fill();x.beginPath();x.arc(0,0,7,0,7);x.fill();x.restore();}
+function damask(group,low){const n=low?256:512,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d'),k=n/512;
+ // crimson tone-on-tone damask (the casino's motif family): ogee medallions on a half-drop lattice, gilt hairline, soft vertical sheen
+ const bg=x.createLinearGradient(0,0,n,0);bg.addColorStop(0,'#5a171c');bg.addColorStop(.5,'#6a1d22');bg.addColorStop(1,'#5a171c');x.fillStyle=bg;x.fillRect(0,0,n,n);
+ const med=(cx,cy,s)=>{x.save();x.translate(cx*k,cy*k);x.scale(k*s,k*s);
+  x.fillStyle='#7d2a2c';x.beginPath();x.moveTo(0,-118);x.bezierCurveTo(70,-80,92,-20,0,118);x.bezierCurveTo(-92,-20,-70,-80,0,-118);x.fill();
+  x.fillStyle='#8e3533';for(const sy of [-1,1]){x.beginPath();x.moveTo(0,sy*20);x.bezierCurveTo(40,sy*40,60,sy*90,0,sy*104);x.bezierCurveTo(-60,sy*90,-40,sy*40,0,sy*20);x.fill();}
+  for(const sx of [-1,1]){x.beginPath();x.moveTo(sx*8,0);x.bezierCurveTo(sx*40,-28,sx*72,-8,sx*62,18);x.bezierCurveTo(sx*48,36,sx*22,16,sx*8,0);x.fill();}
+  x.fillStyle='#a8463c';x.beginPath();x.arc(0,0,16,0,7);x.fill();x.fillStyle='#7d2a2c';x.beginPath();x.arc(0,0,8,0,7);x.fill();
+  x.strokeStyle='rgba(214,164,74,0.45)';x.lineWidth=2.2;x.beginPath();x.moveTo(0,-118);x.bezierCurveTo(70,-80,92,-20,0,118);x.bezierCurveTo(-92,-20,-70,-80,0,-118);x.stroke();
+  x.fillStyle='rgba(214,164,74,0.55)';for(const [dx,dy] of [[0,-128],[0,128],[0,-60],[0,60]]){x.beginPath();x.arc(dx,dy,3.2,0,7);x.fill();}x.restore();};
+ for(const [cx,cy] of [[128,128],[384,384],[384,-128],[128,640],[-128,384],[640,384]])med(cx,cy,1);
+ for(const [cx,cy] of [[384,128],[128,384],[384,640],[640,128],[-128,128],[128,-128]])med(cx,cy,.42);
+ x.strokeStyle='rgba(214,164,74,0.18)';x.lineWidth=1.4*k;for(let i=-1;i<=2;i++){x.beginPath();x.moveTo(i*256*k,0);x.lineTo((i*256+512)*k,n);x.stroke();x.beginPath();x.moveTo((i*256+512)*k,0);x.lineTo(i*256*k,n);x.stroke();}
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;
  const Y=HQ.floor,y0=Y+1.62,y1=Y+6.22,h=y1-y0,geos=[];
- const panel=(w,px,pz,ry)=>{const g=new THREE.PlaneGeometry(w,h);const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/1.6,uv.getY(i)*h/1.6);g.rotateY(ry);g.translate(px,(y0+y1)/2,pz);geos.push(g);};
+ const panel=(w,px,pz,ry)=>{const g=new THREE.PlaneGeometry(w,h);const uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*w/1.8,uv.getY(i)*h/1.8);g.rotateY(ry);g.translate(px,(y0+y1)/2,pz);geos.push(g);};
  const X0=HQ.lx0+.62,X1=HQ.lx1-1.02,Z0=HQ.lz0+.62,Z1=HQ.lz1-.62,D=HQ.hillDoor;
  panel(Z1-Z0,X0,(Z0+Z1)/2,Math.PI/2);panel(X1-X0,(X0+X1)/2,Z0,0);
  for(const [a,b] of [[Z0,D.lz-D.w/2-.3],[D.lz+D.w/2+.3,Z1]])panel(b-a,X1,(a+b)/2,-Math.PI/2);

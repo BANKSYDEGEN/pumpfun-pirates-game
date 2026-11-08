@@ -1,12 +1,12 @@
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
-import { HQ, HQ_TOWERS, HQ_PILLARS, PET_LOT, petFloor } from './site.js';
+import { HQ, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, PET_LOT, petFloor } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
 export function hqParts() {
   // [post-hq-castle] BANKSY t261u: ONE hall over the whole footprint (lx -33..-4, lz -65..-30), pirate-fortress stone outside,
   // casino-style warm interior (mahogany wainscot, gilded beamed ceiling, iron chandeliers, painted light pools in render.js).
   const p = [], mat=c=>c===stone?11:c===darkStone?22:c===wood?26:c===roof?4:0;
   const B = (x,y,z,w,h,d,c,detail=false,ex) => p.push({ kind:'box', x,y,z,w,h,d,c,detail,mat:mat(c),...ex });
-  const Cy = (x,y,z,r,r1,h,n,c,detail=false) => p.push({ kind:'cyl', x,y,z,r,r1,h,n,c,detail,mat:mat(c) });
+  const Cy = (x,y,z,r,r1,h,n,c,detail=false,ex) => p.push({ kind:'cyl', x,y,z,r,r1,h,n,c,detail,mat:mat(c),...ex });
   const Y=HQ.floor, TOP=Y+HQ.wallTop, CEIL=Y+HQ.ceil, X0=HQ.lx0, X1=HQ.lx1, Z0=HQ.lz0, Z1=HQ.lz1, CX=(X0+X1)/2, CZ=(Z0+Z1)/2, D=Z1-Z0;
   const HD=HQ.hillDoor, hz0=HD.lz-HD.w/2, hz1=HD.lz+HD.w/2;
   B(CX,Y-.03,CZ,28.8,.12,D-.6,'#5b3b26',false,{mat:26}); // dark oiled deck planks // one floor, wall to wall
@@ -21,6 +21,15 @@ export function hqParts() {
   for(let i=0;i<14;i++){const x0=-GR+i*GW/14+GW/28, yy=GS+Math.sqrt(Math.max(0,GR*GR-x0*x0)); B(HQ.door.lx+x0,(yy+TOP)/2,Z1-.3,GW/14+.01,TOP-yy,.6,stone);}
   for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(HQ.door.lx+Math.cos(a)*(GR+.3),GS+Math.sin(a)*(GR+.3),Z1+.05,.75,.5,.8,darkStone,false,{rz:a-Math.PI/2});}
   for(const s of [-1,1]) B(HQ.door.lx+s*(GR+.3),Y+2.3,Z1+.05,.8,4.6,.8,darkStone);
+  // p2 gatehouse presence: projecting buttresses, a second deep outer arch ring + hood moulding, gilt skull keystone, iron-studded leaves
+  for(const s of [-1,1]) { const bx=HQ.door.lx+s*3.6; B(bx,Y+4.6,Z1+.62,1.3,9.4,1.3,darkStone); B(bx,Y+9.45,Z1+.62,1.55,.35,1.55,darkStone); B(bx,Y+.7,Z1+.68,1.55,1.4,1.45,darkStone);
+    B(bx,Y+10.0,Z1+.62,.9,.8,.9,stone); B(HQ.door.lx+s*(GR-.05),Y+2.4,Z1-.2,.12,4.6,1.0,iron,true);
+    B(HQ.door.lx+s*(GR+1.0),Y+3.1,Z1-.95,1.9,4.6,.12,wood,true); for(const y of [Y+1.4,Y+3.1,Y+4.8]) B(HQ.door.lx+s*(GR+1.0),y,Z1-1.03,1.9,.12,.05,iron,true); }
+  for(let i=0;i<15;i++){const a=Math.PI*(i+.5)/15; B(HQ.door.lx+Math.cos(a)*(GR+.95),GS+Math.sin(a)*(GR+.95),Z1+.45,.95,.6,1.5,stone,false,{rz:a-Math.PI/2});}
+  for(let i=0;i<17;i++){const a=Math.PI*(i+.5)/17; B(HQ.door.lx+Math.cos(a)*(GR+1.5),GS+Math.sin(a)*(GR+1.5),Z1+.55,.85,.22,1.25,darkStone,false,{rz:a-Math.PI/2});}
+  for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(HQ.door.lx+Math.cos(a)*(GR+.05),GS+Math.sin(a)*(GR+.05),Z1-.2,.6,.15,1.2,darkStone,true,{rz:a-Math.PI/2});}   // arch soffit through the wall
+  B(HQ.door.lx,GS+GR+.85,Z1+1.25,.95,1.15,.3,gold); B(HQ.door.lx,GS+GR+.95,Z1+1.42,.55,.5,.06,bone,true); B(HQ.door.lx,GS+GR+.6,Z1+1.42,.3,.14,.06,bone,true);
+
   for(let i=-5;i<=5;i++){const x0=i*.5, yy=GS+Math.sqrt(Math.max(0,GR*GR-x0*x0))-.2; if(yy>Y+6.8)B(HQ.door.lx+x0,(yy+Y+6.7)/2,Z1-.05,.08,yy-Y-6.7,.08,iron,true);}
   for(const y of [Y+6.85,Y+7.3]) B(HQ.door.lx,y,Z1-.05,2*Math.sqrt(GR*GR-(y-GS)**2)-.3,.08,.08,iron,true);
   // ---- Hill Street door (east wall): dressed jambs, lintel, iron-strapped timber leaves folded open inside ----
@@ -41,7 +50,7 @@ export function hqParts() {
   // side-wall arrow-slit lancets (glazed both faces) + front banners flanking the gate
   for(const z of [-36,-42,-54,-60]) for(const x of [X0+.3,X1-.5]) { const t=x>-10?1.12:.72; B(x,Y+8.4,z,t,3.2,1.0,'#33505f'); B(x,Y+10.1,z,t+.08,.3,1.4,darkStone); B(x,Y+6.7,z,t+.08,.3,1.4,darkStone); }
   for(const x of [-24.6,-12.4]) { B(x,Y+4.2,Z1+.2,1.7,5.2,.06,'#1b4d36'); B(x,Y+6.85,Z1+.25,1.95,.18,.18,gold); B(x,Y+4.6,Z1+.24,.9,.9,.04,gold); B(x,Y+1.75,Z1+.22,1.7,.3,.05,gold); }
-  B(-18.5,Y+9.4,Z1+.18,19.4,2.4,.25,wood); for (const y of [Y+8.18,Y+10.62]) B(-18.5,y,Z1+.3,19.6,.1,.18,gold); // HQ sign board
+  B(-18.5,Y+9.4,Z1+.18,18.4,2.3,.25,wood); for (const y of [Y+8.23,Y+10.57]) B(-18.5,y,Z1+.3,18.6,.1,.18,gold); // HQ sign board
   // ---- interior: mahogany wainscot, gilded beamed ceiling on two stone arcades, dais under the big board ----
   const IX0=X0+.6, IX1=X1-1.0, IZ0=Z0+.6, IZ1=Z1-.6;
   for(const [x,z,w,d] of [[IX0+.06,CZ,.12,IZ1-IZ0],[CX,IZ0+.06,IX1-IX0,.12]]) { B(x,Y+.75,z,w,1.5,d,mahog,true); B(x,Y+1.55,z,w+.06,.1,d+.06,gold,true); B(x,Y+.08,z,w+.08,.16,d+.08,'#2a160d',true); }
@@ -66,13 +75,35 @@ export function hqParts() {
     for(let i=0;i<10;i++){const a=i/10*Math.PI*2; B(-18.5+Math.cos(a)*1.25,Y+7.0,z+Math.sin(a)*1.25,.82,.1,.12,iron,true,{ry:-a+Math.PI/2}); B(-18.5+Math.cos(a)*1.25,Y+7.2,z+Math.sin(a)*1.25,.09,.32,.09,candle,true,{glow:true}); B(-18.5+Math.cos(a)*1.25,Y+7.45,z+Math.sin(a)*1.25,.07,.16,.07,flame,true,{glow:true}); } }
   // wall torches (iron bracket + glow flame) and pirate dressing: barrels, chest of gold, ship's wheel, anchor
   for(const [x,z] of HQ_TORCHES) { const s=x<-18?1:-1; B(x+s*.2,Y+3.0,z,.4,.12,.12,iron,true); B(x+s*.42,Y+3.1,z,.12,.5,.12,wood,true); B(x+s*.42,Y+3.5,z,.2,.35,.2,flame,true,{glow:true}); }
-  for(const [x,z] of [[IX0+.8,IZ1-.9],[IX0+1.9,IZ1-.8],[IX1-.8,IZ1-.9],[IX0+.8,IZ0+.9],[IX1-.8,IZ0+.9]]) { Cy(x,Y+.55,z,.5,.45,1.1,12,'#6b4428',true); Cy(x,Y+.3,z,.53,.53,.08,12,iron,true); Cy(x,Y+.85,z,.5,.5,.08,12,iron,true); }
-  { const cx=-11.5, cz=-62.5, y=Y+HQ.dais.rise; B(cx,y+.35,cz,1.5,.7,.95,wood,true); B(cx,y+.86,cz,1.52,.32,.97,'#3a2418',true); for(const dx of [-.55,0,.55]) B(cx+dx,y+.6,cz,.08,1.02,1,gold,true); for(const [dx,dz] of [[.95,.1],[1.15,-.3],[-1,.25]]) B(cx+dx,y+.08,cz+dz,.32,.16,.32,gold,true); }
-  for(const [x,z] of [[-30.5,-42],[-6.9,-56]]) { B(x,Y+.45,z,1.1,.9,5.3,mahog,true); B(x,Y+.93,z,1.2,.08,5.4,'#2a160d',true); }
 
   // casino-style wall: gilt cap rail over the damask (render.js paints the damask panels), crimson/green banners between pillars
   for(const [x,z,w,d] of [[IX0+.05,CZ,.16,IZ1-IZ0],[CX,IZ0+.05,IX1-IX0,.16],[IX1-.05,CZ,.16,IZ1-IZ0]]) B(x,Y+6.3,z,w,.14,d,gold,true);
   for(const x of [-24.5,-12.5]) for(const [z,c] of [[-44,'#7a1d22'],[-52.5,'#1b4d36']]) { B(x,CEIL-1.25,z,2.0,.1,.1,iron,true); B(x,CEIL-3.6,z,1.7,4.6,.05,c,true); B(x,CEIL-1.4,z,1.8,.14,.09,gold,true); B(x,CEIL-4.4,z,.8,.8,.07,gold,true); B(x,CEIL-5.95,z,1.7,.12,.07,gold,true); }
+
+  // ---- p2 pirate dressing (HQ_PROPS also feeds the colliders in site.js) ----
+  const iy=z=>Y+(z<HQ.dais.lz1&&z>HQ.dais.lz0?HQ.dais.rise:0);
+  for(const [kind,x,z] of HQ_PROPS){ const y=iy(z);
+    if(kind==='bench'){ B(x,y+.45,z,1.1,.9,5.3,mahog,true); B(x,y+.93,z,1.2,.08,5.4,'#2a160d',true); }
+    if(kind==='cannon'){ B(x,y+.35,z,1.0,.5,1.7,'#3a2418',true); for(const s of [-1,1]) for(const dz of [-.55,.55]) Cy(x+s*.56,y+.3,z+dz,.3,.3,.12,10,wood,true,{rz:Math.PI/2});
+      Cy(x,y+.85,z+.25,.24,.33,2.3,12,'#1d1d1f',true,{rx:Math.PI/2}); Cy(x,y+.85,z-.95,.36,.36,.12,12,'#1d1d1f',true,{rx:Math.PI/2}); Cy(x,y+.85,z+1.4,.27,.27,.14,12,'#2b2a28',true,{rx:Math.PI/2});
+      for(const [dx,dz] of [[-.25,-1.15],[.05,-1.2],[-.1,-1.4]]) Cy(x+dx+.5,y+.12,z+dz,.13,.13,.24,8,'#121212',true); }
+    if(kind==='maptable'){ B(x,y+.92,z,2.4,.12,1.6,mahog,true); for(const sx of [-1,1]) for(const sz of [-1,1]) B(x+sx*1.05,y+.44,z+sz*.65,.14,.88,.14,'#2a160d',true);
+      B(x-.2,y+.99,z,1.7,.02,1.15,'#e8d6a8',true); B(x-.55,y+1.0,z-.1,.6,.01,.35,'#2f6b8a',true); B(x+.2,y+1.0,z+.25,.5,.01,.3,'#5f8a43',true); B(x+.35,y+1.01,z-.2,.08,.01,.08,'#9b2335',true);
+      Cy(x+.9,y+1.02,z-.45,.18,.18,.05,14,gold,true); B(x-1.0,y+1.1,z+.55,.1,.22,.1,candle,true,{glow:true}); B(x-1.0,y+1.27,z+.55,.05,.1,.05,flame,true,{glow:true});
+      Cy(x+.75,y+1.2,z+.45,.05,.05,.5,8,gold,true,{rz:Math.PI/2}); }
+    if(kind==='rack'){ const s=x<-18?1:-1, rx=x; for(const dz of [-1.4,1.4]) B(rx,y+1.1,z+dz,.18,2.2,.18,wood,true); for(const yy of [y+.5,y+1.8]) B(rx,yy,z,.18,.14,3.0,wood,true);
+      for(let i=0;i<5;i++){const zz=z-1.1+i*.55; B(rx+s*.12,y+1.15,zz,.04,1.7,.09,'#c9ccd1',true,{rx:(i%2?.12:-.12)}); B(rx+s*.12,y+.38,zz,.12,.08,.32,gold,true); B(rx+s*.12,y+.22,zz,.06,.24,.06,'#2a160d',true);}
+      Cy(rx+s*.15,y+2.0,z-1.0,.12,.12,.05,10,iron,true,{rz:Math.PI/2}); }
+    if(kind==='treasure'){ Cy(x,y+.3,z,.2,.95,.6,14,gold,true); Cy(x+.55,y+.08,z+.4,.25,.25,.16,12,gold,true); Cy(x-.5,y+.06,z-.35,.22,.22,.12,12,gold,true);
+      for(const [dx,dz,c] of [[.2,.3,'#d8322f'],[-.3,.25,'#2a6df4'],[.35,-.25,'#2f8a3a'],[-.15,-.4,'#9b5cff'],[0,.0,'#ff7ab8']]) B(x+dx,y+.55-(Math.abs(dx)+Math.abs(dz))*.4,z+dz,.14,.14,.14,c,true,{ry:dx*3});
+      for(let i=0;i<3;i++) B(x-.7+i*.18,y+.08+i*.14,z+.55,.5,.12,.22,gold,true); Cy(x+.75,y+.25,z-.3,.12,.16,.5,8,'#e8e0cc',true); }
+    if(kind==='chest'){ B(x,y+.35,z,1.5,.7,.95,wood,true); B(x,y+.86,z,1.52,.32,.97,'#3a2418',true); for(const dx of [-.55,0,.55]) B(x+dx,y+.6,z,.08,1.02,1,gold,true); B(x,y+.95,z+.2,1.2,.2,.5,gold,true); }
+    if(kind==='barrels'){ const n=Math.max(1,Math.round(HQ_PROPS.find(q=>q[1]===x&&q[2]===z)[3]/1.15)); for(let i=0;i<n;i++){const bx=x+(i-(n-1)/2)*1.1; Cy(bx,y+.55,z,.5,.45,1.1,12,'#6b4428',true); for(const yy of [.3,.85]) Cy(bx,y+yy,z,.53,.53,.08,12,iron,true);} }
+    if(kind==='crates'){ B(x,y+.5,z,1.0,1.0,1.0,'#7a5636',true); B(x+.05,y+1.35,z-.1,.7,.7,.7,'#8a6440',true,{ry:.3}); B(x,y+.5,z+.505,1.0,.12,.02,'#4a3023',true); }
+    if(kind==='rope'){ for(let i=0;i<4;i++) Cy(x,y+.07+i*.13,z,.55-i*.06,.55-i*.06,.12,14,'#b39462',true); Cy(x,y+.35,z,.2,.2,.62,10,'#5b3b26',true); }
+  }
+  // hanging iron lanterns in the arcades (glow cores, no lights)
+  for(const x of [-24.5,-12.5]) for(const z of [-36,-44,-52]) { const zz=z+(z===-44?4:z===-52?4.0:0); B(x+(x<-18?1.4:-1.4),CEIL-2.6,zz,.04,2.6,.04,iron,true); B(x+(x<-18?1.4:-1.4),Y+6.6,zz,.5,.08,.5,iron,true); B(x+(x<-18?1.4:-1.4),Y+6.15,zz,.32,.6,.32,flame,true,{glow:true}); B(x+(x<-18?1.4:-1.4),Y+5.8,zz,.45,.08,.45,iron,true); }
   // west wall: ship's wheel + anchor; jolly roger flags; crates and gold by the barrels
   { const wx=IX0+.2, wy=Y+4.3, wz=-60.5; B(wx,wy,wz,.25,.32,.32,wood,true);
     for(let i=0;i<4;i++) B(wx,wy,wz,.12,2.3,.12,wood,true,{rx:i*Math.PI/4});
@@ -80,8 +111,6 @@ export function hqParts() {
     const az=-55.5; B(wx,Y+3.6,az,.18,2.6,.2,iron,true); B(wx,Y+4.65,az,.18,.18,1.3,iron,true); B(wx,Y+5.1,az,.18,.5,.5,iron,true);
     for(const sd of [-1,1]) B(wx,Y+2.5,az+sd*.5,.18,.2,1.15,iron,true,{rx:sd*.55}); }
   for(const [x,z] of [[IX0+.12,-45],[IX1-.12,-61]]) { B(x,Y+8.2,z,.05,2.4,3.6,'#17130f',true); B(x,Y+8.45,z,.07,.62,.56,bone,true); for(const sd of [-1,1]) B(x,Y+7.7,z,.07,.12,1.1,bone,true,{rx:sd*.6}); }
-  for(const [x,z,q] of [[IX0+.8,IZ1-2.1,1],[IX0+.75,IZ1-2.95,.7],[IX1-.8,IZ1-2.1,.9],[IX1-.8,IZ0+2.0,1]]) B(x,Y+q/2,z,q,q,q,'#7a5636',true);
-  for(const [x,z] of [[IX0+1.9,IZ1-1.6],[IX1-1.9,IZ0+1.4]]) { B(x,Y+.12,z,.9,.24,.7,gold,true); B(x+.1,Y+.32,z,.5,.18,.4,gold,true); }
   B(HQ.board.lx,HQ.board.y,HQ.board.lz-.12,HQ.board.w+.6,HQ.board.h+.6,.25,mahog);
   B(HQ.board.lx,HQ.board.y,HQ.board.lz+.0,HQ.board.w+.25,HQ.board.h+.25,.07,gold);
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
