@@ -52,11 +52,11 @@ test('v349 MAP_HELP.sea documents Cross for hull and Triangle for shore', () => 
   const y = MAP_HELP.sea.find((row) => row[0] === 'Y');
   assert.ok(y, 'MAP_HELP.sea has a Y row');
   assert.match(y[1], /take canoe/i);
-  assert.match(y[1], /go to shore/i);
+  assert.match(y[1], /go ashore/i);
   assert.match(MAP_HELP.sea.find(row => row[0] === 'A')[1], /enter hull/i);
   assert.match(y[1], /moored|anchored/i);
   assert.doesNotMatch(y[1], /island map/i);
-  assert.match(G, /take canoe \(when moored\) · go to shore by canoe \(anchored\)/);
+  assert.match(G, /go ashore \(port berth\) · take canoe to shore \(anchored at sea\)/);
 });
 
 test('v349 gamepad wiring: resolve gate, doAction enterHull, context.canEnterHull, promptKey padBtn', () => {
@@ -179,7 +179,7 @@ test('v349 sw.js VERSION = pfp-v349', () => {
   assert.ok(+SW.match(/const VERSION = 'pfp-v(\d+)'/)[1] >= 349); // future releases preserve v349 mapping
 });
 
-test('t2343u clarification: moored Triangle launches canoe; anchored Triangle uses shore/canoe action', () => {
+test('t2351u: port Triangle walks ashore without canoe; anchored Triangle takes canoe', () => {
   // Execute the actual pad hook with minimal dock state, without loading the world.
   const hook = D.match(/goAshore: \(\) => \{([\s\S]*?)\n      \},\n      enterHull:/)[1];
   const run = new Function('game', 'actA', 'actB', 'SAIL_ALL', 'P', 'canoe', 'controls', 'press', hook);
@@ -187,16 +187,16 @@ test('t2343u clarification: moored Triangle launches canoe; anchored Triangle us
   const canoe = { act: (tag, ctx) => calls.push([tag, ctx]) };
   const shore = { label: 'GO ASHORE', fn() {} }, launch = { tag: 'launchCanoe', fn() {} };
   run({ state: 'playing' }, shore, null, true, () => ship, canoe, controls, a => calls.push(a));
-  assert.equal(calls[0][0], 'launchCanoe');
-  assert.equal(calls[0][1].s, ship);
-  assert.equal(ship.anchor, true);
+  assert.deepEqual(calls, [shore], 'port berth dispatches normal walk-off prompt, never canoe.act');
+  assert.equal(ship.anchor, false, 'port walk-off does not alter ship anchor');
   calls.length = 0;
   run({ state: 'playing' }, { label: 'ENTER HULL' }, launch, true, () => ship, canoe, controls, a => calls.push(a));
   assert.deepEqual(calls, [launch]);
   calls.length = 0;
   run({ state: 'paused' }, shore, launch, true, () => ship, canoe, controls, a => calls.push(a));
   assert.deepEqual(calls, []);
-  assert.match(D, /padLabel: SAIL_ALL \? 'TAKE CANOE' : 'GO ASHORE'/);
+  assert.match(D, /label: 'GO ASHORE', key: 'E', pad: 'Y', primary: true, fn: goAshore/);
+  assert.doesNotMatch(D, /padLabel: SAIL_ALL \? 'TAKE CANOE'/);
   assert.match(D, /padLabel: 'GO TO SHORE · CANOE'/);
   assert.ok(D.indexOf("} else if (canoe?.mode === 'canoe')") < D.indexOf("else if (docking.mode === 'docked') setActs"), 'canoe prompts override moored ship prompts');
   assert.match(D, /!onFoot && !inCanoe && !inHull && docking.mode === 'docked'/, 'paddling W cannot set sail on the moored ship');

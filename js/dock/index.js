@@ -421,8 +421,7 @@ export async function createDock(ctx) {
       canGoAshore: () => !!(on && !onFoot && !inCanoe() && !shipHull?.inHull && ((actA?.label === 'GO ASHORE' && !actA.disabled && actA.fn) || (actB?.tag === 'launchCanoe' && !actB.disabled && actB.fn))),
       goAshore: () => {
         if (game.state !== 'playing') return;
-        if (actA?.label === 'GO ASHORE' && !actA.disabled && SAIL_ALL) { const s = P(); if (s) { s.anchor = true; canoe?.act('launchCanoe', { s, controls }); } }
-        else if (actA?.label === 'GO ASHORE' && !actA.disabled) press(actA);
+        if (actA?.label === 'GO ASHORE' && !actA.disabled) press(actA);
         else if (actB?.tag === 'launchCanoe' && !actB.disabled) press(actB);
       },
       enterHull: () => { if (game.state === 'playing') enterHull(); },
@@ -760,7 +759,7 @@ export async function createDock(ctx) {
       const mk = (q, k) => (!q ? null : q.disabled ? q : { label: q.label, key: q.key || k, primary: !!q.primary, fn: () => run(q.tag) });
       setActs(mk(cp?.a, 'E'), mk(cp?.b, 'Q'));
     }
-    else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', pad: 'Y', padLabel: SAIL_ALL ? 'TAKE CANOE' : 'GO ASHORE', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', pad: 'A', fn: enterHull }); // keyboard/touch still walk ashore; Triangle takes canoe
+    else if (docking.mode === 'docked') setActs({ label: 'GO ASHORE', key: 'E', pad: 'Y', primary: true, fn: goAshore }, { label: 'SET SAIL', key: 'W', fn: setSail }, { label: 'ENTER HULL', key: 'H', pad: 'A', fn: enterHull }); // at a port berth, Triangle walks directly ashore; no canoe
     else if (docking.mode === 'sea' && s.alive && game.state === 'playing') {
       // [v314] BANKSY t1675u: the dock approach ALWAYS wins; the canoe prompt only shows when you anchored with the on-screen ⚓ offshore
       const q = now - leftAt > 5 ? docking.query(s) : null; // no DOCK prompt for 5 s after SET SAIL
