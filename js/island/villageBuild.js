@@ -75,17 +75,35 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       WI( box(iw, .12, id), PL, PLASTER, M(0, Hh - .3, 0), false);
       for (let z = -id / 2 + 2.4; z < id / 2 - 1; z += 3.2) WI( box(iw, .4, .4), 0x4a2c18, TIMBER, M(0, Hh - .55, z), false);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) WI( box(.32, Hh - .4, .32), 0x4a2c18, TIMBER, M(sx * (iw / 2 - .2), (Hh - .4) / 2 + .12, sz * (id / 2 - .2)), false);
-      const cw = Math.min(3.6, iw * .45), cz0 = -id / 2 + 2.0;
-      WI( box(cw, .14, 1.0), 0xb07a45, TIMBER, M(0, 1.15, cz0), false); WI( box(cw - .2, .95, .8), 0x6b4226, TIMBER, M(0, .6, cz0), false);
-      for (let b = -cw / 2 + .3; b < cw / 2 - .2; b += .4) WI( box(.06, .8, .06), 0x2a1a10, 0, M(b, .62, cz0 + .43), false);
-      for (const s of [-1, 1]) for (const yy of [1.3, 2.1, 2.9]) WI( box(.45, .07, Math.min(6, id * .55)), 0xb07a45, TIMBER, M(s * (iw / 2 - .26), yy, -id * .05), false);
-      WI(box(Math.min(iw - 1.6, 4.2), .03, Math.min(id * .4, 5)), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(0, .135, id * .1), false);   // [v5] rug
-      WI(box(Math.min(iw - 2.4, 3.2), .032, Math.min(id * .4, 5) - .8), 0xd9b44a, 0, M(0, .14, id * .1), false);
-      { const G = [0xb0453a, 0x2f6f6a, 0xd9b44a, 0x6b4226, 0xe6dccb, 0x35556a], L = Math.min(6, id * .55);   // [v5] stocked shelves: crates, jars, bolts of cloth
-        for (const s of [-1, 1]) for (const yy of [1.3, 2.1, 2.9]) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .62, j++) { if ((j + o.n + yy * 3) % 5 === 0) continue;
-          const hh = .22 + ((j * 7 + o.n) % 3) * .08; WI(box(.34, hh, .4), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(s * (iw / 2 - .28), yy + .035 + hh / 2, -id * .05 + q), false); } }
-      WI(box(.5, .3, .4), 0x6b4226, TIMBER, M(-.6, 1.37, cz0), false); WI(box(.3, .2, .3), 0xd9b44a, 0, M(.7, 1.32, cz0), false);   // ledger chest + coin box on the counter
-      for (const z of id > 12 ? [-id * .22, id * .22] : [0]) { WI( cyl(.02, .02, 1.3, 4), 0x222222, 0, M(0, Hh - 1.0, z), false); WI( box(.42, .6, .42), 0x1d1d1d, 0, M(0, Hh - 1.95, z), false);
+      // [v6] Hill Street rent-shop fit-out (near-only kit): big counter in the door's sightline + back shelf unit, tall side shelving,
+      // display table, two rugs, painted sconces, hanging OPEN / TO RENT board, dark plank seams
+      const G = [0xb0453a, 0x2f6f6a, 0xd9b44a, 0x6b4226, 0xe6dccb, 0x35556a, 0x8e6a3a], DK = 0x3a2414, cu = Math.max(-iw / 2 + 3, Math.min(iw / 2 - 3, du));
+      const cw = Math.min(5.2, iw * .6), cz0 = -id / 2 + 3.4;
+      WI(box(cw + .2, .16, 1.3), 0xb07a45, TIMBER, M(cu, 1.18, cz0), false); WI(box(cw, 1.0, 1.1), 0x6b4226, TIMBER, M(cu, .6, cz0), false);
+      for (let b = -cw / 2 + .35; b < cw / 2 - .2; b += .7) WI(box(.12, .9, .06), DK, 0, M(cu + b, .6, cz0 + .57), false);          // panel stiles
+      WI(box(.6, .34, .45), 0x6b4226, TIMBER, M(cu - cw * .3, 1.43, cz0), false); WI(box(.32, .22, .32), 0xd9b44a, 0, M(cu + cw * .3, 1.37, cz0), false);
+      { const bw = cw + 1.2, bz = -id / 2 + .32;                                                                                  // back shelf unit
+        WI(box(bw, 3.4, .6), DK, TIMBER, M(cu, 1.82, bz), false);
+        for (const yy of [.9, 1.75, 2.6]) for (let q = -bw / 2 + .4, j = 0; q < bw / 2 - .3; q += .55, j++) { if ((j + o.n + yy * 4 | 0) % 4 === 0) continue;
+          const hh = .3 + ((j * 5 + o.n) % 3) * .1; WI(box(.42, hh, .3), G[(j * 3 + o.n + (yy * 7 | 0)) % G.length], 0, M(cu + q, yy + hh / 2, bz + .38), false); } }
+      { const L = Math.min(7, id * .5), sz = id * .08;                                                                             // tall side shelving units
+        for (const s of [-1, 1]) { const ux = s * (iw / 2 - .32);
+          WI(box(.6, 3.3, L), DK, TIMBER, M(ux, 1.77, sz), false);
+          for (const yy of [.55, 1.35, 2.15, 2.95]) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .58, j++) { if ((j + o.n + (yy * 5 | 0)) % 5 === 0) continue;
+            const hh = .26 + ((j * 7 + o.n) % 3) * .1; WI(box(.36, hh, .42), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(ux - s * .38, yy + hh / 2, sz + q), false); } } }
+      { const rz = id * .18, rx = Math.max(-iw / 2 + 2.6, Math.min(iw / 2 - 2.6, cu));                                              // rugs + display table
+        WI(box(Math.min(iw - 2.4, 4.4), .03, 3.2), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(rx, .135, rz), false);
+        WI(box(Math.min(iw - 3.2, 3.6), .032, 2.4), 0xd9b44a, 0, M(rx, .14, rz), false);
+        WI(box(2.6, .03, 1.8), [0x2f4f6a, 0x6b3a6a, 0x8e2f26][o.n % 3], 0, M(rx, .135, cz0 + 1.9), false);
+        WI(box(1.8, .1, 1.0), 0xb07a45, TIMBER, M(rx, .9, rz), false); for (const a of [-1, 1]) for (const c of [-1, 1]) WI(box(.1, .78, .1), DK, 0, M(rx + a * .78, .5, rz + c * .4), false);
+        for (let j = 0; j < 3; j++) WI(box(.38, .24 + j * .06, .32), G[(j + o.n) % G.length], 0, M(rx - .5 + j * .5, .95 + (.24 + j * .06) / 2, rz), false); }
+      for (let q = -iw / 2 + 1.0; q < iw / 2 - .5; q += 1.0) WI(box(.04, .012, id - .2), 0x2a1a0e, 0, M(q, .127, 0), false);       // dark plank seams
+      for (const s of [-1, 1]) for (const z of [-id * .3, id * .3]) { WI(box(.12, .5, .3), 0x2a2a2a, 0, M(s * (iw / 2 - .08), 3.6, z), false);   // painted sconces
+        ki.add(new THREE.BoxGeometry(.14, .26, .2), 0xe0a050, { bucket: 'glow', m: M(s * (iw / 2 - .2), 3.65, z), outline: false }); }
+      { const hz = id / 2 - 1.6; for (const a of [-.6, .6]) WI(cyl(.015, .015, .9, 4), 0x222222, 0, M(du + a, Hh - .85, hz), false);   // hanging OPEN board
+        WI(box(1.6, .7, .06), 0x3d2a1c, TIMBER, M(du, Hh - 1.6, hz), false);
+        if (sign) { const [lx, lz] = rot(f, du, hz + .05); sign('village_open', 1.4, .55, lx, y + Hh - 1.6, lz, f.yaw); } }
+      for (const z of id > 12 ? [-id * .22, id * .22] : [0]) { WI( cyl(.02, .02, 1.3, 4), 0x222222, 0, M(0, Hh - 1.0, z), false); WI(box(.46, .08, .46), 0x1d1d1d, 0, M(0, Hh - 1.69, z), false); WI(box(.4, .06, .4), 0x1d1d1d, 0, M(0, Hh - 2.2, z), false);
         ki.add(new THREE.BoxGeometry(.3, .44, .3), 0xffc46b, { bucket: 'glow', m: M(0, Hh - 1.95, z), outline: false });
         const [lx, lz] = rot(f, 0, z), [x, zz] = T(lx, lz); POOLS.push([x, y + .14, zz, Math.min(5.5, iw * .42)]); }
       // facade: stone storey(s) over the tall hall, shuttered windows, window boxes, balconies (upper storeys only, never over the door bay)
@@ -150,7 +168,9 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
   // [v5] #24 back: flagstone fill between the rental and the yard kerb so no grass sliver shows at ground level
   { const top = HQ.floor + .145;   // flush with the yard paving (model.js: slab top Y + .145)
     for (const [x0, x1, z0, z1] of [[-44.9, -43.3, -58.2, -48.0], [-43.4, -40.0, -57.9, -56.5]]) { const [x, z] = T((x0 + x1) / 2, (z0 + z1) / 2);
-      W(k, box(x1 - x0, .6, z1 - z0), 0x8f877a, TRIM, M(x, top - .3, z, yaw0), false); } }
+      W(k, box(x1 - x0, .6, z1 - z0), 0x8f877a, TRIM, M(x, top - .3, z, yaw0), false); }
+    for (const [x0, x1, z0, z1] of [[-45, -34.1, -57.2, -47.5]]) { const [x, z] = T((x0 + x1) / 2, (z0 + z1) / 2);
+      W(k, box(x1 - x0, .6, z1 - z0), 0x8f877a, TRIM, M(x, top - .32, z, yaw0), false); } }   // [v6] under-paving fill: closes the grass gap along the yard edges
   // [v4] coped retaining walls wherever the cut behind / beside a lot would show a raw grass slope
   { const inAny = (lx, lz) => VILLAGE_LOTS.some(q => lx > q.lx0 - q.m - .2 && lx < q.lx1 + q.m + .2 && lz > q.lz0 - q.m - .2 && lz < q.lz1 + q.m + .2 || (q.annex && lx > q.annex[0] - .5 && lx < q.annex[1] + .5 && lz > q.annex[2] - .5 && lz < q.annex[3] + .5))
       || VILLAGE_ROADS.some(r => inRect(r, lx, lz, 1)) || inRect(PLAZA_EXT, lx, lz, 1) || lx > -34;
