@@ -173,7 +173,9 @@ export function hqParts() {
   for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
-  frameAt(-24.6,Y+4.0,Z1,'n',3.2,.8,false);                                          // referral board outside
+  frameAt(-25.2,Y+4.3,Z1+.28,'n',3.2,.8,false);   // referral board outside: centred in the bay left of the gate, mirrors the banner
+  B(-25.2,Y+4.3,Z1+.14,3.5,1.1,.28,mahog);   // backing block proud of the string course
+  B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)
   // (BANKSY 1:16 AM: no blind arch / wheel opposite Hill Street; plain damask wall there)
   for(const [x,z,sg] of [[IX0+.1,-56.6,1],[IX1-.1,-63.4,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
