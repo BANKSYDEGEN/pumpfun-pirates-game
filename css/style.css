@@ -1337,3 +1337,15 @@ html:has(#pause:not(.hidden)) #bt-atk { visibility: hidden !important; pointer-e
   #pause .panel button { min-height: 27px; font-size: 16px; padding: 3px 5px; }
   #pause .gfx-box button { min-height: 24px; font-size: 15px; }
 }
+
+/* BANKSY: corner settings and PLAY directly below the minimap. */
+#hud-tr { right: calc(44px + var(--safe-r, 0px)) !important; }
+#hud-icons { left: auto !important; right: calc(6px + var(--safe-r, 0px)) !important; top: calc(6px + var(--safe-t, 0px)) !important; transform: none !important; max-width: 32px !important; gap: 3px; }
+#hud-icons > #btn-pause { width: 30px; height: 30px; font-size: 19px; }
+#hud-tr #hb-hub-btn { position: static !important; top: auto !important; left: auto !important; right: auto !important; transform: none !important; align-self: flex-end; margin: 5px 0 3px; max-width: min(190px, calc(100vw - 60px)) !important; white-space: nowrap; font-size: 16px; padding: 3px 7px; gap: 4px; pointer-events: auto; }
+#hud-tr #hb-hub-btn .hb-chip:not([hidden]) { display: inline-block; }
+#hud-tr #hb-hub-btn .hb-ico { display: inline; }
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #hud-tr #hb-hub-btn { font-size: 13px; padding: 3px 5px; gap: 3px; }
+  #hud-tr #hb-hub-btn .hb-ico { font-size: 13px; }
+}

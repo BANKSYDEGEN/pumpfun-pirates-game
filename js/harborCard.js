@@ -13,6 +13,9 @@ export function initHarborCard() {
     hub.innerHTML = '<span class="hb-ico">⚔</span><span class="hb-lab">PLAY · HARBOR</span><span class="hb-chip" hidden></span>';
     (document.getElementById('hud') || document.body).appendChild(hub);
   }
+  // Keep the launcher in the radar column so it follows every radar size.
+  const radar = document.getElementById('radar');
+  if (radar) radar.insertAdjacentElement('afterend', hub);
   // modal chrome (header + close) once
   if (!card.querySelector('.hb-hub-head')) {
     const head = document.createElement('div'); head.className = 'hb-hub-head';
