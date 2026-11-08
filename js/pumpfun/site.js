@@ -44,7 +44,9 @@ export const HQ_PANELS = Object.freeze([
 export const HQ_SQUAD_BOARDS = Object.freeze([['squad', -35.85, 'squad'], ['daily_ranks', -44, 'daily_ranks'], ['squad_ranks', -59.5, 'squad_ranks']]
   .map(([file, lz, kind]) => Object.freeze({ file, lx: -32.4, lz, face: 'e', w: 4.7, h: 3.8, kind })));
 
-export const TOKEN_BOARD_SPOTS = Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
+export const TOKEN_BOARD_SPOTS = VILLAGE_ON   // [v5] BANKSY t342: village only, the 3 boards hang flush on the Outfit west wing, facing Powder Lane
+  ? Object.freeze({ SUNK: { lx: -59.05, lz: -45, ly: -Math.PI / 2, wall: true, y: 3.9 }, AHOY: { lx: -59.05, lz: -39, ly: -Math.PI / 2, wall: true, y: 3.9 }, PUMP: { lx: -59.05, lz: -33, ly: -Math.PI / 2, wall: true, y: 3.9 } })
+  : Object.freeze({ SUNK: { lx: -46, lz: -14 }, AHOY: { lx: -38, lz: -14 }, PUMP: { lx: -30, lz: -14 } });
 // L0 is the Treasure Trader, L1 Wanted, L2 Rum Export, L3 Harbor Fence. L4 is FIRST genuinely unused room.
 export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
 // [post-petstore] BANKSY t299u "rework the pet store with 3a quality": L4 is a procedural stone walk-in (the Blender L4 house is skipped in

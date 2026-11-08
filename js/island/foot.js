@@ -1084,14 +1084,14 @@ export function buildCoast(A, low, F, decorHulls = true) { // [Emerly] decorHull
         W(k, box(1.1, 0.35, 0.36), c, 12, M(sx, 1.85, -d / 2 + 0.5)); W(k, cyl(0.04, 0.04, 1.0, 4), WOOD_D, 2, M(sx, 2.4, -d / 2 + 0.5), false); W(k, box(0.7, 0.55, 0.04), 0xf2efe6, 12, M(sx, 2.45, -d / 2 + 0.56), false); } }
   }, Y0);
   if (!PV2) for (const sp of PLAZA_SHOPS) { const [x, z] = T(sp.lx, sp.lz); addBox(x, z, 7.6, 4.8, yaw0); }
-  for (const tb of PLAZA_TOKENS_ON) at(tb.lx, tb.lz, 0, () => {
-    for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), WOOD_D, 2, M(sx * 2.05, 2.9, 0));
+  for (const tb of PLAZA_TOKENS_ON) at(tb.lx, tb.lz, tb.ly || 0, () => {   // [v5] tb.wall: flush on a wall (no posts, no back flag)
+    if (!tb.wall) for (const sx of [-1, 1]) W(k, box(0.26, 5.8, 0.26), WOOD_D, 2, M(sx * 2.05, 2.9, 0));
     W(k, box(4.5, 4.0, 0.24), WOOD_D, 2, M(0, 3.75, 0)); if (A['bb' + tb.sym]) atlasQuad(k, 4.2, 3.8, A['bb' + tb.sym], M(0, 3.95, 0.13));
     if (A['tokLive' + tb.sym]) atlasQuad(k, 3.8, 1.0, A['tokLive' + tb.sym], M(0, 1.55, 0.13));                // live price strip (atlas.drawTokenBoard)
     W(k, box(4.2, 1.2, 0.2), 0x161616, 0, M(0, 1.55, 0.02), false);
-    if (A.ppflag) atlasQuad(k, 4.2, 3.0, A.ppflag, M(0, 3.75, -0.13, Math.PI));                                  // back: the PUMPFUN PIRATES flag
-  }, Y0);
-  for (const tb of PLAZA_TOKENS_ON) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
+    if (A.ppflag && !tb.wall) atlasQuad(k, 4.2, 3.0, A.ppflag, M(0, 3.75, -0.13, Math.PI));                                  // back: the PUMPFUN PIRATES flag
+  }, tb.y ?? Y0);
+  for (const tb of PLAZA_TOKENS_ON) if (!tb.wall) { const [x, z] = T(tb.lx, tb.lz); addBox(x, z, 4.6, 0.5, yaw0); }
   if (PV2) PLAZA_V2_SIGNS = PV.buildPlazaV2({ addDeck, k, W, box, cyl, M, at, colonial, barrel, crate, sacks, torchPost, stall, addBox, addCirc, T, H, F, A, low, Y0, yaw0, deckY: PY + 0.15,
     C: { WOOD, WOOD_D, WOOD_L, IRON, STONE, STONE_D, ROOF: ROOFS[1], ROOFS, SHUTTER, BARK: 0xa96a38, GOLD, CREAM } });   // [Timothy] harbor town blockout
   if (!PV2) for (let i = 0; i < 10; i++) { const [x, z] = T(-50 + i * 11 + hash(i, 9) * 4, -6 - hash(i, 7) * 6); (i % 2 ? crate : barrel)(k, M(x, Y0, z, i), 1.2); addCirc(x, z, 0.8); }
@@ -1476,7 +1476,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
-  if (coast && PLAZA_V2_SIGNS && PV.buildVillagePools) { const vp = PV.buildVillagePools(); if (vp) root.add(vp); } // [post-village v3] painted light pools
+  if (coast && PLAZA_V2_SIGNS && PV.buildVillagePools) { const vp = PV.buildVillagePools(); if (vp) root.add(vp); } if (coast && PV.buildVillageInteriors) { const vi = PV.buildVillageInteriors(MATS, OUT); if (vi) root.add(vi); }   // [v5] near-only rental interiors // [post-village v3] painted light pools
   if (coast && PLAZA_V2_SIGNS) { const ps = PV.buildPlazaShops(); if (ps) root.add(ps); } // [Timothy] Blender storefront models (plazaShops.js; null = blockout shells)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;

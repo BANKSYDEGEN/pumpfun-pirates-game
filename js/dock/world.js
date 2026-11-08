@@ -109,7 +109,8 @@ export async function buildWorld({ layout, scene, quality, ocean, renderer, uTim
     if (!CAM_ROOMS.length) return out;
     const [fx, fz] = toF(hx, hz);
     for (const R of CAM_ROOMS) {
-      const dx = fx - R.x, dz = fz - R.z, a = dx * R.ux + dz * R.uz, b = dx * R.vx + dz * R.vz;
+      const dx = fx - R.x, dz = fz - R.z, rr = R.hw + R.hd; if (dx > rr || dx < -rr || dz > rr || dz < -rr) continue;   // [v5] AABB reject (runs per frame)
+      const a = dx * R.ux + dz * R.uz, b = dx * R.vx + dz * R.vz;
       if (Math.abs(a) > R.hw || Math.abs(b) > R.hd || hy < R.y0 - 0.5 || hy > R.ceil + 0.5) continue;
       const [cx, cz] = toF(out.x, out.z), ca = (cx - R.x) * R.ux + (cz - R.z) * R.uz, cb = (cx - R.x) * R.vx + (cz - R.z) * R.vz;
       const m = 0.3, A = R.hw - m, B = R.hd - m; let t = 1;

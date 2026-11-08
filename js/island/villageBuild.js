@@ -4,6 +4,8 @@
 // the Hill Street rent-shop interior (plaster walls + ceiling, plank floor, corner posts, beams, baluster counter, wall shelves, hanging
 // lantern, TO RENT board), FOR RENT hanging boards (the plaza sign atlas), painted light pools (one additive mesh, no lights).
 import * as THREE from 'three';
+import { Kit } from './kit.js';
+import { HQ } from '../pumpfun/site.js';
 import { VILLAGE_ON, VILLAGE_ROADS, VILLAGE_LOTS, VILLAGE_HALL, PLAZA_EXT, lotFrame, floorOf, roadY } from './village.js';
 const POOLS = [];   // [x, y, z, r] foot-world, filled by buildVillage, drawn by buildVillagePools
 export function buildVillage(h, { camRoom, Y0, C, sign }) {
@@ -43,8 +45,12 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
   // ---- buildings ----
   const rot = (f, u, v) => [f.cx + u * Math.cos(f.yaw) + v * Math.sin(f.yaw), f.cz - u * Math.sin(f.yaw) + v * Math.cos(f.yaw)];
   const wallBox = (f, u, v, a, b) => { const [lx, lz] = rot(f, u, v), sw = Math.abs(Math.cos(f.yaw)) > .5; addBox(...T(lx, lz), sw ? a : b, sw ? b : a, yaw0); };
+  // [v5 perf] interiors go in their own kits (4 clusters), drawn only near (THREE.LOD in buildVillageInteriors)
+  INTERIORS.length = 0; const KI = [0, 1, 2, 3].map(() => { const q = new Kit(); q.ao = k.ao; return { k: q, n: 0, x: 0, z: 0 }; });
+  let ki = null; const WI = (g, c, mat, m, o) => { ki.stack.push(k.stack[k.stack.length - 1].clone()); W(ki, g, c, mat, m, o); ki.stack.pop(); };
   let n = 0;
   for (const o of VILLAGE_LOTS) {
+    { const cl = KI[((o.lx0 + o.lx1) / 2 < -80 ? 0 : 1) + ((o.lz0 + o.lz1) / 2 < -85 ? 0 : 2)], [x, z] = T((o.lx0 + o.lx1) / 2, (o.lz0 + o.lz1) / 2); ki = cl.k; cl.n++; cl.x += x; cl.z += z; }
     const f = lotFrame(o), y = floorOf(o), w = f.w - .1, d = f.d - .1, grand = o.n === 7, Hh = grand ? VILLAGE_HALL.grand : VILLAGE_HALL.h, t = VILLAGE_HALL.wall;
     const v = (o.n * 7 + 3) % 6, du = f.du, door = Math.min(4.0, w * .36), dl = du - door / 2, dr = du + door / 2;
     const col = grand ? 0xb0453a : (o.fam === 't' ? [0x3f8f88, 0x2f6f6a, 0x4c9a8f][v % 3] : [0xd9b44a, 0xc99a2e, 0xe0c56e][v % 3]);
@@ -63,18 +69,24 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       for (const s of [-1, 1]) W(k, box(.5, 4.3, .55), quoin, TRIM, M(du + s * (door / 2 + .25), 2.15, d / 2 + .02), false);   // jambs (outside the bay)
       W(k, box(door + 1.0, .45, .55), quoin, TRIM, M(du, 4.52, d / 2 + .02), false);                          // lintel
       // Hill Street rent-shop interior: plaster lining + ceiling, plank floor, corner posts, beams, baluster counter, shelves, lantern, TO RENT
-      const iw = w - 2 * t, id = d - 2 * t, PL = 0xb7c4a6;
-      W(k, box(iw, Hh - .4, .04), PL, PLASTER, M(0, (Hh - .4) / 2 + .12, -d / 2 + t + .02), false);
-      for (const s of [-1, 1]) W(k, box(.04, Hh - .4, id), PL, PLASTER, M(s * (iw / 2 - .02), (Hh - .4) / 2 + .12, 0), false);
-      W(k, box(iw, .12, id), PL, PLASTER, M(0, Hh - .3, 0), false);
-      for (let z = -id / 2 + 2.4; z < id / 2 - 1; z += 3.2) W(k, box(iw, .4, .4), 0x4a2c18, TIMBER, M(0, Hh - .55, z), false);
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) W(k, box(.32, Hh - .4, .32), 0x4a2c18, TIMBER, M(sx * (iw / 2 - .2), (Hh - .4) / 2 + .12, sz * (id / 2 - .2)), false);
+      const iw = w - 2 * t, id = d - 2 * t, PL = 0xe9d2a8;
+      WI( box(iw, Hh - .4, .04), PL, PLASTER, M(0, (Hh - .4) / 2 + .12, -d / 2 + t + .02), false);
+      for (const s of [-1, 1]) WI( box(.04, Hh - .4, id), PL, PLASTER, M(s * (iw / 2 - .02), (Hh - .4) / 2 + .12, 0), false);
+      WI( box(iw, .12, id), PL, PLASTER, M(0, Hh - .3, 0), false);
+      for (let z = -id / 2 + 2.4; z < id / 2 - 1; z += 3.2) WI( box(iw, .4, .4), 0x4a2c18, TIMBER, M(0, Hh - .55, z), false);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) WI( box(.32, Hh - .4, .32), 0x4a2c18, TIMBER, M(sx * (iw / 2 - .2), (Hh - .4) / 2 + .12, sz * (id / 2 - .2)), false);
       const cw = Math.min(3.6, iw * .45), cz0 = -id / 2 + 2.0;
-      W(k, box(cw, .14, 1.0), 0xb07a45, TIMBER, M(0, 1.15, cz0), false); W(k, box(cw - .2, .95, .8), 0x6b4226, TIMBER, M(0, .6, cz0), false);
-      for (let b = -cw / 2 + .3; b < cw / 2 - .2; b += .4) W(k, box(.06, .8, .06), 0x2a1a10, 0, M(b, .62, cz0 + .43), false);
-      for (const s of [-1, 1]) for (const yy of [1.3, 2.1, 2.9]) W(k, box(.45, .07, Math.min(6, id * .55)), 0xb07a45, TIMBER, M(s * (iw / 2 - .26), yy, -id * .05), false);
-      for (const z of id > 12 ? [-id * .22, id * .22] : [0]) { W(k, cyl(.02, .02, 1.3, 4), 0x222222, 0, M(0, Hh - 1.0, z), false); W(k, box(.42, .6, .42), 0x1d1d1d, 0, M(0, Hh - 1.95, z), false);
-        k.add(new THREE.BoxGeometry(.3, .44, .3), 0xffc46b, { bucket: 'glow', m: M(0, Hh - 1.95, z), outline: false });
+      WI( box(cw, .14, 1.0), 0xb07a45, TIMBER, M(0, 1.15, cz0), false); WI( box(cw - .2, .95, .8), 0x6b4226, TIMBER, M(0, .6, cz0), false);
+      for (let b = -cw / 2 + .3; b < cw / 2 - .2; b += .4) WI( box(.06, .8, .06), 0x2a1a10, 0, M(b, .62, cz0 + .43), false);
+      for (const s of [-1, 1]) for (const yy of [1.3, 2.1, 2.9]) WI( box(.45, .07, Math.min(6, id * .55)), 0xb07a45, TIMBER, M(s * (iw / 2 - .26), yy, -id * .05), false);
+      WI(box(Math.min(iw - 1.6, 4.2), .03, Math.min(id * .4, 5)), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(0, .135, id * .1), false);   // [v5] rug
+      WI(box(Math.min(iw - 2.4, 3.2), .032, Math.min(id * .4, 5) - .8), 0xd9b44a, 0, M(0, .14, id * .1), false);
+      { const G = [0xb0453a, 0x2f6f6a, 0xd9b44a, 0x6b4226, 0xe6dccb, 0x35556a], L = Math.min(6, id * .55);   // [v5] stocked shelves: crates, jars, bolts of cloth
+        for (const s of [-1, 1]) for (const yy of [1.3, 2.1, 2.9]) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .62, j++) { if ((j + o.n + yy * 3) % 5 === 0) continue;
+          const hh = .22 + ((j * 7 + o.n) % 3) * .08; WI(box(.34, hh, .4), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(s * (iw / 2 - .28), yy + .035 + hh / 2, -id * .05 + q), false); } }
+      WI(box(.5, .3, .4), 0x6b4226, TIMBER, M(-.6, 1.37, cz0), false); WI(box(.3, .2, .3), 0xd9b44a, 0, M(.7, 1.32, cz0), false);   // ledger chest + coin box on the counter
+      for (const z of id > 12 ? [-id * .22, id * .22] : [0]) { WI( cyl(.02, .02, 1.3, 4), 0x222222, 0, M(0, Hh - 1.0, z), false); WI( box(.42, .6, .42), 0x1d1d1d, 0, M(0, Hh - 1.95, z), false);
+        ki.add(new THREE.BoxGeometry(.3, .44, .3), 0xffc46b, { bucket: 'glow', m: M(0, Hh - 1.95, z), outline: false });
         const [lx, lz] = rot(f, 0, z), [x, zz] = T(lx, lz); POOLS.push([x, y + .14, zz, Math.min(5.5, iw * .42)]); }
       // facade: stone storey(s) over the tall hall, shuttered windows, window boxes, balconies (upper storeys only, never over the door bay)
       W(k, box(w + .3, .3, d + .3), col, TRIM, M(0, Hh, 0), false);                                          // family-colour string course (above the door)
@@ -121,6 +133,7 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       camRoom({ id: 'village_' + o.n, lx0: Math.min(a[0], b[0]), lx1: Math.max(a[0], b[0]), lz0: Math.min(a[1], b[1]), lz1: Math.max(a[1], b[1]) }, Hh - .6, y); }
     n++;
   }
+  for (const c of KI) if (c.n) INTERIORS.push({ k: c.k, x: c.x / c.n, z: c.z / c.n });
   // [v4] Outfit store west wing: carries the shop front out to Powder Lane (x -59); the GLB store, its interior and doors are untouched
   { const a0 = -58.9, a1 = -54.05, b0 = -47.9, b1 = -30.1, cx = (a0 + a1) / 2, cz = (b0 + b1) / 2, aw = a1 - a0, ad = b1 - b0;
     const yr = roadY(VILLAGE_ROADS.find(r => r.lx1 === -59 && r.lz1 === -27.4) || VILLAGE_ROADS[0], -60, cz);
@@ -130,13 +143,14 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       W(k, box(aw + .3, ph, ad + .3), QUOIN, TRIM, M(0, -ph / 2, 0));
       W(k, box(aw, Hw, ad), 0xe6dccb, PLASTER, M(0, Hw / 2, 0));
       W(k, box(aw + .4, .45, ad + .4), 0x6b4a2a, TIMBER, M(0, Hw + .2, 0));
-      for (const z of [-6, 0, 6]) { W(k, box(.12, 2.6, 4.2), 0x1d2a30, 0, M(-aw / 2 - .05, 2.1, z), false);                // shop windows on the lane
-        k.add(new THREE.BoxGeometry(.1, 2.3, 3.9), 0xffd89a, { bucket: 'glow', m: M(-aw / 2 - .02, 2.1, z), outline: false });
-        W(k, box(1.3, .08, 4.6), [0x2f6f6a, 0xb0453a, 0xd9b44a][(z / 6 + 1) | 0], 0, M(-aw / 2 - .65, 3.75, z, 0, 0, -.35), false); }
-      W(k, box(.14, 3.4, 1.8), 0x5a3a22, TIMBER, M(-aw / 2 - .06, 1.7, -8.2), false);                                  // side door (shut)
+      // [v5] BANKSY t342/t343: no shop windows or awnings; the live $SUNK / $AHOY / $PUMP boards hang here (site.js TOKEN_BOARD_SPOTS)
     }, base);
     addBox(...T(cx, cz), aw, ad, yaw0);
-    if (sign) { const [x, z] = [a0 - .1, cz]; sign('village_outfit', 7.5, 1.0, x, base + 5.2, z, -Math.PI / 2); } }
+  }
+  // [v5] #24 back: flagstone fill between the rental and the yard kerb so no grass sliver shows at ground level
+  { const top = HQ.floor + .145;   // flush with the yard paving (model.js: slab top Y + .145)
+    for (const [x0, x1, z0, z1] of [[-44.9, -43.3, -58.2, -48.0], [-43.4, -40.0, -57.9, -56.5]]) { const [x, z] = T((x0 + x1) / 2, (z0 + z1) / 2);
+      W(k, box(x1 - x0, .6, z1 - z0), 0x8f877a, TRIM, M(x, top - .3, z, yaw0), false); } }
   // [v4] coped retaining walls wherever the cut behind / beside a lot would show a raw grass slope
   { const inAny = (lx, lz) => VILLAGE_LOTS.some(q => lx > q.lx0 - q.m - .2 && lx < q.lx1 + q.m + .2 && lz > q.lz0 - q.m - .2 && lz < q.lz1 + q.m + .2 || (q.annex && lx > q.annex[0] - .5 && lx < q.annex[1] + .5 && lz > q.annex[2] - .5 && lz < q.annex[3] + .5))
       || VILLAGE_ROADS.some(r => inRect(r, lx, lz, 1)) || inRect(PLAZA_EXT, lx, lz, 1) || lx > -34;
@@ -150,6 +164,14 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
   return n;
 }
 function top0(o) { return (o.n === 7 ? VILLAGE_HALL.grand : VILLAGE_HALL.h) + Math.max(0, o.fl - 2) * 3.5 - 1.5; }
+const INTERIORS = [];
+// [v5 perf] the rentals' interiors: one THREE.LOD per cluster (shown within 70 m of the cluster centre, else nothing). Call after buildVillage.
+export function buildVillageInteriors(mats, out) {
+  if (!VILLAGE_ON || !INTERIORS.length) return null; const root = new THREE.Group(); root.name = 'village_interiors';
+  for (const { k, x, z } of INTERIORS.splice(0)) { const g = k.build(mats, out); g.position.set(-x, 0, -z); const lod = new THREE.LOD(); lod.position.set(x, 0, z);
+    lod.addLevel(g, 0); lod.addLevel(new THREE.Object3D(), 70); root.add(lod); }
+  return root;
+}
 // painted light pools under the lanterns: ONE additive mesh (radial canvas, 128 px), no lights
 export function buildVillagePools() {
   if (!VILLAGE_ON || !POOLS.length) return null;

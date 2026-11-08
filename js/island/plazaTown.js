@@ -33,7 +33,7 @@ import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v
 import { SHOPS_KIT, SHOP_PLACES, SHIP_STORE_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
 export { VILLAGE_ON, villageGround, villageClear, VILLAGE_RENTALS, VILLAGE_LOTS, VILLAGE_ROADS } from './village.js';   // [post-village]
-import { buildVillage } from './villageBuild.js'; export { buildVillagePools } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
+import { buildVillage } from './villageBuild.js'; export { buildVillagePools, buildVillageInteriors } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 export { casinoSite, casinoGround, casinoClear, casinoOverlap } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): foot.js terrain + buildStreet + grass hooks
@@ -138,7 +138,7 @@ export const CRANE = { lx: 40, lz: -2.2 };
 export const DOCK = { deckEnd: BOARDWALK.lx0 };   // the v103 boardwalk stops where the v2 one starts (flush, same 2.95)
 // BANKSY t303u "remove the 3 boards, the cart and the torches outside": the plaza in front of the PUMPFUN HQ gate is kept clear
 export const HQ_PLAZA_CLEAR = (lx, lz) => lx > -45 && lx < 0 && lz > -30 && lz < -8;
-export const plazaBoardOff = (sym) => ['SUNK', 'AHOY', 'PUMP'].includes(sym);
+export const plazaBoardOff = (sym) => !VILLAGE_ON && ['SUNK', 'AHOY', 'PUMP'].includes(sym);   // [v5] village: back on the Outfit wing
 export const remapTokens = (list) => list.filter(t => TOKEN_SLOTS[t.sym] !== undefined).map(t => ({ ...t, ...tokenSpot(t.sym) }));
 export const SPAWN = { lx: 6, lz: 50, ly: Math.PI };            // GO ASHORE fallback: the end of the Main Street jetty, facing town
 
@@ -197,7 +197,7 @@ export function signList() {
   S.push({ key: 'market', text: 'MARKETPLACE', col: '#ffcd77', bg: '#5a3219', big: true, skull: true }, { key: 'fishmarket', text: 'FISH MARKET', col: '#ffffff', bg: '#14557d', big: true }); // [v240]
   if (!ON_PORTAL && HALL_BOARDS_ON) { S.push({ key: 'tok_HQ', text: '$HQ', col: '#ffcd77', bg: '#161616', big: true }, { key: 'tok_RETARDIO', text: '$RETARDIO', col: '#ffcd77', bg: '#161616', big: true });
     for (let i = 0; i < TRENDING.n; i++) S.push({ key: 'trend' + i, text: 'TRENDING #' + (i + 1), col: '#7cff6b', bg: '#161616' }); }
-  if (VILLAGE_ON) S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true }, { key: 'village_outfit', text: 'CLOTHES & ACCESSORIES', col: '#f3ead2', bg: '#2f6f6a' });   // [post-village v3]
+  if (VILLAGE_ON) S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true });   // [post-village v3]
   S.push({ key: 'hall', text: 'HARBOR EXCHANGE HALL', col: '#ffcd77', bg: '#5a3219' }, { key: 'tavern', text: 'THE SUNK TAVERN', col: '#ffcd77', bg: '#5a3219', skull: true });
   for (const b of BERTHS) S.push({ key: 'berth_' + b.id, text: 'BERTH ' + berthLabel(b).slice(1), col: '#fff1d2', bg: '#3d2a1c' });
   return S;
@@ -416,7 +416,7 @@ export function buildPlazaV2(h) {
     for (const [lx,lz,w,d] of PET_WALLS) addBox(...T(lx,lz),w,d,yaw0); for (const [,lx,lz,w,d] of PET_PROPS) addBox(...T(lx,lz),w,d,yaw0);
     camRoom({id:PET_SHOP.id,...I},S.ceil-.4,S.floor); }
   else camRoom({id:PET_SHOP.id,...PET_LOT.interior},4.1,petFloor(PET_LOT.lz));
-  try { buildVillage(h, { camRoom, Y0, C, sign }); } catch (e) { console.warn('[post-village] build failed', e); }   // [post-village] BANKSY's 23 rentals + roads
+  try { const t0 = performance.now(); buildVillage(h, { camRoom, Y0, C, sign }); if (VILLAGE_ON) globalThis.__villageBuildMs = +(performance.now() - t0).toFixed(1); } catch (e) { console.warn('[post-village] build failed', e); }   // [post-village] BANKSY's 23 rentals + roads
   SHIP_STORE_PLACES.length = 0;
   // [ship-aaa] the Blender SHIP STORE hall when it loaded, else Emerly's procedural shell; the keepers stand behind the counters either way
   buildShipStore(h, { stoneHouse, shopWalkInCols, sign, glb: SHOPS_KIT && SHOPS_KIT.shops.ship_store, room: camRoom,
