@@ -197,7 +197,7 @@ export function signList() {
   S.push({ key: 'market', text: 'MARKETPLACE', col: '#ffcd77', bg: '#5a3219', big: true, skull: true }, { key: 'fishmarket', text: 'FISH MARKET', col: '#ffffff', bg: '#14557d', big: true }); // [v240]
   if (!ON_PORTAL && HALL_BOARDS_ON) { S.push({ key: 'tok_HQ', text: '$HQ', col: '#ffcd77', bg: '#161616', big: true }, { key: 'tok_RETARDIO', text: '$RETARDIO', col: '#ffcd77', bg: '#161616', big: true });
     for (let i = 0; i < TRENDING.n; i++) S.push({ key: 'trend' + i, text: 'TRENDING #' + (i + 1), col: '#7cff6b', bg: '#161616' }); }
-  if (VILLAGE_ON) S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true }, { key: 'village_torent', text: 'TO RENT', col: '#f3ead2', bg: '#2a1a10' });   // [post-village v3]
+  if (VILLAGE_ON) S.push({ key: 'village_rent', text: 'FOR RENT', col: '#ffcd77', bg: '#3d2a1c', skull: true }, { key: 'village_outfit', text: 'CLOTHES & ACCESSORIES', col: '#f3ead2', bg: '#2f6f6a' });   // [post-village v3]
   S.push({ key: 'hall', text: 'HARBOR EXCHANGE HALL', col: '#ffcd77', bg: '#5a3219' }, { key: 'tavern', text: 'THE SUNK TAVERN', col: '#ffcd77', bg: '#5a3219', skull: true });
   for (const b of BERTHS) S.push({ key: 'berth_' + b.id, text: 'BERTH ' + berthLabel(b).slice(1), col: '#fff1d2', bg: '#3d2a1c' });
   return S;
