@@ -177,12 +177,11 @@ export function hqParts() {
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
   frameAt(-24.6,Y+4.0,Z1,'n',3.2,.8,false);                                          // referral board outside
-  // west wall: ship's wheel + anchor; jolly roger flags; crates and gold by the barrels
-  { const wx=IX0+.2, wy=Y+4.3, wz=-60.5; B(wx,wy,wz,.25,.32,.32,wood,true);
+  // west wall: ship's wheel in the blind arch (anchor stand removed, BANKSY 1:12 AM); jolly roger flags; crates and gold by the barrels
+  { const wx=IX0+.2, wy=Y+3.2, wz=HQ.hillDoor.lz; B(wx,wy,wz,.25,.32,.32,wood,true);   // ship's wheel centred in the blind arch opposite Hill Street (no board inside)
     for(let i=0;i<4;i++) B(wx,wy,wz,.12,2.3,.12,wood,true,{rx:i*Math.PI/4});
     for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;B(wx,wy+Math.cos(a)*.82,wz+Math.sin(a)*.82,.16,.66,.14,wood,true,{rx:-a+Math.PI/2});}
-    const az=-55.5; B(wx,Y+3.6,az,.18,2.6,.2,iron,true); B(wx,Y+4.65,az,.18,.18,1.3,iron,true); B(wx,Y+5.1,az,.18,.5,.5,iron,true);
-    for(const sd of [-1,1]) B(wx,Y+2.5,az+sd*.5,.18,.2,1.15,iron,true,{rx:sd*.55}); }
+    }
   for(const [x,z,sg] of [[IX0+.1,-56.6,1],[IX1-.1,-63.4,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
   return p;
