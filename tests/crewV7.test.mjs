@@ -18,7 +18,7 @@ test('male and female ship LODs are authentic V7 with all source bones and clips
   for(const clip of ['idle','walk','run','cannon','steer']) assert.ok(crew.animations.some(a=>a.name===clip));
  }
 });
-test('all ship crew duties share V7 sources and retain one merged animated draw per ship',()=>{
+test('all ship crew duties share V7 distant sources and retain one merged far draw per ship',()=>{
  const c=read('js/crewV4.js'), render=read('js/crew.js');
  assert.match(c, /pirate_male_v7_crew\.glb/); assert.match(c,/pirate_female_v7_crew\.glb/);
  assert.match(c,/sharedBodyClips\(gf, gm\)/);

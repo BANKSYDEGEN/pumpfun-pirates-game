@@ -29,6 +29,7 @@ const SHELL = [
   "./js/carryWeapons.js", "./js/carryRules.js", // [v202] Raul: the carried sword + back musket
   "./js/pirateItems.js", // [Raul] pirate items (crown, tricorn, hooks, peg legs, shirt, suit) behind js/pirateGear.js
   "./js/crewV4.js", // V7 shared ship crew templates
+  "./js/crewNativeV7.js",
   "./js/crewItemLods.js", // crew-only light native-space V7 garments
   "./js/crewLoadout.js", // [Timothy] the crew's own loadout (Crew Shop)
   "./js/crewGear.js", // [v107] the crew wear the captain's hat + clothes

@@ -1,6 +1,8 @@
+import { attachNativeCrew } from './crewNativeV7.js';
 // [Raul] PUMPFUN PIRATES deck crew: small NFT-style pirates (big black / brown tricorn with the white skull, beards,
 // eyewear traits, red coat / tank / tee / shirtless, the odd hook arm) manning the guns and walking the deck.
-// Cheap by design: ONE merged mesh + ONE draw call per ship, low-poly, vertex colours, all animation in the vertex
+// Distant crew: one merged draw. Nearby crewNativeV7 uses shared full player meshes / instanced skeletal palettes.
+// The fallback remains low-poly, vertex colours, with animation in the vertex
 // shader on the shared wind clock (no per-frame JS, no skinning). Gunners recoil + ram/load when THEIR side fires
 // (crewFire), walkers pace the waist with a leg/arm swing. A THREE.LOD hides the crew beyond a distance.
 // Budget by quality: high = all gun crews + 3 walkers, culled past 95 m; phones / Medium = one gunner per gun pair + 2
@@ -71,7 +73,7 @@ function pirate(v) {
 }
 
 const VERT = `attribute vec3 color; attribute float aPart; attribute vec3 aOrigin; attribute vec4 aInfo;
-uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff; uniform vec4 uDk; uniform vec4 uDk2;
+uniform float uNativeCrew; uniform float uT; uniform float uFireP; uniform float uFireS; uniform float uS; uniform float uHit; uniform float uHitK; uniform float uSteer; uniform float uGap; uniform float uCapOff; uniform vec4 uDk; uniform vec4 uDk2;
 varying vec3 vC; varying vec3 vN; varying vec3 vV; varying vec2 vUv; varying float vK;
 #include <fog_pars_vertex>
 vec3 rotX(vec3 p, vec3 pv, float a){ p -= pv; float c = cos(a), s = sin(a); return pv + vec3(p.x, p.y * c - p.z * s, p.y * s + p.z * c); }
@@ -86,6 +88,7 @@ void main(){
     #include <fog_vertex>
     return;
   }
+  if (uNativeCrew > .5 && aPart < 4.5) { gl_Position = vec4(2.,2.,2.,1.); return; }
   if (role > 2.5) { // [v95] CAPTAIN at the wheel, facing the bow: hands on the rim, one up / one down with the helm, body leans into the turn
     yaw = 0.0; arm = -1.28 + 0.38 * uSteer; armB = -1.28 - 0.38 * uSteer; lean = 0.06 + 0.02 * sin(uT * 1.3 + ph);
     bob = 0.012 * sin(uT * 1.9 + ph);
@@ -173,7 +176,7 @@ function stripeTex() { if (_stripe) return _stripe;
   _stripe.magFilter = _stripe.minFilter = THREE.NearestFilter; _stripe.wrapT = THREE.RepeatWrapping; _stripe.colorSpace = THREE.SRGBColorSpace; _stripe.needsUpdate = true; return _stripe; }
 function crewMaterial() {
   const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uDk: { value: new THREE.Vector4(0, 0, 1, 1) }, uDk2: { value: new THREE.Vector4(0, 0, 0, 0) }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uNativeCrew: { value: 0 }, uFireP: { value: -99 }, uFireS: { value: -99 }, uHit: { value: -99 }, uHitK: { value: 0 }, uSteer: { value: 0 }, uGap: { value: 0.07 }, uCapOff: { value: 0 }, uDk: { value: new THREE.Vector4(0, 0, 1, 1) }, uDk2: { value: new THREE.Vector4(0, 0, 0, 0) }, uS: { value: 1 }, uSunV: { value: new THREE.Vector3() } }]),
     vertexShader: V4 ? VERT.replaceAll('vec3(0.0, 0.36, 0.0)', `vec3(0.0, ${V4.hipY.toFixed(3)}, 0.0)`).replaceAll('vec3(0.0, 0.72, 0.0)', `vec3(0.0, ${V4.shY.toFixed(3)}, 0.0)`)
       .replaceAll('vec3(0.0, 0.92, 0.25)', `vec3(0.0, ${(V4.eyeY - 0.05).toFixed(3)}, 0.25)`) : VERT, fragmentShader: FRAG, fog: true, side: THREE.DoubleSide,
   });
@@ -236,6 +239,7 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   if (walk?.deck) { const d = walk.deck; mat.uniforms.uDk.value.set(d.zA, d.zB, d.lf, d.l); mat.uniforms.uDk2.value.set(d.depth, d.drop, 1, 0); } mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
   const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; lod.userData.v4 = !!V4?.ready; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
+  lod.userData.nativeV7 = attachNativeCrew(lod,mesh,crew,crewLow());
   ship.userData.crew = mat.uniforms;
   return lod;
 }
@@ -293,6 +297,7 @@ export function setCrewGear(body, chunks, tag = '') {
   const mesh = lod.children[0], old = mesh.geometry, geo = crewGeo(lod.userData.seats, chunks, tag);
   geo.boundingSphere = old.boundingSphere ? old.boundingSphere.clone() : new THREE.Sphere(new THREE.Vector3(0, 1, 0), 30);
   mesh.geometry = geo; old.dispose(); lod.userData.gearTag = chunks ? tag : '';
+  lod.userData.nativeV7?.setGear(chunks?.gear || null,chunks?.colors || null).catch(e=>console.warn('[crew] native wardrobe',e));
   if (lod.userData.outfit) dressCrew(body, lod.userData.outfit);
   return true;
 }
@@ -351,7 +356,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   for (let i = 0; i < n; i++) { O.set([at.x, at.y, at.z], i * 3); I.set(info, i * 4); }
   g.setAttribute('aOrigin', new THREE.BufferAttribute(O, 3)); g.setAttribute('aInfo', new THREE.BufferAttribute(I, 4));
   const reach = Math.hypot(at.y, at.z) + 3, seatRec = { v, pose: 'idle', scope: true, o: [at.x, at.y, at.z], info };
-  if (lod) { lod.userData.seats?.push(seatRec);
+  if (lod) { lod.userData.seats?.push(seatRec); lod.userData.nativeV7?.setGear(lod.userData.nativeV7.gear,lod.userData.nativeV7.colors).catch(e=>console.warn('[crew] native lookout',e));
     const mesh = lod.children[0], old = mesh.geometry, geo = mergeGeometries([old, g], false); g.dispose();
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(old.boundingSphere?.radius || 30, reach));
     mesh.geometry = geo; old.dispose(); return lod;
@@ -361,7 +366,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
   lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec]; lod.userData.v4 = !!V4?.ready;
-  ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
+  lod.userData.nativeV7 = attachNativeCrew(lod,mesh,[seatRec],crewLow()); ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps
 // vertex colours, so this only rewrites that ship's colour buffer (same material, same single draw call, Low + phones too).

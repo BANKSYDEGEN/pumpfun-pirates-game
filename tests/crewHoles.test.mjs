@@ -1,6 +1,7 @@
 // [v280 crew holes] V6 shore crew / mannequins: hairRim on V6 (V5 heads spliced in), classic pants cover on shore followers,
 // ship gear bake stays on V5 Low, &crewholes=0 restores the old skip. CREW_EXTRA_SLOTS stays [].
 import test from 'node:test'; import assert from 'node:assert/strict'; import { readFileSync } from 'node:fs';
+import { shoreCrewGear } from '../js/crewV4.js';
 const glb = readFileSync(new URL('../js/pirateGLB.js', import.meta.url), 'utf8');
 const crew = readFileSync(new URL('../js/crewV4.js', import.meta.url), 'utf8');
 const fol = readFileSync(new URL('../js/onfoot/followers.js', import.meta.url), 'utf8');
@@ -21,7 +22,8 @@ test('legacy V5 preview stays available; ship gear uses matching V7 crew LOD', (
 test('shore crew respect the underwear / empty pants choice; CREW_EXTRA_SLOTS stays empty', () => {
   assert.match(crew, /export function shoreCrewGear/);
   assert.match(crew, /export function shoreCrewGear\(gear\) \{ return crewGearOf\(gear\); \}/);
-  assert.doesNotMatch(crew, /pants: 'classic_pants'/);
+  // Generic NPC wardrobe art is independent of a saved empty pants selection.
+  for (const pants of ['none', 'classic_pants', 'canvas_pants']) assert.equal(shoreCrewGear({ pants })?.pants || 'none', pants);
   assert.match(crew, /export const CREW_EXTRA_SLOTS = \[\]/);
   assert.match(fol, /shoreCrewGear\(\{ \.\.\.crewGear\(\), \.\.\.crewWeaponsOf\(getLocalGear\(\)\) \}\)/);   // [crew-weapons] + the captain's weapons
   assert.match(net, /shoreCrewGear\(\{ \.\.\.crewGear\(/);

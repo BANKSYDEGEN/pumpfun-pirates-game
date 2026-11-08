@@ -1,5 +1,5 @@
 // V7 ship crew: authentic male/female V7 LODs, matching V7 item refits, cached role poses.
-// Every deck, cannon, wheel and rigging lookout remains ONE merged GPU-animated mesh per ship.
+// Distant deck/cannon/wheel/rigging crew remain one merged draw; near crew use crewNativeV7 and original player assets.
 // Stable generic outfit/dye variants never grant items or alter the player's saved Crew Shop uniform.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -11,9 +11,9 @@ import { crewWeapOn, crewWeaponsOf } from './carryRules.js';   // [crew-weapons]
 // Authentic V7 crew-only LOD derivatives; original player GLBs are unchanged.
 export const CREW_BODY_GLB = { male: 'assets/pirates/pirate_male_v7_crew.glb', female: 'assets/pirates/pirate_female_v7_crew.glb' };
 export const GENERIC_CREW_STYLES = [
-  { hat: 'none', outfit: 'shirt', outfitColor: 0 },
-  { hat: 'none', outfit: 'tshirt', outfitColor: 4 },
-  { hat: 'none', outfit: 'coat', outfitColor: 7 },
+  { hat: 'none', outfit: 'shirt', outfitColor: 0, pants: 'canvas_pants', boots: 'boots_classic' },
+  { hat: 'none', outfit: 'tshirt', outfitColor: 4, pants: 'classic_pants', boots: 'boots_classic' },
+  { hat: 'none', outfit: 'coat', outfitColor: 7, pants: 'leather_breeches', boots: 'boots_classic' },
 ];
 
 export const CREW_H = 1.25;                     // the procedural crew's height (feet y 0, faces +Z); uS scales it on the ship
@@ -184,7 +184,7 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
       const raul2 = new Set(Object.values(p.items || {}).filter((it) => it.obj && ITEM_BY_ID[it.id]?.single).map((it) => it.obj));   // shop items 2: drop their ink shells (the crew shader inks its own rim)
       for (const pose of ['idle', 'cannon']) out[sex][pose] = joinChunks([...(carry ? bakeCarry(p, pose, V4.tpl[sex], carry) : []), ...meshes.map((m) => bakeGear(p, m, pose, V4.tpl[sex], m !== p.gearMesh, m === crown ? 1 : hairy.has(m) ? 2 : 0, false, raul2.has(m))), ...decals.map((m) => bakeGear(p, m, pose, V4.tpl[sex], false, false, true))]);
     }
-    return out;
+    out.gear = g; out.colors = colors; return out;
   }).catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
   _gearQueue = pr.then(() => {}, () => {}); _gc.set(key, pr); return pr;
 }

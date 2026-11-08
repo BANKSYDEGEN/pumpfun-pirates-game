@@ -20,7 +20,8 @@ test('new / legacy-default crew start in underwear and no hat, with unchanged sa
 test('empty pants stays underwear even with hats, coats or carried weapons; no automatic pants grant', () => {
   const g = shoreCrewGear({ ...crewGear(), hat: 'tricorn' }); assert.ok(!g.pants || g.pants === 'none');
   const p = shoreCrewGear({ ...crewGear(), pants: 'classic_pants' }); assert.equal(p.pants, 'classic_pants');
-  assert.doesNotMatch(read('js/crewV4.js'), /pants: 'classic_pants'/);
+  // Explicit crew uniforms override generic NPC outfit variants; no automatic item grant.
+  assert.match(read('js/crewNativeV7.js'), /g=gear\|\|GENERIC_CREW_STYLES/);
 });
 test('both sexes use authentic modest V7 crew LODs; player body / traits stay unchanged', () => {
   assert.ok(Array.from({ length: 20 }, (_, v) => crewFemale(v)).includes(true));
