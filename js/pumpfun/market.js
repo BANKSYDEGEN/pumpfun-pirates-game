@@ -25,19 +25,19 @@ const defaultStorage = () => { try { return globalThis.localStorage || null; } c
 export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket,cacheURL=null}={}) {
  const state={prices:{},newtokens:[],trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{newtokens:'Connecting to PumpPortal…',prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
  // Just Migrated merges GT new PumpSwap pools + PumpPortal migration events (neither source blocks the other).
- let gtMig=[],portalMig=[],gtMigOk=null,mergeMig=null;
+ let gtMig=[],portalMig=[],gtMigOk=null,mergeMig=null,gtMigAt=0;
  const publishMig=()=>{if(!mergeMig)return;const rows=mergeMig([portalMig,gtMig],clock());
-  if(rows.length){markRows(state,'migrated',rows,clock());state.migrated=rows;state.updated.migrated=clock();state.status.migrated=gtMigOk===false?'Refresh failed · showing last good snapshot':'GeckoTerminal new PumpSwap pools + live PumpPortal migrations';}
+  if(rows.length){markRows(state,'migrated',rows,clock());state.migrated=rows;state.updated.migrated=Math.max(gtMigAt,...portalMig.map(r=>r.observedAt||0),0);state.status.migrated=gtMigOk===false?'Refresh failed · showing last good snapshot':'GeckoTerminal new PumpSwap pools + live PumpPortal migrations';}
   else if(gtMigOk===false&&!portalMig.length){state.migrated=[];state.status.migrated='Feed offline';}
   else if(gtMigOk){state.migrated=[];state.status.migrated='No pump.fun migrations seen in the last 24h';}
   state.revision++;};
- const portal=makePortal({socket:portalSocket,clock,publish:(rows,status)=>{markRows(state,'newtokens',rows.newtokens,clock());state.newtokens=rows.newtokens;state.status.newtokens=status;if(rows.newtokens.length)state.updated.newtokens=rows.newtokens[0].observedAt;if(rows.migrated.length)portalMig=rows.migrated;publishMig();}});
+ const portal=makePortal({socket:portalSocket,clock,publish:(rows,status)=>{markRows(state,'newtokens',rows.newtokens,clock());state.newtokens=rows.newtokens;state.status.newtokens=status;if(rows.newtokens.length)state.updated.newtokens=rows.newtokens[0].observedAt;if(rows.migrated.length)portalMig=rows.migrated;state.revision++;publishMig();}});
  let nextP=0,nextD=0,busyP=null,busyD=null,active=false,discovery=false,world=false;const controllers=new Set();
  // ---- last good snapshot (memory + localStorage) ----
  try { const c = storage && JSON.parse(storage.getItem(CACHE_KEY) || 'null'), now = clock();
   if (c && typeof c === 'object') { for (const k of BOARD_KEYS) { const at = +c.updated?.[k]; if (Array.isArray(c[k]) && c[k].length && now - at < CACHE_MAX_AGE) { state[k] = c[k].filter(r => r && safeMint(r.mint)).slice(0, 20); if (state[k].length) { state.updated[k] = at; state.status[k] = 'Saved snapshot · refreshing'; } } }
    for (const t of WATCH_TOKENS) { const p = c.prices?.[t.sym]; if (p && now - (+p.updated || 0) < CACHE_MAX_AGE && finite(p.price)) { state.prices[t.sym] = { ...p, stale: true }; state.updated.prices = Math.max(state.updated.prices || 0, +p.updated); } const d = c.details?.[t.sym]; if (d && now - (+d.updated || 0) < CACHE_MAX_AGE) state.details[t.sym] = d; else if (t.sym === 'SUNK' && d?.bonded === true) state.details[t.sym] = {bonded:true}; }
-   gtMig = state.migrated.slice();
+   gtMig = state.migrated.slice();gtMigAt=state.updated.migrated||0;
    if (state.updated.prices) state.status.prices = 'Saved snapshot · refreshing'; } } catch {}
  let saveAt = 0;
  function save(force = false) { if (!storage) return; const now = clock(); if (!force && now - saveAt < 15000) return; saveAt = now;
@@ -88,7 +88,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   }catch{for(const k of ['bonding','volume'])failed(k);}})(),
   // JUST MIGRATED: GT new_pools pages (shared queue), merged with PumpPortal events + last good rows.
   (async()=>{try{if(!f)throw Error('no feeds');mergeMig=f.mergeMigrated;const newest=Math.max(0,...gtMig.filter(r=>r.venue==='pumpswap').map(r=>r.createdAt||0));
-   const rows=await f.fetchNewPumpSwap(u=>get(u,1),{stopBefore:newest});gtMigOk=true;gtMig=f.mergeMigrated([rows,gtMig],clock());}catch{gtMigOk=false;}publishMig();})(),
+   const rows=await f.fetchNewPumpSwap(u=>get(u,1),{stopBefore:newest});gtMigOk=true;gtMigAt=clock();gtMig=f.mergeMigrated([rows,gtMig],clock());}catch{gtMigOk=false;}publishMig();})(),
   (async()=>{try{const j=await get(GT+'api/v2/networks/solana/trending_pools?include=base_token',2);
    const tokens=new Map((j.included||[]).map(t=>[t.id,t.attributes])); const rows=[]; const seen=new Set();
    for(const p of j.data||[]){const a=p.attributes||{},base=tokens.get(p.relationships?.base_token?.data?.id),mint=base?.address;const dex=p.relationships?.dex?.data?.id||'';
@@ -112,7 +112,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
    const at=+remote.updated[k];
    if(Array.isArray(remote[k])&&at>0&&now-at<180000&&at<=now+30000&&!/offline|failed/i.test(remote.status?.[k]||'')){
     let rows=remote[k].filter(r=>r&&safeMint(r.mint)).slice(0,k==='callouts'?20:BOARD_ROWS);
-    if(k==='migrated'){const f=await import('./feeds.js');mergeMig=f.mergeMigrated;gtMig=f.mergeMigrated([rows,gtMig],now);gtMigOk=true;rows=f.mergeMigrated([portalMig,gtMig],now);}
+    if(k==='migrated'){const f=await import('./feeds.js');mergeMig=f.mergeMigrated;gtMig=f.mergeMigrated([rows,gtMig],now);gtMigOk=true;gtMigAt=at;rows=f.mergeMigrated([portalMig,gtMig],now);}
     markRows(state,k,rows,now);state[k]=rows;state.updated[k]=Math.max(at,k==='migrated'?Math.max(0,...portalMig.map(r=>r.observedAt||0)):0);state.status[k]=remote.status?.[k]||'Shared server cache';
    }else if(discover)complete=false;
   }
@@ -131,7 +131,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   if(busyShared)return busyShared;
   if(clock()<nextShared)return Promise.resolve();
   nextShared=clock()+15000;
-  busyShared=shared(discover).catch(()=>false).then(ok=>ok?undefined:directTick(on,discover,worldOn)).finally(()=>{busyShared=null;});
+  busyShared=shared(discover).catch(()=>false).then(ok=>ok||!active?undefined:directTick(active,discovery,world)).finally(()=>{busyShared=null;});
   return busyShared;
  }
  globalThis.document?.addEventListener('visibilitychange',()=>{portal.tick(world&&!document.hidden);});
