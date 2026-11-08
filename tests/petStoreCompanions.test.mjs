@@ -31,3 +31,9 @@ test('Pilly is positioned before distance-culling so load and teleport cannot hi
   const source = text('js/onfoot/pilly.js');
   assert.ok(source.indexOf('root.position.set(c.x,') < source.indexOf('camera.position.distanceToSquared(root.position)'));
 });
+
+test('Pilly purchase panel stacks above the pet store overlay', () => {
+  const z = +text('js/onfoot/pilly.js').match(/#pilly-panel\{[^}]*z-index:(\d+)/)[1];
+  const shop = +text('css/islandShop.css').match(/z-index:\s*(\d+)/)[1];
+  assert.ok(z > shop);
+});

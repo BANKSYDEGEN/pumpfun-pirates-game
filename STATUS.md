@@ -1,11 +1,9 @@
-# Pilly / Parrot work — paused, LOCAL ONLY
+# Pilly / Parrot restoration
 
-Stopped at parent request: finish PumpFun room first. Nothing pushed; no version bump.
+Resumed after PumpFun room v495 shipped. Parrot display renamed without key changes; Pilly enabled at 5,000g in its independent companion slot.
 
-Changes: renamed BASE PARROT to PARROT, removed base-parrot store wording, enabled Pilly in js/features.js (actual flag location), retained IDs/DB keys. Fixed Pilly visibility: position the asynchronously loaded model before distance-culling, otherwise the default origin is too far from the harbor and it remains invisible.
+Two client fixes found during stubbed QA: place loaded Pilly before distance-culling (otherwise it stays invisible at the harbor); stack Pilly panel above pet store so purchase button receives clicks.
 
-Tests: targeted pet/Parrot/HQ suite passed 21 tests, 1 optional SQL skip before the visibility regression test was added. Initial broad suite also had unrelated pre-existing gorilla model/size failures and missing Three dependency; targeted rerun uses /workspace/pilly-node-loader.mjs for vendored Three. Latest headless fake-Supabase QA confirms docking, going ashore, owned LV2 Pilly model spawned visible, no JS errors or Pilly loader warnings at that point. Full walking/plaza and buying checks were interrupted by stop request; do NOT claim complete QA. Earlier run found invisible Pilly, fixed as above. No production writes or deploys.
+Headless walking checks passed for docking/ashore and near HQ: Pilly visible and following, game loop advancing, no WebGL context loss. Purchase-path rerun in progress. Supabase and sockets are stubbed; no production writes/deploys.
 
-Artifacts: /workspace/pilly-qa.py; /workspace/petstore-shots/qa.log; targeted.log; debug.png. Requested store.png was NOT captured yet. Browser script blocks all Supabase requests and sockets, returning fake companion responses.
-
-Next: finish QA, capture pet-store screenshot showing Parrot and Pilly, pull/rebase latest main, choose next free service-worker version, and push ONLY after parent/user resumes approval.
+QA artifacts: /workspace/pilly-qa.py and /workspace/petstore-shots/ (store.png, hq-pilly.png, logs).

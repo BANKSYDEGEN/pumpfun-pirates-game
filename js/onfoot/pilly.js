@@ -119,7 +119,7 @@ export function createPilly({ scene, world, low = false }) {
 }
 
 // ---------- state + panel (mirrors js/petsPanel.js / parrotsPanel.js: the server owns gold, ownership + XP) ----------
-const CSS = `#pilly-panel{position:fixed;inset:0;z-index:76;display:flex;align-items:center;justify-content:center;background:#0008}#pilly-panel[hidden]{display:none}
+const CSS = `#pilly-panel{position:fixed;inset:0;z-index:85;display:flex;align-items:center;justify-content:center;background:#0008}#pilly-panel[hidden]{display:none}
 #pilly-panel .pl-box{width:min(440px,94vw);max-height:86vh;overflow-y:auto;background:rgba(12,20,28,.97);border:2px solid #4ade80;border-radius:12px;color:#fff;font:600 13px/1.35 system-ui,sans-serif;padding:12px 14px;box-shadow:0 8px 24px #000a}
 #pilly-panel h3{margin:0 0 8px;color:#86efac;display:flex;align-items:center}#pilly-panel h3 b{flex:1}#pilly-panel .x{background:none;border:0;color:#fff;font-size:18px;cursor:pointer}
 #pilly-panel .bar{height:7px;border-radius:4px;background:#ffffff1a;margin:6px 0;overflow:hidden}#pilly-panel .bar i{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#ffd76a)}
