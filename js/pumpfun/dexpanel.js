@@ -1,3 +1,4 @@
+import { liveTag, rowFlash } from './liveui.js';
 import { BOARD_ROWS, WALL_ROW_Y0, WALL_ROW_H, wallGrid, wallRow } from './boardgrid.js';
 import { boardCanvas, boardTexture } from './boardtexture.js';
 // DEX JUST PAID wall panel (BANKSY 2026-11-07 "Also show dex just paid board"). Uses Post's HQ wall slot by swapping its material only:
@@ -16,11 +17,11 @@ export function attachDexPanel(hq,low=false,compact=false){
 }
 export function drawDexPanel(cv,state,now=Date.now(),compact=false){const g=cv.getContext('2d'),W=640,H=512;g.save();g.setTransform(cv.width/W,0,0,cv.height/H,0,0);
  if(compact){frame(g,W,H);compactBanner(g,W,'DEX JUST PAID','paid');const rows=(state.dexpaid||[]).slice(0,DEX_PANEL_ROWS),{y0,h}=wallGrid(true);if(!rows.length)compactEmpty(g,W,state.status?.dexpaid||'Loading…');
-  rows.forEach((r,i)=>compactRow(g,W,i,y0+i*h,h,r,{name:r.symbol||r.mint.slice(0,6),value:r.mcUsd!=null?usd(r.mcUsd):ago(r.paidAt,now)+' ago',color:r.mcUsd!=null?'#fff8e6':C.gold}));compactFooter(g,W,H);g.restore();return;}
+  rows.forEach((r,i)=>compactRow(g,W,i,y0+i*h,h,r,{name:r.symbol||r.mint.slice(0,6),value:r.mcUsd!=null?usd(r.mcUsd):ago(r.paidAt,now)+' ago',color:r.mcUsd!=null?'#fff8e6':C.gold}));rows.forEach((r,i)=>rowFlash(g,state,'dexpaid',r.mint,24,y0+i*h,592,h-2,now)); liveTag(g,state.updated?.dexpaid,now,32,486,17); compactFooter(g,W,H);g.restore();return;}
  frame(g,W,H);banner(g,W,'DEX JUST PAID','paid',{sub:'Verified paid DexScreener profiles · pump.fun tokens'});
  const rows=(state.dexpaid||[]).slice(0,DEX_PANEL_ROWS),status=state.status?.dexpaid||'Loading…';
  if(!rows.length)emptyState(g,W,status);
  rows.forEach((r,i)=>tokenRow(g,W,i,DEX_PANEL_ROW_Y0+i*DEX_PANEL_ROW_H,DEX_PANEL_ROW_H-2,r,{name:r.symbol||r.mint.slice(0,6),midLabel:'MC',mid:usd(r.mcUsd),right:{text:ago(r.paidAt,now)+' ago'}}));
- footer(g,W,H,rows.length?status:'',state.updated?.dexpaid,now);g.restore();}
+ rows.forEach((r,i)=>rowFlash(g,state,'dexpaid',r.mint,28,DEX_PANEL_ROW_Y0+i*DEX_PANEL_ROW_H,584,DEX_PANEL_ROW_H-2,now));footer(g,W,H,rows.length?status:'',state.updated?.dexpaid,now);g.restore();}
 // uv (three.js, v up) -> row index or -1
 export function dexPanelRow(uv,compact=false){return wallRow(uv,compact);}

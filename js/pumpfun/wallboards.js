@@ -1,3 +1,4 @@
+import { liveTag, rowFlash } from './liveui.js';
 import { BOARD_ROWS, WALL_ROW_Y0, WALL_ROW_H, BOOST_STEP_MS, boardRows, wallGrid, wallRow } from './boardgrid.js';
 // Pure (three-free) board definitions + canvas drawing for Post's 5 remaining panel slots (BANKSY t2262u "Ok now work on all the boards").
 // Same pattern as dexpanel.js: swap the slot mesh's material only (geometry, lighting, decor stay Post's),
@@ -60,23 +61,24 @@ function drawOurs(g, board, state) { const W = 640;
 export function wallRows(board, state, now = Date.now()) { return board.rows(state, now).slice(0, DEX_PANEL_ROWS); }
 export function drawWallPanel(cv, board, state, now = Date.now(), compact = false) { if (compact) return drawCompact(cv, board, state, now); const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
- if (board.ours) { banner(g, W, board.title, board.icon, { y: 46, h: 56, size: 50 }); drawOurs(g, board, state); tapHint(g, W, H - 26, 20, 'Tap a token to open it on pump.fun · not financial advice'); g.restore(); return; }
+ if (board.ours) { banner(g, W, board.title, board.icon, { y: 46, h: 56, size: 50 }); drawOurs(g, board, state); liveTag(g,state.updated?.prices,now,320,486,17,'center'); g.restore(); return; }
  banner(g, W, board.title, board.icon, { sub: board.sub });
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now);
  if (!rows.length) emptyState(g, W, status);
  rows.forEach((r, i) => tokenRow(g, W, i, DEX_PANEL_ROW_Y0 + i * DEX_PANEL_ROW_H, DEX_PANEL_ROW_H - 2, r, r.spec));
+ rows.forEach((r,i)=>rowFlash(g,state,board.key,r.mint,28,DEX_PANEL_ROW_Y0+i*DEX_PANEL_ROW_H,584,DEX_PANEL_ROW_H-2,now));
  footer(g, W, H, rows.length ? status : '', state.updated?.[board.key], now); g.restore(); }
 // tap: uv -> the row's mint, or null (opens the token hall instead)
 export function wallPanelMint(board, state, uv, now = Date.now(), compact = false) { const y = (1 - uv.y) * 512; if (board.ours) { const i = y >= 80 && y < 480 ? 0 : -1; return i < 0 ? null : WATCH_TOKENS.find(t => t.sym === board.ours[i])?.ca || null; } const i = wallRow(uv, compact); if (i < 0) return null; return wallRows(board, state, now)[i]?.mint || null; }
 // Phone layout: big title, no subtitle, rank · logo · ticker · one value, ten rows filling the panel, "TAP TO READ" opens the 2D board.
 export function drawCompact(cv, board, state, now = Date.now()) { const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
- if (board.ours) { compactBanner(g, W, board.title, board.icon); drawOursCompact(g, board, state); compactFooter(g, W, H); g.restore(); return; }
+ if (board.ours) { compactBanner(g, W, board.title, board.icon); drawOursCompact(g, board, state); liveTag(g,state.updated?.prices,now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); return; }
  compactBanner(g, W, board.title, board.icon);
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now), { y0, h } = wallGrid(true);
  if (!rows.length) compactEmpty(g, W, status);
  rows.forEach((r, i) => compactRow(g, W, i, y0 + i * h, h, r, r.cv || { name: r.spec.name, value: r.spec.mid }));
- compactFooter(g, W, H); g.restore(); }
+ rows.forEach((r,i)=>rowFlash(g,state,board.key,r.mint,24,y0+i*h,592,h-2,now)); liveTag(g,state.updated?.[board.key],now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); }
 // $AHOY / $SUNK on phones: price + change, then four big stats; chart kept, axis labels dropped. Every figure from a feed; "—" otherwise.
 function drawOursCompact(g, board, state) { const W = 640, sym = board.ours[0], t = WATCH_TOKENS.find(t => t.sym === sym), p = state.prices?.[sym], d = state.details?.[sym], x0 = 28, x1 = W - 28;
  logo(g, { mint: t.ca, symbol: sym, imageUrl: p?.imageUrl }, x0 + 30, 122, 26);

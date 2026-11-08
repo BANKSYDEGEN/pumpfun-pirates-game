@@ -1,3 +1,4 @@
+import { ageLabel } from './liveui.js';
 // Shared pirate look for every PumpFun HQ canvas board (BANKSY t2275u "Work on board ui"): weathered plank frame with gilt
 // trim, red banner header with a gold medallion icon, ink rows with token logos, change pills and gilt progress bars.
 // Pure 2D canvas, no three.js; all text is ellipsized to its column so nothing overflows.
@@ -91,8 +92,8 @@ export function tokenRow(g, W, i, y, h, row, spec) { const x0 = 28, x1 = W - 28,
   if (spec.midLabel) txt(g, spec.midLabel, mx - vw - 8, cy + 1, 16, C.dim, 'right');
   txt(g, spec.name, nx, cy + 1, 24, '#ffe9b8', 'left', Math.max(60, mx - vw - (spec.midLabel ? 46 : 14) - nx)); }
 // status + tap hint along the bottom of a wall board
-export const withUpdated = (status, at, now = Date.now()) => status ? status + (at ? ' · updated ' + (now - at < 60000 ? 'just now' : ago(at, now) + ' ago') : '') : '';
-export function footer(g, W, H, status, at, now = Date.now()) { const s = withUpdated(status, at, now); if (s) txt(g, s, W / 2, H - 64, 20, C.dim, 'center', W - 90); tapHint(g, W, H - 36); }
+export const withUpdated = (status, at, now = Date.now()) => status ? status + (at ? ' · ' + ageLabel(at,now) : '') : '';
+export function footer(g, W, H, status, at, now = Date.now()) { const s = at ? ageLabel(at,now) : status; if (s) txt(g, s, W / 2, H - 64, 20, C.muted, 'center', W - 90); tapHint(g, W, H - 36); }
 // ---- phone layout: rank · logo · ticker · ONE key value, bold high-contrast sans, rows fill the panel ----
 export const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
 export function btxt(g, s, x, y, n, c = '#fff8e6', a = 'left', max = 0, shadow = true) {

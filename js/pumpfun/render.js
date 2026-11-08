@@ -1,3 +1,4 @@
+import { ageLabel, rowFlash } from './liveui.js';
 import { boardCanvas, boardTexture } from './boardtexture.js';
 import { MAIN_ROW_Y0, MAIN_ROW_H, boardRows } from './boardgrid.js';
 import * as THREE from 'three';
@@ -179,9 +180,12 @@ export function drawHQBoard(cv,state,now=Date.now()){const g=cv.getContext('2d')
    if(key==='bonding'){rw=txt(g,'≈'+r.progress.toFixed(1)+'%',xr,cy+1,16,C.gold,'right',90);bar(g,x+210,cy-3,xr-rw-14-(x+210),6,r.progress/100);}
    else if(key==='trending'){rw=pill(g,r.change??null,xr,cy,14);const vw=txt(g,usd(r.volume),xr-rw-12,cy+1,16,C.parch,'right',110);txt(g,'VOL',xr-rw-18-vw,cy+1,13,C.dim,'right');}
    else{rw=txt(g,'+'+(r.boost||r.amount)+' boost',xr,cy+1,16,C.gold,'right',120);if(r.cap!=null)txt(g,'MC '+usd(r.cap),xr-rw-14,cy+1,15,C.muted,'right',110);}
-   txt(g,r.symbol||r.mint.slice(0,6),x+38,cy+1,17,'#ffe9b8','left',key==='bonding'?156:150);});
-  txt(g,rows.length?withUpdated(state.status[key],state.updated?.[key],now):(state.status[key]||'Loading…'),x+8,340,17,C.dim,'left',w-20);});
- tapHint(g,W,366,24,'E / controller / tap to browse · token links open pump.fun · not financial advice');g.restore();}
+   rowFlash(g,state,key,r.mint,x+2,cy-7,w-12,14,now);txt(g,r.symbol||r.mint.slice(0,6),x+38,cy+1,17,'#ffe9b8','left',key==='bonding'?156:150);});
+  txt(g,rows.length?ageLabel(state.updated?.[key],now):(state.status[key]||'Loading…'),x+8,340,17,C.dim,'left',w-20);});
+ // Slim price tape inside the existing canvas; it does not alter geometry or row hit targets.
+ const tape=[...WATCH_TOKENS.map(t=>({symbol:t.sym,price:state.prices[t.sym]?.price})),...(state.trending||[]).slice(0,6)];
+ const text=tape.map(r=>'$'+r.symbol+' '+usd(r.price)).join('     •     ');
+ g.save();g.beginPath();g.rect(24,352,W-48,24);g.clip();g.fillStyle='#140e09';g.fillRect(24,352,W-48,24);g.font='700 19px system-ui,sans-serif';const span=g.measureText(text).width+90,offset=(now/1000*35)%Math.max(span,1);for(let x=24-offset;x<W;x+=span) {g.fillStyle=C.gold;g.textAlign='left';g.textBaseline='middle';g.fillText(text,x,365);}g.restore();g.restore();}
 export { logoRev } from './logos.js';
 export { attachDexPanel, drawDexPanel, dexPanelRow } from './dexpanel.js';
 export { attachWallPanels, drawWallPanel, wallPanelMint } from './wallpanels.js';
