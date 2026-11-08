@@ -20,3 +20,13 @@ test('saved Harbor sessions return aboard a berth rather than a removed rental f
   const s=readFileSync(new URL('../js/dock/index.js',import.meta.url),'utf8');
   assert.match(s,/applyResume/);assert.match(s,/if \(onFoot\) goAboard\(true\)/);
 });
+
+test('old L4 pet store, floor, doorway and props are restored with the village off', async () => {
+  const { PET_DZ, PET_FLOOR, PET_LOT, PET_STORE, PET_SHOP, PET_PROPS, PET_WALLS } = await import('../js/pumpfun/site.js');
+  assert.equal(PET_DZ,0);assert.equal(PET_FLOOR,PET_LOT.doorY);
+  assert.equal(PET_STORE.z0,-119.15);assert.equal(PET_STORE.z1,-110.4);
+  assert.equal(PET_STORE.door.lz,PET_LOT.door.lz);assert.equal(PET_SHOP.lz,PET_LOT.door.lz);
+  assert.equal(PET_PROPS[0][2],-114.06);assert.equal(PET_WALLS.length,5);
+  const foot=readFileSync(new URL('../js/island/foot.js',import.meta.url),'utf8');
+  assert.match(foot,/PV.VILLAGE_ON && PV.villageGround/);
+});

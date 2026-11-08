@@ -210,7 +210,7 @@ for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
     h = BT.ground(lx, lz, h); // [Timothy] battery ramp + gun deck
     { const ba = BA.stamp(lx, lz, h); h = ba.h; if (ba.d < TRg[q]) TRg[q] = ba.d; } // [Timothy] battle areas: level pads + dirt floors / paths
     if (COLI.COLISEUM_ON) { const c = COLI.stamp(lx, lz, h); h = c.h; if (c.d < TRg[q]) TRg[q] = c.d; }
-    if (PV.villageGround) h = PV.villageGround(lx, lz, h, PV.STREET_Y); // [post-village] lot floors + plaza extension
+    if (PV.VILLAGE_ON && PV.villageGround) h = PV.villageGround(lx, lz, h, PV.STREET_Y); // [post-village] lot floors + plaza extension
     if (PV.hallGround) h = PV.hallGround(lx, lz, h); // [Timothy v312] the widened Squad Hall's ground stays on the street grade (js/island/hillStreet.js)
     if (PV.casinoGround) h = PV.casinoGround(lx, lz, h); // [Timothy] THE GOLDEN DOUBLOON CASINO: the hall's ground = the street level (js/island/casinoData.js)
   }

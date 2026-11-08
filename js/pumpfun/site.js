@@ -1,3 +1,4 @@
+import { VILLAGE_ON } from '../island/village.js';
 // Town-local metres. BANKSY t2192u/t2193u: replace Token Hall + old Pets; do not move ground or roads.
 import { RENTABLE_SHOPS } from '../island/hillShops.js';
 // [post-hq-castle] BANKSY t261u: the rear stone mass is gone; the hall now fills the WHOLE 29 x 35 m footprint (one walk-in hall),
@@ -40,7 +41,7 @@ export const PET_LOT = RENTABLE_SHOPS.find(s => s.id === 'rent_5');
 // hillStreet.js), 14 m deep (back wall lx -16.2), a flat floor level with the door threshold, a 7 m beamed ceiling.
 // [post-village] BANKSY "move pet store one building up hill street": the whole v515 store shifts 8.9 m north (L5's slot; Rum Row runs
 // through the old L4 lot). Every pet z below is the v515 value + PET_DZ.
-export const PET_DZ = -8.9, PET_FLOOR = 11.03;
+export const PET_DZ = VILLAGE_ON ? -8.9 : 0, PET_FLOOR = VILLAGE_ON ? 11.03 : PET_LOT.doorY;
 export const PET_STORE = Object.freeze({ x0: -16.2, x1: -1.75, z0: (-119.15+PET_DZ), z1: (-110.4+PET_DZ), floor: PET_FLOOR, ceil: 7.0, wall: .5, top: 8.4,
   door: Object.freeze({ lz: (PET_LOT.door.lz+PET_DZ), w: 3.2, h: 2.6 }),   // h = arch springing (crown 2.6 + w/2 = 4.2 m)
   I: Object.freeze({ lx0: -15.7, lx1: -2.25, lz0: (-118.65+PET_DZ), lz1: (-110.9+PET_DZ) }) });

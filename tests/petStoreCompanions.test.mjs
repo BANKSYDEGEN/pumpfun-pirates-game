@@ -14,8 +14,8 @@ test('Parrot display rename retains the purchase and inventory keys', () => {
   assert.doesNotMatch(VENDORS.pets.sub, /base parrots/i);
   assert.doesNotMatch(text('js/parrotsPanel.js'), /base parrot/i);
 });
-test('Pilly enabled alongside parrot with an animated face-capable companion model', () => {
-  assert.equal(PILLY_ENABLED, true);
+test('Pilly emergency pause preserves the animated companion asset without enabling it', () => {
+  assert.equal(PILLY_ENABLED, false);
   const b = readFileSync(new URL('../assets/pirates/items/v7/pet_pilly.glb', import.meta.url));
   const gl = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
   for (const clip of ['Idle', 'Walk', 'Run', 'Wave']) assert.ok(gl.animations.some(a => a.name === clip), clip);

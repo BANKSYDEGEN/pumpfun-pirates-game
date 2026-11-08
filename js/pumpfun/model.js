@@ -1,3 +1,4 @@
+import { VILLAGE_ON } from '../island/village.js';
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
 import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor, PET_STORE, PET_DZ, PET_PROPS } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
@@ -156,7 +157,7 @@ export function hqParts() {
   B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
   // ---- p8: paved yard at the trench's north end (was bare sloping grass): flagstones level with the trench, coped retaining kerb holding the hill
   // p9: one raised flagstone bed (top Y+.14, a walkable 14 cm lip) over the whole flattened yard, wide coped kerbs hiding the terrain seam
-  { const x0=-43.4, x1=-34.6, z0=-56.6, z1=-48.2,   // [post-village v3] west 3.5 m given to rental #24
+  { const x0=VILLAGE_ON?-43.4:-46.9, x1=-34.6, z0=-56.6, z1=-48.2,   // [post-village v3] west 3.5 m given to rental #24
     cx=(x0+x1)/2, cz=(z0+z1)/2;
     B(cx,Y-.1,cz,x1-x0,.48,z1-z0,stone); for(let i=1;i<7;i++) B(x0+i*(x1-x0)/7,Y+.145,cz,.06,.02,z1-z0-.2,darkStone,true); for(let j=1;j<4;j++) B(cx,Y+.145,z0+j*(z1-z0)/4,x1-x0-.2,.02,.06,darkStone,true);
     B(cx-.3,Y+.5,z0-.6,x1-x0+1.8,1.2,1.2,stone); B(cx-.3,Y+1.16,z0-.6,x1-x0+2.0,.14,1.35,darkStone);   // south retaining kerb (holds the hill), runs under the west kerb corner
