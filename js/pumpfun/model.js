@@ -1,10 +1,11 @@
 // Shared low-poly geometry description: runtime + Blender approval renders use these exact parts.
 import { HQ, HQ_OUTWORKS, HQ_TOWERS, HQ_PILLARS, HQ_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, PET_LOT, petFloor } from './site.js';
 const stone = '#c9bfae', darkStone = '#8a837a', wood = '#4a3023', green = '#54d08a', roof = '#c8552e', gold = '#ffcd77', iron = '#2b2a28', flame = '#ffb347', candle = '#f3e6c4', bone = '#e8e0cc', mahog = '#5a2a1a', crimson = '#7a1d22';
+export const HQ_TRENCH_LAMPS=[];
 export function hqParts() {
   // [post-hq-castle] BANKSY t261u: ONE hall over the whole footprint (lx -33..-4, lz -65..-30), pirate-fortress stone outside,
   // casino-style warm interior (mahogany wainscot, gilded beamed ceiling, iron chandeliers, painted light pools in render.js).
-  const p = [], mat=c=>c===stone?11:c===darkStone?22:c===wood?26:c===roof?4:0;
+  HQ_TRENCH_LAMPS.length=0; const p = [], mat=c=>c===stone?11:c===darkStone?22:c===wood?26:c===roof?4:0;
   const B = (x,y,z,w,h,d,c,detail=false,ex) => p.push({ kind:'box', x,y,z,w,h,d,c,detail,mat:mat(c),...ex });
   const Cy = (x,y,z,r,r1,h,n,c,detail=false,ex) => p.push({ kind:'cyl', x,y,z,r,r1,h,n,c,detail,mat:mat(c),...ex });
   const Y=HQ.floor, TOP=Y+HQ.wallTop, CEIL=Y+HQ.ceil, X0=HQ.lx0, X1=HQ.lx1, Z0=HQ.lz0, Z1=HQ.lz1, CX=(X0+X1)/2, CZ=(Z0+Z1)/2, D=Z1-Z0;
@@ -123,16 +124,31 @@ export function hqParts() {
       B((x0+x1)/2+nx*.15,Y+5.6,(z0+z1)/2+nz*.15,nx?.3:L,.28,nx?L:.3,darkStone,!front); }   // mid string course
   }
   for(const q of p.filter(q=>q.kind==='box'&&q.mat===11&&Math.abs(q.y-(TOP+.95))<.01&&q.h===1.3)) B(q.x,TOP+1.68,q.z,q.w+.14,.16,q.d+.14,darkStone,true);   // merlon caps
-  const slit=(x,y,z,nx,nz)=>{ B(x+nx*.06,y,z+nz*.06,nx?.2:.7,1.9,nx?.7:.2,darkStone); B(x+nx*.12,y+1.05,z+nz*.12,nx?.3:.9,.22,nx?.9:.3,darkStone); B(x+nx*.15,y,z+nz*.15,nx?.04:.2,1.35,nx?.2:.04,'#2a1e14'); };
+  const slit=(x,y,z,nx,nz)=>{ B(x+nx*.06,y,z+nz*.06,nx?.24:1.1,2.9,nx?1.1:.24,darkStone); B(x+nx*.14,y+1.55,z+nz*.14,nx?.34:1.35,.3,nx?1.35:.34,darkStone); B(x+nx*.14,y-1.5,z+nz*.14,nx?.34:1.2,.22,nx?1.2:.34,darkStone);
+    B(x+nx*.19,y,z+nz*.19,nx?.04:.3,2.2,nx?.3:.04,'#1e150e'); B(x+nx*.19,y+.2,z+nz*.19,nx?.04:.9,.24,nx?.9:.04,'#1e150e');   // cross-slit (crosslet loop)
+    B(x+nx*.08,y-3.0,z+nz*.08,nx?.04:.5,2.8,nx?.5:.04,'#7a7468',true); };   // rain streak below
   for(const x of [-27,-10]) slit(x,Y+11.3-.6,Z1,0,1);
   for(const z of [-33,-39,-48,-57,-63]) slit(X1,Y+3.4,z,1,0);
   for(const t of HQ_TOWERS){ Cy(t.lx,Y+1.6,t.lz,t.r+.25,t.r+.95,3.2,16,darkStone); Cy(t.lx,Y+3.3,t.lz,t.r+.3,t.r+.3,.25,16,darkStone);   // battered talus + roll moulding
     for(let i=0;i<10;i++){const a=i/10*Math.PI*2; B(t.lx+Math.cos(a)*(t.r+.25),TOP+1.9,t.lz+Math.sin(a)*(t.r+.25),.55,.6,.55,darkStone,true,{ry:-a});} }   // tower corbel ring
+  const lamp=(px,pz)=>{ B(px,Y+4.15,pz,.12,.5,.12,iron,true); B(px,Y+4.42,pz,.46,.06,.46,iron,true); B(px,Y+5.02,pz,.5,.08,.5,iron,true); B(px,Y+5.15,pz,.22,.18,.22,iron,true);
+    for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]) B(px+a*.21,Y+4.72,pz+b*.21,.05,.56,.05,iron,true);
+    B(px,Y+4.68,pz,.2,.36,.2,flame,true,{glow:true}); HQ_TRENCH_LAMPS.push([px,pz]); };
   // trench: iron railing + lantern posts on the retaining wall coping, grated drains in the paving
   for(const [x,z,w,d] of HQ_OUTWORKS.slice(0,2)){ const along=w>d, L=Math.max(w,d), n=Math.floor(L/2.4);
-    for(let i=0;i<=n;i++){const u=-L/2+i*L/n, px=along?x+u:x, pz=along?z:z+u; B(px,Y+3.55,pz,.08,1.1,.08,iron,true); if(i%4===2){ B(px,Y+4.3,pz,.3,.4,.3,iron,true); B(px,Y+4.3,pz,.18,.28,.18,flame,true,{glow:true}); } }
-    for(const yy of [Y+3.5,Y+4.05]) B(x,yy,z,along?L:.06,.06,along?.06:L,iron,true); }
+    for(let i=0;i<=n;i++){const u=-L/2+i*L/n, px=along?x+u:x, pz=along?z:z+u; B(px,Y+3.6,pz,.14,1.2,.14,iron,true); B(px,Y+4.27,pz,.2,.14,.2,iron,true); if(i%3===1){ lamp(px,pz); } }
+    for(const yy of [Y+3.45,Y+4.1]) B(x,yy,z,along?L:.1,.1,along?.1:L,iron,true);
+    for(let u=-L/2+.6;u<L/2;u+=1.2){ const px=along?x+u:x, pz=along?z:z+u; B(px,Y+3.78,pz,.05,.6,.05,iron,true); B(px,Y+3.78,pz,along?.34:.05,.05,along?.05:.34,iron,true,{rz:along?Math.PI/4:0,rx:along?0:Math.PI/4}); B(px,Y+4.22,pz,.09,.18,.09,gold,true); } }   // pickets + diamond scrolls + finials
   for(let z=-51;z>-64;z-=4.2) B(X0-.95,Y+.04,z,.9,.03,.9,iron,true);
+  // ---- p5 weathering: damp base band, moss patches at the foot, rain streaks under the corbel table ----
+  { const sides=[[X0,Z1+.07,X1,Z1+.07,0,1],[X1+.07,Z1,X1+.07,Z0,1,0],[X0-.07,Z1,X0-.07,Z0,-1,0],[X0,Z0-.07,X1,Z0-.07,0,-1]];
+    for(const [x0,z0,x1,z1,nx,nz] of sides){ const L=Math.hypot(x1-x0,z1-z0),cx=(x0+x1)/2,cz=(z0+z1)/2;
+      B(cx,Y+.55,cz,nx?.05:L,1.1,nx?L:.05,'#6b665b',true); B(cx+nx*.01,Y+1.25,cz+nz*.01,nx?.05:L,.3,nx?L:.05,'#7c766b',true);
+      for(let i=0;i<Math.floor(L/2.6);i++){ const t=(i+.37+((i*7)%5)*.08)/Math.floor(L/2.6),x=x0+(x1-x0)*t+nx*.03,z=z0+(z1-z0)*t+nz*.03,w=.7+((i*13)%7)*.18,h=.35+((i*5)%4)*.22;
+        B(x,Y+h/2,z,nx?.05:w,h,nx?w:.05,i%2?'#56643a':'#4d5a34',true); if(i%2===0) B(x+.4,TOP-1.6-1.1,z+.4*Math.abs(nx),nx?.05:.35,2.2,nx?.35:.05,'#837c70',true); } } }
+  // west foot north of the trench: a stone stair-terrace instead of a bare slope down to the wall
+  for(let k=0;k<4;k++){ const o=.25+k*.5,top=Y+(k+1)*.65,zc=(-48.3-30.2)/2; B(X0-o-.07,(top+Y-.2)/2,zc,.5,top-Y+.2,18.1,stone,true); B(X0-o-.1,top+.03,zc,.56,.08,18.2,darkStone,true); }
+  B(X0-2.15,Y+2.75,(-48.3-30.2)/2,.3,.3,18.2,darkStone,true);   // kerb where the grass begins
   // ---- p3 outworks: coped stone retaining walls + paved trench floor around the west / back wall foot ----
   for(const [x,z,w,d] of HQ_OUTWORKS){ B(x,Y+1.25,z,w,3.1,d,stone); B(x,Y+2.9,z,w+.25,.22,d+.25,darkStone); }
   B(X0-.95,Y-.02,(HQ_OUTWORKS[0][1]),1.4,.1,HQ_OUTWORKS[0][3]-.4,darkStone); B((X0+X1)/2-.7,Y-.02,Z0-.95,X1-X0+1.2,.1,1.4,darkStone);

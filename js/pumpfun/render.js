@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES } from './model.js';
+import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_TRENCH_LAMPS } from './model.js';
 import { HQ, PET_LOT, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
 import { WATCH_TOKENS } from './market.js';
 import { C, frame, icon, txt, rr, rowBg, logo as tokenLogoDot, pill, bar, tapHint, withUpdated, usd } from './boardkit.js';
