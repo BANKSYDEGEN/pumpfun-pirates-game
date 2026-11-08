@@ -11,26 +11,9 @@ import { islInfo, islKey } from './islandGoods.js'; // [v375] island goods as ba
 import { createGivePick } from './givePick.js'; // [give-dropdown] GIVE: pick an online pirate (or type a name), then confirm
 import { countBackpackSlots, slotMeterText, isUnlimitedBag, BAGCAP_ON } from './backpackCap.js'; // [backpack-pvp]
 // [item-icons] real pictures for every item (assets/items/*.webp, 256 px, lazy); a spare cosmetic uses its baked shop render. The emoji stays as the fallback.
-const IMG_DIR = new URL('../../assets/items/', import.meta.url).href, THUMB_DIR = new URL('../../assets/pirates/thumbs/', import.meta.url).href;
-const MAP_TIER = { common: 'common', uncommon: 'common', rare: 'rare', epic: 'rare', legendary: 'legendary' };
-export function itemImg(key, info) {
-  const p = String(key).split(':'); if (!info) return '';
-  if (info.iconImage) return info.iconImage;
-  if (info.kind === 'fish') return `${IMG_DIR}fish_${p[1]}.webp`;
-  if (info.kind === 'gunacc') return `${IMG_DIR}val_${p[1]}.webp`; // [v332] crafted attachment thumbs
-  if (info.kind === 'valuable') return `${IMG_DIR}val_${p[1]}.webp`;
-  if (info.kind === 'weapon') {
-    // [v332] legendary cards prefer a gold-rim sunburst thumb when present
-    if (info.rarity === 'legendary') {
-      const leg = `${IMG_DIR}wpn_${info.slot}_${info.base}_legendary.webp`;
-      return leg; // onerror falls back to emoji via icoHtml; base webp still used if missing via onerror chain below
-    }
-    return `${IMG_DIR}wpn_${info.slot}_${info.base}.webp`;
-  }
-  if (info.kind === 'map') return `${IMG_DIR}map_${MAP_TIER[info.rarity] || 'common'}.webp`;
-  if (info.kind === 'dup') return `${THUMB_DIR}${info.slot}_${info.id}.png`;
-  return '';
-}
+const IMG_DIR = new URL('../../assets/items/', import.meta.url).href;
+import { itemImg, treatArt } from './itemArt.js';
+export { itemImg } from './itemArt.js';
 // grid label: weapons drop the rarity word (the border colour shows it), so "Legendary rusty musket" reads "Rusty Musket"
 const cap = (w) => w.replace(/\b[a-z]/g, c => c.toUpperCase());
 export const shortName = (info) => info.kind === 'weapon' ? cap(`${info.base === 'blunder' ? 'blunderbuss' : info.base} ${info.base === 'blunder' ? '' : info.slot}`.trim()) : info.name;
@@ -359,7 +342,7 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   }
   function parrotLvUi(info) {
     const gold = pvp()?.gold ?? pvp()?.profile?.gold, u = parrotUpgradeState(info.xp, gold);
-    return { btn: u.max ? '<button disabled>MAX LEVEL · LV 10</button>' : `<button data-a="parrotupgrade"${u.can && !busy ? '' : ' disabled'}>UPGRADE · TREAT +100 XP · ${u.cost.toLocaleString()}g</button>`,
+    return { btn: u.max ? '<button disabled>MAX LEVEL · LV 10</button>' : `<button data-a="parrotupgrade"${u.can && !busy ? '' : ' disabled'}>${itemIconHtml({ icon: '🍎', iconImage: treatArt })} UPGRADE · TREAT +100 XP · ${u.cost.toLocaleString()}g</button>`,
       note: `<small class="iv-note">LV ${u.lv} · ${u.xp.toLocaleString()} XP${u.max ? ' · all colors unlocked' : ` · ${u.remaining.toLocaleString()} XP to LV ${u.lv + 1} · ${Number.isFinite(gold) ? gold.toLocaleString() + 'g available' : 'gold unavailable'}`}</small>` };
   }
   async function upgradeParrot(s) {
@@ -450,13 +433,13 @@ export function createInventory({ pvp, toast, treasure = null, nearbyPlayers = (
   window.addEventListener('pfp-parrot-equipped', () => { if (el.classList.contains('on')) refresh(); });
   window.addEventListener('pfp-shop', (e) => { const m = e.detail?.shop; if (m === 'fish' || m === 'antiques' || m === 'market') open(m); });
   // island earnings -> the server (it decides what lands in the bag): a reeled-in fish (server-rolled species), an idol shard / river pearl
-  window.addEventListener('pfp-catch', async () => { const r = await pvp()?.inv?.call('inv_fish'); if (r?.ok) { const i = infoOf(r.item); setTimeout(() => toast(`${i.icon} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2000), 2600); refresh(); } });
+  window.addEventListener('pfp-catch', async () => { const r = await pvp()?.inv?.call('inv_fish'); if (r?.ok) { const i = infoOf(r.item); setTimeout(() => toast(`${itemIconHtml(i, '❔', r.item)} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2000), 2600); refresh(); } });
   // [fish2] the fishing dock's server calls (js/island/areas/fishing2.js): it shows the fish the SERVER put in the bag (its own catch card, no toast here)
   window.addEventListener('pfp-fish', async (e) => { const d = e.detail || {}; if (!['inv_fish', 'inv_fish_bite', 'inv_fish_land'].includes(d.action)) return d.done?.(null);
     let r = null; try { r = await pvp()?.inv?.call(d.action, d.body || {}); } catch { r = null; } d.done?.(r || null); if (r?.ok && d.action !== 'inv_fish_bite') refresh(); });
   window.addEventListener('pfp-find', async (e) => { const r = await pvp()?.inv?.call('inv_find', e.detail || {}); if (r?.ok) refresh(); });
   // [ruins] jungle ruin chests: the SERVER rolls the valuable (once per chest per day); idol altar: 21 shards -> Golden Idol
-  const lootOf = (k, title) => { const i = infoOf(k); if (!i) return; import('../lootCard.js').then(L => L.showLootCard({ title, items: [{ name: i.name, icon: i.icon, iconImage: i.iconImage, qty: 1 }], note: 'sell it at the Treasure Trader' })).catch(() => toast(`${itemIconHtml(i)} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2200)); };
+  const lootOf = (k, title) => { const i = infoOf(k); if (!i) return; import('../lootCard.js').then(L => L.showLootCard({ title, items: [{ name: i.name, icon: i.icon, iconImage: itemImg(k, i), qty: 1 }], note: 'sell it at the Treasure Trader' })).catch(() => toast(`${itemIconHtml(i, '❔', k)} ${i.name.toUpperCase()} · IN YOUR INVENTORY`, 2200)); };
   window.addEventListener('pfp-ruin', async (e) => { let r = null; try { r = await pvp()?.inv?.call('inv_ruin_chest', { spot: e.detail?.spot }); } catch { r = null; }
     if (r?.ok) { refresh(); lootOf(r.item, 'RUIN CHEST'); } else if (r?.why === 'found today') toast('THE CHEST IS EMPTY<br><small>it refills tomorrow</small>', 1800); else toast('THE CHEST IS STUCK<br><small>sign in to the pirate network to loot it</small>', 2000); });
   window.addEventListener('pfp-idol', async () => { let r = null; try { r = await pvp()?.inv?.call('inv_idol_forge', {}); } catch { r = null; }

@@ -1,0 +1,569 @@
+{
+  "fish_minnow": {
+    "label": "Lagoon Minnow",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "minnow",
+    "legendary": false
+  },
+  "fish_perch": {
+    "label": "Mossy Perch",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "perch",
+    "legendary": false
+  },
+  "fish_snapper": {
+    "label": "Rainbow Snapper",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "snapper",
+    "legendary": false
+  },
+  "fish_eel": {
+    "label": "Spotted Eel",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "eel",
+    "legendary": false
+  },
+  "fish_pike": {
+    "label": "Pirate Pike",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "pike",
+    "legendary": false
+  },
+  "fish_carp": {
+    "label": "Golden Carp",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "carp",
+    "legendary": false
+  },
+  "fish_koi": {
+    "label": "Ghost Koi",
+    "rarity": "epic",
+    "color": "#c070ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "koi",
+    "legendary": false
+  },
+  "fish_leviathan": {
+    "label": "Lagoon Leviathan",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "fish",
+    "id": "leviathan",
+    "legendary": false
+  },
+  "wpn_sword_rusty": {
+    "label": "rusty sword",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "rusty",
+    "legendary": false
+  },
+  "wpn_sword_rusty_legendary": {
+    "label": "rusty sword \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "rusty",
+    "legendary": true
+  },
+  "wpn_sword_cutlass": {
+    "label": "cutlass sword",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "cutlass",
+    "legendary": false
+  },
+  "wpn_sword_cutlass_legendary": {
+    "label": "cutlass sword \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "cutlass",
+    "legendary": true
+  },
+  "wpn_sword_rapier": {
+    "label": "rapier sword",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "rapier",
+    "legendary": false
+  },
+  "wpn_sword_rapier_legendary": {
+    "label": "rapier sword \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "rapier",
+    "legendary": true
+  },
+  "wpn_sword_bone": {
+    "label": "bone sword",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "bone",
+    "legendary": false
+  },
+  "wpn_sword_bone_legendary": {
+    "label": "bone sword \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "sword",
+    "id": "bone",
+    "legendary": true
+  },
+  "wpn_musket_rusty": {
+    "label": "rusty musket",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "rusty",
+    "legendary": false
+  },
+  "wpn_musket_rusty_legendary": {
+    "label": "rusty musket \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "rusty",
+    "legendary": true
+  },
+  "wpn_musket_navy": {
+    "label": "navy musket",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "navy",
+    "legendary": false
+  },
+  "wpn_musket_navy_legendary": {
+    "label": "navy musket \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "navy",
+    "legendary": true
+  },
+  "wpn_musket_blunder": {
+    "label": "blunder musket",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "blunder",
+    "legendary": false
+  },
+  "wpn_musket_blunder_legendary": {
+    "label": "blunder musket \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "blunder",
+    "legendary": true
+  },
+  "wpn_musket_dragoon": {
+    "label": "dragoon musket",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "dragoon",
+    "legendary": false
+  },
+  "wpn_musket_dragoon_legendary": {
+    "label": "dragoon musket \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "musket",
+    "id": "dragoon",
+    "legendary": true
+  },
+  "wpn_musket_bone": {
+    "label": "bone musket",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "assets/pirates/items/v5/weapon_musket_bone_hi.glb",
+    "type": "musket",
+    "id": "bone",
+    "legendary": false
+  },
+  "wpn_musket_bone_legendary": {
+    "label": "bone musket \u00b7 legendary",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "assets/pirates/items/v5/weapon_musket_bone_hi.glb",
+    "type": "musket",
+    "id": "bone",
+    "legendary": true
+  },
+  "val_silver_ring": {
+    "label": "Silver Ring",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "silver_ring",
+    "legendary": false
+  },
+  "val_idol_shard": {
+    "label": "Idol Shard",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Fragment cropped from existing gold V7 male statue render (v467)",
+    "type": "custom",
+    "id": "idol_shard",
+    "legendary": false
+  },
+  "val_river_pearl": {
+    "label": "River Pearl",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "river_pearl",
+    "legendary": false
+  },
+  "val_gold_bar": {
+    "label": "Gold Bar",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "gold_bar",
+    "legendary": false
+  },
+  "val_pearl_necklace": {
+    "label": "Pearl Necklace",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "pearl_necklace",
+    "legendary": false
+  },
+  "val_ruby": {
+    "label": "Ruby",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "ruby",
+    "legendary": false
+  },
+  "val_gem_ring": {
+    "label": "Gold Ring w/ Gem",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "gem_ring",
+    "legendary": false
+  },
+  "val_diamond": {
+    "label": "Diamond",
+    "rarity": "epic",
+    "color": "#c070ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "diamond",
+    "legendary": false
+  },
+  "val_jewel_necklace": {
+    "label": "Jewelled Necklace",
+    "rarity": "epic",
+    "color": "#c070ff",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "jewel_necklace",
+    "legendary": false
+  },
+  "val_crown_jewel": {
+    "label": "Royal Crown Jewel",
+    "rarity": "legendary",
+    "color": "#ffcd3c",
+    "source": "Retained detailed artwork at 71f0152; reframed + rarity halo",
+    "type": "custom",
+    "id": "crown_jewel",
+    "legendary": false
+  },
+  "val_musket_parts": {
+    "label": "Musket Parts",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "offline studio illustration",
+    "type": "custom",
+    "id": "musket_parts",
+    "legendary": false
+  },
+  "val_acc_stock": {
+    "label": "Padded Stock",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "js/onfoot/gunAccMesh.js accThumbMesh",
+    "type": "acc",
+    "id": "stock",
+    "legendary": false
+  },
+  "val_acc_bayonet": {
+    "label": "Bayonet",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "js/onfoot/gunAccMesh.js accThumbMesh",
+    "type": "acc",
+    "id": "bayonet",
+    "legendary": false
+  },
+  "val_acc_horn": {
+    "label": "Powder Horn",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "js/onfoot/gunAccMesh.js accThumbMesh",
+    "type": "acc",
+    "id": "horn",
+    "legendary": false
+  },
+  "val_acc_scope": {
+    "label": "Brass Scope",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "js/onfoot/gunAccMesh.js accThumbMesh",
+    "type": "acc",
+    "id": "scope",
+    "legendary": false
+  },
+  "isl_shore_crab": {
+    "label": "Shore Crab",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "shore_crab",
+    "legendary": false
+  },
+  "isl_blue_claw_crab": {
+    "label": "Blue Claw Crab",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "blue_claw_crab",
+    "legendary": false
+  },
+  "isl_spiny_king_crab": {
+    "label": "Spiny King Crab",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "spiny_king_crab",
+    "legendary": false
+  },
+  "isl_golden_emperor_crab": {
+    "label": "Golden Emperor Crab",
+    "rarity": "epic",
+    "color": "#c070ff",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "golden_emperor_crab",
+    "legendary": false
+  },
+  "isl_sea_pearl": {
+    "label": "Sea Pearl",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "js/island/moneyMakers/props.js",
+    "type": "custom",
+    "id": "sea_pearl",
+    "legendary": false
+  },
+  "isl_black_pearl": {
+    "label": "Black Pearl",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "js/island/moneyMakers/props.js",
+    "type": "custom",
+    "id": "black_pearl",
+    "legendary": false
+  },
+  "isl_barnacled_doubloons": {
+    "label": "Barnacled Doubloons",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "barnacled_doubloons",
+    "legendary": false
+  },
+  "isl_iron_ore": {
+    "label": "Iron Ore",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/island/moneyMakers/props.js",
+    "type": "custom",
+    "id": "iron_ore",
+    "legendary": false
+  },
+  "isl_refined_saltpeter": {
+    "label": "Refined Saltpeter",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "refined_saltpeter",
+    "legendary": false
+  },
+  "isl_cave_gold_nugget": {
+    "label": "Cave Gold Nugget",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "cave_gold_nugget",
+    "legendary": false
+  },
+  "isl_island_cane": {
+    "label": "Island Cane",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "island_cane",
+    "legendary": false
+  },
+  "isl_island_spices": {
+    "label": "Island Spices",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "island_spices",
+    "legendary": false
+  },
+  "isl_cottage_spiced_rum": {
+    "label": "Cottage Spiced Rum",
+    "rarity": "rare",
+    "color": "#4fa8ff",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "cottage_spiced_rum",
+    "legendary": false
+  },
+  "isl_reserve_spiced_rum": {
+    "label": "Reserve Spiced Rum",
+    "rarity": "epic",
+    "color": "#c070ff",
+    "source": "offline studio illustration / island prop motifs",
+    "type": "custom",
+    "id": "reserve_spiced_rum",
+    "legendary": false
+  },
+  "parrot_green": {
+    "label": "green parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_green",
+    "legendary": false
+  },
+  "parrot_red": {
+    "label": "red parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_red",
+    "legendary": false
+  },
+  "parrot_blue": {
+    "label": "blue parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_blue",
+    "legendary": false
+  },
+  "parrot_cockatoo": {
+    "label": "cockatoo parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_cockatoo",
+    "legendary": false
+  },
+  "parrot_black": {
+    "label": "black parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_black",
+    "legendary": false
+  },
+  "parrot_gold": {
+    "label": "gold parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_gold",
+    "legendary": false
+  },
+  "parrot_diamond": {
+    "label": "diamond parrot",
+    "rarity": "common",
+    "color": "#c9c9c9",
+    "source": "js/parrotFlight.js createFlightParrot",
+    "type": "parrot",
+    "id": "parrot_diamond",
+    "legendary": false
+  },
+  "parrot_treat": {
+    "label": "Parrot treat",
+    "rarity": "uncommon",
+    "color": "#6fd36f",
+    "source": "offline studio illustration",
+    "type": "custom",
+    "id": "parrot_treat",
+    "legendary": false
+  }
+}

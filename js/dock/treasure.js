@@ -109,7 +109,7 @@ export function createTreasure({ world, layout, toast, pvp, isOn, calm = () => t
         maps = maps.filter(x => x.id !== m.id); recent = [{ tier: r.tier, gold: r.gold }, ...recent]; if (sel && sel.id === m.id) sel = maps[0] || null;
         recent[0].loot = r.loot || null; renderUi();
         if (r.loot && r.loot.item) chest.show(r); // [v152] the chest held an item: its card (for you / your crew / already yours)
-        else if (r.items && r.items.length) toast(`TREASURE!<br>${r.items.map(x => { const i = itemInfo(x.item); return i ? `${itemIconHtml(i)} ${i.name}${x.qty > 1 ? ' ×' + x.qty : ''}` : x.item; }).join(' · ')}<br><small>in your INVENTORY · sell at the TREASURE TRADER${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3600); // [inventory] items, no chest gold
+        else if (r.items && r.items.length) toast(`TREASURE!<br>${r.items.map(x => { const i = itemInfo(x.item); return i ? `${itemIconHtml(i, '❔', x.item)} ${i.name}${x.qty > 1 ? ' ×' + x.qty : ''}` : x.item; }).join(' · ')}<br><small>in your INVENTORY · sell at the TREASURE TRADER${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3600); // [inventory] items, no chest gold
         else toast(`TREASURE! +${(r.gold | 0).toLocaleString()} GOLD<br><small>${(TIER[r.tier] || TIER.common)[0]}${r.holder ? ' · x2 HOLDER' : ''}</small>`, 3200);
         if (r.items && r.loot && r.loot.item) setTimeout(() => toast(`+ ${r.items.map(x => itemInfo(x.item)?.name || x.item).join(' · ')}<br><small>in your INVENTORY</small>`, 2600), 3400);
         inventory()?.refresh?.();

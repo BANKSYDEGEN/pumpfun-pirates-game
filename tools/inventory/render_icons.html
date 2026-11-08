@@ -1,0 +1,99 @@
+<!doctype html><meta charset="utf-8"><base href="/"><title>Inventory studio — offline bake only</title>
+<script type="importmap">{"imports":{"three":"/vendor/three-0.165.0/build/three.module.js","three/addons/":"/vendor/three-0.165.0/examples/jsm/"}}</script>
+<script type="module">
+import * as T from 'three';
+import {Kit} from '/js/island/kit.js';
+import {LOOK} from '/js/island/areas/fishing2.js';
+import {FISH,VALUABLES,GUN_ITEMS,WEAPON_BASES,RARITY_COLOR} from '/js/inventory/catalog.js';
+import {ISLAND_GOODS} from '/js/inventory/islandGoods.js';
+import {accThumbMesh} from '/js/onfoot/gunAccMesh.js';
+import {loadWeaponModels,swordGeo,musketGeo,applyLegendaryOrnament} from '/js/onfoot/swords.js';
+import {clam,oreVein,crabPot} from '/js/island/moneyMakers/props.js';
+import {createFlightParrot,perchParrot,PARROT_COLORS} from '/js/parrotFlight.js';
+const renderer=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});renderer.setSize(512,512);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+const scene=new T.Scene(),pmrem=new T.PMREMGenerator(renderer),env=new T.Scene();env.background=new T.Color(.24,.27,.32);
+for(const [x,y,z,w,h,p] of [[-3,3,4,4,6,4],[4,1,2,2,5,2],[0,5,-2,4,3,3]]){
+ const panel=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(p,p*.94,p*.84),side:T.DoubleSide}));panel.position.set(x,y,z);panel.lookAt(0,0,0);env.add(panel);
+}
+scene.environment=pmrem.fromScene(env,.04).texture;
+scene.add(new T.HemisphereLight(0xdfeeff,0x574328,2));
+for(const [x,y,z,c,p] of [[-3,4,5,0xffeacb,3],[3,1,-3,0xafd8ff,3]]){const light=new T.DirectionalLight(c,p);light.position.set(x,y,z);scene.add(light);}
+const camera=new T.OrthographicCamera(-1,1,1,-1,.01,100);
+const gold=()=>mat(0xeebd45,.9,.24),silver=()=>mat(0xd1dfeb,.85,.2),ivory=()=>mat(0xfff2d2,.05,.3);
+function mat(color,metalness=0,roughness=.42){return new T.MeshStandardMaterial({color,metalness,roughness});}
+function mesh(g,geo,m,x=0,y=0,z=0,rx=0,ry=0,rz=0,s=null){const o=new T.Mesh(geo,m);o.position.set(x,y,z);o.rotation.set(rx,ry,rz);if(s)o.scale.set(...s);g.add(o);return o;}
+const ball=(g,r,m,x=0,y=0,z=0,s=null)=>mesh(g,new T.SphereGeometry(r,24,16),m,x,y,z,0,0,0,s);
+const box=(g,w,h,d,m,x=0,y=0,z=0,rz=0)=>mesh(g,new T.BoxGeometry(w,h,d),m,x,y,z,0,0,rz);
+const tube=(g,pts,r,m)=>mesh(g,new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(p=>new T.Vector3(...p))),32,r,8,false),m);
+const tor=(g,r,t,m,x=0,y=0,z=0,rx=0,ry=0,rz=0)=>mesh(g,new T.TorusGeometry(r,t,8,40),m,x,y,z,rx,ry,rz);
+function pbr(root,metal=.15){root.traverse(o=>{if(!o.isMesh)return;if(o.userData.outline){o.visible=false;return;}const convert=m=>new T.MeshStandardMaterial({color:m.color||0xffffff,map:m.map||null,vertexColors:!!m.vertexColors,metalness:metal,roughness:.38,side:m.side,transparent:m.transparent,opacity:m.opacity,emissive:m.emissive||0,emissiveIntensity:Math.min(m.emissiveIntensity||0,.16)});o.material=Array.isArray(o.material)?o.material.map(convert):convert(o.material);});return root;}
+function gem(g,color=0x2dbb77,x=0,y=0,z=0,r=.25){const o=mesh(g,new T.OctahedronGeometry(r,0),mat(color,.4,.12),x,y,z);o.scale.set(1,.85,.8);return o;}
+function jewelRing(g,jewel=false){const m=jewel?gold():silver();tor(g,.34,.075,m,0,0,0,.38,.3);if(jewel){box(g,.27,.12,.25,m,0,.33,.04);gem(g,0x22b875,0,.47,.06,.22);for(const x of [-1,1])for(const z of [-1,1])ball(g,.035,m,x*.12,.44,z*.1+.06);}}
+function necklace(g,jewel=false){const m=jewel?gold():ivory();for(let i=0;i<24;i++){const a=i/24*Math.PI*2,x=Math.cos(a)*.46,y=Math.sin(a)*.52;if(jewel)tor(g,.042,.015,m,x,y,0,0,i%2*.8);else ball(g,.052,m,x,y,0);}
+ if(jewel){tor(g,.14,.04,gold(),0,-.6,0);gem(g,0x2484ed,0,-.59,.02,.13);gem(g,0xc31e40,0,-.83,.02,.12);}else{ball(g,.045,gold(),0,.52,0);}}
+function crown(g){const m=gold();mesh(g,new T.CylinderGeometry(.37,.32,.23,48,1,true),m,0,-.14,0);tor(g,.345,.045,m,0,-.25,0,Math.PI/2);tor(g,.37,.025,m,0,-.025,0,Math.PI/2);
+ for(let i=0;i<8;i++){const a=i/8*Math.PI*2,x=Math.sin(a)*.35,z=Math.cos(a)*.35;mesh(g,new T.ConeGeometry(.14,.37,4),m,x,.14,z,0,a);ball(g,.045,m,x,.32,z);gem(g,i%2?0xd02139:0x2a8ee7,x,-.13,z*1.04,.06);}gem(g,0xa2eaff,0,.4,0,.18);}
+function coins(g){const m=gold();for(let i=0;i<7;i++){const x=Math.sin(i*2.4)*.28,z=Math.cos(i*2.4)*.16,y=i*.045;mesh(g,new T.CylinderGeometry(.19,.19,.04,32),m,x,y,z);tor(g,.15,.01,m,x,y+.023,z,Math.PI/2);box(g,.12,.012,.025,mat(0x8f641b,.5),x,y+.03,z,0);}
+ for(let i=0;i<4;i++)ball(g,.035,mat(0xa7aaa1),-.35+i*.13,.04,.22,[1,.6,1]);}
+function crystalPile(g,color,metal=0){for(let i=0;i<6;i++){const a=i*2.4;const o=mesh(g,new T.OctahedronGeometry(.16+i%2*.04),mat(color,metal,.26),Math.sin(a)*.23,i%3*.08,Math.cos(a)*.16);o.scale.y=1.7;o.rotation.z=(i-2)*.21;}}
+function crab(g,color,spiny=false){const base=crabPot().userData.crab.clone(true);base.visible=true;pbr(base,.2);base.traverse(o=>{if(o.isMesh)o.material.color.set(color);});base.scale.setScalar(2);g.add(base);
+ const m=mat(color,.18,.32);for(const s of [-1,1]){for(let i=0;i<4;i++){const z=-.22+i*.13;tube(g,[[s*.18,0,z],[s*(.4+i*.015),.025,z-.1],[s*(.55+i*.015),-.16,z-.19]],.025,m);}
+ tube(g,[[s*.2,.02,.18],[s*.4,.1,.27],[s*.48,.15,.45]],.04,m);
+ ball(g,.13,m,s*.48,.16,.49,[1,.75,1.25]);ball(g,.08,m,s*.58,.2,.55,[.7,.8,1.2]);ball(g,.08,m,s*.41,.18,.59,[.7,.8,1.1]);
+ tube(g,[[s*.12,.05,.16],[s*.13,.19,.2]],.022,m);ball(g,.035,mat(0x13171a),s*.13,.2,.21);
+ }if(spiny)for(let i=0;i<9;i++){const a=i/9*6.28;mesh(g,new T.ConeGeometry(.035,.11,6),m,Math.sin(a)*.23,.09,Math.cos(a)*.2,Math.cos(a)*.8,0,-Math.sin(a)*.8);}}
+function bottle(g,reserve=false){const m=mat(reserve?0x512715:0x3b6c38,.2,.19),label=mat(0xecd9a5),trim=reserve?gold():mat(0x79442c);
+ mesh(g,new T.CylinderGeometry(.22,.25,.68,32),m,0,-.05,0);ball(g,.23,m,0,.29,0,[1,.5,1]);mesh(g,new T.CylinderGeometry(.075,.08,.32,24),m,0,.5,0);mesh(g,new T.CylinderGeometry(.085,.085,.12,24),trim,0,.7,0);box(g,.31,.3,.025,label,0,-.04,.245);tor(g,.073,.013,trim,0,.39,0,Math.PI/2);mesh(g,new T.CircleGeometry(.08,24),trim,0,-.04,.262);box(g,.07,.07,.01,label,0,-.04,.27);if(reserve)for(const x of [-.1,.1])box(g,.018,.25,.02,trim,x,-.04,.265);}
+function chili(g,x,z,rz,color){const h=new T.Group();tube(h,[[0,.3,0],[.08,.2,0],[.03,-.05,0],[-.1,-.3,.02],[-.18,-.35,.04]],.08,mat(color,.05,.24));tube(h,[[0,.3,0],[-.02,.41,0],[.08,.44,0]],.035,mat(0x4a8435));h.position.set(x,0,z);h.rotation.z=rz;g.add(h);}
+function cane(g){for(let i=0;i<3;i++){const x=(i-1)*.17;mesh(g,new T.CylinderGeometry(.065,.08,1.1,12),mat(0xa4be51),x,0,0,0,0,(i-1)*.13);for(let j=0;j<5;j++)tor(g,.072,.013,mat(0x66863c),x,-.45+j*.22,0,Math.PI/2);const leaf=ball(g,.2,mat(0x4d9e3b),x+.1,.48,0,[1.5,.2,.35]);leaf.rotation.z=.65;}
+ for(const y of [-.25,0])tor(g,.24,.022,mat(0xb29054),0,y,0,Math.PI/2);}
+function treats(g){const wood=mat(0x976440);mesh(g,new T.CylinderGeometry(.33,.23,.16,32),wood,0,-.2,0);tor(g,.32,.025,mat(0xd4ab67),0,-.12,0,Math.PI/2);for(let i=0;i<9;i++){const a=i*2.4;ball(g,.055,mat(i%2?0xdec382:0x9f6b37),Math.sin(a)*.22,-.08+Math.floor(i/3)*.025,Math.cos(a)*.18,[1,.6,.7]);}ball(g,.16,mat(0xe7b52d,.05,.24),0,.05,.1,[1,.5,.8]);ball(g,.14,mat(0xd4572e,.05,.24),-.15,.03,-.05);}
+function custom(id){const g=new T.Group();
+ if(id==='silver_ring'||id==='gem_ring')jewelRing(g,id==='gem_ring');
+ else if(id==='pearl_necklace'||id==='jewel_necklace')necklace(g,id==='jewel_necklace');
+ else if(id==='ruby'||id==='diamond'){gem(g,id==='ruby'?0xc51839:0x98d9ff,0,0,0,.46);tor(g,.26,.022,gold(),0,-.2,0,Math.PI/2);}
+ else if(id==='gold_bar'){mesh(g,new T.CylinderGeometry(.37,.44,.25,4),gold(),0,0,0,0,Math.PI/4);box(g,.22,.016,.06,mat(0x9a701e,.8),0,.13,0);}
+ else if(id==='crown_jewel')crown(g);
+ else if(id==='river_pearl'||id==='sea_pearl'||id==='black_pearl'){const c=clam();pbr(c,.18);c.children[2].material=mat(id==='black_pearl'?0x172136:0xfff1ed,id==='black_pearl'?.65:.3,.13);c.children[2].scale.setScalar(1.7);g.add(c);}
+ else if(id==='idol_shard'){const s=new T.Shape();s.moveTo(-.35,-.33);s.lineTo(.28,-.2);s.lineTo(.37,.2);s.lineTo(-.12,.45);s.lineTo(-.25,.12);s.closePath();mesh(g,new T.ExtrudeGeometry(s,{depth:.15,bevelEnabled:true,bevelSize:.025,bevelThickness:.025,bevelSegments:1}),gold());for(let i=0;i<3;i++){const o=box(g,.28-i*.04,.018,.02,mat(0x8e5d19,.75),-.01,-.04+i*.1,.182);o.rotation.z=.25;}gem(g,0x57a47c,.05,.18,.18,.08);}
+ else if(id==='barnacled_doubloons')coins(g);
+ else if(id==='iron_ore'){const v=oreVein('iron',0x9dabb4,0x27343e);pbr(v,.45);g.add(v);}
+ else if(id==='refined_saltpeter'){const sack=mesh(g,new T.CylinderGeometry(.27,.31,.38,12),mat(0xa78b5c),0,-.19,0);crystalPile(g,0xe4eff5);tor(g,.27,.025,mat(0xdbc79b),0,.01,0,Math.PI/2);}
+ else if(id==='cave_gold_nugget'){for(let i=0;i<4;i++){const o=mesh(g,new T.DodecahedronGeometry(.27-i*.035,1),gold(),Math.sin(i*2.4)*.22,(i%2)*.09,Math.cos(i*2.4)*.16);o.scale.set(1,.7,1);o.rotation.set(i,.3*i,i*.2);}}
+ else if(id.endsWith('crab'))crab(g,({shore_crab:0xc15c35,blue_claw_crab:0x317cac,spiny_king_crab:0xb72c2b,golden_emperor_crab:0xdba739})[id],id==='spiny_king_crab'||id==='golden_emperor_crab');
+ else if(id==='island_cane')cane(g);
+ else if(id==='island_spices'){chili(g,-.12,0,-.4,0xc62b2f);chili(g,.12,.05,.4,0xf09828);}
+ else if(id.includes('spiced_rum'))bottle(g,id.startsWith('reserve'));
+ else if(id==='parrot_treat')treats(g);
+ else if(id==='musket_parts'){const m=silver();for(let i=0;i<3;i++){mesh(g,new T.CylinderGeometry(.06,.06,.5-i*.07,16),i===0?gold():m,-.2+i*.2,0,0,0,0,.5-i*.4);tor(g,.08,.018,m,-.2+i*.2,.15,0,Math.PI/2);}tor(g,.17,.035,mat(0x495260,.7),.05,-.2,.1);box(g,.23,.1,.06,mat(0x925b2b),-.2,-.14,.1,.4);}
+ else throw Error('Missing studio object '+id);
+ return g;
+}
+const defs={};
+function add(file,label,rarity,source,type,id,legendary=false){defs[file]={label,rarity,color:RARITY_COLOR[rarity],source,type,id,legendary};}
+for(const [id,f] of Object.entries(FISH))add('fish_'+id,f.name,f.rarity,'js/island/areas/fishing2.js LOOK','fish',id);
+for(const [slot,ids] of Object.entries(WEAPON_BASES))for(const id of ids)for(const leg of [false,true])add(`wpn_${slot}_${id}${leg?'_legendary':''}`,id+' '+slot+(leg?' · legendary':''),leg?'legendary':'common',`assets/pirates/items/v5/weapon_${slot}_${id}_hi.glb`,slot,id,leg);
+for(const [id,v] of Object.entries(VALUABLES))if(id!=='golden_idol')add('val_'+id,v.name,v.rarity,'offline studio illustration','custom',id);
+for(const [id,v] of Object.entries(GUN_ITEMS))add('val_'+id,v.name,v.rarity,id.startsWith('acc_')?'js/onfoot/gunAccMesh.js accThumbMesh':'offline studio illustration',id.startsWith('acc_')?'acc':'custom',id.replace(/^acc_/,''));
+for(const [id,v] of Object.entries(ISLAND_GOODS))add('isl_'+id,v.name,v.rarity,['iron_ore','sea_pearl','black_pearl'].includes(id)?'js/island/moneyMakers/props.js':'offline studio illustration / island prop motifs','custom',id);
+for(const id of Object.keys(PARROT_COLORS))add(id,id.replace('parrot_','')+' parrot','common','js/parrotFlight.js createFlightParrot','parrot',id);
+add('parrot_treat','Parrot treat','uncommon','offline studio illustration','custom','parrot_treat');
+await loadWeaponModels(false);
+window.iconDefs=defs;
+window.bakeIcon=async key=>{
+ const d=defs[key];let obj;
+ if(d.type==='fish'){const k=new Kit();LOOK[d.id](k);const m=new T.MeshStandardMaterial({vertexColors:true,roughness:.32,metalness:.12});obj=k.build({toon:m},{plain:new T.MeshBasicMaterial({visible:false})});obj.rotation.z=.12;}
+ else if(d.type==='acc'){obj=pbr(accThumbMesh(d.id),.5);if(d.id==='scope'||d.id==='bayonet')obj.rotation.set(0,-1.15,-.55);else obj.rotation.y=-.35;}
+ else if(d.type==='sword'||d.type==='musket'){obj=new T.Mesh((d.type==='sword'?swordGeo:musketGeo)(d.id),new T.MeshStandardMaterial({vertexColors:true,metalness:.4,roughness:.3}));applyLegendaryOrnament(obj,d.type,d.id,d.rarity);pbr(obj,.4);if(d.type==='sword')obj.rotation.set(0,Math.PI/2,-.55);else obj.rotation.set(0,-Math.PI/2,-.55);}
+ else if(d.type==='parrot'){obj=await createFlightParrot(d.id);await new Promise(r=>setTimeout(r,200));perchParrot(obj,0,0);obj.rotation.y=.4;}
+ else obj=custom(d.id);
+ const holder=new T.Group();holder.add(obj);scene.add(holder);holder.updateMatrixWorld(true);
+ const bounds=new T.Box3().setFromObject(holder),center=bounds.getCenter(new T.Vector3());obj.position.sub(center);holder.updateMatrixWorld(true);
+ let direction=new T.Vector3(.6,.65,4);if(d.type==='fish')direction.set(.1,.55,4);if(d.type==='parrot')direction.set(.6,.1,4);if(['iron_ore','refined_saltpeter','cave_gold_nugget','barnacled_doubloons'].includes(d.id)||d.id.endsWith('crab'))direction.set(.8,2,3);
+ camera.position.copy(direction.normalize().multiplyScalar(5));camera.lookAt(0,0,0);camera.updateMatrixWorld(true);
+ const b=new T.Box3().setFromObject(holder),pts=[];for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])pts.push(new T.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));const cb=new T.Box3().setFromPoints(pts),extent=Math.max(cb.max.x-cb.min.x,cb.max.y-cb.min.y)*.57;
+ camera.left=-extent;camera.right=extent;camera.top=extent;camera.bottom=-extent;camera.near=.001;camera.far=100;camera.updateProjectionMatrix();renderer.render(scene,camera);
+ const url=renderer.domElement.toDataURL('image/png');scene.remove(holder);return url;
+};
+window.ready=true;
+</script>

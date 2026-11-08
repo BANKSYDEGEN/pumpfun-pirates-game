@@ -327,7 +327,7 @@ export function initAdminMenu(ctx) {
     const cat = giveCatalog(), f = st.filter.toLowerCase(), opts = cat.filter(c => !f || (c.name + ' ' + c.key + ' ' + c.group).toLowerCase().includes(f));
     const groups = [...new Set(opts.map(o => o.group))];
     const rows = P ? (P.items || []).map(it => { const i = itemInfo(it.item) || { name: it.item, icon: '❔', rarity: 'common' }, rc = RARITY_COLOR[i.rarity] || '#ccc';
-      return `<div class="it" data-item="${escHtml(it.item)}"><span class="q">${it.qty | 0}×</span><span class="nm">${itemIconHtml(i, '')} ${escHtml(i.name)}</span><span class="rb" style="color:${escHtml(rc)}">${escHtml(i.rarity || '')}</span><button data-a="t1">TAKE 1</button><button data-a="ta">TAKE ALL</button></div>`; }).join('') || '<div class="empty">empty pockets</div>' : '<div class="empty">opening pockets…</div>';
+      return `<div class="it" data-item="${escHtml(it.item)}"><span class="q">${it.qty | 0}×</span><span class="nm">${itemIconHtml(i, '', it.item)} ${escHtml(i.name)}</span><span class="rb" style="color:${escHtml(rc)}">${escHtml(i.rarity || '')}</span><button data-a="t1">TAKE 1</button><button data-a="ta">TAKE ALL</button></div>`; }).join('') || '<div class="empty">empty pockets</div>' : '<div class="empty">opening pockets…</div>';
     box.innerHTML = `<div class="ph"><span>🎒 ${escHtml(who.name)}'s Pockets · 💰 ${(P?.gold | 0).toLocaleString('en-US')}g${P?.pending ? ` <small>(${(P.pending | 0) > 0 ? '+' : ''}${P.pending | 0} waiting)</small>` : ''}</span><span><button data-a="pref">↻ Refresh</button> <button data-a="pclose">✕</button></span></div>
       <div class="items">${rows}</div>
       <h4>+ SLIP INTO POCKETS</h4>
