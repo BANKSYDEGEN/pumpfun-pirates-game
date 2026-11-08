@@ -40,7 +40,8 @@ const at = (m, x, y, z, rx = 0, ry = 0, rz = 0, part = null) => { m.position.set
 const hasDoc = () => typeof document !== 'undefined';
 const canvas = (w, h) => { if (!hasDoc()) return null; const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 const tex = (c) => { if (!c) return null; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
-const face = (w, h, t, part) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial(t ? { map: t, toneMapped: false } : { color: 0x553322 })); m.userData.part = part; return m; };
+const faceMaterials = new WeakMap();
+const face = (w, h, t, part) => { let material = t && faceMaterials.get(t); if (!material) { material = new THREE.MeshBasicMaterial(t ? { map: t, toneMapped: false } : { color: 0x553322 }); if (t) faceMaterials.set(t, material); } const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material); m.userData.part = part; return m; };
 const FONT = (p) => `${p}px "Just Another Hand", Georgia, serif`;
 
 // ---- vector icons (no emoji: phones / headless browsers draw those as tofu) ----
@@ -67,7 +68,9 @@ function grain(g, w, h) {   // planks, long grain streaks, knots, edge wear (det
   for (let i = 0; i < 4; i++) { const x = rnd() * w, y = rnd() * h, r = 4 + rnd() * h * 0.03; g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x, y, r * 2.2, r, 0, 0, 7); g.fill(); }
   const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.65); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = v; g.fillRect(0, 0, w, h); }
 // the big boards: plank seams, double gold frame, corner rivets, the title fitted, an icon each end (wide) or on top (square-ish)
+const boardTextures = new Map();
 function boardTex(T, w, h, { sub = true } = {}) {
+  const key = JSON.stringify([T, w, h, sub]); if (boardTextures.has(key)) return boardTextures.get(key);
   const c = canvas(w, h); if (!c) return null; const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, T.bg[0]); gr.addColorStop(1, T.bg[1]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
   grain(g, w, h);
@@ -84,7 +87,7 @@ function boardTex(T, w, h, { sub = true } = {}) {
   if (wide) { const s = h * 0.62; icon(g, T.icon, h * 0.5, h * 0.5, s, T.ink); icon(g, T.icon, w - h * 0.5, h * 0.5, s, T.ink);
     if (sub) { g.font = `bold ${Math.round(h * 0.13)}px Georgia, serif`; g.fillStyle = '#f3e3bf'; g.fillText(T.sub, w / 2, h * 0.8); } }
   else icon(g, T.icon, w / 2, h * 0.3, h * 0.36, T.ink);
-  return tex(c);
+  const texture = tex(c); boardTextures.set(key, texture); return texture;
 }
 function stripeTex(a, b) { const c = canvas(256, 16); if (!c) return null; const g = c.getContext('2d'); for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? b : a; g.fillRect(i * 32, 0, 32, 16); } const t = tex(c); t.wrapS = THREE.RepeatWrapping; return t; }
 function posterTex(i) { const c = canvas(128, 170); if (!c) return null; const g = c.getContext('2d');

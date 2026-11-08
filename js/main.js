@@ -1,4 +1,4 @@
-import { formatGoldAmount } from './goldFormat.js';
+import { formatGoldAmount, setGoldText } from './goldFormat.js';
 import { renderPixelRatio, sceneSamples } from './graphicsBudget.js';
 import { createGameplayHint } from './hudDeclutter.js';
 // PUMPFUN PIRATES · Storm Hunt — main game
@@ -920,7 +920,7 @@ function syncHpBar() {
   document.documentElement.classList.toggle('pfp-foothp', !!f);
 }
 function updateHud() {
-  $('score').textContent = game.score; $('wave').textContent = game.wave; $('gold').textContent = formatGoldAmount(game.gold); $('sunk').textContent = game.sunk;
+  $('score').textContent = game.score; $('wave').textContent = game.wave; setGoldText($('gold'), game.gold); $('sunk').textContent = game.sunk;
   syncHpBar(); // [t1724u] ship HP at sea, your pirate's HP on foot
   $('sail-level').textContent = player.sail;
   $('anchor').classList.toggle('on', player.anchor);

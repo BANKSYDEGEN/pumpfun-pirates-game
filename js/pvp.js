@@ -1,4 +1,4 @@
-import { formatGoldAmount } from './goldFormat.js';
+import { formatGoldAmount, setGoldText } from './goldFormat.js';
 import { DEV } from './env.js';
 import { isKey } from './keybinds.js';
 // PUMPFUN PIRATES · PvP ARENA (BETA): drop-in, real-time, free-for-all on a shared sea.
@@ -1698,7 +1698,7 @@ export function createPvp(K) {
     if (!spec.on) refreshRank(); // every 30 s at most
     const lab = document.querySelectorAll('#hud-top .label');
     if (lab.length >= 3) { lab[0].textContent = 'KILLS'; lab[1].textContent = 'DEATHS'; lab[2].textContent = 'K/D'; } // [sail-around] GOLD moved to #hud-gold
-    $('score').textContent = lifeK(); $('wave').textContent = lifeD(); $('gold').textContent = formatGoldAmount(game.gold); $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
+    $('score').textContent = lifeK(); $('wave').textContent = lifeD(); setGoldText($('gold'), game.gold); $('sunk').textContent = kd(lifeK(), lifeD()); // BANKSY: lifetime kills / deaths (saved with your upgrades + skins), not this session
     const n = livePeers().length + 1, ai = [...bots.values()].filter(b => b.alive).length;
     const h2x = where === 'harbor' && HOLDER_ENABLED && holder.on && !ON_PORTAL; // [v97.1] holder perk (incl. the owner's devices): harbor AI pay is doubled
     const hbN = room && where === 'harbor' ? livePeers().length + 1 : 0; // [v99] 'HARBOR · N pirates' in a shared copy (copy 2+ shows its number)

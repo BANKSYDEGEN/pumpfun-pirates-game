@@ -1,4 +1,4 @@
-import { formatGoldAmount } from './goldFormat.js';
+import { formatGoldAmount, setGoldText } from './goldFormat.js';
 import { devHook } from './env.js'; // [security L] console/test hook: local dev servers only
 import { isKey } from './keybinds.js';
 // [Raul] ship upgrades — SHOP button (top HUD row) + shipwright overlay.
@@ -138,7 +138,7 @@ function skinAction(_id) { /* [t1716u] Waves cannot buy / swap skins mid-run */ 
 function render() {
   if (!ctx) return;
   const { game } = ctx, p = ctx.getPlayer();
-  $('shop-gold').textContent = formatGoldAmount(game.gold);
+  setGoldText($('shop-gold'), game.gold);
   $('shop-hp').querySelector('.fill').style.width = `${(p.hp / p.maxHp) * 100}%`;
   $('shop-hp').querySelector('.hp-txt').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
   const rb = $('shop-repair'); rb.disabled = p.hp >= p.maxHp || game.gold < repairCost();

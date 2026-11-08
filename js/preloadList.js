@@ -111,6 +111,7 @@ export const HARBOR_MODULES = [
   "js/onfoot/v7Sword.js",
   "js/onfoot/walker.js",
   "js/pillyEntries.js",
+  "js/pumpfun/boardRefresh.js",
   "js/pumpfun/logos.js",
   "js/pumpfun/model.js",
   "js/pumpfun/site.js",

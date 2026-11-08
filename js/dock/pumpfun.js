@@ -1,3 +1,4 @@
+import { boardRefreshDue, boardDataKey } from '../pumpfun/boardRefresh.js';
 import { ageLabel } from '../pumpfun/liveui.js';
 import { BOARD_ROWS, BOOST_STEP_MS, mainBoardRow, boardRows, compactBoards } from '../pumpfun/boardgrid.js';
 // Proximity-built PUMPFUN hall + hill L4 pet store. No server writes, wallets, paid services or external images.
@@ -16,18 +17,21 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
  const proxy=new THREE.Group(); // Shell is merged into the plaza stone kit, not a mismatched distant box.
 
  let mod=null,loading=null,hq=null,petDress=null,petLoad=null,petReady=false,birds=[],keeper=null,rev=-1,active=false,nearHQ=false,lastPet=0,nearPet=false,hqBoardAt=0;
+ let petInView=true,petViewAt=0;const petViewSphere=new THREE.Sphere();
  let approachHQ=false,panel=null,uiRev=-1,dex=null,dexRev=-1,dexAt=0,walls=[],wallRev=-1,wallAt=0,solo=null,lastPos=null,lastAge=0;
  const compact=compactBoards(); // phones / touch: big-type board canvases + tap-to-read 2D board
  const money=compact?moneyShort:moneyLong;
  const R=()=>marketFeed.state.revision+'/'+(mod?.logoRev?.()||0);
  const rendered=o=>{for(let n=o;n;n=n.parent)if(!n.visible)return false;return true;};
+ const boardFrustum=new THREE.Frustum(), boardVP=new THREE.Matrix4(), boardSphere=new THREE.Sphere(), boardNormal=new THREE.Vector3(), boardPosition=new THREE.Vector3(), boardToCamera=new THREE.Vector3();let boardCheckAt=0;
+ const boardVisible=mesh=>{if(!mesh||!rendered(mesh))return false;mesh.updateWorldMatrix(true,false);const g=mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();boardSphere.copy(g.boundingSphere).applyMatrix4(mesh.matrixWorld);if(!boardFrustum.intersectsSphere(boardSphere))return false;if(mesh.material.side!==THREE.DoubleSide){boardNormal.setFromMatrixColumn(mesh.matrixWorld,2);boardPosition.setFromMatrixPosition(mesh.matrixWorld);boardToCamera.subVectors(camera.position,boardPosition);if(boardNormal.dot(boardToCamera)<=0)return false;}return true;};
  const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();let down=null;
  function localPoint(p){return w2t(...layout.harborToFoot(p.x,p.z));}
  function loadRender(){return loading||(loading=import('../pumpfun/render.js').then(m=>(mod=m)).catch(e=>{loading=null;console.warn('[pumpfun] render unavailable',e.message);}));}
- function dress(){if(hq||!mod)return;try{hq=mod.buildHQ(low);root.add(hq.group);proxy.visible=false;try{dex=mod.attachDexPanel?.(hq,low,compact)||null;dexRev=-1;}catch(e){console.warn('[pumpfun] dex panel skipped',e.message);dex=null;}try{walls=mod.attachWallPanels?.(hq,low,compact)||[];wallRev=-1;}catch(e){console.warn('[pumpfun] wall boards skipped',e.message);walls=[];}}catch(e){console.warn('[pumpfun] hall detail unavailable',e.message);hq=null;mod=null;loading=Promise.resolve();}}
+ function dress(){if(hq||!mod)return;try{hq=mod.buildHQ(low);hqBoardAt=dexAt=0;root.add(hq.group);proxy.visible=false;try{dex=mod.attachDexPanel?.(hq,low,compact)||null;dexRev=-1;}catch(e){console.warn('[pumpfun] dex panel skipped',e.message);dex=null;}try{walls=mod.attachWallPanels?.(hq,low,compact)||[];wallRev=-1;}catch(e){console.warn('[pumpfun] wall boards skipped',e.message);walls=[];}}catch(e){console.warn('[pumpfun] hall detail unavailable',e.message);hq=null;mod=null;loading=Promise.resolve();}}
  async function pets(){if(petLoad||petReady)return;petLoad=(async()=>{
   await loadRender();if(!mod)return;
-  if(!petDress){petDress=mod.buildPetDress(low);root.add(petDress);}
+  if(!petDress){petDress=mod.buildPetDress(low);root.add(petDress);petDress.updateWorldMatrix(true,true);new THREE.Box3().setFromObject(petDress).getBoundingSphere(petViewSphere);}
   const [{createFlightParrot},{PirateGLB},{applyGear}]=await Promise.all([import('../parrotFlight.js'),import('../pirateGLB.js'),import('../pirateGear.js')]);
   const f=await import('../parrotFlight.js');
   for(const id of (low?['parrot_green']:['parrot_green','parrot_red'])){const bird=await createFlightParrot(id);bird.scale.setScalar(.48);bird.userData.shopAnimate=f.animateParrot;root.add(bird);birds.push(bird);}
@@ -82,11 +86,14 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   uiRev=s.revision;lastAge=Math.floor(now/1000);if(focused){const b=[...panel.querySelectorAll('button')].find(b=>b.dataset.key===focused);b?.focus();}}
  function update(on,position,t){active=!!on&&!document.hidden;lastPos=position||null;const [lx,lz]=position?localPoint(position):[1e6,1e6];nearHQ=active&&hqDistance(lx,lz)<32;approachHQ=active&&hqDistance(lx,lz)<70;nearPet=active&&Math.hypot(lx-PET_SHOP.lx,lz-PET_SHOP.lz)<17;
   if(!active){close();if(hq)hq.group.visible=false;if(petDress)petDress.visible=false;for(const b of birds)b.visible=false;if(keeper)keeper.root.visible=false;return;}
-  const dist=hqDistance(lx,lz);if(hq&&dist>70){try{hq.dispose();}catch(e){}hq=null;rev=-1;dex=null;walls=[];}proxy.visible=dist>=40||!hq;if(dist<40&&!hq)loadRender().then(dress).catch(()=>{});if(hq){hq.group.visible=dist<40;if(nearHQ&&(rev!==R()||Date.now()-hqBoardAt>200)){rev=R();hqBoardAt=Date.now();try{mod.drawHQBoard(hq.cv,marketFeed.state,hqBoardAt);hq.tex.needsUpdate=true;}catch(e){console.warn('[pumpfun] board draw',e.message);}}
-   if(dex&&nearHQ){const now=Date.now();if(dexRev!==R()||now-dexAt>1000){dexRev=R();dexAt=now;try{mod.drawDexPanel(dex.cv,marketFeed.state,now,compact);dex.tex.needsUpdate=true;}catch(e){console.warn('[pumpfun] dex panel draw',e.message);dex=null;}}}
-   if(walls.length&&nearHQ){const now=Date.now(),changed=wallRev!==R()||now-wallAt>1000;if(changed){wallRev=R();wallAt=now;}walls=walls.filter(w=>{if(!changed&&!(w.board.tickMs&&Math.floor(now/w.board.tickMs)!==Math.floor((w.at||0)/w.board.tickMs)))return true;w.at=now;try{mod.drawWallPanel(w.cv,w.board,marketFeed.state,now,compact);w.tex.needsUpdate=true;return true;}catch(e){console.warn('[pumpfun] wall board draw',w.board.slot,e.message);return false;}});}}
+  const dist=hqDistance(lx,lz);if(hq&&dist>70){try{hq.dispose();}catch(e){}hq=null;rev=-1;dex=null;walls=[];}proxy.visible=dist>=40||!hq;if(dist<40&&!hq)loadRender().then(dress).catch(()=>{});if(hq){hq.group.visible=dist<40;
+   const now=Date.now();if(nearHQ&&now-boardCheckAt>=250){boardCheckAt=now;camera.updateMatrixWorld();boardVP.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);boardFrustum.setFromProjectionMatrix(boardVP);const logos=mod?.logoRev?.()||0,revision=boardDataKey(marketFeed.state,'main',logos);
+    if(boardVisible(hq.board)&&boardRefreshDue(rev,revision,hqBoardAt,now)){try{mod.drawHQBoard(hq.cv,marketFeed.state,now);hq.tex.needsUpdate=true;rev=revision;hqBoardAt=now;}catch(e){console.warn('[pumpfun] board draw',e.message);}}
+    if(dex&&boardVisible(dex.mesh)&&boardRefreshDue(dexRev,boardDataKey(marketFeed.state,'dexpaid',logos),dexAt,now)){try{mod.drawDexPanel(dex.cv,marketFeed.state,now,compact);dex.tex.needsUpdate=true;dexRev=boardDataKey(marketFeed.state,'dexpaid',logos);dexAt=now;}catch(e){console.warn('[pumpfun] dex panel draw',e.message);dex=null;}}
+    for(const w of walls){if(w.failed||!boardVisible(w.mesh))continue;const wallKey=boardDataKey(marketFeed.state,w.board.key,logos);if(!boardRefreshDue(w.rev,wallKey,w.at||0,now,w.board.tickMs))continue;try{mod.drawWallPanel(w.cv,w.board,marketFeed.state,now,compact);w.tex.needsUpdate=true;w.rev=wallKey;w.at=now;}catch(e){console.warn('[pumpfun] wall board draw',w.board.slot,e.message);w.failed=true;}}
+   }}
   if(nearPet&&!petReady)pets();if(petDress)petDress.visible=nearPet;if(keeper)keeper.root.visible=nearPet;
-  if(nearPet){const now=performance.now();if(now-lastPet>(low?50:33)){lastPet=now;birds.forEach((b,i)=>{const a=t*.48+i*2.094;const bx=PET_SHOP.birds.lx+Math.cos(a)*1.1,bz=PET_SHOP.birds.lz+Math.sin(a)*1.8;b.position.set(bx,petFloor(bz)+2.35+Math.sin(a*1.7+i)*.24,bz);b.rotation.set(.05,-a-Math.PI/2,-.16);b.userData.shopAnimate(b,t+i);b.visible=true;});}}
+  if(nearPet){const now=performance.now();if(now-petViewAt>=250){petViewAt=now;camera.updateMatrixWorld();boardVP.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);boardFrustum.setFromProjectionMatrix(boardVP);petInView=boardFrustum.intersectsSphere(petViewSphere);}if(petInView&&now-lastPet>(low?50:33)){lastPet=now;birds.forEach((b,i)=>{const a=t*.48+i*2.094;const bx=PET_SHOP.birds.lx+Math.cos(a)*1.1,bz=PET_SHOP.birds.lz+Math.sin(a)*1.8;b.position.set(bx,petFloor(bz)+2.35+Math.sin(a*1.7+i)*.24,bz);b.rotation.set(.05,-a-Math.PI/2,-.16);b.userData.shopAnimate(b,t+i);b.visible=true;});}}
   else for(const b of birds)b.visible=false;
   if(isOpen()){const now=Date.now(),s=marketFeed.state;if(uiRev!==s.revision)renderPanel();else if(lastAge!==Math.floor(now/1000)){lastAge=Math.floor(now/1000);for(const e of panel.querySelectorAll('small[data-feed]')){const k=e.dataset.feed;e.textContent=e.dataset.baseStatus+(s.updated?.[k]?' · '+ageLabel(s.updated[k],now):'');}for(const b of panel.querySelectorAll('.ph-flash'))if(!(s.flashes?.[b.dataset.feed]?.[b.dataset.key]>now))b.classList.remove('ph-flash');}}
 

@@ -15,7 +15,8 @@ export function buildParts(parts, low=false) {
  for(const [c,geos] of bins){const geo=mergeGeometries(geos);geos.forEach(g=>g.dispose());group.add(new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:c})));}
  return group;
 }
-function plaque(group,url,w,h,x,y,z,yaw=0){const tex=new THREE.TextureLoader().load(url);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.minFilter=THREE.LinearMipmapLinearFilter;const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));m.position.set(x,y,z);m.rotation.y=yaw;group.add(m);return m;}
+const plaqueMaterials=new WeakMap();
+function plaque(group,url,w,h,x,y,z,yaw=0){let assets=plaqueMaterials.get(group);if(!assets){assets=new Map();plaqueMaterials.set(group,assets);}let material=assets.get(url);if(!material){const tex=new THREE.TextureLoader().load(url);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.minFilter=THREE.LinearMipmapLinearFilter;material=new THREE.MeshBasicMaterial({map:tex,toneMapped:false});assets.set(url,material);}const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);m.position.set(x,y,z);m.rotation.y=yaw;group.add(m);return m;}
 export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
  const panels=panelSlots(group,low);

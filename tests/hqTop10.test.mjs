@@ -43,7 +43,7 @@ test('every generated board texture is sRGB, anisotropic and mip-filtered, mobil
  assert.equal(boardScale(true),1);assert.equal(boardScale(false),2);
  for(const low of [false,true]){const t=boardTexture({width:640,height:512},low);assert.equal(t.colorSpace,THREE.SRGBColorSpace);assert.equal(t.minFilter,THREE.LinearMipmapLinearFilter);assert.equal(t.magFilter,THREE.LinearFilter);assert.equal(t.generateMipmaps,true);assert.ok(t.anisotropy>=4);t.dispose();}
  for(const p of ['render','dexpanel','wallpanels'])assert.match(readFileSync(new URL('../js/pumpfun/'+p+'.js',import.meta.url),'utf8'),/boardTexture/);
- const dock=readFileSync(new URL('../js/dock/pumpfun.js',import.meta.url),'utf8');assert.match(dock,/const rows=\(s\[key\]\|\|\[\]\)\.slice\(0,BOARD_ROWS\)/);assert.match(dock,/mod.drawHQBoard\(hq.cv,marketFeed.state,hqBoardAt\)/);
+ const dock=readFileSync(new URL('../js/dock/pumpfun.js',import.meta.url),'utf8');assert.match(dock,/const rows=\(s\[key\]\|\|\[\]\)\.slice\(0,BOARD_ROWS\)/);assert.match(dock,/mod.drawHQBoard\(hq.cv,marketFeed.state,now\)/);
 });
 test('DEX paid returns ten verified rows with the existing ten-check request budget',async()=>{
  const paid=rows.slice(0,10);let orders=0;

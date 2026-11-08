@@ -1,4 +1,4 @@
-import { formatGoldAmount } from '../goldFormat.js';
+import { formatGoldAmount, setGoldText } from '../goldFormat.js';
 import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
 import { installPillyInventory } from '../pillyEntries.js';
@@ -19,7 +19,7 @@ import { createWalker } from '../onfoot/walker.js';
 import { getLocalGear, gearToWire } from '../pirateGear.js';
 import { loadPirate } from '../onfoot/pirate.js';
 import { createFootNet } from '../onfoot/net.js';
-import { createBerthSigns, berthOccupantName } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
+import { createBerthSigns, berthOccupantRawName } from './berthSigns.js'; // [berth-signs] captain name over each occupied berth
 import { locatePoint } from '../islandGeography.js'; // [map-streets] HUD callout
 import { showEmote } from '../emotes.js'; // [Raul emotes] the 2-tab test channel's bubbles
 import { createFollowers } from '../onfoot/followers.js'; // [v106] 3 crew follow you ashore (2 on Low)
@@ -134,7 +134,8 @@ export async function createDock(ctx) {
   // [v102] your equipped pirate gear (js/pvp.js 'pfp-gear'): drawn by window.applyPirateGear (Timothy's gear meshes; a no-op until then)
   // [v105] setLocalGear (js/pirateGear.js) re-dresses the local pirate itself (loadPirate local: true)
   const fnet = createFootNet({ scene, low: LOW, world, docking, getCamera: () => camera });
-  const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map(); // [berth-signs] peer id -> last synced name
+  const signs = createBerthSigns({ scene, berths: layout.berths, low: LOW }), peerNames = new Map();
+  const berthNameForSign = b => berthOccupantRawName(b, docking, ctx.pvp()?.name, peerNames); // [berth-signs] peer id -> last synced name
   // [v335] BANKSY t1785u: the 3D street signs are removed (the 8 junction posts are gone)
   const crewF = new URLSearchParams(location.search).get('followers') === '0' ? null : createFollowers({ scene, world, walker, low: LOW, keepOut: (x, z, i) => battle?.keepOut?.(x, z, i) }); // [Emerly] the crew wait outside the SWORD PIT / MUSKET RANGE
   const zip = createZipline({ scene, world, layout, walker, pirate, crew: crewF, toast: (m, ms) => toast(m, ms), low: LOW }); // [Emerly zipline-v2] pirate grip + crew train
@@ -501,7 +502,7 @@ export async function createDock(ctx) {
   const BERTH_MOVE = new URLSearchParams(location.search).get('berthmove') !== '0', MOVE_R = 3.2;
   function moveBerthNear(W) { if (!BERTH_MOVE || docking.mode !== 'docked' || !docking.berth || W.swim) return null;
     for (const b of layout.berths) { if (!docking.canMoveTo(b)) continue; const sp = signs.post(b);
-      if ((sp && Math.hypot(sp.x - W.x, sp.z - W.z) < MOVE_R) || Math.hypot(b.ashore.x - W.x, b.ashore.z - W.z) < MOVE_R) return b; } return null; }
+      if ((sp && (sp.x - W.x) ** 2 + (sp.z - W.z) ** 2 < MOVE_R * MOVE_R) || (b.ashore.x - W.x) ** 2 + (b.ashore.z - W.z) ** 2 < MOVE_R * MOVE_R) return b; } return null; }
   function moveShipTo(b) { if (!docking.moveTo(P(), b)) { toast('BERTH TAKEN'); return; } skinPick.close(); ctx.sfx?.coin?.(); toast(`⚓ SHIP MOVED TO BERTH ${b.id}`, 2000); }
   function goAshoreAt(x, z, yaw) { // [Emerly sail-around] canoe beach landing (any shore / islet)
     fadeTo(() => { onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
@@ -591,7 +592,7 @@ export async function createDock(ctx) {
   function openCasino(gameId) {
     import('../casino/ui.js').then(m => {
       casinoUi ||= m.createCasinoUi({ pvp: () => ctx.pvp(), getGold: () => (game.gold | 0),
-        setGold: (g, meta) => { const pv = ctx.pvp?.(); if (meta?.fromServer && pv?.serverGold) { try { pv.serverGold(g, meta); } catch {} } /* [v342] the server already moved it: re-base, never sync it twice */ else { game.gold = Math.max(0, Math.min(1e7, Math.floor(+g || 0))); try { pv?.save?.({ now: true, force: true }); } catch {} } try { ctx.updateHud?.(); const el = document.getElementById('gold'); if (el) el.textContent = formatGoldAmount(game.gold); } catch {} },
+        setGold: (g, meta) => { const pv = ctx.pvp?.(); if (meta?.fromServer && pv?.serverGold) { try { pv.serverGold(g, meta); } catch {} } /* [v342] the server already moved it: re-base, never sync it twice */ else { game.gold = Math.max(0, Math.min(1e7, Math.floor(+g || 0))); try { pv?.save?.({ now: true, force: true }); } catch {} } try { ctx.updateHud?.(); const el = document.getElementById('gold'); setGoldText(el, game.gold); } catch {} },
         sfx: (k) => { const f = { win: ctx.sfx?.coin, card: ctx.sfx?.equip, dice: ctx.sfx?.equip, spin: ctx.sfx?.equip }[k]; f?.(); } });
       for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight', 'Space']) { try { walker.onKey({ code, preventDefault() {}, stopPropagation() {} }, false); } catch {} }   // no walking off while seated
       casinoUi.open(gameId);
@@ -692,7 +693,7 @@ export async function createDock(ctx) {
     if (!s.alive) { if (docking.mode !== 'sea') docking.release(); if (onFoot) goAboard(true); }
     const r = docking.tick(s, dt);
     // Refresh occupancy before optional player/world subsystems can interrupt this frame.
-    signs.tick(dt, b => berthOccupantName(b, docking, ctx.pvp()?.name, peerNames));
+    signs.tick(dt, berthNameForSign);
     syncDockHud();
     if (r === 'docked') toast('MOORED · SAFE HARBOR');
     if (r === 'free') { s.anchor = false; s.sail = Math.max(1, s.sail); leftAt = now; }

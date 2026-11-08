@@ -21,7 +21,7 @@ test('peer name, unnamed occupied fallback, open and long names', () => {
 });
 test('occupancy refresh precedes optional world and player update calls', () => {
   assert.ok(dock.indexOf('signs.tick(dt') < dock.indexOf('walker.update(dt)'));
-  assert.match(dock,/berthOccupantName\(b, docking, ctx.pvp\(\)\?\.name, peerNames\)/);
+  assert.match(dock,/berthOccupantRawName\(b, docking, ctx.pvp\(\)\?\.name, peerNames\)/);
 });
 test('open sign move uses Cross prompt instead of jump; keyboard remains E and consumes event', () => {
   assert.equal(resolve(MAP.foot[BTN.A],{prompt:[true,false]}),'promptA');
@@ -47,4 +47,16 @@ test('rendered sign updates captain name and returns to OPEN on release', async 
     assert.equal(scene.children.length,1,'reuse one sign instead of adding a stale second label');
     signs.clear(); assert.equal(scene.children.length,0);
   } finally { if(previous===undefined) delete globalThis.document; else globalThis.document=previous; }
+});
+
+test('unchanged signs retain canvas, material and texture version; cached post reuses coordinates', async () => {
+ const THREE=await import('three'); const old=globalThis.document;let canvases=0,paint=0;
+ globalThis.document={createElement:()=>{canvases++;return {width:0,height:0,getContext:()=>({fillRect(){paint++},strokeRect(){},strokeText(){},fillText(){},measureText:()=>({width:20})})}}};
+ try {const scene=new THREE.Scene(), b={id:'B7',x:0,z:0,ashore:{x:3,z:0,y:1},signBollards:[[0,19],[0,51]]}, signs=createBerthSigns({scene,berths:[b],low:false});
+ const post=signs.post(b);assert.equal(post,signs.post({...b}));let lookups=0;const who=()=>{lookups++;return 'Banksy'};signs.tick(.5,who);
+ const material=scene.children[0].children[1].material,texture=material.map,version=texture.version;
+ for(let i=0;i<1000;i++) signs.tick(.001,who);
+ assert.equal(canvases,1);assert.equal(paint,1);assert.equal(texture.version,version);assert.equal(scene.children[0].children[1].material,material);assert.ok(lookups<=3);
+ let disposed=0;texture.addEventListener('dispose',()=>disposed++);signs.clear();assert.equal(disposed,1);
+ }finally{globalThis.document=old;}
 });

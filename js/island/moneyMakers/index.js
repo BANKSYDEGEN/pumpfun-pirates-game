@@ -1,3 +1,4 @@
+import { batchShopFront } from './staticBatch.js';
 import { formatGoldAmount } from '../../goldFormat.js';
 import { itemIconHtml } from '../../inventory/itemIcon.js';
 // [v349 money-makers] BANKSY t203u "How else could they make money on island?" -> t204u "Add the first 5". Loaded with a dynamic
@@ -69,7 +70,7 @@ export function createMoneyMakers(ctx) {
   const fx = (S, d) => S.x + (S.fx ?? 0) * d, fz = (S, d) => S.z + (S.fz ?? 1) * d;   // [v372] a point d m in front of a stand (toward the shop door)
   const FRONT = { 'WANTED BOARD': 'wanted', 'FIGHT MASTER': 'fight', 'RUM EXPORT': 'rum', 'HARBOR FENCE': 'fence' };
   const FRONT_ID = { rent_2: 'wanted', rent_16: 'fight', rent_3: 'rum', rent_4: 'fence' };   // [hill-shopfronts] by shop id (the fence site is named 'Harbor Fence')
-  const doorBoard = (S) => { if (!S.door) return null; try { const f = shopFront(S, FRONT_ID[S.shop] || FRONT[S.name]); if (f) root.add(f); return f; } catch (e) { console.warn('[mm-front]', e); return null; } };   // [v373] dressed shop fronts
+  const doorBoard = (S) => { if (!S.door) return null; try { const f = shopFront(S, FRONT_ID[S.shop] || FRONT[S.name]); if (f) { batchShopFront(f); root.add(f); } return f; } catch (e) { console.warn('[mm-front]', e); return null; } };   // [v373] dressed shop fronts
   // [hill-shopfronts v3] in the 4 hill-street shops the business is FITTED into the room (shopFronts.js interior: joinery + counter + the wanted board /
   // the gong); the freestanding v349 stall prop is only built where there is no shop (or if the fitted room failed). E spots below are unchanged.
   const fitted = (S, make) => (S.door && doorBoard(S)) || make();
