@@ -4,6 +4,8 @@ Resumed after PumpFun room v495 shipped. Parrot display renamed without key chan
 
 Two client fixes found during stubbed QA: place loaded Pilly before distance-culling (otherwise it stays invisible at the harbor); stack Pilly panel above pet store so purchase button receives clicks.
 
-Headless walking checks passed for docking/ashore and near HQ: Pilly visible and following, game loop advancing, no WebGL context loss. Purchase-path rerun in progress. Supabase and sockets are stubbed; no production writes/deploys.
+Headless walking checks passed for docking/ashore and near HQ: Pilly visible and following, game loop advancing, no WebGL context loss. Full headless QA passed with zero JS errors / Pilly loader warnings; clicking BUY PILLY reached the existing pilly_buy PvP endpoint and returned owned state. Supabase and sockets are stubbed; no production writes/deploys.
+
+Targeted regression suite: 23 passed, 1 optional SQL skip.
 
 QA artifacts: /workspace/pilly-qa.py and /workspace/petstore-shots/ (store.png, hq-pilly.png, logs).
