@@ -18,7 +18,7 @@ function plaque(group,url,w,h,x,y,z,yaw=0){const tex=new THREE.TextureLoader().l
 export function buildHQ(low=false){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
  const panels=panelSlots(group,low);
- const referral=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,-25.2,HQ.floor+4.3,-29.42);referral.userData.referral=true;
+ const referral=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,-25.2,HQ.floor+5.5,-29.3);referral.userData.referral=true;
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});

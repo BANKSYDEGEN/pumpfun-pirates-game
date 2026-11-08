@@ -181,8 +181,8 @@ export function hqParts() {
   for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
-  frameAt(-25.2,Y+4.3,Z1+.28,'n',4.2,1.575,false);   // referral board outside: centred in the bay left of the gate, mirrors the banner
-  B(-25.2,Y+4.3,Z1+.14,4.5,1.9,.28,mahog);   // backing block proud of the string course
+  frameAt(-25.2,Y+5.5,Z1+.4,'n',4.2,1.575,false);   // BANKSY t303u: raised level with the skull banner, clear of the gate torch and the string course   // referral board outside: centred in the bay left of the gate, mirrors the banner
+  B(-25.2,Y+5.5,Z1+.26,4.5,1.9,.28,mahog);   // backing block proud of the string course
   B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)
   // (BANKSY 1:16 AM: no blind arch / wheel opposite Hill Street; plain damask wall there)
