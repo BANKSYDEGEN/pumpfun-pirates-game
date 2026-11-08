@@ -83,6 +83,7 @@ export function villageClear(lx, lz) {   // no trees / palms / grass tufts on th
 export function villageGround(lx, lz, h, plazaY = STREET_Y) {
   if (!VILLAGE_ON || lx < BB[0] - 5 || lx > BB[1] + 5 || lz < BB[2] - 5 || lz > BB[3] + 5) return h;   // fast reject: 1 compare chain off the village
   if (lx > PLAZA_EXT.lx0 - 2 && lx < PLAZA_EXT.lx1 + 2 && lz > PLAZA_EXT.lz0 - 2 && lz < PLAZA_EXT.lz1) h = Math.min(h, plazaY - .06);
+  if (lx > -46.5 && lx < -33.5 && lz > -62.2 && lz < -47.6 && h > 2.68) h = 2.68;   // [v7] HQ yard + its kerb: the 4 m terrain grid no longer ramps up through the paving
   if (lx < -2.5) { let wsum = 0, ysum = 0, hard = 1e9, hit = false;
     for (let i = 0, j = 0; i < NR; i++, j += 4) { const x0 = RT[j], x1 = RT[j + 1], z0 = RT[j + 2], z1 = RT[j + 3];
       const dx = lx < x0 ? x0 - lx : lx > x1 ? lx - x1 : 0, dz = lz < z0 ? z0 - lz : lz > z1 ? lz - z1 : 0; if (dx > 4 || dz > 4) continue;

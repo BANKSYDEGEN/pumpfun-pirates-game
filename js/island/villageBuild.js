@@ -75,31 +75,45 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       WI( box(iw, .12, id), PL, PLASTER, M(0, Hh - .3, 0), false);
       for (let z = -id / 2 + 2.4; z < id / 2 - 1; z += 3.2) WI( box(iw, .4, .4), 0x4a2c18, TIMBER, M(0, Hh - .55, z), false);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) WI( box(.32, Hh - .4, .32), 0x4a2c18, TIMBER, M(sx * (iw / 2 - .2), (Hh - .4) / 2 + .12, sz * (id / 2 - .2)), false);
-      // [v6] Hill Street rent-shop fit-out (near-only kit): big counter in the door's sightline + back shelf unit, tall side shelving,
-      // display table, two rugs, painted sconces, hanging OPEN / TO RENT board, dark plank seams
+      // [v7] rent-shop fit-out (near-only kit): a storeroom partition with a doorway at ~60 % depth keeps the shop floor ~11-12 m deep;
+      // counter + stocked shelf unit against it, full-height side shelving the whole shop depth, table + rugs forward, barrels, crates
+      // and a hanging lantern pair by the door, dark plank seams, painted sconces
       const G = [0xb0453a, 0x2f6f6a, 0xd9b44a, 0x6b4226, 0xe6dccb, 0x35556a, 0x8e6a3a], DK = 0x3a2414, cu = Math.max(-iw / 2 + 3, Math.min(iw / 2 - 3, du));
-      const cw = Math.min(5.2, iw * .6), cz0 = -id / 2 + 3.4;
+      const zp = Math.max(-id / 2 + 1.5, id / 2 - Math.min(11.5, id * .62)), pdu = cu > 0 ? -iw / 2 + 1.6 : iw / 2 - 1.6, pdw = 1.6;
+      { const a0 = -iw / 2, a1 = pdu - pdw / 2, b0 = pdu + pdw / 2, b1 = iw / 2;                                                      // partition
+        if (a1 - a0 > .05) WI(box(a1 - a0, Hh - .4, .3), 0xe9d2a8, PLASTER, M((a0 + a1) / 2, (Hh - .4) / 2 + .12, zp), false);
+        if (b1 - b0 > .05) WI(box(b1 - b0, Hh - .4, .3), 0xe9d2a8, PLASTER, M((b0 + b1) / 2, (Hh - .4) / 2 + .12, zp), false);
+        WI(box(pdw, Hh - 2.9, .3), 0xe9d2a8, PLASTER, M(pdu, 2.6 + (Hh - 2.9) / 2, zp), false);
+        WI(box(pdw + .5, .25, .4), DK, TIMBER, M(pdu, 2.6, zp), false); for (const s of [-1, 1]) WI(box(.2, 2.5, .4), DK, TIMBER, M(pdu + s * (pdw / 2 + .1), 1.37, zp), false); }
+      const cw = Math.min(5.2, iw * .55), cz0 = zp + 2.0;
       WI(box(cw + .2, .16, 1.3), 0xb07a45, TIMBER, M(cu, 1.18, cz0), false); WI(box(cw, 1.0, 1.1), 0x6b4226, TIMBER, M(cu, .6, cz0), false);
-      for (let b = -cw / 2 + .35; b < cw / 2 - .2; b += .7) WI(box(.12, .9, .06), DK, 0, M(cu + b, .6, cz0 + .57), false);          // panel stiles
+      for (let b = -cw / 2 + .35; b < cw / 2 - .2; b += .7) WI(box(.12, .9, .06), DK, 0, M(cu + b, .6, cz0 + .57), false);
       WI(box(.6, .34, .45), 0x6b4226, TIMBER, M(cu - cw * .3, 1.43, cz0), false); WI(box(.32, .22, .32), 0xd9b44a, 0, M(cu + cw * .3, 1.37, cz0), false);
-      { const bw = cw + 1.2, bz = -id / 2 + .32;                                                                                  // back shelf unit
+      { const bw = Math.min(cw + 1.2, Math.abs(pdu - cu) * 2 - pdw - .2), bz = zp + .47;                                         // shelf unit on the partition
         WI(box(bw, 3.4, .6), DK, TIMBER, M(cu, 1.82, bz), false);
         for (const yy of [.9, 1.75, 2.6]) for (let q = -bw / 2 + .4, j = 0; q < bw / 2 - .3; q += .55, j++) { if ((j + o.n + yy * 4 | 0) % 4 === 0) continue;
           const hh = .3 + ((j * 5 + o.n) % 3) * .1; WI(box(.42, hh, .3), G[(j * 3 + o.n + (yy * 7 | 0)) % G.length], 0, M(cu + q, yy + hh / 2, bz + .38), false); } }
-      { const L = Math.min(7, id * .5), sz = id * .08;                                                                             // tall side shelving units
+      { const z0 = zp + .3, z1 = id / 2 - 1.3, L = z1 - z0, sz = (z0 + z1) / 2;                                                    // full-height side shelving
         for (const s of [-1, 1]) { const ux = s * (iw / 2 - .32);
-          WI(box(.6, 3.3, L), DK, TIMBER, M(ux, 1.77, sz), false);
-          for (const yy of [.55, 1.35, 2.15, 2.95]) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .58, j++) { if ((j + o.n + (yy * 5 | 0)) % 5 === 0) continue;
-            const hh = .26 + ((j * 7 + o.n) % 3) * .1; WI(box(.36, hh, .42), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(ux - s * .38, yy + hh / 2, sz + q), false); } } }
-      { const rz = id * .18, rx = Math.max(-iw / 2 + 2.6, Math.min(iw / 2 - 2.6, cu));                                              // rugs + display table
-        WI(box(Math.min(iw - 2.4, 4.4), .03, 3.2), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(rx, .135, rz), false);
-        WI(box(Math.min(iw - 3.2, 3.6), .032, 2.4), 0xd9b44a, 0, M(rx, .14, rz), false);
-        WI(box(2.6, .03, 1.8), [0x2f4f6a, 0x6b3a6a, 0x8e2f26][o.n % 3], 0, M(rx, .135, cz0 + 1.9), false);
+          WI(box(.6, Hh - 1.2, L), DK, TIMBER, M(ux, (Hh - 1.2) / 2 + .12, sz), false);
+          for (let yy = .5; yy < Hh - 1.6; yy += .85) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .62, j++) { if ((j + o.n + (yy * 5 | 0)) % 4 === 0) continue;
+            const hh = .26 + ((j * 7 + o.n) % 3) * .1; WI(box(.36, hh, .44), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(ux - s * .4, yy + hh / 2, sz + q), false); } } }
+      { const rz = zp + (id / 2 - zp) * .6, rx = Math.max(-iw / 2 + 2.6, Math.min(iw / 2 - 2.6, du));                               // rugs + display table, forward
+        WI(box(Math.min(iw - 2.6, 4.4), .03, 3.2), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(rx, .135, rz), false);
+        WI(box(Math.min(iw - 3.4, 3.6), .032, 2.4), 0xd9b44a, 0, M(rx, .14, rz), false);
+        WI(box(Math.min(iw - 2.6, 3.4), .03, 1.6), [0x2f4f6a, 0x6b3a6a, 0x8e2f26][o.n % 3], 0, M(cu, .135, cz0 + 1.6), false);
         WI(box(1.8, .1, 1.0), 0xb07a45, TIMBER, M(rx, .9, rz), false); for (const a of [-1, 1]) for (const c of [-1, 1]) WI(box(.1, .78, .1), DK, 0, M(rx + a * .78, .5, rz + c * .4), false);
         for (let j = 0; j < 3; j++) WI(box(.38, .24 + j * .06, .32), G[(j + o.n) % G.length], 0, M(rx - .5 + j * .5, .95 + (.24 + j * .06) / 2, rz), false); }
-      for (let q = -iw / 2 + 1.0; q < iw / 2 - .5; q += 1.0) WI(box(.04, .012, id - .2), 0x2a1a0e, 0, M(q, .127, 0), false);       // dark plank seams
-      for (const s of [-1, 1]) for (const z of [-id * .3, id * .3]) { WI(box(.12, .5, .3), 0x2a2a2a, 0, M(s * (iw / 2 - .08), 3.6, z), false);   // painted sconces
-        ki.add(new THREE.BoxGeometry(.14, .26, .2), 0xe0a050, { bucket: 'glow', m: M(s * (iw / 2 - .2), 3.65, z), outline: false }); }
+      { const fz = id / 2 - 1.4;                                                                                                   // barrels + crates by the door
+        for (const s of [-1, 1]) { const ux = s * (iw / 2 - 1.5); if (Math.abs(ux - du) < 2.6) continue;
+          WI(cyl(.42, .42, 1.0, 8), 0x7a4a24, TIMBER, M(ux, .62, fz), false); WI(cyl(.44, .44, .06, 8), 0x2a2a2a, 0, M(ux, .85, fz), false);
+          WI(box(.8, .7, .8), 0xa07a45, TIMBER, M(ux - s * 1.0, .47, fz + .2), false); WI(box(.6, .5, .6), 0x8a6a3a, TIMBER, M(ux - s * 1.0, 1.07, fz + .2, .3), false); } }
+      for (const a of [-1.5, 1.5]) { const lz = id / 2 - 2.6; WI(cyl(.015, .015, 1.0, 4), 0x222222, 0, M(du + a, Hh - .9, lz), false);  // hanging lantern pair by the door
+        WI(box(.36, .06, .36), 0x1d1d1d, 0, M(du + a, Hh - 1.42, lz), false); WI(box(.3, .05, .3), 0x1d1d1d, 0, M(du + a, Hh - 1.9, lz), false);
+        ki.add(new THREE.BoxGeometry(.22, .42, .22), 0xffc46b, { bucket: 'glow', m: M(du + a, Hh - 1.66, lz), outline: false }); }
+      for (let q = -iw / 2 + 1.0; q < iw / 2 - .5; q += 1.0) WI(box(.04, .012, id / 2 - zp - .2), 0x2a1a0e, 0, M(q, .127, (zp + id / 2) / 2), false);   // dark plank seams
+      for (const s of [-1, 1]) for (const z of [zp + 1.2, id / 2 - 3.5]) { WI(box(.12, .5, .3), 0x2a2a2a, 0, M(s * (iw / 2 - .08), 4.0, z), false);   // painted sconces (above the shelving)
+        ki.add(new THREE.BoxGeometry(.14, .26, .2), 0xe0a050, { bucket: 'glow', m: M(s * (iw / 2 - .2), 4.05, z), outline: false }); }
       { const hz = id / 2 - 1.6; for (const a of [-.6, .6]) WI(cyl(.015, .015, .9, 4), 0x222222, 0, M(du + a, Hh - .85, hz), false);   // hanging OPEN board
         WI(box(1.6, .7, .06), 0x3d2a1c, TIMBER, M(du, Hh - 1.6, hz), false);
         if (sign) { const [lx, lz] = rot(f, du, hz + .05); sign('village_open', 1.4, .55, lx, y + Hh - 1.6, lz, f.yaw); } }
@@ -139,13 +153,16 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
         sign('village_rent', 2.4, 1.2, lx, yy, lz, ly); sign('village_rent', 2.4, 1.2, lx, yy, lz, ly + Math.PI); }   // [v4] back-wall TO RENT board dropped (perf)
     }, y);
     if (o.annex) { const [a0, a1, b0, b1] = o.annex, cx = (a0 + a1) / 2, cz = (b0 + b1) / 2, aw = a1 - a0, ad = b1 - b0, hh = top0(o);
-      at(cx, cz, 0, () => { W(k, box(aw, hh + 1.5, ad), STONES[2], MASON, M(0, (hh + 1.5) / 2 - 1.5, 0));
+      at(cx, cz, 0, () => { W(k, box(aw, hh + 4.5, ad), STONES[2], MASON, M(0, (hh + 4.5) / 2 - 4.5, 0));   // [v7] down to the cut yard grade
         for (const s of [-1, 1]) W(k, box(aw + .4, .32, ad / 2 / Math.cos(.5) + .3), ROOFS[(o.n * 5) % ROOFS.length], 4, M(0, hh + Math.tan(.5) * ad / 4, s * ad / 4, 0, s * .5)); }, y);
       addBox(...T(cx, cz), aw, ad, yaw0); }
     // colliders: back, party walls, door piers (never across the bay), counter; floor deck incl. the threshold; camera room
     wallBox(f, 0, -d / 2 + t / 2, w, t); for (const s of [-1, 1]) wallBox(f, s * (w / 2 - t / 2), 0, t, d);
     { const pl = dl + w / 2, pr = w / 2 - dr; if (pl > .05) wallBox(f, -w / 2 + pl / 2, d / 2 - t / 2, pl, t); if (pr > .05) wallBox(f, w / 2 - pr / 2, d / 2 - t / 2, pr, t); }
-    wallBox(f, 0, -(d - 2 * t) / 2 + 2.0, Math.min(3.6, (w - 2 * t) * .45), 1.0);
+    { const iw = w - 2 * t, id = d - 2 * t, cu = Math.max(-iw / 2 + 3, Math.min(iw / 2 - 3, du)), zp = Math.max(-id / 2 + 1.5, id / 2 - Math.min(11.5, id * .62)), pdu = cu > 0 ? -iw / 2 + 1.6 : iw / 2 - 1.6;
+      wallBox(f, cu, zp + 2.0, Math.min(5.2, iw * .55) + .2, 1.3);                                              // [v7] counter
+      const a1 = pdu - .8, b0 = pdu + .8; if (a1 + iw / 2 > .05) wallBox(f, (a1 - iw / 2) / 2, zp, a1 + iw / 2, .3); if (iw / 2 - b0 > .05) wallBox(f, (b0 + iw / 2) / 2, zp, iw / 2 - b0, .3);   // partition
+      for (const s of [-1, 1]) wallBox(f, s * (iw / 2 - .32), (zp + id / 2 - 1.0) / 2, .6, id / 2 - 1.0 - zp); }   // side shelving
     { const sw = Math.abs(Math.cos(f.yaw)) > .5, [lx, lz] = rot(f, 0, .35), c = T(lx, lz); h.addDeck?.({ id: 'village_' + o.n, x: c[0], z: c[1], hw: (sw ? w : d + .7) / 2 - .3, hl: (sw ? d + .7 : w) / 2 - .3, yaw: yaw0, y: y + .12 }); }
     { const a = rot(f, -w / 2 + t + .2, -d / 2 + t + .2), b = rot(f, w / 2 - t - .2, d / 2 - t - .2);
       camRoom({ id: 'village_' + o.n, lx0: Math.min(a[0], b[0]), lx1: Math.max(a[0], b[0]), lz0: Math.min(a[1], b[1]), lz1: Math.max(a[1], b[1]) }, Hh - .6, y); }
