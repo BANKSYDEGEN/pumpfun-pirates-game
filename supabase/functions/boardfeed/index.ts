@@ -50,7 +50,7 @@ async function refresh(previous:any){
  return await publish(true);
 }
 async function refreshOnce(row:any){if(work)return work;work=(async()=>{if(!await lease())return row?.payload;return await refresh(row?.payload);})().finally(()=>{work=null;});return work;}
-const MINTSYM:Record<string,string>={'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump':'AHOY','By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump':'SUNK','So11111111111111111111111111111111111111112':'SOL'};
+const MINTSYM:Record<string,string>={'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump':'AHOY','By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump':'SUNK','So11111111111111111111111111111111111111112':'SOL','pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn':'PUMP'};
 let tradeCache:any=null,tradeAt=0;
 async function recentTrades(){if(tradeCache&&Date.now()-tradeAt<5000)return tradeCache;const out:any={AHOY:[],SUNK:[]};let last=0;
  for(const t of TOKENS){const r=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/helius_trades?select=signature,side,token_amount,quote_mint,quote_amount,sol_amount,wallet_short,block_time,received_at&mint=eq.'+t.ca+'&order=block_time.desc&limit=20',{headers:headers(),signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('trades unavailable');
