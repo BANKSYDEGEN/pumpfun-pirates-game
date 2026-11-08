@@ -1,5 +1,5 @@
 // [berth-signs] BANKSY "make the berth sign say the player name" / "put captain name on the b1 sign not floating in air": an occupied
-// berth's own numbered post board (plazaTown: 18 m inshore of the ship's midship, 1.9 m up) gets a face on each side reading the
+// berth's own numbered post board (fixed jetty station, 1.9 m up) gets a face on each side reading the
 // berth number + the moored captain (you, or a peer via their synced dk + n). Empty berth = the plain baked board (number only).
 // One canvas texture per occupied berth, redrawn only when its captain changes (checked ~2x a second, never per frame).
 import * as THREE from 'three';
@@ -13,8 +13,8 @@ export function createBerthSigns({ scene, berths, low }) {
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff1d2'; fit(g, id, H * 0.42, w, H * 0.2); g.fillText(id, W / 2, H * 0.3, w);
     g.fillStyle = '#ffd36b'; fit(g, name, H * 0.3, w, H * 0.12); g.fillText(name, W / 2, H * 0.7, w); sg.tex.needsUpdate = true; sg.name = name;
   }
-  // the berth's post: plazaTown puts it at (ashore lx, berth lz - 18); bollards sit at lz -16 / +16 on the same line
-  function post(b) { const [p, q] = b.bollards || [], ax = b.ashore.x - b.x, az = b.ashore.z - b.z, n = Math.hypot(ax, az) || 1;
+  // Sign-only reference points retain the pre-v418 station; physical bollards and ships can move independently.
+  function post(b) { const [p, q] = b.signBollards || b.bollards || [], ax = b.ashore.x - b.x, az = b.ashore.z - b.z, n = Math.hypot(ax, az) || 1;
     if (!p || !q || !/^B\d+$/.test(b.id)) return null;
     // [v243] the baked board (plazaTown) faces ACROSS the jetty (side * PI/2), i.e. perpendicular to the bollard line; the v238 faces
     // faced along the line (berth -> ashore), so they sat edge-on inside the board and the name never showed

@@ -58,6 +58,8 @@ export const SHIP = { hullLen: 44.12, beam: 10.37, yardW: 22.56, aft: 23.96, fwd
 export const BOARDWALK = { lx0: -176, lxS: -55, lx1: 100, lz0: 0, lz1: 8, yW: Y_DECK, yE: STREET_Y + 0.02 };
 export const bwY = (lx) => { const B = BOARDWALK; return lx <= B.lx0 ? B.yW : lx >= B.lxS ? B.yE : B.yW + (B.yE - B.yW) * (lx - B.lx0) / (B.lxS - B.lx0); };
 export const JETTY = { w: 12, lz0: BOARDWALK.lz1, lz1: 59, shipOff: 14.5, shipLz: 45 };
+// Signage stays on the original jetty stations, independently of ship parking.
+export const BERTH_SIGN_LZ = 35 - 18;
 const JETTY_LX = [-150, -98, -46, 6, 58];                      // lx 6 = on the Main Street axis (arrival looks straight up it)
 export const JETTIES = JETTY_LX.map((lx, i) => ({ id: 'J' + (i + 1), lx, y: +bwY(lx).toFixed(3), lz0: JETTY.lz0 }));   // timber, rooted flush in the boardwalk
 export const BERTHS = JETTIES.flatMap((j, i) => [-1, 1].map((s, k) => ({ id: 'B' + (i * 2 + k + 1), jetty: j.id, lx: j.lx + s * JETTY.shipOff, lz: JETTY.shipLz, ly: 0,
@@ -163,6 +165,7 @@ export function harborParts(L, yawW) {
   const berths = BERTHS.map(b => { const [x, z] = L(b.lx, b.lz), [ax, az] = L(b.ashore.lx, b.ashore.lz);
     const j = JETTIES.find(j => j.id === b.jetty), [ex, ez] = L(j.lx + b.side * JETTY.w / 2, b.lz), [nx, nz] = L(j.lx + b.side * (JETTY.w / 2 + 1), b.lz);
     return { id: b.id, x, z, edge: { x: ex, z: ez }, away: { x: nx-ex, z: nz-ez }, yaw: yawW(b.ly), len: SHIP.hullLen, beam: SHIP.beam, quay: false, ashore: { x: ax, z: az, y: b.ashore.y },
+      signBollards: [L(b.ashore.lx, BERTH_SIGN_LZ + 2), L(b.ashore.lx, BERTH_SIGN_LZ + 34)],
       bollards: [L(b.ashore.lx, b.lz - 16), L(b.ashore.lx, b.lz + 16)], out: sea }; });
   const decks = BW_SEGS.map(([a, b, y], i) => { const [x, z] = L((a + b) / 2, (BOARDWALK.lz0 + BOARDWALK.lz1) / 2); return { id: 'bw2_' + i, x, z, yaw: yawW(Math.PI / 2), hl: (b - a) / 2 + 0.05, hw: (BOARDWALK.lz1 - BOARDWALK.lz0) / 2 + 0.5, y }; }); // along = lx (world.js shrinks only the across edges by 0.35)
   decks.push(...JETTIES.map(j => { const lz0 = j.lz0 - 1, [x, z] = L(j.lx, (lz0 + JETTY.lz1) / 2); return { id: 'jetty_' + j.id, x, z, yaw: yawW(0), hw: JETTY.w / 2, hl: (JETTY.lz1 - lz0) / 2, y: j.y }; })); // root overlaps the boardwalk by 1 m
@@ -484,8 +487,8 @@ export function buildPlazaV2(h) {
     }, 0);
     if (!DOCKS_KIT) for (const sx of [-1, 1]) for (const zz of [-16, 0, 16]) addCirc(...T(j.lx + sx * (JETTY.w / 2 - 0.5), JETTY.shipLz + zz), 0.4);
     for (const sx of [-1, 1]) { const [x, z] = T(j.lx + sx * (JETTY.w / 2 - 0.6), JETTY.lz1 - 1); torchPost(k, F, x, j.y, z); addCirc(x, z, 0.3); const [x0, z0] = T(j.lx + sx * (JETTY.w / 2 + 0.6), BOARDWALK.lz1 - 0.6); torchPost(k, F, x0, bwY(j.lx), z0); addCirc(x0, z0, 0.3); } }
-  if (!DOCKS_KIT) for (const b of BERTHS) { addCirc(...T(b.ashore.lx, b.lz - 18), 0.3); at(b.ashore.lx, b.lz - 18, 0, () => { W(k, box(0.2, 1.6, 0.2), C.WOOD_D, 2, M(0, 0.8, 0), false); W(k, box(0.14, 0.9, 1.7), C.WOOD_D, 2, M(0, 1.9, 0)); }, b.ashore.y);
-    sign('berth_' + b.id, 1.5, 0.8, b.ashore.lx + b.side * 0.08, b.ashore.y + 1.9, b.lz - 18, b.side * Math.PI / 2); }
+  if (!DOCKS_KIT) for (const b of BERTHS) { addCirc(...T(b.ashore.lx, b.lz - 18), 0.3); at(b.ashore.lx, BERTH_SIGN_LZ, 0, () => { W(k, box(0.2, 1.6, 0.2), C.WOOD_D, 2, M(0, 0.8, 0), false); W(k, box(0.14, 0.9, 1.7), C.WOOD_D, 2, M(0, 1.9, 0)); }, b.ashore.y);
+    sign('berth_' + b.id, 1.5, 0.8, b.ashore.lx + b.side * 0.08, b.ashore.y + 1.9, BERTH_SIGN_LZ, b.side * Math.PI / 2); }
   return signs;
 }
 
