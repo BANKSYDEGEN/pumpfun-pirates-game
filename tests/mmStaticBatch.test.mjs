@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as THREE from 'three';
-import {batchShopFront} from '../js/island/moneyMakers/staticBatch.js';
+import './helpers/threeRegister.mjs';   // [village-opt] resolve the browser importmap's 'three' in Node (was: ERR_MODULE_NOT_FOUND without node_modules)
+const THREE = await import('three');
+const {batchShopFront} = await import('../js/island/moneyMakers/staticBatch.js');
 test('static merge preserves triangles, exact material and transformed bounds',()=>{
  const scene=new THREE.Group(),root=new THREE.Group();scene.add(root);root.position.set(120,10,-80);root.rotation.y=.7;
  const mat=new THREE.MeshLambertMaterial({color:0xabcd12});let tris=0;

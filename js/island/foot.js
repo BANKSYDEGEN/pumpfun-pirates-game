@@ -1476,7 +1476,7 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
   const coast = COASTM ? buildCoast(atlas.R, low, F, decorHulls).build(MATS, OUT) : null; if (coast) { coast.name = 'foot_coast'; root.add(coast); }
   const battery = coast ? BT.createGuns(root, MATS, OUT, low) : null; // [Timothy] the headland battery's 6 playable guns (4 draw calls)
   if (coast && PLAZA_V2_SIGNS) { const sg = PV.buildPlazaSigns(PLAZA_V2_SIGNS); if (sg) root.add(sg); const sh = PV.buildBerthPreview(); if (sh) root.add(sh); } // [Timothy] v2 sign labels (1 draw call)
-  if (coast && PLAZA_V2_SIGNS && PV.buildVillagePools) { const vp = PV.buildVillagePools(); if (vp) root.add(vp); } if (coast && PV.buildVillageInteriors) { const vi = PV.buildVillageInteriors(MATS, OUT); if (vi) root.add(vi); }   // [v5] near-only rental interiors // [post-village v3] painted light pools
+  if (coast && PLAZA_V2_SIGNS && PV.buildVillagePools) { const vp = PV.buildVillagePools(); if (vp) root.add(vp); } if (coast && PV.buildVillageArt) { const va = PV.buildVillageArt(MATS, OUT, { low, sync: typeof location !== "undefined" && /[?&]villagesync=1/.test(location.search) }); if (va) { root.add(va.group); va.done.then(g => { globalThis.__villageArt = g.userData.build; }); } }   // [village-opt] village art + near-only interiors, built in time slices after the coast // [post-village v3] painted light pools
   if (coast && PLAZA_V2_SIGNS) { const ps = PV.buildPlazaShops(); if (ps) root.add(ps); } // [Timothy] Blender storefront models (plazaShops.js; null = blockout shells)
   // kit groups (one merged mesh each, distance-culled): town kit (street, lighthouse, bridge, cove...) + nature kit (skull, rocks)
   const groups = []; let kitN = 0, kitTris = 0, natN = 0, natTris = 0;
@@ -1611,9 +1611,12 @@ export function createFoot({ scene, isle, MATS, OUT, low, atlas, uTime, uWaves, 
     return { y, inside: Math.abs(across) <= B.half }; }
   // [Raul] dig mounds are walked ON (the beach one outside the plaza sank your feet 0.7 m into it): the mound's dome (r 1.9, 0.855 tall at d.y - 0.1, shrinks as it's dug)
   function moundAt(x, z, h) { for (const d of digs) { if (!d.mound.visible) continue; const s = d.mound.scale.x, r = Math.hypot(x - d.x, z - d.z) / (1.9 * s); if (r < 1) h = Math.max(h, d.y - 0.1 + 0.855 * s * Math.sqrt(1 - r * r)); } return h; }
+  const VROAD = !!(COASTM && PV.VILLAGE_ON && PV.villageRoadY);   // [village-opt] false in production (village paused)
   function groundAt(x, z) { const hb = highBridgeAt(x, z); if (hb) return hb.y + 0.12; const b = bridgeAt(x, z); if (b) return b.y + 0.12; const ad = AREA_DECKS.length ? areaDeckAt(x, z) : null; if (ad !== null) return ad; // [island-rework] area decks (docks, stairs, ramps, ramparts) ARE the floor
     const h0 = H(x, z), w = COASTM ? BA.onPath(...CO.w2t(x, z)) : 0; // [Emerly] battle-area paths: walk on the drawn triangles
-    const h = moundAt(x, z, w > 0 ? h0 + (Htri(x, z) - h0) * w : h0), c = coveDeckAt(x, z); return c !== null && c > h ? c : h; }
+    let h = moundAt(x, z, w > 0 ? h0 + (Htri(x, z) - h0) * w : h0); const c = coveDeckAt(x, z); if (c !== null && c > h) h = c;
+    if (VROAD) { const t = CO.w2t(x, z), ry = PV.villageRoadY(t[0], t[1]); if (ry !== null && ry > h) h = ry; }   // [village-opt] stand ON the graded village roads (QA flag only)
+    return h; }
   const DECK_STEP = 0.6; // [island-rework] the biggest step up onto / along an area deck (stair treads are <= 0.25)
   // [Raul] foot physics (BANKSY "fall off cliffs" + "float / swim"): you may now walk OFF any ledge (js/onfoot/physics.js drops you
   // with gravity) and into water (deeper than chest height = swim at the surface). Uphill keeps the v105 grade limit; out of the

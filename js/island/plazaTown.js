@@ -32,8 +32,8 @@ import { ON_PORTAL } from '../config.js';
 import { TOKENX_ON, HALL_BOARDS_ON, hallTokenHidden } from './coast.js';   // [v240] kill switches: &tokenx=1 kiosk, &hallboards=1 hall posters + TRENDING row
 import { SHOPS_KIT, SHOP_PLACES, SHIP_STORE_PLACES, DOCKS_KIT, DOCK_PLACES } from './plazaShops.js';   // [Timothy] Blender storefront models (loaded before createFoot)
 const PHONE_TEX = (() => { try { return matchMedia('(pointer: coarse)').matches || /[?&]quality=low/.test(location.search); } catch { return false; } })(); // [mobile-perf-2] phones: smaller runtime canvases
-export { VILLAGE_ON, villageGround, villageClear, VILLAGE_RENTALS, VILLAGE_LOTS, VILLAGE_ROADS } from './village.js';   // [post-village]
-import { buildVillage } from './villageBuild.js'; export { buildVillagePools, buildVillageInteriors } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
+export { VILLAGE_ON, villageGround, villageRoadY, villageClear, VILLAGE_RENTALS, VILLAGE_LOTS, VILLAGE_ROADS } from './village.js';   // [post-village]
+import { buildVillage } from './villageBuild.js'; export { buildVillagePools, buildVillageArt } from './villageBuild.js'; import { villageClear as vClear } from './village.js';
 export { hillLot, hillClear, bigShop, rentLot, squadHall, hallGround, hallFront, squadOverlap } from './hillStreet.js';   // [Timothy] foot.js buildStreet: the Blender hill street lots (js/island/hillStreet.js)
 export { buildPlazaShops, plazaShopsReady } from './plazaShops.js';
 export { casinoSite, casinoGround, casinoClear, casinoOverlap } from './casino.js';   // [Timothy] THE GOLDEN DOUBLOON CASINO (#47): foot.js terrain + buildStreet + grass hooks

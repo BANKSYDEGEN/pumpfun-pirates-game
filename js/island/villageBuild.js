@@ -8,9 +8,31 @@ import { Kit } from './kit.js';
 import { HQ } from '../pumpfun/site.js';
 import { VILLAGE_ON, VILLAGE_ROADS, VILLAGE_LOTS, VILLAGE_HALL, PLAZA_EXT, lotFrame, floorOf, roadY } from './village.js';
 const POOLS = [];   // [x, y, z, r] foot-world, filled by buildVillage, drawn by buildVillagePools
+// [village-opt] the village used to be folded into the ONE coast kit mesh, synchronously inside buildCoast: ~130-200 ms of
+// Kit.add (de-index, vertex colours, terrain AO, outline shells) on the harbor load path, a coast mesh that could never be
+// culled (the village drew whenever any of the waterfront was on screen) and coast piece ids shifted by the village's pieces.
+// Now buildVillage only RECORDS the art (RecKit: the same add() arguments + the parent matrix at that moment); colliders,
+// decks, camera rooms, signs and the ground stay synchronous. buildVillageArt() replays the records later in small time
+// slices into separate kits: 4 quadrant meshes (frustum culled), outline shells hidden past ~220 m, one near-only LOD per
+// rental interior. Same geometry, colours, AO and materials as before (no new shader programs).
+class RecKit {
+  constructor(src = null) { this.stack = src ? src.stack : [new THREE.Matrix4()]; this.q = []; this.ao = src ? src.ao : null; }
+  at(m, fn) { this.stack.push(this.stack[this.stack.length - 1].clone().multiply(m)); fn(); this.stack.pop(); }
+  add(geo, color, opts = {}) { this.q.push([geo, color, opts, this.stack[this.stack.length - 1].clone()]); return geo; }
+}
+// [village-opt] a BoxGeometry without the faces nobody can see (BoxGeometry face order: +x, -x, +y, -y, +z, -z)
+const LAZY = (make) => ({ lazy: make });   // [village-opt] geometry built at replay time, not on the load path
+const realGeo = (g) => (g && g.lazy ? g.lazy() : g);
+function openBox(w, h, d, drop) { return LAZY(() => openBoxNow(w, h, d, drop)); }
+function openBoxNow(w, h, d, drop) { const g = new THREE.BoxGeometry(w, h, d), I = g.index.array, keep = [];
+  for (let f = 0; f < 6; f++) if (!drop.includes(f)) for (let i = 0; i < 6; i++) keep.push(I[f * 6 + i]);
+  g.setIndex(keep); g.clearGroups(); return g; }
+const EXT = { k: null, ao: null };   // the recorded exterior art (buildVillageArt replays it)
 export function buildVillage(h, { camRoom, Y0, C, sign }) {
   if (!VILLAGE_ON) return 0;
-  const { k, W, box, cyl, M, at, addBox, T, low, yaw0 } = h, MASON = 11, TRIM = 22, TIMBER = 26, PLASTER = 24, PLANKS = 27;
+  const { W, M, at, addBox, T, low, yaw0 } = h, MASON = 11, TRIM = 22, TIMBER = 26, PLASTER = 24, PLANKS = 27;
+  const box = (a, b, c) => LAZY(() => new THREE.BoxGeometry(a, b, c)), cyl = (a, b, c, n = 10) => LAZY(() => new THREE.CylinderGeometry(a, b, c, n));   // same as foot.js box / cyl, deferred
+  const k = new RecKit(h.k); EXT.k = k; EXT.ao = h.k.ao;   // [village-opt] shares the coast kit's matrix stack (h.at pushes onto it)
   const STONES = [0xc9bfae, 0xb9b2a6, 0xd6c7a8, 0xa99f90, 0xcfc2a2, 0xb5ab9a], QUOIN = 0x8a837a, GRAVEL = 0xc9bfae;
   const ROOFS = [...C.ROOFS, 0x8e4a2c, 0x6f5546, 0xa8542e];
   POOLS.length = 0;
@@ -45,12 +67,15 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
   // ---- buildings ----
   const rot = (f, u, v) => [f.cx + u * Math.cos(f.yaw) + v * Math.sin(f.yaw), f.cz - u * Math.sin(f.yaw) + v * Math.cos(f.yaw)];
   const wallBox = (f, u, v, a, b) => { const [lx, lz] = rot(f, u, v), sw = Math.abs(Math.cos(f.yaw)) > .5; addBox(...T(lx, lz), sw ? a : b, sw ? b : a, yaw0); };
-  // [v5 perf] interiors go in their own kits (4 clusters), drawn only near (THREE.LOD in buildVillageInteriors)
-  INTERIORS.length = 0; const KI = [0, 1, 2, 3].map(() => { const q = new Kit(); q.ao = k.ao; return { k: q, n: 0, x: 0, z: 0 }; });
+  // [v5 perf] interiors go in their own kits, drawn only near ([village-opt] one LOD per rental, built by buildVillageArt)
+  INTERIORS.length = 0;   // [village-opt] one near-only interior per rental (was 4 clusters: a cluster showed ~6 interiors at once)
   let ki = null; const WI = (g, c, mat, m, o) => { ki.stack.push(k.stack[k.stack.length - 1].clone()); W(ki, g, c, mat, m, o); ki.stack.pop(); };
+  // [village-opt] lantern / sconce glow boxes were ki.add()ed straight onto the interior kit, whose stack lacked the building's
+  // matrix: all 23 rentals' glows landed stacked at the foot-world origin (~540 m away) and the lanterns inside stayed unlit.
+  const KA = (g, c, o) => { ki.stack.push(k.stack[k.stack.length - 1].clone()); ki.add(g, c, o); ki.stack.pop(); };
   let n = 0;
   for (const o of VILLAGE_LOTS) {
-    { const cl = KI[((o.lx0 + o.lx1) / 2 < -80 ? 0 : 1) + ((o.lz0 + o.lz1) / 2 < -85 ? 0 : 2)], [x, z] = T((o.lx0 + o.lx1) / 2, (o.lz0 + o.lz1) / 2); ki = cl.k; cl.n++; cl.x += x; cl.z += z; }
+    { const [x, z] = T((o.lx0 + o.lx1) / 2, (o.lz0 + o.lz1) / 2); ki = new RecKit(); INTERIORS.push({ k: ki, x, z }); }
     const f = lotFrame(o), y = floorOf(o), w = f.w - .1, d = f.d - .1, grand = o.n === 7, Hh = grand ? VILLAGE_HALL.grand : VILLAGE_HALL.h, t = VILLAGE_HALL.wall;
     const v = (o.n * 7 + 3) % 6, du = f.du, door = Math.min(4.0, w * .36), dl = du - door / 2, dr = du + door / 2;
     const col = grand ? 0xb0453a : (o.fam === 't' ? [0x3f8f88, 0x2f6f6a, 0x4c9a8f][v % 3] : [0xd9b44a, 0xc99a2e, 0xe0c56e][v % 3]);
@@ -92,12 +117,12 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       { const bw = Math.min(cw + 1.2, Math.abs(pdu - cu) * 2 - pdw - .2), bz = zp + .47;                                         // shelf unit on the partition
         WI(box(bw, 3.4, .6), DK, TIMBER, M(cu, 1.82, bz), false);
         for (const yy of [.9, 1.75, 2.6]) for (let q = -bw / 2 + .4, j = 0; q < bw / 2 - .3; q += .55, j++) { if ((j + o.n + yy * 4 | 0) % 4 === 0) continue;
-          const hh = .3 + ((j * 5 + o.n) % 3) * .1; WI(box(.42, hh, .3), G[(j * 3 + o.n + (yy * 7 | 0)) % G.length], 0, M(cu + q, yy + hh / 2, bz + .38), false); } }
+          const hh = .3 + ((j * 5 + o.n) % 3) * .1; WI(openBox(.42, hh, .3, yy < 1.5 ? [5, 3] : [5]), G[(j * 3 + o.n + (yy * 7 | 0)) % G.length], 0, M(cu + q, yy + hh / 2, bz + .38), false); } }
       { const z0 = zp + .3, z1 = id / 2 - 1.3, L = z1 - z0, sz = (z0 + z1) / 2;                                                    // full-height side shelving
         for (const s of [-1, 1]) { const ux = s * (iw / 2 - .32);
           WI(box(.6, Hh - 1.2, L), DK, TIMBER, M(ux, (Hh - 1.2) / 2 + .12, sz), false);
           for (let yy = .5; yy < Hh - 1.6; yy += .85) for (let q = -L / 2 + .35, j = 0; q < L / 2 - .3; q += .62, j++) { if ((j + o.n + (yy * 5 | 0)) % 4 === 0) continue;
-            const hh = .26 + ((j * 7 + o.n) % 3) * .1; WI(box(.36, hh, .44), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(ux - s * .4, yy + hh / 2, sz + q), false); } } }
+            const hh = .26 + ((j * 7 + o.n) % 3) * .1; WI(openBox(.36, hh, .44, yy < 1.5 ? [s > 0 ? 0 : 1, 3] : [s > 0 ? 0 : 1]), G[(j + o.n + (yy * 10 | 0)) % G.length], 0, M(ux - s * .4, yy + hh / 2, sz + q), false); } } }
       { const rz = zp + (id / 2 - zp) * .6, rx = Math.max(-iw / 2 + 2.6, Math.min(iw / 2 - 2.6, du));                               // rugs + display table, forward
         WI(box(Math.min(iw - 2.6, 4.4), .03, 3.2), [0x8e2f26, 0x2f4f6a, 0x6b3a6a][o.n % 3], 0, M(rx, .135, rz), false);
         WI(box(Math.min(iw - 3.4, 3.6), .032, 2.4), 0xd9b44a, 0, M(rx, .14, rz), false);
@@ -110,15 +135,15 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
           WI(box(.8, .7, .8), 0xa07a45, TIMBER, M(ux - s * 1.0, .47, fz + .2), false); WI(box(.6, .5, .6), 0x8a6a3a, TIMBER, M(ux - s * 1.0, 1.07, fz + .2, .3), false); } }
       for (const a of [-1.5, 1.5]) { const lz = id / 2 - 2.6; WI(cyl(.015, .015, 1.0, 4), 0x222222, 0, M(du + a, Hh - .9, lz), false);  // hanging lantern pair by the door
         WI(box(.36, .06, .36), 0x1d1d1d, 0, M(du + a, Hh - 1.42, lz), false); WI(box(.3, .05, .3), 0x1d1d1d, 0, M(du + a, Hh - 1.9, lz), false);
-        ki.add(new THREE.BoxGeometry(.22, .42, .22), 0xffc46b, { bucket: 'glow', m: M(du + a, Hh - 1.66, lz), outline: false }); }
-      for (let q = -iw / 2 + 1.0; q < iw / 2 - .5; q += 1.0) WI(box(.04, .012, id / 2 - zp - .2), 0x2a1a0e, 0, M(q, .127, (zp + id / 2) / 2), false);   // dark plank seams
+        KA(new THREE.BoxGeometry(.22, .42, .22), 0xffc46b, { bucket: 'glow', m: M(du + a, Hh - 1.66, lz), outline: false }); }
+      for (let q = -iw / 2 + 1.0; q < iw / 2 - .5; q += 1.0) WI(openBox(.04, .012, id / 2 - zp - .2, [0, 1, 3, 4, 5]), 0x2a1a0e, 0, M(q, .127, (zp + id / 2) / 2), false);   // dark plank seams
       for (const s of [-1, 1]) for (const z of [zp + 1.2, id / 2 - 3.5]) { WI(box(.12, .5, .3), 0x2a2a2a, 0, M(s * (iw / 2 - .08), 4.0, z), false);   // painted sconces (above the shelving)
-        ki.add(new THREE.BoxGeometry(.14, .26, .2), 0xe0a050, { bucket: 'glow', m: M(s * (iw / 2 - .2), 4.05, z), outline: false }); }
+        KA(new THREE.BoxGeometry(.14, .26, .2), 0xe0a050, { bucket: 'glow', m: M(s * (iw / 2 - .2), 4.05, z), outline: false }); }
       { const hz = id / 2 - 1.6; for (const a of [-.6, .6]) WI(cyl(.015, .015, .9, 4), 0x222222, 0, M(du + a, Hh - .85, hz), false);   // hanging OPEN board
         WI(box(1.6, .7, .06), 0x3d2a1c, TIMBER, M(du, Hh - 1.6, hz), false);
         if (sign) { const [lx, lz] = rot(f, du, hz + .05); sign('village_open', 1.4, .55, lx, y + Hh - 1.6, lz, f.yaw); } }
       for (const z of id > 12 ? [-id * .22, id * .22] : [0]) { WI( cyl(.02, .02, 1.3, 4), 0x222222, 0, M(0, Hh - 1.0, z), false); WI(box(.46, .08, .46), 0x1d1d1d, 0, M(0, Hh - 1.69, z), false); WI(box(.4, .06, .4), 0x1d1d1d, 0, M(0, Hh - 2.2, z), false);
-        ki.add(new THREE.BoxGeometry(.3, .44, .3), 0xffc46b, { bucket: 'glow', m: M(0, Hh - 1.95, z), outline: false });
+        KA(new THREE.BoxGeometry(.3, .44, .3), 0xffc46b, { bucket: 'glow', m: M(0, Hh - 1.95, z), outline: false });
         const [lx, lz] = rot(f, 0, z), [x, zz] = T(lx, lz); POOLS.push([x, y + .14, zz, Math.min(5.5, iw * .42)]); }
       // facade: stone storey(s) over the tall hall, shuttered windows, window boxes, balconies (upper storeys only, never over the door bay)
       W(k, box(w + .3, .3, d + .3), col, TRIM, M(0, Hh, 0), false);                                          // family-colour string course (above the door)
@@ -168,7 +193,6 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
       camRoom({ id: 'village_' + o.n, lx0: Math.min(a[0], b[0]), lx1: Math.max(a[0], b[0]), lz0: Math.min(a[1], b[1]), lz1: Math.max(a[1], b[1]) }, Hh - .6, y); }
     n++;
   }
-  for (const c of KI) if (c.n) INTERIORS.push({ k: c.k, x: c.x / c.n, z: c.z / c.n });
   // [v4] Outfit store west wing: carries the shop front out to Powder Lane (x -59); the GLB store, its interior and doors are untouched
   { const a0 = -58.9, a1 = -54.05, b0 = -47.9, b1 = -30.1, cx = (a0 + a1) / 2, cz = (b0 + b1) / 2, aw = a1 - a0, ad = b1 - b0;
     const yr = roadY(VILLAGE_ROADS.find(r => r.lx1 === -59 && r.lz1 === -27.4) || VILLAGE_ROADS[0], -60, cz);
@@ -202,12 +226,43 @@ export function buildVillage(h, { camRoom, Y0, C, sign }) {
 }
 function top0(o) { return (o.n === 7 ? VILLAGE_HALL.grand : VILLAGE_HALL.h) + Math.max(0, o.fl - 2) * 3.5 - 1.5; }
 const INTERIORS = [];
-// [v5 perf] the rentals' interiors: one THREE.LOD per cluster (shown within 70 m of the cluster centre, else nothing). Call after buildVillage.
-export function buildVillageInteriors(mats, out) {
-  if (!VILLAGE_ON || !INTERIORS.length) return null; const root = new THREE.Group(); root.name = 'village_interiors';
-  for (const { k, x, z } of INTERIORS.splice(0)) { const g = k.build(mats, out); g.position.set(-x, 0, -z); const lod = new THREE.LOD(); lod.position.set(x, 0, z);
-    lod.addLevel(g, 0); lod.addLevel(new THREE.Object3D(), 70); root.add(lod); }
-  return root;
+// [village-opt] replay the recorded village art off the load path: `slice` ms of work per turn of the event loop, then yield.
+// Exterior: 4 quadrant kits (split like the old interior clusters), each its own merged toon / glow mesh + outline shell (LOD:
+// the 9 cm shell is under a third of a pixel past ~220 m, so it is dropped there). Interiors: one LOD per rental, shown within
+// 70 m of that rental's centre. Every mesh is named village_* (main.js mergeIslandKits only re-merges island_* meshes).
+// Returns { group, done } at once; group fills in as it builds. opts.sync = build everything now (tests / ?villagesync=1).
+export function buildVillageArt(mats, out, { low = false, slice = 6, sync = false, outlineFar = 220, interiorFar = 70 } = {}) {
+  if (!VILLAGE_ON || !EXT.k) return null;
+  const root = new THREE.Group(); root.name = 'village_art'; root.userData.noMerge = true;
+  const rec = EXT.k.q.splice(0), ao = EXT.ao, rooms = INTERIORS.splice(0); EXT.k = null;
+  const cellOf = (r) => { const [geo, , o, mat] = r; let x = mat.elements[12], z = mat.elements[14];
+    if (o.m) { x = mat.elements[0] * o.m.elements[12] + mat.elements[4] * o.m.elements[13] + mat.elements[8] * o.m.elements[14] + x; z = mat.elements[2] * o.m.elements[12] + mat.elements[6] * o.m.elements[13] + mat.elements[10] * o.m.elements[14] + z; }
+    if (!o.m && x === 0 && z === 0 && !geo.lazy) { geo.computeBoundingBox(); const c = geo.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(mat); x = c.x; z = c.z; }   // pre-placed (roads)
+    return [x, z]; };
+  const X = rec.map(cellOf), cx = X.reduce((a, p) => a + p[0], 0) / (X.length || 1), cz = X.reduce((a, p) => a + p[1], 0) / (X.length || 1);
+  const cells = [0, 1, 2, 3].map(() => { const q = new Kit(); q.ao = ao; return { k: q, n: 0, x: 0, z: 0 }; });
+  const cellIdx = X.map(([x, z]) => (x < cx ? 0 : 1) + (z < cz ? 0 : 2));
+  const replay = (kit, [geo, color, o, mat]) => { kit.stack.length = 1; kit.stack[0] = mat; kit.add(realGeo(geo), color, o); };
+  const finish = (grp, name, x, z) => { grp.name = name; grp.traverse(m => { if (!m.isMesh) return; m.name = name + '_' + (m.userData.outline ? 'outline' : m.userData.bucket);
+      if (!m.userData.outline && m.userData.bucket !== 'glow') { m.castShadow = !low; m.receiveShadow = !low; } m.userData.noMerge = true; });
+    const lod = new THREE.LOD(); lod.name = name + '_lod'; lod.position.set(x, 0, z); return { grp, lod }; };   // LOD children sit at (-x, -z): world-placed geometry
+  const steps = [];
+  rec.forEach((r, i) => steps.push(() => { const c = cells[cellIdx[i]]; c.n++; c.x += X[i][0]; c.z += X[i][1]; replay(c.k, r); }));
+  steps.push(() => cells.forEach((c, i) => { if (!c.n) return; const x = c.x / c.n, z = c.z / c.n, { grp, lod } = finish(c.k.build(mats, out), 'village_q' + i, x, z);
+    const shell = grp.children.filter(m => m.userData.outline); for (const m of shell) grp.remove(m);   // solid parts: always (frustum culled)
+    root.add(grp);
+    if (shell.length) { const sg = new THREE.Group(); sg.name = 'village_q' + i + '_shell'; sg.position.set(-x, 0, -z); for (const m of shell) sg.add(m); lod.addLevel(sg, 0); lod.addLevel(new THREE.Object3D(), outlineFar); root.add(lod); } }));
+  rooms.forEach(({ k: rk, x, z }, i) => { const kit = new Kit(); kit.ao = ao;
+    rk.q.forEach(r => steps.push(() => replay(kit, r)));
+    steps.push(() => { const { grp, lod } = finish(kit.build(mats, out), 'village_room' + i, x, z); grp.position.set(-x, 0, -z); lod.addLevel(grp, 0); lod.addLevel(new THREE.Object3D(), interiorFar); root.add(lod); }); });
+  const settle = () => { root.updateMatrixWorld(true); root.traverse(o => { o.matrixAutoUpdate = false; }); };   // the foot root is frozen (opt.js freezeStatic)
+  const stats = { steps: steps.length, ms: 0, slices: 0 };
+  if (sync) { const t = performance.now(); for (const f of steps) f(); settle(); stats.ms = performance.now() - t; root.userData.build = stats; return { group: root, done: Promise.resolve(root) }; }
+  const done = new Promise(res => { let i = 0; const run = () => { const t = performance.now(); stats.slices++;
+      while (i < steps.length && performance.now() - t < slice) steps[i++]();
+      stats.ms += performance.now() - t; if (i < steps.length) return void setTimeout(run, 0); settle(); root.userData.build = stats; res(root); };
+    setTimeout(run, 0); });
+  return { group: root, done };
 }
 // painted light pools under the lanterns: ONE additive mesh (radial canvas, 128 px), no lights
 export function buildVillagePools() {

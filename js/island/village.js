@@ -11,7 +11,10 @@ export const VILLAGE_ON = villageEnabledFor();
 export const STREET_Y = 2.73;                                   // the dock plaza slab top (plazaTown STREET_Y)
 const RUM = [[-124, 11.9], [-108, 11.9], [-52, 9.6], [-35, 9.6], [-2, 10.15]];   // landings at Cutlass Lane, Powder Lane, Hill Street
 const prof = (K, a) => { if (a <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (a <= K[i][0]) { const [a0, h0] = K[i - 1], [a1, h1] = K[i]; return h0 + (h1 - h0) * (a - a0) / (a1 - a0); } return K[K.length - 1][1]; };
-const R = (lx0, lx1, lz0, lz1, name, ax, K) => Object.freeze({ 0: lx0, 1: lx1, 2: lz0, 3: lz1, 4: name, lx0, lx1, lz0, lz1, name, ax, K, length: 5 });
+// [village-opt] ROOT CAUSE of the village freeze: these array-likes were not ITERABLE, so the minimap bake (islandMap.js
+// `for (const [x0, x1, z0, z1] of VILLAGE_ROADS)`) threw "is not iterable" inside main.js frame() -> drawRadar on every
+// frame once the radar baked the village rows: the render loop died (the game froze ashore). Array iteration restored.
+const R = (lx0, lx1, lz0, lz1, name, ax, K) => Object.freeze({ 0: lx0, 1: lx1, 2: lz0, 3: lz1, 4: name, lx0, lx1, lz0, lz1, name, ax, K, length: 5, [Symbol.iterator]: Array.prototype[Symbol.iterator] });
 export const VILLAGE_ROADS = Object.freeze([
   R(-122.5, -2, -119.2, -110.6, 'RUM ROW', 'x', RUM),                       // top road, joins Hill Street through the old pet store lot
   R(-122.5, -16.4, -120.4, -119.2, 'RUM ROW', 'x', RUM),                     // north verge up to the lot 1-5 fronts (stops short of the pet store)
@@ -79,6 +82,14 @@ export function villageClear(lx, lz) {   // no trees / palms / grass tufts on th
   if (!VILLAGE_ON || lx < BB[0] || lx > BB[1] || lz < BB[2] || lz > BB[3]) return false;
   for (let i = 0, j = 0; i < NC; i++, j += 4) if (lx > CLT[j] && lx < CLT[j + 1] && lz > CLT[j + 2] && lz < CLT[j + 3]) return true;
   return false;
+}
+// [village-opt] the walkable road surface (the road mesh top, roadY + 0.05) or null off the roads. The terrain under the graded
+// roads is a 4 m grid, so between its knots it sagged up to 1.4 m (0.12-0.4 m on average) below the road you see: feet sank
+// into the cobbles and the body bobbed as you walked. foot.js groundAt takes max(ground, this). Alloc-free; null when paused.
+export function villageRoadY(lx, lz) {
+  if (!VILLAGE_ON || lx < BB[0] || lx > BB[1] || lz < BB[2] || lz > BB[3]) return null; let y = null;
+  for (let i = 0, j = 0; i < NR; i++, j += 4) if (lx >= RT[j] && lx <= RT[j + 1] && lz >= RT[j + 2] && lz <= RT[j + 3]) { const v = profK(RK[i], RAX[i] ? lx : lz) + .05; if (y === null || v > y) y = v; }
+  return y;
 }
 export function villageGround(lx, lz, h, plazaY = STREET_Y) {
   if (!VILLAGE_ON || lx < BB[0] - 5 || lx > BB[1] + 5 || lz < BB[2] - 5 || lz > BB[3] + 5) return h;   // fast reject: 1 compare chain off the village
