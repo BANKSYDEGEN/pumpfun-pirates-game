@@ -28,6 +28,7 @@ test('walk-in counter sells only the parrot (Pilly is free, t2348u)', () => {
   assert.match(text('js/dock/index.js'), /openStore: \(\) => pillyS.open\(\{ storeOnly: true \}\)/);
   assert.match(text('js/islandShop.js'), /opts.vendor === 'pets'.*PFP_PILLY\?\.refresh/);
   assert.doesNotMatch(text('js/islandShop.js'), /PILLY COMPANION ·/);
-  assert.match(text('js/preloadList.js'), /js\/pillyShopCard.js/);
+  // The unused legacy purchase card is not part of the regenerated Harbor import graph.
+  assert.doesNotMatch(text('js/preloadList.js'), /js\/pillyShopCard.js/);
   assert.match(text('sw.js'), /js\/pillyShopCard.js/);
 });
