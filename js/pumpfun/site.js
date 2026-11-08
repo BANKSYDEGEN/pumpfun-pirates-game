@@ -40,7 +40,7 @@ export const HQ_WALLS = [
   [-4.5, -35.9, 1, 11.8], [-4.5, -55.6, 1, 18.8], // east wall, split by the Hill Street door (lz -46.2 .. -41.8)
   [-18.5, -64.7, 29, .6], // back wall (the old 17 m rear mass is gone)
   [-27.25, -30.3, 11.5, .6], [-9.75, -30.3, 11.5, .6], // six-metre front gate
-  ...HQ_TOWERS.map(t => [t.lx, t.lz, t.r * 1.8, t.r * 1.8]),
+  ...HQ_TOWERS.map(t => [t.lx, t.lz + 1.2, t.r * 2 + .9, 2.2]),   // exterior half only (BANKSY 12:48 AM: no tower bulge inside)
   ...HQ_PILLARS.map(p => [p.lx, p.lz, 1.2, 1.2]),
   ...HQ_PROPS.map(([, lx, lz, w, d]) => [lx, lz, w, d]),
   [-18.5 - 3.6, -29.4, 1.3, 1.3], [-18.5 + 3.6, -29.4, 1.3, 1.3], // gate buttresses (outside the 6 m opening)

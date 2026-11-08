@@ -49,7 +49,10 @@ export function hqParts() {
   const mer=(x0,z0,x1,z1)=>{const L=Math.hypot(x1-x0,z1-z0),n=Math.floor(L/1.8);for(let i=0;i<n;i++){const t=(i+.5)/n;B(x0+(x1-x0)*t,TOP+.95,z0+(z1-z0)*t,Math.abs(x1-x0)>1?.95:.75,1.3,Math.abs(x1-x0)>1?.75:.95,stone);}};
   mer(X0+.4,Z1-.1,X1-.4,Z1-.1); mer(X0+.4,Z0+.1,X1-.4,Z0+.1); mer(X0+.1,Z0+.5,X0+.1,Z1-.5); mer(X1-.1,Z0+.5,X1-.1,Z1-.5);
   // front corner gun towers (round, battered base, crenellated crown, no fairy-tale cones) + rear corner bartizans
-  for(const t of HQ_TOWERS){ Cy(t.lx,(TOP+2.2+Y-.4)/2,t.lz,t.r,t.r+.2,TOP+2.2-Y+.4,16,stone); Cy(t.lx,Y+.8,t.lz,t.r+.45,t.r+.6,1.8,16,darkStone);
+  // BANKSY 12:48 AM "remove the corner pillars on inside of building, keep exterior": below the ceiling the towers are half-drums on the
+  // OUTSIDE of the front wall only (cut face hidden in the wall), so the hall's front corners run clean wall-to-wall; full drum above the roof.
+  for(const t of HQ_TOWERS){ const H=TOP+2.2-Y+.4, cut=Y+HQ.ceil+.6, rAt=y=>t.r+.2-(y-(Y-.4))/H*.2;
+    Cy(t.lx,(cut+Y-.4)/2,t.lz,rAt(cut),t.r+.2,cut-Y+.4,16,stone,false,{half:1}); Cy(t.lx,(TOP+2.2+cut)/2,t.lz,t.r,rAt(cut),TOP+2.2-cut,16,stone); Cy(t.lx,Y+.8,t.lz,t.r+.45,t.r+.6,1.8,16,darkStone,false,{half:1});
     Cy(t.lx,TOP+2.4,t.lz,t.r+.35,t.r+.35,.45,16,darkStone); for(let i=0;i<8;i++){const a=i/8*Math.PI*2;B(t.lx+Math.cos(a)*(t.r+.1),TOP+3.25,t.lz+Math.sin(a)*(t.r+.1),.8,1.25,.8,stone,false,{ry:-a});}
     for(const y of [Y+6.5,Y+10.5]) { B(t.lx,y,t.lz+t.r+.05,.75,1.95,.22,darkStone); B(t.lx,y+1.05,t.lz+t.r+.1,.9,.22,.3,darkStone); B(t.lx,y,t.lz+t.r+.17,.2,1.35,.04,'#3a2a1c'); B(t.lx,y,t.lz+t.r+.19,.05,1.35,.03,iron,true); } // framed arrow slits
     B(t.lx,TOP+5.2,t.lz,.12,4.1,.12,wood,true); B(t.lx,TOP+7.25,t.lz,.22,.22,.22,gold,true); }
@@ -125,7 +128,7 @@ export function hqParts() {
     B(x+nx*.08,y-3.0,z+nz*.08,nx?.04:.5,2.8,nx?.5:.04,'#7a7468',true); };   // rain streak below
   for(const x of [-27,-10]) slit(x,Y+11.3-.6,Z1,0,1);
   for(const z of [-33,-39,-48,-57,-63]) slit(X1,Y+3.4,z,1,0);
-  for(const t of HQ_TOWERS){ Cy(t.lx,Y+1.6,t.lz,t.r+.25,t.r+.95,3.2,16,darkStone); Cy(t.lx,Y+3.3,t.lz,t.r+.3,t.r+.3,.25,16,darkStone);   // battered talus + roll moulding
+  for(const t of HQ_TOWERS){ Cy(t.lx,Y+1.6,t.lz,t.r+.25,t.r+.95,3.2,16,darkStone,false,{half:1}); Cy(t.lx,Y+3.3,t.lz,t.r+.3,t.r+.3,.25,16,darkStone,false,{half:1});   // battered talus + roll moulding
     for(let i=0;i<10;i++){const a=i/10*Math.PI*2; B(t.lx+Math.cos(a)*(t.r+.25),TOP+1.9,t.lz+Math.sin(a)*(t.r+.25),.55,.6,.55,darkStone,true,{ry:-a});} }   // tower corbel ring
   const lamp=(px,pz)=>{ B(px,Y+4.15,pz,.12,.5,.12,iron,true); B(px,Y+4.42,pz,.46,.06,.46,iron,true); B(px,Y+5.02,pz,.5,.08,.5,iron,true); B(px,Y+5.15,pz,.22,.18,.22,iron,true);
     for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]) B(px+a*.21,Y+4.72,pz+b*.21,.05,.56,.05,iron,true);
