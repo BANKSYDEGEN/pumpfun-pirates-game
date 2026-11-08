@@ -41,10 +41,7 @@ export function hqParts() {
     B(X1+.32,Y+HD.h+R+.95,HD.lz,.3,1.0,.85,gold); B(X1+.49,Y+HD.h+R+1.0,HD.lz,.05,.45,.5,bone,true);   // gilt keystone
     B(X1+.18,Y+HD.h+R+2.3,HD.lz,.18,1.1,3.7,mahog); B(X1+.23,Y+HD.h+R+2.3,HD.lz,.1,1.24,3.86,gold);   // carved sign board (face drawn in render.js)
     B(X1-.5,Y+.005,HD.lz,2.6,.03,HD.w,darkStone,true);   // flush threshold, no bump
-    // blind arch on the west wall opposite the archway (symmetry), framing the daily-ranks board
-    const XW=X0+.75; for(const s of [-1,1]) { const z=HD.lz+s*(R+.4); B(XW,Y+HD.h/2,z,.5,HD.h,.8,darkStone); B(XW,Y+HD.h+.12,z,.6,.24,.95,darkStone); }
-    for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(XW,Y+HD.h+Math.sin(a)*(R+.35),HD.lz+Math.cos(a)*(R+.35),.5,.62,.62,darkStone,false,{rx:-(a-Math.PI/2)});}
-    B(XW+.1,Y+HD.h+R+.95,HD.lz,.3,1.0,.85,gold); }
+  }
   // ---- fortress exterior: plinth, string course, crenellated parapet on all four walls, flat lead-and-stone roof ----
   for(const [a,b] of [[X0-.15,HQ.door.lx-HQ.door.w/2-.9],[HQ.door.lx+HQ.door.w/2+.9,X1+.15]]) B((a+b)/2,Y+.6,Z1+.12,b-a,1.4,.3,darkStone);   // plinth stops at the gate: open to the floor
   B(HQ.door.lx,Y+.005,Z1-.3,HQ.door.w+.2,.03,1.6,darkStone,true);   // flush threshold B(X0-.1,Y+.6,CZ,.3,1.4,D,darkStone);
@@ -177,11 +174,8 @@ export function hqParts() {
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
   frameAt(-24.6,Y+4.0,Z1,'n',3.2,.8,false);                                          // referral board outside
-  // west wall: ship's wheel in the blind arch (anchor stand removed, BANKSY 1:12 AM); jolly roger flags; crates and gold by the barrels
-  { const wx=IX0+.2, wy=Y+3.2, wz=HQ.hillDoor.lz; B(wx,wy,wz,.25,.32,.32,wood,true);   // ship's wheel centred in the blind arch opposite Hill Street (no board inside)
-    for(let i=0;i<4;i++) B(wx,wy,wz,.12,2.3,.12,wood,true,{rx:i*Math.PI/4});
-    for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;B(wx,wy+Math.cos(a)*.82,wz+Math.sin(a)*.82,.16,.66,.14,wood,true,{rx:-a+Math.PI/2});}
-    }
+  // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)
+  // (BANKSY 1:16 AM: no blind arch / wheel opposite Hill Street; plain damask wall there)
   for(const [x,z,sg] of [[IX0+.1,-56.6,1],[IX1-.1,-63.4,-1]]) { B(x+sg*.6,Y+10.1,z,1.2,.1,.1,iron,true); B(x+sg*.05,Y+10.1,z,.1,.4,.3,iron,true); B(x+sg*1.2,Y+10.1,z,.14,.14,.14,gold,true); }   // flag brackets (cloth: render.js)
   for(const s of [-1,1]) { B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+5.5,HQ.board.lz,2.2,8.6,.08,'#1b4d36',true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+9.85,HQ.board.lz+.05,2.4,.16,.16,gold,true); B(HQ.board.lx+s*(HQ.board.w/2+1.6),Y+6.6,HQ.board.lz+.06,1.0,1.0,.04,gold,true); }
   return p;
