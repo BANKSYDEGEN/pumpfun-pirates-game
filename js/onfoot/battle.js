@@ -287,7 +287,27 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     R.bones = { uR: b('upperarmR'), fR: b('forearmR'), uL: b('upperarmL'), fL: b('forearmL'), spine: b('spine') };
     if (v4.v7) Object.assign(R.bones, { root: b('root'), head: b('head'), tL: b('thighL'), tR: b('thighR') });   // [v7 sword fight] full-body support (V7 rigs only)
     R.sword?.removeFromParent(); R.sword = null; R.swordId = null; R.musket?.removeFromParent(); R.musket = null;
-    if (!v4.__btWrapped) { const u = v4.update.bind(v4); v4.update = (dt) => { u(dt); const f = v4.__btPose; if (f) try { f(); } catch (e) { if (!v4.__btErr) { v4.__btErr = 1; console.warn('[battle] pose', e); } } }; v4.__btWrapped = true; } // never break the clip
+    // [sword-stand-spin] Three.PropertyMixer skips CONSTANT clip tracks (idle root/spine/thighs).
+    // v7Sword rot()/aimBone read the live bone and write a twist on top; if the mixer left last
+    // frame's sword twist in place, that twist accumulates → standing with sword drawn spins
+    // the torso in circles (feet stay planted via the thigh counter-turn). Same class of bug as
+    // js/onfoot/locomotion.js. Fix: remember the post-mixer (pre-sword) locals, restore them
+    // before the next mixer update so a skipped track cannot carry the procedural write forward.
+    if (!v4.__btWrapped) {
+      const u = v4.update.bind(v4);
+      v4.update = (dt) => {
+        const B = R.bones, mq = v4.__btMixQ;
+        if (B && mq) for (const k of Object.keys(mq)) { const b = B[k]; if (b) b.quaternion.copy(mq[k]); }
+        u(dt);
+        if (B) {
+          const out = v4.__btMixQ || (v4.__btMixQ = {});
+          for (const k of Object.keys(B)) { const b = B[k]; if (!b) continue; (out[k] ||= new THREE.Quaternion()).copy(b.quaternion); }
+        }
+        const f = v4.__btPose; if (f) try { f(); } catch (e) { if (!v4.__btErr) { v4.__btErr = 1; console.warn('[battle] pose', e); } }
+      };
+      v4.__btWrapped = true;
+    } // never break the clip
+    v4.__btMixQ = null; // rebinding bones: drop the previous body's mixer snapshot
     v4.__btPose = () => pose(R); return true;
   }
   // [Emerly] 2-bone reach: upper arm + forearm (elbow out to the side + down) so the forearm's far end (hand) lands on a world point
