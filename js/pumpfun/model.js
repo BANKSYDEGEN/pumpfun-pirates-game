@@ -184,9 +184,9 @@ export function hqParts() {
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
   // [hqsigns] app-sign frames: west-bay recess (front) + east recess south of the Hill Street door; sized/centred to the shrunk plaques
-  frameAt(-25.9,Y+2.75,Z1+.35,'n',2.55,1.4,false);
+  frameAt(-25.35,Y+2.75,Z1+.35,'n',2.55,1.4,false);
   frameAt(X1+.35,Y+2.75,HD.lz-6.8,'e',2.55,1.4,false);
-  B(-25.9,Y+2.75,Z1+.18,2.8,1.65,.16,mahog);   // front backing, behind the canvas
+  B(-25.35,Y+2.75,Z1+.18,2.8,1.65,.16,mahog);   // front backing, behind the canvas
   B(X1+.18,Y+2.75,HD.lz-6.8,.16,1.65,2.8,mahog);   // hill backing
   B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)

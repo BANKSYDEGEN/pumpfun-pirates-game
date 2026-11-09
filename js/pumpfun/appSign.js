@@ -101,7 +101,7 @@ export const APP_SIGN = Object.freeze({
   w: 2.55,
   h: 1.4,
   // town-local: front = dock-gate west recess (lx -25.3), just above head height; hill = east-wall recess south of the door
-  front: Object.freeze({ lx: -25.9, yOff: 2.75, lz: -29.18, yaw: 0 }),
+  front: Object.freeze({ lx: -25.35, yOff: 2.75, lz: -29.18, yaw: 0 }),
   hill: Object.freeze({ lxOff: 0.72, yOff: 2.75, lzOff: -6.8, yaw: Math.PI / 2 }),
   promptR: 3.2,
   label: 'GET THE PUMP.FUN APP',
