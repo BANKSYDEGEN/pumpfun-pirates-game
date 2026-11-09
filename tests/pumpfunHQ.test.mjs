@@ -21,7 +21,7 @@ test('first really empty hill room is L4: the reworked walk-in pet store keeps i
  assert.ok(!/awning/i.test(JSON.stringify(petShellParts())));});
 test('moved boards retain safe gaps from lamps, palms and street, common source drives prompts',()=>{for(const b of Object.values(TOKEN_BOARD_SPOTS)){if(b.wall){assert.equal(b.lx,-59.05);assert.ok(b.lz>=-45&&b.lz<=-33);assert.equal(b.ly,-Math.PI/2);continue;}   // [village-live] village on: flush on the Outfit west wing, facing Powder Lane
  assert.equal(b.lz,-14);assert.ok(b.lx<-27);assert.ok(b.lx-2.3>-54);assert.ok(b.lz+2.2>-14);}assert.match(src('js/dock/layout.js'),/tb.wall \? L\(tb.lx - 2.2, tb.lz\)/);assert.match(src('js/island/plazaTown.js'),/\.\.\.tokenSpot\(t.sym\)/);assert.match(src('js/dock/layout.js'),/tb.lz \+ 2.2/);});
-test('safe referral links use fixed hosts/code, never an untrusted source URL',()=>{const mint=WATCH_TOKENS[0].ca,other='GDRSWpEeKWngc26CVLFXZyZCUwo9fEzctZoEAp1qpump';assert.equal(REFERRAL_CODE,'PUMPFUNPIRATES');for(const m of [mint,other]){assert.equal(tokenURL(m),'https://pump.fun/coin/'+m+'?caller=3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34&ref=PUMPFUNPIRATES');assert.equal(tokenFallbackURL(m),tokenURL(m));}assert.equal(REFERRAL_URL,'https://pump.fun/u/PUMPFUNPIRATES');for(const x of ['<script>','https://evil.test','../coin','',null])assert.equal(tokenURL(x),null);});
+test('safe referral links use fixed hosts/code, never an untrusted source URL',()=>{const mint=WATCH_TOKENS[0].ca,other='GDRSWpEeKWngc26CVLFXZyZCUwo9fEzctZoEAp1qpump';assert.equal(REFERRAL_CODE,'PUMPFUNPIRATES');for(const m of [mint,other]){assert.equal(tokenURL(m),'https://pump.fun/coin/'+m+'?caller=3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34&ref=PUMPFUNPIRATES');assert.equal(tokenFallbackURL(m),tokenURL(m));}assert.equal(REFERRAL_URL,'https://pump.fun/u/pumpfunpirates');for(const x of ['<script>','https://evil.test','../coin','',null])assert.equal(tokenURL(x),null);});
 test('pair selection requires exact BASE mint and Solana, prefers liquidity',()=>{const a=WATCH_TOKENS[0].ca;assert.equal(selectPair([{chainId:'solana',baseToken:{address:'wrong'},quoteToken:{address:a},priceUsd:'20'}],a),null);const p=[1,4,2].map(x=>({chainId:'solana',baseToken:{address:a},liquidity:{usd:x},priceUsd:'0.01'}));assert.equal(selectPair(p,a),p[1]);});
 test('one lazy poller coalesces callers, bounded cadence, prices stay last-known on failure',async()=>{let now=1,calls=[],fail=false;const feed=makeMarketFeed({clock:()=>now,fetcher:async url=>{calls.push(url);if(fail)throw Error('offline');return{ok:true,json:async()=>url.includes('/latest/dex/tokens/')?{pairs:WATCH_TOKENS.map(t=>({chainId:'solana',baseToken:{address:t.ca,symbol:t.sym,name:'a<img onerror=x>'},priceUsd:'0.01',marketCap:12,volume:{h24:3},priceChange:{h24:2}}))}:[]};}});
  await feed.tick(false);assert.equal(calls.length,0);await Promise.all([feed.tick(true),feed.tick(true)]);assert.equal(calls.length,2);assert.equal(feed.state.prices.SUNK.price,.01);await feed.tick(true);assert.equal(calls.length,2);now+=PRICE_MS;fail=true;await feed.tick(true);assert.equal(feed.state.prices.SUNK.price,.01);assert.equal(feed.state.prices.SUNK.stale,true);
@@ -124,3 +124,18 @@ test('p5: nothing blocks the floor in front of any board (BANKSY: walk up to the
 });
 
 test('hall own-token list contains only SUNK and AHOY',()=>{assert.deepEqual(WATCH_TOKENS.map(t=>t.sym),['SUNK','AHOY']);assert.doesNotMatch(src('js/pumpfun/render.js'),/\['SUNK','AHOY','PUMP'\]/);});
+
+test('app-sign canvas plaques: lowercase referral URL, shared canvas material, nearby E prompts',()=>{
+ assert.equal(REFERRAL_CODE,'PUMPFUNPIRATES');
+ assert.equal(REFERRAL_URL,'https://pump.fun/u/pumpfunpirates');
+ assert.match(src('js/pumpfun/links.js'),/REFERRAL_FALLBACK_URL = 'https:\/\/pump\.fun\/u\/pumpfunpirates'/);
+ assert.match(src('js/pumpfun/render.js'),/appSignMaterial/);
+ assert.match(src('js/pumpfun/render.js'),/referral2/);
+ assert.match(src('js/dock/pumpfun.js'),/hq\.referral2/);
+ assert.match(src('js/dock/layout.js'),/hq_app_front/);
+ assert.match(src('js/dock/layout.js'),/hq_app_hill/);
+ assert.match(src('js/dock/index.js'),/case 'referral': openReferral/);
+ assert.match(src('js/pumpfun/appSign.js'),/PUMPFUNPIRATES|REFERRAL_CODE/);
+ assert.match(src('js/pumpfun/appSign.js'),/pump\.fun\/u\/pumpfunpirates|DISPLAY_URL/);
+ assert.ok(src('js/pumpfun/appSign.js').includes('#ffcd77') && src('js/pumpfun/appSign.js').includes('#fa0d0d'));
+});

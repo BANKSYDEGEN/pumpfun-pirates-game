@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_LANTERNS, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS, PET_PARROTS, PET_RINGS } from './model.js';
 import { HQ, PET_LOT, PET_STORE, PET_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
+import { appSignMaterial, APP_SIGN } from './appSign.js';
 import { WATCH_TOKENS } from './market.js';
 import { skyPhase, sunElevation } from '../skyCycle.js';
 import { petLook, petParrots, petBrass } from './petlook.js';
@@ -21,8 +22,10 @@ function plaque(group,url,w,h,x,y,z,yaw=0){let assets=plaqueMaterials.get(group)
 export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.Group();group.name='pumpfun_hq_detail';
  const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
  const panels=panelSlots(group,low,deferPanels);
- const referral=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,-25.2,HQ.floor+5.5,-29.3);referral.userData.referral=true;
- const referral2=plaque(group,'assets/pumpfun/referral_sign.webp',4.2,1.575,HQ.lx1+.7,HQ.floor+5.5,HQ.hillDoor.lz-6.7,Math.PI/2);referral2.userData.referral=true;   // [post-village v3] BANKSY: the same sign on the Hill Street side, Treasure Trader side of the door
+ // [pumpfun-app-sign] canvas plaques (brand JAH + gold/red/dark): Get the pump.fun app + PUMPFUNPIRATES + lowercase URL + QR
+ const appMat=appSignMaterial(low);
+ const referral=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral.position.set(-25.2,HQ.floor+5.5,-29.3);referral.userData.referral=true;group.add(referral);
+ const referral2=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral2.position.set(HQ.lx1+.7,HQ.floor+5.5,HQ.hillDoor.lz-6.7);referral2.rotation.y=Math.PI/2;referral2.userData.referral=true;group.add(referral2);   // Hill Street side, Treasure Trader side of the door
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});
@@ -30,7 +33,7 @@ export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.
  try{damask(group,low);}catch(e){console.warn('[pumpfun] damask skipped',e.message);}
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
  try{nightFill(group,low);}catch(e){console.warn('[pumpfun] night fill skipped',e.message);}
- return {group,board,referral,cv,tex,squadBoards,panels,finalizePanels(){for(const m of panels){const f=m.userData.deferredPlaceholder;if(f&&m.material===m.userData.placeholderMat){m.material.dispose();m.material=f();m.userData.placeholderMat=m.material;}delete m.userData.deferredPlaceholder;}},dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
+ return {group,board,referral,referral2,cv,tex,squadBoards,panels,finalizePanels(){for(const m of panels){const f=m.userData.deferredPlaceholder;if(f&&m.material===m.userData.placeholderMat){m.material.dispose();m.material=f();m.userData.placeholderMat=m.material;}delete m.userData.deferredPlaceholder;}},dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
 // carved timber sign (casino style: dark mahogany, gilt incised letters): replaces the flat green bar; one shared canvas
 function carvedSign(low){const c=document.createElement('canvas');c.width=low?512:1024;c.height=c.width/8;const g=c.getContext('2d'),W=c.width,H=c.height;
  const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#5a2a1a');gr.addColorStop(.5,'#3e1c10');gr.addColorStop(1,'#2a120a');g.fillStyle=gr;g.fillRect(0,0,W,H);

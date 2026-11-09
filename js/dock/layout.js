@@ -1,4 +1,5 @@
 import { HQ, PET_SHOP } from '../pumpfun/site.js';
+import { APP_SIGN } from '../pumpfun/appSign.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot: the HARBOR LAYOUT CONFIG. Everything in js/dock/* and js/onfoot/* is driven by
 // this data (no hard-wired piers), so a new waterfront only has to change the source data, not the mechanics.
 //
@@ -79,6 +80,9 @@ export async function coastLayout() {
     const [x, z] = L(sp.lx, sp.promptLz != null ? sp.promptLz : sp.lz + 3.8); // [v250] walk-in: STOREFRONTS.promptLz on the shop floor; old v1 plaza keeps street lz+3.8
     interact.push(sp.vendor ? { id: sp.id, kind: 'shop', vendor: sp.vendor, slot: sp.slot, open: sp.open, ...(sp.mapHidden ? { mapHidden: true } : {}), x, z, r: 3.4, label: sp.label } : { id: sp.id, kind: 'soon', x, z, r: 3.4, label: sp.soon }); }
   if (PV2) { P(HQ.id, 'pumpfun', HQ.prompt.lx, HQ.prompt.lz, 'PUMPFUN PIRATES · LIVE TOKEN BOARDS', HQ.prompt.r);
+    // [pumpfun-app-sign] E / pad A near either app plaque opens the referral URL
+    P('hq_app_front', 'referral', -25.2, -27.0, APP_SIGN.label, APP_SIGN.promptR);
+    P('hq_app_hill', 'referral', HQ.lx1 + 2.4, HQ.hillDoor.lz - 6.7, APP_SIGN.label, APP_SIGN.promptR);
     const [px,pz]=L(PET_SHOP.lx,PET_SHOP.lz); interact.push({id:PET_SHOP.id,kind:'shop',vendor:'pets',x:px,z:pz,r:PET_SHOP.r,label:'PET STORE · PARROTS & COMPANIONS'}); }
   for (const tb of (FM.PLAZA_TOKENS_ON || FM.PLAZA_TOKENS)) { const [x, z] = tb.wall ? L(tb.lx - 2.2, tb.lz) : L(tb.lx, tb.lz + 2.2); interact.push({ id: 'token_' + tb.sym, kind: 'token', sym: tb.sym, x, z, r: 2.4, label: (FM.PLAZA_TOKENS_TITLE?.[tb.sym] || '$' + tb.sym) + ' · CA + PUMP.FUN' }); }
   // Timothy's SHOP door + the red / blue stalls: foot.js fills SHOP_SPOTS while it builds the street (createFoot), so world.js

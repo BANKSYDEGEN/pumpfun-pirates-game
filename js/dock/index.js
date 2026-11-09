@@ -6,6 +6,7 @@ import { createPrivateBuildingMarker } from './buildingWaypoint.js';
 import { PILLY_ENABLED } from '../features.js';
 import { installPillyInventory } from '../pillyEntries.js';
 import { createPumpfun } from './pumpfun.js';
+import { openReferral } from '../pumpfun/links.js';
 import { setParrotWorld } from '../parrotFlight.js';
 // [Emerly] PUMPFUN PIRATES docking + on-foot controller (harbor only; Waves, the arena and spectate never load or run it).
 // Layout-driven (js/dock/layout.js): berths, SAFE HARBOR zone, decks, interact points, ship colliders, walkable land.
@@ -611,6 +612,7 @@ export async function createDock(ctx) {
     switch (q.kind) {
       case 'waves': case 'arena': plaza.openBoard(q.kind); break; // [v103] live leaderboard; START WAVES / JOIN BATTLE buttons in the panel
       case 'pumpfun': pumpfun.open(); break;
+      case 'referral': openReferral(); break; // [pumpfun-app-sign] Get the pump.fun app plaques
       case 'token': plaza.openToken(q.sym); break;
       case 'cannon': battery?.fire(q); break; // [Timothy] headland gun; [v171] live: hits AI + pirate ships (pvp.batteryStep)
       case 'exchange': plaza.openToken('SUNK'); break;
