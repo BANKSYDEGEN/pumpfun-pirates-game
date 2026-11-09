@@ -382,7 +382,7 @@ function freeBall(m) { m.visible = false; ballPool.push(m); }
 // ---------- enemies ----------
 // [v97] enemy hulls are built like yours: the waist stretches to fit their guns (same long-gun carriages, gunners, captain);
 // the hit box stays the design length so Waves / harbor gameplay is unchanged
-const enemyOpts = (o) => ({ ...o, stretch: stretchFor(o.cannonsPerSide || 0, o.len, 1.5), hitLen: o.len, lookout: true }); // + the spyglass lookout (visual)
+const enemyOpts = (o) => ({ ...o, stretch: stretchFor(o.cannonsPerSide || 0, o.len, 1.5), hitLen: o.len, lookout: true, aiPilly: true }); // AI-only Pilly crew; player/skin_* never
 function refitGuns(e) { // re-build an enemy hull for a new gun count (harbor boss: 5-7 guns), keeping its size / place
   const ud = e.mesh.userData, o = ud.buildOpts; if (!o || !(e.cannons > 0) || o.cannonsPerSide === e.cannons) return;
   const sc = e.mesh.scale.x, mesh = buildShip(enemyOpts({ ...o, cannonsPerSide: e.cannons })), u = mesh.userData;

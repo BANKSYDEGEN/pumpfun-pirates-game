@@ -49,11 +49,30 @@ test('same crew stations / LOD budget / distant fallback as native V7', () => {
   assert.match(a, /crew-wheel-and-telescope/);
 });
 
-test('AI ships only — player scheme keeps attachNativeCrew', () => {
-  assert.equal((s.match(/aiPilly: scheme !== 'player'/g) || []).length, 2);
+test('AI ships only — explicit opts.aiPilly; player/skin_* keep attachNativeCrew', () => {
+  assert.equal((s.match(/aiPilly: !!opts\.aiPilly/g) || []).length, 2);
+  assert.doesNotMatch(s, /aiPilly: scheme !== 'player'/);
   assert.match(c, /aiPilly && AI_PILLY_CREW\) \? attachAiPillyCrew/);
   assert.match(c, /attachNativeCrew\(lod,mesh,crew,crewLow\(\)\)/);
   assert.ok(c.split('attachNativeCrew(').length - 1 >= 2);
+  const main = read('js/main.js');
+  assert.match(main, /aiPilly: true/);
+  assert.match(main, /enemyOpts = \(o\) =>/);
+});
+
+test('regression: player + skin_* schemes never request Pilly (near or far)', () => {
+  // Root cause v565: skinBuildOpts overwrote scheme to skin_<id>, and scheme !== "player" wrongly enabled Pilly.
+  const skins = read('js/skins.js');
+  assert.match(skins, /const scheme = 'skin_' \+ skin\.id/);
+  assert.match(s, /!!opts\.aiPilly/);
+  const gate = (opts) => !!opts.aiPilly;
+  assert.equal(gate({ scheme: 'player' }), false);
+  assert.equal(gate({ scheme: 'skin_golden' }), false);
+  assert.equal(gate({ scheme: 'skin_ghost', pvp: true }), false);
+  assert.equal(gate({ scheme: 'boss', aiPilly: true }), true);
+  assert.equal(gate({ scheme: 'slime', aiPilly: true }), true);
+  const uv = read('js/upgradeVisuals.js');
+  assert.doesNotMatch(uv, /aiPilly/);
 });
 
 test('dispose releases clones; no pet wander hooks', () => {
