@@ -20,12 +20,12 @@ export function buildParts(parts, low=false) {
 const plaqueMaterials=new WeakMap();
 function plaque(group,url,w,h,x,y,z,yaw=0){let assets=plaqueMaterials.get(group);if(!assets){assets=new Map();plaqueMaterials.set(group,assets);}let material=assets.get(url);if(!material){const tex=new THREE.TextureLoader().load(url);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.minFilter=THREE.LinearMipmapLinearFilter;material=new THREE.MeshBasicMaterial({map:tex,toneMapped:false});assets.set(url,material);}const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);m.position.set(x,y,z);m.rotation.y=yaw;group.add(m);return m;}
 export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.Group();group.name='pumpfun_hq_detail';
- const sign=carvedSign(low);for(const [w,h,x,y,z,ry] of [[17.6,2.0,-18.5,HQ.floor+10.6,-29.55,0],[3.5,1.0,HQ.hillDoor.lx+.85,HQ.floor+HQ.hillDoor.h+HQ.hillDoor.w/2+2.3,HQ.hillDoor.lz,Math.PI/2]]){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),sign);m.position.set(x,y,z);m.rotation.y=ry;group.add(m);}
+ // [hqsigns] BANKSY: drop the carved PUMPFUN PIRATES name plates (front bar + Hill Street board); the app plaques are the outdoor signs
  const panels=panelSlots(group,low,deferPanels);
- // [pumpfun-app-sign] canvas plaques (brand JAH + gold/red/dark): Get the pump.fun app + PUMPFUNPIRATES + lowercase URL + QR
- const appMat=appSignMaterial(low);
- const referral=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral.position.set(-25.2,HQ.floor+5.5,-29.3);referral.userData.referral=true;group.add(referral);
- const referral2=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral2.position.set(HQ.lx1+.7,HQ.floor+5.5,HQ.hillDoor.lz-6.7);referral2.rotation.y=Math.PI/2;referral2.userData.referral=true;group.add(referral2);   // Hill Street side, Treasure Trader side of the door
+ // [pumpfun-app-sign] canvas plaques in the wall recesses (shrunk ~65%, just above head height, clear of buttresses/doors)
+ const appMat=appSignMaterial(low), F=APP_SIGN.front, H=APP_SIGN.hill;
+ const referral=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral.position.set(F.lx,HQ.floor+F.yOff,F.lz);referral.userData.referral=true;group.add(referral);
+ const referral2=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral2.position.set(HQ.lx1+H.lxOff,HQ.floor+H.yOff,HQ.hillDoor.lz+H.lzOff);referral2.rotation.y=H.yaw;referral2.userData.referral=true;group.add(referral2);
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});
@@ -34,14 +34,6 @@ export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.
  try{glow(group,low);}catch(e){console.warn('[pumpfun] hall glow skipped',e.message);}
  try{nightFill(group,low);}catch(e){console.warn('[pumpfun] night fill skipped',e.message);}
  return {group,board,referral,referral2,cv,tex,squadBoards,panels,finalizePanels(){for(const m of panels){const f=m.userData.deferredPlaceholder;if(f&&m.material===m.userData.placeholderMat){m.material.dispose();m.material=f();m.userData.placeholderMat=m.material;}delete m.userData.deferredPlaceholder;}},dispose(){for(const m of extra)try{m.map?.dispose?.();m.dispose?.();}catch(e){}group.traverse(o=>{o.geometry?.dispose?.();const m=o.material;if(m){m.map?.dispose?.();m.dispose?.();}});group.removeFromParent();}};}
-// carved timber sign (casino style: dark mahogany, gilt incised letters): replaces the flat green bar; one shared canvas
-function carvedSign(low){const c=document.createElement('canvas');c.width=low?512:1024;c.height=c.width/8;const g=c.getContext('2d'),W=c.width,H=c.height;
- const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#5a2a1a');gr.addColorStop(.5,'#3e1c10');gr.addColorStop(1,'#2a120a');g.fillStyle=gr;g.fillRect(0,0,W,H);
- g.globalAlpha=.12;g.strokeStyle='#000';for(let y=4;y<H;y+=H/16){g.beginPath();g.moveTo(0,y);g.bezierCurveTo(W*.3,y+3,W*.6,y-3,W,y+1);g.stroke();}g.globalAlpha=1;
- g.strokeStyle='#d9a441';g.lineWidth=H*.05;g.strokeRect(H*.08,H*.08,W-H*.16,H-H*.16);g.lineWidth=H*.015;g.strokeRect(H*.16,H*.16,W-H*.32,H-H*.32);
- g.font=`bold ${Math.round(H*.62)}px Georgia, "Times New Roman", serif`;g.textAlign='center';g.textBaseline='middle';
- g.fillStyle='#1a0a05';g.fillText('PUMPFUN PIRATES',W/2+H*.03,H*.55+H*.03);g.fillStyle='#e8b85a';g.fillText('PUMPFUN PIRATES',W/2,H*.55);
- const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return new THREE.MeshBasicMaterial({map:t,toneMapped:false});}
 // wall info-panel slots: one shared placeholder face; Emerly can swap mesh.material per slot later (userData.panelSlot = id)
 function engravedPanel(P,i,low){const c=boardCanvas(512,Math.round(512*P.h/P.w),low);const g=c.getContext('2d'),W=c.width,H=c.height,k=W/512;
   const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#16261f');bg.addColorStop(1,'#0c1612');g.fillStyle=bg;g.fillRect(0,0,W,H);

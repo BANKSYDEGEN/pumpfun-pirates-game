@@ -138,4 +138,12 @@ test('app-sign canvas plaques: lowercase referral URL, shared canvas material, n
  assert.match(src('js/pumpfun/appSign.js'),/PUMPFUNPIRATES|REFERRAL_CODE/);
  assert.match(src('js/pumpfun/appSign.js'),/pump\.fun\/u\/pumpfunpirates|DISPLAY_URL/);
  assert.ok(src('js/pumpfun/appSign.js').includes('#ffcd77') && src('js/pumpfun/appSign.js').includes('#fa0d0d'));
+ assert.match(src('js/pumpfun/appSign.js'),/w:\s*2\.55/);
+ assert.match(src('js/pumpfun/appSign.js'),/h:\s*1\.4/);
+ assert.match(src('js/pumpfun/appSign.js'),/yOff:\s*2\.75/);
+ // recessed: clear of the gate buttress at lx -22.1 (sign right edge ≈ -25.3 + 1.45 = -23.85)
+ assert.match(src('js/pumpfun/render.js'),/APP_SIGN\.front|F\.lx/);
+ assert.ok(!src('js/pumpfun/render.js').includes('carvedSign'), 'carved PUMPFUN PIRATES name plates removed');
+ assert.ok(!src('js/pumpfun/model.js').includes('carved timber sign in a stone frame'));
+ assert.ok(!src('js/pumpfun/model.js').includes('carved sign board (face drawn in render.js)'));
 });

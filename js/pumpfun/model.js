@@ -40,7 +40,7 @@ export function hqParts() {
     for(let i=0;i<11;i++){const a=Math.PI*(i+.5)/11; B(X1-.3,Y+HD.h+Math.sin(a)*(R+.35),HD.lz+Math.cos(a)*(R+.35),1.4,.62,.62,darkStone,false,{rx:-(a-Math.PI/2)});}
     for(let i=0;i<13;i++){const a=Math.PI*(i+.5)/13; B(X1+.05,Y+HD.h+Math.sin(a)*(R+.95),HD.lz+Math.cos(a)*(R+.95),.6,.22,.55,darkStone,false,{rx:-(a-Math.PI/2)});}
     B(X1+.32,Y+HD.h+R+.95,HD.lz,.3,1.0,.85,gold); B(X1+.49,Y+HD.h+R+1.0,HD.lz,.05,.45,.5,bone,true);   // gilt keystone
-    B(X1+.18,Y+HD.h+R+2.3,HD.lz,.18,1.1,3.7,mahog); B(X1+.23,Y+HD.h+R+2.3,HD.lz,.1,1.24,3.86,gold);   // carved sign board (face drawn in render.js)
+    // [hqsigns] carved PUMPFUN PIRATES name plate removed (Hill Street)
     B(X1-.5,Y+.03,HD.lz,2.6,.03,HD.w-.04,darkStone,true);   // threshold 1.5 cm above the deck top (was coplanar-ish: flicker)
   }
   // ---- fortress exterior: plinth, string course, crenellated parapet on all four walls, flat lead-and-stone roof ----
@@ -62,7 +62,7 @@ export function hqParts() {
   // side-wall arrow-slit lancets (glazed both faces) + front banners flanking the gate
   for(const z of [-36,-42,-54,-60]) for(const x of [X0+.3,X1-.5]) { const t=x>-10?1.12:.72; B(x,Y+8.4,z,t,3.2,1.0,'#33505f'); B(x,Y+10.1,z,t+.08,.3,1.4,darkStone); B(x,Y+6.7,z,t+.08,.3,1.4,darkStone); }
   for(const x of [-12.4]) { B(x,Y+6.85,Z1+.3,2.0,.12,.12,gold); for(const s of [-1,1]) Cy(x+s*1.02,Y+6.85,Z1+.3,.09,.09,.09,10,gold,true,{rz:Math.PI/2}); B(x,Y+7.0,Z1+.12,.12,.35,.3,iron,true); }   // banner rod (cloth: render.js)
-  B(-18.5,Y+10.6,Z1+.2,18.4,2.3,.3,mahog); B(-18.5,Y+10.6,Z1+.3,18.7,2.6,.14,gold);    // carved timber sign in a stone frame // HQ sign board
+  // [hqsigns] carved PUMPFUN PIRATES name plate removed (front)
   // ---- interior: mahogany wainscot, gilded beamed ceiling on two stone arcades, dais under the big board ----
   const IX0=X0+.6, IX1=X1-1.0, IZ0=Z0+.6, IZ1=Z1-.6;
   for(const [x,z,w,d] of [[IX0+.06,CZ,.12,IZ1-IZ0],[CX,IZ0+.06,IX1-IX0,.12]]) { B(x,Y+.75,z,w,1.5,d,mahog,true); B(x,Y+1.55,z,w+.06,.1,d+.06,gold,true); B(x,Y+.08,z,w+.08,.16,d+.08,'#2a160d',true); }
@@ -183,9 +183,11 @@ export function hqParts() {
   for(const P of HQ_PANELS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   for(const P of HQ_SQUAD_BOARDS) frameAt(P.lx,BY,P.lz,P.face,P.w,P.h);
   frameAt(HQ.board.lx,HQ.board.y,HQ.lz0+.6,'n',HQ.board.w,HQ.board.h,false);   // the main board
-  frameAt(-25.2,Y+5.5,Z1+.4,'n',4.2,1.575,false);
-  frameAt(X1+.4,Y+5.5,HD.lz-6.7,'e',4.2,1.575,false);   // [post-village v3] the Hill Street twin (Treasure Trader side, same 6.7 m off the door axis)   // BANKSY t303u: raised level with the skull banner, clear of the gate torch and the string course   // referral board outside: centred in the bay left of the gate, mirrors the banner
-  B(-25.2,Y+5.5,Z1+.26,4.5,1.9,.28,mahog);   // backing block proud of the string course
+  // [hqsigns] app-sign frames: west-bay recess (front) + east recess south of the Hill Street door; sized/centred to the shrunk plaques
+  frameAt(-25.9,Y+2.75,Z1+.35,'n',2.55,1.4,false);
+  frameAt(X1+.35,Y+2.75,HD.lz-6.8,'e',2.55,1.4,false);
+  B(-25.9,Y+2.75,Z1+.18,2.8,1.65,.16,mahog);   // front backing, behind the canvas
+  B(X1+.18,Y+2.75,HD.lz-6.8,.16,1.65,2.8,mahog);   // hill backing
   B(-11.8,Y+6.85,Z1+.75,2.1,.07,.07,iron,true); for(const s of [-1,1]) B(-11.8+s*.9,Y+6.85,Z1+.4,.07,.07,.75,iron,true);   // banner rod + wall brackets
   // west wall: jolly roger flags; crates and gold by the barrels (anchor stand removed, BANKSY 1:12 AM)
   // (BANKSY 1:16 AM: no blind arch / wheel opposite Hill Street; plain damask wall there)

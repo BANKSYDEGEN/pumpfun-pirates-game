@@ -88,7 +88,7 @@ export function appSignMaterial(low = false) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
-  sharedMat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  sharedMat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, side: THREE.DoubleSide, depthWrite: true });
   const repaint = () => { paint(g, c.width, c.height, qr); tex.needsUpdate = true; };
   if (qr && !qr.complete) qr.onload = repaint;
   else if (qr?.complete) repaint();
@@ -97,12 +97,13 @@ export function appSignMaterial(low = false) {
 }
 
 export const APP_SIGN = Object.freeze({
-  w: 4.6,
-  h: 2.5,
-  // town-local placements (same frame as HQ / render.js plaques)
-  front: { lx: -25.2, ly: null, lz: -29.3, yaw: 0 },
-  hill: { lx: null, ly: null, lz: null, yaw: Math.PI / 2 }, // filled from HQ in render
-  promptR: 3.6,
+  // ~65-70% of the old 4.2x1.575 plaque; fits the west-bay recess between the left tower and the gate buttress
+  w: 2.55,
+  h: 1.4,
+  // town-local: front = dock-gate west recess (lx -25.3), just above head height; hill = east-wall recess south of the door
+  front: Object.freeze({ lx: -25.9, yOff: 2.75, lz: -29.18, yaw: 0 }),
+  hill: Object.freeze({ lxOff: 0.72, yOff: 2.75, lzOff: -6.8, yaw: Math.PI / 2 }),
+  promptR: 3.2,
   label: 'GET THE PUMP.FUN APP',
 });
 
