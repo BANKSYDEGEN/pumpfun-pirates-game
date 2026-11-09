@@ -132,9 +132,9 @@ export const V7M_FITS = {
     "qaStatus": "PASSED_LOCAL_GAME_V411_FULL_BODY_15X20X8_HI_LO_REVIEW_PENDING"
   },
   "cloth_coat": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_coat_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_coat_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_tops588/cloth_coat_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_tops588/cloth_coat_male_lo.glb",
+    "qaStatus": "TOPS588_FIT_APPROVED_T592"
   },
   "hat_bandana": {
     "hi": "assets/pirates/items/v7m_refit/hat_bandana_male_hi.glb",
@@ -149,9 +149,9 @@ export const V7M_FITS = {
     "authoredCapeSkin": true
   },
   "cloth_tshirt": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_tshirt_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_tshirt_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_tops588/cloth_tshirt_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_tops588/cloth_tshirt_male_lo.glb",
+    "qaStatus": "TOPS588_FIT_APPROVED_T592"
   },
   "eyes_eyepatch": {
     "hi": "assets/pirates/items/v7m_refit/eyes_eyepatch_male_hi.glb",
@@ -261,14 +261,14 @@ export const V7M_FITS = {
     "qaStatus": "REWORK_V441_LOCAL_GAME_IDLE_RUN_CANNON_HI_LO_REVIEW_PENDING"
   },
   "shirt": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_shirt_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_shirt_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_tops588/shirt_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_tops588/shirt_male_lo.glb",
+    "qaStatus": "TOPS588_FIT_APPROVED_T592"
   },
   "suit": {
-    "hi": "assets/pirates/items/v7m_fit/cloth_suit_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/cloth_suit_male_lo.glb",
-    "qaStatus": "HEAD_COLLISION_FAIL"
+    "hi": "assets/pirates/items/v7m_tops588/suit_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_tops588/suit_male_lo.glb",
+    "qaStatus": "TOPS588_FIT_APPROVED_T592"
   }
 };
 
