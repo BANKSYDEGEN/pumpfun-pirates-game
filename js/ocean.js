@@ -28,6 +28,8 @@ export const MAX_HULLS = 12;
 // sun glints that follow uSun, soft crest foam that builds on wave tops and dissolves slowly after the crest passes,
 // foam collars + bow waves around hulls, lingering foam where cannonballs land, and a 0..1 storm mood (uStorm).
 // The ship wakes are separate trail ribbons (wake.js). Same wave field as the CPU buoyancy above.
+// [far-water] t2443u/t2444u: distant normals + foam scroll with the Gerstner wind (no opposing far scroll); deep-sea
+// horizon tint, stronger Fresnel, horizon sun-glint band; still one v348 surface / one draw call.
 // [v348] BANKSY t1828u "increase the distance see the sea rn it just cuts off": ONE continuous grid (1 draw call, 0 seams, 0 overlap).
 // The inner size x size m keeps its exact seg x seg spacing (waves, crest foam, splashes, uHullPad unchanged); `extra` more rows a side
 // are pushed out with a separable cubic warp (slope 1 at the seam = no crease) so the sea reaches SEA_REACH m in every direction.
@@ -124,18 +126,39 @@ export function createOcean(quality) {
       void main() {
         vec2 p = vWorld.xz; float dist = vFogDepth; float st = uStorm;
         vec3 V = normalize(cameraPosition - vWorld);
-        // --- small ripples on the big swell (fade out with distance so far water doesn't shimmer)
-        float rf = 1.0 - smoothstep(45.0, 230.0, dist);
-        vec2 g = rip(p, vec2(0.82, 0.57), 2.6, 0.035, 4.6) + rip(p, vec2(-0.35, 0.94), 3.7, 0.025, 5.4)
-               + rip(p, vec2(0.98, -0.2), 5.3, 0.016, 6.6) + rip(p, vec2(-0.7, -0.71), 7.9, 0.01, 8.1);
+        // --- ripple / macro normals: SAME direction family as the Gerstner swells (uWaves), gerstner phase speed.
+        // [far-water] t2443u/t2444u: no opposing scroll at range. Near chop matches pre-change fade (45→230 m);
+        // far macro ONLY kicks in past ~250 m so up-close turquoise stays identical.
+        vec2 wind = normalize(uWaves[0].xy + 1e-5);
+        vec2 wind2 = normalize(uWaves[1].xy + 1e-5);
+        vec2 wind3 = normalize(uWaves[2].xy + 1e-5);
+        vec2 wind4 = normalize(uWaves[3].xy + 1e-5);
+        vec2 wL = normalize(vec2(wind.x * 0.94 - wind.y * 0.34, wind.x * 0.34 + wind.y * 0.94));
+        vec2 wR = normalize(vec2(wind.x * 0.94 + wind.y * 0.34, -wind.x * 0.34 + wind.y * 0.94));
+        float rfNear = 1.0 - smoothstep(45.0, 230.0, dist); // unchanged from pre-far-water
+        float rfFar = smoothstep(250.0, 550.0, dist) * (1.0 - smoothstep(3600.0, 5400.0, dist));
+        float farAmt = smoothstep(400.0, 1600.0, dist); // 0 near / 1 far — gates color tweaks
+        vec2 gN = rip(p, wind, 2.6, 0.035, sqrt(9.8 * 2.6))
+                + rip(p, wind2, 3.7, 0.025, sqrt(9.8 * 3.7))
+                + rip(p, wind3, 5.3, 0.016, sqrt(9.8 * 5.3))
+                + rip(p, wind4, 7.9, 0.010, sqrt(9.8 * 7.9));
         #ifndef LOW_Q
-          g += rip(p, vec2(0.25, -0.97), 11.0, 0.007, 9.6);
-          g += rip(p, vec2(0.6, -0.8), 4.4, 0.02, 6.0) + rip(p, vec2(-0.95, 0.31), 9.3, 0.008, 9.0) + rip(p, vec2(0.13, 0.99), 14.0, 0.0045, 11.0);
+          gN += rip(p, wL, 11.0, 0.007, sqrt(9.8 * 11.0))
+              + rip(p, wR, 9.3, 0.008, sqrt(9.8 * 9.3))
+              + rip(p, wind, 14.0, 0.0045, sqrt(9.8 * 14.0));
         #endif
-        vec3 n = normalize(vNormal + vec3(-g.x, 0.0, -g.y) * (0.6 + 0.6 * st) * rf);
+        float kFar = mix(0.95, 0.28, smoothstep(400.0, 2600.0, dist));
+        vec2 gF = rip(p, wind, kFar, 0.034, sqrt(9.8 * kFar))
+                + rip(p, wind2, kFar * 1.35, 0.018, sqrt(9.8 * kFar * 1.35));
+        #ifndef LOW_Q
+          gF += rip(p, wL, kFar * 0.85, 0.012, sqrt(9.8 * kFar * 0.85));
+        #endif
+        vec2 g = gN * rfNear + gF * rfFar;
+        float rf = max(rfNear, rfFar * 0.7);
+        vec3 n = normalize(vNormal + vec3(-g.x, 0.0, -g.y) * (0.6 + 0.6 * st) * max(rfNear, rfFar));
         float facing = max(dot(n, V), 0.0);
-        float fres = pow(1.0 - facing, 4.0);
-        float nearC = 1.0 - smoothstep(18.0, 170.0, dist);
+        float fres = pow(1.0 - facing, mix(4.0, 3.6, farAmt)); // near identical; slightly broader only far
+        float nearC = 1.0 - smoothstep(18.0, mix(170.0, 220.0, farAmt), dist); // near turquoise band unchanged
         float hh = clamp(vH * 0.32 + 0.45, 0.0, 1.0);
 
         // --- hulls: foam collar, bow wave, and a clear turquoise halo
@@ -172,17 +195,22 @@ export function createOcean(quality) {
         float lit = mix(0.62 + 0.42 * clamp(d, 0.0, 1.0), 0.62 + 0.24 * smoothstep(0.05, 0.12, d) + 0.2 * smoothstep(0.5, 0.56, d), 0.35) * (1.0 - 0.3 * st);
         col *= lit;
         // [v343] sky reflection follows live zenith/horizon (sunrise gold / night indigo / storm)
+        // [far-water] near reflection strength unchanged; far gets a bit more Fresnel so it stays wet-looking
         vec3 skyLo = mix(uSkyHorizon, vec3(0.055, 0.085, 0.11), st);
         vec3 skyHi = mix(uSkyZenith, vec3(0.11, 0.14, 0.19), st);
         float r = clamp(reflect(-V, n).y * 2.0, 0.0, 1.0);
-        col = mix(col, mix(skyLo, skyHi, mix(r, floor(r * 3.0) / 3.0, 0.4)), 0.05 + fres * 0.6);
+        float skyMix = mix(0.05 + fres * 0.6, 0.07 + fres * 0.68, farAmt);
+        col = mix(col, mix(skyLo, skyHi, mix(r, floor(r * 3.0) / 3.0, 0.4)), skyMix);
         // [v343] sun/moon specular path — molten gold at sunrise/sunset, silver at night
         float ndh = max(dot(n, normalize(uSun + V)), 0.0);
         float sunward = smoothstep(-0.3, 0.8, dot(-V, sunH));
         float sparkle = smoothstep(0.55, 0.95, pow(ndh, 900.0)) * rf * rf * rf;
         float path = pow(max(dot(-V, sunH), 0.0), 4.0) * smoothstep(0.0, 0.35, uSun.y + 0.15);
         float hiSun = 1.0 - 0.7 * smoothstep(0.35, 0.9, uSun.y); // [v386] BANKSY 'work on daytime water glare': the broad haze + path fade as the sun climbs (golden-hour paths unchanged)
-        col += uSunColor * (sparkle * mix(0.75, 1.15, hiSun) + pow(ndh, 60.0) * 0.14 * hiSun + path * 0.22 * hiSun) * sunward * (1.0 - 0.75 * st);
+        // [far-water] horizon sun-glint band — far only (cheap, no extra pass)
+        float hzLook = smoothstep(0.42, 0.02, abs(V.y)) * farAmt;
+        float hzGlint = pow(max(dot(-V, sunH), 0.0), 6.0) * hzLook * (0.35 + 0.65 * fres);
+        col += uSunColor * (sparkle * mix(0.75, 1.15, hiSun) + pow(ndh, 60.0) * 0.14 * hiSun + path * 0.22 * hiSun + hzGlint * 0.4 * hiSun) * sunward * (1.0 - 0.75 * st);
         #ifdef ULTRA_Q
         col += uSunColor * (pow(ndh, 2400.0) * mix(1.0, 1.6, hiSun) + pow(ndh, 220.0) * 0.07 * hiSun) * sunward * (1.0 - 0.75 * st);
         #endif
@@ -191,13 +219,13 @@ export function createOcean(quality) {
         float ph0 = uWaves[0].w * dot(uWaves[0].xy, p) - sqrt(9.8 * uWaves[0].w) * uTime;
         float ph1 = uWaves[1].w * dot(uWaves[1].xy, p) - sqrt(9.8 * uWaves[1].w) * uTime;
         float tc0 = fract((1.5708 - ph0) / 6.2832), tc1 = fract((1.5708 - ph1) / 6.2832); // 0 at the crest, grows after it passes
-        float fn = fbm2(p * 0.11 + vec2(uTime * 0.03, -uTime * 0.02));
+        float fn = fbm2(p * 0.11 - wind * uTime * 0.035); // [far-water] foam advects with the swell, not against it
         float thr = 0.85 - 0.35 * st;
         float cov = max(exp(-tc0 * 2.6), smoothstep(0.93, 1.0, tc0)) * smoothstep(thr, thr + 0.7, vH - uWaves[0].z * sin(ph0) + fn * 0.65)
                   + max(exp(-tc1 * 3.2), smoothstep(0.93, 1.0, tc1)) * smoothstep(thr + 0.2, thr + 0.9, vH - uWaves[1].z * sin(ph1) + fn * 0.65) * 0.8;
-        float ft = fbm2(p * 0.8 + vec2(uTime * 0.12, uTime * 0.05));
+        float ft = fbm2(p * 0.8 - wind * uTime * 0.12);
         #ifndef LOW_Q
-          ft = ft * 0.7 + noise(p * 1.9 - uTime * 0.2) * 0.3;
+          ft = ft * 0.7 + noise(p * 1.9 - wind * uTime * 0.22) * 0.3;
         #endif
         cov = clamp(cov * smoothstep(0.2, 1.3, vH), 0.0, 1.0);
         float foam = smoothstep(1.0 - cov, 1.35 - cov, ft) * 0.8 * smoothstep(0.0, 0.2, cov);
@@ -214,11 +242,15 @@ export function createOcean(quality) {
         vec3 foamCol = mix(vec3(0.58, 0.68, 0.72), vec3(0.92, 0.98, 1.0), clamp(d * 0.8 + 0.55, 0.0, 1.0)) * (1.0 - 0.35 * st);
         col = mix(col, foamCol, clamp(foam, 0.0, 1.0));
         col += uFlash * vec3(0.35, 0.45, 0.55) * (0.35 + fres + foam * 0.6);
+        // [far-water] near fog identical to pre-change (uFogColor); far leans mid/deep turquoise, never black and never pale washout
+        vec3 fogFar = mix(mid, deep, 0.35 + 0.4 * st); // still tropical mid-sea, not near-black navy
+        vec3 fogSea = mix(uFogColor, fogFar, farAmt * 0.55);
         float fog = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-        vec3 seaC = mix(col, uFogColor * (1.0 + uFlash * 1.5), fog);
-        // [v348] t1828u: the far sea melts into the sky dome's horizon colour (fair: uSkyHorizon, storm: uFogColor) - no edge, ever
-        float hz = smoothstep(2400.0, 5200.0, length(vWorld.xz - cameraPosition.xz));
-        gl_FragColor = vec4(mix(seaC, mix(uSkyHorizon, uFogColor, st) * (1.0 + uFlash * 1.5), hz), 1.0);
+        vec3 seaC = mix(col, fogSea * (1.0 + uFlash * 1.5), fog);
+        // [v348] t1828u: continuous horizon blend — [far-water]: deep-tinted but bright tropical, not pale sky sheet
+        float hz = smoothstep(2600.0, 5400.0, length(vWorld.xz - cameraPosition.xz));
+        vec3 hzCol = mix(mix(mid, deep, 0.55), mix(uSkyHorizon, uFogColor, st), 0.30 + 0.2 * st);
+        gl_FragColor = vec4(mix(seaC, hzCol * (1.0 + uFlash * 1.5), hz * mix(1.0, 0.70, farAmt)), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
