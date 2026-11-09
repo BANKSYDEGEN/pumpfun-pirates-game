@@ -49,6 +49,7 @@ import { canFightOnFoot, tickIsleSafe, graceLeft, SAFE_GRACE_S, SAFEZONES_ON, in
 import { zipGrip } from '../dock/zipline.js'; // [zipline-shoot] one-hand trolley grip while GUN is drawn mid-ride
 
 import { STANCES_ON, STANCE_LABEL, STANCE_ICON, stanceForKey, stanceTap, holsterToggle, nextStance, peerReach, openHitOk, footRegenStep } from './stances.js'; // [backpack-pvp] t1710u UNARMED / SWORD / GUN anywhere on foot
+import { kothOpenIslandBoard } from '../kothAttr.js'; // [koth] player-vs-player everywhere (not Coliseum / AI / self)
 
 // [backpack-pvp] BANKSY t1711u "Make players take 5-6 shots to kill": 100 HP, sword + musket 19 dmg (common 6 hits; rare / epic 20 and
 // legendary 21 = 5 hits; + bayonet 3 point-blank still 5). Musket reload 1.25 s (was 2.0) so a 5-6 shot firefight stays snappy.
@@ -552,9 +553,9 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     if (me.hp <= 0) {
       me.down = ARENA.downS; me.downs++; try { dispatchEvent(new CustomEvent('pfp-pvp-down', { detail: { by: String(by || '') } })); } catch {} /* [v349] crate drop + prize fights */ me.downAt = [walker.w.x, walker.w.z]; if (mineR) mineR.st.act = null;
       const coli = STANCES_ON ? !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z) : false; me.downArena = STANCES_ON ? me.arena : (me.zone || me.lastZone);
-      // [v352 KOTH] open-island gun/sword/bomb KO → claimKill (victim). Coliseum pit/range: cosmetic only (no board).
+      // [v352/v573 KOTH] open-island gun/sword/bomb KO → claimKill (victim). Coliseum pit/range: cosmetic only (no board).
       const kid = byId || me.lastById || null, mid = typeof myId === 'function' ? myId() : myId;
-      const board = !coli && typeof kid === 'string' && kid && kid !== mid;
+      const board = kothOpenIslandBoard({ coli, killerId: kid, victimId: mid });
       try { kd?.('d', `me:${me.life}`, board ? { board: true, k: kid, v: mid, life: me.life } : undefined); } catch {}
       if (me.team) me.score[3 - me.team]++;
       say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'gold + unequipped haul dropped · respawning nearby'}</small>`, 2400);
@@ -615,10 +616,10 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
     r.team = ba[8] === 1 || ba[8] === 2 ? ba[8] : 0;
     if (ba[6] && !r.lastDown) { if (r.team && ba[0] === me.zone) me.score[3 - r.team]++; const d = dealt.get(m.i); if (d && d.life === ba[2] && d.n > 0) {
       me.kos++; try { dispatchEvent(new CustomEvent('pfp-pvp-kill', { detail: { id: m.i, name: r.name } })); } catch {} /* [v349] bounties + prize fights */
-      // [v352 KOTH] open-island gun/sword KO → claimKill (killer). Pit / musket range / Coliseum stay cosmetic.
+      // [v352/v573 KOTH] open-island gun/sword KO → claimKill (killer). Pit / musket range / Coliseum stay cosmetic.
       const coli = !!me.arena || isInsideColiseumH(walker.w.x, walker.w.z);
       const mid = typeof myId === 'function' ? myId() : myId;
-      const board = STANCES_ON && !coli && typeof m.i === 'string' && m.i !== mid;
+      const board = kothOpenIslandBoard({ coli, killerId: mid, victimId: m.i });
       try { kd?.('k', `${m.i}:${ba[2]}`, board ? { board: true, k: mid, v: m.i, life: ba[2] } : undefined); } catch {}
       say(`KO! <small>${esc(r.name)} is down${board ? '' : ' · just for fun'}</small>`, 1600); } }
     if (!ba[6] && r.lastDown) r.guard = ARENA.guardS;

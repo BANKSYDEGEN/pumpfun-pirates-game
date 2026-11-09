@@ -1186,7 +1186,7 @@ function buildTabs() {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = p.label; b.dataset.period = p.id; b.title = p.desc;
       b.setAttribute('role', 'tab');
-      b.onclick = () => { lbPeriod = p.id; localStorage.setItem('pfp_lb_period', p.id); syncTabs(); refreshBoards(); };
+      b.onclick = () => { lbPeriod = p.id; localStorage.setItem('pfp_lb_period', p.id); try { localStorage.setItem('pfp_pk_period', p.id); } catch {} syncTabs(); refreshBoards(); };
       wrap.appendChild(b);
     }
   });

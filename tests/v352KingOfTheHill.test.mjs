@@ -12,7 +12,7 @@ test('rename: plaza / interact / home tab / panel say KING OF THE HILL; JOIN BAT
   const plaza = R('js/dock/plaza.js'), layout = R('js/dock/layout.js'), html = R('index.html');
   assert.match(plaza, /KING OF THE HILL · TOP KILLS/);
   assert.doesNotMatch(plaza, /BATTLE ROYALE · TOP KILLS/);
-  assert.match(plaza, /confirmed kills · Harbor \+ Arena · gun, sword & boat sinks/);
+  assert.match(plaza, /confirmed kills · Harbor \+ island \+ Arena · players only/);
   assert.match(plaza, /⚔ JOIN BATTLE \/ SPECTATE/); // CTA unchanged
   assert.match(layout, /KING OF THE HILL LEADERBOARD · JOIN BATTLE/);
   assert.doesNotMatch(layout, /BATTLE ROYALE LEADERBOARD/);

@@ -23,7 +23,7 @@ const fmt = (n) => (+n || 0).toLocaleString('en-US');
 
 async function rowsFor(id, n) {
   if (id === 'waves') return (await leaderboard.getTop(n, 'all')).map(r => ({ name: r.name || short(r.wallet) || 'PIRATE', sub: r.name && r.wallet ? short(r.wallet) : '', v: fmt(r.score) }));
-  return (await fetchKillsTop('all')).slice(0, n).map(r => ({ name: r.name || 'PIRATE', sub: r.wallet ? short(r.wallet) : '', v: fmt(r.kills), kd: `K/D ${((+r.kills || 0) / Math.max(1, +r.deaths || 0)).toFixed(2)}` }));
+  return (await fetchKillsTop('all')).slice(0, n).map(r => ({ name: r.name || 'PIRATE', sub: r.wallet ? short(r.wallet) : '', v: fmt(r.kills), kd: `${+r.deaths || 0}D · K/D ${((+r.kills || 0) / Math.max(1, +r.deaths || 0)).toFixed(2)}` }));
 }
 
 export function createPlaza({ world, ctx = {} }) {
@@ -85,7 +85,7 @@ export function createPlaza({ world, ctx = {} }) {
   async function openBoard(id) {
     const b = BOARDS.find(x => x.id === id); if (!b) return; panel.dataset.board = id; panel.dataset.sym = '';
     const act = id === 'waves' ? { t: '▶ START STORM HUNT', f: ctx.startWaves } : { t: '⚔ JOIN BATTLE / SPECTATE', f: ctx.openArena };
-    panel.innerHTML = `${head(b.title, b.col)}<ol class="pz-list"><li class="empty">Loading…</li></ol><div class="pz-row">${act.f ? `<button type="button" class="pz-go">${act.t}</button>` : ''}</div><small class="pz-foot">${id === 'waves' ? 'best Waves score per pirate · all time' : 'confirmed kills · Harbor + Arena · gun, sword & boat sinks · all time'}</small>`;
+    panel.innerHTML = `${head(b.title, b.col)}<ol class="pz-list"><li class="empty">Loading…</li></ol><div class="pz-row">${act.f ? `<button type="button" class="pz-go">${act.t}</button>` : ''}</div><small class="pz-foot">${id === 'waves' ? 'best Waves score per pirate · all time' : 'confirmed kills · Harbor + island + Arena · players only · all time'}</small>`;
     panel.querySelector('.pz-x').onclick = close; const go = panel.querySelector('.pz-go'); if (go) go.onclick = () => { close(); act.f(); };
     panel.classList.remove('hidden');
     let rows = [], err = false; try { rows = await rowsFor(id, 50); } catch { err = true; }

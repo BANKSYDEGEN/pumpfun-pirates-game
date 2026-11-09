@@ -1,7 +1,8 @@
 // Pluggable leaderboard. Scores are keyed by Solana wallet (best score per wallet).
 // LocalAdapter: always available, this device only.
 // SupabaseAdapter: activates automatically when config.js has URL + anon key.
-// Periods: 'day' | 'week' | 'month' | 'year' are ROLLING windows (last 24h / 7d / 30d / 365d); 'all' = all-time.
+// Periods shown on every Storm Hunt board (same order as King of the Hill): ALL TIME / MONTH / DAY.
+// day + month are ROLLING windows (last 24h / 30d); 'all' = all-time. week/year remain available via periodSince if needed.
 import { wavesScore } from './pvpSave.js'; // [security H1]
 import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, LEADERBOARD_DAILY_VIEW, WALLET_VERIFY_ENABLED, VERIFY_SCORE_URL } from './config.js';
 // DAILY challenge board: one board per UTC day (seed 'YYYY-MM-DD'), best run per wallet. Needs migration 002_daily.sql
@@ -17,15 +18,18 @@ const clean = (s) => (s || '').replace(/[<>&"`\\]/g, '').replace(/\s+/g, ' ').tr
 
 const DAY = 86400000;
 export const PERIODS = [
-  { id: 'day', label: 'DAY', ms: DAY, desc: 'last 24 hours' },
-  { id: 'week', label: 'WEEK', ms: 7 * DAY, desc: 'last 7 days' },
+  { id: 'all', label: 'ALL TIME', ms: 0, desc: 'all time' },
   { id: 'month', label: 'MONTH', ms: 30 * DAY, desc: 'last 30 days' },
+  { id: 'day', label: 'DAY', ms: DAY, desc: 'last 24 hours' },
+];
+// legacy ids still resolvable for saved localStorage / deep links
+export const PERIODS_EXTRA = [
+  { id: 'week', label: 'WEEK', ms: 7 * DAY, desc: 'last 7 days' },
   { id: 'year', label: 'YEAR', ms: 365 * DAY, desc: 'last 365 days' },
-  { id: 'all', label: 'ALL-TIME', ms: 0, desc: 'all time' },
 ];
 export const DAILY_TAB = { id: 'daily', label: 'DAILY', desc: "today's daily challenge" };
 const LS_DAILY = 'pfp_daily_v1';        // { seed: { wallet: best entry } }, last few days only
-export const periodSince = (id) => { const p = PERIODS.find(x => x.id === id); return p && p.ms ? Date.now() - p.ms : 0; };
+export const periodSince = (id) => { const p = PERIODS.find(x => x.id === id) || PERIODS_EXTRA.find(x => x.id === id); return p && p.ms ? Date.now() - p.ms : 0; };
 
 // keep the best run per wallet, highest first; ties go to the earlier run
 function bestPerWallet(rows, n) {

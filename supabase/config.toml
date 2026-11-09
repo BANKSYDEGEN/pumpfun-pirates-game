@@ -1,2 +1,5 @@
 [functions.boardfeed]
 verify_jwt = false
+
+[functions.pvp]
+verify_jwt = false
