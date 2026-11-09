@@ -1,6 +1,6 @@
 // [v348] BANKSY t1827u-t1830u + t1833u: live cannon muzzles + ship-way broadsides, continuous 5600 m sea,
 // foot_shallows off (one sea), waterfall/lagoon/river mouth intact, boats/canoes/swimmers ride the live swell,
-// base swim ~13% slower with jump-swim kept at the old top speed.
+// base swim slowed (v348 ~13%, then t2445u another ~25%) with jump-swim kept at the old top speed.
 // node --test tests/v348CannonMuzzlesAndSeaHorizon.test.mjs
 import { register } from 'node:module';
 import test from 'node:test';
@@ -147,15 +147,18 @@ test('t1833u: floatShip tracks steep crests (τ≈0.125 s + floor); canoe never 
   assert.ok(ty - y < 0.05, `ship lag after 0.25 s: ${ty - y}`);
 });
 
-test('t1833u: PHYS.swim ~13% slower; jump-swim keeps exact old top speeds; no false cliff-fall on receding swell', () => {
+test('t1833u / t2445u: PHYS.swim slowed again (~25% from v348); jump-swim keeps exact old top speeds; no false cliff-fall on receding swell', () => {
   const { PHYS, SWIM_SURGE } = PHYS_M;
-  assert.deepEqual(PHYS.swim, [7.4, 11.3]);
+  // [slower-swim] t2445u: another ~25% on regular stroke (7.4×0.75, 11.3×0.75). Dive uses the same PHYS.swim (no separate horiz speed).
+  assert.deepEqual(PHYS.swim, [5.55, 8.475]);
   assert.deepEqual(SWIM_SURGE.speed, [8.5 * 1.35, 13.0 * 1.35]);
+  // Absolute jump-swim tops unchanged via kOf = SWIM_SURGE.speed / PHYS.swim
   assert.ok(Math.abs(PHYS.swim[0] * SWIM_SURGE.kOf(false) - 11.475) < 1e-9);
   assert.ok(Math.abs(PHYS.swim[1] * SWIM_SURGE.kOf(true) - 17.55) < 1e-9);
-  // ~13% slower than old base
-  assert.ok(PHYS.swim[0] / 8.5 < 0.88 && PHYS.swim[0] / 8.5 > 0.85);
-  assert.ok(PHYS.swim[1] / 13.0 < 0.88 && PHYS.swim[1] / 13.0 > 0.85);
+  // ~25% slower than v348 base [7.4, 11.3]; still well below run (9.6); stroke above walk (4.2) by design
+  assert.ok(Math.abs(PHYS.swim[0] / 7.4 - 0.75) < 1e-9);
+  assert.ok(Math.abs(PHYS.swim[1] / 11.3 - 0.75) < 1e-9);
+  assert.ok(PHYS.swim[0] < 9.6 && PHYS.swim[1] < 9.6);
   const ph = R('js/onfoot/physics.js'), wk = R('js/onfoot/walker.js'), fo = R('js/onfoot/followers.js');
   assert.match(ph, /&& !b\.swim\) \{ b\.air = true/); // no cliff-fall while/after swimming on a receding wave
   assert.match(ph, /ride = b\.swim && f\.swim && Math\.abs\(d\) < PHYS\.rideMax/);
