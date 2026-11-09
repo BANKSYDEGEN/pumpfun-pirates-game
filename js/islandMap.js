@@ -25,7 +25,8 @@ const POI = { shop: ['$', '#ffc93c', '#161616', 'SHOP'], squadhall: ['S', '#9b5c
   shop_clothes: ['👕', '#d8322f', '#fff', 'CLOTHES SHOP'], shop_ships: ['⛵', '#2a6df4', '#fff', 'SHIP SKINS'], token_AHOY: ['$', '#22c55e', '#161616', 'TOKENS'],
   cave: ['☠', '#e8e2d4', '#161616', 'SKULL CAVE'],
   fort_flag: ['⚑', '#ffcd00', '#161616', 'DAILY FLAG'], fort_spyglass: ['◎', '#e8e2d4', '#161616', 'CASTLE SPYGLASS'], // [minimap-icons] castle flag + fort spyglass
-  route_board: ['!', '#e8e2d4', '#161616', 'NOTICE BOARD'] }; // [hide-notice] only in interact when &noticeboard=1
+  route_board: ['!', '#e8e2d4', '#161616', 'NOTICE BOARD'], // [hide-notice] only in interact when &noticeboard=1
+  pot: ['🦀', '#e07a2a', '#161616', 'CRAB POT'], crate: ['📦', '#c9a66b', '#161616', 'SMUGGLER CRATES'] }; // [crab-crates-beach] + [smuggler-start-cannonhill] money-maker spots
 const POI_HIDE = new Set(['wish_fountain', 'cottage_well']); // wishing fountain + cottage well stay off the map (hidden feature)
 const LH_S = (t) => ['✦', '#ffe08a', '#7a3b00', t]; // lighthouses: map + radar
 const FPOI = { skullpeak: 'SKULL PEAK', falls: 'WATERFALL', gallows: 'GALLOWS RIDGE', bridge: "HANGMAN'S BRIDGE", lighthouse: 'LIGHTHOUSE', sandbar_lh: 'SANDBAR LIGHT', gate: 'TOWN GATE', cove: "SMUGGLERS' COVE" };
@@ -78,8 +79,8 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
   const buildingBadges = (ctx, T, th, dpr = 1) => drawBuildingEmblems(ctx, buildings.filter(b => !(P || []).some(p => p.id === b.id && p.icon)), footProject(T), { theme: th, maxRadius: 9*dpr, minRadius: 3*dpr });
   let lx0 = 1e9, lx1 = -1e9, lz0 = 1e9, lz1 = -1e9;
   const pois = () => { // [minimap-icons] one icon per id; interact/foot first (real walk-up spots), then FOOT_POIS / landmarks / docks. &mmicons=0 skips the id dedupe.
-    const raw = [...layout.interact, ...(world.footInteract || [])].filter(q => !q.mapHidden && !POI_HIDE.has(q.id) && (POI[q.id] || POI[q.kind] || shopIcon(q))).map(q => { const [fx, fz] = toF(q.x, q.z), ic = shopIcon(q); // [v153] shops: a badge per shop id
-      return { id: q.id, x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind]), icon: ic }; })
+    const raw = [...layout.interact, ...(world.footInteract || [])].filter(q => !q.mapHidden && !POI_HIDE.has(q.id) && (POI[q.id] || POI[q.kind] || POI[q.mm] || shopIcon(q))).map(q => { const [fx, fz] = toF(q.x, q.z), ic = shopIcon(q); // [v153] shops: a badge per shop id
+      return { id: q.id, x: fx, z: fz, s: ic ? ['', ic[1], ic[2], ic[4]] : (POI[q.id] || POI[q.kind] || POI[q.mm]), icon: ic }; })
       .concat((FM.FOOT_POIS || []).filter(p => FPOI[p.id]).map(p => ({ id: p.id, x: p.x, z: p.z, s: /lighthouse|_lh$/.test(p.id) ? LH_S(FPOI[p.id]) : ['▲', '#fde68a', '#161616', FPOI[p.id]], far: true, lh: /lighthouse|_lh$/.test(p.id), geo: GEO_POI.has(p.id) || !/lighthouse|_lh$/.test(p.id) })))
       .concat(rockLights())
       .concat([...mapLandmarks(FM), ...mapDocks(layout)].map(l => { const ic = SHOP_ICONS[l.icon] || SHOP_ICONS.shop; return { id: l.id, x: l.x, z: l.z, s: ['', ic[1], ic[2], l.label], icon: ic, far: l.far, mark: true, geo: !!l.geo }; }));

@@ -37,12 +37,19 @@ export const SITES = {
   arena: { x: 374, z: 106.5 },                                         // prize-fight foes still spawn on the coliseum concourse
   horde: { x: 374.5, z: 124, r: 7 },                                  // the Skeleton Horde ring on the concourse floor
   rum: inShop('rent_3', 'RUM EXPORT') || { x: 297, z: 160, ry: -Math.PI / 2 },   // [v372] hill-street shop L2 (was the wharf)
-  crates: { wharf: { x: 258, z: 150, ry: Math.PI / 2, name: 'Harbor Wharf' }, cove: { x: 1086, z: 430, ry: Math.PI / 2, name: "Smugglers' Cove" } },
+  // [smuggler-start-cannonhill] t2464u: Harbor Wharf pickup → Cannon Hill powder magazine door (battery.js MAG).
+  // Door faces deck-in; spot sits past the props strip + chart table (magAt(0, MAG.d/2+3.8) → harbor). Buyers / ROUTES unchanged.
+  crates: { wharf: { x: -678.15, z: 60.34, ry: -0.379, name: 'Cannon Hill' }, cove: { x: 1086, z: 430, ry: Math.PI / 2, name: "Smugglers' Cove" } },
   buyers: { fort: { x: 474, z: 104, ry: Math.PI / 2, name: 'Fort Quartermaster' }, jungle: { x: 884, z: -228, ry: Math.PI / 2, name: 'Jungle Outpost' }, harbor: { ...(inShop('rent_4', 'HARBOR FENCE') || { x: 300, z: 140, ry: -Math.PI / 2 }), name: 'Harbor Fence' } },   // [v372] harbor fence: hill-street shop L3
   raiders: { x: 1096, z: 446, r: 9 }, stalkers: { x: 930, z: -300, r: 9 },
   dive: [{ id: 'wreck_a', x: 1135, z: 460, kind: 'chest', where: 'Dead Man\'s Cove wreck' }, { id: 'wreck_b', x: 1152, z: 448, kind: 'chest', where: 'Dead Man\'s Cove wreck' },
     { id: 'wreck_c', x: 1146, z: 468, kind: 'clam', where: 'Dead Man\'s Cove wreck' }, { id: 'lagoon_a', x: 680, z: 15, kind: 'clam', where: 'Lagoon' }, { id: 'lagoon_b', x: 690, z: 26, kind: 'clam', where: 'Lagoon' }],
-  pots: [{ id: 'quay_a', x: 245.4, z: 127.5 }, { id: 'quay_b', x: 245.4, z: 133 }, { id: 'quay_c', x: 245.4, z: 156 }],
+  // [crab-crates-beach] t2465u: crab pots on the sandy beach just south of Cannon Headland (map tip below the headland,
+  // above the waterline, outside the cliff SDF). Was 3 quay pots; now 7 beach pots. maxPots / fill / loot unchanged.
+    pots: [
+    { id: 'beach_a', x: -718, z: 80 }, { id: 'beach_b', x: -716, z: 85 }, { id: 'beach_c', x: -713, z: 88 },
+    { id: 'beach_d', x: -706, z: 93 }, { id: 'beach_e', x: -702, z: 96 }, { id: 'beach_f', x: -694, z: 102 }, { id: 'beach_g', x: -689, z: 103 },
+  ],
   mine: [{ id: 'iron', x: 975.1, z: 340.5, ry: Math.PI / 2, kind: 'iron' }, { id: 'saltpeter', x: 984.9, z: 344.5, ry: -Math.PI / 2, kind: 'saltpeter' }, { id: 'gold', x: 981.8, z: 349.7, ry: Math.PI, kind: 'gold' }],
 };
 export const ROUTES = [
@@ -78,7 +85,7 @@ export function createMoneyMakers(ctx) {
   const fm = fitted(SITES.fight, () => put(P.fightMaster(), SITES.fight.x, SITES.fight.z, SITES.fight.ry, SITES.fight.y)); spot('fight', 'coliseum', fx(SITES.fight, 1.6), fz(SITES.fight, 1.6), 3.0, 'FIGHT MASTER · PRIZE FIGHTS · BETS · HORDE');
   const hordeRing = put(P.ring(SITES.horde.r, 0xb3121a), SITES.horde.x, SITES.horde.z); hordeRing.position.y += 0.06; hordeRing.visible = false;
   fitted(SITES.rum, () => put(P.rumStall(), SITES.rum.x, SITES.rum.z, SITES.rum.ry, SITES.rum.y)); spot('rum', 'rum', fx(SITES.rum, 1.4), fz(SITES.rum, 1.4), 3.0, 'HARBOR RUM EXPORT STALL · SELL RUM');
-  for (const [k, s] of Object.entries(SITES.crates)) { put(P.crateStack(k === 'cove' ? "COVE CONTRABAND" : 'WHARF CONTRABAND'), s.x, s.z, s.ry); spot('crate_' + k, 'crate', s.x, s.z, 3.2, `SMUGGLER CRATES · ${s.name.toUpperCase()}`, { from: k }); }
+  for (const [k, s] of Object.entries(SITES.crates)) { put(P.crateStack(k === 'cove' ? "COVE CONTRABAND" : 'CANNON HILL CONTRABAND'), s.x, s.z, s.ry); spot('crate_' + k, 'crate', s.x, s.z, 3.2, `SMUGGLER CRATES · ${s.name.toUpperCase()}`, { from: k }); }
   const buyerMk = {};
   for (const [k, s] of Object.entries(SITES.buyers)) { fitted(s, () => put(P.buyerPost(s.name.toUpperCase(), k === 'fort' ? '#2a4a6a' : k === 'jungle' ? '#2a5a2a' : '#5a2a2a'), s.x, s.z, s.ry, s.y));
     const ringM = put(P.ring(s.door ? 2.4 : C.CRATE.deliverR, 0xffcd77), s.x, s.z, 0, s.y); ringM.position.y += 0.08; const bc = put(P.beacon(), s.door ? s.door.x : s.x, s.door ? s.door.z : s.z, 0, s.door ? s.door.y : null); ringM.visible = bc.visible = false; buyerMk[k] = { ring: ringM, beacon: bc };
