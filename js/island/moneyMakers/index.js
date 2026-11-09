@@ -44,11 +44,11 @@ export const SITES = {
   raiders: { x: 1096, z: 446, r: 9 }, stalkers: { x: 930, z: -300, r: 9 },
   dive: [{ id: 'wreck_a', x: 1135, z: 460, kind: 'chest', where: 'Dead Man\'s Cove wreck' }, { id: 'wreck_b', x: 1152, z: 448, kind: 'chest', where: 'Dead Man\'s Cove wreck' },
     { id: 'wreck_c', x: 1146, z: 468, kind: 'clam', where: 'Dead Man\'s Cove wreck' }, { id: 'lagoon_a', x: 680, z: 15, kind: 'clam', where: 'Lagoon' }, { id: 'lagoon_b', x: 690, z: 26, kind: 'clam', where: 'Lagoon' }],
-  // [crab-crates-beach] t2465u: crab pots on the sandy beach just south of Cannon Headland (map tip below the headland,
-  // above the waterline, outside the cliff SDF). Was 3 quay pots; now 7 beach pots. maxPots / fill / loot unchanged.
-    pots: [
-    { id: 'beach_a', x: -718, z: 80 }, { id: 'beach_b', x: -716, z: 85 }, { id: 'beach_c', x: -713, z: 88 },
-    { id: 'beach_d', x: -706, z: 93 }, { id: 'beach_e', x: -702, z: 96 }, { id: 'beach_f', x: -694, z: 102 }, { id: 'beach_g', x: -689, z: 103 },
+  // [crab-crates-beach] t2465u/t2470u/t2471u/t2472u: 6 crab pots on the flat sand lobe south of Cannon Headland
+  // (user-map player-arrow spot: shoreline facing the two islets). Dry crab-band sand, gentle slope. maxPots/loot unchanged.
+  pots: [
+    { id: 'beach_a', x: -641, z: 124 }, { id: 'beach_b', x: -638, z: 121 }, { id: 'beach_c', x: -643, z: 120 },
+    { id: 'beach_d', x: -638, z: 127 }, { id: 'beach_e', x: -640, z: 117 }, { id: 'beach_f', x: -646, z: 117 },
   ],
   mine: [{ id: 'iron', x: 975.1, z: 340.5, ry: Math.PI / 2, kind: 'iron' }, { id: 'saltpeter', x: 984.9, z: 344.5, ry: -Math.PI / 2, kind: 'saltpeter' }, { id: 'gold', x: 981.8, z: 349.7, ry: Math.PI, kind: 'gold' }],
 };

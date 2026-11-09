@@ -1,4 +1,4 @@
-// [smuggler-start-cannonhill] t2464u + [crab-crates-beach] t2465u
+// [smuggler-start-cannonhill] t2464u + [crab-crates-beach] t2465u/t2470u/t2471u/t2472u
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +26,6 @@ test('smuggler wharf start is at Cannon Hill magazine door-front', () => {
   const [tx, tz] = magDoorClear();
   assert.ok(Math.hypot(x - tx, z - tz) < 0.5, `got ${x},${z} want ~${tx},${tz}`);
   assert.ok(Math.abs(ry + 0.379) < 0.01);
-  // destinations / routes untouched
   assert.match(M, /from: 'wharf', to: 'fort'/);
   assert.match(M, /from: 'wharf', to: 'jungle'/);
   assert.match(M, /name: 'Fort Quartermaster'/);
@@ -34,21 +33,35 @@ test('smuggler wharf start is at Cannon Hill magazine door-front', () => {
   assert.match(M, /cove: \{ x: 1086, z: 430/);
 });
 
-test('crab pots moved to Cannon Headland south beach with extras', () => {
+test('exactly 6 crab pots on flat sand lobe south of Cannon Headland', () => {
   assert.match(M, /\[crab-crates-beach\]/);
   assert.doesNotMatch(M, /id: 'quay_a'/);
-  const ids = [...M.matchAll(/id: '(beach_[a-g])'/g)].map(m => m[1]);
-  assert.deepEqual(ids, ['beach_a','beach_b','beach_c','beach_d','beach_e','beach_f','beach_g']);
-  const coords = [...M.matchAll(/id: 'beach_[a-g]', x: ([-\d.]+), z: ([-\d.]+)/g)].map(m => [+m[1], +m[2]]);
-  assert.equal(coords.length, 7);
-  const HEADLAND = CO.HEADLAND;
+  assert.doesNotMatch(M, /id: 'beach_g'/);
+  const ids = [...M.matchAll(/id: '(beach_[a-f])'/g)].map(m => m[1]);
+  assert.deepEqual(ids, ['beach_a','beach_b','beach_c','beach_d','beach_e','beach_f']);
+  const coords = [...M.matchAll(/id: 'beach_[a-f]', x: ([-\d.]+), z: ([-\d.]+)/g)].map(m => [+m[1], +m[2]]);
+  assert.equal(coords.length, 6);
+  // player-arrow sand lobe: clustered south of battery (foot +z), near (~-641, 120)
+  const cx = coords.reduce((s, c) => s + c[0], 0) / 6;
+  const cz = coords.reduce((s, c) => s + c[1], 0) / 6;
+  assert.ok(Math.hypot(cx - (-641), cz - 123) < 12, `cluster center ${cx},${cz}`);
   for (const [x, z] of coords) {
-    const [lx, lz] = CO.w2t(x, z);
-    const hd = Math.hypot(lx - HEADLAND.lx, lz - HEADLAND.lz);
-    assert.ok(hd > 30 && hd < 80, `pot ${x},${z} hd=${hd}`);
-    assert.ok(z > 70, `map-south of headland battery (world z): ${z}`); // battery harbor z≈70
+    assert.ok(Math.hypot(x - cx, z - cz) < 16, `pot ${x},${z} too far from cluster`);
+    assert.ok(z > 110 && z < 140, `map-south sand lobe z: ${z}`);
+    assert.ok(x > -660 && x < -620, `sand lobe x: ${x}`);
+    // not on rocky headland deck (battery ~ -676,70)
+    assert.ok(Math.hypot(x - (-676), z - 70) > 40, `too close to battery rock ${x},${z}`);
   }
-  // rewards / caps unchanged
+  // static flatness/height contract (matches in-game sample at these coords)
+  const expected = {
+    beach_a: [0.99, 0.13], beach_b: [1.26, 0.16], beach_c: [0.96, 0.20],
+    beach_d: [1.12, 0.15], beach_e: [1.20, 0.16], beach_f: [0.89, 0.08],
+  };
+  for (const [id, x, z] of [...M.matchAll(/id: '(beach_[a-f])', x: ([-\d.]+), z: ([-\d.]+)/g)].map(m => [m[1], +m[2], +m[3]])) {
+    const [h, maxD] = expected[id];
+    assert.ok(h >= 0.8 && h <= 1.4, `${id} height ${h} not in crab/flat beach band`);
+    assert.ok(maxD <= 0.22, `${id} slope ${maxD} too steep`);
+  }
   const C = src('js/island/moneyMakers/config.js');
   assert.match(C, /maxPots: 3/);
   assert.match(C, /fillS: k60\(900\)/);
