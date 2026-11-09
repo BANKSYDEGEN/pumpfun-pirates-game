@@ -990,7 +990,9 @@ export function createPvp(K) {
     if (m.b[0] && m.b[0][7] == null) fx.muzzle(new THREE.Vector3(m.b[0][0], m.b[0][1], m.b[0][2]), new THREE.Vector3(m.b[0][3], 0, m.b[0][5]).normalize()); // old senders (v95 flashes at launch)
     sfx.enemyBroadside(m.b.length, clamp(1 - dist / 220, 0, 1), aiBall && !!owner.big);
   }
-  const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + u.len * 0.9; };
+  // [cannon-snake t2437u]: ball hits hull+deck only (not sails/spyglass). Mirror js/broadsideAim.js hullHitY1.
+  const ballY1 = (s) => { const ud = s.mesh?.userData || {}, deck = ud.deckY, depth = ud.depth || 3, top = Number.isFinite(deck) ? deck + 1.2 : depth * 0.75 + 1.4; return (s.y || 0) + Math.max(2.2, Math.min(top, 6.5)); };
+  const inside = (s, p) => { const [lx, lz] = K.toLocal(s, p.x, p.z), u = s.mesh.userData; return Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < (u.hitLen || u.len) / 2 + 0.6 && p.y > s.y - 1.5 && p.y < ballY1(s); };
   // [backpack-pvp] Option B helpers
   const unmannedLocal = () => { const d = K.dock, pl = P(); return !!(d?.on && (d.inHull || d.docking?.mode === 'docked' || (pl?.anchor && (d.onFoot || d.canoeing)) || pl?._offshore || pl?._canoeAway)); };
   function shipProtectedHarbor(s) {

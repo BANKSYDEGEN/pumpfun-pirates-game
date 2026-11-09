@@ -63,6 +63,7 @@ import { wireHudHide } from './hudHide.js'; // [gold-hud] stats under captain + 
 import { compileShip, setRenderContext, prebuildNext, prebuildSkin } from './upgradeVisuals.js';
 // [t1716u] Waves uses shipTick from pvpSkins.js (Harbor animated skins); wavesShipTick no longer needed
 import { touchesGold } from './hullReach.js'; // [big-hitbox]
+import * as ShipCollide from './shipCollide.js'; // [ship-collide] t2435u hull bounce
 
 import { escHtml } from './safe.js'; // [security H5]
 import { HARBOR_MODULES } from './preloadList.js'; // [v330 perf] harbor module graph (generated)
@@ -484,46 +485,68 @@ function fire(shooter, side, target = null, accuracy = 1) {
   crewFire(shooter.mesh, side); // [Raul] that side's gun crews recoil + reload
   const shot = game.mode === 'pvp' ? [] : null; // [pvp] volley broadcast
   const dir = sideDir(shooter, side);
-  const vel0 = new THREE.Vector3(Math.sin(shooter.yaw) * shooter.speed, 0, Math.cos(shooter.yaw) * shooter.speed);
+  // [cannon-snake] forward-ONLY ship way (sin/cos * speed). Do NOT add yaw-rate × muzzle-radius sideways —
+  // that was spraying balls aft when snaking / just after a turn.
+  const fv = BA.forwardVel(shooter.yaw, shooter.speed);
+  const vel0 = new THREE.Vector3(fv.x, 0, fv.z);
   const H = 42; // horizontal muzzle speed
   // assisted ranging: aim at a target on that side, else default ~45 m
   let range = (shooter.range || 90) / 2, aimPt = null; // [Raul] ship upgrades: range
-  if (!target && shooter === player) {
+  const isPlayer = shooter === player;
+  if (!target && isPlayer) {
     let best = null, bd = 1e9;
     for (const e of enemies) {
       if (!e.alive) continue;
       const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
       if (d > (shooter.range || 90)) continue; // [Raul] ship upgrades: range
-      if (BA.inCone(dir, dx, dz) && d < bd) { bd = d; best = e; } // [v347]/[cannon-assist]: lock inside ±~17° of the broadside (was ±43°, then ±15°)
+      if (BA.inCone(dir, dx, dz) && d < bd) { bd = d; best = e; } // [cannon-snake] player heat-seek lock ~±43° (pre-v347)
     }
     target = best;
   }
-  // [v347]/[cannon-assist]: no heat-seeking. Locked shot: partial lead (player 34 %, AI 100 %), ONE firing line
-  // turned at most ~6.9° (player) / ~13° (AI) off the gunports: every gun fires parallel along it and only the elevation ranges.
-  let line = null, aimY = 2;
+  // Player: restored heat-seek (pre-v347 lock+full lead) with SOFT look — launch clamped near broadside,
+  // then smooth limited-rate home onto the predicted point. AI: keep v347 parallel fireLine (no mid-air home).
+  let line = null, aimY = 2, playerHome = null;
   if (target) {
-    const lp = BA.leadPoint(shooter.x, shooter.z, target, shooter === player ? BA.AIM.lead : BA.AIM.aiLead);
+    const lp = BA.leadPoint(shooter.x, shooter.z, target, isPlayer ? BA.AIM.lead : BA.AIM.aiLead);
     aimPt = new THREE.Vector3(lp.x, 0, lp.z);
     const err = (1 - accuracy) * 14;
     aimPt.x += rnd(-err, err); aimPt.z += rnd(-err, err);
-    if (Number.isFinite(target.footY)) aimY = target.footY + 0.6; // [v347] t1821u: an AI bombarding a pirate on the coast ranges onto the beach
-    // [v348] t1827u: the ball keeps the ship's own way (like the unaimed shot), so it leaves straight out of the moving barrel instead of
-    // sliding astern of it; the aim point is pulled back by that drift so the shot still lands where it was aimed
-    const tf = Math.hypot(aimPt.x - shooter.x, aimPt.z - shooter.z) / H;
-    line = BA.fireLine(dir, shooter.x, shooter.z, aimPt.x - vel0.x * tf, aimPt.z - vel0.z * tf, shooter === player ? BA.AIM.maxDev : BA.AIM.aiMaxDev);
-    if (line.d < 4) line = null;
+    // [cannon-snake t2436u]: player aims at HULL (deck/waterline), never masts/sails. Shore footY kept via hullAimY.
+    aimY = BA.hullAimY(target);
+    if (isPlayer) {
+      playerHome = { x: aimPt.x, z: aimPt.z, y: aimY }; // fixed predicted HULL point
+    } else {
+      // [v348] AI: ship way on the ball + aim pulled back by that drift; parallel fireLine
+      const tf = Math.hypot(aimPt.x - shooter.x, aimPt.z - shooter.z) / H;
+      line = BA.fireLine(dir, shooter.x, shooter.z, aimPt.x - vel0.x * tf, aimPt.z - vel0.z * tf, BA.AIM.aiMaxDev);
+      if (line.d < 4) line = null;
+    }
   }
   const gap = Math.min(0.07, 0.5 / Math.max(1, muzzles.length)); // [v95] ripple fire: up to 12 guns a side still fire within ~0.5 s
   shooter.mesh?.updateMatrixWorld(true); // [v348] t1827u: a keydown between frames reads the barrels where they are NOW
   muzzles.forEach((m, i) => {
     const p = new THREE.Vector3(); m.getWorldPosition(p);
-    let v;
-    if (line) { const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H); v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z); range = line.d; } // parallel, no aim-point convergence, + the ship's own way [v348]
+    let v = null, home = null;
+    if (isPlayer && playerHome) {
+      // per-gun predicted point with a light along-hull fan (pre-v347), then clamp leave-angle to the broadside
+      const fan = (i - (muzzles.length - 1) / 2) * Math.min(1.2, 8.4 / Math.max(1, muzzles.length - 1));
+      const fw = Math.sin(shooter.yaw), fz = Math.cos(shooter.yaw);
+      const ax = playerHome.x + fw * fan, az = playerHome.z + fz * fan;
+      const g = BA.playerAimVelocity(p, dir, ax, az, playerHome.y, BA.AIM.maxDev);
+      if (g) {
+        v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z);
+        range = Math.hypot(ax - shooter.x, az - shooter.z);
+        home = { x: g.ax, z: g.az, until: BA.AIM.homeT, rate: BA.AIM.homeRate, ft: 0 };
+      }
+    } else if (line) {
+      const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H);
+      v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z); range = line.d;
+    }
     if (!v) { const t = range / H; v = dir.clone().multiplyScalar(H).add(vel0); v.y = 0.5 * 20 * t + rnd(-0.6, 0.6); v.x += rnd(-1, 1); v.z += rnd(-1, 1); }
     // [v95] the ball is LAUNCHED from its muzzle when its turn in the ripple comes (updateBalls, after this frame's ship moves):
     // spawning it here left delayed balls hanging where the gun WAS (up to ~8 m behind a ship at full speed) and a frame stale
     const mesh = getBall(); mesh.position.copy(p); mesh.visible = false;
-    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * gap, muzzle: m, gi: i, side, p0: p.clone() });
+    balls.push({ mesh, v, owner: shooter, life: 6, delay: i * gap, muzzle: m, gi: i, side, p0: p.clone(), home });
     if (shot) shot.push({ p: p.clone(), v: v.clone(), delay: i * gap, side, i }); // [pvp]
   });
   const dist = Math.hypot(shooter.x - player.x, shooter.z - player.z);
@@ -747,8 +770,8 @@ function launchBall(b) {
   // and the ship's world matrix is refreshed before the read (three.js only does that at render time otherwise)
   if (m.parent && b.owner?.mesh?.parent) { b.owner.mesh.updateMatrixWorld(true); m.getWorldPosition(_mp); b.mesh.position.copy(_mp); }
   b.mesh.visible = true; b.spawnAt = b.mesh.position.clone();
-  // [v347] t1824u: the ball leaves its muzzle on its TRUE parabola and never bends mid-air (the v97.1 b.ex / b.tp sideways ease and the
-  // ripple-delay re-aim onto a fixed point are gone: those were what made broadsides look like heat-seeking missiles)
+  // [cannon-snake]: live muzzle tip for spawn; velocity was set at fire() (forward-only ship way, no yaw-rate inject).
+  // Player heat-seek curves via steerHoriz in updateBalls (true path = drawn). No b.ex / b.tp dual-path fake.
   b.tp = null; b.ex = null; b.ft = 0;
   window.PFP_BALL_TAP?.(b);
   if (b.owner?.mesh) fx.muzzle(b.mesh.position, sideDir(b.owner, b.side || 'port'));
@@ -759,7 +782,11 @@ function updateBalls(dt) {
     if (b.delay > 0) { b.delay -= dt; if (b.delay > 0) { b.mesh.visible = false; continue; } }
     if (b.muzzle) { launchBall(b); continue; } // [v95] appears exactly at the barrel tip this frame, flies from the next
     b.mesh.visible = true;
-    const p = b.mesh.position; // [v347] one true ballistic path: drawn = simulated, zero mid-flight lateral curve
+    const p = b.mesh.position; // drawn = simulated (player heat-seek steers the TRUE path smoothly; no dual b.tp/b.ex)
+    if (b.home && (b.home.ft = (b.home.ft || 0) + dt) <= b.home.until) { // [cannon-snake] gradual curve onto predicted aim
+      const s = BA.steerHoriz(b.v.x, b.v.z, p.x, p.z, b.home.x, b.home.z, b.home.rate, dt);
+      b.v.x = s.x; b.v.z = s.z;
+    }
     b.v.y -= G * dt; p.addScaledVector(b.v, dt); b.life -= dt;
     fx.trail(b.mesh.position);
     let done = false;
@@ -770,8 +797,9 @@ function updateBalls(dt) {
       if (ownAlly === (s === player || !!s.ally)) continue; // [escorts] no friendly fire: enemies don't hurt each other, you + escorts don't either
       const [lx, lz] = toLocal(s, p.x, p.z);
       const u = s.mesh.userData;
-      const hl = u.hitLen || u.len; // [v97] long hulls: the hit box stays the design length (Waves) / +10% max (Battle Royale)
-      if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < hl / 2 + 0.6 && p.y > s.y - 1.5 && p.y < s.y + hl * 0.9) {
+      const hl = u.hitLen || u.len; // [v97] long hulls: horizontal hit box = design length
+      // [cannon-snake t2437u]: vertical = hull + deck only (BA.hullHitY*); pass through sails / masts / spyglass
+      if (Math.abs(lx) < u.beam / 2 + 0.7 && Math.abs(lz) < hl / 2 + 0.6 && BA.inHullBand(s, p.y)) {
         damage(s, b.owner === player ? Math.round(rnd(BALL_DMG[0], BALL_DMG[1]) * (player.gunDmg || 1)) : b.owner.ally ? escorts.ballDmg(b.owner) : Math.max(1, Math.round(rnd(6, 10) * (1 + game.wave * 0.04) * (b.owner.dmgMul || 1) * (1 - (s.armor || 0)))), p.clone(), b.owner); // [escorts] escort balls; armor of whoever got hit // [Raul] ship upgrades: enemy type damage, armor; upgrade buffs: CANNONS gunDmg
         done = true; break;
       }
@@ -1489,6 +1517,33 @@ function frame() {
     if (game.mode !== 'pvp') shipTick(player.mesh, { speed: player.speed || 0, alive: player.alive, dt, t: game.t }); // [t1716u] Harbor skins (Flaming/Diamond/Ghost/Golden/Kraken/tierLooks)
     for (const e of enemies) updateEnemy(e, dt);
     escorts.update(dt); // [escorts]
+    // [ship-collide] t2435u: bounce local ships off each other / remotes / moored hulls (no damage). Skip under NOCLIP.
+    if (game.state === 'playing' || (game.mode === 'pvp' && game.state !== 'title')) {
+      const hulls = [];
+      if (!ADM.noclip) hulls.push(player);
+      for (const e of escorts.list) if (e?.alive) hulls.push(e);
+      for (const e of enemies) if (e && (e.alive || e.remote)) hulls.push(e);
+      ShipCollide.resolveAll(hulls, dt, {
+        isStatic: (s) => ShipCollide.defaultIsStatic(s, { docked: (x) => x === player && dock?.docking?.mode === 'docked' }),
+        onHit: (a, b, imp) => {
+          if (a !== player && b !== player) return;
+          const other = a === player ? b : a;
+          const closing = Math.abs(player.speed || 0) + Math.abs(other.speed || 0);
+          if (closing < ShipCollide.COLLIDE.thudMin && !(imp > 2)) return;
+          game.shake = Math.max(game.shake || 0, Math.min(0.85, ShipCollide.COLLIDE.shakeMin + closing * ShipCollide.COLLIDE.shakePer));
+          try { sfx.hit?.(0.4 + Math.min(0.45, closing * 0.025)); } catch {}
+        },
+      });
+      // canoe vs other ships (never shove the player's own anchored hull — boarding reach needs to stay close)
+      const cst = dock?.canoe?.mode === 'canoe' ? dock.canoe.state : null;
+      if (cst && Number.isFinite(cst.cx)) {
+        const canoe = { x: cst.cx, z: cst.cz, yaw: cst.cyaw, speed: cst.cspd, halfBeam: 0.78, len: 5.6 };
+        const others = enemies.filter((e) => e?.alive);
+        if (ShipCollide.resolveCanoeVsShips(canoe, others, dt)) {
+          cst.cx = canoe.x; cst.cz = canoe.z; cst.cyaw = canoe.yaw; cst.cspd = canoe.speed;
+        }
+      }
+    }
     // remove fully sunk ships
     for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive && enemies[i].sinking > 7 && enemies[i].net?.kind !== 'player') { /* [pvp] other players' ships respawn: keep them */ scene.remove(enemies[i].mesh); disposeShip(enemies[i].mesh); enemies[i].bar.remove(); enemies.splice(i, 1); updateHud(); }
     updateBalls(dt);

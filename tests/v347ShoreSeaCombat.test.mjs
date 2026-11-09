@@ -1,4 +1,4 @@
-// [v347] BANKSY t1821u-t1825u: shore <-> sea combat + broadside auto-aim turned down (no heat-seeking cannonballs).
+// [v347] shore <-> sea combat kept. [cannon-snake] player heat-seek restored with soft look + hull/deck hits.
 // node --test tests/v347ShoreSeaCombat.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,44 +13,45 @@ const sideDir = (yaw, side) => { const k = side === 'port' ? 1 : -1; return { x:
 const at = (dir, deg, d) => { const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG); return { x: (dir.x * c - dir.z * s) * d, z: (dir.x * s + dir.z * c) * d }; };
 const offDir = (v, dir) => Math.acos(Math.min(1, (v.x * dir.x + v.z * dir.z) / Math.hypot(v.x, v.z))) / DEG;
 
-test('player broadside lock window is ~17° off the broadside normal (was 43°, then ~15°)', () => {
+test('player broadside lock window restored ~±43° (pre-v347 heat-seek); still ignores bow/stern', () => {
   const dir = sideDir(0.7, 'port');
-  for (const deg of [0, 8, 14, 16, -16]) { const p = at(dir, deg, 60); assert.ok(BA.inCone(dir, p.x, p.z), `${deg}° locks`); }
-  for (const deg of [18, 25, 43, -30, 66, 180]) { const p = at(dir, deg, 60); assert.ok(!BA.inCone(dir, p.x, p.z), `${deg}° ignored`); }
-  assert.ok(BA.AIM.cone <= 0.32 && BA.AIM.cone >= 0.28); // [cannon-assist] bit wider than v347 0.26, still ≪ 0.75
+  for (const deg of [0, 20, 40, -40]) { const p = at(dir, deg, 60); assert.ok(BA.inCone(dir, p.x, p.z), `${deg}° locks`); }
+  for (const deg of [50, 90, 180]) { const p = at(dir, deg, 60); assert.ok(!BA.inCone(dir, p.x, p.z), `${deg}° ignored`); }
+  assert.ok(Math.abs(BA.AIM.cone - 0.75) < 1e-9);
 });
 
-test('player: horizontal steer off the gunports <= ~7° (no 45°-66° sideways snap), AI <= ~13° (along >= H * 0.965)', () => {
+test('player launch clamp ~23° + smooth home; AI fireLine still <= ~13°', () => {
   const dir = sideDir(-1.1, 'star');
-  for (const deg of [3, 10, 15, 45, 66, -66]) {
-    const t = at(dir, deg, 70), L = BA.fireLine(dir, 0, 0, t.x, t.z, BA.AIM.maxDev);
-    assert.ok(offDir(L, dir) <= 7.01, `player ${deg}° -> ${offDir(L, dir).toFixed(2)}°`); // [cannon-assist] maxDev 0.12 ≈ 6.9°
-    if (Math.abs(deg) <= 5) assert.ok(Math.abs(offDir(L, dir) - Math.abs(deg)) < 0.01, 'small offsets are met exactly');
-    const A = BA.fireLine(dir, 0, 0, t.x, t.z, BA.AIM.aiMaxDev), v = BA.gunVelocity({ x: 0, y: 2, z: 0 }, 0, 0, A, 2, 42);
-    assert.ok(offDir(A, dir) <= 13.2, `AI ${deg}°`); assert.ok((v.x * dir.x + v.z * dir.z) >= Math.hypot(v.x, v.z) * 0.965 - 1e-9, 'AI along >= 0.965 H');
+  for (const deg of [3, 10, 15, 30]) {
+    const t = at(dir, deg, 70);
+    const g = BA.playerAimVelocity({ x: 0, y: 2, z: 0 }, dir, t.x, t.z, 1.6, BA.AIM.maxDev);
+    if (g) assert.ok(offDir(g, dir) <= BA.AIM.maxDev / DEG + 0.05, `player launch ${deg}`);
+    const A = BA.fireLine(dir, 0, 0, t.x, t.z, BA.AIM.aiMaxDev);
+    assert.ok(offDir(A, dir) <= 13.2, `AI ${deg}°`);
   }
-  assert.ok(BA.AIM.lead >= 0.30 && BA.AIM.lead <= 0.38, 'player lead ~34 %');
-  assert.equal(BA.AIM.aiLead, 1); assert.ok(Math.abs(BA.AIM.aiMaxDev - 0.23) < 1e-9, 'AI assist unchanged');
+  assert.equal(BA.AIM.lead, 1); assert.equal(BA.AIM.aiLead, 1);
+  assert.ok(Math.abs(BA.AIM.aiMaxDev - 0.23) < 1e-9, 'AI assist unchanged');
 });
 
-test('every gun of a volley fires PARALLEL (no pinching onto one point) and the spread along the hull survives', () => {
+test('AI volley still parallel via fireLine; player heat-seek fans along hull but stays clamped', () => {
   const yaw = 0.4, dir = sideDir(yaw, 'port'), fw = { x: Math.sin(yaw), z: Math.cos(yaw) }, n = 10, sx = 5, sz = -3;
-  const tgt = at(dir, 4, 80), L = BA.fireLine(dir, sx, sz, sx + tgt.x, sz + tgt.z, BA.AIM.maxDev);
+  const tgt = at(dir, 4, 80), L = BA.fireLine(dir, sx, sz, sx + tgt.x, sz + tgt.z, BA.AIM.aiMaxDev);
   const guns = Array.from({ length: n }, (_, i) => { const k = (i - (n - 1) / 2) * 1.6; return { x: sx + fw.x * k + dir.x * 2, y: 2.4, z: sz + fw.z * k + dir.z * 2 }; });
   const vs = guns.map(g => BA.gunVelocity(g, sx, sz, L, 2, 42));
-  const h0 = Math.atan2(vs[0].x, vs[0].z); for (const v of vs) assert.ok(Math.abs(Math.atan2(v.x, v.z) - h0) < 1e-9, 'same horizontal heading');
-  const land = vs.map((v, i) => ({ x: guns[i].x + v.x * v.t, z: guns[i].z + v.z * v.t }));
-  const spread = Math.hypot(land[n - 1].x - land[0].x, land[n - 1].z - land[0].z), gunSpread = Math.hypot(guns[n - 1].x - guns[0].x, guns[n - 1].z - guns[0].z);
-  assert.ok(spread > gunSpread * 0.95, `spread kept: ${spread.toFixed(1)} vs ${gunSpread.toFixed(1)} m`);
-  for (const v of vs) { const y = 2.4 + v.y * v.t - 0.5 * 20 * v.t * v.t; assert.ok(Math.abs(y - 2) < 1e-6, 'elevation still ranges onto the target height'); }
+  const h0 = Math.atan2(vs[0].x, vs[0].z); for (const v of vs) assert.ok(Math.abs(Math.atan2(v.x, v.z) - h0) < 1e-9, 'AI same heading');
+  const pvs = guns.map(g => BA.playerAimVelocity(g, dir, sx + tgt.x, sz + tgt.z, BA.hullAimY({ y: 0, deckY: 3, depth: 3 }), BA.AIM.maxDev));
+  assert.ok(pvs.every(Boolean));
+  for (const v of pvs) assert.ok(offDir(v, dir) <= BA.AIM.maxDev / DEG + 0.05);
 });
 
-test('js/main.js: true parabola from frame 0 (no b.ex / b.tp mid-air bend, no BALL_EXIT_T), tight cone wired', () => {
+test('js/main.js: no dual-path b.ex/b.tp; player heat-seek steers true path; hull/deck hits', () => {
   const m = R('js/main.js');
-  assert.ok(!/BALL_EXIT_T/.test(m), 'BALL_EXIT_T gone'); assert.ok(!/b\.ex\s*=\s*\{/.test(m) && !/b\.ex\.x/.test(m), 'no lateral ease');
-  assert.ok(!/b\.tp\s*\|\|/.test(m), 'drawn ball = simulated ball'); assert.ok(!/Math\.cos\(0\.75\)/.test(m) && !/H \* 0\.4\b/.test(m));
-  assert.ok(/BA\.inCone\(dir, dx, dz\)/.test(m) && /BA\.fireLine\(/.test(m) && /BA\.gunVelocity\(/.test(m));
-  assert.ok(!/aimT/.test(m.slice(m.indexOf('function launchBall'), m.indexOf('function launchBall') + 1500)), 'no ripple re-aim onto a fixed point');
+  assert.ok(!/BALL_EXIT_T/.test(m), 'BALL_EXIT_T gone');
+  assert.ok(!/b\.ex\s*=\s*\{/.test(m), 'no lateral ease fake');
+  assert.ok(!/b\.tp\s*\|\|/.test(m), 'drawn = simulated');
+  assert.ok(/BA\.inCone\(dir, dx, dz\)/.test(m) && /BA\.playerAimVelocity\(/.test(m) && /BA\.steerHoriz\(/.test(m));
+  assert.ok(/BA\.hullAimY\(/.test(m) && /BA\.inHullBand\(/.test(m));
+  assert.ok(!/aimT/.test(m.slice(m.indexOf('function launchBall'), m.indexOf('function launchBall') + 1500)));
 });
 
 test('musket ray: captain cylinder + ship hull box (pure math)', () => {
