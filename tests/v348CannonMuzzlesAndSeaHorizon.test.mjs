@@ -66,7 +66,7 @@ test('t1828u: SEA_REACH 5600, SKY_R 6500, seaGeometry warp, horizon blend, camer
   for (let i = 0; i < P.count; i++) maxAxis = Math.max(maxAxis, Math.abs(P.getX(i)), Math.abs(P.getZ(i)));
   assert.ok(maxAxis > 5500 && maxAxis < 5650, `axis reach ${maxAxis}`); // corners go to ~reach*√2
   const o = R('js/ocean.js');
-  assert.match(o, /smoothstep\(2400\.0, 5200\.0/);
+  assert.match(o, /smoothstep\(2600\.0, 5400\.0/); // [far-water] blend moved out with the deep-sea horizon tint; still ends inside SEA_REACH
   assert.match(o, /SphereGeometry\(SKY_R/);
   assert.match(R('js/main.js'), /9000/);
   assert.match(o, /low \? 22 : 34/);
