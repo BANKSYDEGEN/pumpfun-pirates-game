@@ -58,9 +58,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
   },
   "classic_pants": {
-    "hi": "assets/pirates/items/v7m_fit/classic_pants_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/classic_pants_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_pants588/classic_pants_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_pants588/classic_pants_male_lo.glb",
+    "qaStatus": "OFIT588_OUTER_FIT_APPROVED_T592"
   },
   "hat_bicorne": {
     "hi": "assets/pirates/items/v7m_refit/hat_bicorne_male_hi.glb",
@@ -112,9 +112,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "canvas_pants": {
-    "hi": "assets/pirates/items/v7m_fit/canvas_pants_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/canvas_pants_male_lo.glb",
-    "qaStatus": "HEAD_CLEAR_RAW_BODY_CONTACTS_REVIEW"
+    "hi": "assets/pirates/items/v7m_pants588/canvas_pants_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_pants588/canvas_pants_male_lo.glb",
+    "qaStatus": "OFIT588_OUTER_FIT_APPROVED_T592"
   },
   "peg_kraken_l": {
     "hi": "assets/pirates/items/v7m_fit/peg_kraken_l_male_hi.glb",
