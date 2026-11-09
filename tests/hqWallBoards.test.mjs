@@ -33,7 +33,7 @@ test('all six wall slots carry a board; taps go through openPump; no DexScreener
  assert.match(d,/wallPanelMint\(wb.board,marketFeed.state,hit.uv,wb.at\):null;if\(m\)openPump\(m\)/);
  for(const s of [w,src('js/pumpfun/feeds.js'),d,src('js/pumpfun/render.js')]){assert.ok(!s.includes('PUMPFUNPIRATES')&&!s.includes('BANKSYDEGEN')&&!s.includes('3kDkcoVoJNmrC6fe98SQU7cK1rwvGT77ouBDB871wy34'));assert.ok(!/dexscreener\.com\/solana|PointLight|SpotLight/.test(s));}
  assert.match(src('js/pumpfun/wallpanels.js'),/boardCanvas\(640, 512, low, compact\)/);
- assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices','prices']);});
+ assert.deepEqual(WALL_BOARDS.map(b=>b.key),['bonding','callouts','migrated','volume','prices','prices','sunkbuys']);});
 test('phone layout: ten tall rows fill the panel, taps map to the same rows, tap-to-read opens the 2D board',async()=>{
  const {wallGrid,wallRow,BOARD_ROWS}=await import('../js/pumpfun/boardgrid.js');const g=wallGrid(true);
  assert.ok(g.h>=36&&g.y0+BOARD_ROWS*g.h<=480,'rows fill the panel above the footer');

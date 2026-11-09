@@ -30,11 +30,27 @@ async function upstream(_url: string, feed: string, mint?: string): Promise<{ st
     const r=await fetch(databaseURL()+"?"+q,{headers:databaseHeaders(),signal:AbortSignal.timeout(8000)});
     if(!r.ok)return offline();
     const list=await r.json(), row=list[0];
-    if(!row || row.payload?.testOnly===true)return offline();
-    const at=Date.parse(row.fetched_at),age=Date.now()-at;
-    if(!Number.isFinite(at) || age>maxAge(feed) || age < -30000)return offline();
-    return {status:200,body:JSON.stringify({ok:true,fetchedAt:at,fetched_at:row.fetched_at,rows:trimRows(feed,row.payload.rows)})};
+    const real=row && row.payload?.testOnly!==true ? row : null;
+    const at=real?Date.parse(real.fetched_at):NaN,age=Date.now()-at;
+    if(real && Number.isFinite(at) && age<=maxAge(feed) && age>=-30000)return {status:200,body:JSON.stringify({ok:true,source:"relay",fetchedAt:at,fetched_at:real.fetched_at,rows:trimRows(feed,real.payload.rows)})};
+    // hq-data-v2 (BANKSY t2448u). Relay offline: holder stats come from the Helius holder scan (boardfeed writes it to the
+    // private last-good store); fees are pump.fun-only, so feesSol is null, never zero.
+    if(feed==="holderstats"){const c=await chainHolders(mint);if(c)return c;}
+    // Otherwise serve the LAST GOOD relay snapshot, clearly flagged offline+stale with its original time, instead of nothing.
+    if(real && Number.isFinite(at) && age>=-30000 && age<=LAST_GOOD_MAX){const iso=new Date(at).toISOString();return {status:200,body:JSON.stringify({ok:true,source:"relay",offline:true,stale:true,fetchedAt:at,fetched_at:iso,rows:trimRows(feed,real.payload.rows)})};}
+    return offline();
   } catch {return offline();}
+}
+const LAST_GOOD_MAX = 24 * 3600_000, CHAIN_FRESH = 15 * 60_000;
+const SYM: Record<string,string> = { "39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump": "ahoy", "By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump": "sunk" };
+async function chainHolders(mint?: string): Promise<{ status: number; body: string } | null> {
+  const sym = SYM[mint || ""]; if (!sym) return null;
+  const u = Deno.env.get("SUPABASE_URL") + "/rest/v1/hq_board_last_good?" + new URLSearchParams({ key: "eq.chain:holders_" + sym, select: "rows,source_at", limit: "1" });
+  const r = await fetch(u, { headers: databaseHeaders(), signal: AbortSignal.timeout(6000) }); if (!r.ok) return null;
+  const x = (await r.json())[0], at = Date.parse(x?.source_at || ""), h = x?.rows;
+  if (!Number.isFinite(at) || Date.now() - at > LAST_GOOD_MAX || !Number.isFinite(h?.holders)) return null;
+  const stale = Date.now() - at > CHAIN_FRESH;
+  return { status: 200, body: JSON.stringify({ ok: true, source: "helius", ...(stale ? { stale: true } : {}), fetchedAt: at, fetched_at: new Date(at).toISOString(), rows: { holders: h.holders, top10Pct: Number.isFinite(h.top10Pct) ? h.top10Pct : null, feesSol: null } }) };
 }
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin"), h = cors(origin);
@@ -46,7 +62,7 @@ Deno.serve(async (req) => {
   const now = Date.now(); let hit = cache.get(url);
   if (!hit || now - hit.at > hit.ttl) {
     let p = inflight.get(url); if (!p) { p = upstream(url, feed, q.get("mint") || undefined).finally(() => inflight.delete(url)); inflight.set(url, p); }
-    const r = await p; hit = { at: Date.now(), ttl: r.status !== 200 ? ERR_TTL : feed === "holderrewards" ? HEAVY_TTL : TTL, ...r }; if(r.status===200){const data=JSON.parse(r.body);hit.ttl=Math.max(0,Math.min(hit.ttl,data.fetchedAt+maxAge(feed)-hit.at));} cache.set(url, hit);
+    const r = await p; hit = { at: Date.now(), ttl: r.status !== 200 ? ERR_TTL : feed === "holderrewards" ? HEAVY_TTL : TTL, ...r }; if(r.status===200){const data=JSON.parse(r.body);hit.ttl=data.stale||data.offline||data.source==="helius"?ERR_TTL:Math.max(0,Math.min(hit.ttl,data.fetchedAt+maxAge(feed)-hit.at));} cache.set(url, hit);
     if (cache.size > 200) for (const k of cache.keys()) { cache.delete(k); if (cache.size <= 150) break; }
   }
   const age = Math.max(0, Math.floor((Date.now() - hit.at) / 1000));

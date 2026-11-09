@@ -114,12 +114,19 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
     let rows=remote[k].filter(r=>r&&safeMint(r.mint)).slice(0,k==='callouts'?20:BOARD_ROWS);
     if(k==='migrated'){const f=await import('./feeds.js');mergeMig=f.mergeMigrated;gtMig=f.mergeMigrated([rows,gtMig],now);gtMigOk=true;gtMigAt=at;rows=f.mergeMigrated([portalMig,gtMig],now);}
     markRows(state,k,rows,now);state[k]=rows;state.updated[k]=Math.max(at,k==='migrated'?Math.max(0,...portalMig.map(r=>r.observedAt||0)):0);state.status[k]=remote.status?.[k]||'Shared server cache';
-   }else if(discover)complete=false;
+   }else{if(discover)complete=false;
+    // hq-data-v2: server last-good snapshot (mode 'last-good' or an old key) fills a board that has nothing, keeping its ORIGINAL
+    // source time; the footer then reads FEED OFFLINE / STALE instead of going blank. Fresher local rows are never replaced.
+    if(!(state[k]||[]).length&&Array.isArray(remote[k])&&remote[k].length&&at>0&&at<=now+30000){state[k]=remote[k].filter(r=>r&&safeMint(r.mint)).slice(0,k==='callouts'?20:BOARD_ROWS);state.updated[k]=at;state.status[k]=/offline/i.test(remote.status?.[k]||'')?remote.status[k]:'Feed offline · last good snapshot';}}
   }
   let pricesOK=true;
-  for(const t of WATCH_TOKENS){const p=remote.prices?.[t.sym];if(p&&finite(p.price)>0&&now-(+p.updated||0)<180000&&!p.stale){state.prices[t.sym]=p;}else pricesOK=false;
+  for(const t of WATCH_TOKENS){const p=remote.prices?.[t.sym];if(p&&finite(p.price)>0&&now-(+p.updated||0)<180000&&!p.stale){state.prices[t.sym]=p;}else{pricesOK=false;if(p&&finite(p.price)>0&&!state.prices[t.sym])state.prices[t.sym]={...p,stale:true};}
    const d=remote.details?.[t.sym];if(d&&now-(+d.updated||0)<CACHE_MAX_AGE){const old=state.details[t.sym]||{};state.details[t.sym]={...old,...d,holders:d.holders??old.holders??null,chart:d.chart?.length>=2?d.chart:(old.chart||[]),bonded:old.bonded||d.bonded};}}
   if(remote.trades&&typeof remote.trades==='object'){state.trades||={};state.flashes||={};const fl=state.flashes.trades||={};for(const t of WATCH_TOKENS){const rows=(Array.isArray(remote.trades[t.sym])?remote.trades[t.sym]:[]).filter(r=>r&&(r.side==='buy'||r.side==='sell')&&finite(r.at)>0&&typeof r.id==='string').slice(0,20);const seen=new Set((state.trades[t.sym]||[]).map(r=>r.id));if(state.trades[t.sym])for(const r of rows)if(!seen.has(r.id))fl[r.id]=now+2500;for(const [k,u] of Object.entries(fl))if(u<now)delete fl[k];state.trades[t.sym]=rows;}state.tradeStream=data.helius?.tradeStream||null;}
+  // $SUNK BUYS (helius_trades buys) + TOP HOLDERS (Helius scan): server-only sources, real rows or nothing.
+  if(Array.isArray(remote.sunkbuys)){const rows=remote.sunkbuys.filter(r=>r&&typeof r.id==='string'&&finite(r.at)>0&&finite(r.amount)>0).slice(0,BOARD_ROWS);const fl=(state.flashes||={}).sunkbuys||={};const seen=new Set((state.sunkbuys||[]).map(r=>r.id));if(state.sunkbuys)for(const r of rows)if(!seen.has(r.id))fl[r.id]=now+2500;state.sunkbuys=rows;state.updated.sunkbuys=rows[0]?.at||state.updated.sunkbuys||0;state.status.sunkbuys=rows.length?'On-chain $SUNK buys · Helius':'No $SUNK buys recorded yet';}
+  if(remote.holdersTop&&typeof remote.holdersTop==='object'){state.holdersTop||={};for(const t of WATCH_TOKENS){const h=remote.holdersTop[t.sym];if(!h||!Array.isArray(h.rows))continue;state.holdersTop[t.sym]={rows:h.rows.filter(r=>r&&finite(r.pct)&&(typeof r.wallet==='string'&&/^[1-9A-HJ-NP-Za-km-z]{4}…[1-9A-HJ-NP-Za-km-z]{4}$/.test(r.wallet)||typeof r.label==='string')).slice(0,BOARD_ROWS),top10Pct:finite(h.top10Pct),holders:finite(h.holders),status:safeText(h.status).slice(0,60)};state.updated['holders'+t.sym]=+remote.updated?.['holders'+t.sym]||+h.at||0;}}
+  if(remote.offline)state.serverOffline=true;else delete state.serverOffline;
   if(pricesOK){state.updated.prices=remote.updated.prices;state.status.prices=remote.status?.prices||'Shared server cache';}else complete=false;
   if(discover&&now>=nextDetailFallback&&WATCH_TOKENS.some(t=>(state.details[t.sym]?.chart||[]).length<2)){nextDetailFallback=now+300000;details().catch(()=>{});}
   state.revision++;save(true);return complete;

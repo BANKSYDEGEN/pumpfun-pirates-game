@@ -3,7 +3,9 @@ declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 import { aboutToBond, parseCurvePools, parseSwapPools, volumeLeaders, mergeMigrated, fetchNewPumpSwap, fetchCallouts, fetchTokenDetail } from './lib/feeds.js';
 import { safeMint, safeText, safeImg, selectPair, pairRow } from './lib/market.js';
 import { makeDexPaidFeed } from './lib/dexpaid.js';
-import { countHolders, heliusConfigured, readCurve } from './helius.ts';
+import { heliusConfigured, readCurve } from './helius.ts';
+import { readChainPrices, readHolderBoard } from './chain.ts';
+import { saveGood, readGood } from './lastgood.ts';
 const GT='https://api.geckoterminal.com/api/v2/networks/solana',DEX='https://api.dexscreener.com';
 const TOKENS=[{sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},{sym:'AHOY',ca:'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump'}];
 const TTL=15000, MAX_AGE=600000;
@@ -27,7 +29,9 @@ async function refresh(previous:any){
  const bad=(key:string)=>{s.status[key]=s[key]?.length?'Refresh failed · showing last good snapshot':'Feed offline';};
  const at=(url:string)=>sources[url]?.at||0;
  await Promise.all([
-  (async()=>{try{await Promise.all(TOKENS.map(async t=>{const u=DEX+'/latest/dex/tokens/'+t.ca,j=await source(u),p=selectPair(j.pairs,t.ca);if(!p)throw Error('no pair');s.prices[t.sym]={...pairRow(p),pair:{pairAddress:p.pairAddress},updated:at(u),stale:false};}));s.updated.prices=Math.min(...TOKENS.map(t=>s.prices[t.sym].updated));s.status.prices='Shared DexScreener prices';}catch{s.status.prices='Refresh failed · last good prices';for(const p of Object.values(s.prices) as any[])p.stale=true;}})(),
+  (async()=>{try{await Promise.all(TOKENS.map(async t=>{const u=DEX+'/latest/dex/tokens/'+t.ca,j=await source(u),p=selectPair(j.pairs,t.ca);if(!p)throw Error('no pair');s.prices[t.sym]={...pairRow(p),pair:{pairAddress:p.pairAddress},updated:at(u),stale:false};}));s.updated.prices=Math.min(...TOKENS.map(t=>s.prices[t.sym].updated));s.status.prices='Shared DexScreener prices';}catch{s.status.prices='Refresh failed · last good prices';for(const p of Object.values(s.prices) as any[])p.stale=true;
+   // hq-data-v2 backup: real reserves via Helius. Only price + MC are chain values; 24h change/volume/liquidity are not on chain, so they go blank.
+   try{if(Date.now()-(s.chainPriceAt||0)<60000)throw Error('chain price budget');s.chainPriceAt=Date.now();const c:any=await readChainPrices(),now=Date.now();if(c.SUNK&&c.AHOY){for(const t of TOKENS){const old=s.prices[t.sym]||{};s.prices[t.sym]={mint:t.ca,symbol:old.symbol||t.sym,name:old.name||t.sym,imageUrl:old.imageUrl||null,pair:old.pair||null,price:c[t.sym].price,cap:c[t.sym].cap,fdv:null,change:null,volume:null,liquidity:null,updated:now,stale:false,source:'chain'};}s.updated.prices=now;s.status.prices='On-chain price · Helius (market feed offline)';}}catch{}}})(),
   (async()=>{const u=GT+'/dexes/pump-fun/pools?sort=h24_volume_usd_desc&include=base_token&page=1',v=GT+'/dexes/pumpswap/pools?sort=h24_volume_usd_desc&include=base_token&page=1';let curve:any[]=[],swap:any[]=[];let ok=false;
    try{curve=parseCurvePools(await source(u));put('bonding',aboutToBond(curve),at(u),'Shared GeckoTerminal curve snapshot · ≈ progress');ok=true;}catch{bad('bonding');}
    try{swap=parseSwapPools(await source(v));ok=true;}catch{}
@@ -42,29 +46,55 @@ async function refresh(previous:any){
  try {const newest=Math.max(0,...(s.migrated||[]).map((r:any)=>r.createdAt||0));const rows=await fetchNewPumpSwap(source,{stopBefore:newest});put('migrated',mergeMigrated([rows,s.migrated||[]],Date.now()),at(GT+'/new_pools?include=base_token&page=1'),'Shared newest PumpSwap pools + live PumpPortal');}catch{bad('migrated');}
  await publish();
  for(const t of TOKENS){try{const old=s.details[t.sym]||{},d:any=await fetchTokenDetail(source,t.ca,s.prices[t.sym]?.pair?.pairAddress,{curve:t.sym==='SUNK'&&!old.bonded});const bonded=old.bonded||d.curve?.bonded||false;const detailUrls=Object.keys(sources).filter(u=>u.startsWith(GT+'/')&&(u.includes(t.ca)||u.includes(s.prices[t.sym]?.pair?.pairAddress+'/')));const holdersAt=at(GT+'/tokens/'+t.ca+'/info')||old.holdersAt||0,chartAt=at(GT+'/pools/'+s.prices[t.sym]?.pair?.pairAddress+'/ohlcv/hour?aggregate=1&limit=24&currency=usd')||old.chartAt||0;s.details[t.sym]={...old,holdersAt,chartAt,holders:old.chainAt&&Date.now()-old.chainAt<600000?old.holders:d.holders??old.holders??null,chart:d.chart.length?d.chart:old.chart||[],...(t.sym==='SUNK'?{bonded,curveProgress:bonded?null:d.curve?.progress??old.curveProgress??null}:{}),updated:Math.max(0,...detailUrls.map(u=>at(u)))};
-  if(heliusConfigured()&&Date.now()-(old.chainAttemptAt||0)>600000){s.details[t.sym].chainAttemptAt=Date.now();const holders=await countHolders(t.ca);if(holders)s.details[t.sym]={...s.details[t.sym],...holders,chainAt:Date.now(),updated:Date.now(),holderSource:'Helius · unique nonzero owners'};}
+  if(heliusConfigured()&&Date.now()-(old.chainAttemptAt||0)>600000){s.details[t.sym].chainAttemptAt=Date.now();const hb:any=await readHolderBoard(t.ca);if(hb){const now=Date.now();s.details[t.sym]={...s.details[t.sym],holders:hb.holders,top10Pct:hb.top10Pct,chainAt:now,updated:now,holderSource:'Helius · unique nonzero owners'};
+   // TOP HOLDERS board: rows only once the owner's hidden-wallet list is configured (server secret HQ_HIDDEN_WALLETS, may be "none").
+   s.holdersTop ||= {};s.holdersTop[t.sym]={rows:hb.hiddenConfigured?hb.rows:[],top10Pct:hb.top10Pct,holders:hb.holders,at:now,source:hb.source,status:hb.hiddenConfigured?'Helius · full holder scan · pools/curve labelled':'Top holders paused · hidden-wallet list not set'};s.updated['holders'+t.sym]=now;}}
  }catch{}
   try{if(t.sym==='SUNK'){const old=s.details[t.sym]||{};if(old.bondedAt)Object.assign(old,{bonded:true,curveProgress:null,curveSource:'chain'});else if(heliusConfigured()){const c=await readCurve(t.ca);if(c){const now=Date.now();s.details[t.sym]={...old,bonded:c.bonded,curveProgress:c.bonded?null:c.progress,curveSource:'chain',curveAt:now,updated:Math.max(+old.updated||0,now),...(c.bonded?{bondedAt:now}:{})};}}}}catch{}
   {const x=s.details[t.sym];if(x?.curveAt)x.updated=Math.max(+x.updated||0,x.curveAt);}
  }
- return await publish(true);
+ const done=await publish(true);
+ try{await saveGood(goodList(s));}catch{}
+ return done;
 }
+// Real, successful rows only: failed/offline keys and empty lists are never written, so the store always holds the last GOOD data.
+const LIST_KEYS=['trending','callouts','bonding','dexpaid','migrated','volume'];
+function goodList(s:any){const out:any[]=[];
+ for(const k of LIST_KEYS)if(Array.isArray(s[k])&&s[k].length&&s.updated?.[k]&&!/offline|failed/i.test(s.status?.[k]||''))out.push({key:'board:'+k,rows:s[k],status:s.status[k],source:'boardfeed',at:s.updated[k]});
+ const prices=Object.fromEntries(Object.entries(s.prices||{}).filter(([,p]:any)=>p&&!p.stale&&p.price>0));
+ if(Object.keys(prices).length===TOKENS.length)out.push({key:'board:prices',rows:prices,status:s.status?.prices,source:'boardfeed',at:Math.min(...Object.values(prices).map((p:any)=>+p.updated||0))});
+ for(const t of TOKENS){const d=s.details?.[t.sym];if(d?.updated)out.push({key:'board:details_'+t.sym.toLowerCase(),rows:d,source:'boardfeed',at:d.updated});
+  const h=s.holdersTop?.[t.sym];if(h?.rows?.length)out.push({key:'chain:holders_'+t.sym.toLowerCase(),rows:h,status:h.status,source:'helius',at:h.at});}
+ return out;}
 async function refreshOnce(row:any){if(work)return work;work=(async()=>{if(!await lease())return row?.payload;return await refresh(row?.payload);})().finally(()=>{work=null;});return work;}
 const MINTSYM:Record<string,string>={'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump':'AHOY','By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump':'SUNK','So11111111111111111111111111111111111111112':'SOL','pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn':'PUMP'};
 let tradeCache:any=null,tradeAt=0;
 async function recentTrades(){if(tradeCache&&Date.now()-tradeAt<5000)return tradeCache;const out:any={AHOY:[],SUNK:[]};let last=0;
  for(const t of TOKENS){const r=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/helius_trades?select=signature,side,token_amount,quote_mint,quote_amount,sol_amount,wallet_short,block_time,received_at&mint=eq.'+t.ca+'&order=block_time.desc&limit=20',{headers:headers(),signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('trades unavailable');
   out[t.sym]=(await r.json()).map((x:any)=>{last=Math.max(last,Date.parse(x.received_at)||0);return {id:String(x.signature).slice(0,16),side:x.side,amount:+x.token_amount,sol:x.sol_amount==null?null:+x.sol_amount,quote:MINTSYM[x.quote_mint]||null,quoteAmount:x.quote_amount==null?null:+x.quote_amount,wallet:x.wallet_short,at:Date.parse(x.block_time)};});}
- tradeCache={trades:out,lastAt:last||null};tradeAt=Date.now();return tradeCache;}
+ // $SUNK BUYS board: the same on-chain buys the Telegram buybot posts (its min_usd is 0), newest first, from the private helius_trades table.
+ const b=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/helius_trades?select=signature,token_amount,quote_mint,quote_amount,sol_amount,wallet_short,block_time,received_at&mint=eq.'+TOKENS[0].ca+'&side=eq.buy&order=block_time.desc&limit=10',{headers:headers(),signal:AbortSignal.timeout(5000)});
+ const buys=b.ok?(await b.json()).map((x:any)=>({id:String(x.signature).slice(0,16),amount:+x.token_amount,sol:x.sol_amount==null?null:+x.sol_amount,quote:MINTSYM[x.quote_mint]||null,quoteAmount:x.quote_amount==null?null:+x.quote_amount,wallet:x.wallet_short,at:Date.parse(x.block_time)})):null;
+ tradeCache={trades:out,sunkbuys:buys,lastAt:last||null};tradeAt=Date.now();return tradeCache;}
+// Live cache missing/expired: serve the last GOOD snapshot with its ORIGINAL source times and every key marked offline/stale.
+async function lastGoodState(tr:any){let g:Record<string,any>={};try{g={...await readGood('board:'),...await readGood('chain:')};}catch{return null;}
+ if(!Object.keys(g).length&&!tr)return null;
+ const state:any={prices:{},details:{},updated:{},status:{},holdersTop:{},offline:true};
+ for(const k of LIST_KEYS){const x=g['board:'+k];if(x){state[k]=x.rows;state.updated[k]=x.at;}else state[k]=[];state.status[k]=x?'Feed offline · last good snapshot':'Feed offline';}
+ const p=g['board:prices'];if(p){for(const [sym,v] of Object.entries(p.rows as any))state.prices[sym]={...(v as any),stale:true};state.updated.prices=p.at;}state.status.prices=p?'Feed offline · last good prices':'Feed offline';
+ for(const t of TOKENS){const d=g['board:details_'+t.sym.toLowerCase()];if(d)state.details[t.sym]=d.rows;const hh=g['chain:holders_'+t.sym.toLowerCase()];if(hh){state.holdersTop[t.sym]={...hh.rows,status:'Feed offline · last good holder scan'};state.updated['holders'+t.sym]=hh.at;}}
+ if(tr){state.trades=tr.trades;if(tr.sunkbuys)state.sunkbuys=tr.sunkbuys;}
+ return {ok:true,mode:'last-good',state,helius:{configured:heliusConfigured(),tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null}};}
 Deno.serve(async req=>{
  const o=req.headers.get('origin'),allowed=o==='https://game.pumpfunpirates.com'||/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(o||'');
  const h:Record<string,string>={'Content-Type':'application/json','Vary':'Origin','Access-Control-Allow-Methods':'GET, OPTIONS','Cache-Control':'no-store'};if(allowed)h['Access-Control-Allow-Origin']=o!;
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:h});if(req.method!=='GET')return new Response('{}',{status:405,headers:h});
  try{let row;if(local&&Date.now()-localAt<TTL)row={payload:local,fetched_at:new Date(localAt).toISOString()};else row=await dbRead();let data=row?.payload;
   let age=Date.now()-Date.parse(row?.fetched_at||'');const coreAt=Math.min(...Object.values(data?.state?.updated||{}).filter((x:any)=>typeof x==='number') as number[]);if(!data?.state || age>TTL || Date.now()-coreAt>TTL){const p=refreshOnce(row);if(data?.state){EdgeRuntime.waitUntil(p.catch(()=>{}));}else {data=await p;age=0;}}
-  if(!data?.state || (Number.isFinite(age)&&age>MAX_AGE))return new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:h});
   let tr:any=null;try{tr=await recentTrades();}catch{}
+  if(!data?.state || (Number.isFinite(age)&&age>MAX_AGE)){const lg=await lastGoodState(tr);return lg?new Response(JSON.stringify(lg),{headers:h}):new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:h});}
   const helius={...data.helius,tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null};
-  return new Response(JSON.stringify({ok:true,state:tr?{...data.state,trades:tr.trades}:data.state,helius}),{headers:h});
+  const st=tr?{...data.state,trades:tr.trades,...(tr.sunkbuys?{sunkbuys:tr.sunkbuys}:{})}:data.state;
+  return new Response(JSON.stringify({ok:true,mode:'live',state:st,helius}),{headers:h});
  }catch{return new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:h});}
 });

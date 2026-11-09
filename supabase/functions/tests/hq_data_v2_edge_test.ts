@@ -1,0 +1,20 @@
+// Edge contract tests with stubbed fetch/Deno.serve (no network, no prod). Run: deno test -A supabase/functions/tests/
+import { assertEquals, assert } from "jsr:@std/assert@1";
+Deno.env.set("SUPABASE_URL", "https://db.test"); Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-service-key");
+let handler: (r: Request) => Promise<Response>;
+(Deno as any).serve = (h: any) => { handler = h; return {} as any; };
+const H = 3600_000, SUNK = "By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump";
+let db: Record<string, any[]> = {};
+(globalThis as any).fetch = async (u: string) => { const url = new URL(String(u)); const t = url.pathname.split("/").pop()!; const key = url.searchParams.get("key") || url.searchParams.get("feed") || "";
+  const rows = (db[t] || []).filter(r => !key || (key.startsWith("eq.") ? (r.key ?? r.feed) === key.slice(3) : key.startsWith("like.") ? String(r.key).startsWith(key.slice(5, -1)) : true));
+  return new Response(JSON.stringify(rows), { status: 200, headers: { "content-type": "application/json" } }); };
+await import("../pumpfeed/index.ts");
+const get = async (q: string) => { const r = await handler(new Request("https://f.test/pumpfeed?" + q, { headers: { origin: "https://game.pumpfunpirates.com" } })); return { status: r.status, body: await r.json() }; };
+Deno.test("pumpfeed: no snapshot and no chain data stays 503 offline", async () => { db = {}; const r = await get("feed=live"); assertEquals(r.status, 503); assertEquals(r.body.reason, "offline"); });
+Deno.test("pumpfeed: expired real relay snapshot is served as offline+stale with its original time", async () => { const at = new Date(Date.now() - 2 * H).toISOString();
+  db = { pumpfeed_snapshots: [{ feed: "perps", fetched_at: at, payload: { rows: [{ symbol: "BTC", name: "Bitcoin", image: null, price: 1, vol: 2, oi: 3, changeBps: 4, lev: 5 }] } }] };
+  const r = await get("feed=perps"); assertEquals(r.status, 200); assert(r.body.offline && r.body.stale); assertEquals(r.body.fetched_at, at); assertEquals(r.body.rows[0].symbol, "BTC"); });
+Deno.test("pumpfeed: test-only snapshots are never served, even as last good", async () => { db = { pumpfeed_snapshots: [{ feed: "bounties", fetched_at: new Date().toISOString(), payload: { testOnly: true, rows: [] } }] }; assertEquals((await get("feed=bounties")).status, 503); });
+Deno.test("pumpfeed: holderstats falls back to the Helius holder scan, fees null (never zero)", async () => { const at = new Date(Date.now() - 60_000).toISOString();
+  db = { hq_board_last_good: [{ key: "chain:holders_sunk", source_at: at, rows: { holders: 88, top10Pct: 41.2, rows: [] } }] };
+  const r = await get("feed=holderstats&mint=" + SUNK); assertEquals(r.status, 200); assertEquals(r.body.source, "helius"); assertEquals(r.body.rows, { holders: 88, top10Pct: 41.2, feesSol: null }); assert(!r.body.stale); });

@@ -75,6 +75,14 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   if(want('ours')){const prices=col('OUR TOKENS',s.status.prices,'ours','prices');for(const t of WATCH_TOKENS){const p=s.prices[t.sym],hold=s.details?.[t.sym]?.holders;
    tokenRow(prices,{mint:t.ca,imageUrl:p?.imageUrl},{sym:'$'+t.sym,sub:(p?.cap!=null?'MC '+money(p.cap):'FDV '+money(p?.fdv))+' · VOL '+money(p?.volume)+(hold!=null?' · '+Number(hold).toLocaleString('en-US')+' holders':'')+(p?.stale?' · STALE':''),right:money(p?.price),change:p?.change??null},()=>openPump(t.ca));
    const f=button('Alternative coin page · $'+t.sym,()=>window.open(tokenFallbackURL(t.ca),'_blank','noopener,noreferrer'),prices);f.className='ph-alt';}}
+  // hq-data-v2: $SUNK BUYS (Helius webhook buys = buybot events) and TOP HOLDERS (Helius full scan; short addresses, pools/curve labelled,
+  // the owner's wallets removed server-side). Plain rows, no wallet links; nothing shown without a real source.
+  const infoRow=(parent,left,main,mid,right,color)=>{const d=el('div','ph-row');const l=el('span','ph-sym',left);if(color)l.style.color=color;d.append(l);const m=el('span','ph-main');m.append(el('span','ph-sym',main),el('span','ph-sub',mid));d.append(m);const rt=el('span','ph-right');rt.append(el('span','',right));d.append(rt);parent.append(d);return d;};
+  if(!solo&&Array.isArray(s.sunkbuys)){const c=col('$SUNK BUYS',(s.sunkbuys.length?'last buy '+agoTxt(s.updated?.sunkbuys||now)+' ago':'No $SUNK buys recorded yet')+(s.tradeStream==='offline'?' · FEED OFFLINE':''),'ours');
+   for(const r of s.sunkbuys.slice(0,BOARD_ROWS)){const q=r.sol!=null?r.sol.toFixed(r.sol>=1?2:3)+' SOL':r.quoteAmount!=null&&r.quote?Math.round(r.quoteAmount).toLocaleString('en-US')+' $'+r.quote:'—';infoRow(c,'BUY',Math.round(r.amount).toLocaleString('en-US')+' $SUNK',q+(r.wallet?' · '+r.wallet:''),agoTxt(r.at)+' ago','#3fd27f');}}
+  if(!solo&&s.holdersTop)for(const t of WATCH_TOKENS){const h=s.holdersTop[t.sym];if(!h)continue;const at=s.updated?.['holders'+t.sym];const c=col('TOP HOLDERS · $'+t.sym,(h.status||'Helius holder scan')+(at?' · '+ageLabel(at,now):''),'ours');
+   if(h.top10Pct!=null)c.append(el('small','','Top 10 wallets hold '+h.top10Pct.toFixed(1)+'%'+(h.holders!=null?' · '+Number(h.holders).toLocaleString('en-US')+' holders':'')));
+   if(!h.rows.length){c.append(el('small','','—'));continue;}h.rows.forEach((r,i)=>infoRow(c,'#'+(i+1),r.label||r.wallet,r.label?'program account · not a wallet':'wallet',r.pct.toFixed(2)+'%'));}
   const spec={dexpaid:r=>({sub:'Paid DexScreener profile '+agoTxt(r.paidAt)+' ago',right:r.mcUsd!=null?'MC '+money(r.mcUsd):'MC —'}),
    bonding:r=>({sub:'≈'+r.progress.toFixed(1)+'% bonded'+(r.cap!=null?' · MC '+money(r.cap):''),right:'≈'+r.progress.toFixed(1)+'%',bar:r.progress}),
    callouts:r=>({sub:'+'+(r.boost||r.amount)+' boost · '+agoTxt(r.seenAt)+' ago',right:r.cap!=null?'MC '+money(r.cap):'MC —',change:r.change??null}),

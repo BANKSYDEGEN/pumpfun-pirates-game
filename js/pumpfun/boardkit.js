@@ -1,4 +1,4 @@
-import { ageLabel } from './liveui.js';
+import { ageLabel, isStale } from './liveui.js';
 // Shared pirate look for every PumpFun HQ canvas board (BANKSY t2275u "Work on board ui"): weathered plank frame with gilt
 // trim, red banner header with a gold medallion icon, ink rows with token logos, change pills and gilt progress bars.
 // Pure 2D canvas, no three.js; all text is ellipsized to its column so nothing overflows.
@@ -93,7 +93,10 @@ export function tokenRow(g, W, i, y, h, row, spec) { const x0 = 28, x1 = W - 28,
   txt(g, spec.name, nx, cy + 1, 24, '#ffe9b8', 'left', Math.max(60, mx - vw - (spec.midLabel ? 46 : 14) - nx)); }
 // status + tap hint along the bottom of a wall board
 export const withUpdated = (status, at, now = Date.now()) => status ? status + (at ? ' · ' + ageLabel(at,now) : '') : '';
-export function footer(g, W, H, status, at, now = Date.now()) { const s = at ? ageLabel(at,now) : status; if (s) txt(g, s, W / 2, H - 64, 20, C.muted, 'center', W - 90); tapHint(g, W, H - 36); }
+// Fresh: "updated 2 min ago". Stale / offline: amber "FEED OFFLINE · last good snapshot · updated 3 h ago" so old rows never read as live.
+export function footer(g, W, H, status, at, now = Date.now()) { const old = at && (isStale(at, now) || /offline|failed/i.test(status || ''));
+  const s = !at ? status : old ? (/offline/i.test(status || '') ? 'FEED OFFLINE · last good snapshot · ' : 'STALE · ') + ageLabel(at, now).replace(/^STALE · /, '') : ageLabel(at, now);
+  if (s) txt(g, s, W / 2, H - 64, 20, old ? '#ffb347' : C.muted, 'center', W - 90); tapHint(g, W, H - 36); }
 // ---- phone layout: rank · logo · ticker · ONE key value, bold high-contrast sans, rows fill the panel ----
 export const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
 export function btxt(g, s, x, y, n, c = '#fff8e6', a = 'left', max = 0, shadow = true) {

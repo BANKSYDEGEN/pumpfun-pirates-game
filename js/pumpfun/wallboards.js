@@ -1,11 +1,11 @@
-import { liveTag, rowFlash } from './liveui.js';
+import { liveTag, rowFlash, agoText } from './liveui.js';
 import { BOARD_ROWS, WALL_ROW_Y0, WALL_ROW_H, BOOST_STEP_MS, boardRows, wallGrid, wallRow } from './boardgrid.js';
 // Pure (three-free) board definitions + canvas drawing for Post's 5 remaining panel slots (BANKSY t2262u "Ok now work on all the boards").
 // Same pattern as dexpanel.js: swap the slot mesh's material only (geometry, lighting, decor stay Post's),
 // one canvas each (1280x1024, 640x512 on phones), built lazily with the hall, redrawn on data change / once a minute, no lights.
 // Look: shared pirate board kit (boardkit.js, BANKSY t2275u "Work on board ui").
 import { WATCH_TOKENS } from './market.js';
-import { C, frame, banner, tokenRow, footer, emptyState, txt, rr, logo, pill, bar, tapHint, usd, ago, pct, btxt, compactBanner, compactRow, compactEmpty, compactFooter } from './boardkit.js';
+import { C, frame, banner, tokenRow, footer, emptyState, txt, rr, rowBg, logo, pill, bar, tapHint, usd, ago, pct, btxt, compactBanner, compactRow, compactEmpty, compactFooter } from './boardkit.js';
 const DEX_PANEL_ROWS = BOARD_ROWS, DEX_PANEL_ROW_Y0 = WALL_ROW_Y0, DEX_PANEL_ROW_H = WALL_ROW_H; // same row grid as dexpanel.js (logical 640x512)
 // slot -> board. rows(state, now) returns [{mint, imageUrl, symbol, spec}] from real feed rows only. east_1 is DEX JUST PAID (dexpanel.js).
 // cv = the phone layout's one key value { value, color, bar }
@@ -22,6 +22,9 @@ export const WALL_BOARDS = Object.freeze([
  // Dedicated tokens flank the front door; Volume Leaders uses the existing squad-rank plaque.
  { slot: 'front_e', key: 'prices', icon: 'ours', title: '$SUNK', ours: ['SUNK'], rows: () => [] },
  { slot: 'front_w', key: 'prices', icon: 'ours', title: '$AHOY', ours: ['AHOY'], rows: () => [] },
+ // hq-data-v2 (BANKSY t2448u): $SUNK BUYS on the existing daily-ranks plaque (no ranking feed exists for it; frame/geometry stay Post's).
+ // Real on-chain buys from the Helius webhook table, the same events the Telegram buybot posts. Never synthesized.
+ { slot: 'daily_ranks', key: 'sunkbuys', icon: 'ours', title: '$SUNK BUYS', sub: 'On-chain buys · same events as the Telegram buybot', buys: 'SUNK', rows: () => [] },
 ]);
 const price = v => v == null ? '—' : v >= 1 ? '$' + v.toFixed(2) : '$' + v.toPrecision(3);
 // 24 h hourly line: gradient fill, last-price dot, hi/lo + time axis labels
@@ -64,7 +67,7 @@ function drawOurs(g, board, state, now = Date.now()) { const W = 640;
   logo(g, { mint: t.ca, symbol: sym, imageUrl: p?.imageUrl }, x0 + 34, y0 + 32, 23);
   txt(g, '$' + sym, x0 + 66, y0 + 32, 46, C.gold, 'left', 150, true);
   const pw = pill(g, p?.change ?? null, x1 - 12, y0 + 32, 26, p ? (p.change == null ? '24h —' : (p.change >= 0 ? '+' : '') + p.change.toFixed(1) + '% 24h') : '—');
-  txt(g, p ? price(p.price) + (p.stale ? ' · old' : '') : state.status?.prices === 'Loading…' ? 'Loading…' : 'Feed offline', x1 - 12 - pw - 14, y0 + 33, 32, C.parch, 'right', 200);
+  txt(g, p ? price(p.price) + (p.stale ? ' · old' : p.source === 'chain' ? ' · chain' : '') : state.status?.prices === 'Loading…' ? 'Loading…' : 'Feed offline', x1 - 12 - pw - 14, y0 + 33, 32, C.parch, 'right', 200);
   const stats = [['MC', usd(p?.cap)], ['HOLDERS', d?.holders != null ? Number(d.holders).toLocaleString('en-US') : '—'], ['LIQ', usd(p?.liquidity)], ['VOL 24H', usd(p?.volume)]], cw = (x1 - x0 - 24) / 4;
   stats.forEach(([k, v], j) => { const cx = x0 + 12 + cw * j + cw / 2; txt(g, k, cx, y0 + 68, 18, C.dim, 'center', cw - 8); txt(g, v, cx, y0 + 90, 28, '#ffe9b8', 'center', cw - 8); });
   if (sym === 'SUNK' && !d?.bonded) {
@@ -77,23 +80,33 @@ function drawOurs(g, board, state, now = Date.now()) { const W = 640;
   tradesStrip(g, state, sym, x0 + 12, cy1 + 6, x1 - 12, y0 + 380, now);
   if (c.length >= 2) chart(g, c, x0 + 12, cy0, x1 - 12, cy1);
   else { g.fillStyle = 'rgba(0,0,0,0.35)'; rr(g, x0 + 12, cy0, x1 - x0 - 24, cy1 - cy0, 8); g.fill(); txt(g, d ? 'Chart feed offline' : 'Chart loading…', W / 2, (cy0 + cy1) / 2, 26, C.muted, 'center'); } }); }
+function drawBuys(g, state, now, compact) { const W = 640, rows = (state.sunkbuys || []).slice(0, DEX_PANEL_ROWS), { y0, h } = compact ? wallGrid(true) : { y0: DEX_PANEL_ROW_Y0, h: DEX_PANEL_ROW_H }, x0 = compact ? 24 : 28, x1 = W - x0;
+ if (!rows.length) { (compact ? compactEmpty : emptyState)(g, W, state.status?.sunkbuys || 'Loading…'); return; }
+ rows.forEach((r, i) => { const y = y0 + i * h, cy = y + (h - 2) / 2, w = x1 - x0; rowBg(g, i, x0, y, w, h - 2);
+  const left = (state.flashes?.sunkbuys?.[r.id] || 0) - now; if (left > 0) { g.save(); g.fillStyle = 'rgba(63,210,127,' + (.28 * Math.min(1, left / 1000)) + ')'; g.fillRect(x0, y, w, h - 2); g.restore(); }
+  if (compact) { btxt(g, 'BUY', x0 + 12, cy + 1, 24, C.up, 'left', 70); btxt(g, kfmt(r.amount), x0 + w * .52, cy + 1, 28, '#ffe9b8', 'right', w * .34); btxt(g, tradeQuote(r), x1 - 96, cy + 1, 24, C.parch, 'right', w * .3); btxt(g, tAge(r.at, now), x1 - 10, cy + 1, 24, C.muted, 'right', 80); return; }
+  txt(g, 'BUY', x0 + 14, cy + 1, 22, C.up, 'left', 60, true); txt(g, kfmt(r.amount) + ' $SUNK', x0 + w * .46, cy + 1, 23, '#ffe9b8', 'right', w * .34);
+  txt(g, tradeQuote(r), x0 + w * .70, cy + 1, 21, C.parch, 'right', w * .23); txt(g, r.wallet || '—', x0 + w * .87, cy + 1, 18, C.dim, 'right', w * .16); txt(g, tAge(r.at, now) + ' ago', x1 - 12, cy + 1, 19, C.muted, 'right', w * .12); }); }
 export function wallRows(board, state, now = Date.now()) { return board.rows(state, now).slice(0, DEX_PANEL_ROWS); }
 export function drawWallPanel(cv, board, state, now = Date.now(), compact = false) { if (compact) return drawCompact(cv, board, state, now); const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
  if (board.ours) { banner(g, W, board.title, board.icon, { y: 46, h: 56, size: 50 }); drawOurs(g, board, state, now); liveTag(g,state.updated?.prices,now,320,486,17,'center'); g.restore(); return; }
  banner(g, W, board.title, board.icon, { sub: board.sub });
+ if (board.buys) { drawBuys(g, state, now, false); { const off = state.tradeStream === 'offline', at = state.updated?.sunkbuys, t = (at ? 'last buy ' + agoText(at, now) + ' ago' : 'no buys yet') + (off ? ' · FEED OFFLINE · last good rows' : ' · ' + (state.status?.sunkbuys || 'On-chain $SUNK buys'));
+   txt(g, t, W / 2, H - 64, 20, off ? '#ffb347' : C.muted, 'center', W - 90); tapHint(g, W, H - 36, 22, 'Tap to open $SUNK on pump.fun · not financial advice'); } g.restore(); return; }
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now);
  if (!rows.length) emptyState(g, W, status);
  rows.forEach((r, i) => tokenRow(g, W, i, DEX_PANEL_ROW_Y0 + i * DEX_PANEL_ROW_H, DEX_PANEL_ROW_H - 2, r, r.spec));
  rows.forEach((r,i)=>rowFlash(g,state,board.key,r.mint,28,DEX_PANEL_ROW_Y0+i*DEX_PANEL_ROW_H,584,DEX_PANEL_ROW_H-2,now));
  footer(g, W, H, rows.length ? status : '', state.updated?.[board.key], now); g.restore(); }
 // tap: uv -> the row's mint, or null (opens the token hall instead)
-export function wallPanelMint(board, state, uv, now = Date.now(), compact = false) { const y = (1 - uv.y) * 512; if (board.ours) { const i = y >= 80 && y < 480 ? 0 : -1; return i < 0 ? null : WATCH_TOKENS.find(t => t.sym === board.ours[i])?.ca || null; } const i = wallRow(uv, compact); if (i < 0) return null; return wallRows(board, state, now)[i]?.mint || null; }
+export function wallPanelMint(board, state, uv, now = Date.now(), compact = false) { const y = (1 - uv.y) * 512; if (board.buys) return WATCH_TOKENS.find(t => t.sym === board.buys)?.ca || null; if (board.ours) { const i = y >= 80 && y < 480 ? 0 : -1; return i < 0 ? null : WATCH_TOKENS.find(t => t.sym === board.ours[i])?.ca || null; } const i = wallRow(uv, compact); if (i < 0) return null; return wallRows(board, state, now)[i]?.mint || null; }
 // Phone layout: big title, no subtitle, rank · logo · ticker · one value, ten rows filling the panel, "TAP TO READ" opens the 2D board.
 export function drawCompact(cv, board, state, now = Date.now()) { const g = cv.getContext('2d'), W = 640, H = 512; g.save(); g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
  frame(g, W, H);
  if (board.ours) { compactBanner(g, W, board.title, board.icon); drawOursCompact(g, board, state, now); liveTag(g,state.updated?.prices,now,32,486,17); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); return; }
  compactBanner(g, W, board.title, board.icon);
+ if (board.buys) { drawBuys(g, state, now, true); liveTag(g, state.updated?.sunkbuys, now, 32, 486, 17, 'left', 'last buy '); btxt(g,'TAP TO READ',W-30,H-25,22,C.gold,'right'); g.restore(); return; }
  const status = state.status?.[board.key] || 'Loading…', rows = wallRows(board, state, now), { y0, h } = wallGrid(true);
  if (!rows.length) compactEmpty(g, W, status);
  rows.forEach((r, i) => compactRow(g, W, i, y0 + i * h, h, r, r.cv || { name: r.spec.name, value: r.spec.mid }));

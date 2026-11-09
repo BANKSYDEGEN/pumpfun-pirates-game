@@ -8,7 +8,7 @@ export function boardRefreshDue(previous, revision, drawnAt, now, tickMs = 0) {
 }
 // Independent feeds: a new launch must not re-upload every unrelated wall board.
 export function boardDataKey(state, key, logos = 0, now = Date.now()) {
-  const listKey = k => `${state.updated?.[k] || 0}/${state.status?.[k] || ''}/${state[k]?.length || 0}/${state[k]?.[0]?.mint || ''}`;
+  const listKey = k => `${state.updated?.[k] || 0}/${state.status?.[k] || ''}/${state[k]?.length || 0}/${state[k]?.[0]?.mint || state[k]?.[0]?.id || ''}/${state.tradeStream || ''}`;
   const own = () => {let s=listKey('prices');for(const sym of ['SUNK','AHOY']){const d=state.details?.[sym]||{},tr=state.trades?.[sym]||[];s+=`/${d.updated||0}/${d.holders||0}/${d.curveProgress??''}/${!!d.bonded}/${tr.length}/${tr[0]?.id||''}/${tr[tr.length-1]?.id||''}`;}return s;};
   let flashing=false;const keys=key==='main'?['prices','bonding','trending','callouts','trades']:key==='ours'||key==='prices'?['prices','trades']:[key];for(const k of keys){const f=state.flashes?.[k];for(const id in f)if(f[id]>now){flashing=true;break;}}
   return (flashing?'F/':'')+logos+'/'+(key==='main'?own()+'/'+listKey('bonding')+'/'+listKey('trending')+'/'+listKey('callouts'):(key==='ours'||key==='prices')?own():listKey(key));
