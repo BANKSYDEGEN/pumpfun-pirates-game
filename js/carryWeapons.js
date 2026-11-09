@@ -67,9 +67,10 @@ export function syncCarry(p, gear, body) {
   st.swV = -1; st.muV = -1;   // [weapon-sync] fresh meshes: re-dress with the look on the next post
   st.body = body; st.crew = crew; p.addPost?.('carry', carryPost, 4);
 }
-// [crew-weapons] the deck crew bake (js/crewV4.js): put the carried copies where they ride (sword on the hip, musket slung) right now
+// [crew-weapons-swap] t2446u: deck / native crew carry like the walking player — sword IN HAND (grip on forearm), musket slung on the BACK
+// (same placeMusket holster slot). Was: sword hip-holstered + musket back.
 export function placeCarryNow(p) { const st = p?.carry; if (!st?.body) return [];
-  if (st.sword) { if (!st.swordPlaced) placeSword(st); setSwordSpot(st, true); st.sword.visible = true; }
+  if (st.sword) { if (!st.swordPlaced) placeSword(st); setSwordSpot(st, false); st.sword.visible = true; }
   if (st.musket) { placeMusket(st); st.musket.visible = true; }
   return [st.sword, st.musket].filter(Boolean); }
 
@@ -152,7 +153,7 @@ function carryPost(dt) {
   const st = this.carry; if (!st || !st.body) return;
   lookCarry(st);
   const show = carryShows({ onFoot: this.footSpeed !== undefined, state: this.footState, armedSword: st.armedSword, armedMusket: st.armedMusket });   // footSpeed: set by js/onfoot/pirate.js each frame (ships never)
-  if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = st.crew || swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); /* [crew-weapons] crew: always on the hip */ if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
+  if (st.sword) { if (!st.swordPlaced) placeSword(st); const hol = st.crew ? false : swordHolstered({ on: HOLSTER_ON, armedMusket: st.armedMusket }); /* [crew-weapons-swap] t2446u: crew sword stays in hand (player grip); only the captain holsters while aiming musket */ if (hol !== st.holstered) setSwordSpot(st, hol); st.sword.visible = show.sword; }
   if (st.musket) {
     if ((st.t -= dt) <= 0) { st.t = 0.5; let sig = ''; st.body.parent.traverse((o) => { if (o.isSkinnedMesh && !o.userData.carry) sig += o.id + ','; }); if (sig !== st.sig) { st.sig = sig; placeMusket(st); } }
     st.musket.visible = show.musket;

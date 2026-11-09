@@ -155,8 +155,9 @@ export function captainExtras(gear, low = false) {
 }
 export const CREW_OWN_EXTRAS = ['beard', 'face', 'cape', 'boots', 'pants'];
 // [crew-weapons] BANKSY 4:42 PM Nov 5: "Just make them all have what you have": every crew pirate (deck, ashore, followers) carries the
-// captain's CURRENT sword (on the hip, at the side the captain's hook leaves free: a right-hook captain's crew wear it for the LEFT hand) and
-// musket (slung on the back), same ids = same model / rarity look. Client only (the ids already ride the wire). &crewweap=0 = none.
+// captain's CURRENT sword (IN HAND — grip on the no-hook forearm; a right-hook captain's crew hold it in the LEFT hand) and
+// musket (slung on the BACK, same placeMusket slot as the player / walking crew). Client only. &crewweap=0 = none.
+// [crew-weapons-swap] t2446u: was hip + back; now hand + back.
 export { crewWeapOn, crewWeaponsOf };   // [crew-weapons] pure, in js/carryRules.js (node tests)
 
 export function crewGearOf(gear) {
@@ -196,7 +197,7 @@ export function crewGearV4(gear, colors = null) { // -> Promise<{ m: { idle, can
   }).catch((e) => { console.warn('[crew] gear bake failed, crew keeps the default outfit', e); _gc.delete(key); return null; });
   _gearQueue = pr.then(() => {}, () => {}); _gc.set(key, pr); return pr;
 }
-// [crew-weapons] the carried sword / musket (plain meshes on the hip + spine bones) in this pose -> a crew chunk (vertex colour, no stripe uv)
+// [crew-weapons-swap] carried sword (forearm/hand) + musket (spine/back) in this pose -> a crew chunk (vertex colour, no stripe uv)
 function bakeCarry(p, pose, T, placeNow) {
   const clip = p.clips[pose] || p.clips.idle; p.mixer.stopAllAction(); p.action = null; p.clip = null;
   if (clip) { const a = p.mixer.clipAction(clip); a.reset().play(); p.mixer.update(0); }
