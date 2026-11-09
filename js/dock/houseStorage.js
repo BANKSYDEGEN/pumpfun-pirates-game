@@ -6,6 +6,9 @@ export function isStackable(item) {
   return typeof item === 'string' && !item.startsWith('wpn:');
 }
 
+const GOLD_STACK_CAP = 10_000_000;
+const qtyCap = (item) => item === 'val:gold' ? GOLD_STACK_CAP : 999;
+
 export function chestCanAccept(items, slots, item) {
   const list = Array.isArray(items) ? items : [];
   const cap = slots | 0;
@@ -15,14 +18,18 @@ export function chestCanAccept(items, slots, item) {
 
 /** Deposit qty of item into chest. Returns { ok, items, why?, slot? }. Weapons (wpn:*) never stack — one unit per slot. */
 export function applyChestStore(items, slots, item, qty, meta = null) {
-  const q0 = Math.max(1, Math.min(999, Math.floor(Number(qty) || 0)));
+  const q0 = Math.max(1, Math.min(qtyCap(item), Math.floor(Number(qty) || 0)));
   if (!item || !q0) return { ok: false, items: items || [], why: 'bad store' };
   const list = (items || []).map((x) => ({ ...x }));
   const cap = slots | 0;
   const metaObj = meta && typeof meta === 'object' ? { ...meta } : undefined;
   if (isStackable(item)) {
     const stack = list.find((x) => x.item === item);
-    if (stack) { stack.qty = (stack.qty | 0) + q0; return { ok: true, items: list, slot: stack.slot }; }
+    if (stack) {
+      const room = Math.max(0, (item === 'val:gold' ? GOLD_STACK_CAP : 1e15) - (stack.qty | 0));
+      if (!room) return { ok: false, items: list, why: 'chest full' };
+      stack.qty = (stack.qty | 0) + Math.min(q0, room); return { ok: true, items: list, slot: stack.slot };
+    }
     if (list.length >= cap) return { ok: false, items: list, why: 'chest full' };
     let slot = 0; const used = new Set(list.map((x) => x.slot));
     while (used.has(slot)) slot++;

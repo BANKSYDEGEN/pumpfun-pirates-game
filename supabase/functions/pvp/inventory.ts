@@ -2,7 +2,8 @@
 // asking (index.ts whoAmI), rolls server-side things (fish, chest items) and shapes replies. Client values are never trusted for
 // prices, qty ownership, multipliers or recipients.
 import { sellItem, OWNER_MAIN } from "./lib.ts";
-import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET, CHEST_VALUABLES, RUIN_CHESTS, IDOL_SHARDS, muskLevelOf, muskTierOf } from "./invCatalog.ts";
+import { FISH, FISH_WEIGHT, FISH_CM, VALUABLES, WEAPON_BASES, WEAPON_TIERS, KEY_RE, itemInfo, MARKET, CHEST_VALUABLES, RUIN_CHESTS, IDOL_SHARDS, muskLevelOf, muskTierOf, isGoldItem } from "./invCatalog.ts";
+import { goldQty } from "./goldItem.ts"; // [gold-item]
 import { chestRoll } from "./chest.ts";
 import { acctBump } from "./accounts.ts";
 import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's online list
@@ -77,13 +78,26 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
     }
     case "inv_sell": {
       const item = b.item, qty = qtyOf(b.qty), shop = b.shop === "fish" ? "fish" : b.shop === "antiques" ? "antiques" : null;
+      if (isGoldItem(item)) return json(409, { error: "not for sale" }); // [gold-item] spendable balance is not an antiques lot
       if (!okKey(item) || !qty || !shop) return json(400, { error: "bad sale" });
       const d = await sellItem(db, pid, item as string, qty, shop, () => c.boostsOf(who, b));
       if (d?.ok && b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, d.gold | 0); // like map_dig: a logged-in device adds it to its own save
       return reply(d);
     }
     case "inv_gift": {
-      const item = b.item, qty = qtyOf(b.qty); let to = typeof b.to === "string" ? b.to : "";
+      const item = b.item; let to = typeof b.to === "string" ? b.to : "";
+      // [gold-item] balance → balance gift (never pvp_inv); requires idempotent req
+      if (isGoldItem(item)) {
+        const qty = goldQty(b.qty);
+        const req = typeof b.req === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(b.req) ? b.req : "";
+        if (!qty || !to || !req) return json(400, { error: "bad gift" });
+        if (!/^(wallet:|dev:)/.test(to)) { const { data: hits } = await db.from("pvp_players").select("id").eq("name", to.slice(0, 20)).limit(2); if (hits && hits.length > 1) return json(409, { error: "name not unique" });
+          if (hits?.length === 1) to = hits[0].id; else { const r = await nameFallback(db, to); if (!r) return json(409, { error: "no such pirate" }); to = r; } }
+        const d = await rpc("pvp_gold_gift", { p_from: pid, p_to: to, p_qty: qty, p_req: req });
+        if (d?.ok && !d.retry && b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, -(d.qty | 0));
+        return reply(d);
+      }
+      const qty = qtyOf(b.qty);
       if (!okKey(item) || !qty || !to) return json(400, { error: "bad gift" });
       if (!/^(wallet:|dev:)/.test(to)) { const { data: hits } = await db.from("pvp_players").select("id").eq("name", to.slice(0, 20)).limit(2); if (hits && hits.length > 1) return json(409, { error: "name not unique" });
         if (hits?.length === 1) to = hits[0].id; else { const r = await nameFallback(db, to); if (!r) return json(409, { error: "no such pirate" }); to = r; } }
@@ -154,7 +168,7 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       const { data: birds } = ids.length ? await db.from("pvp_parrots").select("id,name,xp,color").in("id", ids) : { data: [] };
       const birdMap = new Map((birds || []).map((p: any) => ["par:" + p.id, p]));
       return json(200, { ok: true, listings: (data || []).map((l: any) => ({ id: l.id, parrot: birdMap.get(l.item) || null, item: l.item, qty: l.qty, price: l.price, seller: nm.get(l.seller_id) || "PIRATE", mine: l.seller_id === pid })), limits: MARKET }); }
-    case "mkt_list": { const item = b.item, qty = qtyOf(b.qty), price = Math.floor(Number(b.price)); if (!okKey(item) || !qty || !Number.isFinite(price)) return json(400, { error: "bad listing" });
+    case "mkt_list": { const item = b.item, qty = qtyOf(b.qty), price = Math.floor(Number(b.price)); if (isGoldItem(item)) return json(409, { error: "not for sale" }); if (!okKey(item) || !qty || !Number.isFinite(price)) return json(400, { error: "bad listing" });
       return reply(await rpc("pvp_mkt_list", { p_player: pid, p_item: item, p_qty: qty, p_price: price })); }
     case "mkt_buy": { const id = Math.floor(Number(b.listing)); if (!(id > 0)) return json(400, { error: "bad listing" }); const d = await rpc("pvp_mkt_buy", { p_player: pid, p_listing: id });
       if (d?.ok && b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, -(d.price | 0)); return reply(d); }

@@ -7,7 +7,7 @@ export const FLAGS = {
   INV_ON: true,              // the HUD INVENTORY grid (was the MAPS button)
   FISH_SELL_ON: true,        // Fish Stand pays gold (BANKSY 12:55 PM: on, 25-500 by rarity; migration 037)
   ANTIQUES_SELL_ON: true,    // Antiques shop pays gold (prices = BANKSY 11:19 AM; on 12:55 PM)
-  GIFT_ON: true,             // gifting between players (no gold moves)
+  GIFT_ON: true,             // gifting between players (+ gold via gold_item flag / 068)
   MARKET_ON: true,           // the player Marketplace (on: BANKSY 12:55 PM)
   MARKET_FEE_ON: false,      // listing fee / sales tax gold sink (BANKSY to decide)
   WEAPON_STATS_ON: true,     // rarity stats on swords / muskets
@@ -127,6 +127,7 @@ export function itemInfo(key) {
   const p = String(key).split(':');
   if (p[0] === 'fish' && FISH[p[1]]) return { kind: 'fish', ...FISH[p[1]], antiques: 0 };
   if (p[0] === 'val' && GUN_ITEMS[p[1]]) return { ...GUN_ITEMS[p[1]], antiques: 0, fish: 0 }; // [Emerly musket-rank / gunacc] not sold to NPCs
+  if (p[0] === 'val' && p[1] === 'gold') return { kind: 'gold', name: 'Gold', icon: '🪙', rarity: 'common', fish: 0, antiques: 0 }; // [gold-item]
   if (p[0] === 'val' && VALUABLES[p[1]]) return { kind: 'valuable', ...VALUABLES[p[1]], fish: 0 };
   if (p[0] === 'wpn' && p[1] === 'musket' && WEAPON_BASES.musket.includes(p[2])) { const lv = muskLevelOf(key); if (!lv) return null; // [musket-levels] every musket has a level
     return { kind: 'weapon', slot: 'musket', base: p[2], rarity: p[3], level: lv, name: `${p[3][0].toUpperCase() + p[3].slice(1)} ${p[2]} musket · Lv ${lv}`, icon: '🔫', antiques: RARITY_ANTIQUES[p[3]], fish: 0 }; }
@@ -137,6 +138,11 @@ export function itemInfo(key) {
   if (p[0] === 'map') return { kind: 'map', name: 'Treasure Map', icon: '🗺️', rarity: 'common', antiques: MAP_ANTIQUES, fish: 0 };
   return null;
 }
+// [gold-item] see js/inventory/goldItem.js for UI helpers
+export const GOLD_ITEM = 'val:gold';
+export const GOLD_CAP = 10_000_000;
+export const isGoldItem = (k) => k === GOLD_ITEM;
+
 export const KEY_RE = /^(fish:[a-z_]{2,16}|val:[a-z_]{2,20}|wpn:(sword|musket):[a-z_]{2,16}:(common|rare|epic|legendary)|wpn:musket:[a-z_]{2,16}:(common:[2-5]|rare:([7-9]|10)|epic:1[2-5]|legendary:(1[7-9]|20))|dup:[a-z]{2,10}:[a-z0-9_]{2,24}:(common|uncommon|rare|epic|legendary)|isl:[a-z_]{2,24}|par:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 // every NPC price, flat: [key, shop, base price]. migration 036 seeds exactly these rows (tests/inventory.test.mjs checks)
 export function priceRows() {

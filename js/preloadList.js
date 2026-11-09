@@ -36,6 +36,7 @@ export const HARBOR_MODULES = [
   "js/gearThumbs.js",
   "js/inventory/backpackCap.js",
   "js/inventory/givePick.js",
+  "js/inventory/goldItem.js",
   "js/inventory/islandGoods.js",
   "js/inventory/itemArt.js",
   "js/inventory/itemIcon.js",

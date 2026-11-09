@@ -44,7 +44,7 @@ export function countBackpackSlots(items = [], equipped = null, opts = {}) {
 
   for (const row of items || []) {
     const key = String(row.item || row.key || '');
-    if (!key || key.startsWith('map:')) continue;
+    if (!key || key.startsWith('map:') || key === 'val:gold') continue; // [gold-item] balance-backed, not a bag slot
     let qty = Math.max(0, Math.floor(Number(row.qty) || 0));
     if (!qty) continue;
     const skip = eqSkip.get(key) || 0;

@@ -1,4 +1,5 @@
 import { formatGoldAmount } from '../goldFormat.js';
+import { GOLD_ITEM_ON, isGoldItem, syntheticGoldStack, goldQty } from '../inventory/goldItem.js'; // [gold-item]
 // [Emerly storage-houses] BANKSY: buyable cottages as item storage — step inside → private instanced room,
 // main-server spot stays reserved (ih:1). Kill switch: &houses=0.
 // Doors auto-bind to Post's cottage village (js/island/areas/cottages.js) when present; otherwise the same
@@ -1811,20 +1812,32 @@ export function createHouses({
   }
   async function bagItems() {
     // Prefer live inventory API; fall back to empty
+    const withGold = (list) => {
+      if (!GOLD_ITEM_ON) return list;
+      const out = (list || []).filter((s) => !isGoldItem(s.item));
+      let bal = 0;
+      try {
+        const pv = typeof pvp === 'function' ? pvp() : pvp;
+        bal = Math.max(0, Math.floor(Number(pv?.gold ?? pv?.profile?.gold) || 0));
+      } catch {}
+      const syn = syntheticGoldStack(bal);
+      if (syn) out.unshift({ item: syn.item, qty: syn.qty, equipped: false, synthetic: true });
+      return out;
+    };
     try {
       const inv = typeof inventory === 'function' ? inventory() : inventory;
       if (inv?.refresh) {
         const r = await inv.refresh();
         if (r?.ok && Array.isArray(r.items)) {
           const eq = r.equipped || {};
-          return r.items.map((s) => ({ item: s.item, qty: s.qty | 0, equipped: Object.values(eq).includes(s.item) }))
-            .filter((s) => s.qty > 0 && itemInfo(s.item));
+          return withGold(r.items.map((s) => ({ item: s.item, qty: s.qty | 0, equipped: Object.values(eq).includes(s.item) }))
+            .filter((s) => s.qty > 0 && itemInfo(s.item)));
         }
       }
       if (inv?.slots) {
-        return inv.slots().filter((s) => s?.key && !String(s.key).startsWith('map:')).map((s) => ({
+        return withGold(inv.slots().filter((s) => s?.key && !String(s.key).startsWith('map:')).map((s) => ({
           item: s.key, qty: s.qty | 0, equipped: !!(s.info?.kind === 'weapon' && inv /* unknown */),
-        }));
+        })));
       }
     } catch {}
     // Offline demo bag so storage UI always has something to show in tests / screenshots
@@ -1895,7 +1908,8 @@ export function createHouses({
     const slotAttr = side === 'chest' ? ` data-slot="${s.slot | 0}"` : '';
     const splitBtn = stackable ? `<button type="button" class="hs-split" data-split title="Split stack">✂️</button>` : '';
     const lock = eq ? '<div class="hs-lock">🔒 EQUIPPED</div>' : '';
-    const qty = q > 1 ? `<b class="hs-qty">×${q}</b>` : (q === 1 && !isStackable(s.item) ? '' : (q > 0 ? `<b class="hs-qty">×${q}</b>` : ''));
+    const qtyTxt = isGoldItem(s.item) ? formatGoldAmount(q) : String(q);
+    const qty = q > 1 || isGoldItem(s.item) ? `<b class="hs-qty">×${qtyTxt}</b>` : (q === 1 && !isStackable(s.item) ? '' : (q > 0 ? `<b class="hs-qty">×${qtyTxt}</b>` : ''));
     const leg = info.rarity === 'legendary' ? ' hs-leg' : '';
     const acc = (s.meta && s.meta.acc) || {};
     const accN = ['scope','bayonet','stock','horn'].filter((k) => acc[k]).length;
@@ -2167,20 +2181,30 @@ export function createHouses({
         if (!gid && String(item).startsWith('wpn:musket:') && typeof window !== 'undefined' && Array.isArray(window.PFP_GUN_INST)) {
           const g = window.PFP_GUN_INST.find((x) => x.place === 'bag' && x.item === item); gid = g?.gid || null;
         }
-        const r = await invApi('house_store', { cottage: activeId, item, qty, ...(gid && String(item).startsWith('wpn:musket:') ? { gid } : {}) });
+        const goldMove = isGoldItem(item);
+        const qMove = goldMove ? (goldQty(qty) || 0) : qty;
+        if (goldMove && !qMove) { toast('PICK AN AMOUNT', 1400); return; }
+        const payload = { cottage: activeId, item, qty: qMove, ...(gid && String(item).startsWith('wpn:musket:') ? { gid } : {}), ...(goldMove ? { req: reqId() } : {}) };
+        const r = await invApi('house_store', payload);
         try { if (typeof window !== 'undefined') window.PFP_GUN_STORE_GID = null; } catch {}
         if (r?.ok) {
           ok = true;
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };
           persistChest(activeId);
+          if (goldMove && r.gold != null) {
+            try { (typeof pvp === 'function' ? pvp() : pvp)?.serverGold?.(r.gold, { rev: r.rev }); } catch {}
+          }
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
         } else if (r && r.error === 'equipped') { toast('🔒 EQUIPPED<br><small>unequip in Inventory first</small>', 1800); return; }
         else if (r && r.error === 'chest full') { toast('CHEST FULL', 1600); return; }
+        else if (r && r.error === 'not enough gold') { toast('NOT ENOUGH GOLD', 1800); return; }
         else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
           toast(String(r.error || 'no').toUpperCase(), 1800); return;
         }
+        if (goldMove && !ok) { toast('GOLD STORE NEEDS THE PIRATE NETWORK', 2000); return; }
       } catch {}
       if (!ok) {
+        if (isGoldItem(item)) { toast('GOLD STORE NEEDS THE PIRATE NETWORK', 2000); return; }
         // Offline local move — merge into existing stack even when chest is at capacity
         const ch = chestOf(activeId);
         const res = applyChestStore(ch.items || [], ch.slots, item, qty);
@@ -2207,19 +2231,27 @@ export function createHouses({
     try {
       let ok = false;
       try {
-        const r = await invApi('house_take', { cottage: activeId, slot, qty });
+        const rowPeek = (owned[activeId].items || []).find((x) => x.slot === slot);
+        const goldMove = !!(rowPeek && isGoldItem(rowPeek.item));
+        const qMove = goldMove ? (goldQty(qty) || goldQty(rowPeek.qty) || 1) : qty;
+        const r = await invApi('house_take', { cottage: activeId, slot, qty: qMove, ...(goldMove ? { req: reqId() } : {}) });
         if (r?.ok) {
           ok = true;
           owned[activeId] = { ...owned[activeId], slots: r.house?.slots || owned[activeId].slots, items: r.house?.items || [] };
           persistChest(activeId);
+          if (goldMove && r.gold != null) {
+            try { (typeof pvp === 'function' ? pvp() : pvp)?.serverGold?.(r.gold, { rev: r.rev }); } catch {}
+          }
           try { await (typeof inventory === 'function' ? inventory() : inventory)?.refresh?.(); } catch {}
         } else if (r && (r.full || /backpack full/i.test(String(r.error || '')))) { toast(BAG_FULL_MSG, 2200); return; } // [backpack-pvp]
         else if (r && r.ok === false && r.error && !/offline|closed|fetch|network|abort|failed/i.test(String(r.error))) {
           toast(String(r.error || 'no').toUpperCase(), 1800); return;
         }
+        if (goldMove && !ok) { toast('GOLD WITHDRAW NEEDS THE PIRATE NETWORK', 2000); return; }
       } catch {}
       if (!ok) {
         const row0 = (owned[activeId].items || []).find((x) => x.slot === slot); if (!row0) return;
+        if (isGoldItem(row0.item)) { toast('GOLD WITHDRAW NEEDS THE PIRATE NETWORK', 2000); return; }
         // [backpack-pvp] local 16-slot cap check (BANKSY ∞)
         const bagNow = await bagItems();
         const owner = !!(isUnlimitedBag({ name: (typeof localStorage !== 'undefined' && localStorage.getItem('pfp_name')) || '' }) || (typeof location !== 'undefined' && /[?&]banksy=1(&|$)/.test(location.search || '')));
