@@ -1,10 +1,11 @@
 // PUMPFUN PIRATES · [v347] BANKSY t1824u "turn down the auto aim for ships, make them aim a bit more and don't have it look like heat seeking missals".
 // Pure broadside ballistics shared by js/main.js fire() (player + AI) and tests/v347ShoreSeaCombat.test.mjs:
-//  - the player's assist only LOCKS a ship inside a ±15° window off the broadside normal (was ±43°), so the captain has to line the side up;
-//  - a locked shot only bends its guns <= ~5.7° off the gunports (AI <= ~13°; was up to 66° = the "homing" snap) with a 28 % velocity lead (AI 100 %);
+//  - the player's assist only LOCKS a ship inside a ±~17° window off the broadside normal (v347 cut ±43° → ±15°; [cannon-assist] nudge to ±17°), so the captain still has to line the side up;
+//  - a locked shot only bends its guns <= ~6.9° off the gunports (AI <= ~13°; was up to 66° = the "homing" snap) with a 34 % velocity lead (AI 100 %);
 //  - EVERY gun fires along the SAME horizontal line (parallel out of its own port, no pinching onto one point) and only the elevation ranges;
 //  - the ball flies its true parabola from frame 0 (no mid-air sideways ease in launchBall / updateBalls any more).
-export const AIM = Object.freeze({ cone: 0.26, lead: 0.28, maxDev: 0.1, aiLead: 1, aiMaxDev: 0.23, H: 42, G: 20 });
+// [cannon-assist] t2423u "a bit better aim assist": player cone/maxDev/lead nudged only — AI unchanged, no heat-seeking, no in-flight guidance.
+export const AIM = Object.freeze({ cone: 0.30, lead: 0.34, maxDev: 0.12, aiLead: 1, aiMaxDev: 0.23, H: 42, G: 20 });
 
 // is (dx, dz) from the ship inside the player's lock window on the broadside whose unit normal is dir?
 export function inCone(dir, dx, dz, cone = AIM.cone) { const d = Math.hypot(dx, dz); return d > 1e-6 && (dx * dir.x + dz * dir.z) / d > Math.cos(cone); }

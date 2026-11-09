@@ -494,12 +494,12 @@ function fire(shooter, side, target = null, accuracy = 1) {
       if (!e.alive) continue;
       const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
       if (d > (shooter.range || 90)) continue; // [Raul] ship upgrades: range
-      if (BA.inCone(dir, dx, dz) && d < bd) { bd = d; best = e; } // [v347] t1824u: lock only inside ±15° of the broadside (was ±43°)
+      if (BA.inCone(dir, dx, dz) && d < bd) { bd = d; best = e; } // [v347]/[cannon-assist]: lock inside ±~17° of the broadside (was ±43°, then ±15°)
     }
     target = best;
   }
-  // [v347] t1824u: no more heat-seeking broadsides. A locked shot gets a partial lead (player 28 %, AI 100 %), then ONE firing line
-  // turned at most ~5.7° (player) / ~13° (AI) off the gunports: every gun fires parallel along it and only the elevation ranges.
+  // [v347]/[cannon-assist]: no heat-seeking. Locked shot: partial lead (player 34 %, AI 100 %), ONE firing line
+  // turned at most ~6.9° (player) / ~13° (AI) off the gunports: every gun fires parallel along it and only the elevation ranges.
   let line = null, aimY = 2;
   if (target) {
     const lp = BA.leadPoint(shooter.x, shooter.z, target, shooter === player ? BA.AIM.lead : BA.AIM.aiLead);

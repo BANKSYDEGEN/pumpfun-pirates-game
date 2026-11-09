@@ -13,23 +13,24 @@ const sideDir = (yaw, side) => { const k = side === 'port' ? 1 : -1; return { x:
 const at = (dir, deg, d) => { const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG); return { x: (dir.x * c - dir.z * s) * d, z: (dir.x * s + dir.z * c) * d }; };
 const offDir = (v, dir) => Math.acos(Math.min(1, (v.x * dir.x + v.z * dir.z) / Math.hypot(v.x, v.z))) / DEG;
 
-test('player broadside lock window is ~15° off the broadside normal (was 43°)', () => {
+test('player broadside lock window is ~17° off the broadside normal (was 43°, then ~15°)', () => {
   const dir = sideDir(0.7, 'port');
-  for (const deg of [0, 8, 14, -14]) { const p = at(dir, deg, 60); assert.ok(BA.inCone(dir, p.x, p.z), `${deg}° locks`); }
-  for (const deg of [16, 25, 43, -30, 66, 180]) { const p = at(dir, deg, 60); assert.ok(!BA.inCone(dir, p.x, p.z), `${deg}° ignored`); }
-  assert.ok(BA.AIM.cone <= 0.28 && BA.AIM.cone >= 0.24);
+  for (const deg of [0, 8, 14, 16, -16]) { const p = at(dir, deg, 60); assert.ok(BA.inCone(dir, p.x, p.z), `${deg}° locks`); }
+  for (const deg of [18, 25, 43, -30, 66, 180]) { const p = at(dir, deg, 60); assert.ok(!BA.inCone(dir, p.x, p.z), `${deg}° ignored`); }
+  assert.ok(BA.AIM.cone <= 0.32 && BA.AIM.cone >= 0.28); // [cannon-assist] bit wider than v347 0.26, still ≪ 0.75
 });
 
-test('player: horizontal steer off the gunports <= ~6° (no 45°-66° sideways snap), AI <= ~13° (along >= H * 0.965)', () => {
+test('player: horizontal steer off the gunports <= ~7° (no 45°-66° sideways snap), AI <= ~13° (along >= H * 0.965)', () => {
   const dir = sideDir(-1.1, 'star');
   for (const deg of [3, 10, 15, 45, 66, -66]) {
     const t = at(dir, deg, 70), L = BA.fireLine(dir, 0, 0, t.x, t.z, BA.AIM.maxDev);
-    assert.ok(offDir(L, dir) <= 6.01, `player ${deg}° -> ${offDir(L, dir).toFixed(2)}°`);
+    assert.ok(offDir(L, dir) <= 7.01, `player ${deg}° -> ${offDir(L, dir).toFixed(2)}°`); // [cannon-assist] maxDev 0.12 ≈ 6.9°
     if (Math.abs(deg) <= 5) assert.ok(Math.abs(offDir(L, dir) - Math.abs(deg)) < 0.01, 'small offsets are met exactly');
     const A = BA.fireLine(dir, 0, 0, t.x, t.z, BA.AIM.aiMaxDev), v = BA.gunVelocity({ x: 0, y: 2, z: 0 }, 0, 0, A, 2, 42);
     assert.ok(offDir(A, dir) <= 13.2, `AI ${deg}°`); assert.ok((v.x * dir.x + v.z * dir.z) >= Math.hypot(v.x, v.z) * 0.965 - 1e-9, 'AI along >= 0.965 H');
   }
-  assert.ok(BA.AIM.lead >= 0.25 && BA.AIM.lead <= 0.3, 'player lead ~25-30 %');
+  assert.ok(BA.AIM.lead >= 0.30 && BA.AIM.lead <= 0.38, 'player lead ~34 %');
+  assert.equal(BA.AIM.aiLead, 1); assert.ok(Math.abs(BA.AIM.aiMaxDev - 0.23) < 1e-9, 'AI assist unchanged');
 });
 
 test('every gun of a volley fires PARALLEL (no pinching onto one point) and the spread along the hull survives', () => {
