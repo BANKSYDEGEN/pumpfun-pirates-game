@@ -23,8 +23,17 @@ const bn = (s) => (s || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase(); // GLTFL
 const PARTN = Object.fromEntries(Object.entries(PART).map(([k, v]) => [bn(k), v]));
 
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m = new THREE.Matrix4(), _t = new THREE.Matrix4(), _n3 = new THREE.Matrix3();
+// applyGear attaches live carryState references (including a back-reference to the body).
+// Object3D.copy JSON-clones userData; cloning that runtime cycle aborts the ENTIRE
+// uniform bake, so armed working crew kept the default no-hat outfit. The bake
+// needs only rig/geometry, not runtime behaviours. Always restore the live source.
+export function cloneCrewBakeRig(root) {
+  const saved = []; root.traverse(o => { saved.push([o, o.userData]); o.userData = {}; });
+  try { return SkeletonUtils.clone(root); }
+  finally { for (const [o, data] of saved) o.userData = data; }
+}
 function bake(gltf, clipName, time, slot) {
-  const scene = SkeletonUtils.clone(gltf.scene); scene.updateMatrixWorld(true);
+  const scene = cloneCrewBakeRig(gltf.scene); scene.updateMatrixWorld(true);
   const clip = gltf.animations.find(a => a.name === clipName) || gltf.animations.find(a => a.name === 'idle');
   if (clip) { const mx = new THREE.AnimationMixer(scene); mx.clipAction(clip).play(); mx.update(Math.min(time, clip.duration * 0.999)); }
   scene.updateMatrixWorld(true);
