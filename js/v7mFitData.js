@@ -5,7 +5,7 @@ export const V7M_FITS = {
   "tooth_gold": {
     "hi": "assets/pirates/items/v7m_refit/tooth_gold_male_hi.glb",
     "lo": "assets/pirates/items/v7m_refit/tooth_gold_male_lo.glb",
-    "qaStatus": "PASSED_LOCAL_V411_TEETH_V2_VISIBILITY_AND_HEAD_FOLLOW_REVIEW_PENDING"
+    "qaStatus": "V586_COMPACT_MOUTH_FIT_LOCAL_VISUAL_REVIEW_PENDING"
   },
   "facepaint_retardio": {
     "hi": "assets/pirates/items/v7m_fit/facepaint_retardio_male_hi.glb",
@@ -30,7 +30,7 @@ export const V7M_FITS = {
   "grill_gold": {
     "hi": "assets/pirates/items/v7m_refit/grill_gold_male_hi.glb",
     "lo": "assets/pirates/items/v7m_refit/grill_gold_male_lo.glb",
-    "qaStatus": "PASSED_LOCAL_V411_TEETH_V2_VISIBILITY_AND_HEAD_FOLLOW_REVIEW_PENDING"
+    "qaStatus": "V586_COMPACT_MOUTH_FIT_LOCAL_VISUAL_REVIEW_PENDING"
   },
   "hook_r": {
     "hi": "assets/pirates/items/v7m_fit/hook_r_male_hi.glb",
@@ -102,9 +102,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "eyes_vr": {
-    "hi": "assets/pirates/items/v7m_fit/eyes_vr_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/eyes_vr_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/eyes_vr_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/eyes_vr_male_lo.glb",
+    "qaStatus": "V586_LOCAL_HEAD_FOLLOW_VISUAL_REVIEW_PENDING"
   },
   "cloth_suit": {
     "hi": "assets/pirates/items/v7m_fit/cloth_suit_male_hi.glb",
@@ -154,9 +154,9 @@ export const V7M_FITS = {
     "qaStatus": "HEAD_COLLISION_FAIL"
   },
   "eyes_eyepatch": {
-    "hi": "assets/pirates/items/v7m_fit/eyes_eyepatch_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/eyes_eyepatch_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/eyes_eyepatch_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/eyes_eyepatch_male_lo.glb",
+    "qaStatus": "V586_LOCAL_HEAD_FOLLOW_VISUAL_REVIEW_PENDING"
   },
   "boots_classic": {
     "hi": "assets/pirates/items/v7m_refit/boots_classic_male_hi.glb",
@@ -190,9 +190,9 @@ export const V7M_FITS = {
     "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
   },
   "grill_diamond": {
-    "hi": "assets/pirates/items/v7m_fit/grill_diamond_male_hi.glb",
-    "lo": "assets/pirates/items/v7m_fit/grill_diamond_male_lo.glb",
-    "qaStatus": "SAMPLED_HEAD_AND_BODY_CLEAR_VISUAL_QA_PENDING"
+    "hi": "assets/pirates/items/v7m_refit/grill_diamond_male_hi.glb",
+    "lo": "assets/pirates/items/v7m_refit/grill_diamond_male_lo.glb",
+    "qaStatus": "V586_COMPACT_MOUTH_FIT_LOCAL_VISUAL_REVIEW_PENDING"
   },
   "helmet_hq": {
     "hi": "assets/pirates/items/v7m_fit/helmet_hq_male_hi.glb",

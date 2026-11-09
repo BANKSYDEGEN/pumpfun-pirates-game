@@ -562,6 +562,14 @@ function buildGearGeometry(p, body, gear, lib, colors) {
     for (let i = 0; i < n; i++) {
       v.fromArray(src.pos, i * 3).applyMatrix4(toBody).toArray(pos, i * 3); v.fromArray(src.nrm, i * 3).applyMatrix3(nm3).normalize().toArray(nrm, i * 3);
       if (W5) { v5Fwd(W5, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], slot === 'hat', _w5); if (slot === 'hat') v5Hat(W5, gear.hat, _w5); if (pf) parrotSeat(pf, _w5); pos.set(_w5, i * 3); }   // [v121] v4-authored piece -> the v5 body
+      // V7 male shades: seat the bridge at his eyes, shorten the temples, keep all body/face geometry untouched.
+      // Shared gear_hi/lo and every female / legacy fit stay byte-for-byte on their original path.
+      if (p.v7 && !p.female && mesh === 'eyes_sunglasses') {
+        pos[i * 3] *= 0.82;
+        pos[i * 3 + 1] = 1.073 + (pos[i * 3 + 1] - 1.073) * 0.92 - 0.032;
+        pos[i * 3 + 2] = -0.05 + (pos[i * 3 + 2] + 0.05) * 0.77 - Math.abs(pos[i * 3]) * 0.22;
+        v.set(nrm[i * 3] / 0.82 + Math.sign(pos[i * 3]) * 0.22 * nrm[i * 3 + 2] / 0.77, nrm[i * 3 + 1] / 0.92, nrm[i * 3 + 2] / 0.77).normalize().toArray(nrm, i * 3);
+      }
       const k = src.key[i]; if (k && pal?.[k]) c.set(pal[k]); else if (k === 4) c.set(pal?.[1] || '#c8302c'); else if (k) c.set('#c8302c'); else c.fromArray(src.col, i * 3);
       if (fb) parrotFeather(c, k, (src.pos[i * 3 + 1] - fb[0]) * fb[1], (src.pos[i * 3 + 2] - fb[2]) * fb[3], src.nrm[i * 3 + 1], src.nrm[i * 3 + 2]);
       if (fx.facets && k) {   // DIAMOND: every triangle its own crystal facet, a few flash white (glints)
