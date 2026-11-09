@@ -145,15 +145,8 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
   }
   el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); }); $('.iv-x').onclick = () => close();
   const picker = createGivePick({ pvp, nearby: nearbyPlayers, toast }); // [give-dropdown]
-  const goldBal = () => { try { return Math.max(0, Math.floor(Number(pvp()?.gold ?? pvp()?.profile?.gold) || 0)); } catch { return 0; } };
-  const slots = () => {
-    const base = data.items.filter((s) => !isGoldItem(s.item)).map(s => ({ key: s.item, qty: s.qty, tradeable: s.tradeable, info: infoOf(s.item), synthetic: !!s.synthetic })).filter(s => s.info);
-    if (GOLD_ITEM_ON && (data.flags?.gold_item !== false)) {
-      const syn = syntheticGoldStack(goldBal());
-      if (syn) base.unshift({ key: syn.item, qty: syn.qty, tradeable: syn.tradeable, info: infoOf(syn.item), synthetic: true });
-    }
-    return [...base, ...data.maps.map(m => ({ key: 'map:' + m.id, qty: 1, tradeable: 1, map: m, info: { ...infoOf('map:' + m.id), rarity: m.tier, name: `${m.tier.toUpperCase()} MAP` } }))];
-  };
+  const slots = () => [...data.items.map(s => ({ key: s.item, qty: s.qty, tradeable: s.tradeable, info: infoOf(s.item) })).filter(s => s.info),
+    ...data.maps.map(m => ({ key: 'map:' + m.id, qty: 1, tradeable: 1, map: m, info: { ...infoOf('map:' + m.id), rarity: m.tier, name: `${m.tier.toUpperCase()} MAP` } }))];
   const count = () => slots().reduce((a, s) => a + s.qty, 0);
   // [inv-arrange] BANKSY 9:40 PM "on inventory let them rearrange spots", modelled on QBCore qb-inventory (9:41 PM): fixed numbered
   // slots, drag onto an empty slot = move, onto another item = swap, onto the same item = stack, SHIFT-drag / the item menu's SPLIT =
@@ -260,7 +253,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
       g.querySelectorAll('[data-l]').forEach(d => d.onclick = () => { sel = 'L' + d.dataset.l; render(); });
     } else {
       const list = slots().filter(shopTakes); if (mode === 'fish' || mode === 'antiques') list.sort((a, b) => (price(a) - price(b)) || shortName(a.info).localeCompare(shortName(b.info))); // [v240] cheapest first (BANKSY's shop rule)
-      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${formatGoldAmount(price(s))}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 || isGoldItem(s.key) ? '×' + (isGoldItem(s.key) ? formatGoldAmount(s.qty) : s.qty) : ''}</b></div>`).join('')
+      g.innerHTML = list.length ? list.map(s => `<div class="iv-slot${sel === s.key ? ' sel' : ''}" data-k="${s.key}" style="border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}">${s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${mode !== 'bag' && mode !== 'market' ? `<em>${formatGoldAmount(price(s))}g</em>` : ''}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span><b>${s.qty > 1 ? '×' + s.qty : ''}</b></div>`).join('')
         : `<div class="iv-empty">${mode === 'fish' ? 'no fish yet · cast a line at Grandpa Gill\'s dock' : mode === 'bag' ? 'empty · dig treasure, fish, explore the island' : 'nothing this shop buys'}</div>`;
       if (mode === 'bag' && list.length) { el.classList.toggle('iv-moving', moveFrom >= 0); // [inv-arrange]
         const eqCell = (sl) => { const k = eqKey(sl), s = k && slots().find(x => x.key === k); const eg = sl === 'musket' ? eqGun() : null; const leg = s?.info?.rarity === 'legendary' ? ' iv-leg' : '';
@@ -269,7 +262,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
           return `<div class="iv-slot iv-eqslot iv-acc${i ? '' : ' iv-open'}${selE === 'acc:' + a.slot ? ' sel' : ''}" data-acc="${a.slot}"${i ? ` data-k="${k}"` : ''} title="${a.label}: ${a.fx}"><u>${a.label}</u>${i ? icoHtml(k, i) : '<i style="opacity:.35">＋</i>'}</div>`; };
         const eqRow = EQS ? `<div class="iv-eqs"><small>EQUIPPED · drag in to equip, out to unequip</small>${eqCell('sword')}${eqCell('musket')}${ACC_ON ? `<div class="iv-accs">${GUN_ACC.map(accCell).join('')}</div>` : ''}</div>` : '';
         g.innerHTML = eqRow + layout(list).map((v, i) => { const s = v?.s; const gInst = s?.info?.slot === 'musket' ? gunOfBag(i) : null; const leg = s?.info?.rarity === 'legendary' ? ' iv-leg' : '';
-          return `<div class="iv-slot${s ? '' : ' iv-open'}${s && sel === s.key && selI === i ? ' sel' : ''}${moveFrom === i ? ' iv-from' : ''}${leg}"${s ? ` data-k="${s.key}"` : ''}${gInst ? ` data-gid="${gInst.gid}"` : ''} data-i="${i}" style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${i + 1}</u>${s ? `${!EQS && s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${rk(s.info)}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span>${accPip(gInst?.acc)}<b>${v.n > 1 || isGoldItem(s.key) ? '×' + (isGoldItem(s.key) ? formatGoldAmount(v.n) : v.n) : ''}</b>` : ''}</div>`; }).join('');
+          return `<div class="iv-slot${s ? '' : ' iv-open'}${s && sel === s.key && selI === i ? ' sel' : ''}${moveFrom === i ? ' iv-from' : ''}${leg}"${s ? ` data-k="${s.key}"` : ''}${gInst ? ` data-gid="${gInst.gid}"` : ''} data-i="${i}" style="${s ? `border-color:${RARITY_COLOR[s.info.rarity] || '#6b4a24'}` : ''}"><u>${i + 1}</u>${s ? `${!EQS && s.info.kind === 'weapon' && data.equipped?.[s.info.slot] === s.key ? '<i class="iv-eq" title="primary">✓</i>' : ''}${rk(s.info)}${icoHtml(s.key, s.info)}<span>${shortName(s.info)}</span>${accPip(gInst?.acc)}<b>${v.n > 1 ? '×' + v.n : ''}</b>` : ''}</div>`; }).join('');
         g.querySelectorAll('[data-i]').forEach(d => d.onclick = () => { if (dragged) { dragged = false; return; } const i = +d.dataset.i;
           if (moveFrom === -2) { moveFrom = -1; const src = selE; selE = ''; dropOn({ e: src }, { i }); return; } // [eqslots] EQUIPPED -> this bag slot
           if (moveFrom >= 0) { const ok = moveSlot(moveFrom, i, moveAmt); if (!ok && order[i]) toast('SPLIT INTO AN EMPTY SLOT<br><small>or onto the same item</small>', 1800); moveFrom = -1; moveAmt = 0; if (ok) { sel = order[i]?.k || null; selI = i; } render(); return; }
@@ -288,16 +281,11 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
   // attachments across, migration 049). Giving the last copy of your equipped weapon puts your store weapon back in your hands.
   function giveTo(s, k, gInst = null) {
     const wpn = s.info.kind === 'weapon';
-    const gold = isGoldItem(s.key);
-    const amt = gold ? (goldQty(k) || 0) : k;
-    if (gold && !amt) { toast('PICK AN AMOUNT', 1400); return; }
-    const goldReq = gold ? (() => { const a = new Uint8Array(18); crypto.getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32); })() : null;
-    picker.open({ name: gold ? `${formatGoldAmount(amt)} Gold` : s.info.name, qty: gold ? 1 : amt, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
-      give: (to) => run('inv_gift', { item: s.key, qty: amt, to, ...(gInst?.gid ? { gid: gInst.gid } : {}), ...(goldReq ? { req: goldReq } : {}) }, (r) => {
-        if (gold && r.gold != null) pvp()?.serverGold?.(r.gold, { rev: r.rev });
+    picker.open({ name: s.info.name, qty: k, ico: icoHtml(s.key, s.info), color: RARITY_COLOR[s.info.rarity] || '#6b4a24',
+      give: (to) => run('inv_gift', { item: s.key, qty: k, to, ...(gInst?.gid ? { gid: gInst.gid } : {}) }, (r) => {
         if (wpn && (r.left | 0) === 0 && data.equipped?.[s.info.slot] === s.key) { const eq = { ...data.equipped }; delete eq[s.info.slot]; uncarry(s.info.slot, eq); window.PFP_WEAPON_RARITY = { ...(window.PFP_WEAPON_RARITY || {}), [s.info.slot]: 'common' }; }
         const mods = gInst?.acc ? Object.values(gInst.acc).filter(Boolean).length : 0;
-        return `SENT ${gold ? formatGoldAmount(amt) + ' GOLD' : ((amt > 1 ? amt + ' × ' : '') + s.info.name)}${mods ? ` (+${mods} MOD${mods > 1 ? 'S' : ''})` : ''} TO ${to.toUpperCase()}`; }) }); }
+        return `SENT ${k > 1 ? k + ' × ' : ''}${s.info.name}${mods ? ` (+${mods} MOD${mods > 1 ? 'S' : ''})` : ''} TO ${to.toUpperCase()}`; }) }); }
   function actions() {
     const a = $('.iv-act');
     if (sel && sel.startsWith('L')) { const l = listings.find(x => 'L' + x.id === sel); if (!l) { a.innerHTML = ''; return; } const i = infoOf(l.item) || { name: l.item };
@@ -321,13 +309,6 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     if (mode === 'bag' && moveFrom >= 0) { a.innerHTML = `<div class="t">${moveAmt ? `SPLITTING ${moveAmt} × ` : 'MOVING '}${s.info.name} · tap ${moveAmt ? 'an empty slot (or the same item)' : 'a slot: empty = move, item = swap, same item = stack'}</div><button data-a="cancelmove">CANCEL</button>`; bind(a, { cancelmove: () => { moveFrom = -1; moveAmt = 0; render(); } }); return; }
     if (mode === 'bag' && splitAsk) { a.innerHTML = `<div class="t">SPLIT ${s.info.name} · how many of ${slotN}?</div><input class="sp" type="number" min="1" max="${slotN - 1}" value="${Math.max(1, slotN >> 1)}" aria-label="split amount"><button data-a="splitgo">SPLIT · PICK A SLOT</button><button data-a="cancelmove">CANCEL</button>`;
       bind(a, { splitgo: () => { const k = Math.max(1, Math.min(slotN - 1, +(a.querySelector('.sp').value || 1) | 0)); splitAsk = false; if (splitTo >= 0) { moveSlot(selI, splitTo, k); splitTo = -1; render(); return; } moveFrom = selI; moveAmt = k; render(); }, cancelmove: () => { splitAsk = false; splitTo = -1; render(); } }); a.querySelector('.sp')?.focus(); return; }
-    if (mode === 'bag' && isGoldItem(s.key)) { // [gold-item] spendable balance as a bag row — give / store in house; never drop / list / sell
-      const bal = s.qty | 0;
-      h = `<div class="t">${s.info.name} · <b>${formatGoldAmount(bal)}</b> <small>· spendable gold · store in your cottage / ship chest · give to pirates</small></div>`;
-      h += `<input class="n" type="number" min="1" max="${bal}" value="${Math.min(bal, 100)}" aria-label="quantity"><button data-a="give"${!data.flags.gift || data.flags?.gold_item === false ? ' disabled' : ''}>GIVE TO A PIRATE ▾</button>`;
-      h += '<small class="iv-note">Open your cottage or Captain\'s Quarters chest to store gold. Stored gold is not spendable until you withdraw it.</small>';
-      a.innerHTML = h; const q = () => Math.max(1, Math.min(bal, +(a.querySelector('.n')?.value || 1) | 0));
-      bind(a, { give: () => giveTo(s, q(), null) }); return; }
     if (mode === 'bag') { let note = ''; // [v350 t1839u] keep weapon buttons on one compact row; notes trail after GIVE
       h += `<button data-a="move">MOVE ⇄</button>${slotN > 1 && !single(s.key) ? '<button data-a="split">SPLIT</button>' : ''}`;
       if (ACC_ON && s.info.kind === 'gunacc') { h += `<button data-a="fit">FIT ${GUN_ACC.find(x => x.slot === s.info.acc)?.label || ''} ON MUSKET</button>`; note += `<small class="iv-note">${GUN_ACC.find(x => x.slot === s.info.acc)?.fx || ''}</small>`; }
@@ -415,7 +396,7 @@ export function createInventory({ pvp, toast, manualDrop = () => null, treasure 
     render(); }
   const bind = (a, fns) => a.querySelectorAll('[data-a]').forEach(b => b.onclick = () => fns[b.dataset.a]?.());
   const WHY = { 'one weapon at a time': 'GIVE ONE WEAPON AT A TIME', 'shop closed': 'THE SHOP ISN\'T BUYING YET', 'not enough': 'YOU DON\'T HAVE THAT MANY', 'slow down': 'SLOW DOWN A MOMENT', 'not to yourself': 'YOU CAN\'T GIVE YOURSELF THINGS', 'no such pirate': 'NO PIRATE BY THAT NAME',
-    'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough parts': 'NOT ENOUGH MUSKET PARTS<br><small>chests, fishing + salvage drop them</small>', 'max level': 'ALREADY MAX LEVEL', 'use level up': 'USE LEVEL UP', 'levels closed': 'MUSKET LEVELS OPEN SOON', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${formatGoldAmount(MARKET.maxPrice)} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF', 'their gold full': 'THEIR GOLD POUCH IS FULL', 'gold full': 'YOUR GOLD POUCH IS FULL', 'not for sale': 'GOLD ISN\'T SOLD HERE', 'bad qty': 'PICK A VALID AMOUNT' };
+    'name not unique': 'SEVERAL PIRATES HAVE THAT NAME', 'not enough parts': 'NOT ENOUGH MUSKET PARTS<br><small>chests, fishing + salvage drop them</small>', 'max level': 'ALREADY MAX LEVEL', 'use level up': 'USE LEVEL UP', 'levels closed': 'MUSKET LEVELS OPEN SOON', 'not enough gold': 'NOT ENOUGH GOLD', 'gone': 'ALREADY SOLD', 'your own listing': 'THAT\'S YOUR OWN LISTING', 'bad price': `PRICE ${MARKET.minPrice}-${formatGoldAmount(MARKET.maxPrice)} GOLD`, 'too many listings': `MAX ${MARKET.maxActive} LISTINGS`, 'market closed': 'THE MARKETPLACE OPENS SOON', 'gifts closed': 'GIFTS ARE OFF' };
   async function run(action, body, okMsg) { if (busy) return false; busy = true; // true = done ([give-dropdown] the picker closes on it)
     try { const r = await pvp()?.inv?.call(action, body); if (r && r.ok) { toast(typeof okMsg === 'function' ? okMsg(r) : okMsg, 2400); sel = null; await refresh(); if (action !== 'inv_equip') treasure?.refresh?.(); return true; }
       const why = WHY[r?.error] || 'THAT DIDN\'T WORK<br><small>check your connection</small>'; toast(why, 2200); return action === 'inv_gift' ? why : false; } // [gift-fix] the picker shows the reason (truthy string = failed)

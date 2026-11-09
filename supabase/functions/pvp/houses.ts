@@ -1,8 +1,7 @@
 // [storage-houses] Buyable cottages + house chest storage (migration 043). Wired from index.ts.
 // Actions: house_state, house_buy, house_store, house_take, house_upgrade. Offline clients fall back to localStorage.
-import { KEY_RE, isGoldItem } from "./invCatalog.ts";
+import { KEY_RE } from "./invCatalog.ts";
 import { BACKPACK_CAP, countSlots, needsNewSlot } from "./loot.ts"; // [backpack-pvp]
-import { goldQty } from "./goldItem.ts"; // [gold-item]
 
 export const HOUSE_ACTIONS = ["house_state", "house_buy", "house_store", "house_take", "house_upgrade"] as const;
 export type HouseAction = (typeof HOUSE_ACTIONS)[number];
@@ -72,23 +71,8 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
         return c.json(200, { ok: true, owner: !!data.owner, price: data.owner || data.already ? 0 : HOUSE_PRICE, gold: data.gold, rev: data.rev, retry: !!data.retry, already: !!data.already, house: full });
       }
       case "house_store": {
-        const cottage = String(b.cottage ?? ""), item = b.item;
+        const cottage = String(b.cottage ?? ""), item = b.item, qty = qtyOf(b.qty);
         const gid = typeof b.gid === "string" && /^[0-9a-f-]{36}$/i.test(b.gid) ? b.gid : null;
-        // [gold-item] spendable balance → chest val:gold (never via pvp_inv)
-        if (isGoldItem(item)) {
-          const qty = goldQty(b.qty); const req = reqOf(b.req);
-          if (!okChest(cottage) || !qty || !req) return c.json(400, { error: "bad store" });
-          let data: any, error: any;
-          ({ data, error } = await db.rpc("pvp_gold_house_store", { p_player: pid, p_cottage: cottage, p_qty: qty, p_req: req }));
-          if (error) {
-            if (/pvp_gold_house_store|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
-            throw error;
-          }
-          if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold });
-          if (!who.wallet && !who.owner && !data.retry) await c.acctBump?.(db, who.raw, -(data.qty | 0));
-          return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage) });
-        }
-        const qty = qtyOf(b.qty);
         if (!okChest(cottage) || !okKey(item) || !qty) return c.json(400, { error: "bad store" });
         // [v332] musket with gid -> pvp_house_store_gun (moves that copy's acc into meta)
         // [v333] okChest also allows ship_quarters
@@ -109,25 +93,8 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
         return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage) });
       }
       case "house_take": {
-        const cottage = String(b.cottage ?? ""), slot = Math.floor(Number(b.slot));
+        const cottage = String(b.cottage ?? ""), slot = Math.floor(Number(b.slot)), qty = qtyOf(b.qty) || 1;
         if (!okChest(cottage) || !Number.isFinite(slot) || slot < 0 || slot > 119) return c.json(400, { error: "bad take" });
-        // Peek chest row: gold withdraw credits balance (no backpack slot); other items keep backpack rules
-        const { data: chestPeek } = await db.from("pvp_house_storage").select("item, qty").eq("player_id", pid).eq("cottage_id", cottage).eq("slot", slot).maybeSingle();
-        if (chestPeek && isGoldItem(chestPeek.item)) {
-          const qty = goldQty(b.qty) || goldQty(chestPeek.qty) || 1;
-          const req = reqOf(b.req);
-          if (!req) return c.json(400, { error: "bad take" });
-          let data: any, error: any;
-          ({ data, error } = await db.rpc("pvp_gold_house_take", { p_player: pid, p_cottage: cottage, p_slot: slot, p_qty: qty, p_req: req }));
-          if (error) {
-            if (/pvp_gold_house_take|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
-            throw error;
-          }
-          if (!data?.ok) return c.json(409, { error: data?.why || "could not", gold: data?.gold });
-          if (!who.wallet && !who.owner && !data.retry) await c.acctBump?.(db, who.raw, data.qty | 0);
-          return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage), owner: !!who.owner });
-        }
-        const qty = qtyOf(b.qty) || 1;
         // [backpack-pvp] enforce 16-slot backpack cap (owner unlimited; stacking onto existing stackable OK)
         if (!who.owner) {
           const { data: invRows } = await db.from("pvp_inv").select("item, qty").eq("player_id", pid);
@@ -136,9 +103,10 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
           for (const r of invRows || []) stack.set(r.item, (stack.get(r.item) || 0) + (r.qty | 0));
           const inv = [...stack.entries()].map(([item, q]) => ({ item, qty: q }));
           const equipped = Object.fromEntries((eqRows || []).map((e: any) => [e.slot, e.item]));
-          if (chestPeek?.item) {
+          const { data: chestRow } = await db.from("pvp_house_storage").select("item, qty").eq("player_id", pid).eq("cottage_id", cottage).eq("slot", slot).maybeSingle();
+          if (chestRow?.item) {
             const used = countSlots(inv, equipped);
-            if (needsNewSlot(inv, chestPeek.item, equipped) && used >= BACKPACK_CAP) {
+            if (needsNewSlot(inv, chestRow.item, equipped) && used >= BACKPACK_CAP) {
               return c.json(409, { error: "Backpack full (16/16) — stash or sell items first!", full: true, used, cap: BACKPACK_CAP });
             }
           }
