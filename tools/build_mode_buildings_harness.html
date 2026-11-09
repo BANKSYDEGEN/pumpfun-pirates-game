@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Build Mode Buildings harness</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #6eb8e0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; left: 12px; bottom: 12px; z-index: 50; font: 14px system-ui; color: #fff; text-shadow: 0 1px 2px #000; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "../vendor/three-0.165.0/build/three.module.js",
+  "three/addons/": "../vendor/three-0.165.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">build-mode-buildings harness</div>
+<script type="module">
+import * as THREE from 'three';
+import { initTerrainEdit } from '../js/island/terrainEdit.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(1); renderer.setSize(1400, 900, false);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x7fc7e8);
+const camera = new THREE.PerspectiveCamera(50, 1400 / 900, 0.1, 2000);
+camera.position.set(28, 18, 34); camera.lookAt(0, 2, 0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const sun = new THREE.DirectionalLight(0xfff0d0, 1.1); sun.position.set(40, 60, 20); scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x5a9e4a }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+const footRoot = new THREE.Group(); footRoot.name = 'foot'; scene.add(footRoot);
+function building(name, x, z, w, h, d, color) {
+  const g = new THREE.Group(); g.name = name;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshToonMaterial({ color }));
+  m.position.y = h / 2; m.castShadow = true; g.add(m);
+  g.position.set(x, 0, z); footRoot.add(g); return g;
+}
+building('village_art', -8, -4, 10, 6, 8, 0xc4a574);
+building('casino_hall', 10, -2, 14, 8, 10, 0xb23a3a);
+building('hill_L3', 0, 12, 8, 7, 8, 0x8b6a4a);
+building('rb_plaza_glb', -18, 10, 12, 3, 12, 0x9a9a9a);
+building('d2_blender', 18, 14, 9, 5, 9, 0x3d6b3d);
+
+const toast = (t) => { document.getElementById('hud').textContent = t; console.log('[toast]', t); };
+const te = await initTerrainEdit({ scene, camera, canvas, footRoot, walker: null, touch: false, toast });
+window.TE = te; window.THREE = THREE; window.SC = scene; window.CAM = camera; window.FOOT = footRoot;
+window.READY = !!te?.owner;
+function tick() { renderer.render(scene, camera); requestAnimationFrame(tick); }
+tick();
+</script>
+</body></html>

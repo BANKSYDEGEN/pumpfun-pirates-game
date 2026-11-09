@@ -17,7 +17,7 @@ test('build mode: nothing is LOCKED any more', () => {
 test('build mode: Plaza, Hill Street and GLB units are selectable object units', () => {
   const m = TE.match(/const UNIT = (\/.*\/);/); assert.ok(m, 'UNIT regex');
   const UNIT = eval(m[1]);
-  for (const n of ['plaza_shop_clothes', 'plaza_dock_J3', 'plaza_dock_bw07', 'hill_L3', 'hill_R0', 'battery_blender', 'lighthouse_lighthouse', 'treasure_trader', 'rb_fountain_scale', 'fort_signs_war', 'plaza_v2_signs'])
+  for (const n of ['plaza_shop_clothes', 'plaza_dock_J3', 'plaza_dock_bw07', 'hill_L3', 'hill_R0', 'battery_blender', 'lighthouse_lighthouse', 'treasure_trader', 'rb_fountain_scale', 'fort_signs_war', 'plaza_v2_signs', 'casino_hall', 'village_art', 'd2_blender', 'rb_plaza_glb', 'area_cottages'])
     assert.ok(UNIT.test(n), n);
   for (const n of ['hill_street', 'hill_signs_merged', 'hill_lod_L3', 'hill_street_merged_solid', 'chunk_3_4', 'foot_grass', 'island_outline', 'placed', 'foot_shallows'])
     assert.ok(!UNIT.test(n), n);
@@ -25,7 +25,8 @@ test('build mode: Plaza, Hill Street and GLB units are selectable object units',
   assert.match(TE, /isObj: true, locked: false/);
   assert.match(TE, /o\.userData\.editId = id/);
   assert.match(TE, /function applyObj\(it\)/);
-  assert.match(TE, /if \(!!prev\?\.h !== !!ov\?\.h\) pieceBlockers\(it\.box, !!ov\?\.h\); \}\n/); // colliders off on delete, back on restore
+  assert.match(TE, /if \(!!prev\?\.h !== !!ov\?\.h\) pieceBlockers\(it\.box, !!ov\?\.h\)/); // colliders off on delete, back on restore
+  assert.match(TE, /followBuildingColliders/); // [build-mode-buildings] colliders follow moved GLBs
   assert.match(TE, /it\.isObj \? applyObj\(it\) : applyGeo\(it\)/);
   assert.match(TE, /if \(PIECES\.has\(id\)\) applyObj\(it\)/); // saved moves / deletes apply when the unit loads
   // nearest-first pick, walking up to the unit; the ground in front stops it
@@ -89,7 +90,8 @@ test('server: non-owners never see flags; terrain_put keeps flag strings + @ ove
   assert.match(I, /const pieces = who\?\.owner \? \(data\?\.pieces \?\? \{\}\) : stripRework\(/);
   assert.match(I, /if \(isReworkId\(id\)\) \{ const rw = cleanRework\(id, v\)/);
   assert.ok(I.indexOf('if (isReworkId(id))') < I.indexOf('if (id[0] === "+") { const t'));
-  assert.match(I, /pieces\[id\] = v\.h \? \{ h: 1 \} : \{ dx:/); // '@' object overrides use the generic move / hide record
+  assert.match(I, /if \(v\.h\) \{ pieces\[id\] = \{ h: 1 \}/); // '@' object hide
+  assert.match(I, /dx: f\(v\.dx/); // '@' object overrides use the generic move record
 });
 
 test('tools/read_rework_flags.mjs prints color, number, radius and town coords', async () => {

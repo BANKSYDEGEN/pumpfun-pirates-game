@@ -480,8 +480,10 @@ Deno.serve(async (req) => {
           if (id[0] === "+") { const t = Math.round(Number(v.t)); if (!/^\+[a-z0-9]{4,24}$/.test(id) || !Number.isInteger(t) || t < 0 || t > 63) continue; if (++npl > 2000) return json(413, { error: "too many placed" }); // [build-place] owner-placed prop
             pieces[id] = { t, x: f(v.x, 1500), y: f(v.y, 300), z: f(v.z, 1500), ry: f(v.ry, 7) }; continue; }
           if (v.h) { pieces[id] = { h: 1 }; continue; }
-          const o: Record<string, number> = { dx: f(v.dx, 50), dy: f(v.dy, 20), dz: f(v.dz, 50), ry: f(v.ry, 7) }; // [sims-build] + GROW stretch of a built-in building (0.5x..3x)
-          for (const k of ["sx", "sz"]) { const sc = Math.round(Number(v[k]) * 1000) / 1000; if (Number.isFinite(sc) && sc !== 1 && sc > 0) o[k] = Math.max(0.5, Math.min(3, sc)); }
+          // [build-mode-buildings] wider travel + pitch/roll + Y scale for Blender GLB buildings (owner BUILDINGS panel)
+          const o: Record<string, number> = { dx: f(v.dx, 200), dy: f(v.dy, 80), dz: f(v.dz, 200), ry: f(v.ry, 7) };
+          for (const k of ["rx", "rz"]) { const ang = f(v[k], 7); if (ang) o[k] = ang; }
+          for (const k of ["sx", "sy", "sz"]) { const sc = Math.round(Number(v[k]) * 1000) / 1000; if (Number.isFinite(sc) && sc !== 1 && sc > 0) o[k] = Math.max(0.25, Math.min(4, sc)); }
           pieces[id] = o; }
         // [034] paint: { cell: layer * 1000 + percent } (layers 0-7); a save WITHOUT paint (v183 / v184 clients) keeps the stored paint
         let paint: Record<string, number> | null = null;

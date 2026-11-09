@@ -5,7 +5,8 @@
 // gets a 🛠 BUILD button: a bottom toolbar of round tools (LEVEL / FLATTEN / BLEND / RAISE / LOWER), size S/M/L/XL + slider (1-40 m,
 // wheel, [ ], pinch), strength, UNDO, RESET AREA, EXIT. Strokes paint where you point; saves go up (owner only, server-checked).
 import * as THREE from 'three';
-import { TERRAIN as T, H, pieceBlockers, PROP_CAT, propKit, propBlock, propUnblock, waterAt, CO } from './foot.js';
+import { TERRAIN as T, H, pieceBlockers, PROP_CAT, propKit, propBlock, propUnblock, waterAt, CO, MAP_CIRCS, MAP_BOXES } from './foot.js';
+import { BUILDING_UNIT, cleanBuildOv, followBuildingColliders, snapVal, copyTransform } from './buildBuildings.js';
 import { locatePoint } from '../islandGeography.js'; // [v335] rework flags name the district they sit in
 import { terrainLoad, terrainSave, roomGenApi } from '../pvpSave.js';
 import * as RG from './roomGen.js'; // [sims-build] 2 m kit: drag lines / areas, room presets, describe-a-room, grow a room
@@ -24,7 +25,7 @@ const TOOLS = [
   { id: 'build', label: 'BUILD', ico: '🏗️', tip: 'pick a piece · tap to place · walls / paths: DRAG a line · floor / roof: DRAG an area (2 m snap) · Q / E turn · SELECT drags, turns or deletes' },
   { id: 'rooms', label: 'ROOMS', ico: '🏠', tip: 'pick a room preset · drag a rectangle to size it · or type a room and tap ✨ DESCRIBE (it builds where you point)' },
   { id: 'grow', label: 'GROW', ico: '↔️', tip: 'grab a wall of a built room and drag it out / in: floor, roof and side walls re-tile to fit' },
-  { id: 'select', label: 'SELECT', ico: '👆', tip: 'tap a piece (shift / MULTI = add) · DRAG it to move · Q / E turn · 🗑 / Delete hides it for everyone · arrows move · ⟲ ⟳ rotate' }, // [build-select] SELECT + PAINT finished: no longer hidden
+  { id: 'select', label: 'SELECT', ico: '👆', tip: 'tap a Blender building / piece (shift / MULTI = add) · DRAG / arrows move · Q / E yaw · BUILDINGS panel: XYZ · yaw/pitch/roll · scale · hide · copy · reset · colliders follow' }, // [build-mode-buildings] numeric BUILDINGS panel
   { id: 'rework', label: 'REWORK', ico: '🚩', tip: 'ONLY YOU SEE THESE: tap a part or the ground to drop a flag · PIN = that exact part · radius up to 160 m = a whole town · color + note say what to change' }];
 // [v335] BANKSY t1777u/t1778u: "unlock" — nothing is LOCKED any more: Plaza shops + docks, Hill Street (with its signs) and every GLB / Kit unit can be
 // selected, moved, turned, deleted (colliders off) and restored. BANKSY t1779u/t1781u: owner-only 🚩 REWORK flags (PIECES '!rw_*'), 8 colors + radius.
@@ -32,7 +33,7 @@ const RW = '!rw_', RW_COLORS = [['red', '#ff2e3b', 'RED'], ['blue', '#2f8bff', '
 const RW_PRESETS = [[0, 'PIN'], [5, '5'], [15, '15'], [40, '40'], [80, '80 TOWN'], [140, '140 FULL']], RW_MAX = 160;
 const rwHex = (c) => (RW_COLORS.find(k => k[0] === c) || RW_COLORS[0])[1], rwName = (c) => (RW_COLORS.find(k => k[0] === c) || RW_COLORS[0])[2];
 // GLB / standalone units under the foot island that SELECT can move (terrain chunks, water, grass, outlines, placed + editor helpers are not units)
-const UNIT = /^(plaza_(shop|dock)_|hill_(?!street|signs_merged|lod_)|battery_blender$|battery_pfp_flag$|lighthouse_|treasure_trader$|rb_fountain|fort_signs_|fort_walk_floor$|plaza_v2_signs$)/;
+const UNIT = /^(plaza_(shop|dock)_|hill_(?!street|signs_merged|lod_)|battery_blender$|battery_pfp_flag$|lighthouse_|treasure_trader$|rb_fountain|fort_signs_|fort_walk_floor$|plaza_v2_signs$|casino_hall$|village_art$|d2_blender$|rb_plaza_glb$|area_cottages$)/; // [build-mode-buildings] + casino / village / D2 / plaza GLB / cottages (BUILDING_UNIT)
 const HIST = 'pfp_tedit_hist';
 const SIZES = { S: 3, M: 8, L: 16, XL: 30 };
 const MATS = [['grass', '🌿', 'GRASS', '#6fcf4a'], ['sand', '🏖️', 'SAND', '#f2d9a0'], ['dirt', '🟤', 'DIRT', '#b8975f'], ['rock', '🪨', 'ROCK', '#939089'], ['path', '🧱', 'PATH', '#b3a690']];
@@ -61,10 +62,22 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   scan(); setInterval(() => { if (PIECES.size || live.on) scan(); }, 3000); // area kits (route, lagoon ...) build late: register + apply their saved state when they appear
   let rwHook = null; // [v335] owner only: redraws the 🚩 rework flags; everyone else keeps '!rw_*' (never sent to them anyway) as inert data
   function setPiece(id, ov) { if (id[0] === '+') return placeSet(id, ov); if (id[0] === '!' && !id.startsWith(RW)) return; /* [v346] '!env' / '!col_*' / '!noc_*' / '!cmod_*' / '!cdel_*' belong to the admin menu (js/adminWorld.js; the server keeps them) */ if (id.startsWith(RW)) { ov && ov.rework ? PIECES.set(id, ov) : PIECES.delete(id); rwHook?.(); return; }
-    ov && (ov.h || ov.dx || ov.dy || ov.dz || ov.ry || (ov.sx && ov.sx !== 1) || (ov.sz && ov.sz !== 1)) ? PIECES.set(id, ov) : PIECES.delete(id); const it = REG.get(id); if (it) it.isObj ? applyObj(it) : applyGeo(it); }
+    // [build-mode-buildings] clean + keep rx/rz/sy; colliders follow the building when the owner opts in
+    if (ov && !ov.rework && id[0] !== '+') { const c = cleanBuildOv(ov); ov = c || (ov.h ? { h: 1 } : null); }
+    ov && (ov.h || ov.dx || ov.dy || ov.dz || ov.ry || ov.rx || ov.rz || (ov.sx && ov.sx !== 1) || (ov.sy && ov.sy !== 1) || (ov.sz && ov.sz !== 1)) ? PIECES.set(id, ov) : PIECES.delete(id); const it = REG.get(id); if (it) it.isObj ? applyObj(it) : applyGeo(it); }
   // [v335] an object unit (Plaza shop / dock LOD, Hill Street building + its sign, battery, lighthouse ...): position / turn about its origin, or hide it + its colliders
-  function applyObj(it) { const ov = PIECES.get(it.id) || null, prev = it.cur || null; it.cur = ov; const o = it.obj, ry = ov?.ry || 0;
-    o.visible = !ov?.h; if (!it.origScale) it.origScale = o.scale.clone(); o.scale.set(it.origScale.x * (ov?.sx || 1), it.origScale.y, it.origScale.z * (ov?.sz || 1)); /* [sims-build] GROW stretch (local axes) */ o.position.set(it.origPos.x + (ov?.dx || 0), it.origPos.y + (ov?.dy || 0), it.origPos.z + (ov?.dz || 0)); o.quaternion.copy(it.origQuat).premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry)); o.updateMatrixWorld(true);
+  // [build-mode-buildings] sticky collider-follow (local preference); building transforms still ride terrain PIECES for every player
+  let colFollow = (() => { try { return localStorage.getItem('pfp_build_col_follow') !== '0'; } catch { return true; } })();
+  const setColFollow = (v) => { colFollow = !!v; try { localStorage.setItem('pfp_build_col_follow', colFollow ? '1' : '0'); } catch {} };
+  const obsAll = () => [...MAP_CIRCS(), ...MAP_BOXES()];
+  function applyObj(it) { const ov = PIECES.get(it.id) || null, prev = it.cur || null; it.cur = ov; const o = it.obj, ry = ov?.ry || 0, rx = ov?.rx || 0, rz = ov?.rz || 0;
+    o.visible = !ov?.h; if (!it.origScale) it.origScale = o.scale.clone(); o.scale.set(it.origScale.x * (ov?.sx || 1), it.origScale.y * (ov?.sy || 1), it.origScale.z * (ov?.sz || 1)); /* [sims-build] GROW + uniform Y scale */ o.position.set(it.origPos.x + (ov?.dx || 0), it.origPos.y + (ov?.dy || 0), it.origPos.z + (ov?.dz || 0));
+    // yaw about Y, then optional pitch/roll (cheap; used by the BUILDINGS numeric panel)
+    const q = new THREE.Quaternion().copy(it.origQuat);
+    if (ry) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry));
+    if (rx) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rx));
+    if (rz) q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rz));
+    o.quaternion.copy(q); o.updateMatrixWorld(true);
     const cs = Math.cos(ry), sn = Math.sin(ry), done = new Set();
     for (const r of it.ranges) { const [m, a, n] = r, P = m.geometry.attributes.position, N = m.geometry.attributes.normal, c = r.c; if (!r.orig) { r.orig = P.array.slice(a * 3, (a + n) * 3); r.on = N ? N.array.slice(a * 3, (a + n) * 3) : null; }
       for (let i = 0; i < n; i++) { const k = (a + i) * 3, x = r.orig[i * 3] - c.x, y = r.orig[i * 3 + 1], z = r.orig[i * 3 + 2] - c.z;
@@ -73,7 +86,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
         if (r.on) { const nx = r.on[i * 3], nz = r.on[i * 3 + 2]; N.array[k] = nx * cs + nz * sn; N.array[k + 2] = -nx * sn + nz * cs; } }
       P.needsUpdate = true; if (N) N.needsUpdate = true; done.add(m.geometry); }
     for (const g of done) g.computeBoundingSphere();
-    if (!!prev?.h !== !!ov?.h) pieceBlockers(it.box, !!ov?.h); }
+    if (!!prev?.h !== !!ov?.h) pieceBlockers(it.box, !!ov?.h);
+    if (colFollow) followBuildingColliders(it, ov, obsAll()); }
   function applyGeo(it) { const ov = PIECES.get(it.id) || null, prev = it.cur || null; it.cur = ov;
     for (const r of it.ranges) { const [m, a, n] = r, P = m.geometry.attributes.position, N = m.geometry.attributes.normal; if (!r.orig) { r.orig = P.array.slice(a * 3, (a + n) * 3); r.on = N ? N.array.slice(a * 3, (a + n) * 3) : null; }
       const c = it.box.getCenter(new THREE.Vector3()), cs = Math.cos(ov?.ry || 0), sn = Math.sin(ov?.ry || 0);
@@ -126,6 +140,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     }
   }
   reseatPlaced(); setInterval(reseatPlaced, 200);
+  // [build-mode-buildings] ?buildshot=1 forces owner UI for local screenshot harness only
+  if (!owner && typeof location !== 'undefined' && /[?&](?:buildshot|shot)=1(?:&|$)/.test(location.search)) owner = true;
   if (!owner) return { owner: false };
   // 2) the owner's build mode
   const ui = Object.assign({ tool: 'level', size: 8, str: 0.5, mat: 'path', prop: 0, rot: 0, grid: true, rwColor: 'red', rwR: 0, rwShow: true }, (() => { try { return JSON.parse(localStorage.getItem(LS_UI) || '{}'); } catch { return {}; } })());
@@ -176,6 +192,18 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   #te-rw-tags .rwt.sel { font-size: 23px; box-shadow: 0 0 14px 3px rgba(255,255,255,.6); }
   #te-rest { position: fixed; right: 10px; bottom: 210px; z-index: 63; max-height: 40vh; overflow: auto; background: rgba(22,22,22,.95); border: 2px solid #ffcd77; border-radius: 14px; padding: 8px; font-family: 'Just Another Hand', cursive; color: #ffcd77; font-size: 20px; display: none; }
   #te-rest button { font-family: inherit; font-size: 18px; margin-left: 6px; background: #ffcd77; color: #161616; border: 0; border-radius: 8px; }
+  /* [build-mode-buildings] numeric transform panel for Blender GLB buildings */
+  #te-bxf { position: fixed; right: 10px; top: calc(var(--safe-t, 0px) + 70px); z-index: 64; width: 292px; max-width: calc(100vw - 20px); display: none; background: rgba(14,12,9,.96); border: 2px solid #d9a93c; border-radius: 14px; padding: 8px 10px 10px; color: #f3e3b5; font: 12px system-ui; box-shadow: 0 8px 24px #000a; }
+  #te-bxf.on { display: block; } #te-bxf h4 { margin: 0 0 6px; font: 600 11px system-ui; letter-spacing: .12em; color: #d9a93c; }
+  #te-bxf .nm { font: 600 13px system-ui; color: #ffcd77; margin-bottom: 6px; word-break: break-word; }
+  #te-bxf .g { display: grid; grid-template-columns: 28px 1fr 36px; gap: 4px; align-items: center; margin: 3px 0; }
+  #te-bxf .g b { color: #d9a93c; font-size: 11px; } #te-bxf .g input { width: 100%; height: 28px; border-radius: 8px; border: 1px solid #d9a93c; background: #161616; color: #fff; padding: 0 6px; font: 13px ui-monospace, monospace; }
+  #te-bxf .g button { height: 28px; border-radius: 8px; border: 1px solid #d9a93c; background: #2a2114; color: #ffcd77; cursor: pointer; font-size: 14px; }
+  #te-bxf .row2 { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  #te-bxf .row2 button { flex: 1 1 40%; min-width: 70px; height: 32px; border-radius: 10px; border: 1px solid #d9a93c; background: #2a2114; color: #ffcd77; cursor: pointer; font: 600 11px system-ui; }
+  #te-bxf .row2 button.danger { border-color: #fa0d0d; color: #fa0d0d; }
+  #te-bxf .row2 button.sel { background: #23d96b33; border-color: #23d96b; color: #23d96b; }
+  #te-bxf .hint { margin-top: 6px; font-size: 10px; color: #b9a87a; line-height: 1.35; }
   @media (max-width: 700px) { #te-bar .tool { width: 60px; height: 60px; font-size: 14px; } #te-bar .tool .i { font-size: 24px; } #te-bar input[type=range] { width: 96px; } #te-bar .row { gap: 6px; } #te-bar .row:first-child, #te-bar.build-on .catrow { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; } #te-bar .row > * { flex-shrink: 0; } #te-bar .cat { width: 54px; height: 54px; font-size: 12px; } #te-bar .cat .i { font-size: 22px; } } /* [build-place] phones: tools + catalog scroll sideways (one row each) */`;
   document.head.appendChild(css);
   const btn = document.createElement('button'); btn.id = 'te-btn'; btn.className = 'te-r'; btn.title = 'BUILD MODE (owner)'; btn.innerHTML = '<span class="i">🛠️</span>BUILD'; document.body.appendChild(btn);
@@ -198,13 +226,71 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     <div class="grp">STRENGTH <button class="pre sdn">−</button><input type="range" class="st" min="0.1" max="1" step="0.1"><button class="pre sup">+</button></div>
     ${r('sm reset', '♻️', 'RESET', 'RESET AREA: clear edits inside the ring')}</span>${r('sm cols', '🧱', 'COLLISIONS', 'show / add / move / remove collisions')}${r('sm exit', '✖️', 'EXIT')}</div><div class="tip"></div>`;
   const chip = document.createElement('div'); chip.id = 'te-chip'; document.body.appendChild(chip); const rest = document.createElement('div'); rest.id = 'te-rest'; document.body.appendChild(rest);
+  // [build-mode-buildings] numeric BUILDINGS panel (owner-only; only mounts after owner gate above)
+  const bxf = document.createElement('div'); bxf.id = 'te-bxf'; bxf.innerHTML = `<h4>🏛 BUILDINGS</h4><div class="nm" data-bxf="name">—</div>
+    ${[['dx','X m'],['dy','Y m'],['dz','Z m'],['ry','YAW °'],['rx','PITCH °'],['rz','ROLL °'],['sx','SCALE']].map(([k,lb]) => `<div class="g"><b>${lb}</b><input data-bf="${k}" type="number" step="any"><button type="button" data-bs="${k}" title="snap">#</button></div>`).join('')}
+    <div class="row2"><button type="button" data-ba="apply">✔ APPLY</button><button type="button" data-ba="reset">↺ DEFAULT</button>
+    <button type="button" data-ba="copy">📋 COPY</button><button type="button" data-ba="paste">📥 PASTE</button>
+    <button type="button" data-ba="hide" class="danger">👁 HIDE</button><button type="button" data-ba="follow">🧲 COLLISIONS FOLLOW</button></div>
+    <div class="hint">Snapping · numeric · undo (Ctrl+Z) · overrides save with terrain for every pirate. Pitch/roll/Y-scale need the edge sanitizer patch (see docs).</div>`;
+  document.body.appendChild(bxf);
+  let xfClip = null; const DEG = 180 / Math.PI, RAD = Math.PI / 180;
+  const angKeys = new Set(['ry','rx','rz']);
+  function selBuilding() { const id = [...sel][0]; if (!id) return null; const it = REG.get(id); if (!it?.isObj) return null; return it; }
+  function fillBxf() {
+    const it = selBuilding(); const show = !!(on && ui.tool === 'select' && it);
+    bxf.classList.toggle('on', show); if (!show) return;
+    bxf.querySelector('[data-bxf=name]').textContent = it.label + (sel.size > 1 ? ` (+${sel.size - 1})` : '');
+    const ov = PIECES.get(it.id) || {};
+    for (const inp of bxf.querySelectorAll('[data-bf]')) {
+      const k = inp.dataset.bf; let v = 0;
+      if (k === 'sx') v = ov.sx ?? ov.sy ?? ov.sz ?? 1;
+      else if (angKeys.has(k)) v = (ov[k] || 0) * DEG;
+      else v = ov[k] || 0;
+      if (document.activeElement !== inp) inp.value = (+v).toFixed(k === 'sx' ? 3 : 2);
+    }
+    bxf.querySelector('[data-ba=follow]').classList.toggle('sel', colFollow);
+  }
+  function readBxf() {
+    const o = {};
+    for (const inp of bxf.querySelectorAll('[data-bf]')) {
+      const k = inp.dataset.bf; let n = Number(inp.value); if (!Number.isFinite(n)) continue;
+      if (k === 'sx') { o.sx = o.sy = o.sz = n; }
+      else if (angKeys.has(k)) o[k] = n * RAD;
+      else o[k] = n;
+    }
+    return o;
+  }
+  function setSelAbs(abs) {
+    const c = []; for (const id of sel) { const it = REG.get(id); if (!it || it.placed) continue; const b = PIECES.get(id) || null;
+      const a = abs.h ? { h: 1 } : cleanBuildOv({ ...(b && !b.h ? b : {}), ...abs });
+      c.push([id, b, a]); setPiece(id, a); }
+    if (!c.length) { toast('SELECT A BUILDING FIRST'); return; }
+    push({ k: 'piece', c }); if (abs.h) sel.clear(); drawSel(); fillBxf();
+  }
+  bxf.addEventListener('pointerdown', (e) => e.stopPropagation());
+  for (const ev of ['keydown','keyup','keypress']) bxf.addEventListener(ev, (e) => { if (e.target.tagName === 'INPUT') e.stopPropagation(); });
+  bxf.addEventListener('click', (e) => {
+    const bs = e.target.closest('[data-bs]'); if (bs) { const inp = bxf.querySelector(`[data-bf="${bs.dataset.bs}"]`); if (!inp) return;
+      const step = angKeys.has(bs.dataset.bs) ? 15 : (bs.dataset.bs === 'sx' ? 0.1 : (ui.grid ? 1 : 0.5));
+      inp.value = snapVal(Number(inp.value) || 0, step).toFixed(bs.dataset.bs === 'sx' ? 3 : 2); return; }
+    const ba = e.target.closest('[data-ba]'); if (!ba) return;
+    const a = ba.dataset.ba;
+    if (a === 'apply') setSelAbs(readBxf());
+    else if (a === 'reset') { const c = []; for (const id of sel) { const it = REG.get(id); if (!it || it.placed) continue; const b = PIECES.get(id) || null; c.push([id, b, null]); setPiece(id, null); } if (!c.length) return toast('SELECT A BUILDING FIRST'); push({ k: 'piece', c }); drawSel(); fillBxf(); toast('RESET TO DEFAULT'); }
+    else if (a === 'copy') { const it = selBuilding(); if (!it) return toast('SELECT A BUILDING FIRST'); xfClip = copyTransform(PIECES.get(it.id)); toast('TRANSFORM COPIED'); }
+    else if (a === 'paste') { if (!xfClip) return toast('NOTHING COPIED'); setSelAbs({ ...xfClip }); }
+    else if (a === 'hide') setSelAbs({ h: 1 });
+    else if (a === 'follow') { setColFollow(!colFollow); for (const id of sel) { const it = REG.get(id); if (it?.isObj) applyObj(it); } fillBxf(); toast(colFollow ? 'COLLIDERS FOLLOW BUILDINGS' : 'COLLIDERS STAY PUT'); }
+  });
+  bxf.addEventListener('change', (e) => { if (e.target.dataset.bf) setSelAbs(readBxf()); });
   const $ = (q) => bar.querySelector(q), tip = $('.tip');
   const paint = () => { bar.classList.toggle('sel-on', ui.tool === 'select'); bar.classList.toggle('build-on', ui.tool === 'build'); bar.classList.toggle('rooms-on', ui.tool === 'rooms'); bar.classList.toggle('grow-on', ui.tool === 'grow'); bar.querySelectorAll('[data-room]').forEach(b => b.classList.toggle('sel', b.dataset.room === ui.room)); bar.querySelectorAll('.cat').forEach(b => b.classList.toggle('sel', +b.dataset.c === ui.prop)); const sn = $('.snap'); sn.lastChild.textContent = ui.grid ? 'GRID' : 'FREE'; sn.classList.toggle('sel', ui.grid); bar.classList.toggle('paint-on', ui.tool === 'paint'); bar.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.p === ui.mat)); $('.undo').disabled = !undo.length; $('.redo').disabled = !redo.length; $('.multi').classList.toggle('sel', multi); bar.querySelectorAll('.tool').forEach(b => b.classList.toggle('sel', b.dataset.t === ui.tool));
     bar.querySelectorAll('.pre[data-s]').forEach(b => b.classList.toggle('sel', SIZES[b.dataset.s] === ui.size)); $('.sz').value = ui.size; $('.szv').textContent = ui.size + ' m'; $('.st').value = ui.str;
     bar.classList.toggle('rw-on', ui.tool === 'rework'); bar.querySelectorAll('.rwc').forEach(b => b.classList.toggle('sel', b.dataset.rwc === (rwCur()?.color || ui.rwColor)));
     const rr = rwCur() ? rwCur().r : ui.rwR; bar.querySelectorAll('.rwp').forEach(b => b.classList.toggle('sel', +b.dataset.rwr === rr)); $('.rwr').value = rr; $('.rwv').textContent = rr ? rr + ' m' : 'PIN';
     $('.rwn').textContent = '🚩 ' + rwIds().length; const sh = $('.rwshow'); sh.lastChild.textContent = ui.rwShow ? 'IN-GAME ON' : 'IN-GAME OFF'; sh.classList.toggle('sel', !!ui.rwShow); $('.rwdel').disabled = !rwCur(); $('.rwnew').classList.toggle('sel', !selReworkId);
-    const t = TOOLS.find(t => t.id === ui.tool); tip.textContent = sampling ? 'tap the ground to pick the LEVEL height' : (t.tip + (ui.tool === 'level' ? ` · target ${target == null ? 'your feet' : target.toFixed(2) + ' m'}` : '')); keepUi(); };
+    const t = TOOLS.find(t => t.id === ui.tool); tip.textContent = sampling ? 'tap the ground to pick the LEVEL height' : (t.tip + (ui.tool === 'level' ? ` · target ${target == null ? 'your feet' : target.toFixed(2) + ' m'}` : '')); keepUi(); fillBxf(); };
   const setSize = (v) => { ui.size = Math.max(1, Math.min(40, Math.round(v * 2) / 2)); paint(); };
   bar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.room) ui.room = b.dataset.room; else if (b.classList.contains('roomgo')) describeHere();
@@ -278,8 +364,8 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
   function drawSel() { for (const [id, h] of helpers) if (!sel.has(id)) { frame.remove(h); helpers.delete(id); }
     for (const id of [...sel]) { if (!REG.has(id)) sel.delete(id); } for (const id of sel) { const it = REG.get(id); if (!it) continue; let h = helpers.get(id); const ov = it.placed ? {} : PIECES.get(id) || {}; const b = it.box.clone().translate(new THREE.Vector3(ov.dx || 0, ov.dy || 0, ov.dz || 0));
       if (!h) { h = new THREE.Box3Helper(b, 0xffcd77); h.material.depthTest = false; h.renderOrder = 999; frame.add(h); helpers.set(id, h); } else h.box.copy(b); }
-    const first = [...sel][0], it = first && REG.get(first); if (!it || !on) { chip.style.display = 'none'; return; }
-    chip.textContent = it.label + (sel.size > 1 ? ` (+${sel.size - 1})` : ''); chip.className = ''; chip.style.display = 'block'; chip.dataset.id = first; }
+    const first = [...sel][0], it = first && REG.get(first); if (!it || !on) { chip.style.display = 'none'; fillBxf(); return; }
+    chip.textContent = it.label + (sel.size > 1 ? ` (+${sel.size - 1})` : ''); chip.className = ''; chip.style.display = 'block'; chip.dataset.id = first; fillBxf(); }
   // [v335] everything under the pointer, nearest first: placed props, object units (walk up to the unit), merged hill ranges, Kit items; the ground in front stops it
   const shown = (o) => { for (let x = o; x && x !== footRoot; x = x.parent) if (!x.visible) return false; return true; };
   function findPiece(cx, cy) { const R = canvas.getBoundingClientRect(); ndc.set(((cx - R.left) / R.width) * 2 - 1, -((cy - R.top) / R.height) * 2 + 1); selRay.setFromCamera(ndc, camera);
@@ -296,8 +382,11 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     if (!found) toast('NOTHING SELECTABLE THERE'); return found; }
   function editSel(d) { const c = []; for (const id of sel) { const it = REG.get(id); if (!it) continue; const b = PIECES.get(id) || null;
       if (it.placed) { const a = d.h ? null : { ...b, x: b.x + (d.dx || 0), z: b.z + (d.dz || 0), ry: (b.ry || 0) + (d.ry || 0) }; if (a) a.y = groundAt(PROP_CAT[a.t], a.x, a.z); c.push([id, b, a]); setPiece(id, a); continue; }
-      const a = d.h ? { h: 1 } : { dx: (b?.dx || 0) + (d.dx || 0), dy: (b?.dy || 0) + (d.dy || 0), dz: (b?.dz || 0) + (d.dz || 0), ry: (b?.ry || 0) + (d.ry || 0) };
-      c.push([id, b, a]); setPiece(id, a); }
+      const a = d.h ? { h: 1 } : { ...(b && !b.h ? b : {}), dx: (b?.dx || 0) + (d.dx || 0), dy: (b?.dy || 0) + (d.dy || 0), dz: (b?.dz || 0) + (d.dz || 0), ry: (b?.ry || 0) + (d.ry || 0), rx: (b?.rx || 0) + (d.rx || 0), rz: (b?.rz || 0) + (d.rz || 0) };
+      if (d.sx != null) a.sx = d.sx; if (d.sy != null) a.sy = d.sy; if (d.sz != null) a.sz = d.sz;
+      // absolute overrides from BUILDINGS panel (setSelAbs) pass full dx/dy/... via d._abs
+      const fin = d._abs ? cleanBuildOv({ ...(b && !b.h ? b : {}), ...d._abs }) : a;
+      c.push([id, b, fin]); setPiece(id, fin); }
     if (!c.length) { toast('SELECT A PIECE FIRST'); return; } push({ k: 'piece', c }); if (d.h) sel.clear(); drawSel(); }
   function moveSel(sx, sz) { const f = new THREE.Vector3(); camera.getWorldDirection(f); frame.updateWorldMatrix(true, false); f.transformDirection(inv.copy(frame.matrixWorld).invert()); f.y = 0; f.normalize(); const rt = new THREE.Vector3(-f.z, 0, f.x), st = 0.5;
     editSel({ dx: (rt.x * sx + f.x * sz) * st, dz: (rt.z * sx + f.z * sz) * st }); }
@@ -484,5 +573,5 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     if (ui.tool === 'rooms' || ui.tool === 'grow') { ring.visible = grid.visible = false; if (ghost) ghost.visible = false; return; }
     drawGhost(); if (bdrag && ghost) ghost.visible = false; if (ui.tool === 'build') { ring.visible = grid.visible = false; return; } if (stroke) apply(dt); drawRing(); }
   tick(); paint();
-  return { owner: true, setOn, placeHere, commit, describeHere, RG, PROP_CAT, TYPES, placeRoot, REG, PIECES, sel, pickPiece, findPiece, delSel, rwPlace, rwTarget, rwClick, rwDelete, rwClear, rwSetR, rwSetColor, rwEdit, rwCommit, rwRoot, RW_COLORS, drawSel, get selReworkId() { return selReworkId; }, set selReworkId(v) { selReworkId = v; rwSync(); }, doUndo, doRedo, get undo() { return undo; }, get on() { return on; }, ui, flush, get rev() { return rev; } };
+  return { owner: true, setOn, placeHere, commit, describeHere, RG, PROP_CAT, TYPES, placeRoot, REG, PIECES, sel, pickPiece, findPiece, delSel, rwPlace, rwTarget, rwClick, rwDelete, rwClear, rwSetR, rwSetColor, rwEdit, rwCommit, rwRoot, RW_COLORS, drawSel, get selReworkId() { return selReworkId; }, set selReworkId(v) { selReworkId = v; rwSync(); }, doUndo, doRedo, get undo() { return undo; }, get on() { return on; }, ui, flush, get rev() { return rev; }, fillBxf, setSelAbs, get colFollow() { return colFollow; }, setColFollow, UNIT: BUILDING_UNIT };
 }
