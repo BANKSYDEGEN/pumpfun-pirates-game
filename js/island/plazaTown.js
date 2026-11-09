@@ -53,8 +53,8 @@ export const STREET_Y = Y_QUAY + 0.13, SLAB = { lx0: -54, lx1: 99, lz0: -54, lz1
 // footprint is 22.56 m wide, from 23.96 m aft to 33.69 m forward of the ship's origin (57.65 m overall).
 export const SHIP = { hullLen: 44.12, beam: 10.37, yardW: 22.56, aft: 23.96, fwd: 33.69 };
 // ---- berths: ships lie bow-out, side by side, at least 23 m centre to centre (yards 22.56 m); each jetty carries one ship
-// on each side. Park 1.5 m farther off the jetty and 10 m farther out to sea: even the largest
-// hull has 3.3 m side clearance and its stern gallery clears the boardwalk by 13 m.
+// on each side. [berth-halfback] t2442u: park halfway back from bc4faea9 (was shipOff 14.5 / shipLz 45;
+// pre-change 13 / 35 → now 13.75 / 40). Largest hull keeps ~2.6 m side clearance and ~8 m stern-to-boardwalk.
 // Neighbouring ships between jetties retain 23 m centre spacing (yards 22.56 m).
 // ---- the WATERFRONT BOARDWALK (BANKSY "make dock the board walk all the way down"): one continuous timber deck over the water
 // just outside the seawall (lz 0..8), from the old west boardwalk (lx -176, deck 2.95) to the mole (lx 100). It slopes 0.27 %
@@ -63,7 +63,7 @@ export const SHIP = { hullLen: 44.12, beam: 10.37, yardW: 22.56, aft: 23.96, fwd
 // height, and walk height = visual height (layout.js gets it as short flat decks, < 1.5 cm off the slope).
 export const BOARDWALK = { lx0: -176, lxS: -55, lx1: 100, lz0: 0, lz1: 8, yW: Y_DECK, yE: STREET_Y + 0.02 };
 export const bwY = (lx) => { const B = BOARDWALK; return lx <= B.lx0 ? B.yW : lx >= B.lxS ? B.yE : B.yW + (B.yE - B.yW) * (lx - B.lx0) / (B.lxS - B.lx0); };
-export const JETTY = { w: 12, lz0: BOARDWALK.lz1, lz1: 59, shipOff: 14.5, shipLz: 45 };
+export const JETTY = { w: 12, lz0: BOARDWALK.lz1, lz1: 59, shipOff: 13.75, shipLz: 40 }; // [berth-halfback] t2442u: halfway between pre-bc4faea9 (13/35) and v568 push (14.5/45)
 // Signage stays on the original jetty stations, independently of ship parking.
 export const BERTH_SIGN_LZ = 35 - 18;
 const JETTY_LX = [-150, -98, -46, 6, 58];                      // lx 6 = on the Main Street axis (arrival looks straight up it)

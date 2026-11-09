@@ -27,7 +27,7 @@ export const BERTH_LZ = 48.5;                                                   
 // short of the mole). Quay ships lie bow-west and leave on a short swing (outLen) so they never sweep a neighbour.
 // Old builds' ids P1L / P1R map onto P1 (js/dock/docking.js peerBerth).
 export const BERTH_SLOT = 44;                                                      // longest visible hull (BR hull 6, CANNONS VIII)
-export const PIER_BERTH_LZ = 53.8, QUAY_BERTH_LZ = 14.5, QUAY_BERTHS_LX = [-31, 16, 63];
+export const PIER_BERTH_LZ = 51.8, QUAY_BERTH_LZ = 12.5, QUAY_BERTHS_LX = [-31, 16, 63]; // [berth-halfback] t2442u halfway (was 53.8/14.5, pre 49.8/10.5)
 const berthAt = (id, lx, lz, yaw, extra) => { const [x, z] = t2w(lx, lz), [hx, hz] = toHarbor(x, z);
   return { id, lx, lz, x: +x.toFixed(2), z: +z.toFixed(2), hx: +hx.toFixed(2), hz: +hz.toFixed(2), yaw: +t2wYaw(yaw).toFixed(4), len: BERTH_SLOT, maxBeam: 10.4, ...extra }; };
 export const COAST_BERTHS = [...PIERS.map(p => berthAt('P' + (p.k + 1), p.lx, PIER_BERTH_LZ, Math.PI / 2, { pier: p.k + 1 })),

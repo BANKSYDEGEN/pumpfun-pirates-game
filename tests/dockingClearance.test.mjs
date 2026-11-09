@@ -31,8 +31,8 @@ test('all ten new berths glide in, stay fixed, and unmoor to open water', () => 
   }
 });
 test('largest supported hull clears jetty / boardwalk and neighbouring yards', () => {
-  assert.ok(PV.JETTY.shipOff - PV.JETTY.w/2 - PV.SHIP.beam/2 > 3);
-  assert.ok(PV.JETTY.shipLz - PV.SHIP.aft - PV.BOARDWALK.lz1 > 12);
+  assert.ok(PV.JETTY.shipOff - PV.JETTY.w/2 - PV.SHIP.beam/2 > 2.5); // [berth-halfback] ~2.56 m at shipOff 13.75
+  assert.ok(PV.JETTY.shipLz - PV.SHIP.aft - PV.BOARDWALK.lz1 > 7.5); // [berth-halfback] ~8.0 m at shipLz 40
   assert.ok(52 - 2*PV.JETTY.shipOff > PV.SHIP.yardW);
   assert.ok(PV.APPROACH.lz0 > PV.JETTY.shipLz + PV.SHIP.fwd);
   for (const b of parts.berths) {
@@ -47,7 +47,7 @@ test('largest supported hull clears jetty / boardwalk and neighbouring yards', (
   assert.match(ix, /walker.enter\(b.ashore.x, b.ashore.z/);
 });
 test('legacy pier / quay parks move 4 m seawards without moving deck landings', () => {
-  assert.equal(CO.PIER_BERTH_LZ,53.8); assert.equal(CO.QUAY_BERTH_LZ,14.5);
+  assert.equal(CO.PIER_BERTH_LZ,51.8); assert.equal(CO.QUAY_BERTH_LZ,12.5); // [berth-halfback]
 });
 
 const THREE = await import('three');
@@ -67,4 +67,17 @@ test('measured lower hull, not nominal beam, controls moor / glide / ship swaps 
   d.release(); s.x=b.x; s.z=b.z+50; d.begin(s,b);
   for(let i=0;i<50;i++) d.tick(s,.1);
   assert.equal(s.x,p.x); assert.equal(s.z,p.z);
+});
+
+test('berth-halfback t2442u: docked pose sits halfway between pre-bc4faea9 and the far push', () => {
+  assert.equal(PV.JETTY.shipOff, 13.75);
+  assert.equal(PV.JETTY.shipLz, 40);
+  // old 13/35, far 14.5/45 → mid 13.75/40
+  assert.ok(Math.abs(PV.JETTY.shipOff - (13 + 14.5) / 2) < 1e-9);
+  assert.ok(Math.abs(PV.JETTY.shipLz - (35 + 45) / 2) < 1e-9);
+  // still clear of the jetty face with PARK_GAP (nominal max hull)
+  const faceGap = PV.JETTY.shipOff - PV.JETTY.w / 2 - PV.SHIP.beam / 2;
+  assert.ok(faceGap > 2.5, 'faceGap=' + faceGap);
+  const sternGap = PV.JETTY.shipLz - PV.SHIP.aft - PV.BOARDWALK.lz1;
+  assert.ok(sternGap > 7.5, 'sternGap=' + sternGap);
 });
