@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hqParts, petParts, HQ_CHANDELIERS, HQ_TORCHES, HQ_LANTERNS, HQ_TRENCH_LAMPS, gableVertices, PET_CHANDELIERS, PET_LAMPS, PET_PARROTS, PET_RINGS } from './model.js';
 import { HQ, PET_LOT, PET_STORE, PET_PROPS, HQ_PANELS, HQ_SQUAD_BOARDS, HQ_BOARD_BAND, HQ_TOWERS } from './site.js';
-import { appSignMaterial, APP_SIGN } from './appSign.js';
+import { APP_SIGN } from './appSign.js';
 import { WATCH_TOKENS } from './market.js';
 import { skyPhase, sunElevation } from '../skyCycle.js';
 import { petLook, petParrots, petBrass } from './petlook.js';
@@ -20,12 +20,11 @@ export function buildParts(parts, low=false) {
 const plaqueMaterials=new WeakMap();
 function plaque(group,url,w,h,x,y,z,yaw=0){let assets=plaqueMaterials.get(group);if(!assets){assets=new Map();plaqueMaterials.set(group,assets);}let material=assets.get(url);if(!material){const tex=new THREE.TextureLoader().load(url);tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=8;tex.minFilter=THREE.LinearMipmapLinearFilter;material=new THREE.MeshBasicMaterial({map:tex,toneMapped:false});assets.set(url,material);}const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);m.position.set(x,y,z);m.rotation.y=yaw;group.add(m);return m;}
 export function buildHQ(low=false,{deferPanels=false}={}){const group=new THREE.Group();group.name='pumpfun_hq_detail';
- // [hqsigns] BANKSY: drop the carved PUMPFUN PIRATES name plates (front bar + Hill Street board); the app plaques are the outdoor signs
+ // [hqsigns] BANKSY: drop the carved PUMPFUN PIRATES name plates; app plaques use the original referral_sign.webp face at ~60% size in the recesses
  const panels=panelSlots(group,low,deferPanels);
- // [pumpfun-app-sign] canvas plaques in the wall recesses (shrunk ~65%, just above head height, clear of buttresses/doors)
- const appMat=appSignMaterial(low), F=APP_SIGN.front, H=APP_SIGN.hill;
- const referral=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral.position.set(F.lx,HQ.floor+F.yOff,F.lz);referral.userData.referral=true;group.add(referral);
- const referral2=new THREE.Mesh(new THREE.PlaneGeometry(APP_SIGN.w,APP_SIGN.h),appMat);referral2.position.set(HQ.lx1+H.lxOff,HQ.floor+H.yOff,HQ.hillDoor.lz+H.lzOff);referral2.rotation.y=H.yaw;referral2.userData.referral=true;group.add(referral2);
+ const F=APP_SIGN.front, Hll=APP_SIGN.hill;
+ const referral=plaque(group,'assets/pumpfun/referral_sign.webp',APP_SIGN.w,APP_SIGN.h,F.lx,HQ.floor+F.yOff,F.lz,F.yaw);referral.userData.referral=true;
+ const referral2=plaque(group,'assets/pumpfun/referral_sign.webp',APP_SIGN.w,APP_SIGN.h,HQ.lx1+Hll.lxOff,HQ.floor+Hll.yOff,HQ.hillDoor.lz+Hll.lzOff,Hll.yaw);referral2.userData.referral=true;
  const cv=boardCanvas(1536,384,low);const tex=boardTexture(cv,low);
  const board=new THREE.Mesh(new THREE.PlaneGeometry(HQ.board.w,HQ.board.h),new THREE.MeshBasicMaterial({map:tex,toneMapped:false}));board.position.set(HQ.board.lx,HQ.board.y,HQ.board.lz+.08);group.add(board);
  const squadBoards = HQ_SQUAD_BOARDS.map(P=>{const m=plaque(group,'assets/pumpfun/'+P.file+'.webp',P.w,P.h,P.lx+.14,HQ.floor+HQ_BOARD_BAND.y,P.lz,Math.PI/2);m.userData.pumpAction=P.kind;return m;});

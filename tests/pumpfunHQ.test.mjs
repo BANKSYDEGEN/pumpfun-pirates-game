@@ -125,24 +125,21 @@ test('p5: nothing blocks the floor in front of any board (BANKSY: walk up to the
 
 test('hall own-token list contains only SUNK and AHOY',()=>{assert.deepEqual(WATCH_TOKENS.map(t=>t.sym),['SUNK','AHOY']);assert.doesNotMatch(src('js/pumpfun/render.js'),/\['SUNK','AHOY','PUMP'\]/);});
 
-test('app-sign canvas plaques: lowercase referral URL, shared canvas material, nearby E prompts',()=>{
+test('app-sign plaques: original webp face at ~60%, lowercase referral URL, nearby E prompts',()=>{
  assert.equal(REFERRAL_CODE,'PUMPFUNPIRATES');
  assert.equal(REFERRAL_URL,'https://pump.fun/u/pumpfunpirates');
  assert.match(src('js/pumpfun/links.js'),/REFERRAL_FALLBACK_URL = 'https:\/\/pump\.fun\/u\/pumpfunpirates'/);
- assert.match(src('js/pumpfun/render.js'),/appSignMaterial/);
+ assert.match(src('js/pumpfun/render.js'),/referral_sign\.webp/);
+ assert.ok(!src('js/pumpfun/render.js').includes('appSignMaterial'), 'QR canvas plaques removed');
  assert.match(src('js/pumpfun/render.js'),/referral2/);
  assert.match(src('js/dock/pumpfun.js'),/hq\.referral2/);
  assert.match(src('js/dock/layout.js'),/hq_app_front/);
  assert.match(src('js/dock/layout.js'),/hq_app_hill/);
  assert.match(src('js/dock/index.js'),/case 'referral': openReferral/);
- assert.match(src('js/pumpfun/appSign.js'),/PUMPFUNPIRATES|REFERRAL_CODE/);
- assert.match(src('js/pumpfun/appSign.js'),/pump\.fun\/u\/pumpfunpirates|DISPLAY_URL/);
- assert.ok(src('js/pumpfun/appSign.js').includes('#ffcd77') && src('js/pumpfun/appSign.js').includes('#fa0d0d'));
- assert.match(src('js/pumpfun/appSign.js'),/w:\s*2\.55/);
- assert.match(src('js/pumpfun/appSign.js'),/h:\s*1\.4/);
+ assert.match(src('js/pumpfun/appSign.js'),/w:\s*2\.52/);
+ assert.match(src('js/pumpfun/appSign.js'),/h:\s*0\.945/);
  assert.match(src('js/pumpfun/appSign.js'),/yOff:\s*2\.75/);
- // recessed: clear of the gate buttress at lx -22.1 (sign right edge ≈ -25.3 + 1.45 = -23.85)
- assert.match(src('js/pumpfun/render.js'),/APP_SIGN\.front|F\.lx/);
+ assert.match(src('js/pumpfun/render.js'),/APP_SIGN/);
  assert.ok(!src('js/pumpfun/render.js').includes('carvedSign'), 'carved PUMPFUN PIRATES name plates removed');
  assert.ok(!src('js/pumpfun/model.js').includes('carved timber sign in a stone frame'));
  assert.ok(!src('js/pumpfun/model.js').includes('carved sign board (face drawn in render.js)'));
