@@ -1,4 +1,6 @@
 import { attachNativeCrew } from './crewNativeV7.js';
+import { attachAiPillyCrew } from './crewAiPilly.js';
+import { AI_PILLY_CREW } from './features.js';
 // [Raul] PUMPFUN PIRATES deck crew: small NFT-style pirates (big black / brown tricorn with the white skull, beards,
 // eyewear traits, red coat / tank / tee / shirtless, the odd hook arm) manning the guns and walking the deck.
 // Distant crew: one merged draw. Nearby crewNativeV7 uses shared full player meshes / instanced skeletal palettes.
@@ -213,7 +215,7 @@ function captainGeo() {
   _cap = mergeGeometries(out, false); out.slice(1).forEach(o => o.dispose()); return _cap;
 }
 // ship: buildShip group. gunSlots: [{x, y, z, sx}] gun positions on the deck (body space). deck: {z0, z1, y, x}
-export function addCrew(ship, { guns = [], walk = null, boss = false, helm = null, anchors = null } = {}) {
+export function addCrew(ship, { guns = [], walk = null, boss = false, helm = null, anchors = null, aiPilly = false } = {}) {
   if (anchors) { // [Timothy v2] placed from the ship's crew anchors (same spots as before: gunner 0.95 inboard + 0.42 aft of its gun, captain behind the wheel)
     const s0 = boss ? 1.6 : 1.35, cap = anchors.find(a => a.role === 'captain');
     guns = anchors.filter(a => a.role === 'gunner').map(a => { const sx = a.side === 'port' ? 1 : -1; return { x: a.pos.x + sx * 0.95, y: a.pos.y, z: a.pos.z - 0.42, sx, i: a.index }; });
@@ -239,7 +241,8 @@ export function addCrew(ship, { guns = [], walk = null, boss = false, helm = nul
   if (walk?.deck) { const d = walk.deck; mat.uniforms.uDk.value.set(d.zA, d.zB, d.lf, d.l); mat.uniforms.uDk2.value.set(d.depth, d.drop, 1, 0); } mesh.frustumCulled = true; mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (r, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
   const lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), lite || PHONE ? 80 : med ? 55 : 95); lod.userData.seats = crew; lod.userData.v4 = !!V4?.ready; // phones zoom out to ~120: keep your own gunners in view lod.userData.crew = true;
-  lod.userData.nativeV7 = attachNativeCrew(lod,mesh,crew,crewLow());
+  // AI ships: Pilly pirate SKIN at V7 height (same seats). Player ships keep canonical V7.
+  lod.userData.nativeV7 = (aiPilly && AI_PILLY_CREW) ? attachAiPillyCrew(lod,mesh,crew,crewLow()) : attachNativeCrew(lod,mesh,crew,crewLow());
   ship.userData.crew = mat.uniforms;
   return lod;
 }
@@ -349,7 +352,7 @@ function scopeGeo() {
   add(new THREE.CylinderGeometry(0.07, 0.07, 0.05, seg), DARK, [x, y, 0.7]);     // objective ring
   _scope = mergeGeometries(out, false); out.forEach(o => o.dispose()); return _scope;
 }
-export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
+export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5, aiPilly = false } = {}) {
   let lod = crewLodOf(body);
   const raw = mergeGeometries([seat(v), scopeGeo()], false), g = mergeVertices(raw, 1e-6), n = g.attributes.position.count; raw.dispose();
   const O = new Float32Array(n * 3), I = new Float32Array(n * 4), info = [2, r, hash(v * 9.7 + at.z), size / (lod ? lod.children[0].material.uniforms.uS.value : 1.35)];
@@ -366,7 +369,7 @@ export function addLookout(ship, body, { at, r = 0.8, size = 0.9, v = 5 }) {
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), Math.max(30, reach)); mesh.userData.crewMesh = true;
   mesh.onBeforeRender = (rr, sc, cam) => { _sv.copy(_sun).transformDirection(cam.matrixWorldInverse); mat.uniforms.uSunV.value.copy(_sv); };
   lod = new THREE.LOD(); lod.addLevel(mesh, 0); lod.addLevel(new THREE.Object3D(), Q === 'low' || PHONE ? 80 : Q === 'medium' ? 55 : 95); lod.userData.seats = [seatRec]; lod.userData.v4 = !!V4?.ready;
-  lod.userData.nativeV7 = attachNativeCrew(lod,mesh,[seatRec],crewLow()); ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
+  lod.userData.nativeV7 = (aiPilly && AI_PILLY_CREW) ? attachAiPillyCrew(lod,mesh,[seatRec],crewLow()) : attachNativeCrew(lod,mesh,[seatRec],crewLow()); ship.userData.crew = ship.userData.crew || mat.uniforms; body.add(lod); return lod;
 }
 // [v85] OUTFITS: the crew (deck gunners, walkers, spy tower lookout) dress in their ship's skin colours. The crew mesh keeps
 // vertex colours, so this only rewrites that ship's colour buffer (same material, same single draw call, Low + phones too).

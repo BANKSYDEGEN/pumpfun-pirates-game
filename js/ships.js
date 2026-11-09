@@ -828,7 +828,7 @@ export function buildShip(opts) {
   if (art) deckPts.push([1.6, art.Q, zB - 0.7], [-1.6, art.Q, zB - 0.7], [1.0, art.Fc(0.852), zAt(0.852)], [-1.0, art.Fc(0.852), zAt(0.852)]); // forecastle spots aft of the bow chasers
   deckPts.forEach((p, i) => anchors.push({ role: 'deck', index: i, pos: new THREE.Vector3(...p), facing: 0 }));
   const deck = { zA: zAt(STRETCH_T0), zB: zAt(STRETCH_T1), lf: len * stretch, l: len, depth, drop: deckDrop }; // walkers follow the deck sheer (crew.js)
-  { const cr = addCrew(ship, { anchors, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52), lanes, deck }, boss }); if (cr) body.add(cr); } // [v95] + captain at the wheel (anchor)
+  { const cr = addCrew(ship, { anchors, walk: { z0: zAt(0.3), z1: zAt(0.74), y: deckAt(0.52), lanes, deck }, boss, aiPilly: scheme !== 'player' }); if (cr) body.add(cr); } // [v95] + captain at the wheel (anchor); AI ships get Pilly pirate skin
 
   // Water mask: an invisible depth-only lid over the hull opening at gunwale height. It renders after the
   // ship (so the deck stays visible) but before the ocean (renderOrder 2), so wave crests that rise above
@@ -859,7 +859,7 @@ export function buildShip(opts) {
   // [Raul] upgrade visuals: hull/mast/cabin layout so js/upgradeVisuals.js can attach upgrade layers (no visual change here)
   // [v97] enemy ships get the spyglass lookout like yours: a pirate with a telescope patrolling the main crow's nest
   // (merged into the same crew mesh, visual only; player ships add theirs from js/upgradeVisuals.js with SPYGLASS)
-  if (opts.lookout && nestAt && crewLodOf(body)) addLookout(ship, body, { at: { x: 0, y: nestAt.y + 0.3, z: nestAt.z }, r: 0.5, size: boss ? 1.0 : 0.9 });
+  if (opts.lookout && nestAt && crewLodOf(body)) addLookout(ship, body, { at: { x: 0, y: nestAt.y + 0.3, z: nestAt.z }, r: 0.5, size: boss ? 1.0 : 0.9, aiPilly: scheme !== 'player' });
   if (SCHEME_OUTFIT[scheme]) dressCrew(body, opts.outfit || SCHEME_OUTFIT[scheme]); // [v97] enemy crews in enemy colours
   ship.userData.buildOpts = opts; ship.userData.gunGap = Math.min(0.07, 0.5 / Math.max(1, cannonsPerSide));
   if (ship.userData.crew?.uGap) ship.userData.crew.uGap.value = ship.userData.gunGap;
