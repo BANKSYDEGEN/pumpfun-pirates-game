@@ -148,6 +148,7 @@ const SHELL = [
   "./js/tutorial.js",
   "./js/net.js",
   "./js/transport.js",
+  "./js/netGate.js",
   "./js/keybinds.js",
   "./js/avatar.js",
   "./js/controlsUi.js",

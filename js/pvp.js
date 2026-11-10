@@ -23,6 +23,7 @@ import { setAvatar, nftSrc } from './avatar.js';
 import * as THREE from 'three';
 import { crewFire, crewHit, crewLodOf } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet, createHarborNet } from './transport.js';
+import { netGate } from './netGate.js'; // [cache-queue] SEAS ARE CROWDED: harbor seat + lobby backoff
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-chat
@@ -383,6 +384,8 @@ export function createPvp(K) {
   async function lobbyCall(op, extra) {
     const n0 = net, r = await net.lobby(op, lobbyOpts(extra)); if (!active) return r;
     if (n0 !== net && op === 'poll') return r; // [v98.3] a poll for the other mode's room (the switch flipped meanwhile): ignore
+    if (!r || r.state === 'error') netGate.fail('lobby', { quiet: true, status: r?.status || 0, retryAfter: r?.retryAfter || 0 }); // [cache-queue] busy lobby: polls back off
+    else if (r.state !== 'full') netGate.ok('lobby');
     if (r && r.state && r.state !== 'error') {
       Object.assign(lob, { state: r.state, pos: r.pos || 0, queue: r.queue || 0, players: r.players || 0, specs: r.spectators || 0, cap: r.cap || lob.cap, known: true });
       if (room) room.specs = lob.specs | 0; // [v339] t1800u Batcher.hz() accounts for spectators in scaleBudget
@@ -398,6 +401,7 @@ export function createPvp(K) {
       K.banner('ARENA SQUADS IS 2v2', `your Harbor squad has ${partyMates().length + 1} pirates · Arena is 2v2 only (Harbor PvE supports up to ${HARBOR_SQUAD_MAX})`);
       return;
     }
+    { const w = netGate.wait('lobby'); if (w > 0) { K.banner('SEAS ARE CROWDED', `the arena lobby is busy · try again in ${Math.ceil(w / 1000)}s`); return; } } // [cache-queue] no hammering JOIN BATTLE
     lob.busy = true;
     if (mode === 'squads' && !fromParty && partyMate()) party.room?.send('go', { i: myId }); // [v98] your party mate queues with you
     try {
@@ -405,8 +409,8 @@ export function createPvp(K) {
       if (r.state === 'play') await enterArena();
       else if (r.state === 'queue') K.banner('ARENA FULL', `you are #${r.pos} in the queue · keep farming, we'll call you`);
       else if (r.state === 'offer') { /* the offer card is up */ }
-      else if (r.state === 'full') K.banner('SERVERS FULL', 'the queue is full right now, try again in a minute');
-      else K.banner('LOBBY OFFLINE', 'could not reach the arena, try again soon');
+      else if (r.state === 'full') { const w = netGate.fail('lobby', { quiet: true, full: true }); K.banner('SEAS ARE CROWDED', `the arena queue is full · try again in ${Math.ceil(w / 1000)}s`); }
+      else K.banner('SEAS ARE CROWDED', `could not reach the arena · try again in ${Math.ceil(Math.max(1000, netGate.wait('lobby')) / 1000)}s`);
     } finally { lob.busy = false; harborUi(); }
   }
   async function acceptOffer() {
@@ -459,6 +463,7 @@ export function createPvp(K) {
     if (lob.offerUntil) { const left = Math.max(0, (lob.offerUntil - now) / 1000); const el = $('pvp-offer-t'); if (el) el.textContent = Math.ceil(left); if (left <= 0) { lob.offerUntil = 0; showOffer(false); lobbyCall('poll').then(harborUi); } }
     const every = lob.state === 'queue' || lob.state === 'offer' ? 3000 : where === 'harbor' ? (spec.on || document.hidden ? 0 : 6000) : 10000; // [v71] harbor: live arena head-count every 6 s (read only, holds no seat) // queued seats expire after 15 s without a poll, arena seats after 25 s
     if (!every || lob.busy || now - (lob.lastPoll || 0) < every) return;
+    if (lob.state !== 'queue' && lob.state !== 'offer' && netGate.wait('lobby') > 0) return; // [cache-queue] busy lobby: read-only head-count polls back off (a queued seat keeps polling)
     lob.lastPoll = now;
     lobbyCall(where === 'spec' && !spec.harbor ? 'spec' : 'poll').then((r) => { // [v99] harbor spectators only read the arena count
       if (!active) return;
@@ -597,14 +602,16 @@ export function createPvp(K) {
   // heartbeat every HARBOR_NET.beat s while sailing the harbor: the RPC keeps our copy seat and says who else is in it.
   // n + s ≥ 2 -> open the copy's Realtime room; alone -> close it (no traffic). Hidden tab / no input for HARBOR_NET.afk s -> leave.
   function hbTick(now) {
-    if (!hbNet || where !== 'harbor' || spec.on || !active) return;
-    if (document.hidden || now - Math.max(me.lastInput || 0, hb.moveAt || 0) > HARBOR_NET.afk * 1000) { if (room || hb.copy) hbLeave(); return; } // (a held joystick / mouse steering counts as here)
-    if (hb.busy || now - hb.beatAt < HARBOR_NET.beat * 1000) return;
+    if (!hbNet || where !== 'harbor' || spec.on || !active) { netGate.mute('harbor'); return; }
+    if (document.hidden || now - Math.max(me.lastInput || 0, hb.moveAt || 0) > HARBOR_NET.afk * 1000) { netGate.mute('harbor'); if (room || hb.copy) hbLeave(); return; } // (a held joystick / mouse steering counts as here)
+    if (hb.busy || now - hb.beatAt < HARBOR_NET.beat * 1000 || netGate.wait('harbor') > 0) return; // [cache-queue] full / error = exponential backoff, not every 6 s
     hb.beatAt = now; hb.busy = true; const g = hb.gen;
     hbNet.call('beat', { seat: seatId, name, cap: HB_CAP, wantCopy: hb.wantCopy || null }).then(async (r) => {
       try {
         if (!active || g !== hb.gen || where !== 'harbor' || spec.on) return;
-        if (r?.state !== 'play') { hb.copy = 0; hb.n = 0; if (room) hbDisconnect(); return; }
+        if (r?.state !== 'play') { hb.copy = 0; hb.n = 0; if (room) hbDisconnect(); // [cache-queue] SEAS ARE CROWDED card + backoff (6 s -> 60 s, jittered); a 'full' seat keeps the private harbor
+          if (r?.state === 'full' || r?.state === 'error' || !r) netGate.fail('harbor', { full: r?.state === 'full', status: r?.status || 0, retryAfter: r?.retryAfter || 0 }); return; }
+        netGate.ok('harbor');
         Object.assign(hb, { copy: r.copy | 0, n: r.n | 0, s: r.s | 0, pirates: r.pirates | 0, copies: Array.isArray(r.copies) ? r.copies : [], cap: r.cap || hb.cap, wantCopy: 0 });
         const want = hb.n + hb.s >= 2;
         if (room && (!want || room.hbCopy !== hb.copy)) hbDisconnect(); // alone again, or moved to another copy (budget)
@@ -635,7 +642,7 @@ export function createPvp(K) {
     if (lob.state !== 'harbor') return { ok: false, why: 'leave the queue first' };
     try { if (K.dock?.houses?.inHouse) K.dock.houses.exitHouse(); } catch {}
     hbLeave(true);
-    hbNet.setPrefix(plan.prefix); hb.wantCopy = plan.wantCopy || 0; hb.copies = []; hb.copy = 0; hb.beatAt = 0;
+    hbNet.setPrefix(plan.prefix); hb.wantCopy = plan.wantCopy || 0; hb.copies = []; hb.copy = 0; hb.beatAt = 0; netGate.ok('harbor'); // [cache-queue] a new server choice asks at once
     try { localStorage.setItem('pfp_hb_server', plan.code || ''); } catch {}
     markInput(); hbTick(performance.now()); // reconnect now, not at the next heartbeat
     harborUi(); hud();

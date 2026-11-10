@@ -10,6 +10,7 @@
 // Static fields (name, levels, skin, K/D…) are only re-sent when they change or every 3 s (delta); an unchanged, quiet
 // ship is suppressed down to a keepalive. Receivers merge deltas back into a full state before pvp.js sees it.
 import { Room } from './net.js';
+import { retryAfterOf } from './netGate.js'; // [cache-queue] Retry-After on 429 / 5xx
 import { isNetId, safeMerge } from './safe.js'; // [security] peer ids are whitelisted, peer JSON is merged without __proto__ keys
 import { SUPABASE_URL, SUPABASE_ANON_KEY, PVP_NET, PVP_RELAY_URL, HARBOR_NET } from './config.js';
 
@@ -77,7 +78,7 @@ function supabaseNet({ prefix, myId, ticket }) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_lobby`, { method: 'POST', keepalive: !!o.keepalive,
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ p_seat: o.seat, p_prefix: o.prefix || pfx, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_offer: o.offer ?? null }) });
-      if (!r.ok) return { state: 'error', status: r.status };
+      if (!r.ok) return { state: 'error', status: r.status, retryAfter: retryAfterOf(r) }; // [cache-queue] callers back off (js/netGate.js)
       return await r.json();
     } catch { return { state: 'error' }; }
   }
@@ -111,7 +112,7 @@ export function createHarborNet({ prefix, myId, ticket }) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/pvp_harbor`, { method: 'POST', keepalive: !!o.keepalive,
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ p_seat: o.seat, p_prefix: o.prefix || pfx, p_op: op, p_name: o.name || null, p_cap: o.cap ?? null, p_want_copy: o.wantCopy ?? null }) });
-      if (!r.ok) return { state: 'error', status: r.status };
+      if (!r.ok) return { state: 'error', status: r.status, retryAfter: retryAfterOf(r) }; // [cache-queue] callers back off (js/netGate.js)
       return await r.json();
     } catch { return { state: 'error' }; }
   }

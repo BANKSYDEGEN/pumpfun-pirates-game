@@ -11,6 +11,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, L
 const LS_KEY = 'pfp_leaderboard_v1';     // best per wallet (legacy, still maintained)
 const LS_RUNS = 'pfp_runs_v1';           // every saved run with a timestamp (for period boards)
 const MAX_RUNS = 2000;                  // enough history for 100+ wallets per period board
+export const TOP_TTL = 30000;           // [cache-queue] one online board read per 30 s per device (per size + period)
 export const LB_SIZE = 100;             // rows a board holds (5 visible, the rest scroll)
 const PAGE = 1000;                      // Supabase rows per request (PostgREST default max)
 const MAX_PAGES = 5;
@@ -173,9 +174,14 @@ class Leaderboard {
     this.remote = (SUPABASE_URL && SUPABASE_ANON_KEY) ? new SupabaseAdapter(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
   }
   get mode() { return this.remote ? 'online' : 'this device only'; }
+  // [cache-queue] BANKSY t2486u: a board read is the same for everyone, so this device keeps it TOP_TTL ms (one request shared by
+  // every board that asks meanwhile); a new score from this device clears it. Real rows only, never filler.
   async getTop(n = LB_SIZE, period = 'all') {
     if (this.remote && !this.remoteDown) {
-      try { const r = await this.remote.getTop(n, period); this.lastWhere = 'online'; return r; }
+      try { const k = n + '|' + period, c = (this.topMemo ||= new Map()).get(k);
+        let p = c && (c.p || Date.now() - c.at < TOP_TTL) ? c : null;
+        if (!p) { p = { at: Date.now(), p: this.remote.getTop(n, period) }; this.topMemo.set(k, p); p.p.then((rows) => { p.rows = rows; p.at = Date.now(); p.p = null; }, () => { if (this.topMemo.get(k) === p) this.topMemo.delete(k); }); }
+        const r = p.p ? await p.p : p.rows; this.lastWhere = 'online'; return r; }
       catch (e) { console.info('[leaderboard] online board unavailable, using this device:', e.message); }
     }
     this.lastWhere = 'local';
@@ -195,12 +201,13 @@ class Leaderboard {
   // A failed verified write falls back to the normal (unverified) insert, so a score is never lost.
   async _remoteSubmit(e, proof) {
     if (WALLET_VERIFY_ENABLED && VERIFY_SCORE_URL && proof && proof.wallet === e.wallet) {
-      try { await this.remote.submitVerified(e, proof); return { verified: true }; }
+      try { await this.remote.submitVerified(e, proof); this.topMemo?.clear(); return { verified: true }; }
       catch (err) { console.info('[leaderboard] verified save failed, saving unverified:', err.message); }
     }
-    const r = await this.remote.submit(e); return { verified: !!r?.verified };
+    const r = await this.remote.submit(e); this.topMemo?.clear(); return { verified: !!r?.verified };
   }
   async submit(entry, { proof = null } = {}) {
+    this.topMemo?.clear(); // [cache-queue] your new score shows on the next board read
     const e = { ...entry, name: clean(entry.name), score: Math.max(0, Math.floor(entry.score)), ts: Date.now() };
     if (e.mode === 'daily') {
       await this.local.submitDaily(e);

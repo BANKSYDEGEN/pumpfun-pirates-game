@@ -14,6 +14,8 @@
 //   isl_timer_start { kind: crab|plot|still, slot, homegrown, reqId } / isl_timer_finish { kind, slot, reqId }
 //   isl_sell { item, qty, shop: fish|antiques|rum, reqId }
 // A missing 053 (PGRST202 / 42883) answers 409 { error: "closed" }: the client keeps its offline practice mode.
+import { ttlMemo, ISLAND_BOARD_TTL_MS } from "./memo.ts"; // [cache-queue]
+const islBoardMemo = ttlMemo<any>(ISLAND_BOARD_TTL_MS);
 export const ISLAND_ACTIONS = ["isl_state", "isl_board", "isl_contract", "isl_bounty_post", "isl_bounty_claim", "isl_duel_post", "isl_duel_accept",
   "isl_duel_settle", "isl_bet", "isl_horde", "isl_crate", "isl_gather", "isl_timer_start", "isl_timer_finish", "isl_sell"] as const;
 export type IslandAction = (typeof ISLAND_ACTIONS)[number];
@@ -62,7 +64,7 @@ async function goldReply(c: Ctx, who: any, data: any) {
 export async function islandAction(c: Ctx, action: string, b: Record<string, unknown>): Promise<Response> {
   if (!(ISLAND_ACTIONS as readonly string[]).includes(action)) return c.json(400, { error: "bad action" });
   try {
-    if (action === "isl_board") return c.json(200, { ...(await rpc(c, "pvp_isl_board", {})), ok: true });
+    if (action === "isl_board") return c.json(200, { ...(await islBoardMemo.get("b", () => rpc(c, "pvp_isl_board", {}))), ok: true }); // [cache-queue] same for everyone: one read per 5 s per isolate
     const who = await c.whoAmI(b); if (!who) return c.json(401, { error: "no identity" });
     const pid = who.pid, req = reqOf(b.reqId), name = nameOf(b.name);
     const needReq = () => (req ? null : c.json(400, { error: "bad request" }));

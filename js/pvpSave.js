@@ -11,6 +11,7 @@ import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, PVP_UNLOC
 import { UPGRADES } from './upgrades.js';
 import { V6_LEGACY, v6Legacy as v6Legacy0, addLegacyOwned } from './v6Legacy.js';   // [V6 store] legacy pants + boots grant
 import { findProvider, sigBytes } from './pirateAccount.js';
+import { netGate, gateCall } from './netGate.js'; // [cache-queue] join gate / backoff
 
 const DEVICE_KEY = 'pfp_pvp_save_v1', SESSION_KEY = 'pfp_pvp_session_v1';
 const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
@@ -87,8 +88,12 @@ function session() { try { const s = JSON.parse(ls.get(SESSION_KEY) || 'null'); 
 export const walletSession = () => session();
 export function signOut() { const s = session(); ls.set(SESSION_KEY, null); claimAuth = null; if (s) api('logout', { token: s.token }).catch(() => {}); }
 
+// [cache-queue] JOIN GATE (js/netGate.js): a 429 / 5xx / no answer backs the pvp function off (6 s -> 60 s, jittered). Background
+// POLLS asked during that wait fail at once without a request (their callers already treat a failed poll as "try later");
+// saves, buys and every other action still go out, and any good answer clears the wait.
+export const POLL_ACTIONS = new Set(['squad_invites', 'fr_list', 'admin_register_net', 'admin_my_state', 'pilly_walk', 'pet_walk', 'parrot_walk', 'top', 'me', 'isl_board', 'isl_state']);
 async function api(action, body = {}, opts = {}) {
-  const r = await fetch(PVP_FN_URL, { method: 'POST', keepalive: !!opts.keepalive, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) });
+  const r = await gateCall(netGate, 'api', POLL_ACTIONS.has(action), () => fetch(PVP_FN_URL, { method: 'POST', keepalive: !!opts.keepalive, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) }), { keepalive: !!opts.keepalive });
   let j = null; try { j = await r.json(); } catch {}
   if (r.ok && j && Number.isFinite(j.prestige) && action !== 'prestige') notePrestige(j.prestige); // [prestige] every save / sync / load answer carries it
   if (!r.ok) { const e = new Error(j?.error || `pvp ${action} ${r.status}`); e.status = r.status; e.body = j; throw e; }
@@ -356,7 +361,7 @@ export function fetchMe() {
 }
 const topCache = new Map();
 export async function fetchKillsTop(period = 'all') {
-  const c = topCache.get(period); if (c && Date.now() - c.at < 20000) return c.rows;
+  const c = topCache.get(period); if (c && Date.now() - c.at < 45000) return c.rows; // [cache-queue] 20 s -> 45 s (the server caches it ~30 s too)
   if (!PVP_FN_URL) return [];
   const j = await api('top', { period }); const rows = Array.isArray(j.rows) ? j.rows : [];
   topCache.set(period, { at: Date.now(), rows }); return rows;
@@ -499,7 +504,8 @@ window.PFP_PVP_SAVE = { prestigeLevel, checkName, renameEverywhere, loadProfile,
 
 // [terrain-edit] the island's height deltas (pvp function): load = anyone (+ whether YOU are the owner, decided by the server); put = owner only
 const ident = () => { const s = session(); return s ? { token: s.token } : { dk: deviceKey() }; };
-export async function terrainLoad() { if (!PVP_FN_URL) return null; try { return await api('terrain_get', ident()); } catch { return null; } }
+// [cache-queue] `have` = the etag of the copy this device already holds: an unchanged island answers { same: true } (~100 B instead of ~100 KB)
+export async function terrainLoad(have = null) { if (!PVP_FN_URL) return null; try { return await api('terrain_get', { ...ident(), ...(typeof have === 'string' && /^[a-f0-9]{16,64}$/.test(have) ? { have } : {}) }); } catch { return null; } }
 export async function terrainSave(cells, rev, pieces = {}, paint = undefined) { if (!PVP_FN_URL) return { ok: false, error: 'offline' };
   try { return await api('terrain_put', { ...ident(), cells, pieces, rev, ...(paint ? { paint } : {}) }); } catch (e) { return { ok: false, status: e.status, error: e.message, body: e.body }; } }
 // [sims-build] owner "describe a room": the pvp action parses the words into kit pieces (roomGen.ts); null = not deployed / offline

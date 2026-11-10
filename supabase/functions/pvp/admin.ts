@@ -6,6 +6,7 @@
 // A Realtime 'adm' poke from the owner's client only makes the target re-ask admin_my_state / its inventory: nothing a peer
 // broadcasts can freeze anyone or move an item.
 import { KEY_RE, itemInfo } from "./invCatalog.ts";
+import { terrainMemo } from "./memo.ts"; // [cache-queue] a world write drops the cached public terrain
 import { mergeWorld, worldOf } from "./adminWorld.ts"; // [v346] owner sky / weather + collision edits (pvp_terrain.pieces)
 
 export const ADMIN_ACTIONS = ["admin_stats", "admin_status", "admin_players", "admin_freeze", "admin_pocket_get", "admin_pocket_take", "admin_pocket_give", "admin_pocket_gold", "admin_register_net", "admin_my_state", "admin_world_get", "admin_world_put"] as const;
@@ -150,7 +151,7 @@ export async function adminAction(c: Ctx, action: string, b: Record<string, unkn
           const at = new Date(now + tries).toISOString();
           if (!cur) { const { error } = await db.from("pvp_terrain").insert({ id: "island", cells: {}, pieces: m.pieces, paint: {}, rev: 0, log: [], updated_at: at }); if (error) { if (tries < 3) continue; throw error; } }
           else { const { data: up, error } = await db.from("pvp_terrain").update({ pieces: m.pieces, updated_at: at }).eq("id", "island").eq("updated_at", cur.updated_at).select("id"); if (error) throw error; if (!up?.length) continue; }
-          return json(200, { ok: true, n: m.n, world: worldOf(m.pieces), at });
+          terrainMemo.drop(); return json(200, { ok: true, n: m.n, world: worldOf(m.pieces), at });
         }
         return json(409, { error: "busy, try again" });
       }

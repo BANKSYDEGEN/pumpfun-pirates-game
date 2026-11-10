@@ -4,6 +4,9 @@ import { BOARD_ROWS } from './boardgrid.js';
 // One shared proximity-driven free poller + one free PumpPortal socket per game client.
 export const SHARED_CACHE_URL='https://qhandcjwlkmovjzwzqfk.supabase.co/functions/v1/boardfeed';
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
+// [cache-queue] BANKSY t2486u: the shared boardfeed snapshot is read every 30 s near the HQ (was 15 s; the server refreshes it every
+// 15 s and now answers ETag / 304 + a 10 s browser max-age, so a repeat inside one snapshot costs ~nothing)
+export const SHARED_MS = 30000;
 export const WATCH_TOKENS = [
  {sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},
  {sym:'AHOY',ca:'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump'}];
@@ -137,7 +140,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   active=true;discovery=!!discover;
   if(busyShared)return busyShared;
   if(clock()<nextShared)return Promise.resolve();
-  nextShared=clock()+15000;
+  nextShared=clock()+SHARED_MS;
   busyShared=shared(discover).catch(()=>false).then(ok=>ok||!active?undefined:directTick(active,discovery,world)).finally(()=>{busyShared=null;});
   return busyShared;
  }

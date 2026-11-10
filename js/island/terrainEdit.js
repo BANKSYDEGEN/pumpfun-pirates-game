@@ -123,9 +123,12 @@ export async function initTerrainEdit({ scene, camera, canvas, footRoot, walker,
     rec = { t: rec.t | 0, x: +rec.x || 0, y: +rec.y || 0, z: +rec.z || 0, ry: +rec.ry || 0 }; const ty = typeOf(rec.t); PIECES.set(id, rec); ty.ids.push(id); redraw(ty);
     const seat = seated(ty, rec); BLK.set(id, propBlock(ty.P.id, seat.x, seat.y, seat.z, seat.ry)); REG.set(id, { id, key: id, placed: true, locked: false, label: ty.P.label + ' · PLACED', box: placeBox(ty, rec), ranges: [] }); }
   const groundAt = (P, x, z) => { const h = H(x, z), w = P.water ? waterAt(x, z) : null; return w != null && w > h ? w : h; };
-  try { const c = JSON.parse(localStorage.getItem(LS) || 'null'); if (c?.cells) T.replace(c.cells); if (c?.pieces) replacePieces(c.pieces); if (c?.paint) T.replacePaint(c.paint); } catch {}
+  let cached = null; try { const c = JSON.parse(localStorage.getItem(LS) || 'null'); cached = c; if (c?.cells) T.replace(c.cells); if (c?.pieces) replacePieces(c.pieces); if (c?.paint) T.replacePaint(c.paint); } catch {}
   let rev = 0, owner = false;
-  const j = await terrainLoad(); if (j?.ok) { rev = j.rev | 0; owner = !!j.owner; T.replace(j.cells); replacePieces(j.pieces); T.replacePaint(j.paint); try { localStorage.setItem(LS, JSON.stringify({ rev, cells: j.cells, pieces: j.pieces || {}, paint: j.paint || {} })); } catch {} }
+  // [cache-queue] send the saved copy's etag: an unchanged island comes back as { same: true } and the saved copy (already applied) stays
+  const j = await terrainLoad(cached?.cells && typeof cached.etag === 'string' ? cached.etag : null);
+  if (j?.ok && j.same && cached?.cells) { rev = j.rev | 0; owner = !!j.owner; }
+  else if (j?.ok && j.cells) { rev = j.rev | 0; owner = !!j.owner; T.replace(j.cells); replacePieces(j.pieces); T.replacePaint(j.paint); try { localStorage.setItem(LS, JSON.stringify({ rev, etag: typeof j.etag === 'string' ? j.etag : null, cells: j.cells, pieces: j.pieces || {}, paint: j.paint || {} })); } catch {} }
   // Everyone refreshes anchored props and blockers after initial or live ground edits.
   let seatRev = -1;
   function reseatPlaced() {

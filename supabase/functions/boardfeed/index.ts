@@ -12,6 +12,10 @@ const TTL=15000, MAX_AGE=600000;
 const db=()=>Deno.env.get('SUPABASE_URL')+'/rest/v1/boardfeed_cache';
 const headers=()=>{const k=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;return {'Content-Type':'application/json',apikey:k,Authorization:'Bearer '+k};};
 async function dbRead(){const r=await fetch(db()+'?id=eq.hq&select=*',{headers:headers(),signal:AbortSignal.timeout(6000)});if(!r.ok)throw Error('cache unavailable');return (await r.json())[0];}
+// [cache-queue] BANKSY t2486u (capacity fix 4): an isolate that didn't publish re-read the whole cache row (payload + raw sources, up to
+// ~1.5 MB) on EVERY request. Now one read per ROW_TTL per isolate (concurrent requests share it); freshness checks still use fetched_at.
+const ROW_TTL=5000;let rowHit:any=null,rowAt=0,rowWork:Promise<any>|null=null;
+async function cachedRead(){if(rowHit&&Date.now()-rowAt<ROW_TTL)return rowHit;if(rowWork)return rowWork;rowWork=dbRead().then(r=>{rowHit=r;rowAt=Date.now();return r;}).finally(()=>{rowWork=null;});return rowWork;}
 async function lease(){const now=new Date().toISOString();const r=await fetch(db()+'?id=eq.hq&lease_until=lt.'+encodeURIComponent(now),{method:'PATCH',headers:{...headers(),Prefer:'return=representation'},body:JSON.stringify({lease_until:new Date(Date.now()+110000).toISOString()}),signal:AbortSignal.timeout(6000)});if(!r.ok)throw Error('cache unavailable');return (await r.json()).length===1;}
 let local:any=null,localAt=0,work:Promise<any>|null=null;
 async function refresh(previous:any){
@@ -24,7 +28,7 @@ async function refresh(previous:any){
    try {const r=await fetch(url,{signal:AbortSignal.timeout(8000)});if(!r.ok){sources[url]={...hit,failed:true,failedAt:Date.now(),status:r.status};throw Error('source unavailable');}const body=await r.json();sources[url]={at:Date.now(),body};return body;} finally {if(url.startsWith(GT))gtNext=Date.now()+2500;}};
   if(url.startsWith(GT)){const p=gtQueue.then(run);gtQueue=p.then(()=>{},()=>{});return p;}return run();
  };
- const publish=async(release=false)=>{const sorted=Object.keys(sources).sort((a,b)=>Math.max(sources[a].at||0,sources[a].failedAt||0)-Math.max(sources[b].at||0,sources[b].failedAt||0));for(const u of sorted)if(Date.now()-Math.max(sources[u].at||0,sources[u].failedAt||0)>1800000||Object.keys(sources).length>96)delete sources[u];const payload={state:s,sources,helius:{configured:heliusConfigured(),tradeStream:'webhook',rewards:'inactive'}};for(const u of sorted){if(new TextEncoder().encode(JSON.stringify(payload)).length<=1500000)break;delete sources[u];}const body:any={payload,fetched_at:new Date().toISOString()};if(release)body.lease_until=new Date(0).toISOString();const r=await fetch(db()+'?id=eq.hq',{method:'PATCH',headers:headers(),body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('cache write unavailable');local=payload;localAt=Date.now();return payload;};
+ const publish=async(release=false)=>{const sorted=Object.keys(sources).sort((a,b)=>Math.max(sources[a].at||0,sources[a].failedAt||0)-Math.max(sources[b].at||0,sources[b].failedAt||0));for(const u of sorted)if(Date.now()-Math.max(sources[u].at||0,sources[u].failedAt||0)>1800000||Object.keys(sources).length>96)delete sources[u];const payload={state:s,sources,helius:{configured:heliusConfigured(),tradeStream:'webhook',rewards:'inactive'}};for(const u of sorted){if(new TextEncoder().encode(JSON.stringify(payload)).length<=1500000)break;delete sources[u];}const body:any={payload,fetched_at:new Date().toISOString()};if(release)body.lease_until=new Date(0).toISOString();const r=await fetch(db()+'?id=eq.hq',{method:'PATCH',headers:headers(),body:JSON.stringify(body),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('cache write unavailable');local=payload;localAt=Date.now();rowHit=null;return payload;};
  const put=(key:string,rows:any,at=Date.now(),label='Shared market cache')=>{s[key]=rows;s.updated[key]=at;s.status[key]=label;};
  const bad=(key:string)=>{s.status[key]=s[key]?.length?'Refresh failed · showing last good snapshot':'Feed offline';};
  const at=(url:string)=>sources[url]?.at||0;
@@ -85,16 +89,31 @@ async function lastGoodState(tr:any){let g:Record<string,any>={};try{g={...await
  for(const t of TOKENS){const d=g['board:details_'+t.sym.toLowerCase()];if(d)state.details[t.sym]=d.rows;const hh=g['chain:holders_'+t.sym.toLowerCase()];if(hh){state.holdersTop[t.sym]={...hh.rows,status:'Feed offline · last good holder scan'};state.updated['holders'+t.sym]=hh.at;}}
  if(tr){state.trades=tr.trades;if(tr.sunkbuys)state.sunkbuys=tr.sunkbuys;}
  return {ok:true,mode:'last-good',state,helius:{configured:heliusConfigured(),tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null}};}
+// [cache-queue] one serialized (+ gzipped) answer per snapshot, shared by every request in this isolate; ETag + 304 for a client
+// that already holds it; a short public max-age so a browser's repeat poll inside it costs no request at all.
+export const CLIENT_MAX_AGE=10;
+let packedOut:{key:string,body:string,etag:string,gz:ArrayBuffer|null}|null=null;
+async function gzip(s:string){try{const cs=new CompressionStream('gzip');const w=cs.writable.getWriter();w.write(new TextEncoder().encode(s));w.close();return await new Response(cs.readable).arrayBuffer();}catch{return null;}}
+async function pack(key:string,make:()=>unknown){if(packedOut?.key===key)return packedOut;const body=JSON.stringify(make());const d=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body)));
+ const etag='"'+[...d.slice(0,12)].map(x=>x.toString(16).padStart(2,'0')).join('')+'"';const p={key,body,etag,gz:await gzip(body)};packedOut=p;return p;}
+function reply(req:Request,p:{body:string,etag:string,gz:ArrayBuffer|null},h:Record<string,string>){
+ const hh:Record<string,string>={...h,'Cache-Control':`public, max-age=${CLIENT_MAX_AGE}, stale-while-revalidate=20`,'ETag':p.etag,'Vary':'Origin, Accept-Encoding'};
+ const inm=req.headers.get('if-none-match');if(inm&&inm.split(',').map(x=>x.trim().replace(/^W\//,'')).includes(p.etag))return new Response(null,{status:304,headers:hh});
+ if(p.gz&&/\bgzip\b/i.test(req.headers.get('accept-encoding')||''))return new Response(p.gz,{headers:{...hh,'Content-Encoding':'gzip'}});
+ return new Response(p.body,{headers:hh});}
 Deno.serve(async req=>{
  const o=req.headers.get('origin'),allowed=o==='https://game.pumpfunpirates.com'||/^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/.test(o||'');
  const h:Record<string,string>={'Content-Type':'application/json','Vary':'Origin','Access-Control-Allow-Methods':'GET, OPTIONS','Cache-Control':'no-store'};if(allowed)h['Access-Control-Allow-Origin']=o!;
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers:h});if(req.method!=='GET')return new Response('{}',{status:405,headers:h});
- try{let row;if(local&&Date.now()-localAt<TTL)row={payload:local,fetched_at:new Date(localAt).toISOString()};else row=await dbRead();let data=row?.payload;
+ const down={...h,'Retry-After':'15'}; // [cache-queue] clients back off on 503 (js/netGate.js)
+ try{let row;if(local&&Date.now()-localAt<TTL)row={payload:local,fetched_at:new Date(localAt).toISOString()};else row=await cachedRead();let data=row?.payload;
   let age=Date.now()-Date.parse(row?.fetched_at||'');const coreAt=Math.min(...Object.values(data?.state?.updated||{}).filter((x:any)=>typeof x==='number') as number[]);if(!data?.state || age>TTL || Date.now()-coreAt>TTL){const p=refreshOnce(row);if(data?.state){EdgeRuntime.waitUntil(p.catch(()=>{}));}else {data=await p;age=0;}}
   let tr:any=null;try{tr=await recentTrades();}catch{}
-  if(!data?.state || (Number.isFinite(age)&&age>MAX_AGE)){const lg=await lastGoodState(tr);return lg?new Response(JSON.stringify(lg),{headers:h}):new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:h});}
-  const helius={...data.helius,tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null};
-  const st=tr?{...data.state,trades:tr.trades,...(tr.sunkbuys?{sunkbuys:tr.sunkbuys}:{})}:data.state;
-  return new Response(JSON.stringify({ok:true,mode:'live',state:st,helius}),{headers:h});
- }catch{return new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:h});}
+  if(!data?.state || (Number.isFinite(age)&&age>MAX_AGE)){const lg=await lastGoodState(tr);return lg?new Response(JSON.stringify(lg),{headers:h}):new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:down});}
+  const fresh=data===local?'L'+localAt:'R'+row?.fetched_at;
+  return reply(req,await pack('live|'+fresh+'|'+(tr?tradeAt:0),()=>{
+   const helius={...data.helius,tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null};
+   const st=tr?{...data.state,trades:tr.trades,...(tr.sunkbuys?{sunkbuys:tr.sunkbuys}:{})}:data.state;
+   return {ok:true,mode:'live',state:st,helius};}),h);
+ }catch{return new Response(JSON.stringify({ok:false,error:'Feed offline'}),{status:503,headers:down});}
 });

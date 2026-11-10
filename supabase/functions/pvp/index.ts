@@ -14,6 +14,7 @@ import { casinoAction, CASINO_ACTIONS } from "./casino.ts"; // [v333] pure-gold 
 import { adminAction, ADMIN_ACTIONS } from "./admin.ts";
 import { describedRoom } from "./roomGen.ts"; // [sims-build] owner "describe a room" -> 2 m kit pieces
 import { isWorldId } from "./adminWorld.ts"; // [v346] owner world overrides: terrain_put keeps the stored ones (only admin_world_put writes them) // [admin-menu] migration 045: the owner Admin Menu (owner-only actions return 403)
+import { ttlMemo, etagOf, BOARD_TTL_MS, terrainMemo, type TerrainPub } from "./memo.ts"; // [cache-queue] shared reads: one DB read per isolate per TTL
 import { lootAction, LOOT_ACTIONS } from "./loot.ts"; // [backpack-pvp] migration 044: PvP loot bags
 import { islandAction, ISLAND_ACTIONS } from "./island.ts"; // [v349 money-makers] migration 053: bounties, coliseum, crates, gathering, cottage rum
 import { friendAction, FRIEND_ACTIONS } from "./friends.ts";
@@ -28,6 +29,9 @@ const NONCE_TTL_MS = 5 * 60 * 1000, SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 const RT_JWT_SECRET = Deno.env.get("PFP_RT_JWT_SECRET") ?? "", RELAY_SECRET = Deno.env.get("RELAY_TICKET_SECRET") ?? "", TICKET_TTL_S = 30 * 60;
 const TRUSTED_IP_HEADER = Deno.env.get("TRUSTED_IP_HEADER") || null;
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+// [cache-queue] the kills board is the same for everyone (30 s); the island terrain row is read once per 30 s per isolate for
+// non-owners (the owner always reads it fresh, and terrain_put / admin world writes drop it at once in this isolate)
+const topMemo = ttlMemo<unknown[]>(BOARD_TTL_MS);
 const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const rand = (k: number) => { const a = new Uint8Array(k); crypto.getRandomValues(a); return a; };
 const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
@@ -314,9 +318,8 @@ Deno.serve(async (req) => {
       }
       case "top": {
         const period = b.period === "day" || b.period === "month" ? b.period : "all";
-        const { data, error } = await db.rpc("pvp_kills_top", { p_period: period, p_limit: 50 });
-        if (error) throw error;
-        return json(200, { period, tz: "America/Indiana/Indianapolis", rows: data ?? [] });
+        const rows = await topMemo.get(period, async () => { const { data, error } = await db.rpc("pvp_kills_top", { p_period: period, p_limit: 50 }); if (error) throw error; return data ?? []; });
+        return json(200, { period, tz: "America/Indiana/Indianapolis", rows });
       }
       // HUD: my all-time PvP kills rank + confirmed kills / deaths (same identity as "kill": wallet session, else device key)
       case "me": {
@@ -448,9 +451,17 @@ Deno.serve(async (req) => {
       // [terrain-edit] BANKSY's island terrain deltas: anyone reads them (every client applies them at startup); only the owner writes
       case "terrain_get": {
         const who = (b.token || b.dk) ? await whoAmI(b).catch(() => null) : null;
-        const { data } = await db.from("pvp_terrain").select("cells, pieces, paint, rev").eq("id", "island").maybeSingle();
-        const pieces = who?.owner ? (data?.pieces ?? {}) : stripRework(data?.pieces as Record<string, any>); // [v335] 🚩 rework flags: the owner's eyes only
-        return json(200, { ok: true, cells: data?.cells ?? {}, pieces, paint: (data as any)?.paint ?? {}, rev: data?.rev ?? 0, owner: !!who?.owner });
+        // [cache-queue] a DB error is a 503 (the client keeps its saved copy) instead of an EMPTY island that overwrote it
+        const read = async () => { const { data, error } = await db.from("pvp_terrain").select("cells, pieces, paint, rev").eq("id", "island").maybeSingle(); if (error) throw error; return data; };
+        const view = (data: any) => { const pieces = who?.owner ? (data?.pieces ?? {}) : stripRework(data?.pieces as Record<string, any>); return { cells: data?.cells ?? {}, pieces, paint: data?.paint ?? {}, rev: data?.rev ?? 0 }; }; // [v335] 🚩 rework flags: the owner's eyes only
+        let t: TerrainPub;
+        try {
+          if (who?.owner) { const v = view(await read()), body = JSON.stringify(v); t = { body, etag: "o" + (await etagOf(body)).slice(1), rev: v.rev }; }
+          else t = await terrainMemo.get("pub", async () => { const v = view(await read()), body = JSON.stringify(v); return { body, etag: await etagOf(body), rev: v.rev }; });
+        } catch (e) { console.warn("terrain_get", String(e)); return json(503, { error: "terrain busy, try again soon" }); }
+        const have = typeof b.have === "string" ? b.have : "";
+        if (have && have === t.etag) return json(200, { ok: true, same: true, rev: t.rev, etag: t.etag, owner: !!who?.owner }); // [cache-queue] ~100 B instead of ~100 KB
+        return new Response(t.body.slice(0, -1) + `,"ok":true,"etag":${JSON.stringify(t.etag)},"owner":${!!who?.owner}}`, { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
       }
       case "admin_room_gen": { // [sims-build t2074u] OWNER: "describe a room" -> pieces from the 2 m pirate kit (deterministic word parser, no writes; the client saves them via terrain_put)
         const who = await whoAmI(b); if (!who) return json(401, { error: "no identity" });
@@ -498,6 +509,7 @@ Deno.serve(async (req) => {
         const rev = (cur?.rev ?? 0) + 1;
         const { error } = await db.from("pvp_terrain").upsert({ id: "island", cells, pieces, paint: paint ?? (cur as any)?.paint ?? {}, rev, log, updated_at: new Date().toISOString() });
         if (error) throw error;
+        terrainMemo.drop(); // [cache-queue] this isolate serves the new island at once
         return json(200, { ok: true, rev, n, np });
       }
       case "prestige": {
