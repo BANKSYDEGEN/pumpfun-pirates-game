@@ -9,6 +9,12 @@ import { onlineAction } from "./online.ts"; // [give-dropdown] the GIVE picker's
 import { squadAction, SQUAD_ACTIONS } from "./squad.ts"; // [squad-hall]
 type Who = { raw: string; pid: string; wallet: string | null; owner: boolean };
 type Ctx = { db: any; whoAmI: (b: Record<string, unknown>) => Promise<Who | null>; boostsOf: (who: Who, b: Record<string, unknown>) => Promise<Record<string, number>>; json: (s: number, o: unknown) => Response; mapSpots: string[] };
+// [security H2 2026-11-09] the island's real find spots: 7 idol shards (js/island/areas/jungle.js SHARDS) and 6 river pearls
+// (js/island/areas/lagoon.js PEARLS). Each spot still pays once per day per player (pvp_inv_find / pvp_inv_once).
+export const SHARD_SPOT_RE = /^jungle_shard_[0-6]$/, PEARL_SPOT_RE = /^lagoon_p(_grotto|[1-5])$/;
+export const findSpotOk = (item: string, spot: string) =>
+  item === "val:idol_shard" ? SHARD_SPOT_RE.test(spot) : item === "val:river_pearl" ? PEARL_SPOT_RE.test(spot) : false;
+
 export const INV_ACTIONS = ["inv_musk_level", "inv_musk_rank", "inv_musk_salvage", "inv_buy_acc", "inv_state", "inv_sell", "inv_gift", "inv_fish", "inv_fish_bite", "inv_fish_land", "inv_find", "inv_ruin_chest", "inv_idol_forge", "inv_equip", "inv_unequip", "inv_pot", "inv_online", "gun_acc_set", "gun_equip", "mkt_browse", "mkt_list", "mkt_buy", "mkt_cancel", ...SQUAD_ACTIONS];
 const okKey = (k: unknown) => typeof k === "string" && (KEY_RE.test(k) || /^map:[0-9a-f-]{36}$/.test(k));
 const qtyOf = (q: unknown) => { const n = Math.floor(Number(q)); return Number.isFinite(n) && n >= 1 && n <= 100000 ? n : 0; };
@@ -105,7 +111,8 @@ export async function inventoryAction(c: Ctx, action: string, b: Record<string, 
       const { error: dup } = await db.from("pvp_inv_once").insert({ player_id: pid, k: "fishq:" + t.n }); if (dup) return json(409, { error: "used" }); // one landing per ticket
       const d = await rpc("pvp_fish_catch", { p_player: pid, p_fish: t.f }); const extra = d?.ok ? await gunDropRpc(db, pid, "f:" + t.n, "fish") : []; return reply(d?.ok ? { ...d, cm: t.cm, extra } : d); }
     case "inv_find": { const item = b.item === "val:river_pearl" ? "val:river_pearl" : b.item === "val:idol_shard" ? "val:idol_shard" : null; const spot = String(b.spot ?? "");
-      if (!item || !/^(jungle_shard_\d{1,2}|lagoon_p(_grotto|\d))$/.test(spot)) return json(400, { error: "bad find" });
+      if (!item || !findSpotOk(item, spot)) return json(400, { error: "bad find" });   // [security H2] only the 7 shard / 6 pearl spots that exist
+      if (!(await rpc("pvp_rl_hit", { p_key: "find:" + pid, p_window_s: 60, p_max: 15 }))) return json(409, { error: "slow down" });
       return reply(await rpc("pvp_inv_find", { p_player: pid, p_item: item, p_spot: spot })); }
     case "inv_ruin_chest": { const spot = String(b.spot ?? ""); if (!(RUIN_CHESTS as string[]).includes(spot)) return json(400, { error: "bad chest" });   // [ruins] server rolls the common chest table
       const T = (CHEST_VALUABLES as any).common as Record<string, number>; let r = crypto.getRandomValues(new Uint32Array(1))[0] % 1000, item = "val:silver_ring";

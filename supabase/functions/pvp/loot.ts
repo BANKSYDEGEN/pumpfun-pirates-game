@@ -86,6 +86,60 @@ async function loadEquip(db: any, pid: string) {
   return Object.fromEntries((eq || []).map((e: any) => [e.slot, e.item]));
 }
 
+// [security H1 2026-11-09] who may pick a bag up. Before this, any identity that knew a bag id could claim it from anywhere.
+// Server-known position = the claimer's latest pvp_admin_presence heartbeat (js/adminMenu.js, every ~25 s while in PvP:
+// room "Harbor #1", mode foot / sea / hull / cottage / canoe, x/z in the same harbor frame the bags use). Positions are
+// client-reported, so this stops remote / scripted claims, not a client that forges its own heartbeats.
+export const KILLER_FIRST_S = 10;          // the killer (and the victim) get the bag alone for 10 s
+export const PRESENCE_FRESH_S = 90;        // a heartbeat older than this is no position at all
+export const SEAT_PROXY_S = 35 * 60;       // no usable heartbeat: a PvP match seat within 35 min proves you were in a match
+const NEAR = { foot: { base: 30, speed: 12, cap: 450 }, sea: { base: 45, speed: 40, cap: 1200 } };
+type Pres = { room: string | null; mode: string | null; x: number | null; z: number | null; updated_at: string } | null;
+type Bag = { x: number; z: number; room?: string | null; sea?: boolean | null; manual?: boolean | null; victim_id?: string | null; killer_id?: string | null; created_at?: string | null; zone?: string | null };
+export function lootClaimProblem(o: { bag: Bag; now: number; pid: string; owner: boolean; isKiller: boolean; pres: Pres; seatAt?: string | null }) {
+  const { bag, now, pid, pres } = o;
+  if (o.owner) return null;
+  const age = (now - Date.parse(bag.created_at || "")) / 1000;
+  if (bag.killer_id && !bag.manual && Number.isFinite(age) && age < KILLER_FIRST_S && !o.isKiller && bag.victim_id !== pid) {
+    return { why: `The winner gets first pick — wait ${Math.ceil(KILLER_FIRST_S - age)}s`, left_s: Math.ceil(KILLER_FIRST_S - age) };
+  }
+  const pAge = pres ? (now - Date.parse(pres.updated_at)) / 1000 : Infinity;
+  const fresh = Number.isFinite(pAge) && pAge >= -5 && pAge <= PRESENCE_FRESH_S;
+  if (fresh && bag.zone && pres!.room && pres!.room !== bag.zone) return { why: "That plunder is in another harbor" };
+  const sea = !!bag.sea || bag.room === "sea", want = sea ? "sea" : "foot";
+  if (fresh && pres!.mode === want && Number.isFinite(pres!.x) && Number.isFinite(pres!.z)) {
+    const n = NEAR[want], allow = Math.min(n.cap, n.base + n.speed * Math.max(0, pAge));
+    const d = Math.hypot(Number(pres!.x) - Number(bag.x), Number(pres!.z) - Number(bag.z));
+    return d <= allow ? null : { why: "Too far away — get closer to the plunder" };
+  }
+  if (fresh) return null;   // in this harbor right now, but on a hull / in a cottage / just switched foot<->sea: no comparable position
+  const sAge = o.seatAt ? (now - Date.parse(o.seatAt)) / 1000 : Infinity;
+  if (Number.isFinite(sAge) && sAge <= SEAT_PROXY_S) return null;
+  return { why: "Get closer to the plunder" };
+}
+
+async function claimCheck(db: any, who: Who, bagId: string) {
+  const { data: bag } = await db.from("pvp_loot_bags").select("x, z, room, sea, manual, victim_id, killer_id, created_at, zone").eq("id", bagId).maybeSingle();
+  if (!bag) return null;   // gone / expired: the RPC answers that
+  const { data: pr } = await db.from("pvp_admin_presence").select("net_id, name, room, mode, x, z, updated_at").eq("pid", who.pid).order("updated_at", { ascending: false }).limit(4);
+  const pres = (pr || [])[0] || null;
+  let isKiller = false;
+  const k = String(bag.killer_id || "").trim();
+  if (k && !bag.manual && (Date.now() - Date.parse(bag.created_at || "")) < KILLER_FIRST_S * 1000) {
+    const names = new Set((pr || []).map((p: any) => String(p.name || "").toLowerCase()).filter(Boolean));
+    if (!names.size) { const { data: me } = await db.from("pvp_players").select("name").eq("id", who.pid).maybeSingle(); if (me?.name) names.add(String(me.name).toLowerCase()); }
+    const nets = new Set((pr || []).map((p: any) => String(p.net_id || "")));
+    isKiller = k === who.pid || nets.has(k) || names.has(k.toLowerCase());
+    if (!isKiller) { const { data: n } = await db.from("pvp_net").select("net_id").eq("player_id", who.pid).eq("net_id", k).limit(1); isKiller = !!n?.length; }
+  }
+  let seatAt: string | null = null;
+  if (!pres || (Date.now() - Date.parse(pres.updated_at)) > PRESENCE_FRESH_S * 1000) {
+    const { data: se } = await db.from("pvp_match_seats").select("at").eq("player_id", who.pid).order("at", { ascending: false }).limit(1);
+    seatAt = se?.[0]?.at || null;
+  }
+  return lootClaimProblem({ bag, now: Date.now(), pid: who.pid, owner: !!who.owner || who.pid === OWNER_MAIN, isKiller, pres, seatAt });
+}
+
 export async function lootAction(c: Ctx, action: string, b: Record<string, unknown>): Promise<Response> {
   const who = await c.whoAmI(b); if (!who) return c.json(401, { error: "no identity" });
   const pid = who.pid, db = c.db;
@@ -134,11 +188,14 @@ export async function lootAction(c: Ctx, action: string, b: Record<string, unkno
           try { await db.rpc("pvp_inv_take", { p_pid: pid, p_item: it.item, p_qty: it.qty, p_why: "pvp_drop", p_ref: "loot" }); }
           catch { /* soft: continue */ }
         }
+        // [security H1] the harbor the victim was in (their latest heartbeat): a claim from another harbor is refused
+        const { data: vp } = await db.from("pvp_admin_presence").select("room, updated_at").eq("pid", pid).order("updated_at", { ascending: false }).limit(1);
+        const zone = vp?.[0] && Date.now() - Date.parse(vp[0].updated_at) < PRESENCE_FRESH_S * 1000 ? String(vp[0].room || "").slice(0, 24) || null : null;
         const expires = new Date(Date.now() + LOOT_TTL_S * 1000).toISOString();
         const id = crypto.randomUUID();
         const row = {
           id, x, y, z, room, victim_id: pid, victim_name, killer_id: killer_id || null,
-          items: drop, expires_at: expires,
+          items: drop, expires_at: expires, zone,
         };
         const { error } = await db.from("pvp_loot_bags").insert(row);
         if (error) {
@@ -171,6 +228,8 @@ export async function lootAction(c: Ctx, action: string, b: Record<string, unkno
       }
       case "pvp_claim_loot": {
         if (!/^[0-9a-f-]{36}$/.test(String(b.bag_id || ""))) return c.json(400, { error: "bad bag" });
+        const no = await claimCheck(db, who, String(b.bag_id));   // [security H1] in this harbor, near the bag, after the killer's 10 s
+        if (no) return c.json(409, { ok: false, ...no });
         const { data, error } = await db.rpc("pvp_claim_loot_atomic", {
           p_pid: pid, p_bag: b.bag_id, p_room: String(b.room_key || "").slice(0, 64),
           p_owner: !!who.owner || pid === OWNER_MAIN,

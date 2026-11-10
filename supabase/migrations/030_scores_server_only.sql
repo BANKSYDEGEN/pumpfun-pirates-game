@@ -1,4 +1,4 @@
--- PUMPFUN PIRATES · migration 030 (security fix H1, SECURITY_FIXES.md). NOT APPLIED: written for review.
+-- PUMPFUN PIRATES · migration 030 (security fix H1, SECURITY_FIXES.md). APPLIED 2026-11-09 inside 20261110020000_security_crit_high.sql.
 -- APPLY LAST: after the new `pvp` function (action waves_score) is live AND the new client has been out long enough for
 -- players to have reloaded (service worker v112). From then on the anon key can no longer write leaderboard rows: every Waves
 -- score goes through the `pvp` function, which checks it against the server-timed run (waves_start) like the gold payout.
