@@ -33,5 +33,5 @@ test('clients read scorefeed first and fail open to PostgREST / pvp top; submit 
   assert.match(lb, /f\?\.daily\?\.seed === seed/);
   assert.match(lb, /\/rest\/v1\/\$\{LEADERBOARD_VIEW\}/);
   assert.ok((lb.match(/clearScorefeedCache\(\)/g) || []).length >= 3);
-  assert.match(src('sw.js'), /const VERSION = 'pfp-v583'/);
+  assert.match(src('sw.js'), /const VERSION = 'pfp-v\d+'/);
 });

@@ -29,12 +29,37 @@ export class Batcher { // exported for tests
   heard() { const now = performance.now(); let n = 0; for (const [id, t] of this.heardAt) { if (now - t < 6000) n++; else { this.heardAt.delete(id); this.full.delete(id); } } return n; }
   hz() { if (!(this.heard() > 0)) return this.cfg.soloHz; // [Emerly] boost: an optional () => Hz (harbor rooms: the battle areas' fight rate, 0 = off)
     // [v339] t1800u Solo Arena auto-scale: N·r·(N+S) <= scaleBudget (76.8); 2-4p stay at 4 Hz, 8p drops to 1.2 Hz. Cannon volleys still flush via { now: true }.
+    let r;
     if (this.cfg.scaleBudget) {
       const n = Math.max(2, this.heard() + 1), m = n + Math.max(0, this.specs | 0);
-      return Math.max(this.cfg.minHz || 1, Math.min(this.cfg.hz, +(this.cfg.scaleBudget / (n * m)).toFixed(3)));
+      r = Math.max(this.cfg.minHz || 1, Math.min(this.cfg.hz, +(this.cfg.scaleBudget / (n * m)).toFixed(3)));
+    } else {
+      let b = 0; if (this.boost) try { b = Math.min(this.cfg.fight?.max || 10, Math.max(0, +this.boost() || 0)); } catch { b = 0; }
+      r = Math.max(this.cfg.hz, b);
     }
-    let b = 0; if (this.boost) try { b = Math.min(this.cfg.fight?.max || 10, Math.max(0, +this.boost() || 0)); } catch { b = 0; }
-    return Math.max(this.cfg.hz, b); }
+    return this.distanceHz(r); }
+  // [scale-dist] BANKSY t2512u "Do 2 3 4": nearby peers (within nearM metres) keep the room's full rate so close fights
+  // stay smooth; if every heard peer is farther, drop to farHz. Broadcast is still all-to-all, so this cuts
+  // Realtime msgs/s (N·r·(N+S)) whenever the room is spread out. Unknown / missing positions stay at full rate
+  // (first packets, and the v339 scaleBudget tests). Shots / hits still flush immediately via { now: true }.
+  nearestM() {
+    const me = this.lastDyn;
+    if (!Number.isFinite(+me?.x) || !Number.isFinite(+me?.z)) return 0;
+    let seen = 0, best = Infinity;
+    for (const f of this.full.values()) {
+      if (!Number.isFinite(+f.x) || !Number.isFinite(+f.z)) continue;
+      seen++;
+      const d = Math.hypot((+f.x) - me.x, (+f.z) - me.z);
+      if (d < best) best = d;
+    }
+    return seen ? best : 0;
+  }
+  distanceHz(r) {
+    const nearM = +this.cfg.nearM || 0;
+    if (!nearM || !(this.heard() > 0)) return r;
+    const floor = Math.max(this.cfg.minHz || 0, this.cfg.farHz ?? this.cfg.soloHz ?? 1);
+    return this.nearestM() > nearM ? Math.min(r, floor) : r;
+  }
   send(ev, payload, o = {}) { this.q.push([ev, payload]); if (o.now) this.flush(true); return true; }
   tick() { if (performance.now() - this.last >= 1000 / this.hz() - 8) this.flush(false); }
   flush(force) {

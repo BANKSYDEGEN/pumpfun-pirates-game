@@ -72,14 +72,14 @@ export const relayAllowed = (u, prod = IS_PROD_HOST) => {
 };
 export const PVP_RELAY_URL = ((u) => relayAllowed(u) ? u : '')((typeof location !== 'undefined' && new URLSearchParams(location.search).get('relay')) || RELAY_DEFAULT); // 'wss://…' once a relay server is hosted ('' = Supabase fallback) // 'wss://…' once a relay server is hosted ('' = Supabase fallback); ?relay= for testing
 export const PVP_NET = {
-  supabase: { hz: 4, soloHz: 1, minHz: 1, maxArena: 8, scaleBudget: 76.8, budget: 80, keepalive: 2 }, // [v339] t1800u Solo Arena 8 + auto-scale Hz
+  supabase: { hz: 4, soloHz: 1, minHz: 1, maxArena: 8, scaleBudget: 76.8, budget: 80, keepalive: 2, nearM: 160, farHz: 1 }, // [v339] t1800u Solo Arena 8 + auto-scale Hz // [scale-dist] t2512u: full rate within nearM m, farHz when every heard peer is farther (Realtime 100 msg/s)
   relay: { hz: 10, soloHz: 2, maxArena: 16, keepalive: 1.5 },
 };
 // [v99] SHARED PvE HARBOR: up to `cap` pirates per harbor copy (pfp-harbor-1, -2, ... assigned by the pvp_harbor RPC, migration 021)
 // fight the host's AI ships + boss together. 1 Hz state (+ volleys at once), a heartbeat every `beat` s; alone in a copy = no
 // Realtime socket at all (the local v98 harbor). No input for `afk` s or a hidden tab = back to a private harbor (saves the
 // free plan's 2M msgs/month). `on: false` turns sharing off everywhere (every harbor is private again).
-export const HARBOR_NET = { on: true, hz: 1, soloHz: 0.5, keepalive: 2, cap: 8, beat: 6, afk: 90, listen: 2.5, extraAi: 1, extraAiMax: 3,
+export const HARBOR_NET = { on: true, hz: 1, soloHz: 0.5, keepalive: 2, cap: 8, beat: 6, afk: 90, listen: 2.5, extraAi: 1, extraAiMax: 3, nearM: 160, farHz: 0.5,
   // [v337] BANKSY t1789u: cap 4->8 Free-tier. fight.budget=64 msgs/s room ceiling so (k*fHz+(M-k)*hz)*M stays under Supabase Free 100 msgs/s.
   fight: { hz: 10, hz4: 5, max: 10, budget: 64 } }; // [Emerly] SWORD PIT / MUSKET RANGE: prefer hz (2p) / hz4 (3-4p); fastHz() clamps by budget for 5-8p rooms
 export const PVP_AI_SHIPS = 3;        // local AI ships when you are alone in the arena (or waiting in the harbor); gone when a 2nd pirate joins
