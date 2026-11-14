@@ -89,7 +89,9 @@ test('headless local run: req/min/player before vs after (visible harbor, hidden
 
 test('call sites use the Fix 2 constants and skip hidden tabs', () => {
   const board = src('js/pvpBoard.js');
-  assert.match(board, /setInterval\(tick, HOME_LIVE_MS\)/);
+  assert.match(board, /HOME_LIVE_MS/);
+  assert.match(board, /TITLE_BURST_MS/);
+  assert.doesNotMatch(board, /setInterval\(tick,/);
   assert.match(board, /document\.hidden/);
   const pvp = src('js/pvp.js');
   assert.match(pvp, /LOBBY_QUEUE_MS/);

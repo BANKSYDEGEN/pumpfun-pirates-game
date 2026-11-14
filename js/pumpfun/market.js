@@ -1,4 +1,5 @@
 import { markRows } from './liveui.js';
+import { JOIN_BURST_MS, burstMs } from '../joinBurst.js'; // [scale-burst] first boardfeed jitter
 import { makePortal } from './portal.js';
 import { BOARD_ROWS } from './boardgrid.js';
 // One shared proximity-driven free poller + one free PumpPortal socket per game client.
@@ -25,7 +26,7 @@ export const GT_GAP_MS = 2500, CACHE_KEY = 'pfp_hq_feed_v1', CACHE_MAX_AGE = 12 
 const GT = 'https://api.geckoterminal.com/';
 const BOARD_KEYS = ['trending','callouts','bonding','dexpaid','migrated','volume'];
 const defaultStorage = () => { try { return globalThis.localStorage || null; } catch { return null; } };
-export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket,cacheURL=null}={}) {
+export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now(),storage=defaultStorage(),gtGapMs=GT_GAP_MS,sleep=ms=>new Promise(r=>setTimeout(r,ms)),portalSocket,cacheURL=null,burst=0,rnd=Math.random}={}) {
  const state={prices:{},newtokens:[],trending:[],callouts:[],bonding:[],dexpaid:[],migrated:[],volume:[],details:{},updated:{},status:{newtokens:'Connecting to PumpPortal…',prices:'Loading…',trending:'Loading…',callouts:'Loading…',dexpaid:'Loading…',bonding:'Loading…',migrated:'Loading…',volume:'Loading…'},revision:0};
  // Just Migrated merges GT new PumpSwap pools + PumpPortal migration events (neither source blocks the other).
  let gtMig=[],portalMig=[],gtMigOk=null,mergeMig=null,gtMigAt=0;
@@ -106,7 +107,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   if(now>=nextP&&!busyP){nextP=now+PRICE_MS;busyP=prices().finally(()=>{busyP=null;});}if(busyP)jobs.push(busyP);
   if(discovery&&now>=nextD&&!busyD){nextD=now+DISCOVERY_MS;busyD=discoveries().finally(()=>{busyD=null;});}if(busyD)jobs.push(busyD);
   return Promise.all(jobs);}
- let nextShared=0,busyShared=null,nextDetailFallback=0;
+ let nextShared=null,busyShared=null,nextDetailFallback=0;
  async function shared(discover) {
   const data=await rawGet(cacheURL),remote=data?.state,now=clock();
   if(!data.ok||!remote||!remote.updated)throw Error('shared cache offline');
@@ -140,6 +141,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   if(globalThis.document?.hidden)return Promise.resolve(); // [scale] Fix 2: no boardfeed while the tab is hidden (nextShared stays due)
   active=true;discovery=!!discover;
   if(busyShared)return busyShared;
+  if(nextShared==null)nextShared=clock()+burstMs(burst,rnd);
   if(clock()<nextShared)return Promise.resolve();
   nextShared=clock()+SHARED_MS;
   busyShared=shared(discover).catch(()=>false).then(ok=>ok||!active?undefined:directTick(active,discovery,world)).finally(()=>{busyShared=null;});
@@ -148,4 +150,4 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
  globalThis.document?.addEventListener('visibilitychange',()=>{portal.tick(world&&!document.hidden);});
  return {state,tick};
 }
-export const marketFeed=makeMarketFeed({cacheURL:SHARED_CACHE_URL});
+export const marketFeed=makeMarketFeed({cacheURL:SHARED_CACHE_URL,burst:JOIN_BURST_MS});

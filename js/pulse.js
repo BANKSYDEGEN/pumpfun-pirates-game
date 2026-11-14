@@ -1,6 +1,7 @@
 // [scale-free] One pvp edge `pulse` per player instead of separate fr_list + squad_invites +
 // admin_register_net (+ walk XP when due). Gameplay and panel UI stay the same; only the wire changes.
 import { tabHidden, WALK_XP_S } from './pollScale.js';
+import { JOIN_BURST_MS, burstMs } from './joinBurst.js';
 
 export const PULSE_MS = 30000;
 export const PULSE_OPEN_MS = 8000; // friends panel or Squad Hall is open (same 8 s cadence as before)
@@ -21,12 +22,12 @@ export function resetPulse() { bus?.stop?.(); bus = null; }
 
 export function ensurePulse(opts = {}) {
   if (bus) return bus;
-  bus = createPulse(opts);
+  bus = createPulse({ burst: JOIN_BURST_MS, ...opts });
   return bus;
 }
 
-export function createPulse({ call, now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()), hidden = tabHidden } = {}) {
-  let last = null, lastAt = null, inflight = null, forced = false, timer = 0, walkAt = null;
+export function createPulse({ call, now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()), hidden = tabHidden, burst = 0, rnd = Math.random } = {}) {
+  let last = null, lastAt = null, inflight = null, forced = false, timer = 0, walkAt = null, armedAt = null;
   const parts = new Map(), opens = new Map(), walks = new Map(), listeners = new Set(), walkListeners = new Map();
 
   function isOpen() { for (const fn of opens.values()) { try { if (fn()) return true; } catch {} } return false; }
@@ -73,6 +74,10 @@ export function createPulse({ call, now = () => (typeof performance !== 'undefin
     if (inflight) return inflight;
     const gap = isOpen() ? PULSE_OPEN_MS : PULSE_MS;
     if (!forced && lastAt != null && t - lastAt < gap) return last;
+    if (!forced && lastAt == null) { // [scale-burst] first pulse waits 0..JOIN_BURST_MS; auto-join kick() still fires at once
+      if (armedAt == null) armedAt = t + burstMs(burst, rnd);
+      if (t < armedAt) return last;
+    }
     const payload = body();
     const dueNow = (walkAt != null && t - walkAt >= WALK_MS) ? pendingWalks() : [];
     if (!forced && !useful(payload, dueNow)) return last; // do not advance lastAt on a title/leave skip

@@ -7,6 +7,7 @@ import { PVP_ENABLED, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { BOARD_PERIODS } from './kothAttr.js';
 import { netGate } from './netGate.js'; // [cache-queue]
 import { HOME_LIVE_MS } from './pollScale.js'; // [scale] Fix 2: title head-count every 60 s
+import { TITLE_FIRST_MS, TITLE_BURST_MS, burstMs } from './joinBurst.js'; // [scale-burst] desync 5k first peeks
 
 export const KILL_PERIODS = BOARD_PERIODS.map(p => ({ ...p }));
 const PK_KEY = 'pfp_pk_period', MODE_KEY = 'pfp_lb_mode';
@@ -108,5 +109,9 @@ devHook('PFP_PVP_BOARD', { renderKills, refreshKillsBoards, initHomeBoard, get p
     finally { busy = false; }
   };
   window.PFP_HOME_LIVE = () => tick(); // [v98] the spectate switch re-reads the count at once
-  setTimeout(tick, 1500); setInterval(tick, HOME_LIVE_MS); document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); }); // [scale] 10 s -> 60 s; still refreshes the moment the tab is shown
+  // [scale-burst] first peek at 1.5 s + 0..8 s jitter; each later tick is HOME_LIVE_MS after the previous one, so a
+  // synchronized page-load does not realign every 60 s the way a shared interval starting at page load did.
+  const schedule = (first) => setTimeout(async () => { await tick(); schedule(false); }, first ? TITLE_FIRST_MS + burstMs(TITLE_BURST_MS) : HOME_LIVE_MS);
+  schedule(true);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); }); // still refreshes the moment the tab is shown
 }

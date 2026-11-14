@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import { crewFire, crewHit, crewLodOf } from './crew.js'; // [Raul] remote broadsides animate their gun crews
 import { createNet, createHarborNet } from './transport.js';
 import { netGate } from './netGate.js'; // [cache-queue] SEAS ARE CROWDED: harbor seat + lobby backoff
+import { JOIN_BURST_MS, burstMs } from './joinBurst.js'; // [scale-burst] first beat / lobby / rank jitter
 import { HARBOR_AI, HARBOR_BOSS, harborAiCount, harborHpScale } from './config.js';
 import { HARBOR_HP_BASE, HARBOR_SIZE_PER_LV, HARBOR_DMG_PER_LV, harborScale, harborGold, PVP_BASE_HP, PVP_HULL_MUL, PVP_DMG_MUL, PVP_AI_DMG_MUL } from './config.js';
 import { showEmote, validEmote, EMOTE_GAP } from './emotes.js'; // [v96] quick-chat
@@ -2099,10 +2100,17 @@ export function createPvp(K) {
     active = true; wireUi(); document.documentElement.classList.add('pvp');
     me.life = 0; me.kills = me.deaths = me.gold = 0; me.dead = false; me.protect = 99; feed.length = 0;
     const pl = P(); pl.x = 0; pl.z = 0;
-    where = 'harbor'; setBoostZone('harbor'); Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: 0, queuedByDeath: false }); me.lastInput = performance.now();
+    where = 'harbor'; setBoostZone('harbor');
+    const t0 = performance.now(), joinJ = burstMs(JOIN_BURST_MS);
+    // [scale-burst] first harbor beat, lobby head-count and rank are delayed 0..4 s so a 5k SET SAIL does not all land in one tick.
+    // User-initiated server switches still set beatAt = 0 and ask at once. Visual spawn is unchanged (you are already in the harbor).
+    hb.beatAt = t0 - HARBOR_NET.beat * 1000 + joinJ;
+    Object.assign(lob, { state: 'harbor', pos: 0, offerUntil: 0, lastPoll: t0 - LOBBY_HARBOR_MS + joinJ, queuedByDeath: false });
+    rk.at = t0 - 30000 + joinJ; me.lastInput = t0;
     if (spec.want) { const sm = ls0('pfp_spec_mode'); spec.harbor = sm === 'harbor' && !!hbNet; setNet(sm === 'squads' ? 'squads' : 'solo'); return specBegin(); } // [v98] the home switch picks the arena to watch; [v99] or the HARBOR
     document.documentElement.classList.add('pvp-harbor');
-    respawnHarbor(); hud(); harborUi(); lobbyCall('poll').then(harborUi); refreshRank(true);
+    respawnHarbor(); hud(); harborUi();
+    setTimeout(() => { if (active) refreshRank(true); }, joinJ);
     const en = $('pvp-entry'); if (en) { $('pvp-entry-name').value = getSavedName(); $('pvp-entry-name').placeholder = capNo() ? `CAPT. #${capNo()}` : name; const a = $('pvp-entry-addr'); if (a) { a.value = getSavedWallet(); addrCheck(); } en.classList.remove('hidden'); }
   }
   // quit-to-dodge / AFK in a fight: leaving the arena within 10 s of taking PvP damage counts as a death (gold drops for the others)
