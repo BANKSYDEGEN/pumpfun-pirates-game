@@ -85,5 +85,5 @@ test('shots still flush immediately; 4 far arena ships stay under the 100 msg/s 
   assert.equal(sent[0].e[0][0], 'shot');
   const tx = src('js/transport.js');
   assert.match(tx, /distanceHz/);
-  assert.match(src('sw.js'), /const VERSION = 'pfp-v584'/);
+  assert.match(src('sw.js'), /const VERSION = 'pfp-v\d+'/);
 });

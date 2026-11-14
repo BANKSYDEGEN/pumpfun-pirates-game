@@ -542,6 +542,8 @@ html.ios-pwa #status-plate::after {
   background: rgba(10,14,24,0.92); color: var(--gold, #ffcd77); border: 1px solid rgba(255,205,119,0.5); border-radius: 12px;
   padding: 8px 16px; font-size: 18px; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; }
 #copy-toast.on { opacity: 1; transform: translate(-50%, 0); }
+#title-afk { margin: 10px 0 0; padding: 8px 12px; font: 16px/1.35 system-ui, sans-serif; color: #ffe7b0; background: rgba(26, 15, 7, 0.78); border: 1px solid #c9a36a; border-radius: 12px; max-width: 34em; }
+#title-afk[hidden] { display: none !important; }
 
 /* [start mute] 🔊/🔇 next to the "?" on the start page; shares the in-game mute (localStorage pfp_muted) */
 .snd-btn { left: 54px; font-family: system-ui, sans-serif; font-size: 17px; padding: 0; display: grid; place-items: center; }

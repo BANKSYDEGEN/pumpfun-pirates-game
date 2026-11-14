@@ -35,7 +35,9 @@ import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seed
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName, syncName } from './wallet.js';
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { requestJoin, cancelJoin } from './joinQueue.js'; // [join-queue] title-screen world cap (same SEAS ARE CROWDED card)
-import { QUALITY } from './config.js';
+import { QUALITY, WORLD_AFK_S } from './config.js';
+import { createWorldAfk, inMenuOrShop, showWorldAfkNote, clearWorldAfkNote, AFK_NOTE } from './worldAfk.js'; // [scale-afk] t2512u
+import { ownerAllSkins, shopCache } from './pvpSave.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
 // Score-card rendering is needed only at game over, not while loading the title/harbor.
@@ -1296,6 +1298,7 @@ function clearWorld() {
 }
 
 function startGame(mode = null) {
+  clearWorldAfkNote(); worldAfk.start();
   clearEmotes(); // [v96]
   const leftPvp = game.mode === 'pvp' && mode !== 'pvp'; // [v330] Harbor / Island -> Storm Hunt (t1752u)
   if (leftPvp) pvp?.leave(); // [pvp]
@@ -1349,6 +1352,7 @@ async function startPvpEnter(watch = false) {
 }
 
 function toTitle() {
+  worldAfk.stop();
   harborResumeClear(); // [v339] MAIN MENU = a deliberate exit: no auto-resume
   clearEmotes(); // [v96]
   closeTutorial(); // [tutorial]
@@ -1363,6 +1367,18 @@ function toTitle() {
   renderBoard($('board-title'));
   initHomeBoard(); // [pvp] refresh the BATTLE ROYALE board when back on the title
 }
+
+// [scale-afk] BANKSY t2512u: ~5 min idle (WORLD_AFK_S, one value) returns you to the title and frees the join-queue slot.
+const worldAfk = createWorldAfk({
+  idleS: WORLD_AFK_S,
+  isOwner: () => { try { return !!(ownerAllSkins() || shopCache().owner); } catch { return false; } },
+  inUi: () => game.state !== 'playing' || inMenuOrShop(),
+  onKick: () => { toTitle(); showWorldAfkNote(AFK_NOTE); },
+});
+for (const ev of ['pointerdown', 'keydown', 'touchstart', 'mousedown', 'wheel', 'gamepadconnected']) addEventListener(ev, () => worldAfk.touch(), { passive: true });
+setInterval(() => worldAfk.tick(), 1000);
+addEventListener('visibilitychange', () => { if (!document.hidden) worldAfk.tick(); });
+
 
 async function gameOver() {
   if (game.state === 'over') return;

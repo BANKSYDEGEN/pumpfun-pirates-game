@@ -25,7 +25,7 @@ test('boot failsafe never reloads after boot or on benign rejections', () => {
 test('Harbor auto-resume: sessionStorage snapshot, cleared on MAIN MENU / Storm Hunt / logout, resumes on boot', () => {
   assert.match(MAIN, /RESUME_KEY = 'pfp_harbor_resume_v1'/); assert.match(MAIN, /sessionStorage\.setItem\(RESUME_KEY/);
   assert.match(MAIN, /RESUME_MAX_MS = 15 \* 60 \* 1000/); assert.match(MAIN, /noresume=1/);
-  assert.match(MAIN, /function toTitle\(\) \{\n  harborResumeClear\(\);/); assert.match(MAIN, /if \(mode !== 'pvp'\) harborResumeClear\(\);/);
+  assert.match(MAIN, /function toTitle\(\) \{[\s\S]*?harborResumeClear\(\);/); assert.match(MAIN, /if \(mode !== 'pvp'\) harborResumeClear\(\);/);
   assert.match(MAIN, /addEventListener\('pagehide', \(\) => harborResumeSave\(true\)\)/); assert.match(MAIN, /visibilityState === 'hidden'\) harborResumeSave\(true\)/);
   assert.match(MAIN, /setTimeout\(\(\) => harborResumeBoot\(\), 0\)/); assert.doesNotMatch(MAIN.slice(MAIN.indexOf('async function harborResumeBoot'), MAIN.indexOf('async function harborResumeBoot') + 2500), /goAshoreAt|enterHull/); // [v347] t1826u: refresh = at your ship
   assert.match(PVP, /harborInfo: \(\) =>/); assert.match(PVP, /resumeServer: \(r\) =>/);
