@@ -37,14 +37,17 @@ export function createPulse({ call, now = () => (typeof performance !== 'undefin
     }
     return b;
   }
-  function dueWalks(t) {
-    if (walkAt == null) { walkAt = t; return []; } // first pulse starts the 60 s clock; same as walkT = 0
-    if (t - walkAt < WALK_MS) return [];
+  function pendingWalks() {
     const out = [];
     for (const fn of walks.values()) {
       try { const rows = fn(); if (Array.isArray(rows)) for (const r of rows) if (r && WALK_ACTIONS.has(r.action)) out.push(r); } catch {}
     }
     return out.slice(0, 3);
+  }
+  function dueWalks(t) {
+    if (walkAt == null) { walkAt = t; return []; } // first pulse starts the 60 s clock; same as walkT = 0
+    if (t - walkAt < WALK_MS) return [];
+    return pendingWalks();
   }
   function emit(r) {
     last = r;
@@ -52,9 +55,14 @@ export function createPulse({ call, now = () => (typeof performance !== 'undefin
     const wr = r?.walks && typeof r.walks === 'object' ? r.walks : null;
     if (wr) for (const [action, fns] of walkListeners) if (wr[action]) for (const fn of fns) try { fn(wr[action]); } catch {}
   }
+  function useful(payload, due) {
+    const w = payload && payload.at && payload.at.w;
+    return !!(payload.net_id || (due && due.length) || (w && w !== 'solo'));
+  }
   async function go(t) {
     const payload = body(), due = dueWalks(t);
     if (due.length) payload.walks = due;
+    if (!useful(payload, due)) return last; // title / after leave: no background polls (friends.tick used to only run in the dock loop)
     const r = await call('pulse', payload);
     if (due.length) walkAt = t;
     if (r && r.ok) emit(r);
@@ -65,6 +73,9 @@ export function createPulse({ call, now = () => (typeof performance !== 'undefin
     if (inflight) return inflight;
     const gap = isOpen() ? PULSE_OPEN_MS : PULSE_MS;
     if (!forced && lastAt != null && t - lastAt < gap) return last;
+    const payload = body();
+    const dueNow = (walkAt != null && t - walkAt >= WALK_MS) ? pendingWalks() : [];
+    if (!forced && !useful(payload, dueNow)) return last; // do not advance lastAt on a title/leave skip
     forced = false;
     lastAt = t;
     inflight = go(t).finally(() => { inflight = null; });

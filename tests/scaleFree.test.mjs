@@ -63,6 +63,7 @@ test('headless local run: edge req/min/player before vs after (visible harbor, n
 
   calls = 0;
   const openPulse = createPulse({ call: async () => { calls++; return { ok: true }; }, now: () => t, hidden: () => false });
+  openPulse.setPart('friends', () => ({ at: { w: 'harbor', copy: 1 } }));
   openPulse.setOpen('friends', () => true);
   for (t = 0; t <= 60000; t += 1000) await openPulse.tick(t);
   assert.equal(calls, 8, '60 s window while a panel is open: 0 plus every 8 s');
@@ -76,14 +77,14 @@ test('createPulse coalesces one edge call and includes walks only when due', asy
     hidden: () => false,
   });
   const walks = [];
-  pulse.setPart('friends', () => ({ at: { w: 'solo' }, name: 'TEST' }));
+  pulse.setPart('friends', () => ({ at: { w: 'harbor', copy: 1 }, name: 'TEST' }));
   pulse.setWalks('pet', () => [{ action: 'pet_walk', pet: 'pet_cat' }]);
   pulse.onWalk('pet_walk', (r) => walks.push(r));
   let t = 0;
   await pulse.tick(0);
   assert.equal(seen.length, 1);
   assert.equal(seen[0].action, 'pulse');
-  assert.equal(seen[0].body.at.w, 'solo');
+  assert.equal(seen[0].body.at.w, 'harbor');
   assert.ok(!seen[0].body.walks);
   t = 30000; await pulse.tick(t);
   assert.equal(seen.length, 2);
@@ -93,6 +94,27 @@ test('createPulse coalesces one edge call and includes walks only when due', asy
   assert.deepEqual(seen[2].body.walks, [{ action: 'pet_walk', pet: 'pet_cat' }]);
   assert.equal(walks.length, 1);
   assert.equal(walks[0].lv, 1);
+});
+
+test('createPulse skips title / post-leave solo pulses (friends used to only tick in the dock loop)', async () => {
+  const seen = [];
+  const pulse = createPulse({
+    call: async (action, body) => { seen.push(body); return { ok: true }; },
+    now: () => t,
+    hidden: () => false,
+  });
+  let where = 'solo';
+  pulse.setPart('friends', () => ({ at: { w: where } }));
+  let t = 0;
+  await pulse.tick(0);
+  assert.equal(seen.length, 0, 'solo / title does not hit the edge');
+  where = 'harbor';
+  await pulse.tick(0); // lastAt still null because the solo tick was skipped
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].at.w, 'harbor');
+  t = 30000; where = 'solo';
+  await pulse.tick(t);
+  assert.equal(seen.length, 1, 'back on the title: no further pulses');
 });
 
 test('wiring: client + edge batch pulse; boardfeed max-age 75 / 60 s poll; assets not from Supabase; Realtime already batched', () => {
