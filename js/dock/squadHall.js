@@ -1,4 +1,5 @@
 import { SQUAD_INVITE_MS, tabHidden } from '../pollScale.js'; // [scale] Fix 2: invite pill 15 s, hidden tab quiet
+import { getPulse } from '../pulse.js'; // [scale-free] invite poll rides the shared pulse
 // [squad-hall] BANKSY 9:35 PM: Squad Hall panel — every online pirate across harbor copies + arenas, INVITE TO SQUAD + JOIN WORLD.
 // [invite-discreet] BANKSY 10:06/10:07 PM: invites = a small pill under INVENTORY (expand for Accept/Decline), pad VIEW when invites pending.
 // Reuses the existing party system (js/pvp.js partyJoin / partyLeave) and the give-dropdown's inv_online presence list (enriched with world).
@@ -208,17 +209,28 @@ export function createSquadHall({ pvp, toast, nearby = () => [] }) {
   pill.onclick = (e) => { e.stopPropagation(); if (!invites.length) return; setNoteOpen(!noteOpen); };
   addEventListener('pointerdown', (e) => { if (noteOpen && !note.contains(e.target)) setNoteOpen(false); }, true);
 
-  async function pollInvites() {
-    let r = null;
-    try { r = await pvp()?.inv?.call('squad_invites'); } catch { r = null; }
+  function applyInvites(r) {
     const list = r?.ok && Array.isArray(r.invites) ? r.invites.filter(i => i && i.from && i.code).slice(0, 8) : [];
     invites = list; // server already drops expired (TTL); empty = clear the pill
     drawNote();
   }
+  function hookPulse() {
+    const pulse = getPulse(); if (!pulse || hookPulse.on) return pulse;
+    hookPulse.on = true;
+    pulse.setOpen('hall', () => el.classList.contains('on'));
+    pulse.on((r) => { if (r?.invites) { inviteT = (typeof performance !== 'undefined' ? performance.now() : Date.now()); applyInvites(r.invites); } });
+    return pulse;
+  }
+  async function pollInvites() {
+    let r = null;
+    try { r = await pvp()?.inv?.call('squad_invites'); } catch { r = null; }
+    applyInvites(r);
+  }
 
   function tick(now) {
-    // invites: poll every SQUAD_INVITE_MS (was 4 s); hidden tab stays quiet; no per-frame DOM / allocations for #sq-note
-    if (!tabHidden() && now - inviteT > SQUAD_INVITE_MS) { inviteT = now; pollInvites(); }
+    const pulse = hookPulse();
+    // invites: pulse every 30 s (8 s while the hall is open); fallback is SQUAD_INVITE_MS; hidden tab stays quiet
+    if (!pulse && !tabHidden() && now - inviteT > SQUAD_INVITE_MS) { inviteT = now; pollInvites(); }
     if (el.classList.contains('on')) {
       if (now - pollT > 8000) { pollT = now; load(); }
       else if (now - pollT > 500) { // party bar only when the hall is open, and only if the party text changed

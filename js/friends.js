@@ -4,6 +4,7 @@
 // and an AUTO-JOIN setting. Server: pvp Edge actions fr_* (supabase/functions/pvp/friends.ts, migration 054). Pure helpers are exported
 // for tests; the DOM is built lazily. Every name from the network goes through escHtml.
 import { escHtml as esc } from './safe.js';
+import { getPulse } from './pulse.js'; // [scale-free] background fr_list rides the shared pulse
 
 export const FR_POLL_OPEN_MS = 8000, FR_POLL_BG_MS = 30000, FR_AUTO_KEY = 'pfp_fr_autojoin';
 export const cleanName = (n) => String(n ?? '').replace(/[<>&"'`\\\u0000-\u001f]/g, '').trim().slice(0, 20);
@@ -193,19 +194,31 @@ export function createFriends(api) {
     for (const b of document.querySelectorAll('[data-fr-open]')) { const c = counts(); b.innerHTML = `👥 FRIENDS${c.on ? ` · ${c.on} ONLINE` : ''}${cnt ? `<span class="fr-dot" style="position:static;display:inline-block;margin-left:6px">${cnt > 9 ? '9+' : cnt}</span>` : ''}`; }
   }
 
+  function applyList(r) {
+    if (!(r && r.ok)) return false;
+    data = { me: cleanName(r.me), friends: Array.isArray(r.friends) ? r.friends : [], incoming: (r.incoming || []).map(cleanName).filter(Boolean), outgoing: (r.outgoing || []).map(cleanName).filter(Boolean) };
+    loaded = true;
+    const fresh = data.incoming.filter((n) => !seenIncoming.has(n.toLowerCase()));
+    if (fresh.length && !firstList && !isOpen()) toast(`👥 <b>${esc(fresh[0])}</b> wants to be friends<br><small>⚙ SETTINGS → FRIENDS</small>`, 3200);
+    data.incoming.forEach((n) => seenIncoming.add(n.toLowerCase())); firstList = false;
+    if (isOpen()) draw(); else badge();
+    maybeAutoJoin();
+    return true;
+  }
+  function hookPulse() {
+    const pulse = getPulse(); if (!pulse || hookPulse.on) return pulse;
+    hookPulse.on = true;
+    pulse.setOpen('friends', () => isOpen());
+    pulse.setPart('friends', () => ({ at: api.at?.() || { w: 'solo' }, ...(loaded && data.me ? {} : { name: cleanName(api.name?.() || '') }) }));
+    pulse.on((r) => { if (applyList(r?.fr)) lastPoll = performanceNow(); });
+    return pulse;
+  }
   async function poll(force = false) {
     if (polling) return; polling = true; lastPoll = performanceNow();
     try {
       const r = await api.call('fr_list', { at: api.at?.() || { w: 'solo' }, ...(loaded && data.me ? {} : { name: cleanName(api.name?.() || '') }) }); // name: lets a Harbor-only pirate claim their board name once
-      if (r && r.ok) {
-        data = { me: cleanName(r.me), friends: Array.isArray(r.friends) ? r.friends : [], incoming: (r.incoming || []).map(cleanName).filter(Boolean), outgoing: (r.outgoing || []).map(cleanName).filter(Boolean) };
-        loaded = true;
-        const fresh = data.incoming.filter((n) => !seenIncoming.has(n.toLowerCase()));
-        if (fresh.length && !firstList && !isOpen()) toast(`👥 <b>${esc(fresh[0])}</b> wants to be friends<br><small>⚙ SETTINGS → FRIENDS</small>`, 3200);
-        data.incoming.forEach((n) => seenIncoming.add(n.toLowerCase())); firstList = false;
-        if (isOpen()) draw(); else badge();
-        maybeAutoJoin();
-      } else if (!loaded && isOpen()) { loaded = true; draw(); }
+      if (applyList(r)) {}
+      else if (!loaded && isOpen()) { loaded = true; draw(); }
     } catch {} finally { polling = false; }
     return data;
   }
@@ -256,6 +269,11 @@ export function createFriends(api) {
   }
   function tick(now = performanceNow()) {
     if (typeof document !== 'undefined' && document.hidden) return;
+    const pulse = hookPulse();
+    if (pulse) {
+      if (!autoDone && auto() && now - lastPoll > 2500) { const c = api.at?.(); if (c?.w === 'harbor' && c.copy > 0) pulse.kick(); } // AUTO-JOIN: first pulse as soon as you have a Harbor seat
+      return;
+    }
     if (!autoDone && auto() && now - lastPoll > 2500) { const c = api.at?.(); if (c?.w === 'harbor' && c.copy > 0) { poll(); return; } } // AUTO-JOIN: check as soon as you have a Harbor seat
     if (now - lastPoll > (isOpen() ? FR_POLL_OPEN_MS : FR_POLL_BG_MS)) poll();
   }

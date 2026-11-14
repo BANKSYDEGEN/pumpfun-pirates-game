@@ -18,6 +18,7 @@ import { giveCatalog, spawnCatalog, maxKeyOf } from './adminSpawn.js'; // [admin
 import { placeBody } from './onfoot/physics.js';
 import { createWorldAdmin, WORLD_CSS } from './adminWorld.js'; // [v346] ☀️ TIME & WEATHER + 🧱 COLLISIONS (t1819u / t1820u)
 import { ADMIN_BEAT_MS, tabHidden } from './pollScale.js'; // [scale] Fix 2: presence 30 s, hidden tab quiet
+import { getPulse } from './pulse.js'; // [scale-free] presence beat rides the shared pulse
 
 // ---------------- pure helpers (tests/adminMenu.test.mjs) ----------------
 export const ADMIN_ON = typeof location === 'undefined' || !/[?&]admin=0(&|$)/.test(location.search);
@@ -171,6 +172,16 @@ export function initAdminMenu(ctx) {
     return { room, mode, ...pos };
   }
   const portalSessionStart = Date.now();
+  function hookPulse() {
+    const pulse = getPulse(); if (!pulse || hookPulse.on) return pulse;
+    hookPulse.on = true;
+    pulse.setPart('admin', () => {
+      const net = myNet(), w = whereNow(); if (!net || !w || ADM.invisible) return null;
+      return { net_id: net, name: pvp()?.name || 'PIRATE', ...w, portal_v: 1, session_started_at: portalSessionStart, device: /iPad|Tablet/i.test(navigator.userAgent) ? 'tablet' : /Mobi|Android/i.test(navigator.userAgent) ? 'phone' : 'desktop' };
+    });
+    pulse.on((r) => { if (r?.admin) { st.lastBeat = (typeof performance !== 'undefined' ? performance.now() : Date.now()); if (!st.lastMine) checkMine(true); } });
+    return pulse;
+  }
   async function beat(now) {
     const net = myNet(), w = whereNow(); if (!net || !w || ADM.invisible) return;
     st.lastBeat = now; await call('admin_register_net', { net_id: net, name: pvp()?.name || 'PIRATE', ...w, portal_v: 1, session_started_at: portalSessionStart, device: /iPad|Tablet/i.test(navigator.userAgent) ? 'tablet' : /Mobi|Android/i.test(navigator.userAgent) ? 'phone' : 'desktop' }).catch(() => {});
@@ -468,7 +479,9 @@ export function initAdminMenu(ctx) {
     try {
       const now = performance.now(); hookWalker();
       if (ADM.frozen) { if (ADM.frozenUntil && Date.now() > ADM.frozenUntil) setFrozen({ frozen: false }); else { frozenLock(null, dock()?.onFoot ? null : player()); if (now - st.lastMine > 30000) checkMine(true); } }
-      if (!tabHidden() && now - st.lastBeat > ADMIN_BEAT_MS) beat(now);
+      const pulse = hookPulse();
+      if (pulse) pulse.tick(now);
+      else if (!tabHidden() && now - st.lastBeat > ADMIN_BEAT_MS) beat(now);
       if (st.owner) {
         if (ADM.god) { const s = player(); if (s && s.alive) s.hp = s.maxHp; }
         if (ADM.invisible && now - look > 500) { look = now; ghostAll(true); }

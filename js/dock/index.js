@@ -41,6 +41,7 @@ import { CONSOLE, PAD, padActive, padGlyph, promptKey, onPadMode, registerPadDoc
 import { createSkinPicker } from './skinPicker.js'; // [dock-skin] Q / CHANGE SKIN at your own berth
 import { casinoInteract } from '../island/casinoData.js'; // [Timothy] THE GOLDEN DOUBLOON CASINO tables → js/casino/ui.js
 import { createFriends, myAt, joinPlan, whereLabel } from '../friends.js'; // [v356 friends] BANKSY t1851u: friends list + join their server
+import { getPulse } from '../pulse.js'; // [scale-free]
 import { createSquadHall } from './squadHall.js'; // [squad-hall] BANKSY: all-worlds list + invite / join
 import { createZipline } from './zipline.js'; // [Emerly zipline] Waterfall Hill -> Skull Peak (&zipline=0 = none)
 import { createCanoe, SAIL_ALL } from './canoe.js'; // [Emerly sail-around] offshore anchor + canoe + ship recall (&sailall=0)
@@ -683,7 +684,7 @@ export async function createDock(ctx) {
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); const was = on; setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); harborExtras(view || on); } // [v330] t1754u + the scene-level island pieces if (view) world.update(camera.position, game.t, game.storm || 0);
-    treasure.tick(); squadHall?.tick?.(performance.now()); if (friends) { friends.tick(performance.now()); if (!frPickerHooked) hookFriendsPicker(); } // [v356 friends] presence heartbeat ~30 s (8 s while the panel is open)
+    treasure.tick(); const pulseNow = performance.now(); getPulse()?.tick(pulseNow); squadHall?.tick?.(pulseNow); if (friends) { friends.tick(pulseNow); if (!frPickerHooked) hookFriendsPicker(); } // [v356 friends] + [scale-free] shared pulse
     if (specFrom && ctx.pvp()?.where === 'arena') specFrom = null; // [fort-spectate-return] joined a battle: no castle return
     buildingMarker.update(imap.pin, on && !!P()?.alive);
     if (!on) return;

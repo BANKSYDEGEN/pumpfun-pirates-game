@@ -91,7 +91,7 @@ export function signOut() { const s = session(); ls.set(SESSION_KEY, null); clai
 // [cache-queue] JOIN GATE (js/netGate.js): a 429 / 5xx / no answer backs the pvp function off (6 s -> 60 s, jittered). Background
 // POLLS asked during that wait fail at once without a request (their callers already treat a failed poll as "try later");
 // saves, buys and every other action still go out, and any good answer clears the wait.
-export const POLL_ACTIONS = new Set(['squad_invites', 'fr_list', 'admin_register_net', 'admin_my_state', 'pilly_walk', 'pet_walk', 'parrot_walk', 'top', 'me', 'isl_board', 'isl_state']);
+export const POLL_ACTIONS = new Set(['squad_invites', 'fr_list', 'admin_register_net', 'admin_my_state', 'pilly_walk', 'pet_walk', 'parrot_walk', 'top', 'me', 'isl_board', 'isl_state', 'pulse']);
 async function api(action, body = {}, opts = {}) {
   const r = await gateCall(netGate, 'api', POLL_ACTIONS.has(action), () => fetch(PVP_FN_URL, { method: 'POST', keepalive: !!opts.keepalive, headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY }, body: JSON.stringify({ action, ...body }) }), { keepalive: !!opts.keepalive });
   let j = null; try { j = await r.json(); } catch {}

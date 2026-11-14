@@ -39,6 +39,7 @@ import { loadProfile, saveProfile, walletSignIn, linkWallet, walletSession, sign
 import { setOwnedSkins } from './pvpSkins.js';
 import { BATTERY_GUNS, BATTERY_RANGE, shotRecent as batteryShotRecent } from './dock/battery.js'; // [v171] cliff guns: tagged hit validation
 import { shopState, shopBuy, cleanGear, mapsState, mapDig, prestigeNow, isMaxed, invApi, wishToss } from './pvpSave.js'; // [inventory] + invApi
+import { ensurePulse } from './pulse.js'; // [scale-free] batch background pvp polls
 import { emblemSvg, emblemLabel, rewardFor } from './prestige.js'; // [prestige]
 import { muskLevels, setMuskLevels } from './musketUpgrades.js'; // [Emerly musket-upgrades]
 import { setShopProvider, openShop, refreshShop } from './islandShop.js'; // [v102] THE ISLAND SHOP (real provider below)
@@ -345,6 +346,7 @@ export function createPvp(K) {
       else r.gold_landed = action === 'inv_sell' || action === 'inv_pot' ? (r.gold | 0) : action === 'mkt_buy' ? -(r.price | 0) : (action === 'inv_musk_rank' || action === 'inv_buy_acc') && !r.owner ? -(r.price | 0) : 0; // [Emerly musket-rank / gunacc] server took the gold
       if (r.gold_landed) { game.gold = Math.max(0, Math.min(1e7, (game.gold | 0) + r.gold_landed)); save({ now: true, force: true }); K.updateHud(); if (r.gold_landed > 0) sfx.coin?.(); }
       return r; } };
+  ensurePulse({ call: (a, b) => invApi(a, b) }); // [scale-free] one pulse instead of separate friend / invite / admin / walk polls
   function goalToast(before, after) { // a goal reached: that skin can now be BOUGHT at the shop (never free)
     for (const it of SKIN_ITEMS) { if (!it.goal || canUse(it.id)) continue; const a = goalProgress(it.goal, before), b = goalProgress(it.goal, after);
       if (b.done && !a.done) skinToast({ id: it.id, name: it.name, goal: true }); } }

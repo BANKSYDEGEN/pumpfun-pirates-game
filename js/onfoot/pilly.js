@@ -11,6 +11,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { makeTrail, makeMover, followStep } from './followPath.js';
 import { newBody, placeBody, stepBody, wadeFactor } from './physics.js';
 import { WALK_XP_S, tabHidden } from '../pollScale.js'; // [scale] Fix 2: no walk XP while the tab is hidden
+import { getPulse } from '../pulse.js'; // [scale-free] walk XP rides the shared pulse
 
 export const PILLY_PRICE = 5000;
 export const pillyLv = (xp) => Math.min(10, Math.floor(Math.sqrt(Math.max(0, +xp || 0) / 100)));
@@ -181,9 +182,20 @@ export function createPillyState(ctx) {
   function open(opts = {}) { storeOnly = !!opts.storeOnly; if (!el) { const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); el = document.createElement('div'); el.id = 'pilly-panel'; el.innerHTML = '<div class="pl-box" role="dialog" aria-label="Pilly"></div>'; el.onclick = (e) => { if (e.target === el) close(); }; document.body.appendChild(el); }
     el.hidden = false; draw(); refresh(); }
   function close() { if (el) el.hidden = true; }
+  function applyWalk(r) {
+    if (!r?.ok) return; const up = (r.xp | 0) > st.xp; apply(r); if (up) ctx.follower?.react('happy', 1.2);
+  }
+  function hookPulse() {
+    const pulse = getPulse(); if (!pulse || hookPulse.on) return pulse;
+    hookPulse.on = true;
+    pulse.setWalks('pilly', () => (!st.srv || !st.out || !ctx.out?.()) ? [] : [{ action: 'pilly_walk' }]);
+    pulse.onWalk('pilly_walk', applyWalk);
+    return pulse;
+  }
   async function tick(dt) { // walk XP: one ping a minute while Pilly is out with you (server rate-limits to 1 / 55 s)
+    if (hookPulse()) return;
     if (!st.srv || !st.out || !ctx.out?.() || tabHidden()) return; walkT += dt; if (walkT < WALK_XP_S) return; walkT = 0;
-    const r = await call('pilly_walk'); if (r?.ok) { const up = (r.xp | 0) > st.xp; apply(r); if (up) ctx.follower?.react('happy', 1.2); }
+    const r = await call('pilly_walk'); applyWalk(r);
   }
   try { document.addEventListener('click', (e) => { if (e.target?.closest?.('[data-pilly-open]')) open(); }); } catch {}
   return { refresh, open, close, tick, get state() { return st; }, get show() { return st.owned && st.out; } };

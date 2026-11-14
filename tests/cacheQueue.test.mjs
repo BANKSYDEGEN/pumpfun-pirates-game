@@ -56,7 +56,7 @@ test('pvp api: polls fail fast while the gate waits (no request); saves still go
   assert.match(s, /POLL_ACTIONS = new Set\(\['squad_invites'/); for (const a of ['dev_sync', 'shop_buy', 'save', 'casino_play', 'holder']) assert.doesNotMatch(s.match(/POLL_ACTIONS = new Set\(\[[^\]]*\]/)[0], new RegExp("'" + a + "'"));
 });
 test('cache: boards / terrain / feed are shared and fetched less, never invented', () => {
-  const m = src('js/pumpfun/market.js'); assert.match(m, /export const SHARED_MS = 30000;/); assert.match(m, /nextShared=clock\(\)\+SHARED_MS;/);
+  const m = src('js/pumpfun/market.js'); assert.match(m, /export const SHARED_MS = 60000;/); assert.match(m, /nextShared=clock\(\)\+SHARED_MS;/);
   const s = src('js/pvpSave.js'); assert.match(s, /Date\.now\(\) - c\.at < 45000\) return c\.rows;/); assert.match(s, /\{ have \}/);
   const te = src('js/island/terrainEdit.js'); assert.match(te, /j\?\.ok && j\.same && cached\?\.cells/); assert.match(te, /etag: typeof j\.etag === 'string'/);
   const lb = src('js/leaderboard.js'); assert.match(lb, /export const TOP_TTL = 30000;/); assert.equal((lb.match(/this\.topMemo\?\.clear\(\)/g) || []).length, 3);

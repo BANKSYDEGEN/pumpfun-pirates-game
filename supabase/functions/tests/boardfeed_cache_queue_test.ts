@@ -15,7 +15,7 @@ await import("../boardfeed/index.ts");
 const req = (h: Record<string, string> = {}) => handler(new Request("https://f.test/boardfeed", { headers: { origin: "https://game.pumpfunpirates.com", ...h } }));
 Deno.test("boardfeed: cacheable answer with ETag; If-None-Match -> 304 with no body; gzip when asked; one row read per 5 s", async () => {
   const a = await req(); assertEquals(a.status, 200); const et = a.headers.get("etag")!; assert(/^"[0-9a-f]{24}"$/.test(et), et);
-  assert(/public, max-age=10/.test(a.headers.get("cache-control") || "")); assertEquals(a.headers.get("access-control-allow-origin"), "https://game.pumpfunpirates.com");
+  assert(/public, max-age=75/.test(a.headers.get("cache-control") || "")); assertEquals(a.headers.get("access-control-allow-origin"), "https://game.pumpfunpirates.com");
   const body = await a.json(); assertEquals(body.mode, "live"); assertEquals(body.state.trending[0].symbol, "SUNK");
   const b = await req({ "if-none-match": et }); assertEquals(b.status, 304); assertEquals(await b.text(), ""); assertEquals(b.headers.get("etag"), et);
   const c = await req({ "accept-encoding": "gzip, br" }); assertEquals(c.headers.get("content-encoding"), "gzip");

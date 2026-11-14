@@ -91,13 +91,13 @@ async function lastGoodState(tr:any){let g:Record<string,any>={};try{g={...await
  return {ok:true,mode:'last-good',state,helius:{configured:heliusConfigured(),tradeStream:!tr?'offline':tr.lastAt&&Date.now()-tr.lastAt<21600000?'live':'idle',tradesAt:tr?.lastAt??null}};}
 // [cache-queue] one serialized (+ gzipped) answer per snapshot, shared by every request in this isolate; ETag + 304 for a client
 // that already holds it; a short public max-age so a browser's repeat poll inside it costs no request at all.
-export const CLIENT_MAX_AGE=10;
+export const CLIENT_MAX_AGE=75; // [scale-free] long enough that a 60 s poll is often a browser-cache hit (no invocation)
 let packedOut:{key:string,body:string,etag:string,gz:ArrayBuffer|null}|null=null;
 async function gzip(s:string){try{const cs=new CompressionStream('gzip');const w=cs.writable.getWriter();w.write(new TextEncoder().encode(s));w.close();return await new Response(cs.readable).arrayBuffer();}catch{return null;}}
 async function pack(key:string,make:()=>unknown){if(packedOut?.key===key)return packedOut;const body=JSON.stringify(make());const d=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body)));
  const etag='"'+[...d.slice(0,12)].map(x=>x.toString(16).padStart(2,'0')).join('')+'"';const p={key,body,etag,gz:await gzip(body)};packedOut=p;return p;}
 function reply(req:Request,p:{body:string,etag:string,gz:ArrayBuffer|null},h:Record<string,string>){
- const hh:Record<string,string>={...h,'Cache-Control':`public, max-age=${CLIENT_MAX_AGE}, stale-while-revalidate=20`,'ETag':p.etag,'Vary':'Origin, Accept-Encoding'};
+ const hh:Record<string,string>={...h,'Cache-Control':`public, max-age=${CLIENT_MAX_AGE}`,'ETag':p.etag,'Vary':'Origin, Accept-Encoding'};
  const inm=req.headers.get('if-none-match');if(inm&&inm.split(',').map(x=>x.trim().replace(/^W\//,'')).includes(p.etag))return new Response(null,{status:304,headers:hh});
  if(p.gz&&/\bgzip\b/i.test(req.headers.get('accept-encoding')||''))return new Response(p.gz,{headers:{...hh,'Content-Encoding':'gzip'}});
  return new Response(p.body,{headers:hh});}

@@ -4,9 +4,9 @@ import { BOARD_ROWS } from './boardgrid.js';
 // One shared proximity-driven free poller + one free PumpPortal socket per game client.
 export const SHARED_CACHE_URL='https://qhandcjwlkmovjzwzqfk.supabase.co/functions/v1/boardfeed';
 export const PRICE_MS = 60000, DISCOVERY_MS = 150000; // boards poll every 2.5 min
-// [cache-queue] BANKSY t2486u: the shared boardfeed snapshot is read every 30 s near the HQ (was 15 s; the server refreshes it every
-// 15 s and now answers ETag / 304 + a 10 s browser max-age, so a repeat inside one snapshot costs ~nothing)
-export const SHARED_MS = 30000;
+// [scale-free] boardfeed every 60 s near the HQ (was 30 s). The function still refreshes every 15 s; the response is public
+// max-age=75 + ETag so a repeat inside the window is served from the browser cache and does not spend an invocation.
+export const SHARED_MS = 60000;
 export const WATCH_TOKENS = [
  {sym:'SUNK',ca:'By1Nd4iQ3dwdfS6SSepg5PmMXifghR8skw3p2p6Bpump'},
  {sym:'AHOY',ca:'39eBixffUCh2GqF8sEE9fZ1rqoeP2HxNsstN5X5ppump'}];
@@ -49,7 +49,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
    storage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {} }
  const good = (k, rows, status) => { markRows(state,k,rows,clock()); state[k] = rows; state.updated[k] = clock(); state.status[k] = status; state.revision++; };
  const failed = (k, label) => { state.status[k] = state[k].length ? 'Refresh failed · showing last good snapshot' : 'Feed offline' + (label ? ' · ' + label : ''); state.revision++; };
- async function rawGet(url){const c=new AbortController();controllers.add(c);const tm=setTimeout(()=>c.abort(),10000);try{const r=await fetcher(url,{signal:c.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!r.ok){const e=Error('HTTP '+r.status);e.status=r.status;throw e;}return await r.json();}finally{clearTimeout(tm);controllers.delete(c);}}
+ let feedEtag='',feedJson=null; async function rawGet(url){const c=new AbortController();controllers.add(c);const tm=setTimeout(()=>c.abort(),10000);try{const headers={};if(feedEtag)headers['If-None-Match']=feedEtag;const r=await fetcher(url,{signal:c.signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'default',headers});if(r.status===304&&feedJson)return feedJson;if(!r.ok){const e=Error('HTTP '+r.status);e.status=r.status;throw e;}const data=await r.json();const et=r.headers?.get?.('ETag')||r.headers?.get?.('etag');if(et){feedEtag=et;feedJson=data;}return data;}finally{clearTimeout(tm);controllers.delete(c);}}
  // ---- the GeckoTerminal queue ----
  const gtJobs=[];let gtSeq=0,gtRun=false,gtNext=0,gtBackoff=0;
  function gtGet(url,prio=5){return new Promise((resolve,reject)=>{gtJobs.push({url,prio,seq:gtSeq++,tries:0,resolve,reject});gtJobs.sort((a,b)=>a.prio-b.prio||a.seq-b.seq);if(!gtRun)gtPump();});}

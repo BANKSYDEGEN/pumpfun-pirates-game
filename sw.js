@@ -150,6 +150,7 @@ const SHELL = [
   "./js/transport.js",
   "./js/netGate.js",
   "./js/pollScale.js", // [scale] Fix 2 poll intervals
+  "./js/pulse.js", // [scale-free] batched background pvp polls
   "./js/keybinds.js",
   "./js/avatar.js",
   "./js/controlsUi.js",
