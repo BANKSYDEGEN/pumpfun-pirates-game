@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { makeTrail, makeMover, followStep } from './followPath.js';
 import { newBody, placeBody, stepBody, wadeFactor } from './physics.js';
+import { WALK_XP_S, tabHidden } from '../pollScale.js'; // [scale] Fix 2: no walk XP while the tab is hidden
 
 export const PILLY_PRICE = 5000;
 export const pillyLv = (xp) => Math.min(10, Math.floor(Math.sqrt(Math.max(0, +xp || 0) / 100)));
@@ -181,7 +182,7 @@ export function createPillyState(ctx) {
     el.hidden = false; draw(); refresh(); }
   function close() { if (el) el.hidden = true; }
   async function tick(dt) { // walk XP: one ping a minute while Pilly is out with you (server rate-limits to 1 / 55 s)
-    if (!st.srv || !st.out || !ctx.out?.()) return; walkT += dt; if (walkT < 60) return; walkT = 0;
+    if (!st.srv || !st.out || !ctx.out?.() || tabHidden()) return; walkT += dt; if (walkT < WALK_XP_S) return; walkT = 0;
     const r = await call('pilly_walk'); if (r?.ok) { const up = (r.xp | 0) > st.xp; apply(r); if (up) ctx.follower?.react('happy', 1.2); }
   }
   try { document.addEventListener('click', (e) => { if (e.target?.closest?.('[data-pilly-open]')) open(); }); } catch {}

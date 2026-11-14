@@ -137,6 +137,7 @@ export function makeMarketFeed({fetcher=(...a)=>fetch(...a),clock=()=>Date.now()
   // Socket lifetime follows the world, not the expensive proximity-driven HTTP boards.
   world=!!worldOn;portal.tick(world&&!!(portalSocket||globalThis.document)&&!globalThis.document?.hidden);
   if(!on||!cacheURL)return directTick(on,discover,worldOn);
+  if(globalThis.document?.hidden)return Promise.resolve(); // [scale] Fix 2: no boardfeed while the tab is hidden (nextShared stays due)
   active=true;discovery=!!discover;
   if(busyShared)return busyShared;
   if(clock()<nextShared)return Promise.resolve();

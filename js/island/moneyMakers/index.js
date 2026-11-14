@@ -21,6 +21,7 @@ import { RENTABLE_SHOPS as HILL_RENTABLE } from '../hillShops.js';
 import { VILLAGE_RENTABLE } from '../village.js';   // [post-village v3] the village rentals use the same rent-shop data path
 const RENTABLE_SHOPS = [...HILL_RENTABLE, ...VILLAGE_RENTABLE];
 import { t2w, t2wYaw, toHarbor } from '../coast.js';
+import { ISL_BOARD_NEAR_S, ISL_BOARD_OPEN_S, tabHidden } from '../../pollScale.js'; // [scale] Fix 2: quieter wanted-board pulls
 // [v372] BANKSY t1973u "move each stand into an empty rental shop": the counter stands move off the plaza / wharf / concourse into empty
 // hill-street rent shops (rent_1 = the Treasure Trader, so never that one). Each stand sits against the shop's back wall facing the door,
 // on the shop floor (floorY follows the street slope); the E prompt is in front of it, inside. A name board hangs over each shop door.
@@ -391,7 +392,7 @@ export function createMoneyMakers(ctx) {
     if (!wasOn) { wasOn = true; api.refresh().then(() => labels()).catch(() => {}); }
     tickCamps(dt); pve.tick(dt); tickHorde(); tickCrate(dt); tickDrops(); tickDive(dt); swinging = Math.max(0, swinging - dt);
     acc += dt; if (acc > 0.5) { acc = 0; labels(); }
-    slow += dt; if (slow > 10) { slow = 0; if (duel.id || ui.isOpen) pollDuel(); else if (api.live !== false && Math.hypot(W().x - SITES.wanted.x, W().z - SITES.wanted.z) < 40) pullBoard(false); }
+    slow += dt; const boardEvery = (duel.id || ui.isOpen) ? ISL_BOARD_OPEN_S : ISL_BOARD_NEAR_S; if (slow > boardEvery) { slow = 0; if (!tabHidden()) { if (duel.id || ui.isOpen) pollDuel(); else if (api.live !== false && Math.hypot(W().x - SITES.wanted.x, W().z - SITES.wanted.z) < 40) pullBoard(false); } }
     const H = carry ? `${C.crateBanner(carry.buyer)}${carry.tier === 'cutthroat' ? `<small>PvP ground ${Math.min(C.CRATE.tiers.cutthroat.pvpMeters, Math.round(carry.pvpM))}/${C.CRATE.tiers.cutthroat.pvpMeters} m · ${Math.round(Math.hypot(W().x - SITES.buyers[carry.to].x, W().z - SITES.buyers[carry.to].z))} m to go</small>` : `<small>${Math.round(Math.hypot(W().x - SITES.buyers[carry.to].x, W().z - SITES.buyers[carry.to].z))} m to go</small>`}`
       : horde.on ? `💀 SKELETON HORDE · WAVE ${Math.max(1, horde.wave)}/5<small>${horde.next ? `next wave in ${Math.ceil(horde.next - performance.now() / 1000)}s` : `${pve.alive('horde').length} left`} · earned ${gfmt(horde.paid)}</small>`
       : duel.id && duel.status === 'live' ? `⚔ PRIZE FIGHT vs ${esc(duel.opp)}<small>pot ${gfmt(C.duelPot(duel.stake))} · KO them in the Sword Pit</small>` : '';

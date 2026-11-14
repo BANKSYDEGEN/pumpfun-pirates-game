@@ -3,6 +3,7 @@ import { itemImg, treatArt } from './inventory/itemArt.js';
 import { itemIconHtml } from './inventory/itemIcon.js';
 import { parrotBoostText, parrotBoostNext } from './boosts.js';
 import { parrotPreviewEl, releaseParrotPreviews } from './parrotFlight.js';
+import { WALK_XP_S, tabHidden } from './pollScale.js'; // [scale] Fix 2: no walk XP while the tab is hidden
 // Hull cage: each bird is a real inventory instance. Never computes gold or grants colors locally.
 export const PARROT_COLORS = [
   ['parrot_green', 'DEFAULT', 0, '#3fd16a'], ['parrot_red', 'RED', 1, '#e8231d'],
@@ -70,7 +71,7 @@ export function createParrotsPanel(ctx) {
   function open() { ensure(); root.hidden = false; status('Loading parrots…'); draw(); load(); root.querySelector('[data-close]').focus(); }
   function close() { if (root) { releaseParrotPreviews(root); root.hidden = true; } }
   async function tick(dt) {
-    walkT += dt; if (walkT < 60) return; walkT = 0;
+    if (tabHidden()) return; walkT += dt; if (walkT < WALK_XP_S) return; walkT = 0;
     if (!ctx.out?.() || !String(ctx.equipped?.()).startsWith('parrot_') || document.hidden) return;
     const r = await call('parrot_walk'); if (r.ok && root && !root.hidden) await load();
   }

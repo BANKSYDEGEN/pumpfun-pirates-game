@@ -46,6 +46,7 @@ import { SKIN_ITEMS, goalProgress } from './shopCatalog.js';
 import { TIERS, pvpSkin, canUse, nextTier, tierOf, shipTick, SHIP_TICKS, UNLOCKS, unlockOf, unlockProgress, knownSkin, skinName } from './pvpSkins.js';
 import { previewShipId } from './newShips.js'; // [Emerly] the new hulls' preview flag
 import { SQUADS, HARBOR_NET, HARBOR_SQUAD_MAX } from './config.js';
+import { LOBBY_HARBOR_MS, LOBBY_QUEUE_MS, LOBBY_ARENA_MS } from './pollScale.js'; // [scale] Fix 2: quieter lobby polls
 import { Room } from './net.js';
 import { isNetId, escHtml, num } from './safe.js';
 import { showLootCard } from './lootCard.js'; // [v370]
@@ -461,7 +462,7 @@ export function createPvp(K) {
   function lobbyTick(dt) {
     const now = performance.now();
     if (lob.offerUntil) { const left = Math.max(0, (lob.offerUntil - now) / 1000); const el = $('pvp-offer-t'); if (el) el.textContent = Math.ceil(left); if (left <= 0) { lob.offerUntil = 0; showOffer(false); lobbyCall('poll').then(harborUi); } }
-    const every = lob.state === 'queue' || lob.state === 'offer' ? 3000 : where === 'harbor' ? (spec.on || document.hidden ? 0 : 6000) : 10000; // [v71] harbor: live arena head-count every 6 s (read only, holds no seat) // queued seats expire after 15 s without a poll, arena seats after 25 s
+    const every = lob.state === 'queue' || lob.state === 'offer' ? LOBBY_QUEUE_MS : where === 'harbor' ? (spec.on || document.hidden ? 0 : LOBBY_HARBOR_MS) : LOBBY_ARENA_MS; // [scale] harbor head-count 15 s (was 6); queue/offer 3 s (15 s expiry); arena 10 s (25 s expiry)
     if (!every || lob.busy || now - (lob.lastPoll || 0) < every) return;
     if (lob.state !== 'queue' && lob.state !== 'offer' && netGate.wait('lobby') > 0) return; // [cache-queue] busy lobby: read-only head-count polls back off (a queued seat keeps polling)
     lob.lastPoll = now;

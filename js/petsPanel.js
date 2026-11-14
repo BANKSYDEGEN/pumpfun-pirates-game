@@ -1,5 +1,6 @@
 import { formatGoldAmount } from './goldFormat.js';
 import { PILLY_ENABLED } from './features.js';
+import { WALK_XP_S, tabHidden } from './pollScale.js'; // [scale] Fix 2: no walk XP while the tab is hidden
 // [pets R1] BANKSY: name your pets, level them up (walk XP while they follow you + gold treats), and trade them to another pirate.
 // Server = migration 058 / supabase/functions/pvp/pets.ts: the client only says which pet; ownership, gold + swaps are checked there.
 const PET_LABEL = { pet_cat: 'Cat', pet_cat_black: 'Black Cat', pet_monkey: 'Monkey', pet_chimp: 'Chimp', pet_gorilla: 'Gorilla', pet_gorilla_white: 'White Gorilla', pet_tiger: 'Tiger' };
@@ -80,7 +81,7 @@ export function createPetsPanel(ctx) {
   function open() { ensure(); if (!el) return; el.hidden = false; draw(); load(); }
   function close() { if (el) el.hidden = true; trade = ''; }
   async function tick(dt) { // walk XP: one server call a minute while your pet follows you (the server rate-limits it too)
-    walkT += dt; if (walkT < 60) return; walkT = 0;
+    if (tabHidden()) return; walkT += dt; if (walkT < WALK_XP_S) return; walkT = 0;
     const pet = ctx.equipped?.(); if (!PET_LABEL[pet] || !ctx.out?.() || (typeof document !== 'undefined' && document.hidden)) return;
     const r = await call('pet_walk', { pet }); if (r?.ok && r.lv > (data.pets.find((p) => p.pet === pet)?.lv ?? r.lv)) toast(`🐾 Your pet reached <b>LV ${r.lv | 0}</b>!`, 2400);
     if (r?.ok) { const p = data.pets.find((x) => x.pet === pet); if (p) { p.xp = r.xp; p.lv = r.lv; } else data.pets.push({ pet, name: null, xp: r.xp, lv: r.lv }); }

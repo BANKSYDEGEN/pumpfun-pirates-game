@@ -17,6 +17,7 @@ import { FISH, VALUABLES, GUN_ITEMS, WEAPON_BASES, WEAPON_TIERS, itemInfo, RARIT
 import { giveCatalog, spawnCatalog, maxKeyOf } from './adminSpawn.js'; // [admin-spawn t2149u]
 import { placeBody } from './onfoot/physics.js';
 import { createWorldAdmin, WORLD_CSS } from './adminWorld.js'; // [v346] ☀️ TIME & WEATHER + 🧱 COLLISIONS (t1819u / t1820u)
+import { ADMIN_BEAT_MS, tabHidden } from './pollScale.js'; // [scale] Fix 2: presence 30 s, hidden tab quiet
 
 // ---------------- pure helpers (tests/adminMenu.test.mjs) ----------------
 export const ADMIN_ON = typeof location === 'undefined' || !/[?&]admin=0(&|$)/.test(location.search);
@@ -467,7 +468,7 @@ export function initAdminMenu(ctx) {
     try {
       const now = performance.now(); hookWalker();
       if (ADM.frozen) { if (ADM.frozenUntil && Date.now() > ADM.frozenUntil) setFrozen({ frozen: false }); else { frozenLock(null, dock()?.onFoot ? null : player()); if (now - st.lastMine > 30000) checkMine(true); } }
-      if (now - st.lastBeat > 25000) beat(now);
+      if (!tabHidden() && now - st.lastBeat > ADMIN_BEAT_MS) beat(now);
       if (st.owner) {
         if (ADM.god) { const s = player(); if (s && s.alive) s.hp = s.maxHp; }
         if (ADM.invisible && now - look > 500) { look = now; ghostAll(true); }

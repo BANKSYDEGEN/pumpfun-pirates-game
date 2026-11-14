@@ -6,6 +6,7 @@ import { fetchKillsTop, kd, clearKillsTopCache } from './pvpSave.js';
 import { PVP_ENABLED, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { BOARD_PERIODS } from './kothAttr.js';
 import { netGate } from './netGate.js'; // [cache-queue]
+import { HOME_LIVE_MS } from './pollScale.js'; // [scale] Fix 2: title head-count every 60 s
 
 export const KILL_PERIODS = BOARD_PERIODS.map(p => ({ ...p }));
 const PK_KEY = 'pfp_pk_period', MODE_KEY = 'pfp_lb_mode';
@@ -77,7 +78,7 @@ export function initHomeBoard() {
 devHook('PFP_PVP_BOARD', { renderKills, refreshKillsBoards, initHomeBoard, get period() { return period; } });
 
 // [v76] home: live '⚔ n/4 in arena · ⚓ q in queue' under SPECTATE BATTLE ROYALE (read-only lobby poll, holds no seat).
-// Every 10 s while the home screen is visible; any error hides the line.
+// Every HOME_LIVE_MS (60 s) while the home screen is visible; any error hides the line. A tab-show still refreshes at once.
 {
   const solo = 'pfp-pvp-' + ((IS_PROD_HOST ? null : new URLSearchParams(location.search).get('pvproom')) || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
   const prefixNow = () => { let m = 'solo'; try { m = localStorage.getItem('pfp_spec_mode') === 'squads' ? 'squads' : 'solo'; } catch {} return m === 'squads' ? 'pfp-pvp-' + solo.slice(8, 22) + 'sq' : solo; }; // [v98] follows the SOLO / SQUADS spectate switch
@@ -107,5 +108,5 @@ devHook('PFP_PVP_BOARD', { renderKills, refreshKillsBoards, initHomeBoard, get p
     finally { busy = false; }
   };
   window.PFP_HOME_LIVE = () => tick(); // [v98] the spectate switch re-reads the count at once
-  setTimeout(tick, 1500); setInterval(tick, 10000); document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  setTimeout(tick, 1500); setInterval(tick, HOME_LIVE_MS); document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); }); // [scale] 10 s -> 60 s; still refreshes the moment the tab is shown
 }
