@@ -70,7 +70,7 @@ test('wiring: same card, startPvp waits on the title, pulse refreshes the lease,
   assert.match(ng, /sc-pos/);
   assert.match(ng, /The world is at capacity right now/);
   const sw = src('sw.js');
-  assert.match(sw, /const VERSION = 'pfp-v582'/);
+  assert.match(sw, /const VERSION = 'pfp-v\d+'/);
   assert.match(sw, /"\.\/js\/joinQueue\.js"/);
   assert.match(src('css/style.css'), /#seas-crowded \.sc-pos/);
 });

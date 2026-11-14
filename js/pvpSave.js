@@ -7,7 +7,7 @@
 // A save holds gold (whatever you're carrying), upgrade levels, skins (selected + unlocked by kills) and lifetime K/D.
 // Storage is keyed by a PROFILE KEY ('device' / 'wallet:<pubkey>' today) so a later version can key upgrades by a
 // ship NFT mint ('mint:<mint>'); the server table already has a nullable `mint` column for that.
-import { PVP_FN_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT, HOLDER_DAILY_GOLD } from './config.js';
+import { PVP_FN_URL, SCOREFEED_URL, PIRATE_FN_URL, SUPABASE_ANON_KEY, PVP_SKIN_TIERS, PVP_UNLOCK_SKINS, UNLOCK_STAT, HOLDER_DAILY_GOLD } from './config.js';
 import { UPGRADES } from './upgrades.js';
 import { V6_LEGACY, v6Legacy as v6Legacy0, addLegacyOwned } from './v6Legacy.js';   // [V6 store] legacy pants + boots grant
 import { findProvider, sigBytes } from './pirateAccount.js';
@@ -367,13 +367,28 @@ export function fetchMe() {
   const s = session(); return api('me', s ? { token: s.token } : { dk: deviceKey() }).catch(e => { console.warn('[pvp] me', e.message); return null; });
 }
 const topCache = new Map();
+// [scale-scorefeed] one GET for every Storm Hunt + KOTH board; fail open to the old pvp POST / PostgREST path.
+let scorefeedMemo = null;
+export async function fetchScorefeed() {
+  if (!SCOREFEED_URL) return null;
+  if (scorefeedMemo?.data && Date.now() - scorefeedMemo.at < 30000) return scorefeedMemo.data;
+  const h = {}; if (scorefeedMemo?.etag) h['If-None-Match'] = scorefeedMemo.etag;
+  const r = await fetch(SCOREFEED_URL, { headers: h, cache: 'default' });
+  if (r.status === 404 || r.status === 400) return null;
+  if (r.status === 304 && scorefeedMemo?.data) { scorefeedMemo.at = Date.now(); return scorefeedMemo.data; }
+  if (!r.ok) return null;
+  const data = await r.json(); if (!data?.ok) return null;
+  scorefeedMemo = { at: Date.now(), etag: r.headers.get('ETag'), data }; return data;
+}
+export const clearScorefeedCache = () => { scorefeedMemo = null; };
 export async function fetchKillsTop(period = 'all') {
   const c = topCache.get(period); if (c && Date.now() - c.at < 45000) return c.rows; // [cache-queue] 20 s -> 45 s (the server caches it ~30 s too)
+  try { const f = await fetchScorefeed(); const rows = f?.koth?.[period]; if (Array.isArray(rows)) { topCache.set(period, { at: Date.now(), rows }); return rows; } } catch {}
   if (!PVP_FN_URL) return [];
   const j = await api('top', { period }); const rows = Array.isArray(j.rows) ? j.rows : [];
   topCache.set(period, { at: Date.now(), rows }); return rows;
 }
-export const clearKillsTopCache = () => topCache.clear();
+export const clearKillsTopCache = () => { topCache.clear(); scorefeedMemo = null; };
 // [v72] rename: push a new name to MY OWN leaderboard rows. BATTLE ROYALE board: wallet session, else this device's key.
 // Waves board: only when a wallet is signed in (Waves rows are keyed by wallet). Name taken on the BR board -> toast, no merge.
 let renameT = 0;

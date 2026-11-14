@@ -3,7 +3,7 @@
 // SupabaseAdapter: activates automatically when config.js has URL + anon key.
 // Periods shown on every Storm Hunt board (same order as King of the Hill): ALL TIME / MONTH / DAY.
 // day + month are ROLLING windows (last 24h / 30d); 'all' = all-time. week/year remain available via periodSince if needed.
-import { wavesScore } from './pvpSave.js'; // [security H1]
+import { wavesScore, fetchScorefeed, clearScorefeedCache } from './pvpSave.js'; // [security H1] + [scale-scorefeed]
 import { SUPABASE_URL, SUPABASE_ANON_KEY, LEADERBOARD_TABLE, LEADERBOARD_VIEW, LEADERBOARD_DAILY_VIEW, WALLET_VERIFY_ENABLED, VERIFY_SCORE_URL } from './config.js';
 // DAILY challenge board: one board per UTC day (seed 'YYYY-MM-DD'), best run per wallet. Needs migration 002_daily.sql
 // online; until it's run, daily runs are kept on this device and the board says 'daily board coming soon'.
@@ -114,6 +114,7 @@ export class SupabaseAdapter {
     return h;
   }
   async getTop(n = LB_SIZE, period = 'all') {
+    try { const f = await fetchScorefeed(); const rows = f?.waves?.[period]; if (Array.isArray(rows)) return rows.slice(0, n); } catch {}
     const since = periodSince(period);
     if (!since) {
       const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_VIEW}?select=wallet,name,score,wave,sunk&order=score.desc&limit=${n}`, { headers: this._h() });
@@ -162,6 +163,7 @@ export class SupabaseAdapter {
     return { ok: true, verified: true };
   }
   async getDaily(seed, n = LB_SIZE) {
+    try { const f = await fetchScorefeed(); if (f?.daily?.seed === seed && Array.isArray(f.daily.rows)) return f.daily.rows.slice(0, n); } catch {}
     const r = await fetch(`${this.url}/rest/v1/${LEADERBOARD_DAILY_VIEW}?select=wallet,name,score,wave,sunk&seed=eq.${encodeURIComponent(seed)}&order=score.desc,created_at.asc&limit=${n}`, { headers: this._h() });
     if (!r.ok) throw await httpErr(r, 'daily board read');
     return r.json();
@@ -201,13 +203,13 @@ class Leaderboard {
   // A failed verified write falls back to the normal (unverified) insert, so a score is never lost.
   async _remoteSubmit(e, proof) {
     if (WALLET_VERIFY_ENABLED && VERIFY_SCORE_URL && proof && proof.wallet === e.wallet) {
-      try { await this.remote.submitVerified(e, proof); this.topMemo?.clear(); return { verified: true }; }
+      try { await this.remote.submitVerified(e, proof); this.topMemo?.clear(); clearScorefeedCache(); return { verified: true }; }
       catch (err) { console.info('[leaderboard] verified save failed, saving unverified:', err.message); }
     }
-    const r = await this.remote.submit(e); this.topMemo?.clear(); return { verified: !!r?.verified };
+    const r = await this.remote.submit(e); this.topMemo?.clear(); clearScorefeedCache(); return { verified: !!r?.verified };
   }
   async submit(entry, { proof = null } = {}) {
-    this.topMemo?.clear(); // [cache-queue] your new score shows on the next board read
+    this.topMemo?.clear(); clearScorefeedCache(); // [cache-queue] your new score shows on the next board read
     const e = { ...entry, name: clean(entry.name), score: Math.max(0, Math.floor(entry.score)), ts: Date.now() };
     if (e.mode === 'daily') {
       await this.local.submitDaily(e);

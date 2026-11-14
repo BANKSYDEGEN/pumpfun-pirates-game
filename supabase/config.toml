@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.pvp]
 verify_jwt = false
+
+[functions.scorefeed]
+verify_jwt = false

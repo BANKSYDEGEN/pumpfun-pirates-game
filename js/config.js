@@ -88,6 +88,7 @@ export const PVP_OFFER = 15;          // seconds to accept 'Battle ready! Set sa
 export const PVP_ARENA_R = 420;       // metres from the arena centre you can sail
 export const PVP_MAX_CARRY = 8000;    // most gold the host accepts as one player's death drop when it can't check their pickups
 export const PVP_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/pvp` : ''; // wallet-signed PvP save (Edge Function `pvp`)
+export const SCOREFEED_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/scorefeed` : ''; // [scale-scorefeed] cacheable GET for Storm Hunt + KOTH boards
 // PvP skins: the LIST of Battle Royale skins (order = the menu's). [v102] since the island shop they are BOUGHT with gold; `kills` /
 // `prestige` here are display only, the BUY goals live in js/shopCatalog.js SKIN_ITEMS + supabase/functions/pvp/lib.ts SHOP_ITEMS.
 // [prestige] BANKSY: GHOST SHIP 100 kills, FLAMING 200 kills (no K/D), GOLDEN GALLEON = PRESTIGE 1, DIAMOND = PRESTIGE 2 (both given free).
