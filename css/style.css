@@ -1447,6 +1447,8 @@ html.isle-map-open, html.isle-map-open body, #isle-map { touch-action:auto; }
 #seas-crowded .sc-dots { display: inline-flex; gap: 5px; }
 #seas-crowded .sc-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: sc-dot 1.2s ease-in-out infinite; }
 #seas-crowded .sc-dots i:nth-child(2) { animation-delay: 0.2s; } #seas-crowded .sc-dots i:nth-child(3) { animation-delay: 0.4s; }
+#seas-crowded .sc-pos { margin: 0 auto 10px; max-width: 420px; font-size: clamp(22px, 5.2vw, 26px); line-height: 1.1; color: var(--gold); }
+#seas-crowded .sc-solo[hidden] { display: none; }
 #seas-crowded .sc-try { margin: 8px 0 14px; font-size: 19px; color: rgba(255,255,255,0.55); letter-spacing: 0.05em; }
 #seas-crowded .sc-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 #seas-crowded .sc-btns button { min-height: 52px; padding: 4px 22px 0; border-radius: 999px; font-size: 26px; cursor: pointer; line-height: 1; }

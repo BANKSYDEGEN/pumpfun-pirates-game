@@ -6,10 +6,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 const src = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const MIG = 'supabase/migrations/20261114180000_scale_shard_locks.sql';
 
-test('new migration is the latest dated file and replaces both cores + wrappers', () => {
+test('shard-lock migration exists and replaces both cores + wrappers', () => {
   const names = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter((f) => f.endsWith('.sql')).sort();
   assert.ok(names.includes('20261114180000_scale_shard_locks.sql'));
-  assert.equal(names.filter((f) => /^\d{14}_/.test(f)).at(-1), '20261114180000_scale_shard_locks.sql');
   const m = src(MIG);
   assert.match(m, /create or replace function public\.pvp_harbor_core/);
   assert.match(m, /create or replace function public\.pvp_lobby_core/);

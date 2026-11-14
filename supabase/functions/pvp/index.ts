@@ -20,6 +20,7 @@ import { islandAction, ISLAND_ACTIONS } from "./island.ts"; // [v349 money-maker
 import { friendAction, FRIEND_ACTIONS } from "./friends.ts";
 import { petAction, PET_ACTIONS, petLevel, PET_SELL_PER_LV } from "./pets.ts"; // [pets R1] migration 058 // [v356 friends] migration 054: friend requests, list + presence, join
 import { pulseAction } from "./pulse.ts"; // [scale-free] batched fr_list + squad_invites + admin beat + walks
+import { joinGateAction } from "./joinGate.ts"; // [join-queue] title-screen world cap
 import { trustedIp, siwsMessage, siwsFacts, allowedOrigin, SIWS_STATEMENTS, parseTopic, mintJwt, relayTicket, seatNetOk, NET_RE } from "./security.ts"; // [security] SECURITY_FIXES.md // [Timothy] shop goal progress (read-only)
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "https://game.pumpfunpirates.com,https://banksydegen.github.io,http://localhost:8787,http://127.0.0.1:8787")
@@ -679,6 +680,7 @@ Deno.serve(async (req) => {
       }
       default:
         if (String(b.action) === "pulse") return await pulseAction({ db, whoAmI, json }, b); // [scale-free]
+        if (String(b.action) === "join_gate") return await joinGateAction({ db, whoAmI, json }, b); // [join-queue]
         if (INV_ACTIONS.includes(String(b.action))) return await inventoryAction({ db, whoAmI, boostsOf, json, mapSpots: MAP_SPOTS }, String(b.action), b); // [inventory]
         if (HOUSE_ACTIONS.includes(String(b.action) as any)) return await houseAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [storage-houses]
         if (CASINO_ACTIONS.includes(String(b.action) as any)) return await casinoAction({ db, whoAmI, json, acctBump }, String(b.action), b); // [v333] casino

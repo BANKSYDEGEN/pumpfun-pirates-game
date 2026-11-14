@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v581';
+const VERSION = 'pfp-v582';
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -152,6 +152,7 @@ const SHELL = [
   "./js/pollScale.js", // [scale] Fix 2 poll intervals
   "./js/pulse.js", // [scale-free] batched background pvp polls
   "./js/joinBurst.js", // [scale-burst] first-load jitter
+  "./js/joinQueue.js", // [join-queue] title-screen world cap (v577 card)
   "./js/keybinds.js",
   "./js/avatar.js",
   "./js/controlsUi.js",

@@ -4,6 +4,8 @@
 // instead of retrying every few seconds, and the player sees a "SEAS ARE CROWDED" card with the next try time.
 // The game never blocks on it: SAIL SOLO WHILE YOU WAIT folds the card into a small chip and the private harbor keeps playing.
 // Nothing here invents data: the card only shows what the server said (full / busy / offline) and our own retry clock.
+// [join-queue] BANKSY t2505u: the same card also shows a server-backed place in line when ENTER GAME is held on the title
+// (source 'join', solo button hidden). The cap itself lives in one DB row (pvp_scale_config.world_cap).
 import { devHook } from './env.js';
 export const GATE = { base: 6000, max: 60000, jitter: 0.25, retryAfterMax: 120000, apiStreak: 3 };
 export const isOverload = (status) => !status || status === 429 || status >= 500; // 0 / undefined = network error or CORS-less 5xx
@@ -22,17 +24,27 @@ export const GATE_TEXT = {
   busy: { title: 'SEAS ARE CROWDED', body: "The servers are swamped with pirates. Your game keeps going, and we'll try again for you automatically." },
   offline: { title: 'SEAS ARE CROWDED', body: "We can't reach the servers right now. Your game keeps going, and we'll try again for you automatically." },
 };
-// sources: 'harbor' (seat beat), 'lobby' (arena queue), 'api' (pvp edge function). Only 'harbor' / 'lobby' and an api failure
-// streak of GATE.apiStreak show the card; a single failed call just backs off quietly.
+// place-in-line line for the card, only from what the server said (never an invented wait time)
+export function lineOf(v) {
+  const pos = v?.pos | 0, cap = v?.cap | 0, now = v?.in_world | 0;
+  if (pos < 1 || !cap) return '';
+  const slot = now && cap ? ` (${now}/${cap} sailors in the world)` : '';
+  return pos === 1 ? `You're next in line${slot}` : `You're #${pos} in line${slot}`;
+}
+// sources: 'harbor' (seat beat), 'lobby' (arena queue), 'api' (pvp edge function), 'join' (title-screen world cap).
+// Only 'harbor' / 'lobby' / 'join' and an api failure streak of GATE.apiStreak show the card; a single failed call just backs off quietly.
 export function createGate({ clock = () => Date.now(), rnd = Math.random, ui = null, cfg = GATE } = {}) {
   const src = new Map(); let shown = null, folded = false;
   const vis = () => { let best = null; for (const [k, s] of src) { if (!s.show) continue; if (!best || s.until > best.until) best = { k, ...s }; } return best; };
-  const sync = () => { const v = vis(); if (!ui) { shown = v; return; } if (v) { ui.show({ reason: v.reason, until: v.until, attempt: v.n, source: v.k, folded }); shown = v; } else if (shown) { ui.hide(); shown = null; folded = false; } };
+  const view = (v) => v && ({ reason: v.reason, until: v.until, attempt: v.n, source: v.k, folded, pos: v.pos | 0, cap: v.cap | 0, in_world: v.in_world | 0, ahead: v.ahead | 0, queue: v.queue | 0, solo: v.solo !== false });
+  const sync = () => { const v = vis(); if (!ui) { shown = v; return; } if (v) { ui.show(view(v)); shown = v; } else if (shown) { ui.hide(); shown = null; folded = false; } };
   return {
     // a failed / full answer: returns the wait (ms) before this source may ask again
-    fail(k, { status = 0, full = false, retryAfter = 0, quiet = false } = {}) {
+    fail(k, { status = 0, full = false, retryAfter = 0, quiet = false, pos = 0, cap = 0, in_world = 0, ahead = 0, queue = 0, solo } = {}) {
       const s = src.get(k) || { n: 0, until: 0 }; s.n++; const ms = backoffMs(s.n, { retryAfter, rnd, cfg });
-      s.until = clock() + ms; s.reason = full ? 'full' : status ? 'busy' : 'offline'; s.show = !quiet && (k !== 'api' || s.n >= cfg.apiStreak); src.set(k, s); sync(); return ms;
+      s.until = clock() + ms; s.reason = full ? 'full' : status ? 'busy' : 'offline'; s.show = !quiet && (k !== 'api' || s.n >= cfg.apiStreak);
+      s.pos = pos | 0; s.cap = cap | 0; s.in_world = in_world | 0; s.ahead = ahead | 0; s.queue = queue | 0; s.solo = solo !== false;
+      src.set(k, s); sync(); return ms;
     },
     ok(k) { if (!src.has(k)) return; src.delete(k); sync(); },
     mute(k) { const s = src.get(k); if (s?.show) { s.show = false; sync(); } }, // stopped asking (left the harbor / hidden tab): hide the card, KEEP the backoff
@@ -63,12 +75,17 @@ function makeUi(doc) {
     if (!cur) return; const s = secs(), t = s ? `next try in ${s}s` : 'trying now…';
     const n = el?.querySelector('.sc-next'); if (n) n.textContent = t;
     const a = el?.querySelector('.sc-try'); if (a) a.textContent = `attempt ${cur.attempt} · we wait a little longer each time so the seas can clear`;
-    const c = chip?.querySelector('b'); if (c) c.textContent = s ? `${s}s` : '…';
+    const line = lineOf(cur);
+    const p = el?.querySelector('.sc-pos'); if (p) { p.hidden = !line; if (line) p.textContent = line; }
+    if (chip) chip.innerHTML = line
+      ? `⚓ SEAS CROWDED · ${line.split(' · ')[0]} · retry <b>${s ? s + 's' : '…'}</b>`
+      : `⚓ SEAS CROWDED · retry <b>${s ? s + 's' : '…'}</b>`;
   };
   const build = () => {
     if (el) return;
     el = doc.createElement('div'); el.id = 'seas-crowded'; el.className = 'hidden'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-labelledby', 'sc-title');
     el.innerHTML = `<div class="sc-card"><img class="sc-skull" src="assets/skull_transparent.png" alt="" draggable="false"><h2 id="sc-title" class="sc-title"></h2><p class="sc-body"></p>
+      <p class="sc-pos" hidden></p>
       <div class="sc-wait"><span class="sc-dots"><i></i><i></i><i></i></span><span class="sc-next"></span></div><p class="sc-try"></p>
       <div class="sc-btns"><button type="button" class="sc-solo">SAIL SOLO WHILE YOU WAIT</button><button type="button" class="sc-now">TRY NOW</button></div></div>`;
     chip = doc.createElement('button'); chip.type = 'button'; chip.id = 'seas-crowded-chip'; chip.className = 'hidden'; chip.innerHTML = '⚓ SEAS CROWDED · retry <b></b>';
@@ -78,7 +95,11 @@ function makeUi(doc) {
     (doc.body || doc.documentElement).append(el, chip);
   };
   return {
-    show(v) { build(); cur = v; const tx = GATE_TEXT[v.reason] || GATE_TEXT.busy; el.querySelector('.sc-title').textContent = tx.title; el.querySelector('.sc-body').textContent = tx.body;
+    show(v) { build(); cur = v; const tx = GATE_TEXT[v.reason] || GATE_TEXT.busy; el.querySelector('.sc-title').textContent = tx.title;
+      el.querySelector('.sc-body').textContent = (v.source === 'join' && v.reason === 'full')
+        ? "The world is at capacity right now. Hold your place here and we'll let you in automatically when a spot opens."
+        : tx.body;
+      const solo = el.querySelector('.sc-solo'); if (solo) solo.hidden = v.solo === false;
       el.classList.toggle('hidden', !!v.folded); chip.classList.toggle('hidden', !v.folded); paint(); if (!timer) timer = setInterval(paint, 500); },
     hide() { cur = null; el?.classList.add('hidden'); chip?.classList.add('hidden'); clearInterval(timer); timer = 0; },
     on(f) { listeners.add(f); },
@@ -88,10 +109,13 @@ function makeUi(doc) {
 const doc = globalThis.document;
 const ui = doc ? makeUi(doc) : null;
 export const netGate = createGate({ ui });
+const gateHooks = new Set();
+export const onGate = (f) => { gateHooks.add(f); return () => gateHooks.delete(f); };
 // TRY NOW: at most once every 5 s, and only for the sources that are waiting; callers poll netGate.wait() each tick anyway.
 let tryNowAt = 0;
 ui?.on((what) => {
   if (what === 'fold') netGate.fold(true); else if (what === 'unfold') netGate.fold(false);
-  else if (what === 'now' && Date.now() - tryNowAt > 5000) { tryNowAt = Date.now(); for (const k of ['harbor', 'lobby', 'api']) netGate.retryNow(k); }
+  else if (what === 'now' && Date.now() - tryNowAt > 5000) { tryNowAt = Date.now(); for (const k of ['harbor', 'lobby', 'api', 'join']) netGate.retryNow(k); }
+  for (const f of gateHooks) try { f(what); } catch {}
 });
 devHook('PFP_NET_GATE', netGate); // dev servers only (QA / screenshots): PFP_NET_GATE.fail('harbor', { full: true })

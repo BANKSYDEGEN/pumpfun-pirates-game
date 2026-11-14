@@ -36,6 +36,8 @@ export async function pulseAction(
   if (!who) return json(401, { error: "no identity" });
   const { data: okRate } = await db.rpc("pvp_rl_hit", { p_key: "pulse:" + who.pid, p_window_s: 60, p_max: 20 });
   if (okRate === false) return json(429, { ok: false, why: "slow down" });
+  // [join-queue] refresh the in-world lease so occupancy stays accurate (ignore errors if the RPC is not deployed yet)
+  try { await db.rpc("pvp_join_gate", { p_pid: who.pid, p_op: "beat", p_owner: !!who.owner }); } catch { /* old DB */ }
 
   const walksIn = pulseWalks(b.walks);
   let fr: Record<string, unknown> | null = null;

@@ -34,6 +34,7 @@ import { leaderboard, PERIODS, LB_SIZE, DAILY_TAB } from './leaderboard.js';
 import { dailySeed, waveRng, untilNextDaily } from './daily.js'; // [daily] seeded run per UTC day
 import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSavedName, saveName, syncName } from './wallet.js';
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
+import { requestJoin, cancelJoin } from './joinQueue.js'; // [join-queue] title-screen world cap (same SEAS ARE CROWDED card)
 import { QUALITY } from './config.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
 import './uiProfile.js'; import './accountUi.js'; // [v106] player accounts: name + password (PROFILE > ACCOUNT, home LOG IN) // [v103] PROFILE panel: tap / click the captain card (top left) (Timothy c3c09f1)
@@ -1332,19 +1333,26 @@ function startGame(mode = null) {
 }
 // [pvp] PVP (BETA) button: load the PvP module + save, then sail straight into a room
 async function startPvp(watch = false) { // [pvp] watch = SPECTATE (receive-only, no ship)
-  const b = $(watch ? 'btn-spectate' : 'btn-pvp'); if (b.disabled) return; b.disabled = true; const label = b.innerHTML; b.textContent = 'LOADING…';
+  // [join-queue] if the world is at cap, the existing SEAS ARE CROWDED card holds us on the title; we enter automatically when a slot opens.
+  const admitted = await requestJoin({ spectate: watch, enter: (w) => startPvpEnter(w) });
+  if (admitted !== 'enter') return;
+  await startPvpEnter(watch);
+}
+async function startPvpEnter(watch = false) {
+  const b = $(watch ? 'btn-spectate' : 'btn-pvp'); if (b?.disabled) return; const label = b ? b.innerHTML : ''; if (b) { b.disabled = true; b.textContent = 'LOADING…'; }
   try {
     if (!pvp) { const m = await import('./pvp.js'); pvp = m.createPvp(pvpCtx); }
     await pvp.prepare(); pvp.spectate(watch);
     startGame('pvp');
   } catch (e) { console.warn('[pvp] could not start', e); banner('PVP UNAVAILABLE', 'try again in a moment'); }
-  finally { b.disabled = false; b.innerHTML = label; }
+  finally { if (b) { b.disabled = false; b.innerHTML = label; } }
 }
 
 function toTitle() {
   harborResumeClear(); // [v339] MAIN MENU = a deliberate exit: no auto-resume
   clearEmotes(); // [v96]
   closeTutorial(); // [tutorial]
+  cancelJoin(); // [join-queue] drop a title-screen place or an in-world lease
   if (game.mode === 'pvp') { pvp?.leave(); closeShop(); $('shop')?.classList.add('hidden'); game.mode = null; } // [pvp]
   game.state = 'title';
   setMusic(false); // [v102] audio: no shanty left running on the title screen (startGame turns it back on)
