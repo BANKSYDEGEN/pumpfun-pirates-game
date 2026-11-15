@@ -15,6 +15,7 @@
 //   isl_sell { item, qty, shop: fish|antiques|rum, reqId }
 // A missing 053 (PGRST202 / 42883) answers 409 { error: "closed" }: the client keeps its offline practice mode.
 import { ttlMemo, ISLAND_BOARD_TTL_MS } from "./memo.ts"; // [cache-queue]
+import { playerError } from "./lib.ts";
 const islBoardMemo = ttlMemo<any>(ISLAND_BOARD_TTL_MS);
 export const ISLAND_ACTIONS = ["isl_state", "isl_board", "isl_contract", "isl_bounty_post", "isl_bounty_claim", "isl_duel_post", "isl_duel_accept",
   "isl_duel_settle", "isl_bet", "isl_horde", "isl_crate", "isl_gather", "isl_timer_start", "isl_timer_finish", "isl_sell"] as const;
@@ -55,7 +56,7 @@ async function rpc(c: Ctx, fn: string, args: Record<string, unknown>) {
 }
 // the reply, plus the account mirror for a logged-in device (same as the casino: a wallet / the owner never)
 async function goldReply(c: Ctx, who: any, data: any) {
-  if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold, cap: data?.cap, left_s: data?.left_s, pending: data?.pending || undefined });
+  if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: playerError(data?.why), gold: data?.gold, cap: data?.cap, left_s: data?.left_s, pending: data?.pending || undefined });
   const d = Number(data.delta) || 0;
   if (d && !who.wallet && !who.owner && !data.owner && !data.retry) await c.acctBump?.(c.db, who.raw, d);
   return c.json(200, { ...data, ok: true, owner: !!(data.owner ?? who.owner) });
@@ -95,7 +96,7 @@ export async function islandAction(c: Ctx, action: string, b: Record<string, unk
         const duel = uuidOf(b.duel), result = String(b.result || ""); if (!duel || !["won", "lost", "cancel"].includes(result)) return c.json(400, { error: "bad request" });
         const data = await rpc(c, "pvp_isl_duel_settle", { p_player: pid, p_duel: duel, p_result: result });
         // [review fix 3] 'won' only pays on a both-sides-confirmed KO (pvp_kills); else pending until the loser's own client concedes or it expires + refunds
-        if (!data?.ok) return c.json(409, { error: data?.why || "could not", pending: data?.pending || undefined });
+        if (!data?.ok) return c.json(409, { error: playerError(data?.why, "could not"), pending: data?.pending || undefined });
         return goldReply(c, who, data.gold == null ? { ...data, delta: 0 } : data);
       }
       case "isl_bet": {
@@ -115,17 +116,17 @@ export async function islandAction(c: Ctx, action: string, b: Record<string, unk
         const src = String(b.src || ""), spot = slotOf(b.spot), kind = String(b.kind || "");
         if (!["dive", "mine"].includes(src) || !spot || !["chest", "clam", "iron", "saltpeter", "gold"].includes(kind)) return c.json(400, { error: "bad request" }); if (!req) return needReq()!;
         const data = await rpc(c, "pvp_isl_gather", { p_player: pid, p_src: src, p_spot: spot, p_kind: kind, p_req: req });
-        return data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: data?.why || "could not", left_s: data?.left_s });
+        return data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: playerError(data?.why, "could not"), left_s: data?.left_s });
       }
       case "isl_timer_start": {
         const kind = String(b.kind || ""), slot = slotOf(b.slot); if (!["crab", "plot", "still"].includes(kind) || !slot) return c.json(400, { error: "bad request" }); if (!req) return needReq()!;
         const data = await rpc(c, "pvp_isl_timer_start", { p_player: pid, p_kind: kind, p_slot: slot, p_homegrown: b.homegrown === true, p_req: req });
-        return data?.delta ? goldReply(c, who, data) : (data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: data?.why || "could not" }));
+        return data?.delta ? goldReply(c, who, data) : (data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: playerError(data?.why, "could not") }));
       }
       case "isl_timer_finish": {
         const kind = String(b.kind || ""), slot = slotOf(b.slot); if (!["crab", "plot", "still"].includes(kind) || !slot) return c.json(400, { error: "bad request" }); if (!req) return needReq()!;
         const data = await rpc(c, "pvp_isl_timer_finish", { p_player: pid, p_kind: kind, p_slot: slot, p_req: req });
-        return data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: data?.why || "could not", left_s: data?.left_s });
+        return data?.ok ? c.json(200, { ...data, ok: true }) : c.json(409, { error: playerError(data?.why, "could not"), left_s: data?.left_s });
       }
       case "isl_sell": {
         const item = String(b.item || ""), shop = String(b.shop || ""), qty = intOf(b.qty);

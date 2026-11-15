@@ -5,7 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0"; // [security L
 import { cleanRework, isReworkId, stripRework, RW_MAX_FLAGS } from "./rework.ts"; // [v335] owner-only 🚩 rework flags
 import { acctAction, isAcctDevice, acctBump, nameHasAccount } from "./accounts.ts"; // [v106] player accounts (name + password)
 import { verifySignature, isWallet, cleanProfile, saveProblem, keepCounters, CAPS, BATTERY_GOLD, batteryCap, batteryDelta, tokenBalance, HOLDER_MINTS, HOLDER_MIN_TOKENS, HOLDER_DAILY_GOLD, HOLDER_CACHE_MS, type Profile,
-  OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold } from "./lib.ts";
+  OWNER_MAIN, V6_LEGACY, v6LegacyDue, SHOP_ITEMS, SHOP_SKINS, GEAR_SLOTS, SEED_GOLD_CAP, goalMet, fitEquipped, cleanGear, value, pvpTierCost, TIER_COSTS, SKIN_KILLS, PRESTIGE_MAX, stalePrestige, prestigeSkins, WAVES_GOLD, wavesGold, wavesProblem, MAP_SPOTS, MAP_SPOTS_ALL, boostsFor, sellGold, playerError } from "./lib.ts";
 import { goalsView, killsByMode } from "./goals.ts";
 import { chestDrop, chestItems, dupItem, WISH, type ChestDrop } from "./chest.ts"; // [v152] treasure chest items (server-picked) // [inventory] + items-only chests
 import { inventoryAction, INV_ACTIONS, gunDropRpc } from "./inventory.ts"; // [inventory] migration 036: inventory, NPC shops, gifts, Marketplace
@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
         await getRow(wallet);
         const { data, error } = await db.rpc("pvp_holder_claim", { p_wallet: wallet, p_gold: HOLDER_DAILY_GOLD });
         if (error) throw error;
-        if (!data?.ok) return json(409, { error: data?.why || "already claimed today", day: data?.day });
+        if (!data?.ok) return json(409, { error: playerError(data?.why, "already claimed today"), day: data?.day });
         return json(200, { ok: true, gold: HOLDER_DAILY_GOLD, day: data.day, profile: toProfile(await getRow(wallet)) });
       }
       // optional airdrop wallet from the PvP entry pop-up (no signature: it's just a paste-in address, like Waves).
@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
         if (!player) return json(401, { error: "no identity" });
         const { data, error } = await db.rpc("pvp_rename", { p_player: player, p_name: String(b.name ?? "") });
         if (error) throw error;
-        if (!data?.ok) return json(data?.why === "name taken" ? 409 : 400, { error: data?.why || "bad name" });
+        if (!data?.ok) return json(data?.why === "name taken" ? 409 : 400, { error: playerError(data?.why, "bad name") });
         return json(200, { ok: true, name: data.name });
       }
       // [v76] is this name free for me? (one name = one pirate across BR + Waves). mode "waves": the typed Waves wallet owns its own
@@ -430,7 +430,7 @@ Deno.serve(async (req) => {
         if (item === "gear:parrot:parrot_green") {
           const { data, error } = await db.rpc("pvp_parrot_buy", { p_player: who.pid, p_req: req });
           if (error) throw error;
-          if (!data?.ok) return json(409, { error: data?.why || "could not buy" });
+          if (!data?.ok) return json(409, { error: playerError(data?.why, "could not buy") });
           if (!who.wallet && !who.owner && !data.retry) await acctBump(db, who.raw, -2000);
           return json(200, { ...data, item });
         }
@@ -441,7 +441,7 @@ Deno.serve(async (req) => {
         if (!goalMet(it.goal, stats)) return json(403, { error: "goal not reached", goal: goalsView(stats)[item] ?? null, stats }); // [Timothy] + where they stand
         const { data, error } = await db.rpc("pvp_shop_buy", { p_player: who.pid, p_item: item, p_price: it.price, p_req: req });
         if (error) throw error;
-        if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not buy", gold: data?.gold });
+        if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: playerError(data?.why, "could not buy"), gold: data?.gold });
         if (!who.wallet && !data.retry) await acctBump(db, who.raw, -it.price); // [v106] a logged-in device takes the price off its own save too
         return json(200, { ok: true, item, price: it.price, gold: data.gold, rev: data.rev, retry: !!data.retry });
       }
@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
         if (store === "dev" && !who.owner && !(await isAcctDevice(db, who.raw)) && b.profile) await devSync(who, b); // the latest device save first (levels bought a moment ago)
         const { data, error } = await db.rpc("pvp_prestige_do", { p_player: who.pid, p_store: store, p_store_id: sid, p_max: PRESTIGE_MAX, p_from: from, p_force: false });
         if (error) { if (/pvp_prestige/.test(error.message || "")) return json(503, { error: "prestige isn't switched on yet" }); throw error; }
-        if (!data?.ok) return json(data?.why === "not maxed" ? 403 : 409, { error: data?.why || "could not prestige", prestige: data?.level ?? null, levels: data?.levels ?? null });
+        if (!data?.ok) return json(data?.why === "not maxed" ? 403 : 409, { error: playerError(data?.why, "could not prestige"), prestige: data?.level ?? null, levels: data?.levels ?? null });
         if (!who.owner) await grantPrestigeSkins(who.pid, data.level | 0); // [prestige] P1 GOLDEN / P2 DIAMOND given free (the owner owns everything)
         return json(200, { ok: true, prestige: data.level | 0, levels: data.levels, owner: who.owner, granted: prestigeSkins(data.level | 0).map((i) => i.slice(5)) });
       }
@@ -554,7 +554,7 @@ Deno.serve(async (req) => {
         const base = wavesGold(wave) /* [v330] t1753u: 100 gold per wave */, gold = Math.round((holder ? base * 2 : base) * (1 + gfind));
         const { data, error } = await db.rpc("pvp_waves_claim", { p_player: who.pid, p_run: run, p_score: score, p_wave: wave, p_sunk: sunk, p_elapsed: elapsed, p_base: base, p_gold: gold, p_holder: holder, p_day_cap: WAVES_GOLD.dayCap });
         if (error) throw error;
-        if (!data?.ok) return json(409, { error: data?.why || "no payout" });
+        if (!data?.ok) return json(409, { error: playerError(data?.why, "no payout") });
         if (!who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0); // [v106] the device adds it to its own save too
         return json(200, { ok: true, gold: data.gold, base: data.base, holder, owner: who.owner, score, wave, perWave: WAVES_GOLD.perWave, goldFind: gfind });
       }
@@ -642,7 +642,7 @@ Deno.serve(async (req) => {
         const req = String(b.req ?? ""); if (!/^[A-Za-z0-9_-]{16,64}$/.test(req)) return json(400, { error: "bad request" });
         const { data, error } = await db.rpc("pvp_wish_toss", { p_player: who.pid, p_req: req, p_price: WISH.price, p_minutes: WISH.minutes });
         if (error) { if (/pvp_wish_toss|PGRST202|42883/.test(`${error.code} ${error.message}`)) return json(409, { error: "closed" }); throw error; }
-        if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold });
+        if (!data?.ok) return json(data?.why === "not enough gold" ? 402 : 409, { error: playerError(data?.why, "could not"), gold: data?.gold });
         if (!who.wallet && !who.owner && !data.owner && !data.retry) await acctBump(db, who.raw, -WISH.price);
         return json(200, { ok: true, owner: !!data.owner, price: data.owner ? 0 : WISH.price, gold: data.gold, rev: data.rev, retry: !!data.retry });
       }
@@ -672,7 +672,7 @@ Deno.serve(async (req) => {
           : await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder });
         if (error && drop && /pvp_map_dig_item|PGRST202|42883/.test(`${error.code} ${error.message}`)) { drop = null; ({ data, error } = await db.rpc("pvp_map_dig", { p_player: who.pid, p_map: id, p_spot: spot, p_holder: holder })); }
         if (error) throw error;
-        if (!data?.ok) return json(409, { error: data?.why || "no treasure" });
+        if (!data?.ok) return json(409, { error: playerError(data?.why, "no treasure") });
         // [v106] a logged-in device that adds the dig gold to its own save too sends mirror: true (like the Waves payout)
         if (b.mirror === true && !who.wallet && !who.owner) await acctBump(db, who.raw, data.gold | 0);
         const loot = drop && data.item ? { item: String(data.item).slice(5), crew: !!data.crew, dup: !!data.dup, dup_gold: data.dup_gold | 0, price: drop.price, sell: data.dup ? sell : 0 } : null; // item = 'slot:id' (the client's gear key)

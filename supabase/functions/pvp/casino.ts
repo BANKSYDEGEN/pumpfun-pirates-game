@@ -1,3 +1,4 @@
+import { playerError } from "./lib.ts";
 // [v333] Pure-gold casino_play — Harbor gold ONLY (ZERO crypto/tokens). Matches js/casino/ui.js contract.
 // Games: blackjack | roulette | dice | slots. Atomic debit/credit via 048 pvp_casino_debit / pvp_casino_credit.
 export const CASINO_ACTIONS = ["casino_play"] as const;
@@ -154,7 +155,7 @@ export async function casinoAction(c: Ctx, action: string, b: Record<string, unk
   // Guard: refuse any crypto/token wording in payload (defense in depth)
   const blob = JSON.stringify(b).toLowerCase();
   if (/\b(sol|usdc|crypto|token|wallet.?pay|phantom|spl)\b/.test(blob)) {
-    return c.json(400, { error: "gold only" });
+    return c.json(400, { error: "Booty only" });
   }
 
   try {
@@ -183,7 +184,7 @@ export async function oneShot(c: Ctx, who: any, b: Record<string, unknown>, game
   const asked = betOf(b.bet); if (!asked) return c.json(400, { error: "bad bet" });
   const req = reqOf(b.reqId) || newReq();
   const deb = await debit(c.db, who.pid, asked, req, game);
-  if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: deb?.why || "could not", gold: deb?.gold });
+  if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: playerError(deb?.why), gold: deb?.gold });
   if (deb.retry) {
     if (deb.game && deb.game !== game) return c.json(409, { error: "that request id was already used" });
     if (deb.result) return replay(c, who, game, deb.result);   // the same round again: same outcome, nothing paid twice
@@ -271,7 +272,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
     const asked = betOf(b.bet); if (!asked) return c.json(400, { error: "bad bet" });
     const req = reqOf(b.reqId) || newReq();
     const deb = await debit(db, pid, asked, req, "blackjack");
-    if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: deb?.why || "could not", gold: deb?.gold });
+    if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: playerError(deb?.why), gold: deb?.gold });
     if (deb.retry) {
       if (deb.game && deb.game !== "blackjack") return c.json(409, { error: "that request id was already used" });
       if (deb.result) return replay(c, who, "blackjack", deb.result);
@@ -343,7 +344,7 @@ async function playBlackjack(c: Ctx, who: any, b: Record<string, unknown>) {
     if (player.length !== 2 || hand.doubled) return c.json(409, { error: "cannot double" });
     dreq = reqOf(b.reqId) || newReq();
     deb = await debit(db, pid, baseBet, dreq, "blackjack");
-    if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: deb?.why || "could not", gold: deb?.gold });
+    if (!deb?.ok) return c.json(deb?.why === "not enough gold" ? 402 : 409, { error: playerError(deb?.why), gold: deb?.gold });
     if (deb.retry) return lost();   // this double was already sent: its hand result (or nothing yet), never a second double
     if (!who.wallet && !who.owner && !deb.owner) await c.acctBump?.(db, who.raw, -baseBet);
     player.push(deck.pop()!);

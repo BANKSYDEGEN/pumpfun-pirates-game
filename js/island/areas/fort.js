@@ -417,7 +417,7 @@ export default {
     // [castle-flag-daily] holder status comes from dock areaApi.holder() (set each frame / on interact)
     const h = (typeof globalThis !== 'undefined' && globalThis.__pfpFlagDailyHolder) || null;
     if (h && h.on && h.claimed) return `COME BACK TOMORROW · ${untilIndyMidnight()}`;
-    if (h && h.on && !h.claimed) return `RAISE THE COLOURS · +${formatGoldAmount(HOLDER_DAILY_GOLD)} GOLD`;
+    if (h && h.on && !h.claimed) return `RAISE THE COLOURS · +${formatGoldAmount(HOLDER_DAILY_GOLD)} Booty`;
     return fortFlagIsUp() ? 'THE COLOURS ARE FLYING' : 'RAISE THE COLOURS';
   },
   activate(q, t, api, b) {
@@ -439,7 +439,7 @@ function flagDailyActivate(api, b) {
   const h = api?.holder?.() || (typeof globalThis !== 'undefined' && globalThis.__pfpFlagDailyHolder) || null;
   const left = untilIndyMidnight();
   // already claimed today → flag stays / goes up, no second payout
-  if (h && h.on && h.claimed) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>daily gold already claimed · resets in ${left}</small>`; }
+  if (h && h.on && h.claimed) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>daily Booty already claimed · resets in ${left}</small>`; }
   // holder, not claimed → raise + server claim
   if (h && h.on && !h.claimed && api?.claimDaily) {
     b?.raise(); markFortFlagRaised();
@@ -447,16 +447,16 @@ function flagDailyActivate(api, b) {
     return Promise.resolve(pending).then((r) => {
       const g = (r && r.gold) | 0;
       store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; });
-      return `THE JOLLY ROGER FLIES · +${formatGoldAmount(g || HOLDER_DAILY_GOLD)} DAILY GOLD!<br><small>come back tomorrow · resets in ${untilIndyMidnight()}</small>`;
+      return `THE JOLLY ROGER FLIES · +${formatGoldAmount(g || HOLDER_DAILY_GOLD)} daily Booty!<br><small>come back tomorrow · resets in ${untilIndyMidnight()}</small>`;
     }).catch((e) => {
       if (e?.status === 409) { markFortFlagRaised(); b?.raise(); return `COME BACK TOMORROW<br><small>already claimed · resets in ${untilIndyMidnight()}</small>`; }
-      if (e?.status === 403) return 'HOLDER YOUR WALLET<br><small>hold $SUNK or $AHOY to claim daily gold</small>';
+      if (e?.status === 403) return 'HOLDER YOUR WALLET<br><small>hold $SUNK or $AHOY to claim daily Booty</small>';
       return `COULD NOT CLAIM<br><small>${String(e?.message || e).slice(0, 80)}</small>`;
     });
   }
   // not a holder (or holder status not ready): cosmetic raise only, point them at the perk
   const first = !fortFlagIsUp(); markFortFlagRaised(); if (first) store.upd(o => { o.fortFlags = (o.fortFlags || 0) + 1; }); b?.raise();
-  if (!h || !h.on) return `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>holders of $SUNK / $AHOY claim +${formatGoldAmount(HOLDER_DAILY_GOLD)} gold here once a day</small>`;
+  if (!h || !h.on) return `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>holders of $SUNK / $AHOY claim +${formatGoldAmount(HOLDER_DAILY_GOLD)} Booty here once a day</small>`;
   return first ? `THE JOLLY ROGER FLIES OVER THE FORT!<br><small>come back tomorrow</small>` : `COME BACK TOMORROW<br><small>resets in ${left}</small>`;
 }
 

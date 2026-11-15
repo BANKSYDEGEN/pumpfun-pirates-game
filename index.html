@@ -185,7 +185,7 @@
         <div class="cap-info">
           <div id="captain-name">CAPT. #000</div>
           <div class="bar"><div id="player-hp" class="fill red"></div></div>
-          <div id="hud-gold"><span class="label">GOLD</span> <span id="gold" class="gold">0</span></div>
+          <div id="hud-gold"><span class="label">BOOTY</span> <span id="gold" class="gold">0</span></div>
           <div id="wallet-short" class="muted"></div>
         </div>
       </div>
@@ -229,7 +229,7 @@
   <!-- [pvp] PvP ARENA HUD: kill feed, menu button (scoreboard / skins / name / wallet), death screen -->
   <div id="pvp-feed" class="pvp-only" aria-live="polite"></div>
   <button class="icon pvp-only" id="btn-pvp-menu" title="PvP scoreboard, name and save (Tab)" aria-label="PvP menu">🏴</button>
-  <button id="pvp-return" class="hidden pvp-only" type="button" title="Return to the harbor with your gold (needs 10 s without combat)">⚓ HARBOR</button>
+  <button id="pvp-return" class="hidden pvp-only" type="button" title="Return to the harbor with your Booty (needs 10 s without combat)">⚓ HARBOR</button>
   <div id="pvp-dead" class="hidden pvp-only">
     <div class="pd-card"><h2>SUNK!</h2><div class="pd-by"></div><div class="pd-drop muted"></div><div class="pd-kd"></div><div class="pd-queue" hidden></div>
       <div class="pd-big" id="pvp-dead-big" aria-live="polite">5</div><div class="pd-re">Back at sea in <b id="pvp-dead-t">4</b>…</div><button id="pvp-dead-menu" class="ghost" type="button">MAIN MENU</button></div>
@@ -252,7 +252,7 @@
     <label class="field"><span>PIRATE NAME</span><input id="pvp-entry-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words" enterkeyhint="next"></label>
     <small id="pvp-entry-name-msg" class="name-taken hidden">Name taken. Pick another.</small>
     <button id="pvp-entry-go" type="button" class="pvp-btn big">SET SAIL</button>
-    <p class="muted">You start in the harbor: farm AI ships for small gold, then JOIN BATTLE.</p></div></div>
+    <p class="muted">You start in the harbor: farm AI ships for small Booty, then JOIN BATTLE.</p></div></div>
   <!-- [pvp] SPECTATE HUD (receive-only viewer): who you follow, camera modes, in-room leaderboard. H hides it all. -->
   <div id="spec-hud" class="spec-only">
     <div id="spec-room" class="spec-room"></div>
@@ -286,18 +286,18 @@
   <div class="faq-card">
     <button id="faq-close" class="faq-x" type="button" aria-label="Close">✕</button>
     <h3 id="faq-q1">What is PUMPFUN PIRATES?</h3>
-    <p>A free pirate battle game made by and for the PUMPFUN PIRATES community on Solana. Sink enemy ships, grab gold, hire escorts and survive long enough to take on THE COMMODORE.</p>
+    <p>A free pirate battle game made by and for the PUMPFUN PIRATES community on Solana. Sink enemy ships, grab Booty, hire escorts and survive long enough to take on THE COMMODORE.</p>
     <h3>Do I need crypto to play?</h3>
     <p>No. Just hit ENTER GAME. Connecting a Solana wallet is optional and read-only: it only saves your progress, and it can never move your funds.</p>
     <!-- [v169] BANKSY "Also update the ? on homescreen": what's live now (kept short, the card scrolls on phones) -->
     <h3>How do I start?</h3>
     <p>ENTER GAME puts your ship at the harbor dock. Step ashore to walk the island. The plaza boards start STORM HUNT (solo waves) or BATTLE ROYALE (real players, SOLO or SQUADS).</p>
     <h3>Shops</h3>
-    <p>On the island: CLOTHES SHOP, PET STORE, SHIP SHOP (skins), UPGRADE SHOP, CREW SHOP, plus the SWORD SHOP and MUSKET SHOP in their own buildings up Main Street. Everything is bought with Battle Royale gold and listed cheapest first. The CREW SHOP has a hat colour pick for your whole crew.</p>
+    <p>On the island: CLOTHES SHOP, PET STORE, SHIP SHOP (skins), UPGRADE SHOP, CREW SHOP, plus the SWORD SHOP and MUSKET SHOP in their own buildings up Main Street. Everything is bought with Battle Royale Booty and listed cheapest first. The CREW SHOP has a hat colour pick for your whole crew.</p>
     <h3>SWORD PIT + MUSKET RANGE</h3>
-    <p>On-foot duels: 1v1 free-for-all, or pick RED / BLUE for 2v2 (teammates can't hurt each other). Just for fun: arena KOs never count toward kill goals and wins pay no gold. Swords and muskets raise their own hit rate in on-foot battles. They don't boost cannons.</p>
+    <p>On-foot duels: 1v1 free-for-all, or pick RED / BLUE for 2v2 (teammates can't hurt each other). Just for fun: arena KOs never count toward kill goals and wins pay no Booty. Swords and muskets raise their own hit rate in on-foot battles. They don't boost cannons.</p>
     <h3>PRESTIGE</h3>
-    <p>Max every ship upgrade, then hit PRESTIGE in the UPGRADE SHOP. It resets only your ship upgrades; gold, skins, gear, kills and leaderboards stay. PRESTIGE 1 gives the GOLDEN GALLEON free, PRESTIGE 2 the DIAMOND SHIP. Your emblem shows top-left.</p>
+    <p>Max every ship upgrade, then hit PRESTIGE in the UPGRADE SHOP. It resets only your ship upgrades; Booty, skins, gear, kills and leaderboards stay. PRESTIGE 1 gives the GOLDEN GALLEON free, PRESTIGE 2 the DIAMOND SHIP. Your emblem shows top-left.</p>
     <h3>Skins you earn</h3>
     <p>GHOST SHIP unlocks at 100 Battle Royale kills, FLAMING SHIP at 200 (confirmed kills on real players).</p>
     <h3>Exploring</h3>
@@ -407,7 +407,7 @@
     <div class="gfx-box" id="map-style-pause"></div><!-- [v153] MINIMAP STYLE: COLORED (default) / PAPER -->
     <div class="gfx-box" id="hud-hide-pause"><!-- [gold-hud] Hide HUD --></div>
     <button id="btn-resume" class="big">RESUME</button>
-    <button id="btn-quit" class="ghost">MAIN MENU</button><button id="btn-set-harbor" class="ghost pvp-set pvp-set-inline" type="button" title="Keep your gold · needs 10 s without combat">⚓ HARBOR</button>
+    <button id="btn-quit" class="ghost">MAIN MENU</button><button id="btn-set-harbor" class="ghost pvp-set pvp-set-inline" type="button" title="Keep your Booty · needs 10 s without combat">⚓ HARBOR</button>
   </div>
 </div>
 
@@ -419,7 +419,7 @@
       <div><span class="label">SCORE</span><b id="go-score">0</b></div>
       <div><span class="label">WAVE</span><b id="go-wave">1</b></div>
       <div><span class="label">SUNK</span><b id="go-sunk">0</b></div>
-      <div><span class="label">GOLD</span><b id="go-gold" class="gold">0</b></div>
+      <div><span class="label">BOOTY</span><b id="go-gold" class="gold">0</b></div>
     </div>
     <div id="go-pay" class="go-pay" hidden aria-live="polite"></div>
     <div id="go-wallet" class="muted"></div>
@@ -455,7 +455,7 @@
     <button id="pvp-menu-close" class="faq-x" type="button" aria-label="Close">✕</button>
     <h3>BATTLE ROYALE</h3>
     <table id="pvp-board" class="pvp-board"></table>
-    <button id="pvp-menu-return" class="ghost" type="button" hidden>⚓ RETURN TO HARBOR <small class="muted">(keep your gold · 10 s without combat)</small></button>
+    <button id="pvp-menu-return" class="ghost" type="button" hidden>⚓ RETURN TO HARBOR <small class="muted">(keep your Booty · 10 s without combat)</small></button>
     <label class="field"><span>PIRATE NAME</span><input id="pvp-name" type="text" maxlength="20" spellcheck="false" autocomplete="off" autocapitalize="words"></label>
     <div id="pvp-kd" class="pvp-kd"></div>
     <div class="pvp-kills-wrap lb-br" id="pvp-kills"><div class="pvp-sub">KING OF THE HILL <span class="muted pk-mode"></span></div>
@@ -464,7 +464,7 @@
     <div id="pvp-skins" class="pvp-skins"></div>
     <div class="pvp-save"><span id="pvp-wallet-state" class="muted"></span>
       <button id="pvp-wallet" class="wallet-link" type="button" title="Optional, read-only: your wallet signs a free message, never a transaction">Connect wallet to save</button>
-      <span id="pvp-holder" class="pvp-holder" hidden title="Holding $SUNK or $AHOY: double (2×) gold you earn">HOLDER 2× GOLD</span><button id="pvp-holder-claim" class="buy" type="button" hidden>Claim daily gold</button></div>
+      <span id="pvp-holder" class="pvp-holder" hidden title="Holding $SUNK or $AHOY: double (2×) Booty you earn">HOLDER 2× BOOTY</span><button id="pvp-holder-claim" class="buy" type="button" hidden>Claim daily Booty</button></div>
   </div>
 </div>
 

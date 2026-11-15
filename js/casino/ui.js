@@ -1,7 +1,7 @@
 import { formatGoldAmount } from '../goldFormat.js';
 // THE GOLDEN DOUBLOON CASINO: mahogany + brass game dialogs. Every station opens only its own game:
 // PIRATE BLACKJACK, BUCCANEER ROULETTE, DEAD MAN'S DICE, TREASURE SLOTS. Opened from the E points inside the hall (js/island/casino.js):
-// js/dock/index.js (the game) and js/island/main.js (island.html). Wagers are GOLD only (100 GOLD / 100g); the server decides every result
+// js/dock/index.js (the game) and js/island/main.js (island.html). Wagers are Booty only (100 Booty); the server decides every result
 // (pvp.inv.call('casino_play', ...), js/casino/engine.js createCasinoClient); ?casinoqa=1 or no server casino = the practice table (own purse).
 // Styles are injected once (#cas-css). Esc / x closes; pending results retain their DOM until settled.
 import { CASINO_THEME } from './theme.js';
@@ -242,7 +242,7 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   ov.innerHTML = `<div class="cas-box" role="dialog" aria-modal="true" aria-labelledby="cas-title" aria-describedby="cas-rules" tabindex="-1">
     <div class="cas-head"><div class="cas-brand"><small>THE GOLDEN DOUBLOON</small><b id="cas-title" data-k="title">PIRATE BLACKJACK</b></div>
       <span class="cas-mode" data-k="mode"></span><span class="cas-sp"></span>
-      <div class="cas-pill" data-k="pill">${COIN}<div><small>BALANCE</small><span data-k="gold">0 GOLD</span></div></div>
+      <div class="cas-pill" data-k="pill">${COIN}<div><small>BALANCE</small><span data-k="gold">0 Booty</span></div></div>
       <button class="cas-x" data-k="x" aria-label="Close casino" title="Close (Esc)">×</button></div>
 
     <div class="cas-table-label"><span data-k="emblem" aria-hidden="true"></span><span>EST. IN THE GOLDEN AGE · GOLD TABLES</span><span class="cas-table-no" data-k="table-no"></span></div>
@@ -294,20 +294,20 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
 
   function gold() { return client.gold(); }
   function paintGold(flash = 0) { const g = gold(); q('gold').textContent = fmtGold(g); const p = q('pill'); p.classList.remove('up', 'dn'); if (flash) { void p.offsetWidth; p.classList.add(flash > 0 ? 'up' : 'dn'); } S.lastGold = g;
-    const m = q('mode'); const live = client.mode === 'live'; m.textContent = live ? 'LIVE TABLE' : qa ? 'PRACTICE TABLE · QA PURSE' : 'PRACTICE TABLE · NO GOLD MOVES'; m.classList.toggle('prac', !live); }
+    const m = q('mode'); const live = client.mode === 'live'; m.textContent = live ? 'LIVE TABLE' : qa ? 'PRACTICE TABLE · QA PURSE' : 'PRACTICE TABLE · NO BOOTY MOVES'; m.classList.toggle('prac', !live); }
   function err(t) { q('err').textContent = t || ''; }
   function result(text, kind) { const r = q('res', q('felt')); if (!r) return; r.className = 'cas-res ' + (kind || ''); r.textContent = text; }
   function hist(delta, stake) { receipt(delta, stake); S.hist.unshift(delta); S.hist.length = Math.min(S.hist.length, 10);
     q('hist').innerHTML = S.hist.map(d => `<span class="${d > 0 ? 'w' : d < 0 ? 'l' : ''}">${d > 0 ? '+' : ''}${fmtG(d)}</span>`).join(''); }
   function settleText(res, bet) { const d = res.delta || 0;
     if (res.outcome === 'blackjack') return ['BLACKJACK! +' + fmtGold(d), 'win'];
-    if (d > 0) return ['YOU WIN +' + fmtGold(d), 'win']; if (d < 0) return [(res.outcome === 'bust' ? 'BUST · ' : 'YOU LOSE −') + fmtGold(-d), 'lose']; return ['PUSH · NO GOLD LOST', 'push']; }
+    if (d > 0) return ['YOU WIN +' + fmtGold(d), 'win']; if (d < 0) return [(res.outcome === 'bust' ? 'BUST · ' : 'YOU LOSE −') + fmtGold(-d), 'lose']; return ['PUSH · NO BOOTY LOST', 'push']; }
 
   // ---- bet controls ----
   function bets(disabled = false) {
     const b = S.bet[S.game], el = q('bets');
-    el.innerHTML = CHIPS.map((c, i) => `<button class="cas-chip${b === c ? ' on' : ''}" data-c="${c}" aria-label="Bet ${formatGoldAmount(c)} gold" aria-pressed="${b === c}" style="--c:${['#6b7580', '#1f6b3a', '#1f4e8a', '#1c1c22', '#6a1fa0', '#c0262d'][i]}">${formatGoldAmount(c)}g</button>`).join('') +
-      `<button class="cas-adj" data-a="minus" aria-label="Decrease bet by 10 gold">−</button><button class="cas-adj" data-a="plus" aria-label="Increase bet by 10 gold">+</button><button class="cas-adj" data-a="half" aria-label="Halve bet">1/2</button><button class="cas-adj" data-a="dbl" aria-label="Double bet">2×</button><button class="cas-adj" data-a="max" aria-label="Maximum affordable bet">MAX</button><div class="cas-betv"><small>YOUR BET</small>${fmtG(b)}</div>`;
+    el.innerHTML = CHIPS.map((c, i) => `<button class="cas-chip${b === c ? ' on' : ''}" data-c="${c}" aria-label="Bet ${formatGoldAmount(c)} Booty" aria-pressed="${b === c}" style="--c:${['#6b7580', '#1f6b3a', '#1f4e8a', '#1c1c22', '#6a1fa0', '#c0262d'][i]}">${formatGoldAmount(c)} Booty</button>`).join('') +
+      `<button class="cas-adj" data-a="minus" aria-label="Decrease bet by 10 Booty">−</button><button class="cas-adj" data-a="plus" aria-label="Increase bet by 10 Booty">+</button><button class="cas-adj" data-a="half" aria-label="Halve bet">1/2</button><button class="cas-adj" data-a="dbl" aria-label="Double bet">2×</button><button class="cas-adj" data-a="max" aria-label="Maximum affordable bet">MAX</button><div class="cas-betv"><small>YOUR BET</small>${fmtG(b)}</div>`;
     el.querySelectorAll('button').forEach(x => { x.disabled = disabled || gold() < MIN_BET || (+x.dataset.c > gold()); x.onclick = () => {
       if (S.busy || (S.game === 'blackjack' && S.bj)) return;
       const g = Math.max(MIN_BET, gold()), cap = Math.min(MAX_BET, g); let v = S.bet[S.game];
@@ -319,11 +319,11 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
     const hand = S.game === 'blackjack' && S.bj, b = hand?.bet || S.bet[S.game]; let label = '', mult = 0;
     if (S.game === 'roulette') { label = rouletteLabel(S.rl); mult = ROULETTE_PAYS[S.rl?.kind] || 0; }
     if (S.game === 'dice') { label = { under7: 'UNDER 7', seven: 'LUCKY 7', over7: 'OVER 7', doubles: 'DOUBLES' }[S.dice]; mult = DICE_BETS[S.dice]; }
-    q('ticket').textContent = S.busy ? 'DEALER AT WORK · PLEASE WAIT…' : hand ? `HAND IN PLAY · ${fmtGold(b)} staked · Hit, Stand or Double` : gold() < MIN_BET ? 'Not enough gold · minimum bet 10 GOLD' :
+    q('ticket').textContent = S.busy ? 'DEALER AT WORK · PLEASE WAIT…' : hand ? `HAND IN PLAY · ${fmtGold(b)} staked · Hit, Stand or Double` : gold() < MIN_BET ? 'Not enough Booty · minimum bet 10 Booty' :
       `${label ? label + ' · ' : ''}Bet ${fmtG(b)} · ${mult ? 'Return ' + fmtG(Math.floor(b * mult)) + (S.game === 'dice' && /under|over/.test(S.dice) ? '–' + fmtG(Math.floor(b * 2.2)) : '') + ' on a win' : S.game === 'slots' ? 'Match the centre payline to win' : 'Beat the dealer without going over 21'}`;
     ov.querySelector('.cas-box').setAttribute('aria-busy', String(S.busy));
   }
-  const betOk = () => { const b = S.bet[S.game]; if (b > gold()) { err('Not enough gold for that bet: lower it with − or a smaller chip.'); return false; } err(''); return true; };
+  const betOk = () => { const b = S.bet[S.game]; if (b > gold()) { err('Not enough Booty for that bet: lower it with − or a smaller chip.'); return false; } err(''); return true; };
   async function call(game, body) { let res; try { res = await client.play(game, body); } catch { res = { ok: false, error: 'The dealer could not confirm the wager. Check your balance before playing again.' }; } paintGold(res.ok ? Math.sign(res.delta || 0) : 0); if (!res.ok) err(res.error ? res.error.toUpperCase() : 'THE TABLE IS CLOSED'); return res; }
 
   // ---- PIRATE BLACKJACK ----
@@ -447,9 +447,9 @@ export function createCasinoUi({ pvp = () => null, getGold = () => 0, setGold = 
   function show(game) {
     if (S.busy) return;
     if (!VIEWS[game]) game = 'blackjack'; clearEffects(); S.game = game;
-    ov.dataset.game = game; q('emblem').innerHTML = GAME_ICON[game]; q('table-no').textContent = 'GOLD ONLY';
+    ov.dataset.game = game; q('emblem').innerHTML = GAME_ICON[game]; q('table-no').textContent = 'BOOTY ONLY';
     q('title').textContent = TITLES[game];
-    q('foot').textContent = RULES[game] + ' · Multipliers include your stake; fractional GOLD rounded down. In-game GOLD only.';
+    q('foot').textContent = RULES[game] + ' · Multipliers include your stake; fractional Booty rounded down. In-game Booty only.';
     err(''); VIEWS[game](); paintGold();
   }
   function open(game = 'blackjack') {

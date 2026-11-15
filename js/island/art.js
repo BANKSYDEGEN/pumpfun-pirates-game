@@ -477,7 +477,7 @@ export function makeAtlas(skull) {
   board(0, 184, 512, 200, '#c98a4c'); text('DIG HERE', 256, 290, 128, '#fa0d0d'); reg('dig', 0, 184, 512, 200);
   board(512, 258, 512, 126, '#5a3219'); text('DAILY BOOTY', 768, 324, 104); reg('daily', 512, 258, 512, 126);
   // wanted posters
-  const posters = [['DEV WALLET', '5,000 GOLD', '#3a2f8f'], ['RUG PULLER', '1,200 GOLD', '#8f2f2f'], ['JEETER', '800 GOLD', '#2f7a3a']];
+  const posters = [['DEV WALLET', '5,000 Booty', '#3a2f8f'], ['RUG PULLER', '1,200 Booty', '#8f2f2f'], ['JEETER', '800 Booty', '#2f7a3a']];
   posters.forEach(([n, b, col], i) => {
     const x = i * 256 + 8, y = 392, w = 240, h = 304;
     g.fillStyle = '#f7e6bd'; g.fillRect(x, y, w, h); g.strokeStyle = '#a5824a'; g.lineWidth = 6; g.strokeRect(x + 3, y + 3, w - 6, h - 6);

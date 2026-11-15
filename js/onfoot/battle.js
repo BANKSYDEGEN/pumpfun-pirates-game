@@ -578,7 +578,7 @@ export function createBattle({ scene, world, layout, walker, fnet, sfx, camera, 
       const board = kothOpenIslandBoard({ coli, killerId: kid, victimId: mid });
       try { kd?.('d', `me:${me.life}`, board ? { board: true, k: kid, v: mid, life: me.life } : undefined); } catch {}
       if (me.team) me.score[3 - me.team]++;
-      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'gold + unequipped haul dropped · respawning nearby'}</small>`, 2400);
+      say(`KNOCKED OUT<small>by ${esc(by || 'a pirate')} · ${coli ? 'Coliseum: just for fun, back up at the gate' : 'Booty + unequipped haul dropped · respawning nearby'}</small>`, 2400);
       // [backpack-pvp] drop unequipped haul outside Safe Zones (never inHouse); Coliseum games stay just-for-fun (no drop)
       if (!coli) try { dispatchEvent(new CustomEvent('pfp-foot-ko', { detail: { by: String(byId || me.lastById || ''), x: walker.w.x, y: world.ground(walker.w.x, walker.w.z), z: walker.w.z } })); } catch {} // [v370] BANKSY t1969u: -min(100, gold) as a ground pile (js/pvp.js)
       if (!coli) try {

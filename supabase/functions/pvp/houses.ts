@@ -1,6 +1,7 @@
 // [storage-houses] Buyable cottages + house chest storage (migration 043). Wired from index.ts.
 // Actions: house_state, house_buy, house_store, house_take, house_upgrade. Offline clients fall back to localStorage.
 import { KEY_RE } from "./invCatalog.ts";
+import { playerError } from "./lib.ts";
 import { BACKPACK_CAP, countSlots, needsNewSlot } from "./loot.ts"; // [backpack-pvp]
 
 export const HOUSE_ACTIONS = ["house_state", "house_buy", "house_store", "house_take", "house_upgrade"] as const;
@@ -65,7 +66,7 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
           if (/pvp_house_buy|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;
         }
-        if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold });
+        if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: playerError(data?.why), gold: data?.gold });
         if (!who.wallet && !who.owner && !data.owner && !data.retry && !data.already) await c.acctBump?.(db, who.raw, -HOUSE_PRICE);
         const full = await loadHouse(db, pid, cottage);
         return c.json(200, { ok: true, owner: !!data.owner, price: data.owner || data.already ? 0 : HOUSE_PRICE, gold: data.gold, rev: data.rev, retry: !!data.retry, already: !!data.already, house: full });
@@ -89,7 +90,7 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
           if (/pvp_house_store|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;
         }
-        if (!data?.ok) return c.json(409, { error: data?.why || "could not" });
+        if (!data?.ok) return c.json(409, { error: playerError(data?.why, "could not") });
         return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage) });
       }
       case "house_take": {
@@ -121,7 +122,7 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
           if (/pvp_house_take|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;
         }
-        if (!data?.ok) return c.json(409, { error: data?.why || "could not", full: !!data?.full });
+        if (!data?.ok) return c.json(409, { error: playerError(data?.why, "could not"), full: !!data?.full });
         return c.json(200, { ok: true, ...data, house: await loadHouse(db, pid, cottage), owner: !!who.owner });
       }
       case "house_upgrade": {
@@ -132,7 +133,7 @@ export async function houseAction(c: Ctx, action: string, b: Record<string, unkn
           if (/pvp_house_upgrade|PGRST202|42883/.test(`${error.code} ${error.message}`)) return c.json(409, { error: "closed" });
           throw error;
         }
-        if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: data?.why || "could not", gold: data?.gold });
+        if (!data?.ok) return c.json(data?.why === "not enough gold" ? 402 : 409, { error: playerError(data?.why), gold: data?.gold });
         if (!who.wallet && !who.owner && !data.owner && !data.retry) await c.acctBump?.(db, who.raw, -UPGRADE_PRICE);
         return c.json(200, { ok: true, owner: !!data.owner, price: data.owner ? 0 : UPGRADE_PRICE, gold: data.gold, rev: data.rev, retry: !!data.retry, slots: data.slots, house: await loadHouse(db, pid, cottage) });
       }

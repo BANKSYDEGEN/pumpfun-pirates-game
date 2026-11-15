@@ -237,7 +237,7 @@ function render() {
     grid.appendChild(c);
   }
   detail(items.find(x => x.key === view.sel));
-  $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale gold${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some gold is still syncing' : ''}`;
+  $('.ishop-foot', root).textContent = state.source === 'mock' ? `PREVIEW · mock data, nothing is spent${view.tab === 'skins' ? ' · cosmetic only' : ' · worn gear gives SKILL BOOSTS'}` : `Paid from your Battle Royale Booty${view.tab === 'skins' ? ' · ship skins are cosmetic only' : ' · worn gear gives SKILL BOOSTS (capped) · Battle Royale 50% · off in the SWORD PIT + MUSKET RANGE'}${state.behind ? ' · some Booty is still syncing' : ''}`;
   if (skinMod && view.tab === 'skins') try { skinMod.previewCards(grid, sortByPrice(SKIN_ITEMS, i => i.price).map(i => ({ id: i.id, skin: skinMod.pvpSkin(i.id) })), {}, { pvp: true }); } catch {}
 }
 // [Emerly musket-upgrades + gunacc] the WEAPON STORE's MUSKET UPGRADES tab: 3 tracks x 3 tiers (gold, in order), the GILDED skin once all 9
@@ -261,8 +261,8 @@ function renderMuskUpg() {
     (x ? `<p><b>${esc(x.kind === 'acc' ? x.it.name : x.t.name + ' ' + 'I'.repeat(x.n))}</b> · ${esc(x.kind === 'acc' ? (GUN_ACC.find(a => a.slot === x.it.acc)?.fx || '') + ' · goes in your INVENTORY, fit it on the EQUIPPED musket' : x.t.fmt(x.t.mul[x.n - 1]))}</p>${st(x) === 'buy' ? `<button type="button" class="big" data-mb>${state.owner ? 'GET · FREE' : 'BUY · ' + fmtGold(x.price)}</button>` : ''}` : '<p class="muted">pick an upgrade or accessory</p>');
   const b = $('[data-mb]', det); if (b) b.onclick = async () => { b.disabled = true; b.textContent = '…';
     const r = x.kind === 'acc' ? await provider.buyAcc?.(x.key) : await provider.buy('gear', x.key); if (r?.state) state = r.state;
-    if (!r?.ok) toast(String(r?.error || 'could not buy').toUpperCase()); else toast(x.kind === 'acc' ? `${x.it.name} · IN YOUR INVENTORY` : 'UPGRADED'); renderMuskUpg(); };
-  $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent' : 'Paid from your Battle Royale gold · musket upgrades work in the MUSKET RANGE';
+    if (!r?.ok) toast(String(({ 'not enough gold': 'not enough Booty', 'not enough Booty': 'not enough Booty' }[r?.error] || r?.error || 'could not buy')).toUpperCase()); else toast(x.kind === 'acc' ? `${x.it.name} · IN YOUR INVENTORY` : 'UPGRADED'); renderMuskUpg(); };
+  $('.ishop-foot', root).textContent = state.source === 'mock' ? 'PREVIEW · mock data, nothing is spent' : 'Paid from your Battle Royale Booty · musket upgrades work in the MUSKET RANGE';
 }
 function openUpgrades() { // [Timothy] UPGRADES tab: hand over to the ship upgrades panel (js/shop.js, opened in island mode)
   let ok = false; try { ok = !!window.PFP_OPEN_UPGRADES(); } catch (e) { console.warn('[shop] upgrades', e); }
@@ -295,7 +295,7 @@ function detail(x) {
   if (x.kind === 'gear' && x.it.weapon) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', x.it.slot === 'sword' // [Timothy] WEAPON STORE
     ? '<div class="ishop-gl">Drawn in the <b>SWORD PIT</b>. Pit KOs pay nothing and never count towards goals.</div>'
     : '<div class="ishop-gl">Shouldered at the <b>MUSKET RANGE</b>. Range KOs pay nothing and never count towards goals.</div>');
-  if (x.kind === 'gear' && x.it.levels) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-common">LV 1 · COMMON</i>${x.it.findOnly ? 'Not sold here: <b>found in treasure chests</b>, always at LV 1.' : 'Sold at <b>LV 1</b>.'} Level it up from your <b>INVENTORY</b> (gold, + musket parts at each new rarity). Rarity rises every 5 levels: ${MUSK_BANDS}.</div>`); // [musket-levels]
+  if (x.kind === 'gear' && x.it.levels) $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl"><i class="ishop-rar r-common">LV 1 · COMMON</i>${x.it.findOnly ? 'Not sold here: <b>found in treasure chests</b>, always at LV 1.' : 'Sold at <b>LV 1</b>.'} Level it up from your <b>INVENTORY</b> (Booty, + musket parts at each new rarity). Rarity rises every 5 levels: ${MUSK_BANDS}.</div>`); // [musket-levels]
   if (x.kind === 'gear') boostDetail(x, s, d); // [Emerly] ITEM SKILL BOOSTS
   if (x.it.crew) { // [Timothy] CREW SHOP
     $('.ishop-pr', d)?.insertAdjacentHTML('afterend', `<div class="ishop-gl">For your <b>whole crew</b> · deck crew, gunners + the crew ashore. Your own pirate is not changed.${VENDORS.crew.dress ? ' Free in the CREW ROOM for any gear you own.' : x.it.price ? '' : ' Part of the free crew uniform.'}</div><div class="ishop-gl">Crew now wear: <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewhat' && i.id === eqGear('crewhat')) || {}).label || '')}</b> + <b>${esc((CREW_ITEMS.find(i => i.slot === 'crewoutfit' && i.id === eqGear('crewoutfit')) || {}).label || '')}</b></div>`); }
@@ -348,7 +348,7 @@ function boostDetail(x, s, d) {
   const capNote = after.capped.includes(k0) ? ` · <b class="bst-cap">${S.label} CAPPED at ${fmtPct(S.cap)}</b>` : after.capped.includes('combat') ? ` · <b class="bst-cap">TOTAL CAPPED at ${Math.round(COMBAT_CAP * 100)}</b>` : '';
   const pv = S.combat ? statPreview(k0, after[k0] || 0, now[k0] || 0) : null;
   const unit = pv ? `<div class="ishop-gl">Your ship: <b>${esc(pv.from)} → ${esc(pv.to)}</b> ${esc(S.label.toLowerCase())}${state.owner || owned ? '' : ' once bought + worn'}</div>` : '';
-  const where = S.combat ? `Stacks with ${esc(S.track)} upgrades · Battle Royale ${Math.round(BOOST_MODE.br * 100)}% · off in the SWORD PIT + MUSKET RANGE` : x.it.slot === 'parrot' ? 'More gold from loot piles, wins + Waves payouts (not the holder daily gold)' : S.foot ? `Your ${k0 === 'swordHit' ? 'sword' : 'musket'} lands more often, on foot in battle modes · never your ship's cannons${ARENA_WEAPON_BOOSTS ? '' : ' · off in the SWORD PIT + MUSKET RANGE for now'}` : '';
+  const where = S.combat ? `Stacks with ${esc(S.track)} upgrades · Battle Royale ${Math.round(BOOST_MODE.br * 100)}% · off in the SWORD PIT + MUSKET RANGE` : x.it.slot === 'parrot' ? 'More Booty from loot piles, wins + Waves payouts (not the holder daily Booty)' : S.foot ? `Your ${k0 === 'swordHit' ? 'sword' : 'musket'} lands more often, on foot in battle modes · never your ship's cannons${ARENA_WEAPON_BOOSTS ? '' : ' · off in the SWORD PIT + MUSKET RANGE for now'}` : '';
   pr.insertAdjacentHTML('afterend', `<div class="ishop-bstd"><small>SKILL BOOST</small><span class="ishop-bst big">${boostChipHtml(b, esc)}</span></div>${cmp}${unit}<div class="ishop-gl">${where}${capNote}</div>`);
   if (now.combat !== after.combat && S.combat) $('.ishop-bstd', d)?.insertAdjacentHTML('beforeend', `<small class="bst-tot">TOTAL ${Math.round(now.combat * 100)} → ${Math.round(after.combat * 100)} / ${Math.round(COMBAT_CAP * 100)}</small>`);
 }
@@ -363,7 +363,7 @@ function confirmBuy(x) {
   const box = $('.ishop-confirm', root), cb = $('.ishop-cbox', box);
   cb.innerHTML = ''; cb.append(x.kind === 'skin' ? realOr(x.key) : gearThumb(x.it));
   cb.insertAdjacentHTML('beforeend', `<h4>BUY ${esc(x.name)}?</h4><p class="ishop-math"><span>${fmtGold(state.gold)}</span> − <b>${fmtGold(x.it.price)}</b> = <span>${fmtGold(state.gold - x.it.price)}</span></p>
-    <p class="muted">Paid from your Battle Royale gold. ${x.kind === 'skin' ? 'Cosmetic only.' : boostLine(x) + (x.it.crew ? ' · for your crew (not your own pirate) · on every device with this save.' : ' · yours on every device with this save.')}</p>
+    <p class="muted">Paid from your Battle Royale Booty. ${x.kind === 'skin' ? 'Cosmetic only.' : boostLine(x) + (x.it.crew ? ' · for your crew (not your own pirate) · on every device with this save.' : ' · yours on every device with this save.')}</p>
     <div class="ishop-cbtns"><button type="button" class="ghost" data-c="no">CANCEL</button><button type="button" class="big" data-c="yes">CONFIRM</button></div><p class="ishop-err" aria-live="assertive"></p>`);
   box.classList.remove('hidden'); $('[data-c="yes"]', cb).focus();
   $('[data-c="no"]', cb).onclick = hideConfirm;
@@ -409,7 +409,7 @@ export function closeShop() {
 function entry() {
   if (!shopFlag()) return;
   const put = () => { const card = $('#pvp-menu .pvp-card'), sub = card && [...card.querySelectorAll('.pvp-sub')].find(e => /SKINS/.test(e.textContent)); if (!sub || $('#pvp-shop-open')) return !!sub;
-    const b = document.createElement('button'); b.id = 'pvp-shop-open'; b.type = 'button'; b.className = 'ghost'; b.innerHTML = '🏝 SHOP <small class="muted">ship skins for gold</small>';
+    const b = document.createElement('button'); b.id = 'pvp-shop-open'; b.type = 'button'; b.className = 'ghost'; b.innerHTML = '🏝 SHOP <small class="muted">ship skins for Booty</small>';
     b.onclick = () => openShop({ vendor: 'shop', tab: 'skins' }); sub.before(b); return true; };
   if (!put()) { const t = setInterval(() => put() && clearInterval(t), 500); setTimeout(() => clearInterval(t), 20000); }
 }

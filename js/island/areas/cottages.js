@@ -361,7 +361,7 @@ const area = {
     h.addCirc(WELL.x - 3.2, WELL.z + 2.0, 0.55);
     h.addCirc(WELL.x + 3.0, WELL.z - 1.8, 0.55);
     // [wish] E / tap at the well rim (same flag as plaza fountain). r=2.8 reaches a player outside the 1.5 m well collider.
-    if (WISH_ON) h.INTERACT?.push({ id: 'cottage_well', kind: 'wish', area: 'cottages', x: WELL_RIM.x, z: WELL_RIM.z, r: 2.8, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
+    if (WISH_ON) h.INTERACT?.push({ id: 'cottage_well', kind: 'wish', area: 'cottages', x: WELL_RIM.x, z: WELL_RIM.z, r: 2.8, label: 'E · TOSS A COIN (100 Booty)', hidden: wishHidden });
   },
   build({ MATS, OUT, low, H }) {
     if (!COTTAGES_ON) {

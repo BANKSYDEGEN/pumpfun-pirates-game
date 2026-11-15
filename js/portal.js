@@ -34,7 +34,7 @@ function initPortal() {
       <h3>Storm Hunt and THE COMMODORE</h3>
       <p>Every wave brings more enemy ships and tougher hulls. Every fourth wave, THE COMMODORE arrives with escorts.</p>
       <h3>Gold and the shipwright</h3>
-      <p>Sink ships and grab their floating treasure, then spend your gold on upgrades and escort ships. A new ship skin unlocks every 5 waves. Your best score and unlocks are saved in this browser.</p>
+      <p>Sink ships and grab their floating treasure, then spend your Booty on upgrades and escort ships. A new ship skin unlocks every 5 waves. Your best score and unlocks are saved in this browser.</p>
       <p class="faq-disc">© 2026 BANKSYDEGEN / PUMPFUN PIRATES. All rights reserved.</p>`;
     if (close) card.prepend(close);
   }

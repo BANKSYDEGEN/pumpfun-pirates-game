@@ -85,7 +85,7 @@ test('wiring: plazaShops loads + places the hall, foot.js registers it, the dock
 });
 function await_(p) { p.catch(() => {}); return p; }
 
-test('no crypto anywhere in the casino: no currency signs, tickers, coins, wallets; gold reads 100 GOLD / 100g', () => {
+test('no crypto anywhere in the casino: no currency signs, tickers, coins, wallets; gold reads 100 Booty', () => {
   const DOLLAR = String.fromCharCode(36), TPL = DOLLAR + '{';   // template literals are the only allowed use
   const files = [...readdirSync(new URL('js/casino/', ROOT)).map(f => 'js/casino/' + f), 'js/island/casino.js', 'js/island/casinoData.js', 'tools/casino_blender/build_casino.py', 'tools/casino_blender/pack_casino.mjs', 'tools/casino_blender/node/casino_check.mjs'];
   const signs = [0x20bf, 0x39e, 0x25ce, 0x20ac, 0xa3, 0xa5].map(c => String.fromCharCode(c));
@@ -96,8 +96,8 @@ test('no crypto anywhere in the casino: no currency signs, tickers, coins, walle
     const bad = banned.exec(s); assert.equal(bad, null, `${f}: ${bad && bad[0]}`);
     for (const c of s.match(/crypto[.\w]*/g) || []) assert.ok(/^crypto(\.getRandomValues|Int)?(?![\s\S])/.test(c), `${f}: ${c}`);
   }
-  const ui = src('js/casino/ui.js'); assert.deepEqual(E.CHIPS, [10, 25, 50, 100, 250, 500]); assert.ok(ui.includes(TPL + 'c}g</button>'), 'chips read 10g .. 500g'); for (const k of ['1/2', '2×', 'MAX']) assert.ok(ui.includes(k), `chip ${k}`);
-  assert.equal(E.fmtGold(1250), '1,250 GOLD'); assert.equal(E.fmtG(100), '100g');
+  const ui = src('js/casino/ui.js'); assert.deepEqual(E.CHIPS, [10, 25, 50, 100, 250, 500]); assert.ok(ui.includes(TPL + 'c} Booty</button>'), 'chips read 10 Booty .. 500 Booty'); for (const k of ['1/2', '2×', 'MAX']) assert.ok(ui.includes(k), `chip ${k}`);
+  assert.equal(E.fmtGold(1250), '1,250 Booty'); assert.equal(E.fmtG(100), '100 Booty');
 });
 
 test('practice table: payouts per game (blackjack natural 3:2, roulette 36x / 3x / 2x, dice 2x / 4x / 5x, slots 25..4, pair 2x)', async () => {

@@ -59,4 +59,4 @@ export function createMMUi({ onClose } = {}) {
   };
 }
 export const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '').slice(0, 24);
-export const gfmt = (n) => `${formatGoldAmount((n | 0))}g`;
+export const gfmt = (n) => `${formatGoldAmount((n | 0))} Booty`;

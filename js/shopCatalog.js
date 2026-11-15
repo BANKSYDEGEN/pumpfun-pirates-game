@@ -209,7 +209,7 @@ export const VENDORS = {
   // [bed-desk] BANKSY t408u "Also make it so they can change clothes in hull and cabin": the ship hull sea chest + the cabin wardrobe open
   // the same CHANGING ROOM (owned clothes only, free, nothing to buy)
   wardrobe:   { name: 'WARDROBE', sub: 'Sea chest / wardrobe · change into clothes you own (free)', tabs: ['wardrobe'], slots: ['hat', 'outfit', 'eyes', 'hook', 'leg', 'face', 'beard', 'ears', 'teeth', 'cape', 'boots', 'pants'], awning: '#8a5a2b' },
-  ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for gold', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')
+  ships:      { name: 'SHIP SKINS', sub: 'Harbor plaza · skins for Booty', tabs: ['skins'], slots: [], awning: '#2a6df4', upgrades: false }, // [Timothy] BANKSY: skins and upgrades are separate shops (upgrades = the UPGRADE SHOP storefront, open: 'upgrades')
 };
 
 // ---------- goal progress ----------
@@ -231,7 +231,7 @@ const kd1 = (x) => (Math.floor(x * 10) / 10).toFixed(1); // floor: 9.96 shows 9.
 // 'Harbor boss kills 37/100' · 'K/D 6.2 / 10' · 'kills 41/50' · 'BR kills 1,234/5,000'
 export const fmtGoalRow = (r) => r.fmt === 'prestige' ? `PRESTIGE ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}` : r.fmt === 'kd' ? `K/D ${kd1(r.have)} / ${r.need}` : `${r.label} ${fmtN(Math.min(r.have, r.need))}/${fmtN(r.need)}`;
 export const fmtGoal = (g) => g.rows.map(fmtGoalRow).join(' · ');
-export const fmtGold = (n) => `${formatGoldAmount(n)}g`;
+export const fmtGold = (n) => `${formatGoldAmount(n)} Booty`;
 // [v157] BANKSY: "keep shops sorted by price". Every shop list goes through this: free/default first, then gold price
 // ascending (kill-gated items sort by their gold price too), ties by name. Returns a new array; prices, ids, ownership untouched.
 export const byPrice = (price = (x) => x.price, name = (x) => x.name || x.label || '') => (a, b) =>

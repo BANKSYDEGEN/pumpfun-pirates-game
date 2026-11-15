@@ -97,14 +97,14 @@ test('casino.ts: all 4 games, gold-only, cryptographic RNG, atomic accounting', 
   assert.match(CAS, /pvp_casino_credit/);
   assert.match(CAS, /MIN_BET = 10/);
   assert.match(CAS, /MAX_BET = 25000/);
-  assert.match(CAS, /gold only/);
+  assert.match(CAS, /Booty only/);
   assert.match(CAS, /doubloon/);
   assert.match(CAS, /crown/);
   assert.match(CAS, /under7/);
   assert.match(CAS, /lucky7/);
   assert.match(CAS, /2\.5/); // blackjack 3:2
   // Guard list may mention banned terms; payouts must never credit crypto
-  assert.match(CAS, /gold only/);
+  assert.match(CAS, /Booty only/);
   assert.doesNotMatch(CAS, /mint|airdrop.*token|spl-token/i);
   assert.match(IDX, /CASINO_ACTIONS/);
   assert.match(IDX, /casinoAction/);

@@ -5,6 +5,11 @@ import bs58 from "npm:bs58@6.0.0";
 
 // PvP upgrade cost by tier index (must match js/config.js pvpTierCost / HARBOR_*); TIER_COSTS = solo costs, used for tier counts
 const HARBOR_GOLD_BASE = 5, HARBOR_SCALE_PER_LV = 0.137, HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 };
+
+// Player-visible error text. SQL / RPC `why` values stay "not enough gold" (protocol); map only the HTTP `error` field.
+export const playerError = (why?: string | null, fallback = "could not") =>
+  why === "not enough gold" ? "not enough Booty" : (why || fallback);
+
 export const PVP_TIER1_COST = 75; // level 1 of every track (js/config.js PVP_TIER1_COST)
 export const pvpTierCost = (t: number) => t === 0 ? PVP_TIER1_COST : Math.round((HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t)) * HARBOR_GOLD_BASE * (1 + HARBOR_SCALE_PER_LV * Math.min(7 * t, 42)) / 10) * 10;
 export const TIER_COSTS: Record<string, number[]> = {
@@ -91,7 +96,7 @@ export function saveProblem(cur: Profile, next: Profile, mins: number, goldFind 
   const m = Math.max(0, Math.min(mins, 60)), gf = 1 + Math.max(0, Math.min(BOOST_CAPS.goldFind, Number(goldFind) || 0));
   const dbh = batteryDelta(cur, next); // a save without it (older client) keeps the stored count (keepCounters)
   if (dbh > batteryCap(m)) return "too many cliff cannon hits for the time";
-  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m + BATTERY_GOLD * dbh) return "gold gained too fast";
+  if (value(next) - value(cur) > CAPS.valueBase + CAPS.valuePerMin * gf * m + BATTERY_GOLD * dbh) return "Booty gained too fast";
   const dk = next.stats.kills - cur.stats.kills, dd = next.stats.deaths - cur.stats.deaths, db = next.stats.botKills - cur.stats.botKills;
   if (dk < 0 || dd < 0 || db < 0) return "K/D can't go down";
   if (dk > CAPS.killsBase + CAPS.killsPerMin * m || db > CAPS.killsBase + CAPS.killsPerMin * m) return "too many kills for the time";

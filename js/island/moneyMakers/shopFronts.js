@@ -94,7 +94,7 @@ function posterTex(i) { const c = canvas(128, 170); if (!c) return null; const g
   g.fillStyle = PARCHS; g.fillRect(0, 0, 128, 170); g.strokeStyle = '#6a4a22'; g.lineWidth = 3; g.strokeRect(4, 4, 120, 162);
   g.fillStyle = '#3a1c08'; g.font = 'bold 24px Georgia'; g.textAlign = 'center'; g.fillText('WANTED', 64, 30);
   g.fillStyle = '#6a4a2c'; g.beginPath(); g.arc(64, 80, 28, 0, 7); g.fill(); g.fillStyle = PARCHS; g.fillRect(48, 72, 10, 7); g.fillRect(70, 72, 10, 7); g.fillStyle = '#3a1c08'; g.fillRect(46, 92, 36, 5);
-  g.fillStyle = '#8b1e1e'; g.font = 'bold 19px Georgia'; g.fillText('REWARD', 64, 128); g.fillText(`${formatGoldAmount([500, 1000, 2500, 750][i % 4])} GOLD`, 64, 152); return tex(c); }
+  g.fillStyle = '#8b1e1e'; g.font = 'bold 19px Georgia'; g.fillText('REWARD', 64, 128); g.fillText(`${formatGoldAmount([500, 1000, 2500, 750][i % 4])} Booty`, 64, 152); return tex(c); }
 
 // ---- the per-shop frame (front-local) from hillShops.js + BAKED ----
 export function shopFrame(id) {
@@ -255,7 +255,7 @@ function posterCanvasTex(row, i) {   // the live bounty posters on the wanted bo
   g.strokeStyle = '#6a4a22'; g.lineWidth = 4; g.strokeRect(6, 6, 188, 248); g.textAlign = 'center'; g.fillStyle = '#5a0e0e'; g.font = 'bold 34px Georgia'; g.fillText(row ? 'WANTED' : 'CONTRACT', 100, 44);
   g.fillStyle = '#4a3420'; g.beginPath(); g.arc(100, 112, 40, 0, 7); g.fill(); g.fillStyle = '#ead7a6'; g.fillRect(78, 102, 14, 9); g.fillRect(108, 102, 14, 9);
   g.fillStyle = '#2a1608'; g.font = 'bold 24px Georgia'; g.fillText(row ? String(row.name).slice(0, 12).toUpperCase() : ['RAIDERS', 'STALKERS', 'CAPTAINS'][i], 100, 190);
-  g.fillStyle = '#7a5a00'; g.font = 'bold 28px Georgia'; g.fillText(row ? `${formatGoldAmount((row.pot | 0))}g` : ['150g', '120g', '250g'][i], 100, 232); return tex(c);
+  g.fillStyle = '#7a5a00'; g.font = 'bold 28px Georgia'; g.fillText(row ? `${formatGoldAmount((row.pot | 0))} Booty` : ['150 Booty', '120 Booty', '250 Booty'][i], 100, 232); return tex(c);
 }
 function interior(kind, F, T, g) {
   const R = F.room, C = F.counter, fy = F.floorAt, api = {};

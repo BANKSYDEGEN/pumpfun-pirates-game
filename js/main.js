@@ -614,7 +614,7 @@ function dropChests(s, n, value) { // [enemy variety]
     const l = { mesh: g, x: s.x + rnd(-5, 5), z: s.z + rnd(-5, 5), value, life: 45, ph: Math.random() * 6 };
     loot.push(l); fx.ring(new THREE.Vector3(l.x, 0, l.z), 1, 9, 1.6);
   }
-  popup(new THREE.Vector3(s.x, 9, s.z), `+${formatGoldAmount(n * value)} GOLD SPILLED`, 'hit');
+  popup(new THREE.Vector3(s.x, 9, s.z), `+${formatGoldAmount(n * value)} Booty spilled`, 'hit');
 }
 
 // [v84] water never inside a hull: the ocean shader caps the sea under each afloat ship just below the plane of that
@@ -1394,7 +1394,7 @@ async function gameOver() {
   $('save-msg').textContent = 'Save your score to the leaderboard (best score per wallet counts).';
   validateWallet();
   $('gameover').classList.remove('hidden');
-  if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = `Banking ${formatGoldAmount(game.wave * 100)} gold (100 per wave)…`; } // [v103] // [v330] t1753u
+  if (game.mode !== 'pvp') { const pay = $('go-pay'); if (pay) { pay.hidden = false; pay.textContent = `Banking ${formatGoldAmount(game.wave * 100)} Booty (100 per wave)…`; } // [v103] // [v330] t1753u
     wavesBank(); }
   wavesExitLabel(); // [v330] t1753u: Storm Hunt from the Harbor -> ⚓ RETURN TO HARBOR (your real upgrades + the 100 / wave payout)
   updateRotateHint(); // hide the 'turn sideways' pill so it can't sit on top of the stats
@@ -1429,8 +1429,8 @@ function wavesBank() { // one payout per run (wavesClaim forgets the run id afte
   if (game.claimP || game.mode === 'pvp' || !game.runId) return game.claimP || Promise.resolve(null);
   const w = game.wave | 0;
   game.claimP = wavesClaim({ run: game.runId, score: game.score, wave: w, sunk: game.sunk }).then(r => { const el = $('go-pay');
-    if (el) { if (r?.ok && r.gold > 0) el.innerHTML = `Wave ${w} × 100 → <b>+${formatGoldAmount((+r.gold | 0))} gold banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${formatGoldAmount(+r.base | 0)} × 2)</span>` : ''}<br><small class="muted">100 gold per wave · run gold stays in the storm</small>`;
-      else if (r && r.ok === false && r.error) el.textContent = `No gold banked: ${r.error}`; else if (!w) el.textContent = 'No waves reached: no gold banked'; else el.hidden = true; }
+    if (el) { if (r?.ok && r.gold > 0) el.innerHTML = `Wave ${w} × 100 → <b>+${formatGoldAmount((+r.gold | 0))} Booty banked</b>${r.holder ? ` <span class="muted">(${r.owner ? 'owner' : 'holder'} 2×: ${formatGoldAmount(+r.base | 0)} × 2)</span>` : ''}<br><small class="muted">100 Booty per wave · run Booty stays in the storm</small>`;
+      else if (r && r.ok === false && r.error) el.textContent = `No Booty banked: ${r.error}`; else if (!w) el.textContent = 'No waves reached: no Booty banked'; else el.hidden = true; }
     return r; }, () => null);
   return game.claimP;
 }
@@ -1578,7 +1578,7 @@ function frame() {
       if (Math.random() < 0.3) fx.sparkle(l.mesh.position);
       if (l.pid) { pvp?.lootStep(l); if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); pvp?.piles.delete(l.pid); } continue; } // [pvp] gold piles: host decides who gets each
       if ((player.alive && touchesGold(player, l.x, l.z)) || escorts.list.some(e => e.alive && touchesGold(e, l.x, l.z))) { // [big-hitbox] any part of the hull · [escort pickups] escorts fish gold for you
-        game.gold += l.value; addScore(l.value); sfx.coin(); popup(l.mesh.position.clone().setY(4), `+${formatGoldAmount(l.value)} GOLD`); scene.remove(l.mesh); loot.splice(i, 1); updateHud(); continue;
+        game.gold += l.value; addScore(l.value); sfx.coin(); popup(l.mesh.position.clone().setY(4), `+${formatGoldAmount(l.value)} Booty`); scene.remove(l.mesh); loot.splice(i, 1); updateHud(); continue;
       }
       if (l.life <= 0) { scene.remove(l.mesh); loot.splice(i, 1); }
     }

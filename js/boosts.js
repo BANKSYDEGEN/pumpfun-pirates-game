@@ -19,10 +19,10 @@ export const BOOST_STATS = {
   turn:     { label: 'TURN',      icon: '☸️', cap: 0.04, combat: true,  live: true, track: 'RUDDER' },
   speed:    { label: 'SPEED',     icon: '⛵', cap: 0.05, combat: true,  live: true, track: 'SAILS' },
   regen:    { label: 'REPAIR',    icon: '🔧', cap: 0.08, combat: true,  live: true, track: 'HULL PLANKS' },
-  goldFind: { label: 'GOLD FIND', icon: '🪙', cap: 0.25 /* [parrot levels] was 0.10: a LV10 parrot alone gives 20% */, combat: false, live: true },
+  goldFind: { label: 'BOOTY FIND', icon: '🪙', cap: 0.25 /* [parrot levels] was 0.10: a LV10 parrot alone gives 20% */, combat: false, live: true },
   // [Raul items redo 2] BANKSY 11:29 AM "make pets be good boost on sells" (PROPOSED): more gold when the game SELLS for you = a chest item
   // you already own is paid out in gold (chest.ts CHEST_DUP_SHARE); the server applies it in map_dig (lib.ts sellGold)
-  sell:     { label: 'SELL BONUS', icon: '💰', cap: 0.40, combat: false, live: true, hint: 'more gold for spare chest items' },
+  sell:     { label: 'SELL BONUS', icon: '💰', cap: 0.40, combat: false, live: true, hint: 'more Booty for spare chest items' },
   digLuck:  { label: 'DIG LUCK',  icon: '⛏️', cap: 0.15, combat: false, live: false }, // needs pvp_map_dig p_luck (migration): not applied, not shown yet
   // [BANKSY 5:29 PM] swords + muskets boost their OWN hit rate, on foot, in the battle modes that use them (never the ship's cannons)
   swordHit:  { label: 'SWORD HIT',  icon: '⚔️', cap: 0.04, combat: false, foot: true, live: true },
@@ -87,7 +87,7 @@ export function parrotBoost(lv) {
   if (lv >= 10) { b.swordHit = 0.02; b.musketHit = 0.02; }
   for (const k of Object.keys(b)) b[k] = r4(b[k]); return b;
 }
-export const PARROT_UNLOCKS = [[0, 'gold find'], [3, 'dig luck'], [6, 'sell bonus'], [10, 'sword + musket hit']];
+export const PARROT_UNLOCKS = [[0, 'Booty find'], [3, 'dig luck'], [6, 'sell bonus'], [10, 'sword + musket hit']];
 // panel line: what this level gives now + what the next level gives
 export const parrotBoostNext = (lv) => (lv | 0) >= 10 ? 'MAX LEVEL' : 'next ' + parrotBoostText((lv | 0) + 1);
 export const parrotBoostText = (lv) => `LV ${lv | 0}: ` + Object.entries(parrotBoost(lv)).map(([k, v]) => `+${fmtPct(v)} ${BOOST_STATS[k].label.toLowerCase()}`).join(', ');
@@ -179,7 +179,7 @@ export function profileBoostsHtml(gameMode = window.PFP?.game?.mode) {
     return `<span>${S.icon} ${S.label}</span><span class="pfb-bar${S.combat ? '' : ' gold'}" title="cap ${fmtPct(S.cap)}"><i style="width:${Math.min(100, v / S.cap * 100)}%"></i></span><b class="pfb-v${cap ? ' capped' : ''}">+${fmtPct(v)}<small> / ${fmtPct(S.cap)}</small></b>`; }).join('');
   return `<h4>SKILL BOOSTS <span>${Math.round(b.combat * 100)} / ${Math.round(COMBAT_CAP * 100)}</span> <em>from the gear you wear</em></h4>
     <div class="pfb-rows">${rows}</div>
-    <p class="pf-note">Now: <b>${zl}</b>${f > 0 && f < 1 ? ` (combat boosts ×${f})` : ''} · Battle Royale 50% · SWORD PIT + MUSKET RANGE off · gold find counts wherever gold pays · sword / musket hit rate: on foot in battle modes${ARENA_WEAPON_BOOSTS ? '' : ' (off in the arenas for now)'}.</p>`;
+    <p class="pf-note">Now: <b>${zl}</b>${f > 0 && f < 1 ? ` (combat boosts ×${f})` : ''} · Battle Royale 50% · SWORD PIT + MUSKET RANGE off · Booty find counts wherever Booty pays · sword / musket hit rate: on foot in battle modes${ARENA_WEAPON_BOOSTS ? '' : ' (off in the arenas for now)'}.</p>`;
 }
 let pfOn = false;
 try { if (!ON_PORTAL) addEventListener('pfp-profile', (e) => {

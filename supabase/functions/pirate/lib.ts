@@ -81,8 +81,8 @@ export function goldCap(r: Run) { return Math.min(r.score, (r.sunk + 2) * 3 * (7
 // Same crude plausibility the scores table uses: at most ~1 sink every 5 s.
 export function runProblem(r: Run): string | null {
   if (r.sunk > Math.max(1, Math.floor(r.duration_s / 5)) + 1) return "implausible sinks for the run time";
-  if (r.gold_base > goldCap(r)) return "gold above what this run could loot";
-  if (r.gold_total > r.gold_base) return "gold total above gold looted"; // no gold bonuses exist (yet)
+  if (r.gold_base > goldCap(r)) return "Booty above what this run could loot";
+  if (r.gold_total > r.gold_base) return "Booty total above Booty looted"; // no gold bonuses exist (yet)
   return null;
 }
 // New skins in a save must be covered by this run: one free skin per 5 waves (wave unlocks always give the
@@ -92,5 +92,5 @@ export function skinsProblem(added: string[], r: Run | null): string | null {
   if (!r) return "new skins need a run";
   const prices = added.map((s) => SKIN_PRICES[s] ?? 1e9).sort((a, b) => a - b);
   const paid = prices.slice(Math.floor(r.wave / 5)).reduce((a, b) => a + b, 0);
-  return paid > r.gold_total ? "skins cost more than this run's gold" : null;
+  return paid > r.gold_total ? "skins cost more than this run's Booty" : null;
 }

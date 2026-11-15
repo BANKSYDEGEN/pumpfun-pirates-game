@@ -1404,7 +1404,7 @@ export function createHouses({
       <div class="hs-col" data-pane="chest"><h4>🧰 COTTAGE CHEST <span class="hs-cap" data-cap></span></h4><div class="hs-grid" data-chest></div></div>
     </div>
     <div class="hs-foot">
-      <button type="button" data-a="upgrade">+${UPGRADE_SLOTS} SLOTS (${formatGoldAmount(UPGRADE_PRICE)}g)</button>
+      <button type="button" data-a="upgrade">+${UPGRADE_SLOTS} SLOTS (${formatGoldAmount(UPGRADE_PRICE)} Booty)</button>
       <button type="button" class="ghost" data-a="leave">LEAVE COTTAGE</button>
       <button type="button" class="ghost" data-a="close">CLOSE</button>
     </div>
@@ -1622,7 +1622,7 @@ export function createHouses({
   async function buyCottage(d) {
     if (busy || isOwned(d.id)) return;
     const gold = getGold() | 0;
-    if (gold < HOUSE_PRICE) { toast(`NEED ${formatGoldAmount(HOUSE_PRICE)} GOLD<br><small>you have ${formatGoldAmount(gold)}g</small>`, 2200); return; }
+    if (gold < HOUSE_PRICE) { toast(`NEED ${formatGoldAmount(HOUSE_PRICE)} Booty<br><small>you have ${formatGoldAmount(gold)} Booty</small>`, 2200); return; }
     busy = true;
     try {
       const req = reqId();
@@ -1633,13 +1633,13 @@ export function createHouses({
           serverOk = true;
           if (!r.owner && !r.already && !r.retry) spendGold(r.price ?? HOUSE_PRICE);
           owned[d.id] = { tier: r.house?.tier || d.tier, slots: r.house?.slots || d.slots, items: r.house?.items || [] };
-        } else if (r && (r.error === 'not enough gold' || r.status === 402)) {
-          toast('NOT ENOUGH GOLD', 1800); return;
+        } else if (r && (r.error === 'not enough gold' || r.error === 'not enough Booty' || r.status === 402)) {
+          toast('NOT ENOUGH BOOTY', 1800); return;
         }
         // closed / offline / migration-not-deployed / fetch fail → localStorage fallback
       } catch {}
       if (!serverOk) {
-        if (!spendGold(HOUSE_PRICE)) { toast('NOT ENOUGH GOLD', 1800); return; }
+        if (!spendGold(HOUSE_PRICE)) { toast('NOT ENOUGH BOOTY', 1800); return; }
         owned[d.id] = { tier: d.tier || 'cozy', slots: d.slots || 24, items: [] };
       }
       const st = lsLoad();
@@ -2250,7 +2250,7 @@ export function createHouses({
   async function upgradeChest() {
     if (!activeId || busy) return;
     const gold = getGold() | 0;
-    if (gold < UPGRADE_PRICE) { toast(`NEED ${formatGoldAmount(UPGRADE_PRICE)} GOLD`, 1800); return; }
+    if (gold < UPGRADE_PRICE) { toast(`NEED ${formatGoldAmount(UPGRADE_PRICE)} Booty`, 1800); return; }
     busy = true;
     try {
       let ok = false;
@@ -2264,7 +2264,7 @@ export function createHouses({
         }
       } catch {}
       if (!ok) {
-        if (!spendGold(UPGRADE_PRICE)) { toast('NOT ENOUGH GOLD', 1600); return; }
+        if (!spendGold(UPGRADE_PRICE)) { toast('NOT ENOUGH BOOTY', 1600); return; }
         owned[activeId].slots = Math.min(120, (owned[activeId].slots | 0) + UPGRADE_SLOTS);
         if (owned[activeId].slots >= 60) owned[activeId].tier = 'manor';
         else if (owned[activeId].slots >= 40) owned[activeId].tier = 'captain';
@@ -2309,7 +2309,7 @@ export function createHouses({
     }
     const d = nearestDoor(W); if (!d) return null;
     if (isOwned(d.id)) return { label: 'ENTER COTTAGE', key: 'E', primary: true, tag: 'enter', door: d };
-    return { label: `BUY COTTAGE · ${formatGoldAmount(HOUSE_PRICE)}g`, key: 'E', primary: true, tag: 'buy', door: d };
+    return { label: `BUY COTTAGE · ${formatGoldAmount(HOUSE_PRICE)} Booty`, key: 'E', primary: true, tag: 'buy', door: d };
   }
 
   function act(tag, ctx) {

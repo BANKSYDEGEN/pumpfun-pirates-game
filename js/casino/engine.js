@@ -5,7 +5,7 @@ import { formatGoldAmount } from '../goldFormat.js';
 // readResult() accepts the fields top-level or nested (result / data / detail / state) so a server that shapes them a little differently still reads.
 // Practice table (createLocalCasino): the same contract on this device with crypto.getRandomValues, used for ?casinoqa=1 and whenever the
 // server casino is unavailable. It plays from its own PRACTICE PURSE and never touches the player's real gold.
-// Amounts are GOLD only (100 GOLD, 100g).
+// Amounts are Booty only (100 Booty).
 
 export const CHIPS = [10, 25, 50, 100, 250, 500];
 export const MIN_BET = 10, MAX_BET = 5000;
@@ -20,8 +20,8 @@ export const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 
 export const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 export const pocketColor = (n) => (n === 0 ? 'green' : REDS.has(n) ? 'red' : 'black');
 
-export const fmtGold = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + ' GOLD';
-export const fmtG = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + 'g';
+export const fmtGold = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + ' Booty';
+export const fmtG = (n) => formatGoldAmount(Math.round(Number(n) || 0)) + ' Booty';
 export const clampBet = (b, gold) => Math.max(MIN_BET, Math.min(MAX_BET, Math.floor(Number(b) || 0), Math.max(MIN_BET, Math.floor(Number(gold) || 0))));
 
 // ---- roulette choices: objects { kind, value } or strings ('red', 'odd', 'low', 'dozen1' / '1st12', 'number:7', '7', 'n:17') ----
@@ -133,8 +133,8 @@ export function createLocalCasino({ purse = 1000, rng = cryptoInt } = {}) {
     const game = String(req.game || ''); if (!GAMES.includes(game)) return fail('unknown game');
     if (game === 'blackjack' && req.action && req.action !== 'deal') return blackjackAct(req);
     if (game === 'blackjack' && hands.size) return fail('finish your blackjack hand first');
-    const bet = Math.floor(Number(req.bet)); if (!(bet >= MIN_BET) || bet > MAX_BET) return fail('bet must be ' + MIN_BET + ' to ' + MAX_BET + ' gold');
-    if (bet > gold) return fail('not enough gold');
+    const bet = Math.floor(Number(req.bet)); if (!(bet >= MIN_BET) || bet > MAX_BET) return fail('bet must be ' + MIN_BET + ' to ' + MAX_BET + ' Booty');
+    if (bet > gold) return fail('not enough Booty');
     if (game === 'roulette') { const c = parseRouletteChoice(req.choice); if (!c) return fail('pick a bet on the table');
       const n = rng(37), m = rouletteMult(c, n); return settle(game, Math.floor(bet * m) - bet, m ? 'win' : 'lose', { number: n, color: pocketColor(n), choice: c, mult: m, bet }); }
     if (game === 'dice') { const c = parseDiceChoice(req.choice); if (!c) return fail('pick a bet');

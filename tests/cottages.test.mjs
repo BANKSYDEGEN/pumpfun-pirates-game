@@ -189,7 +189,7 @@ describe('cottage neighborhood', () => {
     assert.match(cot, /PFP_INV_FLAGS\.wish_fountain/);
     assert.match(cot, /wish=1/);
     assert.match(cot, /id: 'cottage_well'/);
-    assert.match(cot, /TOSS A COIN \(100 gold\)/);
+    assert.match(cot, /TOSS A COIN \(100 Booty\)/);
     assert.match(cot, /r: 2\.8/);
     assert.match(cot, /pfp-wish/);
     assert.match(cot, /0xffcd3c/);

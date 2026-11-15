@@ -58,8 +58,8 @@ export async function drawCard(s) {
   g.textAlign = 'left'; g.font = `44px ${FONT}`; g.fillStyle = RED; g.fillText("RUGGED", px + 40, py + 66);
   g.font = `34px ${FONT}`; g.fillStyle = GOLD; g.fillText('SCORE', px + 40, py + 122);
   g.font = `150px ${FONT}`; g.fillStyle = '#fff'; g.save(); g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowOffsetY = 5; g.fillText(fmt(s.score), px + 36, py + 250); g.restore();
-  const cols = [['WAVE', s.wave], ['SHIPS SUNK', s.sunk], ['GOLD', s.gold]];
-  cols.forEach(([k, v], i) => { const x = px + 40 + i * 220; g.font = `30px ${FONT}`; g.fillStyle = GOLD; g.fillText(k, x, py + 312); g.font = `72px ${FONT}`; g.fillStyle = i === 2 ? GOLD : '#fff'; g.fillText(k === 'GOLD' ? formatGoldAmount(v) : fmt(v), x, py + 378); });
+  const cols = [['WAVE', s.wave], ['SHIPS SUNK', s.sunk], ['BOOTY', s.gold]];
+  cols.forEach(([k, v], i) => { const x = px + 40 + i * 220; g.font = `30px ${FONT}`; g.fillStyle = GOLD; g.fillText(k, x, py + 312); g.font = `72px ${FONT}`; g.fillStyle = i === 2 ? GOLD : '#fff'; g.fillText(k === 'BOOTY' ? formatGoldAmount(v) : fmt(v), x, py + 378); });
   // captain row
   const cy = py + 410;
   g.fillStyle = 'rgba(255,205,119,0.18)'; g.fillRect(px + 40, cy, pw - 80, 2);

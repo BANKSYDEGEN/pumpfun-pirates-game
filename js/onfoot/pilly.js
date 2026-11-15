@@ -17,7 +17,7 @@ export const PILLY_PRICE = 5000;
 export const pillyLv = (xp) => Math.min(10, Math.floor(Math.sqrt(Math.max(0, +xp || 0) / 100)));
 const lvXp = (lv) => lv * lv * 100;
 export const pillyTreatCost = (lv) => 250 * (lv + 1) * (lv + 1);
-// the ladder: swim speed on foot (stacks with the parrot's gold find + pets' sell bonus: a different stat), size + glow per level
+// the ladder: swim speed on foot (stacks with the parrot's Booty find + pets' sell bonus: a different stat), size + glow per level
 export const pillySwim = (lv) => lv >= 10 ? 0.15 : Math.max(0, lv) * 0.01;
 export const PILLY_LADDER = [
   'Starts at waist height. Waves at you.', '+1% swim speed', '+2% swim speed', '+3% swim speed · soft green glow', '+4% swim speed',
@@ -166,7 +166,7 @@ export function createPillyState(ctx) {
       h += `<div><b>LV ${st.lv}</b> · ${st.xp} XP${st.lv < 10 ? ` / ${nx}` : ' · MAX'} · now <b>+${Math.round(pillySwim(st.lv) * 100)}% swim speed</b></div><div class="bar"><i style="width:${pc}%"></i></div>
         <button class="b ${st.out ? '' : 'go'}" data-a="out">${st.out ? 'LEAVE ON SHIP' : 'BRING PILLY'}</button>${st.lv < 10 && st.srv ? `<button class="b" data-a="treat" ${busy ? 'disabled' : ''}>TREAT +100 XP · ${pillyTreatCost(st.lv).toLocaleString()} 🪙</button>` : ''}`; }
     if (!storeOnly) h += `<ol>${PILLY_LADDER.map((t, i) => `<li class="${st.owned && i <= st.lv ? 'got' : ''}${st.owned && i === st.lv ? ' now' : ''}">LV ${i}: ${t}</li>`).join('')}</ol>
-      <p style="font-size:11px;opacity:.75">Pilly earns XP while out with you on the island, like your parrot. Its swim boost stacks with your parrot's gold find and pets' sell bonus.</p>`;
+      <p style="font-size:11px;opacity:.75">Pilly earns XP while out with you on the island, like your parrot. Its swim boost stacks with your parrot's Booty find and pets' sell bonus.</p>`;
     box.innerHTML = h; box.querySelector('.x').onclick = close;
     box.querySelectorAll('[data-a]').forEach((b) => b.onclick = () => act(b.dataset.a));
   }

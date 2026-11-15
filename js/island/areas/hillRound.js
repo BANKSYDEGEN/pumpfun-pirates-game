@@ -340,7 +340,7 @@ export default {
     // colliders: fountain, parapets / cheek walls, lamps, benches, planters, bridge towers, piers
     h.addCirc(CX, CZ, FOUNTAIN.basinR + 0.15);
     // [wish] the wishing fountain: an E / tap spot on the rim (shown only while the server's 'wish_fountain' flag is on: inventory/ui.js PFP_INV_FLAGS)
-    if (WISH_ON) h.INTERACT?.push(WISH_Q = { id: 'wish_fountain', kind: 'wish', area: 'hill_round', x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4, label: 'E · TOSS A COIN (100 gold)', hidden: wishHidden });
+    if (WISH_ON) h.INTERACT?.push(WISH_Q = { id: 'wish_fountain', kind: 'wish', area: 'hill_round', x: WISH_AT.rim.x, z: WISH_AT.rim.z, r: WISH_AT.radius + 1.4, label: 'E · TOSS A COIN (100 Booty)', hidden: wishHidden });
     for (const pl of WALLS) for (let i = 1; i < pl.length; i++) { const [ax, az] = pl[i - 1], [bx, bz] = pl[i], L = Math.hypot(bx - ax, bz - az); h.addBox((ax + bx) / 2, (az + bz) / 2, 0.5, L + 0.5, Math.atan2(bx - ax, bz - az)); }
     for (const [x, z] of LAMPS) if(!clearCastleDressing(x,z)) h.addCirc(x, z, 0.3);
     for (const p of wallDress(H).pil) h.addBox(p.x, p.z, 0.62, 1.0, p.yaw);   // [v220] the pilasters on the walls' outer faces

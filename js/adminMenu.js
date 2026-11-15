@@ -341,16 +341,16 @@ export function initAdminMenu(ctx) {
     const groups = [...new Set(opts.map(o => o.group))];
     const rows = P ? (P.items || []).map(it => { const i = itemInfo(it.item) || { name: it.item, icon: '❔', rarity: 'common' }, rc = RARITY_COLOR[i.rarity] || '#ccc';
       return `<div class="it" data-item="${escHtml(it.item)}"><span class="q">${it.qty | 0}×</span><span class="nm">${itemIconHtml(i, '', it.item)} ${escHtml(i.name)}</span><span class="rb" style="color:${escHtml(rc)}">${escHtml(i.rarity || '')}</span><button data-a="t1">TAKE 1</button><button data-a="ta">TAKE ALL</button></div>`; }).join('') || '<div class="empty">empty pockets</div>' : '<div class="empty">opening pockets…</div>';
-    box.innerHTML = `<div class="ph"><span>🎒 ${escHtml(who.name)}'s Pockets · 💰 ${formatGoldAmount((P?.gold | 0))}g${P?.pending ? ` <small>(${(P.pending | 0) > 0 ? '+' : ''}${formatGoldAmount(P.pending | 0)} waiting)</small>` : ''}</span><span><button data-a="pref">↻ Refresh</button> <button data-a="pclose">✕</button></span></div>
+    box.innerHTML = `<div class="ph"><span>🎒 ${escHtml(who.name)}'s Pockets · 💰 ${formatGoldAmount((P?.gold | 0))} Booty${P?.pending ? ` <small>(${(P.pending | 0) > 0 ? '+' : ''}${formatGoldAmount(P.pending | 0)} waiting)</small>` : ''}</span><span><button data-a="pref">↻ Refresh</button> <button data-a="pclose">✕</button></span></div>
       <div class="items">${rows}</div>
       <h4>+ SLIP INTO POCKETS</h4>
       <div class="give"><input class="full" data-i="filter" placeholder="search items (ruby, koi, legendary…)" value="${escHtml(st.filter)}">
         <select data-i="sel">${groups.map(g => `<optgroup label="${escHtml(g)}">${opts.filter(o => o.group === g).map(o => `<option value="${escHtml(o.key)}"${o.key === st.sel ? ' selected' : ''}>${escHtml(o.icon + ' ' + o.name + ' · ' + o.rarity)}</option>`).join('')}</optgroup>`).join('')}</select>
         <input data-i="qty" type="number" min="1" max="99" value="1">
         <div class="row"><button class="act" data-a="give">+ ADD ITEM</button></div>
-        <input data-i="gold" type="number" min="1" max="1000000" value="1000" placeholder="gold">
+        <input data-i="gold" type="number" min="1" max="1000000" value="1000" placeholder="Booty">
         <span></span>
-        <div class="row"><button class="act" data-a="g+">+ GOLD</button><button class="act" data-a="g-">- GOLD</button></div></div>`;
+        <div class="row"><button class="act" data-a="g+">+ BOOTY</button><button class="act" data-a="g-">- BOOTY</button></div></div>`;
   }
   // ---- [admin-spawn] ITEM SPAWNER + MAX UPGRADE (own pockets; the server re-checks owner on every call) ----
   const myPid = () => { const n = myNet(); return st.server.find(p => p.net === n)?.pid || st.mine?.pid || st.mePid || null; }; // [roster fix] owner's own pid comes back as r.me
@@ -433,9 +433,9 @@ export function initAdminMenu(ctx) {
   }
   async function gold(delta) {
     const r = await call('admin_pocket_gold', { target_pid: st.pocketFor, delta });
-    if (!r?.ok) return toast(`gold: ${r?.error || 'refused'}`);
+    if (!r?.ok) return toast(`Booty: ${r?.error || 'refused'}`);
     if (r.target) st.pocket = { ...st.pocket, ...r.target }; nudge(); if (delta < 0) { try { await pvp()?.inv?.call('inv_pot'); } catch {} }
-    toast(delta > 0 ? `💰 Dropped ${formatGoldAmount(delta)}g into ${st.pocketName}'s pockets` : `💰 Confiscated ${formatGoldAmount((-delta))}g from ${st.pocketName}`); paintPocket();
+    toast(delta > 0 ? `💰 Dropped ${formatGoldAmount(delta)} Booty into ${st.pocketName}'s pockets` : `💰 Confiscated ${formatGoldAmount((-delta))} Booty from ${st.pocketName}`); paintPocket();
   }
   // ---- TP ----
   function jumpTo(p) {

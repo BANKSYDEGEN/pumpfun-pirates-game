@@ -2,7 +2,7 @@
 // A walk-in pirate casino on Main Street's east row between the SQUAD HALL (#33) and the UPGRADE SHOP (#5). Model: tools/casino_blender/build_casino.py
 // -> assets/island/casino_hall.glb (+ _low). Town-local frame (js/island/coast.js): lx along the waterfront (Main Street centre lx 0, the east row's
 // building line lx 14), +lz out to sea. Building frame (Blender): x = lz - CZ, y = lx - CX (front = -y = the street). &casino=0 = no casino at all.
-// Gold only: every amount reads 100 GOLD / 100g (no currency signs, no tickers, nothing but GOLD).
+// Booty only: every amount reads 100 Booty (no currency signs, no tickers, nothing but Booty).
 import { COAST_ON } from './coast.js';
 
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;

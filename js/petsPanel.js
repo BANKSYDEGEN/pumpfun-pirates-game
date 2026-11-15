@@ -53,7 +53,7 @@ export function createPetsPanel(ctx) {
     if (!el || el.hidden) return;
     const L = el.querySelector('.pp-list'), eq = ctx.equipped?.() || '';
     let h = '';
-    if (data.incoming.length) h += `<div class="pp-sec">PET OFFERS FOR YOU</div>` + data.incoming.map((o) => `<div class="pp-card"><div class="pp-top"><span class="pp-ic">${PET_ICON[o.pet] || '🐾'}</span><div class="pp-nm"><b>${esc(PET_LABEL[o.pet] || o.pet)}</b><small>from ${esc(o.from)} for ${formatGoldAmount((o.price | 0))} gold</small></div></div><div class="pp-row"><button class="b go" data-a="acc" data-id="${o.id | 0}">ACCEPT</button><button class="b no" data-a="dec" data-id="${o.id | 0}">DECLINE</button></div></div>`).join('');
+    if (data.incoming.length) h += `<div class="pp-sec">PET OFFERS FOR YOU</div>` + data.incoming.map((o) => `<div class="pp-card"><div class="pp-top"><span class="pp-ic">${PET_ICON[o.pet] || '🐾'}</span><div class="pp-nm"><b>${esc(PET_LABEL[o.pet] || o.pet)}</b><small>from ${esc(o.from)} for ${formatGoldAmount((o.price | 0))} Booty</small></div></div><div class="pp-row"><button class="b go" data-a="acc" data-id="${o.id | 0}">ACCEPT</button><button class="b no" data-a="dec" data-id="${o.id | 0}">DECLINE</button></div></div>`).join('');
     const pets = [...data.pets]; if (eq && PET_LABEL[eq] && !pets.some((p) => p.pet === eq)) pets.unshift({ pet: eq, name: null, xp: 0, lv: 0 });
     h += `<div class="pp-sec">YOUR PETS</div>`;
     if (!pets.length) h += `<div class="pp-empty">No pets yet. Buy one at the pet shop and it will show up here.</div>`;
@@ -64,7 +64,7 @@ export function createPetsPanel(ctx) {
         `<div class="pp-bar"><i style="width:${Math.max(0, Math.min(100, pc))}%"></i></div>` +
         `<div class="pp-row"><small>Parrot names & upgrades have moved to your ship hull cage.</small>` +
         (data.owner ? '' : off ? `<button class="b no" data-a="cancel" data-id="${off.id | 0}">CANCEL OFFER TO ${esc(off.to)}</button>` : `<button class="b" data-a="trade" data-pet="${p.pet}">🤝 TRADE</button>`) + `</div>` +
-        (trade === p.pet && !off ? `<div class="pp-row"><input data-to="${p.pet}" maxlength="20" placeholder="Pirate name"><input data-price="${p.pet}" type="number" min="0" step="1" placeholder="Gold" style="max-width:90px"><button class="b go" data-a="offer" data-pet="${p.pet}">OFFER</button></div>` : '') + `</div>`;
+        (trade === p.pet && !off ? `<div class="pp-row"><input data-to="${p.pet}" maxlength="20" placeholder="Pirate name"><input data-price="${p.pet}" type="number" min="0" step="1" placeholder="Booty" style="max-width:90px"><button class="b go" data-a="offer" data-pet="${p.pet}">OFFER</button></div>` : '') + `</div>`;
     }
     L.innerHTML = h;
   }
