@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hullDist, touchesGold } from '../js/hullReach.js';
 const ship = (len, beam, yaw = 0) => ({ x: 100, z: -50, yaw, mesh: { userData: { len: len + 2, hitLen: len, beam } } });
-test('small sloop keeps the old 10 m centre reach', () => {
-  const s = ship(17, 5.4); assert.ok(touchesGold(s, 100 + 9.5, -50)); assert.ok(!touchesGold(s, 100 + 10.5, -50));
+test('small sloop keeps a 12 m centre reach', () => {
+  const s = ship(17, 5.4); assert.ok(touchesGold(s, 100 + 11.5, -50)); assert.ok(!touchesGold(s, 100 + 12.5, -50));
 });
 test("man-o'-war collects gold touching its bow and stern, both headings", () => {
   for (const yaw of [0, Math.PI / 2, 2.2]) { const s = ship(24.5, 9.4, yaw), f = 12.25 + 2.5;

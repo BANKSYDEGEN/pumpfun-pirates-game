@@ -12,7 +12,7 @@ export const COLLIDE = {
   angKick: 0.045,      // yaw nudge scale from off-centre hits
   maxAng: 0.055,       // rad per pair per frame
   speedBleed: 0.55,    // how hard a head-on hit cuts forward speed
-  staticMass: 1e9,     // moored / remote / sunk
+  staticMass: 1e9,     // moored / live remotes (wrecks are skipped entirely)
   canoePad: 0.25,
   shakeMin: 0.22,      // camera bump floor when the local player is hit
   shakePer: 0.018,     // shake scale from closing speed
@@ -35,6 +35,11 @@ export function hullHalf(s) {
 export function hullR(s) {
   const { hl, hb } = hullHalf(s);
   return hypot(hl, hb);
+}
+
+/** True once a hull has started sinking or is already dead. Wrecks are not solid. */
+export function isWreck(s) {
+  return !!(s && (s.alive === false || s.sinking > 0));
 }
 
 /** Mass proxy from footprint (bigger hulls shove smaller ones). */
@@ -108,7 +113,7 @@ function applySpeedAlong(s, nx, nz, deltaAlongNormal) {
  */
 export function resolvePair(a, b, dt, opts = {}) {
   if (!a || !b || a === b) return null;
-  if (a.alive === false && b.alive === false) return null;
+  if (isWreck(a) || isWreck(b)) return null; // [wreck-nonsolid] t2515u sail through sunk / sinking hulls
   const hit = contact(a, b);
   if (!hit) return null;
 
@@ -179,15 +184,13 @@ export function resolvePair(a, b, dt, opts = {}) {
 }
 
 /**
- * Resolve all pairs in `ships` (alive or sinking debris with alive===false still static).
- * opts: { isStatic, onHit(a,b,impulse,relN), player }
+ * Resolve all pairs in `ships`. Sunk / sinking wrecks are skipped (you can sail over them).
+ * Live remotes stay in the set as immovable hulls. opts: { isStatic, onHit(a,b,impulse,relN), player }
  * Returns number of contacts resolved.
  */
 export function resolveAll(ships, dt, opts = {}) {
   if (!ships || ships.length < 2) return 0;
-  const list = ships.filter((s) => s && (s.alive !== false || s._collideStatic || s.remote));
-  // Prefer only living + remotes (dead already filtered unless flagged).
-  const body = list.filter((s) => s.alive !== false || s.remote);
+  const body = ships.filter((s) => s && !isWreck(s));
   let hits = 0;
   const n = body.length;
   for (let pass = 0; pass < COLLIDE.iters; pass++) {
@@ -222,7 +225,7 @@ export function resolveCanoeVsShips(canoe, ships, dt, opts = {}) {
   };
   let hits = 0;
   for (const s of ships) {
-    if (!s || s.alive === false) continue;
+    if (!s || isWreck(s)) continue;
     const imp = resolvePair(c, s, dt, {
       isStatic: (body) => body !== c, // only the canoe is movable in this pass
     });

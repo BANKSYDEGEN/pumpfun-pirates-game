@@ -1545,8 +1545,8 @@ function frame() {
     if (game.state === 'playing' || (game.mode === 'pvp' && game.state !== 'title')) {
       const hulls = [];
       if (!ADM.noclip) hulls.push(player);
-      for (const e of escorts.list) if (e?.alive) hulls.push(e);
-      for (const e of enemies) if (e && (e.alive || e.remote)) hulls.push(e);
+      for (const e of escorts.list) if (e && !ShipCollide.isWreck(e)) hulls.push(e);
+      for (const e of enemies) if (e && !ShipCollide.isWreck(e)) hulls.push(e);
       ShipCollide.resolveAll(hulls, dt, {
         isStatic: (s) => ShipCollide.defaultIsStatic(s, { docked: (x) => x === player && dock?.docking?.mode === 'docked' }),
         onHit: (a, b, imp) => {
@@ -1562,7 +1562,7 @@ function frame() {
       const cst = dock?.canoe?.mode === 'canoe' ? dock.canoe.state : null;
       if (cst && Number.isFinite(cst.cx)) {
         const canoe = { x: cst.cx, z: cst.cz, yaw: cst.cyaw, speed: cst.cspd, halfBeam: 0.78, len: 5.6 };
-        const others = enemies.filter((e) => e?.alive);
+        const others = enemies.filter((e) => e && !ShipCollide.isWreck(e));
         if (ShipCollide.resolveCanoeVsShips(canoe, others, dt)) {
           cst.cx = canoe.x; cst.cz = canoe.z; cst.cyaw = canoe.yaw; cst.cspd = canoe.speed;
         }

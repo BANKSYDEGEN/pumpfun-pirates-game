@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   COLLIDE, hullHalf, hullR, hullMass, contact, resolvePair, resolveAll,
-  resolveCanoeVsShips, defaultIsStatic, ellipseRadius,
+  resolveCanoeVsShips, defaultIsStatic, ellipseRadius, isWreck,
 } from '../js/shipCollide.js';
 
 const ship = (o = {}) => ({
@@ -164,6 +164,8 @@ test('wired into main.js; no damage path; broadsideAim untouched by this feature
   assert.match(main, /shipCollide\.js/);
   assert.match(main, /ShipCollide\.resolveAll/);
   assert.match(main, /ship-collide/);
+  assert.match(main, /ShipCollide\.isWreck/);
+  assert.ok(!/e\.alive \|\| e\.remote/.test(main), 'dead remotes must not stay in the hull list');
   // No HP change in the collide module
   const mod = readFileSync(new URL('../js/shipCollide.js', import.meta.url), 'utf8');
   assert.ok(!/\.hp\s*[+\-]=/.test(mod) && !/damage\(/.test(mod), 'no collision damage');
@@ -179,4 +181,80 @@ test('COLLIDE tunables are finite and sane', () => {
   assert.ok(COLLIDE.restitution >= 0 && COLLIDE.restitution < 1);
   assert.ok(COLLIDE.maxSep > 0.5 && COLLIDE.maxSep < 6);
   assert.ok(COLLIDE.iters >= 1 && COLLIDE.iters <= 4);
+});
+
+// [wreck-nonsolid] t2515u: sail through sunk / sinking wrecks (local + remote) to grab loot.
+test('isWreck: dead or sinking; live ships are solid', () => {
+  assert.equal(isWreck(ship()), false);
+  assert.equal(isWreck(ship({ alive: false })), true);
+  assert.equal(isWreck(ship({ alive: true, sinking: 0.001 })), true);
+  assert.equal(isWreck(ship({ alive: false, remote: true, sinking: 99 })), true);
+  assert.equal(isWreck(ship({ sinking: 0 })), false);
+  assert.equal(isWreck(null), false);
+});
+
+test('sunk local ship is not solid: live ship sails through, no bounce', () => {
+  const wreck = ship({ x: 0, z: 10, yaw: 0, speed: 0, alive: false, sinking: 1, len: 16, beam: 5 });
+  const mover = ship({ x: 0, z: 10, yaw: 0, speed: 10, len: 16, beam: 5 }); // parked on the wreck
+  const wx = wreck.x, wz = wreck.z, mx = mover.x, mz = mover.z, sp = mover.speed;
+  assert.ok(overlap(mover, wreck) > 1, 'start overlapping the wreck');
+  const hits = resolveAll([mover, wreck], 1 / 60, { isStatic: defaultIsStatic });
+  assert.equal(hits, 0);
+  assert.equal(resolvePair(mover, wreck, 1 / 60, { isStatic: defaultIsStatic }), null);
+  assert.equal(wreck.x, wx); assert.equal(wreck.z, wz);
+  assert.equal(mover.x, mx); assert.equal(mover.z, mz); assert.equal(mover.speed, sp);
+});
+
+test('remote sunk ship is not solid either (harbor / PvP sync)', () => {
+  const wreck = ship({ x: 0, z: 0, yaw: 1, speed: 0, alive: false, sinking: 2, remote: true, len: 18, beam: 6 });
+  const local = ship({ x: 0, z: 4, yaw: 0, speed: 11, len: 16, beam: 5 });
+  const rx = wreck.x, rz = wreck.z, ry = wreck.yaw, lx = local.x, lz = local.z, sp = local.speed;
+  assert.ok(overlap(local, wreck) > 0, 'overlapping a remote wreck');
+  const hits = resolveAll([local, wreck], 1 / 60, { isStatic: defaultIsStatic });
+  assert.equal(hits, 0);
+  assert.equal(wreck.x, rx); assert.equal(wreck.z, rz); assert.equal(wreck.yaw, ry);
+  assert.equal(local.x, lx); assert.equal(local.z, lz); assert.equal(local.speed, sp);
+});
+
+test('sinking but still flagged alive is already non-solid', () => {
+  const wreck = ship({ x: 0, z: 0, yaw: 0, speed: 0, alive: true, sinking: 0.001, remote: true, len: 16, beam: 5 });
+  const local = ship({ x: 0, z: 6, yaw: Math.PI, speed: 9, len: 16, beam: 5 });
+  const lz = local.z, sp = local.speed;
+  resolveAll([local, wreck], 1 / 60, { isStatic: defaultIsStatic });
+  assert.equal(local.z, lz);
+  assert.equal(local.speed, sp);
+});
+
+test('two live ships still bounce after the wreck change', () => {
+  const a = ship({ x: 0, z: 0, yaw: 0, speed: 10, len: 16, beam: 5 });
+  const b = ship({ x: 0, z: 14, yaw: Math.PI, speed: 10, len: 16, beam: 5 });
+  const before = overlap(a, b);
+  assert.ok(before > 0.5);
+  resolvePair(a, b, 1 / 60);
+  assert.ok(overlap(a, b) < before);
+  assert.ok(a.speed < 10 && b.speed < 10);
+});
+
+test('live remote is still a static wall; only wreck remotes are skipped', () => {
+  const remote = ship({ x: 0, z: 0, yaw: 0, speed: 4, remote: true, alive: true, sinking: 0, len: 16, beam: 5 });
+  const local = ship({ x: 0, z: 6, yaw: Math.PI, speed: 9, len: 16, beam: 5 });
+  const rx = remote.x, rz = remote.z, rsp = remote.speed;
+  const lz0 = local.z, sp0 = local.speed;
+  assert.ok(overlap(local, remote) > 0);
+  resolvePair(local, remote, 1 / 60, { isStatic: defaultIsStatic });
+  assert.equal(remote.x, rx); assert.equal(remote.z, rz); assert.equal(remote.speed, rsp);
+  assert.ok(local.z !== lz0 || local.speed < sp0, 'local still bounced off a live remote');
+});
+
+test('canoe sails through a wreck and still bounces off a live ship', () => {
+  const wreck = ship({ x: 0, z: 0, yaw: 0, speed: 0, alive: false, sinking: 3, remote: true, len: 18, beam: 6 });
+  const canoe = { x: 0, z: 2, yaw: 0, speed: 12, len: 5.6, halfBeam: 0.78 };
+  const cz = canoe.z, csp = canoe.speed;
+  assert.equal(resolveCanoeVsShips(canoe, [wreck], 1 / 60), 0);
+  assert.equal(canoe.z, cz); assert.equal(canoe.speed, csp);
+
+  const live = ship({ x: 20, z: 0, yaw: 0, speed: 5, len: 18, beam: 6 });
+  const canoe2 = { x: 20, z: hullHalf(live).hl - 0.5, yaw: 0, speed: 12, len: 5.6, halfBeam: 0.78 };
+  const hits = resolveCanoeVsShips(canoe2, [live], 1 / 60);
+  assert.ok(hits >= 1);
 });
