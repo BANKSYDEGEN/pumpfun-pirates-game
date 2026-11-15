@@ -9,9 +9,23 @@ export const BURNT = new Set([]);
 export const nftSrc = (n) => (Number.isInteger(n) && n >= 1 && n <= NFT_MAX && !BURNT.has(n) ? `assets/nft/${n}.jpg` : null);
 export function setAvatar(img, src) {
   if (!img) return;
-  const logo = () => { img.onerror = null; img.classList.add('av-logo'); if (!img.src.endsWith(LOGO)) img.src = LOGO; };
+  const show = () => { img.style.visibility = ''; };
+  const hide = () => { img.style.visibility = 'hidden'; };
+  const hasPixels = () => img.complete && img.naturalWidth > 0;
+  const logo = () => {
+    img.classList.add('av-logo');
+    img.onload = show;
+    img.onerror = () => { img.onerror = null; hide(); };
+    if (!img.src.endsWith(LOGO)) img.src = LOGO;
+    else if (hasPixels()) show();
+    else hide();
+  };
   if (!src) return logo();
-  img.classList.remove('av-logo'); img.onerror = logo;
-  if (!img.src.endsWith(src)) img.src = src;
+  img.classList.remove('av-logo');
+  img.onload = show;
+  img.onerror = logo;
+  if (!img.src.endsWith(src)) { if (!hasPixels()) hide(); img.src = src; }
+  else if (hasPixels()) show();
+  else hide();
 }
 devHook('PFP_AVATAR', { setAvatar, nftSrc, BURNT, LOGO });
