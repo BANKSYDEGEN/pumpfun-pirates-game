@@ -91,11 +91,24 @@ export function loadPirateGLB(url) {
 // [perf3] the v5 pirate atlases are 2048 px (22 MB of GPU memory each with mips, six of them). Cap baked GLB maps at 1024 px:
 // a pirate never covers enough of the screen for 2048 to show. ?pirtex=2048 (or 4096) turns it off.
 const TEX_CAP = (() => { try { const m = /[?&]pirtex=(\d+)/.exec(location.search); return m ? +m[1] : 1024; } catch { return 1024; } })();
+// [disembark-ios] BANKSY t2516u "issues on mobile of get off ship": stepping ashore on a phone drew 4 High V7 bodies at once (you + 3 crew),
+// uploading five 2048 px textures (male + female atlas, her normal map, both tint masks: ~112 MB of GPU memory, mips included) in one frame,
+// and iPhone Safari killed the tab. Phones cap V7 maps + masks at 1024 px (~28 MB). The phone framebuffer never samples the 2048 level (a
+// body is a few hundred pixels tall there: the GPU already reads the 1024 mip or lower), so nothing looks different. Desktop keeps 2048.
+// ?pirtex=… still overrides (?pirtex=2048 = the old phone behaviour).
+const PHONE_TEX = (() => { try { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches; } catch { return false; } })();
+const V7_CAP = PHONE_TEX ? 1024 : 2048;
+function capImage(img, cap) { // canvas copy at <= cap px (RGB art: no alpha to premultiply), shared per source image
+  if (!img?.width || Math.max(img.width, img.height) <= cap || typeof document === 'undefined') return img;
+  let c = _capped.get(img); if (!c) { const f = cap / Math.max(img.width, img.height); c = document.createElement('canvas'); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+    const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0, c.width, c.height); _capped.set(img, c); }
+  return c;
+}
 const _capped = new WeakMap();
 function capTex(gl) {
   if (typeof document === 'undefined') return gl;
   gl.scene.traverse(o => { for (const m of [].concat(o.material || [])) for (const k of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap']) {
-    const cap = o.userData?.v7 && TEX_CAP === 1024 ? 2048 : TEX_CAP;
+    const cap = o.userData?.v7 && TEX_CAP === 1024 ? V7_CAP : TEX_CAP; // [disembark-ios] phones 1024
     const t = m[k], img = t?.image; if (!img?.width || Math.max(img.width, img.height) <= cap) continue;
     try { let c = _capped.get(img); if (!c) { const f = cap / Math.max(img.width, img.height); c = document.createElement('canvas'); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
         const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0, c.width, c.height); _capped.set(img, c); }
@@ -116,7 +129,7 @@ const _v7Masks = {};
 // [perf v466] ONE load per mask url, shared with the plaza mannequins' pixel read (js/island/plazaMannequins.js maskPixels), which used to fetch it again
 const _v7MaskImg = {};
 export function v7MaskTexture(key) { if (!_v7Masks[key]) { let ok, bad; _v7MaskImg[key] = new Promise((a, b) => { ok = a; bad = b; }); _v7MaskImg[key].catch(() => {});
-  const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href, (tx) => ok(tx.image), undefined, bad); t.flipY = false; _v7Masks[key] = t; } return _v7Masks[key]; }
+  const t = new THREE.TextureLoader().load(new URL('../' + key, import.meta.url).href, (tx) => { if (TEX_CAP === 1024 && V7_CAP < 2048) { try { const c = capImage(tx.image, V7_CAP); if (c !== tx.image) { tx.image = c; tx.needsUpdate = true; } } catch (e) { console.warn('[pirate] mask cap', e); } } ok(tx.image); }, undefined, bad); /* [disembark-ios] phones: 1024 px masks */ t.flipY = false; _v7Masks[key] = t; } return _v7Masks[key]; }
 export function v7MaskImage(key) { v7MaskTexture(key); return _v7MaskImg[key] || Promise.resolve(_v7Masks[key]?.image || null); }
 function v7FaceMask(fem) { return v7MaskTexture('assets/pirates/v7_' + (fem ? 'female' : 'male') + '_face.webp'); }
 function v7Material(src, p, low, tint) {
