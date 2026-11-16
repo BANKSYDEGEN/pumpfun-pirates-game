@@ -36,6 +36,7 @@ import { isValidSolanaAddress, shortWallet, getSavedWallet, saveWallet, getSaved
 import { WALLET_VERIFY_ENABLED, WALLET_SAVE_ENABLED, ON_PORTAL, PVP_ENABLED } from './config.js'; // [wallet verify] off = walletVerify.js is never loaded
 import { requestJoin, cancelJoin } from './joinQueue.js'; // [join-queue] title-screen world cap (same SEAS ARE CROWDED card)
 import { QUALITY, WORLD_AFK_S } from './config.js';
+import { wantPhoneMode, phonePixelCap, adaptPlan, gfxFlags } from './phoneMode.js'; // [phone-mode] t2514u: AUTO stays sharp; cheaper FX + adaptive res
 import { createWorldAfk, inMenuOrShop, showWorldAfkNote, clearWorldAfkNote, AFK_NOTE } from './worldAfk.js'; // [scale-afk] t2512u
 import { ownerAllSkins, shopCache } from './pvpSave.js';
 import './tokenChip.js'; // title screen $SUNK CA chip + socials
@@ -84,6 +85,7 @@ const ENEMY_NAMES = ['RUG PULLER', 'JEETER', 'PAPER HANDS', 'DUMPER', 'BAG DUMPE
 // ---------- quality ----------
 const qp = new URLSearchParams(location.search).get('quality');
 const isMobile = !CONSOLE && (matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)); // [Emerly gamepad] a console (its browser may report a coarse pointer) is never a phone: no touch sticks, the TV layout
+const phoneModeAuto = wantPhoneMode({ ua: navigator.userAgent, deviceMemory: navigator.deviceMemory, isMobile, isConsole: !!CONSOLE, maxTouchPoints: navigator.maxTouchPoints || 0 });
 document.documentElement.classList.toggle('pfp-desktop', !isMobile);
 // [ultra] graphics choice (pause menu / start page), persisted: auto | low | high | ultra. ?quality=… still wins for one visit.
 // ULTRA is opt-in only (never auto-picked, not offered on phones) and renders on top of the HIGH tier: quality stays 'high'
@@ -95,10 +97,15 @@ const gfxSaved = (() => { try { return localStorage.getItem(GFX_KEY); } catch { 
 try { localStorage.removeItem('pfp_ctx_last_loss'); } catch {}
 const ctxSafe = (() => { try { const r = JSON.parse(sessionStorage.getItem('pfp_ctx_recovery') || 'null'); return !!(r && r.n >= 1 && Date.now() - r.ts < 300000); } catch { return false; } })();
 const gfxPick = ctxSafe ? 'low' : ['low', 'high', 'ultra'].includes(qp) ? qp : (['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : null);
-const autoQ = QUALITY !== 'auto' ? QUALITY : (isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH)
+const autoQ = QUALITY !== 'auto' ? QUALITY : (phoneModeAuto || isMobile || (navigator.hardwareConcurrency || 8) <= 4 || (CONSOLE && !/Xbox Series/i.test(navigator.userAgent)) ? 'low' : 'high'); // [Emerly gamepad] Xbox One / PlayStation browsers: LOW (Series X|S: HIGH) // [phone-mode] iPhone / low-mem AUTO = low
 const ULTRA = gfxPick === 'ultra' && !isMobile;
 const quality = ULTRA ? 'high' : (gfxPick === 'low' || gfxPick === 'high') ? gfxPick : autoQ;
-const FXQ = ULTRA ? 'ultra' : quality; // ocean / wakes / particles get the ultra budget
+const PHONE_MODE = phoneModeAuto && !gfxPick && !qp; // AUTO only; a saved or ?quality= override wins
+document.documentElement.classList.toggle('pfp-phone-mode', !!PHONE_MODE);
+gfxFlags.phoneMode = !!PHONE_MODE;
+gfxFlags.nativeTex = !!PHONE_MODE || quality !== 'low'; // [sharp] native kit / lib textures on phone AUTO
+gfxFlags.lodBias = PHONE_MODE ? 1.2 : 1; // [sharp] far areas load a bit later / drop sooner on phone AUTO
+const FXQ = ULTRA ? 'ultra' : (PHONE_MODE ? 'low' : quality); // cheaper water / wakes on phone AUTO; textures stay native
 setCrewQuality(quality, isMobile); setAudioQuality({ phone: isMobile, lite: gfxPick === 'low' }); // [v101] crew voice caps (phone 3, LOW 2) // [Raul] crew budget: high / phone (medium) / low = off
 setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carriage geometry
 // [load-speed] BANKSY 4:53 PM "work on loading speed": the crew bodies (~0.85-1.6 MB of pirate GLBs + the bake), the skull flag image and the
@@ -106,7 +113,7 @@ setShipDetail(quality === 'low'); // [v97] LOW / phones: lighter cannon + carria
 // (same awaits, same order of use: only the downloads overlap).
 const bootArt = Promise.all([loadImage('assets/skull_transparent.png'), document.fonts.load('40px "Just Another Hand"')]); bootArt.catch(() => {});
 const crewV4P = initCrewV4({ lod: pirateBodyLod({ low: quality === 'low' || isMobile, many: true, quality }) }); let crewV4Late = false;
-await initKit(quality === 'low' || isMobile); // Figureheads load on first equipped use via applyShipGear(), never block boot.
+await initKit((quality === 'low' || isMobile) && !gfxFlags.nativeTex); // [sharp] phone AUTO keeps the full-res kit; figureheads still load on first use
 // [crew holes] HIGH desktops bake the High body (the v128 walking-crew fix): crewV4P is started above, before the kit
 await Promise.race([crewV4P, new Promise(r => setTimeout(() => { crewV4Late = true; r(); }, 8000))]); // [v101] crew bodies baked before the first ship is built (procedural crew if slow / failed)
 // [v112] Raul: a late bake (slow phone) re-bakes every crew built meanwhile (rebakeCrewV4) and re-dresses yours, instead of keeping the placeholder crew forever
@@ -124,17 +131,18 @@ const canvas = $('game');
 // [perf2] BANKSY "hd sharp and fast": MSAA on every tier except an explicit LOW pick (phones were aliased at 1.0x); phones start at
 // 1.5x on 2x+ screens (was 1.25, often stepped to 1.0 = blurry on a 3x phone), desktop 2x cap. Adaptive steps down only on slow FPS.
 const DPR = window.devicePixelRatio || 1, LOW_PICK = gfxPick === 'low';
-const PR_WANTED = Math.min(CONSOLE ? 1.25 : isMobile ? 1.5 : 2, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [Emerly gamepad] consoles: a 4K TV renders at most 1.25x the CSS size (adaptive steps still apply)
+const PR_WANTED = PHONE_MODE ? phonePixelCap(DPR) : Math.min(CONSOLE ? 1.25 : isMobile ? 1.5 : 2, ULTRA ? Math.min(2, Math.max(DPR, 1.5)) : quality === 'low' ? Math.min(DPR, LOW_PICK ? 1.25 : DPR >= 2 ? 1.5 : 1.25) : Math.min(DPR, 2)); // [sharp] AUTO on iPhone / low-mem: up to 2×, native textures; MSAA off at high DPR
 // Bound framebuffer memory before the island's first shader/geometry upload, not 12 seconds later.
 const PR0 = renderPixelRatio(innerWidth, innerHeight, PR_WANTED, ULTRA);
+const HI_DPR = PR0 >= 1.5; // [sharp] at high-DPI, drop MSAA (FXAA optional via ?fxaa=1; default is none, which stays sharper)
 // HIGH renders into its own multisampled scene target: a second MSAA canvas is unused.
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !(quality === 'high' && !isMobile) && !LOW_PICK, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !(quality === 'high' && !isMobile) && !LOW_PICK && !HI_DPR, powerPreference: 'high-performance' });
 renderer.setPixelRatio(PR0); // [ultra] supersamples 1x screens
 // [perf2] three.js reads every shader's info log after compiling (forces a synchronous wait per program: ~4.8 s of a 15 s desktop
 // harbor entry). Off in production; ?shaderdebug=1 turns the checks back on.
 renderer.debug.checkShaderErrors = /[?&]shaderdebug=1/.test(location.search);
 // [perf2] sharper ground / decks at grazing angles: default anisotropy for every texture made from here on (explicit values stay)
-THREE.Texture.DEFAULT_ANISOTROPY = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, isMobile || quality === 'low' ? 4 : 8);
+THREE.Texture.DEFAULT_ANISOTROPY = Math.min(renderer.capabilities.getMaxAnisotropy() || 1, gfxFlags.nativeTex ? 8 : (isMobile || quality === 'low' ? 4 : 8)); // [sharp] native textures keep 8× anisotropy
 renderer.setSize(innerWidth, innerHeight);
 // A context loss must not leave an invisible / frozen game. Preserve the Harbor
 // resume snapshot, allow three.js to restore, then restart with a bounded budget.
@@ -202,7 +210,7 @@ if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.P
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0042);
-const FOG_K = ULTRA ? 0.74 : 1; // [ultra] lighter fog, longer draw distance
+const FOG_K = ULTRA ? 0.74 : PHONE_MODE ? 1.12 : 1; // [ultra] lighter fog, longer draw distance // [sharp] phone AUTO: slightly shorter draw, cheaper than cutting resolution
 scene.background = FOG_COLOR.clone();
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 9000); // [v348] t1828u: 2500 -> 9000 (sea to the horizon, sky dome 6500)
 camera.position.set(0, 16, -34);
@@ -212,6 +220,11 @@ controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.enablePan = false; controls.minDistance = 16; controls.maxDistance = 95;
 controls.maxPolarAngle = 1.48; controls.minPolarAngle = 0.25;
 controls.target.set(0, 4, 0);
+const SHOT = /[?&]shot=1/.test(location.search); // [sharp-shots] t2514u: locked-camera captures only (not a release flag)
+if (SHOT) window.__pfpShot = { camera, renderer, controls, locked: false,
+  setCam(pos, tgt) { this.locked = true; controls.enabled = false;
+    camera.position.set(pos[0], pos[1], pos[2]); controls.target.set(tgt[0], tgt[1], tgt[2]);
+    camera.lookAt(controls.target); controls.update(); camera.updateMatrixWorld(); } };
 
 // storm lighting: cool sky fill, a low warm-silver key from the sunset seam, soft shadows on high
 const hemi = new THREE.HemisphereLight(0x9fc2d4, 0x14262c, 1.9); scene.add(hemi);
@@ -219,7 +232,7 @@ const sun = new THREE.DirectionalLight(0xffe2c4, 2.1); sun.position.set(-40, 50,
 const SUN_OFF = new THREE.Vector3(-40, 50, 80);
 if (HIGH) {
   sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
-  const sc = sun.shadow.camera; sc.left = sc.bottom = -38; sc.right = sc.top = 38; sc.near = 10; sc.far = 220;
+  const sc = sun.shadow.camera; sc.left = sc.bottom = -38; sc.right = sc.top = 38; sc.near = 10; sc.far = ULTRA ? 260 : 180; // [sharp] slightly tighter shadow distance on HIGH (ULTRA still 260 below)
   sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.04; sun.shadow.radius = 3;
   if (ULTRA) { sun.shadow.mapSize.set(4096, 4096); sc.left = sc.bottom = -64; sc.right = sc.top = 64; sc.far = 260; sun.shadow.radius = 5; sun.shadow.normalBias = 0.03; } // [ultra]
 }
@@ -227,7 +240,7 @@ if (HIGH) {
 const ocean = createOcean(FXQ); ocean.mesh.renderOrder = 2; scene.add(ocean.mesh); // after ships' water masks (see ships.js)
 const wakes = createWakes(FXQ, ocean.uniforms.uWaves); scene.add(wakes.mesh); // [aaa water] after the ocean
 const sky = createSky(); scene.add(sky.mesh);
-const rain = createRain(quality === 'low' ? 1800 : ULTRA ? 9000 : 5000); scene.add(rain.mesh);
+const rain = createRain(PHONE_MODE ? 2400 : quality === 'low' ? 1800 : ULTRA ? 9000 : 5000); scene.add(rain.mesh);
 const fx = new FX(scene, FXQ);
 const bolt = createBolt(); scene.add(bolt.mesh);
 const islands = createIslands(quality); scene.add(islands.group);
@@ -281,7 +294,7 @@ if (HIGH) {
       import('three/addons/postprocessing/OutputPass.js'), import('three/addons/shaders/FXAAShader.js'),
     ]);
     // [ultra] 4x MSAA half-float target, stronger bloom so Diamond / Golden / Flaming glow, SMAA, subtle grade
-    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: sceneSamples(ULTRA) })); // 2x on HIGH; 4x is reserved for opt-in ULTRA
+    composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: (HI_DPR && !ULTRA) ? 0 : sceneSamples(ULTRA) })); // [sharp] no MSAA at high DPR on HIGH (FXAA only if ?fxaa=1); 4x reserved for ULTRA
     // Only the scene target needs MSAA/depth. Fullscreen post passes need neither.
     // Pin read/write roles at frame start (none of these passes has temporal history).
     composer.renderTarget1.samples = 0; composer.renderTarget1.depthBuffer = false;
@@ -1457,7 +1470,8 @@ let camShipK = 1; // [Raul] upgrade visuals
 function camScale(ud) { return Math.max(1, Math.pow(ud.shipScale || 1, 0.8), 0.8 * (ud.frameK || 1)); }
 // [mobile] adaptive resolution: on phones / low quality, if a busy scene averages under ~40 fps for 2 s of
 // play, step the render pixel ratio down (1.25 -> 1.12 -> 1.0). Down only, so it never oscillates.
-const ADAPT = { on: true, steps: quality === 'low' ? [1.25, 1.12, 1] : [1.5, 1.25], min: quality === 'low' ? 38 : 45, t0: 0, n: 0, slow: 0, fast: 0, warm: 0, downAt: 0 }; // [perf2] every tier adapts (desktop 2 -> 1.5 -> 1.25 only when slow), 8 s warm-up after (re)entering play, steps back up after 20 s of smooth play // [mobile-perf] BANKSY "graphics get downgraded really bad": softer steps (1.25 -> 1.12 -> 1.0, never the blurry 0.85) and only after TWO slow windows in a row (a loading hitch no longer costs resolution for good)
+const _adapt = adaptPlan(PR0, { minFps: 50 }); // [sharp] every device adapts; dips only below ~50 fps, then climbs back after a few smooth seconds. Floor 1.25 (no 1× / 0.85 blur).
+const ADAPT = { on: true, steps: _adapt.steps, min: 50, upFps: _adapt.upFps, upWindows: _adapt.upWindows, upWaitMs: _adapt.upWaitMs, t0: 0, n: 0, slow: 0, fast: 0, warm: 0, downAt: 0 };
 // [mobile-perf-2] phones: island pieces lost in the fog are not drawn. FogExp2 is >99.5 % fog colour past 2.3 / density (~550 m), so a
 // static island mesh whose whole bounding sphere sits beyond that is invisible anyway: skip it (draw calls + triangles), no visual change.
 // Only the static island art (terrain chunks, trees / palms / rocks / nature, docks, shops, hill street, coast kit), never a LOD's own
@@ -1482,12 +1496,12 @@ function adaptResolution() {
   if (now - ADAPT.t0 < 2000) return;
   const fps = ADAPT.n * 1000 / (now - ADAPT.t0); ADAPT.t0 = 0;
   const next = ADAPT.steps.find(r => r < renderer.getPixelRatio() - 0.01);
-  ADAPT.slow = fps < ADAPT.min ? ADAPT.slow + 1 : 0; ADAPT.fast = fps > 57 ? ADAPT.fast + 1 : 0;
-  if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; ADAPT.downAt = now; renderer.setPixelRatio(next); onResize(); console.info('[mobile] fps', fps.toFixed(1), '-> pixel ratio', next); return; }
+  ADAPT.slow = fps < ADAPT.min ? ADAPT.slow + 1 : 0; ADAPT.fast = fps > ADAPT.upFps ? ADAPT.fast + 1 : 0;
+  if (ADAPT.slow >= 2 && next) { ADAPT.slow = 0; ADAPT.downAt = now; renderer.setPixelRatio(next); onResize(); console.info('[gfx] fps', fps.toFixed(1), '-> pixel ratio', next); return; }
   let up = null; for (let i = ADAPT.steps.length - 1; i >= 0; i--) { const r = ADAPT.steps[i]; if (r > renderer.getPixelRatio() + 0.01 && r <= PR0) { up = r; break; } }
   up ||= renderer.getPixelRatio() < PR0 - 0.01 ? PR0 : null;
   if (up) { const [w, h] = viewSize(); up = renderPixelRatio(w, h, up, ULTRA); }
-  if (up > renderer.getPixelRatio() + 0.01 && ADAPT.fast >= 10 && now - ADAPT.downAt > 20000) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [perf2] back up (20 s of 57+ fps)
+  if (up > renderer.getPixelRatio() + 0.01 && ADAPT.fast >= ADAPT.upWindows && now - ADAPT.downAt > ADAPT.upWaitMs) { ADAPT.fast = 0; renderer.setPixelRatio(up); onResize(); console.info('[gfx] smooth', fps.toFixed(1), 'fps -> pixel ratio', up); } // [sharp] back up after ~6 s of 55+ fps (was 20 s of 57+)
 }
 const gameplayHint = createGameplayHint(document.documentElement);
 addEventListener('keydown', (e) => {
@@ -1673,7 +1687,8 @@ function frame() {
   ocean.uniforms.uTime.value = sky.uniforms.uTime.value = rain.uniforms.uTime.value = t;
 
   // camera follows the ship, orbit offset preserved
-  if (!dock?.camera(dt)) { // [Emerly] on foot: the third-person pirate camera (js/onfoot/walker.js) instead
+  if (SHOT && window.__pfpShot?.locked) { /* [sharp-shots] keep the scripted camera */ }
+  else if (!dock?.camera(dt)) { // [Emerly] on foot: the third-person pirate camera (js/onfoot/walker.js) instead
   const ud0 = player.mesh.userData, shipK = camScale(ud0); // [Raul] upgrade visuals: bigger hulls / taller rigs pull the camera back to stay framed
   const tgt = _camTgt.set(player.x, player.y + 4 * shipK + 2.2 * ((ud0.frameK || 1) - 1), player.z); // [v330 perf] reused vectors (no per-frame garbage)
   camera.position.add(_camD.copy(tgt).sub(lastTarget)); lastTarget.copy(tgt);
@@ -1831,14 +1846,14 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, get dock(
 // [ultra] graphics menu (start page + pause): AUTO / LOW / HIGH / ULTRA (desktop only), saved on this device; a reload applies it
 {
   const cur = ['low', 'high', 'ultra'].includes(gfxSaved) ? gfxSaved : 'auto';
-  const opts = [['auto', 'AUTO'], ['low', 'LOW'], ['high', 'HIGH'], ...(isMobile ? [] : [['ultra', 'ULTRA']])];
+  const opts = [['auto', phoneModeAuto ? 'AUTO · PHONE' : 'AUTO'], ['low', 'LOW'], ['high', 'HIGH'], ...(isMobile ? [] : [['ultra', 'ULTRA']])];
   for (const box of [$('gfx-title'), $('gfx-pause')]) {
     if (!box) continue;
     box.innerHTML = `<span class="label">GRAPHICS</span><span class="gfx-seg" role="radiogroup" aria-label="Graphics quality"></span><small class="gfx-note muted"></small>`;
     const seg = box.querySelector('.gfx-seg'), note = box.querySelector('.gfx-note');
     for (const [id, label] of opts) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.q = id; b.setAttribute('role', 'radio');
-      b.title = id === 'ultra' ? 'ULTRA: for strong desktop GPUs (bloom, MSAA + SMAA, 4K shadows, sharper water, more particles)' : id === 'auto' ? `AUTO (now ${autoQ.toUpperCase()})` : id.toUpperCase();
+      b.title = id === 'ultra' ? 'ULTRA: for strong desktop GPUs (bloom, MSAA + SMAA, 4K shadows, sharper water, more particles)' : id === 'auto' ? (phoneModeAuto ? 'AUTO · PHONE: sharp (up to 2×). Cheaper shadows / water / draw distance; resolution dips only if FPS drops below 50. You can still pick HIGH or LOW.' : `AUTO (now ${autoQ.toUpperCase()}; resolution stays maxed and only dips if FPS drops below 50)`) : id.toUpperCase();
       b.classList.toggle('on', id === cur); b.setAttribute('aria-checked', id === cur);
       b.onclick = () => {
         try { id === 'auto' ? localStorage.removeItem(GFX_KEY) : localStorage.setItem(GFX_KEY, id); } catch {}
@@ -1849,6 +1864,7 @@ const pvpCtx = { skullImg, scene, game, enemies, balls, loot, fx, sfx, get dock(
       seg.appendChild(b);
     }
     if (qp) note.textContent = `?quality=${qp} in the link overrides this`;
+    else if (phoneModeAuto && !gfxPick) note.textContent = 'PHONE mode stays sharp (high-DPI). Resolution only dips if FPS drops below 50. HIGH / LOW in Settings still override.';
   }
   // [v153] BANKSY: MINIMAP STYLE in settings: COLORED (default) or PAPER (the MAPS parchment look), saved on this device, applies at once
   { const box = $('map-style-pause'); if (box) { const cur = getMapStyle();

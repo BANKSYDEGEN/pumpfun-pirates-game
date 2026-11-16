@@ -94,12 +94,13 @@ export const MUSKET = { len: 1.38, muzzle: new THREE.Vector3(0, 0.06, 1.38) }; /
 // grip / tip (swords) and muzzle / grip_r / grip_l (muskets). Loaded once; a geometry already handed out by swordGeo / musketGeo is
 // swapped IN PLACE (same BufferGeometry object), so blades on racks + in hands upgrade without re-dressing. Missing file = placeholder.
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'; // [asset-diet] t2514u
 const EMPTIES = new Map(); let _weapons = null;
 const weaponURL = (slot, id, lod) => new URL(`../../assets/pirates/items/v5/weapon_${slot}_${id}_${lod}.glb`, import.meta.url).href;
 function adopt(dst, src) { dst.dispose(); for (const k of Object.keys(dst.attributes)) dst.deleteAttribute(k); for (const k of Object.keys(src.attributes)) dst.setAttribute(k, src.attributes[k]);
   dst.setIndex(src.index); dst.clearGroups(); dst.computeBoundingBox(); dst.computeBoundingSphere(); }
 export function loadWeaponModels(low = false) {
-  if (_weapons) return _weapons; const L = new GLTFLoader(), lod = low ? 'lo' : 'hi';
+  if (_weapons) return _weapons; const L = new GLTFLoader(), lod = low ? 'lo' : 'hi'; L.setMeshoptDecoder(MeshoptDecoder);
   const one = (slot, id) => L.loadAsync(weaponURL(slot, id, lod)).then((g) => {
     g.scene.updateMatrixWorld(true); const gs = [], E = {};
     g.scene.traverse((o) => { if (o.isMesh) { const q = o.geometry.clone().applyMatrix4(o.matrixWorld); for (const k of Object.keys(q.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'color') q.deleteAttribute(k); gs.push(q); }

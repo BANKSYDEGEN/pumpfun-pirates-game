@@ -12,6 +12,7 @@
 // &plazatex=0 = the pre-library look (vertex colour / procedural layers only).
 import * as THREE from 'three';
 import { sharedKTX2 } from './townkit.js'; // [perf2] (was its own KTX2Loader)
+import { gfxFlags } from '../phoneMode.js'; // [sharp] t2514u: phone AUTO uses the 1024 px library, not lib_lo
 
 export const LIB = ['stone_ashlar', 'stone_trim', 'brick', 'plaster', 'cobble', 'timber', 'planks_weathered', 'piling_wet', 'roof_tile', 'iron', 'rope', 'awning_cloth'];
 export const LIB_ID = Object.fromEntries(LIB.map((n, i) => [n, i + 1]));
@@ -27,11 +28,12 @@ export function initLib(low, renderer) {
   if (_p) return _p;
   if (!LIB_ON) return (_p = Promise.resolve(null));
   if (!renderer) return Promise.resolve(null);   // (no cache: a later call with the renderer still loads it)
-  const t0 = performance.now(), file = `assets/island/tex/lib${low ? '_lo' : ''}.ktx2`;
+  const texLow = !!low && !gfxFlags.nativeTex; // [sharp] native 1024 px library when phone AUTO asks for sharp textures
+  const t0 = performance.now(), file = `assets/island/tex/lib${texLow ? '_lo' : ''}.ktx2`;
   let ktx; try { ktx = sharedKTX2(renderer); } // [perf2] shared with the town kits (townkit.js)
   catch (e) { console.warn('[lib] no KTX2 support, vertex colour only', e); return (_p = Promise.resolve(null)); }
   _p = ktx.loadAsync(new URL('../../' + file, import.meta.url).href).then(t => {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = low ? 4 : 8; /* [v330 perf] phones 2 -> 4: sharper cobbles / planks at distance */ t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = texLow ? 4 : 8; /* [sharp] 8× on native library */ t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
     LIB_U.uLib.value = t; LIB_U.uLibOn.value = 1;
     Object.assign(LIB_STATS, { file, ms: Math.round(performance.now() - t0), format: t.format, gpuBytes: (t.mipmaps || []).reduce((s, m) => s + (m.data ? m.data.byteLength : 0), 0) });
     return t; }).catch(e => { console.warn('[lib] material library failed, vertex colour only', e); return null; });

@@ -4,6 +4,7 @@ import { addParrotCage, CAGE_SPOT } from './parrotCage.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'; // [asset-diet] t2514u
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createCrewRoomDisplay } from '../crew.js';
 import { syncCrewGear } from '../crewGear.js';
@@ -437,6 +438,7 @@ export function preloadQuartersGlb() {
   if (QUARTERS_LOW_MEM) draco.setWorkerLimit(1); // [v339] one Draco WASM heap on phones (default 4)
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
+  loader.setMeshoptDecoder(MeshoptDecoder);
   _quartersGlbP = Promise.all([
     loader.loadAsync(new URL(QUARTERS_GLB, document.baseURI).href),
     preloadQuartersTextures(),

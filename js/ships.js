@@ -5,6 +5,7 @@ import { unmarkLocalIn } from './pirateGear.js'; // [shop-exit-crash] disposeShi
 import * as THREE from 'three';
 import { addCrew, dressCrew, addLookout, crewLodOf, setWalkLanes } from './crew.js'; // [Raul] deck crew
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { floatify } from './geoFloat.js'; // [asset-diet] t2514u
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, glowMat, outlineFor, woodTexture, clothTexture, metalTexture, goldTexture } from './toon.js';
 import { kitOn, geo as kitGeo, dressMaterial, aoTwin } from './shipKit.js'; // [Timothy] Blender ship art kit (visual only)
@@ -429,7 +430,8 @@ class Parts {
           this.by.delete(m); }
         this.by.set(A.mat, all); if (k.includes('o')) outlined.add(A.mat); } }
     for (const [mat, list] of this.by) {
-      const geo = mergeGeometries(list, false); geo.userData.tagRanges = mergedTags(list);
+      list.forEach(floatify);
+      const geo = mergeGeometries(list, false); if (!geo) continue; geo.userData.tagRanges = mergedTags(list);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.castShadow = shadows && !mat.isMeshBasicMaterial; mesh.receiveShadow = shadows && !mat.isMeshBasicMaterial;
       parent.add(mesh);

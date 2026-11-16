@@ -13,6 +13,7 @@ import invShops from './invShops.js'; // [inventory] Fish Stand + Antiques + Mar
 import hillRound from './hillRound.js';   // [path-fix2] fountain roundabout + high rope bridge
 import cottages from './cottages.js';     // [post/cottages] BANKSY cottage neighborhood around live Build Mode houses
 import { libAreaBuilt } from '../libTex.js';   // [Timothy] shared material library: re-tags a built area's kit pieces (the hilltop fort, the Pirates' Climb) + the gate junction dressing
+import { gfxFlags } from '../../phoneMode.js'; // [sharp] t2514u: tighter far-area load / drop on phone AUTO
 export { FORT_WALKIN };
 export const RB_ON = !(typeof location !== 'undefined' && /[?&]roundabout=0(&|$)/.test(location.search)); // [path-fix2] &roundabout=0 = no roundabout / high bridge: the old gate + dip path exactly
 export const AREA_MODS = [lagoon, jungle, ...route, ropeBridge, fort, invShops, bldNums, cottages, ...(RB_ON ? [hillRound] : [])];
@@ -27,7 +28,8 @@ export function registerAreas(h) { for (const a of AREA_MODS) { const L = AREA_L
     addDeck: (d) => { L.decks.push(d); h.addDeck(d); }, poi: (id, label, x, z, o) => { L.pois.push({ id, label, x, z }); return h.poi(id, label, x, z, o); } });
   for (const q of h.INTERACT.slice(n0)) (AREA_LOG[q.area] = AREA_LOG[q.area] || { boxes: [], circs: [], decks: [], pois: [] }, (AREA_LOG[q.area].interact = AREA_LOG[q.area].interact || []).push(q)); } }
 export function createAreas({ root, MATS, OUT, low, uTime, H }) {
-  const LOAD_R = low ? 240 : 380, NEAR_R = low ? 120 : 190, SHOW_R = low ? 300 : 560, DROP_R = LOAD_R + 260;
+  const bias = Math.max(0.5, Number(gfxFlags.lodBias) || 1); // [sharp] lodBias > 1 loads later / drops sooner (far-off areas stay lazy)
+  const LOAD_R = (low ? 240 : 380) / bias, NEAR_R = (low ? 120 : 190) / bias, SHOW_R = (low ? 300 : 560) / bias, DROP_R = LOAD_R + 260;
   const S = AREA_MODS.map(a => ({ a, b: null, d: 1e9 })), stats = { built: 0, buildMs: 0, disposed: 0 };
   const ctx = { MATS, OUT, low, uTime, H };
   function build(s) { const t0 = performance.now(); s.b = s.a.build(ctx); libAreaBuilt(s.a.id, s.b, ctx); for (const g of [s.b.near, s.b.far].filter(Boolean)) { g.visible = false; root.add(g); }

@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { floatify } from './geoFloat.js'; // [asset-diet] t2514u: dequantize before applyMatrix4 / merge
 
 const DIR = new URL('../assets/ships/kit/', import.meta.url).href;
 export const KIT = { ready: false, lo: false, geos: { hi: new Map(), lo: new Map() }, img: {}, hi: {}, nrm: {}, err: null };
@@ -22,7 +23,7 @@ async function loadGlb(url) {
   g.scene.updateMatrixWorld(true);
   g.scene.traverse(o => {
     if (!o.isMesh) return;
-    const geo = o.geometry.clone().applyMatrix4(o.matrixWorld);
+    const geo = floatify(o.geometry.clone()); geo.applyMatrix4(o.matrixWorld);
     if (!geo.attributes.color) { const n = geo.attributes.position.count, c = new Float32Array(n * 3).fill(1); geo.setAttribute('color', new THREE.BufferAttribute(c, 3)); }
     else if (geo.attributes.color.itemSize === 4 || geo.attributes.color.normalized) { // -> plain float RGB (merge-friendly)
       const a = geo.attributes.color, n = a.count, c = new Float32Array(n * 3);

@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v589';
+const VERSION = 'pfp-v590';
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -465,7 +465,9 @@ self.addEventListener('fetch', (e) => {
   // path waited one round trip per file (~140 of them, chained through the module graph) on every boot, even when nothing had changed.
   e.respondWith(caches.open(VERSION).then(c => c.match(req)).then(hit => {
     if (!hit) return live().catch(() => caches.match(req, { ignoreSearch: true }).then(h => h || caches.match('./index.html')));
-    if (!REVAL.has(req.url)) { REVAL.add(req.url); e.waitUntil(new Promise(r => setTimeout(r, 4000)).then(() => fetch(req, { cache: 'no-cache', priority: 'low' })).then(res => {
+    // [asset-diet] t2514u: /assets/ is immutable for this VERSION — skip the background re-fetch (saves egress on big GLBs / KTX2).
+    const longCache = /\/assets\//.test(url.pathname);
+    if (!longCache && !REVAL.has(req.url)) { REVAL.add(req.url); e.waitUntil(new Promise(r => setTimeout(r, 4000)).then(() => fetch(req, { cache: 'no-cache', priority: 'low' })).then(res => {
       if (res.ok && res.status === 200) return caches.open(VERSION).then(c => c.put(req, res)); }).catch(() => {})); }
     return hit;
   }).catch(() => live()));
