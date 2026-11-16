@@ -1,6 +1,6 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v590';
+const VERSION = 'pfp-v591'; // [v591] phones: ship skin previews are pre-baked images, no 2nd WebGL context (skin shop buy crash) (BANKSY t2578u)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
@@ -144,6 +144,7 @@ const SHELL = [
   "./js/upgradeVisuals.js",
   "./js/skins.js",
   "./js/skinPreview.js",
+  "./assets/ships/thumbs/manifest.js",
   "./js/healthDrops.js",
   "./js/tutorial.js",
   "./js/net.js",

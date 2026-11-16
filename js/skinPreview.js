@@ -10,6 +10,7 @@ import { devHook } from './env.js'; // [security L] console/test hook: local dev
 import * as THREE from 'three';
 import { compilePreview } from './upgradeVisuals.js';
 import { disposeShip } from './ships.js';
+import { BAKED_SKINS } from '../assets/ships/thumbs/manifest.js'; // [t2578u] pre-rendered previews for phones (tools/bake_skin_thumbs.py)
 
 const W = 360, H = 200;            // preview bitmap size (CSS shows it at card width; 2x on high-dpi via DPR below)
 const cache = new Map();           // key -> HTMLCanvasElement (2D, transparent)
@@ -18,6 +19,24 @@ let R = null, failed = false, idleKill = 0;
 const PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 let base = {};                     // buildShip extras from main.js (classic sail / flag textures), quality
 export const previewOptions = { glow: 'rim' }; // 'none' | 'rim' (soft skin-tinted halo hugging the silhouette) | 'radial'
+// [t2578u] BANKSY "on mobile on low graphics game crashes every time try to buy a ship skin": the SHIP SKINS shop built all 18 ships in
+// this 2nd WebGL context next to the game's own (measured: ~220 textures + ~150 shader programs, more than the whole island scene), the
+// same iOS tab-kill as the v368 crew shop. Phones never open the 2nd context now: they show the same renders pre-baked on desktop
+// (assets/ships/thumbs, base build, HIGH quality, 540x300 = sharp at card size). Desktop keeps live renders. ?liveskins=1 = live on phones.
+export const BAKED_ONLY = PHONE && !(typeof location !== 'undefined' && /[?&]liveskins=1(?:&|$)/.test(location.search));
+const bakedSet = (extra) => (extra?.pvp ? BAKED_SKINS.pvp : BAKED_SKINS.solo) || [];
+export const bakedUrl = (skin, extra = null) => bakedSet(extra).includes(skin.id) ? new URL(`../assets/ships/thumbs/${extra?.pvp ? 'pvp' : 'solo'}_${skin.id}.webp`, import.meta.url).href : null;
+const _baking = new Map(); // key -> Promise<canvas|null>
+function loadBaked(skin, levels, extra) {
+  const k = keyOf(skin, levels, extra); if (cache.has(k)) return Promise.resolve(cache.get(k));
+  if (_baking.has(k)) return _baking.get(k);
+  const url = bakedUrl(skin, extra); if (!url) return Promise.resolve(null);
+  const p = new Promise((res) => { const im = new Image(); im.decoding = 'async';
+    im.onload = () => { try { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0);
+      cache.set(k, c); while (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value); res(c); } catch { res(null); } };
+    im.onerror = () => res(null); im.src = url; }).finally(() => _baking.delete(k));
+  _baking.set(k, p); return p;
+}
 
 export function initSkinPreview(opts) { base = { ...opts }; }
 const keyOf = (skin, levels, extra = null) => `${skin.id}|${Object.keys(levels).sort().map(k => k + levels[k]).join('')}|${base.quality || 'high'}|${previewOptions.glow}${extra?.pvp ? '|pvp' : ''}`;
@@ -51,6 +70,7 @@ export function releaseRenderer() {
 export function renderPreview(skin, levels, extra = null) {
   const k = keyOf(skin, levels, extra);
   if (cache.has(k)) return cache.get(k);
+  if (BAKED_ONLY) { loadBaked(skin, levels, extra); return null; } // [t2578u] phones: the baked image (ready on the next call), never a 2nd GL context
   const X = renderer(); if (!X) return null;
   let ship = null;
   try {
@@ -111,6 +131,10 @@ let queue = [], pumping = 0, onReady = null;
 const idle = window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 120 }) : (f) => setTimeout(() => f({ timeRemaining: () => 10 }), 16);
 export function requestPreviews(skins, levels, cb, extra = null) {
   clearTimeout(idleKill);
+  if (BAKED_ONLY) { // [t2578u] phones: baked images only (cached ones at once, the rest as they decode); the painted swatch stays for any other
+    for (const s of skins) { const c = cache.get(keyOf(s, levels, extra)); if (c) cb(s, c); else loadBaked(s, levels, extra).then(x => { if (x) cb(s, x); }); }
+    return;
+  }
   onReady = cb;
   queue = skins.filter(s => !cache.has(keyOf(s, levels, extra))).map(s => ({ s, levels: { ...levels }, extra }));
   for (const s of skins) { const c = cache.get(keyOf(s, levels, extra)); if (c) cb(s, c); }
@@ -138,7 +162,7 @@ export function previewCards(grid, skins, levels = {}, extra = null) {
     const card = grid.querySelector(`[data-skin="${byId.get(s.id) || s.id}"]`); if (!card || card.querySelector('canvas.sk-real')) return;
     const old = card.querySelector('canvas'); const cv = document.createElement('canvas'); cv.className = 'sk-real'; cv.width = src.width; cv.height = src.height;
     cv.getContext('2d').drawImage(src, 0, 0); if (old) old.replaceWith(cv); else card.prepend(cv);
-    if (!queue.length) { clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, 20000); }
+    if (!queue.length && R) { clearTimeout(idleKill); idleKill = setTimeout(releaseRenderer, PHONE ? 1500 : 20000); } // [t2578u] phones: free a (?liveskins=1) context soon
   }, extra);
 }
-devHook('PFP_PREVIEW', { previewOptions, renderPreview, cache, releaseRenderer, clear: () => cache.clear() });
+devHook('PFP_PREVIEW', { get R() { return R; }, BAKED_ONLY, bakedUrl, previewOptions, renderPreview, cache, releaseRenderer, clear: () => cache.clear() });
