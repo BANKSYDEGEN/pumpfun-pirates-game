@@ -120,5 +120,6 @@ export function createPumpfun({world,layout,camera,canvas,low=false}) {
   for(const w of walls)try{mod.drawWallPanel(w.cv,w.board,marketFeed.state,now,compact);w.tex.needsUpdate=true;w.rev=boardDataKey(marketFeed.state,w.board.key,logos);w.at=now;}catch(e){}
   return warmBuildingGPU({renderer,scene,camera,roots:[hq.group],collectTextures:true});
  }
- return {prepare,update,open,close,get openNow(){return isOpen();},get near(){return nearHQ;},get approach(){return approachHQ;},root};
+ function showAt(position){if(!position)return Promise.resolve(false);update(true,position,0);if(hq&&hq.group.visible)return Promise.resolve(true);return loadRender().then(()=>{dress();update(true,position,0);return !!(hq&&hq.group.visible);});}
+ return {prepare,update,showAt,open,close,get openNow(){return isOpen();},get near(){return nearHQ;},get approach(){return approachHQ;},root};
 }

@@ -29,7 +29,8 @@
     let n = Number(q.get('step') || 0);
     if (id) { const i = ids.indexOf(id); if (i >= 0) n = i; }
     const touch = q.get('touch') === '1' || q.get('touch') === 'true';
-    mountHarborTutPreview(document.getElementById('shot'), { step: n, touch });
+    const input = q.get('input') || (touch ? 'touch' : 'pc');
+    mountHarborTutPreview(document.getElementById('shot'), { step: n, touch, input });
     const ready = () => { document.documentElement.dataset.ready = '1'; };
     if (document.fonts?.ready) document.fonts.ready.then(() => setTimeout(ready, 80));
     else setTimeout(ready, 400);

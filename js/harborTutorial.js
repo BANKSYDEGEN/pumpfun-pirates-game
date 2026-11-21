@@ -5,10 +5,11 @@
 import { FALLBACK } from './inventory/shopSpots.js';
 import { toHarbor, t2w, t2wYaw } from './island/coast.js';
 import {
-  HARBOR_TUT_KEY, HARBOR_TUT_CSS, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS,
+  HARBOR_TUT_KEY, HARBOR_TUT_CSS, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS, harborTutDevice,
 } from './harborTutorialSteps.js';
+import { onPadMode, padConnected } from './gamepad.js';
 
-export { HARBOR_TUT_KEY, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS };
+export { HARBOR_TUT_KEY, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS, harborTutDevice };
 
 const FLY_S = 1.35, FLY_MAX_S = 3.6, HOLD_S = 5.2;
 const $ = (id) => document.getElementById(id);
@@ -43,8 +44,14 @@ export function isHarborTutOff() { try { return localStorage.getItem(HARBOR_TUT_
 export function isHarborTutOpen() { return open; }
 function markSeen() { try { localStorage.setItem(HARBOR_TUT_KEY, '1'); } catch {} }
 
+let forceDevice = null, padShown = false, unPad = null;
 function isTouch() { return !!(ctx?.touch) || !KEYBOARD(); }
-function steps() { return harborTutSteps(isTouch()); }
+function activeDevice() {
+  if (forceDevice) return forceDevice;
+  if (padShown) return 'pad';
+  return harborTutDevice(null, isTouch());
+}
+function steps() { return harborTutSteps(activeDevice()); }
 
 function build() {
   if ($('harbor-tut')) return;
@@ -155,15 +162,33 @@ function shopLook(id) {
   if (!Number.isFinite(y)) y = 3;
   return lookAtPoint(x, y + 0.4, z, 11, rot + 0.85, 0.32);
 }
+function clampHullCam(shot) {
+  const origin = ctx.shipHull?.roomOrigin, ud = ctx.shipHull?.interior?.userData;
+  if (!origin || !shot) return shot;
+  const halfW = ((ud?.W || 11.6) / 2) - 0.7, halfD = ((ud?.D || 11.0) / 2) - 0.7;
+  const yLo = origin.y + 0.95, yHi = origin.y + (ud?.PEAK || 4.35) - 0.5;
+  const cx = (v, c, h) => c + Math.max(-h, Math.min(h, v - c));
+  return {
+    px: cx(shot.px, origin.x, halfW), py: Math.max(yLo, Math.min(yHi, shot.py)), pz: cx(shot.pz, origin.z, halfD),
+    tx: cx(shot.tx, origin.x, halfW), ty: Math.max(origin.y + 0.4, Math.min(yHi, shot.ty)), tz: cx(shot.tz, origin.z, halfD),
+  };
+}
 function hullLook(kind) {
   const origin = ctx.shipHull?.roomOrigin; if (!origin) return null;
-  const floor = 0.14;
+  const floorY = origin.y + 0.14;
+  // Room is 11.6 x 11.0; the old lookAtPoint distances sat the camera outside the walls.
   if (kind === 'clothes') {
-    const s = HULL_WARDROBE;
-    return lookAtPoint(origin.x + s.x, origin.y + floor + 0.7, origin.z + s.z, 3.4, -Math.PI / 2 + 0.35, 0.28);
+    // Sea chest under the aft starboard porthole (prop at local 5.0, -3.65).
+    return clampHullCam({
+      px: origin.x + 2.4, py: floorY + 1.4, pz: origin.z - 1.9,
+      tx: origin.x + 5.0, ty: floorY + 0.6, tz: origin.z - 3.55,
+    });
   }
-  const p = HULL_CREW;
-  return lookAtPoint(origin.x + p.x, origin.y + (p.y || 0) + 1.15, origin.z + p.z, 3.6, Math.PI * 0.15, 0.22);
+  // Crew mannequin at local -2.8, -4.15, viewed from mid-room looking aft-port.
+  return clampHullCam({
+    px: origin.x + 0.45, py: floorY + 1.65, pz: origin.z - 1.05,
+    tx: origin.x - 2.8, ty: floorY + 1.25, tz: origin.z - 4.15,
+  });
 }
 function berthLook() {
   const s = playerShip(); if (!s) return camNow();
@@ -225,7 +250,13 @@ async function prepareStep(id) {
   if (id === 'controls') return berthLook();
   if (id === 'inventory') return inventoryLook() || berthLook();
   if (id === 'fish' || id === 'antiques' || id === 'market') { pinFor(id); return shopLook(id) || berthLook(); }
-  if (id === 'pumpfun') { pinFor(id); return pumpfunLook(); }
+  if (id === 'pumpfun') {
+    pinFor(id);
+    const shot = pumpfunLook();
+    const pos = shot ? { x: shot.tx, z: shot.tz } : null;
+    try { await Promise.resolve(ctx.pumpfun?.showAt?.(pos) || ctx.pumpfun?.update?.(true, pos, ctx.game?.t || 0)); } catch {}
+    return shot;
+  }
   if (id === 'squads') { pinFor(id); return townLook(SQUAD.lx, SQUAD.lz, 0.4, 13, Math.PI / 2, 0.22, SQUAD.doorY + 0.4); }
   if (id === 'coliseum') { pinFor(id); return townLook(COLI.lx, COLI.lz, 1.2, 32, Math.PI * 0.85, 0.48, 8); }
   if (id === 'cabins') {
@@ -362,7 +393,6 @@ export function harborTutCamera(dt) {
     if (to) applyCam(to);
     if (t >= hold) next();
   }
-  try { if (!ctx.shipHull?.inHull && ctx.world?.update && ctx.camera) ctx.world.update(ctx.camera.position, ctx.game?.t || 0, ctx.game?.storm || 0); } catch {}
   return true;
 }
 
@@ -392,8 +422,30 @@ export function tickHarborTutorialStart() {
   if (performance.now() >= startAt) maybeShowHarborTutorial();
 }
 
+function hookPad() {
+  try { unPad?.(); } catch {}
+  const redraw = () => { if (open) renderCard(); };
+  const on = (v) => { padShown = !!v; redraw(); };
+  try { unPad = onPadMode(on); } catch { unPad = null; }
+  const plugged = () => { padShown = true; redraw(); };
+  const unplugged = () => { try { if (!padConnected()) padShown = false; } catch { padShown = false; } redraw(); };
+  addEventListener('gamepadconnected', plugged);
+  addEventListener('gamepaddisconnected', unplugged);
+  const prev = unPad;
+  unPad = () => { try { prev?.(); } catch {} removeEventListener('gamepadconnected', plugged); removeEventListener('gamepaddisconnected', unplugged); };
+}
+
 export function initHarborTutorial(c) {
-  ctx = c; build(); wireMenus();
+  ctx = c; build(); wireMenus(); hookPad();
   // menus can be created after us (Storm Hunt HOW TO PLAY button)
   setTimeout(wireMenus, 0); setTimeout(wireMenus, 800);
+  try {
+    window.__pfpHarborTut = {
+      show: showHarborTutorial, close: closeHarborTutorial, next,
+      go: (i) => go(i), step: () => step, phase: () => phase, open: () => open,
+      device: () => activeDevice(), setDevice: (d) => { forceDevice = d || null; if (d === 'pad') padShown = true; if (open) renderCard(); },
+      freeze: () => { if (to) applyCam(to); phase = 'hold'; t = 0; },
+      ids: HARBOR_TUT_IDS,
+    };
+  } catch {}
 }
