@@ -49,6 +49,7 @@ import { createHouses, HOUSES_ON } from './houses.js'; // [Emerly storage-houses
 import { ADM } from '../adminState.js'; // [admin-menu] frozen = no interact
 import { boardReach } from '../hullReach.js'; // [board-anywhere] BOARD SHIP from anywhere round your docked hull
 import { createShipHull, SHIP_QUARTERS_ID, HULL_COMBAT_LOCK_S } from './shipHull.js'; // [v333] Captain's Quarters ENTER HULL
+import { initHarborTutorial, harborTutCamera, tickHarborTutorialStart } from '../harborTutorial.js';
 import { createLadders, LADDERS_ON } from './ladders.js'; // [dock-ladders] swim back up the jetty / boardwalk / cove / lagoon ladders (&ladders=0 = off)
 import { LAGOON_LADDER, LAGOON_DOCK, lagoonDockY } from '../island/areas/lagoon.js';
 import { createBattle } from '../onfoot/battle.js'; // [Timothy] battle areas: SWORD PIT + MUSKET RANGE (cosmetic, no rewards)
@@ -560,7 +561,7 @@ export async function createDock(ctx) {
       shipHull.enter({ from: fromDock ? 'dock' : 'sea', ax, az, ayaw, berthId: docking.berth?.id || null, skipFade: true });
     });
   }
-  function leaveHull() {
+  function leaveHull(opts = {}) {
     if (!shipHull?.inHull) return;
     shipHull.leave((ctx) => {
       const s = P();
@@ -569,7 +570,7 @@ export async function createDock(ctx) {
       for (const c of crewF?.list || []) c.p.object.userData.emote = null;
       walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit();
       document.documentElement.classList.remove('pfp-onfoot', 'pfp-inhull', 'pfp-inhouse');
-      controls.enabled = true;
+      controls.enabled = !opts.keepControlsOff;
       if (s) {
         if (ctx?.from === 'sea' && Number.isFinite(ctx.ax)) {
           s.x = ctx.ax; s.z = ctx.az; s.yaw = Number.isFinite(ctx.ayaw) ? ctx.ayaw : s.yaw;
@@ -580,8 +581,25 @@ export async function createDock(ctx) {
         }
       }
       ctx?.from === 'sea' ? null : null;
-    });
+    }, opts);
   }
+  function enterHullForTut() {
+    if (shipHull?.inHull) { try { shipHull.camHold = true; } catch {} return true; }
+    if (onFoot) return false;
+    const s = P(); if (!s?.alive) return false;
+    const fromDock = docking.mode === 'docked';
+    const fromSea = docking.mode === 'sea' && !!s.anchor;
+    if (!fromDock && !fromSea) return false;
+    if (canoe?.mode === 'canoe' || canoe?.mode === 'beached') return false;
+    const ax = s.x, az = s.z, ayaw = s.yaw;
+    onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
+    try { walker.enter(s.x, s.z, s.yaw); } catch {}
+    crewF?.exit?.(); petF?.exit?.(); pillyF?.exit?.();
+    const ok = shipHull.enter({ from: fromDock ? 'dock' : 'sea', ax, az, ayaw, berthId: docking.berth?.id || null, skipFade: true });
+    try { shipHull.camHold = true; } catch {}
+    return !!ok || !!shipHull.inHull;
+  }
+  function leaveHullForTut() { leaveHull({ skipFade: true, keepControlsOff: true }); }
   // [island-rework] what an area activity may do to you: a toast, or put you back at a spot (trap runs). Foot-frame coords.
   // [fish2] + your pirate for the fishing dock (js/island/areas/fishing2.js): where you stand / face in the foot frame, turn you, a body pose, its sounds
   const FOOT_YAW = (() => { const a = layout.footToHarbor(0, 0), b = layout.footToHarbor(1, 0); return Math.atan2(-(b[1] - a[1]), b[0] - a[0]); })();
@@ -681,6 +699,7 @@ export async function createDock(ctx) {
   function pill(el, show, cls = '', txt = null) { if (!el) return; const d = show ? 'block' : 'none'; if (el.style.display !== d) el.style.display = d; if (!show) return;
     if (el.className !== cls) el.className = cls; if (txt !== null && el.textContent !== txt) el.textContent = txt; }
   function ship(dt) {
+    if (on) tickHarborTutorialStart();
     const want = inHarbor() || (on && game.mode === 'pvp' && ctx.pvp()?.where === 'harbor' && game.state !== 'title'); const was = on; setOn(want);
     // [v105] HARBOR SPECTATE: show + stream the whole coast island (terrain chunks / LOD follow the spectate camera); no docking or walking
     const view = !on && game.mode === 'pvp' && !!ctx.pvp()?.specHarbor && game.state !== 'title'; if (view !== viewing) { viewing = view; world.root.visible = view || on; setZone(view || on); harborExtras(view || on); } // [v330] t1754u + the scene-level island pieces if (view) world.update(camera.position, game.t, game.storm || 0);
@@ -810,7 +829,7 @@ export async function createDock(ctx) {
   }
   // [v476] the PumpFun hall / pet store can never take the frame loop down: 3 errors and it switches itself off.
   let pfOk = true, pfN = 0; const pfErr = (e) => { console.warn('[pumpfun] update', e); if (++pfN >= 3) { pfOk = false; try { pumpfun.update(false); } catch {} } };
-  function cameraHook() { const pos = onFoot ? walker.w : ctx.getPlayer?.(); const shown = on && !shipHull?.inHull && !houses?.inHouse; if (pfOk) try { pumpfun.update(shown, pos, game.t); } catch (e) { pfErr(e); } try { plaza.update(shown, {position:pos, nearHQ:pfOk&&(pumpfun.approach??pumpfun.near), hqOpen:pfOk&&pumpfun.openNow, worldOn:on}); } catch (e) { console.warn('[plaza] update', e); } if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
+  function cameraHook(dt) { if (harborTutCamera(dt)) return true; const pos = onFoot ? walker.w : ctx.getPlayer?.(); const shown = on && !shipHull?.inHull && !houses?.inHouse; if (pfOk) try { pumpfun.update(shown, pos, game.t); } catch (e) { pfErr(e); } try { plaza.update(shown, {position:pos, nearHQ:pfOk&&(pumpfun.approach??pumpfun.near), hqOpen:pfOk&&pumpfun.openNow, worldOn:on}); } catch (e) { console.warn('[plaza] update', e); } if (!on) return false; if (!shipHull?.inHull && !houses?.inHouse) world.update(camera.position, game.t, game.storm || 0); return onFoot || canoe?.mode === 'canoe' || !!houses?.inHouse || !!shipHull?.inHull; }
 
   // ---------- test transport (?harborbc=1): two tabs share a BroadcastChannel as their "harbor room" ----------
   let bcLink = null;
@@ -870,6 +889,11 @@ export async function createDock(ctx) {
     radarZones: () => false,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
+  initHarborTutorial({
+    camera, controls, game, world, layout, walker, shipHull, touch,
+    getPlayer: ctx.getPlayer, pvp: ctx.pvp, hidden, on: () => on, onFoot: () => onFoot,
+    imap, enterHull: enterHullForTut, leaveHull: leaveHullForTut, goAshoreAt, camReset: ctx.camReset,
+  });
   harborExtras(on || viewing); // [v330] t1754u: the scene-level island pieces start hidden until the harbor world switches on
   // Before main.js drops ROWING INTO THE HARBOR: no warm-up work in ship()/walker ticks.
   if(!/[?&]gpuwarm=0(?:&|$)/.test(location.search))try{

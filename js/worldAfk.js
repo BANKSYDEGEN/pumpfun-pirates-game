@@ -7,7 +7,7 @@ export { WORLD_AFK_S };
 
 // Visible UI that means the pirate is busy, not AFK. Overlays + html open-classes used around the island.
 export const MENU_IDS = ['pause', 'gameover', 'shop', 'pvp-menu', 'ctl-ov', 'casino-ui', 'inv-panel', 'fr-panel', 'pet-panel', 'iv-pick', 'iv-pick-ok', 'waves-skins', 'waves-entry'];
-export const MENU_HTML_RE = /(?:^|\s)(shop-open|acct-open|isle-map-open|dk-skins-open|hb-hub-open|tm-map-open|pfp-chat-open|dk-board)(?:\s|$)/;
+export const MENU_HTML_RE = /(?:^|\s)(shop-open|acct-open|isle-map-open|dk-skins-open|hb-hub-open|tm-map-open|pfp-chat-open|dk-board|pfp-harbor-tut)(?:\s|$)/;
 
 export function inMenuOrShop(doc = typeof document !== 'undefined' ? document : null) {
   if (!doc) return false;

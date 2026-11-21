@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harbor tutorial shots</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Just+Another+Hand&display=swap" rel="stylesheet">
+  <style>
+    :root { --gold: #ffcd77; }
+    html, body { margin: 0; min-height: 100%; background:
+      radial-gradient(ellipse at 50% 30%, #2a1a0c 0%, #12100c 55%, #070705 100%);
+      font-family: 'Just Another Hand', cursive; color: #fff; overflow: hidden; }
+    /* faint dock silhouette so the card sits in a harbor-like frame */
+    body::before { content: ''; position: fixed; inset: 0; pointer-events: none;
+      background: linear-gradient(to top, rgba(0,0,0,.45) 0%, transparent 42%),
+        repeating-linear-gradient(90deg, rgba(255,205,119,.03) 0 2px, transparent 2px 80px); }
+    #shot { position: fixed; inset: 0; }
+  </style>
+</head>
+<body>
+  <div id="shot"></div>
+  <script type="module">
+    import { mountHarborTutPreview, HARBOR_TUT_IDS } from '../js/harborTutorialSteps.js';
+    const q = new URLSearchParams(location.search);
+    const ids = HARBOR_TUT_IDS();
+    const id = q.get('id');
+    let n = Number(q.get('step') || 0);
+    if (id) { const i = ids.indexOf(id); if (i >= 0) n = i; }
+    const touch = q.get('touch') === '1' || q.get('touch') === 'true';
+    mountHarborTutPreview(document.getElementById('shot'), { step: n, touch });
+    const ready = () => { document.documentElement.dataset.ready = '1'; };
+    if (document.fonts?.ready) document.fonts.ready.then(() => setTimeout(ready, 80));
+    else setTimeout(ready, 400);
+  </script>
+</body>
+</html>

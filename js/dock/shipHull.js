@@ -994,7 +994,7 @@ export function createShipHull({
   leaveBtn.style.cssText = 'display:none !important;position:fixed;left:50%;bottom:calc(var(--safe-b,0px) + 92px);transform:translateX(-50%);z-index:9;font:22px "Just Another Hand",cursive;letter-spacing:.04em;padding:8px 18px 6px;border-radius:12px;border:3px solid #ffcd77;background:rgba(22,22,22,.9);color:#ffcd77;cursor:pointer;pointer-events:auto';
   document.body.appendChild(leaveBtn);
 
-  let inHull = false, interior = null, roomOrigin = null, returnCtx = null, busy = false;
+  let inHull = false, interior = null, roomOrigin = null, returnCtx = null, busy = false, camHold = false;
   const rest = createRest({ walker, pirate, getOrigin: () => (inHull && interior && roomOrigin ? roomOrigin : null) }); // [bed-desk]
   const hiddenPeers = new Set();
   let _ground, _water, _stand, _blocked;
@@ -1045,6 +1045,7 @@ export function createShipHull({
   }
 
   function applyCam() {
+    if (camHold) return;
     if (!camera || !interior || !roomOrigin || !walker?.w) return;
     const w = walker.w;
     const f = rest.focus() || { x: w.x, y: w.y, z: w.z, up: 1.68, look: 1.32, dMin: 3.8, dMax: 4.7 }; // [bed-desk] lying / seated: frame the body
@@ -1176,13 +1177,13 @@ export function createShipHull({
     return true;
   }
 
-  function leave(onBack = null) {
+  function leave(onBack = null, opts = {}) {
     if (!inHull || busy) return false;
     closeCrewRoom?.(); closeParrotCage?.();
     rest.end('leave'); // [bed-desk] stand up before the room goes away
     busy = true;
     const ctx = returnCtx;
-    fadeTo(() => {
+    const run = () => {
       try {
         try { houses?.closeStorage?.(); } catch {}
         if (interior) { scene.remove(interior); disposeInterior(interior); interior = null; }
@@ -1196,7 +1197,9 @@ export function createShipHull({
         onBack?.(ctx);
         toast(ctx?.from === 'sea' ? '⚓ BACK ABOARD · ANCHORED' : '⚓ BACK ABOARD · HARBOR', 1600);
       } finally { busy = false; }
-    });
+    };
+    if (opts?.skipFade) run();
+    else fadeTo(run);
     return true;
   }
 
@@ -1287,6 +1290,7 @@ export function createShipHull({
 
   return {
     get inHull() { return inHull; },
+    get camHold() { return camHold; }, set camHold(v) { camHold = !!v; },
     get returnCtx() { return returnCtx; },
     get interior() { return interior; },
     get roomOrigin() { return roomOrigin; },

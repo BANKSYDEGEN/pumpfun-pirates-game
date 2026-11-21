@@ -85,6 +85,7 @@ export function installMouseBinds({ inGame, canvas }) {
 export function anyModalOpen() {
   try {
     const $ = (id) => document.getElementById(id);
+    if ($('harbor-tut')?.classList.contains('on')) return true;
     if ($('pumpfun-panel')?.classList.contains('on')) return true;
     if ($('pfp-admin-portal')?.classList.contains('on')) return true;
     if ($('inv-panel')?.classList.contains('on')) return true;
