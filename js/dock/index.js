@@ -901,10 +901,24 @@ export async function createDock(ctx) {
     radarZones: () => false,
     stats: () => ({ ...world.stats, berths: layout.berths.length, shipCircles: layout.shipCircles.length, sets: sets.length }),
   };
+  function goAshoreQuiet(x, z, yaw) {
+    onFoot = true; controls.enabled = false; document.documentElement.classList.add('pfp-onfoot');
+    try { walker.enter(x, z, yaw ?? 0); } catch {}
+    try { crewF?.enter(); petF?.enter(walker.w); } catch {}
+  }
+  function goAboardQuiet() {
+    if (!onFoot) return;
+    onFoot = false;
+    try { walker.exit(); crewF?.exit(); petF?.exit(); pillyF?.exit(); } catch {}
+    document.documentElement.classList.remove('pfp-onfoot');
+    controls.enabled = false;
+  }
   initHarborTutorial({
-    camera, controls, game, world, layout, walker, shipHull, touch, pumpfun,
+    camera, controls, game, world, layout, walker, shipHull, touch, pumpfun, plaza, canoe, docking,
+    inventory: () => inventory,
     getPlayer: ctx.getPlayer, pvp: ctx.pvp, hidden, on: () => on, onFoot: () => onFoot,
     imap, enterHull: enterHullForTut, leaveHull: leaveHullForTut, goAshoreAt, camReset: ctx.camReset,
+    goAshoreQuiet, goAboardQuiet,
   });
   harborExtras(on || viewing); // [v330] t1754u: the scene-level island pieces start hidden until the harbor world switches on
   // Before main.js drops ROWING INTO THE HARBOR: no warm-up work in ship()/walker ticks.

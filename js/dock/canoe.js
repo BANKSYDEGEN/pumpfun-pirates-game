@@ -476,7 +476,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     toast('SHIP RETURNED OFF THE HARBOR'); sfx?.coin?.(); return true;
   }
   function clearAll(s, controls) {
-    mesh.visible = false; st.mode = 'sea'; clearKeys(); uprightRiders();
+    mesh.visible = false; st.mode = 'sea'; st.script = false; clearKeys(); uprightRiders();
     if (s) { s._offshore = false; s._canoeAway = false; }
     document.documentElement.classList.remove('pfp-canoe');
     if (controls) controls.enabled = true;
@@ -506,12 +506,14 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     bobT += dt;
     if ((st.mode === 'canoe' || st.mode === 'beached') && s) lockShip(s); // locked only while you are off the ship
     if (st.mode === 'canoe') {
-      const K = keys;
-      let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0);
-      let side = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
-      let run = !!(K.ShiftLeft || K.ShiftRight);
-      if (joy?.on && Math.hypot(joy.x, joy.y) > 0.12) { f = -joy.y; side = joy.x; run = Math.hypot(joy.x, joy.y) > 0.88; }
-      canoeSteer(dt, { f, s: side, run });
+      if (!st.script) {
+        const K = keys;
+        let f = (K.KeyW || K.ArrowUp ? 1 : 0) - (K.KeyS || K.ArrowDown ? 1 : 0);
+        let side = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0);
+        let run = !!(K.ShiftLeft || K.ShiftRight);
+        if (joy?.on && Math.hypot(joy.x, joy.y) > 0.12) { f = -joy.y; side = joy.x; run = Math.hypot(joy.x, joy.y) > 0.88; }
+        canoeSteer(dt, { f, s: side, run });
+      }
       mesh.visible = true;
       placeFloat(dt, st.snap); st.snap = false;
       // paddle stroke: fore-aft swing + outward dip while moving; rest cleanly when idle
@@ -546,7 +548,7 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
       { const po = petF?.mesh || petF?.object; if (po) placeAt(po, 1.60, 0.40); } // pet perched on the bow bench
       // camera: drag / wheel / pinch look, drifting back behind the canoe while paddling
       if (moving && !cam.drags.size && performance.now() - cam.look > 1200) cam.yaw += wrapA(st.cyaw - cam.yaw) * Math.min(1, dt * 1.4);
-      if (camera && controls) {
+      if (camera && controls && !st.script) {
         const cp = Math.cos(cam.pitch), by = st.y;
         let dist = cam.dist;
         // never put the camera inside the anchored ship's hull: pull in, then lift over the deck if still inside
@@ -639,6 +641,88 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     return false;
   }
 
+  // Silent, camera-free helpers for the harbor tutorial canoe cutscene. Restore with tutRestore.
+  function sideOff(s) {
+    const yaw = s.yaw, rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const off = Math.max(6.5, (s.mesh?.userData?.beam || 8) * 0.5 + 4.5);
+    const sideScore = (sd) => { const x = s.x + rx * off * sd, z = s.z + rz * off * sd; if (H(x, z) > -1.0) return 1e9;
+      for (let r = 10; r <= 220; r += 10) if (H(s.x + rx * r * sd, s.z + rz * r * sd) > -0.2) return r; return 500; };
+    const side = sideScore(1) <= sideScore(-1) ? 1 : -1;
+    return { x: s.x + rx * off * side, z: s.z + rz * off * side, side };
+  }
+  function tutDeploy(s, docking, { x, z, yaw } = {}) {
+    if (!s?.alive) return false;
+    try { docking?.release?.(); } catch {}
+    st.script = true; clearKeys();
+    s.x = x; s.z = z; s.yaw = yaw; s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = true;
+    st.ax = s.x; st.az = s.z; st.ayaw = s.yaw; s._offshore = true;
+    const off = sideOff(s);
+    st.cx = off.x; st.cz = off.z;
+    const sh = shoreHeading(st.cx, st.cz, 220);
+    st.cyaw = sh ? sh.yaw : yaw; st.cspd = 0; st.mode = 'canoe'; s._canoeAway = true;
+    resetCam(); st.snap = true; bobT = 0;
+    mesh.visible = true; placeFloat(0, true); st.snap = false;
+    document.documentElement.classList.add('pfp-canoe');
+    try {
+      crewF?.enter?.();
+      const seat = { x: st.cx, z: st.cz, yaw: st.cyaw };
+      petF?.enter?.(seat);
+      petF?.update?.(0, seat, { pirateObj: pirate?.object, petId: getLocalGear()?.parrot || 'none' });
+    } catch {}
+    return true;
+  }
+  function tutPlace(x, z, yaw, spd = 0) {
+    st.script = true; st.mode = 'canoe'; st.cx = x; st.cz = z;
+    if (Number.isFinite(yaw)) st.cyaw = yaw;
+    st.cspd = spd; mesh.visible = true;
+    document.documentElement.classList.add('pfp-canoe');
+  }
+  function tutBeach(x, z, yaw) {
+    st.script = true; st.mode = 'beached'; st.bx = x; st.bz = z; st.cx = x; st.cz = z;
+    if (Number.isFinite(yaw)) st.cyaw = yaw;
+    st.cspd = 0; placeBeached();
+    document.documentElement.classList.remove('pfp-canoe');
+    uprightRiders();
+  }
+  function tutRelaunch() {
+    if (st.mode !== 'beached') return false;
+    st.script = true; st.mode = 'canoe'; st.cx = st.bx; st.cz = st.bz; st.cspd = 0;
+    for (let i = 0; i < 16; i++) {
+      const nx = st.cx + Math.sin(st.cyaw) * 1.0, nz = st.cz + Math.cos(st.cyaw) * 1.0;
+      st.cx = nx; st.cz = nz; if (H(nx, nz) < -0.6) break;
+    }
+    resetCam(); placeFloat(0, true);
+    document.documentElement.classList.add('pfp-canoe');
+    mesh.visible = true;
+    try { crewF?.enter?.(); petF?.enter?.({ x: st.cx, z: st.cz, yaw: st.cyaw }); } catch {}
+    return true;
+  }
+  function tutBoardShip(s) {
+    st.script = true;
+    mesh.visible = false; st.mode = 'sea'; st.cspd = 0; clearKeys();
+    document.documentElement.classList.remove('pfp-canoe');
+    try { crewF?.exit?.(); petF?.exit?.(); } catch {}
+    uprightRiders();
+    if (pirate?.object) pirate.object.visible = false;
+    if (s) {
+      s.x = st.ax; s.z = st.az; s.yaw = st.ayaw; s.speed = 0; s.sail = 0; s.turn = 0;
+      s.anchor = true; s._offshore = false; s._canoeAway = false;
+    }
+  }
+  function tutRestore(s, docking, snap, controls) {
+    st.script = false;
+    clearAll(s, null);
+    if (s && snap) {
+      s.x = snap.sx; s.z = snap.sz; s.yaw = snap.syaw;
+      s.speed = 0; s.sail = 0; s.turn = 0; s.anchor = !!snap.anchor;
+      s._offshore = false; s._canoeAway = false;
+    }
+    try {
+      if (snap?.dockMode === 'docked' && snap.berth && docking?.moor && s) docking.moor(s, snap.berth);
+    } catch {}
+    if (controls) controls.enabled = false;
+  }
+
   return {
     get mode() { return st.mode; },
     get state() { return st; },
@@ -646,5 +730,6 @@ export function createCanoe({ scene, layout, walker, pirate, crewF, petF, getPla
     get cam() { return cam; },
     mesh, nearMainDock, tick, prompts, act, clearAll, recallShip, onKey, clearKeys, padLook, camBehind, hullCap,
     canLandAshore, findDry, nearLand, inSailSea, clampSail,
+    tutDeploy, tutPlace, tutBeach, tutRelaunch, tutBoardShip, tutRestore,
   };
 }

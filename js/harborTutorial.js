@@ -5,7 +5,7 @@
 import { FALLBACK } from './inventory/shopSpots.js';
 import { toHarbor, t2w, t2wYaw } from './island/coast.js';
 import {
-  HARBOR_TUT_KEY, HARBOR_TUT_CSS, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS, harborTutDevice,
+  HARBOR_TUT_KEY, HARBOR_TUT_CSS, harborTutSteps, mountHarborTutPreview, HARBOR_TUT_IDS, harborTutDevice, harborTutInvHint,
 } from './harborTutorialSteps.js';
 import { onPadMode, padConnected } from './gamepad.js';
 
@@ -27,8 +27,13 @@ const COTTAGES = [ // foot frame, js/dock/houses.js FALLBACK_COTTAGES
 ];
 const GILL_DOCK = { x: -205, z: -80, y: 21.6 }; // foot; mid lagoon dock
 const DIG_TOWN_SHORE = { x: -626, z: -258 }; // foot; dig6, active roll spot on the west shore near the boardwalk
+const CANOE_TOWN = { ship: { lx: -168, lz: 50 }, shore: { lx: -168, lz: 8 } }; // same west beach as the treasure shot
+const INV_HINT_S = 1.7;
+const CANOE_TIMES = { launch: 0.9, toShore: 3.2, drop: 1.8, reboard: 1.1, back: 3.2, aboard: 1.3 };
+const CANOE_TOTAL = Object.values(CANOE_TIMES).reduce((a, b) => a + b, 0);
 
 let ctx = null, open = false, step = 0, phase = 'fly', t = 0, flyDur = FLY_S, from = null, to = null, returnCam = null, returnState = null, enteredHull = false, pinned = null;
+let invHintOn = false, invOpened = false, canoeRun = null, canoeSnap = null;
 const PIN_IDS = {
   fish: ['fish_market', 'invshop_fish'],
   antiques: ['invshop_antiques', 'rent_1', 'antiques', 'treasure_trader'],
@@ -38,6 +43,7 @@ const PIN_IDS = {
   coliseum: ['coliseum'],
   cabins: ['cottage_gabled', 'cottage_garden', 'cottage_balcony', 'cottage_dormer'],
   fishing: ['lagoon', 'grandpa_gill', 'lagoon_gill', 'lagoon_dock'],
+  casino: ['casino', 'golden_doubloon', 'doubloon'],
 };
 
 export function isHarborTutOff() { try { return localStorage.getItem(HARBOR_TUT_KEY) === '1'; } catch { return false; } }
@@ -151,7 +157,19 @@ function footLook(fx, fz, yOff = 0.4, dist = 14, yaw = Math.PI / 2, pitch = 0.32
   return lookAtPoint(x, y, z, dist, yaw, pitch);
 }
 
+function townShot(clx, clz, cy, tlx, tlz, ty) {
+  const [px, pz] = townToH(clx, clz);
+  const [tx, tz] = townToH(tlx, tlz);
+  return { px, py: cy, pz, tx, ty, tz };
+}
 function shopLook(id) {
+  // Street / doorway looking in at the counter. Town +lz is out to sea; shop fronts sit at lz -30.
+  if (id === 'fish') return townShot(73.2, -26.0, 5.15, 73.2, -38.6, 3.55);
+  if (id === 'market') return townShot(47.0, -26.0, 5.15, 47.0, -38.6, 3.55);
+  if (id === 'antiques') {
+    const gy = 3.0 + Math.max(0, 73.1 - 50) * 0.11;
+    return townShot(5.4, -73.1, gy + 2.05, -6.5, -73.1, gy + 1.2);
+  }
   const q = (ctx.world?.footInteract || []).find((s) => s.id === 'invshop_' + id || s.src?.id === 'invshop_' + id);
   let x, z, y, rot = FALLBACK[id]?.rotY || 0;
   if (q) { x = q.x; z = q.z; y = ctx.world?.ground?.(q.x, q.z); }
@@ -160,7 +178,17 @@ function shopLook(id) {
     [x, z] = footToH(fb.x, fb.z); y = ctx.world?.ground?.(x, z) ?? fb.y;
   }
   if (!Number.isFinite(y)) y = 3;
-  return lookAtPoint(x, y + 0.4, z, 11, rot + 0.85, 0.32);
+  return lookAtPoint(x, y + 0.4, z, 11, t2wYaw(rot) + 0.35, 0.32);
+}
+function casinoLook() {
+  // Just inside the Main Street arch, looking into the hall at the tables.
+  return townShot(16.2, -48.4, 4.9, 23.4, -52.4, 3.55);
+}
+function forceLoad(shot) {
+  if (!shot) return;
+  const pos = { x: shot.px, y: shot.py, z: shot.pz };
+  try { ctx.world?.update?.(pos, ctx.game?.t || 0, 0); } catch {}
+  try { ctx.plaza?.update?.(true, { position: pos, worldOn: true }); } catch {}
 }
 function clampHullCam(shot) {
   const origin = ctx.shipHull?.roomOrigin, ud = ctx.shipHull?.interior?.userData;
@@ -248,13 +276,25 @@ async function prepareStep(id) {
   await ensureHull(inHullShot);
   if (inHullShot) return hullLook(id === 'hull_clothes' ? 'clothes' : 'crew') || exteriorHullLook();
   if (id === 'controls') return berthLook();
-  if (id === 'inventory') return inventoryLook() || berthLook();
-  if (id === 'fish' || id === 'antiques' || id === 'market') { pinFor(id); return shopLook(id) || berthLook(); }
+  if (id === 'inventory') { showInvHint(); return inventoryLook() || berthLook(); }
+  if (id === 'fish' || id === 'antiques' || id === 'market') {
+    pinFor(id);
+    const shot = shopLook(id) || berthLook();
+    forceLoad(shot);
+    return shot;
+  }
   if (id === 'pumpfun') {
     pinFor(id);
     const shot = pumpfunLook();
     const pos = shot ? { x: shot.tx, z: shot.tz } : null;
     try { await Promise.resolve(ctx.pumpfun?.showAt?.(pos) || ctx.pumpfun?.update?.(true, pos, ctx.game?.t || 0)); } catch {}
+    forceLoad(shot);
+    return shot;
+  }
+  if (id === 'casino') {
+    pinFor(id);
+    const shot = casinoLook();
+    forceLoad(shot);
     return shot;
   }
   if (id === 'squads') { pinFor(id); return townLook(SQUAD.lx, SQUAD.lz, 0.4, 13, Math.PI / 2, 0.22, SQUAD.doorY + 0.4); }
@@ -267,8 +307,171 @@ async function prepareStep(id) {
   }
   if (id === 'fishing') { pinFor(id); return footLook(GILL_DOCK.x, GILL_DOCK.z, 0.4, 14, Math.PI * 0.15, 0.28, GILL_DOCK.y); }
   if (id === 'treasure') return footLook(DIG_TOWN_SHORE.x, DIG_TOWN_SHORE.z, 0.2, 9, 0.9, 0.42);
-  if (id === 'canoe') return canoeLook();
+  if (id === 'canoe') return startCanoeScript() || canoeLook();
   return berthLook();
+}
+
+function invApi() { try { return ctx.inventory?.() || ctx.inventory || null; } catch { return null; } }
+function invHintLabel() {
+  const h = harborTutInvHint(activeDevice());
+  return `<kbd>${h.key}</kbd><span>${h.phrase}</span>`;
+}
+function placeInvHint() {
+  const btn = $('tm-btn'); const hint = $('ht-inv-hint'); if (!btn || !hint) return;
+  const r = btn.getBoundingClientRect();
+  hint.style.left = r.left + 'px';
+  hint.style.top = r.top + 'px';
+  hint.style.width = r.width + 'px';
+  hint.style.height = r.height + 'px';
+}
+function showInvHint() {
+  hideInvHint();
+  const btn = $('tm-btn');
+  if (btn) { btn.style.display = 'block'; document.documentElement.classList.add('ht-show-inv'); }
+  let hint = $('ht-inv-hint');
+  if (!hint) {
+    hint = document.createElement('div'); hint.id = 'ht-inv-hint';
+    hint.innerHTML = `<div class="ht-inv-ring"></div><div class="ht-inv-label">${invHintLabel()}</div>`;
+    document.body.appendChild(hint);
+  } else {
+    const lab = hint.querySelector('.ht-inv-label'); if (lab) lab.innerHTML = invHintLabel();
+  }
+  hint.style.display = 'block'; hint.style.opacity = '1';
+  invHintOn = true;
+  placeInvHint();
+}
+function hideInvHint() {
+  invHintOn = false;
+  document.documentElement.classList.remove('ht-show-inv');
+  const hint = $('ht-inv-hint'); if (hint) hint.style.display = 'none';
+}
+function openInvPanel() {
+  const iv = invApi();
+  try { iv?.open?.('bag'); } catch {}
+  invOpened = !!(iv?.isOpen);
+  $('harbor-tut')?.classList.add('ht-with-inv');
+  hideInvHint();
+  if ($('tm-btn')) { $('tm-btn').style.display = 'block'; document.documentElement.classList.add('ht-show-inv'); }
+}
+function closeInvPanel() {
+  const iv = invApi();
+  try { if (iv?.isOpen) iv.close(); } catch {}
+  invOpened = false;
+  hideInvHint();
+  $('harbor-tut')?.classList.remove('ht-with-inv');
+  document.documentElement.classList.remove('ht-show-inv');
+}
+function tickInventoryShot() {
+  if (!open) return;
+  const id = steps()[step]?.id;
+  if (id !== 'inventory') { if (invHintOn || invOpened) closeInvPanel(); return; }
+  if (invHintOn) placeInvHint();
+  if (phase === 'hold' && !invOpened && t >= INV_HINT_S) openInvPanel();
+}
+
+function canoeHarbor(lx, lz) { return townToH(lx, lz); }
+function canoeFollowCam() {
+  const c = ctx.canoe?.state; if (!c || (c.mode !== 'canoe' && c.mode !== 'beached')) return canoeLook();
+  const x = c.mode === 'beached' ? c.bx : c.cx, z = c.mode === 'beached' ? c.bz : c.cz;
+  const y = (c.y || 0) + 1.8;
+  return lookAtPoint(x, y, z, 13, (c.cyaw || 0) + 0.45, 0.30);
+}
+function snapCanoe() {
+  const s = playerShip(), d = ctx.docking;
+  return {
+    sx: s?.x, sz: s?.z, syaw: s?.yaw, anchor: !!s?.anchor,
+    dockMode: d?.mode, berth: d?.berth || null,
+  };
+}
+function startCanoeScript() {
+  stopCanoeScript(false);
+  const canoe = ctx.canoe, s = playerShip();
+  if (!canoe?.tutDeploy || !s) return canoeLook();
+  const [sx, sz] = canoeHarbor(CANOE_TOWN.ship.lx, CANOE_TOWN.ship.lz);
+  const [hx, hz] = canoeHarbor(CANOE_TOWN.shore.lx, CANOE_TOWN.shore.lz);
+  const yaw = t2wYaw(0);
+  canoeSnap = snapCanoe();
+  try { ctx.docking?.release?.(); } catch {}
+  const ok = canoe.tutDeploy(s, ctx.docking, { x: sx, z: sz, yaw });
+  if (!ok) { canoeSnap = null; return canoeLook(); }
+  const st = canoe.state;
+  const inland = t2wYaw(Math.PI);
+  let land = null;
+  try { land = canoe.findDry?.(hx, hz, inland, 30) || canoe.findDry?.(st.cx, st.cz, st.cyaw, 80); } catch {}
+  const endX = land?.x ?? hx, endZ = land?.z ?? hz, endYaw = land?.yaw ?? inland;
+  canoeRun = {
+    phase: 'launch', t: 0,
+    startX: st.cx, startZ: st.cz, startYaw: st.cyaw,
+    shoreX: endX, shoreZ: endZ, shoreYaw: endYaw,
+    dropped: false, relaunched: false, boarded: false,
+  };
+  return lookAtPoint((s.x + st.cx) / 2, (s.y || 0) + 3.2, (s.z + st.cz) / 2, 18, st.cyaw + 0.5, 0.32);
+}
+function canoePhaseDur(name) { return CANOE_TIMES[name] || 1; }
+function lerp(a, b, u) { return a + (b - a) * u; }
+function tickCanoeScript(dt) {
+  const canoe = ctx.canoe, run = canoeRun, s = playerShip();
+  if (!run || !canoe) return null;
+  if (phase === 'fly') return to;
+  run.t += dt;
+  const dur = canoePhaseDur(run.phase);
+  const u = Math.min(1, run.t / Math.max(0.01, dur));
+  const easeU = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+  const goNext = (name) => { run.phase = name; run.t = 0; };
+  if (run.phase === 'launch') {
+    if (u >= 1) goNext('toShore');
+  } else if (run.phase === 'toShore') {
+    const x = lerp(run.startX, run.shoreX, easeU), z = lerp(run.startZ, run.shoreZ, easeU);
+    const yaw = Math.atan2(run.shoreX - run.startX, run.shoreZ - run.startZ);
+    try { canoe.tutPlace(x, z, yaw, 5); } catch {}
+    if (u >= 1) {
+      try { canoe.tutBeach(run.shoreX, run.shoreZ, (run.shoreYaw ?? 0) + Math.PI); } catch {}
+      goNext('drop');
+    }
+  } else if (run.phase === 'drop') {
+    if (!run.dropped) {
+      run.dropped = true;
+      try { ctx.goAshoreQuiet?.(run.shoreX, run.shoreZ, run.shoreYaw); } catch {}
+    }
+    if (u >= 1) goNext('reboard');
+  } else if (run.phase === 'reboard') {
+    if (!run.relaunched && u >= 0.35) {
+      run.relaunched = true;
+      try { ctx.goAboardQuiet?.(); } catch {}
+      try { canoe.tutRelaunch(); } catch {}
+      const st = canoe.state;
+      run.backX = st.cx; run.backZ = st.cz;
+    }
+    if (u >= 1) goNext('back');
+  } else if (run.phase === 'back') {
+    const st = canoe.state, ax = st.ax, az = st.az;
+    const sx0 = run.backX ?? run.shoreX, sz0 = run.backZ ?? run.shoreZ;
+    const x = lerp(sx0, ax, easeU), z = lerp(sz0, az, easeU);
+    const yaw = Math.atan2(ax - sx0, az - sz0);
+    try { canoe.tutPlace(x, z, yaw, 5); } catch {}
+    if (u >= 1) {
+      try { canoe.tutBoardShip(s); } catch {}
+      run.boarded = true;
+      goNext('aboard');
+    }
+  } else if (run.phase === 'aboard') {
+    if (u >= 1) { stopCanoeScript(true); next(); return camNow(); }
+  }
+  const follow = (run.phase === 'aboard') ? (playerShip() ? lookAtPoint(playerShip().x, (playerShip().y || 0) + 3.4, playerShip().z, 16, (playerShip().yaw || 0) + 0.6, 0.3) : canoeFollowCam()) : canoeFollowCam();
+  to = follow;
+  return follow;
+}
+function stopCanoeScript(keepShip = false) {
+  const canoe = ctx.canoe, s = playerShip();
+  if (!canoeRun && !canoeSnap) return;
+  try { ctx.goAboardQuiet?.(); } catch {}
+  if (!keepShip) {
+    try { canoe?.tutRestore?.(s, ctx.docking, canoeSnap, ctx.controls); } catch { try { canoe?.clearAll?.(s, null); } catch {} }
+    try { if (ctx.controls) ctx.controls.enabled = false; } catch {}
+  } else {
+    try { canoe?.tutBoardShip?.(s); } catch {}
+  }
+  canoeRun = null;
 }
 
 function snapshot() {
@@ -283,6 +486,8 @@ function snapshot() {
 }
 
 function restore() {
+  closeInvPanel();
+  stopCanoeScript(false);
   clearPin();
   try { if (ctx.shipHull) ctx.shipHull.camHold = false; } catch {}
   if (enteredHull && ctx.shipHull?.inHull) {
@@ -303,6 +508,9 @@ function restore() {
 function go(i) {
   const list = steps();
   if (i >= list.length) { closeHarborTutorial({ seen: true }); return; }
+  const prev = list[step]?.id, nextId = list[i]?.id;
+  if (prev === 'inventory' && nextId !== 'inventory') closeInvPanel();
+  if (prev === 'canoe' && nextId !== 'canoe') stopCanoeScript(false);
   step = i; phase = 'fly'; t = 0; flyDur = FLY_S; renderCard();
   from = camNow() || berthLook();
   Promise.resolve(prepareStep(list[step].id)).then((shot) => {
@@ -382,15 +590,31 @@ export function maybeShowHarborTutorial() {
 /** Drive the camera this frame. Returns true when the cutscene owns it (main.js / hull skip their cameras). */
 export function harborTutCamera(dt) {
   if (!open) return false;
-  const hold = reduced() ? 4 : HOLD_S; const fly = reduced() ? 0.01 : flyDur;
+  const id = steps()[step]?.id;
+  const canoeLive = id === 'canoe' && canoeRun;
+  const hold = reduced() ? 4 : (canoeLive ? CANOE_TOTAL : HOLD_S); const fly = reduced() ? 0.01 : flyDur;
   if (phase === 'fly') {
     t += dt; const u = Math.min(1, t / Math.max(0.01, fly));
     if (from && to) lerpCam(from, to, u);
     if ($('ht-bar')) $('ht-bar').style.width = '0%';
     if (u >= 1) { phase = 'hold'; t = 0; if (to) applyCam(to); }
+  } else if (canoeLive) {
+    t += dt;
+    const shot = tickCanoeScript(dt);
+    if (shot) applyCam(shot);
+    if ($('ht-bar')) {
+      const done = Object.entries(CANOE_TIMES).reduce((acc, [name, dur]) => {
+        if (!canoeRun) return acc + dur;
+        if (name === canoeRun.phase) return acc + Math.min(dur, canoeRun.t);
+        const order = Object.keys(CANOE_TIMES);
+        return acc + (order.indexOf(name) < order.indexOf(canoeRun.phase) ? dur : 0);
+      }, 0);
+      $('ht-bar').style.width = `${Math.min(100, (done / CANOE_TOTAL) * 100)}%`;
+    }
   } else {
     t += dt; if ($('ht-bar')) $('ht-bar').style.width = `${Math.min(100, (t / hold) * 100)}%`;
     if (to) applyCam(to);
+    tickInventoryShot();
     if (t >= hold) next();
   }
   return true;
@@ -445,6 +669,18 @@ export function initHarborTutorial(c) {
       go: (i) => go(i), step: () => step, phase: () => phase, open: () => open,
       device: () => activeDevice(), setDevice: (d) => { forceDevice = d || null; if (d === 'pad') padShown = true; if (open) renderCard(); },
       freeze: () => { if (to) applyCam(to); phase = 'hold'; t = 0; },
+      openInv: () => { showInvHint(); openInvPanel(); },
+      showInvHint: () => showInvHint(),
+      canoePhase: () => canoeRun?.phase || null,
+      canoeTo: (name) => {
+        if (!canoeRun) return;
+        phase = 'hold';
+        const order = Object.keys(CANOE_TIMES);
+        const idx = order.indexOf(name);
+        if (idx < 0) return;
+        for (const n of order.slice(0, idx)) { canoeRun.phase = n; canoeRun.t = CANOE_TIMES[n]; tickCanoeScript(0); }
+        canoeRun.phase = name; canoeRun.t = CANOE_TIMES[name] * 0.55; tickCanoeScript(0);
+      },
       ids: HARBOR_TUT_IDS,
     };
   } catch {}

@@ -16,9 +16,17 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export const chip = (code) => `<kbd>${esc(code)}</kbd>`;
 
 export const HARBOR_TUT_CSS = `
-#harbor-tut{position:fixed;inset:0;z-index:80;pointer-events:none;font-family:'Just Another Hand',cursive;color:#fff}
+#harbor-tut{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:80;pointer-events:none;font-family:'Just Another Hand',cursive;color:#fff}
 #harbor-tut.on{display:block}
 #harbor-tut:not(.on){display:none}
+#harbor-tut.ht-with-inv .ht-card{width:min(420px,46vw);left:auto;right:16px;transform:none}
+#ht-inv-hint{position:fixed;z-index:90;pointer-events:none;transition:opacity .2s}
+#ht-inv-hint .ht-inv-ring{position:absolute;inset:-10px;border:3px solid #ffcd77;border-radius:18px;box-shadow:0 0 0 6px rgba(255,205,119,.28),0 0 22px #ffcd3c;animation:htInvPulse .9s ease-in-out infinite}
+#ht-inv-hint .ht-inv-label{position:absolute;left:100%;top:50%;transform:translate(12px,-50%);display:flex;align-items:center;gap:6px;padding:4px 10px 3px;border-radius:12px;border:2px solid #ffcd77;background:rgba(22,22,22,.94);color:#ffcd77;font:22px 'Just Another Hand',cursive;letter-spacing:.04em;white-space:nowrap;filter:drop-shadow(0 2px 6px #000)}
+#ht-inv-hint .ht-inv-label:before{content:'';position:absolute;left:-10px;top:50%;margin-top:-6px;border:6px solid transparent;border-right-color:#ffcd77}
+#ht-inv-hint .ht-inv-label kbd{display:inline-block;min-width:1.3em;padding:1px 7px 0;border-radius:8px;border:2px solid #ffcd77;background:#1a0f07;color:#ffcd77;font:inherit;text-align:center}
+@keyframes htInvPulse{50%{box-shadow:0 0 0 10px rgba(255,205,119,.12),0 0 28px #ffe08a;border-color:#ffe08a}}
+html.pfp-harbor-tut.ht-show-inv #tm-btn{display:block!important;z-index:91;position:relative}
 #harbor-tut .ht-card{pointer-events:auto;position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(560px,94vw);background:rgba(22,22,22,.94);border:3px solid var(--gold,#ffcd77);border-radius:16px;padding:10px 16px 12px;box-shadow:0 10px 40px #000}
 #harbor-tut h2{margin:0 0 2px;font-size:34px;letter-spacing:.06em;color:var(--gold,#ffcd77);line-height:1}
 #harbor-tut .ht-kicker{font-size:16px;color:rgba(255,205,119,.8);letter-spacing:.08em;margin:0 0 4px}
@@ -99,24 +107,37 @@ function controlsBody(input) {
   ].join('')}</div>`;
 }
 
+export function harborTutInvHint(input = 'pc') {
+  const mode = input === true ? 'touch' : input === false ? 'pc' : (input || 'pc');
+  if (mode === 'touch') return { key: 'TAP', phrase: 'Tap INVENTORY' };
+  if (mode === 'pad') {
+    const g = (() => { try { return padGlyph('B'); } catch { return 'B'; } })();
+    return { key: g, phrase: `Press ${g}` };
+  }
+  const inv = k('inventory');
+  return { key: inv, phrase: `Press ${inv}` };
+}
+
 /** Short title + one tiny line (or a row of control icons). `input` is 'pc' | 'touch' | 'pad'. */
 export function harborTutSteps(input = 'pc') {
   const mode = input === true ? 'touch' : input === false ? 'pc' : (input || 'pc');
+  const inv = harborTutInvHint(mode);
   return [
     { id: 'controls', title: 'CONTROLS', body: controlsBody(mode) },
     { id: 'hull_clothes', title: 'YOUR CLOTHES', body: 'Change clothes at the chest.' },
     { id: 'hull_crew', title: "YOUR CREW'S CLOTHES", body: 'Dress your crew here.' },
-    { id: 'inventory', title: 'INVENTORY', body: 'Open your bag to equip.' },
+    { id: 'inventory', title: 'INVENTORY', body: `${inv.phrase} to equip.` },
     { id: 'fish', title: SHOP_NAMES.fish, body: 'Sell fish here.' },
     { id: 'market', title: SHOP_NAMES.market, body: 'Trade with other pirates.' },
     { id: 'pumpfun', title: 'PUMP.FUN HQ', body: 'Live token and squad boards.' },
+    { id: 'casino', title: 'GOLDEN DOUBLOON', body: 'Play games with Booty.' },
     { id: 'antiques', title: SHOP_NAMES.antiques, body: 'Sell treasure and maps.' },
     { id: 'squads', title: 'SQUADS & FRIENDS', body: 'Join a squad, add friends.' },
     { id: 'coliseum', title: 'BLOODSTONE COLOSSEUM', body: 'PvP on the dirt floor.' },
     { id: 'cabins', title: 'CABINS', body: 'Walk in and make it yours.' },
     { id: 'fishing', title: "GRANDPA GILL'S DOCK", body: 'Cast here to fish.' },
     { id: 'treasure', title: 'TREASURE MAPS', body: 'Follow the X and dig.' },
-    { id: 'canoe', title: 'CANOES', body: 'Anchor offshore, then canoe.' },
+    { id: 'canoe', title: 'CANOES', body: 'Paddle ashore, then back.' },
   ];
 }
 
