@@ -59,7 +59,8 @@ function volley({ sp, tsp, trel, range, bearing = 0, nGuns = 6, mode }) {
     if (mode === 'live') { // v568-v597: aim at the lead point, add vel0 on top, home 1.35 s
       const lp = BA.leadPoint(0, 0, T, BA.AIM.lead), g = BA.playerAimVelocity(p, dir, lp.x + fw.x * fan, lp.z + fw.z * fan, BA.hullAimY(T), BA.AIM.maxDev);
       if (!g) continue; v = { x: g.x + vel0.x, y: g.y, z: g.z + vel0.z }; home = { x: g.ax, z: g.az, until: BA.AIM.homeT, rate: BA.AIM.homeRate };
-    } else { const g = BA.playerIntercept(p, dir, T, vel0, { fan }); if (!g) continue; v = { x: g.x, y: g.y, z: g.z }; }
+    } else { const g = BA.playerIntercept(p, dir, T, vel0, { fan }); if (!g) continue; v = { x: g.x, y: g.y, z: g.z };
+      if (mode === 'fix') home = { x: g.mx, z: g.mz, until: BA.AIM.homeT, rate: BA.AIM.homeRate }; } // 'nohome': intercept only
     let px = p.x, py = p.y, pz = p.z, t = 0;
     while (t < 6) {
       if (home && t <= home.until) { const s = BA.steerHoriz(v.x, v.z, px, pz, home.x, home.z, home.rate, dt); v.x = s.x; v.z = s.z; }
@@ -99,7 +100,7 @@ test('aim: centre mass = deck height inside the hit band (not the waterline)', (
 
 test('aim: assisted broadsides land on moving ships at every own speed (was falling off with speed)', () => {
   const live = [0, 16.7, 22].map(sp => rate('live', sp)), fix = [0, 16.7, 22].map(sp => rate('fix', sp));
-  assert.ok(fix[0] >= 0.92 && fix[0] >= live[0] - 0.03, `at anchor: fix ${fix[0]} vs live ${live[0]}`); // homing used to bend balls round the cone edge
+  assert.ok(fix[0] >= live[0] - 0.01, `at anchor: fix ${fix[0]} vs live ${live[0]}`);
   assert.ok(fix[1] >= 0.9 && fix[2] >= 0.9, `fix ${fix}`);
   assert.ok(fix[1] > live[1] + 0.15 && fix[2] > live[2] + 0.25, `fix ${fix} vs live ${live}`);
   // the case BANKSY hits most: full sail, target ahead or behind the beam at range
@@ -108,11 +109,22 @@ test('aim: assisted broadsides land on moving ships at every own speed (was fall
   assert.ok(rate('fix', 22, hard) > rate('live', 22, hard) + 0.2);
 });
 
-test('aim: main.js uses the intercept for the player, no homing; AI path unchanged', () => {
+test('aim: main.js uses the intercept for the player + homing onto the meeting point; AI path unchanged', () => {
   const m = R('js/main.js');
   assert.match(m, /BA\.playerIntercept\(p, dir, playerHome\.T, vel0, \{ delay: i \* gap, fan, aimY: playerHome\.y \}\)/);
   assert.match(m, /aimY = isPlayer \? BA\.centerMassY\(target\) : BA\.hullAimY\(target\)/);
-  assert.doesNotMatch(m, /home = \{ x: g\.ax, z: g\.az, until: BA\.AIM\.homeT/);
+  assert.match(m, /home = \{ x: g\.mx, z: g\.mz, until: BA\.AIM\.homeT, rate: BA\.AIM\.homeRate, ft: 0 \}/); // v568 homing kept, onto the meeting point
   assert.match(m, /BA\.fireLine\(dir, shooter\.x, shooter\.z, aimPt\.x - vel0\.x \* tf, aimPt\.z - vel0\.z \* tf, BA\.AIM\.aiMaxDev\)/);
   assert.ok(BA.ASSIST.maxDev <= BA.AIM.cone, 'never steers wider than the lock cone');
+});
+
+test('aim: homing onto the meeting point never fights the intercept', () => {
+  // an unclamped ball already flies straight at mx/mz: steerHoriz leaves it alone
+  const T = { x: 55, z: 10, y: 0, yaw: Math.PI, speed: 9, deckY: 2.6, depth: 3, len: 18 }, dir = { x: 1, z: 0 }, p = { x: 2.2, y: 2.4, z: 0 };
+  const g = BA.playerIntercept(p, dir, T, { x: 0, z: 16.7 });
+  assert.ok(g && !g.clamped);
+  const s = BA.steerHoriz(g.x, g.z, p.x, p.z, g.mx, g.mz, BA.AIM.homeRate, 1 / 60);
+  assert.ok(Math.abs(s.x - g.x) < 1e-9 && Math.abs(s.z - g.z) < 1e-9, 'no bend on a solved shot');
+  // homing adds hits on top of the intercept, never takes them away
+  for (const sp of [0, 16.7, 22]) assert.ok(rate('fix', sp) >= rate('nohome', sp) - 0.005, `sp ${sp}`);
 });

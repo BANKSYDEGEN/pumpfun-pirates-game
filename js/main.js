@@ -547,10 +547,11 @@ function fire(shooter, side, target = null, accuracy = 1) {
     if (isPlayer && playerHome) {
       // [ship-fixes t2746u] exact intercept per gun: your ship's way + the target's way + the ripple delay, onto its centre mass, spread
       // a little along ITS keel. The returned velocity already carries vel0 (that was the miss: vel0 was added on top of the aim).
-      // Natural gravity arc, no homing (home stays null; updateBalls' steer only runs for a ball that has one).
+      // Natural gravity arc + the v568 in-air homing (BANKSY 10:50 AM "keep the homing"), steering onto the SOLVED meeting point (g.mx/mz):
+      // a ball already flying at it is not bent; a wide (clamped) one or a muzzle that turned in the ripple delay curves in.
       const fan = (i - (muzzles.length - 1) / 2) * Math.min(1.2, 8.4 / Math.max(1, muzzles.length - 1));
       const g = BA.playerIntercept(p, dir, playerHome.T, vel0, { delay: i * gap, fan, aimY: playerHome.y });
-      if (g) { v = new THREE.Vector3(g.x, g.y, g.z); range = Math.hypot(g.ax - shooter.x, g.az - shooter.z); }
+      if (g) { v = new THREE.Vector3(g.x, g.y, g.z); range = Math.hypot(g.mx - shooter.x, g.mz - shooter.z); home = { x: g.mx, z: g.mz, until: BA.AIM.homeT, rate: BA.AIM.homeRate, ft: 0 }; }
     } else if (line) {
       const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H);
       v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z); range = line.d;

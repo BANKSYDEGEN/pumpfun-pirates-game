@@ -117,8 +117,8 @@ export function playerAimVelocity(p, dir, ax, az, ty = 2, maxDev = AIM.maxDev, m
 // so every ball landed vel0 × flight-time ahead of where it was aimed (16.7 m/s at the 20 kn starter: ~20 m at 55 m range), the lead
 // time ignored that drift and the ripple delay, and the launch clamp could not swing far enough aft to make up for it at speed.
 // The fix is an exact intercept: the ball flies at the muzzle speed H (+ your ship's way) and meets the target's CENTRE MASS where
-// the target will be, solved from both velocities. Natural gravity arc, no in-flight homing; the clamp is on the WORLD path the
-// ball actually takes (what you see), so it still leaves roughly abeam.
+// the target will be, solved from both velocities. Natural gravity arc; the clamp is on the WORLD path the ball actually takes (what
+// you see). BANKSY 10:50 AM "keep the homing": the v568 in-air homing (t2434u heat-seek) stays, now aimed at the solved meeting point.
 // maxDev: how far off the gunports the ball's WORLD path may leave (0.75 ≈ 43°, the same as the lock cone, so a locked ship can be hit;
 // the old 0.40 launch budget + homing curve reached about as far, but bent the ball in the air).
 export const ASSIST = Object.freeze({ maxDev: 0.75, fanFrac: 0.3, aimBelowTop: 0.9, aimMin: 1.0 });
@@ -161,7 +161,10 @@ export function playerIntercept(p, dir, T, vel0, { delay = 0, fan = 0, aimY = ce
   if (hx * dir.x + hz * dir.z < minAlong) return null; // too far off the beam: no assist (the plain broadside fires)
   const want = Math.atan2(dir.x * hz - dir.z * hx, dir.x * hx + dir.z * hz), dev = Math.max(-maxDev, Math.min(maxDev, want));
   if (dev !== want) { const c = Math.cos(dev), s = Math.sin(dev); wx = (dir.x * c - dir.z * s) * wl; wz = (dir.x * s + dir.z * c) * wl; }
-  return { x: wx, y: (aimY - p.y) / t + 0.5 * G * t, z: wz, t, ax: gx + wx * t, az: gz + wz * t, ty: aimY, launchDev: dev, clamped: dev !== want };
+  // mx/mz: the TRUE meeting point (target centre mass at impact). An unclamped ball already flies straight at it, so the in-air homing
+  // (AIM.homeRate for AIM.homeT, steering onto mx/mz) is a no-op for it; only a clamped (wide) ball or a muzzle that moved/turned during
+  // the ripple delay curves in. Homing onto mx/mz never fights the intercept.
+  return { x: wx, y: (aimY - p.y) / t + 0.5 * G * t, z: wz, t, ax: gx + wx * t, az: gz + wz * t, mx: cx + vtx * t, mz: cz + vtz * t, ty: aimY, launchDev: dev, clamped: dev !== want };
 }
 
 // Limited-rate horizontal steer toward (tx,tz). Preserves horizontal speed; gravity is caller's job.
@@ -182,7 +185,7 @@ export function steerHoriz(vx, vz, px, pz, tx, tz, rate, dt) {
 // Pure hit-rate harness: simulate one gun's ball against a box target. `mode`:
 //   'v567' — parallel fireLine + no home (live before this change)
 //   'heat' — playerAimVelocity + in-flight steerHoriz (v568-v597)
-//   'intercept' — playerIntercept: exact lead from both velocities, centre-mass height, no homing (live after t2746u)
+//   'intercept' — playerIntercept: exact lead from both velocities, centre-mass height, + v568 homing onto the meeting point (t2746u)
 export function simulateHit({
   mode = 'heat',
   yaw = 0, side = 'port', speed = 8, turn = 0, turnRate = 0.62, preTurn = 0,
@@ -225,7 +228,8 @@ export function simulateHit({
     aimY = centerMassY(T);
     const g = playerIntercept(gp, dir, T, vel0, { aimY, maxDev: maxDev ?? ASSIST.maxDev });
     if (!g) return { hit: false, reason: 'rejected-along', flight: 0 };
-    vx = g.x; vy = g.y; vz = g.z; aimX = g.ax; aimZ = g.az;
+    vx = g.x; vy = g.y; vz = g.z; aimX = g.mx; aimZ = g.mz;
+    home = { x: g.mx, z: g.mz, until: homeT ?? AIM.homeT, rate: homeRate ?? AIM.homeRate };
   } else {
     const g = playerAimVelocity(gp, dir, lp.x, lp.z, aimY, useDev);
     if (!g) return { hit: false, reason: 'rejected-along', flight: 0 };
