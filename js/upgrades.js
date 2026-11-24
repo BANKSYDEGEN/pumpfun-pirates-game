@@ -4,10 +4,14 @@
 // BASE_SHIP is the single source of base stats, so a future feature could feed it from elsewhere
 // (e.g. NFT traits) by passing a different base into shipStats(). None of that is built here.
 
+// m/s per sail level (1–3). Top speed = sail × SAIL_SPEED × speed mul (BASE_SHIP.speed, or a SAILS upgrade).
+// HUD knots = speed × 1.2; 50/9 makes the starting ship at 3 sails read exactly 20.0 kn (16 2/3 m/s).
+// Prestige skins use the same formula; SAILS tiers stay relative to this.
+export const SAIL_SPEED = 50 / 9;
 export const BASE_SHIP = {
   maxHp: 100,      // hull hit points
   armor: 0,        // fraction of incoming cannon damage blocked (0..0.6)
-  speed: 1,        // multiplier on sail speed (sail level × 4.2 m/s)
+  speed: 1,        // multiplier on sail speed (sail level × SAIL_SPEED m/s)
   turn: 1,         // multiplier on rudder turn rate
   cannons: 4,      // guns per broadside
   regenWait: 20,   // self-repair: seconds without taking damage before the hull patches itself (main.js [repair])

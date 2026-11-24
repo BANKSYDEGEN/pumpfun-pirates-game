@@ -34,7 +34,7 @@ test('t2445u: foot net + ship MAX_SPEED still accept the new swim (no hard foot-
   assert.match(net, /p\.speed \+= \(\(p\.tspeed \|\| 0\) - p\.speed\) \* k/);
   assert.doesNotMatch(net, /PHYS\.swim|MAX_SPEED/);
   // Ship anti-cheat MAX_SPEED is ship-scale (>> any foot swim, including jump-swim 17.55)
-  assert.match(pvp, /const MAX_SPEED = 3 \* 4\.2 \* MAXED\.speed/);
+  assert.match(pvp, /const MAX_SPEED = 3 \* SAIL_SPEED \* MAXED\.speed/);
 });
 
 test('t2445u: river waterfall→ocean path untouched by PHYS.swim change', () => {

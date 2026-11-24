@@ -57,7 +57,7 @@ import { COAST_ON } from './island/coast.js';
 import { wavesStart, wavesClaim, harborEquippedSkinId } from './pvpSave.js'; // [v103] Waves banks gold · [t1716u] harborEquippedSkinId
 
 // [Raul] ship upgrades
-import { gunList, BALL_DMG } from './upgrades.js';
+import { gunList, BALL_DMG, SAIL_SPEED } from './upgrades.js';
 import { waveRoster, applyEnemyType, ENEMY_TYPES, ENEMY_BUILDS, updateSpecialEnemy, RUN, updateRepair, lateWave, spawnBossEscorts } from './enemyTypes.js'; // [enemy variety] builds + AI
 import { initShop, resetShop, waveSkinUnlock, wavesUnlocks, close as closeShop, getRunLevels } from './shop.js';
 import { createHealthDrops } from './healthDrops.js'; // [health drops]
@@ -1525,7 +1525,7 @@ function frame() {
     if (game.state === 'playing' && player.alive) {
       const helmOff = shipLocked(); // [v314] never steer / sail the big ship from the canoe or the beach
       const turn = helmOff ? 0 : ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
-      moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * 4.2 * (player.speedMul || 1) * (ADM.noclip ? 1.6 * ADM.noclipMul : 1), turn); // [admin-menu] NOCLIP: boosted glide // [Raul] ship upgrades: sails
+      moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * SAIL_SPEED * (player.speedMul || 1) * (ADM.noclip ? 1.6 * ADM.noclipMul : 1), turn); // [admin-menu] NOCLIP: boosted glide // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }
       updatePlayerRepair(dt); // [repair] game time only: pause / shop / tutorial don't count

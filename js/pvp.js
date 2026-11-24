@@ -56,7 +56,7 @@ import { ADM } from './adminState.js'; // [admin-menu] owner GOD / INVISIBLE / N
 import { IS_PROD_HOST } from './env.js'; // [security H5] peer ids whitelisted, attribute values escaped
 import { makeTeams, partyTag, newPartyCode, cleanCode, teamPaint, mateRing, hexCss } from './squads.js'; // [v98] SQUADS 2v2
 import { bumpModeKill } from './modeKills.js'; // [Timothy] shop goals: BR kills by mode, this device (display only)
-import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList } from './upgrades.js';
+import { UPGRADES, BALL_DMG, shipStats, modeStats, maxRun, gunList, SAIL_SPEED } from './upgrades.js';
 import { setBoostSource, setBoostZone, goldFindBonus, MAX_BOOST } from './boosts.js'; // [Emerly] ITEM SKILL BOOSTS
 import { compilePreview } from './upgradeVisuals.js';
 import { applyShipGear } from './shipGear.js'; // [Raul shop items 2] their shop flag + figurehead (from 'gr')
@@ -85,12 +85,12 @@ const esc = (s) => String(s ?? '').replace(/[<>&"'`\\]/g, '');
 const QS = new URLSearchParams(IS_PROD_HOST ? '' : location.search); // [security L] test switches (?pvproom ?sqmin ?pvpcap ?pvpoffer ?pvpafk ?hbcap ?shareddrops) only work off the live domains
 const ROOM_PREFIX = 'pfp-pvp-' + (QS.get('pvproom') || 'v1').replace(/[^a-z0-9]/gi, '').slice(0, 16);
 const PEER_TIMEOUT = 6000, SAFE_R = 110;
-// most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × 4.2 × best SAILS
+// most damage one ball can do: max BALL_DMG × best CANNONS gunDmg; most speed: 3 sails × SAIL_SPEED × best SAILS
 // [v93] from the BOOSTED Battle Royale stats (every level's gunDmg, since a lower CANNONS level can carry a higher gunDmg)
 const PVP_MODE = { base: PVP_BASE_HP, mul: PVP_HULL_MUL, boost: true }, MAXED = modeStats(maxRun(), PVP_MODE);
 const MAX_GUNDMG = Math.max(1, ...UPGRADES.find(u => u.id === 'cannons').tiers.map((_, i) => modeStats({ levels: { cannons: i + 1 } }, PVP_MODE).gunDmg));
 export const MAX_HIT = Math.max(48, Math.ceil(BALL_DMG[1] * MAX_GUNDMG * (1 + MAX_BOOST.dmg) * PVP_DMG_MUL) + 1); // 48: v94 clients (up to 8 heavier balls) while they update; // [pvp hp] ×1.4 PvP cannonballs
-const MAX_SPEED = 3 * 4.2 * MAXED.speed * (1 + MAX_BOOST.speed) * 1.15; // [Emerly] + the most a boost can add (a boosted peer never reads as a cheater)
+const MAX_SPEED = 3 * SAIL_SPEED * MAXED.speed * (1 + MAX_BOOST.speed) * 1.15; // [Emerly] + the most a boost can add (a boosted peer never reads as a cheater)
 const MAX_HP = Math.round(MAXED.maxHp * (1 + MAX_BOOST.hp));
 const SQ_PREFIX = 'pfp-pvp-' + ROOM_PREFIX.slice(8, 22) + 'sq'; // [v98] the SQUADS arena: its own lobby prefix + room (live: pfp-pvp-v1sq)
 const SQ_MIN = Math.max(2, Math.min(SQUADS.players, +QS.get('sqmin') || SQUADS.players)); // pirates needed to start a round (tests: ?sqmin=2)
