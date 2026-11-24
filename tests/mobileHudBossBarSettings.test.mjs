@@ -9,22 +9,19 @@ const css = src('css/style.css');
 const html = src('index.html');
 const block = css.slice(css.indexOf('/* [mobile-hud] BANKSY t2748u'));
 
-test('mobile-hud block is present and is the last #hud-tr / #pvp-boss-bar / #hud-icons override', () => {
+test('mobile-hud Commodore-bar block is still present (t2755u later returns the gear to the corner)', () => {
   assert.ok(block.length > 400, 't2748u CSS block missing');
-  const lastTrRight = [...css.matchAll(/#hud-tr \{[^}]*right: calc\(([^)]+)\)/g)].at(-1);
-  assert.ok(lastTrRight, 'no #hud-tr right rule');
-  assert.match(lastTrRight[1], /8px \+ var\(--safe-r/); // flush right on phones; not the 44px gutter
-  assert.equal(css.lastIndexOf('#hud-tr { right: calc(44px'), css.indexOf('#hud-tr { right: calc(44px + var(--safe-r, 0px)) !important; }'));
-  assert.ok(css.lastIndexOf('/* [mobile-hud] BANKSY t2748u') > css.lastIndexOf('#hud-tr { right: calc(44px'));
+  // v598 still contains the original left-of-minimap + flush-right rules;
+  // t2755u (/* [gear-corner] */) is the last word for #hud-icons / #hud-tr right.
+  assert.match(block, /#hud-tr \{[^}]*right: calc\(10px \+ var\(--safe-r, 0px\)\) !important/s);
+  assert.ok(css.includes('/* [gear-corner] BANKSY t2755u'), 't2755u corner block missing');
+  assert.ok(css.lastIndexOf('/* [gear-corner] BANKSY t2755u') > css.lastIndexOf('/* [mobile-hud] BANKSY t2748u'));
 });
 
-test('settings returns to the #hud-tr flow, column 1, left of the radar', () => {
+test('v598 still lays the radar and harbor pill out in #hud-tr (DOM order unchanged)', () => {
   assert.match(html, /id="hud-tr"[\s\S]*id="hud-icons"[\s\S]*id="btn-pause"[\s\S]*id="radar"/);
-  assert.match(block, /#hud-icons \{[^}]*position: relative !important/s);
-  assert.match(block, /#hud-icons \{[^}]*grid-column: 1/s);
   assert.match(block, /#hud-tr #radar \{[^}]*grid-column: 2/s);
-  assert.match(block, /#hud-tr \{[^}]*right: calc\(10px \+ var\(--safe-r, 0px\)\) !important/s);
-  assert.match(block, /#hud-icons > #btn-pause \{ width: 36px; height: 36px/);
+  assert.match(block, /#hud-tr #hb-hub-btn \{/);
 });
 
 test('Commodore bar is centred with a max width; portrait stacks below the HUD row', () => {
@@ -49,7 +46,7 @@ test('portrait 390 and landscape 844 models leave a gap between the bar, pill, r
     gear: box(390 - 8 - 104 - 6 - 32, 6, 32, 32),
     pill: box(390 - 8 - 117, 6 + 104 + 5, 117, 26),
     card: box(8, 8, 152, 44),
-    bar: box((390 - 300) / 2, 160, 300, 27),
+    bar: box((390 - 300) / 2, 220, 300, 27),
   };
   assert.ok(p.radar.x + p.radar.w === 382, 'radar flush right');
   assert.ok(p.gear.x + p.gear.w + 6 === p.radar.x, 'gear just left of radar');

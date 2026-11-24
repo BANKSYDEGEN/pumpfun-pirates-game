@@ -20,9 +20,9 @@ test('t2749u block centres the gear and drops the rotate hint below the HUD row'
   assert.match(block, /justify-content: center/);
   assert.match(block, /#rotate\.show \{[^}]*top: calc\(var\(--safe-t, 0px\) \+ 200px\)/s);
   assert.match(block, /html\.isle-map-open #rotate \{ display: none !important/);
-  // winning rotate top is 200px, not the old 104px
+  // t2749u dropped the hint to 200px; t2755u is the last word at 252px (below NO FIRING + chip)
   const lastTop = [...css.matchAll(/#rotate\.show \{[^}]*top: ([^;]+);/gs)].at(-1);
-  assert.ok(lastTop); assert.match(lastTop[1], /200px/);
+  assert.ok(lastTop); assert.match(lastTop[1], /252px/);
 });
 
 test('on phones the ON THIS SERVER panel is a full-width top drop-down, not a 42vw column', () => {

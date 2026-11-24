@@ -1527,6 +1527,54 @@ html.isle-map-open, html.isle-map-open body, #isle-map { touch-action:auto; }
   appearance: none;
   box-sizing: border-box;
 }
+
+/* [gear-corner] BANKSY t2755u: put the ⚙ back in the top-right corner, to the
+   right of the minimap. v598 (8ece9e6e) moved it into the gap left of the radar,
+   so on phones it sat in the top middle between the player card and the map.
+   Glyph centering (padding 0, letter-spacing 0, flex) from v599 is unchanged.
+   THE COMMODORE bar stay-clear rules from v598 are unchanged. */
+#hud-icons {
+  position: fixed !important;
+  left: auto !important;
+  right: calc(6px + var(--safe-r, 0px)) !important;
+  top: calc(10px + var(--safe-t, 0px)) !important;
+  transform: none !important;
+  max-width: 36px !important;
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: auto;
+  align-self: auto;
+  pointer-events: auto;
+  margin: 0;
+  z-index: 8;
+}
+#hud-icons > #btn-pause { width: 36px; height: 36px; font-size: 20px; }
+#hud-tr {
+  right: calc(6px + 36px + 8px + var(--safe-r, 0px)) !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-end;
+}
+#hud-tr #radar,
+#hud-tr #hb-hub-btn,
+#hud-tr #map-loc-hud,
+#hud-tr #enemies-left {
+  grid-column: auto;
+  grid-row: auto;
+}
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #hud-icons {
+    top: calc(6px + var(--safe-t, 0px)) !important;
+    max-width: 32px !important;
+  }
+  #hud-icons > #btn-pause { width: 32px; height: 32px; font-size: 18px; }
+  #hud-tr { right: calc(6px + 32px + 6px + var(--safe-r, 0px)) !important; }
+}
+@media (orientation: portrait) and (max-width: 380px) {
+  #hud-icons { max-width: 30px !important; }
+  #hud-icons > #btn-pause { width: 30px; height: 30px; font-size: 17px; }
+  #hud-tr { right: calc(6px + 30px + 6px + var(--safe-r, 0px)) !important; }
+}
 #rotate.show {
   top: calc(var(--safe-t, 0px) + 200px);
   left: 50%;
@@ -1619,6 +1667,35 @@ html.isle-map-open #rotate { display: none !important; }
 #seas-crowded-chip { position: fixed; z-index: 900; top: calc(64px + var(--safe-t)); left: 50%; transform: translateX(-50%); padding: 5px 16px 2px; border-radius: 999px;
   border: 1px solid var(--gold); background: rgba(22,22,22,0.85); color: var(--gold); font-size: 22px; cursor: pointer; pointer-events: auto; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
 #seas-crowded-chip b { color: #fff; font-weight: normal; }
+
+/* [gear-corner] BANKSY t2755u: on phones the SEAS CROWDED · retry chip sits
+   centred below the INVENTORY / NO FIRING / PLAY · HARBOR row and above the
+   rotate hint. Portrait puts NO FIRING on its own centred line between the
+   PLAY row and the chip (it was colliding with the ⚔ harbor pill). The
+   Commodore bar and rotate hint stack below so nothing overlaps. Desktop
+   is unchanged. */
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #seas-crowded-chip {
+    top: calc(148px + var(--safe-t, 0px));
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 24px - var(--safe-l, 0px) - var(--safe-r, 0px));
+    font-size: 20px;
+  }
+}
+@media (orientation: portrait) and (max-width: 760px), (orientation: portrait) and (pointer: coarse) {
+  #dk-safe, #dk-islesafe,
+  html.dk-harbor #dk-safe, html.dk-harbor #dk-islesafe {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    top: calc(142px + var(--safe-t, 0px)) !important;
+  }
+  #seas-crowded-chip { top: calc(174px + var(--safe-t, 0px)); }
+  #pvp-boss-bar { top: calc(var(--safe-t, env(safe-area-inset-top, 0px)) + 220px); }
+  #rotate.show { top: calc(var(--safe-t, 0px) + 252px); }
+}
 @keyframes sc-bob { 0%, 100% { transform: translateX(-50%) rotate(-6deg) translateY(0); } 50% { transform: translateX(-50%) rotate(-3deg) translateY(-5px); } }
 @keyframes sc-dot { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { #seas-crowded .sc-skull, #seas-crowded .sc-dots i { animation: none; } }

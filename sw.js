@@ -1,7 +1,7 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v599'; // [v599] phone HUD: ⚙ centred, rotate hint below the HUD row, ON THIS SERVER is a top drop-down so the island map fills the screen, ☰ tab sits below that bar; quieter ocean ambience (OCEAN_AMB 0.55)
-// prev: // [v598] ship fixes t2746u: centre-mass intercept aim assist + homing kept, harbor sink Booty +50% (Commodore same), HUD pay = real pay, hull-contact speed cap 28 m/s; phone HUD: Commodore bar clear of the harbor pill, settings left of the minimap
+const VERSION = 'pfp-v600'; // [v600] phone HUD: settings gear back in the top-right corner; SEAS CROWDED · retry and NO FIRING stack below PLAY · HARBOR so they no longer overlap
+// prev: const VERSION = 'pfp-v599'; // [v599] phone HUD: ⚙ centred, rotate hint below the HUD row, ON THIS SERVER is a top drop-down so the island map fills the screen, ☰ tab sits below that bar; quieter ocean ambience (OCEAN_AMB 0.55)
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",
