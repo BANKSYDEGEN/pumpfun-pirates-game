@@ -190,6 +190,8 @@ const LOAD_ORDER = [['cannon', 'impact', 'impactLight', 'impactMedium', 'impactH
 const LVL = { cannon: 0.83, enemy: 1.9, impact: 0.85, splashNear: 0.3, splash: 0.6, voice: 1, /* [v145] was 0.45: see voiceBus */ victory: 0.55, shanty: 0.30,
   light: 1.894, medium: 1.831, heavy: 2.606, debris: 0.937, sink: 0.579, sinkBig: 0.983, beat: 0.642, bell: 0.688, amb: 10.995, defeat: 0.495,
   thunder: 0.719, hornWave: 0.556, hornBoss: 1.122, legendary: 0.589 };
+// [ocean-vol] BANKSY t2750u "lower the ocean sound effects volume": looping sea wash + wind-on-water bed is 45% quieter (×0.55). One-shot splashes, rain, cannons, UI, music, and the master/SFX sliders are unchanged.
+const OCEAN_AMB = 0.55;
 const bufs = {}; let _loading = false;
 function decode(ab) { return new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); } catch (e) { rej(e); } }); }
 async function loadOne(n) {
@@ -603,13 +605,13 @@ function startAmbient() {
   const c = ctx, loop = (f) => { const s = c.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.playbackRate.value = f; return s; };
   // ocean: low rolling noise with a slow swell
   const sea = loop(0.5), seaLp = c.createBiquadFilter(); seaLp.type = 'lowpass'; seaLp.frequency.value = 420;
-  const seaG = c.createGain(); seaG.gain.value = 0.08;
-  const swell = c.createOscillator(); swell.frequency.value = 0.11; const swellG = c.createGain(); swellG.gain.value = 0.05; swell.connect(swellG).connect(seaG.gain);
+  const seaG = c.createGain(); seaG.gain.value = 0.08 * OCEAN_AMB;
+  const swell = c.createOscillator(); swell.frequency.value = 0.11; const swellG = c.createGain(); swellG.gain.value = 0.05 * OCEAN_AMB; swell.connect(swellG).connect(seaG.gain);
   sea.connect(seaLp).connect(seaG).connect(ambBus);
   // wind: band-passed noise, gusts; louder with speed and SAILS tier
   const wind = loop(1), windBp = c.createBiquadFilter(); windBp.type = 'bandpass'; windBp.Q.value = 1.4; windBp.frequency.value = 520;
   const gust = c.createOscillator(); gust.frequency.value = 0.17; const gustG = c.createGain(); gustG.gain.value = 180; gust.connect(gustG).connect(windBp.frequency);
-  const windG = c.createGain(); windG.gain.value = 0.02;
+  const windG = c.createGain(); windG.gain.value = 0.02 * OCEAN_AMB;
   wind.connect(windBp).connect(windG).connect(ambBus);
   // rain
   const rain = loop(1), rainHp = c.createBiquadFilter(); rainHp.type = 'highpass'; rainHp.frequency.value = 2200;
@@ -625,14 +627,14 @@ export function updateAmbient({ speed = 0, sail = 1, playing = false, hpFrac = 1
   live();
   const t = ctx.currentTime, S = profile.sails, H = profile.hull;
   const sp = Math.min(1, Math.abs(speed) / 18);
-  amb.windG.gain.setTargetAtTime((0.018 + sp * 0.05 * S.wind) * (0.6 + sail * 0.2), t, 0.4);
+  amb.windG.gain.setTargetAtTime((0.018 + sp * 0.05 * S.wind) * (0.6 + sail * 0.2) * OCEAN_AMB, t, 0.4);
   amb.windBp.frequency.setTargetAtTime(420 + sp * 380 * S.wind, t, 0.5);
   if (!amb.rec && bufs.amb_sea) { // v102: recorded sea (water lapping on the hull + open-sea wash), gapless loop; synth sea stays under it
     const s = ctx.createBufferSource(); s.buffer = bufs.amb_sea; s.loop = true; const ab = bufs.amb_sea, AL = 12, al = Math.max(0, Math.min(0.06, ab.duration - AL)); if (ab.duration >= AL) { s.loopStart = al; s.loopEnd = al + AL; } /* 12 s master: skip mp3 padding */ const g = ctx.createGain(); g.gain.value = 0.0001;
     s.connect(g).connect(ambBus); s.start(t, Math.random() * bufs.amb_sea.duration); amb.rec = s; amb.recG = g;
   }
-  amb.seaG.gain.setTargetAtTime((0.07 + sp * 0.05) * (amb.rec ? 0.4 : 1), t, 0.6);
-  if (amb.rec) amb.recG.gain.setTargetAtTime((0.07 + sp * 0.05) * LVL.amb, t, 0.6);
+  amb.seaG.gain.setTargetAtTime((0.07 + sp * 0.05) * (amb.rec ? 0.4 : 1) * OCEAN_AMB, t, 0.6);
+  if (amb.rec) amb.recG.gain.setTargetAtTime((0.07 + sp * 0.05) * LVL.amb * OCEAN_AMB, t, 0.6);
   if (!playing) { amb.low = false; return; }
   // hull creaks: more when rolling, deeper with HULL tiers
   if (t > amb.nextCreak) { amb.nextCreak = t + 2.5 + Math.random() * 4 - Math.min(2, Math.abs(roll) * 8); if (voice(0, 1)) creak(t, H.creak, 0.8 + Math.abs(roll) * 4); }
@@ -727,4 +729,4 @@ export async function renderCannonClip(tier = 0, { guns = 4, sampleRate = 44100,
 }
 
 // test hook (headless checks): sample load state + a tap point; no effect on play
-export const audioDebug = () => ({ ctx, master, musicBus, myVoice, loaded: Object.keys(bufs), want: Object.values(SAMPLES).flat().length, liveVoices, noSamples: NO_SAMPLES, lvl: LVL });
+export const audioDebug = () => ({ ctx, master, musicBus, myVoice, loaded: Object.keys(bufs), want: Object.values(SAMPLES).flat().length, liveVoices, noSamples: NO_SAMPLES, lvl: LVL, oceanAmb: OCEAN_AMB });
