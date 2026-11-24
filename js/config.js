@@ -133,15 +133,18 @@ export const HARBOR_HP_PER_LV = 0.2;      // [v93] AI hull HP grows +20% per lev
 export const HARBOR_AI = { reload: [3.9, 2.65], accuracy: [0.73, 0.88], speed: 0.285, fireR: [88, 108], countBase: 3, countPerLv: 1 / 15, countMax: 5, hpMul: 2.15 }; // [sail-around] BANKSY: a bit harder — ~+23% HP, faster/sharper broadsides, slightly quicker close
 // [v94] HARBOR BOSS (BANKSY): one at a time, every 3-5 min of harbor time (alive, not spectating). The Waves boss hull, ×1.25,
 // scaled like the harbor AI at your level L but ×4 HP, ×1.1 cannon damage, 5-7 guns a side (AI: 2), +0.05 accuracy,
-// barrages; never flees. Sinking it drops ×12 the harbor kill pay (holder ×2 applies on pickup, like all earned gold).
-export const HARBOR_BOSS = { every: [180, 300], hp: 4.5, dmg: 1.25, guns: [5, 7], reloadMul: 0.9, accuracy: 0.08, scale: 1.25, pay: 12 }; // [sail-around] modest bump so the Commodore still outclasses tougher regular AI
+// barrages; never flees. Sinking it drops ×8 the harbor kill pay (= the old ×12 of the old ×2 pay) (holder ×2 applies on pickup, like all earned gold).
+export const HARBOR_BOSS = { every: [180, 300], hp: 4.5, dmg: 1.25, guns: [5, 7], reloadMul: 0.9, accuracy: 0.08, scale: 1.25, pay: 8 }; // [ship-fixes] pay 12 -> 8 with HARBOR_PAY_MUL 2 -> 3: same Commodore Booty // [sail-around] modest bump so the Commodore still outclasses tougher regular AI
 export const harborAiCount = (L) => Math.min(HARBOR_AI.countMax, HARBOR_AI.countBase + Math.floor(Math.max(0, L) * HARBOR_AI.countPerLv));
 export const harborHpScale = (L) => 1 + HARBOR_HP_PER_LV * Math.max(0, L);
 export const HARBOR_HP_BASE = 70;         // AI hull HP at L = 0
 export const HARBOR_KILLS = { base: 40, amp: 10, growth: 1.55 }; // harbor kills to afford tier index t: base + amp·growth^t (exponential-ish top)
 export const harborKills = (t) => HARBOR_KILLS.base + HARBOR_KILLS.amp * Math.pow(HARBOR_KILLS.growth, t);
 export const harborScale = (L) => 1 + HARBOR_SCALE_PER_LV * Math.max(0, L);
-export const HARBOR_PAY_MUL = 2;           // [v92] BANKSY: harbor AI payouts doubled (upgrade prices still use HARBOR_GOLD_BASE, unchanged)
+// [ship-fixes t2746u] BANKSY 10:12 AM "only get 37 booty for sinking a ship": 2 -> 3 (+50% per regular harbor AI sink: 10 -> 15 at L 0,
+// 37 -> 56 at L 20, 70 -> 105 at L 44). Upgrade prices still use HARBOR_GOLD_BASE, unchanged, so a mid tier costs ~26 sinks instead of ~39.
+// The Commodore's absolute pay is unchanged (HARBOR_BOSS.pay 12 -> 8). Well inside the server save caps (8 kills / 3000 Booty a minute).
+export const HARBOR_PAY_MUL = 3;           // [v92] BANKSY: harbor AI payouts doubled (upgrade prices still use HARBOR_GOLD_BASE, unchanged)
 export const harborGold = (L) => Math.round(HARBOR_GOLD_BASE * HARBOR_PAY_MUL * harborScale(L));
 // BANKSY: a fresh Battle Royale ship has 380 HP (was 300 until v93's stronger upgrades), so one broadside never sinks it
 //   (best v93 broadside, CANNONS VIII boosted: 8 × 20 × 1.655 × 1.4 = 371). PvP only (Waves unchanged):

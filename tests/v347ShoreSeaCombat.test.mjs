@@ -49,7 +49,8 @@ test('js/main.js: no dual-path b.ex/b.tp; player heat-seek steers true path; hul
   assert.ok(!/BALL_EXIT_T/.test(m), 'BALL_EXIT_T gone');
   assert.ok(!/b\.ex\s*=\s*\{/.test(m), 'no lateral ease fake');
   assert.ok(!/b\.tp\s*\|\|/.test(m), 'drawn = simulated');
-  assert.ok(/BA\.inCone\(dir, dx, dz\)/.test(m) && /BA\.playerAimVelocity\(/.test(m) && /BA\.steerHoriz\(/.test(m));
+  // [ship-fixes t2746u] the player path is now an exact intercept (BA.playerIntercept), no homing; steerHoriz stays for any ball with b.home
+  assert.ok(/BA\.inCone\(dir, dx, dz\)/.test(m) && /BA\.playerIntercept\(/.test(m) && /BA\.steerHoriz\(/.test(m));
   assert.ok(/BA\.hullAimY\(/.test(m) && /BA\.inHullBand\(/.test(m));
   assert.ok(!/aimT/.test(m.slice(m.indexOf('function launchBall'), m.indexOf('function launchBall') + 1500)));
 });

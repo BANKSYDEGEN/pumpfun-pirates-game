@@ -3,6 +3,7 @@
 // Only moves local/controllable hulls — never another player's authoritative remote ship.
 // Moored / berthed / nearly-stopped anchored hulls act as heavy/static. No collision damage.
 
+export const SHIP_SPEED_CAP = 28;
 export const COLLIDE = {
   pad: 0.35,           // inflate hull a touch so visual hulls don't interpenetrate
   restitution: 0.28,   // bounce along the contact normal (keep some energy)
@@ -176,8 +177,10 @@ export function resolvePair(a, b, dt, opts = {}) {
     if (wB) b.speed *= 0.92;
   }
 
-  if (wA && Number.isFinite(a.speed)) a.speed = clamp(a.speed, -5, 22);
-  if (wB && Number.isFinite(b.speed)) b.speed = clamp(b.speed, -5, 22);
+  // [ship-fixes t2746u] 22 -> 28 m/s: since v596 (20 kn starter) a maxed Battle Royale / harbor ship tops out at ~26.2 m/s (31.4 kn),
+  // so 22 (26.4 kn) knocked fast upgraded ships down on every hull contact
+  if (wA && Number.isFinite(a.speed)) a.speed = clamp(a.speed, -5, SHIP_SPEED_CAP);
+  if (wB && Number.isFinite(b.speed)) b.speed = clamp(b.speed, -5, SHIP_SPEED_CAP);
   a._shipHitT = 0.25;
   b._shipHitT = 0.25;
   return impulse || (pen > 0 ? 0.01 : 0);

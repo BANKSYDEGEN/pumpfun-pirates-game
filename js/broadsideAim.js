@@ -112,6 +112,58 @@ export function playerAimVelocity(p, dir, ax, az, ty = 2, maxDev = AIM.maxDev, m
   };
 }
 
+// [ship-fixes t2746u] BANKSY 10:12 AM "the aim assist won't hit a ship", 10:14 AM "forget the aim for the hull of always gonna miss".
+// Why it missed: playerAimVelocity aimed the gun at the lead point and THEN the ship's own forward way (vel0) was added to the ball,
+// so every ball landed vel0 × flight-time ahead of where it was aimed (16.7 m/s at the 20 kn starter: ~20 m at 55 m range), the lead
+// time ignored that drift and the ripple delay, and the launch clamp could not swing far enough aft to make up for it at speed.
+// The fix is an exact intercept: the ball flies at the muzzle speed H (+ your ship's way) and meets the target's CENTRE MASS where
+// the target will be, solved from both velocities. Natural gravity arc, no in-flight homing; the clamp is on the WORLD path the
+// ball actually takes (what you see), so it still leaves roughly abeam.
+// maxDev: how far off the gunports the ball's WORLD path may leave (0.75 ≈ 43°, the same as the lock cone, so a locked ship can be hit;
+// the old 0.40 launch budget + homing curve reached about as far, but bent the ball in the air).
+export const ASSIST = Object.freeze({ maxDev: 0.75, fanFrac: 0.3, aimBelowTop: 0.9, aimMin: 1.0 });
+
+// Centre-mass aim height: deck height (the middle of the whole-ship hit volume), kept inside the hull/deck hit band.
+export function centerMassY(T) {
+  if (!T) return 1.6;
+  if (Number.isFinite(T.footY)) return T.footY + 0.6; // shore targets: chest height
+  const y0 = Number.isFinite(T.y) ? T.y : 0, ud = T.mesh?.userData || {};
+  const deck = Number.isFinite(T.deckY) ? T.deckY : ud.deckY, depth = Number.isFinite(T.depth) ? T.depth : (ud.depth || 3);
+  const top = hullHitY1(T), want = y0 + (Number.isFinite(deck) ? deck : depth * 0.6);
+  return Math.max(y0 + ASSIST.aimMin, Math.min(want, top - ASSIST.aimBelowTop));
+}
+
+// Smallest t > 0 with |D + w·t| = H·t (D: target − gun, w: target velocity − your ship's way). null if none.
+export function interceptTime(Dx, Dz, wx, wz, H = AIM.H) {
+  const a = wx * wx + wz * wz - H * H, b = 2 * (Dx * wx + Dz * wz), c = Dx * Dx + Dz * Dz;
+  if (c < 1e-9) return 0;
+  if (Math.abs(a) < 1e-9) { const t = -c / b; return t > 0 ? t : null; }
+  const disc = b * b - 4 * a * c; if (disc < 0) return null;
+  const r = Math.sqrt(disc), t1 = (-b - r) / (2 * a), t2 = (-b + r) / (2 * a);
+  const ts = [t1, t2].filter(t => t > 1e-6); return ts.length ? Math.min(...ts) : null;
+}
+
+// Player broadside, one gun: WORLD velocity of the ball (your ship's way included) that meets the target's centre mass.
+// p: muzzle {x,y,z}; dir: broadside normal; T: {x,z,yaw,speed,...}; vel0: your forward way {x,z}; delay: ripple seconds before launch;
+// fan: metres along the TARGET's keel (spreads the volley over its length, never off its ends).
+export function playerIntercept(p, dir, T, vel0, { delay = 0, fan = 0, aimY = centerMassY(T), maxDev = ASSIST.maxDev, minAlong = AIM.minAlong, H = AIM.H, G = AIM.G } = {}) {
+  const ty = T.yaw || 0, ts = T.speed || 0, vtx = Math.sin(ty) * ts, vtz = Math.cos(ty) * ts;
+  const len = T.len || T.mesh?.userData?.hitLen || T.mesh?.userData?.len || 16, f = Math.max(-ASSIST.fanFrac * len, Math.min(ASSIST.fanFrac * len, fan));
+  const gx = p.x + (vel0?.x || 0) * delay, gz = p.z + (vel0?.z || 0) * delay; // where the gun is when the ball leaves
+  const cx = T.x + vtx * delay + Math.sin(ty) * f, cz = T.z + vtz * delay + Math.cos(ty) * f; // the aim spot then
+  const Dx = cx - gx, Dz = cz - gz;
+  let t = interceptTime(Dx, Dz, vtx - (vel0?.x || 0), vtz - (vel0?.z || 0), H);
+  if (t == null) return null;
+  t = Math.max(0.3, t);
+  let wx = Dx / t + vtx, wz = Dz / t + vtz; // world horizontal velocity: straight from the gun to the meeting point
+  const wl = Math.hypot(wx, wz); if (wl < 1e-6) return null;
+  const hx = wx / wl, hz = wz / wl;
+  if (hx * dir.x + hz * dir.z < minAlong) return null; // too far off the beam: no assist (the plain broadside fires)
+  const want = Math.atan2(dir.x * hz - dir.z * hx, dir.x * hx + dir.z * hz), dev = Math.max(-maxDev, Math.min(maxDev, want));
+  if (dev !== want) { const c = Math.cos(dev), s = Math.sin(dev); wx = (dir.x * c - dir.z * s) * wl; wz = (dir.x * s + dir.z * c) * wl; }
+  return { x: wx, y: (aimY - p.y) / t + 0.5 * G * t, z: wz, t, ax: gx + wx * t, az: gz + wz * t, ty: aimY, launchDev: dev, clamped: dev !== want };
+}
+
 // Limited-rate horizontal steer toward (tx,tz). Preserves horizontal speed; gravity is caller's job.
 export function steerHoriz(vx, vz, px, pz, tx, tz, rate, dt) {
   const speed = Math.hypot(vx, vz);
@@ -129,7 +181,8 @@ export function steerHoriz(vx, vz, px, pz, tx, tz, rate, dt) {
 
 // Pure hit-rate harness: simulate one gun's ball against a box target. `mode`:
 //   'v567' — parallel fireLine + no home (live before this change)
-//   'heat' — playerAimVelocity + in-flight steerHoriz
+//   'heat' — playerAimVelocity + in-flight steerHoriz (v568-v597)
+//   'intercept' — playerIntercept: exact lead from both velocities, centre-mass height, no homing (live after t2746u)
 export function simulateHit({
   mode = 'heat',
   yaw = 0, side = 'port', speed = 8, turn = 0, turnRate = 0.62, preTurn = 0,
@@ -168,6 +221,11 @@ export function simulateHit({
     if (L.d < 4) return { hit: false, reason: 'line-short', flight: 0 };
     const g = gunVelocity(gp, x, z, L, aimY);
     vx = g.x + vel0.x; vy = g.y; vz = g.z + vel0.z;
+  } else if (mode === 'intercept') {
+    aimY = centerMassY(T);
+    const g = playerIntercept(gp, dir, T, vel0, { aimY, maxDev: maxDev ?? ASSIST.maxDev });
+    if (!g) return { hit: false, reason: 'rejected-along', flight: 0 };
+    vx = g.x; vy = g.y; vz = g.z; aimX = g.ax; aimZ = g.az;
   } else {
     const g = playerAimVelocity(gp, dir, lp.x, lp.z, aimY, useDev);
     if (!g) return { hit: false, reason: 'rejected-along', flight: 0 };

@@ -528,9 +528,10 @@ function fire(shooter, side, target = null, accuracy = 1) {
     const err = (1 - accuracy) * 14;
     aimPt.x += rnd(-err, err); aimPt.z += rnd(-err, err);
     // [cannon-snake t2436u]: player aims at HULL (deck/waterline), never masts/sails. Shore footY kept via hullAimY.
-    aimY = BA.hullAimY(target);
+    // [ship-fixes t2746u] the player now aims at the target's CENTRE MASS (deck height, BA.centerMassY), solved per gun below
+    aimY = isPlayer ? BA.centerMassY(target) : BA.hullAimY(target);
     if (isPlayer) {
-      playerHome = { x: aimPt.x, z: aimPt.z, y: aimY }; // fixed predicted HULL point
+      playerHome = { x: aimPt.x, z: aimPt.z, y: aimY, T: target }; // the target itself: each gun solves its own intercept
     } else {
       // [v348] AI: ship way on the ball + aim pulled back by that drift; parallel fireLine
       const tf = Math.hypot(aimPt.x - shooter.x, aimPt.z - shooter.z) / H;
@@ -544,16 +545,12 @@ function fire(shooter, side, target = null, accuracy = 1) {
     const p = new THREE.Vector3(); m.getWorldPosition(p);
     let v = null, home = null;
     if (isPlayer && playerHome) {
-      // per-gun predicted point with a light along-hull fan (pre-v347), then clamp leave-angle to the broadside
+      // [ship-fixes t2746u] exact intercept per gun: your ship's way + the target's way + the ripple delay, onto its centre mass, spread
+      // a little along ITS keel. The returned velocity already carries vel0 (that was the miss: vel0 was added on top of the aim).
+      // Natural gravity arc, no homing (home stays null; updateBalls' steer only runs for a ball that has one).
       const fan = (i - (muzzles.length - 1) / 2) * Math.min(1.2, 8.4 / Math.max(1, muzzles.length - 1));
-      const fw = Math.sin(shooter.yaw), fz = Math.cos(shooter.yaw);
-      const ax = playerHome.x + fw * fan, az = playerHome.z + fz * fan;
-      const g = BA.playerAimVelocity(p, dir, ax, az, playerHome.y, BA.AIM.maxDev);
-      if (g) {
-        v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z);
-        range = Math.hypot(ax - shooter.x, az - shooter.z);
-        home = { x: g.ax, z: g.az, until: BA.AIM.homeT, rate: BA.AIM.homeRate, ft: 0 };
-      }
+      const g = BA.playerIntercept(p, dir, playerHome.T, vel0, { delay: i * gap, fan, aimY: playerHome.y });
+      if (g) { v = new THREE.Vector3(g.x, g.y, g.z); range = Math.hypot(g.ax - shooter.x, g.az - shooter.z); }
     } else if (line) {
       const g = BA.gunVelocity(p, shooter.x, shooter.z, line, aimY, H);
       v = new THREE.Vector3(g.x + vel0.x, g.y, g.z + vel0.z); range = line.d;
