@@ -836,11 +836,12 @@ function updateBalls(dt) {
 const keys = {};
 const held = { left: false, right: false };
 const shipLocked = () => !!(dock?.onFoot || dock?.canoeing || dock?.inHull || ADM.frozen); // [admin-menu] + frozen by the owner // [v314]/[v333] canoe / walker / hull own the input
+const seaMapOpen = () => typeof document !== 'undefined' && document.documentElement.classList.contains('isle-map-open'); // [sea-map] full map open at sea: no steer / sail / anchor / fire from the keyboard
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys[e.code] = true;
   if (game.state === 'playing') {
-    const helmOff = shipLocked(); // [v314] in the canoe / ashore: no stray sail / fire / anchor input to the big ship
+    const helmOff = shipLocked() || seaMapOpen(); // [v314] in the canoe / ashore: no stray sail / fire / anchor input to the big ship // [sea-map] nor while the full map is open
     if (!helmOff && isKey('sailUp', e.code)) setSail(player.sail + 1);
     if (!helmOff && isKey('sailDown', e.code)) setSail(player.sail - 1);
     if (!helmOff && !anyModalOpen?.() && !document.documentElement.classList.contains('pfp-tedit') && isKey('firePort', e.code)) playerFire('port');
@@ -1524,7 +1525,7 @@ function frame() {
     // player
     if (game.state === 'playing' && player.alive) {
       const helmOff = shipLocked(); // [v314] never steer / sail the big ship from the canoe or the beach
-      const turn = helmOff ? 0 : ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
+      const turn = helmOff || seaMapOpen() ? 0 : ((heldKey('left', keys) || held.left) ? 1 : 0) - ((heldKey('right', keys) || held.right) ? 1 : 0);
       moveShip(player, dt, player.anchor || helmOff ? 0 : player.sail * SAIL_SPEED * (player.speedMul || 1) * (ADM.noclip ? 1.6 * ADM.noclipMul : 1), turn); // [admin-menu] NOCLIP: boosted glide // [Raul] ship upgrades: sails
       const cdWas = player.cd.port + player.cd.star; // [Raul] sound upgrades: reload-ready ratchet (GUN CREW)
       for (const sd of ['port', 'star']) { const was = player.cd[sd]; player.cd[sd] = Math.max(0, was - dt); if (was > 0 && player.cd[sd] === 0 && cdWas > 0) sfx.reloadReady(); }

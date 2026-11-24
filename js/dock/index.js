@@ -895,7 +895,7 @@ export async function createDock(ctx) {
     } catch (e) { console.warn('[resume] apply', e); return false; } },
     ladders, /* [dock-ladders] */ dockAt: (id) => { const b = layout.berths.find(q => q.id === id); if (b) dockNow(b); }, goAshore, goAboard, setSail, enterHull, leaveHull, weighAnchor, interact, zipline: zip, /* [Emerly zipline] */  openBoard, closeBoard, treasure, houses, get inventory() { return inventory; },
     // [v103] main.js drawRadar: on foot, draw the island map instead (true = drawn)
-    drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!ok); updateMapLocHud(); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar
+    drawMinimap: (ctx, W, st = {}) => { mapSt = st; if (on && !onFoot && !imap.ready) imap.bakeRows(4); const ok = on && onFoot && imap.drawLocal(ctx, W, minimapState(st), walker.w.camYaw); radarEl?.classList.toggle('isle-tap', !!(ok || (on && !onFoot && game.state === 'playing'))); updateMapLocHud(); return ok; }, // [v108] on foot only (local, heading-up); on the ship = the original harbor radar // [sea-map] BANKSY t2739u: tap / click the ship radar for the full map at sea too
     islandMap: imap, openIsleMap,
     // [t1726u] ZERO Safe Zone / Safe Harbor visuals on the at-sea ship radar
     radarZones: () => false,

@@ -530,7 +530,7 @@ export function createIslandMap({ world, layout, low, islands = null, paperSheet
     c.fillStyle = '#fff'; c.font = `bold ${Math.round(11 * dpr)}px system-ui`; c.textAlign = 'left'; c.fillText(barM + ' m', 14 * dpr, Hc - 24 * dpr);
     if (MAPZOOM_ON && z > 1.02) { c.fillStyle = 'rgba(255,205,119,.85)'; c.font = `bold ${Math.round(12 * dpr)}px system-ui`; c.textAlign = 'right'; c.fillText(z.toFixed(1) + '×', Wc - 14 * dpr, Hc - 14 * dpr); }
     // [map-streets] YOU + CURSOR district · street callouts
-    { const me = st.me ? toF(st.me.x, st.me.z) : null;
+    { const who = st.me || st.ship || null, me = who ? toF(who.x, who.z) : null; // [sea-map] at sea: your ship's location
       const you = me ? locatePoint(me[0], me[1], { onFoot: !!st.me?.foot }) : null;
       if (locEl) { const t = you ? ('📍 YOUR LOCATION: ' + you.callout) : ''; if (locEl.textContent !== t) locEl.textContent = t; }
       if (curEl) { const cur = (curFX != null) ? locatePoint(curFX, curFZ, { onFoot: true }) : null; const t = cur ? ('CURSOR: ' + cur.callout) : ''; if (curEl.textContent !== t) curEl.textContent = t; } }
