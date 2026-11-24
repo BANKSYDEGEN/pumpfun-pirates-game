@@ -1353,6 +1353,81 @@ html:has(#pause:not(.hidden)) #bt-atk { visibility: hidden !important; pointer-e
   #hud-tr #hb-hub-btn { font-size: 13px; padding: 3px 5px; gap: 3px; }
   #hud-tr #hb-hub-btn .hb-ico { font-size: 13px; }
 }
+
+/* [mobile-hud] BANKSY t2748u: settings sits LEFT of the minimap (minimap stays flush
+   top-right, no 44px gutter). THE COMMODORE bar is centred with a max width and, on
+   phones upright, stacked below the HUD row so it never covers the server pill,
+   the radar, or the player card. Landscape keeps the bar in the middle gap. */
+#hud-tr {
+  right: calc(10px + var(--safe-r, 0px)) !important;
+  display: grid !important;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto auto auto;
+  justify-items: end;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 6px;
+}
+#hud-icons {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
+  max-width: 36px !important;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  pointer-events: auto;
+  margin: 0;
+  z-index: 8;
+}
+#hud-icons > #btn-pause { width: 36px; height: 36px; font-size: 20px; }
+#hud-tr #radar {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: 0;
+  justify-self: end;
+}
+#hud-tr #hb-hub-btn {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
+}
+#hud-tr #map-loc-hud,
+#hud-tr #enemies-left {
+  grid-column: 2;
+  justify-self: end;
+}
+#pvp-boss-bar {
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 70vw);
+  max-width: calc(100vw - 24px - var(--safe-l, 0px) - var(--safe-r, 0px));
+}
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #hud-tr { right: calc(8px + var(--safe-r, 0px)) !important; column-gap: 6px; row-gap: 5px; }
+  #hud-icons { max-width: 32px !important; }
+  #hud-icons > #btn-pause { width: 32px; height: 32px; font-size: 18px; }
+  #pvp-boss-bar {
+    top: calc(var(--safe-t, env(safe-area-inset-top, 0px)) + 160px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(300px, calc(100vw - 24px - var(--safe-l, 0px) - var(--safe-r, 0px)));
+    font-size: 11px;
+  }
+}
+@media (orientation: portrait) and (max-width: 380px) {
+  #hud-icons > #btn-pause { width: 30px; height: 30px; font-size: 17px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  #pvp-boss-bar {
+    top: calc(var(--safe-t, env(safe-area-inset-top, 0px)) + 52px);
+    width: min(360px, calc(100vw - 320px - var(--safe-l, 0px) - var(--safe-r, 0px)));
+  }
+}
 /* Island chart only: translucent navy overlays, warm ink, restrained antique gold. */
 #isle-map { --im-gold:#d9b878; --im-ink:#eee6d6; --im-muted:#aeb9bd; --im-edge:rgba(217,184,120,.24); --im-glass:rgba(12,23,31,.82); display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; padding:calc(var(--safe-t) + 12px) calc(var(--safe-r) + 14px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 14px); gap:10px; background:#08151d; color:var(--im-ink); }
 #isle-map > canvas { grid-column:1; grid-row:2; width:100%; height:100%; min-width:0; min-height:0; border-radius:16px; box-shadow:0 0 0 1px var(--im-edge),0 14px 45px #0005; }
