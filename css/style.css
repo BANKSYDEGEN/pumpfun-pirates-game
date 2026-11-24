@@ -1570,6 +1570,8 @@ html.isle-map-open #rotate { display: none !important; }
   }
   html.isle-map-open #soc-panel .sp-list { max-height: min(40vh, 360px); flex: 1 1 auto; }
   html.isle-map-open #soc-panel.fold { max-height: none; }
+  /* Sit the ☰ buildings tab fully below the ON THIS SERVER drop-down, not half-covered by it. */
+  html.isle-map-open #isle-map .im-building-key { margin-top: 60px; }
   #isle-map .im-legend-toggle {
     display: flex;
     align-items: center;

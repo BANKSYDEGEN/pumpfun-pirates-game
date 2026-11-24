@@ -57,3 +57,7 @@ test('legend is a details drop-down on phones and stays an always-open row on de
   assert.match(block, /@media \(max-width: 700px\)[\s\S]*#isle-map \.im-legend-toggle \{[\s\S]*display: flex/);
   assert.match(block, /#isle-map \.im-key \{ max-height: none; font-size: 13px/);
 });
+
+test('on phones the ☰ buildings tab sits fully below the ON THIS SERVER drop-down', () => {
+  assert.match(block, /html\.isle-map-open #isle-map \.im-building-key \{ margin-top: 60px/);
+});
