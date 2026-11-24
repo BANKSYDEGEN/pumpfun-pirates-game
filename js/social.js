@@ -66,9 +66,19 @@ export function createSocial(ctx) {
   function ensurePanel() {
     if (panel || !doc) return; css();
     panel = doc.createElement('div'); panel.id = 'soc-panel'; panel.hidden = true; panel.classList.toggle('fold', fold);
-    panel.innerHTML = `<div class="sp-h"><b>👥 ON THIS SERVER <span class="sp-c"></span></b><button type="button" class="sp-fold" aria-label="Fold player list">▾</button></div><div class="sp-list"></div><div class="sp-foot">Tap ⚓ SQUAD to sail together · 🔇 hides their chat &amp; voice</div>`;
+    panel.innerHTML = `<div class="sp-h"><b>👥 ON THIS SERVER <span class="sp-c"></span></b><button type="button" class="sp-fold" aria-label="Open player list" aria-expanded="false">▾</button></div><div class="sp-list"></div><div class="sp-foot">Tap ⚓ SQUAD to sail together · 🔇 hides their chat &amp; voice</div>`;
     doc.body.appendChild(panel); stop(panel);
-    panel.querySelector('.sp-fold').onclick = (e) => { e.stopPropagation(); fold = !fold; ls.set('pfp_soc_fold', fold ? '1' : '0'); panel.classList.toggle('fold', fold); sig = ''; draw(); };
+    const isPhoneMap = () => typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches;
+    const syncFoldUi = () => {
+      if (!panel) return;
+      panel.classList.toggle('fold', fold);
+      const b = panel.querySelector('.sp-fold');
+      if (b) { b.textContent = fold ? '▾' : '▴'; b.setAttribute('aria-expanded', String(!fold)); b.setAttribute('aria-label', fold ? 'Open player list' : 'Collapse player list'); }
+    };
+    const setFold = (v, persist = true) => { fold = !!v; syncFoldUi(); if (persist) ls.set('pfp_soc_fold', fold ? '1' : '0'); sig = ''; draw(); };
+    panel._setFold = setFold; panel._isPhoneMap = isPhoneMap; // used when the map first opens
+    panel.querySelector('.sp-h').addEventListener('click', (e) => { e.stopPropagation(); setFold(!fold); });
+    syncFoldUi();
     panel.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return; e.stopPropagation();
       const a = b.dataset.a, id = b.dataset.id, n = cleanN(b.dataset.n);
@@ -216,7 +226,7 @@ export function createSocial(ctx) {
   let vt = 0;
   function loop() {
     const open = !!doc?.documentElement.classList.contains('isle-map-open');
-    if (open) { ensurePanel(); if (panel.hidden) { panel.hidden = false; sig = ''; } draw(); }
+    if (open) { ensurePanel(); if (panel.hidden) { panel.hidden = false; sig = ''; if (panel._isPhoneMap?.()) panel._setFold?.(true, false); else panel._setFold?.(fold, false); } draw(); }
     else if (panel && !panel.hidden) panel.hidden = true;
     const now = performance.now(); for (const [id, t] of sentAt) if (now - t > 30000) sentAt.delete(id);
     if (now - vt > 1000) { vt = now; voice.tick(); }
