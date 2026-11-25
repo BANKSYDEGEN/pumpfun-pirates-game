@@ -1,7 +1,7 @@
 // PUMPFUN PIRATES service worker: caches the app shell + pinned three.js CDN modules for offline play.
 // Bump VERSION whenever you change any file so phones pick up the update.
-const VERSION = 'pfp-v600'; // [v600] phone HUD: settings gear back in the top-right corner; SEAS CROWDED · retry and NO FIRING stack below PLAY · HARBOR so they no longer overlap
-// prev: const VERSION = 'pfp-v599'; // [v599] phone HUD: ⚙ centred, rotate hint below the HUD row, ON THIS SERVER is a top drop-down so the island map fills the screen, ☰ tab sits below that bar; quieter ocean ambience (OCEAN_AMB 0.55)
+const VERSION = 'pfp-v601'; // [v601] settings gear sits next to INVENTORY; minimap flush in the top-right corner
+// prev: const VERSION = 'pfp-v600'; // [v600] phone HUD: settings gear back in the top-right corner; SEAS CROWDED · retry and NO FIRING stack below PLAY · HARBOR so they no longer overlap
 // prev: // [v178] Raul's shop items 2 (beards, earrings, gold teeth, boots, capes, pets, special pegs, ship flags + figureheads); [v177] Timothy's shared material library + gate junction; [v176] load fix, no SAFE HARBOR pill, moored ships ride higher
 const SHELL = [
   "./",

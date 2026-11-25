@@ -8,9 +8,12 @@ const v341 = css.slice(css.indexOf('[v341] BANKSY t1808u'));
 
 test('sw.js is >= pfp-v341', () => { assert.ok(+(src('sw.js').match(/const VERSION = 'pfp-v(\d+)';/) || [])[1] >= 341); });
 
-test('#hud-icons stays inside #hud-tr (every hide rule still applies) but is fixed to the top centre', () => {
+test('#hud-icons hide rules still apply; v341 still parks a copy of the top-centre CSS', () => {
+  const row = html.slice(html.indexOf('id="hud-inv-row"'), html.indexOf('id="hud-top"'));
+  assert.match(row, /id="hud-icons"/); assert.match(row, /id="btn-sound"/); assert.match(row, /id="btn-pause"/);
   const tr = html.slice(html.indexOf('<div id="hud-tr">'), html.indexOf('<div id="controls">'));
-  assert.match(tr, /id="hud-icons"/); assert.match(tr, /id="btn-sound"/); assert.match(tr, /id="radar"/);
+  assert.match(tr, /id="radar"/);
+  assert.doesNotMatch(tr, /id="hud-icons"/);
   assert.ok(v341.length > 200, 'v341 block present');
   assert.match(v341, /#hud-icons \{ position: fixed; left: 50%;[^}]*top: calc\(10px \+ var\(--safe-t, 0px\)\); transform: translateX\(-50%\)/);
   assert.match(v341, /html\.hud-hide #hud-icons \{ visibility: hidden !important/);

@@ -9,29 +9,22 @@ const css = src('css/style.css');
 const marker = '/* [gear-corner] BANKSY t2755u';
 const block = css.slice(css.indexOf(marker));
 
-test('gear-corner block is present and is the last #hud-icons / #hud-tr-right override', () => {
+test('gear-corner block is still present; t2757u is the last #hud-icons / #hud-tr-right override', () => {
   assert.ok(block.length > 400, 't2755u CSS block missing');
   assert.ok(css.lastIndexOf(marker) > css.lastIndexOf('/* [mobile-hud] BANKSY t2748u'), 'corner block must follow the v598 left-of-minimap rules');
-  assert.ok(css.lastIndexOf(marker) > css.lastIndexOf('/* [mobile-hud] BANKSY t2749u'), 'corner block must follow v599 glyph-centering');
+  assert.ok(css.lastIndexOf('/* [gear-inv] BANKSY t2757u') > css.lastIndexOf(marker), 'gear-inv block must follow the corner rules');
   const lastIcons = [...css.matchAll(/#hud-icons \{[^}]*position:\s*([^;]+);/gs)].at(-1);
   assert.ok(lastIcons, 'no #hud-icons position rule');
-  assert.match(lastIcons[1], /fixed\s*!important/);
-  const lastRight = [...css.matchAll(/#hud-icons \{[^}]*right:\s*([^;]+);/gs)].at(-1);
-  assert.ok(lastRight, 'no #hud-icons right rule');
-  assert.match(lastRight[1], /6px \+ var\(--safe-r/);
+  assert.match(lastIcons[1], /relative\s*!important/);
   const lastTrRight = [...css.matchAll(/#hud-tr \{[^}]*right: calc\(([^)]+)\)/g)].at(-1);
   assert.ok(lastTrRight, 'no #hud-tr right rule');
-  // last (narrow-phone) gutter is 6 + 30 + 6 + safe-r; earlier rules in the same
-  // block use 50px (desktop) and 44px (phone). None of them may be the flush 8px.
-  assert.doesNotMatch(lastTrRight[1], /^8px \+ var\(--safe-r/);
-  assert.match(lastTrRight[1], /var\(--safe-r/);
+  // flush top-right on phones: 8px + safe-r (no 44/50px corner gutter)
+  assert.match(lastTrRight[1], /^8px \+ var\(--safe-r/);
 });
 
-test('settings is position:fixed in the top-right corner, not in the #hud-tr grid', () => {
+test('t2755u corner rules still exist in their block (overridden later by t2757u)', () => {
   assert.match(block, /#hud-icons \{[^}]*position: fixed !important/s);
-  assert.match(block, /#hud-icons \{[^}]*left: auto !important/s);
   assert.match(block, /#hud-icons \{[^}]*right: calc\(6px \+ var\(--safe-r, 0px\)\) !important/s);
-  assert.match(block, /#hud-icons \{[^}]*transform: none !important/s);
   assert.match(block, /#hud-tr \{[^}]*display: flex !important/s);
   assert.match(block, /#hud-tr \{[^}]*flex-direction: column/s);
   assert.match(block, /#hud-icons > #btn-pause \{ width: 36px; height: 36px/);

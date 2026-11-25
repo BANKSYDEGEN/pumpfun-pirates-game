@@ -18,8 +18,9 @@ test('mobile-hud Commodore-bar block is still present (t2755u later returns the 
   assert.ok(css.lastIndexOf('/* [gear-corner] BANKSY t2755u') > css.lastIndexOf('/* [mobile-hud] BANKSY t2748u'));
 });
 
-test('v598 still lays the radar and harbor pill out in #hud-tr (DOM order unchanged)', () => {
-  assert.match(html, /id="hud-tr"[\s\S]*id="hud-icons"[\s\S]*id="btn-pause"[\s\S]*id="radar"/);
+test('v598 still lays the radar and harbor pill out in #hud-tr', () => {
+  assert.match(html, /id="hud-tr"[\s\S]*id="radar"/);
+  assert.match(html, /id="hud-inv-row"[\s\S]*id="hud-icons"[\s\S]*id="btn-pause"/);
   assert.match(block, /#hud-tr #radar \{[^}]*grid-column: 2/s);
   assert.match(block, /#hud-tr #hb-hub-btn \{/);
 });

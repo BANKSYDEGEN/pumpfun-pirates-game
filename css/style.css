@@ -1696,6 +1696,61 @@ html.isle-map-open #rotate { display: none !important; }
   #pvp-boss-bar { top: calc(var(--safe-t, env(safe-area-inset-top, 0px)) + 220px); }
   #rotate.show { top: calc(var(--safe-t, 0px) + 252px); }
 }
+
+/* [gear-inv] BANKSY t2757u: the ⚙ sits on the INVENTORY row, just to the right
+   of the pill and vertically centred with it, on phones and desktop. The
+   minimap is flush in the top-right corner again (the corner gutter goes).
+   Glyph centering from v599 is unchanged. */
+#hud-inv-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex: none;
+  max-width: 100%;
+  pointer-events: auto;
+}
+#hud-inv-row #tm-btn {
+  margin: 0 !important; /* beat the runtime #hud-tl #tm-btn align-self:flex-start / margin:4px 0 0 */
+  align-self: center !important;
+  flex: none;
+}
+#hud-icons {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  transform: none !important;
+  max-width: none !important;
+  width: auto;
+  margin: 0;
+  z-index: 8;
+  pointer-events: auto;
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+#hud-icons > #btn-pause { width: 36px; height: 36px; font-size: 20px; }
+#hud-tr {
+  right: calc(10px + var(--safe-r, 0px)) !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-end;
+}
+@media (max-width: 760px), (max-height: 500px), (pointer: coarse) {
+  #hud-tr { top: calc(6px + var(--safe-t, 0px)) !important; right: calc(8px + var(--safe-r, 0px)) !important; }
+  #hud-icons > #btn-pause { width: 32px; height: 32px; font-size: 18px; }
+  #hud-inv-row { gap: 6px; }
+}
+@media (orientation: portrait) and (max-width: 600px) {
+  #hud-tl { max-width: min(220px, calc(100vw - 8px - 104px - 16px - var(--safe-l, 0px) - var(--safe-r, 0px))) !important; }
+}
+@media (orientation: portrait) and (max-width: 380px) {
+  #hud-tl { max-width: min(200px, calc(100vw - 8px - 92px - 14px - var(--safe-l, 0px) - var(--safe-r, 0px))) !important; }
+  #hud-icons > #btn-pause { width: 30px; height: 30px; font-size: 17px; }
+}
 @keyframes sc-bob { 0%, 100% { transform: translateX(-50%) rotate(-6deg) translateY(0); } 50% { transform: translateX(-50%) rotate(-3deg) translateY(-5px); } }
 @keyframes sc-dot { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { #seas-crowded .sc-skull, #seas-crowded .sc-dots i { animation: none; } }
